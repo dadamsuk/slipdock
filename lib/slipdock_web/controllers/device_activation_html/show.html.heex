@@ -1,0 +1,81 @@
+<Layouts.app flash={@flash} current_user={@current_user}>
+  <div class="mx-auto max-w-lg px-4 py-10">
+    <h1 class="text-2xl font-semibold tracking-tight">Approve a device</h1>
+    <p class="mt-1 text-sm text-base-content/60">
+      An agent that can't open a browser shows you a code. Type it here to decide
+      whether it may act on your account.
+    </p>
+
+    <form action={~p"/activate"} method="get" class="mt-6 flex gap-2">
+      <input
+        type="text"
+        name="user_code"
+        value={@user_code}
+        placeholder="XXXX-XXXX"
+        autocomplete="off"
+        autocapitalize="characters"
+        spellcheck="false"
+        class="input input-bordered flex-1 font-mono tracking-widest"
+      />
+      <button type="submit" class="btn">Look it up</button>
+    </form>
+
+    <div
+      :if={@user_code && is_nil(@request)}
+      class="mt-6 rounded-xl bg-error/10 p-4 text-sm text-error"
+    >
+      No pending request with that code. Codes last {Slipdock.Accounts.DeviceAuthorization.validity_minutes()} minutes and work once —
+      ask the agent to start again.
+    </div>
+
+    <div
+      :if={@request}
+      class="mt-6 rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
+    >
+      <p class="text-sm text-base-content/60">This is asking for access to your account:</p>
+
+      <dl class="mt-4 space-y-3 text-sm">
+        <div class="flex gap-3">
+          <dt class="w-28 shrink-0 text-base-content/50">What asked</dt>
+          <dd class="font-medium">{@request.client_label || "An unnamed client"}</dd>
+        </div>
+        <div class="flex gap-3">
+          <dt class="w-28 shrink-0 text-base-content/50">It may</dt>
+          <dd>{SlipdockWeb.DeviceActivationHTML.scope_sentence(@request.scope)}</dd>
+        </div>
+        <div :if={@request.scope_boards != []} class="flex gap-3">
+          <dt class="w-28 shrink-0 text-base-content/50">Limited to</dt>
+          <dd>{length(@request.scope_boards)} board(s) it named</dd>
+        </div>
+        <div class="flex gap-3">
+          <dt class="w-28 shrink-0 text-base-content/50">Asked from</dt>
+          <dd class="font-mono text-xs">{@request.client_ip || "unknown"}</dd>
+        </div>
+        <div :if={@request.client_agent} class="flex gap-3">
+          <dt class="w-28 shrink-0 text-base-content/50">Calling itself</dt>
+          <dd class="truncate font-mono text-xs">{@request.client_agent}</dd>
+        </div>
+        <div class="flex gap-3">
+          <dt class="w-28 shrink-0 text-base-content/50">Asked</dt>
+          <dd>{SlipdockWeb.SlipdockComponents.relative_time(@request.inserted_at)}</dd>
+        </div>
+      </dl>
+
+      <p class="mt-4 rounded-lg bg-warning/10 p-3 text-xs">
+        If you didn't just start this yourself, refuse it. Approving gives whatever
+        asked a token that acts as you until you revoke it under Account → API tokens.
+      </p>
+
+      <form action={~p"/activate"} method="post" class="mt-5 flex gap-2">
+        <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+        <input type="hidden" name="user_code" value={@user_code} />
+        <button type="submit" name="decision" value="deny" class="btn btn-ghost flex-1">
+          Refuse
+        </button>
+        <button type="submit" name="decision" value="approve" class="btn btn-primary flex-1">
+          Approve
+        </button>
+      </form>
+    </div>
+  </div>
+</Layouts.app>

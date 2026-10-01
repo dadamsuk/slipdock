@@ -25,11 +25,24 @@ defmodule SlipdockWeb.Router do
     plug :maybe_fetch_api_user
   end
 
+  # The device-authorization endpoints. No token plug at all: these are how a
+  # client gets a token, so requiring one would be circular. What guards them
+  # is the code entropy and the rate limits in the controller.
+  pipeline :api_public do
+    plug :accepts, ["json"]
+  end
+
   scope "/", SlipdockWeb do
     pipe_through :browser
 
     get "/login/:token", SessionController, :create
     delete "/logout", SessionController, :delete
+
+    # Approving an agent's request to sign in. Signed-in people only, and the
+    # decision is a POST with CSRF — never a GET, so a link cannot approve
+    # itself when opened.
+    get "/activate", DeviceActivationController, :show
+    post "/activate", DeviceActivationController, :decide
 
     live_session :public,
       on_mount: [
@@ -157,6 +170,13 @@ defmodule SlipdockWeb.Router do
       live "/boards/:id/prioritise/settings", BoardLive.Show, :prioritise_settings
       live "/boards/:id/prioritise/automations", BoardLive.Show, :prioritise_automations
     end
+  end
+
+  scope "/api", SlipdockWeb.API do
+    pipe_through :api_public
+
+    post "/auth/device", DeviceController, :create
+    post "/auth/device/token", DeviceController, :token
   end
 
   scope "/api", SlipdockWeb.API do
