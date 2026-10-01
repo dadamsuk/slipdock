@@ -5,10 +5,10 @@ defmodule SlipdockCLI do
   alias SlipdockCLI.Render
 
   @help """
-  kanban — read and write cards on your Slipdock boards
+  slipdock — read and write cards on your Slipdock boards
 
   USAGE
-    kanban <command> [args] [--json] [--url URL]
+    slipdock <command> [args] [--json] [--url URL]
 
   START HERE
     guide                               how to use these boards as a work tracker, from the server
@@ -123,7 +123,7 @@ defmodule SlipdockCLI do
                                         "this page is *the* spec for that"
     page wanted <board>                 pages linked to but never written — the wiki's backlog
     page resolve <board> <title...>     is there a page for this, and what do I write?
-    page query-help                     the grammar a ```kanban block is written in
+    page query-help                     the grammar a ```slipdock block is written in
     page query <board> --body -         try a block without writing it anywhere
     page place <page> <column> [--before REF]
                                         put the page in one of its board's lists, so it sits
@@ -394,7 +394,7 @@ defmodule SlipdockCLI do
   defp run("guide", [], o), do: HTTP.get("/guide") |> out(o, &IO.puts(&1["guide"]))
 
   # Semantic search. Everything after the command is the query, so it needs no
-  # quoting: `kanban search what did we decide about refunds`.
+  # quoting: `slipdock search what did we decide about refunds`.
   defp run("search", words, o) when words != [] do
     HTTP.get("/search",
       q: Enum.join(words, " "),
@@ -424,7 +424,7 @@ defmodule SlipdockCLI do
 
   defp run("unsave", [], o) do
     case o[:id] do
-      nil -> fail("unsave needs the query's words, or --id N (see `kanban saved`)")
+      nil -> fail("unsave needs the query's words, or --id N (see `slipdock saved`)")
       id -> HTTP.delete("/saved-queries/#{HTTP.seg(id)}") |> out(o, &Render.saved_queries/1)
     end
   end
@@ -587,7 +587,7 @@ defmodule SlipdockCLI do
         |> out(o, fn r -> IO.puts("dismissed #{r["dismissed"]} alert(s)") end)
 
       ids == [] ->
-        fail("pass alert ids (see `kanban alerts`) or --all")
+        fail("pass alert ids (see `slipdock alerts`) or --all")
 
       true ->
         Enum.each(ids, fn id ->
@@ -611,7 +611,7 @@ defmodule SlipdockCLI do
           %{"text" => Enum.join(words, " ")}
 
         true ->
-          fail("describe the rule in words, or pass --spec (see `kanban automation-help`)")
+          fail("describe the rule in words, or pass --spec (see `slipdock automation-help`)")
       end
 
     HTTP.post("/boards/#{enc(ref)}/automations", body)
@@ -718,14 +718,14 @@ defmodule SlipdockCLI do
   defp run("folder", _args, _o),
     do:
       fail(
-        "usage: kanban folder ls BOARD | new BOARD NAME [--parent F] | mv BOARD F --parent G|--root|--name N | rm BOARD F [--purge]"
+        "usage: slipdock folder ls BOARD | new BOARD NAME [--parent F] | mv BOARD F --parent G|--root|--name N | rm BOARD F [--purge]"
       )
 
   # Every board's wiki at once: what the Wiki view on the web shows.
   defp run("wiki", [], o),
     do: HTTP.get("/wiki") |> out(o, &Render.wiki(&1["boards"]))
 
-  defp run("wiki", _args, _o), do: fail("usage: kanban wiki")
+  defp run("wiki", _args, _o), do: fail("usage: slipdock wiki")
 
   defp run("page", ["ls", ref], o) do
     HTTP.get("/boards/#{enc(ref)}/pages",
@@ -1079,7 +1079,7 @@ defmodule SlipdockCLI do
   end
 
   defp run("page", ["revert", ref], o) do
-    rev = o[:rev] || fail("which version? pass --rev N (see `kanban page history`)")
+    rev = o[:rev] || fail("which version? pass --rev N (see `slipdock page history`)")
 
     HTTP.post(
       "/pages/#{enc(ref)}/revert",
@@ -1137,7 +1137,7 @@ defmodule SlipdockCLI do
           cond do
             not File.exists?(local) -> "not installed"
             skill_current?(dir, skill) -> "current"
-            true -> "behind — run `kanban skills install`"
+            true -> "behind — run `slipdock skills install`"
           end
 
         [skill["name"], skill["sha"], state]
@@ -1149,12 +1149,12 @@ defmodule SlipdockCLI do
   end
 
   defp run("skills", _args, _o),
-    do: fail("usage: kanban skills | skills install [--dir D] | skills check")
+    do: fail("usage: slipdock skills | skills install [--dir D] | skills check")
 
   defp run("page", _args, _o),
     do:
       fail(
-        "usage: kanban page ls|tree|read|new|edit|file|mv|rm|restore|history|diff|revert (see --help)"
+        "usage: slipdock page ls|tree|read|new|edit|file|mv|rm|restore|history|diff|revert (see --help)"
       )
 
   ## Write --------------------------------------------------------------------
@@ -1398,12 +1398,12 @@ defmodule SlipdockCLI do
             "card ##{id} now has sub-board ##{b["id"]} (#{Enum.map_join(b["columns"], " · ", & &1["name"])})"
           )
 
-          IO.puts(Render.dim("open it with: kanban board #{b["id"]}"))
+          IO.puts(Render.dim("open it with: slipdock board #{b["id"]}"))
         end)
 
       true ->
         fail(
-          "pass --template <name|id> to add subcards (see `kanban templates`) or --off to remove them"
+          "pass --template <name|id> to add subcards (see `slipdock templates`) or --off to remove them"
         )
     end
   end
@@ -1538,7 +1538,7 @@ defmodule SlipdockCLI do
   end
 
   defp run(cmd, _args, _o) do
-    fail("bad usage for '#{cmd}' (or unknown command). Run `kanban --help`.")
+    fail("bad usage for '#{cmd}' (or unknown command). Run `slipdock --help`.")
   end
 
   ## Helpers ------------------------------------------------------------------
@@ -1607,7 +1607,7 @@ defmodule SlipdockCLI do
 
   defp favourite(_, _, _) do
     fail(
-      "usage: kanban fav card <id> | list <board> <column> | view <board> <view> | board <board>"
+      "usage: slipdock fav card <id> | list <board> <column> | view <board> <view> | board <board>"
     )
   end
 
@@ -1851,7 +1851,7 @@ defmodule SlipdockCLI do
 
   defp out({:error, 401, _}, _o, _render) do
     fail(
-      "not signed in. Create an API token under Account in the web UI, then run: kanban auth <token>"
+      "not signed in. Create an API token under Account in the web UI, then run: slipdock auth <token>"
     )
   end
 
@@ -1896,10 +1896,10 @@ defmodule SlipdockCLI do
   defp decode_spec(text) when is_binary(text) do
     case :json.decode(text) do
       %{} = spec -> spec
-      _ -> fail("--spec must be a JSON object (see `kanban automation-help`)")
+      _ -> fail("--spec must be a JSON object (see `slipdock automation-help`)")
     end
   rescue
-    _ -> fail("--spec isn't valid JSON (see `kanban automation-help`)")
+    _ -> fail("--spec isn't valid JSON (see `slipdock automation-help`)")
   end
 
   defp decode_spec(_), do: fail("could not read the spec")
@@ -1933,7 +1933,7 @@ defmodule SlipdockCLI do
         IO.puts("no key of your own; this server has a shared one")
 
       true ->
-        IO.puts("no key — AI features are off for you (kanban ai-key <key>)")
+        IO.puts("no key — AI features are off for you (slipdock ai-key <key>)")
     end
   end
 

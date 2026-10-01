@@ -298,8 +298,8 @@ defmodule SlipdockWeb.AccountLive.Index do
           <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
             <h2 class="text-lg font-semibold">API tokens</h2>
             <p class="text-sm text-base-content/60">
-              For the <code>kanban</code>
-              CLI and scripts. Run <code>kanban auth &lt;token&gt;</code>
+              For the <code>slipdock</code>
+              CLI and scripts. Run <code>slipdock auth &lt;token&gt;</code>
               after creating one.
             </p>
             <div :if={@new_token} class="mt-4 rounded-xl bg-warning/10 p-4 text-sm">

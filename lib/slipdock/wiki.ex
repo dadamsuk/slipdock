@@ -696,7 +696,7 @@ defmodule Slipdock.Wiki do
   @doc """
   A line-by-line diff between two bodies, as
   `[{:eq | :del | :ins, [line]}, ...]` — what the history view renders and
-  what `kanban page diff` prints.
+  what `slipdock page diff` prints.
   """
   def diff(old, new) do
     List.myers_difference(lines(old), lines(new))

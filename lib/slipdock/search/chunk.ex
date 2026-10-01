@@ -259,7 +259,7 @@ defmodule Slipdock.Search.Chunk do
 
   defp plain(body) do
     body
-    |> String.replace(~r/^\s*(```|~~~)kanban.*?^\s*\1\s*$/ms, "")
+    |> String.replace(~r/^\s*(```|~~~)(?:slipdock|kanban).*?^\s*\1\s*$/ms, "")
     |> Markup.to_plain()
   end
 

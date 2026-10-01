@@ -529,7 +529,7 @@ defmodule SlipdockWeb.API.PageController do
   ## The query language -------------------------------------------------------
 
   @doc """
-  The grammar a ```kanban block is written in, as data: the views, the
+  The grammar a ```slipdock block is written in, as data: the views, the
   settings, the filter operators and the fields they may name.
 
   Generated from the code, so it cannot drift from what the parser accepts —
@@ -567,7 +567,7 @@ defmodule SlipdockWeb.API.PageController do
         "text"
       ],
       example: """
-      ```kanban
+      ```slipdock
       view: table
       board: this
       filter: flag=blocked, due < +7d, priority in high|critical
@@ -1128,7 +1128,8 @@ defmodule SlipdockWeb.API.PageController do
   end
 
   # Who is writing, for the revision this save leaves behind. `via` is the
-  # client's own word for itself (the CLI sends `x-kanban-client: cli`), and
+  # client's own word for itself (the CLI sends `x-slipdock-client: cli`; the
+  # pre-rename `x-kanban-client` is still accepted), and
   # `agent` is the name on the token, so history distinguishes two agents
   # sharing one account.
   defp write_opts(conn, params) do
@@ -1142,7 +1143,7 @@ defmodule SlipdockWeb.API.PageController do
   end
 
   defp via(conn) do
-    case get_req_header(conn, "x-kanban-client") do
+    case get_req_header(conn, "x-slipdock-client") ++ get_req_header(conn, "x-kanban-client") do
       [client] -> if client in Slipdock.Wiki.Revision.vias(), do: client, else: "api"
       _ -> "api"
     end

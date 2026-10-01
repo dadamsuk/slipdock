@@ -1,7 +1,7 @@
 defmodule Slipdock.Release do
   @moduledoc """
   The handful of administrative jobs that have to work in a release, where
-  there is no Mix and so no `mix kanban.*` tasks — the Docker image above all.
+  there is no Mix and so no `mix slipdock.*` tasks — the Docker image above all.
 
   The container's entrypoint calls these:
 

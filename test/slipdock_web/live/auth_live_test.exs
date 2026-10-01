@@ -60,7 +60,7 @@ defmodule SlipdockWeb.AuthLiveTest do
 
     path = String.trim(path)
     assert Path.dirname(path) == Application.fetch_env!(:slipdock, :agentic_login_dir)
-    assert Path.basename(path) =~ ~r/^kanban-agentic-login-[\w-]+\.txt$/
+    assert Path.basename(path) =~ ~r/^slipdock-agentic-login-[\w-]+\.txt$/
     refute_email_sent()
 
     link = path |> File.read!() |> String.trim()

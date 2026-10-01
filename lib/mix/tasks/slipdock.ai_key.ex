@@ -44,7 +44,7 @@ defmodule Mix.Tasks.Slipdock.AiKey do
 
       true ->
         Mix.raise(
-          "Usage: mix slipdock.ai_key [<email> <key> | <email> --remove] (mix help kanban.ai_key)"
+          "Usage: mix slipdock.ai_key [<email> <key> | <email> --remove] (mix help slipdock.ai_key)"
         )
     end
   end

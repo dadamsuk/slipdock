@@ -171,7 +171,7 @@ schema. "Fit" is a rough size: S is a day or two, M a week, L longer.
 | Feature | Elsewhere | Here | Fit |
 |---|---|---|---|
 | Insights attached to a card | JPD: text, unfurled link, impact rating, labels, count feeds formulas; Productboard: highlighted note linked with importance, capped per company | Comments and attachments | M. An `insights` table (card, body, url, impact −2..+2 or 0..3, source label, optional customer/company). Card modal tab, a count chip, `insight_count` and `insight_impact` as formula inputs. Capping per source as Productboard does is a one-liner in the aggregate. |
-| Capture channels | JPD Chrome extension, Slack and Teams shortcuts, service-desk intake, API; Productboard email and forms | JSON API and CLI | S. The CLI can gain `kanban insight <card> --url --impact`, and an inbound mail address or a public form is a small controller. A browser extension is out of scope. |
+| Capture channels | JPD Chrome extension, Slack and Teams shortcuts, service-desk intake, API; Productboard email and forms | JSON API and CLI | S. The CLI can gain `slipdock insight <card> --url --impact`, and an inbound mail address or a public form is a small controller. A browser extension is out of scope. |
 | Triage inbox | Linear triage with accept/decline/duplicate/snooze and rotation | An "Inbox" list on a board does most of this | S. A board setting naming an intake list, a "merge into" action that moves insights, links and comments to the target card and archives the source (JPD and Aha! both have merge). |
 | Ideas portal with public voting | Aha!, Productboard, airfocus | None | L. Skip; this is a product of its own. A published read-only view (3.7) plus the form above is the lightweight version. |
 

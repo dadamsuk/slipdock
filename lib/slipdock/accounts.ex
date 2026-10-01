@@ -142,7 +142,7 @@ defmodule Slipdock.Accounts do
          {:ok, user} <- get_or_create_user_by_email(email) do
       dir = Application.get_env(:slipdock, :agentic_login_dir, "/tmp")
       name = Base.url_encode64(:crypto.strong_rand_bytes(12), padding: false)
-      path = Path.join(dir, "kanban-agentic-login-#{name}.txt")
+      path = Path.join(dir, "slipdock-agentic-login-#{name}.txt")
       link = url_fun.(create_magic_token(user))
 
       with :ok <- File.mkdir_p(dir),

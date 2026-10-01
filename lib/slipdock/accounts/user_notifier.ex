@@ -6,7 +6,7 @@ defmodule Slipdock.Accounts.UserNotifier do
   alias Slipdock.Mailer
 
   def deliver_magic_link(user, url) do
-    from = Application.get_env(:slipdock, :mail_from, {"Slipdock", "kanban@localhost"})
+    from = Application.get_env(:slipdock, :mail_from, {"Slipdock", "slipdock@localhost"})
 
     email =
       new()

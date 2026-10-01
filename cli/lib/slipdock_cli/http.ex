@@ -68,7 +68,7 @@ defmodule SlipdockCLI.HTTP do
     url = String.to_charlist(base_url() <> "/api" <> path)
     # Say which client this is. The server records it against wiki edits, so a
     # page's history can tell a shell session from a web one.
-    headers = [{~c"accept", ~c"application/json"}, {~c"x-kanban-client", ~c"cli"}]
+    headers = [{~c"accept", ~c"application/json"}, {~c"x-slipdock-client", ~c"cli"}]
 
     headers =
       case token() do

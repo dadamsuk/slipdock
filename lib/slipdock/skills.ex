@@ -4,14 +4,14 @@ defmodule Slipdock.Skills do
 
   Skills that live only in a repository are skills that drift. These are
   versioned with the code they describe, served by the running server
-  (`GET /api/skills`) and installed by `kanban skills install`, so the copy in
+  (`GET /api/skills`) and installed by `slipdock skills install`, so the copy in
   somebody's `~/.claude/skills` can be checked against the server that
   actually answers the calls.
 
   The division of labour matters as much as the distribution: **a skill says
   when and how to reach for the thing; the running server says what is
   currently true.** Board codes, list names and tag vocabularies stay out of
-  these files and come from `kanban guide`, which generates them per caller.
+  these files and come from `slipdock guide`, which generates them per caller.
   A skill that hardcodes them rots; one that sends the agent to the guide
   first does not.
   """
@@ -23,7 +23,7 @@ defmodule Slipdock.Skills do
   Every skill: its name, the one-line description from its front matter, the
   files it carries, and a sha over all of them.
 
-  The sha is what `kanban skills check` compares, so "is my copy current" is
+  The sha is what `slipdock skills check` compares, so "is my copy current" is
   one request and one comparison rather than a diff of four files.
   """
   def list do

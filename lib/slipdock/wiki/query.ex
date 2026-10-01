@@ -1,9 +1,9 @@
 defmodule Slipdock.Wiki.Query do
   @moduledoc ~S'''
-  A live query written in a page: a fenced ```kanban block, answered when the
+  A live query written in a page: a fenced ```slipdock block, answered when the
   page is **read** rather than when it was written.
 
-      ```kanban
+      ```slipdock
       view: table
       board: this
       filter: flag=blocked, due < +7d, priority in high|critical
@@ -101,7 +101,7 @@ defmodule Slipdock.Wiki.Query do
     |> validate()
   end
 
-  def parse(_), do: {:error, "a kanban block needs some lines in it"}
+  def parse(_), do: {:error, "a slipdock block needs some lines in it"}
 
   defp validate({:ok, %__MODULE__{view: view} = query}) do
     if view in @views,
@@ -772,7 +772,7 @@ defmodule Slipdock.Wiki.Query do
         sort_line(config) ++
         fields_line(config)
 
-    "```kanban\n" <> Enum.join(lines, "\n") <> "\n```\n"
+    "```slipdock\n" <> Enum.join(lines, "\n") <> "\n```\n"
   end
 
   defp block_view("table"), do: "table"

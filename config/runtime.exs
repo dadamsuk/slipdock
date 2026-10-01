@@ -16,32 +16,6 @@ import Config
 #
 # Alternatively, you can use `mix phx.gen.release` to generate a `bin/server`
 # script that automatically sets the env var above.
-# Real email delivery over SMTP, when configured. Otherwise sent mail stays in
-# the in-memory mailbox at /dev/mailbox and the sign-in link is also logged.
-if host = System.get_env("SLIPDOCK_SMTP_HOST") do
-  # Credentials are optional: an IP-authorised relay (e.g. Gmail's
-  # smtp-relay.gmail.com) needs none.
-  auth =
-    case {System.get_env("SLIPDOCK_SMTP_USER"), System.get_env("SLIPDOCK_SMTP_PASSWORD")} do
-      {user, pass} when is_binary(user) and is_binary(pass) ->
-        [username: user, password: pass, auth: :always]
-
-      _ ->
-        [auth: :never]
-    end
-
-  config :slipdock,
-         Slipdock.Mailer,
-         [
-           adapter: Swoosh.Adapters.SMTP,
-           relay: host,
-           port: String.to_integer(System.get_env("SLIPDOCK_SMTP_PORT") || "587"),
-           tls: :if_available,
-           tls_options: [verify: :verify_none],
-           retries: 1
-         ] ++ auth
-end
-
 # The project was renamed from Kanban to Slipdock and its variables went with
 # it. Every old `KANBAN_*` name still works: it fills in the `SLIPDOCK_*` one
 # if that is unset, so an existing .env keeps a server booting. Run on both
@@ -57,7 +31,7 @@ adopt_legacy_env = fn ->
   end
 end
 
-adopt_legacy_env.()
+legacy_from_env = adopt_legacy_env.()
 
 # Secrets may live in a .env file (KEY=value lines) rather than the process
 # environment: SLIPDOCK_ENV_FILE, else .env in the project or its parent
@@ -88,7 +62,7 @@ for path <- env_files, File.regular?(path) do
   end)
 end
 
-legacy_env = adopt_legacy_env.()
+legacy_env = Enum.uniq(legacy_from_env ++ adopt_legacy_env.())
 
 if legacy_env != [] do
   IO.puts(
@@ -97,6 +71,41 @@ if legacy_env != [] do
       "(#{Enum.join(Enum.sort(legacy_env), ", ")}). They have been read as their SLIPDOCK_* " <>
       "equivalents. Rename them in your .env — the fallback goes away in the next release."
   )
+end
+
+# Everything below this line may read the environment. Nothing above it may:
+# the variables are not all in place until the block above has run.
+
+# Real email delivery over SMTP, when configured. Otherwise sent mail stays in
+# the in-memory mailbox at /dev/mailbox and the sign-in link is also logged.
+#
+# Never in `test`: this block reads a .env, and a developer's .env names a real
+# relay, so without the guard a test run would post mail to the internet.
+smtp_host =
+  if config_env() == :test, do: nil, else: System.get_env("SLIPDOCK_SMTP_HOST")
+
+if host = smtp_host do
+  # Credentials are optional: an IP-authorised relay (e.g. Gmail's
+  # smtp-relay.gmail.com) needs none.
+  auth =
+    case {System.get_env("SLIPDOCK_SMTP_USER"), System.get_env("SLIPDOCK_SMTP_PASSWORD")} do
+      {user, pass} when is_binary(user) and is_binary(pass) ->
+        [username: user, password: pass, auth: :always]
+
+      _ ->
+        [auth: :never]
+    end
+
+  config :slipdock,
+         Slipdock.Mailer,
+         [
+           adapter: Swoosh.Adapters.SMTP,
+           relay: host,
+           port: String.to_integer(System.get_env("SLIPDOCK_SMTP_PORT") || "587"),
+           tls: :if_available,
+           tls_options: [verify: :verify_none],
+           retries: 1
+         ] ++ auth
 end
 
 # Keys are per-person now (Account → AI key, stored by `Slipdock.AI.Keys`).

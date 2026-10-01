@@ -174,7 +174,7 @@ setting lives in the URL, so a configured grid can be bookmarked or shared.
   *Update* / *Revert* buttons, and only the delta is added to the URL. Views can
   be renamed and deleted from the same menu.
 
-The grid and saved views are also available over the API and CLI (`kanban swimlanes`, below).
+The grid and saved views are also available over the API and CLI (`slipdock swimlanes`, below).
 
 ## Table
 
@@ -186,7 +186,7 @@ to split the rows into collapsible groups by any attribute, including date
 buckets. List, priority, due date and done are edited in place; the title
 opens the card. The filter menu, search, density and saved views are shared
 with the swimlane view, and a saved view remembers which of the two it was
-made in. `kanban table <board>` prints the same thing in the terminal.
+made in. `slipdock table <board>` prints the same thing in the terminal.
 
 ## Timeline
 
@@ -421,7 +421,7 @@ new tab.
 Attachments are files the board itself holds; web links point at things it
 does not own. On the API they are `urls` on the card (`POST
 /api/cards/:id/urls`, `DELETE /api/cards/:id/urls/:url_id`), and from the CLI
-`kanban weblink <id> <url> [--label TEXT]` and `kanban unweblink <id> <url-id>`.
+`slipdock weblink <id> <url> [--label TEXT]` and `slipdock unweblink <id> <url-id>`.
 
 ## Narrative
 
@@ -490,9 +490,9 @@ Delete is still there for what should really go, and still permanent.
 On the command line:
 
 ```sh
-kanban boards --all                          # archived ones too
-kanban archive-board errands                 # and restore-board to undo
-kanban order-boards qvm-v1-rem errands 3     # your own order
+slipdock boards --all                          # archived ones too
+slipdock archive-board errands                 # and restore-board to undo
+slipdock order-boards qvm-v1-rem errands 3     # your own order
 ```
 
 ## Favourites
@@ -523,7 +523,7 @@ The heart is deliberately not a star — a card already *has* a star, the
 "Starred" flag, which is the board's and everyone's.
 
 They are in the API and the CLI too (`GET /api/favourites`,
-`kanban favourites`), where they are worth reading at the start of an agent's
+`slipdock favourites`), where they are worth reading at the start of an agent's
 session: they say where a person actually works, which a list of boards does
 not.
 
@@ -678,9 +678,9 @@ Every board has a **shortcut key**: one or two characters that reach it under
 is `m`, and the next board wanting `m` gets the next free letter of its own
 name — so unlike the labels above it does not move around as the board fills
 up. Change it under *Shortcut key* in board settings, or with
-`kanban set-board <board> --shortcut K`; clear it to take a fresh one from the
+`slipdock set-board <board> --shortcut K`; clear it to take a fresh one from the
 name. It is in the `shortcut` field of the API and the KEY column of
-`kanban boards`, and it addresses nothing — the board **code** is what names a
+`slipdock boards`, and it addresses nothing — the board **code** is what names a
 board in a URL or on the command line.
 
 ## At the foot of every list
@@ -702,7 +702,7 @@ Each can be turned off per board under **Board settings → At the foot of
 every list**, or from the command line:
 
 ```sh
-kanban set-board qvm-v1-rem --no-add-document   # …and --add-document to put it back
+slipdock set-board qvm-v1-rem --no-add-document   # …and --add-document to put it back
 ```
 
 A board's JSON carries `add: {card, page, document}`, so a client that draws
@@ -717,7 +717,7 @@ Write a description on it and it is a card about the work again, which is the
 honest answer. (Comments don't count: "here's the spec" / "thanks" is what a
 document on a board is for.)
 
-Over the API and the CLI it is `kind=document` on a card listing (`kanban cards
+Over the API and the CLI it is `kind=document` on a card listing (`slipdock cards
 <board> --kind document`) and `kinds=` on a view (`--kind page`, repeatable),
 where all three are counted together.
 
@@ -1271,9 +1271,9 @@ question rather than to change the page. Folders are
 `/api/boards/:board/folders` (GET, POST), `/api/folders/:id` (PATCH, DELETE —
 `?purge=true` takes the pages in it too, owner only; also by any handle at
 `/api/boards/:board/folders/*path`), and `/api/wiki` is
-every board at once. On a shell, `kanban page ls|tree|read|render|new|edit|
+every board at once. On a shell, `slipdock page ls|tree|read|render|new|edit|
 section|append|file|mv|rm|restore|links|pin|wanted|history|diff|revert`, plus
-`kanban wiki` and `kanban folder ls|new|mv|rm [--purge]`.
+`slipdock wiki` and `slipdock folder ls|new|mv|rm [--purge]`.
 
 **Publishing.** A page can be published read-only at `/w/:token`, the way a
 saved view can. Its live queries are answered **when you publish** and the
@@ -1350,7 +1350,7 @@ Receiving an email is awkward for an automated agent driving the app, so the
 sign-in page can also offer an **Agentic Login** button. Enter an email address
 and press it instead of "Email me a sign-in link": the server mints the same
 one-time link but writes it to a fresh, randomly named file
-(`/tmp/kanban-agentic-login-<random>.txt` by default) and shows that filename
+(`/tmp/slipdock-agentic-login-<random>.txt` by default) and shows that filename
 on the page. An agent with shell access to the server then reads the file and
 opens the link it contains. The link works once and expires in 15 minutes, as
 usual; the file is left behind for the agent to delete.
@@ -1381,7 +1381,7 @@ with it. A view grant is the exception that goes the other way — it reaches
 cards through the view and never reaches pages at all.
 
 **API tokens** are created under Account; the CLI stores one with
-`kanban auth <token>`.
+`slipdock auth <token>`.
 
 ## Roadmap features in the API and CLI
 
@@ -1397,7 +1397,7 @@ Endpoints: `/api/boards/:board/fields` (GET, POST; PATCH and DELETE with
 (POST `to`, `kind`; DELETE with `/:link_id`), `/api/cards/:id/urls`
 (POST `url`, `title`; DELETE with `/:url_id`).
 
-CLI: `kanban fields <board>`, `new-field`, `delete-field`, `preset <board>
+CLI: `slipdock fields <board>`, `new-field`, `delete-field`, `preset <board>
 rice|ice|value_effort`, `set <id> key=value…`, `vote <id> <n>`, `status <id>
 on_track|at_risk|off_track [note]`, `link <id> <kind> <card-id>…`, `unlink`,
 `weblink <id> <url> [--label TEXT]`, `unweblink <id> <url-id>…`,
@@ -1563,7 +1563,7 @@ working (claim, comment, flag, complete). The vocabularies and the endpoint
 list in it are generated from the code at request time, and a token earns a
 closing section naming your boards and what each of their lists means.
 `?format=json` returns the same text plus those parts as data, and
-`kanban guide` prints it. Point an agent at it before letting it near a board. Permissions match the UI:
+`slipdock guide` prints it. Point an agent at it before letting it near a board. Permissions match the UI:
 reading needs read access, changing needs edit access, and renaming or
 deleting a board needs its owner. Boards and columns can be referenced by id
 or name, and a board by its code as well — `/api/boards/qvm-v1-rem`.
@@ -1682,13 +1682,13 @@ response holds `rows`, `cols` (with labels and counts), `cells[row][col]`
 `cli/` is a zero-dependency escript that wraps the API. Build and install:
 
 ```sh
-cd cli && mix escript.build && cp kanban ~/.local/bin/
-kanban auth <token>      # from Account → API tokens; stored in ~/.config/kanban/token
-kanban whoami
-kanban ai-key            # your OpenRouter key, masked; `ai-key <key>` sets it,
+cd cli && mix escript.build && cp slipdock ~/.local/bin/
+slipdock auth <token>    # from Account → API tokens; stored in ~/.config/slipdock/token
+slipdock whoami
+slipdock ai-key            # your OpenRouter key, masked; `ai-key <key>` sets it,
                          # `ai-key` alone with OPENROUTER_API_KEY set uploads that,
                          # `ai-key --remove` deletes it. The AI features need it
-kanban guide             # the server's instructions for agents (GET /api/guide)
+slipdock guide             # the server's instructions for agents (GET /api/guide)
 kanban --help
 ```
 
@@ -1696,88 +1696,88 @@ It finds the server via `KANBAN_URL`, else this machine's Tailscale IP on port 4
 and the token via `KANBAN_TOKEN` or the saved file.
 
 ```sh
-kanban swimlanes 1 --rows tag --cols due_date --unit month --open
-kanban save-view 1 Tags by month --rows tag --cols due_date --unit month
-kanban swimlanes 1 --view "Tags by month" --tag bug     # saved view plus an extra filter
-kanban cards 1 --kind document                          # just the files on the board
-kanban table 1 --kind card --kind page                  # cards and placed wiki pages, no files
-kanban views 1 | kanban update-view 1 "Tags by month" --sort title --descending | kanban delete-view 1 "Tags by month"
-kanban table 1 --open --fields id,title,column,due,deps   # table view; --group tag to group rows
-kanban table 1 --fields id,title,assignee,rollup,health    # what each card's subcards roll up to
-kanban swimlanes 1 --rows assignee --cols schedule --unit quarter   # who has what due when, rolled up
-kanban edit 12 --assignee ada@example.com                  # --no-assignee clears it
-kanban move 12 "To Do" --board errands   # to another board, with its subcards and its tags
-kanban blocked-by 12 7 9        # #12 waits for #7 and #9;  --off removes
-kanban blocks 7 12              # same link from the other side
-kanban search what did we decide about refunds       # by meaning, every board, comments included
-kanban search flaky tests --board qvm-v1-rem --limit 5 --full
-kanban search how do retries work --kind pages       # the wiki only; --kind cards for the work
-kanban ask which boards have unfinished critical work    # it searches, then answers
-kanban search-status                                     # is the index built, is anything queued
-kanban saved                                             # the searches and questions you have saved
-kanban save what did we decide about refunds             # --ask saves it as a question instead
-kanban unsave --id 3                                     # or `kanban unsave <the same words>`
-kanban templates
-kanban new-template Sprint --desc "Two weeks" --list Todo --list "Doing:2:amber" --list "Done::emerald"
-kanban new-board Q4 plan --template Sprint
-kanban boards --all             # archived boards too;  --archived for those alone
-kanban boards --sort active     # or name, newest, oldest, cards; default is your own order
-kanban archive-board errands | kanban restore-board errands
-kanban order-boards qvm-v1-rem errands 3     # your own order; boards left out fall to the end
-kanban subboard 12 --template "Bug triage"   # card #12 becomes a board; prints its id
-kanban board <sub-board-id>                  # then use it like any board; --off removes it
-kanban automation-help                       # the triggers, conditions and actions a spec may use
-kanban new-automation 1 --spec '{"trigger":{"type":"card_overdue"},"actions":[{"type":"alert","title":"Overdue: {{card.title}}","severity":"urgent"}]}' --name "Overdue alerts"
-kanban new-automation 1 when a card lands in Done, email ops@example.com   # the server's AI writes the spec
-kanban automations 1 | kanban automation 1 "Overdue alerts"                # list; show one in full
-kanban set-automation 1 3 --off | kanban run-automation 1 3 | kanban delete-automation 1 3
-kanban alerts | kanban dismiss 7 | kanban dismiss --all
-kanban wiki                                  # every board's wiki at once, folders and all
-kanban folder ls qvm-v1-rem                  # one board's filing: folders, then pages
-kanban folder new qvm-v1-rem "Design/Decisions"   # a path makes every level
-kanban folder mv qvm-v1-rem Decisions --name Choices --parent Design   # or --root
-kanban folder rm qvm-v1-rem Choices          # the folder only; nothing filed in it is deleted
-kanban folder rm qvm-v1-rem Choices --purge  # and the pages in it, history and all (owner only)
-kanban page file W-31 --folder "Design/Decisions"   # where it is kept; --no-folder takes it out
-kanban page ls qvm-v1-rem --folder decisions       # or --no-folder for the unfiled
-kanban page ls qvm-v1-rem --q retry           # the board's wiki; --tree for the shape of it
-kanban page read W-31                        # the Markdown source (--json for the hash and the rest)
-kanban page new qvm-v1-rem Retry policy --body - --summary "How retries work" --message "first draft"
-kanban page edit W-31 --body - --base-hash <hash> --message "log: rolled back at 14:05"
-kanban page history W-31 | kanban page diff W-31 --rev 12 | kanban page revert W-31 --rev 12
-kanban page section W-31 Log --append "- 2026-09-29 rolled back at 14:05"   # cannot conflict
-kanban page section W-31 "Deploy/Rollback" --file rollback.md --message "why"
-kanban page render W-31                      # every reference followed, for answering questions
-kanban page links W-31 | kanban page wanted qvm-v1-rem | kanban page pin W-31 --card 412
-kanban writeup 412 --template "Spec template"   # start a page for a card, pinned to it
-kanban page card 412                            # what has been written about a card
-kanban page from qvm-v1-rem "Decision record" --title "Dropping the queue" --set owner=ops
-kanban page make-card W-31 --body - --column "To Do"   # a passage becomes a card, linked both ways
-kanban page query-help                       # the grammar a ```slipdock block is written in
-kanban page query qvm-v1-rem --body -        # try a block before writing it into a page
-kanban page edit W-31 --priority high --flag review --due 2026-10-09 --assignee sam@example.com
-kanban page edit W-31 --percent 40 --color amber --done   # the card facets, on a document
-kanban comment W-31 "needs a worked example"  # comment, check, status, vote, weblink and
-kanban check W-31 "worked example"           # unweblink all take a page code as readily
-kanban status W-31 at_risk "stalled on SRE"  # as a card number
-kanban page place W-31 "In Progress"         # put the doc in a list, beside the work
-kanban page place W-31 Backlog --before 42   # before card #42 (or --before page-7)
-kanban page unplace W-31                     # off the board; it stays in the wiki
-kanban page publish W-31                     # read-only at a public link; --off withdraws it
-kanban page export qvm-v1-rem --dir ~/wiki   # out as .md files, front matter and all
-kanban page import qvm-v1-rem --dir ~/wiki   # and back in; --overwrite replaces rather than skips
-kanban skills | kanban skills install | kanban skills check   # the agent instructions this server ships
-kanban favourites                            # what you keep going back to, with the URL of each
-kanban fav list qvm-v1-rem "In Progress"     # also: fav card 42 | fav view <board> <view> | fav board <board>
-kanban unfav list qvm-v1-rem "In Progress"   # or `fav ... --off`
+slipdock swimlanes 1 --rows tag --cols due_date --unit month --open
+slipdock save-view 1 Tags by month --rows tag --cols due_date --unit month
+slipdock swimlanes 1 --view "Tags by month" --tag bug     # saved view plus an extra filter
+slipdock cards 1 --kind document                          # just the files on the board
+slipdock table 1 --kind card --kind page                  # cards and placed wiki pages, no files
+slipdock views 1 | slipdock update-view 1 "Tags by month" --sort title --descending | slipdock delete-view 1 "Tags by month"
+slipdock table 1 --open --fields id,title,column,due,deps   # table view; --group tag to group rows
+slipdock table 1 --fields id,title,assignee,rollup,health    # what each card's subcards roll up to
+slipdock swimlanes 1 --rows assignee --cols schedule --unit quarter   # who has what due when, rolled up
+slipdock edit 12 --assignee ada@example.com                  # --no-assignee clears it
+slipdock move 12 "To Do" --board errands   # to another board, with its subcards and its tags
+slipdock blocked-by 12 7 9        # #12 waits for #7 and #9;  --off removes
+slipdock blocks 7 12              # same link from the other side
+slipdock search what did we decide about refunds       # by meaning, every board, comments included
+slipdock search flaky tests --board qvm-v1-rem --limit 5 --full
+slipdock search how do retries work --kind pages       # the wiki only; --kind cards for the work
+slipdock ask which boards have unfinished critical work    # it searches, then answers
+slipdock search-status                                     # is the index built, is anything queued
+slipdock saved                                             # the searches and questions you have saved
+slipdock save what did we decide about refunds             # --ask saves it as a question instead
+slipdock unsave --id 3                                     # or `slipdock unsave <the same words>`
+slipdock templates
+slipdock new-template Sprint --desc "Two weeks" --list Todo --list "Doing:2:amber" --list "Done::emerald"
+slipdock new-board Q4 plan --template Sprint
+slipdock boards --all             # archived boards too;  --archived for those alone
+slipdock boards --sort active     # or name, newest, oldest, cards; default is your own order
+slipdock archive-board errands | slipdock restore-board errands
+slipdock order-boards qvm-v1-rem errands 3     # your own order; boards left out fall to the end
+slipdock subboard 12 --template "Bug triage"   # card #12 becomes a board; prints its id
+slipdock board <sub-board-id>                  # then use it like any board; --off removes it
+slipdock automation-help                       # the triggers, conditions and actions a spec may use
+slipdock new-automation 1 --spec '{"trigger":{"type":"card_overdue"},"actions":[{"type":"alert","title":"Overdue: {{card.title}}","severity":"urgent"}]}' --name "Overdue alerts"
+slipdock new-automation 1 when a card lands in Done, email ops@example.com   # the server's AI writes the spec
+slipdock automations 1 | slipdock automation 1 "Overdue alerts"                # list; show one in full
+slipdock set-automation 1 3 --off | slipdock run-automation 1 3 | slipdock delete-automation 1 3
+slipdock alerts | slipdock dismiss 7 | slipdock dismiss --all
+slipdock wiki                                  # every board's wiki at once, folders and all
+slipdock folder ls qvm-v1-rem                  # one board's filing: folders, then pages
+slipdock folder new qvm-v1-rem "Design/Decisions"   # a path makes every level
+slipdock folder mv qvm-v1-rem Decisions --name Choices --parent Design   # or --root
+slipdock folder rm qvm-v1-rem Choices          # the folder only; nothing filed in it is deleted
+slipdock folder rm qvm-v1-rem Choices --purge  # and the pages in it, history and all (owner only)
+slipdock page file W-31 --folder "Design/Decisions"   # where it is kept; --no-folder takes it out
+slipdock page ls qvm-v1-rem --folder decisions       # or --no-folder for the unfiled
+slipdock page ls qvm-v1-rem --q retry           # the board's wiki; --tree for the shape of it
+slipdock page read W-31                        # the Markdown source (--json for the hash and the rest)
+slipdock page new qvm-v1-rem Retry policy --body - --summary "How retries work" --message "first draft"
+slipdock page edit W-31 --body - --base-hash <hash> --message "log: rolled back at 14:05"
+slipdock page history W-31 | slipdock page diff W-31 --rev 12 | slipdock page revert W-31 --rev 12
+slipdock page section W-31 Log --append "- 2026-09-29 rolled back at 14:05"   # cannot conflict
+slipdock page section W-31 "Deploy/Rollback" --file rollback.md --message "why"
+slipdock page render W-31                      # every reference followed, for answering questions
+slipdock page links W-31 | slipdock page wanted qvm-v1-rem | slipdock page pin W-31 --card 412
+slipdock writeup 412 --template "Spec template"   # start a page for a card, pinned to it
+slipdock page card 412                            # what has been written about a card
+slipdock page from qvm-v1-rem "Decision record" --title "Dropping the queue" --set owner=ops
+slipdock page make-card W-31 --body - --column "To Do"   # a passage becomes a card, linked both ways
+slipdock page query-help                       # the grammar a ```slipdock block is written in
+slipdock page query qvm-v1-rem --body -        # try a block before writing it into a page
+slipdock page edit W-31 --priority high --flag review --due 2026-10-09 --assignee sam@example.com
+slipdock page edit W-31 --percent 40 --color amber --done   # the card facets, on a document
+slipdock comment W-31 "needs a worked example"  # comment, check, status, vote, weblink and
+slipdock check W-31 "worked example"           # unweblink all take a page code as readily
+slipdock status W-31 at_risk "stalled on SRE"  # as a card number
+slipdock page place W-31 "In Progress"         # put the doc in a list, beside the work
+slipdock page place W-31 Backlog --before 42   # before card #42 (or --before page-7)
+slipdock page unplace W-31                     # off the board; it stays in the wiki
+slipdock page publish W-31                     # read-only at a public link; --off withdraws it
+slipdock page export qvm-v1-rem --dir ~/wiki   # out as .md files, front matter and all
+slipdock page import qvm-v1-rem --dir ~/wiki   # and back in; --overwrite replaces rather than skips
+slipdock skills | slipdock skills install | slipdock skills check   # the agent instructions this server ships
+slipdock favourites                            # what you keep going back to, with the URL of each
+slipdock fav list qvm-v1-rem "In Progress"     # also: fav card 42 | fav view <board> <view> | fav board <board>
+slipdock unfav list qvm-v1-rem "In Progress"   # or `fav ... --off`
 ```
 ## Skills
 
 `priv/skills/` holds the agent instructions this app ships, and the server
 serves them at `/api/skills` — versioned with the code they describe, so a
 copy in somebody's agent directory can be checked against the API that
-actually answers. `kanban skills install` writes them to `~/.claude/skills`
-(`--dir` for somewhere else) and `kanban skills check` says whether a local
+actually answers. `slipdock skills install` writes them to `~/.claude/skills`
+(`--dir` for somewhere else) and `slipdock skills check` says whether a local
 copy is behind.
 
 - **`kanban`** — the CLI reference: what each command does and when to reach

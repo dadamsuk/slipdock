@@ -42,7 +42,7 @@ defmodule Slipdock.Automations.Notifier do
     email =
       new()
       |> to(recipients)
-      |> from(Application.get_env(:slipdock, :mail_from, {"Slipdock", "kanban@localhost"}))
+      |> from(Application.get_env(:slipdock, :mail_from, {"Slipdock", "slipdock@localhost"}))
       |> subject(subject)
       |> text_body(body)
 

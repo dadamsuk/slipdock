@@ -368,7 +368,7 @@ defmodule SlipdockCLI.Render do
   end
 
   def favourites([]),
-    do: IO.puts(dim("nothing favourited — try: kanban fav list <board> \"In Progress\""))
+    do: IO.puts(dim("nothing favourited — try: slipdock fav list <board> \"In Progress\""))
 
   def favourites(favourites) do
     rows =
@@ -860,7 +860,7 @@ defmodule SlipdockCLI.Render do
     end
   end
 
-  @doc "The grammar a ```kanban block is written in, straight from the server."
+  @doc "The grammar a ```slipdock block is written in, straight from the server."
   def query_help(v) do
     IO.puts(bold("Views") <> "  " <> Enum.join(v["views"], " · "))
     IO.puts(bold("Settings") <> "  " <> Enum.join(v["settings"], " · "))

@@ -392,7 +392,7 @@ Deliberate choices:
 
 ### 5.2 CLI
 
-`kanban page ls|tree|read|render|new|edit|append|section|mv|rm|links|wanted|
+`slipdock page ls|tree|read|render|new|edit|append|section|mv|rm|links|wanted|
 history|diff|revert|pin|publish`, following the existing `cli/` patterns —
 `read` prints Markdown to stdout, `edit` takes a body on stdin or `$EDITOR`,
 everything takes `--json`. Agents on a shell use this; agents over HTTP use
@@ -435,7 +435,7 @@ server's own `/api/guide`). The wiki follows the same two-part shape,
 because it works: **a skill says when and how to reach for the thing; the
 running server says what is currently true.** A skill that hardcodes board
 names, list names or endpoint shapes rots; one that tells the agent to read
-`kanban guide` first does not.
+`slipdock guide` first does not.
 
 Three new skills, each with the same anatomy (YAML frontmatter with a
 trigger-rich `description`, a short body, details in `references/`):
@@ -452,9 +452,9 @@ skills/kanban-wiki/
   references/api.md           the REST surface, for agents with no CLI
 ```
 
-Its body covers, in order: finding pages (`kanban page tree <board>`,
-`kanban page ls --tag`, and semantic `kanban search --kind page`); reading
-(`kanban page read` for source, `kanban page render` when the doc contains
+Its body covers, in order: finding pages (`slipdock page tree <board>`,
+`slipdock page ls --tag`, and semantic `slipdock search --kind page`); reading
+(`slipdock page read` for source, `slipdock page render` when the doc contains
 live queries — with a loud note that these differ and why); writing
 (`new`, `section`, `append`, `edit --base-hash`); and linking (`pin`,
 `links`, `wanted`). The write section leads with **append/section, not
@@ -469,12 +469,12 @@ notes on an investigation, or check what is already written before starting
 work. It opens the way `kanban-work` does:
 
 ```sh
-kanban guide --section wiki      # the server's own conventions, once per session
+slipdock guide --section wiki      # the server's own conventions, once per session
 ```
 
 and then states the judgement calls that a model otherwise gets wrong:
 
-* **Search before writing.** `kanban search --kind page "<the thing>"` —
+* **Search before writing.** `slipdock search --kind page "<the thing>"` —
   the most common agent failure here is a fourth page about deployment.
   Extend an existing page unless the subject is genuinely new.
 * **A page or a comment?** Durable and re-read → a page. About one card and
@@ -489,7 +489,7 @@ and then states the judgement calls that a model otherwise gets wrong:
 * **Query, don't list.** A hand-typed list of blocked cards is stale on
   Tuesday; a ```slipdock``` block never is.
 * **Leave wanted pages.** Linking `[[Rollback procedure]]` before it exists
-  is how the next agent finds the work — `kanban page wanted` is a backlog.
+  is how the next agent finds the work — `slipdock page wanted` is a backlog.
 * **Don't rewrite someone else's section** without saying so in the message.
 
 **`kanban-wiki-author` — the long-form worker.** Optional, phase 6: the
@@ -511,13 +511,13 @@ GET  /api/skills/:name/:file      a references/ file
 ```
 
 ```sh
-kanban skills install             # writes ~/.claude/skills/kanban*/…, honours --dir
-kanban skills check               # warns when the local copy is behind the server's
+slipdock skills install             # writes ~/.claude/skills/kanban*/…, honours --dir
+slipdock skills check               # warns when the local copy is behind the server's
 ```
 
 The board-specific parts — board codes, list names, tag vocabulary, which
 boards have wikis — stay out of the skill files entirely and come from
-`kanban guide`, which already appends the caller's own boards and lists when
+`slipdock guide`, which already appends the caller's own boards and lists when
 a token is present. `/api/guide` grows a `wiki` section (§5.3) and accepts
 `--section` / `?section=` so a docs-focused agent can read a page rather
 than the whole manual.
@@ -619,7 +619,7 @@ phase, not after, because that is how the rest of this system is built.
    cross-board), card chips, backlinks, wanted pages, TOC/children,
    attachments and paste,
    `resolve` endpoint, section read/replace/append. The `kanban-wiki` and
-   `kanban-docs` skills, and `kanban skills install` to distribute them.
+   `kanban-docs` skills, and `slipdock skills install` to distribute them.
 3. **Slipdock integration.** Docs section on cards, pinning, create-card-from-
    selection, create-page-from-card, templates, activity entries,
    favourites.
@@ -672,9 +672,9 @@ Settled 2026-09-29.
    and write. The slash-menu and the insert-this-view affordance carry the
    authoring load instead. → §4.
 5. **Skills in this repo, served by `/api/skills`.** Versioned with the
-   code they describe, installed by `kanban skills install`, checked by
-   `kanban skills check`. Board-specific detail stays out of them and
-   comes from `kanban guide`. Costs an endpoint and two CLI commands;
+   code they describe, installed by `slipdock skills install`, checked by
+   `slipdock skills check`. Board-specific detail stays out of them and
+   comes from `slipdock guide`. Costs an endpoint and two CLI commands;
    buys skills that cannot drift from the API. → §5.5.
 6. **Pages get short codes (`W-31`).** Globally unique (see the "as built"
    note in §2.1: the sequence is global, and `boards.page_seq` became the
@@ -706,7 +706,7 @@ differently from this document, and each is recorded where it lives:
    → the phase-3 migration.
 
 The skills live in `priv/skills/` rather than `skills/` and `cli/`, served by
-`/api/skills` and installed by `kanban skills install` — one home rather than
+`/api/skills` and installed by `slipdock skills install` — one home rather than
 two, which is what §5.5 was asking for.
 
 ## 13. Added after the fact: a page on the board
@@ -858,7 +858,7 @@ wearing a document's name. The editor says which list the page will land in,
 and `save/4` calls `Wiki.place/3` once the page exists.
 
 `boards.add_card`, `add_page` and `add_document` say which to offer, settable
-in the board's settings, over the API and from `kanban set-board`. A board
+in the board's settings, over the API and from `slipdock set-board`. A board
 that never holds documents would rather not look at the button.
 
 Three things about the document upload, every one of them found by driving a
