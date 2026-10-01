@@ -17,10 +17,17 @@ defmodule SlipdockCLI.HTTP do
     _ -> nil
   end
 
-  @token_file Path.join([System.get_env("HOME") || ".", ".config", "slipdock", "token"])
+  # Functions, not module attributes: an attribute would freeze $HOME at the
+  # moment the escript was *built*, so a binary built by one user and run by
+  # another would read and write somebody else's token file.
+  defp token_file, do: config_path("slipdock")
+
   # The CLI was called `kanban` until the rename; a token written by the old
   # one still signs you in, so nobody has to re-authenticate.
-  @legacy_token_file Path.join([System.get_env("HOME") || ".", ".config", "kanban", "token"])
+  defp legacy_token_file, do: config_path("kanban")
+
+  defp config_path(dir),
+    do: Path.join([System.get_env("HOME") || ".", ".config", dir, "token"])
 
   @doc """
   The API token: `$SLIPDOCK_TOKEN`, else `~/.config/slipdock/token` (written by
@@ -29,8 +36,8 @@ defmodule SlipdockCLI.HTTP do
   """
   def token do
     read_env("SLIPDOCK_TOKEN", "KANBAN_TOKEN") ||
-      read_file(@token_file) ||
-      read_file(@legacy_token_file)
+      read_file(token_file()) ||
+      read_file(legacy_token_file())
   end
 
   defp read_env(name, legacy) do
@@ -46,13 +53,14 @@ defmodule SlipdockCLI.HTTP do
   end
 
   def save_token(token) do
-    File.mkdir_p!(Path.dirname(@token_file))
-    File.write!(@token_file, String.trim(token) <> "\n")
-    File.chmod!(@token_file, 0o600)
-    @token_file
+    path = token_file()
+    File.mkdir_p!(Path.dirname(path))
+    File.write!(path, String.trim(token) <> "\n")
+    File.chmod!(path, 0o600)
+    path
   end
 
-  def forget_token, do: File.rm(@token_file)
+  def forget_token, do: File.rm(token_file())
 
   def get(path, query \\ []), do: request(:get, path <> encode_query(query), nil)
   def post(path, body \\ %{}), do: request(:post, path, body)

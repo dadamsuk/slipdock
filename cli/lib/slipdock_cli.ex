@@ -31,7 +31,11 @@ defmodule SlipdockCLI do
     unsave <words...> [--ask]           take one off the list (or `unsave --id N`)
 
   AUTH
-    auth <token>                        save an API token (create one at /account in the web UI)
+    auth                                sign in without a token: shows a code to approve in a
+                                      browser, then saves the token it is given
+      --label TEXT  what the approval screen calls this client (default: this host)
+      --scope read|write   what to ask for (default: write)
+  auth <token>                        save an API token directly (create one at /account)
     whoami                              show who you are signed in as
     ai-key [<key>]                      show your stored OpenRouter key (masked), or set one;
                                         `ai-key --remove` deletes it. AI features need it
@@ -260,6 +264,7 @@ defmodule SlipdockCLI do
 
   @switches [
     json: :boolean,
+    scope: :string,
     remove: :boolean,
     url: :string,
     column: :keep,
@@ -388,6 +393,32 @@ defmodule SlipdockCLI do
       path = HTTP.save_token(token)
       IO.puts("signed in as #{r["user"]["email"]}; token saved to #{path}")
     end)
+  end
+
+  # No token to paste: ask the server for a code, show it, and wait for a
+  # person to approve it in a browser (RFC 8628). Nothing here needs access to
+  # the machine the server runs on, which is the whole point.
+  defp run("auth", [], o) do
+    label = o[:label] || default_label()
+
+    case HTTP.post("/auth/device", %{label: label, scope: o[:scope] || "write"}) do
+      {:ok, started} ->
+        IO.puts("")
+        IO.puts("  Open  #{Render.bold(started["verification_uri"])}")
+        IO.puts("  Enter #{Render.bold(started["user_code"])}")
+        IO.puts("")
+        IO.puts(Render.dim("  Signing in as \"#{label}\". Waiting — Ctrl-C to stop."))
+
+        started
+        |> await_device_approval(started["interval"] || 5)
+        |> finish_device_auth(o)
+
+      {:error, _, %{"error_description" => why}} ->
+        fail(why)
+
+      other ->
+        out(other, o, fn _ -> :ok end)
+    end
   end
 
   # The server's own instructions for agents; needs no token, but says more with one.
@@ -1924,10 +1955,13 @@ defmodule SlipdockCLI do
     IO.puts(:stderr, "error: " <> msg)
     System.halt(1)
   end
+
   defp render_ai_key(%{"ai_key" => k}) do
     cond do
       k["masked"] ->
-        IO.puts("#{k["masked"]}#{if k["set_at"], do: "  set #{String.slice(k["set_at"], 0, 10)}"}")
+        IO.puts(
+          "#{k["masked"]}#{if k["set_at"], do: "  set #{String.slice(k["set_at"], 0, 10)}"}"
+        )
 
       k["ai_available"] ->
         IO.puts("no key of your own; this server has a shared one")
@@ -1937,4 +1971,68 @@ defmodule SlipdockCLI do
     end
   end
 
+  # Poll until somebody decides. The server tells us how often to ask and says
+  # `slow_down` if we ask faster; ignoring either is how a client locks itself
+  # out, so the interval widens rather than the loop tightening.
+  defp await_device_approval(started, interval) do
+    deadline = System.monotonic_time(:second) + (started["expires_in"] || 600)
+    poll_device(started["device_code"], interval, deadline)
+  end
+
+  defp poll_device(device_code, interval, deadline) do
+    Process.sleep(interval * 1000)
+
+    cond do
+      System.monotonic_time(:second) > deadline ->
+        {:error, "the code expired before anybody approved it — run `slipdock auth` again"}
+
+      true ->
+        case HTTP.post("/auth/device/token", %{device_code: device_code}) do
+          {:ok, %{"token" => token}} ->
+            {:ok, token}
+
+          {:error, _, %{"error" => "authorization_pending"}} ->
+            poll_device(device_code, interval, deadline)
+
+          {:error, _, %{"error" => "slow_down"}} ->
+            poll_device(device_code, interval + 5, deadline)
+
+          {:error, _, %{"error" => "access_denied"}} ->
+            {:error, "the request was refused"}
+
+          {:error, _, %{"error" => "expired_token"}} ->
+            {:error, "the code expired before anybody approved it — run `slipdock auth` again"}
+
+          {:error, :connect, reason} ->
+            {:error, "lost the server while waiting (#{inspect(reason)})"}
+
+          _ ->
+            {:error, "the server gave an answer this version does not understand"}
+        end
+    end
+  end
+
+  defp finish_device_auth({:ok, token}, o) do
+    System.put_env("SLIPDOCK_TOKEN", token)
+
+    HTTP.get("/me")
+    |> out(o, fn r ->
+      path = HTTP.save_token(token)
+      IO.puts("signed in as #{r["user"]["email"]}; token saved to #{path}")
+    end)
+  end
+
+  defp finish_device_auth({:error, message}, _o), do: fail(message)
+
+  # What the person approving will see named on the screen, so make it say
+  # something about this machine rather than "CLI".
+  defp default_label do
+    host =
+      case :inet.gethostname() do
+        {:ok, name} -> to_string(name)
+        _ -> "unknown host"
+      end
+
+    "slipdock CLI on #{host}"
+  end
 end
