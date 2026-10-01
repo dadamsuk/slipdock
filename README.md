@@ -12,6 +12,9 @@ a JSON API and a CLI, so an agent can work the board the way a person does.
 
 ![A board](docs/screenshots/board.png)
 
+A plan is falsework: the structure that holds the thing up while it is being
+built, and comes away when it stands on its own. This is somewhere to put it.
+
 Built with Phoenix LiveView, so every browser looking at a board updates the
 moment anything changes.
 
@@ -114,7 +117,12 @@ tasks on the entrypoint (`ai-key`, `reindex`, `migrate`, `remote`).
 
 ### From a checkout
 
+You need Elixir 1.17 or newer on Erlang/OTP 27, and nothing else — SQLite is
+embedded and the asset tools install themselves.
+
 ```sh
+git clone https://github.com/dadamsuk/slipdock.git
+cd slipdock
 mix setup          # deps, database, seeds, assets
 mix phx.server     # the address it binds to is printed on start-up
 ```
@@ -178,6 +186,8 @@ Account page links to the source for exactly that reason — point
 
 - **[docs/manual.md](docs/manual.md)** — the full reference: every view, the
   wiki, automations, the keyboard, the JSON API, the CLI and the agent skills.
+- **[UPGRADING.md](UPGRADING.md)** — moving an existing install across the
+  Kanban → Slipdock rename.
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — how to work on it.
 - **[SECURITY.md](SECURITY.md)** — reporting a vulnerability.
 - **[AGENTS.md](AGENTS.md)** — the house rules an agent working in this

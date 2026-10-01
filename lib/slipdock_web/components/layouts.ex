@@ -957,7 +957,13 @@ defmodule SlipdockWeb.Layouts do
       "flex shrink-0 items-center justify-center bg-primary/15 text-primary",
       @class
     ]}>
-      <.icon name="hero-view-columns" class={@icon_class} />
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" class={@icon_class}>
+        <path
+          d="M1.8 8.6 21.6 3.8l-1.2 6a4.6 4.6 0 0 1-3.6 3.6l-7.5 1.6a4.6 4.6 0 0 1-4.6-1.9z"
+          fill="currentColor"
+        />
+        <path d="M2.2 20.6 22.2 15.8" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
+      </svg>
     </span>
     """
   end
