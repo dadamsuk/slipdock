@@ -71,7 +71,9 @@ Briefly, with the detail in [the manual](docs/manual.md):
   scroll](docs/manual.md#on-a-phone).
 - **Accounts and sharing** — [passwordless sign-in, groups, and read-only or
   editable grants on a board, a single card, a wiki page or a saved
-  view](docs/manual.md#accounts-and-sharing).
+  view](docs/manual.md#accounts-and-sharing) — plus
+  [a device flow for signing an agent in](docs/manual.md#signing-an-agent-in)
+  from anywhere, with scoped, expiring, revocable tokens.
 - **A JSON API and a CLI** — [everything the UI can do](docs/manual.md#json-api),
   [from the shell](docs/manual.md#cli), plus
   [agent skills](docs/manual.md#skills) the server ships and a
@@ -151,11 +153,18 @@ these are decisions only you can make.
   address is told exactly what an accepted one is told.
 - **Responses carry a Content-Security-Policy** that allows script from this
   origin only.
-- **Agentic Login is an authentication bypass, by design.** With
-  `KANBAN_AGENTIC_LOGIN=true` the sign-in page will write a working link for
-  *any* address to a file on the server, so an automated test can sign itself
-  in. It is off unless you set it, and a server with it on says so in the log
-  on every boot. Only ever enable it on a machine used for testing.
+- **Agents get scoped tokens, not your account.** `slipdock auth` shows a code,
+  you approve it in a browser you are already signed into, and the agent is
+  given a token you can see and revoke. A token can be read-only, confined to
+  named boards, and made to expire; the Account page shows when each was last
+  used and from where. A read-only token is refused anything that would change
+  something, and a board-scoped one cannot even list boards outside its scope.
+- **Agentic Login is an authentication bypass, by design**, and is *not* how to
+  sign an agent in — the device flow above is. With
+  `SLIPDOCK_AGENTIC_LOGIN=true` the sign-in page will write a working link for
+  *any* address to a file on the server, so a test running on that server can
+  sign itself in. It is off unless you set it, and a server with it on says so
+  in the log on every boot. Only ever enable it on a machine used for testing.
 - **AI runs on each person's own OpenRouter key**, kept in a `0600` JSON file
   outside the database. Somebody without a key gets no AI features at all, and
   no board content leaves the server on their behalf. Back that file up like a

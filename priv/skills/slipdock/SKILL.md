@@ -15,10 +15,19 @@ This file is the command reference; the guide is the workflow.
 
 ## Signing in
 
-The API needs a token. If a command fails with `not signed in`, ask the user to create a token
-under **Account → API tokens** in the web UI and run `slipdock auth <token>` (or set `SLIPDOCK_TOKEN`).
+The API needs a token. If a command fails with `not signed in`, **run `slipdock auth`** — it
+prints a short code and a URL, the user approves it in a browser they are already signed into,
+and you have a token a few seconds later. Tell them the code and the URL; do not ask them to go
+and make a token by hand unless they would rather (`slipdock auth <token>` still takes one, and
+`SLIPDOCK_TOKEN` still works).
+
 `slipdock whoami` shows the current user. Boards the user can't access are simply not listed;
-a `forbidden` error means they can see something but not change it.
+a `forbidden` error means they can see something but not change it. Two refusals name the
+*token* rather than the user, and mean the token you hold is deliberately limited rather than
+anything being broken — say so instead of retrying:
+
+- `this API token is read-only` — it was granted read access only. Ask for a read/write one.
+- `this API token's scope doesn't allow it` — it is confined to particular boards.
 
 ## Workflow
 

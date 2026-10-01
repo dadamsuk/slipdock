@@ -1338,13 +1338,62 @@ origin only — see `SlipdockWeb.Plugs.ContentSecurityPolicy`, which explains ea
 directive and how to replace the header (`config :slipdock, :csp`) if your proxy
 sets its own.
 
-Mail goes out over SMTP when `KANBAN_SMTP_HOST` (plus optional
-`KANBAN_SMTP_PORT`, `KANBAN_SMTP_USER`, `KANBAN_SMTP_PASSWORD`,
-`KANBAN_MAIL_FROM`) is set. Without it, sent mail stays in an in-memory
+Mail goes out over SMTP when `SLIPDOCK_SMTP_HOST` (plus optional
+`SLIPDOCK_SMTP_PORT`, `SLIPDOCK_SMTP_USER`, `SLIPDOCK_SMTP_PASSWORD`,
+`SLIPDOCK_MAIL_FROM`) is set. Without it, sent mail stays in an in-memory
 mailbox at `/dev/mailbox` and the link is also written to the server log
-(`journalctl -u kanban | grep "sign-in link"`).
+(`journalctl -u slipdock | grep "sign-in link"`).
+
+### Signing an agent in
+
+An agent cannot read your email, so it cannot follow a magic link. It gets a
+token instead, and there are two ways to give it one.
+
+**The device flow** (`slipdock auth`, with no token) is the way to do it from
+anywhere — a laptop, a sandbox, a container, any machine that is not this
+server:
+
+```sh
+$ slipdock auth
+  Open  https://slipdock.example/activate
+  Enter WDJB-MJHT
+
+  Signing in as "slipdock CLI on laptop". Waiting — Ctrl-C to stop.
+```
+
+You open `/activate` in a browser where you are already signed in, type the
+code, and see what is being asked for — what called itself what, what it would
+be allowed to do, where it asked from, and when. Approve it and the agent is
+holding a token a few seconds later; refuse it and the agent is told so rather
+than left waiting. The code lasts ten minutes and works once.
+
+`--scope read` asks for a token that cannot change anything, and `--label`
+names the client on the approval screen. Under the covers this is
+[RFC 8628](https://datatracker.ietf.org/doc/html/rfc8628): `POST
+/api/auth/device` starts it, `POST /api/auth/device/token` is polled until a
+person decides. Neither needs a token, because they are how you get one.
+
+> Approving gives whatever asked a token that acts as you until you revoke it.
+> If you did not just start it yourself, refuse it — a code somebody else sends
+> you is somebody else asking for access to your account.
+
+**A token you make yourself** suits anything with no human to approve it —
+CI, cron, a scheduled job. Create one under **Account → API tokens**, give it
+a scope and an expiry, and put it in the secret store. This is the right
+answer there: no interactive flow helps a machine that nobody is watching.
+
+**API tokens** carry a scope (read-only or read/write, optionally confined to
+named boards) and an optional expiry, and the Account page shows when each was
+last used and from where. A read-only token is refused any request that would
+change something, and a board-scoped one cannot see — or even list — boards
+outside its scope. Revoke one and it stops working at once.
 
 ### Agentic Login (for automated testing)
+
+> **Not the way to sign an agent in.** Use the device flow above. This exists
+> for an agent running *on the server itself*, and it is an authentication
+> bypass by design.
+
 
 Receiving an email is awkward for an automated agent driving the app, so the
 sign-in page can also offer an **Agentic Login** button. Enter an email address
@@ -1356,8 +1405,8 @@ opens the link it contains. The link works once and expires in 15 minutes, as
 usual; the file is left behind for the agent to delete.
 
 It is on in `dev` and `test`. In production it is off unless the server runs
-with `KANBAN_AGENTIC_LOGIN=true` (and optionally `KANBAN_AGENTIC_LOGIN_DIR` to
-change the directory). Anyone who can reach the sign-in page can create these
+with `SLIPDOCK_AGENTIC_LOGIN=true` (and optionally `SLIPDOCK_AGENTIC_LOGIN_DIR`
+to change the directory). Anyone who can reach the sign-in page can create these
 files, so only enable it on machines used for automated testing.
 
 **Groups** (`/groups`) are named sets of people you can share with at once.
@@ -1380,8 +1429,9 @@ card grant: the recipient reads (or edits) that page without the board coming
 with it. A view grant is the exception that goes the other way — it reaches
 cards through the view and never reaches pages at all.
 
-**API tokens** are created under Account; the CLI stores one with
-`slipdock auth <token>`.
+**API tokens** are created under Account, or by the device flow above; the
+CLI stores one with `slipdock auth <token>` or gets its own with `slipdock
+auth`. See [Signing an agent in](#signing-an-agent-in).
 
 ## Roadmap features in the API and CLI
 

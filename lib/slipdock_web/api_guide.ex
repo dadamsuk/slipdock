@@ -115,16 +115,40 @@ defmodule SlipdockWeb.APIGuide do
 
     ## Getting in
 
-    Every endpoint but this one needs an API token, made by the account owner
-    under **Account → API tokens** in the web UI:
+    Every endpoint but this one needs an API token:
 
         curl -s -H "Authorization: Bearer $SLIPDOCK_TOKEN" #{base}/api/me
 
     #{String.trim(who)}
 
+    **If you have no token, ask for one — you do not need access to this
+    server.** `slipdock auth` does the whole thing; by hand it is two calls:
+
+        curl -s -X POST #{base}/api/auth/device \\
+          -H 'content-type: application/json' \\
+          -d '{"label": "what you are", "scope": "write"}'
+
+    That answers with a `user_code` and a `verification_uri`. Show both to the
+    person and ask them to approve it in a browser. Then poll, no faster than
+    the `interval` it gave you:
+
+        curl -s -X POST #{base}/api/auth/device/token \\
+          -H 'content-type: application/json' \\
+          -d '{"device_code": "..."}'
+
+    `authorization_pending` means keep waiting; `slow_down` means you are
+    polling too fast and should wait longer, not retry harder; `access_denied`
+    means they said no; `expired_token` means start again. Success hands back a
+    `token`. The code lasts ten minutes and works once.
+
     `401` means no token or a dead one — ask for a new one rather than guessing.
     `403` means the token is good but that board or card is not yours to read or
-    change; say so rather than working around it.
+    change; say so rather than working around it. Two `403`s name the **token**
+    instead, and mean it is deliberately limited rather than anything being
+    broken — report them, do not retry:
+
+    - `this API token is read-only` — granted read access only.
+    - `this API token's scope doesn't allow it` — confined to certain boards.
 
     Reads are `GET`, writes are `POST` or `PATCH`, and bodies are JSON with
     `Content-Type: application/json`. Boards, lists, tags, templates and saved
