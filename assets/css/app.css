@@ -1,0 +1,675 @@
+/* See the Tailwind configuration guide for advanced usage
+   https://tailwindcss.com/docs/configuration */
+
+@import "tailwindcss" source(none);
+@import "phoenix-colocated/slipdock/colocated.css";
+@source "../css";
+@source "../js";
+@source "../../lib/slipdock_web";
+@source "../../lib/slipdock/palette.ex";
+/* Required for Tailwind to automatically pick up changes in colocated CSS files in dev */
+@source "../../_build/dev/phoenix-colocated/slipdock/*/";
+
+/* A Tailwind plugin that makes "hero-#{ICON}" classes available.
+   The heroicons installation itself is managed by your mix.exs */
+@plugin "../vendor/heroicons";
+
+/* daisyUI Tailwind Plugin. */
+@plugin "daisyui/packages/bundle/daisyui" {
+  themes: false;
+}
+
+/* daisyUI theme plugin.
+  We ship with two themes, a light one inspired on Phoenix colors and a dark one inspired
+  on Elixir colors. Build your own at: https://daisyui.com/theme-generator/ */
+@plugin "daisyui/packages/bundle/daisyui-theme" {
+  name: "dark";
+  default: false;
+  prefersdark: true;
+  color-scheme: "dark";
+  --color-base-100: oklch(29% 0.012 265);
+  --color-base-200: oklch(24.5% 0.011 265);
+  --color-base-300: oklch(20% 0.01 265);
+  --color-base-content: oklch(94% 0.012 265);
+  --color-primary: oklch(74% 0.09 277);
+  --color-primary-content: oklch(24% 0.05 277);
+  --color-secondary: oklch(74% 0.025 257);
+  --color-secondary-content: oklch(22% 0.02 257);
+  --color-accent: oklch(74% 0.09 277);
+  --color-accent-content: oklch(24% 0.05 277);
+  --color-neutral: oklch(38% 0.03 260);
+  --color-neutral-content: oklch(96% 0.005 260);
+  --color-info: oklch(76% 0.08 240);
+  --color-info-content: oklch(24% 0.04 240);
+  --color-success: oklch(76% 0.09 165);
+  --color-success-content: oklch(24% 0.05 165);
+  --color-warning: oklch(82% 0.10 85);
+  --color-warning-content: oklch(28% 0.06 85);
+  --color-error: oklch(74% 0.11 20);
+  --color-error-content: oklch(24% 0.06 20);
+  --radius-selector: 0.375rem;
+  --radius-field: 0.5rem;
+  --radius-box: 0.75rem;
+  --size-selector: 0.21875rem;
+  --size-field: 0.21875rem;
+  --border: 1.5px;
+  --depth: 1;
+  --noise: 0;
+}
+
+@plugin "daisyui/packages/bundle/daisyui-theme" {
+  name: "light";
+  default: true;
+  prefersdark: false;
+  color-scheme: "light";
+  --color-base-100: oklch(99% 0.003 85);
+  --color-base-200: oklch(96.5% 0.005 85);
+  --color-base-300: oklch(93% 0.007 85);
+  --color-base-content: oklch(30% 0.02 270);
+  --color-primary: oklch(56% 0.11 277);
+  --color-primary-content: oklch(98% 0.01 272);
+  --color-secondary: oklch(58% 0.02 264);
+  --color-secondary-content: oklch(98% 0.002 248);
+  --color-accent: oklch(56% 0.11 277);
+  --color-accent-content: oklch(98% 0.01 272);
+  --color-neutral: oklch(48% 0.015 280);
+  --color-neutral-content: oklch(98% 0 0);
+  --color-info: oklch(58% 0.10 240);
+  --color-info-content: oklch(98% 0.01 240);
+  --color-success: oklch(58% 0.09 165);
+  --color-success-content: oklch(98% 0.01 165);
+  --color-warning: oklch(80% 0.10 85);
+  --color-warning-content: oklch(35% 0.07 85);
+  --color-error: oklch(60% 0.13 20);
+  --color-error-content: oklch(98% 0.01 20);
+  --radius-selector: 0.375rem;
+  --radius-field: 0.5rem;
+  --radius-box: 0.75rem;
+  --size-selector: 0.21875rem;
+  --size-field: 0.21875rem;
+  --border: 1.5px;
+  --depth: 1;
+  --noise: 0;
+}
+
+/* Dark on a phone: a wider ramp between the surfaces.
+   A desktop separates the header, the board and the bottom bar with room,
+   shadow and a border. A phone has none of that to spare — the three sit
+   edge to edge in a single column — and the dark theme's 4.5% step between
+   base-100 and base-200 all but disappears on a small screen held at arm's
+   length in daylight. Below `sm` the ramp is stretched: the raised surfaces
+   (header, bottom bar, cards, menus) lift, the page's ground drops, and
+   base-300 goes down with it so the borders between them stay readable.
+   Tokens only — every section already paints itself from these, so nothing
+   needs to know about the phone. Unlayered on purpose: daisyUI's themes are
+   in `@layer base`, which these override. */
+@media (width < 40rem) {
+  [data-theme="dark"] {
+    --color-base-100: oklch(31.5% 0.012 265);
+    --color-base-200: oklch(23% 0.011 265);
+    --color-base-300: oklch(18% 0.01 265);
+  }
+}
+
+/* Add variants based on LiveView classes */
+@custom-variant phx-click-loading (.phx-click-loading&, .phx-click-loading &);
+@custom-variant phx-submit-loading (.phx-submit-loading&, .phx-submit-loading &);
+@custom-variant phx-change-loading (.phx-change-loading&, .phx-change-loading &);
+
+/* Controls revealed on hover are unreachable where there is no hover: a
+   phone got a card it could not tick, a checklist item it could not delete,
+   and a calendar day with no "+". `hover:` in Tailwind v4 is already behind
+   `(hover: hover)`, so this is its complement — on a touch screen the
+   control is simply always there. */
+@custom-variant no-hover (@media (hover: none));
+
+/* Use the data attribute for dark mode  */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+/* Make LiveView wrapper divs transparent for layout */
+[data-phx-session], [data-phx-teleported-src] { display: contents }
+
+/* This file is for your main application CSS */
+
+/* Type --------------------------------------------------------------- */
+/* Inter is vendored under priv/static/fonts: the layouts may not link
+   external assets. */
+@font-face {
+  font-family: "InterVariable";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/InterVariable.woff2") format("woff2");
+}
+
+@theme {
+  --font-sans: "InterVariable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1.3;
+}
+
+body {
+  font-feature-settings: "cv11", "ss01", "ss03";
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Fields: a calm accent focus ring instead of daisyUI's dark outline. */
+.input:focus, .input:focus-within,
+.select:focus, .select:focus-within,
+.textarea:focus, .textarea:focus-within {
+  --input-color: var(--color-primary);
+  outline-color: color-mix(in oklab, var(--color-primary) 45%, transparent);
+  outline-offset: 0;
+}
+
+/* Primary buttons and badges are soft tints, not solid fills. */
+.btn-primary {
+  --btn-color: color-mix(in oklab, var(--color-primary) 16%, var(--color-base-100));
+  --btn-fg: var(--color-primary);
+  --btn-shadow: none;
+  --btn-noise: none;
+}
+.badge-primary {
+  --badge-color: color-mix(in oklab, var(--color-primary) 18%, var(--color-base-100));
+  --badge-fg: var(--color-primary);
+}
+
+/* Chips: one 20px unit for every piece of card metadata.
+
+   In the components layer on purpose. `.chip` sets a display, and unlayered
+   CSS beats everything in Tailwind's utilities layer however specific — so
+   an unlayered `.chip` would quietly defeat `hidden`, and `chip hidden
+   sm:inline-flex` (the board code in the header, and a dozen card chips)
+   would show on a phone regardless. Down here `hidden` wins, and the `sm:`
+   variant still wins over `hidden` at the breakpoint. */
+@layer components {
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    height: 1.25rem;
+    padding: 0 0.375rem;
+    border-radius: 0.375rem;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .chip-icon { width: 1.25rem; padding: 0; justify-content: center; }
+  .chip-tint { background: color-mix(in oklab, currentColor 12%, transparent); }
+  .chip-line { box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-base-content) 12%, transparent); }
+}
+
+/* Motion ------------------------------------------------------------- */
+@keyframes kanban-modal-in {
+  from { transform: translateY(6px) scale(0.98); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes kanban-toast-in {
+  from { transform: translateY(8px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+.kanban-modal-in { animation: kanban-modal-in 160ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+.kanban-toast-in { animation: kanban-toast-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+@media (prefers-reduced-motion: reduce) {
+  .kanban-pop, .kanban-modal-in, .kanban-toast-in { animation: none; }
+  .kanban-card, .btn, .dropdown-content { transition: none; }
+}
+
+/* Slipdock ------------------------------------------------------------ */
+.sortable-ghost {
+  opacity: 0.35;
+  outline: 2px dashed var(--color-primary);
+  outline-offset: -2px;
+}
+.sortable-chosen { cursor: grabbing !important; }
+.sortable-drag {
+  transform: rotate(2deg);
+  box-shadow: 0 20px 40px -10px rgb(0 0 0 / 0.35);
+}
+.kanban-scroll::-webkit-scrollbar { height: 10px; width: 10px; }
+.kanban-scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--color-base-content) 18%, transparent);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.kanban-scroll::-webkit-scrollbar-track { background: transparent; }
+@keyframes kanban-pop {
+  from { transform: scale(0.97); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.kanban-pop { animation: kanban-pop 140ms ease-out; }
+
+/* Card hints: the labels "j" and "J" paint over every visible card so it can
+   be opened, or picked up and moved, from the keyboard alone. Drawn in one
+   fixed overlay on <body> so a LiveView patch can never sweep them away. */
+.kanban-hints {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+}
+.kanban-hint {
+  position: fixed;
+  padding: 0 0.25rem;
+  border-radius: 0.25rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+  color: oklch(20% 0.02 80);
+  background: oklch(88% 0.17 95);
+  box-shadow: 0 1px 4px oklch(0% 0 0 / 0.35);
+  outline: 1px solid oklch(0% 0 0 / 0.25);
+}
+/* "j" keeps the plain amber label; "J" and "c" are tinted for what they do. */
+.kanban-hint-select {
+  color: var(--color-primary-content);
+  background: var(--color-primary);
+}
+.kanban-hint-column {
+  color: var(--color-secondary-content);
+  background: var(--color-secondary);
+}
+/* The characters already typed, dimmed so the ones still to come stand out. */
+.kanban-hint span { opacity: 0.4; }
+
+/* `truncate` and flex/grid items: a safety net.
+
+   `min-width: auto` on a flex or grid item means "at least min-content", and
+   a truncating element's min-content is its whole untruncated line — so a
+   long card title in a modal's dependency list made the card 795px wide
+   inside a 390px phone, and no amount of `truncate` helped, because the box
+   it was truncating into had grown to fit. Every such element wants
+   `min-width: 0`; saying it once here beats remembering it at each of the
+   several dozen call sites.
+
+   In the components layer so an explicit `min-w-*` utility still wins, and
+   harmless outside flex and grid, where `min-width: auto` is already 0. */
+@layer components {
+  .truncate { min-width: 0; }
+}
+
+/* A toolbar's second rank of controls. On a phone the swimlane and timeline
+   toolbars run to four or five rows of selects, so everything but the
+   essentials hides behind the toolbar's "Options" button; from `sm` up it is
+   all simply there and the button is gone. Hidden with `display`, never
+   removed from the DOM: those selects and checkboxes *are* the view's
+   configuration, and the form posts them whether or not they show — take
+   them out and the next keystroke in the search box clears every filter. */
+.tools { display: none; }
+.tools.tools-open {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  order: 99;                 /* below the row it was opened from */
+  width: 100%;
+  margin-top: 0.125rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid color-mix(in oklab, var(--color-base-content) 10%, transparent);
+}
+@media (min-width: 40rem) { .tools, .tools.tools-open { display: contents; } }
+
+/* The timeline's and calendar's date navigator. On a phone "‹ Today ›" plus
+   "Sep 2026 – Dec 2026" is a row on its own, so let it be one, below the
+   buttons rather than shoving them onto a third line. */
+@media (max-width: 39.999rem) {
+  .toolbar-nav { order: 50; width: 100%; }
+}
+
+/* Menus in the top layer (see the AnchoredPopover hook): the browser's own
+   popover chrome off, our own on, and no dimming — this is a menu, not a
+   dialog, and the page behind it should stay legible. */
+.pop-menu {
+  position: fixed;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: visible;
+  background: transparent;
+}
+.pop-menu::backdrop { background: transparent; }
+
+/* The phone's list strip: the tab for the list you are looking at. The state
+   is set by the ListPager hook as you swipe, so it has to be styled here
+   rather than from the server's class list. */
+.pager-tab[data-on] {
+  background: color-mix(in oklab, var(--color-primary) 15%, transparent);
+  color: var(--color-primary);
+}
+
+/* Swimlanes ---------------------------------------------------------- */
+.swim-grid { display: grid; align-items: stretch; }
+.swim-cell { min-height: 3.5rem; }
+/* Stacked on a phone, an empty cell is a drop target you scroll past, not a
+   column to fill — so it keeps just enough height to aim at. */
+.swim-cell.swim-cell-stacked { min-height: 1.25rem; }
+.swim-cell.sortable-over { background: color-mix(in oklch, var(--color-primary) 8%, transparent); }
+
+/* Timeline ----------------------------------------------------------- */
+.tl-row { display: grid; grid-template-columns: var(--tl-cols); }
+/* Outline view rows: card, list, progress, schedule, health, actions. */
+.ol-row { display: grid; grid-template-columns: minmax(0, 1fr) 8rem 10rem 13rem 6.5rem 3rem; align-items: center; }
+/* On a phone those six columns are 40rem wide, so the row keeps the two that
+   identify a card — what it is and where it is — puts its schedule on a
+   second line, and leaves the rest to the card itself, one tap away. The
+   column headings go with them: each line now says what it is. */
+@media (max-width: 39.999rem) {
+  .ol-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .ol-row.ol-head { display: none; }
+  .ol-row > :nth-child(3), .ol-row > :nth-child(5), .ol-row > :nth-child(6) { display: none; }
+  .ol-row > :nth-child(4) { grid-column: 1 / -1; padding-left: 2.5rem; padding-bottom: 0.375rem; }
+  /* A card with no dates would give the line an em-dash and nothing else. */
+  .ol-row > :nth-child(4):has(> .ol-nodate) { display: none; }
+}
+.tl-head > div { height: 1.75rem; display: flex; align-items: center; }
+.tl-head > .tl-units { justify-content: center; }
+.tl-track {
+  grid-column: 2 / -1;
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--tl-track);
+  grid-auto-rows: minmax(2.25rem, auto);
+  align-items: center;
+}
+.tl-track > * { grid-row: 1; }
+.tl-card-row > :first-child { min-height: 2.25rem; }
+.tl-weekend { height: 100%; background: color-mix(in oklch, var(--color-base-content) 4%, transparent); pointer-events: none; }
+.tl-today {
+  height: 100%;
+  justify-self: start;
+  border-left: 2px solid color-mix(in oklch, var(--color-primary) 70%, transparent);
+  pointer-events: none;
+  z-index: 2;
+}
+.tl-bar {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  height: 1.5rem;
+  margin: 0.375rem 1px;
+  padding: 0 0.4rem;
+  min-width: 6px;
+  border-radius: 6px;
+  color: var(--color-base-content);
+  font-size: 12px;
+  line-height: 1;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.15);
+  transition: filter 120ms;
+}
+.tl-bar:hover { filter: brightness(1.08); }
+.tl-bar.tl-dragging { cursor: grabbing; filter: brightness(1.15); z-index: 5; }
+.tl-bar-default { background: color-mix(in oklab, var(--color-primary) 35%, var(--color-base-100)); }
+/* Bars whose dates come from subcards: outlined, not draggable. */
+.tl-bar-derived { opacity: 0.85; outline: 2px dashed color-mix(in oklab, var(--color-base-content) 45%, transparent); outline-offset: -3px; cursor: pointer; }
+.tl-bar-done { background: color-mix(in oklab, var(--color-success) 40%, var(--color-base-100)); }
+/* A bar scheduled by month/quarter/…: soft, dotted edges say "roughly then". */
+.tl-bar-fuzzy { border-left: 3px dotted color-mix(in oklab, var(--color-base-content) 45%, transparent); border-right: 3px dotted color-mix(in oklab, var(--color-base-content) 45%, transparent); opacity: 0.9; }
+/* Dependency connectors over the grid. */
+.tl-links { position: absolute; inset: 0; pointer-events: none; z-index: 4; overflow: visible; }
+.tl-link { fill: none; stroke: color-mix(in oklch, var(--color-base-content) 45%, transparent); stroke-width: 1.5; }
+.tl-link-end { fill: color-mix(in oklch, var(--color-base-content) 55%, transparent); }
+.tl-link.tl-link-violated { stroke: var(--color-error); stroke-width: 2; stroke-dasharray: 4 3; }
+.tl-link-end.tl-link-violated { fill: var(--color-error); }
+/* Milestones: a dashed line down every row, a diamond and label on their own row. */
+.tl-ms-line { height: 100%; width: 0; justify-self: center; border-left: 2px dashed color-mix(in oklch, var(--color-base-content) 35%, transparent); pointer-events: none; z-index: 1; }
+.tl-milestones .tl-track { grid-auto-rows: minmax(1.75rem, auto); }
+.tl-milestones > :first-child { min-height: 1.75rem; }
+.tl-ms-label { position: relative; display: flex; align-items: center; gap: 0.25rem; height: 100%; overflow: visible; white-space: nowrap; justify-self: center; z-index: 2; }
+.tl-ms-diamond { width: 0.5rem; height: 0.5rem; transform: rotate(45deg); flex-shrink: 0; }
+.tl-ms-name { font-size: 0.6875rem; font-weight: 600; padding: 0 0.25rem; background: color-mix(in oklch, var(--color-base-100) 85%, transparent); border-radius: 4px; }
+.tl-bar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+.tl-bar-due, .tl-bar-start { overflow: visible; padding: 0; justify-content: center; }
+.tl-bar-due { border-radius: 999px; }
+.tl-bar-start { border-radius: 6px 0 0 6px; border-right: 2px dashed color-mix(in oklab, var(--color-base-content) 45%, transparent); }
+.tl-bar-due .tl-bar-label, .tl-bar-start .tl-bar-label {
+  position: absolute;
+  left: 100%;
+  margin-left: 6px;
+  max-width: 14rem;
+  color: var(--color-base-content);
+  opacity: 0.75;
+}
+.tl-clip-start { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: 0; }
+.tl-clip-end { border-top-right-radius: 0; border-bottom-right-radius: 0; margin-right: 0; }
+.tl-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: ew-resize;
+  border-radius: inherit;
+}
+.tl-handle-start { left: 0; }
+.tl-handle-end { right: 0; }
+.tl-bar:hover .tl-handle { background: color-mix(in oklab, var(--color-base-content) 15%, transparent); }
+.tl-compact .tl-track { grid-auto-rows: minmax(1.75rem, auto); }
+.tl-compact .tl-card-row > :first-child { min-height: 1.75rem; font-size: 0.6875rem; }
+.tl-compact .tl-bar { height: 1.125rem; margin: 0.3125rem 1px; font-size: 11px; }
+/* Dragging an unscheduled card onto the grid: the target column and the floating chip. */
+.tl-drop {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 25;
+  pointer-events: none;
+  background: color-mix(in oklch, var(--color-primary) 14%, transparent);
+  outline: 2px dashed color-mix(in oklch, var(--color-primary) 60%, transparent);
+  outline-offset: -2px;
+}
+#dateless-cards[phx-hook="TimelineTray"] .cal-chip { touch-action: none; user-select: none; -webkit-user-select: none; }
+.tl-chip-dragging { opacity: 0.4; }
+.tl-chip-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  pointer-events: none;
+  background: var(--color-base-100);
+  box-shadow: 0 20px 40px -10px rgb(0 0 0 / 0.35);
+  transform: rotate(2deg);
+}
+.tl-chip-ghost.tl-chip-over { outline: 2px solid var(--color-primary); }
+.tl-chip-date { font-size: 11px; font-weight: 600; color: var(--color-primary); white-space: nowrap; }
+.tl-chip-date:empty { display: none; }
+body.tl-tray-dragging { cursor: grabbing; }
+
+/* Calendar ----------------------------------------------------------- */
+.cal-cards.sortable-over { outline: 2px dashed color-mix(in oklch, var(--color-primary) 50%, transparent); outline-offset: 2px; border-radius: 6px; }
+
+/* AI assistant: the chat drawer, generated prose and the thinking indicator. */
+.ai-drawer { animation: ai-slide-in 180ms ease-out; }
+@keyframes ai-slide-in { from { transform: translateX(1.5rem); opacity: 0; } to { transform: none; opacity: 1; } }
+.ai-prose p + p, .ai-prose ul, .ai-prose ol { margin-top: 0.5rem; }
+.ai-prose ul { list-style: disc; padding-left: 1.25rem; }
+.ai-prose ol { list-style: decimal; padding-left: 1.25rem; }
+.ai-prose li + li { margin-top: 0.15rem; }
+.ai-prose strong { font-weight: 600; }
+.ai-prose code { font-size: 0.85em; background: color-mix(in oklab, var(--color-base-content) 8%, transparent); padding: 0 0.25rem; border-radius: 0.25rem; }
+.ai-thinking span {
+  width: 6px; height: 6px; border-radius: 9999px;
+  background: color-mix(in oklab, var(--color-base-content) 45%, transparent);
+  animation: ai-bounce 1.1s infinite ease-in-out;
+}
+.ai-thinking span:nth-child(2) { animation-delay: 0.15s; }
+.ai-thinking span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes ai-bounce { 0%, 70%, 100% { transform: translateY(0); opacity: 0.5; } 35% { transform: translateY(-4px); opacity: 1; } }
+.ai-shimmer {
+  background: linear-gradient(90deg,
+    color-mix(in oklab, var(--color-base-content) 8%, transparent) 25%,
+    color-mix(in oklab, var(--color-base-content) 16%, transparent) 50%,
+    color-mix(in oklab, var(--color-base-content) 8%, transparent) 75%);
+  background-size: 200% 100%;
+  animation: ai-shimmer 1.4s infinite linear;
+}
+@keyframes ai-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+/* Wiki ---------------------------------------------------------------
+   Rendered Markdown (see `SlipdockWeb.Wiki.Renderer`). Documents are the one
+   place in this app where the text itself is the interface, so give it
+   proper vertical rhythm, real headings and tables that read. Everything is
+   scoped to .wiki-prose, and the elements inside carry no utility classes of
+   their own, so nothing here can reach out and win an argument with Tailwind. */
+.wiki-prose { line-height: 1.7; color: var(--color-base-content); overflow-wrap: break-word; }
+.wiki-prose > :first-child { margin-top: 0; }
+.wiki-prose h1, .wiki-prose h2, .wiki-prose h3, .wiki-prose h4 {
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  scroll-margin-top: 4rem;
+}
+.wiki-prose h1 { font-size: 1.6rem; margin: 2rem 0 0.75rem; }
+.wiki-prose h2 { font-size: 1.3rem; margin: 1.75rem 0 0.6rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--color-base-300); }
+.wiki-prose h3 { font-size: 1.1rem; margin: 1.4rem 0 0.4rem; }
+.wiki-prose h4 { font-size: 1rem; margin: 1.2rem 0 0.3rem; color: color-mix(in oklab, var(--color-base-content) 80%, transparent); }
+/* comrak leaves an empty anchor beside each heading; it is the permalink. */
+.wiki-prose h1 > a[href^="#"], .wiki-prose h2 > a[href^="#"],
+.wiki-prose h3 > a[href^="#"], .wiki-prose h4 > a[href^="#"] {
+  opacity: 0; margin-left: 0.4rem; font-weight: 400;
+  color: color-mix(in oklab, var(--color-base-content) 40%, transparent);
+  transition: opacity 120ms ease;
+}
+.wiki-prose h1 > a[href^="#"]::after, .wiki-prose h2 > a[href^="#"]::after,
+.wiki-prose h3 > a[href^="#"]::after, .wiki-prose h4 > a[href^="#"]::after { content: "#"; }
+.wiki-prose :is(h1, h2, h3, h4):hover > a[href^="#"] { opacity: 1; }
+.wiki-prose p { margin: 0.75rem 0; }
+.wiki-prose ul, .wiki-prose ol { margin: 0.75rem 0; padding-left: 1.5rem; }
+.wiki-prose ul { list-style: disc; }
+.wiki-prose ol { list-style: decimal; }
+.wiki-prose li + li { margin-top: 0.2rem; }
+.wiki-prose li > ul, .wiki-prose li > ol { margin: 0.2rem 0; }
+.wiki-prose li > input[type="checkbox"] { margin-right: 0.4rem; vertical-align: middle; }
+.wiki-prose a { color: var(--color-primary); text-decoration: underline; text-underline-offset: 2px; }
+.wiki-prose strong { font-weight: 600; }
+.wiki-prose blockquote {
+  margin: 1rem 0; padding: 0.25rem 0 0.25rem 1rem;
+  border-left: 3px solid color-mix(in oklab, var(--color-base-content) 20%, transparent);
+  color: color-mix(in oklab, var(--color-base-content) 75%, transparent);
+}
+.wiki-prose code {
+  font-size: 0.875em;
+  background: color-mix(in oklab, var(--color-base-content) 8%, transparent);
+  padding: 0.1rem 0.3rem; border-radius: 0.25rem;
+}
+.wiki-prose pre {
+  margin: 1rem 0; padding: 0.9rem 1rem; overflow-x: auto;
+  background: color-mix(in oklab, var(--color-base-content) 6%, transparent);
+  border: 1px solid var(--color-base-300); border-radius: 0.75rem;
+  font-size: 0.8125rem; line-height: 1.6;
+}
+.wiki-prose pre code { background: none; padding: 0; font-size: inherit; }
+.wiki-prose hr { margin: 2rem 0; border-color: var(--color-base-300); }
+.wiki-prose table { margin: 1rem 0; width: 100%; border-collapse: collapse; font-size: 0.9375rem; display: block; overflow-x: auto; }
+.wiki-prose th, .wiki-prose td { border: 1px solid var(--color-base-300); padding: 0.4rem 0.7rem; text-align: left; vertical-align: top; }
+.wiki-prose th { background: color-mix(in oklab, var(--color-base-content) 5%, transparent); font-weight: 600; }
+.wiki-prose img { max-width: 100%; border-radius: 0.5rem; }
+
+/* Wiki: links, chips and the blocks a directive expands into ---------- */
+.wiki-prose .wiki-link { text-decoration: none; border-bottom: 1px solid color-mix(in oklab, var(--color-primary) 35%, transparent); }
+.wiki-prose .wiki-link:hover { border-bottom-color: var(--color-primary); }
+/* A link to a page nobody has written: it should look like an invitation,
+   not like a mistake. */
+.wiki-prose .wiki-wanted {
+  color: color-mix(in oklab, var(--color-base-content) 55%, transparent);
+  border-bottom: 1px dashed color-mix(in oklab, var(--color-base-content) 35%, transparent);
+}
+.wiki-prose .wiki-wanted::after { content: "+"; font-size: 0.7em; vertical-align: super; margin-left: 0.1em; }
+.wiki-prose .wiki-mention {
+  color: var(--color-primary);
+  background: color-mix(in oklab, var(--color-primary) 10%, transparent);
+  padding: 0 0.3rem; border-radius: 0.375rem; font-weight: 500;
+}
+/* A card, drawn live: whatever it says here is what the card says now. */
+.wiki-prose .wiki-chip {
+  display: inline-flex; align-items: baseline; gap: 0.35rem;
+  padding: 0.05rem 0.5rem 0.1rem; border-radius: 0.5rem;
+  background: var(--color-base-100);
+  border: 1px solid var(--color-base-300);
+  text-decoration: none; color: inherit; line-height: 1.4;
+  vertical-align: baseline;
+}
+.wiki-prose .wiki-chip:hover { border-color: color-mix(in oklab, var(--color-primary) 50%, transparent); }
+.wiki-prose .wiki-chip-id { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.75em; color: color-mix(in oklab, var(--color-base-content) 45%, transparent); }
+.wiki-prose .wiki-chip-title { font-weight: 500; }
+.wiki-prose .wiki-chip-meta { font-size: 0.75em; color: color-mix(in oklab, var(--color-base-content) 50%, transparent); }
+.wiki-prose .wiki-chip-done .wiki-chip-title { text-decoration: line-through; opacity: 0.7; }
+.wiki-prose .wiki-toc {
+  margin: 1.25rem 0; padding: 0.75rem 1rem;
+  border: 1px solid var(--color-base-300); border-radius: 0.75rem;
+  background: color-mix(in oklab, var(--color-base-content) 3%, transparent);
+}
+.wiki-prose .wiki-toc-title { margin: 0 0 0.4rem; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: color-mix(in oklab, var(--color-base-content) 50%, transparent); }
+.wiki-prose .wiki-toc ul { margin: 0; padding: 0; list-style: none; }
+.wiki-prose .wiki-toc li { margin: 0.1rem 0; }
+.wiki-prose .wiki-toc-2 { padding-left: 1rem; }
+.wiki-prose .wiki-toc-3 { padding-left: 2rem; }
+.wiki-prose .wiki-toc-4, .wiki-prose .wiki-toc-5, .wiki-prose .wiki-toc-6 { padding-left: 3rem; }
+.wiki-prose .wiki-children, .wiki-prose .wiki-backlinks { list-style: none; padding-left: 0; }
+.wiki-prose .wiki-children li, .wiki-prose .wiki-backlinks li { margin: 0.25rem 0; }
+.wiki-prose .wiki-list-summary { color: color-mix(in oklab, var(--color-base-content) 55%, transparent); font-size: 0.9em; }
+.wiki-prose .wiki-empty { color: color-mix(in oklab, var(--color-base-content) 50%, transparent); font-style: italic; }
+
+/* Wiki: live query blocks -------------------------------------------- */
+.wiki-prose .wiki-query-table { margin: 1rem 0; overflow-x: auto; }
+.wiki-prose .wiki-query-table table { margin: 0; display: table; width: 100%; }
+.wiki-prose .wiki-query-list { list-style: none; padding-left: 0; margin: 0.75rem 0; }
+.wiki-prose .wiki-query-list li { margin: 0.2rem 0; }
+.wiki-prose .wiki-query-card { text-decoration: none; border-bottom: 1px solid transparent; }
+.wiki-prose .wiki-query-card:hover { border-bottom-color: var(--color-primary); }
+.wiki-prose .wiki-query-group {
+  margin: 1rem 0 0.3rem; font-size: 0.75rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  color: color-mix(in oklab, var(--color-base-content) 55%, transparent);
+}
+.wiki-prose .wiki-query-group-count {
+  margin-left: 0.35rem; font-weight: 400;
+  color: color-mix(in oklab, var(--color-base-content) 40%, transparent);
+}
+.wiki-prose .wiki-query-count { margin: 0.75rem 0; }
+.wiki-prose .wiki-query-number { font-size: 1.5em; font-weight: 600; }
+.wiki-prose .wiki-inline { font-variant-numeric: tabular-nums; font-weight: 500; }
+.wiki-prose .wiki-progress {
+  height: 0.5rem; border-radius: 9999px; margin: 0.4rem 0 0.25rem;
+  background: color-mix(in oklab, var(--color-base-content) 12%, transparent);
+  overflow: hidden;
+}
+.wiki-prose .wiki-progress-bar { height: 100%; background: var(--color-primary); border-radius: 9999px; }
+.wiki-prose .wiki-progress-label { font-weight: 600; }
+.wiki-prose .wiki-progress-text { margin: 0; font-size: 0.875rem; color: color-mix(in oklab, var(--color-base-content) 60%, transparent); }
+/* A query that cannot be answered is a note on the page, never a broken page. */
+.wiki-prose .wiki-query-error {
+  margin: 1rem 0; padding: 0.75rem 1rem; border-radius: 0.75rem;
+  border: 1px solid color-mix(in oklab, var(--color-error, oklch(64% 0.2 25)) 45%, transparent);
+  background: color-mix(in oklab, var(--color-error, oklch(64% 0.2 25)) 8%, transparent);
+}
+.wiki-prose .wiki-query-error-message { margin: 0 0 0.5rem; font-size: 0.875rem; font-weight: 500; }
+.wiki-prose .wiki-query-error pre { margin: 0; background: var(--color-base-100); }
+
+/* A wiki page placed on the board. It borrows the card's shape and its drag
+   handle, because being movable is the point, but says plainly that it is a
+   document rather than work: no tick box, no priority, no due date, and a
+   left edge in the primary colour to tell it apart at a glance. */
+.kanban-page { border-left: 3px solid color-mix(in oklab, var(--color-primary) 55%, transparent); }
+.kanban-page:hover { border-left-color: var(--color-primary); }
+
+/* The wiki's tree in organise mode (see `SlipdockWeb.WikiLive.Index`). An empty
+   list is still a place to drop something, so it keeps a seam of height at
+   rest and opens into a real target the moment a drag starts — a tree that
+   showed every empty target all the time would be twice as long and half as
+   readable. */
+#wiki-tree [data-tree-list][data-empty] { min-height: 0.375rem; }
+#wiki-tree.wiki-dragging [data-tree-list][data-empty] {
+  min-height: 1.5rem;
+  border: 1px dashed color-mix(in oklab, var(--color-primary) 45%, transparent);
+  border-radius: 0.5rem;
+}

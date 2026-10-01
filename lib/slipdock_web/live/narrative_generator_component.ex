@@ -1,0 +1,171 @@
+defmodule SlipdockWeb.NarrativeGeneratorComponent do
+  @moduledoc """
+  The narrative page's Generator: picks a level of detail and asks the model
+  for prose covering everything the narrative view shows (see
+  `Slipdock.AI.Narrator`).
+  """
+  use SlipdockWeb, :live_component
+
+  alias Slipdock.AI.Narrator
+  alias SlipdockWeb.Markdown
+
+  @impl true
+  def mount(socket) do
+    {:ok,
+     assign(socket,
+       open: false,
+       level: "summary",
+       busy: false,
+       prose: nil,
+       prose_level: nil,
+       error: nil
+     )}
+  end
+
+  @impl true
+  def handle_event("toggle", _, socket),
+    do: {:noreply, assign(socket, open: not socket.assigns.open)}
+
+  def handle_event("close", _, socket),
+    do: {:noreply, assign(socket, open: false, prose: nil, prose_level: nil, error: nil)}
+
+  def handle_event("generate", %{"level" => key}, socket) do
+    if socket.assigns.busy or is_nil(Narrator.level(key)) do
+      {:noreply, socket}
+    else
+      %{board: board, narrative: narrative} = socket.assigns
+      source = %{board: board, narrative: narrative, view_name: socket.assigns[:view_name]}
+      user = socket.assigns[:current_user]
+
+      {:noreply,
+       socket
+       |> assign(level: key, busy: true, error: nil, open: true)
+       |> start_async(:generate, fn ->
+         {key, Narrator.generate(source, key, user: user)}
+       end)}
+    end
+  end
+
+  @impl true
+  def handle_async(:generate, {:ok, {key, {:ok, text}}}, socket) do
+    {:noreply, assign(socket, busy: false, prose: String.trim(text), prose_level: key)}
+  end
+
+  def handle_async(:generate, {:ok, {_key, {:error, message}}}, socket) do
+    {:noreply, assign(socket, busy: false, error: message)}
+  end
+
+  def handle_async(:generate, {:exit, reason}, socket) do
+    {:noreply, assign(socket, busy: false, error: "Generation crashed: #{inspect(reason)}")}
+  end
+
+  @impl true
+  def render(assigns) do
+    assigns =
+      assign(assigns,
+        levels: Narrator.levels(),
+        current: Narrator.level(assigns.prose_level || assigns.level)
+      )
+
+    ~H"""
+    <div id={@id} class="print:hidden">
+      <button
+        :if={not @open}
+        type="button"
+        class="btn btn-sm gap-1.5 border-primary/30 bg-primary/5 text-primary hover:bg-primary/10"
+        phx-click="toggle"
+        phx-target={@myself}
+        title="Generate prose from everything on this page"
+      >
+        <.icon name="hero-sparkles" class="size-4" /> Generate narrative
+      </button>
+
+      <div
+        :if={@open}
+        class="ai-generator space-y-3 rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 to-transparent p-4"
+      >
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-primary">
+            <.icon name="hero-sparkles" class="size-4" /> Generator
+          </span>
+          <span class="text-xs text-base-content/60">
+            Prose from everything shown here, at the level you pick.
+          </span>
+          <button
+            type="button"
+            class="btn btn-ghost btn-xs btn-square ml-auto"
+            aria-label="Close the generator"
+            phx-click="close"
+            phx-target={@myself}
+          >
+            <.icon name="hero-x-mark" class="size-4" />
+          </button>
+        </div>
+
+        <div class="flex flex-wrap gap-1.5" role="group" aria-label="Level of detail">
+          <button
+            :for={level <- @levels}
+            type="button"
+            class={[
+              "chip transition",
+              if(level.key == (@prose_level || @level),
+                do: "bg-primary text-primary-content",
+                else: "chip-line hover:bg-base-200"
+              )
+            ]}
+            title={level.hint}
+            disabled={@busy}
+            phx-click="generate"
+            phx-value-level={level.key}
+            phx-target={@myself}
+          >
+            {level.label}
+          </button>
+        </div>
+
+        <div :if={@busy} class="space-y-2 py-1" aria-label="Generating">
+          <div class="ai-shimmer h-3 w-11/12 rounded"></div>
+          <div class="ai-shimmer h-3 w-full rounded"></div>
+          <div class="ai-shimmer h-3 w-4/5 rounded"></div>
+        </div>
+
+        <p
+          :if={@error}
+          class="flex items-start gap-2 rounded-xl bg-error/10 px-3 py-2 text-xs text-error"
+        >
+          <.icon name="hero-exclamation-triangle" class="mt-0.5 size-3.5 shrink-0" /> {@error}
+        </p>
+
+        <div :if={@prose && not @busy} class="space-y-2">
+          <div
+            id={"#{@id}-prose"}
+            class="ai-prose rounded-xl bg-base-100 px-4 py-3 text-sm leading-relaxed shadow-sm ring-1 ring-base-content/10"
+            phx-no-format
+          >{Markdown.render(@prose)}</div>
+          <div class="flex flex-wrap items-center gap-2 text-xs text-base-content/60">
+            <span>{@current && @current.label} · generated by {Slipdock.AI.model()}</span>
+            <button
+              type="button"
+              id={"#{@id}-copy"}
+              class="btn btn-ghost btn-xs ml-auto gap-1"
+              phx-hook="CopyText"
+              data-target={"#{@id}-prose"}
+            >
+              <.icon name="hero-clipboard" class="size-3.5" /> <span data-label>Copy</span>
+            </button>
+            <button
+              type="button"
+              class="btn btn-ghost btn-xs gap-1"
+              phx-click="generate"
+              phx-value-level={@prose_level || @level}
+              phx-target={@myself}
+            >
+              <.icon name="hero-arrow-path" class="size-3.5" /> Regenerate
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    """
+  end
+end

@@ -1,0 +1,281 @@
+defmodule Slipdock.Boards.Card do
+  use Ecto.Schema
+  import Ecto.Changeset
+
+  @priorities ~w(none low medium high critical)
+  @flags ~w(flagged blocked review waiting starred)
+
+  # The readers below match on *shape* rather than on `%Card{}`, because a
+  # wiki page placed on the board carries the same facets under the same names
+  # (see `Slipdock.Wiki.Page`) and the views should not have to ask which they
+  # are holding. Everything that *writes* still takes a card and nothing else.
+
+  schema "cards" do
+    field :title, :string
+    field :description, :string
+    field :position, :integer, default: 0
+    field :priority, :string, default: "none"
+    field :flags, {:array, :string}, default: []
+    field :start_date, :date
+    field :due_date, :date
+    # How precisely the card is scheduled (see Slipdock.Dates); dates are
+    # snapped to whole buckets at any precision but "day".
+    field :date_precision, :string, default: "day"
+    field :completed, :boolean, default: false
+    # How far through the work is, 0–100, as stated by whoever is doing it;
+    # nil when nobody has said. Independent of `completed`.
+    field :percent_complete, :integer
+    field :color, :string
+    field :archived_at, :utc_datetime
+
+    # Set by Slipdock.Rollup when the card is loaded through Slipdock.Boards:
+    # progress, effective dates and health rolled up from its subcards.
+    field :rollup, :map, virtual: true
+    # Formula field results, set by Slipdock.Fields.decorate/2: `computed` is
+    # keyed by field id, `scores` by field key.
+    field :computed, :map, virtual: true, default: %{}
+    field :scores, :map, virtual: true, default: %{}
+    # Whether the card is a document — a file and nothing else (see
+    # Slipdock.Kinds). nil means nobody has said, and a card loaded with its
+    # attachments is asked directly; the rollup's light cards set it because
+    # they have none.
+    field :document, :boolean, virtual: true
+
+    belongs_to :board, Slipdock.Boards.Board
+    belongs_to :column, Slipdock.Boards.Column
+    belongs_to :assignee, Slipdock.Accounts.User
+
+    many_to_many :tags, Slipdock.Boards.Tag,
+      join_through: "card_tags",
+      on_replace: :delete,
+      preload_order: [asc: :name]
+
+    # Dependencies: a card is blocked by the cards in `blocked_by` and blocks
+    # the cards in `blocks`. Both sides are rows in card_dependencies.
+    many_to_many :blocked_by, Slipdock.Boards.Card,
+      join_through: "card_dependencies",
+      join_keys: [blocked_id: :id, blocker_id: :id],
+      preload_order: [asc: :title]
+
+    many_to_many :blocks, Slipdock.Boards.Card,
+      join_through: "card_dependencies",
+      join_keys: [blocker_id: :id, blocked_id: :id],
+      preload_order: [asc: :title]
+
+    # Subcards live on a board owned by this card.
+    has_one :sub_board, Slipdock.Boards.Board, foreign_key: :parent_card_id
+
+    has_many :checklist_items, Slipdock.Boards.ChecklistItem, preload_order: [asc: :position]
+    has_many :comments, Slipdock.Boards.Comment, preload_order: [desc: :inserted_at]
+
+    has_many :attachments, Slipdock.Boards.Attachment,
+      preload_order: [asc: :inserted_at, asc: :id]
+
+    # Links out of the system: web pages, shared drives, files elsewhere.
+    has_many :urls, Slipdock.Boards.CardUrl, preload_order: [asc: :inserted_at, asc: :id]
+
+    has_many :status_updates, Slipdock.Boards.StatusUpdate,
+      preload_order: [desc: :inserted_at, desc: :id]
+
+    has_many :field_values, Slipdock.Boards.FieldValue
+    has_many :votes, Slipdock.Boards.Vote
+    # Typed links (see Slipdock.Boards.CardLink), both directions.
+    has_many :links_out, Slipdock.Boards.CardLink, foreign_key: :from_id
+    has_many :links_in, Slipdock.Boards.CardLink, foreign_key: :to_id
+
+    timestamps(type: :utc_datetime)
+  end
+
+  def priorities, do: @priorities
+  def flags, do: @flags
+
+  @doc "The latest stated health (\"on_track\", \"at_risk\", \"off_track\") or nil."
+  def stated_health(%{status_updates: [%{health: h} | _]}), do: h
+  def stated_health(%{rollup: %{stated: h}}), do: h
+  def stated_health(_), do: nil
+
+  @doc "The latest status update, or nil."
+  def latest_update(%{status_updates: [u | _]}), do: u
+  def latest_update(_), do: nil
+
+  @doc "The goal cards this card contributes to (link stubs), when links are loaded."
+  def goals(%{links_out: links}) when is_list(links),
+    do: for(%{kind: "contributes", to: %__MODULE__{} = goal} <- links, do: goal)
+
+  def goals(_), do: []
+
+  @doc "The cards contributing to this one, when links are loaded."
+  def contributions(%{links_in: links}) when is_list(links),
+    do: for(%{kind: "contributes", from: %__MODULE__{} = card} <- links, do: card)
+
+  def contributions(_), do: []
+
+  @doc "Votes on the card, all people together (0 when votes aren't loaded)."
+  def vote_total(%{votes: votes}) when is_list(votes),
+    do: votes |> Enum.map(& &1.count) |> Enum.sum()
+
+  def vote_total(_), do: 0
+
+  @doc "Whether the card is scheduled more coarsely than to the day."
+  def fuzzy?(%{date_precision: p}), do: p not in [nil, "day"]
+  def fuzzy?(_), do: false
+
+  @doc "Whether an unfinished, unarchived card still blocks this one."
+  def blocked?(%{blocked_by: blockers}) when is_list(blockers) do
+    Enum.any?(blockers, &(not &1.completed and is_nil(&1.archived_at)))
+  end
+
+  def blocked?(_), do: false
+
+  @doc "Progress of the subcards as `{done, total}` (active cards only), or nil without a sub-board."
+  def subcard_progress(%{sub_board: %{cards: cards}}) when is_list(cards) do
+    active = Enum.reject(cards, &(not is_nil(&1.archived_at)))
+    {Enum.count(active, & &1.completed), length(active)}
+  end
+
+  def subcard_progress(_), do: nil
+
+  @doc """
+  Progress as `{done, total}` counting every leaf beneath the card (from the
+  rollup), else the direct subcards, else nil.
+  """
+  def progress(%{rollup: %{total: total, done: done, children: n}}) when n > 0,
+    do: {done, total}
+
+  def progress(item), do: subcard_progress(item)
+
+  @doc "The rolled-up health: `:done`, `:blocked`, `:late` or `:ok` (nil without a rollup)."
+  def health(%{rollup: %{health: health}}), do: health
+  def health(_), do: nil
+
+  @doc "The card's own start date, else the one rolled up from its subcards."
+  def effective_start(%{rollup: %{start: %Date{} = d}}), do: d
+  def effective_start(%{start_date: d}), do: d
+  def effective_start(_), do: nil
+
+  @doc "The card's own due date, else the one rolled up from its subcards."
+  def effective_due(%{rollup: %{due: %Date{} = d}}), do: d
+  def effective_due(%{due_date: d}), do: d
+  def effective_due(_), do: nil
+
+  def start_derived?(%{rollup: %{start_derived?: v}}), do: v
+  def start_derived?(_), do: false
+  def due_derived?(%{rollup: %{due_derived?: v}}), do: v
+  def due_derived?(_), do: false
+
+  @doc "Days the subcards run past the card's own due date (0 when they don't)."
+  def slip(%{rollup: %{slip: n}}), do: n
+  def slip(_), do: 0
+
+  @doc "The blockers that are still open."
+  def open_blockers(%{blocked_by: blockers}) when is_list(blockers) do
+    Enum.filter(blockers, &(not &1.completed and is_nil(&1.archived_at)))
+  end
+
+  def open_blockers(_), do: []
+
+  @doc """
+  Open blockers scheduled to finish after this card is due to start: the
+  plan contradicts the dependency. Uses the blockers' own dates.
+  """
+  def violated_blockers(card) do
+    case effective_start(card) || effective_due(card) do
+      nil ->
+        []
+
+      starts ->
+        Enum.filter(open_blockers(card), fn b ->
+          case Map.get(b, :due_date) || Map.get(b, :start_date) do
+            %Date{} = ends -> Date.compare(ends, starts) == :gt
+            _ -> false
+          end
+        end)
+    end
+  end
+
+  @doc "The first day a card occupies: its start date, else its due date."
+  def starts_on(%{start_date: %Date{} = d}), do: d
+  def starts_on(%{due_date: d}), do: d
+  def starts_on(_), do: nil
+
+  @doc "The last day a card occupies: its due date, else its start date."
+  def ends_on(%{due_date: %Date{} = d}), do: d
+  def ends_on(%{start_date: d}), do: d
+  def ends_on(_), do: nil
+
+  def changeset(card, attrs) do
+    card
+    |> cast(attrs, [
+      :title,
+      :description,
+      :position,
+      :priority,
+      :flags,
+      :start_date,
+      :due_date,
+      :date_precision,
+      :completed,
+      :percent_complete,
+      :color,
+      :board_id,
+      :column_id,
+      :assignee_id
+    ])
+    |> validate_required([:title, :board_id, :column_id])
+    |> validate_length(:title, min: 1, max: 200)
+    |> validate_inclusion(:priority, @priorities)
+    |> validate_subset(:flags, @flags)
+    |> update_change(:date_precision, fn
+      "" -> "day"
+      p -> p
+    end)
+    |> validate_inclusion(:date_precision, Slipdock.Dates.precision_keys())
+    |> validate_dates()
+    |> snap_dates()
+    |> update_change(:color, fn
+      "" -> nil
+      c -> c
+    end)
+    |> validate_inclusion(:color, [nil | Slipdock.Palette.names()])
+    |> validate_number(:percent_complete,
+      greater_than_or_equal_to: 0,
+      less_than_or_equal_to: 100
+    )
+  end
+
+  defp validate_dates(changeset) do
+    start = get_field(changeset, :start_date)
+    due = get_field(changeset, :due_date)
+
+    if start && due && Date.compare(start, due) == :gt,
+      do: add_error(changeset, :start_date, "must be on or before the due date"),
+      else: changeset
+  end
+
+  # At a precision coarser than a day the card fills whole buckets: the start
+  # snaps to the beginning of its bucket, the due date to the end of its.
+  defp snap_dates(%{valid?: false} = changeset), do: changeset
+
+  defp snap_dates(changeset) do
+    precision = get_field(changeset, :date_precision) || "day"
+
+    if precision == "day" do
+      changeset
+    else
+      changeset
+      |> snap(:start_date, &Slipdock.Dates.bucket_start(&1, precision))
+      |> snap(:due_date, &Slipdock.Dates.bucket_end(&1, precision))
+    end
+  end
+
+  defp snap(changeset, field, fun) do
+    case get_field(changeset, field) do
+      %Date{} = d ->
+        snapped = fun.(d)
+        if snapped == d, do: changeset, else: put_change(changeset, field, snapped)
+
+      _ ->
+        changeset
+    end
+  end
+end

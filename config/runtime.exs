@@ -1,0 +1,298 @@
+import Config
+
+# config/runtime.exs is executed for all environments, including
+# during releases. It is executed after compilation and before the
+# system starts, so it is typically used to load production configuration
+# and secrets from environment variables or elsewhere. Do not define
+# any compile-time configuration in here, as it won't be applied.
+# The block below contains prod specific runtime configuration.
+
+# ## Using releases
+#
+# If you use `mix release`, you need to explicitly enable the server
+# by passing the PHX_SERVER=true when you start it:
+#
+#     PHX_SERVER=true bin/kanban start
+#
+# Alternatively, you can use `mix phx.gen.release` to generate a `bin/server`
+# script that automatically sets the env var above.
+# Real email delivery over SMTP, when configured. Otherwise sent mail stays in
+# the in-memory mailbox at /dev/mailbox and the sign-in link is also logged.
+if host = System.get_env("SLIPDOCK_SMTP_HOST") do
+  # Credentials are optional: an IP-authorised relay (e.g. Gmail's
+  # smtp-relay.gmail.com) needs none.
+  auth =
+    case {System.get_env("SLIPDOCK_SMTP_USER"), System.get_env("SLIPDOCK_SMTP_PASSWORD")} do
+      {user, pass} when is_binary(user) and is_binary(pass) ->
+        [username: user, password: pass, auth: :always]
+
+      _ ->
+        [auth: :never]
+    end
+
+  config :slipdock,
+         Slipdock.Mailer,
+         [
+           adapter: Swoosh.Adapters.SMTP,
+           relay: host,
+           port: String.to_integer(System.get_env("SLIPDOCK_SMTP_PORT") || "587"),
+           tls: :if_available,
+           tls_options: [verify: :verify_none],
+           retries: 1
+         ] ++ auth
+end
+
+# The project was renamed from Kanban to Slipdock and its variables went with
+# it. Every old `KANBAN_*` name still works: it fills in the `SLIPDOCK_*` one
+# if that is unset, so an existing .env keeps a server booting. Run on both
+# sides of the .env load, since SLIPDOCK_ENV_FILE is read before it and the
+# file itself may hold old names. Warned once, and due for removal a release
+# from now.
+adopt_legacy_env = fn ->
+  for {"KANBAN_" <> rest = old, value} <- System.get_env(),
+      new = "SLIPDOCK_" <> rest,
+      is_nil(System.get_env(new)) do
+    System.put_env(new, value)
+    old
+  end
+end
+
+adopt_legacy_env.()
+
+# Secrets may live in a .env file (KEY=value lines) rather than the process
+# environment: SLIPDOCK_ENV_FILE, else .env in the project or its parent
+# directory. Variables already set in the environment win.
+env_files =
+  [
+    System.get_env("SLIPDOCK_ENV_FILE"),
+    Path.expand("../.env", __DIR__),
+    Path.expand("../../.env", __DIR__)
+  ]
+  |> Enum.reject(&is_nil/1)
+
+for path <- env_files, File.regular?(path) do
+  path
+  |> File.read!()
+  |> String.split("\n")
+  |> Enum.each(fn line ->
+    with line <- String.trim(line),
+         false <- line == "" or String.starts_with?(line, "#"),
+         [key, value] <- String.split(String.replace_prefix(line, "export ", ""), "=", parts: 2),
+         key <- String.trim(key),
+         nil <- System.get_env(key) do
+      value = value |> String.trim() |> String.trim("\"") |> String.trim("'")
+      System.put_env(key, value)
+    else
+      _ -> :ok
+    end
+  end)
+end
+
+legacy_env = adopt_legacy_env.()
+
+if legacy_env != [] do
+  IO.puts(
+    :stderr,
+    "warning: #{length(legacy_env)} KANBAN_* environment variable(s) are still in use " <>
+      "(#{Enum.join(Enum.sort(legacy_env), ", ")}). They have been read as their SLIPDOCK_* " <>
+      "equivalents. Rename them in your .env — the fallback goes away in the next release."
+  )
+end
+
+# Keys are per-person now (Account → AI key, stored by `Slipdock.AI.Keys`).
+# OPENROUTER_API_KEY still works as a *shared* key for everyone on this
+# server, which is rarely what you want — leave it unset unless you mean it.
+if key = System.get_env("OPENROUTER_API_KEY") do
+  config :slipdock, :ai, api_key: key
+end
+
+# Where the per-user keys are kept, and whose key unattended work (the search
+# indexer, scheduled automations) spends when there is no shared key.
+# Who may sign up. SLIPDOCK_SIGNUP_ALLOW is a comma-separated list of addresses
+# and domains ("you@example.com,example.org"); SLIPDOCK_OPEN_SIGNUP=true lets
+# anybody in. Without either, only people who already have an account can sign
+# in — and the first address to use an empty instance claims it.
+if System.get_env("SLIPDOCK_OPEN_SIGNUP") in ["1", "true"] do
+  config :slipdock, :signups, open: true
+end
+
+if allow = System.get_env("SLIPDOCK_SIGNUP_ALLOW") do
+  config :slipdock, :signups,
+    open: System.get_env("SLIPDOCK_OPEN_SIGNUP") in ["1", "true"],
+    allow: allow |> String.split(",") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
+end
+
+# Where this instance's source lives, offered in the UI (AGPL §13). Change it
+# if you run a modified copy — that is what the licence asks of you.
+if url = System.get_env("SLIPDOCK_SOURCE_URL") do
+  config :slipdock, :source_url, url
+end
+
+if file = System.get_env("SLIPDOCK_AI_KEY_FILE") do
+  config :slipdock, :ai, key_file: file
+end
+
+if email = System.get_env("SLIPDOCK_AI_SYSTEM_USER") do
+  config :slipdock, :ai, system_user: email
+end
+
+if model = System.get_env("SLIPDOCK_AI_MODEL") do
+  config :slipdock, :ai, model: model
+end
+
+if model = System.get_env("SLIPDOCK_AI_QUICK_MODEL") do
+  config :slipdock, :ai, quick_model: model
+end
+
+if model = System.get_env("SLIPDOCK_AI_EMBED_MODEL") do
+  config :slipdock, :ai, embed_model: model
+end
+
+if dims = System.get_env("SLIPDOCK_AI_EMBED_DIMENSIONS") do
+  config :slipdock, :ai, embed_dimensions: String.to_integer(dims)
+end
+
+if dir = System.get_env("SLIPDOCK_UPLOADS_DIR") do
+  config :slipdock, :uploads_dir, dir
+end
+
+# The address automation emails link back to, when it isn't derivable from
+# the endpoint configuration (behind a proxy, say).
+if base_url = System.get_env("SLIPDOCK_BASE_URL") do
+  config :slipdock, :base_url, String.trim_trailing(base_url, "/")
+end
+
+if from = System.get_env("SLIPDOCK_MAIL_FROM") do
+  config :slipdock, :mail_from, {"Slipdock", from}
+end
+
+# SLIPDOCK_AGENTIC_LOGIN=true adds an "Agentic Login" button to the sign-in page
+# that writes the one-time link to a file (in SLIPDOCK_AGENTIC_LOGIN_DIR, default
+# /tmp) instead of emailing it. Anyone who can reach the page can create such
+# files, so only enable it on machines used for automated testing.
+if System.get_env("SLIPDOCK_AGENTIC_LOGIN") in ["1", "true"] do
+  config :slipdock,
+    agentic_login: true,
+    agentic_login_dir: System.get_env("SLIPDOCK_AGENTIC_LOGIN_DIR") || "/tmp"
+end
+
+if System.get_env("PHX_SERVER") do
+  config :slipdock, SlipdockWeb.Endpoint, server: true
+end
+
+config :slipdock, SlipdockWeb.Endpoint,
+  http: [port: String.to_integer(System.get_env("PORT", "4000"))]
+
+if config_env() == :dev do
+  # Reload browser tabs when matching files change.
+  config :slipdock, SlipdockWeb.Endpoint,
+    live_reload: [
+      web_console_logger: true,
+      patterns: [
+        # Static assets, except user uploads
+        ~r"priv/static/(?!uploads/).*\.(js|css|png|jpeg|jpg|gif|svg)$"E,
+        # Gettext translations
+        ~r"priv/gettext/.*\.po$"E,
+        # Router, Controllers, LiveViews and LiveComponents
+        ~r"lib/slipdock_web/router\.ex$"E,
+        ~r"lib/slipdock_web/(controllers|live|components)/.*\.(ex|heex)$"E
+      ]
+    ]
+end
+
+if config_env() == :prod do
+  database_path =
+    System.get_env("DATABASE_PATH") ||
+      raise """
+      environment variable DATABASE_PATH is missing.
+      For example: /etc/kanban/kanban.db
+      """
+
+  config :slipdock, Slipdock.Repo,
+    database: database_path,
+    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "5")
+
+  # The secret key base is used to sign/encrypt cookies and other secrets.
+  # A default value is used in config/dev.exs and config/test.exs but you
+  # want to use a different value for prod and you most likely don't want
+  # to check this value into version control, so we use an environment
+  # variable instead.
+  secret_key_base =
+    System.get_env("SECRET_KEY_BASE") ||
+      raise """
+      environment variable SECRET_KEY_BASE is missing.
+      You can generate one by calling: mix phx.gen.secret
+      """
+
+  host = System.get_env("PHX_HOST") || "example.com"
+
+  # How the app describes itself in the links it generates — sign-in emails
+  # above all, which are useless if they point at a scheme or port nobody is
+  # listening on. https on 443 is the default because that is what a server on
+  # the internet looks like; a container reached over plain http on its
+  # published port sets these (see compose.yaml).
+  url_scheme = System.get_env("SLIPDOCK_URL_SCHEME") || "https"
+
+  url_port =
+    String.to_integer(
+      System.get_env("SLIPDOCK_URL_PORT") || if(url_scheme == "https", do: "443", else: "80")
+    )
+
+  config :slipdock, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
+
+  # Phoenix only accepts WebSocket connections whose Origin matches the host
+  # above, which is right until the same server is reached by several names — a
+  # tailnet name and an IP, say. List the others here (comma-separated), or set
+  # it to "false" to accept any origin, which gives up a CSRF protection on the
+  # socket and should be a last resort.
+  check_origin =
+    case System.get_env("SLIPDOCK_CHECK_ORIGIN") do
+      nil -> true
+      "false" -> false
+      list -> list |> String.split(",") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
+    end
+
+  config :slipdock, SlipdockWeb.Endpoint,
+    url: [host: host, port: url_port, scheme: url_scheme],
+    check_origin: check_origin,
+    http: [
+      # Enable IPv6 and bind on all interfaces.
+      # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.
+      # See the documentation on https://bandit.hexdocs.pm/Bandit.html#t:options/0
+      # for details about using IPv6 vs IPv4 and loopback vs public addresses.
+      ip: {0, 0, 0, 0, 0, 0, 0, 0}
+    ],
+    secret_key_base: secret_key_base
+
+  # ## SSL Support
+  #
+  # To get SSL working, you will need to add the `https` key
+  # to your endpoint configuration:
+  #
+  #     config :slipdock, SlipdockWeb.Endpoint,
+  #       https: [
+  #         ...,
+  #         port: 443,
+  #         cipher_suite: :strong,
+  #         keyfile: System.get_env("SOME_APP_SSL_KEY_PATH"),
+  #         certfile: System.get_env("SOME_APP_SSL_CERT_PATH")
+  #       ]
+  #
+  # The `cipher_suite` is set to `:strong` to support only the
+  # latest and more secure SSL ciphers. This means old browsers
+  # and clients may not be supported. You can set it to
+  # `:compatible` for wider support.
+  #
+  # `:keyfile` and `:certfile` expect an absolute path to the key
+  # and cert in disk or a relative path inside priv, for example
+  # "priv/ssl/server.key". For all supported SSL configuration
+  # options, see https://plug.hexdocs.pm/Plug.SSL.html#configure/1
+  #
+  # We also recommend setting `force_ssl` in your config/prod.exs,
+  # ensuring no data is ever sent via http, always redirecting to https:
+  #
+  #     config :slipdock, SlipdockWeb.Endpoint,
+  #       force_ssl: [hsts: true]
+  #
+  # Check `Plug.SSL` for all available options in `force_ssl`.
+end

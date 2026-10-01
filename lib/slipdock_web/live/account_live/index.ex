@@ -1,0 +1,382 @@
+defmodule SlipdockWeb.AccountLive.Index do
+  use SlipdockWeb, :live_view
+
+  alias Slipdock.Accounts
+  alias Slipdock.AI
+  alias Slipdock.QuickAdd.Capture
+
+  @impl true
+  def mount(_params, _session, socket) do
+    user = socket.assigns.current_user
+
+    {:ok,
+     socket
+     |> assign(
+       page_title: "Account",
+       profile_form: to_form(Accounts.change_profile(user)),
+       new_token: nil,
+       form_key: 0,
+       source_url: Application.get_env(:slipdock, :source_url)
+     )
+     |> assign_quick_add(Accounts.change_quick_add(user))
+     |> assign_ai_key()
+     |> load_tokens()}
+  end
+
+  # The key itself is never sent to the browser — only its shape and when it
+  # was set.
+  defp assign_ai_key(socket) do
+    user = socket.assigns.current_user
+
+    assign(socket,
+      ai_key: AI.Keys.masked(AI.Keys.get(user)),
+      ai_key_set_at: AI.Keys.updated_at(user),
+      ai_key_shared?: AI.configured?(user) and not AI.Keys.configured?(user),
+      ai_key_form_key: 0
+    )
+  end
+
+  defp load_tokens(socket),
+    do: assign(socket, tokens: Accounts.list_api_tokens(socket.assigns.current_user))
+
+  # The quick add settings, with the lists narrowed to the chosen board's.
+  defp assign_quick_add(socket, changeset) do
+    user = socket.assigns.current_user
+    catalogue = Capture.catalogue(user)
+    board_id = Ecto.Changeset.get_field(changeset, :quick_add_board_id)
+
+    entry =
+      Enum.find(catalogue.boards, &(&1.board.id == board_id)) ||
+        Enum.find(catalogue.boards, &(&1.board.id == (catalogue.default_board || %{id: nil}).id))
+
+    columns = (entry && entry.columns) || []
+
+    # A list from another board would silently send cards elsewhere.
+    changeset =
+      changeset
+      |> put_default(:quick_add_board_id, entry && entry.board.id)
+      |> then(fn cs ->
+        case Ecto.Changeset.get_field(cs, :quick_add_column_id) do
+          id when is_integer(id) ->
+            if Enum.any?(columns, &(&1.id == id)),
+              do: cs,
+              else: put_default(cs, :quick_add_column_id, nil)
+
+          _ ->
+            put_default(
+              cs,
+              :quick_add_column_id,
+              catalogue.default_column && catalogue.default_column.id
+            )
+        end
+      end)
+
+    assign(socket,
+      quick_add_form: to_form(changeset),
+      quick_add_boards: catalogue.boards,
+      quick_add_columns: columns
+    )
+  end
+
+  defp put_default(changeset, field, value),
+    do: Ecto.Changeset.put_change(changeset, field, value)
+
+  @impl true
+  def handle_event("save_profile", %{"user" => params}, socket) do
+    case Accounts.update_profile(socket.assigns.current_user, params) do
+      {:ok, user} ->
+        {:noreply,
+         socket
+         |> assign(current_user: user, profile_form: to_form(Accounts.change_profile(user)))
+         |> put_flash(:info, "Profile saved.")}
+
+      {:error, cs} ->
+        {:noreply, assign(socket, profile_form: to_form(cs))}
+    end
+  end
+
+  def handle_event("change_quick_add", %{"user" => params}, socket) do
+    user = socket.assigns.current_user
+    changeset = Accounts.change_quick_add(user, board_switch(params, user))
+    {:noreply, assign_quick_add(socket, changeset)}
+  end
+
+  def handle_event("save_quick_add", %{"user" => params}, socket) do
+    case Accounts.update_quick_add(socket.assigns.current_user, params) do
+      {:ok, user} ->
+        {:noreply,
+         socket
+         |> assign(current_user: user)
+         |> assign_quick_add(Accounts.change_quick_add(user))
+         |> put_flash(:info, "Quick add settings saved.")}
+
+      {:error, cs} ->
+        {:noreply, assign_quick_add(socket, cs)}
+    end
+  end
+
+  def handle_event("save_ai_key", %{"api_key" => key}, socket) do
+    case AI.Keys.put(socket.assigns.current_user, key) do
+      :ok ->
+        {:noreply,
+         socket
+         |> assign_ai_key()
+         |> update(:ai_key_form_key, &(&1 + 1))
+         |> put_flash(
+           :info,
+           if(String.trim(key) == "", do: "AI key removed.", else: "AI key saved.")
+         )}
+
+      {:error, message} ->
+        {:noreply, put_flash(socket, :error, message)}
+    end
+  end
+
+  def handle_event("remove_ai_key", _, socket) do
+    case AI.Keys.delete(socket.assigns.current_user) do
+      :ok -> {:noreply, socket |> assign_ai_key() |> put_flash(:info, "AI key removed.")}
+      {:error, message} -> {:noreply, put_flash(socket, :error, message)}
+    end
+  end
+
+  def handle_event("create_token", %{"label" => label}, socket) do
+    label = if String.trim(label) == "", do: "CLI", else: String.trim(label)
+    {token, _} = Accounts.create_api_token(socket.assigns.current_user, label)
+
+    {:noreply,
+     socket |> assign(new_token: token) |> update(:form_key, &(&1 + 1)) |> load_tokens()}
+  end
+
+  def handle_event("delete_token", %{"id" => id}, socket) do
+    :ok = Accounts.delete_api_token(socket.assigns.current_user, String.to_integer(id))
+    {:noreply, socket |> assign(new_token: nil) |> load_tokens()}
+  end
+
+  def handle_event("dismiss_token", _, socket), do: {:noreply, assign(socket, new_token: nil)}
+
+  # Switching board drops the list, so the form can't keep pointing at a list
+  # that lives somewhere else.
+  defp board_switch(%{"quick_add_board_id" => chosen} = params, user) do
+    if to_string(user.quick_add_board_id) == chosen,
+      do: params,
+      else: Map.put(params, "quick_add_column_id", nil)
+  end
+
+  defp board_switch(params, _user), do: params
+
+  @impl true
+  def render(assigns) do
+    ~H"""
+    <Layouts.app
+      flash={@flash}
+      current_user={@current_user}
+      alerts={@alerts}
+      alerts_open={@alerts_open}
+      quick_add={@quick_add}
+      shortcuts={@shortcuts}
+      viewport={@viewport}
+      nav_active={:account}
+    >
+      <:nav><span class="font-semibold">Account</span></:nav>
+      <div class="kanban-scroll h-full overflow-y-auto">
+        <div class="mx-auto max-w-2xl space-y-8 px-4 py-6 sm:py-10 sm:px-6">
+          <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+            <h2 class="text-lg font-semibold">Profile</h2>
+            <p class="text-sm text-base-content/60">Signed in as {@current_user.email}</p>
+            <.form
+              for={@profile_form}
+              id="profile-form"
+              phx-submit="save_profile"
+              class="mt-4 flex items-end gap-3"
+            >
+              <div class="flex-1">
+                <.input field={@profile_form[:name]} label="Display name" placeholder="Your name" />
+              </div>
+              <button type="submit" class="btn btn-primary">Save</button>
+            </.form>
+          </section>
+
+          <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+            <h2 class="text-lg font-semibold">Quick add</h2>
+            <p class="text-sm text-base-content/60">
+              Where the header's quick add box puts a card when the line doesn't name a board
+              or list of its own.
+            </p>
+            <p :if={@quick_add_boards == []} class="mt-4 text-sm text-base-content/50">
+              You have no board you can write to yet.
+            </p>
+            <.form
+              :if={@quick_add_boards != []}
+              for={@quick_add_form}
+              id="quick-add-form-settings"
+              phx-change="change_quick_add"
+              phx-submit="save_quick_add"
+              class="mt-4 space-y-2"
+            >
+              <div class="grid gap-3 sm:grid-cols-2">
+                <.input
+                  field={@quick_add_form[:quick_add_board_id]}
+                  type="select"
+                  label="Board"
+                  options={Enum.map(@quick_add_boards, &{&1.board.name, &1.board.id})}
+                />
+                <.input
+                  field={@quick_add_form[:quick_add_column_id]}
+                  type="select"
+                  label="List"
+                  options={Enum.map(@quick_add_columns, &{&1.name, &1.id})}
+                />
+              </div>
+              <.input
+                field={@quick_add_form[:quick_add_ai]}
+                type="checkbox"
+                label="Read the line with AI"
+              />
+              <p class="-mt-1 text-xs text-base-content/50">
+                {if AI.configured?(@current_user),
+                  do:
+                    "Plain English is turned into a card: “call the printers about banners friday, urgent” becomes a card due Friday at critical priority. Off, only the typed syntax (due: friday, #high, @dan) is read.",
+                  else:
+                    "Add an AI key below to use this; without one only the typed syntax (due: friday, #high, @dan) is read."}
+              </p>
+              <button type="submit" class="btn btn-primary btn-sm">Save</button>
+            </.form>
+          </section>
+
+          <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+            <h2 class="text-lg font-semibold">AI key</h2>
+            <p class="text-sm text-base-content/60">
+              The AI features — chat and edits, the narrative, deep search, written
+              automations, quick add — run on your own <a
+                href="https://openrouter.ai/keys"
+                target="_blank"
+                rel="noopener"
+                class="link"
+              >OpenRouter key</a>. It is kept on the server, used only for your own
+              requests, and billed to your OpenRouter account. Without one, those
+              features stay off for you.
+            </p>
+            <div :if={@ai_key} class="mt-4 flex items-center gap-3 text-sm">
+              <.icon name="hero-sparkles" class="size-4 text-base-content/40" />
+              <code class="rounded bg-base-200 px-2 py-1 font-mono text-xs">{@ai_key}</code>
+              <span :if={@ai_key_set_at} class="text-xs text-base-content/50">
+                set {@ai_key_set_at |> String.slice(0, 10)}
+              </span>
+              <button
+                type="button"
+                class="btn btn-ghost btn-xs text-error"
+                phx-click="remove_ai_key"
+                data-confirm="Remove your OpenRouter key? AI features will stop working for you."
+              >Remove</button>
+            </div>
+            <p :if={!@ai_key && @ai_key_shared?} class="mt-4 text-sm text-base-content/50">
+              No key of your own — this server has a shared one configured, which is
+              what your AI requests use for now.
+            </p>
+            <p :if={!@ai_key && !@ai_key_shared?} class="mt-4 text-sm text-base-content/50">
+              No key yet, so AI features are off for you.
+            </p>
+            <form
+              id={"ai-key-form-#{@ai_key_form_key}"}
+              phx-submit="save_ai_key"
+              class="mt-4 flex gap-2"
+            >
+              <input
+                type="password"
+                name="api_key"
+                placeholder="sk-or-v1-…"
+                class="input input-sm flex-1 font-mono"
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <button type="submit" class="btn btn-sm btn-primary">
+                {if @ai_key, do: "Replace key", else: "Save key"}
+              </button>
+            </form>
+          </section>
+
+          <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+            <h2 class="text-lg font-semibold">API tokens</h2>
+            <p class="text-sm text-base-content/60">
+              For the <code>kanban</code>
+              CLI and scripts. Run <code>kanban auth &lt;token&gt;</code>
+              after creating one.
+            </p>
+            <div :if={@new_token} class="mt-4 rounded-xl bg-warning/10 p-4 text-sm">
+              <p class="font-medium">Copy this token now — it won't be shown again.</p>
+              <code
+                id="new-token"
+                class="mt-2 block select-all break-all rounded bg-base-200 px-2 py-1 font-mono text-xs"
+              >{@new_token}</code>
+              <button type="button" class="btn btn-ghost btn-xs mt-2" phx-click="dismiss_token">Done</button>
+            </div>
+            <form id={"token-form-#{@form_key}"} phx-submit="create_token" class="mt-4 flex gap-2">
+              <input
+                type="text"
+                name="label"
+                placeholder="Label (e.g. laptop)"
+                class="input input-sm flex-1"
+                autocomplete="off"
+              />
+              <button type="submit" class="btn btn-sm">Create token</button>
+            </form>
+            <ul class="mt-4 divide-y divide-base-content/10">
+              <li
+                :for={t <- @tokens}
+                id={"token-#{t.id}"}
+                class="flex items-center gap-3 py-2 text-sm"
+              >
+                <.icon name="hero-key" class="size-4 text-base-content/40" />
+                <span class="flex-1 font-medium">{t.label}</span>
+                <span class="text-xs text-base-content/50">
+                  created {relative_time(t.inserted_at)}<span :if={t.last_used_at}> · used {relative_time(
+                    t.last_used_at
+                  )}</span>
+                </span>
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-xs text-error"
+                  phx-click="delete_token"
+                  phx-value-id={t.id}
+                  data-confirm="Revoke this token?"
+                >Revoke</button>
+              </li>
+            </ul>
+            <p :if={@tokens == []} class="mt-3 text-sm text-base-content/50">No tokens yet.</p>
+          </section>
+
+          <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+            <h2 class="text-lg font-semibold">About</h2>
+            <p class="text-sm text-base-content/60">
+              Slipdock is free software under the <a
+                href="https://www.gnu.org/licenses/agpl-3.0.html"
+                target="_blank"
+                rel="noopener"
+                class="link"
+              >GNU AGPL v3</a>. You are using it over a network, so you are entitled to its
+              source — including any changes whoever runs this server has made: <a
+                href={@source_url}
+                target="_blank"
+                rel="noopener"
+                class="link break-all"
+              >{@source_url}</a>.
+            </p>
+          </section>
+
+          <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+            <h2 class="text-lg font-semibold">Session</h2>
+            <p class="text-sm text-base-content/60">
+              Sign-in links keep you signed in for 30 days on this browser.
+            </p>
+            <.link href={~p"/logout"} method="delete" class="btn btn-outline btn-sm mt-4">
+              <.icon name="hero-arrow-right-start-on-rectangle" class="size-4" /> Sign out
+            </.link>
+          </section>
+        </div>
+      </div>
+    </Layouts.app>
+    """
+  end
+
+  defp relative_time(dt), do: SlipdockWeb.SlipdockComponents.relative_time(dt)
+end

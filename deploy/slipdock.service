@@ -1,0 +1,39 @@
+[Unit]
+Description=Slipdock (Phoenix LiveView) dev server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# ── everything below this line is specific to your machine ──────────────────
+# Copy this file, change these five, and nothing else needs touching:
+#   User/Group          the account that owns the checkout
+#   WorkingDirectory    where you cloned it
+#   HOME                that account's home (mix and hex write there)
+#   EnvironmentFile     your secrets and settings (see .env.example)
+#   ExecStart           the full path to mix (`which mix`)
+User=kanban
+Group=kanban
+WorkingDirectory=/opt/slipdock
+Environment=HOME=/var/lib/kanban
+ExecStart=/usr/local/bin/mix phx.server
+
+Environment=MIX_ENV=dev
+Environment=PORT=4000
+Environment=LANG=C.UTF-8
+
+# Settings and secrets live outside the repo. config/runtime.exs reads the same
+# file by itself, so plain `mix phx.server` behaves identically — see
+# .env.example for every variable and what it defaults to. The leading `-`
+# means "carry on if it isn't there".
+#
+# Note what is *not* here: OpenRouter keys are per-person, set under
+# Account → AI key and kept in ai_keys.json next to the app (Slipdock.AI.Keys).
+EnvironmentFile=-/opt/slipdock/.env
+
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

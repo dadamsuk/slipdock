@@ -1,0 +1,32 @@
+# Keep the build context small and the image free of this machine's state.
+.git
+.github
+_build
+deps
+.elixir_ls
+.elixir-tools
+
+# Secrets and per-instance data: the container gets these through the
+# environment and its volume, never baked in.
+.env
+.env.*
+!.env.example
+ai_keys.json
+ai_keys.json.tmp
+
+# Local databases, uploads, logs, crash dumps
+*.db
+*.db-shm
+*.db-wal
+priv/uploads
+log
+tmp
+erl_crash.dump
+
+# Built assets: the image builds its own
+priv/static/assets
+priv/static/cache_manifest.json
+
+# Docs and the CLI, which are not part of the server image
+cli/_build
+cli/kanban
