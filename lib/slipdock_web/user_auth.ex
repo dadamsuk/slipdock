@@ -76,6 +76,37 @@ defmodule SlipdockWeb.UserAuth do
     end
   end
 
+  @doc """
+  Plug: refuses a state-changing request made with a read-only API token.
+
+  `SlipdockWeb.API.Authorize` narrows per board, card and page, but only
+  covers requests that reach a board, card or page. Creating a board,
+  favouriting something, editing a template or setting an AI key reach none
+  of those, and would otherwise be writable with a read-only token.
+
+  The rule here is the blunt one, and it is the one that fails safe: within
+  the API every mutation is a POST, PATCH, PUT or DELETE — the only mutating
+  GET in the router is the browser's sign-in link — so a read-only token is
+  refused any request that is not a GET or HEAD. A route added tomorrow is
+  covered without anybody remembering to cover it.
+  """
+  def require_token_write(conn, _opts) do
+    read_only? = match?(%{scope: "read"}, conn.assigns[:api_token])
+
+    if read_only? and conn.method not in ~w(GET HEAD) do
+      conn
+      |> put_status(:forbidden)
+      |> json(%{
+        error:
+          "this API token is read-only, so it can't #{String.downcase(conn.method)} " <>
+            "(see Account → API tokens)"
+      })
+      |> halt()
+    else
+      conn
+    end
+  end
+
   # The address the request came from, for the token's audit trail. Behind a
   # proxy `remote_ip` is the proxy, which is why a forwarded header wins when
   # one is present.

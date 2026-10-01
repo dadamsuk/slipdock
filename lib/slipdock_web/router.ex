@@ -17,6 +17,7 @@ defmodule SlipdockWeb.Router do
   pipeline :api do
     plug :accepts, ["json"]
     plug :fetch_api_user
+    plug :require_token_write
   end
 
   # The agent guide: readable without a token, richer with one.

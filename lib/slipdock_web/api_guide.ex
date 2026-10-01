@@ -37,7 +37,7 @@ defmodule SlipdockWeb.APIGuide do
       wiki(),
       vocabulary_section(),
       endpoints_section(),
-      boards_section(user)
+      boards_section(user, Keyword.get(opts, :token))
     ]
     |> Enum.join("\n")
   end
@@ -1245,7 +1245,7 @@ defmodule SlipdockWeb.APIGuide do
     """
   end
 
-  defp boards_section(nil) do
+  defp boards_section(nil, _token) do
     """
 
     ## Your boards
@@ -1257,9 +1257,13 @@ defmodule SlipdockWeb.APIGuide do
     """
   end
 
-  defp boards_section(user) do
-    boards = user |> Access.list_boards(activity: true) |> Boards.sort_boards(user.board_sort)
-    archived = Access.list_boards(user, archived: true)
+  defp boards_section(user, token) do
+    boards =
+      user
+      |> Access.list_boards(activity: true, token: token)
+      |> Boards.sort_boards(user.board_sort)
+
+    archived = Access.list_boards(user, archived: true, token: token)
 
     body =
       if boards == [] do

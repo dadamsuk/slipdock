@@ -121,6 +121,50 @@ defmodule Slipdock.Access do
   def can_write?(level), do: @rank[level] >= @rank[:write]
   def owner?(level), do: level == :owner
 
+  ## API token scope ----------------------------------------------------------
+
+  @doc """
+  Narrows a permission level by the scope of the API token the request came
+  with. A scope only ever *narrows*: it can never grant access the user does
+  not already have, so a read-only token on a board you own still only reads.
+
+  `token` is nil for a browser session, which has no scope and is unchanged.
+  `board_id` is the board the thing being reached belongs to, and may be nil
+  for checks that are not about one board.
+
+  Returns `{level, reason}` — `reason` is `:scope` when the token is what
+  lowered the level, so a refusal can say so instead of pretending the thing
+  does not exist.
+  """
+  @spec narrow(level, map | nil, integer | nil) :: {level, :scope | nil}
+  def narrow(level, nil, _board_id), do: {level, nil}
+
+  def narrow(level, token, board_id) do
+    cond do
+      not board_in_scope?(token, board_id) -> {:none, :scope}
+      Map.get(token, :scope) == "read" and @rank[level] > @rank[:read] -> {:read, :scope}
+      true -> {level, nil}
+    end
+  end
+
+  # An empty board list means the whole account. A non-empty one lists root
+  # boards: a token scoped to a board reaches the sub-boards inside its cards,
+  # because that is where the work on that board actually lives.
+  defp board_in_scope?(token, board_id) do
+    case Map.get(token, :scope_boards) || [] do
+      [] -> true
+      _ids when is_nil(board_id) -> false
+      ids -> board_id in ids or root_of(board_id) in ids
+    end
+  end
+
+  defp root_of(board_id) do
+    case Repo.one(from(b in Board, where: b.id == ^board_id, select: b.root_id)) do
+      nil -> board_id
+      root_id -> root_id
+    end
+  end
+
   defp grant_level(%User{} = user, [{field, id}]) do
     group_ids = Accounts.group_ids_for(user)
 
@@ -188,6 +232,7 @@ defmodule Slipdock.Access do
       where: b.owner_id == ^user.id or is_nil(b.owner_id) or b.id in ^granted_board_ids,
       order_by: [asc: b.inserted_at]
     )
+    |> scope_to_token(opts[:token])
     |> Boards.filter_archived(Keyword.get(opts, :archived, false))
     |> Repo.all()
     |> Repo.preload(
@@ -200,6 +245,19 @@ defmodule Slipdock.Access do
   end
 
   def list_boards(_, _opts), do: []
+
+  # A board-scoped API token must not be able to *list* what it cannot reach.
+  # Blocking the fetch is not enough on its own: an index that still names
+  # every board leaks the shape of the account to a token that was confined
+  # to one corner of it.
+  defp scope_to_token(query, nil), do: query
+
+  defp scope_to_token(query, token) do
+    case Map.get(token, :scope_boards) || [] do
+      [] -> query
+      ids -> from(b in query, where: b.id in ^ids)
+    end
+  end
 
   defp with_positions(boards, user) do
     placed = Boards.board_order(user)

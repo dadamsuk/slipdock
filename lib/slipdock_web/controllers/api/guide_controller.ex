@@ -12,7 +12,11 @@ defmodule SlipdockWeb.API.GuideController do
   alias SlipdockWeb.APIGuide
 
   def show(conn, params) do
-    opts = [base_url: base_url(conn), user: conn.assigns[:current_user]]
+    opts = [
+      base_url: base_url(conn),
+      user: conn.assigns[:current_user],
+      token: conn.assigns[:api_token]
+    ]
 
     if json?(conn, params) do
       json(conn, APIGuide.json(opts))

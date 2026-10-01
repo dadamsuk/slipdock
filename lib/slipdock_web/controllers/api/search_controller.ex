@@ -27,7 +27,7 @@ defmodule SlipdockWeb.API.SearchController do
 
     with {:ok, query} <- required(params["q"] || params["query"], "q"),
          {:ok, limit} <- limit(params["limit"]),
-         {:ok, board_id} <- board_id(user, params["board"]),
+         {:ok, board_id} <- board_id(user, params["board"], conn.assigns[:api_token]),
          {:ok, kind} <- kind(params["kind"]),
          {:ok, results} <-
            Search.search(user, query,
@@ -234,15 +234,15 @@ defmodule SlipdockWeb.API.SearchController do
     end
   end
 
-  defp board_id(_user, nil), do: {:ok, nil}
-  defp board_id(_user, ""), do: {:ok, nil}
+  defp board_id(_user, nil, _token), do: {:ok, nil}
+  defp board_id(_user, "", _token), do: {:ok, nil}
 
-  defp board_id(user, reference) do
+  defp board_id(user, reference, token) do
     wanted = reference |> to_string() |> String.trim() |> String.downcase()
 
     board =
       user
-      |> Slipdock.Access.list_boards(archived: :all)
+      |> Slipdock.Access.list_boards(archived: :all, token: token)
       |> Enum.find(fn b ->
         String.downcase(b.name) == wanted or String.downcase(b.code || "") == wanted or
           to_string(b.id) == wanted

@@ -861,7 +861,7 @@ defmodule SlipdockWeb.API.PageController do
 
     boards =
       user
-      |> Slipdock.Access.list_boards()
+      |> Slipdock.Access.list_boards(token: conn.assigns[:api_token])
       |> Enum.map(fn board ->
         pages = Wiki.list_pages(board, list_opts(conn, board, params))
 
