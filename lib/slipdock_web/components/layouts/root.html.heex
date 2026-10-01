@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content={get_csrf_token()} />
     <.live_title default="Slipdock" suffix=" · Slipdock" phx-no-format>{assigns[:page_title]}</.live_title>
-    <link rel="icon" href={~p"/favicon.svg"} type="image/svg+xml" />
-    <link rel="icon" href={~p"/favicon.ico"} sizes="32x32" />
-    <link rel="apple-touch-icon" href={~p"/images/apple-touch-icon.png"} />
+    <link rel="icon" href={~p"/favicon.ico"} sizes="any" />
+    <link rel="icon" href={~p"/images/brand/icon-simple.svg"} type="image/svg+xml" />
+    <link rel="apple-touch-icon" href={~p"/images/brand/icon-180.png"} />
+    <meta name="theme-color" content="#10263A" />
     <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
     <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}>
     </script>

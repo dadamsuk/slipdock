@@ -947,26 +947,28 @@ defmodule SlipdockWeb.Layouts do
     """
   end
 
-  attr :class, :string, default: "size-7 rounded-lg"
-  attr :icon_class, :string, default: "size-4"
+  attr :class, :string, default: "size-7"
+  attr :variant, :atom, default: :simple, values: [:simple, :detailed]
+  attr :icon_class, :string, default: nil, doc: "ignored; kept so existing callers still compile"
 
-  @doc "The app mark: a primary-coloured tile, so the theme owns the brand."
+  @doc """
+  The app mark. The icon ships with its own tile and corner radius (see
+  `brand/BRAND.md`), so there is no wrapper tile here to tint — the brand is
+  fixed rather than themed.
+
+  BRAND.md asks for the simplified icon below 48px and the detailed one at 48px
+  and above, which is why the variant is a choice rather than one file
+  everywhere: the detailed one silts up at header size and the simple one looks
+  bare when it is big.
+  """
   def brand_mark(assigns) do
     ~H"""
-    <span class={[
-      "flex shrink-0 items-center justify-center bg-primary/15 text-primary",
-      @class
-    ]}>
-      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" class={@icon_class}>
-        <path
-          d="M1.8 8.6 21.6 3.8l-1.2 6a4.6 4.6 0 0 1-3.6 3.6l-7.5 1.6a4.6 4.6 0 0 1-4.6-1.9z"
-          fill="currentColor"
-        />
-        <path d="M2.2 20.6 22.2 15.8" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
-      </svg>
-    </span>
+    <img src={brand_icon(@variant)} alt="Slipdock" class={["shrink-0", @class]} />
     """
   end
+
+  defp brand_icon(:detailed), do: ~p"/images/brand/icon.svg"
+  defp brand_icon(_), do: ~p"/images/brand/icon-simple.svg"
 
   attr :theme, :string, required: true, values: ~w(system light dark)
   attr :icon, :string, required: true

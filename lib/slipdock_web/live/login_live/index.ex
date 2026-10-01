@@ -122,7 +122,7 @@ defmodule SlipdockWeb.LoginLive.Index do
       <div class="flex h-full items-center justify-center p-6">
         <div class="w-full max-w-sm rounded-2xl bg-base-100 p-8 shadow-sm ring-1 ring-base-content/10">
           <div class="mb-6 flex items-center gap-3">
-            <Layouts.brand_mark class="size-10 rounded-xl" icon_class="size-5" />
+            <Layouts.brand_mark class="size-12" variant={:detailed} />
             <div>
               <h1 class="text-xl font-bold">Sign in</h1>
               <p class="text-sm text-base-content/60">No password. We'll email you a link.</p>

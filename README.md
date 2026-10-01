@@ -1,6 +1,11 @@
-# Slipdock
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="brand/lockup-reversed.svg">
+    <img src="brand/lockup-horizontal.svg" alt="Slipdock" width="340">
+  </picture>
+</p>
 
-A self-hosted slipdock board for people who want their work tracker to be theirs:
+A self-hosted kanban board for people who want their work tracker to be theirs:
 one small Elixir app, one SQLite file, no accounts anywhere else. Boards and
 cards are the easy part — what makes it worth running is everything stacked on
 top of them. Any card can become a board of its own, so an epic and its tasks
