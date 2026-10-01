@@ -201,11 +201,40 @@ defmodule Slipdock.Accounts do
 
   ## API tokens
 
-  @doc "Creates a labelled API token; the plain token is returned once."
-  def create_api_token(%User{} = user, label) do
-    {token, user_token} = UserToken.build_hashed_token(user, "api", label: label)
+  @doc """
+  Mints an API token. `opts` takes `:scope` ("read" or "write", default
+  "write"), `:scope_boards` (board ids, `[]` for the whole account) and
+  `:expires_at`. The plaintext token is returned once and never stored.
+  """
+  def create_api_token(%User{} = user, label, opts \\ []) do
+    scope = if opts[:scope] in UserToken.scopes(), do: opts[:scope], else: "write"
+
+    {token, user_token} =
+      UserToken.build_hashed_token(user, "api",
+        label: label,
+        scope: scope,
+        scope_boards: opts[:scope_boards] || [],
+        expires_at: opts[:expires_at]
+      )
+
     {token, Repo.insert!(user_token)}
   end
+
+  @doc "Days from now as an expiry, or nil for a token that never expires."
+  def expiry_in_days(nil), do: nil
+  def expiry_in_days(""), do: nil
+
+  def expiry_in_days(days) when is_binary(days) do
+    case Integer.parse(days) do
+      {n, ""} -> expiry_in_days(n)
+      _ -> nil
+    end
+  end
+
+  def expiry_in_days(days) when is_integer(days) and days > 0,
+    do: DateTime.utc_now(:second) |> DateTime.add(days, :day)
+
+  def expiry_in_days(_), do: nil
 
   def get_user_by_api_token(token) when is_binary(token) do
     case get_api_token(token) do
@@ -219,11 +248,16 @@ defmodule Slipdock.Accounts do
   holding it. Wiki revisions record that name, so history says which robot
   wrote a paragraph without a separate audit log.
   """
-  def get_api_token(token) when is_binary(token) do
+  def get_api_token(token, opts \\ []) when is_binary(token) do
     with {:ok, query} <- UserToken.verify_api_token_query(token),
          {%User{} = user, %UserToken{} = user_token} <- Repo.one(query) do
-      from(t in UserToken, where: t.id == ^user_token.id)
-      |> Repo.update_all(set: [last_used_at: DateTime.utc_now(:second)])
+      # Where it was used from, as well as when: a token list that cannot
+      # answer "is this still the machine I gave it to" is not much of an
+      # audit trail.
+      touch = [last_used_at: DateTime.utc_now(:second)]
+      touch = if ip = opts[:ip], do: [{:last_used_ip, ip} | touch], else: touch
+
+      from(t in UserToken, where: t.id == ^user_token.id) |> Repo.update_all(set: touch)
 
       {user, user_token}
     else

@@ -139,9 +139,15 @@ defmodule SlipdockWeb.AccountLive.Index do
     end
   end
 
-  def handle_event("create_token", %{"label" => label}, socket) do
-    label = if String.trim(label) == "", do: "CLI", else: String.trim(label)
-    {token, _} = Accounts.create_api_token(socket.assigns.current_user, label)
+  def handle_event("create_token", params, socket) do
+    label = params["label"] |> to_string() |> String.trim()
+    label = if label == "", do: "CLI", else: label
+
+    {token, _} =
+      Accounts.create_api_token(socket.assigns.current_user, label,
+        scope: params["scope"],
+        expires_at: Accounts.expiry_in_days(params["expires_in_days"])
+      )
 
     {:noreply,
      socket |> assign(new_token: token) |> update(:form_key, &(&1 + 1)) |> load_tokens()}
@@ -310,14 +316,28 @@ defmodule SlipdockWeb.AccountLive.Index do
               >{@new_token}</code>
               <button type="button" class="btn btn-ghost btn-xs mt-2" phx-click="dismiss_token">Done</button>
             </div>
-            <form id={"token-form-#{@form_key}"} phx-submit="create_token" class="mt-4 flex gap-2">
+            <form
+              id={"token-form-#{@form_key}"}
+              phx-submit="create_token"
+              class="mt-4 flex flex-wrap items-center gap-2"
+            >
               <input
                 type="text"
                 name="label"
                 placeholder="Label (e.g. laptop)"
-                class="input input-sm flex-1"
+                class="input input-sm min-w-40 flex-1"
                 autocomplete="off"
               />
+              <select name="scope" class="select select-sm" aria-label="What this token may do">
+                <option value="write">Read and write</option>
+                <option value="read">Read only</option>
+              </select>
+              <select name="expires_in_days" class="select select-sm" aria-label="When it expires">
+                <option value="">Never expires</option>
+                <option value="30">Expires in 30 days</option>
+                <option value="90">Expires in 90 days</option>
+                <option value="365">Expires in a year</option>
+              </select>
               <button type="submit" class="btn btn-sm">Create token</button>
             </form>
             <ul class="mt-4 divide-y divide-base-content/10">
@@ -327,11 +347,36 @@ defmodule SlipdockWeb.AccountLive.Index do
                 class="flex items-center gap-3 py-2 text-sm"
               >
                 <.icon name="hero-key" class="size-4 text-base-content/40" />
-                <span class="flex-1 font-medium">{t.label}</span>
-                <span class="text-xs text-base-content/50">
-                  created {relative_time(t.inserted_at)}<span :if={t.last_used_at}> · used {relative_time(
-                    t.last_used_at
-                  )}</span>
+                <span class="flex min-w-0 flex-1 flex-col">
+                  <span class="flex items-center gap-2">
+                    <span class="truncate font-medium">{t.label}</span>
+                    <span class={[
+                      "rounded px-1.5 py-0.5 text-[11px] font-medium",
+                      if(t.scope == "read",
+                        do: "bg-base-200 text-base-content/70",
+                        else: "bg-primary/10 text-primary"
+                      )
+                    ]}>
+                      {if t.scope == "read", do: "read only", else: "read/write"}
+                    </span>
+                    <span
+                      :if={Slipdock.Accounts.UserToken.expired?(t)}
+                      class="rounded bg-error/10 px-1.5 py-0.5 text-[11px] font-medium text-error"
+                    >
+                      expired
+                    </span>
+                  </span>
+                  <span class="text-xs text-base-content/50">
+                    created {relative_time(t.inserted_at)}<span :if={t.last_used_at}> · used {relative_time(
+                      t.last_used_at
+                    )}<span :if={t.last_used_ip}> from {t.last_used_ip}</span></span><span :if={
+                      t.expires_at
+                    }> · {if Slipdock.Accounts.UserToken.expired?(t),
+                      do: "expired " <> relative_time(t.expires_at),
+                      else: "expires " <> relative_time(t.expires_at)}</span><span :if={
+                      is_nil(t.expires_at)
+                    }> · never expires</span>
+                  </span>
                 </span>
                 <button
                   type="button"

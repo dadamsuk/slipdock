@@ -376,6 +376,13 @@ defmodule SlipdockWeb.SlipdockComponents do
     seconds = DateTime.diff(DateTime.utc_now(), dt)
 
     cond do
+      # Ahead of us: a token's expiry, say. Without this branch a negative
+      # difference falls through to "just now", which reads as the opposite
+      # of what it means.
+      seconds <= -7 * 86_400 -> Calendar.strftime(dt, "%b %-d")
+      seconds <= -86_400 -> "in #{div(-seconds, 86_400)}d"
+      seconds <= -3600 -> "in #{div(-seconds, 3600)}h"
+      seconds < 0 -> "in #{max(div(-seconds, 60), 1)}m"
       seconds < 60 -> "just now"
       seconds < 3600 -> "#{div(seconds, 60)}m ago"
       seconds < 86_400 -> "#{div(seconds, 3600)}h ago"

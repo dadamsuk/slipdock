@@ -13,18 +13,36 @@ defmodule Slipdock.Accounts.UserToken do
   @magic_validity_minutes 15
   @session_validity_days 30
 
+  # What an API token is allowed to do. `write` is everything the person
+  # themselves may do; `read` is the same set, minus anything that changes
+  # state. A scope only ever *narrows* the account's own permissions — it can
+  # never widen them. Enforcement lives in `Slipdock.Access`.
+  @scopes ~w(read write)
+
   schema "users_tokens" do
     field :token, :binary
     field :context, :string
     field :sent_to, :string
     field :label, :string
+    field :scope, :string, default: "write"
+    # Board ids this token is confined to; `[]` means the whole account.
+    field :scope_boards, {:array, :integer}, default: []
+    field :expires_at, :utc_datetime
     field :last_used_at, :utc_datetime
+    field :last_used_ip, :string
     belongs_to :user, Slipdock.Accounts.User
     timestamps(type: :utc_datetime, updated_at: false)
   end
 
   def session_validity_days, do: @session_validity_days
   def magic_validity_minutes, do: @magic_validity_minutes
+  def scopes, do: @scopes
+
+  @doc "Whether `token` has an expiry and it has passed."
+  def expired?(%__MODULE__{expires_at: nil}), do: false
+
+  def expired?(%__MODULE__{expires_at: at}),
+    do: DateTime.compare(at, DateTime.utc_now()) != :gt
 
   ## Sessions
 
@@ -57,6 +75,9 @@ defmodule Slipdock.Accounts.UserToken do
        context: context,
        sent_to: opts[:sent_to],
        label: opts[:label],
+       scope: opts[:scope] || "write",
+       scope_boards: opts[:scope_boards] || [],
+       expires_at: opts[:expires_at],
        user_id: user.id
      }}
   end
@@ -82,8 +103,14 @@ defmodule Slipdock.Accounts.UserToken do
     with {:ok, decoded} <- Base.url_decode64(token, padding: false) do
       hashed = :crypto.hash(@hash_algorithm, decoded)
 
+      now = DateTime.utc_now()
+
       {:ok,
-       from(t in by_token_and_context(hashed, "api"), join: u in assoc(t, :user), select: {u, t})}
+       from(t in by_token_and_context(hashed, "api"),
+         join: u in assoc(t, :user),
+         where: is_nil(t.expires_at) or t.expires_at > ^now,
+         select: {u, t}
+       )}
     else
       :error -> :error
     end

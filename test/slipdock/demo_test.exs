@@ -19,9 +19,11 @@ defmodule Slipdock.DemoTest do
     on_exit(fn -> drain() end)
   end
 
+  defp drain, do: drain(20)
+
   defp drain(0), do: :ok
 
-  defp drain(tries \\ 20) do
+  defp drain(tries) do
     if Indexer.pending() > 0 do
       Indexer.flush()
       drain(tries - 1)
