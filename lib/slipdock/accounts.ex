@@ -7,7 +7,16 @@ defmodule Slipdock.Accounts do
 
   require Logger
   alias Slipdock.Repo
-  alias Slipdock.Accounts.{DeviceAuthorization, Group, User, UserNotifier, UserToken}
+
+  alias Slipdock.Accounts.{
+    DeviceAuthorization,
+    Group,
+    SignupRequest,
+    User,
+    UserNotifier,
+    UserToken
+  }
+
   alias Slipdock.Settings
 
   ## Users
@@ -320,6 +329,122 @@ defmodule Slipdock.Accounts do
 
   @doc "Whether a brand-new address could sign up right now, for the UI's wording."
   def signups_open?, do: signup_stance() in [:open, :unclaimed]
+
+  ## Asking for an account (the `approval` mode)
+
+  @doc """
+  Records somebody asking for an account, and tells the admin one is waiting.
+
+  Returns `{:ok, request}`, `{:ok, :already_pending}` when they have asked
+  before, or `{:error, reason}`. Asking twice refreshes rather than duplicating:
+  an approval queue full of the same impatient address is a queue nobody reads.
+
+  A rejected address asking again is **not** a new request. Otherwise "no"
+  means "no until you ask again", and the queue becomes a way to pester an
+  admin indefinitely.
+  """
+  @spec request_signup(String.t(), keyword()) ::
+          {:ok, SignupRequest.t() | :already_pending} | {:error, atom() | Ecto.Changeset.t()}
+  def request_signup(email, opts \\ []) when is_binary(email) do
+    email = email |> String.trim() |> String.downcase()
+
+    cond do
+      Settings.signup_mode() != :approval ->
+        {:error, :not_approval_mode}
+
+      get_user_by_email(email) != nil ->
+        # They already have an account; there is nothing to approve.
+        {:error, :already_a_user}
+
+      true ->
+        do_request_signup(email, opts)
+    end
+  end
+
+  defp do_request_signup(email, opts) do
+    case Repo.get_by(SignupRequest, email: email) do
+      %SignupRequest{status: "pending"} ->
+        {:ok, :already_pending}
+
+      %SignupRequest{status: "rejected"} ->
+        {:error, :rejected}
+
+      %SignupRequest{status: "approved"} = request ->
+        {:ok, request}
+
+      nil ->
+        attrs = %{"email" => email, "note" => opts[:note], "requested_ip" => opts[:ip]}
+
+        with {:ok, request} <- %SignupRequest{} |> SignupRequest.changeset(attrs) |> Repo.insert() do
+          notify_admins_of_request(request)
+          {:ok, request}
+        end
+    end
+  end
+
+  @doc "Requests waiting on an admin, oldest first — they have waited longest."
+  def list_signup_requests(status \\ "pending") do
+    SignupRequest
+    |> where([r], r.status == ^status)
+    |> order_by([r], asc: r.inserted_at)
+    |> preload(:decided_by)
+    |> Repo.all()
+  end
+
+  def count_pending_signups, do: Repo.aggregate(where(SignupRequest, status: "pending"), :count)
+
+  def get_signup_request!(id), do: Repo.get!(SignupRequest, id)
+
+  @doc """
+  Approves a request: makes the account and sends them a way in, so that "yes"
+  is one action rather than two with a gap in which nothing happens.
+  """
+  @spec approve_signup(SignupRequest.t(), User.t(), (String.t() -> String.t())) ::
+          {:ok, User.t()} | {:error, term()}
+  def approve_signup(%SignupRequest{} = request, %User{} = admin, url_fun) do
+    with {:ok, user} <- get_or_create_user_by_email(request.email),
+         {:ok, _} <-
+           request |> SignupRequest.decision_changeset("approved", admin) |> Repo.update() do
+      # If this fails they still have an account and can ask for a link
+      # themselves, so it is not worth failing the approval over.
+      _ = deliver_sign_in(user, url_fun)
+      {:ok, user}
+    end
+  end
+
+  @doc "Turns a request down. They cannot simply ask again."
+  def reject_signup(%SignupRequest{} = request, %User{} = admin) do
+    request |> SignupRequest.decision_changeset("rejected", admin) |> Repo.update()
+  end
+
+  @doc """
+  Forgets old decided requests. Keeping every address anybody ever typed is
+  hoarding other people's data for no purpose.
+  """
+  def purge_signup_requests(older_than_days \\ 90) do
+    cutoff = DateTime.utc_now() |> DateTime.add(-older_than_days, :day)
+
+    {count, _} =
+      Repo.delete_all(
+        from(r in SignupRequest, where: r.status != "pending" and r.decided_at < ^cutoff)
+      )
+
+    count
+  end
+
+  defp notify_admins_of_request(%SignupRequest{} = request) do
+    case list_admins() do
+      [] ->
+        Logger.warning(
+          "#{request.email} asked for an account, but this server has no admin to tell."
+        )
+
+      admins ->
+        for admin <- admins do
+          UserNotifier.deliver_signup_request(admin, request)
+        end
+    end
+  end
 
   defp check_signup(email) do
     if signup_allowed?(to_string(email)) do

@@ -19,6 +19,9 @@ defmodule SlipdockWeb.LoginLive.Index do
        peer: peer_ip(socket),
        form: to_form(%{"email" => ""}, as: :login),
        sent_to: nil,
+       stance: Accounts.signup_stance(),
+       requested: false,
+       request_form: to_form(%{"email" => "", "note" => ""}, as: :login),
        code_form: to_form(%{"code" => ""}, as: :login),
        code_error: nil,
        agentic_file: nil,
@@ -63,6 +66,33 @@ defmodule SlipdockWeb.LoginLive.Index do
 
       {:error, {:too_many, seconds}} ->
         {:noreply, put_flash(socket, :error, too_many_message(seconds))}
+    end
+  end
+
+  # Asking for an account where an admin has to say yes. Unlike a sign-in
+  # request this *is* told the truth, because silence here looks like a bug:
+  # somebody who has asked needs to know they are waiting on a person.
+  def handle_event("request", %{"login" => %{"email" => email, "note" => note}}, socket) do
+    case allowed_to_try(socket, email) do
+      {:error, {:too_many, seconds}} ->
+        {:noreply, put_flash(socket, :error, too_many_message(seconds))}
+
+      :ok ->
+        case Accounts.request_signup(email, note: note, ip: socket.assigns.peer) do
+          {:ok, _} ->
+            {:noreply, assign(socket, requested: true)}
+
+          {:error, :rejected} ->
+            # Saying "you were turned down" would be kinder but would also
+            # confirm the address to anybody who typed it.
+            {:noreply, assign(socket, requested: true)}
+
+          {:error, :already_a_user} ->
+            {:noreply, assign(socket, requested: true)}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "That doesn't look like an email address.")}
+        end
     end
   end
 
@@ -145,6 +175,49 @@ defmodule SlipdockWeb.LoginLive.Index do
       %{address: address} -> address |> :inet.ntoa() |> to_string()
       _ -> "unknown"
     end
+  end
+
+  # On a server where an admin approves each account, somebody with no account
+  # has to be told what to do rather than left typing an address into a form
+  # that says nothing.
+  defp request_panel(assigns) do
+    ~H"""
+    <div class="mt-6 border-t border-base-content/10 pt-6">
+      <div :if={@requested} class="rounded-xl bg-info/10 p-4 text-sm">
+        <p class="font-medium">Your request is with the admin</p>
+        <p class="mt-1 text-base-content/70">
+          Somebody has to say yes before you can sign in here. You will get an email when
+          they do.
+        </p>
+      </div>
+
+      <.form
+        :if={!@requested}
+        for={@form}
+        id="signup-request-form"
+        phx-submit="request"
+        class="space-y-3"
+      >
+        <p class="text-sm text-base-content/70">
+          No account yet? On this server an admin approves each one.
+        </p>
+        <.input
+          field={@form[:email]}
+          type="email"
+          label="Your email"
+          placeholder="you@example.com"
+          required
+        />
+        <.input
+          field={@form[:note]}
+          type="text"
+          label="Who are you? (optional)"
+          placeholder="Design, starting Monday"
+        />
+        <button type="submit" class="btn btn-outline w-full">Ask for an account</button>
+      </.form>
+    </div>
+    """
   end
 
   @impl true
@@ -237,6 +310,12 @@ defmodule SlipdockWeb.LoginLive.Index do
               <.icon name="hero-cpu-chip" class="size-4" /> Agentic Login
             </button>
           </.form>
+
+          <.request_panel
+            :if={@stance == :approval && !@sent_to && !@agentic_file}
+            form={@request_form}
+            requested={@requested}
+          />
         </div>
       </div>
     </Layouts.app>

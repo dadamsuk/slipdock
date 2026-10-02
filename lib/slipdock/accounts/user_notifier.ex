@@ -40,4 +40,29 @@ defmodule Slipdock.Accounts.UserNotifier do
 
   defp subject_for(nil), do: "Your Slipdock sign-in link"
   defp subject_for(code), do: "#{code} is your Slipdock sign-in code"
+
+  @doc """
+  Tells an admin that somebody is waiting for an account.
+
+  Without this, `approval` mode is a queue nobody looks at — which is why
+  choosing that mode without working mail is refused.
+  """
+  def deliver_signup_request(admin, request) do
+    email =
+      new()
+      |> to({admin.name || admin.email, admin.email})
+      |> from(Mailer.from())
+      |> subject("#{request.email} would like a Slipdock account")
+      |> text_body("""
+      #{request.email} has asked for an account on your Slipdock server.
+      #{if request.note && request.note != "", do: "\nThey said: #{request.note}\n", else: ""}
+      Approve or turn it down under Admin → People.
+
+      #{Slipdock.Automations.Runner.base_url()}/admin/signups
+      """)
+
+    Logger.info("#{request.email} asked for an account; told #{admin.email}.")
+
+    with {:ok, _} <- Mailer.deliver_configured(email), do: {:ok, email}
+  end
 end

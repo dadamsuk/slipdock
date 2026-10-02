@@ -74,7 +74,11 @@ defmodule SlipdockWeb.SetupLive.Index do
   ## Step 1 — who may register
 
   def handle_event("save-mode", %{"settings" => attrs}, socket) do
-    changeset = Instance.changeset(%Instance{}, attrs)
+    # Validated without the mail rule: approval mode needs a mail server, but
+    # mail is the *next* step, so complaining here would be complaining about
+    # something the person has not been asked yet. Step 2 withholds its Skip
+    # button instead, and `complete_setup/1` enforces it at the end.
+    changeset = %Instance{} |> Instance.changeset(attrs) |> drop_mail_dependency()
 
     if changeset.valid? do
       {:noreply,
@@ -190,6 +194,20 @@ defmodule SlipdockWeb.SetupLive.Index do
   defp assign_mail_form(socket), do: assign(socket, mail_form: collected_form(socket))
   defp assign_admin_form(socket), do: assign(socket, admin_form: collected_form(socket))
 
+  defp drop_mail_dependency(changeset) do
+    %{
+      changeset
+      | errors: Enum.reject(changeset.errors, &match?({:signup_mode, {_, _}}, &1))
+    }
+    |> Map.update!(:valid?, fn _ ->
+      changeset.errors |> Enum.reject(&match?({:signup_mode, _}, &1)) |> Enum.empty?()
+    end)
+  end
+
+  # Approval mode is the one choice that cannot do without mail, so the mail
+  # step stops being optional once it has been chosen.
+  defp mail_required?(collected), do: to_string(collected["signup_mode"]) == "approval"
+
   defp collected_form(socket) do
     to_form(Instance.changeset(%Instance{}, socket.assigns[:collected] || %{}), as: :settings)
   end
@@ -241,6 +259,7 @@ defmodule SlipdockWeb.SetupLive.Index do
               form={@mail_form}
               tested?={@mail_tested?}
               error={@mail_error}
+              required?={mail_required?(@collected)}
             />
             <.admin_step
               :if={@step == :admin}
@@ -338,10 +357,15 @@ defmodule SlipdockWeb.SetupLive.Index do
   defp mail_step(assigns) do
     ~H"""
     <.form for={@form} id="setup-mail-form" phx-submit="mail-submit" class="space-y-4">
-      <p class="text-sm text-base-content/70">
+      <p :if={!@required?} class="text-sm text-base-content/70">
         Slipdock emails sign-in codes and whatever your automation rules send. Without a
         mail server it still works — codes are written where you can read them — so you
         can skip this and set it up later.
+      </p>
+      <p :if={@required?} class="rounded-xl bg-warning/10 p-4 text-sm">
+        You chose to approve each request, so this step is not optional: without a mail
+        server nobody would ever be told that somebody is waiting. Go back and pick
+        another way in if you would rather not set mail up now.
       </p>
 
       <.input
@@ -398,7 +422,12 @@ defmodule SlipdockWeb.SetupLive.Index do
 
       <div class="flex gap-2">
         <button type="button" class="btn btn-ghost" phx-click="back" phx-value-to="mode">Back</button>
-        <button type="button" class="btn btn-ghost flex-1" phx-click="skip-mail">
+        <button
+          :if={!@required?}
+          type="button"
+          class="btn btn-ghost flex-1"
+          phx-click="skip-mail"
+        >
           Skip — no mail server
         </button>
         <button type="submit" name="step_action" value="save" class="btn btn-primary flex-1">
