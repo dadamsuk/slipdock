@@ -225,7 +225,8 @@ defmodule Slipdock.Boards do
       columns: [cards: {active_cards_query(), card_preloads()}],
       saved_views: [],
       parent_card: [],
-      template: []
+      template: [],
+      owner: []
     )
     |> Map.put(:tags, list_tags(Board.root_id(board)))
     |> Map.put(:milestones, list_milestones(Board.root_id(board)))

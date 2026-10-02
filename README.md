@@ -94,7 +94,9 @@ Briefly, with the detail in [the manual](docs/manual.md):
   it when you are done; `slipdock welcome` brings it back.
 - **Accounts and sharing** — [passwordless sign-in, groups, and read-only or
   editable grants on a board, a single card, a wiki page or a saved
-  view](docs/manual.md#accounts-and-sharing) — plus
+  view](docs/manual.md#accounts-and-sharing). A board somebody shared with you
+  says whose it is on your board list, so a list of boards is never a list of
+  boards of unknown provenance — plus
   [a device flow for signing an agent in](docs/manual.md#signing-an-agent-in)
   from anywhere, with scoped, expiring, revocable tokens.
 - **A JSON API and a CLI** — [everything the UI can do](docs/manual.md#json-api),

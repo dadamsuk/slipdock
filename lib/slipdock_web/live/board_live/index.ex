@@ -226,6 +226,11 @@ defmodule SlipdockWeb.BoardLive.Index do
 
   defp done_count(board), do: Enum.count(board.cards, & &1.completed)
 
+  # Whose board this is. A board with no owner predates accounts and is open
+  # to whoever finds it, which is worth saying rather than leaving blank.
+  defp owner_name(%Board{owner: %User{} = owner}), do: User.display_name(owner)
+  defp owner_name(_board), do: "nobody yet"
+
   defp percent_done(board) do
     case length(board.cards) do
       0 -> nil
@@ -519,10 +524,10 @@ defmodule SlipdockWeb.BoardLive.Index do
               </span>
               <span
                 :if={board.owner_id != @current_user.id}
-                class="badge badge-ghost badge-xs shrink-0"
-                title={"Owned by #{if board.owner, do: User.display_name(board.owner), else: "nobody yet"}"}
+                class="badge badge-ghost badge-xs max-w-40 shrink-0"
+                title={"Owned by #{owner_name(board)}"}
               >
-                shared
+                <span class="truncate">shared by {owner_name(board)}</span>
               </span>
             </h2>
             <p class="mt-0.5 line-clamp-2 text-sm text-base-content/60 sm:min-h-[1.25rem]">
@@ -634,10 +639,10 @@ defmodule SlipdockWeb.BoardLive.Index do
                 </span>
                 <span
                   :if={board.owner_id != @current_user.id}
-                  class="badge badge-ghost badge-xs shrink-0"
-                  title={"Owned by #{if board.owner, do: User.display_name(board.owner), else: "nobody yet"}"}
+                  class="badge badge-ghost badge-xs max-w-40 shrink-0"
+                  title={"Owned by #{owner_name(board)}"}
                 >
-                  shared
+                  <span class="truncate">shared by {owner_name(board)}</span>
                 </span>
                 <span :if={@archived} class="badge badge-warning badge-xs shrink-0">archived</span>
               </.link>

@@ -109,6 +109,37 @@ defmodule SlipdockWeb.BoardIndexLiveTest do
     end
   end
 
+  describe "a board somebody else owns" do
+    setup %{user: user} do
+      other = user_fixture("nadia@example.com")
+      {:ok, other} = Accounts.update_profile(other, %{"name" => "Nadia"})
+      shared = board_fixture(%{"name" => "Shared"}, owner: other)
+      {:ok, _} = Access.grant(shared, user, "read", other)
+      %{other: other, shared: shared}
+    end
+
+    test "names its owner on the cards", %{conn: conn, shared: shared} do
+      {:ok, _view, html} = live(conn, ~p"/")
+
+      assert shared.id in listed(html)
+      assert html =~ "shared by Nadia"
+    end
+
+    test "names its owner in the table too", %{conn: conn} do
+      {:ok, view, _} = live(conn, ~p"/")
+      html = view |> element("button[phx-value-layout=compact]") |> render_click()
+
+      assert html =~ "<table"
+      assert html =~ "shared by Nadia"
+    end
+  end
+
+  test "says nothing about an owner when every board is yours", %{conn: conn} do
+    {:ok, _view, html} = live(conn, ~p"/")
+
+    refute html =~ "shared by"
+  end
+
   describe "archiving from the list" do
     test "takes the board off the list and offers it back", %{conn: conn, user: user, b: b} do
       {:ok, view, _} = live(conn, ~p"/")

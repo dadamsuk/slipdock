@@ -21,9 +21,10 @@ defmodule SlipdockCLI.Render do
   end
 
   def boards(boards) do
-    # The STATE column only turns up when there is something to say in it, so
-    # the everyday listing stays as narrow as it was.
+    # The STATE and OWNER columns only turn up when there is something to say
+    # in them, so the everyday listing stays as narrow as it was.
     any_archived? = Enum.any?(boards, & &1["archived_at"])
+    any_shared? = Enum.any?(boards, & &1["shared"])
 
     rows =
       Enum.map(boards, fn b ->
@@ -34,6 +35,7 @@ defmodule SlipdockCLI.Render do
           b["name"]
         ] ++
           if(any_archived?, do: [if(b["archived_at"], do: "archived", else: "")], else: []) ++
+          if(any_shared?, do: [if(b["shared"], do: owner_name(b), else: "")], else: []) ++
           [
             "#{b["cards"]}",
             "#{b["completed"]}",
@@ -43,10 +45,18 @@ defmodule SlipdockCLI.Render do
 
     headers =
       ["ID", "CODE", "KEY", "NAME"] ++
-        if(any_archived?, do: ["STATE"], else: []) ++ ["CARDS", "DONE", "DESCRIPTION"]
+        if(any_archived?, do: ["STATE"], else: []) ++
+        if(any_shared?, do: ["OWNER"], else: []) ++ ["CARDS", "DONE", "DESCRIPTION"]
 
     table(headers, rows)
   end
+
+  # Whose board it is: the owner's name, their email when they have not given
+  # one, and "nobody yet" for a board nobody has claimed.
+  def owner_name(%{"owner" => %{} = owner}),
+    do: owner["name"] || owner["email"] || "nobody yet"
+
+  def owner_name(_board), do: "nobody yet"
 
   def templates([]), do: IO.puts(dim("no templates"))
 
@@ -75,6 +85,8 @@ defmodule SlipdockCLI.Render do
     end
 
     if b["description"], do: IO.puts(dim(b["description"]))
+
+    if b["owner"], do: IO.puts(dim("owner: " <> owner_name(b)))
 
     tags = Enum.map(b["tags"], & &1["name"])
     if tags != [], do: IO.puts(dim("tags: " <> Enum.join(tags, ", ")))

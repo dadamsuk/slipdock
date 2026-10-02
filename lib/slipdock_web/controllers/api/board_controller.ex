@@ -12,7 +12,9 @@ defmodule SlipdockWeb.API.BoardController do
   defp fetch_board(conn, ref, need) do
     with {:ok, board} <- find(Boards.find_board(ref), "board"),
          :ok <- Authorize.board(conn, board, need) do
-      {:ok, board}
+      # The owner is named in every board response, so load it once here
+      # rather than in each action that answers with a board.
+      {:ok, Slipdock.Repo.preload(board, :owner)}
     end
   end
 
@@ -35,7 +37,7 @@ defmodule SlipdockWeb.API.BoardController do
       )
       |> Boards.sort_boards(sort)
 
-    json(conn, %{boards: Enum.map(boards, &V.board_summary/1)})
+    json(conn, %{boards: Enum.map(boards, &V.board_summary(&1, user))})
   end
 
   defp archived_filter(value) when value in ["all", "both"], do: :all
@@ -45,7 +47,7 @@ defmodule SlipdockWeb.API.BoardController do
   def archive(conn, %{"board" => ref}) do
     with {:ok, board} <- fetch_board(conn, ref, :owner),
          {:ok, board} <- archivable(Boards.archive_board(board)) do
-      json(conn, %{board: V.board_summary(board)})
+      json(conn, %{board: V.board_summary(board, conn.assigns.current_user)})
     end
   end
 
@@ -60,7 +62,7 @@ defmodule SlipdockWeb.API.BoardController do
   def restore(conn, %{"board" => ref}) do
     with {:ok, board} <- fetch_board(conn, ref, :owner),
          {:ok, board} <- Boards.unarchive_board(board) do
-      json(conn, %{board: V.board_summary(board)})
+      json(conn, %{board: V.board_summary(board, conn.assigns.current_user)})
     end
   end
 
@@ -86,7 +88,7 @@ defmodule SlipdockWeb.API.BoardController do
         |> Access.list_boards(token: conn.assigns[:api_token])
         |> Boards.sort_boards("manual")
 
-      json(conn, %{boards: Enum.map(boards, &V.board_summary/1)})
+      json(conn, %{boards: Enum.map(boards, &V.board_summary(&1, user))})
     end
   end
 
@@ -163,7 +165,7 @@ defmodule SlipdockWeb.API.BoardController do
                   add_card add_page add_document)
              )
            ) do
-      json(conn, %{board: V.board_summary(board)})
+      json(conn, %{board: V.board_summary(board, conn.assigns.current_user)})
     end
   end
 

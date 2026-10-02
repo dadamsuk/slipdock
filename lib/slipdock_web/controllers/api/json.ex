@@ -17,7 +17,12 @@ defmodule SlipdockWeb.API.JSON do
   alias Slipdock.Swimlanes.Config
   alias Slipdock.Wiki.{Link, Page, Revision}
 
-  def board_summary(%Board{} = b) do
+  @doc """
+  A board in a listing. `viewer` is who is reading, and is what decides
+  `shared`: a board whose owner is somebody else. The owner is named either
+  way, so a client can say whose board it is looking at.
+  """
+  def board_summary(%Board{} = b, viewer \\ nil) do
     cards = if Ecto.assoc_loaded?(b.cards), do: b.cards, else: []
     columns = if Ecto.assoc_loaded?(b.columns), do: b.columns, else: []
 
@@ -28,6 +33,8 @@ defmodule SlipdockWeb.API.JSON do
       shortcut: b.shortcut,
       description: b.description,
       color: b.color,
+      owner: owner_ref(b),
+      shared: shared?(b, viewer),
       columns: length(columns),
       cards: length(cards),
       completed: Enum.count(cards, & &1.completed),
@@ -48,6 +55,7 @@ defmodule SlipdockWeb.API.JSON do
       shortcut: b.shortcut,
       description: b.description,
       color: b.color,
+      owner: owner_ref(b),
       archived_at: b.archived_at,
       root_id: Board.root_id(b),
       parent_card:
@@ -193,6 +201,18 @@ defmodule SlipdockWeb.API.JSON do
   end
 
   defp field_values(_), do: %{}
+
+  # Who the board belongs to. nil on a board with no owner — one made before
+  # accounts existed, and open until somebody claims it.
+  defp owner_ref(%Board{owner: %Slipdock.Accounts.User{} = u}),
+    do: %{id: u.id, email: u.email, name: Slipdock.Accounts.User.display_name(u)}
+
+  defp owner_ref(_), do: nil
+
+  defp shared?(%Board{owner_id: nil}, _viewer), do: false
+  defp shared?(%Board{}, nil), do: false
+  defp shared?(%Board{owner_id: owner_id}, %Slipdock.Accounts.User{id: id}), do: owner_id != id
+  defp shared?(%Board{}, _viewer), do: false
 
   defp assignee(%Card{assignee: %Slipdock.Accounts.User{} = u}),
     do: %{id: u.id, email: u.email, name: Slipdock.Accounts.User.display_name(u)}
