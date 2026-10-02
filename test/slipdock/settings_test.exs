@@ -70,7 +70,7 @@ defmodule Slipdock.SettingsTest do
 
     test "changing how mail is sent drops the last successful test send" do
       {:ok, _} =
-        Settings.update(%{"smtp_host" => "smtp.example.com", "smtp_from_email" => "a@b.com"})
+        Settings.update(%{"smtp_host" => "smtp.example.com", "smtp_from_email" => "mail@example.com"})
 
       {:ok, settings} = Settings.mark_smtp_verified()
       assert settings.smtp_verified_at
@@ -172,12 +172,12 @@ defmodule Slipdock.SettingsTest do
     end
 
     test "carries the old allowlist across as rows" do
-      with_config(:signups, open: false, allow: ["example.com", "friend@elsewhere.org"])
+      with_config(:signups, open: false, allow: ["example.com", "friend@elsewhere.com"])
       assert :ok = Settings.seed()
 
       assert Settings.signup_mode() == :allowlist
       assert Settings.allowlisted?("anyone@example.com")
-      assert Settings.allowlisted?("friend@elsewhere.org")
+      assert Settings.allowlisted?("friend@elsewhere.com")
     end
 
     test "marks an instance that already has users as set up" do
