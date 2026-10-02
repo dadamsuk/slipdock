@@ -70,7 +70,10 @@ defmodule Slipdock.SettingsTest do
 
     test "changing how mail is sent drops the last successful test send" do
       {:ok, _} =
-        Settings.update(%{"smtp_host" => "smtp.example.com", "smtp_from_email" => "mail@example.com"})
+        Settings.update(%{
+          "smtp_host" => "smtp.example.com",
+          "smtp_from_email" => "mail@example.com"
+        })
 
       {:ok, settings} = Settings.mark_smtp_verified()
       assert settings.smtp_verified_at

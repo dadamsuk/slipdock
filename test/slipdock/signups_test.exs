@@ -16,18 +16,54 @@ defmodule Slipdock.SignupsTest do
     on_exit(fn -> Application.put_env(:slipdock, :signups, previous) end)
   end
 
+  # The test environment calls itself already set up, so that the wizard does
+  # not intercept every other test. These two say otherwise.
+  defp unclaimed_instance do
+    settings(setup_completed: false)
+  end
+
+  defp settings(opts) do
+    previous = Application.get_env(:slipdock, :settings)
+    Application.put_env(:slipdock, :settings, opts)
+    on_exit(fn -> Application.put_env(:slipdock, :settings, previous) end)
+  end
+
   describe "signup_allowed?/1 with sign-up closed" do
     setup do
       signups(open: false, allow: [])
       :ok
     end
 
-    test "the first address claims an empty instance" do
-      assert Accounts.count_users() == 0
+    test "anybody may sign in to a server that has never been set up" do
+      unclaimed_instance()
+      refute Slipdock.Settings.setup_complete?()
+
+      # The setup wizard is how an instance gets claimed, so there has to be a
+      # way in before it has been.
       assert Accounts.signup_allowed?("first@example.com")
+      assert Accounts.signup_allowed?("anybody@example.com")
+    end
+
+    test "once the server has been set up, a new address is refused" do
+      unclaimed_instance()
+      {:ok, _} = Slipdock.Settings.complete_setup(%{"admin_email" => "admin@example.com"})
+
+      refute Accounts.signup_allowed?("second@example.com")
+    end
+
+    test "having users is not what closes it — being set up is" do
+      unclaimed_instance()
+
+      # A user can exist without anybody having been through setup: sharing a
+      # board with an address creates one. Such an instance is still unclaimed.
+      user_fixture("invited@example.com")
+
+      assert Accounts.count_users() == 1
+      assert Accounts.signup_allowed?("stranger@example.com")
     end
 
     test "once somebody is here, a stranger is not" do
+      # The test environment counts as set up, so the claim rule is not in play.
       user_fixture("owner@example.com")
       refute Accounts.signup_allowed?("stranger@example.com")
       # ...but the person who is already here always can.

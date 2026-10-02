@@ -8,6 +8,7 @@ defmodule Slipdock.Accounts do
   require Logger
   alias Slipdock.Repo
   alias Slipdock.Accounts.{DeviceAuthorization, Group, User, UserNotifier, UserToken}
+  alias Slipdock.Settings
 
   ## Users
 
@@ -180,20 +181,33 @@ defmodule Slipdock.Accounts do
   Whether this address may sign in, which for a new address means whether it
   may have an account at all. In order:
 
-    * a disabled account never can, whatever the mode says — that is what
+    * a disabled account never can, whatever else is true — that is what
       disabling means, and it is checked before everything else;
     * somebody who already has an account always can;
-    * so can the very first address, on an instance with no users — the first
-      sign-in claims the server;
+    * so can anybody at all on a server that has never been set up, because
+      the setup wizard is how an instance is claimed and it needs a way in;
     * `config :slipdock, :signups, open: true` (`SLIPDOCK_OPEN_SIGNUP=true`) lets
-      anyone in, which is what this did before and is only sensible behind a
-      network boundary of your own;
+      anyone in, which is only sensible behind a network boundary of your own;
     * otherwise the address must match `:allow` (`SLIPDOCK_SIGNUP_ALLOW`): a
       list of addresses and of domains, where `example.com` means anybody
       there.
 
   The default is therefore "the owner, and nobody else" — a server reachable
   by strangers does not quietly collect accounts.
+
+  ## Why "set up" and not "has no users"
+
+  This used to allow any address on an instance with no users, so that the
+  first sign-in claimed the server. That was the bug this whole piece of work
+  started from: the first person in became the only person who could ever be
+  in, because nothing in the running system could add to an empty allowlist.
+
+  Counting users was also the wrong question. A user can exist without anybody
+  having been through setup — sharing a board with an address creates one (see
+  `Slipdock.Access.grant/3`) — so an instance with users is not necessarily an
+  instance somebody has claimed, and an instance with none is not necessarily
+  unclaimed either. `setup_completed_at` is the fact being asked about, so it
+  is the thing to read.
   """
   def signup_allowed?(email) when is_binary(email) do
     email = email |> String.trim() |> String.downcase()
@@ -204,7 +218,7 @@ defmodule Slipdock.Accounts do
       email == "" -> false
       disabled?(existing) -> false
       existing != nil -> true
-      count_users() == 0 -> true
+      not Settings.setup_complete?() -> true
       signups()[:open] == true -> true
       true -> allowed_by_list?(email, signups()[:allow] || [])
     end
@@ -213,7 +227,7 @@ defmodule Slipdock.Accounts do
   def signup_allowed?(_), do: false
 
   @doc "Whether a brand-new address could sign up right now, for the UI's wording."
-  def signups_open?, do: signups()[:open] == true or count_users() == 0
+  def signups_open?, do: signups()[:open] == true or not Settings.setup_complete?()
 
   defp check_signup(email) do
     if signup_allowed?(to_string(email)) do
