@@ -60,40 +60,6 @@ defmodule Slipdock.Accounts do
   ## Admins, and standing on this server
 
   @doc """
-  Claims an unclaimed server for `user`: records them as the admin and marks
-  setup complete, so nobody else can do the same afterwards. Returns
-  `:claimed`, or `:already_claimed` when there was nothing to do.
-
-  This is the interim claim, and it exists because "not set up yet" has to let
-  *somebody* in. The setup wizard is the real answer — it asks who may register
-  and how mail is sent before closing the door — and it supersedes this
-  (see card #172). Until then a server would otherwise stay open to any address
-  indefinitely, which is worse than the bug this all started from.
-
-  Only ever called from a completed sign-in, so the address has been proved.
-  """
-  @spec claim_server(User.t()) :: :claimed | :already_claimed
-  def claim_server(%User{} = user) do
-    if Settings.setup_complete?() do
-      :already_claimed
-    else
-      with {:ok, _} <- Settings.complete_setup(%{"admin_email" => user.email}),
-           {:ok, _} <- promote(user) do
-        Logger.info(
-          "#{user.email} has claimed this server: they are the admin, and nobody " <>
-            "else can sign up unless an admin allows it."
-        )
-
-        :claimed
-      else
-        {:error, reason} ->
-          Logger.error("Could not claim this server for #{user.email}: #{inspect(reason)}")
-          :already_claimed
-      end
-    end
-  end
-
-  @doc """
   Whether this person may administer the server. There is one role and this is
   it: an admin can change who may register, how mail is sent, and other
   people's standing. Nobody else can.
@@ -208,6 +174,76 @@ defmodule Slipdock.Accounts do
     with :ok <- check_signup(email),
          {:ok, user} <- get_or_create_user_by_email(email) do
       UserNotifier.deliver_magic_link(user, url_fun.(create_magic_token(user)))
+    end
+  end
+
+  @doc """
+  Gets `user` a way in, by whichever route this server actually has: an emailed
+  link when mail is configured, and otherwise a file on the server plus the log.
+
+  Returns `{:ok, :emailed}`, `{:ok, {:written, path}}`, `{:ok, :logged}` when the
+  file could not be written but the log has it, or `{:error, reason}`.
+  The caller is expected to say which happened — a wizard or an admin page that
+  claims to have sent something it did not is how people get stranded.
+
+  `url_fun` builds the sign-in URL from a token, as `deliver_magic_link/2` does.
+
+  Deliberately not gated on `signup_allowed?/1`: the callers are the setup
+  wizard and an admin inviting somebody, both of which have already decided.
+  """
+  @spec deliver_sign_in(User.t(), (String.t() -> String.t())) ::
+          {:ok, :emailed | {:written, String.t()} | :logged} | {:error, term()}
+  def deliver_sign_in(%User{} = user, url_fun) when is_function(url_fun, 1) do
+    link = url_fun.(create_magic_token(user))
+
+    cond do
+      Settings.smtp_configured?() ->
+        case UserNotifier.deliver_magic_link(user, link) do
+          {:ok, _} -> {:ok, :emailed}
+          {:error, reason} -> {:error, reason}
+        end
+
+      Settings.login_fallback_enabled?() ->
+        write_sign_in_fallback(user, link)
+
+      true ->
+        {:error, :no_delivery}
+    end
+  end
+
+  @doc """
+  Where sign-in links go when no mail server can carry them. One known path, so
+  that the instructions on screen can name it, rather than a random file in a
+  directory somebody has to go hunting through.
+
+  Anyone who can read this file can sign in as anybody. That is an acceptable
+  trade on a server only you can reach and a hole on one you share, which is
+  what `Slipdock.Settings.login_fallback_enabled?/0` decides.
+  """
+  @spec fallback_path() :: String.t()
+  def fallback_path do
+    Application.get_env(:slipdock, :login_fallback_path) ||
+      Path.join(File.cwd!(), "log/sign-in-links.log")
+  end
+
+  defp write_sign_in_fallback(%User{} = user, link) do
+    path = fallback_path()
+    stamp = DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
+
+    # Also logged, so `journalctl` and `docker compose logs` work for somebody
+    # who does not know the path.
+    Logger.info("Sign-in link for #{user.email} (no mail server configured): #{link}")
+
+    with :ok <- File.mkdir_p(Path.dirname(path)),
+         :ok <- File.write(path, "#{stamp}  #{user.email}  #{link}\n", [:append]) do
+      _ = File.chmod(path, 0o600)
+      {:ok, {:written, path}}
+    else
+      {:error, reason} ->
+        Logger.error("Could not write the sign-in fallback file #{path}: #{inspect(reason)}")
+        # Not a dead end — the link is in the log either way — but the caller
+        # must not tell somebody to read a file that was never written.
+        {:ok, :logged}
     end
   end
 

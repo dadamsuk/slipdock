@@ -41,43 +41,6 @@ defmodule SlipdockWeb.AuthLiveTest do
   end
 
   @tag :anonymous
-  test "the first sign-in on an unclaimed server claims it", %{conn: conn} do
-    previous = Application.get_env(:slipdock, :settings)
-    Application.put_env(:slipdock, :settings, setup_completed: false)
-    on_exit(fn -> Application.put_env(:slipdock, :settings, previous) end)
-
-    # The test environment leaves sign-up open for everyone else's convenience,
-    # which would hide the point of this test: that claiming the server is what
-    # shuts the door.
-    was_open = Application.get_env(:slipdock, :signups)
-    Application.put_env(:slipdock, :signups, open: false, allow: [])
-    on_exit(fn -> Application.put_env(:slipdock, :signups, was_open) end)
-
-    {:ok, view, _} = live(conn, ~p"/login")
-
-    view
-    |> form("#login-form", %{"login" => %{"email" => "owner@example.com"}})
-    |> render_submit()
-
-    assert_email_sent(fn email ->
-      [token] = Regex.run(~r{/login/([\w-]+)}, email.text_body, capture: :all_but_first)
-      conn = get(conn, ~p"/login/#{token}")
-
-      assert redirected_to(conn) == "/"
-      assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "this server is yours"
-
-      owner = Accounts.get_user_by_email("owner@example.com")
-      assert Accounts.admin?(owner)
-
-      # And the door is shut behind them.
-      refute Accounts.signup_allowed?("stranger@example.com")
-
-      # Swoosh insists this callback ends with something truthy.
-      assert Slipdock.Settings.setup_complete?()
-    end)
-  end
-
-  @tag :anonymous
   test "agentic login writes the sign-in link to a file instead of emailing it", %{conn: conn} do
     {:ok, view, _} = live(conn, ~p"/login")
     assert has_element?(view, "#agentic-login", "Agentic Login")

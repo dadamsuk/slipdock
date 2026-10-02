@@ -69,6 +69,25 @@ defmodule Slipdock.Settings do
     end
   end
 
+  @doc """
+  Whether the settings table exists yet.
+
+  Outside a release, migrations are *not* run at boot (see
+  `Slipdock.Application.skip_migrations?/0`) — `mix ecto.migrate` does it. So on
+  a brand-new database the application starts before this table exists, and
+  anything that reads it at boot has to ask first or the server will not start
+  at all.
+  """
+  @spec ready?() :: boolean()
+  def ready? do
+    case Repo.query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'settings'", []) do
+      {:ok, %{rows: [[1]]}} -> true
+      _ -> false
+    end
+  rescue
+    _ -> false
+  end
+
   @doc "Forgets the cached row. Called after every write, and by tests."
   def clear_cache, do: :persistent_term.erase(@cache_key)
 

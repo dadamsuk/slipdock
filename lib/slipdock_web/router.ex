@@ -12,6 +12,14 @@ defmodule SlipdockWeb.Router do
     plug :put_secure_browser_headers
     plug SlipdockWeb.Plugs.ContentSecurityPolicy
     plug :fetch_current_user
+    # A server nobody has set up yet has one page, and this is how you get sent
+    # to it.
+    plug SlipdockWeb.Plugs.Setup, :redirect_to_setup
+  end
+
+  # Only while this server has not been set up. 404 once it has.
+  pipeline :unclaimed_only do
+    plug SlipdockWeb.Plugs.Setup, :require_unclaimed
   end
 
   pipeline :api do
@@ -43,6 +51,20 @@ defmodule SlipdockWeb.Router do
     # itself when opened.
     get "/activate", DeviceActivationController, :show
     post "/activate", DeviceActivationController, :decide
+
+    # Setting the server up. Outside every authentication pipeline, because
+    # there is nobody to authenticate yet, and gone the moment it is used.
+    scope "/setup" do
+      pipe_through :unclaimed_only
+
+      live_session :setup,
+        on_mount: [
+          {SlipdockWeb.SetupLive.Index, :ensure_unclaimed},
+          {SlipdockWeb.ViewportHook, :default}
+        ] do
+        live "/", SetupLive.Index, :index
+      end
+    end
 
     live_session :public,
       on_mount: [
