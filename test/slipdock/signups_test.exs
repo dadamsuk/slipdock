@@ -14,11 +14,17 @@ defmodule Slipdock.SignupsTest do
   # setting the server up, which is also what closes the "anybody may sign in
   # to an unclaimed instance" door — so these are one helper.
   defp mode(mode, allow \\ []) do
+    # Approval mode is refused without a mail server, deliberately — nobody
+    # would be told that somebody is waiting.
+    mail =
+      if mode == :approval,
+        do: %{"smtp_host" => "smtp.example.com", "smtp_from_email" => "mail@example.com"},
+        else: %{}
+
     {:ok, _} =
-      Slipdock.Settings.complete_setup(%{
-        "admin_email" => "admin@example.com",
-        "signup_mode" => mode
-      })
+      Slipdock.Settings.complete_setup(
+        Map.merge(mail, %{"admin_email" => "admin@example.com", "signup_mode" => mode})
+      )
 
     for entry <- allow, do: {:ok, _} = Slipdock.Settings.add_allowlist_entry(entry)
     :ok

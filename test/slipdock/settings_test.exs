@@ -47,15 +47,30 @@ defmodule Slipdock.SettingsTest do
 
   describe "update/1" do
     test "writes the row the first time and updates it after" do
-      assert {:ok, settings} = Settings.update(%{"signup_mode" => :approval})
-      assert settings.signup_mode == :approval
-      assert Settings.signup_mode() == :approval
+      assert {:ok, settings} = Settings.update(%{"signup_mode" => :allowlist})
+      assert settings.signup_mode == :allowlist
+      assert Settings.signup_mode() == :allowlist
 
       assert {:ok, _} = Settings.update(%{"free_card_limit" => 20})
       # The earlier change is still there: one row, not a new one each time.
-      assert Settings.signup_mode() == :approval
+      assert Settings.signup_mode() == :allowlist
       assert Settings.free_card_limit() == 20
       assert Repo.aggregate(Settings.Instance, :count) == 1
+    end
+
+    test "approval mode is refused without a mail server" do
+      # Otherwise it is a queue nobody looks at: somebody asks, no admin is
+      # told, and the request sits there until they give up.
+      assert {:error, changeset} = Settings.update(%{"signup_mode" => :approval})
+      assert %{signup_mode: [message]} = errors_on(changeset)
+      assert message =~ "mail server"
+
+      assert {:ok, _} =
+               Settings.update(%{
+                 "signup_mode" => :approval,
+                 "smtp_host" => "smtp.example.com",
+                 "smtp_from_email" => "mail@example.com"
+               })
     end
 
     test "a blank SMTP host means not configured, not configured-as-empty" do

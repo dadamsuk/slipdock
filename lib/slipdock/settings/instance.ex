@@ -113,6 +113,7 @@ defmodule Slipdock.Settings.Instance do
       message: "must be a valid email address"
     )
     |> require_sender_with_host()
+    |> require_mail_for_approval()
     |> clear_verification_when_mail_changes()
   end
 
@@ -131,6 +132,22 @@ defmodule Slipdock.Settings.Instance do
   @doc "Records that a test message actually reached the SMTP server."
   def verified_changeset(instance) do
     change(instance, smtp_verified_at: DateTime.utc_now() |> DateTime.truncate(:second))
+  end
+
+  # Approval mode without mail is a queue nobody looks at: somebody asks, an
+  # admin is never told, and the request sits there until the person gives up.
+  # Better to refuse the setting than to accept it and quietly not work.
+  defp require_mail_for_approval(changeset) do
+    if get_field(changeset, :signup_mode) == :approval and
+         get_field(changeset, :smtp_host) in [nil, ""] do
+      add_error(
+        changeset,
+        :signup_mode,
+        "needs a mail server: nobody would be told that somebody is waiting"
+      )
+    else
+      changeset
+    end
   end
 
   # A host with no from-address would send mail that most servers reject, and
