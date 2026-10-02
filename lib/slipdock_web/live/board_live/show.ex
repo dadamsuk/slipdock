@@ -175,7 +175,7 @@ defmodule SlipdockWeb.BoardLive.Show do
       link_results: [],
       ancestry: Boards.ancestry(board),
       templates: Boards.list_templates(),
-      users: Accounts.list_users(),
+      users: Access.visible_users(socket.assigns.current_user),
       picking_template: false,
       editing_description: false,
       quick_preview: %{},

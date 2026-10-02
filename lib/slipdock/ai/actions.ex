@@ -707,7 +707,12 @@ defmodule Slipdock.AI.Actions do
 
   defp find_user(ref, scope) do
     r = ref |> to_s() |> String.downcase()
-    users = if scope[:users] == [], do: Slipdock.Accounts.list_users(), else: scope[:users]
+    # Scoped to whoever is asking. The unscoped list would let the model name,
+    # and assign cards to, people the asker shares nothing with.
+    users =
+      if scope[:users] == [],
+        do: Slipdock.Access.visible_users(scope[:user]),
+        else: scope[:users]
 
     match =
       Enum.find(users, fn u ->
