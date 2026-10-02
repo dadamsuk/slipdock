@@ -37,8 +37,13 @@ if [ -z "${PHX_HOST:-}" ]; then
   echo "entrypoint:   any other name will load and then never update."
   echo "entrypoint:   Set it either way, then \`docker compose up -d\` — not"
   echo "entrypoint:   \`restart\`, which reuses the container and re-reads neither:"
-  echo "entrypoint:     export PHX_HOST=slipdock.example.com"
-  echo "entrypoint:     echo PHX_HOST=slipdock.example.com >> .env"
+  echo "entrypoint:     echo PHX_HOST=slipdock.example.com >> .env     <- survives reboots"
+  echo "entrypoint:     export PHX_HOST=slipdock.example.com           <- this shell only"
+  echo "entrypoint:"
+  echo "entrypoint:   If you think you already set it: \`echo \$PHX_HOST\` printing a"
+  echo "entrypoint:   value does NOT mean compose can see it. Only *exported* variables"
+  echo "entrypoint:   are passed to containers, and a plain \`PHX_HOST=...\` is not one."
+  echo "entrypoint:   \`env | grep PHX_HOST\` is the check that tells the truth."
   PHX_HOST="localhost"
   export PHX_HOST
 else

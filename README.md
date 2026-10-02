@@ -116,14 +116,23 @@ There is no need to clone the repository: the image is published and
 `docker compose up` pulls it. (Cloning works too, and is what you want if you
 mean to change something — see *Building it yourself* below.)
 
-**2. Tell it the address people will use.** Sign-in links are built from it, so
-`localhost` only works while you are sitting at that machine. Edit `.env`:
+**2. Tell it the address people will use.** Sign-in links are built from it and
+live updates are refused for any other name, so `localhost` only works while you
+are sitting at that machine.
+
+Two ways, and either is fine:
 
 ```sh
-PHX_HOST=slipdock.example.com
+echo PHX_HOST=slipdock.example.com >> .env    # in the file — survives reboots
+export PHX_HOST=slipdock.example.com          # or the shell — this shell only
 ```
 
-Every other line in `.env.example` is already its default, so that one line is
+If you use the shell, it must be `export`. A plain `PHX_HOST=...` sets it for
+*you* and not for Docker, and the giveaway is cruel: `echo $PHX_HOST` prints the
+value quite happily while the container never receives it. `env | grep PHX_HOST`
+is the check that tells the truth.
+
+Every other line in `.env.example` is already its default, so that one setting is
 genuinely all that is needed. Skip even that if you are only trying it on your
 own machine.
 
@@ -133,12 +142,16 @@ own machine.
 docker compose up -d
 ```
 
-A shell variable works just as well as `.env`, if that suits you better:
+A shell variable works too, but it has to be **exported**, and it lasts only
+as long as that shell — `.env` is the one to prefer on a server:
 
 ```sh
-export PHX_HOST=slipdock.example.com
+export PHX_HOST=slipdock.example.com     # `export`, not `PHX_HOST=...`
 docker compose up -d
 ```
+
+`echo $PHX_HOST` printing a value does *not* mean Docker can see it. Only
+exported variables reach a container; `env | grep PHX_HOST` is the honest check.
 
 Whenever you change either afterwards, run `up -d` again. **Not
 `docker compose restart`** — that reuses the existing container and re-reads
@@ -276,7 +289,7 @@ that `up` stops reaching for the published image.
 | No sign-in email arrives | Expected until SMTP is configured — the code goes to the log. Set it under **Admin → Email**, which will not save until a test message actually arrives. |
 | The page loads but never updates | `PHX_HOST` is not the name you are reaching it by. The log says so, in a box, naming the value to set. |
 | Sign-in links point at `localhost` | Same cause, same fix. |
-| You set `PHX_HOST` and nothing changed | `docker compose restart` reuses the container and re-reads nothing. Use `docker compose up -d`, then check `docker compose logs slipdock \| grep entrypoint:` — it prints the value it actually got. |
+| You set `PHX_HOST` and nothing changed | Either `docker compose restart` (which re-reads nothing — use `up -d`), or a shell variable that was never exported. `echo $PHX_HOST` lies about that; `env \| grep PHX_HOST` does not. The container prints what it actually got: `docker compose logs slipdock \| grep entrypoint:`. |
 | Reached by more than one name | Keep the main one in `PHX_HOST`, list the rest in `SLIPDOCK_CHECK_ORIGIN=a.example,b.example`. |
 
 ### Running it for other people
