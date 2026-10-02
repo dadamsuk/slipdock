@@ -16,7 +16,7 @@ defmodule SlipdockWeb.ApiTokensLiveTest do
   end
 
   test "a token is created read/write and never expiring by default", %{conn: conn, user: user} do
-    {:ok, view, _html} = live(conn, ~p"/account")
+    {:ok, view, _html} = live(conn, ~p"/account/tokens")
 
     view
     |> form("form[phx-submit=create_token]", %{
@@ -40,7 +40,7 @@ defmodule SlipdockWeb.ApiTokensLiveTest do
     conn: conn,
     user: user
   } do
-    {:ok, view, _html} = live(conn, ~p"/account")
+    {:ok, view, _html} = live(conn, ~p"/account/tokens")
 
     view
     |> form("form[phx-submit=create_token]", %{
@@ -61,7 +61,7 @@ defmodule SlipdockWeb.ApiTokensLiveTest do
   end
 
   test "the plaintext token is shown once, and only once", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/account")
+    {:ok, view, _html} = live(conn, ~p"/account/tokens")
 
     html =
       view
@@ -80,13 +80,13 @@ defmodule SlipdockWeb.ApiTokensLiveTest do
       expires_at: DateTime.utc_now(:second) |> DateTime.add(-1, :day)
     )
 
-    {:ok, _view, html} = live(conn, ~p"/account")
+    {:ok, _view, html} = live(conn, ~p"/account/tokens")
     assert html =~ "expired"
   end
 
   test "revoking removes it", %{conn: conn, user: user} do
     {_plain, token} = Accounts.create_api_token(user, "doomed")
-    {:ok, view, _html} = live(conn, ~p"/account")
+    {:ok, view, _html} = live(conn, ~p"/account/tokens")
 
     render_click(view, "delete_token", %{"id" => to_string(token.id)})
     assert Accounts.list_api_tokens(user) == []

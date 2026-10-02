@@ -35,7 +35,7 @@ defmodule SlipdockCLI do
                                       browser, then saves the token it is given
       --label TEXT  what the approval screen calls this client (default: this host)
       --scope read|write   what to ask for (default: write)
-  auth <token>                        save an API token directly (create one at /account)
+  auth <token>                        save an API token directly (create one at /account/tokens)
     whoami                              show who you are signed in as
     ai-key [<key>]                      show your stored OpenRouter key (masked), or set one;
                                         `ai-key --remove` deletes it. AI features need it

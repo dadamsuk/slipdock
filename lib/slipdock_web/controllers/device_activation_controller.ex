@@ -71,7 +71,7 @@ defmodule SlipdockWeb.DeviceActivationController do
       {:ok, _} ->
         conn
         |> put_flash(:info, "Approved. The agent should be signed in within a few seconds.")
-        |> redirect(to: ~p"/account")
+        |> redirect(to: ~p"/account/tokens")
 
       {:error, :expired} ->
         conn

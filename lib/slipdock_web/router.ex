@@ -166,7 +166,14 @@ defmodule SlipdockWeb.Router do
       # works through it.
       live "/search", SearchLive.Index, :search
       live "/ask", SearchLive.Index, :ask
+      # The account area is four pages rather than one long scroll: who you
+      # are, the preferences, the tokens, and moving work in and out. They
+      # share a LiveView (and so a tab bar) because they share the
+      # person they are about.
       live "/account", AccountLive.Index, :index
+      live "/account/settings", AccountLive.Index, :settings
+      live "/account/tokens", AccountLive.Index, :tokens
+      live "/account/data", AccountLive.Index, :data
       live "/groups", GroupLive.Index, :index
       live "/templates", TemplateLive.Index, :index
       live "/favourites", FavouriteLive.Index, :index
