@@ -286,8 +286,6 @@ defmodule SlipdockWeb.OutlineComponents do
         due: Card.effective_due(card),
         ds: Card.start_derived?(card),
         de: Card.due_derived?(card),
-        slip: Card.slip(card),
-        derived_due: (card.rollup && card.rollup.derived_due) || nil,
         state: due_state(Card.effective_due(card), card.completed)
       )
 
@@ -315,13 +313,10 @@ defmodule SlipdockWeb.OutlineComponents do
     >
       {fmt(@due)}
     </span>
-    <span
-      :if={@slip > 0 and not @card.completed}
+    <.slip_chips
+      card={@card}
       class="inline-flex items-center gap-0.5 rounded-md bg-warning/20 px-1 py-0.5 text-2xs font-medium text-warning-content dark:text-warning"
-      title={"Subcards run until #{fmt(@derived_due)}, #{@slip} #{if @slip == 1, do: "day", else: "days"} past the due date"}
-    >
-      <.icon name="hero-arrow-trending-up" class="size-3" /> +{@slip}d
-    </span>
+    />
     """
   end
 

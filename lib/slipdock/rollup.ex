@@ -14,9 +14,13 @@ defmodule Slipdock.Rollup do
       `start_derived?` / `due_derived?` say which
     * `derived_start` / `derived_due` – the children's range alone, so a
       planned date can be compared with what the work beneath implies
-    * `slip` – days the children run past the card's own due date (0 if none)
+    * `start_slip` – days the children *begin* after the card's own start date
+      (0 if the card has no start of its own, or they begin on time)
+    * `due_slip` – days the children *end* after the card's own due date (0 if
+      the card has no due date of its own, or they end on time)
     * `blocked` / `overdue` – true when the card or any descendant is
-    * `health` – `:done`, `:blocked`, `:late` (overdue or slipping), `:ok`,
+    * `health` – `:done`, `:blocked`, `:late` (past a date, or the children
+      run past one), `:ok`,
       or `:dropped` when the card sits in a "dropped" list (it then counts
       for nothing: a dropped leaf is 0 of 0)
     * `stated` – the card's own latest stated health (see
@@ -45,7 +49,8 @@ defmodule Slipdock.Rollup do
           due_derived?: boolean,
           derived_start: Date.t() | nil,
           derived_due: Date.t() | nil,
-          slip: non_neg_integer,
+          start_slip: non_neg_integer,
+          due_slip: non_neg_integer,
           blocked: boolean,
           overdue: boolean,
           health: :done | :blocked | :late | :ok | :dropped,
@@ -326,7 +331,8 @@ defmodule Slipdock.Rollup do
       due_derived?: false,
       derived_start: nil,
       derived_due: nil,
-      slip: 0,
+      start_slip: 0,
+      due_slip: 0,
       blocked: false,
       overdue: false,
       health: :dropped,
@@ -347,7 +353,8 @@ defmodule Slipdock.Rollup do
       due_derived?: false,
       derived_start: nil,
       derived_due: nil,
-      slip: 0,
+      start_slip: 0,
+      due_slip: 0,
       blocked: blocked,
       overdue: overdue,
       health: health(card, blocked, overdue, 0, 1, if(card.completed, do: 1, else: 0)),
@@ -362,10 +369,11 @@ defmodule Slipdock.Rollup do
     derived_start = kids |> Enum.map(&starts_on/1) |> min_date()
     derived_due = kids |> Enum.map(&ends_on/1) |> max_date()
 
-    slip =
-      if card.due_date && derived_due && Date.compare(derived_due, card.due_date) == :gt,
-        do: Date.diff(derived_due, card.due_date),
-        else: 0
+    # Measured against the card's *own* dates, never a derived one: a card with
+    # no start date of its own promises nothing about when work begins, so
+    # there is nothing for its children to be past.
+    start_slip = days_past(derived_start, card.start_date)
+    due_slip = days_past(derived_due, card.due_date)
 
     blocked = blocked or Enum.any?(kids, & &1.blocked)
     overdue = overdue?(card, today) or Enum.any?(kids, & &1.overdue)
@@ -379,13 +387,23 @@ defmodule Slipdock.Rollup do
       due_derived?: is_nil(card.due_date) and not is_nil(derived_due),
       derived_start: derived_start,
       derived_due: derived_due,
-      slip: slip,
+      start_slip: start_slip,
+      due_slip: due_slip,
       blocked: blocked,
       overdue: overdue,
-      health: health(card, blocked, overdue, slip, total, done),
+      health: health(card, blocked, overdue, max(start_slip, due_slip), total, done),
       depth: 1 + (kids |> Enum.map(& &1.depth) |> Enum.max()),
       children: length(kids)
     }
+  end
+
+  # How far `derived` falls after `own`, or 0 when it does not (or when the
+  # card has no date of its own to be measured against).
+  defp days_past(nil, _own), do: 0
+  defp days_past(_derived, nil), do: 0
+
+  defp days_past(derived, own) do
+    if Date.compare(derived, own) == :gt, do: Date.diff(derived, own), else: 0
   end
 
   # A leaf contributes its own values; a parent the sum of its leaves'. A

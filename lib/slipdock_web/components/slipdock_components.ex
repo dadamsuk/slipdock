@@ -265,18 +265,76 @@ defmodule SlipdockWeb.SlipdockComponents do
       assign(assigns,
         due: Slipdock.Boards.Card.effective_due(card),
         derived: Slipdock.Boards.Card.due_derived?(card),
-        slip: Slipdock.Boards.Card.slip(card),
-        derived_due: (card.rollup && card.rollup.derived_due) || nil
+        card: card
       )
 
     ~H"""
     <.due_badge date={@due} completed={@card.completed} derived={@derived} />
+    <.slip_chips card={@card} />
+    """
+  end
+
+  @doc """
+  The sentences used wherever a date overrun is shown. One phrasing, in one
+  place, because this is said on the card face, in the outline, in the card
+  modal and in the CLI, and four copies of a sentence drift.
+
+  Each names the date it is measured from, because "overdue" and "slipped"
+  do not: a card can be past its own due date while every subcard is still
+  ahead of schedule, and those are different facts about different dates.
+  """
+  def past_date_label(:start, days), do: "#{days} #{plural_days(days)} past start date"
+  def past_date_label(:due, days), do: "#{days} #{plural_days(days)} past due date"
+
+  defp plural_days(1), do: "day"
+  defp plural_days(_), do: "days"
+
+  @doc "The same, said in full: what runs past what, and until when."
+  def past_date_detail(:start, days, on) when not is_nil(on),
+    do: "Subcards begin #{fmt_long(on)} — #{past_date_label(:start, days)}"
+
+  def past_date_detail(:due, days, on) when not is_nil(on),
+    do: "Subcards run until #{fmt_long(on)} — #{past_date_label(:due, days)}"
+
+  def past_date_detail(which, days, _on), do: past_date_label(which, days)
+
+  defp fmt_long(%Date{} = d), do: Calendar.strftime(d, "%-d %b %Y")
+  defp fmt_long(other), do: to_string(other)
+
+  attr :card, :map, required: true
+  attr :class, :string, default: "chip bg-amber-500/15 text-amber-700 dark:text-amber-300"
+
+  @doc """
+  A chip per overrun: one if the subcards start late, one if they finish late,
+  both when both. Each is labelled with the date it is measured from rather
+  than left as a bare `+31d`, which says nothing about what it is 31 days past.
+  """
+  def slip_chips(assigns) do
+    card = assigns.card
+    rollup = card.rollup
+
+    assigns =
+      assign(assigns,
+        start_slip: Slipdock.Boards.Card.start_slip(card),
+        due_slip: Slipdock.Boards.Card.due_slip(card),
+        derived_start: rollup && rollup.derived_start,
+        derived_due: rollup && rollup.derived_due
+      )
+
+    ~H"""
     <span
-      :if={@slip > 0 and not @card.completed}
-      class="chip bg-amber-500/15 text-amber-700 dark:text-amber-300"
-      title={"Subcards run until #{Calendar.strftime(@derived_due, "%a %-d %b %Y")}, #{@slip} #{if @slip == 1, do: "day", else: "days"} past the due date"}
+      :if={@start_slip > 0 and not @card.completed}
+      class={@class}
+      title={past_date_detail(:start, @start_slip, @derived_start)}
     >
-      <.icon name="hero-arrow-trending-up" class="size-3" /> +{@slip}d
+      <.icon name="hero-arrow-trending-up" class="size-3" /> start +{@start_slip}d
+    </span>
+    <span
+      :if={@due_slip > 0 and not @card.completed}
+      class={@class}
+      title={past_date_detail(:due, @due_slip, @derived_due)}
+    >
+      <.icon name="hero-arrow-trending-up" class="size-3" /> due +{@due_slip}d
     </span>
     """
   end
@@ -363,7 +421,9 @@ defmodule SlipdockWeb.SlipdockComponents do
       0 -> "Today"
       1 -> "Tomorrow"
       -1 -> "Yesterday"
-      n when n < 0 and n > -7 -> "#{-n}d overdue"
+      # "overdue" does not say which date, and a card has two. Everywhere else
+      # now says "past due date"; this is the compact form of the same thing.
+      n when n < 0 and n > -7 -> "#{-n}d past due"
       n when n > 0 and n < 7 -> Calendar.strftime(date, "%a")
       _ -> Calendar.strftime(date, "%b %-d")
     end

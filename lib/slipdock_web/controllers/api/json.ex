@@ -208,7 +208,16 @@ defmodule SlipdockWeb.API.JSON do
       due: r.due,
       start_derived: r.start_derived?,
       due_derived: r.due_derived?,
-      slip_days: r.slip,
+      # What the subcards themselves say, whether or not the card's own dates
+      # win above. Without these, `due_slip_days` is a number with nothing on
+      # screen to measure it against.
+      derived_start: r.derived_start,
+      derived_due: r.derived_due,
+      # `slip_days` is the due-date overrun, kept under its old name so
+      # existing callers do not break; `start_slip_days` is the new one.
+      slip_days: r.due_slip,
+      due_slip_days: r.due_slip,
+      start_slip_days: r.start_slip,
       blocked: r.blocked,
       overdue: r.overdue,
       health: r.health,

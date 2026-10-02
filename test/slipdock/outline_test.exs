@@ -34,7 +34,7 @@ defmodule Slipdock.OutlineTest do
     assert epic.list == "Backlog" and epic.sub_board_id == ctx.sub.id and epic.level == 0
     [_, c] = epic.children
     assert c.list == "To Do" and c.level == 1 and not c.more
-    assert %{health: :late, slip: 12} = c.stats
+    assert %{health: :late, due_slip: 12} = c.stats
 
     o = Outline.build(board, board.rollup, %{config | depth: "1"}, @today)
     assert titles(o.nodes) == [{"Epic", []}, {"Late", []}, {"Stuck", []}, {"Loose", []}]

@@ -1109,7 +1109,17 @@ defmodule SlipdockCLI.Render do
     [
       "#{r["done"]}/#{r["total"]}",
       dates,
-      if(r["slip_days"] > 0, do: "+#{r["slip_days"]}d late"),
+      # Name the date each overrun is measured from, *and* the date the
+      # subcards actually reach. "+31d late" said neither, so the number had
+      # nothing on screen to measure it against.
+      if((r["start_slip_days"] || 0) > 0,
+        do: "subcards begin #{r["derived_start"]}, #{r["start_slip_days"]}d past start date"
+      ),
+      if((r["due_slip_days"] || r["slip_days"] || 0) > 0,
+        do:
+          "subcards run to #{r["derived_due"]}, " <>
+            "#{r["due_slip_days"] || r["slip_days"]}d past due date"
+      ),
       if(r["blocked"], do: "blocked")
     ]
     |> Enum.reject(&is_nil/1)

@@ -163,9 +163,27 @@ defmodule Slipdock.Boards.Card do
   def due_derived?(%{rollup: %{due_derived?: v}}), do: v
   def due_derived?(_), do: false
 
-  @doc "Days the subcards run past the card's own due date (0 when they don't)."
-  def slip(%{rollup: %{slip: n}}), do: n
-  def slip(_), do: 0
+  @doc "Days the subcards begin after this card's own start date (0 if none)."
+  def start_slip(%{rollup: %{start_slip: n}}), do: n
+  def start_slip(_), do: 0
+
+  @doc "Days the subcards end after this card's own due date (0 if none)."
+  def due_slip(%{rollup: %{due_slip: n}}), do: n
+  def due_slip(_), do: 0
+
+  @doc """
+  Days this card is itself past its own due date, today. Nothing to do with
+  the subcards — a card can be past its due date with every subcard still
+  ahead of schedule, and the two numbers are reported separately for exactly
+  that reason.
+  """
+  def days_past_due(card, today \\ Date.utc_today())
+
+  def days_past_due(%{due_date: %Date{} = due, completed: false}, today) do
+    if Date.compare(today, due) == :gt, do: Date.diff(today, due), else: 0
+  end
+
+  def days_past_due(_, _), do: 0
 
   @doc "The blockers that are still open."
   def open_blockers(%{blocked_by: blockers}) when is_list(blockers) do
