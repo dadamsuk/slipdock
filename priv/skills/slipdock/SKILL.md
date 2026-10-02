@@ -341,6 +341,7 @@ ask for one; do not retry.
 
 ```
 slipdock admin settings                     what this server allows, and who it tells
+slipdock admin build                        the commit and build time now running
 slipdock admin set signup_mode=closed       also free_card_limit, user_directory,
                                             invites_create_accounts
 slipdock admin allow example.com            let an address or a whole domain register
@@ -355,7 +356,7 @@ slipdock admin approve|reject <email>
 
 Mail settings and the admin address are deliberately not here. Both have to prove something
 first — a test message that arrived, a code sent to the new address — and they live in the web
-UI under **Admin**.
+UI under **Configuration**.
 
 ## Errors
 

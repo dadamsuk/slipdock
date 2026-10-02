@@ -58,7 +58,7 @@ defmodule Slipdock.Accounts.UserNotifier do
       #{if request.note && request.note != "", do: "\nThey said: #{request.note}\n", else: ""}
       Approve or turn it down under Admin → People.
 
-      #{Slipdock.Automations.Runner.base_url()}/admin/signups
+      #{Slipdock.Automations.Runner.base_url()}/users/signups
       """)
 
     Logger.info("#{request.email} asked for an account; told #{admin.email}.")

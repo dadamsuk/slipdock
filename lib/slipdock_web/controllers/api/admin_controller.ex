@@ -12,7 +12,7 @@ defmodule SlipdockWeb.API.AdminController do
   """
   use SlipdockWeb, :controller
 
-  alias Slipdock.{Accounts, Quota, Settings}
+  alias Slipdock.{Accounts, Build, Quota, Settings}
 
   action_fallback SlipdockWeb.API.FallbackController
 
@@ -20,6 +20,9 @@ defmodule SlipdockWeb.API.AdminController do
     settings = Settings.get()
 
     json(conn, %{
+      # Which build is answering. The first thing worth knowing when a server
+      # is behaving unexpectedly is whether it is the build you deployed.
+      build: Build.info(),
       settings: %{
         setup_completed_at: settings.setup_completed_at,
         admin_email: settings.admin_email,

@@ -41,8 +41,9 @@ defmodule SlipdockCLI do
                                         `ai-key --remove` deletes it. AI features need it
     logout                              forget the saved token
 
-ADMIN  (needs a token made with the admin scope — Account → API tokens)
+  ADMIN  (needs a token made with the admin scope — Account → API tokens)
   admin settings                      what this server allows, and who it tells
+  admin build                         the commit and build time now running
   admin set key=value...              signup_mode=open|allowlist|approval|closed,
                                       free_card_limit=20, user_directory=shared_only,
                                       invites_create_accounts=false
@@ -488,6 +489,9 @@ ADMIN  (needs a token made with the admin scope — Account → API tokens)
   # ones that end up in agents and CI.
   defp run("admin", ["settings"], o), do: HTTP.get("/admin/settings") |> out(o, &render_admin/1)
 
+  defp run("admin", ["build"], o),
+    do: HTTP.get("/admin/settings") |> out(o, &IO.puts(render_build(&1["build"])))
+
   defp run("admin", ["set" | pairs], o) when pairs != [] do
     body =
       Enum.reduce(pairs, %{}, fn pair, acc ->
@@ -527,6 +531,7 @@ ADMIN  (needs a token made with the admin scope — Account → API tokens)
   defp run("admin", _args, _o) do
     fail("""
     admin settings                      what this server allows
+    admin build                         the commit and build time now running
     admin set key=value...              signup_mode, free_card_limit, user_directory,
                                         invites_create_accounts, login_fallback_enabled
     admin allow <entry> | disallow <entry>
@@ -1564,7 +1569,10 @@ ADMIN  (needs a token made with the admin scope — Account → API tokens)
     HTTP.post("/boards/welcome", compact(%{"force" => o[:force]}))
     |> out(o, fn r ->
       board = r["board"]
-      IO.puts("built “#{board["name"]}” (#{board["code"]}) — open it and work down the To Do list")
+
+      IO.puts(
+        "built “#{board["name"]}” (#{board["code"]}) — open it and work down the To Do list"
+      )
     end)
   end
 
@@ -1970,7 +1978,8 @@ ADMIN  (needs a token made with the admin scope — Account → API tokens)
   defp admin_signup(email, decision, o) do
     with {:ok, %{"requests" => requests}} <- HTTP.get("/admin/signups"),
          %{"id" => id} <- Enum.find(requests, &(&1["email"] == String.downcase(email))) do
-      HTTP.post("/admin/signups/#{id}/#{decision}") |> out(o, fn _ -> IO.puts("#{decision}d #{email}") end)
+      HTTP.post("/admin/signups/#{id}/#{decision}")
+      |> out(o, fn _ -> IO.puts("#{decision}d #{email}") end)
     else
       nil -> fail("nobody with that address is waiting")
       other -> out(other, o, fn _ -> :ok end)
@@ -1991,8 +2000,9 @@ ADMIN  (needs a token made with the admin scope — Account → API tokens)
 
   defp admin_value(_key, value), do: value
 
-  defp render_admin(%{"settings" => s}) do
+  defp render_admin(%{"settings" => s} = body) do
     IO.puts("""
+    Build:            #{render_build(body["build"])}
     Registration:     #{s["signup_mode"]}#{allowlist_note(s)}
     Card limit:       #{s["free_card_limit"] || "no limit"}
     People visible:   #{s["user_directory"]}
@@ -2003,6 +2013,14 @@ ADMIN  (needs a token made with the admin scope — Account → API tokens)
     Waiting:          #{s["pending_signups"]}\
     """)
   end
+
+  # The commit and the time it was compiled, which is what "which build is
+  # running" means — see `Slipdock.Build` on the server.
+  defp render_build(%{} = b) do
+    "#{b["git_short_sha"]}#{if b["git_dirty"], do: "+modified"} built #{b["built_at"]} UTC (v#{b["version"]})"
+  end
+
+  defp render_build(_), do: "unknown"
 
   defp allowlist_note(%{"signup_mode" => "allowlist", "allowlist" => list}),
     do: " (#{if list == [], do: "nobody listed", else: Enum.join(list, ", ")})"
@@ -2035,7 +2053,9 @@ ADMIN  (needs a token made with the admin scope — Account → API tokens)
 
   defp render_admin_signups(%{"requests" => requests}) do
     for r <- requests do
-      IO.puts("#{r["email"]}  asked #{r["asked_at"]}#{if r["note"] in [nil, ""], do: "", else: "  “" <> r["note"] <> "”"}")
+      IO.puts(
+        "#{r["email"]}  asked #{r["asked_at"]}#{if r["note"] in [nil, ""], do: "", else: "  “" <> r["note"] <> "”"}"
+      )
     end
   end
 

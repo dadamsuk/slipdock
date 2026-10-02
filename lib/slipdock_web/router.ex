@@ -130,10 +130,10 @@ defmodule SlipdockWeb.Router do
         {SlipdockWeb.QuickAddHook, :default},
         {SlipdockWeb.ShortcutsHook, :default}
       ] do
-      live "/admin", AdminLive.Index, :index
-      live "/admin/mail", AdminLive.Index, :mail
-      live "/admin/people", AdminLive.Index, :people
-      live "/admin/signups", AdminLive.Index, :signups
+      live "/users", UsersLive.Index, :index
+      live "/users/signups", UsersLive.Index, :signups
+      live "/config", ConfigLive.Index, :index
+      live "/config/mail", ConfigLive.Index, :mail
     end
 
     # Agreeing to the server's terms, if it has any. Outside the main session so

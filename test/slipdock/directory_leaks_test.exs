@@ -20,7 +20,7 @@ defmodule Slipdock.DirectoryLeaksTest do
     # Its own definition.
     "lib/slipdock/accounts.ex" => "the definition",
     # The admin's own view: the whole point is to see everybody.
-    "lib/slipdock_web/live/admin_live" => "the admin area",
+    "lib/slipdock_web/live/users_live" => "the Users page",
     "lib/slipdock_web/controllers/api/admin_controller.ex" => "the admin area over HTTP",
     "lib/mix/tasks" => "command-line administration",
     "lib/slipdock/release.ex" => "command-line administration",
