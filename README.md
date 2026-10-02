@@ -100,9 +100,9 @@ Briefly, with the detail in [the manual](docs/manual.md):
 
 ### With Docker
 
-The quickest way, and the one to use on a server. You need **Docker** with the
-Compose plugin — `docker compose version` should print v2 or newer — and
-nothing else: no Elixir, no Node, no database server.
+You need **Docker** with the Compose plugin; `docker compose version` should print v2 or newer.
+
+#### Linux
 
 **1. Get the two files.**
 
@@ -111,8 +111,6 @@ mkdir slipdock && cd slipdock
 curl -O https://raw.githubusercontent.com/dadamsuk/slipdock/main/compose.yaml
 curl -O https://raw.githubusercontent.com/dadamsuk/slipdock/main/setup.sh
 ```
-
-On Windows, fetch `setup.ps1` instead of `setup.sh`, with `curl.exe`.
 
 There is no need to clone the repository: the image is published and
 `docker compose up` pulls it. (Cloning works too, and is what you want if you
@@ -124,19 +122,10 @@ mean to change something — see *Building it yourself* below.)
 sh setup.sh
 ```
 
-On Windows, use `setup.ps1` instead — see *On Windows* below.
-
 It asks the address people will use, whether something like Cloudflare or nginx
 terminates TLS in front of it, which port to listen on, your email address, and
 whether you have a mail server. Then it writes a `.env` you can edit by hand
-afterwards. It starts nothing and touches no Docker, so read it first if you
-like.
-
-Doing it by hand is fine too — `.env.example` lists every setting with its
-default — but the two that catch people out are both here: behind a proxy the
-links must say `https` and port 443 rather than the port the container listens
-on, and `PHX_HOST` has to be the name people actually type or live updates are
-refused for every other one.
+afterwards if you want to change anything. 
 
 **3. Start it.**
 
@@ -148,47 +137,38 @@ Whenever you change `.env` afterwards, run that same command again. **Not
 `docker compose restart`** — that reuses the existing container and re-reads
 nothing, which makes a setting look as though it did not work.
 
-Prefer shell variables to a file? They work, but they must be **exported**, and
-they last only as long as that shell:
-
-```sh
-export PHX_HOST=slipdock.example.com     # `export`, not `PHX_HOST=...`
-```
-
-A plain `PHX_HOST=...` sets it for *you* and not for Docker, and the giveaway is
-cruel: `echo $PHX_HOST` prints the value quite happily while the container never
-receives it. `env | grep PHX_HOST` is the check that tells the truth.
-
 #### On Windows
 
-There is a PowerShell twin, `setup.ps1`, which asks the same questions and
-writes the same file:
+**1. Get the two files.**
 
 ```powershell
 curl.exe -O https://raw.githubusercontent.com/dadamsuk/slipdock/main/compose.yaml
 curl.exe -O https://raw.githubusercontent.com/dadamsuk/slipdock/main/setup.ps1
+```
+
+
+**2. Run the setup script.**
+
+```powershell
 powershell -ExecutionPolicy Bypass -File setup.ps1
+```
+
+The `-ExecutionPolicy Bypass` is because Windows refuses
+downloaded scripts by default
+
+`setup.sh` from the Linux instructions should work if you have **WSL** or **Git Bash**.
+
+**3. Start it.**
+
+```powershell
 docker compose up -d
 ```
 
-`curl.exe`, not `curl`: PowerShell aliases the bare name to something that does
-not understand `-O`. The `-ExecutionPolicy Bypass` is because Windows refuses
-downloaded scripts by default — read it first, it is a hundred lines and writes
-one text file.
+Whenever you change `.env` afterwards, run that same command again. **Not
+`docker compose restart`** — that reuses the existing container and re-reads
+nothing, which makes a setting look as though it did not work.
 
-`setup.sh` works too if you have **WSL** or **Git Bash**; Docker Desktop uses
-WSL2 by default, so you probably do.
-
-Either way, skip the script entirely if you would rather — it only writes a
-short text file. Save this as `.env` beside `compose.yaml`:
-
-```sh
-PHX_HOST=slipdock.example.com     # the hostname in the browser's address bar
-SLIPDOCK_PUBLISH=4000             # the port this machine listens on
-SLIPDOCK_URL_SCHEME=http          # https if something terminates TLS in front
-SLIPDOCK_URL_PORT=4000            # 443 if so
-SLIPDOCK_ADMIN_EMAIL=you@example.com   # optional; skips the setup wizard
-```
+#### Linux and Windows
 
 **4. Set it up.** Open the address you gave it. A server
 nobody has claimed shows a **setup wizard**, which asks for a token printed in
@@ -198,10 +178,8 @@ the log the first time it starts:
 docker compose logs slipdock | grep -A4 "has not been set up"
 ```
 
-That token is why finding the page first is not enough to claim somebody else's
-server. The wizard asks three things — who may register, how mail goes out, and
-your own email address — and is gone for good once you finish. Everything on it
-lives under **Admin** from then on.
+The wizard asks three things — who may register, how mail goes out, and
+your own email address.  You can change these settings later from the admin menu.
 
 **5. Sign in.** Until a mail server is configured, your sign-in code is written
 to the log rather than emailed:
@@ -230,14 +208,12 @@ docker compose run --rm slipdock setup --sign-in-link you@example.com
 docker compose run --rm slipdock setup --make-admin you@example.com
 ```
 
-The third is the way back in on the day mail stops working; the fourth is for a
-server that is set up but has no admin account anybody can use.
+Use the sign-in-link option if emailing a link isn't working.  
 
 #### Behind a TLS proxy
 
 The container speaks plain HTTP on port 4000 and assumes something in front of
-it terminates TLS. Tell it so, or the links it emails will point at the wrong
-scheme and port:
+it terminates TLS.
 
 ```sh
 SLIPDOCK_URL_SCHEME=https
