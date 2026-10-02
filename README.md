@@ -277,6 +277,7 @@ A release has no `mix`, so the ones worth having are on the entrypoint:
 docker compose run --rm slipdock setup --status   # what this server allows
 docker compose run --rm slipdock ai-key           # who has an OpenRouter key
 docker compose run --rm slipdock reindex          # rebuild the search index
+docker compose run --rm slipdock welcome you@example.com   # the Getting Started tour board
 docker compose run --rm slipdock migrate          # migrations, by hand
 docker compose run --rm slipdock remote           # an IEx shell in the running app
 ```
