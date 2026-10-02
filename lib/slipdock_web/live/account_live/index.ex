@@ -12,32 +12,51 @@ defmodule SlipdockWeb.AccountLive.Index do
   def mount(_params, _session, socket) do
     user = socket.assigns.current_user
 
+    # Each tab is its own mount (the tab bar navigates rather than patches),
+    # so a tab pays only for its own queries — the one-page version ran all
+    # of them to show you a fifth of the result.
     {:ok,
      socket
      |> assign(
-       page_title: "Account",
-       profile_form: to_form(Accounts.change_profile(user)),
-       new_token: nil,
-       form_key: 0,
+       page_title: tab_title(socket.assigns.live_action),
        source_url: Application.get_env(:slipdock, :source_url)
      )
-     |> assign_quick_add(Accounts.change_quick_add(user))
-     |> assign(
-       own_boards: own_boards(user),
-       picked_boards: [],
-       with_archived: false,
-       import_report: nil,
-       import_error: nil
-     )
-     |> allow_upload(:board_document,
-       accept: ~w(.json application/json),
-       max_entries: 1,
-       max_file_size: 50_000_000
-     )
-     |> assign(quota: Slipdock.Quota.status(user))
-     |> assign(support_sessions: Accounts.support_sessions_for(user))
-     |> assign_ai_key()
-     |> load_tokens()}
+     |> mount_tab(socket.assigns.live_action, user)}
+  end
+
+  defp mount_tab(socket, :settings, user) do
+    socket
+    |> assign_quick_add(Accounts.change_quick_add(user))
+    |> assign_ai_key()
+  end
+
+  defp mount_tab(socket, :tokens, _user) do
+    socket
+    |> assign(new_token: nil, form_key: 0)
+    |> load_tokens()
+  end
+
+  defp mount_tab(socket, :data, user) do
+    socket
+    |> assign(
+      own_boards: own_boards(user),
+      picked_boards: [],
+      with_archived: false,
+      import_report: nil,
+      import_error: nil
+    )
+    |> allow_upload(:board_document,
+      accept: ~w(.json application/json),
+      max_entries: 1,
+      max_file_size: 50_000_000
+    )
+  end
+
+  defp mount_tab(socket, _index, user) do
+    socket
+    |> assign(profile_form: to_form(Accounts.change_profile(user)))
+    |> assign(quota: Slipdock.Quota.status(user))
+    |> assign(support_sessions: Accounts.support_sessions_for(user))
   end
 
   # The key itself is never sent to the browser — only its shape and when it
@@ -279,6 +298,35 @@ defmodule SlipdockWeb.AccountLive.Index do
 
   defp board_switch(params, _user), do: params
 
+  # One label per tab, used for the title, the breadcrumb and the tab itself,
+  # so the three cannot drift apart.
+  defp tab_title(:settings), do: "Settings"
+  defp tab_title(:tokens), do: "API tokens"
+  defp tab_title(:data), do: "Import & export"
+  defp tab_title(_), do: "Account"
+
+  attr :to, :string, required: true
+  attr :active, :boolean, required: true
+  attr :icon, :string, required: true
+  attr :label, :string, required: true
+
+  defp account_tab(assigns) do
+    ~H"""
+    <.link
+      navigate={@to}
+      aria-current={@active && "page"}
+      class={[
+        "flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 font-medium",
+        (@active && "bg-primary/10 text-primary") ||
+          "text-base-content/60 hover:bg-base-200/70 hover:text-base-content"
+      ]}
+    >
+      <.icon name={@icon} class="size-4" />
+      <span>{@label}</span>
+    </.link>
+    """
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -292,474 +340,522 @@ defmodule SlipdockWeb.AccountLive.Index do
       viewport={@viewport}
       nav_active={:account}
     >
-      <:nav><span class="font-semibold">Account</span></:nav>
+      <:nav><span class="font-semibold">{tab_title(@live_action)}</span></:nav>
       <div class="kanban-scroll h-full overflow-y-auto">
         <div class="mx-auto max-w-2xl space-y-8 px-4 py-6 sm:py-10 sm:px-6">
-          <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-            <h2 class="text-lg font-semibold">Profile</h2>
-            <p class="text-sm text-base-content/60">Signed in as {@current_user.email}</p>
-            <.form
-              for={@profile_form}
-              id="profile-form"
-              phx-submit="save_profile"
-              class="mt-4 flex items-end gap-3"
-            >
-              <div class="flex-1">
-                <.input field={@profile_form[:name]} label="Display name" placeholder="Your name" />
-              </div>
-              <button type="submit" class="btn btn-primary">Save</button>
-            </.form>
-          </section>
-
-          <section
-            :if={@quota.limited?}
-            class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
+          <nav
+            id="account-tabs"
+            aria-label="Account"
+            class="flex gap-1 overflow-x-auto rounded-2xl bg-base-100 p-1 text-sm shadow-sm ring-1 ring-base-content/10"
           >
-            <h2 class="text-lg font-semibold">Cards</h2>
-            <p class="mt-1 text-sm text-base-content/60">
-              Counted across the boards you own. Cards on boards other people have shared
-              with you cost you nothing, and archiving one frees it up again.
-            </p>
+            <.account_tab
+              to={~p"/account"}
+              active={@live_action == :index}
+              icon="hero-user-circle"
+              label="Account"
+            />
+            <.account_tab
+              to={~p"/account/settings"}
+              active={@live_action == :settings}
+              icon="hero-adjustments-horizontal"
+              label="Settings"
+            />
+            <.account_tab
+              to={~p"/account/tokens"}
+              active={@live_action == :tokens}
+              icon="hero-key"
+              label="API tokens"
+            />
+            <.account_tab
+              to={~p"/account/data"}
+              active={@live_action == :data}
+              icon="hero-arrows-right-left"
+              label="Import & export"
+            />
+          </nav>
 
-            <div class="mt-4">
-              <div class="flex items-baseline justify-between text-sm">
-                <span class="font-medium">{@quota.used} of {@quota.limit} used</span>
-                <span class="text-base-content/60">{@quota.remaining} left</span>
-              </div>
-              <progress
-                class={[
-                  "progress mt-2 w-full",
-                  if(@quota.remaining == 0,
-                    do: "progress-error",
-                    else:
-                      if(Slipdock.Quota.warning?(@current_user),
-                        do: "progress-warning",
-                        else: "progress-primary"
-                      )
-                  )
-                ]}
-                value={@quota.used}
-                max={@quota.limit}
-              ></progress>
-              <p
-                :if={Slipdock.Quota.warning?(@current_user)}
-                class="mt-3 rounded-xl bg-warning/10 p-3 text-sm"
+          <%!-- Who you are, what you have used, who has been let in, and the
+                way out. --%>
+          <div :if={@live_action == :index} class="contents">
+            <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+              <h2 class="text-lg font-semibold">Profile</h2>
+              <p class="text-sm text-base-content/60">Signed in as {@current_user.email}</p>
+              <.form
+                for={@profile_form}
+                id="profile-form"
+                phx-submit="save_profile"
+                class="mt-4 flex items-end gap-3"
               >
-                {if @quota.remaining == 0,
-                  do:
-                    "You have used all of them. Archive something you have finished with, or subscribe for more.",
-                  else:
-                    "You are close to the limit. Archiving a card you have finished with frees it up."}
-              </p>
-            </div>
-          </section>
-
-          <section
-            :if={@support_sessions != []}
-            class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
-          >
-            <h2 class="text-lg font-semibold">Support access to your boards</h2>
-            <p class="mt-1 text-sm text-base-content/60">
-              Every time an admin of this server has been given access to your boards, and why.
-              Current ones are marked; the rest are over.
-            </p>
-
-            <ul class="mt-4 space-y-2 text-sm">
-              <li :for={session <- @support_sessions} class="flex items-start gap-2">
-                <span class={[
-                  "badge badge-sm mt-0.5",
-                  if(live_support?(session), do: "badge-warning", else: "badge-ghost")
-                ]}>
-                  {if live_support?(session), do: "now", else: "ended"}
-                </span>
-                <span>
-                  <span class="font-medium">{Accounts.User.display_name(session.admin)}</span>
-                  — “{session.reason}”
-                  <span class="block text-xs text-base-content/50">
-                    from {session.inserted_at}, until {session.expires_at}
-                  </span>
-                </span>
-              </li>
-            </ul>
-          </section>
-
-          <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-            <h2 class="text-lg font-semibold">Quick add</h2>
-            <p class="text-sm text-base-content/60">
-              Where the header's quick add box puts a card when the line doesn't name a board
-              or list of its own.
-            </p>
-            <p :if={@quick_add_boards == []} class="mt-4 text-sm text-base-content/50">
-              You have no board you can write to yet.
-            </p>
-            <.form
-              :if={@quick_add_boards != []}
-              for={@quick_add_form}
-              id="quick-add-form-settings"
-              phx-change="change_quick_add"
-              phx-submit="save_quick_add"
-              class="mt-4 space-y-2"
-            >
-              <div class="grid gap-3 sm:grid-cols-2">
-                <.input
-                  field={@quick_add_form[:quick_add_board_id]}
-                  type="select"
-                  label="Board"
-                  options={Enum.map(@quick_add_boards, &{&1.board.name, &1.board.id})}
-                />
-                <.input
-                  field={@quick_add_form[:quick_add_column_id]}
-                  type="select"
-                  label="List"
-                  options={Enum.map(@quick_add_columns, &{&1.name, &1.id})}
-                />
-              </div>
-              <.input
-                field={@quick_add_form[:quick_add_ai]}
-                type="checkbox"
-                label="Read the line with AI"
-              />
-              <p class="-mt-1 text-xs text-base-content/50">
-                {if AI.configured?(@current_user),
-                  do:
-                    "Plain English is turned into a card: “call the printers about banners friday, urgent” becomes a card due Friday at critical priority. Off, only the typed syntax (due: friday, #high, @dan) is read.",
-                  else:
-                    "Add an AI key below to use this; without one only the typed syntax (due: friday, #high, @dan) is read."}
-              </p>
-              <button type="submit" class="btn btn-primary btn-sm">Save</button>
-            </.form>
-          </section>
-
-          <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-            <h2 class="text-lg font-semibold">Your data</h2>
-            <p class="mt-1 text-sm text-base-content/60">
-              Everything you have here, as a zip: the boards you own with their cards, your wiki
-              pages as Markdown, and anything you wrote on other people's boards.
-            </p>
-            <a href={~p"/account/export.zip"} class="btn btn-outline btn-sm mt-4">
-              <.icon name="hero-arrow-down-tray" class="size-4" /> Download everything
-            </a>
-            <p class="mt-4 text-sm text-base-content/60">
-              To close your account, ask an admin. Boards only you can see go with you; a board
-              you have shared is handed to whoever else works on it rather than deleted out from
-              under them.
-            </p>
-          </section>
-
-          <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-            <h2 class="text-lg font-semibold">Move boards between servers</h2>
-            <p class="mt-1 text-sm text-base-content/60">
-              A board as one file that another Slipdock can read back: its lists, cards and
-              subcards, tags, checklists, comments, custom fields, what waits on what, and the
-              wiki. The zip above is for reading your work somewhere else; this is for moving it.
-            </p>
-
-            <h3 class="mt-5 text-sm font-medium">Take boards out</h3>
-            <p class="mt-1 text-xs text-base-content/60">
-              Only boards you own — a board shared with you is somebody else's to hand on.
-            </p>
-
-            <div :if={@own_boards == []} class="mt-3 text-sm text-base-content/50">
-              You don't own a board yet, so there is nothing to take.
-            </div>
-
-            <div :if={@own_boards != []} class="mt-3 flex flex-wrap gap-2">
-              <button
-                type="button"
-                phx-click="pick_all_boards"
-                class={["btn btn-xs", (@picked_boards == [] && "btn-primary") || "btn-outline"]}
-              >
-                All of them
-              </button>
-              <button
-                :for={board <- @own_boards}
-                type="button"
-                phx-click="pick_board"
-                phx-value-id={board.id}
-                class={[
-                  "btn btn-xs",
-                  (board.id in @picked_boards && "btn-primary") || "btn-outline"
-                ]}
-              >
-                {board.name}
-                <span :if={board.archived} class="opacity-60">· archived</span>
-              </button>
-            </div>
-
-            <label :if={@own_boards != []} class="mt-3 flex cursor-pointer items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={@with_archived}
-                phx-click="toggle_archived"
-                class="checkbox checkbox-sm mt-0.5"
-              />
-              <span>
-                <span class="block">Include what is archived</span>
-                <span class="block text-xs text-base-content/60">
-                  Archived cards, archived wiki pages and archived boards. Left out otherwise.
-                </span>
-              </span>
-            </label>
-
-            <a
-              :if={@own_boards != []}
-              href={boards_download_path(@picked_boards, @with_archived)}
-              class="btn btn-outline btn-sm mt-4"
-            >
-              <.icon name="hero-arrow-down-tray" class="size-4" />
-              {if @picked_boards == [],
-                do: "Download every board you own",
-                else: "Download #{length(@picked_boards)} board(s)"}
-            </a>
-
-            <div class="mt-6 border-t border-base-content/10 pt-5">
-              <h3 class="text-sm font-medium">Bring boards in</h3>
-              <p class="mt-1 text-xs text-base-content/60">
-                A file like the one above, from this server or another one. It always makes
-                <span class="font-medium">new</span>
-                boards — it never merges into one you already have, because deciding which card
-                is “the same card” is how an import quietly destroys work.
-              </p>
-
-              <form
-                id="import-boards"
-                phx-submit="import_boards"
-                phx-change="validate_board_document"
-                class="mt-3"
-              >
-                <.live_file_input
-                  upload={@uploads.board_document}
-                  class="file-input file-input-sm w-full max-w-sm"
-                />
-
-                <div
-                  :for={entry <- @uploads.board_document.entries}
-                  class="mt-2 flex items-center gap-3 text-sm"
-                >
-                  <span class="font-mono text-xs">{entry.client_name}</span>
-                  <button
-                    type="button"
-                    phx-click="cancel_board_document"
-                    phx-value-ref={entry.ref}
-                    class="btn btn-ghost btn-xs"
-                  >
-                    Remove
-                  </button>
+                <div class="flex-1">
+                  <.input field={@profile_form[:name]} label="Display name" placeholder="Your name" />
                 </div>
+                <button type="submit" class="btn btn-primary">Save</button>
+              </.form>
+            </section>
 
+            <section
+              :if={@quota.limited?}
+              class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
+            >
+              <h2 class="text-lg font-semibold">Cards</h2>
+              <p class="mt-1 text-sm text-base-content/60">
+                Counted across the boards you own. Cards on boards other people have shared
+                with you cost you nothing, and archiving one frees it up again.
+              </p>
+
+              <div class="mt-4">
+                <div class="flex items-baseline justify-between text-sm">
+                  <span class="font-medium">{@quota.used} of {@quota.limit} used</span>
+                  <span class="text-base-content/60">{@quota.remaining} left</span>
+                </div>
+                <progress
+                  class={[
+                    "progress mt-2 w-full",
+                    if(@quota.remaining == 0,
+                      do: "progress-error",
+                      else:
+                        if(Slipdock.Quota.warning?(@current_user),
+                          do: "progress-warning",
+                          else: "progress-primary"
+                        )
+                    )
+                  ]}
+                  value={@quota.used}
+                  max={@quota.limit}
+                ></progress>
                 <p
-                  :for={error <- upload_errors(@uploads.board_document)}
-                  class="mt-2 text-sm text-error"
+                  :if={Slipdock.Quota.warning?(@current_user)}
+                  class="mt-3 rounded-xl bg-warning/10 p-3 text-sm"
                 >
-                  {upload_error_text(error)}
+                  {if @quota.remaining == 0,
+                    do:
+                      "You have used all of them. Archive something you have finished with, or subscribe for more.",
+                    else:
+                      "You are close to the limit. Archiving a card you have finished with frees it up."}
                 </p>
-
-                <button
-                  type="submit"
-                  disabled={@uploads.board_document.entries == []}
-                  class="btn btn-primary btn-sm mt-3"
-                >
-                  <.icon name="hero-arrow-up-tray" class="size-4" /> Import
-                </button>
-              </form>
-
-              <p :if={@import_error} class="mt-3 text-sm text-error">{@import_error}</p>
-
-              <div :if={@import_report} class="mt-3 rounded-xl bg-base-200 p-4 text-sm">
-                <p class="font-medium">
-                  {@import_report.cards} card(s) and {@import_report.pages} page(s) came in.
-                </p>
-                <ul class="mt-2 space-y-1">
-                  <li :for={board <- @import_report.boards}>
-                    <.link navigate={~p"/boards/#{board.id}"} class="link">{board.name}</.link>
-                    <span class="font-mono text-xs text-base-content/50">{board.code}</span>
-                  </li>
-                </ul>
-                <ul
-                  :if={@import_report.skipped != []}
-                  class="mt-3 space-y-1 text-xs text-base-content/60"
-                >
-                  <li :for={note <- @import_report.skipped}>{note}</li>
-                </ul>
               </div>
-            </div>
-          </section>
+            </section>
 
-          <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-            <h2 class="text-lg font-semibold">AI key</h2>
-            <p class="text-sm text-base-content/60">
-              The AI features — chat and edits, the narrative, deep search, written
-              automations, quick add — run on your own <a
-                href="https://openrouter.ai/keys"
-                target="_blank"
-                rel="noopener"
-                class="link"
-              >OpenRouter key</a>. It is kept on the server, used only for your own
-              requests, and billed to your OpenRouter account. Without one, those
-              features stay off for you.
-            </p>
-            <div :if={@ai_key} class="mt-4 flex items-center gap-3 text-sm">
-              <.icon name="hero-sparkles" class="size-4 text-base-content/40" />
-              <code class="rounded bg-base-200 px-2 py-1 font-mono text-xs">{@ai_key}</code>
-              <span :if={@ai_key_set_at} class="text-xs text-base-content/50">
-                set {@ai_key_set_at |> String.slice(0, 10)}
-              </span>
-              <button
-                type="button"
-                class="btn btn-ghost btn-xs text-error"
-                phx-click="remove_ai_key"
-                data-confirm="Remove your OpenRouter key? AI features will stop working for you."
-              >Remove</button>
-            </div>
-            <p :if={!@ai_key && @ai_key_shared?} class="mt-4 text-sm text-base-content/50">
-              No key of your own — this server has a shared one configured, which is
-              what your AI requests use for now.
-            </p>
-            <p :if={!@ai_key && !@ai_key_shared?} class="mt-4 text-sm text-base-content/50">
-              No key yet, so AI features are off for you.
-            </p>
-            <form
-              id={"ai-key-form-#{@ai_key_form_key}"}
-              phx-submit="save_ai_key"
-              class="mt-4 flex gap-2"
+            <section
+              :if={@support_sessions != []}
+              class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
             >
-              <input
-                type="password"
-                name="api_key"
-                placeholder="sk-or-v1-…"
-                class="input input-sm flex-1 font-mono"
-                autocomplete="off"
-                spellcheck="false"
-              />
-              <button type="submit" class="btn btn-sm btn-primary">
-                {if @ai_key, do: "Replace key", else: "Save key"}
-              </button>
-            </form>
-          </section>
+              <h2 class="text-lg font-semibold">Support access to your boards</h2>
+              <p class="mt-1 text-sm text-base-content/60">
+                Every time an admin of this server has been given access to your boards, and why.
+                Current ones are marked; the rest are over.
+              </p>
 
-          <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-            <h2 class="text-lg font-semibold">API tokens</h2>
-            <p class="text-sm text-base-content/60">
-              For the <code>slipdock</code>
-              CLI and scripts. Run <code>slipdock auth &lt;token&gt;</code>
-              after creating one.
-            </p>
-            <div :if={@new_token} class="mt-4 rounded-xl bg-warning/10 p-4 text-sm">
-              <p class="font-medium">Copy this token now — it won't be shown again.</p>
-              <code
-                id="new-token"
-                class="mt-2 block select-all break-all rounded bg-base-200 px-2 py-1 font-mono text-xs"
-              >{@new_token}</code>
-              <button type="button" class="btn btn-ghost btn-xs mt-2" phx-click="dismiss_token">Done</button>
-            </div>
-            <form
-              id={"token-form-#{@form_key}"}
-              phx-submit="create_token"
-              class="mt-4 flex flex-wrap items-center gap-2"
-            >
-              <input
-                type="text"
-                name="label"
-                placeholder="Label (e.g. laptop)"
-                class="input input-sm min-w-40 flex-1"
-                autocomplete="off"
-              />
-              <select name="scope" class="select select-sm" aria-label="What this token may do">
-                <option value="write">Read and write</option>
-                <option value="read">Read only</option>
-                <option :if={Accounts.admin?(@current_user)} value="admin">
-                  Administer this server
-                </option>
-              </select>
-              <select name="expires_in_days" class="select select-sm" aria-label="When it expires">
-                <option value="">Never expires</option>
-                <option value="30">Expires in 30 days</option>
-                <option value="90">Expires in 90 days</option>
-                <option value="365">Expires in a year</option>
-              </select>
-              <button type="submit" class="btn btn-sm">Create token</button>
-            </form>
-            <ul class="mt-4 divide-y divide-base-content/10">
-              <li
-                :for={t <- @tokens}
-                id={"token-#{t.id}"}
-                class="flex items-center gap-3 py-2 text-sm"
+              <ul class="mt-4 space-y-2 text-sm">
+                <li :for={session <- @support_sessions} class="flex items-start gap-2">
+                  <span class={[
+                    "badge badge-sm mt-0.5",
+                    if(live_support?(session), do: "badge-warning", else: "badge-ghost")
+                  ]}>
+                    {if live_support?(session), do: "now", else: "ended"}
+                  </span>
+                  <span>
+                    <span class="font-medium">{Accounts.User.display_name(session.admin)}</span>
+                    — “{session.reason}”
+                    <span class="block text-xs text-base-content/50">
+                      from {session.inserted_at}, until {session.expires_at}
+                    </span>
+                  </span>
+                </li>
+              </ul>
+            </section>
+
+            <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+              <h2 class="text-lg font-semibold">Session</h2>
+              <p class="text-sm text-base-content/60">
+                Sign-in links keep you signed in for 30 days on this browser.
+              </p>
+              <.link href={~p"/logout"} method="delete" class="btn btn-outline btn-sm mt-4">
+                <.icon name="hero-arrow-right-start-on-rectangle" class="size-4" /> Sign out
+              </.link>
+            </section>
+
+            <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+              <h2 class="text-lg font-semibold">About</h2>
+              <p class="text-sm text-base-content/60">
+                Slipdock is free software under the <a
+                  href="https://www.gnu.org/licenses/agpl-3.0.html"
+                  target="_blank"
+                  rel="noopener"
+                  class="link"
+                >GNU AGPL v3</a>. You are using it over a network, so you are entitled to its
+                source — including any changes whoever runs this server has made: <a
+                  href={@source_url}
+                  target="_blank"
+                  rel="noopener"
+                  class="link break-all"
+                >{@source_url}</a>.
+              </p>
+            </section>
+          </div>
+
+          <%!-- The dials: how a quick-added line is read, and the key the AI
+                features run on. --%>
+          <div :if={@live_action == :settings} class="contents">
+            <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+              <h2 class="text-lg font-semibold">Quick add</h2>
+              <p class="text-sm text-base-content/60">
+                Where the header's quick add box puts a card when the line doesn't name a board
+                or list of its own.
+              </p>
+              <p :if={@quick_add_boards == []} class="mt-4 text-sm text-base-content/50">
+                You have no board you can write to yet.
+              </p>
+              <.form
+                :if={@quick_add_boards != []}
+                for={@quick_add_form}
+                id="quick-add-form-settings"
+                phx-change="change_quick_add"
+                phx-submit="save_quick_add"
+                class="mt-4 space-y-2"
               >
-                <.icon name="hero-key" class="size-4 text-base-content/40" />
-                <span class="flex min-w-0 flex-1 flex-col">
-                  <span class="flex items-center gap-2">
-                    <span class="truncate font-medium">{t.label}</span>
-                    <span class={[
-                      "rounded px-1.5 py-0.5 text-[11px] font-medium",
-                      if(t.scope == "read",
-                        do: "bg-base-200 text-base-content/70",
-                        else: "bg-primary/10 text-primary"
-                      )
-                    ]}>
-                      {case t.scope do
-                        "read" -> "read only"
-                        "admin" -> "admin"
-                        _ -> "read/write"
-                      end}
-                    </span>
-                    <span
-                      :if={Slipdock.Accounts.UserToken.expired?(t)}
-                      class="rounded bg-error/10 px-1.5 py-0.5 text-[11px] font-medium text-error"
-                    >
-                      expired
-                    </span>
-                  </span>
-                  <span class="text-xs text-base-content/50">
-                    created {relative_time(t.inserted_at)}<span :if={t.last_used_at}> · used {relative_time(
-                      t.last_used_at
-                    )}<span :if={t.last_used_ip}> from {t.last_used_ip}</span></span><span :if={
-                      t.expires_at
-                    }> · {if Slipdock.Accounts.UserToken.expired?(t),
-                      do: "expired " <> relative_time(t.expires_at),
-                      else: "expires " <> relative_time(t.expires_at)}</span><span :if={
-                      is_nil(t.expires_at)
-                    }> · never expires</span>
-                  </span>
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <.input
+                    field={@quick_add_form[:quick_add_board_id]}
+                    type="select"
+                    label="Board"
+                    options={Enum.map(@quick_add_boards, &{&1.board.name, &1.board.id})}
+                  />
+                  <.input
+                    field={@quick_add_form[:quick_add_column_id]}
+                    type="select"
+                    label="List"
+                    options={Enum.map(@quick_add_columns, &{&1.name, &1.id})}
+                  />
+                </div>
+                <.input
+                  field={@quick_add_form[:quick_add_ai]}
+                  type="checkbox"
+                  label="Read the line with AI"
+                />
+                <p class="-mt-1 text-xs text-base-content/50">
+                  {if AI.configured?(@current_user),
+                    do:
+                      "Plain English is turned into a card: “call the printers about banners friday, urgent” becomes a card due Friday at critical priority. Off, only the typed syntax (due: friday, #high, @dan) is read.",
+                    else:
+                      "Add an AI key below to use this; without one only the typed syntax (due: friday, #high, @dan) is read."}
+                </p>
+                <button type="submit" class="btn btn-primary btn-sm">Save</button>
+              </.form>
+            </section>
+
+            <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+              <h2 class="text-lg font-semibold">AI key</h2>
+              <p class="text-sm text-base-content/60">
+                The AI features — chat and edits, the narrative, deep search, written
+                automations, quick add — run on your own <a
+                  href="https://openrouter.ai/keys"
+                  target="_blank"
+                  rel="noopener"
+                  class="link"
+                >OpenRouter key</a>. It is kept on the server, used only for your own
+                requests, and billed to your OpenRouter account. Without one, those
+                features stay off for you.
+              </p>
+              <div :if={@ai_key} class="mt-4 flex items-center gap-3 text-sm">
+                <.icon name="hero-sparkles" class="size-4 text-base-content/40" />
+                <code class="rounded bg-base-200 px-2 py-1 font-mono text-xs">{@ai_key}</code>
+                <span :if={@ai_key_set_at} class="text-xs text-base-content/50">
+                  set {@ai_key_set_at |> String.slice(0, 10)}
                 </span>
                 <button
                   type="button"
                   class="btn btn-ghost btn-xs text-error"
-                  phx-click="delete_token"
-                  phx-value-id={t.id}
-                  data-confirm="Revoke this token?"
-                >Revoke</button>
-              </li>
-            </ul>
-            <p :if={@tokens == []} class="mt-3 text-sm text-base-content/50">No tokens yet.</p>
-          </section>
+                  phx-click="remove_ai_key"
+                  data-confirm="Remove your OpenRouter key? AI features will stop working for you."
+                >Remove</button>
+              </div>
+              <p :if={!@ai_key && @ai_key_shared?} class="mt-4 text-sm text-base-content/50">
+                No key of your own — this server has a shared one configured, which is
+                what your AI requests use for now.
+              </p>
+              <p :if={!@ai_key && !@ai_key_shared?} class="mt-4 text-sm text-base-content/50">
+                No key yet, so AI features are off for you.
+              </p>
+              <form
+                id={"ai-key-form-#{@ai_key_form_key}"}
+                phx-submit="save_ai_key"
+                class="mt-4 flex gap-2"
+              >
+                <input
+                  type="password"
+                  name="api_key"
+                  placeholder="sk-or-v1-…"
+                  class="input input-sm flex-1 font-mono"
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+                <button type="submit" class="btn btn-sm btn-primary">
+                  {if @ai_key, do: "Replace key", else: "Save key"}
+                </button>
+              </form>
+            </section>
+          </div>
 
-          <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-            <h2 class="text-lg font-semibold">About</h2>
-            <p class="text-sm text-base-content/60">
-              Slipdock is free software under the <a
-                href="https://www.gnu.org/licenses/agpl-3.0.html"
-                target="_blank"
-                rel="noopener"
-                class="link"
-              >GNU AGPL v3</a>. You are using it over a network, so you are entitled to its
-              source — including any changes whoever runs this server has made: <a
-                href={@source_url}
-                target="_blank"
-                rel="noopener"
-                class="link break-all"
-              >{@source_url}</a>.
-            </p>
-          </section>
+          <div :if={@live_action == :tokens} class="contents">
+            <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+              <h2 class="text-lg font-semibold">API tokens</h2>
+              <p class="text-sm text-base-content/60">
+                For the <code>slipdock</code>
+                CLI and scripts. Run <code>slipdock auth &lt;token&gt;</code>
+                after creating one.
+              </p>
+              <div :if={@new_token} class="mt-4 rounded-xl bg-warning/10 p-4 text-sm">
+                <p class="font-medium">Copy this token now — it won't be shown again.</p>
+                <code
+                  id="new-token"
+                  class="mt-2 block select-all break-all rounded bg-base-200 px-2 py-1 font-mono text-xs"
+                >{@new_token}</code>
+                <button type="button" class="btn btn-ghost btn-xs mt-2" phx-click="dismiss_token">Done</button>
+              </div>
+              <form
+                id={"token-form-#{@form_key}"}
+                phx-submit="create_token"
+                class="mt-4 flex flex-wrap items-center gap-2"
+              >
+                <input
+                  type="text"
+                  name="label"
+                  placeholder="Label (e.g. laptop)"
+                  class="input input-sm min-w-40 flex-1"
+                  autocomplete="off"
+                />
+                <select name="scope" class="select select-sm" aria-label="What this token may do">
+                  <option value="write">Read and write</option>
+                  <option value="read">Read only</option>
+                  <option :if={Accounts.admin?(@current_user)} value="admin">
+                    Administer this server
+                  </option>
+                </select>
+                <select name="expires_in_days" class="select select-sm" aria-label="When it expires">
+                  <option value="">Never expires</option>
+                  <option value="30">Expires in 30 days</option>
+                  <option value="90">Expires in 90 days</option>
+                  <option value="365">Expires in a year</option>
+                </select>
+                <button type="submit" class="btn btn-sm">Create token</button>
+              </form>
+              <ul class="mt-4 divide-y divide-base-content/10">
+                <li
+                  :for={t <- @tokens}
+                  id={"token-#{t.id}"}
+                  class="flex items-center gap-3 py-2 text-sm"
+                >
+                  <.icon name="hero-key" class="size-4 text-base-content/40" />
+                  <span class="flex min-w-0 flex-1 flex-col">
+                    <span class="flex items-center gap-2">
+                      <span class="truncate font-medium">{t.label}</span>
+                      <span class={[
+                        "rounded px-1.5 py-0.5 text-[11px] font-medium",
+                        if(t.scope == "read",
+                          do: "bg-base-200 text-base-content/70",
+                          else: "bg-primary/10 text-primary"
+                        )
+                      ]}>
+                        {case t.scope do
+                          "read" -> "read only"
+                          "admin" -> "admin"
+                          _ -> "read/write"
+                        end}
+                      </span>
+                      <span
+                        :if={Slipdock.Accounts.UserToken.expired?(t)}
+                        class="rounded bg-error/10 px-1.5 py-0.5 text-[11px] font-medium text-error"
+                      >
+                        expired
+                      </span>
+                    </span>
+                    <span class="text-xs text-base-content/50">
+                      created {relative_time(t.inserted_at)}<span :if={t.last_used_at}> · used {relative_time(
+                        t.last_used_at
+                      )}<span :if={t.last_used_ip}> from {t.last_used_ip}</span></span><span :if={
+                        t.expires_at
+                      }> · {if Slipdock.Accounts.UserToken.expired?(t),
+                        do: "expired " <> relative_time(t.expires_at),
+                        else: "expires " <> relative_time(t.expires_at)}</span><span :if={
+                        is_nil(t.expires_at)
+                      }> · never expires</span>
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-xs text-error"
+                    phx-click="delete_token"
+                    phx-value-id={t.id}
+                    data-confirm="Revoke this token?"
+                  >Revoke</button>
+                </li>
+              </ul>
+              <p :if={@tokens == []} class="mt-3 text-sm text-base-content/50">No tokens yet.</p>
+            </section>
+          </div>
 
-          <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-            <h2 class="text-lg font-semibold">Session</h2>
-            <p class="text-sm text-base-content/60">
-              Sign-in links keep you signed in for 30 days on this browser.
-            </p>
-            <.link href={~p"/logout"} method="delete" class="btn btn-outline btn-sm mt-4">
-              <.icon name="hero-arrow-right-start-on-rectangle" class="size-4" /> Sign out
-            </.link>
-          </section>
+          <%!-- Work leaving and work arriving: the whole-account zip, and
+                boards as files another Slipdock can read. --%>
+          <div :if={@live_action == :data} class="contents">
+            <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+              <h2 class="text-lg font-semibold">Your data</h2>
+              <p class="mt-1 text-sm text-base-content/60">
+                Everything you have here, as a zip: the boards you own with their cards, your wiki
+                pages as Markdown, and anything you wrote on other people's boards.
+              </p>
+              <a href={~p"/account/export.zip"} class="btn btn-outline btn-sm mt-4">
+                <.icon name="hero-arrow-down-tray" class="size-4" /> Download everything
+              </a>
+              <p class="mt-4 text-sm text-base-content/60">
+                To close your account, ask an admin. Boards only you can see go with you; a board
+                you have shared is handed to whoever else works on it rather than deleted out from
+                under them.
+              </p>
+            </section>
+
+            <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+              <h2 class="text-lg font-semibold">Move boards between servers</h2>
+              <p class="mt-1 text-sm text-base-content/60">
+                A board as one file that another Slipdock can read back: its lists, cards and
+                subcards, tags, checklists, comments, custom fields, what waits on what, and the
+                wiki. The zip above is for reading your work somewhere else; this is for moving it.
+              </p>
+
+              <h3 class="mt-5 text-sm font-medium">Take boards out</h3>
+              <p class="mt-1 text-xs text-base-content/60">
+                Only boards you own — a board shared with you is somebody else's to hand on.
+              </p>
+
+              <div :if={@own_boards == []} class="mt-3 text-sm text-base-content/50">
+                You don't own a board yet, so there is nothing to take.
+              </div>
+
+              <div :if={@own_boards != []} class="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  phx-click="pick_all_boards"
+                  class={["btn btn-xs", (@picked_boards == [] && "btn-primary") || "btn-outline"]}
+                >
+                  All of them
+                </button>
+                <button
+                  :for={board <- @own_boards}
+                  type="button"
+                  phx-click="pick_board"
+                  phx-value-id={board.id}
+                  class={[
+                    "btn btn-xs",
+                    (board.id in @picked_boards && "btn-primary") || "btn-outline"
+                  ]}
+                >
+                  {board.name}
+                  <span :if={board.archived} class="opacity-60">· archived</span>
+                </button>
+              </div>
+
+              <label
+                :if={@own_boards != []}
+                class="mt-3 flex cursor-pointer items-start gap-2 text-sm"
+              >
+                <input
+                  type="checkbox"
+                  checked={@with_archived}
+                  phx-click="toggle_archived"
+                  class="checkbox checkbox-sm mt-0.5"
+                />
+                <span>
+                  <span class="block">Include what is archived</span>
+                  <span class="block text-xs text-base-content/60">
+                    Archived cards, archived wiki pages and archived boards. Left out otherwise.
+                  </span>
+                </span>
+              </label>
+
+              <a
+                :if={@own_boards != []}
+                href={boards_download_path(@picked_boards, @with_archived)}
+                class="btn btn-outline btn-sm mt-4"
+              >
+                <.icon name="hero-arrow-down-tray" class="size-4" />
+                {if @picked_boards == [],
+                  do: "Download every board you own",
+                  else: "Download #{length(@picked_boards)} board(s)"}
+              </a>
+
+              <div class="mt-6 border-t border-base-content/10 pt-5">
+                <h3 class="text-sm font-medium">Bring boards in</h3>
+                <p class="mt-1 text-xs text-base-content/60">
+                  A file like the one above, from this server or another one. It always makes
+                  <span class="font-medium">new</span>
+                  boards — it never merges into one you already have, because deciding which card
+                  is “the same card” is how an import quietly destroys work.
+                </p>
+
+                <form
+                  id="import-boards"
+                  phx-submit="import_boards"
+                  phx-change="validate_board_document"
+                  class="mt-3"
+                >
+                  <.live_file_input
+                    upload={@uploads.board_document}
+                    class="file-input file-input-sm w-full max-w-sm"
+                  />
+
+                  <div
+                    :for={entry <- @uploads.board_document.entries}
+                    class="mt-2 flex items-center gap-3 text-sm"
+                  >
+                    <span class="font-mono text-xs">{entry.client_name}</span>
+                    <button
+                      type="button"
+                      phx-click="cancel_board_document"
+                      phx-value-ref={entry.ref}
+                      class="btn btn-ghost btn-xs"
+                    >
+                      Remove
+                    </button>
+                  </div>
+
+                  <p
+                    :for={error <- upload_errors(@uploads.board_document)}
+                    class="mt-2 text-sm text-error"
+                  >
+                    {upload_error_text(error)}
+                  </p>
+
+                  <button
+                    type="submit"
+                    disabled={@uploads.board_document.entries == []}
+                    class="btn btn-primary btn-sm mt-3"
+                  >
+                    <.icon name="hero-arrow-up-tray" class="size-4" /> Import
+                  </button>
+                </form>
+
+                <p :if={@import_error} class="mt-3 text-sm text-error">{@import_error}</p>
+
+                <div :if={@import_report} class="mt-3 rounded-xl bg-base-200 p-4 text-sm">
+                  <p class="font-medium">
+                    {@import_report.cards} card(s) and {@import_report.pages} page(s) came in.
+                  </p>
+                  <ul class="mt-2 space-y-1">
+                    <li :for={board <- @import_report.boards}>
+                      <.link navigate={~p"/boards/#{board.id}"} class="link">{board.name}</.link>
+                      <span class="font-mono text-xs text-base-content/50">{board.code}</span>
+                    </li>
+                  </ul>
+                  <ul
+                    :if={@import_report.skipped != []}
+                    class="mt-3 space-y-1 text-xs text-base-content/60"
+                  >
+                    <li :for={note <- @import_report.skipped}>{note}</li>
+                  </ul>
+                </div>
+              </div>
+            </section>
+          </div>
         </div>
       </div>
     </Layouts.app>

@@ -79,11 +79,32 @@ defmodule SlipdockWeb.Commands do
         to: {:navigate, "/templates"}
       },
       %{
-        label: "Account settings",
+        label: "Account",
         group: "Go",
         icon: "hero-user-circle",
-        keywords: ["profile", "password", "theme", "preferences"],
+        keywords: ["profile", "name", "quota", "cards left", "sign out"],
         to: {:navigate, "/account"}
+      },
+      %{
+        label: "Settings",
+        group: "Go",
+        icon: "hero-adjustments-horizontal",
+        keywords: ["preferences", "quick add", "ai key", "openrouter"],
+        to: {:navigate, "/account/settings"}
+      },
+      %{
+        label: "API tokens",
+        group: "Go",
+        icon: "hero-key",
+        keywords: ["cli", "api", "token", "agent"],
+        to: {:navigate, "/account/tokens"}
+      },
+      %{
+        label: "Import & export",
+        group: "Go",
+        icon: "hero-arrows-right-left",
+        keywords: ["download", "backup", "move boards", "json", "zip"],
+        to: {:navigate, "/account/data"}
       }
     ]
   end

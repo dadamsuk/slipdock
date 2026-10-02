@@ -83,10 +83,14 @@ defmodule SlipdockWeb.AuthLiveTest do
     refute get_session(conn, :user_token)
   end
 
-  test "account page: profile and API tokens", %{conn: conn, user: user} do
+  test "account page: profile", %{conn: conn, user: user} do
     {:ok, view, _} = live(conn, ~p"/account")
     view |> form("#profile-form", %{"user" => %{"name" => "Tess"}}) |> render_submit()
     assert Accounts.get_user!(user.id).name == "Tess"
+  end
+
+  test "account page: API tokens", %{conn: conn, user: user} do
+    {:ok, view, _} = live(conn, ~p"/account/tokens")
 
     view |> form("form[id^=token-form]", %{"label" => "laptop"}) |> render_submit()
     html = render(view)

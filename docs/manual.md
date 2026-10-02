@@ -116,7 +116,7 @@ way in: what it is, the pictures, and how to get it running.
 - **Quick add in the header** of every page (or press `c`): one line of
   plain English — "call the printers about the banners friday, urgent" —
   read by a cheap model into a card on your default board and list, both
-  set on the account page
+  set under Account › Settings
 - **Deep search and Ask** — one page over every board at once, in two modes.
   *Search* matches by meaning rather than substring: cards, comments and status
   updates are embedded, so "the thing that was blocked on legal" finds the card
@@ -795,7 +795,8 @@ card with a sub-board gets an "Add a subcard" row beneath it.
 
 The **Quick add…** box in the header bar of every page (or the `q` key)
 opens the same one-line form, wherever you are. It puts the card on your
-default board and list — set them under *Quick add* on the account page,
+default board and list — set them under *Quick add* on Account ›
+*Settings*,
 otherwise it is the first list of the first board you can write to.
 
 With an OpenRouter key configured the line is read by the model as well
@@ -810,7 +811,7 @@ the line names one, all come out of it; what it understood is shown as
 chips beside the card it made, with a link to open it. Only boards you
 can write to, and their own lists and tags, can be chosen — a name the
 model invents is dropped rather than created. If the model is off (the
-checkbox on the account page) or unreachable, the typed syntax above is
+checkbox on Account › *Settings*) or unreachable, the typed syntax above is
 still read, and the card still goes in.
 
 The code lives in `Slipdock.QuickAdd.Capture` (the catalogue of what may be
@@ -1366,7 +1367,7 @@ The full specification, and the decisions behind it, is in `docs/wiki.md`.
 A board as one JSON file that another Slipdock can read back: its lists, its
 cards and their subcards, tags, checklists, comments, status updates, web
 links, custom fields and the values cards hold in them, what waits on what,
-typed links, and the wiki. **Account → Move boards between servers** has a
+typed links, and the wiki. **Account → Import & export** has a
 picker and a download link; `slipdock export [<board>...] --out boards.json`
 and `slipdock import boards.json` do the same from a shell, and
 `GET /api/export` / `POST /api/import` are the contract under both.
@@ -1437,6 +1438,20 @@ within 15 minutes; using one signs you in for 30 days on that browser. The code
 exists for the times the link cannot be clicked — read out of a log, typed from
 a phone. The first person to sign in becomes the owner of any boards that
 existed before accounts did.
+
+**Your own four pages**, under the avatar menu and tabbed across the top of
+each other, because one long scroll had the display name, the AI key and a
+board importer on it and nothing told you which was which:
+
+- **Account** (`/account`) — your display name, how many cards you have used
+  against the limit if there is one, every time an admin has been let into
+  your boards and why, signing out, and the licence.
+- **Settings** (`/account/settings`) — the dials: where quick add puts a card,
+  whether the line is read by a model, and your OpenRouter key.
+- **API tokens** (`/account/tokens`) — make, inspect and revoke the tokens the
+  CLI and agents sign in with.
+- **Import & export** (`/account/data`) — everything you have as a zip, and
+  boards as files another Slipdock can read back.
 
 **Setting the server up.** A server nobody has claimed shows a setup wizard and
 sends every other page to it. It asks who may register, how mail goes out and
@@ -1544,7 +1559,7 @@ a scope and an expiry, and put it in the secret store. This is the right
 answer there: no interactive flow helps a machine that nobody is watching.
 
 **API tokens** carry a scope (read-only or read/write, optionally confined to
-named boards) and an optional expiry, and the Account page shows when each was
+named boards) and an optional expiry, and Account › *API tokens* shows when each was
 last used and from where. A read-only token is refused any request that would
 change something, and a board-scoped one cannot see — or even list — boards
 outside its scope. Revoke one and it stops working at once.
@@ -1696,7 +1711,7 @@ In development the server binds to this machine's Tailscale IPv4 (found via
 `SLIPDOCK_BIND_IP=127.0.0.1` (loopback), and `PORT` to change the port.
 
 The AI features run on **each person's own OpenRouter key**, set under
-**Account → AI key** in the web UI (`slipdock ai-key <key>` from the CLI, `mix
+**Account → Settings → AI key** in the web UI (`slipdock ai-key <key>` from the CLI, `mix
 kanban.ai_key <email> <key>` on the server). Keys are kept in one JSON file,
 `ai_keys.json` in the app's directory, `0600`, outside the database —
 `SLIPDOCK_AI_KEY_FILE` moves it, and it holds secrets in the clear, so back it

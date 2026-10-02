@@ -32,7 +32,7 @@ defmodule SlipdockWeb.AIKeyLiveTest do
 
   describe "Account → AI key" do
     test "a key can be saved, is shown masked, and can be removed", %{conn: conn, user: user} do
-      {:ok, view, html} = live(conn, ~p"/account")
+      {:ok, view, html} = live(conn, ~p"/account/settings")
       assert html =~ "AI key"
       assert html =~ "AI features are off for you"
 
@@ -59,7 +59,7 @@ defmodule SlipdockWeb.AIKeyLiveTest do
         Keyword.put(Application.get_env(:slipdock, :ai), :api_key, "sk-shared")
       )
 
-      {:ok, _view, html} = live(conn, ~p"/account")
+      {:ok, _view, html} = live(conn, ~p"/account/settings")
       assert html =~ "this server has a shared one"
     end
   end

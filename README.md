@@ -446,7 +446,7 @@ these are decisions only you can make.
 - **Agents get scoped tokens, not your account.** `slipdock auth` shows a code,
   you approve it in a browser you are already signed into, and the agent is
   given a token you can see and revoke. A token can be read-only, confined to
-  named boards, and made to expire; the Account page shows when each was last
+  named boards, and made to expire; Account › API tokens shows when each was last
   used and from where. A read-only token is refused anything that would change
   something, and a board-scoped one cannot even list boards outside its scope.
 - **Agentic Login is an authentication bypass, by design**, and is *not* how to

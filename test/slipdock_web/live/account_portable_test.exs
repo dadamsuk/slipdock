@@ -25,7 +25,7 @@ defmodule SlipdockWeb.AccountPortableTest do
 
   describe "taking boards out" do
     test "the section offers the boards you own", %{conn: conn} do
-      {:ok, _view, html} = live(conn, ~p"/account")
+      {:ok, _view, html} = live(conn, ~p"/account/data")
 
       assert html =~ "Move boards between servers"
       assert html =~ "Delivery"
@@ -41,7 +41,7 @@ defmodule SlipdockWeb.AccountPortableTest do
 
       {:ok, _} = Access.grant(theirs, user, "write", theirs.owner)
 
-      {:ok, view, _html} = live(conn, ~p"/account")
+      {:ok, view, _html} = live(conn, ~p"/account/data")
 
       # Their name turns up elsewhere on the page — the quick-add board picker
       # offers every board you can write to — so the test is about the picker
@@ -57,7 +57,7 @@ defmodule SlipdockWeb.AccountPortableTest do
     defp board_id(user), do: user |> owned() |> hd() |> Map.fetch!(:id)
 
     test "picking one narrows the download link to it", %{conn: conn, board: board} do
-      {:ok, view, _} = live(conn, ~p"/account")
+      {:ok, view, _} = live(conn, ~p"/account/data")
 
       html =
         view
@@ -69,7 +69,7 @@ defmodule SlipdockWeb.AccountPortableTest do
     end
 
     test "picking it again goes back to all of them", %{conn: conn, board: board} do
-      {:ok, view, _} = live(conn, ~p"/account")
+      {:ok, view, _} = live(conn, ~p"/account/data")
       button = "button[phx-click='pick_board'][phx-value-id='#{board.id}']"
 
       view |> element(button) |> render_click()
@@ -80,7 +80,7 @@ defmodule SlipdockWeb.AccountPortableTest do
     end
 
     test "the archived switch shows up in the link", %{conn: conn} do
-      {:ok, view, _} = live(conn, ~p"/account")
+      {:ok, view, _} = live(conn, ~p"/account/data")
 
       html = view |> element("input[phx-click='toggle_archived']") |> render_click()
       assert html =~ "archived=all"
@@ -127,7 +127,7 @@ defmodule SlipdockWeb.AccountPortableTest do
 
     test "a document from this server goes back in as a new board", %{conn: conn, user: user} do
       document = user |> Portable.export() |> Jason.encode!()
-      {:ok, view, _} = live(conn, ~p"/account")
+      {:ok, view, _} = live(conn, ~p"/account/data")
 
       upload(view, document) |> render_upload("boards.json")
       html = view |> element("#import-boards") |> render_submit()
@@ -139,7 +139,7 @@ defmodule SlipdockWeb.AccountPortableTest do
 
     test "the new board's code is reissued, and the page says so", %{conn: conn, user: user} do
       document = user |> Portable.export() |> Jason.encode!()
-      {:ok, view, _} = live(conn, ~p"/account")
+      {:ok, view, _} = live(conn, ~p"/account/data")
 
       upload(view, document) |> render_upload("boards.json")
       html = view |> element("#import-boards") |> render_submit()
@@ -148,7 +148,7 @@ defmodule SlipdockWeb.AccountPortableTest do
     end
 
     test "something that is not an export says what is wrong", %{conn: conn} do
-      {:ok, view, _} = live(conn, ~p"/account")
+      {:ok, view, _} = live(conn, ~p"/account/data")
 
       upload(view, ~s({"boards": []})) |> render_upload("boards.json")
       html = view |> element("#import-boards") |> render_submit()
@@ -157,7 +157,7 @@ defmodule SlipdockWeb.AccountPortableTest do
     end
 
     test "a file that is not JSON at all" do
-      {:ok, view, _} = live(log_in_user(build_conn(), user_fixture()), ~p"/account")
+      {:ok, view, _} = live(log_in_user(build_conn(), user_fixture()), ~p"/account/data")
 
       upload(view, "nonsense{") |> render_upload("boards.json")
       html = view |> element("#import-boards") |> render_submit()
@@ -173,7 +173,7 @@ defmodule SlipdockWeb.AccountPortableTest do
       {:ok, _} = Settings.update(%{"free_card_limit" => 3})
 
       document = user |> Portable.export() |> Jason.encode!()
-      {:ok, view, _} = live(conn, ~p"/account")
+      {:ok, view, _} = live(conn, ~p"/account/data")
 
       upload(view, document) |> render_upload("boards.json")
       html = view |> element("#import-boards") |> render_submit()

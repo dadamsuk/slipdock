@@ -184,7 +184,23 @@ defmodule SlipdockWeb.Layouts do
               </li>
               <li>
                 <.link navigate={~p"/account"}><.icon name="hero-user-circle" class="size-4" />
-                Account &amp; API tokens</.link>
+                Account</.link>
+              </li>
+              <li>
+                <.link navigate={~p"/account/settings"}><.icon
+                  name="hero-adjustments-horizontal"
+                  class="size-4"
+                /> Settings</.link>
+              </li>
+              <li>
+                <.link navigate={~p"/account/tokens"}><.icon name="hero-key" class="size-4" />
+                API tokens</.link>
+              </li>
+              <li>
+                <.link navigate={~p"/account/data"}><.icon
+                  name="hero-arrows-right-left"
+                  class="size-4"
+                /> Import &amp; export</.link>
               </li>
               <li :if={Slipdock.Accounts.admin?(@current_user)}>
                 <.link navigate={~p"/users"}>
@@ -733,7 +749,7 @@ defmodule SlipdockWeb.Layouts do
           <span class="font-medium text-base-content/70">{elem(@quick_add.destination, 0)}</span>
           › <span class="font-medium text-base-content/70">{elem(@quick_add.destination, 1)}</span>
           unless the line says otherwise.
-          <.link navigate={~p"/account"} class="link link-hover text-primary">Change</.link>
+          <.link navigate={~p"/account/settings"} class="link link-hover text-primary">Change</.link>
         </p>
         <p :if={is_nil(@quick_add.destination)} class="px-3 py-2 text-2xs text-warning">
           You have no board to add to yet — make one first.

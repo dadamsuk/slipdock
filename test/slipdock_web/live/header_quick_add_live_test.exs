@@ -78,7 +78,7 @@ defmodule SlipdockWeb.HeaderQuickAddLiveTest do
     other = board_fixture(%{"name" => "Errands"})
     doing = Enum.find(other.columns, &(&1.name == "In Progress"))
 
-    {:ok, view, _} = live(conn, ~p"/account")
+    {:ok, view, _} = live(conn, ~p"/account/settings")
     assert has_element?(view, "#quick-add-form-settings")
 
     view
@@ -131,7 +131,7 @@ defmodule SlipdockWeb.HeaderQuickAddLiveTest do
     {:ok, user} = Accounts.update_quick_add(user, %{"quick_add_column_id" => backlog.id})
     other = board_fixture(%{"name" => "Errands"})
 
-    {:ok, view, _} = live(conn, ~p"/account")
+    {:ok, view, _} = live(conn, ~p"/account/settings")
 
     html =
       view
