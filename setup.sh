@@ -9,6 +9,8 @@
 # rest of the repository — so you can read it first, and running it twice is
 # safe.
 #
+# setup.ps1 beside this is its PowerShell twin, for Windows without WSL.
+#
 # Answers are read from stdin rather than /dev/tty, so they can be piped: handy
 # for rebuilding a server from a script, and the only way to test this file.
 set -eu

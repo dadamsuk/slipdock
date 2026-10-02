@@ -112,6 +112,8 @@ curl -O https://raw.githubusercontent.com/dadamsuk/slipdock/main/compose.yaml
 curl -O https://raw.githubusercontent.com/dadamsuk/slipdock/main/setup.sh
 ```
 
+On Windows, fetch `setup.ps1` instead of `setup.sh`, with `curl.exe`.
+
 There is no need to clone the repository: the image is published and
 `docker compose up` pulls it. (Cloning works too, and is what you want if you
 mean to change something — see *Building it yourself* below.)
@@ -122,8 +124,7 @@ mean to change something — see *Building it yourself* below.)
 sh setup.sh
 ```
 
-On Windows, run that from WSL or Git Bash — see *On Windows* below, which also
-gives the file to write by hand if you would rather not.
+On Windows, use `setup.ps1` instead — see *On Windows* below.
 
 It asks the address people will use, whether something like Cloudflare or nginx
 terminates TLS in front of it, which port to listen on, your email address, and
@@ -160,19 +161,26 @@ receives it. `env | grep PHX_HOST` is the check that tells the truth.
 
 #### On Windows
 
-`setup.sh` is a shell script, so run it from **WSL** or **Git Bash**, not from
-PowerShell or `cmd`. Docker Desktop uses WSL2 by default, so you almost
-certainly have one already.
-
-PowerShell also aliases `curl` to something that does not understand `-O`, so
-fetch the files with `curl.exe` or `Invoke-WebRequest`:
+There is a PowerShell twin, `setup.ps1`, which asks the same questions and
+writes the same file:
 
 ```powershell
 curl.exe -O https://raw.githubusercontent.com/dadamsuk/slipdock/main/compose.yaml
+curl.exe -O https://raw.githubusercontent.com/dadamsuk/slipdock/main/setup.ps1
+powershell -ExecutionPolicy Bypass -File setup.ps1
+docker compose up -d
 ```
 
-Or skip the script entirely — it only writes a short text file, and writing it
-yourself is no hardship. Save this as `.env` beside `compose.yaml`:
+`curl.exe`, not `curl`: PowerShell aliases the bare name to something that does
+not understand `-O`. The `-ExecutionPolicy Bypass` is because Windows refuses
+downloaded scripts by default — read it first, it is a hundred lines and writes
+one text file.
+
+`setup.sh` works too if you have **WSL** or **Git Bash**; Docker Desktop uses
+WSL2 by default, so you probably do.
+
+Either way, skip the script entirely if you would rather — it only writes a
+short text file. Save this as `.env` beside `compose.yaml`:
 
 ```sh
 PHX_HOST=slipdock.example.com     # the hostname in the browser's address bar
