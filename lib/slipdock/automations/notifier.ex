@@ -42,11 +42,11 @@ defmodule Slipdock.Automations.Notifier do
     email =
       new()
       |> to(recipients)
-      |> from(Application.get_env(:slipdock, :mail_from, {"Slipdock", "slipdock@localhost"}))
+      |> from(Mailer.from())
       |> subject(subject)
       |> text_body(body)
 
-    case Mailer.deliver(email) do
+    case Mailer.deliver_configured(email) do
       {:ok, _} ->
         :ok
 

@@ -22,6 +22,11 @@ config :logger, level: :warning
 
 config :slipdock, Slipdock.Mailer, adapter: Swoosh.Adapters.Test
 
+# Mail settings are editable in the app now, and `Slipdock.Mailer` builds its
+# adapter from them per delivery. Not here: a test that saved an SMTP host
+# would otherwise post mail to the internet.
+config :slipdock, :mailer_from_settings, false
+
 # Automations: no background clock, and deliveries run inline so tests can
 # assert on them (and stay inside the SQL sandbox).
 config :slipdock, :automations, enabled: true, interval: :manual, async: false

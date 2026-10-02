@@ -6,7 +6,7 @@ defmodule Slipdock.Accounts.UserNotifier do
   alias Slipdock.Mailer
 
   def deliver_magic_link(user, url) do
-    from = Application.get_env(:slipdock, :mail_from, {"Slipdock", "slipdock@localhost"})
+    from = Mailer.from()
 
     email =
       new()
@@ -27,6 +27,6 @@ defmodule Slipdock.Accounts.UserNotifier do
     # Handy when no real mail transport is configured (dev / Local adapter).
     Logger.info("Magic sign-in link for #{user.email}: #{url}")
 
-    with {:ok, _} <- Mailer.deliver(email), do: {:ok, email}
+    with {:ok, _} <- Mailer.deliver_configured(email), do: {:ok, email}
   end
 end
