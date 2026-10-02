@@ -376,7 +376,7 @@ defmodule SlipdockWeb.AccountLive.Index do
 
           <%!-- Who you are, what you have used, who has been let in, and the
                 way out. --%>
-          <div :if={@live_action == :index} class="contents">
+          <div :if={@live_action == :index} class="space-y-8">
             <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
               <h2 class="text-lg font-semibold">Profile</h2>
               <p class="text-sm text-base-content/60">Signed in as {@current_user.email}</p>
@@ -496,7 +496,7 @@ defmodule SlipdockWeb.AccountLive.Index do
 
           <%!-- The dials: how a quick-added line is read, and the key the AI
                 features run on. --%>
-          <div :if={@live_action == :settings} class="contents">
+          <div :if={@live_action == :settings} class="space-y-8">
             <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
               <h2 class="text-lg font-semibold">Quick add</h2>
               <p class="text-sm text-base-content/60">
@@ -590,14 +590,14 @@ defmodule SlipdockWeb.AccountLive.Index do
                   autocomplete="off"
                   spellcheck="false"
                 />
-                <button type="submit" class="btn btn-sm btn-primary">
+                <button type="submit" class="btn btn-primary btn-sm">
                   {if @ai_key, do: "Replace key", else: "Save key"}
                 </button>
               </form>
             </section>
           </div>
 
-          <div :if={@live_action == :tokens} class="contents">
+          <div :if={@live_action == :tokens} class="space-y-8">
             <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
               <h2 class="text-lg font-semibold">API tokens</h2>
               <p class="text-sm text-base-content/60">
@@ -638,7 +638,7 @@ defmodule SlipdockWeb.AccountLive.Index do
                   <option value="90">Expires in 90 days</option>
                   <option value="365">Expires in a year</option>
                 </select>
-                <button type="submit" class="btn btn-sm">Create token</button>
+                <button type="submit" class="btn btn-primary btn-sm">Create token</button>
               </form>
               <ul class="mt-4 divide-y divide-base-content/10">
                 <li
@@ -697,14 +697,14 @@ defmodule SlipdockWeb.AccountLive.Index do
 
           <%!-- Work leaving and work arriving: the whole-account zip, and
                 boards as files another Slipdock can read. --%>
-          <div :if={@live_action == :data} class="contents">
+          <div :if={@live_action == :data} class="space-y-8">
             <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
               <h2 class="text-lg font-semibold">Your data</h2>
               <p class="mt-1 text-sm text-base-content/60">
                 Everything you have here, as a zip: the boards you own with their cards, your wiki
                 pages as Markdown, and anything you wrote on other people's boards.
               </p>
-              <a href={~p"/account/export.zip"} class="btn btn-outline btn-sm mt-4">
+              <a href={~p"/account/export.zip"} class="btn btn-primary btn-sm mt-4">
                 <.icon name="hero-arrow-down-tray" class="size-4" /> Download everything
               </a>
               <p class="mt-4 text-sm text-base-content/60">
@@ -775,7 +775,7 @@ defmodule SlipdockWeb.AccountLive.Index do
               <a
                 :if={@own_boards != []}
                 href={boards_download_path(@picked_boards, @with_archived)}
-                class="btn btn-outline btn-sm mt-4"
+                class="btn btn-primary btn-sm mt-4"
               >
                 <.icon name="hero-arrow-down-tray" class="size-4" />
                 {if @picked_boards == [],
