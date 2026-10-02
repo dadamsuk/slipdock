@@ -329,6 +329,22 @@ defmodule SlipdockWeb.AccountLive.Index do
           </section>
 
           <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+            <h2 class="text-lg font-semibold">Your data</h2>
+            <p class="mt-1 text-sm text-base-content/60">
+              Everything you have here, as a zip: the boards you own with their cards, your wiki
+              pages as Markdown, and anything you wrote on other people's boards.
+            </p>
+            <a href={~p"/account/export.zip"} class="btn btn-outline btn-sm mt-4">
+              <.icon name="hero-arrow-down-tray" class="size-4" /> Download everything
+            </a>
+            <p class="mt-4 text-sm text-base-content/60">
+              To close your account, ask an admin. Boards only you can see go with you; a board
+              you have shared is handed to whoever else works on it rather than deleted out from
+              under them.
+            </p>
+          </section>
+
+          <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
             <h2 class="text-lg font-semibold">AI key</h2>
             <p class="text-sm text-base-content/60">
               The AI features — chat and edits, the narrative, deep search, written

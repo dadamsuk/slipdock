@@ -198,11 +198,47 @@ defmodule SlipdockWeb.AdminLiveTest do
       refute Accounts.disabled?(Slipdock.Repo.reload(ordinary))
     end
 
-    test "there is no delete button, deliberately", %{conn: conn} do
-      {:ok, _view, html} = live(conn, ~p"/admin/people")
+    test "closing an account says what it will take before it does anything", %{
+      conn: conn,
+      ordinary: ordinary
+    } do
+      {:ok, view, html} = live(conn, ~p"/admin/people")
 
-      refute html =~ "phx-click=\"delete\""
-      assert html =~ "delete, because their cards"
+      # Disable is the one to reach for; closing is there because somebody
+      # paying for a service may ask to be removed.
+      assert html =~ "Disabling is reversible"
+
+      html =
+        view
+        |> element("button[phx-click='confirm-delete'][phx-value-user_id='#{ordinary.id}']")
+        |> render_click()
+
+      assert html =~ "cannot be undone"
+      assert html =~ "Type #{ordinary.email} to confirm"
+      # Nothing has happened yet.
+      assert Slipdock.Repo.reload(ordinary)
+    end
+
+    test "and refuses unless the address is typed exactly", %{conn: conn, ordinary: ordinary} do
+      {:ok, view, _} = live(conn, ~p"/admin/people")
+
+      view
+      |> element("button[phx-click='confirm-delete'][phx-value-user_id='#{ordinary.id}']")
+      |> render_click()
+
+      html =
+        view
+        |> form("form[phx-submit='delete']", %{"user_id" => ordinary.id, "email" => "not-it"})
+        |> render_submit()
+
+      assert html =~ "Type the address exactly"
+      assert Slipdock.Repo.reload(ordinary)
+
+      view
+      |> form("form[phx-submit='delete']", %{"user_id" => ordinary.id, "email" => ordinary.email})
+      |> render_submit()
+
+      refute Accounts.get_user(ordinary.id)
     end
   end
 
