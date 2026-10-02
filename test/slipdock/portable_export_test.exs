@@ -14,7 +14,7 @@ defmodule Slipdock.PortableExportTest do
   defp tree do
     owner = user_fixture("owner@example.com")
     board = board_fixture(%{"name" => "Delivery", "code" => "del"}, owner: owner)
-    [todo, doing | _] = board.columns
+    [_backlog, todo, doing | _] = board.columns
 
     tag = tag_fixture(board, "urgent", "rose")
     {:ok, field} = Fields.create_field(board, %{"name" => "Points", "kind" => "number"})

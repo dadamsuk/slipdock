@@ -58,7 +58,8 @@ defmodule Slipdock.Portable do
     Tag
   }
 
-  alias Slipdock.Repo
+  alias Slipdock.{Quota, Repo}
+  alias Slipdock.Boards.Column
   alias Slipdock.Wiki.{Folder, Page}
 
   @format_version 1
@@ -144,6 +145,600 @@ defmodule Slipdock.Portable do
     |> Enum.filter(fn {count, _} -> count > 0 end)
     |> Enum.map(fn {count, sentence} -> "#{count} left behind. #{sentence}" end)
   end
+
+  ## In -------------------------------------------------------------------------
+
+  @doc """
+  Reads a document and builds the board trees in it, owned by `user`.
+
+  Returns `{:ok, report}` or `{:error, reason}`. The report says what was made
+  and what could not be — `%{boards: [...], cards: n, pages: n, skipped: [...]}`
+  — because an import that half-worked in silence is the worst of the possible
+  outcomes.
+
+  Three things it does **not** do, each a decision:
+
+  **It never merges.** A document always becomes new boards, even when a board
+  of that name and code is already here. Merging means deciding, per card,
+  whether "the same card" means the same title, and getting that wrong quietly
+  destroys work; a second copy is obvious and a person can delete it. A code
+  that is taken is regenerated, and the report says so.
+
+  **Automation rules do not fire.** Cards are inserted directly rather than
+  through `Boards.create_card/2`, because importing four hundred cards through
+  the normal path would run every rule on the board four hundred times and
+  email somebody about each. Rules are about what happens *here*, and an
+  import is history arriving.
+
+  **The quota is checked once, up front, against the whole document.** The card
+  limit is there to be a nudge towards subscribing, and the honest way to apply
+  it to a file holding 300 cards is to say "this will not fit" before making
+  any of it — not to stop at card 41 and leave a half-built board.
+  """
+  @spec import(User.t(), map() | binary(), keyword()) :: {:ok, map()} | {:error, term()}
+  def import(user, document, opts \\ [])
+
+  def import(%User{} = user, document, opts) when is_binary(document) do
+    case Jason.decode(document) do
+      {:ok, decoded} -> import(user, decoded, opts)
+      {:error, _} -> {:error, :not_json}
+    end
+  end
+
+  def import(%User{} = user, %{} = document, opts) do
+    document = atomise(document)
+
+    with :ok <- check_format(document),
+         trees when is_list(trees) <- Map.get(document, :boards, []),
+         :ok <- check_quota(user, trees) do
+      Repo.transaction(fn ->
+        trees
+        |> Enum.map(&import_tree(user, &1, opts))
+        |> merge_reports()
+      end)
+    end
+  end
+
+  defp check_format(%{slipdock_portable: @format_version}), do: :ok
+
+  defp check_format(%{slipdock_portable: other}) when is_integer(other),
+    do: {:error, {:unsupported_version, other}}
+
+  defp check_format(_), do: {:error, :not_a_slipdock_export}
+
+  # One question asked once, about the whole file. See the moduledoc above for
+  # why this is not per card.
+  defp check_quota(user, trees) do
+    wanted = trees |> Enum.flat_map(&Map.get(&1, :cards, [])) |> Enum.count(&(!&1[:archived]))
+
+    case Quota.status(user) do
+      %{limited?: false} -> :ok
+      %{remaining: remaining} when remaining >= wanted -> :ok
+      %{remaining: remaining} -> {:error, {:card_limit_reached, wanted, remaining}}
+    end
+  end
+
+  defp import_tree(user, tree, opts) do
+    root_doc = Map.fetch!(tree, :root)
+    boards_doc = [root_doc | Map.get(tree, :boards, [])]
+    cards_doc = Map.get(tree, :cards, [])
+    pages_doc = Map.get(tree, :pages, [])
+
+    {root, code_changed} = insert_board(user, root_doc, nil, nil, opts)
+
+    # Lists, then the things the root owns and every card in the tree points
+    # at: tags and fields have to exist before a card can reference one.
+    ids = %{
+      boards: %{root_doc.ref => root.id},
+      columns: insert_columns!(root, root_doc),
+      tags: insert_tags!(root, Map.get(tree, :tags, [])),
+      fields: insert_fields!(root, Map.get(tree, :fields, [])),
+      folders: %{},
+      cards: %{},
+      pages: %{}
+    }
+
+    # Sub-boards hang off cards and their cards live on them, so the tree is
+    # built a level at a time: this board's cards, then the sub-boards those
+    # cards own, then their cards.
+    ids = build_level(user, root, root_doc, boards_doc, cards_doc, ids, opts)
+
+    ids = Map.put(ids, :folders, insert_folders!(Map.get(tree, :folders, []), ids))
+    ids = Map.put(ids, :pages, insert_pages!(user, pages_doc, ids))
+
+    # Second pass: everything pointing at something that had to exist first.
+    link_pages!(pages_doc, ids)
+    remap_page_links!(pages_doc, ids)
+    link_cards!(cards_doc, ids)
+    insert_milestones!(root, Map.get(tree, :milestones, []), ids)
+    insert_saved_views!(root, Map.get(tree, :saved_views, []))
+
+    skipped = Enum.flat_map(cards_doc ++ pages_doc, &missing_people(&1))
+
+    %{
+      boards: [%{id: root.id, name: root.name, code: root.code}],
+      cards: map_size(ids.cards),
+      pages: map_size(ids.pages),
+      skipped:
+        Enum.uniq(skipped) ++
+          if(code_changed,
+            do: ["The code “#{root_doc[:code]}” was taken, so this board is “#{root.code}”."],
+            else: []
+          )
+    }
+  end
+
+  # One board's cards, then a sub-board for each card that had one, then that
+  # sub-board's cards — depth first, so a ref is always written before it is
+  # read.
+  defp build_level(user, board, board_doc, boards_doc, cards_doc, ids, opts) do
+    mine = Enum.filter(cards_doc, &(&1[:board] == board_doc.ref))
+
+    ids =
+      Enum.reduce(mine, ids, fn card_doc, acc ->
+        card = insert_card!(board, card_doc, acc)
+        put_in(acc, [:cards, card_doc.ref], card.id)
+      end)
+
+    Enum.reduce(mine, ids, fn card_doc, acc ->
+      case card_doc[:subcards] && Enum.find(boards_doc, &(&1.ref == card_doc[:subcards])) do
+        nil ->
+          acc
+
+        sub_doc ->
+          card_id = acc.cards[card_doc.ref]
+          {sub, _} = insert_board(user, sub_doc, card_id, board.root_id || board.id, opts)
+
+          acc = put_in(acc, [:boards, sub_doc.ref], sub.id)
+          acc = Map.put(acc, :columns, Map.merge(acc.columns, insert_columns!(sub, sub_doc)))
+
+          build_level(user, sub, sub_doc, boards_doc, cards_doc, acc, opts)
+      end
+    end)
+  end
+
+  ## In: the inserts -------------------------------------------------------------
+
+  defp insert_board(user, doc, parent_card_id, root_id, opts) do
+    wanted = doc[:code]
+    code = free_code(wanted, doc[:name])
+
+    board =
+      Repo.insert!(%Board{
+        name: doc[:name] || "Imported board",
+        code: code,
+        # A shortcut is one or two characters and unique across the server, so
+        # it cannot travel: the importing person picks their own.
+        shortcut: nil,
+        description: doc[:description],
+        color: doc[:color] || "indigo",
+        vote_budget: doc[:vote_budget] || 10,
+        vote_max: doc[:vote_max] || 5,
+        add_card: bool(doc[:add_card], true),
+        add_page: bool(doc[:add_page], true),
+        add_document: bool(doc[:add_document], true),
+        archived_at: if(doc[:archived] && opts[:keep_archived] != false, do: now()),
+        parent_card_id: parent_card_id,
+        root_id: root_id,
+        owner_id: user.id
+      })
+
+    {board, wanted not in [nil, ""] and code != wanted}
+  end
+
+  defp insert_columns!(board, doc) do
+    doc
+    |> Map.get(:lists, [])
+    |> Enum.with_index()
+    |> Map.new(fn {list, index} ->
+      column =
+        Repo.insert!(%Column{
+          board_id: board.id,
+          name: list[:name] || "List #{index + 1}",
+          position: list[:position] || index,
+          wip_limit: list[:wip_limit],
+          color: list[:color],
+          category: list[:category],
+          horizon_from: date(list[:horizon_from]),
+          horizon_to: date(list[:horizon_to]),
+          horizon_unit: list[:horizon_unit]
+        })
+
+      {list[:ref], column.id}
+    end)
+  end
+
+  defp insert_tags!(root, tags) do
+    Map.new(tags, fn tag ->
+      inserted =
+        Repo.insert!(%Tag{board_id: root.id, name: tag[:name], color: tag[:color] || "slate"})
+
+      {tag[:ref], inserted.id}
+    end)
+  end
+
+  defp insert_fields!(root, fields) do
+    fields
+    |> Enum.with_index()
+    |> Map.new(fn {field, index} ->
+      inserted =
+        Repo.insert!(%FieldDefinition{
+          board_id: root.id,
+          name: field[:name],
+          key: field[:key],
+          kind: field[:kind],
+          position: field[:position] || index,
+          options: field[:options] || [],
+          config: field[:config] || %{},
+          sum: bool(field[:sum], false)
+        })
+
+      {field[:ref], inserted.id}
+    end)
+  end
+
+  defp insert_folders!(folders, ids) do
+    # Parents first, so a nested folder has somewhere to hang. The document
+    # writes them in position order, which is not necessarily parent order, so
+    # this is a fixpoint rather than one pass.
+    Enum.reduce(1..max(length(folders), 1), %{}, fn _, acc ->
+      Enum.reduce(folders, acc, fn folder, acc ->
+        parent_ref = folder[:parent]
+
+        cond do
+          Map.has_key?(acc, folder[:ref]) ->
+            acc
+
+          parent_ref && not Map.has_key?(acc, parent_ref) ->
+            acc
+
+          true ->
+            inserted =
+              Repo.insert!(%Folder{
+                board_id: ids.boards[folder[:board]],
+                name: folder[:name],
+                slug: folder[:slug],
+                position: folder[:position] || 0,
+                parent_id: parent_ref && acc[parent_ref]
+              })
+
+            Map.put(acc, folder[:ref], inserted.id)
+        end
+      end)
+    end)
+  end
+
+  defp insert_card!(board, doc, ids) do
+    card =
+      Repo.insert!(%Card{
+        board_id: board.id,
+        column_id: ids.columns[doc[:list]],
+        title: doc[:title] || "Untitled",
+        description: doc[:description],
+        position: doc[:position] || 0,
+        priority: doc[:priority] || "none",
+        flags: doc[:flags] || [],
+        start_date: date(doc[:start_date]),
+        due_date: date(doc[:due_date]),
+        date_precision: doc[:date_precision] || "day",
+        completed: bool(doc[:completed], false),
+        percent_complete: doc[:percent_complete],
+        color: doc[:color],
+        archived_at: if(doc[:archived], do: now()),
+        assignee_id: user_id_for(doc[:assignee])
+      })
+
+    tag_ids = (doc[:tags] || []) |> Enum.map(&ids.tags[&1]) |> Enum.reject(&is_nil/1)
+
+    for tag_id <- tag_ids do
+      Repo.insert_all("card_tags", [[card_id: card.id, tag_id: tag_id]])
+    end
+
+    insert_attached!([card_id: card.id], doc, ids)
+    card
+  end
+
+  # A page's code is globally unique on a server ("W-31" resolves with no board
+  # behind it), so an imported page cannot keep the one it arrived with. It
+  # gets a fresh code and a fresh per-board number, and `remap_page_links!/2`
+  # then rewrites `[[W-31]]` inside the imported bodies so the wiki that comes
+  # out the other side still links to itself.
+  defp insert_pages!(user, pages, ids) do
+    pages
+    |> Enum.with_index(1)
+    |> Map.new(fn {doc, index} ->
+      board_id = ids.boards[doc[:board]]
+
+      page =
+        Repo.insert!(%Page{
+          board_id: board_id,
+          column_id: doc[:list] && ids.columns[doc[:list]],
+          title: doc[:title] || "Untitled",
+          slug: doc[:slug] || "page-#{index}",
+          code: fresh_page_code(),
+          number: fresh_page_number(board_id),
+          body: doc[:body] || "",
+          summary: doc[:summary],
+          position: doc[:position] || 0,
+          board_position: doc[:board_position] || 0,
+          status: doc[:status] || "published",
+          template: bool(doc[:template], false),
+          folder_id: doc[:folder] && ids.folders[doc[:folder]],
+          priority: doc[:priority] || "none",
+          flags: doc[:flags] || [],
+          start_date: date(doc[:start_date]),
+          due_date: date(doc[:due_date]),
+          date_precision: doc[:date_precision] || "day",
+          completed: bool(doc[:completed], false),
+          percent_complete: doc[:percent_complete],
+          color: doc[:color],
+          archived_at: if(doc[:archived], do: now()),
+          assignee_id: user_id_for(doc[:assignee]),
+          created_by_id: user.id,
+          content_hash: Page.hash(doc[:body] || "")
+        })
+
+      insert_attached!([page_id: page.id], doc, ids)
+      {doc[:ref], page.id}
+    end)
+  end
+
+  # Checklists, comments, status updates, web links and field values: the same
+  # five for a card and for a page, which is why they take an owner.
+  defp insert_attached!(owner, doc, ids) do
+    for {item, index} <- Enum.with_index(doc[:checklist] || []) do
+      Repo.insert!(
+        struct!(ChecklistItem, owner)
+        |> struct!(
+          text: item[:text],
+          done: bool(item[:done], false),
+          position: item[:position] || index
+        )
+      )
+    end
+
+    for comment <- doc[:comments] || [] do
+      Repo.insert!(struct!(Comment, owner) |> struct!(body: comment[:body]))
+    end
+
+    for update <- doc[:status_updates] || [] do
+      Repo.insert!(
+        struct!(StatusUpdate, owner)
+        |> struct!(
+          health: update[:health],
+          body: update[:body],
+          user_id: user_id_for(update[:author])
+        )
+      )
+    end
+
+    for url <- doc[:urls] || [] do
+      Repo.insert!(struct!(CardUrl, owner) |> struct!(url: url[:url], title: url[:title]))
+    end
+
+    for value <- doc[:fields] || [], field_id = ids.fields[value[:field]] do
+      Repo.insert!(
+        struct!(FieldValue, owner)
+        |> struct!(
+          field_id: field_id,
+          number: value[:number],
+          text: value[:text],
+          date: date(value[:date]),
+          option: value[:option]
+        )
+      )
+    end
+
+    :ok
+  end
+
+  # Dependencies and links point at other cards, so they wait until every card
+  # in the tree exists.
+  defp link_cards!(cards, ids) do
+    for doc <- cards, blocked_id = ids.cards[doc[:ref]] do
+      for ref <- doc[:blocked_by] || [], blocker_id = ids.cards[ref] do
+        Repo.insert_all("card_dependencies", [[blocked_id: blocked_id, blocker_id: blocker_id]],
+          on_conflict: :nothing
+        )
+      end
+
+      for link <- doc[:links] || [], to_id = ids.cards[link[:to]] do
+        Repo.insert!(%CardLink{from_id: blocked_id, to_id: to_id, kind: link[:kind]})
+      end
+    end
+
+    :ok
+  end
+
+  defp fresh_page_code do
+    highest =
+      Repo.one(from(p in Page, select: max(fragment("CAST(substr(?, 3) AS INTEGER)", p.code))))
+
+    Page.code_for((highest || 0) + 1)
+  end
+
+  defp fresh_page_number(board_id) do
+    {1, _} = Repo.update_all(from(b in Board, where: b.id == ^board_id), inc: [page_seq: 1])
+    Repo.one!(from(b in Board, where: b.id == ^board_id, select: b.page_seq))
+  end
+
+  # `[[W-31]]` in an imported body means the page that was W-31 on the server
+  # the document came from, which is a different page here (or none). The
+  # document says which page had which code, so the rewrite is exact.
+  defp remap_page_links!(pages, ids) do
+    renames =
+      for doc <- pages,
+          old = doc[:code],
+          is_binary(old),
+          new_id = ids.pages[doc[:ref]],
+          into: %{} do
+        {old, Repo.one!(from(p in Page, where: p.id == ^new_id, select: p.code))}
+      end
+
+    if renames != %{} do
+      for doc <- pages, page_id = ids.pages[doc[:ref]] do
+        page = Repo.get!(Page, page_id)
+        rewritten = Enum.reduce(renames, page.body || "", &rewrite_code/2)
+
+        if rewritten != page.body do
+          page
+          |> Ecto.Changeset.change(body: rewritten, content_hash: Page.hash(rewritten))
+          |> Repo.update!()
+        end
+      end
+    end
+
+    :ok
+  end
+
+  defp rewrite_code({old, new}, body) do
+    # Only where the code stands as a reference — `[[W-31]]` or a bare `W-31`
+    # on a word boundary — so prose that happens to contain the letters is
+    # left alone.
+    String.replace(body, ~r/\b#{Regex.escape(old)}\b/, new)
+  end
+
+  defp link_pages!(pages, ids) do
+    for doc <- pages, parent_ref = doc[:parent], parent_id = ids.pages[parent_ref] do
+      Page
+      |> Repo.get!(ids.pages[doc[:ref]])
+      |> Ecto.Changeset.change(parent_id: parent_id)
+      |> Repo.update!()
+    end
+
+    :ok
+  end
+
+  defp insert_milestones!(root, milestones, ids) do
+    for milestone <- milestones do
+      Repo.insert!(%Milestone{
+        board_id: root.id,
+        name: milestone[:name],
+        date: date(milestone[:date]),
+        color: milestone[:color],
+        card_id: milestone[:card] && ids.cards[milestone[:card]]
+      })
+    end
+
+    :ok
+  end
+
+  defp insert_saved_views!(root, views) do
+    for view <- views do
+      # Not the public token: a share link that worked on the server this came
+      # from must not start working here as well.
+      Repo.insert!(%SavedView{board_id: root.id, name: view[:name], config: view[:config] || %{}})
+    end
+
+    :ok
+  end
+
+  ## In: the small decisions -----------------------------------------------------
+
+  # A board's code is unique per server, so an import onto a server that
+  # already has "del" gets "del-2". The report says so rather than leaving
+  # somebody to notice.
+  defp free_code(wanted, name) do
+    base = Board.sanitize_code(wanted || "")
+    base = if base == "", do: Board.sanitize_code(to_string(name)), else: base
+    base = if base == "", do: "board", else: base
+
+    if taken?(base), do: next_free(base, 2), else: base
+  end
+
+  defp next_free(base, n) do
+    # Codes are capped at ten characters, so the suffix eats into the stem
+    # rather than overflowing it.
+    suffix = "-#{n}"
+    candidate = String.slice(base, 0, 10 - String.length(suffix)) <> suffix
+
+    cond do
+      n > 99 ->
+        Board.sanitize_code("b#{System.unique_integer([:positive])}") |> String.slice(0, 10)
+
+      taken?(candidate) ->
+        next_free(base, n + 1)
+
+      true ->
+        candidate
+    end
+  end
+
+  defp taken?(code), do: Repo.exists?(from(b in Board, where: b.code == ^code))
+
+  # An address names a person on this server or it names nobody. Nobody is not
+  # an error — the alternative is an import that dies on the last card because
+  # somebody left.
+  defp user_id_for(nil), do: nil
+
+  defp user_id_for(email) when is_binary(email) do
+    Repo.one(
+      from(u in User, where: u.email == ^String.downcase(String.trim(email)), select: u.id)
+    )
+  end
+
+  defp user_id_for(_), do: nil
+
+  defp missing_people(doc) do
+    authors = Enum.map(doc[:status_updates] || [], & &1[:author])
+
+    [doc[:assignee] | authors]
+    |> Enum.reject(&(is_nil(&1) or &1 == ""))
+    |> Enum.reject(&user_id_for(&1))
+    |> Enum.map(&"#{&1} has no account here, so what was theirs came in unassigned.")
+  end
+
+  defp merge_reports(reports) do
+    Enum.reduce(reports, %{boards: [], cards: 0, pages: 0, skipped: []}, fn report, acc ->
+      %{
+        boards: acc.boards ++ report.boards,
+        cards: acc.cards + report.cards,
+        pages: acc.pages + report.pages,
+        skipped: Enum.uniq(acc.skipped ++ report.skipped)
+      }
+    end)
+  end
+
+  # Documents arrive as JSON with string keys, and are written here with atom
+  # ones. One conversion at the door beats `doc["x"] || doc[:x]` everywhere.
+  defp atomise(%{} = map) do
+    Map.new(map, fn {key, value} ->
+      {safe_atom(key), atomise(value)}
+    end)
+  end
+
+  defp atomise(list) when is_list(list), do: Enum.map(list, &atomise/1)
+  defp atomise(other), do: other
+
+  defp safe_atom(key) when is_atom(key), do: key
+
+  defp safe_atom(key) when is_binary(key) do
+    # Only keys this module writes become atoms; anything else stays a string,
+    # so a hostile document cannot fill the atom table.
+    String.to_existing_atom(key)
+  rescue
+    ArgumentError -> key
+  end
+
+  defp bool(nil, default), do: default
+  defp bool(value, _default) when is_boolean(value), do: value
+  defp bool("true", _), do: true
+  defp bool("false", _), do: false
+  defp bool(_, default), do: default
+
+  defp date(nil), do: nil
+  defp date(%Date{} = date), do: date
+
+  defp date(value) when is_binary(value) do
+    case Date.from_iso8601(value) do
+      {:ok, date} -> date
+      _ -> nil
+    end
+  end
+
+  defp date(_), do: nil
+
+  defp now, do: DateTime.utc_now() |> DateTime.truncate(:second)
 
   ## Internals: choosing what to export -----------------------------------------
 
