@@ -35,9 +35,10 @@ if [ -z "${PHX_HOST:-}" ]; then
   echo "entrypoint: PHX_HOST is NOT SET in this container, so it is localhost."
   echo "entrypoint:   Sign-in links will point at localhost, and pages opened at"
   echo "entrypoint:   any other name will load and then never update."
-  echo "entrypoint:   Set PHX_HOST in the .env beside compose.yaml, then"
-  echo "entrypoint:   \`docker compose up -d\` — not \`restart\`, which never"
-  echo "entrypoint:   re-reads .env."
+  echo "entrypoint:   Set it either way, then \`docker compose up -d\` — not"
+  echo "entrypoint:   \`restart\`, which reuses the container and re-reads neither:"
+  echo "entrypoint:     export PHX_HOST=slipdock.example.com"
+  echo "entrypoint:     echo PHX_HOST=slipdock.example.com >> .env"
   PHX_HOST="localhost"
   export PHX_HOST
 else
