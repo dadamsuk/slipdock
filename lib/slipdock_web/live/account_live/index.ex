@@ -19,6 +19,7 @@ defmodule SlipdockWeb.AccountLive.Index do
        source_url: Application.get_env(:slipdock, :source_url)
      )
      |> assign_quick_add(Accounts.change_quick_add(user))
+     |> assign(quota: Slipdock.Quota.status(user))
      |> assign_ai_key()
      |> load_tokens()}
   end
@@ -200,6 +201,49 @@ defmodule SlipdockWeb.AccountLive.Index do
               </div>
               <button type="submit" class="btn btn-primary">Save</button>
             </.form>
+          </section>
+
+          <section
+            :if={@quota.limited?}
+            class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
+          >
+            <h2 class="text-lg font-semibold">Cards</h2>
+            <p class="mt-1 text-sm text-base-content/60">
+              Counted across the boards you own. Cards on boards other people have shared
+              with you cost you nothing, and archiving one frees it up again.
+            </p>
+
+            <div class="mt-4">
+              <div class="flex items-baseline justify-between text-sm">
+                <span class="font-medium">{@quota.used} of {@quota.limit} used</span>
+                <span class="text-base-content/60">{@quota.remaining} left</span>
+              </div>
+              <progress
+                class={[
+                  "progress mt-2 w-full",
+                  if(@quota.remaining == 0,
+                    do: "progress-error",
+                    else:
+                      if(Slipdock.Quota.warning?(@current_user),
+                        do: "progress-warning",
+                        else: "progress-primary"
+                      )
+                  )
+                ]}
+                value={@quota.used}
+                max={@quota.limit}
+              ></progress>
+              <p
+                :if={Slipdock.Quota.warning?(@current_user)}
+                class="mt-3 rounded-xl bg-warning/10 p-3 text-sm"
+              >
+                {if @quota.remaining == 0,
+                  do:
+                    "You have used all of them. Archive something you have finished with, or subscribe for more.",
+                  else:
+                    "You are close to the limit. Archiving a card you have finished with frees it up."}
+              </p>
+            </div>
           </section>
 
           <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">

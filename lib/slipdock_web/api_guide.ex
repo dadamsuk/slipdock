@@ -150,6 +150,12 @@ defmodule SlipdockWeb.APIGuide do
     - `this API token is read-only` — granted read access only.
     - `this API token's scope doesn't allow it` — confined to certain boards.
 
+    `402` with `"error": "card_limit_reached"` means the board's owner has used
+    up the cards their account allows. It carries `"retryable": false` because
+    it is not a fault in your request: fixing the title and trying again will
+    fail identically, forever. Tell the person, and suggest archiving something
+    finished with. `GET /api/me` says where they stand before you start.
+
     Reads are `GET`, writes are `POST` or `PATCH`, and bodies are JSON with
     `Content-Type: application/json`. Boards, lists, tags, templates and saved
     views can be addressed by name as well as by id — `/api/boards/3` and

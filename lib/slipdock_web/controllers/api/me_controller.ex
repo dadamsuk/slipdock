@@ -5,7 +5,14 @@ defmodule SlipdockWeb.API.MeController do
 
   def show(conn, _params) do
     user = conn.assigns.current_user
-    json(conn, %{user: %{id: user.id, email: user.email, name: user.name}, ai_key: ai_key(user)})
+
+    json(conn, %{
+      user: %{id: user.id, email: user.email, name: user.name},
+      ai_key: ai_key(user),
+      # Where they stand on cards, so an agent can stop before the wall rather
+      # than discovering it with a 402 halfway through a batch.
+      cards: Slipdock.Quota.status(user)
+    })
   end
 
   @doc """
