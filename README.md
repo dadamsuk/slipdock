@@ -104,37 +104,35 @@ The quickest way, and the one to use on a server. You need **Docker** with the
 Compose plugin — `docker compose version` should print v2 or newer — and
 nothing else: no Elixir, no Node, no database server.
 
-**1. Get the compose file.**
+**1. Get the two files.**
 
 ```sh
 mkdir slipdock && cd slipdock
 curl -O https://raw.githubusercontent.com/dadamsuk/slipdock/main/compose.yaml
-curl -o .env https://raw.githubusercontent.com/dadamsuk/slipdock/main/.env.example
+curl -O https://raw.githubusercontent.com/dadamsuk/slipdock/main/setup.sh
 ```
 
 There is no need to clone the repository: the image is published and
 `docker compose up` pulls it. (Cloning works too, and is what you want if you
 mean to change something — see *Building it yourself* below.)
 
-**2. Tell it the address people will use.** Sign-in links are built from it and
-live updates are refused for any other name, so `localhost` only works while you
-are sitting at that machine.
-
-Two ways, and either is fine:
+**2. Answer five questions.**
 
 ```sh
-echo PHX_HOST=slipdock.example.com >> .env    # in the file — survives reboots
-export PHX_HOST=slipdock.example.com          # or the shell — this shell only
+sh setup.sh
 ```
 
-If you use the shell, it must be `export`. A plain `PHX_HOST=...` sets it for
-*you* and not for Docker, and the giveaway is cruel: `echo $PHX_HOST` prints the
-value quite happily while the container never receives it. `env | grep PHX_HOST`
-is the check that tells the truth.
+It asks the address people will use, whether something like Cloudflare or nginx
+terminates TLS in front of it, which port to listen on, your email address, and
+whether you have a mail server. Then it writes a `.env` you can edit by hand
+afterwards. It starts nothing and touches no Docker, so read it first if you
+like.
 
-Every other line in `.env.example` is already its default, so that one setting is
-genuinely all that is needed. Skip even that if you are only trying it on your
-own machine.
+Doing it by hand is fine too — `.env.example` lists every setting with its
+default — but the two that catch people out are both here: behind a proxy the
+links must say `https` and port 443 rather than the port the container listens
+on, and `PHX_HOST` has to be the name people actually type or live updates are
+refused for every other one.
 
 **3. Start it.**
 
@@ -142,22 +140,22 @@ own machine.
 docker compose up -d
 ```
 
-A shell variable works too, but it has to be **exported**, and it lasts only
-as long as that shell — `.env` is the one to prefer on a server:
+Whenever you change `.env` afterwards, run that same command again. **Not
+`docker compose restart`** — that reuses the existing container and re-reads
+nothing, which makes a setting look as though it did not work.
+
+Prefer shell variables to a file? They work, but they must be **exported**, and
+they last only as long as that shell:
 
 ```sh
 export PHX_HOST=slipdock.example.com     # `export`, not `PHX_HOST=...`
-docker compose up -d
 ```
 
-`echo $PHX_HOST` printing a value does *not* mean Docker can see it. Only
-exported variables reach a container; `env | grep PHX_HOST` is the honest check.
+A plain `PHX_HOST=...` sets it for *you* and not for Docker, and the giveaway is
+cruel: `echo $PHX_HOST` prints the value quite happily while the container never
+receives it. `env | grep PHX_HOST` is the check that tells the truth.
 
-Whenever you change either afterwards, run `up -d` again. **Not
-`docker compose restart`** — that reuses the existing container and re-reads
-neither, which makes a setting look as though it did not work.
-
-**4. Set it up.** Open `http://localhost:4000`, or your `PHX_HOST`. A server
+**4. Set it up.** Open the address you gave it. A server
 nobody has claimed shows a **setup wizard**, which asks for a token printed in
 the log the first time it starts:
 
@@ -179,7 +177,8 @@ docker compose logs slipdock | grep "Sign-in"
 
 #### Doing it without a browser
 
-Put these in `.env` before step 3 and the wizard never appears at all:
+`setup.sh` asks for your email address and writes `SLIPDOCK_ADMIN_EMAIL`, which
+is what skips the wizard. By hand, these do the same:
 
 ```sh
 SLIPDOCK_ADMIN_EMAIL=you@example.com     # becomes the admin; skips the wizard
@@ -289,6 +288,7 @@ that `up` stops reaching for the published image.
 | No sign-in email arrives | Expected until SMTP is configured — the code goes to the log. Set it under **Admin → Email**, which will not save until a test message actually arrives. |
 | The page loads but never updates | `PHX_HOST` is not the name you are reaching it by. The log says so, in a box, naming the value to set. |
 | Sign-in links point at `localhost` | Same cause, same fix. |
+| Links say `:4000` when you are behind Cloudflare or nginx | `SLIPDOCK_URL_SCHEME` and `SLIPDOCK_URL_PORT` describe how people reach it, not how the container listens — so `https` and `443`. `setup.sh` asks this. |
 | You set `PHX_HOST` and nothing changed | Either `docker compose restart` (which re-reads nothing — use `up -d`), or a shell variable that was never exported. `echo $PHX_HOST` lies about that; `env \| grep PHX_HOST` does not. The container prints what it actually got: `docker compose logs slipdock \| grep entrypoint:`. |
 | Reached by more than one name | Keep the main one in `PHX_HOST`, list the rest in `SLIPDOCK_CHECK_ORIGIN=a.example,b.example`. |
 
