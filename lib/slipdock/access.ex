@@ -57,7 +57,12 @@ defmodule Slipdock.Access do
           end
 
         via_views = if has_view_grant?(user, board), do: :view, else: :none
-        Enum.max_by([direct, inherited, via_views], &@rank[&1])
+        # An open support session reads like a read grant and no more — never
+        # write, never owner. Helping somebody is looking, not editing.
+        via_support =
+          if Accounts.support_access?(user, Board.root_owner_id(board)), do: :read, else: :none
+
+        Enum.max_by([direct, inherited, via_views, via_support], &@rank[&1])
     end
   end
 

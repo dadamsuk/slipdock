@@ -141,4 +141,31 @@ defmodule Slipdock.Accounts.UserNotifier do
 
     with {:ok, _} <- Mailer.deliver_configured(email), do: {:ok, email}
   end
+
+  @doc """
+  Tells somebody that an admin has been given access to their boards.
+
+  Sent when it is opened, not afterwards. Support access that the person finds
+  out about later is the thing this whole mechanism exists to prevent.
+  """
+  def deliver_support_notice(subject, admin, session) do
+    email =
+      new()
+      |> to({subject.name || subject.email, subject.email})
+      |> from(Mailer.from())
+      |> subject("Somebody has been given access to your Slipdock boards")
+      |> text_body("""
+      #{Slipdock.Accounts.User.display_name(admin)} (#{admin.email}), an admin of this
+      Slipdock server, has been given read access to your boards until
+      #{session.expires_at} UTC.
+
+      The reason given was: #{session.reason}
+
+      If that is not what you expected, reply to this message and ask.
+      """)
+
+    Logger.info("Told #{subject.email} that #{admin.email} has support access.")
+
+    with {:ok, _} <- Mailer.deliver_configured(email), do: {:ok, email}
+  end
 end
