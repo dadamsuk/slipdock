@@ -126,6 +126,58 @@ defmodule SlipdockWeb.AdminLiveTest do
       assert Settings.smtp_configured?()
     end
 
+    test "keeps what was typed through the test send, and saves that", %{conn: conn} do
+      # The regression: the form used to be rendered from the stored settings,
+      # so the test send put the old values back into the fields and the save
+      # that followed stored those instead of what the admin had typed.
+      {:ok, view, _} = live(conn, ~p"/admin/mail")
+
+      view
+      |> form("#admin-mail-form", %{
+        "settings" => %{
+          "smtp_host" => "smtp.new.example.com",
+          "smtp_port" => "2525",
+          "smtp_from_email" => "post@example.com",
+          "test_to" => "admin@example.com"
+        }
+      })
+      |> render_submit(%{"step_action" => "test"})
+
+      # No params: whatever the page is now showing is what a browser sends.
+      view |> form("#admin-mail-form") |> render_submit(%{"step_action" => "save"})
+
+      settings = Settings.get()
+      assert settings.smtp_host == "smtp.new.example.com"
+      assert settings.smtp_port == 2525
+      assert settings.smtp_from_email == "post@example.com"
+      assert settings.smtp_verified_at
+    end
+
+    test "asks for another test when a field changes after one", %{conn: conn} do
+      {:ok, view, _} = live(conn, ~p"/admin/mail")
+
+      tested = %{
+        "settings" => %{
+          "smtp_host" => "smtp.example.com",
+          "smtp_from_email" => "m@example.com",
+          "test_to" => "admin@example.com"
+        }
+      }
+
+      view |> form("#admin-mail-form", tested) |> render_submit(%{"step_action" => "test"})
+
+      html =
+        view
+        |> form(
+          "#admin-mail-form",
+          put_in(tested, ["settings", "smtp_host"], "smtp.other.example")
+        )
+        |> render_submit(%{"step_action" => "save"})
+
+      assert html =~ "locked out"
+      refute Settings.smtp_configured?()
+    end
+
     test "says where sign-in codes go, and that it is a back door", %{conn: conn} do
       {:ok, _view, html} = live(conn, ~p"/admin/mail")
       assert html =~ "can sign in as anybody"

@@ -19,7 +19,16 @@ defmodule SlipdockWeb.AdminLive.Index do
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, socket |> assign(page_title: "Admin", mail_error: nil, mail_tested?: false) |> load()}
+    {:ok,
+     socket
+     |> assign(
+       page_title: "Admin",
+       mail_error: nil,
+       mail_tested?: false,
+       tested_mail: nil,
+       typed_password: nil
+     )
+     |> load()}
   end
 
   @impl true
@@ -33,7 +42,7 @@ defmodule SlipdockWeb.AdminLive.Index do
     assign(socket,
       settings: settings,
       form: to_form(Settings.change(), as: :settings),
-      mail_form: to_form(Settings.change(), as: :settings),
+      mail_form: mail_form(settings, socket),
       allowlist: Settings.list_allowlist(),
       allow_form: to_form(%{"entry" => ""}, as: :allow),
       users: Accounts.list_users(),
@@ -81,28 +90,38 @@ defmodule SlipdockWeb.AdminLive.Index do
   ## Mail
 
   def handle_event("mail", %{"step_action" => "test", "settings" => attrs}, socket) do
+    attrs = with_typed_password(attrs, socket)
     recipient = String.trim(attrs["test_to"] || socket.assigns.current_user.email)
+
+    # Whatever was typed has to survive this re-render, or the form would snap
+    # back to the stored settings and the save that follows would store those
+    # instead — which is the whole of what the admin was trying to change.
+    socket = socket |> remember_typed(attrs) |> assign(mail_form: typed_form(attrs))
 
     case Mailer.test_delivery(attrs, recipient) do
       :ok ->
         {:noreply,
          socket
-         |> assign(mail_tested?: true, mail_error: nil)
+         |> assign(mail_tested?: true, mail_error: nil, tested_mail: Map.drop(attrs, ["test_to"]))
          |> put_flash(:info, "Test message sent to #{recipient}. Check that it arrived.")}
 
       {:error, message} ->
-        {:noreply, assign(socket, mail_tested?: false, mail_error: message)}
+        {:noreply, assign(socket, mail_tested?: false, tested_mail: nil, mail_error: message)}
     end
   end
 
   def handle_event("mail", %{"settings" => attrs}, socket) do
-    attrs = Map.drop(attrs, ["test_to"])
+    attrs = attrs |> with_typed_password(socket) |> Map.drop(["test_to"])
     changing? = changing_mail?(socket.assigns.settings, attrs)
 
     cond do
-      changing? and not socket.assigns.mail_tested? ->
+      # A test that went out for *other* values proves nothing about these
+      # ones, so editing a field after testing asks for another test.
+      changing? and not tested?(socket, attrs) ->
         {:noreply,
-         assign(socket,
+         socket
+         |> assign(mail_form: typed_form(attrs))
+         |> assign(
            mail_error:
              "Send a test message that arrives before saving. A mail server that does " <>
                "not work is how everybody gets locked out for good."
@@ -111,9 +130,18 @@ defmodule SlipdockWeb.AdminLive.Index do
       true ->
         case Settings.update(attrs) do
           {:ok, _} ->
+            # The values just saved are the ones a test message travelled
+            # through, which is what "last confirmed working" means.
+            if changing?, do: Settings.mark_smtp_verified()
+
             {:noreply,
              socket
-             |> assign(mail_tested?: false, mail_error: nil)
+             |> assign(
+               mail_tested?: false,
+               mail_error: nil,
+               tested_mail: nil,
+               typed_password: nil
+             )
              |> put_flash(:info, "Mail settings saved.")
              |> load()}
 
@@ -293,6 +321,44 @@ defmodule SlipdockWeb.AdminLive.Index do
 
   @mail_fields ~w(smtp_host smtp_port smtp_username smtp_password smtp_tls smtp_from_email
                   smtp_from_name)
+
+  # The mail form's values come from these params rather than from per-input
+  # `value=` attributes: an attribute wins over whatever the person typed, so
+  # every re-render of the page (a test send, a validation error) would put the
+  # stored settings back into the fields and the next save would store those.
+  defp mail_form(settings, socket) do
+    settings
+    |> Settings.to_form_params()
+    |> Map.put("test_to", socket.assigns[:current_user] && socket.assigns.current_user.email)
+    |> to_form(as: :settings)
+  end
+
+  # The same, for values that have been submitted but not saved. The password
+  # is left out on purpose — it is never sent to a browser — and
+  # `with_typed_password/2` puts it back on the way in.
+  defp typed_form(attrs), do: attrs |> Map.drop(["smtp_password"]) |> to_form(as: :settings)
+
+  defp with_typed_password(attrs, socket) do
+    case {to_string(attrs["smtp_password"]), socket.assigns.typed_password} do
+      {"", remembered} when is_binary(remembered) -> Map.put(attrs, "smtp_password", remembered)
+      _ -> attrs
+    end
+  end
+
+  defp remember_typed(socket, attrs) do
+    case to_string(attrs["smtp_password"]) do
+      "" -> socket
+      password -> assign(socket, typed_password: password)
+    end
+  end
+
+  defp tested?(%{assigns: %{mail_tested?: false}}, _attrs), do: false
+
+  defp tested?(%{assigns: %{tested_mail: tested}}, attrs) when is_map(tested) do
+    Enum.all?(@mail_fields, &(to_string(attrs[&1]) == to_string(tested[&1])))
+  end
+
+  defp tested?(_socket, _attrs), do: false
 
   defp changing_mail?(settings, attrs) do
     Enum.any?(@mail_fields, fn field ->
@@ -557,7 +623,6 @@ defmodule SlipdockWeb.AdminLive.Index do
           field={@mail_form[:smtp_host]}
           type="text"
           label="Mail server"
-          value={@settings.smtp_host}
           placeholder="smtp.example.com"
         />
         <div class="grid grid-cols-2 gap-3">
@@ -565,14 +630,12 @@ defmodule SlipdockWeb.AdminLive.Index do
             field={@mail_form[:smtp_port]}
             type="number"
             label="Port"
-            value={@settings.smtp_port}
             placeholder="587"
           />
           <.input
             field={@mail_form[:smtp_tls]}
             type="select"
             label="TLS"
-            value={@settings.smtp_tls}
             options={Enum.map(Instance.tls_modes(), &{humanise_tls(&1), &1})}
           />
         </div>
@@ -601,7 +664,6 @@ defmodule SlipdockWeb.AdminLive.Index do
             field={@mail_form[:smtp_from_email]}
             type="email"
             label="Send from"
-            value={@settings.smtp_from_email}
           />
           <.input
             field={@mail_form[:smtp_from_name]}
@@ -623,7 +685,6 @@ defmodule SlipdockWeb.AdminLive.Index do
                 field={@mail_form[:test_to]}
                 type="email"
                 label="To"
-                value={@current_user.email}
               />
             </div>
             <button type="submit" name="step_action" value="test" class="btn btn-outline mb-1">
