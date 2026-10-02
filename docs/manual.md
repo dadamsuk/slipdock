@@ -1361,6 +1361,74 @@ list drafts, templates and archived pages at all.
 
 The full specification, and the decisions behind it, is in `docs/wiki.md`.
 
+## Moving boards between servers
+
+A board as one JSON file that another Slipdock can read back: its lists, its
+cards and their subcards, tags, checklists, comments, status updates, web
+links, custom fields and the values cards hold in them, what waits on what,
+typed links, and the wiki. **Account → Move boards between servers** has a
+picker and a download link; `slipdock export [<board>...] --out boards.json`
+and `slipdock import boards.json` do the same from a shell, and
+`GET /api/export` / `POST /api/import` are the contract under both.
+
+This is not the wiki's Markdown export above. That one is for reading your
+writing somewhere else; this one is for moving a board, and only this one can
+be read back into a board. Nor is it `/account/export.zip`, which answers "let
+me leave with my data" and is written for a person rather than for a machine.
+
+Three things are worth knowing before you use it.
+
+**It only ever carries boards you own.** A board shared with you is somebody
+else's to hand on, and an export that quietly swept it up would be a way to
+take a copy of their work off the server.
+
+**An import never merges.** A document always becomes *new* boards, even when
+a board of that name is already there. Merging means deciding, per card,
+whether "the same card" means the same title — and getting that wrong quietly
+destroys work, where a second copy is obvious and can be deleted. A board code
+that is taken is reissued (`del` becomes `del-2`) and the answer says so. So
+importing the same file twice gives you two copies, by design.
+
+**Automation rules do not fire on an import.** Four hundred cards arriving
+would otherwise run every rule on the board four hundred times and email
+somebody about each. Rules are about what happens here; an import is history
+arriving.
+
+The card limit, where a server has one, is answered once for the whole
+document before anything is built. A file that will not fit is refused
+outright rather than stopping half way and leaving a part-built board.
+
+### What does not travel, and why
+
+| Left out | Because |
+|---|---|
+| Attachments | Bytes rather than structure; they stay on the server they were uploaded to |
+| Votes | A person's budget spent, which does not mean the same thing elsewhere |
+| Wiki page history, activity | A record of one server's past, which another cannot honestly adopt |
+| Public share tokens | A secret that would otherwise be valid in two places |
+
+The export says how much of each it left behind — and says nothing when there
+was nothing, so a board with no attachments does not warn about attachments.
+
+Two things cannot survive verbatim and are handled rather than ignored. A
+page's code (`W-31`) is unique across a whole server, because `[[W-31]]`
+resolves with no board behind it, so imported pages are given fresh codes —
+and then `[[W-31]]` inside the imported bodies is rewritten to the code that
+page now has, so a wiki that comes out still links to itself. A board's
+shortcut key is server-wide in the same way, so the importing person picks
+their own.
+
+One thing genuinely does not survive: `#412` typed inside a **page body**
+points at a card id on the server the file came from, and there is nothing in
+the document to match it against. Card-to-card links and dependencies are
+preserved — those travel as references within the file — but a card id written
+into prose is not.
+
+People travel as email addresses, because a user id from another server names
+nobody. An address with no account on the receiving server lands unassigned
+and is named in the report, rather than failing the import on the last card
+because somebody left.
+
 ## Accounts and sharing
 
 Every page needs a signed-in user. The login page asks for an email address and
@@ -1794,6 +1862,8 @@ POST   /api/pages/:id/place    {column, before}    put it in a list, before a ca
 DELETE /api/pages/:id/place                          take it off the board
 POST   /api/pages/:id/publish   {published: false to withdraw}   read-only at /w/:token
 GET    /api/boards/:board/pages/export    POST /api/boards/:board/pages/import  {files, overwrite}
+GET    /api/export   ?boards=del,ops &archived=cards|pages|boards|all   board trees as one document
+POST   /api/import   <a document>                       build the trees in it, as new boards
 GET    /api/pages/query-vocabulary        the grammar a ```slipdock block is written in
 POST   /api/pages/query    {board, body}  try a block without writing it anywhere
 GET    /api/skills                         GET  /api/skills/:name    GET /api/skills/:name/*file
@@ -1929,6 +1999,9 @@ slipdock page unplace W-31                     # off the board; it stays in the 
 slipdock page publish W-31                     # read-only at a public link; --off withdraws it
 slipdock page export qvm-v1-rem --dir ~/wiki   # out as .md files, front matter and all
 slipdock page import qvm-v1-rem --dir ~/wiki   # and back in; --overwrite replaces rather than skips
+slipdock export --out boards.json              # every tree you own as one portable document
+slipdock export qvm-v1-rem --archived --out b.json   # one board, archived things included
+slipdock import boards.json                    # build the trees in it; always new boards
 slipdock skills | slipdock skills install | slipdock skills check   # the agent instructions this server ships
 slipdock favourites                            # what you keep going back to, with the URL of each
 slipdock fav list qvm-v1-rem "In Progress"     # also: fav card 42 | fav view <board> <view> | fav board <board>

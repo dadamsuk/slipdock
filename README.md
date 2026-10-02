@@ -99,6 +99,11 @@ Briefly, with the detail in [the manual](docs/manual.md):
   boards of unknown provenance — plus
   [a device flow for signing an agent in](docs/manual.md#signing-an-agent-in)
   from anywhere, with scoped, expiring, revocable tokens.
+- **Boards that can leave** — [a whole board tree as one JSON file another
+  Slipdock reads back](docs/manual.md#moving-boards-between-servers): lists,
+  cards, subcards, tags, checklists, comments, custom fields, dependencies and
+  the wiki. Plus the wiki on its own as a folder of Markdown, and everything
+  you have as a zip. Nothing here is a one-way door.
 - **A JSON API and a CLI** — [everything the UI can do](docs/manual.md#json-api),
   [from the shell](docs/manual.md#cli), plus
   [agent skills](docs/manual.md#skills) the server ships and a
