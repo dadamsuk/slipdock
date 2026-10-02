@@ -1497,17 +1497,21 @@ on_track|at_risk|off_track [note]`, `link <id> <kind> <card-id>…`, `unlink`,
 
 ### With Docker
 
-Nothing but Docker needed — no Elixir, no Node, no database server:
+Nothing but Docker needed — no Elixir, no Node, no database server, and nothing
+to compile: the image is published to `ghcr.io/dadamsuk/slipdock`.
+[The README](../README.md#with-docker) has the step-by-step version, including
+backups and what to do when something is wrong.
 
 ```sh
 docker compose up -d
-docker compose logs -f          # the sign-in link is in here
+docker compose logs -f          # the setup token and sign-in codes are in here
 ```
 
-Open <http://localhost:4000>, enter your email address, and follow the link from
-the log (no mail is configured yet, so that is where it goes). **The first
-address to sign in claims the instance**; after that nobody else can sign up
-unless you say so.
+Open <http://localhost:4000>. A server nobody has claimed shows a **setup
+wizard**, which asks for a token printed in the log on first boot — so that
+finding the page first is not enough to claim somebody else's server. It asks
+who may register, how mail goes out and who the admin is, then disappears for
+good. `SLIPDOCK_ADMIN_EMAIL` skips it entirely.
 
 Everything that must survive an upgrade is on one volume, `slipdock-data`: the
 SQLite database, uploaded files, each person's OpenRouter key, and a
@@ -1532,6 +1536,9 @@ refused for the names you did not mention.
 A release has no `mix`, so the two administrative tasks are on the entrypoint:
 
 ```sh
+docker compose run --rm slipdock setup --status              # what this server allows
+docker compose run --rm slipdock setup --admin you@example.com
+docker compose run --rm slipdock setup --sign-in-link you@example.com
 docker compose run --rm slipdock ai-key                      # who has an OpenRouter key
 docker compose run --rm slipdock ai-key you@example.com sk-or-…
 docker compose run --rm slipdock reindex                     # rebuild the search index
@@ -1539,10 +1546,11 @@ docker compose run --rm slipdock migrate                     # migrations, by ha
 docker compose run --rm slipdock remote                      # an IEx shell in the app
 ```
 
-`docker build` on its own works too (`docker run -p 4000:4000 -v
-slipdock-data:/data kanban`). The image does not force HTTPS, on the assumption
-that something in front of it terminates TLS; build with
-`--build-arg SLIPDOCK_FORCE_SSL=true` if the app itself does.
+`docker run` on its own works too
+(`docker run -p 4000:4000 -v slipdock-data:/data ghcr.io/dadamsuk/slipdock`).
+The image does not force HTTPS, on the assumption that something in front of it
+terminates TLS; build with `--build-arg SLIPDOCK_FORCE_SSL=true` if the app
+itself should.
 
 ### From a checkout
 
@@ -1590,7 +1598,7 @@ stays in the in-memory mailbox at `/dev/mailbox`.
 
 ## As a service
 
-`deploy/kanban.service` is a systemd unit template that runs the dev server on
+`deploy/slipdock.service` is a systemd unit template that runs the dev server on
 boot. It is a template because five lines are specific to your machine and
 everything else is not — the file marks them: `User`/`Group`,
 `WorkingDirectory`, `HOME`, the `EnvironmentFile` path, and the full path to
@@ -1599,7 +1607,7 @@ everything else is not — the file marks them: `User`/`Group`,
 ```sh
 cp .env.example .env            # then fill in what you want to change
 chmod 600 .env
-sudo cp deploy/kanban.service /etc/systemd/system/
+sudo cp deploy/slipdock.service /etc/systemd/system/
 sudoedit /etc/systemd/system/kanban.service   # the five lines above
 sudo systemctl daemon-reload
 sudo systemctl enable --now kanban

@@ -1,5 +1,41 @@
 # Upgrading
 
+## There is a published image now
+
+`compose.yaml` pulls `ghcr.io/dadamsuk/slipdock` instead of building from the
+checkout, so upgrading is `docker compose pull && docker compose up -d` and no
+longer takes an Elixir build. `docker compose build` still works for running
+your own changes; set `SLIPDOCK_PULL_POLICY=missing` so that `up` stops
+reaching for the published one.
+
+**If your directory is not called `slipdock`, read this before upgrading.**
+`compose.yaml` now pins the compose project name, which is what prefixes the
+data volume. Previously the project name came from whatever the directory
+happened to be called, so a clone into `kanban/` kept its data in
+`kanban_slipdock-data`. Pinning it means an upgraded `docker compose up` would
+look for `slipdock_slipdock-data`, find nothing, and cheerfully start with an
+empty database beside your real one.
+
+Check first:
+
+```sh
+docker volume ls | grep slipdock-data
+```
+
+If it is already `slipdock_slipdock-data`, which it is for anybody who cloned
+into `slipdock/`, there is nothing to do. Otherwise copy it across before
+starting:
+
+```sh
+docker compose stop
+docker volume create slipdock_slipdock-data
+docker run --rm -v OLD_slipdock-data:/from -v slipdock_slipdock-data:/to alpine \
+  sh -c 'cd /from && cp -a . /to'
+```
+
+...with `OLD` replaced by your old project name. Keep the old volume until you
+are satisfied.
+
 ## Registration, admins and limits
 
 This release is the one where Slipdock learned to be run for people who are not

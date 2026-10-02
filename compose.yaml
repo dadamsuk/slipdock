@@ -2,16 +2,33 @@
 #
 #   cp .env.example .env     # optional; every setting has a default
 #   docker compose up -d
-#   docker compose logs -f   # the sign-in link is in here when no mail is set up
+#   docker compose logs -f   # the setup token and sign-in codes are in here
 #
-# Then open http://localhost:4000 and sign in with your email address. The first
-# address to sign in claims the instance; after that nobody else can sign up
-# unless you say so (SLIPDOCK_SIGNUP_ALLOW — see .env.example).
+# Then open http://localhost:4000. A server nobody has set up shows a setup
+# wizard, which wants a token printed in the log on first boot — that is what
+# stops whoever finds the page first from claiming your server. Setting
+# SLIPDOCK_ADMIN_EMAIL skips the wizard entirely.
+#
+# This pulls a published image, so there is nothing to compile. To build from
+# this checkout instead — because you have changed something, or want an
+# architecture that is not published:
+#
+#   docker compose build && docker compose up -d
+#
+# which works because the `build` section below is still here; it is simply not
+# what `up` reaches for while an image exists.
+
+# Pinned, rather than taken from whatever the directory happens to be called.
+# The project name prefixes the volume (`slipdock_slipdock-data`), so without
+# this a clone into a differently named directory gets a different volume — and
+# the backup instructions in the README would name one that does not exist.
+name: slipdock
 
 services:
   slipdock:
+    image: ghcr.io/dadamsuk/slipdock:${SLIPDOCK_TAG:-latest}
     build: .
-    image: slipdock
+    pull_policy: ${SLIPDOCK_PULL_POLICY:-always}
     restart: unless-stopped
     ports:
       - "${SLIPDOCK_PUBLISH:-4000}:4000"
