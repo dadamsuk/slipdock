@@ -152,6 +152,13 @@ defmodule SlipdockCLI do
     page publish <page> [--off]         read-only at a public link; its live queries are
                                         answered once, when you publish (publish again to
                                         refresh them). --off withdraws the link
+    export [<board>...] [--out FILE]    whole board trees as one JSON document: lists, cards,
+                                        subcards, tags, checklists, comments, custom fields,
+                                        dependencies and the wiki. No board named takes every
+                                        one you own; --archived brings in what is put away.
+                                        Without --out it goes to stdout
+    import <file.json>                  build the trees in a document. Always new boards —
+                                        it never merges into what is already here
     page export <board> --dir D         write the wiki out as .md files with front matter
     page import <board> --dir D [--overwrite]
                                         read a folder of Markdown in; folders become parents,
@@ -364,6 +371,7 @@ defmodule SlipdockCLI do
     card: :string,
     page: :string,
     dir: :string,
+    out: :string,
     overwrite: :boolean,
     before: :string,
     undone: :boolean,
@@ -971,6 +979,52 @@ defmodule SlipdockCLI do
       end
     end)
   end
+
+  # Whole board trees out as one JSON document and back in again. The wiki's
+  # own `page export`/`page import` below is the Markdown route and stays:
+  # this one is for moving a board, that one is for reading your writing
+  # somewhere else.
+  defp run("export", refs, o) do
+    params =
+      [archived: if(o[:archived] || o[:all], do: "all")] ++
+        if refs == [], do: [], else: [boards: Enum.join(refs, ",")]
+
+    HTTP.get("/export", params)
+    |> out(o, fn r ->
+      json = Render.json_string(r["export"])
+
+      case o[:out] do
+        nil ->
+          IO.puts(json)
+
+        path ->
+          File.write!(path, json)
+          trees = length(r["export"]["boards"] || [])
+          IO.puts("wrote #{trees} board tree(s) to #{path}")
+          Enum.each(r["leaving_behind"] || [], &IO.puts(Render.dim("  " <> &1)))
+      end
+    end)
+  end
+
+  defp run("import", [path], o) do
+    unless File.regular?(path), do: fail("#{path} is not a file")
+
+    HTTP.post("/import", read_document(path))
+    |> out(o, fn r ->
+      report = r["imported"]
+      IO.puts("imported #{report["cards"]} card(s) and #{report["pages"]} page(s)")
+
+      Enum.each(report["boards"] || [], fn b ->
+        IO.puts("  #{b["code"]}  #{b["name"]}")
+      end)
+
+      # What could not come through. Said rather than swallowed: an import
+      # that half-worked in silence is the worst of the outcomes.
+      Enum.each(report["skipped"] || [], &IO.puts(Render.dim("  " <> &1)))
+    end)
+  end
+
+  defp run("import", _args, _o), do: fail("import <file.json>")
 
   # Out and back in: a wiki you cannot get your writing out of is one to think
   # twice about putting writing into.
@@ -2123,6 +2177,18 @@ defmodule SlipdockCLI do
   end
 
   defp decode_spec(_), do: fail("could not read the spec")
+
+  # A portable export, read off disk. Same shape of care as `decode_spec/1`:
+  # say which of "missing", "not JSON" and "not an object" went wrong.
+  defp read_document(path) do
+    case :json.decode(File.read!(path)) do
+      %{} = document -> document
+      _ -> fail("#{path} does not hold a JSON object — an export is one")
+    end
+  rescue
+    e in [File.Error] -> fail("couldn't read #{path}: #{Exception.message(e)}")
+    _ -> fail("#{path} isn't valid JSON")
+  end
 
   # --tree watches the board's subcards too; --no-tree goes back to the board alone.
   defp scope_of(true), do: "tree"

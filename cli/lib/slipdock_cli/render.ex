@@ -10,14 +10,17 @@ defmodule SlipdockCLI.Render do
   }
 
   # OTP's :json would print Elixir's nil as the string "nil"; emit JSON null.
-  def json(data) do
+  def json(data), do: IO.puts(json_string(data))
+
+  @doc "The same JSON as `json/1`, returned rather than printed — for writing to a file."
+  def json_string(data) do
     formatted =
       :json.format(data, fn
         nil, _enc, _state -> "null"
         other, enc, state -> :json.format_value(other, enc, state)
       end)
 
-    IO.puts(IO.iodata_to_binary(formatted))
+    IO.iodata_to_binary(formatted)
   end
 
   def boards(boards) do
