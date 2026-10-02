@@ -5,20 +5,20 @@
   </picture>
 </p>
 
-A self-hosted kanban board for people who want their work tracker to be theirs:
-one small Elixir app, one SQLite file, no accounts anywhere else. Boards and
-cards are the easy part — what makes it worth running is everything stacked on
-top of them. Any card can become a board of its own, so an epic and its tasks
+A self-hosted kanban board for people who want their work tracker to be theirs and to really help get their job done: you can easily self-host for free or use the hosted version. Functionality of the two is identical. It's different (better?) than most Kanban boards though, because it incorporates features built on real world experience of hundreds of projects, none of the fluff you don't need and everything that you do. This system was built for a real use case: replacing Jira Tickets, Jira Product Discovery, Jira Atlas (particularly sharing updates with stakeholders) and Confluence. And with the optional AI integrations, it's better than all of them. 
+
+Boards and cards are there. Any card can become a board of its own, so an epic and its tasks
 live in one place and roll up. The same cards can be read as a board, a
 swimlane grid, a table, a Gantt timeline, a calendar, an outline or a ranked
 backlog. Each board carries a wiki, so the reasons live beside the work.
-Automations are written in plain English. And the whole thing is available over
-a JSON API and a CLI, so an agent can work the board the way a person does.
+Automations are written in plain English ("flag any card which is more than 3 days overdue to urgent"). 
+
+And best of all the whole thing is available over
+a JSON API and a CLI, so an agent can work the board the way a person does.  Chat with Claude or ChatGPT about your work, get it to create your cards, run loops off the back of them.  Whatever you need.
 
 ![A board](docs/screenshots/board.png)
 
-A plan is falsework: the structure that holds the thing up while it is being
-built, and comes away when it stands on its own. This is somewhere to put it.
+> A plan is falsework: the structure that holds the thing up while it is being built, and comes away when it stands on its own. This is somewhere to put it.
 
 Built with Phoenix LiveView, so every browser looking at a board updates the
 moment anything changes.
