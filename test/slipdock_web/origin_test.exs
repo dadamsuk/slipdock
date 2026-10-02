@@ -57,10 +57,12 @@ defmodule SlipdockWeb.OriginTest do
     end
 
     test "extra names are allowed alongside the main one" do
-      hosts(["slipdock.example.com", "ps-prod-1", "100.88.155.65"])
+      # 203.0.113.0/24 is TEST-NET-3, reserved for documentation — a real
+      # private-range address here is what `NothingPersonalTest` exists to stop.
+      hosts(["slipdock.example.com", "ps-prod-1", "203.0.113.7"])
 
       assert Origin.allowed?(origin("http://ps-prod-1:4000"))
-      assert Origin.allowed?(origin("http://100.88.155.65:4000"))
+      assert Origin.allowed?(origin("http://203.0.113.7:4000"))
       assert Origin.allowed?(origin("https://slipdock.example.com"))
     end
 

@@ -32,7 +32,7 @@ defmodule Slipdock.NothingPersonalTest do
     "mix.lock"
   ]
 
-  test "no tracked file carries anything personal" do
+  test "no file in this repository carries anything personal" do
     offences =
       for path <- tracked_files(),
           path not in @allowed,
@@ -46,10 +46,15 @@ defmodule Slipdock.NothingPersonalTest do
            "Something personal is tracked in this repository:\n\n" <> Enum.join(offences, "\n")
   end
 
+  # Tracked files *and* new ones not yet added, because the point is to catch
+  # something before it is committed. Checking only `git ls-files` meant a new
+  # file was invisible until the commit that introduced it — so the test passed
+  # locally and failed in CI, which is the wrong way round.
   defp tracked_files do
-    {out, 0} = System.cmd("git", ["ls-files"], cd: root())
+    {tracked, 0} = System.cmd("git", ["ls-files"], cd: root())
+    {untracked, 0} = System.cmd("git", ["ls-files", "--others", "--exclude-standard"], cd: root())
 
-    out
+    (tracked <> "\n" <> untracked)
     |> String.split("\n", trim: true)
     # Pictures and fonts are bytes, not prose, and their path data trips the
     # address patterns by coincidence.
