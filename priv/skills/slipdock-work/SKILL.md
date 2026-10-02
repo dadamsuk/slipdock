@@ -130,6 +130,11 @@ whole card before touching it.
   gotcha, the shape of a design → a wiki page on that board, named in the
   card's closing comment.
 
+One board is not work: **Getting Started**, the tour the server builds for a
+new account. Its cards are instructions for a person to follow in the UI, so
+never pick one up, finish one, or tidy the board. If it is the only board
+there, say so and ask what the user wants doing.
+
 For command and endpoint syntax, `slipdock --help` and the `slipdock` skill; the API
 is the contract and the CLI is a convenience. Report card ids back to the user
 as `#42` so they can find them in the UI, and call a board by its **code** —

@@ -306,6 +306,8 @@ defmodule SlipdockWeb.Router do
     post "/boards", BoardController, :create
     # The caller's own order for the board index.
     post "/boards/order", BoardController, :order
+    # The tour board a first sign-in builds, on demand (see `Slipdock.Onboarding`).
+    post "/boards/welcome", BoardController, :welcome
     get "/boards/:board", BoardController, :show
     patch "/boards/:board", BoardController, :update
     delete "/boards/:board", BoardController, :delete

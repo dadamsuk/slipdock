@@ -66,6 +66,12 @@ config :slipdock, :seed_settings, false
 # next. Read it from the database every time here instead.
 config :slipdock, :settings_cache, false
 
+# The "Getting Started" tour board (see `Slipdock.Onboarding`) is built on a
+# first sign-in, which would otherwise land on 19 cards and a filled embedding
+# queue in every test that signs somebody in by magic link. The tests that are
+# about it switch it on for themselves.
+config :slipdock, :welcome_board, false
+
 config :slipdock,
   agentic_login: true,
   agentic_login_dir: Path.expand("../tmp/test_agentic_login", __DIR__)

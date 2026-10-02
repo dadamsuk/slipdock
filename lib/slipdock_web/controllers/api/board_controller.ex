@@ -1,7 +1,7 @@
 defmodule SlipdockWeb.API.BoardController do
   use SlipdockWeb, :controller
 
-  alias Slipdock.{Access, Boards, Favourites}
+  alias Slipdock.{Access, Boards, Favourites, Onboarding}
   alias Slipdock.Boards.Board
   alias Slipdock.Swimlanes
   alias Slipdock.Swimlanes.Config
@@ -125,6 +125,32 @@ defmodule SlipdockWeb.API.BoardController do
       conn |> put_status(:created) |> json(%{board: V.board(Boards.get_board!(board.id))})
     end
   end
+
+  @doc """
+  Builds the “Getting Started” tour board for the caller — the same board a
+  first sign-in makes (see `Slipdock.Onboarding`), for an account that
+  archived it or that predates the feature.
+
+  Refuses with 409 when the caller already has one, unless `force` is true:
+  two identical tours is nobody's intention.
+  """
+  def welcome(conn, params) do
+    user = conn.assigns.current_user
+
+    if Onboarding.exists_for?(user) and not truthy?(params["force"]) do
+      conn
+      |> put_status(:conflict)
+      |> json(%{
+        error:
+          "You already have a “#{Onboarding.board_name()}” board. Pass force=true for another."
+      })
+    else
+      board = Onboarding.build!(user)
+      conn |> put_status(:created) |> json(%{board: V.board(Boards.get_board!(board.id))})
+    end
+  end
+
+  defp truthy?(value), do: value in [true, "true", "1", 1, "yes"]
 
   def update(conn, %{"board" => ref} = params) do
     with {:ok, board} <- fetch_board(conn, ref, :owner),

@@ -56,7 +56,11 @@ favourited (`slipdock favourites`); then, if exactly one board has eligible card
 in its ready list, that one. If several do and nothing has been named, **ask
 once** — then stay on that board for every later pass rather than asking again.
 Never take work from an archived board (`slipdock boards` hides them for a
-reason).
+reason), and never work the **Getting Started** board: it is the tour the
+server builds for a new account, and its cards are instructions for a person
+("drag this card to Done", "press Edit and add a line"). Carrying them out
+teaches nobody anything and ticking them off is a lie about what happened. If
+that is the only board with a ready list, stop and say so.
 
 ## 2. Resume before you claim
 

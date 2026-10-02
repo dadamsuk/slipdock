@@ -86,6 +86,12 @@ Briefly, with the detail in [the manual](docs/manual.md):
   every board, card labels you can jump to](docs/manual.md#keyboard), and
   [a layout below 640px that is a pager rather than a sideways
   scroll](docs/manual.md#on-a-phone).
+- **A tour that is made of the thing it describes** — the first time somebody
+  signs in they get a **Getting Started** board:
+  [a dozen cards explaining the app](docs/manual.md#getting-started), with an
+  epic, subcards, a working automation and three wiki pages, so nobody meets a
+  blank page and the explanation of flags is a card with flags on it. Archive
+  it when you are done; `slipdock welcome` brings it back.
 - **Accounts and sharing** — [passwordless sign-in, groups, and read-only or
   editable grants on a board, a single card, a wiki page or a saved
   view](docs/manual.md#accounts-and-sharing) — plus
