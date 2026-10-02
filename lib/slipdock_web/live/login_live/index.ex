@@ -178,6 +178,8 @@ defmodule SlipdockWeb.LoginLive.Index do
                 inputmode="numeric"
                 autocomplete="one-time-code"
                 placeholder="123456"
+                maxlength={Slipdock.Accounts.UserToken.code_length()}
+                pattern="[0-9]*"
               />
               <p :if={@code_error} class="text-sm text-error">{@code_error}</p>
               <button type="submit" class="btn btn-primary w-full">Sign in with the code</button>
