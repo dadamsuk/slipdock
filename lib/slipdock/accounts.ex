@@ -268,14 +268,14 @@ defmodule Slipdock.Accounts do
     * somebody who already has an account always can;
     * so can anybody at all on a server that has never been set up, because
       the setup wizard is how an instance is claimed and it needs a way in;
-    * `config :slipdock, :signups, open: true` (`SLIPDOCK_OPEN_SIGNUP=true`) lets
-      anyone in, which is only sensible behind a network boundary of your own;
-    * otherwise the address must match `:allow` (`SLIPDOCK_SIGNUP_ALLOW`): a
-      list of addresses and of domains, where `example.com` means anybody
-      there.
+    * otherwise it is `signup_mode` (see `Slipdock.Settings`):
+      * `:open` — anybody;
+      * `:allowlist` — an address or domain an admin listed;
+      * `:approval` — nobody *yet*; `request_signup/1` is how one asks;
+      * `:closed` — nobody at all.
 
-  The default is therefore "the owner, and nobody else" — a server reachable
-  by strangers does not quietly collect accounts.
+  The default is `:closed` — a server reachable by strangers does not quietly
+  collect accounts.
 
   ## Why "set up" and not "has no users"
 
@@ -287,13 +287,10 @@ defmodule Slipdock.Accounts do
   Counting users was also the wrong question. A user can exist without anybody
   having been through setup — sharing a board with an address creates one (see
   `Slipdock.Access.grant/3`) — so an instance with users is not necessarily an
-  instance somebody has claimed, and an instance with none is not necessarily
-  unclaimed either. `setup_completed_at` is the fact being asked about, so it
-  is the thing to read.
+  instance somebody has claimed.
   """
   def signup_allowed?(email) when is_binary(email) do
     email = email |> String.trim() |> String.downcase()
-
     existing = get_user_by_email(email)
 
     cond do
@@ -301,15 +298,28 @@ defmodule Slipdock.Accounts do
       disabled?(existing) -> false
       existing != nil -> true
       not Settings.setup_complete?() -> true
-      signups()[:open] == true -> true
-      true -> allowed_by_list?(email, signups()[:allow] || [])
+      true -> mode_allows?(Settings.signup_mode(), email)
     end
   end
 
   def signup_allowed?(_), do: false
 
+  defp mode_allows?(:open, _email), do: true
+  defp mode_allows?(:allowlist, email), do: Settings.allowlisted?(email)
+  defp mode_allows?(_closed_or_approval, _email), do: false
+
+  @doc """
+  How this server would answer a brand-new address right now, for the sign-in
+  page's wording: `:open`, `:allowlist`, `:approval`, `:closed`, or `:unclaimed`
+  on a server nobody has set up.
+  """
+  @spec signup_stance() :: :open | :allowlist | :approval | :closed | :unclaimed
+  def signup_stance do
+    if Settings.setup_complete?(), do: Settings.signup_mode(), else: :unclaimed
+  end
+
   @doc "Whether a brand-new address could sign up right now, for the UI's wording."
-  def signups_open?, do: signups()[:open] == true or not Settings.setup_complete?()
+  def signups_open?, do: signup_stance() in [:open, :unclaimed]
 
   defp check_signup(email) do
     if signup_allowed?(to_string(email)) do
@@ -319,19 +329,6 @@ defmodule Slipdock.Accounts do
       {:error, :not_allowed}
     end
   end
-
-  defp allowed_by_list?(email, allow) do
-    domain = email |> String.split("@") |> List.last()
-
-    Enum.any?(allow, fn entry ->
-      entry =
-        entry |> to_string() |> String.trim() |> String.downcase() |> String.trim_leading("@")
-
-      entry != "" and (entry == email or entry == domain)
-    end)
-  end
-
-  defp signups, do: Application.get_env(:slipdock, :signups, [])
 
   @doc """
   The "Agentic Login" flow: mints a one-time sign-in link for `email` exactly

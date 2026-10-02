@@ -10,10 +10,18 @@ defmodule Slipdock.SignupsTest do
 
   alias Slipdock.{Accounts, RateLimit}
 
-  defp signups(opts) do
-    previous = Application.get_env(:slipdock, :signups)
-    Application.put_env(:slipdock, :signups, opts)
-    on_exit(fn -> Application.put_env(:slipdock, :signups, previous) end)
+  # Registration policy is a row now, not configuration. Setting it means
+  # setting the server up, which is also what closes the "anybody may sign in
+  # to an unclaimed instance" door — so these are one helper.
+  defp mode(mode, allow \\ []) do
+    {:ok, _} =
+      Slipdock.Settings.complete_setup(%{
+        "admin_email" => "admin@example.com",
+        "signup_mode" => mode
+      })
+
+    for entry <- allow, do: {:ok, _} = Slipdock.Settings.add_allowlist_entry(entry)
+    :ok
   end
 
   # The test environment calls itself already set up, so that the wizard does
@@ -28,38 +36,37 @@ defmodule Slipdock.SignupsTest do
     on_exit(fn -> Application.put_env(:slipdock, :settings, previous) end)
   end
 
-  describe "signup_allowed?/1 with sign-up closed" do
+  describe "a server nobody has set up" do
     setup do
-      signups(open: false, allow: [])
+      unclaimed_instance()
       :ok
     end
 
-    test "anybody may sign in to a server that has never been set up" do
-      unclaimed_instance()
+    test "lets anybody in, because the wizard needs a way through" do
       refute Slipdock.Settings.setup_complete?()
 
-      # The setup wizard is how an instance gets claimed, so there has to be a
-      # way in before it has been.
       assert Accounts.signup_allowed?("first@example.com")
       assert Accounts.signup_allowed?("anybody@example.com")
     end
 
-    test "once the server has been set up, a new address is refused" do
-      unclaimed_instance()
-      {:ok, _} = Slipdock.Settings.complete_setup(%{"admin_email" => "admin@example.com"})
-
-      refute Accounts.signup_allowed?("second@example.com")
-    end
-
-    test "having users is not what closes it — being set up is" do
-      unclaimed_instance()
-
+    test "is still unclaimed even when it has users" do
       # A user can exist without anybody having been through setup: sharing a
-      # board with an address creates one. Such an instance is still unclaimed.
+      # board with an address creates one. Counting users was the wrong
+      # question, which is why this reads setup_completed_at instead.
       user_fixture("invited@example.com")
 
       assert Accounts.count_users() == 1
       assert Accounts.signup_allowed?("stranger@example.com")
+    end
+  end
+
+  describe "signup_allowed?/1 when registration is closed" do
+    setup do
+      mode(:closed)
+    end
+
+    test "once the server has been set up, a new address is refused" do
+      refute Accounts.signup_allowed?("second@example.com")
     end
 
     test "once somebody is here, a stranger is not" do
@@ -93,10 +100,10 @@ defmodule Slipdock.SignupsTest do
     end
   end
 
-  describe "signup_allowed?/1 with an allowlist" do
+  describe "signup_allowed?/1 under the allowlist mode" do
     test "an address on the list, or anyone at a listed domain" do
       user_fixture("owner@example.com")
-      signups(open: false, allow: ["friend@elsewhere.com", "@work.example", "Other.Example"])
+      mode(:allowlist, ["friend@elsewhere.com", "@work.example", "Other.Example"])
 
       assert Accounts.signup_allowed?("friend@elsewhere.com")
       assert Accounts.signup_allowed?("anyone@work.example")
@@ -106,18 +113,36 @@ defmodule Slipdock.SignupsTest do
 
     test "a link does go to an allowed stranger, and makes their account" do
       user_fixture("owner@example.com")
-      signups(open: false, allow: ["@work.example"])
+      mode(:allowlist, ["@work.example"])
 
       assert {:ok, _} = Accounts.deliver_magic_link("new@work.example", &"/login/#{&1}")
       assert Accounts.get_user_by_email("new@work.example")
     end
   end
 
-  describe "signup_allowed?/1 with sign-up open" do
-    test "anybody can, which is the old behaviour" do
+  describe "signup_allowed?/1 under the other modes" do
+    test "open lets anybody in" do
       user_fixture("owner@example.com")
-      signups(open: true, allow: [])
+      mode(:open)
       assert Accounts.signup_allowed?("stranger@example.com")
+      assert Accounts.signups_open?()
+      assert Accounts.signup_stance() == :open
+    end
+
+    test "approval refuses for now — asking is a separate thing" do
+      user_fixture("owner@example.com")
+      mode(:approval)
+
+      # Not allowed *yet*: `request_signup/1` is how somebody asks, and an
+      # admin saying yes is what changes this answer.
+      refute Accounts.signup_allowed?("stranger@example.com")
+      refute Accounts.signups_open?()
+      assert Accounts.signup_stance() == :approval
+    end
+
+    test "an unclaimed server reports itself as such, so the page can say so" do
+      unclaimed_instance()
+      assert Accounts.signup_stance() == :unclaimed
       assert Accounts.signups_open?()
     end
   end
