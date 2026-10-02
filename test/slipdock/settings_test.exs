@@ -214,6 +214,24 @@ defmodule Slipdock.SettingsTest do
       assert Settings.get().admin_email == "admin@example.com"
     end
 
+    test "SLIPDOCK_ADMIN_EMAIL also makes the account, and makes it an admin" do
+      # The regression: naming an admin closed the wizard and created nobody,
+      # so that address was refused at the sign-in page and nobody could get in.
+      with_config(:settings, admin_email: "admin@example.com")
+      assert :ok = Settings.seed()
+
+      user = Slipdock.Accounts.get_user_by_email("admin@example.com")
+      assert user.admin
+      assert Slipdock.Accounts.signup_allowed?("admin@example.com")
+    end
+
+    test "makes the oldest account an admin when nobody is one" do
+      user_fixture("owner@example.com")
+      assert :ok = Settings.seed()
+
+      assert Slipdock.Accounts.get_user_by_email("owner@example.com").admin
+    end
+
     test "leaves an empty instance unclaimed, so the wizard can run" do
       assert :ok = Settings.seed()
       refute Settings.setup_complete?()

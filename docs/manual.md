@@ -1539,6 +1539,7 @@ A release has no `mix`, so the two administrative tasks are on the entrypoint:
 docker compose run --rm slipdock setup --status              # what this server allows
 docker compose run --rm slipdock setup --admin you@example.com
 docker compose run --rm slipdock setup --sign-in-link you@example.com
+docker compose run --rm slipdock setup --make-admin you@example.com   # no admin can get in
 docker compose run --rm slipdock ai-key                      # who has an OpenRouter key
 docker compose run --rm slipdock ai-key you@example.com sk-or-…
 docker compose run --rm slipdock reindex                     # rebuild the search index

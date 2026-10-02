@@ -327,11 +327,25 @@ defmodule Slipdock.Accounts do
       disabled?(existing) -> false
       existing != nil -> true
       not Settings.setup_complete?() -> true
+      # The address this server calls its admin is never refused, even with
+      # registration closed. It is the one address the person running the
+      # server chose on purpose, and refusing it is how an install ends up
+      # with nobody who can get in — which is what happened when
+      # `SLIPDOCK_ADMIN_EMAIL` marked setup complete without creating an
+      # account to go with it.
+      admin_address?(email) -> true
       true -> mode_allows?(Settings.signup_mode(), email)
     end
   end
 
   def signup_allowed?(_), do: false
+
+  defp admin_address?(email) do
+    case Settings.get().admin_email do
+      configured when is_binary(configured) -> String.downcase(String.trim(configured)) == email
+      _ -> false
+    end
+  end
 
   defp mode_allows?(:open, _email), do: true
   defp mode_allows?(:allowlist, email), do: Settings.allowlisted?(email)
@@ -861,7 +875,12 @@ defmodule Slipdock.Accounts do
     if signup_allowed?(to_string(email)) do
       :ok
     else
-      Logger.info("Refused a sign-in link for #{inspect(email)}: not allowed to sign up here")
+      Logger.info(
+        "Refused a sign-in link for #{inspect(email)}: no account here, and " <>
+          "registration is #{Settings.signup_mode()}. An address with no account can " <>
+          "be given one with: setup --make-admin #{email}"
+      )
+
       {:error, :not_allowed}
     end
   end
