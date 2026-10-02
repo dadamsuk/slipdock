@@ -93,43 +93,171 @@ Briefly, with the detail in [the manual](docs/manual.md):
 
 ### With Docker
 
-Nothing but Docker needed:
+The quickest way, and the one to use on a server. You need **Docker** with the
+Compose plugin — `docker compose version` should print v2 or newer — and
+nothing else: no Elixir, no Node, no database server.
+
+**1. Get the compose file.**
+
+```sh
+mkdir slipdock && cd slipdock
+curl -O https://raw.githubusercontent.com/dadamsuk/slipdock/main/compose.yaml
+curl -o .env https://raw.githubusercontent.com/dadamsuk/slipdock/main/.env.example
+```
+
+There is no need to clone the repository: the image is published and
+`docker compose up` pulls it. (Cloning works too, and is what you want if you
+mean to change something — see *Building it yourself* below.)
+
+**2. Tell it the address people will use.** Sign-in links are built from it, so
+`localhost` only works while you are sitting at that machine. Edit `.env`:
+
+```sh
+PHX_HOST=slipdock.example.com
+```
+
+Every other line in `.env.example` is already its default, so that one line is
+genuinely all that is needed. Skip even that if you are only trying it on your
+own machine.
+
+**3. Start it.**
 
 ```sh
 docker compose up -d
-docker compose logs -f          # the sign-in link is in here
 ```
 
-Open <http://localhost:4000>. A server nobody has set up yet shows a **setup
-wizard**: who may register, how mail goes out, and your own address. It asks for
-a token that is printed in the log on first boot, so that reaching the page
-first is not enough to claim somebody else's server — `docker compose logs` has
-it. Once you finish, that page is gone for good and everything on it lives under
-**Admin**.
-
-Set `SLIPDOCK_ADMIN_EMAIL` in your `.env` and the wizard never appears at all.
-
-Everything that must survive an upgrade is on one volume, `slipdock-data`: the
-database, uploaded files, each person's OpenRouter key, and a `SECRET_KEY_BASE`
-the container generates for itself on first run. **That volume is the thing to
-back up.**
-
-Settings go in a `.env` beside `compose.yaml` — copy `.env.example`, which
-lists every variable the app reads with its default, so an empty `.env` is
-already a working configuration. The ones that matter first:
+**4. Set it up.** Open `http://localhost:4000`, or your `PHX_HOST`. A server
+nobody has claimed shows a **setup wizard**, which asks for a token printed in
+the log the first time it starts:
 
 ```sh
-PHX_HOST=kanban.example.com     # the address people use; sign-in links are built from it
-SLIPDOCK_PUBLISH=4000             # the host port to publish
-SLIPDOCK_ADMIN_EMAIL=you@example.com               # skips the setup wizard
-SLIPDOCK_SMTP_HOST=smtp.example.com               # so codes are emailed rather than logged
+docker compose logs slipdock | grep -A4 "has not been set up"
 ```
 
-Behind a TLS proxy, set `SLIPDOCK_URL_SCHEME=https` and `SLIPDOCK_URL_PORT=443`.
+That token is why finding the page first is not enough to claim somebody else's
+server. The wizard asks three things — who may register, how mail goes out, and
+your own email address — and is gone for good once you finish. Everything on it
+lives under **Admin** from then on.
+
+**5. Sign in.** Until a mail server is configured, your sign-in code is written
+to the log rather than emailed:
+
+```sh
+docker compose logs slipdock | grep "Sign-in"
+```
+
+#### Doing it without a browser
+
+Put these in `.env` before step 3 and the wizard never appears at all:
+
+```sh
+SLIPDOCK_ADMIN_EMAIL=you@example.com     # becomes the admin; skips the wizard
+SLIPDOCK_SIGNUP_MODE=closed              # open | allowlist | approval | closed
+SLIPDOCK_SMTP_HOST=smtp.example.com      # and _PORT, _USER, _PASSWORD, _FROM
+```
+
+Or afterwards, from the command line:
+
+```sh
+docker compose run --rm slipdock setup --admin you@example.com
+docker compose run --rm slipdock setup --status
+docker compose run --rm slipdock setup --sign-in-link you@example.com
+```
+
+That last one is the way back in on the day mail stops working.
+
+#### Behind a TLS proxy
+
+The container speaks plain HTTP on port 4000 and assumes something in front of
+it terminates TLS. Tell it so, or the links it emails will point at the wrong
+scheme and port:
+
+```sh
+SLIPDOCK_URL_SCHEME=https
+SLIPDOCK_URL_PORT=443
+SLIPDOCK_PUBLISH=127.0.0.1:4000   # only the proxy needs to reach it
+```
+
 If people reach the server by more than one name, list the others in
-`SLIPDOCK_CHECK_ORIGIN` or live updates are refused for the names you did not
-mention. [The manual](docs/manual.md#with-docker) covers the administrative
-tasks on the entrypoint (`ai-key`, `reindex`, `migrate`, `remote`).
+`SLIPDOCK_CHECK_ORIGIN` — live updates are refused for names you did not
+mention, which looks like a page that loads but never changes.
+
+To make the app force HTTPS itself, build it with
+`--build-arg SLIPDOCK_FORCE_SSL=true`.
+
+#### Upgrading
+
+```sh
+docker compose pull
+docker compose up -d
+```
+
+Migrations run themselves on boot. Read [UPGRADING.md](UPGRADING.md) first — it
+says what changed and what, if anything, you have to do.
+
+`latest` follows the main branch. To pin a version instead, set `SLIPDOCK_TAG`
+in your `.env` to any published tag.
+
+#### Backing up
+
+Everything that must survive is on one volume: the SQLite database, uploaded
+files, each person's OpenRouter key, and a `SECRET_KEY_BASE` the container
+generates for itself on first run. **That volume is the only copy**, and
+backing it up is the one piece of maintenance this app asks of you.
+
+```sh
+docker compose stop
+docker run --rm -v slipdock_slipdock-data:/data -v "$PWD":/backup alpine \
+  tar czf /backup/slipdock-backup.tar.gz -C /data .
+docker compose start
+```
+
+The volume is named after the compose project, which `compose.yaml` pins to
+`slipdock` — so it is `slipdock_slipdock-data` wherever you put the directory.
+Check with `docker volume ls` if in doubt; backing up a volume name that does
+not exist produces a cheerful, empty archive.
+
+To restore, stop the app, then untar into the same volume with
+`tar xzf /backup/slipdock-backup.tar.gz -C /data`.
+
+#### Administrative tasks
+
+A release has no `mix`, so the ones worth having are on the entrypoint:
+
+```sh
+docker compose run --rm slipdock setup --status   # what this server allows
+docker compose run --rm slipdock ai-key           # who has an OpenRouter key
+docker compose run --rm slipdock reindex          # rebuild the search index
+docker compose run --rm slipdock migrate          # migrations, by hand
+docker compose run --rm slipdock remote           # an IEx shell in the running app
+```
+
+#### Building it yourself
+
+The image is built for `amd64` and `arm64`. For anything else, or to run your
+own changes:
+
+```sh
+git clone https://github.com/dadamsuk/slipdock.git
+cd slipdock
+docker compose build
+docker compose up -d
+```
+
+The first build takes a few minutes — it compiles the app and its assets — and
+later ones reuse most of that. Set `SLIPDOCK_PULL_POLICY=missing` in `.env` so
+that `up` stops reaching for the published image.
+
+#### If something is wrong
+
+| What you see | What it usually is |
+|---|---|
+| `/setup` gives a 404 | The server is already set up. `setup --status` says by whom; `setup --sign-in-link` gets you in. |
+| Every page redirects to `/setup` | The opposite: it has never been claimed. Finish the wizard. |
+| The wizard will not take the token | It is in the log from the **first** boot: `docker compose logs slipdock \| grep -A4 "has not been set up"`. |
+| No sign-in email arrives | Expected until SMTP is configured — the code goes to the log. Set it under **Admin → Email**, which will not save until a test message actually arrives. |
+| The page loads but never updates | `PHX_HOST` or `SLIPDOCK_CHECK_ORIGIN` does not include the name you are using. |
+| Sign-in links point at `localhost` | `PHX_HOST` is unset. The container says so on every boot. |
 
 ### Running it for other people
 
@@ -192,7 +320,7 @@ codes to a file whatever the settings say, and `SLIPDOCK_AGENTIC_LOGIN`.
 
 ### From a checkout
 
-You need Elixir 1.17 or newer on Erlang/OTP 27, and nothing else — SQLite is
+You need Elixir 1.19 or newer on Erlang/OTP 27, and nothing else — SQLite is
 embedded and the asset tools install themselves.
 
 ```sh
@@ -207,7 +335,7 @@ the screenshots come from (`mix slipdock.demo` builds it on demand). In
 development the server binds to this machine's Tailscale address if it has one,
 otherwise loopback; `SLIPDOCK_BIND_IP` and `PORT` override that, and
 `DATABASE_PATH` points it at another database.
-[`deploy/kanban.service`](deploy/kanban.service) is a systemd unit template for
+[`deploy/slipdock.service`](deploy/slipdock.service) is a systemd unit template for
 running it on boot — see [the manual](docs/manual.md#as-a-service).
 
 ## Security notes
