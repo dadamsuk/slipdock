@@ -44,6 +44,34 @@ defmodule Slipdock.SignupsTest do
       assert Accounts.signup_allowed?("anybody@example.com")
     end
 
+    test "claiming the server closes it, and makes the claimant the admin" do
+      unclaimed_instance()
+      {:ok, user} = Accounts.get_or_create_user_by_email("first@example.com")
+
+      # Anybody at all, right up to the moment somebody claims it.
+      assert Accounts.signup_allowed?("stranger@example.com")
+
+      assert :claimed = Accounts.claim_server(user)
+      assert Accounts.admin?(Repo.reload(user))
+      assert Slipdock.Settings.get().admin_email == "first@example.com"
+
+      # ...and now nobody new.
+      refute Accounts.signup_allowed?("stranger@example.com")
+      assert Accounts.signup_allowed?("first@example.com")
+    end
+
+    test "a second sign-in cannot claim a server that is already claimed" do
+      unclaimed_instance()
+      {:ok, first} = Accounts.get_or_create_user_by_email("first@example.com")
+      {:ok, second} = Accounts.get_or_create_user_by_email("second@example.com")
+
+      assert :claimed = Accounts.claim_server(first)
+      assert :already_claimed = Accounts.claim_server(second)
+
+      refute Accounts.admin?(Repo.reload(second))
+      assert Slipdock.Settings.get().admin_email == "first@example.com"
+    end
+
     test "once the server has been set up, a new address is refused" do
       unclaimed_instance()
       {:ok, _} = Slipdock.Settings.complete_setup(%{"admin_email" => "admin@example.com"})

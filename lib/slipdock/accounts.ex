@@ -60,6 +60,40 @@ defmodule Slipdock.Accounts do
   ## Admins, and standing on this server
 
   @doc """
+  Claims an unclaimed server for `user`: records them as the admin and marks
+  setup complete, so nobody else can do the same afterwards. Returns
+  `:claimed`, or `:already_claimed` when there was nothing to do.
+
+  This is the interim claim, and it exists because "not set up yet" has to let
+  *somebody* in. The setup wizard is the real answer — it asks who may register
+  and how mail is sent before closing the door — and it supersedes this
+  (see card #172). Until then a server would otherwise stay open to any address
+  indefinitely, which is worse than the bug this all started from.
+
+  Only ever called from a completed sign-in, so the address has been proved.
+  """
+  @spec claim_server(User.t()) :: :claimed | :already_claimed
+  def claim_server(%User{} = user) do
+    if Settings.setup_complete?() do
+      :already_claimed
+    else
+      with {:ok, _} <- Settings.complete_setup(%{"admin_email" => user.email}),
+           {:ok, _} <- promote(user) do
+        Logger.info(
+          "#{user.email} has claimed this server: they are the admin, and nobody " <>
+            "else can sign up unless an admin allows it."
+        )
+
+        :claimed
+      else
+        {:error, reason} ->
+          Logger.error("Could not claim this server for #{user.email}: #{inspect(reason)}")
+          :already_claimed
+      end
+    end
+  end
+
+  @doc """
   Whether this person may administer the server. There is one role and this is
   it: an admin can change who may register, how mail is sent, and other
   people's standing. Nobody else can.
