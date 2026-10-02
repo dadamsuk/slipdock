@@ -54,7 +54,7 @@ defmodule Slipdock.AI do
   """
   def configured?(nil), do: false
 
-  def configured?(user), do: present?(Keys.get(user)) or present?(config()[:api_key])
+  def configured?(user), do: present?(Keys.get(user)) or present?(shared_key_for(user))
 
   @doc """
   The key a call should use, given its options (`:api_key`, `:user`), or
@@ -64,12 +64,42 @@ defmodule Slipdock.AI do
     cond do
       present?(opts[:api_key]) -> {:ok, opts[:api_key]}
       present?(key = Keys.get(opts[:user])) -> {:ok, key}
-      present?(config()[:api_key]) -> {:ok, config()[:api_key]}
+      present?(key = shared_key_for(opts[:user])) -> {:ok, key}
       opts[:user] -> {:error, @no_key}
       present?(key = Keys.system_key()) -> {:ok, key}
       true -> {:error, @no_key}
     end
   end
+
+  @doc """
+  The server-wide key, if this person may spend it.
+
+  `OPENROUTER_API_KEY` is one key everybody on the server falls back to, which
+  means the person running the server pays for everyone's AI. On a private
+  instance that is the point. On one being run for other people it is an open
+  tab, and the bill arrives a month later.
+
+  So there is a lever: `config :slipdock, :ai, shared_key_for_admins_only: true`
+  (`SLIPDOCK_SHARED_AI_KEY_ADMINS_ONLY=true`) keeps the shared key for admins,
+  and everybody else brings their own or gets no AI.
+
+  **It is off by default**, deliberately. The card limit already bounds how much
+  any one free account can index, and AI working out of the box is a good reason
+  to subscribe. This exists so that if the bill ever bites, the answer is one
+  setting rather than an emergency — and so the decision is written down rather
+  than rediscovered.
+  """
+  @spec shared_key_for(Slipdock.Accounts.User.t() | nil) :: String.t() | nil
+  def shared_key_for(user) do
+    cond do
+      not present?(config()[:api_key]) -> nil
+      not admins_only?() -> config()[:api_key]
+      Slipdock.Accounts.admin?(user) -> config()[:api_key]
+      true -> nil
+    end
+  end
+
+  defp admins_only?, do: config()[:shared_key_for_admins_only] == true
 
   defp present?(value), do: is_binary(value) and value != ""
 

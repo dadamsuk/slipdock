@@ -128,6 +128,15 @@ if key = System.get_env("OPENROUTER_API_KEY") do
   config :slipdock, :ai, api_key: key
 end
 
+# Who may spend that shared key. On a server run for other people it is an open
+# tab — everybody's AI on the operator's card — and the bill arrives a month
+# later. This keeps it for admins; everybody else brings their own key or gets
+# no AI features. Off by default: the card limit already bounds how much any one
+# account can index, and AI working out of the box is a reason to subscribe.
+if System.get_env("SLIPDOCK_SHARED_AI_KEY_ADMINS_ONLY") in ["1", "true"] do
+  config :slipdock, :ai, shared_key_for_admins_only: true
+end
+
 # Where the per-user keys are kept, and whose key unattended work (the search
 # indexer, scheduled automations) spends when there is no shared key.
 # Who may sign up. SLIPDOCK_SIGNUP_ALLOW is a comma-separated list of addresses
