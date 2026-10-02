@@ -10,6 +10,7 @@ defmodule Mix.Tasks.Slipdock.Setup do
         --smtp-from slipdock@example.com --smtp-user u --smtp-password p
       mix slipdock.setup --status            # what this server currently thinks
       mix slipdock.setup --sign-in-link you@example.com   # a fresh way in
+      mix slipdock.setup --make-admin you@example.com     # an admin, on a server with none
 
   `--admin` is the whole of it: that address becomes the admin, setup is marked
   complete, and `/setup` is gone. Everything else has a sensible default
@@ -46,7 +47,8 @@ defmodule Mix.Tasks.Slipdock.Setup do
     smtp_from: :string,
     smtp_from_name: :string,
     status: :boolean,
-    sign_in_link: :string
+    sign_in_link: :string,
+    make_admin: :string
   ]
 
   @impl Mix.Task
@@ -61,6 +63,7 @@ defmodule Mix.Tasks.Slipdock.Setup do
     cond do
       opts[:status] -> status()
       email = opts[:sign_in_link] -> sign_in_link(email)
+      email = opts[:make_admin] -> make_admin(email)
       opts[:admin] -> set_up(opts)
       true -> Mix.raise("Nothing to do. Pass --admin you@example.com, or --status.")
     end
@@ -107,6 +110,22 @@ defmodule Mix.Tasks.Slipdock.Setup do
 
       {:error, changeset} ->
         Mix.raise("Could not set up: #{inspect(errors(changeset))}")
+    end
+  end
+
+  # The answer to "this server is set up and nobody can get in": makes the
+  # account if there is none, makes it an admin, and prints a way in. Needs
+  # shell access on the server, same as --sign-in-link below.
+  defp make_admin(email) do
+    {:ok, user} = Accounts.get_or_create_user_by_email(email)
+
+    case Accounts.promote(user) do
+      {:ok, user} ->
+        Mix.shell().info("#{user.email} is an admin here.")
+        sign_in_link(user.email)
+
+      {:error, reason} ->
+        Mix.raise("Could not make #{email} an admin: #{inspect(reason)}")
     end
   end
 

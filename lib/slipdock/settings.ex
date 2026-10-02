@@ -414,10 +414,17 @@ defmodule Slipdock.Settings do
     cond do
       is_binary(attrs["admin_email"]) ->
         complete_setup(%{"admin_email" => attrs["admin_email"]})
-        Logger.info("Settings seeded from the environment; setup marked complete.")
+        make_admin(attrs["admin_email"])
+
+        Logger.info(
+          "Settings seeded from the environment; setup marked complete and " <>
+            "#{attrs["admin_email"]} is the admin."
+        )
 
       Repo.aggregate(Slipdock.Accounts.User, :count) > 0 ->
-        complete_setup(%{"admin_email" => oldest_user_email()})
+        email = oldest_user_email()
+        complete_setup(%{"admin_email" => email})
+        if Slipdock.Accounts.list_admins() == [], do: make_admin(email)
 
         Logger.info(
           "This server already had users, so setup is marked complete and /setup " <>
@@ -426,6 +433,18 @@ defmodule Slipdock.Settings do
 
       true ->
         :ok
+    end
+  end
+
+  # Naming an admin address is not the same as there being an account for it.
+  # Without this, `SLIPDOCK_ADMIN_EMAIL` closed the wizard, left registration
+  # closed and created nobody — so the address it named was refused at the
+  # sign-in page ("not allowed to sign up here") and the server had no way in
+  # at all. The command-line setup (`Slipdock.Release.setup/1`) always did
+  # this; seeding from the environment did not.
+  defp make_admin(email) do
+    with {:ok, user} <- Slipdock.Accounts.get_or_create_user_by_email(email) do
+      Slipdock.Accounts.promote(user)
     end
   end
 

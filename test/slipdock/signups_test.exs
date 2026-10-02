@@ -42,6 +42,30 @@ defmodule Slipdock.SignupsTest do
     on_exit(fn -> Application.put_env(:slipdock, :settings, previous) end)
   end
 
+  describe "the admin's own address" do
+    test "is never refused, even with registration closed" do
+      # Otherwise an install whose admin address has no account yet — what
+      # SLIPDOCK_ADMIN_EMAIL used to leave behind — has no way in at all.
+      mode(:closed)
+
+      refute Accounts.get_user_by_email("admin@example.com")
+      assert Accounts.signup_allowed?("admin@example.com")
+      assert Accounts.signup_allowed?("Admin@Example.com")
+      refute Accounts.signup_allowed?("somebody@example.com")
+    end
+
+    test "is still refused once it is disabled" do
+      mode(:closed)
+      admin = user_fixture("admin@example.com")
+      {:ok, _} = Accounts.promote(admin)
+      other = user_fixture("second@example.com")
+      {:ok, _} = Accounts.promote(other)
+      {:ok, _} = Accounts.disable(admin)
+
+      refute Accounts.signup_allowed?("admin@example.com")
+    end
+  end
+
   describe "a server nobody has set up" do
     setup do
       unclaimed_instance()

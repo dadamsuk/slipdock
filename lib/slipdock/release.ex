@@ -58,6 +58,7 @@ defmodule Slipdock.Release do
       docker compose run --rm slipdock setup --admin you@example.com
       docker compose run --rm slipdock setup --status
       docker compose run --rm slipdock setup --sign-in-link you@example.com
+      docker compose run --rm slipdock setup --make-admin you@example.com
 
   The container case is usually covered by `SLIPDOCK_ADMIN_EMAIL`, which seeds
   the settings on first boot and skips the wizard entirely. This is for when it
@@ -73,12 +74,16 @@ defmodule Slipdock.Release do
       ["--sign-in-link", email] ->
         setup_sign_in_link(email)
 
+      ["--make-admin", email] ->
+        setup_make_admin(email)
+
       ["--admin", email | rest] ->
         do_setup(email, rest)
 
       _ ->
         puts(
-          "Usage: setup [--admin <email> [--mode <mode>] [--allow <entry>]… | --status | --sign-in-link <email>]"
+          "Usage: setup [--admin <email> [--mode <mode>] [--allow <entry>]… | " <>
+            "--make-admin <email> | --status | --sign-in-link <email>]"
         )
     end
   end
@@ -97,6 +102,22 @@ defmodule Slipdock.Release do
     Mail:             #{if Slipdock.Settings.smtp_configured?(), do: settings.smtp_host, else: "not configured"}
     Sign-in fallback: #{if Slipdock.Settings.login_fallback_enabled?(), do: Slipdock.Accounts.fallback_path(), else: "off"}
     """)
+  end
+
+  # For a server that is set up but has nobody who can get into it: makes the
+  # account, makes it an admin, and hands over a way in. The usual cause is an
+  # install whose admin address was named but never given an account.
+  defp setup_make_admin(email) do
+    {:ok, user} = Slipdock.Accounts.get_or_create_user_by_email(email)
+
+    case Slipdock.Accounts.promote(user) do
+      {:ok, user} ->
+        puts("#{user.email} is an admin here.")
+        setup_sign_in_link(user.email)
+
+      {:error, reason} ->
+        puts("Could not make #{email} an admin: #{inspect(reason)}")
+    end
   end
 
   defp setup_sign_in_link(email) do

@@ -227,9 +227,11 @@ Or afterwards, from the command line:
 docker compose run --rm slipdock setup --admin you@example.com
 docker compose run --rm slipdock setup --status
 docker compose run --rm slipdock setup --sign-in-link you@example.com
+docker compose run --rm slipdock setup --make-admin you@example.com
 ```
 
-That last one is the way back in on the day mail stops working.
+The third is the way back in on the day mail stops working; the fourth is for a
+server that is set up but has no admin account anybody can use.
 
 #### Behind a TLS proxy
 
@@ -318,6 +320,7 @@ that `up` stops reaching for the published image.
 | What you see | What it usually is |
 |---|---|
 | `/setup` gives a 404 | The server is already set up. `setup --status` says by whom; `setup --sign-in-link` gets you in. |
+| "not allowed to sign up here" for your own address | That address has no account and registration is closed. `setup --make-admin you@example.com` makes one, makes it an admin, and prints a way in. |
 | Every page redirects to `/setup` | The opposite: it has never been claimed. Finish the wizard. |
 | The wizard will not take the token | It is in the log from the **first** boot: `docker compose logs slipdock \| grep -A4 "has not been set up"`. |
 | No sign-in email arrives | Expected until SMTP is configured — the code goes to the log. Set it under **Admin → Email**, which will not save until a test message actually arrives. |
@@ -373,6 +376,7 @@ way, and a `--status` that says what the server currently thinks:
 mix slipdock.setup --admin you@example.com --mode allowlist --allow example.com
 mix slipdock.setup --status
 mix slipdock.setup --sign-in-link you@example.com   # when mail has broken
+mix slipdock.setup --make-admin you@example.com     # a server with no usable admin
 ```
 
 It refuses to run on a server that is already set up — that server is already
