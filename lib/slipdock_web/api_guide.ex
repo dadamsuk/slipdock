@@ -37,9 +37,76 @@ defmodule SlipdockWeb.APIGuide do
       wiki(),
       vocabulary_section(),
       endpoints_section(),
+      this_server(user),
       boards_section(user, Keyword.get(opts, :token))
     ]
     |> Enum.join("\n")
+  end
+
+  # What is true of *this* server rather than of Slipdock in general: how much
+  # of the card allowance is left, and whether the people list is scoped.
+  # Generated per request, so it is current rather than aspirational.
+  defp this_server(nil), do: ""
+
+  defp this_server(user) do
+    notes =
+      [cards_note(user), directory_note(), invites_note()]
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+
+    case notes do
+      [] -> ""
+      notes -> "\n## This server's limits\n\n" <> Enum.join(notes, "\n\n") <> "\n"
+    end
+  end
+
+  defp cards_note(user) do
+    case Slipdock.Quota.status(user) do
+      %{limited?: false} ->
+        "There is no limit on how many cards this account may have."
+
+      %{used: used, limit: limit, remaining: remaining} ->
+        """
+        **Cards: #{used} of #{limit} used, #{remaining} left.** The count is every
+        non-archived card on boards you own; cards on boards other people shared with
+        you cost you nothing, and archiving one frees it up.
+
+        Creating a card past it answers `402` with `"error": "card_limit_reached"` and
+        `"retryable": false`. That is not a fault in the request — fixing the title and
+        trying again will fail identically, forever. Stop, tell the person, and suggest
+        archiving something finished with. `GET /api/me` carries the same figures under
+        `cards`, so you can check before you start rather than discovering it halfway
+        through a batch.
+        """
+    end
+  end
+
+  defp directory_note do
+    case Slipdock.Settings.user_directory() do
+      :shared_only ->
+        """
+        **The people you can see are only the people you share something with** —
+        a board, a card, a page or a group. Somebody you expect to be here and cannot
+        find has probably not been shared anything with you; they have not been
+        deleted. Assigning a card to them will not work until something is shared.
+        """
+
+      _ ->
+        ""
+    end
+  end
+
+  defp invites_note do
+    if Slipdock.Settings.invites_create_accounts?() do
+      ""
+    else
+      """
+      **Sharing with an address that has no account here will be refused.** This
+      server does not make accounts for the people you share things with, so an
+      unknown address is an error rather than an invitation. Sharing is not in this
+      API anyway; it is mentioned so that you can say why rather than guessing.
+      """
+    end
   end
 
   @doc "The same thing for programs: the markdown plus the generated parts on their own."
