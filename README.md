@@ -11,7 +11,7 @@ Any card can become a board of its own, so an epic and its tasks
 live in one place and roll up. The same cards can be read as a board, a
 swimlane grid, a table, a Gantt timeline, a calendar, an outline or a ranked
 backlog. Each board carries a wiki, so the documentation/reasoning sits beside the work.
-Automations are written in plain English ("flag any card which is more than 3 days overdue to urgent and send an email to john@getitdone.com"). You can give it plain English commands too: "Split this card into 3 sub-cards", interrogate it: "Across all my boards, what tasks do I have that are slated to take less than 1 day?".  And it has semantic search: "Where's the card about the invoicing bug that came in last week" (that doesn't even mention the word invoice).  
+Automations are written in plain English ("flag any card which is more than 3 days overdue to urgent and send an email to john@example.com"). You can give it plain English commands too: "Split this card into 3 sub-cards", interrogate it: "Across all my boards, what tasks do I have that are slated to take less than 1 day?".  And it has semantic search: "Where's the card about the invoicing bug that came in last week" (that doesn't even mention the word invoice).  
 
 And best of all the whole thing is available over
 a JSON API and a CLI, so an agent can work the board the way a person does.  Chat with Claude or ChatGPT about your work, get it to create your cards, run loops off the back of them.  Whatever you need.
