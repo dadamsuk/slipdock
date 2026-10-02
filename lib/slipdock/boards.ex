@@ -7,6 +7,7 @@ defmodule Slipdock.Boards do
 
   import Ecto.Query, warn: false
   alias Ecto.Multi
+  alias Slipdock.Quota
   alias Slipdock.Repo
   alias Slipdock.Rollup
 
@@ -1141,6 +1142,11 @@ defmodule Slipdock.Boards do
       |> Map.put("board_id", column.board_id)
       |> Map.put("column_id", column.id)
     )
+    # The free tier's limit, enforced here rather than in the board UI: the
+    # same card can be made from quick add, the CLI, the JSON API, an
+    # automation rule and the model, and all of them come through this
+    # function. See `Slipdock.Quota`.
+    |> Quota.enforce(column)
     |> Repo.insert()
     |> tap_ok(fn card ->
       log(Repo, card.board_id, card.id, "card", "added “#{card.title}” to #{column.name}")

@@ -2,9 +2,23 @@ defmodule SlipdockWeb.API.FallbackController do
   use SlipdockWeb, :controller
 
   def call(conn, {:error, %Ecto.Changeset{} = changeset}) do
-    conn
-    |> put_status(:unprocessable_entity)
-    |> json(%{error: "validation failed", details: SlipdockWeb.API.JSON.errors(changeset)})
+    if Slipdock.Quota.limit_reached?(changeset) do
+      # Its own status and its own code. A 422 "validation failed" reads like
+      # something wrong with the request, so an agent fixes the title and tries
+      # again, forever. 402 and a name it can match on say: stop, and tell the
+      # person.
+      conn
+      |> put_status(:payment_required)
+      |> json(%{
+        error: "card_limit_reached",
+        message: SlipdockWeb.API.JSON.errors(changeset)[:base] |> List.wrap() |> List.first(),
+        retryable: false
+      })
+    else
+      conn
+      |> put_status(:unprocessable_entity)
+      |> json(%{error: "validation failed", details: SlipdockWeb.API.JSON.errors(changeset)})
+    end
   end
 
   def call(conn, {:error, :not_found}) do
