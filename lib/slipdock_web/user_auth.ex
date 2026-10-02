@@ -131,6 +131,42 @@ defmodule SlipdockWeb.UserAuth do
   end
 
   @doc """
+  Plug: the API's admin gate. Two things have to be true — the person is an
+  admin, *and* the token was deliberately made with the `admin` scope.
+
+  The second is the point. Tokens live in agents, scripts and CI, and the ones
+  that leak are the ones that are lying around; an ordinary read/write token
+  being able to change who may register, or disable somebody, would make every
+  such token a key to the whole server. This way admin over HTTP is something
+  you opt into per token.
+  """
+  def require_api_admin(conn, _opts) do
+    user = conn.assigns[:current_user]
+    scope = conn.assigns[:api_token] && conn.assigns[:api_token].scope
+
+    cond do
+      not Accounts.admin?(user) ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{error: "forbidden: this account is not an admin of this server"})
+        |> halt()
+
+      scope != "admin" ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{
+          error:
+            "this API token's scope doesn't allow it: administering the server needs " <>
+              "a token made with the admin scope (Account → API tokens)"
+        })
+        |> halt()
+
+      true ->
+        conn
+    end
+  end
+
+  @doc """
   Plug: refuses anyone who is not an admin. 404 rather than 403, so an admin
   area is not advertised to people who have no business knowing it is there.
   """

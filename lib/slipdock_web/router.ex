@@ -22,6 +22,15 @@ defmodule SlipdockWeb.Router do
     plug SlipdockWeb.Plugs.Setup, :require_unclaimed
   end
 
+  # Administering the server over HTTP. Needs an admin account *and* a token
+  # deliberately made with the `admin` scope, so the tokens that live in agents
+  # and CI cannot change who may register.
+  pipeline :api_admin do
+    plug :accepts, ["json"]
+    plug :fetch_api_user
+    plug :require_api_admin
+  end
+
   pipeline :api do
     plug :accepts, ["json"]
     plug :fetch_api_user
@@ -216,6 +225,19 @@ defmodule SlipdockWeb.Router do
 
     post "/auth/device", DeviceController, :create
     post "/auth/device/token", DeviceController, :token
+  end
+
+  scope "/api/admin", SlipdockWeb.API do
+    pipe_through :api_admin
+
+    get "/settings", AdminController, :settings
+    patch "/settings", AdminController, :update_settings
+    post "/allowlist", AdminController, :allow
+    delete "/allowlist", AdminController, :disallow
+    get "/users", AdminController, :users
+    patch "/users/:id", AdminController, :update_user
+    get "/signups", AdminController, :signups
+    post "/signups/:id/:decision", AdminController, :decide_signup
   end
 
   scope "/api", SlipdockWeb.API do

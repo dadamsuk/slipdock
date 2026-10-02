@@ -375,6 +375,9 @@ defmodule SlipdockWeb.AccountLive.Index do
               <select name="scope" class="select select-sm" aria-label="What this token may do">
                 <option value="write">Read and write</option>
                 <option value="read">Read only</option>
+                <option :if={Accounts.admin?(@current_user)} value="admin">
+                  Administer this server
+                </option>
               </select>
               <select name="expires_in_days" class="select select-sm" aria-label="When it expires">
                 <option value="">Never expires</option>
@@ -401,7 +404,11 @@ defmodule SlipdockWeb.AccountLive.Index do
                         else: "bg-primary/10 text-primary"
                       )
                     ]}>
-                      {if t.scope == "read", do: "read only", else: "read/write"}
+                      {case t.scope do
+                        "read" -> "read only"
+                        "admin" -> "admin"
+                        _ -> "read/write"
+                      end}
                     </span>
                     <span
                       :if={Slipdock.Accounts.UserToken.expired?(t)}

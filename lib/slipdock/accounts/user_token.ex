@@ -20,7 +20,10 @@ defmodule Slipdock.Accounts.UserToken do
   # themselves may do; `read` is the same set, minus anything that changes
   # state. A scope only ever *narrows* the account's own permissions — it can
   # never widen them. Enforcement lives in `Slipdock.Access`.
-  @scopes ~w(read write)
+  # "admin" is a third scope rather than something an ordinary write token can
+  # do, so that a leaked token — the ones that live in agents and CI — cannot
+  # change who may register or disable people. It has to be asked for.
+  @scopes ~w(read write admin)
 
   schema "users_tokens" do
     # A short code that opens the same door as the long token, for when the

@@ -41,6 +41,20 @@ defmodule SlipdockCLI do
                                         `ai-key --remove` deletes it. AI features need it
     logout                              forget the saved token
 
+ADMIN  (needs a token made with the admin scope — Account → API tokens)
+  admin settings                      what this server allows, and who it tells
+  admin set key=value...              signup_mode=open|allowlist|approval|closed,
+                                      free_card_limit=20, user_directory=shared_only,
+                                      invites_create_accounts=false
+  admin allow <entry>                 let an address or a whole domain register
+  admin disallow <entry>
+  admin users                         who is here, what they use, when last seen
+  admin promote|demote <email>        admin rights (never the last admin)
+  admin disable|enable <email>        reversible; ends their sessions at once
+  admin limit <email> <n|none>        a card limit of their own
+  admin signups                       who is waiting to be let in
+  admin approve|reject <email>
+
   READ
     boards [--archived|--all] [--sort S] list boards you own or that are shared with you
         (archived boards are left out unless asked for; S: manual name active newest oldest cards)
@@ -463,6 +477,65 @@ defmodule SlipdockCLI do
   defp run("unsave", words, o) do
     HTTP.delete("/saved-queries", mode: saved_mode(o, "search"), q: Enum.join(words, " "))
     |> out(o, &Render.saved_queries/1)
+  end
+
+  # Administering the server. Needs a token made with the `admin` scope — an
+  # ordinary read/write token is deliberately not enough, because those are the
+  # ones that end up in agents and CI.
+  defp run("admin", ["settings"], o), do: HTTP.get("/admin/settings") |> out(o, &render_admin/1)
+
+  defp run("admin", ["set" | pairs], o) when pairs != [] do
+    body =
+      Enum.reduce(pairs, %{}, fn pair, acc ->
+        case String.split(pair, "=", parts: 2) do
+          [key, value] -> Map.put(acc, key, admin_value(key, value))
+          _ -> fail("settings are key=value, e.g. signup_mode=closed")
+        end
+      end)
+
+    HTTP.patch("/admin/settings", body) |> out(o, &render_admin/1)
+  end
+
+  defp run("admin", ["allow", entry], o),
+    do: HTTP.post("/admin/allowlist", %{entry: entry}) |> out(o, &render_admin/1)
+
+  defp run("admin", ["disallow", entry], o),
+    do: HTTP.delete("/admin/allowlist", entry: entry) |> out(o, &render_admin/1)
+
+  defp run("admin", ["users"], o), do: HTTP.get("/admin/users") |> out(o, &render_admin_users/1)
+
+  defp run("admin", ["promote", email], o), do: admin_user(email, %{admin: true}, o)
+  defp run("admin", ["demote", email], o), do: admin_user(email, %{admin: false}, o)
+  defp run("admin", ["disable", email], o), do: admin_user(email, %{disabled: true}, o)
+  defp run("admin", ["enable", email], o), do: admin_user(email, %{disabled: false}, o)
+
+  defp run("admin", ["limit", email, limit], o) do
+    value = if limit in ["", "none", "-"], do: nil, else: limit
+    admin_user(email, %{card_limit: value}, o)
+  end
+
+  defp run("admin", ["signups"], o),
+    do: HTTP.get("/admin/signups") |> out(o, &render_admin_signups/1)
+
+  defp run("admin", ["approve", email], o), do: admin_signup(email, "approve", o)
+  defp run("admin", ["reject", email], o), do: admin_signup(email, "reject", o)
+
+  defp run("admin", _args, _o) do
+    fail("""
+    admin settings                      what this server allows
+    admin set key=value...              signup_mode, free_card_limit, user_directory,
+                                        invites_create_accounts, login_fallback_enabled
+    admin allow <entry> | disallow <entry>
+    admin users                         who is here
+    admin promote|demote|disable|enable <email>
+    admin limit <email> <n|none>        their own card limit
+    admin signups                       who is waiting
+    admin approve|reject <email>
+
+    Needs a token made with the admin scope (Account → API tokens).
+    Mail settings and the admin address are deliberately not here: both have to
+    prove something first, and a PATCH would skip that.
+    """)
   end
 
   defp run("whoami", [], o) do
@@ -1867,6 +1940,88 @@ defmodule SlipdockCLI do
     case Integer.parse(to_string(ref)) do
       {_, ""} -> "card ##{ref}"
       _ -> "page #{ref}"
+    end
+  end
+
+  defp admin_user(email, change, o) do
+    with {:ok, %{"users" => users}} <- HTTP.get("/admin/users"),
+         %{"id" => id} <- Enum.find(users, &(&1["email"] == String.downcase(email))) do
+      HTTP.patch("/admin/users/#{id}", change) |> out(o, &render_admin_user/1)
+    else
+      nil -> fail("no account here uses #{email}")
+      other -> out(other, o, &render_admin_user/1)
+    end
+  end
+
+  defp admin_signup(email, decision, o) do
+    with {:ok, %{"requests" => requests}} <- HTTP.get("/admin/signups"),
+         %{"id" => id} <- Enum.find(requests, &(&1["email"] == String.downcase(email))) do
+      HTTP.post("/admin/signups/#{id}/#{decision}") |> out(o, fn _ -> IO.puts("#{decision}d #{email}") end)
+    else
+      nil -> fail("nobody with that address is waiting")
+      other -> out(other, o, fn _ -> :ok end)
+    end
+  end
+
+  # Numbers and booleans have to arrive as themselves, not as strings, or the
+  # server rejects "20" where it wants 20.
+  defp admin_value(key, value) when key in ["free_card_limit"] do
+    case Integer.parse(value) do
+      {n, ""} -> n
+      _ -> nil
+    end
+  end
+
+  defp admin_value(key, value) when key in ["invites_create_accounts", "login_fallback_enabled"],
+    do: value in ["1", "true", "yes", "on"]
+
+  defp admin_value(_key, value), do: value
+
+  defp render_admin(%{"settings" => s}) do
+    IO.puts("""
+    Registration:     #{s["signup_mode"]}#{allowlist_note(s)}
+    Card limit:       #{s["free_card_limit"] || "no limit"}
+    People visible:   #{s["user_directory"]}
+    Invites create:   #{s["invites_create_accounts"]}
+    Admin address:    #{s["admin_email"] || "—"}
+    Mail:             #{if s["smtp"]["configured"], do: "#{s["smtp"]["host"]}:#{s["smtp"]["port"] || 587}", else: "not configured"}
+    Sign-in fallback: #{if s["login_fallback"]["enabled"], do: s["login_fallback"]["path"], else: "off"}
+    Waiting:          #{s["pending_signups"]}\
+    """)
+  end
+
+  defp allowlist_note(%{"signup_mode" => "allowlist", "allowlist" => list}),
+    do: " (#{if list == [], do: "nobody listed", else: Enum.join(list, ", ")})"
+
+  defp allowlist_note(_), do: ""
+
+  defp render_admin_users(%{"users" => users}) do
+    for u <- users do
+      flags =
+        [u["admin"] && "admin", u["disabled"] && "disabled", u["invited"] && "invited"]
+        |> Enum.filter(& &1)
+
+      cards =
+        case u["cards"] do
+          %{"limited?" => true, "used" => used, "limit" => limit} -> "#{used}/#{limit} cards"
+          %{"used" => used} -> "#{used} cards"
+          _ -> ""
+        end
+
+      IO.puts(
+        "#{u["email"]}  #{cards}  #{u["last_signed_in_at"] || "never seen"}#{if flags == [], do: "", else: "  [" <> Enum.join(flags, " ") <> "]"}"
+      )
+    end
+  end
+
+  defp render_admin_user(%{"user" => u}), do: render_admin_users(%{"users" => [u]})
+  defp render_admin_user(other), do: Render.json(other)
+
+  defp render_admin_signups(%{"requests" => []}), do: IO.puts("Nobody is waiting.")
+
+  defp render_admin_signups(%{"requests" => requests}) do
+    for r <- requests do
+      IO.puts("#{r["email"]}  asked #{r["asked_at"]}#{if r["note"] in [nil, ""], do: "", else: "  “" <> r["note"] <> "”"}")
     end
   end
 
