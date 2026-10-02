@@ -65,4 +65,37 @@ defmodule Slipdock.Accounts.UserNotifier do
 
     with {:ok, _} <- Mailer.deliver_configured(email), do: {:ok, email}
   end
+
+  @doc """
+  Tells somebody that an account has been made for them, and by whom.
+
+  Before this, an invited account appeared out of nothing: the person had a
+  Slipdock login they had never asked for and no way of knowing.
+  """
+  def deliver_invitation(user, inviter, to, base_url) do
+    who = Slipdock.Accounts.User.display_name(inviter)
+
+    email =
+      new()
+      |> to({user.name || user.email, user.email})
+      |> from(Mailer.from())
+      |> subject("#{who} has shared something with you on Slipdock")
+      |> text_body("""
+      #{who} (#{inviter.email}) has given you access to#{if to, do: " " <> to, else: " something"}
+      on their Slipdock board.
+
+      That means you now have an account here. Sign in at:
+
+      #{base_url}/login
+
+      Ask for a code with this address — #{user.email} — and you are in.
+
+      If you were not expecting this, you can ignore it: an account nobody
+      signs in to does nothing.
+      """)
+
+    Logger.info("Invited #{user.email} on behalf of #{inviter.email}.")
+
+    with {:ok, _} <- Mailer.deliver_configured(email), do: {:ok, email}
+  end
 end

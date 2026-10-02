@@ -295,8 +295,26 @@ defmodule Slipdock.Accounts do
 
   Counting users was also the wrong question. A user can exist without anybody
   having been through setup — sharing a board with an address creates one (see
-  `Slipdock.Access.grant/3`) — so an instance with users is not necessarily an
+  `Slipdock.Access.grant/4`) — so an instance with users is not necessarily an
   instance somebody has claimed.
+
+  ## Why "already has an account" is not a way round the mode
+
+  It looks like one. Under `:allowlist`, `:approval` or `:closed`, an address
+  that should be refused can be let in by someone sharing a board with it
+  first — the account now exists, and the second clause of this function waves
+  it through.
+
+  The answer is that the check belongs at the moment an account is **created**,
+  not at the moment it signs in. `invite_user/3` is the only path that can
+  create one, and it refuses unless `invites_create_accounts` is on. So the
+  question "may this address be here?" is asked exactly once, by whoever was
+  doing the inviting, and the registration mode governs people who arrive by
+  themselves.
+
+  Revoking the sign-in instead would be worse: an account deliberately made for
+  somebody, which then cannot be used, is a bug report waiting to happen. An
+  admin who wants them gone has `disable/1`, which this function does honour.
   """
   def signup_allowed?(email) when is_binary(email) do
     email = email |> String.trim() |> String.downcase()
@@ -329,6 +347,92 @@ defmodule Slipdock.Accounts do
 
   @doc "Whether a brand-new address could sign up right now, for the UI's wording."
   def signups_open?, do: signup_stance() in [:open, :unclaimed]
+
+  ## Inviting
+
+  @doc """
+  Brings `email` into this server because `inviter` is sharing something with
+  it — the only path by which an address becomes an account without its owner
+  asking.
+
+  Returns `{:ok, user}` for somebody who is already here, `{:ok, user}` with a
+  freshly made account when `invites_create_accounts` allows it, and
+  `{:error, :invites_disabled}` when it does not.
+
+  ## Why this is one function
+
+  `Slipdock.Access.grant/4` and `add_group_member/2` both used to resolve an
+  unknown address by calling `get_or_create_user_by_email/1` directly. Three
+  things followed, all bad: any signed-in person could mint an account for any
+  address in **every** registration mode, making the modes decorative; those
+  people were never told; and because `signup_allowed?/1` says yes to anybody
+  who already has an account, pre-creation was a standing way round the
+  allowlist. Everything that can bring a new address into existence now comes
+  through here, so there is one place to say no and one place to send the
+  invitation from.
+
+  `opts[:to]` names what they are being given access to, for the email.
+  """
+  @spec invite_user(String.t(), User.t(), keyword()) ::
+          {:ok, User.t()} | {:error, :invites_disabled | Ecto.Changeset.t()}
+  def invite_user(email, %User{} = inviter, opts \\ []) when is_binary(email) do
+    email = email |> String.trim() |> String.downcase()
+
+    case get_user_by_email(email) do
+      %User{} = user ->
+        {:ok, user}
+
+      nil ->
+        if Settings.invites_create_accounts?() do
+          create_invited_user(email, inviter, opts)
+        else
+          {:error, :invites_disabled}
+        end
+    end
+  end
+
+  defp create_invited_user(email, inviter, opts) do
+    attrs = %{"email" => email}
+
+    changeset =
+      %User{}
+      |> User.email_changeset(attrs)
+      |> Ecto.Changeset.put_change(:invited_by_id, inviter.id)
+      |> Ecto.Changeset.put_change(
+        :invited_at,
+        DateTime.utc_now() |> DateTime.truncate(:second)
+      )
+
+    with {:ok, user} <- Repo.insert(changeset) do
+      deliver_invitation(user, inviter, opts[:to])
+      {:ok, user}
+    end
+  end
+
+  @doc """
+  Tells somebody they have been given an account and what for.
+
+  Returns how it went, because the caller has to say: an account created in
+  silence is worse than no account, and when there is no mail the inviter is
+  the only one who can pass the code on.
+  """
+  @spec deliver_invitation(User.t(), User.t(), String.t() | nil) ::
+          {:ok, :emailed | {:written, String.t()} | :logged} | {:error, term()}
+  def deliver_invitation(%User{} = user, %User{} = inviter, to \\ nil) do
+    base = Slipdock.Automations.Runner.base_url()
+
+    cond do
+      Settings.smtp_configured?() ->
+        with {:ok, _} <- UserNotifier.deliver_invitation(user, inviter, to, base) do
+          {:ok, :emailed}
+        end
+
+      true ->
+        # No mail: the sign-in machinery's fallback is the only way they will
+        # ever hear about this, and the inviter has to be told that.
+        deliver_sign_in(user, &"#{base}/login/#{&1}")
+    end
+  end
 
   ## Asking for an account (the `approval` mode)
 
@@ -828,9 +932,17 @@ defmodule Slipdock.Accounts do
 
   def change_group(%Group{} = group, attrs \\ %{}), do: Group.changeset(group, attrs)
 
-  @doc "Adds the user with `email` (created if needed) to the group."
+  @doc """
+  Adds the user with `email` to the group, inviting them if this server makes
+  accounts for people you share things with.
+
+  The group's owner is the inviter: they are the one doing the sharing, and the
+  one an invitation should name.
+  """
   def add_group_member(%Group{} = group, email) do
-    with {:ok, user} <- get_or_create_user_by_email(email) do
+    inviter = group.owner || Repo.get(User, group.owner_id)
+
+    with {:ok, user} <- invite_user(email, inviter, to: "the group “#{group.name}”") do
       Repo.insert_all("group_members", [%{group_id: group.id, user_id: user.id}],
         on_conflict: :nothing
       )
