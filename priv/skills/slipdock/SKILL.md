@@ -27,7 +27,22 @@ a `forbidden` error means they can see something but not change it. Two refusals
 anything being broken — say so instead of retrying:
 
 - `this API token is read-only` — it was granted read access only. Ask for a read/write one.
-- `this API token's scope doesn't allow it` — it is confined to particular boards.
+- `this API token's scope doesn't allow it` — it is confined to particular boards, or it is
+  not an admin token and you tried to administer the server.
+
+Two more refusals are also final. Report them and say what the person can do:
+
+- `card_limit_reached` (HTTP 402) — the board owner's account has used all the cards it allows.
+  A different title will not help; it will fail identically, forever. Suggest archiving
+  something finished with. `slipdock whoami --json` and `slipdock guide` both say how much of
+  the allowance is left, so you can check before starting a batch rather than discovering the
+  wall halfway through.
+- `No account here uses that address…` when sharing — this server does not make accounts for
+  the people you share things with. An admin has to invite them.
+
+On a server where people see only those they share something with, somebody you expect to find
+and cannot has probably not been shared anything. They have not been deleted, and assigning a
+card to them will not work until something is.
 
 ## Workflow
 
@@ -298,6 +313,35 @@ teal sky indigo violet fuchsia rose`. Multi-word titles, column names and text n
   `slipdock page diff W-31 --rev N`
 - "Put the errands board away" → `slipdock archive-board errands` (and `restore-board` to undo)
 - "Which boards have I shelved?" → `slipdock boards --archived`
+
+## Administering the server
+
+`slipdock admin ...` changes who may use this server: the registration mode, the card limit,
+who people can see, whether sharing makes accounts, the allowlist, people's admin rights and
+the queue of people waiting to be let in. **Never run any of it unless the user has asked for
+that specific change** — these decide who can reach their data.
+
+It needs a token made with the **admin** scope, which is not the ordinary read/write one. If a
+command answers `administering the server needs a token made with the admin scope`, say so and
+ask for one; do not retry.
+
+```
+slipdock admin settings                     what this server allows, and who it tells
+slipdock admin set signup_mode=closed       also free_card_limit, user_directory,
+                                            invites_create_accounts
+slipdock admin allow example.com            let an address or a whole domain register
+slipdock admin disallow example.com
+slipdock admin users                        who is here, what they use, when last seen
+slipdock admin promote|demote <email>       admin rights (never the last admin)
+slipdock admin disable|enable <email>       reversible; ends their sessions at once
+slipdock admin limit <email> <n|none>       a card limit of their own
+slipdock admin signups                      who is waiting to be let in
+slipdock admin approve|reject <email>
+```
+
+Mail settings and the admin address are deliberately not here. Both have to prove something
+first — a test message that arrived, a code sent to the new address — and they live in the web
+UI under **Admin**.
 
 ## Errors
 
