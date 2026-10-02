@@ -37,6 +37,7 @@ defmodule SlipdockWeb.AdminLive.Index do
       allowlist: Settings.list_allowlist(),
       allow_form: to_form(%{"entry" => ""}, as: :allow),
       users: Accounts.list_users(),
+      support: Accounts.live_support_sessions(),
       requests: Accounts.list_signup_requests(),
       admin_email_pending: settings.admin_email
     )
@@ -140,6 +141,35 @@ defmodule SlipdockWeb.AdminLive.Index do
       {:ok, _} -> {:noreply, socket |> put_flash(:info, "Saved.") |> load()}
       {:error, _} -> {:noreply, put_flash(socket, :error, "That isn't a number of cards.")}
     end
+  end
+
+  ## Support access
+
+  def handle_event("support", %{"user_id" => id, "reason" => reason}, socket) do
+    subject = Accounts.get_user!(id)
+
+    case Accounts.open_support_session(socket.assigns.current_user, subject, reason) do
+      {:ok, session} ->
+        {:noreply,
+         socket
+         |> put_flash(
+           :info,
+           "You can read #{subject.email}'s boards until #{session.expires_at}. They have " <>
+             "been told, with the reason you gave."
+         )
+         |> load()}
+
+      {:error, :self} ->
+        {:noreply, put_flash(socket, :error, "You can already see your own boards.")}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Say what the access is for, in a few words.")}
+    end
+  end
+
+  def handle_event("end-support", %{"id" => id}, socket) do
+    Accounts.get_support_session!(id) |> Accounts.end_support_session()
+    {:noreply, socket |> put_flash(:info, "Ended.") |> load()}
   end
 
   ## Signups
@@ -641,6 +671,22 @@ defmodule SlipdockWeb.AdminLive.Index do
         delete, because their cards, comments and page history would go with them.
       </p>
 
+      <div :if={@support != []} class="mt-4 rounded-xl bg-warning/10 p-4">
+        <h3 class="text-sm font-medium">Support access in force</h3>
+        <ul class="mt-2 space-y-1 text-sm">
+          <li :for={session <- @support} class="flex items-center justify-between gap-3">
+            <span>
+              {Accounts.User.display_name(session.admin)} can read {Accounts.User.display_name(
+                session.subject
+              )}&#39;s boards until {session.expires_at} — “{session.reason}”
+            </span>
+            <button phx-click="end-support" phx-value-id={session.id} class="btn btn-ghost btn-xs">
+              End now
+            </button>
+          </li>
+        </ul>
+      </div>
+
       <div class="mt-4 overflow-x-auto">
         <table class="table table-sm">
           <thead>
@@ -714,6 +760,17 @@ defmodule SlipdockWeb.AdminLive.Index do
                 >
                   Enable
                 </button>
+                <form :if={user.id != @current_user.id} phx-submit="support" class="mt-1 flex gap-1">
+                  <input type="hidden" name="user_id" value={user.id} />
+                  <input
+                    type="text"
+                    name="reason"
+                    placeholder="Help them with…"
+                    class="input input-xs w-36"
+                    title="Read their boards for a few hours. They are told, with this reason."
+                  />
+                  <button type="submit" class="btn btn-ghost btn-xs">Support</button>
+                </form>
               </td>
             </tr>
           </tbody>

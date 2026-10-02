@@ -1,5 +1,6 @@
 defmodule Slipdock.Boards.Board do
   use Ecto.Schema
+  import Ecto.Query, only: [from: 2]
   import Ecto.Changeset
 
   schema "boards" do
@@ -69,6 +70,17 @@ defmodule Slipdock.Boards.Board do
   @doc "The id of the root board of this board's tree."
   def root_id(%__MODULE__{root_id: nil, id: id}), do: id
   def root_id(%__MODULE__{root_id: root_id}), do: root_id
+
+  @doc """
+  Who owns the top of this board's tree — a sub-board belongs to whoever owns
+  its root, not to nobody. Loaded on demand because a sub-board carries only
+  `root_id`.
+  """
+  def root_owner_id(%__MODULE__{root_id: nil, owner_id: owner_id}), do: owner_id
+
+  def root_owner_id(%__MODULE__{root_id: root_id}) do
+    Slipdock.Repo.one(from(b in __MODULE__, where: b.id == ^root_id, select: b.owner_id))
+  end
 
   def sub_board?(%__MODULE__{parent_card_id: id}), do: not is_nil(id)
 

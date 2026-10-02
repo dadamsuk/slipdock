@@ -20,12 +20,18 @@ defmodule SlipdockWeb.AccountLive.Index do
      )
      |> assign_quick_add(Accounts.change_quick_add(user))
      |> assign(quota: Slipdock.Quota.status(user))
+     |> assign(support_sessions: Accounts.support_sessions_for(user))
      |> assign_ai_key()
      |> load_tokens()}
   end
 
   # The key itself is never sent to the browser — only its shape and when it
   # was set.
+  # Still in force, as opposed to merely recorded.
+  defp live_support?(session) do
+    is_nil(session.ended_at) and DateTime.compare(session.expires_at, DateTime.utc_now()) == :gt
+  end
+
   defp assign_ai_key(socket) do
     user = socket.assigns.current_user
 
@@ -244,6 +250,35 @@ defmodule SlipdockWeb.AccountLive.Index do
                     "You are close to the limit. Archiving a card you have finished with frees it up."}
               </p>
             </div>
+          </section>
+
+          <section
+            :if={@support_sessions != []}
+            class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
+          >
+            <h2 class="text-lg font-semibold">Support access to your boards</h2>
+            <p class="mt-1 text-sm text-base-content/60">
+              Every time an admin of this server has been given access to your boards, and why.
+              Current ones are marked; the rest are over.
+            </p>
+
+            <ul class="mt-4 space-y-2 text-sm">
+              <li :for={session <- @support_sessions} class="flex items-start gap-2">
+                <span class={[
+                  "badge badge-sm mt-0.5",
+                  if(live_support?(session), do: "badge-warning", else: "badge-ghost")
+                ]}>
+                  {if live_support?(session), do: "now", else: "ended"}
+                </span>
+                <span>
+                  <span class="font-medium">{Accounts.User.display_name(session.admin)}</span>
+                  — “{session.reason}”
+                  <span class="block text-xs text-base-content/50">
+                    from {session.inserted_at}, until {session.expires_at}
+                  </span>
+                </span>
+              </li>
+            </ul>
           </section>
 
           <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">

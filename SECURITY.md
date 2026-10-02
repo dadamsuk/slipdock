@@ -49,6 +49,14 @@ Out of scope, because they are deployment choices rather than bugs:
   reach the page gets an account — that is the setting doing what it says, not
   a vulnerability. A new account still sees only its own boards, and where
   `user_directory` is `shared_only` it cannot see that anybody else exists.
+- **Support access, used as intended.** An admin can give themselves temporary
+  **read** access to somebody's boards in order to help them. It needs a stated
+  reason, expires on its own, grants read and never write, and the person it is
+  about is emailed when it starts and can see every one ever opened on them on
+  their account page. The point is that it cannot be silent — anybody who can
+  read the database could see the same data anyway. A report that an admin can
+  use it is not a bug; a report that one can be opened without the subject
+  being told, or that it grants write, is.
 - **The admin scope, used as intended.** An API token made with the `admin`
   scope can change who may register and disable people — that is what it is
   for. Only an admin can create one, and an ordinary read/write token cannot do
