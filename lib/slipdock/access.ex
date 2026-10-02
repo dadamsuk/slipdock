@@ -522,7 +522,7 @@ defmodule Slipdock.Access do
   email address, which creates the user if needed). Re-granting updates the level.
   """
   def grant(resource, subject, level, %User{} = granted_by) when level in ["read", "write"] do
-    with {:ok, subject} <- resolve_subject(subject) do
+    with {:ok, subject} <- resolve_subject(subject, granted_by, resource) do
       subject_clause = subject_clause(subject)
       attrs = Map.merge(resource_attrs(resource), subject_attrs(subject))
 
@@ -580,15 +580,34 @@ defmodule Slipdock.Access do
 
   def shared_pages(_), do: []
 
-  defp resolve_subject(%User{} = u), do: {:ok, u}
-  defp resolve_subject(%Group{} = g), do: {:ok, g}
+  defp resolve_subject(%User{} = u, _by, _resource), do: {:ok, u}
+  defp resolve_subject(%Group{} = g, _by, _resource), do: {:ok, g}
 
-  defp resolve_subject(email) when is_binary(email) do
-    case Accounts.get_or_create_user_by_email(email) do
-      {:ok, user} -> {:ok, user}
-      {:error, _} -> {:error, "That doesn't look like an email address."}
+  # An address nobody here uses goes through `Accounts.invite_user/3`, which is
+  # the one place allowed to bring a new account into existence — and the one
+  # place that tells the person it happened. Before that existed this called
+  # `get_or_create_user_by_email/1` and quietly made accounts in every
+  # registration mode, which made the modes decorative.
+  defp resolve_subject(email, %User{} = granted_by, resource) when is_binary(email) do
+    case Accounts.invite_user(email, granted_by, to: describe_resource(resource)) do
+      {:ok, user} ->
+        {:ok, user}
+
+      {:error, :invites_disabled} ->
+        {:error,
+         "No account here uses that address, and this server does not make one " <>
+           "for people you share things with. An admin can invite them."}
+
+      {:error, _} ->
+        {:error, "That doesn't look like an email address."}
     end
   end
+
+  defp describe_resource(%Board{name: name}), do: "the board “#{name}”"
+  defp describe_resource(%Card{title: title}), do: "the card “#{title}”"
+  defp describe_resource(%Page{title: title}), do: "the page “#{title}”"
+  defp describe_resource(%SavedView{name: name}), do: "the view “#{name}”"
+  defp describe_resource(_), do: nil
 
   defp subject_attrs(%User{id: id}), do: %{user_id: id}
   defp subject_attrs(%Group{id: id}), do: %{group_id: id}
