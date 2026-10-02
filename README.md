@@ -236,6 +236,23 @@ mention, which looks like a page that loads but never changes.
 To make the app force HTTPS itself, build it with
 `--build-arg SLIPDOCK_FORCE_SSL=true`.
 
+#### Which build is running
+
+**Configuration** shows, at the top of the page, when the running build was
+compiled and the commit it came from — the first thing worth checking when a
+server is not behaving the way the code in front of you says it should.
+`slipdock admin build` prints the same line from a terminal.
+
+There is no `.git` inside the image, so a Docker build has to be told the
+commit:
+
+```sh
+docker build --build-arg SLIPDOCK_GIT_SHA=$(git rev-parse HEAD) .
+```
+
+Without it the commit reads `unknown`, which is the honest answer rather than
+a wrong one.
+
 #### Upgrading
 
 ```sh
@@ -308,7 +325,7 @@ that `up` stops reaching for the published image.
 | "not allowed to sign up here" for your own address | That address has no account and registration is closed. `setup --make-admin you@example.com` makes one, makes it an admin, and prints a way in. |
 | Every page redirects to `/setup` | The opposite: it has never been claimed. Finish the wizard. |
 | The wizard will not take the token | It is in the log from the **first** boot: `docker compose logs slipdock \| grep -A4 "has not been set up"`. |
-| No sign-in email arrives | Expected until SMTP is configured — the code goes to the log. Set it under **Admin → Email**, which will not save until a test message actually arrives. |
+| No sign-in email arrives | Expected until SMTP is configured — the code goes to the log. Set it under **Configuration → Email**, which will not save until a test message actually arrives. |
 | The page loads but never updates | `PHX_HOST` is not the name you are reaching it by. The log says so, in a box, naming the value to set. |
 | Sign-in links point at `localhost` | Same cause, same fix. |
 | Links say `:4000` when you are behind Cloudflare or nginx | `SLIPDOCK_URL_SCHEME` and `SLIPDOCK_URL_PORT` describe how people reach it, not how the container listens — so `https` and `443`. `setup.sh` asks this. |
@@ -320,7 +337,7 @@ that `up` stops reaching for the published image.
 
 Slipdock is built for one person or a team who trust each other, and it will
 also run as a small shared service. Four things make that difference, all under
-**Admin**:
+**Configuration → Server**, with the people themselves under **Users**:
 
 - **Who may register** — closed, an allowlist, approval one at a time, or open.
 - **A card limit**, counted against the boards somebody *owns*, so a guest
@@ -415,8 +432,9 @@ these are decisions only you can make.
   address is told exactly what an accepted one is told.
 - **Responses carry a Content-Security-Policy** that allows script from this
   origin only.
-- **Administering the server needs its own token scope.** The admin area
-  (registration, mail, people, the signup queue) is behind an admin account, and
+- **Administering the server needs its own token scope.** The admin pages
+  (**Configuration** for registration and mail, **Users** for the people and the
+  signup queue) are behind an admin account, and
   over HTTP it also needs a token deliberately made with the `admin` scope. API
   tokens live in agents and CI; an ordinary read/write one leaking should not be
   a key to who may register.

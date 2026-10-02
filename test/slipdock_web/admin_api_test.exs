@@ -29,6 +29,16 @@ defmodule SlipdockWeb.AdminAPITest do
       assert json_response(conn, 200)["settings"]["signup_mode"] == "closed"
     end
 
+    test "settings say which build answered", %{admin: admin} do
+      conn = get(token_conn(admin, "admin"), ~p"/api/admin/settings")
+      build = json_response(conn, 200)["build"]
+
+      assert build["git_sha"] == Slipdock.Build.sha()
+      assert build["git_short_sha"] == Slipdock.Build.short_sha()
+      assert build["version"] == Slipdock.Build.version()
+      assert build["built_at"]
+    end
+
     test "an admin with an ordinary write token may not", %{admin: admin} do
       conn = get(token_conn(admin, "write"), ~p"/api/admin/settings")
 

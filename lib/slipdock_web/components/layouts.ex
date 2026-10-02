@@ -187,11 +187,16 @@ defmodule SlipdockWeb.Layouts do
                 Account &amp; API tokens</.link>
               </li>
               <li :if={Slipdock.Accounts.admin?(@current_user)}>
-                <.link navigate={~p"/admin"}>
-                  <.icon name="hero-wrench-screwdriver" class="size-4" /> Admin
+                <.link navigate={~p"/users"}>
+                  <.icon name="hero-users" class="size-4" /> Users
                   <span :if={waiting_signups() > 0} class="badge badge-sm badge-warning">
                     {waiting_signups()}
                   </span>
+                </.link>
+              </li>
+              <li :if={Slipdock.Accounts.admin?(@current_user)}>
+                <.link navigate={~p"/config"}>
+                  <.icon name="hero-wrench-screwdriver" class="size-4" /> Configuration
                 </.link>
               </li>
               <li class="menu-title mt-1">Theme</li>

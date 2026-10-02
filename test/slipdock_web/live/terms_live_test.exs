@@ -94,7 +94,7 @@ defmodule SlipdockWeb.TermsLiveTest do
     {:ok, admin} = Accounts.promote(admin)
 
     assert {:error, {:redirect, %{to: "/terms"}}} =
-             live(log_in_user(conn, admin), ~p"/admin")
+             live(log_in_user(conn, admin), ~p"/config")
   end
 
   test "the page offers a way out that touches nothing", %{conn: conn} do
