@@ -302,6 +302,12 @@ defmodule SlipdockWeb.Router do
     patch "/templates/:id", TemplateController, :update
     delete "/templates/:id", TemplateController, :delete
 
+    # Board trees out as one JSON document, and back in again. A read-only
+    # token can take an export and cannot push one in — the pipeline already
+    # draws that line, so there is no scope of its own here.
+    get "/export", PortableController, :export
+    post "/import", PortableController, :import
+
     get "/boards", BoardController, :index
     post "/boards", BoardController, :create
     # The caller's own order for the board index.
