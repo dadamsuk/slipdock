@@ -110,7 +110,7 @@ defmodule Slipdock.WikiFacetsTest do
       assert Card.progress(page) == nil
       assert Card.health(page) == nil
       assert Card.stated_health(page) == nil
-      assert Card.slip(page) == 0
+      assert Card.due_slip(page) == 0
       assert Card.goals(page) == []
       assert Card.violated_blockers(page) == []
       refute Card.start_derived?(page)

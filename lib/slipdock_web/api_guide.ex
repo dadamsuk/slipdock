@@ -225,7 +225,9 @@ defmodule SlipdockWeb.APIGuide do
       which are cross-references and carry no scheduling meaning.
     - **Rollup** — a read-only summary of everything beneath a card: `done` and
       `total` leaves, effective `start`/`due` (its own or its subcards'),
-      `slip_days`, `blocked`, `overdue`, `health`, `depth`. Trust it instead of
+      `start_slip_days` and `due_slip_days` (how far the subcards begin and end
+       past the card's *own* start and due dates — `slip_days` is the old name
+       for the due one), `blocked`, `overdue`, `health`, `depth`. Trust it instead of
       walking the tree to count.
     - **Web links** (`urls`) — references out of the system: a page, a shared
       drive, a file elsewhere. Each is datestamped with `added_at`. Add one
@@ -273,7 +275,7 @@ defmodule SlipdockWeb.APIGuide do
       "blocked_by": [{"id": 7, "title": "Schema", "completed": false, "archived": false}],
       "blocks": [],
       "sub_board": {"id": 9, "name": "Query parser", "completed": 2, "total": 5},
-      "rollup": {"done": 2, "total": 5, "due": "2026-10-10", "slip_days": 0,
+      "rollup": {"done": 2, "total": 5, "due": "2026-10-10", "start_slip_days": 0, "due_slip_days": 0,
                  "blocked": true, "overdue": false, "health": "at_risk", "depth": 2},
       "checklist": {"done": 1, "total": 3,
                     "items": [{"id": 11, "text": "empty state", "done": false}]},

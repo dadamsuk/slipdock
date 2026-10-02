@@ -5767,16 +5767,33 @@ defmodule SlipdockWeb.BoardLive.Show do
                   {fmt_date(@card.rollup.derived_start)} → {fmt_date(@card.rollup.derived_due)}
                 </p>
                 <p
-                  :if={@card.rollup.slip > 0}
+                  :if={@card.rollup.start_slip > 0}
                   class="flex items-center gap-1 text-warning-content dark:text-warning"
                 >
                   <.icon name="hero-arrow-trending-up" class="size-3.5" />
-                  {@card.rollup.slip} {if @card.rollup.slip == 1, do: "day", else: "days"} past the due date
+                  {past_date_label(:start, @card.rollup.start_slip)}
+                  <span class="text-base-content/50">(yours: {fmt_date(@card.start_date)})</span>
+                </p>
+                <p
+                  :if={@card.rollup.due_slip > 0}
+                  class="flex items-center gap-1 text-warning-content dark:text-warning"
+                >
+                  <.icon name="hero-arrow-trending-up" class="size-3.5" />
+                  {past_date_label(:due, @card.rollup.due_slip)}
+                  <span class="text-base-content/50">(yours: {fmt_date(@card.due_date)})</span>
                 </p>
                 <p :if={is_nil(@card.due_date)} class="text-base-content/50">
                   No due date of its own, so the subcards set it.
                 </p>
               </div>
+              <p
+                :if={Card.days_past_due(@card) > 0}
+                class="flex items-center gap-1 rounded-lg bg-error/10 p-2 text-xs text-error"
+                id="card-past-due"
+              >
+                <.icon name="hero-exclamation-triangle" class="size-3.5" />
+                This card is {past_date_label(:due, Card.days_past_due(@card))}
+              </p>
               <label class="flex cursor-pointer items-center justify-between">
                 <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Completed</span>
                 <input type="hidden" name="card[completed]" value="false" />

@@ -12,7 +12,7 @@ defmodule Slipdock.RollupTest do
     tree_fixture()
   end
 
-  test "leaves, parents, dates, slip and health roll up the tree", ctx do
+  test "leaves, parents, dates, overruns and health roll up the tree", ctx do
     r = Rollup.build(ctx.board.id, @today)
     assert r.root_id == ctx.board.id
     assert Enum.sort(Rollup.board_ids(r)) == Enum.sort([ctx.board.id, ctx.sub.id, ctx.subsub.id])
@@ -34,7 +34,7 @@ defmodule Slipdock.RollupTest do
              due_derived?: false,
              derived_start: ~D[2030-02-01],
              derived_due: ~D[2030-02-01],
-             slip: 12,
+             due_slip: 12,
              health: :late,
              depth: 1,
              children: 2
@@ -50,7 +50,7 @@ defmodule Slipdock.RollupTest do
              due_derived?: false,
              derived_start: ~D[2030-01-05],
              derived_due: ~D[2030-01-20],
-             slip: 5,
+             due_slip: 5,
              overdue: false,
              blocked: false,
              health: :late,
@@ -98,7 +98,7 @@ defmodule Slipdock.RollupTest do
     # All leaves done makes the parent done without touching its flag.
     {:ok, _} = Boards.update_card(ctx.e, %{"completed" => true})
     r = Rollup.build(ctx.board.id, @today)
-    assert %{health: :done, total: 2, done: 2, slip: 12} = Rollup.stats(r, ctx.c)
+    assert %{health: :done, total: 2, done: 2, due_slip: 12} = Rollup.stats(r, ctx.c)
   end
 
   test "loaded boards and cards carry their rollup", ctx do
@@ -111,13 +111,15 @@ defmodule Slipdock.RollupTest do
     assert Card.start_derived?(epic) and not Card.due_derived?(epic)
 
     c = Boards.get_card!(ctx.c.id)
-    assert Card.slip(c) == 12 and Card.health(c) == :late
+    assert Card.due_slip(c) == 12 and Card.health(c) == :late
     assert Card.progress(ctx.loose) == nil
 
     # A sub-board's cards are rolled up against the same root.
     sub = Boards.get_board!(ctx.sub.id)
 
-    assert Enum.flat_map(sub.columns, & &1.cards) |> Enum.find(&(&1.title == "C")) |> Card.slip() ==
+    assert Enum.flat_map(sub.columns, & &1.cards)
+           |> Enum.find(&(&1.title == "C"))
+           |> Card.due_slip() ==
              12
 
     # The tree view nests to a depth.
