@@ -19,6 +19,15 @@ defmodule Slipdock.Accounts do
     Repo.get_by(User, email: email |> String.trim() |> String.downcase())
   end
 
+  @doc """
+  **Every** user on this server, unscoped. The admin's view.
+
+  This is not the list to put in a people picker, a mention menu, an API
+  response or a prompt sent to a model: where strangers share a server it hands
+  each of them everybody else's email address. `Slipdock.Access.visible_users/1`
+  is the one that answers "who may *this* person see", and it falls back to
+  this list when the instance is configured to show everybody.
+  """
   def list_users, do: Repo.all(from(u in User, order_by: [asc: u.email]))
 
   @doc "Finds the user with this email, creating one if needed."

@@ -296,6 +296,107 @@ defmodule Slipdock.Access do
   def readable_board_ids(_), do: []
 
   @doc """
+  The people this user may see: who can be assigned a card, mentioned, offered
+  in a share box, or named in a prompt sent to a model.
+
+  Which it is depends on `user_directory` (see `Slipdock.Settings`):
+
+    * `:instance` — everybody with an account here. Right for one person, and
+      right for a team who all work together; it is what this did before any of
+      this existed, and it is the default so that no existing install changes.
+    * `:shared_only` — only people reachable through something you can both
+      get at: a board, card, page or saved view you share, or a group you are
+      both in. Right when strangers share a server, which is the whole premise
+      of hosting it for other people.
+
+  `Accounts.list_users/0` is the unscoped version and is now the **admin's**
+  view. Reaching for it in a page, a prompt or an API response is how every
+  customer ends up seeing every other customer's email address.
+
+  Ordered by email, like `Accounts.list_users/0`, so call sites can swap.
+  """
+  @spec visible_users(User.t() | nil) :: [User.t()]
+  def visible_users(nil), do: []
+
+  def visible_users(%User{} = user) do
+    case Slipdock.Settings.user_directory() do
+      :shared_only ->
+        ids = visible_user_ids(user)
+        Repo.all(from(u in User, where: u.id in ^ids, order_by: [asc: u.email]))
+
+      _ ->
+        Accounts.list_users()
+    end
+  end
+
+  @doc """
+  The ids behind `visible_users/1`, for the places that only need to ask
+  "can this one person see that one person?" without loading everybody.
+  """
+  @spec visible_user_ids(User.t() | nil) :: [integer()]
+  def visible_user_ids(nil), do: []
+
+  def visible_user_ids(%User{} = user) do
+    board_ids = readable_board_ids(user)
+    group_ids = shared_group_ids(user, board_ids)
+
+    [
+      # Yourself, always — a picker you cannot assign yourself in is broken.
+      [user.id],
+      # Whoever owns a board you can reach.
+      Repo.all(from(b in Board, where: b.id in ^board_ids, select: b.owner_id)),
+      # Whoever else has been granted something on a board you can reach —
+      # directly, or on one of its cards, pages or saved views.
+      Repo.all(
+        from(g in Grant,
+          left_join: c in Card,
+          on: c.id == g.card_id,
+          left_join: p in Page,
+          on: p.id == g.page_id,
+          left_join: v in SavedView,
+          on: v.id == g.saved_view_id,
+          where:
+            g.board_id in ^board_ids or c.board_id in ^board_ids or p.board_id in ^board_ids or
+              v.board_id in ^board_ids,
+          select: g.user_id
+        )
+      ),
+      # Everybody in a group that reaches you, and whoever owns it.
+      Repo.all(from(m in "group_members", where: m.group_id in ^group_ids, select: m.user_id)),
+      Repo.all(from(gr in Group, where: gr.id in ^group_ids, select: gr.owner_id))
+    ]
+    |> List.flatten()
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
+
+  # Groups that put you and somebody else in the same room: the ones you are in,
+  # and the ones holding a grant on something you can reach.
+  defp shared_group_ids(%User{} = user, board_ids) do
+    own = Accounts.group_ids_for(user)
+    owned = Repo.all(from(g in Group, where: g.owner_id == ^user.id, select: g.id))
+
+    granted =
+      Repo.all(
+        from(g in Grant,
+          left_join: c in Card,
+          on: c.id == g.card_id,
+          left_join: p in Page,
+          on: p.id == g.page_id,
+          left_join: v in SavedView,
+          on: v.id == g.saved_view_id,
+          where:
+            not is_nil(g.group_id) and
+              (g.board_id in ^board_ids or c.board_id in ^board_ids or
+                 p.board_id in ^board_ids or v.board_id in ^board_ids),
+          select: g.group_id
+        )
+      )
+
+    Enum.uniq(own ++ owned ++ granted)
+  end
+
+  @doc """
   Everything a user may read, as ids: `%{board_ids: [...], card_ids: [...]}`.
 
   This is the filter semantic search runs against, and it is deliberately
