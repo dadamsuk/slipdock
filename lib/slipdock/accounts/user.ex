@@ -15,6 +15,14 @@ defmodule Slipdock.Accounts.User do
     # table), and the order the boards are listed in. Both are theirs alone.
     field :board_layout, :string, default: "grid"
     field :board_sort, :string, default: "manual"
+    # Standing on this server. `admin` is the only role there is; `disabled_at`
+    # is the reversible alternative to deleting somebody, which would orphan
+    # their cards and comments; `card_limit_override` beats the instance's free
+    # card limit for one person (see `Slipdock.Quota`).
+    field :admin, :boolean, default: false
+    field :last_signed_in_at, :utc_datetime
+    field :disabled_at, :utc_datetime
+    field :card_limit_override, :integer
     has_many :groups_owned, Slipdock.Accounts.Group, foreign_key: :owner_id
     many_to_many :groups, Slipdock.Accounts.Group, join_through: "group_members"
     timestamps(type: :utc_datetime)
@@ -70,6 +78,17 @@ defmodule Slipdock.Accounts.User do
     |> cast(attrs, [:board_layout, :board_sort])
     |> validate_inclusion(:board_layout, @layouts)
     |> validate_inclusion(:board_sort, @sorts)
+  end
+
+  @doc """
+  The admin's view of somebody: whether they may administer this server, and
+  what their own card limit is. Separate from `profile_changeset/2` because
+  nobody may promote themselves by posting their own profile form.
+  """
+  def standing_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:admin, :card_limit_override])
+    |> validate_number(:card_limit_override, greater_than: 0)
   end
 
   @doc "A short label for showing who someone is."

@@ -56,6 +56,110 @@ defmodule Slipdock.Accounts do
 
   def count_users, do: Repo.aggregate(User, :count)
 
+  ## Admins, and standing on this server
+
+  @doc """
+  Whether this person may administer the server. There is one role and this is
+  it: an admin can change who may register, how mail is sent, and other
+  people's standing. Nobody else can.
+  """
+  @spec admin?(User.t() | nil) :: boolean()
+  def admin?(%User{admin: true}), do: true
+  def admin?(_), do: false
+
+  @doc "Whether this account has been disabled, and so cannot sign in."
+  @spec disabled?(User.t() | nil) :: boolean()
+  def disabled?(%User{disabled_at: %DateTime{}}), do: true
+  def disabled?(_), do: false
+
+  def list_admins, do: Repo.all(from(u in User, where: u.admin == true, order_by: [asc: u.email]))
+
+  def count_admins, do: Repo.aggregate(from(u in User, where: u.admin == true), :count)
+
+  @doc """
+  Whether this person is the only admin left — in which case demoting,
+  disabling or deleting them would leave a server nobody can administer, with
+  no way back from inside the app. Every one of those three refuses when this
+  is true.
+  """
+  @spec last_admin?(User.t()) :: boolean()
+  def last_admin?(%User{admin: true} = user) do
+    count_admins() <= 1 and Repo.exists?(from(u in User, where: u.id == ^user.id and u.admin))
+  end
+
+  def last_admin?(_), do: false
+
+  @doc """
+  Changes somebody's standing: admin or not, and their own card limit.
+
+  Refuses to take the last admin's rights away (`{:error, :last_admin}`), which
+  is the one mistake here that cannot be undone from the browser.
+  """
+  @spec update_standing(User.t(), map()) ::
+          {:ok, User.t()} | {:error, :last_admin | Ecto.Changeset.t()}
+  def update_standing(%User{} = user, attrs) do
+    losing_admin? = user.admin and attrs_say_not_admin?(attrs)
+
+    if losing_admin? and last_admin?(user) do
+      {:error, :last_admin}
+    else
+      user |> User.standing_changeset(attrs) |> Repo.update()
+    end
+  end
+
+  @doc "Makes somebody an admin."
+  def promote(%User{} = user), do: update_standing(user, %{"admin" => true})
+
+  @doc "Takes somebody's admin rights away, unless they are the last admin."
+  def demote(%User{} = user), do: update_standing(user, %{"admin" => false})
+
+  @doc """
+  Disables an account: no sign-in, and existing sessions and API tokens stop
+  working. Preferred over deleting, which would orphan their cards, comments,
+  grants and the wiki revisions signed with their name.
+
+  Refuses on the last admin, for the same reason `demote/1` does.
+  """
+  @spec disable(User.t()) :: {:ok, User.t()} | {:error, :last_admin | Ecto.Changeset.t()}
+  def disable(%User{} = user) do
+    if last_admin?(user) do
+      {:error, :last_admin}
+    else
+      with {:ok, user} <-
+             user
+             |> Ecto.Changeset.change(disabled_at: DateTime.utc_now(:second))
+             |> Repo.update() do
+        # Being disabled has to take effect now, not at the end of a 30-day
+        # session.
+        delete_all_sessions(user)
+        {:ok, user}
+      end
+    end
+  end
+
+  @doc "Lets a disabled account back in. They will need to sign in again."
+  def enable(%User{} = user) do
+    user |> Ecto.Changeset.change(disabled_at: nil) |> Repo.update()
+  end
+
+  @doc "Records that somebody signed in, for the admin users list."
+  def touch_last_signed_in(%User{} = user) do
+    Repo.update_all(from(u in User, where: u.id == ^user.id),
+      set: [last_signed_in_at: DateTime.utc_now(:second)]
+    )
+
+    :ok
+  end
+
+  # `attrs["admin"] || attrs[:admin]` cannot be used here: the value being
+  # looked for *is* false, which `||` would discard.
+  defp attrs_say_not_admin?(attrs) do
+    case Map.get(attrs, "admin", Map.get(attrs, :admin, :absent)) do
+      value when value in [false, "false", "0", 0] -> true
+      _ -> false
+    end
+  end
+
   ## Magic links
 
   @doc """
@@ -76,6 +180,8 @@ defmodule Slipdock.Accounts do
   Whether this address may sign in, which for a new address means whether it
   may have an account at all. In order:
 
+    * a disabled account never can, whatever the mode says — that is what
+      disabling means, and it is checked before everything else;
     * somebody who already has an account always can;
     * so can the very first address, on an instance with no users — the first
       sign-in claims the server;
@@ -92,9 +198,12 @@ defmodule Slipdock.Accounts do
   def signup_allowed?(email) when is_binary(email) do
     email = email |> String.trim() |> String.downcase()
 
+    existing = get_user_by_email(email)
+
     cond do
       email == "" -> false
-      get_user_by_email(email) != nil -> true
+      disabled?(existing) -> false
+      existing != nil -> true
       count_users() == 0 -> true
       signups()[:open] == true -> true
       true -> allowed_by_list?(email, signups()[:allow] || [])
@@ -191,7 +300,11 @@ defmodule Slipdock.Accounts do
 
   def get_user_by_session_token(token) do
     {:ok, query} = UserToken.verify_session_token_query(token)
-    Repo.one(query)
+
+    case Repo.one(query) do
+      %User{disabled_at: %DateTime{}} -> nil
+      user -> user
+    end
   end
 
   def delete_session_token(token) do
@@ -250,7 +363,7 @@ defmodule Slipdock.Accounts do
   """
   def get_api_token(token, opts \\ []) when is_binary(token) do
     with {:ok, query} <- UserToken.verify_api_token_query(token),
-         {%User{} = user, %UserToken{} = user_token} <- Repo.one(query) do
+         {%User{disabled_at: nil} = user, %UserToken{} = user_token} <- Repo.one(query) do
       # Where it was used from, as well as when: a token list that cannot
       # answer "is this still the machine I gave it to" is not much of an
       # audit trail.
