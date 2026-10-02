@@ -274,7 +274,11 @@ defmodule SlipdockWeb.APIGuide do
       the short name of the board. A `shortcut` sits alongside it: one or two
       characters that jump to the board in the web app (the user presses `b`,
       then that key). It is settable, but it does not address anything — do
-      not use it in a URL.
+      not use it in a URL. A board belongs to one person: `owner` names them
+      (`{"id", "email", "name"}`, and null on a board made before accounts
+      existed), and `shared` is true when that person is somebody other than
+      you — a board you reach through a grant rather than your own. Say whose
+      board it is when you name one that is not theirs.
     - **List** (a column) — ordered, and carrying a `category`: `todo`,
       `doing`, `done`, `dropped`, or null for "no particular meaning". The
       *names* differ from board to board (To Do / Now / Ready; Done / Shipped);
@@ -1376,7 +1380,7 @@ defmodule SlipdockWeb.APIGuide do
       if boards == [] do
         "You cannot see any boards yet. `POST /api/boards {\"name\": \"…\", \"code\": \"…\", \"template\": \"Slipdock\"}` makes one (leave `code` out and one is made from the name)."
       else
-        Enum.map_join(boards, "\n", &board_line/1)
+        Enum.map_join(boards, "\n", &board_line(&1, user))
       end
 
     """
@@ -1409,7 +1413,7 @@ defmodule SlipdockWeb.APIGuide do
     |> String.trim_trailing()
   end
 
-  defp board_line(board) do
+  defp board_line(board, viewer) do
     full = Boards.get_board!(board.id)
 
     lists =
@@ -1435,12 +1439,25 @@ defmodule SlipdockWeb.APIGuide do
       |> Enum.map_join(" · ", fn {role, col} -> "#{role}: “#{col.name}” (##{col.id})" end)
 
     """
-    - **##{board.id} #{board.name}** (`#{board.code}`) — #{length(board.cards)} top-level cards, #{Enum.count(board.cards, & &1.completed)} done#{if epics > 0, do: ", #{epics} of them epics with subcards"}
+    - **##{board.id} #{board.name}** (`#{board.code}`) — #{length(board.cards)} top-level cards, #{Enum.count(board.cards, & &1.completed)} done#{if epics > 0, do: ", #{epics} of them epics with subcards"}#{shared_note(board, viewer)}
       - lists: #{lists}
       - #{if roles == "", do: "nothing on this board says which list means what — ask before choosing work from it", else: roles}
     """
     |> String.trim_trailing()
   end
+
+  # A board somebody else owns, said on the line that names it: an agent
+  # reporting on it should name whose it is rather than call it "your board".
+  defp shared_note(%{owner_id: owner_id} = board, %{id: id})
+       when owner_id != nil and owner_id != id,
+       do: ", owned by #{owner_label(board)} and shared with you"
+
+  defp shared_note(_board, _viewer), do: ""
+
+  defp owner_label(%{owner: %Slipdock.Accounts.User{} = owner}),
+    do: Slipdock.Accounts.User.display_name(owner)
+
+  defp owner_label(_board), do: "somebody else"
 
   defp role_note(columns, col) do
     case role(columns, col) do

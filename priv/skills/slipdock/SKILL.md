@@ -271,6 +271,14 @@ Subcards: `slipdock card <id>` shows `Subcards: board #N · done/total · lists`
 `slipdock board N`, `slipdock add N ...` etc. on that board. Sub-boards share tags with their root board
 and nest to any depth; `slipdock boards` lists root boards only.
 
+Whose board it is: a board somebody else owns and has shared with you shows their name in the
+OWNER column of `slipdock boards` — the column only appears when something in the listing is
+shared, so your own boards never grow one. `--json` says it in full: `owner` ({id, email, name},
+null on an unclaimed board predating accounts) and `shared` (true when the owner is somebody
+other than you). `slipdock board <ref>` names the owner on a line of its own. Name the owner when
+you report on a board that is not the user's — "#12 on Nadia's board" is a different sentence from
+"#12 on your board".
+
 Archived boards: `slipdock boards` leaves them out — `--archived` lists those alone, `--all` lists
 everything, and an archived board shows `archived` in the STATE column. Archiving is not deleting:
 every card, tag and comment is still there and every command still works on it. Treat it as a

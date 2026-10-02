@@ -1517,6 +1517,14 @@ only through that view, sees just the cards it selects, and can edit them
 only if the view grant is "can edit". Readers get a disabled card modal, no
 drag and drop, and no add buttons; the server refuses their writes too.
 
+A board somebody shared with you sits on your board list beside your own, and
+says **shared by** whoever owns it — on the cards and in the table, and in the
+tooltip in full. The API says the same thing in data: every board response
+carries `owner` (`id`, `email`, `name`), and a listing marks each board
+`shared` when its owner is somebody other than you. `slipdock boards` grows an
+OWNER column when any of them are, and `slipdock board <ref>` names the owner
+on its own line.
+
 A **wiki page** can be shared on its own too, and a page grant behaves like a
 card grant: the recipient reads (or edits) that page without the board coming
 with it. A view grant is the exception that goes the other way — it reaches
