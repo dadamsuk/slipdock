@@ -57,6 +57,7 @@ case "${1:-start}" in
   # The mix tasks are not in a release, so the two worth having are here.
   #   docker compose run --rm slipdock reindex
   #   docker compose run --rm slipdock ai-key you@example.com sk-or-…
+  #   docker compose run --rm slipdock setup --status
   reindex)
     run /app/bin/kanban eval "Slipdock.Release.reindex()"
     ;;
@@ -70,6 +71,17 @@ case "${1:-start}" in
     ;;
   migrate)
     run /app/bin/kanban eval "Slipdock.Release.migrate()"
+    ;;
+  # Setting the server up without the browser wizard, seeing what it thinks,
+  # and the way back in when mail has broken.
+  #   docker compose run --rm slipdock setup --admin you@example.com
+  #   docker compose run --rm slipdock setup --status
+  #   docker compose run --rm slipdock setup --sign-in-link you@example.com
+  setup)
+    shift
+    args=""
+    for a in "$@"; do args="${args}\"${a}\","; done
+    run /app/bin/kanban eval "Slipdock.Release.setup([${args}])"
     ;;
   *)
     run "$@"

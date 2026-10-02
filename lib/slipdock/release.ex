@@ -51,6 +51,124 @@ defmodule Slipdock.Release do
   end
 
   @doc """
+  The release's `mix slipdock.setup`: sets the server up without the browser
+  wizard, says what it currently thinks, or makes a sign-in link when mail has
+  broken and there is no other way in.
+
+      docker compose run --rm slipdock setup --admin you@example.com
+      docker compose run --rm slipdock setup --status
+      docker compose run --rm slipdock setup --sign-in-link you@example.com
+
+  The container case is usually covered by `SLIPDOCK_ADMIN_EMAIL`, which seeds
+  the settings on first boot and skips the wizard entirely. This is for when it
+  was not set, and for the day mail stops working.
+  """
+  def setup(args \\ []) do
+    start()
+
+    case args do
+      ["--status"] ->
+        setup_status()
+
+      ["--sign-in-link", email] ->
+        setup_sign_in_link(email)
+
+      ["--admin", email | rest] ->
+        do_setup(email, rest)
+
+      _ ->
+        puts(
+          "Usage: setup [--admin <email> [--mode <mode>] [--allow <entry>]… | --status | --sign-in-link <email>]"
+        )
+    end
+  end
+
+  defp setup_status do
+    settings = Slipdock.Settings.get()
+
+    puts("""
+    Set up:           #{if Slipdock.Settings.setup_complete?(), do: "yes, #{settings.setup_completed_at}", else: "NO — the wizard is open"}
+    Admin address:    #{settings.admin_email || "—"}
+    Admins:           #{Enum.map_join(Slipdock.Accounts.list_admins(), ", ", & &1.email)}
+    Registration:     #{settings.signup_mode}
+    Card limit:       #{settings.free_card_limit || "no limit"}
+    People visible:   #{settings.user_directory}
+    Invites create:   #{settings.invites_create_accounts}
+    Mail:             #{if Slipdock.Settings.smtp_configured?(), do: settings.smtp_host, else: "not configured"}
+    Sign-in fallback: #{if Slipdock.Settings.login_fallback_enabled?(), do: Slipdock.Accounts.fallback_path(), else: "off"}
+    """)
+  end
+
+  defp setup_sign_in_link(email) do
+    case Slipdock.Accounts.get_user_by_email(email) do
+      nil ->
+        puts("No account here uses #{email}.")
+
+      user ->
+        base = Slipdock.Automations.Runner.base_url()
+
+        case Slipdock.Accounts.deliver_sign_in(user, &"#{base}/login/#{&1}") do
+          {:ok, :emailed} -> puts("A sign-in link is on its way to #{email}.")
+          {:ok, {:written, path}} -> puts("Sign-in link written to #{path}")
+          {:ok, :logged} -> puts("Sign-in link written to the log.")
+          {:error, reason} -> puts("Could not send it: #{inspect(reason)}")
+        end
+    end
+  end
+
+  defp do_setup(email, rest) do
+    if Slipdock.Settings.setup_complete?() do
+      puts("""
+      This server has already been set up; #{Slipdock.Settings.get().admin_email} is the admin.
+      Change these under Admin, or make a way in with: setup --sign-in-link <email>
+      """)
+    else
+      {attrs, allow} = setup_attrs(rest, %{"admin_email" => email}, [])
+
+      case Slipdock.Settings.complete_setup(attrs) do
+        {:ok, settings} ->
+          for entry <- allow, do: Slipdock.Settings.add_allowlist_entry(entry)
+          {:ok, user} = Slipdock.Accounts.get_or_create_user_by_email(settings.admin_email)
+          {:ok, _} = Slipdock.Accounts.promote(user)
+
+          puts(
+            "Set up. #{settings.admin_email} is the admin, registration is #{settings.signup_mode}."
+          )
+
+          puts("A way in: setup --sign-in-link #{settings.admin_email}")
+
+        {:error, changeset} ->
+          puts("Could not set up: #{inspect(changeset.errors)}")
+      end
+    end
+  end
+
+  defp setup_attrs([], attrs, allow), do: {attrs, Enum.reverse(allow)}
+
+  defp setup_attrs(["--allow", value | rest], attrs, allow),
+    do: setup_attrs(rest, attrs, [value | allow])
+
+  defp setup_attrs(["--mode", value | rest], attrs, allow),
+    do: setup_attrs(rest, Map.put(attrs, "signup_mode", value), allow)
+
+  defp setup_attrs(["--card-limit", value | rest], attrs, allow),
+    do: setup_attrs(rest, Map.put(attrs, "free_card_limit", value), allow)
+
+  defp setup_attrs(["--directory", value | rest], attrs, allow),
+    do: setup_attrs(rest, Map.put(attrs, "user_directory", value), allow)
+
+  defp setup_attrs(["--smtp-host", value | rest], attrs, allow),
+    do: setup_attrs(rest, Map.put(attrs, "smtp_host", value), allow)
+
+  defp setup_attrs(["--smtp-from", value | rest], attrs, allow),
+    do: setup_attrs(rest, Map.put(attrs, "smtp_from_email", value), allow)
+
+  defp setup_attrs([unknown | rest], attrs, allow) do
+    puts("Ignoring unknown option #{unknown}")
+    setup_attrs(rest, attrs, allow)
+  end
+
+  @doc """
   The release's `mix slipdock.reindex`, in its plain form: walk every card and
   wiki page and embed what changed. The options the mix task takes (`--force`,
   `--dry-run`, `--stats`) are not here; this is the one that matters when you
