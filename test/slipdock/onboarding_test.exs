@@ -167,6 +167,25 @@ defmodule Slipdock.OnboardingTest do
       assert %Board{} = Onboarding.build!(user)
     end
 
+    test "the release shim builds one, and refuses a second without --force" do
+      user = fresh()
+
+      assert ExUnit.CaptureIO.capture_io(fn -> Slipdock.Release.welcome([user.email]) end) =~
+               "Built “Getting Started”"
+
+      assert ExUnit.CaptureIO.capture_io(fn -> Slipdock.Release.welcome([user.email]) end) =~
+               "already has"
+
+      assert ExUnit.CaptureIO.capture_io(fn ->
+               Slipdock.Release.welcome([user.email, "--force"])
+             end) =~ "Built “Getting Started”"
+
+      assert ExUnit.CaptureIO.capture_io(fn ->
+               Slipdock.Release.welcome(["nobody@example.com"])
+             end) =~
+               "No user"
+    end
+
     test "exists_for? sees the board, archived or not" do
       user = fresh()
       refute Onboarding.exists_for?(user)

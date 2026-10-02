@@ -185,7 +185,8 @@ is not somebody who needs a tutorial, so that case is skipped.
 **Switching it off.** `SLIPDOCK_WELCOME_BOARD=0`. The manual half keeps
 working either way:
 
-    mix slipdock.welcome you@example.com [--force]   # on the server
+    mix slipdock.welcome you@example.com [--force]   # from a checkout
+    docker compose run --rm slipdock welcome you@example.com [--force]
     slipdock welcome [--force]                       # as yourself, over the API
     curl -s -X POST -H "$H" B/api/boards/welcome
 
@@ -1595,6 +1596,7 @@ docker compose run --rm slipdock setup --sign-in-link you@example.com
 docker compose run --rm slipdock setup --make-admin you@example.com   # no admin can get in
 docker compose run --rm slipdock ai-key                      # who has an OpenRouter key
 docker compose run --rm slipdock ai-key you@example.com sk-or-…
+docker compose run --rm slipdock welcome you@example.com     # the Getting Started tour board
 docker compose run --rm slipdock reindex                     # rebuild the search index
 docker compose run --rm slipdock migrate                     # migrations, by hand
 docker compose run --rm slipdock remote                      # an IEx shell in the app

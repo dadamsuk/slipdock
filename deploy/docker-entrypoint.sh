@@ -86,9 +86,11 @@ case "${1:-start}" in
   remote|console)
     run /app/bin/slipdock "$1"
     ;;
-  # The mix tasks are not in a release, so the two worth having are here.
+  # There is no mix in a release, so the tasks worth having are mirrored in
+  # Slipdock.Release and dispatched from here:
   #   docker compose run --rm slipdock reindex
   #   docker compose run --rm slipdock ai-key you@example.com sk-or-…
+  #   docker compose run --rm slipdock welcome you@example.com
   #   docker compose run --rm slipdock setup --status
   reindex)
     run /app/bin/slipdock eval "Slipdock.Release.reindex()"
@@ -100,6 +102,15 @@ case "${1:-start}" in
     args=""
     for a in "$@"; do args="${args}\"${a}\","; done
     run /app/bin/slipdock eval "Slipdock.Release.ai_key([${args}])"
+    ;;
+  # The tour board a first sign-in builds, for an account that was here before
+  # it existed (see Slipdock.Onboarding).
+  #   docker compose run --rm slipdock welcome you@example.com [--force]
+  welcome)
+    shift
+    args=""
+    for a in "$@"; do args="${args}\"${a}\","; done
+    run /app/bin/slipdock eval "Slipdock.Release.welcome([${args}])"
     ;;
   migrate)
     run /app/bin/slipdock eval "Slipdock.Release.migrate()"

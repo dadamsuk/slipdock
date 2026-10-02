@@ -8,6 +8,7 @@ defmodule Slipdock.Release do
       docker compose run --rm slipdock migrate
       docker compose run --rm slipdock ai-key you@example.com sk-or-…
       docker compose run --rm slipdock reindex
+      docker compose run --rm slipdock welcome you@example.com
 
   Each starts only as much of the app as it needs. Migrations in normal
   operation are not run from here: a release migrates itself on boot (see
@@ -187,6 +188,40 @@ defmodule Slipdock.Release do
   defp setup_attrs([unknown | rest], attrs, allow) do
     puts("Ignoring unknown option #{unknown}")
     setup_attrs(rest, attrs, allow)
+  end
+
+  @doc """
+  The release's `mix slipdock.welcome`: builds the "Getting Started" tour board
+  (see `Slipdock.Onboarding`) for an account that has signed in before, and so
+  never had one built for it.
+
+      docker compose run --rm slipdock welcome you@example.com
+      docker compose run --rm slipdock welcome you@example.com --force
+
+  For the account that archived the tour and wants it back, or one made before
+  the tour existed. It will not make the account: they sign in first.
+  """
+  def welcome(args \\ []) do
+    start()
+
+    case args do
+      [email] -> build_welcome(email, false)
+      [email, "--force"] -> build_welcome(email, true)
+      _ -> puts("Usage: welcome <email> [--force]")
+    end
+  end
+
+  defp build_welcome(email, force?) do
+    alias Slipdock.Onboarding
+
+    with_user(email, fn user ->
+      if Onboarding.exists_for?(user) and not force? do
+        puts("#{user.email} already has a “#{Onboarding.board_name()}” board — pass --force.")
+      else
+        board = Onboarding.build!(user)
+        puts("Built “#{board.name}” (#{board.code}) for #{user.email}.")
+      end
+    end)
   end
 
   @doc """
