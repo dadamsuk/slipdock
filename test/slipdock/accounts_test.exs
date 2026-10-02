@@ -14,7 +14,7 @@ defmodule Slipdock.AccountsTest do
              user = Accounts.get_user_by_email("new.person@example.com")
 
     assert_email_sent(fn email ->
-      assert email.subject =~ "sign-in link"
+      assert email.subject =~ "sign-in code"
       [token] = Regex.run(~r{https://k/login/([\w-]+)}, email.text_body, capture: :all_but_first)
       assert {:ok, %User{id: id, confirmed_at: %DateTime{}}} = Accounts.verify_magic_link(token)
       assert id == user.id

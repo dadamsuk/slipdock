@@ -11,6 +11,9 @@ defmodule Slipdock.Accounts.UserToken do
   @rand_size 32
   @hash_algorithm :sha256
   @magic_validity_minutes 15
+  @code_length 6
+  # Six digits is a small space; a handful of wrong guesses kills the code.
+  @code_attempt_limit 5
   @session_validity_days 30
 
   # What an API token is allowed to do. `write` is everything the person
@@ -20,6 +23,10 @@ defmodule Slipdock.Accounts.UserToken do
   @scopes ~w(read write)
 
   schema "users_tokens" do
+    # A short code that opens the same door as the long token, for when the
+    # link cannot be clicked. See the migration for why it is not hashed.
+    field :code, :string
+    field :code_attempts, :integer, default: 0
     field :token, :binary
     field :context, :string
     field :sent_to, :string
@@ -64,7 +71,12 @@ defmodule Slipdock.Accounts.UserToken do
 
   ## Hashed tokens (magic link, api)
 
-  @doc "Returns `{url_safe_token, struct}`; only the hash is stored."
+  @doc """
+  Returns `{url_safe_token, struct}`; only the hash is stored.
+
+  `opts[:code]` attaches a short sign-in code to the same row, so the code and
+  the link are two ways through one door and using either closes both.
+  """
   def build_hashed_token(user, context, opts \\ []) do
     token = :crypto.strong_rand_bytes(@rand_size)
     hashed = :crypto.hash(@hash_algorithm, token)
@@ -72,6 +84,7 @@ defmodule Slipdock.Accounts.UserToken do
     {Base.url_encode64(token, padding: false),
      %__MODULE__{
        token: hashed,
+       code: opts[:code],
        context: context,
        sent_to: opts[:sent_to],
        label: opts[:label],
@@ -80,6 +93,49 @@ defmodule Slipdock.Accounts.UserToken do
        expires_at: opts[:expires_at],
        user_id: user.id
      }}
+  end
+
+  @doc "How many digits a sign-in code has, and how many tries it gets."
+  def code_length, do: @code_length
+  def code_attempt_limit, do: @code_attempt_limit
+
+  @doc """
+  A fresh sign-in code: `@code_length` digits, zero-padded, from a
+  cryptographically strong source rather than `:rand`.
+  """
+  def generate_code do
+    max = Integer.pow(10, @code_length)
+
+    :crypto.strong_rand_bytes(8)
+    |> :binary.decode_unsigned()
+    |> rem(max)
+    |> Integer.to_string()
+    |> String.pad_leading(@code_length, "0")
+  end
+
+  @doc """
+  The live magic token for `email` whose code is `code`, with attempts still
+  left. Matching on the address as well as the code is what keeps the space at
+  a million per address rather than a million across the whole server.
+  """
+  def verify_code_query(email, code) do
+    from(t in __MODULE__,
+      join: u in assoc(t, :user),
+      where:
+        t.context == "magic" and t.code == ^code and t.sent_to == ^email and
+          t.sent_to == u.email and t.code_attempts < @code_attempt_limit and
+          t.inserted_at > ago(@magic_validity_minutes, "minute"),
+      select: {u, t}
+    )
+  end
+
+  @doc "Every live magic token for this address, to count a wrong guess against."
+  def live_codes_query(email) do
+    from(t in __MODULE__,
+      where:
+        t.context == "magic" and t.sent_to == ^email and
+          t.inserted_at > ago(@magic_validity_minutes, "minute")
+    )
   end
 
   def verify_magic_token_query(token) do
