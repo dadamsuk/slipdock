@@ -1,0 +1,46 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        id: beam
+        with:
+          # Version *ranges*, not exact patches: the Dockerfile pins a specific
+          # hexpm image, and pinning the same patch here would break the day
+          # setup-beam has no build published for it. The majors are what
+          # matter — they are what mix.exs and the release agree on.
+          elixir-version: "1.20"
+          otp-version: "27"
+
+      # deps and the compiled tree, keyed on the lock file and the exact
+      # OTP/Elixir pair — a cache built on another version is not reusable.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
+
+      - run: mix deps.get
+
+      - name: Check formatting
+        run: mix format --check-formatted
+
+      - name: Compile without warnings
+        run: mix compile --warnings-as-errors
+
+      - name: Test
+        run: mix test
