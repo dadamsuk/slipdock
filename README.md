@@ -16,6 +16,10 @@ Automations are written in plain English ("flag any card which is more than 3 da
 And best of all the whole thing is available over
 a JSON API and a CLI, so an agent can work the board the way a person does.  Chat with Claude or ChatGPT about your work, get it to create your cards, run loops off the back of them.  Whatever you need.
 
+## A word on AI coding...
+
+Of course it was built using AI. But it wasn't vibe coded in an hour. First it was born of 30+ years of experience of managing projects and writing software. Second it was planned out and carefully constructed with robust testing and verification.  And third it has been security reviewed by multiple different coding agents. 
+
 ![A board](docs/screenshots/board.png)
 
 > A plan is falsework: the structure that holds the thing up while it is being built, and comes away when it stands on its own. This is somewhere to put it.
