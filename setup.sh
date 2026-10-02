@@ -56,9 +56,12 @@ if [ -e "$ENV_FILE" ]; then
 fi
 
 # 1 ─ the name people type -----------------------------------------------------
-say "1. The address people will type to reach this server."
+say "1. The hostname people will see in the browser's address bar."
+say "   Not the domain you own — the exact name they type. If Cloudflare or"
+say "   nginx serves this at app.example.com, that is the answer, even when"
+say "   you also own example.com."
 say "   Sign-in links are built from it, and live updates are refused for any"
-say "   other name — so this is the setting that most needs to be right."
+say "   other name, so this is the setting that most needs to be right."
 ask HOST "   Hostname" "$(hostname 2>/dev/null || echo localhost)"
 
 while [ -z "$HOST" ]; do ask HOST "   Hostname (required)" ""; done
