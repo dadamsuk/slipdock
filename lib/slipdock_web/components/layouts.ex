@@ -51,7 +51,7 @@ defmodule SlipdockWeb.Layouts do
           class="flex shrink-0 items-center gap-2 rounded-lg px-1.5 py-1 font-semibold tracking-tight hover:bg-base-200"
         >
           <.brand_mark />
-          <span class="hidden sm:inline">Slipdock</span>
+          <.brand_wordmark class="hidden h-4 sm:inline-flex" />
         </.link>
         <div class="flex min-w-0 flex-1 items-center gap-2">
           {render_slot(@nav)}
@@ -963,12 +963,51 @@ defmodule SlipdockWeb.Layouts do
   """
   def brand_mark(assigns) do
     ~H"""
-    <img src={brand_icon(@variant)} alt="Slipdock" class={["shrink-0", @class]} />
+    <span class={["inline-flex shrink-0", @class]}>
+      <img src={brand_icon(@variant, :light)} alt="Slipdock" class="size-full dark:hidden" />
+      <img src={brand_icon(@variant, :dark)} alt="Slipdock" class="hidden size-full dark:block" />
+    </span>
     """
   end
 
-  defp brand_icon(:detailed), do: ~p"/images/brand/icon.svg"
-  defp brand_icon(_), do: ~p"/images/brand/icon-simple.svg"
+  # BRAND.md: never the navy tile on a dark surface. Against this theme's dark
+  # header the ink tile measures 1.3:1 — a shape nobody can see — so dark takes
+  # the reversed artwork, light tile and ink piers.
+  defp brand_icon(:detailed, :dark), do: ~p"/images/brand/icon-reversed.svg"
+  defp brand_icon(:detailed, _), do: ~p"/images/brand/icon.svg"
+  defp brand_icon(_, :dark), do: ~p"/images/brand/icon-simple-reversed.svg"
+  defp brand_icon(_, _), do: ~p"/images/brand/icon-simple.svg"
+
+  attr :class, :string, default: "h-4"
+
+  @doc """
+  The name, as artwork rather than as text.
+
+  The dot of the "i" is the orange card, tilted — BRAND.md is explicit that the
+  wordmark is never drawn with an ordinary dot, which is exactly what setting
+  "Slipdock" in the UI font produces. The two variants differ only in the
+  letter colour (Harbor ink on light, Page on dark); the card stays orange in
+  both, so they are swapped by theme rather than recoloured.
+
+  The file carries its own `<title>`, so the `alt` here is what a screen reader
+  announces and the name stays readable to one.
+  """
+  def brand_wordmark(assigns) do
+    ~H"""
+    <span class={["inline-flex items-center", @class]}>
+      <img
+        src={~p"/images/brand/wordmark.svg"}
+        alt="Slipdock"
+        class="h-full w-auto dark:hidden"
+      />
+      <img
+        src={~p"/images/brand/wordmark-reversed.svg"}
+        alt="Slipdock"
+        class="hidden h-full w-auto dark:block"
+      />
+    </span>
+    """
+  end
 
   attr :theme, :string, required: true, values: ~w(system light dark)
   attr :icon, :string, required: true

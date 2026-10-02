@@ -22,11 +22,25 @@ Kanban columns drawn as dock slips. Finger piers form the columns, cards are moo
 | `icon.svg` | Detailed app icon. Use at 48 px and above. |
 | `icon-simple.svg` | Simplified icon. Use from 20 px to 47 px. |
 | `icon-16.svg` | Simplest icon for 16 px (no teal card). |
+| `icon-reversed.svg` | Detailed icon on dark surfaces (light tile). Derived, see below. |
+| `icon-simple-reversed.svg` | Simplified icon on dark surfaces. Derived, see below. |
 | `mark.svg` | The mark with no tile, light-background colours. |
 | `favicon.ico` | 16 + 32 px favicon. |
 | `favicon-16.png`, `favicon-32.png` | PNG favicons. |
 | `icon-180.png` | Apple touch icon. |
 | `icon-192.png`, `icon-512.png` | PWA manifest icons. |
+
+## Derived files
+
+The kit shipped no standalone reversed *icon*, only `lockup-reversed.svg`.
+`icon-reversed.svg` and `icon-simple-reversed.svg` were derived from their
+dark-tile counterparts by applying the light/dark colour pairs in the table
+below — ink↔mist, and Slip teal light → Slip teal — which is the same swap the
+kit already performs inside `lockup-reversed.svg`, and they come out with an
+identical palette. Replace them if a drawn version arrives.
+
+They exist because the app has a dark theme: against its header the Harbor ink
+tile measures 1.3:1, so the icon is a shape nobody can see.
 
 ## Where these live in this repository
 
