@@ -32,13 +32,37 @@ fi
 # Links in sign-in emails have to point somewhere people can reach. Without
 # PHX_HOST the app would say example.com, which is nobody's server.
 if [ -z "${PHX_HOST:-}" ]; then
-  echo "entrypoint: PHX_HOST is not set, so it is localhost. Two things will be" \
-       "wrong if that is not how people reach this server: sign-in links will" \
-       "point at localhost, and pages opened at any other name will load and" \
-       "then never update. Set PHX_HOST to the address people actually use."
+  echo "entrypoint: PHX_HOST is NOT SET in this container, so it is localhost."
+  echo "entrypoint:   Sign-in links will point at localhost, and pages opened at"
+  echo "entrypoint:   any other name will load and then never update."
+  echo "entrypoint:   Set PHX_HOST in the .env beside compose.yaml, then"
+  echo "entrypoint:   \`docker compose up -d\` — not \`restart\`, which never"
+  echo "entrypoint:   re-reads .env."
   PHX_HOST="localhost"
   export PHX_HOST
+else
+  # Said out loud on every boot. When the app reports a host somebody did not
+  # expect, this is the line that says whether it ever reached the container —
+  # which is the difference between "compose did not pass it" and "the app
+  # ignored it", and the first thing anybody needs to know.
+  echo "entrypoint: PHX_HOST=$PHX_HOST"
 fi
+
+# Defaults that only make sense in a container, where the app is behind a
+# published port and speaks plain http. They live here rather than in
+# compose.yaml's `environment:` block, because that block *overrides* env_file
+# — so a value somebody put in .env would lose to an interpolated default.
+if [ -z "${SLIPDOCK_URL_SCHEME:-}" ]; then
+  SLIPDOCK_URL_SCHEME="http"
+  export SLIPDOCK_URL_SCHEME
+fi
+
+if [ -z "${SLIPDOCK_URL_PORT:-}" ]; then
+  SLIPDOCK_URL_PORT="${PORT:-4000}"
+  export SLIPDOCK_URL_PORT
+fi
+
+echo "entrypoint: links will be built as ${SLIPDOCK_URL_SCHEME}://${PHX_HOST}:${SLIPDOCK_URL_PORT}"
 
 run() {
   if [ "$(id -u)" = "0" ]; then
