@@ -328,6 +328,39 @@ teal sky indigo violet fuchsia rose`. Multi-word titles, column names and text n
 - "Put the errands board away" → `slipdock archive-board errands` (and `restore-board` to undo)
 - "Which boards have I shelved?" → `slipdock boards --archived`
 
+## Moving a board to another server
+
+```
+slipdock export --out boards.json             # every board tree you own, as one document
+slipdock export qvm-v1-rem ops --out b.json   # just these; --archived includes what is put away
+slipdock import boards.json                   # build the trees in it
+```
+
+One JSON file holding whole board trees: lists, cards and their subcards, tags, checklists,
+comments, status updates, web links, custom fields and their values, dependencies, typed links,
+and the wiki.
+
+**Not the same as `page export`.** That writes Markdown, for reading the writing somewhere
+else. This moves a board, and only this can be read back into one.
+
+Three things to tell the user before running `import`, because they are surprising:
+
+- **It never merges.** The file always becomes *new* boards, even when a board of that name is
+  already there. Importing the same file twice gives two copies. A board code that is taken is
+  reissued (`del` → `del-2`) and the output says so.
+- **Automation rules do not fire.** An import is history arriving, not things happening.
+- **The card limit is answered for the whole file first.** A file that will not fit is refused
+  outright; nothing is part-built.
+
+Left out of the file on purpose: attachments, votes, wiki page history, activity, and public
+share links. The export prints how much of each it left behind. Page codes (`W-31`) are
+reissued on import and `[[W-31]]` in the bodies is rewritten to match — but a bare `#412` typed
+inside a page body still points at the old server's card id and cannot be fixed, so say so if
+the user's pages do that.
+
+`slipdock export` only ever takes boards the user **owns**. A board merely shared with them is
+somebody else's to hand on.
+
 ## Administering the server
 
 `slipdock admin ...` changes who may use this server: the registration mode, the card limit,
