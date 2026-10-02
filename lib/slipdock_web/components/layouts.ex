@@ -186,6 +186,14 @@ defmodule SlipdockWeb.Layouts do
                 <.link navigate={~p"/account"}><.icon name="hero-user-circle" class="size-4" />
                 Account &amp; API tokens</.link>
               </li>
+              <li :if={Slipdock.Accounts.admin?(@current_user)}>
+                <.link navigate={~p"/admin"}>
+                  <.icon name="hero-wrench-screwdriver" class="size-4" /> Admin
+                  <span :if={waiting_signups() > 0} class="badge badge-sm badge-warning">
+                    {waiting_signups()}
+                  </span>
+                </.link>
+              </li>
               <li class="menu-title mt-1">Theme</li>
               <li><.theme_item theme="system" icon="hero-computer-desktop" label="System" /></li>
               <li><.theme_item theme="light" icon="hero-sun" label="Light" /></li>
@@ -1067,5 +1075,14 @@ defmodule SlipdockWeb.Layouts do
       </button>
     </div>
     """
+  end
+
+  # How many people are waiting for an admin to say yes. Only ever asked on an
+  # admin's own menu, so the query costs nothing on anybody else's page — and a
+  # queue with no badge is a queue discovered a month late.
+  defp waiting_signups do
+    if Slipdock.Settings.signup_mode() == :approval,
+      do: Slipdock.Accounts.count_pending_signups(),
+      else: 0
   end
 end

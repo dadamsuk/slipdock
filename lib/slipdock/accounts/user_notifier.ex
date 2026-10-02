@@ -98,4 +98,47 @@ defmodule Slipdock.Accounts.UserNotifier do
 
     with {:ok, _} <- Mailer.deliver_configured(email), do: {:ok, email}
   end
+
+  @doc "The code that proves a new admin address can actually receive mail."
+  def deliver_admin_email_change(address, code, by) do
+    email =
+      new()
+      |> to(address)
+      |> from(Mailer.from())
+      |> subject("#{code} confirms you as the Slipdock admin address")
+      |> text_body("""
+      #{Slipdock.Accounts.User.display_name(by)} (#{by.email}) wants this address to be
+      the admin address for their Slipdock server.
+
+      Your code is #{code}
+
+      Type it under Admin to confirm. Nothing changes until you do — if you were
+      not expecting this, ignore it and nothing will.
+      """)
+
+    Logger.info("Admin address change to #{address} requested by #{by.email}: code #{code}")
+
+    with {:ok, _} <- Mailer.deliver_configured(email), do: {:ok, email}
+  end
+
+  @doc """
+  Warns the address being replaced. Somebody quietly repointing a server at
+  their own address should be visible, not silent.
+  """
+  def deliver_admin_email_warning(old_address, new_address, by) do
+    email =
+      new()
+      |> to(old_address)
+      |> from(Mailer.from())
+      |> subject("Somebody is changing your Slipdock admin address")
+      |> text_body("""
+      #{Slipdock.Accounts.User.display_name(by)} (#{by.email}) has asked to change the
+      admin address of your Slipdock server from this one to #{new_address}.
+
+      It will not change unless somebody at that address confirms a code. If this
+      was not you, sign in and check who has admin rights under Admin → People.
+      """)
+
+    with {:ok, _} <- Mailer.deliver_configured(email), do: {:ok, email}
+  end
 end
