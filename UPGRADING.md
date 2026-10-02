@@ -1,5 +1,42 @@
 # Upgrading
 
+## Settings moved into the database
+
+Who may register, how mail is sent, and the rest of this server's own
+behaviour used to be environment variables read at boot. They are rows now, so
+they can be changed from a browser.
+
+**Nothing to do, and nothing changes for an existing install.** The first time
+the upgraded server starts it seeds the new settings from your existing
+environment, so it keeps behaving exactly as it did: `SLIPDOCK_OPEN_SIGNUP`
+becomes the *open* registration mode, `SLIPDOCK_SIGNUP_ALLOW` becomes
+*allowlist* plus one row per entry, and `SLIPDOCK_SMTP_*` is carried across.
+Nobody is signed out and no data moves.
+
+Two consequences worth knowing:
+
+### Your existing environment variables stop having any effect
+
+They seeded the settings **once**. Editing `SLIPDOCK_SIGNUP_ALLOW` after that
+first boot does nothing at all — the database is the authority now, and the
+value in your `.env` is ignored. Change it in the app instead, or clear the
+settings row if you really want to re-seed from the environment.
+
+This is the one thing about this release likely to look like a bug. It is not:
+a settings page that could be silently overruled by a stale `.env` would be
+worse.
+
+### Your server is already claimed, and your oldest account is the admin
+
+New installs get a setup wizard, which an existing install must never be
+offered — otherwise the first stranger to find `/setup` after an upgrade could
+take over the server. So seeding marks any instance that already has users as
+set up, closes `/setup` for good, and makes the **oldest account** the admin.
+
+If that is not the right person, promote the right one and demote the first
+(an admin may do both, except to the last remaining admin). Set
+`SLIPDOCK_ADMIN_EMAIL` before the first start to name them directly instead.
+
 ## Kanban → Slipdock
 
 The project was called **Kanban** until October 2026. The rename touched the

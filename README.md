@@ -127,6 +127,37 @@ If people reach the server by more than one name, list the others in
 mention. [The manual](docs/manual.md#with-docker) covers the administrative
 tasks on the entrypoint (`ai-key`, `reindex`, `migrate`, `remote`).
 
+### Settings: the environment seeds them once
+
+Everything about *how this server behaves* — who may register, the free card
+limit, who shows up in people pickers, whether sharing something with a
+stranger makes them an account, and how mail is sent — lives in the database
+now, so it can be changed from a browser without a redeploy.
+
+The environment still configures it, but only as a **seed**: the variables
+below are written into the settings the first time the server starts, and are
+ignored from then on.
+
+```sh
+SLIPDOCK_ADMIN_EMAIL=you@example.com   # setting this skips the setup wizard entirely
+SLIPDOCK_SIGNUP_MODE=allowlist         # open | allowlist | approval | closed
+SLIPDOCK_SIGNUP_ALLOW=you@example.com,example.org   # seeds the allowlist
+SLIPDOCK_FREE_CARD_LIMIT=20            # cards allowed on one person's own boards
+SLIPDOCK_USER_DIRECTORY=shared_only    # instance | shared_only
+SLIPDOCK_INVITES_CREATE_ACCOUNTS=false # whether sharing with a stranger makes an account
+SLIPDOCK_SMTP_HOST=smtp.example.com    # and SLIPDOCK_SMTP_PORT / _USER / _PASSWORD / _FROM
+SLIPDOCK_LOGIN_FALLBACK=false          # never write sign-in codes to a file (set this when public)
+```
+
+**Changing one of these on a server that has already started does nothing.**
+That is deliberate — a browser has to be able to win, or the settings page
+would be a lie — but it does mean a variable edited after the fact looks
+ignored, because it is. Change it in the app instead.
+
+Two exceptions, which are overrides rather than seeds and win every time:
+`SLIPDOCK_LOGIN_FALLBACK=false`, so a public host can forbid writing sign-in
+codes to a file whatever the settings say, and `SLIPDOCK_AGENTIC_LOGIN`.
+
 ### From a checkout
 
 You need Elixir 1.17 or newer on Erlang/OTP 27, and nothing else — SQLite is
@@ -152,11 +183,14 @@ running it on boot — see [the manual](docs/manual.md#as-a-service).
 This is a self-hosted app that holds everything you are working on, and some of
 these are decisions only you can make.
 
-- **Sign-up is closed by default.** The first address to sign in claims an
-  empty instance; after that only people who already have an account can get
-  in. `KANBAN_SIGNUP_ALLOW` lets named addresses or whole domains in;
-  `KANBAN_OPEN_SIGNUP=true` lets anybody in, which is sensible only when the
-  server is already behind a boundary of your own.
+- **Sign-up is closed by default.** A server nobody has set up yet lets the
+  first address in, which is how an instance gets claimed; after that
+  registration follows whichever mode you chose — *closed* (accounts exist only
+  because you made them), *allowlist* (named addresses and whole domains),
+  *approval* (people ask, you say yes) or *open* (anybody), which is sensible
+  only when the server is already behind a boundary of your own. The mode and
+  the allowlist are editable in the app; `SLIPDOCK_SIGNUP_MODE` and
+  `SLIPDOCK_SIGNUP_ALLOW` seed them on first boot.
 - **Sign-in is passwordless and rate limited** — a one-time link valid for 15
   minutes, a session that lasts 30 days, five attempts an hour per address and
   twenty per IP, so nobody can use your server to mail strangers. A refused
