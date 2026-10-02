@@ -45,9 +45,21 @@ defmodule Slipdock.Application do
     # The test environment opts out: this runs before any sandbox is checked
     # out, so a row written here would escape the rollback and outlive the test
     # run. `Slipdock.SettingsTest` calls `seed/0` directly instead.
-    if Application.get_env(:slipdock, :seed_settings, true) do
-      Slipdock.Settings.seed()
-      announce_setup(Slipdock.Settings.ensure_setup_token())
+    cond do
+      not Application.get_env(:slipdock, :seed_settings, true) ->
+        :ok
+
+      not Slipdock.Settings.ready?() ->
+        # A brand-new database from a checkout: migrations have not run yet, so
+        # there is nothing to seed and reading the table would stop the server
+        # starting at all.
+        require Logger
+
+        Logger.info("No settings table yet — run `mix ecto.migrate`, then restart.")
+
+      true ->
+        Slipdock.Settings.seed()
+        announce_setup(Slipdock.Settings.ensure_setup_token())
     end
   end
 
