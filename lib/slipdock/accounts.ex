@@ -434,6 +434,85 @@ defmodule Slipdock.Accounts do
     end
   end
 
+  ## Changing the admin address
+
+  @doc """
+  Starts a change of the server's admin address: sends a code to the **new**
+  address, and tells the old one that somebody is trying.
+
+  Nothing changes until the code comes back. An admin address that nobody reads
+  is a silent lock-out — approval notices, invitation failures and warnings all
+  go there — and a typo would be indistinguishable from a working address until
+  the day it mattered.
+
+  Returns `{:ok, :sent}` or `{:error, message}`.
+  """
+  @spec request_admin_email_change(String.t(), User.t()) :: {:ok, :sent} | {:error, String.t()}
+  def request_admin_email_change(email, %User{} = by) do
+    email = email |> String.trim() |> String.downcase()
+
+    cond do
+      not Regex.match?(~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/, email) ->
+        {:error, "That doesn't look like an email address."}
+
+      email == Settings.get().admin_email ->
+        {:error, "That is already the admin address."}
+
+      not Settings.smtp_configured?() ->
+        {:error,
+         "Set up a mail server first — a new admin address has to prove it can " <>
+           "receive mail before it becomes the one everything is sent to."}
+
+      true ->
+        code = UserToken.generate_code()
+
+        {_token, user_token} =
+          UserToken.build_hashed_token(by, "admin_email", sent_to: email, code: code)
+
+        Repo.insert!(user_token)
+
+        UserNotifier.deliver_admin_email_change(email, code, by)
+        warn_old_admin_address(email, by)
+        {:ok, :sent}
+    end
+  end
+
+  @doc """
+  Finishes the change, if `code` is the one just sent. Returns
+  `{:ok, email}` or `{:error, :invalid}`.
+  """
+  @spec confirm_admin_email_change(String.t(), User.t()) ::
+          {:ok, String.t()} | {:error, :invalid}
+  def confirm_admin_email_change(code, %User{} = by) do
+    query =
+      from(t in UserToken,
+        where:
+          t.context == "admin_email" and t.code == ^String.trim(code) and t.user_id == ^by.id and
+            t.inserted_at > ago(60, "minute")
+      )
+
+    case Repo.one(query) do
+      nil ->
+        {:error, :invalid}
+
+      token ->
+        Repo.delete!(token)
+        {:ok, _} = Settings.update(%{"admin_email" => token.sent_to})
+        # They are the admin now, so they had better be able to sign in as one.
+        with {:ok, user} <- get_or_create_user_by_email(token.sent_to), do: promote(user)
+        {:ok, token.sent_to}
+    end
+  end
+
+  # The address being replaced is told, so that somebody quietly pointing the
+  # server at their own address is visible rather than silent.
+  defp warn_old_admin_address(new_email, by) do
+    case Settings.get().admin_email do
+      nil -> :ok
+      old -> UserNotifier.deliver_admin_email_warning(old, new_email, by)
+    end
+  end
+
   ## Asking for an account (the `approval` mode)
 
   @doc """

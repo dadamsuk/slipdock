@@ -104,6 +104,23 @@ defmodule SlipdockWeb.Router do
     # One page as Markdown, front matter and all — the same file the zip holds.
     get "/boards/:id/wiki/:slug/page.md", ExportController, :page
 
+    # Admins only. Its own live session so `:ensure_admin` applies to the whole
+    # of it rather than being remembered per page.
+    live_session :admin,
+      on_mount: [
+        {SlipdockWeb.UserAuth, :ensure_authenticated},
+        {SlipdockWeb.UserAuth, :ensure_admin},
+        {SlipdockWeb.ViewportHook, :default},
+        {SlipdockWeb.AlertsHook, :default},
+        {SlipdockWeb.QuickAddHook, :default},
+        {SlipdockWeb.ShortcutsHook, :default}
+      ] do
+      live "/admin", AdminLive.Index, :index
+      live "/admin/mail", AdminLive.Index, :mail
+      live "/admin/people", AdminLive.Index, :people
+      live "/admin/signups", AdminLive.Index, :signups
+    end
+
     live_session :authenticated,
       on_mount: [
         {SlipdockWeb.UserAuth, :ensure_authenticated},
