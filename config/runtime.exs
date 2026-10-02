@@ -250,6 +250,14 @@ if from = System.get_env("SLIPDOCK_MAIL_FROM") do
   config :slipdock, :mail_from, {"Slipdock", from}
 end
 
+# A first sign-in builds a "Getting Started" board — a tour of the app made of
+# the app (see `Slipdock.Onboarding`). SLIPDOCK_WELCOME_BOARD=0 turns that off
+# for a server whose people arrive already knowing what they are doing;
+# `mix slipdock.welcome` and `slipdock welcome` keep working either way.
+if System.get_env("SLIPDOCK_WELCOME_BOARD") in ["0", "false", "no"] do
+  config :slipdock, :welcome_board, false
+end
+
 # SLIPDOCK_AGENTIC_LOGIN=true adds an "Agentic Login" button to the sign-in page
 # that writes the one-time link to a file (in SLIPDOCK_AGENTIC_LOGIN_DIR, default
 # /tmp) instead of emailing it. Anyone who can reach the page can create such

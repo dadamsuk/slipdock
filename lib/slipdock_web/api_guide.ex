@@ -609,6 +609,13 @@ defmodule SlipdockWeb.APIGuide do
       from your business: do it only when you were asked to, by name.
     - **Do not touch boards you were not asked about**, even when a search turns
       them up.
+    - **Do not work the “Getting Started” board.** It is the tour this server
+      builds for a new account, and its cards are instructions for a person —
+      "drag this card to Done", "open a card and look down the side". Doing
+      them teaches nobody anything and finishing them is a lie about what you
+      did. If you were pointed at it by mistake, say so and ask which board was
+      meant. `POST /api/boards/welcome` builds a fresh one for the token's
+      owner, if they want the tour back after archiving it.
     """
   end
 
@@ -738,6 +745,7 @@ defmodule SlipdockWeb.APIGuide do
     # the boards themselves (owner only; ask before doing either)
     curl -s -X POST -H "$H" B/api/boards/1/archive    # put a board away, keeping everything on it
     curl -s -X POST -H "$H" B/api/boards/1/restore    # and bring it back
+    curl -s -X POST -H "$H" B/api/boards/welcome      # the Getting Started tour board, again
     curl -s -X POST -H "$H" -H 'content-type: application/json' B/api/boards/order \
          -d '{"boards": ["roadmap", "qvm-v1-rem", 3]}'   # your own order for the index
     ```

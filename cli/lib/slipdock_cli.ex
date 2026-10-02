@@ -211,6 +211,9 @@ ADMIN  (needs a token made with the admin scope — Account → API tokens)
     archive <id>...  |  restore <id>... archive / restore cards
     delete <id>...                      permanently delete (prefer archive)
     new-board <name> [--code C] [--shortcut K] [--desc TEXT] [--color C] [--template T]
+    welcome [--force]                   build the "Getting Started" board: a tour of the whole
+                                        app, cards, subcards, automation and wiki pages included
+                                        (the one a first sign-in makes by itself)
     set-board <board> [--name N] [--code C] [--shortcut K] [--desc TEXT] [--color C]
         [--no-add-card] [--no-add-page] [--no-add-document]
                                         rename a board, change its code, shortcut key or colour,
@@ -355,6 +358,7 @@ ADMIN  (needs a token made with the admin scope — Account → API tokens)
     draft: :boolean,
     publish: :boolean,
     purge: :boolean,
+    force: :boolean,
     append: :string,
     card: :string,
     page: :string,
@@ -1552,6 +1556,16 @@ ADMIN  (needs a token made with the admin scope — Account → API tokens)
 
     HTTP.post("/boards", body)
     |> out(o, fn r -> IO.puts("created board ##{r["board"]["id"]}: #{r["board"]["name"]}") end)
+  end
+
+  # The tour board a first sign-in builds by itself. Here for an account that
+  # archived it, or one made before the tour existed.
+  defp run("welcome", [], o) do
+    HTTP.post("/boards/welcome", compact(%{"force" => o[:force]}))
+    |> out(o, fn r ->
+      board = r["board"]
+      IO.puts("built “#{board["name"]}” (#{board["code"]}) — open it and work down the To Do list")
+    end)
   end
 
   defp run("set-board", [ref], o) do

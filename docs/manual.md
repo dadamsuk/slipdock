@@ -138,6 +138,59 @@ way in: what it is, the pictures, and how to get it running.
   30 days, API tokens for the CLI
 - Groups of users; boards, single cards and saved views can be shared with
   people or groups as read-only or editable
+- **A Getting Started board** built on a first sign-in: a tour of all of the
+  above, made of cards, subcards, a live automation and wiki pages (see below)
+
+## Getting Started
+
+The first time an account signs in it gets a board called **Getting Started**,
+and lands on it rather than on an index with nothing on it. It is built by
+`Slipdock.Onboarding`, and it is both halves of the same job: a new install
+that shows a blank page teaches nobody anything, and whatever is put there to
+fix that may as well be the tour.
+
+What is on it:
+
+- **A card per feature**, in the To Do list, in the order somebody meets them:
+  opening a card, adding one, flags and tags and priorities, dates and the
+  eight views, subcards, the wiki, search and Ask, automations, the AI
+  assistant, sharing, and the CLI and API. Each says what to try and where it
+  is.
+- **An epic** — "Break a big job into subcards" — which actually has a board
+  of its own, with four subcards, one of them genuinely blocked by another, so
+  the roll-up, the breadcrumb and the dependency badge are real rather than
+  described.
+- **A card in Done**, a card in In Progress carrying a checklist, a comment, a
+  flag and dates, and two in the Backlog. Every list has something in it: a
+  board with an empty Done column is the one part of a new install that reads
+  as broken when it is only new.
+- **A working automation** — *when a card lands in Done, comment on it* — on
+  the board's Automations tab. It emails nobody and waits on no clock, so the
+  first automation anybody sees is one they can trigger in five seconds.
+- **Three wiki pages**: *Welcome to your wiki*, pinned to the card that sends
+  you there, with two pages nested under it that are the two shapes worth
+  having — a decision and a runbook. The welcome page is written in the markup
+  it is explaining: `[[links]]`, a wanted link, a `[[!children]]` directive and
+  a live ```` ```slipdock ```` query block that answers itself when you read it.
+
+The board is nobody's permanent furniture. The last card says so: archive it
+from the board index when the tour is done, which keeps everything on it and,
+on a metered server, hands the card allowance back.
+
+**Who gets one.** Somebody who has never signed in and owns no boards. The
+first sign-in on a self-hosted install claims any boards that were already
+there (`Slipdock.Access.claim_unowned_boards/1`), and an owner of real boards
+is not somebody who needs a tutorial, so that case is skipped.
+
+**Switching it off.** `SLIPDOCK_WELCOME_BOARD=0`. The manual half keeps
+working either way:
+
+    mix slipdock.welcome you@example.com [--force]   # on the server
+    slipdock welcome [--force]                       # as yourself, over the API
+    curl -s -X POST -H "$H" B/api/boards/welcome
+
+which is also how an account that archived the tour, or one made before the
+tour existed, gets one.
 
 ## Swimlanes
 
@@ -1681,6 +1734,7 @@ GET    /api/boards                         POST   /api/boards   {name, code, des
 GET    /api/boards/:board                  PATCH  /api/boards/:board   DELETE /api/boards/:board
 POST   /api/boards/:board/archive          POST   /api/boards/:board/restore   (owner only)
 POST   /api/boards/order   {boards: [ref, ...]}   your own order for the index; others unaffected
+POST   /api/boards/welcome   {force}   build the Getting Started tour board (409 if you have one)
 GET    /api/boards/:board/cards            POST   /api/boards/:board/cards
        ?column= &tag= &priority= &flag= &q= &completed= &archived=
        &due=overdue|today|week|month|has|none  &deps=blocked|ready|blocking|violated|free
@@ -1818,6 +1872,7 @@ slipdock unsave --id 3                                     # or `slipdock unsave
 slipdock templates
 slipdock new-template Sprint --desc "Two weeks" --list Todo --list "Doing:2:amber" --list "Done::emerald"
 slipdock new-board Q4 plan --template Sprint
+slipdock welcome                  # rebuild the Getting Started tour board; --force for another
 slipdock boards --all             # archived boards too;  --archived for those alone
 slipdock boards --sort active     # or name, newest, oldest, cards; default is your own order
 slipdock archive-board errands | slipdock restore-board errands

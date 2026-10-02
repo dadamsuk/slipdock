@@ -7,8 +7,14 @@ defmodule SlipdockWeb.UserAuth do
 
   alias Slipdock.Accounts
 
-  @doc "Logs the user in: a fresh session with a 30-day session token."
-  def log_in_user(conn, user) do
+  @doc """
+  Logs the user in: a fresh session with a 30-day session token.
+
+  `opts[:to]` is where to land when nothing was being asked for — a first
+  sign-in goes to the board that was just built for it rather than to an index
+  with one thing on it. Where they *were* going still wins.
+  """
+  def log_in_user(conn, user, opts \\ []) do
     token = Accounts.generate_session_token(user)
     return_to = get_session(conn, :user_return_to)
     Accounts.touch_last_signed_in(user)
@@ -16,7 +22,7 @@ defmodule SlipdockWeb.UserAuth do
     conn
     |> renew_session()
     |> put_token_in_session(token)
-    |> redirect(to: return_to || ~p"/")
+    |> redirect(to: return_to || opts[:to] || ~p"/")
   end
 
   defp renew_session(conn) do

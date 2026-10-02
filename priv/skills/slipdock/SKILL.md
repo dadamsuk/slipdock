@@ -75,6 +75,11 @@ card to them will not work until something is.
    --percent N` to match — rather than one write-up at the end. A card in progress
    with no comment newer than the move reads as abandoned to whoever is watching.
 6. Report ids back to the user (`#42`) so they can find cards in the UI.
+7. **The "Getting Started" board is a tutorial, not work.** The server builds one for a new
+   account: its cards are instructions for a person ("drag this card to Done"), so never work
+   them, finish them or tidy them. If that is the only board here, say so and ask what the user
+   actually wants doing. `slipdock welcome` builds a fresh one for somebody who archived theirs
+   and wants the tour back.
 
 ## Commands
 
@@ -169,6 +174,7 @@ slipdock new-board <name> [--code C] [--shortcut K] [--desc TEXT] [--color C]
 slipdock set-board <board> [--name N] [--code C] [--shortcut K] [--desc TEXT] [--color C]
 slipdock archive-board <board> | slipdock restore-board <board>   # owner only; ask first
 slipdock order-boards <board>...        # the order you list boards in (yours alone)
+slipdock welcome [--force]              # rebuild the "Getting Started" tour board (see below)
 slipdock new-column <board> <name> [--wip N] [--color C]
 slipdock new-tag <board> <name> [--color C]
 slipdock new-board <name> [--code C] [--shortcut K] [--desc TEXT] [--color C] [--template T]
