@@ -19,6 +19,8 @@ defmodule SlipdockWeb.LoginLive.Index do
        peer: peer_ip(socket),
        form: to_form(%{"email" => ""}, as: :login),
        sent_to: nil,
+       code_form: to_form(%{"code" => ""}, as: :login),
+       code_error: nil,
        agentic_file: nil,
        agentic: Accounts.agentic_login_enabled?(),
        dev_mailbox: Application.get_env(:slipdock, :dev_routes, false)
@@ -65,7 +67,37 @@ defmodule SlipdockWeb.LoginLive.Index do
   end
 
   def handle_event("again", _, socket),
-    do: {:noreply, assign(socket, sent_to: nil, agentic_file: nil)}
+    do: {:noreply, assign(socket, sent_to: nil, agentic_file: nil, code_error: nil)}
+
+  @doc false
+  # Typing the code instead of clicking the link. A LiveView cannot put anything
+  # in the session, so a correct code mints a fresh one-time link and sends the
+  # browser through the ordinary sign-in route — the same door, reached from a
+  # keyboard.
+  def handle_event("code", %{"login" => %{"code" => code}}, socket) do
+    email = socket.assigns.sent_to
+
+    case allowed_to_try(socket, email) do
+      {:error, {:too_many, seconds}} ->
+        {:noreply, assign(socket, code_error: too_many_message(seconds))}
+
+      :ok ->
+        case Accounts.verify_sign_in_code(email, code) do
+          {:ok, user} ->
+            {:noreply, redirect(socket, to: ~p"/login/#{Accounts.create_sign_in_token(user)}")}
+
+          {:error, :too_many} ->
+            {:noreply,
+             assign(socket,
+               code_error: "Too many wrong codes. Ask for a new one.",
+               sent_to: nil
+             )}
+
+          {:error, :invalid} ->
+            {:noreply, assign(socket, code_error: "That code is wrong, or it has expired.")}
+        end
+    end
+  end
 
   # An address this server will not sign in gets the same screen as one it
   # will: anything else answers "does this person have an account here?" for
@@ -138,6 +170,19 @@ defmodule SlipdockWeb.LoginLive.Index do
                 15 minutes.
               </p>
             </div>
+            <.form for={@code_form} id="login-code-form" phx-submit="code" class="space-y-2">
+              <.input
+                field={@code_form[:code]}
+                type="text"
+                label="Or type the code from the email"
+                inputmode="numeric"
+                autocomplete="one-time-code"
+                placeholder="123456"
+              />
+              <p :if={@code_error} class="text-sm text-error">{@code_error}</p>
+              <button type="submit" class="btn btn-primary w-full">Sign in with the code</button>
+            </.form>
+
             <a :if={@dev_mailbox} href="/dev/mailbox" class="btn btn-outline btn-sm w-full">
               <.icon name="hero-envelope-open" class="size-4" /> Open the local mailbox
             </a>

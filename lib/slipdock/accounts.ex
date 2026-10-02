@@ -182,7 +182,8 @@ defmodule Slipdock.Accounts do
   def deliver_magic_link(email, url_fun) when is_function(url_fun, 1) do
     with :ok <- check_signup(email),
          {:ok, user} <- get_or_create_user_by_email(email) do
-      UserNotifier.deliver_magic_link(user, url_fun.(create_magic_token(user)))
+      {token, code} = create_magic_token(user)
+      UserNotifier.deliver_magic_link(user, url_fun.(token), code)
     end
   end
 
@@ -203,17 +204,18 @@ defmodule Slipdock.Accounts do
   @spec deliver_sign_in(User.t(), (String.t() -> String.t())) ::
           {:ok, :emailed | {:written, String.t()} | :logged} | {:error, term()}
   def deliver_sign_in(%User{} = user, url_fun) when is_function(url_fun, 1) do
-    link = url_fun.(create_magic_token(user))
+    {token, code} = create_magic_token(user)
+    link = url_fun.(token)
 
     cond do
       Settings.smtp_configured?() ->
-        case UserNotifier.deliver_magic_link(user, link) do
+        case UserNotifier.deliver_magic_link(user, link, code) do
           {:ok, _} -> {:ok, :emailed}
           {:error, reason} -> {:error, reason}
         end
 
       Settings.login_fallback_enabled?() ->
-        write_sign_in_fallback(user, link)
+        write_sign_in_fallback(user, link, code)
 
       true ->
         {:error, :no_delivery}
@@ -235,16 +237,17 @@ defmodule Slipdock.Accounts do
       Path.join(File.cwd!(), "log/sign-in-links.log")
   end
 
-  defp write_sign_in_fallback(%User{} = user, link) do
+  defp write_sign_in_fallback(%User{} = user, link, code) do
     path = fallback_path()
     stamp = DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
 
     # Also logged, so `journalctl` and `docker compose logs` work for somebody
-    # who does not know the path.
-    Logger.info("Sign-in link for #{user.email} (no mail server configured): #{link}")
+    # who does not know the path. The code comes first on the line: it is the
+    # part a person can realistically read off a terminal and retype.
+    Logger.info("Sign-in code for #{user.email} is #{code} (no mail server configured): #{link}")
 
     with :ok <- File.mkdir_p(Path.dirname(path)),
-         :ok <- File.write(path, "#{stamp}  #{user.email}  #{link}\n", [:append]) do
+         :ok <- File.write(path, "#{stamp}  #{user.email}  #{code}  #{link}\n", [:append]) do
       _ = File.chmod(path, 0o600)
       {:ok, {:written, path}}
     else
@@ -345,7 +348,8 @@ defmodule Slipdock.Accounts do
       dir = Application.get_env(:slipdock, :agentic_login_dir, "/tmp")
       name = Base.url_encode64(:crypto.strong_rand_bytes(12), padding: false)
       path = Path.join(dir, "slipdock-agentic-login-#{name}.txt")
-      link = url_fun.(create_magic_token(user))
+      {token, _code} = create_magic_token(user)
+      link = url_fun.(token)
 
       with :ok <- File.mkdir_p(dir),
            :ok <- File.write(path, link <> "\n", [:exclusive]) do
@@ -357,11 +361,82 @@ defmodule Slipdock.Accounts do
   @doc "Whether the sign-in page offers the file-based \"Agentic Login\"."
   def agentic_login_enabled?, do: Application.get_env(:slipdock, :agentic_login, false) == true
 
+  # One row, two ways through it: a long token for the link and a short code for
+  # typing. Using either consumes the row, so a code cannot outlive its link.
   defp create_magic_token(%User{} = user) do
-    {token, user_token} = UserToken.build_hashed_token(user, "magic", sent_to: user.email)
+    code = UserToken.generate_code()
+
+    {token, user_token} =
+      UserToken.build_hashed_token(user, "magic", sent_to: user.email, code: code)
+
     Repo.insert!(user_token)
+    {token, code}
+  end
+
+  @doc """
+  A one-time sign-in token for somebody whose identity has just been proved by
+  other means — typing a correct code, or an admin acting deliberately.
+
+  It exists because a LiveView cannot write to the session: the only way to
+  turn "this person proved who they are" into a browser session is to send
+  them through `/login/:token` like anybody else.
+  """
+  @spec create_sign_in_token(User.t()) :: String.t()
+  def create_sign_in_token(%User{} = user) do
+    {token, _code} = create_magic_token(user)
     token
   end
+
+  @doc """
+  Exchanges a sign-in code for its user, the way `verify_magic_link/1` exchanges
+  a link.
+
+  Returns `{:ok, user}`, `{:error, :invalid}`, or `{:error, :too_many}` once a
+  code has been guessed at too often — six digits is a small enough space that
+  the attempt counter, not the length, is what makes it safe.
+
+  A wrong guess counts against **every** live code for that address, so asking
+  for a second code is not a way to buy more attempts.
+  """
+  @spec verify_sign_in_code(String.t(), String.t()) ::
+          {:ok, User.t()} | {:error, :invalid | :too_many}
+  def verify_sign_in_code(email, code) when is_binary(email) and is_binary(code) do
+    email = email |> String.trim() |> String.downcase()
+    code = String.trim(code)
+
+    case Repo.one(UserToken.verify_code_query(email, code)) do
+      {%User{} = user, %UserToken{} = user_token} ->
+        Repo.delete!(user_token)
+        {:ok, confirm(user)}
+
+      nil ->
+        count_wrong_guess(email)
+    end
+  end
+
+  def verify_sign_in_code(_, _), do: {:error, :invalid}
+
+  defp count_wrong_guess(email) do
+    {_, _} =
+      Repo.update_all(from(t in UserToken.live_codes_query(email)),
+        inc: [code_attempts: 1]
+      )
+
+    exhausted? =
+      Repo.exists?(
+        from(t in UserToken.live_codes_query(email),
+          where: t.code_attempts >= ^UserToken.code_attempt_limit()
+        )
+      )
+
+    if exhausted?, do: {:error, :too_many}, else: {:error, :invalid}
+  end
+
+  defp confirm(%User{confirmed_at: nil} = user) do
+    user |> Ecto.Changeset.change(confirmed_at: DateTime.utc_now(:second)) |> Repo.update!()
+  end
+
+  defp confirm(user), do: user
 
   @doc "Exchanges a magic-link token for its user (once), confirming the account."
   def verify_magic_link(token) do
@@ -369,13 +444,7 @@ defmodule Slipdock.Accounts do
          {%User{} = user, %UserToken{} = user_token} <- Repo.one(query) do
       Repo.delete!(user_token)
 
-      user =
-        if user.confirmed_at,
-          do: user,
-          else:
-            user
-            |> Ecto.Changeset.change(confirmed_at: DateTime.utc_now(:second))
-            |> Repo.update!()
+      user = confirm(user)
 
       {:ok, user}
     else
