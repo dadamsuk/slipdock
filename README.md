@@ -133,6 +133,10 @@ own machine.
 docker compose up -d
 ```
 
+Whenever you change `.env` afterwards, run that same command again. **Not
+`docker compose restart`** — that reuses the existing container and never
+re-reads `.env`, which makes a setting look as though it did not work.
+
 **4. Set it up.** Open `http://localhost:4000`, or your `PHX_HOST`. A server
 nobody has claimed shows a **setup wizard**, which asks for a token printed in
 the log the first time it starts:
@@ -263,8 +267,10 @@ that `up` stops reaching for the published image.
 | Every page redirects to `/setup` | The opposite: it has never been claimed. Finish the wizard. |
 | The wizard will not take the token | It is in the log from the **first** boot: `docker compose logs slipdock \| grep -A4 "has not been set up"`. |
 | No sign-in email arrives | Expected until SMTP is configured — the code goes to the log. Set it under **Admin → Email**, which will not save until a test message actually arrives. |
-| The page loads but never updates | `PHX_HOST` or `SLIPDOCK_CHECK_ORIGIN` does not include the name you are using. |
-| Sign-in links point at `localhost` | `PHX_HOST` is unset. The container says so on every boot. |
+| The page loads but never updates | `PHX_HOST` is not the name you are reaching it by. The log says so, in a box, naming the value to set. |
+| Sign-in links point at `localhost` | Same cause, same fix. |
+| You set `PHX_HOST` and nothing changed | `docker compose restart` reuses the container and never re-reads `.env`. Use `docker compose up -d`. |
+| Reached by more than one name | Keep the main one in `PHX_HOST`, list the rest in `SLIPDOCK_CHECK_ORIGIN=a.example,b.example`. |
 
 ### Running it for other people
 

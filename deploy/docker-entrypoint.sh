@@ -32,8 +32,10 @@ fi
 # Links in sign-in emails have to point somewhere people can reach. Without
 # PHX_HOST the app would say example.com, which is nobody's server.
 if [ -z "${PHX_HOST:-}" ]; then
-  echo "entrypoint: PHX_HOST is not set, using localhost — sign-in links will" \
-       "point at localhost, so set it to the address people actually use."
+  echo "entrypoint: PHX_HOST is not set, so it is localhost. Two things will be" \
+       "wrong if that is not how people reach this server: sign-in links will" \
+       "point at localhost, and pages opened at any other name will load and" \
+       "then never update. Set PHX_HOST to the address people actually use."
   PHX_HOST="localhost"
   export PHX_HOST
 fi

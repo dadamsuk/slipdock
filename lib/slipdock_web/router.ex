@@ -11,6 +11,9 @@ defmodule SlipdockWeb.Router do
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug SlipdockWeb.Plugs.ContentSecurityPolicy
+    # Says so, once, when this server is reached by a name it does not know
+    # itself by. Warns and carries on; it never refuses.
+    plug SlipdockWeb.Origin
     plug :fetch_current_user
     # A server nobody has set up yet has one page, and this is how you get sent
     # to it.

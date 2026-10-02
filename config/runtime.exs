@@ -324,17 +324,24 @@ if config_env() == :prod do
 
   config :slipdock, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
-  # Phoenix only accepts WebSocket connections whose Origin matches the host
+  # Phoenix only accepts live-update connections whose Origin matches the host
   # above, which is right until the same server is reached by several names — a
   # tailnet name and an IP, say. List the others here (comma-separated), or set
   # it to "false" to accept any origin, which gives up a CSRF protection on the
   # socket and should be a last resort.
+  #
+  # The check itself goes through `SlipdockWeb.Origin` rather than Phoenix's
+  # built-in list. It does the same thing — compare the host — but when it
+  # refuses it says which variable to set and to what, instead of Phoenix's
+  # generic advice to edit config files that a container has no copy of.
+  config :slipdock,
+         :origin_hosts,
+         [host | SlipdockWeb.Origin.parse(System.get_env("SLIPDOCK_CHECK_ORIGIN"))]
+
   check_origin =
-    case System.get_env("SLIPDOCK_CHECK_ORIGIN") do
-      nil -> true
-      "false" -> false
-      list -> list |> String.split(",") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
-    end
+    if System.get_env("SLIPDOCK_CHECK_ORIGIN") == "false",
+      do: false,
+      else: {SlipdockWeb.Origin, :allowed?, []}
 
   config :slipdock, SlipdockWeb.Endpoint,
     url: [host: host, port: url_port, scheme: url_scheme],
