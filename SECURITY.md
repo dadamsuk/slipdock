@@ -21,6 +21,12 @@ The application as it ships: authentication and sessions, the permission model
 rules, the wiki renderer, and anything that lets one account read or change
 what belongs to another.
 
+Particularly welcome: a way past the registration mode; a way to make an account
+without `invites_create_accounts` being on; a way to see somebody you share
+nothing with while `user_directory` is `shared_only`, **including through the
+text sent to a language model**; a way past the card limit; and anything that
+lets a non-admin, or an admin's ordinary read/write token, reach `/api/admin`.
+
 Out of scope, because they are deployment choices rather than bugs:
 
 - **Agentic Login** (`KANBAN_AGENTIC_LOGIN`). It writes a working sign-in link
@@ -43,6 +49,11 @@ Out of scope, because they are deployment choices rather than bugs:
   reach the page gets an account — that is the setting doing what it says, not
   a vulnerability. A new account still sees only its own boards, and where
   `user_directory` is `shared_only` it cannot see that anybody else exists.
+- **The admin scope, used as intended.** An API token made with the `admin`
+  scope can change who may register and disable people — that is what it is
+  for. Only an admin can create one, and an ordinary read/write token cannot do
+  any of it. A report that an admin-scoped token is powerful is not a bug; one
+  that a read-only or read/write token can reach `/api/admin` is.
 - Anything that needs filesystem or shell access to the server, which already
   implies full control of the instance.
 - Reports that a hardening header could be stricter, with no concrete

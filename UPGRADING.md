@@ -1,5 +1,34 @@
 # Upgrading
 
+## Registration, admins and limits
+
+This release is the one where Slipdock learned to be run for people who are not
+you. Nothing changes for an existing install — the defaults are what you had —
+but the pieces are worth knowing about:
+
+- **A setup wizard** for new installs, gated by a token printed in the log.
+  Existing installs never see it (see below).
+- **Admins.** Your oldest account becomes one. Only an admin can change who may
+  register, how mail is sent, or anybody's standing.
+- **Sign-in codes** beside the magic link, so a server with no mail can be used
+  by reading a code out of the log rather than a sixty-character URL.
+- **Registration modes**: closed, allowlist, approval, open.
+- **A card limit** (off by default), counted against boards somebody owns.
+- **`user_directory`** (`instance` by default, so nothing changes): on
+  `shared_only`, people only see those they share something with.
+- **`invites_create_accounts`** (on by default, which is what happened before):
+  whether sharing with an unknown address creates an account for it. Turn it
+  off to share only with people who already have one.
+
+Two behaviour changes worth reading:
+
+- Sharing a board or card with an address that has no account used to create one
+  silently. It now goes through one path which **emails them** to say so, and
+  which an admin can switch off entirely.
+- An account can be **disabled**, which ends its sessions and tokens at once.
+  There is still no delete, because somebody's cards, comments and page history
+  would go with them.
+
 ## Settings moved into the database
 
 Who may register, how mail is sent, and the rest of this server's own

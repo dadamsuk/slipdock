@@ -1309,21 +1309,60 @@ The full specification, and the decisions behind it, is in `docs/wiki.md`.
 
 ## Accounts and sharing
 
-Every page needs a signed-in user. The login page asks for an email address
-and sends a one-time link (valid 15 minutes); following it signs you in for
-30 days on that browser. The first person to sign in becomes the owner of any
-boards that existed before accounts did.
+Every page needs a signed-in user. The login page asks for an email address and
+sends a one-time link **and a six-digit code**, either of which works, once,
+within 15 minutes; using one signs you in for 30 days on that browser. The code
+exists for the times the link cannot be clicked — read out of a log, typed from
+a phone. The first person to sign in becomes the owner of any boards that
+existed before accounts did.
 
-**Who may get an account.** On an instance with no users, the first address to
-sign in claims it. After that the door is closed: only people who already have
-an account can sign in, unless you say otherwise.
+**Setting the server up.** A server nobody has claimed shows a setup wizard and
+sends every other page to it. It asks who may register, how mail goes out and
+who the admin is, and it wants a token printed in the log on first boot — so
+that finding the page first is not enough to claim somebody else's instance.
+Finishing it closes the page for good. `SLIPDOCK_ADMIN_EMAIL`, or
+`mix slipdock.setup --admin you@example.com`, does the same thing without a
+browser.
 
-- `KANBAN_SIGNUP_ALLOW=you@example.com,example.org` — a comma-separated list of
-  addresses and of domains. A bare domain lets anybody there sign up, which is
-  how you let a team in.
-- `KANBAN_OPEN_SIGNUP=true` — anybody at all, which is only sensible when the
-  server is already behind a boundary of your own (Tailscale, a VPN, an
-  authenticating proxy).
+**Who may get an account** is then one of four modes, under **Admin**:
+
+- **Nobody can register** (the default) — accounts exist only because you made
+  them by sharing something.
+- **Only addresses I list** — an allowlist of addresses and of domains. A bare
+  domain lets anybody there in, which is how you admit a team.
+- **I approve each request** — people ask on the sign-in page and you say yes or
+  no. Needs a working mail server, and Slipdock refuses the mode without one,
+  because otherwise nobody is ever told that somebody is waiting.
+- **Anyone can register** — only sensible when the server is already behind a
+  boundary of your own (Tailscale, a VPN, an authenticating proxy).
+
+Changing the mode never removes anybody: people who already have an account keep
+it.
+
+**Running it for other people.** Three more settings make a shared server
+defensible. A **card limit** caps how many cards one person's own boards may
+hold — cards on boards shared *with* them cost them nothing, and archiving frees
+one up. **Who people can see** can be narrowed from everyone on the server to
+only the people somebody actually shares a board, card or page with, which also
+keeps other customers' addresses out of anything sent to a language model. And
+**whether sharing with a stranger makes them an account** can be turned off, so
+you can only share with people who already have one.
+
+**Admins.** One role, and the oldest account has it after an upgrade. Admins
+change all of the above, see everybody, grant and remove admin rights, disable
+accounts and set per-person card limits. Three things are deliberately refused:
+mail settings will not save without a test message that arrived, the last admin
+cannot be demoted or disabled, and the admin address only changes once the new
+address confirms a code. There is no delete — disabling is reversible and
+immediate, and deleting somebody would take their cards, comments and page
+history with them.
+
+**When there is no mail server**, sign-in codes are written to a file on the
+server (`SLIPDOCK_LOGIN_FALLBACK_PATH`, mode `0600`) and to the log, so a fresh
+install can be used at all. Anyone who can read either can sign in as anybody,
+so it switches itself off once mail works, and `SLIPDOCK_LOGIN_FALLBACK=false`
+forbids it in a way the application cannot undo. Set that on anything other
+people can reach.
 
 A refused address is told exactly what an accepted one is told — "if that
 address can sign in here, a link is on its way" — so the page cannot be used to
@@ -1481,8 +1520,8 @@ every variable with its default. The ones that matter first:
 ```sh
 PHX_HOST=kanban.example.com     # the address people use; sign-in links are built from it
 KANBAN_PUBLISH=4000             # the host port to publish
-KANBAN_SIGNUP_ALLOW=you@example.com,example.org   # who else may sign up
-KANBAN_SMTP_HOST=smtp.example.com                 # so links are emailed rather than logged
+SLIPDOCK_ADMIN_EMAIL=you@example.com               # skips the setup wizard
+SLIPDOCK_SMTP_HOST=smtp.example.com               # so codes are emailed rather than logged
 ```
 
 Behind a TLS proxy, set `KANBAN_URL_SCHEME=https` and `KANBAN_URL_PORT=443` so

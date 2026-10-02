@@ -100,10 +100,14 @@ docker compose up -d
 docker compose logs -f          # the sign-in link is in here
 ```
 
-Open <http://localhost:4000>, enter your email address, and follow the link
-from the log (no mail is configured yet, so that is where it goes). **The first
-address to sign in claims the instance**; after that nobody else can sign up
-unless you say so.
+Open <http://localhost:4000>. A server nobody has set up yet shows a **setup
+wizard**: who may register, how mail goes out, and your own address. It asks for
+a token that is printed in the log on first boot, so that reaching the page
+first is not enough to claim somebody else's server — `docker compose logs` has
+it. Once you finish, that page is gone for good and everything on it lives under
+**Admin**.
+
+Set `SLIPDOCK_ADMIN_EMAIL` in your `.env` and the wizard never appears at all.
 
 Everything that must survive an upgrade is on one volume, `slipdock-data`: the
 database, uploaded files, each person's OpenRouter key, and a `SECRET_KEY_BASE`
@@ -117,8 +121,8 @@ already a working configuration. The ones that matter first:
 ```sh
 PHX_HOST=kanban.example.com     # the address people use; sign-in links are built from it
 KANBAN_PUBLISH=4000             # the host port to publish
-KANBAN_SIGNUP_ALLOW=you@example.com,example.org   # who else may sign up
-KANBAN_SMTP_HOST=smtp.example.com                 # so links are emailed rather than logged
+SLIPDOCK_ADMIN_EMAIL=you@example.com               # skips the setup wizard
+SLIPDOCK_SMTP_HOST=smtp.example.com               # so codes are emailed rather than logged
 ```
 
 Behind a TLS proxy, set `KANBAN_URL_SCHEME=https` and `KANBAN_URL_PORT=443`.
@@ -126,6 +130,22 @@ If people reach the server by more than one name, list the others in
 `KANBAN_CHECK_ORIGIN` or live updates are refused for the names you did not
 mention. [The manual](docs/manual.md#with-docker) covers the administrative
 tasks on the entrypoint (`ai-key`, `reindex`, `migrate`, `remote`).
+
+### Running it for other people
+
+Slipdock is built for one person or a team who trust each other, and it will
+also run as a small shared service. Four things make that difference, all under
+**Admin**:
+
+- **Who may register** — closed, an allowlist, approval one at a time, or open.
+- **A card limit**, counted against the boards somebody *owns*, so a guest
+  working on your board costs them nothing.
+- **Who people can see** — everyone on the server, or only the people they
+  actually share a board, card or page with. The second is what stops two
+  customers of one server learning that the other exists; it also keeps their
+  addresses out of the prompts sent to a language model.
+- **Whether sharing with a stranger makes them an account**, which is how
+  somebody arrives on a hosted instance and is usually wrong on a private one.
 
 ### Settings: the environment seeds them once
 
@@ -209,6 +229,11 @@ these are decisions only you can make.
   address is told exactly what an accepted one is told.
 - **Responses carry a Content-Security-Policy** that allows script from this
   origin only.
+- **Administering the server needs its own token scope.** The admin area
+  (registration, mail, people, the signup queue) is behind an admin account, and
+  over HTTP it also needs a token deliberately made with the `admin` scope. API
+  tokens live in agents and CI; an ordinary read/write one leaking should not be
+  a key to who may register.
 - **Agents get scoped tokens, not your account.** `slipdock auth` shows a code,
   you approve it in a browser you are already signed into, and the agent is
   given a token you can see and revoke. A token can be read-only, confined to
