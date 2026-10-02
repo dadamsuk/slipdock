@@ -43,6 +43,12 @@ defmodule Slipdock.Settings.Instance do
 
     field :login_fallback_enabled, :boolean
 
+    # Terms and a privacy notice, for a server run for other people. Empty on a
+    # self-hosted one, where there is nobody to have terms with.
+    field :terms_url, :string
+    field :privacy_url, :string
+    field :terms_version, :string
+
     timestamps(type: :utc_datetime)
   end
 
@@ -86,7 +92,8 @@ defmodule Slipdock.Settings.Instance do
 
   @fields ~w(signup_mode free_card_limit user_directory invites_create_accounts
              admin_email smtp_host smtp_port smtp_username smtp_password
-             smtp_from_name smtp_from_email smtp_tls login_fallback_enabled)a
+             smtp_from_name smtp_from_email smtp_tls login_fallback_enabled
+             terms_url privacy_url terms_version)a
 
   @doc """
   Validates a change to the settings. Blank strings become nil rather than
@@ -97,6 +104,9 @@ defmodule Slipdock.Settings.Instance do
     instance
     |> cast(attrs, @fields)
     |> blank_to_nil([
+      :terms_url,
+      :privacy_url,
+      :terms_version,
       :admin_email,
       :smtp_host,
       :smtp_username,

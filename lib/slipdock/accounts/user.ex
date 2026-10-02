@@ -26,6 +26,8 @@ defmodule Slipdock.Accounts.User do
     # Set when this account exists because somebody shared something with the
     # address, rather than because its owner asked for one.
     field :invited_at, :utc_datetime
+    field :terms_accepted_at, :utc_datetime
+    field :terms_version, :string
     belongs_to :invited_by, Slipdock.Accounts.User
     has_many :groups_owned, Slipdock.Accounts.Group, foreign_key: :owner_id
     many_to_many :groups, Slipdock.Accounts.Group, join_through: "group_members"

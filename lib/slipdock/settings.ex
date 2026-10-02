@@ -171,6 +171,22 @@ defmodule Slipdock.Settings do
     end
   end
 
+  @doc """
+  Whether this server has terms somebody has to agree to.
+
+  Only true once an admin has set both a link and a version. A self-hosted
+  instance has neither, and then nothing about terms appears anywhere — there
+  is nobody to have terms with.
+  """
+  @spec terms?() :: boolean()
+  def terms? do
+    settings = get()
+    present?(settings.terms_url) and present?(settings.terms_version)
+  end
+
+  @doc "The version of the terms currently in force, or nil."
+  def terms_version, do: get().terms_version
+
   @doc "Records that a test message really did reach the SMTP server."
   def mark_smtp_verified do
     case stored() do

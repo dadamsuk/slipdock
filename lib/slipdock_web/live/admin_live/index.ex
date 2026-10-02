@@ -390,6 +390,45 @@ defmodule SlipdockWeb.AdminLive.Index do
         <button type="submit" class="btn btn-primary">Save</button>
       </.form>
 
+      <div class="mt-6 border-t border-base-content/10 pt-6">
+        <h3 class="font-medium">Terms and privacy</h3>
+        <p class="mt-1 text-xs text-base-content/60">
+          For a server other people use. Fill in a link and a version and everybody is asked to
+          agree before they can carry on; change the version and they are asked again. Leave
+          them empty — as a server only you use should — and none of this appears anywhere.
+        </p>
+
+        <.form for={@form} id="terms-form" phx-submit="save-settings" class="mt-3 space-y-3">
+          <input type="hidden" name="settings[signup_mode]" value={@settings.signup_mode} />
+          <.input
+            field={@form[:terms_url]}
+            type="url"
+            label="Terms of service"
+            value={@settings.terms_url}
+            placeholder="https://example.com/terms"
+          />
+          <.input
+            field={@form[:privacy_url]}
+            type="url"
+            label="Privacy notice"
+            value={@settings.privacy_url}
+            placeholder="https://example.com/privacy"
+          />
+          <.input
+            field={@form[:terms_version]}
+            type="text"
+            label="Version"
+            value={@settings.terms_version}
+            placeholder="2026-10-02"
+          />
+          <p class="text-xs text-base-content/60">
+            Writing the terms themselves is your job, not Slipdock's. One thing they should
+            say: card and page text is sent to OpenRouter when anybody uses the AI features.
+          </p>
+          <button type="submit" class="btn btn-outline btn-sm">Save</button>
+        </.form>
+      </div>
+
       <div :if={@settings.signup_mode == :allowlist} class="mt-6 border-t border-base-content/10 pt-6">
         <h3 class="font-medium">Who is allowed</h3>
         <p class="mt-1 text-xs text-base-content/60">
