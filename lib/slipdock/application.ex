@@ -31,7 +31,40 @@ defmodule Slipdock.Application do
     # See https://elixir.hexdocs.pm/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: Slipdock.Supervisor]
-    Supervisor.start_link(children, opts)
+
+    with {:ok, pid} <- Supervisor.start_link(children, opts) do
+      prepare_settings()
+      {:ok, pid}
+    end
+  end
+
+  # The settings row, once, from the environment — and on a server nobody has
+  # claimed yet, the token that `/setup` will ask for. Both need the Repo and
+  # the migrator, so this runs after the supervisor is up rather than before it.
+  defp prepare_settings do
+    # The test environment opts out: this runs before any sandbox is checked
+    # out, so a row written here would escape the rollback and outlive the test
+    # run. `Slipdock.SettingsTest` calls `seed/0` directly instead.
+    if Application.get_env(:slipdock, :seed_settings, true) do
+      Slipdock.Settings.seed()
+      announce_setup(Slipdock.Settings.ensure_setup_token())
+    end
+  end
+
+  defp announce_setup(nil), do: :ok
+
+  defp announce_setup(token) do
+    require Logger
+
+    Logger.info("""
+    This Slipdock server has not been set up yet. Open
+
+        #{Slipdock.Settings.setup_url(token)}
+
+    to choose who may register here, set up email, and name the admin. The
+    token above is what stops whoever reaches that page first from claiming
+    this server; it is in this log only.
+    """)
   end
 
   # "Agentic Login" writes a working sign-in link for *any* email to a file on

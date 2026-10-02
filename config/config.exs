@@ -51,6 +51,22 @@ config :slipdock, :ai,
 # comers, which only makes sense behind a network boundary of your own.
 config :slipdock, :signups, open: false, allow: []
 
+# Defaults for this server's own settings (`Slipdock.Settings`) *before* the
+# setup wizard has been filled in, and the values the row is seeded from on
+# first boot. The database wins once anything has been saved: changing these on
+# a server that has already been set up does nothing.
+#
+#   signup_mode             :open | :allowlist | :approval | :closed
+#   free_card_limit         non-archived cards allowed on one person's own
+#                           boards; nil for no limit, which is what a
+#                           self-hosted install wants
+#   user_directory          :instance (everyone here shows up in pickers) or
+#                           :shared_only (only people you share something with)
+#   invites_create_accounts whether sharing with an unknown address makes an
+#                           account for it
+#   setup_completed         skip the wizard entirely (the test environment)
+config :slipdock, :settings, []
+
 # The sign-in form's counters (see `Slipdock.RateLimit`). `enabled: false` turns
 # the limit off everywhere.
 config :slipdock, :rate_limit, enabled: true

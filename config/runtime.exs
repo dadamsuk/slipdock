@@ -106,6 +106,19 @@ if host = smtp_host do
            tls_options: [verify: :verify_none],
            retries: 1
          ] ++ auth
+
+  # The same details again, in the shape `Slipdock.Settings.seed/0` wants, so a
+  # server configured this way carries its mail settings into the settings row
+  # the first time it boots and can then be edited from the admin UI. Seeding
+  # happens once: after that the row wins and these are ignored.
+  config :slipdock, :seed_smtp,
+    host: host,
+    port: String.to_integer(System.get_env("SLIPDOCK_SMTP_PORT") || "587"),
+    username: System.get_env("SLIPDOCK_SMTP_USER"),
+    password: System.get_env("SLIPDOCK_SMTP_PASSWORD"),
+    from_email: System.get_env("SLIPDOCK_SMTP_FROM") || System.get_env("SLIPDOCK_MAIL_FROM"),
+    from_name: System.get_env("SLIPDOCK_MAIL_FROM_NAME") || "Slipdock",
+    tls: :if_available
 end
 
 # Keys are per-person now (Account → AI key, stored by `Slipdock.AI.Keys`).
@@ -123,6 +136,52 @@ end
 # in — and the first address to use an empty instance claims it.
 if System.get_env("SLIPDOCK_OPEN_SIGNUP") in ["1", "true"] do
   config :slipdock, :signups, open: true
+end
+
+# This server's own settings, seeded into the database on first boot (see
+# `Slipdock.Settings`). Setting SLIPDOCK_ADMIN_EMAIL is what lets a container be
+# configured with no browser: the setup wizard never appears, and that address
+# is the admin.
+#
+# All of these seed *once*. Changing one on a server that has already been set
+# up has no effect — edit it in the admin UI instead.
+settings_env =
+  [
+    signup_mode:
+      case System.get_env("SLIPDOCK_SIGNUP_MODE") do
+        mode when mode in ["open", "allowlist", "approval", "closed"] -> String.to_atom(mode)
+        _ -> nil
+      end,
+    free_card_limit:
+      case System.get_env("SLIPDOCK_FREE_CARD_LIMIT") do
+        nil -> nil
+        "" -> nil
+        value -> String.to_integer(value)
+      end,
+    user_directory:
+      case System.get_env("SLIPDOCK_USER_DIRECTORY") do
+        directory when directory in ["instance", "shared_only"] -> String.to_atom(directory)
+        _ -> nil
+      end,
+    invites_create_accounts:
+      case System.get_env("SLIPDOCK_INVITES_CREATE_ACCOUNTS") do
+        value when value in ["1", "true"] -> true
+        value when value in ["0", "false"] -> false
+        _ -> nil
+      end,
+    admin_email: System.get_env("SLIPDOCK_ADMIN_EMAIL")
+  ]
+  |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+
+if settings_env != [] do
+  config :slipdock, :settings, settings_env
+end
+
+# Writing sign-in codes to a file is how a server with no working mail lets
+# anybody in at all — and a back door for anyone who can read that file. This
+# turns it off for good, whatever the admin UI says: set it on a public host.
+if System.get_env("SLIPDOCK_LOGIN_FALLBACK") in ["0", "false"] do
+  config :slipdock, :login_fallback, false
 end
 
 if allow = System.get_env("SLIPDOCK_SIGNUP_ALLOW") do
