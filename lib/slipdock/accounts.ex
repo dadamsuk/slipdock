@@ -18,6 +18,7 @@ defmodule Slipdock.Accounts do
     UserToken
   }
 
+  alias Slipdock.Boards.Board
   alias Slipdock.Settings
 
   ## Users
@@ -433,6 +434,107 @@ defmodule Slipdock.Accounts do
         # ever hear about this, and the inviter has to be told that.
         deliver_sign_in(user, &"#{base}/login/#{&1}")
     end
+  end
+
+  ## Leaving
+
+  @doc """
+  Removes somebody and their work. The answer to "delete my account", which
+  `disable/1` is not — a disabled account is still all of their data.
+
+  Refuses on the last admin, like everything else that would leave a server
+  nobody can administer.
+
+  ## What happens to the boards they own
+
+  Their own boards go with them, cards and all: Postgres-style cascades are
+  already set up for that, and a board nobody else could ever see is theirs
+  alone.
+
+  **A board somebody else can still reach is handed over rather than deleted.**
+  It goes to whoever holds the strongest remaining grant on it — a writer before
+  a reader, the oldest grant breaking ties. Deleting it instead would take other
+  people's work with them, and handing it to an admin would quietly give the
+  operator a customer's data, which is worse than either.
+
+  ## What survives
+
+  Status updates and wiki revisions they wrote on boards they did not own stay
+  where they are with the author nulled — the `nilify_all` already on those
+  columns. The words were addressed to other people, and a page history with
+  holes in it is unreadable.
+
+  Comments are not mentioned because they carry no author in the first place
+  (see `Slipdock.Boards.Comment`): there is nothing to null.
+  """
+  @spec delete_user(User.t()) :: {:ok, map()} | {:error, :last_admin}
+  def delete_user(%User{} = user) do
+    if last_admin?(user) do
+      {:error, :last_admin}
+    else
+      handed_over = hand_over_shared_boards(user)
+      email = user.email
+      Repo.delete!(user)
+
+      Logger.info(
+        "Deleted the account #{email}; handed #{length(handed_over)} shared board(s) on."
+      )
+
+      {:ok, %{email: email, handed_over: handed_over}}
+    end
+  end
+
+  @doc """
+  What `delete_user/1` would do, without doing it — for a confirmation screen
+  that has to be specific to be worth reading.
+  """
+  @spec deletion_preview(User.t()) :: map()
+  def deletion_preview(%User{} = user) do
+    owned = Repo.all(from(b in Board, where: b.owner_id == ^user.id))
+    {shared, alone} = Enum.split_with(owned, &shared_with_somebody?/1)
+
+    %{
+      boards_deleted: Enum.map(alone, & &1.name),
+      boards_handed_over:
+        Enum.map(shared, fn board ->
+          %{name: board.name, to: successor(board) && successor(board).email}
+        end),
+      cards_deleted: Slipdock.Quota.used(user),
+      last_admin?: last_admin?(user)
+    }
+  end
+
+  defp hand_over_shared_boards(%User{} = user) do
+    for board <- Repo.all(from(b in Board, where: b.owner_id == ^user.id)),
+        shared_with_somebody?(board),
+        successor = successor(board),
+        successor != nil do
+      Repo.update_all(from(b in Board, where: b.id == ^board.id),
+        set: [owner_id: successor.id]
+      )
+
+      %{board: board.name, to: successor.email}
+    end
+  end
+
+  defp shared_with_somebody?(%Board{} = board), do: successor(board) != nil
+
+  # The strongest remaining claim: a writer before a reader, the oldest grant
+  # breaking ties. Groups are expanded, since a grant to a group is a grant to
+  # the people in it.
+  defp successor(%Board{} = board) do
+    Repo.one(
+      from(g in Slipdock.Access.Grant,
+        left_join: m in "group_members",
+        on: m.group_id == g.group_id,
+        join: u in User,
+        on: u.id == coalesce(g.user_id, m.user_id),
+        where: g.board_id == ^board.id and u.id != ^board.owner_id and is_nil(u.disabled_at),
+        order_by: [desc: g.level, asc: g.inserted_at],
+        limit: 1,
+        select: u
+      )
+    )
   end
 
   ## Support access

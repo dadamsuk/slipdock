@@ -107,6 +107,8 @@ defmodule SlipdockWeb.Router do
     pipe_through [:browser, :require_authenticated_user]
 
     get "/attachments/:id/:filename", AttachmentController, :show
+    # Everything you have, as a zip. Yours, so you do not have to ask.
+    get "/account/export.zip", ExportController, :account
     get "/boards/:id/export.csv", ExportController, :table
     # The board's wiki as a folder of Markdown: the escape hatch.
     get "/boards/:id/wiki.zip", ExportController, :wiki

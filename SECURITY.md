@@ -49,6 +49,13 @@ Out of scope, because they are deployment choices rather than bugs:
   reach the page gets an account — that is the setting doing what it says, not
   a vulnerability. A new account still sees only its own boards, and where
   `user_directory` is `shared_only` it cannot see that anybody else exists.
+- **Closing an account.** An admin can remove somebody and their work, because
+  on a server people pay for they are entitled to ask. It names what it will
+  take before it does anything and requires the address to be typed. Boards
+  shared with other people are handed to whoever else works on them rather than
+  deleted, and status updates and page history written on other people's boards
+  survive with no author. A report that an admin can do this is not a bug; one
+  that it takes somebody else's work with it is.
 - **Support access, used as intended.** An admin can give themselves temporary
   **read** access to somebody's boards in order to help them. It needs a stated
   reason, expires on its own, grants read and never write, and the person it is

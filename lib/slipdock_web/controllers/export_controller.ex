@@ -59,6 +59,21 @@ defmodule SlipdockWeb.ExportController do
   defp archived(%{"archived" => "true"}), do: true
   defp archived(_), do: false
 
+  @doc """
+  Everything one person has, as a zip — their own account, nobody else's.
+
+  Not admin-only on purpose: being able to leave with your work is a thing you
+  should not have to ask anybody for.
+  """
+  def account(conn, _params) do
+    {filename, binary} = Slipdock.AccountExport.zip(conn.assigns.current_user)
+
+    conn
+    |> put_resp_content_type("application/zip")
+    |> put_resp_header("content-disposition", ~s(attachment; filename="#{filename}"))
+    |> send_resp(200, binary)
+  end
+
   def table(conn, %{"id" => id} = params) do
     user = conn.assigns.current_user
     board = Boards.get_board!(id)
