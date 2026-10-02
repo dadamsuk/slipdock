@@ -434,6 +434,30 @@ defmodule Slipdock.Accounts do
     end
   end
 
+  ## Terms
+
+  @doc """
+  Whether this person still needs to agree to the server's terms: true only on
+  a server that has terms at all, and only until they accept the version in
+  force. Bumping the version asks everybody again.
+  """
+  @spec terms_outstanding?(User.t() | nil) :: boolean()
+  def terms_outstanding?(nil), do: false
+
+  def terms_outstanding?(%User{} = user) do
+    Settings.terms?() and user.terms_version != Settings.terms_version()
+  end
+
+  @doc "Records that this person agreed to the version currently in force."
+  def accept_terms(%User{} = user) do
+    user
+    |> Ecto.Changeset.change(
+      terms_accepted_at: DateTime.utc_now(:second),
+      terms_version: Settings.terms_version()
+    )
+    |> Repo.update()
+  end
+
   ## Changing the admin address
 
   @doc """
