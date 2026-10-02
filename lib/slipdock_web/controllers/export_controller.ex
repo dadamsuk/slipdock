@@ -74,6 +74,60 @@ defmodule SlipdockWeb.ExportController do
     |> send_resp(200, binary)
   end
 
+  @doc """
+  The caller's board trees as one portable JSON document — the file
+  `Slipdock.Portable` reads back.
+
+  Only boards they **own**: a board shared with you is somebody else's to hand
+  on. `boards` narrows it to a comma-separated list of ids, codes or names, and
+  anything the caller does not own is simply left out rather than refused —
+  this is a download link rather than an API, and a broken link is a worse
+  answer than a smaller file.
+  """
+  def portable(conn, params) do
+    user = conn.assigns.current_user
+    opts = portable_opts(user, params)
+    {filename, iodata} = Slipdock.Portable.to_json(user, opts)
+
+    conn
+    |> put_resp_content_type("application/json")
+    |> put_resp_header("content-disposition", ~s(attachment; filename="#{filename}"))
+    |> send_resp(200, iodata)
+  end
+
+  defp portable_opts(user, params) do
+    archived = to_string(params["archived"])
+
+    [
+      archived_cards: archived in ["all", "cards", "true"],
+      archived_pages: archived in ["all", "pages", "true"],
+      archived_boards: archived in ["all", "boards", "true"]
+    ] ++ portable_boards(user, params["boards"])
+  end
+
+  defp portable_boards(_user, blank) when blank in [nil, ""], do: []
+
+  defp portable_boards(user, refs) do
+    boards =
+      refs
+      |> String.split(",", trim: true)
+      |> Enum.map(&String.trim/1)
+      |> Enum.flat_map(fn ref ->
+        case Boards.find_board(ref) do
+          {:ok, board} -> if owns?(user, board), do: [board], else: []
+          _ -> []
+        end
+      end)
+
+    # Every board asked for turned out to be somebody else's, which is not the
+    # same request as "all of mine" — answer with an empty document instead.
+    if boards == [], do: [boards: []], else: [boards: boards]
+  end
+
+  defp owns?(user, board) do
+    Access.owner?(Access.board_permission(user, board))
+  end
+
   def table(conn, %{"id" => id} = params) do
     user = conn.assigns.current_user
     board = Boards.get_board!(id)
