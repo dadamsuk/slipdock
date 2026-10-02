@@ -20,8 +20,11 @@ defmodule SlipdockWeb.LoginLive.Index do
        form: to_form(%{"email" => ""}, as: :login),
        sent_to: nil,
        stance: Accounts.signup_stance(),
+       fallback?: Slipdock.Settings.login_fallback_enabled?(),
        requested: false,
-       request_form: to_form(%{"email" => "", "note" => ""}, as: :login),
+       # Its own name, or its inputs collide with the sign-in form's: two
+       # `login[email]` fields means two `#login_email` ids on one page.
+       request_form: to_form(%{"email" => "", "note" => ""}, as: :request),
        code_form: to_form(%{"code" => ""}, as: :login),
        code_error: nil,
        agentic_file: nil,
@@ -72,7 +75,7 @@ defmodule SlipdockWeb.LoginLive.Index do
   # Asking for an account where an admin has to say yes. Unlike a sign-in
   # request this *is* told the truth, because silence here looks like a bug:
   # somebody who has asked needs to know they are waiting on a person.
-  def handle_event("request", %{"login" => %{"email" => email, "note" => note}}, socket) do
+  def handle_event("request", %{"request" => %{"email" => email, "note" => note}}, socket) do
     case allowed_to_try(socket, email) do
       {:error, {:too_many, seconds}} ->
         {:noreply, put_flash(socket, :error, too_many_message(seconds))}
@@ -177,6 +180,27 @@ defmodule SlipdockWeb.LoginLive.Index do
     end
   end
 
+  # What the page says under the nose of the form. It must never say whether a
+  # particular address has an account — that answers "who is here" for anybody
+  # who asks — but it can say what kind of server this is, which is public
+  # anyway and saves people guessing.
+  defp strapline(:unclaimed, _fallback?),
+    do: "Nobody has set this server up yet. Sign in to claim it."
+
+  defp strapline(:open, true),
+    do: "No password. We'll send you a code — or write it where you can read it."
+
+  defp strapline(:open, false), do: "No password. We'll email you a link and a code."
+
+  defp strapline(:approval, _fallback?),
+    do: "No password. If you have an account we'll email you a way in."
+
+  defp strapline(_closed_or_allowlist, true),
+    do: "No password. Codes are written to the server when there is no mail."
+
+  defp strapline(_closed_or_allowlist, false),
+    do: "No password. We'll email you a link and a code."
+
   # On a server where an admin approves each account, somebody with no account
   # has to be told what to do rather than left typing an address into a form
   # that says nothing.
@@ -230,7 +254,7 @@ defmodule SlipdockWeb.LoginLive.Index do
             <Layouts.brand_mark class="size-12" variant={:detailed} />
             <div>
               <h1 class="text-xl font-bold">Sign in</h1>
-              <p class="text-sm text-base-content/60">No password. We'll email you a link.</p>
+              <p class="text-sm text-base-content/60">{strapline(@stance, @fallback?)}</p>
             </div>
           </div>
 
@@ -239,8 +263,12 @@ defmodule SlipdockWeb.LoginLive.Index do
               <p class="font-medium">Check your email</p>
               <p class="mt-1 text-base-content/70">
                 If <span class="font-medium">{@sent_to}</span>
-                can sign in here, a link is on its way. It works once and expires in
-                15 minutes.
+                can sign in here, a link and a code are on their way. They work once and
+                expire in 15 minutes.
+              </p>
+              <p :if={@fallback?} class="mt-2 text-base-content/70">
+                This server has no mail set up, so the code is written to its log instead —
+                ask whoever runs it.
               </p>
             </div>
             <.form for={@code_form} id="login-code-form" phx-submit="code" class="space-y-2">

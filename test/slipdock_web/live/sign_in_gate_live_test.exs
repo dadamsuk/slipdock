@@ -49,7 +49,7 @@ defmodule SlipdockWeb.SignInGateLiveTest do
         |> render_submit()
 
       # The wording cannot be read as "you have an account here".
-      assert html =~ "can sign in here, a link is on its way"
+      assert html =~ "can sign in here, a link and a code are on their way"
       assert html =~ "stranger@example.com"
       refute Accounts.get_user_by_email("stranger@example.com")
 
@@ -60,7 +60,7 @@ defmodule SlipdockWeb.SignInGateLiveTest do
         |> form("#login-form", %{"login" => %{"email" => "owner@example.com"}})
         |> render_submit()
 
-      assert member =~ "can sign in here, a link is on its way"
+      assert member =~ "can sign in here, a link and a code are on their way"
     end
 
     @tag :anonymous
