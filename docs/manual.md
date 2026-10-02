@@ -16,7 +16,7 @@ way in: what it is, the pictures, and how to get it running.
   checklists, comments, archive/restore and delete
 - Attachments: files up to 25 MB on any card, and images pasted or dropped into
   the description or a comment are uploaded and shown inline (stored under
-  `priv/uploads/`, `KANBAN_UPLOADS_DIR` to move it; served with access checks)
+  `priv/uploads/`, `SLIPDOCK_UPLOADS_DIR` to move it; served with access checks)
 - Dependencies between cards ("blocked by" / "blocks"), with cycle detection,
   a blocked badge on cards, and a swimlane axis/filter for blocked work
 - Subcards: any card can become a board of its own, with lists chosen from a
@@ -745,7 +745,7 @@ default board and list — set them under *Quick add* on the account page,
 otherwise it is the first list of the first board you can write to.
 
 With an OpenRouter key configured the line is read by the model as well
-(`KANBAN_AI_QUICK_MODEL` picks a cheaper or faster one than the rest of
+(`SLIPDOCK_AI_QUICK_MODEL` picks a cheaper or faster one than the rest of
 the AI features use), so it takes prose rather than syntax:
 
     call the printers about the banners friday, urgent, waiting on them
@@ -860,8 +860,8 @@ changed is skipped without an API call — so running it is also how you repair
 an index that drifted. Embedding a board of a few hundred cards costs a
 fraction of a penny.
 
-`KANBAN_AI_EMBED_MODEL` picks the model (default
-`openai/text-embedding-3-small`) and `KANBAN_AI_EMBED_DIMENSIONS` the vector
+`SLIPDOCK_AI_EMBED_MODEL` picks the model (default
+`openai/text-embedding-3-small`) and `SLIPDOCK_AI_EMBED_DIMENSIONS` the vector
 size (default 768 — `text-embedding-3-*` are Matryoshka models, so that is the
 full 1536-dimension vector truncated: half the storage for almost none of the
 quality).
@@ -1519,14 +1519,14 @@ every variable with its default. The ones that matter first:
 
 ```sh
 PHX_HOST=kanban.example.com     # the address people use; sign-in links are built from it
-KANBAN_PUBLISH=4000             # the host port to publish
+SLIPDOCK_PUBLISH=4000             # the host port to publish
 SLIPDOCK_ADMIN_EMAIL=you@example.com               # skips the setup wizard
 SLIPDOCK_SMTP_HOST=smtp.example.com               # so codes are emailed rather than logged
 ```
 
-Behind a TLS proxy, set `KANBAN_URL_SCHEME=https` and `KANBAN_URL_PORT=443` so
+Behind a TLS proxy, set `SLIPDOCK_URL_SCHEME=https` and `SLIPDOCK_URL_PORT=443` so
 the links the app builds point at the proxy. If people reach the server by more
-than one name, list the others in `KANBAN_CHECK_ORIGIN` or live updates will be
+than one name, list the others in `SLIPDOCK_CHECK_ORIGIN` or live updates will be
 refused for the names you did not mention.
 
 A release has no `mix`, so the two administrative tasks are on the entrypoint:
@@ -1542,7 +1542,7 @@ docker compose run --rm slipdock remote                      # an IEx shell in t
 `docker build` on its own works too (`docker run -p 4000:4000 -v
 slipdock-data:/data kanban`). The image does not force HTTPS, on the assumption
 that something in front of it terminates TLS; build with
-`--build-arg KANBAN_FORCE_SSL=true` if the app itself does.
+`--build-arg SLIPDOCK_FORCE_SSL=true` if the app itself does.
 
 ### From a checkout
 
@@ -1552,40 +1552,40 @@ mix phx.server     # http://<tailscale-ip>:4000
 ```
 
 In development the server binds to this machine's Tailscale IPv4 (found via
-`tailscale ip -4`). Override with `KANBAN_BIND_IP=0.0.0.0` (all interfaces) or
-`KANBAN_BIND_IP=127.0.0.1` (loopback), and `PORT` to change the port.
+`tailscale ip -4`). Override with `SLIPDOCK_BIND_IP=0.0.0.0` (all interfaces) or
+`SLIPDOCK_BIND_IP=127.0.0.1` (loopback), and `PORT` to change the port.
 
 The AI features run on **each person's own OpenRouter key**, set under
 **Account → AI key** in the web UI (`slipdock ai-key <key>` from the CLI, `mix
 kanban.ai_key <email> <key>` on the server). Keys are kept in one JSON file,
 `ai_keys.json` in the app's directory, `0600`, outside the database —
-`KANBAN_AI_KEY_FILE` moves it, and it holds secrets in the clear, so back it
+`SLIPDOCK_AI_KEY_FILE` moves it, and it holds secrets in the clear, so back it
 up like a `.env`. Somebody without a key gets no AI features: the chat drawer,
 the narrative generator and the rest stay hidden, and `/api/ask` says what is
 missing.
 
 Unattended work — the search indexer, scheduled automations — has no person
-to bill, so it uses a *system* key: `KANBAN_AI_SYSTEM_USER=<email>` names
+to bill, so it uses a *system* key: `SLIPDOCK_AI_SYSTEM_USER=<email>` names
 whose key to spend, and on a one-person install the only stored key is used
 without being asked for. `OPENROUTER_API_KEY` still works, but it is now a
 **shared** key for everyone on the server, which is rarely what you want.
 
 Other settings come from the environment or a `.env` file (`KEY=value` lines)
-in the project directory or its parent — `KANBAN_ENV_FILE` names another
+in the project directory or its parent — `SLIPDOCK_ENV_FILE` names another
 location, and the systemd unit reads the same file. **`.env.example` lists every
 variable the app reads, with its default**, so an empty `.env` is already a
 working configuration and nothing in the repo assumes a particular machine.
-`KANBAN_AI_MODEL` picks another OpenRouter model (default
-`google/gemini-2.5-flash-lite`, chosen for price) and `KANBAN_AI_QUICK_MODEL`
+`SLIPDOCK_AI_MODEL` picks another OpenRouter model (default
+`google/gemini-2.5-flash-lite`, chosen for price) and `SLIPDOCK_AI_QUICK_MODEL`
 one for the header's quick add alone, where latency matters more than depth
-(it falls back to `KANBAN_AI_MODEL`). `KANBAN_AI_EMBED_MODEL` and
-`KANBAN_AI_EMBED_DIMENSIONS` pick the embedding model behind deep search;
+(it falls back to `SLIPDOCK_AI_MODEL`). `SLIPDOCK_AI_EMBED_MODEL` and
+`SLIPDOCK_AI_EMBED_DIMENSIONS` pick the embedding model behind deep search;
 run `mix slipdock.reindex` after changing either. Restart the server after
 changing any of them.
 
-Automation emails link back to the board; set `KANBAN_BASE_URL` when the
+Automation emails link back to the board; set `SLIPDOCK_BASE_URL` when the
 address people use isn't the one the endpoint is configured with (behind a
-proxy, say). Real mail needs `KANBAN_SMTP_HOST` — without it, sent mail
+proxy, say). Real mail needs `SLIPDOCK_SMTP_HOST` — without it, sent mail
 stays in the in-memory mailbox at `/dev/mailbox`.
 
 ## As a service
@@ -1619,7 +1619,7 @@ Copyright © 2026 David Adams.
 The AGPL's point, and the reason it was chosen here: if you run a modified copy
 as a network service, the people using it are entitled to your changes. The
 Account page links to the source for exactly that reason — point
-`KANBAN_SOURCE_URL` at your own repository if you run a fork.
+`SLIPDOCK_SOURCE_URL` at your own repository if you run a fork.
 
 See [CONTRIBUTING.md](../CONTRIBUTING.md) to work on it and
 [SECURITY.md](../SECURITY.md) to report a vulnerability.
@@ -1781,8 +1781,8 @@ slipdock guide             # the server's instructions for agents (GET /api/guid
 kanban --help
 ```
 
-It finds the server via `KANBAN_URL`, else this machine's Tailscale IP on port 4000,
-and the token via `KANBAN_TOKEN` or the saved file.
+It finds the server via `SLIPDOCK_URL`, else this machine's Tailscale IP on port 4000,
+and the token via `SLIPDOCK_TOKEN` or the saved file.
 
 ```sh
 slipdock swimlanes 1 --rows tag --cols due_date --unit month --open

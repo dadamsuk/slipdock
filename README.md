@@ -120,14 +120,14 @@ already a working configuration. The ones that matter first:
 
 ```sh
 PHX_HOST=kanban.example.com     # the address people use; sign-in links are built from it
-KANBAN_PUBLISH=4000             # the host port to publish
+SLIPDOCK_PUBLISH=4000             # the host port to publish
 SLIPDOCK_ADMIN_EMAIL=you@example.com               # skips the setup wizard
 SLIPDOCK_SMTP_HOST=smtp.example.com               # so codes are emailed rather than logged
 ```
 
-Behind a TLS proxy, set `KANBAN_URL_SCHEME=https` and `KANBAN_URL_PORT=443`.
+Behind a TLS proxy, set `SLIPDOCK_URL_SCHEME=https` and `SLIPDOCK_URL_PORT=443`.
 If people reach the server by more than one name, list the others in
-`KANBAN_CHECK_ORIGIN` or live updates are refused for the names you did not
+`SLIPDOCK_CHECK_ORIGIN` or live updates are refused for the names you did not
 mention. [The manual](docs/manual.md#with-docker) covers the administrative
 tasks on the entrypoint (`ai-key`, `reindex`, `migrate`, `remote`).
 
@@ -205,7 +205,7 @@ mix phx.server     # the address it binds to is printed on start-up
 `mix setup` seeds a demo workspace on an empty database, which is the same one
 the screenshots come from (`mix slipdock.demo` builds it on demand). In
 development the server binds to this machine's Tailscale address if it has one,
-otherwise loopback; `KANBAN_BIND_IP` and `PORT` override that, and
+otherwise loopback; `SLIPDOCK_BIND_IP` and `PORT` override that, and
 `DATABASE_PATH` points it at another database.
 [`deploy/kanban.service`](deploy/kanban.service) is a systemd unit template for
 running it on boot — see [the manual](docs/manual.md#as-a-service).
@@ -254,7 +254,7 @@ these are decisions only you can make.
   people upload: the app does not scan them.
 - **Put TLS in front of it.** The Docker image does not force HTTPS, on the
   assumption that something in front terminates it; build with
-  `--build-arg KANBAN_FORCE_SSL=true` if the app itself should.
+  `--build-arg SLIPDOCK_FORCE_SSL=true` if the app itself should.
 - **Back up the database** — the `slipdock-data` volume under Docker, or the
   SQLite file, uploads and `ai_keys.json` from a checkout. There is no other
   copy.
@@ -270,7 +270,7 @@ Copyright © 2026 David Adams.
 The AGPL's point, and the reason it was chosen here: if you run a modified copy
 as a network service, the people using it are entitled to your changes. The
 Account page links to the source for exactly that reason — point
-`KANBAN_SOURCE_URL` at your own repository if you run a fork.
+`SLIPDOCK_SOURCE_URL` at your own repository if you run a fork.
 
 ## Everything else
 
