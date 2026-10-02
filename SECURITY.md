@@ -29,12 +29,20 @@ Out of scope, because they are deployment choices rather than bugs:
   reach the sign-in page or read that directory. It is off unless you set the
   variable, and a server with it on says so in the log on every boot. Never
   enable it on anything reachable from the internet.
-- **Deliberately opening sign-up.** By default only the first address to use
-  an empty instance, people who already have an account, and anybody matching
-  `KANBAN_SIGNUP_ALLOW` can sign in. If you set `KANBAN_OPEN_SIGNUP=true`,
-  anyone who can reach the page gets an account — that is the setting doing
-  what it says, not a vulnerability. A new account still sees only its own
-  boards and spends its own OpenRouter key.
+- **The sign-in fallback.** When no mail server is configured, sign-in codes
+  are written to a file on the server (`SLIPDOCK_LOGIN_FALLBACK_PATH`, mode
+  `0600`) and to the log. Anyone who can read either can sign in as anybody.
+  That is a deliberate trade: without it a fresh install with no mail has no
+  way in at all, and on a machine only you can reach the log is already yours.
+  It turns itself off once mail works, an admin can turn it off explicitly,
+  and `SLIPDOCK_LOGIN_FALLBACK=false` forbids it for good in a way the
+  application cannot undo — **set that on anything other people can reach.**
+- **Deliberately opening sign-up.** Registration follows the mode an admin
+  chose: *closed* (accounts exist only because somebody made them),
+  *allowlist*, *approval*, or *open*. If you choose *open*, anyone who can
+  reach the page gets an account — that is the setting doing what it says, not
+  a vulnerability. A new account still sees only its own boards, and where
+  `user_directory` is `shared_only` it cannot see that anybody else exists.
 - Anything that needs filesystem or shell access to the server, which already
   implies full control of the instance.
 - Reports that a hardening header could be stricter, with no concrete

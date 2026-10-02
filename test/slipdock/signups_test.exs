@@ -122,6 +122,31 @@ defmodule Slipdock.SignupsTest do
     end
   end
 
+  describe "the sign-in limiter" do
+    setup do
+      previous = Application.get_env(:slipdock, :rate_limit)
+      Application.put_env(:slipdock, :rate_limit, enabled: true)
+      RateLimit.reset()
+
+      on_exit(fn ->
+        Application.put_env(:slipdock, :rate_limit, previous)
+        RateLimit.reset()
+      end)
+    end
+
+    test "is keyed on the normalised address, so casing cannot multiply the allowance" do
+      # Five an hour per address. If the key were the raw string, "A@x", "a@x"
+      # and " a@x " would be three separate allowances and the limit would mean
+      # nothing.
+      key = fn email -> "login:email:" <> (email |> String.trim() |> String.downcase()) end
+
+      for _ <- 1..5, do: assert(:ok = RateLimit.hit(key.("Owner@Example.com"), 5, 3_600_000))
+
+      assert {:error, _} = RateLimit.hit(key.("  owner@example.com  "), 5, 3_600_000)
+      assert {:error, _} = RateLimit.hit(key.("OWNER@EXAMPLE.COM"), 5, 3_600_000)
+    end
+  end
+
   describe "Slipdock.RateLimit" do
     setup do
       previous = Application.get_env(:slipdock, :rate_limit)
