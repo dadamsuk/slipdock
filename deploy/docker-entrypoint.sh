@@ -11,7 +11,7 @@ SECRET_FILE="$DATA_DIR/secret_key_base"
 # The volume arrives owned by root on a first run, and the app is not root.
 if [ "$(id -u)" = "0" ]; then
   mkdir -p "$DATA_DIR" "${SLIPDOCK_UPLOADS_DIR:-$DATA_DIR/uploads}"
-  chown -R kanban:slipdock "$DATA_DIR"
+  chown -R slipdock:slipdock "$DATA_DIR"
 fi
 
 # A secret nobody chose is better than a secret everybody shares, so one is
@@ -22,7 +22,7 @@ if [ -z "${SECRET_KEY_BASE:-}" ]; then
     # 64 bytes, base64: what `mix phx.gen.secret` produces, without needing mix.
     openssl rand -base64 64 | tr -d '\n' > "$SECRET_FILE"
     chmod 600 "$SECRET_FILE"
-    [ "$(id -u)" = "0" ] && chown kanban:slipdock "$SECRET_FILE"
+    [ "$(id -u)" = "0" ] && chown slipdock:slipdock "$SECRET_FILE"
     echo "entrypoint: generated a SECRET_KEY_BASE in $SECRET_FILE"
   fi
   SECRET_KEY_BASE="$(cat "$SECRET_FILE")"
@@ -40,7 +40,7 @@ fi
 
 run() {
   if [ "$(id -u)" = "0" ]; then
-    exec setpriv --reuid=kanban --regid=kanban --init-groups "$@"
+    exec setpriv --reuid=slipdock --regid=slipdock --init-groups "$@"
   else
     exec "$@"
   fi
@@ -48,18 +48,18 @@ run() {
 
 case "${1:-start}" in
   start)
-    run /app/bin/kanban start
+    run /app/bin/slipdock start
     ;;
   # A shell in the running app, for looking at things.
   remote|console)
-    run /app/bin/kanban "$1"
+    run /app/bin/slipdock "$1"
     ;;
   # The mix tasks are not in a release, so the two worth having are here.
   #   docker compose run --rm slipdock reindex
   #   docker compose run --rm slipdock ai-key you@example.com sk-or-…
   #   docker compose run --rm slipdock setup --status
   reindex)
-    run /app/bin/kanban eval "Slipdock.Release.reindex()"
+    run /app/bin/slipdock eval "Slipdock.Release.reindex()"
     ;;
   ai-key)
     shift
@@ -67,10 +67,10 @@ case "${1:-start}" in
     # no quotes in them, which is the only thing this would not survive.
     args=""
     for a in "$@"; do args="${args}\"${a}\","; done
-    run /app/bin/kanban eval "Slipdock.Release.ai_key([${args}])"
+    run /app/bin/slipdock eval "Slipdock.Release.ai_key([${args}])"
     ;;
   migrate)
-    run /app/bin/kanban eval "Slipdock.Release.migrate()"
+    run /app/bin/slipdock eval "Slipdock.Release.migrate()"
     ;;
   # Setting the server up without the browser wizard, seeing what it thinks,
   # and the way back in when mail has broken.
@@ -81,7 +81,7 @@ case "${1:-start}" in
     shift
     args=""
     for a in "$@"; do args="${args}\"${a}\","; done
-    run /app/bin/kanban eval "Slipdock.Release.setup([${args}])"
+    run /app/bin/slipdock eval "Slipdock.Release.setup([${args}])"
     ;;
   *)
     run "$@"

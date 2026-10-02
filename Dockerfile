@@ -77,16 +77,19 @@ ENV LANG=en_US.UTF-8 LANGUAGE=en_US:en LC_ALL=en_US.UTF-8
 ENV MIX_ENV="prod" \
     PHX_SERVER="true" \
     PORT="4000" \
+    # Deliberately still kanban.db: it is a path inside somebody's data volume,
+    # and renaming it would point an upgraded container at an empty database
+    # while the real one sat beside it.
     DATABASE_PATH="/data/kanban.db" \
     SLIPDOCK_UPLOADS_DIR="/data/uploads" \
     SLIPDOCK_AI_KEY_FILE="/data/ai_keys.json" \
     SLIPDOCK_DATA_DIR="/data"
 
 WORKDIR /app
-RUN groupadd -r kanban && useradd -r -g kanban -d /app slipdock
+RUN groupadd -r slipdock && useradd -r -g slipdock -d /app slipdock
 
-COPY --from=builder --chown=kanban:slipdock /app/_build/prod/rel/kanban ./
-COPY --chown=kanban:slipdock deploy/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+COPY --from=builder --chown=slipdock:slipdock /app/_build/prod/rel/slipdock ./
+COPY --chown=slipdock:slipdock deploy/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 VOLUME /data
