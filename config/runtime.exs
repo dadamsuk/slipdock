@@ -184,6 +184,13 @@ if System.get_env("SLIPDOCK_LOGIN_FALLBACK") in ["0", "false"] do
   config :slipdock, :login_fallback, false
 end
 
+# Where that file goes. The default sits under the application's working
+# directory, which in a container is not somewhere you will think to look and
+# does not survive a restart — point it at the data volume.
+if path = System.get_env("SLIPDOCK_LOGIN_FALLBACK_PATH") do
+  config :slipdock, :login_fallback_path, path
+end
+
 if allow = System.get_env("SLIPDOCK_SIGNUP_ALLOW") do
   config :slipdock, :signups,
     open: System.get_env("SLIPDOCK_OPEN_SIGNUP") in ["1", "true"],

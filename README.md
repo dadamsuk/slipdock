@@ -149,6 +149,18 @@ SLIPDOCK_SMTP_HOST=smtp.example.com    # and SLIPDOCK_SMTP_PORT / _USER / _PASSW
 SLIPDOCK_LOGIN_FALLBACK=false          # never write sign-in codes to a file (set this when public)
 ```
 
+There is a command-line equivalent for an install that was not configured that
+way, and a `--status` that says what the server currently thinks:
+
+```sh
+mix slipdock.setup --admin you@example.com --mode allowlist --allow example.com
+mix slipdock.setup --status
+mix slipdock.setup --sign-in-link you@example.com   # when mail has broken
+```
+
+It refuses to run on a server that is already set up — that server is already
+somebody's.
+
 **Changing one of these on a server that has already started does nothing.**
 That is deliberate — a browser has to be able to win, or the settings page
 would be a lie — but it does mean a variable edited after the fact looks
