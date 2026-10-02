@@ -49,6 +49,9 @@ config :slipdock, :ai,
 # after which only people already here, addresses in `:allow`, or anyone at a
 # domain in `:allow`, can sign in. SLIPDOCK_OPEN_SIGNUP=true opens it to all
 # comers, which only makes sense behind a network boundary of your own.
+# Read only by `Slipdock.Settings.seed/0`, to carry an existing install's
+# registration policy into the settings row on first boot. Nothing else looks
+# at it; `signup_mode` in `:settings` below is the live setting.
 config :slipdock, :signups, open: false, allow: []
 
 # Defaults for this server's own settings (`Slipdock.Settings`) *before* the

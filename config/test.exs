@@ -53,10 +53,7 @@ config :slipdock, :rate_limit, enabled: false
 # ...and they sign in brand-new addresses constantly, so sign-up is open here,
 # and this instance counts as already set up so the wizard does not intercept
 # every request. Tests about registration or the wizard override these per test.
-#
-# `:signups` is the older of the two and is still what `Slipdock.Accounts`
-# reads; it goes away once that reads the settings row instead.
-config :slipdock, :signups, open: true
+
 config :slipdock, :settings, signup_mode: :open, setup_completed: true
 
 # Boot does not seed the settings row here: it would run before the first

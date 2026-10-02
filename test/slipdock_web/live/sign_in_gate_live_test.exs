@@ -12,11 +12,9 @@ defmodule SlipdockWeb.SignInGateLiveTest do
   alias Slipdock.{Accounts, RateLimit}
 
   setup do
-    previous_signups = Application.get_env(:slipdock, :signups)
     previous_limit = Application.get_env(:slipdock, :rate_limit)
 
     on_exit(fn ->
-      Application.put_env(:slipdock, :signups, previous_signups)
       Application.put_env(:slipdock, :rate_limit, previous_limit)
       RateLimit.reset()
     end)
@@ -24,7 +22,18 @@ defmodule SlipdockWeb.SignInGateLiveTest do
     :ok
   end
 
-  defp closed, do: Application.put_env(:slipdock, :signups, open: false, allow: [])
+  # Registration policy is a row now, and writing one also marks the server set
+  # up — which is the other thing that has to be true for "closed" to mean
+  # anything (an unclaimed server lets anybody in on purpose).
+  defp closed do
+    {:ok, _} =
+      Slipdock.Settings.complete_setup(%{
+        "admin_email" => "admin@example.com",
+        "signup_mode" => :closed
+      })
+
+    :ok
+  end
 
   describe "a closed instance" do
     @tag :anonymous
