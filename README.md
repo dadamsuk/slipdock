@@ -7,11 +7,11 @@
 
 A self-hosted kanban board for people who want their work tracker to be theirs and to really help get their job done: you can easily self-host for free or use the hosted version. Functionality of the two is identical. It's different (better?) than most Kanban boards though, because it incorporates features built on real world experience of hundreds of projects, none of the fluff you don't need and everything that you do. This system was built for a real use case: replacing Jira Tickets, Jira Product Discovery, Jira Atlas (particularly sharing updates with stakeholders) and Confluence. And with the optional AI integrations, it's better than all of them. 
 
-Boards and cards are there. Any card can become a board of its own, so an epic and its tasks
+Any card can become a board of its own, so an epic and its tasks
 live in one place and roll up. The same cards can be read as a board, a
 swimlane grid, a table, a Gantt timeline, a calendar, an outline or a ranked
-backlog. Each board carries a wiki, so the reasons live beside the work.
-Automations are written in plain English ("flag any card which is more than 3 days overdue to urgent"). 
+backlog. Each board carries a wiki, so the documentation/reasoning sits beside the work.
+Automations are written in plain English ("flag any card which is more than 3 days overdue to urgent and send an email to john@getitdone.com"). You can give it plain English commands too: "Split this card into 3 sub-cards", interrogate it: "Across all my boards, what tasks do I have that are slated to take less than 1 day?".  And it has semantic search: "Where's the card about the invoicing bug that came in last week" (that doesn't even mention the word invoice).  
 
 And best of all the whole thing is available over
 a JSON API and a CLI, so an agent can work the board the way a person does.  Chat with Claude or ChatGPT about your work, get it to create your cards, run loops off the back of them.  Whatever you need.
@@ -66,6 +66,7 @@ Briefly, with the detail in [the manual](docs/manual.md):
   set of cards over a date range.
 - **Automations** — ["when a card lands in Done, email ops@example.com"](docs/manual.md#automations-and-alerts),
   parsed once by a model and then run by the app, with alerts in the header.
+- **Semantic Search** - find what you're looking for even when you can't remember exactly what it is.
 - **AI, on your own key** — [chat about a board, ask questions in prose over
   every board at once, search by meaning rather than substring, and an edit
   mode you approve before it applies](docs/manual.md#ai-assistant). No key, no
@@ -88,7 +89,7 @@ Briefly, with the detail in [the manual](docs/manual.md):
 
 ### With Docker
 
-Nothing but Docker needed — no Elixir, no Node, no database server:
+Nothing but Docker needed:
 
 ```sh
 docker compose up -d
