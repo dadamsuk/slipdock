@@ -17,7 +17,7 @@ defmodule Slipdock.QuickAdd.Capture do
 
   import Ecto.Query
 
-  alias Slipdock.{Access, Accounts, Boards, QuickAdd, Repo}
+  alias Slipdock.{Access, Boards, QuickAdd, Repo}
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.{Board, Card, Column}
   alias Slipdock.QuickAdd.Model
@@ -51,7 +51,7 @@ defmodule Slipdock.QuickAdd.Capture do
     %{
       today: opts[:today] || Date.utc_today(),
       boards: boards,
-      people: opts[:people] || Accounts.list_users(),
+      people: opts[:people] || Slipdock.Access.visible_users(user),
       default_board: board,
       default_column: column
     }

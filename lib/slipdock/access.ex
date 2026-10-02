@@ -330,6 +330,27 @@ defmodule Slipdock.Access do
   end
 
   @doc """
+  The people visible to work that has no signed-in reader: an automation rule
+  firing, the scheduler, a prompt assembled in the background.
+
+  The board's owner stands in. They are whose server this work is being done
+  on, and scoping to them is what stops a rule — or a model prompt built from
+  one — naming people the board's owner has never shared anything with.
+
+  A board with no owner (one made before accounts existed) falls back to
+  everybody, which is what it did before and is no worse than it was.
+  """
+  @spec visible_users_for(Board.t()) :: [User.t()]
+  def visible_users_for(%Board{owner_id: nil}), do: Accounts.list_users()
+
+  def visible_users_for(%Board{owner_id: owner_id}) do
+    case Repo.get(User, owner_id) do
+      %User{} = owner -> visible_users(owner)
+      nil -> Accounts.list_users()
+    end
+  end
+
+  @doc """
   The ids behind `visible_users/1`, for the places that only need to ask
   "can this one person see that one person?" without loading everybody.
   """

@@ -42,7 +42,7 @@ defmodule Slipdock.AI.Researcher do
 
   import Ecto.Query, only: [from: 2]
 
-  alias Slipdock.{Access, Accounts, AI, Automations, Boards, Rollup, Search, Work}
+  alias Slipdock.{Access, AI, Automations, Boards, Rollup, Search, Work}
   alias Slipdock.AI.Context
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.{Board, Card, Column, StatusUpdate}
@@ -1031,7 +1031,7 @@ defmodule Slipdock.AI.Researcher do
       "# Board: #{board.name}" <> if(board.code in [nil, ""], do: "", else: " [#{board.code}]"),
       board.archived_at && "This board is archived.",
       board.description && board.description != "" && "Description: #{board.description}",
-      Context.board_facts(board, Accounts.list_users()),
+      Context.board_facts(board, Access.visible_users_for(board)),
       "Lists and how many top-level cards are in each: " <>
         Enum.map_join(board.columns, ", ", fn c ->
           "#{c.name} #{length(c.cards)}" <> if(c.wip_limit, do: "/#{c.wip_limit} WIP", else: "")
@@ -1382,17 +1382,20 @@ defmodule Slipdock.AI.Researcher do
     end
   end
 
-  defp match_person(_user, ref) do
+  # The reader was always passed here and never used, so every name and address
+  # on the server went into the answer — and into the prompt that produced it.
+  defp match_person(user, ref) do
     wanted = String.downcase(ref)
+    people = Access.visible_users(user)
 
-    case Enum.filter(Accounts.list_users(), &person_matches?(&1, wanted)) do
+    case Enum.filter(people, &person_matches?(&1, wanted)) do
       [person] ->
         {:ok, person}
 
       [] ->
         {:error,
          "Nobody here is called “#{ref}”. The people are: " <>
-           Enum.map_join(Accounts.list_users(), ", ", &"#{User.display_name(&1)} <#{&1.email}>") <>
+           Enum.map_join(people, ", ", &"#{User.display_name(&1)} <#{&1.email}>") <>
            "."}
 
       several ->

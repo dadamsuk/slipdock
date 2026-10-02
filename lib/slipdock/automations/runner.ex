@@ -15,7 +15,7 @@ defmodule Slipdock.Automations.Runner do
   `variables/1`.
   """
 
-  alias Slipdock.{Accounts, Boards, Repo}
+  alias Slipdock.{Boards, Repo}
   alias Slipdock.Accounts.User
   alias Slipdock.Automations.{Notifier, Spec}
   alias Slipdock.Boards.{Card, Column, Tag}
@@ -342,7 +342,7 @@ defmodule Slipdock.Automations.Runner do
     do: set_fields(ctx, %{"assignee_id" => nil}, "unassigned")
 
   defp do_perform("assign", action, ctx) do
-    case find_user(action["assignee"]) do
+    case find_user(action["assignee"], ctx.board) do
       nil ->
         {:error, "no such person: #{action["assignee"]}"}
 
@@ -428,7 +428,7 @@ defmodule Slipdock.Automations.Runner do
         |> put_if("description", text(action["description"], ctx, nil))
         |> put_if("priority", action["priority"] && to_string(action["priority"]))
         |> put_if("due_date", action["due_date"])
-        |> put_if("assignee_id", find_user(action["assignee"]) |> then(&(&1 && &1.id)))
+        |> put_if("assignee_id", find_user(action["assignee"], board) |> then(&(&1 && &1.id)))
 
       case Boards.create_card(column, attrs) do
         {:ok, card} ->
@@ -551,12 +551,16 @@ defmodule Slipdock.Automations.Runner do
     end
   end
 
-  defp find_user(nil), do: nil
+  defp find_user(nil, _board), do: nil
 
-  defp find_user(reference) do
+  # Scoped to the board's owner rather than to everybody: a rule on your board
+  # must not be able to assign a card to somebody you have never shared
+  # anything with, and on a shared server must not confirm they exist.
+  defp find_user(reference, board) do
     wanted = casefold(reference)
 
-    Accounts.list_users()
+    board
+    |> Slipdock.Access.visible_users_for()
     |> Enum.find(fn user ->
       wanted in [casefold(user.email), casefold(user.name), casefold(User.display_name(user))]
     end)

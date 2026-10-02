@@ -10,7 +10,7 @@ defmodule Slipdock.Automations.Parser do
   """
 
   alias Slipdock.AI
-  alias Slipdock.Accounts
+  alias Slipdock.Access
   alias Slipdock.Accounts.User
   alias Slipdock.Automations.Spec
   alias Slipdock.Boards.Board
@@ -103,7 +103,7 @@ defmodule Slipdock.Automations.Parser do
     Today is #{Date.utc_today()} (#{Calendar.strftime(Date.utc_today(), "%A")}).
     Lists, in order: #{names(board.columns, & &1.name)}
     Tags: #{names(board.tags, & &1.name)}
-    People who can be assigned: #{names(Accounts.list_users(), &person/1)}
+    People who can be assigned: #{names(Access.visible_users_for(board), &person/1)}
     """
   end
 
