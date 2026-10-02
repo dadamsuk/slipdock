@@ -112,6 +112,8 @@ defmodule SlipdockWeb.Router do
     get "/attachments/:id/:filename", AttachmentController, :show
     # Everything you have, as a zip. Yours, so you do not have to ask.
     get "/account/export.zip", ExportController, :account
+    # Board trees as one portable JSON document — the file an import reads.
+    get "/account/boards.json", ExportController, :portable
     get "/boards/:id/export.csv", ExportController, :table
     # The board's wiki as a folder of Markdown: the escape hatch.
     get "/boards/:id/wiki.zip", ExportController, :wiki
