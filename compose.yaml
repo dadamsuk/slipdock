@@ -37,17 +37,26 @@ services:
     env_file:
       - path: .env
         required: false
-    # Deliberately no `environment:` block. It *overrides* env_file, so every
-    # setting named there would beat the value somebody put in .env — and when
-    # the override is an interpolated default like "${PHX_HOST:-localhost}",
-    # the way that goes wrong is silent and looks like the app ignoring you.
+    # Names only, with no values. That is the pass-through form: each is taken
+    # from the shell if it is set there, and left alone otherwise — so a value
+    # in .env is used rather than clobbered.
     #
-    # Everything is read from .env instead, and the container supplies its own
-    # defaults on the way up: localhost, plain http, port 4000, and a generated
-    # SECRET_KEY_BASE. The entrypoint prints what it resolved on every boot.
+    # Both ways of configuring this therefore work, which is the point:
+    #
+    #   export PHX_HOST=slipdock.example.com && docker compose up -d
+    #   echo PHX_HOST=slipdock.example.com >> .env && docker compose up -d
+    #
+    # Giving them values here instead (`PHX_HOST: "${PHX_HOST:-localhost}"`)
+    # looks equivalent and is not: `environment:` beats `env_file:`, so the
+    # interpolated default would silently overwrite whatever .env said.
     #
     # Publishing on a port other than 4000? Set SLIPDOCK_URL_PORT to match, or
     # the links it emails will name the wrong one.
+    environment:
+      - PHX_HOST
+      - SLIPDOCK_URL_SCHEME
+      - SLIPDOCK_URL_PORT
+      - SECRET_KEY_BASE
     volumes:
       # The database, uploaded files, each person's OpenRouter key and the
       # generated secret. This is the thing to back up.
