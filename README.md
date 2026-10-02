@@ -122,6 +122,9 @@ mean to change something — see *Building it yourself* below.)
 sh setup.sh
 ```
 
+On Windows, run that from WSL or Git Bash — see *On Windows* below, which also
+gives the file to write by hand if you would rather not.
+
 It asks the address people will use, whether something like Cloudflare or nginx
 terminates TLS in front of it, which port to listen on, your email address, and
 whether you have a mail server. Then it writes a `.env` you can edit by hand
@@ -154,6 +157,30 @@ export PHX_HOST=slipdock.example.com     # `export`, not `PHX_HOST=...`
 A plain `PHX_HOST=...` sets it for *you* and not for Docker, and the giveaway is
 cruel: `echo $PHX_HOST` prints the value quite happily while the container never
 receives it. `env | grep PHX_HOST` is the check that tells the truth.
+
+#### On Windows
+
+`setup.sh` is a shell script, so run it from **WSL** or **Git Bash**, not from
+PowerShell or `cmd`. Docker Desktop uses WSL2 by default, so you almost
+certainly have one already.
+
+PowerShell also aliases `curl` to something that does not understand `-O`, so
+fetch the files with `curl.exe` or `Invoke-WebRequest`:
+
+```powershell
+curl.exe -O https://raw.githubusercontent.com/dadamsuk/slipdock/main/compose.yaml
+```
+
+Or skip the script entirely — it only writes a short text file, and writing it
+yourself is no hardship. Save this as `.env` beside `compose.yaml`:
+
+```sh
+PHX_HOST=slipdock.example.com     # the hostname in the browser's address bar
+SLIPDOCK_PUBLISH=4000             # the port this machine listens on
+SLIPDOCK_URL_SCHEME=http          # https if something terminates TLS in front
+SLIPDOCK_URL_PORT=4000            # 443 if so
+SLIPDOCK_ADMIN_EMAIL=you@example.com   # optional; skips the setup wizard
+```
 
 **4. Set it up.** Open the address you gave it. A server
 nobody has claimed shows a **setup wizard**, which asks for a token printed in
