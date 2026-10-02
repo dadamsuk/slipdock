@@ -5,6 +5,13 @@
   </picture>
 </p>
 
+<p align="center">
+  <a href="https://github.com/dadamsuk/slipdock/actions/workflows/ci.yml"><img src="https://github.com/dadamsuk/slipdock/actions/workflows/ci.yml/badge.svg" alt="Tests"></a>
+  <a href="https://github.com/dadamsuk/slipdock/actions/workflows/release.yml"><img src="https://github.com/dadamsuk/slipdock/actions/workflows/release.yml/badge.svg" alt="Image"></a>
+  <a href="https://github.com/dadamsuk/slipdock/pkgs/container/slipdock"><img src="https://img.shields.io/badge/ghcr.io-dadamsuk%2Fslipdock-blue?logo=docker&logoColor=white" alt="ghcr.io/dadamsuk/slipdock"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licence-AGPL--3.0-green" alt="AGPL-3.0"></a>
+</p>
+
 A self-hosted kanban board for people who want their work tracker to be theirs and to really help get their job done: you can easily self-host for free or use the hosted version. Functionality of the two is identical. It's different (better?) than most Kanban boards though, because it incorporates features built on real world experience of hundreds of projects, none of the fluff you don't need and everything that you do. This system was built for a real use case: replacing Jira Tickets, Jira Product Discovery, Jira Atlas (particularly sharing updates with stakeholders) and Confluence. And with the optional AI integrations, it's better than all of them. 
 
 Any card can become a board of its own, so an epic and its tasks
