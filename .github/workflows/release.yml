@@ -81,7 +81,10 @@ jobs:
       - name: Keep the digest for the merge job
         run: |
           mkdir -p /tmp/digests
-          touch "/tmp/digests/${{ steps.build.outputs.digest }}#"
+          # The `sha256:` prefix has to come off: upload-artifact refuses any
+          # filename containing a colon, and the digest is the filename.
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
         shell: bash
 
       - uses: actions/upload-artifact@v4
@@ -127,11 +130,11 @@ jobs:
       - name: Stitch the architectures into one tag
         working-directory: /tmp/digests
         run: |
-          # Each file is named after a digest; the trailing # keeps the name
-          # filename-safe on every platform.
+          # One empty file per architecture, named after its digest with the
+          # `sha256:` prefix stripped off (see the build job).
           docker buildx imagetools create \
             $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $(for f in *; do printf '%s@%s ' "$REGISTRY/$IMAGE_NAME" "${f%#}"; done)
+            $(printf "$REGISTRY/$IMAGE_NAME@sha256:%s " *)
 
       - name: Say what was published
         run: |
