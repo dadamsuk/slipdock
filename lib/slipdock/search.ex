@@ -79,8 +79,8 @@ defmodule Slipdock.Search do
   def stats do
     %{
       chunks: Repo.aggregate(Embedding, :count),
-      # SQLite won't take DISTINCT over the schema's columns, so the count
-      # asks for distinct ids directly.
+      # DISTINCT over the schema's columns is not what is wanted here, so the
+      # count asks for distinct ids directly.
       cards: Repo.one(from(e in Embedding, select: count(e.card_id, :distinct))),
       pages: Repo.one(from(e in Embedding, select: count(e.page_id, :distinct))),
       model: Embeddings.model(),
@@ -454,8 +454,10 @@ defmodule Slipdock.Search do
           }
         end)
 
-      # SQLite counts every field of every row against one statement's
-      # parameter limit, so the insert goes in its own modest batches.
+      # Every field of every row counts against one statement's parameter
+      # limit (65535 on Postgres), so the insert goes in its own batches.
+      # These are well inside it: vectors are the bulky part of a row, and
+      # they are bytea, not thousands of parameters.
       rows
       |> Enum.chunk_every(50)
       |> Enum.each(

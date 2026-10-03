@@ -278,12 +278,17 @@ in your `.env` to any published tag.
 
 #### Backing up
 
-Everything that must survive is on one volume: the SQLite database, uploaded
-files, each person's AI key and endpoint, and a `SECRET_KEY_BASE` the container
-generates for itself on first run. **That volume is the only copy**, and
-backing it up is the one piece of maintenance this app asks of you.
+There are two volumes. `slipdock-db` is the Postgres database; `slipdock-data`
+holds uploaded files, each person's AI key and endpoint, and a
+`SECRET_KEY_BASE` the container generates for itself on first run. **Those
+volumes are the only copy**, and backing them up is the one piece of
+maintenance this app asks of you.
+
+The database is backed up with `pg_dump` rather than by copying its files,
+because a dump is consistent and restorable into any later Postgres:
 
 ```sh
+docker compose exec -T postgres pg_dump -U slipdock -Fc slipdock > slipdock-db.dump
 docker compose stop
 docker run --rm -v slipdock_slipdock-data:/data -v "$PWD":/backup alpine \
   tar czf /backup/slipdock-backup.tar.gz -C /data .
@@ -438,12 +443,14 @@ codes to a file whatever the settings say, and `SLIPDOCK_AGENTIC_LOGIN`.
 
 ### From a checkout
 
-You need Elixir 1.19 or newer on Erlang/OTP 27, and nothing else — SQLite is
-embedded and the asset tools install themselves.
+You need Elixir 1.19 or newer on Erlang/OTP 27 and a Postgres to point it at;
+the asset tools install themselves. There is a compose file for the database if
+you would rather not install one:
 
 ```sh
 git clone https://github.com/dadamsuk/slipdock.git
 cd slipdock
+docker compose -f compose.dev.yaml up -d   # Postgres on 127.0.0.1:5434
 mix setup          # deps, database, seeds, assets
 mix phx.server     # the address it binds to is printed on start-up
 ```
@@ -452,7 +459,7 @@ mix phx.server     # the address it binds to is printed on start-up
 the screenshots come from (`mix slipdock.demo` builds it on demand). In
 development the server binds to this machine's Tailscale address if it has one,
 otherwise loopback; `SLIPDOCK_BIND_IP` and `PORT` override that, and
-`DATABASE_PATH` points it at another database.
+`DATABASE_URL` points it at another database.
 [`deploy/slipdock.service`](deploy/slipdock.service) is a systemd unit template for
 running it on boot — see [the manual](docs/manual.md#as-a-service).
 
@@ -503,9 +510,9 @@ these are decisions only you can make.
 - **Put TLS in front of it.** The Docker image does not force HTTPS, on the
   assumption that something in front terminates it; build with
   `--build-arg SLIPDOCK_FORCE_SSL=true` if the app itself should.
-- **Back up the database** — the `slipdock-data` volume under Docker, or the
-  SQLite file, uploads and `ai_keys.json` from a checkout. There is no other
-  copy.
+- **Back up the database** — the `slipdock-db` and `slipdock-data` volumes
+  under Docker, or a `pg_dump` plus uploads and `ai_keys.json` from a
+  checkout. There is no other copy.
 
 To report a vulnerability, see [SECURITY.md](SECURITY.md); it also says what is
 in scope and what is a deployment choice rather than a bug.

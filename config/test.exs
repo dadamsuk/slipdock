@@ -5,9 +5,16 @@ import Config
 # The MIX_TEST_PARTITION environment variable can be used
 # to provide built-in test partitioning in CI environment.
 # Run `mix help test` for more information.
+#
+# Postgres lets the sandbox give every async test its own connection and its
+# own transaction, so `async: true` is free here — which is the whole reason
+# the suite can run in parallel at all. `pool_size` therefore wants to be at
+# least as large as `System.schedulers_online()`.
 config :slipdock, Slipdock.Repo,
-  database: Path.expand("../slipdock_test.db", __DIR__),
-  pool_size: 5,
+  url:
+    System.get_env("TEST_DATABASE_URL") ||
+      "postgres://postgres:postgres@localhost:5434/slipdock_test#{System.get_env("MIX_TEST_PARTITION")}",
+  pool_size: System.schedulers_online() * 2,
   pool: Ecto.Adapters.SQL.Sandbox
 
 # We don't run a server during test. If one is required,

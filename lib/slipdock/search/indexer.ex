@@ -118,6 +118,21 @@ defmodule Slipdock.Search.Indexer do
     :exit, _ -> 0
   end
 
+  @doc """
+  Throws the queue away without embedding any of it.
+
+  The queue is global, and a test's cards vanish when its transaction rolls
+  back — so without this, ids from a finished test survive into the next one,
+  where `pending/0` counts them and a flush finds nothing behind them. Tests
+  call this in setup; nothing else should.
+  """
+  @spec reset() :: :ok
+  def reset do
+    GenServer.call(__MODULE__, :reset)
+  catch
+    :exit, _ -> :ok
+  end
+
   ## Server -------------------------------------------------------------------
 
   @impl true
@@ -137,6 +152,11 @@ defmodule Slipdock.Search.Indexer do
   end
 
   def handle_call(:pending, _from, state), do: {:reply, MapSet.size(state.queue), state}
+
+  def handle_call(:reset, _from, state) do
+    if state.timer, do: Process.cancel_timer(state.timer)
+    {:reply, :ok, %{state | queue: MapSet.new(), timer: nil}}
+  end
 
   @impl true
   def handle_info(:flush, state) do

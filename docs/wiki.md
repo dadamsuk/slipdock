@@ -637,7 +637,7 @@ phase, not after, because that is how the rest of this system is built.
 
 ## 10. Testing
 
-Per house rules: `async: false` (SQLite), `mix precommit` before done,
+Per house rules: `mix precommit` before done,
 `mix ecto.gen.migration` for every schema change, and the dev server is
 `kanban.service` — restart it after config changes.
 
@@ -794,8 +794,9 @@ rather than a second set of tables, each existing table grew a nullable
 CHECK ((card_id IS NOT NULL) + (page_id IS NOT NULL) = 1)
 ```
 
-— the shape `attachments` already had. SQLite cannot drop a `NOT NULL`, so
-all six were rebuilt (create, copy, drop, rename). `Slipdock.Boards.Owned`
+— the shape `attachments` already had. (Under SQLite, which this ran on at
+the time, a `NOT NULL` could not be dropped, so all six tables were rebuilt;
+the Postgres baseline simply declares them nullable.) `Slipdock.Boards.Owned`
 states the rule once for all of them: `validate_owner/1` turns the constraint
 into a readable message, `owner_key/1` gives the foreign key to `struct!`
 onto a new row, and `owner_ref/1` reports which it is as the board's usual

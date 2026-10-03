@@ -154,7 +154,9 @@ defmodule Slipdock.Boards do
         where: b.code == ^code or fragment("lower(?)", b.name) == ^name,
         order_by: [
           asc: fragment("? IS NOT NULL", b.parent_card_id),
-          asc: fragment("? IS NOT ?", b.code, ^code),
+          # IS DISTINCT FROM, not IS NOT: null-safe inequality, so an exact
+          # code match sorts first. SQLite spelled the same thing IS NOT.
+          asc: fragment("? IS DISTINCT FROM ?", b.code, ^code),
           asc: b.id
         ],
         limit: 1
@@ -1890,7 +1892,7 @@ defmodule Slipdock.Boards do
       join: b in Board,
       on: b.id == c.board_id,
       where: (b.id in ^root_ids or b.root_id in ^root_ids) and is_nil(c.archived_at),
-      where: like(c.title, ^like) and c.id not in ^except,
+      where: ilike(c.title, ^like) and c.id not in ^except,
       order_by: [asc: c.title],
       limit: ^limit,
       preload: [board: b]

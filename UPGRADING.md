@@ -1,5 +1,48 @@
 # Upgrading
 
+## The database is Postgres now, and this one is not an upgrade
+
+SQLite is gone. Slipdock runs on Postgres only, `compose.yaml` brings up a
+`postgres` service alongside the app, and the 45 migrations that built the
+SQLite schema have been replaced by a single Postgres baseline.
+
+**There is no automatic migration of an existing SQLite database, and there
+will not be one.** Pulling this version against an old `slipdock-data` volume
+gives you an empty Postgres and leaves the `kanban.db` file sitting there
+untouched — nothing is destroyed, but nothing is carried across either.
+
+To bring boards over, export them from the old version and import them into
+the new one. Do the export *before* upgrading, while the old container can
+still read its database:
+
+```sh
+# On the old version, for each board tree you want to keep:
+docker compose exec slipdock /app/bin/slipdock rpc \
+  'IO.puts(Slipdock.Portable.export_json!("BOARDCODE"))' > board.json
+```
+
+Then upgrade, sign in, and import each file under **Boards → Import**, or
+`POST /api/import`. What a portable document does and does not carry is
+documented in `Slipdock.Portable` — attachments, votes, activity history and
+page revisions stay behind, which is a decision rather than an oversight.
+
+What changes in configuration:
+
+- `DATABASE_PATH` is gone. Under compose you need set nothing; the app builds
+  its `DATABASE_URL` from `POSTGRES_USER` / `POSTGRES_PASSWORD` /
+  `POSTGRES_DB`, which the bundled `postgres` service reads too. Set
+  `DATABASE_URL` yourself to use a Postgres you run elsewhere, and
+  `DATABASE_SSL=true` if it wants TLS.
+- **Set `POSTGRES_PASSWORD` in `.env` before the first start.** It defaults to
+  `slipdock`, and Postgres only reads it when it initialises its data
+  directory — changing it later does nothing until that volume is recreated.
+- There are now two volumes to back up: `slipdock-db` (the database) and
+  `slipdock-data` (uploads, AI keys, the generated secret). Back the database
+  up with `pg_dump`, not by copying files.
+- Working from a checkout now needs a Postgres. `docker compose -f
+  compose.dev.yaml up -d` runs one on `127.0.0.1:5434`, which is what
+  `config/dev.exs` and `config/test.exs` default to.
+
 ## There is a published image now
 
 `compose.yaml` pulls `ghcr.io/dadamsuk/slipdock` instead of building from the

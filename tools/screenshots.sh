@@ -10,10 +10,14 @@ set -euo pipefail
 
 PORT="${1:-4111}"
 OUT="${2:-docs/screenshots}"
-DB="$(mktemp -d)/demo.db"
+# A database of its own on the development server, dropped again at the end,
+# so photographing the demo never touches slipdock_dev. SCREENSHOT_DATABASE_URL
+# overrides where that is.
+DB="slipdock_shots_$$"
+LOG="$(mktemp -d)/server.log"
 BASE="http://127.0.0.1:$PORT"
 
-export DATABASE_PATH="$DB"
+export DATABASE_URL="${SCREENSHOT_DATABASE_URL:-postgres://postgres:postgres@localhost:5434/$DB}"
 export KANBAN_BIND_IP=127.0.0.1
 export PORT
 export KANBAN_AGENTIC_LOGIN=true
@@ -23,9 +27,10 @@ mix ecto.create --quiet
 mix ecto.migrate --quiet
 mix slipdock.demo
 
-mix phx.server > "$DB.log" 2>&1 &
+mix phx.server > "$LOG" 2>&1 &
 server=$!
-trap 'kill $server 2>/dev/null || true' EXIT
+# Drop the throwaway database on the way out, however we leave.
+trap 'kill $server 2>/dev/null || true; mix ecto.drop --quiet 2>/dev/null || true' EXIT
 
 for _ in $(seq 1 40); do
   curl -sf -o /dev/null "$BASE/login" && break

@@ -1,0 +1,42 @@
+# A Postgres to develop against, and nothing else — the app itself runs on your
+# machine with `mix phx.server`, not in a container.
+#
+#   docker compose -f compose.dev.yaml up -d
+#   mix setup && mix phx.server
+#
+# Port 5434 rather than 5432 on purpose: a developer's machine often already
+# has a Postgres (or three) listening on the usual one, and a dev database
+# quietly talking to the wrong server is a bad afternoon. config/dev.exs and
+# config/test.exs both default here; DATABASE_URL and TEST_DATABASE_URL
+# override them.
+#
+# Both databases live in this one server — slipdock_dev and slipdock_test, the
+# latter created by `mix test`. To throw the lot away and start again:
+#
+#   docker compose -f compose.dev.yaml down -v
+
+name: slipdock-dev
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    ports:
+      # Bound to loopback, so it is reachable from this machine and nowhere
+      # else. A dev database with trivial credentials on 0.0.0.0 is an open
+      # database.
+      - "127.0.0.1:5434:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: slipdock_dev
+    volumes:
+      - slipdock-dev-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  slipdock-dev-db:

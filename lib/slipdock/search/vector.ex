@@ -17,7 +17,7 @@ defmodule Slipdock.Search.Vector do
   There is no index and no approximation — the whole candidate set is
   scored. At this app's size (a few thousand chunks) that is a handful of
   milliseconds and always exact; if the corpus ever reaches six figures,
-  this module is the seam where an ANN index or sqlite-vec would go, and
+  this module is the seam where an ANN index or pgvector would go, and
   nothing above it would change.
   """
 

@@ -1,11 +1,14 @@
-# A self-contained Slipdock: build the release, then ship it on a base image with
-# no Elixir, no Node and no database server. SQLite lives on a volume, so the
-# container itself holds nothing you would miss.
+# Build the release, then ship it on a base image with no Elixir and no Node.
+# The database is Postgres and runs in its own container, so this image holds
+# only the app; uploads and generated secrets live on a volume.
+#
+# This image is not meant to be run on its own — it needs a Postgres to talk
+# to. `docker compose up -d` brings up both and is the documented way (see
+# compose.yaml). To run it by hand you have to supply DATABASE_URL:
 #
 #   docker build -t slipdock .
-#   docker run -p 4000:4000 -v slipdock-data:/data slipdock
-#
-# or `docker compose up -d`, which is the documented way (see compose.yaml).
+#   docker run -p 4000:4000 -v slipdock-data:/data \
+#     -e DATABASE_URL=postgres://user:pass@host:5432/slipdock slipdock
 
 # Elixir 1.20: config/runtime.exs uses the `E` regex modifier, which older
 # versions cannot compile — the release would build and then die on boot.
@@ -17,9 +20,8 @@ ARG RUNNER_IMAGE="debian:bookworm-20260918-slim"
 # ── build ───────────────────────────────────────────────────────────────────
 FROM ${ELIXIR_IMAGE} AS builder
 
-# git for a dependency fetched from git; build-essential for the NIFs
-# (ecto_sqlite3 compiles SQLite itself, mdex ships a precompiled Rust NIF but
-# wants a toolchain if it has to fall back).
+# git for a dependency fetched from git; build-essential for the NIFs (mdex
+# ships a precompiled Rust NIF but wants a toolchain if it has to fall back).
 RUN apt-get update -y \
   && apt-get install -y --no-install-recommends build-essential git ca-certificates curl \
   && apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -68,25 +70,23 @@ FROM ${RUNNER_IMAGE}
 
 # libstdc++ and libncurses for the Erlang runtime, locales so the app's UTF-8
 # is honoured, curl for the health check, util-linux for setpriv (the
-# entrypoint drops privileges with it after fixing the volume).
+# entrypoint drops privileges with it after fixing the volume), netcat so the
+# entrypoint can wait for Postgres to start accepting connections.
 RUN apt-get update -y \
   && apt-get install -y --no-install-recommends \
        libstdc++6 openssl libncurses6 locales ca-certificates curl util-linux \
+       netcat-openbsd \
   && apt-get clean && rm -rf /var/lib/apt/lists/* \
   && sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
 
 ENV LANG=en_US.UTF-8 LANGUAGE=en_US:en LC_ALL=en_US.UTF-8
 
-# Everything that must survive a new image lives under /data, which is the one
-# volume: the database, uploaded files, each person's OpenRouter key, and the
-# secret the entrypoint generates on first run.
+# Everything that must survive a new image lives under /data: uploaded files,
+# each person's OpenRouter key, and the secret the entrypoint generates on
+# first run. The database is Postgres' own volume, not this one.
 ENV MIX_ENV="prod" \
     PHX_SERVER="true" \
     PORT="4000" \
-    # Deliberately still kanban.db: it is a path inside somebody's data volume,
-    # and renaming it would point an upgraded container at an empty database
-    # while the real one sat beside it.
-    DATABASE_PATH="/data/kanban.db" \
     SLIPDOCK_UPLOADS_DIR="/data/uploads" \
     SLIPDOCK_AI_KEY_FILE="/data/ai_keys.json" \
     SLIPDOCK_DATA_DIR="/data"

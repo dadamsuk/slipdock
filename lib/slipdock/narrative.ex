@@ -77,14 +77,23 @@ defmodule Slipdock.Narrative do
         do: Boards.list_comments_between(Map.keys(owner), from, to),
         else: []
 
-    {by_card, board_events} =
-      Enum.reduce(activities, {%{}, []}, fn a, {by_card, loose} ->
-        case a.card_id && Map.get(owner, a.card_id) do
-          nil ->
-            {by_card, [event(a, nil) | loose]}
+    # A card's activity is attributed to the top-level card that owns it; a
+    # page's to the page itself. The two are bucketed separately because a
+    # page id and a card id are different numbers in the same range — keying
+    # both by the bare integer would hand one item's events to the other.
+    {by_card, by_page, board_events} =
+      Enum.reduce(activities, {%{}, %{}, []}, fn a, {by_card, by_page, loose} ->
+        cond do
+          a.page_id ->
+            {by_card, Map.update(by_page, a.page_id, [event(a, nil)], &[event(a, nil) | &1]),
+             loose}
 
-          top_id ->
-            {Map.update(by_card, top_id, [event(a, top_id)], &[event(a, top_id) | &1]), loose}
+          top_id = a.card_id && Map.get(owner, a.card_id) ->
+            {Map.update(by_card, top_id, [event(a, top_id)], &[event(a, top_id) | &1]), by_page,
+             loose}
+
+          true ->
+            {by_card, by_page, [event(a, nil) | loose]}
         end
       end)
 
@@ -93,7 +102,9 @@ defmodule Slipdock.Narrative do
         cards =
           Enum.map(group.cards, fn card ->
             events =
-              by_card
+              card
+              |> page?()
+              |> if(do: by_page, else: by_card)
               |> Map.get(card.id, [])
               |> Enum.reverse()
               |> Enum.filter(&told?(&1, tell))
@@ -230,6 +241,9 @@ defmodule Slipdock.Narrative do
       parent_id -> if parent = cards[parent_id], do: climb(parent, board_id, cards, parents)
     end
   end
+
+  defp page?(%Slipdock.Wiki.Page{}), do: true
+  defp page?(_), do: false
 
   defp event(activity, top_id) do
     %{
