@@ -106,10 +106,14 @@ defmodule SlipdockWeb.AgentSetupTest do
       assert html =~ "curl -fsSL #{base}/install.sh | sh"
     end
 
-    test "says reading is free and that approval happens in the browser", %{conn: conn} do
+    test "does not pretend reading a board is free, and approves in the browser", %{conn: conn} do
       {:ok, view, html} = live(conn, ~p"/account/agent")
 
       assert html =~ "Claude, ChatGPT or anything else"
+      # The guide is the only open thing. Saying otherwise sends people off to
+      # test a read that cannot work.
+      assert html =~ "Not optional, and not only about writing"
+      refute html =~ "Reading is free"
       assert has_element?(view, ~s{a[href="/activate"]})
       assert has_element?(view, ~s{a[href="/account/tokens"]})
     end

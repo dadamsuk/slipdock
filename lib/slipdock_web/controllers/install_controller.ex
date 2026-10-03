@@ -35,9 +35,9 @@ defmodule SlipdockWeb.InstallController do
     #   DIR/slipdock*/           the agent skills this server ships
     #   ~/.config/slipdock/url   this server's address, so you need not repeat it
     #
-    # It does not sign you in. Your agent does that itself, the first time it
-    # needs to write: it shows you a code, you approve it at #{base}/activate,
-    # and the token lands in ~/.config/slipdock/token.
+    # It does not sign you in. Your agent does that itself, and will have to
+    # before it can see any of your boards: it shows you a code, you approve it
+    # at #{base}/activate, and the token lands in ~/.config/slipdock/token.
     set -eu
 
     BASE="#{base}"
@@ -67,7 +67,8 @@ defmodule SlipdockWeb.InstallController do
       Work from my Slipdock board. Read the guide at the address in
       ~/.config/slipdock/url and follow it.
 
-    It will ask you to approve it the first time it writes anything.
+    Your boards need a sign-in before it can read them, let alone change
+    anything, so it should ask you to approve a code straight away.
     NEXT
     """
   end

@@ -103,8 +103,9 @@ defmodule SlipdockWeb.AccountLive.Index do
       base_url: base,
       agent_prompt:
         "Work from my Slipdock board at #{base}. Read #{base}/api/guide and " <>
-          "follow it. When you need to write something, sign in with the device " <>
-          "flow it describes and tell me the code to approve."
+          "follow it. Nothing about my boards is readable until you sign in, so " <>
+          "start with the device flow the guide describes and tell me the code " <>
+          "to approve."
     )
   end
 
@@ -1049,7 +1050,8 @@ defmodule SlipdockWeb.AccountLive.Index do
                 Paste this at the start of a session. The address is this server's own, and
                 <.link href={~p"/api/guide"} class="link">the guide</.link>
                 it names is written for agents: the model, what a card means here, how to pick
-                up the next thing, and every call it can make.
+                up the next thing, and every call it can make. Read with a token it also ends
+                with your own boards and lists, which is why it is worth reading twice.
               </p>
               <.copy_block id="agent-prompt" text={@agent_prompt} label="Copy prompt" />
             </section>
@@ -1057,10 +1059,11 @@ defmodule SlipdockWeb.AccountLive.Index do
             <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
               <h2 class="text-lg font-semibold">2 · Approve it, once</h2>
               <p class="mt-1 text-sm text-base-content/60">
-                Reading is free; the first time the agent needs to write, it will show you a
-                short code and ask you to approve it. Do that here, in this browser, where you
-                are already signed in — the agent never sees your password, and a code is only
-                good for a few minutes.
+                Not optional, and not only about writing: the guide is the one thing an agent
+                can read without a token. Your boards need one — listing them, opening a card,
+                searching — so it will ask almost straight away. It shows you a short code;
+                you approve it here, in this browser, where you are already signed in. The
+                agent never sees your password, and a code is only good for a few minutes.
               </p>
               <p class="mt-3 text-sm">
                 <.link href={~p"/activate"} class="link font-medium">Approve a code →</.link>
@@ -1083,7 +1086,8 @@ defmodule SlipdockWeb.AccountLive.Index do
                 </span>
               </h2>
               <p class="mt-1 text-sm text-base-content/60">
-                The guide above is enough on its own. These are the longer instructions — the
+                The guide above is enough on its own, and needs no token either. These are
+                the longer instructions — the
                 wiki, documents, working a backlog unattended — installed where your agent
                 looks for them without being asked. The script needs <code>curl</code>
                 and <code>tar</code>, nothing else: it writes the skills and
