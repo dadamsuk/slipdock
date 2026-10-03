@@ -7,7 +7,7 @@ defmodule Slipdock.WikiPlacementTest do
   could only sit after every card would not really be on the board, so both
   move operations repack the list's contents together.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
 

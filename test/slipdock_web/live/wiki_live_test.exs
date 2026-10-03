@@ -1,6 +1,6 @@
 defmodule SlipdockWeb.WikiLiveTest do
   @moduledoc "Reading, writing and the history of a board's wiki in the browser."
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures

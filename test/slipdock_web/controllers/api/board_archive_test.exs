@@ -1,6 +1,6 @@
 defmodule SlipdockWeb.API.BoardArchiveTest do
   @moduledoc "Archiving boards and setting the caller's own board order over the API."
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Slipdock.Fixtures
   alias Slipdock.{Access, Boards}

@@ -3,7 +3,7 @@ defmodule SlipdockWeb.WikiFoldersLiveTest do
   Folders in the browser: making them from the wiki's own sidebar, filing a
   page into one, and the Wiki view over every board at once.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures

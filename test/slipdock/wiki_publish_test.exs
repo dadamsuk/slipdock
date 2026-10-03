@@ -7,7 +7,7 @@ defmodule Slipdock.WikiPublishTest do
   a live query and a followable link both need permissions, and an anonymous
   request has none.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
 

@@ -43,13 +43,38 @@ mix precommit      # compile with warnings as errors, prune deps, format, test
 ```
 
 That is the gate. Please make it pass rather than explaining why it does not —
-there is no CI to catch it for you. The test suite is fast — around thirty
-seconds for the whole thing — so run it often.
+there is no CI to catch it for you. The whole suite takes a little over a
+minute, so run it often.
 
 Tests live in `test/kanban` for the domain and `test/slipdock_web` for anything
 with a browser in it; LiveView tests drive the real page. Calls to a language
 model are answered by a stub (`test/support/ai_stub.ex`), so no test spends
 money or needs a key.
+
+### async: true unless something is genuinely shared
+
+Postgres' sandbox gives every test its own connection inside its own
+transaction, so **new tests should be `async: true`**. Around a third are not,
+and each of those shares something the database cannot roll back:
+
+- **`Application.put_env` / `System.put_env`** — one env for the whole node.
+- **Anything writing `Slipdock.Settings`** — the row is cached in
+  `:persistent_term`, which is shared between processes, so one test's
+  uncommitted settings would be read by another.
+- **`AIStub.share/0`** — it calls `Req.Test.set_req_test_to_shared()`, which
+  makes the stub global. A test needs it when the code under test runs in
+  another process (any LiveView), and two such tests at once would overwrite
+  each other's scripted answers. The stub is per-process without it, so a test
+  that only calls the model in its own process can stay async.
+- **`Slipdock.Search.Indexer`** — one queue for the whole node. Sandbox setup
+  empties it before each test (`Indexer.reset/0`), which is enough to keep
+  tests independent but not enough to let two assert on it at once.
+- **The uploads directory** — five files `File.rm_rf!` it in setup, and it is
+  one real directory on disk.
+
+Do not flip one of those to `async: true` without removing the sharing first.
+The win is correctness, not speed: on an 8-core machine the whole suite is
+CPU-bound and running it in parallel is only a few per cent quicker.
 
 ## What good work looks like here
 

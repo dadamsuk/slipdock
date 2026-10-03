@@ -5,7 +5,7 @@ defmodule SlipdockWeb.API.PagesTest do
   importantly, the parts an agent gets wrong: the conflict, the provenance
   recorded on every write, and drafts staying out of a reader's sight.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Slipdock.Fixtures
 

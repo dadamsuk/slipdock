@@ -9,7 +9,7 @@ defmodule SlipdockWeb.API.PageContentsTest do
   shared: a row landing on the wrong owner, and a delete route reaching
   something it should not.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Slipdock.Fixtures
 

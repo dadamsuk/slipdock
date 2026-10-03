@@ -9,7 +9,7 @@ defmodule Slipdock.WikiFacetsTest do
   the card's contents, and the virtual empties that stand in for them are what
   let one component draw either.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
 

@@ -3,7 +3,7 @@ defmodule SlipdockWeb.BoardIndexLiveTest do
   The “Your boards” page: the two layouts, the order, and archiving a board
   from the list.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures

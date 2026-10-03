@@ -1,5 +1,5 @@
 defmodule SlipdockWeb.API.GuideTest do
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Slipdock.Fixtures
 

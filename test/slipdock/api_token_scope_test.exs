@@ -4,7 +4,7 @@ defmodule Slipdock.ApiTokenScopeTest do
   `Slipdock.Access` (#163); expiry is enforced here, because an expiry the
   server does not honour is a promise the UI makes and breaks.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
 

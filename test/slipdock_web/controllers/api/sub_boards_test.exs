@@ -1,5 +1,5 @@
 defmodule SlipdockWeb.API.SubBoardsTest do
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Slipdock.Fixtures
 

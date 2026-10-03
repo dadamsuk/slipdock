@@ -3,7 +3,7 @@ defmodule Slipdock.SignInCodesTest do
   The short code that opens the same door as the long link. Six digits is a
   small space, so most of this is about what stops it being walked.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
   import Swoosh.TestAssertions

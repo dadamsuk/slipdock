@@ -3,7 +3,7 @@ defmodule Slipdock.AdminStandingTest do
   Admin rights, disabling an account, and the guards that stop a server being
   left with nobody who can administer it.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
 

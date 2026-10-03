@@ -1,5 +1,5 @@
 defmodule SlipdockWeb.AuthLiveTest do
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
   import Swoosh.TestAssertions

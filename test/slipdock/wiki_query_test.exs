@@ -4,7 +4,7 @@ defmodule Slipdock.WikiQueryTest do
   the one that matters — that a document cannot become a way to read cards
   you could not otherwise open.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
 

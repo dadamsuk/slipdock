@@ -3,7 +3,7 @@ defmodule SlipdockWeb.API.CardFiltersTest do
   The date, dependency, assignee and kind filters on
   `GET /api/boards/:board/cards`.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Slipdock.Fixtures
 

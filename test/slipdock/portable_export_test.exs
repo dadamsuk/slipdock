@@ -5,7 +5,7 @@ defmodule Slipdock.PortableExportTest do
   values and what it waits on. An export whose import cannot rebuild the board
   is not an export, so these tests are about completeness rather than shape.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
 

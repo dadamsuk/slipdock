@@ -3,7 +3,7 @@ defmodule SlipdockWeb.API.PageSectionsTest do
   The half of the wiki API an agent lives in: reading a page with its
   references resolved, writing one section at a time, and the link graph.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Slipdock.Fixtures
 

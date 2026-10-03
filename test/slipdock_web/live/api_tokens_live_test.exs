@@ -3,7 +3,7 @@ defmodule SlipdockWeb.ApiTokensLiveTest do
   The Account page's API tokens section: minting one with a scope and an
   expiry, and showing enough about it afterwards to decide whether to revoke.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures

@@ -4,7 +4,7 @@ defmodule Slipdock.WikiCardsTest do
   making a card out of a passage, templates, and the writing people do in
   comments counting as writing.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
 
