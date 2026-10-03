@@ -30,6 +30,12 @@ Environment=LANG=C.UTF-8
 #
 # Note what is *not* here: AI keys and endpoints are per-person, set under
 # Account → AI model and kept in ai_keys.json next to the app (Slipdock.AI.Keys).
+#
+# The database is Postgres, and this unit does not start one. Either put a
+# DATABASE_URL in that file pointing at your server, or run the one in
+# compose.dev.yaml — which is what config/dev.exs falls back to
+# (localhost:5434). A service that cannot reach its database will start,
+# fail its migrations and be restarted on a loop.
 EnvironmentFile=-/opt/slipdock/.env
 
 Restart=on-failure
