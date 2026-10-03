@@ -93,6 +93,21 @@ defmodule SlipdockWeb.AccountLive.Index do
     |> load_tokens()
   end
 
+  # Everything on this tab is built from one fact: the address this server was
+  # reached on. It is the thing people get wrong when they copy setup
+  # instructions out of a repository, so the page works it out for them.
+  defp mount_tab(socket, :agent, _user) do
+    base = SlipdockWeb.BaseURL.from_socket(socket)
+
+    assign(socket,
+      base_url: base,
+      agent_prompt:
+        "Work from my Slipdock board at #{base}. Read #{base}/api/guide and " <>
+          "follow it. When you need to write something, sign in with the device " <>
+          "flow it describes and tell me the code to approve."
+    )
+  end
+
   defp mount_tab(socket, :data, user) do
     socket
     |> assign(
@@ -444,7 +459,35 @@ defmodule SlipdockWeb.AccountLive.Index do
   defp tab_title(:settings), do: "Settings"
   defp tab_title(:tokens), do: "API tokens"
   defp tab_title(:data), do: "Import & export"
+  defp tab_title(:agent), do: "Set up an agent"
   defp tab_title(_), do: "Account"
+
+  attr :id, :string, required: true
+  attr :text, :string, required: true
+  attr :label, :string, default: "Copy"
+
+  # Something to copy, with the button that copies it. The text is selectable
+  # too: a copy button that needs JavaScript must not be the only way out.
+  defp copy_block(assigns) do
+    ~H"""
+    <div class="mt-3">
+      <code
+        id={@id}
+        class="block select-all whitespace-pre-wrap break-words rounded-xl bg-base-200 px-3 py-2 font-mono text-xs leading-relaxed"
+        phx-no-format
+      >{@text}</code>
+      <button
+        type="button"
+        id={"#{@id}-copy"}
+        class="btn btn-ghost btn-xs mt-1 gap-1"
+        phx-hook="CopyText"
+        data-target={@id}
+      >
+        <.icon name="hero-clipboard" class="size-3.5" /> <span data-label>{@label}</span>
+      </button>
+    </div>
+    """
+  end
 
   attr :to, :string, required: true
   attr :active, :boolean, required: true
@@ -512,6 +555,12 @@ defmodule SlipdockWeb.AccountLive.Index do
               active={@live_action == :data}
               icon="hero-arrows-right-left"
               label="Import & export"
+            />
+            <.account_tab
+              to={~p"/account/agent"}
+              active={@live_action == :agent}
+              icon="hero-cpu-chip"
+              label="Set up an agent"
             />
           </nav>
 
@@ -975,6 +1024,103 @@ defmodule SlipdockWeb.AccountLive.Index do
                 </li>
               </ul>
               <p :if={@tokens == []} class="mt-3 text-sm text-base-content/50">No tokens yet.</p>
+            </section>
+          </div>
+
+          <%!-- Pointing an agent at this server. The short version is the first
+                section; everything under it is optional, and labelled as such,
+                because the thing that goes wrong here is people believing they
+                must install something first. --%>
+          <div :if={@live_action == :agent} class="space-y-8">
+            <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+              <h2 class="text-lg font-semibold">Set up an agent</h2>
+              <p class="mt-1 text-sm text-base-content/60">
+                Claude, ChatGPT or anything else that can run a shell command can read and
+                write these boards. The agent runs wherever you already use it — your laptop,
+                a cloud session, a phone app — and talks to this server over the web. You do
+                not need access to the machine this is running on, and there is nothing to
+                install first.
+              </p>
+            </section>
+
+            <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+              <h2 class="text-lg font-semibold">1 · Tell it where the board is</h2>
+              <p class="mt-1 text-sm text-base-content/60">
+                Paste this at the start of a session. The address is this server's own, and
+                <.link href={~p"/api/guide"} class="link">the guide</.link>
+                it names is written for agents: the model, what a card means here, how to pick
+                up the next thing, and every call it can make.
+              </p>
+              <.copy_block id="agent-prompt" text={@agent_prompt} label="Copy prompt" />
+            </section>
+
+            <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+              <h2 class="text-lg font-semibold">2 · Approve it, once</h2>
+              <p class="mt-1 text-sm text-base-content/60">
+                Reading is free; the first time the agent needs to write, it will show you a
+                short code and ask you to approve it. Do that here, in this browser, where you
+                are already signed in — the agent never sees your password, and a code is only
+                good for a few minutes.
+              </p>
+              <p class="mt-3 text-sm">
+                <.link href={~p"/activate"} class="link font-medium">Approve a code →</.link>
+              </p>
+              <p class="mt-3 text-sm text-base-content/60">
+                What it gets is an API token that acts as you. If you would rather it only
+                looked, make a read-only one on the
+                <.link navigate={~p"/account/tokens"} class="link">API tokens</.link>
+                tab and give the agent that instead. Every token is listed there, with when it
+                was last used and from where, and <span class="font-medium">Revoke</span>
+                ends its access immediately.
+              </p>
+            </section>
+
+            <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+              <h2 class="text-lg font-semibold">
+                Optional · install the skills
+                <span class="ml-1 align-middle text-xs font-normal text-base-content/50">
+                  for Claude Code and anything that reads <code>~/.claude/skills</code>
+                </span>
+              </h2>
+              <p class="mt-1 text-sm text-base-content/60">
+                The guide above is enough on its own. These are the longer instructions — the
+                wiki, documents, working a backlog unattended — installed where your agent
+                looks for them without being asked. The script needs <code>curl</code>
+                and <code>tar</code>, nothing else: it writes the skills and
+                saves this server's address in <code>~/.config/slipdock/url</code>, and signs
+                nothing in.
+              </p>
+              <.copy_block
+                id="agent-install"
+                text={"curl -fsSL #{@base_url}/install.sh | sh"}
+                label="Copy command"
+              />
+              <p class="mt-2 text-xs text-base-content/50">
+                Rather read it first? <code>curl {@base_url}/install.sh</code>
+                prints it. The skills are also
+                <.link href={~p"/api/skills.tar.gz"} class="link">a tar.gz</.link>
+                and <.link href={~p"/api/skills"} class="link">a JSON listing</.link>, each
+                versioned with this server.
+              </p>
+            </section>
+
+            <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+              <h2 class="text-lg font-semibold">
+                Optional · the <code>slipdock</code>
+                CLI
+                <span class="ml-1 align-middle text-xs font-normal text-base-content/50">
+                  needs Elixir to build
+                </span>
+              </h2>
+              <p class="mt-1 text-sm text-base-content/60">
+                A command-line client that wraps every call the agent would otherwise make with <code>curl</code>. Nicer to read in a transcript, and it keeps the token for
+                you. Build it from the repository, then point it here:
+              </p>
+              <.copy_block
+                id="agent-cli"
+                text={"cd cli && mix escript.build && cp slipdock ~/.local/bin/\nslipdock url #{@base_url}\nslipdock auth"}
+                label="Copy commands"
+              />
             </section>
           </div>
 

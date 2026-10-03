@@ -13,12 +13,17 @@ once per session, before choosing or updating anything:**
 slipdock guide                    # markdown, from GET /api/guide
 ```
 
-Without the CLI on this machine:
+Without the CLI on this machine — which is the usual case, since the CLI needs Elixir:
 
 ```sh
-curl -s -H "Authorization: Bearer $SLIPDOCK_TOKEN" \
-     "${SLIPDOCK_URL:-http://$(tailscale ip -4 | head -1):4000}/api/guide"
+B="${SLIPDOCK_URL:-$(cat ~/.config/slipdock/url 2>/dev/null)}"   # ask the user if neither is set
+curl -s -H "Authorization: Bearer $SLIPDOCK_TOKEN" "$B/api/guide"
 ```
+
+The server's address comes from `$SLIPDOCK_URL`, else `~/.config/slipdock/url` (written by
+`slipdock url` or by the server's `/install.sh`). If you have neither, **ask the user for the
+address of their Slipdock** rather than guessing at one — a hosted board is something like
+`https://app.slipdock.us`, a self-hosted one whatever name they reach it by.
 
 Pass the token if there is one (`$SLIPDOCK_TOKEN`, else `~/.config/slipdock/token`).
 The guide needs no token, but with one it ends with the user's actual boards,

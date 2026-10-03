@@ -1561,7 +1561,9 @@ mailbox at `/dev/mailbox` and the link is also written to the server log
 ### Signing an agent in
 
 An agent cannot read your email, so it cannot follow a magic link. It gets a
-token instead, and there are two ways to give it one.
+token instead, and there are two ways to give it one. ([Setting up an
+agent](agents.md) is the whole job end to end; this is the credential half of
+it.)
 
 **The device flow** (`slipdock auth`, with no token) is the way to do it from
 anywhere — a laptop, a sandbox, a container, any machine that is not this
@@ -1717,7 +1719,7 @@ Settings go in a `.env` beside `compose.yaml` — copy `.env.example`, which lis
 every variable with its default. The ones that matter first:
 
 ```sh
-PHX_HOST=kanban.example.com     # the address people use; sign-in links are built from it
+PHX_HOST=slipdock.example.com     # the address people use; sign-in links are built from it
 SLIPDOCK_PUBLISH=4000             # the host port to publish
 SLIPDOCK_ADMIN_EMAIL=you@example.com               # skips the setup wizard
 SLIPDOCK_SMTP_HOST=smtp.example.com               # so codes are emailed rather than logged
@@ -1833,10 +1835,10 @@ everything else is not — the file marks them: `User`/`Group`,
 cp .env.example .env            # then fill in what you want to change
 chmod 600 .env
 sudo cp deploy/slipdock.service /etc/systemd/system/
-sudoedit /etc/systemd/system/kanban.service   # the five lines above
+sudoedit /etc/systemd/system/slipdock.service   # the five lines above
 sudo systemctl daemon-reload
-sudo systemctl enable --now kanban
-journalctl -u kanban -f
+sudo systemctl enable --now slipdock
+journalctl -u slipdock -f
 ```
 
 Settings go in `.env`, not in the unit file, so the unit stays the same on every
@@ -2025,11 +2027,16 @@ slipdock ai-models        # what that endpoint can run
 slipdock ai-model <id>    # pick one (`--embed <id>` for the search index).
                          # The AI features need a key or an endpoint
 slipdock guide             # the server's instructions for agents (GET /api/guide)
-kanban --help
+slipdock --help
 ```
 
-It finds the server via `SLIPDOCK_URL`, else this machine's Tailscale IP on port 4000,
-and the token via `SLIPDOCK_TOKEN` or the saved file.
+It finds the server via `SLIPDOCK_URL`, else `~/.config/slipdock/url`, else this
+machine's tailnet address on port 4000; and the token via `SLIPDOCK_TOKEN`, else
+`~/.config/slipdock/token`. `slipdock url <address>` writes the first of those
+(`slipdock auth` writes it too, for the server you just signed into), and
+`slipdock url` on its own says which address is in use and where it came from —
+the first thing to check when nothing can be reached. The env vars win, for a
+one-off against another install.
 
 ```sh
 slipdock swimlanes 1 --rows tag --cols due_date --unit month --open
@@ -2113,24 +2120,36 @@ slipdock unfav list qvm-v1-rem "In Progress"   # or `fav ... --off`
 ```
 ## Skills
 
+> Setting an agent up — the address, the approval, the skills — is
+> [its own page](agents.md), written for the person doing it rather than for
+> somebody reading the code. The rest of this section is how it works.
+
 `priv/skills/` holds the agent instructions this app ships, and the server
 serves them at `/api/skills` — versioned with the code they describe, so a
 copy in somebody's agent directory can be checked against the API that
-actually answers. `slipdock skills install` writes them to `~/.claude/skills`
-(`--dir` for somewhere else) and `slipdock skills check` says whether a local
-copy is behind.
+actually answers. Three ways to install them:
 
-- **`kanban`** — the CLI reference: what each command does and when to reach
-  for it.
-- **`kanban-work`** — working *from* a board: epics and subcards, what to
+- `curl -fsSL <server>/install.sh | sh` — needs only `curl` and `tar`, so it
+  works on the machine an agent is actually running on. It unpacks
+  `/api/skills.tar.gz` into `~/.claude/skills` (an argument puts them
+  elsewhere) and saves the server's address in `~/.config/slipdock/url`.
+- `slipdock skills install` (`--dir` for somewhere else), for anyone who has
+  the CLI, with `slipdock skills check` to say whether a local copy is behind.
+- `GET /api/skills` for the listing — every file, with a sha over each skill —
+  and `GET /api/skills/<name>/<file>` for one file, for a client that would
+  rather walk it itself.
+
+- **`slipdock`** — the command and API reference: what each call does and when
+  to reach for it, and the `curl` form for a machine with no CLI on it.
+- **`slipdock-work`** — working *from* a board: epics and subcards, what to
   pick up next, what to write back as you go.
-- **`kanban-wiki`** — the wiki reference: finding, reading, writing, linking
+- **`slipdock-wiki`** — the wiki reference: finding, reading, writing, linking
   and the section writes, with `references/` for the markup, the section
   rules and the raw HTTP.
-- **`kanban-docs`** — the harder half: what belongs in a document and where.
+- **`slipdock-docs`** — the harder half: what belongs in a document and where.
   A page or a comment? Search before writing. Pin it to the card. Append to
   `## Log`, don't rewrite.
-- **`kanban-loop`** — working the ready list unattended: one pass, one card,
+- **`slipdock-loop`** — working the ready list unattended: one pass, one card,
   its subcards included, claimed before the work and closed out with a
   wrap-up comment and the commit id. Written for `/loop`, a schedule or a
   cron, so the board carries all the state between passes.
@@ -2138,5 +2157,8 @@ copy is behind.
 Board-specific detail — board codes, list names, tag vocabularies — stays out
 of these files on purpose and comes from `GET /api/guide`, which generates it
 per caller. A skill that hardcodes them rots; one that sends the agent to the
-guide first does not. They are plain Markdown with `curl` fallbacks in every
-block, so a non-Claude agent gets the same thing.
+guide first does not. They are plain Markdown, and the two that an agent
+reaches for first — `slipdock` and `slipdock-work` — carry the `curl` form
+alongside the CLI one, because the CLI is an escript and the machine the agent
+is on usually has no Elixir. Everything else is in the guide, which is `curl`
+throughout.

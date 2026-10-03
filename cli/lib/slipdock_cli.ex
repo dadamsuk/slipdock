@@ -31,6 +31,10 @@ defmodule SlipdockCLI do
     unsave <words...> [--ask]           take one off the list (or `unsave --id N`)
 
   AUTH
+    url [<url>]                         which server to talk to, saved in
+                                        ~/.config/slipdock/url so it need not be in the
+                                        environment (`url --remove` forgets it).
+                                        $SLIPDOCK_URL still wins for a one-off
     auth                                sign in without a token: shows a code to approve in a
                                       browser, then saves the token it is given
       --label TEXT  what the approval screen calls this client (default: this host)
@@ -434,6 +438,7 @@ defmodule SlipdockCLI do
     HTTP.get("/me")
     |> out(o, fn r ->
       path = HTTP.save_token(token)
+      remember_server()
       IO.puts("signed in as #{r["user"]["email"]}; token saved to #{path}")
     end)
   end
@@ -642,6 +647,28 @@ defmodule SlipdockCLI do
       |> put_ai(o)
     else
       fail("ai-model needs a model id (see `slipdock ai-models`), or --remove")
+    end
+  end
+
+  # Which server, remembered. `--remove` goes back to working it out.
+  defp run("url", [], o) do
+    if o[:remove] do
+      HTTP.forget_url()
+      IO.puts("forgotten; now using #{HTTP.base_url()} (#{HTTP.url_source()})")
+    else
+      IO.puts("#{HTTP.base_url()}  (from #{HTTP.url_source()})")
+    end
+  end
+
+  defp run("url", [url], _o) do
+    url = if String.contains?(url, "://"), do: url, else: "https://" <> url
+    path = HTTP.save_url(url)
+    System.put_env("SLIPDOCK_URL", url)
+
+    case HTTP.get("/guide") do
+      {:ok, _} -> IO.puts("saved #{HTTP.base_url()} to #{path}")
+      {:error, :connect, _} -> IO.puts("saved #{url} to #{path}, but could not reach it")
+      {:error, _, _} -> IO.puts("saved #{HTTP.base_url()} to #{path}")
     end
   end
 
@@ -2436,11 +2463,20 @@ defmodule SlipdockCLI do
     HTTP.get("/me")
     |> out(o, fn r ->
       path = HTTP.save_token(token)
+      remember_server()
       IO.puts("signed in as #{r["user"]["email"]}; token saved to #{path}")
     end)
   end
 
   defp finish_device_auth({:error, message}, _o), do: fail(message)
+
+  # Signing in says which server you meant, so remember it: the next command,
+  # and every agent session after it, should not need the address again.
+  defp remember_server do
+    HTTP.save_url(HTTP.base_url())
+  rescue
+    _ -> :ok
+  end
 
   # What the person approving will see named on the screen, so make it say
   # something about this machine rather than "CLI".
