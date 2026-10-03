@@ -32,11 +32,19 @@ anything being broken — say so instead of retrying:
 
 Two more refusals are also final. Report them and say what the person can do:
 
-- `card_limit_reached` (HTTP 402) — the board owner's account has used all the cards it allows.
-  A different title will not help; it will fail identically, forever. Suggest archiving
-  something finished with. `slipdock whoami --json` and `slipdock guide` both say how much of
-  the allowance is left, so you can check before starting a batch rather than discovering the
-  wall halfway through.
+- `card_limit_reached` (HTTP 402) — the board owner's account has used all the **items** it
+  allows. An item is a card, a wiki page or an uploaded file: all three count against one
+  number, so writing it up as a page instead will not get round it. A different title will not
+  help either; it will fail identically, forever. Suggest archiving something finished with.
+  `slipdock whoami --json` and `slipdock guide` both say how much of the allowance is left, so
+  you can check before starting a batch rather than discovering the wall halfway through.
+- `board_limit_reached` (HTTP 402) — they own as many boards as this server allows one person.
+  Sub-boards (subcards) do not count towards it. Suggest archiving a board, or asking an admin.
+- `storage_limit_reached` (HTTP 402) — their uploaded files fill the space allowed. Only
+  deleting attachments frees it; archiving the card the file hangs off does not.
+- `trial_expired` (HTTP 402) — a free trial has run out. Nothing new can be added anywhere on
+  their boards, however small. Everything already there is still readable and editable. Nothing
+  you can do about it: tell the person they need to subscribe, and stop.
 - `No account here uses that address…` when sharing — this server does not make accounts for
   the people you share things with. An admin has to invite them.
 
@@ -349,8 +357,9 @@ Three things to tell the user before running `import`, because they are surprisi
   already there. Importing the same file twice gives two copies. A board code that is taken is
   reissued (`del` → `del-2`) and the output says so.
 - **Automation rules do not fire.** An import is history arriving, not things happening.
-- **The card limit is answered for the whole file first.** A file that will not fit is refused
-  outright; nothing is part-built.
+- **The limits are answered for the whole file first.** A file that holds more cards and pages
+  than the person has room for — or more boards, or that arrives after their trial has ended —
+  is refused outright; nothing is part-built.
 
 Left out of the file on purpose: attachments, votes, wiki page history, activity, and public
 share links. The export prints how much of each it left behind. Page codes (`W-31`) are
@@ -363,9 +372,9 @@ somebody else's to hand on.
 
 ## Administering the server
 
-`slipdock admin ...` changes who may use this server: the registration mode, the card limit,
-who people can see, whether sharing makes accounts, the allowlist, people's admin rights and
-the queue of people waiting to be let in. **Never run any of it unless the user has asked for
+`slipdock admin ...` changes who may use this server: the registration mode, the limits, the
+free trial, who people can see, whether sharing makes accounts, the allowlist, people's admin
+rights and the queue of people waiting to be let in. **Never run any of it unless the user has asked for
 that specific change** — these decide who can reach their data.
 
 It needs a token made with the **admin** scope, which is not the ordinary read/write one. If a
@@ -376,16 +385,28 @@ ask for one; do not retry.
 slipdock admin settings                     what this server allows, and who it tells
 slipdock admin build                        the commit and build time now running
 slipdock admin set signup_mode=closed       also free_card_limit, user_directory,
-                                            invites_create_accounts
+                                            invites_create_accounts, trial_days,
+                                            trial_enabled, board_limit, item_limit,
+                                            storage_limit_mb, and <name>_enabled=false
+                                            to switch a limit off
 slipdock admin allow example.com            let an address or a whole domain register
 slipdock admin disallow example.com
 slipdock admin users                        who is here, what they use, when last seen
 slipdock admin promote|demote <email>       admin rights (never the last admin)
 slipdock admin disable|enable <email>       reversible; ends their sessions at once
-slipdock admin limit <email> <n|none>       a card limit of their own
+slipdock admin limit <email> <n|none>       an item limit of their own
+slipdock admin paid <email> <date|none>     paid up to a date: takes them off the free
+                                            allowance and off the trial clock
 slipdock admin signups                      who is waiting to be let in
 slipdock admin approve|reject <email>
 ```
+
+The limits are worth knowing before you set one. Each is counted against whoever **owns** the
+root board, not whoever made the thing, so a guest working on somebody's board never costs
+themselves anything. `free_card_limit` and `trial_days` are the free tier and apply only to
+accounts with no paid-up date; `board_limit`, `item_limit` and `storage_limit_mb` are ceilings
+on every account on every install — admins included — and default to 1,000 boards, 250,000
+items and 10 GB. Where two limits both apply, the lower wins.
 
 Mail settings and the admin address are deliberately not here. Both have to prove something
 first — a test message that arrived, a code sent to the new address — and they live in the web

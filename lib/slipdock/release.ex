@@ -97,7 +97,11 @@ defmodule Slipdock.Release do
     Admin address:    #{settings.admin_email || "—"}
     Admins:           #{Enum.map_join(Slipdock.Accounts.list_admins(), ", ", & &1.email)}
     Registration:     #{settings.signup_mode}
-    Card limit:       #{settings.free_card_limit || "no limit"}
+    Free allowance:   #{settings.free_card_limit || "no limit"} (cards, pages and files)
+    Free trial:       #{if settings.trial_enabled, do: "#{settings.trial_days} days", else: "off"}
+    Board ceiling:    #{if settings.board_limit_enabled, do: settings.board_limit, else: "off"}
+    Item ceiling:     #{if settings.item_limit_enabled, do: settings.item_limit, else: "off"}
+    File ceiling:     #{if settings.storage_limit_enabled, do: "#{settings.storage_limit_mb} MB", else: "off"}
     People visible:   #{settings.user_directory}
     Invites create:   #{settings.invites_create_accounts}
     Mail:             #{if Slipdock.Settings.smtp_configured?(), do: settings.smtp_host, else: "not configured"}
@@ -175,6 +179,32 @@ defmodule Slipdock.Release do
 
   defp setup_attrs(["--card-limit", value | rest], attrs, allow),
     do: setup_attrs(rest, Map.put(attrs, "free_card_limit", value), allow)
+
+  defp setup_attrs(["--trial-days", value | rest], attrs, allow),
+    do:
+      setup_attrs(
+        rest,
+        attrs |> Map.put("trial_days", value) |> Map.put("trial_enabled", true),
+        allow
+      )
+
+  defp setup_attrs(["--board-limit", value | rest], attrs, allow),
+    do: setup_attrs(rest, Map.put(attrs, "board_limit", value), allow)
+
+  defp setup_attrs(["--item-limit", value | rest], attrs, allow),
+    do: setup_attrs(rest, Map.put(attrs, "item_limit", value), allow)
+
+  defp setup_attrs(["--storage-limit-mb", value | rest], attrs, allow),
+    do: setup_attrs(rest, Map.put(attrs, "storage_limit_mb", value), allow)
+
+  defp setup_attrs(["--no-board-limit" | rest], attrs, allow),
+    do: setup_attrs(rest, Map.put(attrs, "board_limit_enabled", false), allow)
+
+  defp setup_attrs(["--no-item-limit" | rest], attrs, allow),
+    do: setup_attrs(rest, Map.put(attrs, "item_limit_enabled", false), allow)
+
+  defp setup_attrs(["--no-storage-limit" | rest], attrs, allow),
+    do: setup_attrs(rest, Map.put(attrs, "storage_limit_enabled", false), allow)
 
   defp setup_attrs(["--directory", value | rest], attrs, allow),
     do: setup_attrs(rest, Map.put(attrs, "user_directory", value), allow)

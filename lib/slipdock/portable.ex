@@ -209,12 +209,34 @@ defmodule Slipdock.Portable do
   # One question asked once, about the whole file. See the moduledoc above for
   # why this is not per card.
   defp check_quota(user, trees) do
-    wanted = trees |> Enum.flat_map(&Map.get(&1, :cards, [])) |> Enum.count(&(!&1[:archived]))
+    # Everything the file would add that counts as an item: cards and pages.
+    # Attachments do not travel in an export, so there is nothing to weigh
+    # against the storage limit here.
+    wanted =
+      trees
+      |> Enum.flat_map(&(Map.get(&1, :cards, []) ++ Map.get(&1, :pages, [])))
+      |> Enum.count(&(!&1[:archived]))
 
-    case Quota.status(user) do
-      %{limited?: false} -> :ok
-      %{remaining: remaining} when remaining >= wanted -> :ok
-      %{remaining: remaining} -> {:error, {:card_limit_reached, wanted, remaining}}
+    boards = Enum.count(trees)
+
+    with :ok <- room_for(user, :items, wanted),
+         :ok <- room_for(user, :boards, boards) do
+      :ok
+    end
+  end
+
+  # An expired trial refuses the whole file, like a full quota does.
+  defp room_for(user, dimension, wanted) do
+    case Quota.check(user, dimension, wanted) do
+      :ok ->
+        :ok
+
+      {:error, :trial_expired} ->
+        {:error, :trial_expired}
+
+      {:error, _reason} ->
+        %{remaining: remaining} = Quota.status(user, dimension)
+        {:error, {Quota.limit_name(dimension), wanted, remaining}}
     end
   end
 

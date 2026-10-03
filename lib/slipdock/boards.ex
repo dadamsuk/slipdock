@@ -365,6 +365,7 @@ defmodule Slipdock.Boards do
         %Board{template_id: template && template.id}
         |> Board.changeset(attrs)
         |> Ecto.Changeset.change(Keyword.take(opts, [:parent_card_id, :root_id, :owner_id]))
+        |> enforce_board_limit()
       )
       |> Multi.run(:columns, fn repo, %{board: board} -> insert_columns(repo, board, columns) end)
       |> Multi.run(:activity, fn repo, %{board: board} ->
@@ -383,6 +384,23 @@ defmodule Slipdock.Boards do
 
       {:error, :board, changeset, _} ->
         {:error, changeset}
+    end
+  end
+
+  # The guardrail on how many boards one person may own. Only root boards count
+  # (see `Slipdock.Quota`): a sub-board exists because a card has subcards, and
+  # refusing those would turn the board limit into a limit on subcards.
+  #
+  # Read off the changeset rather than the options, because the owner arrives
+  # either way — `owner_id` in the attributes from a form, in `opts` from a
+  # sub-board — and neither one on its own is guaranteed.
+  defp enforce_board_limit(changeset) do
+    get = &Ecto.Changeset.get_field(changeset, &1)
+
+    if get.(:root_id) || get.(:parent_card_id) do
+      changeset
+    else
+      Quota.enforce_owner(changeset, get.(:owner_id), :boards)
     end
   end
 
@@ -2294,6 +2312,7 @@ defmodule Slipdock.Boards do
     ext = meta |> Map.get(:filename, "") |> Path.extname() |> String.downcase() |> safe_ext()
     key = Path.join(folder, Ecto.UUID.generate() <> ext)
     size = Map.get(meta, :size) || File.stat!(source).size
+    scope = attachment_scope(owner)
 
     changeset =
       Attachment.changeset(
@@ -2305,6 +2324,10 @@ defmodule Slipdock.Boards do
           key: key
         })
       )
+      # An upload is both a thing stored and bytes on a disk, so it is checked
+      # against both limits before a single byte is copied anywhere.
+      |> Quota.enforce(scope, :items)
+      |> Quota.enforce(scope, :storage, want: size)
 
     with {:ok, _} <- Ecto.Changeset.apply_action(changeset, :insert),
          :ok <- store_file(source, key),
@@ -2319,6 +2342,15 @@ defmodule Slipdock.Boards do
          Ecto.Changeset.add_error(changeset, :key, "could not be stored: #{inspect(reason)}")}
     end
   end
+
+  # Which board's owner pays for this file: the card's, or the page's.
+  defp attachment_scope(%{card_id: card_id}) when not is_nil(card_id),
+    do: Repo.one(from(c in Card, where: c.id == ^card_id, select: c.board_id))
+
+  defp attachment_scope(%{page_id: page_id}) when not is_nil(page_id),
+    do: Repo.one(from(p in Slipdock.Wiki.Page, where: p.id == ^page_id, select: p.board_id))
+
+  defp attachment_scope(_owner), do: nil
 
   def delete_attachment(%Attachment{} = attachment) do
     attachment = Repo.preload(attachment, [:card, :page])

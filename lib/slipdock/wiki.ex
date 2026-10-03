@@ -28,6 +28,7 @@ defmodule Slipdock.Wiki do
   alias Slipdock.Accounts.User
   alias Slipdock.Boards
   alias Slipdock.Boards.{Activity, Attachment, Board, Card, Column, Tag}
+  alias Slipdock.Quota
   alias Slipdock.Search.Indexer
   alias Slipdock.Wiki.{Folder, Folders, Link, Links, Markup, Page, Query, Revision, Section}
 
@@ -380,6 +381,10 @@ defmodule Slipdock.Wiki do
           }
           |> Page.changeset(Map.put(attrs, "slug", slug))
           |> check_parent(board)
+          # A page is an item like a card is, counted against whoever owns the
+          # board (see `Slipdock.Quota`). Enforced here because the wiki UI, the
+          # CLI, the API, a template install and the model all come through it.
+          |> Quota.enforce(board)
 
         case Repo.insert(changeset) do
           {:ok, page} ->

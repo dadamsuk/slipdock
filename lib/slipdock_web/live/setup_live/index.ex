@@ -340,13 +340,15 @@ defmodule SlipdockWeb.SetupLive.Index do
       <.input
         field={@form[:free_card_limit]}
         type="number"
-        label="Cards allowed per person, before they need to pay"
+        label="Items allowed per free account, before they need to pay"
         placeholder="No limit"
       />
       <p class="-mt-3 text-xs text-base-content/60">
-        Leave this empty unless you are running Slipdock for other people. It counts
-        the cards on boards somebody owns, so a guest working on your board costs them
-        nothing.
+        Leave this empty unless you are running Slipdock for other people. It counts the
+        cards, wiki pages and uploaded files on boards somebody owns, so a guest working
+        on your board costs them nothing. Separately, every account on every server has a
+        generous ceiling — 1,000 boards, 250,000 items, 10 GB of files — and there is a
+        free-trial clock you can switch on. Both are in Settings once you are in.
       </p>
 
       <button type="submit" class="btn btn-primary w-full">Next: email</button>

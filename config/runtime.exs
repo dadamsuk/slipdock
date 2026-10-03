@@ -154,6 +154,26 @@ end
 #
 # All of these seed *once*. Changing one on a server that has already been set
 # up has no effect — edit it in the admin UI instead.
+
+# A limit variable carries a number, or `0`/`off` to turn that limit off. These
+# two read the same variable from either end: the number, and the switch.
+positive_env = fn name ->
+  case System.get_env(name) do
+    nil -> nil
+    "" -> nil
+    value -> with {n, _} when n > 0 <- Integer.parse(value), do: n, else: (_ -> nil)
+  end
+end
+
+switch_env = fn name ->
+  case System.get_env(name) do
+    nil -> nil
+    "" -> nil
+    value when value in ["0", "off", "false", "none"] -> false
+    _ -> true
+  end
+end
+
 settings_env =
   [
     signup_mode:
@@ -178,7 +198,18 @@ settings_env =
         value when value in ["0", "false"] -> false
         _ -> nil
       end,
-    admin_email: System.get_env("SLIPDOCK_ADMIN_EMAIL")
+    admin_email: System.get_env("SLIPDOCK_ADMIN_EMAIL"),
+    # The free trial, and the ceilings every install has. A number seeds the
+    # limit; `0` or `off` switches that limit off altogether. Leaving one unset
+    # keeps the default (1,000 boards / 250,000 items / 10 GB, trial off).
+    trial_days: positive_env.("SLIPDOCK_TRIAL_DAYS"),
+    trial_enabled: switch_env.("SLIPDOCK_TRIAL_DAYS"),
+    board_limit: positive_env.("SLIPDOCK_BOARD_LIMIT"),
+    board_limit_enabled: switch_env.("SLIPDOCK_BOARD_LIMIT"),
+    item_limit: positive_env.("SLIPDOCK_ITEM_LIMIT"),
+    item_limit_enabled: switch_env.("SLIPDOCK_ITEM_LIMIT"),
+    storage_limit_mb: positive_env.("SLIPDOCK_STORAGE_LIMIT_MB"),
+    storage_limit_enabled: switch_env.("SLIPDOCK_STORAGE_LIMIT_MB")
   ]
   |> Enum.reject(fn {_k, v} -> is_nil(v) end)
 

@@ -1395,9 +1395,11 @@ would otherwise run every rule on the board four hundred times and email
 somebody about each. Rules are about what happens here; an import is history
 arriving.
 
-The card limit, where a server has one, is answered once for the whole
-document before anything is built. A file that will not fit is refused
-outright rather than stopping half way and leaving a part-built board.
+The limits, where a server has them, are answered once for the whole document
+before anything is built: the cards and pages it would add, and the boards. A
+file that will not fit is refused outright rather than stopping half way and
+leaving a part-built board, and so is one that arrives after a free trial has
+ended.
 
 ### What does not travel, and why
 
@@ -1476,23 +1478,42 @@ browser.
 Changing the mode never removes anybody: people who already have an account keep
 it.
 
-**Running it for other people.** Three more settings make a shared server
-defensible. A **card limit** caps how many cards one person's own boards may
-hold — cards on boards shared *with* them cost them nothing, and archiving frees
-one up. **Who people can see** can be narrowed from everyone on the server to
-only the people somebody actually shares a board, card or page with, which also
-keeps other customers' addresses out of anything sent to a language model. And
-**whether sharing with a stranger makes them an account** can be turned off, so
-you can only share with people who already have one.
+**Running it for other people.** A few more settings make a shared server
+defensible. An **item limit** caps how much one person's own boards may hold —
+a card, a wiki page and an uploaded file each count as one item, so writing the
+work up as pages is not a way round it; things on boards shared *with* them cost
+them nothing, and archiving a card or a page frees one up. A **free trial** can
+be switched on: free accounts stop being able to add anything so many days after
+they were made, which is independent of the item limit, so an account can have
+no item limit at all and still run out of trial. Neither deletes anything or
+locks anybody out — what ends is adding. **Who people can see** can be narrowed
+from everyone on the server to only the people somebody actually shares a board,
+card or page with, which also keeps other customers' addresses out of anything
+sent to a language model. And **whether sharing with a stranger makes them an
+account** can be turned off, so you can only share with people who already have
+one.
+
+**The ceilings.** Separately, every install has three of them on, however it is
+run: 1,000 boards one person may own, 250,000 items on those boards, and 10 GB of
+uploaded files. They are a safety rail rather than a price list — a runaway
+script should hit something — so **admins are not exempt either**, and an admin
+who means to go past one raises it. Each has its own switch, so any of them can
+be turned off without losing the number behind it. Where a free account's own
+allowance is lower than a ceiling, the lower one wins.
+
+**Who has paid.** There is no billing in Slipdock. What takes somebody off the
+free allowance and off the trial clock is a **paid-up date**, set per person
+under Users (or `slipdock admin paid <email> <date>`) by whoever took the money.
+An account with no date in the future is a free one.
 
 **Admins.** One role, and the oldest account has it after an upgrade. Admins
 change all of the above, see everybody, grant and remove admin rights, disable
-accounts and set per-person card limits. Three things are deliberately refused:
-mail settings will not save without a test message that arrived, the last admin
-cannot be demoted or disabled, and the admin address only changes once the new
-address confirms a code. There is no delete — disabling is reversible and
-immediate, and deleting somebody would take their cards, comments and page
-history with them.
+accounts, set per-person item limits and record who has paid. Three things are
+deliberately refused: mail settings will not save without a test message that
+arrived, the last admin cannot be demoted or disabled, and the admin address
+only changes once the new address confirms a code. There is no delete —
+disabling is reversible and immediate, and deleting somebody would take their
+cards, comments and page history with them.
 
 **When there is no mail server**, sign-in codes are written to a file on the
 server (`SLIPDOCK_LOGIN_FALLBACK_PATH`, mode `0600`) and to the log, so a fresh

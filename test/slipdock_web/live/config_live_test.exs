@@ -53,6 +53,63 @@ defmodule SlipdockWeb.ConfigLiveTest do
       assert Settings.signup_mode() == :open
     end
 
+    test "the limits are shown with their numbers and switches", %{conn: conn} do
+      {:ok, _view, html} = live(conn, ~p"/config")
+
+      assert html =~ "Limits for everybody"
+      assert html =~ "Boards one person may own"
+      assert html =~ "Free accounts expire"
+      assert html =~ ~s(value="1000")
+      assert html =~ ~s(value="250000")
+      assert html =~ ~s(value="10240")
+    end
+
+    test "a limit can be changed and switched off", %{conn: conn} do
+      {:ok, view, _} = live(conn, ~p"/config")
+
+      view
+      |> form("#admin-settings-form", %{
+        "settings" => %{
+          "signup_mode" => "closed",
+          "board_limit" => "50",
+          "board_limit_enabled" => "true",
+          "storage_limit_enabled" => "false",
+          "trial_days" => "14",
+          "trial_enabled" => "true"
+        }
+      })
+      |> render_submit()
+
+      assert Settings.board_limit() == 50
+      # Switched off, but the number it had is still there to switch back on.
+      assert Settings.storage_limit_bytes() == nil
+      assert Settings.storage_limit_mb() == 10_240
+      assert Settings.trial_days() == 14
+    end
+
+    test "clearing a limit's box leaves the number alone rather than saving nothing", %{
+      conn: conn
+    } do
+      {:ok, view, _} = live(conn, ~p"/config")
+
+      # A blank number field reads as "no change" (Ecto's empty values), not as
+      # "a limit of nothing" — which is what the switch is for. The page then
+      # redraws with the number still in it.
+      html =
+        view
+        |> form("#admin-settings-form", %{
+          "settings" => %{
+            "signup_mode" => "closed",
+            "item_limit" => "",
+            "item_limit_enabled" => "true"
+          }
+        })
+        |> render_submit()
+
+      assert Settings.item_limit() == 250_000
+      assert html =~ ~s(value="250000")
+    end
+
     test "the allowlist editor appears only when it is the mode", %{conn: conn} do
       {:ok, view, _} = live(conn, ~p"/config")
       refute has_element?(view, "#allow-form")
