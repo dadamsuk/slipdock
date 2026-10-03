@@ -44,6 +44,59 @@ defmodule Slipdock.AITest do
     end
   end
 
+  # Two things real local model servers do that OpenRouter does not, both met
+  # on an LM Studio box: no `response_format: json_object`, and a reasoning
+  # model that thinks until the token budget is gone.
+  describe "endpoints that are not OpenRouter" do
+    test "JSON mode is dropped and asked again when the endpoint refuses it" do
+      test = self()
+      {:ok, calls} = Agent.start_link(fn -> 0 end)
+
+      Req.Test.stub(Slipdock.AI, fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        body = Jason.decode!(body)
+        send(test, {:ai_request, body})
+
+        case Agent.get_and_update(calls, &{&1, &1 + 1}) do
+          0 ->
+            conn
+            |> Plug.Conn.put_status(400)
+            |> Req.Test.json(%{
+              "error" => "'response_format.type' must be 'json_schema' or 'text'"
+            })
+
+          _ ->
+            Req.Test.json(conn, %{
+              "choices" => [%{"message" => %{"content" => "{\"ok\": true}"}}]
+            })
+        end
+      end)
+
+      assert {:ok, %{"ok" => true}} = AI.complete_json([%{role: "user", content: "x"}])
+
+      assert_receive {:ai_request, %{"response_format" => _}}
+      # The second ask leaves the flag off rather than giving up on the endpoint.
+      assert_receive {:ai_request, second}
+      refute Map.has_key?(second, "response_format")
+    end
+
+    test "a reasoning model that ran out of budget says so, rather than 'empty'" do
+      Req.Test.stub(Slipdock.AI, fn conn ->
+        Req.Test.json(conn, %{
+          "choices" => [
+            %{
+              "message" => %{"content" => "", "reasoning_content" => "Hmm, let me think…"},
+              "finish_reason" => "length"
+            }
+          ]
+        })
+      end)
+
+      assert {:error, message} = AI.complete([%{role: "user", content: "x"}])
+      assert message =~ "token budget"
+    end
+  end
+
   describe "Slipdock.AI.Context" do
     test "a board page lists its wiki separately from its cards" do
       user = user_fixture()

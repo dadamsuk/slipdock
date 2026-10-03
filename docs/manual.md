@@ -126,7 +126,8 @@ way in: what it is, the pictures, and how to get it running.
   the activity log, read your alerts — so a question in prose gets an answer
   in prose, naming the searches it ran and linking the cards it read. Both
   scoped to what you may read
-- **AI assistant** (OpenRouter, a cheap model): *Chat* about any board page
+- **AI assistant** (OpenRouter on a cheap model, or your own local model):
+  *Chat* about any board page
   or card, a narrative *Generator* that writes prose at five levels of
   detail, and an *Edit* mode that turns "set this due next Tuesday and pick
   a suitable priority" into changes you approve before they apply
@@ -923,9 +924,9 @@ quality).
 
 ## AI assistant
 
-With an OpenRouter key configured (see *Running*), three features appear.
-Without one they stay hidden, and nothing is ever sent to a model unless
-you ask.
+With a model configured — an OpenRouter key, or an endpoint of your own; see
+*Running* — three features appear. Without one they stay hidden, and nothing
+is ever sent to a model unless you ask.
 
 - **Chat about this** — the *Chat* button in the header of every board
   page (in any mode) and of *My work* opens a drawer. Each message is sent
@@ -954,7 +955,8 @@ you ask.
   shows (its range, filters, grouping and *Display* choices all apply),
   with a Copy button.
 
-The code lives in `Slipdock.AI` (the OpenRouter client), `Slipdock.AI.Context`
+The code lives in `Slipdock.AI` (the client, and which endpoint, key and model
+each request resolves to), `Slipdock.AI.Context`
 (what the model is told), `Slipdock.AI.Assistant` and `Slipdock.AI.Actions`
 (chat, proposals and applying them), `Slipdock.AI.Narrator` (the generator),
 `Slipdock.AI.Researcher` (the tool-calling assistant behind *Ask*, with
@@ -1731,14 +1733,39 @@ In development the server binds to this machine's Tailscale IPv4 (found via
 `tailscale ip -4`). Override with `SLIPDOCK_BIND_IP=0.0.0.0` (all interfaces) or
 `SLIPDOCK_BIND_IP=127.0.0.1` (loopback), and `PORT` to change the port.
 
-The AI features run on **each person's own OpenRouter key**, set under
-**Account → Settings → AI key** in the web UI (`slipdock ai-key <key>` from the CLI, `mix
-kanban.ai_key <email> <key>` on the server). Keys are kept in one JSON file,
-`ai_keys.json` in the app's directory, `0600`, outside the database —
-`SLIPDOCK_AI_KEY_FILE` moves it, and it holds secrets in the clear, so back it
-up like a `.env`. Somebody without a key gets no AI features: the chat drawer,
-the narrative generator and the rest stay hidden, and `/api/ask` says what is
-missing.
+The AI features run on **each person's own key, or their own endpoint**, set
+under **Account → Settings → AI model** in the web UI (`slipdock ai-key <key>`
+and `slipdock ai-endpoint <url>` from the CLI, `mix slipdock.ai_key <email>
+<key>` on the server). Both are kept in one JSON file, `ai_keys.json` in the
+app's directory, `0600`, outside the database — `SLIPDOCK_AI_KEY_FILE` moves
+it, and it holds secrets in the clear, so back it up like a `.env`. Somebody
+with neither gets no AI features: the chat drawer, the narrative generator and
+the rest stay hidden, and `/api/ask` says what is missing.
+
+### A local model instead
+
+Everything here speaks the OpenAI-compatible `/chat/completions` API, which is
+what OpenRouter speaks and so does every local model server — **LM Studio**,
+**Ollama**, **llama.cpp**'s server, **vLLM** — as well as most company
+gateways. Point *Account → Settings → AI model* at one:
+
+| Field | What it is |
+| --- | --- |
+| Endpoint | The API root, the part before `/chat/completions`: `http://llm.local:1234/v1` (LM Studio), `http://llm.local:11434/v1` (Ollama). A trailing slash, or a pasted `/chat/completions`, is trimmed for you. Empty means this server's default |
+| API key | Optional. Most local servers want none, and none is sent if you leave it empty. The server's shared OpenRouter key is **never** sent to an endpoint of yours |
+| Model | *List models* asks the endpoint what it has (its `/models`, the same list `slipdock ai-models` prints) and offers them in a picker. Save the endpoint first — the list comes from what is stored |
+| Embedding model | Only if the endpoint serves one, and only read for the account that indexes (`SLIPDOCK_AI_SYSTEM_USER`). Changing it invalidates every stored vector: run `mix slipdock.reindex --all` |
+
+An endpoint of your own is enough on its own — with one set, the AI features
+turn on whether or not you have a key, because a box on your own network has
+nothing to bill. A model id matters, though: an OpenRouter id (`google/…`)
+means nothing to a local server and the other way round, which is what the
+picker is for. A server running several models at once will say so rather than
+guess, if you have picked none.
+
+To make a whole instance local, set `SLIPDOCK_AI_BASE_URL` (and
+`SLIPDOCK_AI_MODEL`) instead: everybody who has not chosen for themselves then
+uses it, no keys anywhere, and no board content leaves the network.
 
 Unattended work — the search indexer, scheduled automations — has no person
 to bill, so it uses a *system* key: `SLIPDOCK_AI_SYSTEM_USER=<email>` names
@@ -1751,8 +1778,11 @@ in the project directory or its parent — `SLIPDOCK_ENV_FILE` names another
 location, and the systemd unit reads the same file. **`.env.example` lists every
 variable the app reads, with its default**, so an empty `.env` is already a
 working configuration and nothing in the repo assumes a particular machine.
-`SLIPDOCK_AI_MODEL` picks another OpenRouter model (default
-`google/gemini-2.5-flash-lite`, chosen for price) and `SLIPDOCK_AI_QUICK_MODEL`
+`SLIPDOCK_AI_BASE_URL` moves the default endpoint for everyone (default
+`https://openrouter.ai/api/v1`; a local endpoint needs no key, so this is how
+an instance becomes local-first). `SLIPDOCK_AI_MODEL` picks another model
+(default `google/gemini-2.5-flash-lite`, chosen for price — change it with the
+endpoint, since the ids do not carry over) and `SLIPDOCK_AI_QUICK_MODEL`
 one for the header's quick add alone, where latency matters more than depth
 (it falls back to `SLIPDOCK_AI_MODEL`). `SLIPDOCK_AI_EMBED_MODEL` and
 `SLIPDOCK_AI_EMBED_DIMENSIONS` pick the embedding model behind deep search;
@@ -1814,10 +1844,14 @@ boards), and `tools/screenshots.sh` is what photographs it for the README.
 
 Everything the UI can do is available under `/api`. Every request needs an
 API token (create one under Account) as `Authorization: Bearer <token>`;
-`GET /api/me` shows who the token belongs to, and whether their OpenRouter
-key is on file (`ai_key`). `PUT /api/me/ai-key {"api_key": "sk-or-…"}` sets
-that key, `DELETE /api/me/ai-key` removes it; the key itself is never read
+`GET /api/me` shows who the token belongs to, whether their API key is on file
+(`ai_key`), and which endpoint and model their AI requests use (`ai`).
+`PUT /api/me/ai-key {"api_key": "sk-or-…"}` sets that key,
+`DELETE /api/me/ai-key` removes it; the key itself is never read
 back out, only its masked shape.
+`PUT /api/me/ai-provider {"base_url": "http://llm.local:1234/v1", "model": "…"}`
+points them at a model of their own (only the fields sent are changed, `""`
+clears one), and `GET /api/me/ai-models` lists what that endpoint can run.
 
 `GET /api/guide` is the exception: it needs no token and answers in Markdown
 with the API's own instructions for an agent — the model, the convention that
@@ -1953,9 +1987,15 @@ response holds `rows`, `cols` (with labels and counts), `cells[row][col]`
 cd cli && mix escript.build && cp slipdock ~/.local/bin/
 slipdock auth <token>    # from Account → API tokens; stored in ~/.config/slipdock/token
 slipdock whoami
-slipdock ai-key            # your OpenRouter key, masked; `ai-key <key>` sets it,
+slipdock ai-key            # your API key, masked; `ai-key <key>` sets it,
                          # `ai-key` alone with OPENROUTER_API_KEY set uploads that,
-                         # `ai-key --remove` deletes it. The AI features need it
+                         # `ai-key --remove` deletes it
+slipdock ai               # endpoint, key and model your AI requests use
+slipdock ai-endpoint <url> # point at a local OpenAI-compatible server instead of
+                         # OpenRouter (`--key K` too, `--remove` to go back)
+slipdock ai-models        # what that endpoint can run
+slipdock ai-model <id>    # pick one (`--embed <id>` for the search index).
+                         # The AI features need a key or an endpoint
 slipdock guide             # the server's instructions for agents (GET /api/guide)
 kanban --help
 ```

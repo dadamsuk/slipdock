@@ -37,8 +37,16 @@ defmodule SlipdockCLI do
       --scope read|write   what to ask for (default: write)
   auth <token>                        save an API token directly (create one at /account/tokens)
     whoami                              show who you are signed in as
-    ai-key [<key>]                      show your stored OpenRouter key (masked), or set one;
-                                        `ai-key --remove` deletes it. AI features need it
+    ai-key [<key>]                      show your stored API key (masked), or set one;
+                                        `ai-key --remove` deletes it
+    ai                                  which model your AI requests go to: endpoint, key, model
+    ai-endpoint [<url>]                 point at any OpenAI-compatible API — a local LM Studio,
+                                        Ollama, llama.cpp, vLLM — instead of OpenRouter;
+                                        no key needed for most. `--key K` sets one at the same
+                                        time, `--remove` goes back to the server's default
+    ai-models                           what that endpoint can run
+    ai-model <id>                       pick one (`--embed <id>` for the search index too).
+                                        AI features need a key or an endpoint
     logout                              forget the saved token
 
   ADMIN  (needs a token made with the admin scope — Account → API tokens)
@@ -297,6 +305,8 @@ defmodule SlipdockCLI do
     json: :boolean,
     scope: :string,
     remove: :boolean,
+    key: :string,
+    embed: :string,
     url: :string,
     column: :keep,
     tag: :keep,
@@ -594,6 +604,44 @@ defmodule SlipdockCLI do
 
       true ->
         HTTP.get("/me") |> out(o, &render_ai_key/1)
+    end
+  end
+
+  defp run("ai", [], o), do: HTTP.get("/me") |> out(o, &render_ai/1)
+
+  defp run("ai-endpoint", args, o) do
+    cond do
+      o[:remove] ->
+        put_ai(%{base_url: ""}, o)
+
+      args != [] ->
+        %{base_url: Enum.join(args, " ")}
+        |> then(&if(o[:key], do: Map.put(&1, :api_key, o[:key]), else: &1))
+        |> put_ai(o)
+
+      true ->
+        HTTP.get("/me") |> out(o, &render_ai/1)
+    end
+  end
+
+  defp run("ai-models", [], o) do
+    HTTP.get("/me/ai-models") |> out(o, &render_ai_models(&1["models"]))
+  end
+
+  defp run("ai-model", args, o) when args != [] do
+    %{model: Enum.join(args, " ")}
+    |> then(&if(o[:embed], do: Map.put(&1, :embed_model, o[:embed]), else: &1))
+    |> put_ai(o)
+  end
+
+  defp run("ai-model", [], o) do
+    if o[:remove] or o[:embed] do
+      %{}
+      |> then(&if(o[:remove], do: Map.put(&1, :model, ""), else: &1))
+      |> then(&if(o[:embed], do: Map.put(&1, :embed_model, o[:embed]), else: &1))
+      |> put_ai(o)
+    else
+      fail("ai-model needs a model id (see `slipdock ai-models`), or --remove")
     end
   end
 
@@ -2296,6 +2344,36 @@ defmodule SlipdockCLI do
     System.halt(1)
   end
 
+  defp put_ai(attrs, o), do: HTTP.put("/me/ai-provider", attrs) |> out(o, &render_ai/1)
+
+  # Endpoint, key and model together, because one without the others tells you
+  # nothing about where your requests are actually going.
+  defp render_ai(%{"ai" => ai} = me) do
+    own = if ai["own_endpoint"], do: "", else: Render.dim(" (server default)")
+    IO.puts("endpoint  #{ai["base_url"]}#{own}")
+    IO.write("key       ")
+    render_ai_key(me)
+    model = ai["model"] || "whatever the endpoint has loaded"
+
+    IO.puts(
+      "model     #{model}#{if ai["own_model"], do: "", else: Render.dim(" (server default)")}"
+    )
+
+    if ai["embed_model"], do: IO.puts("embedding #{ai["embed_model"]}")
+  end
+
+  defp render_ai(me), do: render_ai_key(me)
+
+  defp render_ai_models([]), do: IO.puts("no models")
+
+  defp render_ai_models(models) when is_list(models) do
+    for m <- models do
+      IO.puts("#{m["id"]}#{if m["embedding?"], do: Render.dim("  (embedding)")}")
+    end
+  end
+
+  defp render_ai_models(_), do: IO.puts("no models")
+
   defp render_ai_key(%{"ai_key" => k}) do
     cond do
       k["masked"] ->
@@ -2307,7 +2385,7 @@ defmodule SlipdockCLI do
         IO.puts("no key of your own; this server has a shared one")
 
       true ->
-        IO.puts("no key — AI features are off for you (slipdock ai-key <key>)")
+        IO.puts("none (slipdock ai-key <key>, or slipdock ai-endpoint <url> for a local model)")
     end
   end
 

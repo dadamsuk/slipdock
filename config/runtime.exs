@@ -251,6 +251,13 @@ if email = System.get_env("SLIPDOCK_AI_SYSTEM_USER") do
   config :slipdock, :ai, system_user: email
 end
 
+# The default endpoint everyone falls back to. Point it at a local model
+# server to make this instance local-first; anyone can still override it for
+# themselves under Account → AI model.
+if url = System.get_env("SLIPDOCK_AI_BASE_URL") do
+  config :slipdock, :ai, base_url: url
+end
+
 if model = System.get_env("SLIPDOCK_AI_MODEL") do
   config :slipdock, :ai, model: model
 end

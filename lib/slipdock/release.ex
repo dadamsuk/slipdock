@@ -7,6 +7,7 @@ defmodule Slipdock.Release do
 
       docker compose run --rm slipdock migrate
       docker compose run --rm slipdock ai-key you@example.com sk-or-…
+      docker compose run --rm slipdock ai-endpoint you@example.com http://llm.local:1234/v1
       docker compose run --rm slipdock reindex
       docker compose run --rm slipdock welcome you@example.com
 
@@ -48,6 +49,26 @@ defmodule Slipdock.Release do
       [email, "--remove"] -> remove_key(email)
       [email, key] -> put_key(email, key)
       _ -> puts("Usage: ai-key [<email> <key> | <email> --remove]")
+    end
+  end
+
+  @doc """
+  Points somebody at a model of their own: an OpenAI-compatible endpoint, and
+  optionally which model on it. `--remove` sends them back to the server's.
+
+      ai-endpoint you@example.com http://llm.local:1234/v1
+      ai-endpoint you@example.com http://llm.local:1234/v1 qwen/qwen3.5-9b
+      ai-endpoint you@example.com --remove
+  """
+  def ai_endpoint(args \\ []) do
+    start()
+
+    case args do
+      [] -> list_keys()
+      [email, "--remove"] -> put_settings(email, %{base_url: "", model: ""})
+      [email, url] -> put_settings(email, %{base_url: url})
+      [email, url, model] -> put_settings(email, %{base_url: url, model: model})
+      _ -> puts("Usage: ai-endpoint <email> [<url> [<model>] | --remove]")
     end
   end
 
@@ -280,9 +301,9 @@ defmodule Slipdock.Release do
       )
     else
       puts(
-        "No OpenRouter key is available for unattended work, so nothing can be " <>
-          "embedded. Set one for somebody (ai-key), and name them with " <>
-          "SLIPDOCK_AI_SYSTEM_USER if more than one person has one."
+        "No AI key or endpoint is available for unattended work, so nothing can " <>
+          "be embedded. Set one for somebody (ai-key, ai-endpoint), and name them " <>
+          "with SLIPDOCK_AI_SYSTEM_USER if more than one person has one."
       )
     end
   end
@@ -320,7 +341,9 @@ defmodule Slipdock.Release do
 
         for {id, entry} <- keys do
           puts(
-            "  #{entry.email || "user ##{id}"}  #{Keys.masked(entry.api_key)}  set #{entry.updated_at}"
+            "  #{entry.email || "user ##{id}"}  #{Keys.masked(entry.api_key) || "no key"}" <>
+              "  #{entry.base_url || "default endpoint"}  #{entry.model || "default model"}" <>
+              "  set #{entry.updated_at}"
           )
         end
     end
@@ -335,6 +358,23 @@ defmodule Slipdock.Release do
       case Slipdock.AI.Keys.put(user, key) do
         :ok -> puts("Stored #{Slipdock.AI.Keys.masked(key)} for #{user.email}.")
         {:error, message} -> puts(message)
+      end
+    end)
+  end
+
+  defp put_settings(email, attrs) do
+    with_user(email, fn user ->
+      case Slipdock.AI.Keys.put_settings(user, attrs) do
+        :ok ->
+          settings = Slipdock.AI.Keys.settings(user)
+
+          puts(
+            "#{user.email}: #{settings.base_url || "the server's endpoint"}" <>
+              "#{if settings.model, do: ", model #{settings.model}"}."
+          )
+
+        {:error, message} ->
+          puts(message)
       end
     end)
   end
