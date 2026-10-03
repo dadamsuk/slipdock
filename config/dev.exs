@@ -1,11 +1,13 @@
 import Config
 
-# Configure your database. DATABASE_PATH points it somewhere else — handy for
-# a throwaway copy (the demo workspace behind the README screenshots, say)
-# without disturbing the one you work in.
+# Configure your database. A Postgres on localhost:5434 is what
+# `docker compose -f compose.dev.yaml up -d` gives you; DATABASE_URL points
+# this somewhere else — handy for a throwaway copy (the demo workspace behind
+# the README screenshots, say) without disturbing the one you work in.
 config :slipdock, Slipdock.Repo,
-  database: System.get_env("DATABASE_PATH") || Path.expand("../slipdock_dev.db", __DIR__),
-  pool_size: 5,
+  url:
+    System.get_env("DATABASE_URL") || "postgres://postgres:postgres@localhost:5434/slipdock_dev",
+  pool_size: 10,
   stacktrace: true,
   show_sensitive_data_on_connection_error: true
 

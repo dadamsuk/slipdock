@@ -11,7 +11,7 @@ defmodule Mix.Tasks.Slipdock.Demo do
 
   It makes three people with `example.com` addresses and leaves the boards
   owned by the first; sign in as that address to see them. Nothing is deleted
-  — point `DATABASE_PATH` at a throwaway file if you want it on its own.
+  — point `DATABASE_URL` at a throwaway database if you want it on its own.
   """
 
   use Mix.Task

@@ -37,6 +37,13 @@ defmodule Slipdock.DataCase do
   """
   def setup_sandbox(tags) do
     pid = Ecto.Adapters.SQL.Sandbox.start_owner!(Slipdock.Repo, shared: not tags[:async])
+
+    # `Slipdock.Search.Indexer` holds one queue for the whole node, and a
+    # test's rows disappear when its transaction rolls back. Starting each
+    # test with an empty queue is what stops one test's leftovers from being
+    # counted — or flushed — by the next.
+    Slipdock.Search.Indexer.reset()
+
     on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
   end
 

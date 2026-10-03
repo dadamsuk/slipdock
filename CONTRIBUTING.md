@@ -6,11 +6,12 @@ reference, and this file explains how to work on it.
 
 ## Getting it running
 
-You need Elixir 1.17 or newer on Erlang/OTP 27, and nothing else — the
-database is SQLite and the asset pipeline installs its own Tailwind and
-esbuild.
+You need Elixir 1.17 or newer on Erlang/OTP 27 and a Postgres; the asset
+pipeline installs its own Tailwind and esbuild. `compose.dev.yaml` runs a
+Postgres for development and tests if you would rather not install one.
 
 ```sh
+docker compose -f compose.dev.yaml up -d   # Postgres on 127.0.0.1:5434
 mix setup          # deps, database, seeds, Tailwind and esbuild
 mix phx.server     # then open the address it prints
 ```

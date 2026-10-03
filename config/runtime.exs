@@ -331,16 +331,47 @@ if config_env() == :dev do
 end
 
 if config_env() == :prod do
-  database_path =
-    System.get_env("DATABASE_PATH") ||
+  database_url =
+    System.get_env("DATABASE_URL") ||
       raise """
-      environment variable DATABASE_PATH is missing.
-      For example: /etc/kanban/kanban.db
+      environment variable DATABASE_URL is missing.
+      For example: postgres://slipdock:secret@postgres:5432/slipdock
       """
 
-  config :slipdock, Slipdock.Repo,
-    database: database_path,
-    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "5")
+  # A managed Postgres almost always wants TLS, and a Postgres on the same
+  # Docker network almost never does. DATABASE_SSL=true turns it on;
+  # DATABASE_SSL_VERIFY=false then stops it checking the certificate chain,
+  # which is what a provider using its own CA needs (Fly, some Supabase
+  # configurations) short of giving us a CA bundle to trust.
+  maybe_ssl =
+    if System.get_env("DATABASE_SSL") in ~w(1 true) do
+      verify =
+        if System.get_env("DATABASE_SSL_VERIFY") in ~w(0 false),
+          do: :verify_none,
+          else: :verify_peer
+
+      [
+        ssl: [
+          verify: verify,
+          cacerts: :public_key.cacerts_get(),
+          server_name_indication: :disable
+        ]
+      ]
+    else
+      []
+    end
+
+  # ECTO_IPV6 for a host that only resolves to an AAAA record — fly.io's
+  # internal DNS, for one.
+  maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(1 true), do: [:inet6], else: []
+
+  config :slipdock,
+         Slipdock.Repo,
+         [
+           url: database_url,
+           pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
+           socket_options: maybe_ipv6
+         ] ++ maybe_ssl
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you

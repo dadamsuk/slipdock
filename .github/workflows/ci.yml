@@ -10,6 +10,25 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    # The test suite needs a real Postgres. config/test.exs defaults to
+    # localhost:5434, so that is the port this is published on rather than the
+    # usual one — the same address `compose.dev.yaml` gives a developer, which
+    # means CI and a laptop run the suite against the same URL and neither
+    # needs TEST_DATABASE_URL set.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v4
 

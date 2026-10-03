@@ -1,8 +1,9 @@
 #!/bin/sh
 # Makes the container self-contained: it fixes up the data volume, invents a
-# SECRET_KEY_BASE the first time if nobody supplied one, and then runs the
-# release as an unprivileged user. Migrations are not run here — the app runs
-# them itself on boot when it is a release (see Slipdock.Application).
+# SECRET_KEY_BASE the first time if nobody supplied one, works out where
+# Postgres is and waits for it, and then runs the release as an unprivileged
+# user. Migrations are not run here — the app runs them itself on boot when it
+# is a release (see Slipdock.Application).
 set -eu
 
 DATA_DIR="${SLIPDOCK_DATA_DIR:-/data}"
@@ -70,6 +71,40 @@ fi
 
 echo "entrypoint: links will be built as ${SLIPDOCK_URL_SCHEME}://${PHX_HOST}:${SLIPDOCK_URL_PORT}"
 
+# Where Postgres is. A DATABASE_URL of your own always wins; without one it is
+# assembled from the same pieces compose hands to the postgres container, so
+# the bundled compose.yaml needs to agree on nothing but the password.
+if [ -z "${DATABASE_URL:-}" ]; then
+  DATABASE_URL="postgres://${POSTGRES_USER:-slipdock}:${POSTGRES_PASSWORD:-slipdock}@${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-slipdock}"
+  export DATABASE_URL
+  echo "entrypoint: DATABASE_URL was not set, using ${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-slipdock}"
+fi
+
+# Wait for the database to accept connections. compose already holds the app
+# back until Postgres reports healthy, so this is for the paths that do not:
+# `docker run` by hand, and `docker compose run` on a cold stack. It only
+# checks that something is listening — the app itself is the real test — and
+# gives up after a minute rather than hanging a container for ever.
+wait_for_db() {
+  host="$(echo "$DATABASE_URL" | sed -n 's|.*@\([^:/?]*\).*|\1|p')"
+  port="$(echo "$DATABASE_URL" | sed -n 's|.*@[^:/?]*:\([0-9]*\).*|\1|p')"
+  [ -n "$host" ] || return 0
+  [ -n "$port" ] || port=5432
+
+  i=0
+  while [ "$i" -lt 60 ]; do
+    if nc -z "$host" "$port" 2>/dev/null; then
+      [ "$i" -gt 0 ] && echo "entrypoint: $host:$port is up"
+      return 0
+    fi
+    [ "$i" = "0" ] && echo "entrypoint: waiting for $host:$port…"
+    i=$((i + 1))
+    sleep 1
+  done
+
+  echo "entrypoint: gave up waiting for $host:$port after 60s; starting anyway"
+}
+
 run() {
   if [ "$(id -u)" = "0" ]; then
     exec setpriv --reuid=slipdock --regid=slipdock --init-groups "$@"
@@ -80,6 +115,7 @@ run() {
 
 case "${1:-start}" in
   start)
+    wait_for_db
     run /app/bin/slipdock start
     ;;
   # A shell in the running app, for looking at things.
@@ -94,9 +130,11 @@ case "${1:-start}" in
   #   docker compose run --rm slipdock welcome you@example.com
   #   docker compose run --rm slipdock setup --status
   reindex)
+    wait_for_db
     run /app/bin/slipdock eval "Slipdock.Release.reindex()"
     ;;
   ai-key)
+    wait_for_db
     shift
     # The arguments become an Elixir list of strings. Emails and API keys have
     # no quotes in them, which is the only thing this would not survive.
@@ -108,6 +146,7 @@ case "${1:-start}" in
   # of OpenRouter; no key needed for most of them.
   #   docker compose run --rm slipdock ai-endpoint you@example.com http://llm.local:1234/v1
   ai-endpoint)
+    wait_for_db
     shift
     args=""
     for a in "$@"; do args="${args}\"${a}\","; done
@@ -117,12 +156,14 @@ case "${1:-start}" in
   # it existed (see Slipdock.Onboarding).
   #   docker compose run --rm slipdock welcome you@example.com [--force]
   welcome)
+    wait_for_db
     shift
     args=""
     for a in "$@"; do args="${args}\"${a}\","; done
     run /app/bin/slipdock eval "Slipdock.Release.welcome([${args}])"
     ;;
   migrate)
+    wait_for_db
     run /app/bin/slipdock eval "Slipdock.Release.migrate()"
     ;;
   # Setting the server up without the browser wizard, seeing what it thinks,
@@ -131,6 +172,7 @@ case "${1:-start}" in
   #   docker compose run --rm slipdock setup --status
   #   docker compose run --rm slipdock setup --sign-in-link you@example.com
   setup)
+    wait_for_db
     shift
     args=""
     for a in "$@"; do args="${args}\"${a}\","; done

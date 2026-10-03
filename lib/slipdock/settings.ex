@@ -31,7 +31,7 @@ defmodule Slipdock.Settings do
   ## Caching
 
   `get/0` is called often enough (every quota check, every people picker) to be
-  worth keeping out of SQLite, so the row is cached in `:persistent_term` and
+  worth a query every time, so the row is cached in `:persistent_term` and
   erased on every write. The test environment turns the cache off
   (`config :slipdock, :settings_cache, false`), because a row cached inside one
   test's sandbox transaction would outlive the rollback and leak into the next.
@@ -80,8 +80,9 @@ defmodule Slipdock.Settings do
   """
   @spec ready?() :: boolean()
   def ready? do
-    case Repo.query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'settings'", []) do
-      {:ok, %{rows: [[1]]}} -> true
+    case Repo.query("SELECT to_regclass('settings')", []) do
+      {:ok, %{rows: [[nil]]}} -> false
+      {:ok, %{rows: [[_oid]]}} -> true
       _ -> false
     end
   rescue

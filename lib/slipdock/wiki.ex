@@ -133,7 +133,8 @@ defmodule Slipdock.Wiki do
 
       term ->
         like = "%#{term}%"
-        where(query, [p], like(p.title, ^like) or like(p.body, ^like))
+        # ilike, not like: Postgres' LIKE is case-sensitive.
+        where(query, [p], ilike(p.title, ^like) or ilike(p.body, ^like))
     end
   end
 

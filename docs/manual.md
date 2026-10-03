@@ -1696,10 +1696,11 @@ finding the page first is not enough to claim somebody else's server. It asks
 who may register, how mail goes out and who the admin is, then disappears for
 good. `SLIPDOCK_ADMIN_EMAIL` skips it entirely.
 
-Everything that must survive an upgrade is on one volume, `slipdock-data`: the
-SQLite database, uploaded files, each person's OpenRouter key, and a
-`SECRET_KEY_BASE` the container generates for itself on first run. That volume
-is the thing to back up.
+Everything that must survive an upgrade is on two volumes: `slipdock-db` is
+the Postgres database, and `slipdock-data` holds uploaded files, each person's
+OpenRouter key, and a `SECRET_KEY_BASE` the container generates for itself on
+first run. Those volumes are the thing to back up — the database with
+`pg_dump`, which is consistent and restorable into a later Postgres.
 
 Settings go in a `.env` beside `compose.yaml` — copy `.env.example`, which lists
 every variable with its default. The ones that matter first:
@@ -1847,8 +1848,9 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) to work on it and
 
 ## Data
 
-Everything lives in one SQLite file — `slipdock_dev.db` in the project directory
-unless `DATABASE_PATH` says otherwise. `mix ecto.reset` wipes it and re-runs
+Everything lives in Postgres — the `slipdock_dev` database on the server in
+`compose.dev.yaml` unless `DATABASE_URL` says otherwise. `mix ecto.reset` wipes
+it and re-runs
 `priv/repo/seeds.exs`, which builds the demo workspace (`Slipdock.Demo`) on an
 empty database: two boards, an epic with subcards, a scoring scheme, a wiki and
 an automation, all on `example.com` addresses. `mix slipdock.demo` builds the

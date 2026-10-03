@@ -19,9 +19,9 @@
 # what `up` reaches for while an image exists.
 
 # Pinned, rather than taken from whatever the directory happens to be called.
-# The project name prefixes the volume (`slipdock_slipdock-data`), so without
-# this a clone into a differently named directory gets a different volume — and
-# the backup instructions in the README would name one that does not exist.
+# The project name prefixes the volumes (`slipdock_slipdock-data`), so without
+# this a clone into a differently named directory gets different volumes — and
+# the backup instructions in the README would name ones that do not exist.
 name: slipdock
 
 services:
@@ -57,10 +57,64 @@ services:
       - SLIPDOCK_URL_SCHEME
       - SLIPDOCK_URL_PORT
       - SECRET_KEY_BASE
+      # The entrypoint builds DATABASE_URL from these, so both ends have to
+      # see the same values however they were set — shell or .env.
+      - POSTGRES_USER
+      - POSTGRES_PASSWORD
+      - POSTGRES_DB
+      - DATABASE_URL
     volumes:
-      # The database, uploaded files, each person's OpenRouter key and the
-      # generated secret. This is the thing to back up.
+      # Uploaded files, each person's OpenRouter key and the generated secret.
+      # The database is in slipdock-db; back up both.
       - slipdock-data:/data
+    # Postgres accepts connections a moment after the container starts, and an
+    # app that migrates on boot cannot start before it does. `service_healthy`
+    # rather than `service_started` is what makes the difference.
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # Must match what the app connects with. The app builds its DATABASE_URL
+      # from these same three (see deploy/docker-entrypoint.sh), so changing
+      # the password in .env changes both ends at once — but only on a *new*
+      # volume: Postgres sets the password when it first initialises its data
+      # directory and ignores this variable on every boot after that.
+      POSTGRES_USER: "${POSTGRES_USER:-slipdock}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-slipdock}"
+      POSTGRES_DB: "${POSTGRES_DB:-slipdock}"
+    volumes:
+      - slipdock-db:/var/lib/postgresql/data
+    healthcheck:
+      # -U matters: without it pg_isready asks after a role named "root".
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-slipdock} -d ${POSTGRES_DB:-slipdock}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    # Not published. The app reaches it over compose's own network, and a
+    # database on a public port is a database somebody else will find. Add
+    # `ports: ["127.0.0.1:5432:5432"]` if you want psql on it from the host.
+    #
+    # Left at Postgres' own defaults, which idle at around 50 MB — a quarter of
+    # what the app's BEAM uses, so there is nothing here worth optimising for a
+    # board of any ordinary size. On a machine where it genuinely matters (a
+    # 512 MB VPS), this trades some performance for about 20 MB:
+    #
+    #   command: >
+    #     postgres -c shared_buffers=32MB -c max_connections=25
+    #              -c work_mem=2MB -c maintenance_work_mem=32MB
+    #              -c max_wal_size=128MB -c min_wal_size=32MB
+    #              -c max_parallel_workers=0 -c max_parallel_workers_per_gather=0
+    #
+    # Raising POOL_SIZE above 25 means raising max_connections to match.
 
 volumes:
   slipdock-data:
+  slipdock-db:

@@ -66,7 +66,7 @@ defmodule Slipdock.WikiContentsTest do
       card = card_fixture(todo, %{"title" => "The work"})
       now = DateTime.utc_now() |> DateTime.truncate(:second)
 
-      assert_raise Exqlite.Error, fn ->
+      assert_raise Postgrex.Error, fn ->
         Repo.insert_all("comments", [
           [card_id: card.id, page_id: page.id, body: "both", inserted_at: now, updated_at: now]
         ])

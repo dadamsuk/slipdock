@@ -1063,7 +1063,7 @@ defmodule SlipdockWeb.APIGuide do
 
     # or write it straight into one
     curl -s -H "$H" -H 'content-type: application/json' B/api/boards/1/pages \\
-         -d '{"title": "Why SQLite", "folder": "Design/Decisions"}'
+         -d '{"title": "Why Postgres", "folder": "Design/Decisions"}'
 
     curl -s -H "$H" "B/api/boards/1/pages?folder=decisions"   # and list what is in it
     curl -s -H "$H" "B/api/boards/1/pages?folder=none"        # the pages filed nowhere
