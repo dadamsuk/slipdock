@@ -3,7 +3,7 @@ defmodule SlipdockWeb.API.SkillsTest do
   The agent instructions this app serves. They need no token, for the same
   reason the guide needs none: they say how to call the API, not what is on it.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   alias Slipdock.Skills
 

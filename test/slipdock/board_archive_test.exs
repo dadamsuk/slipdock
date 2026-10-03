@@ -5,7 +5,7 @@ defmodule Slipdock.BoardArchiveTest do
   The two belong together: both are about what the board index shows, and
   neither is allowed to change anything on the boards themselves.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Ecto.Query
 

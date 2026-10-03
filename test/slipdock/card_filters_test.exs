@@ -4,7 +4,7 @@ defmodule Slipdock.CardFiltersTest do
   own (`Slipdock.Swimlanes`) and reach the API, the CLI and the assistant
   through the same function.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
 

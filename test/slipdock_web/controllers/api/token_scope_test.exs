@@ -12,7 +12,7 @@ defmodule SlipdockWeb.API.TokenScopeTest do
 
   A scope only ever narrows. It can never grant access the user lacks.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Slipdock.Fixtures
 

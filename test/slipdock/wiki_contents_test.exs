@@ -8,7 +8,7 @@ defmodule Slipdock.WikiContentsTest do
   belongs to exactly one of a card or a page. Two parallel implementations
   would drift, and the database would not stop them.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
 

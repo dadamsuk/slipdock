@@ -4,7 +4,7 @@ defmodule Slipdock.WikiTest do
   things that stop two writers losing each other's work — the base-hash
   conflict and the revision written on every save.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
 

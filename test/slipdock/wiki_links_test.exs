@@ -4,7 +4,7 @@ defmodule Slipdock.WikiLinksTest do
   what happens to a link when the thing it names is renamed, and the section
   addressing that lets two writers work on one page without colliding.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
 

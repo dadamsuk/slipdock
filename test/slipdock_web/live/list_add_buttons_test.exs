@@ -7,7 +7,7 @@ defmodule SlipdockWeb.ListAddButtonsTest do
   a file on a card of its own. They are shortcuts, not new kinds of thing, so
   what they leave behind is what the board already knows how to draw.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures

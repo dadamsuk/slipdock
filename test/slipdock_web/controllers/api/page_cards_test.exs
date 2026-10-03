@@ -1,6 +1,6 @@
 defmodule SlipdockWeb.API.PageCardsTest do
   @moduledoc "The wiki and the board reaching each other over HTTP."
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Slipdock.Fixtures
 

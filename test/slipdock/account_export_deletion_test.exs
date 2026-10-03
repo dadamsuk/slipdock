@@ -6,7 +6,7 @@ defmodule Slipdock.AccountExportDeletionTest do
   on a server people pay for they are entitled to ask. These are the two halves
   of that answer.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
 

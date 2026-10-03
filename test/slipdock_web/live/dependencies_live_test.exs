@@ -1,5 +1,5 @@
 defmodule SlipdockWeb.DependenciesLiveTest do
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures

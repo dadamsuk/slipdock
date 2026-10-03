@@ -1,5 +1,5 @@
 defmodule Slipdock.RoadmapTest do
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
   alias Slipdock.{Boards, Dates, Rollup, Timeline}

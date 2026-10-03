@@ -4,7 +4,7 @@ defmodule SlipdockWeb.WikiCardsLiveTest do
   it when the stub text goes, attaching one already written, and getting back
   to the card from the page.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures

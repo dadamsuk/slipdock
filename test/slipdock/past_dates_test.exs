@@ -5,7 +5,7 @@ defmodule Slipdock.PastDatesTest do
   past its own due date the card is *today*. A card can be past its due date
   with every subcard still ahead of schedule.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
 

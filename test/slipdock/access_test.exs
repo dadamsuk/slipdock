@@ -1,5 +1,5 @@
 defmodule Slipdock.AccessTest do
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
   alias Slipdock.{Access, Accounts, Boards}

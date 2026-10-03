@@ -1,5 +1,5 @@
 defmodule SlipdockWeb.API.BoardCodesTest do
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   setup %{conn: conn} do
     %{conn: put_req_header(conn, "accept", "application/json")}

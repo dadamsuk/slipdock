@@ -6,7 +6,7 @@ defmodule Slipdock.WikiFoldersTest do
   what is worth testing is what *survives* — a deleted folder's pages, a
   moved folder's subtree, a page's parent when it is filed somewhere else.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
 

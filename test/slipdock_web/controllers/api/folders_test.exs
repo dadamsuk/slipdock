@@ -7,7 +7,7 @@ defmodule SlipdockWeb.API.FoldersTest do
   destroys writing — plus the convenience an agent needs: a folder named by a
   path it can say out loud, made on the way past if it is new.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Slipdock.Fixtures
 

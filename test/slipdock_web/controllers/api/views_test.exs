@@ -1,5 +1,5 @@
 defmodule SlipdockWeb.API.ViewsTest do
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Slipdock.Fixtures
   alias Slipdock.Boards

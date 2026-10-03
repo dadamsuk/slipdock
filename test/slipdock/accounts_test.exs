@@ -1,5 +1,5 @@
 defmodule Slipdock.AccountsTest do
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Swoosh.TestAssertions
   alias Slipdock.Accounts

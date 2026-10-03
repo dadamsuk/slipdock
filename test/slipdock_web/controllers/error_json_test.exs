@@ -1,5 +1,5 @@
 defmodule SlipdockWeb.ErrorJSONTest do
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   test "renders 404" do
     assert SlipdockWeb.ErrorJSON.render("404.json", %{}) == %{errors: %{detail: "Not Found"}}

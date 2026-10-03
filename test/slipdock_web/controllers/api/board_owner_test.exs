@@ -4,7 +4,7 @@ defmodule SlipdockWeb.API.BoardOwnerTest do
   belong to somebody else — what a client needs in order to show whose board
   it is looking at.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Slipdock.Fixtures
 
