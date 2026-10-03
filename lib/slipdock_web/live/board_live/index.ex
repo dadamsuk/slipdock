@@ -698,12 +698,17 @@ defmodule SlipdockWeb.BoardLive.Index do
     assigns =
       assign(assigns,
         owner?: assigns.board.owner_id == assigns.current_user.id,
+        # Somebody else's board, on your list because they shared it. Boards
+        # with no owner at all predate accounts and are nobody's share.
+        shared?:
+          not is_nil(assigns.board.owner_id) and
+            assigns.board.owner_id != assigns.current_user.id,
         first?: List.first(assigns.boards).id == assigns.board.id,
         last?: List.last(assigns.boards).id == assigns.board.id
       )
 
     ~H"""
-    <div :if={@owner? or (@sort == "manual" and not @archived)} class={@class}>
+    <div :if={@owner? or @shared? or (@sort == "manual" and not @archived)} class={@class}>
       <div tabindex="0" role="button" class={@button_class} title="More">
         <.icon name="hero-ellipsis-horizontal" class="size-4" />
       </div>
@@ -720,6 +725,11 @@ defmodule SlipdockWeb.BoardLive.Index do
           <button phx-click="nudge" phx-value-id={@board.id} phx-value-dir="down">
             <.icon name="hero-arrow-down" class="size-4" /> Move down
           </button>
+        </li>
+        <li :if={@shared?}>
+          <.link navigate={~p"/boards/#{@board}/shared"}>
+            <.icon name="hero-user-plus" class="size-4" /> Shared
+          </.link>
         </li>
         <li :if={@owner? and not @archived}>
           <button

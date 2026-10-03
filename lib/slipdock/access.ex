@@ -564,6 +564,56 @@ defmodule Slipdock.Access do
   def get_grant!(id), do: Repo.get!(Grant, id)
 
   @doc """
+  The grants that make `board` reachable for `user` — their own, and the ones
+  that arrive through a group they are in. Saved-view grants count: a view
+  grant is how somebody reaches a board they were never given outright.
+
+  This is what the Shared page shows somebody about a board that is not
+  theirs: who handed it over, and on what terms.
+  """
+  def incoming_grants(%User{} = user, %Board{} = board) do
+    group_ids = Accounts.group_ids_for(user)
+
+    from(g in Grant,
+      left_join: v in SavedView,
+      on: v.id == g.saved_view_id,
+      where: g.board_id == ^board.id or v.board_id == ^board.id,
+      where: g.user_id == ^user.id or g.group_id in ^group_ids,
+      order_by: [asc: g.inserted_at]
+    )
+    |> Repo.all()
+    |> Repo.preload([:user, :group, :granted_by, :saved_view])
+  end
+
+  def incoming_grants(_user, _board), do: []
+
+  @doc """
+  Gives up `user`'s own access to a board somebody else shared with them: the
+  grants naming them personally, on the board and on its saved views, go.
+
+  What it cannot take away it leaves: a grant held by a group is that group's,
+  not this person's, and support access belongs to the session. So the answer
+  is the permission that is *left* — `:none` when the board has gone off their
+  list for good, anything else when something still reaches them and they need
+  telling why. Owners get `{:error, :owner}`: a board of your own is deleted or
+  archived, never discarded.
+  """
+  @spec discard_board(User.t(), Board.t()) :: {:ok, level} | {:error, :owner}
+  def discard_board(%User{} = user, %Board{} = board) do
+    if board.owner_id == user.id do
+      {:error, :owner}
+    else
+      user
+      |> incoming_grants(board)
+      |> Enum.filter(&(&1.user_id == user.id))
+      |> Enum.each(&Repo.delete!/1)
+
+      broadcast(board.id)
+      {:ok, board_permission(user, board)}
+    end
+  end
+
+  @doc """
   Pages shared with the user on their own (or with one of their groups),
   regardless of whether they can see the board the page sits on.
   """

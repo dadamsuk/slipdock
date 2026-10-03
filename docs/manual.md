@@ -1646,6 +1646,17 @@ carries `owner` (`id`, `email`, `name`), and a listing marks each board
 OWNER column when any of them are, and `slipdock board <ref>` names the owner
 on its own line.
 
+**Giving a share back.** The *…* menu on a board somebody shared with you has
+a **Shared** item (`/boards/:id/shared`). The page it opens says who the board
+belongs to, who handed it over, when, and on what terms — the board itself, or
+a saved view onto it — and carries a **Discard** button. Discarding takes away
+the grants that name *you*: the board leaves your list, your switcher and your
+search, and nothing on the board changes, so the owner can share it again.
+Access that came through a **group** is not yours to give up, so the button is
+disabled and the page says what would end it (leaving the group, or the owner
+revoking the group's access). Owners have no use for the page and are sent to
+their board's settings, which is where sharing out lives.
+
 A **wiki page** can be shared on its own too, and a page grant behaves like a
 card grant: the recipient reads (or edits) that page without the board coming
 with it. A view grant is the exception that goes the other way — it reaches
