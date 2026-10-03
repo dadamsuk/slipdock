@@ -31,6 +31,16 @@ defmodule SlipdockWeb.SetupLiveTest do
     %{token: Settings.ensure_setup_token(), fallback: fallback}
   end
 
+  # config/test.exs pins the logger at :warning, so `Logger.info` is discarded
+  # at runtime and never reaches capture_log. This file is `async: false`, so
+  # lifting the level for one test is safe.
+  defp capture_info(fun) do
+    previous = Logger.level()
+    Logger.configure(level: :info)
+    on_exit(fn -> Logger.configure(level: previous) end)
+    ExUnit.CaptureLog.capture_log(fun)
+  end
+
   describe "the gate" do
     test "a set-up server has no /setup at all", %{conn: conn} do
       {:ok, _} = Settings.complete_setup(%{"admin_email" => "admin@example.com"})
@@ -38,6 +48,37 @@ defmodule SlipdockWeb.SetupLiveTest do
       # 404 rather than a redirect: a redirect would tell a stranger there is an
       # administrative corner here to go looking for.
       assert conn |> get(~p"/setup") |> response(404)
+    end
+
+    test "every request for the wizard logs the token again", %{conn: conn, token: token} do
+      # The boot message scrolls away, a container restart buries it and a reset
+      # database mints a token nobody saw — so the page itself has to say it.
+      log = capture_info(fn -> get(conn, ~p"/setup") end)
+
+      assert log =~ "Setup token for this server: #{token}"
+
+      # Every request, not just the first: that is the whole point.
+      again = capture_info(fn -> get(conn, ~p"/setup") end)
+      assert again =~ token
+    end
+
+    test "a token is minted and logged even if the row has none", %{conn: conn} do
+      Settings.update(%{})
+      Settings.get() |> Ecto.Changeset.change(setup_token: nil) |> Slipdock.Repo.update!()
+      Settings.clear_cache()
+
+      log = capture_info(fn -> get(conn, ~p"/setup") end)
+
+      assert log =~ "Setup token for this server:"
+      assert Settings.ensure_setup_token() != nil
+    end
+
+    test "a set-up server logs no token, because it has none", %{conn: conn} do
+      {:ok, _} = Settings.complete_setup(%{"admin_email" => "admin@example.com"})
+
+      log = capture_info(fn -> get(conn, ~p"/setup") end)
+
+      refute log =~ "Setup token for this server"
     end
 
     test "an unclaimed server sends every other page to the wizard", %{conn: conn} do
