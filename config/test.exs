@@ -28,8 +28,13 @@ config :slipdock, Slipdock.Mailer, adapter: Swoosh.Adapters.Test
 config :slipdock, :mailer_from_settings, false
 
 # Automations: no background clock, and deliveries run inline so tests can
-# assert on them (and stay inside the SQL sandbox).
-config :slipdock, :automations, enabled: true, interval: :manual, async: false
+# assert on them (and stay inside the SQL sandbox). Callbacks go to a
+# `Req.Test` stub rather than out of the machine.
+config :slipdock, :automations,
+  enabled: true,
+  interval: :manual,
+  async: false,
+  req_options: [plug: {Req.Test, Slipdock.Automations.Notifier}]
 
 config :slipdock, :base_url, "http://localhost:4002"
 

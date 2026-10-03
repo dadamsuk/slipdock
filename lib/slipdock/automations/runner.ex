@@ -445,19 +445,20 @@ defmodule Slipdock.Automations.Runner do
   end
 
   defp do_perform("webhook", action, ctx) do
-    url = to_string(action["url"])
+    url = text(action["url"], ctx, "")
+    method = Notifier.method(action["method"])
 
     payload = %{
       rule: ctx.rule.name,
       event: to_string(ctx.event[:type]),
-      board: %{id: ctx.board.id, name: ctx.board.name},
-      card: ctx.card && card_payload(ctx.card),
+      board: board_payload(ctx.board),
+      card: ctx.card && card_payload(ctx.card, ctx.board),
       at: DateTime.utc_now()
     }
 
-    case Notifier.post(url, payload, action["method"]) do
-      :ok -> {:ok, "posted to #{url}"}
-      {:error, reason} -> {:error, "webhook failed: #{reason}"}
+    case Notifier.call(url, payload, method) do
+      :ok -> {:ok, "#{method |> to_string() |> String.upcase()} #{url}"}
+      {:error, reason} -> {:error, "callback failed: #{reason}"}
     end
   end
 
@@ -652,18 +653,44 @@ defmodule Slipdock.Automations.Runner do
     }
   end
 
-  defp card_payload(%Card{} = card) do
+  # Everything a callback is told about the card: what it is, where to read
+  # it, when it is meant to happen and how it is doing. The same keys reach a
+  # GET as `card.title`, `card.url` and so on (see `Notifier.query/1`).
+  defp card_payload(%Card{} = card, board) do
     %{
       id: card.id,
       title: card.title,
-      priority: card.priority,
-      completed: card.completed,
-      due_date: card.due_date,
+      url: card_url(card, board),
+      description: card.description,
       column: card.column && card.column.name,
-      tags: Enum.map(card.tags, & &1.name),
-      flags: card.flags
+      priority: card.priority,
+      assignee: card.assignee && User.display_name(card.assignee),
+      assignee_email: card.assignee && card.assignee.email,
+      start_date: card.start_date,
+      due_date: card.due_date,
+      completed: card.completed,
+      status: card_status(card),
+      health: Card.stated_health(card),
+      percent_complete: card.percent_complete,
+      blocked: Card.blocked?(card),
+      flags: card.flags,
+      tags: Enum.map(card.tags, & &1.name)
     }
   end
+
+  defp card_status(%Card{archived_at: at}) when not is_nil(at), do: "archived"
+  defp card_status(%Card{completed: true}), do: "done"
+  defp card_status(%Card{}), do: "open"
+
+  defp card_url(%Card{} = card, board) do
+    "#{base_url()}/boards/#{(board && board.id) || card.board_id}/cards/#{card.id}"
+  end
+
+  defp board_payload(%{id: id} = board) do
+    %{id: id, name: board.name, code: board.code, url: "#{base_url()}/boards/#{id}"}
+  end
+
+  defp board_payload(_), do: nil
 
   defp default_subject(%{card: %Card{title: title}, board: board}), do: "#{board.name}: #{title}"
   defp default_subject(%{board: board}), do: "#{board.name}: automation"

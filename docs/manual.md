@@ -997,10 +997,25 @@ tested with `is`, `is_not`, `contains`, `any_of`, `none_of`, `is_set`,
 **Actions.** Email an address or whoever the card is assigned to; raise an
 alert; move the card; set priority; add or remove tags and flags; assign or
 unassign; comment; set or clear the due date; complete, reopen or archive;
-add checklist items; create a card; POST a webhook; write a line in the
-activity log. Text in an action can use `{{card.title}}`, `{{card.url}}`,
-`{{card.due_date}}`, `{{card.assignee}}`, `{{board.name}}`, `{{today}}` and
-the rest.
+add checklist items; create a card; start a wiki page; call a URL back;
+write a line in the activity log. Text in an action can use
+`{{card.title}}`, `{{card.url}}`, `{{card.due_date}}`, `{{card.assignee}}`,
+`{{board.name}}`, `{{today}}` and the rest.
+
+**Callbacks.** "POST to https://example.com/hooks/kanban whenever a card is
+archived", "when a card changes, GET https://example.com/hooks/kanban". The
+server calls the URL with the card: its id and title, a link straight to
+it, the list it is in, priority, assignee, start and due dates, whether it
+is completed, its status (`open`, `done` or `archived`), stated health, per
+cent complete, whether it is blocked, and its flags and tags — plus the
+board (name, code and link), the rule's name, the event and the time. A
+POST, PUT or PATCH sends that as a JSON body; a GET sends the same fields
+as query parameters, flattened to `card.title`, `card.url`,
+`card.due_date` and so on, with lists comma-separated and anything unset
+left out. The URL can use placeholders too, so
+`https://example.com/hooks/{{card.id}}` works. Only `http` and `https` URLs
+are called, nothing is retried, and a refusal at the other end shows up as
+the rule's last error without stopping its other actions.
 
 A rule normally watches its own board; say "including subcards" and it
 watches the whole tree beneath it. Rules can be switched off, reworded,
@@ -1025,7 +1040,7 @@ scheduled pass), `Slipdock.Automations.Spec` (the vocabulary, validation and
 the sentence it reads back as — the one place that knows the shape),
 `Slipdock.Automations.Runner` (matching and doing), `Slipdock.Automations.Parser`
 (plain English → spec), `Slipdock.Automations.Scheduler` (the timer),
-`Slipdock.Automations.Notifier` (email and webhooks, off the caller's back)
+`Slipdock.Automations.Notifier` (email and callbacks, off the caller's back)
 and `SlipdockWeb.AlertsHook` (the header bar, mounted into every
 authenticated page). `config :slipdock, :automations` turns rules off
 (`enabled: false`), changes how often the timer runs (`interval`) or sends
