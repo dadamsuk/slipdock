@@ -58,7 +58,8 @@ defmodule Slipdock.Automations do
     "Every weekday at 09:00, alert me about anything overdue",
     "When a card lands in Review, assign it to me and add a comment asking for a check",
     "If a high priority card has no due date, alert me with a warning",
-    "POST to https://example.com/hooks/kanban whenever a card is archived"
+    "POST to https://example.com/hooks/kanban whenever a card is archived",
+    "When a card changes, GET https://example.com/hooks/kanban with the card and its dates"
   ]
 
   @doc "Example sentences for the rule composer."

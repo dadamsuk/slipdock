@@ -1,6 +1,6 @@
 defmodule Slipdock.Automations.Notifier do
   @moduledoc """
-  The outside world, as automations see it: email and webhooks.
+  The outside world, as automations see it: email and callbacks.
 
   Both are slow and neither should hold up the card the user just dragged,
   so by default they run under `Slipdock.TaskSupervisor` and report `:ok`
@@ -27,14 +27,36 @@ defmodule Slipdock.Automations.Notifier do
     end
   end
 
-  @doc "POSTs `payload` as JSON to `url`."
-  def post(url, payload, method \\ nil) do
+  @doc """
+  Calls `url` with `payload`. A `GET` carries it in the query string (nested
+  keys flattened to `card.title=…`); every other method sends it as a JSON
+  body. `method` is anything in `get`, `post`, `put`, `patch`, in any case —
+  anything else is a POST.
+  """
+  def call(url, payload, method \\ nil) do
     if valid_url?(url) do
-      run(fn -> send_webhook(url, payload, method) end)
+      run(fn -> send_callback(url, payload, method(method)) end)
     else
       {:error, "#{url} is not an http(s) URL"}
     end
   end
+
+  @doc "The HTTP method a callback will actually use, given what the rule asked for."
+  def method(wanted) do
+    case wanted |> to_string() |> String.downcase() do
+      "get" -> :get
+      "put" -> :put
+      "patch" -> :patch
+      _ -> :post
+    end
+  end
+
+  @doc """
+  A nested payload as flat, sorted query parameters: `%{card: %{title: "x"}}`
+  becomes `[{"card.title", "x"}]`. Lists are joined with commas and nils are
+  left out, because a query string has no way to say either.
+  """
+  def query(payload), do: payload |> flatten("") |> Enum.sort()
 
   ## Delivery -----------------------------------------------------------------
 
@@ -59,17 +81,19 @@ defmodule Slipdock.Automations.Notifier do
     end
   end
 
-  defp send_webhook(url, payload, method) do
-    method =
-      if to_string(method) in ~w(put patch), do: String.to_existing_atom(method), else: :post
+  defp send_callback(url, payload, :get),
+    do: request(url: url, method: :get, params: query(payload))
 
-    case Req.request(
-           url: url,
-           method: method,
-           json: payload,
-           retry: false,
-           receive_timeout: 15_000
-         ) do
+  defp send_callback(url, payload, method),
+    do: request(url: url, method: method, json: payload)
+
+  defp request(options) do
+    options =
+      [retry: false, receive_timeout: 15_000]
+      |> Keyword.merge(options)
+      |> Keyword.merge(Application.get_env(:slipdock, :automations, [])[:req_options] || [])
+
+    case Req.request(options) do
       {:ok, %Req.Response{status: status}} when status in 200..299 ->
         :ok
 
@@ -80,6 +104,27 @@ defmodule Slipdock.Automations.Notifier do
         {:error, Exception.message(exception)}
     end
   end
+
+  ## Flattening --------------------------------------------------------------
+
+  defp flatten(%{} = map, prefix) when not is_struct(map) do
+    Enum.flat_map(map, fn {key, value} -> flatten(value, join(prefix, key)) end)
+  end
+
+  defp flatten(nil, _prefix), do: []
+
+  defp flatten(list, prefix) when is_list(list),
+    do: [{prefix, Enum.map_join(list, ",", &scalar/1)}]
+
+  defp flatten(value, prefix), do: [{prefix, scalar(value)}]
+
+  defp join("", key), do: to_string(key)
+  defp join(prefix, key), do: "#{prefix}.#{key}"
+
+  defp scalar(%Date{} = date), do: Date.to_iso8601(date)
+  defp scalar(%DateTime{} = at), do: DateTime.to_iso8601(at)
+  defp scalar(value) when is_binary(value), do: value
+  defp scalar(value), do: to_string(value)
 
   # Async delivery can't report a failure to the caller, so it logs instead.
   defp run(fun) do

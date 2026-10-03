@@ -26,6 +26,16 @@ defmodule Slipdock.AutomationsTest do
       assert spec["conditions"] == []
     end
 
+    test "a “callback” is the webhook action under the name people use for it" do
+      assert {:ok, %{"actions" => [action]}} =
+               Spec.validate(%{
+                 "trigger" => %{"type" => "card_created"},
+                 "actions" => [%{"type" => "callback", "url" => "https://example.com/h"}]
+               })
+
+      assert action == %{"type" => "webhook", "url" => "https://example.com/h"}
+    end
+
     test "coerces numbers the model wrote as strings" do
       assert {:ok, %{"trigger" => %{"days" => 7}}} =
                Spec.validate(%{
@@ -92,6 +102,18 @@ defmodule Slipdock.AutomationsTest do
       assert Spec.summary(spec) ==
                "When a card is added to Doing and priority is high, " <>
                  "email ops@example.com, then set its priority to critical."
+    end
+
+    test "says which method a callback will use" do
+      {:ok, spec} =
+        Spec.validate(%{
+          "trigger" => %{"type" => "card_updated"},
+          "actions" => [
+            %{"type" => "webhook", "url" => "https://example.com/h", "method" => "get"}
+          ]
+        })
+
+      assert Spec.summary(spec) == "When a card's details changes, GET https://example.com/h."
     end
   end
 
@@ -368,6 +390,148 @@ defmodule Slipdock.AutomationsTest do
         assert email.subject == "Yours: Yours"
         assert email.text_body =~ "/cards/#{card.id}"
       end)
+    end
+  end
+
+  describe "callbacks" do
+    # A rule's callback goes to a `Req.Test` plug (see config/test.exs), which
+    # hands the request back to the test rather than off the machine.
+    defp stub_callback(status \\ 200) do
+      test = self()
+
+      Req.Test.stub(Slipdock.Automations.Notifier, fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        conn = Plug.Conn.fetch_query_params(conn)
+        send(test, {:callback, conn.method, conn.query_params, body})
+        Plug.Conn.send_resp(conn, status, "")
+      end)
+    end
+
+    defp a_card(column) do
+      card_fixture(column, %{
+        "title" => "Ship the thing",
+        "start_date" => "2026-10-20",
+        "due_date" => "2026-11-01",
+        "flags" => ["blocked", "review"],
+        "percent_complete" => 40
+      })
+    end
+
+    test "POSTs the card, a link to it, its dates, flags and status as JSON" do
+      {board, backlog, _doing, _done} = board_with_lists()
+      stub_callback()
+
+      rule_fixture(board, %{
+        "trigger" => %{"type" => "card_created"},
+        "actions" => [%{"type" => "webhook", "url" => "https://example.com/hooks/kanban"}]
+      })
+
+      card = a_card(backlog)
+
+      assert_received {:callback, "POST", _params, body}
+      assert {:ok, payload} = Jason.decode(body)
+
+      assert payload["event"] == "card_created"
+      assert payload["board"]["name"] == board.name
+      assert payload["board"]["url"] =~ "/boards/#{board.id}"
+
+      assert payload["card"]["title"] == "Ship the thing"
+      assert payload["card"]["url"] =~ "/boards/#{board.id}/cards/#{card.id}"
+      assert payload["card"]["start_date"] == "2026-10-20"
+      assert payload["card"]["due_date"] == "2026-11-01"
+      assert payload["card"]["flags"] == ["blocked", "review"]
+      assert payload["card"]["status"] == "open"
+      assert payload["card"]["percent_complete"] == 40
+      assert payload["card"]["column"] == backlog.name
+    end
+
+    test "a GET sends the same fields in the query string" do
+      {board, backlog, _doing, _done} = board_with_lists()
+      stub_callback()
+
+      rule_fixture(board, %{
+        "trigger" => %{"type" => "card_created"},
+        "actions" => [
+          %{"type" => "webhook", "url" => "https://example.com/hooks/kanban", "method" => "get"}
+        ]
+      })
+
+      card = a_card(backlog)
+
+      assert_received {:callback, "GET", params, ""}
+      assert params["card.title"] == "Ship the thing"
+      assert params["card.url"] =~ "/boards/#{board.id}/cards/#{card.id}"
+      assert params["card.due_date"] == "2026-11-01"
+      assert params["card.flags"] == "blocked,review"
+      assert params["card.status"] == "open"
+      assert params["event"] == "card_created"
+    end
+
+    test "the card's status says done once it is ticked off" do
+      {board, backlog, _doing, _done} = board_with_lists()
+      stub_callback()
+
+      rule_fixture(board, %{
+        "trigger" => %{"type" => "card_completed"},
+        "actions" => [%{"type" => "webhook", "url" => "https://example.com/hooks/kanban"}]
+      })
+
+      {:ok, _} = backlog |> a_card() |> Boards.toggle_completed()
+
+      assert_received {:callback, "POST", _params, body}
+      assert %{"card" => %{"status" => "done", "completed" => true}} = Jason.decode!(body)
+    end
+
+    test "placeholders in the URL are filled in" do
+      {board, backlog, _doing, _done} = board_with_lists()
+      stub_callback()
+
+      rule_fixture(board, %{
+        "trigger" => %{"type" => "card_created"},
+        "actions" => [
+          %{
+            "type" => "webhook",
+            "url" => "https://example.com/hooks/{{card.id}}",
+            "method" => "get"
+          }
+        ]
+      })
+
+      card = card_fixture(backlog)
+
+      assert_received {:callback, "GET", params, ""}
+      assert params["card.id"] == to_string(card.id)
+    end
+
+    test "a refusal at the other end is recorded on the rule" do
+      {board, backlog, _doing, _done} = board_with_lists()
+      stub_callback(503)
+
+      rule =
+        rule_fixture(board, %{
+          "trigger" => %{"type" => "card_created"},
+          "actions" => [%{"type" => "webhook", "url" => "https://example.com/hooks/kanban"}]
+        })
+
+      card_fixture(backlog)
+
+      assert_received {:callback, "POST", _params, _body}
+      assert Automations.get_rule!(rule.id).last_error =~ "HTTP 503"
+    end
+
+    test "a URL that isn't http(s) is refused rather than attempted" do
+      {board, backlog, _doing, _done} = board_with_lists()
+
+      rule =
+        rule_fixture(board, %{
+          "trigger" => %{"type" => "card_created"},
+          "actions" => [%{"type" => "webhook", "url" => "file:///etc/passwd"}]
+        })
+
+      card_fixture(backlog)
+
+      refute_received {:callback, _, _, _}
+      assert Automations.get_rule!(rule.id).last_error =~ "not an http(s) URL"
     end
   end
 

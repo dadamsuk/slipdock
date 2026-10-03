@@ -218,6 +218,13 @@ Prefer `--spec` to a plain-English description: you know the vocabulary, and a s
 exactly as written, while a description goes through a language model that can misread you.
 A rule with an unknown trigger or action is refused with the reason, so anything that saves runs.
 
+The `webhook` action is the way out to anything else the user runs: it calls a URL of theirs
+with the card — id, title, a link to it, list, priority, assignee, start and due dates,
+status (`open`/`done`/`archived`), health, per cent complete, blocked, flags and tags — plus
+the board, the rule and the event. `"method": "get"` sends those as query parameters
+(`card.title`, `card.url`, …) instead of a JSON body; leave it out for a POST. The URL may
+carry `{{placeholders}}` of its own.
+
 Automations are the board's owner's business, and they outlive the task. **Don't add one to get
 a job done** — do the job. Add one only when the user asks for something recurring ("always…",
 "whenever…", "remind me when…", "every week…"), and tell them what you added and how to switch

@@ -934,6 +934,30 @@ defmodule SlipdockWeb.APIGuide do
     often it fired (`{"fired": 2, …}`) and carries `last_error` if an action
     could not be resolved.
 
+    **Callbacks** are the `webhook` action: when the rule fires, the server
+    calls a URL of yours with the card. A `post` (the default), `put` or
+    `patch` sends JSON —
+
+    ```json
+    {"rule": "Tell the robot", "event": "card_updated", "at": "2026-10-03T12:00:00Z",
+     "board": {"id": 1, "name": "Launch", "code": "launch", "url": "B/boards/1"},
+     "card": {"id": 42, "title": "Ship it", "url": "B/boards/1/cards/42",
+              "column": "In Progress", "priority": "high", "assignee": "David",
+              "start_date": "2026-10-20", "due_date": "2026-11-01",
+              "completed": false, "status": "open", "health": "at_risk",
+              "percent_complete": 40, "blocked": false,
+              "flags": ["review"], "tags": ["backend"]}}
+    ```
+
+    — and `{"type": "webhook", "url": "…", "method": "get"}` sends the same
+    fields as query parameters instead, flattened to `card.title`,
+    `card.url`, `card.due_date` and so on (lists comma-separated, anything
+    unset left out). `status` is `open`, `done` or `archived`. The URL may
+    itself carry placeholders, so `https://example.com/hooks/{{card.id}}`
+    works. Only `http`/`https` URLs are called, nothing is retried, and a
+    non-2xx answer lands in the rule's `last_error` rather than stopping the
+    rule's other actions.
+
     **Alerts** are the `alert` action: a line in the header bar of the web UI
     that stays until the reader dismisses it. They are how a rule tells a
     person something without emailing them, and they are worth reading before

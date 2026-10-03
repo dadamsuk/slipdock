@@ -77,9 +77,15 @@ defmodule Slipdock.Automations.Spec do
      "add a new card to a list"},
     {"create_page", [], ["title", "template", "parent", "body", "summary"],
      "start a wiki page for the card, pinned to it (from a template page if named)"},
-    {"webhook", ["url"], ["method"], "POST the event as JSON to a URL"},
+    {"webhook", ["url"], ["method"],
+     "call a URL back with the card — its title, a link to it, its dates, flags and status. " <>
+       "method: post (the default), put or patch send JSON; get puts the same fields in the " <>
+       "query string. The URL may itself use placeholders"},
     {"log", ["message"], [], "write a line into the board's activity log"}
   ]
+
+  # Names people (and models) reach for that mean an action we already have.
+  @action_aliases %{"callback" => "webhook", "http" => "webhook", "post" => "webhook"}
 
   # What text in an action (a subject, a comment, an alert body) may refer to.
   @placeholders ~w({{card.title}} {{card.id}} {{card.url}} {{card.description}} {{card.priority}}
@@ -178,6 +184,9 @@ defmodule Slipdock.Automations.Spec do
   defp validate_actions(_), do: {:error, "needs at least one action"}
 
   defp validate_action(%{"type" => type} = action) when is_binary(type) do
+    type = Map.get(@action_aliases, type, type)
+    action = Map.put(action, "type", type)
+
     case List.keyfind(@actions, type, 0) do
       nil -> {:error, "unknown action “#{type}”"}
       {_, required, optional, _} -> keep(action, required, optional, "action “#{type}”")
@@ -319,7 +328,7 @@ defmodule Slipdock.Automations.Spec do
       "archive_card" -> "archive it"
       "add_checklist_items" -> "add #{length(List.wrap(a["items"]))} checklist items"
       "create_card" -> "create “#{a["title"]}”" <> where(a["column"], "in")
-      "webhook" -> "POST to #{a["url"]}"
+      "webhook" -> "#{String.upcase(to_string(a["method"] || "post"))} #{a["url"]}"
       "log" -> "note it in the activity log"
       other -> other
     end

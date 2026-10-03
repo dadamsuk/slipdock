@@ -31,6 +31,7 @@ defmodule Slipdock.Automations.Parser do
   - Prefer the simplest trigger that does the job, and put anything else in "conditions" rather than inventing a trigger for it.
   - Set a trigger's optional keys only when the user actually named them: "when a card moves to Done" is {"type": "card_moved", "to": "Done"} with no "from".
   - "Show/raise an alert", "warn me", "remind me on screen" means the "alert" action, not email.
+  - "Call", "ping", "hit", "callback", "webhook", "POST to" or "GET" a URL means the "webhook" action. Set "method" to "get" only when the user asked for a GET; leave it out for a POST. The card's title, link, dates, flags and status are always sent, so there is nothing extra to configure.
   - Give every email a subject and a body unless the user dictated them.
 
   VOCABULARY
