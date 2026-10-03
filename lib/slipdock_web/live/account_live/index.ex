@@ -126,13 +126,37 @@ defmodule SlipdockWeb.AccountLive.Index do
 
   defp assign_ai_key(socket) do
     user = socket.assigns.current_user
+    settings = AI.Keys.settings(user)
 
-    assign(socket,
-      ai_key: AI.Keys.masked(AI.Keys.get(user)),
-      ai_key_set_at: AI.Keys.updated_at(user),
-      ai_key_shared?: AI.configured?(user) and not AI.Keys.configured?(user),
-      ai_key_form_key: 0
+    socket
+    |> assign(
+      ai: settings,
+      ai_key: AI.Keys.masked(settings.api_key),
+      ai_key_set_at: settings.updated_at,
+      ai_key_shared?: AI.configured?(user) and not AI.Keys.own?(user),
+      ai_default_endpoint: AI.default_base_url(),
+      ai_default_model: AI.model()
     )
+    |> assign_new(:ai_key_form_key, fn -> 0 end)
+    |> assign_new(:ai_models, fn -> nil end)
+    |> assign_new(:ai_models_error, fn -> nil end)
+    |> assign_new(:ai_listing?, fn -> false end)
+  end
+
+  # The models an endpoint offers, split for the two pickers: anything that
+  # looks like an embedding model cannot hold a conversation, and vice versa.
+  defp chat_models(models), do: Enum.reject(models, & &1.embedding?)
+  defp embedding_models(models), do: Enum.filter(models, & &1.embedding?)
+
+  # A select's options: the stored value stays selectable even when the
+  # endpoint no longer lists it, so saving the form does not silently change
+  # a model that is merely unlisted today.
+  defp model_options(models, current) do
+    listed = Enum.map(models, &{&1.name, &1.id})
+
+    if current && current not in Enum.map(models, & &1.id),
+      do: listed ++ [{current, current}],
+      else: listed
   end
 
   defp load_tokens(socket),
@@ -309,25 +333,58 @@ defmodule SlipdockWeb.AccountLive.Index do
     end
   end
 
-  def handle_event("save_ai_key", %{"api_key" => key}, socket) do
-    case AI.Keys.put(socket.assigns.current_user, key) do
+  # Saves the endpoint and, when one was typed, the key. A blank key field
+  # leaves the stored key alone — it is a password box, so blank means "not
+  # changing this", and the Remove button is how a key goes. A blank endpoint
+  # does mean "back to the default", which is the only way to say so.
+  def handle_event("save_ai_provider", params, socket) do
+    attrs =
+      %{base_url: params["base_url"] || ""}
+      |> then(fn attrs ->
+        case String.trim(params["api_key"] || "") do
+          "" -> attrs
+          key -> Map.put(attrs, :api_key, key)
+        end
+      end)
+
+    case AI.Keys.put_settings(socket.assigns.current_user, attrs) do
       :ok ->
         {:noreply,
          socket
          |> assign_ai_key()
          |> update(:ai_key_form_key, &(&1 + 1))
-         |> put_flash(
-           :info,
-           if(String.trim(key) == "", do: "AI key removed.", else: "AI key saved.")
-         )}
+         # The old list belonged to the old endpoint.
+         |> assign(ai_models: nil, ai_models_error: nil)
+         |> put_flash(:info, "AI settings saved.")}
 
       {:error, message} ->
         {:noreply, put_flash(socket, :error, message)}
     end
   end
 
+  def handle_event("save_ai_model", params, socket) do
+    attrs = %{model: params["model"] || "", embed_model: params["embed_model"] || ""}
+
+    case AI.Keys.put_settings(socket.assigns.current_user, attrs) do
+      :ok -> {:noreply, socket |> assign_ai_key() |> put_flash(:info, "Model saved.")}
+      {:error, message} -> {:noreply, put_flash(socket, :error, message)}
+    end
+  end
+
+  # Asks the endpoint what it can run. Off the LiveView process, since a model
+  # server on the other end of a VPN takes its time, and a slow answer should
+  # not hold up the rest of the page.
+  def handle_event("list_ai_models", _, socket) do
+    user = socket.assigns.current_user
+
+    {:noreply,
+     socket
+     |> assign(ai_listing?: true, ai_models_error: nil)
+     |> start_async(:ai_models, fn -> AI.models(user: user) end)}
+  end
+
   def handle_event("remove_ai_key", _, socket) do
-    case AI.Keys.delete(socket.assigns.current_user) do
+    case AI.Keys.put_settings(socket.assigns.current_user, %{api_key: ""}) do
       :ok -> {:noreply, socket |> assign_ai_key() |> put_flash(:info, "AI key removed.")}
       {:error, message} -> {:noreply, put_flash(socket, :error, message)}
     end
@@ -353,6 +410,24 @@ defmodule SlipdockWeb.AccountLive.Index do
   end
 
   def handle_event("dismiss_token", _, socket), do: {:noreply, assign(socket, new_token: nil)}
+
+  @impl true
+  def handle_async(:ai_models, {:ok, {:ok, models}}, socket) do
+    {:noreply, assign(socket, ai_models: models, ai_models_error: nil, ai_listing?: false)}
+  end
+
+  def handle_async(:ai_models, {:ok, {:error, message}}, socket) do
+    {:noreply, assign(socket, ai_models: nil, ai_models_error: message, ai_listing?: false)}
+  end
+
+  def handle_async(:ai_models, {:exit, reason}, socket) do
+    {:noreply,
+     assign(socket,
+       ai_models: nil,
+       ai_models_error: "Couldn't list the models (#{inspect(reason)}).",
+       ai_listing?: false
+     )}
+  end
 
   # Switching board drops the list, so the form can't keep pointing at a list
   # that lives somewhere else.
@@ -632,54 +707,175 @@ defmodule SlipdockWeb.AccountLive.Index do
             </section>
 
             <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-              <h2 class="text-lg font-semibold">AI key</h2>
+              <h2 class="text-lg font-semibold">AI model</h2>
               <p class="text-sm text-base-content/60">
                 The AI features — chat and edits, the narrative, deep search, written
-                automations, quick add — run on your own <a
+                automations, quick add — need a model to talk to. Either your own <a
                   href="https://openrouter.ai/keys"
                   target="_blank"
                   rel="noopener"
                   class="link"
-                >OpenRouter key</a>. It is kept on the server, used only for your own
-                requests, and billed to your OpenRouter account. Without one, those
-                features stay off for you.
+                >OpenRouter key</a>, billed to your OpenRouter account, or an
+                OpenAI-compatible endpoint of your own — LM Studio, Ollama, llama.cpp,
+                vLLM, a gateway at work — which usually needs no key at all and sends
+                nothing off your network. Either way it is kept on the server and used
+                only for your own requests.
               </p>
-              <div :if={@ai_key} class="mt-4 flex items-center gap-3 text-sm">
-                <.icon name="hero-sparkles" class="size-4 text-base-content/40" />
-                <code class="rounded bg-base-200 px-2 py-1 font-mono text-xs">{@ai_key}</code>
-                <span :if={@ai_key_set_at} class="text-xs text-base-content/50">
-                  set {@ai_key_set_at |> String.slice(0, 10)}
-                </span>
-                <button
-                  type="button"
-                  class="btn btn-ghost btn-xs text-error"
-                  phx-click="remove_ai_key"
-                  data-confirm="Remove your OpenRouter key? AI features will stop working for you."
-                >Remove</button>
-              </div>
-              <p :if={!@ai_key && @ai_key_shared?} class="mt-4 text-sm text-base-content/50">
-                No key of your own — this server has a shared one configured, which is
-                what your AI requests use for now.
-              </p>
-              <p :if={!@ai_key && !@ai_key_shared?} class="mt-4 text-sm text-base-content/50">
-                No key yet, so AI features are off for you.
-              </p>
+
+              <dl class="mt-4 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[8rem_1fr]">
+                <dt class="text-base-content/50">Endpoint</dt>
+                <dd class="font-mono text-xs">
+                  {@ai.base_url || @ai_default_endpoint}
+                  <span :if={!@ai.base_url} class="font-sans text-base-content/50">
+                    (this server's default)
+                  </span>
+                </dd>
+
+                <dt class="text-base-content/50">Key</dt>
+                <dd class="flex flex-wrap items-center gap-3">
+                  <code :if={@ai_key} class="rounded bg-base-200 px-2 py-1 font-mono text-xs">{@ai_key}</code>
+                  <span :if={@ai_key && @ai_key_set_at} class="text-xs text-base-content/50">
+                    set {@ai_key_set_at |> String.slice(0, 10)}
+                  </span>
+                  <button
+                    :if={@ai_key}
+                    type="button"
+                    class="btn btn-ghost btn-xs text-error"
+                    phx-click="remove_ai_key"
+                    data-confirm="Remove your stored API key?"
+                  >Remove</button>
+                  <span :if={!@ai_key && @ai.base_url} class="text-base-content/50">
+                    none — your endpoint is being asked without one
+                  </span>
+                  <span
+                    :if={!@ai_key && !@ai.base_url && @ai_key_shared?}
+                    class="text-base-content/50"
+                  >
+                    none of your own; this server has a shared key, which is what your
+                    requests use for now
+                  </span>
+                  <span
+                    :if={!@ai_key && !@ai.base_url && !@ai_key_shared?}
+                    class="text-base-content/50"
+                  >
+                    none, so AI features are off for you
+                  </span>
+                </dd>
+
+                <dt class="text-base-content/50">Model</dt>
+                <dd class="font-mono text-xs">
+                  {@ai.model || @ai_default_model || "whatever the endpoint has loaded"}
+                  <span :if={!@ai.model} class="font-sans text-base-content/50">
+                    (not picked)
+                  </span>
+                </dd>
+
+                <dt :if={@ai.embed_model} class="text-base-content/50">Embedding</dt>
+                <dd :if={@ai.embed_model} class="font-mono text-xs">{@ai.embed_model}</dd>
+              </dl>
+
               <form
-                id={"ai-key-form-#{@ai_key_form_key}"}
-                phx-submit="save_ai_key"
-                class="mt-4 flex gap-2"
+                id={"ai-provider-form-#{@ai_key_form_key}"}
+                phx-submit="save_ai_provider"
+                class="mt-5 border-t border-base-content/10 pt-5"
               >
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <.input
+                      type="url"
+                      name="base_url"
+                      value={@ai.base_url}
+                      label="Endpoint"
+                      placeholder={@ai_default_endpoint}
+                      class="w-full input font-mono text-xs"
+                      autocomplete="off"
+                    />
+                    <p class="-mt-1 text-xs text-base-content/50">
+                      The API root, the part before <code>/chat/completions</code>: <code>http://llm.local:1234/v1</code>. Empty for this server's default.
+                    </p>
+                  </div>
+                  <div>
+                    <.input
+                      type="password"
+                      name="api_key"
+                      value=""
+                      label="API key"
+                      placeholder={if @ai_key, do: "unchanged", else: "sk-or-v1-… (optional)"}
+                      class="w-full input font-mono text-xs"
+                      autocomplete="off"
+                    />
+                    <p class="-mt-1 text-xs text-base-content/50">
+                      Empty keeps the key you have, and most local endpoints want none.
+                    </p>
+                  </div>
+                </div>
+                <p :if={@ai_key && @ai.base_url} class="mt-1 text-xs text-base-content/50">
+                  Your stored key is sent to your own endpoint as well — remove it if it
+                  should not be.
+                </p>
+                <div class="mt-3 flex flex-wrap items-center gap-2">
+                  <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                  <button
+                    type="button"
+                    class="btn btn-sm"
+                    phx-click="list_ai_models"
+                    phx-disable-with="Asking…"
+                  >
+                    {if @ai_models, do: "Refresh model list", else: "List models"}
+                  </button>
+                  <span class="text-xs text-base-content/50">
+                    {if @ai_listing?,
+                      do: "asking #{@ai.base_url || @ai_default_endpoint}…",
+                      else: "Save the endpoint first — the list comes from what is stored."}
+                  </span>
+                </div>
+              </form>
+
+              <p :if={@ai_models_error} class="mt-4 rounded-xl bg-error/10 p-3 text-sm">
+                {@ai_models_error}
+              </p>
+
+              <form
+                :if={@ai_models}
+                phx-submit="save_ai_model"
+                class="mt-4 rounded-xl bg-base-200/60 p-4"
+              >
+                <p class="text-xs text-base-content/60">
+                  {length(@ai_models)} model(s) on {@ai.base_url || @ai_default_endpoint}.
+                </p>
+                <div class="mt-2">
+                  <.input
+                    type="select"
+                    name="model"
+                    value={@ai.model || ""}
+                    label="Model"
+                    prompt="— this server's default —"
+                    options={model_options(chat_models(@ai_models), @ai.model)}
+                    class="w-full select font-mono text-xs"
+                  />
+                </div>
+                <div :if={embedding_models(@ai_models) != []}>
+                  <.input
+                    type="select"
+                    name="embed_model"
+                    value={@ai.embed_model || ""}
+                    label="Embedding model (semantic search)"
+                    prompt="— this server's default —"
+                    options={model_options(embedding_models(@ai_models), @ai.embed_model)}
+                    class="w-full select font-mono text-xs"
+                  />
+                  <p class="-mt-1 text-xs text-base-content/50">
+                    Only read for the account that indexes (SLIPDOCK_AI_SYSTEM_USER), and
+                    changing it means a reindex — the old vectors are not comparable.
+                  </p>
+                </div>
                 <input
-                  type="password"
-                  name="api_key"
-                  placeholder="sk-or-v1-…"
-                  class="input input-sm flex-1 font-mono"
-                  autocomplete="off"
-                  spellcheck="false"
+                  :if={embedding_models(@ai_models) == []}
+                  type="hidden"
+                  name="embed_model"
+                  value={@ai.embed_model}
                 />
-                <button type="submit" class="btn btn-primary btn-sm">
-                  {if @ai_key, do: "Replace key", else: "Save key"}
-                </button>
+                <button type="submit" class="btn btn-primary btn-sm">Use this model</button>
               </form>
             </section>
           </div>

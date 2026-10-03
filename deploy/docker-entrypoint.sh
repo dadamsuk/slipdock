@@ -90,6 +90,7 @@ case "${1:-start}" in
   # Slipdock.Release and dispatched from here:
   #   docker compose run --rm slipdock reindex
   #   docker compose run --rm slipdock ai-key you@example.com sk-or-…
+  #   docker compose run --rm slipdock ai-endpoint you@example.com http://llm.local:1234/v1
   #   docker compose run --rm slipdock welcome you@example.com
   #   docker compose run --rm slipdock setup --status
   reindex)
@@ -102,6 +103,15 @@ case "${1:-start}" in
     args=""
     for a in "$@"; do args="${args}\"${a}\","; done
     run /app/bin/slipdock eval "Slipdock.Release.ai_key([${args}])"
+    ;;
+  # Point somebody at an OpenAI-compatible model server of their own instead
+  # of OpenRouter; no key needed for most of them.
+  #   docker compose run --rm slipdock ai-endpoint you@example.com http://llm.local:1234/v1
+  ai-endpoint)
+    shift
+    args=""
+    for a in "$@"; do args="${args}\"${a}\","; done
+    run /app/bin/slipdock eval "Slipdock.Release.ai_endpoint([${args}])"
     ;;
   # The tour board a first sign-in builds, for an account that was here before
   # it existed (see Slipdock.Onboarding).

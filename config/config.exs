@@ -15,9 +15,13 @@ config :slipdock,
 # SLIPDOCK_UPLOADS_DIR at runtime to move it (see runtime.exs).
 config :slipdock, :uploads_dir, Path.expand("../priv/uploads", __DIR__)
 
-# LLM features (chat, narrative generator, AI edits, quick add) go through
-# OpenRouter. The API key comes from OPENROUTER_API_KEY (or a .env file, see
-# runtime.exs). Without a key the features stay hidden.
+# LLM features (chat, narrative generator, AI edits, quick add) go through any
+# OpenAI-compatible chat completions API: OpenRouter by default, or an endpoint
+# of your own — LM Studio, Ollama, llama.cpp, vLLM, a company gateway — which
+# each person can point at under Account → AI model, key optional. The shared
+# API key comes from OPENROUTER_API_KEY (or a .env file, see runtime.exs).
+# With neither a key nor an endpoint the features stay hidden.
+# SLIPDOCK_AI_BASE_URL moves the default endpoint for everyone,
 # SLIPDOCK_AI_MODEL picks another model, SLIPDOCK_AI_QUICK_MODEL the one the
 # header's quick add uses (it wants latency over depth).
 # This app is AGPL-3.0: anyone using it over a network is entitled to its
@@ -39,8 +43,8 @@ config :slipdock, :ai,
   # A key here is shared by everyone on the server; normally there is none
   # and each person brings their own (see `Slipdock.AI.Keys`).
   api_key: nil,
-  # Where those per-user keys live: one JSON file, 0600, outside the
-  # database. SLIPDOCK_AI_KEY_FILE moves it.
+  # Where those per-user settings live — key, endpoint, model: one JSON file,
+  # 0600, outside the database. SLIPDOCK_AI_KEY_FILE moves it.
   key_file: "ai_keys.json",
   system_user: nil
 

@@ -287,6 +287,9 @@ defmodule SlipdockWeb.Router do
     put "/me/ai-key", MeController, :put_ai_key
     post "/me/ai-key", MeController, :put_ai_key
     delete "/me/ai-key", MeController, :delete_ai_key
+    put "/me/ai-provider", MeController, :put_ai_provider
+    post "/me/ai-provider", MeController, :put_ai_provider
+    get "/me/ai-models", MeController, :ai_models
 
     # Semantic search across everything the token's owner can read, and the
     # assistant that searches on its own (see `Slipdock.Search`).

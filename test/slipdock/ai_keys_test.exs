@@ -215,7 +215,7 @@ defmodule Slipdock.AIKeysTest do
                  created_by: ctx.user
                )
 
-      assert message =~ "OpenRouter"
+      assert message =~ "Account → AI model"
     end
 
     test "the researcher spends the asker's key", ctx do

@@ -78,10 +78,13 @@ Briefly, with the detail in [the manual](docs/manual.md):
 - **Automations** — ["when a card lands in Done, email ops@example.com"](docs/manual.md#automations-and-alerts),
   parsed once by a model and then run by the app, with alerts in the header.
 - **Semantic Search** - find what you're looking for even when you can't remember exactly what it is.
-- **AI, on your own key** — [chat about a board, ask questions in prose over
-  every board at once, search by meaning rather than substring, and an edit
-  mode you approve before it applies](docs/manual.md#ai-assistant). No key, no
-  AI features; nothing is sent anywhere without one.
+- **AI, on your own key — or your own hardware** — [chat about a board, ask
+  questions in prose over every board at once, search by meaning rather than
+  substring, and an edit mode you approve before it applies](docs/manual.md#ai-assistant).
+  Bring an OpenRouter key, or point it at any OpenAI-compatible endpoint of
+  your own — LM Studio, Ollama, llama.cpp, vLLM — and nothing leaves your
+  network at all. Neither one, no AI features; nothing is sent anywhere
+  without one.
 - **Built for the keyboard and the phone** — [a command palette, a key for
   every board, card labels you can jump to](docs/manual.md#keyboard), and
   [a layout below 640px that is a pager rather than a sideways
@@ -274,7 +277,7 @@ in your `.env` to any published tag.
 #### Backing up
 
 Everything that must survive is on one volume: the SQLite database, uploaded
-files, each person's OpenRouter key, and a `SECRET_KEY_BASE` the container
+files, each person's AI key and endpoint, and a `SECRET_KEY_BASE` the container
 generates for itself on first run. **That volume is the only copy**, and
 backing it up is the one piece of maintenance this app asks of you.
 
@@ -299,7 +302,7 @@ A release has no `mix`, so the ones worth having are on the entrypoint:
 
 ```sh
 docker compose run --rm slipdock setup --status   # what this server allows
-docker compose run --rm slipdock ai-key           # who has an OpenRouter key
+docker compose run --rm slipdock ai-key           # who has an AI key
 docker compose run --rm slipdock reindex          # rebuild the search index
 docker compose run --rm slipdock welcome you@example.com   # the Getting Started tour board
 docker compose run --rm slipdock migrate          # migrations, by hand
@@ -488,10 +491,11 @@ these are decisions only you can make.
   *any* address to a file on the server, so a test running on that server can
   sign itself in. It is off unless you set it, and a server with it on says so
   in the log on every boot. Only ever enable it on a machine used for testing.
-- **AI runs on each person's own OpenRouter key**, kept in a `0600` JSON file
-  outside the database. Somebody without a key gets no AI features at all, and
+- **AI runs on each person's own key or endpoint**, kept in a `0600` JSON file
+  outside the database. Somebody with neither gets no AI features at all, and
   no board content leaves the server on their behalf. Back that file up like a
-  `.env`, because it holds secrets in the clear.
+  `.env`, because it holds secrets in the clear. Point it at a model server on
+  your own network and board content never leaves the network either.
 - **Attachments are served with permission checks**, but they are whatever
   people upload: the app does not scan them.
 - **Put TLS in front of it.** The Docker image does not force HTTPS, on the

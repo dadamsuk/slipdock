@@ -13,9 +13,9 @@ defmodule SlipdockWeb.AccountNavTest do
 
   @pages [
     {"/account", ["Profile", "Session", "About"], ["API tokens", "Quick add", "Bring boards in"]},
-    {"/account/settings", ["Quick add", "AI key"], ["Profile", "Bring boards in"]},
-    {"/account/tokens", ["API tokens"], ["Profile", "AI key", "Bring boards in"]},
-    {"/account/data", ["Your data", "Bring boards in"], ["Profile", "AI key"]}
+    {"/account/settings", ["Quick add", "AI model"], ["Profile", "Bring boards in"]},
+    {"/account/tokens", ["API tokens"], ["Profile", "AI model", "Bring boards in"]},
+    {"/account/data", ["Your data", "Bring boards in"], ["Profile", "AI model"]}
   ]
 
   test "each tab shows its own sections and no others", %{conn: conn} do

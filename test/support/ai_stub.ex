@@ -4,9 +4,10 @@ defmodule Slipdock.AIStub do
   through `Req.Test`, and these helpers script the answers. Call `share/0`
   in a test's setup so LiveView processes see the stub too.
 
-  Both endpoints the app uses go through one stub, told apart by path:
-  `/chat/completions` (see `reply_with/1` and `reply_sequence/1`) and
-  `/embeddings` (always answered, see `fake_vector/2`).
+  All three endpoints the app uses go through one stub, told apart by path:
+  `/chat/completions` (see `reply_with/1` and `reply_sequence/1`),
+  `/embeddings` (always answered, see `fake_vector/2`) and `/models` (see
+  `stub_models/1`, always answered with `default_models/0`).
   """
 
   @doc "Lets every process (LiveViews, async tasks) use the stubs set by this test."
@@ -37,12 +38,17 @@ defmodule Slipdock.AIStub do
       {:ok, body, conn} = Plug.Conn.read_body(conn)
       decoded = Jason.decode!(body)
 
-      if embeddings?(conn) do
-        send(test_pid, {:embed_request, decoded})
-        Req.Test.json(conn, embeddings_body(decoded))
-      else
-        send(test_pid, {:ai_request, decoded})
-        Req.Test.json(conn, chat_body(next(agent)))
+      cond do
+        embeddings?(conn) ->
+          send(test_pid, {:embed_request, decoded})
+          Req.Test.json(conn, embeddings_body(decoded))
+
+        models?(conn) ->
+          Req.Test.json(conn, %{"data" => default_models()})
+
+        true ->
+          send(test_pid, {:ai_request, decoded})
+          Req.Test.json(conn, chat_body(next(agent)))
       end
     end)
   end
@@ -58,15 +64,52 @@ defmodule Slipdock.AIStub do
       {:ok, body, conn} = Plug.Conn.read_body(conn)
       decoded = Jason.decode!(body)
 
-      if embeddings?(conn) do
-        send(test_pid, {:embed_request, decoded})
-        Req.Test.json(conn, embeddings_body(decoded))
+      cond do
+        embeddings?(conn) ->
+          send(test_pid, {:embed_request, decoded})
+          Req.Test.json(conn, embeddings_body(decoded))
+
+        models?(conn) ->
+          Req.Test.json(conn, %{"data" => default_models()})
+
+        true ->
+          conn
+          |> Plug.Conn.put_status(500)
+          |> Req.Test.json(%{"error" => %{"message" => "no chat answer was scripted"}})
+      end
+    end)
+  end
+
+  @doc """
+  Answers `GET /models` with `models` — a list of ids, or of maps in the
+  shape an OpenAI-compatible server returns. Chat and embedding calls fail,
+  as with `stub_embeddings/0`, so a test about the model picker says so.
+  """
+  def stub_models(models) do
+    data =
+      Enum.map(models, fn
+        id when is_binary(id) -> %{"id" => id}
+        %{} = model -> model
+      end)
+
+    Req.Test.stub(Slipdock.AI, fn conn ->
+      if models?(conn) do
+        Req.Test.json(conn, %{"data" => data})
       else
         conn
         |> Plug.Conn.put_status(500)
-        |> Req.Test.json(%{"error" => %{"message" => "no chat answer was scripted"}})
+        |> Req.Test.json(%{"error" => %{"message" => "only the model list was stubbed"}})
       end
     end)
+  end
+
+  @doc "The models every stub lists unless told otherwise."
+  def default_models do
+    [
+      %{"id" => "test/model", "name" => "Test Model"},
+      %{"id" => "test/other-model"},
+      %{"id" => "test/text-embedding-small"}
+    ]
   end
 
   @doc "Fails the next calls with an HTTP status and an OpenRouter-style error."
@@ -104,6 +147,8 @@ defmodule Slipdock.AIStub do
   ## Response bodies ----------------------------------------------------------
 
   defp embeddings?(conn), do: String.ends_with?(conn.request_path, "/embeddings")
+
+  defp models?(conn), do: String.ends_with?(conn.request_path, "/models")
 
   defp embeddings_body(%{"input" => input} = body) do
     inputs = List.wrap(input)

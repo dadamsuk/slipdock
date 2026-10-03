@@ -1,25 +1,42 @@
 defmodule Mix.Tasks.Slipdock.AiKey do
   @moduledoc """
-  Reads and writes the per-person OpenRouter keys that the AI features run on
-  (see `Slipdock.AI.Keys`), for when nobody can get at the web UI.
+  Reads and writes the per-person AI settings the features run on — key,
+  endpoint, model (see `Slipdock.AI.Keys`) — for when nobody can get at the
+  web UI.
 
-      mix slipdock.ai_key                                  # who has a key, masked
-      mix slipdock.ai_key you@example.com sk-or-v1-…       # set one
+      mix slipdock.ai_key                                  # who has what, keys masked
+      mix slipdock.ai_key you@example.com sk-or-v1-…       # set a key
       mix slipdock.ai_key you@example.com --from-env       # take it from OPENROUTER_API_KEY
-      mix slipdock.ai_key you@example.com --remove         # delete one
+      mix slipdock.ai_key you@example.com --remove         # delete everything of theirs
       mix slipdock.ai_key --show you@example.com           # print the key itself
+
+  A model of their own, instead of (or as well as) a key — any
+  OpenAI-compatible endpoint, which usually wants no key at all:
+
+      mix slipdock.ai_key you@example.com --endpoint http://llm.local:1234/v1
+      mix slipdock.ai_key you@example.com --models        # what that endpoint can run
+      mix slipdock.ai_key you@example.com --model qwen/qwen3.5-9b
+      mix slipdock.ai_key you@example.com --endpoint ""   # back to the server's own
 
   `--from-env` is how the one key that used to live in `.env` was moved into
   the store: set it for whoever owned it, then take it out of `.env`.
   """
-  @shortdoc "Shows or sets a person's OpenRouter API key"
+  @shortdoc "Shows or sets a person's AI key, endpoint and model"
 
   use Mix.Task
 
   alias Slipdock.Accounts
   alias Slipdock.AI.Keys
 
-  @switches [remove: :boolean, from_env: :boolean, show: :string]
+  @switches [
+    remove: :boolean,
+    from_env: :boolean,
+    show: :string,
+    endpoint: :string,
+    model: :string,
+    embed_model: :string,
+    models: :boolean
+  ]
 
   @impl Mix.Task
   def run(argv) do
@@ -30,11 +47,17 @@ defmodule Mix.Tasks.Slipdock.AiKey do
       email = opts[:show] ->
         show(email)
 
-      args == [] ->
+      args == [] and not settings?(opts) ->
         list()
 
       opts[:remove] ->
         remove(hd(args))
+
+      args != [] and opts[:models] ->
+        models(hd(args))
+
+      args != [] and settings?(opts) ->
+        set_settings(hd(args), opts)
 
       opts[:from_env] ->
         set(hd(args), System.get_env("OPENROUTER_API_KEY"))
@@ -44,8 +67,51 @@ defmodule Mix.Tasks.Slipdock.AiKey do
 
       true ->
         Mix.raise(
-          "Usage: mix slipdock.ai_key [<email> <key> | <email> --remove] (mix help slipdock.ai_key)"
+          "Usage: mix slipdock.ai_key [<email> <key> | <email> --endpoint <url> | " <>
+            "<email> --model <id> | <email> --models | <email> --remove] " <>
+            "(mix help slipdock.ai_key)"
         )
+    end
+  end
+
+  defp settings?(opts),
+    do: Enum.any?([:endpoint, :model, :embed_model, :models], &Keyword.has_key?(opts, &1))
+
+  defp set_settings(email, opts) do
+    user = find!(email)
+
+    attrs =
+      [{:base_url, opts[:endpoint]}, {:model, opts[:model]}, {:embed_model, opts[:embed_model]}]
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+      |> Map.new()
+
+    case Keys.put_settings(user, attrs) do
+      :ok ->
+        settings = Keys.settings(user)
+
+        Mix.shell().info(
+          "#{user.email}: #{settings.base_url || "the server's endpoint"}, " <>
+            "model #{settings.model || "the server's"}" <>
+            "#{if settings.embed_model, do: ", embedding #{settings.embed_model}"}."
+        )
+
+      {:error, message} ->
+        Mix.raise(message)
+    end
+  end
+
+  defp models(email) do
+    user = find!(email)
+
+    case Slipdock.AI.models(user: user) do
+      {:ok, models} ->
+        Mix.shell().info("#{length(models)} model(s):")
+
+        for m <- models,
+            do: Mix.shell().info("  #{m.id}#{if m.embedding?, do: "  (embedding)"}")
+
+      {:error, message} ->
+        Mix.raise(message)
     end
   end
 
@@ -59,7 +125,9 @@ defmodule Mix.Tasks.Slipdock.AiKey do
 
         for {id, entry} <- Enum.sort_by(keys, fn {_id, e} -> e.email end) do
           Mix.shell().info(
-            "  #{entry.email || "user ##{id}"}  #{Keys.masked(entry.api_key)}  set #{entry.updated_at}"
+            "  #{entry.email || "user ##{id}"}  #{Keys.masked(entry.api_key) || "no key"}" <>
+              "  #{entry.base_url || "default endpoint"}" <>
+              "  #{entry.model || "default model"}  set #{entry.updated_at}"
           )
         end
     end
@@ -92,7 +160,7 @@ defmodule Mix.Tasks.Slipdock.AiKey do
     user = find!(email)
 
     case Keys.delete(user) do
-      :ok -> Mix.shell().info("Removed the key for #{user.email}.")
+      :ok -> Mix.shell().info("Removed the AI settings for #{user.email}.")
       {:error, message} -> Mix.raise(message)
     end
   end

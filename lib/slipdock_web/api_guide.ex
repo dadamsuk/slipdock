@@ -313,25 +313,45 @@ defmodule SlipdockWeb.APIGuide do
     A `slipdock` CLI wraps all of this (`slipdock --help`) if the machine you are on
     has it. The API is the contract; the CLI is a convenience.
 
-    ### The AI key
+    ### The AI key, and which model answers
 
     Anything that asks a language model — `POST /api/ask`, semantic search's
     answers, writing an automation rule in English, the chat and edit panels,
-    the narrative — runs on the **account holder's own OpenRouter key**, kept
-    on the server and never shared between people. `GET /api/me` says whether
-    yours is there:
+    the narrative — runs on the **account holder's own** key or endpoint, kept
+    on the server and never shared between people. `GET /api/me` says what
+    yours is:
 
         "ai_key": {"configured": true, "masked": "sk-or-v1…10d8",
-                   "set_at": "2026-10-01T15:56:49Z", "ai_available": true}
+                   "set_at": "2026-10-01T15:56:49Z", "ai_available": true},
+        "ai": {"base_url": "https://openrouter.ai/api/v1", "own_endpoint": null,
+               "model": "google/gemini-2.5-flash-lite", "own_model": null,
+               "embed_model": null}
 
     `configured: false` with `ai_available: false` means those endpoints will
-    answer `AI features need an OpenRouter API key` and nothing you do to the
-    request will change it — say so rather than retrying. Set one with
-    `PUT /api/me/ai-key {"api_key": "sk-or-…"}` (`slipdock ai-key <key>`), remove
-    it with `DELETE /api/me/ai-key`, or set it in the web UI under
-    **Account → AI key**. Keys are billed to their owner's OpenRouter account,
-    so never put somebody else's key on your account, and never read a key back
-    out of a file and quote it anywhere.
+    answer `AI features need a model to talk to` and nothing you do to the
+    request will change it — say so rather than retrying.
+
+    There are two ways to give them one:
+
+    * **A key**, for the server's endpoint (OpenRouter by default):
+      `PUT /api/me/ai-key {"api_key": "sk-or-…"}` (`slipdock ai-key <key>`),
+      removed with `DELETE /api/me/ai-key`. Billed to its owner's OpenRouter
+      account, so never put somebody else's key on your account, and never
+      read a key back out of a file and quote it anywhere.
+    * **An endpoint of your own** — any OpenAI-compatible chat completions API,
+      typically a model server on the same network, which usually wants no key
+      at all and sends nothing off it:
+
+          PUT /api/me/ai-provider {"base_url": "http://llm.local:1234/v1",
+                                   "model": "qwen/qwen3.5-9b"}
+
+      (`slipdock ai-endpoint <url>`, then `slipdock ai-model <id>`.) Only the
+      fields you send change; `""` clears one, so `{"base_url": ""}` goes back
+      to the server's default. `GET /api/me/ai-models` (`slipdock ai-models`)
+      lists what that endpoint can run, which is where a `model` id comes
+      from — an id from OpenRouter means nothing to a local server, and the
+      other way round. Both are also in the web UI under
+      **Account → AI model**.
     """
   end
 

@@ -28,8 +28,8 @@ Environment=LANG=C.UTF-8
 # .env.example for every variable and what it defaults to. The leading `-`
 # means "carry on if it isn't there".
 #
-# Note what is *not* here: OpenRouter keys are per-person, set under
-# Account → AI key and kept in ai_keys.json next to the app (Slipdock.AI.Keys).
+# Note what is *not* here: AI keys and endpoints are per-person, set under
+# Account → AI model and kept in ai_keys.json next to the app (Slipdock.AI.Keys).
 EnvironmentFile=-/opt/slipdock/.env
 
 Restart=on-failure

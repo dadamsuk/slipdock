@@ -47,7 +47,7 @@ defmodule Slipdock.QuickAdd.Model do
     ]
 
     opts =
-      [max_tokens: 400, temperature: 0, model: AI.quick_model()]
+      [max_tokens: 400, temperature: 0, quick: true]
       |> Keyword.merge(opts)
 
     with {:ok, json} <- AI.complete_json(messages, opts) do

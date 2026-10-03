@@ -48,9 +48,9 @@ defmodule Slipdock.Automations.Parser do
       text == "" ->
         {:error, "Describe the rule first."}
 
-      match?({:error, _}, AI.api_key(opts)) ->
+      match?({:error, _}, AI.provider(opts)) ->
         {:error,
-         "Automation rules are written by the AI: add an OpenRouter key under Account → AI key."}
+         "Automation rules are written by the AI: set up a model under Account → AI model."}
 
       true ->
         messages = [

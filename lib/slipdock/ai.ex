@@ -1,18 +1,32 @@
 defmodule Slipdock.AI do
   @moduledoc """
-  The one place the app talks to a language model: OpenRouter's
-  OpenAI-compatible chat completions API, with a cheap model by default.
+  The one place the app talks to a language model: an OpenAI-compatible chat
+  completions API — OpenRouter by default, or whatever endpoint a person has
+  pointed at instead (LM Studio, Ollama, llama.cpp, vLLM, a company gateway).
 
-  **Whose key.** Each person brings their own OpenRouter key, stored by
-  `Slipdock.AI.Keys` and set in Account settings. Every call resolves one:
+  **Whose model.** Each person brings their own: a key, an endpoint, or
+  both, stored by `Slipdock.AI.Keys` and set in Account settings. Every call
+  resolves the three of them together — endpoint, key, model — into a
+  *provider* (see `provider/1`), because they only make sense as a set: a key
+  for one endpoint is no use at another, and a model id from OpenRouter means
+  nothing to a box in the corner of the room.
 
-    * `opts[:api_key]` when the caller has a key in hand;
-    * otherwise `opts[:user]` — the person the work is for — and their stored
-      key, declining with a message that points at Account settings when they
-      have none;
-    * otherwise the server-wide `:api_key` config, which is the shared
-      fallback for work nobody is sitting in front of (the search indexer)
-      and what the test stub uses.
+  Resolution order, for each of the three:
+
+    * `opts[:base_url]` / `opts[:api_key]` / `opts[:model]` when the caller
+      has them in hand;
+    * otherwise `opts[:user]` — the person the work is for — and what they
+      have stored, declining with a message that points at Account settings
+      when they have nothing;
+    * otherwise the system settings (`Slipdock.AI.Keys.system_settings/0`):
+      the shared `:api_key` config, or a single user's own, which is what
+      work nobody is sitting in front of runs on (the search indexer) and
+      what the test stub uses.
+
+  A key is **not** required when the endpoint is the person's own: a local
+  model server usually wants no authorisation at all, so a `base_url` on its
+  own is enough. The shared OpenRouter key is never sent to somebody else's
+  endpoint.
 
   So the gate lives here rather than at every call site, and `:user` travels
   in the `opts` that `Slipdock.AI.Assistant`, `Narrator`, `Researcher`,
@@ -22,11 +36,12 @@ defmodule Slipdock.AI do
 
     * `:api_key` – from `OPENROUTER_API_KEY` (see runtime.exs); the shared
       fallback key, normally unset now that keys are per-user
-    * `:key_file` – where per-user keys are stored (`SLIPDOCK_AI_KEY_FILE`)
-    * `:model` – the OpenRouter model id (`SLIPDOCK_AI_MODEL`)
+    * `:key_file` – where per-user settings are stored (`SLIPDOCK_AI_KEY_FILE`)
+    * `:model` – the default model id (`SLIPDOCK_AI_MODEL`)
     * `:quick_model` – an even cheaper model for the one-line quick add
       (`SLIPDOCK_AI_QUICK_MODEL`); falls back to `:model`
-    * `:base_url` – the API root
+    * `:base_url` – the default API root (`SLIPDOCK_AI_BASE_URL`), used by
+      anyone who has not pointed at one of their own
     * `:req_options` – extra `Req` options, used by tests to plug in a stub
 
   The features built on it live in `Slipdock.AI.Context` (what the model is
@@ -40,36 +55,154 @@ defmodule Slipdock.AI do
 
   @type message :: %{role: String.t(), content: String.t()}
 
-  @no_key "AI features need an OpenRouter API key. Add one under Account → AI key."
+  @no_key "AI features need a model to talk to: an OpenRouter API key, or a " <>
+            "local endpoint of your own. Set one under Account → AI model."
+
+  # OpenRouter is a paid, public API: reaching it without a key is pointless,
+  # so that is the one endpoint where a key is the price of entry. Anything
+  # else — a box on the LAN, a gateway at work — is asked and allowed to say
+  # no itself, because most of them want no authorisation at all.
+  @paid_endpoint "https://openrouter.ai"
 
   @doc """
-  Whether unattended AI work can run at all: a shared or system key exists
-  (see `Slipdock.AI.Keys.system_key/0`). For a person, ask `configured?/1`.
+  Whether unattended AI work can run at all: the system settings name a key
+  or an endpoint (see `Slipdock.AI.Keys.system_settings/0`), or the server's
+  default endpoint needs no key. For a person, ask `configured?/1`.
   """
-  def configured?, do: present?(Keys.system_key())
+  def configured? do
+    settings = Keys.system_settings()
+    Keys.usable?(settings) or keyless?(settings.base_url || default_base_url())
+  end
 
   @doc """
-  Whether this person can run AI features — they have a key of their own, or
-  a shared key is configured for everyone. `nil` (nobody signed in) is false.
+  Whether this person can run AI features — they have a key or an endpoint of
+  their own, or a shared key is configured for everyone. `nil` (nobody signed
+  in) is false.
   """
   def configured?(nil), do: false
 
-  def configured?(user), do: present?(Keys.get(user)) or present?(shared_key_for(user))
+  def configured?(user) do
+    Keys.own?(user) or present?(shared_key_for(user)) or
+      keyless?(Keys.endpoint(user) || default_base_url())
+  end
+
+  # Whether this endpoint can be asked without a key at all.
+  defp keyless?(base_url), do: not String.starts_with?(to_string(base_url), @paid_endpoint)
+
+  @doc """
+  Everything one call needs, resolved together: `%{base_url:, api_key:,
+  model:, embed_model:, custom?:}`, or `{:error, message}` when the person
+  named has brought nothing and nothing is shared.
+
+  Options: `:user` (whose work this is), and `:base_url` / `:api_key` /
+  `:model` to override any of the three. `:quick` asks for the cheap model
+  (`quick_model/0`) when the person has not picked one of their own, which is
+  what the header's quick add uses.
+
+  `custom?` says the endpoint is not the server's default — which is why no
+  key is demanded, and why a model id from the config is not imposed on it.
+  """
+  @spec provider(keyword()) :: {:ok, map()} | {:error, String.t()}
+  def provider(opts) do
+    settings =
+      case opts[:user] do
+        nil -> Keys.system_settings()
+        user -> Keys.settings(user)
+      end
+
+    base_url = opts[:base_url] || settings.base_url || config()[:base_url]
+    custom? = present?(opts[:base_url]) or present?(settings.base_url)
+
+    key =
+      cond do
+        present?(opts[:api_key]) -> opts[:api_key]
+        present?(settings.api_key) -> settings.api_key
+        # Never spend the server's shared key against somebody else's endpoint.
+        custom? -> nil
+        true -> shared_key_for(opts[:user])
+      end
+
+    if present?(key) or keyless?(base_url) do
+      {:ok,
+       %{
+         base_url: base_url,
+         api_key: key,
+         model: opts[:model] || settings.model || default_model(opts[:quick], custom?),
+         embed_model: settings.embed_model,
+         custom?: custom?
+       }}
+    else
+      {:error, @no_key}
+    end
+  end
+
+  # An endpoint of someone's own gets no model id out of the config: the
+  # config names an OpenRouter model, and sending "google/gemini-2.5-flash" to
+  # a box running two local models is a 404 with a baffling message. Nil means
+  # "whatever you have loaded", which is what LM Studio and friends do.
+  defp default_model(quick?, custom?) do
+    cond do
+      custom? -> nil
+      quick? -> quick_model()
+      true -> model()
+    end
+  end
 
   @doc """
   The key a call should use, given its options (`:api_key`, `:user`), or
-  `{:error, message}` when the person named has no key and none is shared.
+  `{:error, message}` when the person named has brought nothing and nothing
+  is shared. `{:ok, nil}` for an endpoint that needs no key.
   """
   def api_key(opts) do
-    cond do
-      present?(opts[:api_key]) -> {:ok, opts[:api_key]}
-      present?(key = Keys.get(opts[:user])) -> {:ok, key}
-      present?(key = shared_key_for(opts[:user])) -> {:ok, key}
-      opts[:user] -> {:error, @no_key}
-      present?(key = Keys.system_key()) -> {:ok, key}
-      true -> {:error, @no_key}
+    with {:ok, provider} <- provider(opts), do: {:ok, provider.api_key}
+  end
+
+  @doc """
+  Which models an endpoint has, for picking one: `{:ok, [%{id:, name:,
+  embedding?:}]}` sorted by id, or `{:error, message}`.
+
+  `GET /models` is part of the OpenAI-compatible surface, so OpenRouter,
+  LM Studio, Ollama, vLLM and llama.cpp all answer it. Options are
+  `provider/1`'s — `:user`, or a `:base_url` and `:api_key` not yet saved,
+  which is how the Account page can check an endpoint before it is stored.
+  """
+  @spec models(keyword()) :: {:ok, [map()]} | {:error, String.t()}
+  def models(opts \\ []) do
+    with {:ok, provider} <- provider(opts) do
+      case Req.get(request(provider), url: "/models") do
+        {:ok, %Req.Response{status: 200, body: %{"data" => data}}} when is_list(data) ->
+          case Enum.flat_map(data, &model_entry/1) do
+            [] -> {:error, "That endpoint listed no models."}
+            models -> {:ok, Enum.sort_by(models, & &1.id)}
+          end
+
+        {:ok, %Req.Response{status: 200, body: body}} ->
+          Logger.warning("Model list had no data: #{inspect(body)}")
+          {:error, "That endpoint answered, but not with a list of models."}
+
+        {:ok, %Req.Response{status: status, body: body}} ->
+          Logger.warning("Model list failed with #{status}: #{inspect(body)}")
+          {:error, api_error(status, body)}
+
+        {:error, exception} ->
+          {:error, "Couldn't reach #{provider.base_url} (#{Exception.message(exception)})."}
+      end
     end
   end
+
+  defp model_entry(%{"id" => id} = model) when is_binary(id) and id != "" do
+    [
+      %{
+        id: id,
+        name: (is_binary(model["name"]) && model["name"]) || id,
+        # Embedding models cannot hold a conversation, so the picker keeps the
+        # two lists apart. The id is all every server agrees to tell us.
+        embedding?: String.contains?(id, "embed")
+      }
+    ]
+  end
+
+  defp model_entry(_), do: []
 
   @doc """
   The server-wide key, if this person may spend it.
@@ -105,6 +238,9 @@ defmodule Slipdock.AI do
 
   def model, do: config()[:model]
 
+  @doc "The endpoint anyone who has not pointed at one of their own uses."
+  def default_base_url, do: config()[:base_url]
+
   @doc """
   The model for the short, latency-sensitive calls (the header's quick add):
   `:quick_model` when one is configured, otherwise the ordinary model.
@@ -121,35 +257,50 @@ defmodule Slipdock.AI do
   """
   def complete(messages, opts \\ []) do
     case do_complete(messages, opts) do
+      # Not every endpoint takes `response_format: json_object` — LM Studio
+      # wants a `json_schema` or nothing at all. The prompts ask for JSON in
+      # words anyway, and `decode_json/1` tolerates prose and code fences
+      # around the object, so asking again without the flag is the right
+      # answer rather than refusing to work with the endpoint.
+      {:error, :no_json_mode} ->
+        Logger.info("Endpoint rejected JSON mode; asking again without it")
+        retry(messages, Keyword.put(opts, :json, false))
+
       # Cheap models occasionally return an empty choice; one retry usually fixes it.
       {:error, :empty} ->
-        case do_complete(messages, opts) do
-          {:error, :empty} -> {:error, "The model returned an empty answer; please try again."}
-          other -> other
-        end
+        retry(messages, opts)
 
       other ->
         other
     end
   end
 
+  defp retry(messages, opts) do
+    case do_complete(messages, opts) do
+      {:error, :empty} -> {:error, "The model returned an empty answer; please try again."}
+      {:error, :no_json_mode} -> {:error, "That endpoint would not answer in JSON."}
+      other -> other
+    end
+  end
+
   defp do_complete(messages, opts) do
-    with {:ok, key} <- api_key(opts) do
+    with {:ok, provider} <- provider(opts) do
       body =
         %{
-          model: opts[:model] || model(),
           messages: Enum.map(messages, &normalize/1),
           max_tokens: opts[:max_tokens] || 1500,
           temperature: opts[:temperature] || 0.4
         }
+        |> maybe_model(provider.model)
         |> maybe_json(opts[:json])
 
       started = System.monotonic_time(:millisecond)
 
-      case Req.post(request(key), url: "/chat/completions", json: body) do
+      case Req.post(request(provider), url: "/chat/completions", json: body) do
         {:ok, %Req.Response{status: 200, body: %{"choices" => [choice | _]} = resp}} ->
           Logger.info(
-            "AI completion via #{resp["model"] || body.model} in #{System.monotonic_time(:millisecond) - started}ms" <>
+            "AI completion via #{resp["model"] || body[:model] || provider.base_url} in " <>
+              "#{System.monotonic_time(:millisecond) - started}ms" <>
               usage(resp["usage"])
           )
 
@@ -159,7 +310,7 @@ defmodule Slipdock.AI do
 
             _ ->
               Logger.warning("AI completion returned no text: #{inspect(resp)}")
-              {:error, :empty}
+              empty_answer(choice)
           end
 
         {:ok, %Req.Response{status: 200, body: body}} ->
@@ -168,7 +319,12 @@ defmodule Slipdock.AI do
 
         {:ok, %Req.Response{status: status, body: body}} ->
           Logger.warning("AI completion failed with #{status}: #{inspect(body)}")
-          {:error, api_error(status, body)}
+
+          if opts[:json] && refused_json_mode?(status, body) do
+            {:error, :no_json_mode}
+          else
+            {:error, api_error(status, body)}
+          end
 
         {:error, exception} ->
           Logger.warning("AI completion failed: #{Exception.message(exception)}")
@@ -176,6 +332,26 @@ defmodule Slipdock.AI do
       end
     end
   end
+
+  # A thinking model that spent its whole budget thinking: there is no answer
+  # to wait for, and asking again changes nothing, so say what happened.
+  defp empty_answer(%{"finish_reason" => "length"}) do
+    {:error,
+     "The model used up its token budget before saying anything — it is " <>
+       "probably a reasoning model, which needs a larger one than this."}
+  end
+
+  defp empty_answer(_choice), do: {:error, :empty}
+
+  # Told apart from a real refusal by what the endpoint complains about: the
+  # field we sent rather than the request we made.
+  defp refused_json_mode?(status, body) when status in 400..422 do
+    body
+    |> inspect()
+    |> String.contains?("response_format")
+  end
+
+  defp refused_json_mode?(_status, _body), do: false
 
   @doc """
   A completion the model may answer with tool calls instead of prose.
@@ -187,22 +363,23 @@ defmodule Slipdock.AI do
   `Slipdock.AI.Researcher` for the loop that does this.
   """
   def complete_tools(messages, tools, opts \\ []) do
-    with {:ok, key} <- api_key(opts) do
-      body = %{
-        model: opts[:model] || model(),
-        messages: Enum.map(messages, &normalize/1),
-        tools: tools,
-        tool_choice: opts[:tool_choice] || "auto",
-        max_tokens: opts[:max_tokens] || 1500,
-        temperature: opts[:temperature] || 0.3
-      }
+    with {:ok, provider} <- provider(opts) do
+      body =
+        %{
+          messages: Enum.map(messages, &normalize/1),
+          tools: tools,
+          tool_choice: opts[:tool_choice] || "auto",
+          max_tokens: opts[:max_tokens] || 1500,
+          temperature: opts[:temperature] || 0.3
+        }
+        |> maybe_model(provider.model)
 
       started = System.monotonic_time(:millisecond)
 
-      case Req.post(request(key), url: "/chat/completions", json: body) do
+      case Req.post(request(provider), url: "/chat/completions", json: body) do
         {:ok, %Req.Response{status: 200, body: %{"choices" => [choice | _]} = resp}} ->
           Logger.info(
-            "AI tool completion via #{resp["model"] || body.model} in " <>
+            "AI tool completion via #{resp["model"] || body[:model] || provider.base_url} in " <>
               "#{System.monotonic_time(:millisecond) - started}ms" <> usage(resp["usage"])
           )
 
@@ -280,27 +457,39 @@ defmodule Slipdock.AI do
   end
 
   @doc """
-  The configured `Req` request for the OpenRouter API: base URL, key and
-  headers. Public so `Slipdock.AI.Embeddings` can reach a different endpoint
-  on the same connection settings; it takes the key to use, since that is
-  per-person now.
+  The configured `Req` request for a provider (see `provider/1`): its base
+  URL, key and headers. Public so `Slipdock.AI.Embeddings` can reach a
+  different endpoint on the same connection settings.
   """
-  def request(key) do
+  def request(%{base_url: base_url} = provider) do
     Req.new(
       [
-        base_url: config()[:base_url],
-        headers: [
-          {"authorization", "Bearer #{key}"},
-          # OpenRouter shows this on the key owner's dashboard, so it should
-          # name the instance making the call, not whoever wrote the code.
-          {"http-referer", Application.get_env(:slipdock, :source_url, "")},
-          {"x-title", "Slipdock"}
-        ],
+        base_url: base_url,
+        headers: headers(provider[:api_key]),
         receive_timeout: 90_000,
         retry: false
       ] ++ (config()[:req_options] || [])
     )
   end
+
+  # A local model server usually has no notion of a key, and some reject a
+  # bearer token they did not ask for, so an absent key means no header.
+  defp headers(key) do
+    auth = if present?(key), do: [{"authorization", "Bearer #{key}"}], else: []
+
+    auth ++
+      [
+        # OpenRouter shows this on the key owner's dashboard, so it should
+        # name the instance making the call, not whoever wrote the code.
+        {"http-referer", Application.get_env(:slipdock, :source_url, "")},
+        {"x-title", "Slipdock"}
+      ]
+  end
+
+  # Nil means "whatever that endpoint has loaded": a single-model local server
+  # answers happily with no model named, and guessing one only gets a 404.
+  defp maybe_model(body, nil), do: body
+  defp maybe_model(body, model), do: Map.put(body, :model, model)
 
   defp maybe_json(body, true), do: Map.put(body, :response_format, %{type: "json_object"})
   defp maybe_json(body, _), do: body
