@@ -18,6 +18,20 @@ defmodule SlipdockWeb.Plugs.Setup do
   instance. So the first boot mints a token, logs it, and the wizard will not
   proceed without it (see `Slipdock.Settings.ensure_setup_token/0`). The token
   is in the log and nowhere else.
+
+  ## Why it is logged again on every request
+
+  A boot message is easy to miss and easier to lose: it scrolls out of
+  `journalctl`, a container restart buries it, and a reset database mints a new
+  token nobody saw. That left the one person entitled to claim the server
+  staring at a page asking for a token they could not find. So every request
+  for the wizard logs the token again, minting one if the row has none.
+
+  This discloses nothing new. The token still goes only to the log, and a
+  stranger who requests `/setup` cannot read what their request wrote. What it
+  does cost is log volume: anyone who can reach an unclaimed server can make it
+  write a line per request. That lasts only until the server is claimed, and
+  `SLIPDOCK_ADMIN_EMAIL` skips the wizard altogether.
   """
   import Plug.Conn
   import Phoenix.Controller
@@ -52,7 +66,28 @@ defmodule SlipdockWeb.Plugs.Setup do
       |> render(:"404")
       |> halt()
     else
+      announce_token()
       conn
+    end
+  end
+
+  # `ensure_setup_token/0` hands back the token the server already has and only
+  # writes when there is none, so this is a read on all but the first request.
+  defp announce_token do
+    require Logger
+
+    case Settings.ensure_setup_token() do
+      nil ->
+        :ok
+
+      token ->
+        Logger.info("""
+        Setup token for this server: #{token}
+
+            #{Settings.setup_url(token)}
+
+        Logged on every request for /setup while the server is unclaimed.
+        """)
     end
   end
 
