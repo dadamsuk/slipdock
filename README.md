@@ -12,7 +12,9 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/licence-AGPL--3.0-green" alt="AGPL-3.0"></a>
 </p>
 
-A self-hosted kanban board for people who want their work tracker to be theirs and to really help get their job done: you can easily self-host for free or use the hosted version. Functionality of the two is identical. It's different (better?) than most Kanban boards though, because it incorporates features built on real world experience of hundreds of projects, none of the fluff you don't need and everything that you do. This system was built for a real use case: replacing Jira Tickets, Jira Product Discovery, Jira Atlas (particularly sharing updates with stakeholders) and Confluence. And with the optional AI integrations, it's better than all of them. 
+A self-hosted kanban board for people who want their work tracker to be theirs and to really help get their job done: you can easily self-host for free or use the [hosted version](https://slipdock.us). Functionality of the two is identical. It's different (better?) than most Kanban boards though, because it incorporates features built on real world experience of hundreds of projects, none of the fluff you don't need and everything that you do. This system was built for a real use case: replacing Jira Tickets, Jira Product Discovery, Jira Atlas (particularly sharing updates with stakeholders) and Confluence. And with the optional AI integrations, it's better than all of them. 
+
+![A board](docs/screenshots/board.png)
 
 Any card can become a board of its own, so an epic and its tasks
 live in one place and roll up. The same cards can be read as a board, a
@@ -26,8 +28,6 @@ a JSON API and a CLI, so an agent can work the board the way a person does.  Cha
 ## A word on AI coding...
 
 Of course it was built using AI. But it wasn't vibe coded in an hour. First it was born of 30+ years of experience of managing projects and writing software. Second it was planned out and carefully constructed with robust testing and verification.  And third it has been security reviewed by multiple different coding agents. 
-
-![A board](docs/screenshots/board.png)
 
 > A plan is falsework: the structure that holds the thing up while it is being built, and comes away when it stands on its own. This is somewhere to put it.
 
@@ -101,7 +101,9 @@ Briefly, with the detail in [the manual](docs/manual.md):
   editable grants on a board, a single card, a wiki page or a saved
   view](docs/manual.md#accounts-and-sharing). A board somebody shared with you
   says whose it is on your board list, so a list of boards is never a list of
-  boards of unknown provenance — plus
+  boards of unknown provenance, and its *…* menu has a **Shared** page saying
+  who handed it over with a **Discard** button that gives the access back —
+  plus
   [a device flow for signing an agent in](docs/manual.md#signing-an-agent-in)
   from anywhere, with scoped, expiring, revocable tokens.
 - **Boards that can leave** — [a whole board tree as one JSON file another
