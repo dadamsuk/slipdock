@@ -271,6 +271,17 @@ defmodule SlipdockWeb.APIGuide do
     means they said no; `expired_token` means start again. Success hands back a
     `token`. The code lasts ten minutes and works once.
 
+    **Save what you are given**, so the next session does not have to ask the
+    person again: the token in `~/.config/slipdock/token` (mode 600), and this
+    server's address in `~/.config/slipdock/url`. Both files are where the CLI
+    and the skills look. `$SLIPDOCK_TOKEN` and `$SLIPDOCK_URL` override them.
+
+    If you have none of the skills installed and would like them —
+    the wiki, documents, working a backlog unattended — one line fetches them
+    into `~/.claude/skills` and needs nothing but `curl` and `tar`:
+
+        curl -fsSL #{base}/install.sh | sh
+
     `401` means no token or a dead one — ask for a new one rather than guessing.
     `403` means the token is good but that board or card is not yours to read or
     change; say so rather than working around it. Two `403`s name the **token**

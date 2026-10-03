@@ -1,8 +1,45 @@
 defmodule SlipdockCLI.HTTP do
   @moduledoc "Tiny JSON client over OTP's :httpc. No dependencies."
 
+  @doc """
+  Which server to talk to: `$SLIPDOCK_URL`, else the one saved by
+  `slipdock url` (or by `/install.sh`), else this machine's own tailnet
+  address, else localhost.
+
+  The saved file matters for agents. An agent is usually a long-lived session
+  somewhere else — a cloud sandbox, a chat client, a cron — and nobody is there
+  to export an environment variable into it, so the address has to be something
+  the machine remembers. The env var still wins, for a one-off against another
+  install.
+  """
   def base_url do
-    read_env("SLIPDOCK_URL", "KANBAN_URL") || tailscale_url() || "http://localhost:4000"
+    read_env("SLIPDOCK_URL", "KANBAN_URL") ||
+      read_file(url_file()) ||
+      tailscale_url() ||
+      "http://localhost:4000"
+  end
+
+  defp url_file, do: config_path("slipdock", "url")
+
+  @doc "Remember a server address. Returns the path written."
+  def save_url(url) do
+    path = url_file()
+    File.mkdir_p!(Path.dirname(path))
+    File.write!(path, String.trim_trailing(url, "/") <> "\n")
+    path
+  end
+
+  @doc "Forget it, falling back to the tailnet address or localhost."
+  def forget_url, do: File.rm(url_file())
+
+  @doc "Where the address came from, for `slipdock url` to explain itself."
+  def url_source do
+    cond do
+      read_env("SLIPDOCK_URL", "KANBAN_URL") -> "$SLIPDOCK_URL"
+      read_file(url_file()) -> url_file()
+      tailscale_url() -> "this machine's tailnet address"
+      true -> "the default"
+    end
   end
 
   defp tailscale_url do
@@ -20,14 +57,14 @@ defmodule SlipdockCLI.HTTP do
   # Functions, not module attributes: an attribute would freeze $HOME at the
   # moment the escript was *built*, so a binary built by one user and run by
   # another would read and write somebody else's token file.
-  defp token_file, do: config_path("slipdock")
+  defp token_file, do: config_path("slipdock", "token")
 
   # The CLI was called `kanban` until the rename; a token written by the old
   # one still signs you in, so nobody has to re-authenticate.
-  defp legacy_token_file, do: config_path("kanban")
+  defp legacy_token_file, do: config_path("kanban", "token")
 
-  defp config_path(dir),
-    do: Path.join([System.get_env("HOME") || ".", ".config", dir, "token"])
+  defp config_path(dir, name),
+    do: Path.join([System.get_env("HOME") || ".", ".config", dir, name])
 
   @doc """
   The API token: `$SLIPDOCK_TOKEN`, else `~/.config/slipdock/token` (written by

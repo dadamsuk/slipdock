@@ -414,7 +414,7 @@ inline), and — as important — the **conventions**:
 * do not rewrite a section you did not author without saying so in the
   message.
 
-The `skills/kanban-work` skill gets the same, so board-driven agent work
+The `skills/slipdock-work` skill gets the same, so board-driven agent work
 naturally leaves documentation behind.
 
 ### 5.4 The in-app assistant
@@ -430,7 +430,7 @@ works on the page you are looking at.
 ### 5.5 Skills shipped with the system
 
 The CLI already ships `cli/SKILL.md` (a command reference) and
-`skills/kanban-work/SKILL.md` (a workflow that starts by fetching the
+`skills/slipdock-work/SKILL.md` (a workflow that starts by fetching the
 server's own `/api/guide`). The wiki follows the same two-part shape,
 because it works: **a skill says when and how to reach for the thing; the
 running server says what is currently true.** A skill that hardcodes board
@@ -440,12 +440,12 @@ names, list names or endpoint shapes rots; one that tells the agent to read
 Three new skills, each with the same anatomy (YAML frontmatter with a
 trigger-rich `description`, a short body, details in `references/`):
 
-**`kanban-wiki` — the reference.** Sibling to `cli/SKILL.md`, and the one
+**`slipdock-wiki` — the reference.** Sibling to `cli/SKILL.md`, and the one
 loaded whenever the user mentions docs, notes, a runbook, a spec, "write it
 up", "where is it documented", or a wiki page.
 
 ```
-skills/kanban-wiki/
+skills/slipdock-wiki/
   SKILL.md                    ~120 lines: auth, find, read, write, link, search
   references/markup.md        the [[link]] forms, chips, TOC/children/backlinks
   references/queries.md       the ```slipdock block: views, filter vocabulary, {{…}}
@@ -462,11 +462,11 @@ whole-body edit**, because that is the difference between an agent that
 collaborates on a document and one that quietly deletes a colleague's
 paragraph.
 
-**`kanban-docs` — the workflow.** The counterpart to `kanban-work`: not
+**`slipdock-docs` — the workflow.** The counterpart to `slipdock-work`: not
 "how do I call it" but "what belongs in a document, and where". Triggered by
 asking to document something, write up a decision, record a retro, keep
 notes on an investigation, or check what is already written before starting
-work. It opens the way `kanban-work` does:
+work. It opens the way `slipdock-work` does:
 
 ```sh
 slipdock guide --section wiki      # the server's own conventions, once per session
@@ -492,7 +492,7 @@ and then states the judgement calls that a model otherwise gets wrong:
   is how the next agent finds the work — `slipdock page wanted` is a backlog.
 * **Don't rewrite someone else's section** without saying so in the message.
 
-**`kanban-wiki-author` — the long-form worker.** Optional, phase 6: the
+**`slipdock-wiki-author` — the long-form worker.** Optional, phase 6: the
 skill for "read the board and write the spec / the onboarding doc / the
 quarterly summary". It is the researcher loop expressed as a skill —
 gather with `search`/`read_card`/`list_cards`, draft with a template,
@@ -511,7 +511,7 @@ GET  /api/skills/:name/:file      a references/ file
 ```
 
 ```sh
-slipdock skills install             # writes ~/.claude/skills/kanban*/…, honours --dir
+slipdock skills install             # writes ~/.claude/skills/slipdock*/…, honours --dir
 slipdock skills check               # warns when the local copy is behind the server's
 ```
 
@@ -523,7 +523,7 @@ a token is present. `/api/guide` grows a `wiki` section (§5.3) and accepts
 than the whole manual.
 
 The same three files are what a non-Claude agent gets too: they are plain
-Markdown with `curl` fallbacks in every block, exactly as `kanban-work` is
+Markdown with a `curl` form beside the CLI one, exactly as `slipdock-work` is
 today.
 
 ---
@@ -618,8 +618,8 @@ phase, not after, because that is how the rest of this system is built.
 2. **Wiki links and markup.** `[[links]]` in every form (title, slug, code,
    cross-board), card chips, backlinks, wanted pages, TOC/children,
    attachments and paste,
-   `resolve` endpoint, section read/replace/append. The `kanban-wiki` and
-   `kanban-docs` skills, and `slipdock skills install` to distribute them.
+   `resolve` endpoint, section read/replace/append. The `slipdock-wiki` and
+   `slipdock-docs` skills, and `slipdock skills install` to distribute them.
 3. **Slipdock integration.** Docs section on cards, pinning, create-card-from-
    selection, create-page-from-card, templates, activity entries,
    favourites.
@@ -627,7 +627,7 @@ phase, not after, because that is how the rest of this system is built.
    from any board view, inline `{{…}}`, publishing freeze.
 5. **Semantic search.** Chunking, indexer, result rollup, reindex task,
    assistant and researcher tools, `/api/guide` wiki section, and the
-   search-before-you-write step in `kanban-docs` (which only becomes true
+   search-before-you-write step in `slipdock-docs` (which only becomes true
    advice once pages are indexed).
 6. **Polish.** Public publishing, automation action/condition,
    export (a board's wiki as a zip of `.md` with links rewritten — the
@@ -639,7 +639,7 @@ phase, not after, because that is how the rest of this system is built.
 
 Per house rules: `mix precommit` before done,
 `mix ecto.gen.migration` for every schema change, and the dev server is
-`kanban.service` — restart it after config changes.
+`slipdock.service` — restart it after config changes.
 
 Worth explicit tests: link extraction and reconciliation (including renames
 — renaming a page must not break inbound links, which is why links resolve
@@ -889,8 +889,8 @@ best made with something running.
   writing every few minutes makes history unreadable.
 * **Ranking of pages against cards** in search results (§6) — the penalty
   constant needs a real corpus before it means anything.
-* **Whether `kanban-wiki-author`** (§5.5, phase 6) is worth writing, or
-  whether `kanban-docs` plus the researcher loop covers it.
+* **Whether `slipdock-wiki-author`** (§5.5, phase 6) is worth writing, or
+  whether `slipdock-docs` plus the researcher loop covers it.
 * **Import.** Phase 6 mentions a Markdown-folder import; the Obsidian
   vault is the obvious first customer, and its wikilink dialect is close
   enough to this one to be worth checking before committing to a format.

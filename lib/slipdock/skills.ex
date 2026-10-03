@@ -58,6 +58,42 @@ defmodule Slipdock.Skills do
     end
   end
 
+  @doc """
+  Every skill as one gzipped tar, laid out the way an agent directory expects:
+  `slipdock/SKILL.md`, `slipdock-work/SKILL.md`, `slipdock-wiki/references/…`.
+
+  This is what `/install.sh` unpacks. The file-at-a-time JSON endpoints need a
+  client that can parse JSON and walk a file list — which the CLI can and a
+  `curl | tar` cannot, and `curl | tar` is the one that works on a machine with
+  nothing installed.
+  """
+  def tarball do
+    entries =
+      for skill <- list(), file <- skill.files, {:ok, text} <- [read(skill.name, file)] do
+        {String.to_charlist(Path.join(skill.name, file)), text}
+      end
+
+    # Through a temporary file because OTP's tar writer addresses a path, not a
+    # binary. The archive is a few hundred kilobytes and the file is gone before
+    # this returns.
+    path =
+      Path.join(
+        System.tmp_dir!(),
+        "slipdock-skills-#{:erlang.unique_integer([:positive])}.tar.gz"
+      )
+
+    try do
+      with :ok <- :erl_tar.create(String.to_charlist(path), entries, [:compressed, :write]),
+           {:ok, bytes} <- File.read(path) do
+        {:ok, bytes}
+      else
+        _ -> {:error, :unavailable}
+      end
+    after
+      File.rm(path)
+    end
+  end
+
   defp load(name) do
     with {:ok, root} <- skill_dir(name),
          {:ok, body} <- File.read(Path.join(root, "SKILL.md")) do

@@ -37,8 +37,8 @@ defmodule SlipdockWeb.API.GuideController do
     end
   end
 
-  defp base_url(conn) do
-    port = if conn.port in [80, 443], do: "", else: ":#{conn.port}"
-    "#{conn.scheme}://#{conn.host}#{port}"
-  end
+  # The address the caller actually reached us on — `SlipdockWeb.BaseURL` has
+  # the reasoning. Every curl block in the guide is built from this, so an
+  # agent can copy one and have it work.
+  defp base_url(conn), do: SlipdockWeb.BaseURL.from_conn(conn)
 end

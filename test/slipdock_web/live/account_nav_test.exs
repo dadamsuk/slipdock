@@ -1,6 +1,6 @@
 defmodule SlipdockWeb.AccountNavTest do
   @moduledoc """
-  The account area is four pages, not one scroll. What matters is that each
+  The account area is five pages, not one scroll. What matters is that each
   tab carries its own sections and *only* its own — the old page's failing
   was everything being on screen at once.
   """
@@ -15,7 +15,8 @@ defmodule SlipdockWeb.AccountNavTest do
     {"/account", ["Profile", "Session", "About"], ["API tokens", "Quick add", "Bring boards in"]},
     {"/account/settings", ["Quick add", "AI model"], ["Profile", "Bring boards in"]},
     {"/account/tokens", ["API tokens"], ["Profile", "AI model", "Bring boards in"]},
-    {"/account/data", ["Your data", "Bring boards in"], ["Profile", "AI model"]}
+    {"/account/data", ["Your data", "Bring boards in"], ["Profile", "AI model"]},
+    {"/account/agent", ["Set up an agent"], ["Profile", "AI model", "Bring boards in"]}
   ]
 
   test "each tab shows its own sections and no others", %{conn: conn} do
@@ -29,7 +30,7 @@ defmodule SlipdockWeb.AccountNavTest do
     end
   end
 
-  test "every tab links to the other three", %{conn: conn} do
+  test "every tab links to the others", %{conn: conn} do
     for {path, _, _} <- @pages do
       {:ok, view, _} = live(conn, path)
 

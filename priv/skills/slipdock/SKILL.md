@@ -5,13 +5,53 @@ description: Read and write cards on the user's self-hosted Slipdock boards with
 
 # Slipdock CLI
 
-The `slipdock` command talks to the user's Slipdock app (Phoenix LiveView, served over Tailscale).
-Every write shows up live in the web UI. Run `slipdock --help` for the full reference.
+The `slipdock` command talks to the user's Slipdock app — hosted at `app.slipdock.us`, or
+self-hosted at whatever address they reach it by. Every write shows up live in the web UI.
+Run `slipdock --help` for the full reference.
+
+**Which server.** `$SLIPDOCK_URL`, else `~/.config/slipdock/url` (written by `slipdock url
+<address>`, or by the server's own `/install.sh`), else this machine's tailnet address on
+:4000. If none of those is the board the user means, ask them for the address — do not guess.
 
 **If you are about to work *from* the board — pick up the next task, work through an epic, keep
 cards updated while doing the work — run `slipdock guide` first** (the server's own instructions
 for agents: epics and subcards, how to choose the next card, what to write back) and follow it.
 This file is the command reference; the guide is the workflow.
+
+## If the CLI is not installed here
+
+Everything below is a wrapper around a JSON API, and the API is the fallback: it needs nothing
+but `curl`. Do not tell the user to install the CLI (it is an escript and wants Elixir) —
+use the API, and mention the CLI only if they ask for something nicer to type.
+
+```sh
+B="${SLIPDOCK_URL:-$(cat ~/.config/slipdock/url 2>/dev/null)}"
+T="$(cat ~/.config/slipdock/token 2>/dev/null)"
+H="Authorization: Bearer ${SLIPDOCK_TOKEN:-$T}"
+
+curl -s "$B/api/guide"                 # no token needed; the whole API, with curl for each call
+curl -s -H "$H" "$B/api/me"            # who the token is
+```
+
+**`GET /api/guide` is the complete reference** — every endpoint, with a `curl` line for it, plus
+the user's own boards and lists when a token is passed. Read it rather than inferring paths from
+this file.
+
+Signing in needs no CLI either; it is the same device flow, two calls (the guide spells them
+out). Ask for a code, show the user the URL and the code, poll until they approve, then write
+the token to `~/.config/slipdock/token` with mode 600 so the next session has it:
+
+```sh
+curl -s -X POST "$B/api/auth/device" -H 'content-type: application/json' \
+     -d '{"label":"claude on this machine","scope":"write"}'
+# → user_code, verification_uri, device_code, interval
+curl -s -X POST "$B/api/auth/device/token" -H 'content-type: application/json' \
+     -d '{"device_code":"…"}'
+# → 400 authorization_pending until approved, then {"token":"…"}
+```
+
+To install these skills on a machine that has none of them:
+`curl -fsSL "$B/install.sh" | sh` (needs only `curl` and `tar`).
 
 ## Signing in
 
@@ -421,5 +461,5 @@ UI under **Configuration**.
 
 ## Errors
 
-Non-zero exit with `error: ...` on stderr. `could not reach ...` means the server is down or
-`SLIPDOCK_URL` is wrong (default: this machine's Tailscale IP, port 4000).
+Non-zero exit with `error: ...` on stderr. `could not reach ...` means the server is down, or
+the address is wrong: check `slipdock url`, which says where it is pointing and why.

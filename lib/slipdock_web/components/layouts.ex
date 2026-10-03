@@ -202,6 +202,13 @@ defmodule SlipdockWeb.Layouts do
                   class="size-4"
                 /> Import &amp; export</.link>
               </li>
+              <%!-- Reachable from the menu rather than buried in the account
+                    tabs: somebody who has heard their board can be worked by an
+                    agent has no reason to look under Account for it. --%>
+              <li>
+                <.link navigate={~p"/account/agent"}><.icon name="hero-cpu-chip" class="size-4" />
+                Set up an agent</.link>
+              </li>
               <li :if={Slipdock.Accounts.admin?(@current_user)}>
                 <.link navigate={~p"/users"}>
                   <.icon name="hero-users" class="size-4" /> Users

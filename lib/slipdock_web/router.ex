@@ -106,6 +106,13 @@ defmodule SlipdockWeb.Router do
     end
   end
 
+  # Setting an agent up: a shell script that installs the skills and saves this
+  # server's address. Outside every pipeline on purpose — it is plain text for
+  # a machine with nothing on it, so it needs neither a session nor HTML.
+  scope "/", SlipdockWeb do
+    get "/install.sh", InstallController, :show
+  end
+
   scope "/", SlipdockWeb do
     pipe_through [:browser, :require_authenticated_user]
 
@@ -174,6 +181,9 @@ defmodule SlipdockWeb.Router do
       live "/account/settings", AccountLive.Index, :settings
       live "/account/tokens", AccountLive.Index, :tokens
       live "/account/data", AccountLive.Index, :data
+      # How to point an agent at this server. A page rather than a doc because
+      # the one thing it has to get right is this install's own address.
+      live "/account/agent", AccountLive.Index, :agent
       live "/groups", GroupLive.Index, :index
       live "/templates", TemplateLive.Index, :index
       live "/favourites", FavouriteLive.Index, :index
@@ -276,6 +286,10 @@ defmodule SlipdockWeb.Router do
 
     # The agent skills this app ships (see `Slipdock.Skills`). Like the guide,
     # they need no token: they say how to call the API, not what is on it.
+    # Every skill in one gzipped tar — what `/install.sh` unpacks. A machine
+    # with only `curl` and `tar` cannot walk the JSON file list below.
+    get "/skills.tar.gz", SkillController, :archive
+
     get "/skills", SkillController, :index
     get "/skills/:name", SkillController, :show
     get "/skills/:name/*file", SkillController, :show

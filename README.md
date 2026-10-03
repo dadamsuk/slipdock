@@ -115,6 +115,11 @@ Briefly, with the detail in [the manual](docs/manual.md):
   [from the shell](docs/manual.md#cli), plus
   [agent skills](docs/manual.md#skills) the server ships and a
   `/api/guide` that describes *your* boards to whatever is driving them.
+- **An agent on your board in a minute** —
+  [setting one up](docs/agents.md) needs no software and no access to the
+  server: give it the address, approve it once in the browser, and it reads the
+  server's own guide for the rest. The app has the same thing with your address
+  filled in, under **Set up an agent**.
 
 ## Running it
 
@@ -533,6 +538,9 @@ Account page links to the source for exactly that reason — point
 
 - **[docs/manual.md](docs/manual.md)** — the full reference: every view, the
   wiki, automations, the keyboard, the JSON API, the CLI and the agent skills.
+- **[docs/agents.md](docs/agents.md)** — pointing Claude, ChatGPT or anything
+  else at your boards: the address, the approval, the skills, and what to do
+  when it will not connect.
 - **[UPGRADING.md](UPGRADING.md)** — moving an existing install across the
   Kanban → Slipdock rename.
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — how to work on it.
