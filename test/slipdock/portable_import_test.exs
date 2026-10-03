@@ -272,7 +272,7 @@ defmodule Slipdock.PortableImportTest do
     end
   end
 
-  describe "the card limit" do
+  describe "the item limit" do
     setup do
       owner = user_fixture("owner@example.com")
       _board = populated(owner)
@@ -288,7 +288,9 @@ defmodule Slipdock.PortableImportTest do
 
       document = owner |> Portable.export() |> Jason.encode!()
 
-      assert {:error, {:card_limit_reached, 3, 2}} = Portable.import(receiver, document)
+      # Four items, not three cards: the export carries a wiki page too, and a
+      # page counts like a card does (see `Slipdock.Quota`).
+      assert {:error, {:card_limit_reached, 4, 2}} = Portable.import(receiver, document)
       assert owned(receiver) == []
     end
 
@@ -298,7 +300,8 @@ defmodule Slipdock.PortableImportTest do
 
       document = owner |> Portable.export() |> Jason.encode!()
       assert {:ok, %{cards: 3}} = Portable.import(receiver, document)
-      assert Quota.used(receiver) == 3
+      assert Quota.used(receiver, :cards) == 3
+      assert Quota.used(receiver) == 4
     end
   end
 

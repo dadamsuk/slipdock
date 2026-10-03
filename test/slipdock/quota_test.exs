@@ -1,7 +1,9 @@
 defmodule Slipdock.QuotaTest do
   @moduledoc """
-  The free tier's card limit: whose cards count, and that every way of making
-  one is refused the same.
+  The free tier's allowance: whose things count, and that every way of making
+  one is refused the same. The server-wide ceilings and the trial are in
+  `Slipdock.QuotaLimitsTest`; this file turns them off so that the free tier is
+  the only thing being measured.
   """
   use Slipdock.DataCase, async: false
 
@@ -12,6 +14,19 @@ defmodule Slipdock.QuotaTest do
   defp limit(n) do
     {:ok, _} =
       Settings.complete_setup(%{"admin_email" => "admin@example.com", "free_card_limit" => n})
+
+    :ok
+  end
+
+  # The ceilings are on by default on every install (see `Slipdock.Quota`), and
+  # a 250,000-item one would make "no limit" tests read as limited.
+  setup do
+    {:ok, _} =
+      Settings.update(%{
+        "board_limit_enabled" => false,
+        "item_limit_enabled" => false,
+        "storage_limit_enabled" => false
+      })
 
     :ok
   end

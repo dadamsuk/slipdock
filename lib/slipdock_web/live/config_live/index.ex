@@ -235,6 +235,49 @@ defmodule SlipdockWeb.ConfigLive.Index do
     end)
   end
 
+  # A limit is a number and a switch: switching one off leaves the number
+  # where it was, so switching it back on does not mean typing it again.
+  attr :form, :any, required: true
+  attr :settings, :any, required: true
+  attr :switch, :atom, required: true
+  attr :number, :atom, required: true
+  attr :label, :string, required: true
+  attr :unit, :string, required: true
+  attr :hint, :string, default: nil
+
+  defp limit_control(assigns) do
+    ~H"""
+    <div>
+      <label class="flex cursor-pointer items-center gap-3 text-sm">
+        <input type="hidden" name={"settings[#{@switch}]"} value="false" />
+        <input
+          type="checkbox"
+          name={"settings[#{@switch}]"}
+          value="true"
+          checked={Map.get(@settings, @switch)}
+          class="checkbox checkbox-sm"
+        />
+        <span class="font-medium">{@label}</span>
+        <input
+          type="number"
+          min="1"
+          name={"settings[#{@number}]"}
+          value={Map.get(@settings, @number)}
+          class="input input-sm input-bordered w-28"
+        />
+        <span class="text-xs text-base-content/60">{@unit}</span>
+      </label>
+      <p :if={@hint} class="mt-1 ml-8 text-xs text-base-content/60">{@hint}</p>
+      <p
+        :for={message <- Keyword.get_values(@form.errors, @number)}
+        class="mt-1 ml-8 text-xs text-error"
+      >
+        {translate_error(message)}
+      </p>
+    </div>
+    """
+  end
+
   defp mode_label(mode), do: elem(Instance.describe(mode), 0)
   defp mode_detail(mode), do: elem(Instance.describe(mode), 1)
 
@@ -347,10 +390,70 @@ defmodule SlipdockWeb.ConfigLive.Index do
         <.input
           field={@form[:free_card_limit]}
           type="number"
-          label="Cards allowed per person"
+          label="Items allowed per free account"
           value={@settings.free_card_limit}
           placeholder="No limit"
         />
+        <p class="-mt-3 text-xs text-base-content/60">
+          Cards, wiki pages and uploaded files together, on the boards they own.
+          Blank for no limit, which is what a server you run for yourself wants.
+          Accounts with a paid-up date, and admins, are not counted against this.
+        </p>
+
+        <.limit_control
+          form={@form}
+          settings={@settings}
+          switch={:trial_enabled}
+          number={:trial_days}
+          label="Free accounts expire"
+          unit="days after they are made"
+          hint="A free trial. It stands alongside the limits below rather than inside
+                them: an account can have no card limit at all and still run out of
+                trial. Nothing is deleted and nothing is locked — an expired account
+                can read and edit everything it has, but cannot add anything new.
+                Set a paid-up date on a person in Users to take them off the clock."
+        />
+
+        <fieldset class="space-y-4 rounded-xl p-4 ring-1 ring-base-content/10">
+          <legend class="px-1 text-sm font-medium">Limits for everybody</legend>
+          <p class="text-xs text-base-content/60">
+            These apply to every account on this server, free or paid, admin or not,
+            however this server is run. They are not a way to sell anything — they are
+            the ceiling that stops one runaway import filling the disk. Turn any of
+            them off if you would rather have no ceiling at all.
+          </p>
+
+          <.limit_control
+            form={@form}
+            settings={@settings}
+            switch={:board_limit_enabled}
+            number={:board_limit}
+            label="Boards one person may own"
+            unit="boards"
+            hint="Sub-boards — the ones behind subcards — do not count."
+          />
+
+          <.limit_control
+            form={@form}
+            settings={@settings}
+            switch={:item_limit_enabled}
+            number={:item_limit}
+            label="Items on one person's boards"
+            unit="cards, pages and files"
+            hint="Counted the same way as the free allowance above. Where both apply,
+                  the lower one wins."
+          />
+
+          <.limit_control
+            form={@form}
+            settings={@settings}
+            switch={:storage_limit_enabled}
+            number={:storage_limit_mb}
+            label="Files on one person's boards"
+            unit="MB"
+            hint="The sum of every attachment behind their boards. 10240 is 10 GB."
+          />
+        </fieldset>
 
         <fieldset class="space-y-2">
           <legend class="text-sm font-medium">Who people can see</legend>

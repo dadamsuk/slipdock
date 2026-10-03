@@ -6,6 +6,9 @@ defmodule Mix.Tasks.Slipdock.Setup do
       mix slipdock.setup --admin you@example.com
       mix slipdock.setup --admin you@example.com --mode allowlist --allow example.com
       mix slipdock.setup --admin you@example.com --mode open --card-limit 20
+      mix slipdock.setup --admin you@example.com --mode open --trial-days 30
+      mix slipdock.setup --admin you@example.com --board-limit 100 --storage-limit-mb 2048
+      mix slipdock.setup --admin you@example.com --no-item-limit   # no ceiling at all
       mix slipdock.setup --admin you@example.com --smtp-host smtp.example.com \\
         --smtp-from slipdock@example.com --smtp-user u --smtp-password p
       mix slipdock.setup --status            # what this server currently thinks
@@ -15,6 +18,15 @@ defmodule Mix.Tasks.Slipdock.Setup do
   `--admin` is the whole of it: that address becomes the admin, setup is marked
   complete, and `/setup` is gone. Everything else has a sensible default
   (`--mode closed`, no card limit, no mail).
+
+  The free tier is `--card-limit` (items on the boards somebody owns: cards,
+  wiki pages and uploaded files) and `--trial-days` (how long a free account may
+  go on adding things). Both are off unless given.
+
+  The ceilings that apply to everybody on every install are on by default:
+  1,000 boards, 250,000 items, 10 GB of files. `--board-limit`, `--item-limit`
+  and `--storage-limit-mb` change them; `--no-board-limit`, `--no-item-limit`
+  and `--no-storage-limit` turn one off altogether.
 
   **It refuses to run twice.** A server that has been set up is already
   somebody's, and quietly re-pointing the admin address from a shell history
@@ -38,6 +50,13 @@ defmodule Mix.Tasks.Slipdock.Setup do
     mode: :string,
     allow: :keep,
     card_limit: :integer,
+    trial_days: :integer,
+    board_limit: :integer,
+    item_limit: :integer,
+    storage_limit_mb: :integer,
+    no_board_limit: :boolean,
+    no_item_limit: :boolean,
+    no_storage_limit: :boolean,
     directory: :string,
     invites: :boolean,
     smtp_host: :string,
@@ -85,6 +104,14 @@ defmodule Mix.Tasks.Slipdock.Setup do
       %{"admin_email" => opts[:admin]}
       |> put_if(opts[:mode], "signup_mode", &validate_mode/1)
       |> put_if(opts[:card_limit], "free_card_limit")
+      |> put_if(opts[:trial_days], "trial_days")
+      |> put_if(opts[:trial_days] && true, "trial_enabled")
+      |> put_if(opts[:board_limit], "board_limit")
+      |> put_if(opts[:item_limit], "item_limit")
+      |> put_if(opts[:storage_limit_mb], "storage_limit_mb")
+      |> put_if(opts[:no_board_limit] && false, "board_limit_enabled")
+      |> put_if(opts[:no_item_limit] && false, "item_limit_enabled")
+      |> put_if(opts[:no_storage_limit] && false, "storage_limit_enabled")
       |> put_if(opts[:directory], "user_directory", &validate_directory/1)
       |> put_if(opts[:invites], "invites_create_accounts")
       |> put_if(opts[:smtp_host], "smtp_host")
@@ -158,7 +185,11 @@ defmodule Mix.Tasks.Slipdock.Setup do
     Admins:          #{Enum.map_join(Accounts.list_admins(), ", ", & &1.email)}
     Registration:    #{settings.signup_mode}
     Allowlist:       #{allowlist()}
-    Card limit:      #{settings.free_card_limit || "no limit"}
+    Free allowance:  #{settings.free_card_limit || "no limit"} (cards, pages and files)
+    Free trial:      #{if settings.trial_enabled, do: "#{settings.trial_days} days", else: "off"}
+    Board ceiling:   #{ceiling(settings.board_limit_enabled, settings.board_limit)}
+    Item ceiling:    #{ceiling(settings.item_limit_enabled, settings.item_limit)}
+    File ceiling:    #{ceiling(settings.storage_limit_enabled, settings.storage_limit_mb && "#{settings.storage_limit_mb} MB")}
     People visible:  #{settings.user_directory}
     Invites create:  #{settings.invites_create_accounts}
     Mail:            #{if Settings.smtp_configured?(), do: "#{settings.smtp_host}:#{settings.smtp_port || 587}", else: "not configured"}
@@ -174,7 +205,10 @@ defmodule Mix.Tasks.Slipdock.Setup do
   end
 
   defp limit_note(%{free_card_limit: nil}), do: ""
-  defp limit_note(%{free_card_limit: n}), do: ", #{n} cards per person"
+  defp limit_note(%{free_card_limit: n}), do: ", #{n} items per person"
+
+  defp ceiling(false, _value), do: "off"
+  defp ceiling(_enabled, value), do: "#{value || "not set"}"
 
   defp put_if(attrs, nil, _key), do: attrs
   defp put_if(attrs, value, key), do: Map.put(attrs, key, value)

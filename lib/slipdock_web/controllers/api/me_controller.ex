@@ -10,8 +10,12 @@ defmodule SlipdockWeb.API.MeController do
       user: %{id: user.id, email: user.email, name: user.name},
       ai_key: ai_key(user),
       # Where they stand on cards, so an agent can stop before the wall rather
-      # than discovering it with a 402 halfway through a batch.
-      cards: Slipdock.Quota.status(user)
+      # than discovering it with a 402 halfway through a batch. `cards` is the
+      # item count — cards, wiki pages and uploaded files together — and keeps
+      # its name because callers match on it; `limits` has every dimension,
+      # with the item count broken down.
+      cards: Slipdock.Quota.status(user),
+      limits: Slipdock.Quota.report(user)
     })
   end
 

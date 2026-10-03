@@ -51,7 +51,14 @@ defmodule SlipdockWeb.APIGuide do
 
   defp this_server(user) do
     notes =
-      [cards_note(user), directory_note(), invites_note()]
+      [
+        cards_note(user),
+        boards_note(user),
+        storage_note(user),
+        trial_note(user),
+        directory_note(),
+        invites_note()
+      ]
       |> Enum.map(&String.trim/1)
       |> Enum.reject(&(&1 == ""))
 
@@ -62,22 +69,77 @@ defmodule SlipdockWeb.APIGuide do
   end
 
   defp cards_note(user) do
-    case Slipdock.Quota.status(user) do
+    case Slipdock.Quota.status(user, :items) do
       %{limited?: false} ->
-        "There is no limit on how many cards this account may have."
+        "There is no limit on how many cards, pages or files this account may have."
+
+      %{used: used, limit: limit, remaining: remaining} ->
+        %{cards: cards, pages: pages, files: files} = Slipdock.Quota.breakdown(user)
+
+        """
+        **Items: #{used} of #{limit} used, #{remaining} left** — #{cards} cards,
+        #{pages} pages, #{files} files. A card, a wiki page and an uploaded file each
+        count as one item. The count is everything non-archived on boards you own;
+        things on boards other people shared with you cost you nothing, archiving a
+        card or a page frees it up, and a file counts until it is deleted.
+
+        Creating one past the limit answers `402` with `"error": "card_limit_reached"`
+        and `"retryable": false`. That is not a fault in the request — fixing the title
+        and trying again will fail identically, forever. Stop, tell the person, and
+        suggest archiving something finished with. `GET /api/me` carries the same
+        figures under `cards`, and every limit under `limits`, so you can check before
+        you start rather than discovering it halfway through a batch.
+        """
+    end
+  end
+
+  defp boards_note(user) do
+    case Slipdock.Quota.status(user, :boards) do
+      %{limited?: false} ->
+        ""
 
       %{used: used, limit: limit, remaining: remaining} ->
         """
-        **Cards: #{used} of #{limit} used, #{remaining} left.** The count is every
-        non-archived card on boards you own; cards on boards other people shared with
-        you cost you nothing, and archiving one frees it up.
+        **Boards: #{used} of #{limit} used, #{remaining} left.** Boards you own, not
+        boards shared with you, and sub-boards (the ones behind subcards) do not count.
+        Creating one past the limit answers `402` with `"error": "board_limit_reached"`.
+        """
+    end
+  end
 
-        Creating a card past it answers `402` with `"error": "card_limit_reached"` and
-        `"retryable": false`. That is not a fault in the request — fixing the title and
-        trying again will fail identically, forever. Stop, tell the person, and suggest
-        archiving something finished with. `GET /api/me` carries the same figures under
-        `cards`, so you can check before you start rather than discovering it halfway
-        through a batch.
+  defp storage_note(user) do
+    case Slipdock.Quota.status(user, :storage) do
+      %{limited?: false} ->
+        ""
+
+      %{used: used, limit: limit, remaining: remaining} ->
+        human = &Slipdock.Quota.humanise_bytes/1
+
+        """
+        **Files: #{human.(used)} of #{human.(limit)} used, #{human.(remaining)} left.**
+        Uploading past it answers `402` with `"error": "storage_limit_reached"`.
+        """
+    end
+  end
+
+  defp trial_note(user) do
+    case Slipdock.Quota.trial(user) do
+      %{applies?: false} ->
+        ""
+
+      %{expired?: true, days: days} ->
+        """
+        **This account's #{days}-day free trial has ended.** Everything already here is
+        readable and editable, but nothing new can be added: creating anything answers
+        `402` with `"error": "trial_expired"` and `"retryable": false`. Do not retry.
+        Tell the person they need to subscribe.
+        """
+
+      %{days_left: left, ends_at: ends_at} ->
+        """
+        **Free trial: #{left} day(s) left**, ending #{DateTime.to_date(ends_at)}. After
+        that nothing new can be added — creating anything answers `402` with
+        `"error": "trial_expired"` — though everything already here stays editable.
         """
     end
   end
@@ -218,11 +280,23 @@ defmodule SlipdockWeb.APIGuide do
     - `this API token is read-only` — granted read access only.
     - `this API token's scope doesn't allow it` — confined to certain boards.
 
-    `402` with `"error": "card_limit_reached"` means the board's owner has used
-    up the cards their account allows. It carries `"retryable": false` because
-    it is not a fault in your request: fixing the title and trying again will
-    fail identically, forever. Tell the person, and suggest archiving something
-    finished with. `GET /api/me` says where they stand before you start.
+    `402` is a limit, and always carries `"retryable": false` because it is not
+    a fault in your request: fixing the title and trying again will fail
+    identically, forever. Tell the person and stop. `GET /api/me` says where
+    they stand before you start — `cards` for the item count, `limits` for all
+    of it.
+
+    - `card_limit_reached` — the board's owner has used up the **items** their
+      account allows. A card, a wiki page and an uploaded file each count as
+      one, so writing it up as a page instead will not get round it. Suggest
+      archiving something finished with.
+    - `board_limit_reached` — they own as many boards as this server allows one
+      person. Sub-boards, the ones behind subcards, do not count.
+    - `storage_limit_reached` — their uploaded files fill the space allowed.
+      Only deleting attachments frees it; archiving the card does not.
+    - `trial_expired` — a free trial has run out. Nothing new can be added
+      anywhere on their boards; everything already there stays editable. They
+      have to subscribe.
 
     Reads are `GET`, writes are `POST` or `PATCH`, and bodies are JSON with
     `Content-Type: application/json`. Boards, lists, tags, templates and saved

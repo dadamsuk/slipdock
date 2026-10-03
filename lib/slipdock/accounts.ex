@@ -513,7 +513,9 @@ defmodule Slipdock.Accounts do
         Enum.map(shared, fn board ->
           %{name: board.name, to: successor(board) && successor(board).email}
         end),
-      cards_deleted: Slipdock.Quota.used(user),
+      # Cards only: this is a list of what goes, and pages and files are
+      # counted separately in the item total rather than being "cards".
+      cards_deleted: Slipdock.Quota.used(user, :cards),
       last_admin?: last_admin?(user)
     }
   end

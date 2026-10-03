@@ -130,11 +130,55 @@ defmodule Slipdock.Settings do
   def signup_mode, do: get().signup_mode
 
   @doc """
-  How many non-archived cards one person's own boards may hold, or nil for no
-  limit — which is what a self-hosted install wants and gets by default.
+  The free tier's allowance: how many things one person's own boards may hold —
+  cards, wiki pages and uploaded files together — or nil for no limit, which is
+  what a self-hosted install wants and gets by default.
+
+  The column is still called `free_card_limit` because the CLI flag, the JSON
+  API field and a year of saved settings all use that name. What it counts is
+  `Slipdock.Quota`'s business, and it counts everything now.
   """
   @spec free_card_limit() :: pos_integer() | nil
   def free_card_limit, do: get().free_card_limit
+
+  @doc """
+  The guardrail on how many boards one person may own, or nil when the switch
+  is off. Unlike the free tier's allowance this applies on every install.
+  """
+  @spec board_limit() :: pos_integer() | nil
+  def board_limit, do: enabled_limit(:board_limit_enabled, :board_limit)
+
+  @doc "The guardrail on cards, pages and files together, or nil when switched off."
+  @spec item_limit() :: pos_integer() | nil
+  def item_limit, do: enabled_limit(:item_limit_enabled, :item_limit)
+
+  @doc "The guardrail on uploaded bytes, or nil when switched off."
+  @spec storage_limit_bytes() :: pos_integer() | nil
+  def storage_limit_bytes do
+    case enabled_limit(:storage_limit_enabled, :storage_limit_mb) do
+      nil -> nil
+      mb -> mb * 1024 * 1024
+    end
+  end
+
+  @doc """
+  How many days a free account may go on adding things, or nil when the trial
+  is switched off — which is the default, and what a self-hosted install wants.
+
+  Independent of the counts: an account can have no card limit at all and still
+  be on a month's trial, or have both.
+  """
+  @spec trial_days() :: pos_integer() | nil
+  def trial_days, do: enabled_limit(:trial_enabled, :trial_days)
+
+  @doc "The stored megabytes, for a form that shows what was typed."
+  @spec storage_limit_mb() :: pos_integer() | nil
+  def storage_limit_mb, do: get().storage_limit_mb
+
+  defp enabled_limit(switch, number) do
+    settings = get()
+    if Map.get(settings, switch), do: Map.get(settings, number)
+  end
 
   @doc "Who appears in people pickers and model prompts: `:instance` or `:shared_only`."
   @spec user_directory() :: :instance | :shared_only
@@ -385,7 +429,12 @@ defmodule Slipdock.Settings do
     %{
       "signup_mode" => mode,
       "free_card_limit" => configured[:free_card_limit],
-      "user_directory" => configured[:user_directory] || :instance,
+      "user_directory" => configured[:user_directory] || :instance
+      # Left out entirely when unconfigured, so the schema's own defaults (the
+      # guardrails, switched on) stand rather than being seeded over with nil.
+    }
+    |> Map.merge(configured_limits(configured))
+    |> Map.merge(%{
       "invites_create_accounts" =>
         if(is_boolean(configured[:invites_create_accounts]),
           do: configured[:invites_create_accounts],
@@ -399,7 +448,23 @@ defmodule Slipdock.Settings do
       "smtp_from_name" => smtp[:from_name],
       "smtp_from_email" => smtp[:from_email],
       "smtp_tls" => smtp[:tls] || :if_available
+    })
+  end
+
+  # The guardrails as seed attributes, each left out unless the environment
+  # actually said something about it.
+  defp configured_limits(configured) do
+    %{
+      "board_limit" => configured[:board_limit],
+      "board_limit_enabled" => configured[:board_limit_enabled],
+      "item_limit" => configured[:item_limit],
+      "item_limit_enabled" => configured[:item_limit_enabled],
+      "storage_limit_mb" => configured[:storage_limit_mb],
+      "storage_limit_enabled" => configured[:storage_limit_enabled],
+      "trial_days" => configured[:trial_days],
+      "trial_enabled" => configured[:trial_enabled]
     }
+    |> Map.reject(fn {_key, value} -> is_nil(value) end)
   end
 
   defp seed_allowlist do
@@ -489,6 +554,10 @@ defmodule Slipdock.Settings do
       setup_completed_at: if(configured[:setup_completed], do: ~U[2000-01-01 00:00:00Z]),
       smtp_tls: :if_available
     }
+    |> struct(
+      configured_limits(configured)
+      |> Map.new(fn {k, v} -> {String.to_existing_atom(k), v} end)
+    )
   end
 
   defp tap_clear_cache({:ok, _} = result) do

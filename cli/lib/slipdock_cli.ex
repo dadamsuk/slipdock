@@ -46,13 +46,19 @@ defmodule SlipdockCLI do
   admin build                         the commit and build time now running
   admin set key=value...              signup_mode=open|allowlist|approval|closed,
                                       free_card_limit=20, user_directory=shared_only,
-                                      invites_create_accounts=false
+                                      invites_create_accounts=false,
+                                      trial_days=30, trial_enabled=true,
+                                      board_limit=1000, item_limit=250000,
+                                      storage_limit_mb=10240, and <name>_enabled=false
+                                      to switch any limit off
   admin allow <entry>                 let an address or a whole domain register
   admin disallow <entry>
   admin users                         who is here, what they use, when last seen
   admin promote|demote <email>        admin rights (never the last admin)
   admin disable|enable <email>        reversible; ends their sessions at once
-  admin limit <email> <n|none>        a card limit of their own
+  admin limit <email> <n|none>        an item limit of their own
+  admin paid <email> <date|none>      paid up to a date: off the free tier and off
+                                      the trial clock (e.g. 2026-12-31)
   admin signups                       who is waiting to be let in
   admin approve|reject <email>
 
@@ -530,6 +536,11 @@ defmodule SlipdockCLI do
     admin_user(email, %{card_limit: value}, o)
   end
 
+  defp run("admin", ["paid", email, until], o) do
+    value = if until in ["", "none", "-"], do: nil, else: until
+    admin_user(email, %{paid_until: value}, o)
+  end
+
   defp run("admin", ["signups"], o),
     do: HTTP.get("/admin/signups") |> out(o, &render_admin_signups/1)
 
@@ -561,6 +572,10 @@ defmodule SlipdockCLI do
       IO.puts(
         "#{r["user"]["email"]}#{if r["user"]["name"], do: " (#{r["user"]["name"]})", else: ""}"
       )
+
+      # Where this account stands, so a batch can be sized before it starts
+      # rather than hitting a 402 halfway through.
+      for line <- standing_lines(r["limits"]), do: IO.puts("  " <> line)
     end)
   end
 
@@ -1723,6 +1738,42 @@ defmodule SlipdockCLI do
 
   ## Helpers ------------------------------------------------------------------
 
+  defp standing_lines(%{} = limits) do
+    [
+      usage_line("items", limits["items"], &Integer.to_string/1),
+      usage_line("boards", limits["boards"], &Integer.to_string/1),
+      usage_line("files", limits["storage"], &human_bytes/1),
+      trial_line(limits["trial"])
+    ]
+    |> Enum.filter(& &1)
+  end
+
+  defp standing_lines(_limits), do: []
+
+  defp usage_line(name, %{"limited?" => true} = s, format),
+    do: "#{name}: #{format.(s["used"])} of #{format.(s["limit"])} used"
+
+  defp usage_line(_name, _status, _format), do: nil
+
+  defp trial_line(%{"applies?" => true, "expired?" => true}),
+    do: "free trial: over — nothing new can be added"
+
+  defp trial_line(%{"applies?" => true} = trial),
+    do: "free trial: #{trial["days_left"]} day(s) left"
+
+  defp trial_line(_trial), do: nil
+
+  defp human_bytes(bytes) when is_number(bytes) do
+    cond do
+      bytes >= 1024 * 1024 * 1024 -> "#{Float.round(bytes / 1024 / 1024 / 1024, 1)} GB"
+      bytes >= 1024 * 1024 -> "#{Float.round(bytes / 1024 / 1024, 1)} MB"
+      bytes >= 1024 -> "#{Float.round(bytes / 1024, 1)} KB"
+      true -> "#{bytes} bytes"
+    end
+  end
+
+  defp human_bytes(other), do: "#{other}"
+
   defp dependencies(id, others, key, o) do
     Enum.each(others, fn other ->
       result =
@@ -2042,15 +2093,30 @@ defmodule SlipdockCLI do
 
   # Numbers and booleans have to arrive as themselves, not as strings, or the
   # server rejects "20" where it wants 20.
-  defp admin_value(key, value) when key in ["free_card_limit"] do
+  defp admin_value(key, value)
+       when key in [
+              "free_card_limit",
+              "board_limit",
+              "item_limit",
+              "storage_limit_mb",
+              "trial_days"
+            ] do
     case Integer.parse(value) do
       {n, ""} -> n
       _ -> nil
     end
   end
 
-  defp admin_value(key, value) when key in ["invites_create_accounts", "login_fallback_enabled"],
-    do: value in ["1", "true", "yes", "on"]
+  defp admin_value(key, value)
+       when key in [
+              "invites_create_accounts",
+              "login_fallback_enabled",
+              "board_limit_enabled",
+              "item_limit_enabled",
+              "storage_limit_enabled",
+              "trial_enabled"
+            ],
+       do: value in ["1", "true", "yes", "on"]
 
   defp admin_value(_key, value), do: value
 
@@ -2058,7 +2124,11 @@ defmodule SlipdockCLI do
     IO.puts("""
     Build:            #{render_build(body["build"])}
     Registration:     #{s["signup_mode"]}#{allowlist_note(s)}
-    Card limit:       #{s["free_card_limit"] || "no limit"}
+    Free allowance:   #{s["free_card_limit"] || "no limit"} (cards, pages and files)
+    Free trial:       #{render_limit(s["limits"]["trial"], "days", "days")}
+    Board ceiling:    #{render_limit(s["limits"]["boards"], "limit", "boards")}
+    Item ceiling:     #{render_limit(s["limits"]["items"], "limit", "items")}
+    File ceiling:     #{render_limit(s["limits"]["storage"], "limit_mb", "MB")}
     People visible:   #{s["user_directory"]}
     Invites create:   #{s["invites_create_accounts"]}
     Admin address:    #{s["admin_email"] || "—"}
@@ -2067,6 +2137,12 @@ defmodule SlipdockCLI do
     Waiting:          #{s["pending_signups"]}\
     """)
   end
+
+  # A limit is a number and a switch; a switch that is off means no limit at
+  # all, whatever number is remembered behind it.
+  defp render_limit(%{"enabled" => false}, _key, _unit), do: "off"
+  defp render_limit(%{} = limit, key, unit), do: "#{limit[key]} #{unit}"
+  defp render_limit(_limit, _key, _unit), do: "—"
 
   # The commit and the time it was compiled, which is what "which build is
   # running" means — see `Slipdock.Build` on the server.
@@ -2089,16 +2165,25 @@ defmodule SlipdockCLI do
 
       cards =
         case u["cards"] do
-          %{"limited?" => true, "used" => used, "limit" => limit} -> "#{used}/#{limit} cards"
-          %{"used" => used} -> "#{used} cards"
+          %{"limited?" => true, "used" => used, "limit" => limit} -> "#{used}/#{limit} items"
+          %{"used" => used} -> "#{used} items"
           _ -> ""
         end
 
       IO.puts(
-        "#{u["email"]}  #{cards}  #{u["last_signed_in_at"] || "never seen"}#{if flags == [], do: "", else: "  [" <> Enum.join(flags, " ") <> "]"}"
+        "#{u["email"]}  #{cards}#{standing(u)}  #{u["last_signed_in_at"] || "never seen"}#{if flags == [], do: "", else: "  [" <> Enum.join(flags, " ") <> "]"}"
       )
     end
   end
+
+  # Paid up to a date, or how much trial is left — whichever applies.
+  defp standing(%{"paid_until" => until}) when is_binary(until),
+    do: "  paid to #{String.slice(until, 0, 10)}"
+
+  defp standing(%{"limits" => %{"trial" => %{"applies?" => true} = trial}}),
+    do: if(trial["expired?"], do: "  trial over", else: "  trial #{trial["days_left"]}d left")
+
+  defp standing(_user), do: ""
 
   defp render_admin_user(%{"user" => u}), do: render_admin_users(%{"users" => [u]})
   defp render_admin_user(other), do: Render.json(other)

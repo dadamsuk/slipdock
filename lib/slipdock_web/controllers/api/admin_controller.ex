@@ -28,6 +28,17 @@ defmodule SlipdockWeb.API.AdminController do
         admin_email: settings.admin_email,
         signup_mode: settings.signup_mode,
         free_card_limit: settings.free_card_limit,
+        # The guardrails, which apply on every install, and the trial clock.
+        # Each is a number and a switch; a switch that is off means no limit.
+        limits: %{
+          boards: %{enabled: settings.board_limit_enabled, limit: settings.board_limit},
+          items: %{enabled: settings.item_limit_enabled, limit: settings.item_limit},
+          storage: %{
+            enabled: settings.storage_limit_enabled,
+            limit_mb: settings.storage_limit_mb
+          },
+          trial: %{enabled: settings.trial_enabled, days: settings.trial_days}
+        },
         user_directory: settings.user_directory,
         invites_create_accounts: settings.invites_create_accounts,
         allowlist: Enum.map(Settings.list_allowlist(), & &1.entry),
@@ -48,7 +59,9 @@ defmodule SlipdockWeb.API.AdminController do
   end
 
   @settable ~w(signup_mode free_card_limit user_directory invites_create_accounts
-               login_fallback_enabled)
+               login_fallback_enabled board_limit board_limit_enabled item_limit
+               item_limit_enabled storage_limit_mb storage_limit_enabled
+               trial_days trial_enabled)
 
   def update_settings(conn, params) do
     # Not the admin address and not the SMTP details. Both have flows that
@@ -135,8 +148,16 @@ defmodule SlipdockWeb.API.AdminController do
   defp apply_user_change(user, %{"card_limit" => limit}),
     do: Accounts.update_standing(user, %{"card_limit_override" => limit})
 
+  # What makes one account not free. No billing here: a date, set by whoever
+  # took the money. `none` clears it and puts them back on the free tier.
+  defp apply_user_change(user, %{"paid_until" => until}),
+    do: Accounts.update_standing(user, %{"paid_until" => blank_to_nil(until)})
+
   defp apply_user_change(_user, _params),
-    do: {:error, :bad_request, "pass admin, disabled or card_limit"}
+    do: {:error, :bad_request, "pass admin, disabled, card_limit or paid_until"}
+
+  defp blank_to_nil(value) when value in ["", "none", "-", nil], do: nil
+  defp blank_to_nil(value), do: value
 
   defp fetch_user(id) do
     case Accounts.get_user(id) do
@@ -154,7 +175,11 @@ defmodule SlipdockWeb.API.AdminController do
       disabled: user.disabled_at != nil,
       invited: user.invited_at != nil,
       last_signed_in_at: user.last_signed_in_at,
-      cards: Quota.status(user)
+      paid_until: user.paid_until,
+      # `cards` is the item count — cards, pages and files — and keeps its name
+      # because callers match on it. `limits` is every dimension and the trial.
+      cards: Quota.status(user),
+      limits: Quota.report(user)
     }
   end
 

@@ -22,8 +22,14 @@ have it.
 Working unattended, the dangerous failure is the one you retry forever. These are final: leave a
 comment on the card saying so, flag it `blocked`, and move on.
 
-- `card_limit_reached` (HTTP 402) — the board owner's account is full. A different title will
-  not help. Say that archiving something finished with would free one up.
+- `card_limit_reached` (HTTP 402) — the board owner's account is full. Cards, wiki pages and
+  uploaded files all count towards it, so writing the work up as a page instead will not help,
+  and neither will a different title. Say that archiving something finished with would free one
+  up.
+- `board_limit_reached` / `storage_limit_reached` (HTTP 402) — the same wall, for boards they
+  own and for uploaded files. Only deleting attachments frees storage.
+- `trial_expired` (HTTP 402) — a free trial has run out and nothing new can be added anywhere.
+  Stop working the board and say so: the person has to subscribe.
 - `this API token is read-only` / `scope doesn't allow it` — the token is deliberately limited.
 - `No account here uses that address…` when sharing — this server does not create accounts for
   the people you share with; an admin has to invite them.

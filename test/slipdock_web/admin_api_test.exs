@@ -97,7 +97,11 @@ defmodule SlipdockWeb.AdminAPITest do
       me = Enum.find(users, &(&1["email"] == admin.email))
       assert me["admin"]
       refute me["disabled"]
-      assert me["cards"]["limited?"] == false
+      # An admin escapes the free tier's allowance but not the server-wide
+      # ceiling, which is on by default on every install.
+      assert me["cards"]["limit"] == 250_000
+      assert me["limits"]["boards"]["limit"] == 1_000
+      refute me["limits"]["trial"]["applies?"]
     end
 
     test "promoting, disabling, and a card limit", %{conn: conn, ordinary: ordinary} do

@@ -23,6 +23,10 @@ defmodule Slipdock.Accounts.User do
     field :last_signed_in_at, :utc_datetime
     field :disabled_at, :utc_datetime
     field :card_limit_override, :integer
+    # What makes an account not free: a date in the future here means somebody
+    # has paid, which lifts both the free tier's allowance and the trial clock
+    # (see `Slipdock.Quota`). Until there is a billing system, an admin sets it.
+    field :paid_until, :utc_datetime
     # Set when this account exists because somebody shared something with the
     # address, rather than because its owner asked for one.
     field :invited_at, :utc_datetime
@@ -87,14 +91,27 @@ defmodule Slipdock.Accounts.User do
   end
 
   @doc """
-  The admin's view of somebody: whether they may administer this server, and
-  what their own card limit is. Separate from `profile_changeset/2` because
-  nobody may promote themselves by posting their own profile form.
+  The admin's view of somebody: whether they may administer this server, what
+  their own card limit is, and how long they have paid up to. Separate from
+  `profile_changeset/2` because nobody may promote themselves by posting their
+  own profile form.
   """
   def standing_changeset(user, attrs) do
     user
-    |> cast(attrs, [:admin, :card_limit_override])
+    |> cast(normalise_paid_until(attrs), [:admin, :card_limit_override, :paid_until])
     |> validate_number(:card_limit_override, greater_than: 0)
+  end
+
+  # A bare date is what anybody types for "paid up to the end of November", and
+  # an admin form, the CLI and a PATCH all send strings. Read it as the start of
+  # that day in UTC rather than refusing it as a bad datetime.
+  defp normalise_paid_until(attrs) do
+    with value when is_binary(value) <- attrs["paid_until"],
+         {:ok, date} <- Date.from_iso8601(value) do
+      Map.put(attrs, "paid_until", DateTime.new!(date, ~T[00:00:00], "Etc/UTC"))
+    else
+      _ -> attrs
+    end
   end
 
   @doc "A short label for showing who someone is."

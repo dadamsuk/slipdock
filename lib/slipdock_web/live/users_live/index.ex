@@ -56,6 +56,18 @@ defmodule SlipdockWeb.UsersLive.Index do
     end
   end
 
+  # Paid up to a date, which is what takes somebody off the free tier and off
+  # the trial clock. Blank puts them back on it.
+  def handle_event("set-paid-until", %{"user_id" => id, "paid_until" => until}, socket) do
+    user = Accounts.get_user!(id)
+    value = if String.trim(until) == "", do: nil, else: until
+
+    case Accounts.update_standing(user, %{"paid_until" => value}) do
+      {:ok, _} -> {:noreply, socket |> put_flash(:info, "Saved.") |> load()}
+      {:error, _} -> {:noreply, put_flash(socket, :error, "That isn't a date.")}
+    end
+  end
+
   ## Closing an account
 
   def handle_event("confirm-delete", %{"user_id" => id}, socket) do
@@ -295,7 +307,8 @@ defmodule SlipdockWeb.UsersLive.Index do
               <th>Who</th>
               <th>Came from</th>
               <th>Last seen</th>
-              <th>Cards</th>
+              <th>Using</th>
+              <th>Paid up to</th>
               <th></th>
             </tr>
           </thead>
@@ -327,6 +340,31 @@ defmodule SlipdockWeb.UsersLive.Index do
                     class="input input-xs w-16"
                   />
                 </form>
+                <div class="mt-1 text-base-content/50">
+                  {Quota.used(user, :boards)} boards · {Quota.humanise_bytes(
+                    Quota.used(user, :storage)
+                  )}
+                </div>
+              </td>
+              <td class="text-xs">
+                <form
+                  id={"paid-until-#{user.id}"}
+                  phx-submit="set-paid-until"
+                  class="flex items-center gap-1"
+                >
+                  <input type="hidden" name="user_id" value={user.id} />
+                  <input
+                    type="date"
+                    name="paid_until"
+                    value={user.paid_until && Date.to_iso8601(DateTime.to_date(user.paid_until))}
+                    class="input input-xs w-32"
+                  />
+                </form>
+                <div :if={Quota.trial(user).applies?} class="mt-1 text-base-content/50">
+                  {if Quota.trial_expired?(user),
+                    do: "trial over",
+                    else: "trial: #{Quota.trial(user).days_left}d left"}
+                </div>
               </td>
               <td class="text-right">
                 <button

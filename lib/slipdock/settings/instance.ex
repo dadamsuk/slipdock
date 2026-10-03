@@ -26,6 +26,26 @@ defmodule Slipdock.Settings.Instance do
   schema "settings" do
     field :signup_mode, Ecto.Enum, values: @signup_modes, default: :closed
     field :free_card_limit, :integer
+
+    # The guardrails. Unlike `free_card_limit`, which is the free tier's
+    # allowance and blank on a self-hosted install, these are on everywhere
+    # with the same generous defaults — a self-hosted server nobody pays for
+    # still wants a ceiling, if only to notice a runaway script. Each is a
+    # number and a switch, so turning one off does not lose the number.
+    field :board_limit, :integer, default: 1_000
+    field :board_limit_enabled, :boolean, default: true
+    field :item_limit, :integer, default: 250_000
+    field :item_limit_enabled, :boolean, default: true
+    field :storage_limit_mb, :integer, default: 10_240
+    field :storage_limit_enabled, :boolean, default: true
+
+    # How long a free account may go on adding things, counted from the day it
+    # was made. Off by default: a self-hosted install has nobody to bill and
+    # must not expire. Independent of the counts above — an account can have no
+    # card limit at all and still be on a month's trial, or have both.
+    field :trial_days, :integer, default: 30
+    field :trial_enabled, :boolean, default: false
+
     field :user_directory, Ecto.Enum, values: @directories, default: :instance
     field :invites_create_accounts, :boolean, default: true
     field :admin_email, :string
@@ -91,6 +111,8 @@ defmodule Slipdock.Settings.Instance do
          "card with someone."}
 
   @fields ~w(signup_mode free_card_limit user_directory invites_create_accounts
+             board_limit board_limit_enabled item_limit item_limit_enabled
+             storage_limit_mb storage_limit_enabled trial_days trial_enabled
              admin_email smtp_host smtp_port smtp_username smtp_password
              smtp_from_name smtp_from_email smtp_tls login_fallback_enabled
              terms_url privacy_url terms_version)a
@@ -115,6 +137,11 @@ defmodule Slipdock.Settings.Instance do
       :smtp_from_email
     ])
     |> validate_number(:free_card_limit, greater_than: 0)
+    |> validate_number(:board_limit, greater_than: 0)
+    |> validate_number(:item_limit, greater_than: 0)
+    |> validate_number(:storage_limit_mb, greater_than: 0)
+    |> validate_number(:trial_days, greater_than: 0)
+    |> require_number_when_enabled()
     |> validate_number(:smtp_port, greater_than: 0, less_than: 65_536)
     |> validate_format(:admin_email, ~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/,
       message: "must be a valid email address"
@@ -142,6 +169,28 @@ defmodule Slipdock.Settings.Instance do
   @doc "Records that a test message actually reached the SMTP server."
   def verified_changeset(instance) do
     change(instance, smtp_verified_at: DateTime.utc_now() |> DateTime.truncate(:second))
+  end
+
+  @limits [
+    {:board_limit_enabled, :board_limit},
+    {:item_limit_enabled, :item_limit},
+    {:storage_limit_enabled, :storage_limit_mb},
+    {:trial_enabled, :trial_days}
+  ]
+
+  @doc "The guardrails, as `{switch, number}` pairs, in the order the UI shows them."
+  def limit_fields, do: @limits
+
+  # A limit switched on with no number is a limit of nothing: every write would
+  # be refused. Refuse the setting instead.
+  defp require_number_when_enabled(changeset) do
+    Enum.reduce(@limits, changeset, fn {switch, number}, acc ->
+      if get_field(acc, switch) and is_nil(get_field(acc, number)) do
+        add_error(acc, number, "is needed when this limit is switched on")
+      else
+        acc
+      end
+    end)
   end
 
   # Approval mode without mail is a queue nobody looks at: somebody asks, an

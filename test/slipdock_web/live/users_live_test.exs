@@ -28,6 +28,42 @@ defmodule SlipdockWeb.UsersLiveTest do
     %{conn: log_in_user(conn, admin), admin: admin, ordinary: ordinary}
   end
 
+  describe "the limits in the people list" do
+    test "shows what each person is using, and lets a paid-up date be set", %{
+      conn: conn,
+      ordinary: ordinary
+    } do
+      {:ok, view, html} = live(conn, ~p"/users")
+
+      assert html =~ "Paid up to"
+      assert html =~ "boards"
+
+      view
+      |> form("#paid-until-#{ordinary.id}", %{"paid_until" => "2027-01-31"})
+      |> render_submit()
+
+      paid = Accounts.get_user!(ordinary.id).paid_until
+      assert DateTime.to_date(paid) == ~D[2027-01-31]
+      refute Slipdock.Quota.free?(Accounts.get_user!(ordinary.id))
+    end
+
+    test "clearing the date puts somebody back on the free tier", %{
+      conn: conn,
+      ordinary: ordinary
+    } do
+      {:ok, _} =
+        Accounts.update_standing(ordinary, %{"paid_until" => "2027-01-31"})
+
+      {:ok, view, _} = live(conn, ~p"/users")
+
+      view
+      |> form("#paid-until-#{ordinary.id}", %{"paid_until" => ""})
+      |> render_submit()
+
+      assert Accounts.get_user!(ordinary.id).paid_until == nil
+    end
+  end
+
   describe "who can get in" do
     test "an admin can", %{conn: conn} do
       {:ok, _view, html} = live(conn, ~p"/users")

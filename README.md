@@ -341,12 +341,23 @@ that `up` stops reaching for the published image.
 ### Running it for other people
 
 Slipdock is built for one person or a team who trust each other, and it will
-also run as a small shared service. Four things make that difference, all under
-**Configuration → Server**, with the people themselves under **Users**:
+also run as a small shared service. A handful of things make that difference,
+all under **Configuration → Server**, with the people themselves under
+**Users**:
 
 - **Who may register** — closed, an allowlist, approval one at a time, or open.
-- **A card limit**, counted against the boards somebody *owns*, so a guest
-  working on your board costs them nothing.
+- **An item limit for free accounts**, counted against the boards somebody
+  *owns*, so a guest working on your board costs them nothing. An item is a
+  card, a wiki page or an uploaded file — all three count, or writing the work
+  up as pages would be a way round it.
+- **A free trial**: free accounts stop being able to add anything so many days
+  after they were made. Off by default. It is independent of the item limit —
+  an account can have no item limit at all and still run out of trial, or have
+  both and hit whichever comes first. Nothing is deleted and nobody is locked
+  out: an expired account reads and edits everything it has.
+- **Who has paid**, per person under **Users**: a paid-up date takes somebody
+  off the free allowance and off the trial clock. There is no billing in
+  Slipdock; whoever takes the money sets the date.
 - **Who people can see** — everyone on the server, or only the people they
   actually share a board, card or page with. The second is what stops two
   customers of one server learning that the other exists; it also keeps their
@@ -354,10 +365,28 @@ also run as a small shared service. Four things make that difference, all under
 - **Whether sharing with a stranger makes them an account**, which is how
   somebody arrives on a hosted instance and is usually wrong on a private one.
 
+#### The ceilings, which are not about selling anything
+
+Separately from all of that, **every install has three ceilings on, however it
+is run** — a server you host for yourself included:
+
+| Ceiling | Default | Counts |
+| --- | --- | --- |
+| Boards one person may own | 1,000 | Root boards. Sub-boards, the ones behind subcards, do not count. |
+| Items on one person's boards | 250,000 | Cards, wiki pages and uploaded files together. |
+| Files on one person's boards | 10 GB | The size of every attachment behind them. |
+
+They are a safety rail rather than a price list: a runaway script or an import
+gone wrong should hit something. **Admins are not exempt** — an admin who means
+to go past one raises it, which takes a moment and leaves a record of the
+decision. Each has its own switch, so any of them can be turned off without
+losing the number behind it, and where a free account's own allowance is lower
+than the ceiling, the lower one wins.
+
 ### Settings: the environment seeds them once
 
-Everything about *how this server behaves* — who may register, the free card
-limit, who shows up in people pickers, whether sharing something with a
+Everything about *how this server behaves* — who may register, the free
+allowance and the trial, the ceilings, who shows up in people pickers, whether sharing something with a
 stranger makes them an account, and how mail is sent — lives in the database
 now, so it can be changed from a browser without a redeploy.
 
@@ -369,7 +398,11 @@ ignored from then on.
 SLIPDOCK_ADMIN_EMAIL=you@example.com   # setting this skips the setup wizard entirely
 SLIPDOCK_SIGNUP_MODE=allowlist         # open | allowlist | approval | closed
 SLIPDOCK_SIGNUP_ALLOW=you@example.com,example.org   # seeds the allowlist
-SLIPDOCK_FREE_CARD_LIMIT=20            # cards allowed on one person's own boards
+SLIPDOCK_FREE_CARD_LIMIT=20            # items allowed on one free account's own boards
+SLIPDOCK_TRIAL_DAYS=30                 # free accounts stop adding after this long (unset = no trial)
+SLIPDOCK_BOARD_LIMIT=1000              # boards one person may own; 0 or "off" for no ceiling
+SLIPDOCK_ITEM_LIMIT=250000             # cards, pages and files together; 0 or "off" for none
+SLIPDOCK_STORAGE_LIMIT_MB=10240        # uploaded files, in MB; 0 or "off" for no ceiling
 SLIPDOCK_USER_DIRECTORY=shared_only    # instance | shared_only
 SLIPDOCK_INVITES_CREATE_ACCOUNTS=false # whether sharing with a stranger makes an account
 SLIPDOCK_SMTP_HOST=smtp.example.com    # and SLIPDOCK_SMTP_PORT / _USER / _PASSWORD / _FROM

@@ -63,8 +63,17 @@ defmodule SlipdockWeb.API.PortableController do
 
       {:error, {:card_limit_reached, wanted, remaining}} ->
         {:error, :unprocessable_entity,
-         "that document holds #{wanted} cards and you have room for #{remaining}. Nothing " <>
-           "was imported — a half-built board is worse than none."}
+         "that document holds #{wanted} cards and pages and you have room for " <>
+           "#{remaining}. Nothing was imported — a half-built board is worse than none."}
+
+      {:error, {:board_limit_reached, wanted, remaining}} ->
+        {:error, :unprocessable_entity,
+         "that document holds #{wanted} boards and you have room for #{remaining}. " <>
+           "Nothing was imported."}
+
+      {:error, :trial_expired} ->
+        {:error, :unprocessable_entity,
+         "your free trial has ended, so nothing new can be added. Nothing was imported."}
 
       {:error, :not_json} ->
         {:error, :unprocessable_entity, "that is not JSON"}
