@@ -237,6 +237,9 @@ defmodule Slipdock.WikiTest do
 
     test "diffs are hunks of equal, deleted and inserted lines" do
       assert Wiki.diff("a\nb\nc", "a\nx\nc") == [eq: ["a"], del: ["b"], ins: ["x"], eq: ["c"]]
+      # From nothing is all insertion; to nothing all deletion.
+      assert Wiki.diff("", "a\nb") == [ins: ["a", "b"]]
+      assert Wiki.diff("a", "") == [del: ["a"]]
     end
   end
 
