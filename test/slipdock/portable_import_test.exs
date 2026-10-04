@@ -55,6 +55,22 @@ defmodule Slipdock.PortableImportTest do
     {report, Boards.get_board!(hd(report.boards).id)}
   end
 
+  # The smallest document with one tree in it: a root "r" with one list, the
+  # sub-boards and cards given.
+  defp tree_document(boards, cards, extra \\ []) do
+    tree =
+      Map.merge(
+        %{
+          root: %{ref: "r", name: "Imported", code: "imp", lists: [%{ref: "l1", name: "To Do"}]},
+          boards: boards,
+          cards: Enum.map(cards, &Map.put_new(&1, :list, "l1"))
+        },
+        Map.new(extra)
+      )
+
+    Jason.encode!(%{slipdock_portable: 1, boards: [tree]})
+  end
+
   defp card(board, title) do
     board |> Boards.list_cards(%{}) |> Enum.find(&(&1.title == title))
   end
@@ -318,6 +334,88 @@ defmodule Slipdock.PortableImportTest do
     test "a version this build does not read" do
       document = ~s({"slipdock_portable": 99, "boards": []})
       assert {:error, {:unsupported_version, 99}} = Portable.import(user_fixture(), document)
+    end
+
+    test "a sub-board claimed by two cards is refused before anything is built" do
+      # Chained, a shared ref builds 2^depth copies; looped, it never stops.
+      user = user_fixture()
+
+      document =
+        tree_document(
+          [%{ref: "b1", name: "Sub", lists: []}],
+          [
+            %{ref: "k0", board: "r", title: "One", subcards: "b1"},
+            %{ref: "k1", board: "b1", title: "Two", subcards: "b1"}
+          ]
+        )
+
+      assert {:error, {:bad_sub_board, "b1"}} = Portable.import(user, document)
+
+      assert Repo.aggregate(
+               from(b in Slipdock.Boards.Board, where: b.owner_id == ^user.id),
+               :count
+             ) == 0
+    end
+
+    test "a card claiming the root as its sub-board is refused" do
+      document = tree_document([], [%{ref: "k0", board: "r", title: "Loop", subcards: "r"}])
+      assert {:error, {:bad_sub_board, "r"}} = Portable.import(user_fixture(), document)
+    end
+
+    test "a sub-board that only claims itself is never reached, so the import ends" do
+      document =
+        tree_document(
+          [%{ref: "b1", name: "Sub", lists: []}],
+          [%{ref: "k1", board: "b1", title: "Self", subcards: "b1"}]
+        )
+
+      assert {:ok, %{cards: 0}} = Portable.import(user_fixture(), document)
+    end
+
+    test "more of one kind of row than a document may carry is refused" do
+      checklist = List.duplicate(%{text: "x"}, Portable.max_rows() + 1)
+
+      document =
+        tree_document([], [%{ref: "k0", board: "r", title: "Heavy", checklist: checklist}])
+
+      assert {:error, {:too_many, :checklist, _, _}} = Portable.import(user_fixture(), document)
+    end
+
+    test "nested folders written children-first are all built, each under its parent" do
+      # The order the old fixpoint was quadratic on: every pass placed one.
+      depth = 2_000
+
+      folders =
+        for n <- depth..1//-1 do
+          %{ref: "f#{n}", board: "r", name: "F#{n}", slug: "f#{n}", parent: n > 1 && "f#{n - 1}"}
+        end
+
+      folders = folders ++ [%{ref: "orphan", board: "r", name: "O", slug: "o", parent: "gone"}]
+      document = tree_document([], [], folders: folders)
+
+      {micros, {:ok, %{boards: [%{id: board_id}]}}} =
+        :timer.tc(fn -> Portable.import(user_fixture(), document) end)
+
+      assert micros < 30_000_000
+
+      built =
+        Repo.all(
+          from f in Slipdock.Wiki.Folder,
+            where: f.board_id == ^board_id,
+            select: {f.name, f.parent_id}
+        )
+
+      assert length(built) == depth
+
+      by_name =
+        Map.new(
+          Repo.all(
+            from f in Slipdock.Wiki.Folder, where: f.board_id == ^board_id, select: {f.name, f.id}
+          )
+        )
+
+      assert {"F2", by_name["F1"]} in built
+      assert {"F1", nil} in built
     end
 
     test "keys it has never heard of do not become atoms" do

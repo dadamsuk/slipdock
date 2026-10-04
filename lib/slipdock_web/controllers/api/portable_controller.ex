@@ -84,6 +84,16 @@ defmodule SlipdockWeb.API.PortableController do
          "that document holds #{wanted} boards and you have room for #{remaining}. " <>
            "Nothing was imported."}
 
+      {:error, {:bad_sub_board, ref}} ->
+        {:error, :unprocessable_entity,
+         "the sub-board “#{ref}” is the root board or is claimed by more than one card, " <>
+           "so it would be built inside itself or twice. Nothing was imported."}
+
+      {:error, {:too_many, kind, count, max}} ->
+        {:error, :unprocessable_entity,
+         "that document holds #{count} #{Portable.row_kind(kind)}; one import takes at most " <>
+           "#{max}. Nothing was imported."}
+
       {:error, :trial_expired} ->
         {:error, :unprocessable_entity,
          "your free trial has ended, so nothing new can be added. Nothing was imported."}

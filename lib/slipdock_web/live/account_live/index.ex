@@ -121,7 +121,8 @@ defmodule SlipdockWeb.AccountLive.Index do
     |> allow_upload(:board_document,
       accept: ~w(.json application/json),
       max_entries: 1,
-      max_file_size: 50_000_000
+      # The same ceiling the API's body parser puts on `POST /api/import`.
+      max_file_size: 8_000_000
     )
   end
 
@@ -216,6 +217,16 @@ defmodule SlipdockWeb.AccountLive.Index do
     do:
       "That file holds #{wanted} boards and you have room for #{remaining}. Nothing " <>
         "was imported."
+
+  defp import_error({:bad_sub_board, ref}),
+    do:
+      "In that file the sub-board “#{ref}” is the root board or belongs to more than one " <>
+        "card, so it can't be built. Nothing was imported."
+
+  defp import_error({:too_many, kind, count, max}),
+    do:
+      "That file holds #{count} #{Portable.row_kind(kind)}; one import takes at most #{max}. " <>
+        "Nothing was imported."
 
   defp import_error(:trial_expired),
     do: "Your free trial has ended, so nothing new can be added. Nothing was imported."
