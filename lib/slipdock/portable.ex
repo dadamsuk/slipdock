@@ -339,6 +339,7 @@ defmodule Slipdock.Portable do
         add_card: bool(doc[:add_card], true),
         add_page: bool(doc[:add_page], true),
         add_document: bool(doc[:add_document], true),
+        simple: bool(doc[:simple], false),
         kind: if(doc[:kind] in Board.kinds(), do: doc[:kind]),
         archived_at: if(doc[:archived] && opts[:keep_archived] != false, do: now()),
         parent_card_id: parent_card_id,
@@ -892,6 +893,7 @@ defmodule Slipdock.Portable do
       add_card: board.add_card,
       add_page: board.add_page,
       add_document: board.add_document,
+      simple: board.simple,
       kind: board.kind,
       archived: board.archived_at != nil,
       # A sub-board hangs off a card; a root board hangs off nothing.

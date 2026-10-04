@@ -80,7 +80,7 @@ defmodule SlipdockCLI.Render do
   def board(b) do
     IO.puts(
       bold("#{b["name"]}") <>
-        "  (board ##{b["id"]}#{if b["code"], do: " · #{b["code"]}"}#{if b["shortcut"], do: " · key #{b["shortcut"]}"}, #{b["color"]}#{if b["archived_at"], do: " · archived"})"
+        "  (board ##{b["id"]}#{if b["code"], do: " · #{b["code"]}"}#{if b["shortcut"], do: " · key #{b["shortcut"]}"}, #{b["color"]}#{if b["simple"], do: " · simple"}#{if b["archived_at"], do: " · archived"})"
     )
 
     if pc = b["parent_card"] do

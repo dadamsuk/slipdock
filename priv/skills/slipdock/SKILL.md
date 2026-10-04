@@ -243,6 +243,7 @@ slipdock sprint-add <sprint-id> <card-id>...              # move cards (with sub
 slipdock burndown <sprint-id>                             # a sprint's work left each day vs the ideal
 slipdock velocity <board>                                 # committed / completed per sprint, and the average
 slipdock set-board <board> --sprints | --no-sprints       # make a board a sprint board (each card a sprint)
+slipdock set-board <board> --simple | --no-simple         # plain to-do list: hides % complete, start, health, time, votes, deps
 slipdock fav card <id> | fav list <board> <column> | fav view <board> <view> | fav board <board>
 slipdock unfav <same args>                                # or `fav ... --off`
 ```

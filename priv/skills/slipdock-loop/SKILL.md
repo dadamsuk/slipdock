@@ -111,6 +111,10 @@ slipdock edit <id> --assignee me --percent 0
 slipdock comment <id> Picked up. <what you read it as, in a sentence or two — and the plan.>
 ```
 
+On a **simple** board (`slipdock board` says `· simple` in its heading) leave
+`--percent` off, here and below: the person turned the tracking details off,
+and a percentage they cannot see is noise in the record.
+
 If what the card asks for is genuinely unclear, do not guess a scope: hand it
 back (see **Handing a card back**) rather than inventing work on it.
 

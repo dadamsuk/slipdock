@@ -182,7 +182,12 @@ defmodule Slipdock.Swimlanes.Config do
             fields_compact: ~w(title column priority tags due_date completed),
             show: @facet_keys,
             show_compact: @default_show_compact,
-            tell: @default_tell
+            tell: @default_tell,
+            # Facets the board itself puts out of sight (a simple board's
+            # technical ones, see `Slipdock.Boards.Board.hidden_facets/1`).
+            # Set from the board when a view is drawn, never stored or put in
+            # a URL, and left alone by `show`, so a saved view keeps them.
+            hidden: []
 
   @type t :: %__MODULE__{}
 
@@ -247,8 +252,13 @@ defmodule Slipdock.Swimlanes.Config do
   def tells?(%__MODULE__{tell: tell}, key), do: key in tell
 
   @doc "The facets shown at the config's density, as a MapSet."
-  def shown(%__MODULE__{density: "compact", show_compact: keys}), do: MapSet.new(keys)
-  def shown(%__MODULE__{show: keys}), do: MapSet.new(keys)
+  def shown(%__MODULE__{density: "compact", show_compact: keys, hidden: hidden}),
+    do: MapSet.new(keys -- hidden)
+
+  def shown(%__MODULE__{show: keys, hidden: hidden}), do: MapSet.new(keys -- hidden)
+
+  @doc "Sets the facets the board hides (see the `hidden` field)."
+  def hide(%__MODULE__{} = config, keys), do: %{config | hidden: keys}
 
   @doc "The table columns chosen for the config's density."
   def table_fields(%__MODULE__{density: "compact", fields_compact: fields}), do: fields
@@ -343,7 +353,8 @@ defmodule Slipdock.Swimlanes.Config do
     config = from_query(params, current)
 
     # A view's chooser only lists the facets it can show; the rest stay as they were.
-    unlisted = @facet_keys -- Enum.map(facets(current.mode), &elem(&1, 0))
+    # So do the ones the board hides, which the chooser leaves out too.
+    unlisted = (@facet_keys -- Enum.map(facets(current.mode), &elem(&1, 0))) ++ current.hidden
 
     %{
       config
@@ -363,7 +374,7 @@ defmodule Slipdock.Swimlanes.Config do
   def to_map(%__MODULE__{} = config) do
     config
     |> Map.from_struct()
-    |> Map.drop(@transient_fields)
+    |> Map.drop([:hidden | @transient_fields])
     |> Map.new(fn {k, v} -> {Atom.to_string(k), v} end)
   end
 

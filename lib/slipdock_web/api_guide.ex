@@ -548,6 +548,16 @@ defmodule SlipdockWeb.APIGuide do
     is going rather than counting cards yourself. Every card carries
     `completed_at`, the moment it was last completed.
 
+    **Simple boards.** A board with `"simple": true` is a plain to-do list
+    (`PATCH /api/boards/:board {"simple": true}`, `slipdock set-board B
+    --simple`; a new sub-board takes it from its parent). The web app hides
+    % complete, start dates, health, time tracking, votes and dependencies
+    on its cards, and leaves Timeline and Prioritise out of its views; a
+    board's JSON lists the hidden card fields as `hidden_facets`. The API
+    still reads and writes all of them — nothing is deleted — but on a
+    simple board, keep to what the person can see: do not set `--percent`,
+    start dates, estimates or dependencies there unless asked to.
+
     Tags live on the root board and are shared by the whole tree, so a tag made
     anywhere below it is available everywhere — but a tag must exist before a
     card can wear it (`POST /api/boards/:board/tags`). Renaming an epic renames

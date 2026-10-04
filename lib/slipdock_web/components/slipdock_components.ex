@@ -1400,7 +1400,9 @@ defmodule SlipdockWeb.SlipdockComponents do
   # The view switcher that leads every board toolbar: the current view, with
   # the others in a menu, followed by the reader's own favourite saved views.
   def view_tabs(assigns) do
-    tabs = @view_tabs
+    # A simple board leaves its project-tooling views out of the menu.
+    hidden = Slipdock.Boards.Board.hidden_views(assigns.board)
+    tabs = Enum.reject(@view_tabs, fn {mode, _, _, _, _, _} -> mode in hidden end)
 
     # The wiki is not one of the card views, so it is not in the list; it
     # still has to name itself when it is what you are looking at.

@@ -446,7 +446,8 @@ defmodule Slipdock.Boards do
       {:error, "This card already has subcards."}
     else
       case create_board(
-             %{"name" => card.title, "color" => parent.color},
+             # A simple board's subcards are as simple as it is.
+             %{"name" => card.title, "color" => parent.color, "simple" => parent.simple},
              template: template,
              parent_card_id: card.id,
              root_id: Board.root_id(parent),

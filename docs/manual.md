@@ -404,6 +404,29 @@ Roadmap — Now · Next · Later · Done, for the top of a tree — and Sprint
 planning, below); manage them at `/templates`, pick one when creating a
 board, or save any board's current lists as a template from its settings.
 
+## Simple boards
+
+Not every board is a project. A shopping list, a household to-do list or a
+reading list has no use for start dates and health, and a card that offers
+them all is a card that looks harder to fill in than it is. Tick **Simple
+board** in a board's settings and it becomes a plain to-do list:
+
+* the card leaves out **% complete**, **start date** and date precision, the
+  dates rolled up from subcards, **health** and health reports, **time
+  tracking**, **votes** and **Dependencies**;
+* tiles drop the matching badges, and the **Display** menu stops offering
+  them;
+* the view menu leaves out **Timeline** and **Prioritise**.
+
+What stays is what a to-do list needs: the title and description, the list,
+assignees, priority, the due date, Completed, flags, tags, the checklist,
+attachments, subcards, docs, links, comments, the cover and any custom
+fields. Nothing is deleted — a card that had a start date still has it, and
+unticking the setting brings everything back. Subcards made on a simple
+board are simple too; each board keeps its own setting after that. From the
+command line it is `slipdock set-board <board> --simple` (or `--no-simple`),
+and over the API `PATCH /api/boards/:board {"simple": true}`.
+
 ## Sprints
 
 A sprint is made of things a board already has: a card for the sprint, its
