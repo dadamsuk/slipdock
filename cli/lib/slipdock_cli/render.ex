@@ -1385,6 +1385,24 @@ defmodule SlipdockCLI.Render do
   defp pad(s, w), do: s <> String.duplicate(" ", max(w - String.length(strip(s)), 0))
   defp strip(s), do: Regex.replace(~r/\e\[[0-9;]*m/, s, "")
 
+  @doc """
+  Everything the server says, made safe to print. Anybody who can write on a
+  board can put control characters in a title, and a terminal obeys them:
+  OSC 52 writes to your clipboard, OSC 8 disguises a link, `\\e[2K\\r`
+  rubs out the line and prints something else in its place. Every C0 and C1
+  control goes except newline and tab. `--json` needs none of this — the
+  encoder escapes them.
+  """
+  def scrub(s) when is_binary(s) do
+    if String.valid?(s),
+      do: String.replace(s, ~r/[\x{0}-\x{8}\x{b}-\x{1f}\x{7f}-\x{9f}]/u, ""),
+      else: s |> String.replace_invalid() |> scrub()
+  end
+
+  def scrub(m) when is_map(m), do: Map.new(m, fn {k, v} -> {scrub(k), scrub(v)} end)
+  def scrub(l) when is_list(l), do: Enum.map(l, &scrub/1)
+  def scrub(other), do: other
+
   defp tty?, do: System.get_env("NO_COLOR") == nil and IO.ANSI.enabled?()
   def bold(s), do: if(tty?(), do: IO.ANSI.bright() <> s <> IO.ANSI.reset(), else: s)
   def dim(s), do: if(tty?(), do: IO.ANSI.faint() <> s <> IO.ANSI.reset(), else: s)

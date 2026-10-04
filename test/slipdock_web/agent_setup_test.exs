@@ -70,6 +70,43 @@ defmodule SlipdockWeb.AgentSetupTest do
       assert script =~ "for tool in curl tar; do"
       refute script =~ "mix "
     end
+
+    # Another install's script must not re-point an existing url file: the
+    # token beside it belongs to the server it names.
+    @tag :anonymous
+    test "leaves a url naming another server alone", %{conn: conn} do
+      script = conn |> get("/install.sh") |> response(200)
+
+      tmp = Path.join(System.tmp_dir!(), "install-sh-#{System.unique_integer([:positive])}")
+      bin = Path.join(tmp, "bin")
+      File.mkdir_p!(bin)
+      on_exit(fn -> File.rm_rf!(tmp) end)
+
+      # curl and tar stand-ins, so nothing is fetched.
+      for tool <- ~w(curl tar) do
+        File.write!(Path.join(bin, tool), "#!/bin/sh\nexit 0\n")
+        File.chmod!(Path.join(bin, tool), 0o755)
+      end
+
+      run = fn ->
+        System.cmd("sh", ["-c", script, "sh", Path.join(tmp, "skills")],
+          env: [{"HOME", tmp}, {"PATH", bin <> ":" <> System.get_env("PATH")}],
+          stderr_to_stdout: true
+        )
+      end
+
+      url = Path.join([tmp, ".config", "slipdock", "url"])
+
+      assert {_, 0} = run.()
+      first = File.read!(url)
+      assert File.stat!(Path.dirname(url)).mode |> Bitwise.band(0o777) == 0o700
+
+      File.write!(url, "https://mine.example\n")
+      assert {out, 0} = run.()
+      assert File.read!(url) == "https://mine.example\n"
+      assert out =~ "left it alone"
+      assert first =~ "http"
+    end
   end
 
   describe "the skills archive" do

@@ -32,6 +32,8 @@ defmodule Slipdock.NothingPersonalTest do
     "mix.lock",
     # The egress guard's own tests: private addresses are what it refuses.
     "test/slipdock/egress_test.exs",
+    # The CLI's own: which private addresses plain http may go to unwarned.
+    "cli/test/security_test.exs",
     # The default trusted proxies: the private ranges, by name.
     "lib/slipdock_web/client_ip.ex"
   ]

@@ -500,6 +500,7 @@ defmodule SlipdockCLI do
     case HTTP.post("/auth/device", %{label: label, scope: o[:scope] || "write"}) do
       {:ok, started} ->
         IO.puts("")
+        started = Render.scrub(started)
         IO.puts("  Open  #{Render.bold(started["verification_uri"])}")
         IO.puts("  Enter #{Render.bold(started["user_code"])}")
         IO.puts("")
@@ -510,7 +511,7 @@ defmodule SlipdockCLI do
         |> finish_device_auth(o)
 
       {:error, _, %{"error_description" => why}} ->
-        fail(why)
+        fail(Render.scrub(why))
 
       other ->
         out(other, o, fn _ -> :ok end)
@@ -718,6 +719,16 @@ defmodule SlipdockCLI do
       {:error, :connect, _} -> IO.puts("saved #{url} to #{path}, but could not reach it")
       {:error, _, _} -> IO.puts("saved #{HTTP.base_url()} to #{path}")
     end
+
+    if HTTP.insecure?(url),
+      do:
+        IO.puts(
+          :stderr,
+          "warning: #{url} is plain http; a token sent there can be read on the way"
+        )
+
+    unless HTTP.token(),
+      do: IO.puts(Render.dim("no token for this server yet — run `slipdock auth`"))
   end
 
   defp run("logout", [], _o) do
@@ -1143,7 +1154,7 @@ defmodule SlipdockCLI do
         if refs == [], do: [], else: [boards: Enum.join(refs, ",")]
 
     HTTP.get("/export", params)
-    |> out(o, fn r ->
+    |> out_raw(o, fn r ->
       json = Render.json_string(r["export"])
 
       case o[:out] do
@@ -1154,7 +1165,7 @@ defmodule SlipdockCLI do
           File.write!(path, json)
           trees = length(r["export"]["boards"] || [])
           IO.puts("wrote #{trees} board tree(s) to #{path}")
-          Enum.each(r["leaving_behind"] || [], &IO.puts(Render.dim("  " <> &1)))
+          Enum.each(r["leaving_behind"] || [], &IO.puts(Render.dim("  " <> Render.scrub(&1))))
       end
     end)
   end
@@ -1188,7 +1199,7 @@ defmodule SlipdockCLI do
     dir = o[:dir] || fail("where should the files go? pass --dir D")
 
     HTTP.get("/boards/#{enc(ref)}/pages/export", archived: archived_param(o))
-    |> out(o, fn r ->
+    |> out_raw(o, fn r ->
       # Every path is checked before anything is written, so a hostile entry
       # stops the export rather than leaving half of it on disk.
       files =
@@ -1450,7 +1461,10 @@ defmodule SlipdockCLI do
       Render.json(%{"installed" => written, "dir" => dir})
     else
       IO.puts("installed #{length(skills)} skill(s), #{length(written)} file(s), into #{dir}")
-      Enum.each(skills, fn s -> IO.puts("  " <> s["name"] <> "  " <> Render.dim(s["sha"])) end)
+
+      Enum.each(Render.scrub(skills), fn s ->
+        IO.puts("  " <> s["name"] <> "  " <> Render.dim(s["sha"]))
+      end)
     end
   end
 
@@ -1474,7 +1488,7 @@ defmodule SlipdockCLI do
 
     if o[:json],
       do: Render.json(%{"skills" => skills, "dir" => dir}),
-      else: Render.table(["SKILL", "SERVER", "LOCAL COPY"], rows)
+      else: Render.table(["SKILL", "SERVER", "LOCAL COPY"], Render.scrub(rows))
   end
 
   defp run("skills", _args, _o),
@@ -2487,8 +2501,15 @@ defmodule SlipdockCLI do
     end
   end
 
+  # For the commands whose answer is written to disk as it came: an export,
+  # a wiki's Markdown. Only what is printed is scrubbed.
+  defp out_raw({:ok, data}, o, render),
+    do: if(o[:json], do: Render.json(data), else: render.(data))
+
+  defp out_raw(error, o, render), do: out(error, o, render)
+
   defp out({:ok, data}, o, render) do
-    if o[:json], do: Render.json(data), else: render.(data)
+    if o[:json], do: Render.json(data), else: render.(Render.scrub(data))
   end
 
   defp out({:error, :connect, reason}, _o, _render) do
@@ -2497,9 +2518,10 @@ defmodule SlipdockCLI do
     )
   end
 
+  # Tokens are kept per server, so a fresh address starts signed out.
   defp out({:error, 401, _}, _o, _render) do
     fail(
-      "not signed in. Create an API token under Account in the web UI, then run: slipdock auth <token>"
+      "not signed in to #{HTTP.origin(HTTP.base_url())}. Run `slipdock auth`, or create an API token under Account in the web UI and run: slipdock auth <token>"
     )
   end
 
@@ -2522,7 +2544,7 @@ defmodule SlipdockCLI do
     details =
       if data["details"], do: " " <> IO.iodata_to_binary(:json.encode(data["details"])), else: ""
 
-    fail("#{msg}#{details} (HTTP #{status})")
+    fail(Render.scrub("#{msg}#{details} (HTTP #{status})"))
   end
 
   defp out({:error, status, data}, _o, _render), do: fail("HTTP #{status}: #{inspect(data)}")

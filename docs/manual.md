@@ -2267,7 +2267,7 @@ response holds `rows`, `cols` (with labels and counts), `cells[row][col]`
 
 ```sh
 cd cli && mix escript.build && cp slipdock ~/.local/bin/
-slipdock auth <token>    # from Account → API tokens; stored in ~/.config/slipdock/token
+slipdock auth <token>    # from Account → API tokens; stored per server in ~/.config/slipdock/tokens/
 slipdock whoami
 slipdock ai-key            # your API key, masked; `ai-key <key>` sets it,
                          # `ai-key` alone with OPENROUTER_API_KEY set uploads that,
@@ -2284,11 +2284,21 @@ slipdock --help
 
 It finds the server via `SLIPDOCK_URL`, else `~/.config/slipdock/url`, else this
 machine's tailnet address on port 4000; and the token via `SLIPDOCK_TOKEN`, else
-`~/.config/slipdock/token`. `slipdock url <address>` writes the first of those
-(`slipdock auth` writes it too, for the server you just signed into), and
-`slipdock url` on its own says which address is in use and where it came from —
-the first thing to check when nothing can be reached. The env vars win, for a
-one-off against another install.
+the one saved for that server under `~/.config/slipdock/tokens/`. `slipdock url
+<address>` writes the first of those (`slipdock auth` writes it too, for the
+server you just signed into), and `slipdock url` on its own says which address
+is in use and where it came from — the first thing to check when nothing can be
+reached. The env vars win, for a one-off against another install.
+
+A token is only ever sent to the server that issued it: point the CLI at
+another address and it starts signed out there, rather than handing that
+server your token. A token from before this (the single
+`~/.config/slipdock/token`) is bound, the first time it is read, to the server
+in `~/.config/slipdock/url`. The files are written mode 600 in a mode 700
+folder. Plain `http://` to anything that isn't loopback, a private range or
+your tailnet gets a warning on stderr; and nothing the server sends — a card
+title, a comment — can carry terminal control sequences to your screen, as
+they are stripped before printing (`--json` output is escaped instead).
 
 ```sh
 slipdock swimlanes 1 --rows tag --cols due_date --unit month --open
