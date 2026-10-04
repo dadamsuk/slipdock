@@ -299,6 +299,14 @@ The published images are built with it.
 Without it the commit reads `unknown`, which is the honest answer rather than
 a wrong one.
 
+The same banner says whether a newer image has been published. Opening the page
+asks `ghcr.io` (anonymously) which commit `latest` was built from, and if it is
+a different one built later, shows the two commands that move onto it — the
+container cannot replace itself, so pulling is done on the host.
+`slipdock admin updates` asks the same from a terminal. It only asks when
+somebody looks; `SLIPDOCK_UPDATE_CHECK=false` stops it calling out at all, and
+`SLIPDOCK_UPDATE_IMAGE` points it at a fork's own image.
+
 #### Upgrading
 
 ```sh

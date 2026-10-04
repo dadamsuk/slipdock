@@ -59,6 +59,10 @@ config :slipdock, :search, interval: :manual
 # address that counts as public; `Slipdock.EgressTest` swaps in its own.
 config :slipdock, :egress, resolver: &Slipdock.EgressStub.resolve/1
 
+# The update check is off, so opening Configuration asks nobody; the tests that
+# want it turn it on and answer from a Req.Test stub (see Slipdock.UpdatesStub).
+config :slipdock, :updates, enabled: false, req_options: [plug: {Req.Test, Slipdock.Updates}]
+
 # AI calls are answered by a Req.Test stub (see test/support/ai_stub.ex).
 config :slipdock, :ai,
   api_key: "test-key",
