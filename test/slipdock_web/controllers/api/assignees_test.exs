@@ -60,6 +60,22 @@ defmodule SlipdockWeb.API.AssigneesTest do
     assert conn |> patch(path, %{"assignees" => ["nobody@example.com"]}) |> json_response(404)
   end
 
+  # `slipdock edit --assignee me` sends exactly this.
+  test "assignee \"me\" is whoever is asking, on an edit and a create", %{
+    conn: conn,
+    card: card
+  } do
+    body = conn |> patch(~p"/api/cards/#{card.id}", %{"assignee" => "me"}) |> json_response(200)
+    assert emails(body) == ["tester@example.com"]
+
+    body =
+      conn
+      |> post(~p"/api/boards/pairs/cards", %{"title" => "Mine", "assignee" => "me"})
+      |> json_response(201)
+
+    assert emails(body) == ["tester@example.com"]
+  end
+
   test "a card is created with several people on it", %{conn: conn} do
     body =
       conn
