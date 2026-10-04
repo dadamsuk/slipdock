@@ -219,7 +219,7 @@ defmodule SlipdockCLI.Render do
     field("Start", c["start_date"] || "-")
     field("Due", c["due_date"] || "-")
     field("% complete", if(p = c["percent_complete"], do: "#{p}%", else: "-"))
-    field("Assignee", if(a = c["assignee"], do: "#{a["name"]} <#{a["email"]}>", else: "-"))
+    field("Assignee", assignees(c, &"#{&1["name"]} <#{&1["email"]}>") || "-")
     field("Cover", c["color"] || "-")
     field("Blocked by", dependency_list(c["blocked_by"]))
     field("Blocks", dependency_list(c["blocks"]))
@@ -1056,7 +1056,7 @@ defmodule SlipdockCLI.Render do
       "column" => {"LIST", fn c -> c["column"] || "" end},
       "priority" =>
         {"PRIORITY", fn c -> if(c["priority"] == "none", do: "", else: c["priority"]) end},
-      "assignee" => {"ASSIGNEE", fn c -> if(a = c["assignee"], do: a["name"], else: "") end},
+      "assignee" => {"ASSIGNEE", fn c -> assignees(c, & &1["name"]) || "" end},
       "flags" => {"FLAGS", fn c -> flags(c["flags"]) || "" end},
       "tags" => {"TAGS", fn c -> Enum.join(c["tags"] || [], ",") end},
       "start" => {"START", fn c -> c["start_date"] || "" end},
@@ -1289,4 +1289,14 @@ defmodule SlipdockCLI.Render do
   def dim(s), do: if(tty?(), do: IO.ANSI.faint() <> s <> IO.ANSI.reset(), else: s)
   def green(s), do: if(tty?(), do: IO.ANSI.green() <> s <> IO.ANSI.reset(), else: s)
   def red(s), do: if(tty?(), do: IO.ANSI.red() <> s <> IO.ANSI.reset(), else: s)
+
+  # Everybody on a card, lead first, each as `fun` draws them; nil for nobody.
+  # A server from before cards had several sends only `assignee`.
+  defp assignees(c, fun) do
+    case c["assignees"] || List.wrap(c["assignee"]) do
+      [] -> nil
+      people -> Enum.map_join(people, ", ", fun)
+    end
+  end
+
 end

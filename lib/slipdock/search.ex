@@ -283,7 +283,7 @@ defmodule Slipdock.Search do
   end
 
   defp cards_by_id(ids) do
-    from(c in Card, where: c.id in ^ids, preload: [:board, :column, :tags, :assignee])
+    from(c in Card, where: c.id in ^ids, preload: [:board, :column, :tags, :assignee, :assignees])
     |> Repo.all()
     |> Map.new(&{&1.id, &1})
   end
@@ -323,7 +323,16 @@ defmodule Slipdock.Search do
   """
   def card_query do
     from(c in Card,
-      preload: [:board, :column, :tags, :assignee, :checklist_items, :comments, :status_updates]
+      preload: [
+        :board,
+        :column,
+        :tags,
+        :assignee,
+        :assignees,
+        :checklist_items,
+        :comments,
+        :status_updates
+      ]
     )
   end
 

@@ -194,8 +194,8 @@ defmodule Slipdock.AI.Context do
         column && "list: #{column.name}",
         card.completed && "DONE",
         card.priority != "none" && "priority: #{card.priority}",
-        card.assignee && match?(%User{}, card.assignee) &&
-          "assignee: #{User.display_name(card.assignee)}",
+        Card.assignees(card) != [] &&
+          "assignee: #{Enum.map_join(Card.assignees(card), ", ", &User.display_name/1)}",
         card.start_date && "start: #{card.start_date}",
         card.due_date && "due: #{card.due_date}",
         Card.due_derived?(card) && Card.effective_due(card) &&
@@ -231,7 +231,10 @@ defmodule Slipdock.AI.Context do
       column && "List: #{column.name}#{if Column.done?(column), do: " (a done list)"}",
       "Status: #{if card.completed, do: "done", else: "open"}",
       "Priority: #{card.priority}",
-      "Assignee: #{if match?(%User{}, card.assignee), do: User.display_name(card.assignee), else: "unassigned"}",
+      "Assignee: #{case Card.assignees(card) do
+        [] -> "unassigned"
+        people -> Enum.map_join(people, ", ", &User.display_name/1)
+      end}",
       "Start date: #{card.start_date || "none"}",
       "Due date: #{card.due_date || "none"}" <>
         if(Card.due_derived?(card),

@@ -209,12 +209,15 @@ defmodule SlipdockCLI do
 
   WRITE
     add <board> <title> [opts]          create a card
-        --column C (default: first column)  --desc TEXT  --priority P  --assignee EMAIL
+        --column C (default: first column)  --desc TEXT  --priority P
+        --assignee EMAIL|me (repeatable: everybody on it, the first is the lead)
         --flag F (repeatable)  --tag T (repeatable)  --start YYYY-MM-DD  --due YYYY-MM-DD  --color C
         --percent N (0-100)
     edit <id> [opts]                    change fields on a card
         --title T  --desc TEXT  --priority P  --start DATE | --no-start  --due DATE | --no-due
-        --color C | --no-color  --column C  --assignee EMAIL | --no-assignee
+        --color C | --no-color  --column C
+        --assignee EMAIL|me (repeatable; replaces who is on it) | --no-assignee
+        --add-assignee EMAIL|me  --remove-assignee EMAIL|me   (repeatable; others stay)
         --percent N | --no-percent   (% complete, 0-100)
     move <id> <column> [--top|--bottom|--index N]
     move <id> <column> --board B         move the card to a list on another board, with its
@@ -344,7 +347,9 @@ defmodule SlipdockCLI do
     desc: :string,
     due: :string,
     no_due: :boolean,
-    assignee: :string,
+    assignee: :keep,
+    add_assignee: :keep,
+    remove_assignee: :keep,
     no_assignee: :boolean,
     start: :string,
     no_start: :boolean,
@@ -1428,9 +1433,9 @@ defmodule SlipdockCLI do
         "start_date" => o[:start],
         "due_date" => o[:due],
         "percent_complete" => o[:percent],
-        "color" => o[:color],
-        "assignee" => o[:assignee]
+        "color" => o[:color]
       }
+      |> Map.merge(assignees(o))
       |> compact()
 
     HTTP.post("/boards/#{HTTP.seg(ref)}/cards", body) |> out(o, &card_ok("created", &1))
@@ -1447,8 +1452,10 @@ defmodule SlipdockCLI do
         "percent_complete" => if(o[:no_percent], do: nil, else: o[:percent]),
         "color" => if(o[:no_color], do: nil, else: o[:color]),
         "column" => o[:column],
-        "assignee" => if(o[:no_assignee], do: nil, else: o[:assignee])
+        "add_assignees" => nonempty(Keyword.get_values(o, :add_assignee)),
+        "remove_assignees" => nonempty(Keyword.get_values(o, :remove_assignee))
       }
+      |> Map.merge(if(o[:no_assignee], do: %{}, else: assignees(o)))
       |> compact()
       |> then(fn b -> if o[:no_start], do: Map.put(b, "start_date", nil), else: b end)
       |> then(fn b -> if o[:no_due], do: Map.put(b, "due_date", nil), else: b end)
@@ -2489,4 +2496,14 @@ defmodule SlipdockCLI do
 
     "slipdock CLI on #{host}"
   end
+
+  # One --assignee is "assignee", as it always was; several are the whole set.
+  defp assignees(o) do
+    case Keyword.get_values(o, :assignee) do
+      [] -> %{}
+      [one] -> %{"assignee" => one}
+      many -> %{"assignees" => many}
+    end
+  end
+
 end

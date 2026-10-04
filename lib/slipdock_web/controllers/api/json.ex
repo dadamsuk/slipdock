@@ -174,6 +174,7 @@ defmodule SlipdockWeb.API.JSON do
       color: c.color,
       archived_at: c.archived_at,
       assignee: assignee(c),
+      assignees: Enum.map(Card.assignees(c), &person_ref/1),
       rollup: rollup(c),
       blocked: Card.blocked?(c),
       blocked_by: dependency_stubs(c.blocked_by),
@@ -214,10 +215,17 @@ defmodule SlipdockWeb.API.JSON do
   defp shared?(%Board{owner_id: owner_id}, %Slipdock.Accounts.User{id: id}), do: owner_id != id
   defp shared?(%Board{}, _viewer), do: false
 
-  defp assignee(%Card{assignee: %Slipdock.Accounts.User{} = u}),
-    do: %{id: u.id, email: u.email, name: Slipdock.Accounts.User.display_name(u)}
+  # `assignee` is the lead — the first of `assignees` — kept for anything
+  # written when a card had only one.
+  defp assignee(%Card{} = c) do
+    case Card.assignees(c) do
+      [lead | _] -> person_ref(lead)
+      [] -> nil
+    end
+  end
 
-  defp assignee(_), do: nil
+  defp person_ref(u),
+    do: %{id: u.id, email: u.email, name: Slipdock.Accounts.User.display_name(u)}
 
   # What the card's subcards roll up to (see Slipdock.Rollup); nil for a leaf.
   defp rollup(%Card{rollup: %{children: n} = r}) when n > 0 do

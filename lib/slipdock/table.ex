@@ -133,10 +133,12 @@ defmodule Slipdock.Table do
 
   defp cell_text("priority", card, _), do: card.priority
 
-  defp cell_text("assignee", %{assignee: %Slipdock.Accounts.User{} = u}, _),
-    do: Slipdock.Accounts.User.display_name(u)
+  defp cell_text("assignee", card, _),
+    do:
+      card
+      |> Slipdock.Boards.Card.assignees()
+      |> Enum.map_join("; ", &Slipdock.Accounts.User.display_name/1)
 
-  defp cell_text("assignee", _, _), do: ""
   defp cell_text("flags", card, _), do: Enum.join(card.flags, "; ")
   defp cell_text("tags", card, _), do: Enum.map_join(card.tags, "; ", & &1.name)
   defp cell_text("start_date", card, _), do: iso(Slipdock.Boards.Card.effective_start(card))

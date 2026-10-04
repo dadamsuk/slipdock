@@ -210,6 +210,63 @@ defmodule SlipdockWeb.SlipdockComponents do
   def loaded_assignee(%{assignee: %Slipdock.Accounts.User{} = user}), do: user
   def loaded_assignee(_), do: nil
 
+  attr :users, :list, required: true
+  attr :size, :string, default: "sm"
+  attr :with_name, :boolean, default: false
+  attr :max, :integer, default: 3
+
+  @doc """
+  Everybody a card is assigned to, as overlapping initials avatars, the lead
+  first; past `max` the rest are counted rather than drawn. One person is
+  drawn exactly as `assignee_chip/1` draws them.
+  """
+  def assignee_chips(%{users: [user]} = assigns) do
+    assigns = assign(assigns, :user, user)
+
+    ~H"""
+    <.assignee_chip user={@user} size={@size} with_name={@with_name} />
+    """
+  end
+
+  def assignee_chips(assigns) do
+    names = Enum.map_join(assigns.users, ", ", &Slipdock.Accounts.User.display_name/1)
+
+    assigns =
+      assign(assigns,
+        names: names,
+        shown: Enum.take(assigns.users, assigns.max),
+        more: max(length(assigns.users) - assigns.max, 0)
+      )
+
+    ~H"""
+    <span :if={@users != []} class="inline-flex items-center gap-1" title={"Assigned to #{@names}"}>
+      <span class="inline-flex -space-x-1">
+        <span
+          :for={user <- @shown}
+          class={[
+            "inline-flex shrink-0 items-center justify-center rounded-full bg-secondary/20 font-semibold uppercase text-secondary-content ring-1 ring-base-100 dark:text-secondary",
+            @size == "xs" && "size-4 text-[9px]",
+            @size == "sm" && "size-6 text-2xs"
+          ]}
+        >
+          {Slipdock.Accounts.User.initials(user)}
+        </span>
+        <span
+          :if={@more > 0}
+          class={[
+            "inline-flex shrink-0 items-center justify-center rounded-full bg-base-300 font-semibold text-base-content/70 ring-1 ring-base-100",
+            @size == "xs" && "size-4 text-[9px]",
+            @size == "sm" && "size-6 text-2xs"
+          ]}
+        >
+          +{@more}
+        </span>
+      </span>
+      <span :if={@with_name} class="truncate text-sm">{@names}</span>
+    </span>
+    """
+  end
+
   ## Due dates --------------------------------------------------------------
 
   attr :date, :any, required: true
@@ -634,7 +691,7 @@ defmodule SlipdockWeb.SlipdockComponents do
       tags: on.("tags") and card.tags != [],
       flags: on.("flags") and card.flags != [],
       priority: on.("priority") and card.priority != "none",
-      assignee: on.("assignee") and not is_nil(loaded_assignee(card)),
+      assignee: on.("assignee") and Slipdock.Boards.Card.assignees(card) != [],
       start_date: on.("start_date") and not is_nil(Slipdock.Boards.Card.effective_start(card)),
       due_date: on.("due_date") and not is_nil(Slipdock.Boards.Card.effective_due(card)),
       percent: on.("percent_complete") and not is_nil(card.percent_complete),
@@ -730,7 +787,7 @@ defmodule SlipdockWeb.SlipdockComponents do
           health={Slipdock.Boards.Card.stated_health(@card)}
           with_label={false}
         />
-        <.assignee_chip :if={@f.assignee} user={@card.assignee} size="xs" />
+        <.assignee_chips :if={@f.assignee} users={Slipdock.Boards.Card.assignees(@card)} size="xs" />
         <.priority_badge :if={@f.priority} priority={@card.priority} />
         <.start_badge :if={@f.start_date} card={@card} />
         <.schedule_badges :if={@f.due_date} card={@card} />
@@ -781,7 +838,7 @@ defmodule SlipdockWeb.SlipdockComponents do
             health={Slipdock.Boards.Card.stated_health(@card)}
             with_label={false}
           />
-          <.assignee_chip :if={@f.assignee} user={@card.assignee} size="xs" />
+          <.assignee_chips :if={@f.assignee} users={Slipdock.Boards.Card.assignees(@card)} size="xs" />
           <.priority_badge :if={@f.priority} priority={@card.priority} />
           <.start_badge :if={@f.start_date} card={@card} />
           <.schedule_badges :if={@f.due_date} card={@card} />

@@ -447,8 +447,13 @@ defmodule Slipdock.Portable do
         percent_complete: doc[:percent_complete],
         color: doc[:color],
         archived_at: if(doc[:archived], do: now()),
-        assignee_id: user_id_for(doc[:assignee])
+        assignee_id: List.first(assignee_ids_for(doc))
       })
+
+    Repo.insert_all(
+      "card_assignees",
+      Enum.map(assignee_ids_for(doc), &[card_id: card.id, user_id: &1])
+    )
 
     tag_ids = (doc[:tags] || []) |> Enum.map(&ids.tags[&1]) |> Enum.reject(&is_nil/1)
 
@@ -701,10 +706,23 @@ defmodule Slipdock.Portable do
 
   defp user_id_for(_), do: nil
 
+  # Everybody on a card, lead first. `assignees` is how a card with several
+  # people comes; a document written before there could be more than one has
+  # only `assignee`.
+  defp assignee_emails(doc), do: List.wrap(doc[:assignees] || doc[:assignee])
+
+  defp assignee_ids_for(doc),
+    do:
+      doc
+      |> assignee_emails()
+      |> Enum.map(&user_id_for/1)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
   defp missing_people(doc) do
     authors = Enum.map(doc[:status_updates] || [], & &1[:author])
 
-    [doc[:assignee] | authors]
+    (assignee_emails(doc) ++ authors)
     |> Enum.reject(&(is_nil(&1) or &1 == ""))
     |> Enum.reject(&user_id_for(&1))
     |> Enum.map(&"#{&1} has no account here, so what was theirs came in unassigned.")
@@ -943,6 +961,7 @@ defmodule Slipdock.Portable do
       archived: card.archived_at != nil,
       created_at: card.inserted_at,
       assignee: email_of(card.assignee_id),
+      assignees: card |> Slipdock.Boards.assignee_ids() |> Enum.map(&email_of/1),
       # A sub-board is a board in this document; the card points at it so an
       # import can rebuild the nesting without guessing.
       subcards: refs.boards[sub_board_id(card.id)],

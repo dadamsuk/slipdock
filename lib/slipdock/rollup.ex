@@ -147,7 +147,7 @@ defmodule Slipdock.Rollup do
         where: c.board_id in ^board_ids and is_nil(c.archived_at),
         order_by: [asc: c.position],
         select: ^@card_fields,
-        preload: [:tags, :assignee]
+        preload: [:tags, :assignee, :assignees]
       )
       |> Repo.all()
 

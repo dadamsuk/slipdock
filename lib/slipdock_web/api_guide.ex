@@ -393,7 +393,9 @@ defmodule SlipdockWeb.APIGuide do
       for) and a `wip_limit`.
     - **Card** — one unit of work: title, description, `priority`, `flags`,
       `tags`, `start_date`, `due_date`, `completed`, `percent_complete` (0–100,
-      or null when nobody has said), `assignee`, `position` within its list. `archived_at` is set on archived cards.
+      or null when nobody has said), `assignees` (everybody it is assigned to,
+      lead first) and `assignee` (the lead alone), `position` within its list.
+      `archived_at` is set on archived cards.
     - **Subcards** — any card can own a board of its own. On the card that is
       `sub_board`; the subcards are that board's cards. Sub-boards nest to any
       depth. This is the hierarchy you will do most of your thinking in.
@@ -563,7 +565,8 @@ defmodule SlipdockWeb.APIGuide do
       `archived` — the thing it waits for is still open;
     - `flags` contain `blocked` or `waiting` — somebody has said by hand that
       this is not ready;
-    - `assignee` is someone else, unless you were asked to pick their work up.
+    - `assignees` has someone else on it, unless you were asked to pick their
+      work up — or to pair on it.
 
     **5. Order what is left.** Highest priority first
     (`#{Enum.join(~w(critical high medium low none), " > ")}`), then `position`
@@ -614,6 +617,11 @@ defmodule SlipdockWeb.APIGuide do
         POST  /api/cards/57/move        {"column": "In Progress"}
         PATCH /api/cards/57             {"assignee": "you@example.com"}
         POST  /api/cards/57/comments    {"body": "Starting. Plan: …"}
+
+    A card can have several people on it. `assignee` (or `assignees`, a list)
+    replaces whoever is there; to join a card somebody else already holds
+    without taking it off them, send `{"add_assignees": ["me"]}`, and
+    `remove_assignees` to step off. `"me"` is whoever the token belongs to.
 
     Move the epic above it into its own `doing` list too, so the top of the
     board reads true while you are inside the tree. `move` takes an optional

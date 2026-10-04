@@ -53,7 +53,7 @@ defmodule Slipdock.Automations.Spec do
   # {type, required keys, optional keys, blurb}
   @actions [
     {"email", ["to"], ["subject", "body"], "send an email"},
-    {"notify_assignee", [], ["subject", "body"], "email whoever the card is assigned to"},
+    {"notify_assignee", [], ["subject", "body"], "email everybody the card is assigned to"},
     {"alert", ["title"], ["body", "severity"],
      "raise a dismissable alert in the header bar (severity: info, warning, urgent)"},
     {"move_card", ["column"], [], "move the card to another list"},
@@ -62,7 +62,8 @@ defmodule Slipdock.Automations.Spec do
     {"remove_tags", ["tags"], [], "take tags off the card"},
     {"add_flags", ["flags"], [], "raise flags (flagged, blocked, review, waiting, starred)"},
     {"remove_flags", ["flags"], [], "lower flags"},
-    {"assign", ["assignee"], [], "assign the card to a person (name or email)"},
+    {"assign", ["assignee"], [],
+     "assign the card to a person (name or email), in place of whoever had it"},
     {"unassign", [], [], "leave the card unassigned"},
     {"comment", ["body"], [], "add a comment to the card"},
     {"set_due_date", [], ["date", "in_days"],

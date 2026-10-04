@@ -1476,6 +1476,7 @@ defmodule Slipdock.AI.Researcher do
             :column,
             :tags,
             :assignee,
+            :assignees,
             :checklist_items,
             :comments,
             :status_updates,

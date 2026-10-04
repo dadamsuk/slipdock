@@ -316,6 +316,7 @@ defmodule Slipdock.Boards do
     [
       :tags,
       :assignee,
+      :assignees,
       :checklist_items,
       :comments,
       :attachments,
@@ -931,11 +932,15 @@ defmodule Slipdock.Boards do
   def list_assigned_cards(%Slipdock.Accounts.User{} = user) do
     cards =
       from(c in Card,
-        where: c.assignee_id == ^user.id and is_nil(c.archived_at),
+        where: is_nil(c.archived_at),
+        where:
+          c.id in subquery(
+            from(a in "card_assignees", where: a.user_id == ^user.id, select: a.card_id)
+          ),
         order_by: [asc_nulls_last: c.due_date, asc: c.title]
       )
       |> Repo.all()
-      |> Repo.preload([:board, :column, :tags, :assignee])
+      |> Repo.preload([:board, :column, :tags, :assignee, :assignees])
 
     rollups =
       cards
@@ -1104,20 +1109,21 @@ defmodule Slipdock.Boards do
   defp filter_assignee(cards, ref) when is_binary(ref) do
     case String.downcase(String.trim(ref)) do
       "" -> cards
-      wanted when wanted in @unassigned -> Enum.filter(cards, &is_nil(&1.assignee_id))
+      wanted when wanted in @unassigned -> Enum.filter(cards, &(Card.assignees(&1) == []))
       wanted -> Enum.filter(cards, &assignee_matches?(&1, wanted))
     end
   end
 
   defp filter_assignee(cards, _), do: cards
 
-  defp assignee_matches?(%Card{assignee: %User{} = user, assignee_id: id}, wanted) do
-    String.downcase(user.email) == wanted or
-      String.contains?(String.downcase(user.name || ""), wanted) or
-      to_string(id) == wanted
+  # A card matches if any of the people on it does.
+  defp assignee_matches?(%Card{} = card, wanted) do
+    Enum.any?(Card.assignees(card), fn user ->
+      String.downcase(user.email) == wanted or
+        String.contains?(String.downcase(user.name || ""), wanted) or
+        to_string(user.id) == wanted
+    end)
   end
-
-  defp assignee_matches?(_card, _wanted), do: false
 
   @doc "Replaces the card's tags with the given list of `%Tag{}`s."
   def set_card_tags(%Card{} = card, tags) when is_list(tags) do
@@ -1156,8 +1162,10 @@ defmodule Slipdock.Boards do
 
   def create_card(%Column{} = column, attrs) do
     position = next_position(from(c in Card, where: c.column_id == ^column.id))
+    card = %Card{board_id: column.board_id, column_id: column.id, position: position}
+    {assignees, attrs} = assignee_change(card, attrs)
 
-    %Card{board_id: column.board_id, column_id: column.id, position: position}
+    card
     |> Card.changeset(
       attrs
       |> Map.put("board_id", column.board_id)
@@ -1169,6 +1177,7 @@ defmodule Slipdock.Boards do
     # function. See `Slipdock.Quota`.
     |> Quota.enforce(column)
     |> Repo.insert()
+    |> put_assignees(assignees)
     |> tap_ok(fn card ->
       log(Repo, card.board_id, card.id, "card", "added “#{card.title}” to #{column.name}")
       broadcast(card.board_id)
@@ -1178,12 +1187,16 @@ defmodule Slipdock.Boards do
   end
 
   def update_card(%Card{} = card, attrs) do
+    {assignees, attrs} = assignee_change(card, attrs)
+    # Who was on it, read only when this write changes that.
+    before = if assignees, do: assignee_ids(card), else: []
     changeset = Card.changeset(card, attrs)
 
     changeset
     |> Repo.update()
+    |> put_assignees(assignees)
     |> tap_ok(fn updated ->
-      describe_card_changes(card, changeset)
+      (describe_card_changes(card, changeset) ++ describe_assignees(card, before, assignees))
       |> Enum.each(&log(Repo, updated.board_id, updated.id, "card", &1))
 
       # A sub-board is named after its card.
@@ -1194,8 +1207,85 @@ defmodule Slipdock.Boards do
 
       broadcast(updated.board_id)
       Indexer.enqueue(updated)
-      automate_card_changes(card, updated, changeset)
+      automate_card_changes(card, updated, changeset, {before, assignees || before})
     end)
+  end
+
+  @doc """
+  The ids of the people `card` is assigned to, lead first — read from the
+  database, so it is right whether or not the set was preloaded.
+  """
+  def assignee_ids(%Card{id: nil}), do: []
+
+  def assignee_ids(%Card{id: id, assignee_id: lead}) do
+    ids = Repo.all(from(a in "card_assignees", where: a.card_id == ^id, select: a.user_id))
+    if lead in ids, do: [lead | List.delete(ids, lead)], else: Enum.sort(ids)
+  end
+
+  # Who a write assigns the card to. "assignee_ids" replaces the set, lead
+  # first; "add_assignee_ids" and "remove_assignee_ids" edit it, keeping the
+  # lead while they are still on it; and a bare "assignee_id" — what every
+  # single-person caller sends — replaces it with that one person, which is
+  # what it always meant. Returns the new set (nil when the write leaves it
+  # alone) and the attrs with the lead in "assignee_id".
+  defp assignee_change(card, attrs) do
+    ids =
+      cond do
+        Map.has_key?(attrs, "assignee_ids") ->
+          user_ids(attrs["assignee_ids"])
+
+        Map.has_key?(attrs, "add_assignee_ids") or Map.has_key?(attrs, "remove_assignee_ids") ->
+          Enum.uniq(assignee_ids(card) ++ user_ids(attrs["add_assignee_ids"])) --
+            user_ids(attrs["remove_assignee_ids"])
+
+        Map.has_key?(attrs, "assignee_id") ->
+          user_ids(attrs["assignee_id"])
+
+        true ->
+          nil
+      end
+
+    attrs = Map.drop(attrs, ~w(assignee_ids add_assignee_ids remove_assignee_ids))
+
+    case ids do
+      nil -> {nil, attrs}
+      ids -> {ids, Map.put(attrs, "assignee_id", List.first(ids))}
+    end
+  end
+
+  defp user_ids(nil), do: []
+  defp user_ids(""), do: []
+
+  defp user_ids(ids) when is_list(ids),
+    do: ids |> Enum.flat_map(&user_ids/1) |> Enum.uniq()
+
+  defp user_ids(id) when is_integer(id), do: [id]
+
+  defp user_ids(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {n, ""} -> [n]
+      _ -> []
+    end
+  end
+
+  defp user_ids(_), do: []
+
+  defp put_assignees({:ok, %Card{} = card}, ids) when is_list(ids) do
+    from(a in "card_assignees", where: a.card_id == ^card.id) |> Repo.delete_all()
+    Repo.insert_all("card_assignees", Enum.map(ids, &%{card_id: card.id, user_id: &1}))
+    {:ok, Repo.preload(card, :assignees, force: true)}
+  end
+
+  defp put_assignees(result, _ids), do: result
+
+  defp describe_assignees(_card, _before, nil), do: []
+
+  defp describe_assignees(card, before, ids) do
+    cond do
+      Enum.sort(before) == Enum.sort(ids) -> []
+      ids == [] -> ["unassigned “#{card.title}”"]
+      true -> ["assigned “#{card.title}” to #{Enum.map_join(ids, ", ", &assignee_name/1)}"]
+    end
   end
 
   defp describe_card_changes(card, changeset) do
@@ -1210,8 +1300,6 @@ defmodule Slipdock.Boards do
       {:due_date, d} -> ["set due date on “#{card.title}” to #{d}"]
       {:percent_complete, nil} -> ["cleared % complete on “#{card.title}”"]
       {:percent_complete, p} -> ["set “#{card.title}” to #{p}% complete"]
-      {:assignee_id, nil} -> ["unassigned “#{card.title}”"]
-      {:assignee_id, id} -> ["assigned “#{card.title}” to #{assignee_name(id)}"]
       {:column_id, id} -> ["moved “#{card.title}” to #{Repo.get!(Column, id).name}"]
       {:flags, flags} -> ["set flags on “#{card.title}” to #{flags_text(flags)}"]
       _ -> []
@@ -2174,10 +2262,17 @@ defmodule Slipdock.Boards do
 
   # One update can be several events: the fields that changed, plus the ones
   # worth a trigger of their own (completing, reopening, assigning, flagging).
-  defp automate_card_changes(before, card, changeset) do
+  defp automate_card_changes(before, card, changeset, {was_assigned, now_assigned}) do
     changes = changeset.changes
+    newly_assigned = now_assigned -- was_assigned
+    fields = changed_fields(changes)
 
-    automate(%{type: "card_updated", card: card, fields: changed_fields(changes)})
+    fields =
+      if Enum.sort(was_assigned) != Enum.sort(now_assigned) and "assignee" not in fields,
+        do: fields ++ ["assignee"],
+        else: fields
+
+    automate(%{type: "card_updated", card: card, fields: fields})
 
     case changes[:completed] do
       true -> automate(%{type: "card_completed", card: card})
@@ -2185,9 +2280,10 @@ defmodule Slipdock.Boards do
       _ -> :ok
     end
 
-    case changes[:assignee_id] do
-      nil -> :ok
-      id -> automate(%{type: "card_assigned", card: card, assignee: Repo.get(User, id)})
+    # Once for each person newly on the card, so a rule waiting for "assigned
+    # to Sam" fires when Sam joins, whoever else is already there.
+    for id <- newly_assigned, user = Repo.get(User, id) do
+      automate(%{type: "card_assigned", card: card, assignee: user})
     end
 
     for flag <- List.wrap(changes[:flags]) -- before.flags do

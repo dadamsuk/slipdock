@@ -203,9 +203,9 @@ defmodule SlipdockWeb.OutlineComponents do
             :if={MapSet.member?(@show, "priority")}
             priority={node.card.priority}
           />
-          <.assignee_chip
-            :if={not is_nil(node.card.assignee) and MapSet.member?(@show, "assignee")}
-            user={node.card.assignee}
+          <.assignee_chips
+            :if={MapSet.member?(@show, "assignee")}
+            users={Slipdock.Boards.Card.assignees(node.card)}
             size="xs"
           />
         </div>

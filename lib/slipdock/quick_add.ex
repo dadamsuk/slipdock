@@ -238,10 +238,15 @@ defmodule Slipdock.QuickAdd do
           {text, acc}
 
         user ->
+          # Each @name goes on the card; the first is the lead, which is
+          # also all a page — with its one assignee — takes.
+          ids = Enum.uniq((acc.attrs["assignee_ids"] || []) ++ [user.id])
+
           {String.replace(text, whole, " ", global: false),
            acc
-           |> put_attr("assignee_id", user.id)
-           |> Map.put(:assignee, user)
+           |> put_attr("assignee_id", List.first(ids))
+           |> put_attr("assignee_ids", ids)
+           |> Map.update(:assignee, user, &(&1 || user))
            |> chip(:assignee, User.display_name(user))}
       end
     end)

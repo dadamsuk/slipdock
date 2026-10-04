@@ -302,10 +302,15 @@ defmodule Slipdock.Search.Chunk do
     end
   end
 
-  defp assignee(%Card{assignee: %{} = user}),
-    do: "assigned to #{Slipdock.Accounts.User.display_name(user)}"
+  defp assignee(%Card{} = card) do
+    case Card.assignees(card) do
+      [] ->
+        nil
 
-  defp assignee(_), do: nil
+      people ->
+        "assigned to #{Enum.map_join(people, ", ", &Slipdock.Accounts.User.display_name/1)}"
+    end
+  end
 
   defp tags(%Card{tags: tags}) when is_list(tags) and tags != [],
     do: "tags: " <> Enum.map_join(tags, ", ", & &1.name)
