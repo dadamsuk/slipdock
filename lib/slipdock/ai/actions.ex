@@ -378,7 +378,7 @@ defmodule Slipdock.AI.Actions do
   end
 
   defp update_step({"completed", value}, card, scope) do
-    done = value in [true, "true", "yes", 1]
+    done = Enum.member?([true, "true", "yes", 1], value)
 
     if done == card.completed,
       do: [],
@@ -424,7 +424,7 @@ defmodule Slipdock.AI.Actions do
   end
 
   defp update_step({"assignee", value}, card, scope) do
-    if value in [nil, "", "nobody", "none", "unassigned"] do
+    if Enum.member?([nil, "", "nobody", "none", "unassigned"], value) do
       if is_nil(card.assignee_id),
         do: [],
         else: [field_step(card, scope, "Unassign “#{card.title}”", %{"assignee_id" => nil})]

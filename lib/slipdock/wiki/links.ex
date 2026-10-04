@@ -292,7 +292,7 @@ defmodule Slipdock.Wiki.Links do
       |> then(&resolve(board, &1))
       # Directives, mentions and inline queries are not references to a
       # thing; they are instructions to the renderer.
-      |> Enum.reject(&(&1.kind in [:directive, :mention, :inline]))
+      |> Enum.reject(&Enum.member?([:directive, :mention, :inline], &1.kind))
 
     Repo.transaction(fn ->
       Repo.delete_all(from(l in Link, where: l.page_id == ^page.id))

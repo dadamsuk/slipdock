@@ -1503,7 +1503,7 @@ defmodule Slipdock.AI.Researcher do
 
   defp recent(history) do
     history
-    |> Enum.filter(&(&1.role in ["user", "assistant", :user, :assistant]))
+    |> Enum.filter(&Enum.member?(["user", "assistant", :user, :assistant], &1.role))
     |> Enum.map(&%{"role" => to_string(&1.role), "content" => &1.content})
     |> Enum.reject(&(&1["content"] in [nil, ""]))
     |> Enum.take(-@history_limit)

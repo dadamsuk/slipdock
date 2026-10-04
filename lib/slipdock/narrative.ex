@@ -180,7 +180,7 @@ defmodule Slipdock.Narrative do
   defp coalesce(events) do
     events
     |> Enum.chunk_by(fn e ->
-      if e.kind in [:comment, :status, :vote],
+      if Enum.member?([:comment, :status, :vote], e.kind),
         do: e.id,
         else: {e.date, e.card_id, e.kind, action(e.message)}
     end)

@@ -118,7 +118,7 @@ defmodule Slipdock.Automations.Spec do
   def condition_ops, do: @condition_ops
 
   @doc "Whether the spec's trigger is driven by the clock rather than an event."
-  def scheduled?(spec), do: trigger_type(spec) in @scheduled_types
+  def scheduled?(spec), do: Enum.member?(@scheduled_types, trigger_type(spec))
 
   @doc "The spec's trigger type, or nil."
   def trigger_type(%{"trigger" => %{"type" => type}}) when is_binary(type), do: type
@@ -176,8 +176,8 @@ defmodule Slipdock.Automations.Spec do
   defp validate_condition(%{"field" => field, "op" => op} = condition)
        when is_binary(field) and is_binary(op) do
     cond do
-      field not in @condition_fields -> {:error, "unknown condition field “#{field}”"}
-      op not in @condition_ops -> {:error, "unknown condition test “#{op}”"}
+      not Enum.member?(@condition_fields, field) -> {:error, "unknown condition field “#{field}”"}
+      not Enum.member?(@condition_ops, op) -> {:error, "unknown condition test “#{op}”"}
       true -> {:ok, %{"field" => field, "op" => op, "value" => coerce(condition["value"])}}
     end
   end

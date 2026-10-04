@@ -53,10 +53,11 @@ money or needs a key.
 
 `mix test --cover` prints line coverage for `lib/`, worst module first, with a
 page per module in `cover/`, and fails under 65%. It runs through
-`test/support/coverage.ex` rather than Mix's own tool: `:cover` cannot
-instrument a few modules on this Elixir and OTP (it crashes on some
-`expr in [...]` code), and Mix's tool dies on the first one. Those modules are
-named at the end of the report as not measured, not counted as covered.
+`test/support/coverage.ex` rather than Mix's own tool: `:cover` on this
+Elixir and OTP cannot instrument some uses of `x in [...]` outside a guard, and Mix's tool dies on the first one. So outside a guard write
+`Enum.member?([...], x)` instead (it is the same test); in a guard, `in` is
+fine. A module that slips through is named at the end of the report as not
+measured, not counted as covered. Every module in `lib/` is measured today.
 
 ### async: true unless something is genuinely shared
 

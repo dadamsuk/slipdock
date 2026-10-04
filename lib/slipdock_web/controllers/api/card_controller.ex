@@ -580,7 +580,8 @@ defmodule SlipdockWeb.API.CardController do
     on_it = Card.assignees(Boards.get_card!(card.id))
 
     Enum.reduce_while(emails, {:ok, []}, fn email, {:ok, ids} ->
-      wanted = if email in ~w(me myself mine), do: me.email, else: String.downcase(email)
+      wanted =
+        if Enum.member?(~w(me myself mine), email), do: me.email, else: String.downcase(email)
 
       case Enum.find(on_it, &(&1.email == wanted)) do
         nil -> {:halt, {:error, {:not_found, email}}}

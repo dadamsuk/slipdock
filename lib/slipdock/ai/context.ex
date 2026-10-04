@@ -206,7 +206,7 @@ defmodule Slipdock.AI.Context do
         card.flags != [] && "flags: #{Enum.join(card.flags, ", ")}",
         progress && "subcards: #{elem(progress, 0)}/#{elem(progress, 1)} done",
         checklist != [] && "checklist: #{Enum.count(checklist, & &1.done)}/#{length(checklist)}",
-        Card.health(card) not in [nil, :ok, :done] && "health: #{Card.health(card)}",
+        not Enum.member?([nil, :ok, :done], Card.health(card)) && "health: #{Card.health(card)}",
         Card.stated_health(card) && "reported: #{Card.stated_health(card)}",
         blockers != [] && "blocked by: #{Enum.map_join(blockers, ", ", &"##{&1.id} #{&1.title}")}",
         Card.vote_total(card) > 0 && "votes: #{Card.vote_total(card)}"

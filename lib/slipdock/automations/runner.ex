@@ -42,8 +42,11 @@ defmodule Slipdock.Automations.Runner do
   # that changed nothing a rule can see is not activity.
   defp trigger_matches?(%{"type" => "card_activity"}, %{type: type} = event) do
     case type do
-      "card_updated" -> (event[:fields] || []) != []
-      type -> type in ~w(card_created card_moved comment_added tag_added card_archived)
+      "card_updated" ->
+        (event[:fields] || []) != []
+
+      type ->
+        Enum.member?(~w(card_created card_moved comment_added tag_added card_archived), type)
     end
   end
 
@@ -235,7 +238,7 @@ defmodule Slipdock.Automations.Runner do
   defp present?(_), do: true
 
   defp truthy(true), do: true
-  defp truthy(value) when is_binary(value), do: casefold(value) in ~w(true yes 1)
+  defp truthy(value) when is_binary(value), do: Enum.member?(~w(true yes 1), casefold(value))
   defp truthy(_), do: false
 
   defp to_number(value) when is_number(value), do: value
