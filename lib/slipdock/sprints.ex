@@ -286,6 +286,142 @@ defmodule Slipdock.Sprints do
   defp sub_board_id(%Card{sub_board: %Board{id: id}}), do: id
   defp sub_board_id(_), do: nil
 
+  ## Charts
+
+  @doc """
+  A sprint's burndown: how much of its work was still open at the end of
+  each day from its start to its due date. The work is the cards on the
+  sprint's own board (not archived), counted as cards and, for those with an
+  estimate, as estimated minutes. The scope is what is in the sprint now, so
+  a card added late counts from the first day.
+
+  Returns `%{sprint:, total:, done:, estimate:, days: [%{date:, remaining:,
+  remaining_estimate:, ideal:}]}`; `remaining` is nil for days still to
+  come. A sprint without dates runs #{@default_days} days from when it was made.
+  """
+  def burndown(%Card{} = sprint, today \\ Date.utc_today()) do
+    work = Map.get(work_by_sprint([sprint.id]), sprint.id, [])
+    {start, due} = sprint_dates(sprint)
+    total = length(work)
+    estimate = work |> Enum.map(&(&1.time_estimate || 0)) |> Enum.sum()
+    span = Date.diff(due, start)
+
+    days =
+      Date.range(start, due)
+      |> Enum.with_index()
+      |> Enum.map(fn {date, i} ->
+        open = if Date.compare(date, today) != :gt, do: open_on(work, date)
+
+        %{
+          date: date,
+          remaining: open && length(open),
+          remaining_estimate: open && open |> Enum.map(&(&1.time_estimate || 0)) |> Enum.sum(),
+          ideal: if(span == 0, do: 0.0, else: total * (span - i) / span)
+        }
+      end)
+
+    %{
+      sprint: sprint_summary(sprint, start, due),
+      total: total,
+      done: Enum.count(work, & &1.completed),
+      estimate: estimate,
+      days: days
+    }
+  end
+
+  @doc """
+  Velocity on a sprint board: for each sprint, oldest first, the cards
+  committed (everything in it now) and completed, and the same in estimated
+  minutes. A sprint is `finished` once it is completed or past its due date;
+  `average` is the cards completed per finished sprint, nil before the first.
+  """
+  def velocity(%Board{} = board, today \\ Date.utc_today()) do
+    sprints =
+      Repo.all(
+        from(c in Card,
+          where: c.board_id == ^board.id and is_nil(c.archived_at),
+          order_by: [asc: c.position, asc: c.id]
+        )
+      )
+      |> Enum.sort_by(fn card -> elem(sprint_dates(card), 0) end, Date)
+
+    work = work_by_sprint(Enum.map(sprints, & &1.id))
+
+    rows =
+      Enum.map(sprints, fn sprint ->
+        cards = Map.get(work, sprint.id, [])
+        done = Enum.filter(cards, & &1.completed)
+        {start, due} = sprint_dates(sprint)
+
+        Map.merge(sprint_summary(sprint, start, due), %{
+          committed: length(cards),
+          completed: length(done),
+          committed_estimate: cards |> Enum.map(&(&1.time_estimate || 0)) |> Enum.sum(),
+          completed_estimate: done |> Enum.map(&(&1.time_estimate || 0)) |> Enum.sum(),
+          finished: sprint.completed or Date.compare(due, today) == :lt
+        })
+      end)
+
+    finished = Enum.filter(rows, & &1.finished)
+
+    average =
+      if finished != [],
+        do: Float.round(Enum.sum(Enum.map(finished, & &1.completed)) / length(finished), 1)
+
+    %{sprints: rows, average: average}
+  end
+
+  @doc """
+  The sprint to chart first on a sprint board: the one running today, else
+  the latest to have started, else the first. Nil on a board with none.
+  """
+  def current_sprint(%Board{} = board, today \\ Date.utc_today()) do
+    sprints =
+      Repo.all(from(c in Card, where: c.board_id == ^board.id and is_nil(c.archived_at)))
+      |> Enum.sort_by(fn card -> elem(sprint_dates(card), 0) end, Date)
+
+    Enum.find(sprints, fn card ->
+      {start, due} = sprint_dates(card)
+      Date.compare(start, today) != :gt and Date.compare(due, today) != :lt
+    end) ||
+      sprints
+      |> Enum.filter(&(Date.compare(elem(sprint_dates(&1), 0), today) != :gt))
+      |> List.last() ||
+      List.first(sprints)
+  end
+
+  # Each sprint's work: the live cards on its own board, keyed by sprint id.
+  defp work_by_sprint([]), do: %{}
+
+  defp work_by_sprint(sprint_ids) do
+    from(c in Card,
+      join: b in Board,
+      on: b.id == c.board_id,
+      where: b.parent_card_id in ^sprint_ids and is_nil(c.archived_at),
+      select: {b.parent_card_id, c}
+    )
+    |> Repo.all()
+    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+  end
+
+  # The cards still open at the end of `date`. A card completed before
+  # completed_at existed falls back to when it last changed.
+  defp open_on(work, date) do
+    Enum.reject(work, fn card ->
+      card.completed and
+        Date.compare(DateTime.to_date(card.completed_at || card.updated_at), date) != :gt
+    end)
+  end
+
+  defp sprint_dates(%Card{} = sprint) do
+    start = sprint.start_date || sprint.due_date || DateTime.to_date(sprint.inserted_at)
+    due = sprint.due_date || Date.add(start, @default_days - 1)
+    if Date.compare(start, due) == :gt, do: {due, due}, else: {start, due}
+  end
+
+  defp sprint_summary(sprint, start, due),
+    do: %{id: sprint.id, title: sprint.title, start: start, due: due}
+
   ## Parsing
 
   defp date(nil, default), do: {:ok, default}

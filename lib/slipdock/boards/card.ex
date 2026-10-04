@@ -22,6 +22,9 @@ defmodule Slipdock.Boards.Card do
     # snapped to whole buckets at any precision but "day".
     field :date_precision, :string, default: "day"
     field :completed, :boolean, default: false
+    # When it was last completed; nil while it is open. Set by `changeset/2`
+    # whenever `completed` changes, and what a sprint's burndown reads.
+    field :completed_at, :utc_datetime
     # How far through the work is, 0–100, as stated by whoever is doing it;
     # nil when nobody has said. Independent of `completed`.
     field :percent_complete, :integer
@@ -304,6 +307,15 @@ defmodule Slipdock.Boards.Card do
     |> validate_inclusion(:time_unit, Slipdock.TimeTracking.unit_keys())
     |> validate_number(:time_spent, greater_than_or_equal_to: 0)
     |> validate_number(:time_estimate, greater_than_or_equal_to: 0)
+    |> stamp_completed()
+  end
+
+  defp stamp_completed(changeset) do
+    case fetch_change(changeset, :completed) do
+      {:ok, true} -> put_change(changeset, :completed_at, DateTime.utc_now(:second))
+      {:ok, false} -> put_change(changeset, :completed_at, nil)
+      :error -> changeset
+    end
   end
 
   defp validate_dates(changeset) do

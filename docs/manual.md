@@ -35,7 +35,8 @@ way in: what it is, the pictures, and how to get it running.
   board template; sub-boards nest to any depth
 - Sprints: a sprint board whose every card is a sprint, a **New sprint**
   button that dates the next one, and **Add cards…** to tick work from any
-  board into it — see [Sprints](#sprints)
+  board into it, and **Charts** for each sprint's burndown and the board's
+  velocity — see [Sprints](#sprints)
 - Roll-ups: every card summarises the whole tree beneath it — leaves done,
   effective start and due dates (its own or its subcards'), slip past a
   planned due date, blocked or overdue anywhere below, and a health state —
@@ -436,6 +437,27 @@ history go with them; tags travel by name; custom fields only where the
 sprint's tree has the same one. Completed and archived cards are not
 offered. On a sprint board itself the cards are other sprints, so they cannot
 be ticked whole; step into one to take what it left unfinished.
+
+**Charts.** The **Charts** button in a sprint board's header, or in the
+header of a sprint's own board, opens two charts (anyone who can read the
+board can see them):
+
+- **Burndown** — a sprint's work still open at the end of each day from its
+  start to its due date, against a dashed ideal line falling straight to
+  zero. The work is the cards on the sprint's own board, not archived; the
+  scope is what is in the sprint now, so a card added halfway counts from
+  the first day. Days still to come are left blank. On the sprint board it
+  opens on the sprint running today (else the latest to have started), and
+  **Burndown for** switches to another.
+- **Velocity** — on the sprint board only: for each sprint, oldest first,
+  the cards committed (everything in it) beside the cards completed, and a
+  dashed line at the average of the finished sprints. A sprint counts as
+  finished once it is completed or past its due date; a running one's bar is
+  paler.
+
+Both read when each card was completed, which a card records from the moment
+it is ticked done (or lands in a done list) and forgets when it is reopened.
+Cards completed before this was recorded use the last time they changed.
 
 ## Roll-ups, the outline and My work
 
@@ -2065,6 +2087,12 @@ POST   /api/boards/:board/sprints {name, start, days, goal}   all optional; answ
 POST   /api/cards/:id/sprint {cards: [id...]}   move cards into a sprint; answers `added` and
                                                `skipped` ({id, reason}) — a board's `kind` is
                                                "sprints" on a sprint board (PATCH it to set one)
+GET    /api/cards/:id/burndown             a sprint's {sprint, total, done, estimate, days:
+                                               [{date, remaining, remaining_estimate, ideal}]};
+                                               remaining is null for days still to come
+GET    /api/boards/:board/sprints/velocity {sprints: [{id, title, start, due, committed,
+                                               completed, committed_estimate, completed_estimate,
+                                               finished}], average} — estimates in minutes
 DELETE /api/cards/:id/dependencies/:other_id     (either direction)
 GET    /api/automations/vocabulary         (the grammar a spec is written in, plus an example)
 GET    /api/automations/presets            (the ready-made rules, and the fields each one takes)
@@ -2211,6 +2239,8 @@ slipdock subboard 12 --template "Bug triage"   # card #12 becomes a board; print
 slipdock new-board Delivery --template "Sprint planning"   # or: set-board <board> --sprints
 slipdock sprint delivery --days 10 --goal "Ship the importer"   # the next sprint, dated on from the last
 slipdock sprint-add 88 41 42 57                # move cards #41 #42 #57 into sprint #88
+slipdock burndown 88                           # sprint #88's work left, day by day, against the ideal
+slipdock velocity delivery                     # committed and completed per sprint, and the average
 slipdock board <sub-board-id>                  # then use it like any board; --off removes it
 slipdock automation-help                       # the triggers, conditions and actions a spec may use
 slipdock automation-presets                    # the ready-made rules and the fields each one takes

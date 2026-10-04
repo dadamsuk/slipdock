@@ -164,6 +164,7 @@ defmodule SlipdockWeb.API.JSON do
       due_date: c.due_date,
       date_precision: c.date_precision,
       completed: c.completed,
+      completed_at: c.completed_at,
       percent_complete: c.percent_complete,
       time: time(c),
       stated_health: Card.stated_health(c),

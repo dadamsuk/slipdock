@@ -541,6 +541,12 @@ defmodule SlipdockWeb.APIGuide do
     board you can write to into it, subcards and all, and answers what it
     `added` and what it `skipped` and why. Only plan a sprint when asked to:
     moving cards out of their epics is the person's call.
+    `GET /api/cards/:sprint/burndown` is how much of a sprint's work was open
+    at the end of each day against the ideal line, and `GET
+    /api/boards/:board/sprints/velocity` is committed and completed per sprint
+    with the average of the finished ones — read them when asked how a sprint
+    is going rather than counting cards yourself. Every card carries
+    `completed_at`, the moment it was last completed.
 
     Tags live on the root board and are shared by the whole tree, so a tag made
     anywhere below it is available everywhere — but a tag must exist before a

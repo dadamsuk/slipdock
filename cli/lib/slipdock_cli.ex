@@ -265,6 +265,10 @@ defmodule SlipdockCLI do
                                         told) with its own board of subcards
     sprint-add <sprint-id> <card-id>... move cards from any board into a sprint, with their
                                         subcards; ones that can't go in are listed, not fatal
+    burndown <sprint-id>                a sprint's work left at the end of each day, against
+                                        the ideal straight line to zero
+    velocity <board>                    cards committed and completed in each sprint on a
+                                        sprint board, and the average of the finished ones
     archive-board <board>               put a whole board away, keeping every card on it
     restore-board <board>               bring an archived board back
     order-boards <board>...             set the order you list boards in (yours alone; boards
@@ -1870,6 +1874,51 @@ defmodule SlipdockCLI do
 
   defp run("sprint-add", _, _),
     do: fail("usage: slipdock sprint-add <sprint-card-id> <card-id>...")
+
+  defp run("burndown", [id], o) do
+    HTTP.get("/cards/#{id}/burndown")
+    |> out(o, fn %{"burndown" => b} ->
+      s = b["sprint"]
+      IO.puts("#{s["title"]} (##{s["id"]})  #{s["start"]} → #{s["due"]}")
+      IO.puts(Render.dim("#{b["done"]} of #{b["total"]} cards done"))
+      width = max(b["total"], 1)
+
+      Enum.each(b["days"], fn d ->
+        ideal = :erlang.float_to_binary(d["ideal"] / 1, decimals: 1)
+
+        case d["remaining"] do
+          nil ->
+            IO.puts(Render.dim("  #{d["date"]}     -  ideal #{ideal}"))
+
+          n ->
+            bar = String.duplicate("█", round(n * 30 / width))
+            IO.puts("  #{d["date"]}  #{String.pad_leading("#{n}", 3)}  ideal #{ideal}  #{bar}")
+        end
+      end)
+    end)
+  end
+
+  defp run("burndown", _, _), do: fail("usage: slipdock burndown <sprint-card-id>")
+
+  defp run("velocity", [ref], o) do
+    HTTP.get("/boards/#{HTTP.seg(ref)}/sprints/velocity")
+    |> out(o, fn %{"velocity" => v} ->
+      if v["sprints"] == [], do: IO.puts("no sprints yet")
+
+      Enum.each(v["sprints"], fn s ->
+        state = if s["finished"], do: "", else: Render.dim("  (running)")
+
+        IO.puts(
+          "  ##{s["id"]} #{s["title"]}  #{s["start"]} → #{s["due"]}  " <>
+            "#{s["completed"]} of #{s["committed"]} done#{state}"
+        )
+      end)
+
+      if avg = v["average"], do: IO.puts("average velocity: #{avg} cards a sprint")
+    end)
+  end
+
+  defp run("velocity", _, _), do: fail("usage: slipdock velocity <board>")
 
   # Archiving a board puts it away without losing anything on it; restoring
   # brings it back where it was.
