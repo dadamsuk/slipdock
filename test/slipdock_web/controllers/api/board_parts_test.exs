@@ -42,6 +42,38 @@ defmodule SlipdockWeb.API.BoardPartsTest do
       refute Enum.any?(Boards.get_board!(board.id).columns, &(&1.id == id))
     end
 
+    test "a list's category is set on create and update, and cleared with an empty one",
+         %{conn: conn, board: board} do
+      created =
+        conn
+        |> post(~p"/api/boards/#{board.id}/columns", %{
+          "name" => "Parked",
+          "category" => "dropped"
+        })
+        |> json_response(201)
+
+      assert %{"id" => id, "category" => "dropped"} = created["column"]
+
+      path = ~p"/api/boards/#{board.id}/columns/#{id}"
+      assert conn |> patch(path, %{"category" => "todo"}) |> json_response(200)
+      assert {:ok, %{category: "todo"}} = Boards.find_column(board, id)
+
+      assert %{"column" => %{"category" => nil}} =
+               conn |> patch(path, %{"category" => ""}) |> json_response(200)
+    end
+
+    test "an unknown category is refused, not ignored", %{conn: conn, board: board} do
+      column = hd(board.columns)
+
+      assert %{"details" => %{"category" => [_]}} =
+               conn
+               |> patch(~p"/api/boards/#{board.id}/columns/#{column.id}", %{"category" => "bogus"})
+               |> json_response(422)
+
+      assert {:ok, %{category: category}} = Boards.find_column(board, column.id)
+      assert category == column.category
+    end
+
     test "a list on another board is not found", %{conn: conn, board: board, user: user} do
       other = board_fixture(%{}, owner: user)
       column = hd(other.columns)

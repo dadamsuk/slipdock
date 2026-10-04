@@ -293,7 +293,10 @@ defmodule SlipdockCLI do
     subboard <card-id> --off            remove a card's subcards
     new-template <name> [--desc TEXT] --list "Name[:wip[:color]]"...
     delete-template <template>
-    new-column <board> <name> [--wip N] [--color C]
+    new-column <board> <name> [--wip N] [--color C] [--category C]
+    set-column <board> <column> [--name N] [--wip N] [--color C] [--category C]
+                                        change a list; category is todo, doing, done,
+                                        dropped, or "" for none
     new-tag <board> <name> [--color C]
     set <id> <key>=<value>...           set custom fields on a card ("" clears; choice by label or key)
     vote <id> <n>                       put n of your votes on a card or page (0 removes them)
@@ -415,6 +418,7 @@ defmodule SlipdockCLI do
     index: :integer,
     off: :boolean,
     wip: :integer,
+    category: :string,
     kind: :keep,
     label: :string,
     options: :string,

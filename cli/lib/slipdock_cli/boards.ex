@@ -10,7 +10,7 @@ defmodule SlipdockCLI.Boards do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(guide search ask search-status saved save unsave boards board columns tags activity cards card swimlanes views favourites fav unfav table fields milestones templates add edit set vote status new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column new-tag save-view update-view delete-view)
+  @commands ~w(guide search ask search-status saved save unsave boards board columns tags activity cards card swimlanes views favourites fav unfav table fields milestones templates add edit set vote status new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -715,10 +715,40 @@ defmodule SlipdockCLI.Boards do
 
   def run("new-column", [ref | words], o) when words != [] do
     body =
-      compact(%{"name" => Enum.join(words, " "), "wip_limit" => o[:wip], "color" => o[:color]})
+      compact(%{
+        "name" => Enum.join(words, " "),
+        "wip_limit" => o[:wip],
+        "color" => o[:color],
+        "category" => o[:category]
+      })
 
     HTTP.post("/boards/#{enc(ref)}/columns", body)
     |> out(o, fn r -> IO.puts("created column ##{r["column"]["id"]}: #{r["column"]["name"]}") end)
+  end
+
+  # `--category ""` clears the category (compact only drops options not given).
+  def run("set-column", [ref | name], o) when name != [] do
+    columns = fetch!("/boards/#{enc(ref)}/columns")["columns"]
+    id = pick(columns, Enum.join(name, " "), "list", ref)
+
+    body =
+      compact(%{
+        "name" => o[:name],
+        "wip_limit" => o[:wip],
+        "color" => o[:color],
+        "category" => o[:category]
+      })
+
+    if body == %{}, do: fail("nothing to change: pass --name, --wip, --color or --category")
+
+    HTTP.patch("/boards/#{enc(ref)}/columns/#{id}", body)
+    |> out(o, fn r ->
+      c = r["column"]
+
+      IO.puts(
+        "updated column ##{c["id"]}: #{c["name"]}#{if c["category"], do: " [#{c["category"]}]"}"
+      )
+    end)
   end
 
   def run("new-tag", [ref | words], o) when words != [] do
