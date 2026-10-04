@@ -115,6 +115,9 @@ defmodule Slipdock.Accounts.User do
   end
 
   @doc "A short label for showing who someone is."
+  # nil is somebody whose account has been deleted since — a support session's
+  # admin, say, kept on the record with the person nulled.
+  def display_name(nil), do: "a deleted account"
   def display_name(%__MODULE__{name: name}) when is_binary(name) and name != "", do: name
   def display_name(%__MODULE__{email: email}), do: email
 

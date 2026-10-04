@@ -563,14 +563,7 @@ defmodule Slipdock.Boards do
   end
 
   def delete_board(%Board{} = board) do
-    keys =
-      attachment_keys(
-        from(a in Attachment,
-          join: c in assoc(a, :card),
-          join: b in assoc(c, :board),
-          where: b.id == ^board.id or b.root_id == ^board.id
-        )
-      )
+    keys = file_keys(from(b in Board, where: b.id == ^board.id or b.root_id == ^board.id))
 
     Repo.delete(board)
     |> tap_ok(fn b ->
@@ -2728,7 +2721,26 @@ defmodule Slipdock.Boards do
 
   defp attachment_keys(query), do: Repo.all(from(a in query, select: a.key))
 
-  defp remove_files(keys) do
+  @doc """
+  The on-disk keys of every file on the boards `boards` selects — cards' and
+  wiki pages' alike. Read them before the rows go, and hand them to
+  `remove_files/1` once the delete has committed: the database cascades take
+  the rows, but nothing takes the bytes.
+  """
+  def file_keys(%Ecto.Query{} = boards) do
+    ids = from(b in subquery(boards), select: b.id)
+
+    attachment_keys(
+      from(a in Attachment,
+        left_join: c in assoc(a, :card),
+        left_join: p in assoc(a, :page),
+        where: c.board_id in subquery(ids) or p.board_id in subquery(ids)
+      )
+    )
+  end
+
+  @doc "Removes uploaded files by key, and any folder they leave empty."
+  def remove_files(keys) do
     dir = uploads_dir()
 
     Enum.each(keys, fn key ->
