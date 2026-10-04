@@ -10,7 +10,7 @@ defmodule SlipdockCLI.Boards do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(guide search ask search-status saved save unsave boards board columns tags activity cards card swimlanes views favourites fav unfav table fields milestones templates add edit set vote status new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add burndown velocity archive-board restore-board order-boards new-column new-tag save-view update-view delete-view)
+  @commands ~w(guide search ask search-status saved save unsave boards board columns tags activity cards card swimlanes views favourites fav unfav table fields milestones templates add edit set vote status new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column new-tag save-view update-view delete-view)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -568,6 +568,87 @@ defmodule SlipdockCLI.Boards do
   def run("sprint-add", _, _),
     do: fail("usage: slipdock sprint-add <sprint-card-id> <card-id>...")
 
+  def run("sprint-sources", [ref], o) do
+    if o[:clear],
+      do: put_sprint_sources(ref, [], o),
+      else: HTTP.get("/boards/#{enc(ref)}/sprints/sources") |> out(o, &print_sprint_sources/1)
+  end
+
+  def run("sprint-sources", [ref | sources], o) do
+    sources =
+      Enum.map(sources, fn source ->
+        case String.split(source, ":", parts: 2) do
+          [board, lists] ->
+            %{"board" => board, "lists" => lists |> String.split(",") |> Enum.map(&String.trim/1)}
+
+          [board] ->
+            %{"board" => board}
+        end
+      end)
+
+    put_sprint_sources(ref, sources, o)
+  end
+
+  def run("sprint-sources", _, _),
+    do:
+      fail("usage: slipdock sprint-sources <board> [<source-board>[:list,list...]]... [--clear]")
+
+  def run("sprint-plan", [id], o) do
+    query = if o[:sort], do: "?sort=#{enc(o[:sort])}", else: ""
+
+    HTTP.get("/cards/#{enc(id)}/sprint/plan#{query}")
+    |> out(o, fn %{"plan" => p} ->
+      s = p["sprint"]
+      c = p["committed"]
+      IO.puts("#{s["title"]} (##{s["id"]})  #{s["start"]} → #{s["due"]}")
+
+      IO.puts(
+        Render.dim("in it already: #{c["open"]} open of #{c["cards"]}, #{hours(c["estimate"])}")
+      )
+
+      if p["boards"] == [],
+        do:
+          IO.puts(
+            "no sources yet — choose them with: slipdock sprint-sources <sprint-board> <board>"
+          )
+
+      Enum.each(p["boards"], fn g ->
+        IO.puts("\n## #{g["board"]["name"]} (#{g["board"]["code"]})")
+
+        Enum.each(g["lists"], fn l ->
+          IO.puts("### #{l["name"]}  #{length(l["cards"])} cards")
+
+          Enum.each(l["cards"], fn e ->
+            scores = Enum.map_join(e["scores"], " ", fn {k, v} -> "#{k}:#{v}" end)
+            est = if e["estimate_minutes"], do: hours(e["estimate_minutes"])
+            est = if est && e["estimate_from_subcards"], do: "Σ" <> est, else: est
+            sub = e["subcards"]
+
+            extras =
+              [
+                e["priority"] != "none" && "prio:#{e["priority"]}",
+                scores != "" && scores,
+                e["votes"] > 0 && "votes:#{e["votes"]}",
+                est && "est:#{est}",
+                sub["total"] > 0 && e["sub_board_id"] && "⊞#{sub["done"]}/#{sub["total"]}",
+                e["due_date"] && "due:#{e["due_date"]}"
+              ]
+              |> Enum.filter(& &1)
+              |> Enum.join("  ")
+
+            IO.puts("  ##{e["id"]} #{e["title"]}  " <> Render.dim(extras))
+          end)
+        end)
+      end)
+    end)
+  end
+
+  def run("sprint-plan", _, _),
+    do:
+      fail(
+        "usage: slipdock sprint-plan <sprint-card-id> [--sort position|score|priority|estimate]"
+      )
+
   def run("burndown", [id], o) do
     HTTP.get("/cards/#{enc(id)}/burndown")
     |> out(o, fn %{"burndown" => b} ->
@@ -872,5 +953,31 @@ defmodule SlipdockCLI.Boards do
       [one] -> %{"assignee" => one}
       many -> %{"assignees" => many}
     end
+  end
+
+  defp put_sprint_sources(ref, sources, o) do
+    HTTP.put("/boards/#{enc(ref)}/sprints/sources", %{"sources" => sources})
+    |> out(o, &print_sprint_sources/1)
+  end
+
+  defp print_sprint_sources(%{"sources" => []}),
+    do: IO.puts("no sources: Add cards… browses board by board")
+
+  defp print_sprint_sources(%{"sources" => sources}) do
+    Enum.each(sources, fn s ->
+      lists =
+        if s["all_open_lists"],
+          do: "every open list",
+          else: Enum.map_join(s["lists"], ", ", & &1["name"])
+
+      IO.puts("  #{s["board"]["name"]} (#{s["board"]["code"]}): #{lists}")
+    end)
+  end
+
+  defp hours(nil), do: "0h"
+
+  defp hours(minutes) do
+    h = Float.round(minutes / 60, 1)
+    if h == trunc(h), do: "#{trunc(h)}h", else: "#{h}h"
   end
 end

@@ -444,8 +444,33 @@ optional goal, which becomes the card's description. Creating it makes the
 card in the first to-do list, gives it its own board of subcards (the Simple
 template's To Do · Doing · Done), and goes straight on to picking its cards.
 
-**Add cards….** On a sprint — the button in its card's Subcards section, or
-in the header of the sprint's own board — this opens a picker. Choose a board
+**Where sprints are planned from.** Sprints on one board almost always draw
+from the same few lists — a team's backlog, an epic board's To Do. Choose
+them once: when making a board from the Sprint planning template, **Plan
+sprints from** lists the boards you can write to; tick a board, then, if you
+want only some of its lists, tick those (none ticked means every list that
+is not done or dropped). The same choice is under **Plan sprints from** in
+the board's settings, and behind **Sources** in the picker. Over the API it is
+`PUT /api/boards/:board/sprints/sources`; on the command line `slipdock
+sprint-sources <board> work:"To Do",Backlog home`.
+
+**The plan.** With sources chosen, **Add cards…** opens on the plan: every
+source list at once, grouped by board, each open card on a row with its
+priority, the board's formula scores (RICE, ICE, value ÷ effort or your
+own), votes, estimate — its own, or **Σ** what its open subcards add up to —
+how far its subcards have got, and its due date. A card with subcards opens
+in place with the chevron, as in the outline view, and its tasks can be
+ticked on their own. **Order** puts each list in board order, or by score,
+priority or estimate. As you tick, the foot keeps count: the cards and hours
+ticked, what the sprint already holds, and the two together over the
+sprint's days (a task inside a ticked epic is not counted twice). **Other
+boards…** switches to the board-by-board picker below for anything outside
+the sources; ticks are kept between the two. `slipdock sprint-plan
+<sprint-id>` prints the same plan.
+
+**Add cards… without sources.** On a sprint — the button in its card's
+Subcards section, or in the header of the sprint's own board — with no
+sources chosen this opens a picker. Choose a board
 you can write to and its lists appear, each open card with a tick box and
 each list with **tick all**. A card that has subcards has a **subcards ›**
 button to step into them, which is where an epic's tasks are. Ticks are kept

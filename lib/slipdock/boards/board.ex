@@ -40,6 +40,10 @@ defmodule Slipdock.Boards.Board do
     # the board New sprint and Add cards… (see `Slipdock.Sprints`). nil for an
     # ordinary board. Set by a template that carries a kind, or in settings.
     field :kind, :string
+    # Where a sprint board's sprints are planned from: `[%{"board_id",
+    # "column_ids"}]`, set through `Slipdock.Sprints.put_sources/3` (which
+    # checks them) rather than the settings changeset.
+    field :sprint_sources, {:array, :map}, default: []
 
     # Put away rather than deleted: an archived board drops off the index, the
     # switcher and quick add, but keeps everything on it. Only root boards are

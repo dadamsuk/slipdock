@@ -95,6 +95,69 @@ defmodule SlipdockWeb.API.SprintsTest do
     assert Boards.get_card!(card.id).board_id == theirs.id
   end
 
+  test "sprint sources are set by board and list, and the plan reads them", %{
+    conn: conn,
+    sprints: sprints,
+    work: work,
+    todo: todo
+  } do
+    card = card_fixture(todo, %{"title" => "Plan me", "priority" => "high", "time_estimate" => 3})
+    _elsewhere = card_fixture(hd(work.columns), %{"title" => "In the backlog"})
+
+    body =
+      conn
+      |> put(~p"/api/boards/#{sprints.code}/sprints/sources", %{
+        "sources" => [%{"board" => work.code, "lists" => ["To Do"]}]
+      })
+      |> json_response(200)
+
+    assert [%{"board" => %{"code" => code}, "lists" => [%{"name" => "To Do"}]}] =
+             body["sources"]
+
+    assert code == work.code
+
+    assert [%{"board_id" => _, "column_ids" => [_]}] =
+             conn
+             |> get(~p"/api/boards/#{sprints.code}")
+             |> json_response(200)
+             |> get_in(["board", "sprint_sources"])
+
+    assert [_] =
+             conn
+             |> get(~p"/api/boards/#{sprints.code}/sprints/sources")
+             |> json_response(200)
+             |> Map.fetch!("sources")
+
+    {:ok, sprint} = Slipdock.Sprints.create_sprint(sprints)
+
+    plan =
+      conn |> get(~p"/api/cards/#{sprint.id}/sprint/plan?sort=priority") |> json_response(200)
+
+    assert %{"committed" => %{"open" => 0}, "boards" => [%{"lists" => [list]}]} = plan["plan"]
+
+    assert [%{"title" => "Plan me", "estimate_minutes" => 180, "priority" => "high"} = entry] =
+             list["cards"]
+
+    assert entry["id"] == card.id
+
+    # A board the caller cannot reach is not found; [] clears them.
+    theirs = board_fixture(%{"name" => "Theirs"}, owner: user_fixture("other@example.com"))
+
+    conn
+    |> put(~p"/api/boards/#{sprints.code}/sprints/sources", %{
+      "sources" => [%{"board" => theirs.id}]
+    })
+    |> json_response(404)
+
+    assert conn
+           |> put(~p"/api/boards/#{sprints.code}/sprints/sources", %{"sources" => []})
+           |> json_response(200) == %{"sources" => []}
+
+    conn
+    |> put(~p"/api/boards/#{work.code}/sprints/sources", %{"sources" => []})
+    |> json_response(422)
+  end
+
   test "a sprint's burndown and a sprint board's velocity", %{
     conn: conn,
     sprints: sprints,

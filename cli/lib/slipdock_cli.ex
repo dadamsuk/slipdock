@@ -272,6 +272,14 @@ defmodule SlipdockCLI do
                                         told) with its own board of subcards
     sprint-add <sprint-id> <card-id>... move cards from any board into a sprint, with their
                                         subcards; ones that can't go in are listed, not fatal
+    sprint-sources <board> [<source>[:list,list...]]... [--clear]
+                                        the boards (and lists on them) a sprint board's sprints
+                                        are planned from; with no sources, show them. A source
+                                        without lists shows every open list on it
+    sprint-plan <sprint-id> [--sort position|score|priority|estimate]
+                                        the planning view: every source list's open cards with
+                                        priority, scores, votes and estimate (Σ: added up from
+                                        its subcards), and what the sprint holds already
     burndown <sprint-id>                a sprint's work left at the end of each day, against
                                         the ideal straight line to zero
     velocity <board>                    cards committed and completed in each sprint on a
@@ -367,6 +375,7 @@ defmodule SlipdockCLI do
     add_page: :boolean,
     add_document: :boolean,
     sprints: :boolean,
+    clear: :boolean,
     simple: :boolean,
     days: :integer,
     goal: :string,

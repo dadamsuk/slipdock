@@ -2,7 +2,11 @@ defmodule SlipdockWeb.BoardLive.Index do
   use SlipdockWeb, :live_view
 
   import SlipdockWeb.SlipdockComponents
-  alias Slipdock.{Access, Accounts, Boards}
+
+  import SlipdockWeb.SprintPlanComponents,
+    only: [sources_fields: 1, parse_sources: 2, chosen_from: 1]
+
+  alias Slipdock.{Access, Accounts, Boards, Sprints}
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.Board
   alias Slipdock.Palette
@@ -29,13 +33,33 @@ defmodule SlipdockWeb.BoardLive.Index do
     {:ok,
      socket
      |> assign(page_title: "Boards", creating: false, new_color: "indigo", template_id: nil)
-     |> assign(auto_code: "")
+     |> assign(auto_code: "", source_choices: nil, sources_chosen: %{})
      |> assign(board_layout: user.board_layout || "grid", sort: user.board_sort || "manual")
      |> assign(show_archived: false)
      |> assign(templates: Boards.list_templates())
      |> assign(:form, to_form(Boards.change_board(%Board{})))
      |> load_boards()}
   end
+
+  # A sprint template asks which boards its sprints are planned from; the
+  # choices are read once, when it is first picked.
+  defp put_sources(socket, params) do
+    if sprint_template?(socket.assigns.templates, params["template"]) do
+      choices =
+        socket.assigns.source_choices ||
+          Sprints.source_choices(socket.assigns.current_user)
+
+      assign(socket,
+        source_choices: choices,
+        sources_chosen: chosen_from(parse_sources(params["sources"], choices))
+      )
+    else
+      assign(socket, sources_chosen: %{})
+    end
+  end
+
+  defp sprint_template?(templates, id),
+    do: Enum.any?(templates, &(to_string(&1.id) == id and &1.kind == "sprints"))
 
   defp load_boards(socket) do
     %{current_user: user, sort: sort} = socket.assigns
@@ -75,7 +99,11 @@ defmodule SlipdockWeb.BoardLive.Index do
   def handle_event("validate", %{"board" => params} = all, socket) do
     {params, auto_code} = sync_code(params, socket.assigns.auto_code)
     form = %Board{} |> Boards.change_board(params) |> Map.put(:action, :validate) |> to_form()
-    {:noreply, assign(socket, form: form, template_id: all["template"], auto_code: auto_code)}
+
+    {:noreply,
+     socket
+     |> assign(form: form, template_id: all["template"], auto_code: auto_code)
+     |> put_sources(all)}
   end
 
   def handle_event("create", %{"board" => params} = all, socket) do
@@ -92,6 +120,14 @@ defmodule SlipdockWeb.BoardLive.Index do
            owner_id: socket.assigns.current_user.id
          ) do
       {:ok, board} ->
+        sources = parse_sources(all["sources"], socket.assigns.source_choices || [])
+
+        socket =
+          case sources != [] && Sprints.put_sources(board, socket.assigns.current_user, sources) do
+            {:error, message} -> put_flash(socket, :error, message)
+            _ -> socket
+          end
+
         {:noreply, push_navigate(socket, to: ~p"/boards/#{board}")}
 
       {:error, changeset} ->
@@ -365,6 +401,16 @@ defmodule SlipdockWeb.BoardLive.Index do
                   </option>
                 </select>
               </label>
+              <div :if={sprint_template?(@templates, @template_id)} id="new-board-sources">
+                <span class="mb-1 block text-sm font-medium">Plan sprints from</span>
+                <p class="mb-2 text-xs text-base-content/50">
+                  The boards whose cards go into these sprints, and which of their lists to show
+                  when planning one. You can change this in the board's settings.
+                </p>
+                <div class="max-w-xl">
+                  <.sources_fields choices={@source_choices || []} chosen={@sources_chosen} />
+                </div>
+              </div>
               <div>
                 <span class="mb-2 block text-sm font-medium">Colour</span>
                 <div class="flex flex-wrap gap-2">

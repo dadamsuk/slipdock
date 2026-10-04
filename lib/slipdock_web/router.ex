@@ -380,6 +380,8 @@ defmodule SlipdockWeb.Router do
     post "/boards/:board/cards", CardController, :create
     get "/boards/:board/sprints/next", SprintController, :next
     get "/boards/:board/sprints/velocity", SprintController, :velocity
+    get "/boards/:board/sprints/sources", SprintController, :sources
+    put "/boards/:board/sprints/sources", SprintController, :put_sources
     post "/boards/:board/sprints", SprintController, :create
 
     # The board's wiki (see `Slipdock.Wiki`). `:id` takes a numeric id, a page
@@ -455,6 +457,7 @@ defmodule SlipdockWeb.Router do
     post "/cards/:id/subboard", CardController, :create_sub_board
     post "/cards/:id/sprint", SprintController, :add
     get "/cards/:id/burndown", SprintController, :burndown
+    get "/cards/:id/sprint/plan", SprintController, :plan
     delete "/cards/:id/subboard", CardController, :delete_sub_board
     delete "/cards/:id/dependencies/:other_id", CardController, :remove_dependency
     post "/checklist/:item_id/toggle", CardController, :toggle_checklist_item

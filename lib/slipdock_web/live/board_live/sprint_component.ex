@@ -19,6 +19,7 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
 
   import SlipdockWeb.SlipdockComponents
   import SlipdockWeb.SprintChartComponents
+  import SlipdockWeb.SprintPlanComponents
   import SlipdockWeb.BoardLive.Helpers, only: [flash: 3]
 
   alias Slipdock.{Access, Boards, Palette, Sprints}
@@ -27,7 +28,8 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
 
   @events ~w(open_new_sprint close_new_sprint create_sprint open_sprint_picker close_sprint_picker
     sprint_source sprint_into sprint_up sprint_toggle sprint_toggle_list sprint_clear sprint_add
-    open_sprint_charts close_sprint_charts pick_chart_sprint)
+    plan_mode plan_sort plan_expand plan_sources_change plan_sources open_sprint_charts
+    close_sprint_charts pick_chart_sprint)
 
   @doc false
   # For the test that every `handle_event/3` clause is in the list.
@@ -182,16 +184,13 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
   end
 
   defp event("sprint_toggle", %{"id" => id}, %{assigns: %{sprint_picker: %{} = p}} = socket) do
-    card =
-      p.lists
-      |> Enum.flat_map(& &1.cards)
-      |> Enum.find(&(to_string(&1.id) == id and &1.pickable))
+    card = p |> shown_cards() |> Enum.find(&(to_string(&1.id) == id and &1.pickable))
 
     selected =
       cond do
         is_nil(card) -> p.selected
         Map.has_key?(p.selected, card.id) -> Map.delete(p.selected, card.id)
-        true -> Map.put(p.selected, card.id, card.title)
+        true -> Map.put(p.selected, card.id, pick(card))
       end
 
     {:noreply, assign(socket, sprint_picker: %{p | selected: selected})}
@@ -203,7 +202,7 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
          %{assigns: %{sprint_picker: %{} = p}} = socket
        ) do
     cards =
-      case Enum.find(p.lists, &(to_string(&1.id) == id)) do
+      case Enum.find(shown_lists(p), &(to_string(&1.id) == id)) do
         nil -> []
         list -> Enum.filter(list.cards, & &1.pickable)
       end
@@ -211,7 +210,7 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
     selected =
       if cards != [] and Enum.all?(cards, &Map.has_key?(p.selected, &1.id)),
         do: Map.drop(p.selected, Enum.map(cards, & &1.id)),
-        else: Map.merge(p.selected, Map.new(cards, &{&1.id, &1.title}))
+        else: Map.merge(p.selected, Map.new(cards, &{&1.id, pick(&1)}))
 
     {:noreply, assign(socket, sprint_picker: %{p | selected: selected})}
   end
@@ -245,6 +244,89 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
   end
 
   defp event("sprint_" <> _, _params, socket), do: {:noreply, socket}
+
+  # The planning view: every list the sprint board plans from at once.
+  # "browse" is the board-by-board picker, for anything outside them;
+  # "sources" chooses them.
+  defp event("plan_mode", %{"mode" => mode}, %{assigns: %{sprint_picker: %{} = p}} = socket)
+       when mode in ~w(plan browse sources) do
+    p =
+      case mode do
+        "plan" when p.sources == [] -> p
+        "sources" -> %{p | mode: "sources", chosen: chosen(p.planning_board)}
+        _ -> %{p | mode: mode}
+      end
+
+    {:noreply, assign(socket, sprint_picker: p)}
+  end
+
+  defp event("plan_sort", %{"sort" => sort}, %{assigns: %{sprint_picker: %{} = p}} = socket) do
+    sort = if List.keymember?(Sprints.plan_sorts(), sort, 0), do: sort, else: "position"
+    {:noreply, assign(socket, sprint_picker: replan(%{p | sort: sort}))}
+  end
+
+  # Opens a card's subcards beneath it, or closes them — only a card on
+  # screen, so the view never leaves the boards it was given.
+  defp event(
+         "plan_expand",
+         %{"id" => id},
+         %{assigns: %{sprint_picker: %{plan: %{}} = p}} = socket
+       ) do
+    card = p |> shown_cards() |> Enum.find(&(to_string(&1.id) == id and &1.sub_board_id))
+
+    expanded =
+      cond do
+        is_nil(card) ->
+          p.expanded
+
+        Map.has_key?(p.expanded, card.id) ->
+          Map.delete(p.expanded, card.id)
+
+        true ->
+          children =
+            Sprints.plan_children(
+              card.sub_board_id,
+              p.sprint,
+              card.ancestors ++ [card.id],
+              p.sort
+            )
+
+          Map.put(p.expanded, card.id, children)
+      end
+
+    {:noreply, assign(socket, sprint_picker: %{p | expanded: expanded})}
+  end
+
+  defp event(
+         "plan_sources_change",
+         params,
+         %{assigns: %{sprint_picker: %{} = p}} = socket
+       ) do
+    parsed = parse_sources(params["sources"], p.choices)
+    {:noreply, assign(socket, sprint_picker: %{p | chosen: chosen_from(parsed)})}
+  end
+
+  defp event("plan_sources", params, %{assigns: %{sprint_picker: %{} = p}} = socket) do
+    user = socket.assigns.current_user
+    parsed = parse_sources(params["sources"], p.choices)
+
+    case Sprints.put_sources(p.planning_board, user, parsed) do
+      {:ok, board} ->
+        sources = Sprints.sources(board, user)
+
+        p =
+          %{p | planning_board: board, sources: sources, expanded: %{}}
+          |> replan()
+          |> Map.put(:mode, if(sources == [], do: "browse", else: "plan"))
+
+        {:noreply, assign(socket, sprint_picker: p)}
+
+      {:error, message} ->
+        {:noreply, flash(socket, :error, message)}
+    end
+  end
+
+  defp event("plan_" <> _, _params, socket), do: {:noreply, socket}
 
   # Charts: on a sprint board, velocity across its sprints and the burndown of
   # one of them (the running one first); on a sprint's own board, its burndown.
@@ -310,8 +392,29 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
   end
 
   defp open_sprint_picker(socket, %Card{} = sprint) do
-    boards = Sprints.source_boards(socket.assigns.current_user, sprint)
-    picker = %{sprint: sprint, boards: boards, path: [], lists: [], selected: %{}}
+    user = socket.assigns.current_user
+    boards = Sprints.source_boards(user, sprint)
+    planning = Sprints.planning_board(sprint)
+    sources = Sprints.sources(planning, user)
+
+    picker =
+      %{
+        sprint: sprint,
+        boards: boards,
+        path: [],
+        lists: [],
+        selected: %{},
+        planning_board: planning,
+        sources: sources,
+        choices: Sprints.source_choices(user, planning),
+        chosen: chosen(planning),
+        mode: if(sources == [], do: "browse", else: "plan"),
+        sort: "position",
+        plan: nil,
+        expanded: %{},
+        committed: Sprints.committed(sprint)
+      }
+      |> replan()
 
     # Straight into the board the sprint is planned from when there is only
     # one other to choose.
@@ -326,6 +429,52 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
 
   defp sprint_path(picker, path),
     do: %{picker | path: path, lists: Sprints.candidates(List.last(path), picker.sprint)}
+
+  # The plan over the sources, with any subcards that are open re-read in
+  # the new order.
+  defp replan(%{sources: []} = p), do: %{p | plan: nil, expanded: %{}}
+
+  defp replan(p) do
+    plan = Sprints.plan(p.sprint, p.sources, p.sort)
+    p = %{p | plan: plan, committed: plan.committed}
+
+    expanded =
+      Map.new(p.expanded, fn {id, children} ->
+        case children do
+          [first | _] ->
+            sub = Enum.find(shown_cards(p), &(&1.id == id))
+
+            {id,
+             if(sub,
+               do: Sprints.plan_children(sub.sub_board_id, p.sprint, first.ancestors, p.sort),
+               else: []
+             )}
+
+          [] ->
+            {id, []}
+        end
+      end)
+
+    %{p | expanded: expanded}
+  end
+
+  # Every list on screen, in either view.
+  defp shown_lists(%{plan: %{boards: boards}, lists: lists}),
+    do: lists ++ Enum.flat_map(boards, & &1.lists)
+
+  defp shown_lists(%{lists: lists}), do: lists
+
+  # Every card on screen: the lists', and the subcards opened in the plan.
+  defp shown_cards(p),
+    do: Enum.flat_map(shown_lists(p), & &1.cards) ++ Enum.concat(Map.values(p.expanded))
+
+  # What a tick keeps of its card: enough to add up the selection.
+  defp pick(card),
+    do: %{
+      title: card.title,
+      estimate: Map.get(card, :estimate),
+      ancestors: Map.get(card, :ancestors, [])
+    }
 
   defp sprint_added_message(sprint, added, skipped) do
     n = length(added)
@@ -438,31 +587,137 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
   attr :picker, :map, required: true
   attr :target, :any, required: true
 
-  # Picking a sprint's cards: a board, then its lists with a tick by every
-  # open card and one per list for the lot. A card with subcards can be
-  # stepped into, which is where an epic's tasks are. The count at the foot
-  # is everything ticked so far, on whichever boards.
+  # Picking a sprint's cards. With boards to plan from, the plan: every one
+  # of their chosen lists at once, with what helps choose and the running
+  # totals. Otherwise — or for anything outside them — a board, then its
+  # lists with a tick by every open card and one per list for the lot. A
+  # card with subcards can be opened, which is where an epic's tasks are.
+  # Ticks survive switching between the two, and between boards.
   defp sprint_picker_modal(assigns) do
     assigns =
       assign(assigns,
         count: map_size(assigns.picker.selected),
-        source: List.last(assigns.picker.path)
+        source: List.last(assigns.picker.path),
+        mode: assigns.picker.mode
       )
 
     ~H"""
-    <.modal id="sprint-picker" on_close={JS.push("close_sprint_picker", target: @target)} size="md">
+    <.modal
+      id="sprint-picker"
+      on_close={JS.push("close_sprint_picker", target: @target)}
+      size={if @mode == "plan", do: "lg", else: "md"}
+    >
       <div class="flex max-h-[85vh] flex-col gap-4 p-6">
-        <div>
-          <h2 class="pr-8 text-lg font-bold">Add cards to {@picker.sprint.title}</h2>
-          <p class="mt-0.5 text-sm text-base-content/60">
-            Ticked cards move into the sprint's first list, with their subcards. Tick from as
-            many boards as you like, and come back for more later.
-          </p>
+        <div class="flex flex-wrap items-start gap-2 pr-8">
+          <div class="min-w-0 flex-1">
+            <h2 class="text-lg font-bold">
+              {if @mode == "plan",
+                do: "Plan #{@picker.sprint.title}",
+                else: "Add cards to #{@picker.sprint.title}"}
+            </h2>
+            <p class="mt-0.5 text-sm text-base-content/60">
+              <%= case @mode do %>
+                <% "plan" -> %>
+                  The lists this board plans from. Ticked cards move into the sprint's first list,
+                  with their subcards.
+                <% "sources" -> %>
+                  The boards, and the lists on them, that this board's sprints are planned from.
+                  Kept for every sprint here.
+                <% _ -> %>
+                  Ticked cards move into the sprint's first list, with their subcards. Tick from as
+                  many boards as you like, and come back for more later.
+              <% end %>
+            </p>
+          </div>
+          <div class="flex items-center gap-1">
+            <form
+              :if={@mode == "plan"}
+              phx-target={@target}
+              id="plan-sort-form"
+              phx-change="plan_sort"
+            >
+              <select name="sort" class="select select-sm select-bordered" title="Order each list by">
+                <option
+                  :for={{value, label} <- Slipdock.Sprints.plan_sorts()}
+                  value={value}
+                  selected={value == @picker.sort}
+                >
+                  {label}
+                </option>
+              </select>
+            </form>
+            <button
+              :if={@mode != "plan" and @picker.sources != []}
+              phx-target={@target}
+              type="button"
+              phx-click="plan_mode"
+              phx-value-mode="plan"
+              class="btn btn-ghost btn-sm gap-1"
+            >
+              <.icon name="hero-table-cells" class="size-4" /> Plan
+            </button>
+            <button
+              :if={@mode != "browse"}
+              phx-target={@target}
+              type="button"
+              phx-click="plan_mode"
+              phx-value-mode="browse"
+              class="btn btn-ghost btn-sm"
+              title="Pick from any board you can write to"
+            >
+              Other boards…
+            </button>
+            <button
+              :if={@mode != "sources"}
+              phx-target={@target}
+              type="button"
+              id="plan-sources-button"
+              phx-click="plan_mode"
+              phx-value-mode="sources"
+              class="btn btn-ghost btn-sm gap-1"
+              title="Choose the boards and lists sprints here are planned from"
+            >
+              <.icon name="hero-adjustments-horizontal" class="size-4" /> Sources
+            </button>
+          </div>
         </div>
 
-        <div :if={is_nil(@source)} class="min-h-0 flex-1 space-y-1.5 overflow-hidden">
+        <div :if={@mode == "plan"} class="kanban-scroll min-h-0 flex-1 overflow-y-auto pr-1">
+          <.plan_table
+            plan={@picker.plan}
+            selected={@picker.selected}
+            expanded={@picker.expanded}
+            target={@target}
+          />
+        </div>
+
+        <.form
+          :if={@mode == "sources"}
+          for={%{}}
+          id="plan-sources-form"
+          phx-target={@target}
+          phx-change="plan_sources_change"
+          phx-submit="plan_sources"
+          class="flex min-h-0 flex-1 flex-col gap-3"
+        >
+          <div class="kanban-scroll min-h-0 flex-1 overflow-y-auto pr-1">
+            <.sources_fields choices={@picker.choices} chosen={@picker.chosen} />
+          </div>
+          <div class="flex justify-end">
+            <button type="submit" class="btn btn-primary btn-sm">Save sources</button>
+          </div>
+        </.form>
+
+        <div
+          :if={@mode == "browse" and is_nil(@source)}
+          class="min-h-0 flex-1 space-y-1.5 overflow-hidden"
+        >
           <p class="text-2xs font-semibold uppercase tracking-wide text-base-content/60">
             Take cards from
+          </p>
+          <p :if={@picker.sources == []} class="text-xs text-base-content/60">
+            Choose <span class="font-medium">Sources</span>
+            to see the lists you plan from side by side, with their scores, estimates and totals.
           </p>
           <p :if={@picker.boards == []} class="text-sm text-base-content/60">
             There is no other board you can write to.
@@ -485,7 +740,7 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
           </ul>
         </div>
 
-        <div :if={@source} class="flex min-h-0 flex-1 flex-col gap-2">
+        <div :if={@mode == "browse" and @source} class="flex min-h-0 flex-1 flex-col gap-2">
           <div class="flex min-w-0 items-center gap-1 text-2xs font-semibold uppercase tracking-wide text-base-content/60">
             <button
               phx-target={@target}
@@ -568,10 +823,12 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
           </div>
         </div>
 
-        <div class="flex items-center gap-2 border-t border-base-300/60 pt-3">
-          <span class="text-sm text-base-content/60">
-            {@count} card{if @count == 1, do: "", else: "s"} ticked
-          </span>
+        <div class="flex flex-wrap items-center gap-2 border-t border-base-300/60 pt-3">
+          <.plan_totals
+            committed={@picker.committed}
+            selected={@picker.selected}
+            days={sprint_days(@picker.sprint)}
+          />
           <button
             :if={@count > 0}
             phx-target={@target}
@@ -604,4 +861,9 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
     </.modal>
     """
   end
+
+  defp sprint_days(%Card{start_date: %Date{} = start, due_date: %Date{} = due}),
+    do: Date.diff(due, start) + 1
+
+  defp sprint_days(_), do: nil
 end
