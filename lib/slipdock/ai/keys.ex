@@ -28,9 +28,11 @@ defmodule Slipdock.AI.Keys do
 
   Settings are read on demand rather than cached: the file is a few lines,
   reads are rare next to the API call that follows, and a key edited by hand
-  takes effect without a restart. Writes go to a temporary file and are
-  renamed over the original, so a crash mid-write cannot leave half a file
-  behind.
+  takes effect without a restart. Writes are serialised under a lock, go to
+  a temporary file of their own and are renamed over the original, so a
+  crash mid-write cannot leave half a file behind and two saves at once
+  cannot lose one. A file that will not parse is never written over: that
+  would replace everybody's settings with one person's.
 
   `Slipdock.AI` does the resolving (see `Slipdock.AI.provider/1`); this module
   only stores. Someone with nothing here, on a server with no shared key,
@@ -128,23 +130,25 @@ defmodule Slipdock.AI.Keys do
   """
   @spec put_settings(User.t(), map()) :: :ok | {:error, String.t()}
   def put_settings(%User{} = user, attrs) when is_map(attrs) do
-    current = read()["users"][to_string(user.id)] || %{}
+    id = to_string(user.id)
 
-    with {:ok, merged} <- merge(current, attrs) do
-      if Enum.any?(@fields, &Map.has_key?(merged, to_string(&1))) do
-        entry =
-          merged
-          |> Map.put("email", user.email)
-          |> Map.put(
-            "updated_at",
-            DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
-          )
+    update(fn data ->
+      with {:ok, merged} <- merge(data["users"][id] || %{}, attrs) do
+        if Enum.any?(@fields, &Map.has_key?(merged, to_string(&1))) do
+          entry =
+            merged
+            |> Map.put("email", user.email)
+            |> Map.put(
+              "updated_at",
+              DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
+            )
 
-        update(&put_in(&1, ["users", to_string(user.id)], entry))
-      else
-        delete(user)
+          {:ok, put_in(data, ["users", id], entry)}
+        else
+          {:ok, update_in(data, ["users"], &Map.delete(&1, id))}
+        end
       end
-    end
+    end)
   end
 
   defp merge(entry, attrs) do
@@ -219,7 +223,7 @@ defmodule Slipdock.AI.Keys do
   def delete(%User{id: id}), do: delete(id)
 
   def delete(id) do
-    update(&update_in(&1, ["users"], fn users -> Map.delete(users, to_string(id)) end))
+    update(&{:ok, update_in(&1, ["users"], fn users -> Map.delete(users, to_string(id)) end)})
   end
 
   @doc """
@@ -255,9 +259,16 @@ defmodule Slipdock.AI.Keys do
 
   The server-wide `config :slipdock, :ai, :api_key` when one is set;
   otherwise, when `SLIPDOCK_AI_SYSTEM_USER` names a user by email, that
-  person's; otherwise, when exactly one person has settings of their own,
-  theirs — a single-user install should not have to say so twice. Blank when
-  none of that holds, and background AI work then stays off.
+  person's; otherwise, on a server with registration closed, when exactly one
+  person has settings of their own and that person is an admin, theirs — a
+  single-user install should not have to say so twice. Blank when none of
+  that holds, and background AI work then stays off.
+
+  The indexer sends every board's content through these settings, and every
+  search query too, so they are never a person's own endpoint or key unless
+  an admin put them there. Hence no guessing on a server others can join, and
+  no guessing a non-admin: the first person to point their account at a
+  server of their own would otherwise receive everybody's cards.
   """
   @spec system_settings() :: settings()
   def system_settings do
@@ -294,8 +305,18 @@ defmodule Slipdock.AI.Keys do
   end
 
   defp sole_settings do
-    case Enum.filter(read()["users"], fn {id, _e} -> usable?(settings(id)) end) do
-      [{id, _entry}] -> settings(id)
+    with :closed <- Slipdock.Settings.signup_mode(),
+         [{id, _entry}] <- Enum.filter(read()["users"], fn {id, _e} -> usable?(settings(id)) end),
+         %User{admin: true} <- user(id) do
+      settings(id)
+    else
+      _ -> nil
+    end
+  end
+
+  defp user(id) do
+    case Integer.parse(to_string(id)) do
+      {int, ""} -> Slipdock.Repo.get(User, int)
       _ -> nil
     end
   end
@@ -332,29 +353,71 @@ defmodule Slipdock.AI.Keys do
 
   # ── the file itself ────────────────────────────────────────────────────
 
+  # Readers tolerate a broken file and see nobody's settings; `update/1`
+  # does not, see `load/0`.
   defp read do
+    case load() do
+      {:ok, data} ->
+        data
+
+      {:error, reason} ->
+        Logger.warning("Could not read AI keys from #{path()}: #{inspect(reason)}")
+        empty()
+    end
+  end
+
+  defp load do
     with {:ok, body} <- File.read(path()),
          {:ok, %{"users" => users} = data} when is_map(users) <- Jason.decode(body) do
-      data
+      {:ok, data}
     else
       {:error, :enoent} ->
-        empty()
+        {:ok, empty()}
+
+      {:ok, %{"users" => _}} ->
+        {:error, :malformed}
 
       {:ok, %{} = data} ->
         # A file written before "users" existed, or edited by hand.
-        Map.put(data, "users", %{})
+        {:ok, Map.put(data, "users", %{})}
 
-      other ->
-        Logger.warning("Could not read AI keys from #{path()}: #{inspect(other)}")
-        empty()
+      {:error, reason} ->
+        {:error, reason}
+
+      _ ->
+        {:error, :malformed}
     end
   end
 
   defp empty, do: %{"users" => %{}}
 
+  # One writer at a time on this node, so a read-modify-write cannot lose a
+  # concurrent one; and each write its own temporary file, so two cannot
+  # interleave into it either. `fun` gets the current contents and answers
+  # `{:ok, new_contents}` or `{:error, message}`.
   defp update(fun) do
-    data = fun.(read())
-    tmp = path() <> ".tmp"
+    :global.trans({__MODULE__, self()}, fn -> write(fun) end)
+  end
+
+  defp write(fun) do
+    case load() do
+      {:ok, data} ->
+        with {:ok, data} <- fun.(data), do: save(data)
+
+      {:error, reason} ->
+        Logger.error(
+          "Not writing AI keys: #{path()} could not be read (#{inspect(reason)}), " <>
+            "and saving over it would lose everybody else's settings"
+        )
+
+        {:error,
+         "The server's AI settings file is unreadable, so nothing was saved — " <>
+           "an admin needs to look at #{Path.basename(path())}."}
+    end
+  end
+
+  defp save(data) do
+    tmp = "#{path()}.#{System.unique_integer([:positive])}.tmp"
 
     with :ok <- File.mkdir_p(Path.dirname(Path.expand(path()))),
          :ok <- File.write(tmp, Jason.encode_to_iodata!(data, pretty: true)),

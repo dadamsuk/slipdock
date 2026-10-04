@@ -2004,8 +2004,11 @@ uses it, no keys anywhere, and no board content leaves the network.
 
 Unattended work — the search indexer, scheduled automations — has no person
 to bill, so it uses a *system* key: `SLIPDOCK_AI_SYSTEM_USER=<email>` names
-whose key to spend, and on a one-person install the only stored key is used
-without being asked for. `OPENROUTER_API_KEY` still works, but it is now a
+whose key to spend, and on a one-person install — registration closed, and
+the only stored settings an admin's — those are used without being asked for.
+Nothing else is guessed: the indexer sends every board through the system
+settings, so one person's own endpoint never receives them unless an admin
+named that person. `OPENROUTER_API_KEY` still works, but it is now a
 **shared** key for everyone on the server, which is rarely what you want.
 
 Other settings come from the environment or a `.env` file (`KEY=value` lines)

@@ -1585,7 +1585,7 @@ defmodule SlipdockWeb.BoardLive.Show do
        |> start_async(:rule, fn ->
          case editing do
            nil -> Automations.create_rule_from_text(board, text, created_by: user)
-           id -> Automations.rewrite_rule(Automations.get_rule!(id), text)
+           id -> Automations.rewrite_rule(Automations.get_rule!(id), text, created_by: user)
          end
        end)}
     end

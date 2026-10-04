@@ -1029,7 +1029,8 @@ defmodule Slipdock.AutomationsTest do
       assert {:ok, rule} =
                Automations.create_rule_from_text(
                  board,
-                 "when creating a new card in #{doing.name}, email someone@example.com"
+                 "when creating a new card in #{doing.name}, email someone@example.com",
+                 created_by: user_fixture("author@example.com")
                )
 
       assert rule.name == "Tell ops about new work"
@@ -1050,7 +1051,11 @@ defmodule Slipdock.AutomationsTest do
         "spec" => %{"trigger" => %{"type" => "full_moon"}, "actions" => []}
       })
 
-      assert {:error, message} = Automations.create_rule_from_text(board, "do something odd")
+      assert {:error, message} =
+               Automations.create_rule_from_text(board, "do something odd",
+                 created_by: user_fixture("author@example.com")
+               )
+
       assert message =~ "malformed"
       assert Automations.list_rules(board.id) == []
     end
@@ -1061,6 +1066,24 @@ defmodule Slipdock.AutomationsTest do
 
       assert {:error, "There is no list called Sprint on this board."} =
                Parser.parse(board, "move everything to Sprint")
+    end
+
+    test "writing or rewriting a rule with nobody named is refused, not run on the system model" do
+      {board, _backlog, _doing, _done} = board_with_lists()
+      Slipdock.AIStub.reply_with(%{"name" => "x", "spec" => %{}})
+
+      assert {:error, message} = Automations.create_rule_from_text(board, "email me")
+      assert message =~ "who is asking"
+
+      rule =
+        rule_fixture(board, %{
+          "trigger" => %{"type" => "card_created"},
+          "actions" => [%{"type" => "email", "to" => "ops@example.com"}]
+        })
+
+      assert {:error, message} = Automations.rewrite_rule(rule, "email me")
+      assert message =~ "who is asking"
+      refute_received {:ai_request, _}
     end
 
     test "an empty description is refused before the model is asked" do

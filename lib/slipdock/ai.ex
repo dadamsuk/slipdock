@@ -19,7 +19,7 @@ defmodule Slipdock.AI do
       have stored, declining with a message that points at Account settings
       when they have nothing;
     * otherwise the system settings (`Slipdock.AI.Keys.system_settings/0`):
-      the shared `:api_key` config, or a single user's own, which is what
+      the shared `:api_key` config, or the named or sole admin's own, which is what
       work nobody is sitting in front of runs on (the search indexer) and
       what the test stub uses.
 

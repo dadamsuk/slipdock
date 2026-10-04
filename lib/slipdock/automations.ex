@@ -157,8 +157,9 @@ defmodule Slipdock.Automations do
   spec. Returns `{:ok, rule}` or `{:error, message}`.
   """
   def create_rule_from_text(%Board{} = board, text, opts \\ []) do
-    with {:ok, %{"name" => name, "spec" => spec} = parsed} <-
-           Parser.parse(board, text, parser_opts(opts)) do
+    with {:ok, ai_opts} <- parser_opts(opts),
+         {:ok, %{"name" => name, "spec" => spec} = parsed} <-
+           Parser.parse(board, text, ai_opts) do
       attrs = %{
         "name" => name,
         "source" => text,
@@ -188,17 +189,30 @@ defmodule Slipdock.Automations do
     end
   end
 
-  # Writing a rule is an AI call, so it runs on the author's own OpenRouter
-  # key (`:created_by`) — see `Slipdock.AI.api_key/1`.
-  defp parser_opts(opts),
-    do: opts |> Keyword.delete(:created_by) |> Keyword.put(:user, opts[:created_by])
+  # Writing a rule is an AI call, so it runs on the author's own model and
+  # key (`:created_by`) — see `Slipdock.AI.provider/1`. Without one it would
+  # fall through to the system settings, which are somebody else's, so an
+  # author is required rather than assumed.
+  defp parser_opts(opts) do
+    case opts[:created_by] do
+      %Slipdock.Accounts.User{} = user ->
+        {:ok, opts |> Keyword.delete(:created_by) |> Keyword.put(:user, user)}
 
-  @doc "Re-reads a rule's plain-language description and replaces its spec."
+      _ ->
+        {:error, "Writing a rule needs to know who is asking, to use their AI model."}
+    end
+  end
+
+  @doc """
+  Re-reads a rule's plain-language description and replaces its spec, on the
+  model of whoever is asking (`:created_by`, required).
+  """
   def rewrite_rule(%Rule{} = rule, text, opts \\ []) do
     board = Repo.get!(Board, rule.board_id) |> Repo.preload([:columns, :tags])
 
-    with {:ok, %{"name" => name, "spec" => spec} = parsed} <-
-           Parser.parse(board, text, parser_opts(opts)) do
+    with {:ok, ai_opts} <- parser_opts(opts),
+         {:ok, %{"name" => name, "spec" => spec} = parsed} <-
+           Parser.parse(board, text, ai_opts) do
       case update_rule(rule, %{
              "name" => name,
              "source" => text,

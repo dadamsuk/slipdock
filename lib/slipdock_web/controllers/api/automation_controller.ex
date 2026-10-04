@@ -86,7 +86,7 @@ defmodule SlipdockWeb.API.AutomationController do
 
   def update(conn, %{"board" => ref, "id" => id} = params) do
     with {:ok, _board, rule} <- fetch_rule(conn, ref, id),
-         {:ok, rule} <- change(rule, params) do
+         {:ok, rule} <- change(rule, params, conn.assigns.current_user) do
       json(conn, %{automation: V.automation(rule)})
     end
   end
@@ -183,7 +183,7 @@ defmodule SlipdockWeb.API.AutomationController do
        "or `text` (a sentence for the model to turn into one)"}
   end
 
-  defp change(rule, params) do
+  defp change(rule, params, user) do
     cond do
       is_map(params["spec"]) or is_binary(params["name"]) or is_binary(params["scope"]) ->
         attrs =
@@ -196,7 +196,7 @@ defmodule SlipdockWeb.API.AutomationController do
         Automations.update_rule(rule, attrs)
 
       is_binary(params["text"]) ->
-        case Automations.rewrite_rule(rule, params["text"]) do
+        case Automations.rewrite_rule(rule, params["text"], created_by: user) do
           {:ok, rule} -> {:ok, rule}
           {:error, message} when is_binary(message) -> {:error, :unprocessable_entity, message}
           other -> other
