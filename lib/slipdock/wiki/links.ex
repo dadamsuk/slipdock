@@ -217,7 +217,14 @@ defmodule Slipdock.Wiki.Links do
     end)
   end
 
-  @doc "The people who can read this board: its owner, and everyone granted access."
+  @doc """
+  The people who can read this board: its owner, and everyone granted access.
+
+  The candidates come from grants anywhere in the board's tree, and each is
+  then asked whether they can read *this* board: a grant on one sub-board
+  reaches that sub-board and nothing above or beside it, and somebody who
+  holds one must not be offered, linked or emailed from the rest of the tree.
+  """
   def members(%Board{} = board) do
     root_id = Board.root_id(board)
 
@@ -244,7 +251,9 @@ defmodule Slipdock.Wiki.Links do
 
     ids = Enum.uniq([board.owner_id | grant_user_ids ++ group_user_ids]) |> Enum.reject(&is_nil/1)
 
-    Repo.all(from(u in User, where: u.id in ^ids, order_by: [asc: u.email]))
+    from(u in User, where: u.id in ^ids, order_by: [asc: u.email])
+    |> Repo.all()
+    |> Enum.filter(&Access.can_read?(Access.board_permission(&1, board)))
   end
 
   @doc ~S'The `@handle` a user answers to: the part of their email before the "@".'

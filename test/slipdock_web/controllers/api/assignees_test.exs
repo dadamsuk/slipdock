@@ -9,6 +9,7 @@ defmodule SlipdockWeb.API.AssigneesTest do
     card = card_fixture(hd(board.columns), %{"title" => "Pair on it"})
     ada = user_fixture("ada@example.com")
     bob = user_fixture("bob@example.com")
+    share_fixture(board, [ada, bob])
 
     %{
       conn: put_req_header(conn, "accept", "application/json"),
@@ -86,5 +87,42 @@ defmodule SlipdockWeb.API.AssigneesTest do
       |> json_response(201)
 
     assert emails(body) == ["ada@example.com", "bob@example.com"]
+  end
+
+  # Whether an address has an account here is not the API's to tell: somebody
+  # out of sight and nobody at all are the same 404, in the same words.
+  test "an invisible person and a nonexistent one get the same answer", %{conn: conn, card: card} do
+    user_fixture("hidden@example.com")
+    path = ~p"/api/cards/#{card.id}"
+
+    hidden = conn |> patch(path, %{"assignee" => "hidden@example.com"}) |> json_response(404)
+    nobody = conn |> patch(path, %{"assignee" => "nobody@example.com"}) |> json_response(404)
+
+    assert String.replace(hidden["error"], "hidden", "X") ==
+             String.replace(nobody["error"], "nobody", "X")
+
+    assert conn
+           |> post(~p"/api/boards/pairs/cards", %{
+             "title" => "T",
+             "assignee" => "hidden@example.com"
+           })
+           |> json_response(404)
+
+    assert Slipdock.Boards.get_card!(card.id).assignees == []
+  end
+
+  test "a page is assigned by the same rule", %{conn: conn, ada: ada} do
+    user_fixture("hidden@example.com")
+
+    assert %{"page" => page} =
+             conn
+             |> post(~p"/api/boards/pairs/pages", %{"title" => "Doc", "assignee" => ada.email})
+             |> json_response(201)
+
+    assert page["assignee"]["email"] == ada.email
+
+    assert conn
+           |> patch(~p"/api/pages/#{page["id"]}", %{"assignee" => "hidden@example.com"})
+           |> json_response(404)
   end
 end

@@ -73,7 +73,7 @@ defmodule SlipdockWeb.API.CardController do
          :ok <- Authorize.board(conn, board, :write),
          {:ok, column} <- resolve_column(board, params["column"]),
          {:ok, tags} <- resolve_tags(board, params["tags"]),
-         {:ok, assignee} <- resolve_assignees(params, conn.assigns.current_user),
+         {:ok, assignee} <- resolve_assignees(board, params, conn.assigns.current_user),
          {:ok, card} <-
            Boards.create_card(column, params |> Map.take(@card_fields) |> Map.merge(assignee),
              by: conn.assigns.current_user
@@ -90,7 +90,7 @@ defmodule SlipdockWeb.API.CardController do
          {:ok, tags} <- resolve_tags(board, params["tags"]),
          {:ok, add} <- resolve_tags(board, params["add_tags"]),
          {:ok, remove} <- resolve_tags(board, params["remove_tags"]),
-         {:ok, assignee} <- resolve_assignees(params, conn.assigns.current_user),
+         {:ok, assignee} <- resolve_assignees(card, params, conn.assigns.current_user),
          {:ok, card} <-
            Boards.update_card(card, Map.merge(card_attrs(card, params), assignee),
              by: conn.assigns.current_user
@@ -552,8 +552,13 @@ defmodule SlipdockWeb.API.CardController do
   # asking). `assignees` is the whole set and `assignee` one person — both
   # replace who is on it, and "" / null / [] unassigns. `add_assignees` and
   # `remove_assignees` change the set without restating it. Absent leaves it
-  # alone.
-  defp resolve_assignees(params, me) do
+  # alone. `target` is the card, or the board a new one is going on.
+  #
+  # Only people the caller can see and who can read the card can be put on it
+  # (`Boards.resolve_assignees/3`), and anybody else is the same 404 whether
+  # or not the address has an account, so this is not a way to find out who
+  # does. Taking somebody off looks only at who is on the card already.
+  defp resolve_assignees(target, params, me) do
     [
       {"assignees", "assignee_ids"},
       {"assignee", "assignee_ids"},
@@ -564,27 +569,33 @@ defmodule SlipdockWeb.API.CardController do
     # `assignees` wins over `assignee` when a caller sends both.
     |> Enum.uniq_by(&elem(&1, 1))
     |> Enum.reduce_while({:ok, %{}}, fn {key, attr}, {:ok, acc} ->
-      case user_ids(params[key], me) do
+      case user_ids(target, attr, emails(params[key]), me) do
         {:ok, ids} -> {:cont, {:ok, Map.put(acc, attr, ids)}}
-        error -> {:halt, error}
+        {:error, {:not_found, ref}} -> {:halt, {:error, :not_found, "user #{ref}"}}
       end
     end)
   end
 
-  defp user_ids(emails, me) do
-    emails
+  defp emails(value) do
+    value
     |> List.wrap()
     |> Enum.flat_map(&if(is_binary(&1), do: String.split(&1, ","), else: [&1]))
     |> Enum.map(&(&1 |> to_string() |> String.trim()))
     |> Enum.reject(&(&1 == ""))
-    |> Enum.reduce_while({:ok, []}, fn email, {:ok, ids} ->
-      case person(email, me) do
-        nil -> {:halt, {:error, :not_found, "user #{email}"}}
+  end
+
+  defp user_ids(%Card{} = card, "remove_assignee_ids", emails, me) do
+    on_it = Card.assignees(Boards.get_card!(card.id))
+
+    Enum.reduce_while(emails, {:ok, []}, fn email, {:ok, ids} ->
+      wanted = if email in ~w(me myself mine), do: me.email, else: String.downcase(email)
+
+      case Enum.find(on_it, &(&1.email == wanted)) do
+        nil -> {:halt, {:error, {:not_found, email}}}
         user -> {:cont, {:ok, ids ++ [user.id]}}
       end
     end)
   end
 
-  defp person(me, %Slipdock.Accounts.User{} = user) when me in ~w(me myself mine), do: user
-  defp person(email, _me), do: Slipdock.Accounts.get_user_by_email(email)
+  defp user_ids(target, _attr, emails, me), do: Boards.resolve_assignees(target, me, emails)
 end

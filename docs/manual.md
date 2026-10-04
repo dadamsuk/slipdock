@@ -45,7 +45,8 @@ way in: what it is, the pictures, and how to get it running.
   cards and subcards to a chosen depth — one level is the roadmap, all levels
   the task list
 - Assignees: a card can be assigned to one person or several (the first is
-  the lead, which is who colour-by-assignee goes by), with an assignee
+  the lead, which is who colour-by-assignee goes by) — anybody who can open
+  the card, so share the board before assigning someone new — with an assignee
   swimlane axis that puts a shared card in each person's lane, and **My work** (`/work`) lists everything assigned to you across all
   boards and levels, each with its path in the tree
 - Automations: rules written in plain English ("when a card lands in Done,

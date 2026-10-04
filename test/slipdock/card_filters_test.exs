@@ -15,7 +15,7 @@ defmodule Slipdock.CardFiltersTest do
     jess = user_fixture("jess@example.com")
     {:ok, jess} = Accounts.update_profile(jess, %{"name" => "Jess Smith"})
 
-    board = board_fixture(%{"name" => "Filters"}, owner: owner)
+    board = board_fixture(%{"name" => "Filters"}, owner: owner) |> share_fixture(jess)
     [backlog | _] = board.columns
     today = Date.utc_today()
 

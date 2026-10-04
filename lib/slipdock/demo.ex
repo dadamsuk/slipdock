@@ -97,6 +97,10 @@ defmodule Slipdock.Demo do
         owner_id: sam.id
       )
 
+    # Ash and Ren work on it, so it is shared with them: a card can only be
+    # assigned to somebody who can open it.
+    for person <- [ash, ren], do: {:ok, _} = Slipdock.Access.grant(board, person, "write", sam)
+
     board = Boards.get_board!(board.id)
     [backlog, todo, doing, done] = board.columns
     Boards.update_column(doing, %{"wip_limit" => 3, "color" => "amber"})

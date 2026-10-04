@@ -14,6 +14,7 @@ defmodule Slipdock.Mentions do
   never told about their own mention.
   """
 
+  alias Slipdock.Access
   alias Slipdock.Accounts.User
   alias Slipdock.Automations.{Notifier, Runner}
   alias Slipdock.Boards.{Board, Card}
@@ -62,7 +63,6 @@ defmodule Slipdock.Mentions do
     wanted = name |> String.trim_trailing(".") |> String.trim_trailing("-") |> String.downcase()
 
     Enum.find(members, &(Links.handle(&1) == wanted)) ||
-      Enum.find(members, &(String.downcase(&1.email) == wanted)) ||
       Enum.find(members, &(String.downcase(to_string(&1.name)) == wanted))
   end
 
@@ -95,9 +95,13 @@ defmodule Slipdock.Mentions do
     end
   end
 
+  # Members of the board can still be shut out of one card on it — a card
+  # reached only through a saved view, say — and the email quotes the card,
+  # so whoever is told has to be able to open it.
   defp notify(card, board, people, by, where, text) do
     people
     |> Enum.reject(&(by && &1.id == by.id))
+    |> Enum.filter(&Access.can_read?(Access.card_permission(&1, card)))
     |> Enum.each(fn person ->
       Notifier.deliver([person.email], subject(card, board, by), body(card, by, where, text))
     end)

@@ -150,14 +150,21 @@ defmodule SlipdockWeb.TenantIsolationTest do
   end
 
   describe "instance mode" do
-    test "still shows everybody, so no existing install changes", %{
-      conn: conn,
-      alice: alice,
-      acme: acme,
-      alice_board: board,
-      alice_card: card
-    } do
+    test "the directory still lists everybody, but a card only takes people who can open it",
+         %{conn: conn, alice: alice, acme: acme, alice_board: board, alice_card: card} do
       {:ok, _} = Settings.update(%{"user_directory" => "instance"})
+
+      assert acme.id in Enum.map(Access.visible_users(alice), & &1.id)
+
+      # Assigning somebody to a card they cannot open would email them its
+      # title and tell the assigner they have an account, whatever the
+      # directory says — so the picker offers the board's people only.
+      {:ok, _view, html} =
+        live(log_in_user(conn, alice), ~p"/boards/#{board.id}/cards/#{card.id}")
+
+      refute html =~ display_name(acme)
+
+      {:ok, _} = Access.grant(board, acme, "read", alice)
 
       {:ok, _view, html} =
         live(log_in_user(conn, alice), ~p"/boards/#{board.id}/cards/#{card.id}")
