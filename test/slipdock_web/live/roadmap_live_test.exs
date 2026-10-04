@@ -35,7 +35,10 @@ defmodule SlipdockWeb.RoadmapLiveTest do
     backlog: backlog
   } do
     {:ok, view, _} = live(conn, ~p"/boards/#{board}")
-    render_click(view, "edit_column", %{"id" => to_string(backlog.id)})
+
+    view
+    |> with_target("#board-column")
+    |> render_click("edit_column", %{"id" => to_string(backlog.id)})
 
     view
     |> form("#column-form", %{

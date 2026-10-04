@@ -72,10 +72,13 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
       id = to_string(ctx.their_col.id)
 
       render_hook(view, "rename_column", %{"column_id" => id, "name" => "Pwned"})
-      render_hook(view, "edit_column", %{"id" => id})
-      render_hook(view, "set_column_color", %{"color" => "rose"})
-      render_hook(view, "save_column", %{"column" => %{"name" => "Pwned"}})
-      render_hook(view, "delete_column", %{"id" => id})
+
+      # List settings are a component of their own.
+      settings = with_target(view, "#board-column")
+      render_hook(settings, "edit_column", %{"id" => id})
+      render_hook(settings, "set_column_color", %{"color" => "rose"})
+      render_hook(settings, "save_column", %{"column" => %{"name" => "Pwned"}})
+      render_hook(settings, "delete_column", %{"id" => id})
 
       column = Repo.get!(Column, ctx.their_col.id)
       assert column.name == ctx.their_col.name
@@ -189,12 +192,13 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
 
   describe "tags" do
     test "another board's can't be recoloured, renamed or deleted", ctx do
-      view = board_view(ctx.conn, ctx.mine)
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.mine}/tags")
+      panel = with_target(view, "#board-tags")
       id = "#{ctx.tag.id}"
 
-      render_hook(view, "set_tag_color", %{"id" => id, "color" => "rose"})
-      render_hook(view, "rename_tag", %{"tag_id" => id, "name" => "pwned"})
-      render_hook(view, "delete_tag", %{"id" => id})
+      render_hook(panel, "set_tag_color", %{"id" => id, "color" => "rose"})
+      render_hook(panel, "rename_tag", %{"tag_id" => id, "name" => "pwned"})
+      render_hook(panel, "delete_tag", %{"id" => id})
 
       tag = Repo.get!(Tag, ctx.tag.id)
       assert tag.name == "theirs" and tag.color == "sky"
@@ -369,7 +373,9 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
     for {file, module} <- [
           {"automations_component.ex", SlipdockWeb.BoardLive.AutomationsComponent},
           {"sprint_component.ex", SlipdockWeb.BoardLive.SprintComponent},
-          {"move_board_component.ex", SlipdockWeb.BoardLive.MoveBoardComponent}
+          {"move_board_component.ex", SlipdockWeb.BoardLive.MoveBoardComponent},
+          {"column_component.ex", SlipdockWeb.BoardLive.ColumnComponent},
+          {"tags_component.ex", SlipdockWeb.BoardLive.TagsComponent}
         ] do
       test "every handle_event clause in #{file} is in its event list" do
         assert handled_events(unquote(file)) -- unquote(module).events() == []
