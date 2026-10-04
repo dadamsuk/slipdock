@@ -1260,7 +1260,8 @@ defmodule SlipdockWeb.SlipdockComponents do
           "kanban-modal-in relative my-0 min-h-dvh w-full rounded-none bg-base-100 pb-[env(safe-area-inset-bottom)] shadow-2xl ring-1 ring-base-content/10 sm:my-4 sm:min-h-0 sm:rounded-2xl sm:pb-0",
           @size == "sm" && "max-w-md",
           @size == "md" && "max-w-xl",
-          @size == "lg" && "max-w-4xl"
+          @size == "lg" && "max-w-4xl",
+          @size == "xl" && "max-w-6xl"
         ]}
         phx-click-away={@on_close}
       >

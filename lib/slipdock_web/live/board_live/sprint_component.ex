@@ -605,7 +605,7 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
     <.modal
       id="sprint-picker"
       on_close={JS.push("close_sprint_picker", target: @target)}
-      size={if @mode == "plan", do: "lg", else: "md"}
+      size={if @mode == "plan", do: "xl", else: "md"}
     >
       <div class="flex max-h-[85vh] flex-col gap-4 p-6">
         <div class="flex flex-wrap items-start gap-2 pr-8">
@@ -629,14 +629,18 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
               <% end %>
             </p>
           </div>
-          <div class="flex items-center gap-1">
+          <div class="flex flex-wrap items-center gap-1">
             <form
               :if={@mode == "plan"}
               phx-target={@target}
               id="plan-sort-form"
               phx-change="plan_sort"
             >
-              <select name="sort" class="select select-sm select-bordered" title="Order each list by">
+              <select
+                name="sort"
+                class="select select-sm select-bordered w-auto"
+                title="Order each list by"
+              >
                 <option
                   :for={{value, label} <- Slipdock.Sprints.plan_sorts()}
                   value={value}
