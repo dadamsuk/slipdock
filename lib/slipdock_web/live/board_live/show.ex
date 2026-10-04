@@ -11,6 +11,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   import SlipdockWeb.NarrativeComponents
   import SlipdockWeb.PrioritiseComponents
   import SlipdockWeb.ShareComponents
+  import SlipdockWeb.SprintChartComponents
 
   alias Slipdock.{
     Access,
@@ -189,6 +190,7 @@ defmodule SlipdockWeb.BoardLive.Show do
       move_board: nil,
       new_sprint: nil,
       sprint_picker: nil,
+      sprint_charts: nil,
       sprint_of: Sprints.sprint_of_board(board),
       favourites: Favourites.marks(socket.assigns.current_user),
       rules: [],
@@ -2153,6 +2155,54 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   def handle_event("sprint_" <> _, _params, socket), do: {:noreply, socket}
 
+  # Charts: on a sprint board, velocity across its sprints and the burndown of
+  # one of them (the running one first); on a sprint's own board, its burndown.
+  def handle_event("open_sprint_charts", _params, socket) do
+    board = socket.assigns.board
+
+    charts =
+      cond do
+        Board.sprints?(board) ->
+          sprint = Sprints.current_sprint(board)
+
+          %{
+            velocity: Sprints.velocity(board),
+            burndown: sprint && Sprints.burndown(sprint),
+            sprint_id: sprint && sprint.id
+          }
+
+        sprint = socket.assigns.sprint_of ->
+          %{velocity: nil, burndown: Sprints.burndown(sprint), sprint_id: sprint.id}
+
+        true ->
+          nil
+      end
+
+    {:noreply, assign(socket, sprint_charts: charts)}
+  end
+
+  def handle_event("close_sprint_charts", _params, socket),
+    do: {:noreply, assign(socket, sprint_charts: nil)}
+
+  def handle_event(
+        "pick_chart_sprint",
+        %{"sprint" => id},
+        %{assigns: %{sprint_charts: %{velocity: %{} = v} = charts}} = socket
+      ) do
+    with {id, ""} <- Integer.parse(id),
+         true <- Enum.any?(v.sprints, &(&1.id == id)),
+         %Card{} = sprint <- Boards.get_card(id) do
+      {:noreply,
+       assign(socket,
+         sprint_charts: %{charts | burndown: Sprints.burndown(sprint), sprint_id: id}
+       )}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("pick_chart_sprint", _params, socket), do: {:noreply, socket}
+
   ## Events: the keyboard's place on the board ---------------------------------
   #
   # One notion covers both keyboard moves and stepping through a list: the
@@ -3733,6 +3783,21 @@ defmodule SlipdockWeb.BoardLive.Show do
           <span class="hidden sm:inline">New sprint</span>
         </button>
         <button
+          :if={!@card_only and (Board.sprints?(@board) or @sprint_of)}
+          id="sprint-charts"
+          type="button"
+          class="btn btn-ghost btn-sm gap-1.5"
+          phx-click="open_sprint_charts"
+          title={
+            if Board.sprints?(@board),
+              do: "Velocity across the sprints, and a sprint's burndown",
+              else: "This sprint's burndown"
+          }
+        >
+          <.icon name="hero-chart-bar" class="size-4" />
+          <span class="hidden sm:inline">Charts</span>
+        </button>
+        <button
           :if={@can_write and !@card_only and @sprint_of}
           id="sprint-add-cards"
           type="button"
@@ -4563,6 +4628,7 @@ defmodule SlipdockWeb.BoardLive.Show do
       <.move_board_modal :if={@move_board} move={@move_board} />
       <.new_sprint_modal :if={@new_sprint} new_sprint={@new_sprint} board={@board} />
       <.sprint_picker_modal :if={@sprint_picker} picker={@sprint_picker} />
+      <.sprint_charts_modal :if={@sprint_charts} charts={@sprint_charts} />
       <.tags_modal
         :if={@panel == :tags}
         board={@board}
@@ -4966,6 +5032,38 @@ defmodule SlipdockWeb.BoardLive.Show do
             </button>
           </div>
         </.form>
+      </div>
+    </.modal>
+    """
+  end
+
+  attr :charts, :map, required: true
+
+  defp sprint_charts_modal(assigns) do
+    ~H"""
+    <.modal id="sprint-charts-modal" on_close={JS.push("close_sprint_charts")} size="md">
+      <div class="space-y-6 p-6">
+        <h2 class="pr-8 text-lg font-bold">Sprint charts</h2>
+        <.velocity_chart :if={@charts.velocity} velocity={@charts.velocity} />
+        <form
+          :if={@charts.velocity && @charts.velocity.sprints != []}
+          id="chart-sprint-form"
+          phx-change="pick_chart_sprint"
+        >
+          <label class="flex items-center gap-2 text-sm">
+            <span class="text-base-content/60">Burndown for</span>
+            <select name="sprint" class="select select-sm select-bordered">
+              <option
+                :for={s <- Enum.reverse(@charts.velocity.sprints)}
+                value={s.id}
+                selected={s.id == @charts.sprint_id}
+              >
+                {s.title}
+              </option>
+            </select>
+          </label>
+        </form>
+        <.burndown_chart :if={@charts.burndown} chart={@charts.burndown} />
       </div>
     </.modal>
     """

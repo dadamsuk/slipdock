@@ -1,7 +1,8 @@
 defmodule SlipdockWeb.API.SprintController do
   @moduledoc """
   Sprints over the API (see `Slipdock.Sprints`): make the next one on a
-  sprint board, and move cards into one.
+  sprint board, move cards into one, and chart them — a sprint's burndown
+  and a sprint board's velocity.
   """
   use SlipdockWeb, :controller
 
@@ -34,6 +35,30 @@ defmodule SlipdockWeb.API.SprintController do
         json(conn, %{next: Sprints.next_sprint(board)})
       else
         {:error, :unprocessable_entity, "#{board.name} is not a sprint board"}
+      end
+    end
+  end
+
+  # Committed and completed per sprint, oldest first, and the average.
+  def velocity(conn, %{"board" => ref}) do
+    with {:ok, board} <- fetch_board(ref),
+         :ok <- Authorize.board(conn, board, :read) do
+      if Slipdock.Boards.Board.sprints?(board) do
+        json(conn, %{velocity: Sprints.velocity(board)})
+      else
+        {:error, :unprocessable_entity, "#{board.name} is not a sprint board"}
+      end
+    end
+  end
+
+  # The work left at the end of each day of the sprint, against the ideal.
+  def burndown(conn, %{"id" => id}) do
+    with {:ok, sprint} <- fetch_card(id),
+         :ok <- Authorize.card(conn, sprint, :read) do
+      if Sprints.sprint?(sprint) do
+        json(conn, %{burndown: Sprints.burndown(sprint)})
+      else
+        {:error, :unprocessable_entity, "card #{id} is not a sprint"}
       end
     end
   end

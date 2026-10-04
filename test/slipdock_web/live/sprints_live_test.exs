@@ -115,4 +115,36 @@ defmodule SlipdockWeb.SprintsLiveTest do
 
     assert Boards.get_board!(work.id).kind == "sprints"
   end
+
+  test "Charts shows velocity and a burndown, on the sprint board and the sprint's own", %{
+    conn: conn,
+    sprints: sprints,
+    work: work,
+    todo: todo
+  } do
+    {:ok, view, _} = live(conn, ~p"/boards/#{work}")
+    refute has_element?(view, "#sprint-charts")
+
+    {:ok, one} = Sprints.create_sprint(sprints, %{"start" => Date.add(Date.utc_today(), -20)})
+    {:ok, two} = Sprints.create_sprint(sprints)
+    a = card_fixture(todo, %{"title" => "A"})
+    b = card_fixture(todo, %{"title" => "B"})
+    {:ok, _} = Sprints.add_cards(two, [a, b])
+    {:ok, _} = Boards.update_card(Boards.get_card!(a.id), %{"completed" => true})
+
+    {:ok, view, _} = live(conn, ~p"/boards/#{sprints}")
+    view |> element("#sprint-charts") |> render_click()
+    assert has_element?(view, "#velocity-chart")
+    assert has_element?(view, "#burndown-#{two.id}")
+    assert render(view) =~ "1 of 2 cards done"
+
+    view |> form("#chart-sprint-form", %{"sprint" => "#{one.id}"}) |> render_change()
+    refute has_element?(view, "#burndown-#{two.id}")
+    assert render(view) =~ "Nothing in this sprint yet"
+
+    {:ok, view, _} = live(conn, ~p"/boards/#{Boards.get_card!(two.id).sub_board.id}")
+    view |> element("#sprint-charts") |> render_click()
+    assert has_element?(view, "#burndown-#{two.id}")
+    refute has_element?(view, "#velocity-chart")
+  end
 end

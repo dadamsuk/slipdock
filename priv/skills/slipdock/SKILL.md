@@ -240,6 +240,8 @@ slipdock subboard <card-id> --template T                  # card becomes a board
 slipdock subboard <card-id> --off                         # remove the subcards
 slipdock sprint <board> [--name N] [--start DATE] [--days N] [--goal TEXT]   # next sprint on a sprint board
 slipdock sprint-add <sprint-id> <card-id>...              # move cards (with subcards) into a sprint
+slipdock burndown <sprint-id>                             # a sprint's work left each day vs the ideal
+slipdock velocity <board>                                 # committed / completed per sprint, and the average
 slipdock set-board <board> --sprints | --no-sprints       # make a board a sprint board (each card a sprint)
 slipdock fav card <id> | fav list <board> <column> | fav view <board> <view> | fav board <board>
 slipdock unfav <same args>                                # or `fav ... --off`

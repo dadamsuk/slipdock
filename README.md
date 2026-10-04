@@ -65,7 +65,8 @@ Briefly, with the detail in [the manual](docs/manual.md):
   effective dates, slip, blocked-anywhere-below, health.
 - **Sprints** — [a sprint board](docs/manual.md#sprints) where each card is a
   sprint: **New sprint** dates the next one, and **Add cards…** ticks work from
-  any board (and inside any epic) into it, as many sittings as it takes.
+  any board (and inside any epic) into it, as many sittings as it takes;
+  **Charts** draws each sprint's burndown and the board's velocity.
 - **Seven views** of the same cards —
   [board](docs/manual.md#features), [swimlanes](docs/manual.md#swimlanes),
   [table](docs/manual.md#table), [timeline](docs/manual.md#timeline),

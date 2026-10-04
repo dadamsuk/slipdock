@@ -186,4 +186,94 @@ defmodule Slipdock.SprintsTest do
     assert kinds[sprints.name] == "sprints"
     assert kinds["Work"] == nil
   end
+
+  describe "charts" do
+    # Completes `card` as if on `date`, by backdating its completed_at.
+    defp complete_on(card, date) do
+      {:ok, card} = Boards.update_card(card, %{"completed" => true})
+
+      card
+      |> Ecto.Changeset.change(completed_at: DateTime.new!(date, ~T[12:00:00], "Etc/UTC"))
+      |> Slipdock.Repo.update!()
+    end
+
+    test "completing a card stamps completed_at, and reopening clears it", %{work: work} do
+      [todo | _] = work.columns
+      card = card_fixture(todo)
+      assert is_nil(card.completed_at)
+
+      {:ok, done} = Boards.update_card(card, %{"completed" => true})
+      assert %DateTime{} = done.completed_at
+
+      {:ok, open} = Boards.update_card(done, %{"completed" => false})
+      assert is_nil(open.completed_at)
+    end
+
+    test "a burndown counts the work still open at the end of each day", %{
+      sprints: sprints,
+      work: work
+    } do
+      {:ok, sprint} =
+        Sprints.create_sprint(sprints, %{"start" => "2026-03-02", "days" => "5"})
+
+      [todo | _] = work.columns
+
+      cards =
+        for t <- ~w(A B C D), do: card_fixture(todo, %{"title" => t, "time_estimate" => "2"})
+
+      {:ok, _} = Sprints.add_cards(sprint, cards)
+      [a, b, _c, _d] = Enum.map(cards, &Boards.get_card!(&1.id))
+
+      complete_on(a, ~D[2026-03-03])
+      complete_on(b, ~D[2026-03-04])
+
+      chart = Sprints.burndown(Boards.get_card!(sprint.id), ~D[2026-03-04])
+
+      assert chart.total == 4
+      assert chart.done == 2
+      assert chart.estimate == 8 * 60
+
+      assert Enum.map(chart.days, & &1.date) ==
+               Enum.to_list(Date.range(~D[2026-03-02], ~D[2026-03-06]))
+
+      assert Enum.map(chart.days, & &1.remaining) == [4, 3, 2, nil, nil]
+      assert Enum.map(chart.days, & &1.remaining_estimate) == [480, 360, 240, nil, nil]
+      assert Enum.map(chart.days, & &1.ideal) == [4.0, 3.0, 2.0, 1.0, 0.0]
+    end
+
+    test "velocity is committed and completed per sprint, averaged over finished ones", %{
+      sprints: sprints,
+      work: work
+    } do
+      [todo | _] = work.columns
+      {:ok, one} = Sprints.create_sprint(sprints, %{"start" => "2026-01-05", "days" => "14"})
+      {:ok, two} = Sprints.create_sprint(sprints, %{"start" => "2026-01-19", "days" => "14"})
+      {:ok, three} = Sprints.create_sprint(sprints, %{"start" => "2026-02-02", "days" => "14"})
+
+      fill = fn sprint, n, done ->
+        cards = for _ <- 1..n, do: card_fixture(todo)
+        {:ok, _} = Sprints.add_cards(sprint, cards)
+
+        cards
+        |> Enum.take(done)
+        |> Enum.each(&complete_on(Boards.get_card!(&1.id), sprint.start_date))
+      end
+
+      fill.(one, 5, 3)
+      fill.(two, 4, 4)
+      fill.(three, 6, 1)
+
+      v = Sprints.velocity(sprints, ~D[2026-02-05])
+
+      assert Enum.map(v.sprints, &{&1.title, &1.committed, &1.completed, &1.finished}) == [
+               {"Sprint 1", 5, 3, true},
+               {"Sprint 2", 4, 4, true},
+               {"Sprint 3", 6, 1, false}
+             ]
+
+      assert v.average == 3.5
+      assert Sprints.current_sprint(sprints, ~D[2026-02-05]).id == three.id
+      assert Sprints.current_sprint(sprints, ~D[2026-01-20]).id == two.id
+    end
+  end
 end

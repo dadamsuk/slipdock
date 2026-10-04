@@ -94,4 +94,32 @@ defmodule SlipdockWeb.API.SprintsTest do
 
     assert Boards.get_card!(card.id).board_id == theirs.id
   end
+
+  test "a sprint's burndown and a sprint board's velocity", %{
+    conn: conn,
+    sprints: sprints,
+    work: work,
+    todo: todo
+  } do
+    {:ok, sprint} = Slipdock.Sprints.create_sprint(sprints, %{"days" => "3"})
+    a = card_fixture(todo)
+    b = card_fixture(todo)
+    {:ok, _} = Slipdock.Sprints.add_cards(sprint, [a, b])
+    {:ok, _} = Boards.update_card(Boards.get_card!(a.id), %{"completed" => true})
+
+    body = conn |> get(~p"/api/cards/#{sprint.id}/burndown") |> json_response(200)
+    assert %{"total" => 2, "done" => 1, "days" => [today | _]} = body["burndown"]
+    assert today["remaining"] == 1
+    assert today["ideal"] == 2.0
+
+    body = conn |> get(~p"/api/boards/#{sprints.code}/sprints/velocity") |> json_response(200)
+
+    assert [%{"title" => "Sprint 1", "committed" => 2, "completed" => 1, "finished" => false}] =
+             body["velocity"]["sprints"]
+
+    assert body["velocity"]["average"] == nil
+
+    assert conn |> get(~p"/api/cards/#{a.id}/burndown") |> json_response(422)
+    assert conn |> get(~p"/api/boards/#{work.code}/sprints/velocity") |> json_response(422)
+  end
 end
