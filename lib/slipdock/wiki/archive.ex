@@ -140,11 +140,15 @@ defmodule Slipdock.Wiki.Archive do
     end
   end
 
+  # A leading dot goes too: a title of `..` would otherwise be a path segment
+  # that climbs out of the export folder (or the zip), and `.claude` a hidden
+  # directory nobody asked to have written.
   defp safe_name(name) do
     name
     |> to_string()
     |> String.replace(~r/[\/\\:*?"<>|]+/u, "-")
     |> String.trim()
+    |> String.replace(~r/^\.+/u, "-")
     |> String.slice(0, 80)
   end
 

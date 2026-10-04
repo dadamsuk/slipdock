@@ -1189,8 +1189,14 @@ defmodule SlipdockCLI do
 
     HTTP.get("/boards/#{enc(ref)}/pages/export", archived: archived_param(o))
     |> out(o, fn r ->
-      Enum.each(r["files"], fn %{"path" => path, "body" => body} ->
-        full = Path.join(dir, path)
+      # Every path is checked before anything is written, so a hostile entry
+      # stops the export rather than leaving half of it on disk.
+      files =
+        Enum.map(r["files"], fn %{"path" => path, "body" => body} ->
+          {contained!(dir, path), body}
+        end)
+
+      Enum.each(files, fn {full, body} ->
         File.mkdir_p!(Path.dirname(full))
         File.write!(full, body)
       end)
@@ -1433,7 +1439,7 @@ defmodule SlipdockCLI do
           {:ok, %{"content" => content}} =
             HTTP.get("/skills/#{HTTP.seg(skill["name"])}/#{file}")
 
-          path = Path.join([dir, skill["name"], file])
+          path = contained!(dir, Path.join(skill["name"], file))
           File.mkdir_p!(Path.dirname(path))
           File.write!(path, content)
           path
@@ -2221,6 +2227,27 @@ defmodule SlipdockCLI do
         true -> []
       end
     end)
+  end
+
+  # Where a server-supplied relative path lands under `dir`, or a refusal if
+  # it would land anywhere else. The server names the files, and a server (or
+  # a collaborator who titled a page `..`) must not choose where on this
+  # machine they are written.
+  @doc false
+  def contained(dir, path) do
+    root = Path.expand(dir)
+    full = Path.expand(Path.join(root, to_string(path)))
+
+    if Path.type(to_string(path)) == :relative and String.starts_with?(full, root <> "/"),
+      do: {:ok, full},
+      else: :error
+  end
+
+  defp contained!(dir, path) do
+    case contained(dir, path) do
+      {:ok, full} -> full
+      :error -> fail("refusing to write #{inspect(path)}: it is outside #{dir}")
+    end
   end
 
   defp skills_dir(o) do

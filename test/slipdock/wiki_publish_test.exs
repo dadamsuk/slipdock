@@ -264,6 +264,36 @@ defmodule Slipdock.WikiPublishTest do
       assert files["Index.md"] =~ "See [[Rollback]] and #1."
     end
 
+    test "a title of '..' or a dotfile stays inside the export", %{board: board, user: user} do
+      {:ok, up} = Wiki.create_page(board, %{"title" => ".."}, user: user)
+      {:ok, up2} = Wiki.create_page(board, %{"title" => "..", "parent_id" => up.id}, user: user)
+
+      {:ok, hidden} =
+        Wiki.create_page(board, %{"title" => ".claude", "parent_id" => up2.id}, user: user)
+
+      {:ok, _} =
+        Wiki.create_page(board, %{"title" => "CLAUDE", "parent_id" => hidden.id}, user: user)
+
+      {:ok, folder} = Wiki.create_folder(board, %{"name" => "."})
+      {:ok, filed} = Wiki.create_page(board, %{"title" => ". hidden"}, user: user)
+      {:ok, _} = Wiki.file_page(filed, folder)
+
+      paths = Archive.files(board) |> Enum.map(&elem(&1, 0))
+      assert "-/-/-claude/CLAUDE.md" in paths
+      assert "-/- hidden.md" in paths
+
+      for path <- paths, segment <- Path.split(path) do
+        refute String.starts_with?(segment, "."), "#{path} has a dot segment"
+      end
+
+      {_name, binary} = Archive.zip(board)
+      {:ok, entries} = :zip.list_dir(binary)
+
+      for {:zip_file, path, _, _, _, _} <- entries do
+        refute to_string(path) =~ ~r{(^|/)\.}
+      end
+    end
+
     test "a zip is a zip", %{board: board} do
       {name, binary} = Archive.zip(board)
       assert name == "published-wiki.zip"
