@@ -162,6 +162,7 @@ defmodule SlipdockWeb.API.JSON do
       date_precision: c.date_precision,
       completed: c.completed,
       percent_complete: c.percent_complete,
+      time: time(c),
       stated_health: Card.stated_health(c),
       fields: field_values(c),
       scores: Map.get(c, :scores) || %{},
@@ -191,6 +192,26 @@ defmodule SlipdockWeb.API.JSON do
       urls: Enum.map(urls, &card_url/1),
       inserted_at: c.inserted_at,
       updated_at: c.updated_at
+    }
+  end
+
+  # Time tracking, in the card's own unit with the raw minutes beside it so
+  # nothing has to know what a "day" is to add them up. `spent` includes a
+  # running timer; `percent` is of the estimate and can pass 100.
+  defp time(%Card{} = c) do
+    alias Slipdock.TimeTracking, as: T
+    unit = c.time_unit || T.default_unit()
+    spent = T.spent(c)
+
+    %{
+      unit: unit,
+      spent: T.in_unit(spent, unit),
+      estimate: T.in_unit(c.time_estimate, unit),
+      spent_minutes: spent,
+      estimate_minutes: c.time_estimate,
+      percent: T.percent(c),
+      timer_running: T.running?(c),
+      timer_started_at: c.timer_started_at
     }
   end
 

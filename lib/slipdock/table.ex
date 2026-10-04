@@ -19,6 +19,7 @@ defmodule Slipdock.Table do
     {"due_date", "Due", "due_date"},
     {"completed", "Done", nil},
     {"percent_complete", "% complete", "percent_complete"},
+    {"time", "Time", nil},
     {"checklist", "Checklist", nil},
     {"comments", "Comments", nil},
     {"dependencies", "Dependencies", nil},
@@ -147,6 +148,22 @@ defmodule Slipdock.Table do
 
   defp cell_text("percent_complete", card, _),
     do: if(card.percent_complete, do: "#{card.percent_complete}%", else: "")
+
+  defp cell_text("time", card, _) do
+    unit = Map.get(card, :time_unit) || Slipdock.TimeTracking.default_unit()
+    spent = Slipdock.TimeTracking.spent(card)
+
+    case {Slipdock.TimeTracking.tracked?(card), Map.get(card, :time_estimate)} do
+      {false, _} ->
+        ""
+
+      {true, nil} ->
+        Slipdock.TimeTracking.format(spent, unit)
+
+      {true, est} ->
+        "#{Slipdock.TimeTracking.format(spent, unit)} / #{Slipdock.TimeTracking.format(est, unit)}"
+    end
+  end
 
   defp cell_text("checklist", card, _) do
     items = if is_list(card.checklist_items), do: card.checklist_items, else: []

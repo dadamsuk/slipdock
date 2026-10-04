@@ -92,6 +92,7 @@ defmodule Slipdock.Swimlanes.Config do
     {"start_date", "Start date"},
     {"due_date", "Due date"},
     {"percent_complete", "% complete"},
+    {"time", "Time tracked"},
     {"dependencies", "Dependencies"},
     {"subcards", "Subcards"},
     {"checklist", "Checklist"},

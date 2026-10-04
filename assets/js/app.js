@@ -418,6 +418,22 @@ Hooks.AutoDismiss = {
   destroyed() { clearTimeout(this.timer) },
 }
 
+// A running card timer: counts up from `data-since` once a second, so the
+// server needn't push a tick. Keyed on the start time, so a restart remounts.
+Hooks.Elapsed = {
+  mounted() {
+    const since = Date.parse(this.el.dataset.since)
+    const pad = n => String(n).padStart(2, "0")
+    const tick = () => {
+      const s = Math.max(0, Math.floor((Date.now() - since) / 1000))
+      this.el.textContent = `Stop · ${Math.floor(s / 3600)}:${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}`
+    }
+    tick()
+    this.timer = setInterval(tick, 1000)
+  },
+  destroyed() { clearInterval(this.timer) },
+}
+
 // Keeps the horizontal board scrolled to the far right after adding a list.
 Hooks.ScrollEnd = {
   mounted() {
