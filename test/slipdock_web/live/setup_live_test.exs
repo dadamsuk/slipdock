@@ -21,10 +21,12 @@ defmodule SlipdockWeb.SetupLiveTest do
         "slipdock-test-sign-in-#{System.unique_integer([:positive])}.log"
       )
 
+    previous_path = Application.get_env(:slipdock, :login_fallback_path)
+
     Application.put_env(:slipdock, :login_fallback_path, fallback)
 
     on_exit(fn ->
-      Application.delete_env(:slipdock, :login_fallback_path)
+      Application.put_env(:slipdock, :login_fallback_path, previous_path)
       File.rm(fallback)
     end)
 

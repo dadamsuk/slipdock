@@ -14,10 +14,12 @@ defmodule Slipdock.SignInFallbackTest do
     path =
       Path.join(System.tmp_dir!(), "slipdock-fallback-#{System.unique_integer([:positive])}.log")
 
+    previous_path = Application.get_env(:slipdock, :login_fallback_path)
+
     Application.put_env(:slipdock, :login_fallback_path, path)
 
     on_exit(fn ->
-      Application.delete_env(:slipdock, :login_fallback_path)
+      Application.put_env(:slipdock, :login_fallback_path, previous_path)
       Application.delete_env(:slipdock, :login_fallback)
       File.rm(path)
     end)
@@ -26,6 +28,32 @@ defmodule Slipdock.SignInFallbackTest do
   end
 
   defp deliver(user), do: Accounts.deliver_sign_in(user, &"http://localhost/login/#{&1}")
+
+  defp ask_from_login_page(email),
+    do: Accounts.deliver_magic_link(email, &"http://localhost/login/#{&1}")
+
+  # config/test.exs pins the logger at :warning, which would hide exactly the
+  # `Logger.info` these tests are looking for.
+  defp capture_info(fun) do
+    previous = Logger.level()
+    Logger.configure(level: :info)
+    on_exit(fn -> Logger.configure(level: previous) end)
+    ExUnit.CaptureLog.capture_log(fun)
+  end
+
+  defp smtp_on do
+    {:ok, _} =
+      Settings.update(%{"smtp_host" => "smtp.example.com", "smtp_from_email" => "m@example.com"})
+  end
+
+  # The token is the path segment after /login/; the code is the six digits
+  # in the subject of the message the test adapter received.
+  defp sent_secrets do
+    assert_received {:email, %Swoosh.Email{subject: subject, text_body: body}}
+    [_, token] = Regex.run(~r{/login/(\S+)}, body)
+    [code] = Regex.run(~r/\d{6}/, subject)
+    {token, code}
+  end
 
   test "with no mail server, the code and the link go to one known file", %{
     user: user,
@@ -96,5 +124,64 @@ defmodule Slipdock.SignInFallbackTest do
 
     # Once mail works the back door closes itself, without anybody deciding to.
     refute Settings.login_fallback_enabled?()
+  end
+
+  describe "the log never holds a way in" do
+    test "a sign-in mailed from the login page", %{path: path} do
+      smtp_on()
+
+      log = capture_info(fn -> assert {:ok, _} = ask_from_login_page("owner@example.com") end)
+
+      {token, code} = sent_secrets()
+      refute log =~ token
+      refute log =~ code
+      refute File.exists?(path)
+    end
+
+    test "a sign-in mailed by the setup wizard or an invitation", %{user: user} do
+      smtp_on()
+
+      log = capture_info(fn -> assert {:ok, :emailed} = deliver(user) end)
+
+      {token, code} = sent_secrets()
+      refute log =~ token
+      refute log =~ code
+    end
+
+    test "no mail and the fallback switched off", %{path: path} do
+      {:ok, _} = Settings.update(%{"login_fallback_enabled" => false})
+
+      log = capture_info(fn -> assert {:ok, _} = ask_from_login_page("owner@example.com") end)
+
+      {token, code} = sent_secrets()
+      refute log =~ token
+      refute log =~ code
+      refute File.exists?(path)
+    end
+
+    test "the admin-address code", %{user: user} do
+      smtp_on()
+
+      log =
+        capture_info(fn ->
+          assert {:ok, :sent} = Accounts.request_admin_email_change("new@example.com", user)
+        end)
+
+      assert_received {:email, %Swoosh.Email{to: [{_, "new@example.com"}], subject: subject}}
+      [code] = Regex.run(~r/\d{6}/, subject)
+      refute log =~ code
+    end
+  end
+
+  test "with no mail and the fallback on, the login page writes the fallback", %{path: path} do
+    # The only way into a fresh install that has no mail server: what the
+    # notifier used to log on every delivery now comes from here, and only here.
+    log = capture_info(fn -> assert {:ok, _} = ask_from_login_page("owner@example.com") end)
+
+    {token, code} = sent_secrets()
+    line = File.read!(path)
+    assert line =~ token
+    assert line =~ code
+    assert log =~ code
   end
 end

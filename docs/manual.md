@@ -1757,8 +1757,12 @@ sets its own.
 Mail goes out over SMTP when `SLIPDOCK_SMTP_HOST` (plus optional
 `SLIPDOCK_SMTP_PORT`, `SLIPDOCK_SMTP_USER`, `SLIPDOCK_SMTP_PASSWORD`,
 `SLIPDOCK_MAIL_FROM`) is set. Without it, sent mail stays in an in-memory
-mailbox at `/dev/mailbox` and the link is also written to the server log
-(`journalctl -u slipdock | grep "sign-in link"`).
+mailbox at `/dev/mailbox`, and while the sign-in fallback is on (the default
+until mail is configured) the code and link are written to
+`log/sign-in-links.log` and the server log
+(`journalctl -u slipdock | grep "Sign-in code"`). Turn the fallback off and
+they are written nowhere; once mail works, sign-in links and codes never reach
+the log at all.
 
 ### Signing an agent in
 

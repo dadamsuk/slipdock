@@ -128,10 +128,12 @@ defmodule Slipdock.InvitesTest do
       path =
         Path.join(System.tmp_dir!(), "slipdock-invite-#{System.unique_integer([:positive])}.log")
 
+      previous_path = Application.get_env(:slipdock, :login_fallback_path)
+
       Application.put_env(:slipdock, :login_fallback_path, path)
 
       on_exit(fn ->
-        Application.delete_env(:slipdock, :login_fallback_path)
+        Application.put_env(:slipdock, :login_fallback_path, previous_path)
         File.rm(path)
       end)
 

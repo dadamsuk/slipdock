@@ -47,6 +47,10 @@ config :slipdock, :base_url, "http://localhost:4002"
 
 config :slipdock, :uploads_dir, Path.expand("../tmp/test_uploads", __DIR__)
 
+# Signing in through the login page writes the sign-in fallback while no mail
+# server is configured, which is every test. Somewhere other than ./log.
+config :slipdock, :login_fallback_path, Path.expand("../tmp/test_sign_in_links.log", __DIR__)
+
 # The search indexer never flushes on its own in tests; they call
 # `Slipdock.Search.Indexer.flush/0` when they want the index brought up to date.
 config :slipdock, :search, interval: :manual

@@ -32,9 +32,9 @@ defmodule Slipdock.Accounts.UserNotifier do
       If you didn't ask for this, you can ignore this email.
       """)
 
-    # Handy when no real mail transport is configured (dev / Local adapter).
-    Logger.info("Sign-in for #{user.email}: #{if code, do: "code #{code}, ", else: ""}#{url}")
-
+    # Never log the link or the code: whoever reads the log could sign in as
+    # this person. With no mail server, `Slipdock.Accounts` writes them to the
+    # sign-in fallback instead, and only while that is switched on.
     with {:ok, _} <- Mailer.deliver_configured(email), do: {:ok, email}
   end
 
@@ -116,7 +116,8 @@ defmodule Slipdock.Accounts.UserNotifier do
       not expecting this, ignore it and nothing will.
       """)
 
-    Logger.info("Admin address change to #{address} requested by #{by.email}: code #{code}")
+    # Not the code: the log is not the inbox this is meant to prove.
+    Logger.info("Admin address change to #{address} requested by #{by.email}.")
 
     with {:ok, _} <- Mailer.deliver_configured(email), do: {:ok, email}
   end

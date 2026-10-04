@@ -189,12 +189,24 @@ defmodule Slipdock.Accounts do
   Returns `{:error, :not_allowed}` when this server will not make an account
   for that address (see `signup_allowed?/1`). The caller should not tell the
   visitor which of the two happened — that would say who has an account here.
+
+  With no mail server the message still goes to the compiled adapter (the
+  `/dev/mailbox` in development), and the link and code are also written to
+  the sign-in fallback — but only while `Settings.login_fallback_enabled?/0`
+  says so. Switched off, they are written nowhere a person could read them.
   """
   def deliver_magic_link(email, url_fun) when is_function(url_fun, 1) do
     with :ok <- check_signup(email),
          {:ok, user} <- get_or_create_user_by_email(email) do
       {token, code} = create_magic_token(user)
-      UserNotifier.deliver_magic_link(user, url_fun.(token), code)
+      link = url_fun.(token)
+
+      with {:ok, _} = sent <- UserNotifier.deliver_magic_link(user, link, code) do
+        if not Settings.smtp_configured?() and Settings.login_fallback_enabled?(),
+          do: write_sign_in_fallback(user, link, code)
+
+        sent
+      end
     end
   end
 
