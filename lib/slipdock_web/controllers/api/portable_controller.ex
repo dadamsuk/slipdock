@@ -15,7 +15,7 @@ defmodule SlipdockWeb.API.PortableController do
   """
   use SlipdockWeb, :controller
 
-  alias Slipdock.{Boards, Portable}
+  alias Slipdock.{Boards, Importers, Portable}
   alias SlipdockWeb.API.Authorize
 
   action_fallback SlipdockWeb.API.FallbackController
@@ -44,17 +44,30 @@ defmodule SlipdockWeb.API.PortableController do
   `POST /api/import`.
 
   The body is either the document itself — what `GET /api/export` returns under
-  `export`, or a whole response with that key — or `{"export": {…}}`. The
-  answer says what was built and what could not be.
+  `export`, or a whole response with that key — or `{"export": {…}}`. It may
+  also be another tool's export (a Trello board's JSON), which is recognised
+  by its shape; `?from=trello` says so outright. The answer says what was
+  built, which reader it went through, and what could not come.
   """
   def import(conn, params) do
-    case Portable.import(conn.assigns.current_user, document(params)) do
+    {from, params} = Map.pop(params, "from")
+
+    case Importers.import(conn.assigns.current_user, document(params), from: from) do
       {:ok, report} ->
         json(conn, %{imported: report})
 
       {:error, :not_a_slipdock_export} ->
         {:error, :unprocessable_entity,
-         "that is not a Slipdock export — it has no \"slipdock_portable\" version in it"}
+         "that is not a Slipdock export — it has no \"slipdock_portable\" version in it — " <>
+           "nor a board export from #{sources()}"}
+
+      {:error, {:unknown_source, from}} ->
+        {:error, :unprocessable_entity,
+         "this server can't import from “#{from}”; it reads #{Enum.join(Importers.keys(), ", ")}"}
+
+      {:error, :not_a_trello_export} ->
+        {:error, :unprocessable_entity,
+         "that is not a Trello board export — it has no lists and cards in it"}
 
       {:error, {:unsupported_version, version}} ->
         {:error, :unprocessable_entity,
@@ -84,6 +97,8 @@ defmodule SlipdockWeb.API.PortableController do
   end
 
   ## Internals
+
+  defp sources, do: Importers.sources() |> Enum.map(& &1.label()) |> Enum.join(" or ")
 
   # A document may arrive bare, or still wrapped in the response it came out
   # of — people pipe `GET /api/export` straight back in, and refusing that

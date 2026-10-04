@@ -133,6 +133,24 @@ defmodule SlipdockWeb.PortableAPITest do
       assert json_response(conn, 422)["error"] =~ "slipdock_portable"
     end
 
+    test "a Trello board's JSON comes in through the Trello reader", %{owner: owner} do
+      trello = "test/support/fixtures/trello_board.json" |> File.read!() |> Jason.decode!()
+
+      body = token_conn(owner) |> post(~p"/api/import", trello) |> json_response(200)
+
+      assert body["imported"]["source"] == "trello"
+      assert [%{"name" => "Garden"}] = body["imported"]["boards"]
+      assert Enum.any?(body["imported"]["skipped"], &(&1 =~ "no email addresses"))
+    end
+
+    test "?from= names the reader, and an unknown one is refused", %{owner: owner} do
+      conn = token_conn(owner) |> post(~p"/api/import?from=trello", %{"boards" => []})
+      assert json_response(conn, 422)["error"] =~ "not a Trello board export"
+
+      conn = token_conn(owner) |> post(~p"/api/import?from=asana", %{"boards" => []})
+      assert json_response(conn, 422)["error"] =~ "can't import from “asana”"
+    end
+
     test "a format version this build does not read", %{owner: owner} do
       conn =
         token_conn(owner)

@@ -195,7 +195,12 @@ defmodule SlipdockWeb.AccountLive.Index do
   defp import_error(:not_json), do: "That file is not JSON."
 
   defp import_error(:not_a_slipdock_export),
-    do: "That is not a Slipdock export — a board document says so in its first line."
+    do:
+      "That is not a Slipdock export — a board document says so in its first line — " <>
+        "nor a Trello board's JSON."
+
+  defp import_error(:not_a_trello_export),
+    do: "That is not a Trello board export — it has no lists and cards in it."
 
   defp import_error({:unsupported_version, version}),
     do:
@@ -300,7 +305,7 @@ defmodule SlipdockWeb.AccountLive.Index do
     user = socket.assigns.current_user
 
     case consume_uploaded_entries(socket, :board_document, fn %{path: path}, _entry ->
-           {:ok, Portable.import(user, File.read!(path))}
+           {:ok, Slipdock.Importers.import(user, File.read!(path))}
          end) do
       [{:ok, report}] ->
         {:noreply,
@@ -1219,7 +1224,8 @@ defmodule SlipdockWeb.AccountLive.Index do
               <div class="mt-6 border-t border-base-content/10 pt-5">
                 <h3 class="text-sm font-medium">Bring boards in</h3>
                 <p class="mt-1 text-xs text-base-content/60">
-                  A file like the one above, from this server or another one. It always makes
+                  A file like the one above, from this server or another one — or a Trello
+                  board, exported from Trello as JSON (Menu → Print, export and share). It always makes
                   <span class="font-medium">new</span>
                   boards — it never merges into one you already have, because deciding which card
                   is “the same card” is how an import quietly destroys work.

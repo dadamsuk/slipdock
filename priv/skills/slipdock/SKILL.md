@@ -435,6 +435,13 @@ reissued on import and `[[W-31]]` in the bodies is rewritten to match — but a 
 inside a page body still points at the old server's card id and cannot be fixed, so say so if
 the user's pages do that.
 
+**From Trello.** `slipdock import trello.json` also reads a Trello board's JSON export
+(Trello: Menu → Print, export and share → Export as JSON), recognised by its shape;
+`--from trello` says so outright. Lists, cards, labels (as tags), checklists, comments (with
+who wrote them in the text), dates and attachments (as links) come across. Members do not —
+Trello's export has no email addresses — so tell the user the cards arrive unassigned; archived
+lists and custom fields stay behind too, and the output lists what did.
+
 `slipdock export` only ever takes boards the user **owns**. A board merely shared with them is
 somebody else's to hand on.
 

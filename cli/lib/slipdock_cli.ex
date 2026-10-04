@@ -177,8 +177,10 @@ defmodule SlipdockCLI do
                                         dependencies and the wiki. No board named takes every
                                         one you own; --archived brings in what is put away.
                                         Without --out it goes to stdout
-    import <file.json>                  build the trees in a document. Always new boards —
-                                        it never merges into what is already here
+    import <file.json> [--from SRC]     build the trees in a document. Always new boards —
+                                        it never merges into what is already here. A
+                                        Trello board's JSON export works too, recognised
+                                        by its shape; --from trello says so outright
     page export <board> --dir D         write the wiki out as .md files with front matter
     page import <board> --dir D [--overwrite]
                                         read a folder of Markdown in; folders become parents,
@@ -336,6 +338,7 @@ defmodule SlipdockCLI do
 
   @switches [
     json: :boolean,
+    from: :string,
     scope: :string,
     remove: :boolean,
     key: :string,
@@ -1154,10 +1157,13 @@ defmodule SlipdockCLI do
   defp run("import", [path], o) do
     unless File.regular?(path), do: fail("#{path} is not a file")
 
-    HTTP.post("/import", read_document(path))
+    query = if o[:from], do: HTTP.encode_query(from: o[:from]), else: ""
+
+    HTTP.post("/import" <> query, read_document(path))
     |> out(o, fn r ->
       report = r["imported"]
-      IO.puts("imported #{report["cards"]} card(s) and #{report["pages"]} page(s)")
+      from = if report["source"] in [nil, "slipdock"], do: "", else: " from #{report["source"]}"
+      IO.puts("imported #{report["cards"]} card(s) and #{report["pages"]} page(s)#{from}")
 
       Enum.each(report["boards"] || [], fn b ->
         IO.puts("  #{b["code"]}  #{b["name"]}")
@@ -1169,7 +1175,7 @@ defmodule SlipdockCLI do
     end)
   end
 
-  defp run("import", _args, _o), do: fail("import <file.json>")
+  defp run("import", _args, _o), do: fail("import <file.json> [--from trello]")
 
   # Out and back in: a wiki you cannot get your writing out of is one to think
   # twice about putting writing into.
