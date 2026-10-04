@@ -29,6 +29,8 @@ defmodule SlipdockWeb.LoginLive.Index do
        code_error: nil,
        agentic_file: nil,
        agentic: Accounts.agentic_login_enabled?(),
+       # Nil on a server with no terms, and then the page says nothing about them.
+       terms: if(Slipdock.Settings.terms?(), do: Slipdock.Settings.get()),
        dev_mailbox: Application.get_env(:slipdock, :dev_routes, false)
      )}
   end
@@ -338,6 +340,15 @@ defmodule SlipdockWeb.LoginLive.Index do
               <.icon name="hero-cpu-chip" class="size-4" /> Agentic Login
             </button>
           </.form>
+
+          <p :if={@terms} id="login-terms" class="mt-4 text-center text-xs text-base-content/60">
+            By signing in you agree to these
+            <a href={@terms.terms_url} target="_blank" rel="noopener" class="link">terms</a>
+            <%= if @terms.privacy_url not in [nil, ""] do %>
+              and this
+              <a href={@terms.privacy_url} target="_blank" rel="noopener" class="link">privacy notice</a>
+            <% end %>
+          </p>
 
           <.request_panel
             :if={@stance == :approval && !@sent_to && !@agentic_file}
