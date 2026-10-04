@@ -183,7 +183,12 @@ defmodule Slipdock.Egress do
     end
   end
 
-  defp allows?(entry, address) do
+  defp allows?(entry, address), do: in_cidr?(address, entry)
+
+  @doc false
+  # Whether `address` (a tuple) falls inside `entry`, a CIDR string as `cidr/1`
+  # reads it. A malformed entry, or one of the other address family, is false.
+  def in_cidr?(address, entry) do
     case cidr(entry) do
       {network, bits} when tuple_size(network) == tuple_size(address) ->
         in_range?(address, {network, bits})

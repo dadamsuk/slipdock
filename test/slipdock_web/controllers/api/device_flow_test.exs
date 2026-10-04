@@ -236,6 +236,48 @@ defmodule SlipdockWeb.API.DeviceFlowTest do
     end
   end
 
+  describe "the address it was asked from" do
+    test "a forwarded header from a stranger is not believed", ctx do
+      conn =
+        %{ctx.conn | remote_ip: {203, 0, 113, 9}}
+        |> put_req_header("x-forwarded-for", "192.0.2.77")
+
+      started = start(conn)
+
+      assert Repo.get_by!(DeviceAuthorization, user_code: strip(started["user_code"])).client_ip ==
+               "203.0.113.9"
+    end
+
+    test "one from our own proxy is", ctx do
+      conn =
+        %{ctx.conn | remote_ip: {127, 0, 0, 1}}
+        |> put_req_header("x-forwarded-for", "198.51.100.7")
+
+      started = start(conn)
+
+      assert Repo.get_by!(DeviceAuthorization, user_code: strip(started["user_code"])).client_ip ==
+               "198.51.100.7"
+    end
+
+    test "spoofing the header does not dodge the limit", ctx do
+      previous = Application.get_env(:slipdock, :rate_limit)
+      Application.put_env(:slipdock, :rate_limit, enabled: true)
+      Slipdock.RateLimit.reset()
+      on_exit(fn -> Application.put_env(:slipdock, :rate_limit, previous) end)
+
+      statuses =
+        for n <- 1..40 do
+          %{ctx.conn | remote_ip: {203, 0, 113, 9}}
+          |> put_req_header("x-forwarded-for", "192.0.2.#{n}")
+          |> Plug.Conn.delete_req_header("authorization")
+          |> post(~p"/api/auth/device", %{})
+          |> Map.get(:status)
+        end
+
+      assert 429 in statuses
+    end
+  end
+
   describe "grinding and housekeeping" do
     test "looking up codes is rate limited", ctx do
       # Rate limiting is off in test by default, so turn it on for this one.

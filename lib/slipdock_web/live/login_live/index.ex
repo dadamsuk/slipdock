@@ -3,10 +3,15 @@ defmodule SlipdockWeb.LoginLive.Index do
 
   alias Slipdock.{Accounts, RateLimit}
 
-  # Per address, and per source address: enough for somebody who keeps
+  # Sending, per address and per source address: enough for somebody who keeps
   # mistyping their email, nowhere near enough to use this server as a mailer.
   @per_email 5
   @per_ip 20
+  # Typing a code has its own counter, keyed on who is typing *and* the address,
+  # so a stranger asking for links to your address cannot also stop you entering
+  # the code. Each code already dies after a few wrong guesses, which is what
+  # protects the address itself.
+  @codes_per_ip_and_email 10
   @window :timer.hours(1)
 
   @impl true
@@ -16,7 +21,7 @@ defmodule SlipdockWeb.LoginLive.Index do
        page_title: "Sign in",
        # Captured at mount: the peer is in the connect info, which a later
        # event no longer has.
-       peer: peer_ip(socket),
+       peer: SlipdockWeb.ClientIP.from_socket(socket),
        form: to_form(%{"email" => ""}, as: :login),
        sent_to: nil,
        stance: Accounts.signup_stance(),
@@ -112,7 +117,7 @@ defmodule SlipdockWeb.LoginLive.Index do
   def handle_event("code", %{"login" => %{"code" => code}}, socket) do
     email = socket.assigns.sent_to
 
-    case allowed_to_try(socket, email) do
+    case allowed_to_enter_code(socket, email) do
       {:error, {:too_many, seconds}} ->
         {:noreply, assign(socket, code_error: too_many_message(seconds))}
 
@@ -135,21 +140,16 @@ defmodule SlipdockWeb.LoginLive.Index do
   end
 
   # An address this server will not sign in gets the same screen as one it
-  # will: anything else answers "does this person have an account here?" for
-  # whoever asks.
+  # will, in the same time: anything else answers "does this person have an
+  # account here?" for whoever asks. So the sending happens in the background,
+  # and a failure to send goes to the log rather than the page.
   defp send_link(socket, email) do
-    case Accounts.deliver_magic_link(email, &url(~p"/login/#{&1}")) do
-      {:ok, _} ->
+    case Accounts.deliver_magic_link_later(email, &url(~p"/login/#{&1}")) do
+      :ok ->
         assign(socket, sent_to: String.downcase(String.trim(email)))
 
-      {:error, :not_allowed} ->
-        assign(socket, sent_to: String.downcase(String.trim(email)))
-
-      {:error, %Ecto.Changeset{}} ->
+      {:error, :invalid_email} ->
         put_flash(socket, :error, "That doesn't look like an email address.")
-
-      {:error, _} ->
-        put_flash(socket, :error, "The sign-in email couldn't be sent. Check the mail settings.")
     end
   end
 
@@ -167,6 +167,15 @@ defmodule SlipdockWeb.LoginLive.Index do
     end
   end
 
+  defp allowed_to_enter_code(socket, email) do
+    address = email |> to_string() |> String.trim() |> String.downcase()
+
+    case hit("login:code:" <> socket.assigns.peer <> ":" <> address, @codes_per_ip_and_email) do
+      :ok -> :ok
+      {:error, seconds} -> {:error, {:too_many, seconds}}
+    end
+  end
+
   defp hit(key, limit), do: RateLimit.hit(key, limit, @window)
 
   defp too_many_message(seconds) when seconds < 120,
@@ -174,13 +183,6 @@ defmodule SlipdockWeb.LoginLive.Index do
 
   defp too_many_message(seconds),
     do: "Too many sign-in attempts. Try again in #{div(seconds, 60)} minutes."
-
-  defp peer_ip(socket) do
-    case Phoenix.LiveView.get_connect_info(socket, :peer_data) do
-      %{address: address} -> address |> :inet.ntoa() |> to_string()
-      _ -> "unknown"
-    end
-  end
 
   # What the page says under the nose of the form. It must never say whether a
   # particular address has an account — that answers "who is here" for anybody

@@ -23,7 +23,7 @@ defmodule SlipdockWeb.API.DeviceController do
 
   @doc "POST /api/auth/device — begin a request."
   def create(conn, params) do
-    ip = client_ip(conn)
+    ip = SlipdockWeb.ClientIP.from_conn(conn)
 
     case RateLimit.hit("device:start:#{ip}", @starts_per_hour, 3_600_000) do
       {:error, _retry_in} ->
@@ -67,7 +67,7 @@ defmodule SlipdockWeb.API.DeviceController do
 
   @doc "POST /api/auth/device/token — poll until a person decides."
   def token(conn, %{"device_code" => device_code}) do
-    ip = client_ip(conn)
+    ip = SlipdockWeb.ClientIP.from_conn(conn)
 
     case RateLimit.hit("device:poll:#{ip}", @polls_per_minute, 60_000) do
       {:error, _retry_in} ->
@@ -126,11 +126,4 @@ defmodule SlipdockWeb.API.DeviceController do
   end
 
   defp board_ids(_), do: []
-
-  defp client_ip(conn) do
-    case get_req_header(conn, "x-forwarded-for") do
-      [value | _] -> value |> String.split(",") |> List.first() |> String.trim()
-      [] -> conn.remote_ip |> :inet.ntoa() |> to_string()
-    end
-  end
 end

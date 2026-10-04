@@ -252,6 +252,51 @@ defmodule Slipdock.Accounts do
   end
 
   @doc """
+  `deliver_magic_link/2` off the caller's back, for the sign-in page.
+
+  Done inline, an address that may sign in costs a database write and an SMTP
+  round trip while a refused one returns at once — and that difference answers
+  "does this person have an account here?" for anybody with a stopwatch. Run
+  from a task, both return as soon as the address is seen to be well formed.
+
+  Returns `:ok`, or `{:error, :invalid_email}` for an address that is not one,
+  which says nothing about who is here. Failures to send are logged rather
+  than returned: telling the visitor would be the same leak.
+
+  `config :slipdock, :sign_in_mail, async: false` runs it inline, for tests.
+  """
+  @spec deliver_magic_link_later(String.t(), (String.t() -> String.t())) ::
+          :ok | {:error, :invalid_email}
+  def deliver_magic_link_later(email, url_fun) when is_function(url_fun, 1) do
+    if User.email_changeset(%User{}, %{"email" => to_string(email)}).valid? do
+      send_later(fn ->
+        case deliver_magic_link(email, url_fun) do
+          {:ok, _} -> :ok
+          {:error, :not_allowed} -> :ok
+          {:error, reason} -> Logger.warning("Sign-in email not sent: #{inspect(reason)}")
+        end
+      end)
+    else
+      {:error, :invalid_email}
+    end
+  end
+
+  # The supervisor has a ceiling; a sign-in that finds it full runs inline
+  # rather than being dropped, since a lost link strands somebody.
+  defp send_later(fun) do
+    if Application.get_env(:slipdock, :sign_in_mail, [])[:async] == false do
+      fun.()
+    else
+      case Task.Supervisor.start_child(Slipdock.TaskSupervisor, fun) do
+        {:ok, _pid} -> :ok
+        {:error, _} -> fun.()
+      end
+    end
+
+    :ok
+  end
+
+  @doc """
   Gets `user` a way in, by whichever route this server actually has: an emailed
   link when mail is configured, and otherwise a file on the server plus the log.
 
