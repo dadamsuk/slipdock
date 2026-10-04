@@ -42,6 +42,42 @@ defmodule SlipdockWeb.API.BoardPartsTest do
       refute Enum.any?(Boards.get_board!(board.id).columns, &(&1.id == id))
     end
 
+    test "deleting a list that holds cards is refused, archived cards included",
+         %{conn: conn, board: board} do
+      [column | _] = board.columns
+      card_fixture(column, %{"title" => "Live"})
+      {:ok, _} = card_fixture(column, %{"title" => "Old"}) |> Boards.archive_card()
+
+      refused =
+        conn
+        |> delete(~p"/api/boards/#{board.id}/columns/#{column.id}")
+        |> json_response(409)
+
+      assert %{"error" => "list_not_empty", "cards" => 2, "archived" => 1} = refused
+      assert refused["message"] =~ "/columns/#{column.id}/recursive"
+      assert Enum.any?(Boards.get_board!(board.id).columns, &(&1.id == column.id))
+      assert Boards.column_card_counts(column) == {2, 1}
+    end
+
+    test "recursive delete takes the list, its cards and their subcards",
+         %{conn: conn, board: board} do
+      [column | _] = board.columns
+      card = card_fixture(column, %{"title" => "Epic"})
+      {:ok, t} = Boards.find_template("Simple")
+      {:ok, sub} = Boards.create_sub_board(card, t)
+      sub = Boards.get_board!(sub.id)
+      card_fixture(hd(sub.columns), %{"title" => "Step"})
+
+      assert %{"ok" => true, "deleted_cards" => 1, "deleted_archived" => 0} =
+               conn
+               |> delete(~p"/api/boards/#{board.id}/columns/#{column.id}/recursive")
+               |> json_response(200)
+
+      refute Enum.any?(Boards.get_board!(board.id).columns, &(&1.id == column.id))
+      assert Boards.get_card(card.id) == nil
+      assert Slipdock.Repo.get(Boards.Board, sub.id) == nil
+    end
+
     test "a list's category is set on create and update, and cleared with an empty one",
          %{conn: conn, board: board} do
       created =

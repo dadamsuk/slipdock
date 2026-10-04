@@ -351,6 +351,7 @@ defmodule SlipdockWeb.Router do
     post "/boards/:board/columns", BoardController, :create_column
     patch "/boards/:board/columns/:id", BoardController, :update_column
     delete "/boards/:board/columns/:id", BoardController, :delete_column
+    delete "/boards/:board/columns/:id/recursive", BoardController, :recursive_delete
     get "/boards/:board/fields", BoardController, :fields
     post "/boards/:board/fields", BoardController, :create_field
     patch "/boards/:board/fields/:id", BoardController, :update_field
