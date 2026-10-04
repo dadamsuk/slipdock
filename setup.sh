@@ -15,6 +15,11 @@
 # for rebuilding a server from a script, and the only way to test this file.
 set -eu
 
+# Everything this writes holds secrets — the database password, perhaps an SMTP
+# one — so it is private from the moment it exists, not after a chmod that
+# leaves a window and misses the backup copy.
+umask 077
+
 ENV_FILE="${1:-.env}"
 
 say() { printf '%s\n' "$*"; }
@@ -39,12 +44,42 @@ yes_no() {
   [ -z "$_answer" ] && _answer="$_default"
   case "$_answer" in [Yy]*) eval "$_var=y" ;; *) eval "$_var=n" ;; esac
 }
+ask_secret() {
+  # ask_secret <variable> <prompt> — as ask, but not echoed while it is typed.
+  _var="$1"; _prompt="$2"
+  printf '%s: ' "$_prompt"
+  if [ -t 0 ]; then
+    stty -echo
+    trap 'stty echo' EXIT INT TERM
+    read -r _answer || _answer=""
+    stty echo
+    trap - EXIT INT TERM
+    printf '\n'
+  else
+    read -r _answer || _answer=""
+  fi
+  eval "$_var=\$_answer"
+}
+# A value from an existing env file, or nothing.
+env_value() {
+  [ -f "$1" ] || return 0
+  sed -n "s/^$2=//p" "$1" | tail -n 1
+}
+# 32 random characters that need no quoting in a URL or a .env.
+random_password() {
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -hex 16
+  else
+    od -An -N16 -tx1 /dev/urandom | tr -d ' \n'
+  fi
+}
 
 say ""
 say "Setting up Slipdock. Five questions, then a .env you can edit by hand"
 say "afterwards. Press enter to take the suggestion in brackets."
 say ""
 
+DB_PASSWORD=""; KEEP_DB_DEFAULT=n
 if [ -e "$ENV_FILE" ]; then
   say "There is already a $ENV_FILE here."
   yes_no OVERWRITE "Replace it? (a copy is kept as $ENV_FILE.bak)" n
@@ -52,8 +87,15 @@ if [ -e "$ENV_FILE" ]; then
     say "Left alone. Nothing written."
     exit 0
   fi
+  rm -f "$ENV_FILE.bak"
   cp "$ENV_FILE" "$ENV_FILE.bak"
+  chmod 600 "$ENV_FILE.bak" 2>/dev/null || true
   say "Kept the old one as $ENV_FILE.bak."
+  # Postgres sets its password once, when its volume is first created, so an
+  # install that already has one must keep it — and one that never set it is
+  # still on the old default, which a new password here would lock out.
+  DB_PASSWORD="$(env_value "$ENV_FILE" POSTGRES_PASSWORD)"
+  [ -n "$DB_PASSWORD" ] || KEEP_DB_DEFAULT=y
   say ""
 fi
 
@@ -87,9 +129,12 @@ say ""
 say "3. The port on *this* machine for Slipdock to listen on."
 if [ "$PROXIED" = "y" ]; then
   say "   Your proxy forwards to it. It does not need to be reachable from"
-  say "   outside, and 127.0.0.1:4000 is a good answer if the proxy is local."
+  say "   outside, so the suggestion listens on this machine only. If the"
+  say "   proxy is on another machine, answer 4000 to listen on every address."
+  ask PUBLISH "   Listen on" "127.0.0.1:4000"
+else
+  ask PUBLISH "   Listen on" "4000"
 fi
-ask PUBLISH "   Listen on" "4000"
 
 # When nothing is in front, the port people connect to is the one it listens on.
 if [ "$PROXIED" != "y" ]; then
@@ -114,8 +159,12 @@ if [ "$WANT_MAIL" = "y" ]; then
   ask SMTP_PORT "   SMTP port" "587"
   ask SMTP_FROM "   Send from" "${ADMIN:-slipdock@$HOST}"
   ask SMTP_USER "   Username (empty for an IP-authorised relay)" ""
-  [ -n "$SMTP_USER" ] && ask SMTP_PASS "   Password" ""
+  [ -n "$SMTP_USER" ] && ask_secret SMTP_PASS "   Password (not shown)"
 fi
+
+# The bundled Postgres' password. A new install gets a random one rather than
+# the published default.
+[ -n "$DB_PASSWORD" ] || [ "$KEEP_DB_DEFAULT" = y ] || DB_PASSWORD="$(random_password)"
 
 # ─ write it out ---------------------------------------------------------------
 {
@@ -130,6 +179,15 @@ fi
   echo "SLIPDOCK_URL_SCHEME=$SCHEME"
   echo "SLIPDOCK_URL_PORT=$URL_PORT"
   [ -n "$ADMIN" ] && echo "SLIPDOCK_ADMIN_EMAIL=$ADMIN"
+  echo ""
+  if [ "$KEEP_DB_DEFAULT" = y ]; then
+    echo "# The database password is still compose.yaml's default. Postgres only"
+    echo "# reads POSTGRES_PASSWORD when its volume is first created, so change it"
+    echo "# with ALTER USER inside the database before setting it here."
+  else
+    echo "# Read by Postgres once, when its volume is first created; see compose.yaml."
+    echo "POSTGRES_PASSWORD=$DB_PASSWORD"
+  fi
   if [ -n "$SMTP_HOST" ]; then
     echo ""
     echo "SLIPDOCK_SMTP_HOST=$SMTP_HOST"
@@ -140,13 +198,13 @@ fi
   fi
 } > "$ENV_FILE"
 
-# It can hold an SMTP password.
+# umask covers a new file; an existing one keeps the mode it had.
 chmod 600 "$ENV_FILE" 2>/dev/null || true
 
 say ""
 say "Written $ENV_FILE:"
 say ""
-sed 's/^\(SLIPDOCK_SMTP_PASSWORD=\).*/\1********/; s/^/    /' "$ENV_FILE"
+sed 's/^\(SLIPDOCK_SMTP_PASSWORD=\).*/\1********/; s/^\(POSTGRES_PASSWORD=\).*/\1********/; s/^/    /' "$ENV_FILE"
 say ""
 say "Slipdock will answer to ${SCHEME}://${HOST}$([ "$URL_PORT" = "443" ] || [ "$URL_PORT" = "80" ] && echo "" || echo ":${URL_PORT}")"
 say ""

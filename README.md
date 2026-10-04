@@ -257,7 +257,7 @@ it terminates TLS.
 ```sh
 SLIPDOCK_URL_SCHEME=https
 SLIPDOCK_URL_PORT=443
-SLIPDOCK_PUBLISH=127.0.0.1:4000   # only the proxy needs to reach it
+SLIPDOCK_PUBLISH=127.0.0.1:4000   # only the proxy needs to reach it (the default)
 ```
 
 The visitor's own address, which the sign-in limits and the API token audit
@@ -494,7 +494,9 @@ development the server binds to this machine's Tailscale address if it has one,
 otherwise loopback; `SLIPDOCK_BIND_IP` and `PORT` override that, and
 `DATABASE_URL` points it at another database.
 [`deploy/slipdock.service`](deploy/slipdock.service) is a systemd unit template for
-running it on boot — see [the manual](docs/manual.md#as-a-service).
+running a production release on boot — see [the manual](docs/manual.md#as-a-service).
+Do not leave the dev server reachable by other people: its `/dev/mailbox` shows
+every sign-in link it has sent.
 
 ## Security notes
 

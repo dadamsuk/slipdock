@@ -1039,16 +1039,40 @@ defmodule Slipdock.Accounts do
     with true <- agentic_login_enabled?() || {:error, :disabled},
          :ok <- check_signup(email),
          {:ok, user} <- get_or_create_user_by_email(email) do
-      dir = Application.get_env(:slipdock, :agentic_login_dir, "/tmp")
+      dir = agentic_login_dir()
       name = Base.url_encode64(:crypto.strong_rand_bytes(12), padding: false)
       path = Path.join(dir, "slipdock-agentic-login-#{name}.txt")
       {token, _code} = create_magic_token(user)
       link = url_fun.(token)
 
-      with :ok <- File.mkdir_p(dir),
-           :ok <- File.write(path, link <> "\n", [:exclusive]) do
+      # The file is a working sign-in link, so nobody but this account may read
+      # it: made empty, closed to everyone else, and only then given the link.
+      with :ok <- ensure_private_dir(dir),
+           :ok <- File.write(path, "", [:exclusive]),
+           :ok <- File.chmod(path, 0o600),
+           :ok <- File.write(path, link <> "\n") do
         {:ok, path}
       end
+    end
+  end
+
+  @doc """
+  Where Agentic Login writes its files: `:agentic_login_dir`, else a
+  `slipdock-agentic-login` directory of its own under the system temp dir.
+  """
+  def agentic_login_dir do
+    Application.get_env(:slipdock, :agentic_login_dir) ||
+      Path.join(System.tmp_dir!(), "slipdock-agentic-login")
+  end
+
+  # A directory this creates is private to the account running the server. One
+  # that already exists is left as it is: it was chosen by whoever configured it,
+  # and changing the mode of something like /tmp would be far worse.
+  defp ensure_private_dir(dir) do
+    if File.dir?(dir) do
+      :ok
+    else
+      with :ok <- File.mkdir_p(dir), do: File.chmod(dir, 0o700)
     end
   end
 

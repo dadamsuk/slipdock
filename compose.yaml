@@ -36,8 +36,12 @@ services:
         SLIPDOCK_GIT_SHA: ${SLIPDOCK_GIT_SHA:-}
     pull_policy: ${SLIPDOCK_PULL_POLICY:-always}
     restart: unless-stopped
+    # This machine only, unless you say otherwise: the app speaks plain http,
+    # and a port published on every address is one anybody can sign in over
+    # in the clear. A proxy on this host needs nothing more. To be reached
+    # directly from other machines, set SLIPDOCK_PUBLISH=4000 (setup.sh asks).
     ports:
-      - "${SLIPDOCK_PUBLISH:-4000}:4000"
+      - "${SLIPDOCK_PUBLISH:-127.0.0.1:4000}:4000"
     # Everything is optional. `env_file` is where your own settings go; the few
     # below are the ones worth being explicit about in a container.
     env_file:
@@ -93,6 +97,9 @@ services:
       # volume: Postgres sets the password when it first initialises its data
       # directory and ignores this variable on every boot after that.
       POSTGRES_USER: "${POSTGRES_USER:-slipdock}"
+      #
+      # The default is a published word. setup.sh writes a random one into
+      # .env; set your own before the first `up` if you skip it.
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-slipdock}"
       POSTGRES_DB: "${POSTGRES_DB:-slipdock}"
     volumes:

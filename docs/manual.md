@@ -1843,7 +1843,7 @@ Receiving an email is awkward for an automated agent driving the app, so the
 sign-in page can also offer an **Agentic Login** button. Enter an email address
 and press it instead of "Email me a sign-in link": the server mints the same
 one-time link but writes it to a fresh, randomly named file
-(`/tmp/slipdock-agentic-login-<random>.txt` by default) and shows that filename
+(`slipdock-agentic-login/slipdock-agentic-login-<random>.txt` under the system temp dir by default, readable only by the account running the server) and shows that filename
 on the page. An agent with shell access to the server then reads the file and
 opens the link it contains. The link works once and expires in 15 minutes, as
 usual; the file is left behind for the agent to delete.
@@ -1948,7 +1948,7 @@ every variable with its default. The ones that matter first:
 
 ```sh
 PHX_HOST=slipdock.example.com     # the address people use; sign-in links are built from it
-SLIPDOCK_PUBLISH=4000             # the host port to publish
+SLIPDOCK_PUBLISH=4000             # every address; unset, 127.0.0.1:4000 only
 SLIPDOCK_ADMIN_EMAIL=you@example.com               # skips the setup wizard
 SLIPDOCK_SMTP_HOST=smtp.example.com               # so codes are emailed rather than logged
 ```
@@ -2052,25 +2052,42 @@ changing any of them.
 Automation emails link back to the board; set `SLIPDOCK_BASE_URL` when the
 address people use isn't the one the endpoint is configured with (behind a
 proxy, say). Real mail needs `SLIPDOCK_SMTP_HOST` — without it, sent mail
-stays in the in-memory mailbox at `/dev/mailbox`.
+stays in the in-memory mailbox at `/dev/mailbox`. The relay's TLS certificate
+is verified against the system CA store and the relay's name; a relay with a
+self-signed certificate needs `SLIPDOCK_SMTP_TLS_VERIFY=false`.
 
 ## As a service
 
-`deploy/slipdock.service` is a systemd unit template that runs the dev server on
-boot. It is a template because five lines are specific to your machine and
-everything else is not — the file marks them: `User`/`Group`,
-`WorkingDirectory`, `HOME`, the `EnvironmentFile` path, and the full path to
-`mix`.
+`deploy/slipdock.service` is a systemd unit template that runs a production
+release on boot. It is a template because a few lines are specific to your
+machine and everything else is not — the file marks them: `User`/`Group`,
+`WorkingDirectory`, the release path in `ExecStart`/`ExecStop`, and the
+`EnvironmentFile` path.
 
 ```sh
-cp .env.example .env            # then fill in what you want to change
+cp .env.example .env            # DATABASE_URL, SECRET_KEY_BASE, PHX_HOST at least
 chmod 600 .env
+MIX_ENV=prod mix deps.get --only prod
+MIX_ENV=prod mix assets.deploy
+MIX_ENV=prod mix release --overwrite
 sudo cp deploy/slipdock.service /etc/systemd/system/
-sudoedit /etc/systemd/system/slipdock.service   # the five lines above
+sudoedit /etc/systemd/system/slipdock.service   # the lines it marks
 sudo systemctl daemon-reload
 sudo systemctl enable --now slipdock
 journalctl -u slipdock -f
 ```
+
+Rebuild the release and restart the unit to upgrade. It is deliberately not
+`mix phx.server`: the development server has a mailbox at `/dev/mailbox` that
+shows anybody who can reach it every sign-in link it has sent, Phoenix's debug
+error pages, and a `secret_key_base` published in this repository. If you do
+run the dev server where other people can reach it, `SLIPDOCK_DEV_TOOLS=false`
+turns off the mailbox and the debug pages.
+
+The release listens on every address over plain http. Put a TLS proxy in front
+and keep the port itself off the internet. When the server's address is https
+(`SLIPDOCK_URL_SCHEME`, https by default in production), the session cookie is
+marked `Secure`.
 
 Settings go in `.env`, not in the unit file, so the unit stays the same on every
 machine and the thing that differs between them is one file you already have to

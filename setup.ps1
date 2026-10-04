@@ -25,6 +25,52 @@ function Ask {
     return $answer.Trim()
 }
 
+function AskSecret {
+    param([string]$Prompt)
+
+    # Not echoed while it is typed. Piped answers arrive as plain text anyway.
+    $secure = Read-Host $Prompt -AsSecureString
+    $ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+    try { return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr) }
+    finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr) }
+}
+
+# A value from an existing env file, or "".
+function EnvValue {
+    param([string]$Path, [string]$Name)
+
+    if (-not (Test-Path -LiteralPath $Path)) { return "" }
+    $found = ""
+    foreach ($line in Get-Content -LiteralPath $Path) {
+        if ($line.StartsWith("$Name=")) { $found = $line.Substring($Name.Length + 1) }
+    }
+    return $found
+}
+
+# 32 hex characters, which need no quoting in a URL or a .env.
+function RandomPassword {
+    $bytes = New-Object byte[] 16
+    [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+    return (($bytes | ForEach-Object { $_.ToString("x2") }) -join "")
+}
+
+# Everything written here holds secrets, so only the person running this may
+# read it. Best effort: a filesystem without ACLs keeps whatever it had.
+function MakePrivate {
+    param([string]$Path)
+
+    try {
+        $acl = Get-Acl -LiteralPath $Path
+        $acl.SetAccessRuleProtection($true, $false)
+        foreach ($rule in @($acl.Access)) { [void]$acl.RemoveAccessRule($rule) }
+        $me = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+        $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($me, "FullControl", "Allow")))
+        Set-Acl -LiteralPath $Path -AclObject $acl
+    } catch {
+        Write-Host "   (Could not restrict who may read ${Path}: $($_.Exception.Message))"
+    }
+}
+
 function AskYesNo {
     param([string]$Prompt, [string]$Default = "n")
 
@@ -39,6 +85,7 @@ Write-Host "Setting up Slipdock. Five questions, then a .env you can edit by han
 Write-Host "afterwards. Press enter to take the suggestion in brackets."
 Write-Host ""
 
+$dbPassword = ""; $keepDbDefault = $false
 if (Test-Path -LiteralPath $EnvFile) {
     Write-Host "There is already a $EnvFile here."
     if (-not (AskYesNo "Replace it? (a copy is kept as $EnvFile.bak)" "n")) {
@@ -46,7 +93,13 @@ if (Test-Path -LiteralPath $EnvFile) {
         exit 0
     }
     Copy-Item -LiteralPath $EnvFile -Destination "$EnvFile.bak" -Force
+    MakePrivate "$EnvFile.bak"
     Write-Host "Kept the old one as $EnvFile.bak."
+    # Postgres sets its password once, when its volume is first created, so an
+    # install that already has one keeps it, and one still on the default
+    # stays there rather than being locked out.
+    $dbPassword = EnvValue $EnvFile "POSTGRES_PASSWORD"
+    if ($dbPassword -eq "") { $keepDbDefault = $true }
     Write-Host ""
 }
 
@@ -84,9 +137,12 @@ Write-Host ""
 Write-Host "3. The port on *this* machine for Slipdock to listen on."
 if ($proxied) {
     Write-Host "   Your proxy forwards to it. It does not need to be reachable from"
-    Write-Host "   outside, and 127.0.0.1:4000 is a good answer if the proxy is local."
+    Write-Host "   outside, so the suggestion listens on this machine only. If the"
+    Write-Host "   proxy is on another machine, answer 4000 to listen on every address."
+    $publish = Ask "   Listen on" "127.0.0.1:4000"
+} else {
+    $publish = Ask "   Listen on" "4000"
 }
-$publish = Ask "   Listen on" "4000"
 
 # With nothing in front, the port people connect to is the one it listens on.
 if (-not $proxied) {
@@ -112,8 +168,12 @@ if ($wantMail) {
     if ($admin -ne "") { $fromDefault = $admin } else { $fromDefault = "slipdock@$slipHost" }
     $smtpFrom = Ask "   Send from" $fromDefault
     $smtpUser = Ask "   Username (empty for an IP-authorised relay)" ""
-    if ($smtpUser -ne "") { $smtpPass = Ask "   Password" "" }
+    if ($smtpUser -ne "") { $smtpPass = AskSecret "   Password (not shown)" }
 }
+
+# The bundled Postgres' password: a random one for a new install rather than
+# the published default.
+if ($dbPassword -eq "" -and -not $keepDbDefault) { $dbPassword = RandomPassword }
 
 # - write it out ---------------------------------------------------------------
 $stamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd HH:mm 'UTC'")
@@ -129,6 +189,15 @@ $lines.Add("SLIPDOCK_PUBLISH=$publish")
 $lines.Add("SLIPDOCK_URL_SCHEME=$scheme")
 $lines.Add("SLIPDOCK_URL_PORT=$urlPort")
 if ($admin -ne "") { $lines.Add("SLIPDOCK_ADMIN_EMAIL=$admin") }
+$lines.Add("")
+if ($keepDbDefault) {
+    $lines.Add("# The database password is still compose.yaml's default. Postgres only")
+    $lines.Add("# reads POSTGRES_PASSWORD when its volume is first created, so change it")
+    $lines.Add("# with ALTER USER inside the database before setting it here.")
+} else {
+    $lines.Add("# Read by Postgres once, when its volume is first created; see compose.yaml.")
+    $lines.Add("POSTGRES_PASSWORD=$dbPassword")
+}
 if ($smtpHost -ne "") {
     $lines.Add("")
     $lines.Add("SLIPDOCK_SMTP_HOST=$smtpHost")
@@ -142,11 +211,12 @@ if ($smtpHost -ne "") {
 # return as part of the value, so a CRLF .env written on Windows yields a
 # hostname with an invisible \r on the end and an error nobody can read.
 $text = ($lines -join "`n") + "`n"
-[System.IO.File]::WriteAllText(
-    (Join-Path (Get-Location).Path $EnvFile),
-    $text,
-    (New-Object System.Text.UTF8Encoding $false)
-)
+$envPath = Join-Path (Get-Location).Path $EnvFile
+# Created empty and made private first, so the secrets never sit in a file
+# anybody else can read.
+[System.IO.File]::WriteAllText($envPath, "", (New-Object System.Text.UTF8Encoding $false))
+MakePrivate $envPath
+[System.IO.File]::WriteAllText($envPath, $text, (New-Object System.Text.UTF8Encoding $false))
 
 Write-Host ""
 Write-Host "Written ${EnvFile}:"
@@ -154,6 +224,8 @@ Write-Host ""
 foreach ($line in $lines) {
     if ($line -like "SLIPDOCK_SMTP_PASSWORD=*") {
         Write-Host "    SLIPDOCK_SMTP_PASSWORD=********"
+    } elseif ($line -like "POSTGRES_PASSWORD=*") {
+        Write-Host "    POSTGRES_PASSWORD=********"
     } else {
         Write-Host "    $line"
     }

@@ -1,5 +1,28 @@
 # Upgrading
 
+## Deployment defaults got stricter
+
+- **`deploy/slipdock.service` runs a production release now**, not
+  `mix phx.server` in dev mode. An installed copy of the old unit keeps
+  working, but it is running the development server — `/dev/mailbox`, debug
+  error pages, a published `secret_key_base`. To move over: build the release
+  (`MIX_ENV=prod mix assets.deploy && MIX_ENV=prod mix release --overwrite`),
+  put `DATABASE_URL`, `SECRET_KEY_BASE` and `PHX_HOST` in `.env`, copy uploaded
+  files from `priv/uploads` to `/var/lib/slipdock/uploads` (or set
+  `SLIPDOCK_UPLOADS_DIR`), then install the new unit — see
+  [the manual](docs/manual.md#as-a-service). Signing in again is expected: the
+  new secret invalidates old sessions. Until then, `SLIPDOCK_DEV_TOOLS=false`
+  in the old unit's environment turns off the mailbox and the debug pages.
+- **`compose.yaml` publishes on `127.0.0.1:4000`** unless `SLIPDOCK_PUBLISH`
+  says otherwise. A server reached directly from other machines needs
+  `SLIPDOCK_PUBLISH=4000` in `.env`.
+- **The SMTP relay's certificate is verified**, as is the database's when
+  `DATABASE_SSL=true` (its name now included). A relay with a self-signed
+  certificate needs `SLIPDOCK_SMTP_TLS_VERIFY=false`;
+  `DATABASE_SSL_VERIFY=false` still turns off the database check.
+- **Agentic Login files** go to a private `slipdock-agentic-login` directory
+  under the system temp dir, mode 0600, rather than straight into `/tmp`.
+
 ## The database is Postgres now, and this one is not an upgrade
 
 SQLite is gone. Slipdock runs on Postgres only, `compose.yaml` brings up a
