@@ -407,7 +407,8 @@ defmodule SlipdockWeb.APIGuide do
       its name.** A list with none can be given one:
       `PATCH /api/boards/:board/columns/:id {"category": "todo"}`
       (`slipdock set-column B "To Do" --category todo`). A list may also carry a `horizon` (the date range it stands
-      for) and a `wip_limit`.
+      for) and a `wip_limit`. Deleting a list never takes its cards unless asked to
+      outright (see *What not to do*).
     - **Card** — one unit of work: title, description, `priority`, `flags`,
       `tags`, `start_date`, `due_date`, `completed`, `percent_complete` (0–100,
       or null when nobody has said), `assignees` (everybody it is assigned to,
@@ -801,6 +802,12 @@ defmodule SlipdockWeb.APIGuide do
       (`/restore`); delete is not. Delete only what you created by mistake in
       the same session, or what you were explicitly asked to delete. The same
       goes for `DELETE …/subboard`, which takes every subcard with it.
+    - **Do not delete a list to tidy a board.** `DELETE /api/boards/:board/columns/:id`
+      only removes an empty list: one that still holds cards, archived ones
+      included, is refused with 409 `list_not_empty` and a count. Move the cards
+      elsewhere first. `DELETE /api/boards/:board/columns/:id/recursive`
+      deletes the list and every card in it, subcards too, and cannot be
+      undone: use it only when the person asked for exactly that.
     - **Do not complete an epic with open subcards**, or move a card to `done`
       without `completed: true` (or the reverse).
     - **Do not rewrite a card's title or description to match what you actually

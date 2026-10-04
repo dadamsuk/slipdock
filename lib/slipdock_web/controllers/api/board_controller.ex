@@ -214,11 +214,40 @@ defmodule SlipdockWeb.API.BoardController do
     end
   end
 
+  # Deleting a list deletes every card in it — archived ones and subcards
+  # included — and nothing brings them back. The web app asks first; this has
+  # nobody to ask, so it refuses a list that still holds cards and leaves the
+  # destructive version to `recursive_delete`, which has to be meant.
   def delete_column(conn, %{"board" => ref, "id" => id}) do
     with {:ok, board} <- fetch_board(conn, ref, :write),
+         {:ok, column} <- find(Boards.find_column(board, id), "column") do
+      case Boards.column_card_counts(column) do
+        {0, _} ->
+          with {:ok, _} <- Boards.delete_column(column), do: json(conn, %{ok: true})
+
+        {cards, archived} ->
+          conn
+          |> put_status(:conflict)
+          |> json(%{
+            error: "list_not_empty",
+            message:
+              "List “#{column.name}” still holds #{cards} card(s), #{archived} of them archived. " <>
+                "Move them to another list first, or DELETE /api/boards/#{board.id}/columns/#{column.id}/recursive " <>
+                "to delete the list and every card in it, which cannot be undone.",
+            cards: cards,
+            archived: archived,
+            retryable: false
+          })
+      end
+    end
+  end
+
+  def recursive_delete(conn, %{"board" => ref, "id" => id}) do
+    with {:ok, board} <- fetch_board(conn, ref, :write),
          {:ok, column} <- find(Boards.find_column(board, id), "column"),
+         {cards, archived} = Boards.column_card_counts(column),
          {:ok, _} <- Boards.delete_column(column) do
-      json(conn, %{ok: true})
+      json(conn, %{ok: true, deleted_cards: cards, deleted_archived: archived})
     end
   end
 

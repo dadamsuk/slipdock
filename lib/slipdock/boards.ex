@@ -931,6 +931,19 @@ defmodule Slipdock.Boards do
     end)
   end
 
+  @doc """
+  How many cards deleting `column` would take with it: `{total, archived}`.
+  Archived cards count — the foreign key deletes them along with the rest.
+  """
+  def column_card_counts(%Column{id: id}) do
+    Repo.one(
+      from(c in Card,
+        where: c.column_id == ^id,
+        select: {count(c.id), filter(count(c.id), not is_nil(c.archived_at))}
+      )
+    )
+  end
+
   def change_column(%Column{} = column, attrs \\ %{}), do: Column.changeset(column, attrs)
 
   @doc """
