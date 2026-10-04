@@ -868,7 +868,7 @@ defmodule SlipdockWeb.BoardLive.Show do
       nav_active={:boards}
       page_jumps={@page_jumps}
     >
-      <:nav>
+      <:subnav>
         <.board_nav
           board={@board}
           ancestry={@ancestry}
@@ -876,8 +876,8 @@ defmodule SlipdockWeb.BoardLive.Show do
           can_manage={@can_manage}
           can_write={@can_write}
         />
-      </:nav>
-      <:actions>
+      </:subnav>
+      <:subactions>
         <.board_actions
           board={@board}
           paths={@paths}
@@ -889,7 +889,7 @@ defmodule SlipdockWeb.BoardLive.Show do
           ai?={@ai?}
           rules={@rules}
         />
-      </:actions>
+      </:subactions>
 
       <%!-- Every view but the board's own: the same toolbar, then the view. --%>
       <div :if={@mode != :board and !@card_only} class="flex h-full flex-col">

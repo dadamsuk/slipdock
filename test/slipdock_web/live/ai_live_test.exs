@@ -25,7 +25,7 @@ defmodule SlipdockWeb.AILiveTest do
     assert html =~ "Chat about this page with AI"
     refute html =~ "Chat about Launch"
 
-    view |> element("header button[phx-target='#page-ai']") |> render_click()
+    view |> element("#board-chat") |> render_click()
     assert has_element?(view, "#page-ai [role=dialog]", "Chat about Launch")
 
     view |> form("#page-ai-form-0", %{"message" => "What is open?"}) |> render_submit()
@@ -61,7 +61,7 @@ defmodule SlipdockWeb.AILiveTest do
     })
 
     {:ok, view, _html} = live(conn, ~p"/boards/#{board}")
-    view |> element("header button[phx-target='#page-ai']") |> render_click()
+    view |> element("#board-chat") |> render_click()
     view |> element("#page-ai button[phx-value-mode=edit]") |> render_click()
     assert has_element?(view, "#page-ai [role=tab][aria-selected=true]", "Edit")
 
@@ -93,7 +93,7 @@ defmodule SlipdockWeb.AILiveTest do
 
     conn = log_in_user(conn, stranger)
     {:ok, view, _} = live(conn, ~p"/boards/#{board}")
-    view |> element("header button[phx-target='#page-ai']") |> render_click()
+    view |> element("#board-chat") |> render_click()
     refute has_element?(view, "#page-ai button[phx-value-mode=edit]")
   end
 
@@ -155,7 +155,7 @@ defmodule SlipdockWeb.AILiveTest do
   test "a failing model call is reported in the drawer", %{conn: conn, board: board} do
     Slipdock.AIStub.fail_with(429, "slow down")
     {:ok, view, _} = live(conn, ~p"/boards/#{board}")
-    view |> element("header button[phx-target='#page-ai']") |> render_click()
+    view |> element("#board-chat") |> render_click()
     view |> form("#page-ai-form-0", %{"message" => "hi"}) |> render_submit()
     assert render_async(view) =~ "rate-limited"
   end

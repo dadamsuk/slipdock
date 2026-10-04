@@ -116,13 +116,13 @@ defmodule SlipdockWeb.BoardLive.Shared do
       viewport={@viewport}
       nav_active={:boards}
     >
-      <:nav>
+      <:subnav>
         <.link navigate={~p"/boards/#{@board}"} class="font-semibold hover:underline">
           {@board.name}
         </.link>
         <span class="text-base-content/40">›</span>
         <span>Shared</span>
-      </:nav>
+      </:subnav>
       <div class="kanban-scroll h-full overflow-y-auto">
         <div class="mx-auto max-w-2xl space-y-6 px-4 py-6 sm:px-6 sm:py-10">
           <div>

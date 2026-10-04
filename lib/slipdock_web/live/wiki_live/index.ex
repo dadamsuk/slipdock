@@ -1348,7 +1348,7 @@ defmodule SlipdockWeb.WikiLive.Index do
       nav_active={:boards}
       page_jumps={@page_jumps}
     >
-      <:nav>
+      <:subnav>
         <nav class="flex min-w-0 items-center gap-1 text-sm">
           <.link
             navigate={~p"/boards/#{@board}"}
@@ -1365,8 +1365,8 @@ defmodule SlipdockWeb.WikiLive.Index do
             Wiki
           </.link>
         </nav>
-      </:nav>
-      <:actions>
+      </:subnav>
+      <:subactions>
         <.link
           :if={@can_write}
           navigate={~p"/boards/#{@board}/wiki/new"}
@@ -1375,7 +1375,7 @@ defmodule SlipdockWeb.WikiLive.Index do
           <.icon name="hero-plus" class="size-4" />
           <span class="hidden sm:inline">New page</span>
         </.link>
-      </:actions>
+      </:subactions>
 
       <%!-- The same bar the card views carry. The wiki is one more way of
             looking at a board, and a page is one more thing that answers a

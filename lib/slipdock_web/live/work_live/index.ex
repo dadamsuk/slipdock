@@ -72,13 +72,13 @@ defmodule SlipdockWeb.WorkLive.Index do
         <button
           :if={@ai?}
           type="button"
-          class="btn btn-ghost btn-sm gap-1.5"
+          class="btn btn-ghost btn-sm btn-square"
           title="Chat about your work with AI"
+          aria-label="Chat about your work with AI"
           phx-click="toggle"
           phx-target="#page-ai"
         >
-          <.icon name="hero-sparkles" class="size-4" />
-          <span class="hidden md:inline">Chat</span>
+          <.icon name="hero-chat-bubble-left-ellipsis" class="size-4" />
         </button>
       </:actions>
       <.live_component
