@@ -12,6 +12,10 @@ defmodule SlipdockWeb.ShareComponents do
   attr :form_key, :integer, required: true
   attr :compact, :boolean, default: false
 
+  attr :target, :any,
+    default: nil,
+    doc: "the LiveComponent the panel's events go to; the LiveView when nil"
+
   def share_panel(assigns) do
     ~H"""
     <div class="space-y-2">
@@ -40,6 +44,7 @@ defmodule SlipdockWeb.ShareComponents do
           </span>
           <button
             :if={@can_manage}
+            phx-target={@target}
             type="button"
             class="btn btn-ghost btn-xs btn-square"
             phx-click="revoke_grant"
@@ -53,6 +58,7 @@ defmodule SlipdockWeb.ShareComponents do
       </ul>
       <form
         :if={@can_manage}
+        phx-target={@target}
         id={"share-#{@resource}-#{@form_key}"}
         phx-submit="share"
         class={["flex flex-wrap items-center gap-1.5", @compact && "text-xs"]}

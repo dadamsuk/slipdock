@@ -375,7 +375,8 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
           {"sprint_component.ex", SlipdockWeb.BoardLive.SprintComponent},
           {"move_board_component.ex", SlipdockWeb.BoardLive.MoveBoardComponent},
           {"column_component.ex", SlipdockWeb.BoardLive.ColumnComponent},
-          {"tags_component.ex", SlipdockWeb.BoardLive.TagsComponent}
+          {"tags_component.ex", SlipdockWeb.BoardLive.TagsComponent},
+          {"settings_component.ex", SlipdockWeb.BoardLive.SettingsComponent}
         ] do
       test "every handle_event clause in #{file} is in its event list" do
         assert handled_events(unquote(file)) -- unquote(module).events() == []
@@ -391,7 +392,9 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
       {:ok, _} = Access.grant(ctx.theirs, ctx.user, "write", ctx.victim)
       view = board_view(ctx.conn, ctx.theirs)
 
-      assert render_hook(view, "archive_board", %{}) =~ "owner"
+      # Board settings are the owner's panel; nobody else gets one to push to.
+      refute has_element?(view, "#board-settings")
+      assert render_hook(view, "archive_board", %{}) =~ "isn&#39;t something this page can do"
       refute Boards.get_board!(ctx.theirs.id).archived_at
     end
 

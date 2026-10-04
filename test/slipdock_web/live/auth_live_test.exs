@@ -180,8 +180,13 @@ defmodule SlipdockWeb.AuthLiveTest do
       render_hook(wview, "add_comment", %{"body" => "hi"})
       assert [_] = Boards.get_card!(ctx.card.id).comments
 
-      # But only the owner can rename the board or share it.
-      assert render_hook(wview, "save_board", %{"board" => %{"name" => "Mine now"}}) =~ "owner"
+      # But only the owner can rename the board or share it: the settings
+      # panel isn't there for anyone else, and the board knows no such event.
+      refute has_element?(wview, "#board-settings")
+
+      assert render_hook(wview, "save_board", %{"board" => %{"name" => "Mine now"}}) =~
+               "isn&#39;t something this page can do"
+
       assert Boards.get_board!(ctx.board.id).name == "Owned"
     end
 
@@ -189,7 +194,9 @@ defmodule SlipdockWeb.AuthLiveTest do
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/settings")
 
       for owner_id <- [to_string(ctx.other.id), ""] do
-        render_hook(view, "save_board", %{
+        view
+        |> with_target("#board-settings")
+        |> render_hook("save_board", %{
           "board" => %{"name" => "Renamed", "owner_id" => owner_id}
         })
 
