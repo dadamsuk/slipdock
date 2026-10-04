@@ -24,22 +24,25 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :can_manage, :boolean, required: true
   attr :can_write, :boolean, required: true
 
-  @doc "The second header row's breadcrumb: the boards above this one, and this one."
+  @doc "The header's breadcrumb: the boards above this one, and this one."
   def board_nav(assigns) do
     ~H"""
     <nav class="flex min-w-0 items-center gap-1 text-sm">
+      <%!-- On one row the mark beside this already goes to the boards. --%>
       <.link
         navigate={~p"/"}
-        class="hidden shrink-0 text-base-content/50 hover:text-base-content sm:inline"
+        class="hidden shrink-0 text-base-content/50 hover:text-base-content sm:inline lg:hidden"
       >
         Boards
       </.link>
       <.icon
         name="hero-chevron-right"
-        class="hidden size-3 shrink-0 text-base-content/40 sm:inline"
+        class="hidden size-3 shrink-0 text-base-content/40 sm:inline lg:hidden"
       />
+      <%!-- Only the boards above: each card between them is the board after
+            it under the same name, and the last is this one. --%>
       <span
-        :for={%{board: b, card: c} <- @ancestry}
+        :for={%{board: b} <- @ancestry}
         class="hidden min-w-0 items-center gap-1 text-base-content/50 lg:flex"
       >
         <.link
@@ -48,14 +51,6 @@ defmodule SlipdockWeb.BoardLive.BoardView do
           title={b.name}
         >
           {b.name}
-        </.link>
-        <.icon name="hero-chevron-right" class="size-3 shrink-0 text-base-content/40" />
-        <.link
-          navigate={~p"/boards/#{b}/cards/#{c.id}"}
-          class="max-w-40 truncate hover:text-base-content"
-          title={c.title}
-        >
-          {c.title}
         </.link>
         <.icon name="hero-chevron-right" class="size-3 shrink-0 text-base-content/40" />
       </span>
@@ -121,7 +116,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :ai?, :boolean, required: true
   attr :rules, :list, required: true
 
-  @doc "The second header row's actions: sprints, the chat, sharing and the board's menu."
+  @doc "The board's header buttons: sprints, the chat and the board's menu, sharing among it."
   def board_actions(assigns) do
     ~H"""
     <button
@@ -177,16 +172,6 @@ defmodule SlipdockWeb.BoardLive.BoardView do
     >
       <.icon name="hero-chat-bubble-left-ellipsis" class="size-4" />
     </button>
-    <.link
-      :if={@can_manage and !@card_only}
-      id="board-share"
-      patch={@paths.settings}
-      class="btn btn-ghost btn-sm btn-square hidden sm:inline-flex"
-      title="Share this board"
-      aria-label="Share this board"
-    >
-      <.icon name="hero-user-plus" class="size-4" />
-    </.link>
     <div :if={!@view_only and !@card_only} class="dropdown dropdown-end">
       <div tabindex="0" role="button" class="btn btn-ghost btn-sm btn-square" title="More">
         <.icon name="hero-ellipsis-horizontal" class="size-4" />
@@ -195,8 +180,8 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         tabindex="0"
         class="menu dropdown-content z-40 mt-2 w-52 rounded-box bg-base-100 p-1 text-sm shadow-lg ring-1 ring-base-content/10"
       >
-        <li :if={@can_manage} class="sm:hidden">
-          <.link patch={@paths.settings}>
+        <li :if={@can_manage}>
+          <.link id="board-share" patch={@paths.settings}>
             <.icon name="hero-user-plus" class="size-4" /> Share this board
           </.link>
         </li>

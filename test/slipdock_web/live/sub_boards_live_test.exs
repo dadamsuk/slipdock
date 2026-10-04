@@ -45,11 +45,8 @@ defmodule SlipdockWeb.SubBoardsLiveTest do
     assert html =~ "Sub one"
     assert has_element?(sub_view, "nav a[href='/boards/#{board.id}']", "Root board")
 
-    assert has_element?(
-             sub_view,
-             "nav a[href='/boards/#{board.id}/cards/#{card.id}']",
-             "Epic card"
-           )
+    # The card is not a crumb of its own: the sub-board after it carries its name.
+    refute has_element?(sub_view, "nav span a[href='/boards/#{board.id}/cards/#{card.id}']")
 
     # The board header itself links to the card that owns the sub-board.
     assert has_element?(
