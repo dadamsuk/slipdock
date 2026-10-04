@@ -499,9 +499,21 @@ defmodule Slipdock.Accounts do
     if last_admin?(user) do
       {:error, :last_admin}
     else
-      handed_over = hand_over_shared_boards(user)
       email = user.email
-      Repo.delete!(user)
+
+      # One transaction, so a delete that fails leaves the account with its
+      # boards rather than an account whose boards have already gone to
+      # somebody else. The files go after the commit: bytes cannot be rolled
+      # back, so they are only removed once the rows are certainly gone.
+      {:ok, {handed_over, keys}} =
+        Repo.transaction(fn ->
+          handed_over = hand_over_shared_boards(user)
+          keys = Slipdock.Boards.file_keys(from(b in Board, where: b.owner_id == ^user.id))
+          Repo.delete!(user)
+          {handed_over, keys}
+        end)
+
+      Slipdock.Boards.remove_files(keys)
 
       Logger.info(
         "Deleted the account #{email}; handed #{length(handed_over)} shared board(s) on."
@@ -517,7 +529,7 @@ defmodule Slipdock.Accounts do
   """
   @spec deletion_preview(User.t()) :: map()
   def deletion_preview(%User{} = user) do
-    owned = Repo.all(from(b in Board, where: b.owner_id == ^user.id))
+    owned = Repo.all(from(b in Board, where: b.owner_id == ^user.id and is_nil(b.root_id)))
     {shared, alone} = Enum.split_with(owned, &shared_with_somebody?/1)
 
     %{
@@ -533,12 +545,25 @@ defmodule Slipdock.Accounts do
     }
   end
 
+  # A board goes with its whole tree: sub-boards carry the root owner's id but
+  # are shared through the root's grants, so asking each one for a successor
+  # of its own would find nobody and let the cascade take them.
   defp hand_over_shared_boards(%User{} = user) do
-    for board <- Repo.all(from(b in Board, where: b.owner_id == ^user.id)),
-        shared_with_somebody?(board),
+    # A sub-board of theirs under somebody else's root belongs with that root.
+    Repo.update_all(
+      from(b in Board,
+        join: r in Board,
+        on: r.id == b.root_id,
+        where: b.owner_id == ^user.id and r.owner_id != ^user.id,
+        update: [set: [owner_id: r.owner_id]]
+      ),
+      []
+    )
+
+    for board <- Repo.all(from(b in Board, where: b.owner_id == ^user.id and is_nil(b.root_id))),
         successor = successor(board),
         successor != nil do
-      Repo.update_all(from(b in Board, where: b.id == ^board.id),
+      Repo.update_all(from(b in Board, where: b.id == ^board.id or b.root_id == ^board.id),
         set: [owner_id: successor.id]
       )
 
