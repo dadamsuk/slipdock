@@ -14,7 +14,6 @@ defmodule SlipdockWeb.API.TokenScopeTest do
   """
   use SlipdockWeb.ConnCase, async: true
 
-
   alias Slipdock.{Access, Accounts, Boards}
 
   setup %{conn: conn, user: user} do

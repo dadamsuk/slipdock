@@ -456,7 +456,11 @@ defmodule Slipdock.Boards do
     else
       case create_board(
              # A simple board's subcards are as simple as it is.
-             %{"name" => Board.name_for_card(card.title), "color" => parent.color, "simple" => parent.simple},
+             %{
+               "name" => Board.name_for_card(card.title),
+               "color" => parent.color,
+               "simple" => parent.simple
+             },
              template: template,
              parent_card_id: card.id,
              root_id: Board.root_id(parent),
