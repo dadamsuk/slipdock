@@ -122,9 +122,6 @@ defmodule Slipdock.Automations do
     end
   end
 
-  @doc "One alert by id, or nil."
-  def get_alert(id), do: Repo.get(Alert, to_int(id))
-
   @doc """
   Creates a rule from a spec. `attrs` needs "name", "spec" and "board_id";
   `opts[:created_by]` records who wrote it. `create_rule_from_text/3` is the
@@ -215,8 +212,6 @@ defmodule Slipdock.Automations do
   def toggle_rule(%Rule{} = rule) do
     rule |> Ecto.Changeset.change(enabled: !rule.enabled) |> Repo.update()
   end
-
-  def change_rule(%Rule{} = rule, attrs \\ %{}), do: Rule.changeset(rule, attrs)
 
   @doc """
   Turns a sentence into a rule on `board`, asking the model to write the

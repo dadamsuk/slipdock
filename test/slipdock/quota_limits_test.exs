@@ -328,6 +328,52 @@ defmodule Slipdock.QuotaLimitsTest do
     end
   end
 
+  describe "what people are told" do
+    test "nothing, with no limit and no trial", %{owner: owner} do
+      off()
+      assert Quota.message(owner, :items) == nil
+      assert Quota.message(owner, :trial) == nil
+    end
+
+    test "how many items are left, and that they are full", %{owner: owner, column: column} do
+      settings(%{"item_limit" => 2})
+      assert Quota.message(owner) == "2 items left of 2."
+
+      card_fixture(column)
+      assert Quota.message(owner) == "1 item left of 2."
+
+      card_fixture(column)
+      assert Quota.message(owner) =~ "You have used all 2 cards, pages and files"
+    end
+
+    test "that the boards are all used", %{owner: owner} do
+      settings(%{"board_limit" => 1})
+      assert Quota.message(owner, :boards) =~ "You own all 1 boards"
+    end
+
+    test "storage in bytes a person can read", %{owner: owner, column: column} do
+      settings(%{"storage_limit_mb" => 1})
+      {:ok, _} = upload(card_fixture(column), 512 * 1024)
+
+      assert Quota.message(owner, :storage) == "512 KB left of 1 MB."
+    end
+
+    test "the trial's days, and its end", %{owner: owner} do
+      settings(%{"trial_days" => 30, "trial_enabled" => true})
+      assert Quota.message(owner, :trial) == "30 days left of your free trial."
+      assert Quota.message(age(owner, 29), :trial) == "1 day left of your free trial."
+      assert Quota.message(age(owner, 31), :trial) =~ "Your 30-day free trial has ended."
+    end
+
+    test "which limits are near enough to warn about", %{owner: owner, column: column} do
+      settings(%{"item_limit" => 5, "board_limit" => 100})
+      assert Quota.warnings(owner) == []
+
+      for _ <- 1..4, do: card_fixture(column)
+      assert Quota.warnings(owner) == [:items]
+    end
+  end
+
   describe "the report" do
     test "carries every dimension, the breakdown and the trial", %{
       owner: owner,

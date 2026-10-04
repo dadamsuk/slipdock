@@ -54,14 +54,6 @@ defmodule Slipdock.Table do
     end
   end
 
-  @doc "The sort key a column header toggles, or nil when the column isn't sortable."
-  def field_sort(key, board \\ nil) do
-    case List.keyfind(fields(board || %{}), key, 0) do
-      {_, _, sort} -> sort
-      nil -> nil
-    end
-  end
-
   @doc """
   The visible fields in display order for the config's density; the title is
   always shown first.

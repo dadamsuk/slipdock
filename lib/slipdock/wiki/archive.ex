@@ -119,11 +119,18 @@ defmodule Slipdock.Wiki.Archive do
         {"tags", tags(page)},
         {"updated", page.updated_at && DateTime.to_iso8601(page.updated_at)}
       ]
-      |> Enum.reject(fn {_k, v} -> v in [nil, "", false] end)
+      |> Enum.reject(fn {_k, v} -> blank?(v) end)
       |> Enum.map_join("\n", fn {k, v} -> "#{k}: #{v}" end)
 
     "---\n" <> front <> "\n---\n\n" <> String.trim_trailing(to_string(page.body)) <> "\n"
   end
+
+  # Not `v in [nil, "", false]`: :cover cannot compile that inside an
+  # anonymous function, and `mix test --cover` dies on this module.
+  defp blank?(nil), do: true
+  defp blank?(""), do: true
+  defp blank?(false), do: true
+  defp blank?(_), do: false
 
   defp tags(%Page{} = page) do
     case Wiki.tags(page) do

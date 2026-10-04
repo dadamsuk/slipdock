@@ -79,24 +79,4 @@ defmodule Slipdock.Wiki.Link do
       do: changeset,
       else: add_error(changeset, :page_id, "exactly one source must be set")
   end
-
-  @doc """
-  The page this link was written on: its body, or a comment or status update
-  left on it. Nil when it was written on a card instead.
-  """
-  def written_on(%__MODULE__{page: %Slipdock.Wiki.Page{} = page}), do: page
-  def written_on(%__MODULE__{source_page: %Slipdock.Wiki.Page{} = page}), do: page
-  def written_on(%__MODULE__{}), do: nil
-
-  @doc "Where this link was written."
-  def source(%__MODULE__{page_id: id}) when not is_nil(id), do: :page
-  def source(%__MODULE__{source_comment_id: id}) when not is_nil(id), do: :comment
-  def source(%__MODULE__{}), do: :status
-
-  @doc "The id this link points at, whatever kind it is, or nil when unresolved."
-  def target_id(%__MODULE__{kind: "page", target_page_id: id}), do: id
-  def target_id(%__MODULE__{kind: "card", target_card_id: id}), do: id
-  def target_id(%__MODULE__{kind: "board", target_board_id: id}), do: id
-  def target_id(%__MODULE__{kind: "view", target_view_id: id}), do: id
-  def target_id(%__MODULE__{}), do: nil
 end

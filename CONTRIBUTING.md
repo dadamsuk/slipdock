@@ -46,10 +46,17 @@ That is the gate. Please make it pass rather than explaining why it does not —
 there is no CI to catch it for you. The whole suite takes a little over a
 minute, so run it often.
 
-Tests live in `test/kanban` for the domain and `test/slipdock_web` for anything
+Tests live in `test/slipdock` for the domain and `test/slipdock_web` for anything
 with a browser in it; LiveView tests drive the real page. Calls to a language
 model are answered by a stub (`test/support/ai_stub.ex`), so no test spends
 money or needs a key.
+
+`mix test --cover` prints line coverage for `lib/`, worst module first, with a
+page per module in `cover/`, and fails under 65%. It runs through
+`test/support/coverage.ex` rather than Mix's own tool: `:cover` cannot
+instrument a few modules on this Elixir and OTP (it crashes on some
+`expr in [...]` code), and Mix's tool dies on the first one. Those modules are
+named at the end of the report as not measured, not counted as covered.
 
 ### async: true unless something is genuinely shared
 

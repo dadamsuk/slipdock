@@ -118,9 +118,6 @@ defmodule Slipdock.Fields do
     |> tap_ok(fn f -> Slipdock.Boards.broadcast_tree(f.board_id) end)
   end
 
-  def change_field(%FieldDefinition{} = field, attrs \\ %{}),
-    do: FieldDefinition.changeset(field, attrs)
-
   @doc """
   Sets a preset up on the tree: creates each input field that isn't there
   yet (matched by key) and the formula field. Returns the formula field.

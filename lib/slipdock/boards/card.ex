@@ -132,10 +132,6 @@ defmodule Slipdock.Boards.Card do
   def stated_health(%{rollup: %{stated: h}}), do: h
   def stated_health(_), do: nil
 
-  @doc "The latest status update, or nil."
-  def latest_update(%{status_updates: [u | _]}), do: u
-  def latest_update(_), do: nil
-
   @doc "The goal cards this card contributes to (link stubs), when links are loaded."
   def goals(%{links_out: links}) when is_list(links),
     do: for(%{kind: "contributes", to: %__MODULE__{} = goal} <- links, do: goal)

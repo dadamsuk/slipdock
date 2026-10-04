@@ -39,15 +39,6 @@ defmodule Slipdock.Boards.Column do
   def categories, do: @categories
   def category_keys, do: @categories |> Enum.map(&elem(&1, 0)) |> Enum.reject(&(&1 == ""))
 
-  def category_label(nil), do: "No category"
-
-  def category_label(key) do
-    case List.keyfind(@categories, key, 0) do
-      {_, label} -> label
-      nil -> key
-    end
-  end
-
   def done?(%__MODULE__{category: "done"}), do: true
   def done?(_), do: false
 
