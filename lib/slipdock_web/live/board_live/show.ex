@@ -40,8 +40,7 @@ defmodule SlipdockWeb.BoardLive.Show do
     Card,
     CardLink,
     Column,
-    FieldDefinition,
-    Tag
+    FieldDefinition
   }
 
   alias SlipdockWeb.{Params, RichText}
@@ -65,9 +64,9 @@ defmodule SlipdockWeb.BoardLive.Show do
   # access here is no reason to touch a row on another board.
 
   # Events that change the board; refused with read-only access.
-  @board_write_events ~w(add_column rename_column edit_column save_column set_column_color delete_column move_column
-    quick_add_card move_card unplace_page place_page focus_move focus_hold focus_add swim_move swim_quick_add cal_quick_add swim_save_view swim_update_view swim_rename_view
-    swim_delete_view create_tag set_tag_color rename_tag delete_tag restore_card delete_archived)
+  @board_write_events ~w(add_column rename_column move_column quick_add_card move_card unplace_page place_page
+    focus_move focus_hold focus_add swim_move swim_quick_add cal_quick_add swim_save_view
+    swim_update_view swim_rename_view swim_delete_view restore_card delete_archived)
   # Events that change the open card; refused with read-only access to it.
   @card_write_events ~w(card_change toggle_flag toggle_tag set_cover archive_card delete_card
     add_dependency remove_dependency create_sub_board remove_assignee
@@ -88,12 +87,11 @@ defmodule SlipdockWeb.BoardLive.Show do
   # Events that change nothing stored: filters, panels opening and closing,
   # forms being typed into, the keyboard's place on the board.
   @read_events ~w(search filter_tag filter_kind filter_priority filter_flag filter_due
-    toggle_hide_completed clear_filters start_add_column cancel_add_column start_rename_column
-    cancel_rename_column close_column start_add_card aim_document cancel_add_card
-    quick_add_change open_card open_page close_page
-    focus_column focus_card focus_open focus_end
-    stop_editing_description validate_document dep_direction dep_search link_search
-    pick_template pick_tag_color validate_board swim_config swim_set swim_clear_filters
+    toggle_hide_completed clear_filters start_add_column cancel_add_column
+    start_rename_column cancel_rename_column start_add_card aim_document cancel_add_card
+    quick_add_change open_card open_page close_page focus_column focus_card focus_open
+    focus_end stop_editing_description validate_document dep_direction dep_search
+    link_search pick_template validate_board swim_config swim_set swim_clear_filters
     table_sort cal_toggle_day swim_toggle_row swim_start_add swim_cancel_add)
 
   # Images pasted into the description or a comment, and files attached explicitly.
@@ -181,15 +179,11 @@ defmodule SlipdockWeb.BoardLive.Show do
       focus: nil,
       page_jumps: [],
       renaming_column: nil,
-      column_modal: nil,
-      column_form: nil,
       form_key: 0,
       card: nil,
       card_form: nil,
       activities: [],
       archived: [],
-      tag_form: new_tag_form(),
-      new_tag_color: "sky",
       board_form: nil,
       mode: :board,
       panel: nil,
@@ -675,7 +669,7 @@ defmodule SlipdockWeb.BoardLive.Show do
     assign(socket, archived: Boards.list_archived_cards(socket.assigns.board.id))
   end
 
-  defp apply_panel(socket, :tags, _), do: assign(socket, tag_form: new_tag_form())
+  defp apply_panel(socket, :tags, _), do: socket
 
   defp apply_panel(socket, :automations, _), do: socket
 
@@ -981,8 +975,6 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   defp set_item_tags(%Slipdock.Wiki.Page{} = page, tags), do: Wiki.set_tags(page, tags)
   defp set_item_tags(card, tags), do: Boards.set_card_tags(card, tags)
-
-  defp new_tag_form, do: to_form(Tag.changeset(%Tag{}, %{}))
 
   ## Quick add ------------------------------------------------------------------
 
@@ -1338,47 +1330,6 @@ defmodule SlipdockWeb.BoardLive.Show do
       nil -> {:noreply, assign(socket, renaming_column: nil)}
       {:error, _} -> {:noreply, put_flash(socket, :error, "List name can't be blank.")}
     end
-  end
-
-  def handle_event("edit_column", %{"id" => id}, socket) do
-    case board_column(socket, id) do
-      nil ->
-        {:noreply, socket}
-
-      column ->
-        {:noreply,
-         assign(socket, column_modal: column, column_form: to_form(Boards.change_column(column)))}
-    end
-  end
-
-  def handle_event("close_column", _, socket), do: {:noreply, assign(socket, column_modal: nil)}
-
-  # The list being edited was checked against the board when `edit_column`
-  # opened it; without one open there is nothing to save.
-  def handle_event("save_column", _params, %{assigns: %{column_modal: nil}} = socket),
-    do: {:noreply, socket}
-
-  def handle_event("save_column", %{"column" => params}, socket) do
-    params = Map.update(params, "wip_limit", nil, &if(&1 == "", do: nil, else: &1))
-
-    case Boards.update_column(socket.assigns.column_modal, params) do
-      {:ok, _} -> {:noreply, assign(socket, column_modal: nil)}
-      {:error, cs} -> {:noreply, assign(socket, column_form: to_form(cs))}
-    end
-  end
-
-  def handle_event("set_column_color", _params, %{assigns: %{column_modal: nil}} = socket),
-    do: {:noreply, socket}
-
-  def handle_event("set_column_color", %{"color" => color}, socket) do
-    color = if color == "", do: nil, else: color
-    {:ok, column} = Boards.update_column(socket.assigns.column_modal, %{"color" => color})
-    {:noreply, assign(socket, column_modal: column)}
-  end
-
-  def handle_event("delete_column", %{"id" => id}, socket) do
-    if column = board_column(socket, id), do: Boards.delete_column(column)
-    {:noreply, assign(socket, column_modal: nil)}
   end
 
   def handle_event("move_column", %{"id" => id} = params, socket) do
@@ -2139,38 +2090,6 @@ defmodule SlipdockWeb.BoardLive.Show do
   end
 
   ## Events: tags -------------------------------------------------------------
-
-  def handle_event("pick_tag_color", %{"color" => color}, socket) do
-    {:noreply, assign(socket, new_tag_color: color)}
-  end
-
-  def handle_event("create_tag", %{"tag" => params}, socket) do
-    params = Map.put(params, "color", socket.assigns.new_tag_color)
-
-    case Boards.create_tag(socket.assigns.board, params) do
-      {:ok, _} -> {:noreply, assign(socket, tag_form: new_tag_form())}
-      {:error, cs} -> {:noreply, assign(socket, tag_form: to_form(cs))}
-    end
-  end
-
-  def handle_event("set_tag_color", %{"id" => id, "color" => color}, socket) do
-    if tag = board_tag(socket, id), do: {:ok, _} = Boards.update_tag(tag, %{"color" => color})
-    {:noreply, socket}
-  end
-
-  def handle_event("rename_tag", %{"tag_id" => id, "name" => name}, socket) do
-    with %Tag{} = tag <- board_tag(socket, id),
-         {:error, _} <- Boards.update_tag(tag, %{"name" => name}) do
-      {:noreply, put_flash(socket, :error, "A tag with that name already exists.")}
-    else
-      _ -> {:noreply, socket}
-    end
-  end
-
-  def handle_event("delete_tag", %{"id" => id}, socket) do
-    if tag = board_tag(socket, id), do: {:ok, _} = Boards.delete_tag(tag)
-    {:noreply, socket}
-  end
 
   ## Events: board settings ----------------------------------------------------
 
@@ -3698,7 +3617,11 @@ defmodule SlipdockWeb.BoardLive.Show do
                       </button>
                     </li>
                     <li>
-                      <button phx-click="edit_column" phx-value-id={column.id}>
+                      <button
+                        phx-click="edit_column"
+                        phx-target="#board-column"
+                        phx-value-id={column.id}
+                      >
                         <.icon name="hero-cog-6-tooth" class="size-4" /> List settings
                       </button>
                     </li>
@@ -3706,6 +3629,7 @@ defmodule SlipdockWeb.BoardLive.Show do
                       <button
                         class="text-error"
                         phx-click="delete_column"
+                        phx-target="#board-column"
                         phx-value-id={column.id}
                         data-confirm={"Delete “#{column.name}” and its #{length(column.cards)} cards?"}
                       >
@@ -3976,7 +3900,13 @@ defmodule SlipdockWeb.BoardLive.Show do
         parent={List.last(@ancestry)}
         favourites={@favourites}
       />
-      <.column_modal :if={@column_modal} column={@column_modal} form={@column_form} />
+      <.live_component
+        :if={@can_write}
+        module={SlipdockWeb.BoardLive.ColumnComponent}
+        id="column-settings"
+        board={@board}
+        current_user={@current_user}
+      />
       <.live_component
         module={SlipdockWeb.BoardLive.MoveBoardComponent}
         id="move-board"
@@ -3989,11 +3919,12 @@ defmodule SlipdockWeb.BoardLive.Show do
         board={@board}
         current_user={@current_user}
       />
-      <.tags_modal
+      <.live_component
         :if={@panel == :tags}
+        module={SlipdockWeb.BoardLive.TagsComponent}
+        id="tags"
         board={@board}
-        form={@tag_form}
-        color={@new_tag_color}
+        current_user={@current_user}
         close_path={@paths.close}
       />
       <.activity_modal
@@ -5675,188 +5606,6 @@ defmodule SlipdockWeb.BoardLive.Show do
         current_user={@current_user}
         can_write={@can_write}
       />
-    </.modal>
-    """
-  end
-
-  attr :column, Column, required: true
-  attr :form, :any, required: true
-
-  defp column_modal(assigns) do
-    ~H"""
-    <.modal id="column-modal" on_close={JS.push("close_column")} size="sm">
-      <div class="space-y-5 p-6">
-        <h2 class="text-lg font-semibold">List settings</h2>
-        <.form for={@form} id="column-form" phx-submit="save_column" class="space-y-4">
-          <.input field={@form[:name]} label="Name" />
-          <.input
-            field={@form[:wip_limit]}
-            type="number"
-            min="1"
-            label="WIP limit (leave empty for none)"
-            placeholder="e.g. 3"
-          />
-          <.input
-            field={@form[:category]}
-            type="select"
-            label="Meaning"
-            options={Enum.map(Column.categories(), fn {k, l} -> {l, k} end)}
-          />
-          <p class="-mt-2 text-xs text-base-content/50">
-            Cards dropped into a <em>Done</em> list are completed; a <em>Dropped</em> list takes
-            them out of progress counts.
-          </p>
-          <div class="space-y-1.5 rounded-lg bg-base-200/60 p-3">
-            <span class="text-sm font-medium">Horizon</span>
-            <p class="text-xs text-base-content/50">
-              The date range this list stands for. A card dropped here that isn't already
-              inside the range is scheduled to its end.
-            </p>
-            <div class="grid grid-cols-2 gap-2">
-              <.input field={@form[:horizon_from]} type="date" label="From" />
-              <.input field={@form[:horizon_to]} type="date" label="To" />
-            </div>
-            <.input
-              field={@form[:horizon_unit]}
-              type="select"
-              label="Schedule dropped cards to the"
-              options={[{"Exact day", ""} | Enum.map(Dates.precisions(), fn {k, l} -> {l, k} end)]}
-            />
-          </div>
-          <%!-- What the foot of every list offers. All three add something to
-                the list; a board that never holds documents would rather not
-                look at the button. --%>
-          <div class="space-y-1.5">
-            <span class="text-sm font-medium">At the foot of every list</span>
-            <label class="flex cursor-pointer items-center gap-2 text-sm">
-              <.input field={@form[:add_card]} type="checkbox" /> Add a card
-            </label>
-            <label class="flex cursor-pointer items-center gap-2 text-sm">
-              <.input field={@form[:add_page]} type="checkbox" /> Add a page — a wiki document,
-              placed in the list
-            </label>
-            <label class="flex cursor-pointer items-center gap-2 text-sm">
-              <.input field={@form[:add_document]} type="checkbox" /> Add a document — a file, on a
-              card of its own
-            </label>
-          </div>
-          <div class="space-y-1.5">
-            <span class="text-sm font-medium">Colour</span>
-            <div class="flex flex-wrap gap-1.5">
-              <button
-                type="button"
-                class={[
-                  "flex size-6 items-center justify-center rounded-full ring-1 ring-base-content/20 ring-offset-2 ring-offset-base-100",
-                  is_nil(@column.color) && "ring-2 ring-base-content"
-                ]}
-                phx-click="set_column_color"
-                phx-value-color=""
-                title="None"
-              >
-                <.icon name="hero-no-symbol" class="size-3.5 opacity-50" />
-              </button>
-              <.color_swatch
-                :for={{name, _} <- Palette.all()}
-                color={name}
-                selected={@column.color == name}
-                phx-click="set_column_color"
-                phx-value-color={name}
-              />
-            </div>
-          </div>
-          <div class="flex items-center justify-between pt-2">
-            <button
-              type="button"
-              class="btn btn-ghost btn-sm text-error"
-              phx-click="delete_column"
-              phx-value-id={@column.id}
-              data-confirm={"Delete “#{@column.name}” and all of its cards?"}
-            >
-              <.icon name="hero-trash" class="size-4" /> Delete list
-            </button>
-            <button type="submit" class="btn btn-primary btn-sm">Save</button>
-          </div>
-        </.form>
-      </div>
-    </.modal>
-    """
-  end
-
-  attr :board, :any, required: true
-  attr :form, :any, required: true
-  attr :color, :string, required: true
-  attr :close_path, :string, required: true
-
-  defp tags_modal(assigns) do
-    ~H"""
-    <.modal id="tags-modal" on_close={JS.patch(@close_path)} size="sm">
-      <div class="space-y-5 p-6">
-        <h2 class="text-lg font-semibold">Tags</h2>
-        <p :if={@board.tags == []} class="text-sm text-base-content/60">
-          No tags yet. Create one below.
-        </p>
-        <ul class="space-y-2">
-          <li :for={tag <- @board.tags} id={"tag-row-#{tag.id}"} class="rounded-xl bg-base-200/60 p-3">
-            <div class="flex items-center gap-2">
-              <.tag_chip tag={tag} />
-              <form phx-submit="rename_tag" class="flex flex-1 gap-1">
-                <input type="hidden" name="tag_id" value={tag.id} />
-                <input
-                  type="text"
-                  name="name"
-                  value={tag.name}
-                  class="input input-xs flex-1"
-                  aria-label="Tag name"
-                />
-                <button type="submit" class="btn btn-xs">Rename</button>
-              </form>
-              <button
-                type="button"
-                class="btn btn-ghost btn-xs btn-square text-error"
-                phx-click="delete_tag"
-                phx-value-id={tag.id}
-                data-confirm={"Delete tag “#{tag.name}”? It will be removed from all cards."}
-                title="Delete tag"
-              >
-                <.icon name="hero-trash" class="size-4" />
-              </button>
-            </div>
-            <div class="mt-2 flex flex-wrap gap-1">
-              <button
-                :for={{name, _} <- Palette.all()}
-                type="button"
-                class={[
-                  "size-4 rounded-full transition hover:scale-125",
-                  Palette.dot(name),
-                  tag.color == name && "ring-2 ring-base-content ring-offset-1 ring-offset-base-100"
-                ]}
-                phx-click="set_tag_color"
-                phx-value-id={tag.id}
-                phx-value-color={name}
-                title={Palette.label(name)}
-              ></button>
-            </div>
-          </li>
-        </ul>
-        <.form
-          for={@form}
-          id="tag-form"
-          phx-submit="create_tag"
-          class="space-y-3 border-t border-base-content/10 pt-4"
-        >
-          <.input field={@form[:name]} label="New tag" placeholder="e.g. urgent" autocomplete="off" />
-          <div class="flex flex-wrap gap-1.5">
-            <.color_swatch
-              :for={{name, _} <- Palette.all()}
-              color={name}
-              selected={@color == name}
-              phx-click="pick_tag_color"
-              phx-value-color={name}
-            />
-          </div>
-          <button type="submit" class="btn btn-primary btn-sm w-full">Create tag</button>
-        </.form>
-      </div>
     </.modal>
     """
   end
