@@ -974,6 +974,18 @@ defmodule SlipdockWeb.APIGuide do
     before it is stored: an unknown trigger, action or condition is a 422 with
     the reason, so a rule that saves is a rule that runs.
 
+    An `email` action may only go to people who can read the board — its
+    owner and those it is shared with — at most
+    #{Slipdock.Automations.Spec.max_recipients()} of them per action, and
+    anyone else is a 422 naming them; access taken away later stops the
+    email at send time. A rule has at most #{Slipdock.Automations.Spec.max_actions()}
+    actions and a board at most #{Slipdock.Automations.max_rules()} rules.
+    What rules send is metered: #{Slipdock.Automations.Runner.allowances().emails_per_hour}
+    automation emails an hour across everything one person owns, and
+    #{Slipdock.Automations.Runner.allowances().callbacks_per_minute} callbacks
+    a minute per board; past that the action fails with "held back" in the
+    rule's last error, and the next window carries on.
+
     - **triggers** — #{Enum.map_join(v.triggers, " · ", & &1.type)}
       (the last five are checked on a timer, the rest fire on the event)
     - **conditions** — any number, all must hold; fields

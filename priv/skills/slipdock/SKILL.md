@@ -281,6 +281,11 @@ When what is asked for is one of the ready-made rules — "follow this list", "t
 comments on my cards", "remind me before things are due" — `--preset` is shorter still and
 equally exact: `slipdock new-automation 1 --preset follow_list column=Doing notify=email`.
 A rule with an unknown trigger or action is refused with the reason, so anything that saves runs.
+An `email` action only reaches people who can read the board (owner and those it is shared
+with), at most 10 per action; anyone else is refused at save. Rules are capped at 20 actions
+and 50 per board, and what they send is metered (200 emails an hour per owner, 120 callbacks a
+minute per board) — a "held back" last error means the allowance ran out, not that the rule is
+wrong, so don't rewrite it.
 
 The `webhook` action is the way out to anything else the user runs: it calls a URL of theirs
 with the card — id, title, a link to it, list, priority, assignee, start and due dates,

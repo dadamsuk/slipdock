@@ -94,14 +94,14 @@ defmodule Slipdock.AutomationsTest do
           "trigger" => %{"type" => "card_created", "column" => "Doing"},
           "conditions" => [%{"field" => "priority", "op" => "is", "value" => "high"}],
           "actions" => [
-            %{"type" => "email", "to" => "ops@example.com"},
+            %{"type" => "email", "to" => "tester@example.com"},
             %{"type" => "set_priority", "priority" => "critical"}
           ]
         })
 
       assert Spec.summary(spec) ==
                "When a card is added to Doing and priority is high, " <>
-                 "email ops@example.com, then set its priority to critical."
+                 "email tester@example.com, then set its priority to critical."
     end
 
     test "says which method a callback will use" do
@@ -124,7 +124,7 @@ defmodule Slipdock.AutomationsTest do
       rule_fixture(board, %{
         "trigger" => %{"type" => "card_created", "column" => doing.name},
         "actions" => [
-          %{"type" => "email", "to" => "ops@example.com", "subject" => "New: {{card.title}}"}
+          %{"type" => "email", "to" => "tester@example.com", "subject" => "New: {{card.title}}"}
         ]
       })
 
@@ -137,7 +137,7 @@ defmodule Slipdock.AutomationsTest do
 
       rule_fixture(board, %{
         "trigger" => %{"type" => "card_created", "column" => doing.name},
-        "actions" => [%{"type" => "email", "to" => "ops@example.com"}]
+        "actions" => [%{"type" => "email", "to" => "tester@example.com"}]
       })
 
       card_fixture(backlog, %{"title" => "Not this one"})
@@ -229,7 +229,7 @@ defmodule Slipdock.AutomationsTest do
       rule =
         rule_fixture(board, %{
           "trigger" => %{"type" => "card_created"},
-          "actions" => [%{"type" => "email", "to" => "ops@example.com"}]
+          "actions" => [%{"type" => "email", "to" => "tester@example.com"}]
         })
 
       {:ok, _} = Automations.toggle_rule(rule)
@@ -1024,19 +1024,19 @@ defmodule Slipdock.AutomationsTest do
         "scope" => "board",
         "spec" => %{
           "trigger" => %{"type" => "card_created", "column" => doing.name},
-          "actions" => [%{"type" => "email", "to" => "someone@example.com"}]
+          "actions" => [%{"type" => "email", "to" => "tester@example.com"}]
         }
       })
 
       assert {:ok, rule} =
                Automations.create_rule_from_text(
                  board,
-                 "when creating a new card in #{doing.name}, email someone@example.com",
+                 "when creating a new card in #{doing.name}, email tester@example.com",
                  created_by: user_fixture("author@example.com")
                )
 
       assert rule.name == "Tell ops about new work"
-      assert rule.source =~ "someone@example.com"
+      assert rule.source =~ "tester@example.com"
       assert Rule.trigger_type(rule) == "card_created"
 
       # The prompt tells the model what this board actually has.
@@ -1080,7 +1080,7 @@ defmodule Slipdock.AutomationsTest do
       rule =
         rule_fixture(board, %{
           "trigger" => %{"type" => "card_created"},
-          "actions" => [%{"type" => "email", "to" => "ops@example.com"}]
+          "actions" => [%{"type" => "email", "to" => "tester@example.com"}]
         })
 
       assert {:error, message} = Automations.rewrite_rule(rule, "email me")

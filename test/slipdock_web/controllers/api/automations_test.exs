@@ -20,7 +20,7 @@ defmodule SlipdockWeb.API.AutomationsTest do
     }
   end
 
-  defp email_rule(to \\ "ops@example.com") do
+  defp email_rule(to \\ "tester@example.com") do
     %{
       "trigger" => %{"type" => "card_created"},
       "actions" => [%{"type" => "email", "to" => to, "subject" => "New: {{card.title}}"}]
@@ -58,7 +58,7 @@ defmodule SlipdockWeb.API.AutomationsTest do
         |> json_response(201)
 
       assert body["automation"]["name"] == "Tell ops"
-      assert body["automation"]["summary"] == "When a card is added, email ops@example.com."
+      assert body["automation"]["summary"] == "When a card is added, email tester@example.com."
       assert body["automation"]["trigger"] == "card_created"
       assert body["automation"]["enabled"]
       refute body["automation"]["scheduled"]
@@ -71,13 +71,13 @@ defmodule SlipdockWeb.API.AutomationsTest do
         |> post(~p"/api/boards/#{board.id}/automations", %{"spec" => email_rule()})
         |> json_response(201)
 
-      assert body["automation"]["name"] == "When a card is added, email ops@example.com."
+      assert body["automation"]["name"] == "When a card is added, email tester@example.com."
     end
 
     test "the rule it creates actually runs", %{conn: conn, board: board, backlog: backlog} do
       conn
       |> post(~p"/api/boards/#{board.name}/automations", %{
-        "spec" => email_rule("someone@example.com")
+        "spec" => email_rule("tester@example.com")
       })
       |> json_response(201)
 
@@ -102,19 +102,19 @@ defmodule SlipdockWeb.API.AutomationsTest do
         "name" => "Email on done",
         "spec" => %{
           "trigger" => %{"type" => "card_moved", "to" => done.name},
-          "actions" => [%{"type" => "email", "to" => "someone@example.com"}]
+          "actions" => [%{"type" => "email", "to" => "tester@example.com"}]
         }
       })
 
       body =
         conn
         |> post(~p"/api/boards/#{board.id}/automations", %{
-          "text" => "email someone@example.com when a ticket is closed"
+          "text" => "email tester@example.com when a ticket is closed"
         })
         |> json_response(201)
 
       assert body["automation"]["name"] == "Email on done"
-      assert body["automation"]["source"] == "email someone@example.com when a ticket is closed"
+      assert body["automation"]["source"] == "email tester@example.com when a ticket is closed"
     end
 
     test "text the model can't express comes back as a 422", %{conn: conn, board: board} do
