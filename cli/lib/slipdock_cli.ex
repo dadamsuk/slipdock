@@ -258,9 +258,13 @@ defmodule SlipdockCLI do
                                         (the one a first sign-in makes by itself)
     set-board <board> [--name N] [--code C] [--shortcut K] [--desc TEXT] [--color C]
         [--no-add-card] [--no-add-page] [--no-add-document] [--sprints | --no-sprints]
+        [--simple | --no-simple]
                                         rename a board, change its code, shortcut key or colour,
-                                        say what the foot of each list offers, or make it a
-                                        sprint board (every card a sprint)
+                                        say what the foot of each list offers, make it a
+                                        sprint board (every card a sprint), or a simple one (a
+                                        plain to-do list: % complete, start dates, health,
+                                        time, votes, dependencies, Timeline and Prioritise
+                                        hidden — not deleted)
     sprint <board> [--name N] [--start DATE] [--days N] [--goal TEXT]
                                         start the next sprint on a sprint board: a dated card
                                         ("Sprint 4", following on from the last, 14 days unless
@@ -362,6 +366,7 @@ defmodule SlipdockCLI do
     add_page: :boolean,
     add_document: :boolean,
     sprints: :boolean,
+    simple: :boolean,
     days: :integer,
     goal: :string,
     template: :string,
@@ -1822,6 +1827,7 @@ defmodule SlipdockCLI do
         "add_card" => o[:add_card],
         "add_page" => o[:add_page],
         "add_document" => o[:add_document],
+        "simple" => o[:simple],
         "kind" =>
           case o[:sprints] do
             true -> "sprints"
@@ -1834,7 +1840,7 @@ defmodule SlipdockCLI do
       do:
         fail(
           "nothing to change — pass --name, --code, --shortcut, --desc, --color, " <>
-            "--[no-]add-card / --[no-]add-page / --[no-]add-document or --[no-]sprints"
+            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints or --[no-]simple"
         )
 
     HTTP.patch("/boards/#{HTTP.seg(ref)}", body)

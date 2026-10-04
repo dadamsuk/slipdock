@@ -578,7 +578,8 @@ defmodule SlipdockWeb.SwimlaneComponents do
         section_title: @section_title,
         compact?: compact?,
         size_label: if(compact?, do: "compact", else: "comfortable"),
-        facets: Config.facets(assigns.mode),
+        facets:
+          Enum.reject(Config.facets(assigns.mode), fn {k, _} -> k in assigns.config.hidden end),
         shown: Config.shown(assigns.config),
         table_fields: Config.table_fields(assigns.config)
       )

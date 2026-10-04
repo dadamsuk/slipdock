@@ -34,6 +34,7 @@ defmodule SlipdockWeb.API.JSON do
       description: b.description,
       color: b.color,
       kind: b.kind,
+      simple: b.simple,
       owner: owner_ref(b),
       shared: shared?(b, viewer),
       columns: length(columns),
@@ -72,6 +73,10 @@ defmodule SlipdockWeb.API.JSON do
       votes: %{budget: b.vote_budget, max_per_card: b.vote_max},
       # What the foot of every list offers, and so what a client should draw.
       add: %{card: b.add_card, page: b.add_page, document: b.add_document},
+      # A plain to-do list: a client should leave out the tracking details
+      # (`hidden_facets`) and the Timeline and Prioritise views.
+      simple: b.simple,
+      hidden_facets: Board.hidden_facets(b),
       columns:
         Enum.map(b.columns, fn col ->
           col

@@ -960,6 +960,10 @@ defmodule SlipdockWeb.BoardLive.Show do
   end
 
   defp assign_swim_state(socket, view, base, config) do
+    # The board's own hidden facets go on both, so they never make a view dirty.
+    hidden = Board.hidden_facets(socket.assigns.board)
+    {base, config} = {Config.hide(base, hidden), Config.hide(config, hidden)}
+
     socket
     |> assign(
       swim_view: view,
@@ -5996,7 +6000,7 @@ defmodule SlipdockWeb.BoardLive.Show do
               <% end %>
             </section>
 
-            <section class="space-y-2 px-1" data-section-key="p">
+            <section :if={not @board.simple} class="space-y-2 px-1" data-section-key="p">
               <h3 class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-base-content/60">
                 <.icon name="hero-link" class="size-3.5" />
                 <.keyed_label key="p" label="Dependencies" />
@@ -6393,7 +6397,10 @@ defmodule SlipdockWeb.BoardLive.Show do
                   </option>
                 </select>
               </label>
-              <label class="block space-y-1">
+              <%!-- A simple board is a to-do list: what follows down to Health,
+                    bar the due date and Completed, is project tracking, and
+                    stays out of its way (`Board.simple?/1`). --%>
+              <label :if={not @board.simple} class="block space-y-1">
                 <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">% complete</span>
                 <div class="flex items-center gap-2">
                   <input
@@ -6425,7 +6432,7 @@ defmodule SlipdockWeb.BoardLive.Show do
                   Use a whole number from 0 to 100.
                 </p>
               </label>
-              <label class="block space-y-1">
+              <label :if={not @board.simple} class="block space-y-1">
                 <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Start date</span>
                 <input
                   type="date"
@@ -6449,7 +6456,7 @@ defmodule SlipdockWeb.BoardLive.Show do
                   Start must be on or before the due date.
                 </p>
               </label>
-              <label class="block space-y-1">
+              <label :if={not @board.simple} class="block space-y-1">
                 <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Precision</span>
                 <select
                   name="card[date_precision]"
@@ -6473,7 +6480,10 @@ defmodule SlipdockWeb.BoardLive.Show do
                 </p>
               </label>
               <div
-                :if={@card.rollup && @card.rollup.children > 0 && @card.rollup.derived_due}
+                :if={
+                  (not @board.simple and @card.rollup) && @card.rollup.children > 0 &&
+                    @card.rollup.derived_due
+                }
                 class="space-y-1 rounded-lg bg-base-200/60 p-2 text-xs"
                 id="card-rollup-dates"
               >
@@ -6522,7 +6532,7 @@ defmodule SlipdockWeb.BoardLive.Show do
                   checked={@card.completed}
                 />
               </label>
-              <div class="space-y-1.5" id="card-status">
+              <div :if={not @board.simple} class="space-y-1.5" id="card-status">
                 <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Health</span>
                 <div class="flex flex-wrap items-center gap-1.5">
                   <.health_pill health={Card.health(@card)} />
@@ -6538,8 +6548,14 @@ defmodule SlipdockWeb.BoardLive.Show do
                 </p>
               </div>
             </.form>
-            <.time_section card={@card} can_write={@can_write} form_key={@form_key} />
+            <.time_section
+              :if={not @board.simple}
+              card={@card}
+              can_write={@can_write}
+              form_key={@form_key}
+            />
             <.status_section
+              :if={not @board.simple}
               item={@card}
               can_write={@can_write}
               form_key={@form_key}
@@ -6547,6 +6563,7 @@ defmodule SlipdockWeb.BoardLive.Show do
             />
             <.fields_section item={@card} board={@board} can_write={@can_write} />
             <.vote_box
+              :if={not @board.simple}
               item={@card}
               board={@board}
               current_user={@current_user}
@@ -7386,6 +7403,29 @@ defmodule SlipdockWeb.BoardLive.Show do
                 <span class="block text-xs text-base-content/50">
                   Every card is a sprint, with its work as subcards. Adds New sprint, and Add
                   cards… to pick work from your other boards into a sprint.
+                </span>
+              </span>
+            </label>
+          </div>
+          <%!-- A plain to-do list: the tracking details stay out of sight
+                (`Board.simple?/1`). Hidden, not removed. --%>
+          <div class="space-y-1">
+            <input type="hidden" name={@form[:simple].name} value="false" />
+            <label class="flex cursor-pointer items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                id="board-simple"
+                name={@form[:simple].name}
+                value="true"
+                checked={Phoenix.HTML.Form.normalize_value("checkbox", @form[:simple].value)}
+                class="checkbox checkbox-sm mt-0.5"
+              />
+              <span>
+                <span class="font-medium">Simple board</span>
+                <span class="block text-xs text-base-content/50">
+                  For a plain to-do list. Hides % complete, start dates, health, time tracking,
+                  votes and dependencies on its cards, and the Timeline and Prioritise views.
+                  Nothing is deleted; untick it to bring them back.
                 </span>
               </span>
             </label>

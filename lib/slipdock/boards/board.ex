@@ -29,6 +29,12 @@ defmodule Slipdock.Boards.Board do
     field :add_page, :boolean, default: true
     field :add_document, :boolean, default: true
 
+    # A simple board is a plain to-do list: the project-tracking details
+    # (see `technical_facets/0`) are hidden on its cards and its tiles, and
+    # the Timeline and Prioritise views drop out of its view menu. The data
+    # stays, so turning it off brings everything back.
+    field :simple, :boolean, default: false
+
     # What sort of board this is, when it is more than a board: "sprints"
     # makes every card a sprint and its subcards the sprint's work, and gives
     # the board New sprint and Add cards… (see `Slipdock.Sprints`). nil for an
@@ -221,6 +227,26 @@ defmodule Slipdock.Boards.Board do
   def sprints?(%__MODULE__{kind: "sprints"}), do: true
   def sprints?(_), do: false
 
+  @doc "Whether the board is a simple one: a to-do list without the tracking details."
+  def simple?(%__MODULE__{simple: true}), do: true
+  def simple?(_), do: false
+
+  # The card facets a simple board hides — the ones that only mean something
+  # to somebody tracking a project. Keys of `Slipdock.Swimlanes.Config.facets/1`.
+  @technical_facets ~w(start_date percent_complete time dependencies)
+
+  @doc "The card facets a simple board hides."
+  def technical_facets, do: @technical_facets
+
+  @doc "The card facets hidden on `board`: the technical ones when it is simple, else none."
+  def hidden_facets(board), do: if(simple?(board), do: @technical_facets, else: [])
+
+  # The views that are project tooling rather than a way of looking at a list.
+  @technical_views [:timeline, :prioritise]
+
+  @doc "The view modes a simple board leaves out of its view menu."
+  def hidden_views(board), do: if(simple?(board), do: @technical_views, else: [])
+
   defp blank_to_nil(""), do: nil
   defp blank_to_nil(value), do: value
 
@@ -238,6 +264,7 @@ defmodule Slipdock.Boards.Board do
       :add_card,
       :add_page,
       :add_document,
+      :simple,
       :kind
     ])
     |> update_change(:kind, &blank_to_nil/1)
