@@ -17,7 +17,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
   """
   use SlipdockWeb, :live_view
 
-  alias Slipdock.{Accounts, Build, Mailer, Settings}
+  alias Slipdock.{Accounts, Build, Mailer, Settings, Updates}
   alias Slipdock.Settings.Instance
 
   @impl true
@@ -29,10 +29,28 @@ defmodule SlipdockWeb.ConfigLive.Index do
        mail_error: nil,
        mail_tested?: false,
        tested_mail: nil,
-       typed_password: nil
+       typed_password: nil,
+       update: nil
      )
-     |> load()}
+     |> load()
+     |> check_for_update()}
   end
+
+  # Asked when the page is opened, in the background: the registry is a
+  # network call away and the rest of the page should not wait on it.
+  defp check_for_update(socket) do
+    if connected?(socket) and Updates.enabled?() do
+      socket |> assign(update: :checking) |> start_async(:update, &Updates.check/0)
+    else
+      socket
+    end
+  end
+
+  @impl true
+  def handle_async(:update, {:ok, result}, socket), do: {:noreply, assign(socket, update: result)}
+
+  def handle_async(:update, {:exit, reason}, socket),
+    do: {:noreply, assign(socket, update: {:error, inspect(reason)})}
 
   @impl true
   def handle_params(_params, _uri, socket), do: {:noreply, assign(socket, tab: tab(socket))}
@@ -66,6 +84,8 @@ defmodule SlipdockWeb.ConfigLive.Index do
   ## Settings
 
   @impl true
+  def handle_event("check-update", _params, socket), do: {:noreply, check_for_update(socket)}
+
   def handle_event("save-settings", %{"settings" => attrs}, socket) do
     # Only what these forms show. The admin's own address is changed through
     # its own flow, which verifies the new one first — otherwise a typo sends
@@ -318,7 +338,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
 
       <div class="kanban-scroll h-full overflow-y-auto">
         <div class="mx-auto max-w-3xl space-y-6 p-6">
-          <.build_banner />
+          <.build_banner update={@update} />
 
           <div role="tablist" class="tabs tabs-box">
             <.link patch={~p"/config"} role="tab" class={["tab", @tab == :index && "tab-active"]}>
@@ -370,9 +390,61 @@ defmodule SlipdockWeb.ConfigLive.Index do
         <span class="text-base-content/60">Version</span>
         <span class="font-mono font-medium">{@build.version}</span>
       </span>
+      <.update_status update={@update} />
     </div>
     """
   end
+
+  # What the registry says about the published image, beside what is running.
+  # Pulling it is the operator's job: the container cannot replace itself.
+  defp update_status(%{update: nil} = assigns), do: ~H""
+
+  defp update_status(%{update: :checking} = assigns) do
+    ~H"""
+    <span id="update-status" class="text-base-content/60">Checking for a newer image…</span>
+    """
+  end
+
+  defp update_status(%{update: {:ok, %{status: :available} = found}} = assigns) do
+    assigns = assign(assigns, latest: found.latest, image: found.image)
+
+    ~H"""
+    <div id="update-status" class="basis-full rounded-xl bg-info/10 px-3 py-2 text-sm">
+      <p>
+        <span class="font-medium">A newer image has been published</span>
+        — <span class="font-mono" title={@latest.revision}>{String.slice(@latest.revision, 0, 7)}</span>,
+        built {published(@latest)}. To move onto it, on the host:
+      </p>
+      <pre class="mt-1 font-mono text-xs">docker compose pull && docker compose up -d</pre>
+      <p class="mt-1 text-xs text-base-content/60">
+        From {@image}. The database migrates itself when the new one starts.
+      </p>
+    </div>
+    """
+  end
+
+  defp update_status(assigns) do
+    ~H"""
+    <span id="update-status" class="flex items-center gap-2">
+      <span class="text-base-content/60">{update_line(@update)}</span>
+      <button type="button" phx-click="check-update" class="link link-hover text-base-content/60">
+        Check again
+      </button>
+    </span>
+    """
+  end
+
+  defp update_line({:ok, %{status: :current}}), do: "Up to date with the published image."
+  defp update_line({:ok, %{status: :ahead}}), do: "Newer than the published image."
+
+  defp update_line({:ok, %{status: :unknown}}),
+    do: "Cannot compare with the published image: this build does not know its commit."
+
+  defp update_line({:ok, %{status: :disabled}}), do: "Update checks are off."
+  defp update_line({:error, reason}), do: "Could not check for a newer image: #{reason}."
+
+  defp published(%{created: %DateTime{} = at}), do: Calendar.strftime(at, "%Y-%m-%d %H:%M UTC")
+  defp published(_), do: "at an unknown time"
 
   defp server_tab(assigns) do
     ~H"""
