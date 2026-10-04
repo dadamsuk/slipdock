@@ -36,18 +36,21 @@ ENV MIX_ENV="prod"
 ARG SLIPDOCK_FORCE_SSL="false"
 ENV SLIPDOCK_FORCE_SSL=${SLIPDOCK_FORCE_SSL}
 
-# Which commit this image was built from. There is no .git in here to ask, so
-# the build has to be told: --build-arg SLIPDOCK_GIT_SHA=$(git rev-parse HEAD).
-# Left out, Configuration shows the commit as "unknown" rather than wrong.
-ARG SLIPDOCK_GIT_SHA=""
-ENV SLIPDOCK_GIT_SHA=${SLIPDOCK_GIT_SHA}
-
 # Dependencies first, so editing application code does not refetch them.
 COPY mix.exs mix.lock ./
 RUN mix deps.get --only $MIX_ENV
 RUN mkdir config
 COPY config/config.exs config/${MIX_ENV}.exs config/
 RUN mix deps.compile
+
+# Which commit this image was built from. There is no .git in here to ask, so
+# the build has to be told: --build-arg SLIPDOCK_GIT_SHA=$(git rev-parse HEAD).
+# Left out, Configuration shows the commit as "unknown" rather than wrong.
+# It changes on every commit, so it sits after the dependency layers (which
+# would otherwise be rebuilt every time) and before `mix compile`, which is
+# where Slipdock.Build reads it.
+ARG SLIPDOCK_GIT_SHA=""
+ENV SLIPDOCK_GIT_SHA=${SLIPDOCK_GIT_SHA}
 
 COPY priv priv
 COPY lib lib

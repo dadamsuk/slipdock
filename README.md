@@ -288,7 +288,10 @@ commit:
 
 ```sh
 docker build --build-arg SLIPDOCK_GIT_SHA=$(git rev-parse HEAD) .
+SLIPDOCK_GIT_SHA=$(git rev-parse HEAD) docker compose build   # the same, via compose
 ```
+
+The published images are built with it.
 
 Without it the commit reads `unknown`, which is the honest answer rather than
 a wrong one.
@@ -354,7 +357,7 @@ own changes:
 ```sh
 git clone https://github.com/dadamsuk/slipdock.git
 cd slipdock
-docker compose build
+SLIPDOCK_GIT_SHA=$(git rev-parse HEAD) docker compose build
 docker compose up -d
 ```
 
