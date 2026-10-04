@@ -686,8 +686,13 @@ defmodule Slipdock.AI.Researcher do
   end
 
   defp call(user, "list_pages", args, state) do
-    case find_board(user, to_string(args["board"] || "")) do
-      {:ok, board} ->
+    ref = trimmed(args["board"])
+
+    case ref && find_board(user, ref) do
+      nil ->
+        {"There is no board called “#{ref || ""}” that you can see. " <> board_hint(user), state}
+
+      board ->
         case Slipdock.Wiki.tree(board, status: "published") do
           [] ->
             {"#{board.name} has no wiki pages yet.", state}
@@ -695,9 +700,6 @@ defmodule Slipdock.AI.Researcher do
           tree ->
             {"The wiki of #{board.name}:\n" <> render_page_tree(tree, 0), state}
         end
-
-      _ ->
-        {"There is no board called #{inspect(args["board"])}.", state}
     end
   end
 
@@ -1360,7 +1362,10 @@ defmodule Slipdock.AI.Researcher do
   defp find_board(_user, _name), do: nil
 
   # "the personal board" is how people talk; match on a contained name before
-  # telling someone their board doesn't exist.
+  # telling someone their board doesn't exist. An empty name is contained in
+  # every name, so it matches nothing rather than whichever board comes first.
+  defp loose_board(_user, ""), do: nil
+
   defp loose_board(user, wanted) do
     user
     |> Access.list_boards(archived: :all)

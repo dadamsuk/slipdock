@@ -533,4 +533,429 @@ defmodule Slipdock.ResearcherTest do
     assert Enum.map(answer.sources, & &1.card.id) == [ctx.card.id]
     refute neighbour.id in Enum.map(answer.sources, & &1.card.id)
   end
+
+  ## Each tool's arguments and refusals ---------------------------------------
+
+  # Runs one tool call through the loop and returns what the tool said back
+  # to the model, alongside the answer.
+  defp tool_output(user, tool, args, history \\ []) do
+    Slipdock.AIStub.reply_sequence([{:tool_calls, [{tool, args}]}, "Done."])
+    assert {:ok, answer} = Researcher.ask(user, history, "Question?")
+    assert_receive {:ai_request, _}
+    assert_receive {:ai_request, %{"messages" => messages}}
+    {Enum.find(messages, &(&1["role"] == "tool"))["content"], answer}
+  end
+
+  describe "read_card" do
+    test "takes an id as a string, and refuses one that isn't a number", ctx do
+      {content, answer} = tool_output(ctx.owner, "read_card", %{"card_id" => "#{ctx.card.id}"})
+      assert content =~ "Refund rounding is wrong"
+      # Reading a card is not a search, and does not count as a source.
+      assert answer.searches == []
+
+      {content, _} = tool_output(ctx.owner, "read_card", %{"card_id" => "the refund one"})
+      assert content == "read_card needs a numeric card_id."
+
+      {content, _} = tool_output(ctx.owner, "read_card", %{})
+      assert content == "read_card needs a numeric card_id."
+
+      {content, _} = tool_output(ctx.owner, "read_card", %{"card_id" => 999_999_999})
+      assert content == "There is no card #999999999 you can see."
+    end
+  end
+
+  describe "list_boards" do
+    test "someone with no boards is told so", _ctx do
+      nobody = user_fixture("boardless@example.com")
+      {content, _} = tool_output(nobody, "list_boards", %{})
+      assert content == "You have no boards."
+    end
+
+    test "each board has its code, card count and lists, and archived ones say so", ctx do
+      old = board_fixture(%{"name" => "Old plans", "code" => "old"}, owner: ctx.owner)
+      {:ok, _} = Boards.archive_board(old)
+
+      {content, _} = tool_output(ctx.owner, "list_boards", %{})
+      lines = String.split(content, "\n")
+
+      launch = Enum.find(lines, &(&1 =~ "Launch"))
+      assert launch =~ "- Launch [launch] — 1 active cards; lists: #{ctx.column.name}"
+      assert Enum.find(lines, &(&1 =~ "Old plans")) =~ "(archived)"
+    end
+  end
+
+  describe "read_board" do
+    test "describes a board's description, lists and done count", ctx do
+      {:ok, board} = Boards.update_board(ctx.board, %{"description" => "Everything for launch"})
+      done = card_fixture(ctx.column, %{"title" => "Shipped"})
+      {:ok, _} = Boards.update_card(done, %{"completed" => true})
+
+      {content, _} = tool_output(ctx.owner, "read_board", %{"board" => board.code})
+      assert content =~ "# Board: Launch [launch]"
+      assert content =~ "Description: Everything for launch"
+      assert content =~ "Top-level cards: 2 (1 done)."
+      refute content =~ "This board is archived."
+    end
+
+    test "an archived board says so", ctx do
+      {:ok, _} = Boards.archive_board(ctx.board)
+      {content, _} = tool_output(ctx.owner, "read_board", %{"board" => "Launch"})
+      assert content =~ "This board is archived."
+    end
+
+    test "a missing or unknown board is refused with the boards there are", ctx do
+      {content, _} = tool_output(ctx.owner, "read_board", %{})
+      assert content =~ "There is no board called “” that you can see."
+      assert content =~ "The boards you can see are: Launch."
+
+      {content, _} = tool_output(ctx.owner, "read_board", %{"board" => "Moonshot"})
+      assert content =~ "There is no board called “Moonshot”"
+
+      stranger = user_fixture("stranger@example.com")
+      {content, _} = tool_output(stranger, "read_board", %{"board" => "Launch"})
+      assert content =~ "There is no board called “Launch”"
+      assert content =~ "You have no boards."
+    end
+
+    test "a board is found by a name it only contains", ctx do
+      {content, _} = tool_output(ctx.owner, "read_board", %{"board" => "the launch board"})
+      assert content =~ "# Board: Launch"
+    end
+  end
+
+  describe "list_cards arguments" do
+    test "a depth that is not a number is refused", ctx do
+      {content, _} =
+        tool_output(ctx.owner, "list_cards", %{"board" => "Launch", "depth" => "lots"})
+
+      assert content == ~s(depth must be a number or "all".)
+    end
+
+    test "someone with no boards is told so", _ctx do
+      nobody = user_fixture("boardless@example.com")
+      {content, _} = tool_output(nobody, "list_cards", %{})
+      assert content == "You have no boards."
+    end
+
+    test "the filters applied are written into the header", ctx do
+      {content, answer} =
+        tool_output(ctx.owner, "list_cards", %{
+          "board" => "Launch",
+          "priority" => "high",
+          "completed" => false
+        })
+
+      assert content =~ "1 top-level card matching priority high, not done"
+      assert [%{why: "cards on Launch"}] = answer.sources
+    end
+  end
+
+  describe "assigned_cards arguments" do
+    test "a name that fits several people is asked again by email", ctx do
+      ann = user_fixture("ann.one@example.com")
+      ann2 = user_fixture("ann.two@example.com")
+
+      for u <- [ann, ann2],
+          do: {:ok, _} = Access.grant(ctx.board, u, "read", ctx.owner)
+
+      {content, _} = tool_output(ctx.owner, "assigned_cards", %{"person" => "ann"})
+      assert content =~ "“ann” could be any of:"
+      assert content =~ "ann.one@example.com"
+      assert content =~ "ann.two@example.com"
+      assert content =~ "Ask again with the email."
+    end
+
+    test "an unknown board is refused", ctx do
+      {content, _} = tool_output(ctx.owner, "assigned_cards", %{"board" => "Moonshot"})
+      assert content =~ "There is no board called “Moonshot”"
+    end
+
+    test "completed cards are left out and counted, unless asked for", ctx do
+      {:ok, _} =
+        Boards.update_card(ctx.card, %{"assignee_id" => ctx.owner.id, "completed" => true})
+
+      {content, answer} = tool_output(ctx.owner, "assigned_cards", %{"person" => "me"})
+      assert content =~ "0 unfinished cards assigned to"
+      assert content =~ "1 completed card is assigned to them as well"
+      assert answer.sources == []
+
+      {content, answer} =
+        tool_output(ctx.owner, "assigned_cards", %{"person" => "me", "include_done" => true})
+
+      assert content =~ "1 card assigned to"
+      refute content =~ "completed card"
+      assert [%{why: "assigned to " <> _}] = answer.sources
+    end
+  end
+
+  describe "recent_activity arguments" do
+    test "a limit shows the most recent entries and says how many there were", ctx do
+      for n <- 1..3, do: {:ok, _} = Boards.add_comment(ctx.card, "note #{n}")
+
+      {content, _} = tool_output(ctx.owner, "recent_activity", %{"limit" => 2})
+      assert content =~ "the 2 most recent of"
+      assert content =~ "on every board you can see"
+    end
+
+    test "an unknown board is refused", ctx do
+      {content, _} = tool_output(ctx.owner, "recent_activity", %{"board" => "Moonshot"})
+      assert content =~ "There is no board called “Moonshot”"
+    end
+  end
+
+  describe "alerts" do
+    test "a raised alert is listed with its board, card and body", ctx do
+      {:ok, _} =
+        Slipdock.Automations.raise_alert(%{
+          "title" => "Overdue",
+          "body" => "past its due date",
+          "severity" => "urgent",
+          "board_id" => ctx.board.id,
+          "card_id" => ctx.card.id
+        })
+
+      {content, _} = tool_output(ctx.owner, "alerts", %{})
+      assert content =~ "1 alert(s), most urgent first:"
+
+      assert content =~
+               "- [urgent] Overdue — past its due date (Launch, on “Refund rounding is wrong”, raised"
+    end
+  end
+
+  describe "the wiki tools" do
+    setup ctx do
+      {:ok, page} =
+        Slipdock.Wiki.create_page(
+          ctx.board,
+          %{"title" => "Refund policy", "body" => "Refunds are rounded down to the penny."},
+          user: ctx.owner
+        )
+
+      {:ok, child} =
+        Slipdock.Wiki.create_page(
+          ctx.board,
+          %{"title" => "Refund exceptions", "body" => "None.", "parent_id" => page.id},
+          user: ctx.owner
+        )
+
+      %{page: page, child: child}
+    end
+
+    test "list_pages lists the board's wiki as a tree", ctx do
+      {content, _} = tool_output(ctx.owner, "list_pages", %{"board" => "launch"})
+      assert content =~ "The wiki of Launch:"
+      assert content =~ "- #{ctx.page.code} Refund policy"
+      assert content =~ "\n  - #{ctx.child.code} Refund exceptions"
+    end
+
+    test "list_pages on a board with no wiki, or one the asker can't see", ctx do
+      board_fixture(%{"name" => "Bare", "code" => "bare"}, owner: ctx.owner)
+      {content, _} = tool_output(ctx.owner, "list_pages", %{"board" => "Bare"})
+      assert content == "Bare has no wiki pages yet."
+
+      stranger = user_fixture("stranger@example.com")
+      {content, _} = tool_output(stranger, "list_pages", %{"board" => "Launch"})
+      assert content =~ "There is no board called “Launch” that you can see."
+      refute content =~ "Refund policy"
+    end
+
+    test "list_pages with no board, or a blank one, picks none rather than the first", ctx do
+      for args <- [%{}, %{"board" => "   "}] do
+        {content, _} = tool_output(ctx.owner, "list_pages", args)
+        assert content =~ "There is no board called “” that you can see."
+        assert content =~ "The boards you can see are: Launch."
+        refute content =~ "Refund policy"
+      end
+    end
+
+    test "search_pages with a blank board searches everywhere, not the first board", ctx do
+      # The page is on the board listed last, so a blank name that fell back
+      # to "the first board" would miss it.
+      later = board_fixture(%{"name" => "Zeta", "code" => "zeta"}, owner: ctx.owner)
+
+      {:ok, _} =
+        Slipdock.Wiki.create_page(later, %{"title" => "Ledger", "body" => "Ledger rows balance."},
+          user: ctx.owner
+        )
+
+      Slipdock.AIStub.stub_embeddings()
+      {:ok, _} = Search.index_pages(Search.load_pages(Search.all_page_ids()))
+
+      for board <- ["launch", "zeta"] do
+        {content, _} = tool_output(ctx.owner, "read_board", %{"board" => board})
+        assert content =~ "# Board:"
+      end
+
+      {content, _} =
+        tool_output(ctx.owner, "search_pages", %{"query" => "ledger rows balance", "board" => " "})
+
+      assert content =~ "Ledger"
+      assert content =~ "Zeta › wiki"
+    end
+
+    test "read_page returns the page in full and remembers it as a source", ctx do
+      {content, answer} = tool_output(ctx.owner, "read_page", %{"page" => ctx.page.code})
+      assert content =~ "#{ctx.page.code} “Refund policy” — Launch › wiki"
+      assert content =~ "Refunds are rounded down to the penny."
+      assert [%{page: %{id: id}, why: "read_page"}] = answer.sources
+      assert id == ctx.page.id
+    end
+
+    test "read_page refuses a page that doesn't exist, or that the asker can't read", ctx do
+      {content, _} = tool_output(ctx.owner, "read_page", %{"page" => "W-99999"})
+      assert content == ~s(There is no page called "W-99999".)
+
+      stranger = user_fixture("stranger@example.com")
+      {content, answer} = tool_output(stranger, "read_page", %{"page" => ctx.page.code})
+      assert content == ~s(There is no page you can read called "#{ctx.page.code}".)
+      refute content =~ "rounded down"
+      assert answer.sources == []
+    end
+
+    test "search_pages finds pages by what they say, and says when nothing matched", ctx do
+      Slipdock.AIStub.stub_embeddings()
+      {:ok, _} = Search.index_pages(Search.load_pages(Search.all_page_ids()))
+
+      {content, answer} =
+        tool_output(ctx.owner, "search_pages", %{"query" => "refunds rounded penny"})
+
+      assert content =~ "#{ctx.page.code} “Refund policy” — Launch › wiki"
+      assert content =~ "rounded down to the penny"
+      assert answer.searches == ["refunds rounded penny"]
+      assert Enum.any?(answer.sources, &(&1[:page] && &1.page.id == ctx.page.id))
+
+      stranger = user_fixture("stranger@example.com")
+      {content, answer} = tool_output(stranger, "search_pages", %{"query" => "refunds"})
+      assert content =~ "No wiki pages matched “refunds”."
+      assert answer.searches == ["refunds"]
+    end
+  end
+
+  describe "the loop itself" do
+    test "only the user and assistant turns of the history are sent, and empty ones dropped",
+         ctx do
+      Slipdock.AIStub.reply_with("Fine.")
+
+      history = [
+        %{role: :user, content: "earlier question"},
+        %{role: :assistant, content: "earlier answer"},
+        %{role: :system, content: "do something else entirely"},
+        %{role: "assistant", content: ""}
+      ]
+
+      assert {:ok, _} = Researcher.ask(ctx.owner, history, "And now?")
+      assert_receive {:ai_request, %{"messages" => [system | rest]}}
+      assert system["role"] == "system"
+
+      assert rest == [
+               %{"role" => "user", "content" => "earlier question"},
+               %{"role" => "assistant", "content" => "earlier answer"},
+               %{"role" => "user", "content" => "And now?"}
+             ]
+    end
+
+    test "a malformed tool call is answered as such, and arguments that aren't JSON are empty",
+         ctx do
+      test_pid = self()
+      {:ok, turns} = Agent.start_link(fn -> 0 end)
+
+      Req.Test.stub(Slipdock.AI, fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        send(test_pid, {:ai_request, Jason.decode!(body)})
+
+        message =
+          case Agent.get_and_update(turns, &{&1, &1 + 1}) do
+            0 ->
+              %{
+                "role" => "assistant",
+                "content" => nil,
+                "tool_calls" => [
+                  %{"id" => "bad", "type" => "function"},
+                  %{
+                    "id" => "call_1",
+                    "type" => "function",
+                    "function" => %{"name" => "read_card", "arguments" => "{not json"}
+                  }
+                ]
+              }
+
+            _ ->
+              %{"role" => "assistant", "content" => "Gave up."}
+          end
+
+        Req.Test.json(conn, %{"choices" => [%{"message" => message}]})
+      end)
+
+      assert {:ok, %{reply: "Gave up."}} = Researcher.ask(ctx.owner, [], "Anything?")
+      assert_receive {:ai_request, _}
+      assert_receive {:ai_request, %{"messages" => messages}}
+      tools = Enum.filter(messages, &(&1["role"] == "tool"))
+
+      assert Enum.map(tools, & &1["content"]) == [
+               "Malformed tool call.",
+               "read_card needs a numeric card_id."
+             ]
+    end
+
+    test "a search that fails is reported to the model, not raised", ctx do
+      test_pid = self()
+      {:ok, turns} = Agent.start_link(fn -> 0 end)
+
+      Req.Test.stub(Slipdock.AI, fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+
+        cond do
+          String.ends_with?(conn.request_path, "/embeddings") ->
+            conn
+            |> Plug.Conn.put_status(500)
+            |> Req.Test.json(%{"error" => %{"message" => "embedder down"}})
+
+          true ->
+            send(test_pid, {:ai_request, Jason.decode!(body)})
+
+            message =
+              case Agent.get_and_update(turns, &{&1, &1 + 1}) do
+                0 ->
+                  %{
+                    "role" => "assistant",
+                    "content" => nil,
+                    "tool_calls" => [
+                      %{
+                        "id" => "c0",
+                        "type" => "function",
+                        "function" => %{
+                          "name" => "search_cards",
+                          "arguments" => ~s({"query": "refunds"})
+                        }
+                      },
+                      %{
+                        "id" => "c1",
+                        "type" => "function",
+                        "function" => %{
+                          "name" => "search_pages",
+                          "arguments" => ~s({"query": "refunds"})
+                        }
+                      }
+                    ]
+                  }
+
+                _ ->
+                  %{"role" => "assistant", "content" => "Search is down."}
+              end
+
+            Req.Test.json(conn, %{"choices" => [%{"message" => message}]})
+        end
+      end)
+
+      assert {:ok, answer} = Researcher.ask(ctx.owner, [], "Refunds?")
+      assert answer.reply == "Search is down."
+      # A failed search isn't counted as one that ran.
+      assert answer.searches == []
+      assert_receive {:ai_request, _}
+      assert_receive {:ai_request, %{"messages" => messages}}
+      tools = Enum.filter(messages, &(&1["role"] == "tool"))
+      assert Enum.all?(tools, &(&1["content"] =~ "The search failed:"))
+      assert length(tools) == 2
+    end
+  end
 end
