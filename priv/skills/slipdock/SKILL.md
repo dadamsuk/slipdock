@@ -92,6 +92,10 @@ On a server where people see only those they share something with, somebody you 
 and cannot has probably not been shared anything. They have not been deleted, and assigning a
 card to them will not work until something is.
 
+A card can only be assigned to somebody who can open it. `user … not found` on an assignee
+means exactly that, whether or not they have an account — share the board with them first
+(the board's Share settings in the browser), or ask the person to.
+
 ## Workflow
 
 1. **Find the board and its structure first**: `slipdock boards`, then `slipdock board <board>` or

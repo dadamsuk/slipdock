@@ -13,6 +13,7 @@ defmodule Slipdock.AssignmentsTest do
     [col | _] = board.columns
     {:ok, ada} = Accounts.get_or_create_user_by_email("ada@example.com")
     {:ok, bob} = Accounts.get_or_create_user_by_email("bob@example.com")
+    share_fixture(board, [ada, bob])
     a = card_fixture(col, %{"title" => "A", "assignee_id" => ada.id})
     b = card_fixture(col, %{"title" => "B", "assignee_id" => bob.id})
     _c = card_fixture(col, %{"title" => "C"})
@@ -57,6 +58,7 @@ defmodule Slipdock.AssignmentsTest do
     {:ok, ada} = Accounts.get_or_create_user_by_email("ada@example.com")
     {:ok, bob} = Accounts.get_or_create_user_by_email("bob@example.com")
     {:ok, cy} = Accounts.get_or_create_user_by_email("cy@example.com")
+    share_fixture(board, [ada, bob, cy])
 
     card = card_fixture(col, %{"title" => "Pair on it", "assignee_ids" => [bob.id, ada.id]})
     card = Boards.get_card!(card.id)

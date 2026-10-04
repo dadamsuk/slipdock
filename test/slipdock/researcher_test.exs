@@ -235,6 +235,7 @@ defmodule Slipdock.ResearcherTest do
 
   test "list_cards filters by due date, dependency and assignee", ctx do
     jess = user_fixture("jess@example.com")
+    share_fixture(ctx.board, jess)
     todo = Enum.find(ctx.board.columns, &(&1.name == "To Do"))
 
     late = card_fixture(todo, %{"title" => "Overdue thing", "due_date" => "2020-01-01"})
@@ -291,6 +292,7 @@ defmodule Slipdock.ResearcherTest do
   test "assigned_cards is one person's work, across boards and levels", ctx do
     jess = user_fixture("jess@example.com")
     {:ok, jess} = Slipdock.Accounts.update_profile(jess, %{"name" => "Jess Smith"})
+    share_fixture(ctx.board, jess)
     {:ok, template} = Boards.find_template("Simple")
     {:ok, sub} = Boards.create_sub_board(ctx.card, template)
     sub = Boards.get_board!(sub.id)
@@ -298,7 +300,7 @@ defmodule Slipdock.ResearcherTest do
     deep = card_fixture(hd(sub.columns), %{"title" => "Deep task", "due_date" => "2020-01-01"})
     {:ok, _} = Boards.update_card(deep, %{"assignee_id" => jess.id})
 
-    other = board_fixture(%{"name" => "Elsewhere"}, owner: ctx.owner)
+    other = board_fixture(%{"name" => "Elsewhere"}, owner: ctx.owner) |> share_fixture(jess)
     mine = card_fixture(hd(other.columns), %{"title" => "Shallow task"})
     {:ok, _} = Boards.update_card(mine, %{"assignee_id" => jess.id})
 

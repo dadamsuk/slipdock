@@ -370,6 +370,7 @@ defmodule Slipdock.AutomationsTest do
     test "notify_assignee emails whoever holds the card" do
       {board, backlog, _doing, _done} = board_with_lists()
       user = user_fixture("holder@example.com")
+      share_fixture(board, user)
 
       rule_fixture(board, %{
         "trigger" => %{"type" => "card_updated", "field" => "priority"},
@@ -396,6 +397,7 @@ defmodule Slipdock.AutomationsTest do
       {board, backlog, _doing, _done} = board_with_lists()
       ada = user_fixture("ada@example.com")
       bob = user_fixture("bob@example.com")
+      share_fixture(board, [ada, bob])
 
       rule_fixture(board, %{
         "trigger" => %{"type" => "card_assigned", "assignee" => "bob@example.com"},

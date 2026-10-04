@@ -669,6 +669,10 @@ defmodule SlipdockWeb.APIGuide do
     replaces whoever is there; to join a card somebody else already holds
     without taking it off them, send `{"add_assignees": ["me"]}`, and
     `remove_assignees` to step off. `"me"` is whoever the token belongs to.
+    Only somebody who can open the card can be put on it: share the board
+    with them first. Anybody else — no account, or an account you have no
+    board in common with — is the same `404 user …`, so the answer says
+    nothing about who has an account here.
 
     Move the epic above it into its own `doing` list too, so the top of the
     board reads true while you are inside the tree. `move` takes an optional
@@ -1608,8 +1612,12 @@ defmodule SlipdockWeb.APIGuide do
     into prose is not.
 
     People travel as email addresses, because an id from another server names
-    nobody. An address with no account here lands unassigned and is named in
-    the answer, rather than failing the import on the last card.
+    nobody. An imported board is yours alone until you share it, and a card
+    is only ever assigned to somebody who can open it, so everybody but you
+    lands unassigned and is named in the answer ("… can't see this board
+    yet") — the same words whether or not they have an account here — rather
+    than failing the import on the last card. Status updates are signed as
+    you, with their original author written into the text.
 
     The card limit is answered once, for the whole document, before anything is
     built: a file that will not fit is refused outright rather than stopping

@@ -115,6 +115,7 @@ defmodule Slipdock.Automations.PresetsTest do
 
     test "comments can be narrowed to one person's cards", ctx do
       sam = user_fixture("sam@example.com")
+      share_fixture(ctx.board, sam)
       mine = card_fixture(ctx.backlog, %{"title" => "Sam's"})
       {:ok, _} = Boards.update_card(mine, %{"assignee_ids" => [sam.id]})
       theirs = card_fixture(ctx.backlog, %{"title" => "Nobody's"})

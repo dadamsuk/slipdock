@@ -1204,8 +1204,7 @@ defmodule Slipdock.Boards do
     # automation rule and the model, and all of them come through this
     # function. See `Slipdock.Quota`.
     |> Quota.enforce(column)
-    |> Repo.insert()
-    |> put_assignees(assignees)
+    |> save_with_assignees(&Repo.insert/1, assignees)
     |> tap_ok(fn card ->
       log(Repo, card.board_id, card.id, "card", "added “#{card.title}” to #{column.name}")
       broadcast(card.board_id)
@@ -1224,8 +1223,7 @@ defmodule Slipdock.Boards do
     changeset = Card.changeset(card, attrs)
 
     changeset
-    |> Repo.update()
-    |> put_assignees(assignees)
+    |> save_with_assignees(&Repo.update/1, assignees)
     |> tap_ok(fn updated ->
       (describe_card_changes(card, changeset) ++ describe_assignees(card, before, assignees))
       |> Enum.each(&log(Repo, updated.board_id, updated.id, "card", &1))
@@ -1287,6 +1285,7 @@ defmodule Slipdock.Boards do
       end
 
     attrs = Map.drop(attrs, ~w(assignee_ids add_assignee_ids remove_assignee_ids))
+    ids = readable_assignees(card, ids)
 
     case ids do
       nil -> {nil, attrs}
@@ -1310,6 +1309,89 @@ defmodule Slipdock.Boards do
   end
 
   defp user_ids(_), do: []
+
+  # The card and who is on it are one write: an assignee row that cannot be
+  # written takes the card change back with it, rather than leaving half of it.
+  defp save_with_assignees(changeset, save, assignees) do
+    Repo.transaction(fn ->
+      case changeset |> save.() |> put_assignees(assignees) do
+        {:ok, card} -> card
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
+
+  @doc """
+  The people `refs` name, as ids, if `by` may put every one of them on
+  `target` — a card, a page, or the board a new card is going onto. A ref is
+  a user id, an email address, or "me".
+
+  Somebody qualifies when `by` can see them (`Slipdock.Access.visible_user_ids/1`)
+  and they can read `target` themselves: a card assigned to a person who cannot
+  open it tells them nothing and tells whoever assigned it who has an account.
+  Anybody else is `{:error, {:not_found, ref}}`, worded the same whether the
+  address belongs to nobody or to somebody out of sight, so the answer is not a
+  way of finding out who is on the server.
+  """
+  @spec resolve_assignees(Card.t() | Board.t() | Slipdock.Wiki.Page.t(), User.t() | nil, [term]) ::
+          {:ok, [integer]} | {:error, {:not_found, term}}
+  def resolve_assignees(target, by, refs) do
+    visible = by |> Slipdock.Access.visible_user_ids() |> MapSet.new()
+
+    refs
+    |> List.wrap()
+    |> Enum.reduce_while({:ok, []}, fn ref, {:ok, ids} ->
+      with %User{} = user <- assignee_ref(ref, by),
+           true <- MapSet.member?(visible, user.id),
+           true <- can_read_target?(user, target) do
+        {:cont, {:ok, ids ++ [user.id]}}
+      else
+        _ -> {:halt, {:error, {:not_found, ref}}}
+      end
+    end)
+    |> case do
+      {:ok, ids} -> {:ok, Enum.uniq(ids)}
+      error -> error
+    end
+  end
+
+  defp assignee_ref(me, %User{} = by) when me in ~w(me myself mine), do: by
+  defp assignee_ref(id, _by) when is_integer(id), do: Repo.get(User, id)
+
+  defp assignee_ref(ref, _by) when is_binary(ref) do
+    case Integer.parse(ref) do
+      {id, ""} -> Repo.get(User, id)
+      _ -> Slipdock.Accounts.get_user_by_email(ref)
+    end
+  end
+
+  defp assignee_ref(_, _), do: nil
+
+  defp can_read_target?(user, %Card{id: nil, board_id: board_id}),
+    do: can_read_target?(user, Repo.get!(Board, board_id))
+
+  defp can_read_target?(user, %Card{} = card),
+    do: Slipdock.Access.can_read?(Slipdock.Access.card_permission(user, card))
+
+  defp can_read_target?(user, %Board{} = board),
+    do: Slipdock.Access.can_read?(Slipdock.Access.board_permission(user, board))
+
+  defp can_read_target?(user, %Slipdock.Wiki.Page{} = page),
+    do: Slipdock.Access.can_read?(Slipdock.Access.page_permission(user, page))
+
+  # The backstop under every caller — the API, the board, a swimlane drop, an
+  # automation, the model: whoever is newly put on a card has to exist and be
+  # able to read it. The callers that answer a person resolve first, with
+  # `resolve_assignees/3`, so they can say no; this one drops quietly.
+  defp readable_assignees(_card, nil), do: nil
+
+  defp readable_assignees(card, ids) do
+    already = assignee_ids(card)
+    {kept, added} = Enum.split_with(ids, &(&1 in already))
+    users = Repo.all(from(u in User, where: u.id in ^added))
+    readable = users |> Enum.filter(&can_read_target?(&1, card)) |> MapSet.new(& &1.id)
+    Enum.filter(ids, &(&1 in kept or MapSet.member?(readable, &1)))
+  end
 
   defp put_assignees({:ok, %Card{} = card}, ids) when is_list(ids) do
     from(a in "card_assignees", where: a.card_id == ^card.id) |> Repo.delete_all()

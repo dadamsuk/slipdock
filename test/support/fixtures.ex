@@ -28,6 +28,20 @@ defmodule Slipdock.Fixtures do
     Boards.get_board!(board.id)
   end
 
+  @doc """
+  Shares `board` with each of `users` at `level`, granted by its owner. A card
+  can only be assigned to somebody who can open it, so a test that puts people
+  on cards shares the board with them first.
+  """
+  def share_fixture(board, users, level \\ "write") do
+    owner = Accounts.get_user!(board.owner_id)
+
+    for user <- List.wrap(users),
+        do: {:ok, _} = Slipdock.Access.grant(board, user, level, owner)
+
+    board
+  end
+
   def tag_fixture(board, name, color \\ "sky") do
     {:ok, tag} = Boards.create_tag(board, %{"name" => name, "color" => color})
     tag

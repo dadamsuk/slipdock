@@ -223,6 +223,9 @@ defmodule SlipdockWeb.BoardLive.Show do
       ancestry: Boards.ancestry(board),
       templates: Boards.list_templates(),
       users: Access.visible_users(socket.assigns.current_user),
+      # Who the card and page pickers offer: only people who could be put on
+      # one (see `Boards.resolve_assignees/3`), not everybody in the directory.
+      assignable: assignable_users(board, socket.assigns.current_user),
       picking_template: false,
       editing_description: false,
       quick_preview: %{},
@@ -1222,6 +1225,22 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   defp move_in_list(card, column_id, before), do: Boards.move_card(card.id, column_id, before)
 
+  # The ids a form posts are the browser's to choose, so whoever they name
+  # goes through the same gate as the API (`Boards.resolve_assignees/3`):
+  # somebody this user can see, who can open `target`.
+  defp scope_assignees(params, target, user) do
+    Enum.reduce_while(~w(assignee_id add_assignee_ids), {:ok, params}, fn key, {:ok, acc} ->
+      refs = acc |> Map.get(key) |> List.wrap() |> Enum.reject(&(&1 in [nil, ""]))
+
+      case refs != [] && Boards.resolve_assignees(target, user, refs) do
+        false -> {:cont, {:ok, acc}}
+        {:ok, ids} when key == "assignee_id" -> {:cont, {:ok, Map.put(acc, key, hd(ids))}}
+        {:ok, ids} -> {:cont, {:ok, Map.put(acc, key, ids)}}
+        {:error, _} -> {:halt, :error}
+      end
+    end)
+  end
+
   # A page has one assignee: given a set, it takes the first.
   defp update_item(%Slipdock.Wiki.Page{} = page, %{"assignee_ids" => ids} = attrs),
     do:
@@ -1651,7 +1670,11 @@ defmodule SlipdockWeb.BoardLive.Show do
     with {:ok, target} <- share_target(socket, resource),
          {:ok, subject} <- share_subject(subject),
          {:ok, _} <- Access.grant(target, subject, level, user) do
-      {:noreply, socket |> update(:share_key, &(&1 + 1)) |> refresh_grants(resource)}
+      {:noreply,
+       socket
+       |> update(:share_key, &(&1 + 1))
+       |> refresh_grants(resource)
+       |> refresh_assignable()}
     else
       {:error, message} when is_binary(message) -> {:noreply, put_flash(socket, :error, message)}
       _ -> {:noreply, put_flash(socket, :error, "Couldn't share that.")}
@@ -1664,7 +1687,7 @@ defmodule SlipdockWeb.BoardLive.Show do
     with {:ok, target} <- share_target(socket, resource),
          true <- grant_belongs?(grant, target) do
       {:ok, _} = Access.revoke(grant)
-      {:noreply, refresh_grants(socket, resource)}
+      {:noreply, socket |> refresh_grants(resource) |> refresh_assignable()}
     else
       _ -> {:noreply, put_flash(socket, :error, "Couldn't remove that access.")}
     end
@@ -1921,12 +1944,16 @@ defmodule SlipdockWeb.BoardLive.Show do
           pair -> pair
         end)
 
-      case Wiki.update_page(Wiki.get_page!(page.id), attrs,
-             user: socket.assigns.current_user,
-             via: "web"
-           ) do
-        {:ok, _} ->
-          {:noreply, reload_board(socket) |> refresh_open_page()}
+      with {:ok, attrs} <- scope_assignees(attrs, page, socket.assigns.current_user),
+           {:ok, _} <-
+             Wiki.update_page(Wiki.get_page!(page.id), attrs,
+               user: socket.assigns.current_user,
+               via: "web"
+             ) do
+        {:noreply, reload_board(socket) |> refresh_open_page()}
+      else
+        :error ->
+          {:noreply, put_flash(socket, :error, "That person can't be put on this page.")}
 
         {:error, %Ecto.Changeset{} = changeset} ->
           # A rejected facet has to say so: silently keeping the old value is
@@ -2412,21 +2439,25 @@ defmodule SlipdockWeb.BoardLive.Show do
         pair -> pair
       end)
 
-    with %{"column_id" => col} when col != "" <- params,
-         new_col when new_col != card.column_id <- String.to_integer(col) do
-      Boards.move_card(card.id, new_col, nil)
-    end
+    with {:ok, params} <- scope_assignees(params, card, socket.assigns.current_user) do
+      with %{"column_id" => col} when col != "" <- params,
+           new_col when new_col != card.column_id <- String.to_integer(col) do
+        Boards.move_card(card.id, new_col, nil)
+      end
 
-    card = Boards.get_card!(card.id)
+      card = Boards.get_card!(card.id)
 
-    case Boards.update_card(card, Map.delete(params, "column_id"),
-           by: socket.assigns.current_user
-         ) do
-      {:ok, card} ->
-        {:noreply, assign(socket, card: Boards.get_card!(card.id))}
+      case Boards.update_card(card, Map.delete(params, "column_id"),
+             by: socket.assigns.current_user
+           ) do
+        {:ok, card} ->
+          {:noreply, assign(socket, card: Boards.get_card!(card.id))}
 
-      {:error, cs} ->
-        {:noreply, assign(socket, card_form: to_form(cs))}
+        {:error, cs} ->
+          {:noreply, assign(socket, card_form: to_form(cs))}
+      end
+    else
+      :error -> {:noreply, put_flash(socket, :error, "That person can't be put on this card.")}
     end
   end
 
@@ -3473,6 +3504,31 @@ defmodule SlipdockWeb.BoardLive.Show do
   defp grant_belongs?(grant, %Slipdock.Boards.Board{id: id}), do: grant.board_id == id
   defp grant_belongs?(grant, %Card{id: id}), do: grant.card_id == id
   defp grant_belongs?(grant, %Slipdock.Boards.SavedView{id: id}), do: grant.saved_view_id == id
+
+  # The board's readers that this user can see. A page's current assignee is
+  # added back where it is shown (`assignee_options/2`), so a facet form that
+  # re-posts every field never unassigns somebody by leaving them out.
+  defp assignable_users(board, user) do
+    visible = user |> Access.visible_user_ids() |> MapSet.new()
+    board |> Wiki.members() |> Enum.filter(&MapSet.member?(visible, &1.id))
+  end
+
+  defp refresh_assignable(socket) do
+    %{board: board, current_user: user} = socket.assigns
+
+    assign(socket,
+      assignable: assignable_users(board, user),
+      mention_people: SlipdockWeb.Mention.people(board)
+    )
+  end
+
+  defp assignee_options(users, nil), do: users
+
+  defp assignee_options(users, id) do
+    if Enum.any?(users, &(&1.id == id)),
+      do: users,
+      else: users ++ List.wrap(Slipdock.Accounts.get_user(id))
+  end
 
   defp refresh_grants(socket, "board"),
     do: assign(socket, board_grants: Access.list_grants(socket.assigns.board))
@@ -4719,7 +4775,7 @@ defmodule SlipdockWeb.BoardLive.Show do
         page={@open_page}
         form={@page_form}
         board={@board}
-        users={@users}
+        users={@assignable}
         can_write={@page_can_write}
         current_user={@current_user}
         form_key={@form_key}
@@ -4729,7 +4785,7 @@ defmodule SlipdockWeb.BoardLive.Show do
         card={@card}
         ai?={@ai?}
         current_user={@current_user}
-        users={@users}
+        users={@assignable}
         form={@card_form}
         board={@board}
         mention_people={@mention_people}
@@ -5438,7 +5494,13 @@ defmodule SlipdockWeb.BoardLive.Show do
               field={@form[:assignee_id]}
               type="select"
               label="Assignee"
-              options={[{"Nobody", ""} | Enum.map(@users, &{Accounts.User.display_name(&1), &1.id})]}
+              options={[
+                {"Nobody", ""}
+                | Enum.map(
+                    assignee_options(@users, @page.assignee_id),
+                    &{Accounts.User.display_name(&1), &1.id}
+                  )
+              ]}
             />
             <.input field={@form[:start_date]} type="date" label="Start" />
             <.input field={@form[:due_date]} type="date" label="Due" />

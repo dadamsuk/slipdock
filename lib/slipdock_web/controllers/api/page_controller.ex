@@ -97,7 +97,7 @@ defmodule SlipdockWeb.API.PageController do
   def create(conn, %{"board" => ref} = params) do
     with {:ok, board} <- fetch_board(ref),
          :ok <- Authorize.board(conn, board, :write),
-         {:ok, attrs} <- page_attrs(board, params),
+         {:ok, attrs} <- page_attrs(conn, board, params),
          {:ok, page} <- Wiki.create_page(board, attrs, write_opts(conn, params)) do
       conn |> put_status(:created) |> json(%{page: V.page(with_users(page))})
     end
@@ -115,7 +115,7 @@ defmodule SlipdockWeb.API.PageController do
     with {:ok, page} <- fetch_page(conn, id, :write),
          board <- Wiki.board_of(page),
          params <- Map.put_new(params, "flags", page.flags),
-         {:ok, attrs} <- page_attrs(board, params),
+         {:ok, attrs} <- page_attrs(conn, board, params),
          {:ok, page} <- Wiki.update_page(page, attrs, write_opts(conn, params)),
          :ok <- set_fields(board, page, params["fields"]) do
       json(conn, %{page: V.page(with_users(Wiki.get_page!(page.id)))})
@@ -1050,10 +1050,10 @@ defmodule SlipdockWeb.API.PageController do
     Slipdock.Access.can_write?(Slipdock.Access.board_permission(conn.assigns.current_user, board))
   end
 
-  defp page_attrs(board, params) do
+  defp page_attrs(conn, board, params) do
     attrs = Map.take(params, @page_fields)
 
-    with {:ok, attrs} <- resolve_assignee(attrs, params),
+    with {:ok, attrs} <- resolve_assignee(board, attrs, params, conn.assigns.current_user),
          {:ok, attrs} <- resolve_flags(attrs, params),
          {:ok, attrs} <- resolve_folder(board, attrs, params) do
       case resolve_parent(board, params["parent"]) do
@@ -1089,18 +1089,20 @@ defmodule SlipdockWeb.API.PageController do
     end
   end
 
-  # `assignee` is an email, as it is for a card; "" or null unassigns.
-  defp resolve_assignee(attrs, %{"assignee" => email}) when email in [nil, ""],
+  # `assignee` is an email, as it is for a card; "" or null unassigns. The
+  # same rule as a card's (`Boards.resolve_assignees/3`): somebody the caller
+  # can see who can read the board, and one 404 for everybody else.
+  defp resolve_assignee(_board, attrs, %{"assignee" => email}, _me) when email in [nil, ""],
     do: {:ok, Map.put(attrs, "assignee_id", nil)}
 
-  defp resolve_assignee(attrs, %{"assignee" => email}) when is_binary(email) do
-    case Slipdock.Accounts.get_user_by_email(String.trim(email)) do
-      nil -> {:error, :not_found, "user #{email}"}
-      user -> {:ok, Map.put(attrs, "assignee_id", user.id)}
+  defp resolve_assignee(board, attrs, %{"assignee" => email}, me) when is_binary(email) do
+    case Boards.resolve_assignees(board, me, [String.trim(email)]) do
+      {:ok, [id]} -> {:ok, Map.put(attrs, "assignee_id", id)}
+      _ -> {:error, :not_found, "user #{email}"}
     end
   end
 
-  defp resolve_assignee(attrs, _params), do: {:ok, attrs}
+  defp resolve_assignee(_board, attrs, _params, _me), do: {:ok, attrs}
 
   # `add_flags` / `remove_flags` adjust rather than replace, as on a card.
   defp resolve_flags(attrs, params) do

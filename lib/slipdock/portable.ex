@@ -363,7 +363,7 @@ defmodule Slipdock.Portable do
     insert_milestones!(root, Map.get(tree, :milestones, []), ids)
     insert_saved_views!(root, Map.get(tree, :saved_views, []))
 
-    skipped = Enum.flat_map(cards_doc ++ pages_doc, &missing_people(&1))
+    skipped = Enum.flat_map(cards_doc ++ pages_doc, &missing_people(&1, user))
 
     %{
       boards: [%{id: root.id, name: root.name, code: root.code}],
@@ -386,7 +386,7 @@ defmodule Slipdock.Portable do
 
     ids =
       Enum.reduce(mine, ids, fn card_doc, acc ->
-        card = insert_card!(board, card_doc, acc)
+        card = insert_card!(user, board, card_doc, acc)
         put_in(acc, [:cards, card_doc.ref], card.id)
       end)
 
@@ -523,7 +523,7 @@ defmodule Slipdock.Portable do
     end)
   end
 
-  defp insert_card!(board, doc, ids) do
+  defp insert_card!(user, board, doc, ids) do
     card =
       Repo.insert!(%Card{
         board_id: board.id,
@@ -547,12 +547,12 @@ defmodule Slipdock.Portable do
           ),
         color: doc[:color],
         archived_at: if(doc[:archived], do: now()),
-        assignee_id: List.first(assignee_ids_for(doc))
+        assignee_id: List.first(assignee_ids_for(doc, user))
       })
 
     Repo.insert_all(
       "card_assignees",
-      Enum.map(assignee_ids_for(doc), &[card_id: card.id, user_id: &1])
+      Enum.map(assignee_ids_for(doc, user), &[card_id: card.id, user_id: &1])
     )
 
     tag_ids = (doc[:tags] || []) |> Enum.map(&ids.tags[&1]) |> Enum.reject(&is_nil/1)
@@ -561,7 +561,7 @@ defmodule Slipdock.Portable do
       Repo.insert_all("card_tags", [[card_id: card.id, tag_id: tag_id]])
     end
 
-    insert_attached!([card_id: card.id], doc, ids)
+    insert_attached!(user, [card_id: card.id], doc, ids)
     card
   end
 
@@ -600,19 +600,19 @@ defmodule Slipdock.Portable do
           percent_complete: doc[:percent_complete],
           color: doc[:color],
           archived_at: if(doc[:archived], do: now()),
-          assignee_id: user_id_for(doc[:assignee]),
+          assignee_id: user_id_for(doc[:assignee], user),
           created_by_id: user.id,
           content_hash: Page.hash(doc[:body] || "")
         })
 
-      insert_attached!([page_id: page.id], doc, ids)
+      insert_attached!(user, [page_id: page.id], doc, ids)
       {doc[:ref], page.id}
     end)
   end
 
   # Checklists, comments, status updates, web links and field values: the same
   # five for a card and for a page, which is why they take an owner.
-  defp insert_attached!(owner, doc, ids) do
+  defp insert_attached!(user, owner, doc, ids) do
     for {item, index} <- Enum.with_index(doc[:checklist] || []) do
       Repo.insert!(
         struct!(ChecklistItem, owner)
@@ -628,13 +628,17 @@ defmodule Slipdock.Portable do
       Repo.insert!(struct!(Comment, owner) |> struct!(body: comment[:body]))
     end
 
+    # A status update is signed, and the signature is the importer's: a
+    # document cannot put words in somebody else's name (they would turn up in
+    # that person's own account export). Who wrote it goes into the text, as
+    # the Trello importer does with comments.
     for update <- doc[:status_updates] || [] do
       Repo.insert!(
         struct!(StatusUpdate, owner)
         |> struct!(
           health: update[:health],
-          body: update[:body],
-          user_id: user_id_for(update[:author])
+          body: signed(update[:body], update[:author], user),
+          user_id: user.id
         )
       )
     end
@@ -793,40 +797,45 @@ defmodule Slipdock.Portable do
 
   defp taken?(code), do: Repo.exists?(from(b in Board, where: b.code == ^code))
 
-  # An address names a person on this server or it names nobody. Nobody is not
-  # an error — the alternative is an import that dies on the last card because
-  # somebody left.
-  defp user_id_for(nil), do: nil
-
-  defp user_id_for(email) when is_binary(email) do
-    Repo.one(
-      from(u in User, where: u.email == ^String.downcase(String.trim(email)), select: u.id)
-    )
+  # Whoever an address names, they can be put on an imported card only if
+  # they can open it — the rule `Slipdock.Boards.resolve_assignees/3` keeps
+  # everywhere else. An imported tree is new and the importer's alone, so that
+  # is the importer and nobody else; anyone else comes in unassigned, to be
+  # shared with and assigned again. Nobody is not an error — the alternative is
+  # an import that dies on the last card because somebody left.
+  defp user_id_for(email, %User{} = user) when is_binary(email) do
+    if String.downcase(String.trim(email)) == String.downcase(user.email), do: user.id
   end
 
-  defp user_id_for(_), do: nil
+  defp user_id_for(_, _user), do: nil
 
   # Everybody on a card, lead first. `assignees` is how a card with several
   # people comes; a document written before there could be more than one has
   # only `assignee`.
   defp assignee_emails(doc), do: List.wrap(doc[:assignees] || doc[:assignee])
 
-  defp assignee_ids_for(doc),
+  defp assignee_ids_for(doc, user),
     do:
       doc
       |> assignee_emails()
-      |> Enum.map(&user_id_for/1)
+      |> Enum.map(&user_id_for(&1, user))
       |> Enum.reject(&is_nil/1)
       |> Enum.uniq()
 
-  defp missing_people(doc) do
-    authors = Enum.map(doc[:status_updates] || [], & &1[:author])
-
-    (assignee_emails(doc) ++ authors)
+  # The same words whether or not the address has an account on this server:
+  # the report is not a way of finding out who does.
+  defp missing_people(doc, user) do
+    assignee_emails(doc)
     |> Enum.reject(&(is_nil(&1) or &1 == ""))
-    |> Enum.reject(&user_id_for(&1))
-    |> Enum.map(&"#{&1} has no account here, so what was theirs came in unassigned.")
+    |> Enum.reject(&user_id_for(&1, user))
+    |> Enum.map(&"#{&1} can't see this board yet, so what was theirs came in unassigned.")
   end
+
+  defp signed(body, author, %User{} = user) when is_binary(author) and author != "" do
+    if user_id_for(author, user), do: body, else: "*#{author}*\n\n#{body}"
+  end
+
+  defp signed(body, _author, _user), do: body
 
   defp merge_reports(reports) do
     Enum.reduce(reports, %{boards: [], cards: 0, pages: 0, skipped: []}, fn report, acc ->

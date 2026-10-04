@@ -140,7 +140,12 @@ defmodule Slipdock.PortableImportTest do
 
       assert [%{text: "Write it down"}] = epic.checklist_items
       assert [%{body: "Started on this"}] = epic.comments
-      assert [%{health: "on_track", body: "On track"}] = epic.status_updates
+      # Signed by whoever imported it, with the original author in the text:
+      # a document cannot speak in somebody else's name.
+      assert [%{health: "on_track", body: "*owner@example.com*\n\nOn track", user_id: by}] =
+               epic.status_updates
+
+      assert by == receiver.id
       assert [%{url: "https://example.com", title: "Spec"}] = epic.urls
     end
 
@@ -184,7 +189,16 @@ defmodule Slipdock.PortableImportTest do
       assert [%{title: "How it works", body: "The shape of it."}] = Wiki.list_pages(board)
     end
 
-    test "an assignee who has an account here comes through as that person", %{
+    test "the importer's own cards come through as theirs", %{owner: owner} do
+      board = Boards.get_board!(owned(owner) |> hd() |> Map.fetch!(:id))
+      epic = card(board, "Ship it")
+      {:ok, _} = Boards.update_card(epic, %{"assignee_id" => owner.id})
+
+      {_report, imported} = round_trip(owner, owner)
+      assert card(imported, "Ship it").assignee_id == owner.id
+    end
+
+    test "somebody else's come in unassigned, though they have an account here", %{
       owner: owner,
       receiver: receiver
     } do
@@ -192,9 +206,12 @@ defmodule Slipdock.PortableImportTest do
       epic = card(board, "Ship it")
       {:ok, _} = Boards.update_card(epic, %{"assignee_id" => owner.id})
 
-      # The receiver's server knows the owner's address, so it resolves.
-      {_report, imported} = round_trip(owner, receiver)
-      assert card(imported, "Ship it").assignee_id == owner.id
+      # The imported board is the receiver's alone, and nobody is put on a
+      # card they cannot open.
+      {report, imported} = round_trip(owner, receiver)
+      assert card(imported, "Ship it").assignee_id == nil
+
+      assert "owner@example.com can't see this board yet, so what was theirs came in unassigned." in report.skipped
     end
   end
 
@@ -432,16 +449,26 @@ defmodule Slipdock.PortableImportTest do
       epic = card(board, "Ship it")
 
       stranger = user_fixture("stranger@example.com")
+      share_fixture(board, stranger)
       {:ok, _} = Boards.update_card(epic, %{"assignee_id" => stranger.id})
 
-      document = owner |> Portable.export() |> Jason.encode!()
-      document = String.replace(document, "stranger@example.com", "gone@example.com")
+      exported = owner |> Portable.export() |> Jason.encode!()
+      document = String.replace(exported, "stranger@example.com", "gone@example.com")
 
       {:ok, report} = Portable.import(owner, document)
       imported = Boards.get_board!(hd(report.boards).id)
 
       assert card(imported, "Ship it").assignee_id == nil
-      assert Enum.any?(report.skipped, &(&1 =~ "gone@example.com has no account here"))
+      assert Enum.any?(report.skipped, &(&1 =~ "gone@example.com can't see this board yet"))
+
+      # An address that does have an account reads exactly the same, so the
+      # report is no way of finding out who is on the server.
+      {:ok, report} = Portable.import(owner, exported)
+      imported = Boards.get_board!(hd(report.boards).id)
+
+      assert card(imported, "Ship it").assignee_id == nil
+
+      assert "stranger@example.com can't see this board yet, so what was theirs came in unassigned." in report.skipped
     end
   end
 end
