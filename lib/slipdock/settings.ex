@@ -510,7 +510,7 @@ defmodule Slipdock.Settings do
   # this; seeding from the environment did not.
   defp make_admin(email) do
     with {:ok, user} <- Slipdock.Accounts.get_or_create_user_by_email(email) do
-      Slipdock.Accounts.promote(user)
+      Slipdock.Accounts.restore_admin(user)
     end
   end
 

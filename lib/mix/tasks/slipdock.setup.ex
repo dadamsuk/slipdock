@@ -146,7 +146,7 @@ defmodule Mix.Tasks.Slipdock.Setup do
   defp make_admin(email) do
     {:ok, user} = Accounts.get_or_create_user_by_email(email)
 
-    case Accounts.promote(user) do
+    case Accounts.restore_admin(user) do
       {:ok, user} ->
         Mix.shell().info("#{user.email} is an admin here.")
         sign_in_link(user.email)

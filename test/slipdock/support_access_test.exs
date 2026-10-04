@@ -45,6 +45,25 @@ defmodule Slipdock.SupportAccessTest do
     refute Access.can_write?(Access.board_permission(admin, board))
   end
 
+  test "ends when the admin is demoted or disabled", %{
+    admin: admin,
+    customer: customer,
+    board: board
+  } do
+    {:ok, _} = Accounts.promote(user_fixture("second@example.com"))
+    {:ok, _} = Accounts.open_support_session(admin, customer, "they reported a lost card")
+    assert Access.board_permission(admin, board) == :read
+
+    {:ok, _} = Accounts.demote(admin)
+    assert Access.board_permission(admin, board) == :none
+
+    {:ok, admin} = Accounts.promote(Repo.reload(admin))
+    assert Access.board_permission(admin, board) == :read
+
+    {:ok, _} = Accounts.disable(admin)
+    assert Access.board_permission(admin, board) == :none
+  end
+
   test "the person is told, at the time, with the reason", %{admin: admin, customer: customer} do
     {:ok, _} = Accounts.open_support_session(admin, customer, "they reported a lost card")
 

@@ -54,6 +54,68 @@ defmodule Slipdock.AdminStandingTest do
     end
   end
 
+  describe "the last admin, counting only those who can sign in" do
+    setup do
+      {:ok, a} = Accounts.promote(user_fixture("a@example.com"))
+      {:ok, b} = Accounts.promote(user_fixture("b@example.com"))
+      %{a: a, b: b}
+    end
+
+    test "a disabled admin is not counted", %{a: a, b: b} do
+      assert Accounts.count_admins() == 2
+      assert {:ok, _} = Accounts.disable(b)
+      assert Accounts.count_admins() == 1
+      assert Accounts.last_admin?(a)
+    end
+
+    test "disabling the other admin and then demoting yourself is refused", %{a: a, b: b} do
+      assert {:ok, _} = Accounts.disable(b)
+      assert {:error, :last_admin} = Accounts.demote(a)
+      assert {:error, :last_admin} = Accounts.disable(a)
+      assert {:error, :last_admin} = Accounts.delete_user(a)
+      assert Accounts.admin?(Repo.reload(a))
+    end
+
+    test "a stale struct does not get round it", %{a: a, b: b} do
+      assert {:ok, _} = Accounts.demote(b)
+      # `a` was loaded when there were two; the database is what is asked.
+      assert {:error, :last_admin} = Accounts.demote(a)
+    end
+
+    test "restore_admin/1 re-enables the account as well", %{b: b} do
+      {:ok, _} = Accounts.disable(b)
+      assert {:ok, b} = Accounts.restore_admin(Repo.reload(b))
+      assert Accounts.admin?(b)
+      refute Accounts.disabled?(b)
+    end
+  end
+
+  describe "open tabs" do
+    setup do
+      {:ok, _} = Accounts.promote(user_fixture("admin@example.com"))
+      {:ok, other} = Accounts.promote(user_fixture("other@example.com"))
+      token = Accounts.generate_session_token(other)
+      topic = "users_sessions:#{Base.url_encode64(token)}"
+      SlipdockWeb.Endpoint.subscribe(topic)
+      %{other: other, topic: topic}
+    end
+
+    test "are disconnected on demotion", %{other: other, topic: topic} do
+      {:ok, _} = Accounts.demote(other)
+      assert_receive %Phoenix.Socket.Broadcast{topic: ^topic, event: "disconnect"}
+    end
+
+    test "are disconnected when the account is disabled", %{other: other, topic: topic} do
+      {:ok, _} = Accounts.disable(other)
+      assert_receive %Phoenix.Socket.Broadcast{topic: ^topic, event: "disconnect"}
+    end
+
+    test "are disconnected when the account is deleted", %{other: other, topic: topic} do
+      {:ok, _} = Accounts.delete_user(other)
+      assert_receive %Phoenix.Socket.Broadcast{topic: ^topic, event: "disconnect"}
+    end
+  end
+
   describe "disabling an account" do
     setup do
       # A second admin, so disabling the one under test is allowed.

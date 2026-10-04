@@ -220,7 +220,7 @@ defmodule SlipdockWeb.UserAuth do
     socket = mount_current_user(socket, session)
 
     if Accounts.admin?(socket.assigns.current_user) do
-      {:cont, socket}
+      {:cont, Phoenix.LiveView.attach_hook(socket, :still_admin, :handle_event, &still_admin/3)}
     else
       {:halt, Phoenix.LiveView.redirect(socket, to: ~p"/")}
     end
@@ -232,6 +232,19 @@ defmodule SlipdockWeb.UserAuth do
     if socket.assigns.current_user,
       do: {:halt, Phoenix.LiveView.redirect(socket, to: ~p"/")},
       else: {:cont, socket}
+  end
+
+  # Checked again on every event, not just at mount: a tab opened before its
+  # owner was demoted or disabled would otherwise keep every power the admin
+  # pages give, including promoting itself back.
+  defp still_admin(_event, _params, socket) do
+    user = socket.assigns.current_user && Accounts.get_user(socket.assigns.current_user.id)
+
+    if Accounts.admin?(user) and not Accounts.disabled?(user) do
+      {:cont, socket}
+    else
+      {:halt, Phoenix.LiveView.redirect(socket, to: ~p"/")}
+    end
   end
 
   defp mount_current_user(socket, session) do

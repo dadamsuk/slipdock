@@ -136,7 +136,7 @@ defmodule Slipdock.Release do
   defp setup_make_admin(email) do
     {:ok, user} = Slipdock.Accounts.get_or_create_user_by_email(email)
 
-    case Slipdock.Accounts.promote(user) do
+    case Slipdock.Accounts.restore_admin(user) do
       {:ok, user} ->
         puts("#{user.email} is an admin here.")
         setup_sign_in_link(user.email)

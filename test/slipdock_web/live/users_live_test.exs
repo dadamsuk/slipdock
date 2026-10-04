@@ -64,6 +64,22 @@ defmodule SlipdockWeb.UsersLiveTest do
     end
   end
 
+  describe "an admin demoted while the page is open" do
+    test "cannot use it any more", %{conn: conn, admin: admin, ordinary: ordinary} do
+      {:ok, view, _} = live(conn, ~p"/users")
+      {:ok, _} = Accounts.promote(user_fixture("other-admin@example.com"))
+      {:ok, _} = Accounts.demote(admin)
+
+      assert {:error, {:redirect, %{to: "/"}}} =
+               view
+               |> element("button[phx-click='promote'][phx-value-id='#{ordinary.id}']")
+               |> render_click()
+
+      refute Accounts.admin?(Accounts.get_user!(ordinary.id))
+      refute Accounts.admin?(Accounts.get_user!(admin.id))
+    end
+  end
+
   describe "who can get in" do
     test "an admin can", %{conn: conn} do
       {:ok, _view, html} = live(conn, ~p"/users")
