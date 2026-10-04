@@ -119,7 +119,7 @@ defmodule SlipdockWeb.API.BoardController do
   def create(conn, params) do
     attrs =
       params
-      |> Map.take(~w(name code shortcut description color))
+      |> Map.take(~w(name code shortcut description color kind))
       |> Map.put("owner_id", conn.assigns.current_user.id)
 
     with {:ok, template} <- optional_template(params["template"]),
@@ -162,7 +162,7 @@ defmodule SlipdockWeb.API.BoardController do
              Map.take(
                params,
                ~w(name code shortcut description color vote_budget vote_max
-                  add_card add_page add_document)
+                  add_card add_page add_document kind)
              )
            ) do
       json(conn, %{board: V.board_summary(board, conn.assigns.current_user)})

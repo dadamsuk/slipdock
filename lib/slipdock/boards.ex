@@ -365,7 +365,7 @@ defmodule Slipdock.Boards do
       Multi.new()
       |> Multi.insert(
         :board,
-        %Board{template_id: template && template.id}
+        %Board{template_id: template && template.id, kind: template_kind(template, opts)}
         |> Board.changeset(attrs)
         |> Ecto.Changeset.change(Keyword.take(opts, [:parent_card_id, :root_id, :owner_id]))
         |> enforce_board_limit()
@@ -389,6 +389,13 @@ defmodule Slipdock.Boards do
         {:error, changeset}
     end
   end
+
+  # A template's kind goes to the boards made from it — but not to the
+  # sub-boards inside their cards: a sprint's own lists are ordinary lists.
+  defp template_kind(nil, _opts), do: nil
+
+  defp template_kind(%Template{kind: kind}, opts),
+    do: if(opts[:parent_card_id], do: nil, else: kind)
 
   # The guardrail on how many boards one person may own. Only root boards count
   # (see `Slipdock.Quota`): a sub-board exists because a card has subcards, and
@@ -538,7 +545,12 @@ defmodule Slipdock.Boards do
         }
       )
 
-    %{"name" => board.name, "description" => board.description, "columns" => columns}
+    %{
+      "name" => board.name,
+      "description" => board.description,
+      "columns" => columns,
+      "kind" => board.kind
+    }
   end
 
   def update_board(%Board{} = board, attrs) do

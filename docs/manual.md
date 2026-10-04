@@ -33,6 +33,9 @@ way in: what it is, the pictures, and how to get it running.
   a blocked badge on cards, and a swimlane axis/filter for blocked work
 - Subcards: any card can become a board of its own, with lists chosen from a
   board template; sub-boards nest to any depth
+- Sprints: a sprint board whose every card is a sprint, a **New sprint**
+  button that dates the next one, and **Add cards…** to tick work from any
+  board into it — see [Sprints](#sprints)
 - Roll-ups: every card summarises the whole tree beneath it — leaves done,
   effective start and due dates (its own or its subcards'), slip past a
   planned due date, blocked or overdue anywhere below, and a health state —
@@ -395,10 +398,44 @@ card renames its sub-board. Deleting a card, or **Remove subcards**, deletes
 the sub-board and everything on it. The board index lists root boards only.
 
 **Templates** are named lists of columns (name, optional WIP limit, colour).
-Six ship by default (Slipdock, Simple, Checklist, Bug triage, Research, and
-Roadmap — Now · Next · Later · Done, for the top of a tree); manage them at
-`/templates`, pick one when creating a board, or save any board's current
-lists as a template from its settings.
+Seven ship by default (Slipdock, Simple, Checklist, Bug triage, Research,
+Roadmap — Now · Next · Later · Done, for the top of a tree — and Sprint
+planning, below); manage them at `/templates`, pick one when creating a
+board, or save any board's current lists as a template from its settings.
+
+## Sprints
+
+A sprint is made of things a board already has: a card for the sprint, its
+dates for the sprint's dates, and its subcards for the sprint's work. What a
+sprint board adds is the setting up.
+
+**A sprint board.** Make a board from the **Sprint planning** template
+(Planned · Active · Closed), or tick **Sprint board** in an existing board's
+settings. Every card on it is a sprint.
+
+**New sprint.** The button in a sprint board's header opens a short form,
+already filled in: the next name ("Sprint 4", counting on from the highest
+"Sprint N" on the board), a start the day after the last sprint ends (today
+when there is none), a length — 14 days unless you change it — and an
+optional goal, which becomes the card's description. Creating it makes the
+card in the first to-do list, gives it its own board of subcards (the Simple
+template's To Do · Doing · Done), and goes straight on to picking its cards.
+
+**Add cards….** On a sprint — the button in its card's Subcards section, or
+in the header of the sprint's own board — this opens a picker. Choose a board
+you can write to and its lists appear, each open card with a tick box and
+each list with **tick all**. A card that has subcards has a **subcards ›**
+button to step into them, which is where an epic's tasks are. Ticks are kept
+while you move between boards, so one sitting can draw from several; **Add to
+sprint** moves everything ticked into the sprint's first to-do list. Nothing
+needs doing in one go: open the picker again whenever there is more.
+
+Picked cards are *moved*, exactly as [Moving a card to another
+board](#moving-a-card-to-another-board) does it — subcards, comments and
+history go with them; tags travel by name; custom fields only where the
+sprint's tree has the same one. Completed and archived cards are not
+offered. On a sprint board itself the cards are other sprints, so they cannot
+be ticked whole; step into one to take what it left unfinished.
 
 ## Roll-ups, the outline and My work
 
@@ -2023,6 +2060,11 @@ POST   /api/cards/:id/checklist {text}     POST   /api/checklist/:item_id/toggle
 POST   /api/cards/:id/comments {body}      DELETE /api/comments/:comment_id
 POST   /api/cards/:id/dependencies {blocked_by: id} | {blocks: id}
 POST   /api/cards/:id/subboard {template}  DELETE /api/cards/:id/subboard
+GET    /api/boards/:board/sprints/next     (what New sprint would fill in: name, start, days)
+POST   /api/boards/:board/sprints {name, start, days, goal}   all optional; answers the sprint card
+POST   /api/cards/:id/sprint {cards: [id...]}   move cards into a sprint; answers `added` and
+                                               `skipped` ({id, reason}) — a board's `kind` is
+                                               "sprints" on a sprint board (PATCH it to set one)
 DELETE /api/cards/:id/dependencies/:other_id     (either direction)
 GET    /api/automations/vocabulary         (the grammar a spec is written in, plus an example)
 GET    /api/automations/presets            (the ready-made rules, and the fields each one takes)
@@ -2166,6 +2208,9 @@ slipdock boards --sort active     # or name, newest, oldest, cards; default is y
 slipdock archive-board errands | slipdock restore-board errands
 slipdock order-boards qvm-v1-rem errands 3     # your own order; boards left out fall to the end
 slipdock subboard 12 --template "Bug triage"   # card #12 becomes a board; prints its id
+slipdock new-board Delivery --template "Sprint planning"   # or: set-board <board> --sprints
+slipdock sprint delivery --days 10 --goal "Ship the importer"   # the next sprint, dated on from the last
+slipdock sprint-add 88 41 42 57                # move cards #41 #42 #57 into sprint #88
 slipdock board <sub-board-id>                  # then use it like any board; --off removes it
 slipdock automation-help                       # the triggers, conditions and actions a spec may use
 slipdock automation-presets                    # the ready-made rules and the fields each one takes

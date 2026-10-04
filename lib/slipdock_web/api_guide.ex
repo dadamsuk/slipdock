@@ -531,6 +531,17 @@ defmodule SlipdockWeb.APIGuide do
     `id` is what you add cards to. `DELETE /api/cards/42/subboard` removes the
     sub-board **and every card on it**, so treat it as a delete.
 
+    **Sprints.** A board whose `kind` is `"sprints"` (made from the "Sprint
+    planning" template, or `PATCH /api/boards/:board {"kind": "sprints"}`) has
+    a sprint on every card, and the sprint's work as its subcards. `POST
+    /api/boards/:board/sprints` makes the next one — `name`, `start`, `days`
+    and `goal` all optional; it counts on from the last "Sprint N" and starts
+    the day after it ends — with its sub-board already there.
+    `POST /api/cards/:sprint/sprint {"cards": [41, 42]}` moves cards from any
+    board you can write to into it, subcards and all, and answers what it
+    `added` and what it `skipped` and why. Only plan a sprint when asked to:
+    moving cards out of their epics is the person's call.
+
     Tags live on the root board and are shared by the whole tree, so a tag made
     anywhere below it is available everywhere — but a tag must exist before a
     card can wear it (`POST /api/boards/:board/tags`). Renaming an epic renames

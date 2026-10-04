@@ -33,6 +33,7 @@ defmodule SlipdockWeb.API.JSON do
       shortcut: b.shortcut,
       description: b.description,
       color: b.color,
+      kind: b.kind,
       owner: owner_ref(b),
       shared: shared?(b, viewer),
       columns: length(columns),
@@ -44,7 +45,7 @@ defmodule SlipdockWeb.API.JSON do
   end
 
   def template(%Template{} = t) do
-    %{id: t.id, name: t.name, description: t.description, columns: t.columns}
+    %{id: t.id, name: t.name, description: t.description, columns: t.columns, kind: t.kind}
   end
 
   def board(%Board{} = b) do
@@ -55,6 +56,8 @@ defmodule SlipdockWeb.API.JSON do
       shortcut: b.shortcut,
       description: b.description,
       color: b.color,
+      # "sprints" on a sprint board (its cards are sprints), nil otherwise.
+      kind: b.kind,
       owner: owner_ref(b),
       archived_at: b.archived_at,
       root_id: Board.root_id(b),

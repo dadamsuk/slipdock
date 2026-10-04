@@ -6,7 +6,7 @@ defmodule SlipdockWeb.API.TemplateController do
 
   action_fallback SlipdockWeb.API.FallbackController
 
-  @fields ~w(name description columns)
+  @fields ~w(name description columns kind)
 
   def index(conn, _params) do
     json(conn, %{templates: Enum.map(Boards.list_templates(), &V.template/1)})

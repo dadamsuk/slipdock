@@ -255,9 +255,16 @@ defmodule SlipdockCLI do
                                         app, cards, subcards, automation and wiki pages included
                                         (the one a first sign-in makes by itself)
     set-board <board> [--name N] [--code C] [--shortcut K] [--desc TEXT] [--color C]
-        [--no-add-card] [--no-add-page] [--no-add-document]
+        [--no-add-card] [--no-add-page] [--no-add-document] [--sprints | --no-sprints]
                                         rename a board, change its code, shortcut key or colour,
-                                        or say what the foot of each list offers
+                                        say what the foot of each list offers, or make it a
+                                        sprint board (every card a sprint)
+    sprint <board> [--name N] [--start DATE] [--days N] [--goal TEXT]
+                                        start the next sprint on a sprint board: a dated card
+                                        ("Sprint 4", following on from the last, 14 days unless
+                                        told) with its own board of subcards
+    sprint-add <sprint-id> <card-id>... move cards from any board into a sprint, with their
+                                        subcards; ones that can't go in are listed, not fatal
     archive-board <board>               put a whole board away, keeping every card on it
     restore-board <board>               bring an archived board back
     order-boards <board>...             set the order you list boards in (yours alone; boards
@@ -347,6 +354,9 @@ defmodule SlipdockCLI do
     add_card: :boolean,
     add_page: :boolean,
     add_document: :boolean,
+    sprints: :boolean,
+    days: :integer,
+    goal: :string,
     template: :string,
     list: :keep,
     fields: :string,
@@ -1801,19 +1811,65 @@ defmodule SlipdockCLI do
         # What the foot of every list offers: --add-page / --no-add-page.
         "add_card" => o[:add_card],
         "add_page" => o[:add_page],
-        "add_document" => o[:add_document]
+        "add_document" => o[:add_document],
+        "kind" =>
+          case o[:sprints] do
+            true -> "sprints"
+            false -> ""
+            nil -> nil
+          end
       })
 
     if body == %{},
       do:
         fail(
-          "nothing to change — pass --name, --code, --shortcut, --desc, --color " <>
-            "or --[no-]add-card / --[no-]add-page / --[no-]add-document"
+          "nothing to change — pass --name, --code, --shortcut, --desc, --color, " <>
+            "--[no-]add-card / --[no-]add-page / --[no-]add-document or --[no-]sprints"
         )
 
     HTTP.patch("/boards/#{HTTP.seg(ref)}", body)
     |> out(o, fn r -> IO.puts("updated board ##{r["board"]["id"]}: #{r["board"]["name"]}") end)
   end
+
+  defp run("sprint", [ref], o) do
+    body =
+      compact(%{"name" => o[:name], "start" => o[:start], "days" => o[:days], "goal" => o[:goal]})
+
+    HTTP.post("/boards/#{HTTP.seg(ref)}/sprints", body)
+    |> out(o, fn r ->
+      c = r["card"]
+      card_ok("started", r)
+      IO.puts(Render.dim("#{c["start_date"]} → #{c["due_date"]}"))
+
+      if sub = c["sub_board"],
+        do:
+          IO.puts(
+            Render.dim(
+              "add work with: slipdock sprint-add #{c["id"]} <card-id>...  (its board is ##{sub["id"]})"
+            )
+          )
+    end)
+  end
+
+  defp run("sprint", _, _),
+    do: fail("usage: slipdock sprint <board> [--name N] [--start DATE] [--days N] [--goal TEXT]")
+
+  defp run("sprint-add", [id | cards], o) when cards != [] do
+    HTTP.post("/cards/#{id}/sprint", %{"cards" => cards})
+    |> out(o, fn r ->
+      title = r["card"]["title"]
+      n = length(r["added"])
+      IO.puts("added #{n} card#{if n == 1, do: "", else: "s"} to #{title} (##{id})")
+      Enum.each(r["added"], &IO.puts("  ##{&1["id"]} #{&1["title"]}"))
+
+      Enum.each(r["skipped"], fn s ->
+        IO.puts(Render.dim("  skipped ##{s["id"]}: #{s["reason"]}"))
+      end)
+    end)
+  end
+
+  defp run("sprint-add", _, _),
+    do: fail("usage: slipdock sprint-add <sprint-card-id> <card-id>...")
 
   # Archiving a board puts it away without losing anything on it; restoring
   # brings it back where it was.
