@@ -106,7 +106,8 @@ defmodule SlipdockWeb.Wiki.Renderer do
 
   def to_markdown(_, _), do: ""
 
-  # Line by line, except that a fenced ```kanban block is gathered whole and
+  # Line by line, except that a fenced ```slipdock block (or one of its
+  # pre-rename spellings) is gathered whole and
   # answered as a Markdown table — which is the point of `render`: an agent
   # reading a document wants the answers, not the query.
   defp resolve_lines([], _context, done, nil), do: Enum.reverse(done)
@@ -115,7 +116,7 @@ defmodule SlipdockWeb.Wiki.Renderer do
     do: Enum.reverse([query_markdown(Enum.join(Enum.reverse(collected), "\n"), context) | done])
 
   defp resolve_lines([line | rest], context, done, nil) do
-    case Regex.run(~r/^\s*(`{3,}|~{3,})\s*kanban(-query)?\s*$/, line) do
+    case Regex.run(~r/^\s*(`{3,}|~{3,})\s*(slipdock|kanban)(-query)?\s*$/, line) do
       [_, fence | _] -> resolve_lines(rest, context, done, {fence, []})
       _ -> resolve_lines(rest, context, [resolve_line(line, context) | done], nil)
     end
@@ -611,13 +612,18 @@ defmodule SlipdockWeb.Wiki.Renderer do
   @doc "Where a page lives, as a path."
   def page_path(%Page{} = page), do: "/boards/#{page.board_id}/wiki/#{page.slug}"
 
-  @doc "The heading anchor comrak generates for a heading's text."
+  @doc """
+  The heading anchor comrak generates for a heading's text: lowercased,
+  everything but letters, digits, `_`, `-` and spaces dropped, and each space
+  a `-` of its own — so "Two & three" is `two--three`, not `two-three`. A
+  repeated heading's `-1` suffix is not reproduced; the link finds the first.
+  """
   def anchor(title) do
     title
-    |> String.downcase()
-    |> String.replace(~r/[^\p{L}\p{N}\s-]/u, "")
     |> String.trim()
-    |> String.replace(~r/\s+/u, "-")
+    |> String.downcase()
+    |> String.replace(~r/[^\p{L}\p{N}_ -]/u, "")
+    |> String.replace(" ", "-")
   end
 
   defp html_block(html), do: %MDEx.HtmlBlock{literal: html}
