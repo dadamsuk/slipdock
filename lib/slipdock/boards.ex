@@ -1160,7 +1160,12 @@ defmodule Slipdock.Boards do
     move_card(card.id, column.id, before_ref)
   end
 
-  def create_card(%Column{} = column, attrs) do
+  @doc """
+  Adds a card to `column`. `opts[:by]` is the person writing it, when known:
+  it is who anybody `@mentioned` in the description is told mentioned them
+  (see `Slipdock.Mentions`).
+  """
+  def create_card(%Column{} = column, attrs, opts \\ []) do
     position = next_position(from(c in Card, where: c.column_id == ^column.id))
     card = %Card{board_id: column.board_id, column_id: column.id, position: position}
     {assignees, attrs} = assignee_change(card, attrs)
@@ -1182,11 +1187,13 @@ defmodule Slipdock.Boards do
       log(Repo, card.board_id, card.id, "card", "added “#{card.title}” to #{column.name}")
       broadcast(card.board_id)
       Indexer.enqueue(card)
+      Slipdock.Mentions.description_changed(card, nil, card.description, opts[:by])
       automate(%{type: "card_created", card: card, column: column})
     end)
   end
 
-  def update_card(%Card{} = card, attrs) do
+  @doc "Changes a card. `opts[:by]` as for `create_card/3`."
+  def update_card(%Card{} = card, attrs, opts \\ []) do
     {assignees, attrs} = assignee_change(card, attrs)
     # Who was on it, read only when this write changes that.
     before = if assignees, do: assignee_ids(card), else: []
@@ -1207,6 +1214,16 @@ defmodule Slipdock.Boards do
 
       broadcast(updated.board_id)
       Indexer.enqueue(updated)
+
+      if Map.has_key?(changeset.changes, :description),
+        do:
+          Slipdock.Mentions.description_changed(
+            updated,
+            card.description,
+            updated.description,
+            opts[:by]
+          )
+
       automate_card_changes(card, updated, changeset, {before, assignees || before})
     end)
   end
@@ -2340,8 +2357,11 @@ defmodule Slipdock.Boards do
 
   ## Comments
 
-  @doc "Comments on a card or on a wiki page."
-  def add_comment(owner, body) do
+  @doc """
+  Comments on a card or on a wiki page. `opts[:by]` is who wrote it, when
+  known; anybody it `@mentions` on a card is told (see `Slipdock.Mentions`).
+  """
+  def add_comment(owner, body, opts \\ []) do
     %Comment{}
     |> struct!(owned_by(owner))
     |> Comment.changeset(%{"body" => body})
@@ -2353,8 +2373,10 @@ defmodule Slipdock.Boards do
       Slipdock.Wiki.Links.reconcile_comment(comment)
       notify_owned(owner)
       # Automations are about work, so a comment on a page does not run them.
-      if match?(%Card{}, owner),
-        do: automate(%{type: "comment_added", card: owner, comment: comment.body})
+      if match?(%Card{}, owner) do
+        Slipdock.Mentions.comment_added(owner, comment.body, opts[:by])
+        automate(%{type: "comment_added", card: owner, comment: comment.body})
+      end
     end)
   end
 

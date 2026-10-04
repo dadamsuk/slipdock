@@ -75,7 +75,9 @@ defmodule SlipdockWeb.API.CardController do
          {:ok, tags} <- resolve_tags(board, params["tags"]),
          {:ok, assignee} <- resolve_assignees(params, conn.assigns.current_user),
          {:ok, card} <-
-           Boards.create_card(column, params |> Map.take(@card_fields) |> Map.merge(assignee)),
+           Boards.create_card(column, params |> Map.take(@card_fields) |> Map.merge(assignee),
+             by: conn.assigns.current_user
+           ),
          {:ok, _} <- maybe_set_tags(card, tags) do
       conn |> put_status(:created) |> json(%{card: V.card(Boards.get_card!(card.id))})
     end
@@ -89,7 +91,10 @@ defmodule SlipdockWeb.API.CardController do
          {:ok, add} <- resolve_tags(board, params["add_tags"]),
          {:ok, remove} <- resolve_tags(board, params["remove_tags"]),
          {:ok, assignee} <- resolve_assignees(params, conn.assigns.current_user),
-         {:ok, card} <- Boards.update_card(card, Map.merge(card_attrs(card, params), assignee)),
+         {:ok, card} <-
+           Boards.update_card(card, Map.merge(card_attrs(card, params), assignee),
+             by: conn.assigns.current_user
+           ),
          {:ok, _} <- maybe_set_tags(card, tags),
          {:ok, _} <- maybe_adjust_tags(card, add, remove),
          {:ok, _} <- maybe_move(board, card, params["column"]),
@@ -353,7 +358,7 @@ defmodule SlipdockWeb.API.CardController do
   def add_comment(conn, %{"id" => id, "body" => body}) do
     with {:ok, card} <- fetch_card(id),
          :ok <- Authorize.card(conn, card, :write),
-         {:ok, comment} <- Boards.add_comment(card, body) do
+         {:ok, comment} <- Boards.add_comment(card, body, by: conn.assigns.current_user) do
       conn |> put_status(:created) |> json(%{comment: V.comment(comment)})
     end
   end

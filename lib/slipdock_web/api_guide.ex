@@ -402,6 +402,10 @@ defmodule SlipdockWeb.APIGuide do
     - **Checklist** — ticked steps inside a card. No dates, no comments, no
       status: the cheapest possible unit.
     - **Comments** — the card's narrative, and where you explain yourself.
+      `@handle` (the part of someone's email before the "@") in a comment or
+      a description mentions a person who can see the board, and emails them
+      a link to the card — so mention somebody when you need their attention,
+      not as a signature, and never yourself.
     - **Flags** — `flagged`, `blocked`, `review`, `waiting`, `starred`. Hand-set
       labels, independent of the computed `blocked`.
     - **Dependencies** — `blocked_by` / `blocks` between cards, with cycle
