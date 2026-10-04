@@ -42,6 +42,12 @@ defmodule SlipdockWeb.Layouts do
   slot :nav, doc: "content rendered in the header next to the brand"
   slot :actions, doc: "content rendered on the right side of the header"
 
+  slot :subnav,
+    doc:
+      "the left of a second header row, for what belongs to this board: its name, where it sits"
+
+  slot :subactions, doc: "the right of the second header row: this board's own buttons"
+
   def app(assigns) do
     ~H"""
     <div class="flex h-dvh flex-col bg-base-200">
@@ -51,7 +57,9 @@ defmodule SlipdockWeb.Layouts do
           class="flex shrink-0 items-center gap-2 rounded-lg px-1.5 py-1 font-semibold tracking-tight hover:bg-base-200"
         >
           <.brand_mark />
-          <.brand_wordmark class="hidden h-4 sm:inline-flex" />
+          <%!-- Signed in, the mark is enough: the wordmark took the room the
+                board's own name needed. --%>
+          <.brand_wordmark :if={!@current_user} class="hidden h-4 sm:inline-flex" />
         </.link>
         <div class="flex min-w-0 flex-1 items-center gap-2">
           {render_slot(@nav)}
@@ -236,6 +244,22 @@ defmodule SlipdockWeb.Layouts do
           </div>
         </div>
       </header>
+
+      <%!-- Two rows rather than one crowded one: the line above is the same on
+            every page, this one is about the board you are on, so its name
+            has the width to be read. --%>
+      <div
+        :if={@subnav != [] or @subactions != []}
+        id="subheader"
+        class="flex h-11 shrink-0 items-center gap-2 border-b border-base-300 bg-base-100 px-3 sm:gap-3 sm:px-4"
+      >
+        <div class="flex min-w-0 flex-1 items-center gap-2">
+          {render_slot(@subnav)}
+        </div>
+        <div class="flex shrink-0 items-center gap-1">
+          {render_slot(@subactions)}
+        </div>
+      </div>
 
       <main class="min-h-0 flex-1">
         {render_slot(@inner_block)}
@@ -698,15 +722,13 @@ defmodule SlipdockWeb.Layouts do
         aria-expanded={to_string(@quick_add.open?)}
         aria-controls="quick-add-panel"
         title="Quick add a card (press q)"
+        aria-label="Quick add a card"
         class={[
-          "hidden items-center gap-2 rounded-full py-1.5 pl-2.5 pr-2 text-xs transition-colors sm:flex",
-          "bg-base-200/70 text-base-content/60 hover:bg-base-200 hover:text-base-content",
-          @quick_add.open? && "bg-base-200 text-base-content"
+          "btn btn-ghost btn-sm btn-square hidden sm:inline-flex",
+          @quick_add.open? && "bg-base-200 text-primary"
         ]}
       >
-        <.icon name="hero-plus" class="size-3.5" />
-        <span class="pr-6">Quick add…</span>
-        <kbd class="rounded border border-base-content/15 px-1 font-mono text-2xs">q</kbd>
+        <.icon name="hero-plus-circle" class="size-5" />
       </button>
       <div
         :if={@quick_add.open?}
@@ -838,7 +860,7 @@ defmodule SlipdockWeb.Layouts do
         aria-expanded={to_string(@open)}
         aria-controls="alerts-panel"
         class={[
-          "btn btn-ghost btn-sm hidden gap-1.5 transition-colors sm:inline-flex",
+          "btn btn-ghost btn-sm btn-square relative hidden transition-colors sm:inline-flex",
           @open && "bg-base-200",
           @worst == "urgent" && "text-error",
           @worst == "warning" && "text-warning"
@@ -851,26 +873,18 @@ defmodule SlipdockWeb.Layouts do
           end
         }
       >
-        <span class="relative flex">
-          <.icon name="hero-bell" class="size-4" />
-          <span
-            :if={@worst == "urgent"}
-            class="absolute -right-0.5 -top-0.5 size-1.5 rounded-full bg-error motion-safe:animate-pulse"
-          />
-        </span>
+        <.icon name="hero-bell" class="size-4" />
+        <%!-- The count rides on the bell rather than beside it, greyed at
+              nought so that only something to read catches the eye. --%>
         <span class={[
-          "min-w-5 rounded-full px-1.5 text-2xs font-semibold tabular-nums",
+          "absolute -right-0.5 -top-0.5 min-w-4 rounded-full px-1 text-[0.625rem] font-semibold leading-4 tabular-nums",
           @count == 0 && "bg-base-300 text-base-content/50",
-          @count > 0 && @worst == "urgent" && "bg-error text-error-content",
+          @count > 0 && @worst == "urgent" && "bg-error text-error-content motion-safe:animate-pulse",
           @count > 0 && @worst == "warning" && "bg-warning text-warning-content",
           @count > 0 && is_nil(@worst) && "bg-info text-info-content"
         ]}>
           {@count}
         </span>
-        <.icon
-          name="hero-chevron-down"
-          class={["size-3 opacity-50 transition-transform", @open && "rotate-180"]}
-        />
       </button>
 
       <div

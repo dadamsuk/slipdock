@@ -1,6 +1,6 @@
 defmodule SlipdockWeb.BoardLive.BoardView do
   @moduledoc """
-  The board LiveView's own markup: the header's breadcrumb and actions, the
+  The board LiveView's own markup: the board's header row (breadcrumb and actions), the
   board view itself (its lists, their cards, adding to them), its toolbar,
   and the strip that says where the keyboard is. The other views have
   components of their own; the panels over them are LiveComponents.
@@ -24,7 +24,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :can_manage, :boolean, required: true
   attr :can_write, :boolean, required: true
 
-  @doc "The header's breadcrumb: the boards above this one, and this one."
+  @doc "The second header row's breadcrumb: the boards above this one, and this one."
   def board_nav(assigns) do
     ~H"""
     <nav class="flex min-w-0 items-center gap-1 text-sm">
@@ -121,7 +121,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :ai?, :boolean, required: true
   attr :rules, :list, required: true
 
-  @doc "The header's actions: sprints, the chat, sharing and the board's menu."
+  @doc "The second header row's actions: sprints, the chat, sharing and the board's menu."
   def board_actions(assigns) do
     ~H"""
     <button
@@ -150,7 +150,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
       }
     >
       <.icon name="hero-chart-bar" class="size-4" />
-      <span class="hidden sm:inline">Charts</span>
+      <span class="hidden lg:inline">Charts</span>
     </button>
     <button
       :if={@can_write and !@card_only and @sprint_of}
@@ -168,22 +168,24 @@ defmodule SlipdockWeb.BoardLive.BoardView do
     <button
       :if={@ai? and !@card_only}
       type="button"
-      class="btn btn-ghost btn-sm gap-1.5"
+      id="board-chat"
+      class="btn btn-ghost btn-sm btn-square"
       title="Chat about this page with AI"
+      aria-label="Chat about this page with AI"
       phx-click="toggle"
       phx-target="#page-ai"
     >
-      <.icon name="hero-sparkles" class="size-4" />
-      <span class="hidden md:inline">Chat</span>
+      <.icon name="hero-chat-bubble-left-ellipsis" class="size-4" />
     </button>
     <.link
       :if={@can_manage and !@card_only}
+      id="board-share"
       patch={@paths.settings}
-      class="btn btn-ghost btn-sm hidden gap-1.5 sm:inline-flex"
+      class="btn btn-ghost btn-sm btn-square hidden sm:inline-flex"
       title="Share this board"
+      aria-label="Share this board"
     >
       <.icon name="hero-user-plus" class="size-4" />
-      <span class="hidden md:inline">Share</span>
     </.link>
     <div :if={!@view_only and !@card_only} class="dropdown dropdown-end">
       <div tabindex="0" role="button" class="btn btn-ghost btn-sm btn-square" title="More">
