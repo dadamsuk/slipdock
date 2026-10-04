@@ -35,7 +35,8 @@ defmodule Slipdock.QuickAddTest do
              "start_date" => "2026-09-26",
              "priority" => "high",
              "flags" => ["blocked"],
-             "assignee_id" => 5
+             "assignee_id" => 5,
+             "assignee_ids" => [5]
            }
 
     assert parsed.column.name == "To Do"

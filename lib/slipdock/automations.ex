@@ -382,7 +382,7 @@ defmodule Slipdock.Automations do
     query
     |> where([c], is_nil(c.archived_at))
     |> Repo.all()
-    |> Repo.preload([:column, :tags, :assignee, :status_updates, :blocked_by])
+    |> Repo.preload([:column, :tags, :assignee, :assignees, :status_updates, :blocked_by])
   end
 
   defp due_card?(%{"type" => "card_stale"} = trigger, card, now, _today) do

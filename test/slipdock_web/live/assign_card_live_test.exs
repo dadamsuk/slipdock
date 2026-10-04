@@ -4,27 +4,45 @@ defmodule SlipdockWeb.AssignCardLiveTest do
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
   alias Slipdock.Boards
+  alias Slipdock.Boards.Card
 
   setup do
     board = board_fixture()
     [col | _] = board.columns
     card = card_fixture(col, %{"title" => "Needs an owner"})
-    %{board: reload(board), card: card, ada: user_fixture("ada@example.com")}
+
+    %{
+      board: reload(board),
+      card: card,
+      ada: user_fixture("ada@example.com"),
+      bob: user_fixture("bob@example.com")
+    }
   end
 
-  test "assigning and unassigning from the card modal saves", %{
+  test "people are added to and taken off the card from its modal", %{
     conn: conn,
     board: board,
     card: card,
-    ada: ada
+    ada: ada,
+    bob: bob
   } do
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/cards/#{card.id}")
 
-    view |> form("#card-meta-form", card: %{assignee_id: ada.id}) |> render_change()
+    view |> form("#card-meta-form", card: %{add_assignee_id: ada.id}) |> render_change()
     assert Boards.get_card!(card.id).assignee_id == ada.id
-    assert has_element?(view, "#card-assignee option[selected][value='#{ada.id}']")
+    assert has_element?(view, "#card-assignee-#{ada.id}")
 
-    view |> form("#card-meta-form", card: %{assignee_id: ""}) |> render_change()
-    assert is_nil(Boards.get_card!(card.id).assignee_id)
+    view |> form("#card-meta-form", card: %{add_assignee_id: bob.id}) |> render_change()
+    ids = Boards.get_card!(card.id) |> Card.assignees() |> Enum.map(& &1.id)
+    assert ids == [ada.id, bob.id]
+    assert has_element?(view, "#card-assignee-#{bob.id}")
+    # Somebody already on the card isn't offered again.
+    refute has_element?(view, "#card-assignees select option[value='#{ada.id}']")
+
+    view |> element("#card-assignee-#{ada.id} button") |> render_click()
+    card = Boards.get_card!(card.id)
+    assert card.assignee_id == bob.id
+    assert Enum.map(Card.assignees(card), & &1.id) == [bob.id]
+    refute has_element?(view, "#card-assignee-#{ada.id}")
   end
 end

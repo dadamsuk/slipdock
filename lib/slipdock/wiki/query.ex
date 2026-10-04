@@ -588,7 +588,10 @@ defmodule Slipdock.Wiki.Query do
   def cell(card, "priority", _today), do: if(card.priority == "none", do: "", else: card.priority)
 
   def cell(card, "assignee", _today),
-    do: (card.assignee && Slipdock.Accounts.User.display_name(card.assignee)) || ""
+    do:
+      card
+      |> Slipdock.Boards.Card.assignees()
+      |> Enum.map_join(", ", &Slipdock.Accounts.User.display_name/1)
 
   def cell(card, "flags", _today), do: Enum.join(card.flags, ", ")
   def cell(card, "tags", _today), do: Enum.map_join(loaded(card.tags), ", ", & &1.name)
@@ -900,7 +903,7 @@ defmodule Slipdock.Wiki.Query do
   defp inline_card_field(card_id, field, context) do
     with %Card{} = card <- Repo.get(Card, card_id),
          true <- readable_card?(card, context[:reader]) do
-      case cell(Repo.preload(card, [:column, :assignee, :tags]), field) do
+      case cell(Repo.preload(card, [:column, :assignee, :assignees, :tags]), field) do
         "" -> {:ok, ""}
         text -> {:ok, text}
       end

@@ -130,7 +130,7 @@ defmodule Slipdock.Wiki.Links do
     with {id, ""} <- Integer.parse(ref.target),
          %Card{} = card <- Repo.get(Card, id),
          true <- readable_card?(card, reader) do
-      {:card, Repo.preload(card, [:column, :assignee])}
+      {:card, Repo.preload(card, [:column, :assignee, :assignees])}
     else
       _ -> nil
     end

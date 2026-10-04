@@ -170,7 +170,7 @@ for the whole thing before acting.
 **`--due`, `--deps` and `--assignee` are how you ask about state rather than words.**
 `--due overdue` is the outstanding work (a completed card is in none of the date buckets),
 `--due week` the next seven days, `--deps blocked` what is waiting on an unfinished card,
-`--assignee me` your own. They mean the same thing here, in the swimlane views and in the API,
+`--assignee me` your own (a card with several people on it is each of theirs). They mean the same thing here, in the swimlane views and in the API,
 and an unrecognised value is an error rather than a silent list of everything.
 
 `slipdock ask` is the same search with a model in front of it, plus tools of its own: it can
@@ -201,8 +201,10 @@ A saved view's URL (`/boards/1/swimlanes?view=ID`) opens the same grid in the we
 
 Write:
 ```
-slipdock add <board> <title words...> [--column C] [--desc TEXT] [--priority P] [--flag F]... [--tag T]... [--start YYYY-MM-DD] [--due YYYY-MM-DD] [--color C] [--percent N]
+slipdock add <board> <title words...> [--column C] [--desc TEXT] [--priority P] [--flag F]... [--tag T]... [--start YYYY-MM-DD] [--due YYYY-MM-DD] [--color C] [--percent N] [--assignee EMAIL|me]...
 slipdock edit <id> [--title T] [--desc TEXT] [--priority P] [--start DATE|--no-start] [--due DATE|--no-due] [--percent N|--no-percent] [--color C|--no-color] [--column C]
+                   [--assignee EMAIL|me]... | --no-assignee   # replaces who is on it; the first is the lead
+                   [--add-assignee EMAIL|me]... [--remove-assignee EMAIL|me]...   # others stay on it
 slipdock move <id> <column> [--top|--bottom|--index N]
 slipdock move <id> <column> --board B    # to another board, with the card's subcards; tags travel
                                        # by name, custom fields only where that board has them;

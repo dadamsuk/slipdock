@@ -6,7 +6,6 @@ defmodule SlipdockWeb.NarrativeComponents do
   use SlipdockWeb, :html
 
   import SlipdockWeb.SlipdockComponents
-  alias Slipdock.Accounts.User
   alias Slipdock.Boards.Card
   alias SlipdockWeb.RichText
   alias Slipdock.Palette
@@ -250,7 +249,7 @@ defmodule SlipdockWeb.NarrativeComponents do
         progress: Card.progress(card),
         start: Card.effective_start(card),
         due: Card.effective_due(card),
-        assignee: if(match?(%User{}, card.assignee), do: card.assignee),
+        assignees: Card.assignees(card),
         checklist: {Enum.count(checklist, & &1.done), length(checklist)},
         votes: Card.vote_total(card),
         tags: if(is_list(card.tags), do: card.tags, else: [])
@@ -265,8 +264,11 @@ defmodule SlipdockWeb.NarrativeComponents do
       <.summary_item :if={@card.priority != "none"} label="Priority">
         <.priority_badge priority={@card.priority} />
       </.summary_item>
-      <.summary_item :if={@assignee} label="Assignee">
-        <.assignee_chip user={@assignee} size="xs" />
+      <.summary_item
+        :if={@assignees != []}
+        label={if length(@assignees) > 1, do: "Assignees", else: "Assignee"}
+      >
+        <.assignee_chips users={@assignees} size="xs" with_name />
       </.summary_item>
       <.summary_item :if={@start} label="Start">
         {fmt(@start)}<span :if={Card.start_derived?(@card)} title="From the subcards">*</span>

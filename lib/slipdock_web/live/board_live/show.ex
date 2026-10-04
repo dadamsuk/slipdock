@@ -1154,6 +1154,14 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   defp move_in_list(card, column_id, before), do: Boards.move_card(card.id, column_id, before)
 
+  # A page has one assignee: given a set, it takes the first.
+  defp update_item(%Slipdock.Wiki.Page{} = page, %{"assignee_ids" => ids} = attrs),
+    do:
+      update_item(
+        page,
+        attrs |> Map.delete("assignee_ids") |> Map.put("assignee_id", List.first(ids))
+      )
+
   defp update_item(%Slipdock.Wiki.Page{} = page, attrs),
     do: Wiki.update_page(Wiki.get_page!(page.id), attrs)
 
@@ -2004,7 +2012,7 @@ defmodule SlipdockWeb.BoardLive.Show do
     params =
       params
       |> Map.take(
-        ~w(title description priority start_date due_date date_precision completed percent_complete column_id assignee_id)
+        ~w(title description priority start_date due_date date_precision completed percent_complete column_id assignee_id add_assignee_id)
       )
       |> Map.new(fn
         # Only the fields the changed form carries are touched: the title/description
@@ -2013,6 +2021,8 @@ defmodule SlipdockWeb.BoardLive.Show do
         {"due_date", ""} -> {"due_date", nil}
         {"percent_complete", ""} -> {"percent_complete", nil}
         {"assignee_id", ""} -> {"assignee_id", nil}
+        # "Add someone" puts a person on the card beside whoever is there.
+        {"add_assignee_id", id} -> {"add_assignee_ids", [id]}
         {"description", text} -> {"description", strip_upload_placeholder(text)}
         pair -> pair
       end)
@@ -2093,6 +2103,11 @@ defmodule SlipdockWeb.BoardLive.Show do
     else
       _ -> {:noreply, put_flash(socket, :error, "That page couldn't be pinned.")}
     end
+  end
+
+  def handle_event("remove_assignee", %{"id" => id}, socket) do
+    {:ok, _} = Boards.update_card(socket.assigns.card, %{"remove_assignee_ids" => [id]})
+    {:noreply, socket}
   end
 
   def handle_event("toggle_flag", %{"flag" => flag}, socket) do
@@ -5655,15 +5670,49 @@ defmodule SlipdockWeb.BoardLive.Show do
                   </option>
                 </select>
               </label>
-              <label class="block space-y-1">
-                <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Assignee</span>
-                <select name="card[assignee_id]" class="select select-sm w-full" id="card-assignee">
-                  <option value="" selected={is_nil(@card.assignee_id)}>Unassigned</option>
-                  <option :for={u <- @users} value={u.id} selected={u.id == @card.assignee_id}>
+              <div class="space-y-1" id="card-assignees">
+                <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
+                  Assignees
+                </span>
+                <ul :if={Card.assignees(@card) != []} class="flex flex-wrap gap-1">
+                  <li
+                    :for={u <- Card.assignees(@card)}
+                    id={"card-assignee-#{u.id}"}
+                    class="inline-flex items-center gap-1 rounded-full bg-base-200 py-0.5 pr-1 pl-0.5"
+                  >
+                    <.assignee_chip user={u} size="xs" with_name />
+                    <button
+                      type="button"
+                      phx-click="remove_assignee"
+                      phx-value-id={u.id}
+                      class="rounded-full p-0.5 text-base-content/50 transition hover:bg-base-300 hover:text-base-content"
+                      title={"Unassign #{Slipdock.Accounts.User.display_name(u)}"}
+                    >
+                      <.icon name="hero-x-mark" class="size-3" />
+                    </button>
+                  </li>
+                </ul>
+                <%!-- Keyed on who is already on the card, so the picker comes back
+                     empty after each pick instead of re-sending the last one. --%>
+                <select
+                  name="card[add_assignee_id]"
+                  class="select select-sm w-full"
+                  id={"card-assignee-add-" <> Enum.map_join(Card.assignees(@card), "-", & &1.id)}
+                >
+                  <option value="" selected>
+                    {if Card.assignees(@card) == [],
+                      do: "Unassigned — add someone…",
+                      else: "Add someone…"}
+                  </option>
+                  <option
+                    :for={u <- @users}
+                    :if={not Card.assigned_to?(@card, u.id)}
+                    value={u.id}
+                  >
                     {Slipdock.Accounts.User.display_name(u)}
                   </option>
                 </select>
-              </label>
+              </div>
               <label class="block space-y-1">
                 <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Priority</span>
                 <select name="card[priority]" class="select select-sm w-full">

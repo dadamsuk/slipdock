@@ -377,7 +377,7 @@ defmodule SlipdockWeb.TableComponents do
 
   defp cell(%{field: "assignee"} = assigns) do
     ~H"""
-    <.assignee_chip :if={loaded_assignee(@card)} user={@card.assignee} size="xs" with_name />
+    <.assignee_chips users={Slipdock.Boards.Card.assignees(@card)} size="xs" with_name />
     """
   end
 

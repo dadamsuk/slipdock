@@ -391,6 +391,35 @@ defmodule Slipdock.AutomationsTest do
         assert email.text_body =~ "/cards/#{card.id}"
       end)
     end
+
+    test "with several people on a card, notify_assignee emails them all and card_assigned fires per newcomer" do
+      {board, backlog, _doing, _done} = board_with_lists()
+      ada = user_fixture("ada@example.com")
+      bob = user_fixture("bob@example.com")
+
+      rule_fixture(board, %{
+        "trigger" => %{"type" => "card_assigned", "assignee" => "bob@example.com"},
+        "actions" => [%{"type" => "add_flags", "flags" => ["starred"]}]
+      })
+
+      rule_fixture(board, %{
+        "trigger" => %{"type" => "card_updated", "field" => "priority"},
+        "conditions" => [%{"field" => "assignee", "op" => "is", "value" => "bob@example.com"}],
+        "actions" => [%{"type" => "notify_assignee", "subject" => "Ours: {{card.assignee}}"}]
+      })
+
+      card = card_fixture(backlog, %{"title" => "Ours", "assignee_id" => ada.id})
+      {:ok, _} = Boards.update_card(card, %{"add_assignee_ids" => [bob.id]})
+      card = Boards.get_card!(card.id)
+      assert card.flags == ["starred"]
+
+      {:ok, _} = Boards.update_card(card, %{"priority" => "high"})
+
+      assert_email_sent(fn email ->
+        assert Enum.map(email.to, &elem(&1, 1)) == ["ada@example.com", "bob@example.com"]
+        assert email.subject == "Ours: ada@example.com, bob@example.com"
+      end)
+    end
   end
 
   describe "callbacks" do

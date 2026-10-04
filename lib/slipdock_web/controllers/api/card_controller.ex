@@ -73,7 +73,7 @@ defmodule SlipdockWeb.API.CardController do
          :ok <- Authorize.board(conn, board, :write),
          {:ok, column} <- resolve_column(board, params["column"]),
          {:ok, tags} <- resolve_tags(board, params["tags"]),
-         {:ok, assignee} <- resolve_assignee(params),
+         {:ok, assignee} <- resolve_assignees(params, conn.assigns.current_user),
          {:ok, card} <-
            Boards.create_card(column, params |> Map.take(@card_fields) |> Map.merge(assignee)),
          {:ok, _} <- maybe_set_tags(card, tags) do
@@ -88,7 +88,7 @@ defmodule SlipdockWeb.API.CardController do
          {:ok, tags} <- resolve_tags(board, params["tags"]),
          {:ok, add} <- resolve_tags(board, params["add_tags"]),
          {:ok, remove} <- resolve_tags(board, params["remove_tags"]),
-         {:ok, assignee} <- resolve_assignee(params),
+         {:ok, assignee} <- resolve_assignees(params, conn.assigns.current_user),
          {:ok, card} <- Boards.update_card(card, Map.merge(card_attrs(card, params), assignee)),
          {:ok, _} <- maybe_set_tags(card, tags),
          {:ok, _} <- maybe_adjust_tags(card, add, remove),
@@ -527,16 +527,43 @@ defmodule SlipdockWeb.API.CardController do
     end
   end
 
-  # `assignee` is a user's email, or "" / null to unassign; absent leaves it alone.
-  defp resolve_assignee(%{"assignee" => email}) when email in [nil, ""],
-    do: {:ok, %{"assignee_id" => nil}}
-
-  defp resolve_assignee(%{"assignee" => email}) when is_binary(email) do
-    case Slipdock.Accounts.get_user_by_email(String.trim(email)) do
-      nil -> {:error, :not_found, "user #{email}"}
-      user -> {:ok, %{"assignee_id" => user.id}}
-    end
+  # Who the card is assigned to, as people's emails ("me" is whoever is
+  # asking). `assignees` is the whole set and `assignee` one person — both
+  # replace who is on it, and "" / null / [] unassigns. `add_assignees` and
+  # `remove_assignees` change the set without restating it. Absent leaves it
+  # alone.
+  defp resolve_assignees(params, me) do
+    [
+      {"assignees", "assignee_ids"},
+      {"assignee", "assignee_ids"},
+      {"add_assignees", "add_assignee_ids"},
+      {"remove_assignees", "remove_assignee_ids"}
+    ]
+    |> Enum.filter(fn {key, _} -> Map.has_key?(params, key) end)
+    # `assignees` wins over `assignee` when a caller sends both.
+    |> Enum.uniq_by(&elem(&1, 1))
+    |> Enum.reduce_while({:ok, %{}}, fn {key, attr}, {:ok, acc} ->
+      case user_ids(params[key], me) do
+        {:ok, ids} -> {:cont, {:ok, Map.put(acc, attr, ids)}}
+        error -> {:halt, error}
+      end
+    end)
   end
 
-  defp resolve_assignee(_), do: {:ok, %{}}
+  defp user_ids(emails, me) do
+    emails
+    |> List.wrap()
+    |> Enum.flat_map(&if(is_binary(&1), do: String.split(&1, ","), else: [&1]))
+    |> Enum.map(&(&1 |> to_string() |> String.trim()))
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.reduce_while({:ok, []}, fn email, {:ok, ids} ->
+      case person(email, me) do
+        nil -> {:halt, {:error, :not_found, "user #{email}"}}
+        user -> {:cont, {:ok, ids ++ [user.id]}}
+      end
+    end)
+  end
+
+  defp person(me, %Slipdock.Accounts.User{} = user) when me in ~w(me myself mine), do: user
+  defp person(email, _me), do: Slipdock.Accounts.get_user_by_email(email)
 end

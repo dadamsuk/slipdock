@@ -118,7 +118,8 @@ defmodule Slipdock.Automations.Runner do
   defp field_value("column", card), do: card.column && card.column.name
   defp field_value("priority", card), do: card.priority
   defp field_value("tag", card), do: Enum.map(card.tags, & &1.name)
-  defp field_value("assignee", card), do: card.assignee && User.display_name(card.assignee)
+  # Everybody on the card, so "assignee is Sam" holds while Sam is one of them.
+  defp field_value("assignee", card), do: Enum.map(Card.assignees(card), &User.display_name/1)
   defp field_value("flag", card), do: card.flags
   defp field_value("title", card), do: card.title
   defp field_value("description", card), do: card.description
@@ -126,7 +127,10 @@ defmodule Slipdock.Automations.Runner do
   defp field_value("archived", card), do: not is_nil(card.archived_at)
   defp field_value("blocked", card), do: Card.blocked?(card)
   defp field_value("has_due_date", card), do: not is_nil(card.due_date)
-  defp field_value("has_assignee", card), do: not is_nil(card.assignee_id)
+
+  defp field_value("has_assignee", card),
+    do: Card.assignees(card) != [] or not is_nil(card.assignee_id)
+
   defp field_value("due_date", card), do: card.due_date
   defp field_value("start_date", card), do: card.start_date
   defp field_value("percent_complete", card), do: card.percent_complete
@@ -154,6 +158,10 @@ defmodule Slipdock.Automations.Runner do
     do: Enum.any?(List.wrap(value), &equal?(actual, &1))
 
   defp test("none_of", actual, value), do: not test("any_of", actual, value)
+
+  defp test("contains", actual, value) when is_list(actual),
+    do: Enum.any?(actual, &test("contains", &1, value))
+
   defp test("contains", actual, value), do: casefold(actual) =~ casefold(value)
   defp test("not_contains", actual, value), do: not test("contains", actual, value)
   defp test("before", %Date{} = actual, value), do: compare_date(actual, value) == :lt
@@ -275,17 +283,19 @@ defmodule Slipdock.Automations.Runner do
     end
   end
 
+  # Everybody the card is assigned to, in one email.
   defp do_perform("notify_assignee", action, ctx) do
-    case ctx.card && ctx.card.assignee do
-      nil ->
+    case ctx.card && Card.assignees(ctx.card) do
+      people when people in [nil, []] ->
         {:error, "nobody is assigned"}
 
-      %User{email: email} ->
+      people ->
+        emails = Enum.map(people, & &1.email)
         subject = text(action["subject"], ctx, default_subject(ctx))
         body = text(action["body"], ctx, default_body(ctx))
 
-        case Notifier.deliver([email], subject, body) do
-          :ok -> {:ok, "emailed #{email}"}
+        case Notifier.deliver(emails, subject, body) do
+          :ok -> {:ok, "emailed #{Enum.join(emails, ", ")}"}
           {:error, reason} -> {:error, "email failed: #{reason}"}
         end
     end
@@ -643,7 +653,7 @@ defmodule Slipdock.Automations.Runner do
       "card.description" => card.description,
       "card.priority" => card.priority,
       "card.column" => card.column && card.column.name,
-      "card.assignee" => card.assignee && User.display_name(card.assignee),
+      "card.assignee" => assignee_names(card),
       "card.due_date" => card.due_date && Date.to_iso8601(card.due_date),
       "card.start_date" => card.start_date && Date.to_iso8601(card.start_date),
       "card.tags" => Enum.map_join(card.tags, ", ", & &1.name),
@@ -651,6 +661,14 @@ defmodule Slipdock.Automations.Runner do
       "card.status" => if(card.completed, do: "done", else: "open"),
       "card.url" => "#{base_url()}/boards/#{board_id}/cards/#{card.id}"
     }
+  end
+
+  # "Ada, Sam" — or nil when nobody is.
+  defp assignee_names(card) do
+    case Card.assignees(card) do
+      [] -> nil
+      people -> Enum.map_join(people, ", ", &User.display_name/1)
+    end
   end
 
   # Everything a callback is told about the card: what it is, where to read
@@ -664,8 +682,9 @@ defmodule Slipdock.Automations.Runner do
       description: card.description,
       column: card.column && card.column.name,
       priority: card.priority,
-      assignee: card.assignee && User.display_name(card.assignee),
-      assignee_email: card.assignee && card.assignee.email,
+      assignee: assignee_names(card),
+      assignee_email: card |> Card.assignees() |> List.first() |> then(&(&1 && &1.email)),
+      assignees: Enum.map(Card.assignees(card), &%{name: User.display_name(&1), email: &1.email}),
       start_date: card.start_date,
       due_date: card.due_date,
       completed: card.completed,
@@ -735,7 +754,7 @@ defmodule Slipdock.Automations.Runner do
   @doc false
   # The facets conditions and templates read, loaded once per run.
   def decorate(%Card{} = card) do
-    Repo.preload(card, [:tags, :column, :assignee, :status_updates, :blocked_by])
+    Repo.preload(card, [:tags, :column, :assignee, :assignees, :status_updates, :blocked_by])
   end
 
   # A page's `blocked_by` and `description` are virtual (see

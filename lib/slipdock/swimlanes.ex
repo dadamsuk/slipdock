@@ -248,8 +248,14 @@ defmodule Slipdock.Swimlanes do
   def card_keys(card, axis, unit)
   def card_keys(_card, "none", _), do: ["all"]
   def card_keys(card, "column", _), do: [to_string(card.column_id)]
-  def card_keys(%{assignee_id: nil}, "assignee", _), do: ["none"]
-  def card_keys(card, "assignee", _), do: [to_string(card.assignee_id)]
+  # A card with several people on it sits in each of their lanes.
+  def card_keys(card, "assignee", _) do
+    case Card.assignees(card) do
+      [] -> if card.assignee_id, do: [to_string(card.assignee_id)], else: ["none"]
+      people -> Enum.map(people, &to_string(&1.id))
+    end
+  end
+
   def card_keys(card, "priority", _), do: [card.priority]
   def card_keys(%{tags: []}, "tag", _), do: ["none"]
   def card_keys(card, "tag", _), do: Enum.map(card.tags, &to_string(&1.id))
@@ -300,8 +306,7 @@ defmodule Slipdock.Swimlanes do
   def buckets("assignee", _board, cards, _config, _today) do
     users =
       cards
-      |> Enum.map(&loaded_assignee/1)
-      |> Enum.reject(&is_nil/1)
+      |> Enum.flat_map(&Card.assignees/1)
       |> Enum.uniq_by(& &1.id)
       |> Enum.sort_by(&String.downcase(Slipdock.Accounts.User.display_name(&1)))
 
@@ -406,9 +411,6 @@ defmodule Slipdock.Swimlanes do
       _ -> key
     end
   end
-
-  defp loaded_assignee(%{assignee: %Slipdock.Accounts.User{} = user}), do: user
-  defp loaded_assignee(_), do: nil
 
   defp fill_gaps([], _unit), do: []
 
@@ -535,11 +537,24 @@ defmodule Slipdock.Swimlanes do
     [{:attrs, %{"flags" => flags}}]
   end
 
+  # Between two people's lanes the card changes hands — the one it came from
+  # comes off it, the one it went to goes on, and anybody else on it stays.
+  # Dropped on "Unassigned" it is nobody's.
   def move_ops("assignee", _card, _from, "none", _config),
-    do: [{:attrs, %{"assignee_id" => nil}}]
+    do: [{:attrs, %{"assignee_ids" => []}}]
 
-  def move_ops("assignee", _card, _from, to, _config),
-    do: [{:attrs, %{"assignee_id" => String.to_integer(to)}}]
+  def move_ops("assignee", card, from, to, _config) do
+    ids = card |> Card.assignees() |> Enum.map(& &1.id)
+    to = String.to_integer(to)
+
+    ids =
+      case Enum.find_index(ids, &(&1 == parse_int(from))) do
+        nil -> ids ++ [to]
+        i -> List.replace_at(ids, i, to)
+      end
+
+    [{:attrs, %{"assignee_ids" => Enum.uniq(ids)}}]
+  end
 
   def move_ops(axis, _card, _from, "none", _config) when axis in ~w(due_date schedule),
     do: [{:attrs, %{"due_date" => nil}}]

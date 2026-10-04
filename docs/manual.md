@@ -28,8 +28,9 @@ way in: what it is, the pictures, and how to get it running.
 - Outline view (`/boards/:id/outline`): the board as a collapsible tree of
   cards and subcards to a chosen depth — one level is the roadmap, all levels
   the task list
-- Assignees: cards can be assigned to a user, with an assignee swimlane axis,
-  and **My work** (`/work`) lists everything assigned to you across all
+- Assignees: a card can be assigned to one person or several (the first is
+  the lead, which is who colour-by-assignee goes by), with an assignee
+  swimlane axis that puts a shared card in each person's lane, and **My work** (`/work`) lists everything assigned to you across all
   boards and levels, each with its path in the tree
 - Automations: rules written in plain English ("when a card lands in Done,
   email ops@example.com"; "move anything untouched for a week back to
@@ -1993,12 +1994,15 @@ whoever the token belongs to, and dismissing one is per person — `DELETE
 
 Card fields for create/update: `title description priority flags start_date due_date completed color`,
 plus `column` (name or id), `tags` (replace), `add_tags` / `remove_tags`, `add_flags` / `remove_flags`,
-and `assignee` (a user's email; `""` or null unassigns).
+and `assignee` (a user's email, or `me`; `""` or null unassigns). A card can
+have several people on it: `assignees` (a list of emails) replaces the whole
+set, the first becoming the lead; `assignee` replaces it with one person; and
+`add_assignees` / `remove_assignees` change it without restating it.
 
 Card JSON includes `blocked` (boolean), `blocked_by` and `blocks` (lists of
 `{id, title, completed, archived}`), `sub_board` (`{id, name, completed,
-total, columns: [{id, name, cards}]}` or null), `assignee` (`{id, email, name}`
-or null) and `rollup` — null for a card without subcards, else
+total, columns: [{id, name, cards}]}` or null), `assignees` (a list of
+`{id, email, name}`, lead first), `assignee` (the lead, or null) and `rollup` — null for a card without subcards, else
 `{done, total, start, due, start_derived, due_derived, slip_days, blocked,
 overdue, health, depth}` summarising every level beneath the card. Board JSON
 includes `root_id` and `parent_card` (`{id, title, board_id}` or null).
@@ -2049,6 +2053,8 @@ slipdock table 1 --open --fields id,title,column,due,deps   # table view; --grou
 slipdock table 1 --fields id,title,assignee,rollup,health    # what each card's subcards roll up to
 slipdock swimlanes 1 --rows assignee --cols schedule --unit quarter   # who has what due when, rolled up
 slipdock edit 12 --assignee ada@example.com                  # --no-assignee clears it
+slipdock edit 12 --assignee ada@example.com --assignee me    # both of you, Ada leading
+slipdock edit 12 --add-assignee sam@example.com              # join without taking it off anyone
 slipdock move 12 "To Do" --board errands   # to another board, with its subcards and its tags
 slipdock blocked-by 12 7 9        # #12 waits for #7 and #9;  --off removes
 slipdock blocks 7 12              # same link from the other side

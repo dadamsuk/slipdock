@@ -43,7 +43,16 @@ defmodule Slipdock.Boards.Card do
 
     belongs_to :board, Slipdock.Boards.Board
     belongs_to :column, Slipdock.Boards.Column
+    # A card can be assigned to several people: `assignees` is all of them,
+    # `assignee` the lead — the first — kept in step by Slipdock.Boards so the
+    # views that colour or sort by one person still have one.
     belongs_to :assignee, Slipdock.Accounts.User
+
+    many_to_many :assignees, Slipdock.Accounts.User,
+      join_through: "card_assignees",
+      join_keys: [card_id: :id, user_id: :id],
+      on_replace: :delete,
+      preload_order: [asc: :name, asc: :email]
 
     many_to_many :tags, Slipdock.Boards.Tag,
       join_through: "card_tags",
@@ -87,6 +96,26 @@ defmodule Slipdock.Boards.Card do
   end
 
   def priorities, do: @priorities
+
+  @doc """
+  Everybody the card is assigned to, lead first. Falls back to the lead alone
+  when the set isn't loaded, and to nobody when neither is.
+  """
+  def assignees(%{assignees: people} = item) when is_list(people) do
+    case Map.get(item, :assignee_id) do
+      nil -> people
+      id -> Enum.sort_by(people, &(&1.id != id))
+    end
+  end
+
+  def assignees(%{assignee: %Slipdock.Accounts.User{} = user}), do: [user]
+  def assignees(_), do: []
+
+  @doc "Whether `user_id` is one of the people the card is assigned to."
+  def assigned_to?(item, user_id) do
+    Map.get(item, :assignee_id) == user_id or Enum.any?(assignees(item), &(&1.id == user_id))
+  end
+
   def flags, do: @flags
 
   @doc "The latest stated health (\"on_track\", \"at_risk\", \"off_track\") or nil."
