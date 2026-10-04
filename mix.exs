@@ -12,7 +12,7 @@ defmodule Slipdock.MixProject do
       deps: deps(),
       compilers: [:phoenix_live_view] ++ Mix.compilers(),
       listeners: [Phoenix.CodeReloader],
-      test_coverage: [tool: Slipdock.Coverage, summary: [threshold: 69]]
+      test_coverage: [tool: Slipdock.Coverage, summary: [threshold: 70]]
     ]
   end
 
