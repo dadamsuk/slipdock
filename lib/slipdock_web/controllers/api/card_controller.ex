@@ -540,6 +540,8 @@ defmodule SlipdockWeb.API.CardController do
     end
   end
 
+  defp parse_index(_), do: :bottom
+
   # Who the card is assigned to, as people's emails ("me" is whoever is
   # asking). `assignees` is the whole set and `assignee` one person — both
   # replace who is on it, and "" / null / [] unassigns. `add_assignees` and

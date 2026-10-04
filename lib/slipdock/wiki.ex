@@ -727,7 +727,9 @@ defmodule Slipdock.Wiki do
     List.myers_difference(lines(old), lines(new))
   end
 
-  defp lines(nil), do: []
+  # No text is no lines, not one empty one: the first revision is all
+  # insertion, with nothing deleted before it.
+  defp lines(text) when text in [nil, ""], do: []
   defp lines(text), do: String.split(text, "\n")
 
   # A revision is the state *after* a save, so the newest always matches the
