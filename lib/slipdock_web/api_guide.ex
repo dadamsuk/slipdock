@@ -990,8 +990,25 @@ defmodule SlipdockWeb.APIGuide do
     unset left out). `status` is `open`, `done` or `archived`. The URL may
     itself carry placeholders, so `https://example.com/hooks/{{card.id}}`
     works. Only `http`/`https` URLs are called, nothing is retried, and a
-    non-2xx answer lands in the rule's `last_error` rather than stopping the
-    rule's other actions.
+    non-2xx answer never stops the rule's other actions.
+
+    Every call is logged once it finishes — and since calls go out in the
+    background, the log is where a failed one shows up:
+
+    ```sh
+    curl -s -H "$H" "B/api/boards/1/automations/callbacks?limit=20"
+    ```
+
+    ```json
+    {"callbacks": [{"id": 9, "at": "2026-10-04T11:00:00Z", "rule": "Tell the robot",
+                    "rule_id": 3, "card": "Ship it", "card_id": 42, "method": "POST",
+                    "url": "https://example.com/hooks/kanban", "ok": false,
+                    "status": 503, "error": "HTTP 503", "duration_ms": 140}]}
+    ```
+
+    Newest first, `limit` up to 200 (default 50); the board keeps its newest
+    200. `status` is null when nothing answered — `error` then says why.
+    `slipdock callbacks <board>` is the same on a shell.
 
     **Alerts** are the `alert` action: a line in the header bar of the web UI
     that stays until the reader dismisses it. They are how a rule tells a

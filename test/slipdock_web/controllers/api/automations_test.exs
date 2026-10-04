@@ -248,6 +248,38 @@ defmodule SlipdockWeb.API.AutomationsTest do
     end
   end
 
+  describe "GET /api/boards/:board/automations/callbacks" do
+    test "lists the calls the board's rules made, newest first", %{conn: conn, board: board} do
+      for {status, n} <- [{200, 1}, {503, 2}] do
+        Automations.log_callback(%{
+          board_id: board.id,
+          rule_name: "Tell the robot",
+          card_title: "Card #{n}",
+          method: "POST",
+          url: "https://example.com/#{n}",
+          status: status,
+          error: if(status != 200, do: "HTTP #{status}"),
+          duration_ms: 12
+        })
+      end
+
+      body =
+        conn |> get(~p"/api/boards/#{board.id}/automations/callbacks") |> json_response(200)
+
+      assert [
+               %{"url" => "https://example.com/2", "ok" => false, "status" => 503},
+               %{"url" => "https://example.com/1", "ok" => true, "rule" => "Tell the robot"}
+             ] = body["callbacks"]
+
+      body =
+        conn
+        |> get(~p"/api/boards/#{board.id}/automations/callbacks?limit=1")
+        |> json_response(200)
+
+      assert [%{"card" => "Card 2", "error" => "HTTP 503"}] = body["callbacks"]
+    end
+  end
+
   describe "running a rule by hand" do
     test "reports how often it fired", %{conn: conn, board: board, backlog: backlog} do
       rule =

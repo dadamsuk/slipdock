@@ -98,6 +98,7 @@ defmodule SlipdockCLI do
     automation <board> <rule>           show one rule, spec and all
     automation-help                     the triggers, conditions and actions a spec may use
     automation-presets                  the ready-made rules `new-automation --preset` can add
+    callbacks <board> [--limit N]       the calls the board's rules have made, and what came back
     alerts                              alerts automation rules have raised for you
     templates                           list board templates (sets of lists)
     fields <board>                      list custom fields (and their {keys} for formulas)
@@ -889,6 +890,11 @@ defmodule SlipdockCLI do
 
       if a["last_error"], do: IO.puts(Render.dim("last error: " <> a["last_error"]))
     end)
+  end
+
+  defp run("callbacks", [ref], o) do
+    HTTP.get("/boards/#{enc(ref)}/automations/callbacks", limit: o[:limit])
+    |> out(o, &Render.callbacks(&1["callbacks"]))
   end
 
   defp run("delete-automation", [ref, rule], o) do

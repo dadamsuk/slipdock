@@ -483,7 +483,17 @@ defmodule Slipdock.Automations.Runner do
       at: DateTime.utc_now()
     }
 
-    case Notifier.call(url, payload, method) do
+    # Logged against the rule's board, where its owner looks — for a tree
+    # rule that is above the sub-board the card sits on.
+    log = %{
+      board_id: ctx.rule.board_id,
+      rule_id: ctx.rule.id,
+      rule_name: ctx.rule.name,
+      card_id: ctx.card && ctx.card.id,
+      card_title: ctx.card && ctx.card.title
+    }
+
+    case Notifier.call(url, payload, method, log) do
       :ok -> {:ok, "#{method |> to_string() |> String.upcase()} #{url}"}
       {:error, reason} -> {:error, "callback failed: #{reason}"}
     end

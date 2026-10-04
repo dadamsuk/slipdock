@@ -979,6 +979,23 @@ defmodule SlipdockCLI.Render do
     end
   end
 
+  def callbacks([]), do: IO.puts(dim("no callbacks yet"))
+
+  def callbacks(calls) do
+    rows =
+      Enum.map(calls, fn c ->
+        [
+          stamp(c["at"]),
+          if(c["ok"], do: to_string(c["status"]), else: "⚠ " <> fit(c["error"] || "failed", 30)),
+          c["method"] <> " " <> fit(c["url"], 50),
+          c["rule"] || dim("(deleted rule)"),
+          fit(c["card"] || "", 30)
+        ]
+      end)
+
+    table(["WHEN", "RESULT", "CALL", "RULE", "CARD"], rows)
+  end
+
   def alerts([]), do: IO.puts(dim("no alerts"))
 
   def alerts(alerts) do

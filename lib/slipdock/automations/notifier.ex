@@ -32,12 +32,20 @@ defmodule Slipdock.Automations.Notifier do
   keys flattened to `card.title=…`); every other method sends it as a JSON
   body. `method` is anything in `get`, `post`, `put`, `patch`, in any case —
   anything else is a POST.
+
+  `log`, when given, is what the call is recorded against once it has
+  finished — `board_id`, `rule_id`, `rule_name`, `card_id`, `card_title` —
+  so the board's owner can see it went (see `Slipdock.Automations.Callback`).
+  A URL that is never called is recorded too: it is still a callback that
+  did not arrive.
   """
-  def call(url, payload, method \\ nil) do
+  def call(url, payload, method \\ nil, log \\ nil) do
+    method = method(method)
+
     if valid_url?(url) do
-      run(fn -> send_callback(url, payload, method(method)) end)
+      run(fn -> url |> timed_callback(payload, method) |> record(log, url, method) end)
     else
-      {:error, "#{url} is not an http(s) URL"}
+      record({{:error, "#{url} is not an http(s) URL"}, nil, nil}, log, url, method)
     end
   end
 
@@ -81,6 +89,41 @@ defmodule Slipdock.Automations.Notifier do
     end
   end
 
+  defp timed_callback(url, payload, method) do
+    started = System.monotonic_time(:millisecond)
+    {result, status} = send_callback(url, payload, method)
+    {result, status, System.monotonic_time(:millisecond) - started}
+  end
+
+  # The result goes back to the caller as it came; the log is a side note,
+  # and a log that cannot be written must not turn a delivered call into a
+  # failed one.
+  defp record({result, status, duration}, log, url, method) do
+    if is_map(log) do
+      error =
+        case result do
+          :ok -> nil
+          {:error, reason} -> reason
+        end
+
+      try do
+        Slipdock.Automations.log_callback(
+          Map.merge(log, %{
+            method: method |> to_string() |> String.upcase(),
+            url: url,
+            status: status,
+            error: error,
+            duration_ms: duration
+          })
+        )
+      rescue
+        exception -> Logger.warning("Could not log a callback: #{Exception.message(exception)}")
+      end
+    end
+
+    result
+  end
+
   defp send_callback(url, payload, :get),
     do: request(url: url, method: :get, params: query(payload))
 
@@ -95,13 +138,13 @@ defmodule Slipdock.Automations.Notifier do
 
     case Req.request(options) do
       {:ok, %Req.Response{status: status}} when status in 200..299 ->
-        :ok
+        {:ok, status}
 
       {:ok, %Req.Response{status: status}} ->
-        {:error, "HTTP #{status}"}
+        {{:error, "HTTP #{status}"}, status}
 
       {:error, exception} ->
-        {:error, Exception.message(exception)}
+        {{:error, Exception.message(exception)}, nil}
     end
   end
 

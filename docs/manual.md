@@ -1046,8 +1046,16 @@ as query parameters, flattened to `card.title`, `card.url`,
 `card.due_date` and so on, with lists comma-separated and anything unset
 left out. The URL can use placeholders too, so
 `https://example.com/hooks/{{card.id}}` works. Only `http` and `https` URLs
-are called, nothing is retried, and a refusal at the other end shows up as
-the rule's last error without stopping its other actions.
+are called, nothing is retried, and a refusal at the other end never stops
+the rule's other actions.
+
+Every call is written down as it finishes: **Recent callbacks**, at the foot
+of the Automations panel, lists the newest twenty — the method and URL, the
+rule and card that set it off, and what came back (the HTTP status, or why
+there was none: a refusal, a timeout, a URL that is not `http(s)`), with
+how long it took and when. It updates as calls land, so you can fire a rule
+and watch. The board keeps its newest 200; `slipdock callbacks <board>` and
+`GET /api/boards/:board/automations/callbacks` read the same log.
 
 A rule normally watches its own board; say "including subcards" and it
 watches the whole tree beneath it. Rules can be switched off, reworded,

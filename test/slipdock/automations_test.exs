@@ -5,7 +5,7 @@ defmodule Slipdock.AutomationsTest do
   import Swoosh.TestAssertions
 
   alias Slipdock.{Automations, Boards}
-  alias Slipdock.Automations.{Parser, Rule, Runner, Spec}
+  alias Slipdock.Automations.{Callback, Parser, Rule, Runner, Spec}
 
   defp board_with_lists do
     board = board_fixture(%{"name" => "Launch"})
@@ -561,6 +561,110 @@ defmodule Slipdock.AutomationsTest do
 
       refute_received {:callback, _, _, _}
       assert Automations.get_rule!(rule.id).last_error =~ "not an http(s) URL"
+    end
+  end
+
+  describe "the callback log" do
+    defp answer_with(status) do
+      Req.Test.stub(Slipdock.Automations.Notifier, &Plug.Conn.send_resp(&1, status, ""))
+    end
+
+    defp webhook_rule(board, url \\ "https://example.com/hooks/kanban", extra \\ %{}) do
+      rule_fixture(board, %{
+        "trigger" => %{"type" => "card_created"},
+        "actions" => [Map.merge(%{"type" => "webhook", "url" => url}, extra)]
+      })
+    end
+
+    test "records each call as it happens: rule, card, method, URL and answer" do
+      {board, backlog, _doing, _done} = board_with_lists()
+      answer_with(200)
+      rule = webhook_rule(board, "https://example.com/hooks/{{card.id}}", %{"method" => "put"})
+      Automations.subscribe_callbacks(board.id)
+
+      card = card_fixture(backlog, %{"title" => "Ship it"})
+
+      assert_received {:callbacks_changed, board_id}
+      assert board_id == board.id
+
+      assert [call] = Automations.list_callbacks(board.id)
+      assert call.rule_id == rule.id
+      assert call.rule_name == rule.name
+      assert call.card_id == card.id
+      assert call.card_title == "Ship it"
+      assert call.method == "PUT"
+      assert call.url == "https://example.com/hooks/#{card.id}"
+      assert call.status == 200
+      assert call.error == nil
+      assert is_integer(call.duration_ms)
+      assert Callback.ok?(call)
+    end
+
+    test "a refusal is logged with its status" do
+      {board, backlog, _doing, _done} = board_with_lists()
+      answer_with(503)
+      webhook_rule(board)
+
+      card_fixture(backlog)
+
+      assert [call] = Automations.list_callbacks(board.id)
+      assert call.status == 503
+      assert call.error == "HTTP 503"
+      refute Callback.ok?(call)
+      assert Callback.outcome(call) == "HTTP 503"
+    end
+
+    test "a URL that was never called is logged too" do
+      {board, backlog, _doing, _done} = board_with_lists()
+      webhook_rule(board, "ftp://example.com/x")
+
+      card_fixture(backlog)
+
+      assert [call] = Automations.list_callbacks(board.id)
+      assert call.status == nil
+      assert call.error =~ "not an http(s) URL"
+    end
+
+    test "a tree rule's calls are logged on the rule's board, not the sub-board" do
+      {board, backlog, _doing, _done} = board_with_lists()
+      answer_with(200)
+
+      rule_fixture(
+        board,
+        %{
+          "trigger" => %{"type" => "card_created"},
+          "actions" => [%{"type" => "webhook", "url" => "https://example.com/h"}]
+        },
+        %{"scope" => "tree"}
+      )
+
+      {:ok, template} = Boards.find_template("Simple")
+      epic = card_fixture(backlog)
+      {:ok, sub} = Boards.create_sub_board(epic, template)
+      sub = Boards.get_board!(sub.id)
+      card_fixture(hd(sub.columns))
+
+      assert length(Automations.list_callbacks(board.id)) == 2
+      assert Automations.list_callbacks(sub.id) == []
+    end
+
+    test "the log keeps only the newest calls, newest first" do
+      {board, _backlog, _doing, _done} = board_with_lists()
+
+      for n <- 1..205 do
+        Automations.log_callback(%{
+          board_id: board.id,
+          method: "POST",
+          url: "https://example.com/#{n}",
+          status: 200
+        })
+      end
+
+      calls = Automations.list_callbacks(board.id, 500)
+      assert length(calls) == 200
+      assert hd(calls).url == "https://example.com/205"
+      assert List.last(calls).url == "https://example.com/6"
+      assert length(Automations.list_callbacks(board.id, 3)) == 3
     end
   end
 

@@ -13,7 +13,7 @@ defmodule SlipdockWeb.API.JSON do
     Template
   }
 
-  alias Slipdock.Automations.{Alert, Rule}
+  alias Slipdock.Automations.{Alert, Callback, Rule}
   alias Slipdock.Swimlanes.Config
   alias Slipdock.Wiki.{Link, Page, Revision}
 
@@ -633,6 +633,24 @@ defmodule SlipdockWeb.API.JSON do
       last_run_at: r.last_run_at,
       last_error: r.last_error,
       inserted_at: r.inserted_at
+    }
+  end
+
+  def callback(%Callback{} = c) do
+    %{
+      id: c.id,
+      board_id: c.board_id,
+      rule_id: c.rule_id,
+      rule: c.rule_name,
+      card_id: c.card_id,
+      card: c.card_title,
+      method: c.method,
+      url: c.url,
+      ok: Callback.ok?(c),
+      status: c.status,
+      error: c.error,
+      duration_ms: c.duration_ms,
+      at: c.inserted_at
     }
   end
 

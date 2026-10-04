@@ -80,7 +80,7 @@ Briefly, with the detail in [the manual](docs/manual.md):
   ones (follow a board, a list or a card; reminders; tidying) with a short
   form and no model at all — with alerts in the header
   and callbacks (GET or POST, with the card's title, link, dates, flags and
-  status) out to anything else you run.
+  status) out to anything else you run, each one logged with what came back.
 - **Semantic Search** - find what you're looking for even when you can't remember exactly what it is.
 - **AI, on your own key — or your own hardware** — [chat about a board, ask
   questions in prose over every board at once, search by meaning rather than
