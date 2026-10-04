@@ -66,6 +66,11 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
     with_target(view, "#board-automations")
   end
 
+  defp archive_panel(conn, board) do
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}/archive")
+    with_target(view, "#board-archive")
+  end
+
   describe "lists" do
     test "can't be renamed, recoloured or deleted from another board", ctx do
       view = board_view(ctx.conn, ctx.mine)
@@ -97,7 +102,7 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
 
   describe "archived cards" do
     test "another board's can't be restored or deleted", ctx do
-      view = board_view(ctx.conn, ctx.mine)
+      view = archive_panel(ctx.conn, ctx.mine)
 
       render_hook(view, "restore_card", %{"id" => "#{ctx.archived.id}"})
       assert Repo.get!(Card, ctx.archived.id).archived_at
@@ -108,7 +113,7 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
 
     test "nor can a live card be deleted through delete_archived", ctx do
       {:ok, mine_archived} = Boards.archive_card(card_fixture(ctx.my_col))
-      view = board_view(ctx.conn, ctx.mine)
+      view = archive_panel(ctx.conn, ctx.mine)
 
       render_hook(view, "delete_archived", %{"id" => "#{ctx.my_card.id}"})
       assert Repo.get(Card, ctx.my_card.id)
@@ -376,7 +381,8 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
           {"move_board_component.ex", SlipdockWeb.BoardLive.MoveBoardComponent},
           {"column_component.ex", SlipdockWeb.BoardLive.ColumnComponent},
           {"tags_component.ex", SlipdockWeb.BoardLive.TagsComponent},
-          {"settings_component.ex", SlipdockWeb.BoardLive.SettingsComponent}
+          {"settings_component.ex", SlipdockWeb.BoardLive.SettingsComponent},
+          {"archive_component.ex", SlipdockWeb.BoardLive.ArchiveComponent}
         ] do
       test "every handle_event clause in #{file} is in its event list" do
         assert handled_events(unquote(file)) -- unquote(module).events() == []

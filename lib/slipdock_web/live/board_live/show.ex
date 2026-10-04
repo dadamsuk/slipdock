@@ -67,7 +67,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   # Events that change the board; refused with read-only access.
   @board_write_events ~w(add_column rename_column move_column quick_add_card move_card unplace_page place_page
     focus_move focus_hold focus_add swim_move swim_quick_add cal_quick_add swim_save_view
-    swim_update_view swim_rename_view swim_delete_view restore_card delete_archived)
+    swim_update_view swim_rename_view swim_delete_view)
   # Events that change the open card; refused with read-only access to it.
   @card_write_events ~w(card_change toggle_flag toggle_tag set_cover archive_card delete_card
     add_dependency remove_dependency create_sub_board remove_assignee
@@ -180,8 +180,6 @@ defmodule SlipdockWeb.BoardLive.Show do
       form_key: 0,
       card: nil,
       card_form: nil,
-      activities: [],
-      archived: [],
       mode: :board,
       panel: nil,
       paths: %{},
@@ -657,13 +655,7 @@ defmodule SlipdockWeb.BoardLive.Show do
     end
   end
 
-  defp apply_panel(socket, :activity, _) do
-    assign(socket, activities: Boards.list_activities(socket.assigns.board.id))
-  end
-
-  defp apply_panel(socket, :archive, _) do
-    assign(socket, archived: Boards.list_archived_cards(socket.assigns.board.id))
-  end
+  defp apply_panel(socket, panel, _) when panel in [:activity, :archive], do: socket
 
   defp apply_panel(socket, :tags, _), do: socket
 
@@ -1087,10 +1079,12 @@ defmodule SlipdockWeb.BoardLive.Show do
           end
 
         %{panel: :activity} ->
-          assign(socket, activities: Boards.list_activities(board.id))
+          send_update(SlipdockWeb.BoardLive.ActivityComponent, id: "activity", refresh: true)
+          socket
 
         %{panel: :archive} ->
-          assign(socket, archived: Boards.list_archived_cards(board.id))
+          send_update(SlipdockWeb.BoardLive.ArchiveComponent, id: "archive", refresh: true)
+          socket
 
         _ ->
           socket
@@ -1786,29 +1780,6 @@ defmodule SlipdockWeb.BoardLive.Show do
   def handle_event("delete_card", _, socket) do
     {:ok, _} = Boards.delete_card(socket.assigns.card)
     {:noreply, push_patch(socket, to: socket.assigns.paths.close)}
-  end
-
-  def handle_event("restore_card", %{"id" => id}, socket) do
-    case Boards.get_archived_card(socket.assigns.board.id, id) do
-      nil ->
-        {:noreply, socket}
-
-      card ->
-        case Boards.unarchive_card(card) do
-          {:ok, _} ->
-            {:noreply, socket}
-
-          {:error, refused} ->
-            {:noreply, put_flash(socket, :error, Slipdock.Quota.refusal_message(refused))}
-        end
-    end
-  end
-
-  def handle_event("delete_archived", %{"id" => id}, socket) do
-    if card = Boards.get_archived_card(socket.assigns.board.id, id),
-      do: {:ok, _} = Boards.delete_card(card)
-
-    {:noreply, socket}
   end
 
   ## Events: checklist & comments -------------------------------------------
@@ -3754,16 +3725,20 @@ defmodule SlipdockWeb.BoardLive.Show do
         current_user={@current_user}
         close_path={@paths.close}
       />
-      <.activity_modal
+      <.live_component
         :if={@panel == :activity}
+        module={SlipdockWeb.BoardLive.ActivityComponent}
+        id="activity"
         board={@board}
-        activities={@activities}
+        current_user={@current_user}
         close_path={@paths.close}
       />
-      <.archive_modal
+      <.live_component
         :if={@panel == :archive}
+        module={SlipdockWeb.BoardLive.ArchiveComponent}
+        id="archive"
         board={@board}
-        archived={@archived}
+        current_user={@current_user}
         close_path={@paths.close}
       />
       <.live_component
@@ -5417,85 +5392,6 @@ defmodule SlipdockWeb.BoardLive.Show do
         current_user={@current_user}
         can_write={@can_write}
       />
-    </.modal>
-    """
-  end
-
-  attr :board, :any, required: true
-  attr :activities, :list, required: true
-  attr :close_path, :string, required: true
-
-  defp activity_modal(assigns) do
-    ~H"""
-    <.modal id="activity-modal" on_close={JS.patch(@close_path)} size="md">
-      <div class="space-y-4 p-6">
-        <h2 class="flex items-center gap-2 text-lg font-semibold">
-          <.icon name="hero-bolt" class="size-5 text-warning" /> Activity
-        </h2>
-        <p :if={@activities == []} class="text-sm text-base-content/60">Nothing has happened yet.</p>
-        <ol class="max-h-[60vh] space-y-1 overflow-y-auto kanban-scroll pr-1">
-          <li
-            :for={a <- @activities}
-            id={"activity-#{a.id}"}
-            class="flex items-start gap-3 rounded-lg px-2 py-1.5 hover:bg-base-200/60"
-          >
-            <span class="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-base-200 text-base-content/60">
-              <.icon name={activity_icon(a.kind)} class="size-3.5" />
-            </span>
-            <div class="min-w-0 flex-1">
-              <p class="text-sm">{a.message}</p>
-              <p class="text-xs text-base-content/50">{relative_time(a.inserted_at)}</p>
-            </div>
-          </li>
-        </ol>
-      </div>
-    </.modal>
-    """
-  end
-
-  attr :board, :any, required: true
-  attr :archived, :list, required: true
-  attr :close_path, :string, required: true
-
-  defp archive_modal(assigns) do
-    ~H"""
-    <.modal id="archive-modal" on_close={JS.patch(@close_path)} size="md">
-      <div class="space-y-4 p-6">
-        <h2 class="flex items-center gap-2 text-lg font-semibold">
-          <.icon name="hero-archive-box" class="size-5" /> Archived cards
-        </h2>
-        <p :if={@archived == []} class="text-sm text-base-content/60">No archived cards.</p>
-        <ul class="max-h-[60vh] space-y-2 overflow-y-auto kanban-scroll pr-1">
-          <li
-            :for={card <- @archived}
-            id={"archived-#{card.id}"}
-            class="flex items-center gap-3 rounded-xl bg-base-200/60 px-3 py-2"
-          >
-            <div class="min-w-0 flex-1">
-              <p class="truncate text-sm font-medium">{card.title}</p>
-              <p class="text-xs text-base-content/50">
-                from {card.column.name} · archived {relative_time(card.archived_at)}
-              </p>
-              <div :if={card.tags != []} class="mt-1 flex flex-wrap gap-1">
-                <.tag_chip :for={tag <- card.tags} tag={tag} size="xs" />
-              </div>
-            </div>
-            <button type="button" class="btn btn-sm" phx-click="restore_card" phx-value-id={card.id}>
-              <.icon name="hero-arrow-uturn-left" class="size-4" /> Restore
-            </button>
-            <button
-              type="button"
-              class="btn btn-ghost btn-sm btn-square text-error"
-              phx-click="delete_archived"
-              phx-value-id={card.id}
-              data-confirm="Delete this card permanently?"
-              title="Delete"
-            >
-              <.icon name="hero-trash" class="size-4" />
-            </button>
-          </li>
-        </ul>
-      </div>
     </.modal>
     """
   end
