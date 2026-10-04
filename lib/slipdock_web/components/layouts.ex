@@ -51,215 +51,230 @@ defmodule SlipdockWeb.Layouts do
   def app(assigns) do
     ~H"""
     <div class="flex h-dvh flex-col bg-base-200">
-      <header class="flex h-12 shrink-0 items-center gap-2 border-b border-base-300 bg-base-100 px-3 sm:gap-3 sm:px-4">
-        <.link
-          navigate={~p"/"}
-          class="flex shrink-0 items-center gap-2 rounded-lg px-1.5 py-1 font-semibold tracking-tight hover:bg-base-200"
+      <%!-- One row on a laptop or wider, two below it. The rows are real
+            boxes on a narrow window; from lg up both are display: contents,
+            so their pieces line up in the header's own row — the mark, the
+            board, its buttons, then the app's — without anything being
+            rendered twice. --%>
+      <header class="flex shrink-0 flex-col border-b border-base-300 bg-base-100 lg:h-12 lg:flex-row lg:items-center lg:gap-3 lg:px-4">
+        <div
+          id="topbar"
+          class="flex h-12 shrink-0 items-center gap-2 px-3 sm:gap-3 sm:px-4 lg:contents"
         >
-          <.brand_mark />
-          <%!-- Signed in, the mark is enough: the wordmark took the room the
+          <.link
+            navigate={~p"/"}
+            class="flex shrink-0 items-center gap-2 rounded-lg px-1.5 py-1 font-semibold tracking-tight hover:bg-base-200 lg:order-1"
+            title="Boards"
+            aria-label="Boards"
+          >
+            <.brand_mark />
+            <%!-- Signed in, the mark is enough: the wordmark took the room the
                 board's own name needed. --%>
-          <.brand_wordmark :if={!@current_user} class="hidden h-4 sm:inline-flex" />
-        </.link>
-        <div class="flex min-w-0 flex-1 items-center gap-2">
-          {render_slot(@nav)}
-        </div>
-        <div class="flex shrink-0 items-center gap-1">
-          {render_slot(@actions)}
-          <%!-- Ctrl-O and Ctrl-P on a desktop; on a phone there is no Ctrl, and
+            <.brand_wordmark :if={!@current_user} class="hidden h-4 sm:inline-flex" />
+          </.link>
+          <div class={[
+            "flex min-w-0 flex-1 items-center gap-2 lg:order-2",
+            @nav == [] && @subnav != [] && "lg:hidden"
+          ]}>
+            {render_slot(@nav)}
+          </div>
+          <div class="flex shrink-0 items-center gap-1 lg:order-5">
+            {render_slot(@actions)}
+            <%!-- Ctrl-O and Ctrl-P on a desktop; on a phone there is no Ctrl, and
                 the card finder is the fastest way to a card on a screen that
                 shows one list at a time. Same two panels, same two events. --%>
-          <button
-            :if={@shortcuts}
-            type="button"
-            phx-click="shortcut_panel"
-            phx-value-panel="find"
-            class="btn btn-ghost btn-sm btn-square sm:hidden"
-            aria-label="Find a card"
-            title="Find a card"
-          >
-            <.icon name="hero-magnifying-glass" class="size-5" />
-          </button>
-          <button
-            :if={@shortcuts}
-            type="button"
-            phx-click="shortcut_panel"
-            phx-value-panel="command"
-            class="btn btn-ghost btn-sm btn-square sm:hidden"
-            aria-label="Commands"
-            title="Commands"
-          >
-            <.icon name="hero-command-line" class="size-5" />
-          </button>
-          <%!-- Deep search and Ask are two halves of the same thing — find it
+            <button
+              :if={@shortcuts}
+              type="button"
+              phx-click="shortcut_panel"
+              phx-value-panel="find"
+              class="btn btn-ghost btn-sm btn-square sm:hidden"
+              aria-label="Find a card"
+              title="Find a card"
+            >
+              <.icon name="hero-magnifying-glass" class="size-5" />
+            </button>
+            <button
+              :if={@shortcuts}
+              type="button"
+              phx-click="shortcut_panel"
+              phx-value-panel="command"
+              class="btn btn-ghost btn-sm btn-square sm:hidden"
+              aria-label="Commands"
+              title="Commands"
+            >
+              <.icon name="hero-command-line" class="size-5" />
+            </button>
+            <%!-- Deep search and Ask are two halves of the same thing — find it
                 yourself, or have the assistant find it and answer — so they sit
                 together, left of the heart. The magnifying glass beside them on
                 a phone is the card finder, which is a different job: that one
                 jumps to a card you can already name. --%>
-          <.link
-            :if={@current_user}
-            id="search-link"
-            navigate={~p"/search"}
-            aria-current={@nav_active == :search && "page"}
-            class={[
-              "btn btn-ghost btn-sm btn-square hidden sm:inline-flex",
-              @nav_active == :search && "bg-base-200 text-primary"
-            ]}
-            aria-label="Search everything"
-            title="Search everything"
-          >
-            <.icon name="hero-magnifying-glass-circle" class="size-4" />
-          </.link>
-          <.link
-            :if={@current_user}
-            id="ask-link"
-            navigate={~p"/ask"}
-            aria-current={@nav_active == :ask && "page"}
-            class={[
-              "btn btn-ghost btn-sm btn-square hidden sm:inline-flex",
-              @nav_active == :ask && "bg-base-200 text-primary"
-            ]}
-            aria-label="Ask about everything"
-            title="Ask about everything"
-          >
-            <.icon name="hero-sparkles" class="size-4" />
-          </.link>
-          <%!-- The phone keeps Favourites in its bottom bar; on a desktop the
+            <.link
+              :if={@current_user}
+              id="search-link"
+              navigate={~p"/search"}
+              aria-current={@nav_active == :search && "page"}
+              class={[
+                "btn btn-ghost btn-sm btn-square hidden sm:inline-flex",
+                @nav_active == :search && "bg-base-200 text-primary"
+              ]}
+              aria-label="Search everything"
+              title="Search everything"
+            >
+              <.icon name="hero-magnifying-glass-circle" class="size-4" />
+            </.link>
+            <.link
+              :if={@current_user}
+              id="ask-link"
+              navigate={~p"/ask"}
+              aria-current={@nav_active == :ask && "page"}
+              class={[
+                "btn btn-ghost btn-sm btn-square hidden sm:inline-flex",
+                @nav_active == :ask && "bg-base-200 text-primary"
+              ]}
+              aria-label="Ask about everything"
+              title="Ask about everything"
+            >
+              <.icon name="hero-sparkles" class="size-4" />
+            </.link>
+            <%!-- The phone keeps Favourites in its bottom bar; on a desktop the
                 heart sits here, so the handful of things you go back to all day
                 are one click rather than a hunt through the avatar menu, which
                 keeps its own entry for the times the header is not on screen. --%>
-          <.link
-            :if={@current_user}
-            id="favourites-link"
-            navigate={~p"/favourites"}
-            aria-current={@nav_active == :favourites && "page"}
-            class={[
-              "btn btn-ghost btn-sm btn-square hidden sm:inline-flex",
-              @nav_active == :favourites && "bg-base-200 text-primary"
-            ]}
-            aria-label="Favourites"
-            title="Favourites"
-          >
-            <.icon name="hero-heart" class="size-4" />
-          </.link>
-          <.quick_add_bar :if={@quick_add} quick_add={@quick_add} />
-          <.alerts_bar :if={@alerts} alerts={@alerts} open={@alerts_open} />
-          <.theme_toggle :if={!@current_user} />
-          <div :if={@current_user} class="dropdown dropdown-end ml-1">
-            <div
-              tabindex="0"
-              role="button"
-              class="flex size-8 cursor-pointer items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary"
-              title={Slipdock.Accounts.User.display_name(@current_user)}
+            <.link
+              :if={@current_user}
+              id="favourites-link"
+              navigate={~p"/favourites"}
+              aria-current={@nav_active == :favourites && "page"}
+              class={[
+                "btn btn-ghost btn-sm btn-square hidden sm:inline-flex",
+                @nav_active == :favourites && "bg-base-200 text-primary"
+              ]}
+              aria-label="Favourites"
+              title="Favourites"
             >
-              {Slipdock.Accounts.User.initials(@current_user)}
-            </div>
-            <ul
-              tabindex="0"
-              class="menu dropdown-content z-40 mt-2 w-60 rounded-box bg-base-100 p-1 text-sm shadow-lg ring-1 ring-base-content/10"
-            >
-              <li class="menu-title truncate">
-                {Slipdock.Accounts.User.display_name(@current_user)}
-              </li>
-              <li>
-                <.link navigate={~p"/"}><.icon name="hero-view-columns" class="size-4" /> Boards</.link>
-              </li>
-              <li>
-                <.link navigate={~p"/work"}><.icon name="hero-user" class="size-4" /> My work</.link>
-              </li>
-              <li>
-                <.link navigate={~p"/wiki"}><.icon name="hero-book-open" class="size-4" /> Wiki</.link>
-              </li>
-              <li>
-                <.link navigate={~p"/search"}><.icon
-                  name="hero-magnifying-glass-circle"
-                  class="size-4"
-                /> Search everything</.link>
-              </li>
-              <li>
-                <.link navigate={~p"/ask"}><.icon name="hero-sparkles" class="size-4" /> Ask</.link>
-              </li>
-              <li>
-                <.link navigate={~p"/groups"}><.icon name="hero-user-group" class="size-4" /> Groups</.link>
-              </li>
-              <li>
-                <.link navigate={~p"/favourites"}><.icon name="hero-heart" class="size-4" />
-                Favourites</.link>
-              </li>
-              <li>
-                <.link navigate={~p"/templates"}><.icon name="hero-squares-plus" class="size-4" />
-                Templates</.link>
-              </li>
-              <li>
-                <.link navigate={~p"/account"}><.icon name="hero-user-circle" class="size-4" />
-                Account</.link>
-              </li>
-              <li>
-                <.link navigate={~p"/account/settings"}><.icon
-                  name="hero-adjustments-horizontal"
-                  class="size-4"
-                /> Settings</.link>
-              </li>
-              <li>
-                <.link navigate={~p"/account/tokens"}><.icon name="hero-key" class="size-4" />
-                API tokens</.link>
-              </li>
-              <li>
-                <.link navigate={~p"/account/data"}><.icon
-                  name="hero-arrows-right-left"
-                  class="size-4"
-                /> Import &amp; export</.link>
-              </li>
-              <%!-- Reachable from the menu rather than buried in the account
+              <.icon name="hero-heart" class="size-4" />
+            </.link>
+            <.quick_add_bar :if={@quick_add} quick_add={@quick_add} />
+            <.alerts_bar :if={@alerts} alerts={@alerts} open={@alerts_open} />
+            <.theme_toggle :if={!@current_user} />
+            <div :if={@current_user} class="dropdown dropdown-end ml-1">
+              <div
+                tabindex="0"
+                role="button"
+                class="flex size-8 cursor-pointer items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary"
+                title={Slipdock.Accounts.User.display_name(@current_user)}
+              >
+                {Slipdock.Accounts.User.initials(@current_user)}
+              </div>
+              <ul
+                tabindex="0"
+                class="menu dropdown-content z-40 mt-2 w-60 rounded-box bg-base-100 p-1 text-sm shadow-lg ring-1 ring-base-content/10"
+              >
+                <li class="menu-title truncate">
+                  {Slipdock.Accounts.User.display_name(@current_user)}
+                </li>
+                <li>
+                  <.link navigate={~p"/"}><.icon name="hero-view-columns" class="size-4" /> Boards</.link>
+                </li>
+                <li>
+                  <.link navigate={~p"/work"}><.icon name="hero-user" class="size-4" /> My work</.link>
+                </li>
+                <li>
+                  <.link navigate={~p"/wiki"}><.icon name="hero-book-open" class="size-4" /> Wiki</.link>
+                </li>
+                <li>
+                  <.link navigate={~p"/search"}><.icon
+                    name="hero-magnifying-glass-circle"
+                    class="size-4"
+                  /> Search everything</.link>
+                </li>
+                <li>
+                  <.link navigate={~p"/ask"}><.icon name="hero-sparkles" class="size-4" /> Ask</.link>
+                </li>
+                <li>
+                  <.link navigate={~p"/groups"}><.icon name="hero-user-group" class="size-4" /> Groups</.link>
+                </li>
+                <li>
+                  <.link navigate={~p"/favourites"}><.icon name="hero-heart" class="size-4" />
+                  Favourites</.link>
+                </li>
+                <li>
+                  <.link navigate={~p"/templates"}><.icon name="hero-squares-plus" class="size-4" />
+                  Templates</.link>
+                </li>
+                <li>
+                  <.link navigate={~p"/account"}><.icon name="hero-user-circle" class="size-4" />
+                  Account</.link>
+                </li>
+                <li>
+                  <.link navigate={~p"/account/settings"}><.icon
+                    name="hero-adjustments-horizontal"
+                    class="size-4"
+                  /> Settings</.link>
+                </li>
+                <li>
+                  <.link navigate={~p"/account/tokens"}><.icon name="hero-key" class="size-4" />
+                  API tokens</.link>
+                </li>
+                <li>
+                  <.link navigate={~p"/account/data"}><.icon
+                    name="hero-arrows-right-left"
+                    class="size-4"
+                  /> Import &amp; export</.link>
+                </li>
+                <%!-- Reachable from the menu rather than buried in the account
                     tabs: somebody who has heard their board can be worked by an
                     agent has no reason to look under Account for it. --%>
-              <li>
-                <.link navigate={~p"/account/agent"}><.icon name="hero-cpu-chip" class="size-4" />
-                Set up an agent</.link>
-              </li>
-              <li :if={Slipdock.Accounts.admin?(@current_user)}>
-                <.link navigate={~p"/users"}>
-                  <.icon name="hero-users" class="size-4" /> Users
-                  <span :if={waiting_signups() > 0} class="badge badge-sm badge-warning">
-                    {waiting_signups()}
-                  </span>
-                </.link>
-              </li>
-              <li :if={Slipdock.Accounts.admin?(@current_user)}>
-                <.link navigate={~p"/config"}>
-                  <.icon name="hero-wrench-screwdriver" class="size-4" /> Configuration
-                </.link>
-              </li>
-              <li class="menu-title mt-1">Theme</li>
-              <li><.theme_item theme="system" icon="hero-computer-desktop" label="System" /></li>
-              <li><.theme_item theme="light" icon="hero-sun" label="Light" /></li>
-              <li><.theme_item theme="dark" icon="hero-moon" label="Dark" /></li>
-              <li class="mt-1 border-t border-base-300/60 pt-1">
-                <.link href={~p"/logout"} method="delete"><.icon
-                  name="hero-arrow-right-start-on-rectangle"
-                  class="size-4"
-                /> Sign out</.link>
-              </li>
-            </ul>
+                <li>
+                  <.link navigate={~p"/account/agent"}><.icon name="hero-cpu-chip" class="size-4" />
+                  Set up an agent</.link>
+                </li>
+                <li :if={Slipdock.Accounts.admin?(@current_user)}>
+                  <.link navigate={~p"/users"}>
+                    <.icon name="hero-users" class="size-4" /> Users
+                    <span :if={waiting_signups() > 0} class="badge badge-sm badge-warning">
+                      {waiting_signups()}
+                    </span>
+                  </.link>
+                </li>
+                <li :if={Slipdock.Accounts.admin?(@current_user)}>
+                  <.link navigate={~p"/config"}>
+                    <.icon name="hero-wrench-screwdriver" class="size-4" /> Configuration
+                  </.link>
+                </li>
+                <li class="menu-title mt-1">Theme</li>
+                <li><.theme_item theme="system" icon="hero-computer-desktop" label="System" /></li>
+                <li><.theme_item theme="light" icon="hero-sun" label="Light" /></li>
+                <li><.theme_item theme="dark" icon="hero-moon" label="Dark" /></li>
+                <li class="mt-1 border-t border-base-300/60 pt-1">
+                  <.link href={~p"/logout"} method="delete"><.icon
+                    name="hero-arrow-right-start-on-rectangle"
+                    class="size-4"
+                  /> Sign out</.link>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <%!-- Below lg, a second row rather than one crowded one: the line
+              above is the same on every page, this one is about the board you
+              are on, so its name has the width to be read. --%>
+        <div
+          :if={@subnav != [] or @subactions != []}
+          id="subheader"
+          class="flex h-11 shrink-0 items-center gap-2 border-t border-base-300 px-3 sm:gap-3 sm:px-4 lg:contents"
+        >
+          <div class="flex min-w-0 flex-1 items-center gap-2 lg:order-3">
+            {render_slot(@subnav)}
+          </div>
+          <div class="flex shrink-0 items-center gap-1 lg:order-4">
+            {render_slot(@subactions)}
           </div>
         </div>
       </header>
-
-      <%!-- Two rows rather than one crowded one: the line above is the same on
-            every page, this one is about the board you are on, so its name
-            has the width to be read. --%>
-      <div
-        :if={@subnav != [] or @subactions != []}
-        id="subheader"
-        class="flex h-11 shrink-0 items-center gap-2 border-b border-base-300 bg-base-100 px-3 sm:gap-3 sm:px-4"
-      >
-        <div class="flex min-w-0 flex-1 items-center gap-2">
-          {render_slot(@subnav)}
-        </div>
-        <div class="flex shrink-0 items-center gap-1">
-          {render_slot(@subactions)}
-        </div>
-      </div>
 
       <main class="min-h-0 flex-1">
         {render_slot(@inner_block)}
