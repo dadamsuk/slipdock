@@ -1161,6 +1161,19 @@ write a line in the activity log. Text in an action can use
 `{{card.title}}`, `{{card.url}}`, `{{card.due_date}}`, `{{card.assignee}}`,
 `{{board.name}}`, `{{today}}` and the rest.
 
+**Who gets email, and how much.** Automation email goes out under this
+server's name, so it only goes to people who can read the board: its owner
+and the people it is shared with. A rule naming anybody else is refused when
+it is saved, and somebody whose access is taken away afterwards stops
+getting it. One email action reaches at most 10 addresses, a rule has at
+most 20 actions and a board at most 50 rules. Each owner's rules send at
+most 200 emails an hour between them, and each board's rules make at most
+120 callbacks a minute; past either, the action fails with "held back" as
+the rule's last error and the next window carries on. At most 50
+deliveries are in flight at once (`config :slipdock, :automations,
+max_in_flight: N`); beyond that a delivery is dropped and logged rather
+than queued.
+
 **Callbacks.** "POST to https://example.com/hooks/kanban whenever a card is
 archived", "when a card changes, GET https://example.com/hooks/kanban". The
 server calls the URL with the card: its id and title, a link straight to
@@ -2312,7 +2325,7 @@ slipdock automation-help                       # the triggers, conditions and ac
 slipdock automation-presets                    # the ready-made rules and the fields each one takes
 slipdock new-automation 1 --preset follow_list column=Doing notify=email     # no AI needed
 slipdock new-automation 1 --spec '{"trigger":{"type":"card_overdue"},"actions":[{"type":"alert","title":"Overdue: {{card.title}}","severity":"urgent"}]}' --name "Overdue alerts"
-slipdock new-automation 1 when a card lands in Done, email ops@example.com   # the server's AI writes the spec
+slipdock new-automation 1 when a card lands in Done, email me   # the server's AI writes the spec
 slipdock automations 1 | slipdock automation 1 "Overdue alerts"                # list; show one in full
 slipdock set-automation 1 3 --off | slipdock run-automation 1 3 | slipdock delete-automation 1 3
 slipdock alerts | slipdock dismiss 7 | slipdock dismiss --all

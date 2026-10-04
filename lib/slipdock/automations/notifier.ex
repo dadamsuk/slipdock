@@ -187,16 +187,22 @@ defmodule Slipdock.Automations.Notifier do
   defp scalar(value), do: to_string(value)
 
   # Async delivery can't report a failure to the caller, so it logs instead.
+  # The supervisor has a ceiling (`max_children`); a delivery that finds it
+  # full is dropped and says so, rather than queueing without bound.
   defp run(fun) do
     if async?() do
-      Task.Supervisor.start_child(Slipdock.TaskSupervisor, fn ->
+      task = fn ->
         case fun.() do
           :ok -> :ok
           {:error, reason} -> Logger.warning("Automation delivery failed: #{reason}")
         end
-      end)
+      end
 
-      :ok
+      case Task.Supervisor.start_child(Slipdock.TaskSupervisor, task) do
+        {:ok, _pid} -> :ok
+        {:error, :max_children} -> {:error, "too many deliveries already in flight; not sent"}
+        {:error, reason} -> {:error, "could not start delivery: #{inspect(reason)}"}
+      end
     else
       fun.()
     end

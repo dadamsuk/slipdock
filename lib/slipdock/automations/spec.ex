@@ -100,6 +100,11 @@ defmodule Slipdock.Automations.Spec do
 
   @triggers @event_triggers ++ @scheduled_triggers
 
+  # A rule is a handful of things to do, not a mailing list: these bound how
+  # much one save can make the server send.
+  @max_actions 20
+  @max_recipients 10
+
   @scheduled_types Enum.map(@scheduled_triggers, &elem(&1, 0))
   @trigger_types Enum.map(@triggers, &elem(&1, 0))
   @action_types Enum.map(@actions, &elem(&1, 0))
@@ -107,6 +112,8 @@ defmodule Slipdock.Automations.Spec do
   def trigger_types, do: @trigger_types
   def action_types, do: @action_types
   def scheduled_types, do: @scheduled_types
+  def max_actions, do: @max_actions
+  def max_recipients, do: @max_recipients
   def condition_fields, do: @condition_fields
   def condition_ops, do: @condition_ops
 
@@ -177,6 +184,9 @@ defmodule Slipdock.Automations.Spec do
 
   defp validate_condition(_), do: {:error, "each condition needs a field and an op"}
 
+  defp validate_actions(actions) when is_list(actions) and length(actions) > @max_actions,
+    do: {:error, "a rule can have at most #{@max_actions} actions"}
+
   defp validate_actions(actions) when is_list(actions) and actions != [] do
     Enum.reduce_while(actions, {:ok, []}, fn action, {:ok, acc} ->
       case validate_action(action) do
@@ -224,6 +234,14 @@ defmodule Slipdock.Automations.Spec do
         :ok -> {:ok, action}
         {:error, reason} -> {:error, "action “webhook” url #{reason}"}
       end
+    end
+  end
+
+  defp check_action(%{"type" => "email", "to" => to} = action) do
+    if length(List.wrap(to)) > @max_recipients do
+      {:error, "action “email” can go to at most #{@max_recipients} addresses"}
+    else
+      {:ok, action}
     end
   end
 

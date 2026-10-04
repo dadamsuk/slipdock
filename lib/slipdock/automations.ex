@@ -49,6 +49,7 @@ defmodule Slipdock.Automations do
   @max_depth 3
   @alert_limit 100
   @callback_limit 200
+  @max_rules 50
 
   ## PubSub -------------------------------------------------------------------
 
@@ -132,6 +133,8 @@ defmodule Slipdock.Automations do
   def create_rule(attrs, opts \\ []) do
     %Rule{created_by_id: opts[:created_by] && opts[:created_by].id}
     |> Rule.changeset(attrs)
+    |> check_rule_count()
+    |> check_recipients()
     |> Repo.insert()
     |> tap_ok(&log_rule(&1, "added automation “#{&1.name}”"))
   end
@@ -139,7 +142,70 @@ defmodule Slipdock.Automations do
   def update_rule(%Rule{} = rule, attrs) do
     rule
     |> Rule.changeset(attrs)
+    |> check_recipients()
     |> Repo.update()
+  end
+
+  @doc "How many rules one board may have."
+  def max_rules, do: @max_rules
+
+  defp check_rule_count(changeset) do
+    board_id = Ecto.Changeset.get_field(changeset, :board_id)
+
+    if changeset.valid? and is_integer(board_id) and
+         Repo.aggregate(from(r in Rule, where: r.board_id == ^board_id), :count) >= @max_rules do
+      Ecto.Changeset.add_error(changeset, :board_id, "already has #{@max_rules} automations")
+    else
+      changeset
+    end
+  end
+
+  # Automation email goes out under this server's name, so it may only go to
+  # people who can already read the board: otherwise a rule is an open relay
+  # to any address its author cares to type. Checked when the spec changes;
+  # `allowed_recipients/2` checks again at send time, since access can be
+  # taken away after the rule was saved.
+  defp check_recipients(changeset) do
+    with true <- changeset.valid?,
+         spec when is_map(spec) <- Ecto.Changeset.get_change(changeset, :spec),
+         [_ | _] = wanted <- email_recipients(spec),
+         %Board{} = board <- Repo.get(Board, Ecto.Changeset.get_field(changeset, :board_id)) do
+      case allowed_recipients(board, wanted) do
+        {_, []} ->
+          changeset
+
+        {_, refused} ->
+          Ecto.Changeset.add_error(
+            changeset,
+            :spec,
+            "can only email people who can see this board, not #{Enum.join(refused, ", ")}"
+          )
+      end
+    else
+      _ -> changeset
+    end
+  end
+
+  defp email_recipients(spec) do
+    spec
+    |> Spec.actions()
+    |> Enum.filter(&(&1["type"] == "email"))
+    |> Enum.flat_map(&List.wrap(&1["to"]))
+    |> Enum.map(&to_string/1)
+    |> Enum.uniq()
+  end
+
+  @doc """
+  Splits `addresses` into those that belong to somebody who can read `board`
+  and those that don't: `{allowed, refused}`, compared case-insensitively.
+  """
+  def allowed_recipients(%Board{} = board, addresses) do
+    readers =
+      board
+      |> Slipdock.Wiki.Links.members()
+      |> MapSet.new(&String.downcase(&1.email))
+
+    Enum.split_with(addresses, &MapSet.member?(readers, &1 |> String.trim() |> String.downcase()))
   end
 
   def delete_rule(%Rule{} = rule) do

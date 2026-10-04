@@ -291,7 +291,7 @@ defmodule Slipdock.AIKeysTest do
           "name" => "Old",
           "spec" => %{
             "trigger" => %{"type" => "card_created"},
-            "actions" => [%{"type" => "email", "to" => "ops@example.com"}]
+            "actions" => [%{"type" => "email", "to" => "keys@example.com"}]
           }
         })
 
@@ -299,7 +299,7 @@ defmodule Slipdock.AIKeysTest do
         "name" => "New",
         "spec" => %{
           "trigger" => %{"type" => "card_created"},
-          "actions" => [%{"type" => "email", "to" => "ops@example.com"}]
+          "actions" => [%{"type" => "email", "to" => "keys@example.com"}]
         }
       })
 

@@ -18,8 +18,12 @@ defmodule Slipdock.Application do
       {Phoenix.PubSub, name: Slipdock.PubSub},
       # Counters behind the sign-in form's rate limit.
       Slipdock.RateLimit,
-      # Emails and webhooks sent by automation rules, off the caller's back.
-      {Task.Supervisor, name: Slipdock.TaskSupervisor},
+      # Emails and webhooks sent by automation rules, off the caller's back —
+      # a bounded number at once, so a burst of rules can't open a request
+      # per card per action all together.
+      {Task.Supervisor,
+       name: Slipdock.TaskSupervisor,
+       max_children: Application.get_env(:slipdock, :automations, [])[:max_in_flight] || 50},
       # The clock behind the time-based automation triggers.
       Slipdock.Automations.Scheduler,
       # Embeds changed cards for semantic search, off the saver's back.

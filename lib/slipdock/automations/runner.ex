@@ -289,14 +289,32 @@ defmodule Slipdock.Automations.Runner do
     end
   end
 
+  # Only to people who can still read the board (see
+  # `Slipdock.Automations.allowed_recipients/2`), and within the owner's
+  # hourly allowance.
   defp do_perform("email", action, ctx) do
-    to = action["to"] |> List.wrap() |> Enum.map(&to_string/1)
-    subject = text(action["subject"], ctx, default_subject(ctx))
-    body = text(action["body"], ctx, default_body(ctx))
+    wanted = action["to"] |> List.wrap() |> Enum.map(&to_string/1)
 
-    case Notifier.deliver(to, subject, body) do
-      :ok -> {:ok, "emailed #{Enum.join(to, ", ")}"}
-      {:error, reason} -> {:error, "email failed: #{reason}"}
+    case Slipdock.Automations.allowed_recipients(ctx.board, wanted) do
+      {[], refused} ->
+        {:error, "email refused: #{Enum.join(refused, ", ")} can't see this board"}
+
+      {to, refused} ->
+        with :ok <- email_allowance(ctx, length(to)) do
+          subject = text(action["subject"], ctx, default_subject(ctx))
+          body = text(action["body"], ctx, default_body(ctx))
+
+          case {Notifier.deliver(to, subject, body), refused} do
+            {:ok, []} ->
+              {:ok, "emailed #{Enum.join(to, ", ")}"}
+
+            {:ok, _} ->
+              {:error, "emailed #{Enum.join(to, ", ")}; refused #{Enum.join(refused, ", ")}"}
+
+            {{:error, reason}, _} ->
+              {:error, "email failed: #{reason}"}
+          end
+        end
     end
   end
 
@@ -311,9 +329,11 @@ defmodule Slipdock.Automations.Runner do
         subject = text(action["subject"], ctx, default_subject(ctx))
         body = text(action["body"], ctx, default_body(ctx))
 
-        case Notifier.deliver(emails, subject, body) do
-          :ok -> {:ok, "emailed #{Enum.join(emails, ", ")}"}
-          {:error, reason} -> {:error, "email failed: #{reason}"}
+        with :ok <- email_allowance(ctx, length(emails)) do
+          case Notifier.deliver(emails, subject, body) do
+            :ok -> {:ok, "emailed #{Enum.join(emails, ", ")}"}
+            {:error, reason} -> {:error, "email failed: #{reason}"}
+          end
         end
     end
   end
@@ -493,9 +513,11 @@ defmodule Slipdock.Automations.Runner do
       card_title: ctx.card && ctx.card.title
     }
 
-    case Notifier.call(url, payload, method, log) do
-      :ok -> {:ok, "#{method |> to_string() |> String.upcase()} #{url}"}
-      {:error, reason} -> {:error, "callback failed: #{reason}"}
+    with :ok <- callback_allowance(ctx) do
+      case Notifier.call(url, payload, method, log) do
+        :ok -> {:ok, "#{method |> to_string() |> String.upcase()} #{url}"}
+        {:error, reason} -> {:error, "callback failed: #{reason}"}
+      end
     end
   end
 
@@ -765,6 +787,50 @@ defmodule Slipdock.Automations.Runner do
   end
 
   defp default_body(%{rule: rule, board: board}), do: "#{rule.name} (#{board.name})"
+
+  ## Allowances ---------------------------------------------------------------
+
+  # Each recipient counts once against the board owner's hourly allowance:
+  # every rule on every board they own draws on the same one, so splitting a
+  # flood across rules or boards gains nothing.
+  @emails_per_hour 200
+  @callbacks_per_minute 120
+
+  @doc "How many automation emails a board owner may send an hour, and callbacks a board a minute."
+  def allowances,
+    do: %{emails_per_hour: @emails_per_hour, callbacks_per_minute: @callbacks_per_minute}
+
+  defp email_allowance(ctx, count) do
+    owner = Slipdock.Boards.Board.root_owner_id(ctx.board) || "board-#{ctx.board.id}"
+    key = "automation:email:#{owner}"
+
+    Enum.reduce_while(1..count//1, :ok, fn _, :ok ->
+      case Slipdock.RateLimit.hit(key, @emails_per_hour, :timer.hours(1)) do
+        :ok ->
+          {:cont, :ok}
+
+        {:error, seconds} ->
+          {:halt,
+           {:error,
+            "email held back: over #{@emails_per_hour} automation emails this hour (resets in #{seconds}s)"}}
+      end
+    end)
+  end
+
+  defp callback_allowance(ctx) do
+    case Slipdock.RateLimit.hit(
+           "automation:callback:#{ctx.rule.board_id}",
+           @callbacks_per_minute,
+           :timer.minutes(1)
+         ) do
+      :ok ->
+        :ok
+
+      {:error, seconds} ->
+        {:error,
+         "callback held back: over #{@callbacks_per_minute} callbacks this minute (resets in #{seconds}s)"}
+    end
+  end
 
   @doc "The site's own address, for links in emails."
   def base_url do
