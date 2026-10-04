@@ -14,6 +14,10 @@ defmodule SlipdockWeb.SessionController do
         claimed = Access.claim_unowned_boards(user)
         tour = Onboarding.ensure_for(user)
 
+        # The sign-in page says that signing in means agreeing to the terms,
+        # so this is where the agreement is recorded.
+        if Accounts.terms_outstanding?(user), do: {:ok, _} = Accounts.accept_terms(user)
+
         conn
         |> put_flash(:info, welcome(user, claimed, tour))
         |> UserAuth.log_in_user(user, to: landing(tour))

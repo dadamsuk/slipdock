@@ -133,7 +133,6 @@ defmodule SlipdockWeb.Router do
       on_mount: [
         {SlipdockWeb.UserAuth, :ensure_authenticated},
         {SlipdockWeb.UserAuth, :ensure_admin},
-        {SlipdockWeb.TermsLive.Index, :ensure_terms_accepted},
         {SlipdockWeb.ViewportHook, :default},
         {SlipdockWeb.AlertsHook, :default},
         {SlipdockWeb.QuickAddHook, :default},
@@ -145,20 +144,9 @@ defmodule SlipdockWeb.Router do
       live "/config/mail", ConfigLive.Index, :mail
     end
 
-    # Agreeing to the server's terms, if it has any. Outside the main session so
-    # that the hook which sends people here cannot send them here from here.
-    live_session :terms,
-      on_mount: [
-        {SlipdockWeb.UserAuth, :ensure_authenticated},
-        {SlipdockWeb.ViewportHook, :default}
-      ] do
-      live "/terms", TermsLive.Index, :index
-    end
-
     live_session :authenticated,
       on_mount: [
         {SlipdockWeb.UserAuth, :ensure_authenticated},
-        {SlipdockWeb.TermsLive.Index, :ensure_terms_accepted},
         {SlipdockWeb.ViewportHook, :default},
         {SlipdockWeb.AlertsHook, :default},
         {SlipdockWeb.QuickAddHook, :default},

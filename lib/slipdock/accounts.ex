@@ -657,9 +657,10 @@ defmodule Slipdock.Accounts do
   ## Terms
 
   @doc """
-  Whether this person still needs to agree to the server's terms: true only on
-  a server that has terms at all, and only until they accept the version in
-  force. Bumping the version asks everybody again.
+  Whether this person has yet to agree to the server's terms: true only on a
+  server that has terms at all, and only until they sign in under the version
+  in force. Signing in is the agreeing — the sign-in page says so — so a
+  version bump is recorded at each person's next sign-in.
   """
   @spec terms_outstanding?(User.t() | nil) :: boolean()
   def terms_outstanding?(nil), do: false

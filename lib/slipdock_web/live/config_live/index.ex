@@ -514,9 +514,10 @@ defmodule SlipdockWeb.ConfigLive.Index do
       <div class="mt-6 border-t border-base-content/10 pt-6">
         <h3 class="font-medium">Terms and privacy</h3>
         <p class="mt-1 text-xs text-base-content/60">
-          For a server other people use. Fill in a link and a version and everybody is asked to
-          agree before they can carry on; change the version and they are asked again. Leave
-          them empty — as a server only you use should — and none of this appears anywhere.
+          For a server other people use. Fill in a link and a version and the sign-in page says
+          that signing in means agreeing to them, linking to both; each sign-in records the
+          version in force. Leave them empty — as a server only you use should — and none of
+          this appears anywhere.
         </p>
 
         <.form for={@form} id="terms-form" phx-submit="save-settings" class="mt-3 space-y-3">
