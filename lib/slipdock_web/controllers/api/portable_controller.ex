@@ -33,7 +33,8 @@ defmodule SlipdockWeb.API.PortableController do
     user = conn.assigns.current_user
 
     with {:ok, boards} <- requested_boards(conn, params["boards"]) do
-      opts = Portable.archived_opts(params["archived"]) ++ if(boards, do: [boards: boards], else: [])
+      opts =
+        Portable.archived_opts(params["archived"]) ++ if(boards, do: [boards: boards], else: [])
 
       json(conn, %{
         export: Portable.export(user, opts),
