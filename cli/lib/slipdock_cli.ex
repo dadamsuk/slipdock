@@ -91,7 +91,7 @@ defmodule SlipdockCLI do
     activity <board> [--limit N]        recent activity on a board
     swimlanes <board> [view opts]       cards as a grid, grouped on two axes
     table <board> [view opts] [--fields F]  cards as a table (F: comma list of
-        id title column priority assignee flags tags start due completed percent checklist comments deps subcards
+        id title column priority assignee flags tags start due completed percent time checklist comments deps subcards
         rollup health created updated)
     views <board>                       list saved swimlane views
     automations <board>                 list the board's automation rules
@@ -215,12 +215,21 @@ defmodule SlipdockCLI do
         --assignee EMAIL|me (repeatable: everybody on it, the first is the lead)
         --flag F (repeatable)  --tag T (repeatable)  --start YYYY-MM-DD  --due YYYY-MM-DD  --color C
         --percent N (0-100)
+        --spent T  --estimate T  --unit minutes|hours|days|weeks|months   (time tracking; see edit)
     edit <id> [opts]                    change fields on a card
         --title T  --desc TEXT  --priority P  --start DATE | --no-start  --due DATE | --no-due
         --color C | --no-color  --column C
         --assignee EMAIL|me (repeatable; replaces who is on it) | --no-assignee
         --add-assignee EMAIL|me  --remove-assignee EMAIL|me   (repeatable; others stay)
         --percent N | --no-percent   (% complete, 0-100)
+        --spent T | --no-spent  --estimate T | --no-estimate   time spent and the estimate.
+                                     A bare number is in the card's unit; or say 90m, 1.5h,
+                                     2d, 1w, 1mo, "1h 30m" (a day is 8h, a week 5d, a month 4w)
+        --unit minutes|hours|days|weeks|months   how the card shows both (default hours)
+        --log T                      add T to the time spent (--log=-30m takes it off)
+    timer <id> start|stop               run a card's timer; stopping adds what it ran to the
+                                        time spent
+    log <id> <time>                     add time spent by hand (same as edit --log)
     move <id> <column> [--top|--bottom|--index N]
     move <id> <column> --board B         move the card to a list on another board, with its
                                          subcards; tags travel by name, custom fields only
@@ -361,6 +370,11 @@ defmodule SlipdockCLI do
     no_start: :boolean,
     percent: :integer,
     no_percent: :boolean,
+    spent: :string,
+    no_spent: :boolean,
+    estimate: :string,
+    no_estimate: :boolean,
+    log: :string,
     color: :string,
     no_color: :boolean,
     top: :boolean,
@@ -1455,6 +1469,9 @@ defmodule SlipdockCLI do
         "start_date" => o[:start],
         "due_date" => o[:due],
         "percent_complete" => o[:percent],
+        "time_spent" => o[:spent],
+        "time_estimate" => o[:estimate],
+        "time_unit" => o[:unit],
         "color" => o[:color]
       }
       |> Map.merge(assignees(o))
@@ -1472,6 +1489,10 @@ defmodule SlipdockCLI do
         "start_date" => if(o[:no_start], do: nil, else: o[:start]),
         "due_date" => if(o[:no_due], do: nil, else: o[:due]),
         "percent_complete" => if(o[:no_percent], do: nil, else: o[:percent]),
+        "time_spent" => o[:spent],
+        "time_estimate" => o[:estimate],
+        "time_unit" => o[:unit],
+        "log_time" => o[:log],
         "color" => if(o[:no_color], do: nil, else: o[:color]),
         "column" => o[:column],
         "add_assignees" => nonempty(Keyword.get_values(o, :add_assignee)),
@@ -1483,6 +1504,8 @@ defmodule SlipdockCLI do
       |> then(fn b -> if o[:no_due], do: Map.put(b, "due_date", nil), else: b end)
       |> then(fn b -> if o[:no_percent], do: Map.put(b, "percent_complete", nil), else: b end)
       |> then(fn b -> if o[:no_color], do: Map.put(b, "color", nil), else: b end)
+      |> then(fn b -> if o[:no_spent], do: Map.put(b, "time_spent", nil), else: b end)
+      |> then(fn b -> if o[:no_estimate], do: Map.put(b, "time_estimate", nil), else: b end)
       |> then(fn b -> if o[:no_assignee], do: Map.put(b, "assignee", ""), else: b end)
 
     if body == %{}, do: fail("nothing to change — pass at least one option (see --help)")
@@ -1617,6 +1640,24 @@ defmodule SlipdockCLI do
       IO.puts("added checklist item ##{r["item"]["id"]}: #{r["item"]["text"]}")
     end)
   end
+
+  defp run("timer", [id, action], o) when action in ~w(start stop) do
+    HTTP.post("/cards/#{id}/timer", %{"action" => action})
+    |> out(
+      o,
+      &card_ok(if(action == "start", do: "timer started on", else: "timer stopped on"), &1)
+    )
+  end
+
+  defp run("timer", _, _), do: fail("usage: slipdock timer <id> start|stop")
+
+  defp run("log", [id | amount], o) when amount != [] do
+    HTTP.patch("/cards/#{id}", %{"log_time" => Enum.join(amount, " ")})
+    |> out(o, &card_ok("logged time on", &1))
+  end
+
+  defp run("log", _, _),
+    do: fail("usage: slipdock log <id> <time>   (e.g. 45m, 1.5h, 2d, \"1h 30m\")")
 
   defp run("tick", [item_id], o) do
     HTTP.post("/checklist/#{item_id}/toggle")

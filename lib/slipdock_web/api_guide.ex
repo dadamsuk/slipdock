@@ -396,6 +396,19 @@ defmodule SlipdockWeb.APIGuide do
       or null when nobody has said), `assignees` (everybody it is assigned to,
       lead first) and `assignee` (the lead alone), `position` within its list.
       `archived_at` is set on archived cards.
+    - **Time** — a card's `time` says how long has gone on it against its
+      estimate: `unit` (`minutes`, `hours`, `days`, `weeks`, `months`), `spent`
+      and `estimate` in that unit, the same as `spent_minutes` and
+      `estimate_minutes`, `percent` of the estimate (past 100 when it has
+      overrun; null without one) and `timer_running` / `timer_started_at`.
+      `spent` includes a running timer. Write `time_spent`, `time_estimate`
+      and `time_unit` on the card — a bare number is in the card's unit,
+      `"90m"`, `"1.5h"`, `"2d"`, `"1w"`, `"1mo"` say their own, and a day is 8
+      hours, a week 5 days, a month 4 weeks — or `log_time` to add to what is
+      spent (`"-30m"` takes off). `POST /api/cards/57/timer
+      {"action": "start"}` runs the card's timer and `"stop"` adds what it ran.
+      Log the time your own work took when the person asks you to; do not
+      leave a timer running across sessions.
     - **Subcards** — any card can own a board of its own. On the card that is
       `sub_board`; the subcards are that board's cards. Sub-boards nest to any
       depth. This is the hierarchy you will do most of your thinking in.

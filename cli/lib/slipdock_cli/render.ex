@@ -178,6 +178,7 @@ defmodule SlipdockCLI.Render do
         if(c["start_date"], do: "start:#{c["start_date"]}"),
         if(c["due_date"], do: "due:#{c["due_date"]}"),
         if(c["percent_complete"], do: "#{c["percent_complete"]}%"),
+        if(t = time_text(c), do: "⏱" <> t),
         if(c["blocked"],
           do:
             "🔒blocked-by:" <>
@@ -203,6 +204,52 @@ defmodule SlipdockCLI.Render do
     "#" <> String.pad_trailing(to_string(c["id"]), 4) <> done <> title <> "  " <> dim(meta)
   end
 
+  @time_suffix %{
+    "minutes" => "m",
+    "hours" => "h",
+    "days" => "d",
+    "weeks" => "w",
+    "months" => "mo"
+  }
+
+  # "1.5h/4h 38%", or "1.5h" without an estimate; nil when nothing is tracked.
+  # `long` spells it out for the card view.
+  defp time_text(c, long \\ false)
+
+  defp time_text(%{"time" => %{} = t}, long) do
+    suffix = @time_suffix[t["unit"]] || "h"
+    spent = (t["spent_minutes"] || 0) > 0
+    running = t["timer_running"] == true
+
+    if spent or t["estimate"] != nil or running do
+      fmt = &"#{&1}#{suffix}"
+
+      base =
+        cond do
+          t["estimate"] && long ->
+            "#{fmt.(t["spent"])} spent of #{fmt.(t["estimate"])} estimated (#{t["percent"]}%#{if t["percent"] > 100, do: " — over", else: ""})"
+
+          t["estimate"] ->
+            "#{fmt.(t["spent"])}/#{fmt.(t["estimate"])} #{t["percent"]}%"
+
+          long ->
+            "#{fmt.(t["spent"])} spent, no estimate"
+
+          true ->
+            fmt.(t["spent"])
+        end
+
+      base <>
+        cond do
+          running and long -> " · timer running since #{t["timer_started_at"]}"
+          running -> "▶"
+          true -> ""
+        end <> if(long, do: " · shown in #{t["unit"]}", else: "")
+    end
+  end
+
+  defp time_text(_, _), do: nil
+
   def card(c) do
     IO.puts(
       bold("##{c["id"]} #{c["title"]}") <> if(c["completed"], do: "  ✓ completed", else: "")
@@ -219,6 +266,7 @@ defmodule SlipdockCLI.Render do
     field("Start", c["start_date"] || "-")
     field("Due", c["due_date"] || "-")
     field("% complete", if(p = c["percent_complete"], do: "#{p}%", else: "-"))
+    field("Time", time_text(c, true) || "-")
     field("Assignee", assignees(c, &"#{&1["name"]} <#{&1["email"]}>") || "-")
     field("Cover", c["color"] || "-")
     field("Blocked by", dependency_list(c["blocked_by"]))
@@ -1112,6 +1160,7 @@ defmodule SlipdockCLI.Render do
       "due" => {"DUE", fn c -> c["due_date"] || "" end},
       "completed" => {"DONE", fn c -> if(c["completed"], do: "yes", else: "") end},
       "percent" => {"%", fn c -> if(p = c["percent_complete"], do: "#{p}%", else: "") end},
+      "time" => {"TIME", fn c -> time_text(c) || "" end},
       "checklist" =>
         {"CHECKLIST",
          fn c ->

@@ -454,6 +454,15 @@ defmodule SlipdockWeb.TableComponents do
     """
   end
 
+  defp cell(%{field: "time"} = assigns) do
+    ~H"""
+    <SlipdockWeb.SlipdockComponents.time_badge
+      :if={Slipdock.TimeTracking.tracked?(@card)}
+      card={@card}
+    />
+    """
+  end
+
   defp cell(%{field: "flags"} = assigns) do
     ~H"""
     <span class="flex items-center gap-1"><.flag_icon

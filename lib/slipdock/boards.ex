@@ -1169,6 +1169,7 @@ defmodule Slipdock.Boards do
     position = next_position(from(c in Card, where: c.column_id == ^column.id))
     card = %Card{board_id: column.board_id, column_id: column.id, position: position}
     {assignees, attrs} = assignee_change(card, attrs)
+    attrs = Slipdock.TimeTracking.normalize_attrs(card, attrs)
 
     card
     |> Card.changeset(
@@ -1195,6 +1196,7 @@ defmodule Slipdock.Boards do
   @doc "Changes a card. `opts[:by]` as for `create_card/3`."
   def update_card(%Card{} = card, attrs, opts \\ []) do
     {assignees, attrs} = assignee_change(card, attrs)
+    attrs = Slipdock.TimeTracking.normalize_attrs(card, attrs)
     # Who was on it, read only when this write changes that.
     before = if assignees, do: assignee_ids(card), else: []
     changeset = Card.changeset(card, attrs)
@@ -1319,7 +1321,60 @@ defmodule Slipdock.Boards do
       {:percent_complete, p} -> ["set “#{card.title}” to #{p}% complete"]
       {:column_id, id} -> ["moved “#{card.title}” to #{Repo.get!(Column, id).name}"]
       {:flags, flags} -> ["set flags on “#{card.title}” to #{flags_text(flags)}"]
+      {:time_spent, m} -> [time_text("time spent", card, m, changeset)]
+      {:time_estimate, m} -> [time_text("estimate", card, m, changeset)]
       _ -> []
+    end)
+  end
+
+  defp time_text(what, card, nil, _changeset), do: "cleared #{what} on “#{card.title}”"
+
+  defp time_text(what, card, minutes, changeset) do
+    unit = Ecto.Changeset.get_field(changeset, :time_unit)
+    "set #{what} on “#{card.title}” to #{Slipdock.TimeTracking.format(minutes, unit)}"
+  end
+
+  @doc """
+  Starts the card's timer. Starting one that is already running leaves it
+  alone, so two people pressing start do not lose the first one's time.
+  """
+  def start_timer(%Card{timer_started_at: %DateTime{}} = card), do: {:ok, card}
+
+  def start_timer(%Card{} = card) do
+    card
+    |> Ecto.Changeset.change(timer_started_at: DateTime.utc_now(:second))
+    |> Repo.update()
+    |> tap_ok(fn updated ->
+      log(Repo, updated.board_id, updated.id, "card", "started the timer on “#{card.title}”")
+      broadcast(updated.board_id)
+    end)
+  end
+
+  @doc """
+  Stops the card's timer and adds the minutes it ran to the time spent.
+  Stopping one that isn't running does nothing.
+  """
+  def stop_timer(%Card{timer_started_at: nil} = card), do: {:ok, card}
+
+  def stop_timer(%Card{} = card) do
+    minutes = Slipdock.TimeTracking.running(card)
+
+    card
+    |> Ecto.Changeset.change(
+      timer_started_at: nil,
+      time_spent: (card.time_spent || 0) + minutes
+    )
+    |> Repo.update()
+    |> tap_ok(fn updated ->
+      log(
+        Repo,
+        updated.board_id,
+        updated.id,
+        "card",
+        "logged #{Slipdock.TimeTracking.format(minutes, updated.time_unit)} on “#{card.title}” with the timer"
+      )
+
+      broadcast(updated.board_id)
     end)
   end
 

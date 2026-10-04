@@ -6,6 +6,7 @@ defmodule SlipdockWeb.SlipdockComponents do
 
   import SlipdockWeb.CoreComponents, only: [icon: 1, quick_chips: 1]
   alias Slipdock.Palette
+  alias Slipdock.TimeTracking
   alias Slipdock.Swimlanes.Config
   alias Phoenix.LiveView.JS
 
@@ -604,6 +605,243 @@ defmodule SlipdockWeb.SlipdockComponents do
     """
   end
 
+  attr :card, :map, required: true
+
+  @doc """
+  Time spent against the estimate, as a chip: `1.5h/4h` with a small bar
+  coloured by how close it is, or just the time spent without an estimate.
+  A running timer shows as a pulsing clock.
+  """
+  def time_badge(assigns) do
+    card = assigns.card
+    unit = Map.get(card, :time_unit) || TimeTracking.default_unit()
+    percent = TimeTracking.percent(card)
+
+    assigns =
+      assign(assigns,
+        spent: TimeTracking.format(TimeTracking.spent(card), unit),
+        estimate: TimeTracking.format(Map.get(card, :time_estimate), unit),
+        percent: percent,
+        status: TimeTracking.status(percent),
+        running: TimeTracking.running?(card)
+      )
+
+    ~H"""
+    <span
+      class={[
+        "chip",
+        case @status do
+          :over -> "bg-error/15 text-error"
+          :near -> "bg-warning/15 text-warning"
+          _ -> "chip-line text-base-content/70"
+        end
+      ]}
+      title={
+        "#{@spent} spent" <>
+          if(@estimate, do: " of #{@estimate} estimated (#{@percent}%)", else: "") <>
+          if(@running, do: " — timer running", else: "")
+      }
+    >
+      <.icon
+        name="hero-clock"
+        class={["size-3", @running && "animate-pulse text-primary"]}
+      />
+      <span :if={@estimate} class="h-1 w-6 overflow-hidden rounded-full bg-base-content/15">
+        <span
+          class={["block h-full rounded-full", time_fill(@status)]}
+          style={"width: #{min(@percent, 100)}%"}
+        ></span>
+      </span>
+      {@spent}{if @estimate, do: "/#{@estimate}"}
+    </span>
+    """
+  end
+
+  attr :percent, :integer, required: true
+  attr :class, :any, default: nil
+
+  @doc """
+  A bar of time spent against the estimate. Past 100% the bar fills and a
+  tick marks where the estimate fell, so the overrun reads as a length.
+  """
+  def time_bar(assigns) do
+    assigns = assign(assigns, status: TimeTracking.status(assigns.percent))
+
+    ~H"""
+    <div
+      class={["relative h-2 overflow-hidden rounded-full bg-base-content/10", @class]}
+      role="progressbar"
+      aria-valuenow={@percent}
+      aria-valuemin="0"
+      aria-valuemax="100"
+      data-status={@status}
+    >
+      <div
+        class={["h-full rounded-full transition-all", time_fill(@status)]}
+        style={"width: #{min(@percent, 100)}%"}
+      >
+      </div>
+      <div
+        :if={@percent > 100}
+        class="absolute inset-y-0 w-0.5 bg-base-100"
+        style={"left: #{Float.round(10_000 / @percent, 1)}%"}
+        title="Estimate"
+      >
+      </div>
+    </div>
+    """
+  end
+
+  attr :card, :map, required: true
+  attr :can_write, :boolean, required: true
+  attr :form_key, :integer, default: 0
+
+  @doc """
+  The card panel's time tracking: the unit, time spent and the estimate (each
+  typed in the unit, or with a suffix like `90m`), the bar between them, a
+  timer to start and stop, and a box to log a stretch of time by hand.
+  """
+  def time_section(assigns) do
+    card = assigns.card
+    unit = card.time_unit || TimeTracking.default_unit()
+    percent = TimeTracking.percent(card)
+
+    assigns =
+      assign(assigns,
+        unit: unit,
+        percent: percent,
+        spent: TimeTracking.spent(card),
+        status: TimeTracking.status(percent),
+        running: TimeTracking.running?(card)
+      )
+
+    ~H"""
+    <section class="space-y-2" id="card-time">
+      <div class="flex items-center justify-between">
+        <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Time</span>
+        <button
+          :if={@can_write}
+          type="button"
+          id="card-timer-toggle"
+          phx-click="card_timer"
+          phx-value-action={if @running, do: "stop", else: "start"}
+          class={[
+            "btn btn-xs gap-1",
+            if(@running, do: "btn-primary", else: "btn-ghost")
+          ]}
+        >
+          <.icon
+            name={if @running, do: "hero-stop-solid", else: "hero-play-solid"}
+            class="size-3"
+          />
+          <span :if={!@running}>Start timer</span>
+          <span
+            :if={@running}
+            id={"card-timer-elapsed-#{DateTime.to_unix(@card.timer_started_at)}"}
+            phx-hook="Elapsed"
+            phx-update="ignore"
+            data-since={DateTime.to_iso8601(@card.timer_started_at)}
+            class="font-mono tabular-nums"
+          >
+            Stop
+          </span>
+        </button>
+      </div>
+      <.form
+        for={%{}}
+        as={:card}
+        id="card-time-form"
+        phx-change="card_change"
+        class="grid grid-cols-[1fr_1fr_auto] items-end gap-2"
+      >
+        <label class="block space-y-1">
+          <span class="text-2xs text-base-content/60">Spent</span>
+          <input
+            type="text"
+            inputmode="decimal"
+            name="card[time_spent]"
+            id={"card-time-spent-#{@form_key}"}
+            value={TimeTracking.in_unit(@card.time_spent, @unit)}
+            placeholder="0"
+            phx-debounce="blur"
+            disabled={!@can_write}
+            class="input input-sm w-full"
+          />
+        </label>
+        <label class="block space-y-1">
+          <span class="text-2xs text-base-content/60">Estimate</span>
+          <input
+            type="text"
+            inputmode="decimal"
+            name="card[time_estimate]"
+            id={"card-time-estimate-#{@form_key}"}
+            value={TimeTracking.in_unit(@card.time_estimate, @unit)}
+            placeholder="—"
+            phx-debounce="blur"
+            disabled={!@can_write}
+            class="input input-sm w-full"
+          />
+        </label>
+        <label class="block space-y-1">
+          <span class="text-2xs text-base-content/60">Unit</span>
+          <select
+            name="card[time_unit]"
+            id="card-time-unit"
+            class="select select-sm"
+            disabled={!@can_write}
+          >
+            <option
+              :for={{key, label} <- TimeTracking.units()}
+              value={key}
+              selected={key == @unit}
+            >
+              {label}
+            </option>
+          </select>
+        </label>
+      </.form>
+      <div :if={@percent} class="space-y-1" id="card-time-progress">
+        <.time_bar percent={@percent} />
+        <p class={[
+          "flex justify-between text-2xs",
+          case @status do
+            :over -> "text-error"
+            :near -> "text-warning"
+            _ -> "text-base-content/60"
+          end
+        ]}>
+          <span>
+            {TimeTracking.format(@spent, @unit)} of {TimeTracking.format(@card.time_estimate, @unit)}
+          </span>
+          <span>
+            {@percent}%{if @status == :over,
+              do: " — #{TimeTracking.format(@spent - @card.time_estimate, @unit)} over"}
+          </span>
+        </p>
+      </div>
+      <form
+        :if={@can_write}
+        id={"card-log-time-#{@form_key}"}
+        phx-submit="log_time"
+        class="flex gap-2"
+      >
+        <input
+          type="text"
+          name="amount"
+          placeholder={"Log time — e.g. 30m, 1.5#{TimeTracking.suffix(@unit)}"}
+          class="input input-sm min-w-0 flex-1"
+          autocomplete="off"
+        />
+        <button type="submit" class="btn btn-sm btn-ghost">Log</button>
+      </form>
+    </section>
+    """
+  end
+
+  defp time_fill(:over), do: "bg-error"
+  defp time_fill(:near), do: "bg-warning"
+  defp time_fill(_), do: "bg-success"
+
   ## Card -------------------------------------------------------------------
 
   attr :card, :map, required: true
@@ -695,6 +933,7 @@ defmodule SlipdockWeb.SlipdockComponents do
       start_date: on.("start_date") and not is_nil(Slipdock.Boards.Card.effective_start(card)),
       due_date: on.("due_date") and not is_nil(Slipdock.Boards.Card.effective_due(card)),
       percent: on.("percent_complete") and not is_nil(card.percent_complete),
+      time: on.("time") and TimeTracking.tracked?(card),
       dependencies: on.("dependencies") and (card.blocks != [] or card.blocked_by != []),
       subcards: on.("subcards") and not is_nil(card.sub_board),
       checklist: on.("checklist") and total > 0,
@@ -792,6 +1031,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         <.start_badge :if={@f.start_date} card={@card} />
         <.schedule_badges :if={@f.due_date} card={@card} />
         <.percent_badge :if={@f.percent} percent={@card.percent_complete} />
+        <.time_badge :if={@f.time} card={@card} />
         <span :if={@actions != []} class="-mr-1 shrink-0">{render_slot(@actions)}</span>
       </div>
       <div :if={!@compact} class="space-y-2 p-3">
@@ -843,6 +1083,7 @@ defmodule SlipdockWeb.SlipdockComponents do
           <.start_badge :if={@f.start_date} card={@card} />
           <.schedule_badges :if={@f.due_date} card={@card} />
           <.percent_badge :if={@f.percent} percent={@card.percent_complete} />
+          <.time_badge :if={@f.time} card={@card} />
           <span
             :if={@f.checklist}
             class={[

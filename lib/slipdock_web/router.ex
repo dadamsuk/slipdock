@@ -438,6 +438,7 @@ defmodule SlipdockWeb.Router do
     post "/cards/:id/checklist", CardController, :add_checklist_item
     post "/cards/:id/comments", CardController, :add_comment
     post "/cards/:id/vote", CardController, :vote
+    post "/cards/:id/timer", CardController, :timer
     post "/cards/:id/links", CardController, :add_link
     delete "/cards/:id/links/:link_id", CardController, :remove_link
     post "/cards/:id/urls", CardController, :add_url

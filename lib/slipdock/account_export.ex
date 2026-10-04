@@ -98,6 +98,9 @@ defmodule Slipdock.AccountExport do
       due_date: card.due_date,
       completed: card.completed,
       percent_complete: card.percent_complete,
+      time_spent_minutes: card.time_spent,
+      time_estimate_minutes: card.time_estimate,
+      time_unit: card.time_unit,
       archived: card.archived_at != nil,
       created: card.inserted_at
     }

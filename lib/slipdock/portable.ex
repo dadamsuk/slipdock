@@ -445,6 +445,13 @@ defmodule Slipdock.Portable do
         date_precision: doc[:date_precision] || "day",
         completed: bool(doc[:completed], false),
         percent_complete: doc[:percent_complete],
+        time_spent: minutes(doc[:time_spent]),
+        time_estimate: minutes(doc[:time_estimate]),
+        time_unit:
+          if(doc[:time_unit] in Slipdock.TimeTracking.unit_keys(),
+            do: doc[:time_unit],
+            else: Slipdock.TimeTracking.default_unit()
+          ),
         color: doc[:color],
         archived_at: if(doc[:archived], do: now()),
         assignee_id: List.first(assignee_ids_for(doc))
@@ -766,6 +773,9 @@ defmodule Slipdock.Portable do
   defp bool("false", _), do: false
   defp bool(_, default), do: default
 
+  defp minutes(n) when is_integer(n) and n >= 0, do: n
+  defp minutes(_), do: nil
+
   defp date(nil), do: nil
   defp date(%Date{} = date), do: date
 
@@ -957,6 +967,10 @@ defmodule Slipdock.Portable do
       date_precision: card.date_precision,
       completed: card.completed,
       percent_complete: card.percent_complete,
+      # Minutes, whatever the unit; a running timer's time isn't spent yet.
+      time_spent: card.time_spent,
+      time_estimate: card.time_estimate,
+      time_unit: card.time_unit,
       color: card.color,
       archived: card.archived_at != nil,
       created_at: card.inserted_at,

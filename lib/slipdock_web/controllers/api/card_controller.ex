@@ -9,7 +9,7 @@ defmodule SlipdockWeb.API.CardController do
 
   action_fallback SlipdockWeb.API.FallbackController
 
-  @card_fields ~w(title description priority flags start_date due_date date_precision completed percent_complete color)
+  @card_fields ~w(title description priority flags start_date due_date date_precision completed percent_complete time_spent time_estimate time_unit log_time color)
 
   def index(conn, %{"board" => ref} = params) do
     with {:ok, board} <- fetch_board(ref),
@@ -102,6 +102,22 @@ defmodule SlipdockWeb.API.CardController do
       json(conn, %{card: V.card(Boards.get_card!(card.id))})
     end
   end
+
+  # `POST /api/cards/:id/timer {"action": "start" | "stop"}`. Stopping adds
+  # the minutes it ran to the card's time spent.
+  def timer(conn, %{"id" => id} = params) do
+    with {:ok, card} <- fetch_card(id),
+         :ok <- Authorize.card(conn, card, :write),
+         {:ok, _} <- timer_action(card, params["action"]) do
+      json(conn, %{card: V.card(Boards.get_card!(card.id))})
+    end
+  end
+
+  defp timer_action(card, "start"), do: Boards.start_timer(card)
+  defp timer_action(card, "stop"), do: Boards.stop_timer(card)
+
+  defp timer_action(_card, _),
+    do: {:error, :unprocessable_entity, "action must be start or stop"}
 
   def vote(conn, %{"id" => id} = params) do
     with {:ok, card} <- fetch_card(id),

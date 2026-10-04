@@ -2070,7 +2070,7 @@ defmodule SlipdockWeb.BoardLive.Show do
     end
   end
 
-  def handle_event("card_change", %{"card" => params}, socket) do
+  def handle_event("card_change", %{"card" => params} = event, socket) do
     card = socket.assigns.card
     socket = drop_invalid_uploads(socket, :desc_image)
 
@@ -2079,6 +2079,10 @@ defmodule SlipdockWeb.BoardLive.Show do
       |> Map.take(
         ~w(title description priority start_date due_date date_precision completed percent_complete column_id assignee_id add_assignee_id)
       )
+      # The time form posts all three together, but spent and estimate are
+      # typed in the unit on screen: re-sending them alongside a new unit would
+      # read them in it. Only the field that changed goes through.
+      |> Map.merge(Map.take(params, time_target(event)))
       |> Map.new(fn
         # Only the fields the changed form carries are touched: the title/description
         # form and the sidebar form both post here.
@@ -2107,6 +2111,34 @@ defmodule SlipdockWeb.BoardLive.Show do
 
       {:error, cs} ->
         {:noreply, assign(socket, card_form: to_form(cs))}
+    end
+  end
+
+  def handle_event("card_timer", %{"action" => action}, socket) do
+    with {:ok, card} <- writable_card(socket, socket.assigns.card.id),
+         {:ok, _} <-
+           if(action == "stop", do: Boards.stop_timer(card), else: Boards.start_timer(card)) do
+      {:noreply, assign(socket, card: Boards.get_card!(card.id))}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "You have read-only access to that card.")}
+    end
+  end
+
+  def handle_event("log_time", %{"amount" => amount}, socket) do
+    with {:ok, card} <- writable_card(socket, socket.assigns.card.id) do
+      case Boards.update_card(card, %{"log_time" => amount}, by: socket.assigns.current_user) do
+        {:ok, card} ->
+          {:noreply,
+           socket
+           |> assign(card: Boards.get_card!(card.id))
+           |> update(:form_key, &(&1 + 1))}
+
+        {:error, _} ->
+          {:noreply,
+           put_flash(socket, :error, "Couldn't read “#{amount}” as a time — try 45m, 1.5h or 2d.")}
+      end
+    else
+      _ -> {:noreply, put_flash(socket, :error, "You have read-only access to that card.")}
     end
   end
 
@@ -3118,6 +3150,11 @@ defmodule SlipdockWeb.BoardLive.Show do
   # Whether a card is on this board or any board beneath it.
   defp in_tree?(%{assigns: %{board: board}}, card),
     do: card.board_id == board.id or Slipdock.Rollup.member?(board.rollup, card)
+
+  @time_fields ~w(time_spent time_estimate time_unit)
+
+  defp time_target(%{"_target" => ["card", field]}) when field in @time_fields, do: [field]
+  defp time_target(_), do: []
 
   defp writable_card(socket, id) do
     %{current_user: user, view_only: view_only, swim: config, swim_view: view} = socket.assigns
@@ -5951,6 +5988,7 @@ defmodule SlipdockWeb.BoardLive.Show do
                 </p>
               </div>
             </.form>
+            <.time_section card={@card} can_write={@can_write} form_key={@form_key} />
             <.status_section
               item={@card}
               can_write={@can_write}

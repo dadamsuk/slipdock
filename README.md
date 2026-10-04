@@ -56,6 +56,9 @@ Briefly, with the detail in [the manual](docs/manual.md):
   dates, tags, checklists, comments with `@mentions` that email the person
   named, attachments, cover colours, archive and restore. Each board has a short code (`qvm-v1-rem`) that addresses it
   everywhere.
+- **Time tracking** — [a timer on each card, time spent and an estimate](docs/manual.md#time-tracking)
+  in minutes, hours, days, weeks or months, and a bar that turns amber near the
+  estimate and red past it.
 - **Subcards** — [any card becomes a board of its own](docs/manual.md#subcards-and-templates),
   nesting as deep as the work does, and
   [rolls up](docs/manual.md#roll-ups-the-outline-and-my-work): leaves done,

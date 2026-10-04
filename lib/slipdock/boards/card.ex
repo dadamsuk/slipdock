@@ -25,6 +25,12 @@ defmodule Slipdock.Boards.Card do
     # How far through the work is, 0–100, as stated by whoever is doing it;
     # nil when nobody has said. Independent of `completed`.
     field :percent_complete, :integer
+    # Time tracking (see Slipdock.TimeTracking): spent and estimate in whole
+    # minutes, shown in `time_unit`; a running timer is when it started.
+    field :time_spent, :integer
+    field :time_estimate, :integer
+    field :time_unit, :string, default: "hours"
+    field :timer_started_at, :utc_datetime
     field :color, :string
     field :archived_at, :utc_datetime
 
@@ -263,6 +269,9 @@ defmodule Slipdock.Boards.Card do
       :date_precision,
       :completed,
       :percent_complete,
+      :time_spent,
+      :time_estimate,
+      :time_unit,
       :color,
       :board_id,
       :column_id,
@@ -288,6 +297,13 @@ defmodule Slipdock.Boards.Card do
       greater_than_or_equal_to: 0,
       less_than_or_equal_to: 100
     )
+    |> update_change(:time_unit, fn
+      "" -> "hours"
+      u -> u
+    end)
+    |> validate_inclusion(:time_unit, Slipdock.TimeTracking.unit_keys())
+    |> validate_number(:time_spent, greater_than_or_equal_to: 0)
+    |> validate_number(:time_estimate, greater_than_or_equal_to: 0)
   end
 
   defp validate_dates(changeset) do

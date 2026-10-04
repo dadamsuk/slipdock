@@ -144,7 +144,7 @@ slipdock cards <board> [--column C] [--tag T] [--priority P] [--flag F] [--searc
 slipdock card <id>                      # full detail incl. checklist item ids and comments
 slipdock columns <board> | slipdock tags <board> | slipdock activity <board> [--limit N]
 slipdock swimlanes <board> [view options]   # grid of cards grouped on two axes (see below)
-slipdock table <board> [view options] [--group A] [--fields id,title,column,priority,flags,tags,start,due,completed,percent,checklist,comments,deps,subcards,created,updated]
+slipdock table <board> [view options] [--group A] [--fields id,title,column,priority,flags,tags,start,due,completed,percent,time,checklist,comments,deps,subcards,created,updated]
 slipdock views <board>                      # saved swimlane views
 slipdock favourites                         # what this person keeps going back to, with a URL each
 slipdock search <words...> [--board B] [--limit N] [--archived] [--full]
@@ -207,6 +207,10 @@ slipdock add <board> <title words...> [--column C] [--desc TEXT] [--priority P] 
 slipdock edit <id> [--title T] [--desc TEXT] [--priority P] [--start DATE|--no-start] [--due DATE|--no-due] [--percent N|--no-percent] [--color C|--no-color] [--column C]
                    [--assignee EMAIL|me]... | --no-assignee   # replaces who is on it; the first is the lead
                    [--add-assignee EMAIL|me]... [--remove-assignee EMAIL|me]...   # others stay on it
+                   [--spent T|--no-spent] [--estimate T|--no-estimate] [--unit minutes|hours|days|weeks|months] [--log T]
+                   # time: a bare number is in the card's unit, or 90m 1.5h 2d 1w 1mo "1h 30m" (day 8h, week 5d, month 4w)
+slipdock log <id> <time>                 # add time spent (edit --log=-30m takes some off)
+slipdock timer <id> start|stop           # stopping adds what the timer ran to time spent
 slipdock move <id> <column> [--top|--bottom|--index N]
 slipdock move <id> <column> --board B    # to another board, with the card's subcards; tags travel
                                        # by name, custom fields only where that board has them;
