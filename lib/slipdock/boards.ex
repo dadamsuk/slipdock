@@ -869,6 +869,14 @@ defmodule Slipdock.Boards do
 
   def get_column!(id), do: Repo.get!(Column, id)
 
+  @doc "The list `id` if it is on `board_id`, or nil: for ids a client sent."
+  def get_board_column(board_id, id) do
+    case to_id(id) do
+      nil -> nil
+      id -> Repo.one(from(c in Column, where: c.id == ^id and c.board_id == ^board_id))
+    end
+  end
+
   def create_column(%Board{} = board, attrs) do
     position = next_position(from(c in Column, where: c.board_id == ^board.id))
 
@@ -1458,6 +1466,24 @@ defmodule Slipdock.Boards do
     |> Repo.preload([:tags, :column])
   end
 
+  @doc """
+  An archived card on `board_id`, or nil. The id came from a client, so a
+  card on anybody else's board is the same as no card at all.
+  """
+  def get_archived_card(board_id, id) do
+    case to_id(id) do
+      nil ->
+        nil
+
+      id ->
+        Repo.one(
+          from(c in Card,
+            where: c.id == ^id and c.board_id == ^board_id and not is_nil(c.archived_at)
+          )
+        )
+    end
+  end
+
   def change_card(%Card{} = card, attrs \\ %{}), do: Card.changeset(card, attrs)
 
   @doc """
@@ -1468,6 +1494,16 @@ defmodule Slipdock.Boards do
   def move_card(card_id, to_column_id, before_id \\ nil) do
     card = Repo.get!(Card, card_id)
     to_column = Repo.get!(Column, to_column_id)
+
+    # A list on another board would pull the card off its own board without
+    # any of what `move_card_to_board/2` carries across — and, from a client
+    # that sent somebody else's card, onto the sender's board.
+    if to_column.board_id == card.board_id,
+      do: do_move_card(card, to_column, before_id),
+      else: {:error, :wrong_board}
+  end
+
+  defp do_move_card(%Card{} = card, %Column{} = to_column, before_id) do
     same_column? = to_column.id == card.column_id
 
     reorder({:card, card.id}, card.column_id, to_column.id, before_id)
@@ -2407,21 +2443,24 @@ defmodule Slipdock.Boards do
     |> tap_ok(fn _ -> notify_owned(owner) end)
   end
 
-  def toggle_checklist_item(id) do
-    item = Repo.get!(ChecklistItem, id)
+  @doc "A tick box on `owner` (a card or a page), or nil if it is not one of its own."
+  def get_checklist_item(owner, id), do: get_owned(ChecklistItem, owner, id)
 
+  def toggle_checklist_item(%ChecklistItem{} = item) do
     item
     |> Ecto.Changeset.change(done: !item.done)
     |> Repo.update()
     |> tap_ok(fn _ -> notify_owned(owner_of(item)) end)
   end
 
-  def delete_checklist_item(id) do
-    item = Repo.get!(ChecklistItem, id)
+  def toggle_checklist_item(id), do: toggle_checklist_item(Repo.get!(ChecklistItem, id))
 
+  def delete_checklist_item(%ChecklistItem{} = item) do
     Repo.delete(item)
     |> tap_ok(fn _ -> notify_owned(owner_of(item)) end)
   end
+
+  def delete_checklist_item(id), do: delete_checklist_item(Repo.get!(ChecklistItem, id))
 
   ## Comments
 
@@ -2448,12 +2487,15 @@ defmodule Slipdock.Boards do
     end)
   end
 
-  def delete_comment(id) do
-    comment = Repo.get!(Comment, id)
+  @doc "A comment on `owner` (a card or a page), or nil if it is not one of its own."
+  def get_comment(owner, id), do: get_owned(Comment, owner, id)
 
+  def delete_comment(%Comment{} = comment) do
     Repo.delete(comment)
     |> tap_ok(fn _ -> notify_owned(owner_of(comment)) end)
   end
+
+  def delete_comment(id), do: delete_comment(Repo.get!(Comment, id))
 
   ## Attachments
 
@@ -2712,6 +2754,16 @@ defmodule Slipdock.Boards do
   # `where` for "the rows belonging to this card or this page".
   defp owned_clause(%Slipdock.Wiki.Page{id: id}), do: dynamic([r], r.page_id == ^id)
   defp owned_clause(%{id: id}), do: dynamic([r], r.card_id == ^id)
+
+  # A row of `schema` by a client's id, only if it hangs off `owner`.
+  defp get_owned(_schema, nil, _id), do: nil
+
+  defp get_owned(schema, owner, id) do
+    case to_id(id) do
+      nil -> nil
+      id -> Repo.one(from(r in schema, where: r.id == ^id, where: ^owned_clause(owner)))
+    end
+  end
 
   defp next_position(query) do
     case Repo.one(from(q in query, select: max(q.position))) do

@@ -881,10 +881,16 @@ defmodule SlipdockWeb.WikiLive.Index do
   end
 
   def handle_event("toggle_check", %{"id" => id}, socket),
-    do: contents_event(socket, fn _ -> Boards.toggle_checklist_item(String.to_integer(id)) end)
+    do:
+      contents_event(socket, fn page ->
+        if item = Boards.get_checklist_item(page, id), do: Boards.toggle_checklist_item(item)
+      end)
 
   def handle_event("delete_check", %{"id" => id}, socket),
-    do: contents_event(socket, fn _ -> Boards.delete_checklist_item(String.to_integer(id)) end)
+    do:
+      contents_event(socket, fn page ->
+        if item = Boards.get_checklist_item(page, id), do: Boards.delete_checklist_item(item)
+      end)
 
   def handle_event("add_comment", %{"body" => body}, socket) do
     if String.trim(body) == "",
