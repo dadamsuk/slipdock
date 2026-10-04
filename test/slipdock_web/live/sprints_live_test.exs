@@ -290,4 +290,71 @@ defmodule SlipdockWeb.SprintsLiveTest do
     assert has_element?(view, "#burndown-#{two.id}")
     refute has_element?(view, "#velocity-chart")
   end
+
+  describe "stand-ins" do
+    test "the board a card left shows a stand-in that opens the real card", %{
+      conn: conn,
+      sprints: sprints,
+      work: work,
+      todo: todo
+    } do
+      {:ok, sprint} = Sprints.create_sprint(sprints)
+      card = card_fixture(todo, %{"title" => "Fix the login bug"})
+      {:ok, %{added: [moved]}} = Sprints.add_cards(sprint, [card])
+      [stand_in] = Boards.stand_ins_for(moved.id)
+
+      {:ok, view, html} = live(conn, ~p"/boards/#{work}")
+      assert has_element?(view, "#card-#{stand_in.id}[data-stand-in='#{moved.id}']")
+      assert html =~ "Fix the login bug"
+      assert html =~ sprint.title
+
+      assert {:error, {:live_redirect, %{to: to}}} =
+               view |> element("#card-#{stand_in.id}") |> render_click()
+
+      assert to == "/boards/#{moved.board_id}/cards/#{moved.id}"
+    end
+
+    test "somebody who can't see the sprint sees the stand-in but can't open it", %{
+      conn: conn,
+      todo: todo,
+      work: work
+    } do
+      {:ok, template} = Boards.find_template("Sprint planning")
+      other = user_fixture("elsewhere@example.com")
+      theirs = board_fixture(%{"name" => "Their sprints"}, template: template, owner: other)
+      {:ok, sprint} = Sprints.create_sprint(theirs)
+
+      {:ok, %{added: [moved]}} =
+        Sprints.add_cards(sprint, [card_fixture(todo, %{"title" => "Secret-ish"})])
+
+      [stand_in] = Boards.stand_ins_for(moved.id)
+
+      {:ok, view, html} = live(conn, ~p"/boards/#{work}")
+      assert html =~ "Secret-ish"
+
+      assert view |> element("#card-#{stand_in.id}") |> render_click() =~
+               "That card is on a board you can&#39;t open."
+    end
+
+    test "a stand-in can be dismissed, and is not counted in its list", %{
+      conn: conn,
+      sprints: sprints,
+      work: work,
+      todo: todo
+    } do
+      {:ok, sprint} = Sprints.create_sprint(sprints)
+      {:ok, %{added: [moved]}} = Sprints.add_cards(sprint, [card_fixture(todo)])
+      [stand_in] = Boards.stand_ins_for(moved.id)
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{work}")
+      assert view |> element("#column-#{todo.id} .badge") |> render() =~ "0 cards"
+
+      view
+      |> element("#card-#{stand_in.id} button[phx-click*='dismiss_stand_in']")
+      |> render_click()
+
+      refute has_element?(view, "#card-#{stand_in.id}")
+      assert Boards.stand_ins_for(moved.id) == []
+    end
+  end
 end

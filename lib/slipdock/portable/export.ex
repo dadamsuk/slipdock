@@ -410,7 +410,9 @@ defmodule Slipdock.Portable.Export do
   defp cards_in(board_ids, opts) do
     query =
       from(c in Card,
-        where: c.board_id in ^board_ids,
+        # Stand-ins are left behind: they point at a card by id, which means
+        # nothing once imported, and would come back as ordinary cards.
+        where: c.board_id in ^board_ids and is_nil(c.stand_in_for_id),
         order_by: [asc: c.board_id, asc: c.position, asc: c.id]
       )
 

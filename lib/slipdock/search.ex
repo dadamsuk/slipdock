@@ -322,7 +322,10 @@ defmodule Slipdock.Search do
   The query that loads a card with everything `Slipdock.Search.Chunk` needs.
   """
   def card_query do
+    # A stand-in is the same title as the card it stands for, so indexing it
+    # would only find that card twice.
     from(c in Card,
+      where: is_nil(c.stand_in_for_id),
       preload: [
         :board,
         :column,

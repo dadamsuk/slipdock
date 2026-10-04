@@ -144,7 +144,9 @@ defmodule Slipdock.Rollup do
 
     cards =
       from(c in Card,
+        # Stand-ins are left out: the work they point at is counted where it is.
         where: c.board_id in ^board_ids and is_nil(c.archived_at),
+        where: is_nil(c.stand_in_for_id),
         order_by: [asc: c.position],
         select: ^@card_fields,
         preload: [:tags, :assignee, :assignees]

@@ -64,7 +64,8 @@ whole card before touching it.
   Do*), and the backlog only when nothing there is eligible. Highest priority
   first, position in the list breaking ties. Skip anything completed, archived,
   blocked, waiting, or assigned to someone else — `--open --deps ready
-  --no-assignee` does most of that skipping for you. When the card you land on has
+  --no-assignee` does most of that skipping for you — and any stand-in
+  (`↪stand-in-for:#N`): it only marks where a card went into a sprint. When the card you land on has
   subcards, descend into it and work those to done before coming back up for the
   next top-level card.
 - **Updating as you go.** Move the card to in progress and assign it to yourself

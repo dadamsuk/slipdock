@@ -80,6 +80,13 @@ defmodule Slipdock.Boards.Card do
       join_keys: [blocker_id: :id, blocked_id: :id],
       preload_order: [asc: :title]
 
+    # A stand-in: the card sprint planning leaves in the slot a card it pulled
+    # in used to hold (see Slipdock.Sprints.add_cards/2). It has no state of
+    # its own — what it shows is read live from the card it points at — and
+    # nil when the real card has since been deleted, which is why there is no
+    # foreign key behind it.
+    belongs_to :stand_in_for, __MODULE__
+
     # Subcards live on a board owned by this card.
     has_one :sub_board, Slipdock.Boards.Board, foreign_key: :parent_card_id
 
@@ -105,6 +112,10 @@ defmodule Slipdock.Boards.Card do
   end
 
   def priorities, do: @priorities
+
+  @doc "Whether the card is a stand-in for a card sprint planning took away."
+  def stand_in?(%{stand_in_for_id: id}) when not is_nil(id), do: true
+  def stand_in?(_), do: false
 
   @doc """
   Everybody the card is assigned to, lead first. Falls back to the lead alone

@@ -363,24 +363,27 @@ defmodule SlipdockWeb.BoardLive.BoardView do
               >
                 <.icon name="hero-arrow-uturn-right" class="size-3" /> {drifted}
               </span>
+              <%!-- Stand-ins are not work in this list, so they are not
+                    counted against its limit. --%>
+              <% count = Enum.count(column.cards, &(not Card.stand_in?(&1))) %>
               <span
                 class={[
                   "badge badge-sm font-mono",
                   cond do
-                    column.wip_limit && length(column.cards) > column.wip_limit -> "badge-error"
-                    column.wip_limit && length(column.cards) == column.wip_limit -> "badge-warning"
+                    column.wip_limit && count > column.wip_limit -> "badge-error"
+                    column.wip_limit && count == column.wip_limit -> "badge-warning"
                     true -> "badge-ghost"
                   end
                 ]}
                 title={
                   if column.wip_limit,
                     do: "WIP limit #{column.wip_limit}",
-                    else: "#{length(column.cards)} cards"
+                    else: "#{count} cards"
                 }
               >
                 {if column.wip_limit,
-                  do: "#{length(column.cards)}/#{column.wip_limit}",
-                  else: length(column.cards)}
+                  do: "#{count}/#{column.wip_limit}",
+                  else: count}
               </span>
               <.favourite_toggle
                 kind="column"
@@ -450,6 +453,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
                 compact={@swim.density == "compact"}
                 show={Config.shown(@swim)}
                 focus={@focus && card_focus(@focus, item)}
+                dismiss={@can_write}
               >
                 <:actions :if={@can_write and length(@board.columns) > 1}>
                   <.move_menu card={item} board={@board} />

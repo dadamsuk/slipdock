@@ -12,7 +12,9 @@ defmodule Slipdock.Sprints do
     * `add_cards/2` — pull cards from anywhere the person can write into a
       sprint, many at once, instead of moving them one by one. They are moved
       (`Slipdock.Boards.move_card_to_board/2`), so subcards, tags and fields
-      travel the way they do on any move between boards.
+      travel the way they do on any move between boards — and each leaves a
+      *stand-in* in the slot it came from, so whoever put it on that board
+      can still see where it went and how it is doing.
 
   Pulling cards in is meant to be done a few at a time over days as well as
   all at once, so nothing here assumes a sprint is planned in one go.
@@ -158,8 +160,13 @@ defmodule Slipdock.Sprints do
   @doc """
   Moves `cards` into `sprint`'s sub-board, to its first to-do list. A sprint
   without a sub-board is given one first. Cards already in the sprint, cards
-  that are the sprint or hold it, and archived cards are skipped rather than
-  failing the lot.
+  that are the sprint or hold it, stand-ins and archived cards are skipped
+  rather than failing the lot.
+
+  Each card leaves a stand-in where it was (see
+  `Slipdock.Boards.leave_stand_in/2`) — except one carried over from another
+  sprint, whose stand-in, if it has one, is already on the board it first
+  came from and follows it by itself.
 
   Returns `{:ok, %{added: [card], skipped: [{card, reason}]}}`, or
   `{:error, message}` when the sprint itself will not do.
@@ -182,6 +189,7 @@ defmodule Slipdock.Sprints do
               card.id == sprint.id -> "it is the sprint"
               MapSet.member?(inside, card.board_id) -> "it is already in the sprint"
               not is_nil(card.archived_at) -> "it is archived"
+              Card.stand_in?(card) -> "it is a stand-in — pick the card it stands for"
               sprint?(card) -> "it is a sprint itself — pick from its cards instead"
               sprint.board_id in Boards.subtree_board_ids(card.id) -> "the sprint is inside it"
               true -> nil
@@ -190,8 +198,12 @@ defmodule Slipdock.Sprints do
           if reason do
             {added, [{card, reason} | skipped]}
           else
+            stand_in? = leaves_stand_in?(card)
+            before = stand_in? && Boards.item_after(card)
+
             case Boards.move_card_to_board(card, column) do
               {:ok, %{card: moved}} ->
+                if stand_in?, do: Boards.leave_stand_in(card, before)
                 {[moved | added], skipped}
 
               {:error, %Ecto.Changeset{} = refused} ->
@@ -204,6 +216,14 @@ defmodule Slipdock.Sprints do
         end)
 
       {:ok, %{added: Enum.reverse(added), skipped: Enum.reverse(skipped)}}
+    end
+  end
+
+  # A card leaves a stand-in unless it is coming from another sprint.
+  defp leaves_stand_in?(%Card{board_id: board_id}) do
+    case Repo.get(Board, board_id) do
+      nil -> false
+      board -> is_nil(sprint_of_board(board))
     end
   end
 
@@ -270,7 +290,7 @@ defmodule Slipdock.Sprints do
       Enum.map(board.columns, fn column ->
         cards =
           column.cards
-          |> Enum.filter(&(is_nil(&1.archived_at) and not &1.completed and &1.id != sprint.id))
+          |> Enum.filter(&open_candidate?(&1, sprint))
           |> Enum.map(fn card ->
             %{
               id: card.id,
@@ -285,6 +305,13 @@ defmodule Slipdock.Sprints do
         %{id: column.id, name: column.name, color: column.color, cards: cards}
       end)
     end
+  end
+
+  # What could go into a sprint: open, live, not the sprint, and real work
+  # rather than a stand-in for something already taken.
+  defp open_candidate?(card, sprint) do
+    is_nil(card.archived_at) and not card.completed and card.id != sprint.id and
+      not Card.stand_in?(card)
   end
 
   defp sub_board_id(%Card{sub_board: %Board{id: id}}), do: id
@@ -549,11 +576,7 @@ defmodule Slipdock.Sprints do
     else
       open =
         Enum.map(board.columns, fn column ->
-          {column,
-           Enum.filter(
-             column.cards,
-             &(is_nil(&1.archived_at) and not &1.completed and &1.id != sprint.id)
-           )}
+          {column, Enum.filter(column.cards, &open_candidate?(&1, sprint))}
         end)
 
       estimates = estimates(Enum.flat_map(open, &elem(&1, 1)))
@@ -607,6 +630,7 @@ defmodule Slipdock.Sprints do
           join: b in Board,
           on: b.id == c.board_id,
           where: c.board_id in ^boards and is_nil(c.archived_at) and not c.completed,
+          where: is_nil(c.stand_in_for_id),
           select: {b.parent_card_id, c.id, c.time_estimate}
         )
         |> Repo.all()
@@ -768,6 +792,7 @@ defmodule Slipdock.Sprints do
       join: b in Board,
       on: b.id == c.board_id,
       where: b.parent_card_id in ^sprint_ids and is_nil(c.archived_at),
+      where: is_nil(c.stand_in_for_id),
       select: {b.parent_card_id, c}
     )
     |> Repo.all()

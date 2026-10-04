@@ -83,6 +83,31 @@ defmodule SlipdockWeb.API.SprintsTest do
     assert conn |> post(~p"/api/cards/#{sprint.id}/sprint", %{}) |> json_response(400)
   end
 
+  test "a card added leaves a stand-in that names it, and refuses changes", %{
+    conn: conn,
+    sprints: sprints,
+    work: work,
+    todo: todo
+  } do
+    {:ok, sprint} = Slipdock.Sprints.create_sprint(sprints)
+    a = card_fixture(todo, %{"title" => "A"})
+    conn |> post(~p"/api/cards/#{sprint.id}/sprint", %{"cards" => [a.id]}) |> json_response(200)
+
+    cards = conn |> get(~p"/api/boards/#{work.code}/cards") |> json_response(200)
+    cards = if is_map(cards), do: cards["cards"], else: cards
+    assert [stand_in] = Enum.filter(cards, & &1["stand_in_for"])
+
+    assert stand_in["title"] == "A"
+    assert stand_in["stand_in_for"]["id"] == a.id
+    assert stand_in["stand_in_for"]["board_id"] == sprint.sub_board.id
+    assert stand_in["stand_in_for"]["status"] in ~w(todo doing)
+
+    body =
+      conn |> patch(~p"/api/cards/#{stand_in["id"]}", %{"title" => "B"}) |> json_response(422)
+
+    assert body["details"]["stand_in_for_id"]
+  end
+
   test "cards on a board the caller cannot change are refused", %{conn: conn, sprints: sprints} do
     {:ok, sprint} = Slipdock.Sprints.create_sprint(sprints)
     theirs = board_fixture(%{"name" => "Theirs"}, owner: user_fixture("other@example.com"))

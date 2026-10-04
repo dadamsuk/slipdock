@@ -126,7 +126,8 @@ defmodule Slipdock.Quota do
       from(c in Card,
         join: b in subquery(owned_boards(user_id)),
         on: b.id == c.board_id,
-        where: is_nil(c.archived_at),
+        # A stand-in is not one more thing: the card it stands for counts.
+        where: is_nil(c.archived_at) and is_nil(c.stand_in_for_id),
         select: %{id: c.id}
       )
 
@@ -148,7 +149,7 @@ defmodule Slipdock.Quota do
       from(c in Card,
         join: b in subquery(owned_boards(user_id)),
         on: b.id == c.board_id,
-        where: is_nil(c.archived_at)
+        where: is_nil(c.archived_at) and is_nil(c.stand_in_for_id)
       ),
       :count
     )

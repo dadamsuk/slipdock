@@ -71,7 +71,8 @@ Briefly, with the detail in [the manual](docs/manual.md):
   planning view over the boards and lists you plan from — priority, RICE and
   other scores, votes and estimates side by side, epics opening in place, with
   running totals of what is ticked against what the sprint holds — or ticks
-  work from any other board into it, as many sittings as it takes;
+  work from any other board into it, as many sittings as it takes, each card
+  leaving a live stand-in on the board it came from;
   **Charts** draws each sprint's burndown and the board's velocity.
 - **Seven views** of the same cards —
   [board](docs/manual.md#features), [swimlanes](docs/manual.md#swimlanes),

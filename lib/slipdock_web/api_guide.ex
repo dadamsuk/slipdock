@@ -558,6 +558,12 @@ defmodule SlipdockWeb.APIGuide do
     board you can write to into it, subcards and all, and answers what it
     `added` and what it `skipped` and why. Only plan a sprint when asked to:
     moving cards out of their epics is the person's call.
+    Each card added leaves a **stand-in** where it was: a card whose
+    `stand_in_for` is `{"id", "title", "board_id", "status"}` — the real card,
+    and `status` from its list's category (`todo`, `doing`, `done`,
+    `dropped`, or `archived` / `deleted`). It is not work: do not pick it up,
+    edit it (a `PATCH` is refused) or count it — act on the card it names.
+    It goes by itself when that card is moved back to its board.
     A sprint board keeps the boards and lists its sprints are planned from:
     `PUT /api/boards/:board/sprints/sources {"sources": [{"board": "work",
     "lists": ["To Do", "Backlog"]}]}` (no `lists` means every list that is
