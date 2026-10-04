@@ -28,11 +28,16 @@ defmodule Slipdock.AIKeysTest do
     on_exit(fn ->
       Application.put_env(:slipdock, :ai, previous)
       File.rm(file)
-      File.rm(file <> ".tmp")
+      Enum.each(Path.wildcard(file <> "*.tmp"), &File.rm/1)
     end)
 
     %{key_file: file, user: user_fixture("keys@example.com")}
   end
+
+  defp close_signups, do: {:ok, _} = Slipdock.Settings.update(%{signup_mode: :closed})
+
+  defp make_admin(user),
+    do: user |> Ecto.Changeset.change(admin: true) |> Slipdock.Repo.update!()
 
   defp shared_key(key), do: Application.put_env(:slipdock, :ai, shared_config(key))
 
@@ -83,13 +88,26 @@ defmodule Slipdock.AIKeysTest do
       refute Keys.configured?(ctx.user)
     end
 
-    test "a missing or corrupt file reads as empty", ctx do
+    test "a missing or corrupt file reads as empty, and is never written over", ctx do
       assert Keys.all() == %{}
       File.write!(ctx.key_file, "{not json")
       assert Keys.all() == %{}
-      # And a write over it still works.
-      assert :ok = Keys.put(ctx.user, "sk-one")
-      assert Keys.get(ctx.user) == "sk-one"
+
+      # Saving over it would replace everybody's settings with this one.
+      assert {:error, message} = Keys.put(ctx.user, "sk-one")
+      assert message =~ "unreadable"
+      assert File.read!(ctx.key_file) == "{not json"
+    end
+
+    test "saves at the same time don't lose each other", ctx do
+      users = for n <- 1..20, do: user_fixture("writer#{n}@example.com")
+
+      users
+      |> Enum.map(fn user -> Task.async(fn -> Keys.put(user, "sk-#{user.id}") end) end)
+      |> Enum.each(&assert(Task.await(&1) == :ok))
+
+      for user <- users, do: assert(Keys.get(user) == "sk-#{user.id}")
+      assert Path.wildcard(ctx.key_file <> "*.tmp") == []
     end
 
     test "masked/1 shows the ends and hides the middle" do
@@ -112,9 +130,45 @@ defmodule Slipdock.AIKeysTest do
       assert Keys.system_key() == "sk-shared"
     end
 
-    test "the only stored key, when there is just one person", ctx do
-      :ok = Keys.put(ctx.user, "sk-mine")
+    test "the only stored key, when there is just one person and they run the server", ctx do
+      close_signups()
+      admin = make_admin(ctx.user)
+      :ok = Keys.put(admin, "sk-mine")
       assert Keys.system_key() == "sk-mine"
+    end
+
+    test "never a lone non-admin's settings: their endpoint would receive everyone's content",
+         ctx do
+      close_signups()
+      :ok = Keys.put_settings(ctx.user, %{api_key: "sk-theirs", base_url: "https://evil.test/v1"})
+
+      assert Keys.system_settings().base_url == nil
+      assert Keys.system_key() == nil
+      refute match?({:ok, %{base_url: "https://evil.test/v1"}}, AI.provider([]))
+    end
+
+    test "not even an admin's, unasked, once other people can sign up", ctx do
+      admin = make_admin(ctx.user)
+      :ok = Keys.put(admin, "sk-mine")
+      {:ok, _} = Slipdock.Settings.update(%{signup_mode: :open})
+
+      assert Keys.system_key() == nil
+    end
+
+    test "indexing and other people's searches don't go to one user's endpoint", ctx do
+      searcher = user_fixture("searcher@example.com")
+      shared_key("sk-shared")
+
+      :ok =
+        Keys.put_settings(ctx.user, %{api_key: "sk-theirs", base_url: "https://evil.test/v1"})
+
+      # What the indexer and `Search.search/3` embed through.
+      assert {:ok, provider} = AI.provider([])
+      refute provider.base_url == "https://evil.test/v1"
+      assert provider.api_key == "sk-shared"
+
+      # And the searcher, asking for themselves, gets the shared key too.
+      assert {:ok, %{api_key: "sk-shared"}} = AI.provider(user: searcher)
     end
 
     test "SLIPDOCK_AI_SYSTEM_USER settles it when several people have keys", ctx do
@@ -172,7 +226,8 @@ defmodule Slipdock.AIKeysTest do
     end
 
     test "with no user named, unattended work falls back to the system key", ctx do
-      :ok = Keys.put(ctx.user, "sk-mine")
+      close_signups()
+      :ok = Keys.put(make_admin(ctx.user), "sk-mine")
       assert {:ok, "sk-mine"} = AI.api_key([])
       assert AI.configured?()
     end
@@ -216,6 +271,49 @@ defmodule Slipdock.AIKeysTest do
                )
 
       assert message =~ "Account → AI model"
+    end
+
+    test "rewriting a rule runs on the caller's model, not the system's", ctx do
+      admin = make_admin(user_fixture("admin@example.com"))
+      :ok = Keys.put(admin, "sk-admin")
+
+      Application.put_env(
+        :slipdock,
+        :ai,
+        Keyword.put(Application.get_env(:slipdock, :ai), :system_user, "admin@example.com")
+      )
+
+      board = board_fixture(%{"name" => "Launch"}, owner: ctx.user)
+
+      {:ok, rule} =
+        Slipdock.Automations.create_rule(%{
+          "board_id" => board.id,
+          "name" => "Old",
+          "spec" => %{
+            "trigger" => %{"type" => "card_created"},
+            "actions" => [%{"type" => "email", "to" => "ops@example.com"}]
+          }
+        })
+
+      Slipdock.AIStub.reply_with(%{
+        "name" => "New",
+        "spec" => %{
+          "trigger" => %{"type" => "card_created"},
+          "actions" => [%{"type" => "email", "to" => "ops@example.com"}]
+        }
+      })
+
+      # The author has no model of their own: refused, not run on the admin's.
+      assert {:error, message} =
+               Slipdock.Automations.rewrite_rule(rule, "email ops", created_by: ctx.user)
+
+      assert message =~ "Account → AI model"
+      refute_received {:ai_request, _}
+
+      :ok = Keys.put(ctx.user, "sk-mine")
+
+      assert {:ok, %{name: "New"}} =
+               Slipdock.Automations.rewrite_rule(rule, "email ops", created_by: ctx.user)
     end
 
     test "the researcher spends the asker's key", ctx do
