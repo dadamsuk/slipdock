@@ -59,6 +59,13 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
     view
   end
 
+  # The Automations panel is a LiveComponent with events of its own; a hook
+  # pushed with it as the target goes to it rather than to the board.
+  defp automations_panel(conn, board) do
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}/automations")
+    with_target(view, "#board-automations")
+  end
+
   describe "lists" do
     test "can't be renamed, recoloured or deleted from another board", ctx do
       view = board_view(ctx.conn, ctx.mine)
@@ -310,12 +317,12 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
     end
 
     test "can't be run, toggled or deleted from another board", ctx do
-      view = board_view(ctx.conn, ctx.mine)
+      panel = automations_panel(ctx.conn, ctx.mine)
       id = to_string(ctx.rule.id)
 
-      render_hook(view, "run_rule", %{"id" => id})
-      render_hook(view, "toggle_rule", %{"id" => id})
-      render_hook(view, "delete_rule", %{"id" => id})
+      render_hook(panel, "run_rule", %{"id" => id})
+      render_hook(panel, "toggle_rule", %{"id" => id})
+      render_hook(panel, "delete_rule", %{"id" => id})
 
       rule = Repo.get!(Slipdock.Automations.Rule, ctx.rule.id)
       assert rule.enabled == ctx.rule.enabled
@@ -329,28 +336,42 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
           "actions" => [%{"type" => "complete_card"}]
         })
 
-      view = board_view(ctx.conn, ctx.mine)
+      panel = automations_panel(ctx.conn, ctx.mine)
 
-      render_hook(view, "toggle_rule", %{"id" => to_string(mine.id)})
+      render_hook(panel, "toggle_rule", %{"id" => to_string(mine.id)})
       refute Repo.get!(Slipdock.Automations.Rule, mine.id).enabled
 
-      render_hook(view, "delete_rule", %{"id" => to_string(mine.id)})
+      render_hook(panel, "delete_rule", %{"id" => to_string(mine.id)})
       refute Repo.get(Slipdock.Automations.Rule, mine.id)
     end
   end
 
+  defp handled_events(file) do
+    handled =
+      ~r/def handle_event\(\s*"([a-z_]+)",/
+      |> Regex.scan(File.read!("lib/slipdock_web/live/board_live/" <> file),
+        capture: :all_but_first
+      )
+      |> List.flatten()
+      |> Enum.uniq()
+
+    assert handled != []
+    handled
+  end
+
   describe "the guard" do
     test "every handle_event clause is in one of the event lists" do
-      source = File.read!("lib/slipdock_web/live/board_live/show.ex")
+      assert handled_events("show.ex") -- Show.known_events() == []
+    end
 
-      handled =
-        ~r/def handle_event\(\s*"([a-z_]+)",/
-        |> Regex.scan(source, capture: :all_but_first)
-        |> List.flatten()
-        |> Enum.uniq()
-
-      assert handled != []
-      assert handled -- Show.known_events() == []
+    # Each of the board's LiveComponents keeps a list of its own, and refuses
+    # anything not on it the same way.
+    for {file, module} <- [
+          {"automations_component.ex", SlipdockWeb.BoardLive.AutomationsComponent}
+        ] do
+      test "every handle_event clause in #{file} is in its event list" do
+        assert handled_events(unquote(file)) -- unquote(module).events() == []
+      end
     end
 
     test "an event in none of the lists is refused", ctx do
