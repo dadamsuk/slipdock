@@ -4,7 +4,19 @@ defmodule SlipdockWeb.SessionController do
   alias Slipdock.{Accounts, Onboarding}
   alias SlipdockWeb.UserAuth
 
-  @doc "The magic link lands here."
+  @doc """
+  The magic link lands here: a button that signs in, if the link still works.
+  Nothing is used up until it is pressed.
+  """
+  def confirm(conn, %{"token" => token}) do
+    if Accounts.magic_link_valid?(token) do
+      render(conn, :confirm, token: token, page_title: "Sign in")
+    else
+      expired(conn)
+    end
+  end
+
+  @doc "The confirm page's button posts here."
   def create(conn, %{"token" => token}) do
     case Accounts.verify_magic_link(token) do
       {:ok, user} ->
@@ -19,10 +31,14 @@ defmodule SlipdockWeb.SessionController do
         |> UserAuth.log_in_user(user, to: landing(tour))
 
       :error ->
-        conn
-        |> put_flash(:error, "That sign-in link is invalid or has expired. Request a new one.")
-        |> redirect(to: ~p"/login")
+        expired(conn)
     end
+  end
+
+  defp expired(conn) do
+    conn
+    |> put_flash(:error, "That sign-in link is invalid or has expired. Request a new one.")
+    |> redirect(to: ~p"/login")
   end
 
   defp welcome(_user, {:ok, board}) do

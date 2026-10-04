@@ -125,7 +125,7 @@ defmodule SlipdockWeb.AIChatComponent do
   end
 
   def handle_event("apply", %{"id" => id}, socket) do
-    id = String.to_integer(id)
+    id = SlipdockWeb.Params.id(id)
 
     if socket.assigns.can_write do
       messages =
@@ -144,7 +144,7 @@ defmodule SlipdockWeb.AIChatComponent do
   end
 
   def handle_event("discard", %{"id" => id}, socket) do
-    id = String.to_integer(id)
+    id = SlipdockWeb.Params.id(id)
 
     messages =
       Enum.map(socket.assigns.messages, fn

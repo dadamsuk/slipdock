@@ -1,0 +1,19 @@
+<Layouts.app flash={@flash} current_user={assigns[:current_user]}>
+  <div class="mx-auto max-w-md px-4 py-16 text-center">
+    <h1 class="text-2xl font-semibold tracking-tight">Sign in to Slipdock</h1>
+    <p class="mt-2 text-sm text-base-content/60">
+      Press the button to finish signing in. The link works once.
+    </p>
+
+    <form action={~p"/login/#{@token}"} method="post" class="mt-8">
+      <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+      <button type="submit" id="confirm-sign-in" class="btn btn-primary w-full">
+        Sign in
+      </button>
+    </form>
+
+    <p class="mt-6 text-xs text-base-content/50">
+      If you didn't ask to sign in, close this page — nothing happens until the button is pressed.
+    </p>
+  </div>
+</Layouts.app>

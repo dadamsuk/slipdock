@@ -25,6 +25,7 @@ defmodule Slipdock.Accounts do
   ## Users
 
   def get_user!(id), do: Repo.get!(User, id)
+  def get_user(nil), do: nil
   def get_user(id), do: Repo.get(User, id)
 
   def get_user_by_email(email) when is_binary(email) do
@@ -772,6 +773,8 @@ defmodule Slipdock.Accounts do
   end
 
   def get_support_session!(id), do: Repo.get!(SupportSession, id)
+  def get_support_session(nil), do: nil
+  def get_support_session(id), do: Repo.get(SupportSession, id)
 
   # Telling them is the point. An unannounced look at somebody's boards is the
   # thing this is supposed to make impossible.
@@ -961,6 +964,8 @@ defmodule Slipdock.Accounts do
   def count_pending_signups, do: Repo.aggregate(where(SignupRequest, status: "pending"), :count)
 
   def get_signup_request!(id), do: Repo.get!(SignupRequest, id)
+  def get_signup_request(nil), do: nil
+  def get_signup_request(id), do: Repo.get(SignupRequest, id)
 
   @doc """
   Approves a request: makes the account and sends them a way in, so that "yes"
@@ -1159,14 +1164,26 @@ defmodule Slipdock.Accounts do
   @doc "Exchanges a magic-link token for its user (once), confirming the account."
   def verify_magic_link(token) do
     with {:ok, query} <- UserToken.verify_magic_token_query(token),
-         {%User{} = user, %UserToken{} = user_token} <- Repo.one(query) do
-      Repo.delete!(user_token)
-
+         {%User{} = user, %UserToken{} = user_token} <- Repo.one(query),
+         # Used up in the same statement that checks it is still there, so two
+         # submissions of one link sign in once.
+         {1, _} <- Repo.delete_all(from(t in UserToken, where: t.id == ^user_token.id)) do
       user = confirm(user)
 
       {:ok, user}
     else
       _ -> :error
+    end
+  end
+
+  @doc """
+  Whether `token` is a sign-in link that would still work, without using it
+  up — for the page that asks the person to confirm before signing in.
+  """
+  def magic_link_valid?(token) do
+    case UserToken.verify_magic_token_query(token) do
+      {:ok, query} -> Repo.exists?(query)
+      :error -> false
     end
   end
 

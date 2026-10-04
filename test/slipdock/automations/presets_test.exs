@@ -62,6 +62,30 @@ defmodule Slipdock.Automations.PresetsTest do
       assert msg =~ "unknown preset"
     end
 
+    test "refuses an address the notifier would refuse to send to" do
+      assert {:error, msg} =
+               Presets.build("follow_board", %{"notify" => "email", "email" => "a@b"})
+
+      assert msg =~ "isn't an email address"
+
+      assert {:error, msg} =
+               Presets.build("follow_board", %{"notify" => "email", "email" => %{"x" => 1}})
+
+      assert msg =~ "must be an email address"
+    end
+
+    test "a webhook is named after its host, however long the URL" do
+      url = "https://hooks.example.com/" <> String.duplicate("a", 200)
+
+      assert {:ok, %{"name" => name, "spec" => %{"actions" => [%{"url" => ^url}]}}} =
+               Presets.build("webhook", %{"url" => url})
+
+      assert name == "Call hooks.example.com on every change"
+
+      assert {:error, msg} = Presets.build("webhook", %{"url" => 42})
+      assert msg =~ "http"
+    end
+
     test "email goes to the person adding the rule unless told otherwise", %{owner: owner} do
       assert {:ok, %{"spec" => %{"actions" => [%{"type" => "email", "to" => to}]}}} =
                Presets.build("follow_board", %{"notify" => "email"}, user: owner)

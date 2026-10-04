@@ -36,7 +36,7 @@ defmodule SlipdockWeb.WelcomeBoardTest do
     {:ok, newcomer} = Accounts.get_or_create_user_by_email("newcomer@example.com")
     token = Accounts.create_sign_in_token(newcomer)
 
-    conn = get(conn, ~p"/login/#{token}")
+    conn = post(conn, ~p"/login/#{token}")
 
     assert [board] = Access.list_boards(newcomer)
     assert board.name == Onboarding.board_name()
@@ -45,7 +45,7 @@ defmodule SlipdockWeb.WelcomeBoardTest do
 
     # And not a second time: the account has signed in now.
     token = Accounts.create_sign_in_token(Accounts.get_user!(newcomer.id))
-    conn = conn |> recycle() |> get(~p"/login/#{token}")
+    conn = conn |> recycle() |> post(~p"/login/#{token}")
 
     assert redirected_to(conn) == "/"
     assert length(Access.list_boards(newcomer)) == 1
@@ -56,7 +56,7 @@ defmodule SlipdockWeb.WelcomeBoardTest do
     {:ok, owner} = Accounts.get_or_create_user_by_email("owner@example.com")
     Slipdock.Fixtures.board_fixture(%{"name" => "Real work"}, owner: owner)
 
-    conn = get(conn, ~p"/login/#{Accounts.create_sign_in_token(owner)}")
+    conn = post(conn, ~p"/login/#{Accounts.create_sign_in_token(owner)}")
 
     assert redirected_to(conn) == "/"
     assert ["Real work"] = owner |> Access.list_boards() |> Enum.map(& &1.name)

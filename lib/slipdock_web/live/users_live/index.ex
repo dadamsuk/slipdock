@@ -11,6 +11,7 @@ defmodule SlipdockWeb.UsersLive.Index do
   use SlipdockWeb, :live_view
 
   alias Slipdock.{Accounts, Quota, Settings}
+  alias SlipdockWeb.Params
 
   @impl true
   def mount(_params, _session, socket) do
@@ -47,40 +48,101 @@ defmodule SlipdockWeb.UsersLive.Index do
   def handle_event("enable", %{"id" => id}, socket), do: {:noreply, standing(socket, id, :enable)}
 
   def handle_event("set-limit", %{"user_id" => id, "limit" => limit}, socket) do
-    user = Accounts.get_user!(id)
-    value = if String.trim(limit) == "", do: nil, else: limit
+    with_user(socket, id, fn user ->
+      value = if String.trim(limit) == "", do: nil, else: limit
 
-    case Accounts.update_standing(user, %{"card_limit_override" => value}) do
-      {:ok, _} -> {:noreply, socket |> put_flash(:info, "Saved.") |> load()}
-      {:error, _} -> {:noreply, put_flash(socket, :error, "That isn't a number of cards.")}
-    end
+      case Accounts.update_standing(user, %{"card_limit_override" => value}) do
+        {:ok, _} -> {:noreply, socket |> put_flash(:info, "Saved.") |> load()}
+        {:error, _} -> {:noreply, put_flash(socket, :error, "That isn't a number of cards.")}
+      end
+    end)
   end
 
   # Paid up to a date, which is what takes somebody off the free tier and off
   # the trial clock. Blank puts them back on it.
   def handle_event("set-paid-until", %{"user_id" => id, "paid_until" => until}, socket) do
-    user = Accounts.get_user!(id)
-    value = if String.trim(until) == "", do: nil, else: until
+    with_user(socket, id, fn user ->
+      value = if String.trim(until) == "", do: nil, else: until
 
-    case Accounts.update_standing(user, %{"paid_until" => value}) do
-      {:ok, _} -> {:noreply, socket |> put_flash(:info, "Saved.") |> load()}
-      {:error, _} -> {:noreply, put_flash(socket, :error, "That isn't a date.")}
-    end
+      case Accounts.update_standing(user, %{"paid_until" => value}) do
+        {:ok, _} -> {:noreply, socket |> put_flash(:info, "Saved.") |> load()}
+        {:error, _} -> {:noreply, put_flash(socket, :error, "That isn't a date.")}
+      end
+    end)
   end
 
   ## Closing an account
 
   def handle_event("confirm-delete", %{"user_id" => id}, socket) do
-    user = Accounts.get_user!(id)
-    {:noreply, assign(socket, deleting: user, deleting_preview: Accounts.deletion_preview(user))}
+    with_user(socket, id, fn user ->
+      {:noreply,
+       assign(socket, deleting: user, deleting_preview: Accounts.deletion_preview(user))}
+    end)
   end
 
   def handle_event("cancel-delete", _params, socket),
     do: {:noreply, assign(socket, deleting: nil, deleting_preview: nil)}
 
   def handle_event("delete", %{"user_id" => id, "email" => typed}, socket) do
-    user = Accounts.get_user!(id)
+    with_user(socket, id, &delete_user(socket, &1, typed))
+  end
 
+  ## Support access
+
+  def handle_event("support", %{"user_id" => id, "reason" => reason}, socket) do
+    with_user(socket, id, &open_support(socket, &1, reason))
+  end
+
+  def handle_event("end-support", %{"id" => id}, socket) do
+    case Accounts.get_support_session(Params.id(id)) do
+      nil ->
+        gone(socket)
+
+      session ->
+        Accounts.end_support_session(session)
+        {:noreply, socket |> put_flash(:info, "Ended.") |> load()}
+    end
+  end
+
+  ## Signups
+
+  def handle_event("approve", %{"id" => id}, socket) do
+    with %{} = request <- Accounts.get_signup_request(Params.id(id)),
+         {:ok, user} <-
+           Accounts.approve_signup(request, socket.assigns.current_user, &url(~p"/login/#{&1}")) do
+      {:noreply, socket |> put_flash(:info, "#{user.email} can sign in now.") |> load()}
+    else
+      nil -> gone(socket)
+      {:error, _} -> {:noreply, put_flash(socket, :error, "Couldn't approve that.")}
+    end
+  end
+
+  def handle_event("reject", %{"id" => id}, socket) do
+    case Accounts.get_signup_request(Params.id(id)) do
+      nil ->
+        gone(socket)
+
+      request ->
+        Accounts.reject_signup(request, socket.assigns.current_user)
+        {:noreply, socket |> put_flash(:info, "Turned down.") |> load()}
+    end
+  end
+
+  ## Internals
+
+  # The id comes from the page, which may be stale or hand-made: somebody
+  # already deleted, or not an id at all, is a flash rather than a crash.
+  defp with_user(socket, id, fun) do
+    case Accounts.get_user(Params.id(id)) do
+      nil -> gone(socket)
+      user -> fun.(user)
+    end
+  end
+
+  defp gone(socket),
+    do: {:noreply, socket |> put_flash(:error, "That isn't there any more.") |> load()}
+
+  defp delete_user(socket, user, typed) do
     cond do
       String.trim(typed) != user.email ->
         {:noreply,
@@ -108,11 +170,7 @@ defmodule SlipdockWeb.UsersLive.Index do
     end
   end
 
-  ## Support access
-
-  def handle_event("support", %{"user_id" => id, "reason" => reason}, socket) do
-    subject = Accounts.get_user!(id)
-
+  defp open_support(socket, subject, reason) do
     case Accounts.open_support_session(socket.assigns.current_user, subject, reason) do
       {:ok, session} ->
         {:noreply,
@@ -132,35 +190,14 @@ defmodule SlipdockWeb.UsersLive.Index do
     end
   end
 
-  def handle_event("end-support", %{"id" => id}, socket) do
-    Accounts.get_support_session!(id) |> Accounts.end_support_session()
-    {:noreply, socket |> put_flash(:info, "Ended.") |> load()}
-  end
-
-  ## Signups
-
-  def handle_event("approve", %{"id" => id}, socket) do
-    request = Accounts.get_signup_request!(id)
-
-    case Accounts.approve_signup(request, socket.assigns.current_user, &url(~p"/login/#{&1}")) do
-      {:ok, user} ->
-        {:noreply, socket |> put_flash(:info, "#{user.email} can sign in now.") |> load()}
-
-      {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Couldn't approve that.")}
+  defp standing(socket, id, action) do
+    case Accounts.get_user(Params.id(id)) do
+      nil -> put_flash(socket, :error, "That isn't there any more.") |> load()
+      user -> standing_change(socket, user, action)
     end
   end
 
-  def handle_event("reject", %{"id" => id}, socket) do
-    Accounts.get_signup_request!(id) |> Accounts.reject_signup(socket.assigns.current_user)
-    {:noreply, socket |> put_flash(:info, "Turned down.") |> load()}
-  end
-
-  ## Internals
-
-  defp standing(socket, id, action) do
-    user = Accounts.get_user!(id)
-
+  defp standing_change(socket, user, action) do
     result =
       case action do
         :promote -> Accounts.promote(user)

@@ -305,8 +305,14 @@ defmodule Slipdock.Boards.Card do
       u -> u
     end)
     |> validate_inclusion(:time_unit, Slipdock.TimeTracking.unit_keys())
-    |> validate_number(:time_spent, greater_than_or_equal_to: 0)
-    |> validate_number(:time_estimate, greater_than_or_equal_to: 0)
+    |> validate_number(:time_spent,
+      greater_than_or_equal_to: 0,
+      less_than_or_equal_to: Slipdock.TimeTracking.max_minutes()
+    )
+    |> validate_number(:time_estimate,
+      greater_than_or_equal_to: 0,
+      less_than_or_equal_to: Slipdock.TimeTracking.max_minutes()
+    )
     |> stamp_completed()
   end
 

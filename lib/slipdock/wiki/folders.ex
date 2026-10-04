@@ -107,6 +107,7 @@ defmodule Slipdock.Wiki.Folders do
     }
   end
 
+  def get(nil), do: nil
   def get(id), do: Repo.get(Folder, id)
   def get!(id), do: Repo.get!(Folder, id)
 

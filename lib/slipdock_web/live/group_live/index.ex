@@ -54,16 +54,22 @@ defmodule SlipdockWeb.GroupLive.Index do
   end
 
   def handle_event("remove_member", %{"id" => id, "user_id" => user_id}, socket) do
-    with {:ok, group} <- owned_group(socket, id) do
-      {:ok, _} = Accounts.remove_group_member(group, Accounts.get_user!(user_id))
+    with {:ok, group} <- owned_group(socket, id),
+         %{} = user <- Accounts.get_user(SlipdockWeb.Params.id(user_id)) do
+      {:ok, _} = Accounts.remove_group_member(group, user)
     end
 
     {:noreply, load(socket)}
   end
 
   defp owned_group(socket, id) do
-    group = Accounts.get_group!(id)
-    if group.owner_id == socket.assigns.current_user.id, do: {:ok, group}, else: :error
+    with id when is_integer(id) <- SlipdockWeb.Params.id(id),
+         %{} = group <- Slipdock.Repo.get(Slipdock.Accounts.Group, id),
+         true <- group.owner_id == socket.assigns.current_user.id do
+      {:ok, Accounts.get_group!(group.id)}
+    else
+      _ -> :error
+    end
   end
 
   @impl true

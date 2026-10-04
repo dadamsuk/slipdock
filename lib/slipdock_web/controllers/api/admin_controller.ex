@@ -119,8 +119,13 @@ defmodule SlipdockWeb.API.AdminController do
   end
 
   def decide_signup(conn, %{"id" => id, "decision" => decision}) do
-    request = Accounts.get_signup_request!(id)
+    case Accounts.get_signup_request(SlipdockWeb.Params.id(id)) do
+      nil -> {:error, :not_found, "signup request"}
+      request -> decide(conn, request, decision)
+    end
+  end
 
+  defp decide(conn, request, decision) do
     case decision do
       "approve" ->
         with {:ok, user} <-

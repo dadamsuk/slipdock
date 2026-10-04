@@ -210,10 +210,11 @@ defmodule Slipdock.Automations.Notifier do
 
   defp async?, do: Application.get_env(:slipdock, :automations, [])[:async] != false
 
-  defp valid_email?(address) when is_binary(address),
-    do: address =~ ~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  @doc "Whether `address` looks enough like an email address to send to."
+  def valid_email?(address) when is_binary(address),
+    do: address =~ ~r/\A[^\s@]+@[^\s@]+\.[^\s@]+\z/
 
-  defp valid_email?(_), do: false
+  def valid_email?(_), do: false
 
   defp describe(reason) when is_binary(reason), do: reason
   defp describe(reason), do: inspect(reason)

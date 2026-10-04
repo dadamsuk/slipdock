@@ -22,6 +22,12 @@
   `DATABASE_SSL_VERIFY=false` still turns off the database check.
 - **Agentic Login files** go to a private `slipdock-agentic-login` directory
   under the system temp dir, mode 0600, rather than straight into `/tmp`.
+- **Opening a sign-in link no longer signs in by itself.** It shows a
+  **Sign in** button, and the POST that button makes is what signs in — so
+  a mail scanner that prefetches links cannot use one up. Anything scripted
+  that fetched the link with a plain GET (an Agentic Login test harness, say)
+  has to press the button, or POST to the same `/login/<token>` address with
+  the page's CSRF token.
 
 ## The database is Postgres now, and this one is not an upgrade
 

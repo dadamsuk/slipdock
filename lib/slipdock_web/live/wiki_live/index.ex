@@ -22,6 +22,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   alias Slipdock.Boards.Attachment
   alias Slipdock.Palette
   alias Slipdock.Wiki.Page
+  alias SlipdockWeb.Params
   alias SlipdockWeb.Wiki.Renderer
 
   @impl true
@@ -639,7 +640,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   def handle_event("attach_card", %{"id" => id}, socket) do
     with true <- socket.assigns.can_write,
          %Page{} = page <- socket.assigns.page,
-         %{} = card <- Boards.get_card(String.to_integer(id)),
+         %{} = card <- Boards.get_card(Params.id(id)),
          {:ok, _} <- Wiki.pin(page, {:card, card}) do
       {:noreply,
        socket
@@ -654,7 +655,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   def handle_event("toggle_pin_card", %{"id" => id}, socket) do
     with true <- socket.assigns.can_write,
          %Page{} = page <- socket.assigns.page,
-         %{} = card <- Boards.get_card(String.to_integer(id)),
+         %{} = card <- Boards.get_card(Params.id(id)),
          link <- Enum.find(socket.assigns.cards, &(&1.target_card_id == card.id)),
          {:ok, _} <- Wiki.pin(page, {:card, card}, not (link && link.pinned)) do
       {:noreply, reload(socket, page)}
@@ -668,7 +669,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   def handle_event("detach_card", %{"id" => id}, socket) do
     with true <- socket.assigns.can_write,
          %Page{} = page <- socket.assigns.page,
-         %{} = card <- Boards.get_card(String.to_integer(id)),
+         %{} = card <- Boards.get_card(Params.id(id)),
          {:ok, _} <- Wiki.unlink(page, {:card, card}) do
       {:noreply, reload(socket, page)}
     else
@@ -682,7 +683,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   # and none of them can lose a page: see `Slipdock.Wiki.Folders`.
 
   def handle_event("toggle_folder", %{"id" => id}, socket) do
-    id = String.to_integer(id)
+    id = Params.id(id)
     collapsed = socket.assigns.collapsed
 
     {:noreply,
@@ -741,7 +742,7 @@ defmodule SlipdockWeb.WikiLive.Index do
 
   def handle_event("rename_folder", %{"id" => id}, socket) do
     with true <- socket.assigns.can_write,
-         %{} = folder <- Wiki.get_folder(String.to_integer(id)) do
+         %{} = folder <- Wiki.get_folder(Params.id(id)) do
       {:noreply,
        assign(socket,
          folder_modal: %{
@@ -795,7 +796,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   # pages. An empty folder is not worth a question and goes at once.
   def handle_event("ask_delete_folder", %{"id" => id}, socket) do
     with true <- socket.assigns.can_write,
-         %{} = folder <- Wiki.get_folder(String.to_integer(id)) do
+         %{} = folder <- Wiki.get_folder(Params.id(id)) do
       case Wiki.folder_contents_count(folder) do
         %{folders: 0, pages: 0} ->
           {:noreply, delete_folder(socket, folder, :keep)}
@@ -821,7 +822,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     folder =
       case params["id"] do
         nil -> socket.assigns.folder_delete && socket.assigns.folder_delete.folder
-        id -> Wiki.get_folder(String.to_integer(id))
+        id -> Wiki.get_folder(Params.id(id))
       end
 
     if socket.assigns.can_write and folder do
@@ -851,9 +852,14 @@ defmodule SlipdockWeb.WikiLive.Index do
   def handle_event("search", %{"q" => q}, socket), do: {:noreply, put_filter(socket, :q, q)}
 
   def handle_event("filter_tag", %{"id" => id}, socket) do
-    id = String.to_integer(id)
-    tags = socket.assigns.filters.tags
-    {:noreply, put_filter(socket, :tags, if(id in tags, do: tags -- [id], else: [id | tags]))}
+    case Params.id(id) do
+      nil ->
+        {:noreply, socket}
+
+      id ->
+        tags = socket.assigns.filters.tags
+        {:noreply, put_filter(socket, :tags, if(id in tags, do: tags -- [id], else: [id | tags]))}
+    end
   end
 
   def handle_event("filter_priority", %{"priority" => p}, socket),
@@ -909,7 +915,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   def handle_event("delete_comment", %{"id" => id}, socket) do
     contents_event(socket, fn page ->
       if Enum.any?(page.comments, &(to_string(&1.id) == id)),
-        do: Boards.delete_comment(String.to_integer(id))
+        do: Boards.delete_comment(Params.id(id))
     end)
   end
 
@@ -924,7 +930,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   def handle_event("delete_status_update", %{"id" => id}, socket) do
     contents_event(socket, fn page ->
       if Enum.any?(page.status_updates, &(to_string(&1.id) == id)),
-        do: Boards.delete_status_update(String.to_integer(id))
+        do: Boards.delete_status_update(Params.id(id))
     end)
   end
 
@@ -972,8 +978,11 @@ defmodule SlipdockWeb.WikiLive.Index do
   def handle_event("vote", %{"count" => count}, socket) do
     case socket.assigns do
       %{page: %Page{} = page, current_user: user} when not is_nil(user) ->
-        case Votes.set(page, user, String.to_integer(to_string(count))) do
-          {:ok, _} -> {:noreply, reload_page(socket)}
+        with count when is_integer(count) <- Params.int(count),
+             {:ok, _} <- Votes.set(page, user, count) do
+          {:noreply, reload_page(socket)}
+        else
+          nil -> {:noreply, socket}
           {:error, message} -> {:noreply, put_flash(socket, :error, message)}
         end
 
@@ -985,7 +994,8 @@ defmodule SlipdockWeb.WikiLive.Index do
   def handle_event("place", %{"column" => column_id}, socket) do
     with true <- socket.assigns.can_write,
          %Page{} = page <- socket.assigns.page,
-         {:ok, placed} <- Wiki.place(page, String.to_integer(column_id)) do
+         column_id when is_integer(column_id) <- Params.id(column_id),
+         {:ok, placed} <- Wiki.place(page, column_id) do
       {:noreply,
        socket
        |> put_flash(:info, "Put “#{placed.title}” on the board.")
