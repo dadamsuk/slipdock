@@ -41,40 +41,6 @@ defmodule SlipdockWeb.ConfigLiveTest do
     end
   end
 
-  describe "a newer image" do
-    test "is offered with the commands that move onto it", %{conn: conn} do
-      Slipdock.UpdatesStub.publish("abcdef1234567890")
-      {:ok, view, _html} = live(conn, ~p"/config")
-
-      html = render_async(view)
-      assert html =~ "A newer image has been published"
-      assert html =~ "abcdef1"
-      assert html =~ "docker compose pull"
-    end
-
-    test "is not offered when the published image is this build", %{conn: conn} do
-      Slipdock.UpdatesStub.publish(Slipdock.Build.sha())
-      {:ok, view, _html} = live(conn, ~p"/config")
-
-      assert render_async(view) =~ "Up to date with the published image"
-    end
-
-    test "a registry that cannot be reached says so, and can be asked again", %{conn: conn} do
-      Slipdock.UpdatesStub.publish({:status, 503})
-      {:ok, view, _html} = live(conn, ~p"/config")
-      assert render_async(view) =~ "Could not check for a newer image"
-
-      Slipdock.UpdatesStub.publish(Slipdock.Build.sha())
-      view |> element("#update-status button", "Check again") |> render_click()
-      assert render_async(view) =~ "Up to date"
-    end
-
-    test "is not asked about while the check is off", %{conn: conn} do
-      {:ok, _view, html} = live(conn, ~p"/config")
-      refute html =~ "update-status"
-    end
-  end
-
   describe "settings" do
     test "changing the mode says it does not remove anybody", %{conn: conn} do
       {:ok, view, html} = live(conn, ~p"/config")

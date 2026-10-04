@@ -12,26 +12,9 @@ defmodule SlipdockWeb.API.AdminController do
   """
   use SlipdockWeb, :controller
 
-  alias Slipdock.{Accounts, Build, Quota, Settings, Updates}
+  alias Slipdock.{Accounts, Build, Quota, Settings}
 
   action_fallback SlipdockWeb.API.FallbackController
-
-  # Whether a newer image has been published than the build answering. Its own
-  # endpoint rather than part of `settings`, because it asks the registry.
-  def updates(conn, _params) do
-    case Updates.check() do
-      {:ok, result} ->
-        json(conn, %{
-          status: result.status,
-          image: result.image,
-          running: result.running,
-          latest: result.latest
-        })
-
-      {:error, reason} ->
-        conn |> put_status(502) |> json(%{error: "update_check_failed", message: reason})
-    end
-  end
 
   def settings(conn, _params) do
     settings = Settings.get()

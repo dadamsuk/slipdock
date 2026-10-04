@@ -476,7 +476,6 @@ ask for one; do not retry.
 ```
 slipdock admin settings                     what this server allows, and who it tells
 slipdock admin build                        the commit and build time now running
-slipdock admin updates                      whether a newer image has been published
 slipdock admin set signup_mode=closed       also free_card_limit, user_directory,
                                             invites_create_accounts, trial_days,
                                             trial_enabled, board_limit, item_limit,
