@@ -1379,8 +1379,19 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   ## PubSub ------------------------------------------------------------------
 
+  defp drain_board_changed do
+    receive do
+      {:board_changed, _id} -> drain_board_changed()
+    after
+      0 -> :ok
+    end
+  end
+
   @impl true
   def handle_info({:board_changed, _id}, socket) do
+    # A burst of writes (an import, an automation, a bulk move) queues one of
+    # these per write; one reload answers all that have already arrived.
+    drain_board_changed()
     socket = socket |> reload_board() |> refresh_swimlanes()
     board = socket.assigns.board
 

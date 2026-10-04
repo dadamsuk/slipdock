@@ -215,6 +215,16 @@ defmodule SlipdockWeb.ItemComponents do
 
   @doc "The remarks on a card or a page, newest first."
   def comments_section(assigns) do
+    # Looked up once for the list, not once per comment that mentions someone.
+    assigns =
+      assign(
+        assigns,
+        :members,
+        if(Enum.any?(assigns.item.comments, &RichText.mentions?(&1.body)),
+          do: Slipdock.Wiki.Links.members(assigns.board)
+        )
+      )
+
     ~H"""
     <section class="space-y-3 px-1" data-section-key={@section_key}>
       <h3 class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-base-content/60">
@@ -277,7 +287,7 @@ defmodule SlipdockWeb.ItemComponents do
                 <.icon name="hero-trash" class="size-3.5" />
               </button>
             </div>
-            <div class="whitespace-pre-wrap break-words text-sm" phx-no-format>{RichText.render(comment.body, board: @board, as: @current_user)}</div>
+            <div class="whitespace-pre-wrap break-words text-sm" phx-no-format>{RichText.render(comment.body, board: @board, as: @current_user, members: @members)}</div>
           </div>
         </li>
       </ul>

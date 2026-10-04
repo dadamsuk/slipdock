@@ -2155,27 +2155,25 @@ defmodule Slipdock.Boards do
   end
 
   # Is `target` downstream of `from`, following "blocks" edges? Adding
-  # from -> blocked-by -> target would then close a cycle.
+  # from -> blocked-by -> target would then close a cycle. Walked in the
+  # database: UNION (not UNION ALL) drops ids already seen, so an existing
+  # cycle still ends.
   defp reachable?(from_id, target_id) do
-    edges =
-      Repo.all(from(d in "card_dependencies", select: {d.blocker_id, d.blocked_id}))
-      |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+    initial =
+      from(d in "card_dependencies", where: d.blocker_id == ^from_id, select: %{id: d.blocked_id})
 
-    walk = fn walk, frontier, seen ->
-      case frontier do
-        [] ->
-          false
+    step =
+      from(d in "card_dependencies",
+        join: r in "downstream",
+        on: d.blocker_id == r.id,
+        select: %{id: d.blocked_id}
+      )
 
-        [id | rest] ->
-          cond do
-            id == target_id -> true
-            MapSet.member?(seen, id) -> walk.(walk, rest, seen)
-            true -> walk.(walk, Map.get(edges, id, []) ++ rest, MapSet.put(seen, id))
-          end
-      end
-    end
-
-    walk.(walk, Map.get(edges, from_id, []), MapSet.new([from_id]))
+    "downstream"
+    |> recursive_ctes(true)
+    |> with_cte("downstream", as: ^union(initial, ^step))
+    |> where([r], r.id == ^target_id)
+    |> Repo.exists?()
   end
 
   ## Links

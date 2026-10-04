@@ -24,9 +24,12 @@ defmodule SlipdockWeb.UsersLive.Index do
   defp tab(%{assigns: %{live_action: action}}), do: action
 
   defp load(socket) do
+    users = Accounts.list_users()
+
     assign(socket,
       settings: Settings.get(),
-      users: Accounts.list_users(),
+      users: users,
+      usage: Quota.usage(Enum.map(users, & &1.id)),
       support: Accounts.live_support_sessions(),
       deleting: nil,
       deleting_preview: nil,
@@ -368,7 +371,7 @@ defmodule SlipdockWeb.UsersLive.Index do
               <td class="text-xs">
                 <form phx-submit="set-limit" class="flex items-center gap-1">
                   <input type="hidden" name="user_id" value={user.id} />
-                  <span class="text-base-content/60">{Quota.used(user)} /</span>
+                  <span class="text-base-content/60">{@usage[user.id].items} /</span>
                   <input
                     type="number"
                     name="limit"
@@ -378,9 +381,7 @@ defmodule SlipdockWeb.UsersLive.Index do
                   />
                 </form>
                 <div class="mt-1 text-base-content/50">
-                  {Quota.used(user, :boards)} boards · {Quota.humanise_bytes(
-                    Quota.used(user, :storage)
-                  )}
+                  {@usage[user.id].boards} boards · {Quota.humanise_bytes(@usage[user.id].storage)}
                 </div>
               </td>
               <td class="text-xs">

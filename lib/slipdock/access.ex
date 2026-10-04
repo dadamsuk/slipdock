@@ -77,6 +77,39 @@ defmodule Slipdock.Access do
   end
 
   @doc """
+  The cards in `cards` the user can read, in their order — `card_permission/2`
+  for a list, without its queries per card: each distinct board is checked
+  once, and the direct card grants come back in one query.
+  """
+  @spec filter_readable_cards(User.t() | nil, [Card.t()]) :: [Card.t()]
+  def filter_readable_cards(nil, _cards), do: []
+  def filter_readable_cards(_user, []), do: []
+
+  def filter_readable_cards(%User{} = user, cards) do
+    from_board =
+      cards
+      |> Enum.map(& &1.board_id)
+      |> Enum.uniq()
+      |> then(&Repo.all(from(b in Board, where: b.id in ^&1)))
+      |> Map.new(fn board ->
+        level = board_permission(user, board)
+        {board.id, if(level == :view, do: :none, else: level)}
+      end)
+
+    direct = grant_levels(user, :card_id, Enum.map(cards, & &1.id))
+
+    Enum.filter(cards, fn card ->
+      level =
+        Enum.max_by(
+          [Map.get(from_board, card.board_id, :none), Map.get(direct, card.id, :none)],
+          &@rank[&1]
+        )
+
+      can_read?(level)
+    end)
+  end
+
+  @doc """
   The user's permission on a wiki page: the board's, raised by any direct
   page grant.
 
@@ -182,6 +215,23 @@ defmodule Slipdock.Access do
       "read" in levels -> :read
       true -> :none
     end
+  end
+
+  # grant_level/2 for many ids of one kind at once: %{id => :write | :read}.
+  defp grant_levels(%User{} = user, field, ids) do
+    group_ids = Accounts.group_ids_for(user)
+
+    from(g in Grant,
+      where: field(g, ^field) in ^ids,
+      where: g.user_id == ^user.id or g.group_id in ^group_ids,
+      select: {field(g, ^field), g.level}
+    )
+    |> Repo.all()
+    |> Enum.reduce(%{}, fn
+      {id, "write"}, acc -> Map.put(acc, id, :write)
+      {id, "read"}, acc -> Map.put_new(acc, id, :read)
+      _, acc -> acc
+    end)
   end
 
   defp has_view_grant?(%User{} = user, %Board{} = board) do
