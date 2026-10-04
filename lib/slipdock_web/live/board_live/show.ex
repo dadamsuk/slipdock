@@ -1592,35 +1592,49 @@ defmodule SlipdockWeb.BoardLive.Show do
   end
 
   def handle_event("toggle_rule", %{"id" => id}, socket) do
-    id |> Automations.get_rule!() |> Automations.toggle_rule()
-    {:noreply, assign_rules(socket)}
+    case Automations.get_board_rule(socket.assigns.board.id, id) do
+      nil ->
+        {:noreply, socket}
+
+      rule ->
+        {:ok, _} = Automations.toggle_rule(rule)
+        {:noreply, assign_rules(socket)}
+    end
   end
 
   def handle_event("delete_rule", %{"id" => id}, socket) do
-    rule = Automations.get_rule!(id)
-    {:ok, _} = Automations.delete_rule(rule)
+    case Automations.get_board_rule(socket.assigns.board.id, id) do
+      nil ->
+        {:noreply, socket}
 
-    {:noreply,
-     socket
-     |> assign(editing_rule: nil, rule_text: "")
-     |> assign_rules()
-     |> put_flash(:info, "Removed “#{rule.name}”.")}
+      rule ->
+        {:ok, _} = Automations.delete_rule(rule)
+
+        {:noreply,
+         socket
+         |> assign(editing_rule: nil, rule_text: "")
+         |> assign_rules()
+         |> put_flash(:info, "Removed “#{rule.name}”.")}
+    end
   end
 
   # Time-based rules remember what they have already acted on; running one by
   # hand forgets that first, so it can act on the same cards again.
   def handle_event("run_rule", %{"id" => id}, socket) do
-    rule = Automations.get_rule!(id)
-    fired = Automations.run_rule_now(rule)
+    case Automations.get_board_rule(socket.assigns.board.id, id) do
+      nil ->
+        {:noreply, socket}
 
-    message =
-      case fired do
-        0 -> "Nothing matched “#{rule.name}” right now."
-        1 -> "“#{rule.name}” ran once."
-        n -> "“#{rule.name}” ran #{n} times."
-      end
+      rule ->
+        message =
+          case Automations.run_rule_now(rule) do
+            0 -> "Nothing matched “#{rule.name}” right now."
+            1 -> "“#{rule.name}” ran once."
+            n -> "“#{rule.name}” ran #{n} times."
+          end
 
-    {:noreply, socket |> reload_board() |> assign_rules() |> put_flash(:info, message)}
+        {:noreply, socket |> reload_board() |> assign_rules() |> put_flash(:info, message)}
+    end
   end
 
   ## Events: sharing -------------------------------------------------------------
