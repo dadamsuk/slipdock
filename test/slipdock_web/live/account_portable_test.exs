@@ -156,6 +156,22 @@ defmodule SlipdockWeb.AccountPortableTest do
       assert html =~ "not a Slipdock export"
     end
 
+    test "a Trello board's JSON comes in, and says what stayed behind", %{
+      conn: conn,
+      user: user
+    } do
+      {:ok, view, _} = live(conn, ~p"/account/data")
+
+      upload(view, File.read!("test/support/fixtures/trello_board.json"))
+      |> render_upload("boards.json")
+
+      html = view |> element("#import-boards") |> render_submit()
+
+      assert html =~ "5 card(s) and 0 page(s) came in"
+      assert html =~ "archived list on Trello stayed behind"
+      assert length(owned(user)) == 2
+    end
+
     test "a file that is not JSON at all" do
       {:ok, view, _} = live(log_in_user(build_conn(), user_fixture()), ~p"/account/data")
 

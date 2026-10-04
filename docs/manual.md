@@ -1594,6 +1594,38 @@ nobody. An address with no account on the receiving server lands unassigned
 and is named in the report, rather than failing the import on the last card
 because somebody left.
 
+### From Trello
+
+The same upload, `slipdock import` and `POST /api/import` also read a Trello
+board: in Trello, **Menu → Print, export and share → Export as JSON**, and hand
+that file in as it is. It is recognised by its shape; `?from=trello` (or
+`slipdock import board.json --from trello`) says so outright, and the answer
+carries `"source": "trello"`. Everything above still holds — a new board every
+time, rules not firing, the limit answered for the whole file first.
+
+| Trello | Here |
+|---|---|
+| Open lists, in order | Lists — one called *Done*, *Doing*, *To Do* and the like gets that category |
+| Cards, archived ones too | Cards, archived ones archived; *due complete*, or being in a done list, is completed |
+| Labels | Tags — an unnamed label is named after its colour, and labels sharing a name become one tag |
+| Checklists | The card's checklist; several are laid end to end, each item prefixed with its checklist's name |
+| Comments | Comments, oldest first, each opening with who wrote it on Trello and the date |
+| Attachments | Web links |
+| Due and start dates | Due and start dates |
+
+What stays behind, and the answer says so when it applies: **members**,
+because Trello's export carries no email addresses to match anybody with, so
+cards come in unassigned; **archived lists** and the cards on them, since a
+list cannot be put away here and dropping its cards into an open one would
+bring back finished work; and **custom fields**. Files uploaded to Trello come
+in as links that need a Trello login to open. Trello's own export holds only
+the most recent thousand actions, so an old, busy board's oldest comments never
+reach the file.
+
+Other tools are meant to follow the same way: each is a small reader that
+turns its export into this document (`Slipdock.Importers`), so the rules above
+apply to every one of them.
+
 ## Accounts and sharing
 
 Every page needs a signed-in user. The login page asks for an email address and
@@ -2122,6 +2154,7 @@ POST   /api/pages/:id/publish   {published: false to withdraw}   read-only at /w
 GET    /api/boards/:board/pages/export    POST /api/boards/:board/pages/import  {files, overwrite}
 GET    /api/export   ?boards=del,ops &archived=cards|pages|boards|all   board trees as one document
 POST   /api/import   <a document>                       build the trees in it, as new boards
+                     (or a Trello board's JSON; ?from=trello to say so)
 GET    /api/pages/query-vocabulary        the grammar a ```slipdock block is written in
 POST   /api/pages/query    {board, body}  try a block without writing it anywhere
 GET    /api/skills                         GET  /api/skills/:name    GET /api/skills/:name/*file
@@ -2287,6 +2320,7 @@ slipdock page import qvm-v1-rem --dir ~/wiki   # and back in; --overwrite replac
 slipdock export --out boards.json              # every tree you own as one portable document
 slipdock export qvm-v1-rem --archived --out b.json   # one board, archived things included
 slipdock import boards.json                    # build the trees in it; always new boards
+slipdock import trello.json                    # a Trello board's JSON export works too
 slipdock skills | slipdock skills install | slipdock skills check   # the agent instructions this server ships
 slipdock favourites                            # what you keep going back to, with the URL of each
 slipdock fav list qvm-v1-rem "In Progress"     # also: fav card 42 | fav view <board> <view> | fav board <board>

@@ -1588,6 +1588,20 @@ defmodule SlipdockWeb.APIGuide do
     The card limit is answered once, for the whole document, before anything is
     built: a file that will not fit is refused outright rather than stopping
     half way.
+
+    ### From Trello
+
+    `POST /api/import` (and `slipdock import`) also takes a **Trello board's
+    JSON export** as it is — recognised by its shape, or named with
+    `?from=trello` (`--from trello`); an unknown `from` is a 422 rather than a
+    guess. The answer carries `"source": "trello"`. Open lists, cards (archived
+    ones archived), labels as tags, checklists, comments, dates and attachments
+    as web links come across; a list named like *Done* or *Doing* gets that
+    category. Members do **not**: Trello's export has no email addresses, so
+    cards arrive unassigned and `skipped` says so — tell the person rather than
+    assigning anyone yourself. Archived lists and custom fields stay behind,
+    and are named in `skipped` too. The rules above — new boards only, no rules
+    firing, the limit answered first — apply unchanged.
     """
   end
 

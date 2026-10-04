@@ -119,7 +119,9 @@ Briefly, with the detail in [the manual](docs/manual.md):
   Slipdock reads back](docs/manual.md#moving-boards-between-servers): lists,
   cards, subcards, tags, checklists, comments, custom fields, dependencies and
   the wiki. Plus the wiki on its own as a folder of Markdown, and everything
-  you have as a zip. Nothing here is a one-way door.
+  you have as a zip. Nothing here is a one-way door — and boards can arrive
+  too: [a Trello board's JSON export](docs/manual.md#from-trello) imports as
+  it is, lists, cards, labels, checklists and comments.
 - **A JSON API and a CLI** — [everything the UI can do](docs/manual.md#json-api),
   [from the shell](docs/manual.md#cli), plus
   [agent skills](docs/manual.md#skills) the server ships and a
