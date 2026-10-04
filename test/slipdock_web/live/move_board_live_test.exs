@@ -44,12 +44,12 @@ defmodule SlipdockWeb.MoveBoardLiveTest do
 
     backlog = hd(to.columns)
 
-    html =
-      view
-      |> element("button[phx-click=move_card_board][phx-value-column='#{backlog.id}']")
-      |> render_click()
+    view
+    |> element("button[phx-click=move_card_board][phx-value-column='#{backlog.id}']")
+    |> render_click()
 
-    assert html =~ "Moved “Call the printers” to Errands › Backlog."
+    # The flash is the board's, handed over by the picker's component.
+    assert render(view) =~ "Moved “Call the printers” to Errands › Backlog."
     moved = Boards.get_card!(card.id)
     assert moved.board_id == to.id and moved.column_id == backlog.id
 
@@ -73,12 +73,11 @@ defmodule SlipdockWeb.MoveBoardLiveTest do
     |> element("button[phx-click=move_board_pick][phx-value-id='#{to.id}']")
     |> render_click()
 
-    html =
-      view
-      |> element("button[phx-click=move_card_board][phx-value-column='#{hd(to.columns).id}']")
-      |> render_click()
+    view
+    |> element("button[phx-click=move_card_board][phx-value-column='#{hd(to.columns).id}']")
+    |> render_click()
 
-    assert html =~ "1 tag added to Errands"
+    assert render(view) =~ "1 tag added to Errands"
   end
 
   test "picking a board can be undone without leaving the picker", %{
@@ -147,8 +146,11 @@ defmodule SlipdockWeb.MoveBoardLiveTest do
     # There is no menu to open, and asking directly is refused.
     refute has_element?(view, "button[phx-click=open_move_board]")
 
-    html = render_click(view, "open_move_board", %{"id" => to_string(other_card.id)})
-    assert html =~ "read-only access to that card"
+    view
+    |> with_target("#board-move")
+    |> render_click("open_move_board", %{"id" => to_string(other_card.id)})
+
+    assert render(view) =~ "read-only access to that card"
     refute has_element?(view, "#move-board-modal")
     assert Boards.get_card!(other_card.id).board_id == theirs.id
     assert card.board_id

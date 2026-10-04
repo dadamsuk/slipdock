@@ -49,8 +49,8 @@ defmodule SlipdockWeb.SprintsLiveTest do
     view |> element("#sprint-pick-#{b.id}") |> render_click()
     assert render(view) =~ "2 cards ticked"
 
-    html = view |> element("#sprint-add") |> render_click()
-    assert html =~ "Added 2 cards to Sprint 1."
+    view |> element("#sprint-add") |> render_click()
+    assert render(view) =~ "Added 2 cards to Sprint 1."
 
     sub = Boards.get_card!(sprint.id).sub_board
     assert Boards.get_card!(a.id).board_id == sub.id
