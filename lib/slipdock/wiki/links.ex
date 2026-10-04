@@ -115,7 +115,7 @@ defmodule Slipdock.Wiki.Links do
   end
 
   defp target(board, %{kind: :page} = ref, reader) do
-    scope = board_for(board, ref.board)
+    scope = board_for(board, ref.board, reader)
 
     with %Board{} <- scope,
          {:ok, page} <- Slipdock.Wiki.find_page(scope, ref.target),
@@ -137,7 +137,7 @@ defmodule Slipdock.Wiki.Links do
   end
 
   defp target(_board, %{kind: :board} = ref, reader) do
-    with {:ok, found} <- Boards.find_board(ref.target),
+    with {:ok, found} <- find_board(ref.target, reader),
          true <- readable_board?(found, reader) do
       {:board, found}
     else
@@ -146,7 +146,7 @@ defmodule Slipdock.Wiki.Links do
   end
 
   defp target(board, %{kind: :view} = ref, reader) do
-    scope = board_for(board, ref.board)
+    scope = board_for(board, ref.board, reader)
 
     with %Board{} <- scope,
          {:ok, view} <- Boards.find_saved_view(scope, ref.target),
@@ -173,14 +173,19 @@ defmodule Slipdock.Wiki.Links do
   # An unqualified reference means "this board"; a qualified one names
   # another by code or name, and silently resolves to nothing when there is
   # no such board — a typo should not become a link to somewhere else.
-  defp board_for(board, nil), do: board
+  defp board_for(board, nil, _reader), do: board
 
-  defp board_for(_board, ref) do
-    case Boards.find_board(ref) do
+  defp board_for(_board, ref, reader) do
+    case find_board(ref, reader) do
       {:ok, found} -> found
       _ -> nil
     end
   end
+
+  # A reader's names mean their own boards: resolved across the whole server,
+  # somebody else's board with the same name could shadow the one they meant.
+  defp find_board(ref, nil), do: Boards.find_board(ref)
+  defp find_board(ref, %User{} = reader), do: Access.find_board(reader, ref)
 
   defp visible_page?(_page, nil), do: true
 

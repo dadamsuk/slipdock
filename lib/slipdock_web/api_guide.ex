@@ -286,8 +286,11 @@ defmodule SlipdockWeb.APIGuide do
         curl -fsSL #{base}/install.sh | sh
 
     `401` means no token or a dead one — ask for a new one rather than guessing.
-    `403` means the token is good but that board or card is not yours to read or
-    change; say so rather than working around it. Two `403`s name the **token**
+    `403` means the token is good but that board or card is not yours to
+    change; say so rather than working around it. A board you cannot read at
+    all is a `404`, the same as one that does not exist — and a board's name or
+    code only ever means one of yours (or one shared with you), never somebody
+    else's that happens to be called the same. Two `403`s name the **token**
     instead, and mean it is deliberately limited rather than anything being
     broken — report them, do not retry:
 

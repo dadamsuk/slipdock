@@ -12,8 +12,7 @@ defmodule SlipdockWeb.API.CardController do
   @card_fields ~w(title description priority flags start_date due_date date_precision completed percent_complete time_spent time_estimate time_unit log_time color)
 
   def index(conn, %{"board" => ref} = params) do
-    with {:ok, board} <- fetch_board(ref),
-         :ok <- Authorize.board(conn, board, :read),
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :read),
          {:ok, params} <- check_bucket(params, "due", Config.dues()),
          {:ok, params} <- check_bucket(params, "deps", Config.deps()),
          {:ok, params} <- check_bucket(params, "kind", Slipdock.Kinds.card_kinds()) do
@@ -69,8 +68,7 @@ defmodule SlipdockWeb.API.CardController do
   end
 
   def create(conn, %{"board" => ref} = params) do
-    with {:ok, board} <- fetch_board(ref),
-         :ok <- Authorize.board(conn, board, :write),
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :write),
          {:ok, column} <- resolve_column(board, params["column"]),
          {:ok, tags} <- resolve_tags(board, params["tags"]),
          {:ok, assignee} <- resolve_assignees(board, params, conn.assigns.current_user),
@@ -220,8 +218,7 @@ defmodule SlipdockWeb.API.CardController do
   def move(conn, %{"id" => id, "board" => ref} = params) when not is_nil(ref) do
     with {:ok, card} <- fetch_card(id),
          :ok <- Authorize.card(conn, card, :write),
-         {:ok, board} <- fetch_board(ref),
-         :ok <- Authorize.board(conn, board, :write),
+         {:ok, board} <- Authorize.fetch_board(conn, ref, :write),
          {:ok, column} <- resolve_column(board, params["column"]),
          {:ok, summary} <- move_to_board(card, column) do
       json(conn, %{card: V.card(Boards.get_card!(card.id)), moved: Map.delete(summary, :card)})
@@ -449,13 +446,6 @@ defmodule SlipdockWeb.API.CardController do
     if params["add_flags"] || params["remove_flags"],
       do: Map.put(attrs, "flags", flags),
       else: attrs
-  end
-
-  defp fetch_board(ref) do
-    case Boards.find_board(to_string(ref)) do
-      {:ok, board} -> {:ok, board}
-      _ -> {:error, :not_found, "board"}
-    end
   end
 
   # A checklist item or a comment hangs off a card *or* a wiki page (see

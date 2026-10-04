@@ -382,7 +382,7 @@ defmodule SlipdockWeb.API.PagesTest do
                outsider_conn |> get("/api/pages/#{page["id"]}") |> json_response(200)
 
       assert seen["title"] == "Just this doc"
-      assert outsider_conn |> get("/api/boards/apiwiki/pages") |> json_response(403)
+      assert outsider_conn |> get("/api/boards/apiwiki/pages") |> json_response(404)
     end
   end
 end

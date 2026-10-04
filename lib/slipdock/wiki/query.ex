@@ -678,7 +678,13 @@ defmodule Slipdock.Wiki.Query do
   end
 
   defp resolve_boards(ref, context) do
-    case Boards.find_board(String.trim(ref)) do
+    found =
+      case context[:reader] do
+        nil -> Boards.find_board(String.trim(ref))
+        reader -> Access.find_board(reader, String.trim(ref))
+      end
+
+    case found do
       {:ok, board} -> readable([board], context)
       _ -> {:error, "there is no board called #{inspect(ref)}"}
     end

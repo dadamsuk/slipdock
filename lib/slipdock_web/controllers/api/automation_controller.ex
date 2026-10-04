@@ -25,12 +25,7 @@ defmodule SlipdockWeb.API.AutomationController do
   action_fallback SlipdockWeb.API.FallbackController
 
   # Rules act on everyone's cards, so only the board's owner may touch them.
-  defp fetch_board(conn, ref, need) do
-    with {:ok, board} <- find(Boards.find_board(ref), "board"),
-         :ok <- Authorize.board(conn, board, need) do
-      {:ok, board}
-    end
-  end
+  defp fetch_board(conn, ref, need), do: Authorize.fetch_board(conn, ref, need)
 
   defp fetch_rule(conn, board_ref, rule_ref) do
     with {:ok, board} <- fetch_board(conn, board_ref, :owner),

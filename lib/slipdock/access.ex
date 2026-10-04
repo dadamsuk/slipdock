@@ -197,6 +197,68 @@ defmodule Slipdock.Access do
     )
   end
 
+  ## Finding a board by what somebody calls it -------------------------------
+
+  @doc """
+  Finds a board by id, code or name among the boards `user` can read.
+
+  Looking across the whole server instead would get two things wrong: a name
+  somebody else's board also has could shadow the caller's own, and a
+  "forbidden" for a board they cannot see would tell them it exists. So
+  anything the caller cannot read is simply not there.
+  """
+  @spec find_board(User.t() | nil, String.t() | integer) ::
+          {:ok, Board.t()} | {:error, :not_found}
+  def find_board(%User{} = user, ref) do
+    scope = from(b in Board, where: coalesce(b.root_id, b.id) in subquery(reachable_roots(user)))
+
+    ref
+    |> Boards.matching_boards(scope)
+    |> Enum.find(&can_read?(board_permission(user, &1)))
+    |> case do
+      nil -> {:error, :not_found}
+      board -> {:ok, board}
+    end
+  end
+
+  def find_board(_, _ref), do: {:error, :not_found}
+
+  # The roots of every tree the user could read anything in: what they own,
+  # what has been shared with them (a board, a card, a view), and the trees of
+  # anybody whose open support session they hold. A superset — `find_board/2`
+  # still asks `board_permission/2` of each match — but one confined to the
+  # user's own corner of the server, so a name every account shares does not
+  # drag in thousands of rows.
+  defp reachable_roots(%User{} = user) do
+    group_ids = Accounts.group_ids_for(user)
+    now = DateTime.utc_now()
+
+    shared =
+      from(g in Grant,
+        left_join: v in SavedView,
+        on: v.id == g.saved_view_id,
+        left_join: c in Card,
+        on: c.id == g.card_id,
+        where: g.user_id == ^user.id or g.group_id in ^group_ids,
+        select: coalesce(g.board_id, coalesce(v.board_id, c.board_id))
+      )
+
+    supported =
+      from(s in Accounts.SupportSession,
+        join: a in User,
+        on: a.id == s.admin_id and a.admin == true and is_nil(a.disabled_at),
+        where: s.admin_id == ^user.id and is_nil(s.ended_at) and s.expires_at > ^now,
+        select: s.subject_id
+      )
+
+    from(b in Board,
+      where:
+        b.owner_id == ^user.id or b.id in subquery(shared) or
+          (is_nil(b.parent_card_id) and b.owner_id in subquery(supported)),
+      select: coalesce(b.root_id, b.id)
+    )
+  end
+
   ## Listing what a user can see -----------------------------------------------
 
   @doc """

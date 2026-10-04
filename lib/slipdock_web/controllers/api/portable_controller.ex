@@ -15,7 +15,7 @@ defmodule SlipdockWeb.API.PortableController do
   """
   use SlipdockWeb, :controller
 
-  alias Slipdock.{Boards, Importers, Portable}
+  alias Slipdock.{Access, Importers, Portable}
   alias SlipdockWeb.API.Authorize
 
   action_fallback SlipdockWeb.API.FallbackController
@@ -124,10 +124,12 @@ defmodule SlipdockWeb.API.PortableController do
     |> String.split(",", trim: true)
     |> Enum.map(&String.trim/1)
     |> Enum.reduce_while({:ok, []}, fn ref, {:ok, acc} ->
-      with {:ok, board} <- found(Boards.find_board(ref), ref),
-           # Owner, not reader: see the moduledoc.
-           :ok <- Authorize.board(conn, board, :owner) do
-        {:cont, {:ok, acc ++ [board]}}
+      # Owner, not reader: see the moduledoc. And owner of the root, since
+      # that is what gets exported: a sub-board can have an owner of its own.
+      with {:ok, board} <- found(Access.find_board(conn.assigns.current_user, ref), ref),
+           root = Portable.root_of(board),
+           :ok <- Authorize.board(conn, root, :owner) do
+        {:cont, {:ok, acc ++ [root]}}
       else
         error -> {:halt, error}
       end
