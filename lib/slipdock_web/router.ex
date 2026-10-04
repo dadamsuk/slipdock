@@ -374,6 +374,8 @@ defmodule SlipdockWeb.Router do
     delete "/boards/:board/tags/:id", BoardController, :delete_tag
     get "/boards/:board/cards", CardController, :index
     post "/boards/:board/cards", CardController, :create
+    get "/boards/:board/sprints/next", SprintController, :next
+    post "/boards/:board/sprints", SprintController, :create
 
     # The board's wiki (see `Slipdock.Wiki`). `:id` takes a numeric id, a page
     # code like W-31, or board-code/slug.
@@ -446,6 +448,7 @@ defmodule SlipdockWeb.Router do
     post "/cards/:id/status", CardController, :add_status_update
     post "/cards/:id/dependencies", CardController, :add_dependency
     post "/cards/:id/subboard", CardController, :create_sub_board
+    post "/cards/:id/sprint", SprintController, :add
     delete "/cards/:id/subboard", CardController, :delete_sub_board
     delete "/cards/:id/dependencies/:other_id", CardController, :remove_dependency
     post "/checklist/:item_id/toggle", CardController, :toggle_checklist_item

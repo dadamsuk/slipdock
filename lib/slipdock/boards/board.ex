@@ -29,6 +29,12 @@ defmodule Slipdock.Boards.Board do
     field :add_page, :boolean, default: true
     field :add_document, :boolean, default: true
 
+    # What sort of board this is, when it is more than a board: "sprints"
+    # makes every card a sprint and its subcards the sprint's work, and gives
+    # the board New sprint and Add cards… (see `Slipdock.Sprints`). nil for an
+    # ordinary board. Set by a template that carries a kind, or in settings.
+    field :kind, :string
+
     # Put away rather than deleted: an archived board drops off the index, the
     # switcher and quick add, but keeps everything on it. Only root boards are
     # archived — a sub-board goes away with the card it hangs off.
@@ -206,6 +212,18 @@ defmodule Slipdock.Boards.Board do
     |> Enum.find(&(not taken?.(&1)))
   end
 
+  @kinds ~w(sprints)
+
+  @doc "The kinds a board may be, besides an ordinary board (nil)."
+  def kinds, do: @kinds
+
+  @doc "Whether the board is a sprint board: its cards are sprints."
+  def sprints?(%__MODULE__{kind: "sprints"}), do: true
+  def sprints?(_), do: false
+
+  defp blank_to_nil(""), do: nil
+  defp blank_to_nil(value), do: value
+
   def changeset(board, attrs) do
     board
     |> cast(attrs, [
@@ -219,8 +237,11 @@ defmodule Slipdock.Boards.Board do
       :vote_max,
       :add_card,
       :add_page,
-      :add_document
+      :add_document,
+      :kind
     ])
+    |> update_change(:kind, &blank_to_nil/1)
+    |> validate_inclusion(:kind, @kinds, message: "must be one of: #{Enum.join(@kinds, ", ")}")
     |> update_change(:code, &sanitize_code/1)
     |> update_change(:shortcut, &sanitize_shortcut/1)
     |> validate_required([:name, :code])

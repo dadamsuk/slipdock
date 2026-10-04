@@ -18,6 +18,9 @@ defmodule Slipdock.Boards.Template do
     field :description, :string
     field :columns, {:array, :map}, default: []
     field :pages, {:array, :map}, default: []
+    # The kind of board this template makes (see `Slipdock.Boards.Board`'s
+    # `kind`): "Sprint planning" makes sprint boards. nil for most.
+    field :kind, :string
     timestamps(type: :utc_datetime)
   end
 
@@ -38,7 +41,9 @@ defmodule Slipdock.Boards.Template do
       end
 
     template
-    |> cast(attrs, [:name, :description, :columns, :pages])
+    |> cast(attrs, [:name, :description, :columns, :pages, :kind])
+    |> update_change(:kind, &if(&1 == "", do: nil, else: &1))
+    |> validate_inclusion(:kind, Slipdock.Boards.Board.kinds())
     |> update_change(:name, &String.trim/1)
     |> validate_required([:name, :columns])
     |> validate_length(:name, min: 1, max: 60)

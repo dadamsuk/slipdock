@@ -238,6 +238,9 @@ slipdock templates                                        # sets of lists for ne
 slipdock new-template <name> [--desc TEXT] --list "Name[:wip[:color]]"... | slipdock delete-template <t>
 slipdock subboard <card-id> --template T                  # card becomes a board of subcards (prints its id)
 slipdock subboard <card-id> --off                         # remove the subcards
+slipdock sprint <board> [--name N] [--start DATE] [--days N] [--goal TEXT]   # next sprint on a sprint board
+slipdock sprint-add <sprint-id> <card-id>...              # move cards (with subcards) into a sprint
+slipdock set-board <board> --sprints | --no-sprints       # make a board a sprint board (each card a sprint)
 slipdock fav card <id> | fav list <board> <column> | fav view <board> <view> | fav board <board>
 slipdock unfav <same args>                                # or `fav ... --off`
 ```

@@ -89,6 +89,9 @@ defmodule SlipdockCLI.Render do
 
     if b["description"], do: IO.puts(dim(b["description"]))
 
+    if b["kind"] == "sprints",
+      do: IO.puts(dim("sprint board: each card is a sprint — slipdock sprint / sprint-add"))
+
     if b["owner"], do: IO.puts(dim("owner: " <> owner_name(b)))
 
     tags = Enum.map(b["tags"], & &1["name"])
