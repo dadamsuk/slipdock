@@ -781,16 +781,6 @@ defmodule Slipdock.Wiki do
 
   ## Activity -----------------------------------------------------------------
 
-  @doc "Activity entries about pages on a board, newest first."
-  def list_activity(board_id, limit \\ 50) do
-    from(a in Activity,
-      where: a.board_id == ^board_id and not is_nil(a.page_id),
-      order_by: [desc: a.inserted_at, desc: a.id],
-      limit: ^limit
-    )
-    |> Repo.all()
-  end
-
   defp log(board_id, page, kind, message) do
     Repo.insert(%Activity{
       board_id: board_id,

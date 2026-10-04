@@ -38,10 +38,6 @@ defmodule Slipdock.Sprints do
   @doc "How long a sprint is unless told otherwise, in days."
   def default_days, do: @default_days
 
-  @doc "Whether `board` is a sprint board."
-  def sprint_board?(%Board{} = board), do: Board.sprints?(board)
-  def sprint_board?(_), do: false
-
   @doc """
   Whether `card` is a sprint: a card sitting on a sprint board. `board` is
   the card's board when the caller already has it.

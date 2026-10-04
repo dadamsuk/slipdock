@@ -82,7 +82,6 @@ defmodule Slipdock.Accounts do
     user |> User.board_view_changeset(attrs) |> Repo.update()
   end
 
-  def change_email(attrs \\ %{}), do: User.email_changeset(%User{}, attrs)
   def change_profile(%User{} = user, attrs \\ %{}), do: User.profile_changeset(user, attrs)
 
   def count_users, do: Repo.aggregate(User, :count)

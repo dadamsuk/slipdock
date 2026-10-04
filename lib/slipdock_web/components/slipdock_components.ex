@@ -208,9 +208,6 @@ defmodule SlipdockWeb.SlipdockComponents do
     """
   end
 
-  def loaded_assignee(%{assignee: %Slipdock.Accounts.User{} = user}), do: user
-  def loaded_assignee(_), do: nil
-
   attr :users, :list, required: true
   attr :size, :string, default: "sm"
   attr :with_name, :boolean, default: false
@@ -414,8 +411,6 @@ defmodule SlipdockWeb.SlipdockComponents do
       {"At risk", "bg-amber-500/15 text-amber-700 dark:text-amber-300", "hero-hand-raised"},
     "off_track" => {"Off track", "bg-error/15 text-error", "hero-hand-thumb-down"}
   }
-
-  def stated_label(key), do: @stated |> Map.fetch!(key) |> elem(0)
 
   attr :health, :string, required: true, doc: "on_track, at_risk or off_track"
   attr :with_label, :boolean, default: true

@@ -11,7 +11,8 @@ defmodule Slipdock.MixProject do
       aliases: aliases(),
       deps: deps(),
       compilers: [:phoenix_live_view] ++ Mix.compilers(),
-      listeners: [Phoenix.CodeReloader]
+      listeners: [Phoenix.CodeReloader],
+      test_coverage: [tool: Slipdock.Coverage, summary: [threshold: 65]]
     ]
   end
 
