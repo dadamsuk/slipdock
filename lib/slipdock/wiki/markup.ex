@@ -58,7 +58,7 @@ defmodule Slipdock.Wiki.Markup do
     | \{\{(?<inline>[^}\n]{1,200})\}\}
     | (?<![\w#])\#(?<card>\d+)(?![\w-])
     | (?<![\w-])(?<code>[Ww]-\d+)(?![\w-])
-    | (?<![\w@\/])@(?<mention>[a-zA-Z][\w.\-]{0,62})
+    | (?<![\w@\/])@(?<mention>[a-zA-Z](?:[\w.\-]{0,61}\w)?)
   /x
 
   @doc "The directives `[[!…]]` understands."

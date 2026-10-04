@@ -918,10 +918,21 @@ defmodule Slipdock.Wiki.Query do
   defp inline_card_field(card_id, field, context) do
     with %Card{} = card <- Repo.get(Card, card_id),
          true <- readable_card?(card, context[:reader]) do
-      case cell(Repo.preload(card, [:column, :assignee, :assignees, :tags]), field) do
-        "" -> {:ok, ""}
-        text -> {:ok, text}
-      end
+      # Everything a cell reads, or the field quietly answers "".
+      card =
+        Repo.preload(card, [
+          :column,
+          :assignee,
+          :assignees,
+          :tags,
+          :board,
+          :checklist_items,
+          :comments,
+          :blocked_by,
+          :blocks
+        ])
+
+      {:ok, cell(card, field)}
     else
       _ -> :error
     end

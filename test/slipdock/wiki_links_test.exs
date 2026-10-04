@@ -39,6 +39,16 @@ defmodule Slipdock.WikiLinksTest do
       assert %{kind: :mention, target: "jess"} = Enum.at(refs, 10)
     end
 
+    # "Thanks @jess." took the full stop into the name, so a mention at the
+    # end of a sentence never found anybody.
+    test "a mention stops before trailing punctuation" do
+      assert [%{kind: :mention, target: "jess"}] = Markup.refs("Thanks @jess.")
+      assert [%{kind: :mention, target: "jess"}] = Markup.refs("over to @jess-, then")
+      assert [%{kind: :mention, target: "jess.smith"}] = Markup.refs("ask @jess.smith.")
+      assert [%{kind: :mention, target: "j"}] = Markup.refs("@j!")
+      assert "Thanks @jess." |> Markup.tokens() |> Enum.map_join(&Markup.raw/1) == "Thanks @jess."
+    end
+
     test "is lossless: the tokens rebuild the text" do
       text = "a [[X|y]] b #4 c W-9 d @e f"
       assert text |> Markup.tokens() |> Enum.map_join(&Markup.raw/1) == text
@@ -451,6 +461,66 @@ defmodule Slipdock.WikiLinksTest do
 
       assert markdown =~ "[Retry policy](/boards/#{board.id}/wiki/retry-policy)"
       assert markdown =~ "Fix the thing (##{card.id}"
+    end
+  end
+
+  describe "a link row" do
+    alias Slipdock.Wiki.Link
+
+    defp link_changeset(attrs), do: Link.changeset(%Link{}, attrs)
+
+    test "takes a kind it knows, its raw text and exactly one source", %{board: board, user: user} do
+      {:ok, page} = Wiki.create_page(board, %{"title" => "Source"}, user: user)
+
+      changeset = link_changeset(%{kind: "page", raw: "[[X]]", page_id: page.id, label: "x"})
+      assert changeset.valid?
+
+      assert Link.kinds() == ~w(page card board view external)
+
+      for kind <- Link.kinds() do
+        assert link_changeset(%{kind: kind, raw: "r", page_id: page.id}).valid?
+      end
+    end
+
+    test "refuses a missing kind or raw, or a kind it does not know", %{board: board, user: user} do
+      {:ok, page} = Wiki.create_page(board, %{"title" => "Source"}, user: user)
+
+      errors = errors_on(link_changeset(%{page_id: page.id}))
+      assert "can't be blank" in errors.kind
+      assert "can't be blank" in errors.raw
+
+      assert "is invalid" in errors_on(
+               link_changeset(%{kind: "telepathy", raw: "r", page_id: page.id})
+             ).kind
+    end
+
+    test "refuses no source, and refuses two", %{board: board, user: user, column: column} do
+      {:ok, page} = Wiki.create_page(board, %{"title" => "Source"}, user: user)
+      card = card_fixture(column)
+      {:ok, comment} = Slipdock.Boards.add_comment(card, "see [[Source]]")
+
+      assert %{page_id: ["exactly one source must be set"]} =
+               errors_on(link_changeset(%{kind: "page", raw: "r"}))
+
+      assert %{page_id: ["exactly one source must be set"]} =
+               errors_on(
+                 link_changeset(%{
+                   kind: "page",
+                   raw: "r",
+                   page_id: page.id,
+                   source_comment_id: comment.id
+                 })
+               )
+
+      # A comment on its own is a source, with the card it was written on
+      # carried alongside rather than counted as a second one.
+      assert link_changeset(%{
+               kind: "page",
+               raw: "r",
+               source_comment_id: comment.id,
+               source_card_id: card.id,
+               target_page_id: page.id
+             }).valid?
     end
   end
 end
