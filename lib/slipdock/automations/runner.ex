@@ -165,6 +165,9 @@ defmodule Slipdock.Automations.Runner do
 
   defp test("is_set", actual, _), do: present?(actual)
   defp test("is_not_set", actual, _), do: not present?(actual)
+  # A card with no description does not contain "WIP": the negations of a
+  # test hold where the test itself can't, rather than failing alongside it.
+  defp test(op, nil, _value) when op in ~w(is_not none_of not_contains), do: true
   defp test(_op, nil, _value), do: false
 
   defp test("is", actual, value) when is_list(actual), do: any_match?(actual, [value])
@@ -266,23 +269,38 @@ defmodule Slipdock.Automations.Runner do
   `{:ok, label}` / `{:error, reason}`, one per action, in order.
   """
   def run(rule, event, opts \\ []) do
-    card = event[:card] && decorate(event[:card])
     board = Slipdock.Boards.Board |> Repo.get!(rule.board_id) |> Repo.preload(:columns)
-    bindings = variables(event |> Map.merge(%{card: card, board: board, rule: rule}))
 
-    context = %{
-      rule: rule,
-      board: board,
-      card: card,
-      event: event,
-      bindings: bindings,
-      opts: opts
-    }
+    context =
+      with_card(
+        %{rule: rule, board: board, event: event, opts: opts},
+        event[:card] && decorate(event[:card])
+      )
 
+    # Each action sees the card as the one before left it: flagging then
+    # unflagging, or moving then commenting on "{{card.column}}", would
+    # otherwise work from the card as it was when the rule started.
     rule.spec
     |> Spec.actions()
-    |> Enum.map(&perform(&1, context))
+    |> Enum.map_reduce(context, fn action, ctx ->
+      {perform(action, ctx), refresh(ctx)}
+    end)
+    |> elem(0)
   end
+
+  defp with_card(ctx, card) do
+    bindings = variables(Map.merge(ctx.event, %{card: card, board: ctx.board, rule: ctx.rule}))
+    Map.merge(ctx, %{card: card, bindings: bindings})
+  end
+
+  defp refresh(%{card: %Card{id: id}} = ctx) do
+    case Repo.get(Card, id) do
+      nil -> ctx
+      card -> with_card(ctx, decorate(card))
+    end
+  end
+
+  defp refresh(ctx), do: ctx
 
   defp perform(%{"type" => type} = action, context) do
     try do
@@ -429,8 +447,11 @@ defmodule Slipdock.Automations.Runner do
   defp do_perform("add_checklist_items", action, ctx) do
     with {:ok, card} <- need_card(ctx) do
       items = action["items"] |> List.wrap() |> Enum.map(&text(&1, ctx, ""))
-      Enum.each(items, &Boards.add_checklist_item(card, &1))
-      {:ok, "added #{length(items)} checklist items"}
+      added = Enum.count(items, &match?({:ok, _}, Boards.add_checklist_item(card, &1)))
+
+      if added == length(items),
+        do: {:ok, "added #{added} checklist items"},
+        else: {:error, "added #{added} of #{length(items)} checklist items"}
     end
   end
 
@@ -727,6 +748,9 @@ defmodule Slipdock.Automations.Runner do
       "card.status" => if(card.completed, do: "done", else: "open"),
       "card.url" => "#{base_url()}/boards/#{board_id}/cards/#{card.id}"
     }
+    # A card with no due date has an empty one, not a typo: only a
+    # placeholder nobody knows is left showing.
+    |> Map.new(fn {key, value} -> {key, value || ""} end)
   end
 
   # "Ada, Sam" — or nil when nobody is.
