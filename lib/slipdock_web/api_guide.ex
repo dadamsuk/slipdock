@@ -1570,6 +1570,13 @@ defmodule SlipdockWeb.APIGuide do
     would otherwise run every rule four hundred times. An import is history
     arriving, not things happening.
 
+    **A document is checked before anything is built.** A body may be at most
+    8 MB (the Account page's upload too); a sub-board may be claimed by one card
+    only and never be the root; and no one kind of row — lists, folders,
+    checklist items, comments and so on — may run past
+    #{Slipdock.Portable.max_rows()} in a tree. Any of those is a 422 and nothing
+    is imported.
+
     What a document does **not** hold, each for a reason: attachments (bytes
     rather than structure — they stay on the server they were uploaded to),
     votes (a person's budget spent, which means nothing on another server),

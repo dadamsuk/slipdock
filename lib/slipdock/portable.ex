@@ -64,6 +64,11 @@ defmodule Slipdock.Portable do
 
   @format_version 1
 
+  # The most of any one kind of row — lists, folders, checklist items, comments
+  # and so on — a single document may hold. Cards and pages answer to the
+  # quota; these do not, so without a ceiling one card could carry millions.
+  @max_rows 50_000
+
   @doc "The format version this module writes, and the only one it reads."
   def format_version, do: @format_version
 
@@ -190,6 +195,7 @@ defmodule Slipdock.Portable do
 
     with :ok <- check_format(document),
          trees when is_list(trees) <- Map.get(document, :boards, []),
+         :ok <- check_shape(trees),
          :ok <- check_quota(user, trees) do
       Repo.transaction(fn ->
         trees
@@ -205,6 +211,88 @@ defmodule Slipdock.Portable do
     do: {:error, {:unsupported_version, other}}
 
   defp check_format(_), do: {:error, :not_a_slipdock_export}
+
+  @doc "The most rows of any one kind a document may hold."
+  def max_rows, do: @max_rows
+
+  # A document is somebody else's file, so its shape is checked before anything
+  # is built. Sub-boards are reached by following `subcards` from the root, so
+  # a ref that is the root, or that two cards both claim, would build a board
+  # inside itself or build it twice — forever, or 2^depth times. Refusing those
+  # is enough to make the walk finite: every board is then reached at most once.
+  defp check_shape(trees) do
+    Enum.reduce_while(trees, :ok, fn tree, :ok ->
+      case check_tree(tree) do
+        :ok -> {:cont, :ok}
+        error -> {:halt, error}
+      end
+    end)
+  end
+
+  defp check_tree(%{root: %{ref: root_ref}} = tree) do
+    claimed = for card <- rows(tree, :cards), ref = card[:subcards], do: ref
+
+    cond do
+      root_ref in claimed -> {:error, {:bad_sub_board, root_ref}}
+      dup = first_duplicate(claimed) -> {:error, {:bad_sub_board, dup}}
+      true -> check_sizes(tree)
+    end
+  end
+
+  defp check_tree(_), do: {:error, :not_a_slipdock_export}
+
+  defp first_duplicate(refs) do
+    Enum.reduce_while(refs, MapSet.new(), fn ref, seen ->
+      if MapSet.member?(seen, ref), do: {:halt, ref}, else: {:cont, MapSet.put(seen, ref)}
+    end)
+    |> case do
+      %MapSet{} -> nil
+      ref -> ref
+    end
+  end
+
+  defp check_sizes(tree) do
+    boards = [tree.root | rows(tree, :boards)]
+    owners = rows(tree, :cards) ++ rows(tree, :pages)
+
+    counts = [
+      boards: length(boards),
+      lists: Enum.sum(Enum.map(boards, &length(rows(&1, :lists)))),
+      tags: length(rows(tree, :tags)),
+      fields: length(rows(tree, :fields)),
+      folders: length(rows(tree, :folders)),
+      milestones: length(rows(tree, :milestones)),
+      saved_views: length(rows(tree, :saved_views)),
+      checklist: sum_rows(owners, :checklist),
+      comments: sum_rows(owners, :comments),
+      status_updates: sum_rows(owners, :status_updates),
+      urls: sum_rows(owners, :urls),
+      field_values: sum_rows(owners, :fields),
+      dependencies: sum_rows(owners, :blocked_by),
+      links: sum_rows(owners, :links),
+      tags_on_cards: sum_rows(owners, :tags),
+      assignees: sum_rows(owners, :assignees)
+    ]
+
+    case Enum.find(counts, fn {_, count} -> count > @max_rows end) do
+      nil -> :ok
+      {kind, count} -> {:error, {:too_many, kind, count, @max_rows}}
+    end
+  end
+
+  @doc "How a kind of row named in a `{:too_many, kind, …}` refusal reads in a sentence."
+  def row_kind(kind), do: kind |> Atom.to_string() |> String.replace("_", " ")
+
+  defp rows(%{} = doc, key) do
+    case Map.get(doc, key) do
+      list when is_list(list) -> list
+      _ -> []
+    end
+  end
+
+  defp rows(_, _), do: []
+
+  defp sum_rows(docs, key), do: Enum.reduce(docs, 0, &(length(rows(&1, key)) + &2))
 
   # One question asked once, about the whole file. See the moduledoc above for
   # why this is not per card.
@@ -307,6 +395,11 @@ defmodule Slipdock.Portable do
         nil ->
           acc
 
+        # `check_shape/1` has already refused a document that could get here;
+        # this is the backstop, so no ref is ever built twice.
+        %{ref: ref} when is_map_key(acc.boards, ref) ->
+          acc
+
         sub_doc ->
           card_id = acc.cards[card_doc.ref]
           {sub, _} = insert_board(user, sub_doc, card_id, board.root_id || board.id, opts)
@@ -404,31 +497,29 @@ defmodule Slipdock.Portable do
   defp insert_folders!(folders, ids) do
     # Parents first, so a nested folder has somewhere to hang. The document
     # writes them in position order, which is not necessarily parent order, so
-    # this is a fixpoint rather than one pass.
-    Enum.reduce(1..max(length(folders), 1), %{}, fn _, acc ->
-      Enum.reduce(folders, acc, fn folder, acc ->
-        parent_ref = folder[:parent]
+    # walk down from the top-level ones: one insert each, and a folder whose
+    # parent never arrives — or that is its own ancestor — is never reached.
+    children = Enum.group_by(folders, &(&1[:parent] || nil))
+    insert_folder_level!(Map.get(children, nil, []), nil, children, ids, %{})
+  end
 
-        cond do
-          Map.has_key?(acc, folder[:ref]) ->
-            acc
+  defp insert_folder_level!(level, parent_id, children, ids, acc) do
+    Enum.reduce(level, acc, fn folder, acc ->
+      if Map.has_key?(acc, folder[:ref]) do
+        acc
+      else
+        inserted =
+          Repo.insert!(%Folder{
+            board_id: ids.boards[folder[:board]],
+            name: folder[:name],
+            slug: folder[:slug],
+            position: folder[:position] || 0,
+            parent_id: parent_id
+          })
 
-          parent_ref && not Map.has_key?(acc, parent_ref) ->
-            acc
-
-          true ->
-            inserted =
-              Repo.insert!(%Folder{
-                board_id: ids.boards[folder[:board]],
-                name: folder[:name],
-                slug: folder[:slug],
-                position: folder[:position] || 0,
-                parent_id: parent_ref && acc[parent_ref]
-              })
-
-            Map.put(acc, folder[:ref], inserted.id)
-        end
-      end)
+        acc = Map.put(acc, folder[:ref], inserted.id)
+        insert_folder_level!(Map.get(children, folder[:ref], []), inserted.id, children, ids, acc)
+      end
     end)
   end
 
@@ -612,9 +703,16 @@ defmodule Slipdock.Portable do
       end
 
     if renames != %{} do
+      # Only where the code stands as a reference — `[[W-31]]` or a bare `W-31`
+      # on a word boundary — so prose that happens to contain the letters is
+      # left alone. One pattern for every code, so each body is read once and a
+      # new code is never itself rewritten by a later rename.
+      alternatives = renames |> Map.keys() |> Enum.map_join("|", &Regex.escape/1)
+      pattern = Regex.compile!("\\b(?:#{alternatives})\\b")
+
       for doc <- pages, page_id = ids.pages[doc[:ref]] do
         page = Repo.get!(Page, page_id)
-        rewritten = Enum.reduce(renames, page.body || "", &rewrite_code/2)
+        rewritten = Regex.replace(pattern, page.body || "", &Map.fetch!(renames, &1))
 
         if rewritten != page.body do
           page
@@ -625,13 +723,6 @@ defmodule Slipdock.Portable do
     end
 
     :ok
-  end
-
-  defp rewrite_code({old, new}, body) do
-    # Only where the code stands as a reference — `[[W-31]]` or a bare `W-31`
-    # on a word boundary — so prose that happens to contain the letters is
-    # left alone.
-    String.replace(body, ~r/\b#{Regex.escape(old)}\b/, new)
   end
 
   defp link_pages!(pages, ids) do
