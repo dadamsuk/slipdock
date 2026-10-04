@@ -695,6 +695,7 @@ defmodule SlipdockWeb.SlipdockComponents do
   attr :card, :map, required: true
   attr :can_write, :boolean, required: true
   attr :form_key, :integer, default: 0
+  attr :target, :any, default: nil, doc: "the LiveComponent the events go to"
 
   @doc """
   The card panel's time tracking: the unit, time spent and the estimate (each
@@ -724,6 +725,7 @@ defmodule SlipdockWeb.SlipdockComponents do
           type="button"
           id="card-timer-toggle"
           phx-click="card_timer"
+          phx-target={@target}
           phx-value-action={if @running, do: "stop", else: "start"}
           class={[
             "btn btn-xs gap-1",
@@ -752,6 +754,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         as={:card}
         id="card-time-form"
         phx-change="card_change"
+        phx-target={@target}
         class="grid grid-cols-[1fr_1fr_auto] items-end gap-2"
       >
         <label class="block space-y-1">
@@ -823,6 +826,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         :if={@can_write}
         id={"card-log-time-#{@form_key}"}
         phx-submit="log_time"
+        phx-target={@target}
         class="flex gap-2"
       >
         <input

@@ -9,6 +9,10 @@ defmodule SlipdockWeb.ItemComponents do
   or a `Slipdock.Wiki.Page`, and never ask which: the associations line up by
   name, and so do the events the panels handle.
 
+  `target` is the LiveComponent the sections' events go to, when the panel
+  is one (the board's card and page panels are); without it they go to the
+  LiveView.
+
   `form_key` is the counter the panels bump to clear a form after it submits;
   `section_key` is the keyboard shortcut letter, and is left out where the
   page's own view draws these and the shortcuts do not apply.
@@ -29,6 +33,7 @@ defmodule SlipdockWeb.ItemComponents do
   alias Slipdock.{Boards, Votes}
   alias SlipdockWeb.RichText
 
+  attr :target, :any, default: nil, doc: "the LiveComponent the events go to"
   attr :item, :any, required: true
   attr :can_write, :boolean, required: true
   attr :form_key, :integer, default: 0
@@ -65,6 +70,7 @@ defmodule SlipdockWeb.ItemComponents do
           class="group flex items-center gap-2 rounded-lg px-1 py-1 hover:bg-base-200/60"
         >
           <input
+            phx-target={@target}
             type="checkbox"
             class="checkbox checkbox-sm checkbox-success"
             checked={item.done}
@@ -75,6 +81,7 @@ defmodule SlipdockWeb.ItemComponents do
           <span class={["flex-1 text-sm", item.done && "line-through text-base-content/50"]}>{item.text}</span>
           <button
             :if={@can_write}
+            phx-target={@target}
             type="button"
             class="btn btn-ghost btn-xs btn-square opacity-0 group-hover:opacity-100 no-hover:opacity-100"
             phx-click="delete_check"
@@ -87,6 +94,7 @@ defmodule SlipdockWeb.ItemComponents do
       </ul>
       <form
         :if={@can_write}
+        phx-target={@target}
         id={dom_id("add-check-#{@form_key}", @item)}
         phx-submit="add_check"
         class="flex gap-2"
@@ -118,6 +126,7 @@ defmodule SlipdockWeb.ItemComponents do
     {done, total, round(done / total * 100)}
   end
 
+  attr :target, :any, default: nil, doc: "the LiveComponent the events go to"
   attr :item, :any, required: true
   attr :can_write, :boolean, required: true
   attr :form_key, :integer, default: 0
@@ -153,6 +162,7 @@ defmodule SlipdockWeb.ItemComponents do
           </span>
           <button
             :if={@can_write}
+            phx-target={@target}
             type="button"
             class="btn btn-ghost btn-xs btn-square"
             phx-click="remove_card_url"
@@ -168,6 +178,7 @@ defmodule SlipdockWeb.ItemComponents do
       </p>
       <form
         :if={@can_write}
+        phx-target={@target}
         id={dom_id("card-url-form-#{@form_key}", @item)}
         phx-submit="add_card_url"
         class="flex gap-1"
@@ -201,6 +212,7 @@ defmodule SlipdockWeb.ItemComponents do
     end
   end
 
+  attr :target, :any, default: nil, doc: "the LiveComponent the events go to"
   attr :item, :any, required: true
   attr :board, :any, required: true
   attr :current_user, :any, default: nil
@@ -235,6 +247,7 @@ defmodule SlipdockWeb.ItemComponents do
       </h3>
       <form
         :if={@can_write}
+        phx-target={@target}
         id={dom_id("add-comment-#{@form_key}", @item)}
         phx-submit="add_comment"
         phx-change="comment_change"
@@ -278,6 +291,7 @@ defmodule SlipdockWeb.ItemComponents do
               <span class="text-xs text-base-content/50">{relative_time(comment.inserted_at)}</span>
               <button
                 :if={@can_write}
+                phx-target={@target}
                 type="button"
                 class="btn btn-ghost btn-xs btn-square opacity-0 group-hover:opacity-100 no-hover:opacity-100"
                 phx-click="delete_comment"
@@ -298,6 +312,7 @@ defmodule SlipdockWeb.ItemComponents do
     """
   end
 
+  attr :target, :any, default: nil, doc: "the LiveComponent the events go to"
   attr :item, :any, required: true
   attr :can_write, :boolean, required: true
   attr :form_key, :integer, default: 0
@@ -312,6 +327,7 @@ defmodule SlipdockWeb.ItemComponents do
       <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Status updates</span>
       <form
         :if={@can_write}
+        phx-target={@target}
         id={dom_id("status-form-#{@form_key}", @item)}
         phx-submit="add_status_update"
         class="space-y-1.5"
@@ -350,6 +366,7 @@ defmodule SlipdockWeb.ItemComponents do
             </span>
             <button
               :if={@can_write}
+              phx-target={@target}
               type="button"
               class="btn btn-ghost btn-xs btn-square ml-auto"
               phx-click="delete_status_update"
@@ -366,6 +383,7 @@ defmodule SlipdockWeb.ItemComponents do
     """
   end
 
+  attr :target, :any, default: nil, doc: "the LiveComponent the events go to"
   attr :item, :any, required: true
   attr :board, :any, required: true
   attr :can_write, :boolean, required: true
@@ -395,6 +413,7 @@ defmodule SlipdockWeb.ItemComponents do
             <div class="flex items-center gap-0.5">
               <button
                 :for={n <- 1..FieldDefinition.rating_max(field)//1}
+                phx-target={@target}
                 type="button"
                 class={[
                   "text-base leading-none transition hover:scale-110",
@@ -412,6 +431,7 @@ defmodule SlipdockWeb.ItemComponents do
               </button>
               <button
                 :if={is_number(value)}
+                phx-target={@target}
                 type="button"
                 class="btn btn-ghost btn-xs btn-square"
                 phx-click="set_field"
@@ -424,6 +444,7 @@ defmodule SlipdockWeb.ItemComponents do
             </div>
           <% true -> %>
             <form
+              phx-target={@target}
               phx-change="set_field"
               phx-submit="set_field"
               id={dom_id("field-form-#{field.id}", @item)}
@@ -467,6 +488,7 @@ defmodule SlipdockWeb.ItemComponents do
     """
   end
 
+  attr :target, :any, default: nil, doc: "the LiveComponent the events go to"
   attr :item, :any, required: true
   attr :board, :any, required: true
   attr :current_user, :any, default: nil
@@ -502,6 +524,7 @@ defmodule SlipdockWeb.ItemComponents do
         </span>
         <div :if={@current_user} class="join" title="Your votes">
           <button
+            phx-target={@target}
             type="button"
             class="btn btn-xs join-item"
             phx-click="vote"
@@ -513,6 +536,7 @@ defmodule SlipdockWeb.ItemComponents do
           </button>
           <span class="btn btn-xs join-item no-animation cursor-default font-mono">{@mine}</span>
           <button
+            phx-target={@target}
             type="button"
             class="btn btn-xs join-item"
             phx-click="vote"

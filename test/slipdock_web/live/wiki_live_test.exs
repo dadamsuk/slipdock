@@ -7,6 +7,9 @@ defmodule SlipdockWeb.WikiLiveTest do
 
   alias Slipdock.{Access, Boards, Wiki}
 
+  # A placed page's panel is a LiveComponent; what it is pushed goes to it.
+  defp page_panel(view), do: with_target(view, "#board-page")
+
   setup %{user: user} do
     board = board_fixture(%{"name" => "Handbook", "code" => "handbook"}, owner: user)
     %{board: board}
@@ -326,8 +329,9 @@ defmodule SlipdockWeb.WikiLiveTest do
     assert Wiki.get_page!(page.id).column_id == doing.id
     assert Boards.active_items(todo.id) == [card: card.id]
 
-    # And off the board from the tile itself.
-    render_click(view, "unplace_page", %{"id" => page.id})
+    # And off the board from its panel.
+    render_click(view, "open_page", %{"id" => page.id})
+    render_click(page_panel(view), "unplace_page", %{"id" => page.id})
     refute Wiki.get_page!(page.id).column_id
   end
 
@@ -371,10 +375,10 @@ defmodule SlipdockWeb.WikiLiveTest do
     assert reread.percent_complete == 40
     assert reread.due_date == ~D[2026-10-09]
 
-    render_click(view, "page_toggle_flag", %{"flag" => "blocked"})
+    render_click(page_panel(view), "page_toggle_flag", %{"flag" => "blocked"})
     assert Wiki.get_page!(page.id).flags == ["blocked"]
 
-    render_click(view, "page_toggle_flag", %{"flag" => "blocked"})
+    render_click(page_panel(view), "page_toggle_flag", %{"flag" => "blocked"})
     assert Wiki.get_page!(page.id).flags == []
   end
 
@@ -391,7 +395,7 @@ defmodule SlipdockWeb.WikiLiveTest do
     assert html =~ "read-only access to this page"
     refute has_element?(view, "#page-panel-form")
 
-    render_click(view, "page_toggle_flag", %{"flag" => "blocked"})
+    render_click(page_panel(view), "page_toggle_flag", %{"flag" => "blocked"})
     assert Wiki.get_page!(page.id).flags == []
   end
 
@@ -512,8 +516,8 @@ defmodule SlipdockWeb.WikiLiveTest do
       {:ok, view, _} = live(conn, ~p"/boards/#{board}")
       render_click(view, "open_page", %{"id" => page.id})
 
-      render_submit(view, "add_comment", %{"body" => "on the document"})
-      render_submit(view, "add_check", %{"text" => "a page's item"})
+      render_submit(page_panel(view), "add_comment", %{"body" => "on the document"})
+      render_submit(page_panel(view), "add_check", %{"text" => "a page's item"})
 
       page = Slipdock.Repo.preload(Wiki.get_page!(page.id), Wiki.board_preloads())
       assert [%{body: "on the document"}] = page.comments

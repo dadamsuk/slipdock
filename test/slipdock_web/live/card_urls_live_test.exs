@@ -31,18 +31,22 @@ defmodule SlipdockWeb.CardUrlsLiveTest do
 
       assert html =~ ~s{href="https://example.com/spec"}
 
-      refute render_click(view, "remove_card_url", %{"id" => url.id}) =~ "The spec"
+      refute view
+             |> with_target("#board-card")
+             |> render_click("remove_card_url", %{"id" => url.id}) =~ "The spec"
+
       assert Boards.get_card!(card.id).urls == []
     end
 
     test "an address that is not one is refused", %{conn: conn, board: board, card: card} do
       {:ok, view, _} = live(conn, ~p"/boards/#{board}/cards/#{card}")
 
-      html =
-        view
-        |> form("#card-url-form-0", %{"url" => "javascript:alert(1)", "title" => ""})
-        |> render_submit()
+      view
+      |> form("#card-url-form-0", %{"url" => "javascript:alert(1)", "title" => ""})
+      |> render_submit()
 
+      # The refusal is the board's flash, handed over by the card panel.
+      html = render(view)
       assert html =~ "must be a web, file or mail address"
       assert Boards.get_card!(card.id).urls == []
     end

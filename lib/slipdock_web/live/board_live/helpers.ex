@@ -4,7 +4,14 @@ defmodule SlipdockWeb.BoardLive.Helpers do
   formatting, parsing what a form posted, and turning a changeset into words.
   """
 
+  import Phoenix.Component, only: [upload_errors: 2]
+  import Phoenix.LiveView, only: [cancel_upload: 3, push_event: 3]
+
   alias Slipdock.Boards.Attachment
+
+  # Images pasted into a card's description or a comment: the PasteImage hook
+  # is told when one fails, so it can take its placeholder out again.
+  @image_uploads [:desc_image, :comment_image]
 
   @doc """
   A flash from one of the board's LiveComponents. A component's own
@@ -141,4 +148,38 @@ defmodule SlipdockWeb.BoardLive.Helpers do
       [] -> "could not be added"
     end
   end
+
+  @doc """
+  Drops the entries of upload `name` that can't be taken (too big, wrong
+  type) straight away, and says so once, instead of leaving them in the list.
+  Works in the board LiveView and in its components alike.
+  """
+  def drop_invalid_uploads(socket, name) do
+    upload = socket.assigns.uploads[name]
+
+    Enum.reduce(upload.entries, socket, fn entry, socket ->
+      case upload_errors(upload, entry) do
+        [] ->
+          socket
+
+        [err | _] ->
+          socket
+          |> cancel_upload(name, entry.ref)
+          |> flash(:error, "#{entry.client_name} #{upload_error(err)}.")
+          |> image_failed(name)
+      end
+    end)
+  end
+
+  @doc "Tells the PasteImage hook an image upload came to nothing."
+  def image_failed(socket, name) when name in @image_uploads,
+    do: push_event(socket, "image_failed", %{upload: Atom.to_string(name)})
+
+  def image_failed(socket, _name), do: socket
+
+  defp upload_error(:too_large), do: "is too large"
+  defp upload_error(:not_accepted), do: "isn't an image (PNG, JPEG, GIF or WebP)"
+  defp upload_error(:too_many_files), do: "couldn't be added: too many files at once"
+  defp upload_error(:external_client_failure), do: "failed to upload"
+  defp upload_error(other), do: "couldn't be uploaded (#{other})"
 end
