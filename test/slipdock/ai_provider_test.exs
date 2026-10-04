@@ -71,7 +71,9 @@ defmodule Slipdock.AIProviderTest do
       assert {:ok, "ok"} = AI.complete([%{role: "user", content: "hi"}], user: ctx.user)
 
       assert_receive {:called, call}
-      assert call.host == "box.local"
+      # Pinned to the address that was checked, which keeps its own name for
+      # TLS and the Host header (see Slipdock.Egress).
+      assert call.host == Slipdock.EgressStub.public() |> :inet.ntoa() |> to_string()
       assert call.port == 1234
       assert call.path == "/v1/chat/completions"
       # No key of their own and none wanted: nothing is sent.
@@ -214,7 +216,49 @@ defmodule Slipdock.AIProviderTest do
       :ok = Keys.put_settings(ctx.user, %{base_url: "http://box.local:1234/v1"})
 
       assert {:error, message} = AI.models(user: ctx.user)
-      assert message =~ "no such route"
+      assert message =~ "HTTP 404"
+      # What an endpoint someone typed says back is not read out to them.
+      refute message =~ "no such route"
+    end
+
+    test "won't reach a private, loopback or metadata address", ctx do
+      Slipdock.AIStub.stub_models(["local/big"])
+
+      for url <- [
+            "http://127.0.0.1:1234/v1",
+            "http://169.254.169.254/latest",
+            "http://tailnet.test:1234/v1",
+            "http://[::1]:1234/v1",
+            "http://localhost:1234/v1",
+            "http://intranet.test/v1"
+          ] do
+        assert {:error, message} = AI.models(user: ctx.user, base_url: url), url
+        assert message =~ "not a public address"
+      end
+    end
+
+    test "won't take an endpoint with a query string", ctx do
+      assert {:error, message} =
+               AI.models(user: ctx.user, base_url: "https://example.com/v1?x=")
+
+      assert message =~ "query string"
+    end
+
+    test "an admin's own endpoint may be private", ctx do
+      Slipdock.AIStub.stub_models(["local/big"])
+      admin = %{ctx.user | admin: true}
+
+      assert {:ok, [%{id: "local/big"}]} =
+               AI.models(user: admin, base_url: "http://intranet.test:1234/v1")
+    end
+
+    test "SLIPDOCK_EGRESS_ALLOW=all lets anyone use a LAN endpoint", ctx do
+      Slipdock.AIStub.stub_models(["local/big"])
+      previous = Application.get_env(:slipdock, :egress)
+      Application.put_env(:slipdock, :egress, Keyword.put(previous, :allow, :all))
+      on_exit(fn -> Application.put_env(:slipdock, :egress, previous) end)
+
+      assert {:ok, _} = AI.models(user: ctx.user, base_url: "http://intranet.test:1234/v1")
     end
   end
 end

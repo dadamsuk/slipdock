@@ -548,19 +548,131 @@ defmodule Slipdock.AutomationsTest do
       assert Automations.get_rule!(rule.id).last_error =~ "HTTP 503"
     end
 
-    test "a URL that isn't http(s) is refused rather than attempted" do
+    test "a URL that isn't http(s) is refused when the rule is saved" do
+      assert {:error, message} =
+               Spec.validate(%{
+                 "trigger" => %{"type" => "card_created"},
+                 "actions" => [%{"type" => "webhook", "url" => "file:///etc/passwd"}]
+               })
+
+      assert message =~ "not an http(s) URL"
+    end
+
+    test "a private or loopback address is refused when the rule is saved" do
+      for url <- [
+            "http://127.0.0.1:4000/admin",
+            "http://169.254.169.254/latest/meta-data/",
+            "http://0.0.0.0/hook",
+            "http://[::1]/hook",
+            "http://[::ffff:127.0.0.1]/hook",
+            "http://localhost:5432/"
+          ] do
+        assert {:error, message} =
+                 Spec.validate(%{
+                   "trigger" => %{"type" => "card_created"},
+                   "actions" => [%{"type" => "webhook", "url" => url}]
+                 }),
+               url
+
+        assert message =~ "not a public address"
+      end
+    end
+
+    test "placeholders can't choose the host" do
+      assert {:error, message} =
+               Spec.validate(%{
+                 "trigger" => %{"type" => "card_created"},
+                 "actions" => [%{"type" => "webhook", "url" => "https://{{card.title}}/x"}]
+               })
+
+      assert message =~ "host"
+    end
+
+    test "a name that resolves to a private address is refused when called" do
       {board, backlog, _doing, _done} = board_with_lists()
+      stub_callback(200)
+
+      for host <- ~w(intranet.test tailnet.test metadata.test split.test) do
+        rule =
+          rule_fixture(board, %{
+            "trigger" => %{"type" => "card_created"},
+            "actions" => [%{"type" => "webhook", "url" => "http://#{host}/hook"}]
+          })
+
+        card_fixture(backlog)
+
+        refute_received {:callback, _, _, _}
+        assert Automations.get_rule!(rule.id).last_error =~ "not a public address"
+        Automations.delete_rule(rule)
+      end
+    end
+
+    test "a redirect is not followed" do
+      {board, backlog, _doing, _done} = board_with_lists()
+      test = self()
+
+      Req.Test.stub(Slipdock.Automations.Notifier, fn conn ->
+        send(test, {:hit, conn.request_path})
+
+        conn
+        |> Plug.Conn.put_resp_header("location", "http://127.0.0.1/inside")
+        |> Plug.Conn.send_resp(302, "")
+      end)
 
       rule =
         rule_fixture(board, %{
           "trigger" => %{"type" => "card_created"},
-          "actions" => [%{"type" => "webhook", "url" => "file:///etc/passwd"}]
+          "actions" => [%{"type" => "webhook", "url" => "https://example.com/hooks"}]
         })
 
       card_fixture(backlog)
 
-      refute_received {:callback, _, _, _}
-      assert Automations.get_rule!(rule.id).last_error =~ "not an http(s) URL"
+      assert_received {:hit, "/hooks"}
+      refute_received {:hit, "/inside"}
+      assert Automations.get_rule!(rule.id).last_error =~ "redirects are not followed"
+    end
+
+    test "the call goes to the address that was checked, under its own name" do
+      {board, backlog, _doing, _done} = board_with_lists()
+      test = self()
+
+      Req.Test.stub(Slipdock.Automations.Notifier, fn conn ->
+        send(test, {:host, conn.host})
+        Plug.Conn.send_resp(conn, 200, "")
+      end)
+
+      rule_fixture(board, %{
+        "trigger" => %{"type" => "card_created"},
+        "actions" => [%{"type" => "webhook", "url" => "https://hooks.example.com/x"}]
+      })
+
+      card_fixture(backlog)
+
+      assert_received {:host, host}
+      assert host == Slipdock.EgressStub.public() |> :inet.ntoa() |> to_string()
+    end
+
+    test "placeholders in the URL are percent-encoded" do
+      {board, backlog, _doing, _done} = board_with_lists()
+      test = self()
+
+      Req.Test.stub(Slipdock.Automations.Notifier, fn conn ->
+        send(test, {:path, conn.request_path, conn.query_string})
+        Plug.Conn.send_resp(conn, 200, "")
+      end)
+
+      rule_fixture(board, %{
+        "trigger" => %{"type" => "card_created"},
+        "actions" => [
+          %{"type" => "webhook", "url" => "https://example.com/hooks/{{card.title}}?k=1"}
+        ]
+      })
+
+      card_fixture(backlog, %{"title" => "../admin?drop=1#x"})
+
+      assert_received {:path, path, query}
+      assert path == "/hooks/..%2Fadmin%3Fdrop%3D1%23x"
+      assert query == "k=1"
     end
   end
 
@@ -616,13 +728,25 @@ defmodule Slipdock.AutomationsTest do
 
     test "a URL that was never called is logged too" do
       {board, backlog, _doing, _done} = board_with_lists()
-      webhook_rule(board, "ftp://example.com/x")
+      webhook_rule(board, "http://intranet.test/x")
 
       card_fixture(backlog)
 
       assert [call] = Automations.list_callbacks(board.id)
       assert call.status == nil
-      assert call.error =~ "not an http(s) URL"
+      assert call.error =~ "not a public address"
+    end
+
+    test "a transport failure is logged as a category, not the raw error" do
+      {board, backlog, _doing, _done} = board_with_lists()
+
+      Req.Test.stub(Slipdock.Automations.Notifier, &Req.Test.transport_error(&1, :econnrefused))
+
+      webhook_rule(board)
+      card_fixture(backlog)
+
+      assert [call] = Automations.list_callbacks(board.id)
+      assert call.error == "unreachable"
     end
 
     test "a tree rule's calls are logged on the rule's board, not the sub-board" do

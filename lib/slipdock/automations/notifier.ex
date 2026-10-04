@@ -12,6 +12,7 @@ defmodule Slipdock.Automations.Notifier do
 
   import Swoosh.Email
 
+  alias Slipdock.Egress
   alias Slipdock.Mailer
 
   @doc "Sends one plain-text email to every address in `to`."
@@ -38,14 +39,23 @@ defmodule Slipdock.Automations.Notifier do
   so the board's owner can see it went (see `Slipdock.Automations.Callback`).
   A URL that is never called is recorded too: it is still a callback that
   did not arrive.
+
+  Every call goes through `Slipdock.Egress`: no private or loopback
+  addresses, no redirects. What comes back — and what the log shows — is
+  the HTTP status or a broad outcome ("unreachable", "timed out"), never the
+  transport's own error, so the log cannot be read as a port scan.
   """
   def call(url, payload, method \\ nil, log \\ nil) do
     method = method(method)
 
-    if valid_url?(url) do
-      run(fn -> url |> timed_callback(payload, method) |> record(log, url, method) end)
-    else
-      record({{:error, "#{url} is not an http(s) URL"}, nil, nil}, log, url, method)
+    case Egress.prepare(url) do
+      {:ok, pinned, options} ->
+        run(fn ->
+          pinned |> timed_callback(payload, method, options) |> record(log, url, method)
+        end)
+
+      {:error, reason} ->
+        record({{:error, "#{url} #{reason}"}, nil, nil}, log, url, method)
     end
   end
 
@@ -89,9 +99,9 @@ defmodule Slipdock.Automations.Notifier do
     end
   end
 
-  defp timed_callback(url, payload, method) do
+  defp timed_callback(url, payload, method, options) do
     started = System.monotonic_time(:millisecond)
-    {result, status} = send_callback(url, payload, method)
+    {result, status} = send_callback(url, payload, method, options)
     {result, status, System.monotonic_time(:millisecond) - started}
   end
 
@@ -124,11 +134,11 @@ defmodule Slipdock.Automations.Notifier do
     result
   end
 
-  defp send_callback(url, payload, :get),
-    do: request(url: url, method: :get, params: query(payload))
+  defp send_callback(url, payload, :get, options),
+    do: request([url: url, method: :get, params: query(payload)] ++ options)
 
-  defp send_callback(url, payload, method),
-    do: request(url: url, method: method, json: payload)
+  defp send_callback(url, payload, method, options),
+    do: request([url: url, method: method, json: payload] ++ options)
 
   defp request(options) do
     options =
@@ -140,11 +150,18 @@ defmodule Slipdock.Automations.Notifier do
       {:ok, %Req.Response{status: status}} when status in 200..299 ->
         {:ok, status}
 
+      {:ok, %Req.Response{status: status}} when status in 300..399 ->
+        {{:error, "HTTP 3xx (redirects are not followed)"}, status}
+
       {:ok, %Req.Response{status: status}} ->
         {{:error, "HTTP #{status}"}, status}
 
+      {:error, %Req.TransportError{reason: :timeout}} ->
+        {{:error, "timed out"}, nil}
+
       {:error, exception} ->
-        {{:error, Exception.message(exception)}, nil}
+        Logger.info("Callback to #{options[:url]} failed: #{Exception.message(exception)}")
+        {{:error, "unreachable"}, nil}
     end
   end
 
@@ -191,18 +208,6 @@ defmodule Slipdock.Automations.Notifier do
     do: address =~ ~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
   defp valid_email?(_), do: false
-
-  defp valid_url?(url) when is_binary(url) do
-    case URI.parse(url) do
-      %URI{scheme: scheme, host: host} when scheme in ["http", "https"] and is_binary(host) ->
-        true
-
-      _ ->
-        false
-    end
-  end
-
-  defp valid_url?(_), do: false
 
   defp describe(reason) when is_binary(reason), do: reason
   defp describe(reason), do: inspect(reason)

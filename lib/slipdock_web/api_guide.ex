@@ -1029,8 +1029,14 @@ defmodule SlipdockWeb.APIGuide do
     `card.url`, `card.due_date` and so on (lists comma-separated, anything
     unset left out). `status` is `open`, `done` or `archived`. The URL may
     itself carry placeholders, so `https://example.com/hooks/{{card.id}}`
-    works. Only `http`/`https` URLs are called, nothing is retried, and a
-    non-2xx answer never stops the rule's other actions.
+    works — in the path and query only, never the host, and each value is
+    percent-encoded. Only `http`/`https` URLs to public addresses are called:
+    loopback, private, link-local and CGNAT/tailnet addresses are refused
+    (when the rule is saved if the URL names one outright, and on every call
+    after resolving it) unless the server's admin has opened them with
+    `SLIPDOCK_EGRESS_ALLOW`. Redirects are not followed, nothing is retried,
+    and a non-2xx answer never stops the rule's other actions. A call that
+    never got an answer is logged as `unreachable` or `timed out`.
 
     Every call is logged once it finishes — and since calls go out in the
     background, the log is where a failed one shows up:
