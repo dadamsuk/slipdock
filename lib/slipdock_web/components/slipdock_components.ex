@@ -916,12 +916,19 @@ defmodule SlipdockWeb.SlipdockComponents do
     shortcut), `:held` when the card is being carried (the "J" shortcut)
     """
 
+  attr :dismiss, :boolean,
+    default: false,
+    doc: "on a stand-in, offer to dismiss it (the reader can change the board)"
+
   slot :actions,
     doc: """
     controls rendered at the end of the card's title row — the board view's
     "move to another list" menu. Anything in here needs a `phx-click` of its
     own, or the click finds the card's and opens it instead.
     """
+
+  def card(%{card: %{stand_in_for_id: id}} = assigns) when not is_nil(id),
+    do: stand_in_card(assigns)
 
   def card(assigns) do
     card = assigns.card
@@ -1186,6 +1193,130 @@ defmodule SlipdockWeb.SlipdockComponents do
   def kind_icon("document"), do: "hero-paper-clip"
   def kind_icon("page"), do: "hero-document-text"
   def kind_icon(_card), do: "hero-rectangle-stack"
+
+  # A stand-in: what sprint planning leaves where a card it took used to be.
+  # Nothing on it is its own — the title, the sprint and the status are the
+  # real card's, read as the board loads — and opening it opens that card.
+  defp stand_in_card(assigns) do
+    target = loaded(assigns.card.stand_in_for)
+    {label, class, icon} = stand_in_status(target)
+
+    assigns =
+      assign(assigns,
+        title: (target && target.title) || assigns.card.title,
+        where: stand_in_where(target),
+        label: label,
+        status_class: class,
+        status_icon: icon
+      )
+
+    ~H"""
+    <div
+      id={@id || "card-#{@card.id}"}
+      data-id={@card.id}
+      data-stand-in={@card.stand_in_for_id}
+      class={[
+        "kanban-card kanban-stand-in group relative cursor-grab rounded-xl border border-dashed",
+        "border-base-content/20 bg-base-100/60 outline-none transition",
+        "hover:border-primary/40 hover:bg-base-100 active:cursor-grabbing",
+        "focus-visible:ring-2 focus-visible:ring-primary/50",
+        @focus == :cursor && "z-10 ring-2 ring-secondary",
+        @focus == :held && "z-10 scale-[1.02] shadow-lg ring-2 ring-primary"
+      ]}
+      data-focus={@focus}
+      tabindex="0"
+      role="button"
+      title={"Stand-in: this card moved to #{@where || "another board"}. Open it there."}
+      phx-click={JS.push("open_card", value: %{id: @card.id})}
+      phx-keydown={JS.push("open_card", value: %{id: @card.id})}
+      phx-key="Enter"
+    >
+      <div class={["flex items-center gap-2 px-2.5", if(@compact, do: "py-1.5", else: "pt-2")]}>
+        <.icon name="hero-arrow-uturn-right" class="size-3.5 shrink-0 text-base-content/40" />
+        <p
+          class={[
+            "min-w-0 flex-1 truncate font-medium leading-snug text-base-content/70",
+            if(@compact, do: "text-2xs", else: "text-xs")
+          ]}
+          title={@title}
+        >
+          {@title}
+        </p>
+        <span
+          :if={@compact}
+          class={["chip shrink-0 text-2xs", @status_class]}
+          title={stand_in_summary(@where, @label)}
+        >
+          <.icon name={@status_icon} class="size-3" />
+        </span>
+        <span :if={@actions != []} class="-mr-1 shrink-0">{render_slot(@actions)}</span>
+        <button
+          :if={@dismiss}
+          type="button"
+          class="-mr-1 shrink-0 rounded p-0.5 text-base-content/30 opacity-0 transition hover:text-base-content group-hover:opacity-100 focus-visible:opacity-100"
+          phx-click={JS.push("dismiss_stand_in", value: %{id: @card.id})}
+          title="Dismiss this stand-in"
+          aria-label={"Dismiss the stand-in for #{@title}"}
+        >
+          <.icon name="hero-x-mark" class="size-3.5" />
+        </button>
+      </div>
+      <div :if={!@compact} class="flex flex-wrap items-center gap-1 px-2.5 pt-1 pb-2 text-2xs">
+        <span :if={@where} class="chip chip-line max-w-40 truncate text-base-content/60">
+          <.icon name="hero-arrow-right" class="size-3" /> {@where}
+        </span>
+        <span class={["chip", @status_class]}>
+          <.icon name={@status_icon} class="size-3" /> {@label}
+        </span>
+      </div>
+    </div>
+    """
+  end
+
+  defp loaded(%Ecto.Association.NotLoaded{}), do: nil
+  defp loaded(value), do: value
+
+  # Where the real card is now: the sprint holding it, or the board when it
+  # has gone somewhere that is not a sprint's.
+  defp stand_in_where(nil), do: nil
+
+  defp stand_in_where(%{board: board}) do
+    case loaded(board) do
+      nil -> nil
+      %{parent_card: parent} = board -> (loaded(parent) && parent.title) || board.name
+    end
+  end
+
+  defp stand_in_summary(nil, label), do: label
+  defp stand_in_summary(where, label), do: "#{where} · #{label}"
+
+  # The real card's status, from its list's category rather than its list's
+  # name: the two boards' lists need not match, but every board knows what
+  # to-do, doing and done mean.
+  @stand_in_statuses %{
+    deleted: {"Deleted", "chip-line text-base-content/50", "hero-trash"},
+    archived: {"Archived", "chip-line text-base-content/50", "hero-archive-box"},
+    done: {"Done", "bg-success/15 text-success", "hero-check-circle"},
+    doing: {"In progress", "bg-sky-500/15 text-sky-700 dark:text-sky-300", "hero-play-circle"},
+    dropped: {"Dropped", "chip-line text-base-content/50", "hero-x-circle"},
+    todo: {"To do", "chip-line text-base-content/70", "hero-stop-circle"}
+  }
+
+  @doc "The status a stand-in shows for the card it stands for, as `{label, class, icon}`."
+  def stand_in_status(target), do: Map.fetch!(@stand_in_statuses, stand_in_state(target))
+
+  @doc "The same, as a word: deleted, archived, done, doing, dropped or todo."
+  def stand_in_state(nil), do: :deleted
+  def stand_in_state(%{archived_at: at}) when not is_nil(at), do: :archived
+
+  def stand_in_state(target) do
+    case loaded(Map.get(target, :column)) do
+      %{category: "done"} -> :done
+      %{category: "doing"} -> :doing
+      %{category: "dropped"} -> :dropped
+      _ -> if target.completed, do: :done, else: :todo
+    end
+  end
 
   @doc """
   The click that opens an item: a card opens the card, a placed wiki page opens

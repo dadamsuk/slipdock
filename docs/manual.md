@@ -485,6 +485,28 @@ sprint's tree has the same one. Completed and archived cards are not
 offered. On a sprint board itself the cards are other sprints, so they cannot
 be ticked whole; step into one to take what it left unfinished.
 
+**Stand-ins.** A card picked into a sprint leaves a *stand-in* in the slot it
+came from — a dashed tile with the card's title, the sprint it is in and a
+status badge (To do, In progress, Done, Dropped) — so whoever put it on that
+board does not lose track of it. Nothing on the stand-in is its own: the
+title, the sprint and the status are read live from the real card, the
+status from its list's category rather than its list's name, so the two
+boards' lists need not match. Clicking it opens the real card on the sprint's
+board, where its comments, checklist and history are; somebody who can see
+the board it left but not the sprint still sees the title and status, but
+cannot open it.
+
+A stand-in can be dragged about its board and dismissed with its **×**, but
+not edited. It is not work: it does not count towards a list's WIP limit, the
+account's allowance, a parent's rollup or a sprint's burndown, it is not
+offered for sprints or found by search, and automations ignore it. When the
+real card reaches a done list, its stand-in moves to the done list of its own
+board. A card carried over into the next sprint leaves no second stand-in —
+the first one already follows it. Moved back to the board it came from, the
+card takes its stand-in's slot and the stand-in goes. If the real card is
+archived or deleted, the stand-in says so and waits to be dismissed. Exports
+leave stand-ins out.
+
 **Charts.** The **Charts** button in a sprint board's header, or in the
 header of a sprint's own board, opens two charts (anyone who can read the
 board can see them):

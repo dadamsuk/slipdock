@@ -4,7 +4,7 @@ defmodule Slipdock.SprintsTest do
   import Slipdock.Fixtures
 
   alias Slipdock.{Boards, Sprints}
-  alias Slipdock.Boards.Board
+  alias Slipdock.Boards.{Board, Card}
 
   setup do
     {:ok, template} = Boards.find_template("Sprint planning")
@@ -309,6 +309,150 @@ defmodule Slipdock.SprintsTest do
       {:ok, _} = Sprints.add_cards(sprint, [a, b])
 
       assert Sprints.committed(sprint) == %{cards: 2, open: 1, estimate: 120}
+    end
+  end
+
+  describe "stand-ins" do
+    setup %{sprints: sprints, work: work} do
+      {:ok, sprint} = Sprints.create_sprint(sprints)
+      [_backlog, todo | _] = work.columns
+      %{sprint: sprint, todo: todo}
+    end
+
+    defp slot_titles(column_id) do
+      column_id
+      |> Boards.active_items()
+      |> Enum.map(fn {:card, id} -> Slipdock.Repo.get!(Card, id) end)
+      |> Enum.map(&if(&1.stand_in_for_id, do: "→ " <> &1.title, else: &1.title))
+    end
+
+    test "a card pulled into a sprint leaves a stand-in in its slot", %{
+      sprint: sprint,
+      work: work,
+      todo: todo
+    } do
+      owner = Slipdock.Repo.preload(work, :owner).owner
+      _a = card_fixture(todo, %{"title" => "A"})
+      b = card_fixture(todo, %{"title" => "B"})
+      _c = card_fixture(todo, %{"title" => "C"})
+      used = Slipdock.Quota.used(owner)
+
+      assert {:ok, %{added: [moved]}} = Sprints.add_cards(sprint, [b])
+      assert slot_titles(todo.id) == ["A", "→ B", "C"]
+
+      [stand_in] = Boards.stand_ins_for(moved.id)
+      assert stand_in.board_id == work.id
+      assert Card.stand_in?(stand_in)
+
+      # It renders from the real card: its sprint, and where that card is.
+      loaded = Boards.get_card!(stand_in.id)
+      assert loaded.stand_in_for.id == moved.id
+      assert loaded.stand_in_for.board.parent_card.title == sprint.title
+      assert loaded.stand_in_for.column.id == moved.column_id
+      assert SlipdockWeb.SlipdockComponents.stand_in_state(loaded.stand_in_for) == :todo
+
+      # Not one more thing: not quota, not a candidate, not in the rollup.
+      assert Slipdock.Quota.used(owner) == used
+
+      ids =
+        for list <- Sprints.candidates(work, sprint), card <- list.cards, do: card.id
+
+      refute stand_in.id in ids
+      refute Map.has_key?(Boards.rollup(work).stats, stand_in.id)
+      assert Boards.search_cards(work.id, "B") == []
+    end
+
+    test "a stand-in cannot be edited, moved off its board or added to a sprint", %{
+      sprint: sprint,
+      todo: todo
+    } do
+      {:ok, %{added: [moved]}} = Sprints.add_cards(sprint, [card_fixture(todo)])
+      [stand_in] = Boards.stand_ins_for(moved.id)
+
+      assert {:error, changeset} = Boards.update_card(stand_in, %{"title" => "New"})
+      assert changeset.errors[:stand_in_for_id]
+
+      sub = Boards.get_board!(sprint.sub_board.id)
+
+      assert {:error, "A stand-in stays" <> _} =
+               Boards.move_card_to_board(stand_in, hd(sub.columns))
+
+      assert {:ok, %{added: [], skipped: [{_, "it is a stand-in" <> _}]}} =
+               Sprints.add_cards(sprint, [stand_in])
+    end
+
+    test "carried over to the next sprint, a card leaves no second stand-in", %{
+      sprints: sprints,
+      sprint: one,
+      todo: todo
+    } do
+      {:ok, two} = Sprints.create_sprint(sprints)
+      {:ok, %{added: [moved]}} = Sprints.add_cards(one, [card_fixture(todo)])
+      {:ok, %{added: [carried]}} = Sprints.add_cards(two, [Boards.get_card!(moved.id)])
+
+      assert [stand_in] = Boards.stand_ins_for(carried.id)
+      assert stand_in.column_id == todo.id
+
+      loaded = Boards.get_card!(stand_in.id)
+      assert loaded.stand_in_for.board.parent_card.title == two.title
+    end
+
+    test "moved back to its board, the card takes the stand-in's slot", %{
+      sprint: sprint,
+      work: work,
+      todo: todo
+    } do
+      _a = card_fixture(todo, %{"title" => "A"})
+      b = card_fixture(todo, %{"title" => "B"})
+      _c = card_fixture(todo, %{"title" => "C"})
+      {:ok, %{added: [moved]}} = Sprints.add_cards(sprint, [b])
+
+      # Wherever on the board it is sent, the slot is where it goes.
+      last = List.last(work.columns)
+      assert {:ok, %{card: back}} = Boards.move_card_to_board(moved, last)
+      assert back.column_id == todo.id
+      assert slot_titles(todo.id) == ["A", "B", "C"]
+      assert Boards.stand_ins_for(b.id) == []
+    end
+
+    test "reaching a done list takes the stand-in to its board's done list", %{
+      sprint: sprint,
+      work: work,
+      todo: todo
+    } do
+      {:ok, %{added: [moved]}} = Sprints.add_cards(sprint, [card_fixture(todo)])
+      sub = Boards.get_board!(sprint.sub_board.id)
+      sprint_done = Enum.find(sub.columns, &(&1.category == "done"))
+      work_done = Enum.find(work.columns, &(&1.category == "done"))
+
+      :ok = Boards.move_card(moved.id, sprint_done.id)
+
+      [stand_in] = Boards.stand_ins_for(moved.id)
+      assert stand_in.column_id == work_done.id
+      refute stand_in.completed
+    end
+
+    test "a stand-in for a deleted card stays one, pointing at nothing", %{
+      sprint: sprint,
+      todo: todo
+    } do
+      {:ok, %{added: [moved]}} = Sprints.add_cards(sprint, [card_fixture(todo)])
+      [stand_in] = Boards.stand_ins_for(moved.id)
+      {:ok, _} = Boards.delete_card(moved)
+
+      loaded = Boards.get_card!(stand_in.id)
+      assert Card.stand_in?(loaded)
+      assert loaded.stand_in_for == nil
+    end
+
+    test "stand-ins are not exported", %{sprint: sprint, todo: todo} do
+      {:ok, %{added: [moved]}} =
+        Sprints.add_cards(sprint, [card_fixture(todo, %{"title" => "Once"})])
+
+      assert [_] = Boards.stand_ins_for(moved.id)
+
+      document = user_fixture() |> Slipdock.Portable.export() |> Jason.encode!()
+      assert length(Regex.scan(~r/"title":"Once"/, document)) == 1
     end
   end
 

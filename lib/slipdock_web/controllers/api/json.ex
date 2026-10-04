@@ -194,6 +194,7 @@ defmodule SlipdockWeb.API.JSON do
       blocks: dependency_stubs(c.blocks),
       links: links(c),
       sub_board: sub_board_summary(c),
+      stand_in_for: stand_in_for(c),
       checklist: %{
         done: Enum.count(checklist, & &1.done),
         total: length(checklist),
@@ -287,6 +288,21 @@ defmodule SlipdockWeb.API.JSON do
   end
 
   defp rollup(_), do: nil
+
+  # A stand-in names the card it stands for and where that card has got to
+  # (see `SlipdockWeb.SlipdockComponents.stand_in_state/1`); nil on a card.
+  defp stand_in_for(%Card{stand_in_for_id: nil}), do: nil
+
+  defp stand_in_for(%Card{stand_in_for_id: id} = c) do
+    target = if Ecto.assoc_loaded?(c.stand_in_for), do: c.stand_in_for
+
+    %{
+      id: id,
+      title: target && target.title,
+      board_id: target && target.board_id,
+      status: to_string(SlipdockWeb.SlipdockComponents.stand_in_state(target))
+    }
+  end
 
   defp sub_board_summary(%Card{sub_board: %Board{} = b} = c) do
     {done, total} = Card.subcard_progress(c)

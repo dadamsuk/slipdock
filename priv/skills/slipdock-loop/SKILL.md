@@ -93,8 +93,10 @@ field, not priority. The person stacked that list on purpose; priority is a
 tie-breaker at most, and only between cards sharing a position. The filters do
 the skipping for you: `--open` drops completed cards, `--deps ready` drops
 anything waiting on an unfinished card, `--no-assignee` drops other people's
-work. Also skip anything already flagged `blocked` or `waiting`, and anything a
-previous pass in this session flagged `review` and handed back.
+work. Also skip anything already flagged `blocked` or `waiting`, anything a
+previous pass in this session flagged `review` and handed back, and every
+stand-in (`↪stand-in-for:#N`, `stand_in_for` in the JSON): it marks where a
+card went into a sprint, and the work is that card, not the stand-in.
 
 Read the whole card before touching it: `slipdock card <id>` for the description,
 checklist, comments, dependencies, links and whether it has subcards. The

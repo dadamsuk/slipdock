@@ -246,7 +246,7 @@ slipdock new-template <name> [--desc TEXT] --list "Name[:wip[:color]]"... | slip
 slipdock subboard <card-id> --template T                  # card becomes a board of subcards (prints its id)
 slipdock subboard <card-id> --off                         # remove the subcards
 slipdock sprint <board> [--name N] [--start DATE] [--days N] [--goal TEXT]   # next sprint on a sprint board
-slipdock sprint-add <sprint-id> <card-id>...              # move cards (with subcards) into a sprint
+slipdock sprint-add <sprint-id> <card-id>...              # move cards (with subcards) into a sprint; each leaves a stand-in (↪stand-in-for:#N) — never work or edit a stand-in, act on the card it names
 slipdock sprint-sources <board> [<board>[:list,list]]... [--clear]   # where a sprint board plans from (no args: show)
 slipdock sprint-plan <sprint-id> [--sort score|priority|estimate]   # source lists' open cards: priority, scores, votes, estimates, committed
 slipdock burndown <sprint-id>                             # a sprint's work left each day vs the ideal

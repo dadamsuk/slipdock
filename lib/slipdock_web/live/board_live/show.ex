@@ -58,7 +58,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   # on is not the open board or the open card: a card named by id, a page,
   # another board, a sprint picked from several boards.
   @self_checked_events ~w(share revoke_grant toggle_complete table_update prio_field prio_vote timeline_move
-    timeline_schedule cal_move toggle_favourite)
+    timeline_schedule cal_move toggle_favourite dismiss_stand_in)
   # Events that change nothing stored: filters, panels opening and closing,
   # forms being typed into, the keyboard's place on the board.
   @read_events ~w(search filter_tag filter_kind filter_priority filter_flag filter_due
@@ -337,6 +337,9 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   defp apply_panel(socket, :card, %{"card_id" => card_id}) do
     case load_card(socket.assigns.board, card_id) do
+      {:ok, %Card{stand_in_for_id: target} = stand_in} when not is_nil(target) ->
+        socket |> push_patch(to: socket.assigns.paths.close) |> open_stand_in(stand_in)
+
       {:ok, card} ->
         socket |> assign(card: card) |> assign_card_access()
 
@@ -354,6 +357,24 @@ defmodule SlipdockWeb.BoardLive.Show do
   defp apply_panel(socket, :automations, _), do: socket
 
   defp apply_panel(socket, :settings, _), do: socket
+
+  # Opening a stand-in opens the card it stands for, on that card's own board
+  # — for a reader who may see it there. One who may not still has the
+  # stand-in's title and status, which is all it was ever going to say.
+  defp open_stand_in(socket, %Card{stand_in_for_id: target_id}) do
+    case Boards.get_card(target_id) do
+      nil ->
+        put_flash(socket, :info, "The card this stood for has been deleted.")
+
+      %Card{archived_at: at} when not is_nil(at) ->
+        put_flash(socket, :info, "The card this stood for has been archived.")
+
+      target ->
+        if Access.can_read?(Access.card_permission(socket.assigns.current_user, target)),
+          do: push_navigate(socket, to: ~p"/boards/#{target.board_id}/cards/#{target.id}"),
+          else: put_flash(socket, :info, "That card is on a board you can't open.")
+    end
+  end
 
   ## Paths: every panel is reachable from both modes, and in swimlane mode
   ## the view configuration travels along in the query string.
@@ -751,7 +772,25 @@ defmodule SlipdockWeb.BoardLive.Show do
   end
 
   def handle_event("open_card", %{"id" => id}, socket) do
-    {:noreply, push_patch(socket, to: card_path(socket.assigns, id))}
+    case Boards.get_card(Params.id(id)) do
+      %Card{stand_in_for_id: target} = stand_in when not is_nil(target) ->
+        {:noreply, open_stand_in(socket, stand_in)}
+
+      _ ->
+        {:noreply, push_patch(socket, to: card_path(socket.assigns, id))}
+    end
+  end
+
+  # A stand-in has nothing to show of its own, so it is dismissed rather than
+  # archived: there is nothing in it to bring back.
+  def handle_event("dismiss_stand_in", %{"id" => id}, socket) do
+    with {:ok, %Card{stand_in_for_id: target} = stand_in} when not is_nil(target) <-
+           writable_card(socket, id),
+         {:ok, _} <- Boards.delete_card(stand_in) do
+      {:noreply, reload_board(socket)}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "That stand-in couldn't be dismissed.")}
+    end
   end
 
   # A list holds cards and, sometimes, wiki pages placed on the board. The

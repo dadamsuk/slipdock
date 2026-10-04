@@ -320,6 +320,22 @@ defmodule Slipdock.Boards do
     ]
   end
 
+  # What a stand-in shows of the card it stands for: where that card is now
+  # (its list's category, not its list's name, since the two boards' lists
+  # need not match) and the sprint holding it.
+  defp stand_in_target_query do
+    from(c in Card, select: [:id, :title, :completed, :archived_at, :board_id, :column_id])
+  end
+
+  defp stand_in_target_preloads do
+    [
+      column: from(c in Column, select: [:id, :name, :category, :board_id]),
+      board:
+        {from(b in Board, select: [:id, :name, :parent_card_id, :root_id]),
+         parent_card: from(c in Card, select: [:id, :title, :board_id])}
+    ]
+  end
+
   defp card_preloads do
     [
       :tags,
@@ -336,7 +352,8 @@ defmodule Slipdock.Boards do
       links_in: {link_query(), from: {link_stub_query(), [board: board_stub_query()]}},
       blocked_by: dependency_query(),
       blocks: dependency_query(),
-      sub_board: {sub_board_query(), sub_board_preloads()}
+      sub_board: {sub_board_query(), sub_board_preloads()},
+      stand_in_for: {stand_in_target_query(), stand_in_target_preloads()}
     ]
   end
 
@@ -1226,7 +1243,21 @@ defmodule Slipdock.Boards do
   end
 
   @doc "Changes a card. `opts[:by]` as for `create_card/3`."
-  def update_card(%Card{} = card, attrs, opts \\ []) do
+  def update_card(card, attrs, opts \\ [])
+
+  # A stand-in has nothing of its own to change: everything it shows is the
+  # real card's, and that is where a change belongs.
+  def update_card(%Card{stand_in_for_id: id} = card, _attrs, _opts) when not is_nil(id) do
+    {:error,
+     card
+     |> Ecto.Changeset.change()
+     |> Ecto.Changeset.add_error(
+       :stand_in_for_id,
+       "is a stand-in for card ##{id} — change that card instead"
+     )}
+  end
+
+  def update_card(%Card{} = card, attrs, opts) do
     {assignees, attrs} = assignee_change(card, attrs)
     attrs = Slipdock.TimeTracking.normalize_attrs(card, attrs)
     # Who was on it, read only when this write changes that.
@@ -1631,6 +1662,7 @@ defmodule Slipdock.Boards do
       log(Repo, card.board_id, card.id, "card", "moved “#{card.title}” to #{to_column.name}")
       from_column = Repo.get!(Column, card.column_id)
       apply_column_semantics(Repo.get!(Card, card.id), from_column, to_column)
+      follow_stand_ins(card, from_column, to_column)
 
       automate(%{
         type: "card_moved",
@@ -1695,6 +1727,84 @@ defmodule Slipdock.Boards do
     end
   end
 
+  ## Stand-ins -----------------------------------------------------------------
+
+  @doc """
+  Leaves a stand-in for `card` where it was: on its board, in its list,
+  before `before` (the item that followed it — see `item_ref/1`), or at the
+  end when that has gone. `card` is the card as it was *before* it moved.
+
+  The stand-in is inserted directly rather than through `create_card/3`: it
+  is not new work, so it is not checked against the owner's allowance,
+  indexed for search, or handed to automations.
+  """
+  def leave_stand_in(%Card{} = card, before \\ nil) do
+    stand_in =
+      Repo.insert!(%Card{
+        title: card.title,
+        board_id: card.board_id,
+        column_id: card.column_id,
+        position: next_position(from(c in Card, where: c.column_id == ^card.column_id)),
+        stand_in_for_id: card.id
+      })
+
+    reorder({:card, stand_in.id}, card.column_id, card.column_id, before)
+    log(Repo, card.board_id, stand_in.id, "card", "left a stand-in for “#{card.title}”")
+    broadcast(card.board_id)
+    {:ok, Repo.get!(Card, stand_in.id)}
+  end
+
+  @doc "The item after `card` in its list, or nil: where a stand-in for it goes."
+  def item_after(%Card{} = card) do
+    card.column_id
+    |> active_items()
+    |> Enum.drop_while(&(&1 != {:card, card.id}))
+    |> Enum.at(1)
+  end
+
+  @doc "The live stand-ins for `card_id`, wherever they are."
+  def stand_ins_for(card_id) do
+    Repo.all(from(c in Card, where: c.stand_in_for_id == ^card_id and is_nil(c.archived_at)))
+  end
+
+  defp stand_in_on(card_id, board_id) do
+    Repo.one(
+      from(c in Card,
+        where:
+          c.stand_in_for_id == ^card_id and c.board_id == ^board_id and is_nil(c.archived_at),
+        order_by: [asc: c.id],
+        limit: 1
+      )
+    )
+  end
+
+  # A card that reaches a done list takes its stand-ins to the done list of
+  # their own boards, so the board it was taken from sees it finished where
+  # it would look. Mapped by category, never by list name; a board with no
+  # done list keeps its stand-in where it is.
+  defp follow_stand_ins(%Card{} = card, %Column{} = from, %Column{} = to) do
+    if Column.done?(to) and not Column.done?(from) and not Card.stand_in?(card) do
+      for stand_in <- stand_ins_for(card.id),
+          done = done_column(stand_in.board_id),
+          done && done.id != stand_in.column_id do
+        reorder({:card, stand_in.id}, stand_in.column_id, done.id, nil)
+        broadcast(stand_in.board_id)
+      end
+    end
+
+    :ok
+  end
+
+  defp done_column(board_id) do
+    Repo.one(
+      from(c in Column,
+        where: c.board_id == ^board_id and c.category == "done",
+        order_by: [asc: c.position],
+        limit: 1
+      )
+    )
+  end
+
   ## Moving a card to another board -------------------------------------------
 
   @doc """
@@ -1727,6 +1837,9 @@ defmodule Slipdock.Boards do
       not is_nil(card.archived_at) ->
         {:error, "Restore the card before moving it."}
 
+      Card.stand_in?(card) ->
+        {:error, "A stand-in stays on its own board — move the card it stands for instead."}
+
       to_column.board_id == card.board_id ->
         move_card(card.id, to_column.id)
         {:ok, empty_move_summary(Repo.get!(Card, card.id))}
@@ -1753,7 +1866,9 @@ defmodule Slipdock.Boards do
 
       cards =
         Repo.aggregate(
-          from(c in Card, where: c.id in ^card_ids and is_nil(c.archived_at)),
+          from(c in Card,
+            where: c.id in ^card_ids and is_nil(c.archived_at) and is_nil(c.stand_in_for_id)
+          ),
           :count
         )
 
@@ -1780,6 +1895,10 @@ defmodule Slipdock.Boards do
   end
 
   defp do_move_card_to_board(%Card{} = card, %Column{} = to_column) do
+    # Back to a board that kept a stand-in for it: the card takes the
+    # stand-in's slot, and the stand-in goes.
+    slot = stand_in_on(card.id, to_column.board_id)
+    to_column = if slot, do: Repo.get!(Column, slot.column_id), else: to_column
     from_column = Repo.get!(Column, card.column_id)
     from_board = Repo.get!(Board, card.board_id)
     to_board = Repo.get!(Board, to_column.board_id)
@@ -1792,12 +1911,19 @@ defmodule Slipdock.Boards do
       Repo.transaction(fn ->
         repack(List.delete(active_items(card.column_id), {:card, card.id}), card.column_id)
 
+        position =
+          if slot,
+            do: slot.position,
+            else: next_position(from(c in Card, where: c.column_id == ^to_column.id))
+
+        if slot, do: Repo.delete!(slot)
+
         moved =
           card
           |> Ecto.Changeset.change(
             board_id: to_board.id,
             column_id: to_column.id,
-            position: next_position(from(c in Card, where: c.column_id == ^to_column.id))
+            position: position
           )
           |> Repo.update!()
 
@@ -1842,6 +1968,7 @@ defmodule Slipdock.Boards do
     )
 
     apply_column_semantics(moved, from_column, to_column)
+    follow_stand_ins(moved, from_column, to_column)
 
     # The board a chunk records is what decides who may search it up, so the
     # moved card and everything beneath it are corrected inline rather than
@@ -2262,6 +2389,7 @@ defmodule Slipdock.Boards do
       join: b in Board,
       on: b.id == c.board_id,
       where: (b.id in ^root_ids or b.root_id in ^root_ids) and is_nil(c.archived_at),
+      where: is_nil(c.stand_in_for_id),
       where: ilike(c.title, ^like) and c.id not in ^except,
       order_by: [asc: c.title],
       limit: ^limit,
@@ -2276,6 +2404,7 @@ defmodule Slipdock.Boards do
 
     from(c in Card,
       where: c.board_id == ^board_id and is_nil(c.archived_at) and c.id not in ^except,
+      where: is_nil(c.stand_in_for_id),
       where: like(fragment("lower(?)", c.title), ^like),
       order_by: [asc: c.completed, asc: c.title],
       limit: ^limit,
@@ -2540,6 +2669,8 @@ defmodule Slipdock.Boards do
   # runs the rules whose trigger matches. Rules change cards in turn, so this
   # is re-entrant by design; the guard against rules chasing each other round
   # in circles lives there.
+  # A stand-in is not work, so nothing it does is an event a rule should see.
+  defp automate(%{card: %Card{stand_in_for_id: id}}) when not is_nil(id), do: :ok
   defp automate(event), do: Slipdock.Automations.dispatch(event)
 
   # One update can be several events: the fields that changed, plus the ones

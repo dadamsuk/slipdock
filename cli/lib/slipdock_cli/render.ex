@@ -192,6 +192,7 @@ defmodule SlipdockCLI.Render do
               )
         ),
         if(c["sub_board"], do: "⊞#{c["sub_board"]["completed"]}/#{c["sub_board"]["total"]}"),
+        stand_in_text(c["stand_in_for"]),
         if((c["blocks"] || []) != [],
           do: "blocks:" <> Enum.map_join(c["blocks"], ",", &"##{&1["id"]}")
         ),
@@ -206,6 +207,14 @@ defmodule SlipdockCLI.Render do
 
     "#" <> String.pad_trailing(to_string(c["id"]), 4) <> done <> title <> "  " <> dim(meta)
   end
+
+  # A stand-in sprint planning left where a card used to be: which card it
+  # stands for, and how that card is doing.
+  defp stand_in_text(nil), do: nil
+  defp stand_in_text(s), do: "↪stand-in-for:##{s["id"]}(#{s["status"]})"
+
+  defp stand_in_where(%{"board_id" => id}) when not is_nil(id), do: " on board ##{id}"
+  defp stand_in_where(_), do: ""
 
   @time_suffix %{
     "minutes" => "m",
@@ -314,6 +323,10 @@ defmodule SlipdockCLI.Render do
           "#{if d["pinned"], do: "★ ", else: ""}#{d["code"]} #{d["title"]}"
         end)
       )
+    end
+
+    if s = c["stand_in_for"] do
+      field("Stand-in", "for ##{s["id"]}" <> stand_in_where(s) <> " · #{s["status"]}")
     end
 
     if sb = c["sub_board"] do
