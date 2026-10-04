@@ -176,6 +176,20 @@ defmodule SlipdockWeb.AuthLiveTest do
       assert Boards.get_board!(ctx.board.id).name == "Owned"
     end
 
+    test "the settings form cannot change who owns the board", ctx do
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/settings")
+
+      for owner_id <- [to_string(ctx.other.id), ""] do
+        render_hook(view, "save_board", %{
+          "board" => %{"name" => "Renamed", "owner_id" => owner_id}
+        })
+
+        board = Boards.get_board!(ctx.board.id)
+        assert board.name == "Renamed"
+        assert board.owner_id == ctx.user.id
+      end
+    end
+
     test "a single shared card is reachable without board access", ctx do
       {:ok, _} = Access.grant(ctx.card, ctx.other, "write", ctx.user)
       {:ok, index, html} = live(ctx.other_conn, ~p"/")

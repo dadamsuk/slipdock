@@ -13,16 +13,18 @@ defmodule Slipdock.AccessTest do
     %{owner: owner, other: other, board: board, card: card}
   end
 
-  test "owner, stranger, and unclaimed legacy boards", ctx do
+  test "owner and stranger", ctx do
     assert Access.board_permission(ctx.owner, ctx.board) == :owner
     assert Access.board_permission(ctx.other, ctx.board) == :none
     assert Access.card_permission(ctx.other, ctx.card) == :none
     assert Access.board_permission(nil, ctx.board) == :none
+  end
 
-    {:ok, legacy} = Boards.create_board(%{"name" => "Legacy"})
-    assert Access.board_permission(ctx.other, legacy) == :owner
-    assert Access.claim_unowned_boards(ctx.owner) == 1
-    assert Boards.get_board!(legacy.id).owner_id == ctx.owner.id
+  test "a board with no owner is nobody's, not everybody's", ctx do
+    ownerless = %{ctx.board | owner_id: nil}
+    assert Access.board_permission(ctx.other, ownerless) == :none
+    assert Access.board_permission(ctx.owner, ownerless) == :none
+    assert Access.visible_users_for(ownerless) == []
   end
 
   test "board grants to users and groups, and listing", ctx do

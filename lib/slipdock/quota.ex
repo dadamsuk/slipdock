@@ -356,8 +356,8 @@ defmodule Slipdock.Quota do
     do: check_board(Board.root_id(board), dimension, want)
 
   def check_board(board_id, dimension, want) when is_integer(board_id) do
-    # Nothing to count against on an unowned board — those predate accounts and
-    # belong to whoever claims them.
+    # Nothing to count against on an unowned board — and nothing to fear from
+    # one either, since `Slipdock.Access` lets nobody at all into it.
     case owner_of(board_id) do
       nil -> :ok
       owner -> check(owner, dimension, want)

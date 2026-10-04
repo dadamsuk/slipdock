@@ -85,12 +85,12 @@ defmodule SlipdockWeb.BoardLive.Index do
         id -> Enum.find(socket.assigns.templates, &(to_string(&1.id) == id))
       end
 
-    params =
-      params
-      |> Map.put("color", socket.assigns.new_color)
-      |> Map.put("owner_id", socket.assigns.current_user.id)
+    params = Map.put(params, "color", socket.assigns.new_color)
 
-    case Boards.create_board(params, template: template) do
+    case Boards.create_board(params,
+           template: template,
+           owner_id: socket.assigns.current_user.id
+         ) do
       {:ok, board} ->
         {:noreply, push_navigate(socket, to: ~p"/boards/#{board}")}
 

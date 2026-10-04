@@ -381,8 +381,8 @@ defmodule SlipdockWeb.APIGuide do
       characters that jump to the board in the web app (the user presses `b`,
       then that key). It is settable, but it does not address anything — do
       not use it in a URL. A board belongs to one person: `owner` names them
-      (`{"id", "email", "name"}`, and null on a board made before accounts
-      existed), and `shared` is true when that person is somebody other than
+      (`{"id", "email", "name"}`; it is fixed when the board is made and no
+      request changes it), and `shared` is true when that person is somebody other than
       you — a board you reach through a grant rather than your own. Say whose
       board it is when you name one that is not theirs.
     - **List** (a column) — ordered, and carrying a `category`: `todo`,

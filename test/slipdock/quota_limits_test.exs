@@ -189,7 +189,7 @@ defmodule Slipdock.QuotaLimitsTest do
       assert Quota.used(owner, :boards) == 1
 
       assert {:error, changeset} =
-               Boards.create_board(%{"name" => "Another", "owner_id" => owner.id})
+               Boards.create_board(%{"name" => "Another"}, owner_id: owner.id)
 
       assert Quota.limit_kind(changeset) == :boards
     end
@@ -210,13 +210,13 @@ defmodule Slipdock.QuotaLimitsTest do
       {:ok, _} = Boards.archive_board(board)
 
       assert Quota.used(owner, :boards) == 0
-      assert {:ok, _} = Boards.create_board(%{"name" => "Next", "owner_id" => owner.id})
+      assert {:ok, _} = Boards.create_board(%{"name" => "Next"}, owner_id: owner.id)
     end
 
-    test "a board nobody owns is not counted against anybody" do
+    test "a board nobody owns is refused, not let through uncounted" do
       settings(%{"board_limit" => 1})
-      assert {:ok, _} = Boards.create_board(%{"name" => "Ownerless"})
-      assert {:ok, _} = Boards.create_board(%{"name" => "Also ownerless"})
+      assert {:error, changeset} = Boards.create_board(%{"name" => "Ownerless"})
+      assert {"can't be blank", _} = changeset.errors[:owner_id]
     end
   end
 

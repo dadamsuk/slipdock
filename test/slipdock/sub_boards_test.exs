@@ -40,7 +40,10 @@ defmodule Slipdock.SubBoardsTest do
 
   test "boards can be created from a template and saved back as one" do
     {:ok, t} = Boards.find_template("Checklist")
-    {:ok, board} = Boards.create_board(%{"name" => "From template"}, template: t)
+
+    {:ok, board} =
+      Boards.create_board(%{"name" => "From template"}, template: t, owner_id: user_fixture().id)
+
     board = Boards.get_board!(board.id)
     assert Enum.map(board.columns, & &1.name) == ["Open", "Done"]
     assert board.template_id == t.id
@@ -90,7 +93,7 @@ defmodule Slipdock.SubBoardsTest do
     # Only root boards are listed; the sub-board is found by id, roots win by name.
     assert Enum.map(Boards.list_boards(), & &1.id) |> Enum.member?(board.id)
     refute Enum.map(Boards.list_boards(), & &1.id) |> Enum.member?(sub.id)
-    {:ok, dup} = Boards.create_board(%{"name" => "Epic"})
+    {:ok, dup} = Boards.create_board(%{"name" => "Epic"}, owner_id: user_fixture().id)
     assert {:ok, %Board{id: dup_id}} = Boards.find_board("epic")
     assert dup_id == dup.id
 

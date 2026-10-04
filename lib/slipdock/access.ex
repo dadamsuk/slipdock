@@ -43,10 +43,6 @@ defmodule Slipdock.Access do
       board.owner_id == user.id ->
         :owner
 
-      is_nil(board.owner_id) ->
-        # Legacy boards created before accounts existed: open until claimed.
-        :owner
-
       true ->
         direct = grant_level(user, board_id: board.id)
 
@@ -234,7 +230,7 @@ defmodule Slipdock.Access do
 
     from(b in Board,
       where: is_nil(b.parent_card_id),
-      where: b.owner_id == ^user.id or is_nil(b.owner_id) or b.id in ^granted_board_ids,
+      where: b.owner_id == ^user.id or b.id in ^granted_board_ids,
       order_by: [asc: b.inserted_at]
     )
     |> scope_to_token(opts[:token])
@@ -342,16 +338,15 @@ defmodule Slipdock.Access do
   on, and scoping to them is what stops a rule — or a model prompt built from
   one — naming people the board's owner has never shared anything with.
 
-  A board with no owner (one made before accounts existed) falls back to
-  everybody, which is what it did before and is no worse than it was.
+  A board with no owner names nobody.
   """
   @spec visible_users_for(Board.t()) :: [User.t()]
-  def visible_users_for(%Board{owner_id: nil}), do: Accounts.list_users()
+  def visible_users_for(%Board{owner_id: nil}), do: []
 
   def visible_users_for(%Board{owner_id: owner_id}) do
     case Repo.get(User, owner_id) do
       %User{} = owner -> visible_users(owner)
-      nil -> Accounts.list_users()
+      nil -> []
     end
   end
 
@@ -498,19 +493,6 @@ defmodule Slipdock.Access do
     from(c in Card, where: c.id in ^card_ids and is_nil(c.archived_at), order_by: [asc: c.title])
     |> Repo.all()
     |> Repo.preload([:board, :column, :tags])
-  end
-
-  @doc "Claims boards that predate accounts for `user` (the first person to sign in)."
-  def claim_unowned_boards(%User{} = user) do
-    {n, _} =
-      from(b in Board, where: is_nil(b.owner_id) and is_nil(b.parent_card_id))
-      |> Repo.update_all(set: [owner_id: user.id])
-
-    # Sub-boards follow their root.
-    from(b in Board, where: is_nil(b.owner_id) and not is_nil(b.root_id))
-    |> Repo.update_all(set: [owner_id: user.id])
-
-    n
   end
 
   ## Grants -------------------------------------------------------------------

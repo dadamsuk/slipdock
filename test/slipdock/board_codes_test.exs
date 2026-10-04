@@ -68,7 +68,11 @@ defmodule Slipdock.BoardCodesTest do
     test "a code already in use is refused" do
       board_fixture(%{"name" => "First", "code" => "taken"})
 
-      assert {:error, changeset} = Boards.create_board(%{"name" => "Second", "code" => "taken"})
+      assert {:error, changeset} =
+               Boards.create_board(%{"name" => "Second", "code" => "taken"},
+                 owner_id: user_fixture().id
+               )
+
       assert "is already used by another board" in errors_on(changeset).code
     end
 
