@@ -15,8 +15,7 @@ defmodule SlipdockWeb.API.SprintController do
 
   # Body (all optional): {"name", "start": "2026-10-05", "days": 14, "goal"}.
   def create(conn, %{"board" => ref} = params) do
-    with {:ok, board} <- fetch_board(ref),
-         :ok <- Authorize.board(conn, board, :write),
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :write),
          {:ok, sprint} <-
            sprint_result(
              Sprints.create_sprint(board, Map.take(params, ~w(name start days goal)),
@@ -29,8 +28,7 @@ defmodule SlipdockWeb.API.SprintController do
 
   # What New sprint would fill in, without making anything.
   def next(conn, %{"board" => ref}) do
-    with {:ok, board} <- fetch_board(ref),
-         :ok <- Authorize.board(conn, board, :read) do
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :read) do
       if Slipdock.Boards.Board.sprints?(board) do
         json(conn, %{next: Sprints.next_sprint(board)})
       else
@@ -41,8 +39,7 @@ defmodule SlipdockWeb.API.SprintController do
 
   # Committed and completed per sprint, oldest first, and the average.
   def velocity(conn, %{"board" => ref}) do
-    with {:ok, board} <- fetch_board(ref),
-         :ok <- Authorize.board(conn, board, :read) do
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :read) do
       if Slipdock.Boards.Board.sprints?(board) do
         json(conn, %{velocity: Sprints.velocity(board)})
       else
@@ -103,13 +100,6 @@ defmodule SlipdockWeb.API.SprintController do
   defp sprint_result({:ok, value}), do: {:ok, value}
   defp sprint_result({:error, %Ecto.Changeset{} = changeset}), do: {:error, changeset}
   defp sprint_result({:error, message}), do: {:error, :unprocessable_entity, message}
-
-  defp fetch_board(ref) do
-    case Boards.find_board(to_string(ref)) do
-      {:ok, board} -> {:ok, board}
-      _ -> {:error, :not_found, "board"}
-    end
-  end
 
   defp fetch_card(id) do
     with {int, ""} <- Integer.parse(to_string(id)),

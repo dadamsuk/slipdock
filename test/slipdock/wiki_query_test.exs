@@ -162,7 +162,9 @@ defmodule Slipdock.WikiQueryTest do
       outsider = user_fixture("query.outsider@example.com")
 
       assert {:error, message} = run("board: queries", %{board: board, reader: outsider})
-      assert message =~ "no board here for you to read"
+      # The same answer as for a board that does not exist, so a query cannot
+      # be used to find out what other people's boards are called.
+      assert message =~ "there is no board called"
     end
 
     test "a cross-board query only reaches boards the reader can read", %{

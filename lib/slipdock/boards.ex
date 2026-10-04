@@ -121,36 +121,47 @@ defmodule Slipdock.Boards do
   def filter_archived(query, true), do: where(query, [b], not is_nil(b.archived_at))
   def filter_archived(query, _false), do: where(query, [b], is_nil(b.archived_at))
 
-  @doc "Finds a board by numeric id, code, or (case-insensitive) name."
-  def find_board(ref) when is_binary(ref) do
-    case Integer.parse(ref) do
-      {id, ""} ->
-        case Repo.get(Board, id) do
-          nil -> find_board_by_code_or_name(ref)
-          board -> {:ok, board}
-        end
-
-      _ ->
-        find_board_by_code_or_name(ref)
+  @doc """
+  Finds a board by numeric id, code, or (case-insensitive) name, among every
+  board on the server. Anything acting for a person should go through
+  `Slipdock.Access.find_board/2` instead, which only looks among the boards
+  they can read.
+  """
+  def find_board(ref) do
+    case matching_boards(ref, Board, 1) do
+      [board | _] -> {:ok, board}
+      [] -> {:error, :not_found}
     end
   end
 
-  def find_board(ref) when is_integer(ref) do
-    case Repo.get(Board, ref) do
-      nil -> {:error, :not_found}
-      board -> {:ok, board}
+  @doc """
+  The boards in `scope` (a `Board` query) that `ref` could mean, best first.
+
+  A numeric ref is an id; if no board in scope has it, it is tried as a code
+  or name like any other. Root boards win over sub-boards, and a code match
+  wins over a name match, so an explicit handle beats a name someone else
+  happens to share. `limit` caps the code-and-name lookup.
+  """
+  def matching_boards(ref, scope \\ Board, limit \\ nil)
+
+  def matching_boards(ref, scope, _limit) when is_integer(ref),
+    do: Repo.all(from(b in scope, where: b.id == ^ref))
+
+  def matching_boards(ref, scope, limit) when is_binary(ref) do
+    with {id, ""} <- Integer.parse(ref),
+         [_ | _] = found <- matching_boards(id, scope, limit) do
+      found
+    else
+      _ -> by_code_or_name(ref, scope, limit)
     end
   end
 
-  # A ref can be a board's code or its name. Root boards win over sub-boards,
-  # and a code match wins over a name match, so an explicit handle beats a name
-  # someone else happens to share.
-  defp find_board_by_code_or_name(ref) do
+  defp by_code_or_name(ref, scope, limit) do
     code = Board.sanitize_code(ref)
     name = String.downcase(String.trim(ref))
 
     query =
-      from(b in Board,
+      from(b in scope,
         where: b.code == ^code or fragment("lower(?)", b.name) == ^name,
         order_by: [
           asc: fragment("? IS NOT NULL", b.parent_card_id),
@@ -158,14 +169,11 @@ defmodule Slipdock.Boards do
           # code match sorts first. SQLite spelled the same thing IS NOT.
           asc: fragment("? IS DISTINCT FROM ?", b.code, ^code),
           asc: b.id
-        ],
-        limit: 1
+        ]
       )
 
-    case Repo.one(query) do
-      nil -> {:error, :not_found}
-      board -> {:ok, board}
-    end
+    query = if limit, do: limit(query, ^limit), else: query
+    Repo.all(query)
   end
 
   @doc "Finds a column on `board` by id or (case-insensitive) name."

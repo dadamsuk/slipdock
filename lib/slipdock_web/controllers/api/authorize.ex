@@ -11,6 +11,19 @@ defmodule SlipdockWeb.API.Authorize do
   """
   alias Slipdock.Access
 
+  @doc """
+  The board `ref` names, if the user can at least read it, and if they — and
+  their token — have `need` on it. A board they cannot read is a 404 like one
+  that does not exist (see `Slipdock.Access.find_board/2`); one they can read
+  but not `need` is a 403 that says why.
+  """
+  def fetch_board(conn, ref, need) do
+    case Access.find_board(conn.assigns.current_user, to_string(ref || "")) do
+      {:ok, board} -> with :ok <- board(conn, board, need), do: {:ok, board}
+      {:error, :not_found} -> {:error, :not_found, "board"}
+    end
+  end
+
   def board(conn, board, need) do
     conn
     |> level(Access.board_permission(conn.assigns.current_user, board), board.id)

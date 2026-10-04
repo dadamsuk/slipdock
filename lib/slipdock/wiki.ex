@@ -258,11 +258,15 @@ defmodule Slipdock.Wiki do
   (`W-31`), or `board-code/slug`.
 
   This is what the API and the CLI resolve `:id` with, so an agent can write
-  the handle it has rather than the one the system prefers.
+  the handle it has rather than the one the system prefers. Pass `as: user`
+  and the board in `board-code/slug` is looked for among that user's boards
+  (`Slipdock.Access.find_board/2`), not the whole server's.
   """
-  def find_page(ref) when is_integer(ref), do: fetch(Repo.get(Page, ref))
+  def find_page(ref) when is_integer(ref) or is_binary(ref), do: find_page(ref, [])
 
-  def find_page(ref) when is_binary(ref) do
+  def find_page(ref, opts) when is_integer(ref) and is_list(opts), do: fetch(Repo.get(Page, ref))
+
+  def find_page(ref, opts) when is_binary(ref) and is_list(opts) do
     ref = String.trim(ref)
 
     cond do
@@ -272,7 +276,13 @@ defmodule Slipdock.Wiki do
       String.contains?(ref, "/") ->
         [board_ref, slug] = String.split(ref, "/", parts: 2)
 
-        case Boards.find_board(board_ref) do
+        found =
+          case opts[:as] do
+            nil -> Boards.find_board(board_ref)
+            user -> Slipdock.Access.find_board(user, board_ref)
+          end
+
+        case found do
           {:ok, board} -> find_page(board, slug)
           _ -> {:error, :not_found, "board #{inspect(board_ref)}"}
         end

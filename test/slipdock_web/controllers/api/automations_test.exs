@@ -321,7 +321,7 @@ defmodule SlipdockWeb.API.AutomationsTest do
         |> conn_as()
         |> put_req_header("accept", "application/json")
 
-      assert conn |> get(~p"/api/boards/#{board.id}/automations") |> json_response(403)
+      assert conn |> get(~p"/api/boards/#{board.id}/automations") |> json_response(404)
     end
   end
 

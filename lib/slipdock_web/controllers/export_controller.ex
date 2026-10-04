@@ -113,8 +113,13 @@ defmodule SlipdockWeb.ExportController do
       |> String.split(",", trim: true)
       |> Enum.map(&String.trim/1)
       |> Enum.flat_map(fn ref ->
-        case Boards.find_board(ref) do
-          {:ok, board} -> if owns?(user, board), do: [board], else: []
+        # Whoever owns the root owns what gets exported, which a sub-board's
+        # own owner need not be.
+        with {:ok, board} <- Access.find_board(user, ref),
+             root = Slipdock.Portable.root_of(board),
+             true <- owns?(user, root) do
+          [root]
+        else
           _ -> []
         end
       end)

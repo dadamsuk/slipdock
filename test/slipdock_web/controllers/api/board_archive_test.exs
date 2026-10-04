@@ -102,9 +102,9 @@ defmodule SlipdockWeb.API.BoardArchiveTest do
       assert %{"error" => error} =
                conn
                |> post(~p"/api/boards/order", %{"boards" => [theirs.id, a.id]})
-               |> json_response(403)
+               |> json_response(404)
 
-      assert error =~ "Theirs"
+      refute error =~ "Theirs"
       assert Boards.board_order(other) == %{}
     end
 

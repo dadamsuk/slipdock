@@ -34,8 +34,7 @@ defmodule SlipdockWeb.API.PageController do
   ## Listing and creating -----------------------------------------------------
 
   def index(conn, %{"board" => ref} = params) do
-    with {:ok, board} <- fetch_board(ref),
-         :ok <- Authorize.board(conn, board, :read) do
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :read) do
       opts = list_opts(conn, board, params)
 
       if truthy?(params["tree"]) do
@@ -95,8 +94,7 @@ defmodule SlipdockWeb.API.PageController do
   defp truthy?(value), do: to_string(value) in ~w(true 1 yes on)
 
   def create(conn, %{"board" => ref} = params) do
-    with {:ok, board} <- fetch_board(ref),
-         :ok <- Authorize.board(conn, board, :write),
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :write),
          {:ok, attrs} <- page_attrs(conn, board, params),
          {:ok, page} <- Wiki.create_page(board, attrs, write_opts(conn, params)) do
       conn |> put_status(:created) |> json(%{page: V.page(with_users(page))})
@@ -337,8 +335,8 @@ defmodule SlipdockWeb.API.PageController do
     end
   end
 
-  defp pin_target(_conn, %{"page" => ref}) do
-    with {:ok, page} <- Wiki.find_page(ref), do: {:ok, {:page, page}}
+  defp pin_target(conn, %{"page" => ref}) do
+    with {:ok, page} <- fetch_page(conn, ref, :read), do: {:ok, {:page, page}}
   end
 
   defp pin_target(_conn, _params),
@@ -359,8 +357,7 @@ defmodule SlipdockWeb.API.PageController do
 
   @doc "Pages linked to but never written — the wiki's own backlog."
   def wanted(conn, %{"board" => ref}) do
-    with {:ok, board} <- fetch_board(ref),
-         :ok <- Authorize.board(conn, board, :read) do
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :read) do
       json(conn, %{wanted: Enum.map(Wiki.wanted(board), &V.wanted/1)})
     end
   end
@@ -370,8 +367,7 @@ defmodule SlipdockWeb.API.PageController do
   guessed at. Answers with the page, or with what is nearest to it.
   """
   def resolve(conn, params) do
-    with {:ok, board} <- fetch_board(params["board"]),
-         :ok <- Authorize.board(conn, board, :read) do
+    with {:ok, board} <- Authorize.fetch_board(conn, params["board"], :read) do
       title = params["title"] || params["q"] || ""
 
       case Wiki.find_page(board, title) do
@@ -468,8 +464,7 @@ defmodule SlipdockWeb.API.PageController do
   same thing `/boards/:id/wiki.zip` puts in a zip.
   """
   def export(conn, %{"board" => ref} = params) do
-    with {:ok, board} <- fetch_board(ref),
-         :ok <- Authorize.board(conn, board, :read) do
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :read) do
       opts =
         if writer?(conn, board),
           do: [archived: archived_opt(params["archived"])],
@@ -494,8 +489,7 @@ defmodule SlipdockWeb.API.PageController do
   reported unless `overwrite` is true, so importing twice is not a wiki twice.
   """
   def import_files(conn, %{"board" => ref} = params) do
-    with {:ok, board} <- fetch_board(ref),
-         :ok <- Authorize.board(conn, board, :write),
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :write),
          {:ok, files} <- read_files(params["files"]) do
       result =
         Archive.import_files(board, files,
@@ -589,8 +583,7 @@ defmodule SlipdockWeb.API.PageController do
   would give, or the reason it cannot be answered.
   """
   def check_query(conn, params) do
-    with {:ok, board} <- fetch_board(params["board"]),
-         :ok <- Authorize.board(conn, board, :read),
+    with {:ok, board} <- Authorize.fetch_board(conn, params["board"], :read),
          {:ok, text} <- require_body(Map.put_new(params, "body", params["query"])) do
       context = %{board: board, reader: conn.assigns.current_user}
 
@@ -691,8 +684,7 @@ defmodule SlipdockWeb.API.PageController do
   whose details the placeholders may use and which the page is pinned to.
   """
   def from_template(conn, %{"board" => ref} = params) do
-    with {:ok, board} <- fetch_board(ref),
-         :ok <- Authorize.board(conn, board, :write),
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :write),
          {:ok, template} <- fetch_template(board, params["template"]),
          {:ok, card} <- optional_card(conn, params["card"]),
          {:ok, page} <-
@@ -786,8 +778,7 @@ defmodule SlipdockWeb.API.PageController do
 
   @doc "The board's folders, nested, with the pages filed in each."
   def folders(conn, %{"board" => ref} = params) do
-    with {:ok, board} <- fetch_board(ref),
-         :ok <- Authorize.board(conn, board, :read) do
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :read) do
       pages = Wiki.list_pages(board, list_opts(conn, board, params))
 
       json(conn, %{
@@ -799,8 +790,7 @@ defmodule SlipdockWeb.API.PageController do
 
   @doc ~S'Makes a folder. `name` may be a path — "Design/Decisions" makes both.'
   def create_folder(conn, %{"board" => ref} = params) do
-    with {:ok, board} <- fetch_board(ref),
-         :ok <- Authorize.board(conn, board, :write),
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :write),
          {:ok, attrs} <- folder_attrs(board, params),
          {:ok, folder} <- Wiki.create_folder(board, attrs) do
       conn |> put_status(:created) |> json(%{folder: V.folder(folder)})
@@ -904,8 +894,7 @@ defmodule SlipdockWeb.API.PageController do
     # whole of it.
     handle = if is_list(id), do: Enum.join(id, "/"), else: id
 
-    with {:ok, board} <- fetch_board(ref),
-         :ok <- Authorize.board(conn, board, need),
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, need),
          {:ok, folder} <- Wiki.find_folder(board, handle) do
       {:ok, folder, board}
     end
@@ -921,13 +910,6 @@ defmodule SlipdockWeb.API.PageController do
       {:error, _, _} = error -> error
       {:error, status} -> {:error, status}
       _ -> {:error, :not_found, "folder #{inspect(id)}"}
-    end
-  end
-
-  defp fetch_board(ref) do
-    case Boards.find_board(ref) do
-      {:ok, board} -> {:ok, board}
-      _ -> {:error, :not_found, "board #{inspect(ref)}"}
     end
   end
 
@@ -1036,7 +1018,7 @@ defmodule SlipdockWeb.API.PageController do
   # gets "not found" rather than "forbidden": the existence of the page is
   # itself the thing being withheld.
   defp fetch_page(conn, ref, need) do
-    with {:ok, page} <- Wiki.find_page(ref),
+    with {:ok, page} <- Wiki.find_page(ref, as: conn.assigns.current_user),
          :ok <- Authorize.page(conn, page, need) do
       level = Slipdock.Access.page_permission(conn.assigns.current_user, page)
 

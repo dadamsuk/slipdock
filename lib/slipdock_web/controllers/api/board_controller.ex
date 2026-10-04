@@ -10,8 +10,7 @@ defmodule SlipdockWeb.API.BoardController do
 
   # A board the current user can at least read; view-only access doesn't count here.
   defp fetch_board(conn, ref, need) do
-    with {:ok, board} <- find(Boards.find_board(ref), "board"),
-         :ok <- Authorize.board(conn, board, need) do
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, need) do
       # The owner is named in every board response, so load it once here
       # rather than in each action that answers with a board.
       {:ok, Slipdock.Repo.preload(board, :owner)}
@@ -79,7 +78,7 @@ defmodule SlipdockWeb.API.BoardController do
       |> Access.list_boards(archived: :all, token: conn.assigns[:api_token])
       |> MapSet.new(& &1.id)
 
-    with {:ok, boards} <- resolve_all(refs),
+    with {:ok, boards} <- resolve_all(user, refs),
          {:ok, ids} <- all_visible(boards, visible) do
       :ok = Boards.reorder_boards(user, ids)
 
@@ -101,9 +100,9 @@ defmodule SlipdockWeb.API.BoardController do
     end
   end
 
-  defp resolve_all(refs) do
+  defp resolve_all(user, refs) do
     Enum.reduce_while(refs, {:ok, []}, fn ref, {:ok, acc} ->
-      case find(Boards.find_board(to_string(ref)), "board") do
+      case find(Access.find_board(user, to_string(ref)), "board") do
         {:ok, board} -> {:cont, {:ok, acc ++ [board]}}
         error -> {:halt, error}
       end

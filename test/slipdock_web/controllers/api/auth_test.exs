@@ -25,8 +25,9 @@ defmodule SlipdockWeb.API.AuthTest do
 
     assert other_conn |> get(~p"/api/boards") |> json_response(200) |> Map.get("boards") == []
 
-    assert %{"error" => "forbidden" <> _} =
-             other_conn |> get(~p"/api/boards/#{board.id}") |> json_response(403)
+    # A board you cannot read is not there at all: a 403 would confirm it exists.
+    assert %{"error" => "board not found"} =
+             other_conn |> get(~p"/api/boards/#{board.id}") |> json_response(404)
 
     assert %{"error" => "forbidden" <> _} =
              other_conn |> get(~p"/api/cards/#{card.id}") |> json_response(403)

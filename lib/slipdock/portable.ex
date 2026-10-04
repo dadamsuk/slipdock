@@ -899,7 +899,7 @@ defmodule Slipdock.Portable do
     case opts[:boards] do
       nil -> owned_roots(user, opts)
       :owned -> owned_roots(user, opts)
-      boards when is_list(boards) -> Enum.map(boards, &root_of/1)
+      boards when is_list(boards) -> boards |> Enum.map(&root_of/1) |> Enum.uniq_by(& &1.id)
     end
   end
 
@@ -915,16 +915,19 @@ defmodule Slipdock.Portable do
     Repo.all(query)
   end
 
-  # Given any board of a tree, the root of it — exporting a sub-board on its
-  # own would hand out cards whose tags and fields were left behind.
-  defp root_of(%Board{} = board) do
+  @doc """
+  Given any board of a tree, the root of it — exporting a sub-board on its
+  own would hand out cards whose tags and fields were left behind. So the
+  root is also what anybody asking to export a board has to own.
+  """
+  def root_of(%Board{} = board) do
     case board.root_id do
       nil -> board
       root_id -> Repo.get!(Board, root_id)
     end
   end
 
-  defp root_of(id) when is_integer(id) or is_binary(id),
+  def root_of(id) when is_integer(id) or is_binary(id),
     do: Board |> Repo.get!(id) |> root_of()
 
   ## Internals: writing a tree ---------------------------------------------------
