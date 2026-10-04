@@ -12,6 +12,9 @@ defmodule SlipdockWeb.RichText do
   already shows up in that page's backlinks (see `Slipdock.Wiki.Links`). Pass
   `:board` to `render/2` for those to resolve; without one they are left as
   written, which is right for the places a board is not in hand.
+
+  With a board, `@someone` who can see it is drawn as a mention too (see
+  `Slipdock.Mentions`); anybody else stays as typed.
   """
 
   @pattern ~r{!\[([^\]]*)\]\(([^)\s]+)\)|\[([^\]]+)\]\(([^)\s]+)\)|https?://[^\s<]+}
@@ -31,7 +34,7 @@ defmodule SlipdockWeb.RichText do
   def render(text, opts) when is_binary(text) do
     escaped = text |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()
     linked = Regex.replace(@pattern, escaped, &replace/5)
-    {:safe, wiki_links(linked, opts[:board], opts[:as])}
+    {:safe, linked |> wiki_links(opts[:board], opts[:as]) |> mentions(opts[:board])}
   end
 
   # Only page references, and only when a board is in hand. A comment is not
@@ -60,6 +63,45 @@ defmodule SlipdockWeb.RichText do
           whole
       end
     end)
+  end
+
+  @mention ~r/(?<![\w@\/])@([a-zA-Z][\w.\-]{0,62})/
+
+  defp mentions(html, nil), do: html
+
+  defp mentions(html, board) do
+    if Regex.match?(@mention, html) do
+      members = Slipdock.Wiki.Links.members(board)
+
+      # Only the text between tags, and not a link's own text: an "@" in a
+      # URL is part of the address, not a person.
+      ~r/<a\s[^>]*>.*?<\/a>|<[^>]+>/s
+      |> Regex.split(html, include_captures: true)
+      |> Enum.map_join(fn
+        "<" <> _ = tag -> tag
+        text -> Regex.replace(@mention, text, &mention(&1, &2, members))
+      end)
+    else
+      html
+    end
+  end
+
+  defp mention(whole, name, members) do
+    # "@david." ends a sentence: the dot is not part of the name.
+    trimmed = name |> String.trim_trailing(".") |> String.trim_trailing("-")
+    rest = binary_part(name, byte_size(trimmed), byte_size(name) - byte_size(trimmed))
+
+    case Slipdock.Mentions.find(members, trimmed) do
+      nil ->
+        whole
+
+      user ->
+        title =
+          (user.name || user.email) |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()
+
+        ~s|<span class="badge badge-sm badge-primary badge-soft align-baseline" title="#{title}">@#{trimmed}</span>| <>
+          rest
+    end
   end
 
   defp visible?(page, nil), do: not Slipdock.Wiki.Page.draft?(page)

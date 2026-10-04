@@ -17,6 +17,15 @@ way in: what it is, the pictures, and how to get it running.
 - Attachments: files up to 25 MB on any card, and images pasted or dropped into
   the description or a comment are uploaded and shown inline (stored under
   `priv/uploads/`, `SLIPDOCK_UPLOADS_DIR` to move it; served with access checks)
+- @mentions: `@someone` in a card's description or a comment — the part of
+  their email before the "@", or a one-word name — names a person who can see
+  the board. Typing `@` offers the board's members; a mention shows as a chip,
+  and the person gets an email saying who mentioned them and where, linking to
+  the card. A comment emails everyone it mentions; a description only those an
+  edit newly mentions, so re-saving it does not mention everybody again. Nobody
+  is told about mentioning themselves, `@` anybody without access to the board
+  stays plain text, and comments on wiki pages notify nobody. The email goes
+  through the configured mail transport, so without SMTP nobody hears.
 - Dependencies between cards ("blocked by" / "blocks"), with cycle detection,
   a blocked badge on cards, and a swimlane axis/filter for blocked work
 - Subcards: any card can become a board of its own, with lists chosen from a

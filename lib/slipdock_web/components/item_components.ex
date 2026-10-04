@@ -209,6 +209,10 @@ defmodule SlipdockWeb.ItemComponents do
   attr :section_key, :string, default: nil
   attr :uploads, :any, default: nil, doc: "when given, images can be pasted into a comment"
 
+  attr :mention_people, :string,
+    default: nil,
+    doc: "when given (see `SlipdockWeb.Mention.people/1`), typing @ offers these people"
+
   @doc "The remarks on a card or a page, newest first."
   def comments_section(assigns) do
     ~H"""
@@ -231,17 +235,23 @@ defmodule SlipdockWeb.ItemComponents do
           phx-hook={@uploads && "PasteImage"}
           data-upload="comment_image"
         >
-          <textarea
-            name="body"
-            rows="2"
-            placeholder={
-              if @uploads,
-                do: "Write a comment… (paste an image to attach it)",
-                else: "Write a comment…"
-            }
-            class="textarea w-full text-sm"
-            required
-          ></textarea>
+          <div
+            id={dom_id("comment-mention-#{@form_key}", @item)}
+            phx-hook={@mention_people && "Mention"}
+            data-people={@mention_people}
+          >
+            <textarea
+              name="body"
+              rows="2"
+              placeholder={
+                if @uploads,
+                  do: "Write a comment… (paste an image to attach it)",
+                  else: "Write a comment…"
+              }
+              class="textarea w-full text-sm"
+              required
+            ></textarea>
+          </div>
           <.live_file_input :if={@uploads} upload={@uploads.comment_image} class="hidden" />
         </div>
         <div class="flex justify-end">

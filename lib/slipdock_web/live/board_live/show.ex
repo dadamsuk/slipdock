@@ -130,6 +130,8 @@ defmodule SlipdockWeb.BoardLive.Show do
     |> assign(
       board: board,
       page_title: board.name,
+      # Who `@` offers in a description or a comment: the board's members.
+      mention_people: SlipdockWeb.Mention.people(board),
       filters: @empty_filters,
       adding_to: nil,
       # The list a document dropped on the board belongs to: set the moment
@@ -2034,7 +2036,9 @@ defmodule SlipdockWeb.BoardLive.Show do
 
     card = Boards.get_card!(card.id)
 
-    case Boards.update_card(card, Map.delete(params, "column_id")) do
+    case Boards.update_card(card, Map.delete(params, "column_id"),
+           by: socket.assigns.current_user
+         ) do
       {:ok, card} ->
         {:noreply, assign(socket, card: Boards.get_card!(card.id))}
 
@@ -2191,7 +2195,7 @@ defmodule SlipdockWeb.BoardLive.Show do
     body = body |> strip_upload_placeholder() |> String.trim()
 
     if body != "" do
-      {:ok, _} = Boards.add_comment(subject(socket), body)
+      {:ok, _} = Boards.add_comment(subject(socket), body, by: socket.assigns.current_user)
     end
 
     {:noreply, socket |> update(:form_key, &(&1 + 1)) |> reload_subject()}
@@ -4195,6 +4199,7 @@ defmodule SlipdockWeb.BoardLive.Show do
         users={@users}
         form={@card_form}
         board={@board}
+        mention_people={@mention_people}
         form_key={@form_key}
         close_path={@paths.close}
         tags_path={@paths.tags}
@@ -4796,6 +4801,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   attr :dep_results, :list, required: true
   attr :templates, :list, required: true
   attr :picking_template, :boolean, required: true
+  attr :mention_people, :string, default: nil
   attr :can_write, :boolean, required: true
   attr :can_share, :boolean, required: true
   attr :grants, :list, required: true
@@ -5011,21 +5017,27 @@ defmodule SlipdockWeb.BoardLive.Show do
                   data-upload="desc_image"
                   class="space-y-1"
                 >
-                  <textarea
-                    id="card-description"
-                    name={@form[:description].name}
-                    phx-debounce="700"
-                    phx-hook="AutoGrow"
-                    phx-keydown="stop_editing_description"
-                    phx-key="Escape"
-                    autofocus
-                    rows="3"
-                    placeholder="Add more detail…"
-                    class="textarea w-full resize-none text-sm leading-relaxed"
-                  >{@form[:description].value}</textarea>
+                  <div
+                    id="card-description-mention"
+                    phx-hook="Mention"
+                    data-people={@mention_people}
+                  >
+                    <textarea
+                      id="card-description"
+                      name={@form[:description].name}
+                      phx-debounce="700"
+                      phx-hook="AutoGrow"
+                      phx-keydown="stop_editing_description"
+                      phx-key="Escape"
+                      autofocus
+                      rows="3"
+                      placeholder="Add more detail…"
+                      class="textarea w-full resize-none text-sm leading-relaxed"
+                    >{@form[:description].value}</textarea>
+                  </div>
                   <.live_file_input upload={@uploads.desc_image} class="hidden" />
                   <p class="text-2xs text-base-content/60">
-                    Paste or drop an image to add it. Click Done or press Escape when finished.
+                    Paste or drop an image to add it; type @ to mention somebody. Click Done or press Escape when finished.
                   </p>
                 </div>
                 <div
@@ -5652,6 +5664,7 @@ defmodule SlipdockWeb.BoardLive.Show do
               can_write={@can_write}
               form_key={@form_key}
               uploads={@uploads}
+              mention_people={@mention_people}
               section_key="c"
             />
           </div>

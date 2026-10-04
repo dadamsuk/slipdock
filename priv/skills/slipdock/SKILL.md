@@ -123,6 +123,8 @@ card to them will not work until something is.
    --percent N` to match — rather than one write-up at the end. A card in progress
    with no comment newer than the move reads as abandoned to whoever is watching.
 6. Report ids back to the user (`#42`) so they can find cards in the UI.
+   `@handle` (someone's email before the "@") in a comment or description emails that person —
+   use it only when the card genuinely needs them, never as a sign-off.
 7. **The "Getting Started" board is a tutorial, not work.** The server builds one for a new
    account: its cards are instructions for a person ("drag this card to Done"), so never work
    them, finish them or tidy them. If that is the only board here, say so and ask what the user

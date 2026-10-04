@@ -53,8 +53,8 @@ included. They are taken from a demo workspace anybody can rebuild —
 Briefly, with the detail in [the manual](docs/manual.md):
 
 - **Boards, lists and cards** — drag and drop, priorities, five flags, due
-  dates, tags, checklists, comments, attachments, cover colours, archive and
-  restore. Each board has a short code (`qvm-v1-rem`) that addresses it
+  dates, tags, checklists, comments with `@mentions` that email the person
+  named, attachments, cover colours, archive and restore. Each board has a short code (`qvm-v1-rem`) that addresses it
   everywhere.
 - **Subcards** — [any card becomes a board of its own](docs/manual.md#subcards-and-templates),
   nesting as deep as the work does, and
