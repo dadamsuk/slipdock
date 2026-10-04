@@ -291,6 +291,54 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
     end
   end
 
+  describe "automation rules" do
+    setup ctx do
+      # A rule that would complete their card the moment it ran.
+      then = DateTime.add(DateTime.utc_now(:second), -10 * 24 * 3600, :second)
+
+      Repo.update_all(from(c in Card, where: c.id == ^ctx.their_card.id),
+        set: [updated_at: then, inserted_at: then]
+      )
+
+      rule =
+        rule_fixture(ctx.theirs, %{
+          "trigger" => %{"type" => "card_stale", "days" => 7},
+          "actions" => [%{"type" => "complete_card"}]
+        })
+
+      %{rule: rule}
+    end
+
+    test "can't be run, toggled or deleted from another board", ctx do
+      view = board_view(ctx.conn, ctx.mine)
+      id = to_string(ctx.rule.id)
+
+      render_hook(view, "run_rule", %{"id" => id})
+      render_hook(view, "toggle_rule", %{"id" => id})
+      render_hook(view, "delete_rule", %{"id" => id})
+
+      rule = Repo.get!(Slipdock.Automations.Rule, ctx.rule.id)
+      assert rule.enabled == ctx.rule.enabled
+      refute Repo.get!(Card, ctx.their_card.id).completed
+    end
+
+    test "still work on your own board", ctx do
+      mine =
+        rule_fixture(ctx.mine, %{
+          "trigger" => %{"type" => "card_created"},
+          "actions" => [%{"type" => "complete_card"}]
+        })
+
+      view = board_view(ctx.conn, ctx.mine)
+
+      render_hook(view, "toggle_rule", %{"id" => to_string(mine.id)})
+      refute Repo.get!(Slipdock.Automations.Rule, mine.id).enabled
+
+      render_hook(view, "delete_rule", %{"id" => to_string(mine.id)})
+      refute Repo.get(Slipdock.Automations.Rule, mine.id)
+    end
+  end
+
   describe "the guard" do
     test "every handle_event clause is in one of the event lists" do
       source = File.read!("lib/slipdock_web/live/board_live/show.ex")

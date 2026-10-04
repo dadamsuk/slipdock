@@ -86,6 +86,18 @@ defmodule Slipdock.Automations do
 
   def get_rule!(id), do: Repo.get!(Rule, id)
 
+  @doc """
+  The rule with `id` if it is on `board_id`, else nil. For ids that come from
+  a client: owning the board you have open is no licence to touch a rule on
+  somebody else's.
+  """
+  def get_board_rule(board_id, id) do
+    case Integer.parse(to_string(id)) do
+      {id, ""} -> Repo.one(from(r in Rule, where: r.board_id == ^board_id and r.id == ^id))
+      _ -> nil
+    end
+  end
+
   @doc "Finds a rule on `board` by id or (case-insensitive) name."
   def find_rule(%Board{id: board_id}, ref) do
     ref = to_string(ref)
