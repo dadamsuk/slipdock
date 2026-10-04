@@ -552,6 +552,46 @@ defmodule SlipdockWeb.TableComponents do
     """
   end
 
+  defp cell(%{field: "goal"} = assigns) do
+    assigns = assign(assigns, goals: Slipdock.Boards.Card.goals(assigns.card))
+
+    ~H"""
+    <span class="flex flex-wrap gap-1">
+      <span
+        :for={goal <- @goals}
+        role="link"
+        tabindex="0"
+        class="chip chip-line max-w-48 cursor-pointer truncate hover:underline"
+        phx-click="open_card"
+        phx-value-id={goal.id}
+        title={goal.title}
+      >
+        <.icon name="hero-flag" class="size-3" /> {goal.title}
+      </span>
+    </span>
+    """
+  end
+
+  # Both directions, each with its own wording ("Duplicated by", not "Duplicates").
+  defp cell(%{field: "links"} = assigns) do
+    out = if is_list(assigns.card.links_out), do: assigns.card.links_out, else: []
+    inn = if is_list(assigns.card.links_in), do: assigns.card.links_in, else: []
+
+    lines =
+      Enum.map(out, &"#{Slipdock.Boards.CardLink.label(&1.kind, :out)} #{&1.to.title}") ++
+        Enum.map(inn, &"#{Slipdock.Boards.CardLink.label(&1.kind, :in)} #{&1.from.title}")
+
+    assigns = assign(assigns, lines: lines)
+
+    ~H"""
+    <span
+      :if={@lines != []}
+      class="inline-flex items-center gap-1 text-xs"
+      title={Enum.join(@lines, "; ")}
+    ><.icon name="hero-arrows-right-left" class="size-3.5" /> {length(@lines)}</span>
+    """
+  end
+
   defp cell(%{field: "f:" <> _} = assigns) do
     field = Config.custom_field(assigns.field, assigns.board)
     value = field && Slipdock.Fields.value(assigns.card, field)
