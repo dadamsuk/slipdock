@@ -88,7 +88,9 @@ defmodule SlipdockWeb.API.AdminController do
   end
 
   def users(conn, _params) do
-    json(conn, %{users: Enum.map(Accounts.list_users(), &user_json/1)})
+    users = Accounts.list_users()
+    usage = Quota.usage(Enum.map(users, & &1.id))
+    json(conn, %{users: Enum.map(users, &user_json(&1, usage[&1.id]))})
   end
 
   def update_user(conn, %{"id" => id} = params) do
@@ -171,7 +173,7 @@ defmodule SlipdockWeb.API.AdminController do
     end
   end
 
-  defp user_json(user) do
+  defp user_json(user, usage \\ nil) do
     %{
       id: user.id,
       email: user.email,
@@ -183,8 +185,8 @@ defmodule SlipdockWeb.API.AdminController do
       paid_until: user.paid_until,
       # `cards` is the item count — cards, pages and files — and keeps its name
       # because callers match on it. `limits` is every dimension and the trial.
-      cards: Quota.status(user),
-      limits: Quota.report(user)
+      cards: if(usage, do: Quota.report(user, usage).items, else: Quota.status(user)),
+      limits: if(usage, do: Quota.report(user, usage), else: Quota.report(user))
     }
   end
 

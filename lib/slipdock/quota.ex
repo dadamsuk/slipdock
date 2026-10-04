@@ -371,9 +371,9 @@ defmodule Slipdock.Quota do
           remaining: non_neg_integer() | nil,
           limited?: boolean()
         }
-  def status(user, dimension \\ :items) do
-    used = used(user, dimension)
+  def status(user, dimension \\ :items), do: status_of(user, dimension, used(user, dimension))
 
+  defp status_of(user, dimension, used) do
     case limit(user, dimension) do
       nil -> %{used: used, limit: nil, remaining: nil, limited?: false}
       limit -> %{used: used, limit: limit, remaining: max(limit - used, 0), limited?: true}
@@ -396,6 +396,88 @@ defmodule Slipdock.Quota do
     |> Map.put(:breakdown, breakdown(user))
     |> Map.put(:trial, trial(user))
     |> Map.put(:free, free?(user))
+  end
+
+  @doc """
+  `report/1` from counts already gathered by `usage/1`, for a list of people
+  that would otherwise cost a handful of queries each.
+  """
+  @spec report(User.t(), map()) :: map()
+  def report(%User{} = user, usage) do
+    @dimensions
+    |> Map.new(&{&1, status_of(user, &1, usage[&1])})
+    |> Map.put(:breakdown, Map.take(usage, [:cards, :pages, :files]))
+    |> Map.put(:trial, trial(user))
+    |> Map.put(:free, free?(user))
+  end
+
+  @doc """
+  What each of these people uses, in a fixed number of queries however many
+  there are: `%{user_id => %{items, cards, pages, files, boards, storage}}`,
+  counted exactly as `used/2` counts them. Everyone asked about is in the map.
+  """
+  @spec usage([integer()]) :: %{integer() => map()}
+  def usage(user_ids) do
+    cards =
+      from(c in Card,
+        join: b in subquery(owners_of_boards(user_ids)),
+        on: b.id == c.board_id,
+        where: is_nil(c.archived_at),
+        group_by: b.owner_id,
+        select: {b.owner_id, count(c.id)}
+      )
+      |> Repo.all()
+      |> Map.new()
+
+    pages =
+      from(p in Page,
+        join: b in subquery(owners_of_boards(user_ids)),
+        on: b.id == p.board_id,
+        where: is_nil(p.archived_at),
+        group_by: b.owner_id,
+        select: {b.owner_id, count(p.id)}
+      )
+      |> Repo.all()
+      |> Map.new()
+
+    files =
+      from(a in Attachment,
+        left_join: c in Card,
+        on: c.id == a.card_id,
+        left_join: p in Page,
+        on: p.id == a.page_id,
+        join: b in subquery(owners_of_boards(user_ids)),
+        on: b.id == coalesce(c.board_id, p.board_id),
+        group_by: b.owner_id,
+        select: {b.owner_id, {count(a.id), type(sum(a.size), :integer)}}
+      )
+      |> Repo.all()
+      |> Map.new()
+
+    boards =
+      from(b in Board,
+        where: b.owner_id in ^user_ids and is_nil(b.root_id) and is_nil(b.archived_at),
+        group_by: b.owner_id,
+        select: {b.owner_id, count(b.id)}
+      )
+      |> Repo.all()
+      |> Map.new()
+
+    Map.new(user_ids, fn id ->
+      {file_count, bytes} = Map.get(files, id, {0, 0})
+      card_count = Map.get(cards, id, 0)
+      page_count = Map.get(pages, id, 0)
+
+      {id,
+       %{
+         items: card_count + page_count + file_count,
+         cards: card_count,
+         pages: page_count,
+         files: file_count,
+         boards: Map.get(boards, id, 0),
+         storage: bytes || 0
+       }}
+    end)
   end
 
   @doc """
@@ -710,6 +792,16 @@ defmodule Slipdock.Quota do
       on: root.id == coalesce(b.root_id, b.id),
       where: root.owner_id == ^user_id,
       select: %{id: b.id}
+    )
+  end
+
+  # owned_boards/1 for several owners at once, each board tagged with its owner.
+  defp owners_of_boards(user_ids) do
+    from(b in Board,
+      join: root in Board,
+      on: root.id == coalesce(b.root_id, b.id),
+      where: root.owner_id in ^user_ids,
+      select: %{id: b.id, owner_id: root.owner_id}
     )
   end
 

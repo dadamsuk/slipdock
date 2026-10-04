@@ -60,7 +60,8 @@ defmodule Slipdock.Portable do
 
   alias Slipdock.{Quota, Repo}
   alias Slipdock.Boards.Column
-  alias Slipdock.Wiki.{Folder, Page}
+  alias Slipdock.Search.Indexer
+  alias Slipdock.Wiki.{Folder, Links, Page, Revision}
 
   @format_version 1
 
@@ -211,6 +212,17 @@ defmodule Slipdock.Portable do
           Process.delete(@skips)
         end
       end)
+      |> case do
+        {:ok, report} ->
+          # Only once it has committed: the indexer reads the rows from
+          # another process, and a rolled-back import has nothing to index.
+          Indexer.enqueue_all(report.card_ids)
+          Indexer.enqueue_pages(report.page_ids)
+          {:ok, Map.drop(report, [:card_ids, :page_ids])}
+
+        error ->
+          error
+      end
     end
   end
 
@@ -401,6 +413,7 @@ defmodule Slipdock.Portable do
     link_cards!(cards_doc, ids)
     insert_milestones!(root, Map.get(tree, :milestones, []), ids)
     insert_saved_views!(root, Map.get(tree, :saved_views, []))
+    settle_writing!(user, ids, opts)
 
     skipped = Enum.flat_map(cards_doc ++ pages_doc, &missing_people(&1, user))
 
@@ -408,6 +421,8 @@ defmodule Slipdock.Portable do
       boards: [%{id: root.id, name: root.name, code: root.code}],
       cards: map_size(ids.cards),
       pages: map_size(ids.pages),
+      card_ids: Map.values(ids.cards),
+      page_ids: Map.values(ids.pages),
       skipped:
         Enum.uniq(skipped) ++
           if(code_changed,
@@ -934,6 +949,40 @@ defmodule Slipdock.Portable do
     :ok
   end
 
+  # What writing a page or a comment by hand does besides the insert, done once
+  # every imported page has its final body: a first revision, so the page has
+  # a history to diff against, and its links, so `[[Other page]]` shows up in
+  # that page's backlinks — the same for comments and status updates, whose
+  # links can point at a page imported after their card.
+  defp settle_writing!(user, ids, opts) do
+    page_ids = Map.values(ids.pages)
+    card_ids = Map.values(ids.cards)
+    pages = Repo.all(from(p in Page, where: p.id in ^page_ids))
+    via = if opts[:via] in Revision.vias(), do: opts[:via], else: "web"
+
+    for page <- pages do
+      %Revision{}
+      |> Revision.changeset(%{
+        "page_id" => page.id,
+        "title" => page.title,
+        "body" => page.body,
+        "summary" => "Imported",
+        "via" => via,
+        "author_id" => user.id
+      })
+      |> Repo.insert!()
+
+      Links.reconcile(page)
+    end
+
+    owned = fn query ->
+      Repo.all(from(r in query, where: r.card_id in ^card_ids or r.page_id in ^page_ids))
+    end
+
+    Enum.each(owned.(Comment), &Links.reconcile_comment/1)
+    Enum.each(owned.(StatusUpdate), &Links.reconcile_status/1)
+  end
+
   defp link_pages!(pages, ids) do
     for doc <- pages, parent_ref = doc[:parent], parent_id = ids.pages[parent_ref] do
       Page
@@ -1053,11 +1102,15 @@ defmodule Slipdock.Portable do
   defp signed(body, _author, _user), do: body
 
   defp merge_reports(reports) do
-    Enum.reduce(reports, %{boards: [], cards: 0, pages: 0, skipped: []}, fn report, acc ->
+    empty = %{boards: [], cards: 0, pages: 0, card_ids: [], page_ids: [], skipped: []}
+
+    Enum.reduce(reports, empty, fn report, acc ->
       %{
         boards: acc.boards ++ report.boards,
         cards: acc.cards + report.cards,
         pages: acc.pages + report.pages,
+        card_ids: acc.card_ids ++ report.card_ids,
+        page_ids: acc.page_ids ++ report.page_ids,
         skipped: Enum.uniq(acc.skipped ++ report.skipped)
       }
     end)
@@ -1166,6 +1219,11 @@ defmodule Slipdock.Portable do
       fields: numbered(fields, "f"),
       folders: numbered(folders, "fo")
     }
+
+    # Everything hanging off the cards and pages, fetched once for the tree
+    # rather than once per card: an export of a large board was ten queries a
+    # card and another for every email address.
+    refs = Map.put(refs, :loaded, load_attached(boards, cards, pages))
 
     %{
       ref: refs.boards[root.id],
@@ -1296,19 +1354,19 @@ defmodule Slipdock.Portable do
       color: card.color,
       archived: card.archived_at != nil,
       created_at: card.inserted_at,
-      assignee: email_of(card.assignee_id),
-      assignees: card |> Slipdock.Boards.assignee_ids() |> Enum.map(&email_of/1),
+      assignee: email_of(card.assignee_id, refs),
+      assignees: card |> assignee_ids(refs) |> Enum.map(&email_of(&1, refs)),
       # A sub-board is a board in this document; the card points at it so an
       # import can rebuild the nesting without guessing.
-      subcards: refs.boards[sub_board_id(card.id)],
+      subcards: refs.boards[refs.loaded.sub_boards[card.id]],
       tags: tag_refs(card.id, refs),
       blocked_by: dependency_refs(card.id, refs),
       links: link_json(card.id, refs),
-      checklist: checklist_json(card_id: card.id),
-      comments: comment_json(card_id: card.id),
-      status_updates: status_json(card_id: card.id),
-      urls: url_json(card_id: card.id),
-      fields: field_value_json([card_id: card.id], refs)
+      checklist: owned(refs, :checklist, {:card, card.id}),
+      comments: owned(refs, :comments, {:card, card.id}),
+      status_updates: status_json({:card, card.id}, refs),
+      urls: owned(refs, :urls, {:card, card.id}),
+      fields: field_value_json({:card, card.id}, refs)
     }
   end
 
@@ -1339,12 +1397,12 @@ defmodule Slipdock.Portable do
       color: page.color,
       archived: page.archived_at != nil,
       created_at: page.inserted_at,
-      assignee: email_of(page.assignee_id),
-      checklist: checklist_json(page_id: page.id),
-      comments: comment_json(page_id: page.id),
-      status_updates: status_json(page_id: page.id),
-      urls: url_json(page_id: page.id),
-      fields: field_value_json([page_id: page.id], refs)
+      assignee: email_of(page.assignee_id, refs),
+      checklist: owned(refs, :checklist, {:page, page.id}),
+      comments: owned(refs, :comments, {:page, page.id}),
+      status_updates: status_json({:page, page.id}, refs),
+      urls: owned(refs, :urls, {:page, page.id}),
+      fields: field_value_json({:page, page.id}, refs)
     }
   end
 
@@ -1413,85 +1471,167 @@ defmodule Slipdock.Portable do
     Repo.all(query)
   end
 
-  defp sub_board_id(card_id) do
-    Repo.one(from(b in Board, where: b.parent_card_id == ^card_id, select: b.id))
+  # One query per kind of thing, for every card and page in the tree at once.
+  # Rows that hang off a card or a page are keyed {:card, id} / {:page, id};
+  # each list keeps its query's order.
+  defp load_attached(boards, cards, pages) do
+    card_ids = Enum.map(cards, & &1.id)
+    page_ids = Enum.map(pages, & &1.id)
+
+    owned = fn query ->
+      from(r in query, where: r.card_id in ^card_ids or r.page_id in ^page_ids)
+      |> Repo.all()
+      |> Enum.group_by(&owner_key/1, &Map.drop(&1, [:card_id, :page_id]))
+    end
+
+    assignees =
+      from(a in "card_assignees",
+        where: a.card_id in ^card_ids,
+        select: {a.card_id, a.user_id}
+      )
+      |> Repo.all()
+      |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+
+    statuses =
+      owned.(
+        from(s in StatusUpdate,
+          order_by: [asc: s.inserted_at, asc: s.id],
+          select: %{
+            card_id: s.card_id,
+            page_id: s.page_id,
+            health: s.health,
+            body: s.body,
+            written_at: s.inserted_at,
+            author_id: s.user_id
+          }
+        )
+      )
+
+    user_ids =
+      Enum.map(cards, & &1.assignee_id) ++
+        Enum.map(pages, & &1.assignee_id) ++
+        Enum.concat(Map.values(assignees)) ++
+        (statuses |> Map.values() |> Enum.concat() |> Enum.map(& &1.author_id))
+
+    user_ids = user_ids |> Enum.reject(&is_nil/1) |> Enum.uniq()
+
+    %{
+      sub_boards:
+        for(
+          %Board{parent_card_id: card_id, id: id} <- boards,
+          card_id,
+          into: %{},
+          do: {card_id, id}
+        ),
+      assignees: assignees,
+      emails:
+        Map.new(Repo.all(from(u in User, where: u.id in ^user_ids, select: {u.id, u.email}))),
+      tags:
+        from(t in "card_tags",
+          where: t.card_id in ^card_ids,
+          order_by: [asc: t.tag_id],
+          select: {t.card_id, t.tag_id}
+        )
+        |> Repo.all()
+        |> Enum.group_by(&elem(&1, 0), &elem(&1, 1)),
+      blockers:
+        from(d in "card_dependencies",
+          where: d.blocked_id in ^card_ids,
+          order_by: [asc: d.blocker_id],
+          select: {d.blocked_id, d.blocker_id}
+        )
+        |> Repo.all()
+        |> Enum.group_by(&elem(&1, 0), &elem(&1, 1)),
+      links:
+        from(l in CardLink, where: l.from_id in ^card_ids, order_by: [asc: l.id])
+        |> Repo.all()
+        |> Enum.group_by(& &1.from_id),
+      checklist:
+        owned.(
+          from(i in ChecklistItem,
+            order_by: [asc: i.position, asc: i.id],
+            select: %{
+              card_id: i.card_id,
+              page_id: i.page_id,
+              text: i.text,
+              done: i.done,
+              position: i.position
+            }
+          )
+        ),
+      comments:
+        owned.(
+          from(c in Comment,
+            order_by: [asc: c.inserted_at, asc: c.id],
+            select: %{
+              card_id: c.card_id,
+              page_id: c.page_id,
+              body: c.body,
+              written_at: c.inserted_at
+            }
+          )
+        ),
+      statuses: statuses,
+      urls:
+        owned.(
+          from(u in CardUrl,
+            order_by: [asc: u.inserted_at, asc: u.id],
+            select: %{card_id: u.card_id, page_id: u.page_id, url: u.url, title: u.title}
+          )
+        ),
+      field_values:
+        from(v in FieldValue,
+          where: v.card_id in ^card_ids or v.page_id in ^page_ids,
+          order_by: [asc: v.id]
+        )
+        |> Repo.all()
+        |> Enum.group_by(&owner_key/1)
+    }
+  end
+
+  defp owner_key(%{card_id: id}) when not is_nil(id), do: {:card, id}
+  defp owner_key(%{page_id: id}), do: {:page, id}
+
+  defp owned(refs, kind, key), do: Map.get(refs.loaded[kind], key, [])
+
+  # Lead first, then the rest in id order — as `Boards.assignee_ids/1` has it.
+  defp assignee_ids(%Card{id: id, assignee_id: lead}, refs) do
+    ids = Map.get(refs.loaded.assignees, id, [])
+    if lead in ids, do: [lead | List.delete(ids, lead)], else: Enum.sort(ids)
   end
 
   defp tag_refs(card_id, refs) do
-    Repo.all(
-      from(t in "card_tags",
-        where: t.card_id == ^card_id,
-        select: t.tag_id,
-        order_by: [asc: t.tag_id]
-      )
-    )
+    refs.loaded.tags
+    |> Map.get(card_id, [])
     |> Enum.map(&refs.tags[&1])
     |> Enum.reject(&is_nil/1)
   end
 
   defp dependency_refs(card_id, refs) do
-    Repo.all(
-      from(d in "card_dependencies",
-        where: d.blocked_id == ^card_id,
-        select: d.blocker_id,
-        order_by: [asc: d.blocker_id]
-      )
-    )
+    refs.loaded.blockers
+    |> Map.get(card_id, [])
     |> Enum.map(&refs.cards[&1])
     |> Enum.reject(&is_nil/1)
   end
 
   defp link_json(card_id, refs) do
-    Repo.all(from(l in CardLink, where: l.from_id == ^card_id, order_by: [asc: l.id]))
+    refs.loaded.links
+    |> Map.get(card_id, [])
     |> Enum.map(&%{kind: &1.kind, to: refs.cards[&1.to_id]})
     |> Enum.reject(&is_nil(&1.to))
   end
 
-  defp checklist_json(owner) do
-    Repo.all(
-      from(i in ChecklistItem,
-        where: ^owner_where(owner),
-        order_by: [asc: i.position, asc: i.id],
-        select: %{text: i.text, done: i.done, position: i.position}
-      )
-    )
-  end
-
-  defp comment_json(owner) do
-    Repo.all(
-      from(c in Comment,
-        where: ^owner_where(owner),
-        order_by: [asc: c.inserted_at, asc: c.id],
-        select: %{body: c.body, written_at: c.inserted_at}
-      )
-    )
-  end
-
-  defp status_json(owner) do
-    Repo.all(
-      from(s in StatusUpdate,
-        where: ^owner_where(owner),
-        order_by: [asc: s.inserted_at, asc: s.id],
-        select: %{health: s.health, body: s.body, written_at: s.inserted_at, author_id: s.user_id}
-      )
-    )
+  defp status_json(key, refs) do
+    refs
+    |> owned(:statuses, key)
     |> Enum.map(fn update ->
-      update |> Map.put(:author, email_of(update.author_id)) |> Map.delete(:author_id)
+      update |> Map.put(:author, email_of(update.author_id, refs)) |> Map.delete(:author_id)
     end)
   end
 
-  defp url_json(owner) do
-    Repo.all(
-      from(u in CardUrl,
-        where: ^owner_where(owner),
-        order_by: [asc: u.inserted_at, asc: u.id],
-        select: %{url: u.url, title: u.title}
-      )
-    )
-  end
-
-  defp field_value_json(owner, refs) do
-    Repo.all(from(v in FieldValue, where: ^owner_where(owner), order_by: [asc: v.id]))
+  defp field_value_json(key, refs) do
+    refs
+    |> owned(:field_values, key)
     |> Enum.map(
       &%{
         field: refs.fields[&1.field_id],
@@ -1504,16 +1644,8 @@ defmodule Slipdock.Portable do
     |> Enum.reject(&is_nil(&1.field))
   end
 
-  # Checklists, comments, status updates, web links and field values all hang
-  # off either a card or a page, so one `where` builder serves all five.
-  defp owner_where(card_id: card_id), do: dynamic([r], r.card_id == ^card_id)
-  defp owner_where(page_id: page_id), do: dynamic([r], r.page_id == ^page_id)
-
-  defp email_of(nil), do: nil
-
-  defp email_of(user_id) do
-    Repo.one(from(u in User, where: u.id == ^user_id, select: u.email))
-  end
+  defp email_of(nil, _refs), do: nil
+  defp email_of(user_id, refs), do: refs.loaded.emails[user_id]
 
   ## Internals: the warnings -----------------------------------------------------
 

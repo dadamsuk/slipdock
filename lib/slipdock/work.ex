@@ -46,7 +46,7 @@ defmodule Slipdock.Work do
 
     user
     |> Boards.list_assigned_cards()
-    |> Enum.filter(&Access.can_read?(Access.card_permission(viewer, &1)))
+    |> then(&Access.filter_readable_cards(viewer, &1))
     |> then(fn cards ->
       case opts[:board_id] do
         nil -> cards

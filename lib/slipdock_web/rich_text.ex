@@ -24,7 +24,9 @@ defmodule SlipdockWeb.RichText do
   `whitespace-pre-wrap`.
 
   Options: `:board` — resolve `[[wiki links]]` against that board's pages;
-  `:as` — the reader, so a link to a page they cannot see stays plain text.
+  `:as` — the reader, so a link to a page they cannot see stays plain text;
+  `:members` — the board's members (`Slipdock.Wiki.Links.members/1`), when
+  the caller renders many texts for one board and has already looked them up.
   """
   @spec render(String.t() | nil, keyword) :: Phoenix.HTML.safe()
   def render(text, opts \\ [])
@@ -34,7 +36,9 @@ defmodule SlipdockWeb.RichText do
   def render(text, opts) when is_binary(text) do
     escaped = text |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()
     linked = Regex.replace(@pattern, escaped, &replace/5)
-    {:safe, linked |> wiki_links(opts[:board], opts[:as]) |> mentions(opts[:board])}
+
+    {:safe,
+     linked |> wiki_links(opts[:board], opts[:as]) |> mentions(opts[:board], opts[:members])}
   end
 
   # Only page references, and only when a board is in hand. A comment is not
@@ -67,11 +71,15 @@ defmodule SlipdockWeb.RichText do
 
   @mention ~r/(?<![\w@\/])@([a-zA-Z][\w.\-]{0,62})/
 
-  defp mentions(html, nil), do: html
+  @doc "Whether `text` has an `@mention` in it that `render/2` would look up."
+  def mentions?(nil), do: false
+  def mentions?(text) when is_binary(text), do: Regex.match?(@mention, text)
 
-  defp mentions(html, board) do
+  defp mentions(html, nil, _members), do: html
+
+  defp mentions(html, board, members) do
     if Regex.match?(@mention, html) do
-      members = Slipdock.Wiki.Links.members(board)
+      members = members || Slipdock.Wiki.Links.members(board)
 
       # Only the text between tags, and not a link's own text: an "@" in a
       # URL is part of the address, not a person.

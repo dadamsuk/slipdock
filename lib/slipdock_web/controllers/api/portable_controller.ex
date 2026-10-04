@@ -54,7 +54,7 @@ defmodule SlipdockWeb.API.PortableController do
   def import(conn, params) do
     {from, params} = Map.pop(params, "from")
 
-    case Importers.import(conn.assigns.current_user, document(params), from: from) do
+    case Importers.import(conn.assigns.current_user, document(params), from: from, via: "api") do
       {:ok, report} ->
         json(conn, %{imported: report})
 
