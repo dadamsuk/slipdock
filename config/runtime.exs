@@ -252,20 +252,6 @@ if path = System.get_env("SLIPDOCK_LOGIN_FALLBACK_PATH") do
   config :slipdock, :login_fallback_path, path
 end
 
-# Configuration tells an admin when a newer image has been published, by asking
-# the registry when they look (never on a timer). Off for a server that should
-# not reach the internet; pointed elsewhere for a fork that publishes its own.
-# SLIPDOCK_TAG is the same variable compose.yaml pulls by, when .env sets it.
-# Only what is set, so the defaults in `Slipdock.Updates` (and test.exs) stand.
-config :slipdock,
-       :updates,
-       [
-         enabled: if(System.get_env("SLIPDOCK_UPDATE_CHECK") in ["0", "false"], do: false),
-         image: System.get_env("SLIPDOCK_UPDATE_IMAGE"),
-         tag: System.get_env("SLIPDOCK_TAG")
-       ]
-       |> Enum.reject(fn {_key, value} -> is_nil(value) end)
-
 if allow = System.get_env("SLIPDOCK_SIGNUP_ALLOW") do
   config :slipdock, :signups,
     open: System.get_env("SLIPDOCK_OPEN_SIGNUP") in ["1", "true"],

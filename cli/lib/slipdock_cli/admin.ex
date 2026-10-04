@@ -21,9 +21,6 @@ defmodule SlipdockCLI.Admin do
   def run("admin", ["build"], o),
     do: HTTP.get("/admin/settings") |> out(o, &IO.puts(render_build(&1["build"])))
 
-  def run("admin", ["updates"], o),
-    do: HTTP.get("/admin/updates") |> out(o, &render_updates/1)
-
   def run("admin", ["set" | pairs], o) when pairs != [] do
     body =
       Enum.reduce(pairs, %{}, fn pair, acc ->
@@ -69,7 +66,6 @@ defmodule SlipdockCLI.Admin do
     fail("""
     admin settings                      what this server allows
     admin build                         the commit and build time now running
-    admin updates                       whether a newer image has been published
     admin set key=value...              signup_mode, free_card_limit, user_directory,
                                         invites_create_accounts, login_fallback_enabled
     admin allow <entry> | disallow <entry>
@@ -170,28 +166,6 @@ defmodule SlipdockCLI.Admin do
   end
 
   defp render_build(_), do: "unknown"
-
-  # The published image beside the running build. Pulling it is done on the
-  # host; this only says whether there is anything to pull.
-  defp render_updates(%{"status" => status} = u) do
-    running = String.slice(get_in(u, ["running", "revision"]) || "unknown", 0, 7)
-    latest = String.slice(get_in(u, ["latest", "revision"]) || "—", 0, 7)
-
-    line =
-      case status do
-        "available" -> "newer image published: #{latest} (running #{running})"
-        "current" -> "up to date: #{running} is what #{u["image"]} serves"
-        "ahead" -> "running #{running}, newer than the published #{latest}"
-        "unknown" -> "cannot compare: this build does not know its commit"
-        "disabled" -> "update checks are off (SLIPDOCK_UPDATE_CHECK)"
-        other -> other
-      end
-
-    IO.puts(line)
-
-    if status == "available",
-      do: IO.puts("on the host: docker compose pull && docker compose up -d")
-  end
 
   defp allowlist_note(%{"signup_mode" => "allowlist", "allowlist" => list}),
     do: " (#{if list == [], do: "nobody listed", else: Enum.join(list, ", ")})"

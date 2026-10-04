@@ -57,7 +57,6 @@ defmodule SlipdockCLI do
   ADMIN  (needs a token made with the admin scope — Account → API tokens)
   admin settings                      what this server allows, and who it tells
   admin build                         the commit and build time now running
-  admin updates                       whether a newer image has been published
   admin set key=value...              signup_mode=open|allowlist|approval|closed,
                                       free_card_limit=20, user_directory=shared_only,
                                       invites_create_accounts=false,

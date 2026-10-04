@@ -39,26 +39,6 @@ defmodule SlipdockWeb.AdminAPITest do
       assert build["built_at"]
     end
 
-    test "updates compare the running build with the published image", %{admin: admin} do
-      Slipdock.UpdatesStub.publish("abcdef1234567890")
-      body = json_response(get(token_conn(admin, "admin"), ~p"/api/admin/updates"), 200)
-
-      assert body["status"] == "available"
-      assert body["latest"]["revision"] == "abcdef1234567890"
-      assert body["running"]["revision"] == Slipdock.Build.sha()
-    end
-
-    test "updates say when the registry could not be asked", %{admin: admin} do
-      Slipdock.UpdatesStub.publish({:status, 503})
-      conn = get(token_conn(admin, "admin"), ~p"/api/admin/updates")
-      assert json_response(conn, 502)["error"] == "update_check_failed"
-    end
-
-    test "updates are not for ordinary tokens", %{admin: admin} do
-      conn = get(token_conn(admin, "write"), ~p"/api/admin/updates")
-      assert json_response(conn, 403)
-    end
-
     test "an admin with an ordinary write token may not", %{admin: admin} do
       conn = get(token_conn(admin, "write"), ~p"/api/admin/settings")
 

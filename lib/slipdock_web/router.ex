@@ -262,7 +262,6 @@ defmodule SlipdockWeb.Router do
     pipe_through :api_admin
 
     get "/settings", AdminController, :settings
-    get "/updates", AdminController, :updates
     patch "/settings", AdminController, :update_settings
     post "/allowlist", AdminController, :allow
     delete "/allowlist", AdminController, :disallow
