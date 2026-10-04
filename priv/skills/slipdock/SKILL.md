@@ -237,7 +237,8 @@ slipdock set-board <board> [--name N] [--code C] [--shortcut K] [--desc TEXT] [-
 slipdock archive-board <board> | slipdock restore-board <board>   # owner only; ask first
 slipdock order-boards <board>...        # the order you list boards in (yours alone)
 slipdock welcome [--force]              # rebuild the "Getting Started" tour board (see below)
-slipdock new-column <board> <name> [--wip N] [--color C]
+slipdock new-column <board> <name> [--wip N] [--color C] [--category C]
+slipdock set-column <board> <column> [--name N] [--wip N] [--color C] [--category C]   # category: todo|doing|done|dropped, "" clears
 slipdock new-tag <board> <name> [--color C]
 slipdock new-board <name> [--code C] [--shortcut K] [--desc TEXT] [--color C] [--template T]
 slipdock templates                                        # sets of lists for new boards / subcards

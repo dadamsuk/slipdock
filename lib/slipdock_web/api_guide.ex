@@ -404,7 +404,9 @@ defmodule SlipdockWeb.APIGuide do
       `doing`, `done`, `dropped`, or null for "no particular meaning". The
       *names* differ from board to board (To Do / Now / Ready; Done / Shipped);
       the categories do not. **Decide what a list means from its category, not
-      its name.** A list may also carry a `horizon` (the date range it stands
+      its name.** A list with none can be given one:
+      `PATCH /api/boards/:board/columns/:id {"category": "todo"}`
+      (`slipdock set-column B "To Do" --category todo`). A list may also carry a `horizon` (the date range it stands
       for) and a `wip_limit`.
     - **Card** — one unit of work: title, description, `priority`, `flags`,
       `tags`, `start_date`, `due_date`, `completed`, `percent_complete` (0–100,

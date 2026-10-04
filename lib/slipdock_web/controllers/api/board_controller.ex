@@ -195,9 +195,13 @@ defmodule SlipdockWeb.API.BoardController do
     end
   end
 
+  # What a client may set on a list. `category` is what agents read a list's
+  # meaning from, so it has to be settable here, not only in the web app.
+  @column_fields ~w(name wip_limit color category)
+
   def create_column(conn, %{"board" => ref} = params) do
     with {:ok, board} <- fetch_board(conn, ref, :write),
-         {:ok, column} <- Boards.create_column(board, Map.take(params, ~w(name wip_limit color))) do
+         {:ok, column} <- Boards.create_column(board, Map.take(params, @column_fields)) do
       conn |> put_status(:created) |> json(%{column: V.column(column)})
     end
   end
@@ -205,7 +209,7 @@ defmodule SlipdockWeb.API.BoardController do
   def update_column(conn, %{"board" => ref, "id" => id} = params) do
     with {:ok, board} <- fetch_board(conn, ref, :write),
          {:ok, column} <- find(Boards.find_column(board, id), "column"),
-         {:ok, column} <- Boards.update_column(column, Map.take(params, ~w(name wip_limit color))) do
+         {:ok, column} <- Boards.update_column(column, Map.take(params, @column_fields)) do
       json(conn, %{column: V.column(column)})
     end
   end
