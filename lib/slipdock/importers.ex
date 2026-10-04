@@ -44,6 +44,56 @@ defmodule Slipdock.Importers do
   def keys, do: ["slipdock" | Enum.map(@sources, & &1.key())]
 
   @doc """
+  Why an import was refused, in a sentence for the person who tried it — the
+  same words on the account page and in an API response. `nil` for a reason
+  that is the server's own business rather than theirs.
+  """
+  @spec error_message(term()) :: String.t() | nil
+  def error_message(:not_json), do: "That is not JSON."
+
+  def error_message(:not_a_slipdock_export),
+    do:
+      "That is not a Slipdock export — it has no \"slipdock_portable\" version in it — " <>
+        "nor a board export from #{Enum.map_join(@sources, " or ", & &1.label())}."
+
+  def error_message({:unknown_source, from}),
+    do: "This server can't import from “#{from}”; it reads #{Enum.join(keys(), ", ")}."
+
+  def error_message(:not_a_trello_export),
+    do: "That is not a Trello board export — it has no lists and cards in it."
+
+  def error_message({:unsupported_version, version}),
+    do:
+      "That document is format version #{version}. This server reads version " <>
+        "#{Portable.format_version()}, so it was written by a newer Slipdock."
+
+  def error_message({:card_limit_reached, wanted, remaining}),
+    do:
+      "That document holds #{wanted} cards and pages and you have room for #{remaining}. " <>
+        "Nothing was imported — half a board is worse than none."
+
+  def error_message({:board_limit_reached, wanted, remaining}),
+    do:
+      "That document holds #{wanted} boards and you have room for #{remaining}. " <>
+        "Nothing was imported."
+
+  def error_message({:bad_sub_board, ref}),
+    do:
+      "In that document the sub-board “#{ref}” is the root board or belongs to more " <>
+        "than one card, so it would be built inside itself or twice. Nothing was imported."
+
+  def error_message({:too_many, kind, count, max}),
+    do:
+      "That document holds #{count} #{Portable.row_kind(kind)}; one import takes at most " <>
+        "#{max}. Nothing was imported."
+
+  def error_message(:trial_expired),
+    do: "Your free trial has ended, so nothing new can be added. Nothing was imported."
+
+  def error_message({:invalid, message}), do: "#{message} Nothing was imported."
+  def error_message(_), do: nil
+
+  @doc """
   Imports a document from any source this server reads.
 
   `from: "trello"` names the source; without it (or with `"auto"`) the document

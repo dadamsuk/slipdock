@@ -1,9 +1,10 @@
 defmodule Slipdock.Accounts.UserToken do
   @moduledoc """
-  Tokens for magic-link sign-in ("magic"), browser sessions ("session") and
-  API access ("api"). Magic-link and API tokens are stored hashed; the
-  session token is random and stored as-is (it only ever lives in the
-  signed session cookie).
+  Tokens for magic-link sign-in ("magic"), browser sessions ("session"),
+  API access ("api") and confirming a change of the instance's admin
+  address ("admin_email", a code sent to the new address). Every token but
+  the session one is stored hashed; the session token is random and stored
+  as-is (it only ever lives in the signed session cookie).
   """
   use Ecto.Schema
   import Ecto.Query

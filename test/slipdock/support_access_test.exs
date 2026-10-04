@@ -9,7 +9,6 @@ defmodule Slipdock.SupportAccessTest do
   use Slipdock.DataCase, async: false
 
   import Slipdock.Fixtures
-  import Swoosh.TestAssertions
 
   alias Slipdock.{Access, Accounts, Settings}
 

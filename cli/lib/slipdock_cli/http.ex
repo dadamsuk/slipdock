@@ -259,14 +259,19 @@ defmodule SlipdockCLI.HTTP do
     |> IO.iodata_to_binary()
   end
 
-  def encode_query([]), do: ""
-
+  # Options left unset are left out, and a query with nothing left in it is
+  # no query at all rather than a stray "?".
   def encode_query(query) do
-    "?" <>
-      (query
-       |> Enum.reject(fn {_, v} -> is_nil(v) end)
-       |> Enum.map(fn {k, v} -> "#{k}=#{URI.encode_www_form(to_string(v))}" end)
-       |> Enum.join("&"))
+    case Enum.reject(query, fn {_, v} -> is_nil(v) end) do
+      [] ->
+        ""
+
+      set ->
+        "?" <>
+          Enum.map_join(set, "&", fn {k, v} ->
+            "#{URI.encode_www_form(to_string(k))}=#{URI.encode_www_form(to_string(v))}"
+          end)
+    end
   end
 
   def seg(value), do: URI.encode(to_string(value), &URI.char_unreserved?/1)

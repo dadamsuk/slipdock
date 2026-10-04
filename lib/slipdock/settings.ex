@@ -32,7 +32,9 @@ defmodule Slipdock.Settings do
 
   `get/0` is called often enough (every quota check, every people picker) to be
   worth a query every time, so the row is cached in `:persistent_term` and
-  erased on every write. The test environment turns the cache off
+  erased on every write — on this node and, when `DNS_CLUSTER_QUERY` has joined
+  it to others, on every connected node too, so a change made through one
+  node is not ignored by the rest. The test environment turns the cache off
   (`config :slipdock, :settings_cache, false`), because a row cached inside one
   test's sandbox transaction would outlive the rollback and leak into the next.
   """
@@ -89,8 +91,14 @@ defmodule Slipdock.Settings do
     _ -> false
   end
 
-  @doc "Forgets the cached row. Called after every write, and by tests."
+  @doc "Forgets this node's cached row. Called by tests, and by `clear_caches/0`."
   def clear_cache, do: :persistent_term.erase(@cache_key)
+
+  # After a write, every node's copy is stale, not just this one's.
+  defp clear_caches do
+    clear_cache()
+    :erpc.multicast(Node.list(), __MODULE__, :clear_cache, [])
+  end
 
   @doc """
   Changes the settings, creating the row if this is the first write. Returns
@@ -399,7 +407,7 @@ defmodule Slipdock.Settings do
 
       case Repo.insert(Instance.changeset(%Instance{id: @id}, attrs)) do
         {:ok, _} ->
-          clear_cache()
+          clear_caches()
           seed_allowlist()
           maybe_claim_existing_instance(attrs)
           :ok
@@ -562,7 +570,7 @@ defmodule Slipdock.Settings do
   end
 
   defp tap_clear_cache({:ok, _} = result) do
-    clear_cache()
+    clear_caches()
     result
   end
 

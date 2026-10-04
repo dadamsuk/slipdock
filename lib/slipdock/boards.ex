@@ -456,7 +456,7 @@ defmodule Slipdock.Boards do
     else
       case create_board(
              # A simple board's subcards are as simple as it is.
-             %{"name" => card.title, "color" => parent.color, "simple" => parent.simple},
+             %{"name" => Board.name_for_card(card.title), "color" => parent.color, "simple" => parent.simple},
              template: template,
              parent_card_id: card.id,
              root_id: Board.root_id(parent),
@@ -1238,7 +1238,7 @@ defmodule Slipdock.Boards do
       # A sub-board is named after its card.
       if Map.has_key?(changeset.changes, :title) do
         from(b in Board, where: b.parent_card_id == ^updated.id)
-        |> Repo.update_all(set: [name: updated.title])
+        |> Repo.update_all(set: [name: Board.name_for_card(updated.title)])
       end
 
       broadcast(updated.board_id)

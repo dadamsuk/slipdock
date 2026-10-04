@@ -214,12 +214,7 @@ defmodule SlipdockWeb.UsersLive.Index do
         load(socket)
 
       {:error, :last_admin} ->
-        put_flash(
-          socket,
-          :error,
-          "#{user.email} is the only admin. Make somebody else an admin first, or " <>
-            "there would be nobody left who can change any of this."
-        )
+        put_flash(socket, :error, Slipdock.Accounts.last_admin_message(user))
 
       {:error, _} ->
         put_flash(socket, :error, "Couldn't do that.")

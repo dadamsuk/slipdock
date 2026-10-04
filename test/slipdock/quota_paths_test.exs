@@ -82,7 +82,5 @@ defmodule Slipdock.QuotaPathsTest do
     assert {:ok, _} = Boards.create_card(column, %{"title" => "Three"})
   end
 
-  defp quota_refusal?(%Ecto.Changeset{} = changeset), do: Quota.limit_reached?(changeset)
   defp quota_refusal?(reason) when is_binary(reason), do: reason =~ "card"
-  defp quota_refusal?(_), do: false
 end

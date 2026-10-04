@@ -127,4 +127,17 @@ defmodule SlipdockWeb.SubBoardsLiveTest do
     id = to |> String.split("/") |> List.last() |> String.to_integer()
     assert Enum.map(Boards.get_board!(id).columns, & &1.name) == ["Open", "Done"]
   end
+
+  test "a card with a title longer than a board name can still have subcards", %{card: card} do
+    long = String.duplicate("word ", 30) |> String.trim()
+    {:ok, card} = Boards.update_card(card, %{"title" => long})
+    {:ok, t} = Boards.find_template("Simple")
+
+    assert {:ok, sub} = Boards.create_sub_board(card, t)
+    assert String.length(sub.name) == 80 and String.ends_with?(sub.name, "…")
+
+    # A rename keeps the sub-board's name inside the limit too.
+    {:ok, _} = Boards.update_card(Boards.get_card!(card.id), %{"title" => long <> " again"})
+    assert String.length(Boards.get_board!(sub.id).name) <= 80
+  end
 end

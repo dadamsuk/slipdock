@@ -413,8 +413,8 @@ defmodule Slipdock.AI.Context do
     if String.length(text) > max, do: String.slice(text, 0, max) <> "…", else: text
   end
 
-  defp fmt(%Date{} = d), do: Calendar.strftime(d, "%-d %b %Y")
+  defp fmt(%Date{} = d), do: Slipdock.Dates.medium(d)
   defp fmt(_), do: ""
-  defp fmt_at(%DateTime{} = dt), do: Calendar.strftime(dt, "%-d %b %Y")
+  defp fmt_at(%DateTime{} = dt), do: Slipdock.Dates.medium(dt)
   defp fmt_at(_), do: ""
 end

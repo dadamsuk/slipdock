@@ -445,5 +445,5 @@ defmodule SlipdockWeb.CalendarComponents do
     "#{card.title}\n#{dates}"
   end
 
-  defp fmt(d), do: Calendar.strftime(d, "%a %-d %b %Y")
+  defp fmt(d), do: Slipdock.Dates.long(d)
 end

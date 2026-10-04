@@ -25,10 +25,9 @@ defmodule SlipdockWeb.API.AutomationController do
   action_fallback SlipdockWeb.API.FallbackController
 
   # Rules act on everyone's cards, so only the board's owner may touch them.
-  defp fetch_board(conn, ref, need), do: Authorize.fetch_board(conn, ref, need)
 
   defp fetch_rule(conn, board_ref, rule_ref) do
-    with {:ok, board} <- fetch_board(conn, board_ref, :owner),
+    with {:ok, board} <- Authorize.fetch_board(conn, board_ref, :owner),
          {:ok, rule} <- find(Automations.find_rule(board, rule_ref), "automation") do
       {:ok, board, rule}
     end
@@ -61,7 +60,7 @@ defmodule SlipdockWeb.API.AutomationController do
   end
 
   def index(conn, %{"board" => ref}) do
-    with {:ok, board} <- fetch_board(conn, ref, :owner) do
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :owner) do
       json(conn, %{automations: Enum.map(Automations.list_rules(board.id), &V.automation/1)})
     end
   end
@@ -73,7 +72,7 @@ defmodule SlipdockWeb.API.AutomationController do
   end
 
   def create(conn, %{"board" => ref} = params) do
-    with {:ok, board} <- fetch_board(conn, ref, :owner),
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :owner),
          {:ok, rule} <- build(board, params, conn.assigns.current_user) do
       conn |> put_status(:created) |> json(%{automation: V.automation(rule)})
     end
@@ -111,7 +110,7 @@ defmodule SlipdockWeb.API.AutomationController do
   at most 200) says how many.
   """
   def callbacks(conn, %{"board" => ref} = params) do
-    with {:ok, board} <- fetch_board(conn, ref, :owner) do
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :owner) do
       calls = Automations.list_callbacks(board.id, params["limit"])
       json(conn, %{callbacks: Enum.map(calls, &V.callback/1)})
     end

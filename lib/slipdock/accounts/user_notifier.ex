@@ -1,5 +1,10 @@
 defmodule Slipdock.Accounts.UserNotifier do
-  @moduledoc "Emails sent to users. Only the sign-in link and code for now."
+  @moduledoc """
+  Every email the server sends to a person: the sign-in link and code,
+  signup requests for admins, invitations, the code that confirms a new
+  admin address (and the warning to the old one), and support-session
+  notices.
+  """
   import Swoosh.Email
   require Logger
 
