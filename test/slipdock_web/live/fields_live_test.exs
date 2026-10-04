@@ -5,6 +5,9 @@ defmodule SlipdockWeb.FieldsLiveTest do
   import Slipdock.Fixtures
   alias Slipdock.{Boards, Fields}
 
+  # The card panel is a LiveComponent; what it is pushed goes to it.
+  defp card_panel(view), do: with_target(view, "#board-card")
+
   setup do
     board = board_fixture(%{"name" => "Scored"})
     [backlog | _] = board.columns
@@ -64,8 +67,16 @@ defmodule SlipdockWeb.FieldsLiveTest do
     formula = Fields.find_field(fields, "value_effort")
 
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/cards/#{card}")
-    render_click(view, "set_field", %{"field_id" => to_string(value.id), "value" => "4"})
-    render_click(view, "set_field", %{"field_id" => to_string(effort.id), "value" => "2"})
+
+    render_click(card_panel(view), "set_field", %{
+      "field_id" => to_string(value.id),
+      "value" => "4"
+    })
+
+    render_click(card_panel(view), "set_field", %{
+      "field_id" => to_string(effort.id),
+      "value" => "2"
+    })
 
     view
     |> form("#field-form-#{size.id}", %{"field_id" => size.id, "value" => "large"})
@@ -78,20 +89,24 @@ defmodule SlipdockWeb.FieldsLiveTest do
     assert render(view) =~ "Value ÷ Effort"
 
     # Out-of-range values are refused with a message.
-    html = render_click(view, "set_field", %{"field_id" => to_string(value.id), "value" => "9"})
-    assert html =~ "at most 5"
+    render_click(card_panel(view), "set_field", %{
+      "field_id" => to_string(value.id),
+      "value" => "9"
+    })
+
+    assert render(view) =~ "at most 5"
   end
 
   test "votes come from a budget", %{conn: conn, board: board, card: card} do
     {:ok, _} = Boards.update_board(board, %{"vote_budget" => 2, "vote_max" => 2})
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/cards/#{card}")
 
-    render_click(view, "vote", %{"count" => "2"})
+    render_click(card_panel(view), "vote", %{"count" => "2"})
     assert Slipdock.Boards.Card.vote_total(Boards.get_card!(card.id)) == 2
     assert render(view) =~ "0 of 2 left"
 
-    html = render_click(view, "vote", %{"count" => "3"})
-    assert html =~ "At most 2"
+    render_click(card_panel(view), "vote", %{"count" => "3"})
+    assert render(view) =~ "At most 2"
   end
 
   test "custom fields become table columns, sorts and swimlane axes", %{

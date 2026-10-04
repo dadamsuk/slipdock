@@ -6,6 +6,9 @@ defmodule SlipdockWeb.AssignCardLiveTest do
   alias Slipdock.Boards
   alias Slipdock.Boards.Card
 
+  # The card panel is a LiveComponent; what it is pushed goes to it.
+  defp card_panel(view), do: with_target(view, "#board-card")
+
   setup do
     board = board_fixture()
     [col | _] = board.columns
@@ -50,12 +53,16 @@ defmodule SlipdockWeb.AssignCardLiveTest do
     stranger = user_fixture("stranger@example.com")
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/cards/#{card.id}")
 
-    html = render_hook(view, "card_change", %{"card" => %{"add_assignee_id" => "#{stranger.id}"}})
+    render_hook(card_panel(view), "card_change", %{
+      "card" => %{"add_assignee_id" => "#{stranger.id}"}
+    })
+
+    html = render(view)
     assert html =~ "can&#39;t be put on this card"
     refute html =~ "stranger@example.com"
     assert Boards.get_card!(card.id).assignees == []
 
-    render_hook(view, "card_change", %{"card" => %{"assignee_id" => "99999999"}})
+    render_hook(card_panel(view), "card_change", %{"card" => %{"assignee_id" => "99999999"}})
     assert Boards.get_card!(card.id).assignees == []
   end
 end

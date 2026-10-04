@@ -66,6 +66,9 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
     with_target(view, "#board-automations")
   end
 
+  # The card panel is a LiveComponent; what it is pushed goes to it.
+  defp card_panel(view), do: with_target(view, "#board-card")
+
   defp archive_panel(conn, board) do
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/archive")
     with_target(view, "#board-archive")
@@ -127,13 +130,13 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
     test "another card's checklist items and comments are left alone", ctx do
       view = card_view(ctx.conn, ctx.mine, ctx.my_card)
 
-      render_hook(view, "toggle_check", %{"id" => "#{ctx.check.id}"})
+      render_hook(card_panel(view), "toggle_check", %{"id" => "#{ctx.check.id}"})
       refute Repo.get!(ChecklistItem, ctx.check.id).done
 
-      render_hook(view, "delete_check", %{"id" => "#{ctx.check.id}"})
+      render_hook(card_panel(view), "delete_check", %{"id" => "#{ctx.check.id}"})
       assert Repo.get(ChecklistItem, ctx.check.id)
 
-      render_hook(view, "delete_comment", %{"id" => "#{ctx.comment.id}"})
+      render_hook(card_panel(view), "delete_comment", %{"id" => "#{ctx.comment.id}"})
       assert Repo.get(Comment, ctx.comment.id)
     end
 
@@ -142,10 +145,10 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
       {:ok, comment} = Boards.add_comment(ctx.my_card, "Mine")
       view = card_view(ctx.conn, ctx.mine, ctx.my_card)
 
-      render_hook(view, "toggle_check", %{"id" => "#{check.id}"})
+      render_hook(card_panel(view), "toggle_check", %{"id" => "#{check.id}"})
       assert Repo.get!(ChecklistItem, check.id).done
 
-      render_hook(view, "delete_comment", %{"id" => "#{comment.id}"})
+      render_hook(card_panel(view), "delete_comment", %{"id" => "#{comment.id}"})
       refute Repo.get(Comment, comment.id)
     end
 
@@ -154,7 +157,7 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
       {:ok, _} = Boards.create_sub_board(ctx.my_card, t)
       view = card_view(ctx.conn, ctx.mine, ctx.my_card)
 
-      render_hook(view, "quick_add_subcard", %{
+      render_hook(card_panel(view), "quick_add_subcard", %{
         "column_id" => "#{ctx.their_col.id}",
         "title" => "Planted"
       })
@@ -164,7 +167,7 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
 
     test "another board's tag can't be put on the card", ctx do
       view = card_view(ctx.conn, ctx.mine, ctx.my_card)
-      render_hook(view, "toggle_tag", %{"id" => "#{ctx.tag.id}"})
+      render_hook(card_panel(view), "toggle_tag", %{"id" => "#{ctx.tag.id}"})
       assert Repo.preload(Repo.get!(Card, ctx.my_card.id), :tags).tags == []
     end
 
@@ -174,21 +177,26 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
 
       view = card_view(ctx.conn, ctx.theirs, ctx.their_card)
 
-      assert render_hook(view, "remove_assignee", %{"id" => "#{ctx.victim.id}"}) =~
-               "read-only"
+      render_hook(card_panel(view), "remove_assignee", %{"id" => "#{ctx.victim.id}"})
+      assert render(view) =~ "read-only"
 
       assert Boards.get_card!(ctx.their_card.id).assignee_id == ctx.victim.id
 
-      # With no card open there is nothing to remove anybody from, and no crash.
+      # With no card open there is no card panel, and the board itself
+      # knows no such event.
       view = board_view(ctx.conn, ctx.mine)
-      assert render_hook(view, "remove_assignee", %{"id" => "#{ctx.victim.id}"}) =~ "read-only"
+      refute has_element?(view, "#board-card")
+
+      assert render_hook(view, "remove_assignee", %{"id" => "#{ctx.victim.id}"}) =~
+               "isn&#39;t something this page can do"
     end
 
     test "a wiki page you can't read can't be attached", ctx do
       page = page_fixture(ctx.theirs, %{"title" => "Their secret page"}, user: ctx.victim)
       view = card_view(ctx.conn, ctx.mine, ctx.my_card)
 
-      html = render_hook(view, "attach_doc", %{"page" => "#{page.id}"})
+      render_hook(card_panel(view), "attach_doc", %{"page" => "#{page.id}"})
+      html = render(view)
       refute html =~ page.code
       assert html =~ "couldn"
       assert Slipdock.Wiki.pages_for_card(ctx.my_card, ctx.victim) == []
@@ -239,7 +247,11 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
       assert Repo.get!(Card, ctx.my_card.id).column_id == ctx.my_col.id
 
       view = card_view(ctx.conn, ctx.mine, ctx.my_card)
-      render_hook(view, "card_change", %{"card" => %{"column_id" => "#{ctx.their_col.id}"}})
+
+      render_hook(card_panel(view), "card_change", %{
+        "card" => %{"column_id" => "#{ctx.their_col.id}"}
+      })
+
       assert Repo.get!(Card, ctx.my_card.id).column_id == ctx.my_col.id
 
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.mine}/table")
@@ -382,7 +394,9 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
           {"column_component.ex", SlipdockWeb.BoardLive.ColumnComponent},
           {"tags_component.ex", SlipdockWeb.BoardLive.TagsComponent},
           {"settings_component.ex", SlipdockWeb.BoardLive.SettingsComponent},
-          {"archive_component.ex", SlipdockWeb.BoardLive.ArchiveComponent}
+          {"archive_component.ex", SlipdockWeb.BoardLive.ArchiveComponent},
+          {"card_component.ex", SlipdockWeb.BoardLive.CardComponent},
+          {"page_component.ex", SlipdockWeb.BoardLive.PageComponent}
         ] do
       test "every handle_event clause in #{file} is in its event list" do
         assert handled_events(unquote(file)) -- unquote(module).events() == []

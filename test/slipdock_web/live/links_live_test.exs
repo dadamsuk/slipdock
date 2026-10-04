@@ -19,7 +19,10 @@ defmodule SlipdockWeb.LinksLiveTest do
       |> render_change()
 
     assert html =~ "Grow retention"
-    html = render_click(view, "add_link", %{"id" => to_string(goal.id)})
+
+    html =
+      render_click(with_target(view, "#board-card"), "add_link", %{"id" => to_string(goal.id)})
+
     assert html =~ "Contributes to"
     assert html =~ "Roadmap"
     assert [%{kind: "contributes"}] = Boards.get_card!(work.id).links_out

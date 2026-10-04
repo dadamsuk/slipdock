@@ -170,14 +170,15 @@ defmodule SlipdockWeb.AuthLiveTest do
       # Opening a card read-only: the modal is disabled and writes are refused.
       {:ok, rview, _} = live(ctx.other_conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card.id}")
       assert has_element?(rview, "#card-modal fieldset[disabled]")
-      assert render_hook(rview, "add_comment", %{"body" => "hi"}) =~ "read-only"
+      render_hook(with_target(rview, "#board-card"), "add_comment", %{"body" => "hi"})
+      assert render(rview) =~ "read-only access to this card"
       assert Boards.get_card!(ctx.card.id).comments == []
 
       # Upgrading to write lets them edit.
       {:ok, _} = Access.grant(ctx.board, ctx.other, "write", ctx.user)
       {:ok, wview, _} = live(ctx.other_conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card.id}")
       refute has_element?(wview, "#card-modal fieldset[disabled]")
-      render_hook(wview, "add_comment", %{"body" => "hi"})
+      render_hook(with_target(wview, "#board-card"), "add_comment", %{"body" => "hi"})
       assert [_] = Boards.get_card!(ctx.card.id).comments
 
       # But only the owner can rename the board or share it: the settings

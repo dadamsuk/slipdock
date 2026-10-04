@@ -7,6 +7,9 @@ defmodule SlipdockWeb.AttachmentsLiveTest do
 
   @png <<137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13>>
 
+  # The card panel is a LiveComponent; what it is pushed goes to it.
+  defp card_panel(view), do: with_target(view, "#board-card")
+
   setup do
     File.rm_rf!(Boards.uploads_dir())
     board = board_fixture(%{"name" => "Files board"})
@@ -72,7 +75,8 @@ defmodule SlipdockWeb.AttachmentsLiveTest do
 
     assert {:error, [[_, :too_large]]} = render_upload(input, "huge.bin")
     # In the browser the file input's change event follows straight away.
-    assert render_change(view, "validate_attachments", %{}) =~ "huge.bin is too large"
+    render_change(card_panel(view), "validate_attachments", %{})
+    assert render(view) =~ "huge.bin is too large"
     assert Boards.get_card!(card.id).attachments == []
   end
 
@@ -141,8 +145,8 @@ defmodule SlipdockWeb.AttachmentsLiveTest do
 
     assert {:error, [[_, :not_accepted]]} = render_upload(input, "notes.txt")
 
-    assert render_change(view, "card_change", %{"card" => %{"title" => "Spec card"}}) =~
-             "notes.txt isn&#39;t an image"
+    render_change(card_panel(view), "card_change", %{"card" => %{"title" => "Spec card"}})
+    assert render(view) =~ "notes.txt isn&#39;t an image"
 
     assert_push_event(view, "image_failed", %{upload: "desc_image"})
   end
@@ -209,7 +213,8 @@ defmodule SlipdockWeb.AttachmentsLiveTest do
     refute has_element?(view, "#add-comment-0")
     refute has_element?(view, "button", "Edit")
 
-    assert render_click(view, "edit_description", %{}) =~ "read-only"
+    render_click(card_panel(view), "edit_description", %{})
+    assert render(view) =~ "read-only access to this card"
     refute has_element?(view, "#card-description")
   end
 end
