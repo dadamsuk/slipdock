@@ -258,6 +258,9 @@ defmodule SlipdockWeb.APIGuide do
           -H 'content-type: application/json' \\
           -d '{"label": "what you are", "scope": "write"}'
 
+    `scope` is `read` or `write`. Asking for `admin` this way is refused with
+    `invalid_scope`: an admin token is made by an admin on the account page.
+
     That answers with a `user_code` and a `verification_uri`. Show both to the
     person and ask them to approve it in a browser. Then poll, no faster than
     the `interval` it gave you:

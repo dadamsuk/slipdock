@@ -19,6 +19,7 @@ defmodule Slipdock.Accounts do
   }
 
   alias Slipdock.Boards.Board
+  alias Slipdock.RateLimit
   alias Slipdock.Settings
 
   ## Users
@@ -693,6 +694,8 @@ defmodule Slipdock.Accounts do
 
   ## Changing the admin address
 
+  @admin_email_attempts 5
+
   @doc """
   Starts a change of the server's admin address: sends a code to the **new**
   address, and tells the old one that somebody is trying.
@@ -739,8 +742,18 @@ defmodule Slipdock.Accounts do
   `{:ok, email}` or `{:error, :invalid}`.
   """
   @spec confirm_admin_email_change(String.t(), User.t()) ::
-          {:ok, String.t()} | {:error, :invalid}
+          {:ok, String.t()} | {:error, :invalid | :too_many_attempts}
   def confirm_admin_email_change(code, %User{} = by) do
+    # Eight digits is a lot of guesses, but not so many that an unmetered
+    # form can't be ground through. Whoever is guessing is already an admin;
+    # what they would win is the address every warning goes to.
+    case RateLimit.hit("admin_email:confirm:#{by.id}", @admin_email_attempts, :timer.hours(1)) do
+      :ok -> do_confirm_admin_email_change(code, by)
+      {:error, _} -> {:error, :too_many_attempts}
+    end
+  end
+
+  defp do_confirm_admin_email_change(code, by) do
     query =
       from(t in UserToken,
         where:
@@ -1049,7 +1062,7 @@ defmodule Slipdock.Accounts do
   `:expires_at`. The plaintext token is returned once and never stored.
   """
   def create_api_token(%User{} = user, label, opts \\ []) do
-    scope = if opts[:scope] in UserToken.scopes(), do: opts[:scope], else: "write"
+    scope = api_token_scope(user, opts[:scope])
 
     {token, user_token} =
       UserToken.build_hashed_token(user, "api",
@@ -1061,6 +1074,13 @@ defmodule Slipdock.Accounts do
 
     {token, Repo.insert!(user_token)}
   end
+
+  # An admin-scope token is only ever minted for somebody who is an admin now.
+  # One made earlier would sit dormant and wake up the day its owner was
+  # promoted, carrying whatever a stolen copy of it had been waiting for.
+  defp api_token_scope(user, "admin"), do: if(admin?(user), do: "admin", else: "write")
+  defp api_token_scope(_user, scope) when scope in ~w(read write), do: scope
+  defp api_token_scope(_user, _), do: "write"
 
   @doc "Days from now as an expiry, or nil for a token that never expires."
   def expiry_in_days(nil), do: nil
@@ -1119,18 +1139,27 @@ defmodule Slipdock.Accounts do
   Starts a device-authorization request. Returns
   `{plaintext_device_code, record}`; the client polls with the first and shows
   the record's `user_code` to a person.
+
+  The `admin` scope is refused with `{:error, :admin_scope}`. Whoever starts a
+  request is anonymous and chooses its label, so an admin-scope request is a
+  code anybody could send an admin with a friendly name on it; admin tokens are
+  made on the account page, by an admin, deliberately.
   """
   def request_device_authorization(attrs \\ %{}) do
-    # Cheap, and it means the table never accumulates requests nobody
-    # finished with. There is no scheduled job to forget to run.
-    purge_expired_device_authorizations()
+    if attrs[:scope] == "admin" do
+      {:error, :admin_scope}
+    else
+      # Cheap, and it means the table never accumulates requests nobody
+      # finished with. There is no scheduled job to forget to run.
+      purge_expired_device_authorizations()
 
-    scope = if attrs[:scope] in UserToken.scopes(), do: attrs[:scope], else: "write"
+      scope = if attrs[:scope] in ~w(read write), do: attrs[:scope], else: "write"
 
-    {device_code, record} =
-      DeviceAuthorization.build(Map.put(Map.new(attrs), :scope, scope))
+      {device_code, record} =
+        DeviceAuthorization.build(Map.put(Map.new(attrs), :scope, scope))
 
-    {device_code, Repo.insert!(record)}
+      {device_code, Repo.insert!(record)}
+    end
   end
 
   @doc """
@@ -1149,25 +1178,30 @@ defmodule Slipdock.Accounts do
     end
   end
 
-  @doc "Approves a pending request on `user`'s behalf, minting their token."
+  @doc """
+  Approves a pending request on `user`'s behalf, minting their token.
+
+  The decision is made once. The update only lands on a row that is still
+  pending, so two approvals racing each other — or an approval racing a
+  refusal — leave the first one standing; the loser gets `{:error, :expired}`,
+  as if the code had gone, which for them it has.
+  """
   def approve_device_authorization(%DeviceAuthorization{} = request, %User{} = user) do
-    if DeviceAuthorization.expired?(request) do
-      {:error, :expired}
-    else
-      request
-      |> Ecto.Changeset.change(
-        approved_at: DateTime.utc_now(:second),
-        user_id: user.id
-      )
-      |> Repo.update()
-    end
+    decide_device_authorization(request, approved_at: DateTime.utc_now(:second), user_id: user.id)
   end
 
   @doc "Refuses a pending request. The client is told, rather than left polling."
   def deny_device_authorization(%DeviceAuthorization{} = request) do
-    request
-    |> Ecto.Changeset.change(denied_at: DateTime.utc_now(:second))
-    |> Repo.update()
+    decide_device_authorization(request, denied_at: DateTime.utc_now(:second))
+  end
+
+  defp decide_device_authorization(request, changes) do
+    query = DeviceAuthorization.pending() |> where([d], d.id == ^request.id)
+
+    case Repo.update_all(query, set: changes) do
+      {1, _} -> {:ok, Repo.get!(DeviceAuthorization, request.id)}
+      _ -> {:error, :expired}
+    end
   end
 
   @doc """

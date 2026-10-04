@@ -148,6 +148,56 @@ defmodule SlipdockWeb.API.DeviceFlowTest do
                ctx.conn |> poll(started["device_code"]) |> json_response(400)
     end
 
+    test "the admin scope cannot be asked for through the device flow", ctx do
+      # Otherwise anybody could start one labelled "Slipdock CLI" and send the
+      # code to an admin, whose approval would hand them an admin token.
+      assert %{"error" => "invalid_scope"} =
+               ctx.conn
+               |> Plug.Conn.delete_req_header("authorization")
+               |> post(~p"/api/auth/device", %{label: "Slipdock CLI", scope: "admin"})
+               |> json_response(400)
+
+      assert Repo.aggregate(DeviceAuthorization, :count) == 0
+    end
+
+    test "a second approval is a no-op and cannot take the request over", ctx do
+      started = start(ctx.conn)
+      request = Accounts.device_authorization_by_user_code(started["user_code"])
+      other = user_fixture("someone-else@example.com")
+
+      # Both held the request before either decided — the race a stale struct
+      # used to lose, with the later approval overwriting whose token it was.
+      assert {:ok, _} = Accounts.approve_device_authorization(request, ctx.user)
+      assert {:error, :expired} = Accounts.approve_device_authorization(request, other)
+      assert {:error, :expired} = Accounts.deny_device_authorization(request)
+
+      decided = Repo.get!(DeviceAuthorization, request.id)
+      assert decided.user_id == ctx.user.id
+      assert decided.denied_at == nil
+    end
+
+    test "an approval the page sends twice says so rather than crashing", ctx do
+      started = start(ctx.conn)
+      code = started["user_code"]
+
+      ctx.conn |> post(~p"/activate", %{user_code: code, decision: "approve"}) |> response(302)
+
+      conn = post(ctx.conn, ~p"/activate", %{user_code: code, decision: "deny"})
+      assert redirected_to(conn) == ~p"/activate"
+      assert %{"token" => _} = ctx.conn |> poll(started["device_code"]) |> json_response(200)
+    end
+
+    test "a very long User-Agent is clipped, not a 500", ctx do
+      started =
+        ctx.conn
+        |> Plug.Conn.delete_req_header("authorization")
+        |> Plug.Conn.put_req_header("user-agent", String.duplicate("x", 2000))
+        |> start()
+
+      request = Repo.get_by!(DeviceAuthorization, user_code: strip(started["user_code"]))
+      assert String.length(request.client_agent) == 255
+    end
+
     test "polling without a device code is a plain bad request", ctx do
       assert %{"error" => "invalid_request"} =
                ctx.conn
@@ -170,6 +220,10 @@ defmodule SlipdockWeb.API.DeviceFlowTest do
 
       # And they are not all the same one.
       assert length(Enum.uniq(codes)) > 190
+
+      # Every character of the alphabet turns up: the rejection sampling
+      # throws bytes away, it does not narrow what comes out.
+      assert codes |> Enum.join() |> String.graphemes() |> Enum.uniq() |> length() == 27
     end
 
     test "a code is forgiving about how it is typed", ctx do
@@ -197,6 +251,25 @@ defmodule SlipdockWeb.API.DeviceFlowTest do
       assert ctx.conn
              |> get(~p"/activate?user_code=ZZZZ-ZZZZ")
              |> html_response(200) =~ "Too many codes tried"
+    end
+
+    test "deciding is rate limited too", ctx do
+      previous = Application.get_env(:slipdock, :rate_limit)
+      Application.put_env(:slipdock, :rate_limit, enabled: true)
+      Slipdock.RateLimit.reset()
+      on_exit(fn -> Application.put_env(:slipdock, :rate_limit, previous) end)
+
+      for _ <- 1..30,
+          do: post(ctx.conn, ~p"/activate", %{user_code: "ZZZZ-ZZZZ", decision: "approve"})
+
+      started = start(ctx.conn)
+
+      ctx.conn
+      |> post(~p"/activate", %{user_code: started["user_code"], decision: "approve"})
+      |> response(302)
+
+      assert %{"error" => "authorization_pending"} =
+               ctx.conn |> poll(started["device_code"]) |> json_response(400)
     end
 
     test "expired requests are swept when a new one is made", ctx do

@@ -30,26 +30,39 @@ defmodule SlipdockWeb.API.DeviceController do
         error(conn, :too_many_requests, "slow_down", "too many device requests from here")
 
       :ok ->
-        {device_code, request} =
-          Accounts.request_device_authorization(%{
-            scope: params["scope"],
-            scope_boards: board_ids(params["scope_boards"]),
-            client_label: label(params["label"]),
-            client_ip: ip,
-            client_agent: conn |> get_req_header("user-agent") |> List.first()
-          })
-
-        shown = DeviceAuthorization.display_code(request.user_code)
-
-        json(conn, %{
-          device_code: device_code,
-          user_code: shown,
-          verification_uri: url(~p"/activate"),
-          verification_uri_complete: url(~p"/activate?#{[user_code: shown]}"),
-          expires_in: DeviceAuthorization.validity_minutes() * 60,
-          interval: @poll_interval_seconds
-        })
+        %{
+          scope: params["scope"],
+          scope_boards: board_ids(params["scope_boards"]),
+          client_label: label(params["label"]),
+          client_ip: ip,
+          client_agent: conn |> get_req_header("user-agent") |> List.first()
+        }
+        |> Accounts.request_device_authorization()
+        |> started(conn)
     end
+  end
+
+  defp started({:error, :admin_scope}, conn) do
+    error(
+      conn,
+      :bad_request,
+      "invalid_scope",
+      "the admin scope can't be asked for this way — an admin makes that token " <>
+        "themselves, under Account → API tokens"
+    )
+  end
+
+  defp started({device_code, request}, conn) do
+    shown = DeviceAuthorization.display_code(request.user_code)
+
+    json(conn, %{
+      device_code: device_code,
+      user_code: shown,
+      verification_uri: url(~p"/activate"),
+      verification_uri_complete: url(~p"/activate?#{[user_code: shown]}"),
+      expires_in: DeviceAuthorization.validity_minutes() * 60,
+      interval: @poll_interval_seconds
+    })
   end
 
   @doc "POST /api/auth/device/token — poll until a person decides."
