@@ -7,7 +7,6 @@ defmodule Slipdock.AdminEmailTest do
   use Slipdock.DataCase, async: false
 
   import Slipdock.Fixtures
-  import Swoosh.TestAssertions
 
   alias Slipdock.{Accounts, Settings}
   alias Slipdock.Accounts.UserToken

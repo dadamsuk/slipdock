@@ -661,7 +661,7 @@ defmodule SlipdockWeb.TimelineComponents do
     "#{card.title}\n#{dates}#{note}#{precision}"
   end
 
-  defp fmt(%Date{} = d), do: Calendar.strftime(d, "%a %-d %b %Y")
+  defp fmt(d), do: Slipdock.Dates.long(d)
 
   ## Dateless tray -----------------------------------------------------------------
 

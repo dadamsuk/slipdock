@@ -41,11 +41,9 @@ defmodule Slipdock.Accounts.User do
   def email_changeset(user, attrs) do
     user
     |> cast(attrs, [:email])
-    |> update_change(:email, &(&1 |> String.trim() |> String.downcase()))
+    |> update_change(:email, &Slipdock.Email.normalize/1)
     |> validate_required([:email])
-    |> validate_format(:email, ~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-      message: "must be a valid email address"
-    )
+    |> Slipdock.Email.validate(:email)
     |> validate_length(:email, max: 160)
     |> unique_constraint(:email)
   end

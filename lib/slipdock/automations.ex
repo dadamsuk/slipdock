@@ -205,7 +205,7 @@ defmodule Slipdock.Automations do
       |> Slipdock.Wiki.Links.members()
       |> MapSet.new(&String.downcase(&1.email))
 
-    Enum.split_with(addresses, &MapSet.member?(readers, &1 |> String.trim() |> String.downcase()))
+    Enum.split_with(addresses, &MapSet.member?(readers, Slipdock.Email.normalize(&1)))
   end
 
   def delete_rule(%Rule{} = rule) do

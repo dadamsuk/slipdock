@@ -87,18 +87,18 @@ defmodule SlipdockWeb.HeaderQuickAddLiveTest do
     })
     |> render_change()
 
-    html =
-      view
-      |> form("#quick-add-form-settings", %{
-        "user" => %{
-          "quick_add_board_id" => other.id,
-          "quick_add_column_id" => doing.id,
-          "quick_add_ai" => "false"
-        }
-      })
-      |> render_submit()
+    view
+    |> form("#quick-add-form-settings", %{
+      "user" => %{
+        "quick_add_board_id" => other.id,
+        "quick_add_column_id" => doing.id,
+        "quick_add_ai" => "false"
+      }
+    })
+    |> render_submit()
 
-    assert html =~ "Quick add settings saved."
+    # The flash is the page's, sent up by the tab, so it lands a render later.
+    assert render(view) =~ "Quick add settings saved."
 
     user = Repo.reload!(user)
     assert user.quick_add_board_id == other.id

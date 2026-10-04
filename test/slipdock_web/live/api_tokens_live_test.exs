@@ -69,7 +69,9 @@ defmodule SlipdockWeb.ApiTokensLiveTest do
       |> render_submit()
 
     assert html =~ "Copy this token now"
-    refute render_click(view, "dismiss_token") =~ "Copy this token now"
+
+    refute view |> element("button[phx-click=dismiss_token]") |> render_click() =~
+             "Copy this token now"
   end
 
   test "an expired token is labelled expired rather than quietly listed", %{
@@ -88,7 +90,7 @@ defmodule SlipdockWeb.ApiTokensLiveTest do
     {_plain, token} = Accounts.create_api_token(user, "doomed")
     {:ok, view, _html} = live(conn, ~p"/account/tokens")
 
-    render_click(view, "delete_token", %{"id" => to_string(token.id)})
+    view |> element("#token-#{token.id} button[phx-click=delete_token]") |> render_click()
     assert Accounts.list_api_tokens(user) == []
   end
 end

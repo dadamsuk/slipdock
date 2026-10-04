@@ -837,7 +837,7 @@ defmodule Slipdock.AI.Actions do
     if String.length(text) > 80, do: "“#{String.slice(text, 0, 80)}…”", else: "“#{text}”"
   end
 
-  defp fmt(%Date{} = d), do: Calendar.strftime(d, "%a %-d %b %Y")
+  defp fmt(d), do: Slipdock.Dates.long(d)
 
   defp parse_percent(nil), do: {:ok, nil}
   defp parse_percent(n) when is_integer(n) and n in 0..100, do: {:ok, n}

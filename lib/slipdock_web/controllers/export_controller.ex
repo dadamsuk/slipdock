@@ -96,13 +96,8 @@ defmodule SlipdockWeb.ExportController do
   end
 
   defp portable_opts(user, params) do
-    archived = to_string(params["archived"])
-
-    [
-      archived_cards: archived in ["all", "cards", "true"],
-      archived_pages: archived in ["all", "pages", "true"],
-      archived_boards: archived in ["all", "boards", "true"]
-    ] ++ portable_boards(user, params["boards"])
+    Slipdock.Portable.archived_opts(params["archived"]) ++
+      portable_boards(user, params["boards"])
   end
 
   defp portable_boards(_user, blank) when blank in [nil, ""], do: []

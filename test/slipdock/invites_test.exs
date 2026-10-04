@@ -11,7 +11,7 @@ defmodule Slipdock.InvitesTest do
 
   alias Slipdock.{Access, Accounts, Settings}
 
-  defp set_up(attrs \\ %{}) do
+  defp set_up(attrs) do
     {:ok, _} =
       Settings.complete_setup(
         Map.merge(%{"admin_email" => "admin@example.com", "signup_mode" => :closed}, attrs)

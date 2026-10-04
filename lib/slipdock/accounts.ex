@@ -2,6 +2,14 @@ defmodule Slipdock.Accounts do
   @moduledoc """
   Users, passwordless sign-in by emailed magic link, browser sessions
   (valid for 30 days), API tokens, and groups of users.
+
+  This is the one module the rest of the app calls. The larger pieces with
+  rules of their own live beside it and are delegated to from here, so that a
+  caller never has to know where a function happens to be kept:
+  `Slipdock.Accounts.Signups` (who may have an account),
+  `Slipdock.Accounts.Support` (support sessions),
+  `Slipdock.Accounts.DeviceFlow` (device authorization) and
+  `Slipdock.Accounts.Groups`.
   """
   import Ecto.Query, warn: false
 
@@ -9,10 +17,10 @@ defmodule Slipdock.Accounts do
   alias Slipdock.Repo
 
   alias Slipdock.Accounts.{
-    DeviceAuthorization,
-    Group,
-    SignupRequest,
-    SupportSession,
+    DeviceFlow,
+    Groups,
+    Signups,
+    Support,
     User,
     UserNotifier,
     UserToken
@@ -29,7 +37,7 @@ defmodule Slipdock.Accounts do
   def get_user(id), do: Repo.get(User, id)
 
   def get_user_by_email(email) when is_binary(email) do
-    Repo.get_by(User, email: email |> String.trim() |> String.downcase())
+    Repo.get_by(User, email: Slipdock.Email.normalize(email))
   end
 
   @doc """
@@ -105,6 +113,12 @@ defmodule Slipdock.Accounts do
   def count_admins, do: Repo.aggregate(active_admins(), :count)
 
   defp active_admins, do: from(u in User, where: u.admin == true and is_nil(u.disabled_at))
+
+  @doc "Why `{:error, :last_admin}` refused, in words to show the person who asked."
+  def last_admin_message(%User{email: email}) do
+    "#{email} is the only admin. Make somebody else an admin first, or " <>
+      "there would be nobody left who can administer this server."
+  end
 
   @doc """
   Whether this person is the only admin left — in which case demoting,
@@ -369,185 +383,21 @@ defmodule Slipdock.Accounts do
     end
   end
 
-  @doc """
-  Whether this address may sign in, which for a new address means whether it
-  may have an account at all. In order:
+  ## Who may have an account — see `Slipdock.Accounts.Signups`
 
-    * a disabled account never can, whatever else is true — that is what
-      disabling means, and it is checked before everything else;
-    * somebody who already has an account always can;
-    * so can anybody at all on a server that has never been set up, because
-      the setup wizard is how an instance is claimed and it needs a way in;
-    * otherwise it is `signup_mode` (see `Slipdock.Settings`):
-      * `:open` — anybody;
-      * `:allowlist` — an address or domain an admin listed;
-      * `:approval` — nobody *yet*; `request_signup/1` is how one asks;
-      * `:closed` — nobody at all.
-
-  The default is `:closed` — a server reachable by strangers does not quietly
-  collect accounts.
-
-  ## Why "set up" and not "has no users"
-
-  This used to allow any address on an instance with no users, so that the
-  first sign-in claimed the server. That was the bug this whole piece of work
-  started from: the first person in became the only person who could ever be
-  in, because nothing in the running system could add to an empty allowlist.
-
-  Counting users was also the wrong question. A user can exist without anybody
-  having been through setup — sharing a board with an address creates one (see
-  `Slipdock.Access.grant/4`) — so an instance with users is not necessarily an
-  instance somebody has claimed.
-
-  ## Why "already has an account" is not a way round the mode
-
-  It looks like one. Under `:allowlist`, `:approval` or `:closed`, an address
-  that should be refused can be let in by someone sharing a board with it
-  first — the account now exists, and the second clause of this function waves
-  it through.
-
-  The answer is that the check belongs at the moment an account is **created**,
-  not at the moment it signs in. `invite_user/3` is the only path that can
-  create one, and it refuses unless `invites_create_accounts` is on. So the
-  question "may this address be here?" is asked exactly once, by whoever was
-  doing the inviting, and the registration mode governs people who arrive by
-  themselves.
-
-  Revoking the sign-in instead would be worse: an account deliberately made for
-  somebody, which then cannot be used, is a bug report waiting to happen. An
-  admin who wants them gone has `disable/1`, which this function does honour.
-  """
-  def signup_allowed?(email) when is_binary(email) do
-    email = email |> String.trim() |> String.downcase()
-    existing = get_user_by_email(email)
-
-    cond do
-      email == "" -> false
-      disabled?(existing) -> false
-      existing != nil -> true
-      not Settings.setup_complete?() -> true
-      # The address this server calls its admin is never refused, even with
-      # registration closed. It is the one address the person running the
-      # server chose on purpose, and refusing it is how an install ends up
-      # with nobody who can get in — which is what happened when
-      # `SLIPDOCK_ADMIN_EMAIL` marked setup complete without creating an
-      # account to go with it.
-      admin_address?(email) -> true
-      true -> mode_allows?(Settings.signup_mode(), email)
-    end
-  end
-
-  def signup_allowed?(_), do: false
-
-  defp admin_address?(email) do
-    case Settings.get().admin_email do
-      configured when is_binary(configured) -> String.downcase(String.trim(configured)) == email
-      _ -> false
-    end
-  end
-
-  defp mode_allows?(:open, _email), do: true
-  defp mode_allows?(:allowlist, email), do: Settings.allowlisted?(email)
-  defp mode_allows?(_closed_or_approval, _email), do: false
-
-  @doc """
-  How this server would answer a brand-new address right now, for the sign-in
-  page's wording: `:open`, `:allowlist`, `:approval`, `:closed`, or `:unclaimed`
-  on a server nobody has set up.
-  """
-  @spec signup_stance() :: :open | :allowlist | :approval | :closed | :unclaimed
-  def signup_stance do
-    if Settings.setup_complete?(), do: Settings.signup_mode(), else: :unclaimed
-  end
-
-  @doc "Whether a brand-new address could sign up right now, for the UI's wording."
-  def signups_open?, do: signup_stance() in [:open, :unclaimed]
-
-  ## Inviting
-
-  @doc """
-  Brings `email` into this server because `inviter` is sharing something with
-  it — the only path by which an address becomes an account without its owner
-  asking.
-
-  Returns `{:ok, user}` for somebody who is already here, `{:ok, user}` with a
-  freshly made account when `invites_create_accounts` allows it, and
-  `{:error, :invites_disabled}` when it does not.
-
-  ## Why this is one function
-
-  `Slipdock.Access.grant/4` and `add_group_member/2` both used to resolve an
-  unknown address by calling `get_or_create_user_by_email/1` directly. Three
-  things followed, all bad: any signed-in person could mint an account for any
-  address in **every** registration mode, making the modes decorative; those
-  people were never told; and because `signup_allowed?/1` says yes to anybody
-  who already has an account, pre-creation was a standing way round the
-  allowlist. Everything that can bring a new address into existence now comes
-  through here, so there is one place to say no and one place to send the
-  invitation from.
-
-  `opts[:to]` names what they are being given access to, for the email.
-  """
-  @spec invite_user(String.t(), User.t(), keyword()) ::
-          {:ok, User.t()} | {:error, :invites_disabled | Ecto.Changeset.t()}
-  def invite_user(email, %User{} = inviter, opts \\ []) when is_binary(email) do
-    email = email |> String.trim() |> String.downcase()
-
-    case get_user_by_email(email) do
-      %User{} = user ->
-        {:ok, user}
-
-      nil ->
-        if Settings.invites_create_accounts?() do
-          create_invited_user(email, inviter, opts)
-        else
-          {:error, :invites_disabled}
-        end
-    end
-  end
-
-  defp create_invited_user(email, inviter, opts) do
-    attrs = %{"email" => email}
-
-    changeset =
-      %User{}
-      |> User.email_changeset(attrs)
-      |> Ecto.Changeset.put_change(:invited_by_id, inviter.id)
-      |> Ecto.Changeset.put_change(
-        :invited_at,
-        DateTime.utc_now() |> DateTime.truncate(:second)
-      )
-
-    with {:ok, user} <- Repo.insert(changeset) do
-      deliver_invitation(user, inviter, opts[:to])
-      {:ok, user}
-    end
-  end
-
-  @doc """
-  Tells somebody they have been given an account and what for.
-
-  Returns how it went, because the caller has to say: an account created in
-  silence is worse than no account, and when there is no mail the inviter is
-  the only one who can pass the code on.
-  """
-  @spec deliver_invitation(User.t(), User.t(), String.t() | nil) ::
-          {:ok, :emailed | {:written, String.t()} | :logged} | {:error, term()}
-  def deliver_invitation(%User{} = user, %User{} = inviter, to \\ nil) do
-    base = Slipdock.Automations.Runner.base_url()
-
-    cond do
-      Settings.smtp_configured?() ->
-        with {:ok, _} <- UserNotifier.deliver_invitation(user, inviter, to, base) do
-          {:ok, :emailed}
-        end
-
-      true ->
-        # No mail: the sign-in machinery's fallback is the only way they will
-        # ever hear about this, and the inviter has to be told that.
-        deliver_sign_in(user, &"#{base}/login/#{&1}")
-    end
-  end
+  defdelegate signup_allowed?(email), to: Signups
+  defdelegate signup_stance(), to: Signups
+  defdelegate signups_open?(), to: Signups
+  defdelegate invite_user(email, inviter, opts \\ []), to: Signups
+  defdelegate deliver_invitation(user, inviter, to \\ nil), to: Signups
+  defdelegate request_signup(email, opts \\ []), to: Signups
+  defdelegate list_signup_requests(status \\ "pending"), to: Signups
+  defdelegate count_pending_signups(), to: Signups
+  defdelegate get_signup_request!(id), to: Signups
+  defdelegate get_signup_request(id), to: Signups
+  defdelegate approve_signup(request, admin, url_fun), to: Signups
+  defdelegate reject_signup(request, admin), to: Signups
+  defdelegate purge_signup_requests(older_than_days \\ 90), to: Signups
 
   ## Leaving
 
@@ -677,112 +527,15 @@ defmodule Slipdock.Accounts do
     )
   end
 
-  ## Support access
+  ## Support access — see `Slipdock.Accounts.Support`
 
-  @doc """
-  Gives `admin` temporary read access to `subject`'s boards, and records it.
-
-  The access is the easy part — whoever runs the server can read the database
-  regardless. What makes this worth having is that it is **visible**: it says
-  why, it expires, and `support_sessions_for/1` shows the person it is about
-  every one that has ever been opened on them.
-  """
-  @spec open_support_session(User.t(), User.t(), String.t(), keyword()) ::
-          {:ok, SupportSession.t()} | {:error, Ecto.Changeset.t() | :not_admin | :self}
-  def open_support_session(%User{} = admin, %User{} = subject, reason, opts \\ []) do
-    cond do
-      not admin?(admin) ->
-        {:error, :not_admin}
-
-      admin.id == subject.id ->
-        # You can already see your own boards; a record saying otherwise would
-        # be noise in the one list that has to stay readable.
-        {:error, :self}
-
-      true ->
-        attrs = %{
-          "admin_id" => admin.id,
-          "subject_id" => subject.id,
-          "reason" => reason,
-          "expires_at" => opts[:expires_at]
-        }
-
-        with {:ok, session} <-
-               %SupportSession{} |> SupportSession.changeset(attrs) |> Repo.insert() do
-          Logger.info(
-            "Support access: #{admin.email} may read #{subject.email}'s boards until " <>
-              "#{session.expires_at} — #{session.reason}"
-          )
-
-          notify_of_support_session(session, admin, subject)
-          {:ok, session}
-        end
-    end
-  end
-
-  @doc "Ends one early. Expiry does the same thing on its own."
-  def end_support_session(%SupportSession{} = session) do
-    session
-    |> Ecto.Changeset.change(ended_at: DateTime.utc_now(:second))
-    |> Repo.update()
-  end
-
-  @doc """
-  Whether `admin` currently has support access to `subject`'s things.
-
-  `Slipdock.Access` asks this, so the grant behaves like any other read access
-  rather than being a separate way in with separate rules.
-  """
-  @spec support_access?(User.t() | nil, integer() | nil) :: boolean()
-  def support_access?(%User{} = admin, subject_id) when is_integer(subject_id) do
-    now = DateTime.utc_now()
-
-    # Joined on the admin as they are now, not as they were when it was
-    # opened: demoting or disabling them ends it.
-    Repo.exists?(
-      from(s in SupportSession,
-        join: a in User,
-        on: a.id == s.admin_id and a.admin == true and is_nil(a.disabled_at),
-        where:
-          s.admin_id == ^admin.id and s.subject_id == ^subject_id and is_nil(s.ended_at) and
-            s.expires_at > ^now
-      )
-    )
-  end
-
-  def support_access?(_, _), do: false
-
-  @doc "Every support session ever opened on this person, newest first."
-  def support_sessions_for(%User{} = subject) do
-    SupportSession
-    |> where([s], s.subject_id == ^subject.id)
-    |> order_by([s], desc: s.inserted_at)
-    |> preload(:admin)
-    |> Repo.all()
-  end
-
-  @doc "The ones in force right now, for an admin's own list."
-  def live_support_sessions do
-    now = DateTime.utc_now()
-
-    SupportSession
-    |> where([s], is_nil(s.ended_at) and s.expires_at > ^now)
-    |> order_by([s], desc: s.inserted_at)
-    |> preload([:admin, :subject])
-    |> Repo.all()
-  end
-
-  def get_support_session!(id), do: Repo.get!(SupportSession, id)
-  def get_support_session(nil), do: nil
-  def get_support_session(id), do: Repo.get(SupportSession, id)
-
-  # Telling them is the point. An unannounced look at somebody's boards is the
-  # thing this is supposed to make impossible.
-  defp notify_of_support_session(session, admin, subject) do
-    if Settings.smtp_configured?() do
-      UserNotifier.deliver_support_notice(subject, admin, session)
-    end
-  end
+  defdelegate open_support_session(admin, subject, reason, opts \\ []), to: Support
+  defdelegate end_support_session(session), to: Support
+  defdelegate support_access?(admin, subject_id), to: Support
+  defdelegate support_sessions_for(subject), to: Support
+  defdelegate live_support_sessions(), to: Support
+  defdelegate get_support_session!(id), to: Support
+  defdelegate get_support_session(id), to: Support
 
   ## Terms
 
@@ -826,10 +579,10 @@ defmodule Slipdock.Accounts do
   """
   @spec request_admin_email_change(String.t(), User.t()) :: {:ok, :sent} | {:error, String.t()}
   def request_admin_email_change(email, %User{} = by) do
-    email = email |> String.trim() |> String.downcase()
+    email = Slipdock.Email.normalize(email)
 
     cond do
-      not Regex.match?(~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/, email) ->
+      not Slipdock.Email.valid?(email) ->
         {:error, "That doesn't look like an email address."}
 
       email == Settings.get().admin_email ->
@@ -897,124 +650,6 @@ defmodule Slipdock.Accounts do
     case Settings.get().admin_email do
       nil -> :ok
       old -> UserNotifier.deliver_admin_email_warning(old, new_email, by)
-    end
-  end
-
-  ## Asking for an account (the `approval` mode)
-
-  @doc """
-  Records somebody asking for an account, and tells the admin one is waiting.
-
-  Returns `{:ok, request}`, `{:ok, :already_pending}` when they have asked
-  before, or `{:error, reason}`. Asking twice refreshes rather than duplicating:
-  an approval queue full of the same impatient address is a queue nobody reads.
-
-  A rejected address asking again is **not** a new request. Otherwise "no"
-  means "no until you ask again", and the queue becomes a way to pester an
-  admin indefinitely.
-  """
-  @spec request_signup(String.t(), keyword()) ::
-          {:ok, SignupRequest.t() | :already_pending} | {:error, atom() | Ecto.Changeset.t()}
-  def request_signup(email, opts \\ []) when is_binary(email) do
-    email = email |> String.trim() |> String.downcase()
-
-    cond do
-      Settings.signup_mode() != :approval ->
-        {:error, :not_approval_mode}
-
-      get_user_by_email(email) != nil ->
-        # They already have an account; there is nothing to approve.
-        {:error, :already_a_user}
-
-      true ->
-        do_request_signup(email, opts)
-    end
-  end
-
-  defp do_request_signup(email, opts) do
-    case Repo.get_by(SignupRequest, email: email) do
-      %SignupRequest{status: "pending"} ->
-        {:ok, :already_pending}
-
-      %SignupRequest{status: "rejected"} ->
-        {:error, :rejected}
-
-      %SignupRequest{status: "approved"} = request ->
-        {:ok, request}
-
-      nil ->
-        attrs = %{"email" => email, "note" => opts[:note], "requested_ip" => opts[:ip]}
-
-        with {:ok, request} <- %SignupRequest{} |> SignupRequest.changeset(attrs) |> Repo.insert() do
-          notify_admins_of_request(request)
-          {:ok, request}
-        end
-    end
-  end
-
-  @doc "Requests waiting on an admin, oldest first — they have waited longest."
-  def list_signup_requests(status \\ "pending") do
-    SignupRequest
-    |> where([r], r.status == ^status)
-    |> order_by([r], asc: r.inserted_at)
-    |> preload(:decided_by)
-    |> Repo.all()
-  end
-
-  def count_pending_signups, do: Repo.aggregate(where(SignupRequest, status: "pending"), :count)
-
-  def get_signup_request!(id), do: Repo.get!(SignupRequest, id)
-  def get_signup_request(nil), do: nil
-  def get_signup_request(id), do: Repo.get(SignupRequest, id)
-
-  @doc """
-  Approves a request: makes the account and sends them a way in, so that "yes"
-  is one action rather than two with a gap in which nothing happens.
-  """
-  @spec approve_signup(SignupRequest.t(), User.t(), (String.t() -> String.t())) ::
-          {:ok, User.t()} | {:error, term()}
-  def approve_signup(%SignupRequest{} = request, %User{} = admin, url_fun) do
-    with {:ok, user} <- get_or_create_user_by_email(request.email),
-         {:ok, _} <-
-           request |> SignupRequest.decision_changeset("approved", admin) |> Repo.update() do
-      # If this fails they still have an account and can ask for a link
-      # themselves, so it is not worth failing the approval over.
-      _ = deliver_sign_in(user, url_fun)
-      {:ok, user}
-    end
-  end
-
-  @doc "Turns a request down. They cannot simply ask again."
-  def reject_signup(%SignupRequest{} = request, %User{} = admin) do
-    request |> SignupRequest.decision_changeset("rejected", admin) |> Repo.update()
-  end
-
-  @doc """
-  Forgets old decided requests. Keeping every address anybody ever typed is
-  hoarding other people's data for no purpose.
-  """
-  def purge_signup_requests(older_than_days \\ 90) do
-    cutoff = DateTime.utc_now() |> DateTime.add(-older_than_days, :day)
-
-    {count, _} =
-      Repo.delete_all(
-        from(r in SignupRequest, where: r.status != "pending" and r.decided_at < ^cutoff)
-      )
-
-    count
-  end
-
-  defp notify_admins_of_request(%SignupRequest{} = request) do
-    case list_admins() do
-      [] ->
-        Logger.warning(
-          "#{request.email} asked for an account, but this server has no admin to tell."
-        )
-
-      admins ->
-        for admin <- admins do
-          UserNotifier.deliver_signup_request(admin, request)
-        end
     end
   end
 
@@ -1124,7 +759,7 @@ defmodule Slipdock.Accounts do
   @spec verify_sign_in_code(String.t(), String.t()) ::
           {:ok, User.t()} | {:error, :invalid | :too_many}
   def verify_sign_in_code(email, code) when is_binary(email) and is_binary(code) do
-    email = email |> String.trim() |> String.downcase()
+    email = Slipdock.Email.normalize(email)
     code = String.trim(code)
 
     case Repo.one(UserToken.verify_code_query(email, code)) do
@@ -1212,8 +847,8 @@ defmodule Slipdock.Accounts do
   ## API tokens
 
   @doc """
-  Mints an API token. `opts` takes `:scope` ("read" or "write", default
-  "write"), `:scope_boards` (board ids, `[]` for the whole account) and
+  Mints an API token. `opts` takes `:scope` ("read", "write" or "admin",
+  default "write"; "admin" only for an admin), `:scope_boards` (board ids, `[]` for the whole account) and
   `:expires_at`. The plaintext token is returned once and never stored.
   """
   def create_api_token(%User{} = user, label, opts \\ []) do
@@ -1288,131 +923,6 @@ defmodule Slipdock.Accounts do
     )
   end
 
-  ## Device authorization (RFC 8628) ------------------------------------------
-
-  @doc """
-  Starts a device-authorization request. Returns
-  `{plaintext_device_code, record}`; the client polls with the first and shows
-  the record's `user_code` to a person.
-
-  The `admin` scope is refused with `{:error, :admin_scope}`. Whoever starts a
-  request is anonymous and chooses its label, so an admin-scope request is a
-  code anybody could send an admin with a friendly name on it; admin tokens are
-  made on the account page, by an admin, deliberately.
-  """
-  def request_device_authorization(attrs \\ %{}) do
-    if attrs[:scope] == "admin" do
-      {:error, :admin_scope}
-    else
-      # Cheap, and it means the table never accumulates requests nobody
-      # finished with. There is no scheduled job to forget to run.
-      purge_expired_device_authorizations()
-
-      scope = if attrs[:scope] in ~w(read write), do: attrs[:scope], else: "write"
-
-      {device_code, record} =
-        DeviceAuthorization.build(Map.put(Map.new(attrs), :scope, scope))
-
-      {device_code, Repo.insert!(record)}
-    end
-  end
-
-  @doc """
-  The pending request a person's typed code refers to, or nil. Approved,
-  denied and expired requests are *not* findable: a code is good once.
-  """
-  def device_authorization_by_user_code(input) do
-    case DeviceAuthorization.normalise_code(input) do
-      "" ->
-        nil
-
-      code ->
-        DeviceAuthorization.pending()
-        |> where([d], d.user_code == ^code)
-        |> Repo.one()
-    end
-  end
-
-  @doc """
-  Approves a pending request on `user`'s behalf, minting their token.
-
-  The decision is made once. The update only lands on a row that is still
-  pending, so two approvals racing each other — or an approval racing a
-  refusal — leave the first one standing; the loser gets `{:error, :expired}`,
-  as if the code had gone, which for them it has.
-  """
-  def approve_device_authorization(%DeviceAuthorization{} = request, %User{} = user) do
-    decide_device_authorization(request, approved_at: DateTime.utc_now(:second), user_id: user.id)
-  end
-
-  @doc "Refuses a pending request. The client is told, rather than left polling."
-  def deny_device_authorization(%DeviceAuthorization{} = request) do
-    decide_device_authorization(request, denied_at: DateTime.utc_now(:second))
-  end
-
-  defp decide_device_authorization(request, changes) do
-    query = DeviceAuthorization.pending() |> where([d], d.id == ^request.id)
-
-    case Repo.update_all(query, set: changes) do
-      {1, _} -> {:ok, Repo.get!(DeviceAuthorization, request.id)}
-      _ -> {:error, :expired}
-    end
-  end
-
-  @doc """
-  What the polling client gets. On approval the token is minted here, once:
-  the request is consumed in the same transaction, so a device code that is
-  polled twice cannot yield two tokens.
-
-  Every failure is reported as RFC 8628 names them, and an unknown code is
-  `:invalid` — the same answer a wrong code gets, so polling cannot be used to
-  learn which codes exist.
-  """
-  def poll_device_authorization(plaintext) do
-    with {:ok, hashed} <- DeviceAuthorization.hash_device_code(plaintext),
-         %DeviceAuthorization{} = request <-
-           Repo.one(from(d in DeviceAuthorization, where: d.device_code == ^hashed)) do
-      cond do
-        request.denied_at -> {:error, :access_denied}
-        DeviceAuthorization.expired?(request) -> {:error, :expired_token}
-        is_nil(request.approved_at) -> {:error, :authorization_pending}
-        true -> mint_from_device_authorization(request)
-      end
-    else
-      _ -> {:error, :invalid}
-    end
-  end
-
-  defp mint_from_device_authorization(request) do
-    Repo.transaction(fn ->
-      # Consume it first. Whoever deletes the row is the one who gets to mint,
-      # so a client polling twice in parallel still ends up with one token.
-      case Repo.delete_all(from(d in DeviceAuthorization, where: d.id == ^request.id)) do
-        {1, _} ->
-          user = get_user!(request.user_id)
-
-          {token, _row} =
-            create_api_token(user, request.client_label || "Device",
-              scope: request.scope,
-              scope_boards: request.scope_boards,
-              expires_at: expiry_in_days(90)
-            )
-
-          token
-
-        _ ->
-          Repo.rollback(:invalid)
-      end
-    end)
-  end
-
-  @doc "Clears out requests nobody finished with. Safe to call at any time."
-  def purge_expired_device_authorizations do
-    now = DateTime.utc_now()
-    {count, _} = Repo.delete_all(from(d in DeviceAuthorization, where: d.expires_at <= ^now))
-    count
-  end
-
   def delete_api_token(%User{} = user, id) do
     Repo.delete_all(from(t in UserToken.by_user_and_contexts(user, ["api"]), where: t.id == ^id))
     :ok
@@ -1442,76 +952,25 @@ defmodule Slipdock.Accounts do
     Enum.each(ids, &SlipdockWeb.Endpoint.broadcast(&1, "disconnect", %{}))
   end
 
-  ## Groups
+  ## Device authorization (RFC 8628) — see `Slipdock.Accounts.DeviceFlow`
 
-  def get_group!(id), do: Group |> Repo.get!(id) |> Repo.preload([:owner, :members])
+  defdelegate request_device_authorization(attrs \\ %{}), to: DeviceFlow
+  defdelegate device_authorization_by_user_code(input), to: DeviceFlow
+  defdelegate approve_device_authorization(request, user), to: DeviceFlow
+  defdelegate deny_device_authorization(request), to: DeviceFlow
+  defdelegate poll_device_authorization(plaintext), to: DeviceFlow
+  defdelegate purge_expired_device_authorizations(), to: DeviceFlow
 
-  @doc "Groups the user owns or belongs to."
-  def list_groups(%User{} = user) do
-    from(g in Group,
-      left_join: m in "group_members",
-      on: m.group_id == g.id,
-      where: g.owner_id == ^user.id or m.user_id == ^user.id,
-      distinct: true,
-      order_by: [asc: g.name]
-    )
-    |> Repo.all()
-    |> Repo.preload([:owner, :members])
-  end
+  ## Groups — see `Slipdock.Accounts.Groups`
 
-  def group_ids_for(%User{} = user) do
-    Repo.all(from(m in "group_members", where: m.user_id == ^user.id, select: m.group_id))
-  end
-
-  def create_group(%User{} = owner, attrs) do
-    %Group{owner_id: owner.id}
-    |> Group.changeset(Map.put(attrs, "owner_id", owner.id))
-    |> Repo.insert()
-    |> case do
-      {:ok, group} -> {:ok, Repo.preload(group, [:owner, :members])}
-      error -> error
-    end
-  end
-
-  def update_group(%Group{} = group, attrs) do
-    group |> Group.changeset(attrs) |> Repo.update()
-  end
-
-  def delete_group(%Group{} = group), do: Repo.delete(group)
-
-  def change_group(%Group{} = group, attrs \\ %{}), do: Group.changeset(group, attrs)
-
-  @doc """
-  Adds the user with `email` to the group, inviting them if this server makes
-  accounts for people you share things with.
-
-  The group's owner is the inviter: they are the one doing the sharing, and the
-  one an invitation should name.
-  """
-  def add_group_member(%Group{} = group, email) do
-    inviter = group.owner || Repo.get(User, group.owner_id)
-
-    with {:ok, user} <- invite_user(email, inviter, to: "the group “#{group.name}”") do
-      Repo.insert_all("group_members", [%{group_id: group.id, user_id: user.id}],
-        on_conflict: :nothing
-      )
-
-      {:ok, get_group!(group.id)}
-    end
-  end
-
-  def remove_group_member(%Group{} = group, %User{} = user) do
-    Repo.delete_all(
-      from(m in "group_members", where: m.group_id == ^group.id and m.user_id == ^user.id)
-    )
-
-    {:ok, get_group!(group.id)}
-  end
-
-  def group_member?(%Group{} = group, %User{} = user) do
-    group.owner_id == user.id or
-      Repo.exists?(
-        from(m in "group_members", where: m.group_id == ^group.id and m.user_id == ^user.id)
-      )
-  end
+  defdelegate get_group!(id), to: Groups
+  defdelegate list_groups(user), to: Groups
+  defdelegate group_ids_for(user), to: Groups
+  defdelegate create_group(owner, attrs), to: Groups
+  defdelegate update_group(group, attrs), to: Groups
+  defdelegate delete_group(group), to: Groups
+  defdelegate change_group(group, attrs \\ %{}), to: Groups
+  defdelegate add_group_member(group, email), to: Groups
+  defdelegate remove_group_member(group, user), to: Groups
+  defdelegate group_member?(group, user), to: Groups
 end

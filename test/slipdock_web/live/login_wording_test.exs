@@ -24,7 +24,7 @@ defmodule SlipdockWeb.LoginWordingTest do
 
   describe "the strapline" do
     @tag :anonymous
-    test "an unclaimed server is honest about being unclaimed", %{conn: conn} do
+    test "an unclaimed server is honest about being unclaimed", %{conn: _conn} do
       previous = Application.get_env(:slipdock, :settings)
       Application.put_env(:slipdock, :settings, setup_completed: false)
       on_exit(fn -> Application.put_env(:slipdock, :settings, previous) end)

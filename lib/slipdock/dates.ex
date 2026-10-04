@@ -60,6 +60,18 @@ defmodule Slipdock.Dates do
   def approx_days("half"), do: 182
   def approx_days("year"), do: 365
 
+  @doc """
+  A date as people read it here: `long/1` with the weekday ("Sat 4 Oct
+  2026"), `medium/1` without ("4 Oct 2026"). Anything else is `to_string/1`'d,
+  so a missing date is "".
+  """
+  def long(%Date{} = d), do: Calendar.strftime(d, "%a %-d %b %Y")
+  def long(other), do: to_string(other)
+
+  def medium(%Date{} = d), do: Calendar.strftime(d, "%-d %b %Y")
+  def medium(%DateTime{} = at), do: Calendar.strftime(at, "%-d %b %Y")
+  def medium(other), do: to_string(other)
+
   @doc "A short name for the bucket containing `date`."
   def label(%Date{} = d, "day"), do: Calendar.strftime(d, "%-d %b %Y")
 

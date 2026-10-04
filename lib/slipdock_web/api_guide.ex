@@ -576,7 +576,8 @@ defmodule SlipdockWeb.APIGuide do
     Tags live on the root board and are shared by the whole tree, so a tag made
     anywhere below it is available everywhere — but a tag must exist before a
     card can wear it (`POST /api/boards/:board/tags`). Renaming an epic renames
-    its sub-board.
+    its sub-board (a board name is at most 80 characters, so a longer title is
+    cut short with an ellipsis).
 
     **Where new work goes.** Work you discover mid-task belongs under the epic
     it serves, as a subcard — not as a new top-level card, and not silently

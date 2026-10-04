@@ -58,16 +58,11 @@ defmodule SlipdockWeb.API.AdminController do
     })
   end
 
-  @settable ~w(signup_mode free_card_limit user_directory invites_create_accounts
-               login_fallback_enabled board_limit board_limit_enabled item_limit
-               item_limit_enabled storage_limit_mb storage_limit_enabled
-               trial_days trial_enabled)
-
   def update_settings(conn, params) do
     # Not the admin address and not the SMTP details. Both have flows that
     # prove something first — a code to the new address, a test message that
     # arrived — and letting a PATCH skip those would undo the point of them.
-    with {:ok, _} <- Settings.update(Map.take(params, @settable)) do
+    with {:ok, _} <- Settings.update(Map.take(params, Slipdock.Settings.Instance.policy_fields())) do
       settings(conn, %{})
     end
   end
@@ -104,9 +99,7 @@ defmodule SlipdockWeb.API.AdminController do
           |> put_status(:conflict)
           |> json(%{
             error: "last_admin",
-            message:
-              "#{user.email} is the only admin. Make somebody else an admin first, or " <>
-                "there would be nobody left who can administer this server.",
+            message: Slipdock.Accounts.last_admin_message(user),
             retryable: false
           })
 

@@ -146,7 +146,7 @@ defmodule SlipdockWeb.LoginLive.Index do
   defp send_link(socket, email) do
     case Accounts.deliver_magic_link_later(email, &url(~p"/login/#{&1}")) do
       :ok ->
-        assign(socket, sent_to: String.downcase(String.trim(email)))
+        assign(socket, sent_to: Slipdock.Email.normalize(email))
 
       {:error, :invalid_email} ->
         put_flash(socket, :error, "That doesn't look like an email address.")
@@ -157,7 +157,7 @@ defmodule SlipdockWeb.LoginLive.Index do
   # asking. Both are recorded before anything is sent, so a refused attempt
   # still costs the asker.
   defp allowed_to_try(socket, email) do
-    address = email |> to_string() |> String.trim() |> String.downcase()
+    address = email |> to_string() |> Slipdock.Email.normalize()
 
     with :ok <- hit("login:email:" <> address, @per_email),
          :ok <- hit("login:ip:" <> socket.assigns.peer, @per_ip) do
@@ -168,7 +168,7 @@ defmodule SlipdockWeb.LoginLive.Index do
   end
 
   defp allowed_to_enter_code(socket, email) do
-    address = email |> to_string() |> String.trim() |> String.downcase()
+    address = email |> to_string() |> Slipdock.Email.normalize()
 
     case hit("login:code:" <> socket.assigns.peer <> ":" <> address, @codes_per_ip_and_email) do
       :ok -> :ok

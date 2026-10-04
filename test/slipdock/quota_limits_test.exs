@@ -160,7 +160,7 @@ defmodule Slipdock.QuotaLimitsTest do
       assert files_on(card) == 0
     end
 
-    test "applies to admins, unlike the free tier's allowance", %{column: column} do
+    test "applies to admins, unlike the free tier's allowance", %{column: _column} do
       settings(%{"item_limit" => 1, "free_card_limit" => 1})
       {:ok, admin} = Accounts.promote(user_fixture("owner@example.com"))
       board = board_fixture(%{"name" => "Admin's"}, owner: admin)

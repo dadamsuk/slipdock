@@ -110,12 +110,23 @@ defmodule Slipdock.Settings.Instance do
        "Accounts exist only because you created them by sharing a board or a " <>
          "card with someone."}
 
-  @fields ~w(signup_mode free_card_limit user_directory invites_create_accounts
-             board_limit board_limit_enabled item_limit item_limit_enabled
-             storage_limit_mb storage_limit_enabled trial_days trial_enabled
-             admin_email smtp_host smtp_port smtp_username smtp_password
-             smtp_from_name smtp_from_email smtp_tls login_fallback_enabled
-             terms_url privacy_url terms_version)a
+  # Who may sign up and how much they get: plain values an admin sets
+  # directly, through the admin page or `PATCH /api/admin/settings`.
+  @policy_fields ~w(signup_mode free_card_limit user_directory invites_create_accounts
+                    login_fallback_enabled board_limit board_limit_enabled item_limit
+                    item_limit_enabled storage_limit_mb storage_limit_enabled
+                    trial_days trial_enabled)a
+
+  # The admin address and the SMTP details each have a flow that proves
+  # something first (a code to the new address, a test message that arrived),
+  # and the legal links live on their own page.
+  @fields @policy_fields ++
+            ~w(admin_email smtp_host smtp_port smtp_username smtp_password
+               smtp_from_name smtp_from_email smtp_tls terms_url privacy_url
+               terms_version)a
+
+  @doc "The settings an admin may change directly, as the strings a request carries."
+  def policy_fields, do: Enum.map(@policy_fields, &Atom.to_string/1)
 
   @doc """
   Validates a change to the settings. Blank strings become nil rather than
@@ -143,12 +154,8 @@ defmodule Slipdock.Settings.Instance do
     |> validate_number(:trial_days, greater_than: 0)
     |> require_number_when_enabled()
     |> validate_number(:smtp_port, greater_than: 0, less_than: 65_536)
-    |> validate_format(:admin_email, ~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-      message: "must be a valid email address"
-    )
-    |> validate_format(:smtp_from_email, ~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-      message: "must be a valid email address"
-    )
+    |> Slipdock.Email.validate(:admin_email)
+    |> Slipdock.Email.validate(:smtp_from_email)
     |> validate_web_url(:terms_url)
     |> validate_web_url(:privacy_url)
     |> require_sender_with_host()

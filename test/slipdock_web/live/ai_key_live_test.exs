@@ -88,12 +88,12 @@ defmodule SlipdockWeb.AIKeyLiveTest do
     test "nonsense for an endpoint is refused, not stored", %{conn: conn, user: user} do
       {:ok, view, _html} = live(conn, ~p"/account/settings")
 
-      html =
-        view
-        |> form("form[phx-submit=save_ai_provider]", %{"base_url" => "my-llm-box"})
-        |> render_submit()
+      view
+      |> form("form[phx-submit=save_ai_provider]", %{"base_url" => "my-llm-box"})
+      |> render_submit()
 
-      assert html =~ "doesn&#39;t look like a URL"
+      # The flash is the page's, sent up by the tab, so it lands a render later.
+      assert render(view) =~ "doesn&#39;t look like a URL"
       assert Keys.endpoint(user) == nil
     end
 

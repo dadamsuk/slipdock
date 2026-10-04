@@ -837,10 +837,8 @@ defmodule Slipdock.AI.Researcher do
 
   # Dates are written the way a person writes them, in the model's own
   # answer as much as here: "22 Sep 2026", never a bare ISO string.
-  defp fmt(%Date{} = date), do: Calendar.strftime(date, "%a %-d %b %Y")
-  defp fmt(other), do: to_string(other)
-  defp fmt_at(%DateTime{} = at), do: Calendar.strftime(at, "%-d %b %Y")
-  defp fmt_at(other), do: to_string(other)
+  defp fmt(date), do: Slipdock.Dates.long(date)
+  defp fmt_at(at), do: Slipdock.Dates.medium(at)
 
   defp facets(%Card{} = card) do
     [

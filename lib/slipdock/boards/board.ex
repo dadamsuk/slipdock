@@ -96,6 +96,18 @@ defmodule Slipdock.Boards.Board do
 
   def sub_board?(%__MODULE__{parent_card_id: id}), do: not is_nil(id)
 
+  @name_length 80
+
+  @doc """
+  The name a sub-board takes from its card. Card titles may run to 200
+  characters and a board name to #{@name_length}, so a long title is cut short.
+  """
+  def name_for_card(title) when is_binary(title) do
+    if String.length(title) <= @name_length,
+      do: title,
+      else: String.slice(title, 0, @name_length - 1) |> String.trim_trailing() |> Kernel.<>("…")
+  end
+
   @doc "Whether the board has been put away."
   def archived?(%__MODULE__{archived_at: at}), do: not is_nil(at)
 
@@ -285,7 +297,7 @@ defmodule Slipdock.Boards.Board do
     |> unique_constraint(:shortcut, message: "is already used by another board")
     |> validate_number(:vote_budget, greater_than_or_equal_to: 0, less_than_or_equal_to: 1000)
     |> validate_number(:vote_max, greater_than_or_equal_to: 1, less_than_or_equal_to: 1000)
-    |> validate_length(:name, min: 1, max: 80)
+    |> validate_length(:name, min: 1, max: @name_length)
     |> validate_inclusion(:color, Slipdock.Palette.names())
   end
 end
