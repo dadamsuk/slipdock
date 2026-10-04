@@ -18,16 +18,20 @@ defmodule SlipdockWeb.BadParamsTest do
   test "the board shrugs off ids that aren't ids", %{conn: conn, board: board} do
     {:ok, view, _} = live(conn, ~p"/boards/#{board}")
 
-    for {event, params} <- [
-          {"filter_tag", %{"id" => "x"}},
-          {"start_rename_column", %{"id" => "x"}},
-          {"move_column", %{"id" => "x"}},
-          {"start_add_card", %{"id" => "x"}},
-          {"open_move_board", %{"id" => "999999999"}},
-          {"open_sprint_picker", %{"id" => "nope"}},
-          {"toggle_favourite", %{"kind" => "board", "id" => "nope"}}
+    # The pickers are components of their own, and are pushed to directly.
+    for {event, params, target} <- [
+          {"filter_tag", %{"id" => "x"}, nil},
+          {"start_rename_column", %{"id" => "x"}, nil},
+          {"move_column", %{"id" => "x"}, nil},
+          {"start_add_card", %{"id" => "x"}, nil},
+          {"open_move_board", %{"id" => "999999999"}, "#board-move"},
+          {"open_sprint_picker", %{"id" => "nope"}, "#board-sprints"},
+          {"toggle_favourite", %{"kind" => "board", "id" => "nope"}, nil}
         ] do
-      render_click(view, event, params)
+      if target,
+        do: view |> with_target(target) |> render_click(event, params),
+        else: render_click(view, event, params)
+
       assert render(view) =~ "Still here"
     end
   end

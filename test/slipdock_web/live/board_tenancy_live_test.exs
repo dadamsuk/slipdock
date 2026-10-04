@@ -348,7 +348,7 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
 
   defp handled_events(file) do
     handled =
-      ~r/def handle_event\(\s*"([a-z_]+)",/
+      ~r/defp? (?:handle_)?event\(\s*"([a-z_]+)",/
       |> Regex.scan(File.read!("lib/slipdock_web/live/board_live/" <> file),
         capture: :all_but_first
       )
@@ -367,7 +367,9 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
     # Each of the board's LiveComponents keeps a list of its own, and refuses
     # anything not on it the same way.
     for {file, module} <- [
-          {"automations_component.ex", SlipdockWeb.BoardLive.AutomationsComponent}
+          {"automations_component.ex", SlipdockWeb.BoardLive.AutomationsComponent},
+          {"sprint_component.ex", SlipdockWeb.BoardLive.SprintComponent},
+          {"move_board_component.ex", SlipdockWeb.BoardLive.MoveBoardComponent}
         ] do
       test "every handle_event clause in #{file} is in its event list" do
         assert handled_events(unquote(file)) -- unquote(module).events() == []
@@ -395,7 +397,7 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
 
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{sprints}/cards/#{sprint.id}")
       refute has_element?(view, "#sprint-charts")
-      render_hook(view, "open_sprint_charts", %{})
+      view |> with_target("#board-sprints") |> render_hook("open_sprint_charts", %{})
       refute has_element?(view, "#velocity-chart")
     end
   end
