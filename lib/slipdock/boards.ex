@@ -354,7 +354,9 @@ defmodule Slipdock.Boards do
 
   @doc """
   Creates a board. Pass `template: %Template{}` to take its lists; otherwise
-  the default four lists are created.
+  the default four lists are created. `owner_id:` says whose it is, and a
+  root board must have one — an `"owner_id"` in `attrs` is ignored, since
+  attributes are what forms send.
   """
   def create_board(attrs, opts \\ []) do
     template = opts[:template]
@@ -401,16 +403,15 @@ defmodule Slipdock.Boards do
   # (see `Slipdock.Quota`): a sub-board exists because a card has subcards, and
   # refusing those would turn the board limit into a limit on subcards.
   #
-  # Read off the changeset rather than the options, because the owner arrives
-  # either way — `owner_id` in the attributes from a form, in `opts` from a
-  # sub-board — and neither one on its own is guaranteed.
+  # A root board with nobody owning it would be nobody's to open, and would
+  # count against nobody's quota, so it is refused rather than made.
   defp enforce_board_limit(changeset) do
     get = &Ecto.Changeset.get_field(changeset, &1)
 
-    if get.(:root_id) || get.(:parent_card_id) do
-      changeset
-    else
-      Quota.enforce_owner(changeset, get.(:owner_id), :boards)
+    cond do
+      get.(:root_id) || get.(:parent_card_id) -> changeset
+      is_nil(get.(:owner_id)) -> Ecto.Changeset.add_error(changeset, :owner_id, "can't be blank")
+      true -> Quota.enforce_owner(changeset, get.(:owner_id), :boards)
     end
   end
 

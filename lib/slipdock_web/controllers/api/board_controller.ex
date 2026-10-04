@@ -120,10 +120,13 @@ defmodule SlipdockWeb.API.BoardController do
     attrs =
       params
       |> Map.take(~w(name code shortcut description color kind simple))
-      |> Map.put("owner_id", conn.assigns.current_user.id)
 
     with {:ok, template} <- optional_template(params["template"]),
-         {:ok, board} <- Boards.create_board(attrs, template: template) do
+         {:ok, board} <-
+           Boards.create_board(attrs,
+             template: template,
+             owner_id: conn.assigns.current_user.id
+           ) do
       conn |> put_status(:created) |> json(%{board: V.board(Boards.get_board!(board.id))})
     end
   end

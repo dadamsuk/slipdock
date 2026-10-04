@@ -195,10 +195,8 @@ The board is nobody's permanent furniture. The last card says so: archive it
 from the board index when the tour is done, which keeps everything on it and,
 on a metered server, hands the card allowance back.
 
-**Who gets one.** Somebody who has never signed in and owns no boards. The
-first sign-in on a self-hosted install claims any boards that were already
-there (`Slipdock.Access.claim_unowned_boards/1`), and an owner of real boards
-is not somebody who needs a tutorial, so that case is skipped.
+**Who gets one.** Somebody who owns no boards. An owner of real boards is not
+somebody who needs a tutorial, so that case is skipped.
 
 **Switching it off.** `SLIPDOCK_WELCOME_BOARD=0`. The manual half keeps
 working either way:
@@ -1655,8 +1653,12 @@ Every page needs a signed-in user. The login page asks for an email address and
 sends a one-time link **and a six-digit code**, either of which works, once,
 within 15 minutes; using one signs you in for 30 days on that browser. The code
 exists for the times the link cannot be clicked — read out of a log, typed from
-a phone. The first person to sign in becomes the owner of any boards that
-existed before accounts did.
+a phone.
+
+Every board has an owner, fixed when it is made: the board settings form and
+`PATCH /api/boards/:board` cannot change it, and a board somehow left with no
+owner is open to nobody rather than to everybody. Ownership moves only when an
+account is deleted and its boards are handed over.
 
 **Your own four pages**, under the avatar menu and tabbed across the top of
 each other, because one long scroll had the display name, the AI key and a

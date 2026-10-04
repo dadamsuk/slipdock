@@ -1,17 +1,13 @@
 defmodule SlipdockWeb.SessionController do
   use SlipdockWeb, :controller
 
-  alias Slipdock.{Access, Accounts, Onboarding}
+  alias Slipdock.{Accounts, Onboarding}
   alias SlipdockWeb.UserAuth
 
   @doc "The magic link lands here."
   def create(conn, %{"token" => token}) do
     case Accounts.verify_magic_link(token) do
       {:ok, user} ->
-        # Order matters: claiming the boards of an install that had none makes
-        # this account an owner, and an owner is not somebody who needs a
-        # tutorial board (see `Slipdock.Onboarding`).
-        claimed = Access.claim_unowned_boards(user)
         tour = Onboarding.ensure_for(user)
 
         # The sign-in page says that signing in means agreeing to the terms,
@@ -19,7 +15,7 @@ defmodule SlipdockWeb.SessionController do
         if Accounts.terms_outstanding?(user), do: {:ok, _} = Accounts.accept_terms(user)
 
         conn
-        |> put_flash(:info, welcome(user, claimed, tour))
+        |> put_flash(:info, welcome(user, tour))
         |> UserAuth.log_in_user(user, to: landing(tour))
 
       :error ->
@@ -29,16 +25,12 @@ defmodule SlipdockWeb.SessionController do
     end
   end
 
-  defp welcome(_user, boards, _tour) when boards > 0 do
-    "Welcome! You now own the #{boards} existing #{if boards == 1, do: "board", else: "boards"}."
-  end
-
-  defp welcome(_user, _boards, {:ok, board}) do
+  defp welcome(_user, {:ok, board}) do
     "Welcome to Slipdock. “#{board.name}” is a tour of it: work down the To Do " <>
       "list, then archive the board."
   end
 
-  defp welcome(user, _boards, :skipped) do
+  defp welcome(user, :skipped) do
     "Welcome back, #{Accounts.User.display_name(user)}."
   end
 

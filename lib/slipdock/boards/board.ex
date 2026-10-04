@@ -250,6 +250,10 @@ defmodule Slipdock.Boards.Board do
   defp blank_to_nil(""), do: nil
   defp blank_to_nil(value), do: value
 
+  # Deliberately no `:owner_id`: this changeset is fed the board settings
+  # form, and an owner who could set it could hand the board (and its quota)
+  # to somebody else. The owner is fixed when the board is created (see
+  # `Slipdock.Boards.create_board/2`) and moves only on account deletion.
   def changeset(board, attrs) do
     board
     |> cast(attrs, [
@@ -258,7 +262,6 @@ defmodule Slipdock.Boards.Board do
       :shortcut,
       :description,
       :color,
-      :owner_id,
       :vote_budget,
       :vote_max,
       :add_card,

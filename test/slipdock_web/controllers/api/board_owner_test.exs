@@ -26,6 +26,22 @@ defmodule SlipdockWeb.API.BoardOwnerTest do
     assert shown["owner"]["email"] == user.email
   end
 
+  test "an owner cannot be set or cleared through the API", %{conn: conn, user: user} do
+    other = user_fixture("nadia@example.com")
+
+    assert %{"board" => %{"id" => id}} =
+             conn
+             |> post(~p"/api/boards", %{"name" => "Made", "owner_id" => other.id})
+             |> json_response(201)
+
+    assert Slipdock.Boards.get_board!(id).owner_id == user.id
+
+    for owner_id <- [other.id, ""] do
+      conn |> patch(~p"/api/boards/#{id}", %{"owner_id" => owner_id}) |> json_response(200)
+      assert Slipdock.Boards.get_board!(id).owner_id == user.id
+    end
+  end
+
   test "a board granted to you names its owner and is marked shared", %{conn: conn, user: user} do
     other = user_fixture("nadia@example.com")
     {:ok, other} = Accounts.update_profile(other, %{"name" => "Nadia"})

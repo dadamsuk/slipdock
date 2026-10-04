@@ -18,10 +18,11 @@ defmodule Slipdock.Fixtures do
     {:ok, board} =
       Boards.create_board(
         Map.merge(
-          %{"name" => "Board #{System.unique_integer([:positive])}", "owner_id" => owner.id},
+          %{"name" => "Board #{System.unique_integer([:positive])}"},
           attrs
         ),
-        template: opts[:template]
+        template: opts[:template],
+        owner_id: owner.id
       )
 
     Boards.get_board!(board.id)
