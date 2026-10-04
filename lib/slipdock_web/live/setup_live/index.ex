@@ -16,6 +16,12 @@ defmodule SlipdockWeb.SetupLive.Index do
 
   Completing step 3 stamps `setup_completed_at`, after which the route 404s and
   no sign-in can claim the server.
+
+  The token has to gate the *events*, not just what is rendered: LiveView runs
+  whatever event a client pushes over the socket, form on the page or not. So
+  every event but `authorise` is halted until the token has been given — see
+  `guard_events/3` — and an unauthorised socket can neither claim the server
+  nor make it connect to a mail host of the sender's choosing.
   """
   use SlipdockWeb, :live_view
 
@@ -50,14 +56,27 @@ defmodule SlipdockWeb.SetupLive.Index do
        # final step, so an abandoned wizard leaves no half-configured server.
        collected: %{},
        mail_tested?: false,
+       # The exact settings that test went out with: saving anything else would
+       # be saving an untested configuration under a tested one's name.
+       tested_mail: nil,
        mail_error: nil,
        mail_skipped?: false,
        admin_result: nil
      )
      |> assign_mode_form()
      |> assign_mail_form()
-     |> assign_admin_form()}
+     |> assign_admin_form()
+     |> attach_hook(:setup_token, :handle_event, &guard_events/3)}
   end
+
+  # Deny by default: a handler added later is covered without having to
+  # remember to check.
+  defp guard_events("authorise", _params, socket), do: {:cont, socket}
+
+  defp guard_events(_event, _params, %{assigns: %{authorised?: true}} = socket),
+    do: {:cont, socket}
+
+  defp guard_events(_event, _params, socket), do: {:halt, socket}
 
   ## The token
 
@@ -105,26 +124,36 @@ defmodule SlipdockWeb.SetupLive.Index do
         :ok ->
           {:noreply,
            socket
-           |> assign(mail_tested?: true, mail_error: nil)
+           |> assign(mail_tested?: true, tested_mail: mail_settings(attrs), mail_error: nil)
            |> put_flash(:info, "Test message sent to #{recipient}. Check that it arrived.")}
 
         {:error, message} ->
-          {:noreply, assign(socket, mail_tested?: false, mail_error: message)}
+          {:noreply, assign(socket, mail_tested?: false, tested_mail: nil, mail_error: message)}
       end
     end
   end
 
   def handle_event("mail-submit", %{"settings" => attrs}, socket) do
-    if socket.assigns.mail_tested? do
-      {:noreply,
-       socket
-       |> collect(Map.drop(attrs, ["test_to"]))
-       |> assign(step: :admin, mail_skipped?: false)}
-    else
-      {:noreply,
-       assign(socket,
-         mail_error: "Send a test message that arrives before saving these settings."
-       )}
+    cond do
+      not socket.assigns.mail_tested? ->
+        {:noreply,
+         assign(socket,
+           mail_error: "Send a test message that arrives before saving these settings."
+         )}
+
+      mail_settings(attrs) != socket.assigns.tested_mail ->
+        {:noreply,
+         assign(socket,
+           mail_tested?: false,
+           tested_mail: nil,
+           mail_error: "These settings changed after the test. Send another test message."
+         )}
+
+      true ->
+        {:noreply,
+         socket
+         |> collect(Map.drop(attrs, ["test_to"]))
+         |> assign(step: :admin, mail_skipped?: false)}
     end
   end
 
@@ -152,7 +181,7 @@ defmodule SlipdockWeb.SetupLive.Index do
     end
   end
 
-  def handle_event("back", %{"to" => step}, socket) do
+  def handle_event("back", %{"to" => step}, socket) when step in ["mode", "mail"] do
     {:noreply,
      socket
      |> assign(step: String.to_existing_atom(step))
@@ -160,12 +189,17 @@ defmodule SlipdockWeb.SetupLive.Index do
      |> assign_mail_form()}
   end
 
+  def handle_event("back", _params, socket), do: {:noreply, socket}
+
   ## Internals
 
   defp mail_keys do
     ~w(smtp_host smtp_port smtp_username smtp_password smtp_from_email
        smtp_from_name smtp_tls test_to)
   end
+
+  # What a test send proves works: the server settings, not who it went to.
+  defp mail_settings(attrs), do: Map.take(attrs, mail_keys() -- ["test_to"])
 
   # Makes the admin, and gets them a way in: a code by email if mail works, and
   # otherwise written where the person running the server can read it. Either
@@ -220,7 +254,7 @@ defmodule SlipdockWeb.SetupLive.Index do
       nil -> :closed
       "" -> :closed
       value when is_atom(value) -> value
-      value when is_binary(value) -> String.to_existing_atom(value)
+      value -> Enum.find(Instance.signup_modes(), :closed, &(to_string(&1) == value))
     end
   end
 
