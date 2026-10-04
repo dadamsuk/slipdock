@@ -53,14 +53,25 @@ defmodule SlipdockWeb.ConfigLive.Index do
     )
   end
 
+  # What each form may change. Anything else in its params is dropped rather
+  # than saved, whatever the browser sends.
+  @settings_fields ~w(signup_mode free_card_limit user_directory invites_create_accounts
+                      board_limit board_limit_enabled item_limit item_limit_enabled
+                      storage_limit_mb storage_limit_enabled trial_days trial_enabled
+                      terms_url privacy_url terms_version)
+
+  @mail_fields ~w(smtp_host smtp_port smtp_username smtp_password smtp_tls smtp_from_email
+                  smtp_from_name)
+
   ## Settings
 
   @impl true
   def handle_event("save-settings", %{"settings" => attrs}, socket) do
-    # The admin's own address is changed through its own flow, which verifies
-    # the new one first — otherwise a typo sends every approval notice and
-    # lock-out warning into the void.
-    attrs = Map.drop(attrs, ["admin_email"])
+    # Only what these forms show. The admin's own address is changed through
+    # its own flow, which verifies the new one first — otherwise a typo sends
+    # every approval notice and lock-out warning into the void — and the mail
+    # settings through theirs, which wants a test message that arrived.
+    attrs = Map.take(attrs, @settings_fields)
 
     case Settings.update(attrs) do
       {:ok, _} ->
@@ -110,7 +121,9 @@ defmodule SlipdockWeb.ConfigLive.Index do
   end
 
   def handle_event("mail", %{"settings" => attrs}, socket) do
-    attrs = attrs |> with_typed_password(socket) |> Map.drop(["test_to"])
+    # Only the mail fields: anything else riding along would be saved on the
+    # strength of a test message that says nothing about it.
+    attrs = attrs |> with_typed_password(socket) |> Map.take(@mail_fields)
     changing? = changing_mail?(socket.assigns.settings, attrs)
 
     cond do
@@ -183,9 +196,6 @@ defmodule SlipdockWeb.ConfigLive.Index do
   end
 
   ## Internals
-
-  @mail_fields ~w(smtp_host smtp_port smtp_username smtp_password smtp_tls smtp_from_email
-                  smtp_from_name)
 
   # The mail form's values come from these params rather than from per-input
   # `value=` attributes: an attribute wins over whatever the person typed, so

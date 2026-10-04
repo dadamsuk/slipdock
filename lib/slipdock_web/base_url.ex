@@ -19,7 +19,10 @@ defmodule SlipdockWeb.BaseURL do
 
   @doc "The base URL for a plain request, with no trailing slash."
   def from_conn(conn) do
-    if canonical_host?(conn.host) do
+    # A Host header is whatever the caller typed, and what this returns ends up
+    # in a shell script and in Markdown. Anything that is not plainly a hostname
+    # or an IP address gets the configured URL instead.
+    if canonical_host?(conn.host) or not valid_host?(conn.host) do
       SlipdockWeb.Endpoint.url()
     else
       case forwarded_scheme(conn) do
@@ -37,7 +40,7 @@ defmodule SlipdockWeb.BaseURL do
   rather than a `conn`.
   """
   def from_socket(%{host_uri: %URI{} = uri}) do
-    if canonical_host?(uri.host) do
+    if canonical_host?(uri.host) or not valid_host?(uri.host) do
       SlipdockWeb.Endpoint.url()
     else
       build(uri.scheme || "http", uri.host, uri.port)
@@ -45,6 +48,16 @@ defmodule SlipdockWeb.BaseURL do
   end
 
   def from_socket(_socket), do: SlipdockWeb.Endpoint.url()
+
+  @hostname ~r/\A(?=.{1,253}\z)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*\z/i
+
+  @doc "Whether `host` is a bare DNS name or IP address, with nothing else in it."
+  def valid_host?(host) when is_binary(host) do
+    Regex.match?(@hostname, host) or
+      match?({:ok, _}, :inet.parse_strict_address(String.to_charlist(host)))
+  end
+
+  def valid_host?(_), do: false
 
   defp canonical_host?(host),
     do: not is_nil(host) and host == SlipdockWeb.Endpoint.config(:url)[:host]

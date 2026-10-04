@@ -149,9 +149,26 @@ defmodule Slipdock.Settings.Instance do
     |> validate_format(:smtp_from_email, ~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/,
       message: "must be a valid email address"
     )
+    |> validate_web_url(:terms_url)
+    |> validate_web_url(:privacy_url)
     |> require_sender_with_host()
     |> require_mail_for_approval()
     |> clear_verification_when_mail_changes()
+  end
+
+  # These are links on the public sign-in page, so anything but a plain web
+  # address — `javascript:` above all — is refused rather than rendered.
+  defp validate_web_url(changeset, field) do
+    validate_change(changeset, field, fn _, url ->
+      case URI.parse(url) do
+        %URI{scheme: scheme, host: host}
+        when scheme in ["http", "https"] and is_binary(host) and host != "" ->
+          []
+
+        _ ->
+          [{field, "must be an http:// or https:// address"}]
+      end
+    end)
   end
 
   @doc """

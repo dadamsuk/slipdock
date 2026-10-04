@@ -74,6 +74,14 @@ defmodule SlipdockWeb.OriginTest do
       refute Origin.allowed?(origin("https://example.net"))
     end
 
+    test "a wildcard needs a dot before its suffix" do
+      hosts(["*.example.com"])
+
+      refute Origin.allowed?(origin("https://evilexample.com"))
+      refute Origin.allowed?(origin("https://a.evilexample.com"))
+      assert Origin.allowed?(origin("https://A.Example.COM"))
+    end
+
     test "an origin with no host at all is refused" do
       hosts(["slipdock.example.com"])
       refute Origin.allowed?(origin("null"))
