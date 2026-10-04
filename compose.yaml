@@ -13,7 +13,10 @@
 # this checkout instead — because you have changed something, or want an
 # architecture that is not published:
 #
-#   docker compose build && docker compose up -d
+#   SLIPDOCK_GIT_SHA=$(git rev-parse HEAD) docker compose build && docker compose up -d
+#
+# (the hash is optional: it is what Configuration reports as the running commit,
+# and without it that reads "unknown")
 #
 # which works because the `build` section below is still here; it is simply not
 # what `up` reaches for while an image exists.
@@ -27,7 +30,10 @@ name: slipdock
 services:
   slipdock:
     image: ghcr.io/dadamsuk/slipdock:${SLIPDOCK_TAG:-latest}
-    build: .
+    build:
+      context: .
+      args:
+        SLIPDOCK_GIT_SHA: ${SLIPDOCK_GIT_SHA:-}
     pull_policy: ${SLIPDOCK_PULL_POLICY:-always}
     restart: unless-stopped
     ports:

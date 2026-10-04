@@ -72,6 +72,10 @@ jobs:
           context: .
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
+          # The image has no .git, so Slipdock.Build is told the commit here;
+          # without it Configuration and exports report it as "unknown".
+          build-args: |
+            SLIPDOCK_GIT_SHA=${{ github.sha }}
           # No tag here: tagging happens once, in the merge job, or each
           # architecture would overwrite the other's tag as it finished.
           outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
