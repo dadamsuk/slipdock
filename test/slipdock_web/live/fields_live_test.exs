@@ -14,7 +14,7 @@ defmodule SlipdockWeb.FieldsLiveTest do
 
   test "settings install a preset and add a custom choice field", %{conn: conn, board: board} do
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/settings")
-    render_click(view, "install_preset", %{"key" => "rice"})
+    view |> with_target("#board-settings") |> render_click("install_preset", %{"key" => "rice"})
 
     assert Enum.map(Fields.list_fields(board.id), & &1.key) ==
              ~w(reach impact confidence effort rice)
