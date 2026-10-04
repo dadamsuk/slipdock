@@ -97,6 +97,7 @@ defmodule SlipdockCLI do
     automations <board>                 list the board's automation rules
     automation <board> <rule>           show one rule, spec and all
     automation-help                     the triggers, conditions and actions a spec may use
+    automation-presets                  the ready-made rules `new-automation --preset` can add
     alerts                              alerts automation rules have raised for you
     templates                           list board templates (sets of lists)
     fields <board>                      list custom fields (and their {keys} for formulas)
@@ -271,6 +272,10 @@ defmodule SlipdockCLI do
     new-automation <board> --spec JSON [--name N] [--tree]
                                                    add a rule exactly (see `automation-help`;
                                                    --spec - reads the JSON from stdin)
+    new-automation <board> --preset KEY [field=value...] [--name N]
+                                                   add a ready-made rule, no AI needed (see
+                                                   `automation-presets`), e.g. --preset follow_list
+                                                   column=Doing notify=email
     set-automation <board> <rule> [--on|--off] [--name N] [--spec JSON] [--text "..."]
                                                    [--tree|--no-tree] also watch subcards, or not
     run-automation <board> <rule>                  run a timed rule now (forgets what it has done)
@@ -369,6 +374,7 @@ defmodule SlipdockCLI do
     sum: :boolean,
     date: :string,
     spec: :string,
+    preset: :string,
     text: :string,
     on: :boolean,
     tree: :boolean,
@@ -812,9 +818,19 @@ defmodule SlipdockCLI do
     end
   end
 
+  defp run("automation-presets", [], o),
+    do: HTTP.get("/automations/presets") |> out(o, &Render.automation_presets(&1["presets"]))
+
   defp run("new-automation", [ref | words], o) do
     body =
       cond do
+        o[:preset] ->
+          compact(%{
+            "preset" => o[:preset],
+            "params" => preset_params(words),
+            "name" => o[:name]
+          })
+
         o[:spec] ->
           compact(%{
             "spec" => spec_json(o[:spec]),
@@ -2328,6 +2344,16 @@ defmodule SlipdockCLI do
     do: s |> to_string() |> String.split("/", trim: true) |> Enum.map_join("/", &enc/1)
 
   # A spec is JSON: inline, from a file, or from stdin with `--spec -`.
+  # field=value words, for a preset's form.
+  defp preset_params(words) do
+    Map.new(words, fn word ->
+      case String.split(word, "=", parts: 2) do
+        [key, value] when key != "" -> {key, value}
+        _ -> fail("preset values go as field=value, e.g. column=Doing (got “#{word}”)")
+      end
+    end)
+  end
+
   defp spec_json("-"), do: decode_spec(IO.read(:stdio, :eof))
 
   defp spec_json(source) do
@@ -2505,5 +2531,4 @@ defmodule SlipdockCLI do
       many -> %{"assignees" => many}
     end
   end
-
 end

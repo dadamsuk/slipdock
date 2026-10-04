@@ -20,6 +20,8 @@ defmodule Slipdock.Automations.Spec do
   # {type, required keys, optional keys, blurb}
   @event_triggers [
     {"card_created", [], ["column"], "a card is added (optionally to one list)"},
+    {"card_entered", [], ["column"],
+     "a card arrives in a list, either added there or moved there from another"},
     {"card_moved", [], ["from", "to"], "a card moves between lists"},
     {"card_updated", [], ["field"],
      "a card changes (field: title, description, priority, due_date, start_date, percent_complete, assignee, flags, color)"},
@@ -30,7 +32,9 @@ defmodule Slipdock.Automations.Spec do
     {"comment_added", [], [], "someone comments on a card"},
     {"tag_added", [], ["tag"], "a tag is put on a card"},
     {"flag_added", [], ["flag"],
-     "a flag is put on a card (flagged, blocked, review, waiting, starred)"}
+     "a flag is put on a card (flagged, blocked, review, waiting, starred)"},
+    {"card_activity", [], [],
+     "anything happens to a card — added, moved, changed, commented on, tagged or archived; once per change"}
   ]
 
   @scheduled_triggers [
@@ -43,7 +47,7 @@ defmodule Slipdock.Automations.Spec do
      "the clock, once a day at \"HH:MM\" (optionally only on one weekday, 1 = Monday)"}
   ]
 
-  @condition_fields ~w(column priority tag assignee flag title description completed
+  @condition_fields ~w(card column priority tag assignee flag title description completed
                        archived blocked has_due_date has_assignee due_date start_date
                        percent_complete health age_days has_doc)
 
@@ -243,6 +247,8 @@ defmodule Slipdock.Automations.Spec do
   defp trigger_summary(%{"type" => type} = t) do
     case type do
       "card_created" -> "a card is added" <> where(t["column"], "to")
+      "card_entered" -> "a card arrives" <> where(t["column"], "in")
+      "card_activity" -> "anything happens to a card"
       "card_moved" -> "a card moves" <> where(t["from"], "out of") <> where(t["to"], "into")
       "card_updated" -> "a card's " <> to_string(t["field"] || "details") <> " changes"
       "card_completed" -> "a card is completed"

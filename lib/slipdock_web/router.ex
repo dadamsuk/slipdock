@@ -357,6 +357,7 @@ defmodule SlipdockWeb.Router do
     delete "/boards/:board/milestones/:id", BoardController, :delete_milestone
     # Automation rules (owner only) and the alerts they raise.
     get "/automations/vocabulary", AutomationController, :vocabulary
+    get "/automations/presets", AutomationController, :presets
     get "/alerts", AutomationController, :alerts
     delete "/alerts", AutomationController, :dismiss_all
     delete "/alerts/:id", AutomationController, :dismiss

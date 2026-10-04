@@ -991,14 +991,36 @@ the model invents can get through: every trigger, condition and action is
 checked against the vocabulary before the rule is saved, and unknown keys
 are dropped.
 
-**Triggers.** Events — a card created, moved, updated (optionally one named
-field), completed, reopened, archived, assigned, tagged, flagged, or
-commented on. Clock-driven — a card untouched for N days, due within a
+**Ready-made rules.** Above the composer sits a gallery of the rules most
+boards want, each filled in with a short form instead of a sentence — and
+because no model is involved, they work on a server with no AI key:
+
+- *Follow* — this board (every new card), a list (every card added to it or
+  moved into it), one card (anything that happens to it), comments
+  (optionally only on one person's cards), a field changing (or any field),
+  cards assigned to someone (you, by default), a card being flagged.
+- *Remind* — due soon (N hours before), overdue, gone quiet (untouched for
+  N days, optionally in one list).
+- *Tidy* — complete cards that land in the done list, archive what has sat
+  there for N days, have a tag set the priority.
+- *Connect* — call a URL on every change.
+
+Every *Follow* and *Remind* rule asks how to tell you: an alert in the header,
+an email (to you unless you give another address), both, or an email to
+whoever the card is assigned to. What a preset adds is an ordinary rule — it
+appears in the list, reads back as a sentence, and can be switched off or
+deleted like any other.
+
+**Triggers.** Events — a card created, arriving in a list (added there or
+moved there), moved, updated (optionally one named field), completed,
+reopened, archived, assigned, tagged, flagged, commented on, or anything at
+all happening to a card (once per change). Clock-driven — a card untouched for N days, due within a
 window, overdue, starting soon, or simply a time of day. Time-based rules
 are checked once a minute and fire once per occasion (one due date, one
 card going stale, one day), so nothing repeats itself.
 
-**Conditions.** Any number, all of which must hold: list, priority, tag,
+**Conditions.** Any number, all of which must hold: the card itself (by
+number, to follow one card), list, priority, tag,
 assignee, flag, title, description, completed, archived, blocked, whether a
 due date or assignee is set, the dates themselves, health, age in days —
 tested with `is`, `is_not`, `contains`, `any_of`, `none_of`, `is_set`,
@@ -1948,7 +1970,8 @@ POST   /api/cards/:id/dependencies {blocked_by: id} | {blocks: id}
 POST   /api/cards/:id/subboard {template}  DELETE /api/cards/:id/subboard
 DELETE /api/cards/:id/dependencies/:other_id     (either direction)
 GET    /api/automations/vocabulary         (the grammar a spec is written in, plus an example)
-GET    /api/boards/:board/automations      POST   /api/boards/:board/automations   {spec | text, name, scope}
+GET    /api/automations/presets            (the ready-made rules, and the fields each one takes)
+GET    /api/boards/:board/automations      POST   /api/boards/:board/automations   {spec | preset+params | text, name, scope}
 GET    /api/boards/:board/automations/:id  PATCH  /api/boards/:board/automations/:id   {enabled | name | spec | text}
 DELETE /api/boards/:board/automations/:id  POST   /api/boards/:board/automations/:id/run
 GET    /api/alerts                         DELETE /api/alerts/:id   DELETE /api/alerts
@@ -1995,7 +2018,11 @@ conditions and actions written out, validated and stored exactly as given, no
 model involved — or `text`, a sentence the server's model turns into a spec
 (the web UI's path, and it needs an OpenRouter key). A program should send
 `spec`; `GET /api/automations/vocabulary` is the whole grammar as data so it
-can. An unknown trigger, action or condition comes back as a 422 naming it.
+can. Or send `preset` and `params` — one of the ready-made rules from
+`GET /api/automations/presets`, filled in (`{"preset": "follow_list",
+"params": {"column": "Doing", "notify": "email"}}`), again with no model; a
+missing or unusable field is a 422 naming it. An unknown trigger, action or
+condition comes back as a 422 naming it.
 `…/run` runs a rule now, first forgetting what a timed rule has already acted
 on, and answers `{"fired": n, "automation": {…}}`. Alerts are listed for
 whoever the token belongs to, and dismissing one is per person — `DELETE
@@ -2086,6 +2113,8 @@ slipdock order-boards qvm-v1-rem errands 3     # your own order; boards left out
 slipdock subboard 12 --template "Bug triage"   # card #12 becomes a board; prints its id
 slipdock board <sub-board-id>                  # then use it like any board; --off removes it
 slipdock automation-help                       # the triggers, conditions and actions a spec may use
+slipdock automation-presets                    # the ready-made rules and the fields each one takes
+slipdock new-automation 1 --preset follow_list column=Doing notify=email     # no AI needed
 slipdock new-automation 1 --spec '{"trigger":{"type":"card_overdue"},"actions":[{"type":"alert","title":"Overdue: {{card.title}}","severity":"urgent"}]}' --name "Overdue alerts"
 slipdock new-automation 1 when a card lands in Done, email ops@example.com   # the server's AI writes the spec
 slipdock automations 1 | slipdock automation 1 "Overdue alerts"                # list; show one in full

@@ -27,7 +27,7 @@ defmodule SlipdockWeb.BoardLive.Show do
     Wiki
   }
 
-  alias Slipdock.Automations.Rule
+  alias Slipdock.Automations.{Presets, Rule}
   alias Slipdock.Prioritise
 
   alias Slipdock.Boards.Owned
@@ -74,7 +74,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   # Events only the board owner may perform.
   @owner_events ~w(save_board set_board_color delete_board save_as_template add_milestone delete_milestone
     swim_publish_view swim_unpublish_view add_field delete_field install_preset toggle_field_sum
-    create_rule toggle_rule delete_rule run_rule)
+    create_rule create_rule_preset toggle_rule delete_rule run_rule)
 
   @impl true
   def mount(%{"id" => id} = params, _session, socket) do
@@ -188,6 +188,9 @@ defmodule SlipdockWeb.BoardLive.Show do
       rule_error: nil,
       rule_busy: false,
       editing_rule: nil,
+      rule_preset: nil,
+      rule_preset_params: %{},
+      rule_preset_error: nil,
       ai?: Slipdock.AI.configured?(socket.assigns.current_user)
     )
     |> assign_columns()
@@ -722,7 +725,10 @@ defmodule SlipdockWeb.BoardLive.Show do
       rule_text: "",
       rule_error: nil,
       rule_busy: false,
-      editing_rule: nil
+      editing_rule: nil,
+      rule_preset: nil,
+      rule_preset_params: %{},
+      rule_preset_error: nil
     )
   end
 
@@ -1428,6 +1434,47 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   def handle_event("rule_change", %{"text" => text}, socket),
     do: {:noreply, assign(socket, rule_text: text)}
+
+  # Ready-made rules: pick one, fill in its few fields, add it. No model.
+  def handle_event("pick_rule_preset", %{"key" => key}, socket) do
+    case {socket.assigns.rule_preset, Presets.get(key)} do
+      {^key, _} ->
+        {:noreply, assign(socket, rule_preset: nil, rule_preset_error: nil)}
+
+      {_, nil} ->
+        {:noreply, socket}
+
+      {_, preset} ->
+        {:noreply,
+         assign(socket,
+           rule_preset: key,
+           rule_preset_params: Presets.defaults(preset, socket.assigns.board),
+           rule_preset_error: nil
+         )}
+    end
+  end
+
+  def handle_event("rule_preset_change", %{"preset" => params}, socket),
+    do: {:noreply, assign(socket, rule_preset_params: params)}
+
+  def handle_event("cancel_rule_preset", _params, socket),
+    do: {:noreply, assign(socket, rule_preset: nil, rule_preset_error: nil)}
+
+  def handle_event("create_rule_preset", %{"preset" => params}, socket) do
+    %{board: board, current_user: user, rule_preset: key} = socket.assigns
+
+    case Automations.create_rule_from_preset(board, key, params, created_by: user) do
+      {:ok, rule} ->
+        {:noreply,
+         socket
+         |> assign(rule_preset: nil, rule_preset_params: %{}, rule_preset_error: nil)
+         |> assign_rules()
+         |> put_flash(:info, "“#{rule.name}”: #{Rule.summary(rule)}")}
+
+      {:error, message} ->
+        {:noreply, assign(socket, rule_preset_params: params, rule_preset_error: message)}
+    end
+  end
 
   def handle_event("use_example", %{"text" => text}, socket),
     do: {:noreply, assign(socket, rule_text: text, rule_error: nil)}
@@ -4255,6 +4302,10 @@ defmodule SlipdockWeb.BoardLive.Show do
         error={@rule_error}
         busy={@rule_busy}
         editing={@editing_rule}
+        preset={@rule_preset}
+        preset_params={@rule_preset_params}
+        preset_error={@rule_preset_error}
+        current_user={@current_user}
         ai?={@ai?}
         close_path={@paths.close}
       />
@@ -6229,17 +6280,169 @@ defmodule SlipdockWeb.BoardLive.Show do
   end
 
   attr :board, :any, required: true
+  attr :preset, :string, default: nil
+  attr :params, :map, default: %{}
+  attr :error, :string, default: nil
+  attr :current_user, :any, default: nil
+
+  # The ready-made rules, grouped, with the picked one's form opened beneath.
+  defp rule_presets(assigns) do
+    presets = Presets.all()
+
+    assigns =
+      assign(assigns,
+        groups: Enum.chunk_by(presets, & &1.group),
+        picked: assigns.preset && Enum.find(presets, &(&1.key == assigns.preset))
+      )
+
+    ~H"""
+    <div id="rule-presets" class="space-y-2">
+      <p class="text-xs font-medium text-base-content/60">Ready-made</p>
+      <div :for={group <- @groups} class="flex flex-wrap items-center gap-1.5">
+        <span class="w-16 shrink-0 text-2xs uppercase tracking-wide text-base-content/40">
+          {hd(group).group}
+        </span>
+        <button
+          :for={p <- group}
+          type="button"
+          id={"rule-preset-#{p.key}"}
+          class={[
+            "chip chip-line text-xs hover:bg-base-200",
+            @preset == p.key && "bg-primary/10 ring-1 ring-primary/40"
+          ]}
+          phx-click="pick_rule_preset"
+          phx-value-key={p.key}
+          title={p.description}
+          aria-pressed={to_string(@preset == p.key)}
+        >
+          {p.title}
+        </button>
+      </div>
+
+      <.form
+        :if={@picked}
+        for={%{}}
+        as={:preset}
+        id="rule-preset-form"
+        phx-change="rule_preset_change"
+        phx-submit="create_rule_preset"
+        class="space-y-3 rounded-xl bg-base-200/50 p-3 ring-1 ring-base-content/5"
+      >
+        <p class="text-sm">
+          <span class="font-medium">{@picked.title}.</span>
+          <span class="text-base-content/60">{@picked.description}</span>
+        </p>
+        <div class="grid gap-2 sm:grid-cols-2">
+          <label :for={field <- @picked.fields} class="space-y-0.5 text-xs">
+            <span class="text-base-content/70">
+              {field.label}<span :if={field.required} class="text-error">*</span>
+              <span :if={field[:hint]} class="text-base-content/40">— {field.hint}</span>
+            </span>
+            <.preset_input
+              field={field}
+              value={@params[field.name]}
+              board={@board}
+              current_user={@current_user}
+            />
+          </label>
+        </div>
+        <p :if={@error} class="text-sm text-error">{@error}</p>
+        <div class="flex items-center gap-2">
+          <button type="submit" class="btn btn-primary btn-sm gap-1.5">
+            <.icon name="hero-plus" class="size-4" /> Add rule
+          </button>
+          <button type="button" class="btn btn-ghost btn-sm" phx-click="cancel_rule_preset">
+            Cancel
+          </button>
+        </div>
+      </.form>
+    </div>
+    """
+  end
+
+  attr :field, :map, required: true
+  attr :value, :any, default: nil
+  attr :board, :any, required: true
+  attr :current_user, :any, default: nil
+
+  @preset_input_class "w-full rounded-lg border-0 bg-base-100 px-2 py-1 text-sm ring-1 ring-base-content/10 focus:ring-2 focus:ring-primary"
+
+  # A board with no tags yet still lets a tag be named.
+  defp preset_input(%{field: %{type: "tag"}, board: %{tags: []}} = assigns),
+    do: preset_text_input(assigns)
+
+  defp preset_input(%{field: %{type: type}} = assigns)
+       when type in ~w(column tag notify field flag priority) do
+    options =
+      case type do
+        "column" -> Enum.map(assigns.board.columns, &{&1.name, &1.name})
+        "tag" -> Enum.map(assigns.board.tags, &{&1.name, &1.name})
+        "notify" -> Enum.map(Presets.notify_options(), fn {v, l} -> {l, v} end)
+        "field" -> Enum.map(assigns.field.options, &{String.replace(&1, "_", " "), &1})
+        _ -> Enum.map(assigns.field.options, &{&1, &1})
+      end
+
+    blank =
+      cond do
+        assigns.field.required -> nil
+        type == "field" -> "Any field"
+        true -> "Any"
+      end
+
+    assigns = assign(assigns, options: options, blank: blank, class: @preset_input_class)
+
+    ~H"""
+    <select name={"preset[#{@field.name}]"} class={@class}>
+      <option :if={@blank} value="">{@blank}</option>
+      {Phoenix.HTML.Form.options_for_select(@options, to_string(@value || ""))}
+    </select>
+    """
+  end
+
+  defp preset_input(assigns), do: preset_text_input(assigns)
+
+  defp preset_text_input(assigns) do
+    {type, placeholder} =
+      case assigns.field.type do
+        "number" -> {"number", nil}
+        "card" -> {"text", "129"}
+        "email" -> {"email", assigns.current_user && assigns.current_user.email}
+        "url" -> {"url", "https://example.com/hooks/slipdock"}
+        "person" -> {"text", "Name or email"}
+        _ -> {"text", nil}
+      end
+
+    assigns = assign(assigns, type: type, placeholder: placeholder, class: @preset_input_class)
+
+    ~H"""
+    <input
+      type={@type}
+      name={"preset[#{@field.name}]"}
+      value={@value}
+      placeholder={@placeholder}
+      min={if @type == "number", do: 1}
+      class={@class}
+    />
+    """
+  end
+
+  attr :board, :any, required: true
   attr :rules, :list, required: true
   attr :text, :string, required: true
   attr :error, :string, default: nil
   attr :busy, :boolean, default: false
   attr :editing, :any, default: nil
+  attr :preset, :string, default: nil
+  attr :preset_params, :map, default: %{}
+  attr :preset_error, :string, default: nil
+  attr :current_user, :any, default: nil
   attr :ai?, :boolean, default: false
   attr :close_path, :string, required: true
 
-  # Automations: rules written as sentences, parsed once and then run by the
-  # app. The composer is deliberately the only way in — the spec underneath is
-  # shown, and can be read, but isn't something to fill in by hand.
+  # Automations: rules picked from the ready-made ones and filled in with a
+  # short form, or written as sentences and parsed once by the model; either
+  # way they are then run by the app. The spec underneath is shown, and can be
+  # read, but isn't something to fill in by hand.
   defp automations_modal(assigns) do
     assigns = assign(assigns, examples: Automations.examples())
 
@@ -6251,20 +6454,30 @@ defmodule SlipdockWeb.BoardLive.Show do
             <.icon name="hero-cpu-chip" class="size-5 text-primary" /> Automations
           </h2>
           <p class="mt-1 text-sm text-base-content/60">
-            Describe what should happen and when, in your own words. Rules run on
-            <strong class="font-medium">{@board.name}</strong>
+            Pick a ready-made rule, or describe what should happen and when in your
+            own words. Rules run on <strong class="font-medium">{@board.name}</strong>
             as cards change, and on a timer for anything about elapsed time.
           </p>
         </div>
+
+        <.rule_presets
+          board={@board}
+          preset={@preset}
+          params={@preset_params}
+          error={@preset_error}
+          current_user={@current_user}
+        />
+
+        <p class="pt-1 text-xs font-medium text-base-content/60">Or in your own words</p>
 
         <div
           :if={!@ai?}
           class="rounded-xl bg-warning/10 px-3 py-2 text-sm text-warning-content ring-1 ring-warning/30"
         >
           <.icon name="hero-exclamation-triangle" class="mr-1 size-4 align-text-bottom" />
-          Rules are written by the AI, which isn't configured: set
+          Rules in your own words are written by the AI, which isn't configured: set
           <code class="font-mono text-xs">OPENROUTER_API_KEY</code>
-          to add new ones. Existing rules keep running.
+          to use them. Ready-made rules work without it, and existing rules keep running.
         </div>
 
         <.form

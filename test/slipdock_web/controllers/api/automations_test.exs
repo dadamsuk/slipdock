@@ -135,6 +135,51 @@ defmodule SlipdockWeb.API.AutomationsTest do
         |> json_response(400)
 
       assert body["error"] =~ "/api/automations/vocabulary"
+      assert body["error"] =~ "/api/automations/presets"
+    end
+  end
+
+  describe "ready-made rules" do
+    test "GET /api/automations/presets lists each preset and its fields", %{conn: conn} do
+      body = conn |> get(~p"/api/automations/presets") |> json_response(200)
+
+      assert %{"key" => "follow_list", "fields" => fields} =
+               Enum.find(body["presets"], &(&1["key"] == "follow_list"))
+
+      assert %{"name" => "column", "required" => true} = hd(fields)
+
+      assert %{"options" => ["alert", "email", "alert_email", "assignees"]} =
+               Enum.find(fields, &(&1["name"] == "notify"))
+    end
+
+    test "a preset with its params becomes a rule, with no model involved", %{
+      conn: conn,
+      board: board,
+      doing: doing
+    } do
+      body =
+        conn
+        |> post(~p"/api/boards/#{board.id}/automations", %{
+          "preset" => "follow_list",
+          "params" => %{"column" => doing.name}
+        })
+        |> json_response(201)
+
+      assert body["automation"]["name"] == "Followed: #{doing.name}"
+
+      assert body["automation"]["spec"]["trigger"] == %{
+               "type" => "card_entered",
+               "column" => doing.name
+             }
+    end
+
+    test "a preset missing a field is a 422 naming it", %{conn: conn, board: board} do
+      body =
+        conn
+        |> post(~p"/api/boards/#{board.id}/automations", %{"preset" => "follow_list"})
+        |> json_response(422)
+
+      assert body["error"] =~ "List"
     end
   end
 

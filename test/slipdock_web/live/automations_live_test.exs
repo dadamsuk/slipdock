@@ -18,7 +18,7 @@ defmodule SlipdockWeb.AutomationsLiveTest do
       {:ok, view, _html} = live(conn, ~p"/boards/#{board}")
 
       assert view |> element("a[href*='/automations']") |> render_click() =~ "Automations"
-      assert has_element?(view, "#automations-modal", "Describe what should happen")
+      assert has_element?(view, "#automations-modal", "describe what should happen")
       assert has_element?(view, "#automations-modal", "No rules yet.")
     end
 
@@ -124,6 +124,44 @@ defmodule SlipdockWeb.AutomationsLiveTest do
       {:ok, view, html} = live(conn_as(reader), ~p"/boards/#{board}/automations")
       refute html =~ "automations-modal"
       refute has_element?(view, "a[href*='/automations']")
+    end
+  end
+
+  describe "ready-made rules" do
+    test "a preset is picked, filled in and added without the AI", %{
+      conn: conn,
+      board: board,
+      doing: doing
+    } do
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/automations")
+
+      view |> element("#rule-preset-follow_list") |> render_click()
+      assert has_element?(view, "#rule-preset-form", "Follow a list")
+
+      html =
+        view
+        |> form("#rule-preset-form", %{"preset" => %{"column" => doing.name, "notify" => "alert"}})
+        |> render_submit()
+
+      assert html =~ "Followed: #{doing.name}"
+      refute has_element?(view, "#rule-preset-form")
+
+      assert [rule] = Automations.list_rules(board.id)
+      assert rule.spec["trigger"] == %{"type" => "card_entered", "column" => doing.name}
+    end
+
+    test "a value the preset can't use is said, and nothing is saved", %{conn: conn, board: board} do
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/automations")
+
+      view |> element("#rule-preset-follow_card") |> render_click()
+
+      html =
+        view
+        |> form("#rule-preset-form", %{"preset" => %{"card" => "the big one"}})
+        |> render_submit()
+
+      assert html =~ "Card number must be a number"
+      assert Automations.list_rules(board.id) == []
     end
   end
 

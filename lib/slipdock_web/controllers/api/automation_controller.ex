@@ -9,13 +9,16 @@ defmodule SlipdockWeb.API.AutomationController do
   sentence the server's model turns into a spec, the same path the web UI
   takes, and it needs an OpenRouter key.
 
+  `preset` is the third: one of the ready-made rules from
+  `GET /api/automations/presets`, filled in with `params` — again no model.
+
   `GET /api/automations/vocabulary` is the whole grammar as data, so a
   caller can build a spec without guessing.
   """
   use SlipdockWeb, :controller
 
   alias Slipdock.{Automations, Boards}
-  alias Slipdock.Automations.Spec
+  alias Slipdock.Automations.{Presets, Spec}
   alias SlipdockWeb.API.Authorize
   alias SlipdockWeb.API.JSON, as: V
 
@@ -56,6 +59,10 @@ defmodule SlipdockWeb.API.AutomationController do
         }
       }
     })
+  end
+
+  def presets(conn, _params) do
+    json(conn, %{presets: Presets.all()})
   end
 
   def index(conn, %{"board" => ref}) do
@@ -135,6 +142,20 @@ defmodule SlipdockWeb.API.AutomationController do
     Automations.create_rule(attrs, created_by: user)
   end
 
+  defp build(board, %{"preset" => key} = params, user) when is_binary(key) do
+    params_in = if is_map(params["params"]), do: params["params"], else: %{}
+
+    case Automations.create_rule_from_preset(board, key, params_in, created_by: user) do
+      {:ok, rule} ->
+        if is_binary(params["name"]),
+          do: Automations.update_rule(rule, %{"name" => params["name"]}),
+          else: {:ok, rule}
+
+      {:error, message} ->
+        {:error, :unprocessable_entity, message}
+    end
+  end
+
   defp build(board, %{"text" => text}, user) when is_binary(text) do
     case Automations.create_rule_from_text(Boards.get_board!(board.id), text, created_by: user) do
       {:ok, rule} -> {:ok, rule}
@@ -145,7 +166,8 @@ defmodule SlipdockWeb.API.AutomationController do
 
   defp build(_board, _params, _user) do
     {:error, :bad_request,
-     "pass either `spec` (a trigger/conditions/actions object — see GET /api/automations/vocabulary) " <>
+     "pass `spec` (a trigger/conditions/actions object — see GET /api/automations/vocabulary), " <>
+       "`preset` with `params` (a ready-made rule — see GET /api/automations/presets) " <>
        "or `text` (a sentence for the model to turn into one)"}
   end
 
