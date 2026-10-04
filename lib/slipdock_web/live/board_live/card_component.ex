@@ -792,6 +792,27 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         <span class="truncate font-medium">{@parent.card.title}</span>
         <span class="shrink-0 text-base-content/40">on {@parent.board.name}</span>
       </.link>
+      <%!-- At the very top, so a card that is really an epic opens onto its
+            board in one click instead of a scroll down to its subcards. --%>
+      <div
+        :if={@card.sub_board}
+        id="card-open-board"
+        class="flex min-w-0 items-center gap-2 bg-primary/5 py-1.5 pl-6 pr-24 text-xs text-base-content/70"
+      >
+        <.icon name="hero-squares-2x2" class="size-3.5 shrink-0 text-primary" />
+        <span class="truncate">
+          This card has subcards<span :for={{done, total} <- [Card.progress(@card)]}>
+            · {done} of {total} done
+          </span>
+        </span>
+        <.link
+          navigate={~p"/boards/#{@card.sub_board.id}"}
+          class="btn btn-primary btn-xs ml-auto shrink-0"
+          title="Open this card's subcards as a board"
+        >
+          Open board <.icon name="hero-arrow-right" class="size-3.5" />
+        </.link>
+      </div>
       <fieldset disabled={!@can_write} class="contents">
         <div class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_260px]">
           <div class="min-w-0 space-y-7 p-6">

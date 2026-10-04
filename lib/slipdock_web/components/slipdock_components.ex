@@ -535,6 +535,10 @@ defmodule SlipdockWeb.SlipdockComponents do
 
   attr :card, :map, required: true
 
+  attr :open, :boolean,
+    default: false,
+    doc: "a button that opens the sub-board, for a tile whose own click opens the card"
+
   @doc """
   Progress of a card's subcards, when it has a sub-board: every leaf beneath
   the card when a rollup is loaded, else the direct subcards. Tinted by the
@@ -548,14 +552,20 @@ defmodule SlipdockWeb.SlipdockComponents do
       assign(assigns,
         progress: Slipdock.Boards.Card.progress(card),
         health: Slipdock.Boards.Card.health(card),
-        depth: depth
+        depth: depth,
+        open:
+          assigns.open && match?(%Slipdock.Boards.Board{}, Map.get(card, :sub_board)) &&
+            card.sub_board.id
       )
 
     ~H"""
-    <span
+    <.dynamic_tag
       :if={@progress}
+      tag_name={if @open, do: "button", else: "span"}
+      phx-click={@open && JS.navigate("/boards/#{@open}")}
       class={[
         "chip",
+        @open && "cursor-pointer transition hover:ring-1 hover:ring-current",
         cond do
           elem(@progress, 0) == elem(@progress, 1) and elem(@progress, 1) > 0 ->
             "bg-success/15 text-success"
@@ -572,11 +582,12 @@ defmodule SlipdockWeb.SlipdockComponents do
       ]}
       title={
         "#{elem(@progress, 0)} of #{elem(@progress, 1)} subcards done" <>
-          if(@depth > 1, do: " (#{@depth} levels)", else: "")
+          if(@depth > 1, do: " (#{@depth} levels)", else: "") <>
+          if(@open, do: " — click to open them as a board", else: "")
       }
     >
       <.icon name="hero-squares-2x2" class="size-3" /> {elem(@progress, 0)}/{elem(@progress, 1)}
-    </span>
+    </.dynamic_tag>
     """
   end
 
@@ -1019,7 +1030,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         </span>
         <.flag_icon :for={flag <- @card.flags} :if={@f.flags} flag={flag} class="size-3" />
         <.dependency_badge :if={@f.dependencies} card={@card} class="size-3" />
-        <.subcards_badge :if={@f.subcards} card={@card} />
+        <.subcards_badge :if={@f.subcards} card={@card} open={not @page?} />
         <.stated_pill
           :if={@f.stated}
           health={Slipdock.Boards.Card.stated_health(@card)}
@@ -1071,7 +1082,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         <div :if={@meta?} class="flex flex-wrap items-center gap-1 text-base-content/60">
           <.flag_icon :for={flag <- @card.flags} :if={@f.flags} flag={flag} class="size-3.5" />
           <.dependency_badge :if={@f.dependencies} card={@card} />
-          <.subcards_badge :if={@f.subcards} card={@card} />
+          <.subcards_badge :if={@f.subcards} card={@card} open={not @page?} />
           <.stated_pill
             :if={@f.stated}
             health={Slipdock.Boards.Card.stated_health(@card)}

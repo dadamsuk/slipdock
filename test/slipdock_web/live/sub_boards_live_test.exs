@@ -38,7 +38,7 @@ defmodule SlipdockWeb.SubBoardsLiveTest do
     view |> element("#subcard-#{sub.id} button[phx-click=toggle_subcard]") |> render_click()
     assert Boards.get_card!(sub.id).completed
     assert render(view) =~ "1/1 done"
-    assert has_element?(view, "#card-#{card.id} span[title^='1 of 1 subcards done']", "1/1")
+    assert has_element?(view, "#card-#{card.id} button[title^='1 of 1 subcards done']", "1/1")
 
     # The sub-board page shows a breadcrumb back to the root and shares tags.
     {:ok, sub_view, html} = live(conn, ~p"/boards/#{card.sub_board.id}")
@@ -74,6 +74,43 @@ defmodule SlipdockWeb.SubBoardsLiveTest do
     # Removing the subcards deletes the sub-board.
     view |> element("button[phx-click=delete_sub_board]") |> render_click()
     assert is_nil(Boards.get_card!(card.id).sub_board)
+  end
+
+  test "a card with subcards opens as a board in one click, from the modal or the tile", %{
+    conn: conn,
+    board: board,
+    card: card
+  } do
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}/cards/#{card.id}")
+    refute has_element?(view, "#card-open-board")
+    refute has_element?(view, "#card-#{card.id} button[title*='open them as a board']")
+
+    {:ok, t} = Boards.find_template("Simple")
+    {:ok, sub} = Boards.create_sub_board(card, t)
+    [todo | _] = Boards.get_board!(sub.id).columns
+    card_fixture(todo, %{"title" => "Sub one"})
+
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}/cards/#{card.id}")
+    assert has_element?(view, "#card-open-board", "0 of 1 done")
+
+    {:ok, _, html} =
+      view
+      |> element("#card-open-board a", "Open board")
+      |> render_click()
+      |> follow_redirect(conn, ~p"/boards/#{sub.id}")
+
+    assert html =~ "Sub one"
+
+    # On the board, the tile's subcards chip goes straight to the sub-board
+    # rather than opening the card.
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}")
+
+    assert {:error, {:live_redirect, %{to: to}}} =
+             view
+             |> element("#card-#{card.id} button[title*='open them as a board']")
+             |> render_click()
+
+    assert to == "/boards/#{sub.id}"
   end
 
   test "templates page creates and edits a template", %{conn: conn} do
