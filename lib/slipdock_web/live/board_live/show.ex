@@ -27,7 +27,7 @@ defmodule SlipdockWeb.BoardLive.Show do
     Wiki
   }
 
-  alias Slipdock.Automations.{Presets, Rule}
+  alias Slipdock.Automations.{Callback, Presets, Rule}
   alias Slipdock.Prioritise
 
   alias Slipdock.Boards.Owned
@@ -70,6 +70,9 @@ defmodule SlipdockWeb.BoardLive.Show do
   # Images pasted into the description or a comment, and files attached explicitly.
   @image_uploads [:desc_image, :comment_image]
   @uploads [:attachment | @image_uploads]
+  # How many of the board's recent callbacks the Automations panel lists.
+  @callbacks_shown 20
+
   @image_accept ~w(.png .jpg .jpeg .gif .webp image/png image/jpeg image/gif image/webp)
   # Events only the board owner may perform.
   @owner_events ~w(save_board set_board_color delete_board save_as_template add_milestone delete_milestone
@@ -93,6 +96,7 @@ defmodule SlipdockWeb.BoardLive.Show do
       if connected?(socket) do
         Boards.subscribe(board.id)
         Boards.subscribe_templates()
+        Automations.subscribe_callbacks(board.id)
       end
 
       {:ok,
@@ -722,6 +726,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   defp apply_panel(socket, :automations, _) do
     assign(socket,
       rules: Automations.list_rules(socket.assigns.board.id),
+      callbacks: Automations.list_callbacks(socket.assigns.board.id, @callbacks_shown),
       rule_text: "",
       rule_error: nil,
       rule_busy: false,
@@ -1336,6 +1341,17 @@ defmodule SlipdockWeb.BoardLive.Show do
        socket
        |> put_flash(:error, "This board was deleted.")
        |> push_navigate(to: ~p"/")}
+  end
+
+  # A callback finished: the panel's log, and the rule's own last run, move on.
+  def handle_info({:callbacks_changed, _id}, %{assigns: %{panel: :automations}} = socket) do
+    board_id = socket.assigns.board.id
+
+    {:noreply,
+     assign(socket,
+       callbacks: Automations.list_callbacks(board_id, @callbacks_shown),
+       rules: Automations.list_rules(board_id)
+     )}
   end
 
   def handle_info({:templates_changed}, socket) do
@@ -4298,6 +4314,7 @@ defmodule SlipdockWeb.BoardLive.Show do
         :if={@panel == :automations and @can_manage}
         board={@board}
         rules={@rules}
+        callbacks={@callbacks}
         text={@rule_text}
         error={@rule_error}
         busy={@rule_busy}
@@ -6428,6 +6445,7 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   attr :board, :any, required: true
   attr :rules, :list, required: true
+  attr :callbacks, :list, default: []
   attr :text, :string, required: true
   attr :error, :string, default: nil
   attr :busy, :boolean, default: false
@@ -6652,8 +6670,60 @@ defmodule SlipdockWeb.BoardLive.Show do
             </li>
           </ul>
         </div>
+
+        <.callback_log :if={@callbacks != []} callbacks={@callbacks} />
       </div>
     </.modal>
+    """
+  end
+
+  attr :callbacks, :list, required: true
+
+  # The calls the board's rules have made, newest first, as they land — the
+  # only place a callback that failed in the background shows up at all.
+  defp callback_log(assigns) do
+    ~H"""
+    <div id="callback-log" class="space-y-2 border-t border-base-content/10 pt-4">
+      <p class="text-sm font-medium">
+        Recent callbacks
+        <span class="font-normal text-base-content/50">— the newest {length(@callbacks)}</span>
+      </p>
+      <ul class="max-h-[30vh] space-y-1 overflow-y-auto kanban-scroll pr-1">
+        <li
+          :for={call <- @callbacks}
+          id={"callback-#{call.id}"}
+          class="flex items-start gap-2 rounded-lg px-2 py-1.5 text-xs odd:bg-base-200/40"
+        >
+          <.icon
+            name={if Callback.ok?(call), do: "hero-check-circle", else: "hero-exclamation-circle"}
+            class={[
+              "mt-0.5 size-3.5 shrink-0",
+              (Callback.ok?(call) && "text-success") || "text-error"
+            ]}
+          />
+          <div class="min-w-0 flex-1">
+            <p class="truncate" title={"#{call.method} #{call.url}"}>
+              <span class="font-mono text-2xs font-semibold">{call.method}</span>
+              <span class="font-mono text-2xs text-base-content/70">{call.url}</span>
+            </p>
+            <p class="truncate text-2xs text-base-content/50">
+              {call.rule_name || "a deleted rule"}<span :if={call.card_title}> · {call.card_title}</span>
+            </p>
+          </div>
+          <div class="shrink-0 text-right text-2xs">
+            <p
+              class={["max-w-48 truncate", (Callback.ok?(call) && "text-success") || "text-error"]}
+              title={Callback.outcome(call)}
+            >
+              {Callback.outcome(call)}<span :if={call.duration_ms} class="text-base-content/40"> · {call.duration_ms} ms</span>
+            </p>
+            <p class="text-base-content/40" title={to_string(call.inserted_at)}>
+              {relative_time(call.inserted_at)}
+            </p>
+          </div>
+        </li>
+      </ul>
+    </div>
     """
   end
 

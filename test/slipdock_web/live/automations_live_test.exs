@@ -14,6 +14,31 @@ defmodule SlipdockWeb.AutomationsLiveTest do
   end
 
   describe "the automations panel" do
+    test "lists recent callbacks and adds new ones as they land", %{conn: conn, board: board} do
+      log = fn n, status ->
+        Automations.log_callback(%{
+          board_id: board.id,
+          rule_name: "Tell the robot",
+          card_title: "Card #{n}",
+          method: "POST",
+          url: "https://example.com/hook/#{n}",
+          status: status,
+          error: if(status != 200, do: "HTTP #{status}")
+        })
+      end
+
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/automations")
+      refute has_element?(view, "#callback-log")
+
+      log.(1, 200)
+      assert has_element?(view, "#callback-log", "https://example.com/hook/1")
+      assert has_element?(view, "#callback-log", "Tell the robot")
+
+      log.(2, 503)
+      assert has_element?(view, "#callback-log", "HTTP 503")
+      assert has_element?(view, "#callback-log", "Card 2")
+    end
+
     test "opens from the board menu and describes what rules are for", %{conn: conn, board: board} do
       {:ok, view, _html} = live(conn, ~p"/boards/#{board}")
 

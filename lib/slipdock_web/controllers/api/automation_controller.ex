@@ -110,6 +110,18 @@ defmodule SlipdockWeb.API.AutomationController do
     end
   end
 
+  @doc """
+  The callbacks the board's rules have made, newest first: where each went,
+  the HTTP status or error that came back, and when. `limit` (default 50,
+  at most 200) says how many.
+  """
+  def callbacks(conn, %{"board" => ref} = params) do
+    with {:ok, board} <- fetch_board(conn, ref, :owner) do
+      calls = Automations.list_callbacks(board.id, params["limit"])
+      json(conn, %{callbacks: Enum.map(calls, &V.callback/1)})
+    end
+  end
+
   ## Alerts -------------------------------------------------------------------
 
   def alerts(conn, _params) do

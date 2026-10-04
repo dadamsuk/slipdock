@@ -363,6 +363,7 @@ defmodule SlipdockWeb.Router do
     delete "/alerts/:id", AutomationController, :dismiss
     get "/boards/:board/automations", AutomationController, :index
     post "/boards/:board/automations", AutomationController, :create
+    get "/boards/:board/automations/callbacks", AutomationController, :callbacks
     get "/boards/:board/automations/:id", AutomationController, :show
     patch "/boards/:board/automations/:id", AutomationController, :update
     delete "/boards/:board/automations/:id", AutomationController, :delete

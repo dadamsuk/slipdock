@@ -29,13 +29,26 @@ defmodule Slipdock.Automations do
 
   alias Slipdock.Repo
   alias Slipdock.Accounts.User
-  alias Slipdock.Automations.{Alert, Dismissal, Fire, Parser, Presets, Rule, Runner, Spec}
+
+  alias Slipdock.Automations.{
+    Alert,
+    Callback,
+    Dismissal,
+    Fire,
+    Parser,
+    Presets,
+    Rule,
+    Runner,
+    Spec
+  }
+
   alias Slipdock.Boards.{Board, Card}
 
   @pubsub Slipdock.PubSub
   @alerts_topic "alerts"
   @max_depth 3
   @alert_limit 100
+  @callback_limit 200
 
   ## PubSub -------------------------------------------------------------------
 
@@ -490,6 +503,66 @@ defmodule Slipdock.Automations do
     from(f in Fire, where: f.rule_id == ^rule.id) |> Repo.delete_all()
     :ok
   end
+
+  ## Callbacks ----------------------------------------------------------------
+
+  @doc "Subscribes to `{:callbacks_changed, board_id}`, broadcast as each of the board's callbacks lands."
+  def subscribe_callbacks(board_id),
+    do: Phoenix.PubSub.subscribe(@pubsub, "callbacks:#{board_id}")
+
+  @doc """
+  Records one callback a rule made (see `Slipdock.Automations.Callback`),
+  and lets the board's oldest go once there are more than #{@callback_limit}.
+  Called by `Slipdock.Automations.Notifier` when the call has finished.
+  """
+  def log_callback(%{board_id: board_id} = attrs) when is_integer(board_id) do
+    row =
+      attrs
+      |> Map.take([:board_id, :rule_id, :card_id, :method, :status, :duration_ms])
+      |> Map.merge(%{
+        rule_name: clip(attrs[:rule_name], 255),
+        card_title: clip(attrs[:card_title], 255),
+        url: clip(attrs[:url], 2000),
+        error: clip(attrs[:error], 500),
+        inserted_at: DateTime.utc_now(:second)
+      })
+
+    {1, _} = Repo.insert_all(Callback, [row])
+    prune_callbacks(board_id)
+    Phoenix.PubSub.broadcast(@pubsub, "callbacks:#{board_id}", {:callbacks_changed, board_id})
+    :ok
+  end
+
+  def log_callback(_), do: :ok
+
+  defp prune_callbacks(board_id) do
+    oldest_kept =
+      from(c in Callback,
+        where: c.board_id == ^board_id,
+        order_by: [desc: c.id],
+        offset: @callback_limit - 1,
+        limit: 1,
+        select: c.id
+      )
+      |> Repo.one()
+
+    if oldest_kept do
+      from(c in Callback, where: c.board_id == ^board_id and c.id < ^oldest_kept)
+      |> Repo.delete_all()
+    end
+  end
+
+  @doc "The board's callbacks, newest first."
+  def list_callbacks(board_id, limit \\ nil) do
+    limit =
+      if limit in [nil, ""], do: 50, else: limit |> to_int() |> max(1) |> min(@callback_limit)
+
+    from(c in Callback, where: c.board_id == ^board_id, order_by: [desc: c.id], limit: ^limit)
+    |> Repo.all()
+  end
+
+  defp clip(nil, _), do: nil
+  defp clip(text, max), do: text |> to_string() |> String.slice(0, max)
 
   ## Alerts -------------------------------------------------------------------
 

@@ -254,6 +254,7 @@ slipdock new-automation <board> <description...>                  # the server's
 slipdock set-automation <board> <rule> [--on|--off] [--name N] [--spec JSON] [--text "..."]
 slipdock run-automation <board> <rule>        # run a timed rule now (forgets what it has done)
 slipdock delete-automation <board> <rule>
+slipdock callbacks <board> [--limit N]        # the calls its rules made, and what came back
 slipdock alerts                               # what the rules want you to know
 slipdock dismiss <alert-id>... | --all        # dismiss yours; other people keep theirs
 ```
@@ -272,7 +273,9 @@ with the card — id, title, a link to it, list, priority, assignee, start and d
 status (`open`/`done`/`archived`), health, per cent complete, blocked, flags and tags — plus
 the board, the rule and the event. `"method": "get"` sends those as query parameters
 (`card.title`, `card.url`, …) instead of a JSON body; leave it out for a POST. The URL may
-carry `{{placeholders}}` of its own.
+carry `{{placeholders}}` of its own. Calls go out in the background, so a rule's `last_error`
+will not show a refused one — `slipdock callbacks <board>` will: every call, newest first,
+with its HTTP status or the reason there was none.
 
 Automations are the board's owner's business, and they outlive the task. **Don't add one to get
 a job done** — do the job. Add one only when the user asks for something recurring ("always…",
