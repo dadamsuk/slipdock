@@ -382,11 +382,15 @@ defmodule Slipdock.Automations.Spec do
       "archive_card" -> "archive it"
       "add_checklist_items" -> "add #{length(List.wrap(a["items"]))} checklist items"
       "create_card" -> "create “#{a["title"]}”" <> where(a["column"], "in")
+      "create_page" -> "start a wiki page" <> page_title(a["title"])
       "webhook" -> "#{String.upcase(to_string(a["method"] || "post"))} #{a["url"]}"
       "log" -> "note it in the activity log"
       other -> other
     end
   end
+
+  defp page_title(nil), do: " for it"
+  defp page_title(title), do: " “#{title}” for it"
 
   defp article(severity) when severity in ["info", "urgent"], do: "an #{severity}"
   defp article(severity), do: "a #{severity}"
