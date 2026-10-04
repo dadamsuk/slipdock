@@ -526,6 +526,15 @@ these are decisions only you can make.
   no board content leaves the server on their behalf. Back that file up like a
   `.env`, because it holds secrets in the clear. Point it at a model server on
   your own network and board content never leaves the network either.
+- **Outbound calls only go to public addresses.** Webhook callbacks and the
+  AI endpoints people type for themselves are refused if they resolve to
+  loopback, private, link-local, CGNAT (Tailscale) or other reserved
+  addresses, are pinned to the address that was checked, and do not follow
+  redirects — so a URL cannot turn the server into a probe of its own
+  network. Admins' own endpoints and the server's default
+  (`SLIPDOCK_AI_BASE_URL`) are trusted. To let everybody use a model server
+  on the LAN, set `SLIPDOCK_EGRESS_ALLOW` to a comma-separated list of CIDRs,
+  or to `all` to switch the check off.
 - **Attachments are served with permission checks**, but they are whatever
   people upload: the app does not scan them.
 - **Put TLS in front of it.** The Docker image does not force HTTPS, on the

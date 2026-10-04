@@ -193,12 +193,41 @@ defmodule Slipdock.Automations.Spec do
     action = Map.put(action, "type", type)
 
     case List.keyfind(@actions, type, 0) do
-      nil -> {:error, "unknown action “#{type}”"}
-      {_, required, optional, _} -> keep(action, required, optional, "action “#{type}”")
+      nil ->
+        {:error, "unknown action “#{type}”"}
+
+      {_, required, optional, _} ->
+        with {:ok, kept} <- keep(action, required, optional, "action “#{type}”"),
+             do: check_action(kept)
     end
   end
 
   defp validate_action(_), do: {:error, "each action needs a type"}
+
+  # A webhook's scheme and host are fixed when the rule is saved: placeholders
+  # may fill in the path and query, never decide where the call goes. The
+  # full check (DNS and all) happens again on every call.
+  defp check_action(%{"type" => "webhook", "url" => url} = action) do
+    url = to_string(url)
+    sample = Regex.replace(~r/\{\{\s*[\w.]+\s*\}\}/, url, "x")
+
+    authority =
+      case String.split(url, "://", parts: 2) do
+        [_scheme, rest] -> rest |> String.split(["/", "?", "#"], parts: 2) |> hd()
+        [_] -> url
+      end
+
+    if String.contains?(authority, "{{") do
+      {:error, "action “webhook” can't use placeholders in the URL's host"}
+    else
+      case Slipdock.Egress.check_static(sample) do
+        :ok -> {:ok, action}
+        {:error, reason} -> {:error, "action “webhook” url #{reason}"}
+      end
+    end
+  end
+
+  defp check_action(action), do: {:ok, action}
 
   # Keeps the known keys of a trigger or action, checking the required ones
   # are there and not blank.

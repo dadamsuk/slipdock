@@ -134,7 +134,9 @@ defmodule SlipdockWeb.AIKeyLiveTest do
       {:ok, view, _html} = live(conn, ~p"/account/settings")
       view |> element("button[phx-click=list_ai_models]") |> render_click()
 
-      assert render_async(view) =~ "connection refused"
+      html = render_async(view)
+      assert html =~ "HTTP 500"
+      refute html =~ "connection refused"
       assert Keys.model(user) == nil
     end
 

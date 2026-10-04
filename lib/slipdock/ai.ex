@@ -101,6 +101,11 @@ defmodule Slipdock.AI do
 
   `custom?` says the endpoint is not the server's default — which is why no
   key is demanded, and why a model id from the config is not imposed on it.
+
+  An endpoint a person typed (anyone but an admin) goes through
+  `Slipdock.Egress` here: refused if it is private or loopback, otherwise
+  pinned to the address that was checked. The server's own endpoints — the
+  config and the system settings, both the admin's — are not.
   """
   @spec provider(keyword()) :: {:ok, map()} | {:error, String.t()}
   def provider(opts) do
@@ -112,6 +117,7 @@ defmodule Slipdock.AI do
 
     base_url = opts[:base_url] || settings.base_url || config()[:base_url]
     custom? = present?(opts[:base_url]) or present?(settings.base_url)
+    guarded? = custom? and opts[:user] != nil and not Slipdock.Accounts.admin?(opts[:user])
 
     key =
       cond do
@@ -122,17 +128,38 @@ defmodule Slipdock.AI do
         true -> shared_key_for(opts[:user])
       end
 
-    if present?(key) or keyless?(base_url) do
+    with true <- present?(key) or keyless?(base_url) or {:error, @no_key},
+         {:ok, target, req_options} <- egress(base_url, guarded?) do
       {:ok,
        %{
          base_url: base_url,
+         target: target,
+         req_options: req_options,
          api_key: key,
          model: opts[:model] || settings.model || default_model(opts[:quick], custom?),
          embed_model: settings.embed_model,
-         custom?: custom?
+         custom?: custom?,
+         guarded?: guarded?
        }}
+    end
+  end
+
+  defp egress(base_url, false), do: {:ok, base_url, []}
+
+  # A query or fragment would swallow the "/models" or "/chat/completions"
+  # appended to it, so an API root has neither.
+  defp egress(base_url, true) do
+    with %URI{query: nil, fragment: nil} <- URI.parse(base_url),
+         {:ok, target, options} <- Slipdock.Egress.prepare(base_url) do
+      {:ok, target, options}
     else
-      {:error, @no_key}
+      %URI{} ->
+        {:error, "That endpoint can't have a query string or a fragment."}
+
+      {:error, reason} ->
+        {:error,
+         "That endpoint #{reason}, so it can't be used. A server's admin can allow " <>
+           "addresses on their own network with SLIPDOCK_EGRESS_ALLOW."}
     end
   end
 
@@ -182,10 +209,11 @@ defmodule Slipdock.AI do
 
         {:ok, %Req.Response{status: status, body: body}} ->
           Logger.warning("Model list failed with #{status}: #{inspect(body)}")
-          {:error, api_error(status, body)}
+          {:error, refusal(status, body, provider)}
 
         {:error, exception} ->
-          {:error, "Couldn't reach #{provider.base_url} (#{Exception.message(exception)})."}
+          Logger.warning("Model list failed: #{Exception.message(exception)}")
+          {:error, "Couldn't reach #{provider.base_url}."}
       end
     end
   end
@@ -323,12 +351,12 @@ defmodule Slipdock.AI do
           if opts[:json] && refused_json_mode?(status, body) do
             {:error, :no_json_mode}
           else
-            {:error, api_error(status, body)}
+            {:error, refusal(status, body, provider)}
           end
 
         {:error, exception} ->
           Logger.warning("AI completion failed: #{Exception.message(exception)}")
-          {:error, "Couldn't reach the model (#{Exception.message(exception)})."}
+          {:error, "Couldn't reach the model."}
       end
     end
   end
@@ -391,11 +419,11 @@ defmodule Slipdock.AI do
 
         {:ok, %Req.Response{status: status, body: body}} ->
           Logger.warning("AI tool completion failed with #{status}: #{inspect(body)}")
-          {:error, api_error(status, body)}
+          {:error, refusal(status, body, provider)}
 
         {:error, exception} ->
           Logger.warning("AI tool completion failed: #{Exception.message(exception)}")
-          {:error, "Couldn't reach the model (#{Exception.message(exception)})."}
+          {:error, "Couldn't reach the model."}
       end
     end
   end
@@ -464,11 +492,12 @@ defmodule Slipdock.AI do
   def request(%{base_url: base_url} = provider) do
     Req.new(
       [
-        base_url: base_url,
+        base_url: provider[:target] || base_url,
         headers: headers(provider[:api_key]),
         receive_timeout: 90_000,
-        retry: false
-      ] ++ (config()[:req_options] || [])
+        retry: false,
+        redirect: false
+      ] ++ (provider[:req_options] || []) ++ (config()[:req_options] || [])
     )
   end
 
@@ -501,6 +530,11 @@ defmodule Slipdock.AI do
 
   defp usage(%{"prompt_tokens" => p, "completion_tokens" => c}), do: " (#{p} in, #{c} out)"
   defp usage(_), do: ""
+
+  # What an endpoint someone typed says in its error body is not repeated
+  # back: that would read JSON off whatever the URL pointed at.
+  defp refusal(status, _body, %{guarded?: true}), do: api_error(status, nil)
+  defp refusal(status, body, _provider), do: api_error(status, body)
 
   @doc false
   def api_error(401, _), do: "The OpenRouter API key was rejected."

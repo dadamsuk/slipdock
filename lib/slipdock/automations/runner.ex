@@ -472,7 +472,7 @@ defmodule Slipdock.Automations.Runner do
   end
 
   defp do_perform("webhook", action, ctx) do
-    url = text(action["url"], ctx, "")
+    url = url(action["url"], ctx)
     method = Notifier.method(action["method"])
 
     payload = %{
@@ -648,6 +648,20 @@ defmodule Slipdock.Automations.Runner do
 
   defp text(nil, _ctx, default), do: default
   defp text(template, ctx, _default), do: render(to_string(template), ctx.bindings)
+
+  # A card title is somebody else's text, so in a URL every placeholder is
+  # percent-encoded: a "?", "#" or "/.." in it stays data rather than
+  # rewriting the path or query of the owner's webhook.
+  defp url(nil, _ctx), do: ""
+
+  defp url(template, ctx) do
+    bindings =
+      Map.new(ctx.bindings, fn {key, value} ->
+        {key, URI.encode(to_string(value), &URI.char_unreserved?/1)}
+      end)
+
+    render(to_string(template), bindings)
+  end
 
   @doc "The placeholders a rule may use, for the event being handled."
   def variables(event) do

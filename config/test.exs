@@ -55,6 +55,10 @@ config :slipdock, :login_fallback_path, Path.expand("../tmp/test_sign_in_links.l
 # `Slipdock.Search.Indexer.flush/0` when they want the index brought up to date.
 config :slipdock, :search, interval: :manual
 
+# Nothing leaves the machine in tests, so names resolve to a documentation
+# address that counts as public; `Slipdock.EgressTest` swaps in its own.
+config :slipdock, :egress, resolver: &Slipdock.EgressStub.resolve/1
+
 # AI calls are answered by a Req.Test stub (see test/support/ai_stub.ex).
 config :slipdock, :ai,
   api_key: "test-key",

@@ -251,6 +251,22 @@ if email = System.get_env("SLIPDOCK_AI_SYSTEM_USER") do
   config :slipdock, :ai, system_user: email
 end
 
+# Webhook callbacks and people's own AI endpoints may not reach private,
+# loopback, link-local or CGNAT addresses (see `Slipdock.Egress`). "all"
+# lifts that; otherwise a comma-separated list of CIDRs reopens just those,
+# e.g. the LAN box running LM Studio.
+case System.get_env("SLIPDOCK_EGRESS_ALLOW") do
+  nil ->
+    :ok
+
+  "all" ->
+    config :slipdock, :egress, allow: :all
+
+  list ->
+    config :slipdock, :egress,
+      allow: list |> String.split(",", trim: true) |> Enum.map(&String.trim/1)
+end
+
 # The default endpoint everyone falls back to. Point it at a local model
 # server to make this instance local-first; anyone can still override it for
 # themselves under Account → AI model.

@@ -29,7 +29,9 @@ defmodule Slipdock.NothingPersonalTest do
     # The licence is somebody else's text, with the FSF's address in it.
     "LICENSE",
     # Written by the test runs themselves.
-    "mix.lock"
+    "mix.lock",
+    # The egress guard's own tests: private addresses are what it refuses.
+    "test/slipdock/egress_test.exs"
   ]
 
   test "no file in this repository carries anything personal" do

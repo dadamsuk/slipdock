@@ -283,7 +283,9 @@ with the card — id, title, a link to it, list, priority, assignee, start and d
 status (`open`/`done`/`archived`), health, per cent complete, blocked, flags and tags — plus
 the board, the rule and the event. `"method": "get"` sends those as query parameters
 (`card.title`, `card.url`, …) instead of a JSON body; leave it out for a POST. The URL may
-carry `{{placeholders}}` of its own. Calls go out in the background, so a rule's `last_error`
+carry `{{placeholders}}` of its own in its path and query (they are percent-encoded),
+not its host. Only public addresses are called — private, loopback, link-local and tailnet
+ones are refused unless the server's admin allows them — and redirects are not followed. Calls go out in the background, so a rule's `last_error`
 will not show a refused one — `slipdock callbacks <board>` will: every call, newest first,
 with its HTTP status or the reason there was none.
 
