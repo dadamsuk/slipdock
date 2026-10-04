@@ -358,7 +358,7 @@ that `up` stops reaching for the published image.
 | What you see | What it usually is |
 |---|---|
 | `/setup` gives a 404 | The server is already set up. `setup --status` says by whom; `setup --sign-in-link` gets you in. |
-| "not allowed to sign up here" for your own address | That address has no account and registration is closed. `setup --make-admin you@example.com` makes one, makes it an admin, and prints a way in. |
+| "not allowed to sign up here" for your own address | That address has no account and registration is closed. `setup --make-admin you@example.com` makes one (or re-enables it if it was disabled), makes it an admin, and prints a way in. |
 | Every page redirects to `/setup` | The opposite: it has never been claimed. Finish the wizard. |
 | The wizard will not take the token | It is in the log from the **first** boot: `docker compose logs slipdock \| grep -A4 "has not been set up"`. |
 | No sign-in email arrives | Expected until SMTP is configured — the code goes to the log. Set it under **Configuration → Email**, which will not save until a test message actually arrives. |

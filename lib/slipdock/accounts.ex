@@ -96,7 +96,14 @@ defmodule Slipdock.Accounts do
 
   def list_admins, do: Repo.all(from(u in User, where: u.admin == true, order_by: [asc: u.email]))
 
-  def count_admins, do: Repo.aggregate(from(u in User, where: u.admin == true), :count)
+  @doc """
+  How many admins could actually administer this server right now. A disabled
+  admin cannot sign in, so does not count: otherwise one admin could disable
+  the other and then demote themself, leaving only a locked-out account.
+  """
+  def count_admins, do: Repo.aggregate(active_admins(), :count)
+
+  defp active_admins, do: from(u in User, where: u.admin == true and is_nil(u.disabled_at))
 
   @doc """
   Whether this person is the only admin left — in which case demoting,
@@ -106,10 +113,31 @@ defmodule Slipdock.Accounts do
   """
   @spec last_admin?(User.t()) :: boolean()
   def last_admin?(%User{admin: true} = user) do
-    count_admins() <= 1 and Repo.exists?(from(u in User, where: u.id == ^user.id and u.admin))
+    ids = Repo.all(from(u in active_admins(), select: u.id))
+    ids == [user.id]
   end
 
   def last_admin?(_), do: false
+
+  # Runs `fun` unless `user` is the only active admin, in one transaction with
+  # every active admin row locked. Without the lock, two admins demoting each
+  # other at the same moment both see two admins and both go ahead, leaving
+  # none. Postgres re-checks the `where` on a row it waited for, so whoever
+  # goes second counts the admins the first one left.
+  defp unless_last_admin(%User{} = user, fun) do
+    Repo.transaction(fn ->
+      ids = Repo.all(from(u in active_admins(), select: u.id, lock: "FOR UPDATE"))
+
+      if ids == [user.id] do
+        Repo.rollback(:last_admin)
+      else
+        case fun.() do
+          {:ok, value} -> value
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      end
+    end)
+  end
 
   @doc """
   Changes somebody's standing: admin or not, and their own card limit.
@@ -120,17 +148,31 @@ defmodule Slipdock.Accounts do
   @spec update_standing(User.t(), map()) ::
           {:ok, User.t()} | {:error, :last_admin | Ecto.Changeset.t()}
   def update_standing(%User{} = user, attrs) do
-    losing_admin? = user.admin and attrs_say_not_admin?(attrs)
+    update = fn -> user |> User.standing_changeset(attrs) |> Repo.update() end
 
-    if losing_admin? and last_admin?(user) do
-      {:error, :last_admin}
+    if attrs_say_not_admin?(attrs) do
+      with {:ok, updated} <- unless_last_admin(user, update) do
+        # An open admin page re-checks on every event, but disconnecting makes
+        # every other tab they have open remount and find out too.
+        if user.admin, do: disconnect_sessions(updated)
+        {:ok, updated}
+      end
     else
-      user |> User.standing_changeset(attrs) |> Repo.update()
+      update.()
     end
   end
 
   @doc "Makes somebody an admin."
   def promote(%User{} = user), do: update_standing(user, %{"admin" => true})
+
+  @doc """
+  The recovery route (`setup --make-admin`): an admin, and able to sign in.
+  Promoting a disabled account alone would leave the server exactly as
+  locked out as it was.
+  """
+  def restore_admin(%User{} = user) do
+    with {:ok, user} <- enable(user), do: promote(user)
+  end
 
   @doc "Takes somebody's admin rights away, unless they are the last admin."
   def demote(%User{} = user), do: update_standing(user, %{"admin" => false})
@@ -144,18 +186,16 @@ defmodule Slipdock.Accounts do
   """
   @spec disable(User.t()) :: {:ok, User.t()} | {:error, :last_admin | Ecto.Changeset.t()}
   def disable(%User{} = user) do
-    if last_admin?(user) do
-      {:error, :last_admin}
-    else
-      with {:ok, user} <-
+    with {:ok, user} <-
+           unless_last_admin(user, fn ->
              user
              |> Ecto.Changeset.change(disabled_at: DateTime.utc_now(:second))
-             |> Repo.update() do
-        # Being disabled has to take effect now, not at the end of a 30-day
-        # session.
-        delete_all_sessions(user)
-        {:ok, user}
-      end
+             |> Repo.update()
+           end) do
+      # Being disabled has to take effect now, not at the end of a 30-day
+      # session — and not at the next page load in a tab that is already open.
+      delete_all_sessions(user)
+      {:ok, user}
     end
   end
 
@@ -496,23 +536,23 @@ defmodule Slipdock.Accounts do
   """
   @spec delete_user(User.t()) :: {:ok, map()} | {:error, :last_admin}
   def delete_user(%User{} = user) do
-    if last_admin?(user) do
-      {:error, :last_admin}
-    else
-      email = user.email
+    email = user.email
+    # Their live sockets are keyed by session token, which the delete takes
+    # with it.
+    sockets = live_socket_ids(user)
 
-      # One transaction, so a delete that fails leaves the account with its
-      # boards rather than an account whose boards have already gone to
-      # somebody else. The files go after the commit: bytes cannot be rolled
-      # back, so they are only removed once the rows are certainly gone.
-      {:ok, {handed_over, keys}} =
-        Repo.transaction(fn ->
-          handed_over = hand_over_shared_boards(user)
-          keys = Slipdock.Boards.file_keys(from(b in Board, where: b.owner_id == ^user.id))
-          Repo.delete!(user)
-          {handed_over, keys}
-        end)
-
+    # One transaction, so a delete that fails leaves the account with its
+    # boards rather than an account whose boards have already gone to
+    # somebody else. The files go after the commit: bytes cannot be rolled
+    # back, so they are only removed once the rows are certainly gone.
+    with {:ok, {handed_over, keys}} <-
+           unless_last_admin(user, fn ->
+             handed_over = hand_over_shared_boards(user)
+             keys = Slipdock.Boards.file_keys(from(b in Board, where: b.owner_id == ^user.id))
+             Repo.delete!(user)
+             {:ok, {handed_over, keys}}
+           end) do
+      broadcast_disconnect(sockets)
       Slipdock.Boards.remove_files(keys)
 
       Logger.info(
@@ -651,8 +691,12 @@ defmodule Slipdock.Accounts do
   def support_access?(%User{} = admin, subject_id) when is_integer(subject_id) do
     now = DateTime.utc_now()
 
+    # Joined on the admin as they are now, not as they were when it was
+    # opened: demoting or disabling them ends it.
     Repo.exists?(
       from(s in SupportSession,
+        join: a in User,
+        on: a.id == s.admin_id and a.admin == true and is_nil(a.disabled_at),
         where:
           s.admin_id == ^admin.id and s.subject_id == ^subject_id and is_nil(s.ended_at) and
             s.expires_at > ^now
@@ -1289,8 +1333,27 @@ defmodule Slipdock.Accounts do
   end
 
   def delete_all_sessions(%User{} = user) do
+    sockets = live_socket_ids(user)
     Repo.delete_all(UserToken.by_user_and_contexts(user, ["session"]))
-    :ok
+    broadcast_disconnect(sockets)
+  end
+
+  @doc """
+  Drops every LiveView this person has open, without signing them out. Each
+  one reconnects and mounts again, which re-runs the checks a mount makes —
+  so a demoted admin's open `/users` tab is sent away rather than carrying on.
+  """
+  def disconnect_sessions(%User{} = user), do: user |> live_socket_ids() |> broadcast_disconnect()
+
+  # The same id `SlipdockWeb.UserAuth` puts in the session at sign-in.
+  defp live_socket_ids(%User{} = user) do
+    from(t in UserToken.by_user_and_contexts(user, ["session"]), select: t.token)
+    |> Repo.all()
+    |> Enum.map(&"users_sessions:#{Base.url_encode64(&1)}")
+  end
+
+  defp broadcast_disconnect(ids) do
+    Enum.each(ids, &SlipdockWeb.Endpoint.broadcast(&1, "disconnect", %{}))
   end
 
   ## Groups
