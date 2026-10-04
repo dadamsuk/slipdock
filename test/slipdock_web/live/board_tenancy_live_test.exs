@@ -385,6 +385,19 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
       assert handled_events("show.ex") -- Show.known_events() == []
     end
 
+    # The board hands these to modules of their own after its guards, so
+    # what they handle has to be classified on the board all the same.
+    for {file, module} <- [
+          {"view_events.ex", SlipdockWeb.BoardLive.ViewEvents},
+          {"keyboard.ex", SlipdockWeb.BoardLive.Keyboard}
+        ] do
+      test "every event #{file} handles is guarded by the board" do
+        handled = handled_events(unquote(file))
+        assert handled -- unquote(module).events() == []
+        assert unquote(module).events() -- Show.known_events() == []
+      end
+    end
+
     # Each of the board's LiveComponents keeps a list of its own, and refuses
     # anything not on it the same way.
     for {file, module} <- [
