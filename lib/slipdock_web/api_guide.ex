@@ -556,6 +556,19 @@ defmodule SlipdockWeb.APIGuide do
     board you can write to into it, subcards and all, and answers what it
     `added` and what it `skipped` and why. Only plan a sprint when asked to:
     moving cards out of their epics is the person's call.
+    A sprint board keeps the boards and lists its sprints are planned from:
+    `PUT /api/boards/:board/sprints/sources {"sources": [{"board": "work",
+    "lists": ["To Do", "Backlog"]}]}` (no `lists` means every list that is
+    not done or dropped; `[]` clears them), read back with `GET` on the same
+    path and as the board's `sprint_sources`. `GET
+    /api/cards/:sprint/sprint/plan` is the planning view over them: every
+    source list's open cards with `priority`, the board's formula `scores`
+    (RICE and the like), `votes`, `estimate_minutes` (the card's own, else its
+    open subcards' — `estimate_from_subcards`) and `subcards` done/total,
+    plus what the sprint holds already under `committed`; `?sort=` is
+    `position`, `score`, `priority` or `estimate`. Read it before proposing
+    what goes in a sprint, and add the estimates up from it rather than
+    guessing.
     `GET /api/cards/:sprint/burndown` is how much of a sprint's work was open
     at the end of each day against the ideal line, and `GET
     /api/boards/:board/sprints/velocity` is committed and completed per sprint

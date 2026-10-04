@@ -12,15 +12,16 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
 
   import SlipdockWeb.SlipdockComponents
   import SlipdockWeb.ShareComponents
+  import SlipdockWeb.SprintPlanComponents, only: [sources_fields: 1, parse_sources: 2, chosen: 1]
   import SlipdockWeb.BoardLive.Helpers
 
-  alias Slipdock.{Access, Boards, Fields, Palette}
+  alias Slipdock.{Access, Boards, Fields, Palette, Sprints}
   alias Slipdock.Boards.{Board, FieldDefinition}
   alias SlipdockWeb.BoardLive.Sharing
 
   @events ~w(validate_board save_board set_board_color add_field delete_field toggle_field_sum
     install_preset add_milestone delete_milestone delete_board archive_board unarchive_board
-    save_as_template share revoke_grant)
+    save_as_template share revoke_grant set_sprint_sources)
 
   @doc false
   # For the test that every `handle_event/3` clause is in the list.
@@ -40,7 +41,13 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
         groups: assigns.groups,
         close_path: assigns.close_path,
         can_manage: can_manage,
-        grants: if(can_manage, do: Access.list_grants(board), else: [])
+        grants: if(can_manage, do: Access.list_grants(board), else: []),
+        # Where a sprint board's sprints are planned from (see Sprints.sources/2).
+        source_choices:
+          if(can_manage and Board.sprints?(board),
+            do: Sprints.source_choices(user, board),
+            else: []
+          )
       )
 
     # The form is made once, when the panel opens; the board changing
@@ -125,6 +132,17 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
     case Boards.update_board(socket.assigns.board, params) do
       {:ok, _} -> {:noreply, push_patch(socket, to: socket.assigns.close_path)}
       {:error, cs} -> {:noreply, assign(socket, board_form: to_form(cs))}
+    end
+  end
+
+  # Saved as they are ticked, like the colour.
+  defp event("set_sprint_sources", params, socket) do
+    %{board: board, current_user: user, source_choices: choices} = socket.assigns
+    parsed = parse_sources(params["sources"], choices)
+
+    case Sprints.put_sources(board, user, parsed) do
+      {:ok, board} -> {:noreply, assign(socket, board: board)}
+      {:error, message} -> {:noreply, flash(socket, :error, message)}
     end
   end
 
@@ -246,6 +264,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
         grants={@grants}
         groups={@groups}
         share_key={@share_key}
+        source_choices={@source_choices}
         target={@myself}
       />
     </div>
@@ -276,6 +295,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   attr :share_key, :integer, required: true
 
   attr :form_key, :integer, default: 0
+  attr :source_choices, :list, default: []
   attr :target, :any, required: true
 
   defp settings_modal(assigns) do
@@ -423,6 +443,21 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
             <button type="submit" class="btn btn-primary btn-sm">Save</button>
           </div>
         </.form>
+        <%!-- What Add cards… on a sprint shows side by side (Sprints.sources/2). --%>
+        <form
+          :if={Board.sprints?(@board) and is_nil(@board.parent_card_id)}
+          id="sprint-sources-form"
+          phx-target={@target}
+          phx-change="set_sprint_sources"
+          class="space-y-2 border-t border-base-content/10 pt-4"
+        >
+          <span class="text-sm font-medium">Plan sprints from</span>
+          <p class="text-xs text-base-content/50">
+            The boards, and lists on them, that Add cards… on a sprint shows side by side, with
+            their scores, estimates and running totals. No list ticked means every open list.
+          </p>
+          <.sources_fields choices={@source_choices} chosen={chosen(@board)} />
+        </form>
         <div class="space-y-2 border-t border-base-content/10 pt-4" id="board-fields">
           <span class="text-sm font-medium">Fields</span>
           <p class="text-xs text-base-content/50">

@@ -67,8 +67,11 @@ Briefly, with the detail in [the manual](docs/manual.md):
   board into a plain to-do list, hiding % complete, start dates, health, time
   tracking, votes, dependencies and the timeline and prioritise views.
 - **Sprints** — [a sprint board](docs/manual.md#sprints) where each card is a
-  sprint: **New sprint** dates the next one, and **Add cards…** ticks work from
-  any board (and inside any epic) into it, as many sittings as it takes;
+  sprint: **New sprint** dates the next one, and **Add cards…** opens a
+  planning view over the boards and lists you plan from — priority, RICE and
+  other scores, votes and estimates side by side, epics opening in place, with
+  running totals of what is ticked against what the sprint holds — or ticks
+  work from any other board into it, as many sittings as it takes;
   **Charts** draws each sprint's burndown and the board's velocity.
 - **Seven views** of the same cards —
   [board](docs/manual.md#features), [swimlanes](docs/manual.md#swimlanes),

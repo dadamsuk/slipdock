@@ -59,6 +59,9 @@ defmodule SlipdockWeb.API.JSON do
       color: b.color,
       # "sprints" on a sprint board (its cards are sprints), nil otherwise.
       kind: b.kind,
+      # On a sprint board, where its sprints are planned from:
+      # [%{board_id, column_ids}], no column ids meaning every open list.
+      sprint_sources: b.sprint_sources || [],
       owner: owner_ref(b),
       archived_at: b.archived_at,
       root_id: Board.root_id(b),

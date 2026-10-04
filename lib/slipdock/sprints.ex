@@ -294,6 +294,372 @@ defmodule Slipdock.Sprints do
   defp sub_board_id(%Card{sub_board: %Board{id: id}}), do: id
   defp sub_board_id(_), do: nil
 
+  ## Where sprints are planned from
+
+  @doc """
+  The boards and lists `board`'s sprints are planned from, as far as `user`
+  can still take cards from them: `[%{board:, columns:, all:}]` in the order
+  they were chosen. `all` is true when no lists were picked, and then
+  `columns` is every list on the board that is not done or dropped. A board
+  that has gone, been archived or is no longer the person's to write to
+  drops out rather than failing the lot.
+  """
+  def sources(%Board{} = board, user) do
+    board.sprint_sources
+    |> List.wrap()
+    |> Enum.flat_map(fn source ->
+      with id when is_integer(id) <- source["board_id"],
+           %Board{archived_at: nil} = from <- Repo.get(Board, id),
+           true <- Access.can_write?(Access.board_permission(user, from)) do
+        from = Repo.preload(from, :columns)
+        chosen = List.wrap(source["column_ids"])
+
+        columns =
+          if chosen == [],
+            do: open_columns(from.columns),
+            else: Enum.filter(from.columns, &(&1.id in chosen))
+
+        [%{board: from, columns: columns, all: chosen == []}]
+      else
+        _ -> []
+      end
+    end)
+  end
+
+  @doc """
+  The boards `user` could plan `board`'s sprints from, with their lists:
+  every top-level board they can write to except `board` itself and other
+  sprint boards. `board` is nil for one not made yet.
+  """
+  def source_choices(user, board \\ nil) do
+    own = board && Board.root_id(board)
+
+    user
+    |> Access.list_boards()
+    |> Enum.filter(
+      &(&1.id != own and not Board.sprints?(&1) and
+          Access.can_write?(Access.board_permission(user, &1)))
+    )
+    |> Repo.preload(:columns)
+  end
+
+  @doc """
+  The open lists of a board, by default what a source with no lists picked
+  shows.
+  """
+  def default_columns(%Board{columns: columns}), do: open_columns(columns)
+
+  defp open_columns(columns),
+    do: Enum.reject(columns, &(Column.done?(&1) or Column.dropped?(&1)))
+
+  @doc """
+  Sets where `board`'s sprints are planned from. `sources` is a list of
+  `{board, lists}`: a board (or its id) and the lists on it to show, by id
+  or name, `[]` meaning every list that is not done or dropped. Each board
+  has to be one `user` can write to, and not the sprint board or anything
+  inside it; each list has to be on its board. `[]` clears them.
+
+  Returns `{:ok, board}` or `{:error, message}`.
+  """
+  def put_sources(%Board{} = board, user, sources) when is_list(sources) do
+    with :ok <- check_sprint_board(board),
+         {:ok, stored} <- resolve_sources(board, user, sources) do
+      board
+      |> Ecto.Changeset.change(sprint_sources: stored)
+      |> Repo.update()
+      |> case do
+        {:ok, board} ->
+          Boards.broadcast_tree(board.id)
+          {:ok, board}
+
+        {:error, changeset} ->
+          {:error, error_message(changeset)}
+      end
+    end
+  end
+
+  defp resolve_sources(board, user, sources) do
+    sources
+    |> Enum.uniq_by(fn {from, _} -> board_id(from) end)
+    |> Enum.reduce_while({:ok, []}, fn {from, lists}, {:ok, acc} ->
+      case resolve_source(board, user, from, List.wrap(lists)) do
+        {:ok, source} -> {:cont, {:ok, [source | acc]}}
+        {:error, message} -> {:halt, {:error, message}}
+      end
+    end)
+    |> case do
+      {:ok, stored} -> {:ok, Enum.reverse(stored)}
+      error -> error
+    end
+  end
+
+  defp resolve_source(board, user, from, lists) do
+    from = if match?(%Board{}, from), do: from, else: Repo.get(Board, board_id(from) || 0)
+
+    cond do
+      is_nil(from) or not Access.can_write?(Access.board_permission(user, from)) ->
+        {:error, "You can only plan sprints from boards you can write to."}
+
+      Board.root_id(from) == Board.root_id(board) ->
+        {:error, "A sprint board cannot plan its sprints from itself."}
+
+      true ->
+        columns = Repo.preload(from, :columns, force: true).columns
+
+        Enum.reduce_while(lists, {:ok, []}, fn ref, {:ok, ids} ->
+          case find_column(columns, ref) do
+            nil -> {:halt, {:error, "#{from.name} has no list “#{ref}”."}}
+            column -> {:cont, {:ok, ids ++ [column.id]}}
+          end
+        end)
+        |> case do
+          {:ok, ids} -> {:ok, %{"board_id" => from.id, "column_ids" => Enum.uniq(ids)}}
+          error -> error
+        end
+    end
+  end
+
+  defp board_id(%Board{id: id}), do: id
+  defp board_id(id) when is_integer(id), do: id
+
+  defp board_id(text) when is_binary(text) do
+    case Integer.parse(text) do
+      {id, ""} -> id
+      _ -> nil
+    end
+  end
+
+  defp board_id(_), do: nil
+
+  defp find_column(columns, ref) when is_integer(ref), do: Enum.find(columns, &(&1.id == ref))
+
+  defp find_column(columns, ref) when is_binary(ref) do
+    ref = String.trim(ref)
+
+    case Integer.parse(ref) do
+      {id, ""} -> find_column(columns, id)
+      _ -> Enum.find(columns, &(String.downcase(&1.name) == String.downcase(ref)))
+    end
+  end
+
+  defp find_column(_, _), do: nil
+
+  ## Planning a sprint
+
+  @plan_sorts [
+    {"position", "Board order"},
+    {"score", "Score"},
+    {"priority", "Priority"},
+    {"estimate", "Estimate"}
+  ]
+
+  @doc "The orders the planning view can put each list in, as `{value, label}`."
+  def plan_sorts, do: @plan_sorts
+
+  @doc """
+  The planning view for `sprint`: every list `sources` names (see
+  `sources/2`), with the open cards that could go into the sprint and what
+  helps choose between them. Returns
+
+      %{committed: %{cards:, estimate:},
+        boards: [%{board:, all:, formulas: [field],
+                   lists: [%{id:, name:, color:, cards: [entry]}]}]}
+
+  where `committed` is what is in the sprint already, and each entry is
+  `candidates/2`'s with `estimate` (minutes: the card's own, else what its
+  open subcards add up to — `estimate_derived` says which), `unit`,
+  `scores` (`[{field, value}]` for the board's formula fields), `votes`,
+  `done`/`total` (its subcards, rolled up) and `ancestors` (empty here; see
+  `plan_children/3`). Lists are put in `sort` order (see `plan_sorts/0`).
+  """
+  def plan(%Card{} = sprint, sources, sort \\ "position") when is_list(sources) do
+    boards =
+      Enum.map(sources, fn %{board: from, columns: columns, all: all} ->
+        loaded = Boards.get_board!(from.id)
+        wanted = MapSet.new(columns, & &1.id)
+
+        lists =
+          loaded
+          |> plan_lists(sprint, [])
+          |> Enum.filter(&MapSet.member?(wanted, &1.id))
+          |> Enum.map(&%{&1 | cards: sort_entries(&1.cards, sort)})
+
+        %{board: from, all: all, formulas: formulas(loaded), lists: lists}
+      end)
+
+    %{committed: committed(sprint), boards: boards}
+  end
+
+  @doc """
+  What is in `sprint` already: `%{cards:, open:, estimate:}`, the estimate
+  being the open cards' in minutes.
+  """
+  def committed(%Card{} = sprint) do
+    work = Map.get(work_by_sprint([sprint.id]), sprint.id, [])
+    open = Enum.reject(work, & &1.completed)
+
+    %{
+      cards: length(work),
+      open: length(open),
+      estimate: open |> Enum.map(&(&1.time_estimate || 0)) |> Enum.sum()
+    }
+  end
+
+  @doc "The sprint board `sprint` sits on, where its sources are kept."
+  def planning_board(%Card{board_id: id}), do: Repo.get(Board, id)
+
+  @doc """
+  A card's subcards in the planning view, every list of its sub-board in
+  one, sorted by `sort`. `ancestors` is the path of card ids above them, so
+  the view can tell a ticked card from one inside a ticked card.
+  """
+  def plan_children(sub_board_id, %Card{} = sprint, ancestors, sort \\ "position") do
+    case Boards.get_board(sub_board_id) do
+      nil ->
+        []
+
+      board ->
+        board
+        |> plan_lists(sprint, ancestors)
+        |> Enum.flat_map(& &1.cards)
+        |> sort_entries(sort)
+    end
+  end
+
+  @doc """
+  What a set of ticked cards adds up to: `%{cards:, estimate:}`, from
+  `selected` (card id => `%{estimate:, ancestors:}`). Every ticked card
+  counts as a card, but an estimate inside a ticked card is already in that
+  card's, so it is not added twice.
+  """
+  def selection_totals(selected) when is_map(selected) do
+    estimate =
+      selected
+      |> Map.values()
+      |> Enum.reject(fn entry -> Enum.any?(entry.ancestors, &Map.has_key?(selected, &1)) end)
+      |> Enum.map(&(&1.estimate || 0))
+      |> Enum.sum()
+
+    %{cards: map_size(selected), estimate: estimate}
+  end
+
+  defp plan_lists(%Board{} = board, sprint, ancestors) do
+    formulas = formulas(board)
+    pickable = not Board.sprints?(board)
+    inside = MapSet.new(Boards.subtree_board_ids(sprint.id))
+
+    if MapSet.member?(inside, board.id) do
+      []
+    else
+      open =
+        Enum.map(board.columns, fn column ->
+          {column,
+           Enum.filter(
+             column.cards,
+             &(is_nil(&1.archived_at) and not &1.completed and &1.id != sprint.id)
+           )}
+        end)
+
+      estimates = estimates(Enum.flat_map(open, &elem(&1, 1)))
+
+      Enum.map(open, fn {column, cards} ->
+        entries =
+          Enum.map(cards, fn card ->
+            {estimate, derived} = Map.get(estimates, card.id, {card.time_estimate, false})
+            stats = card.rollup || %{}
+
+            %{
+              id: card.id,
+              title: card.title,
+              priority: card.priority,
+              due_date: card.due_date,
+              pickable: pickable,
+              sub_board_id: sub_board_id(card),
+              position: card.position,
+              estimate: estimate,
+              estimate_derived: derived,
+              unit: card.time_unit || "hours",
+              scores: Enum.map(formulas, &{&1, Slipdock.Fields.numeric(card, &1)}),
+              votes: Card.vote_total(card),
+              done: Map.get(stats, :done, 0),
+              total: Map.get(stats, :total, 0),
+              children: Map.get(stats, :children, 0),
+              ancestors: ancestors
+            }
+          end)
+
+        %{id: column.id, name: column.name, color: column.color, cards: entries}
+      end)
+    end
+  end
+
+  defp formulas(%Board{} = board),
+    do: (Map.get(board, :fields) || []) |> Enum.filter(&(&1.kind == "formula"))
+
+  # The estimate of each card with subcards and none of its own: what its
+  # open subcards' estimates add up to, each of those worked out the same way
+  # (a card's own estimate wins over its children's). `{minutes, derived?}`
+  # by card id; minutes is nil when nothing beneath is estimated.
+  defp estimates(cards) do
+    cards
+    |> Enum.filter(&(is_nil(&1.time_estimate) and not is_nil(sub_board_id(&1))))
+    |> Map.new(fn card ->
+      boards = Boards.subtree_board_ids(card.id)
+
+      children =
+        from(c in Card,
+          join: b in Board,
+          on: b.id == c.board_id,
+          where: c.board_id in ^boards and is_nil(c.archived_at) and not c.completed,
+          select: {b.parent_card_id, c.id, c.time_estimate}
+        )
+        |> Repo.all()
+        |> Enum.group_by(&elem(&1, 0), &{elem(&1, 1), elem(&1, 2)})
+
+      {card.id, {rolled_estimate(card.id, children), true}}
+    end)
+  end
+
+  defp rolled_estimate(id, children) do
+    children
+    |> Map.get(id, [])
+    |> Enum.map(fn {child, own} -> own || rolled_estimate(child, children) end)
+    |> Enum.reject(&is_nil/1)
+    |> case do
+      [] -> nil
+      minutes -> Enum.sum(minutes)
+    end
+  end
+
+  @priority_rank %{"critical" => 0, "high" => 1, "medium" => 2, "low" => 3}
+
+  # Highest first for score and priority, smallest first for estimate; cards
+  # without one go last, and ties keep board order.
+  defp sort_entries(entries, "score"), do: sort_by_key(entries, &first_score/1, :desc)
+
+  defp sort_entries(entries, "priority"),
+    do: sort_by_key(entries, &Map.get(@priority_rank, &1.priority), :asc)
+
+  defp sort_entries(entries, "estimate"), do: sort_by_key(entries, & &1.estimate, :asc)
+  defp sort_entries(entries, _), do: entries
+
+  defp first_score(%{scores: [{_field, score} | _]}), do: score
+  defp first_score(%{votes: votes}) when votes > 0, do: votes
+  defp first_score(_), do: nil
+
+  defp sort_by_key(entries, key, dir) do
+    entries
+    |> Enum.with_index()
+    |> Enum.sort_by(fn {entry, i} ->
+      case key.(entry) do
+        nil -> {1, 0, i}
+        n when dir == :desc -> {0, -n, i}
+        n -> {0, n, i}
+      end
+    end)
+    |> Enum.map(&elem(&1, 0))
+  end
+
   ## Charts
 
   @doc """

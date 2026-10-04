@@ -1,8 +1,9 @@
 defmodule SlipdockWeb.API.SprintController do
   @moduledoc """
   Sprints over the API (see `Slipdock.Sprints`): make the next one on a
-  sprint board, move cards into one, and chart them — a sprint's burndown
-  and a sprint board's velocity.
+  sprint board, choose the boards and lists its sprints are planned from,
+  read the plan for one, move cards into one, and chart them — a sprint's
+  burndown and a sprint board's velocity.
   """
   use SlipdockWeb, :controller
 
@@ -46,6 +47,117 @@ defmodule SlipdockWeb.API.SprintController do
         {:error, :unprocessable_entity, "#{board.name} is not a sprint board"}
       end
     end
+  end
+
+  # Where the board's sprints are planned from.
+  def sources(conn, %{"board" => ref}) do
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :read) do
+      json(conn, %{sources: sources_json(Sprints.sources(board, conn.assigns.current_user))})
+    end
+  end
+
+  # Body: {"sources": [{"board": ref, "lists": [id or name, ...]}, ...]}; no
+  # lists means every list that is not done or dropped, and [] clears them.
+  def put_sources(conn, %{"board" => ref} = params) do
+    user = conn.assigns.current_user
+
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :write),
+         {:ok, wanted} <- fetch_sources(conn, params["sources"]),
+         {:ok, board} <- sprint_result(Sprints.put_sources(board, user, wanted)) do
+      json(conn, %{sources: sources_json(Sprints.sources(board, user))})
+    end
+  end
+
+  # The planning view: the open cards on every source list, with their
+  # priority, scores, votes and estimates, and what the sprint holds already.
+  # `?sort=` is position (default), score, priority or estimate.
+  def plan(conn, %{"id" => id} = params) do
+    user = conn.assigns.current_user
+
+    with {:ok, sprint} <- fetch_card(id),
+         :ok <- Authorize.card(conn, sprint, :read) do
+      if Sprints.sprint?(sprint) do
+        sources =
+          sprint
+          |> Sprints.planning_board()
+          |> Sprints.sources(user)
+          |> Enum.filter(&(Authorize.board(conn, &1.board, :read) == :ok))
+
+        plan = Sprints.plan(sprint, sources, params["sort"] || "position")
+        json(conn, %{plan: plan_json(sprint, plan)})
+      else
+        {:error, :unprocessable_entity, "card #{id} is not a sprint"}
+      end
+    end
+  end
+
+  defp fetch_sources(conn, sources) when is_list(sources) do
+    Enum.reduce_while(sources, {:ok, []}, fn
+      %{"board" => ref} = source, {:ok, acc} ->
+        case Authorize.fetch_board(conn, ref, :write) do
+          {:ok, board} -> {:cont, {:ok, [{board, List.wrap(source["lists"])} | acc]}}
+          error -> {:halt, error}
+        end
+
+      _, _ ->
+        {:halt, {:error, :bad_request, "each source is {\"board\": ref, \"lists\": [...]}"}}
+    end)
+    |> case do
+      {:ok, acc} -> {:ok, Enum.reverse(acc)}
+      error -> error
+    end
+  end
+
+  defp fetch_sources(_conn, _),
+    do: {:error, :bad_request, "pass sources: a list of {board, lists}, or [] to clear them"}
+
+  defp sources_json(sources) do
+    Enum.map(sources, fn %{board: b, columns: columns, all: all} ->
+      %{
+        board: %{id: b.id, name: b.name, code: b.code},
+        all_open_lists: all,
+        lists: Enum.map(columns, &%{id: &1.id, name: &1.name})
+      }
+    end)
+  end
+
+  defp plan_json(sprint, plan) do
+    %{
+      sprint: %{
+        id: sprint.id,
+        title: sprint.title,
+        start: sprint.start_date,
+        due: sprint.due_date
+      },
+      committed: plan.committed,
+      boards:
+        Enum.map(plan.boards, fn group ->
+          %{
+            board: %{id: group.board.id, name: group.board.name, code: group.board.code},
+            scores: Enum.map(group.formulas, &%{key: &1.key, name: &1.name}),
+            lists:
+              Enum.map(group.lists, fn list ->
+                %{id: list.id, name: list.name, cards: Enum.map(list.cards, &entry_json/1)}
+              end)
+          }
+        end)
+    }
+  end
+
+  defp entry_json(e) do
+    %{
+      id: e.id,
+      title: e.title,
+      priority: e.priority,
+      due_date: e.due_date,
+      estimate_minutes: e.estimate,
+      estimate_from_subcards: e.estimate_derived,
+      scores: Map.new(e.scores, fn {field, value} -> {field.key, value} end),
+      votes: e.votes,
+      subcards: %{done: e.done, total: e.total},
+      sub_board_id: e.sub_board_id,
+      pickable: e.pickable
+    }
   end
 
   # The work left at the end of each day of the sprint, against the ideal.

@@ -116,6 +116,128 @@ defmodule SlipdockWeb.SprintsLiveTest do
     assert Boards.get_board!(work.id).kind == "sprints"
   end
 
+  describe "planning from sources" do
+    test "Add cards… opens the plan over every source list, with running totals", %{
+      conn: conn,
+      sprints: sprints,
+      work: work,
+      todo: todo
+    } do
+      home = board_fixture(%{"name" => "Home"})
+      [_, home_todo | _] = home.columns
+      a = card_fixture(todo, %{"title" => "Work task", "time_estimate" => 2})
+      b = card_fixture(home_todo, %{"title" => "Home task", "time_estimate" => 3})
+      epic = card_fixture(todo, %{"title" => "Epic"})
+      {:ok, simple} = Boards.find_template("Simple")
+      {:ok, epic_board} = Boards.create_sub_board(epic, simple)
+      task = card_fixture(hd(Boards.get_board!(epic_board.id).columns), %{"title" => "Inside"})
+
+      user = user_fixture()
+
+      {:ok, sprints} =
+        Sprints.put_sources(sprints, user, [{work, ["To Do"]}, {home, ["To Do"]}])
+
+      {:ok, sprint} = Sprints.create_sprint(sprints)
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{sprints}/cards/#{sprint.id}")
+      view |> element("#card-sprint-add-cards") |> render_click()
+
+      # Both boards on one view, without choosing one first.
+      assert has_element?(view, "#plan-board-#{work.id}")
+      assert has_element?(view, "#plan-board-#{home.id}")
+      assert render(view) =~ "Plan #{sprint.title}"
+
+      view |> element("#sprint-pick-#{a.id}") |> render_click()
+      view |> element("#sprint-pick-#{b.id}") |> render_click()
+      html = render(view)
+      assert html =~ "2 cards ticked"
+      assert html =~ "5h"
+
+      # Subcards open in place, outline-style.
+      view
+      |> element("#plan-card-#{epic.id} button[phx-click=plan_expand]")
+      |> render_click()
+
+      assert has_element?(view, "#plan-card-#{task.id}")
+
+      view |> element("#sprint-add") |> render_click()
+      sub = Boards.get_card!(sprint.id).sub_board
+      assert Boards.get_card!(a.id).board_id == sub.id
+      assert Boards.get_card!(b.id).board_id == sub.id
+    end
+
+    test "the sources are chosen from the plan, and in settings", %{
+      conn: conn,
+      sprints: sprints,
+      work: work,
+      todo: todo
+    } do
+      {:ok, sprint} = Sprints.create_sprint(sprints)
+      {:ok, view, _} = live(conn, ~p"/boards/#{sprints}/cards/#{sprint.id}")
+      view |> element("#card-sprint-add-cards") |> render_click()
+      view |> element("#plan-sources-button") |> render_click()
+
+      view
+      |> form("#plan-sources-form", %{"sources" => %{to_string(work.id) => %{"on" => "true"}}})
+      |> render_change()
+
+      view
+      |> form("#plan-sources-form", %{
+        "sources" => %{
+          to_string(work.id) => %{"on" => "true", "lists" => [to_string(todo.id)]}
+        }
+      })
+      |> render_submit()
+
+      assert [%{"board_id" => id, "column_ids" => [col]}] =
+               Boards.get_board!(sprints.id).sprint_sources
+
+      assert id == work.id and col == todo.id
+      assert has_element?(view, "#plan-list-#{todo.id}")
+
+      # Settings saves as it is ticked.
+      home = board_fixture(%{"name" => "Home"})
+      {:ok, settings, _} = live(conn, ~p"/boards/#{sprints}/settings")
+      assert has_element?(settings, "#sprint-sources-form")
+
+      settings
+      |> form("#sprint-sources-form", %{"sources" => %{to_string(home.id) => %{"on" => "true"}}})
+      |> render_change()
+
+      assert [%{"column_ids" => [^col]}, %{"board_id" => home_id, "column_ids" => []}] =
+               Boards.get_board!(sprints.id).sprint_sources
+
+      assert home_id == home.id
+    end
+
+    test "a new sprint board takes its sources from the new-board form", %{
+      conn: conn,
+      work: work
+    } do
+      {:ok, template} = Boards.find_template("Sprint planning")
+      {:ok, view, _} = live(conn, ~p"/")
+      render_click(view, "start_create", %{})
+
+      view
+      |> form("#new-board", %{"board" => %{"name" => "Q4 sprints"}, "template" => template.id})
+      |> render_change()
+
+      assert has_element?(view, "#new-board-sources #sprint-source-#{work.id}")
+
+      view
+      |> form("#new-board", %{
+        "board" => %{"name" => "Q4 sprints"},
+        "template" => template.id,
+        "sources" => %{to_string(work.id) => %{"on" => "true"}}
+      })
+      |> render_submit()
+
+      {:ok, board} = Boards.find_board("Q4 sprints")
+      assert [%{"board_id" => id}] = board.sprint_sources
+      assert id == work.id
+    end
+  end
+
   test "Charts shows velocity and a burndown, on the sprint board and the sprint's own", %{
     conn: conn,
     sprints: sprints,
