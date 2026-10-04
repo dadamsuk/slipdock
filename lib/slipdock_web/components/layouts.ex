@@ -532,7 +532,7 @@ defmodule SlipdockWeb.Layouts do
           </section>
         </div>
 
-        <div :if={@shortcuts.panel in [:command, :find]}>
+        <div :if={Enum.member?([:command, :find], @shortcuts.panel)}>
           <form
             id="palette-form"
             phx-change="palette_filter"

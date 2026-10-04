@@ -26,7 +26,7 @@ defmodule SlipdockWeb.TableComponents do
         # Each group gets its own add row when what it stands for can be set on a new card.
         group_add?:
           assigns.can_write and assigns.rows.grouped and
-            assigns.config.rows not in ~w(none created updated dependencies goal)
+            not Enum.member?(~w(none created updated dependencies goal), assigns.config.rows)
       )
 
     ~H"""
@@ -67,7 +67,10 @@ defmodule SlipdockWeb.TableComponents do
             <tr class="bg-base-100 text-xs uppercase tracking-wide text-base-content/60">
               <th
                 :for={{key, label, sort} <- @fields}
-                class={[key == "title" && "w-[40%] min-w-64", key in ~w(completed id) && "w-16"]}
+                class={[
+                  key == "title" && "w-[40%] min-w-64",
+                  Enum.member?(~w(completed id), key) && "w-16"
+                ]}
               >
                 <span
                   :if={sort}
@@ -188,7 +191,7 @@ defmodule SlipdockWeb.TableComponents do
         first_column: List.first(assigns.board.columns),
         group_add?:
           assigns.can_write and assigns.rows.grouped and
-            assigns.config.rows not in ~w(none created updated dependencies goal)
+            not Enum.member?(~w(none created updated dependencies goal), assigns.config.rows)
       )
 
     ~H"""

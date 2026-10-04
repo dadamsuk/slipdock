@@ -91,7 +91,7 @@ defmodule SlipdockWeb.API.PageController do
     end
   end
 
-  defp truthy?(value), do: to_string(value) in ~w(true 1 yes on)
+  defp truthy?(value), do: Enum.member?(~w(true 1 yes on), to_string(value))
 
   def create(conn, %{"board" => ref} = params) do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, :write),

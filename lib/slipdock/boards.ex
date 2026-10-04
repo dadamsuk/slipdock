@@ -1054,7 +1054,7 @@ defmodule Slipdock.Boards do
       )
 
     query =
-      if filters["archived"] in [true, "true"],
+      if Enum.member?([true, "true"], filters["archived"]),
         do: where(query, [c], not is_nil(c.archived_at)),
         else: where(query, [c], is_nil(c.archived_at))
 
@@ -1079,7 +1079,7 @@ defmodule Slipdock.Boards do
     query =
       case filters["completed"] do
         nil -> query
-        v -> where(query, [c], c.completed == ^(v in [true, "true"]))
+        v -> where(query, [c], c.completed == ^Enum.member?([true, "true"], v))
       end
 
     query =

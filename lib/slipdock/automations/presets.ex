@@ -366,7 +366,7 @@ defmodule Slipdock.Automations.Presets do
         )
 
       field ->
-        if field in @card_fields do
+        if Enum.member?(@card_fields, field) do
           label = String.replace(field, "_", " ")
 
           notify(
@@ -394,7 +394,7 @@ defmodule Slipdock.Automations.Presets do
   defp spec("flagged", p, opts) do
     flag = p["flag"]
 
-    if flag in @flags do
+    if Enum.member?(@flags, flag) do
       notify(p, opts, "Followed: #{flag} cards", %{"type" => "flag_added", "flag" => flag}, [],
         title: "Flagged #{flag}: {{card.title}}",
         severity: "warning"
@@ -470,7 +470,7 @@ defmodule Slipdock.Automations.Presets do
     tag = p["tag"]
     priority = p["priority"]
 
-    if priority in ~w(low medium high critical) do
+    if Enum.member?(~w(low medium high critical), priority) do
       {:ok, "Tagged #{tag} means #{priority} priority", %{"type" => "tag_added", "tag" => tag},
        [], [%{"type" => "set_priority", "priority" => priority}]}
     else

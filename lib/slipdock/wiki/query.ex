@@ -321,8 +321,8 @@ defmodule Slipdock.Wiki.Query do
     trimmed = value |> String.trim() |> String.trim("\"") |> String.trim("'")
 
     cond do
-      trimmed in ~w(true yes) -> true
-      trimmed in ~w(false no) -> false
+      Enum.member?(~w(true yes), trimmed) -> true
+      Enum.member?(~w(false no), trimmed) -> false
       trimmed == "today" -> Date.utc_today()
       trimmed == "tomorrow" -> Date.add(Date.utc_today(), 1)
       trimmed == "yesterday" -> Date.add(Date.utc_today(), -1)
@@ -377,7 +377,7 @@ defmodule Slipdock.Wiki.Query do
       entries =
         Work.assigned(user, context[:reader] || user, today: today)
         |> then(fn entries ->
-          if query.board in [nil, "this", "tree"],
+          if Enum.member?([nil, "this", "tree"], query.board),
             do: Enum.filter(entries, &in_tree?(&1.card, context[:board])),
             else: entries
         end)
@@ -397,9 +397,14 @@ defmodule Slipdock.Wiki.Query do
     name = ref |> String.trim() |> String.trim_leading("@")
 
     cond do
-      name in ~w(me myself mine) and reader -> {:ok, reader}
-      name in ~w(me myself mine) -> {:error, "`assigned: me` needs to know who is reading"}
-      true -> find_member(context[:board], name)
+      Enum.member?(~w(me myself mine), name) and reader ->
+        {:ok, reader}
+
+      Enum.member?(~w(me myself mine), name) ->
+        {:error, "`assigned: me` needs to know who is reading"}
+
+      true ->
+        find_member(context[:board], name)
     end
   end
 
@@ -533,9 +538,13 @@ defmodule Slipdock.Wiki.Query do
   # order, which is the board's own rather than alphabetical.
   defp group_cards(cards, %__MODULE__{} = query, board, today) do
     axis = if query.view == "board", do: "column", else: query.group || "none"
-    axis = if query.view == "calendar" and axis in [nil, "none"], do: "due_date", else: axis
 
-    if axis in [nil, "none"] do
+    axis =
+      if query.view == "calendar" and Enum.member?([nil, "none"], axis),
+        do: "due_date",
+        else: axis
+
+    if Enum.member?([nil, "none"], axis) do
       [%{label: nil, cards: cards}]
     else
       board = board || %Board{id: 0, columns: [], tags: [], milestones: [], fields: []}

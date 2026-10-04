@@ -283,5 +283,5 @@ defmodule SlipdockWeb.API.SearchController do
 
   defp mode_error, do: "mode must be one of: " <> Enum.join(SavedQueries.modes(), ", ")
 
-  defp truthy(value), do: to_string(value) in ["true", "1", "yes"]
+  defp truthy(value), do: Enum.member?(["true", "1", "yes"], to_string(value))
 end

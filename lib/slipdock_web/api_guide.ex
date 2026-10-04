@@ -1841,14 +1841,14 @@ defmodule SlipdockWeb.APIGuide do
   """
   def role(columns, %Column{} = col) do
     cond do
-      col.category in ~w(todo doing done dropped) -> col.category
+      Enum.member?(~w(todo doing done dropped), col.category) -> col.category
       named?(col, ["in progress", "doing", "wip", "started", "active"]) -> "doing"
       named?(col, ["done", "complete", "shipped", "finished"]) -> "done"
       named?(col, ["dropped", "won't", "wont do", "cancelled", "rejected"]) -> "dropped"
       named?(col, todo_names() ++ backlog_names()) -> "todo"
       # An uncategorised list on a board that has no categories at all: assume
       # work can come from it, since the board offers nothing better.
-      Enum.all?(columns, &(&1.category in [nil, ""])) -> "todo"
+      Enum.all?(columns, &Enum.member?([nil, ""], &1.category)) -> "todo"
       true -> nil
     end
   end

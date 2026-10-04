@@ -397,7 +397,8 @@ defmodule SlipdockWeb.SwimlaneComponents do
 
           <label
             :if={
-              @mode == :timeline or (@mode in [:swimlanes, :table] and Config.uses_dates?(@config))
+              @mode == :timeline or
+                (Enum.member?([:swimlanes, :table], @mode) and Config.uses_dates?(@config))
             }
             class="flex items-center gap-1.5"
           >
@@ -488,7 +489,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
             <.icon name="hero-arrow-down-tray" class="size-4" /> CSV
           </a>
           <div
-            :if={@mode in [:timeline, :swimlanes] and @config.color_by != "cover"}
+            :if={Enum.member?([:timeline, :swimlanes], @mode) and @config.color_by != "cover"}
             id="color-legend"
             class="flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-full bg-base-200/70 px-2.5 py-1 text-2xs text-base-content/70"
             title={"Coloured by #{String.downcase(Config.coloring_label(@config.color_by))}"}
@@ -703,7 +704,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
             </label>
           </div>
         </div>
-        <div :if={@mode not in [:table, :narrative]} id={"display-show-#{@size_label}"}>
+        <div :if={not Enum.member?([:table, :narrative], @mode)} id={"display-show-#{@size_label}"}>
           <p class={["mb-1.5", @section_title]}>Show on cards · {@size_label}</p>
           <input type="hidden" name={if @compact?, do: "show_compact[]", else: "show[]"} value="" />
           <div class="grid grid-cols-2 gap-x-2 gap-y-1">
@@ -726,7 +727,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
           </p>
         </div>
         <label
-          :if={@mode not in [:board, :calendar, :outline]}
+          :if={not Enum.member?([:board, :calendar, :outline], @mode)}
           class="flex cursor-pointer items-center gap-2"
         >
           <input type="hidden" name="empty" value="hide" />
