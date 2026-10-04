@@ -34,6 +34,7 @@ defmodule SlipdockWeb.InstallController do
     # It writes two things and nothing else:
     #   DIR/slipdock*/           the agent skills this server ships
     #   ~/.config/slipdock/url   this server's address, so you need not repeat it
+    #                            (unless it already names another server)
     #
     # It does not sign you in. Your agent does that itself, and will have to
     # before it can see any of your boards: it shows you a code, you approve it
@@ -53,8 +54,19 @@ defmodule SlipdockWeb.InstallController do
     mkdir -p "$DIR"
     curl -fsSL "$BASE/api/skills.tar.gz" | tar -xzf - -C "$DIR"
 
-    mkdir -p "$HOME/.config/slipdock"
-    printf '%s\\n' "$BASE" > "$HOME/.config/slipdock/url"
+    # A url already pointing somewhere else is left alone: the token beside it
+    # belongs to that server, and quietly re-pointing it would send the token
+    # here on the next call.
+    CONF="$HOME/.config/slipdock"
+    mkdir -p "$CONF"
+    chmod 700 "$CONF"
+    CURRENT="$(cat "$CONF/url" 2>/dev/null || true)"
+    if [ -z "$CURRENT" ]; then
+      (umask 077 && printf '%s\\n' "$BASE" > "$CONF/url")
+    elif [ "$CURRENT" != "$BASE" ]; then
+      echo "slipdock: $CONF/url already names $CURRENT; left it alone." >&2
+      echo "  To switch to this server: slipdock url $BASE" >&2
+    fi
 
     echo "Installed the Slipdock skills for $BASE:"
     for skill in "$DIR"/slipdock "$DIR"/slipdock-*; do

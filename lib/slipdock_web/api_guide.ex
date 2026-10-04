@@ -278,6 +278,9 @@ defmodule SlipdockWeb.APIGuide do
     person again: the token in `~/.config/slipdock/token` (mode 600), and this
     server's address in `~/.config/slipdock/url`. Both files are where the CLI
     and the skills look. `$SLIPDOCK_TOKEN` and `$SLIPDOCK_URL` override them.
+    The CLI also keeps one token per server under `~/.config/slipdock/tokens/`
+    and sends each only to the server that issued it; `slipdock auth` writes
+    both. Never send a token to an address other than the one it came from.
 
     If you have none of the skills installed and would like them —
     the wiki, documents, working a backlog unattended — one line fetches them
