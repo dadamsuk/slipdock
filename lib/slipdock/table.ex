@@ -37,7 +37,8 @@ defmodule Slipdock.Table do
 
   @doc "All built-in fields as `{key, label, sort_key_or_nil}`, in display order."
   def fields, do: @fields
-  def field_keys, do: Enum.map(@fields, &elem(&1, 0))
+  # Votes count as a built-in key: the chooser offers them, so a config must keep them.
+  def field_keys, do: Enum.map(@fields, &elem(&1, 0)) ++ ["votes"]
   def default_fields, do: @default_fields
 
   @doc "Built-in fields, then votes, then the board's custom fields as `f:<id>` columns."
