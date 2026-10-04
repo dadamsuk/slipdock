@@ -76,7 +76,9 @@ Briefly, with the detail in [the manual](docs/manual.md):
   [Narrative view](docs/manual.md#narrative) that tells you what happened to a
   set of cards over a date range.
 - **Automations** — ["when a card lands in Done, email ops@example.com"](docs/manual.md#automations-and-alerts),
-  parsed once by a model and then run by the app, with alerts in the header
+  parsed once by a model and then run by the app — or picked from ready-made
+  ones (follow a board, a list or a card; reminders; tidying) with a short
+  form and no model at all — with alerts in the header
   and callbacks (GET or POST, with the card's title, link, dates, flags and
   status) out to anything else you run.
 - **Semantic Search** - find what you're looking for even when you can't remember exactly what it is.

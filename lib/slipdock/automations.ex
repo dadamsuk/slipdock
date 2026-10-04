@@ -29,7 +29,7 @@ defmodule Slipdock.Automations do
 
   alias Slipdock.Repo
   alias Slipdock.Accounts.User
-  alias Slipdock.Automations.{Alert, Dismissal, Fire, Parser, Rule, Runner, Spec}
+  alias Slipdock.Automations.{Alert, Dismissal, Fire, Parser, Presets, Rule, Runner, Spec}
   alias Slipdock.Boards.{Board, Card}
 
   @pubsub Slipdock.PubSub
@@ -143,6 +143,20 @@ defmodule Slipdock.Automations do
       }
 
       case create_rule(attrs, opts) do
+        {:ok, rule} -> {:ok, rule}
+        {:error, changeset} -> {:error, changeset_message(changeset)}
+      end
+    end
+  end
+
+  @doc """
+  Adds one of the ready-made rules (`Slipdock.Automations.Presets`) to
+  `board`, filled in with `params` — no model involved. Returns `{:ok, rule}`
+  or `{:error, message}`.
+  """
+  def create_rule_from_preset(%Board{} = board, key, params, opts \\ []) do
+    with {:ok, attrs} <- Presets.build(key, params, user: opts[:created_by]) do
+      case create_rule(Map.put(attrs, "board_id", board.id), opts) do
         {:ok, rule} -> {:ok, rule}
         {:error, changeset} -> {:error, changeset_message(changeset)}
       end

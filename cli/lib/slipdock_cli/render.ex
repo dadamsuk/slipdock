@@ -1001,6 +1001,38 @@ defmodule SlipdockCLI.Render do
   defp severity(_), do: dim("i")
 
   @doc "The automation vocabulary, as the help an agent needs to write a spec."
+  def automation_presets(presets) do
+    presets
+    |> Enum.chunk_by(& &1["group"])
+    |> Enum.each(fn group ->
+      IO.puts(bold(String.upcase(hd(group)["group"])))
+
+      for p <- group do
+        IO.puts("  " <> String.pad_trailing(p["key"], 20) <> p["description"])
+
+        fields =
+          Enum.map_join(p["fields"], "  ", fn f ->
+            name = if f["required"], do: f["name"] <> "*", else: f["name"]
+
+            hint =
+              cond do
+                f["options"] -> "=" <> Enum.join(f["options"], "|")
+                f["default"] -> "=#{f["default"]}"
+                true -> ""
+              end
+
+            name <> hint
+          end)
+
+        IO.puts(dim("      " <> fields))
+      end
+
+      IO.puts("")
+    end)
+
+    IO.puts(dim("* required. slipdock new-automation <board> --preset KEY field=value ..."))
+  end
+
   def vocabulary(%{"vocabulary" => v, "example" => example}) do
     IO.puts(bold("TRIGGERS") <> dim("  (exactly one, as \"trigger\")"))
 
@@ -1298,5 +1330,4 @@ defmodule SlipdockCLI.Render do
       people -> Enum.map_join(people, ", ", fun)
     end
   end
-
 end

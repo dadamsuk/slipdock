@@ -916,6 +916,13 @@ defmodule SlipdockWeb.APIGuide do
     `GET /api/automations/vocabulary` is that vocabulary as data, with an
     example; it is also under `automations` in the vocabulary below.
 
+    For the common cases there is a shorter way still: POST `preset` and
+    `params` — one of the ready-made rules listed at
+    `GET /api/automations/presets` (follow a board, a list or a card, hear
+    about comments or a field changing, reminders when work is due or has
+    gone quiet, tidying Done), filled in with the few fields it asks for.
+    No model is involved, and what it stores is an ordinary rule.
+
     Only a board's owner may list or change its rules. Every rule is checked
     before it is stored: an unknown trigger, action or condition is a 422 with
     the reason, so a rule that saves is a rule that runs.
@@ -942,6 +949,11 @@ defmodule SlipdockWeb.APIGuide do
     # the same thing described in words, for the server's model to write
     curl -s -H "$H" -H 'content-type: application/json' B/api/boards/1/automations \\
          -d '{"text": "move anything in In Progress untouched for a week back to Backlog"}'
+
+    # a ready-made rule: hear about every card that arrives in Doing, by email
+    curl -s -H "$H" B/api/automations/presets
+    curl -s -H "$H" -H 'content-type: application/json' B/api/boards/1/automations \\
+         -d '{"preset": "follow_list", "params": {"column": "Doing", "notify": "email"}}'
 
     # list, inspect, switch off, run now, remove
     curl -s -H "$H" B/api/boards/1/automations

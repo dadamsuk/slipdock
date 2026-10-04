@@ -32,6 +32,21 @@ defmodule Slipdock.Automations.Runner do
 
   ## Triggers -----------------------------------------------------------------
 
+  # Arriving in a list is being added there or moved there.
+  defp trigger_matches?(%{"type" => "card_entered"} = trigger, %{type: type} = event)
+       when type in ["card_created", "card_moved"],
+       do: same_column?(trigger["column"], event[:column])
+
+  # Any change to a card, once. Completing, assigning and flagging each come
+  # with a card_updated of their own, so only that one counts — and an update
+  # that changed nothing a rule can see is not activity.
+  defp trigger_matches?(%{"type" => "card_activity"}, %{type: type} = event) do
+    case type do
+      "card_updated" -> (event[:fields] || []) != []
+      type -> type in ~w(card_created card_moved comment_added tag_added card_archived)
+    end
+  end
+
   defp trigger_matches?(%{"type" => type} = trigger, %{type: type} = event) do
     case type do
       "card_created" ->
@@ -115,6 +130,8 @@ defmodule Slipdock.Automations.Runner do
 
   defp condition_match?(_, _), do: false
 
+  # A page is card-shaped but its id is not a card's, so it is never "the card".
+  defp field_value("card", %Card{id: id}), do: id
   defp field_value("column", card), do: card.column && card.column.name
   defp field_value("priority", card), do: card.priority
   defp field_value("tag", card), do: Enum.map(card.tags, & &1.name)

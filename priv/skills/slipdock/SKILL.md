@@ -247,6 +247,8 @@ Automations — rules the server runs by itself, long after you have gone:
 slipdock automations <board>                  # every rule, with its trigger and how often it has run
 slipdock automation <board> <rule>            # one rule in full, spec included (id or name)
 slipdock automation-help                      # the triggers, conditions and actions a spec may use
+slipdock automation-presets                   # ready-made rules (follow a board/list/card, reminders, tidying)
+slipdock new-automation <board> --preset KEY [field=value...] [--name N]   # one of those, filled in
 slipdock new-automation <board> --spec JSON [--name N] [--tree]   # exact; --spec - reads stdin
 slipdock new-automation <board> <description...>                  # the server's AI writes the spec
 slipdock set-automation <board> <rule> [--on|--off] [--name N] [--spec JSON] [--text "..."]
@@ -260,6 +262,9 @@ slipdock dismiss <alert-id>... | --all        # dismiss yours; other people keep
 (triggers, condition fields and ops, actions, `{{placeholders}}`) with a worked example.
 Prefer `--spec` to a plain-English description: you know the vocabulary, and a spec is stored
 exactly as written, while a description goes through a language model that can misread you.
+When what is asked for is one of the ready-made rules — "follow this list", "tell me about
+comments on my cards", "remind me before things are due" — `--preset` is shorter still and
+equally exact: `slipdock new-automation 1 --preset follow_list column=Doing notify=email`.
 A rule with an unknown trigger or action is refused with the reason, so anything that saves runs.
 
 The `webhook` action is the way out to anything else the user runs: it calls a URL of theirs
