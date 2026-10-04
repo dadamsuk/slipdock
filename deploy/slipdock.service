@@ -1,45 +1,74 @@
 [Unit]
-Description=Slipdock (Phoenix LiveView) dev server
-After=network-online.target
+Description=Slipdock
+After=network-online.target postgresql.service
 Wants=network-online.target
 
+# Runs a production release built from a checkout:
+#
+#   cd /opt/slipdock
+#   MIX_ENV=prod mix deps.get --only prod
+#   MIX_ENV=prod mix assets.deploy
+#   MIX_ENV=prod mix release --overwrite
+#
+# then `systemctl restart slipdock` after each rebuild. The release migrates
+# its database on boot (see Slipdock.Application).
+#
+# Not `mix phx.server`: that is the development server, with a mailbox at
+# /dev/mailbox that shows anybody who can reach the port every sign-in link it
+# has sent, Phoenix's debug error pages, the code reloader, and a
+# secret_key_base that is published in this repository.
+
 [Service]
-Type=simple
+Type=exec
 
 # ── everything below this line is specific to your machine ──────────────────
-# Copy this file, change these five, and nothing else needs touching:
+# Copy this file, change these, and nothing else needs touching:
 #   User/Group          the account that owns the checkout
 #   WorkingDirectory    where you cloned it
-#   HOME                that account's home (mix and hex write there)
+#   ExecStart/ExecStop  the release inside that checkout
 #   EnvironmentFile     your secrets and settings (see .env.example)
-#   ExecStart           the full path to mix (`which mix`)
-User=kanban
-Group=kanban
+User=slipdock
+Group=slipdock
 WorkingDirectory=/opt/slipdock
-Environment=HOME=/var/lib/kanban
-ExecStart=/usr/local/bin/mix phx.server
+ExecStart=/opt/slipdock/_build/prod/rel/slipdock/bin/slipdock start
+ExecStop=/opt/slipdock/_build/prod/rel/slipdock/bin/slipdock stop
 
-Environment=MIX_ENV=dev
+Environment=PHX_SERVER=true
 Environment=PORT=4000
 Environment=LANG=C.UTF-8
+Environment=HOME=/var/lib/slipdock
+# Where the release writes its runtime files (the Erlang cookie, temp files).
+Environment=RELEASE_TMP=/var/lib/slipdock/tmp
+# Uploaded files. The default is inside the release, which the next
+# `mix release --overwrite` would delete. Moving from `mix phx.server`? Copy
+# priv/uploads here first. AI keys stay in ai_keys.json in WorkingDirectory.
+Environment=SLIPDOCK_UPLOADS_DIR=/var/lib/slipdock/uploads
 
-# Settings and secrets live outside the repo. config/runtime.exs reads the same
-# file by itself, so plain `mix phx.server` behaves identically — see
-# .env.example for every variable and what it defaults to. The leading `-`
-# means "carry on if it isn't there".
+# Settings and secrets live outside the repo, and a release does NOT go
+# looking for a .env by itself the way `mix phx.server` does — this line is
+# the only way it sees them. The production config refuses to start without:
 #
-# Note what is *not* here: AI keys and endpoints are per-person, set under
-# Account → AI model and kept in ai_keys.json next to the app (Slipdock.AI.Keys).
+#   DATABASE_URL      postgres://slipdock:…@localhost:5432/slipdock
+#   SECRET_KEY_BASE   `mix phx.gen.secret`, kept private
+#   PHX_HOST          the name people type, e.g. slipdock.example.com
 #
-# The database is Postgres, and this unit does not start one. Either put a
-# DATABASE_URL in that file pointing at your server, or run the one in
-# compose.dev.yaml — which is what config/dev.exs falls back to
-# (localhost:5434). A service that cannot reach its database will start,
-# fail its migrations and be restarted on a loop.
-EnvironmentFile=-/opt/slipdock/.env
+# The release listens on every address. Put a TLS proxy in front, and bind it
+# to loopback or firewall the port: plain http is how sign-in links and session
+# cookies get read in transit. With the proxy on this host the defaults
+# (https on 443, force_ssl honouring x-forwarded-proto) are right; see
+# .env.example for SLIPDOCK_URL_SCHEME and SLIPDOCK_URL_PORT otherwise.
+EnvironmentFile=/opt/slipdock/.env
 
 Restart=on-failure
 RestartSec=5
+
+# The release needs nothing outside its checkout and its home.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/slipdock /var/lib/slipdock
+StateDirectory=slipdock
 
 [Install]
 WantedBy=multi-user.target

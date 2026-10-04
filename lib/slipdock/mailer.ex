@@ -82,15 +82,37 @@ defmodule Slipdock.Mailer do
         relay: instance.smtp_host,
         port: instance.smtp_port || 587,
         tls: instance.smtp_tls || :if_available,
-        # The relay's certificate is not verified. That is the same choice this
-        # made when it was environment configuration, and changing it would
-        # break every self-signed internal relay in use; a verified option
-        # belongs on its own setting rather than as a silent default.
-        tls_options: [verify: :verify_none],
+        tls_options: tls_options(instance.smtp_host),
         retries: 1
       ] ++ auth(instance)
     else
       []
+    end
+  end
+
+  @doc """
+  The TLS options for a connection to the relay at `host`.
+
+  The relay's certificate is checked against the system's CA store and its
+  name against `host`: without that, anybody between here and the relay can
+  read every sign-in link this server sends. A relay with a self-signed
+  certificate needs `SLIPDOCK_SMTP_TLS_VERIFY=false`, which sets
+  `config :slipdock, :smtp_tls_verify, false`.
+  """
+  @spec tls_options(String.t()) :: keyword()
+  def tls_options(host) when is_binary(host) do
+    if Application.get_env(:slipdock, :smtp_tls_verify, true) == false do
+      [verify: :verify_none]
+    else
+      [
+        verify: :verify_peer,
+        cacerts: :public_key.cacerts_get(),
+        server_name_indication: String.to_charlist(host),
+        depth: 10,
+        customize_hostname_check: [
+          match_fun: :public_key.pkix_verify_hostname_match_fun(:https)
+        ]
+      ]
     end
   end
 

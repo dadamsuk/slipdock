@@ -113,6 +113,23 @@ run() {
   fi
 }
 
+# Runs Slipdock.Release.<fun> with the remaining arguments as a list of
+# strings. They travel as SLIPDOCK_ARG_1… in the environment, never inside the
+# Elixir source given to `eval`, so a quote or a #{} in an email or a key is
+# just a character in it.
+release_eval() {
+  fun="$1"
+  shift
+  wait_for_db
+  n=0
+  for a in "$@"; do
+    n=$((n + 1))
+    export "SLIPDOCK_ARG_$n=$a"
+  done
+  export SLIPDOCK_ARGC="$n"
+  run /app/bin/slipdock eval "Slipdock.Release.${fun}(Slipdock.Release.env_args())"
+}
+
 case "${1:-start}" in
   start)
     wait_for_db
@@ -134,33 +151,22 @@ case "${1:-start}" in
     run /app/bin/slipdock eval "Slipdock.Release.reindex()"
     ;;
   ai-key)
-    wait_for_db
     shift
-    # The arguments become an Elixir list of strings. Emails and API keys have
-    # no quotes in them, which is the only thing this would not survive.
-    args=""
-    for a in "$@"; do args="${args}\"${a}\","; done
-    run /app/bin/slipdock eval "Slipdock.Release.ai_key([${args}])"
+    release_eval ai_key "$@"
     ;;
   # Point somebody at an OpenAI-compatible model server of their own instead
   # of OpenRouter; no key needed for most of them.
   #   docker compose run --rm slipdock ai-endpoint you@example.com http://llm.local:1234/v1
   ai-endpoint)
-    wait_for_db
     shift
-    args=""
-    for a in "$@"; do args="${args}\"${a}\","; done
-    run /app/bin/slipdock eval "Slipdock.Release.ai_endpoint([${args}])"
+    release_eval ai_endpoint "$@"
     ;;
   # The tour board a first sign-in builds, for an account that was here before
   # it existed (see Slipdock.Onboarding).
   #   docker compose run --rm slipdock welcome you@example.com [--force]
   welcome)
-    wait_for_db
     shift
-    args=""
-    for a in "$@"; do args="${args}\"${a}\","; done
-    run /app/bin/slipdock eval "Slipdock.Release.welcome([${args}])"
+    release_eval welcome "$@"
     ;;
   migrate)
     wait_for_db
@@ -172,11 +178,8 @@ case "${1:-start}" in
   #   docker compose run --rm slipdock setup --status
   #   docker compose run --rm slipdock setup --sign-in-link you@example.com
   setup)
-    wait_for_db
     shift
-    args=""
-    for a in "$@"; do args="${args}\"${a}\","; done
-    run /app/bin/slipdock eval "Slipdock.Release.setup([${args}])"
+    release_eval setup "$@"
     ;;
   *)
     run "$@"

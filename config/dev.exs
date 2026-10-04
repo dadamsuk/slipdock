@@ -32,6 +32,13 @@ tailscale_ip =
   |> String.to_charlist()
   |> :inet.parse_address()
 
+# The mailbox at /dev/mailbox and Phoenix's debug error pages are for a
+# developer's own machine: the mailbox shows anyone who can reach it every
+# sign-in link this server has "sent". SLIPDOCK_DEV_TOOLS=false turns both off
+# for a dev-mode server other people can reach — though such a server should
+# be running the release instead (deploy/slipdock.service).
+dev_tools = System.get_env("SLIPDOCK_DEV_TOOLS") not in ["0", "false"]
+
 # For development, we disable any cache and enable
 # debugging and code reloading.
 #
@@ -52,7 +59,7 @@ config :slipdock, SlipdockWeb.Endpoint,
   ],
   check_origin: false,
   code_reloader: true,
-  debug_errors: true,
+  debug_errors: dev_tools,
   secret_key_base: "9dTyyUQKRD2HAVJoLDGYzmBm4/CZm9sOhpmQVEYWIDmSiczWvLRoxvxOZ4ow6I3Q",
   watchers: [
     esbuild: {Esbuild, :install_and_run, [:slipdock, ~w(--sourcemap=inline --watch)]},
@@ -83,12 +90,14 @@ config :slipdock, SlipdockWeb.Endpoint,
 # different ports.
 
 # Enable dev routes for dashboard and mailbox
-config :slipdock, dev_routes: true
+config :slipdock, dev_routes: dev_tools
 
 # "Agentic Login" on the sign-in page: writes a one-time sign-in link to a
 # file under this directory instead of emailing it, so an automated agent
-# with shell access can read the file and follow the link.
-config :slipdock, agentic_login: true, agentic_login_dir: "/tmp"
+# with shell access can read the file and follow the link. The file is mode
+# 0600, in a private directory under the system temp dir unless
+# SLIPDOCK_AGENTIC_LOGIN_DIR says otherwise (see `Accounts.agentic_login_dir/0`).
+config :slipdock, agentic_login: true
 
 # Do not include metadata nor timestamps in development logs
 config :logger, :default_formatter, format: "[$level] $message\n"

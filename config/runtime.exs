@@ -84,6 +84,15 @@ end
 smtp_host =
   if config_env() == :test, do: nil, else: System.get_env("SLIPDOCK_SMTP_HOST")
 
+# The relay's certificate is verified unless this says not to — which a relay
+# with a self-signed certificate needs. Applies to mail configured in the admin
+# UI as well (see `Slipdock.Mailer.tls_options/1`).
+smtp_tls_verify = System.get_env("SLIPDOCK_SMTP_TLS_VERIFY") not in ["0", "false"]
+
+if config_env() != :test do
+  config :slipdock, :smtp_tls_verify, smtp_tls_verify
+end
+
 if host = smtp_host do
   # Credentials are optional: an IP-authorised relay (e.g. Gmail's
   # smtp-relay.gmail.com) needs none.
@@ -103,7 +112,19 @@ if host = smtp_host do
            relay: host,
            port: String.to_integer(System.get_env("SLIPDOCK_SMTP_PORT") || "587"),
            tls: :if_available,
-           tls_options: [verify: :verify_none],
+           tls_options:
+             if(smtp_tls_verify,
+               do: [
+                 verify: :verify_peer,
+                 cacerts: :public_key.cacerts_get(),
+                 server_name_indication: String.to_charlist(host),
+                 depth: 10,
+                 customize_hostname_check: [
+                   match_fun: :public_key.pkix_verify_hostname_match_fun(:https)
+                 ]
+               ],
+               else: [verify: :verify_none]
+             ),
            retries: 1
          ] ++ auth
 
@@ -331,12 +352,15 @@ end
 
 # SLIPDOCK_AGENTIC_LOGIN=true adds an "Agentic Login" button to the sign-in page
 # that writes the one-time link to a file (in SLIPDOCK_AGENTIC_LOGIN_DIR, default
-# /tmp) instead of emailing it. Anyone who can reach the page can create such
+# a private slipdock-agentic-login directory under the system temp dir, mode
+# 0600) instead of emailing it. Anyone who can reach the page can create such
 # files, so only enable it on machines used for automated testing.
 if System.get_env("SLIPDOCK_AGENTIC_LOGIN") in ["1", "true"] do
-  config :slipdock,
-    agentic_login: true,
-    agentic_login_dir: System.get_env("SLIPDOCK_AGENTIC_LOGIN_DIR") || "/tmp"
+  config :slipdock, agentic_login: true
+end
+
+if (dir = System.get_env("SLIPDOCK_AGENTIC_LOGIN_DIR")) && config_env() != :test do
+  config :slipdock, agentic_login_dir: dir
 end
 
 if System.get_env("PHX_SERVER") do
@@ -383,13 +407,26 @@ if config_env() == :prod do
           do: :verify_none,
           else: :verify_peer
 
-      [
-        ssl: [
-          verify: verify,
-          cacerts: :public_key.cacerts_get(),
-          server_name_indication: :disable
-        ]
-      ]
+      # The certificate's name is checked against the host in DATABASE_URL —
+      # which is what stops somebody in the middle presenting any certificate
+      # the CA store happens to trust.
+      db_host = URI.parse(database_url).host
+
+      ssl =
+        if verify == :verify_peer and is_binary(db_host) do
+          [
+            verify: :verify_peer,
+            cacerts: :public_key.cacerts_get(),
+            server_name_indication: String.to_charlist(db_host),
+            customize_hostname_check: [
+              match_fun: :public_key.pkix_verify_hostname_match_fun(:https)
+            ]
+          ]
+        else
+          [verify: :verify_none]
+        end
+
+      [ssl: ssl]
     else
       []
     end

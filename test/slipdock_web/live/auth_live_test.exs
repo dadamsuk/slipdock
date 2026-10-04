@@ -61,6 +61,8 @@ defmodule SlipdockWeb.AuthLiveTest do
     path = String.trim(path)
     assert Path.dirname(path) == Application.fetch_env!(:slipdock, :agentic_login_dir)
     assert Path.basename(path) =~ ~r/^slipdock-agentic-login-[\w-]+\.txt$/
+    # A working sign-in link: nobody but the server's own account may read it.
+    assert File.stat!(path).mode |> Bitwise.band(0o777) == 0o600
     refute_email_sent()
 
     link = path |> File.read!() |> String.trim()

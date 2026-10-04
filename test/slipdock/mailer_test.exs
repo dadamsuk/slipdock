@@ -13,6 +13,30 @@ defmodule Slipdock.MailerTest do
     on_exit(fn -> Application.put_env(:slipdock, :mailer_from_settings, previous) end)
   end
 
+  describe "tls_options/1" do
+    test "verifies the relay's certificate and its name by default" do
+      opts = Mailer.tls_options("smtp.example.com")
+      assert opts[:verify] == :verify_peer
+      assert opts[:server_name_indication] == ~c"smtp.example.com"
+      assert [_ | _] = opts[:cacerts]
+      assert [match_fun: fun] = opts[:customize_hostname_check]
+      assert is_function(fun)
+    end
+
+    test "SLIPDOCK_SMTP_TLS_VERIFY=false is the opt-out for a self-signed relay" do
+      previous = Application.get_env(:slipdock, :smtp_tls_verify)
+      Application.put_env(:slipdock, :smtp_tls_verify, false)
+
+      on_exit(fn ->
+        if is_nil(previous),
+          do: Application.delete_env(:slipdock, :smtp_tls_verify),
+          else: Application.put_env(:slipdock, :smtp_tls_verify, previous)
+      end)
+
+      assert Mailer.tls_options("smtp.example.com") == [verify: :verify_none]
+    end
+  end
+
   describe "settings_config/1" do
     test "is empty when no mail server is configured, so the compiled adapter stands" do
       from_settings(true)
@@ -38,6 +62,9 @@ defmodule Slipdock.MailerTest do
       # No credentials given, so none are offered: an IP-authorised relay
       # refuses a connection that presents empty ones.
       assert config[:auth] == :never
+      # The relay is verified, and against the name it was configured by.
+      assert config[:tls_options][:verify] == :verify_peer
+      assert config[:tls_options][:server_name_indication] == ~c"smtp.example.com"
     end
 
     test "offers credentials only when both are there" do

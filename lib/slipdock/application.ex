@@ -94,7 +94,7 @@ defmodule Slipdock.Application do
 
       Logger.warning(
         "Agentic Login is ENABLED: anyone who can reach /login can mint a sign-in " <>
-          "link for any address, written to #{Application.get_env(:slipdock, :agentic_login_dir, "/tmp")}. " <>
+          "link for any address, written to #{Slipdock.Accounts.agentic_login_dir()}. " <>
           "Use it only on a machine for automated testing (unset SLIPDOCK_AGENTIC_LOGIN to turn it off)."
       )
     end

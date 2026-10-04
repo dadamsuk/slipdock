@@ -397,6 +397,21 @@ defmodule Slipdock.Release do
 
   # `eval` runs without the app started, which is what migrations want; the
   # other jobs need the repo and the config, so they start it.
+  @doc """
+  The arguments the container's entrypoint was given, as a list of strings.
+
+  They arrive as `SLIPDOCK_ARGC` and `SLIPDOCK_ARG_1`… in the environment
+  rather than spliced into the code `bin/slipdock eval` runs, where a quote in
+  one would end the string and the rest would run as Elixir.
+  """
+  @spec env_args() :: [String.t()]
+  def env_args do
+    case Integer.parse(System.get_env("SLIPDOCK_ARGC", "0")) do
+      {n, ""} when n > 0 -> Enum.map(1..n, &System.get_env("SLIPDOCK_ARG_#{&1}", ""))
+      _ -> []
+    end
+  end
+
   defp load, do: Application.load(@app)
 
   defp start do
