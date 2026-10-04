@@ -499,6 +499,43 @@ defmodule Slipdock.Quota do
   end
 
   @doc """
+  `check_board/3` for a path that has no changeset of its own — a restore that
+  is an `update_all`, a move that carries a whole subtree. `:ok`, or
+  `{:error, changeset}` refusing the same way `enforce/4` does, so the API
+  answers it with the same 402 and a caller can show `refusal_message/1`.
+
+  `wants` is a keyword of dimension to amount, checked in order; dimensions
+  asking for nothing are skipped, unless every one is, when the trial still
+  is.
+  """
+  @spec refusal(Column.t() | Board.t() | integer() | nil, keyword(non_neg_integer())) ::
+          :ok | {:error, Ecto.Changeset.t()}
+  def refusal(scope, wants) do
+    wants =
+      case Enum.reject(wants, fn {_dimension, want} -> want == 0 end) do
+        [] -> [items: 0]
+        wants -> wants
+      end
+
+    changeset =
+      Enum.reduce_while(wants, Ecto.Changeset.change({%{}, %{}}), fn {dimension, want}, cs ->
+        cs = enforce(cs, scope, dimension, want: want)
+        if cs.valid?, do: {:cont, cs}, else: {:halt, cs}
+      end)
+
+    if changeset.valid?, do: :ok, else: {:error, changeset}
+  end
+
+  @doc "The sentence a limit refusal carries, for a caller that shows it."
+  @spec refusal_message(Ecto.Changeset.t()) :: String.t() | nil
+  def refusal_message(%Ecto.Changeset{errors: errors}) do
+    case Keyword.get(errors, :base) do
+      {message, _opts} -> message
+      nil -> nil
+    end
+  end
+
+  @doc """
   The board guardrail, for a changeset that has an owner rather than a board —
   which is every board being created, since it has no board above it yet.
   """
@@ -639,6 +676,19 @@ defmodule Slipdock.Quota do
   defp owner_for(%Board{} = board), do: owner_of(Board.root_id(board))
   defp owner_for(board_id) when is_integer(board_id), do: owner_of(board_id)
   defp owner_for(_), do: nil
+
+  @doc "The id of whoever owns the root of this board's tree, or nil."
+  @spec owner_id_of(integer()) :: integer() | nil
+  def owner_id_of(board_id) do
+    Repo.one(
+      from(b in Board,
+        join: root in Board,
+        on: root.id == coalesce(b.root_id, b.id),
+        where: b.id == ^board_id,
+        select: root.owner_id
+      )
+    )
+  end
 
   defp owner_of(board_id) do
     Repo.one(

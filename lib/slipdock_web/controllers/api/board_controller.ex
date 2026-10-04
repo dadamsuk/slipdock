@@ -150,8 +150,14 @@ defmodule SlipdockWeb.API.BoardController do
           "You already have a “#{Onboarding.board_name()}” board. Pass force=true for another."
       })
     else
-      board = Onboarding.build!(user)
-      conn |> put_status(:created) |> json(%{board: V.board(Boards.get_board!(board.id))})
+      case Onboarding.build(user) do
+        {:ok, board} ->
+          conn |> put_status(:created) |> json(%{board: V.board(Boards.get_board!(board.id))})
+
+        {:error, reason} ->
+          {:error, :payment_required, Atom.to_string(reason),
+           Onboarding.refusal_message(user, reason)}
+      end
     end
   end
 

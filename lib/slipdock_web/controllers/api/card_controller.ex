@@ -241,6 +241,8 @@ defmodule SlipdockWeb.API.CardController do
   defp move_to_board(card, column) do
     case Boards.move_card_to_board(card, column) do
       {:ok, summary} -> {:ok, summary}
+      # A limit on the destination: the fallback answers it with its 402.
+      {:error, %Ecto.Changeset{}} = refused -> refused
       {:error, message} -> {:error, :unprocessable_entity, message}
     end
   end

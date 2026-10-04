@@ -38,11 +38,15 @@ defmodule Mix.Tasks.Slipdock.Welcome do
         if Onboarding.exists_for?(user) and not opts[:force] do
           fail("#{email} already has a “#{Onboarding.board_name()}” board — use --force.")
         else
-          board = Onboarding.build!(user)
+          case Onboarding.build(user) do
+            {:ok, board} ->
+              Mix.shell().info(
+                "Built “#{board.name}” (#{board.code}) for #{email}. Sign in to see it."
+              )
 
-          Mix.shell().info(
-            "Built “#{board.name}” (#{board.code}) for #{email}. Sign in to see it."
-          )
+            {:error, reason} ->
+              fail(Onboarding.refusal_message(user, reason))
+          end
         end
     end
   end

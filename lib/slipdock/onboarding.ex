@@ -27,13 +27,18 @@ defmodule Slipdock.Onboarding do
 
   require Logger
 
-  alias Slipdock.{Automations, Boards, Repo, Wiki}
+  alias Slipdock.{Automations, Boards, Quota, Repo, Wiki}
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.Board
 
   import Ecto.Query, warn: false
 
   @board_name "Getting Started"
+
+  # How many items (cards and pages) the tour adds to its owner's count. Kept
+  # by hand so the whole tour can be weighed before any of it is built; the
+  # test suite builds one and holds this to what it actually made.
+  @tour_items 23
 
   @doc "The name of the board this module builds."
   def board_name, do: @board_name
@@ -49,7 +54,16 @@ defmodule Slipdock.Onboarding do
   def ensure_for(%User{} = user) do
     if wanted?(user) do
       try do
-        {:ok, build!(user)}
+        case build(user) do
+          {:ok, board} ->
+            {:ok, board}
+
+          # A small free allowance, or none left: better no tour than a tour
+          # that leaves no room for the person's own work.
+          {:error, reason} ->
+            Logger.info("No #{@board_name} board for #{user.email}: #{reason}")
+            :skipped
+        end
       rescue
         error ->
           Logger.error("""
@@ -84,13 +98,45 @@ defmodule Slipdock.Onboarding do
   defp owns_a_board?(%User{id: id}),
     do: Repo.exists?(from(b in Board, where: b.owner_id == ^id and is_nil(b.parent_card_id)))
 
+  @doc "How many cards and pages the tour adds to its owner's count."
+  def tour_size, do: @tour_items
+
   @doc """
-  Builds the board whether or not it is wanted, and returns it. Raises if
-  anything will not build — the callers that use this have somebody waiting
-  on an answer rather than a half-finished tour.
+  Builds the board whether or not it is wanted. Refuses with the limit's
+  reason — `:board_limit_reached`, `:card_limit_reached` or `:trial_expired` —
+  when the owner has no room for the whole tour, and builds it in one
+  transaction, so it is all there or none of it is.
   """
+  @spec build(User.t()) :: {:ok, Board.t()} | {:error, Quota.reason()}
+  def build(%User{} = user) do
+    with :ok <- Quota.check(user, :boards),
+         :ok <- Quota.check(user, :items, @tour_items) do
+      Repo.transaction(fn -> build_tour(user) end)
+    end
+  end
+
+  @doc "`build/1`, raising when there is no room."
   @spec build!(User.t()) :: Board.t()
   def build!(%User{} = user) do
+    case build(user) do
+      {:ok, board} -> board
+      {:error, reason} -> raise ArgumentError, refusal_message(user, reason)
+    end
+  end
+
+  @doc "Why `build/1` refused, in a sentence for the person who asked."
+  @spec refusal_message(User.t(), Quota.reason()) :: String.t()
+  def refusal_message(user, :card_limit_reached) do
+    %{remaining: remaining} = Quota.status(user, :items)
+
+    "The tour adds #{@tour_items} cards and pages, and the boards you own have room " <>
+      "for #{remaining}. Archive something finished with, or subscribe for more."
+  end
+
+  def refusal_message(user, :board_limit_reached), do: Quota.message(user, :boards)
+  def refusal_message(user, :trial_expired), do: Quota.message(user, :trial)
+
+  defp build_tour(%User{} = user) do
     {:ok, board} =
       Boards.create_board(
         %{

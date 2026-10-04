@@ -85,6 +85,8 @@ Two more refusals are also final. Report them and say what the person can do:
 - `trial_expired` (HTTP 402) — a free trial has run out. Nothing new can be added anywhere on
   their boards, however small. Everything already there is still readable and editable. Nothing
   you can do about it: tell the person they need to subscribe, and stop.
+  These four answer more than creating: a restore from the archive, `move --board` onto somebody
+  else's board (the card and everything under it count against them), an import, and `welcome`.
 - `No account here uses that address…` when sharing — this server does not make accounts for
   the people you share things with. An admin has to invite them.
 

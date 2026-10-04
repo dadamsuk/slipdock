@@ -138,8 +138,13 @@ defmodule SlipdockWeb.BoardLive.Index do
 
   def handle_event("unarchive", %{"id" => id}, socket) do
     with_owned_board(socket, id, fn board ->
-      {:ok, board} = Boards.unarchive_board(board)
-      socket |> load_boards() |> put_flash(:info, "“#{board.name}” is back on your boards.")
+      case Boards.unarchive_board(board) do
+        {:ok, board} ->
+          socket |> load_boards() |> put_flash(:info, "“#{board.name}” is back on your boards.")
+
+        {:error, refused} ->
+          put_flash(socket, :error, Slipdock.Quota.refusal_message(refused))
+      end
     end)
   end
 

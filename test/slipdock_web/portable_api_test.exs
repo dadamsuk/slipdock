@@ -175,9 +175,10 @@ defmodule SlipdockWeb.PortableAPITest do
       receiver = user_fixture("receiver@example.com")
 
       conn = token_conn(receiver) |> post(~p"/api/import", document)
-      error = json_response(conn, 422)["error"]
+      body = json_response(conn, 402)
 
-      assert error =~ "Nothing was imported"
+      assert body["error"] == "card_limit_reached"
+      assert body["message"] =~ "Nothing was imported"
       assert Boards.find_board("del-2") == {:error, :not_found}
     end
   end

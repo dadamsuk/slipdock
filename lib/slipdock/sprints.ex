@@ -195,8 +195,14 @@ defmodule Slipdock.Sprints do
             {added, [{card, reason} | skipped]}
           else
             case Boards.move_card_to_board(card, column) do
-              {:ok, %{card: moved}} -> {[moved | added], skipped}
-              {:error, message} -> {added, [{card, message} | skipped]}
+              {:ok, %{card: moved}} ->
+                {[moved | added], skipped}
+
+              {:error, %Ecto.Changeset{} = refused} ->
+                {added, [{card, refusal(refused)} | skipped]}
+
+              {:error, message} ->
+                {added, [{card, message} | skipped]}
             end
           end
         end)
@@ -204,6 +210,8 @@ defmodule Slipdock.Sprints do
       {:ok, %{added: Enum.reverse(added), skipped: Enum.reverse(skipped)}}
     end
   end
+
+  defp refusal(changeset), do: Slipdock.Quota.refusal_message(changeset) || "it would not fit"
 
   defp sprint_board(%Card{} = sprint) do
     case Repo.one(from(b in Board, where: b.parent_card_id == ^sprint.id, select: b.id)) do
