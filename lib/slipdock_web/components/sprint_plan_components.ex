@@ -130,7 +130,11 @@ defmodule SlipdockWeb.SprintPlanComponents do
       <p :if={@plan.boards == []} class="text-sm text-base-content/60">
         None of the boards this sprint board plans from can be reached any more.
       </p>
-      <section :for={group <- @plan.boards} id={"plan-board-#{group.board.id}"} class="space-y-2">
+      <section
+        :for={group <- shown(@plan.boards, @expanded)}
+        id={"plan-board-#{group.board.id}"}
+        class="space-y-2"
+      >
         <h3 class="flex items-center gap-2 text-sm font-semibold">
           <span class={["size-2.5 rounded-full", Palette.dot(group.board.color)]}></span>
           {group.board.name}
@@ -162,29 +166,43 @@ defmodule SlipdockWeb.SprintPlanComponents do
             :if={list.cards != []}
             class="overflow-x-auto rounded-xl ring-1 ring-base-content/10"
           >
-            <table class="w-full text-sm">
+            <table class="w-full text-sm sm:table-fixed">
               <thead class="text-2xs uppercase tracking-wide text-base-content/50">
                 <tr class="border-b border-base-300/60">
-                  <th class="w-8"></th>
-                  <th class="px-2 py-1 text-left font-semibold">Card</th>
-                  <th class="px-2 py-1 text-left font-semibold">Priority</th>
+                  <th class="w-9"></th>
+                  <th class="min-w-36 px-2 py-1 text-left font-semibold">Card</th>
+                  <th :if={group.shown.priority} class="w-20 px-2 py-1 text-left font-semibold">
+                    Priority
+                  </th>
                   <th
-                    :for={f <- group.formulas}
-                    class="px-2 py-1 text-right font-semibold"
+                    :for={f <- group.shown.formulas}
+                    class="w-20 truncate px-2 py-1 text-right font-semibold"
                     title={f.name}
                   >
                     {f.name}
                   </th>
-                  <th class="px-2 py-1 text-right font-semibold">Votes</th>
-                  <th class="px-2 py-1 text-right font-semibold">Estimate</th>
-                  <th class="px-2 py-1 text-right font-semibold">Subcards</th>
-                  <th class="px-2 py-1 text-right font-semibold">Due</th>
+                  <th
+                    :if={group.shown.votes}
+                    class="hidden w-16 px-2 py-1 text-right font-semibold sm:table-cell"
+                  >
+                    Votes
+                  </th>
+                  <th :if={group.shown.estimate} class="w-20 px-2 py-1 text-right font-semibold">
+                    Estimate
+                  </th>
+                  <th
+                    :if={group.shown.subcards}
+                    class="hidden w-20 px-2 py-1 text-right font-semibold sm:table-cell"
+                  >
+                    Subcards
+                  </th>
+                  <th :if={group.shown.due} class="w-16 px-2 py-1 text-right font-semibold">Due</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-base-300/60">
                 <.plan_rows
                   cards={list.cards}
-                  formulas={group.formulas}
+                  shown={group.shown}
                   selected={@selected}
                   expanded={@expanded}
                   target={@target}
@@ -200,7 +218,7 @@ defmodule SlipdockWeb.SprintPlanComponents do
   end
 
   attr :cards, :list, required: true
-  attr :formulas, :list, required: true
+  attr :shown, :map, required: true, doc: "the columns to draw, see shown/2"
   attr :selected, :map, required: true
   attr :expanded, :map, required: true
   attr :target, :any, required: true
@@ -223,7 +241,7 @@ defmodule SlipdockWeb.SprintPlanComponents do
             phx-value-id={card.id}
           />
         </td>
-        <td class="max-w-0 px-2 py-1.5">
+        <td class="px-2 py-1.5">
           <div class="flex min-w-0 items-center gap-1" style={"padding-left: #{@level * 1.25}rem"}>
             <button
               :if={card.sub_board_id}
@@ -244,46 +262,54 @@ defmodule SlipdockWeb.SprintPlanComponents do
               />
             </button>
             <span :if={is_nil(card.sub_board_id)} class="w-6 shrink-0"></span>
-            <label for={"sprint-pick-#{card.id}"} class="min-w-0 flex-1 cursor-pointer truncate">
+            <label
+              for={"sprint-pick-#{card.id}"}
+              class="min-w-0 flex-1 cursor-pointer [overflow-wrap:anywhere]"
+            >
               {card.title}
             </label>
           </div>
         </td>
-        <td class="px-2 py-1.5">
+        <td :if={@shown.priority} class="px-2 py-1.5">
           <.priority_badge :if={card.priority not in [nil, "none"]} priority={card.priority} />
         </td>
         <td
-          :for={{field, value} <- card.scores}
+          :for={field <- @shown.formulas}
           class="px-2 py-1.5 text-right font-mono text-xs tabular-nums"
         >
-          {Fields.format(field, value)}
+          {Fields.format(field, score(card, field))}
         </td>
         <td
-          :for={_ <- List.duplicate(nil, max(length(@formulas) - length(card.scores), 0))}
-          class="px-2 py-1.5"
+          :if={@shown.votes}
+          class="hidden px-2 py-1.5 text-right font-mono text-xs tabular-nums sm:table-cell"
         >
-        </td>
-        <td class="px-2 py-1.5 text-right font-mono text-xs tabular-nums">
           {if card.votes > 0, do: card.votes}
         </td>
         <td
-          class="px-2 py-1.5 text-right font-mono text-xs tabular-nums"
+          :if={@shown.estimate}
+          class="whitespace-nowrap px-2 py-1.5 text-right font-mono text-xs tabular-nums"
           title={card.estimate_derived && "Added up from its open subcards"}
         >
           <span :if={card.estimate_derived && card.estimate} class="text-base-content/50">Σ</span>
           {TimeTracking.format(card.estimate, card.unit)}
         </td>
-        <td class="px-2 py-1.5 text-right font-mono text-xs tabular-nums text-base-content/60">
+        <td
+          :if={@shown.subcards}
+          class="hidden px-2 py-1.5 text-right font-mono text-xs tabular-nums text-base-content/60 sm:table-cell"
+        >
           {if card.total > 0 and card.children > 0, do: "#{card.done}/#{card.total}"}
         </td>
-        <td class="whitespace-nowrap px-2 py-1.5 text-right text-xs text-base-content/60">
+        <td
+          :if={@shown.due}
+          class="whitespace-nowrap px-2 py-1.5 text-right text-xs text-base-content/60"
+        >
           {card.due_date && Calendar.strftime(card.due_date, "%-d %b")}
         </td>
       </tr>
       <.plan_rows
         :if={Map.has_key?(@expanded, card.id)}
         cards={@expanded[card.id]}
-        formulas={@formulas}
+        shown={@shown}
         selected={@selected}
         expanded={@expanded}
         target={@target}
@@ -292,6 +318,30 @@ defmodule SlipdockWeb.SprintPlanComponents do
     <% end %>
     """
   end
+
+  # Each board's columns, leaving out any with nothing in it for any card on
+  # that board — open subcards included — so the titles get the room. The
+  # same for every list on the board, so their columns line up.
+  defp shown(groups, expanded) do
+    Enum.map(groups, fn group ->
+      cards = group.lists |> Enum.flat_map(& &1.cards) |> with_expanded(expanded)
+
+      Map.put(group, :shown, %{
+        priority: Enum.any?(cards, &(&1.priority not in [nil, "none"])),
+        formulas: Enum.filter(group.formulas, fn f -> Enum.any?(cards, &score(&1, f)) end),
+        votes: Enum.any?(cards, &(&1.votes > 0)),
+        estimate: Enum.any?(cards, & &1.estimate),
+        subcards: Enum.any?(cards, &(&1.total > 0 and &1.children > 0)),
+        due: Enum.any?(cards, & &1.due_date)
+      })
+    end)
+  end
+
+  defp with_expanded(cards, expanded),
+    do: Enum.flat_map(cards, &[&1 | with_expanded(Map.get(expanded, &1.id, []), expanded)])
+
+  defp score(card, field),
+    do: Enum.find_value(card.scores, fn {f, value} -> if f.id == field.id, do: value end)
 
   attr :committed, :map, required: true
   attr :selected, :map, required: true

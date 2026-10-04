@@ -166,6 +166,27 @@ defmodule SlipdockWeb.SprintsLiveTest do
       assert Boards.get_card!(b.id).board_id == sub.id
     end
 
+    test "the plan leaves out columns no card on the board has anything in", %{
+      conn: conn,
+      sprints: sprints,
+      work: work,
+      todo: todo
+    } do
+      card_fixture(todo, %{"title" => "Estimated", "time_estimate" => 2})
+      card_fixture(todo, %{"title" => "Not estimated"})
+
+      {:ok, sprints} = Sprints.put_sources(sprints, user_fixture(), [{work, ["To Do"]}])
+      {:ok, sprint} = Sprints.create_sprint(sprints)
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{sprints}/cards/#{sprint.id}")
+      view |> element("#card-sprint-add-cards") |> render_click()
+
+      assert has_element?(view, "#plan-list-#{todo.id} th", "Estimate")
+      refute has_element?(view, "#plan-list-#{todo.id} th", "Votes")
+      refute has_element?(view, "#plan-list-#{todo.id} th", "Priority")
+      refute has_element?(view, "#plan-list-#{todo.id} th", "Due")
+    end
+
     test "the sources are chosen from the plan, and in settings", %{
       conn: conn,
       sprints: sprints,
