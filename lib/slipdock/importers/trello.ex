@@ -54,13 +54,40 @@ defmodule Slipdock.Importers.Trello do
   @impl true
   def to_portable(%{"lists" => lists, "cards" => cards} = doc)
       when is_list(lists) and is_list(cards) do
+    convert(doc, normalise(lists), normalise(cards))
+  rescue
+    # Somebody else's JSON: a field that is a number where Trello writes a
+    # string, a map where it writes a list. Anything shaped other than the way
+    # Trello writes it gets the same answer as a file with no lists in it.
+    _ in [ArgumentError, FunctionClauseError, Protocol.UndefinedError, BadMapError, KeyError] ->
+      {:error, :not_a_trello_export}
+  end
+
+  def to_portable(_), do: {:error, :not_a_trello_export}
+
+  # Ids become refs by being glued to a prefix, so each must be a string. Ones
+  # written as numbers are taken as their digits; a row with no usable id
+  # cannot be pointed at and is left out.
+  defp normalise(items) do
+    for %{} = item <- items, id = trello_id(item["id"]) do
+      item
+      |> Map.put("id", id)
+      |> Map.update("idList", nil, &trello_id/1)
+    end
+  end
+
+  defp trello_id(id) when is_binary(id) and id != "", do: id
+  defp trello_id(id) when is_integer(id), do: Integer.to_string(id)
+  defp trello_id(_), do: nil
+
+  defp convert(doc, lists, cards) do
     {open_lists, closed_lists} = lists |> by_pos() |> Enum.split_with(&(!&1["closed"]))
     # A card on a closed list (or on no list in the file) has nowhere to go.
     open_ids = ids(open_lists)
     {cards, lost_cards} = Enum.split_with(cards, &MapSet.member?(open_ids, &1["idList"]))
 
     {tags, tag_refs} = tags(doc["labels"] || [])
-    checklists = Enum.group_by(doc["checklists"] || [], & &1["idCard"])
+    checklists = Enum.group_by(doc["checklists"] || [], &trello_id(&1["idCard"]))
     comments = comments(doc["actions"] || [])
 
     done_lists =
@@ -86,7 +113,7 @@ defmodule Slipdock.Importers.Trello do
     tree = %{
       root: %{
         ref: "b1",
-        name: blank_to_nil(doc["name"]) || "Trello board",
+        name: clip(doc["name"], 80) || "Trello board",
         description: blank_to_nil(doc["desc"]),
         lists:
           open_lists
@@ -94,7 +121,7 @@ defmodule Slipdock.Importers.Trello do
           |> Enum.map(fn {list, position} ->
             %{
               ref: "l:" <> list["id"],
-              name: blank_to_nil(list["name"]) || "List #{position + 1}",
+              name: clip(list["name"], 60) || "List #{position + 1}",
               position: position,
               category: Importers.guess_category(list["name"])
             }
@@ -109,8 +136,6 @@ defmodule Slipdock.Importers.Trello do
     {:ok, document, notes(doc, cards, closed_lists, lost_cards)}
   end
 
-  def to_portable(_), do: {:error, :not_a_trello_export}
-
   ## Cards -----------------------------------------------------------------------
 
   defp card(card, position, ctx) do
@@ -118,7 +143,7 @@ defmodule Slipdock.Importers.Trello do
       ref: "c:" <> card["id"],
       board: "b1",
       list: "l:" <> card["idList"],
-      title: blank_to_nil(card["name"]) || "Untitled",
+      title: clip(card["name"], 200) || "Untitled",
       description: blank_to_nil(card["desc"]),
       position: position,
       start_date: Importers.iso_date(card["start"]),
@@ -152,7 +177,8 @@ defmodule Slipdock.Importers.Trello do
     |> by_pos()
     |> Enum.map(fn item ->
       text = item["name"] || ""
-      %{text: if(prefix, do: "#{prefix}: #{text}", else: text), done: item["state"] == "complete"}
+      text = if(prefix, do: "#{prefix}: #{text}", else: text)
+      %{text: clip(text, 200) || "Untitled item", done: item["state"] == "complete"}
     end)
   end
 
@@ -164,7 +190,7 @@ defmodule Slipdock.Importers.Trello do
     |> Enum.filter(&(&1["type"] == "commentCard"))
     |> Enum.sort_by(&(&1["date"] || ""))
     |> Enum.reduce(%{}, fn action, acc ->
-      case get_in(action, ["data", "card", "id"]) do
+      case trello_id(get_in(action, ["data", "card", "id"])) do
         nil ->
           acc
 
@@ -189,7 +215,7 @@ defmodule Slipdock.Importers.Trello do
   defp urls(attachments) do
     attachments
     |> Enum.filter(&is_binary(&1["url"]))
-    |> Enum.map(&%{url: &1["url"], title: blank_to_nil(&1["name"])})
+    |> Enum.map(&%{url: &1["url"], title: clip(&1["name"], 255)})
   end
 
   ## Labels ----------------------------------------------------------------------
@@ -217,14 +243,14 @@ defmodule Slipdock.Importers.Trello do
 
   defp label_name(label) do
     blank_to_nil(label["name"]) ||
-      (label["color"] && String.capitalize(String.replace(label["color"], "_", " "))) ||
+      (is_binary(label["color"]) && String.capitalize(String.replace(label["color"], "_", " "))) ||
       "Label"
   end
 
   # Trello's colours, light and dark shades included, onto this palette.
-  defp colour(nil), do: "slate"
+  defp colour(colour) when not is_binary(colour), do: "slate"
 
-  defp colour(colour) when is_binary(colour) do
+  defp colour(colour) do
     case colour |> String.split("_") |> hd() do
       "green" -> "emerald"
       "yellow" -> "amber"
@@ -272,4 +298,13 @@ defmodule Slipdock.Importers.Trello do
   end
 
   defp blank_to_nil(_), do: nil
+
+  # Trello allows far longer names than a board, list or card has room for
+  # here; a long one is cut rather than costing the whole row.
+  defp clip(value, max) do
+    case blank_to_nil(value) do
+      nil -> nil
+      text -> String.slice(text, 0, max)
+    end
+  end
 end

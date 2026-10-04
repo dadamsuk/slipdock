@@ -23,6 +23,10 @@ defmodule SlipdockWeb.InstallController do
     |> send_resp(200, script(SlipdockWeb.BaseURL.from_conn(conn)))
   end
 
+  # BaseURL already refuses a Host that is not a plain name, so this is the
+  # second lock: inside single quotes nothing but a quote means anything.
+  defp shell_quote(value), do: String.replace(value, "'", ~S('\''))
+
   defp script(base) do
     """
     #!/bin/sh
@@ -41,7 +45,7 @@ defmodule SlipdockWeb.InstallController do
     # at #{base}/activate, and the token lands in ~/.config/slipdock/token.
     set -eu
 
-    BASE="#{base}"
+    BASE='#{shell_quote(base)}'
     DIR="${1:-${SLIPDOCK_SKILLS_DIR:-$HOME/.claude/skills}}"
 
     for tool in curl tar; do

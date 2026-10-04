@@ -435,6 +435,102 @@ defmodule Slipdock.PortableImportTest do
       assert {"F1", nil} in built
     end
 
+    test "a boards value that is not a list is not an export" do
+      assert {:error, :not_a_slipdock_export} =
+               Portable.import(user_fixture(), ~s({"slipdock_portable": 1, "boards": "x"}))
+    end
+
+    test "a row that is not a map is not an export" do
+      document = tree_document([], [%{ref: "c1", board: "r", title: "Fine"}], tags: ["nope"])
+      assert {:error, :not_a_slipdock_export} = Portable.import(user_fixture(), document)
+    end
+
+    test "rows go through the changesets: bad ones are left out and reported" do
+      document =
+        tree_document(
+          [],
+          [
+            %{
+              ref: "c1",
+              board: "r",
+              title: "Good",
+              urls: [%{url: "javascript:alert(1)"}, %{url: "https://ok.example"}]
+            },
+            %{ref: "c2", board: "r", title: "Shouty", priority: "urgent!!"},
+            %{ref: "c3", board: "r", title: "Flagged", flags: ["pwned"]},
+            %{ref: "c4", board: "r", title: "Nowhere", list: "missing"}
+          ],
+          tags: [%{ref: "t1", name: "dup"}, %{ref: "t2", name: "dup"}]
+        )
+
+      {:ok, report} = Portable.import(user_fixture(), document)
+      board = Boards.get_board!(hd(report.boards).id)
+
+      good = card(board, "Good") |> Repo.preload(:urls)
+      assert Enum.map(good.urls, & &1.url) == ["https://ok.example"]
+      assert card(board, "Shouty") == nil
+      assert card(board, "Flagged") == nil
+      assert card(board, "Nowhere") == nil
+      assert report.cards == 1
+
+      skipped = Enum.join(report.skipped, "\n")
+      assert skipped =~ "A link on “Good” was left out"
+      assert skipped =~ "The card “Shouty” was left out: priority"
+      assert skipped =~ "The tag “dup” was left out"
+    end
+
+    test "a root board that fails its changeset aborts the import with a reason" do
+      document =
+        Jason.encode!(%{
+          slipdock_portable: 1,
+          boards: [%{root: %{ref: "r", name: "Imported", color: "not-a-colour", lists: []}}]
+        })
+
+      assert {:error, {:invalid, message}} = Portable.import(user_fixture(), document)
+      assert message =~ "The board “Imported” was left out: color"
+    end
+
+    test "dependencies get the self, same-board and circle checks" do
+      document =
+        tree_document(
+          [],
+          [
+            %{ref: "a", board: "r", title: "A", blocked_by: ["a", "b"]},
+            %{ref: "b", board: "r", title: "B", blocked_by: ["a"]}
+          ]
+        )
+
+      {:ok, report} = Portable.import(user_fixture(), document)
+
+      assert Repo.aggregate(
+               from(d in "card_dependencies",
+                 where:
+                   d.blocked_id in subquery(
+                     from(c in Slipdock.Boards.Card,
+                       where: c.board_id == ^hd(report.boards).id,
+                       select: c.id
+                     )
+                   )
+               ),
+               :count
+             ) == 1
+
+      skipped = Enum.join(report.skipped, "\n")
+      assert skipped =~ "cannot depend on itself"
+      assert skipped =~ "would make a circle"
+    end
+
+    test "a blank page code does not rewrite every word boundary" do
+      document =
+        tree_document([], [],
+          pages: [%{ref: "p1", board: "r", title: "One", code: "", body: "Some words here."}]
+        )
+
+      {:ok, report} = Portable.import(user_fixture(), document)
+      [page] = Repo.all(from(p in Slipdock.Wiki.Page, where: p.board_id == ^hd(report.boards).id))
+      assert page.body == "Some words here."
+    end
+
     test "keys it has never heard of do not become atoms" do
       # A hostile document must not be able to fill the atom table.
       document =

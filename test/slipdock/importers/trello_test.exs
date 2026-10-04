@@ -60,6 +60,40 @@ defmodule Slipdock.Importers.TrelloTest do
       assert {:error, :not_a_trello_export} = Importers.import(user, %{}, from: "trello")
     end
 
+    test "numeric ids are taken as their digits rather than crashing", %{user: user} do
+      doc = %{
+        "name" => "Numbers",
+        "lists" => [%{"id" => 1, "name" => "To Do"}],
+        "cards" => [%{"id" => 2, "idList" => 1, "name" => "Counted"}, "junk"]
+      }
+
+      assert {:ok, report} = Importers.import(user, doc, from: "trello")
+      assert report.cards == 1
+    end
+
+    test "an export shaped other than Trello writes it is refused, not crashed on", %{
+      user: user
+    } do
+      doc = %{
+        "lists" => [%{"id" => "l", "name" => "To Do"}],
+        "cards" => [%{"id" => "c", "idList" => "l", "idLabels" => "not a list"}]
+      }
+
+      assert {:error, :not_a_trello_export} = Importers.import(user, doc, from: "trello")
+    end
+
+    test "names longer than this server allows are cut, not refused", %{user: user} do
+      long = String.duplicate("x", 300)
+
+      doc = %{
+        "name" => long,
+        "lists" => [%{"id" => "l", "name" => long}],
+        "cards" => [%{"id" => "c", "idList" => "l", "name" => long}]
+      }
+
+      assert {:ok, %{cards: 1}} = Importers.import(user, doc, from: "trello")
+    end
+
     test "a file nobody recognises is still answered as not a Slipdock export", %{user: user} do
       assert {:error, :not_a_slipdock_export} = Importers.import(user, %{"hello" => 1})
     end

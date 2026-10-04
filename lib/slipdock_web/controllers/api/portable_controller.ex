@@ -15,6 +15,8 @@ defmodule SlipdockWeb.API.PortableController do
   """
   use SlipdockWeb, :controller
 
+  require Logger
+
   alias Slipdock.{Access, Importers, Portable}
   alias SlipdockWeb.API.Authorize
 
@@ -101,8 +103,14 @@ defmodule SlipdockWeb.API.PortableController do
       {:error, :not_json} ->
         {:error, :unprocessable_entity, "that is not JSON"}
 
+      {:error, {:invalid, message}} ->
+        {:error, :unprocessable_entity, "#{message} Nothing was imported."}
+
+      # Whatever this is, it is the server's own term, and not the client's
+      # business: the log has it, the answer does not.
       {:error, reason} ->
-        {:error, :unprocessable_entity, "couldn't import that: #{inspect(reason)}"}
+        Logger.warning("Import refused: #{inspect(reason)}")
+        {:error, :unprocessable_entity, "couldn't import that"}
     end
   end
 

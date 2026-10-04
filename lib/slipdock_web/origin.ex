@@ -119,8 +119,14 @@ defmodule SlipdockWeb.Origin do
   end
 
   # Mirrors Phoenix's own wildcard handling, so that `*.example.com` keeps
-  # meaning what it means everywhere else.
-  defp match_host?(host, "*." <> suffix), do: String.ends_with?(host, suffix)
+  # meaning what it means everywhere else: the name itself or anything under it,
+  # and never `evilexample.com`, which merely ends in the same letters.
+  defp match_host?(host, "*." <> suffix) do
+    host = String.downcase(host)
+    suffix = String.downcase(suffix)
+    host == suffix or String.ends_with?(host, "." <> suffix)
+  end
+
   defp match_host?(host, allowed), do: String.downcase(host) == String.downcase(allowed)
 
   # Once per name per boot. A refused socket retries, and a reconnect loop would

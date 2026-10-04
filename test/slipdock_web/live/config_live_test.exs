@@ -149,6 +149,40 @@ defmodule SlipdockWeb.ConfigLiveTest do
     end
   end
 
+  describe "fields a form does not show" do
+    test "the settings form cannot change the mail server without a test", %{conn: conn} do
+      {:ok, view, _} = live(conn, ~p"/config")
+
+      render_submit(view, "save-settings", %{
+        "settings" => %{"signup_mode" => "closed", "smtp_host" => "evil.example.com"}
+      })
+
+      assert Settings.get().smtp_host in [nil, ""]
+    end
+
+    test "the mail form cannot change the admin address or anything else", %{conn: conn} do
+      {:ok, view, _} = live(conn, ~p"/config/mail")
+
+      render_submit(view, "mail", %{
+        "settings" => %{"admin_email" => "hijack@example.com", "signup_mode" => "open"}
+      })
+
+      settings = Settings.get()
+      assert settings.admin_email == "admin@example.com"
+      assert settings.signup_mode == :closed
+    end
+
+    test "terms links must be web addresses", %{conn: conn} do
+      {:ok, view, _} = live(conn, ~p"/config")
+
+      render_submit(view, "save-settings", %{
+        "settings" => %{"terms_url" => "javascript:alert(1)", "privacy_url" => "https://x.test/p"}
+      })
+
+      assert Settings.get().terms_url == nil
+    end
+  end
+
   describe "mail" do
     test "will not save a change without a test message that worked", %{conn: conn} do
       {:ok, view, _} = live(conn, ~p"/config/mail")

