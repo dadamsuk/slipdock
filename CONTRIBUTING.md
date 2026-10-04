@@ -51,6 +51,12 @@ with a browser in it; LiveView tests drive the real page. Calls to a language
 model are answered by a stub (`test/support/ai_stub.ex`), so no test spends
 money or needs a key.
 
+New or changed code comes with tests for it, in the same commit: the paths
+you added, error and edge cases included, with assertions on what happens
+rather than tests that only run the lines. A change that cannot be tested (a
+deploy script, say) says why in its commit message. A refactor that changes no
+behaviour is covered by the tests already there.
+
 `mix test --cover` prints line coverage for `lib/`, worst module first, with a
 page per module in `cover/`, and fails under 65%. It runs through
 `test/support/coverage.ex` rather than Mix's own tool: `:cover` on this
