@@ -173,6 +173,10 @@ defmodule SlipdockWeb.ConfigLive.Index do
       {:ok, email} ->
         {:noreply, socket |> put_flash(:info, "The admin address is now #{email}.") |> load()}
 
+      {:error, :too_many_attempts} ->
+        {:noreply,
+         put_flash(socket, :error, "Too many wrong codes. Wait an hour, then try again.")}
+
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "That code is wrong, or it has expired.")}
     end

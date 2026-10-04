@@ -61,6 +61,22 @@ defmodule Slipdock.AccountsTest do
     assert is_nil(Accounts.get_user_by_api_token(token))
   end
 
+  test "only an admin can mint an admin-scope token" do
+    {:ok, user} = Accounts.get_or_create_user_by_email("plain@example.com")
+
+    # A forged form post asking for admin gets an ordinary token, not a dormant
+    # admin one waiting for its owner to be promoted.
+    {_token, record} = Accounts.create_api_token(user, "sneaky", scope: "admin")
+    assert record.scope == "write"
+
+    {:ok, admin} = Accounts.promote(user)
+    {_token, record} = Accounts.create_api_token(admin, "deliberate", scope: "admin")
+    assert record.scope == "admin"
+
+    {_token, record} = Accounts.create_api_token(admin, "odd", scope: "root")
+    assert record.scope == "write"
+  end
+
   test "groups and members" do
     {:ok, owner} = Accounts.get_or_create_user_by_email("owner@example.com")
     {:ok, group} = Accounts.create_group(owner, %{"name" => "Team"})

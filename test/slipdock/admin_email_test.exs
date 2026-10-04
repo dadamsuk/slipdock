@@ -67,6 +67,22 @@ defmodule Slipdock.AdminEmailTest do
     assert Settings.get().admin_email == "old@example.com"
   end
 
+  test "guessing at the code stops after a handful of tries", %{admin: admin} do
+    previous = Application.get_env(:slipdock, :rate_limit)
+    Application.put_env(:slipdock, :rate_limit, enabled: true)
+    Slipdock.RateLimit.reset()
+    on_exit(fn -> Application.put_env(:slipdock, :rate_limit, previous) end)
+
+    {:ok, :sent} = Accounts.request_admin_email_change("new@example.com", admin)
+
+    for _ <- 1..5,
+        do: assert({:error, :invalid} = Accounts.confirm_admin_email_change("1", admin))
+
+    # Even the right code is refused now: the limit is on trying, not on failing.
+    assert {:error, :too_many_attempts} = Accounts.confirm_admin_email_change(code(), admin)
+    assert Settings.get().admin_email == "old@example.com"
+  end
+
   test "a code works once", %{admin: admin} do
     {:ok, :sent} = Accounts.request_admin_email_change("new@example.com", admin)
     c = code()

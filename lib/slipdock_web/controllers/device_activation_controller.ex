@@ -23,6 +23,7 @@ defmodule SlipdockWeb.DeviceActivationController do
   # mints a token for *your* account, so the prize is confusion rather than
   # access — but a limit costs nothing and closes the grinding anyway.
   @lookups_per_hour 30
+  @decisions_per_hour 30
 
   plug :require_signed_in
 
@@ -53,14 +54,21 @@ defmodule SlipdockWeb.DeviceActivationController do
   end
 
   def decide(conn, %{"user_code" => code} = params) do
-    case Accounts.device_authorization_by_user_code(code) do
+    key = "device:decide:#{conn.assigns.current_user.id}"
+
+    with :ok <- RateLimit.hit(key, @decisions_per_hour, 3_600_000),
+         %DeviceAuthorization{} = request <- Accounts.device_authorization_by_user_code(code) do
+      decide(conn, request, params["decision"])
+    else
+      {:error, _retry_in} ->
+        conn
+        |> put_flash(:error, "Too many codes tried. Wait a while before trying another.")
+        |> redirect(to: ~p"/activate")
+
       nil ->
         conn
         |> put_flash(:error, "That code isn't valid any more. Ask the agent for a fresh one.")
         |> redirect(to: ~p"/activate")
-
-      request ->
-        decide(conn, request, params["decision"])
     end
   end
 
@@ -74,20 +82,30 @@ defmodule SlipdockWeb.DeviceActivationController do
         |> redirect(to: ~p"/account/tokens")
 
       {:error, :expired} ->
-        conn
-        |> put_flash(
-          :error,
-          "That request expired while you were deciding. Ask for a fresh code."
-        )
-        |> redirect(to: ~p"/activate")
+        gone(conn)
     end
   end
 
   defp decide(conn, request, _denied) do
-    {:ok, _} = Accounts.deny_device_authorization(request)
+    case Accounts.deny_device_authorization(request) do
+      {:ok, _} ->
+        conn
+        |> put_flash(:info, "Refused. The agent has been told.")
+        |> redirect(to: ~p"/activate")
 
+      {:error, :expired} ->
+        gone(conn)
+    end
+  end
+
+  # Expired, or decided by somebody else in the meantime: either way the code
+  # is no longer one this person can act on.
+  defp gone(conn) do
     conn
-    |> put_flash(:info, "Refused. The agent has been told.")
+    |> put_flash(
+      :error,
+      "That request was decided or expired while you were looking. Ask for a fresh code."
+    )
     |> redirect(to: ~p"/activate")
   end
 

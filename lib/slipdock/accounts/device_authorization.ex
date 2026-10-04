@@ -68,8 +68,8 @@ defmodule Slipdock.Accounts.DeviceAuthorization do
        scope: attrs[:scope] || "write",
        scope_boards: attrs[:scope_boards] || [],
        client_label: attrs[:client_label],
-       client_ip: attrs[:client_ip],
-       client_agent: attrs[:client_agent],
+       client_ip: clip(attrs[:client_ip]),
+       client_agent: clip(attrs[:client_agent]),
        expires_at: DateTime.utc_now(:second) |> DateTime.add(@validity_minutes, :minute)
      }}
   end
@@ -81,8 +81,25 @@ defmodule Slipdock.Accounts.DeviceAuthorization do
     end
   end
 
+  # Both arrive in request headers, so their length is the client's choice;
+  # the columns hold 255.
+  defp clip(value) when is_binary(value), do: String.slice(value, 0, 255)
+  defp clip(_), do: nil
+
+  # From the CSPRNG, not `:rand`: the code is the half of the pair a person
+  # carries, and a predictable one could be guessed before they typed it.
+  # Bytes at or above the largest multiple of the alphabet's size are thrown
+  # away, so that no character comes up more often than another.
   defp generate_user_code do
-    for _ <- 1..@code_length, into: "", do: <<Enum.random(@alphabet)>>
+    size = length(@alphabet)
+    limit = div(256, size) * size
+
+    Stream.repeatedly(fn -> :crypto.strong_rand_bytes(@code_length * 2) end)
+    |> Stream.flat_map(&:binary.bin_to_list/1)
+    |> Stream.filter(&(&1 < limit))
+    |> Enum.take(@code_length)
+    |> Enum.map(&Enum.at(@alphabet, rem(&1, size)))
+    |> List.to_string()
   end
 
   def expired?(%__MODULE__{expires_at: at}),
