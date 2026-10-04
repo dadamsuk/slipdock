@@ -30,13 +30,15 @@ defmodule SlipdockWeb.Plugs.Setup do
   This discloses nothing new. The token still goes only to the log, and a
   stranger who requests `/setup` cannot read what their request wrote. What it
   does cost is log volume: anyone who can reach an unclaimed server can make it
-  write a line per request. That lasts only until the server is claimed, and
+  write a line per request. So it is written at most once a minute — often
+  enough that whoever goes looking finds a fresh copy, too seldom for anybody
+  to fill the disk with it. That lasts only until the server is claimed, and
   `SLIPDOCK_ADMIN_EMAIL` skips the wizard altogether.
   """
   import Plug.Conn
   import Phoenix.Controller
 
-  alias Slipdock.Settings
+  alias Slipdock.{RateLimit, Settings}
 
   @setup_path "/setup"
 
@@ -73,21 +75,24 @@ defmodule SlipdockWeb.Plugs.Setup do
 
   # `ensure_setup_token/0` hands back the token the server already has and only
   # writes when there is none, so this is a read on all but the first request.
+  # It runs whether or not the banner is due, so a token is always minted.
   defp announce_token do
     require Logger
 
-    case Settings.ensure_setup_token() do
-      nil ->
-        :ok
+    token = Settings.ensure_setup_token()
 
-      token ->
+    case token && RateLimit.hit("setup:token-banner", 1, :timer.minutes(1)) do
+      :ok ->
         Logger.info("""
         Setup token for this server: #{token}
 
             #{Settings.setup_url(token)}
 
-        Logged on every request for /setup while the server is unclaimed.
+        Logged on requests for /setup, at most once a minute, while the server is unclaimed.
         """)
+
+      _ ->
+        :ok
     end
   end
 

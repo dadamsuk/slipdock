@@ -73,6 +73,22 @@ defmodule SlipdockWeb.SetupLiveTest do
       assert Settings.ensure_setup_token() != nil
     end
 
+    test "the token banner is written at most once a minute", %{conn: conn, token: token} do
+      # Every request writing a multi-line banner let anybody who could reach an
+      # unclaimed server fill its disk.
+      previous = Application.get_env(:slipdock, :rate_limit)
+      Application.put_env(:slipdock, :rate_limit, enabled: true)
+      Slipdock.RateLimit.reset()
+
+      on_exit(fn ->
+        Application.put_env(:slipdock, :rate_limit, previous)
+        Slipdock.RateLimit.reset()
+      end)
+
+      assert capture_info(fn -> get(conn, ~p"/setup") end) =~ token
+      refute capture_info(fn -> get(conn, ~p"/setup") end) =~ token
+    end
+
     test "a set-up server logs no token, because it has none", %{conn: conn} do
       {:ok, _} = Settings.complete_setup(%{"admin_email" => "admin@example.com"})
 
@@ -135,6 +151,51 @@ defmodule SlipdockWeb.SetupLiveTest do
         view |> form("#setup-token-form", %{"setup" => %{"token" => token}}) |> render_submit()
 
       assert html =~ "Who can register"
+    end
+  end
+
+  describe "without the token, no event does anything" do
+    # The token used to gate only what was rendered. LiveView runs any event a
+    # client pushes, so a stranger could skip the form and claim the server.
+    setup %{conn: conn} do
+      {:ok, view, _} = live(conn, ~p"/setup")
+      %{view: view}
+    end
+
+    test "finish does not claim the server", %{view: view} do
+      render_hook(view, "finish", %{"settings" => %{"admin_email" => "attacker@example.com"}})
+
+      refute Settings.setup_complete?()
+      refute Accounts.get_user_by_email("attacker@example.com")
+      assert has_element?(view, "#setup-token-form")
+    end
+
+    test "a test send does not go out", %{view: view} do
+      render_hook(view, "mail-submit", %{
+        "step_action" => "test",
+        "settings" => %{
+          "smtp_host" => "smtp.example.com",
+          "smtp_from_email" => "m@example.com",
+          "test_to" => "attacker@example.com"
+        }
+      })
+
+      refute_email_sent()
+    end
+
+    test "the steps cannot be walked through", %{view: view} do
+      render_hook(view, "save-mode", %{"settings" => %{"signup_mode" => "open"}})
+      render_hook(view, "skip-mail", %{})
+      render_hook(view, "mail-submit", %{"settings" => %{"smtp_host" => "evil.example.com"}})
+      render_hook(view, "back", %{"to" => "mail"})
+
+      html = render(view)
+      assert html =~ "The setup token, please"
+      refute html =~ "Who can register"
+
+      # Then the right token, to show nothing was collected on the way.
+      render_hook(view, "finish", %{"settings" => %{"admin_email" => "x@example.com"}})
+      refute Settings.setup_complete?()
     end
   end
 
@@ -224,6 +285,48 @@ defmodule SlipdockWeb.SetupLiveTest do
 
       assert html =~ "test message went out"
       assert_email_sent(subject: "Slipdock can send mail")
+    end
+
+    test "mail settings changed after the test are not saved", %{view: view} do
+      view
+      |> form("#setup-mode-form", %{"settings" => %{"signup_mode" => "closed"}})
+      |> render_submit()
+
+      tested = %{
+        "smtp_host" => "smtp.example.com",
+        "smtp_from_email" => "m@example.com",
+        "test_to" => "admin@example.com"
+      }
+
+      view
+      |> form("#setup-mail-form", %{"settings" => tested})
+      |> render_submit(%{"step_action" => "test"})
+
+      html =
+        view
+        |> form("#setup-mail-form", %{
+          "settings" => %{tested | "smtp_host" => "smtp.elsewhere.example"}
+        })
+        |> render_submit(%{"step_action" => "save"})
+
+      assert html =~ "changed after the test"
+      assert has_element?(view, "#setup-mail-form")
+
+      # And the same settings that were tested do go through.
+      view
+      |> form("#setup-mail-form", %{"settings" => tested})
+      |> render_submit(%{"step_action" => "test"})
+
+      view
+      |> form("#setup-mail-form", %{"settings" => tested})
+      |> render_submit(%{"step_action" => "save"})
+
+      assert has_element?(view, "#setup-admin-form")
+    end
+
+    test "a step name that is not a step is ignored, not a crash", %{view: view} do
+      render_hook(view, "back", %{"to" => "no_such_step_anywhere"})
+      assert has_element?(view, "#setup-mode-form")
     end
 
     test "mail can be skipped, and then the fallback file is named", %{view: view, fallback: path} do
