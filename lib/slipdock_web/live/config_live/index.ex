@@ -93,7 +93,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
   end
 
   def handle_event("remove-allow", %{"id" => id}, socket) do
-    Settings.remove_allowlist_entry(String.to_integer(id))
+    if id = SlipdockWeb.Params.id(id), do: Settings.remove_allowlist_entry(id)
     {:noreply, load(socket)}
   end
 

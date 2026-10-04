@@ -481,12 +481,24 @@ defmodule Slipdock.Automations.Presets do
   defp spec("webhook", p, _opts) do
     url = p["url"]
 
-    if String.match?(url, ~r{\Ahttps?://\S+\z}) do
-      {:ok, "Call #{url} on every change", %{"type" => "card_activity"}, [],
+    if is_binary(url) and String.match?(url, ~r{\Ahttps?://\S+\z}) do
+      {:ok, "Call #{webhook_host(url)} on every change", %{"type" => "card_activity"}, [],
        [%{"type" => "webhook", "url" => url, "method" => "post"}]}
     else
       {:error, "URL must start with http:// or https://"}
     end
+  end
+
+  # The rule is named after the host alone: a long URL in full would run past
+  # the 120 characters a rule's name may have.
+  defp webhook_host(url) do
+    host =
+      case URI.parse(url) do
+        %URI{host: host} when is_binary(host) and host != "" -> host
+        _ -> url
+      end
+
+    String.slice(host, 0, 90)
   end
 
   ## Telling someone ----------------------------------------------------------
@@ -527,10 +539,14 @@ defmodule Slipdock.Automations.Presets do
 
   defp address(nil), do: {:error, "Email to is needed to send an email"}
 
+  # The same test the notifier makes before sending, so a rule that saves is
+  # one whose email can go.
   defp address(email) do
-    if String.match?(email, ~r/\A[^\s@]+@[^\s@]+\z/),
-      do: {:ok, email},
-      else: {:error, "“#{email}” isn't an email address"}
+    cond do
+      Slipdock.Automations.Notifier.valid_email?(email) -> {:ok, email}
+      is_binary(email) -> {:error, "“#{email}” isn't an email address"}
+      true -> {:error, "Email to must be an email address"}
+    end
   end
 
   ## Helpers ------------------------------------------------------------------

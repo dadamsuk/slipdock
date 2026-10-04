@@ -985,6 +985,8 @@ defmodule Slipdock.Boards do
     |> with_rollup()
   end
 
+  def get_card(nil), do: nil
+
   def get_card(id) do
     case Repo.get(Card, id) do
       nil -> nil
@@ -1450,13 +1452,20 @@ defmodule Slipdock.Boards do
   def start_timer(%Card{timer_started_at: %DateTime{}} = card), do: {:ok, card}
 
   def start_timer(%Card{} = card) do
-    card
-    |> Ecto.Changeset.change(timer_started_at: DateTime.utc_now(:second))
-    |> Repo.update()
-    |> tap_ok(fn updated ->
+    # Conditional on the timer still being stopped, so two starts racing each
+    # other leave the first one's start time in place.
+    {count, _} =
+      from(c in Card, where: c.id == ^card.id and is_nil(c.timer_started_at))
+      |> Repo.update_all(set: [timer_started_at: DateTime.utc_now(:second)])
+
+    updated = Repo.get!(Card, card.id)
+
+    if count == 1 do
       log(Repo, updated.board_id, updated.id, "card", "started the timer on “#{card.title}”")
       broadcast(updated.board_id)
-    end)
+    end
+
+    {:ok, updated}
   end
 
   @doc """
@@ -1465,16 +1474,28 @@ defmodule Slipdock.Boards do
   """
   def stop_timer(%Card{timer_started_at: nil} = card), do: {:ok, card}
 
-  def stop_timer(%Card{} = card) do
+  def stop_timer(%Card{timer_started_at: since} = card) do
     minutes = Slipdock.TimeTracking.running(card)
+    cap = Slipdock.TimeTracking.max_minutes()
 
-    card
-    |> Ecto.Changeset.change(
-      timer_started_at: nil,
-      time_spent: (card.time_spent || 0) + minutes
-    )
-    |> Repo.update()
-    |> tap_ok(fn updated ->
+    # Conditional on the timer being the one this card was read with: a stop
+    # racing another stop (the API and the board at once) finds it already
+    # cleared and adds nothing, rather than counting the minutes twice.
+    {count, _} =
+      from(c in Card,
+        where: c.id == ^card.id and c.timer_started_at == ^since,
+        update: [
+          set: [
+            timer_started_at: nil,
+            time_spent: fragment("LEAST(COALESCE(?, 0) + ?, ?)", c.time_spent, ^minutes, ^cap)
+          ]
+        ]
+      )
+      |> Repo.update_all([])
+
+    updated = Repo.get!(Card, card.id)
+
+    if count == 1 do
       log(
         Repo,
         updated.board_id,
@@ -1484,7 +1505,9 @@ defmodule Slipdock.Boards do
       )
 
       broadcast(updated.board_id)
-    end)
+    end
+
+    {:ok, updated}
   end
 
   defp assignee_name(id) do

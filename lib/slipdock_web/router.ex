@@ -55,7 +55,11 @@ defmodule SlipdockWeb.Router do
   scope "/", SlipdockWeb do
     pipe_through :browser
 
-    get "/login/:token", SessionController, :create
+    # The link in the email only shows a button; signing in is the POST it
+    # makes. A GET that signed in would let a mail scanner prefetching links
+    # use the token up, and a page elsewhere sign a victim into its account.
+    get "/login/:token", SessionController, :confirm
+    post "/login/:token", SessionController, :create
     delete "/logout", SessionController, :delete
 
     # Approving an agent's request to sign in. Signed-in people only, and the

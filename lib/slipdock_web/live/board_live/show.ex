@@ -44,7 +44,7 @@ defmodule SlipdockWeb.BoardLive.Show do
     Tag
   }
 
-  alias SlipdockWeb.RichText
+  alias SlipdockWeb.{Params, RichText}
   alias Slipdock.Dates
   alias Slipdock.Palette
   alias Slipdock.Swimlanes.Config
@@ -1275,7 +1275,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   # The wire sends a string; a caller with the id already in hand sends the
   # integer.
   defp column_id(id) when is_integer(id), do: id
-  defp column_id(id) when is_binary(id), do: String.to_integer(id)
+  defp column_id(id), do: Params.id(id)
 
   defp quick_add_target(board, nil), do: {:ok, board, nil}
   defp quick_add_target(board, ""), do: {:ok, board, nil}
@@ -1698,10 +1698,15 @@ defmodule SlipdockWeb.BoardLive.Show do
   def handle_event("search", %{"q" => q}, socket), do: {:noreply, put_filter(socket, :q, q)}
 
   def handle_event("filter_tag", %{"id" => id}, socket) do
-    id = String.to_integer(id)
-    tags = socket.assigns.filters.tags
-    tags = if id in tags, do: List.delete(tags, id), else: [id | tags]
-    {:noreply, put_filter(socket, :tags, tags)}
+    case Params.id(id) do
+      nil ->
+        {:noreply, socket}
+
+      id ->
+        tags = socket.assigns.filters.tags
+        tags = if id in tags, do: List.delete(tags, id), else: [id | tags]
+        {:noreply, put_filter(socket, :tags, tags)}
+    end
   end
 
   def handle_event("filter_kind", %{"kind" => kind}, socket) do
@@ -1752,7 +1757,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   end
 
   def handle_event("start_rename_column", %{"id" => id}, socket) do
-    {:noreply, assign(socket, renaming_column: String.to_integer(id))}
+    {:noreply, assign(socket, renaming_column: Params.id(id))}
   end
 
   def handle_event("cancel_rename_column", _, socket) do
@@ -1811,14 +1816,16 @@ defmodule SlipdockWeb.BoardLive.Show do
   end
 
   def handle_event("move_column", %{"id" => id} = params, socket) do
-    Boards.move_column(socket.assigns.board.id, String.to_integer(id), to_int(params["before"]))
+    if id = Params.id(id),
+      do: Boards.move_column(socket.assigns.board.id, id, to_int(params["before"]))
+
     {:noreply, socket}
   end
 
   ## Events: cards -----------------------------------------------------------
 
   def handle_event("start_add_card", %{"id" => id}, socket) do
-    {:noreply, assign(socket, adding_to: String.to_integer(id))}
+    {:noreply, assign(socket, adding_to: Params.id(id))}
   end
 
   # The file picker is about to open: remember which list it was opened from,
@@ -1915,7 +1922,7 @@ defmodule SlipdockWeb.BoardLive.Show do
         {:noreply, socket}
 
       {:page, page_id} ->
-        move_placed_page(socket, page_id, String.to_integer(to), params["before"])
+        move_placed_page(socket, page_id, Params.id(to), params["before"])
 
       nil ->
         {:noreply, socket}
@@ -2033,9 +2040,12 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   def handle_event("open_move_board", %{"id" => id}, socket) do
     user = socket.assigns.current_user
-    card = Boards.get_card!(String.to_integer(id))
+    card = Boards.get_card(Params.id(id))
 
     cond do
+      is_nil(card) ->
+        {:noreply, socket}
+
       not Access.can_write?(Access.card_permission(user, card)) ->
         {:noreply, put_flash(socket, :error, "You have read-only access to that card.")}
 
@@ -2161,10 +2171,13 @@ defmodule SlipdockWeb.BoardLive.Show do
   end
 
   def handle_event("open_sprint_picker", %{"id" => id}, socket) do
-    card = Boards.get_card!(String.to_integer(id))
+    card = Boards.get_card(Params.id(id))
     user = socket.assigns.current_user
 
     cond do
+      is_nil(card) ->
+        {:noreply, socket}
+
       not Access.can_write?(Access.card_permission(user, card)) ->
         {:noreply, put_flash(socket, :error, "You have read-only access to that sprint.")}
 
@@ -2447,7 +2460,7 @@ defmodule SlipdockWeb.BoardLive.Show do
 
     with {:ok, params} <- scope_assignees(params, card, socket.assigns.current_user) do
       with %{"column_id" => col} when col != "" <- params,
-           new_col when new_col != card.column_id <- String.to_integer(col) do
+           new_col when is_integer(new_col) and new_col != card.column_id <- Params.id(col) do
         Boards.move_card(card.id, new_col, nil)
       end
 
@@ -2651,7 +2664,7 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   def handle_event("delete_status_update", %{"id" => id}, socket) do
     if Enum.any?(subject(socket).status_updates, &(to_string(&1.id) == to_string(id))) do
-      {:ok, _} = Boards.delete_status_update(String.to_integer(id))
+      {:ok, _} = Boards.delete_status_update(Params.id(id))
       {:noreply, reload_subject(socket)}
     else
       {:noreply, socket}
@@ -2945,8 +2958,11 @@ defmodule SlipdockWeb.BoardLive.Show do
         {:noreply, socket}
 
       subject ->
-        case Votes.set(subject, socket.assigns.current_user, String.to_integer(to_string(count))) do
-          {:ok, _} -> {:noreply, reload_subject(socket)}
+        with count when is_integer(count) <- Params.int(count),
+             {:ok, _} <- Votes.set(subject, socket.assigns.current_user, count) do
+          {:noreply, reload_subject(socket)}
+        else
+          nil -> {:noreply, socket}
           {:error, message} -> {:noreply, put_flash(socket, :error, message)}
         end
     end
@@ -3085,7 +3101,7 @@ defmodule SlipdockWeb.BoardLive.Show do
       {:ok, item} when item.board_id == socket.assigns.board.id ->
         case field do
           "column_id" ->
-            move_in_list(item, String.to_integer(value), nil)
+            if column_id = Params.id(value), do: move_in_list(item, column_id, nil)
 
           _ ->
             update_item(item, %{field => if(value == "", do: nil, else: value)})
@@ -3125,8 +3141,11 @@ defmodule SlipdockWeb.BoardLive.Show do
 
     case readable_item(socket, id) do
       {:ok, item} ->
-        case Votes.set(item, user, String.to_integer(to_string(count))) do
-          {:ok, _} -> {:noreply, socket}
+        with count when is_integer(count) <- Params.int(count),
+             {:ok, _} <- Votes.set(item, user, count) do
+          {:noreply, socket}
+        else
+          nil -> {:noreply, socket}
           {:error, message} -> {:noreply, put_flash(socket, :error, message)}
         end
 
@@ -3344,7 +3363,8 @@ defmodule SlipdockWeb.BoardLive.Show do
     user = socket.assigns.current_user
 
     with {:ok, kind} <- Favourites.kind(kind),
-         {:ok, _} <- Favourites.toggle(user, kind, String.to_integer(id)) do
+         id when is_integer(id) <- Params.id(id),
+         {:ok, _} <- Favourites.toggle(user, kind, id) do
       {:noreply, assign(socket, favourites: Favourites.marks(user))}
     else
       _ -> {:noreply, socket}

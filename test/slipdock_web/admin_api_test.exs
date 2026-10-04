@@ -150,6 +150,11 @@ defmodule SlipdockWeb.AdminAPITest do
       assert Accounts.get_user_by_email("hopeful@example.com")
     end
 
+    test "a request that isn't there is a 404, not a crash", %{conn: conn} do
+      assert conn |> post(~p"/api/admin/signups/999999/approve") |> json_response(404)
+      assert conn |> post(~p"/api/admin/signups/nope/approve") |> json_response(404)
+    end
+
     test "rejecting", %{conn: conn, request: request} do
       conn = post(conn, ~p"/api/admin/signups/#{request.id}/reject")
 

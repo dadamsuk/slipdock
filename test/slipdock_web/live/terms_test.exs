@@ -32,7 +32,7 @@ defmodule SlipdockWeb.TermsTest do
     :ok
   end
 
-  defp sign_in(conn, user), do: get(conn, ~p"/login/#{Accounts.create_sign_in_token(user)}")
+  defp sign_in(conn, user), do: post(conn, ~p"/login/#{Accounts.create_sign_in_token(user)}")
 
   @tag :anonymous
   test "a server with no terms never mentions them", %{conn: conn} do

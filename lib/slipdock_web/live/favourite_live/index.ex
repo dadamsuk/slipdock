@@ -51,7 +51,8 @@ defmodule SlipdockWeb.FavouriteLive.Index do
   @impl true
   def handle_event("toggle_favourite", %{"kind" => kind, "id" => id}, socket) do
     with {:ok, kind} <- Favourites.kind(kind),
-         {:ok, _} <- Favourites.toggle(socket.assigns.current_user, kind, String.to_integer(id)) do
+         id when is_integer(id) <- SlipdockWeb.Params.id(id),
+         {:ok, _} <- Favourites.toggle(socket.assigns.current_user, kind, id) do
       {:noreply, load(socket)}
     else
       _ -> {:noreply, socket}

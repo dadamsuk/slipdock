@@ -246,4 +246,24 @@ defmodule SlipdockWeb.UsersLiveTest do
       refute html =~ "Requests"
     end
   end
+
+  describe "ids that name nobody" do
+    test "a stale or hand-made id is a flash, not a crashed page", %{conn: conn} do
+      {:ok, view, _} = live(conn, ~p"/users")
+
+      for {event, params} <- [
+            {"promote", %{"id" => "999999"}},
+            {"disable", %{"id" => "not-an-id"}},
+            {"set-limit", %{"user_id" => "999999", "limit" => "5"}},
+            {"confirm-delete", %{"user_id" => "x"}},
+            {"delete", %{"user_id" => "999999", "email" => "a@b.c"}},
+            {"support", %{"user_id" => "999999", "reason" => "why"}},
+            {"end-support", %{"id" => "999999"}},
+            {"approve", %{"id" => "999999"}},
+            {"reject", %{"id" => "abc"}}
+          ] do
+        assert render_click(view, event, params) =~ "isn&#39;t there any more"
+      end
+    end
+  end
 end

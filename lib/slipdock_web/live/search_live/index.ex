@@ -176,7 +176,7 @@ defmodule SlipdockWeb.SearchLive.Index do
   end
 
   def handle_event("unsave", %{"id" => id}, socket) do
-    SavedQueries.delete(socket.assigns.current_user, String.to_integer(id))
+    if id = SlipdockWeb.Params.id(id), do: SavedQueries.delete(socket.assigns.current_user, id)
     {:noreply, load_saved(socket)}
   end
 
@@ -211,7 +211,7 @@ defmodule SlipdockWeb.SearchLive.Index do
     do: {:noreply, socket |> assign(board_id: nil) |> rerun()}
 
   def handle_event("set_board", %{"board" => id}, socket),
-    do: {:noreply, socket |> assign(board_id: String.to_integer(id)) |> rerun()}
+    do: {:noreply, socket |> assign(board_id: SlipdockWeb.Params.id(id)) |> rerun()}
 
   ## Running ------------------------------------------------------------------
 

@@ -59,6 +59,43 @@ defmodule SlipdockWeb.TimeTrackingTest do
     assert Enum.any?(messages, &(&1 =~ "logged 0.75h"))
   end
 
+  test "two stops of one running timer count its minutes once", %{board: board, card: card} do
+    {:ok, card} = Boards.start_timer(card)
+
+    {:ok, card} =
+      card
+      |> Ecto.Changeset.change(
+        timer_started_at: DateTime.add(card.timer_started_at, -30 * 60, :second)
+      )
+      |> Slipdock.Repo.update()
+
+    # Both read the card while the timer was running: the API and the board at once.
+    {:ok, first} = Boards.stop_timer(card)
+    {:ok, second} = Boards.stop_timer(card)
+
+    assert first.time_spent == 30
+    assert second.time_spent == 30
+    assert second.timer_started_at == nil
+
+    logged =
+      board.id |> Boards.list_activities() |> Enum.count(&(&1.message =~ "with the timer"))
+
+    assert logged == 1
+  end
+
+  test "time values have a ceiling instead of overflowing the column", %{card: card} do
+    assert {:error, cs} = Boards.update_card(card, %{"log_time" => "999999mo"})
+    assert cs.errors[:time_spent]
+
+    assert {:error, cs} =
+             Boards.update_card(card, %{"time_estimate" => String.duplicate("9", 306) <> "mo"})
+
+    assert cs.errors[:time_estimate]
+
+    assert {:ok, card} = Boards.update_card(card, %{"time_estimate" => "1000000h"})
+    assert card.time_estimate == Slipdock.TimeTracking.max_minutes()
+  end
+
   test "the API reads and writes it, logs time and runs the timer", %{conn: conn, card: card} do
     conn = put_req_header(conn, "accept", "application/json")
 

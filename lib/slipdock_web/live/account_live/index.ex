@@ -293,11 +293,15 @@ defmodule SlipdockWeb.AccountLive.Index do
 
   @impl true
   def handle_event("pick_board", %{"id" => id}, socket) do
-    id = String.to_integer(id)
-    picked = socket.assigns.picked_boards
+    case SlipdockWeb.Params.id(id) do
+      nil ->
+        {:noreply, socket}
 
-    picked = if id in picked, do: List.delete(picked, id), else: [id | picked]
-    {:noreply, assign(socket, picked_boards: picked)}
+      id ->
+        picked = socket.assigns.picked_boards
+        picked = if id in picked, do: List.delete(picked, id), else: [id | picked]
+        {:noreply, assign(socket, picked_boards: picked)}
+    end
   end
 
   def handle_event("pick_all_boards", _params, socket),
@@ -437,7 +441,9 @@ defmodule SlipdockWeb.AccountLive.Index do
   end
 
   def handle_event("delete_token", %{"id" => id}, socket) do
-    :ok = Accounts.delete_api_token(socket.assigns.current_user, String.to_integer(id))
+    if id = SlipdockWeb.Params.id(id),
+      do: :ok = Accounts.delete_api_token(socket.assigns.current_user, id)
+
     {:noreply, socket |> assign(new_token: nil) |> load_tokens()}
   end
 

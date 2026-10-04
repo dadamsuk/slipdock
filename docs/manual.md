@@ -1845,8 +1845,10 @@ and press it instead of "Email me a sign-in link": the server mints the same
 one-time link but writes it to a fresh, randomly named file
 (`slipdock-agentic-login/slipdock-agentic-login-<random>.txt` under the system temp dir by default, readable only by the account running the server) and shows that filename
 on the page. An agent with shell access to the server then reads the file and
-opens the link it contains. The link works once and expires in 15 minutes, as
-usual; the file is left behind for the agent to delete.
+opens the link it contains in its browser, then presses **Sign in**. Opening any
+sign-in link only shows that button — signing in is the POST it makes, so a mail
+scanner that prefetches links cannot use one up. The link works once and expires
+in 15 minutes, as usual; the file is left behind for the agent to delete.
 
 It is on in `dev` and `test`. In production it is off unless the server runs
 with `SLIPDOCK_AGENTIC_LOGIN=true` (and optionally `SLIPDOCK_AGENTIC_LOGIN_DIR`

@@ -24,7 +24,13 @@ defmodule SlipdockWeb.AuthLiveTest do
 
     assert_email_sent(fn email ->
       [token] = Regex.run(~r{/login/([\w-]+)}, email.text_body, capture: :all_but_first)
-      conn = get(conn, ~p"/login/#{token}")
+      # Opening the link only asks; it uses nothing up.
+      page = conn |> get(~p"/login/#{token}") |> html_response(200)
+      assert page =~ ~s(action="/login/#{token}")
+      assert page =~ ~s(method="post")
+      refute Accounts.get_user_by_email("visitor@example.com").confirmed_at
+
+      conn = post(conn, ~p"/login/#{token}")
       assert redirected_to(conn) == "/"
       assert get_session(conn, :user_token)
       assert Accounts.get_user_by_email("visitor@example.com").confirmed_at
@@ -35,6 +41,7 @@ defmodule SlipdockWeb.AuthLiveTest do
 
       # Used links no longer work.
       assert conn |> recycle() |> get(~p"/login/#{token}") |> redirected_to() == "/login"
+      assert conn |> recycle() |> post(~p"/login/#{token}") |> redirected_to() == "/login"
     end)
 
     assert conn |> get(~p"/login/bogus") |> redirected_to() == "/login"
@@ -69,7 +76,7 @@ defmodule SlipdockWeb.AuthLiveTest do
     [token] = Regex.run(~r{/login/([\w-]+)$}, link, capture: :all_but_first)
     assert link == url(~p"/login/#{token}")
 
-    conn = get(conn, ~p"/login/#{token}")
+    conn = post(conn, ~p"/login/#{token}")
     assert redirected_to(conn) == "/"
     assert get_session(conn, :user_token)
     assert Accounts.get_user_by_email("agent@example.com").confirmed_at

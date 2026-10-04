@@ -48,17 +48,17 @@ defmodule SlipdockWeb.TemplateLive.Index do
 
     {:noreply,
      assign(socket,
-       editing: %{editing | columns: List.delete_at(editing.columns, String.to_integer(i))}
+       editing: %{editing | columns: delete_column(editing.columns, SlipdockWeb.Params.int(i))}
      )}
   end
 
   def handle_event("move_column", %{"index" => i, "dir" => dir} = params, socket) do
     editing = editing_from_params(socket.assigns.editing, params)
-    i = String.to_integer(i)
+    i = SlipdockWeb.Params.int(i) || -1
     j = if dir == "up", do: i - 1, else: i + 1
 
     columns =
-      if j >= 0 and j < length(editing.columns) do
+      if i >= 0 and j >= 0 and j < length(editing.columns) do
         {col, rest} = List.pop_at(editing.columns, i)
         List.insert_at(rest, j, col)
       else
@@ -110,6 +110,11 @@ defmodule SlipdockWeb.TemplateLive.Index do
   end
 
   # Keeps whatever is typed in the form when rows are added, removed or moved.
+  # An index that isn't one, or is past the end, removes nothing — a negative
+  # one would otherwise count back from the end.
+  defp delete_column(columns, i) when is_integer(i) and i >= 0, do: List.delete_at(columns, i)
+  defp delete_column(columns, _), do: columns
+
   defp editing_from_params(editing, params) do
     columns =
       case params["columns"] do
@@ -118,7 +123,7 @@ defmodule SlipdockWeb.TemplateLive.Index do
 
         cols ->
           cols
-          |> Enum.sort_by(fn {k, _} -> String.to_integer(k) end)
+          |> Enum.sort_by(fn {k, _} -> SlipdockWeb.Params.int(k) || 0 end)
           |> Enum.map(fn {_, v} -> stringify(v) end)
       end
 

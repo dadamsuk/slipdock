@@ -23,12 +23,20 @@ defmodule Slipdock.TimeTracking do
   ]
 
   @unit_keys Enum.map(@units, &elem(&1, 0))
+
+  # The most time a card can record, in minutes: a million hours. Far past any
+  # real estimate, and well inside the 32-bit column, so adding to it cannot
+  # overflow.
+  @max_minutes 1_000_000 * 60
   @default_unit "hours"
 
   @doc "The units as `{key, label}`, smallest first."
   def units, do: Enum.map(@units, fn {key, label, _, _} -> {key, label} end)
 
   def unit_keys, do: @unit_keys
+
+  @doc "The most minutes a card's time spent or estimate can hold."
+  def max_minutes, do: @max_minutes
   def default_unit, do: @default_unit
 
   @doc "Minutes in one of `unit`."
@@ -70,7 +78,7 @@ defmodule Slipdock.TimeTracking do
           Enum.reduce_while(parts, {:ok, 0}, fn [_, number, suffix], {:ok, acc} ->
             with {:ok, u} <- unit_for(suffix, unit),
                  {n, ""} <- Float.parse(leading_zero(number)) do
-              {:cont, {:ok, acc + n * minutes_per(u)}}
+              {:cont, {:ok, acc + bounded(n) * minutes_per(u)}}
             else
               _ -> {:halt, :error}
             end
@@ -91,7 +99,12 @@ defmodule Slipdock.TimeTracking do
   defp leading_zero(n), do: n
 
   defp from_number(n, _unit) when n < 0, do: :error
-  defp from_number(n, unit), do: {:ok, round(n * minutes_per(unit))}
+  defp from_number(n, unit), do: {:ok, round(bounded(n) * minutes_per(unit))}
+
+  # Anything past the limit is held just past it before multiplying, so an
+  # absurd number is refused by the changeset as too large instead of
+  # overflowing the float arithmetic.
+  defp bounded(n), do: min(n, @max_minutes + 1)
 
   defp unit_for("", unit), do: {:ok, unit}
 
