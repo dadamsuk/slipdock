@@ -260,6 +260,15 @@ SLIPDOCK_URL_PORT=443
 SLIPDOCK_PUBLISH=127.0.0.1:4000   # only the proxy needs to reach it
 ```
 
+The visitor's own address, which the sign-in limits and the API token audit
+use, is taken from `X-Forwarded-For` — but only when the request arrives from
+a trusted proxy: by default loopback and the private ranges, which covers a
+proxy on the same host or in the same Docker network. If yours connects from
+a public address (Cloudflare proxying straight to the origin, say), list its
+ranges in `SLIPDOCK_TRUSTED_PROXIES`, comma-separated; otherwise everybody
+appears to come from the proxy and shares one sign-in limit. `none` trusts
+nobody.
+
 If people reach the server by more than one name, list the others in
 `SLIPDOCK_CHECK_ORIGIN` — live updates are refused for names you did not
 mention, which looks like a page that loads but never changes.

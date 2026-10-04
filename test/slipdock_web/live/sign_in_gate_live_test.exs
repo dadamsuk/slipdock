@@ -114,6 +114,79 @@ defmodule SlipdockWeb.SignInGateLiveTest do
     end
   end
 
+  describe "typing a code counts apart from asking for links" do
+    defp peer(conn, address),
+      do: Plug.Test.put_peer_data(conn, %{address: address, port: 4711, ssl_cert: nil})
+
+    defp latest_code(email) do
+      import Ecto.Query
+
+      Slipdock.Repo.one!(
+        from(t in Slipdock.Accounts.UserToken,
+          where: t.context == "magic" and t.sent_to == ^email,
+          order_by: [desc: t.id],
+          limit: 1
+        )
+      ).code
+    end
+
+    @tag :anonymous
+    test "a stranger flooding your address cannot stop you entering your code", %{conn: conn} do
+      user_fixture("owner@example.com")
+      Application.put_env(:slipdock, :rate_limit, enabled: true)
+      RateLimit.reset()
+
+      {:ok, mine, _} = live(peer(conn, {198, 51, 100, 7}), ~p"/login")
+
+      mine
+      |> form("#login-form", %{"login" => %{"email" => "owner@example.com"}})
+      |> render_submit()
+
+      code = latest_code("owner@example.com")
+
+      flood =
+        for _ <- 1..5 do
+          {:ok, view, _} = live(peer(conn, {203, 0, 113, 9}), ~p"/login")
+
+          view
+          |> form("#login-form", %{"login" => %{"email" => "owner@example.com"}})
+          |> render_submit()
+        end
+
+      # Sending is still capped per address, which is what stops this server
+      # being used to mail somebody...
+      assert List.last(flood) =~ "Too many sign-in attempts"
+
+      # ...but entering a code is not on that counter.
+      assert {:error, {:redirect, %{to: "/login/" <> _}}} =
+               mine
+               |> form("#login-code-form", %{"login" => %{"code" => code}})
+               |> render_submit()
+    end
+
+    @tag :anonymous
+    test "a forwarded header from an untrusted peer is not a fresh address", %{conn: conn} do
+      Application.put_env(:slipdock, :rate_limit, enabled: true)
+      RateLimit.reset()
+
+      html =
+        Enum.reduce(1..21, nil, fn n, _acc ->
+          conn =
+            conn
+            |> peer({203, 0, 113, 9})
+            |> put_req_header("x-forwarded-for", "192.0.2.#{n}")
+
+          {:ok, view, _} = live(conn, ~p"/login")
+
+          view
+          |> form("#login-form", %{"login" => %{"email" => "person#{n}@example.com"}})
+          |> render_submit()
+        end)
+
+      assert html =~ "Too many sign-in attempts"
+    end
+  end
+
   describe "headers" do
     @tag :anonymous
     test "every browser page carries the policy, and it forbids inline script", %{conn: conn} do

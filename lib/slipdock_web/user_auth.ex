@@ -58,7 +58,7 @@ defmodule SlipdockWeb.UserAuth do
   def maybe_fetch_api_user(conn, _opts) do
     with ["Bearer " <> token] <- get_req_header(conn, "authorization"),
          {%Accounts.User{} = user, api_token} <-
-           Accounts.get_api_token(String.trim(token), ip: peer_ip(conn)) do
+           Accounts.get_api_token(String.trim(token), ip: SlipdockWeb.ClientIP.from_conn(conn)) do
       conn |> assign(:current_user, user) |> assign(:api_token, api_token)
     else
       _ -> conn |> assign(:current_user, nil) |> assign(:api_token, nil)
@@ -69,7 +69,7 @@ defmodule SlipdockWeb.UserAuth do
   def fetch_api_user(conn, _opts) do
     with ["Bearer " <> token] <- get_req_header(conn, "authorization"),
          {%Accounts.User{} = user, api_token} <-
-           Accounts.get_api_token(String.trim(token), ip: peer_ip(conn)) do
+           Accounts.get_api_token(String.trim(token), ip: SlipdockWeb.ClientIP.from_conn(conn)) do
       conn |> assign(:current_user, user) |> assign(:api_token, api_token)
     else
       _ ->
@@ -111,16 +111,6 @@ defmodule SlipdockWeb.UserAuth do
       |> halt()
     else
       conn
-    end
-  end
-
-  # The address the request came from, for the token's audit trail. Behind a
-  # proxy `remote_ip` is the proxy, which is why a forwarded header wins when
-  # one is present.
-  defp peer_ip(conn) do
-    case get_req_header(conn, "x-forwarded-for") do
-      [value | _] -> value |> String.split(",") |> List.first() |> String.trim()
-      [] -> conn.remote_ip |> :inet.ntoa() |> to_string()
     end
   end
 

@@ -267,6 +267,23 @@ case System.get_env("SLIPDOCK_EGRESS_ALLOW") do
       allow: list |> String.split(",", trim: true) |> Enum.map(&String.trim/1)
 end
 
+# Which peers may tell us the visitor's address in X-Forwarded-For (see
+# `SlipdockWeb.ClientIP`). Unset: loopback and the private ranges, which fits a
+# proxy on this host or in the same Docker network. A comma-separated list of
+# CIDRs replaces that; "none" believes nobody and uses the peer address as-is.
+case System.get_env("SLIPDOCK_TRUSTED_PROXIES") do
+  nil ->
+    :ok
+
+  "none" ->
+    config :slipdock, :trusted_proxies, []
+
+  list ->
+    config :slipdock,
+           :trusted_proxies,
+           list |> String.split(",", trim: true) |> Enum.map(&String.trim/1)
+end
+
 # The default endpoint everyone falls back to. Point it at a local model
 # server to make this instance local-first; anyone can still override it for
 # themselves under Account → AI model.

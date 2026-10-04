@@ -31,7 +31,9 @@ defmodule Slipdock.NothingPersonalTest do
     # Written by the test runs themselves.
     "mix.lock",
     # The egress guard's own tests: private addresses are what it refuses.
-    "test/slipdock/egress_test.exs"
+    "test/slipdock/egress_test.exs",
+    # The default trusted proxies: the private ranges, by name.
+    "lib/slipdock_web/client_ip.ex"
   ]
 
   test "no file in this repository carries anything personal" do

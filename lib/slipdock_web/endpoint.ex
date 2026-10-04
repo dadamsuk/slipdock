@@ -12,9 +12,12 @@ defmodule SlipdockWeb.Endpoint do
     max_age: 60 * 60 * 24 * 30
   ]
 
+  # The peer and the X- headers are for `SlipdockWeb.ClientIP`: the sign-in
+  # page rate-limits by the visitor's address, which a connected LiveView
+  # otherwise cannot see.
   socket "/live", Phoenix.LiveView.Socket,
-    websocket: [connect_info: [session: @session_options]],
-    longpoll: [connect_info: [session: @session_options]]
+    websocket: [connect_info: [:peer_data, :x_headers, session: @session_options]],
+    longpoll: [connect_info: [:peer_data, :x_headers, session: @session_options]]
 
   # Serve at "/" the static files from "priv/static" directory.
   #

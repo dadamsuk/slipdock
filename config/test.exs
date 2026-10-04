@@ -70,6 +70,11 @@ config :slipdock, :ai,
 # than five times; the limiter has its own test, which turns it on.
 config :slipdock, :rate_limit, enabled: false
 
+# Sign-in emails go out from a task in production (see
+# `Slipdock.Accounts.deliver_magic_link_later/2`); inline here, so a test can
+# assert on the email straight after submitting the form.
+config :slipdock, :sign_in_mail, async: false
+
 # ...and they sign in brand-new addresses constantly, so sign-up is open here,
 # and this instance counts as already set up so the wizard does not intercept
 # every request. Tests about registration or the wizard override these per test.

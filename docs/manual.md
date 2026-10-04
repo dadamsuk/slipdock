@@ -1756,12 +1756,20 @@ forbids it in a way the application cannot undo. Set that on anything other
 people can reach.
 
 A refused address is told exactly what an accepted one is told — "if that
-address can sign in here, a link is on its way" — so the page cannot be used to
-find out who has an account. The sign-in form is also rate limited (five
-attempts an hour per address, twenty per IP; `config :slipdock, :rate_limit,
-enabled: false` turns that off), so nobody can use this server to mail
-strangers. Both limits count in memory on this node and are forgotten on
-restart.
+address can sign in here, a link is on its way" — and in the same time, because
+the email is sent in the background, so the page cannot be used to find out who
+has an account. Asking for links is rate limited (five an hour per address,
+twenty per IP; `config :slipdock, :rate_limit, enabled: false` turns that off),
+so nobody can use this server to mail strangers. Typing a code counts
+separately, per IP and address, so somebody flooding your address with link
+requests cannot also stop you entering the code you were sent. All of these
+count in memory on this node and are forgotten on restart.
+
+"Per IP" means the visitor's address. Behind a reverse proxy that comes from
+`X-Forwarded-For`, believed only from a trusted proxy — loopback and the private
+ranges by default, or the CIDRs in `SLIPDOCK_TRUSTED_PROXIES` (`none` trusts
+nobody). A proxy connecting from a public address has to be listed there, or
+every visitor shares its address and its limit.
 
 Browser responses carry a Content-Security-Policy that allows script from this
 origin only — see `SlipdockWeb.Plugs.ContentSecurityPolicy`, which explains each
