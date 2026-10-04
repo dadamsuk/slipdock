@@ -12,6 +12,8 @@ defmodule SlipdockWeb.BoardLive.Show do
   import SlipdockWeb.PrioritiseComponents
   import SlipdockWeb.ShareComponents
   import SlipdockWeb.SprintChartComponents
+  import SlipdockWeb.BoardLive.Paths
+  import SlipdockWeb.BoardLive.Helpers
 
   alias Slipdock.{
     Access,
@@ -29,7 +31,6 @@ defmodule SlipdockWeb.BoardLive.Show do
     Wiki
   }
 
-  alias Slipdock.Automations.{Callback, Presets, Rule}
   alias Slipdock.Prioritise
 
   alias Slipdock.Boards.Owned
@@ -89,8 +90,7 @@ defmodule SlipdockWeb.BoardLive.Show do
     toggle_favourite)
   # Events that change nothing stored: filters, panels opening and closing,
   # forms being typed into, the keyboard's place on the board.
-  @read_events ~w(rule_change pick_rule_preset rule_preset_change cancel_rule_preset use_example
-    edit_rule cancel_edit_rule search filter_tag filter_kind filter_priority filter_flag filter_due
+  @read_events ~w(search filter_tag filter_kind filter_priority filter_flag filter_due
     toggle_hide_completed clear_filters start_add_column cancel_add_column start_rename_column
     cancel_rename_column close_column start_add_card aim_document cancel_add_card
     quick_add_change open_card open_page close_page close_move_board close_new_sprint
@@ -102,14 +102,12 @@ defmodule SlipdockWeb.BoardLive.Show do
   # Images pasted into the description or a comment, and files attached explicitly.
   @image_uploads [:desc_image, :comment_image]
   @uploads [:attachment | @image_uploads]
-  # How many of the board's recent callbacks the Automations panel lists.
-  @callbacks_shown 20
 
   @image_accept ~w(.png .jpg .jpeg .gif .webp image/png image/jpeg image/gif image/webp)
   # Events only the board owner may perform.
   @owner_events ~w(save_board set_board_color delete_board save_as_template add_milestone delete_milestone
     swim_publish_view swim_unpublish_view add_field delete_field install_preset toggle_field_sum
-    create_rule create_rule_preset toggle_rule delete_rule run_rule archive_board unarchive_board)
+    archive_board unarchive_board)
 
   @known_events @owner_events ++
                   @board_write_events ++
@@ -235,14 +233,9 @@ defmodule SlipdockWeb.BoardLive.Show do
       sprint_charts: nil,
       sprint_of: Sprints.sprint_of_board(board),
       favourites: Favourites.marks(socket.assigns.current_user),
+      # The count beside Automations in the menu; the panel itself is
+      # `BoardLive.AutomationsComponent`, which keeps this up to date.
       rules: [],
-      rule_text: "",
-      rule_error: nil,
-      rule_busy: false,
-      editing_rule: nil,
-      rule_preset: nil,
-      rule_preset_params: %{},
-      rule_preset_error: nil,
       ai?: Slipdock.AI.configured?(socket.assigns.current_user)
     )
     |> assign_columns()
@@ -538,14 +531,6 @@ defmodule SlipdockWeb.BoardLive.Show do
     end
   end
 
-  defp changeset_message(%Ecto.Changeset{} = changeset) do
-    changeset
-    |> Ecto.Changeset.traverse_errors(fn {msg, _opts} -> msg end)
-    |> Enum.map_join("; ", fn {field, messages} ->
-      "#{Phoenix.Naming.humanize(field)} #{Enum.join(messages, ", ")}"
-    end)
-  end
-
   # The thing the panel's *contents* events act on: the open page when a page
   # panel is up, the open card otherwise. The sections in
   # `SlipdockWeb.ItemComponents` draw either, so the handlers behind them take
@@ -587,24 +572,6 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   defp page_panel_path(socket, id),
     do: append_query(socket.assigns.paths.close, page: id)
-
-  # The close path already carries the view's own query, so the page id is
-  # appended rather than replacing it.
-  defp append_query(path, extra) do
-    case String.split(path, "?", parts: 2) do
-      [base] ->
-        base <> "?" <> URI.encode_query(extra)
-
-      [base, query] ->
-        base <>
-          "?" <>
-          URI.encode_query(
-            URI.decode_query(query)
-            |> Map.merge(Map.new(extra, fn {k, v} -> {to_string(k), to_string(v)} end))
-          )
-    end
-  end
-
   @impl true
   def handle_params(params, _uri, socket) do
     {mode, panel} = split_action(socket.assigns.live_action)
@@ -670,65 +637,6 @@ defmodule SlipdockWeb.BoardLive.Show do
     end
   end
 
-  # Every route is a (mode, panel) pair: the mode is the main view (board or
-  # swimlanes) and the panel is the modal open on top of it, if any.
-  defp split_action(:show), do: {:board, nil}
-  defp split_action(:card), do: {:board, :card}
-  defp split_action(:tags), do: {:board, :tags}
-  defp split_action(:activity), do: {:board, :activity}
-  defp split_action(:archive), do: {:board, :archive}
-  defp split_action(:settings), do: {:board, :settings}
-  defp split_action(:automations), do: {:board, :automations}
-  defp split_action(:swimlanes), do: {:swimlanes, nil}
-  defp split_action(:swimlanes_card), do: {:swimlanes, :card}
-  defp split_action(:swimlanes_tags), do: {:swimlanes, :tags}
-  defp split_action(:swimlanes_activity), do: {:swimlanes, :activity}
-  defp split_action(:swimlanes_archive), do: {:swimlanes, :archive}
-  defp split_action(:swimlanes_settings), do: {:swimlanes, :settings}
-  defp split_action(:swimlanes_automations), do: {:swimlanes, :automations}
-  defp split_action(:table), do: {:table, nil}
-  defp split_action(:table_card), do: {:table, :card}
-  defp split_action(:table_tags), do: {:table, :tags}
-  defp split_action(:table_activity), do: {:table, :activity}
-  defp split_action(:table_archive), do: {:table, :archive}
-  defp split_action(:table_settings), do: {:table, :settings}
-  defp split_action(:table_automations), do: {:table, :automations}
-  defp split_action(:timeline), do: {:timeline, nil}
-  defp split_action(:timeline_card), do: {:timeline, :card}
-  defp split_action(:timeline_tags), do: {:timeline, :tags}
-  defp split_action(:timeline_activity), do: {:timeline, :activity}
-  defp split_action(:timeline_archive), do: {:timeline, :archive}
-  defp split_action(:timeline_settings), do: {:timeline, :settings}
-  defp split_action(:timeline_automations), do: {:timeline, :automations}
-  defp split_action(:calendar), do: {:calendar, nil}
-  defp split_action(:calendar_card), do: {:calendar, :card}
-  defp split_action(:calendar_tags), do: {:calendar, :tags}
-  defp split_action(:calendar_activity), do: {:calendar, :activity}
-  defp split_action(:calendar_archive), do: {:calendar, :archive}
-  defp split_action(:calendar_settings), do: {:calendar, :settings}
-  defp split_action(:calendar_automations), do: {:calendar, :automations}
-  defp split_action(:outline), do: {:outline, nil}
-  defp split_action(:outline_card), do: {:outline, :card}
-  defp split_action(:outline_tags), do: {:outline, :tags}
-  defp split_action(:outline_activity), do: {:outline, :activity}
-  defp split_action(:outline_archive), do: {:outline, :archive}
-  defp split_action(:outline_settings), do: {:outline, :settings}
-  defp split_action(:outline_automations), do: {:outline, :automations}
-  defp split_action(:narrative), do: {:narrative, nil}
-  defp split_action(:narrative_card), do: {:narrative, :card}
-  defp split_action(:narrative_tags), do: {:narrative, :tags}
-  defp split_action(:narrative_activity), do: {:narrative, :activity}
-  defp split_action(:narrative_archive), do: {:narrative, :archive}
-  defp split_action(:narrative_settings), do: {:narrative, :settings}
-  defp split_action(:narrative_automations), do: {:narrative, :automations}
-  defp split_action(:prioritise), do: {:prioritise, nil}
-  defp split_action(:prioritise_card), do: {:prioritise, :card}
-  defp split_action(:prioritise_tags), do: {:prioritise, :tags}
-  defp split_action(:prioritise_activity), do: {:prioritise, :activity}
-  defp split_action(:prioritise_archive), do: {:prioritise, :archive}
-  defp split_action(:prioritise_settings), do: {:prioritise, :settings}
-  defp split_action(:prioritise_automations), do: {:prioritise, :automations}
-
   defp apply_panel(%{assigns: %{card_only: true}} = socket, nil, _),
     do: push_navigate(socket, to: ~p"/")
 
@@ -771,19 +679,7 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   defp apply_panel(socket, :tags, _), do: assign(socket, tag_form: new_tag_form())
 
-  defp apply_panel(socket, :automations, _) do
-    assign(socket,
-      rules: Automations.list_rules(socket.assigns.board.id),
-      callbacks: Automations.list_callbacks(socket.assigns.board.id, @callbacks_shown),
-      rule_text: "",
-      rule_error: nil,
-      rule_busy: false,
-      editing_rule: nil,
-      rule_preset: nil,
-      rule_preset_params: %{},
-      rule_preset_error: nil
-    )
-  end
+  defp apply_panel(socket, :automations, _), do: socket
 
   defp apply_panel(socket, :settings, _) do
     %{board: board, can_manage: can_manage} = socket.assigns
@@ -808,175 +704,6 @@ defmodule SlipdockWeb.BoardLive.Show do
     paths = if assigns[:card_only], do: %{paths | close: ~p"/"}, else: paths
     assign(socket, paths: paths)
   end
-
-  defp panel_path(%{mode: :board, board: b, swim_query: q}, :close), do: ~p"/boards/#{b}?#{q}"
-  defp panel_path(%{mode: :board, board: b, swim_query: q}, :tags), do: ~p"/boards/#{b}/tags?#{q}"
-
-  defp panel_path(%{mode: :board, board: b, swim_query: q}, :activity),
-    do: ~p"/boards/#{b}/activity?#{q}"
-
-  defp panel_path(%{mode: :board, board: b, swim_query: q}, :archive),
-    do: ~p"/boards/#{b}/archive?#{q}"
-
-  defp panel_path(%{mode: :board, board: b, swim_query: q}, :settings),
-    do: ~p"/boards/#{b}/settings?#{q}"
-
-  defp panel_path(%{mode: :board, board: b, swim_query: q}, :automations),
-    do: ~p"/boards/#{b}/automations?#{q}"
-
-  defp panel_path(%{mode: :swimlanes, board: b, swim_query: q}, :close),
-    do: ~p"/boards/#{b}/swimlanes?#{q}"
-
-  defp panel_path(%{mode: :swimlanes, board: b, swim_query: q}, :tags),
-    do: ~p"/boards/#{b}/swimlanes/tags?#{q}"
-
-  defp panel_path(%{mode: :swimlanes, board: b, swim_query: q}, :activity),
-    do: ~p"/boards/#{b}/swimlanes/activity?#{q}"
-
-  defp panel_path(%{mode: :swimlanes, board: b, swim_query: q}, :archive),
-    do: ~p"/boards/#{b}/swimlanes/archive?#{q}"
-
-  defp panel_path(%{mode: :swimlanes, board: b, swim_query: q}, :settings),
-    do: ~p"/boards/#{b}/swimlanes/settings?#{q}"
-
-  defp panel_path(%{mode: :swimlanes, board: b, swim_query: q}, :automations),
-    do: ~p"/boards/#{b}/swimlanes/automations?#{q}"
-
-  defp panel_path(%{mode: :table, board: b, swim_query: q}, :close),
-    do: ~p"/boards/#{b}/table?#{q}"
-
-  defp panel_path(%{mode: :table, board: b, swim_query: q}, :tags),
-    do: ~p"/boards/#{b}/table/tags?#{q}"
-
-  defp panel_path(%{mode: :table, board: b, swim_query: q}, :activity),
-    do: ~p"/boards/#{b}/table/activity?#{q}"
-
-  defp panel_path(%{mode: :table, board: b, swim_query: q}, :archive),
-    do: ~p"/boards/#{b}/table/archive?#{q}"
-
-  defp panel_path(%{mode: :table, board: b, swim_query: q}, :settings),
-    do: ~p"/boards/#{b}/table/settings?#{q}"
-
-  defp panel_path(%{mode: :table, board: b, swim_query: q}, :automations),
-    do: ~p"/boards/#{b}/table/automations?#{q}"
-
-  defp panel_path(%{mode: :timeline, board: b, swim_query: q}, :close),
-    do: ~p"/boards/#{b}/timeline?#{q}"
-
-  defp panel_path(%{mode: :timeline, board: b, swim_query: q}, :tags),
-    do: ~p"/boards/#{b}/timeline/tags?#{q}"
-
-  defp panel_path(%{mode: :timeline, board: b, swim_query: q}, :activity),
-    do: ~p"/boards/#{b}/timeline/activity?#{q}"
-
-  defp panel_path(%{mode: :timeline, board: b, swim_query: q}, :archive),
-    do: ~p"/boards/#{b}/timeline/archive?#{q}"
-
-  defp panel_path(%{mode: :timeline, board: b, swim_query: q}, :settings),
-    do: ~p"/boards/#{b}/timeline/settings?#{q}"
-
-  defp panel_path(%{mode: :timeline, board: b, swim_query: q}, :automations),
-    do: ~p"/boards/#{b}/timeline/automations?#{q}"
-
-  defp panel_path(%{mode: :calendar, board: b, swim_query: q}, :close),
-    do: ~p"/boards/#{b}/calendar?#{q}"
-
-  defp panel_path(%{mode: :calendar, board: b, swim_query: q}, :tags),
-    do: ~p"/boards/#{b}/calendar/tags?#{q}"
-
-  defp panel_path(%{mode: :calendar, board: b, swim_query: q}, :activity),
-    do: ~p"/boards/#{b}/calendar/activity?#{q}"
-
-  defp panel_path(%{mode: :calendar, board: b, swim_query: q}, :archive),
-    do: ~p"/boards/#{b}/calendar/archive?#{q}"
-
-  defp panel_path(%{mode: :calendar, board: b, swim_query: q}, :settings),
-    do: ~p"/boards/#{b}/calendar/settings?#{q}"
-
-  defp panel_path(%{mode: :calendar, board: b, swim_query: q}, :automations),
-    do: ~p"/boards/#{b}/calendar/automations?#{q}"
-
-  defp panel_path(%{mode: :outline, board: b, swim_query: q}, :close),
-    do: ~p"/boards/#{b}/outline?#{q}"
-
-  defp panel_path(%{mode: :outline, board: b, swim_query: q}, :tags),
-    do: ~p"/boards/#{b}/outline/tags?#{q}"
-
-  defp panel_path(%{mode: :outline, board: b, swim_query: q}, :activity),
-    do: ~p"/boards/#{b}/outline/activity?#{q}"
-
-  defp panel_path(%{mode: :outline, board: b, swim_query: q}, :archive),
-    do: ~p"/boards/#{b}/outline/archive?#{q}"
-
-  defp panel_path(%{mode: :outline, board: b, swim_query: q}, :settings),
-    do: ~p"/boards/#{b}/outline/settings?#{q}"
-
-  defp panel_path(%{mode: :outline, board: b, swim_query: q}, :automations),
-    do: ~p"/boards/#{b}/outline/automations?#{q}"
-
-  defp panel_path(%{mode: :narrative, board: b, swim_query: q}, :close),
-    do: ~p"/boards/#{b}/narrative?#{q}"
-
-  defp panel_path(%{mode: :narrative, board: b, swim_query: q}, :tags),
-    do: ~p"/boards/#{b}/narrative/tags?#{q}"
-
-  defp panel_path(%{mode: :narrative, board: b, swim_query: q}, :activity),
-    do: ~p"/boards/#{b}/narrative/activity?#{q}"
-
-  defp panel_path(%{mode: :narrative, board: b, swim_query: q}, :archive),
-    do: ~p"/boards/#{b}/narrative/archive?#{q}"
-
-  defp panel_path(%{mode: :narrative, board: b, swim_query: q}, :settings),
-    do: ~p"/boards/#{b}/narrative/settings?#{q}"
-
-  defp panel_path(%{mode: :narrative, board: b, swim_query: q}, :automations),
-    do: ~p"/boards/#{b}/narrative/automations?#{q}"
-
-  defp panel_path(%{mode: :prioritise, board: b, swim_query: q}, :close),
-    do: ~p"/boards/#{b}/prioritise?#{q}"
-
-  defp panel_path(%{mode: :prioritise, board: b, swim_query: q}, :tags),
-    do: ~p"/boards/#{b}/prioritise/tags?#{q}"
-
-  defp panel_path(%{mode: :prioritise, board: b, swim_query: q}, :activity),
-    do: ~p"/boards/#{b}/prioritise/activity?#{q}"
-
-  defp panel_path(%{mode: :prioritise, board: b, swim_query: q}, :archive),
-    do: ~p"/boards/#{b}/prioritise/archive?#{q}"
-
-  defp panel_path(%{mode: :prioritise, board: b, swim_query: q}, :settings),
-    do: ~p"/boards/#{b}/prioritise/settings?#{q}"
-
-  defp panel_path(%{mode: :prioritise, board: b, swim_query: q}, :automations),
-    do: ~p"/boards/#{b}/prioritise/automations?#{q}"
-
-  defp card_path(%{mode: :board, board: b, swim_query: q}, id),
-    do: ~p"/boards/#{b}/cards/#{id}?#{q}"
-
-  defp card_path(%{mode: :swimlanes, board: b, swim_query: q}, id),
-    do: ~p"/boards/#{b}/swimlanes/cards/#{id}?#{q}"
-
-  defp card_path(%{mode: :table, board: b, swim_query: q}, id),
-    do: ~p"/boards/#{b}/table/cards/#{id}?#{q}"
-
-  defp card_path(%{mode: :timeline, board: b, swim_query: q}, id),
-    do: ~p"/boards/#{b}/timeline/cards/#{id}?#{q}"
-
-  defp card_path(%{mode: :calendar, board: b, swim_query: q}, id),
-    do: ~p"/boards/#{b}/calendar/cards/#{id}?#{q}"
-
-  defp card_path(%{mode: :prioritise, board: b, swim_query: q}, id),
-    do: ~p"/boards/#{b}/prioritise/cards/#{id}?#{q}"
-
-  defp card_path(%{mode: :outline, board: b, swim_query: q}, id),
-    do: ~p"/boards/#{b}/outline/cards/#{id}?#{q}"
-
-  defp card_path(%{mode: :narrative, board: b, swim_query: q}, id),
-    do: ~p"/boards/#{b}/narrative/cards/#{id}?#{q}"
-
-  # The base URL of the current mode with a query.
-  defp mode_path(%{board: b} = assigns, query),
-    do: view_mode_path(b, Map.get(assigns, :mode, :swimlanes), query)
 
   ## Swimlane configuration ---------------------------------------------------
 
@@ -1259,9 +986,6 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   defp new_tag_form, do: to_form(Tag.changeset(%Tag{}, %{}))
 
-  defp assign_rules(socket),
-    do: assign(socket, rules: Automations.list_rules(socket.assigns.board.id))
-
   ## Quick add ------------------------------------------------------------------
 
   defp quick_parse(socket, title, target) do
@@ -1351,32 +1075,6 @@ defmodule SlipdockWeb.BoardLive.Show do
     |> Enum.filter(&Swimlanes.matches?(&1, config))
   end
 
-  # The marker the PasteImage hook leaves while an image is still uploading;
-  # never worth keeping if the text is saved before the upload finishes.
-  @upload_placeholder "![Uploading image…]()"
-  defp strip_upload_placeholder(nil), do: nil
-
-  defp strip_upload_placeholder(text),
-    do:
-      text
-      |> String.replace(@upload_placeholder <> "\n", "")
-      |> String.replace(@upload_placeholder, "")
-
-  defp human_size(bytes) when bytes < 1024, do: "#{bytes} B"
-  defp human_size(bytes) when bytes < 1024 * 1024, do: "#{Float.round(bytes / 1024, 1)} KB"
-  defp human_size(bytes), do: "#{Float.round(bytes / (1024 * 1024), 1)} MB"
-
-  defp attachment_icon(%Attachment{} = a) do
-    case Attachment.kind(a) do
-      :pdf -> "hero-document-text"
-      :text -> "hero-document-text"
-      :archive -> "hero-archive-box"
-      :sheet -> "hero-table-cells"
-      :doc -> "hero-document"
-      _ -> "hero-paper-clip"
-    end
-  end
-
   ## PubSub ------------------------------------------------------------------
 
   defp drain_board_changed do
@@ -1430,39 +1128,24 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   # A callback finished: the panel's log, and the rule's own last run, move on.
   def handle_info({:callbacks_changed, _id}, %{assigns: %{panel: :automations}} = socket) do
-    board_id = socket.assigns.board.id
-
-    {:noreply,
-     assign(socket,
-       callbacks: Automations.list_callbacks(board_id, @callbacks_shown),
-       rules: Automations.list_rules(board_id)
-     )}
+    send_update(SlipdockWeb.BoardLive.AutomationsComponent, id: "automations", refresh: true)
+    {:noreply, socket}
   end
+
+  def handle_info({:rules_changed, rules}, socket), do: {:noreply, assign(socket, rules: rules)}
+
+  # A flash raised by one of the board's components (see `Helpers.flash/3`).
+  def handle_info({:put_flash, kind, message}, socket),
+    do: {:noreply, put_flash(socket, kind, message)}
+
+  # A component changed the board in a way the reader should see at once.
+  def handle_info(:reload_board, socket), do: {:noreply, reload_board(socket)}
 
   def handle_info({:templates_changed}, socket) do
     {:noreply, assign(socket, templates: Boards.list_templates())}
   end
 
   def handle_info(_, socket), do: {:noreply, socket}
-
-  ## Async: the model writing an automation rule --------------------------------
-
-  @impl true
-  def handle_async(:rule, {:ok, {:ok, %Rule{} = rule}}, socket) do
-    {:noreply,
-     socket
-     |> assign(rule_busy: false, rule_text: "", editing_rule: nil)
-     |> assign_rules()
-     |> put_flash(:info, "“#{rule.name}”: #{Rule.summary(rule)}")}
-  end
-
-  def handle_async(:rule, {:ok, {:error, message}}, socket),
-    do: {:noreply, assign(socket, rule_busy: false, rule_error: message)}
-
-  def handle_async(:rule, {:exit, reason}, socket) do
-    {:noreply,
-     assign(socket, rule_busy: false, rule_error: "Writing the rule failed: #{inspect(reason)}")}
-  end
 
   ## Filters -----------------------------------------------------------------
 
@@ -1533,138 +1216,6 @@ defmodule SlipdockWeb.BoardLive.Show do
   def handle_event(event, _params, %{assigns: %{item_can_write: false}} = socket)
       when event in @item_write_events do
     {:noreply, put_flash(socket, :error, "You have read-only access to this.")}
-  end
-
-  ## Events: automations ---------------------------------------------------------
-
-  def handle_event("rule_change", %{"text" => text}, socket),
-    do: {:noreply, assign(socket, rule_text: text)}
-
-  # Ready-made rules: pick one, fill in its few fields, add it. No model.
-  def handle_event("pick_rule_preset", %{"key" => key}, socket) do
-    case {socket.assigns.rule_preset, Presets.get(key)} do
-      {^key, _} ->
-        {:noreply, assign(socket, rule_preset: nil, rule_preset_error: nil)}
-
-      {_, nil} ->
-        {:noreply, socket}
-
-      {_, preset} ->
-        {:noreply,
-         assign(socket,
-           rule_preset: key,
-           rule_preset_params: Presets.defaults(preset, socket.assigns.board),
-           rule_preset_error: nil
-         )}
-    end
-  end
-
-  def handle_event("rule_preset_change", %{"preset" => params}, socket),
-    do: {:noreply, assign(socket, rule_preset_params: params)}
-
-  def handle_event("cancel_rule_preset", _params, socket),
-    do: {:noreply, assign(socket, rule_preset: nil, rule_preset_error: nil)}
-
-  def handle_event("create_rule_preset", %{"preset" => params}, socket) do
-    %{board: board, current_user: user, rule_preset: key} = socket.assigns
-
-    case Automations.create_rule_from_preset(board, key, params, created_by: user) do
-      {:ok, rule} ->
-        {:noreply,
-         socket
-         |> assign(rule_preset: nil, rule_preset_params: %{}, rule_preset_error: nil)
-         |> assign_rules()
-         |> put_flash(:info, "“#{rule.name}”: #{Rule.summary(rule)}")}
-
-      {:error, message} ->
-        {:noreply, assign(socket, rule_preset_params: params, rule_preset_error: message)}
-    end
-  end
-
-  def handle_event("use_example", %{"text" => text}, socket),
-    do: {:noreply, assign(socket, rule_text: text, rule_error: nil)}
-
-  def handle_event("edit_rule", %{"id" => id}, socket) do
-    case Enum.find(socket.assigns.rules, &(to_string(&1.id) == id)) do
-      nil ->
-        {:noreply, socket}
-
-      rule ->
-        {:noreply,
-         assign(socket, editing_rule: rule.id, rule_text: rule.source || "", rule_error: nil)}
-    end
-  end
-
-  def handle_event("cancel_edit_rule", _params, socket),
-    do: {:noreply, assign(socket, editing_rule: nil, rule_text: "", rule_error: nil)}
-
-  # Writing the rule means asking the model to turn it into a spec, which
-  # takes a second or two; the composer keeps the text and says so meanwhile.
-  def handle_event("create_rule", %{"text" => text}, socket) do
-    text = String.trim(text)
-    board = socket.assigns.board
-    user = socket.assigns.current_user
-    editing = socket.assigns.editing_rule
-
-    if text == "" do
-      {:noreply, assign(socket, rule_error: "Describe the rule first.")}
-    else
-      {:noreply,
-       socket
-       |> assign(rule_busy: true, rule_error: nil, rule_text: text)
-       |> start_async(:rule, fn ->
-         case editing do
-           nil -> Automations.create_rule_from_text(board, text, created_by: user)
-           id -> Automations.rewrite_rule(Automations.get_rule!(id), text, created_by: user)
-         end
-       end)}
-    end
-  end
-
-  def handle_event("toggle_rule", %{"id" => id}, socket) do
-    case Automations.get_board_rule(socket.assigns.board.id, id) do
-      nil ->
-        {:noreply, socket}
-
-      rule ->
-        {:ok, _} = Automations.toggle_rule(rule)
-        {:noreply, assign_rules(socket)}
-    end
-  end
-
-  def handle_event("delete_rule", %{"id" => id}, socket) do
-    case Automations.get_board_rule(socket.assigns.board.id, id) do
-      nil ->
-        {:noreply, socket}
-
-      rule ->
-        {:ok, _} = Automations.delete_rule(rule)
-
-        {:noreply,
-         socket
-         |> assign(editing_rule: nil, rule_text: "")
-         |> assign_rules()
-         |> put_flash(:info, "Removed “#{rule.name}”.")}
-    end
-  end
-
-  # Time-based rules remember what they have already acted on; running one by
-  # hand forgets that first, so it can act on the same cards again.
-  def handle_event("run_rule", %{"id" => id}, socket) do
-    case Automations.get_board_rule(socket.assigns.board.id, id) do
-      nil ->
-        {:noreply, socket}
-
-      rule ->
-        message =
-          case Automations.run_rule_now(rule) do
-            0 -> "Nothing matched “#{rule.name}” right now."
-            1 -> "“#{rule.name}” ran once."
-            n -> "“#{rule.name}” ran #{n} times."
-          end
-
-        {:noreply, socket |> reload_board() |> assign_rules() |> put_flash(:info, message)}
-    end
   end
 
   ## Events: sharing -------------------------------------------------------------
@@ -3505,36 +3056,6 @@ defmodule SlipdockWeb.BoardLive.Show do
     end
   end
 
-  # "Small=1, Large=3" → option maps; a bare label has no weight.
-  defp parse_options(nil), do: []
-
-  defp parse_options(text) do
-    text
-    |> String.split(",", trim: true)
-    |> Enum.map(fn item ->
-      case String.split(item, "=", parts: 2) do
-        [label, weight] -> %{"label" => String.trim(label), "weight" => String.trim(weight)}
-        [label] -> %{"label" => String.trim(label)}
-      end
-    end)
-    |> Enum.reject(&(&1["label"] == ""))
-  end
-
-  defp field_errors(%Ecto.Changeset{} = cs) do
-    cs
-    |> Ecto.Changeset.traverse_errors(fn {msg, _} -> msg end)
-    |> Enum.map_join("; ", fn {k, msgs} -> "#{k} #{Enum.join(List.wrap(msgs), ", ")}" end)
-  end
-
-  defp view_error(%Ecto.Changeset{} = cs) do
-    case cs.errors[:name] do
-      {msg, _} -> "View name #{msg}."
-      nil -> "Couldn't save that view."
-    end
-  end
-
-  defp toggle(current, value), do: if(current == value, do: nil, else: value)
-
   defp share_subject(""), do: {:error, "Enter an email address or pick a group."}
   defp share_subject(nil), do: {:error, "Enter an email address or pick a group."}
   defp share_subject(subject), do: {:ok, subject}
@@ -3571,14 +3092,6 @@ defmodule SlipdockWeb.BoardLive.Show do
       assignable: assignable_users(board, user),
       mention_people: SlipdockWeb.Mention.people(board)
     )
-  end
-
-  defp assignee_options(users, nil), do: users
-
-  defp assignee_options(users, id) do
-    if Enum.any?(users, &(&1.id == id)),
-      do: users,
-      else: users ++ List.wrap(Slipdock.Accounts.get_user(id))
   end
 
   defp refresh_grants(socket, "board"),
@@ -3662,17 +3175,6 @@ defmodule SlipdockWeb.BoardLive.Show do
   end
 
   defp assign_link_results(socket), do: assign(socket, link_results: [])
-
-  defp to_int(nil), do: nil
-  defp to_int(""), do: nil
-  defp to_int(i) when is_integer(i), do: i
-
-  defp to_int(s) when is_binary(s) do
-    case Integer.parse(s) do
-      {i, _} -> i
-      :error -> nil
-    end
-  end
 
   # The card is not on this board any more. If it was open, follow it; the
   # alternative is a modal showing a card that is somewhere else now.
@@ -3884,32 +3386,6 @@ defmodule SlipdockWeb.BoardLive.Show do
   end
 
   ## Render helpers -----------------------------------------------------------
-
-  defp tag_by_id(board, id), do: Enum.find(board.tags, &(&1.id == id))
-
-  defp column_options(board), do: Enum.map(board.columns, &{&1.name, &1.id})
-
-  defp column_name(board, id) do
-    case Enum.find(board.columns, &(&1.id == id)) do
-      nil -> ""
-      col -> col.name
-    end
-  end
-
-  defp activity_icon("card"), do: "hero-rectangle-stack"
-  defp activity_icon("column"), do: "hero-view-columns"
-  defp activity_icon("comment"), do: "hero-chat-bubble-left"
-  defp activity_icon("view"), do: "hero-bookmark"
-  defp activity_icon(_), do: "hero-sparkles"
-
-  defp fmt_date(nil), do: "—"
-  defp fmt_date(%Date{} = d), do: Calendar.strftime(d, "%-d %b %Y")
-
-  defp checklist_progress(items) do
-    total = length(items)
-    done = Enum.count(items, & &1.done)
-    {done, total, if(total == 0, do: 0, else: round(done / total * 100))}
-  end
 
   ## Render -------------------------------------------------------------------
 
@@ -4890,18 +4366,11 @@ defmodule SlipdockWeb.BoardLive.Show do
         archived={@archived}
         close_path={@paths.close}
       />
-      <.automations_modal
+      <.live_component
         :if={@panel == :automations and @can_manage}
+        module={SlipdockWeb.BoardLive.AutomationsComponent}
+        id="automations"
         board={@board}
-        rules={@rules}
-        callbacks={@callbacks}
-        text={@rule_text}
-        error={@rule_error}
-        busy={@rule_busy}
-        editing={@editing_rule}
-        preset={@rule_preset}
-        preset_params={@rule_preset_params}
-        preset_error={@rule_preset_error}
         current_user={@current_user}
         ai?={@ai?}
         close_path={@paths.close}
@@ -7146,437 +6615,6 @@ defmodule SlipdockWeb.BoardLive.Show do
   end
 
   attr :board, :any, required: true
-  attr :preset, :string, default: nil
-  attr :params, :map, default: %{}
-  attr :error, :string, default: nil
-  attr :current_user, :any, default: nil
-
-  # The ready-made rules, grouped, with the picked one's form opened beneath.
-  defp rule_presets(assigns) do
-    presets = Presets.all()
-
-    assigns =
-      assign(assigns,
-        groups: Enum.chunk_by(presets, & &1.group),
-        picked: assigns.preset && Enum.find(presets, &(&1.key == assigns.preset))
-      )
-
-    ~H"""
-    <div id="rule-presets" class="space-y-2">
-      <p class="text-xs font-medium text-base-content/60">Ready-made</p>
-      <div :for={group <- @groups} class="flex flex-wrap items-center gap-1.5">
-        <span class="w-16 shrink-0 text-2xs uppercase tracking-wide text-base-content/40">
-          {hd(group).group}
-        </span>
-        <button
-          :for={p <- group}
-          type="button"
-          id={"rule-preset-#{p.key}"}
-          class={[
-            "chip chip-line text-xs hover:bg-base-200",
-            @preset == p.key && "bg-primary/10 ring-1 ring-primary/40"
-          ]}
-          phx-click="pick_rule_preset"
-          phx-value-key={p.key}
-          title={p.description}
-          aria-pressed={to_string(@preset == p.key)}
-        >
-          {p.title}
-        </button>
-      </div>
-
-      <.form
-        :if={@picked}
-        for={%{}}
-        as={:preset}
-        id="rule-preset-form"
-        phx-change="rule_preset_change"
-        phx-submit="create_rule_preset"
-        class="space-y-3 rounded-xl bg-base-200/50 p-3 ring-1 ring-base-content/5"
-      >
-        <p class="text-sm">
-          <span class="font-medium">{@picked.title}.</span>
-          <span class="text-base-content/60">{@picked.description}</span>
-        </p>
-        <div class="grid gap-2 sm:grid-cols-2">
-          <label :for={field <- @picked.fields} class="space-y-0.5 text-xs">
-            <span class="text-base-content/70">
-              {field.label}<span :if={field.required} class="text-error">*</span>
-              <span :if={field[:hint]} class="text-base-content/40">— {field.hint}</span>
-            </span>
-            <.preset_input
-              field={field}
-              value={@params[field.name]}
-              board={@board}
-              current_user={@current_user}
-            />
-          </label>
-        </div>
-        <p :if={@error} class="text-sm text-error">{@error}</p>
-        <div class="flex items-center gap-2">
-          <button type="submit" class="btn btn-primary btn-sm gap-1.5">
-            <.icon name="hero-plus" class="size-4" /> Add rule
-          </button>
-          <button type="button" class="btn btn-ghost btn-sm" phx-click="cancel_rule_preset">
-            Cancel
-          </button>
-        </div>
-      </.form>
-    </div>
-    """
-  end
-
-  attr :field, :map, required: true
-  attr :value, :any, default: nil
-  attr :board, :any, required: true
-  attr :current_user, :any, default: nil
-
-  @preset_input_class "w-full rounded-lg border-0 bg-base-100 px-2 py-1 text-sm ring-1 ring-base-content/10 focus:ring-2 focus:ring-primary"
-
-  # A board with no tags yet still lets a tag be named.
-  defp preset_input(%{field: %{type: "tag"}, board: %{tags: []}} = assigns),
-    do: preset_text_input(assigns)
-
-  defp preset_input(%{field: %{type: type}} = assigns)
-       when type in ~w(column tag notify field flag priority) do
-    options =
-      case type do
-        "column" -> Enum.map(assigns.board.columns, &{&1.name, &1.name})
-        "tag" -> Enum.map(assigns.board.tags, &{&1.name, &1.name})
-        "notify" -> Enum.map(Presets.notify_options(), fn {v, l} -> {l, v} end)
-        "field" -> Enum.map(assigns.field.options, &{String.replace(&1, "_", " "), &1})
-        _ -> Enum.map(assigns.field.options, &{&1, &1})
-      end
-
-    blank =
-      cond do
-        assigns.field.required -> nil
-        type == "field" -> "Any field"
-        true -> "Any"
-      end
-
-    assigns = assign(assigns, options: options, blank: blank, class: @preset_input_class)
-
-    ~H"""
-    <select name={"preset[#{@field.name}]"} class={@class}>
-      <option :if={@blank} value="">{@blank}</option>
-      {Phoenix.HTML.Form.options_for_select(@options, to_string(@value || ""))}
-    </select>
-    """
-  end
-
-  defp preset_input(assigns), do: preset_text_input(assigns)
-
-  defp preset_text_input(assigns) do
-    {type, placeholder} =
-      case assigns.field.type do
-        "number" -> {"number", nil}
-        "card" -> {"text", "129"}
-        "email" -> {"email", assigns.current_user && assigns.current_user.email}
-        "url" -> {"url", "https://example.com/hooks/slipdock"}
-        "person" -> {"text", "Name or email"}
-        _ -> {"text", nil}
-      end
-
-    assigns = assign(assigns, type: type, placeholder: placeholder, class: @preset_input_class)
-
-    ~H"""
-    <input
-      type={@type}
-      name={"preset[#{@field.name}]"}
-      value={@value}
-      placeholder={@placeholder}
-      min={if @type == "number", do: 1}
-      class={@class}
-    />
-    """
-  end
-
-  attr :board, :any, required: true
-  attr :rules, :list, required: true
-  attr :callbacks, :list, default: []
-  attr :text, :string, required: true
-  attr :error, :string, default: nil
-  attr :busy, :boolean, default: false
-  attr :editing, :any, default: nil
-  attr :preset, :string, default: nil
-  attr :preset_params, :map, default: %{}
-  attr :preset_error, :string, default: nil
-  attr :current_user, :any, default: nil
-  attr :ai?, :boolean, default: false
-  attr :close_path, :string, required: true
-
-  # Automations: rules picked from the ready-made ones and filled in with a
-  # short form, or written as sentences and parsed once by the model; either
-  # way they are then run by the app. The spec underneath is shown, and can be
-  # read, but isn't something to fill in by hand.
-  defp automations_modal(assigns) do
-    assigns = assign(assigns, examples: Automations.examples())
-
-    ~H"""
-    <.modal id="automations-modal" on_close={JS.patch(@close_path)} size="lg">
-      <div class="space-y-5 p-6">
-        <div>
-          <h2 class="flex items-center gap-2 text-lg font-semibold">
-            <.icon name="hero-cpu-chip" class="size-5 text-primary" /> Automations
-          </h2>
-          <p class="mt-1 text-sm text-base-content/60">
-            Pick a ready-made rule, or describe what should happen and when in your
-            own words. Rules run on <strong class="font-medium">{@board.name}</strong>
-            as cards change, and on a timer for anything about elapsed time.
-          </p>
-        </div>
-
-        <.rule_presets
-          board={@board}
-          preset={@preset}
-          params={@preset_params}
-          error={@preset_error}
-          current_user={@current_user}
-        />
-
-        <p class="pt-1 text-xs font-medium text-base-content/60">Or in your own words</p>
-
-        <div
-          :if={!@ai?}
-          class="rounded-xl bg-warning/10 px-3 py-2 text-sm text-warning-content ring-1 ring-warning/30"
-        >
-          <.icon name="hero-exclamation-triangle" class="mr-1 size-4 align-text-bottom" />
-          Rules in your own words are written by the AI, which isn't configured: set
-          <code class="font-mono text-xs">OPENROUTER_API_KEY</code>
-          to use them. Ready-made rules work without it, and existing rules keep running.
-        </div>
-
-        <.form
-          for={%{}}
-          id="rule-form"
-          phx-submit="create_rule"
-          phx-change="rule_change"
-          class="space-y-2"
-        >
-          <textarea
-            id="rule-text"
-            name="text"
-            rows="2"
-            disabled={!@ai? or @busy}
-            phx-debounce="300"
-            placeholder="When a card lands in Done, email ops@example.com…"
-            class="w-full resize-y rounded-xl border-0 bg-base-200/70 px-3 py-2 text-sm ring-1 ring-base-content/10 placeholder:text-base-content/40 focus:ring-2 focus:ring-primary"
-          >{@text}</textarea>
-          <div class="flex flex-wrap items-center gap-2">
-            <button type="submit" class="btn btn-primary btn-sm gap-1.5" disabled={!@ai? or @busy}>
-              <.icon
-                name={if @busy, do: "hero-arrow-path", else: "hero-sparkles"}
-                class={["size-4", @busy && "motion-safe:animate-spin"]}
-              />
-              {cond do
-                @busy -> "Writing the rule…"
-                @editing -> "Rewrite rule"
-                true -> "Create rule"
-              end}
-            </button>
-            <button
-              :if={@editing}
-              type="button"
-              class="btn btn-ghost btn-sm"
-              phx-click="cancel_edit_rule"
-            >
-              Cancel
-            </button>
-            <span class="text-xs text-base-content/50">
-              Placeholders like <code class="font-mono">{"{{card.title}}"}</code>
-              and <code class="font-mono">{"{{card.url}}"}</code>
-              work in emails and alerts.
-            </span>
-          </div>
-        </.form>
-
-        <p
-          :if={@error}
-          class="rounded-xl bg-error/10 px-3 py-2 text-sm text-error ring-1 ring-error/20"
-        >
-          {@error}
-        </p>
-
-        <div :if={@ai? and @rules == []} class="space-y-1.5">
-          <p class="text-xs font-medium text-base-content/60">Try one of these:</p>
-          <div class="flex flex-wrap gap-1.5">
-            <button
-              :for={example <- @examples}
-              type="button"
-              class="chip chip-line max-w-full truncate text-left text-xs hover:bg-base-200"
-              phx-click="use_example"
-              phx-value-text={example}
-              title={example}
-            >
-              {example}
-            </button>
-          </div>
-        </div>
-
-        <div class="space-y-2 border-t border-base-content/10 pt-4">
-          <div class="flex items-center justify-between">
-            <span class="text-sm font-medium">
-              Rules <span :if={@rules != []} class="text-base-content/50">({length(@rules)})</span>
-            </span>
-          </div>
-          <p :if={@rules == []} class="text-sm text-base-content/60">No rules yet.</p>
-          <ul class="max-h-[45vh] space-y-2 overflow-y-auto kanban-scroll pr-1">
-            <li
-              :for={rule <- @rules}
-              id={"rule-#{rule.id}"}
-              class={[
-                "rounded-xl p-3 ring-1 transition-colors",
-                rule.enabled && "bg-base-200/50 ring-base-content/5",
-                !rule.enabled && "bg-base-200/20 opacity-60 ring-base-content/5"
-              ]}
-            >
-              <div class="flex items-start gap-3">
-                <input
-                  type="checkbox"
-                  class="toggle toggle-sm mt-0.5 shrink-0"
-                  checked={rule.enabled}
-                  phx-click="toggle_rule"
-                  phx-value-id={rule.id}
-                  aria-label={"Turn “#{rule.name}” " <> if(rule.enabled, do: "off", else: "on")}
-                  title={if rule.enabled, do: "Turn off", else: "Turn on"}
-                />
-                <div class="min-w-0 flex-1 space-y-1">
-                  <p class="text-sm font-medium leading-snug">{rule.name}</p>
-                  <p class="text-xs leading-snug text-base-content/70">{Rule.summary(rule)}</p>
-                  <p
-                    :if={rule.source}
-                    class="truncate text-2xs italic text-base-content/40"
-                    title={rule.source}
-                  >
-                    “{rule.source}”
-                  </p>
-                  <div class="flex flex-wrap items-center gap-1.5 pt-0.5 text-2xs text-base-content/50">
-                    <span class="chip chip-line">{Rule.trigger_type(rule)}</span>
-                    <span
-                      :if={Rule.scheduled?(rule)}
-                      class="chip chip-line"
-                      title="Checked on a timer"
-                    >
-                      <.icon name="hero-clock" class="size-3" /> timed
-                    </span>
-                    <span
-                      :if={rule.scope == "tree"}
-                      class="chip chip-line"
-                      title="Also watches subcards"
-                    >
-                      whole tree
-                    </span>
-                    <span :if={rule.run_count > 0}>
-                      ran {rule.run_count}× · last {relative_time(rule.last_run_at)}
-                    </span>
-                    <span :if={rule.run_count == 0}>never run</span>
-                  </div>
-                  <p :if={rule.last_error} class="text-2xs text-error" title={rule.last_error}>
-                    <.icon name="hero-exclamation-circle" class="size-3 align-text-bottom" />
-                    {rule.last_error}
-                  </p>
-                  <details class="pt-0.5">
-                    <summary class="cursor-pointer text-2xs text-base-content/40 hover:text-base-content/70">
-                      What this does, exactly
-                    </summary>
-                    <pre class="mt-1 overflow-x-auto rounded-lg bg-base-300/50 p-2 font-mono text-2xs leading-relaxed">{Jason.encode!(rule.spec, pretty: true)}</pre>
-                  </details>
-                </div>
-                <div class="flex shrink-0 items-center gap-0.5">
-                  <button
-                    :if={Rule.scheduled?(rule)}
-                    type="button"
-                    class="btn btn-ghost btn-xs btn-square"
-                    phx-click="run_rule"
-                    phx-value-id={rule.id}
-                    title="Run this rule now"
-                  >
-                    <.icon name="hero-play" class="size-3.5" />
-                  </button>
-                  <button
-                    :if={@ai?}
-                    type="button"
-                    class="btn btn-ghost btn-xs btn-square"
-                    phx-click="edit_rule"
-                    phx-value-id={rule.id}
-                    title="Reword this rule"
-                  >
-                    <.icon name="hero-pencil-square" class="size-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    class="btn btn-ghost btn-xs btn-square text-error"
-                    phx-click="delete_rule"
-                    phx-value-id={rule.id}
-                    data-confirm={"Delete the rule “#{rule.name}”?"}
-                    title="Delete"
-                  >
-                    <.icon name="hero-trash" class="size-3.5" />
-                  </button>
-                </div>
-              </div>
-            </li>
-          </ul>
-        </div>
-
-        <.callback_log :if={@callbacks != []} callbacks={@callbacks} />
-      </div>
-    </.modal>
-    """
-  end
-
-  attr :callbacks, :list, required: true
-
-  # The calls the board's rules have made, newest first, as they land — the
-  # only place a callback that failed in the background shows up at all.
-  defp callback_log(assigns) do
-    ~H"""
-    <div id="callback-log" class="space-y-2 border-t border-base-content/10 pt-4">
-      <p class="text-sm font-medium">
-        Recent callbacks
-        <span class="font-normal text-base-content/50">— the newest {length(@callbacks)}</span>
-      </p>
-      <ul class="max-h-[30vh] space-y-1 overflow-y-auto kanban-scroll pr-1">
-        <li
-          :for={call <- @callbacks}
-          id={"callback-#{call.id}"}
-          class="flex items-start gap-2 rounded-lg px-2 py-1.5 text-xs odd:bg-base-200/40"
-        >
-          <.icon
-            name={if Callback.ok?(call), do: "hero-check-circle", else: "hero-exclamation-circle"}
-            class={[
-              "mt-0.5 size-3.5 shrink-0",
-              (Callback.ok?(call) && "text-success") || "text-error"
-            ]}
-          />
-          <div class="min-w-0 flex-1">
-            <p class="truncate" title={"#{call.method} #{call.url}"}>
-              <span class="font-mono text-2xs font-semibold">{call.method}</span>
-              <span class="font-mono text-2xs text-base-content/70">{call.url}</span>
-            </p>
-            <p class="truncate text-2xs text-base-content/50">
-              {call.rule_name || "a deleted rule"}<span :if={call.card_title}> · {call.card_title}</span>
-            </p>
-          </div>
-          <div class="shrink-0 text-right text-2xs">
-            <p
-              class={["max-w-48 truncate", (Callback.ok?(call) && "text-success") || "text-error"]}
-              title={Callback.outcome(call)}
-            >
-              {Callback.outcome(call)}<span :if={call.duration_ms} class="text-base-content/40"> · {call.duration_ms} ms</span>
-            </p>
-            <p class="text-base-content/40" title={to_string(call.inserted_at)}>
-              {relative_time(call.inserted_at)}
-            </p>
-          </div>
-        </li>
-      </ul>
-    </div>
-    """
-  end
-
-  attr :board, :any, required: true
   attr :form, :any, required: true
   attr :close_path, :string, required: true
   attr :grants, :list, required: true
@@ -7891,10 +6929,4 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   # A link says what it points at: a page, a file somewhere, an address.
 
-  defp url_error(changeset) do
-    case changeset.errors do
-      [{_field, {message, _}} | _] -> message
-      [] -> "could not be added"
-    end
-  end
 end

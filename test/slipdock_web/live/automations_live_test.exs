@@ -135,7 +135,8 @@ defmodule SlipdockWeb.AutomationsLiveTest do
       })
 
       {:ok, view, _html} = live(conn, ~p"/boards/#{board}/automations")
-      assert view |> element("button[phx-click=run_rule]") |> render_click() =~ "ran once"
+      view |> element("button[phx-click=run_rule]") |> render_click()
+      assert render(view) =~ "ran once"
 
       # The alert it raised reaches the header bar of the page that ran it.
       view |> element("#alerts-bar button[phx-click=toggle_alerts]") |> render_click()
