@@ -380,6 +380,85 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
     handled
   end
 
+  describe "board settings" do
+    test "another board's fields, milestones and grants are left alone", ctx do
+      {:ok, field} =
+        Slipdock.Fields.create_field(ctx.theirs, %{"name" => "Theirs", "kind" => "number"})
+
+      {:ok, milestone} =
+        Boards.create_milestone(ctx.theirs, %{"name" => "Theirs", "date" => "2030-01-01"})
+
+      outsider = user_fixture("outsider@example.com")
+      {:ok, grant} = Access.grant(ctx.theirs, outsider, "read", ctx.victim)
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.mine}/settings")
+      settings = with_target(view, "#board-settings")
+
+      render_hook(settings, "delete_field", %{"id" => "#{field.id}"})
+      render_hook(settings, "toggle_field_sum", %{"id" => "#{field.id}"})
+      render_hook(settings, "delete_milestone", %{"id" => "#{milestone.id}"})
+      render_hook(settings, "revoke_grant", %{"id" => "#{grant.id}", "resource" => "board"})
+
+      assert Repo.get(Slipdock.Boards.FieldDefinition, field.id).sum == field.sum
+      assert Repo.get(Slipdock.Boards.Milestone, milestone.id)
+      assert Repo.get(Slipdock.Access.Grant, grant.id)
+      assert render(view) =~ "Couldn&#39;t remove that access."
+    end
+  end
+
+  describe "a placed page's panel" do
+    setup ctx do
+      page = page_fixture(ctx.mine, %{"title" => "My page"}, user: ctx.user)
+      {:ok, _} = Slipdock.Wiki.place(page, ctx.my_col)
+      their_page = page_fixture(ctx.theirs, %{"title" => "Their page"}, user: ctx.victim)
+      {:ok, _} = Slipdock.Wiki.place(their_page, ctx.their_col)
+      %{page: page, their_page: their_page}
+    end
+
+    test "acts only on its own page, and only with this board's tags", ctx do
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.mine}?#{[page: ctx.page.id]}")
+      panel = with_target(view, "#board-page")
+
+      render_hook(panel, "unplace_page", %{"id" => "#{ctx.their_page.id}"})
+      assert Slipdock.Wiki.get_page!(ctx.their_page.id).column_id == ctx.their_col.id
+
+      render_hook(panel, "page_toggle_tag", %{"id" => "#{ctx.tag.id}"})
+      assert Slipdock.Wiki.tags(Slipdock.Wiki.get_page!(ctx.page.id)) == []
+
+      render_hook(panel, "toggle_check", %{"id" => "#{ctx.check.id}"})
+      refute Repo.get!(ChecklistItem, ctx.check.id).done
+
+      render_hook(panel, "delete_comment", %{"id" => "#{ctx.comment.id}"})
+      assert Repo.get(Comment, ctx.comment.id)
+    end
+
+    test "won't open another board's page", ctx do
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.mine}?#{[page: ctx.their_page.id]}")
+      refute has_element?(view, "#page-panel")
+    end
+  end
+
+  describe "sprints" do
+    test "a sprint on a board you can only read can't be filled", ctx do
+      {:ok, template} = Boards.find_template("Sprint planning")
+      sprints = board_fixture(%{"name" => "Their sprints"}, template: template, owner: ctx.victim)
+      {:ok, sprint} = Sprints.create_sprint(sprints)
+      {:ok, _} = Access.grant(sprints, ctx.user, "read", ctx.victim)
+
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{sprints}")
+
+      view
+      |> with_target("#board-sprints")
+      |> render_hook("open_sprint_picker", %{"id" => "#{sprint.id}"})
+
+      refute has_element?(view, "#sprint-picker")
+      assert render(view) =~ "read-only access to that sprint"
+
+      view |> with_target("#board-sprints") |> render_hook("open_new_sprint", %{})
+      refute has_element?(view, "#new-sprint-modal")
+    end
+  end
+
   describe "the guard" do
     test "every handle_event clause is in one of the event lists" do
       assert handled_events("show.ex") -- Show.known_events() == []

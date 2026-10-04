@@ -13,6 +13,10 @@ defmodule Slipdock.AccountExportDeletionTest do
   alias Slipdock.{AccountExport, Accounts, Access, Boards}
 
   setup do
+    # The default test user first: a test here makes it later (page_fixture),
+    # and making it after this module's board has taken a shortcut key can
+    # deadlock with an async test that holds the user and wants the key.
+    _ = user_fixture()
     user = user_fixture("leaver@example.com")
     board = board_fixture(%{"name" => "Their work"}, owner: user)
     card = card_fixture(hd(board.columns), %{"title" => "A card of theirs"})
