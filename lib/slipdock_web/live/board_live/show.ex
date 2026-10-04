@@ -54,13 +54,23 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   ## Lifecycle ---------------------------------------------------------------
 
+  # Every event is in one of the lists below, and one that is in none of them
+  # is refused (see the guards at the top of `handle_event/3`). A handler
+  # nobody remembered to classify fails closed — it does nothing — instead of
+  # running for anyone who can open the board, which is how a pushEvent with
+  # somebody else's card id once reached `delete_archived`.
+  #
+  # And whichever list it is in, a handler that takes an id from the client
+  # proves that id is on this board (or the open card) before using it: write
+  # access here is no reason to touch a row on another board.
+
   # Events that change the board; refused with read-only access.
-  @board_write_events ~w(add_column rename_column save_column set_column_color delete_column move_column
+  @board_write_events ~w(add_column rename_column edit_column save_column set_column_color delete_column move_column
     quick_add_card move_card unplace_page place_page focus_move focus_hold focus_add swim_move swim_quick_add cal_quick_add swim_save_view swim_update_view swim_rename_view
     swim_delete_view create_tag set_tag_color rename_tag delete_tag restore_card delete_archived)
   # Events that change the open card; refused with read-only access to it.
   @card_write_events ~w(card_change toggle_flag toggle_tag set_cover archive_card delete_card
-    add_dependency remove_dependency create_sub_board
+    add_dependency remove_dependency create_sub_board remove_assignee
     delete_sub_board quick_add_subcard toggle_subcard edit_description validate_attachments
     cancel_upload delete_attachment add_link remove_link
     write_up toggle_pin_doc doc_search attach_doc detach_doc)
@@ -68,6 +78,26 @@ defmodule SlipdockWeb.BoardLive.Show do
   # or a placed page's. Guarded by that thing's own permission.
   @item_write_events ~w(add_check toggle_check delete_check add_comment delete_comment comment_change
     add_status_update delete_status_update add_card_url remove_card_url set_field vote)
+  # Events whose handler checks the permission itself, because what it acts
+  # on is not the open board or the open card: a card named by id, a page,
+  # another board, a sprint picked from several boards.
+  @self_checked_events ~w(share revoke_grant page_change page_toggle_flag page_toggle_tag
+    open_move_board move_board_pick move_card_board open_new_sprint create_sprint
+    open_sprint_picker sprint_source sprint_into sprint_up sprint_toggle sprint_toggle_list
+    sprint_clear sprint_add open_sprint_charts pick_chart_sprint toggle_complete card_timer
+    log_time table_update prio_field prio_vote timeline_move timeline_schedule cal_move
+    toggle_favourite)
+  # Events that change nothing stored: filters, panels opening and closing,
+  # forms being typed into, the keyboard's place on the board.
+  @read_events ~w(rule_change pick_rule_preset rule_preset_change cancel_rule_preset use_example
+    edit_rule cancel_edit_rule search filter_tag filter_kind filter_priority filter_flag filter_due
+    toggle_hide_completed clear_filters start_add_column cancel_add_column start_rename_column
+    cancel_rename_column close_column start_add_card aim_document cancel_add_card
+    quick_add_change open_card open_page close_page close_move_board close_new_sprint
+    close_sprint_picker close_sprint_charts focus_column focus_card focus_open focus_end
+    stop_editing_description validate_document dep_direction dep_search link_search
+    pick_template pick_tag_color validate_board swim_config swim_set swim_clear_filters
+    table_sort cal_toggle_day swim_toggle_row swim_start_add swim_cancel_add)
 
   # Images pasted into the description or a comment, and files attached explicitly.
   @image_uploads [:desc_image, :comment_image]
@@ -79,7 +109,16 @@ defmodule SlipdockWeb.BoardLive.Show do
   # Events only the board owner may perform.
   @owner_events ~w(save_board set_board_color delete_board save_as_template add_milestone delete_milestone
     swim_publish_view swim_unpublish_view add_field delete_field install_preset toggle_field_sum
-    create_rule create_rule_preset toggle_rule delete_rule run_rule)
+    create_rule create_rule_preset toggle_rule delete_rule run_rule archive_board unarchive_board)
+
+  @known_events @owner_events ++
+                  @board_write_events ++
+                  @card_write_events ++
+                  @item_write_events ++ @self_checked_events ++ @read_events
+
+  @doc false
+  # For the test that every `handle_event/3` clause is in one of the lists.
+  def known_events, do: @known_events
 
   @impl true
   def mount(%{"id" => id} = params, _session, socket) do
@@ -1153,11 +1192,17 @@ defmodule SlipdockWeb.BoardLive.Show do
 
     case Boards.item_ref(id) do
       {:card, card_id} ->
-        card = Boards.get_card!(card_id)
-
-        if view_only or Access.can_read?(Access.card_permission(user, card)),
-          do: {:ok, card},
-          else: :error
+        with %Card{} = card <- Boards.get_card(card_id),
+             true <- in_tree?(socket, card),
+             true <-
+               if(view_only,
+                 do: Swimlanes.matches?(card, socket.assigns.swim),
+                 else: Access.can_read?(Access.card_permission(user, card))
+               ) do
+          {:ok, card}
+        else
+          _ -> :error
+        end
 
       {:page, page_id} ->
         with {:ok, page} <- load_placed_page(board, page_id),
@@ -1436,6 +1481,10 @@ defmodule SlipdockWeb.BoardLive.Show do
   ## Events: access guards ------------------------------------------------------
 
   @impl true
+  def handle_event(event, _params, socket) when event not in @known_events do
+    {:noreply, put_flash(socket, :error, "That isn't something this page can do.")}
+  end
+
   def handle_event(event, _params, %{assigns: %{can_manage: false}} = socket)
       when event in @owner_events do
     {:noreply, put_flash(socket, :error, "Only the board's owner can do that.")}
@@ -1674,22 +1723,32 @@ defmodule SlipdockWeb.BoardLive.Show do
   end
 
   def handle_event("rename_column", %{"column_id" => id, "name" => name}, socket) do
-    column = Boards.get_column!(id)
-
-    case Boards.update_column(column, %{"name" => name}) do
-      {:ok, _} -> {:noreply, assign(socket, renaming_column: nil)}
+    with %Column{} = column <- board_column(socket, id),
+         {:ok, _} <- Boards.update_column(column, %{"name" => name}) do
+      {:noreply, assign(socket, renaming_column: nil)}
+    else
+      nil -> {:noreply, assign(socket, renaming_column: nil)}
       {:error, _} -> {:noreply, put_flash(socket, :error, "List name can't be blank.")}
     end
   end
 
   def handle_event("edit_column", %{"id" => id}, socket) do
-    column = Boards.get_column!(id)
+    case board_column(socket, id) do
+      nil ->
+        {:noreply, socket}
 
-    {:noreply,
-     assign(socket, column_modal: column, column_form: to_form(Boards.change_column(column)))}
+      column ->
+        {:noreply,
+         assign(socket, column_modal: column, column_form: to_form(Boards.change_column(column)))}
+    end
   end
 
   def handle_event("close_column", _, socket), do: {:noreply, assign(socket, column_modal: nil)}
+
+  # The list being edited was checked against the board when `edit_column`
+  # opened it; without one open there is nothing to save.
+  def handle_event("save_column", _params, %{assigns: %{column_modal: nil}} = socket),
+    do: {:noreply, socket}
 
   def handle_event("save_column", %{"column" => params}, socket) do
     params = Map.update(params, "wip_limit", nil, &if(&1 == "", do: nil, else: &1))
@@ -1700,6 +1759,9 @@ defmodule SlipdockWeb.BoardLive.Show do
     end
   end
 
+  def handle_event("set_column_color", _params, %{assigns: %{column_modal: nil}} = socket),
+    do: {:noreply, socket}
+
   def handle_event("set_column_color", %{"color" => color}, socket) do
     color = if color == "", do: nil, else: color
     {:ok, column} = Boards.update_column(socket.assigns.column_modal, %{"color" => color})
@@ -1707,7 +1769,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   end
 
   def handle_event("delete_column", %{"id" => id}, socket) do
-    Boards.delete_column(Boards.get_column!(id))
+    if column = board_column(socket, id), do: Boards.delete_column(column)
     {:noreply, assign(socket, column_modal: nil)}
   end
 
@@ -1806,7 +1868,13 @@ defmodule SlipdockWeb.BoardLive.Show do
   def handle_event("move_card", %{"id" => id, "to" => to} = params, socket) do
     case Boards.item_ref(id) do
       {:card, card_id} ->
-        Boards.move_card(card_id, String.to_integer(to), params["before"])
+        board = socket.assigns.board
+
+        with {:ok, card} <- load_card(board, card_id),
+             %Column{} = column <- board_column(socket, to) do
+          Boards.move_card(card.id, column.id, params["before"])
+        end
+
         {:noreply, socket}
 
       {:page, page_id} ->
@@ -2161,6 +2229,10 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   # Charts: on a sprint board, velocity across its sprints and the burndown of
   # one of them (the running one first); on a sprint's own board, its burndown.
+  # A guest shown one card has not been shown the board's sprints either.
+  def handle_event("open_sprint_charts", _params, %{assigns: %{card_only: true}} = socket),
+    do: {:noreply, socket}
+
   def handle_event("open_sprint_charts", _params, socket) do
     board = socket.assigns.board
 
@@ -2399,7 +2471,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   def handle_event("attach_doc", %{"page" => page_id}, socket) do
     card = socket.assigns.card
 
-    with {:ok, page} <- Wiki.find_page(page_id),
+    with {:ok, page} <- readable_page(socket, page_id),
          {:ok, _} <- Wiki.pin(page, {:card, card}) do
       {:noreply,
        socket
@@ -2425,7 +2497,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   def handle_event("toggle_pin_doc", %{"page" => page_id}, socket) do
     card = socket.assigns.card
 
-    with {:ok, page} <- Wiki.find_page(page_id),
+    with {:ok, page} <- readable_page(socket, page_id),
          link <- Enum.find(socket.assigns.card_pages, &(&1.page.id == page.id)),
          {:ok, _} <- Wiki.pin(page, {:card, card}, not (link && link.pinned)) do
       {:noreply, assign_card_access(socket)}
@@ -2445,7 +2517,9 @@ defmodule SlipdockWeb.BoardLive.Show do
   end
 
   def handle_event("toggle_tag", %{"id" => id}, socket) do
-    {:ok, _} = Boards.toggle_card_tag(socket.assigns.card, Boards.get_tag!(id))
+    if tag = board_tag(socket, id),
+      do: {:ok, _} = Boards.toggle_card_tag(socket.assigns.card, tag)
+
     {:noreply, socket}
   end
 
@@ -2465,12 +2539,16 @@ defmodule SlipdockWeb.BoardLive.Show do
   end
 
   def handle_event("restore_card", %{"id" => id}, socket) do
-    {:ok, _} = Boards.unarchive_card(Boards.get_card!(id))
+    if card = Boards.get_archived_card(socket.assigns.board.id, id),
+      do: {:ok, _} = Boards.unarchive_card(card)
+
     {:noreply, socket}
   end
 
   def handle_event("delete_archived", %{"id" => id}, socket) do
-    {:ok, _} = Boards.delete_card(Boards.get_card!(id))
+    if card = Boards.get_archived_card(socket.assigns.board.id, id),
+      do: {:ok, _} = Boards.delete_card(card)
+
     {:noreply, socket}
   end
 
@@ -2485,12 +2563,16 @@ defmodule SlipdockWeb.BoardLive.Show do
   end
 
   def handle_event("toggle_check", %{"id" => id}, socket) do
-    Boards.toggle_checklist_item(String.to_integer(id))
+    if item = Boards.get_checklist_item(subject(socket), id),
+      do: Boards.toggle_checklist_item(item)
+
     {:noreply, reload_subject(socket)}
   end
 
   def handle_event("delete_check", %{"id" => id}, socket) do
-    Boards.delete_checklist_item(String.to_integer(id))
+    if item = Boards.get_checklist_item(subject(socket), id),
+      do: Boards.delete_checklist_item(item)
+
     {:noreply, reload_subject(socket)}
   end
 
@@ -2559,7 +2641,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   end
 
   def handle_event("delete_comment", %{"id" => id}, socket) do
-    Boards.delete_comment(String.to_integer(id))
+    if comment = Boards.get_comment(subject(socket), id), do: Boards.delete_comment(comment)
     {:noreply, socket}
   end
 
@@ -2679,10 +2761,19 @@ defmodule SlipdockWeb.BoardLive.Show do
     end
   end
 
+  # Only into a list on the open card's own subcards board.
   def handle_event("quick_add_subcard", %{"column_id" => column_id, "title" => title}, socket) do
-    if String.trim(title) != "" do
-      {:ok, _} =
-        Boards.create_card(Boards.get_column!(column_id), %{"title" => String.trim(title)})
+    column =
+      case socket.assigns.card do
+        %Card{sub_board: %Board{id: sub_id}} ->
+          Boards.get_board_column(sub_id, column_id)
+
+        _ ->
+          nil
+      end
+
+    if column && String.trim(title) != "" do
+      {:ok, _} = Boards.create_card(column, %{"title" => String.trim(title)})
     end
 
     {:noreply, update(socket, :form_key, &(&1 + 1))}
@@ -2736,19 +2827,21 @@ defmodule SlipdockWeb.BoardLive.Show do
   end
 
   def handle_event("set_tag_color", %{"id" => id, "color" => color}, socket) do
-    {:ok, _} = Boards.update_tag(Boards.get_tag!(id), %{"color" => color})
+    if tag = board_tag(socket, id), do: {:ok, _} = Boards.update_tag(tag, %{"color" => color})
     {:noreply, socket}
   end
 
   def handle_event("rename_tag", %{"tag_id" => id, "name" => name}, socket) do
-    case Boards.update_tag(Boards.get_tag!(id), %{"name" => name}) do
-      {:ok, _} -> {:noreply, socket}
-      {:error, _} -> {:noreply, put_flash(socket, :error, "A tag with that name already exists.")}
+    with %Tag{} = tag <- board_tag(socket, id),
+         {:error, _} <- Boards.update_tag(tag, %{"name" => name}) do
+      {:noreply, put_flash(socket, :error, "A tag with that name already exists.")}
+    else
+      _ -> {:noreply, socket}
     end
   end
 
   def handle_event("delete_tag", %{"id" => id}, socket) do
-    {:ok, _} = Boards.delete_tag(Boards.get_tag!(id))
+    if tag = board_tag(socket, id), do: {:ok, _} = Boards.delete_tag(tag)
     {:noreply, socket}
   end
 
@@ -3386,18 +3479,42 @@ defmodule SlipdockWeb.BoardLive.Show do
   defp time_target(%{"_target" => ["card", field]}) when field in @time_fields, do: [field]
   defp time_target(_), do: []
 
+  # A card on this board's tree the user may edit. Off the tree it is :error
+  # whatever the user's rights to it: a view's grant covers the cards of this
+  # board that match it, not every card on the server.
   defp writable_card(socket, id) do
     %{current_user: user, view_only: view_only, swim: config, swim_view: view} = socket.assigns
-    card = Boards.get_card!(id)
 
-    writable =
-      if view_only,
-        do:
-          Swimlanes.matches?(card, config) and
-            Access.can_write?(Access.view_permission(user, view)),
-        else: Access.can_write?(Access.card_permission(user, card))
+    with %Card{} = card <- Boards.get_card(id),
+         true <- in_tree?(socket, card),
+         true <-
+           if(view_only,
+             do:
+               Swimlanes.matches?(card, config) and
+                 Access.can_write?(Access.view_permission(user, view)),
+             else: Access.can_write?(Access.card_permission(user, card))
+           ) do
+      {:ok, card}
+    else
+      _ -> :error
+    end
+  end
 
-    if writable, do: {:ok, card}, else: :error
+  # The list `id` on the open board, or nil.
+  defp board_column(socket, id), do: Boards.get_board_column(socket.assigns.board.id, id)
+
+  # A tag of this board's tree (they live on the root), or nil.
+  defp board_tag(socket, id),
+    do: Enum.find(socket.assigns.board.tags, &(to_string(&1.id) == to_string(id)))
+
+  # A wiki page the user may read, to attach to the open card.
+  defp readable_page(socket, id) do
+    with {:ok, page} <- Wiki.find_page(id),
+         true <- Access.can_read?(Access.page_permission(socket.assigns.current_user, page)) do
+      {:ok, page}
+    else
+      _ -> :error
+    end
   end
 
   defp assign_dep_results(%{assigns: %{card: %Card{} = card, dep_query: q}} = socket)
