@@ -312,6 +312,12 @@ defmodule SlipdockWeb.APIGuide do
       anywhere on their boards; everything already there stays editable. They
       have to subscribe.
 
+    Not only creating meets these. Restoring something archived asks for it
+    back into the count; moving a card onto a board somebody else owns counts
+    it, its subcards, their pages and their files against *that* owner; an
+    import counts its archived rows too; and `POST /api/boards/welcome` needs
+    room for the whole tour.
+
     Reads are `GET`, writes are `POST` or `PATCH`, and bodies are JSON with
     `Content-Type: application/json`. Boards, lists, tags, templates and saved
     views can be addressed by name as well as by id — `/api/boards/3` and

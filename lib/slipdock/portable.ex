@@ -297,13 +297,14 @@ defmodule Slipdock.Portable do
   # One question asked once, about the whole file. See the moduledoc above for
   # why this is not per card.
   defp check_quota(user, trees) do
-    # Everything the file would add that counts as an item: cards and pages.
-    # Attachments do not travel in an export, so there is nothing to weigh
-    # against the storage limit here.
+    # Everything the file would add that counts as an item: cards and pages,
+    # archived ones included — they are built all the same, and restoring them
+    # afterwards is only refused one at a time. Attachments do not travel in an
+    # export, so there is nothing to weigh against the storage limit here.
     wanted =
       trees
       |> Enum.flat_map(&(Map.get(&1, :cards, []) ++ Map.get(&1, :pages, [])))
-      |> Enum.count(&(!&1[:archived]))
+      |> Enum.count()
 
     boards = Enum.count(trees)
 

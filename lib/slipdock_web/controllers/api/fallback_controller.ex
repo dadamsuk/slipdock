@@ -22,6 +22,14 @@ defmodule SlipdockWeb.API.FallbackController do
     end
   end
 
+  # A limit refused by something with no changeset to carry it — an import, the
+  # welcome tour — answered the same way as the changeset form above.
+  def call(conn, {:error, :payment_required, code, message}) do
+    conn
+    |> put_status(:payment_required)
+    |> json(%{error: code, message: message, retryable: false})
+  end
+
   def call(conn, {:error, :not_found}) do
     conn |> put_status(:not_found) |> json(%{error: "not found"})
   end

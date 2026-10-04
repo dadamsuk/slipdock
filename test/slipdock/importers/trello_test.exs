@@ -184,9 +184,9 @@ defmodule Slipdock.Importers.TrelloTest do
       {:ok, _} = Settings.complete_setup(%{"admin_email" => "a@example.com"})
       {:ok, _} = Settings.update(%{"free_card_limit" => 2})
 
-      # Four: the archived card does not count, and the closed list's card
-      # never arrives.
-      assert {:error, {:card_limit_reached, 4, 2}} = Importers.import(user, trello())
+      # Five: the archived card counts — it is built all the same — and the
+      # closed list's card never arrives.
+      assert {:error, {:card_limit_reached, 5, 2}} = Importers.import(user, trello())
       refute Repo.exists?(from(b in Board, where: b.owner_id == ^user.id))
     end
   end

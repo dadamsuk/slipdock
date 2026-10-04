@@ -2088,6 +2088,12 @@ defmodule SlipdockWeb.BoardLive.Show do
              |> put_flash(:info, moved_message(card, target, column, summary))
              |> after_move(card, summary)}
 
+          {:error, %Ecto.Changeset{} = refused} ->
+            {:noreply,
+             socket
+             |> assign(move_board: nil)
+             |> put_flash(:error, Slipdock.Quota.refusal_message(refused))}
+
           {:error, message} ->
             {:noreply, socket |> assign(move_board: nil) |> put_flash(:error, message)}
         end
@@ -2584,10 +2590,19 @@ defmodule SlipdockWeb.BoardLive.Show do
   end
 
   def handle_event("restore_card", %{"id" => id}, socket) do
-    if card = Boards.get_archived_card(socket.assigns.board.id, id),
-      do: {:ok, _} = Boards.unarchive_card(card)
+    case Boards.get_archived_card(socket.assigns.board.id, id) do
+      nil ->
+        {:noreply, socket}
 
-    {:noreply, socket}
+      card ->
+        case Boards.unarchive_card(card) do
+          {:ok, _} ->
+            {:noreply, socket}
+
+          {:error, refused} ->
+            {:noreply, put_flash(socket, :error, Slipdock.Quota.refusal_message(refused))}
+        end
+    end
   end
 
   def handle_event("delete_archived", %{"id" => id}, socket) do
@@ -3028,8 +3043,13 @@ defmodule SlipdockWeb.BoardLive.Show do
   end
 
   def handle_event("unarchive_board", _, socket) do
-    {:ok, board} = Boards.unarchive_board(socket.assigns.board)
-    {:noreply, socket |> assign(board: board) |> put_flash(:info, "Board restored.")}
+    case Boards.unarchive_board(socket.assigns.board) do
+      {:ok, board} ->
+        {:noreply, socket |> assign(board: board) |> put_flash(:info, "Board restored.")}
+
+      {:error, refused} ->
+        {:noreply, put_flash(socket, :error, Slipdock.Quota.refusal_message(refused))}
+    end
   end
 
   ## Events: swimlanes ---------------------------------------------------------

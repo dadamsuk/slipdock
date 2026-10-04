@@ -592,7 +592,10 @@ defmodule Slipdock.Boards do
     end
   end
 
-  @doc "Brings an archived board back to the index it came off."
+  @doc """
+  Brings an archived board back to the index it came off — if its owner has
+  room for another board, since an archived one is not counted.
+  """
   def unarchive_board(%Board{} = board) do
     if Board.archived?(board), do: set_archived(board, nil, "restored"), else: {:ok, board}
   end
@@ -600,6 +603,7 @@ defmodule Slipdock.Boards do
   defp set_archived(%Board{} = board, at, verb) do
     board
     |> Ecto.Changeset.change(archived_at: at)
+    |> then(&if(is_nil(at), do: Quota.enforce_owner(&1, board.owner_id, :boards), else: &1))
     |> Repo.update()
     |> tap_ok(fn b ->
       log(Repo, b.id, nil, "board", "#{verb} board “#{b.name}”")
@@ -1508,11 +1512,15 @@ defmodule Slipdock.Boards do
     end)
   end
 
+  # An archived card does not count against its owner's allowance, so bringing
+  # one back is asking for one more — otherwise "archive, add, restore" would
+  # go on for ever, trial or no trial.
   def unarchive_card(%Card{} = card) do
     position = next_position(from(c in Card, where: c.column_id == ^card.column_id))
 
     card
     |> Ecto.Changeset.change(archived_at: nil, position: position)
+    |> then(&if(is_nil(card.archived_at), do: &1, else: Quota.enforce(&1, card.board_id)))
     |> Repo.update()
     |> tap_ok(fn c ->
       log(Repo, c.board_id, c.id, "card", "restored “#{c.title}”")
@@ -1692,7 +1700,47 @@ defmodule Slipdock.Boards do
         {:error, "A card can't be moved into its own subcards."}
 
       true ->
-        do_move_card_to_board(card, to_column)
+        with :ok <- room_for_move(card, to_column), do: do_move_card_to_board(card, to_column)
+    end
+  end
+
+  # A card that changes owner takes everything under it into the new owner's
+  # count: its live subcards, the pages on its sub-boards and the files on
+  # both. Checked against the destination, or a free account could make cards
+  # on somebody's paid board and carry them home. Within one owner's boards
+  # nothing changes hands, so nothing is checked.
+  defp room_for_move(%Card{} = card, %Column{} = to_column) do
+    if Quota.owner_id_of(card.board_id) == Quota.owner_id_of(to_column.board_id) do
+      :ok
+    else
+      board_ids = subtree_board_ids(card.id)
+      card_ids = [card.id | subtree_card_ids(board_ids)]
+
+      cards =
+        Repo.aggregate(
+          from(c in Card, where: c.id in ^card_ids and is_nil(c.archived_at)),
+          :count
+        )
+
+      pages =
+        Repo.aggregate(
+          from(p in Slipdock.Wiki.Page,
+            where: p.board_id in ^board_ids and is_nil(p.archived_at)
+          ),
+          :count
+        )
+
+      {files, bytes} =
+        Repo.one(
+          from(a in Attachment,
+            left_join: p in Slipdock.Wiki.Page,
+            on: p.id == a.page_id,
+            where: a.card_id in ^card_ids or p.board_id in ^board_ids,
+            select: {count(a.id), coalesce(sum(a.size), 0)}
+          )
+        )
+
+      Quota.refusal(to_column, items: cards + pages + files, storage: bytes)
     end
   end
 
@@ -1702,6 +1750,7 @@ defmodule Slipdock.Boards do
     to_board = Repo.get!(Board, to_column.board_id)
     from_root = Board.root_id(from_board)
     to_root = Board.root_id(to_board)
+    to_owner = Repo.one(from(b in Board, where: b.id == ^to_root, select: b.owner_id))
     board_ids = subtree_board_ids(card.id)
 
     {:ok, summary} =
@@ -1719,7 +1768,10 @@ defmodule Slipdock.Boards do
 
         if board_ids != [] and from_root != to_root do
           from(b in Board, where: b.id in ^board_ids)
-          |> Repo.update_all(set: [root_id: to_root])
+          # The owner too: a sub-board's own `owner_id` is what makes somebody
+          # its owner, and the mover keeping that after the destination's
+          # owner has revoked their access would be a door left open.
+          |> Repo.update_all(set: [root_id: to_root, owner_id: to_owner])
         end
 
         if from_root == to_root do

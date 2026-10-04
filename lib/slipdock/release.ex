@@ -269,8 +269,10 @@ defmodule Slipdock.Release do
       if Onboarding.exists_for?(user) and not force? do
         puts("#{user.email} already has a “#{Onboarding.board_name()}” board — pass --force.")
       else
-        board = Onboarding.build!(user)
-        puts("Built “#{board.name}” (#{board.code}) for #{user.email}.")
+        case Onboarding.build(user) do
+          {:ok, board} -> puts("Built “#{board.name}” (#{board.code}) for #{user.email}.")
+          {:error, reason} -> puts(Onboarding.refusal_message(user, reason))
+        end
       end
     end)
   end

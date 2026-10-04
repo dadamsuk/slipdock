@@ -75,12 +75,12 @@ defmodule SlipdockWeb.API.PortableController do
            "#{Portable.format_version()}"}
 
       {:error, {:card_limit_reached, wanted, remaining}} ->
-        {:error, :unprocessable_entity,
+        {:error, :payment_required, "card_limit_reached",
          "that document holds #{wanted} cards and pages and you have room for " <>
            "#{remaining}. Nothing was imported — a half-built board is worse than none."}
 
       {:error, {:board_limit_reached, wanted, remaining}} ->
-        {:error, :unprocessable_entity,
+        {:error, :payment_required, "board_limit_reached",
          "that document holds #{wanted} boards and you have room for #{remaining}. " <>
            "Nothing was imported."}
 
@@ -95,7 +95,7 @@ defmodule SlipdockWeb.API.PortableController do
            "#{max}. Nothing was imported."}
 
       {:error, :trial_expired} ->
-        {:error, :unprocessable_entity,
+        {:error, :payment_required, "trial_expired",
          "your free trial has ended, so nothing new can be added. Nothing was imported."}
 
       {:error, :not_json} ->

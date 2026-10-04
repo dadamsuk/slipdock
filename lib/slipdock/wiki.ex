@@ -616,15 +616,24 @@ defmodule Slipdock.Wiki do
     {:ok, Repo.get!(Page, page.id)}
   end
 
-  @doc "Brings an archived page back, along with everything under it."
+  @doc """
+  Brings an archived page back, along with everything under it — if the
+  board's owner has room for every page that comes back, since archived ones
+  are not counted. `{:error, changeset}` when they have not.
+  """
   def unarchive_page(%Page{} = page) do
     ids = [page.id | Enum.map(descendants(page), & &1.id)]
 
-    Repo.update_all(from(p in Page, where: p.id in ^ids), set: [archived_at: nil])
-    Indexer.enqueue_pages(ids)
-    log(page.board_id, page, "page_restored", "restored “#{page.title}”")
-    broadcast(page.board_id)
-    {:ok, Repo.get!(Page, page.id)}
+    returning =
+      Repo.aggregate(from(p in Page, where: p.id in ^ids and not is_nil(p.archived_at)), :count)
+
+    with :ok <- Quota.refusal(page.board_id, items: returning) do
+      Repo.update_all(from(p in Page, where: p.id in ^ids), set: [archived_at: nil])
+      Indexer.enqueue_pages(ids)
+      log(page.board_id, page, "page_restored", "restored “#{page.title}”")
+      broadcast(page.board_id)
+      {:ok, Repo.get!(Page, page.id)}
+    end
   end
 
   @doc """

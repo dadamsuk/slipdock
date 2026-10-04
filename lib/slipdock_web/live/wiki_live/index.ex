@@ -549,7 +549,11 @@ defmodule SlipdockWeb.WikiLive.Index do
          {:ok, page} <- Wiki.unarchive_page(page) do
       {:noreply, socket |> put_flash(:info, "Restored “#{page.title}”.") |> reload(page)}
     else
-      _ -> {:noreply, put_flash(socket, :error, "That page couldn't be restored.")}
+      {:error, %Ecto.Changeset{} = refused} ->
+        {:noreply, put_flash(socket, :error, Slipdock.Quota.refusal_message(refused))}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "That page couldn't be restored.")}
     end
   end
 
