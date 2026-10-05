@@ -76,6 +76,10 @@ defmodule Slipdock.Search.Embedding do
       :vector
     ])
     |> validate_inclusion(:kind, @kinds)
+    |> check_constraint(:card_id,
+      name: :search_embeddings_card_xor_page,
+      message: "must belong to exactly one of a card or a page"
+    )
     |> unique_constraint([:kind, :source_id, :section])
   end
 end
