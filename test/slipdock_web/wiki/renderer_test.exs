@@ -169,6 +169,45 @@ defmodule SlipdockWeb.Wiki.RendererTest do
       assert Renderer.to_markdown("[[!backlinks]]", page: parent, as: user) ==
                "- [Runbook](/boards/#{board.id}/wiki/runbook)"
     end
+
+    # #325: a card's comment naming the page is a backlink with no page, and
+    # the directive used to crash on `link.page.title`.
+    test "backlinks written on a card name the card", %{board: board, user: user, cards: cards} do
+      {:ok, page} = Wiki.create_page(board, %{"title" => "Deploys"}, user: user)
+      {:ok, _} = Boards.add_comment(cards.done, "see [[Deploys]]")
+      page = Wiki.get_page!(page.id)
+
+      card_path = "/boards/#{board.id}/cards/#{cards.done.id}"
+
+      html = Renderer.to_html("[[!backlinks]]", page: page, as: user)
+
+      assert html =~
+               ~s|<a href="#{card_path}" class="wiki-link" rel="noopener noreferrer">##{cards.done.id} Shipped</a>|
+
+      assert Renderer.to_markdown("[[!backlinks]]", page: page, as: user) ==
+               "- [##{cards.done.id} Shipped](#{card_path})"
+    end
+  end
+
+  describe "a reference it cannot resolve" do
+    import ExUnit.CaptureLog
+
+    # A bug in resolving one reference costs the live parts of the page, not
+    # the page: the prose comes back as written, with a notice, and the error
+    # goes to the log.
+    test "an exception while rendering shows the prose as written and logs it" do
+      log =
+        capture_log(fn ->
+          html = Renderer.to_html("Fixed in #1 <b>today</b>", board: :not_a_board)
+
+          assert html =~ ~s|class="wiki-query-error"|
+          assert html =~ "Part of this page could not be drawn"
+          assert html =~ "Fixed in #1 &lt;b&gt;today&lt;/b&gt;"
+          refute html =~ "<b>"
+        end)
+
+      assert log =~ "Wiki page failed to render"
+    end
   end
 
   describe "query answers as HTML" do

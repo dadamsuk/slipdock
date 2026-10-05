@@ -1457,7 +1457,9 @@ defmodule SlipdockWeb.APIGuide do
 
     **A comment on a page is writing too.** `[[Retry policy]]` in one turns
     up in that page's backlinks, naming the page it was written on, exactly
-    as a comment on a card names the card.
+    as a comment on a card names the card. In `GET /api/pages/:id/links`,
+    an `incoming` link written on a card carries `card` where a page's
+    carries `page`.
 
     What a page does **not** take is the work-shaped pair: blocking
     dependencies and typed card links, both card-to-card joins carrying

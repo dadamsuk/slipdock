@@ -618,6 +618,10 @@ defmodule SlipdockWeb.API.JSON do
   def backlink(%Link{page: %Page{} = p} = l),
     do: %{page: page_summary(p), count: l.count, pinned: l.pinned, raw: l.raw}
 
+  # Writing on a card is writing: a card that names a page is a backlink too.
+  def backlink(%Link{source_card: %Card{} = c} = l),
+    do: %{card: card_stub(c), count: l.count, pinned: l.pinned, raw: l.raw}
+
   @doc "The answer a live query block gives, whatever shape it takes."
   def query_result(%{kind: :count} = result), do: %{kind: "count", count: result.count}
 
