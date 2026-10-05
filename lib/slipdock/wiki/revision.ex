@@ -7,12 +7,13 @@ defmodule Slipdock.Wiki.Revision do
   `summary` is the edit's own message — why it was made, not what changed,
   which the diff already says. `via` and `agent` say who made it: `"web"`
   for the editor, `"api"` or `"cli"` for a token (with the token's name in
-  `agent`), `"assistant"` for the in-app model, `"automation"` for a rule.
+  `agent`), `"mcp"` for an MCP client (likewise), `"assistant"` for the
+  in-app model, `"automation"` for a rule.
   """
   use Ecto.Schema
   import Ecto.Changeset
 
-  @vias ~w(web api cli assistant automation)
+  @vias ~w(web api cli assistant automation mcp)
 
   schema "page_revisions" do
     field :title, :string

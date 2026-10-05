@@ -91,8 +91,63 @@ defmodule SlipdockWeb.MCP.Args do
   The API's `{:error, status, message}` refusals, as a tool's error text. A
   thing that is not there, or not the reader's to see, reads the same.
   """
+  def refusal({:error, %Ecto.Changeset{} = changeset}) do
+    case Slipdock.Quota.limit_kind(changeset) do
+      nil ->
+        {:error, "not saved: " <> describe(changeset)}
+
+      kind ->
+        # The one failure an unattended client must not retry: nothing it can
+        # change about the request makes room on the account.
+        {:error,
+         "#{Slipdock.Quota.error_code(kind)}: #{describe(changeset)} Don't retry, and don't " <>
+           "work around it with a page or a different title: the account is at its limit " <>
+           "for #{Slipdock.Quota.label(kind)}. Tell the person; archiving something finished " <>
+           "with frees room."}
+    end
+  end
+
+  def refusal({:error, :conflict, %{content_hash: hash}}),
+    do:
+      {:error,
+       "conflict: the page has changed since you read it (now content_hash #{hash}). " <>
+         "Read it again with read_page, merge your change into what is there, and write " <>
+         "with the new hash."}
+
+  def refusal({:error, :payment_required, code, message}),
+    do: {:error, "#{code}: #{message} Don't retry: the account is at its limit. Tell the person."}
+
   def refusal({:error, :not_found, what}), do: {:error, "no #{what} you can see matches that"}
   def refusal({:error, _status, message}) when is_binary(message), do: {:error, message}
   def refusal({:error, message}) when is_binary(message), do: {:error, message}
   def refusal(other), do: other
+
+  defp describe(changeset) do
+    changeset
+    |> SlipdockWeb.API.JSON.errors()
+    |> Enum.map_join(" ", fn {field, messages} ->
+      Enum.map_join(List.wrap(messages), " ", fn m ->
+        if field == :base, do: "#{m}.", else: "#{field} #{m}."
+      end)
+    end)
+  end
+
+  @doc "An optional list of strings; a single string counts as a list of one."
+  def strings(args, key) do
+    case args[key] do
+      nil ->
+        {:ok, nil}
+
+      s when is_binary(s) ->
+        {:ok, [s]}
+
+      list when is_list(list) ->
+        if Enum.all?(list, &is_binary/1),
+          do: {:ok, list},
+          else: {:error, "#{key} must be a list of strings"}
+
+      _ ->
+        {:error, "#{key} must be a list of strings"}
+    end
+  end
 end
