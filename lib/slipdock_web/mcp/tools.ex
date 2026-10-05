@@ -18,7 +18,13 @@ defmodule SlipdockWeb.MCP.Tools do
     Tools.ListCards,
     Tools.GetCard,
     Tools.Search,
-    Tools.ReadPage
+    Tools.ReadPage,
+    Tools.CreateCard,
+    Tools.UpdateCard,
+    Tools.MoveCard,
+    Tools.Comment,
+    Tools.CompleteCard,
+    Tools.WritePage
   ]
 
   @doc "Every tool module, in the order `tools/list` gives them."
@@ -39,14 +45,22 @@ defmodule SlipdockWeb.MCP.Tools do
   end
 
   # Hints, not guarantees, as far as the client is concerned: it uses them to
-  # decide what to run without asking. A write here never deletes anything —
-  # there is no delete tool — so `destructiveHint` is false throughout and
-  # `idempotentHint` is left unset.
+  # decide what to run without asking. Nothing here deletes — there is no
+  # delete tool, only archiving in the app — so `destructiveHint` marks the
+  # writes that can overwrite what somebody wrote.
   defp annotations(tool) do
     if tool.read_only?() do
       %{title: tool.title(), readOnlyHint: true, openWorldHint: false}
     else
-      %{title: tool.title(), readOnlyHint: false, destructiveHint: false, openWorldHint: false}
+      Code.ensure_loaded(tool)
+      destructive = function_exported?(tool, :destructive?, 0) and tool.destructive?()
+
+      %{
+        title: tool.title(),
+        readOnlyHint: false,
+        destructiveHint: destructive,
+        openWorldHint: false
+      }
     end
   end
 
@@ -106,6 +120,16 @@ defmodule SlipdockWeb.MCP.Tools do
         full.sub_board &&
           %{board: full.sub_board.id, done: full.sub_board.completed, total: full.sub_board.total},
       stand_in_for: full.stand_in_for && full.stand_in_for.id
+    })
+  end
+
+  @doc "A card written by a tool, as the tool answers it: the card in brief and where it is."
+  def card_written(card, base_url) do
+    card
+    |> card_line()
+    |> Map.merge(%{
+      board_id: card.board_id,
+      url: base_url <> "/boards/#{card.board_id}/cards/#{card.id}"
     })
   end
 

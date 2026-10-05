@@ -22,5 +22,8 @@ defmodule SlipdockWeb.MCP.Tool do
   @callback input_schema() :: map()
   @doc "`true` for a tool that changes nothing. A read-scope token may call only these."
   @callback read_only?() :: boolean()
+  @doc "`true` for a write that can overwrite what is there. Left out, false."
+  @callback destructive?() :: boolean()
+  @optional_callbacks destructive?: 0
   @callback call(args :: map(), context()) :: {:ok, term()} | {:error, String.t()}
 end

@@ -1322,6 +1322,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   defp via_label("cli"), do: "from the CLI"
   defp via_label("assistant"), do: "by the assistant"
   defp via_label("automation"), do: "by an automation"
+  defp via_label("mcp"), do: "over MCP"
   defp via_label(_), do: ""
 
   defp author_label(revision) do
