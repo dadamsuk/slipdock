@@ -42,6 +42,32 @@ defmodule SlipdockWeb.API.SkillsTest do
   end
 
   @tag :anonymous
+  test "slipdock-loop watches the CI build after every push", %{conn: conn} do
+    assert %{"content" => body} =
+             conn |> get("/api/skills/slipdock-loop") |> json_response(200)
+
+    # Before picking: a red default branch becomes a card on top of To Do.
+    assert body =~ "## 2a. Check CI before you pick"
+    assert body =~ "gh run list --branch <default-branch> --limit 1"
+    assert body =~ ~s(CI failing on <branch>)
+
+    # A pass that died mid-watch resumes the watch rather than the work.
+    assert body =~ "last comment is `Build started`"
+
+    # Closing out: announce the build, watch it quietly, report either way.
+    assert body =~ "gh run list --commit <full-sha>"
+    assert body =~ "gh run watch <run-id> --exit-status --interval 30 > /dev/null"
+    assert body =~ "**Passed:** `Build passed:"
+    assert body =~ "**Failed:** `Build failed:"
+    assert body =~ "After **two** failed fix attempts"
+    assert body =~ "CI: passed"
+    assert body =~ "**Never close a card on a red build.**"
+
+    # The version `skills check` compares moved off the copy without any of it.
+    refute Skills.get("slipdock-loop").sha == "04da54775b80ab49"
+  end
+
+  @tag :anonymous
   test "a skill that is not there is a 404", %{conn: conn} do
     assert conn |> get("/api/skills/nope") |> json_response(404)
   end

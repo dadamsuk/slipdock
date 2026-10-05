@@ -122,7 +122,7 @@ What you get:
 | `slipdock-work` | Working *from* a board: epics and subcards, what to pick up next, what to write back. |
 | `slipdock-wiki` | The wiki: finding, reading, writing, linking, section writes. |
 | `slipdock-docs` | The harder half of the wiki — what is worth writing down, and where it goes. |
-| `slipdock-loop` | Working the ready list unattended, one card per pass, for `/loop` or a cron. |
+| `slipdock-loop` | Working the ready list unattended, one card per pass, for `/loop` or a cron — watching the GitHub build after each push and never closing a card on a red one. |
 
 Board-specific detail — board codes, list names, tag vocabularies — is
 deliberately **not** in these files. It comes from `/api/guide`, per caller. A
