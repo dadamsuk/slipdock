@@ -20,6 +20,19 @@ defmodule SlipdockWeb.API.GuideTest do
   end
 
   @tag :anonymous
+  test "the guide points MCP clients at /mcp and names every tool it offers", %{conn: conn} do
+    body = conn |> get(~p"/api/guide") |> response(200)
+
+    assert body =~ "### Over MCP"
+    assert body =~ "http://www.example.com/mcp"
+
+    # Written out by hand, so this is what notices a tool added without it.
+    for tool <- SlipdockWeb.MCP.Tools.all() do
+      assert body =~ "`#{tool.name()}`", "the guide does not mention #{tool.name()}"
+    end
+  end
+
+  @tag :anonymous
   test "the automations section lists the real vocabulary and endpoints", %{conn: conn} do
     body = conn |> get(~p"/api/guide") |> response(200)
 

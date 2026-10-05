@@ -167,6 +167,19 @@ defmodule SlipdockWeb.AgentSetupTest do
       assert has_element?(view, ~s{a[href="/account/tokens"]})
     end
 
+    test "gives the MCP address and a Claude Code command that uses a token", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/account/agent")
+
+      base = SlipdockWeb.Endpoint.url()
+      command = view |> element("#agent-mcp") |> render()
+
+      assert command =~ "claude mcp add --transport http slipdock #{base}/mcp"
+      assert command =~ "Authorization: Bearer &lt;token&gt;"
+      assert has_element?(view, "#agent-mcp-section", "#{base}/mcp")
+      # The OAuth path is not there yet, and the page must not imply it is.
+      assert has_element?(view, "#agent-mcp-section", "not available yet")
+    end
+
     test "is reachable from the account menu on every page", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
       assert has_element?(view, ~s{a[href="/account/agent"]}, "Set up an agent")

@@ -18,6 +18,14 @@ cards updated while doing the work — run `slipdock guide` first** (the server'
 for agents: epics and subcards, how to choose the next card, what to write back) and follow it.
 This file is the command reference; the guide is the workflow.
 
+## If Slipdock's MCP tools are connected
+
+When this session already has Slipdock tools (`list_boards`, `get_card`, `create_card`,
+`complete_card`…, from the server's `/mcp`), they are an alternative to the CLI for the same
+work: use whichever is there. The conventions are the same either way — `get_guide` returns
+the guide `slipdock guide` prints. There is no delete tool over MCP, and anything the tools
+don't cover (automations, sprints, attachments, dependencies) is still the CLI or the API.
+
 ## If the CLI is not installed here
 
 Everything below is a wrapper around a JSON API, and the API is the fallback: it needs nothing
