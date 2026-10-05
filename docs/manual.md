@@ -2531,8 +2531,12 @@ actually answers. Three ways to install them:
   `## Log`, don't rewrite.
 - **`slipdock-loop`** — working the ready list unattended: one pass, one card,
   its subcards included, claimed before the work and closed out with a
-  wrap-up comment and the commit id. Written for `/loop`, a schedule or a
-  cron, so the board carries all the state between passes.
+  wrap-up comment and the commit id. Where the work lands in a GitHub repo it
+  watches the build too: a red default branch becomes a card at the top of
+  To Do before anything else is picked, every push gets a `Build started`
+  comment and then the result, and a card is never closed on a red build.
+  Written for `/loop`, a schedule or a cron, so the board carries all the
+  state between passes.
 
 Board-specific detail — board codes, list names, tag vocabularies — stays out
 of these files on purpose and comes from `GET /api/guide`, which generates it

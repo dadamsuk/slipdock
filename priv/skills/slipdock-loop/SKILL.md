@@ -82,6 +82,42 @@ pass's card — read it (`slipdock card <id>`, comments and all) and carry on fr
 where the comments say it got to. Only an empty result means pick something new.
 This is what stops a loop starting four cards and finishing none.
 
+If the resumed card's last comment is `Build started` (see step 7), the pass died
+while watching CI: find that run again with `gh run view <run-id>` and carry on
+from step 7's watch rather than redoing the work.
+
+## 2a. Check CI before you pick
+
+A build can go red after a pass has ended — a push made by hand, a flaky rerun,
+a pass that died mid-watch. So when nothing is resumed, and the board's work
+lands in a GitHub repo (the working directory's `origin`), look at the default
+branch's latest build before taking anything from the ready list:
+
+```sh
+gh run list --branch <default-branch> --limit 1 \
+  --json databaseId,status,conclusion,headSha,displayTitle,workflowName,url
+```
+
+If it is `completed` with conclusion `failure` (or `timed_out`), make sure the
+board knows about it. First look for an open card that already mentions it:
+`slipdock search "<run-id>" --board <board>`, or grep the run id and short sha
+across `slipdock cards <board> --open --json`. An open card that already mentions
+the run, or an open card whose commit it is, means the failure is already being
+handled. Leave it. Otherwise:
+
+```sh
+slipdock add <board> "CI failing on <branch>: <workflow> run <run-id>" \
+  --column "To Do" --tag ci --desc "<commit sha + subject, failing job and step,
+  the 20–40 most telling lines of gh run view <run-id> --log-failed, the run url>"
+slipdock move <new-id> "To Do" --top
+```
+
+Then carry on to step 3, which picks that card up because it is now on top.
+Fixing the build is the card's whole brief. A newer run that is still
+`in_progress` or `queued` means wait: don't file the older failure, because the
+newer run may already fix it. If `gh` isn't authenticated, or there is no
+remote, or no workflow, skip this step and say so once in the pass report.
+
 ## 3. Pick the top card
 
 ```sh
@@ -168,14 +204,51 @@ anybody reads later:
 2. **Commit**, with the card id in the message (`#129`), and push if that is the
    project's convention. One card, one commit, so the card and the diff point at
    each other.
-3. **Close on the board**:
+3. **Say the work is in, and the build has started.** Once pushed, find the run
+   GitHub started for that commit. It can take a few seconds to appear, so poll
+   for up to a minute:
+   ```sh
+   gh run list --commit <full-sha> --json databaseId,status,workflowName,url
+   ```
+   Then comment straight away, before watching:
+   ```
+   Build started.
+
+   Work complete and pushed: abc1234 (master). GitHub build now running.
+   Run: <workflow> #<run-id> — <run url>
+   ```
+   If no run appears (no `.github/workflows`, no remote, nothing pushed), write
+   `Work complete: abc1234. No CI build for this repo.` instead and go to step 5.
+4. **Wait for the build, then say how it went.**
+   ```sh
+   gh run watch <run-id> --exit-status --interval 30 > /dev/null
+   ```
+   Use `--interval 30` and drop the output: the default redraws every 3 seconds
+   and fills the context. Give the command a long timeout, or run it in the
+   background and wait to be notified if the build takes longer than the tool
+   allows. When the build finishes, comment on the card whichever way it went:
+   - **Passed:** `Build passed: <workflow> #<run-id> in <duration> — <run url>`.
+     Go to step 5.
+   - **Failed:** `Build failed: <workflow> #<run-id> — job <job>, step <step>`,
+     followed by the few lines of `gh run view <run-id> --log-failed` that show
+     the cause, and the url. The card is not done. Fix it as part of this card:
+     reproduce locally if you can, commit with the card id again, push, and go
+     back to step 3, so the card gets a new `Build started` comment and a new
+     result. After **two** failed fix attempts, or a failure that is clearly
+     outside this card's change (infrastructure, secrets, a flaky external
+     service), stop. Hand the card back as **Blocked** (see below), with the
+     failing run linked in the comment.
+   - **Cancelled, or still running after ~30 minutes:** comment that it was
+     cancelled or is still running, with the url, and close the card anyway.
+     The next pass's CI check (step 2a) catches it if it later fails.
+5. **Close on the board**:
    ```sh
    slipdock done <id>
    slipdock move <id> "Done"
    ```
    `done` sets `completed`; the move is what puts it where the person looks.
    Both, every time.
-4. **The wrap-up comment** — the last thing on the card, and the thing the whole
+6. **The wrap-up comment** — the last thing on the card, and the thing the whole
    pass is for:
 
    ```
@@ -185,6 +258,7 @@ anybody reads later:
    Files: lib/foo/bar.ex, test/foo/bar_test.exs
    Tests: mix test — 412 passed, 0 failed
    Commit: abc1234 (master) — https://github.com/owner/repo/commit/abc1234
+   CI: passed — <workflow> #<run-id> <run url>   (or "failed once, fixed in def5678", or "no CI")
    Follow-ups: <anything deliberately not done, and where it went — card #141, W-31, or "none">
    Token cost: ~135k tokens (context budget 15.00M → 14.86M, claim to close)
    ```
@@ -197,8 +271,8 @@ anybody reads later:
 
 ## 8. End the pass
 
-One or two lines to the user: the card, what it was, that it is closed, and the
-commit. Then stop — do not reach for the next card. If something is driving the
+One or two lines to the user: the card, what it was, that it is closed, the
+commit, and how the build went. Then stop — do not reach for the next card. If something is driving the
 passes, it will come back; if a dynamic `/loop` is driving them and the ready
 list still has work, wake up again soon, and if it is empty, wake up rarely.
 
@@ -239,6 +313,9 @@ failure mode.
   actually did, tidy someone else's card, or close a parent whose children are
   open.
 - **Never report a card done here before it is done on the board.**
+- **Never close a card on a red build.** A push the card caused that fails CI
+  is part of the card, and every build gets a comment when it starts and
+  another when it finishes.
 
 For command syntax, `slipdock --help` and the `slipdock` skill; for the board's own
 conventions, `slipdock guide`, always. Report ids to the user as `#129`, and call
