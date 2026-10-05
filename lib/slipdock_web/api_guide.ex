@@ -339,6 +339,19 @@ defmodule SlipdockWeb.APIGuide do
     A `slipdock` CLI wraps all of this (`slipdock --help`) if the machine you are on
     has it. The API is the contract; the CLI is a convenience.
 
+    ### Over MCP
+
+    A client that speaks the Model Context Protocol can use this server as an
+    MCP server at `#{base}/mcp`: stateless Streamable HTTP, authenticated with
+    the same bearer token as the API. It offers a small set of tools rather
+    than the whole API: `whoami`, `get_guide` (this text), `list_boards`,
+    `get_board`, `list_cards`, `get_card`, `search`, `read_page`, and for
+    writing `create_card`, `update_card`, `move_card`, `comment`,
+    `complete_card` and `write_page`. There is no delete tool. A read-only
+    token can call the read tools, and a write tool answers it with an error
+    saying so. The conventions in this guide apply the same way through
+    either door.
+
     ### The AI key, and which model answers
 
     Anything that asks a language model — `POST /api/ask`, semantic search's

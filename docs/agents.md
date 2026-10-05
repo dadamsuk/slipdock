@@ -155,7 +155,39 @@ Claude Code, Codex, Cursor, a shell script, a cron job. A chat assistant with
 nothing but web browsing can *read* a board you have shared publicly, but it
 cannot sign in or write. If that is all you have, the thing to reach for is not
 a different setup but a different tool: any coding agent will do, and the board
-does not care which.
+does not care which. If it speaks MCP, see [Over MCP](#over-mcp).
+
+## Over MCP
+
+This server is also an MCP server, at `https://your-server/mcp` (the
+**Set up an agent** page shows this install's own address). It speaks
+stateless Streamable HTTP, revisions 2025-03-26 to 2025-11-25. A client
+that connects gets a small set of tools rather than the whole API:
+
+| Reading | Writing |
+|---|---|
+| `whoami`, `get_guide`, `list_boards`, `get_board`, `list_cards`, `get_card`, `search`, `read_page` | `create_card`, `update_card`, `move_card`, `comment`, `complete_card`, `write_page` |
+
+There is no delete tool. The read tools are marked read-only, so a client
+can let them run without asking each time.
+
+For now a client connects with an **API token** (Account → API tokens).
+Make it read-only if the client should only look: the read tools work,
+and the write tools answer that the token is read-only. A token confined
+to some boards only sees those. In Claude Code:
+
+```sh
+claude mcp add --transport http slipdock https://your-server/mcp \
+  --header "Authorization: Bearer <token>"
+```
+
+The Claude API's MCP connector takes the same URL with the token as its
+`authorization_token`. IDE clients that take a URL and a header work the
+same way.
+
+Not available yet: adding the server as a connector in claude.ai and the
+Claude apps. Those sign in through the browser (OAuth) and never take a
+pasted token.
 
 ## If you self-host
 
