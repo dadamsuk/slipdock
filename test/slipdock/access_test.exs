@@ -53,6 +53,46 @@ defmodule Slipdock.AccessTest do
     assert Access.list_boards(ctx.other) == []
   end
 
+  # inserted_at is to the second, so rows made in the same one need the id to
+  # keep their order. Giving the earlier row the later one's time also moves it
+  # to the end of the table, so without the tiebreaker it comes back second.
+  defp same_second(schema, earlier, later) do
+    Repo.update_all(from(r in schema, where: r.id == ^earlier.id),
+      set: [inserted_at: later.inserted_at]
+    )
+  end
+
+  test "boards made in the same second are listed in the order they were made", ctx do
+    first = board_fixture(%{"name" => "First"}, owner: ctx.owner)
+    second = board_fixture(%{"name" => "Second"}, owner: ctx.owner)
+    same_second(Slipdock.Boards.Board, first, second)
+
+    names = ctx.owner |> Access.list_boards() |> Enum.map(& &1.name)
+    assert Enum.filter(names, &(&1 in ["First", "Second"])) == ["First", "Second"]
+  end
+
+  test "a reader's grants made in the same second come back in id order", ctx do
+    {:ok, group} = Accounts.create_group(ctx.owner, %{"name" => "Crew"})
+    {:ok, _} = Accounts.add_group_member(group, ctx.other.email)
+
+    # Either one stored after the other but with the lower id, so the table's
+    # own order and the id disagree, and only the tiebreaker gets both right.
+    for renumber <- [:direct, :via_group] do
+      board = board_fixture(%{"name" => "Shared #{renumber}"}, owner: ctx.owner)
+      {:ok, direct} = Access.grant(board, ctx.other, "read", ctx.owner)
+      {:ok, via_group} = Access.grant(board, group, "write", ctx.owner)
+      moved = if renumber == :direct, do: direct, else: via_group
+
+      Repo.update_all(from(g in Slipdock.Access.Grant, where: g.id == ^moved.id),
+        set: [id: -moved.id, inserted_at: direct.inserted_at]
+      )
+
+      ids = Enum.map(Access.incoming_grants(ctx.other, board), & &1.id)
+      assert ids == Enum.sort(ids)
+      assert length(ids) == 2 and -moved.id in ids
+    end
+  end
+
   test "card grants reach only that card, and raise a reader on it", ctx do
     {:ok, _} = Access.grant(ctx.card, ctx.other, "read", ctx.owner)
     assert Access.card_permission(ctx.other, ctx.card) == :read

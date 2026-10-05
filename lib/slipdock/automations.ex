@@ -81,7 +81,7 @@ defmodule Slipdock.Automations do
 
   @doc "The board's rules, newest last."
   def list_rules(board_id) do
-    from(r in Rule, where: r.board_id == ^board_id, order_by: [asc: r.inserted_at])
+    from(r in Rule, where: r.board_id == ^board_id, order_by: [asc: r.inserted_at, asc: r.id])
     |> Repo.all()
   end
 
@@ -335,7 +335,7 @@ defmodule Slipdock.Automations do
 
     from(r in Rule,
       where: r.board_id == ^board_id or (r.board_id == ^root_id and r.scope == "tree"),
-      order_by: [asc: r.inserted_at]
+      order_by: [asc: r.inserted_at, asc: r.id]
     )
     |> Repo.all()
   end

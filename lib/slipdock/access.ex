@@ -343,7 +343,7 @@ defmodule Slipdock.Access do
     from(b in Board,
       where: is_nil(b.parent_card_id),
       where: b.owner_id == ^user.id or b.id in ^granted_board_ids,
-      order_by: [asc: b.inserted_at]
+      order_by: [asc: b.inserted_at, asc: b.id]
     )
     |> scope_to_token(opts[:token])
     |> Boards.filter_archived(Keyword.get(opts, :archived, false))
@@ -673,7 +673,7 @@ defmodule Slipdock.Access do
       on: v.id == g.saved_view_id,
       where: g.board_id == ^board.id or v.board_id == ^board.id,
       where: g.user_id == ^user.id or g.group_id in ^group_ids,
-      order_by: [asc: g.inserted_at]
+      order_by: [asc: g.inserted_at, asc: g.id]
     )
     |> Repo.all()
     |> Repo.preload([:user, :group, :granted_by, :saved_view])

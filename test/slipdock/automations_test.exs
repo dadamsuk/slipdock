@@ -209,6 +209,32 @@ defmodule Slipdock.AutomationsTest do
       assert Boards.get_card!(card.id).priority == "critical"
     end
 
+    test "rules made in the same second run, and are listed, in id order" do
+      {board, backlog, _doing, _done} = board_with_lists()
+
+      on_create = fn priority ->
+        rule_fixture(board, %{
+          "trigger" => %{"type" => "card_created"},
+          "actions" => [%{"type" => "set_priority", "priority" => priority}]
+        })
+      end
+
+      first = on_create.("critical")
+      second = on_create.("low")
+
+      # Stored after the first but with the lower id, so the table's own order
+      # and the id disagree, and only the tiebreaker gets it right.
+      Repo.update_all(from(r in Rule, where: r.id == ^second.id),
+        set: [id: -second.id, inserted_at: first.inserted_at]
+      )
+
+      assert [-second.id, first.id] == Enum.map(Automations.list_rules(board.id), & &1.id)
+
+      # The last rule to run has the last word.
+      card = card_fixture(backlog)
+      assert Boards.get_card!(card.id).priority == "critical"
+    end
+
     test "a comment can trigger a rule" do
       {board, backlog, _doing, _done} = board_with_lists()
 
