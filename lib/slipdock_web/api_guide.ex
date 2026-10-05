@@ -908,7 +908,9 @@ defmodule SlipdockWeb.APIGuide do
     work, saved queries say what they keep wanting to know.
 
     Both search endpoints are scoped to your token's owner: they can return
-    nothing you could not open directly. If `/api/search/status` says `available: false`, the index
+    nothing you could not open directly. A token confined to some boards
+    searches only those, and `/ask` refuses it with a 403, because the
+    assistant reads across every board. If `/api/search/status` says `available: false`, the index
     has not been built — say so rather than concluding there is nothing there.
 
     """
