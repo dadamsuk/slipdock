@@ -1,6 +1,6 @@
-defmodule Slipdock.MCP.Tools.Whoami do
+defmodule SlipdockWeb.MCP.Tools.Whoami do
   @moduledoc "Who the connection is signed in as, and what its token may do."
-  @behaviour Slipdock.MCP.Tool
+  @behaviour SlipdockWeb.MCP.Tool
 
   @impl true
   def name, do: "whoami"

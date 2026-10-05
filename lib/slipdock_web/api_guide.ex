@@ -1878,6 +1878,21 @@ defmodule SlipdockWeb.APIGuide do
     end
   end
 
+  @doc """
+  Which of a board's lists plays which part, by the same reading the guide
+  gives under "Your boards right now": the ready list work is taken from, the
+  backlog behind it, the list in progress and the one for done work. Any of
+  them may be nil.
+  """
+  def list_roles(columns) do
+    %{
+      ready: ready_list(columns),
+      backlog: backlog_list(columns),
+      doing: list_of_role(columns, :doing),
+      done: list_of_role(columns, :done)
+    }
+  end
+
   defp list_of_role(columns, want) do
     want = Atom.to_string(want)
     Enum.find(columns, &(role(columns, &1) == want))
