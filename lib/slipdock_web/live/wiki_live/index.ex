@@ -1377,259 +1377,268 @@ defmodule SlipdockWeb.WikiLive.Index do
         </.link>
       </:subactions>
 
-      <%!-- The same bar the card views carry. The wiki is one more way of
-            looking at a board, and a page is one more thing that answers a
-            filter, so switching view and narrowing down work here too. --%>
-      <div class="flex flex-wrap items-center gap-x-2 gap-y-2 border-b border-base-300 bg-base-100/70 px-3 py-2 text-sm">
-        <.view_tabs board={@board} mode={:wiki} view={nil} marks={@marks} />
-        <span class="hidden h-5 w-px bg-base-300 sm:block"></span>
+      <%!-- A column the height of the layout's <main>, so the page tree and
+            the page each scroll inside it. Without it the two panes grow to
+            the length of the page and run out past the bottom of the app
+            (#323). --%>
+      <div id="wiki-shell" class="flex h-full flex-col">
+        <%!-- The same bar the card views carry. The wiki is one more way of
+              looking at a board, and a page is one more thing that answers a
+              filter, so switching view and narrowing down work here too. --%>
+        <div class="flex flex-wrap items-center gap-x-2 gap-y-2 border-b border-base-300 bg-base-100/70 px-3 py-2 text-sm">
+          <.view_tabs board={@board} mode={:wiki} view={nil} marks={@marks} />
+          <span class="hidden h-5 w-px bg-base-300 sm:block"></span>
 
-        <form id="wiki-search" phx-change="search" phx-submit="search" class="relative">
-          <.icon
-            name="hero-magnifying-glass"
-            class="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-base-content/40"
+          <form id="wiki-search" phx-change="search" phx-submit="search" class="relative">
+            <.icon
+              name="hero-magnifying-glass"
+              class="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-base-content/40"
+            />
+            <input
+              type="search"
+              name="q"
+              value={@filters.q}
+              placeholder="Search page/folder titles…"
+              phx-debounce="200"
+              class="input input-sm w-56 rounded-full pl-8 transition-[width] focus:w-72"
+              autocomplete="off"
+            />
+          </form>
+
+          <%!-- No Kind section: the wiki is pages all the way down. --%>
+          <.filter_menu
+            board={@board}
+            filters={@filters}
+            filtering={@filtering}
+            kinds={false}
+            label="Hide pages marked done"
           />
-          <input
-            type="search"
-            name="q"
-            value={@filters.q}
-            placeholder="Search page/folder titles…"
-            phx-debounce="200"
-            class="input input-sm w-56 rounded-full pl-8 transition-[width] focus:w-72"
-            autocomplete="off"
-          />
-        </form>
 
-        <%!-- No Kind section: the wiki is pages all the way down. --%>
-        <.filter_menu
-          board={@board}
-          filters={@filters}
-          filtering={@filtering}
-          kinds={false}
-          label="Hide pages marked done"
-        />
+          <div class="dropdown">
+            <div tabindex="0" role="button" class="btn btn-ghost btn-sm gap-1" title="Display">
+              <.icon name="hero-adjustments-horizontal" class="size-4" />
+              <span class="hidden md:inline">Display</span>
+            </div>
+            <div
+              tabindex="0"
+              class="dropdown-content z-30 mt-2 w-64 space-y-2 rounded-2xl bg-base-100 p-4 shadow-xl ring-1 ring-base-content/10"
+            >
+              <p class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
+                Show in the tree
+              </p>
+              <label :if={@can_write} class="flex cursor-pointer items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  class="toggle toggle-sm"
+                  checked={@show.drafts}
+                  phx-click="toggle_show"
+                  phx-value-what="drafts"
+                /> Drafts
+              </label>
+              <label class="flex cursor-pointer items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  class="toggle toggle-sm"
+                  checked={@show.templates}
+                  phx-click="toggle_show"
+                  phx-value-what="templates"
+                /> Templates
+              </label>
+              <label :if={@can_write} class="flex cursor-pointer items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  class="toggle toggle-sm"
+                  checked={@show.archived}
+                  phx-click="toggle_show"
+                  phx-value-what="archived"
+                /> Archived pages
+              </label>
+            </div>
+          </div>
 
-        <div class="dropdown">
-          <div tabindex="0" role="button" class="btn btn-ghost btn-sm gap-1" title="Display">
-            <.icon name="hero-adjustments-horizontal" class="size-4" />
-            <span class="hidden md:inline">Display</span>
-          </div>
-          <div
-            tabindex="0"
-            class="dropdown-content z-30 mt-2 w-64 space-y-2 rounded-2xl bg-base-100 p-4 shadow-xl ring-1 ring-base-content/10"
-          >
-            <p class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
-              Show in the tree
-            </p>
-            <label :if={@can_write} class="flex cursor-pointer items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                class="toggle toggle-sm"
-                checked={@show.drafts}
-                phx-click="toggle_show"
-                phx-value-what="drafts"
-              /> Drafts
-            </label>
-            <label class="flex cursor-pointer items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                class="toggle toggle-sm"
-                checked={@show.templates}
-                phx-click="toggle_show"
-                phx-value-what="templates"
-              /> Templates
-            </label>
-            <label :if={@can_write} class="flex cursor-pointer items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                class="toggle toggle-sm"
-                checked={@show.archived}
-                phx-click="toggle_show"
-                phx-value-what="archived"
-              /> Archived pages
-            </label>
-          </div>
+          <span class="ml-auto hidden text-xs text-base-content/50 lg:inline" title="Pages shown">
+            {@shown} {if @shown == 1, do: "page", else: "pages"}<span :if={@hidden > 0}> · {@hidden} hidden</span>
+          </span>
         </div>
 
-        <span class="ml-auto hidden text-xs text-base-content/50 lg:inline" title="Pages shown">
-          {@shown} {if @shown == 1, do: "page", else: "pages"}<span :if={@hidden > 0}> · {@hidden} hidden</span>
-        </span>
-      </div>
-
-      <div class="flex min-h-0 flex-1 overflow-hidden">
-        <aside
-          id="wiki-tree"
-          phx-hook="WikiTree"
-          data-organising={to_string(@organising)}
-          class="kanban-scroll hidden w-64 shrink-0 overflow-y-auto border-r border-base-300 bg-base-100 p-3 lg:block"
-        >
-          <div class="mb-2 flex items-center gap-1">
-            <.link
-              navigate={wiki_path(@board)}
-              class={[
-                "flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-semibold hover:bg-base-200",
-                @live_action == :index && is_nil(@folder) && "bg-base-200"
-              ]}
+        <div class="flex min-h-0 flex-1 overflow-hidden">
+          <aside
+            id="wiki-tree"
+            phx-hook="WikiTree"
+            data-organising={to_string(@organising)}
+            class="kanban-scroll hidden w-64 shrink-0 overflow-y-auto border-r border-base-300 bg-base-100 p-3 lg:block"
+          >
+            <div class="mb-2 flex items-center gap-1">
+              <.link
+                navigate={wiki_path(@board)}
+                class={[
+                  "flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-semibold hover:bg-base-200",
+                  @live_action == :index && is_nil(@folder) && "bg-base-200"
+                ]}
+              >
+                <.icon name="hero-book-open" class="size-4" /> All pages
+              </.link>
+              <%!-- Rearranging is a mode, and it says so: in it the tree is
+                    draggable and nothing else about it changes. --%>
+              <button
+                :if={@can_write}
+                type="button"
+                phx-click="toggle_organise"
+                class={[
+                  "btn btn-ghost btn-xs btn-square shrink-0",
+                  @organising && "btn-active text-primary"
+                ]}
+                title={if @organising, do: "Done organising", else: "Organise the tree"}
+                aria-pressed={to_string(@organising)}
+              >
+                <.icon name={if @organising, do: "hero-check", else: "hero-pencil"} class="size-4" />
+              </button>
+            </div>
+            <p
+              :if={@organising}
+              class="mb-2 rounded-lg bg-primary/10 px-2 py-1.5 text-xs text-base-content/70"
             >
-              <.icon name="hero-book-open" class="size-4" /> All pages
-            </.link>
-            <%!-- Rearranging is a mode, and it says so: in it the tree is
-                  draggable and nothing else about it changes. --%>
+              Drag to rearrange. A page dropped in a folder is <em>kept</em> there; dropped on a
+              page, it becomes part of it.
+            </p>
+            <%!-- This box matches names — a page's title and summary, a
+                  folder's. The words *inside* the pages are Search's job, so
+                  the way there is one click from the search that just missed,
+                  carrying the query and this board with it. --%>
+            <p
+              :if={@filters.q != ""}
+              class="mb-2 rounded-lg bg-base-200/60 px-2 py-1.5 text-xs text-base-content/60"
+            >
+              Full text search for:
+              <.link
+                navigate={~p"/search?#{[q: @filters.q, board: @board.id]}"}
+                class="link font-medium text-base-content"
+                title="Search the words inside these pages, by meaning"
+              >
+                {@filters.q}
+              </.link>
+            </p>
+            <p
+              :if={@tree == [] and @folders == [] and @filters.q == ""}
+              class="px-2 py-4 text-sm text-base-content/50"
+            >
+              Nothing written yet.
+            </p>
+            <p
+              :if={@folders == [] and @unfiled == [] and @filters.q != ""}
+              class="px-2 py-4 text-sm text-base-content/50"
+            >
+              No page or folder name matches that.
+            </p>
+            <%!-- Folders first, then the pages filed nowhere. Two axes, drawn
+                  as one tree: a folder is where a page is kept, a child page is
+                  part of its parent (see `Slipdock.Wiki.Folder`). --%>
+            <%!-- While a search is running every folder is open: a hit three
+                  folders down is no use behind a shut one. --%>
+            <.folder_tree
+              nodes={@folders}
+              board={@board}
+              current={@page}
+              collapsed={if @filters.q == "", do: @collapsed, else: MapSet.new()}
+              can_write={@can_write}
+              organising={@organising}
+              open={@folder}
+              parent={nil}
+              depth={0}
+            />
+            <%!-- The pages filed nowhere, under a heading of their own once
+                  there are folders to tell them apart from. --%>
+            <p
+              :if={@unfiled != [] and @folders != []}
+              class="mt-2 px-2 pb-0.5 text-2xs font-semibold uppercase tracking-wide text-base-content/40"
+            >
+              Not in a folder
+            </p>
+            <.page_tree
+              nodes={@unfiled}
+              board={@board}
+              current={@page}
+              organising={@organising}
+              into="folder:"
+              depth={0}
+            />
             <button
               :if={@can_write}
               type="button"
-              phx-click="toggle_organise"
-              class={[
-                "btn btn-ghost btn-xs btn-square shrink-0",
-                @organising && "btn-active text-primary"
-              ]}
-              title={if @organising, do: "Done organising", else: "Organise the tree"}
-              aria-pressed={to_string(@organising)}
+              phx-click="new_folder"
+              class="mt-2 flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-base-content/60 hover:bg-base-200"
             >
-              <.icon name={if @organising, do: "hero-check", else: "hero-pencil"} class="size-4" />
+              <.icon name="hero-folder-plus" class="size-4" /> New folder
             </button>
-          </div>
-          <p
-            :if={@organising}
-            class="mb-2 rounded-lg bg-primary/10 px-2 py-1.5 text-xs text-base-content/70"
-          >
-            Drag to rearrange. A page dropped in a folder is <em>kept</em> there; dropped on a
-            page, it becomes part of it.
-          </p>
-          <%!-- This box matches names — a page's title and summary, a
-                folder's. The words *inside* the pages are Search's job, so
-                the way there is one click from the search that just missed,
-                carrying the query and this board with it. --%>
-          <p
-            :if={@filters.q != ""}
-            class="mb-2 rounded-lg bg-base-200/60 px-2 py-1.5 text-xs text-base-content/60"
-          >
-            Full text search for:
-            <.link
-              navigate={~p"/search?#{[q: @filters.q, board: @board.id]}"}
-              class="link font-medium text-base-content"
-              title="Search the words inside these pages, by meaning"
-            >
-              {@filters.q}
-            </.link>
-          </p>
-          <p
-            :if={@tree == [] and @folders == [] and @filters.q == ""}
-            class="px-2 py-4 text-sm text-base-content/50"
-          >
-            Nothing written yet.
-          </p>
-          <p
-            :if={@folders == [] and @unfiled == [] and @filters.q != ""}
-            class="px-2 py-4 text-sm text-base-content/50"
-          >
-            No page or folder name matches that.
-          </p>
-          <%!-- Folders first, then the pages filed nowhere. Two axes, drawn
-                as one tree: a folder is where a page is kept, a child page is
-                part of its parent (see `Slipdock.Wiki.Folder`). --%>
-          <%!-- While a search is running every folder is open: a hit three
-                folders down is no use behind a shut one. --%>
-          <.folder_tree
-            nodes={@folders}
-            board={@board}
-            current={@page}
-            collapsed={if @filters.q == "", do: @collapsed, else: MapSet.new()}
-            can_write={@can_write}
-            organising={@organising}
-            open={@folder}
-            parent={nil}
-            depth={0}
-          />
-          <%!-- The pages filed nowhere, under a heading of their own once
-                there are folders to tell them apart from. --%>
-          <p
-            :if={@unfiled != [] and @folders != []}
-            class="mt-2 px-2 pb-0.5 text-2xs font-semibold uppercase tracking-wide text-base-content/40"
-          >
-            Not in a folder
-          </p>
-          <.page_tree
-            nodes={@unfiled}
-            board={@board}
-            current={@page}
-            organising={@organising}
-            into="folder:"
-            depth={0}
-          />
-          <button
-            :if={@can_write}
-            type="button"
-            phx-click="new_folder"
-            class="mt-2 flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-base-content/60 hover:bg-base-200"
-          >
-            <.icon name="hero-folder-plus" class="size-4" /> New folder
-          </button>
-        </aside>
+          </aside>
 
-        <main class="kanban-scroll min-w-0 flex-1 overflow-y-auto">
-          <div class="mx-auto max-w-4xl px-4 py-6 sm:px-8 sm:py-8">
-            <%= case @live_action do %>
-              <% :index when not is_nil(@folder) -> %>
-                <.folder_body
-                  board={@board}
-                  folder={@folder}
-                  node={folder_node(@folders, @folder.id)}
-                  can_write={@can_write}
-                />
-              <% :index -> %>
-                <.index_body
-                  board={@board}
-                  tree={@tree}
-                  folders={@folders}
-                  recent={@recent}
-                  wanted={@wanted}
-                  can_write={@can_write}
-                />
-              <% action when action in [:new, :edit] -> %>
-                <.editor
-                  form={@form}
-                  page={@page}
-                  board={@board}
-                  preview={@preview}
-                  conflict={@conflict}
-                  base_hash={@base_hash}
-                  uploads={@uploads}
-                  column={@new_column}
-                  outline={@folder_outline}
-                />
-              <% :history -> %>
-                <.history_body board={@board} page={@page} revisions={@revisions} />
-              <% :revision -> %>
-                <.revision_body
-                  board={@board}
-                  page={@page}
-                  revision={@revision}
-                  diff={@diff}
-                  can_write={@can_write}
-                />
-              <% _ -> %>
-                <.page_body
-                  board={@board}
-                  fields_board={@fields_board}
-                  page={@page}
-                  html={@html}
-                  backlinks={@backlinks}
-                  children={@children}
-                  cards={@cards}
-                  card_query={@card_query}
-                  card_results={@card_results}
-                  outline={@folder_outline}
-                  tags={@tags}
-                  columns={@columns}
-                  can_write={@can_write}
-                  can_manage={@can_manage}
-                  current_user={@current_user}
-                  form_key={@form_key}
-                />
-            <% end %>
-          </div>
-        </main>
+          <%!-- `relative`: the status buttons' radios are `sr-only`, which is
+                `position: absolute`, and with nothing positioned above them
+                they stretched the whole document to the page's length. --%>
+          <main id="wiki-main" class="kanban-scroll relative min-w-0 flex-1 overflow-y-auto">
+            <div class="mx-auto max-w-4xl px-4 py-6 sm:px-8 sm:py-8">
+              <%= case @live_action do %>
+                <% :index when not is_nil(@folder) -> %>
+                  <.folder_body
+                    board={@board}
+                    folder={@folder}
+                    node={folder_node(@folders, @folder.id)}
+                    can_write={@can_write}
+                  />
+                <% :index -> %>
+                  <.index_body
+                    board={@board}
+                    tree={@tree}
+                    folders={@folders}
+                    recent={@recent}
+                    wanted={@wanted}
+                    can_write={@can_write}
+                  />
+                <% action when action in [:new, :edit] -> %>
+                  <.editor
+                    form={@form}
+                    page={@page}
+                    board={@board}
+                    preview={@preview}
+                    conflict={@conflict}
+                    base_hash={@base_hash}
+                    uploads={@uploads}
+                    column={@new_column}
+                    outline={@folder_outline}
+                  />
+                <% :history -> %>
+                  <.history_body board={@board} page={@page} revisions={@revisions} />
+                <% :revision -> %>
+                  <.revision_body
+                    board={@board}
+                    page={@page}
+                    revision={@revision}
+                    diff={@diff}
+                    can_write={@can_write}
+                  />
+                <% _ -> %>
+                  <.page_body
+                    board={@board}
+                    fields_board={@fields_board}
+                    page={@page}
+                    html={@html}
+                    backlinks={@backlinks}
+                    children={@children}
+                    cards={@cards}
+                    card_query={@card_query}
+                    card_results={@card_results}
+                    outline={@folder_outline}
+                    tags={@tags}
+                    columns={@columns}
+                    can_write={@can_write}
+                    can_manage={@can_manage}
+                    current_user={@current_user}
+                    form_key={@form_key}
+                  />
+              <% end %>
+            </div>
+          </main>
+        </div>
       </div>
 
       <.folder_modal :if={@folder_modal} modal={@folder_modal} outline={@folder_outline} />

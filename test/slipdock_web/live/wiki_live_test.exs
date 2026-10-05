@@ -570,4 +570,47 @@ defmodule SlipdockWeb.WikiLiveTest do
       refute render(view) =~ "A draft"
     end
   end
+
+  # #323: a long page ran out past the bottom of the app, onto the bare page
+  # behind it. The panes have to sit in a column the height of the layout's
+  # <main> to scroll inside it, and the scroll pane has to be positioned so
+  # the sr-only (absolute) radios in it cannot stretch the document.
+  describe "a long page stays inside the app" do
+    @column "#wiki-shell.flex.h-full.flex-col"
+    @pane "#{@column} > div.flex.min-h-0.flex-1.overflow-hidden > main#wiki-main"
+
+    test "the page scrolls in its own pane, under the bar", %{conn: conn, board: board} do
+      body = Enum.map_join(1..80, "\n\n", &"## Section #{&1}\n\nParagraph #{&1}.")
+      page = page_fixture(board, %{"title" => "Very long", "body" => body})
+
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}")
+
+      assert has_element?(view, "#{@column} > div #view-menu")
+      assert has_element?(view, "#{@pane}.relative.overflow-y-auto.min-w-0")
+      assert has_element?(view, "#{@pane} .wiki-prose", "Section 80")
+      assert has_element?(view, "#{@column} #wiki-tree.overflow-y-auto")
+    end
+
+    test "the status radios sit inside the positioned pane", %{conn: conn, board: board} do
+      page = page_fixture(board, %{"title" => "Has a status"})
+
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}")
+
+      assert has_element?(view, "#{@pane}.relative input.sr-only[type=radio]")
+      refute has_element?(view, "body > input.sr-only[type=radio]")
+    end
+
+    test "the index and the editor share the same column", %{
+      conn: conn,
+      board: board
+    } do
+      page = page_fixture(board, %{"title" => "Edit me"})
+
+      {:ok, index, _} = live(conn, ~p"/boards/#{board}/wiki")
+      assert has_element?(index, @pane, "Edit me")
+
+      {:ok, editor, _} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}/edit")
+      assert has_element?(editor, "#{@pane} form")
+    end
+  end
 end
