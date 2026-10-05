@@ -74,6 +74,15 @@ defmodule SlipdockWeb.UsersLive.Index do
     end)
   end
 
+  # Off the free tier with no date: a named person the allowance and the
+  # trial should never reach. The guardrails still do.
+  def handle_event("toggle-unlimited", %{"id" => id}, socket) do
+    with_user(socket, id, fn user ->
+      {:ok, _} = Accounts.update_standing(user, %{"unlimited" => !user.unlimited})
+      {:noreply, socket |> put_flash(:info, "Saved.") |> load()}
+    end)
+  end
+
   ## Closing an account
 
   def handle_event("confirm-delete", %{"user_id" => id}, socket) do
@@ -355,6 +364,7 @@ defmodule SlipdockWeb.UsersLive.Index do
                 <div class="mt-1 flex gap-1">
                   <span :if={user.admin} class="badge badge-xs badge-primary">admin</span>
                   <span :if={user.disabled_at} class="badge badge-xs">disabled</span>
+                  <span :if={user.unlimited} class="badge badge-xs badge-success">unlimited</span>
                 </div>
               </td>
               <td class="text-xs text-base-content/60">
@@ -371,7 +381,7 @@ defmodule SlipdockWeb.UsersLive.Index do
                     type="number"
                     name="limit"
                     value={user.card_limit_override}
-                    placeholder={Settings.free_card_limit() || "∞"}
+                    placeholder={if user.unlimited, do: "∞", else: Settings.free_card_limit() || "∞"}
                     class="input input-xs w-16"
                   />
                 </form>
@@ -415,6 +425,21 @@ defmodule SlipdockWeb.UsersLive.Index do
                   class="btn btn-ghost btn-xs"
                 >
                   Remove admin
+                </button>
+                <button
+                  :if={!user.admin}
+                  id={"unlimited-#{user.id}"}
+                  phx-click="toggle-unlimited"
+                  phx-value-id={user.id}
+                  class="btn btn-ghost btn-xs"
+                  title={
+                    if user.unlimited,
+                      do: "Put them back on the free tier's allowance and trial.",
+                      else:
+                        "Take them off the free tier's allowance and trial. The server-wide limits still apply."
+                  }
+                >
+                  {if user.unlimited, do: "Remove unlimited", else: "Make unlimited"}
                 </button>
                 <button
                   :if={!user.disabled_at}

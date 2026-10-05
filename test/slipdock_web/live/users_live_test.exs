@@ -64,6 +64,26 @@ defmodule SlipdockWeb.UsersLiveTest do
     end
   end
 
+  describe "unlimited" do
+    test "can be switched on and off from the people list", %{conn: conn, ordinary: ordinary} do
+      {:ok, view, _} = live(conn, ~p"/users")
+
+      html = view |> element("#unlimited-#{ordinary.id}") |> render_click()
+      assert html =~ "Remove unlimited"
+      assert Accounts.get_user!(ordinary.id).unlimited
+      refute Slipdock.Quota.free?(Accounts.get_user!(ordinary.id))
+
+      html = view |> element("#unlimited-#{ordinary.id}") |> render_click()
+      assert html =~ "Make unlimited"
+      refute Accounts.get_user!(ordinary.id).unlimited
+    end
+
+    test "is not offered for an admin, who is exempt already", %{conn: conn, admin: admin} do
+      {:ok, view, _} = live(conn, ~p"/users")
+      refute has_element?(view, "#unlimited-#{admin.id}")
+    end
+  end
+
   describe "an admin demoted while the page is open" do
     test "cannot use it any more", %{conn: conn, admin: admin, ordinary: ordinary} do
       {:ok, view, _} = live(conn, ~p"/users")

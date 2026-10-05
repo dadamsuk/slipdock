@@ -173,6 +173,23 @@ defmodule Slipdock.QuotaLimitsTest do
       refute Quota.allows?(admin)
     end
 
+    test "applies to unlimited accounts too: they skip the free tier, not the ceilings", %{
+      owner: owner,
+      column: column
+    } do
+      settings(%{"item_limit" => 2, "free_card_limit" => 1})
+      {:ok, owner} = Accounts.update_standing(owner, %{"unlimited" => true})
+
+      assert Quota.limit(owner, :items) == 2
+      assert Quota.limit(owner, :boards) == 1_000
+      {:ok, _} = Boards.create_card(column, %{"title" => "One"})
+      # Past the free allowance of one, so that is not what refuses...
+      {:ok, _} = Boards.create_card(column, %{"title" => "Two"})
+      # ...but the ceiling of two still does.
+      assert {:error, changeset} = Boards.create_card(column, %{"title" => "Three"})
+      assert Quota.limit_kind(changeset) == :items
+    end
+
     test "the lower of the free allowance and the ceiling wins", %{owner: owner} do
       settings(%{"item_limit" => 100, "free_card_limit" => 5})
       assert Quota.limit(owner, :items) == 5
@@ -318,6 +335,35 @@ defmodule Slipdock.QuotaLimitsTest do
 
       refute Quota.trial_expired?(admin)
       assert Quota.check(admin) == :ok
+    end
+
+    test "an unlimited account is off the clock and off the free tier, with no date", %{
+      owner: owner,
+      column: column
+    } do
+      settings(%{"trial_days" => 30, "trial_enabled" => true, "free_card_limit" => 1})
+      owner = age(owner, 31)
+      assert Quota.check(owner) == {:error, :trial_expired}
+
+      {:ok, owner} = Accounts.update_standing(owner, %{"unlimited" => true})
+
+      assert owner.paid_until == nil
+      refute Quota.free?(owner)
+      assert %{applies?: false} = Quota.trial(owner)
+      refute Quota.trial_warning?(owner)
+      assert Quota.limit(owner, :items) == 250_000
+      assert {:ok, _} = Boards.create_card(column, %{"title" => "One"})
+      assert {:ok, _} = Boards.create_card(column, %{"title" => "Two"})
+    end
+
+    test "taking unlimited away puts somebody back on the free tier", %{owner: owner} do
+      settings(%{"trial_days" => 30, "trial_enabled" => true, "free_card_limit" => 1})
+      owner = age(owner, 31)
+      {:ok, owner} = Accounts.update_standing(owner, %{"unlimited" => true})
+      {:ok, owner} = Accounts.update_standing(owner, %{"unlimited" => false})
+
+      assert Quota.free?(owner)
+      assert Quota.check(owner) == {:error, :trial_expired}
     end
 
     test "warns before the end, not only after it", %{owner: owner} do

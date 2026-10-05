@@ -153,8 +153,13 @@ defmodule SlipdockWeb.API.AdminController do
   defp apply_user_change(user, %{"paid_until" => until}),
     do: Accounts.update_standing(user, %{"paid_until" => blank_to_nil(until)})
 
+  # Off the free tier for good, for somebody named rather than somebody who
+  # paid. The guardrails still apply.
+  defp apply_user_change(user, %{"unlimited" => unlimited}) when is_boolean(unlimited),
+    do: Accounts.update_standing(user, %{"unlimited" => unlimited})
+
   defp apply_user_change(_user, _params),
-    do: {:error, :bad_request, "pass admin, disabled, card_limit or paid_until"}
+    do: {:error, :bad_request, "pass admin, disabled, card_limit, paid_until or unlimited"}
 
   defp blank_to_nil(value) when value in ["", "none", "-", nil], do: nil
   defp blank_to_nil(value), do: value
@@ -176,6 +181,7 @@ defmodule SlipdockWeb.API.AdminController do
       invited: user.invited_at != nil,
       last_signed_in_at: user.last_signed_in_at,
       paid_until: user.paid_until,
+      unlimited: user.unlimited,
       # `cards` is the item count — cards, pages and files — and keeps its name
       # because callers match on it. `limits` is every dimension and the trial.
       cards: if(usage, do: Quota.report(user, usage).items, else: Quota.status(user)),

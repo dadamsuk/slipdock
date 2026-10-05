@@ -9,7 +9,9 @@ defmodule Slipdock.Quota do
   install, which is the default, and then that layer is inert. It exists for
   running Slipdock for other people: a free account gets a limited number of
   things and pays for more. Admins are exempt from it — somebody has to be able
-  to fix a server that has filled up.
+  to fix a server that has filled up — and so is anybody an admin has marked
+  **unlimited**: a named person who should never meet the free tier, without
+  pretending they paid.
 
   **The guardrails** (`board_limit`, `item_limit`, `storage_limit_mb`) are on
   everywhere, on every kind of install, paid or not, with defaults of 1,000
@@ -32,7 +34,8 @@ defmodule Slipdock.Quota do
   What makes an account **not free** is `users.paid_until` in the future.
   Nothing here charges anybody; an operator sets that date when somebody pays,
   and until then a free account is any account without it. Admins are free
-  accounts that nothing expires.
+  accounts that nothing expires. So is an account an admin has marked
+  `unlimited`, which is the same exemption without a date to fake.
 
   An expired trial is a wall of the same shape as a full quota: nothing new can
   be added, everything already there stays readable and editable. Locking
@@ -229,13 +232,15 @@ defmodule Slipdock.Quota do
   end
 
   @doc """
-  Whether this is a free account: no payment recorded, and not an admin. Only
+  Whether this is a free account: no payment recorded, not an admin, and not
+  marked unlimited. Only
   free accounts have the free tier's allowance or a trial; the guardrails apply
   to everybody.
   """
   @spec free?(User.t() | nil) :: boolean()
   def free?(nil), do: false
   def free?(%User{admin: true}), do: false
+  def free?(%User{unlimited: true}), do: false
 
   def free?(%User{paid_until: nil}), do: true
 

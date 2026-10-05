@@ -27,6 +27,9 @@ defmodule Slipdock.Accounts.User do
     # has paid, which lifts both the free tier's allowance and the trial clock
     # (see `Slipdock.Quota`). Until there is a billing system, an admin sets it.
     field :paid_until, :utc_datetime
+    # Off the free tier with no date attached: for somebody named by an admin
+    # rather than somebody who paid. The guardrails still apply.
+    field :unlimited, :boolean, default: false
     # Set when this account exists because somebody shared something with the
     # address, rather than because its owner asked for one.
     field :invited_at, :utc_datetime
@@ -90,13 +93,14 @@ defmodule Slipdock.Accounts.User do
 
   @doc """
   The admin's view of somebody: whether they may administer this server, what
-  their own card limit is, and how long they have paid up to. Separate from
+  their own card limit is, how long they have paid up to, and whether they are
+  off the free tier altogether. Separate from
   `profile_changeset/2` because nobody may promote themselves by posting their
   own profile form.
   """
   def standing_changeset(user, attrs) do
     user
-    |> cast(normalise_paid_until(attrs), [:admin, :card_limit_override, :paid_until])
+    |> cast(normalise_paid_until(attrs), [:admin, :card_limit_override, :paid_until, :unlimited])
     |> validate_number(:card_limit_override, greater_than: 0)
   end
 
