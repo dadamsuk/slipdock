@@ -42,6 +42,50 @@ defmodule SlipdockWeb.API.BoardPartsTest do
       refute Enum.any?(Boards.get_board!(board.id).columns, &(&1.id == id))
     end
 
+    test "a list's order and groups are set, read back and cleared", %{conn: conn, board: board} do
+      [column | _] = board.columns
+      path = ~p"/api/boards/#{board.id}/columns/#{column.id}"
+
+      assert %{"sort_by" => nil, "sort_dir" => "asc", "group_by" => nil} =
+               conn
+               |> get(~p"/api/boards/#{board.id}/columns")
+               |> json_response(200)
+               |> Map.fetch!("columns")
+               |> hd()
+
+      set =
+        conn
+        |> patch(path, %{"sort_by" => "priority", "sort_dir" => "desc", "group_by" => "tag"})
+        |> json_response(200)
+
+      assert %{"sort_by" => "priority", "sort_dir" => "desc", "group_by" => "tag"} = set["column"]
+
+      # The whole board carries it too, which is what `slipdock board` reads.
+      listed = conn |> get(~p"/api/boards/#{board.id}") |> json_response(200)
+
+      assert %{"sort_by" => "priority"} =
+               Enum.find(listed["board"]["columns"], &(&1["id"] == column.id))
+
+      cleared =
+        conn
+        |> patch(path, %{"sort_by" => "position", "group_by" => "none"})
+        |> json_response(200)
+
+      assert %{"sort_by" => nil, "group_by" => nil} = cleared["column"]
+    end
+
+    test "an order the list cannot have is refused", %{conn: conn, board: board} do
+      [column | _] = board.columns
+
+      refused =
+        conn
+        |> patch(~p"/api/boards/#{board.id}/columns/#{column.id}", %{"group_by" => "assignee"})
+        |> json_response(422)
+
+      assert inspect(refused) =~ "group_by"
+      assert Boards.get_board_column(board.id, column.id).group_by == nil
+    end
+
     test "deleting a list that holds cards is refused, archived cards included",
          %{conn: conn, board: board} do
       [column | _] = board.columns

@@ -14,7 +14,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   import SlipdockWeb.SwimlaneComponents
   import SlipdockWeb.BoardLive.Helpers, only: [tag_by_id: 2]
 
-  alias Slipdock.Palette
+  alias Slipdock.{ListOrder, Palette}
   alias Slipdock.Boards.{Board, Card, Column}
   alias Slipdock.Swimlanes.Config
 
@@ -303,7 +303,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
           class="flex h-full items-start gap-4 p-4"
         >
           <div
-            :for={%{column: column, cards: cards, items: items, hidden: hidden} <- @columns}
+            :for={%{column: column, cards: cards, groups: groups, hidden: hidden} <- @columns}
             id={"column-#{column.id}"}
             data-id={column.id}
             class={[
@@ -362,6 +362,13 @@ defmodule SlipdockWeb.BoardLive.BoardView do
                 title={"#{drifted} #{if drifted == 1, do: "card is", else: "cards are"} due outside this horizon"}
               >
                 <.icon name="hero-arrow-uturn-right" class="size-3" /> {drifted}
+              </span>
+              <span
+                :if={ListOrder.label(column)}
+                class="shrink-0 text-base-content/50"
+                title={"Cards drawn #{ListOrder.label(column)} — set in List settings"}
+              >
+                <.icon name="hero-bars-arrow-down" class="size-3.5" />
               </span>
               <%!-- Stand-ins are not work in this list, so they are not
                     counted against its limit. --%>
@@ -442,23 +449,41 @@ defmodule SlipdockWeb.BoardLive.BoardView do
               data-group="cards"
               data-event="move_card"
               data-disabled={to_string(!@can_write)}
+              data-draggable=".kanban-card"
+              data-sort={to_string(!ListOrder.sorted?(column))}
               class="kanban-scroll min-h-[2.5rem] flex-1 space-y-2 overflow-y-auto px-2 py-1"
             >
               <%!-- Cards and placed wiki pages are drawn by the same
                     component: a page carries the card's facets, and the one
-                    thing it does differently is the document icon. --%>
-              <.card
-                :for={{_kind, item} <- items}
-                card={item}
-                compact={@swim.density == "compact"}
-                show={Config.shown(@swim)}
-                focus={@focus && card_focus(@focus, item)}
-                dismiss={@can_write}
-              >
-                <:actions :if={@can_write and length(@board.columns) > 1}>
-                  <.move_menu card={item} board={@board} />
-                </:actions>
-              </.card>
+                    thing it does differently is the document icon. A list
+                    with an order of its own draws them in it, under group
+                    headings when it has those; dragging within it then has
+                    nothing to rearrange, so only moves between lists. --%>
+              <%= for group <- groups do %>
+                <h3
+                  :if={group.label}
+                  class={[
+                    "list-group flex items-center gap-1.5 px-1 pt-1 text-2xs font-semibold uppercase tracking-wide",
+                    if(group.tone == :past, do: "text-error/80", else: "text-base-content/50")
+                  ]}
+                >
+                  <span :if={group.color} class={["size-2 rounded-full", Palette.dot(group.color)]}></span>
+                  {group.label}
+                  <span class="font-mono font-normal">{length(group.items)}</span>
+                </h3>
+                <.card
+                  :for={{_kind, item} <- group.items}
+                  card={item}
+                  compact={@swim.density == "compact"}
+                  show={Config.shown(@swim)}
+                  focus={@focus && card_focus(@focus, item)}
+                  dismiss={@can_write}
+                >
+                  <:actions :if={@can_write and length(@board.columns) > 1}>
+                    <.move_menu card={item} board={@board} />
+                  </:actions>
+                </.card>
+              <% end %>
               <p :if={hidden > 0} class="px-1 py-1 text-center text-2xs text-base-content/60">
                 {hidden} hidden by filters
               </p>

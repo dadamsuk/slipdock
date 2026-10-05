@@ -1,7 +1,8 @@
 defmodule SlipdockWeb.BoardLive.ColumnComponent do
   @moduledoc """
-  A list's settings: its name, WIP limit, meaning, horizon, colour, what the
-  foot of the list offers — and deleting it.
+  A list's settings: its name, WIP limit, meaning, horizon, the order and
+  groups it draws its cards in, colour, what the foot of the list offers —
+  and deleting it.
 
   Opened from the list's own menu, which targets this component
   (`#board-column`). It works out for itself whether the reader may write to
@@ -12,8 +13,11 @@ defmodule SlipdockWeb.BoardLive.ColumnComponent do
   import SlipdockWeb.SlipdockComponents
   import SlipdockWeb.BoardLive.Helpers, only: [flash: 3]
 
-  alias Slipdock.{Access, Boards, Dates, Palette}
+  alias Slipdock.{Access, Boards, Dates, ListOrder, Palette}
   alias Slipdock.Boards.Column
+
+  # The board's own settings that the dialog carries alongside the list's.
+  @board_fields ~w(add_card add_page add_document)
 
   @events ~w(edit_column close_column save_column set_column_color delete_column)
   # Everything here changes the board, but closing the panel.
@@ -28,10 +32,15 @@ defmodule SlipdockWeb.BoardLive.ColumnComponent do
 
   @impl true
   def update(%{board: board, current_user: user}, socket) do
+    perm = Access.board_permission(user, board)
+
     {:ok,
      assign(socket,
        board: board,
-       can_write: Access.can_write?(Access.board_permission(user, board))
+       can_write: Access.can_write?(perm),
+       # What the foot of every list offers is the board's, not the list's,
+       # and only its owner changes the board (as through the API).
+       can_manage: perm == :owner
      )}
   end
 
@@ -64,11 +73,16 @@ defmodule SlipdockWeb.BoardLive.ColumnComponent do
     do: {:noreply, socket}
 
   defp event("save_column", %{"column" => params}, socket) do
+    {board_params, params} = Map.split(params, @board_fields)
     params = Map.update(params, "wip_limit", nil, &if(&1 == "", do: nil, else: &1))
 
     case Boards.update_column(socket.assigns.column_modal, params) do
-      {:ok, _} -> {:noreply, assign(socket, column_modal: nil)}
-      {:error, cs} -> {:noreply, assign(socket, column_form: to_form(cs))}
+      {:ok, _} ->
+        save_board_fields(socket, board_params)
+        {:noreply, assign(socket, column_modal: nil)}
+
+      {:error, cs} ->
+        {:noreply, assign(socket, column_form: to_form(cs))}
     end
   end
 
@@ -86,6 +100,12 @@ defmodule SlipdockWeb.BoardLive.ColumnComponent do
     {:noreply, assign(socket, column_modal: nil)}
   end
 
+  defp save_board_fields(%{assigns: %{can_manage: true, board: board}}, params)
+       when params != %{},
+       do: Boards.update_board(Boards.get_board!(board.id), params)
+
+  defp save_board_fields(_socket, _params), do: :ok
+
   # The list `id` on the open board, or nil.
   defp board_column(socket, id), do: Boards.get_board_column(socket.assigns.board.id, id)
 
@@ -97,6 +117,8 @@ defmodule SlipdockWeb.BoardLive.ColumnComponent do
         :if={@column_modal}
         column={@column_modal}
         form={@column_form}
+        board={@board}
+        can_manage={@can_manage}
         target={@myself}
       />
     </div>
@@ -105,6 +127,8 @@ defmodule SlipdockWeb.BoardLive.ColumnComponent do
 
   attr :column, Column, required: true
   attr :form, :any, required: true
+  attr :board, :any, required: true
+  attr :can_manage, :boolean, required: true
   attr :target, :any, required: true
 
   defp column_modal(assigns) do
@@ -154,21 +178,61 @@ defmodule SlipdockWeb.BoardLive.ColumnComponent do
               options={[{"Exact day", ""} | Enum.map(Dates.precisions(), fn {k, l} -> {l, k} end)]}
             />
           </div>
-          <%!-- What the foot of every list offers. All three add something to
-                the list; a board that never holds documents would rather not
-                look at the button. --%>
-          <div class="space-y-1.5">
+          <div class="space-y-1.5 rounded-lg bg-base-200/60 p-3">
+            <span class="text-sm font-medium">Order</span>
+            <p class="text-xs text-base-content/50">
+              How this list draws its cards. Sorted, a list keeps itself in order and
+              dragging only moves cards between lists; board order puts back the order
+              they were dragged into.
+            </p>
+            <.input
+              field={@form[:sort_by]}
+              type="select"
+              label="Sort by"
+              options={Enum.map(ListOrder.sorts(), fn {k, l} -> {l, k} end)}
+            />
+            <.input
+              field={@form[:sort_dir]}
+              type="select"
+              label="Direction"
+              options={Enum.map(ListOrder.dirs(), fn {k, l} -> {l, k} end)}
+            />
+            <.input
+              field={@form[:group_by]}
+              type="select"
+              label="Group by"
+              options={Enum.map(ListOrder.groups(), fn {k, l} -> {l, k} end)}
+            />
+          </div>
+          <%!-- What the foot of every list offers: the board's setting, so
+                only its owner sees it. All three add something to the list;
+                a board that never holds documents would rather not look at
+                the button. --%>
+          <div :if={@can_manage} class="space-y-1.5">
             <span class="text-sm font-medium">At the foot of every list</span>
             <label class="flex cursor-pointer items-center gap-2 text-sm">
-              <.input field={@form[:add_card]} type="checkbox" /> Add a card
+              <.input
+                id="column-add-card"
+                name="column[add_card]"
+                value={@board.add_card}
+                type="checkbox"
+              /> Add a card
             </label>
             <label class="flex cursor-pointer items-center gap-2 text-sm">
-              <.input field={@form[:add_page]} type="checkbox" /> Add a page — a wiki document,
-              placed in the list
+              <.input
+                id="column-add-page"
+                name="column[add_page]"
+                value={@board.add_page}
+                type="checkbox"
+              /> Add a page — a wiki document, placed in the list
             </label>
             <label class="flex cursor-pointer items-center gap-2 text-sm">
-              <.input field={@form[:add_document]} type="checkbox" /> Add a document — a file, on a
-              card of its own
+              <.input
+                id="column-add-document"
+                name="column[add_document]"
+                value={@board.add_document}
+                type="checkbox"
+              /> Add a document — a file, on a card of its own
             </label>
           </div>
           <div class="space-y-1.5">

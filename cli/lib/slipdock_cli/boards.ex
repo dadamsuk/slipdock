@@ -715,12 +715,14 @@ defmodule SlipdockCLI.Boards do
 
   def run("new-column", [ref | words], o) when words != [] do
     body =
-      compact(%{
+      %{
         "name" => Enum.join(words, " "),
         "wip_limit" => o[:wip],
         "color" => o[:color],
         "category" => o[:category]
-      })
+      }
+      |> Map.merge(list_order(o))
+      |> compact()
 
     HTTP.post("/boards/#{enc(ref)}/columns", body)
     |> out(o, fn r -> IO.puts("created column ##{r["column"]["id"]}: #{r["column"]["name"]}") end)
@@ -732,14 +734,17 @@ defmodule SlipdockCLI.Boards do
     id = pick(columns, Enum.join(name, " "), "list", ref)
 
     body =
-      compact(%{
+      %{
         "name" => o[:name],
         "wip_limit" => o[:wip],
         "color" => o[:color],
         "category" => o[:category]
-      })
+      }
+      |> Map.merge(list_order(o))
+      |> compact()
 
-    if body == %{}, do: fail("nothing to change: pass --name, --wip, --color or --category")
+    if body == %{},
+      do: fail("nothing to change: pass --name, --wip, --color, --category, --sort or --group")
 
     HTTP.patch("/boards/#{enc(ref)}/columns/#{id}", body)
     |> out(o, fn r ->
@@ -1009,5 +1014,16 @@ defmodule SlipdockCLI.Boards do
   defp hours(minutes) do
     h = Float.round(minutes / 60, 1)
     if h == trunc(h), do: "#{trunc(h)}h", else: "#{h}h"
+  end
+
+  # How a list draws its cards. `--sort` sets the direction too, ascending
+  # unless `--descending`; `--sort position` and `--group none` put back board
+  # order and one run of cards.
+  defp list_order(o) do
+    %{
+      "sort_by" => o[:sort],
+      "sort_dir" => if(o[:sort], do: if(o[:descending], do: "desc", else: "asc")),
+      "group_by" => o[:group]
+    }
   end
 end

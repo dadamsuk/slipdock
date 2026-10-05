@@ -103,6 +103,11 @@ defmodule SlipdockWeb.API.JSON do
       wip_limit: c.wip_limit,
       color: c.color,
       category: c.category,
+      # How the web app draws the list's cards; `position` is still the
+      # order they were put in.
+      sort_by: c.sort_by,
+      sort_dir: c.sort_dir,
+      group_by: c.group_by,
       horizon:
         if Column.horizon?(c) do
           %{

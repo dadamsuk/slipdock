@@ -113,6 +113,59 @@ defmodule Slipdock.PortableImportTest do
       assert Enum.map(board.columns, & &1.category) == ["todo", "todo", "doing", "done"]
     end
 
+    test "each list keeps the order and groups it draws its cards in", %{
+      owner: owner,
+      receiver: receiver
+    } do
+      [board] = owned(owner)
+      todo = Enum.find(Boards.get_board!(board.id).columns, &(&1.name == "To Do"))
+
+      {:ok, _} =
+        Boards.update_column(todo, %{
+          "sort_by" => "due_date",
+          "sort_dir" => "desc",
+          "group_by" => "flag"
+        })
+
+      {_report, board} = round_trip(owner, receiver)
+
+      assert [
+               {"Backlog", nil, "asc", nil},
+               {"To Do", "due_date", "desc", "flag"} | _
+             ] = Enum.map(board.columns, &{&1.name, &1.sort_by, &1.sort_dir, &1.group_by})
+    end
+
+    test "an order this server does not know is dropped, not the list with its cards" do
+      document =
+        Jason.encode!(%{
+          slipdock_portable: 1,
+          boards: [
+            %{
+              root: %{
+                ref: "r",
+                name: "Imported",
+                code: "imp2",
+                lists: [
+                  %{
+                    ref: "l1",
+                    name: "To Do",
+                    sort_by: "vibes",
+                    sort_dir: "sideways",
+                    group_by: "mood"
+                  }
+                ]
+              },
+              boards: [],
+              cards: [%{ref: "k0", board: "r", list: "l1", title: "Still here"}]
+            }
+          ]
+        })
+
+      assert {:ok, %{cards: 1} = report} = Portable.import(user_fixture(), document)
+      [list] = Boards.get_board!(hd(report.boards).id).columns
+      assert {list.name, list.sort_by, list.sort_dir, list.group_by} == {"To Do", nil, "asc", nil}
+    end
+
     test "cards land in the list they were in", %{owner: owner, receiver: receiver} do
       {_report, board} = round_trip(owner, receiver)
 

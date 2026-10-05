@@ -24,6 +24,11 @@ defmodule Slipdock.Boards.Column do
     field :horizon_from, :date
     field :horizon_to, :date
     field :horizon_unit, :string
+    # How the list draws its cards (see `Slipdock.ListOrder`): nil sort is
+    # the order they were dragged into, nil group is one run of cards.
+    field :sort_by, :string
+    field :sort_dir, :string, default: "asc"
+    field :group_by, :string
 
     belongs_to :board, Slipdock.Boards.Board
     has_many :cards, Slipdock.Boards.Card, preload_order: [asc: :position]
@@ -76,7 +81,10 @@ defmodule Slipdock.Boards.Column do
       :category,
       :horizon_from,
       :horizon_to,
-      :horizon_unit
+      :horizon_unit,
+      :sort_by,
+      :sort_dir,
+      :group_by
     ])
     |> validate_required([:name, :board_id])
     |> validate_length(:name, min: 1, max: 60)
@@ -87,10 +95,24 @@ defmodule Slipdock.Boards.Column do
     |> validate_inclusion(:category, [nil | category_keys()])
     |> validate_inclusion(:horizon_unit, [nil | Dates.precision_keys()])
     |> validate_horizon()
+    |> update_change(:sort_by, &manual_to_nil/1)
+    |> update_change(:group_by, &none_to_nil/1)
+    |> update_change(:sort_dir, &(blank_to_nil(&1) || "asc"))
+    |> validate_inclusion(:sort_by, [nil | Slipdock.ListOrder.sort_keys()])
+    |> validate_inclusion(:sort_dir, Slipdock.ListOrder.dir_keys())
+    |> validate_inclusion(:group_by, [nil | Slipdock.ListOrder.group_keys()])
   end
 
   defp blank_to_nil(""), do: nil
   defp blank_to_nil(v), do: v
+
+  # "position" is what the views call board order; both it and blank mean
+  # the order the cards were dragged into.
+  defp manual_to_nil("position"), do: nil
+  defp manual_to_nil(v), do: blank_to_nil(v)
+
+  defp none_to_nil("none"), do: nil
+  defp none_to_nil(v), do: blank_to_nil(v)
 
   defp validate_horizon(changeset) do
     from = get_field(changeset, :horizon_from)

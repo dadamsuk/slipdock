@@ -239,6 +239,7 @@ slipdock order-boards <board>...        # the order you list boards in (yours al
 slipdock welcome [--force]              # rebuild the "Getting Started" tour board (see below)
 slipdock new-column <board> <name> [--wip N] [--color C] [--category C]
 slipdock set-column <board> <column> [--name N] [--wip N] [--color C] [--category C]   # category: todo|doing|done|dropped, "" clears
+slipdock set-column <board> <column> --sort due_date [--descending] --group flag   # how the web app draws the list; --sort position / --group none undo it
 slipdock new-tag <board> <name> [--color C]
 slipdock new-board <name> [--code C] [--shortcut K] [--desc TEXT] [--color C] [--template T]
 slipdock templates                                        # sets of lists for new boards / subcards
