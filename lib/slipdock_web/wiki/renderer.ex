@@ -24,6 +24,8 @@ defmodule SlipdockWeb.Wiki.Renderer do
   and the wrong size for this one.
   """
 
+  require Logger
+
   alias Slipdock.Boards.{Card, Column}
   alias Slipdock.Wiki
   alias Slipdock.Wiki.{Links, Markup, Page, Query, Section}
@@ -84,6 +86,18 @@ defmodule SlipdockWeb.Wiki.Renderer do
     else
       _ -> "<pre>" <> escape(body) <> "</pre>"
     end
+  rescue
+    # Resolving references reads cards, pages and links as they stand now,
+    # and a reference the code did not foresee should cost the reader the
+    # live parts of one page, not the page. Logged, because it is a bug.
+    exception ->
+      Logger.error(
+        "Wiki page failed to render: " <> Exception.format(:error, exception, __STACKTRACE__)
+      )
+
+      ~s|<div class="wiki-query-error"><p class="wiki-query-error-message">| <>
+        "Part of this page could not be drawn, so here it is as written. The error has been logged." <>
+        "</p><pre>" <> escape(body) <> "</pre></div>"
   end
 
   def to_html(_, _), do: ""
@@ -419,7 +433,8 @@ defmodule SlipdockWeb.Wiki.Renderer do
       links ->
         items =
           Enum.map_join(links, "", fn link ->
-            ~s|<li><a href="#{page_path(link.page)}" class="wiki-link">#{escape(link.page.title)}</a></li>|
+            {path, title} = backlink_source(link)
+            ~s|<li><a href="#{path}" class="wiki-link">#{escape(title)}</a></li>|
           end)
 
         ~s|<ul class="wiki-backlinks">#{items}</ul>|
@@ -445,10 +460,22 @@ defmodule SlipdockWeb.Wiki.Renderer do
   defp directive_markdown("backlinks", %{page: %Page{} = page, reader: reader}) do
     page
     |> Links.backlinks(reader)
-    |> Enum.map_join("\n", &"- [#{&1.page.title}](#{page_path(&1.page)})")
+    |> Enum.map_join("\n", fn link ->
+      {path, title} = backlink_source(link)
+      "- [#{title}](#{path})"
+    end)
   end
 
   defp directive_markdown(_name, _context), do: ""
+
+  @doc """
+  Where a backlink was written, as `{path, title}`. That is a page, or a card
+  whose description or comment names the page — so `link.page` can be nil.
+  """
+  def backlink_source(%{page: %Page{} = page}), do: {page_path(page), page.title}
+
+  def backlink_source(%{source_card: %Card{} = card}),
+    do: {"/boards/#{card.board_id}/cards/#{card.id}", "##{card.id} #{card.title}"}
 
   ## Query blocks -------------------------------------------------------------
 

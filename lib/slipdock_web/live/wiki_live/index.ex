@@ -2735,9 +2735,9 @@ defmodule SlipdockWeb.WikiLive.Index do
           Linked from
         </h2>
         <ul class="mt-3 flex flex-wrap gap-2">
-          <li :for={link <- @backlinks}>
-            <.link navigate={page_path(@board, link.page)} class="chip chip-line hover:bg-base-200">
-              {link.page.title}
+          <li :for={{path, title} <- Enum.map(@backlinks, &Renderer.backlink_source/1)}>
+            <.link navigate={path} class="chip chip-line hover:bg-base-200">
+              {title}
             </.link>
           </li>
         </ul>

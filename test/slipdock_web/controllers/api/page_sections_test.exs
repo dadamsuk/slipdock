@@ -128,6 +128,24 @@ defmodule SlipdockWeb.API.PageSectionsTest do
   end
 
   describe "the graph" do
+    # #325: a card naming the page is a backlink without a page, and the
+    # links endpoint answered 500 trying to summarise one.
+    test "a backlink written on a card comes back as the card", %{conn: conn, column: column} do
+      card = card_fixture(column, %{"title" => "Ship it"})
+      %{"page" => target} = create(conn, %{title: "Retry policy"})
+      {:ok, _} = Slipdock.Boards.add_comment(card, "blocked on [[Retry policy]]")
+
+      assert %{"incoming" => [incoming]} =
+               conn |> get("/api/pages/#{target["id"]}/links") |> json_response(200)
+
+      assert %{"card" => %{"id" => id, "title" => "Ship it", "url" => url}, "count" => 1} =
+               incoming
+
+      assert id == card.id
+      assert url == "/boards/#{card.board_id}/cards/#{card.id}"
+      refute Map.has_key?(incoming, "page")
+    end
+
     test "links, backlinks, pins and wanted pages", %{conn: conn, column: column} do
       card = card_fixture(column, %{"title" => "Ship it"})
       %{"page" => target} = create(conn, %{title: "Retry policy"})

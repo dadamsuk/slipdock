@@ -45,6 +45,25 @@ defmodule SlipdockWeb.WikiLiveTest do
     assert has_element?(view, "a", "History")
   end
 
+  # #325: a card naming the page is a backlink with no page behind it, and
+  # the "Linked from" list crashed the whole view reaching for its title.
+  test "a page linked from a card and from a page names both under Linked from", %{
+    conn: conn,
+    board: board,
+    user: user
+  } do
+    page = page_fixture(board, %{"title" => "Retry policy"}, user: user)
+    page_fixture(board, %{"title" => "Runbook", "body" => "See [[Retry policy]]."}, user: user)
+    card = card_fixture(hd(Boards.get_board!(board.id).columns), %{"title" => "Ship retries"})
+    {:ok, _} = Boards.add_comment(card, "blocked on [[Retry policy]]")
+
+    {:ok, view, html} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}")
+
+    assert html =~ "Linked from"
+    assert has_element?(view, "a[href='/boards/#{board.id}/cards/#{card.id}']", "Ship retries")
+    assert has_element?(view, "a[href='/boards/#{board.id}/wiki/runbook']", "Runbook")
+  end
+
   test "writing a page creates it and lands on it", %{conn: conn, board: board} do
     {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki/new")
 
