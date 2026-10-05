@@ -347,9 +347,20 @@ defmodule SlipdockWeb.API.JSON do
     }
   end
 
+  # A stub the reader can't see (`hidden`, see
+  # `Slipdock.Access.hide_unreadable_dependencies/3`) keeps its id and state
+  # but says nothing of its title or board.
   defp dependency_stubs(deps) when is_list(deps) do
     Enum.map(deps, fn d ->
-      %{id: d.id, title: d.title, completed: d.completed, archived: not is_nil(d.archived_at)}
+      %{
+        id: d.id,
+        title: d.title,
+        completed: d.completed,
+        archived: not is_nil(d.archived_at),
+        board_id: d.board_id,
+        board: if(match?(%Board{}, d.board), do: d.board.code),
+        hidden: d.hidden == true
+      }
     end)
   end
 

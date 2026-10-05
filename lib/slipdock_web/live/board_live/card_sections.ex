@@ -247,8 +247,17 @@ defmodule SlipdockWeb.BoardLive.CardSections do
                 if(dep.completed, do: "text-success", else: "text-error")
               ]}
             />
+            <span
+              :if={dep.hidden}
+              class="min-w-0 flex-1 truncate text-sm italic text-base-content/50"
+              title="It is on a board you can't see"
+            >
+              {dep.title}
+            </span>
             <.link
-              patch={@card_link.(dep.id)}
+              :if={not dep.hidden}
+              patch={if dep.board_id == @board.id, do: @card_link.(dep.id)}
+              navigate={if dep.board_id != @board.id, do: ~p"/boards/#{dep.board_id}/cards/#{dep.id}"}
               class={[
                 "min-w-0 flex-1 truncate text-sm hover:underline",
                 dep.completed && "text-base-content/50"
@@ -256,6 +265,13 @@ defmodule SlipdockWeb.BoardLive.CardSections do
             >
               {dep.title}
             </.link>
+            <span
+              :if={not dep.hidden and dep.board_id != @board.id and match?(%{code: _}, dep.board)}
+              class="max-w-32 shrink-0 truncate text-2xs text-base-content/50"
+              title={"On board #{dep.board.name}"}
+            >
+              {dep.board.code}
+            </span>
             <span :if={dep.archived_at} class="badge badge-ghost badge-xs">archived</span>
             <button
               phx-target={@target}
@@ -317,7 +333,16 @@ defmodule SlipdockWeb.BoardLive.CardSections do
             >
               <.icon name="hero-plus" class="size-3.5" />
               <span class={result.completed && "opacity-60"}>{result.title}</span>
-              <span class="ml-auto text-xs opacity-50">{column_name(@board, result.column_id)}</span>
+              <span :if={result.board_id == @board.id} class="ml-auto text-xs opacity-50">
+                {column_name(@board, result.column_id)}
+              </span>
+              <span
+                :if={result.board_id != @board.id}
+                class="ml-auto shrink-0 text-2xs opacity-50"
+                title={"On board #{result.board.name}"}
+              >
+                {result.board.code}
+              </span>
             </button>
           </li>
         </ul>

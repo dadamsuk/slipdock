@@ -102,7 +102,10 @@ defmodule Slipdock.Portable.Export do
          "the same thing on another server."},
       {revision_count(board_ids),
        "Wiki page history is not in this file — only each page as it stands now. A record " <>
-         "of who changed what here is not something another server can honestly adopt."}
+         "of who changed what here is not something another server can honestly adopt."},
+      {outside_dependency_count(board_ids),
+       "Dependencies between a board in this file and a board outside it are not in this " <>
+         "file: a dependency is kept only when both of its cards are in the same board tree."}
     ]
     |> Enum.filter(fn {count, _} -> count > 0 end)
     |> Enum.map(fn {count, sentence} -> "#{count} left behind. #{sentence}" end)
@@ -606,6 +609,35 @@ defmodule Slipdock.Portable.Export do
         on: c.id == v.card_id,
         where: c.board_id in ^board_ids,
         select: count(v.id)
+      )
+    ) || 0
+  end
+
+  # Dependencies joining a board inside the export to one outside it — or to
+  # another exported tree, since each tree's refs are its own. Cards on
+  # different boards can depend on each other, so there can be some.
+  defp outside_dependency_count([]), do: 0
+
+  defp outside_dependency_count(board_ids) do
+    root_ids =
+      from(b in Board, where: b.id in ^board_ids, select: coalesce(b.root_id, b.id))
+      |> Repo.all()
+      |> Enum.uniq()
+
+    Repo.one(
+      from(d in "card_dependencies",
+        join: x in Card,
+        on: x.id == d.blocked_id,
+        join: xb in Board,
+        on: xb.id == x.board_id,
+        join: y in Card,
+        on: y.id == d.blocker_id,
+        join: yb in Board,
+        on: yb.id == y.board_id,
+        where: coalesce(xb.root_id, xb.id) != coalesce(yb.root_id, yb.id),
+        where:
+          coalesce(xb.root_id, xb.id) in ^root_ids or coalesce(yb.root_id, yb.id) in ^root_ids,
+        select: count()
       )
     ) || 0
   end

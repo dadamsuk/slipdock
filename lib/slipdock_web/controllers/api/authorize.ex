@@ -42,6 +42,20 @@ defmodule SlipdockWeb.API.Authorize do
     |> check(need, "page")
   end
 
+  @doc """
+  `subject` (a card, a list of cards, or a board) with the cards at the far
+  end of its dependencies that this request can't read hidden — see
+  `Slipdock.Access.hide_unreadable_dependencies/3`. Pass anything rendered
+  with dependencies through it.
+  """
+  def visible(conn, subject),
+    do:
+      Access.hide_unreadable_dependencies(
+        conn.assigns.current_user,
+        subject,
+        conn.assigns[:api_token]
+      )
+
   defp level(conn, level, board_id),
     do: Access.narrow(level, conn.assigns[:api_token], board_id)
 

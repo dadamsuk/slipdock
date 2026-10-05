@@ -659,7 +659,9 @@ defmodule SlipdockWeb.API.PageController do
          {:ok, column} <- resolve_column(board, params["column"]),
          {:ok, card} <-
            Wiki.create_card_from_selection(page, column, text, write_opts(conn, params)) do
-      conn |> put_status(:created) |> json(%{card: V.card(Boards.get_card!(card.id))})
+      conn
+      |> put_status(:created)
+      |> json(%{card: V.card(Authorize.visible(conn, Boards.get_card!(card.id)))})
     end
   end
 

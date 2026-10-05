@@ -125,7 +125,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   defp mount_assigns(socket, board) do
     socket
     |> assign(
-      board: board,
+      board: Access.hide_unreadable_dependencies(socket.assigns.current_user, board),
       page_title: board.name,
       # Who `@` offers in a description or a comment: the board's members.
       mention_people: SlipdockWeb.Mention.people(board),

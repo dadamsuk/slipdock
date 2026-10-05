@@ -233,6 +233,29 @@ defmodule Slipdock.PortableExportTest do
       assert Portable.warnings(bare) == []
     end
 
+    test "dependencies on cards on a board outside the export" do
+      %{owner: owner, board: board, epic: epic, subcard: subcard} = tree()
+      outside = board_fixture(%{"name" => "Outside", "code" => "outs"}, owner: owner)
+      far = card_fixture(hd(outside.columns), %{"title" => "Far away"})
+      {:ok, _} = Boards.add_dependency(epic, far)
+      # Inside one tree — a subcard on the epic it belongs to's board — is kept.
+      {:ok, _} = Boards.add_dependency(subcard, epic)
+
+      assert [warning] =
+               owner
+               |> Portable.warnings(boards: [board])
+               |> Enum.filter(&(&1 =~ "Dependencies between"))
+
+      assert warning =~ "1 left behind"
+
+      [tree] = Portable.export(owner, boards: [board]).boards
+      exported_epic = Enum.find(tree.cards, &(&1.title == "Ship it"))
+      assert length(exported_epic.blocked_by) == 1
+
+      # Exported together they are still two trees, each with refs of its own.
+      assert Enum.any?(Portable.warnings(owner), &(&1 =~ "Dependencies between"))
+    end
+
     test "wiki history, which a page has from the moment it is written" do
       %{owner: owner, page: page} = tree()
       {:ok, _} = Wiki.update_page(page, %{"body" => "Rewritten."}, user: owner)

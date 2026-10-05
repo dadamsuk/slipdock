@@ -49,6 +49,10 @@ defmodule Slipdock.Boards.Card do
     # attachments is asked directly; the rollup's light cards set it because
     # they have none.
     field :document, :boolean, virtual: true
+    # Set on a dependency stub by Slipdock.Access.hide_unreadable_dependencies/3
+    # when the reader can't see the card at the other end: its title is
+    # replaced and only its state, which the computed `blocked` needs, is kept.
+    field :hidden, :boolean, virtual: true, default: false
 
     belongs_to :board, Slipdock.Boards.Board
     belongs_to :column, Slipdock.Boards.Column

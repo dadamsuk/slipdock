@@ -224,6 +224,23 @@ defmodule Slipdock.PortableImportTest do
       assert [%{kind: "relates"}] = epic.links_out
     end
 
+    test "a subcard waiting on a card on the board above it", %{
+      owner: owner,
+      receiver: receiver
+    } do
+      [board] = owned(owner)
+      epic = Boards.get_card!(card(board, "Ship it").id)
+      [subcard] = Boards.list_cards(Boards.get_board!(epic.sub_board.id), %{})
+      {:ok, _} = Boards.add_dependency(subcard, Boards.get_card!(card(board, "Groundwork").id))
+
+      {report, board} = round_trip(owner, receiver)
+
+      epic = Boards.get_card!(card(board, "Ship it").id)
+      [subcard] = Boards.list_cards(Boards.get_board!(epic.sub_board.id), %{})
+      assert Enum.map(Boards.get_card!(subcard.id).blocked_by, & &1.title) == ["Groundwork"]
+      refute Enum.any?(report.skipped, &(&1 =~ "dependenc"))
+    end
+
     test "the subcards, on a sub-board of their own", %{owner: owner, receiver: receiver} do
       {_report, board} = round_trip(owner, receiver)
 
@@ -543,7 +560,7 @@ defmodule Slipdock.PortableImportTest do
       assert message =~ "The board “Imported” was left out: color"
     end
 
-    test "dependencies get the self, same-board and circle checks" do
+    test "dependencies get the self and circle checks" do
       document =
         tree_document(
           [],
@@ -571,6 +588,27 @@ defmodule Slipdock.PortableImportTest do
       skipped = Enum.join(report.skipped, "\n")
       assert skipped =~ "cannot depend on itself"
       assert skipped =~ "would make a circle"
+    end
+
+    test "a dependency whose other card is not in the file is left out and counted" do
+      document =
+        tree_document(
+          [],
+          [
+            %{ref: "a", board: "r", title: "A", blocked_by: ["ghost", "b", "phantom"]},
+            %{ref: "b", board: "r", title: "B"}
+          ]
+        )
+
+      {:ok, report} = Portable.import(user_fixture(), document)
+      board = Boards.get_board!(hd(report.boards).id)
+      assert Enum.map(Boards.get_card!(card(board, "A").id).blocked_by, & &1.title) == ["B"]
+
+      assert Enum.any?(
+               report.skipped,
+               &(&1 =~
+                   "2 dependencies were left out: the card at the other end is not in this file")
+             )
     end
 
     test "a blank page code does not rewrite every word boundary" do

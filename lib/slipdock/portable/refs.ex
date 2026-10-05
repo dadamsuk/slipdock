@@ -73,7 +73,6 @@ defmodule Slipdock.Portable.Refs do
 
     cond do
       blocked_id == blocker_id -> {:refused, "a card cannot depend on itself"}
-      blocked[:board] != blocker[:board] -> {:refused, "the two cards are on different boards"}
       reaches?(blocks, blocked_id, blocker_id) -> {:refused, "it would make a circle"}
       true -> :ok
     end
