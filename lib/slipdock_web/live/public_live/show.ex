@@ -58,10 +58,13 @@ defmodule SlipdockWeb.PublicLive.Show do
       |> Config.from_query(base)
       |> Config.sanitize(board)
 
-    # A board-mode view is shown as a grid of lists.
+    # A board-mode view is shown as a grid of lists. Prioritise is the
+    # signed-in reader's own votes and scores, so a stranger gets its cards
+    # as a table instead.
     {mode, config} =
       case config.mode do
         "board" -> {:swimlanes, %{config | rows: "none", cols: "column"}}
+        "prioritise" -> {:table, %{config | rows: "none"}}
         m -> {String.to_existing_atom(m), config}
       end
 
@@ -159,6 +162,7 @@ defmodule SlipdockWeb.PublicLive.Show do
           </span>
           <form
             :if={@mode == :narrative}
+            id="narrative-range"
             class="ml-auto flex items-center gap-1 text-xs text-base-content/60"
             phx-change="narrative_range"
             phx-submit="narrative_range"
