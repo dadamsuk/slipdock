@@ -117,6 +117,12 @@ defmodule SlipdockWeb.Router do
     get "/install.sh", InstallController, :show
   end
 
+  # The board as an MCP server (see `SlipdockWeb.MCP.Plug`). Outside every
+  # pipeline: it does its own bearer auth, because the `:api` pipeline refuses
+  # every POST from a read token and every MCP call is a POST, and it reads its
+  # own body (the endpoint skips `Plug.Parsers` for it).
+  forward "/mcp", SlipdockWeb.MCP.Plug
+
   scope "/", SlipdockWeb do
     pipe_through [:browser, :require_authenticated_user]
 
