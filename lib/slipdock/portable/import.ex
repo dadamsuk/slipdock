@@ -377,6 +377,8 @@ defmodule Slipdock.Portable.Import do
   # the struct. Each insert is its own savepoint: Postgres abandons the whole
   # transaction at a failed constraint otherwise, and a duplicate tag would
   # take every row after it down too.
+  defp known(value, keys), do: if(value in keys, do: value)
+
   defp insert(%module{} = struct, attrs, what) do
     case struct |> module.changeset(attrs) |> Repo.insert(mode: :savepoint) do
       {:ok, row} -> row
@@ -458,7 +460,12 @@ defmodule Slipdock.Portable.Import do
             category: list[:category],
             horizon_from: date(list[:horizon_from]),
             horizon_to: date(list[:horizon_to]),
-            horizon_unit: list[:horizon_unit]
+            horizon_unit: list[:horizon_unit],
+            # How the list draws its cards is a nicety: one this server does
+            # not know is dropped rather than costing the list its cards.
+            sort_by: known(list[:sort_by], Slipdock.ListOrder.sort_keys()),
+            sort_dir: known(list[:sort_dir], Slipdock.ListOrder.dir_keys()),
+            group_by: known(list[:group_by], Slipdock.ListOrder.group_keys())
           },
           named("list", list[:name]) <> ", and the cards on it,"
         )

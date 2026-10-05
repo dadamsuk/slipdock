@@ -251,7 +251,10 @@ defmodule Slipdock.Portable.Export do
       category: column.category,
       horizon_from: column.horizon_from,
       horizon_to: column.horizon_to,
-      horizon_unit: column.horizon_unit
+      horizon_unit: column.horizon_unit,
+      sort_by: column.sort_by,
+      sort_dir: column.sort_dir,
+      group_by: column.group_by
     }
   end
 

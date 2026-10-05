@@ -139,11 +139,25 @@ defmodule SlipdockCLI.Render do
           c["name"],
           to_string(c["cards"]),
           to_string(c["wip_limit"] || "-"),
-          c["color"] || "-"
+          c["color"] || "-",
+          list_order(c)
         ]
       end)
 
-    table(["ID", "NAME", "CARDS", "WIP", "COLOR"], rows)
+    table(["ID", "NAME", "CARDS", "WIP", "COLOR", "ORDER"], rows)
+  end
+
+  # How the web app draws the list: "-" for board order and no groups.
+  def list_order(c) do
+    [
+      c["sort_by"] && "#{c["sort_by"]}#{if c["sort_dir"] == "desc", do: " desc"}",
+      c["group_by"] && "by #{c["group_by"]}"
+    ]
+    |> Enum.filter(& &1)
+    |> case do
+      [] -> "-"
+      parts -> Enum.join(parts, ", ")
+    end
   end
 
   def tags(tags) do

@@ -408,7 +408,13 @@ defmodule SlipdockWeb.APIGuide do
       `PATCH /api/boards/:board/columns/:id {"category": "todo"}`
       (`slipdock set-column B "To Do" --category todo`). A list may also carry a `horizon` (the date range it stands
       for) and a `wip_limit`. Deleting a list never takes its cards unless asked to
-      outright (see *What not to do*).
+      outright (see *What not to do*). How the web app draws a list's cards is
+      the list's own setting: `sort_by` (null for the order they were dragged
+      into, or `created`, `updated`, `start_date`, `due_date`, `priority`),
+      `sort_dir` (`asc`, `desc`) and `group_by` (null, `flag`, `tag`,
+      `start_date`, `due_date`) — `slipdock set-column B "To Do" --sort due_date
+      --group flag`. It only changes the drawing: a card's `position` is still
+      where it was put, and *top of the list* still means lowest `position`.
     - **Card** — one unit of work: title, description, `priority`, `flags`,
       `tags`, `start_date`, `due_date`, `completed`, `percent_complete` (0–100,
       or null when nobody has said), `assignees` (everybody it is assigned to,

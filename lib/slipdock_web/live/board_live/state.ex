@@ -352,19 +352,35 @@ defmodule SlipdockWeb.BoardLive.State do
         readable = Enum.filter(col.pages, &page_visible?(&1, socket))
         pages = Enum.filter(readable, &Slipdock.Filters.matches?(&1, filters))
 
+        # Cards and placed pages share one position sequence, so the list
+        # is drawn from a single ordering rather than one after the other —
+        # then in the list's own order and groups, if it has them.
+        groups = arrange(interleave(visible, pages), col, board)
+        items = Enum.flat_map(groups, & &1.items)
+
         %{
           column: col,
-          cards: visible,
+          # In drawing order, so the keyboard walks the list as it looks.
+          cards: for({:card, card} <- items, do: card),
           pages: pages,
-          # Cards and placed pages share one position sequence, so the list
-          # is drawn from a single ordering rather than one after the other.
-          items: interleave(visible, pages),
+          items: items,
+          groups: groups,
           hidden: length(col.cards) - length(visible) + (length(readable) - length(pages))
         }
       end)
 
     assign(socket, columns: columns, filtering: Slipdock.Filters.any?(filters))
   end
+
+  defp arrange(items, column, board) do
+    items
+    |> Enum.map(&elem(&1, 1))
+    |> Slipdock.ListOrder.arrange(column, board)
+    |> Enum.map(fn group -> %{group | items: Enum.map(group.items, &kind/1)} end)
+  end
+
+  defp kind(%Slipdock.Wiki.Page{} = page), do: {:page, page}
+  defp kind(card), do: {:card, card}
 
   def interleave(cards, pages) do
     items =

@@ -193,12 +193,18 @@ Hooks.Sortable = {
     // as an override of its defaults.
     if (this.el.dataset.draggable) opts.draggable = this.el.dataset.draggable
     if (this.el.dataset.handle) opts.handle = this.el.dataset.handle
+    // A list sorted by an attribute has no order of its own to rearrange:
+    // cards can still be dropped into it, not reordered inside it.
+    if (this.el.dataset.sort === "false") opts.sort = false
     // Read-only viewers can look but not drag.
     if (this.el.dataset.disabled === "true") opts.disabled = true
     this.sortable = new Sortable(this.el, opts)
   },
   updated() {
-    if (this.sortable) this.sortable.option("disabled", this.el.dataset.disabled === "true")
+    if (this.sortable) {
+      this.sortable.option("disabled", this.el.dataset.disabled === "true")
+      this.sortable.option("sort", this.el.dataset.sort !== "false")
+    }
   },
   destroyed() {
     this.sortable && this.sortable.destroy()

@@ -298,6 +298,9 @@ defmodule SlipdockCLI do
     set-column <board> <column> [--name N] [--wip N] [--color C] [--category C]
                                         change a list; category is todo, doing, done,
                                         dropped, or "" for none
+                                        (both) --sort position|created|updated|start_date|
+                                        due_date|priority [--descending] and --group none|
+                                        flag|tag|start_date|due_date: how the app draws it
     new-tag <board> <name> [--color C]
     set <id> <key>=<value>...           set custom fields on a card ("" clears; choice by label or key)
     vote <id> <n>                       put n of your votes on a card or page (0 removes them)

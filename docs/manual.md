@@ -9,7 +9,9 @@ way in: what it is, the pictures, and how to get it running.
   **code** — a unique, URL-safe handle of up to 10 characters ("QVM V1
   Remediation" becomes `qvm-v1-rem`), taken from the name and editable in
   board settings, that addresses the board in the API and the CLI
-- Lists (columns) with drag-and-drop reordering, inline rename, colour and WIP limits
+- Lists (columns) with drag-and-drop reordering, inline rename, colour and WIP limits,
+  and an order of their own: sorted by date or priority, grouped by flag, tag or
+  date — see [A list's order and groups](#a-lists-order-and-groups)
 - Cards with drag-and-drop between and within lists, description, priority
   (low → critical), five flags (flagged, blocked, needs review, waiting, starred),
   due dates with overdue/soon states, completion toggle, cover colours, tags,
@@ -937,8 +939,9 @@ thing, one more item on the board; hover for the names:
   its own, titled after the filename with the file attached. A spec somebody
   emailed you belongs on the board, not in a folder.
 
-Each can be turned off per board under **Board settings → At the foot of
-every list**, or from the command line:
+Each can be turned off for the whole board under **List settings → At the
+foot of every list** (any list's; only the board's owner sees it), or from
+the command line:
 
 ```sh
 slipdock set-board qvm-v1-rem --no-add-document   # …and --add-document to put it back
@@ -959,6 +962,42 @@ document on a board is for.)
 Over the API and the CLI it is `kind=document` on a card listing (`slipdock cards
 <board> --kind document`) and `kinds=` on a view (`--kind page`, repeatable),
 where all three are counted together.
+
+## A list's order and groups
+
+A list draws its cards in the order they were dragged into. **List settings
+→ Order** gives it an order of its own instead:
+
+- **Sort by** — *Created*, *Last updated*, *Start date*, *Due date* or
+  *Priority*, with a **Direction**: earliest / lowest first, or latest /
+  highest first. Cards without the date go last either way; cards that tie
+  keep their dragged order between them. A start date sorts as the card's
+  start, or its due date when it has no start.
+- **Group by** — *Flags*, *Tags*, *Start date* or *Due date*, each group
+  under a small heading with its count; groups with nothing in them are left
+  out. Flags and tags go in their usual order (the board's tag order), and a
+  card with several is drawn once, under the first of them. Dates group
+  relative to today: *Overdue* (or *Started*), *Today*, *This week*, *Next
+  week*, *Later*, and *No date*.
+
+Sorting is only how the list is drawn. A sorted list keeps itself in order,
+so dragging inside it has nothing to rearrange — cards still drag in from
+and out to other lists. The dragged order is kept underneath and comes back
+when the list is set to *Board order* again. A grouped list that is not
+sorted can still be arranged by hand within each group. A small icon by the
+list's name says when it has an order of its own; hover it for which.
+
+Filters still apply, inside each group. From the command line and the API:
+
+```sh
+slipdock set-column slipdock "To Do" --sort due_date --group flag
+slipdock set-column slipdock "To Do" --sort priority --descending
+slipdock set-column slipdock "To Do" --sort position --group none   # back to the default
+```
+
+A list's JSON carries `sort_by`, `sort_dir` and `group_by` (`PATCH
+/api/boards/:board/columns/:id` sets them). The cards in it keep their
+`position`, which is still what "the top of the list" means to an agent.
 
 ## Quick add
 

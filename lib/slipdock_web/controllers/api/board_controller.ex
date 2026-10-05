@@ -197,7 +197,7 @@ defmodule SlipdockWeb.API.BoardController do
 
   # What a client may set on a list. `category` is what agents read a list's
   # meaning from, so it has to be settable here, not only in the web app.
-  @column_fields ~w(name wip_limit color category)
+  @column_fields ~w(name wip_limit color category sort_by sort_dir group_by)
 
   def create_column(conn, %{"board" => ref} = params) do
     with {:ok, board} <- fetch_board(conn, ref, :write),
