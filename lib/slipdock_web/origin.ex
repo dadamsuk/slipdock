@@ -83,6 +83,20 @@ defmodule SlipdockWeb.Origin do
 
   def allowed?(_), do: false
 
+  @doc """
+  Whether `host` is one of this server's own names: the configured `PHX_HOST`
+  or an entry of `SLIPDOCK_CHECK_ORIGIN`. Unlike `allowed?/1` it logs nothing,
+  because a caller checking an `Origin` header is refusing a stranger, not
+  noticing a misconfiguration.
+  """
+  @spec known?(String.t() | nil) :: boolean()
+  def known?(host) when is_binary(host) do
+    own = SlipdockWeb.Endpoint.host()
+    Enum.any?([own | hosts()], &(is_binary(&1) and match_host?(host, &1)))
+  end
+
+  def known?(_), do: false
+
   @doc "The hostnames this server will accept a socket from."
   def hosts do
     # `|| []` rather than a default argument: a key that is present and nil is

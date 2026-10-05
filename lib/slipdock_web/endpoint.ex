@@ -56,10 +56,18 @@ defmodule SlipdockWeb.Endpoint do
   plug Plug.RequestId
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
 
-  plug Plug.Parsers,
-    parsers: [:urlencoded, :multipart, :json],
-    pass: ["*/*"],
-    json_decoder: Phoenix.json_library()
+  plug :parse_body
+
+  @parsers Plug.Parsers.init(
+             parsers: [:urlencoded, :multipart, :json],
+             pass: ["*/*"],
+             json_decoder: Phoenix.json_library()
+           )
+
+  # `/mcp` reads its own body. JSON-RPC has its own answer to a body that is
+  # not JSON (`-32700`), and `Plug.Parsers` would raise a 400 HTML page first.
+  defp parse_body(%Plug.Conn{path_info: ["mcp"]} = conn, _opts), do: conn
+  defp parse_body(conn, _opts), do: Plug.Parsers.call(conn, @parsers)
 
   plug Plug.MethodOverride
   plug Plug.Head
