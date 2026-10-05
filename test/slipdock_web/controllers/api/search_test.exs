@@ -171,6 +171,58 @@ defmodule SlipdockWeb.API.SearchTest do
     end
   end
 
+  describe "a token confined to some boards" do
+    setup ctx do
+      other = board_fixture(%{"name" => "Elsewhere", "code" => "elsewhere"}, owner: ctx.user)
+      twin = card_fixture(hd(other.columns), %{"title" => "Invoice rounding on refunds, again"})
+      {:ok, _} = Search.index_cards(Search.load_cards(Search.all_card_ids()))
+
+      {token, _} =
+        Slipdock.Accounts.create_api_token(ctx.user, "scoped", scope_boards: [ctx.board.id])
+
+      %{
+        other: other,
+        twin: twin,
+        scoped: put_req_header(build_conn(), "authorization", "Bearer " <> token)
+      }
+    end
+
+    test "search finds nothing on the boards outside its scope", ctx do
+      ids =
+        ctx.scoped
+        |> get(~p"/api/search", %{"q" => "invoice rounding refunds"})
+        |> json_response(200)
+        |> Map.fetch!("results")
+        |> Enum.map(& &1["card"]["id"])
+
+      assert ids == [ctx.card.id]
+
+      # The same user's unscoped token still finds both.
+      all =
+        ctx.conn
+        |> get(~p"/api/search", %{"q" => "invoice rounding refunds"})
+        |> json_response(200)
+        |> Map.fetch!("results")
+        |> Enum.map(& &1["card"]["id"])
+
+      assert ctx.twin.id in all
+    end
+
+    test "ask is refused, saying why, rather than answering from every board", ctx do
+      body =
+        ctx.scoped |> post(~p"/api/ask", %{"q" => "What about refunds?"}) |> json_response(403)
+
+      assert body["error"] =~ "scope doesn't allow it"
+      assert body["error"] =~ "every board"
+    end
+
+    test "Search.search narrows by the token it is given", ctx do
+      token = %{scope: "write", scope_boards: [ctx.other.id]}
+      {:ok, results} = Search.search(ctx.user, "invoice rounding refunds", token: token)
+      assert Enum.map(results, & &1.card.id) == [ctx.twin.id]
+    end
+  end
+
   describe "saved queries" do
     test "saves, lists and removes, scoped to the token's owner", ctx do
       assert %{"saved" => []} = ctx.conn |> get(~p"/api/saved-queries") |> json_response(200)

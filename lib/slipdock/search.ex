@@ -111,6 +111,8 @@ defmodule Slipdock.Search do
     * `:board_id` — restrict to one board and its sub-boards
     * `:kind` — `:card`, `:page` or `:all` (the default)
     * `:min_score` — override the relevance floor
+    * `:token` — the API token asking, whose board scope narrows the user's
+      reach further (see `Slipdock.Access.narrow/3`); nil for a person
   """
   @spec search(User.t() | nil, String.t(), keyword) :: {:ok, [map]} | {:error, String.t()}
   def search(user, query, opts \\ [])
@@ -189,6 +191,25 @@ defmodule Slipdock.Search do
     |> filter_board(opts[:board_id])
     |> filter_kind(opts[:kind])
     |> Repo.all()
+    |> within_token_scope(opts[:token])
+  end
+
+  # The user's reach is the outer bound; a token confined to some boards only
+  # ever narrows it. Checked once per board rather than per chunk.
+  defp within_token_scope(rows, nil), do: rows
+
+  defp within_token_scope(rows, token) do
+    allowed =
+      rows
+      |> Enum.map(& &1.board_id)
+      |> Enum.uniq()
+      |> Enum.filter(fn board_id ->
+        {level, _} = Slipdock.Access.narrow(:read, token, board_id)
+        Slipdock.Access.can_read?(level)
+      end)
+      |> MapSet.new()
+
+    Enum.filter(rows, &MapSet.member?(allowed, &1.board_id))
   end
 
   defp filter_archived(query, true), do: query

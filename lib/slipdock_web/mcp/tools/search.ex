@@ -2,7 +2,6 @@ defmodule SlipdockWeb.MCP.Tools.Search do
   @moduledoc "Semantic search over every card and wiki page the connection can read."
   @behaviour SlipdockWeb.MCP.Tool
 
-  alias Slipdock.Access
   alias SlipdockWeb.MCP.Args
 
   @max 30
@@ -44,11 +43,13 @@ defmodule SlipdockWeb.MCP.Tools.Search do
          {:ok, kind} <- kind(args),
          {:ok, board_id} <- board_id(args, context),
          {:ok, results} <-
-           Slipdock.Search.search(user, q, limit: limit, board_id: board_id, kind: kind) do
-      results =
-        results
-        |> Enum.filter(&in_scope?(&1, token))
-        |> Enum.map(&result(&1, context.base_url))
+           Slipdock.Search.search(user, q,
+             limit: limit,
+             board_id: board_id,
+             kind: kind,
+             token: token
+           ) do
+      results = Enum.map(results, &result(&1, context.base_url))
 
       {:ok, %{query: q, count: length(results), results: results}}
     end
@@ -69,14 +70,6 @@ defmodule SlipdockWeb.MCP.Tools.Search do
            Args.refusal(SlipdockWeb.API.Authorize.fetch_board(Args.auth(context), ref, :read)) do
       {:ok, board.id}
     end
-  end
-
-  # `Slipdock.Search` scopes by the user; a token confined to some boards
-  # narrows that further, as everywhere else.
-  defp in_scope?(result, token) do
-    board_id = if result.card, do: result.card.board_id, else: result.page.board_id
-    {level, _} = Access.narrow(:read, token, board_id)
-    Access.can_read?(level)
   end
 
   defp result(%{card: card} = r, base) when not is_nil(card) do

@@ -34,7 +34,8 @@ defmodule SlipdockWeb.API.SearchController do
              limit: limit,
              archived: truthy(params["archived"]),
              board_id: board_id,
-             kind: kind
+             kind: kind,
+             token: conn.assigns[:api_token]
            ) do
       json(conn, %{
         query: query,
@@ -49,7 +50,8 @@ defmodule SlipdockWeb.API.SearchController do
 
   @doc "Asks the assistant a question it answers by searching."
   def ask(conn, params) do
-    with {:ok, question} <- required(params["q"] || params["question"], "q"),
+    with :ok <- whole_account(conn.assigns[:api_token]),
+         {:ok, question} <- required(params["q"] || params["question"], "q"),
          {:ok, answer} <- Researcher.ask(conn.assigns.current_user, history(params), question) do
       json(conn, %{
         question: question,
@@ -62,6 +64,17 @@ defmodule SlipdockWeb.API.SearchController do
       other -> other
     end
   end
+
+  # The assistant reads with a dozen tools of its own — boards, cards, pages,
+  # people — each scoped to the user. A token confined to some boards would
+  # get an answer drawn from the rest, so it is refused rather than half-kept.
+  defp whole_account(%{scope_boards: [_ | _]}),
+    do:
+      {:error, :forbidden,
+       "this API token's scope doesn't allow it: ask reads across every board, " <>
+         "and this token is confined to some (use search, or an unscoped token)"}
+
+  defp whole_account(_token), do: :ok
 
   @doc "What is indexed right now — useful for telling a stale index from an empty one."
   def status(conn, _params) do
