@@ -110,6 +110,84 @@ defmodule Slipdock.Access do
   end
 
   @doc """
+  Hides the cards at the far end of dependencies that `user` cannot read.
+
+  A dependency can join cards on different boards, and somebody who can see
+  one board need not see the other. Each `blocked_by` / `blocks` stub they
+  can't read keeps its id and its state — so `Card.blocked?/1` still answers
+  truly, and the dependency can still be removed from the side they can
+  write — but loses its title and board, and is marked `hidden: true`.
+
+  Takes a card, a list of cards, or a board with its columns' cards loaded.
+  `token` is the API token the request came with, if any: a card on a board
+  outside its scope is hidden too.
+  """
+  def hide_unreadable_dependencies(user, subject, token \\ nil)
+
+  def hide_unreadable_dependencies(user, %Board{columns: columns} = board, token)
+      when is_list(columns) do
+    cards = Enum.flat_map(columns, &List.wrap(cards_of(&1)))
+    by_id = user |> hide_unreadable_dependencies(cards, token) |> Map.new(&{&1.id, &1})
+
+    columns =
+      Enum.map(columns, fn
+        %{cards: cs} = col when is_list(cs) -> %{col | cards: Enum.map(cs, &by_id[&1.id])}
+        col -> col
+      end)
+
+    %{board | columns: columns}
+  end
+
+  def hide_unreadable_dependencies(_user, %Board{} = board, _token), do: board
+
+  def hide_unreadable_dependencies(user, %Card{} = card, token),
+    do: user |> hide_unreadable_dependencies([card], token) |> hd()
+
+  def hide_unreadable_dependencies(user, cards, token) when is_list(cards) do
+    stubs =
+      cards
+      |> Enum.flat_map(
+        &(loaded_list(Map.get(&1, :blocked_by)) ++ loaded_list(Map.get(&1, :blocks)))
+      )
+      |> Enum.uniq_by(& &1.id)
+
+    readable =
+      user
+      |> filter_readable_cards(stubs)
+      |> Enum.filter(&(narrow(:read, token, &1.board_id) |> elem(0) |> can_read?()))
+      |> MapSet.new(& &1.id)
+
+    hide = fn
+      deps when is_list(deps) ->
+        Enum.map(deps, fn d -> if d.id in readable, do: d, else: hidden_stub(d) end)
+
+      other ->
+        other
+    end
+
+    Enum.map(cards, fn
+      %Card{} = c -> %{c | blocked_by: hide.(c.blocked_by), blocks: hide.(c.blocks)}
+      other -> other
+    end)
+  end
+
+  defp cards_of(%{cards: cards}) when is_list(cards), do: cards
+  defp cards_of(_), do: []
+
+  defp loaded_list(list) when is_list(list), do: list
+  defp loaded_list(_), do: []
+
+  defp hidden_stub(%Card{} = d) do
+    %Card{
+      id: d.id,
+      title: "A card you can't see",
+      completed: d.completed,
+      archived_at: d.archived_at,
+      hidden: true
+    }
+  end
+
+  @doc """
   The user's permission on a wiki page: the board's, raised by any direct
   page grant.
 

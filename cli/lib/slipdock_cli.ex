@@ -251,8 +251,10 @@ defmodule SlipdockCLI do
     unlink <id> <link-id>...            remove links (ids shown by `card`)
     weblink <id> <url> [--label TEXT]   link a card to a web page, drive or file (datestamped)
     unweblink <id> <url-id>...          remove web links (ids shown by `card`)
-    blocked-by <id> <card-id>... [--off] mark <id> as waiting on other cards (or remove)
-    blocks <id> <card-id>... [--off]     mark <id> as holding up other cards (or remove)
+    blocked-by <id> <card-id>... [--off] mark <id> as waiting on other cards, on any board you
+                                        can read (or remove)
+    blocks <id> <card-id>... [--off]     mark <id> as holding up other cards; you need write on
+                                        theirs (or remove)
     archive <id>...  |  restore <id>... archive / restore cards
     delete <id>...                      permanently delete (prefer archive)
     new-board <name> [--code C] [--shortcut K] [--desc TEXT] [--color C] [--template T]

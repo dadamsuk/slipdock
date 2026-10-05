@@ -298,7 +298,7 @@ defmodule Slipdock.Boards do
   end
 
   defp board_stub_query,
-    do: from(b in Board, select: [:id, :name, :root_id, :parent_card_id, :color])
+    do: from(b in Board, select: [:id, :name, :code, :root_id, :parent_card_id, :color])
 
   # A card's sub-board is loaded as a summary: its lists and the state of its cards.
   defp sub_board_query do
@@ -350,8 +350,8 @@ defmodule Slipdock.Boards do
       field_values: [:field],
       links_out: {link_query(), to: {link_stub_query(), [board: board_stub_query()]}},
       links_in: {link_query(), from: {link_stub_query(), [board: board_stub_query()]}},
-      blocked_by: dependency_query(),
-      blocks: dependency_query(),
+      blocked_by: {dependency_query(), [board: board_stub_query()]},
+      blocks: {dependency_query(), [board: board_stub_query()]},
       sub_board: {sub_board_query(), sub_board_preloads()},
       stand_in_for: {stand_in_target_query(), stand_in_target_preloads()}
     ]
@@ -2230,16 +2230,16 @@ defmodule Slipdock.Boards do
   ## Dependencies
 
   @doc """
-  Records that `blocked` can't proceed until `blocker` is done. Both cards
-  must be on the same board, distinct, and the link must not create a cycle.
+  Records that `blocked` can't proceed until `blocker` is done. The cards must
+  be distinct and the link must not create a cycle. They may be on different
+  boards — a subcard waiting on another epic's subcard, say; who may link
+  what is the caller's to check (write on the blocked card's board, read on
+  the blocker's), as for links.
   """
   def add_dependency(%Card{} = blocked, %Card{} = blocker) do
     cond do
       blocked.id == blocker.id ->
         {:error, "A card can't depend on itself."}
-
-      blocked.board_id != blocker.board_id ->
-        {:error, "Both cards must be on the same board."}
 
       dependency_exists?(blocked.id, blocker.id) ->
         {:error, "That dependency already exists."}
@@ -2251,15 +2251,8 @@ defmodule Slipdock.Boards do
       true ->
         Repo.insert_all("card_dependencies", [%{blocked_id: blocked.id, blocker_id: blocker.id}])
 
-        log(
-          Repo,
-          blocked.board_id,
-          blocked.id,
-          "card",
-          "made “#{blocked.title}” depend on “#{blocker.title}”"
-        )
+        log_dependency(blocked, blocker, &"made #{&1} depend on #{&2}")
 
-        broadcast(blocked.board_id)
         {:ok, get_card!(blocked.id)}
     end
   end
@@ -2276,18 +2269,41 @@ defmodule Slipdock.Boards do
       )
 
     if n > 0 do
+      log_dependency(a, b, &"removed the dependency between #{&1} and #{&2}")
+    end
+
+    {:ok, get_card!(a.id)}
+  end
+
+  # A dependency shows on both cards, so when they are on different boards
+  # each board's log records it and each board's open pages hear of it.
+  # `message` gets the two cards as each board's log should name them: its
+  # own card by title, the other board's only by number, since somebody
+  # reading this board's log need not be able to read that one.
+  defp log_dependency(%Card{} = a, %Card{} = b, message) do
+    if b.board_id == a.board_id do
+      log(Repo, a.board_id, a.id, "card", message.("“#{a.title}”", "“#{b.title}”"))
+    else
       log(
         Repo,
         a.board_id,
         a.id,
         "card",
-        "removed the dependency between “#{a.title}” and “#{b.title}”"
+        message.("“#{a.title}”", "card ##{b.id} on another board")
       )
 
-      broadcast(a.board_id)
+      log(
+        Repo,
+        b.board_id,
+        b.id,
+        "card",
+        message.("card ##{a.id} on another board", "“#{b.title}”")
+      )
+
+      broadcast(b.board_id)
     end
 
-    {:ok, get_card!(a.id)}
+    broadcast(a.board_id)
   end
 
   defp dependency_exists?(blocked_id, blocker_id) do

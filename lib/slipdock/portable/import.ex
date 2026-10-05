@@ -723,12 +723,29 @@ defmodule Slipdock.Portable.Import do
   end
 
   # Dependencies and links point at other cards, so they wait until every card
-  # in the tree exists. A dependency gets the same three checks as one made by
-  # hand — not on itself, not across boards, not round in a circle — because a
-  # cycle is a board on which nothing can ever become ready. Every card here is
-  # new, so the graph to check against is the one this file builds.
+  # in the tree exists. A dependency gets the same checks as one made by
+  # hand — not on itself, not round in a circle — because a cycle is a board
+  # on which nothing can ever become ready. It may join two boards of the
+  # file; one whose other end is not in the file at all is left out and
+  # counted. Every card here is new, so the graph to check against is the one
+  # this file builds.
   defp link_cards!(cards, ids) do
     by_ref = Map.new(cards, &{&1[:ref], &1})
+
+    dangling =
+      for doc <- cards,
+          ids.cards[doc[:ref]],
+          ref <- rows(doc, :blocked_by),
+          is_nil(ids.cards[ref]),
+          reduce: 0,
+          do: (n -> n + 1)
+
+    if dangling > 0 do
+      skip(
+        "#{dangling} #{if dangling == 1, do: "dependency was", else: "dependencies were"} " <>
+          "left out: the card at the other end is not in this file."
+      )
+    end
 
     Enum.reduce(cards, %{}, fn doc, blocks ->
       blocked_id = ids.cards[doc[:ref]]

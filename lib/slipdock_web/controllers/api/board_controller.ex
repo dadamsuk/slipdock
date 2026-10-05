@@ -111,7 +111,7 @@ defmodule SlipdockWeb.API.BoardController do
 
   def show(conn, %{"board" => ref}) do
     with {:ok, board} <- fetch_board(conn, ref, :read) do
-      json(conn, %{board: V.board(Boards.get_board!(board.id))})
+      json(conn, %{board: V.board(Authorize.visible(conn, Boards.get_board!(board.id)))})
     end
   end
 
@@ -126,7 +126,9 @@ defmodule SlipdockWeb.API.BoardController do
              template: template,
              owner_id: conn.assigns.current_user.id
            ) do
-      conn |> put_status(:created) |> json(%{board: V.board(Boards.get_board!(board.id))})
+      conn
+      |> put_status(:created)
+      |> json(%{board: V.board(Authorize.visible(conn, Boards.get_board!(board.id)))})
     end
   end
 
@@ -151,7 +153,9 @@ defmodule SlipdockWeb.API.BoardController do
     else
       case Onboarding.build(user) do
         {:ok, board} ->
-          conn |> put_status(:created) |> json(%{board: V.board(Boards.get_board!(board.id))})
+          conn
+          |> put_status(:created)
+          |> json(%{board: V.board(Authorize.visible(conn, Boards.get_board!(board.id)))})
 
         {:error, reason} ->
           {:error, :payment_required, Atom.to_string(reason),

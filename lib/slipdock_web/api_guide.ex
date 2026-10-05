@@ -447,7 +447,13 @@ defmodule SlipdockWeb.APIGuide do
       labels, independent of the computed `blocked`.
     - **Dependencies** — `blocked_by` / `blocks` between cards, with cycle
       detection. `blocked: true` is computed: something it waits on is still
-      open. Distinct from **links** (`relates`, `contributes`, `duplicates`),
+      open. The two cards may be on different boards — a subcard waiting on
+      another epic's subcard, or on a card on another board altogether —
+      which needs write access to the blocked card and read access to the
+      blocker. A stub on another board carries that board's `board` code; one
+      on a board you can't read says `"hidden": true` and "A card you can't
+      see" in place of its title, but still counts towards `blocked`.
+      Distinct from **links** (`relates`, `contributes`, `duplicates`),
       which are cross-references and carry no scheduling meaning.
     - **Rollup** — a read-only summary of everything beneath a card: `done` and
       `total` leaves, effective `start`/`due` (its own or its subcards'),
@@ -498,7 +504,8 @@ defmodule SlipdockWeb.APIGuide do
       "percent_complete": 40,
       "archived_at": null, "assignee": {"id": 1, "email": "you@example.com"},
       "blocked": true,
-      "blocked_by": [{"id": 7, "title": "Schema", "completed": false, "archived": false}],
+      "blocked_by": [{"id": 7, "title": "Schema", "completed": false, "archived": false,
+                      "board_id": 3, "board": "platform", "hidden": false}],
       "blocks": [],
       "sub_board": {"id": 9, "name": "Query parser", "completed": 2, "total": 5},
       "rollup": {"done": 2, "total": 5, "due": "2026-10-10", "start_slip_days": 0, "due_slip_days": 0,
@@ -1670,7 +1677,10 @@ defmodule SlipdockWeb.APIGuide do
     points at a card id on the server the document came from, and there is
     nothing in the document to match it against. Card-to-card links and
     dependencies *are* preserved — those travel as refs — but a card id typed
-    into prose is not.
+    into prose is not. A dependency on a card in another board tree (one not
+    under the same root) cannot travel as a ref: the export's warnings count
+    them, and an import drops any whose other card is not in the file and
+    says how many.
 
     People travel as email addresses, because an id from another server names
     nobody. An imported board is yours alone until you share it, and a card

@@ -18,7 +18,9 @@ defmodule SlipdockWeb.API.CardController do
          {:ok, params} <- check_bucket(params, "kind", Slipdock.Kinds.card_kinds()) do
       params = resolve_me(params, conn.assigns.current_user)
 
-      json(conn, %{cards: Enum.map(Boards.list_cards(board, params), &V.card/1)})
+      json(conn, %{
+        cards: Enum.map(Authorize.visible(conn, Boards.list_cards(board, params)), &V.card/1)
+      })
     end
   end
 
@@ -63,7 +65,7 @@ defmodule SlipdockWeb.API.CardController do
           }
         )
 
-      json(conn, %{card: Map.put(V.card(card), :docs, docs)})
+      json(conn, %{card: Map.put(V.card(Authorize.visible(conn, card)), :docs, docs)})
     end
   end
 
@@ -77,7 +79,9 @@ defmodule SlipdockWeb.API.CardController do
              by: conn.assigns.current_user
            ),
          {:ok, _} <- maybe_set_tags(card, tags) do
-      conn |> put_status(:created) |> json(%{card: V.card(Boards.get_card!(card.id))})
+      conn
+      |> put_status(:created)
+      |> json(%{card: V.card(Authorize.visible(conn, Boards.get_card!(card.id)))})
     end
   end
 
@@ -97,7 +101,7 @@ defmodule SlipdockWeb.API.CardController do
          {:ok, _} <- maybe_adjust_tags(card, add, remove),
          {:ok, _} <- maybe_move(board, card, params["column"]),
          :ok <- maybe_set_fields(board, card, params["fields"]) do
-      json(conn, %{card: V.card(Boards.get_card!(card.id))})
+      json(conn, %{card: V.card(Authorize.visible(conn, Boards.get_card!(card.id)))})
     end
   end
 
@@ -107,7 +111,7 @@ defmodule SlipdockWeb.API.CardController do
     with {:ok, card} <- fetch_card(id),
          :ok <- Authorize.card(conn, card, :write),
          {:ok, _} <- timer_action(card, params["action"]) do
-      json(conn, %{card: V.card(Boards.get_card!(card.id))})
+      json(conn, %{card: V.card(Authorize.visible(conn, Boards.get_card!(card.id)))})
     end
   end
 
@@ -124,7 +128,7 @@ defmodule SlipdockWeb.API.CardController do
          {:ok, card} <-
            Slipdock.Votes.set(card, conn.assigns.current_user, count, params["comment"]) do
       json(conn, %{
-        card: V.card(card),
+        card: V.card(Authorize.visible(conn, card)),
         my_votes: Slipdock.Votes.mine(card, conn.assigns.current_user)
       })
     else
@@ -139,7 +143,9 @@ defmodule SlipdockWeb.API.CardController do
          {:ok, other} <- fetch_card(to),
          :ok <- Authorize.card(conn, other, :read),
          {:ok, _} <- link_result(Boards.add_link(card, other, kind)) do
-      conn |> put_status(:created) |> json(%{card: V.card(Boards.get_card!(card.id))})
+      conn
+      |> put_status(:created)
+      |> json(%{card: V.card(Authorize.visible(conn, Boards.get_card!(card.id)))})
     end
   end
 
@@ -148,7 +154,7 @@ defmodule SlipdockWeb.API.CardController do
          :ok <- Authorize.card(conn, card, :write),
          %{} = link <- find_link(card, link_id),
          {:ok, _} <- Boards.remove_link(link) do
-      json(conn, %{card: V.card(Boards.get_card!(card.id))})
+      json(conn, %{card: V.card(Authorize.visible(conn, Boards.get_card!(card.id)))})
     else
       nil -> {:error, :not_found, "link"}
       other -> other
@@ -173,7 +179,9 @@ defmodule SlipdockWeb.API.CardController do
              conn.assigns.current_user,
              Map.take(params, ~w(health body))
            ) do
-      conn |> put_status(:created) |> json(%{card: V.card(Boards.get_card!(card.id))})
+      conn
+      |> put_status(:created)
+      |> json(%{card: V.card(Authorize.visible(conn, Boards.get_card!(card.id)))})
     end
   end
 
@@ -221,7 +229,10 @@ defmodule SlipdockWeb.API.CardController do
          {:ok, board} <- Authorize.fetch_board(conn, ref, :write),
          {:ok, column} <- resolve_column(board, params["column"]),
          {:ok, summary} <- move_to_board(card, column) do
-      json(conn, %{card: V.card(Boards.get_card!(card.id)), moved: Map.delete(summary, :card)})
+      json(conn, %{
+        card: V.card(Authorize.visible(conn, Boards.get_card!(card.id))),
+        moved: Map.delete(summary, :card)
+      })
     end
   end
 
@@ -231,7 +242,7 @@ defmodule SlipdockWeb.API.CardController do
          board <- Boards.get_board!(card.board_id),
          {:ok, column} <- resolve_column(board, params["column"] || card.column_id),
          :ok <- Boards.move_card_to_index(card, column, parse_index(params["index"])) do
-      json(conn, %{card: V.card(Boards.get_card!(card.id))})
+      json(conn, %{card: V.card(Authorize.visible(conn, Boards.get_card!(card.id)))})
     end
   end
 
@@ -248,7 +259,7 @@ defmodule SlipdockWeb.API.CardController do
     with {:ok, card} <- fetch_card(id),
          :ok <- Authorize.card(conn, card, :write),
          {:ok, card} <- Boards.archive_card(card) do
-      json(conn, %{card: V.card(Boards.get_card!(card.id))})
+      json(conn, %{card: V.card(Authorize.visible(conn, Boards.get_card!(card.id)))})
     end
   end
 
@@ -256,7 +267,7 @@ defmodule SlipdockWeb.API.CardController do
     with {:ok, card} <- fetch_card(id),
          :ok <- Authorize.card(conn, card, :write),
          {:ok, card} <- Boards.unarchive_card(card) do
-      json(conn, %{card: V.card(Boards.get_card!(card.id))})
+      json(conn, %{card: V.card(Authorize.visible(conn, Boards.get_card!(card.id)))})
     end
   end
 
@@ -277,8 +288,8 @@ defmodule SlipdockWeb.API.CardController do
       conn
       |> put_status(:created)
       |> json(%{
-        card: V.card(Boards.get_card!(card.id)),
-        board: V.board(Boards.get_board!(board.id))
+        card: V.card(Authorize.visible(conn, Boards.get_card!(card.id))),
+        board: V.board(Authorize.visible(conn, Boards.get_board!(board.id)))
       })
     end
   end
@@ -287,7 +298,7 @@ defmodule SlipdockWeb.API.CardController do
     with {:ok, card} <- fetch_card(id),
          :ok <- Authorize.card(conn, card, :write),
          {:ok, card} <- dependency_result(Boards.delete_sub_board(card)) do
-      json(conn, %{card: V.card(card)})
+      json(conn, %{card: V.card(Authorize.visible(conn, card))})
     end
   end
 
@@ -301,13 +312,16 @@ defmodule SlipdockWeb.API.CardController do
     end
   end
 
-  # Body: {"blocked_by": other_id} or {"blocks": other_id}.
+  # Body: {"blocked_by": other_id} or {"blocks": other_id}. The two cards may
+  # be on different boards: the blocked one needs write, the blocker read.
   def add_dependency(conn, %{"id" => id} = params) do
     with {:ok, card} <- fetch_card(id),
-         :ok <- Authorize.card(conn, card, :write),
+         :ok <- Authorize.card(conn, card, :read),
          {:ok, {blocked, blocker}} <- dependency_pair(card, params),
+         :ok <- Authorize.card(conn, blocked, :write),
+         :ok <- Authorize.card(conn, blocker, :read),
          {:ok, _} <- dependency_result(Boards.add_dependency(blocked, blocker)) do
-      json(conn, %{card: V.card(Boards.get_card!(card.id))})
+      json(conn, %{card: V.card(Authorize.visible(conn, Boards.get_card!(card.id)))})
     end
   end
 
@@ -316,7 +330,7 @@ defmodule SlipdockWeb.API.CardController do
          :ok <- Authorize.card(conn, card, :write),
          {:ok, other} <- fetch_card(other_id),
          {:ok, card} <- Boards.remove_dependency(card, other) do
-      json(conn, %{card: V.card(card)})
+      json(conn, %{card: V.card(Authorize.visible(conn, card))})
     end
   end
 

@@ -248,7 +248,11 @@ defmodule SlipdockWeb.BoardLive.State do
   end
 
   def reload_board(socket) do
-    board = Boards.get_board!(socket.assigns.board.id)
+    board =
+      Access.hide_unreadable_dependencies(
+        socket.assigns.current_user,
+        Boards.get_board!(socket.assigns.board.id)
+      )
 
     socket
     |> assign(board: board, page_title: board.name, ancestry: Boards.ancestry(board))

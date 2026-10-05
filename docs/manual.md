@@ -377,11 +377,19 @@ slipdock card 12                                # Time: 1.25d spent of 2d estima
 ## Dependencies
 
 Open a card and use the **Dependencies** section: pick *Blocked by* or
-*Blocks*, search for another card on the board, and click it. A card is
-*blocked* while any card it depends on is open (not completed, not archived);
-blocked cards show a red lock badge with the count, and cards that hold others
-up show an arrow badge. Self-links, links across boards, and anything that
-would form a cycle are refused. Removing a card removes its links.
+*Blocks*, search for another card, and click it. The search covers every
+board you can open, this one's cards first; a card on another board shows that
+board's code, here and in the list of dependencies. So a subcard can wait on a
+subcard of another epic, or on a card on a different board altogether. You need
+to be able to edit the card that waits and to see the one it waits for. A card
+is *blocked* while any card it depends on is open (not completed, not
+archived); blocked cards show a red lock badge with the count, and cards that
+hold others up show an arrow badge. Self-links and anything that would form a
+cycle, across however many boards, are refused. Removing a card removes its
+links. Somebody who can see one end of a dependency but not the other sees
+*A card you can't see* in its place: the card still counts as blocked, but its
+title and board stay private. Each board's history records the dependency, and
+names the card on the other board only by number.
 
 ## Subcards and templates
 

@@ -295,8 +295,8 @@ defmodule SlipdockCLI.Render do
     field("Time", time_text(c, true) || "-")
     field("Assignee", assignees(c, &"#{&1["name"]} <#{&1["email"]}>") || "-")
     field("Cover", c["color"] || "-")
-    field("Blocked by", dependency_list(c["blocked_by"]))
-    field("Blocks", dependency_list(c["blocks"]))
+    field("Blocked by", dependency_list(c["blocked_by"], c["board_id"]))
+    field("Blocks", dependency_list(c["blocks"], c["board_id"]))
 
     if c["links"] not in [nil, []] do
       field(
@@ -1369,10 +1369,11 @@ defmodule SlipdockCLI.Render do
     end
   end
 
-  defp dependency_list(nil), do: "-"
-  defp dependency_list([]), do: "-"
+  defp dependency_list(nil, _board_id), do: "-"
+  defp dependency_list([], _board_id), do: "-"
 
-  defp dependency_list(deps) do
+  # A card on another board is prefixed with that board's code.
+  defp dependency_list(deps, board_id) do
     Enum.map_join(deps, ", ", fn d ->
       state =
         cond do
@@ -1381,7 +1382,8 @@ defmodule SlipdockCLI.Render do
           true -> "open"
         end
 
-      "##{d["id"]} #{d["title"]} (#{state})"
+      board = if d["board"] && d["board_id"] != board_id, do: "#{d["board"]} ", else: ""
+      "#{board}##{d["id"]} #{d["title"]} (#{state})"
     end)
   end
 

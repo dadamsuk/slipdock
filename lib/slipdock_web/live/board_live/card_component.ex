@@ -155,7 +155,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
       socket
       |> assign(
         given: given,
-        card: given,
+        card: Access.hide_unreadable_dependencies(user, given),
         card_form: to_form(Boards.change_card(given)),
         can_write: writable,
         can_share: perm == :owner or writable
@@ -240,7 +240,12 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   end
 
   # Put a fresh copy of the card in front of the reader.
-  defp reload(socket), do: assign(socket, card: Boards.get_card!(socket.assigns.card.id))
+  defp reload(socket), do: assign(socket, card: fresh(socket, socket.assigns.card.id))
+
+  # The card as this reader may see it: dependencies on boards they can't
+  # read are hidden (see `Access.hide_unreadable_dependencies/3`).
+  defp fresh(socket, id),
+    do: Access.hide_unreadable_dependencies(socket.assigns.current_user, Boards.get_card!(id))
 
   # The item the shared sections (`BoardLive.ItemEvents`) act on is the card.
   defp with_item(socket), do: assign(socket, item: socket.assigns.card)
@@ -307,7 +312,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
              by: socket.assigns.current_user
            ) do
         {:ok, card} ->
-          {:noreply, assign(socket, card: Boards.get_card!(card.id))}
+          {:noreply, assign(socket, card: fresh(socket, card.id))}
 
         {:error, cs} ->
           {:noreply, assign(socket, card_form: to_form(cs))}
@@ -321,7 +326,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     with {:ok, card} <- writable(socket),
          {:ok, _} <-
            if(action == "stop", do: Boards.stop_timer(card), else: Boards.start_timer(card)) do
-      {:noreply, assign(socket, card: Boards.get_card!(card.id))}
+      {:noreply, assign(socket, card: fresh(socket, card.id))}
     else
       _ -> {:noreply, flash(socket, :error, "You have read-only access to that card.")}
     end
@@ -333,7 +338,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         {:ok, card} ->
           {:noreply,
            socket
-           |> assign(card: Boards.get_card!(card.id))
+           |> assign(card: fresh(socket, card.id))
            |> update(:form_key, &(&1 + 1))}
 
         {:error, _} ->
@@ -475,14 +480,28 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     {:noreply, socket |> assign(dep_query: q) |> assign_dep_results()}
   end
 
+  # The other card may be on another board: the blocked card needs write
+  # access, the blocker read.
   defp event("add_dependency", %{"id" => id}, socket) do
-    %{card: card, dep_direction: direction} = socket.assigns
+    %{card: card, dep_direction: direction, current_user: user} = socket.assigns
     other = Boards.get_card!(id)
 
-    result =
+    {blocked, blocker} =
       case direction do
-        "blocked_by" -> Boards.add_dependency(card, other)
-        "blocks" -> Boards.add_dependency(other, card)
+        "blocked_by" -> {card, other}
+        "blocks" -> {other, card}
+      end
+
+    result =
+      cond do
+        not Access.can_write?(Access.card_permission(user, blocked)) ->
+          {:error, "You can't change “#{blocked.title}”, so it can't be made to wait."}
+
+        not Access.can_read?(Access.card_permission(user, blocker)) ->
+          {:error, "You can't see that card."}
+
+        true ->
+          Boards.add_dependency(blocked, blocker)
       end
 
     case result do
@@ -515,7 +534,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
          {:ok, _} <- Boards.add_link(card, other, kind) do
       {:noreply,
        socket
-       |> assign(link_query: "", link_results: [], card: Boards.get_card!(card.id))
+       |> assign(link_query: "", link_results: [], card: fresh(socket, card.id))
        |> update(:form_key, &(&1 + 1))}
     else
       {:error, message} -> {:noreply, flash(socket, :error, message)}
@@ -528,7 +547,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
 
     if link.from_id == card.id or link.to_id == card.id do
       {:ok, _} = Boards.remove_link(link)
-      {:noreply, assign(socket, card: Boards.get_card!(card.id))}
+      {:noreply, assign(socket, card: fresh(socket, card.id))}
     else
       {:noreply, socket}
     end
@@ -686,10 +705,20 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     end
   end
 
+  # Cards on any board the user can open — this one, the epic's parent board,
+  # sibling sub-boards, other boards — minus this card and those already
+  # linked. This board's own cards come first.
   defp assign_dep_results(%{assigns: %{card: %Card{} = card, dep_query: q}} = socket)
        when q != "" do
     linked = Enum.map(card.blocked_by ++ card.blocks, & &1.id)
-    assign(socket, dep_results: Boards.search_cards(card.board_id, q, [card.id | linked]))
+
+    results =
+      socket
+      |> searchable_root_ids()
+      |> Boards.search_cards_across(q, [card.id | linked])
+      |> Enum.sort_by(&(&1.board_id != card.board_id))
+
+    assign(socket, dep_results: results)
   end
 
   defp assign_dep_results(socket), do: assign(socket, dep_results: [])
@@ -697,19 +726,23 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   # Cards on any board the user can open, minus this card and those already linked.
   defp assign_link_results(%{assigns: %{card: %Card{} = card, link_query: q}} = socket)
        when q != "" do
-    %{current_user: user, board: board} = socket.assigns
-
-    root_ids =
-      Enum.uniq([
-        Slipdock.Boards.Board.root_id(board)
-        | Enum.map(Access.list_boards(user, archived: :all), & &1.id)
-      ])
-
     linked = Enum.map(card.links_out, & &1.to_id) ++ Enum.map(card.links_in, & &1.from_id)
-    assign(socket, link_results: Boards.search_cards_across(root_ids, q, [card.id | linked]))
+
+    assign(socket,
+      link_results: Boards.search_cards_across(searchable_root_ids(socket), q, [card.id | linked])
+    )
   end
 
   defp assign_link_results(socket), do: assign(socket, link_results: [])
+
+  defp searchable_root_ids(socket) do
+    %{current_user: user, board: board} = socket.assigns
+
+    Enum.uniq([
+      Slipdock.Boards.Board.root_id(board)
+      | Enum.map(Access.list_boards(user, archived: :all), & &1.id)
+    ])
+  end
 
   attr :card, Card, required: true
   attr :users, :list, required: true

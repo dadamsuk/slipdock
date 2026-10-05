@@ -229,7 +229,7 @@ slipdock tick <item-id>                  # toggle checklist item (ids from `slip
 slipdock comment <id> <text...>
 slipdock weblink <id> <url> [--label TEXT]   # link a card to a web page, shared drive or file (datestamped)
 slipdock unweblink <id> <url-id>...          # ids from `slipdock card`
-slipdock blocked-by <id> <card-id>... [--off]   # <id> waits for those cards (dependency)
+slipdock blocked-by <id> <card-id>... [--off]   # <id> waits for those cards (dependency; any board you can read)
 slipdock blocks <id> <card-id>... [--off]       # <id> holds those cards up
 slipdock archive <id>... | slipdock restore <id>... | slipdock delete <id>...
 slipdock new-board <name> [--code C] [--shortcut K] [--desc TEXT] [--color C]
