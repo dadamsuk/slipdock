@@ -1,0 +1,346 @@
+defmodule SlipdockWeb.MCP.ReadToolsTest do
+  @moduledoc """
+  The read-only MCP tools: each returns what the API would, nothing another
+  tenant owns is visible, a token's board scope narrows them as it narrows the
+  API, and bad arguments come back as tool errors (`isError`), never crashes.
+  """
+  use SlipdockWeb.ConnCase, async: true
+
+  import Slipdock.Fixtures
+
+  alias Slipdock.{Accounts, Boards}
+
+  setup %{conn: conn, user: user} do
+    board = board_fixture(%{"name" => "Delivery", "code" => "delivery"}, owner: user)
+    [first, second | _] = board.columns
+
+    top = card_fixture(first, %{"title" => "Top of the list"})
+    done = card_fixture(first, %{"title" => "Already done", "completed" => true})
+    blocker = card_fixture(second, %{"title" => "Blocker"})
+    blocked = card_fixture(first, %{"title" => "Waiting on the blocker"})
+    {:ok, _} = Boards.add_dependency(blocked, blocker)
+    {:ok, _} = Boards.add_comment(top, "the real constraint is here")
+
+    other = user_fixture("stranger@example.com")
+    theirs = board_fixture(%{"name" => "Private", "code" => "private"}, owner: other)
+    secret = card_fixture(hd(theirs.columns), %{"title" => "Their secret"})
+
+    %{
+      conn: conn,
+      user: user,
+      board: board,
+      first: first,
+      second: second,
+      top: top,
+      done: done,
+      blocked: blocked,
+      theirs: theirs,
+      secret: secret
+    }
+  end
+
+  defp call(conn, tool, args) do
+    conn
+    |> put_req_header("content-type", "application/json")
+    |> post(
+      "/mcp",
+      Jason.encode!(%{
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: %{name: tool, arguments: args}
+      })
+    )
+    |> json_response(200)
+    |> Map.fetch!("result")
+  end
+
+  defp ok!(result) do
+    assert result["isError"] == false, inspect(result["content"])
+    result["structuredContent"]
+  end
+
+  defp error!(result) do
+    assert result["isError"] == true
+    [%{"text" => text}] = result["content"]
+    text
+  end
+
+  defp scoped(conn, user, opts) do
+    {token, _} = Accounts.create_api_token(user, "scoped", opts)
+    put_req_header(conn, "authorization", "Bearer " <> token)
+  end
+
+  test "tools/list offers every read tool, all read-only", %{conn: conn} do
+    tools =
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post("/mcp", Jason.encode!(%{jsonrpc: "2.0", id: 1, method: "tools/list"}))
+      |> json_response(200)
+      |> get_in(["result", "tools"])
+
+    names = Enum.map(tools, & &1["name"])
+
+    for name <- ~w(get_guide list_boards get_board list_cards get_card search read_page) do
+      tool = Enum.find(tools, &(&1["name"] == name))
+      assert tool, "#{name} missing from #{inspect(names)}"
+      assert tool["annotations"]["readOnlyHint"] == true
+      assert String.length(tool["description"]) < 250
+    end
+  end
+
+  describe "list_boards" do
+    test "lists the caller's boards with their lists and roles, not a stranger's", ctx do
+      %{"boards" => boards} = ctx.conn |> call("list_boards", %{}) |> ok!()
+
+      assert [delivery] = Enum.filter(boards, &(&1["code"] == "delivery"))
+      refute Enum.any?(boards, &(&1["code"] == "private"))
+      assert delivery["owner"] == "yours"
+      assert Enum.map(delivery["lists"], & &1["name"]) == Enum.map(ctx.board.columns, & &1.name)
+
+      roles = SlipdockWeb.APIGuide.list_roles(ctx.board.columns)
+      assert delivery["ready"] == (roles.ready && roles.ready.name)
+      assert delivery["done"] == (roles.done && roles.done.name)
+    end
+
+    test "a token scoped to another board does not list this one", ctx do
+      other = board_fixture(%{"name" => "Other", "code" => "other"}, owner: ctx.user)
+      conn = scoped(ctx.conn, ctx.user, scope_boards: [other.id])
+
+      %{"boards" => boards} = conn |> call("list_boards", %{}) |> ok!()
+      assert Enum.map(boards, & &1["code"]) == ["other"]
+    end
+
+    test "archived must be a boolean", ctx do
+      assert ctx.conn |> call("list_boards", %{archived: "yes"}) |> error!() =~ "true or false"
+    end
+  end
+
+  describe "get_board" do
+    test "by code: lists in order with a line per card", ctx do
+      board = ctx.conn |> call("get_board", %{board: "delivery"}) |> ok!()
+
+      assert board["id"] == ctx.board.id
+      first = Enum.find(board["lists"], &(&1["name"] == ctx.first.name))
+      titles = Enum.map(first["cards"], & &1["title"])
+      assert "Top of the list" in titles
+
+      line = Enum.find(first["cards"], &(&1["id"] == ctx.blocked.id))
+      assert line["blocked"] == true
+      refute Map.has_key?(line, "description")
+      refute Map.has_key?(line, "comments")
+    end
+
+    test "another tenant's board reads as not there", ctx do
+      text = ctx.conn |> call("get_board", %{board: "private"}) |> error!()
+      assert text =~ "no board you can see"
+      refute text =~ "Private"
+
+      assert ctx.conn |> call("get_board", %{board: to_string(ctx.theirs.id)}) |> error!() =~
+               "no board"
+    end
+
+    test "board is required", ctx do
+      assert ctx.conn |> call("get_board", %{}) |> error!() == "board is required"
+    end
+  end
+
+  describe "list_cards" do
+    test "filters the way the CLI does: column, open, deps ready", ctx do
+      %{"cards" => cards} =
+        ctx.conn
+        |> call("list_cards", %{
+          board: "delivery",
+          column: ctx.first.name,
+          open: true,
+          deps: "ready"
+        })
+        |> ok!()
+
+      ids = Enum.map(cards, & &1["id"])
+      assert ctx.top.id in ids
+      refute ctx.done.id in ids
+      refute ctx.blocked.id in ids
+    end
+
+    test "open: false gives the completed ones", ctx do
+      %{"cards" => cards} =
+        ctx.conn |> call("list_cards", %{board: "delivery", open: false}) |> ok!()
+
+      assert Enum.map(cards, & &1["id"]) == [ctx.done.id]
+    end
+
+    test "limit truncates and says so", ctx do
+      result = ctx.conn |> call("list_cards", %{board: "delivery", limit: 1}) |> ok!()
+      assert length(result["cards"]) == 1
+      assert result["truncated"] == true
+      assert result["total"] == 4
+    end
+
+    test "assignee me and no_assignee", ctx do
+      {:ok, _} = Boards.update_card(ctx.top, %{"assignee_id" => ctx.user.id})
+
+      %{"cards" => mine} =
+        ctx.conn |> call("list_cards", %{board: "delivery", assignee: "me"}) |> ok!()
+
+      assert Enum.map(mine, & &1["id"]) == [ctx.top.id]
+
+      %{"cards" => nobody} =
+        ctx.conn |> call("list_cards", %{board: "delivery", no_assignee: true}) |> ok!()
+
+      refute ctx.top.id in Enum.map(nobody, & &1["id"])
+      assert length(nobody) == 3
+    end
+
+    test "an unknown deps bucket is an error, not everything", ctx do
+      text = ctx.conn |> call("list_cards", %{board: "delivery", deps: "soon"}) |> error!()
+      assert text =~ "deps must be one of"
+    end
+
+    test "a bad limit is an error", ctx do
+      assert ctx.conn |> call("list_cards", %{board: "delivery", limit: -1}) |> error!() =~
+               "limit"
+    end
+
+    test "a stranger's board is not listable", ctx do
+      assert ctx.conn |> call("list_cards", %{board: "private"}) |> error!() =~ "no board"
+    end
+  end
+
+  describe "get_card" do
+    test "the whole card: description, comments, dependencies", ctx do
+      card = ctx.conn |> call("get_card", %{card: ctx.top.id}) |> ok!()
+
+      assert card["title"] == "Top of the list"
+      assert [%{"body" => "the real constraint is here"}] = card["comments"]
+      assert card["docs"] == []
+      assert card["url"] == "http://www.example.com/boards/#{ctx.board.id}/cards/#{ctx.top.id}"
+
+      blocked = ctx.conn |> call("get_card", %{card: "##{ctx.blocked.id}"}) |> ok!()
+      assert [%{"title" => "Blocker"}] = blocked["blocked_by"]
+    end
+
+    test "another tenant's card reads as not there", ctx do
+      text = ctx.conn |> call("get_card", %{card: ctx.secret.id}) |> error!()
+      refute text =~ "Their secret"
+      assert text =~ "can't" or text =~ "don't" or text =~ "no card"
+    end
+
+    test "a card that does not exist", ctx do
+      assert ctx.conn |> call("get_card", %{card: 999_999_999}) |> error!() =~ "no card"
+    end
+
+    test "a card number that is not a number", ctx do
+      assert ctx.conn |> call("get_card", %{card: "the top one"}) |> error!() =~ "card number"
+    end
+
+    test "a scoped token cannot read a card on a board outside its scope", ctx do
+      other = board_fixture(%{"name" => "Other"}, owner: ctx.user)
+      conn = scoped(ctx.conn, ctx.user, scope_boards: [other.id])
+
+      assert conn |> call("get_card", %{card: ctx.top.id}) |> error!() =~ "scope"
+    end
+  end
+
+  describe "read_page" do
+    setup ctx do
+      page =
+        page_fixture(ctx.board, %{"title" => "Runbook", "body" => "# Steps\n\nDo the thing."})
+
+      draft =
+        page_fixture(ctx.theirs, %{"title" => "Theirs", "body" => "secret"},
+          user: Accounts.get_user!(ctx.theirs.owner_id)
+        )
+
+      %{page: page, their_page: draft}
+    end
+
+    test "by code: the Markdown and its content hash", ctx do
+      page = ctx.conn |> call("read_page", %{page: ctx.page.code}) |> ok!()
+
+      assert page["title"] == "Runbook"
+      assert page["body"] =~ "Do the thing."
+      assert page["content_hash"]
+      assert page["truncated"] == false
+    end
+
+    test "by title on a board", ctx do
+      page = ctx.conn |> call("read_page", %{page: "Runbook", board: "delivery"}) |> ok!()
+      assert page["code"] == ctx.page.code
+    end
+
+    test "another tenant's page reads as not there", ctx do
+      text = ctx.conn |> call("read_page", %{page: ctx.their_page.code}) |> error!()
+      refute text =~ "secret"
+    end
+
+    test "a page nobody wrote", ctx do
+      assert ctx.conn |> call("read_page", %{page: "W-99999"}) |> error!() =~ "no page"
+    end
+
+    test "a draft is invisible to a reader who cannot edit", ctx do
+      reader = user_fixture("reader@example.com")
+      share_fixture(ctx.board, reader, "read")
+      draft = page_fixture(ctx.board, %{"title" => "Half", "status" => "draft"})
+
+      assert conn_as(reader) |> call("read_page", %{page: draft.code}) |> error!() =~ "no page"
+      assert ctx.conn |> call("read_page", %{page: draft.code}) |> ok!()
+    end
+  end
+
+  test "get_guide serves the same text as /api/guide", ctx do
+    %{"guide" => guide} = ctx.conn |> call("get_guide", %{}) |> ok!()
+    served = ctx.conn |> get(~p"/api/guide") |> response(200)
+
+    assert guide == served
+    assert guide =~ "Your boards right now"
+  end
+
+  test "a mistyped argument is a tool error, not a crash", ctx do
+    # A map where a string belongs: a client need not check the schema.
+    text = ctx.conn |> call("get_board", %{board: %{"id" => 1}}) |> error!()
+    assert text =~ "board must be a string"
+  end
+
+  defmodule Crashes do
+    @behaviour SlipdockWeb.MCP.Tool
+    def name, do: "crashes"
+    def title, do: "Crashes"
+    def description, do: "Always raises."
+    def input_schema, do: %{type: "object"}
+    def read_only?, do: true
+    def call(_args, _context), do: raise("boom")
+  end
+
+  defmodule Writes do
+    @behaviour SlipdockWeb.MCP.Tool
+    def name, do: "writes"
+    def title, do: "Writes"
+    def description, do: "Pretends to write."
+    def input_schema, do: %{type: "object"}
+    def read_only?, do: false
+    def call(_args, _context), do: {:ok, %{wrote: true}}
+  end
+
+  describe "SlipdockWeb.MCP.Tools.call/3" do
+    @describetag capture_log: true
+
+    test "a tool that raises comes back as an error result", ctx do
+      context = %{user: ctx.user, token: %{scope: "write"}, base_url: ""}
+
+      assert {:error, message} = SlipdockWeb.MCP.Tools.call(Crashes, %{}, context)
+      assert message =~ "crashes failed"
+      refute message =~ "boom"
+    end
+
+    test "a write tool refuses a read-only token without running", ctx do
+      read = %{user: ctx.user, token: %{scope: "read"}, base_url: ""}
+      write = %{user: ctx.user, token: %{scope: "write"}, base_url: ""}
+
+      assert {:error, message} = SlipdockWeb.MCP.Tools.call(Writes, %{}, read)
+      assert message =~ "read-only"
+      assert message =~ "Don't retry"
+      assert {:ok, %{wrote: true}} = SlipdockWeb.MCP.Tools.call(Writes, %{}, write)
+    end
+  end
+end

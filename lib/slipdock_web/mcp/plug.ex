@@ -16,19 +16,19 @@ defmodule SlipdockWeb.MCP.Plug do
     * **Auth** is a bearer API token, looked up exactly as the API does. Not
       the `:api` pipeline, though: that refuses every POST from a read token,
       and here every call is a POST. Read/write is enforced per tool instead
-      (`Slipdock.MCP.Tools.call/3`). Without a token the 401 carries a
+      (`SlipdockWeb.MCP.Tools.call/3`). Without a token the 401 carries a
       `WWW-Authenticate` header naming the protected-resource metadata, which
       is how a client learns it has to sign in.
 
   This module is the transport and the JSON-RPC; the tools are in
-  `Slipdock.MCP.Tools`.
+  `SlipdockWeb.MCP.Tools`.
   """
   @behaviour Plug
 
   import Plug.Conn
 
   alias Slipdock.Accounts
-  alias Slipdock.MCP.Tools
+  alias SlipdockWeb.MCP.Tools
 
   @versions ["2025-11-25", "2025-06-18", "2025-03-26"]
   @latest hd(@versions)

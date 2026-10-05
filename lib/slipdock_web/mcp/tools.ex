@@ -1,4 +1,4 @@
-defmodule Slipdock.MCP.Tools do
+defmodule SlipdockWeb.MCP.Tools do
   @moduledoc """
   The tools `/mcp` offers, and running one on somebody's behalf.
 
@@ -8,9 +8,18 @@ defmodule Slipdock.MCP.Tools do
   exactly what the HTTP API allows the same token.
   """
 
-  alias Slipdock.MCP.Tools
+  alias SlipdockWeb.MCP.Tools
 
-  @tools [Tools.Whoami]
+  @tools [
+    Tools.Whoami,
+    Tools.GetGuide,
+    Tools.ListBoards,
+    Tools.GetBoard,
+    Tools.ListCards,
+    Tools.GetCard,
+    Tools.Search,
+    Tools.ReadPage
+  ]
 
   @doc "Every tool module, in the order `tools/list` gives them."
   def all, do: @tools
@@ -67,6 +76,38 @@ defmodule Slipdock.MCP.Tools do
   end
 
   def call(_tool, _args, _context), do: {:error, "arguments must be an object"}
+
+  @doc """
+  A card in a listing: enough to choose one, not to work it — `get_card` has
+  the rest. Listings are what blow a client's per-result budget, so this
+  leaves out descriptions, comments and checklists.
+  """
+  def card_line(card) do
+    full = SlipdockWeb.API.JSON.card(card)
+
+    full
+    |> Map.take([
+      :id,
+      :title,
+      :column,
+      :position,
+      :priority,
+      :flags,
+      :tags,
+      :due_date,
+      :completed,
+      :percent_complete,
+      :blocked
+    ])
+    |> Map.merge(%{
+      assignees: Enum.map(full.assignees, & &1.email),
+      blocked_by: Enum.map(full.blocked_by, & &1.id),
+      subcards:
+        full.sub_board &&
+          %{board: full.sub_board.id, done: full.sub_board.completed, total: full.sub_board.total},
+      stand_in_for: full.stand_in_for && full.stand_in_for.id
+    })
+  end
 
   defp read_only_token?(%{scope: "read"}), do: true
   defp read_only_token?(_), do: false

@@ -1,4 +1,4 @@
-defmodule Slipdock.MCP.Tool do
+defmodule SlipdockWeb.MCP.Tool do
   @moduledoc """
   One MCP tool: what a client is shown in `tools/list`, and what happens on
   `tools/call`.
