@@ -72,6 +72,8 @@ defmodule SlipdockCLI do
   admin limit <email> <n|none>        an item limit of their own
   admin paid <email> <date|none>      paid up to a date: off the free tier and off
                                       the trial clock (e.g. 2026-12-31)
+  admin unlimited <email> on|off      off the free tier for good, no date needed;
+                                      the server-wide ceilings still apply
   admin signups                       who is waiting to be let in
   admin approve|reject <email>
 

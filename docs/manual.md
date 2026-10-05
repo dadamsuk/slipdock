@@ -1784,7 +1784,10 @@ allowance is lower than a ceiling, the lower one wins.
 **Who has paid.** There is no billing in Slipdock. What takes somebody off the
 free allowance and off the trial clock is a **paid-up date**, set per person
 under Users (or `slipdock admin paid <email> <date>`) by whoever took the money.
-An account with no date in the future is a free one.
+An account with no date in the future is a free one — unless an admin has marked
+it **unlimited** (Users → *Make unlimited*, or `slipdock admin unlimited <email> on`),
+which does the same for a named person with no date to invent: no free allowance,
+no trial. The ceilings above still apply to them, as they do to admins.
 
 **Admins.** One role, and the oldest account has it after an upgrade. Admins
 change all of the above, see everybody, grant and remove admin rights, disable

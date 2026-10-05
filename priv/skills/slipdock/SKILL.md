@@ -489,6 +489,8 @@ slipdock admin disable|enable <email>       reversible; ends their sessions at o
 slipdock admin limit <email> <n|none>       an item limit of their own
 slipdock admin paid <email> <date|none>     paid up to a date: takes them off the free
                                             allowance and off the trial clock
+slipdock admin unlimited <email> on|off     off the free tier for good, with no date:
+                                            for a named person, not a payment
 slipdock admin signups                      who is waiting to be let in
 slipdock admin approve|reject <email>
 ```
@@ -496,8 +498,9 @@ slipdock admin approve|reject <email>
 The limits are worth knowing before you set one. Each is counted against whoever **owns** the
 root board, not whoever made the thing, so a guest working on somebody's board never costs
 themselves anything. `free_card_limit` and `trial_days` are the free tier and apply only to
-accounts with no paid-up date; `board_limit`, `item_limit` and `storage_limit_mb` are ceilings
-on every account on every install — admins included — and default to 1,000 boards, 250,000
+accounts with no paid-up date, that are not admins and not marked unlimited; `board_limit`,
+`item_limit` and `storage_limit_mb` are ceilings on every account on every install — admins and
+unlimited accounts included — and default to 1,000 boards, 250,000
 items and 10 GB. Where two limits both apply, the lower wins.
 
 Mail settings and the admin address are deliberately not here. Both have to prove something

@@ -116,6 +116,32 @@ defmodule SlipdockWeb.AdminAPITest do
       assert Slipdock.Repo.reload(ordinary).card_limit_override == 5
     end
 
+    test "marking somebody unlimited, and taking it away", %{conn: conn, ordinary: ordinary} do
+      {:ok, _} = Settings.update(%{"free_card_limit" => 5})
+
+      body = patch(conn, ~p"/api/admin/users/#{ordinary.id}", %{"unlimited" => true})
+      user = json_response(body, 200)["user"]
+      assert user["unlimited"]
+      refute user["limits"]["free"]
+      # Off the free allowance, onto the server-wide ceiling.
+      assert user["cards"]["limit"] == 250_000
+      assert Slipdock.Repo.reload(ordinary).unlimited
+
+      listed = get(conn, ~p"/api/admin/users") |> json_response(200) |> Map.get("users")
+      assert Enum.find(listed, &(&1["email"] == ordinary.email))["unlimited"]
+
+      body = patch(conn, ~p"/api/admin/users/#{ordinary.id}", %{"unlimited" => false})
+      user = json_response(body, 200)["user"]
+      refute user["unlimited"]
+      assert user["cards"]["limit"] == 5
+    end
+
+    test "unlimited has to be a boolean", %{conn: conn, ordinary: ordinary} do
+      body = patch(conn, ~p"/api/admin/users/#{ordinary.id}", %{"unlimited" => "yes"})
+      assert json_response(body, 400)["error"] =~ "unlimited"
+      refute Slipdock.Repo.reload(ordinary).unlimited
+    end
+
     test "the last admin is protected here too, by name", %{conn: conn, admin: admin} do
       conn = patch(conn, ~p"/api/admin/users/#{admin.id}", %{"admin" => false})
       body = json_response(conn, 409)

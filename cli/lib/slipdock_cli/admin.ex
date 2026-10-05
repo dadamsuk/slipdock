@@ -56,6 +56,14 @@ defmodule SlipdockCLI.Admin do
     admin_user(email, %{paid_until: value}, o)
   end
 
+  def run("admin", ["unlimited", email, switch], o) do
+    case switch do
+      s when s in ["on", "yes", "true"] -> admin_user(email, %{unlimited: true}, o)
+      s when s in ["off", "no", "false"] -> admin_user(email, %{unlimited: false}, o)
+      _ -> fail("admin unlimited <email> on|off")
+    end
+  end
+
   def run("admin", ["signups"], o),
     do: HTTP.get("/admin/signups") |> out(o, &render_admin_signups/1)
 
@@ -72,6 +80,8 @@ defmodule SlipdockCLI.Admin do
     admin users                         who is here
     admin promote|demote|disable|enable <email>
     admin limit <email> <n|none>        their own card limit
+    admin paid <email> <date|none>      paid up to a date
+    admin unlimited <email> on|off      off the free tier for good (ceilings still apply)
     admin signups                       who is waiting
     admin approve|reject <email>
 
@@ -175,7 +185,12 @@ defmodule SlipdockCLI.Admin do
   defp render_admin_users(%{"users" => users}) do
     for u <- users do
       flags =
-        [u["admin"] && "admin", u["disabled"] && "disabled", u["invited"] && "invited"]
+        [
+          u["admin"] && "admin",
+          u["unlimited"] && "unlimited",
+          u["disabled"] && "disabled",
+          u["invited"] && "invited"
+        ]
         |> Enum.filter(& &1)
 
       cards =
