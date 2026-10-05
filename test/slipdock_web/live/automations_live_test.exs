@@ -30,11 +30,15 @@ defmodule SlipdockWeb.AutomationsLiveTest do
       {:ok, view, _html} = live(conn, ~p"/boards/#{board}/automations")
       refute has_element?(view, "#callback-log")
 
+      # The view refreshes the panel with send_update, a second message to
+      # itself, so one render round-trip first lets that land.
       log.(1, 200)
+      render(view)
       assert has_element?(view, "#callback-log", "https://example.com/hook/1")
       assert has_element?(view, "#callback-log", "Tell the robot")
 
       log.(2, 503)
+      render(view)
       assert has_element?(view, "#callback-log", "HTTP 503")
       assert has_element?(view, "#callback-log", "Card 2")
     end

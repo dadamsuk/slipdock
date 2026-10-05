@@ -5,7 +5,12 @@ defmodule Slipdock.PortableExportTest do
   values and what it waits on. An export whose import cannot rebuild the board
   is not an export, so these tests are about completeness rather than shape.
   """
-  use Slipdock.DataCase, async: true
+  # Not async, like the other portable tests: each test makes more than one
+  # top-level board, and a board's code and shortcut are picked as "the first
+  # one free" and then inserted. Run alongside another test doing the same, the
+  # two sandboxed transactions can each hold a key the other wants, and
+  # Postgres ends it with a deadlock.
+  use Slipdock.DataCase, async: false
 
   import Slipdock.Fixtures
 
