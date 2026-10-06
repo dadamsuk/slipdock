@@ -1134,6 +1134,43 @@ defmodule SlipdockWeb.Layouts do
     """
   end
 
+  @doc """
+  The one confirmation box every page shares, in place of the browser's own.
+
+  Anything that asks first carries `data-confirm="Delete this card?"`, and
+  `assets/js/confirm.js` opens this `<dialog>` instead of `window.confirm`:
+  the same question, but in the app's own type and colours, with a button
+  that says what it is about to do rather than *OK*, and red when that is
+  something that cannot be taken back. Escape, the backdrop and *Cancel* all
+  say no. It lives in the root layout, outside every LiveView, so a patch
+  never redraws it half-open — and a page without it falls back to the
+  browser's box rather than going ahead unasked.
+  """
+  def confirm_dialog(assigns) do
+    ~H"""
+    <dialog
+      id="confirm-dialog"
+      class="modal modal-bottom sm:modal-middle"
+      aria-labelledby="confirm-dialog-message"
+    >
+      <form method="dialog" class="modal-box max-w-sm">
+        <p id="confirm-dialog-message" class="text-sm leading-relaxed whitespace-pre-line"></p>
+        <div class="modal-action mt-5">
+          <button type="submit" value="cancel" class="btn btn-ghost btn-sm" data-confirm-cancel>
+            Cancel
+          </button>
+          <button type="submit" value="confirm" class="btn btn-primary btn-sm" data-confirm-ok>
+            OK
+          </button>
+        </div>
+      </form>
+      <form method="dialog" class="modal-backdrop">
+        <button type="submit" value="cancel" aria-label="Cancel">Cancel</button>
+      </form>
+    </dialog>
+    """
+  end
+
   # How many people are waiting for an admin to say yes. Only ever asked on an
   # admin's own menu, so the query costs nothing on anybody else's page — and a
   # queue with no badge is a queue discovered a month late.

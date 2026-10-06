@@ -51,6 +51,11 @@ with a browser in it; LiveView tests drive the real page. Calls to a language
 model are answered by a stub (`test/support/ai_stub.ex`), so no test spends
 money or needs a key.
 
+Browser scripts with logic of their own keep it in a module beside `app.js`
+and test it with Node's built-in runner — no packages, no browser:
+`node --test 'assets/js/**/*.test.js'` (Node 22 or later). The confirm dialog
+(`assets/js/confirm.js`) is the example to copy.
+
 New or changed code comes with tests for it, in the same commit: the paths
 you added, error and edge cases included, with assertions on what happens
 rather than tests that only run the lines. A change that cannot be tested (a
