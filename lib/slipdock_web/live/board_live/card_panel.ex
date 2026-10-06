@@ -72,6 +72,19 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
       </div>
       <p :if={@form[:title].errors != []} class="text-sm text-error">Title can't be blank.</p>
       <div class="flex flex-wrap items-center gap-x-1.5 px-1 text-sm text-base-content/50">
+        <%!-- A link, not a button: this sits in the fieldset that is
+              disabled for a read-only card, and a reader can share a link
+              too. The hook copies the URL instead of following it. --%>
+        <a
+          id="card-copy-link"
+          href={url(~p"/boards/#{@card.board_id}/cards/#{@card.id}")}
+          phx-hook="CopyLink"
+          class="badge badge-ghost badge-sm gap-1 font-mono text-base-content/70 hover:text-primary"
+          title="Copy a link to this card"
+        >
+          <span data-label>#{@card.id}</span>
+          <.icon name="hero-link" class="size-3" />
+        </a>
         <span>in list</span>
         <%!-- The quickest way to move a card, and the only practical one
               on a phone, where dragging it across a board that shows one

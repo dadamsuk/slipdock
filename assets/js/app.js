@@ -1412,6 +1412,24 @@ Hooks.CopyText = {
   },
 }
 
+// A link that copies its own href to the clipboard rather than being
+// followed, briefly relabelling its [data-label] child to say so.
+Hooks.CopyLink = {
+  mounted() {
+    this.el.addEventListener("click", e => {
+      if (!navigator.clipboard) return
+      e.preventDefault()
+      navigator.clipboard.writeText(this.el.href).then(() => {
+        const label = this.el.querySelector("[data-label]")
+        if (!label) return
+        const old = label.textContent
+        label.textContent = "Copied"
+        setTimeout(() => { label.textContent = old }, 1500)
+      })
+    })
+  },
+}
+
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
