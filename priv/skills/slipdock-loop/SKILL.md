@@ -77,6 +77,14 @@ already claimed:
 slipdock cards <board> --column "In Progress" --assignee me --open
 ```
 
+That only sees the top level, and a pass spends most of its time on an epic's
+subcards. So also look inside every open card that has subcards (`sub_board` in
+`slipdock cards <board> --open --json`), on whichever list the parent sits:
+
+```sh
+slipdock cards <sub-board-id> --column "In Progress" --assignee me --open
+```
+
 Anything there that is **not** flagged `blocked`, `waiting` or `review` is this
 pass's card — read it (`slipdock card <id>`, comments and all) and carry on from
 where the comments say it got to. Only an empty result means pick something new.
@@ -224,9 +232,14 @@ anybody reads later:
    gh run watch <run-id> --exit-status --interval 30 > /dev/null
    ```
    Use `--interval 30` and drop the output: the default redraws every 3 seconds
-   and fills the context. Give the command a long timeout, or run it in the
-   background and wait to be notified if the build takes longer than the tool
-   allows. When the build finishes, comment on the card whichever way it went:
+   and fills the context. **Run it in the foreground**, with the longest timeout
+   the tool allows; if that runs out first, run the same command again, until
+   the build has finished or ~30 minutes have gone by. Never run the watch in
+   the background and end your turn to wait for it: a pass is often run
+   headless (`claude -p` from cron), and there the session exits the moment the
+   turn ends, taking the watch with it. The notification never comes, and the
+   card is left in progress with `Build started` as its last word. When the
+   build finishes, comment on the card whichever way it went:
    - **Passed:** `Build passed: <workflow> #<run-id> in <duration> — <run url>`.
      Go to step 5.
    - **Failed:** `Build failed: <workflow> #<run-id> — job <job>, step <step>`,
