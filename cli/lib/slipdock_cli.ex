@@ -89,7 +89,7 @@ defmodule SlipdockCLI do
         --due overdue|today|week|month|has|none   (still-outstanding dates)
         --deps blocked|ready|blocking|violated|free
         --assignee NAME|EMAIL|me | --no-assignee
-        --open | --done   --archived
+        --open | --done   --archived (archived alone) | --all (archived too)
     card <id>                           show one card in full (checklist, comments)
     activity <board> [--limit N]        recent activity on a board
     swimlanes <board> [view opts]       cards as a grid, grouped on two axes

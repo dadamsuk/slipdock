@@ -9,6 +9,9 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
 
   @max 200
 
+  # What `Boards.list_cards/2` takes for each.
+  @archived %{"exclude" => nil, "include" => "all", "only" => "true"}
+
   @impl true
   def name, do: "list_cards"
 
@@ -39,6 +42,11 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
         },
         assignee: %{type: "string", description: "Email or name; \"me\" for yourself."},
         no_assignee: %{type: "boolean", description: "Only cards nobody is assigned to."},
+        archived: %{
+          type: "string",
+          enum: Map.keys(@archived),
+          description: "Archived cards: left out (exclude, the default), as well, or alone."
+        },
         due: %{type: "string", enum: keys(Config.dues())},
         tag: %{type: "string"},
         q: %{type: "string", description: "Words in the title or description."},
@@ -80,7 +88,8 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
          {:ok, assignee} <- Args.optional(args, "assignee"),
          {:ok, nobody} <- Args.boolean(args, "no_assignee", false),
          {:ok, tag} <- Args.optional(args, "tag"),
-         {:ok, q} <- Args.optional(args, "q") do
+         {:ok, q} <- Args.optional(args, "q"),
+         {:ok, archived} <- archived(args) do
       assignee =
         cond do
           nobody -> "none"
@@ -96,12 +105,22 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
           "due" => due,
           "assignee" => assignee,
           "tag" => tag,
-          "q" => q
+          "q" => q,
+          "archived" => archived
         }
         |> Enum.reject(fn {_, v} -> is_nil(v) end)
         |> Map.new()
 
       {:ok, filters}
+    end
+  end
+
+  defp archived(args) do
+    with {:ok, value} <- Args.optional(args, "archived") do
+      case Map.fetch(@archived, value || "exclude") do
+        {:ok, filter} -> {:ok, filter}
+        :error -> {:error, "archived must be one of: exclude, include, only"}
+      end
     end
   end
 

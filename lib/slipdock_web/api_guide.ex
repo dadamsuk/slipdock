@@ -349,8 +349,10 @@ defmodule SlipdockWeb.APIGuide do
     answers without a token). It offers a small set of tools rather
     than the whole API: `whoami`, `get_guide` (this text), `list_boards`,
     `get_board`, `list_cards`, `get_card`, `search`, `read_page`, and for
-    writing `create_card`, `update_card`, `move_card`, `comment`,
-    `complete_card` and `write_page`. There is no delete tool. A read-only
+    writing `create_card`, `update_card` (fields, flags, tags, assignees,
+    dependencies and the checklist), `move_card` (to another board too),
+    `comment`, `complete_card`, `archive_card` (and restore) and
+    `write_page`. There is no delete tool. A read-only
     token, or a connection the person approved read-only, can call the read
     tools, and a write tool answers it with an error saying so. The conventions in this guide apply the same way through
     either door.
@@ -962,6 +964,9 @@ defmodule SlipdockWeb.APIGuide do
 
     # by what it is: kind=card|document (a card that is just the file on it)
     curl -s -H "$H" "B/api/boards/1/cards?kind=document"
+
+    # archived cards are left out: archived=true for them alone, archived=all for both
+    curl -s -H "$H" "B/api/boards/1/cards?archived=all"
 
     # create an epic, give it subcards, add a task
     curl -s -H "$H" -H 'content-type: application/json' B/api/boards/1/cards \\

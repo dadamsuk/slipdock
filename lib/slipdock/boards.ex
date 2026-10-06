@@ -1056,6 +1056,9 @@ defmodule Slipdock.Boards do
 
   `"assignee"` matches a person's email exactly or their name loosely, takes
   an id, and takes `"none"` (or `"unassigned"`) for the cards nobody owns.
+
+  Archived cards are left out unless `"archived"` says otherwise: `"true"`
+  for the archived ones alone, `"all"` (or `"include"`) for both.
   """
   def list_cards(%Board{} = board, filters \\ %{}) do
     query =
@@ -1067,9 +1070,11 @@ defmodule Slipdock.Boards do
       )
 
     query =
-      if Enum.member?([true, "true"], filters["archived"]),
-        do: where(query, [c], not is_nil(c.archived_at)),
-        else: where(query, [c], is_nil(c.archived_at))
+      cond do
+        filters["archived"] in [true, "true"] -> where(query, [c], not is_nil(c.archived_at))
+        filters["archived"] in ["all", "include"] -> query
+        true -> where(query, [c], is_nil(c.archived_at))
+      end
 
     query =
       case filters["column"] do

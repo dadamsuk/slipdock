@@ -277,6 +277,27 @@ defmodule SlipdockWeb.API.CardControllerTest do
       assert %{"ok" => true} = conn |> delete("/api/cards/#{card.id}") |> json_response(200)
       assert Boards.get_card(card.id) == nil
     end
+
+    test "listing leaves archived cards out; archived=true lists them alone, all lists both", %{
+      conn: conn,
+      board: board,
+      card: card,
+      other: other
+    } do
+      {:ok, _} = Boards.archive_card(card)
+
+      ids = fn query ->
+        conn
+        |> get("/api/boards/#{board.id}/cards#{query}")
+        |> json_response(200)
+        |> Map.fetch!("cards")
+        |> Enum.map(& &1["id"])
+      end
+
+      assert ids.("") == [other.id]
+      assert ids.("?archived=true") == [card.id]
+      assert Enum.sort(ids.("?archived=all")) == Enum.sort([card.id, other.id])
+    end
   end
 
   describe "votes" do

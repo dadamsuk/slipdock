@@ -166,8 +166,13 @@ that connects gets a small set of tools rather than the whole API:
 
 | Reading | Writing |
 |---|---|
-| `whoami`, `get_guide`, `list_boards`, `get_board`, `list_cards`, `get_card`, `search`, `read_page` | `create_card`, `update_card`, `move_card`, `comment`, `complete_card`, `write_page` |
+| `whoami`, `get_guide`, `list_boards`, `get_board`, `list_cards`, `get_card`, `search`, `read_page` | `create_card`, `update_card`, `move_card`, `comment`, `complete_card`, `archive_card`, `write_page` |
 
+`update_card` also sets what blocks a card and works its checklist (add
+items, tick and untick them by the ids `get_card` shows); `move_card` takes
+`board` to send a card, subcards and all, to another board; `list_cards`
+takes `archived` (`exclude`, the default, `include` or `only`); and
+`archive_card` puts a card away or, with `restore`, brings it back.
 There is no delete tool. The read tools are marked read-only, so a client
 can let them run without asking each time.
 

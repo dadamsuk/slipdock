@@ -88,6 +88,31 @@ defmodule SlipdockWeb.MCP.Args do
   end
 
   @doc """
+  An optional list of ids — card numbers, checklist item ids — each a whole
+  number or a string of one (`"#129"` too). A single id counts as a list of one.
+  """
+  def ids(args, key) do
+    case args[key] do
+      nil ->
+        {:ok, nil}
+
+      list when is_list(list) ->
+        Enum.reduce_while(list, {:ok, []}, fn value, {:ok, acc} ->
+          case id(%{key => value}, key) do
+            {:ok, n} -> {:cont, {:ok, acc ++ [n]}}
+            {:error, _} -> {:halt, {:error, "#{key} must be a list of numbers, like [129]"}}
+          end
+        end)
+
+      single ->
+        case id(%{key => single}, key) do
+          {:ok, n} -> {:ok, [n]}
+          {:error, _} -> {:error, "#{key} must be a list of numbers, like [129]"}
+        end
+    end
+  end
+
+  @doc """
   The API's `{:error, status, message}` refusals, as a tool's error text. A
   thing that is not there, or not the reader's to see, reads the same.
   """

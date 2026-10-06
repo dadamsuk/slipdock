@@ -24,6 +24,7 @@ defmodule SlipdockWeb.MCP.Tools do
     Tools.MoveCard,
     Tools.Comment,
     Tools.CompleteCard,
+    Tools.ArchiveCard,
     Tools.WritePage
   ]
 
@@ -46,7 +47,7 @@ defmodule SlipdockWeb.MCP.Tools do
 
   # Hints, not guarantees, as far as the client is concerned: it uses them to
   # decide what to run without asking. Nothing here deletes — there is no
-  # delete tool, only archiving in the app — so `destructiveHint` marks the
+  # delete tool, only archiving, which restoring undoes — so `destructiveHint` marks the
   # writes that can overwrite what somebody wrote.
   defp annotations(tool) do
     if tool.read_only?() do
@@ -121,6 +122,7 @@ defmodule SlipdockWeb.MCP.Tools do
           %{board: full.sub_board.id, done: full.sub_board.completed, total: full.sub_board.total},
       stand_in_for: full.stand_in_for && full.stand_in_for.id
     })
+    |> then(&if(full.archived_at, do: Map.put(&1, :archived, true), else: &1))
   end
 
   @doc "A card written by a tool, as the tool answers it: the card in brief and where it is."
