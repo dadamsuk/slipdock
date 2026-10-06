@@ -460,7 +460,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
 
           <span class="hidden h-5 w-px bg-base-300 sm:block"></span>
 
-          <div class="relative min-w-0 flex-1 sm:flex-none">
+          <.search_box id="swim-search" q={@config.q} class="relative min-w-0 flex-1 sm:flex-none">
             <.icon
               name="hero-magnifying-glass"
               class="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-base-content/40"
@@ -474,7 +474,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
               class="input input-sm w-full rounded-full pl-8 transition-[width] sm:w-36 sm:focus:w-56"
               autocomplete="off"
             />
-          </div>
+          </.search_box>
 
           <.display_menu mode={@mode} config={@config} board={@board} />
           <a
@@ -529,6 +529,45 @@ defmodule SlipdockWeb.SwimlaneComponents do
           favourites={@favourites}
         />
       </div>
+    </div>
+    """
+  end
+
+  attr :id, :string, required: true, doc: "the box's id; its button's is this plus `-toggle`"
+  attr :q, :string, default: nil, doc: "the current query: a box with one in it stays open"
+  attr :class, :any, default: nil
+  slot :inner_block, required: true
+
+  @doc """
+  A toolbar's search box which, on a phone, folds away behind a one-tap
+  magnifying glass: a full-width input is a whole row of a toolbar on a
+  screen with room for a few. Tapping it opens the box and puts the cursor
+  in it. A box with a query in it is never folded, so a filter is never
+  hidden. From `sm` up the box is simply there and the button is gone.
+  """
+  def search_box(assigns) do
+    open =
+      JS.add_class("search-open", to: "##{assigns.id}")
+      |> JS.hide(to: "##{assigns.id}-toggle")
+      |> JS.focus(to: "##{assigns.id} input")
+
+    assigns = assign(assigns, open: open, query?: assigns.q not in [nil, ""])
+
+    ~H"""
+    <button
+      :if={!@query?}
+      id={"#{@id}-toggle"}
+      type="button"
+      phx-click={@open}
+      class="btn btn-ghost btn-sm btn-square shrink-0 sm:hidden"
+      title="Search cards"
+      aria-label="Search cards"
+      aria-controls={@id}
+    >
+      <.icon name="hero-magnifying-glass" class="size-5" />
+    </button>
+    <div id={@id} class={["search-box", @query? && "search-open", @class]}>
+      {render_slot(@inner_block)}
     </div>
     """
   end

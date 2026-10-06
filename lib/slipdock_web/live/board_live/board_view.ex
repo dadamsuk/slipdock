@@ -834,21 +834,23 @@ defmodule SlipdockWeb.BoardLive.BoardView do
       />
       <span class="hidden h-5 w-px bg-base-300 sm:block"></span>
 
-      <form id="board-search" phx-change="search" phx-submit="search" class="relative">
-        <.icon
-          name="hero-magnifying-glass"
-          class="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-base-content/40"
-        />
-        <input
-          type="search"
-          name="q"
-          value={@filters.q}
-          placeholder="Search cards…"
-          phx-debounce="200"
-          class="input input-sm w-40 rounded-full pl-8 transition-[width] focus:w-64"
-          autocomplete="off"
-        />
-      </form>
+      <.search_box id="board-search-box" q={@filters.q}>
+        <form id="board-search" phx-change="search" phx-submit="search" class="relative">
+          <.icon
+            name="hero-magnifying-glass"
+            class="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-base-content/40"
+          />
+          <input
+            type="search"
+            name="q"
+            value={@filters.q}
+            placeholder="Search cards…"
+            phx-debounce="200"
+            class="input input-sm w-40 rounded-full pl-8 transition-[width] focus:w-64"
+            autocomplete="off"
+          />
+        </form>
+      </.search_box>
 
       <.filter_menu board={@board} filters={@filters} filtering={@filtering} />
 
