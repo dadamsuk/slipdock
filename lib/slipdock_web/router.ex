@@ -264,6 +264,19 @@ defmodule SlipdockWeb.Router do
     post "/auth/device/token", DeviceController, :token
   end
 
+  # Signing in from a third-party app with OAuth (W-21). Discovery and
+  # registration need no token, for the same reason the device endpoints do:
+  # they are how a client gets one. Registration is rate limited in the
+  # controller, and grants nothing until a person approves it.
+  scope "/", SlipdockWeb.OAuth do
+    pipe_through :api_public
+
+    get "/.well-known/oauth-protected-resource", MetadataController, :protected_resource
+    get "/.well-known/oauth-protected-resource/mcp", MetadataController, :protected_resource
+    get "/.well-known/oauth-authorization-server", MetadataController, :authorization_server
+    post "/oauth/register", RegistrationController, :create
+  end
+
   scope "/api/admin", SlipdockWeb.API do
     pipe_through :api_admin
 
