@@ -63,6 +63,24 @@ defmodule SlipdockWeb.Plugs.ContentSecurityPolicy do
     end
   end
 
+  @doc """
+  Lets the page being sent submit a form that ends up at `origin` as well as
+  here. Chrome applies `form-action` to where a form's response redirects,
+  not only to where it posts, so the OAuth consent page — which posts here and
+  is answered with a redirect to the app that asked — needs the app's origin
+  named. Only that page, and only that origin.
+  """
+  def allow_form_action(conn, origin) when is_binary(origin) do
+    case Plug.Conn.get_resp_header(conn, "content-security-policy") do
+      [policy] ->
+        widened = String.replace(policy, "form-action 'self'", "form-action 'self' #{origin}")
+        Plug.Conn.put_resp_header(conn, "content-security-policy", widened)
+
+      _ ->
+        conn
+    end
+  end
+
   @doc "The policy this plug sends, for tests and for printing in the docs."
   def policy, do: Enum.join(@default, "; ")
 end

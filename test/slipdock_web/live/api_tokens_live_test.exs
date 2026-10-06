@@ -93,4 +93,55 @@ defmodule SlipdockWeb.ApiTokensLiveTest do
     view |> element("#token-#{token.id} button[phx-click=delete_token]") |> render_click()
     assert Accounts.list_api_tokens(user) == []
   end
+
+  describe "a connection made with OAuth" do
+    setup %{user: user} do
+      {:ok, client} =
+        Slipdock.OAuth.register_client(%{
+          client_name: "Claude",
+          redirect_uris: ["https://claude.ai/api/mcp/auth_callback"]
+        })
+
+      {_access, row} = Accounts.create_api_token(user, "Claude", scope: "write")
+      past = DateTime.utc_now(:second) |> DateTime.add(-60, :second)
+
+      row =
+        row
+        |> Ecto.Changeset.change(
+          oauth_client_id: client.id,
+          # The hourly access token has lapsed; the connection has not.
+          expires_at: past,
+          refresh_expires_at: DateTime.utc_now(:second) |> DateTime.add(90, :day)
+        )
+        |> Slipdock.Repo.update!()
+
+      %{row: row}
+    end
+
+    test "is shown as a connected app that renews itself, not as expired", %{
+      conn: conn,
+      row: row
+    } do
+      {:ok, view, _html} = live(conn, ~p"/account/tokens")
+      html = view |> element("#token-#{row.id}") |> render()
+
+      assert html =~ "connected app"
+      assert html =~ "renews until"
+      refute html =~ "expired"
+    end
+
+    test "is shown as expired once its refresh token has lapsed", %{conn: conn, row: row} do
+      row
+      |> Ecto.Changeset.change(
+        refresh_expires_at: DateTime.utc_now(:second) |> DateTime.add(-1, :day)
+      )
+      |> Slipdock.Repo.update!()
+
+      {:ok, view, _html} = live(conn, ~p"/account/tokens")
+      html = view |> element("#token-#{row.id}") |> render()
+
+      assert html =~ "expired"
+      refute html =~ "renews until"
+    end
+  end
 end
