@@ -25,6 +25,7 @@ import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/slipdock"
 import topbar from "../vendor/topbar"
 import Sortable from "../vendor/sortable"
+import {installConfirm} from "./confirm"
 
 const Hooks = {}
 
@@ -1438,6 +1439,9 @@ window.addEventListener("phx:scroll-to-list", ({detail: {id}}) => {
   }
   requestAnimationFrame(find)
 })
+
+// data-confirm asks with the app's own dialog rather than the browser's.
+installConfirm(window)
 
 // connect if there are any LiveViews on the page
 liveSocket.connect()
