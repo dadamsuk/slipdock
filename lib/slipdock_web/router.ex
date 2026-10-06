@@ -275,6 +275,16 @@ defmodule SlipdockWeb.Router do
     get "/.well-known/oauth-protected-resource/mcp", MetadataController, :protected_resource
     get "/.well-known/oauth-authorization-server", MetadataController, :authorization_server
     post "/oauth/register", RegistrationController, :create
+    post "/oauth/token", TokenController, :create
+  end
+
+  # The consent page. Signed-in people only — a signed-out one is sent to sign
+  # in and brought back — and the decision is a POST with CSRF, never a GET.
+  scope "/oauth", SlipdockWeb.OAuth do
+    pipe_through [:browser, :require_authenticated_user]
+
+    get "/authorize", AuthorizeController, :show
+    post "/authorize", AuthorizeController, :decide
   end
 
   scope "/api/admin", SlipdockWeb.API do

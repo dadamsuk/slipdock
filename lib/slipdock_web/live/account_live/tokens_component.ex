@@ -123,7 +123,14 @@ defmodule SlipdockWeb.AccountLive.TokensComponent do
                   end}
                 </span>
                 <span
-                  :if={Slipdock.Accounts.UserToken.expired?(t)}
+                  :if={t.oauth_client_id}
+                  class="rounded bg-base-200 px-1.5 py-0.5 text-[11px] font-medium text-base-content/70"
+                  title="Connected with OAuth: its token renews itself every hour"
+                >
+                  connected app
+                </span>
+                <span
+                  :if={Slipdock.Accounts.UserToken.lapsed?(t)}
                   class="rounded bg-error/10 px-1.5 py-0.5 text-[11px] font-medium text-error"
                 >
                   expired
@@ -133,7 +140,11 @@ defmodule SlipdockWeb.AccountLive.TokensComponent do
                 created {relative_time(t.inserted_at)}<span :if={t.last_used_at}> · used {relative_time(
                   t.last_used_at
                 )}<span :if={t.last_used_ip}> from {t.last_used_ip}</span></span><span :if={
-                  t.expires_at
+                  t.refresh_expires_at
+                }> · {if Slipdock.Accounts.UserToken.lapsed?(t),
+                  do: "expired " <> relative_time(t.refresh_expires_at),
+                  else: "renews until " <> relative_time(t.refresh_expires_at)}</span><span :if={
+                  t.expires_at && is_nil(t.refresh_expires_at)
                 }> · {if Slipdock.Accounts.UserToken.expired?(t),
                   do: "expired " <> relative_time(t.expires_at),
                   else: "expires " <> relative_time(t.expires_at)}</span><span :if={

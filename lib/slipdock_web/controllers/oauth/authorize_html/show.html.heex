@@ -1,0 +1,77 @@
+<Layouts.app flash={@flash} current_user={@current_user}>
+  <div class="mx-auto max-w-lg px-4 py-10">
+    <h1 class="text-2xl font-semibold tracking-tight">Connect an app</h1>
+    <p class="mt-1 text-sm text-base-content/60">
+      An app wants to use your Slipdock account. Decide whether it may.
+    </p>
+
+    <div class="mt-6 rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+      <form action={~p"/oauth/authorize"} method="post">
+        <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+        <input :for={{name, value} <- @fields} type="hidden" name={name} value={value} />
+
+        <dl class="space-y-3 text-sm">
+          <div class="flex gap-3">
+            <dt class="w-28 shrink-0 text-base-content/50">What asked</dt>
+            <dd class="font-medium">{@request.client.client_name || "An unnamed app"}</dd>
+          </div>
+          <div class="flex gap-3">
+            <dt class="w-28 shrink-0 text-base-content/50">Sent back to</dt>
+            <dd class="font-mono text-xs">{destination(@request.redirect_uri)}</dd>
+          </div>
+          <div class="flex gap-3">
+            <dt class="w-28 shrink-0 text-base-content/50">It may</dt>
+            <dd :if={@request.scope == "read"}>
+              {SlipdockWeb.DeviceActivationHTML.scope_sentence("read")}
+              <input type="hidden" name="granted_scope" value="read" />
+            </dd>
+            <dd :if={@request.scope == "write"} class="space-y-2">
+              <label class="flex items-start gap-2">
+                <input
+                  type="radio"
+                  name="granted_scope"
+                  value="write"
+                  checked
+                  class="radio radio-sm mt-0.5"
+                />
+                <span>{SlipdockWeb.DeviceActivationHTML.scope_sentence("write")}</span>
+              </label>
+              <label class="flex items-start gap-2">
+                <input
+                  type="radio"
+                  name="granted_scope"
+                  value="read"
+                  class="radio radio-sm mt-0.5"
+                />
+                <span>Only read — {SlipdockWeb.DeviceActivationHTML.scope_sentence("read")}</span>
+              </label>
+            </dd>
+          </div>
+          <div class="flex gap-3">
+            <dt class="w-28 shrink-0 text-base-content/50">Registered</dt>
+            <dd>
+              {SlipdockWeb.SlipdockComponents.relative_time(@request.client.inserted_at)}
+              <span :if={@request.client.registered_ip} class="font-mono text-xs">
+                from {@request.client.registered_ip}
+              </span>
+            </dd>
+          </div>
+        </dl>
+
+        <p class="mt-4 rounded-lg bg-warning/10 p-3 text-xs">
+          If you didn't just connect this yourself, refuse it. Approving gives the app
+          a token that acts as you until you revoke it under Account → API tokens.
+        </p>
+
+        <div class="mt-5 flex gap-2">
+          <button type="submit" name="decision" value="deny" class="btn btn-ghost flex-1">
+            Refuse
+          </button>
+          <button type="submit" name="decision" value="approve" class="btn btn-primary flex-1">
+            Approve
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</Layouts.app>

@@ -1,0 +1,15 @@
+<Layouts.app flash={@flash} current_user={@current_user}>
+  <div class="mx-auto max-w-lg px-4 py-10">
+    <h1 class="text-2xl font-semibold tracking-tight">Connect an app</h1>
+    <div class="mt-6 rounded-xl bg-error/10 p-4 text-sm text-error">
+      <p :if={@reason == :invalid_client}>
+        This server doesn't know the app that sent you here. Go back to it and
+        connect again from the start.
+      </p>
+      <p :if={@reason == :invalid_redirect_uri}>
+        The app asked for its answer to go to an address it never registered, so
+        it can't be sent there. Go back to the app and connect again.
+      </p>
+    </div>
+  </div>
+</Layouts.app>
