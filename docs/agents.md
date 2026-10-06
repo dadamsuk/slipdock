@@ -171,10 +171,31 @@ that connects gets a small set of tools rather than the whole API:
 There is no delete tool. The read tools are marked read-only, so a client
 can let them run without asking each time.
 
-For now a client connects with an **API token** (Account → API tokens).
-Make it read-only if the client should only look: the read tools work,
-and the write tools answer that the token is read-only. A token confined
-to some boards only sees those. In Claude Code:
+A client connects one of two ways.
+
+**Signing in through the browser (OAuth).** This is how claude.ai and the
+Claude apps (desktop, mobile) connect, and it needs nothing but the
+address. In claude.ai: **Settings → Connectors → Add custom connector**,
+give it a name and `https://your-server/mcp`, and press **Connect**. You
+are sent here to sign in and see what is asking: approve it, or lower it
+to read-only first, and you are sent back. A connector added once is
+there in the apps too. Each connection shows up under **Account → API
+tokens** as a *connected app*, named for the client; deleting it there
+disconnects it. The connection keeps itself renewed while it is used at
+least once every 90 days, so
+there is nothing to paste and nothing to rotate. Any client that does
+MCP's OAuth (discovery, dynamic client registration, PKCE) connects the
+same way; for Claude Code, add the server without a header and run `/mcp`
+in a session to sign in:
+
+```sh
+claude mcp add --transport http slipdock https://your-server/mcp
+```
+
+**A pasted API token** (Account → API tokens), for clients that take a
+URL and a header. Make it read-only if the client should only look: the
+read tools work, and the write tools answer that the token is read-only.
+A token confined to some boards only sees those. In Claude Code:
 
 ```sh
 claude mcp add --transport http slipdock https://your-server/mcp \
@@ -185,9 +206,9 @@ The Claude API's MCP connector takes the same URL with the token as its
 `authorization_token`. IDE clients that take a URL and a header work the
 same way.
 
-Not available yet: adding the server as a connector in claude.ai and the
-Claude apps. Those sign in through the browser (OAuth) and never take a
-pasted token.
+claude.ai connects from Anthropic's servers, not from your browser, so a
+connector only works with a server reachable from the internet over
+https. If you self-host behind an allowlist, let in `160.79.104.0/21`.
 
 ## If you self-host
 

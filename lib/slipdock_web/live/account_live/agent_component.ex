@@ -140,15 +140,27 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
         <h2 class="text-lg font-semibold">
           Optional · connect over MCP
           <span class="ml-1 align-middle text-xs font-normal text-base-content/50">
-            for Claude Code, IDE chat panes and anything else that speaks MCP
+            for claude.ai, the Claude apps, Claude Code and anything else that speaks MCP
           </span>
         </h2>
         <p class="mt-1 text-sm text-base-content/60">
           This server is also an MCP server, at <code>{@base_url}/mcp</code>. A client that
           connects gets a small set of tools: reading boards, cards, pages and the guide,
           searching, and adding, updating, moving, commenting on and completing cards and
-          writing pages. There is no delete tool. For now it connects with an API
-          token: make one on the <.link navigate={~p"/account/tokens"} class="link">API tokens</.link>
+          writing pages. There is no delete tool.
+        </p>
+        <p class="mt-3 text-sm text-base-content/60">
+          <strong>From claude.ai or the Claude apps:</strong>
+          Settings → Connectors → Add custom connector, with this address. You are sent here to
+          sign in and approve it, read-only if you like, and it then shows on the
+          <.link navigate={~p"/account/tokens"} class="link">API tokens</.link>
+          tab as a connected app, where deleting it disconnects it.
+        </p>
+        <.copy_block id="agent-mcp-url" text={"#{@base_url}/mcp"} label="Copy address" />
+        <p class="mt-3 text-sm text-base-content/60">
+          <strong>With an API token,</strong>
+          for clients that take a URL and a header: make one on the
+          <.link navigate={~p"/account/tokens"} class="link">API tokens</.link>
           tab, read-only if the client should only look, and put it in place of <code>&lt;token&gt;</code>. In Claude Code:
         </p>
         <.copy_block
@@ -157,8 +169,8 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
           label="Copy command"
         />
         <p class="mt-2 text-xs text-base-content/50">
-          Connecting from claude.ai or the Claude apps, which sign in through the browser
-          rather than with a pasted token, is not available yet.
+          Or leave the header off and run <code>/mcp</code>
+          in Claude Code to sign in through the browser instead.
         </p>
       </section>
 

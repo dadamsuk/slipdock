@@ -133,9 +133,11 @@ Briefly, with the detail in [the manual](docs/manual.md):
   [from the shell](docs/manual.md#cli), plus
   [agent skills](docs/manual.md#skills) the server ships and a
   `/api/guide` that describes *your* boards to whatever is driving them.
-- **An MCP server** at `/mcp`, so Claude Code and other MCP clients get
-  the board as a small set of tools: reading, searching, and adding, moving,
-  commenting on and completing cards ([connecting](docs/agents.md#over-mcp)).
+- **An MCP server** at `/mcp`, so claude.ai, the Claude apps, Claude Code
+  and other MCP clients get the board as a small set of tools: reading,
+  searching, and adding, moving, commenting on and completing cards. Add it
+  as a connector by its address and sign in through the browser (OAuth), or
+  connect with an API token ([connecting](docs/agents.md#over-mcp)).
 - **An agent on your board in a minute** —
   [setting one up](docs/agents.md) needs no software and no access to the
   server: give it the address, approve it once in the browser, and it reads the

@@ -25,6 +25,9 @@ defmodule SlipdockWeb.API.GuideTest do
 
     assert body =~ "### Over MCP"
     assert body =~ "http://www.example.com/mcp"
+    # Both ways in: a pasted token, and the browser sign-in connectors use.
+    assert body =~ "same bearer token as the API"
+    assert body =~ "OAuth 2.1"
 
     # Written out by hand, so this is what notices a tool added without it.
     for tool <- SlipdockWeb.MCP.Tools.all() do

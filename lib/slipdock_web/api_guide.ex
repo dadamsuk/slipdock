@@ -343,13 +343,16 @@ defmodule SlipdockWeb.APIGuide do
 
     A client that speaks the Model Context Protocol can use this server as an
     MCP server at `#{base}/mcp`: stateless Streamable HTTP, authenticated with
-    the same bearer token as the API. It offers a small set of tools rather
+    the same bearer token as the API, or by signing in through the browser
+    (OAuth 2.1 with dynamic client registration and PKCE — the way claude.ai
+    and the Claude apps connect; discovery starts from the `401` that `/mcp`
+    answers without a token). It offers a small set of tools rather
     than the whole API: `whoami`, `get_guide` (this text), `list_boards`,
     `get_board`, `list_cards`, `get_card`, `search`, `read_page`, and for
     writing `create_card`, `update_card`, `move_card`, `comment`,
     `complete_card` and `write_page`. There is no delete tool. A read-only
-    token can call the read tools, and a write tool answers it with an error
-    saying so. The conventions in this guide apply the same way through
+    token, or a connection the person approved read-only, can call the read
+    tools, and a write tool answers it with an error saying so. The conventions in this guide apply the same way through
     either door.
 
     ### The AI key, and which model answers
