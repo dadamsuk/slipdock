@@ -176,8 +176,19 @@ defmodule SlipdockWeb.AgentSetupTest do
       assert command =~ "claude mcp add --transport http slipdock #{base}/mcp"
       assert command =~ "Authorization: Bearer &lt;token&gt;"
       assert has_element?(view, "#agent-mcp-section", "#{base}/mcp")
-      # The OAuth path is not there yet, and the page must not imply it is.
-      assert has_element?(view, "#agent-mcp-section", "not available yet")
+    end
+
+    test "tells claude.ai users to add the address as a connector and sign in", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/account/agent")
+
+      base = SlipdockWeb.Endpoint.url()
+
+      # The address alone, ready to paste into Add custom connector.
+      assert view |> element("#agent-mcp-url") |> render() =~ "#{base}/mcp"
+      assert has_element?(view, "#agent-mcp-section", "Add custom connector")
+      assert has_element?(view, "#agent-mcp-section", "connected app")
+      # Since #335 the OAuth route exists, so nothing may say otherwise.
+      refute render(view) =~ "not available yet"
     end
 
     test "is reachable from the account menu on every page", %{conn: conn} do
