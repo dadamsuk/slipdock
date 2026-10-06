@@ -192,6 +192,34 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
       assert length(nobody) == 3
     end
 
+    test "archived: left out by default, included, or alone", ctx do
+      {:ok, _} = Boards.archive_card(ctx.done)
+      ids = fn args -> ctx.conn |> call("list_cards", args) |> ok!() |> Map.fetch!("cards") end
+
+      default = ids.(%{board: "delivery"})
+      refute ctx.done.id in Enum.map(default, & &1["id"])
+
+      assert Enum.map(ids.(%{board: "delivery", archived: "exclude"}), & &1["id"]) ==
+               Enum.map(default, & &1["id"])
+
+      included = ids.(%{board: "delivery", archived: "include"})
+      assert length(included) == length(default) + 1
+      assert %{"archived" => true} = Enum.find(included, &(&1["id"] == ctx.done.id))
+
+      refute Enum.any?(
+               included -- [Enum.find(included, &(&1["id"] == ctx.done.id))],
+               & &1["archived"]
+             )
+
+      assert [%{"id" => id}] = ids.(%{board: "delivery", archived: "only"})
+      assert id == ctx.done.id
+    end
+
+    test "an unknown archived value is an error", ctx do
+      assert ctx.conn |> call("list_cards", %{board: "delivery", archived: "yes"}) |> error!() =~
+               "archived must be one of"
+    end
+
     test "an unknown deps bucket is an error, not everything", ctx do
       text = ctx.conn |> call("list_cards", %{board: "delivery", deps: "soon"}) |> error!()
       assert text =~ "deps must be one of"

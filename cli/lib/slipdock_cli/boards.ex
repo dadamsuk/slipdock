@@ -106,7 +106,12 @@ defmodule SlipdockCLI.Boards do
       kind: List.first(kind_values(o)),
       assignee: if(o[:no_assignee], do: "none", else: o[:assignee]),
       completed: completed,
-      archived: o[:archived]
+      archived:
+        cond do
+          o[:all] -> "all"
+          o[:archived] -> "true"
+          true -> nil
+        end
     )
     |> out(o, &Render.cards(&1["cards"]))
   end

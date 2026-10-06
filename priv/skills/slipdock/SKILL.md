@@ -23,8 +23,10 @@ This file is the command reference; the guide is the workflow.
 When this session already has Slipdock tools (`list_boards`, `get_card`, `create_card`,
 `complete_card`…, from the server's `/mcp`), they are an alternative to the CLI for the same
 work: use whichever is there. The conventions are the same either way — `get_guide` returns
-the guide `slipdock guide` prints. There is no delete tool over MCP, and anything the tools
-don't cover (automations, sprints, attachments, dependencies) is still the CLI or the API.
+the guide `slipdock guide` prints. There is no delete tool over MCP — `archive_card` puts a
+card away, and `restore: true` brings it back. `update_card` also sets dependencies and works
+the checklist. Anything the tools don't cover (automations, sprints, attachments, board
+structure) is still the CLI or the API.
 
 ## If the CLI is not installed here
 

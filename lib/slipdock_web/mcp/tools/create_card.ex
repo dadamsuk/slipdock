@@ -29,13 +29,14 @@ defmodule SlipdockWeb.MCP.Tools.CreateCard do
         description: %{type: "string", description: "Markdown: the brief."},
         column: %{type: "string", description: "List name; default the board's ready list."},
         top: %{type: "boolean", description: "Put it at the top of the list (default bottom)."},
-        priority: %{type: "string", enum: ["low", "medium", "high", "critical"]},
+        priority: %{type: "string", enum: ["none", "low", "medium", "high", "critical"]},
         tags: %{type: "array", items: %{type: "string"}},
         assignees: %{
           type: "array",
           items: %{type: "string"},
           description: "Emails; \"me\" for yourself."
         },
+        start_date: %{type: "string", description: "YYYY-MM-DD."},
         due_date: %{type: "string", description: "YYYY-MM-DD."},
         subcard_template: %{
           type: "string",
@@ -69,7 +70,7 @@ defmodule SlipdockWeb.MCP.Tools.CreateCard do
 
   defp params(args, title, column, tags, assignees) do
     args
-    |> Map.take(~w(description priority due_date))
+    |> Map.take(~w(description priority start_date due_date))
     |> Map.merge(%{"title" => title, "column" => column})
     |> then(&if(tags, do: Map.put(&1, "tags", tags), else: &1))
     |> then(&if(assignees, do: Map.put(&1, "assignees", assignees), else: &1))

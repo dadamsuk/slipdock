@@ -76,13 +76,16 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
       |> get_in(["result", "tools"])
       |> Map.new(&{&1["name"], &1["annotations"]})
 
-    for name <- ~w(create_card update_card move_card comment complete_card write_page) do
+    for name <-
+          ~w(create_card update_card move_card comment complete_card archive_card write_page) do
       assert tools[name]["readOnlyHint"] == false, name
     end
 
     assert tools["update_card"]["destructiveHint"] == true
     assert tools["write_page"]["destructiveHint"] == true
     assert tools["comment"]["destructiveHint"] == false
+    # Restoring undoes it, so archiving overwrites nothing.
+    assert tools["archive_card"]["destructiveHint"] == false
     refute Enum.any?(Map.keys(tools), &String.contains?(&1, "delete"))
   end
 
@@ -106,6 +109,24 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
       assert card["tags"] == ["ux"]
       assert card["column_id"] == ctx.roles.ready.id
       assert made["url"] =~ "/boards/#{ctx.board.id}/cards/#{made["id"]}"
+    end
+
+    test "with a start date, and priority none", ctx do
+      made =
+        ctx.conn
+        |> call("create_card", %{
+          board: "delivery",
+          title: "Scheduled",
+          start_date: "2026-11-02",
+          due_date: "2026-11-09",
+          priority: "none"
+        })
+        |> ok!()
+
+      card = api_card(ctx.conn, made["id"])
+      assert card["start_date"] == "2026-11-02"
+      assert card["due_date"] == "2026-11-09"
+      assert card["priority"] == "none"
     end
 
     test "top puts it first in its list", ctx do
@@ -198,6 +219,133 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
       assert card["assignees"] == []
     end
 
+    test "priority goes back to none, and start_date sets and clears", ctx do
+      ctx.conn
+      |> call("update_card", %{card: ctx.card.id, priority: "high", start_date: "2026-11-02"})
+      |> ok!()
+
+      card = api_card(ctx.conn, ctx.card.id)
+      assert card["priority"] == "high"
+      assert card["start_date"] == "2026-11-02"
+
+      ctx.conn
+      |> call("update_card", %{card: ctx.card.id, priority: "none", start_date: ""})
+      |> ok!()
+
+      card = api_card(ctx.conn, ctx.card.id)
+      assert card["priority"] == "none"
+      assert card["start_date"] == nil
+    end
+
+    test "an unknown priority is refused", ctx do
+      assert ctx.conn |> call("update_card", %{card: ctx.card.id, priority: "urgent"}) |> error!() =~
+               "priority"
+
+      assert Boards.get_card!(ctx.card.id).priority == "none"
+    end
+
+    test "add_blocked_by and remove_blocked_by; adding twice is not an error", ctx do
+      blocker = card_fixture(ctx.roles.ready, %{"title" => "Schema"})
+
+      result =
+        ctx.conn
+        |> call("update_card", %{card: ctx.card.id, add_blocked_by: [blocker.id]})
+        |> ok!()
+
+      assert result["blocked_by"] == [blocker.id]
+      assert result["blocked"] == true
+
+      ctx.conn
+      |> call("update_card", %{card: ctx.card.id, add_blocked_by: ["##{blocker.id}"]})
+      |> ok!()
+
+      assert [%{"id" => id}] = api_card(ctx.conn, ctx.card.id)["blocked_by"]
+      assert id == blocker.id
+
+      ctx.conn
+      |> call("update_card", %{card: ctx.card.id, remove_blocked_by: [blocker.id]})
+      |> ok!()
+
+      assert api_card(ctx.conn, ctx.card.id)["blocked_by"] == []
+    end
+
+    test "a blocker on a stranger's board is refused, and nothing else lands", ctx do
+      ctx.conn
+      |> call("update_card", %{
+        card: ctx.card.id,
+        title: "Renamed",
+        add_blocked_by: [ctx.secret.id]
+      })
+      |> error!()
+
+      card = Boards.get_card!(ctx.card.id)
+      assert card.title == "Existing"
+      assert card.blocked_by == []
+    end
+
+    test "a dependency that cannot be made rolls back the fields with it", ctx do
+      text =
+        ctx.conn
+        |> call("update_card", %{
+          card: ctx.card.id,
+          title: "Renamed",
+          add_blocked_by: [ctx.card.id]
+        })
+        |> error!()
+
+      assert text =~ "itself"
+      assert Boards.get_card!(ctx.card.id).title == "Existing"
+    end
+
+    test "an unknown blocker", ctx do
+      assert ctx.conn
+             |> call("update_card", %{card: ctx.card.id, add_blocked_by: [999_999]})
+             |> error!() =~ "no card #999999"
+    end
+
+    test "checklist: add items, tick one, untick it; ticking twice stays ticked", ctx do
+      ctx.conn
+      |> call("update_card", %{card: ctx.card.id, add_checklist: ["Write it", "Test it"]})
+      |> ok!()
+
+      [first, second] = api_card(ctx.conn, ctx.card.id)["checklist"]["items"]
+      assert {first["text"], second["text"]} == {"Write it", "Test it"}
+      refute first["done"]
+
+      for _ <- 1..2 do
+        ctx.conn |> call("update_card", %{card: ctx.card.id, check_items: [first["id"]]}) |> ok!()
+      end
+
+      assert [%{"done" => true}, %{"done" => false}] =
+               api_card(ctx.conn, ctx.card.id)["checklist"]["items"]
+
+      ctx.conn
+      |> call("update_card", %{card: ctx.card.id, uncheck_items: [first["id"], second["id"]]})
+      |> ok!()
+
+      assert [%{"done" => false}, %{"done" => false}] =
+               api_card(ctx.conn, ctx.card.id)["checklist"]["items"]
+    end
+
+    test "a checklist item from another card is refused, and nothing is ticked", ctx do
+      other = card_fixture(ctx.roles.ready, %{"title" => "Other"})
+      {:ok, item} = Boards.add_checklist_item(other, "Not yours")
+
+      text =
+        ctx.conn
+        |> call("update_card", %{card: ctx.card.id, check_items: [item.id]})
+        |> error!()
+
+      assert text =~ "not on card ##{ctx.card.id}"
+      refute Repo.get!(Boards.ChecklistItem, item.id).done
+    end
+
+    test "ids that are not numbers", ctx do
+      assert ctx.conn
+             |> call("update_card", %{card: ctx.card.id, check_items: ["first"]})
+             |> error!() =~ "check_items must be a list of numbers"
+    end
+
     test "nothing to change is an error", ctx do
       assert ctx.conn |> call("update_card", %{card: ctx.card.id}) |> error!() =~
                "nothing to change"
@@ -238,6 +386,38 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
                "Nowhere"
     end
 
+    test "to another board, at the bottom of the list named", ctx do
+      elsewhere = board_fixture(%{"name" => "Elsewhere", "code" => "elsewhere"}, owner: ctx.user)
+      target = List.last(elsewhere.columns)
+
+      moved =
+        ctx.conn
+        |> call("move_card", %{card: ctx.card.id, board: "elsewhere", column: target.name})
+        |> ok!()
+
+      assert moved["board_id"] == elsewhere.id
+      card = api_card(ctx.conn, ctx.card.id)
+      assert card["board_id"] == elsewhere.id
+      assert card["column_id"] == target.id
+    end
+
+    test "never onto a stranger's board", ctx do
+      assert ctx.conn |> call("move_card", %{card: ctx.card.id, board: "theirs"}) |> error!() =~
+               "no board"
+
+      assert Boards.get_card!(ctx.card.id).board_id == ctx.board.id
+    end
+
+    test "an archived card is not moved to another board", ctx do
+      board_fixture(%{"name" => "Elsewhere", "code" => "elsewhere"}, owner: ctx.user)
+      {:ok, _} = Boards.archive_card(ctx.card)
+
+      assert ctx.conn |> call("move_card", %{card: ctx.card.id, board: "elsewhere"}) |> error!() =~
+               "Restore"
+
+      assert Boards.get_card!(ctx.card.id).board_id == ctx.board.id
+    end
+
     test "a bad position", ctx do
       assert ctx.conn |> call("move_card", %{card: ctx.card.id, position: "middle"}) |> error!() =~
                "top or bottom"
@@ -259,6 +439,50 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
     test "not on a stranger's card", ctx do
       ctx.conn |> call("comment", %{card: ctx.secret.id, body: "hi"}) |> error!()
       assert Repo.preload(Boards.get_card!(ctx.secret.id), :comments).comments == []
+    end
+  end
+
+  describe "archive_card" do
+    test "archives it out of listings, and restore brings it back", ctx do
+      result = ctx.conn |> call("archive_card", %{card: ctx.card.id}) |> ok!()
+      assert result["archived"] == true
+      assert api_card(ctx.conn, ctx.card.id)["archived_at"]
+      refute Enum.any?(Boards.list_cards(ctx.board, %{}), &(&1.id == ctx.card.id))
+
+      result = ctx.conn |> call("archive_card", %{card: ctx.card.id, restore: true}) |> ok!()
+      refute Map.has_key?(result, "archived")
+      assert api_card(ctx.conn, ctx.card.id)["archived_at"] == nil
+      assert Enum.any?(Boards.list_cards(ctx.board, %{}), &(&1.id == ctx.card.id))
+    end
+
+    test "asking for what is already so leaves it as it is", ctx do
+      ctx.conn |> call("archive_card", %{card: ctx.card.id, restore: true}) |> ok!()
+      assert Boards.get_card!(ctx.card.id).archived_at == nil
+
+      ctx.conn |> call("archive_card", %{card: ctx.card.id}) |> ok!()
+      stamp = Boards.get_card!(ctx.card.id).archived_at
+      ctx.conn |> call("archive_card", %{card: ctx.card.id}) |> ok!()
+      assert Boards.get_card!(ctx.card.id).archived_at == stamp
+    end
+
+    test "restore must be true or false", ctx do
+      assert ctx.conn |> call("archive_card", %{card: ctx.card.id, restore: "yes"}) |> error!() =~
+               "restore must be true or false"
+    end
+
+    test "not a stranger's card", ctx do
+      ctx.conn |> call("archive_card", %{card: ctx.secret.id}) |> error!()
+      assert Boards.get_card!(ctx.secret.id).archived_at == nil
+    end
+
+    test "a read-only token cannot", ctx do
+      assert ctx.conn
+             |> read_only(ctx.user)
+             |> call("archive_card", %{card: ctx.card.id})
+             |> error!() =~
+               "read-only"
+
+      assert Boards.get_card!(ctx.card.id).archived_at == nil
     end
   end
 

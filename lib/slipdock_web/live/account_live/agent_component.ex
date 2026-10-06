@@ -146,8 +146,8 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
         <p class="mt-1 text-sm text-base-content/60">
           This server is also an MCP server, at <code>{@base_url}/mcp</code>. A client that
           connects gets a small set of tools: reading boards, cards, pages and the guide,
-          searching, and adding, updating, moving, commenting on and completing cards and
-          writing pages. There is no delete tool.
+          searching, and adding, updating, moving, commenting on, completing and archiving cards
+          (dependencies and checklists too) and writing pages. There is no delete tool.
         </p>
         <p class="mt-3 text-sm text-base-content/60">
           <strong>From claude.ai or the Claude apps:</strong>

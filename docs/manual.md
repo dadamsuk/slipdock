@@ -2261,7 +2261,7 @@ POST   /api/boards/:board/archive          POST   /api/boards/:board/restore   (
 POST   /api/boards/order   {boards: [ref, ...]}   your own order for the index; others unaffected
 POST   /api/boards/welcome   {force}   build the Getting Started tour board (409 if you have one)
 GET    /api/boards/:board/cards            POST   /api/boards/:board/cards
-       ?column= &tag= &priority= &flag= &q= &completed= &archived=
+       ?column= &tag= &priority= &flag= &q= &completed= &archived=true|all
        &due=overdue|today|week|month|has|none  &deps=blocked|ready|blocking|violated|free
        &assignee=EMAIL|NAME|me|none            (the board views' own filters; a bad bucket is a 400)
 GET    /api/boards/:board/columns          POST   /api/boards/:board/columns
