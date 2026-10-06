@@ -77,6 +77,22 @@ defmodule SlipdockWeb.API.SkillsTest do
   end
 
   @tag :anonymous
+  test "slipdock-loop raises the alarm when its token dies, rather than stalling", %{conn: conn} do
+    assert %{"content" => body} =
+             conn |> get("/api/skills/slipdock-loop") |> json_response(200)
+
+    # The token is checked every pass, not once per session.
+    refute body =~ "## Preflight, once per session"
+    assert body =~ "`whoami` runs at the start of **every** pass"
+
+    # A dead token mid-card is loud: no retries, no self-auth, an alert, a stopped loop.
+    assert body =~ "## When the token dies"
+    assert body =~ "never run `slipdock auth`\n   yourself"
+    assert body =~ "start the pass report with `SLIPDOCK AUTH FAILED`"
+    assert body =~ "ScheduleWakeup with `stop: true`"
+  end
+
+  @tag :anonymous
   test "a skill that is not there is a 404", %{conn: conn} do
     assert conn |> get("/api/skills/nope") |> json_response(404)
   end
