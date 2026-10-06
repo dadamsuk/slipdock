@@ -54,7 +54,6 @@ defmodule Slipdock.Accounts.UserToken do
   def magic_validity_minutes, do: @magic_validity_minutes
   def scopes, do: @scopes
 
-  @doc "Whether `token` has an expiry and it has passed."
   @doc """
   Whether a token is finished with for good. An OAuth connection's access
   token expires every hour and is renewed, so for one of those it is the
@@ -65,6 +64,7 @@ defmodule Slipdock.Accounts.UserToken do
 
   def lapsed?(token), do: expired?(token)
 
+  @doc "Whether `token` has an expiry and it has passed."
   def expired?(%__MODULE__{expires_at: nil}), do: false
 
   def expired?(%__MODULE__{expires_at: at}),
