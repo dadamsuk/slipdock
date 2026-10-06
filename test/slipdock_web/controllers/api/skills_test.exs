@@ -54,9 +54,18 @@ defmodule SlipdockWeb.API.SkillsTest do
     # A pass that died mid-watch resumes the watch rather than the work.
     assert body =~ "last comment is `Build started`"
 
+    # ...including on an epic's sub-board, not just the top level.
+    assert body =~ "slipdock cards <sub-board-id> --column \"In Progress\" --assignee me --open"
+
     # Closing out: announce the build, watch it quietly, report either way.
     assert body =~ "gh run list --commit <full-sha>"
     assert body =~ "gh run watch <run-id> --exit-status --interval 30 > /dev/null"
+
+    # Headless (`claude -p`) passes exit when the turn ends, so the watch can't
+    # be left in the background to report back later.
+    assert body =~ "**Run it in the foreground**"
+    assert body =~ "Never run the watch in\n   the background"
+    refute body =~ "background and wait to be notified"
     assert body =~ "**Passed:** `Build passed:"
     assert body =~ "**Failed:** `Build failed:"
     assert body =~ "After **two** failed fix attempts"
