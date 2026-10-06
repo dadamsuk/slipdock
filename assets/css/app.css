@@ -315,6 +315,13 @@ body {
 }
 @media (min-width: 40rem) { .tools, .tools.tools-open { display: contents; } }
 
+/* A toolbar's search box (`search_box/1`). On a phone it is a magnifying
+   glass until tapped, or until there is a query in it; from `sm` up it is
+   always there and the glass is gone. */
+.search-box { display: none; }
+.search-box.search-open { display: block; }
+@media (min-width: 40rem) { .search-box { display: block; } }
+
 /* The timeline's and calendar's date navigator. On a phone "‹ Today ›" plus
    "Sep 2026 – Dec 2026" is a row on its own, so let it be one, below the
    buttons rather than shoving them onto a third line. */
