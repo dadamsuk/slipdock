@@ -496,7 +496,8 @@ slipdock admin set signup_mode=closed       also free_card_limit, user_directory
                                             storage_limit_mb, and <name>_enabled=false
                                             to switch a limit off
                                             posthog_key=phc_... posthog_host=URL turn
-                                            on PostHog analytics; posthog_key= off
+                                            on PostHog analytics + error tracking;
+                                            posthog_key= off
 slipdock admin allow example.com            let an address or a whole domain register
 slipdock admin disallow example.com
 slipdock admin users                        who is here, what they use, when last seen

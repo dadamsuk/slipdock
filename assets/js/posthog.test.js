@@ -116,6 +116,8 @@ test("with a key: init disables automatic pageviews, honours DNT, loads array.js
   // rate and session duration keep working.
   assert.equal(options.capture_pageleave, true)
   assert.equal(options.respect_dnt, true)
+  // Error tracking: uncaught errors and rejections are captured.
+  assert.equal(options.capture_exceptions, true)
 
   // The snippet injects PostHog's script from the assets host.
   const script = doc.inserted.find(el => el.tag === "script")

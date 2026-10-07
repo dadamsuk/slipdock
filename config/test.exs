@@ -59,6 +59,12 @@ config :slipdock, :search, interval: :manual
 # address that counts as public; `Slipdock.EgressTest` swaps in its own.
 config :slipdock, :egress, resolver: &Slipdock.EgressStub.resolve/1
 
+# No PostHog error-tracking handler on the test run's logger; its tests attach
+# their own, and its posts go to a `Req.Test` stub.
+config :slipdock, :posthog,
+  error_tracking: false,
+  req_options: [plug: {Req.Test, Slipdock.Posthog.ErrorTracking}]
+
 # AI calls are answered by a Req.Test stub (see test/support/ai_stub.ex).
 config :slipdock, :ai,
   api_key: "test-key",
