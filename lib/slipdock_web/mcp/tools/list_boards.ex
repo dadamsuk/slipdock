@@ -37,14 +37,15 @@ defmodule SlipdockWeb.MCP.Tools.ListBoards do
         user
         |> Access.list_boards(archived: if(archived, do: :all, else: false), token: token)
         |> Boards.sort_boards(user.board_sort || "manual")
-        |> Enum.map(&board(&1, user))
+        |> Enum.map(&summary(&1, user))
 
       {:ok, %{boards: boards}}
     end
   end
 
-  defp board(summary, user) do
-    full = Boards.get_board!(summary.id)
+  @doc "A board as listed here: its code, its lists, and which list plays which part."
+  def summary(board, user) do
+    full = Boards.get_board!(board.id)
     roles = SlipdockWeb.APIGuide.list_roles(full.columns)
 
     %{

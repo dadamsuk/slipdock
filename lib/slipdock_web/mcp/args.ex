@@ -58,6 +58,17 @@ defmodule SlipdockWeb.MCP.Args do
     end
   end
 
+  @doc """
+  `:ok` only when `confirm` is `true`: what a tool that cannot be undone asks
+  for before it does anything. `safer` names the undoable way, for the refusal.
+  """
+  def confirmed(args, safer) do
+    case args["confirm"] do
+      true -> :ok
+      _ -> {:error, "not done: this cannot be undone, so it needs confirm = true. #{safer}."}
+    end
+  end
+
   @doc "An optional positive integer, capped at `max`."
   def limit(args, key, default, max) do
     case args[key] do

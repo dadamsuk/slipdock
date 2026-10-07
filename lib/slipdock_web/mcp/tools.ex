@@ -25,6 +25,12 @@ defmodule SlipdockWeb.MCP.Tools do
     Tools.Comment,
     Tools.CompleteCard,
     Tools.ArchiveCard,
+    Tools.DeleteCard,
+    Tools.CreateList,
+    Tools.DeleteList,
+    Tools.CreateBoard,
+    Tools.ArchiveBoard,
+    Tools.DeleteBoard,
     Tools.WritePage
   ]
 
@@ -46,9 +52,9 @@ defmodule SlipdockWeb.MCP.Tools do
   end
 
   # Hints, not guarantees, as far as the client is concerned: it uses them to
-  # decide what to run without asking. Nothing here deletes — there is no
-  # delete tool, only archiving, which restoring undoes — so `destructiveHint` marks the
-  # writes that can overwrite what somebody wrote.
+  # decide what to run without asking. `destructiveHint` marks the writes that
+  # can overwrite what somebody wrote, and the deletes, which nothing undoes —
+  # archiving, which restoring undoes, is not destructive.
   defp annotations(tool) do
     if tool.read_only?() do
       %{title: tool.title(), readOnlyHint: true, openWorldHint: false}
