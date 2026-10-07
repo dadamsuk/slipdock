@@ -1,0 +1,43 @@
+# Deletes untagged versions of ghcr.io/dadamsuk/slipdock once they are a week
+# old.
+#
+# The image builds alongside the suite (see release.yml), so every push to main
+# uploads one image per platform by digest whether or not the suite passes, and
+# only a green run tags them. The rest are never pulled and would be kept
+# forever.
+#
+# Untagged is not the same as unused: the platform images and attestations
+# under a tagged multi-arch image are untagged versions too, and deleting those
+# breaks `docker pull` of the tag. This action follows every tagged image down
+# to what it references and keeps all of it; that is why it is used rather
+# than a plain "delete untagged versions". Pinned to a commit, since it holds a
+# token that can delete packages.
+#
+# Run it by hand from the Actions tab to see what it would delete: a manual
+# run is a dry run unless told otherwise.
+name: Clean up untagged images
+
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: List what would be deleted, and delete nothing
+        type: boolean
+        default: true
+
+permissions: {}
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - uses: dataaxiom/ghcr-cleanup-action@d52806a0dc70b430571a37da1fde39733ffd640f # v1.2.2
+        with:
+          package: slipdock
+          delete-untagged: true
+          older-than: 7 days
+          dry-run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run }}
