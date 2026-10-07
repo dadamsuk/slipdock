@@ -14,7 +14,7 @@
 # token that can delete packages.
 #
 # Run it by hand from the Actions tab to see what it would delete: a manual
-# run is a dry run unless told otherwise.
+# run is a dry run unless told otherwise, and can look at a shorter window.
 name: Clean up untagged images
 
 on:
@@ -26,6 +26,10 @@ on:
         description: List what would be deleted, and delete nothing
         type: boolean
         default: true
+      older-than:
+        description: Only versions older than this (e.g. "7 days", "1 hour")
+        type: string
+        default: 7 days
 
 permissions: {}
 
@@ -39,5 +43,5 @@ jobs:
         with:
           package: slipdock
           delete-untagged: true
-          older-than: 7 days
+          older-than: ${{ inputs.older-than || '7 days' }}
           dry-run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run }}
