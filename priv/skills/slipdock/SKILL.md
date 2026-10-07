@@ -254,6 +254,7 @@ slipdock set-column <board> <column> [--name N] [--wip N] [--color C] [--categor
 slipdock set-column <board> <column> --sort due_date [--descending] --group flag   # how the web app draws the list; --sort position / --group none undo it
 slipdock new-tag <board> <name> [--color C]
 slipdock new-board <name> [--code C] [--shortcut K] [--desc TEXT] [--color C] [--template T]
+slipdock new-board <name> --list "Name[:wip[:color]]"... [--save-template NAME]   # its own lists; --save-template keeps them as a template too
 slipdock templates                                        # sets of lists for new boards / subcards
 slipdock new-template <name> [--desc TEXT] --list "Name[:wip[:color]]"... | slipdock delete-template <t>
 slipdock subboard <card-id> --template T                  # card becomes a board of subcards (prints its id)

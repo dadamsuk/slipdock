@@ -7,6 +7,7 @@ defmodule Slipdock.Boards do
 
   import Ecto.Query, warn: false
   alias Ecto.Multi
+  alias Slipdock.Importers
   alias Slipdock.Quota
   alias Slipdock.Repo
   alias Slipdock.Rollup
@@ -400,14 +401,20 @@ defmodule Slipdock.Boards do
   ]
 
   @doc """
-  Creates a board. Pass `template: %Template{}` to take its lists; otherwise
-  the default four lists are created. `owner_id:` says whose it is, and a
-  root board must have one — an `"owner_id"` in `attrs` is ignored, since
-  attributes are what forms send.
+  Creates a board. Pass `template: %Template{}` to take its lists, or
+  `columns:` to set them out here (names, or maps shaped like a template's
+  lists; one with no category gets one guessed from its name); otherwise the
+  default four lists are created. `save_template: name` keeps the board's
+  lists as a new template of that name as well, in the same transaction, so
+  a template name that is taken refuses the board too rather than leaving
+  half of what was asked for. `owner_id:` says whose it is, and a root board
+  must have one — an `"owner_id"` in `attrs` is ignored, since attributes
+  are what forms send.
   """
   def create_board(attrs, opts \\ []) do
     template = opts[:template]
-    columns = if template, do: template.columns, else: @default_columns
+    custom = custom_columns(opts[:columns])
+    columns = custom || (template && template.columns) || @default_columns
     attrs = attrs |> put_code() |> put_shortcut(nil, opts)
 
     result =
@@ -417,16 +424,21 @@ defmodule Slipdock.Boards do
         %Board{template_id: template && template.id, kind: template_kind(template, opts)}
         |> Board.changeset(attrs)
         |> Ecto.Changeset.change(Keyword.take(opts, [:parent_card_id, :root_id, :owner_id]))
+        |> validate_custom_columns(custom)
         |> enforce_board_limit()
       )
       |> Multi.run(:columns, fn repo, %{board: board} -> insert_columns(repo, board, columns) end)
+      |> Multi.run(:saved, fn repo, %{board: board} ->
+        save_board_template(repo, board, attrs, opts[:save_template], columns)
+      end)
       |> Multi.run(:activity, fn repo, %{board: board} ->
         log(repo, board.id, nil, "board", "created board “#{board.name}”")
       end)
       |> Repo.transaction()
 
     case result do
-      {:ok, %{board: board}} ->
+      {:ok, %{saved: board}} ->
+        if board.template_id && !template, do: broadcast_templates()
         # A template may carry a documentation skeleton as well as lists, so
         # a new board can arrive with somewhere to write rather than an empty
         # wiki (see `Slipdock.Wiki.install_template_pages/3`).
@@ -434,9 +446,76 @@ defmodule Slipdock.Boards do
         broadcast(board.id)
         {:ok, board}
 
-      {:error, :board, changeset, _} ->
+      {:error, step, changeset, _} when step in [:board, :saved] ->
         {:error, changeset}
     end
+  end
+
+  # Lists set out when the board is made, rather than taken from a template.
+  # Nil when none were given; [] when some were but every name was blank,
+  # which `validate_custom_columns/2` refuses.
+  defp custom_columns(nil), do: nil
+
+  defp custom_columns(columns) do
+    columns
+    |> Template.normalize_columns()
+    |> Enum.map(
+      &Map.update!(&1, "category", fn c -> c || Importers.guess_category(&1["name"]) end)
+    )
+  end
+
+  defp validate_custom_columns(changeset, nil), do: changeset
+
+  defp validate_custom_columns(changeset, []),
+    do: Ecto.Changeset.add_error(changeset, :columns, "add at least one list")
+
+  defp validate_custom_columns(changeset, columns) when length(columns) > 20,
+    do: Ecto.Changeset.add_error(changeset, :columns, "can have at most 20 lists")
+
+  defp validate_custom_columns(changeset, _), do: changeset
+
+  # Keeps the new board's lists as a template when asked to, and points the
+  # board at it. A refusal (the name is taken, or blank) is reported on the
+  # board's own changeset under `save_template`, since that is the form the
+  # person filled in.
+  defp save_board_template(_repo, board, _attrs, name, _columns) when name in [nil, false],
+    do: {:ok, board}
+
+  defp save_board_template(repo, board, attrs, name, columns) do
+    name = if name == true, do: board.name, else: to_string(name)
+
+    %Template{}
+    |> Template.changeset(%{
+      "name" => name,
+      "description" => board.description,
+      "columns" => columns
+    })
+    |> repo.insert()
+    |> case do
+      {:ok, template} ->
+        repo.update(Ecto.Changeset.change(board, template_id: template.id))
+
+      {:error, refused} ->
+        message =
+          case refused.errors[:name] do
+            {"already exists", _} -> "a template called “#{String.trim(name)}” already exists"
+            {"can't be blank", _} -> "give the template a name"
+            {message, keys} -> "template name " <> interpolate(message, keys)
+            nil -> "the lists can't be saved as a template"
+          end
+
+        {:error,
+         %Board{}
+         |> Board.changeset(attrs)
+         |> Ecto.Changeset.add_error(:save_template, message)
+         |> Map.put(:action, :insert)}
+    end
+  end
+
+  defp interpolate(message, keys) do
+    Regex.replace(~r/%{(\w+)}/, message, fn _, key ->
+      keys |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
+    end)
   end
 
   # A template's kind goes to the boards made from it — but not to the

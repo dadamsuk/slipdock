@@ -124,7 +124,9 @@ defmodule SlipdockWeb.API.BoardController do
          {:ok, board} <-
            Boards.create_board(attrs,
              template: template,
-             owner_id: conn.assigns.current_user.id
+             owner_id: conn.assigns.current_user.id,
+             columns: params["columns"],
+             save_template: save_template(params["save_template"])
            ) do
       conn
       |> put_status(:created)
@@ -165,6 +167,12 @@ defmodule SlipdockWeb.API.BoardController do
   end
 
   defp truthy?(value), do: value in [true, "true", "1", 1, "yes"]
+
+  # `save_template` names the template the new board's lists are kept as;
+  # `true` keeps them under the board's own name.
+  defp save_template(value) when value in [nil, "", false, "false"], do: nil
+  defp save_template(value) when value in [true, "true"], do: true
+  defp save_template(name), do: to_string(name)
 
   def update(conn, %{"board" => ref} = params) do
     with {:ok, board} <- fetch_board(conn, ref, :owner),

@@ -450,14 +450,7 @@ defmodule SlipdockCLI.Boards do
     lists = Keyword.get_values(o, :list)
     if lists == [], do: fail("pass at least one --list \"Name[:wip[:color]]\"")
 
-    columns =
-      Enum.map(lists, fn spec ->
-        case String.split(spec, ":") do
-          [name] -> %{"name" => name}
-          [name, wip] -> %{"name" => name, "wip_limit" => wip}
-          [name, wip, color | _] -> %{"name" => name, "wip_limit" => wip, "color" => color}
-        end
-      end)
+    columns = Enum.map(lists, &list_spec/1)
 
     body =
       compact(%{"name" => Enum.join(words, " "), "description" => o[:desc], "columns" => columns})
@@ -481,7 +474,9 @@ defmodule SlipdockCLI.Boards do
         "shortcut" => o[:shortcut],
         "description" => o[:desc],
         "color" => o[:color],
-        "template" => o[:template]
+        "template" => o[:template],
+        "columns" => o |> Keyword.get_values(:list) |> Enum.map(&list_spec/1) |> nonempty(),
+        "save_template" => o[:save_template]
       })
 
     HTTP.post("/boards", body)
@@ -1030,5 +1025,14 @@ defmodule SlipdockCLI.Boards do
       "sort_dir" => if(o[:sort], do: if(o[:descending], do: "desc", else: "asc")),
       "group_by" => o[:group]
     }
+  end
+
+  # A --list as `Name[:wip[:color]]`.
+  defp list_spec(spec) do
+    case String.split(spec, ":") do
+      [name] -> %{"name" => name}
+      [name, wip] -> %{"name" => name, "wip_limit" => wip}
+      [name, wip, color | _] -> %{"name" => name, "wip_limit" => wip, "color" => color}
+    end
   end
 end

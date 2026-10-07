@@ -314,6 +314,38 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
       assert Enum.map(result["lists"], & &1["name"]) == Enum.map(t.columns, & &1["name"])
     end
 
+    test "with lists of its own, kept as a template", ctx do
+      name = "MCP lists #{System.unique_integer([:positive])}"
+
+      result =
+        ctx.conn
+        |> call("create_board", %{
+          name: "Own",
+          lists: ["Ideas", "In Progress", "Done"],
+          save_template: name
+        })
+        |> ok!()
+
+      assert Enum.map(result["lists"], & &1["name"]) == ["Ideas", "In Progress", "Done"]
+      assert {:ok, t} = Boards.find_template(name)
+      assert Boards.get_board!(result["id"]).template_id == t.id
+    end
+
+    test "lists that are not strings are refused, and make nothing", ctx do
+      assert ctx.conn |> call("create_board", %{name: "Odd", lists: [1, 2]}) |> error!() =~
+               "lists must be a list of strings"
+
+      refute Enum.any?(Slipdock.Access.list_boards(ctx.user), &(&1.name == "Odd"))
+    end
+
+    test "a template name already taken is refused, and makes nothing", ctx do
+      assert ctx.conn
+             |> call("create_board", %{name: "Clash", lists: ["A"], save_template: "Simple"})
+             |> error!() =~ "a template called “Simple” already exists"
+
+      refute Enum.any?(Slipdock.Access.list_boards(ctx.user), &(&1.name == "Clash"))
+    end
+
     test "an unknown template names the real ones, and makes nothing", ctx do
       text = ctx.conn |> call("create_board", %{name: "Nope", template: "Imaginary"}) |> error!()
       assert text =~ "no template called"
