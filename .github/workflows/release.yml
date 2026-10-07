@@ -25,11 +25,15 @@ env:
 jobs:
   # Nothing is published that the suite has not passed. An image built from a
   # red tree is worse than no image, because somebody will run it.
+  #
+  # The suite and the image build run side by side rather than one after the
+  # other: the build only pushes by digest, which nobody pulls, and nothing
+  # gets a tag until the merge job, which needs both. A red suite therefore
+  # still publishes nothing, but a green one is not kept waiting for the build.
   test:
     uses: ./.github/workflows/ci.yml
 
   build:
-    needs: test
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
@@ -99,7 +103,7 @@ jobs:
           retention-days: 1
 
   merge:
-    needs: build
+    needs: [test, build]
     runs-on: ubuntu-latest
     permissions:
       contents: read

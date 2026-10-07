@@ -6,9 +6,25 @@ on:
   pull_request:
   workflow_call:
 
+# Everything runs in the test environment, so the warnings check compiles the
+# same build `mix test` then reuses instead of a separate dev one.
+env:
+  MIX_ENV: test
+
 jobs:
+  # The suite split four ways, each on its own runner with its own Postgres.
+  # `mix test --partitions` deals the test files out by a stable hash, so a
+  # file always lands in the same partition; MIX_TEST_PARTITION also suffixes
+  # the database name (config/test.exs). The checks that need doing only once
+  # (formatting, the browser scripts) ride along with partition 1.
   test:
+    name: test (${{ matrix.partition }}/4)
     runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        partition: [1, 2, 3, 4]
 
     # The test suite needs a real Postgres. config/test.exs defaults to
     # localhost:5434, so that is the port this is published on rather than the
@@ -44,6 +60,8 @@ jobs:
 
       # deps and the compiled tree, keyed on the lock file and the exact
       # OTP/Elixir pair — a cache built on another version is not reusable.
+      # All four partitions restore the same one; whichever finishes first
+      # saves it.
       - uses: actions/cache@v4
         with:
           path: |
@@ -56,19 +74,24 @@ jobs:
       - run: mix deps.get
 
       - name: Check formatting
+        if: matrix.partition == 1
         run: mix format --check-formatted
 
       - name: Compile without warnings
         run: mix compile --warnings-as-errors
 
       - name: Test
-        run: mix test
+        run: mix test --partitions 4
+        env:
+          MIX_TEST_PARTITION: ${{ matrix.partition }}
 
       # The few browser scripts with logic worth testing on their own (the
       # confirm dialog, assets/js/confirm.js) — plain node:test, no packages.
       - uses: actions/setup-node@v4
+        if: matrix.partition == 1
         with:
           node-version: "24"
 
       - name: Test browser scripts
+        if: matrix.partition == 1
         run: node --test 'assets/js/**/*.test.js'
