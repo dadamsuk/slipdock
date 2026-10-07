@@ -21,6 +21,18 @@
 //     send $pageview ourselves: once on first load, and once per LiveView
 //     navigation (the phx:navigate event). That is exactly one per view, with
 //     no double counting between our capture and PostHog's.
+//
+//   * Pageleaves. posthog-js defaults capture_pageleave to "if_capture_pageview",
+//     so turning the automatic pageview off above also silently turned $pageleave
+//     off — which is what PostHog uses for bounce rate and session duration, and
+//     why its installation health flagged us. We turn it back on explicitly
+//     (capture_pageleave: true). With capture_pageview false, PostHog's own
+//     $pageleave fires only on real page unload/hide (pagehide) — not on history
+//     changes — so to keep per-view accuracy in the SPA we also pair a $pageleave
+//     for the page being left with each manual $pageview, the way PostHog pairs
+//     them across history changes. Each page is left exactly once: intermediate
+//     pages by our per-navigation $pageleave, the final page by PostHog's unload
+//     $pageleave. Nothing is double counted.
 
 export function posthogConfig(doc) {
   const meta = doc.querySelector('meta[name="posthog"]')
@@ -104,14 +116,35 @@ export function installPosthog(win, doc) {
     // navigation is counted once and only once; PostHog's own pageview would
     // either miss those navigations or race ours.
     capture_pageview: false,
+    // Keep $pageleave even with capture_pageview off (its default,
+    // "if_capture_pageview", would otherwise disable it along with pageviews).
+    // With capture_pageview false this fires only on real unload/hide, not on
+    // history changes, so it does not overlap the per-navigation $pageleave we
+    // send below.
+    capture_pageleave: true,
   })
 
   // The first view.
   capturePageview(win)
   // Every LiveView live navigation (live_patch / live_redirect / push_navigate)
-  // dispatches phx:navigate on the window once the URL has changed.
-  win.addEventListener("phx:navigate", () => capturePageview(win))
+  // dispatches phx:navigate on the window once the URL has changed. Leave the
+  // old page, then view the new one.
+  win.addEventListener("phx:navigate", () => captureNavigation(win))
 
+  return true
+}
+
+// Handles a LiveView navigation: a $pageleave for the page being left followed
+// by a $pageview for the new page. Uses the same URL dedup as capturePageview —
+// a repeat phx:navigate to the URL we are already on emits no $pageleave/
+// $pageview pair — so the count stays exactly one view per view.
+export function captureNavigation(win) {
+  const url = win.location && win.location.href
+  if (!url || url === win.__posthogLastPageview) return false
+  // The page being left is the one we last sent a $pageview for; capturePageview
+  // (below) then advances __posthogLastPageview to the new URL.
+  capturePageleave(win, win.__posthogLastPageview)
+  capturePageview(win)
   return true
 }
 
@@ -125,6 +158,22 @@ export function capturePageview(win) {
 
   if (win.posthog && typeof win.posthog.capture === "function") {
     win.posthog.capture("$pageview")
+    return true
+  }
+  return false
+}
+
+// Sends one $pageleave attributed to a specific URL — the page being left. By
+// the time phx:navigate fires the browser has already moved to the new URL, so
+// we pass $current_url explicitly (PostHog honours a $current_url given in the
+// event properties) to attribute the leave to the page that was actually left
+// rather than to the page just entered. No URL means there is nothing to leave
+// (e.g. the very first view), so nothing is sent.
+export function capturePageleave(win, url) {
+  if (!url) return false
+
+  if (win.posthog && typeof win.posthog.capture === "function") {
+    win.posthog.capture("$pageleave", {$current_url: url})
     return true
   }
   return false
