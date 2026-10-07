@@ -155,7 +155,7 @@ defmodule SlipdockWeb.PosthogTest do
   describe "the Configuration page" do
     test "saves a key and host, and clearing the key turns it off", %{conn: conn, admin: admin} do
       {:ok, view, html} = live(log_in_user(conn, admin), ~p"/config")
-      assert html =~ "Product analytics"
+      assert html =~ "Product analytics and error tracking"
 
       view
       |> form("#analytics-form", %{

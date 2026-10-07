@@ -122,6 +122,10 @@ export function installPosthog(win, doc) {
     // history changes, so it does not overlap the per-navigation $pageleave we
     // send below.
     capture_pageleave: true,
+    // Error tracking: unhandled errors and promise rejections in the page go
+    // to PostHog as $exception events. The server's own errors get there by
+    // Slipdock.Posthog.ErrorTracking instead.
+    capture_exceptions: true,
   })
 
   // The first view.

@@ -418,10 +418,14 @@ all under **Configuration → Server**, with the people themselves under
   addresses out of the prompts sent to a language model.
 - **Whether sharing with a stranger makes them an account**, which is how
   somebody arrives on a hosted instance and is usually wrong on a private one.
-- **Product analytics with PostHog**, off until you fill in a project key
-  (and, for the EU cloud or a proxy, a host). Without a key nothing about
-  PostHog reaches a browser — no script, no requests, no widened
-  Content-Security-Policy. From a terminal: `slipdock admin set
+- **Product analytics and error tracking with PostHog**, off until you fill
+  in a project key (and, for the EU cloud or a proxy, a host). With one, pages
+  send pageviews and their uncaught JavaScript errors, and the server sends
+  its own errors and crashes (anything logged at error level, with the stack
+  trace) as `$exception` events to PostHog's Error Tracking — at most 30 a
+  minute, so a crash loop cannot flood the project. Without a key nothing
+  about PostHog reaches a browser and the server sends nothing — no script, no
+  requests, no widened Content-Security-Policy. From a terminal: `slipdock admin set
   posthog_key=phc_... posthog_host=https://eu.i.posthog.com`, and
   `posthog_key=` to turn it off again.
 

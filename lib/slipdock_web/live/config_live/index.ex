@@ -567,11 +567,12 @@ defmodule SlipdockWeb.ConfigLive.Index do
       </div>
 
       <div class="mt-6 border-t border-base-content/10 pt-6">
-        <h3 class="font-medium">Product analytics</h3>
+        <h3 class="font-medium">Product analytics and error tracking</h3>
         <p class="mt-1 text-xs text-base-content/60">
-          Fill in a PostHog project key and a host, and every page sends pageviews and clicks
-          to PostHog. Leave either empty and nothing about PostHog is loaded at all — no script,
-          no requests.
+          Fill in a PostHog project key and a host, and every page sends pageviews, clicks and
+          its uncaught errors to PostHog, and the server sends its own errors and crashes to
+          PostHog's Error Tracking. Leave either empty and nothing about PostHog is loaded at
+          all — no script, no requests.
         </p>
 
         <.form for={@form} id="analytics-form" phx-submit="save-settings" class="mt-3 space-y-3">

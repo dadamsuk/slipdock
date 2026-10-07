@@ -28,6 +28,8 @@ defmodule Slipdock.Application do
       Slipdock.Automations.Scheduler,
       # Embeds changed cards for semantic search, off the saver's back.
       Slipdock.Search.Indexer,
+      # Sends the server's errors to PostHog, when a project key is set.
+      Slipdock.Posthog.ErrorTracking,
       # Start to serve requests, typically the last entry
       SlipdockWeb.Endpoint
     ]
@@ -38,6 +40,7 @@ defmodule Slipdock.Application do
 
     with {:ok, pid} <- Supervisor.start_link(children, opts) do
       prepare_settings()
+      attach_error_tracking()
       {:ok, pid}
     end
   end
@@ -64,6 +67,15 @@ defmodule Slipdock.Application do
       true ->
         Slipdock.Settings.seed()
         announce_setup(Slipdock.Settings.ensure_setup_token())
+    end
+  end
+
+  # The :logger handler behind PostHog error tracking. It does nothing until a
+  # key is configured; the test environment leaves it off, and its tests attach
+  # their own.
+  defp attach_error_tracking do
+    if Application.get_env(:slipdock, :posthog, [])[:error_tracking] != false do
+      Slipdock.Posthog.ErrorTracking.attach()
     end
   end
 
