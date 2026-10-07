@@ -48,22 +48,28 @@ defmodule SlipdockWeb.Layouts do
 
   slot :subactions, doc: "the right of the second header row: this board's own buttons"
 
+  slot :menu,
+    doc:
+      "this page's own entries (`<li>`s) for the phone's bottom-bar menu, above the app's; the desktop keeps them in the header"
+
   def app(assigns) do
     ~H"""
     <div class="flex h-dvh flex-col bg-base-200">
-      <%!-- One row on a laptop or wider, two below it. The rows are real
-            boxes on a narrow window; from lg up both are display: contents,
-            so their pieces line up in the header's own row — the mark, the
-            board, its buttons, then the app's — without anything being
-            rendered twice. --%>
-      <header class="flex shrink-0 flex-col border-b border-base-300 bg-base-100 lg:h-12 lg:flex-row lg:items-center lg:gap-3 lg:px-4">
+      <%!-- One row on a laptop or wider, two on a tablet, one again on a
+            phone. The rows are real boxes between sm and lg; on either side
+            both are display: contents, so their pieces line up in the
+            header's own row — the mark, the board, its buttons, then the
+            app's — without anything being rendered twice. A phone keeps
+            only the board, the finder and the palette up here: the avatar
+            menu and the page's menu are the bottom bar's Menu. --%>
+      <header class="flex h-12 shrink-0 flex-row items-center gap-2 border-b border-base-300 bg-base-100 px-3 sm:h-auto sm:flex-col sm:items-stretch sm:gap-0 sm:px-0 lg:h-12 lg:flex-row lg:items-center lg:gap-3 lg:px-4">
         <div
           id="topbar"
-          class="flex h-12 shrink-0 items-center gap-2 px-3 sm:gap-3 sm:px-4 lg:contents"
+          class="contents sm:flex sm:h-12 sm:shrink-0 sm:items-center sm:gap-3 sm:px-4 lg:contents"
         >
           <.link
             navigate={~p"/"}
-            class="flex shrink-0 items-center gap-2 rounded-lg px-1.5 py-1 font-semibold tracking-tight hover:bg-base-200 lg:order-1"
+            class="order-1 flex shrink-0 items-center gap-2 rounded-lg px-1.5 py-1 font-semibold tracking-tight hover:bg-base-200"
             title="Boards"
             aria-label="Boards"
           >
@@ -72,13 +78,16 @@ defmodule SlipdockWeb.Layouts do
                 board's own name needed. --%>
             <.brand_wordmark :if={!@current_user} class="hidden h-4 sm:inline-flex" />
           </.link>
+          <%!-- With nothing of its own and a board below, this is only the
+                spacer that pushes the tablet's first row apart; on one row
+                the board's name is the spacer. --%>
           <div class={[
-            "flex min-w-0 flex-1 items-center gap-2 lg:order-2",
-            @nav == [] && @subnav != [] && "lg:hidden"
+            "order-2 min-w-0 flex-1 items-center gap-2",
+            if(@nav == [] && @subnav != [], do: "hidden sm:flex lg:hidden", else: "flex")
           ]}>
             {render_slot(@nav)}
           </div>
-          <div class="flex shrink-0 items-center gap-1 lg:order-5">
+          <div class="order-5 flex shrink-0 items-center gap-1">
             {render_slot(@actions)}
             <%!-- Ctrl-O and Ctrl-P on a desktop; on a phone there is no Ctrl, and
                 the card finder is the fastest way to a card on a screen that
@@ -159,7 +168,11 @@ defmodule SlipdockWeb.Layouts do
             <.quick_add_bar :if={@quick_add} quick_add={@quick_add} />
             <.alerts_bar :if={@alerts} alerts={@alerts} open={@alerts_open} />
             <.theme_toggle :if={!@current_user} />
-            <div :if={@current_user} class="dropdown dropdown-end ml-1">
+            <div
+              :if={@current_user}
+              id="account-menu"
+              class="dropdown dropdown-end ml-1 hidden sm:block"
+            >
               <div
                 tabindex="0"
                 role="button"
@@ -175,102 +188,25 @@ defmodule SlipdockWeb.Layouts do
                 <li class="menu-title truncate">
                   {Slipdock.Accounts.User.display_name(@current_user)}
                 </li>
-                <li>
-                  <.link navigate={~p"/"}><.icon name="hero-view-columns" class="size-4" /> Boards</.link>
-                </li>
-                <li>
-                  <.link navigate={~p"/work"}><.icon name="hero-user" class="size-4" /> My work</.link>
-                </li>
-                <li>
-                  <.link navigate={~p"/wiki"}><.icon name="hero-book-open" class="size-4" /> Wiki</.link>
-                </li>
-                <li>
-                  <.link navigate={~p"/search"}><.icon
-                    name="hero-magnifying-glass-circle"
-                    class="size-4"
-                  /> Search everything</.link>
-                </li>
-                <li>
-                  <.link navigate={~p"/ask"}><.icon name="hero-sparkles" class="size-4" /> Ask</.link>
-                </li>
-                <li>
-                  <.link navigate={~p"/groups"}><.icon name="hero-user-group" class="size-4" /> Groups</.link>
-                </li>
-                <li>
-                  <.link navigate={~p"/favourites"}><.icon name="hero-heart" class="size-4" />
-                  Favourites</.link>
-                </li>
-                <li>
-                  <.link navigate={~p"/templates"}><.icon name="hero-squares-plus" class="size-4" />
-                  Templates</.link>
-                </li>
-                <li>
-                  <.link navigate={~p"/account"}><.icon name="hero-user-circle" class="size-4" />
-                  Account</.link>
-                </li>
-                <li>
-                  <.link navigate={~p"/account/settings"}><.icon
-                    name="hero-adjustments-horizontal"
-                    class="size-4"
-                  /> Settings</.link>
-                </li>
-                <li>
-                  <.link navigate={~p"/account/tokens"}><.icon name="hero-key" class="size-4" />
-                  API tokens</.link>
-                </li>
-                <li>
-                  <.link navigate={~p"/account/data"}><.icon
-                    name="hero-arrows-right-left"
-                    class="size-4"
-                  /> Import &amp; export</.link>
-                </li>
-                <%!-- Reachable from the menu rather than buried in the account
-                    tabs: somebody who has heard their board can be worked by an
-                    agent has no reason to look under Account for it. --%>
-                <li>
-                  <.link navigate={~p"/account/agent"}><.icon name="hero-cpu-chip" class="size-4" />
-                  Set up an agent</.link>
-                </li>
-                <li :if={Slipdock.Accounts.admin?(@current_user)}>
-                  <.link navigate={~p"/users"}>
-                    <.icon name="hero-users" class="size-4" /> Users
-                    <span :if={waiting_signups() > 0} class="badge badge-sm badge-warning">
-                      {waiting_signups()}
-                    </span>
-                  </.link>
-                </li>
-                <li :if={Slipdock.Accounts.admin?(@current_user)}>
-                  <.link navigate={~p"/config"}>
-                    <.icon name="hero-wrench-screwdriver" class="size-4" /> Configuration
-                  </.link>
-                </li>
-                <li class="menu-title mt-1">Theme</li>
-                <li><.theme_item theme="system" icon="hero-computer-desktop" label="System" /></li>
-                <li><.theme_item theme="light" icon="hero-sun" label="Light" /></li>
-                <li><.theme_item theme="dark" icon="hero-moon" label="Dark" /></li>
-                <li class="mt-1 border-t border-base-300/60 pt-1">
-                  <.link href={~p"/logout"} method="delete"><.icon
-                    name="hero-arrow-right-start-on-rectangle"
-                    class="size-4"
-                  /> Sign out</.link>
-                </li>
+                <.account_menu_items current_user={@current_user} />
               </ul>
             </div>
           </div>
         </div>
 
-        <%!-- Below lg, a second row rather than one crowded one: the line
+        <%!-- On a tablet, a second row rather than one crowded one: the line
               above is the same on every page, this one is about the board you
-              are on, so its name has the width to be read. --%>
+              are on, so its name has the width to be read. A phone has shed
+              enough from the line above to fit it there. --%>
         <div
           :if={@subnav != [] or @subactions != []}
           id="subheader"
-          class="flex h-11 shrink-0 items-center gap-2 border-t border-base-300 px-3 sm:gap-3 sm:px-4 lg:contents"
+          class="contents sm:flex sm:h-11 sm:shrink-0 sm:items-center sm:gap-3 sm:border-t sm:border-base-300 sm:px-4 lg:contents"
         >
-          <div class="flex min-w-0 flex-1 items-center gap-2 lg:order-3">
+          <div class="order-3 flex min-w-0 flex-1 items-center gap-2">
             {render_slot(@subnav)}
           </div>
-          <div class="flex shrink-0 items-center gap-1 lg:order-4">
+          <div class="order-4 flex shrink-0 items-center gap-1">
             {render_slot(@subactions)}
           </div>
         </div>
@@ -282,11 +218,14 @@ defmodule SlipdockWeb.Layouts do
 
       <.mobile_bar
         :if={@current_user}
+        current_user={@current_user}
         active={@nav_active}
         quick_add={@quick_add}
         alerts={@alerts}
         alerts_open={@alerts_open}
-      />
+      >
+        <:menu :if={@menu != []}>{render_slot(@menu)}</:menu>
+      </.mobile_bar>
 
       <div id="viewport" phx-hook="Viewport" data-width={@viewport} class="hidden"></div>
 
@@ -309,19 +248,26 @@ defmodule SlipdockWeb.Layouts do
     """
   end
 
+  attr :current_user, :any, required: true
   attr :active, :atom, default: nil
   attr :quick_add, :map, default: nil
   attr :alerts, :list, default: nil
   attr :alerts_open, :boolean, default: false
+  slot :menu, doc: "the page's own menu entries, above the app's"
 
   @doc """
   The phone's bottom bar: the app's five places, within reach of a thumb.
 
   On a desktop this navigation lives in the avatar menu and the header — two
   taps up in the far corner, which on a phone is both a stretch and a hunt.
-  Down here Boards, My work, Favourites and Alerts are one tap, and **Add**
-  sits in the middle where the thumb already rests, because putting a card
-  somewhere is the thing people open this app on a phone to do.
+  Down here My work, Favourites and Alerts are one tap, and **Add** sits in
+  the middle where the thumb already rests, because putting a card somewhere
+  is the thing people open this app on a phone to do.
+
+  **Menu**, on the left, is both of the header's menus in one: the page's own
+  (a board's sharing, tags, settings, its AI chat) and then the avatar's,
+  which starts with Boards — so Boards gave up its tab to it, and the header
+  keeps the room for the board's name.
 
   It is a sibling of `<main>` in the page's flex column, not an overlay, so
   content is never hidden underneath it, and it carries the home indicator's
@@ -335,12 +281,30 @@ defmodule SlipdockWeb.Layouts do
       class="shrink-0 border-t border-base-300 bg-base-100 pb-[env(safe-area-inset-bottom)] sm:hidden"
     >
       <div class="flex h-[3.75rem] items-stretch justify-around px-1">
-        <.mobile_tab
-          navigate={~p"/"}
-          icon="hero-view-columns"
-          label="Boards"
-          on={@active == :boards}
-        />
+        <div id="mobile-menu" class="dropdown dropdown-top flex w-16 shrink-0">
+          <div
+            tabindex="0"
+            role="button"
+            aria-label="Menu"
+            class="flex w-full cursor-pointer flex-col items-center justify-center gap-1 text-base-content/60"
+          >
+            <.icon name="hero-bars-3" class="size-5" />
+            <span class="text-[0.625rem] font-medium leading-none">Menu</span>
+          </div>
+          <ul
+            tabindex="0"
+            class="menu dropdown-content z-40 mb-2 max-h-[70vh] w-64 flex-nowrap overflow-y-auto rounded-box bg-base-100 p-1 text-sm shadow-lg ring-1 ring-base-content/10"
+          >
+            {render_slot(@menu)}
+            <li class={[
+              "menu-title truncate",
+              @menu != [] && "mt-1 border-t border-base-300/60 pt-2"
+            ]}>
+              {Slipdock.Accounts.User.display_name(@current_user)}
+            </li>
+            <.account_menu_items current_user={@current_user} />
+          </ul>
+        </div>
         <.mobile_tab navigate={~p"/work"} icon="hero-user" label="My work" on={@active == :work} />
 
         <button
@@ -402,6 +366,90 @@ defmodule SlipdockWeb.Layouts do
         />
       </div>
     </nav>
+    """
+  end
+
+  attr :current_user, :any, required: true
+
+  # The avatar menu's entries: the header's dropdown on a desktop, the bottom
+  # bar's Menu on a phone.
+  defp account_menu_items(assigns) do
+    ~H"""
+    <li>
+      <.link navigate={~p"/"}><.icon name="hero-view-columns" class="size-4" /> Boards</.link>
+    </li>
+    <li>
+      <.link navigate={~p"/work"}><.icon name="hero-user" class="size-4" /> My work</.link>
+    </li>
+    <li>
+      <.link navigate={~p"/wiki"}><.icon name="hero-book-open" class="size-4" /> Wiki</.link>
+    </li>
+    <li>
+      <.link navigate={~p"/search"}><.icon
+        name="hero-magnifying-glass-circle"
+        class="size-4"
+      /> Search everything</.link>
+    </li>
+    <li>
+      <.link navigate={~p"/ask"}><.icon name="hero-sparkles" class="size-4" /> Ask</.link>
+    </li>
+    <li>
+      <.link navigate={~p"/groups"}><.icon name="hero-user-group" class="size-4" /> Groups</.link>
+    </li>
+    <li>
+      <.link navigate={~p"/favourites"}><.icon name="hero-heart" class="size-4" /> Favourites</.link>
+    </li>
+    <li>
+      <.link navigate={~p"/templates"}><.icon name="hero-squares-plus" class="size-4" /> Templates</.link>
+    </li>
+    <li>
+      <.link navigate={~p"/account"}><.icon name="hero-user-circle" class="size-4" /> Account</.link>
+    </li>
+    <li>
+      <.link navigate={~p"/account/settings"}><.icon
+        name="hero-adjustments-horizontal"
+        class="size-4"
+      /> Settings</.link>
+    </li>
+    <li>
+      <.link navigate={~p"/account/tokens"}><.icon name="hero-key" class="size-4" /> API tokens</.link>
+    </li>
+    <li>
+      <.link navigate={~p"/account/data"}><.icon
+        name="hero-arrows-right-left"
+        class="size-4"
+      /> Import &amp; export</.link>
+    </li>
+    <%!-- Reachable from the menu rather than buried in the account
+        tabs: somebody who has heard their board can be worked by an
+        agent has no reason to look under Account for it. --%>
+    <li>
+      <.link navigate={~p"/account/agent"}><.icon name="hero-cpu-chip" class="size-4" />
+      Set up an agent</.link>
+    </li>
+    <li :if={Slipdock.Accounts.admin?(@current_user)}>
+      <.link navigate={~p"/users"}>
+        <.icon name="hero-users" class="size-4" /> Users
+        <span :if={waiting_signups() > 0} class="badge badge-sm badge-warning">
+          {waiting_signups()}
+        </span>
+      </.link>
+    </li>
+    <li :if={Slipdock.Accounts.admin?(@current_user)}>
+      <.link navigate={~p"/config"}>
+        <.icon name="hero-wrench-screwdriver" class="size-4" /> Configuration
+      </.link>
+    </li>
+    <li class="menu-title mt-1">Theme</li>
+    <li><.theme_item theme="system" icon="hero-computer-desktop" label="System" /></li>
+    <li><.theme_item theme="light" icon="hero-sun" label="Light" /></li>
+    <li><.theme_item theme="dark" icon="hero-moon" label="Dark" /></li>
+    <li class="mt-1 border-t border-base-300/60 pt-1">
+      <.link href={~p"/logout"} method="delete"><.icon
+        name="hero-arrow-right-start-on-rectangle"
+        class="size-4"
+      /> Sign out</.link>
+    </li>
     """
   end
 
