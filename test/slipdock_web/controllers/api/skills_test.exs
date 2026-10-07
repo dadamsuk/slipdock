@@ -59,7 +59,8 @@ defmodule SlipdockWeb.API.SkillsTest do
 
     # Closing out: announce the build, watch it quietly, report either way.
     assert body =~ "gh run list --commit <full-sha>"
-    assert body =~ "gh run watch <run-id> --exit-status --interval 30 > /dev/null"
+    assert body =~ "gh run watch <run-id> --exit-status --interval 10 > /dev/null"
+    refute body =~ "--interval 30"
 
     # Headless (`claude -p`) passes exit when the turn ends, so the watch can't
     # be left in the background to report back later.
@@ -74,6 +75,25 @@ defmodule SlipdockWeb.API.SkillsTest do
 
     # The version `skills check` compares moved off the copy without any of it.
     refute Skills.get("slipdock-loop").sha == "04da54775b80ab49"
+  end
+
+  @tag :anonymous
+  test "slipdock-loop leaves the full suite to CI and files flaky tests", %{conn: conn} do
+    assert %{"content" => body} =
+             conn |> get("/api/skills/slipdock-loop") |> json_response(200)
+
+    # Where CI runs the whole suite, only the tests the change touches run
+    # locally; without CI the whole suite still runs before the push.
+    assert body =~ "don't run the\n   whole suite here as well"
+    assert body =~ "`mix test --stale`"
+    assert body =~ "With no CI, run the whole suite."
+    refute body =~ "Run the project's test suite if the card touched code"
+
+    # A failure that doesn't come back is a card, not a reason to rerun.
+    assert body =~ "do not rerun the suite until it is\n   green, add a card for it"
+
+    # The wrap-up example says where the full run happened.
+    assert body =~ "Tests: mix test --stale — 38 passed, 0 failed; full suite in CI"
   end
 
   @tag :anonymous

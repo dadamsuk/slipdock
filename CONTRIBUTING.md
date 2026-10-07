@@ -42,9 +42,11 @@ want a local toolchain, so development really wants `mix`.
 mix precommit      # compile with warnings as errors, prune deps, format, test
 ```
 
-That is the gate. Please make it pass rather than explaining why it does not —
-there is no CI to catch it for you. The whole suite takes a little over a
-minute, so run it often.
+That is the gate. Please make it pass rather than explaining why it does not.
+CI (`.github/workflows/ci.yml`) runs the same checks on every pull request,
+with the suite split four ways across runners, but it is quicker to find out
+here. The whole suite takes about two minutes locally; `mix test --stale` runs
+just the tests that depend on what you changed.
 
 Tests live in `test/slipdock` for the domain and `test/slipdock_web` for anything
 with a browser in it; LiveView tests drive the real page. Calls to a language

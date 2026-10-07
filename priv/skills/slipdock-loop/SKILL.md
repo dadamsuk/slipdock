@@ -231,10 +231,17 @@ blockers and what happened *now* stay on the card. Never both.
 In this order, because the commit id goes in the comment and the comment is what
 anybody reads later:
 
-1. **Check the work.** Run the project's test suite if the card touched code and
-   there is one, following the project's own `CLAUDE.md`/`AGENTS.md`. A failure
-   you caused is part of the card and gets fixed before it closes; a failure
-   that was already there gets a line in the comment, not a silent pass.
+1. **Check the work.** Run the tests if the card touched code and there are
+   some, following the project's own `CLAUDE.md`/`AGENTS.md`. When CI runs the
+   whole suite on every push (step 4 waits for it either way), don't run the
+   whole suite here as well: run the test files you added or changed, and the
+   tests that depend on the code you changed (`mix test --stale` in Elixir,
+   the project's equivalent elsewhere), then push and let CI be the full run.
+   With no CI, run the whole suite. A failure you caused is part of the card
+   and gets fixed before it closes; a failure that was already there gets a
+   line in the comment, not a silent pass. A failure that does not come back
+   on a rerun is a flaky test, not yours: do not rerun the suite until it is
+   green, add a card for it (the test, the seed, the error) and carry on.
 2. **Commit**, with the card id in the message (`#129`), and push if that is the
    project's convention. One card, one commit, so the card and the diff point at
    each other.
@@ -255,10 +262,11 @@ anybody reads later:
    `Work complete: abc1234. No CI build for this repo.` instead and go to step 5.
 4. **Wait for the build, then say how it went.**
    ```sh
-   gh run watch <run-id> --exit-status --interval 30 > /dev/null
+   gh run watch <run-id> --exit-status --interval 10 > /dev/null
    ```
-   Use `--interval 30` and drop the output: the default redraws every 3 seconds
-   and fills the context. **Run it in the foreground**, with the longest timeout
+   Use `--interval 10` and drop the output: the default redraws every 3 seconds
+   and fills the context, and with the output dropped a shorter interval
+   costs nothing and reports the result sooner. **Run it in the foreground**, with the longest timeout
    the tool allows; if that runs out first, run the same command again, until
    the build has finished or ~30 minutes have gone by. Never run the watch in
    the background and end your turn to wait for it: a pass is often run
@@ -295,7 +303,7 @@ anybody reads later:
 
    What was done: <two or three lines: the change, in terms of the brief>
    Files: lib/foo/bar.ex, test/foo/bar_test.exs
-   Tests: mix test — 412 passed, 0 failed
+   Tests: mix test --stale — 38 passed, 0 failed; full suite in CI
    Commit: abc1234 (master) — https://github.com/owner/repo/commit/abc1234
    CI: passed — <workflow> #<run-id> <run url>   (or "failed once, fixed in def5678", or "no CI")
    Follow-ups: <anything deliberately not done, and where it went — card #141, W-31, or "none">
