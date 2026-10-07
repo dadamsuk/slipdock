@@ -138,7 +138,8 @@ Briefly, with the detail in [the manual](docs/manual.md):
   searching, and adding, moving, commenting on, completing and archiving
   cards, with their dependencies and checklists. Add it
   as a connector by its address and sign in through the browser (OAuth), or
-  connect with an API token ([connecting](docs/agents.md#over-mcp)).
+  connect with an API token ([the tools](docs/manual.md#mcp-server),
+  [connecting](docs/agents.md#over-mcp)).
 - **An agent on your board in a minute** —
   [setting one up](docs/agents.md) needs no software and no access to the
   server: give it the address, approve it once in the browser, and it reads the
@@ -508,6 +509,32 @@ running a production release on boot — see [the manual](docs/manual.md#as-a-se
 Do not leave the dev server reachable by other people: its `/dev/mailbox` shows
 every sign-in link it has sent.
 
+## Connecting an MCP client
+
+Every install is an MCP server at `https://your-server/mcp` (stateless
+Streamable HTTP). In claude.ai or the Claude apps: **Settings → Connectors →
+Add custom connector**, give it that address, press **Connect** and approve it
+in the browser. In Claude Code:
+
+```sh
+claude mcp add --transport http slipdock https://your-server/mcp   # then /mcp to sign in
+# or, with a token from Account → API tokens:
+claude mcp add --transport http slipdock https://your-server/mcp \
+  --header "Authorization: Bearer <token>"
+```
+
+The client gets 21 tools — `whoami`, `get_guide`, `list_boards`, `get_board`,
+`list_cards`, `get_card`, `search` and `read_page` to read; `create_card`,
+`update_card`, `move_card`, `comment`, `complete_card`, `archive_card`,
+`delete_card`, `create_list`, `delete_list`, `create_board`, `archive_board`,
+`delete_board` and `write_page` to write — each checked exactly as the API
+checks the same token, so a read-only or board-scoped token stays that way.
+The deletes need an explicit confirmation. claude.ai connects from
+Anthropic's servers, so for it the server must be reachable from the internet
+over https; Claude Code only needs to reach it from where it runs. The
+details are in [the manual](docs/manual.md#mcp-server), and setting up a
+particular client in [docs/agents.md](docs/agents.md#over-mcp).
+
 ## Security notes
 
 This is a self-hosted app that holds everything you are working on, and some of
@@ -584,7 +611,8 @@ Account page links to the source for exactly that reason — point
 ## Everything else
 
 - **[docs/manual.md](docs/manual.md)** — the full reference: every view, the
-  wiki, automations, the keyboard, the JSON API, the CLI and the agent skills.
+  wiki, automations, the keyboard, the JSON API, the CLI, the MCP server and
+  the agent skills.
 - **[docs/agents.md](docs/agents.md)** — pointing Claude, ChatGPT or anything
   else at your boards: the address, the approval, the skills, and what to do
   when it will not connect.
