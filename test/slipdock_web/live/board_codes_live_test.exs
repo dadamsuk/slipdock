@@ -52,7 +52,7 @@ defmodule SlipdockWeb.BoardCodesLiveTest do
 
   describe "board settings" do
     setup %{user: user} do
-      %{board: board_fixture(%{"name" => "QVM V1 Remediation"}, owner: user)}
+      %{board: board_fixture(%{"name" => "QVM V1 Remediation"}, owner: user, derive_keys: true)}
     end
 
     test "the code shows and can be edited", %{conn: conn, board: board} do

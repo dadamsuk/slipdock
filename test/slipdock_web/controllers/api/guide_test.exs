@@ -55,7 +55,7 @@ defmodule SlipdockWeb.API.GuideTest do
     body = conn |> get(~p"/api/guide") |> response(200)
 
     assert body =~ "you are **#{user.email}**"
-    assert body =~ "**##{board.id} Launch** (`launch`)"
+    assert body =~ "**##{board.id} Launch** (`#{board.code}`)"
     assert body =~ "the short name for"
     # The default lists carry categories, so the roles resolve.
     assert body =~ "take work from: “To Do”"
