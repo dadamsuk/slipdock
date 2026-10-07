@@ -929,6 +929,16 @@ defmodule SlipdockWeb.BoardLive.Show do
           rules={@rules}
         />
       </:subactions>
+      <:menu :if={!@card_only and (@ai? or !@view_only)}>
+        <.board_menu
+          paths={@paths}
+          can_manage={@can_manage}
+          card_only={@card_only}
+          view_only={@view_only}
+          ai?={@ai?}
+          rules={@rules}
+        />
+      </:menu>
 
       <%!-- Every view but the board's own: the same toolbar, then the view. --%>
       <div :if={@mode != :board and !@card_only} class="flex h-full flex-col">

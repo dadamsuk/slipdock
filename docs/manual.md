@@ -783,16 +783,22 @@ width when the socket connects (and again when the device is turned), and the
 views that cannot survive being narrowed render something else instead.
 
 - **A bottom bar** carries the app's navigation within reach of a thumb:
-  Boards, My work, **Add**, Alerts, Favourites. On a desktop these live in the
+  Menu, My work, **Add**, Alerts, Favourites. On a desktop these live in the
   avatar menu and the header; on a phone that is a stretch to the far corner
   and a hunt through a menu. Templates had the fifth slot and gave it up: a
   template is something you reach for when making a board, which is rare, and
-  a favourite is something you reach for all day. Templates keep their place
-  in the avatar menu.
-- **The header carries a magnifier and a `>_`**, because a phone has no
-  Ctrl: they open the card finder and the command palette — the same two
-  panels `Ctrl-O` and `Ctrl-P` open on a desktop, and the fastest way to a
-  card on a screen that shows one list at a time.
+  a favourite is something you reach for all day.
+- **Menu**, at the left of that bar, is the header's menus in one: on a
+  board, its own entries first (chat about the page with AI, share, tags,
+  activity, archived cards, automations, board settings), then everything the
+  avatar menu holds — Boards, Wiki, Search, Ask, Templates, Account, the
+  theme and Sign out. The avatar and the board's `…` and chat buttons are not
+  in a phone's header at all.
+- **The header is one row**: the mark (which goes to your boards), the
+  board's name, and a magnifier and a `>_`, because a phone has no Ctrl: they
+  open the card finder and the command palette — the same two panels
+  `Ctrl-O` and `Ctrl-P` open on a desktop, and the fastest way to a card on a
+  screen that shows one list at a time.
 - **Quick add** is the middle button of that bar, and it opens the same
   one-line box as the header's, full width under the header. Everything it
   understands on a desktop ("call the printers friday, urgent") it

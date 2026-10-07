@@ -164,7 +164,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
       :if={@ai? and !@card_only}
       type="button"
       id="board-chat"
-      class="btn btn-ghost btn-sm btn-square"
+      class="btn btn-ghost btn-sm btn-square hidden sm:inline-flex"
       title="Chat about this page with AI"
       aria-label="Chat about this page with AI"
       phx-click="toggle"
@@ -172,7 +172,9 @@ defmodule SlipdockWeb.BoardLive.BoardView do
     >
       <.icon name="hero-chat-bubble-left-ellipsis" class="size-4" />
     </button>
-    <div :if={!@view_only and !@card_only} class="dropdown dropdown-end">
+    <%!-- On a phone this and the chat are the bottom bar's Menu
+          (board_menu/1), leaving the header the room for the board's name. --%>
+    <div :if={!@view_only and !@card_only} class="dropdown dropdown-end hidden sm:block">
       <div tabindex="0" role="button" class="btn btn-ghost btn-sm btn-square" title="More">
         <.icon name="hero-ellipsis-horizontal" class="size-4" />
       </div>
@@ -180,35 +182,81 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         tabindex="0"
         class="menu dropdown-content z-40 mt-2 w-52 rounded-box bg-base-100 p-1 text-sm shadow-lg ring-1 ring-base-content/10"
       >
-        <li :if={@can_manage}>
-          <.link id="board-share" patch={@paths.settings}>
-            <.icon name="hero-user-plus" class="size-4" /> Share this board
-          </.link>
-        </li>
-        <li>
-          <.link patch={@paths.tags}><.icon name="hero-tag" class="size-4" /> Tags</.link>
-        </li>
-        <li>
-          <.link patch={@paths.activity}><.icon name="hero-bolt" class="size-4" /> Activity</.link>
-        </li>
-        <li>
-          <.link patch={@paths.archive}>
-            <.icon name="hero-archive-box" class="size-4" /> Archived cards
-          </.link>
-        </li>
-        <li :if={@can_manage}>
-          <.link patch={@paths.automations}>
-            <.icon name="hero-cpu-chip" class="size-4" /> Automations
-            <span :if={@rules != []} class="badge badge-ghost badge-xs">{length(@rules)}</span>
-          </.link>
-        </li>
-        <li :if={@can_manage}>
-          <.link patch={@paths.settings}>
-            <.icon name="hero-cog-6-tooth" class="size-4" /> Board settings
-          </.link>
-        </li>
+        <.board_menu_items
+          share_id="board-share"
+          paths={@paths}
+          can_manage={@can_manage}
+          rules={@rules}
+        />
       </ul>
     </div>
+    """
+  end
+
+  attr :paths, :map, required: true
+  attr :can_manage, :boolean, required: true
+  attr :card_only, :boolean, required: true
+  attr :view_only, :boolean, required: true
+  attr :ai?, :boolean, required: true
+  attr :rules, :list, required: true
+
+  @doc """
+  The board's entries in the phone's bottom-bar Menu: what the header's
+  chat button and `…` menu hold on a wider screen, which a phone hides.
+  """
+  def board_menu(assigns) do
+    ~H"""
+    <li :if={@ai? and !@card_only}>
+      <button type="button" id="board-chat-menu" phx-click="toggle" phx-target="#page-ai">
+        <.icon name="hero-chat-bubble-left-ellipsis" class="size-4" /> Chat about this page with AI
+      </button>
+    </li>
+    <.board_menu_items
+      :if={!@view_only and !@card_only}
+      share_id="board-share-menu"
+      paths={@paths}
+      can_manage={@can_manage}
+      rules={@rules}
+    />
+    """
+  end
+
+  attr :share_id, :string, required: true
+  attr :paths, :map, required: true
+  attr :can_manage, :boolean, required: true
+  attr :rules, :list, required: true
+
+  # The board's own menu, wherever it is drawn: the header's `…` or the
+  # phone's Menu, each with its own id on the share link.
+  defp board_menu_items(assigns) do
+    ~H"""
+    <li :if={@can_manage}>
+      <.link id={@share_id} patch={@paths.settings}>
+        <.icon name="hero-user-plus" class="size-4" /> Share this board
+      </.link>
+    </li>
+    <li>
+      <.link patch={@paths.tags}><.icon name="hero-tag" class="size-4" /> Tags</.link>
+    </li>
+    <li>
+      <.link patch={@paths.activity}><.icon name="hero-bolt" class="size-4" /> Activity</.link>
+    </li>
+    <li>
+      <.link patch={@paths.archive}>
+        <.icon name="hero-archive-box" class="size-4" /> Archived cards
+      </.link>
+    </li>
+    <li :if={@can_manage}>
+      <.link patch={@paths.automations}>
+        <.icon name="hero-cpu-chip" class="size-4" /> Automations
+        <span :if={@rules != []} class="badge badge-ghost badge-xs">{length(@rules)}</span>
+      </.link>
+    </li>
+    <li :if={@can_manage}>
+      <.link patch={@paths.settings}>
+        <.icon name="hero-cog-6-tooth" class="size-4" /> Board settings
+      </.link>
+    </li>
     """
   end
 
