@@ -100,7 +100,7 @@ defmodule SlipdockWeb.ClientIP do
     Enum.any?(trusted_proxies(), &Slipdock.Egress.in_cidr?(address, &1))
   end
 
-  defp trusted_proxies, do: Application.get_env(:slipdock, :trusted_proxies, @default_trusted)
+  defp trusted_proxies, do: Slipdock.Config.get(:trusted_proxies, @default_trusted)
 
   defp format(address), do: address |> :inet.ntoa() |> to_string()
 end

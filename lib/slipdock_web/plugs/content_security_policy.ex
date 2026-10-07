@@ -51,7 +51,7 @@ defmodule SlipdockWeb.Plugs.ContentSecurityPolicy do
 
   @impl true
   def call(conn, _opts) do
-    case Application.get_env(:slipdock, :csp, :default) do
+    case Slipdock.Config.get(:csp, :default) do
       false ->
         conn
 

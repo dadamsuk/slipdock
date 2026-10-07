@@ -144,7 +144,7 @@ defmodule Slipdock.Automations.Notifier do
     options =
       [retry: false, receive_timeout: 15_000]
       |> Keyword.merge(options)
-      |> Keyword.merge(Application.get_env(:slipdock, :automations, [])[:req_options] || [])
+      |> Keyword.merge(Slipdock.Config.get(:automations, [])[:req_options] || [])
 
     case Req.request(options) do
       {:ok, %Req.Response{status: status}} when status in 200..299 ->
@@ -208,7 +208,7 @@ defmodule Slipdock.Automations.Notifier do
     end
   end
 
-  defp async?, do: Application.get_env(:slipdock, :automations, [])[:async] != false
+  defp async?, do: Slipdock.Config.get(:automations, [])[:async] != false
 
   @doc "Whether `address` looks enough like an email address to send to."
   defdelegate valid_email?(address), to: Slipdock.Email, as: :valid?

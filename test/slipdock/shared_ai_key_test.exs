@@ -6,17 +6,14 @@ defmodule Slipdock.SharedAIKeyTest do
   other people it is an open tab on the operator's card, so there is a lever.
   It is off by default, and this is the test that says what both positions do.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
 
   alias Slipdock.{Accounts, AI}
 
-  defp admins_only(value) do
-    previous = Application.get_env(:slipdock, :ai)
-    Application.put_env(:slipdock, :ai, Keyword.put(previous, :shared_key_for_admins_only, value))
-    on_exit(fn -> Application.put_env(:slipdock, :ai, previous) end)
-  end
+  defp admins_only(value),
+    do: Slipdock.TestConfig.merge(:ai, shared_key_for_admins_only: value)
 
   setup do
     %{

@@ -400,7 +400,7 @@ defmodule Slipdock.Automations do
     end
   end
 
-  defp enabled?, do: Application.get_env(:slipdock, :automations, [])[:enabled] != false
+  defp enabled?, do: Slipdock.Config.get(:automations, [])[:enabled] != false
 
   ## Scheduled rules ----------------------------------------------------------
 

@@ -36,7 +36,7 @@ defmodule SlipdockWeb.LoginLive.Index do
        agentic: Accounts.agentic_login_enabled?(),
        # Nil on a server with no terms, and then the page says nothing about them.
        terms: if(Slipdock.Settings.terms?(), do: Slipdock.Settings.get()),
-       dev_mailbox: Application.get_env(:slipdock, :dev_routes, false)
+       dev_mailbox: Slipdock.Config.get(:dev_routes, false)
      )}
   end
 

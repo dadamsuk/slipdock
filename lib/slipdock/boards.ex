@@ -2831,7 +2831,7 @@ defmodule Slipdock.Boards do
 
   @doc "The directory uploaded files are stored in (see `:uploads_dir` in config)."
   def uploads_dir do
-    Application.get_env(:slipdock, :uploads_dir) ||
+    Slipdock.Config.get(:uploads_dir) ||
       Path.join(:code.priv_dir(:slipdock), "uploads")
   end
 

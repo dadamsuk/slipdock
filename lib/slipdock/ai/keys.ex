@@ -432,5 +432,5 @@ defmodule Slipdock.AI.Keys do
     end
   end
 
-  defp config, do: Application.get_env(:slipdock, :ai, [])
+  defp config, do: Slipdock.Config.get(:ai, [])
 end

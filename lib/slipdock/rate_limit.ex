@@ -70,7 +70,7 @@ defmodule Slipdock.RateLimit do
     :ok
   end
 
-  def enabled?, do: Application.get_env(:slipdock, :rate_limit, [])[:enabled] != false
+  def enabled?, do: Slipdock.Config.get(:rate_limit, [])[:enabled] != false
 
   # ── the table ──────────────────────────────────────────────────────────
 

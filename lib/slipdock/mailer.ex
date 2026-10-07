@@ -101,7 +101,7 @@ defmodule Slipdock.Mailer do
   """
   @spec tls_options(String.t()) :: keyword()
   def tls_options(host) when is_binary(host) do
-    if Application.get_env(:slipdock, :smtp_tls_verify, true) == false do
+    if Slipdock.Config.get(:smtp_tls_verify, true) == false do
       [verify: :verify_none]
     else
       [
@@ -127,7 +127,7 @@ defmodule Slipdock.Mailer do
     if instance.smtp_from_email do
       {instance.smtp_from_name || "Slipdock", instance.smtp_from_email}
     else
-      Application.get_env(:slipdock, :mail_from, {"Slipdock", "slipdock@localhost"})
+      Slipdock.Config.get(:mail_from, {"Slipdock", "slipdock@localhost"})
     end
   end
 
@@ -260,7 +260,7 @@ defmodule Slipdock.Mailer do
     end
   end
 
-  defp from_settings?, do: Application.get_env(:slipdock, :mailer_from_settings, true) != false
+  defp from_settings?, do: Slipdock.Config.get(:mailer_from_settings, true) != false
 
   defp printable(value) when is_binary(value), do: value
   defp printable(%{message: message}) when is_binary(message), do: message

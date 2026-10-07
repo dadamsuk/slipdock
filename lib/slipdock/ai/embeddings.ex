@@ -148,5 +148,5 @@ defmodule Slipdock.AI.Embeddings do
 
   defp normalise(_), do: nil
 
-  defp config, do: Application.get_env(:slipdock, :ai, [])
+  defp config, do: Slipdock.Config.get(:ai, [])
 end

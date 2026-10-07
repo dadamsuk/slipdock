@@ -3,14 +3,10 @@ defmodule SlipdockWeb.ClientIPTest do
   Which address a request is counted against. X-Forwarded-For is anybody's to
   write, so it only counts when a proxy we trust passed it on.
   """
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
+  alias Slipdock.TestConfig
   alias SlipdockWeb.ClientIP
-
-  setup do
-    on_exit(fn -> Application.delete_env(:slipdock, :trusted_proxies) end)
-    :ok
-  end
 
   defp resolve(peer, forwarded),
     do: peer |> ClientIP.resolve(forwarded) |> :inet.ntoa() |> to_string()
@@ -45,10 +41,10 @@ defmodule SlipdockWeb.ClientIPTest do
   end
 
   test "the trusted list is configurable, and can be empty" do
-    Application.put_env(:slipdock, :trusted_proxies, [])
+    TestConfig.put(:trusted_proxies, [])
     assert resolve({127, 0, 0, 1}, ["198.51.100.7"]) == "127.0.0.1"
 
-    Application.put_env(:slipdock, :trusted_proxies, ["203.0.113.0/24"])
+    TestConfig.put(:trusted_proxies, ["203.0.113.0/24"])
     assert resolve({203, 0, 113, 9}, ["198.51.100.7"]) == "198.51.100.7"
     assert resolve({127, 0, 0, 1}, ["198.51.100.7"]) == "127.0.0.1"
   end

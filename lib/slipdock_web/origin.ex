@@ -101,7 +101,7 @@ defmodule SlipdockWeb.Origin do
   def hosts do
     # `|| []` rather than a default argument: a key that is present and nil is
     # not an absent key, and `get_env/3`'s default does not cover it.
-    Application.get_env(:slipdock, :origin_hosts) || []
+    Slipdock.Config.get(:origin_hosts) || []
   end
 
   @doc """

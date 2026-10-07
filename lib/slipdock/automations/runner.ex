@@ -861,11 +861,11 @@ defmodule Slipdock.Automations.Runner do
 
   @doc "The site's own address, for links in emails."
   def base_url do
-    Application.get_env(:slipdock, :base_url) || endpoint_url()
+    Slipdock.Config.get(:base_url) || endpoint_url()
   end
 
   defp endpoint_url do
-    config = Application.get_env(:slipdock, SlipdockWeb.Endpoint, [])
+    config = Slipdock.Config.get(SlipdockWeb.Endpoint, [])
     url = config[:url] || []
     scheme = url[:scheme] || "http"
     host = url[:host] || "localhost"
