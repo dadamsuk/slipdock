@@ -111,4 +111,25 @@ defmodule Slipdock.SubBoardsTest do
     {:ok, _} = Boards.delete_card(card)
     assert is_nil(Boards.get_board(sub.id))
   end
+
+  test "a card's subcards come back in board order, not the order they were made" do
+    board = board_fixture(%{"name" => "Root"})
+    card = card_fixture(hd(board.columns), %{"title" => "Epic"})
+    {:ok, t} = Boards.find_template("Simple")
+    {:ok, sub} = Boards.create_sub_board(card, t)
+    [todo, doing, _done] = Boards.get_board!(sub.id).columns
+
+    # Made in this order, but laid out as: To Do [C, A], Doing [B].
+    a = card_fixture(todo, %{"title" => "A"})
+    _b = card_fixture(doing, %{"title" => "B"})
+    c = card_fixture(todo, %{"title" => "C"})
+    :ok = Boards.move_card(c.id, todo.id, a.id)
+
+    titles = fn -> Enum.map(Boards.get_card!(card.id).sub_board.cards, & &1.title) end
+    assert titles.() == ["C", "A", "B"]
+
+    # Archived subcards stay out of the list.
+    {:ok, _} = Boards.archive_card(Boards.get_card!(a.id))
+    assert titles.() == ["C", "B"]
+  end
 end
