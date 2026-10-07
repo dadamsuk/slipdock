@@ -9,6 +9,8 @@ import {
   capturePageview,
   capturePageleave,
   captureNavigation,
+  sameView,
+  leaveOncePerView,
 } from "./posthog.js"
 
 function meta(attrs) {
@@ -118,6 +120,11 @@ test("with a key: init disables automatic pageviews, honours DNT, loads array.js
   assert.equal(options.respect_dnt, true)
   // Error tracking: uncaught errors and rejections are captured.
   assert.equal(options.capture_exceptions, true)
+  // The guard that keeps $pageleave to one per view is installed.
+  assert.equal(typeof options.before_send, "function")
+  const leave = {event: "$pageleave", properties: {$pageview_id: "v1"}}
+  assert.equal(options.before_send(leave), leave)
+  assert.equal(options.before_send({...leave}), null)
 
   // The snippet injects PostHog's script from the assets host.
   const script = doc.inserted.find(el => el.tag === "script")
@@ -271,4 +278,99 @@ test("respect_dnt false is passed through to init", () => {
 test("capturePageview returns false when posthog is not present", () => {
   const win = windowWith("https://app.test/")
   assert.equal(capturePageview(win), false)
+})
+
+test("capturePageview without posthog does not mark the URL as viewed", () => {
+  const win = windowWith("https://app.test/boards")
+  assert.equal(capturePageview(win), false)
+  assert.equal(win.__posthogLastPageview, undefined)
+
+  // Once posthog is there, that first view is still sent, not lost.
+  const calls = []
+  win.posthog = {capture: (...args) => calls.push(args)}
+  assert.equal(capturePageview(win), true)
+  assert.deepEqual(calls, [["$pageview"]])
+  assert.equal(win.__posthogLastPageview, "https://app.test/boards")
+})
+
+test("a navigation after an unsent first view sends no orphan $pageleave", () => {
+  const win = windowWith("https://app.test/boards")
+  capturePageview(win)
+
+  const calls = []
+  win.posthog = {capture: (...args) => calls.push(args)}
+  win.location.href = "https://app.test/boards/42"
+  assert.equal(captureNavigation(win), true)
+
+  // No $pageview ever went out for /boards, so there is nothing to leave.
+  assert.deepEqual(calls, [["$pageview"]])
+})
+
+test("a query-only or hash-only navigation is the same view", () => {
+  const win = windowWith("https://app.test/boards/3")
+  installPosthog(win, documentWith(configured))
+  const navigate = win.listeners["phx:navigate"]
+
+  win.location.href = "https://app.test/boards/3?view=7&tag=bug"
+  navigate[0]()
+  win.location.href = "https://app.test/boards/3?view=7#card-12"
+  navigate[0]()
+
+  const captures = queued(win, "capture")
+  assert.equal(captures.filter(e => e[1] === "$pageview").length, 1)
+  assert.equal(captures.filter(e => e[1] === "$pageleave").length, 0)
+})
+
+test("leaving after query-only changes attributes the leave to the URL that was viewed", () => {
+  const win = windowWith("https://app.test/boards/3?view=1")
+  installPosthog(win, documentWith(configured))
+  const navigate = win.listeners["phx:navigate"]
+
+  win.location.href = "https://app.test/boards/3?view=2"
+  navigate[0]()
+  win.location.href = "https://app.test/boards/4"
+  navigate[0]()
+
+  const events = queued(win, "capture").map(e => [e[1], e[2] && e[2].$current_url])
+  assert.deepEqual(events, [
+    ["$pageview", undefined],
+    ["$pageleave", "https://app.test/boards/3?view=1"],
+    ["$pageview", undefined],
+  ])
+})
+
+test("sameView compares origin and path only", () => {
+  assert.equal(sameView("https://a.test/x?q=1", "https://a.test/x#h"), true)
+  assert.equal(sameView("https://a.test/x", "https://a.test/x/"), false)
+  assert.equal(sameView("https://a.test/x", "https://a.test/y?x"), false)
+  assert.equal(sameView("https://a.test/x", "https://b.test/x"), false)
+  assert.equal(sameView("https://a.test/x", undefined), false)
+  assert.equal(sameView(undefined, undefined), false)
+})
+
+test("leaveOncePerView drops a second $pageleave for the same view", () => {
+  const guard = leaveOncePerView()
+  const first = {event: "$pageleave", properties: {$pageview_id: "v1"}}
+  const again = {event: "$pageleave", properties: {$pageview_id: "v1"}}
+  assert.equal(guard(first), first)
+  assert.equal(guard(again), null)
+})
+
+test("leaveOncePerView lets the next view's $pageleave through", () => {
+  const guard = leaveOncePerView()
+  guard({event: "$pageleave", properties: {$pageview_id: "v1"}})
+  const next = {event: "$pageleave", properties: {$pageview_id: "v2"}}
+  assert.equal(guard(next), next)
+})
+
+test("leaveOncePerView passes other events and id-less leaves untouched", () => {
+  const guard = leaveOncePerView()
+  const view = {event: "$pageview", properties: {$pageview_id: "v1"}}
+  assert.equal(guard(view), view)
+  assert.equal(guard(view), view)
+
+  const bare = {event: "$pageleave", properties: {}}
+  assert.equal(guard(bare), bare)
+  assert.equal(guard(bare), bare)
+  assert.equal(guard(null), null)
 })

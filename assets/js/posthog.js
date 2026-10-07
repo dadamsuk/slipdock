@@ -33,6 +33,21 @@
 //     them across history changes. Each page is left exactly once: intermediate
 //     pages by our per-navigation $pageleave, the final page by PostHog's unload
 //     $pageleave. Nothing is double counted.
+//
+//     Time on page and scroll depth need nothing from us: posthog-js adds
+//     $prev_pageview_duration and the $prev_pageview_*scroll* properties to every
+//     $pageview and $pageleave that goes through capture(), ours included.
+//
+//     "Exactly once" is enforced, not just observed: leaveOncePerView (passed as
+//     before_send) drops a second $pageleave for a view that has already been
+//     left, so a posthog-js release that started sending its own $pageleave on
+//     history changes could not double count every navigation.
+//
+//   * What counts as a new view. A view is its origin and path; the query string
+//     and the hash are not part of it. In this app a query-only live_patch is a
+//     board's filters or view settings changing, which is the same page, and
+//     counting each one as a leave and a fresh view would inflate pageviews and
+//     cut session durations into pieces.
 
 export function posthogConfig(doc) {
   const meta = doc.querySelector('meta[name="posthog"]')
@@ -122,6 +137,8 @@ export function installPosthog(win, doc) {
     // history changes, so it does not overlap the per-navigation $pageleave we
     // send below.
     capture_pageleave: true,
+    // Each view is left once, whoever sends the $pageleave (see above).
+    before_send: leaveOncePerView(),
     // Error tracking: unhandled errors and promise rejections in the page go
     // to PostHog as $exception events. The server's own errors get there by
     // Slipdock.Posthog.ErrorTracking instead.
@@ -139,12 +156,13 @@ export function installPosthog(win, doc) {
 }
 
 // Handles a LiveView navigation: a $pageleave for the page being left followed
-// by a $pageview for the new page. Uses the same URL dedup as capturePageview —
-// a repeat phx:navigate to the URL we are already on emits no $pageleave/
-// $pageview pair — so the count stays exactly one view per view.
+// by a $pageview for the new page. Uses the same dedup as capturePageview — a
+// phx:navigate that stays on the view we are already on (same path; only the
+// query or hash changed, or nothing did) emits no $pageleave/$pageview pair — so
+// the count stays exactly one view per view.
 export function captureNavigation(win) {
   const url = win.location && win.location.href
-  if (!url || url === win.__posthogLastPageview) return false
+  if (!url || sameView(url, win.__posthogLastPageview)) return false
   // The page being left is the one we last sent a $pageview for; capturePageview
   // (below) then advances __posthogLastPageview to the new URL.
   capturePageleave(win, win.__posthogLastPageview)
@@ -153,15 +171,18 @@ export function captureNavigation(win) {
 }
 
 // Sends one $pageview for the window's current URL, skipping a repeat of the
-// URL it last sent so a navigation that lands where we already are — or two
-// events for one view — cannot double count.
+// view it last sent so a navigation that lands where we already are — or two
+// events for one view — cannot double count. The URL is recorded only once the
+// $pageview has actually been sent: recording it without sending would lose
+// that view for good and leave the next navigation a $pageleave for a page
+// PostHog never saw a $pageview for.
 export function capturePageview(win) {
   const url = win.location && win.location.href
-  if (url && url === win.__posthogLastPageview) return false
-  win.__posthogLastPageview = url
+  if (url && sameView(url, win.__posthogLastPageview)) return false
 
   if (win.posthog && typeof win.posthog.capture === "function") {
     win.posthog.capture("$pageview")
+    win.__posthogLastPageview = url
     return true
   }
   return false
@@ -181,4 +202,34 @@ export function capturePageleave(win, url) {
     return true
   }
   return false
+}
+
+// Whether two URLs are the same view: same origin and path, whatever their query
+// strings and hashes say.
+export function sameView(a, b) {
+  if (!a || !b) return false
+  return viewKey(a) === viewKey(b)
+}
+
+function viewKey(url) {
+  return url.split(/[?#]/)[0]
+}
+
+// A before_send hook that lets one $pageleave through per view. posthog-js sets
+// $pageview_id on a $pageleave to the view being left, so a second $pageleave
+// carrying the same id — ours and the library's for one navigation — is
+// dropped (before_send returning null discards the event). A $pageleave
+// without an id (none sent before any $pageview) and every other event pass
+// through untouched. A page restored from the back-forward cache and hidden a
+// second time keeps its first $pageleave only, which is still one per view.
+export function leaveOncePerView() {
+  let lastLeft
+  return event => {
+    if (!event || event.event !== "$pageleave") return event
+    const id = event.properties && event.properties.$pageview_id
+    if (!id) return event
+    if (id === lastLeft) return null
+    lastLeft = id
+    return event
+  }
 }
