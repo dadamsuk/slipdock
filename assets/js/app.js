@@ -26,6 +26,7 @@ import {hooks as colocatedHooks} from "phoenix-colocated/slipdock"
 import topbar from "../vendor/topbar"
 import Sortable from "../vendor/sortable"
 import {installConfirm} from "./confirm"
+import {installPosthog} from "./posthog"
 
 const Hooks = {}
 
@@ -1460,6 +1461,9 @@ window.addEventListener("phx:scroll-to-list", ({detail: {id}}) => {
 
 // data-confirm asks with the app's own dialog rather than the browser's.
 installConfirm(window)
+
+// Product analytics, only if this server has a PostHog key configured.
+installPosthog(window, document)
 
 // connect if there are any LiveViews on the page
 liveSocket.connect()

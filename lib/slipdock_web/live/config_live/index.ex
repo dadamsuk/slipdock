@@ -58,7 +58,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
   @settings_fields ~w(signup_mode free_card_limit user_directory invites_create_accounts
                       board_limit board_limit_enabled item_limit item_limit_enabled
                       storage_limit_mb storage_limit_enabled trial_days trial_enabled
-                      terms_url privacy_url terms_version)
+                      terms_url privacy_url terms_version posthog_key posthog_host)
 
   @mail_fields ~w(smtp_host smtp_port smtp_username smtp_password smtp_tls smtp_from_email
                   smtp_from_name)
@@ -560,6 +560,40 @@ defmodule SlipdockWeb.ConfigLive.Index do
           <p class="text-xs text-base-content/60">
             Writing the terms themselves is your job, not Slipdock's. One thing they should
             say: card and page text is sent to OpenRouter when anybody uses the AI features.
+          </p>
+          <button type="submit" class="btn btn-outline btn-sm">Save</button>
+        </.form>
+      </div>
+
+      <div class="mt-6 border-t border-base-content/10 pt-6">
+        <h3 class="font-medium">Product analytics</h3>
+        <p class="mt-1 text-xs text-base-content/60">
+          Fill in a PostHog project key and every page sends pageviews and clicks to PostHog.
+          Leave it empty and nothing about PostHog is loaded at all — no script, no requests.
+          Browsers asking not to be tracked are left out either way.
+        </p>
+
+        <.form for={@form} id="analytics-form" phx-submit="save-settings" class="mt-3 space-y-3">
+          <input type="hidden" name="settings[signup_mode]" value={@settings.signup_mode} />
+          <.input
+            field={@form[:posthog_key]}
+            type="text"
+            label="PostHog project key"
+            value={@settings.posthog_key}
+            placeholder="phc_..."
+            autocomplete="off"
+          />
+          <.input
+            field={@form[:posthog_host]}
+            type="url"
+            label="PostHog host"
+            value={@settings.posthog_host}
+            placeholder="https://us.i.posthog.com"
+          />
+          <p class="text-xs text-base-content/60">
+            Blank for PostHog's US cloud; https://eu.i.posthog.com for the EU one, or the
+            address of a proxy of your own. If people use this server, your privacy notice
+            should say that it uses PostHog.
           </p>
           <button type="submit" class="btn btn-outline btn-sm">Save</button>
         </.form>

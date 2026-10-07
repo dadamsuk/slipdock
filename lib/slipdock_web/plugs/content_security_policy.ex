@@ -24,6 +24,11 @@ defmodule SlipdockWeb.Plugs.ContentSecurityPolicy do
     * `object-src 'none'`, `base-uri 'self'`, `form-action 'self'` close the
       old tricks — plugins, a rewritten base URL, a form posted elsewhere.
 
+  One exception, and only once an admin asks for it: with a PostHog key filled
+  in (see `Slipdock.Settings.posthog/0`), `script-src` also names PostHog's
+  script host and `connect-src` the hosts its events and settings travel to.
+  Without a key the policy is exactly the list above.
+
   Override the whole header with `config :slipdock, :csp, "…"`, or set it to
   `false` to send none of this — which leaves the two directives Phoenix's own
   `put_secure_browser_headers` sets, and is what you want if a proxy in front
@@ -56,11 +61,33 @@ defmodule SlipdockWeb.Plugs.ContentSecurityPolicy do
         conn
 
       :default ->
-        Plug.Conn.put_resp_header(conn, "content-security-policy", Enum.join(@default, "; "))
+        policy = @default |> with_posthog(Slipdock.Settings.posthog()) |> Enum.join("; ")
+        Plug.Conn.put_resp_header(conn, "content-security-policy", policy)
 
       policy when is_binary(policy) ->
         Plug.Conn.put_resp_header(conn, "content-security-policy", policy)
     end
+  end
+
+  defp with_posthog(directives, nil), do: directives
+
+  defp with_posthog(directives, %{host: host, assets: assets}) do
+    origins = [host, assets] |> Enum.map(&origin/1) |> Enum.uniq() |> Enum.join(" ")
+
+    Enum.map(directives, fn
+      "script-src 'self'" -> "script-src 'self' #{origin(assets)}"
+      "connect-src 'self'" -> "connect-src 'self' #{origins}"
+      other -> other
+    end)
+  end
+
+  # Scheme, host and port: a proxy's path is no business of a CSP source.
+  defp origin(url) do
+    %URI{scheme: scheme, host: host, port: port} = URI.parse(url)
+
+    if port == URI.default_port(scheme),
+      do: "#{scheme}://#{host}",
+      else: "#{scheme}://#{host}:#{port}"
   end
 
   @doc """

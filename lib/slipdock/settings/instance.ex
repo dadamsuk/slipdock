@@ -69,6 +69,11 @@ defmodule Slipdock.Settings.Instance do
     field :privacy_url, :string
     field :terms_version, :string
 
+    # Product analytics. Nothing PostHog-related reaches a browser until a key
+    # is filled in — see `Slipdock.Settings.posthog/0`.
+    field :posthog_key, :string
+    field :posthog_host, :string
+
     timestamps(type: :utc_datetime)
   end
 
@@ -110,12 +115,12 @@ defmodule Slipdock.Settings.Instance do
        "Accounts exist only because you created them by sharing a board or a " <>
          "card with someone."}
 
-  # Who may sign up and how much they get: plain values an admin sets
-  # directly, through the admin page or `PATCH /api/admin/settings`.
+  # Who may sign up, how much they get, and whether pages report to PostHog:
+  # plain values an admin sets directly, through the admin page or `PATCH /api/admin/settings`.
   @policy_fields ~w(signup_mode free_card_limit user_directory invites_create_accounts
                     login_fallback_enabled board_limit board_limit_enabled item_limit
                     item_limit_enabled storage_limit_mb storage_limit_enabled
-                    trial_days trial_enabled)a
+                    trial_days trial_enabled posthog_key posthog_host)a
 
   # The admin address and the SMTP details each have a flow that proves
   # something first (a code to the new address, a test message that arrived),
@@ -145,7 +150,9 @@ defmodule Slipdock.Settings.Instance do
       :smtp_username,
       :smtp_password,
       :smtp_from_name,
-      :smtp_from_email
+      :smtp_from_email,
+      :posthog_key,
+      :posthog_host
     ])
     |> validate_number(:free_card_limit, greater_than: 0)
     |> validate_number(:board_limit, greater_than: 0)
@@ -158,6 +165,10 @@ defmodule Slipdock.Settings.Instance do
     |> Slipdock.Email.validate(:smtp_from_email)
     |> validate_web_url(:terms_url)
     |> validate_web_url(:privacy_url)
+    |> validate_web_url(:posthog_host)
+    |> validate_format(:posthog_key, ~r/\A[A-Za-z0-9_-]+\z/,
+      message: "should be a PostHog project key, like phc_..."
+    )
     |> require_sender_with_host()
     |> require_mail_for_approval()
     |> clear_verification_when_mail_changes()

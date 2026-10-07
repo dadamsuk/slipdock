@@ -240,6 +240,43 @@ defmodule Slipdock.Settings do
     present?(settings.terms_url) and present?(settings.terms_version)
   end
 
+  @default_posthog_host "https://us.i.posthog.com"
+
+  @doc """
+  PostHog, if an admin has filled in a project key: `%{key:, host:, assets:}`,
+  or nil — and nil means nothing about PostHog reaches a browser, neither the
+  script nor a widened Content-Security-Policy.
+
+  `host` is where events go (the US cloud when left blank). `assets` is where
+  PostHog's own script is loaded from: for its clouds that is the matching
+  `-assets` host (`eu.i.posthog.com` → `eu-assets.i.posthog.com`), and for a
+  proxy of your own it is the proxy itself, as PostHog's snippet does it.
+  """
+  @spec posthog() :: %{key: String.t(), host: String.t(), assets: String.t()} | nil
+  def posthog, do: posthog(get())
+
+  def posthog(%Instance{posthog_key: key} = settings) when is_binary(key) and key != "" do
+    host =
+      case settings.posthog_host do
+        host when is_binary(host) and host != "" -> String.trim_trailing(host, "/")
+        _ -> @default_posthog_host
+      end
+
+    %{key: key, host: host, assets: posthog_assets(host)}
+  end
+
+  def posthog(_settings), do: nil
+
+  defp posthog_assets(host) do
+    uri = URI.parse(host)
+
+    case uri.host do
+      "us.i.posthog.com" -> "https://us-assets.i.posthog.com"
+      "eu.i.posthog.com" -> "https://eu-assets.i.posthog.com"
+      _ -> host
+    end
+  end
+
   @doc "The version of the terms currently in force, or nil."
   def terms_version, do: get().terms_version
 

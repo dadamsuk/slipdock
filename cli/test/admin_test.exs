@@ -57,4 +57,54 @@ defmodule SlipdockCLI.AdminTest do
     assert body == ~s({"unlimited":false})
     refute output =~ "unlimited"
   end
+
+  # analytics is the JSON object's text, so null stays null.
+  defp settings(analytics),
+    do:
+      ~s({"build":null,"settings":{"signup_mode":"closed",) <>
+        ~s("limits":{"trial":{},"boards":{},"items":{},"storage":{}},) <>
+        ~s("smtp":{"configured":false},"login_fallback":{"enabled":false},) <>
+        ~s("analytics":#{analytics}}})
+
+  test "set posthog_key sends it as a string, and settings show analytics on" do
+    serve([
+      {200, settings(~s({"posthog_key":"phc_abc","posthog_host":"https://eu.i.posthog.com"}))}
+    ])
+
+    output =
+      capture_io(fn ->
+        Admin.run(
+          "admin",
+          ["set", "posthog_key=phc_abc", "posthog_host=https://eu.i.posthog.com"],
+          []
+        )
+      end)
+
+    assert_received {:request, "PATCH", "/api/admin/settings", body}
+
+    assert :json.decode(body) == %{
+             "posthog_key" => "phc_abc",
+             "posthog_host" => "https://eu.i.posthog.com"
+           }
+
+    assert output =~ "Analytics:        PostHog phc_abc → https://eu.i.posthog.com"
+  end
+
+  test "posthog_key= sends an empty key, which the server reads as off" do
+    serve([{200, settings(~s({"posthog_key":null,"posthog_host":null}))}])
+
+    output = capture_io(fn -> Admin.run("admin", ["set", "posthog_key="], []) end)
+
+    assert_received {:request, "PATCH", "/api/admin/settings", body}
+    assert :json.decode(body) == %{"posthog_key" => ""}
+    assert output =~ "Analytics:        off"
+  end
+
+  test "a key with no host is shown going to the US cloud" do
+    serve([{200, settings(~s({"posthog_key":"phc_abc","posthog_host":null}))}])
+
+    output = capture_io(fn -> Admin.run("admin", ["settings"], []) end)
+
+    assert output =~ "PostHog phc_abc → https://us.i.posthog.com"
+  end
 end
