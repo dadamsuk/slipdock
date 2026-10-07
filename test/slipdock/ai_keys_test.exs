@@ -91,9 +91,13 @@ defmodule Slipdock.AIKeysTest do
     test "saves at the same time don't lose each other", ctx do
       users = for n <- 1..20, do: user_fixture("writer#{n}@example.com")
 
+      # Writes serialise under a :global lock whose retry backoff grows with
+      # contention (up to 8s a round), so with 20 writers at once an unlucky
+      # task can exceed Task.await's 5s default. The assertion is about
+      # correctness, not latency, so allow generous time for the lock to drain.
       users
       |> Enum.map(fn user -> Task.async(fn -> Keys.put(user, "sk-#{user.id}") end) end)
-      |> Enum.each(&assert(Task.await(&1) == :ok))
+      |> Enum.each(&assert(Task.await(&1, 30_000) == :ok))
 
       for user <- users, do: assert(Keys.get(user) == "sk-#{user.id}")
       assert Path.wildcard(ctx.key_file <> "*.tmp") == []
