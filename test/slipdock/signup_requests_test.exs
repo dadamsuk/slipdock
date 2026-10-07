@@ -2,7 +2,7 @@ defmodule Slipdock.SignupRequestsTest do
   @moduledoc """
   The `approval` registration mode: asking, being told, saying yes or no.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
   import Swoosh.TestAssertions

@@ -3,7 +3,7 @@ defmodule SlipdockWeb.ConfigLiveTest do
   The Configuration page, and above all what it refuses. An admin page that
   lets you brick your own instance is worse than no admin page.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures

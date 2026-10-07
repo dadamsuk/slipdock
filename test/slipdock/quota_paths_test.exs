@@ -7,7 +7,7 @@ defmodule Slipdock.QuotaPathsTest do
   is the test that says so, because "they all go through one function" is a
   claim that rots the moment somebody adds a sixth path.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
 

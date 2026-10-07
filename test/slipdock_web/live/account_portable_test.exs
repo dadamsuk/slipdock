@@ -6,7 +6,7 @@ defmodule SlipdockWeb.AccountPortableTest do
   **owns**, the download link carries exactly what was picked, and an import
   that will not fit says so and builds nothing.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Ecto.Query, only: [from: 2]
   import Phoenix.LiveViewTest

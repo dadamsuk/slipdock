@@ -6,7 +6,7 @@ defmodule SlipdockWeb.QuotaAPITest do
   like something wrong with the request, so an agent fixes the title and tries
   again, forever.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Slipdock.Fixtures
 

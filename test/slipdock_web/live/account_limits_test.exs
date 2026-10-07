@@ -3,7 +3,7 @@ defmodule SlipdockWeb.AccountLimitsTest do
   What the account page tells somebody about their own limits: the trial, and
   the bars — which stay hidden while the numbers would say nothing useful.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures

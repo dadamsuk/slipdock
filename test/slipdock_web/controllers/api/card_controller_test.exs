@@ -452,10 +452,9 @@ end
 
 defmodule SlipdockWeb.API.CardControllerLimitTest do
   @moduledoc """
-  The 402s a card endpoint answers when the owner's account is full. Not
-  async: the limit is a server-wide setting.
+  The 402s a card endpoint answers when the owner's account is full.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Slipdock.Fixtures
 

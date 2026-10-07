@@ -5,7 +5,7 @@ defmodule SlipdockWeb.QuotaBypassTest do
   archived rows, and building the welcome tour. Each is refused at the limit
   with the same 402 and the same name as creating would be.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Slipdock.Fixtures
 

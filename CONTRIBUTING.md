@@ -84,9 +84,14 @@ and each of those shares something the database cannot roll back:
   `Slipdock.TestConfig.put/2` or `merge/2`, which change it for that test and
   the processes it starts only. A process started at boot (the indexer, the
   automation scheduler) does not see the override.
-- **Anything writing `Slipdock.Settings`** — the row is cached in
-  `:persistent_term`, which is shared between processes, so one test's
-  uncommitted settings would be read by another.
+- **`Slipdock.Settings`** is no longer one of them: the cache is off in
+  tests, and every async test saves settings into a row of its own (see
+  `Slipdock.DataCase`), so tests about limits and registration can be async.
+  Sync tests keep the real row, id 1.
+- **Fixed unique values** — two async tests inserting the same board code or
+  allowlist entry wait on each other's uncommitted row, and with a fixed user
+  email held the other way round Postgres calls it a deadlock. Leave codes to
+  the fixtures, which make them unique.
 - **`AIStub.share/0`** — it calls `Req.Test.set_req_test_to_shared()`, which
   makes the stub global. A test needs it when the code under test runs in
   another process (any LiveView), and two such tests at once would overwrite

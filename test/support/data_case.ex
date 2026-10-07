@@ -44,6 +44,14 @@ defmodule Slipdock.DataCase do
     # counted — or flushed — by the next.
     Slipdock.Search.Indexer.reset()
 
+    # `Slipdock.Settings` is one row. Every async test gets its own, so a test
+    # that saves settings does not wait on — or deadlock with — another test's
+    # uncommitted save. Sync tests keep row 1, because they may rely on a
+    # process started at boot, which does not see the override.
+    if tags[:async] do
+      Slipdock.TestConfig.put(:settings_row_id, System.unique_integer([:positive]) + 1)
+    end
+
     on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
   end
 

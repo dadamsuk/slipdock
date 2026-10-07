@@ -6,7 +6,7 @@ defmodule SlipdockWeb.AdminAPITest do
   that leak are the ones lying around. An ordinary read/write token being able
   to change who may register would make every such token a key to the server.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Slipdock.Fixtures
 
