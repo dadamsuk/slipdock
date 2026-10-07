@@ -32,8 +32,8 @@ defmodule Slipdock.FixturesTest do
 
     assert fixture_email("stranger@example.com") == "stranger@" <> domain
     assert user_fixture("stranger@example.com").email == "stranger@" <> domain
-    assert fixture_email("someone@elsewhere.org") == "someone@elsewhere.org"
-    assert fixture_email("someone@sub.example.com") == "someone@sub.example.com"
+    assert fixture_email("someone@example.net") == "someone@example.net"
+    assert fixture_email("someone@work.example") == "someone@work.example"
 
     # Already moved: left alone, so it is safe to apply twice.
     assert fixture_email(fixture_email("stranger@example.com")) == "stranger@" <> domain
