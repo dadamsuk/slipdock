@@ -157,6 +157,9 @@ way in: what it is, the pictures, and how to get it running.
 - Light/dark/system theme
 - Accounts: passwordless sign-in by emailed magic link, sessions that last
   30 days, API tokens for the CLI
+- **An MCP server** at `/mcp`: claude.ai, the Claude apps, Claude Code and
+  other MCP clients get the boards and the wiki as 21 tools, signing in
+  through the browser or with an API token (see [MCP server](#mcp-server))
 - Groups of users; boards, single cards and saved views can be shared with
   people or groups as read-only or editable
 - **A Getting Started board** built on a first sign-in: a tour of all of the
@@ -2560,3 +2563,101 @@ reaches for first — `slipdock` and `slipdock-work` — carry the `curl` form
 alongside the CLI one, because the CLI is an escript and the machine the agent
 is on usually has no Elixir. Everything else is in the guide, which is `curl`
 throughout.
+
+## MCP server
+
+> Connecting a particular client step by step is in
+> [Setting up an agent](agents.md#over-mcp). This section is the reference:
+> what the server offers, how it authenticates, and the limits it keeps.
+
+The app is also an MCP server, at `https://your-server/mcp` — the same
+address as the web app with `/mcp` on the end; **Set up an agent** shows this
+install's own. It speaks stateless Streamable HTTP (MCP revisions 2025-03-26
+to 2025-11-25): every call is one `POST`, nothing is kept between them, and
+there is no session to resume. claude.ai, the Claude desktop and mobile apps,
+Claude Code, the Claude API's MCP connector and IDE clients all connect to it.
+
+### The tools
+
+A client gets a small, coarse set of tools rather than the whole
+[JSON API](#json-api): every tool's schema costs context in every session of
+every client that connects, so there are few of them and each does a whole
+step of the work. Each one goes through the same access checks as the API,
+so a token can do exactly as much over MCP as over HTTP — no more.
+
+| Tool | What it does |
+|---|---|
+| `whoami` | Who the connection is signed in as, the token's scope, and how much of the account's item limit is used. |
+| `get_guide` | The [agent guide](#skills) for this caller: the conventions, and the caller's own boards and lists. Read once per session, before changing anything. |
+| `list_boards` | Boards you can see, with code, lists and which list is ready, in progress and done. `archived: true` includes archived ones. |
+| `get_board` | A board's lists in order, with a one-line summary of each card. |
+| `list_cards` | Cards in list order, filtered by `column`, `open`, `deps: "ready"`, `no_assignee` and `archived` (`exclude`, `include` or `only`). |
+| `get_card` | A card in full: description, checklist with item ids, comments, dependencies, subcards and the wiki pages about it. |
+| `search` | Cards, comments and wiki pages by meaning, across every board you can read or one. |
+| `read_page` | A wiki page's Markdown and its `content_hash`, by code (`W-31`) or by board and slug or title. |
+| `create_card` | A card on a board, or with `parent` a subcard (making the sub-board if needed). |
+| `update_card` | Title, description, priority (or clearing it), start and due dates, percent, flags, tags, assignees, what blocks it, and its checklist — add, tick and untick items. Only what is passed changes. |
+| `move_card` | To another list on its board, or with `board` to another board, subcards and all. |
+| `comment` | A Markdown comment on a card; `@name` mentions notify. |
+| `complete_card` | Marks a card completed and moves it to the done list, with an optional closing comment. |
+| `archive_card` | Puts a card away, or with `restore: true` brings it back. |
+| `delete_card` | Deletes a card with its subcards, comments and files. Needs `confirm: true`. |
+| `create_list` | A list at the end of a board, with its category (`todo`, `doing`, `done`) and an optional WIP limit. |
+| `delete_list` | Deletes an empty list; one holding cards only with `with_cards: true`. |
+| `create_board` | A board of your own, with a template's lists (Backlog, To Do, In Progress, Done by default). |
+| `archive_board` | Archives a board you own, or with `restore: true` brings it back. |
+| `delete_board` | Deletes a board you own and everything on it. `confirm` must repeat the board's code. |
+| `write_page` | The wiki: `create` a page, `append` or `append_section` to one, or `replace_section` and `replace`, which need the `content_hash` from `read_page` so nobody's edit is overwritten. |
+
+The eight reading tools are marked read-only, so a client can let them run
+without asking each time. The deletes are marked destructive and none of
+them can be undone, which is why each needs its confirmation; archiving,
+which restoring undoes, is not. Writes count towards the board owner's
+limits exactly as they do through the API, and a refusal comes back as the
+tool's error — `card_limit_reached`, `trial_expired`, a read-only token —
+rather than as a failed connection.
+
+### Signing in
+
+Two ways, and the server takes either on any request:
+
+- **OAuth**, for clients that only take an address — claude.ai and the
+  Claude apps above all. The server publishes its metadata at
+  `/.well-known/oauth-protected-resource` and
+  `/.well-known/oauth-authorization-server`, registers clients dynamically
+  at `/oauth/register`, and uses PKCE. Connecting sends you here to sign in
+  and see what is asking; you approve it, or lower it to read-only first.
+  Each connection appears under **Account → API tokens** as a *connected
+  app* named for the client, and deleting it there disconnects it. The
+  connection renews itself while it is used at least once every 90 days.
+- **An API token** in an `Authorization: Bearer` header, for clients that
+  take a URL and a header. Make one under **Account → API tokens** (see
+  [Signing an agent in](#signing-an-agent-in)). A read-only token gets the
+  reading tools, and the writing tools answer that it is read-only; a token
+  confined to some boards sees only those, and cannot `create_board`.
+
+For Claude Code, either:
+
+```sh
+claude mcp add --transport http slipdock https://your-server/mcp        # then /mcp in a session to sign in
+claude mcp add --transport http slipdock https://your-server/mcp \
+  --header "Authorization: Bearer <token>"
+```
+
+In claude.ai: **Settings → Connectors → Add custom connector**, the name and
+`https://your-server/mcp`, then **Connect**.
+
+### Reaching it
+
+claude.ai and the Claude apps connect from Anthropic's servers, not from
+your browser, so a connector needs a server reachable from the internet over
+https; if you self-host behind an allowlist, let in `160.79.104.0/21`. Claude
+Code and other local clients connect from the machine they run on, so a
+server on a LAN or a tailnet works for them as long as that machine can reach
+it. Either way the server has to know its own public address (`PHX_HOST`,
+and `SLIPDOCK_URL_SCHEME=https` behind a TLS proxy — see [Running](#running)),
+because the OAuth metadata hands out URLs built from it.
+
+The code is `SlipdockWeb.MCP.Plug` (the transport), `SlipdockWeb.MCP.Tools`
+(the list, in the order `tools/list` gives it) and one module per tool under
+`lib/slipdock_web/mcp/tools/`.
