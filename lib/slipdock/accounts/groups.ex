@@ -61,6 +61,8 @@ defmodule Slipdock.Accounts.Groups do
         on_conflict: :nothing
       )
 
+      # Whatever the group has been granted is theirs to see now.
+      Slipdock.Boards.notify_users_boards_changed([user.id])
       {:ok, get_group!(group.id)}
     end
   end
@@ -70,6 +72,7 @@ defmodule Slipdock.Accounts.Groups do
       from(m in "group_members", where: m.group_id == ^group.id and m.user_id == ^user.id)
     )
 
+    Slipdock.Boards.notify_users_boards_changed([user.id])
     {:ok, get_group!(group.id)}
   end
 
