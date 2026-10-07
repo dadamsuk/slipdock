@@ -186,6 +186,49 @@ defmodule SlipdockWeb.BoardIndexLiveTest do
     end
   end
 
+  describe "the add-a-new-board tile" do
+    test "sits after the last board and opens the new-board form", %{conn: conn, c: c} do
+      {:ok, view, html} = live(conn, ~p"/")
+      assert html =~ "Add a new board"
+      refute has_element?(view, "#new-board")
+
+      # Last in the grid, after every board, and never itself a drag target.
+      grid = view |> element("#boards") |> render()
+      [_, after_boards] = String.split(grid, ~s(id="board-#{c.id}"), parts: 2)
+      assert after_boards =~ ~s(id="new-board-tile")
+      assert grid =~ ~s(data-draggable="[data-id]")
+      refute view |> element("#new-board-tile") |> render() =~ "data-id"
+
+      view |> element("#new-board-tile") |> render_click()
+      assert has_element?(view, "#new-board")
+      # Gone while the form is open, like the New board button; back on cancel.
+      refute has_element?(view, "#new-board-tile")
+
+      view |> element("button[phx-click=cancel_create]") |> render_click()
+      assert has_element?(view, "#new-board-tile")
+    end
+
+    test "is only in the cards layout, and not among archived boards",
+         %{conn: conn, a: a} do
+      {:ok, _} = Boards.archive_board(a)
+      {:ok, view, _} = live(conn, ~p"/")
+      render_click(view, "toggle_archived", %{})
+      assert has_element?(view, "#archived-boards")
+      refute has_element?(view, "#archived-boards #new-board-tile")
+      assert has_element?(view, "#boards #new-board-tile")
+
+      view |> element("button[phx-value-layout=compact]") |> render_click()
+      refute has_element?(view, "#new-board-tile")
+    end
+
+    test "is not shown when there are no boards: the empty page has its own button",
+         %{conn: conn, a: a, b: b, c: c} do
+      for board <- [a, b, c], do: {:ok, _} = Boards.archive_board(board)
+      {:ok, view, _} = live(conn, ~p"/")
+      refute has_element?(view, "#new-board-tile")
+    end
+  end
+
   describe "a flood of board changes" do
     # "boards" hears about every board on the server, so a busy server can send
     # the page notices faster than it reloads. It must reload once for the lot

@@ -534,6 +534,7 @@ defmodule SlipdockWeb.BoardLive.Index do
             boards={@boards}
             current_user={@current_user}
             sort={@sort}
+            add_tile={!@creating}
           />
           <.board_table
             :if={@board_layout == "compact" and @boards != []}
@@ -617,6 +618,9 @@ defmodule SlipdockWeb.BoardLive.Index do
   attr :current_user, :map, required: true
   attr :sort, :string, required: true
   attr :archived, :boolean, default: false
+  # A board-sized "+ Add a new board" tile after the last board, which opens
+  # the same form as the New board button.
+  attr :add_tile, :boolean, default: false
 
   defp board_grid(assigns) do
     ~H"""
@@ -626,6 +630,7 @@ defmodule SlipdockWeb.BoardLive.Index do
       data-group={@id}
       data-event="reorder"
       data-handle=".board-handle"
+      data-draggable="[data-id]"
       data-disabled={to_string(@archived or @sort != "manual")}
       class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
     >
@@ -701,6 +706,15 @@ defmodule SlipdockWeb.BoardLive.Index do
           button_class="btn btn-circle btn-ghost btn-sm bg-base-100/70 backdrop-blur"
         />
       </div>
+      <button
+        :if={@add_tile}
+        id="new-board-tile"
+        type="button"
+        phx-click="start_create"
+        class="flex min-h-24 items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-base-content/15 text-base-content/60 transition hover:border-primary/50 hover:text-primary sm:min-h-40"
+      >
+        <.icon name="hero-plus" class="size-5" /> Add a new board
+      </button>
     </div>
     """
   end
