@@ -58,7 +58,8 @@ defmodule SlipdockWeb.ConfigLive.Index do
   @settings_fields ~w(signup_mode free_card_limit user_directory invites_create_accounts
                       board_limit board_limit_enabled item_limit item_limit_enabled
                       storage_limit_mb storage_limit_enabled trial_days trial_enabled
-                      terms_url privacy_url terms_version posthog_key posthog_host)
+                      terms_url privacy_url terms_version posthog_key posthog_host
+                      posthog_respect_dnt)
 
   @mail_fields ~w(smtp_host smtp_port smtp_username smtp_password smtp_tls smtp_from_email
                   smtp_from_name)
@@ -568,9 +569,9 @@ defmodule SlipdockWeb.ConfigLive.Index do
       <div class="mt-6 border-t border-base-content/10 pt-6">
         <h3 class="font-medium">Product analytics</h3>
         <p class="mt-1 text-xs text-base-content/60">
-          Fill in a PostHog project key and every page sends pageviews and clicks to PostHog.
-          Leave it empty and nothing about PostHog is loaded at all — no script, no requests.
-          Browsers asking not to be tracked are left out either way.
+          Fill in a PostHog project key and a host, and every page sends pageviews and clicks
+          to PostHog. Leave either empty and nothing about PostHog is loaded at all — no script,
+          no requests.
         </p>
 
         <.form for={@form} id="analytics-form" phx-submit="save-settings" class="mt-3 space-y-3">
@@ -591,10 +592,29 @@ defmodule SlipdockWeb.ConfigLive.Index do
             placeholder="https://us.i.posthog.com"
           />
           <p class="text-xs text-base-content/60">
-            Blank for PostHog's US cloud; https://eu.i.posthog.com for the EU one, or the
-            address of a proxy of your own. If people use this server, your privacy notice
-            should say that it uses PostHog.
+            https://us.i.posthog.com for PostHog's US cloud, https://eu.i.posthog.com for
+            the EU one, or the address of a proxy of your own (which must serve both the
+            script and the ingest endpoints). A key with no host leaves analytics off — the
+            region is never guessed. If people use this server, your privacy notice should
+            say that it uses PostHog.
           </p>
+          <label class="flex cursor-pointer items-start gap-3 text-sm">
+            <input type="hidden" name="settings[posthog_respect_dnt]" value="false" />
+            <input
+              type="checkbox"
+              name="settings[posthog_respect_dnt]"
+              value="true"
+              checked={@settings.posthog_respect_dnt}
+              class="checkbox checkbox-sm mt-0.5"
+            />
+            <span>
+              <span class="block font-medium">Respect Do-Not-Track</span>
+              <span class="block text-xs text-base-content/60">
+                On, a visitor whose browser asks not to be tracked (Do-Not-Track or Global
+                Privacy Control) is left out of analytics. Off, everyone is counted.
+              </span>
+            </span>
+          </label>
           <button type="submit" class="btn btn-outline btn-sm">Save</button>
         </.form>
       </div>

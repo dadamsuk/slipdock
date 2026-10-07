@@ -69,10 +69,13 @@ defmodule Slipdock.Settings.Instance do
     field :privacy_url, :string
     field :terms_version, :string
 
-    # Product analytics. Nothing PostHog-related reaches a browser until a key
-    # is filled in — see `Slipdock.Settings.posthog/0`.
+    # Product analytics. Nothing PostHog-related reaches a browser until both a
+    # key and a host are filled in — see `Slipdock.Settings.posthog/0`.
+    # `posthog_respect_dnt` decides whether a visitor who asks not to be tracked
+    # is left out; on by default, and threaded through to the client.
     field :posthog_key, :string
     field :posthog_host, :string
+    field :posthog_respect_dnt, :boolean, default: true
 
     timestamps(type: :utc_datetime)
   end
@@ -120,7 +123,8 @@ defmodule Slipdock.Settings.Instance do
   @policy_fields ~w(signup_mode free_card_limit user_directory invites_create_accounts
                     login_fallback_enabled board_limit board_limit_enabled item_limit
                     item_limit_enabled storage_limit_mb storage_limit_enabled
-                    trial_days trial_enabled posthog_key posthog_host)a
+                    trial_days trial_enabled posthog_key posthog_host
+                    posthog_respect_dnt)a
 
   # The admin address and the SMTP details each have a flow that proves
   # something first (a code to the new address, a test message that arrived),
