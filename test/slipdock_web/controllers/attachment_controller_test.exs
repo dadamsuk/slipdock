@@ -1,11 +1,11 @@
 defmodule SlipdockWeb.AttachmentControllerTest do
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Slipdock.Fixtures
   alias Slipdock.{Access, Boards}
 
   setup do
-    File.rm_rf!(Boards.uploads_dir())
+    Slipdock.TestConfig.own_uploads_dir()
     board = board_fixture()
     [col | _] = board.columns
     card = card_fixture(col)

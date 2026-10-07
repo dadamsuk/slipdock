@@ -2,7 +2,7 @@ defmodule Slipdock.Automations.RunnerTest do
   # The runner on its own: which events a trigger answers, how each condition
   # reads a card, and what each action does — or says it could not do — when
   # it is handed an event directly rather than through a board change.
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Ecto.Query
   import Slipdock.Fixtures
@@ -91,17 +91,21 @@ defmodule Slipdock.Automations.RunnerTest do
     end
 
     test "card_assigned knows a person by email, name or display name" do
-      user = %User{email: "sam@example.com", name: "Sam Smith"}
+      user = %User{email: fixture_email("sam@example.com"), name: "Sam Smith"}
 
-      for wanted <- ["SAM@example.com", "sam smith", User.display_name(user)] do
+      for wanted <- [fixture_email("SAM@example.com"), "sam smith", User.display_name(user)] do
         rule = trigger(%{"type" => "card_assigned", "assignee" => wanted})
         assert Runner.matches?(rule, %{type: "card_assigned", assignee: user}), wanted
       end
 
-      rule = trigger(%{"type" => "card_assigned", "assignee" => "ada@example.com"})
+      rule = trigger(%{"type" => "card_assigned", "assignee" => fixture_email("ada@example.com")})
       refute Runner.matches?(rule, %{type: "card_assigned", assignee: user})
       refute Runner.matches?(rule, %{type: "card_assigned", assignee: nil})
-      refute Runner.matches?(rule, %{type: "card_assigned", assignee: "ada@example.com"})
+
+      refute Runner.matches?(rule, %{
+               type: "card_assigned",
+               assignee: fixture_email("ada@example.com")
+             })
 
       anybody = trigger(%{"type" => "card_assigned"})
       assert Runner.matches?(anybody, %{type: "card_assigned", assignee: nil})
@@ -178,9 +182,9 @@ defmodule Slipdock.Automations.RunnerTest do
       {:ok, _} = Boards.update_card(card, %{"add_assignee_ids" => [bob.id]})
       card = fresh(card)
 
-      assert holds?(card, "assignee", "is", "bob@example.com")
+      assert holds?(card, "assignee", "is", fixture_email("bob@example.com"))
       assert holds?(card, "has_assignee", "is", true)
-      refute holds?(card, "assignee", "is", "carol@example.com")
+      refute holds?(card, "assignee", "is", fixture_email("carol@example.com"))
 
       unassigned = card_fixture(ctx.todo)
       assert holds?(unassigned, "has_assignee", "is", "false")
@@ -417,17 +421,21 @@ defmodule Slipdock.Automations.RunnerTest do
 
       assert [{:ok, "assigned to " <> _}] =
                run(
-                 rule(ctx.board, [%{"type" => "assign", "assignee" => "SAM@example.com"}]),
+                 rule(ctx.board, [
+                   %{"type" => "assign", "assignee" => fixture_email("SAM@example.com")}
+                 ]),
                  card
                )
 
       assert fresh(card).assignee_id == sam.id
 
       assert run(
-               rule(ctx.board, [%{"type" => "assign", "assignee" => "stranger@example.com"}]),
+               rule(ctx.board, [
+                 %{"type" => "assign", "assignee" => fixture_email("stranger@example.com")}
+               ]),
                card
              ) ==
-               [{:error, "no such person: stranger@example.com"}]
+               [{:error, "no such person: #{fixture_email("stranger@example.com")}"}]
 
       assert run(rule(ctx.board, [%{"type" => "unassign"}]), fresh(card)) == [{:ok, "unassigned"}]
       assert fresh(card).assignee_id == nil
@@ -539,7 +547,7 @@ defmodule Slipdock.Automations.RunnerTest do
             "description" => "From {{rule.name}}",
             "priority" => "high",
             "due_date" => "2030-05-01",
-            "assignee" => "sam@example.com",
+            "assignee" => fixture_email("sam@example.com"),
             "tags" => ["follow-up", "missing"]
           }
         ])
@@ -576,11 +584,11 @@ defmodule Slipdock.Automations.RunnerTest do
       # Saved with a recipient who could see it; that's no longer the case.
       rule =
         put_in(rule.spec["actions"], [
-          %{"type" => "email", "to" => [ctx.owner.email, "gone@example.com"]}
+          %{"type" => "email", "to" => [ctx.owner.email, fixture_email("gone@example.com")]}
         ])
 
       assert [{:error, message}] = run(rule, card)
-      assert message == "emailed #{ctx.owner.email}; refused gone@example.com"
+      assert message == "emailed #{ctx.owner.email}; refused #{fixture_email("gone@example.com")}"
 
       assert_email_sent(fn email ->
         assert email.subject == "Runner: Note"
@@ -678,22 +686,13 @@ defmodule Slipdock.Automations.RunnerTest do
 
   describe "base_url/0" do
     setup do
-      base = Application.get_env(:slipdock, :base_url)
-      endpoint = Application.get_env(:slipdock, SlipdockWeb.Endpoint)
-
-      on_exit(fn ->
-        Application.put_env(:slipdock, :base_url, base)
-        Application.put_env(:slipdock, SlipdockWeb.Endpoint, endpoint)
-      end)
-
-      Application.delete_env(:slipdock, :base_url)
-      :ok
+      Slipdock.TestConfig.put(:base_url, nil)
     end
 
-    defp endpoint(config), do: Application.put_env(:slipdock, SlipdockWeb.Endpoint, config)
+    defp endpoint(config), do: Slipdock.TestConfig.put(SlipdockWeb.Endpoint, config)
 
     test "the configured address wins" do
-      Application.put_env(:slipdock, :base_url, "https://kanban.example.com")
+      Slipdock.TestConfig.put(:base_url, "https://kanban.example.com")
       assert Runner.base_url() == "https://kanban.example.com"
     end
 

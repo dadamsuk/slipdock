@@ -5,7 +5,7 @@ defmodule SlipdockWeb.KindFilterLiveTest do
   one click at a time; the other views carry them on the filter form, and so
   in the URL and in a saved view.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
@@ -13,7 +13,7 @@ defmodule SlipdockWeb.KindFilterLiveTest do
   alias Slipdock.{Boards, Wiki}
 
   setup %{conn: conn, user: user} do
-    File.rm_rf!(Boards.uploads_dir())
+    Slipdock.TestConfig.own_uploads_dir()
     board = board_fixture(%{"name" => "Kinds", "code" => "kinds"}, owner: user)
     column = hd(board.columns)
 

@@ -3,23 +3,13 @@ defmodule Slipdock.SettingsTest do
   The settings row: defaults before anything is saved, seeding from the
   environment exactly once, the setup token, and the allowlist.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
 
   alias Slipdock.Settings
 
-  defp with_config(key, value) do
-    previous = Application.fetch_env(:slipdock, key)
-    Application.put_env(:slipdock, key, value)
-
-    on_exit(fn ->
-      case previous do
-        {:ok, previous} -> Application.put_env(:slipdock, key, previous)
-        :error -> Application.delete_env(:slipdock, key)
-      end
-    end)
-  end
+  defp with_config(key, value), do: Slipdock.TestConfig.put(key, value)
 
   describe "get/0 before anything is saved" do
     test "answers with the configured defaults rather than nil" do
@@ -69,7 +59,7 @@ defmodule Slipdock.SettingsTest do
                Settings.update(%{
                  "signup_mode" => :approval,
                  "smtp_host" => "smtp.example.com",
-                 "smtp_from_email" => "mail@example.com"
+                 "smtp_from_email" => fixture_email("mail@example.com")
                })
     end
 
@@ -87,7 +77,7 @@ defmodule Slipdock.SettingsTest do
       {:ok, _} =
         Settings.update(%{
           "smtp_host" => "smtp.example.com",
-          "smtp_from_email" => "mail@example.com"
+          "smtp_from_email" => fixture_email("mail@example.com")
         })
 
       {:ok, settings} = Settings.mark_smtp_verified()
@@ -125,7 +115,7 @@ defmodule Slipdock.SettingsTest do
 
     test "is gone once setup is complete, and no token works any more" do
       token = Settings.ensure_setup_token()
-      {:ok, _} = Settings.complete_setup(%{"admin_email" => "admin@example.com"})
+      {:ok, _} = Settings.complete_setup(%{"admin_email" => fixture_email("admin@example.com")})
 
       assert Settings.setup_complete?()
       refute Settings.valid_setup_token?(token)
@@ -203,33 +193,33 @@ defmodule Slipdock.SettingsTest do
       assert :ok = Settings.seed()
 
       assert Settings.setup_complete?()
-      assert Settings.get().admin_email == "owner@example.com"
+      assert Settings.get().admin_email == fixture_email("owner@example.com")
     end
 
     test "SLIPDOCK_ADMIN_EMAIL skips the wizard outright" do
-      with_config(:settings, admin_email: "admin@example.com")
+      with_config(:settings, admin_email: fixture_email("admin@example.com"))
       assert :ok = Settings.seed()
 
       assert Settings.setup_complete?()
-      assert Settings.get().admin_email == "admin@example.com"
+      assert Settings.get().admin_email == fixture_email("admin@example.com")
     end
 
     test "SLIPDOCK_ADMIN_EMAIL also makes the account, and makes it an admin" do
       # The regression: naming an admin closed the wizard and created nobody,
       # so that address was refused at the sign-in page and nobody could get in.
-      with_config(:settings, admin_email: "admin@example.com")
+      with_config(:settings, admin_email: fixture_email("admin@example.com"))
       assert :ok = Settings.seed()
 
-      user = Slipdock.Accounts.get_user_by_email("admin@example.com")
+      user = Slipdock.Accounts.get_user_by_email(fixture_email("admin@example.com"))
       assert user.admin
-      assert Slipdock.Accounts.signup_allowed?("admin@example.com")
+      assert Slipdock.Accounts.signup_allowed?(fixture_email("admin@example.com"))
     end
 
     test "makes the oldest account an admin when nobody is one" do
       user_fixture("owner@example.com")
       assert :ok = Settings.seed()
 
-      assert Slipdock.Accounts.get_user_by_email("owner@example.com").admin
+      assert Slipdock.Accounts.get_user_by_email(fixture_email("owner@example.com")).admin
     end
 
     test "leaves an empty instance unclaimed, so the wizard can run" do

@@ -4,7 +4,7 @@ defmodule Slipdock.InvitesTest do
   comes into existence without its owner asking for one, and so the only way
   round the registration mode if it is not governed.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
   import Swoosh.TestAssertions
@@ -14,13 +14,20 @@ defmodule Slipdock.InvitesTest do
   defp set_up(attrs) do
     {:ok, _} =
       Settings.complete_setup(
-        Map.merge(%{"admin_email" => "admin@example.com", "signup_mode" => :closed}, attrs)
+        Map.merge(
+          %{"admin_email" => fixture_email("admin@example.com"), "signup_mode" => :closed},
+          attrs
+        )
       )
 
     :ok
   end
 
-  defp mail, do: %{"smtp_host" => "smtp.example.com", "smtp_from_email" => "mail@example.com"}
+  defp mail,
+    do: %{
+      "smtp_host" => "smtp.example.com",
+      "smtp_from_email" => fixture_email("mail@example.com")
+    }
 
   setup do
     alice = user_fixture("alice@example.com")
@@ -31,35 +38,38 @@ defmodule Slipdock.InvitesTest do
     setup do: set_up(Map.merge(mail(), %{"invites_create_accounts" => true}))
 
     test "sharing a board with a stranger gives them an account", %{alice: alice, board: board} do
-      assert {:ok, _} = Access.grant(board, "newcomer@example.com", "read", alice)
+      assert {:ok, _} = Access.grant(board, fixture_email("newcomer@example.com"), "read", alice)
 
-      user = Accounts.get_user_by_email("newcomer@example.com")
+      user = Accounts.get_user_by_email(fixture_email("newcomer@example.com"))
       assert user
       assert user.invited_by_id == alice.id
       assert user.invited_at
     end
 
     test "and tells them, naming who did it and what for", %{alice: alice, board: board} do
-      {:ok, _} = Access.grant(board, "newcomer@example.com", "read", alice)
+      {:ok, _} = Access.grant(board, fixture_email("newcomer@example.com"), "read", alice)
 
       assert_email_sent(fn email ->
-        assert email.to == [{"newcomer@example.com", "newcomer@example.com"}]
-        assert email.subject =~ "alice@example.com"
+        assert email.to == [
+                 {fixture_email("newcomer@example.com"), fixture_email("newcomer@example.com")}
+               ]
+
+        assert email.subject =~ fixture_email("alice@example.com")
         assert email.text_body =~ "Roadmap"
       end)
     end
 
     test "a group does the same, in its owner's name", %{alice: alice} do
       {:ok, group} = Accounts.create_group(alice, %{"name" => "Design"})
-      {:ok, _} = Accounts.add_group_member(group, "newcomer@example.com")
+      {:ok, _} = Accounts.add_group_member(group, fixture_email("newcomer@example.com"))
 
-      user = Accounts.get_user_by_email("newcomer@example.com")
+      user = Accounts.get_user_by_email(fixture_email("newcomer@example.com"))
       assert user.invited_by_id == alice.id
     end
 
     test "an address already here is not re-invited", %{alice: alice, board: board} do
       bob = user_fixture("bob@example.com")
-      {:ok, _} = Access.grant(board, "bob@example.com", "read", alice)
+      {:ok, _} = Access.grant(board, fixture_email("bob@example.com"), "read", alice)
 
       assert Repo.reload(bob).invited_at == nil
     end
@@ -68,22 +78,22 @@ defmodule Slipdock.InvitesTest do
       # Deliberate, and the reason is in `signup_allowed?/1`: the question is
       # asked once, when the account is made. An account somebody deliberately
       # created which then cannot be used is a bug report waiting to happen.
-      alice = Accounts.get_user_by_email("alice@example.com")
+      alice = Accounts.get_user_by_email(fixture_email("alice@example.com"))
       board = board_fixture(%{"name" => "Other"}, owner: alice)
-      {:ok, _} = Access.grant(board, "newcomer@example.com", "read", alice)
+      {:ok, _} = Access.grant(board, fixture_email("newcomer@example.com"), "read", alice)
 
       assert Settings.signup_mode() == :closed
-      assert Accounts.signup_allowed?("newcomer@example.com")
+      assert Accounts.signup_allowed?(fixture_email("newcomer@example.com"))
     end
 
     test "disabling them does close it", %{alice: alice, board: board} do
-      {:ok, _} = Access.grant(board, "newcomer@example.com", "read", alice)
+      {:ok, _} = Access.grant(board, fixture_email("newcomer@example.com"), "read", alice)
       {:ok, _} = Accounts.promote(user_fixture("admin@example.com"))
 
-      user = Accounts.get_user_by_email("newcomer@example.com")
+      user = Accounts.get_user_by_email(fixture_email("newcomer@example.com"))
       {:ok, _} = Accounts.disable(user)
 
-      refute Accounts.signup_allowed?("newcomer@example.com")
+      refute Accounts.signup_allowed?(fixture_email("newcomer@example.com"))
     end
   end
 
@@ -91,33 +101,34 @@ defmodule Slipdock.InvitesTest do
     setup do: set_up(Map.merge(mail(), %{"invites_create_accounts" => false}))
 
     test "sharing with a stranger fails, and says why", %{alice: alice, board: board} do
-      assert {:error, message} = Access.grant(board, "stranger@example.com", "read", alice)
+      assert {:error, message} =
+               Access.grant(board, fixture_email("stranger@example.com"), "read", alice)
 
       assert message =~ "No account here uses that address"
       assert message =~ "An admin can invite them"
     end
 
     test "and no ghost account is left behind", %{alice: alice, board: board} do
-      {:error, _} = Access.grant(board, "stranger@example.com", "read", alice)
+      {:error, _} = Access.grant(board, fixture_email("stranger@example.com"), "read", alice)
 
       # The old behaviour created the user and then granted; a failure part way
       # through would have left an account nobody meant to make.
-      refute Accounts.get_user_by_email("stranger@example.com")
-      refute Accounts.signup_allowed?("stranger@example.com")
+      refute Accounts.get_user_by_email(fixture_email("stranger@example.com"))
+      refute Accounts.signup_allowed?(fixture_email("stranger@example.com"))
     end
 
     test "sharing with somebody who is already here still works", %{alice: alice, board: board} do
       user_fixture("bob@example.com")
-      assert {:ok, _} = Access.grant(board, "bob@example.com", "read", alice)
+      assert {:ok, _} = Access.grant(board, fixture_email("bob@example.com"), "read", alice)
     end
 
     test "groups are governed too, not just boards", %{alice: alice} do
       {:ok, group} = Accounts.create_group(alice, %{"name" => "Design"})
 
       assert {:error, :invites_disabled} =
-               Accounts.add_group_member(group, "stranger@example.com")
+               Accounts.add_group_member(group, fixture_email("stranger@example.com"))
 
-      refute Accounts.get_user_by_email("stranger@example.com")
+      refute Accounts.get_user_by_email(fixture_email("stranger@example.com"))
     end
   end
 
@@ -128,21 +139,15 @@ defmodule Slipdock.InvitesTest do
       path =
         Path.join(System.tmp_dir!(), "slipdock-invite-#{System.unique_integer([:positive])}.log")
 
-      previous_path = Application.get_env(:slipdock, :login_fallback_path)
+      Slipdock.TestConfig.put(:login_fallback_path, path)
+      on_exit(fn -> File.rm(path) end)
 
-      Application.put_env(:slipdock, :login_fallback_path, path)
-
-      on_exit(fn ->
-        Application.put_env(:slipdock, :login_fallback_path, previous_path)
-        File.rm(path)
-      end)
-
-      {:ok, _} = Access.grant(board, "newcomer@example.com", "read", alice)
+      {:ok, _} = Access.grant(board, fixture_email("newcomer@example.com"), "read", alice)
 
       # They exist, and the way in is somewhere the inviter can read it — an
       # account created in silence is worse than no account.
-      assert Accounts.get_user_by_email("newcomer@example.com")
-      assert File.read!(path) =~ "newcomer@example.com"
+      assert Accounts.get_user_by_email(fixture_email("newcomer@example.com"))
+      assert File.read!(path) =~ fixture_email("newcomer@example.com")
     end
   end
 end

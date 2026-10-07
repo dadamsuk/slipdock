@@ -4,6 +4,8 @@ defmodule SlipdockWeb.API.DeviceFlowTest do
   prevent: approving without being signed in, approving by following a link,
   reusing a code, and learning which codes exist by polling.
   """
+  # Sync: turns rate limiting on, and the counts are one table for the node
+  # (RateLimit.reset/0 clears everybody's).
   use SlipdockWeb.ConnCase, async: false
 
   import Slipdock.Fixtures

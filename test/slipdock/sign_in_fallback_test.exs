@@ -4,6 +4,7 @@ defmodule Slipdock.SignInFallbackTest do
   that lets a fresh install be used at all, and a back door on a server other
   people can reach.
   """
+  # Sync: changes the Logger level, which is the whole node's.
   use Slipdock.DataCase, async: false
 
   import Slipdock.Fixtures

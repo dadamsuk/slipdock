@@ -6,7 +6,7 @@ defmodule Slipdock.QuotaLimitsTest do
   The free tier's own allowance is in `Slipdock.QuotaTest`; this file is about
   the parts that apply whether or not anybody is paying for anything.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
 

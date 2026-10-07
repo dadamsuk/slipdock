@@ -5,7 +5,7 @@ defmodule Slipdock.HotPathsTest do
   dependencies — must answer exactly what the one-at-a-time versions do. And an
   import must leave what writing by hand leaves: revisions and backlinks.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
 

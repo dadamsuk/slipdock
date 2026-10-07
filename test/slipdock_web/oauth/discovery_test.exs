@@ -4,6 +4,8 @@ defmodule SlipdockWeb.OAuth.DiscoveryTest do
   client reads first, and `POST /oauth/register` with the redirect-URI rules
   and rate limit that keep it from being a way to send codes anywhere.
   """
+  # Sync: turns rate limiting on, and the counts are one table for the node
+  # (RateLimit.reset/0 clears everybody's).
   use SlipdockWeb.ConnCase, async: false
 
   alias Slipdock.OAuth

@@ -1,12 +1,12 @@
 defmodule Slipdock.AttachmentsTest do
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
   alias Slipdock.Boards
   alias Slipdock.Boards.Attachment
 
   setup do
-    File.rm_rf!(Boards.uploads_dir())
+    Slipdock.TestConfig.own_uploads_dir()
     board = board_fixture()
     [col | _] = board.columns
     card = card_fixture(col)

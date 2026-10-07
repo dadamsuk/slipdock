@@ -104,8 +104,13 @@ and each of those shares something the database cannot roll back:
 - **`Slipdock.Search.Indexer`** — one queue for the whole node. Sandbox setup
   empties it before each test (`Indexer.reset/0`), which is enough to keep
   tests independent but not enough to let two assert on it at once.
-- **The uploads directory** — five files `File.rm_rf!` it in setup, and it is
-  one real directory on disk.
+- **The uploads directory** is one real directory on disk; a test that looks
+  at or clears what is in it calls `Slipdock.TestConfig.own_uploads_dir/0`
+  and gets an empty one of its own.
+
+What is still sync shares something there is no per-test copy of: rate-limit
+counts, the Logger level, OS environment variables, the search indexer's
+queue, or real board codes. Each such file says which above its `use` line.
 
 Do not flip one of those to `async: true` without removing the sharing first.
 Shared values cost time even when nothing fails. While every test inserted

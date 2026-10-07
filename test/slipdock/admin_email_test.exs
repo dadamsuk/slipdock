@@ -4,6 +4,8 @@ defmodule Slipdock.AdminEmailTest do
   approval notices, the warnings — so a typo is a silent lock-out, and a change
   nobody notices is a quiet takeover.
   """
+  # Sync: turns rate limiting on, and the counts are one table for the node
+  # (RateLimit.reset/0 clears everybody's).
   use Slipdock.DataCase, async: false
 
   import Slipdock.Fixtures

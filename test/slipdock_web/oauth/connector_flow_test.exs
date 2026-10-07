@@ -7,7 +7,7 @@ defmodule SlipdockWeb.OAuth.ConnectorFlowTest do
   Each step reads the address of the next from the previous answer, the way a
   client must, so a broken link anywhere in the chain fails here.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Ecto.Query
   import Slipdock.Fixtures
@@ -18,8 +18,7 @@ defmodule SlipdockWeb.OAuth.ConnectorFlowTest do
   @redirect "https://claude.ai/api/mcp/auth_callback"
 
   setup %{conn: conn, user: user} do
-    Slipdock.RateLimit.reset()
-    board = board_fixture(%{"name" => "Delivery", "code" => "delivery"}, owner: user)
+    board = board_fixture(%{"name" => "Delivery"}, owner: user)
 
     verifier = Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
     challenge = Base.url_encode64(:crypto.hash(:sha256, verifier), padding: false)
@@ -170,7 +169,7 @@ defmodule SlipdockWeb.OAuth.ConnectorFlowTest do
     assert me["isError"] == false
     assert me["structuredContent"]["user"]["email"] == ctx.user.email
 
-    made = call_tool(access, "create_card", %{board: "delivery", title: "From claude.ai"})
+    made = call_tool(access, "create_card", %{board: ctx.board.code, title: "From claude.ai"})
     assert made["isError"] == false
     id = made["structuredContent"]["id"]
 
@@ -212,11 +211,11 @@ defmodule SlipdockWeb.OAuth.ConnectorFlowTest do
 
     assert call_tool(access, "list_boards", %{})["isError"] == false
 
-    refused = call_tool(access, "create_card", %{board: "delivery", title: "Sneaky"})
+    refused = call_tool(access, "create_card", %{board: ctx.board.code, title: "Sneaky"})
     assert refused["isError"] == true
     assert hd(refused["content"])["text"] =~ "read-only"
 
-    assert call_tool(access, "list_cards", %{board: "delivery"})["structuredContent"]["cards"] ==
+    assert call_tool(access, "list_cards", %{board: ctx.board.code})["structuredContent"]["cards"] ==
              []
   end
 end

@@ -6,7 +6,7 @@ defmodule SlipdockWeb.SearchBoxLiveTest do
   (`.search-box` / `.search-open`, `sm:hidden` on the button), so these
   tests check the classes and the button's client-side command.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
