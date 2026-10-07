@@ -21,8 +21,8 @@ defmodule SlipdockWeb.BoardRefsTest do
   setup do
     alice = user_fixture("alice@example.com")
     bob = user_fixture("bob@example.com")
-    alices = board_fixture(%{"name" => "Personal"}, owner: alice)
-    bobs = board_fixture(%{"name" => "Personal"}, owner: bob)
+    alices = board_fixture(%{"name" => "Personal"}, owner: alice, derive_keys: true)
+    bobs = board_fixture(%{"name" => "Personal"}, owner: bob, derive_keys: true)
 
     %{alice: alice, bob: bob, alices: alices, bobs: bobs}
   end

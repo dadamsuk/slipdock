@@ -8,9 +8,9 @@ defmodule SlipdockWeb.ShortcutsLiveTest do
 
   describe "a board's shortcut key" do
     test "is taken from the name, and steps aside when one is claimed" do
-      a = board_fixture(%{"name" => "Marketing"})
-      b = board_fixture(%{"name" => "Money"})
-      c = board_fixture(%{"name" => "Mmm"})
+      a = board_fixture(%{"name" => "Marketing"}, derive_keys: true)
+      b = board_fixture(%{"name" => "Money"}, derive_keys: true)
+      c = board_fixture(%{"name" => "Mmm"}, derive_keys: true)
 
       assert a.shortcut == "m"
       # "Money" wants m, which is gone, so its next letter takes it.
@@ -20,7 +20,7 @@ defmodule SlipdockWeb.ShortcutsLiveTest do
     end
 
     test "sub-boards get none — the switcher only lists boards" do
-      board = board_fixture(%{"name" => "Roadmap"})
+      board = board_fixture(%{"name" => "Roadmap"}, derive_keys: true)
       [column | _] = board.columns
       card = card_fixture(column, %{"title" => "Epic"})
       {:ok, t} = Boards.find_template("Simple")
@@ -31,7 +31,7 @@ defmodule SlipdockWeb.ShortcutsLiveTest do
     end
 
     test "can be set by hand, and clearing it asks for a fresh one" do
-      board = board_fixture(%{"name" => "Roadmap"})
+      board = board_fixture(%{"name" => "Roadmap"}, derive_keys: true)
 
       {:ok, board} = Boards.update_board(board, %{"shortcut" => "Z"})
       assert board.shortcut == "z"
@@ -45,8 +45,8 @@ defmodule SlipdockWeb.ShortcutsLiveTest do
     end
 
     test "is refused when it is another board's, or is not a key" do
-      board_fixture(%{"name" => "Roadmap"})
-      other = board_fixture(%{"name" => "Plans"})
+      board_fixture(%{"name" => "Roadmap"}, derive_keys: true)
+      other = board_fixture(%{"name" => "Plans"}, derive_keys: true)
 
       assert {:error, changeset} = Boards.update_board(other, %{"shortcut" => "r"})
       assert {"is already used by another board", _} = changeset.errors[:shortcut]
@@ -73,13 +73,13 @@ defmodule SlipdockWeb.ShortcutsLiveTest do
 
   describe "the palettes" do
     setup %{conn: conn} do
-      board = board_fixture(%{"name" => "Roadmap"})
+      board = board_fixture(%{"name" => "Roadmap"}, derive_keys: true)
       {:ok, view, _} = live(conn, ~p"/boards/#{board}")
       %{board: board, view: view}
     end
 
     test "b lists every board you can open, with its key", %{view: view, board: board} do
-      other = board_fixture(%{"name" => "Personal"})
+      other = board_fixture(%{"name" => "Personal"}, derive_keys: true)
 
       html = render_hook(view, "shortcut_panel", %{"panel" => "boards"})
       assert html =~ "Switch board"
@@ -150,7 +150,7 @@ defmodule SlipdockWeb.ShortcutsLiveTest do
     end
 
     test "Ctrl-O finds cards on any board you can open", %{view: view, board: board} do
-      other = board_fixture(%{"name" => "Personal"})
+      other = board_fixture(%{"name" => "Personal"}, derive_keys: true)
       card = card_fixture(hd(board.columns), %{"title" => "Query parser"})
       far = card_fixture(hd(other.columns), %{"title" => "Query the far board"})
 
@@ -167,7 +167,7 @@ defmodule SlipdockWeb.ShortcutsLiveTest do
 
     test "a card on a board you cannot open is not found", %{view: view} do
       stranger = user_fixture("stranger@example.com")
-      theirs = board_fixture(%{"name" => "Theirs"}, owner: stranger)
+      theirs = board_fixture(%{"name" => "Theirs"}, owner: stranger, derive_keys: true)
       card_fixture(hd(theirs.columns), %{"title" => "Secret parser"})
 
       render_hook(view, "shortcut_panel", %{"panel" => "find"})
@@ -191,7 +191,7 @@ defmodule SlipdockWeb.ShortcutsLiveTest do
   end
 
   test "the board settings form offers the key", %{conn: conn} do
-    board = board_fixture(%{"name" => "Roadmap"})
+    board = board_fixture(%{"name" => "Roadmap"}, derive_keys: true)
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/settings")
 
     assert has_element?(view, ~s{#board-form input[name="board[shortcut]"]})

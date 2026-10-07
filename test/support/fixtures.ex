@@ -11,21 +11,47 @@ defmodule Slipdock.Fixtures do
     user
   end
 
-  @doc "Creates a board owned by `opts[:owner]` (default: the default test user)."
+  @doc """
+  Creates a board owned by `opts[:owner]` (default: the default test user).
+
+  Unless `attrs` names them, the board gets a code and shortcut unique to this
+  test run rather than ones derived from its name. Async tests each run in an
+  uncommitted sandbox transaction, so two of them deriving the same code or
+  shortcut ("Private" → `private`, `p`) block on each other's unique index,
+  and with a fixed user email held the other way round that is a deadlock.
+  Pass `derive_keys: true` for a test about that derivation itself.
+  """
   def board_fixture(attrs \\ %{}, opts \\ []) do
     owner = opts[:owner] || user_fixture()
+    n = System.unique_integer([:positive])
+
+    defaults =
+      if opts[:derive_keys],
+        do: %{"name" => "Board #{n}"},
+        else: %{
+          "name" => "Board #{n}",
+          "code" => unique_code(n),
+          "shortcut" => unique_shortcut(n)
+        }
 
     {:ok, board} =
       Boards.create_board(
-        Map.merge(
-          %{"name" => "Board #{System.unique_integer([:positive])}"},
-          attrs
-        ),
+        Map.merge(defaults, attrs),
         template: opts[:template],
         owner_id: owner.id
       )
 
     Boards.get_board!(board.id)
+  end
+
+  @shortcut_chars Enum.map(~c"abcdefghijklmnopqrstuvwxyz0123456789", &<<&1>>)
+
+  defp unique_code(n), do: "t" <> String.downcase(Integer.to_string(n, 36))
+
+  # Two characters, so never one a name-derived single-letter shortcut takes.
+  defp unique_shortcut(n) do
+    i = rem(n, 36 * 36)
+    Enum.at(@shortcut_chars, div(i, 36)) <> Enum.at(@shortcut_chars, rem(i, 36))
   end
 
   @doc """

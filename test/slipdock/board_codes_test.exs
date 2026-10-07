@@ -42,7 +42,7 @@ defmodule Slipdock.BoardCodesTest do
 
   describe "creating a board" do
     test "generates a code from the name" do
-      board = board_fixture(%{"name" => "QVM V1 Remediation"})
+      board = board_fixture(%{"name" => "QVM V1 Remediation"}, derive_keys: true)
       assert board.code == "qvm-v1-rem"
     end
 
@@ -59,8 +59,8 @@ defmodule Slipdock.BoardCodesTest do
     end
 
     test "two boards with the same name get different codes" do
-      a = board_fixture(%{"name" => "QVM V1 Remediation"})
-      b = board_fixture(%{"name" => "QVM V1 Remediation"})
+      a = board_fixture(%{"name" => "QVM V1 Remediation"}, derive_keys: true)
+      b = board_fixture(%{"name" => "QVM V1 Remediation"}, derive_keys: true)
       assert a.code == "qvm-v1-rem"
       assert b.code == "qvm-v1-re2"
     end
@@ -77,7 +77,7 @@ defmodule Slipdock.BoardCodesTest do
     end
 
     test "sub-boards get a code of their own" do
-      board = board_fixture(%{"name" => "Parent"})
+      board = board_fixture(%{"name" => "Parent"}, derive_keys: true)
       card = card_fixture(hd(board.columns), %{"title" => "Query parser work"})
       template = hd(Boards.list_templates())
 
@@ -88,7 +88,7 @@ defmodule Slipdock.BoardCodesTest do
 
   describe "updating a board" do
     setup do
-      %{board: board_fixture(%{"name" => "QVM V1 Remediation"})}
+      %{board: board_fixture(%{"name" => "QVM V1 Remediation"}, derive_keys: true)}
     end
 
     test "the code can be edited", %{board: board} do
@@ -121,7 +121,7 @@ defmodule Slipdock.BoardCodesTest do
 
   describe "finding a board" do
     test "by code, id and name" do
-      board = board_fixture(%{"name" => "QVM V1 Remediation"})
+      board = board_fixture(%{"name" => "QVM V1 Remediation"}, derive_keys: true)
 
       assert {:ok, %{id: id}} = Boards.find_board("qvm-v1-rem")
       assert id == board.id
@@ -144,7 +144,7 @@ defmodule Slipdock.BoardCodesTest do
 
   describe "suggest_code/2" do
     test "skips codes that are already in the database" do
-      board = board_fixture(%{"name" => "QVM V1 Remediation"})
+      board = board_fixture(%{"name" => "QVM V1 Remediation"}, derive_keys: true)
 
       assert Boards.suggest_code("QVM V1 Remediation") == "qvm-v1-re2"
       assert Boards.suggest_code("QVM V1 Remediation", board.id) == "qvm-v1-rem"
