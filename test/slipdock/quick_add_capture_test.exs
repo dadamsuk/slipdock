@@ -1,5 +1,5 @@
 defmodule Slipdock.QuickAddCaptureTest do
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
 
@@ -9,7 +9,6 @@ defmodule Slipdock.QuickAddCaptureTest do
   @today ~D[2026-09-28]
 
   setup do
-    Slipdock.AIStub.share()
     user = user_fixture()
     board = board_fixture(%{"name" => "Plan"})
     tag_fixture(board, "docs")

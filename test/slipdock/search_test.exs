@@ -4,6 +4,8 @@ defmodule Slipdock.SearchTest do
   bag-of-words stand-in, which shares the one property that matters here:
   texts with words in common score higher than texts without.
   """
+  # Sync: drives `Slipdock.Search.Indexer`, one queue for the node in a process
+  # started at boot, so the AI stub has to be shared (see CONTRIBUTING.md).
   use Slipdock.DataCase, async: false
 
   import Slipdock.Fixtures

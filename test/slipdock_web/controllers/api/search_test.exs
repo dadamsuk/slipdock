@@ -1,12 +1,11 @@
 defmodule SlipdockWeb.API.SearchTest do
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Slipdock.Fixtures
 
   alias Slipdock.{Access, Boards, Search}
 
   setup %{user: user} do
-    Slipdock.AIStub.share()
     Slipdock.AIStub.stub_embeddings()
 
     board = board_fixture(%{"name" => "Delivery", "code" => "delivery"}, owner: user)

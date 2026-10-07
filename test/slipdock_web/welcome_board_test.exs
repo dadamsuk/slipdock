@@ -4,6 +4,8 @@ defmodule SlipdockWeb.WelcomeBoardTest do
   the first time, which builds one and lands on it, and asking for one over
   the API for an account that has been here before.
   """
+  # Sync: drives `Slipdock.Search.Indexer`, one queue for the node in a process
+  # started at boot, so the AI stub has to be shared (see CONTRIBUTING.md).
   use SlipdockWeb.ConnCase, async: false
 
   alias Slipdock.{Access, Accounts, Onboarding}

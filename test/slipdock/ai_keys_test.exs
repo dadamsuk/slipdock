@@ -4,7 +4,7 @@ defmodule Slipdock.AIKeysTest do
   picks one for a call, and that a person without a key is declined rather
   than quietly spending someone else's.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
 
@@ -12,21 +12,13 @@ defmodule Slipdock.AIKeysTest do
   alias Slipdock.AI.Keys
 
   setup do
-    Slipdock.AIStub.share()
-
     # A file of this test's own, and no shared key unless a test asks for one:
     # the point of most of these is what happens when nobody has a key.
-    previous = Application.get_env(:slipdock, :ai)
     file = Path.join(System.tmp_dir!(), "ai_keys_#{System.unique_integer([:positive])}.json")
 
-    Application.put_env(
-      :slipdock,
-      :ai,
-      previous |> Keyword.put(:key_file, file) |> Keyword.put(:api_key, nil)
-    )
+    Slipdock.TestConfig.merge(:ai, key_file: file, api_key: nil)
 
     on_exit(fn ->
-      Application.put_env(:slipdock, :ai, previous)
       File.rm(file)
       Enum.each(Path.wildcard(file <> "*.tmp"), &File.rm/1)
     end)
@@ -39,10 +31,7 @@ defmodule Slipdock.AIKeysTest do
   defp make_admin(user),
     do: user |> Ecto.Changeset.change(admin: true) |> Slipdock.Repo.update!()
 
-  defp shared_key(key), do: Application.put_env(:slipdock, :ai, shared_config(key))
-
-  defp shared_config(key),
-    do: Application.get_env(:slipdock, :ai) |> Keyword.put(:api_key, key)
+  defp shared_key(key), do: Slipdock.TestConfig.merge(:ai, api_key: key)
 
   describe "the store" do
     test "a key round-trips, and the file is readable only by its owner", ctx do
@@ -178,11 +167,7 @@ defmodule Slipdock.AIKeysTest do
 
       assert Keys.system_key() == nil
 
-      Application.put_env(
-        :slipdock,
-        :ai,
-        Keyword.put(Application.get_env(:slipdock, :ai), :system_user, "OTHER@example.com")
-      )
+      Slipdock.TestConfig.merge(:ai, system_user: "OTHER@example.com")
 
       assert Keys.system_key() == "sk-other"
     end
@@ -277,11 +262,7 @@ defmodule Slipdock.AIKeysTest do
       admin = make_admin(user_fixture("admin@example.com"))
       :ok = Keys.put(admin, "sk-admin")
 
-      Application.put_env(
-        :slipdock,
-        :ai,
-        Keyword.put(Application.get_env(:slipdock, :ai), :system_user, "admin@example.com")
-      )
+      Slipdock.TestConfig.merge(:ai, system_user: "admin@example.com")
 
       board = board_fixture(%{"name" => "Launch"}, owner: ctx.user)
 

@@ -5,6 +5,8 @@ defmodule Slipdock.OnboardingTest do
   features, its pages have to keep rendering. A `[[link]]` to a page somebody
   renamed, or a query block with a typo in it, is a broken welcome.
   """
+  # Sync: drives `Slipdock.Search.Indexer`, one queue for the node in a process
+  # started at boot, so the AI stub has to be shared (see CONTRIBUTING.md).
   use Slipdock.DataCase, async: false
 
   import Slipdock.Fixtures

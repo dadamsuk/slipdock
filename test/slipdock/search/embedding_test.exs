@@ -5,6 +5,8 @@ defmodule Slipdock.Search.EmbeddingTest do
   every way the embedding model can let it down. The model is
   `Slipdock.AIStub` throughout; nothing leaves the machine.
   """
+  # Sync: drives `Slipdock.Search.Indexer`, one queue for the node in a process
+  # started at boot, so the AI stub has to be shared (see CONTRIBUTING.md).
   use Slipdock.DataCase, async: false
 
   import ExUnit.CaptureLog

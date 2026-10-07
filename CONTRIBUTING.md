@@ -93,10 +93,9 @@ and each of those shares something the database cannot roll back:
   email held the other way round Postgres calls it a deadlock. Leave codes to
   the fixtures, which make them unique.
 - **`AIStub.share/0`** — it calls `Req.Test.set_req_test_to_shared()`, which
-  makes the stub global. A test needs it when the code under test runs in
-  another process (any LiveView), and two such tests at once would overwrite
-  each other's scripted answers. The stub is per-process without it, so a test
-  that only calls the model in its own process can stay async.
+  makes the stub global. LiveViews and tasks do not need it (they find the
+  test's stub through `$callers`); only code running in a process started at
+  boot does, which in practice means the search indexer.
 - **`Slipdock.Search.Indexer`** — one queue for the whole node. Sandbox setup
   empties it before each test (`Indexer.reset/0`), which is enough to keep
   tests independent but not enough to let two assert on it at once.

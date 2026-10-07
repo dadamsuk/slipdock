@@ -1,4 +1,5 @@
 defmodule Slipdock.AutomationsTest do
+  # Sync until #361: its fixed user emails deadlock with other async tests.
   use Slipdock.DataCase, async: false
 
   import Slipdock.Fixtures
@@ -1038,7 +1039,6 @@ defmodule Slipdock.AutomationsTest do
 
   describe "Parser" do
     setup do
-      Slipdock.AIStub.share()
       :ok
     end
 

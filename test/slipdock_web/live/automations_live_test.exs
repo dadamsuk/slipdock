@@ -1,5 +1,5 @@
 defmodule SlipdockWeb.AutomationsLiveTest do
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
@@ -7,7 +7,6 @@ defmodule SlipdockWeb.AutomationsLiveTest do
   alias Slipdock.Automations
 
   setup do
-    Slipdock.AIStub.share()
     board = board_fixture(%{"name" => "Launch"})
     [backlog, doing, _review, done] = board.columns
     %{board: board, backlog: backlog, doing: doing, done: done}

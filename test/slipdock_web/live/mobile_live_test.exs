@@ -8,7 +8,7 @@ defmodule SlipdockWeb.MobileLiveTest do
   server from the window width, so these tests mount with a phone's width in
   the connect params and check that the right thing came back.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
@@ -324,8 +324,6 @@ defmodule SlipdockWeb.MobileLiveTest do
     end
 
     test "quick add opens from it and puts a card on the default board", %{conn: conn} do
-      Slipdock.AIStub.share()
-
       Slipdock.AIStub.reply_with(%{
         "title" => "Caught on the train",
         "column" => "To Do",

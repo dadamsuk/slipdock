@@ -1,12 +1,11 @@
 defmodule SlipdockWeb.AILiveTest do
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
   alias Slipdock.Boards
 
   setup do
-    Slipdock.AIStub.share()
     board = board_fixture(%{"name" => "Launch"})
     [backlog, _, _, done] = board.columns
     card = card_fixture(backlog, %{"title" => "Write the plan", "priority" => "low"})
@@ -161,9 +160,7 @@ defmodule SlipdockWeb.AILiveTest do
   end
 
   test "without an API key the AI features are hidden", %{conn: conn, board: board} do
-    previous = Application.get_env(:slipdock, :ai)
-    Application.put_env(:slipdock, :ai, Keyword.put(previous, :api_key, nil))
-    on_exit(fn -> Application.put_env(:slipdock, :ai, previous) end)
+    Slipdock.TestConfig.merge(:ai, api_key: nil)
 
     {:ok, _view, html} = live(conn, ~p"/boards/#{board}/narrative")
     refute html =~ "Generate narrative"
