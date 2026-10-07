@@ -240,33 +240,57 @@ defmodule Slipdock.Settings do
     present?(settings.terms_url) and present?(settings.terms_version)
   end
 
-  @default_posthog_host "https://us.i.posthog.com"
-
   @doc """
-  PostHog, if an admin has filled in a project key: `%{key:, host:, assets:}`,
-  or nil — and nil means nothing about PostHog reaches a browser, neither the
-  script nor a widened Content-Security-Policy.
+  PostHog, if an admin has filled in both a project key and a host:
+  `%{key:, host:, assets:, respect_dnt:}`, or nil — and nil means nothing about
+  PostHog reaches a browser, neither the script nor a widened
+  Content-Security-Policy.
 
-  `host` is where events go (the US cloud when left blank). `assets` is where
-  PostHog's own script is loaded from: for its clouds that is the matching
-  `-assets` host (`eu.i.posthog.com` → `eu-assets.i.posthog.com`), and for a
-  proxy of your own it is the proxy itself, as PostHog's snippet does it.
+  A key *without* a host is deliberately treated as "not configured" rather
+  than quietly defaulting to a region. An EU project pointed at the US cloud
+  (or vice versa) does not error loudly — ingest just 401s and the events
+  vanish — so guessing the region from a blank host is a trap. Blank host, no
+  PostHog; the admin has to say where events go.
+
+  `host` is where events go. `assets` is where PostHog's own `array.js` is
+  loaded from: for its clouds that is the matching `-assets` host
+  (`eu.i.posthog.com` → `eu-assets.i.posthog.com`), and for a proxy of your own
+  it is the host itself — see `posthog_assets/1`.
+
+  `respect_dnt` is the admin's Do-Not-Track choice (on by default), threaded
+  through to the client so a visitor asking not to be tracked is honoured — or
+  not — as the admin decides.
   """
-  @spec posthog() :: %{key: String.t(), host: String.t(), assets: String.t()} | nil
+  @spec posthog() ::
+          %{key: String.t(), host: String.t(), assets: String.t(), respect_dnt: boolean()} | nil
   def posthog, do: posthog(get())
 
-  def posthog(%Instance{posthog_key: key} = settings) when is_binary(key) and key != "" do
-    host =
-      case settings.posthog_host do
-        host when is_binary(host) and host != "" -> String.trim_trailing(host, "/")
-        _ -> @default_posthog_host
-      end
+  def posthog(%Instance{posthog_key: key, posthog_host: host} = settings)
+      when is_binary(key) and key != "" and is_binary(host) and host != "" do
+    host = String.trim_trailing(host, "/")
 
-    %{key: key, host: host, assets: posthog_assets(host)}
+    %{
+      key: key,
+      host: host,
+      assets: posthog_assets(host),
+      respect_dnt: settings.posthog_respect_dnt != false
+    }
   end
 
   def posthog(_settings), do: nil
 
+  # Where `array.js` is loaded from, given where events go. PostHog's own clouds
+  # serve the script from a separate `-assets` host; a self-hosted proxy serves
+  # it from the one host.
+  #
+  # For a custom host the script and the ingest endpoints share one origin
+  # (`assets == host`), so that single origin — the proxy — has to serve BOTH
+  # `/static/array.js` AND the ingest endpoints (`/e/`, `/i/v0/e/`, `/flags`).
+  # A split backend is not needed: `eu.i.posthog.com` already serves
+  # `/static/array.js` itself (a 200), whereas `eu-assets.i.posthog.com` does
+  # not serve `/e/` (a 404) — so a single upstream pointing at the ingest host
+  # satisfies the whole of it, and pointing a custom proxy only at the assets
+  # host would break ingest.
   defp posthog_assets(host) do
     uri = URI.parse(host)
 

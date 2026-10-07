@@ -194,7 +194,21 @@ defmodule Mix.Tasks.Slipdock.Setup do
     Invites create:  #{settings.invites_create_accounts}
     Mail:            #{if Settings.smtp_configured?(), do: "#{settings.smtp_host}:#{settings.smtp_port || 587}", else: "not configured"}
     Sign-in fallback: #{if Settings.login_fallback_enabled?(), do: Accounts.fallback_path(), else: "off"}
+    Analytics:       #{posthog_status()}
     """)
+  end
+
+  # PostHog as the client sees it; the public project key is masked all the
+  # same, and "not configured" is shown when no key or no host is set.
+  defp posthog_status do
+    case Settings.posthog() do
+      nil ->
+        "not configured"
+
+      %{key: key, host: host, assets: assets, respect_dnt: respect_dnt} ->
+        "#{Slipdock.AI.Keys.masked(key)} → #{host} (script from #{assets}; " <>
+          "respect Do-Not-Track: #{respect_dnt})"
+    end
   end
 
   defp allowlist do

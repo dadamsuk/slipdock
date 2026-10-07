@@ -127,7 +127,24 @@ defmodule Slipdock.Release do
     Invites create:   #{settings.invites_create_accounts}
     Mail:             #{if Slipdock.Settings.smtp_configured?(), do: settings.smtp_host, else: "not configured"}
     Sign-in fallback: #{if Slipdock.Settings.login_fallback_enabled?(), do: Slipdock.Accounts.fallback_path(), else: "off"}
+    Analytics:        #{posthog_status()}
     """)
+  end
+
+  # PostHog, as the client would see it. The key is a public project key (it is
+  # rendered into every page's HTML), but it is masked here all the same, the
+  # way the AI keys are — enough of it to recognise, not the whole thing in a
+  # shared terminal. "not configured" when there is no key or no host, which is
+  # exactly when nothing about PostHog reaches a browser.
+  defp posthog_status do
+    case Slipdock.Settings.posthog() do
+      nil ->
+        "not configured"
+
+      %{key: key, host: host, assets: assets, respect_dnt: respect_dnt} ->
+        "#{Slipdock.AI.Keys.masked(key)} → #{host} (script from #{assets}; " <>
+          "respect Do-Not-Track: #{respect_dnt})"
+    end
   end
 
   # For a server that is set up but has nobody who can get into it: makes the

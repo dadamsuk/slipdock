@@ -23,14 +23,27 @@ defmodule SlipdockWeb.PosthogTest do
       assert Settings.posthog() == nil
     end
 
-    test "a key alone means PostHog's US cloud" do
+    test "a key with no host is not configured — the region is never guessed" do
       {:ok, _} = Settings.update(%{"posthog_key" => "phc_abc123"})
 
-      assert Settings.posthog() == %{
+      # A blank host used to default to the US cloud, which silently sent an EU
+      # project's events to the wrong region. It is off instead.
+      assert Settings.posthog() == nil
+    end
+
+    test "the US cloud loads its script from the US assets host" do
+      {:ok, _} =
+        Settings.update(%{
+          "posthog_key" => "phc_abc123",
+          "posthog_host" => "https://us.i.posthog.com"
+        })
+
+      assert %{
                key: "phc_abc123",
                host: "https://us.i.posthog.com",
-               assets: "https://us-assets.i.posthog.com"
-             }
+               assets: "https://us-assets.i.posthog.com",
+               respect_dnt: true
+             } = Settings.posthog()
     end
 
     test "the EU cloud loads its script from the EU assets host" do
@@ -42,6 +55,19 @@ defmodule SlipdockWeb.PosthogTest do
 
       assert %{host: "https://eu.i.posthog.com", assets: "https://eu-assets.i.posthog.com"} =
                Settings.posthog()
+    end
+
+    test "respect_dnt is on by default, and the admin can turn it off" do
+      {:ok, _} =
+        Settings.update(%{
+          "posthog_key" => "phc_abc",
+          "posthog_host" => "https://eu.i.posthog.com"
+        })
+
+      assert %{respect_dnt: true} = Settings.posthog()
+
+      {:ok, _} = Settings.update(%{"posthog_respect_dnt" => "false"})
+      assert %{respect_dnt: false} = Settings.posthog()
     end
 
     test "a proxy of your own serves both" do
@@ -104,6 +130,7 @@ defmodule SlipdockWeb.PosthogTest do
       assert html =~ ~s(content="phc_abc")
       assert html =~ ~s(data-host="https://eu.i.posthog.com")
       assert html =~ ~s(data-assets="https://eu-assets.i.posthog.com")
+      assert html =~ ~s(data-respect-dnt="true")
 
       assert [policy] = policy(conn)
       assert policy =~ "script-src 'self' https://eu-assets.i.posthog.com;"
@@ -143,6 +170,28 @@ defmodule SlipdockWeb.PosthogTest do
       |> render_submit()
 
       assert Settings.posthog() == nil
+    end
+
+    test "the Do-Not-Track choice is saved and threaded to the client", %{
+      conn: conn,
+      admin: admin
+    } do
+      {:ok, view, _} = live(log_in_user(conn, admin), ~p"/config")
+
+      view
+      |> form("#analytics-form", %{
+        "settings" => %{
+          "posthog_key" => "phc_abc",
+          "posthog_host" => "https://eu.i.posthog.com",
+          "posthog_respect_dnt" => "false"
+        }
+      })
+      |> render_submit()
+
+      assert %{respect_dnt: false} = Settings.posthog()
+
+      html = conn |> get(~p"/login") |> html_response(200)
+      assert html =~ ~s(data-respect-dnt="false")
     end
 
     test "a bad host is shown as an error and not saved", %{conn: conn, admin: admin} do

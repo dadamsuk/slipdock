@@ -1245,6 +1245,7 @@ defmodule SlipdockWeb.Layouts do
       content={@posthog.key}
       data-host={@posthog.host}
       data-assets={@posthog.assets}
+      data-respect-dnt={to_string(@posthog.respect_dnt)}
     />
     """
   end
