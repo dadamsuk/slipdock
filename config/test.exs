@@ -111,3 +111,7 @@ config :phoenix_live_view,
 # Sort query params output of verified routes for robust url comparisons
 config :phoenix,
   sort_verified_routes_query_params: true
+
+# Lets a test change a config key for itself alone (`Slipdock.TestConfig`)
+# rather than for every test running alongside it. See `Slipdock.Config`.
+config :slipdock, :config_overrides, true

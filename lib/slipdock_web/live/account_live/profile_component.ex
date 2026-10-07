@@ -26,7 +26,7 @@ defmodule SlipdockWeb.AccountLive.ProfileComponent do
     |> assign(quota: Slipdock.Quota.status(user))
     |> assign(limits: Slipdock.Quota.report(user))
     |> assign(support_sessions: Accounts.support_sessions_for(user))
-    |> assign(source_url: Application.get_env(:slipdock, :source_url))
+    |> assign(source_url: Slipdock.Config.get(:source_url))
   end
 
   @impl true

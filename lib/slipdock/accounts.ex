@@ -298,7 +298,7 @@ defmodule Slipdock.Accounts do
   # The supervisor has a ceiling; a sign-in that finds it full runs inline
   # rather than being dropped, since a lost link strands somebody.
   defp send_later(fun) do
-    if Application.get_env(:slipdock, :sign_in_mail, [])[:async] == false do
+    if Slipdock.Config.get(:sign_in_mail, [])[:async] == false do
       fun.()
     else
       case Task.Supervisor.start_child(Slipdock.TaskSupervisor, fun) do
@@ -356,7 +356,7 @@ defmodule Slipdock.Accounts do
   """
   @spec fallback_path() :: String.t()
   def fallback_path do
-    Application.get_env(:slipdock, :login_fallback_path) ||
+    Slipdock.Config.get(:login_fallback_path) ||
       Path.join(File.cwd!(), "log/sign-in-links.log")
   end
 
@@ -700,7 +700,7 @@ defmodule Slipdock.Accounts do
   `slipdock-agentic-login` directory of its own under the system temp dir.
   """
   def agentic_login_dir do
-    Application.get_env(:slipdock, :agentic_login_dir) ||
+    Slipdock.Config.get(:agentic_login_dir) ||
       Path.join(System.tmp_dir!(), "slipdock-agentic-login")
   end
 
@@ -716,7 +716,7 @@ defmodule Slipdock.Accounts do
   end
 
   @doc "Whether the sign-in page offers the file-based \"Agentic Login\"."
-  def agentic_login_enabled?, do: Application.get_env(:slipdock, :agentic_login, false) == true
+  def agentic_login_enabled?, do: Slipdock.Config.get(:agentic_login, false) == true
 
   # One row, two ways through it: a long token for the link and a short code for
   # typing. Using either consumes the row, so a code cannot outlive its link.

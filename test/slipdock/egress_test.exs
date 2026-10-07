@@ -1,5 +1,5 @@
 defmodule Slipdock.EgressTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   alias Slipdock.Egress
 
@@ -50,22 +50,16 @@ defmodule Slipdock.EgressTest do
   end
 
   describe "the allow list" do
-    setup do
-      previous = Application.get_env(:slipdock, :egress)
-      on_exit(fn -> Application.put_env(:slipdock, :egress, previous) end)
-      %{previous: previous}
-    end
-
-    test "reopens just the ranges named", %{previous: previous} do
-      Application.put_env(:slipdock, :egress, Keyword.put(previous, :allow, ["100.64.0.0/10"]))
+    test "reopens just the ranges named" do
+      Slipdock.TestConfig.merge(:egress, allow: ["100.64.0.0/10"])
 
       assert {:ok, _, _} = Egress.prepare("http://tailnet.test:1234/v1")
       assert {:error, _} = Egress.prepare("http://intranet.test/")
       assert {:error, _} = Egress.prepare("http://127.0.0.1/")
     end
 
-    test ":all switches the check off", %{previous: previous} do
-      Application.put_env(:slipdock, :egress, Keyword.put(previous, :allow, :all))
+    test ":all switches the check off" do
+      Slipdock.TestConfig.merge(:egress, allow: :all)
 
       assert {:ok, _, _} = Egress.prepare("http://127.0.0.1:4000/")
       assert :ok = Egress.check_static("http://localhost/")

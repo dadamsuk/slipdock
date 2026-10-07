@@ -299,7 +299,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
   defp humanise_tls(:never), do: "Never"
   defp humanise_tls(:if_available), do: "If available"
 
-  defp forced_fallback_off?, do: Application.get_env(:slipdock, :login_fallback) == false
+  defp forced_fallback_off?, do: Slipdock.Config.get(:login_fallback) == false
 
   @impl true
   def render(assigns) do

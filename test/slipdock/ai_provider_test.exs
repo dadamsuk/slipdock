@@ -4,38 +4,22 @@ defmodule Slipdock.AIProviderTest do
   a request goes and *what* it asks for, which is what pointing the app at a
   local model server comes down to.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
 
-  alias Slipdock.AI
+  alias Slipdock.{AI, TestConfig}
   alias Slipdock.AI.Keys
 
   setup do
-    previous = Application.get_env(:slipdock, :ai)
     file = Path.join(System.tmp_dir!(), "ai_provider_#{System.unique_integer([:positive])}.json")
-
-    Application.put_env(
-      :slipdock,
-      :ai,
-      previous |> Keyword.put(:key_file, file) |> Keyword.put(:api_key, nil)
-    )
-
-    on_exit(fn ->
-      Application.put_env(:slipdock, :ai, previous)
-      File.rm(file)
-    end)
+    TestConfig.merge(:ai, key_file: file, api_key: nil)
+    on_exit(fn -> File.rm(file) end)
 
     %{user: user_fixture("provider@example.com")}
   end
 
-  defp ai(key, value) do
-    Application.put_env(
-      :slipdock,
-      :ai,
-      Keyword.put(Application.get_env(:slipdock, :ai), key, value)
-    )
-  end
+  defp ai(key, value), do: TestConfig.merge(:ai, [{key, value}])
 
   # Where a call actually went, and what it asked for: the stub reports the
   # host, the path, the model and whether an authorisation header came along.
@@ -254,9 +238,7 @@ defmodule Slipdock.AIProviderTest do
 
     test "SLIPDOCK_EGRESS_ALLOW=all lets anyone use a LAN endpoint", ctx do
       Slipdock.AIStub.stub_models(["local/big"])
-      previous = Application.get_env(:slipdock, :egress)
-      Application.put_env(:slipdock, :egress, Keyword.put(previous, :allow, :all))
-      on_exit(fn -> Application.put_env(:slipdock, :egress, previous) end)
+      TestConfig.merge(:egress, allow: :all)
 
       assert {:ok, _} = AI.models(user: ctx.user, base_url: "http://intranet.test:1234/v1")
     end

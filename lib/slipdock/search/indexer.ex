@@ -240,7 +240,7 @@ defmodule Slipdock.Search.Indexer do
   defp enabled?, do: Process.whereis(__MODULE__) != nil
 
   defp interval do
-    Application.get_env(:slipdock, :search, [])
+    Slipdock.Config.get(:search, [])
     |> Keyword.get(:interval, @default_interval)
   end
 end

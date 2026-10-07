@@ -218,7 +218,7 @@ defmodule Slipdock.Settings do
   @spec login_fallback_enabled?() :: boolean()
   def login_fallback_enabled? do
     cond do
-      Application.get_env(:slipdock, :login_fallback) == false -> false
+      Slipdock.Config.get(:login_fallback) == false -> false
       is_boolean(get().login_fallback_enabled) -> get().login_fallback_enabled
       true -> not smtp_configured?()
     end
@@ -423,9 +423,9 @@ defmodule Slipdock.Settings do
   end
 
   defp seed_attrs do
-    legacy = Application.get_env(:slipdock, :signups, [])
-    configured = Application.get_env(:slipdock, :settings, [])
-    smtp = Application.get_env(:slipdock, :seed_smtp, [])
+    legacy = Slipdock.Config.get(:signups, [])
+    configured = Slipdock.Config.get(:settings, [])
+    smtp = Slipdock.Config.get(:seed_smtp, [])
 
     mode =
       cond do
@@ -477,7 +477,7 @@ defmodule Slipdock.Settings do
   end
 
   defp seed_allowlist do
-    for entry <- Application.get_env(:slipdock, :signups, [])[:allow] || [] do
+    for entry <- Slipdock.Config.get(:signups, [])[:allow] || [] do
       add_allowlist_entry(entry)
     end
   end
@@ -539,8 +539,8 @@ defmodule Slipdock.Settings do
   # environment (and a container's environment) can describe a coherent server
   # without writing a row first.
   defp defaults do
-    configured = Application.get_env(:slipdock, :settings, [])
-    legacy = Application.get_env(:slipdock, :signups, [])
+    configured = Slipdock.Config.get(:settings, [])
+    legacy = Slipdock.Config.get(:signups, [])
 
     mode =
       cond do
@@ -576,7 +576,7 @@ defmodule Slipdock.Settings do
 
   defp tap_clear_cache(other), do: other
 
-  defp cache_enabled?, do: Application.get_env(:slipdock, :settings_cache, true) != false
+  defp cache_enabled?, do: Slipdock.Config.get(:settings_cache, true) != false
 
   defp present?(nil), do: false
   defp present?(""), do: false

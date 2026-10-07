@@ -510,7 +510,7 @@ defmodule Slipdock.AI do
       [
         # OpenRouter shows this on the key owner's dashboard, so it should
         # name the instance making the call, not whoever wrote the code.
-        {"http-referer", Application.get_env(:slipdock, :source_url, "")},
+        {"http-referer", Slipdock.Config.get(:source_url, "")},
         {"x-title", "Slipdock"}
       ]
   end
@@ -546,5 +546,5 @@ defmodule Slipdock.AI do
 
   def api_error(status, _), do: "The model refused the request (HTTP #{status})."
 
-  defp config, do: Application.get_env(:slipdock, :ai, [])
+  defp config, do: Slipdock.Config.get(:ai, [])
 end

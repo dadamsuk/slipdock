@@ -53,5 +53,5 @@ defmodule Slipdock.Automations.Scheduler do
   end
 
   defp interval,
-    do: Application.get_env(:slipdock, :automations, [])[:interval] || @default_interval
+    do: Slipdock.Config.get(:automations, [])[:interval] || @default_interval
 end

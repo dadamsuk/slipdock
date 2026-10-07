@@ -79,6 +79,11 @@ transaction, so **new tests should be `async: true`**. Around a third are not,
 and each of those shares something the database cannot roll back:
 
 - **`Application.put_env` / `System.put_env`** — one env for the whole node.
+  For the app's own config there is no need: read it with
+  `Slipdock.Config.get/2`, and in the test call
+  `Slipdock.TestConfig.put/2` or `merge/2`, which change it for that test and
+  the processes it starts only. A process started at boot (the indexer, the
+  automation scheduler) does not see the override.
 - **Anything writing `Slipdock.Settings`** — the row is cached in
   `:persistent_term`, which is shared between processes, so one test's
   uncommitted settings would be read by another.

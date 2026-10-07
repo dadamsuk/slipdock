@@ -84,7 +84,7 @@ defmodule Slipdock.Onboarding do
   end
 
   @doc "Whether the automatic half is switched on for this server."
-  def enabled?, do: Application.get_env(:slipdock, :welcome_board, true) == true
+  def enabled?, do: Slipdock.Config.get(:welcome_board, true) == true
 
   @doc "Whether this account already has a board of this name, archived or not."
   def exists_for?(%User{id: id}) do

@@ -234,5 +234,5 @@ defmodule Slipdock.Egress do
 
   defp pack(parts, size), do: Enum.reduce(parts, 0, &(&2 <<< size ||| &1))
 
-  defp config, do: Application.get_env(:slipdock, :egress, [])
+  defp config, do: Slipdock.Config.get(:egress, [])
 end
