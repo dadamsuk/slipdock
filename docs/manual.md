@@ -82,8 +82,8 @@ way in: what it is, the pictures, and how to get it running.
   compact table, sorted your way (see [Your boards](#your-boards))
 - Board templates (named sets of lists) for new boards and sub-boards, with
   an editor at `/templates`
-- A phone-specific layout below 640px: a bottom bar with quick add in the
-  thumb zone, the board as a one-list pager, and the calendar, swimlanes,
+- A phone-specific layout below 640px: a floating navigation button with
+  quick add in the thumb zone, the board as a one-list pager, and the calendar, swimlanes,
   timeline, table and Prioritise rendered for a narrow screen rather than
   scrolled sideways (see [On a phone](#on-a-phone))
 - Filter bar: full-text search, kind (cards / documents / wiki pages), tag,
@@ -785,13 +785,16 @@ Below 640px the app is not the desktop shrunk. The server is told the window
 width when the socket connects (and again when the device is turned), and the
 views that cannot survive being narrowed render something else instead.
 
-- **A bottom bar** carries the app's navigation within reach of a thumb:
-  Menu, My work, **Add**, Alerts, Favourites. On a desktop these live in the
+- **A floating button** in the bottom-left corner carries the app's
+  navigation within reach of a thumb. Tap it and a row flies out along the
+  bottom edge: Menu, My work, **Add**, Alerts, Favourites; tap it again, or
+  anywhere else, and the row folds away, so the page runs to the bottom of
+  the screen. A dot on the button means alerts are waiting. On a desktop these live in the
   avatar menu and the header; on a phone that is a stretch to the far corner
   and a hunt through a menu. Templates had the fifth slot and gave it up: a
   template is something you reach for when making a board, which is rare, and
   a favourite is something you reach for all day.
-- **Menu**, at the left of that bar, is the header's menus in one: on a
+- **Menu**, first in that row, is the header's menus in one: on a
   board, its own entries first (chat about the page with AI, share, tags,
   activity, archived cards, automations, board settings), then everything the
   avatar menu holds — Boards, Wiki, Search, Ask, Templates, Account, the

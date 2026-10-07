@@ -172,7 +172,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
     >
       <.icon name="hero-chat-bubble-left-ellipsis" class="size-4" />
     </button>
-    <%!-- On a phone this and the chat are the bottom bar's Menu
+    <%!-- On a phone this and the chat are the floating navigation's Menu
           (board_menu/1), leaving the header the room for the board's name. --%>
     <div :if={!@view_only and !@card_only} class="dropdown dropdown-end hidden sm:block">
       <div tabindex="0" role="button" class="btn btn-ghost btn-sm btn-square" title="More">
@@ -201,7 +201,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :rules, :list, required: true
 
   @doc """
-  The board's entries in the phone's bottom-bar Menu: what the header's
+  The board's entries in the phone's navigation Menu: what the header's
   chat button and `…` menu hold on a wider screen, which a phone hides.
   """
   def board_menu(assigns) do

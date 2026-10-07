@@ -8,8 +8,8 @@ defmodule Slipdock.Favourites do
   phone that is three or four taps every time, and the last one is a hunt.
 
   Marking something a favourite puts it on `/favourites`, which is a tab of
-  the phone's bottom bar — so anything you go back to often is two taps from
-  anywhere: the tab, then the thing.
+  the phone's floating navigation — so anything you go back to often is a
+  few taps from anywhere: the button, the tab, then the thing.
 
   Favourites belong to the person, not the board. Two people on the same
   board keep different ones, and sharing a board never hands anyone else's
