@@ -86,4 +86,16 @@ defmodule Slipdock.ConfigTest do
     TestConfig.merge(@key, a: 1)
     assert Config.get(@key) == [a: 1]
   end
+
+  test "own_uploads_dir/0 points the uploads at an empty directory of this test's own" do
+    dir = TestConfig.own_uploads_dir()
+
+    assert Slipdock.Boards.uploads_dir() == dir
+    refute dir == Application.get_env(:slipdock, :uploads_dir)
+    refute File.exists?(dir)
+
+    # What the test starts writes there too; asking again gives a fresh one.
+    assert Task.async(fn -> Config.get(:uploads_dir) end) |> Task.await() == dir
+    refute TestConfig.own_uploads_dir() == dir
+  end
 end

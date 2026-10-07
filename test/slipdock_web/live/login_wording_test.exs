@@ -6,7 +6,7 @@ defmodule SlipdockWeb.LoginWordingTest do
   particular address has an account here. What kind of server this is may be
   said, because that is public anyway and saves people guessing.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
@@ -15,19 +15,23 @@ defmodule SlipdockWeb.LoginWordingTest do
 
   defp set_up(attrs) do
     {:ok, _} =
-      Settings.complete_setup(Map.merge(%{"admin_email" => "admin@example.com"}, attrs))
+      Settings.complete_setup(
+        Map.merge(%{"admin_email" => fixture_email("admin@example.com")}, attrs)
+      )
 
     :ok
   end
 
-  defp mail, do: %{"smtp_host" => "smtp.example.com", "smtp_from_email" => "mail@example.com"}
+  defp mail,
+    do: %{
+      "smtp_host" => "smtp.example.com",
+      "smtp_from_email" => fixture_email("mail@example.com")
+    }
 
   describe "the strapline" do
     @tag :anonymous
     test "an unclaimed server is honest about being unclaimed", %{conn: _conn} do
-      previous = Application.get_env(:slipdock, :settings)
-      Application.put_env(:slipdock, :settings, setup_completed: false)
-      on_exit(fn -> Application.put_env(:slipdock, :settings, previous) end)
+      Slipdock.TestConfig.put(:settings, setup_completed: false)
 
       # /login redirects to the wizard on an unclaimed server, so this is about
       # the stance the page would report, not a page anybody reaches.
@@ -73,7 +77,7 @@ defmodule SlipdockWeb.LoginWordingTest do
       html =
         view
         |> form("#signup-request-form", %{
-          "request" => %{"email" => "hopeful@example.com", "note" => ""}
+          "request" => %{"email" => fixture_email("hopeful@example.com"), "note" => ""}
         })
         |> render_submit()
 
@@ -82,8 +86,8 @@ defmodule SlipdockWeb.LoginWordingTest do
 
     @tag :anonymous
     test "a rejected address is told the same thing as a fresh one", %{conn: conn} do
-      admin = Slipdock.Accounts.get_user_by_email("admin@example.com")
-      {:ok, request} = Slipdock.Accounts.request_signup("nuisance@example.com")
+      admin = Slipdock.Accounts.get_user_by_email(fixture_email("admin@example.com"))
+      {:ok, request} = Slipdock.Accounts.request_signup(fixture_email("nuisance@example.com"))
       {:ok, _} = Slipdock.Accounts.reject_signup(request, admin)
 
       {:ok, view, _} = live(conn, ~p"/login")
@@ -91,7 +95,7 @@ defmodule SlipdockWeb.LoginWordingTest do
       html =
         view
         |> form("#signup-request-form", %{
-          "request" => %{"email" => "nuisance@example.com", "note" => ""}
+          "request" => %{"email" => fixture_email("nuisance@example.com"), "note" => ""}
         })
         |> render_submit()
 
@@ -119,21 +123,21 @@ defmodule SlipdockWeb.LoginWordingTest do
 
       refused =
         view
-        |> form("#login-form", %{"login" => %{"email" => "stranger@example.com"}})
+        |> form("#login-form", %{"login" => %{"email" => fixture_email("stranger@example.com")}})
         |> render_submit()
 
       {:ok, view, _} = live(conn, ~p"/login")
 
       accepted =
         view
-        |> form("#login-form", %{"login" => %{"email" => "member@example.com"}})
+        |> form("#login-form", %{"login" => %{"email" => fixture_email("member@example.com")}})
         |> render_submit()
 
       # Same screen, same words, different address — otherwise the page answers
       # "does this person have an account here?" for anybody who asks.
       assert refused =~ "Check your email"
       assert accepted =~ "Check your email"
-      refute Slipdock.Accounts.get_user_by_email("stranger@example.com")
+      refute Slipdock.Accounts.get_user_by_email(fixture_email("stranger@example.com"))
     end
   end
 end

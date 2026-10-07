@@ -6,6 +6,8 @@ defmodule Slipdock.PortableImportTest do
   rather than hidden, that the card limit is answered before anything is built,
   and that a document from a server where somebody has no account still lands.
   """
+  # Sync: imports make boards whose codes come from the document or the name,
+  # so an async test holding the same code would block or deadlock it.
   use Slipdock.DataCase, async: false
 
   import Ecto.Query

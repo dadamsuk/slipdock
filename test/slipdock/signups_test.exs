@@ -4,6 +4,8 @@ defmodule Slipdock.SignupsTest do
   used as a mailer. Both are off or open in the test environment by default
   (every other test signs in whoever it likes), so these turn them on.
   """
+  # Sync: turns rate limiting on, and the counts are one table for the node
+  # (RateLimit.reset/0 clears everybody's).
   use Slipdock.DataCase, async: false
 
   import Slipdock.Fixtures

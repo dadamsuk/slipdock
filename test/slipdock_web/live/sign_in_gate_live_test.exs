@@ -4,6 +4,8 @@ defmodule SlipdockWeb.SignInGateLiveTest do
   not already know, too many attempts are refused, and every browser response
   carries the Content-Security-Policy.
   """
+  # Sync: turns rate limiting on, and the counts are one table for the node
+  # (RateLimit.reset/0 clears everybody's).
   use SlipdockWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest

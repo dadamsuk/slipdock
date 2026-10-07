@@ -3,6 +3,8 @@ defmodule SlipdockWeb.SetupLiveTest do
   The first-run wizard: the gate around it, the token that stops a passer-by
   claiming the server, and the three steps.
   """
+  # Sync: turns rate limiting on (one table of counts for the node) and
+  # changes the Logger level, which is the node's too.
   use SlipdockWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest

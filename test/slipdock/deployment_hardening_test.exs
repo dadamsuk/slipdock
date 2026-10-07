@@ -4,6 +4,7 @@ defmodule Slipdock.DeploymentHardeningTest do
   shell script or a unit file: arguments from the container's entrypoint, the
   private directory Agentic Login writes to, and the `Secure` session cookie.
   """
+  # Sync: sets OS environment variables (System.put_env), one set per node.
   use SlipdockWeb.ConnCase, async: false
 
   alias Slipdock.{Accounts, Release}

@@ -5,7 +5,7 @@ defmodule SlipdockWeb.OAuth.AuthorizationTest do
   PKCE verifier, a code used twice or late, a redirect URI that was never
   registered, a refusal, a refresh token used twice, and a revoked token.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Ecto.Query
 

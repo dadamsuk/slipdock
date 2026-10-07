@@ -5,7 +5,7 @@ defmodule Slipdock.KindsTest do
   (`Slipdock.Filters`), every other view's (`Slipdock.Swimlanes`) and the card
   listing the API and the CLI go through (`Slipdock.Boards.list_cards/2`).
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
 
@@ -13,7 +13,7 @@ defmodule Slipdock.KindsTest do
   alias Slipdock.Swimlanes.Config
 
   setup do
-    File.rm_rf!(Boards.uploads_dir())
+    Slipdock.TestConfig.own_uploads_dir()
     user = user_fixture("kinds@example.com")
     board = board_fixture(%{"name" => "Kinds"}, owner: user)
     [todo | _] = board.columns

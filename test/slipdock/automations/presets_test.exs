@@ -1,5 +1,5 @@
 defmodule Slipdock.Automations.PresetsTest do
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
   import Swoosh.TestAssertions
@@ -144,7 +144,10 @@ defmodule Slipdock.Automations.PresetsTest do
       {:ok, _} = Boards.update_card(mine, %{"assignee_ids" => [sam.id]})
       theirs = card_fixture(ctx.backlog, %{"title" => "Nobody's"})
 
-      {:ok, _} = add(ctx.board, ctx.owner, "watch_comments", %{"assignee" => "sam@example.com"})
+      {:ok, _} =
+        add(ctx.board, ctx.owner, "watch_comments", %{
+          "assignee" => fixture_email("sam@example.com")
+        })
 
       {:ok, _} = Boards.add_comment(Boards.get_card!(theirs.id), "hello")
       {:ok, _} = Boards.add_comment(Boards.get_card!(mine.id), "hello")

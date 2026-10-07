@@ -3,15 +3,11 @@ defmodule Slipdock.MailerTest do
   Building the mail adapter from the settings row rather than from boot config,
   and turning gen_smtp's failures into something an admin can act on.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   alias Slipdock.{Mailer, Settings}
 
-  defp from_settings(value) do
-    previous = Application.get_env(:slipdock, :mailer_from_settings)
-    Application.put_env(:slipdock, :mailer_from_settings, value)
-    on_exit(fn -> Application.put_env(:slipdock, :mailer_from_settings, previous) end)
-  end
+  defp from_settings(value), do: Slipdock.TestConfig.put(:mailer_from_settings, value)
 
   describe "tls_options/1" do
     test "verifies the relay's certificate and its name by default" do
@@ -24,14 +20,7 @@ defmodule Slipdock.MailerTest do
     end
 
     test "SLIPDOCK_SMTP_TLS_VERIFY=false is the opt-out for a self-signed relay" do
-      previous = Application.get_env(:slipdock, :smtp_tls_verify)
-      Application.put_env(:slipdock, :smtp_tls_verify, false)
-
-      on_exit(fn ->
-        if is_nil(previous),
-          do: Application.delete_env(:slipdock, :smtp_tls_verify),
-          else: Application.put_env(:slipdock, :smtp_tls_verify, previous)
-      end)
+      Slipdock.TestConfig.put(:smtp_tls_verify, false)
 
       assert Mailer.tls_options("smtp.example.com") == [verify: :verify_none]
     end

@@ -6,6 +6,8 @@ defmodule SlipdockWeb.OriginTest do
   refused, LiveView retries forever, and nothing in the browser says why. So
   these are as much about the message as the boolean.
   """
+  # Sync: Origin remembers which hosts it has complained about in
+  # :persistent_term, shared by every test, and these assert on that log line.
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureLog

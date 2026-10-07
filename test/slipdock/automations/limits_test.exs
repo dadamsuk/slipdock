@@ -2,6 +2,8 @@ defmodule Slipdock.Automations.LimitsTest do
   # What one board owner can make this server send: email only to people who
   # can see the board, so many per hour, rules of a bounded size, callbacks
   # metered per board.
+  # Sync: turns rate limiting on, and the counts are one table for the node
+  # (RateLimit.reset/0 clears everybody's).
   use Slipdock.DataCase, async: false
 
   import Slipdock.Fixtures

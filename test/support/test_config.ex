@@ -25,6 +25,18 @@ defmodule Slipdock.TestConfig do
     :ok
   end
 
+  @doc """
+  Gives this test an uploads directory of its own, empty, removed when the
+  test exits — so a test can look at what is on disk without another test's
+  files being there, or wiping its own.
+  """
+  def own_uploads_dir do
+    dir = Path.join(System.tmp_dir!(), "slipdock-uploads-#{System.unique_integer([:positive])}")
+    put(:uploads_dir, dir)
+    ExUnit.Callbacks.on_exit({__MODULE__, :uploads_dir}, fn -> File.rm_rf!(dir) end)
+    dir
+  end
+
   @doc "Merges `opts` into the keyword list `key` currently holds, for this test."
   def merge(key, opts) when is_list(opts) do
     put(key, Keyword.merge(Config.get(key, []), opts))

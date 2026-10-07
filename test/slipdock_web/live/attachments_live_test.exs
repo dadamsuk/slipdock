@@ -1,5 +1,5 @@
 defmodule SlipdockWeb.AttachmentsLiveTest do
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
@@ -11,7 +11,7 @@ defmodule SlipdockWeb.AttachmentsLiveTest do
   defp card_panel(view), do: with_target(view, "#board-card")
 
   setup do
-    File.rm_rf!(Boards.uploads_dir())
+    Slipdock.TestConfig.own_uploads_dir()
     board = board_fixture(%{"name" => "Files board"})
     [backlog | _] = board.columns
     card = card_fixture(backlog, %{"title" => "Spec card"})
