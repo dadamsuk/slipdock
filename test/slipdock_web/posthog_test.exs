@@ -172,6 +172,7 @@ defmodule SlipdockWeb.PosthogTest do
       assert Settings.posthog() == nil
     end
 
+    @tag :anonymous
     test "the Do-Not-Track choice is saved and threaded to the client", %{
       conn: conn,
       admin: admin
