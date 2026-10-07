@@ -387,6 +387,29 @@ defmodule Slipdock.Access do
     )
   end
 
+  @doc """
+  The root boards whose changes `user`'s cross-board pages should hear about:
+  every tree they reach (`reachable_roots/1`) and the trees of pages shared
+  with them on their own. Archived boards are in it — they still show on the
+  index's archived list. See `Slipdock.Boards.subscribe_all/1`.
+  """
+  @spec notice_root_ids(User.t()) :: [integer()]
+  def notice_root_ids(%User{} = user) do
+    group_ids = Accounts.group_ids_for(user)
+
+    pages =
+      from(g in Grant,
+        join: p in Page,
+        on: p.id == g.page_id,
+        join: b in Board,
+        on: b.id == p.board_id,
+        where: g.user_id == ^user.id or g.group_id in ^group_ids,
+        select: coalesce(b.root_id, b.id)
+      )
+
+    user |> reachable_roots() |> union(^pages) |> Repo.all()
+  end
+
   ## Listing what a user can see -----------------------------------------------
 
   @doc """
@@ -716,6 +739,8 @@ defmodule Slipdock.Access do
 
       with {:ok, grant} <- result do
         broadcast_resource(resource)
+        # They are not listening on this tree yet.
+        Boards.notify_users_boards_changed(subject_user_ids(subject))
         {:ok, Repo.preload(grant, [:user, :group, :granted_by])}
       end
     end
@@ -730,7 +755,11 @@ defmodule Slipdock.Access do
         :view -> Repo.get!(SavedView, grant.saved_view_id)
       end
 
-    Repo.delete(grant) |> tap(fn _ -> broadcast_resource(resource) end)
+    Repo.delete(grant)
+    |> tap(fn _ ->
+      broadcast_resource(resource)
+      Boards.notify_users_boards_changed(subject_user_ids(grant))
+    end)
   end
 
   def get_grant!(id), do: Repo.get!(Grant, id)
@@ -857,6 +886,15 @@ defmodule Slipdock.Access do
 
   defp broadcast(board_id) do
     Phoenix.PubSub.broadcast(@pubsub, "board:#{board_id}", {:board_changed, board_id})
-    Phoenix.PubSub.broadcast(@pubsub, "boards", {:boards_changed})
+    Boards.notify_boards_changed(Boards.root_of_board(board_id))
   end
+
+  # The people a grant reaches: its user, or everybody in its group.
+  defp subject_user_ids(%User{id: id}), do: [id]
+  defp subject_user_ids(%Group{id: id}), do: group_member_ids(id)
+  defp subject_user_ids(%Grant{user_id: nil, group_id: id}), do: group_member_ids(id)
+  defp subject_user_ids(%Grant{user_id: id}), do: [id]
+
+  defp group_member_ids(group_id),
+    do: Repo.all(from(m in "group_members", where: m.group_id == ^group_id, select: m.user_id))
 end

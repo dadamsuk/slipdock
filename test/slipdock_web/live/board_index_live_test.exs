@@ -229,10 +229,44 @@ defmodule SlipdockWeb.BoardIndexLiveTest do
     end
   end
 
+  describe "notices from other people's boards (#386)" do
+    # The page's mailbox is watched rather than its queries: it also hears
+    # about templates and alerts, which other tests make all the time.
+    test "do not reach the page at all", %{conn: conn, a: a} do
+      {:ok, view, _html} = live(conn, ~p"/")
+      pid = view.pid
+      :erlang.trace(pid, true, [:receive])
+
+      stranger = user_fixture("stranger@example.com")
+      theirs = board_fixture(%{"name" => "Theirs"}, owner: stranger)
+      {:ok, _} = Boards.update_board(theirs, %{"description" => "changed"})
+      card_fixture(hd(theirs.columns), %{"title" => "Busy"})
+      refute_receive {:trace, ^pid, :receive, {:boards_changed}}, 100
+
+      # While a change of their own does.
+      {:ok, _} = Boards.update_board(a, %{"description" => "changed"})
+      assert_receive {:trace, ^pid, :receive, {:boards_changed}}
+    end
+
+    test "until one is shared, which shows up, and its changes with it",
+         %{conn: conn, user: user} do
+      {:ok, view, _html} = live(conn, ~p"/")
+      stranger = user_fixture("stranger@example.com")
+      theirs = board_fixture(%{"name" => "Theirs"}, owner: stranger)
+      refute render(view) =~ "Theirs"
+
+      {:ok, _} = Access.grant(theirs, user, "read", stranger)
+      assert render(view) =~ "Theirs"
+
+      {:ok, _} = Boards.update_board(theirs, %{"name" => "Renamed"})
+      assert render(view) =~ "Renamed"
+    end
+  end
+
   describe "a flood of board changes" do
-    # "boards" hears about every board on the server, so a busy server can send
-    # the page notices faster than it reloads. It must reload once for the lot
-    # rather than once each, or it falls behind and everything waits on it.
+    # A tree with a lot going on can send the page notices faster than it
+    # reloads. It must reload once for the lot rather than once each, or it
+    # falls behind and everything waits on it.
     test "is read once, and the page is still up to date", %{conn: conn, user: user} do
       {:ok, view, _html} = live(conn, ~p"/")
       queries = count_queries_by(view.pid)
@@ -242,8 +276,7 @@ defmodule SlipdockWeb.BoardIndexLiveTest do
 
       assert render(view) =~ "Delta"
 
-      # One reload is a handful of queries; one per notice is over 6,000. Other
-      # tests running alongside send real notices too, hence the headroom.
+      # One reload is a handful of queries; one per notice is over 6,000.
       assert :counters.get(queries, 1) in 1..1000
     end
 

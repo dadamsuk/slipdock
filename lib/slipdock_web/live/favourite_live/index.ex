@@ -28,8 +28,11 @@ defmodule SlipdockWeb.FavouriteLive.Index do
 
   @impl true
   def mount(_params, _session, socket) do
-    if connected?(socket), do: Slipdock.Boards.subscribe_all()
-    {:ok, socket |> assign(page_title: "Favourites") |> load()}
+    {:ok,
+     socket
+     |> SlipdockWeb.BoardNotices.subscribe()
+     |> assign(page_title: "Favourites")
+     |> load()}
   end
 
   defp load(socket) do
@@ -47,6 +50,7 @@ defmodule SlipdockWeb.FavouriteLive.Index do
   @impl true
   def handle_info({:boards_changed}, socket) do
     Slipdock.Boards.drain_boards_changed()
+    socket = SlipdockWeb.BoardNotices.resubscribe(socket)
     {:noreply, load(socket)}
   end
 

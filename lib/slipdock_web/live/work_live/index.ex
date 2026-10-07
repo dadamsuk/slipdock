@@ -7,13 +7,13 @@ defmodule SlipdockWeb.WorkLive.Index do
 
   import SlipdockWeb.SlipdockComponents
   alias Slipdock.{Access, Boards, Work}
+  alias SlipdockWeb.BoardNotices
 
   @impl true
   def mount(_params, _session, socket) do
-    if connected?(socket), do: Boards.subscribe_all()
-
     {:ok,
      socket
+     |> BoardNotices.subscribe()
      |> assign(
        page_title: "My work",
        show_done: false,
@@ -37,6 +37,7 @@ defmodule SlipdockWeb.WorkLive.Index do
   @impl true
   def handle_info({:boards_changed}, socket) do
     Boards.drain_boards_changed()
+    socket = BoardNotices.resubscribe(socket)
     {:noreply, load(socket)}
   end
 

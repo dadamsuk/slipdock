@@ -26,15 +26,13 @@ defmodule SlipdockWeb.BoardLive.Index do
 
   @impl true
   def mount(_params, _session, socket) do
-    if connected?(socket) do
-      Boards.subscribe_all()
-      Boards.subscribe_templates()
-    end
+    if connected?(socket), do: Boards.subscribe_templates()
 
     user = socket.assigns.current_user
 
     {:ok,
      socket
+     |> SlipdockWeb.BoardNotices.subscribe()
      |> assign(page_title: "Boards", creating: false, new_color: "indigo", template_id: nil)
      |> assign(auto_code: "", source_choices: nil, sources_chosen: %{})
      |> assign(custom_lists: @default_lists, save_template: false, template_name: "")
@@ -111,6 +109,7 @@ defmodule SlipdockWeb.BoardLive.Index do
   @impl true
   def handle_info({:boards_changed}, socket) do
     Boards.drain_boards_changed()
+    socket = SlipdockWeb.BoardNotices.resubscribe(socket)
     {:noreply, load_boards(socket)}
   end
 

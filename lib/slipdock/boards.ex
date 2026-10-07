@@ -46,16 +46,72 @@ defmodule Slipdock.Boards do
   ## PubSub
 
   def subscribe(board_id), do: Phoenix.PubSub.subscribe(@pubsub, topic(board_id))
-  def subscribe_all, do: Phoenix.PubSub.subscribe(@pubsub, "boards")
+
+  @doc """
+  Subscribes the caller to `{:boards_changed}` for the pages that list boards
+  across trees (the board index, My work, Favourites) — but only for the
+  boards `user` can reach, so a change on somebody else's board wakes nobody
+  here.
+
+  A change goes out on its tree's root topic, and a page listens on one per
+  root it can reach (`Slipdock.Access.notice_root_ids/1`), plus one of its
+  own for reach that grows: a new board, a grant, a group joined. Who hears a
+  change is settled by who is subscribed, not worked out when it is sent, so
+  a board deleted or a grant revoked still reaches the people who could see
+  it — they are subscribed until their next reload, which drops it.
+
+  Returns the root ids subscribed to; hand them back to `resubscribe_all/2`
+  after each reload.
+  """
+  def subscribe_all(%User{} = user) do
+    Phoenix.PubSub.subscribe(@pubsub, user_boards_topic(user.id))
+    resubscribe_all(user, MapSet.new())
+  end
+
+  @doc """
+  Brings the root topics `subscribe_all/1` set up into line with what `user`
+  can reach now: subscribed to the roots that have come into reach,
+  unsubscribed from the ones that went. Returns the new set.
+  """
+  def resubscribe_all(%User{} = user, subscribed) do
+    roots = user |> Slipdock.Access.notice_root_ids() |> MapSet.new()
+
+    subscribed
+    |> MapSet.difference(roots)
+    |> Enum.each(&Phoenix.PubSub.unsubscribe(@pubsub, root_boards_topic(&1)))
+
+    roots
+    |> MapSet.difference(subscribed)
+    |> Enum.each(&Phoenix.PubSub.subscribe(@pubsub, root_boards_topic(&1)))
+
+    roots
+  end
+
+  @doc "Tells the cross-board pages of everybody who can reach this tree that it changed."
+  def notify_boards_changed(root_id),
+    do: Phoenix.PubSub.broadcast(@pubsub, root_boards_topic(root_id), {:boards_changed})
+
+  @doc """
+  Tells these people's cross-board pages to reload: for a change in what
+  they can reach, which no root topic they are on would carry.
+  """
+  def notify_users_boards_changed(user_ids) do
+    user_ids
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+    |> Enum.each(&Phoenix.PubSub.broadcast(@pubsub, user_boards_topic(&1), {:boards_changed}))
+  end
+
+  defp root_boards_topic(root_id), do: "boards:root:#{root_id}"
+  defp user_boards_topic(user_id), do: "boards:user:#{user_id}"
 
   @doc """
   Drops every `{:boards_changed}` already waiting in the caller's mailbox.
 
-  `"boards"` hears about a change to any board on the server, so a busy
-  server can send a page subscribed to it many in the time one reload takes.
-  Reloading once per message, the page falls ever further behind — and so
-  does anything waiting on it. A handler that drains the rest first reloads
-  once for the lot, and is still up to date.
+  A tree with a lot going on can send a page many of these in the time one
+  reload takes. Reloading once per message, the page falls ever further
+  behind — and so does anything waiting on it. A handler that drains the rest
+  first reloads once for the lot, and is still up to date.
   """
   def drain_boards_changed do
     receive do
@@ -69,12 +125,13 @@ defmodule Slipdock.Boards do
 
   # A change inside a sub-board is also a change to every board above it
   # (the parent card's subcard progress), so notify the whole ancestor chain.
-  defp broadcast(board_id) do
-    Enum.each(ancestor_board_ids(board_id), fn id ->
-      Phoenix.PubSub.broadcast(@pubsub, topic(id), {:board_changed, id})
-    end)
+  defp broadcast(board_id), do: broadcast_chain(ancestor_board_ids(board_id))
 
-    Phoenix.PubSub.broadcast(@pubsub, "boards", {:boards_changed})
+  # The chain runs from the board up to its root, which is last. Taken apart
+  # from broadcast/1 so a delete can read the chain before the rows go.
+  defp broadcast_chain(ids) do
+    Enum.each(ids, &Phoenix.PubSub.broadcast(@pubsub, topic(&1), {:board_changed, &1}))
+    notify_boards_changed(List.last(ids))
     :ok
   end
 
@@ -87,7 +144,7 @@ defmodule Slipdock.Boards do
     |> Repo.all()
     |> Enum.each(&Phoenix.PubSub.broadcast(@pubsub, topic(&1), {:board_changed, &1}))
 
-    Phoenix.PubSub.broadcast(@pubsub, "boards", {:boards_changed})
+    notify_boards_changed(root_of(root_id))
     :ok
   end
 
@@ -444,6 +501,8 @@ defmodule Slipdock.Boards do
         # wiki (see `Slipdock.Wiki.install_template_pages/3`).
         if template, do: Slipdock.Wiki.install_template_pages(board, template, opts[:owner_id])
         broadcast(board.id)
+        # Nobody is subscribed to a new tree yet, its owner included.
+        if is_nil(board.parent_card_id), do: notify_users_boards_changed([board.owner_id])
         {:ok, board}
 
       {:error, step, changeset, _} when step in [:board, :saved] ->
@@ -697,11 +756,13 @@ defmodule Slipdock.Boards do
 
   def delete_board(%Board{} = board) do
     keys = file_keys(from(b in Board, where: b.id == ^board.id or b.root_id == ^board.id))
+    # Read before the delete: afterwards a sub-board has no parent to climb.
+    chain = ancestor_board_ids(board.id)
 
     Repo.delete(board)
-    |> tap_ok(fn b ->
+    |> tap_ok(fn _ ->
       remove_files(keys)
-      broadcast(b.id)
+      broadcast_chain(chain)
     end)
   end
 
@@ -788,7 +849,8 @@ defmodule Slipdock.Boards do
     Repo.delete_all(from(o in BoardOrder, where: o.user_id == ^user.id))
     Repo.insert_all(BoardOrder, rows)
 
-    Phoenix.PubSub.broadcast(@pubsub, "boards", {:boards_changed})
+    # The order is this person's alone.
+    notify_users_boards_changed([user.id])
     :ok
   end
 
