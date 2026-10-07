@@ -638,8 +638,8 @@ defmodule Slipdock.Onboarding do
         "title" => "Light, dark, or whatever the laptop says",
         "description" => """
         The theme switch is in the header, with a system option. On a phone the
-        whole thing re-lays itself out below 640px: a bottom bar with quick add
-        under your thumb, the board as a one-list pager, and the calendar,
+        whole thing re-lays itself out below 640px: a floating button bottom-left
+        that flies out the navigation and quick add under your thumb, the board as a one-list pager, and the calendar,
         table and timeline drawn for a narrow screen rather than scrolled
         sideways.
         """

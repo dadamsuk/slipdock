@@ -50,7 +50,7 @@ defmodule SlipdockWeb.Layouts do
 
   slot :menu,
     doc:
-      "this page's own entries (`<li>`s) for the phone's bottom-bar menu, above the app's; the desktop keeps them in the header"
+      "this page's own entries (`<li>`s) for the phone's navigation menu, above the app's; the desktop keeps them in the header"
 
   def app(assigns) do
     ~H"""
@@ -61,7 +61,7 @@ defmodule SlipdockWeb.Layouts do
             header's own row — the mark, the board, its buttons, then the
             app's — without anything being rendered twice. A phone keeps
             only the board, the finder and the palette up here: the avatar
-            menu and the page's menu are the bottom bar's Menu. --%>
+            menu and the page's menu are the floating navigation's Menu. --%>
       <header class="flex h-12 shrink-0 flex-row items-center gap-2 border-b border-base-300 bg-base-100 px-3 sm:h-auto sm:flex-col sm:items-stretch sm:gap-0 sm:px-0 lg:h-12 lg:flex-row lg:items-center lg:gap-3 lg:px-4">
         <div
           id="topbar"
@@ -147,7 +147,7 @@ defmodule SlipdockWeb.Layouts do
             >
               <.icon name="hero-sparkles" class="size-4" />
             </.link>
-            <%!-- The phone keeps Favourites in its bottom bar; on a desktop the
+            <%!-- The phone keeps Favourites in its floating navigation; on a desktop the
                 heart sits here, so the handful of things you go back to all day
                 are one click rather than a hunt through the avatar menu, which
                 keeps its own entry for the times the header is not on screen. --%>
@@ -256,32 +256,63 @@ defmodule SlipdockWeb.Layouts do
   slot :menu, doc: "the page's own menu entries, above the app's"
 
   @doc """
-  The phone's bottom bar: the app's five places, within reach of a thumb.
+  The phone's navigation: one round button in the bottom-left corner that
+  flies the app's five places out along the bottom edge when tapped.
 
   On a desktop this navigation lives in the avatar menu and the header — two
   taps up in the far corner, which on a phone is both a stretch and a hunt.
-  Down here My work, Favourites and Alerts are one tap, and **Add** sits in
-  the middle where the thumb already rests, because putting a card somewhere
-  is the thing people open this app on a phone to do.
+  Down here My work, Favourites and Alerts are two taps, and **Add** sits in
+  the middle of the row where the thumb already is, because putting a card
+  somewhere is the thing people open this app on a phone to do.
 
-  **Menu**, on the left, is both of the header's menus in one: the page's own
-  (a board's sharing, tags, settings, its AI chat) and then the avatar's,
-  which starts with Boards — so Boards gave up its tab to it, and the header
-  keeps the room for the board's name.
+  It used to be a bar across the whole bottom of the screen, there all the
+  time and taking a strip of every page for it (#354). Now the page runs to
+  the bottom edge and the button floats over its corner. Tapping it again,
+  or anywhere else, folds the row back up; opening and closing is all in the
+  browser, so it costs no round trip. While the row is folded the button
+  carries a dot when there are alerts waiting, since the bell's count is out
+  of sight.
 
-  It is a sibling of `<main>` in the page's flex column, not an overlay, so
-  content is never hidden underneath it, and it carries the home indicator's
-  safe area as padding of its own.
+  **Menu**, first in the row, is both of the header's menus in one: the
+  page's own (a board's sharing, tags, settings, its AI chat) and then the
+  avatar's, which starts with Boards.
+
+  The button and the row carry the home indicator's safe area in their
+  distance from the bottom edge.
   """
   def mobile_bar(assigns) do
     ~H"""
     <nav
       id="mobile-bar"
       aria-label="Main"
-      class="shrink-0 border-t border-base-300 bg-base-100 pb-[env(safe-area-inset-bottom)] sm:hidden"
+      phx-click-away={close_mobile_dock()}
+      class="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-3 z-40 flex items-end gap-2 sm:hidden"
     >
-      <div class="flex h-[3.75rem] items-stretch justify-around px-1">
-        <div id="mobile-menu" class="dropdown dropdown-top flex w-16 shrink-0">
+      <button
+        type="button"
+        id="mobile-fab"
+        phx-click={toggle_mobile_dock()}
+        aria-expanded="false"
+        aria-controls="mobile-dock"
+        aria-label="Navigation"
+        class="group relative flex size-14 shrink-0 items-center justify-center rounded-full bg-primary text-primary-content shadow-lg ring-1 ring-base-content/10"
+      >
+        <.icon name="hero-squares-2x2" class="size-6 group-aria-expanded:hidden" />
+        <.icon name="hero-x-mark" class="hidden size-6 group-aria-expanded:block" />
+        <span
+          :if={@alerts not in [nil, []]}
+          id="mobile-fab-alert"
+          class={[
+            "absolute right-0.5 top-0.5 size-3 rounded-full ring-2 ring-base-100 group-aria-expanded:hidden",
+            alert_tint(@alerts)
+          ]}
+        ></span>
+      </button>
+      <div
+        id="mobile-dock"
+        class="hidden h-14 items-stretch rounded-full bg-base-100 px-1 shadow-lg ring-1 ring-base-content/10"
+      >
+        <div id="mobile-menu" class="dropdown dropdown-top flex w-14 shrink-0">
           <div
             tabindex="0"
             role="button"
@@ -314,11 +345,11 @@ defmodule SlipdockWeb.Layouts do
           phx-click="toggle_quick_add"
           aria-expanded={to_string(@quick_add.open?)}
           aria-controls="quick-add-panel"
-          class="flex w-16 shrink-0 flex-col items-center justify-center gap-1"
+          class="flex w-14 shrink-0 flex-col items-center justify-center gap-1"
           aria-label="Quick add a card"
         >
           <span class={[
-            "flex size-9 items-center justify-center rounded-full shadow-sm transition-colors",
+            "flex size-8 items-center justify-center rounded-full shadow-sm transition-colors",
             if(@quick_add.open?,
               do: "bg-primary text-primary-content",
               else: "bg-primary/15 text-primary"
@@ -336,7 +367,7 @@ defmodule SlipdockWeb.Layouts do
           aria-expanded={to_string(@alerts_open)}
           aria-controls="alerts-panel"
           class={[
-            "flex w-16 shrink-0 flex-col items-center justify-center gap-1",
+            "flex w-14 shrink-0 flex-col items-center justify-center gap-1",
             if(@alerts_open, do: "text-primary", else: "text-base-content/60")
           ]}
         >
@@ -369,10 +400,27 @@ defmodule SlipdockWeb.Layouts do
     """
   end
 
+  @dock_in {"transition duration-200 ease-out origin-left", "opacity-0 -translate-x-4 scale-90",
+            "opacity-100 translate-x-0 scale-100"}
+  @dock_out {"transition duration-150 ease-in origin-left", "opacity-100 translate-x-0 scale-100",
+             "opacity-0 -translate-x-4 scale-90"}
+
+  # Open and close in the browser: JS commands survive LiveView's patches, so
+  # an update to the page underneath does not fold the row back up.
+  defp toggle_mobile_dock do
+    JS.toggle(to: "#mobile-dock", display: "flex", in: @dock_in, out: @dock_out)
+    |> JS.toggle_attribute({"aria-expanded", "true", "false"}, to: "#mobile-fab")
+  end
+
+  defp close_mobile_dock do
+    JS.hide(to: "#mobile-dock", transition: @dock_out)
+    |> JS.set_attribute({"aria-expanded", "false"}, to: "#mobile-fab")
+  end
+
   attr :current_user, :any, required: true
 
   # The avatar menu's entries: the header's dropdown on a desktop, the bottom
-  # bar's Menu on a phone.
+  # row's Menu on a phone.
   defp account_menu_items(assigns) do
     ~H"""
     <li>
@@ -464,7 +512,7 @@ defmodule SlipdockWeb.Layouts do
       navigate={@navigate}
       aria-current={@on && "page"}
       class={[
-        "flex w-16 shrink-0 flex-col items-center justify-center gap-1",
+        "flex w-14 shrink-0 flex-col items-center justify-center gap-1",
         if(@on, do: "text-primary", else: "text-base-content/60")
       ]}
     >
@@ -958,7 +1006,7 @@ defmodule SlipdockWeb.Layouts do
         phx-key="Escape"
         class={[
           "kanban-modal-in z-50 overflow-hidden rounded-box bg-base-100 shadow-xl ring-1 ring-base-content/10",
-          "fixed inset-x-2 bottom-[calc(3.75rem+env(safe-area-inset-bottom)+0.5rem)]",
+          "fixed inset-x-2 bottom-[calc(4.5rem+env(safe-area-inset-bottom)+0.5rem)]",
           "sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-full sm:mt-1.5 sm:w-[min(24rem,calc(100vw-1rem))]"
         ]}
       >

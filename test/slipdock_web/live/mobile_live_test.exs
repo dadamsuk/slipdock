@@ -233,13 +233,94 @@ defmodule SlipdockWeb.MobileLiveTest do
     end
   end
 
-  describe "the bottom bar" do
+  describe "the floating navigation (#354)" do
     test "carries the navigation and quick add", %{conn: conn, board: board} do
       {:ok, view, _} = live(phone(conn), ~p"/boards/#{board}")
 
       assert has_element?(view, "#mobile-bar")
-      assert has_element?(view, "#mobile-bar a[href='/work']", "My work")
-      assert has_element?(view, "#quick-add-fab")
+      assert has_element?(view, "#mobile-dock a[href='/work']", "My work")
+      assert has_element?(view, "#mobile-dock a[href='/favourites']", "Favourites")
+      assert has_element?(view, "#mobile-dock #mobile-menu")
+      assert has_element?(view, "#mobile-dock #quick-add-fab")
+      assert has_element?(view, "#mobile-dock button[phx-click=toggle_alerts]", "Alerts")
+    end
+
+    test "floats over the bottom-left corner instead of taking a strip of the page", %{
+      conn: conn,
+      board: board
+    } do
+      {:ok, view, html} = live(phone(conn), ~p"/boards/#{board}")
+
+      assert has_element?(view, "nav#mobile-bar.fixed.left-3.sm\\:hidden")
+      refute has_element?(view, "nav#mobile-bar.shrink-0")
+      refute has_element?(view, "nav#mobile-bar.border-t")
+      assert html =~ "bottom-[calc(1rem+env(safe-area-inset-bottom))]"
+    end
+
+    test "starts folded: one button, the row hidden until it is tapped", %{
+      conn: conn,
+      board: board
+    } do
+      {:ok, view, _} = live(phone(conn), ~p"/boards/#{board}")
+
+      # The button is the first thing in the corner, ahead of the row.
+      assert has_element?(view, "#mobile-bar > button#mobile-fab:first-child")
+      assert has_element?(view, "#mobile-fab[aria-expanded=false][aria-controls=mobile-dock]")
+      assert has_element?(view, "#mobile-dock.hidden")
+      # Bars when folded, a cross when open — chosen by aria-expanded in CSS.
+      assert has_element?(view, "#mobile-fab .hero-squares-2x2.group-aria-expanded\\:hidden")
+      assert has_element?(view, "#mobile-fab .hero-x-mark.hidden.group-aria-expanded\\:block")
+    end
+
+    test "the button flies the row out and back, and a tap elsewhere folds it", %{
+      conn: conn,
+      board: board
+    } do
+      {:ok, view, _} = live(phone(conn), ~p"/boards/#{board}")
+
+      [toggle] = view |> element("#mobile-fab") |> render() |> js_ops("phx-click")
+      assert [["toggle", toggle_args], ["toggle_attr", attr_args]] = toggle
+      assert toggle_args["to"] == "#mobile-dock"
+      assert toggle_args["display"] == "flex"
+      assert attr_args["to"] == "#mobile-fab"
+      assert attr_args["attr"] == ["aria-expanded", "true", "false"]
+
+      [away] = view |> element("#mobile-bar") |> render() |> js_ops("phx-click-away")
+      assert [["hide", hide_args], ["set_attr", set_args]] = away
+      assert hide_args["to"] == "#mobile-dock"
+      assert set_args["to"] == "#mobile-fab"
+      assert set_args["attr"] == ["aria-expanded", "false"]
+    end
+
+    test "marks the folded button when alerts are waiting", %{conn: conn, board: board} do
+      {:ok, view, _} = live(phone(conn), ~p"/boards/#{board}")
+      refute has_element?(view, "#mobile-fab-alert")
+
+      rule_fixture(board, %{
+        "trigger" => %{"type" => "card_created"},
+        "actions" => [%{"type" => "alert", "title" => "Look", "severity" => "urgent"}]
+      })
+
+      card_fixture(hd(board.columns), %{"title" => "Raises one"})
+
+      {:ok, view, _} = live(phone(conn), ~p"/boards/#{board}")
+      assert has_element?(view, "#mobile-fab #mobile-fab-alert.bg-error")
+      # Open, the bell carries the count, so the dot steps aside.
+      assert has_element?(view, "#mobile-fab-alert.group-aria-expanded\\:hidden")
+    end
+
+    test "the alerts panel opens above the button, not behind it", %{conn: conn, board: board} do
+      {:ok, view, _} = live(phone(conn), ~p"/boards/#{board}")
+
+      html = view |> element("#mobile-dock button[phx-click=toggle_alerts]") |> render_click()
+      assert has_element?(view, "#alerts-panel")
+      assert html =~ "bottom-[calc(4.5rem+env(safe-area-inset-bottom)+0.5rem)]"
+    end
+
+    test "is not there for someone signed out" do
+      {:ok, view, _} = live(phone(Phoenix.ConnTest.build_conn()), ~p"/login")
+      refute has_element?(view, "#mobile-bar")
+      refute has_element?(view, "#mobile-fab")
     end
 
     test "quick add opens from it and puts a card on the default board", %{conn: conn} do
@@ -332,5 +413,14 @@ defmodule SlipdockWeb.MobileLiveTest do
       view |> element(button) |> render_click()
       refute has_element?(view, "#key-palette")
     end
+  end
+
+  # The JS commands an attribute carries, decoded from the rendered element.
+  defp js_ops(html, attr) do
+    html
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.attribute(attr)
+    |> Enum.take(1)
+    |> Enum.map(&Jason.decode!/1)
   end
 end
