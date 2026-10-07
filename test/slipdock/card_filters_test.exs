@@ -66,7 +66,7 @@ defmodule Slipdock.CardFiltersTest do
   end
 
   test "assignee by email, by name, and by nobody", ctx do
-    assert ctx.titles.(%{"assignee" => "jess@example.com"}) == ["Late"]
+    assert ctx.titles.(%{"assignee" => fixture_email("jess@example.com")}) == ["Late"]
     assert ctx.titles.(%{"assignee" => "jess"}) == ["Late"]
     assert ctx.titles.(%{"assignee" => "Jess Smith"}) == ["Late"]
     refute "Late" in ctx.titles.(%{"assignee" => "none"})

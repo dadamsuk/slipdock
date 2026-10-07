@@ -63,7 +63,7 @@ defmodule SlipdockWeb.QuickAddLiveTest do
     [backlog | _] = board.columns
     epic = card_fixture(backlog, %{"title" => "Epic"})
     {:ok, t} = Boards.find_template("Simple")
-    {:ok, _sub} = Boards.create_sub_board(epic, t)
+    {:ok, _sub} = sub_board(epic, t)
 
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/outline")
     assert has_element?(view, "#outline-add")

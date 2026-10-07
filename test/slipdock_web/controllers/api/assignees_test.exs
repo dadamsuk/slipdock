@@ -29,36 +29,51 @@ defmodule SlipdockWeb.API.AssigneesTest do
 
     body =
       conn
-      |> patch(path, %{"assignees" => ["bob@example.com", "ada@example.com"]})
+      |> patch(path, %{
+        "assignees" => [fixture_email("bob@example.com"), fixture_email("ada@example.com")]
+      })
       |> json_response(200)
 
-    assert emails(body) == ["bob@example.com", "ada@example.com"]
-    assert body["card"]["assignee"]["email"] == "bob@example.com"
+    assert emails(body) == [fixture_email("bob@example.com"), fixture_email("ada@example.com")]
+    assert body["card"]["assignee"]["email"] == fixture_email("bob@example.com")
 
     # "me" is whoever is asking — on a write as on a filter.
     body = conn |> patch(path, %{"add_assignees" => ["me"]}) |> json_response(200)
-    assert emails(body) == ["bob@example.com", "ada@example.com", "tester@example.com"]
 
-    body = conn |> patch(path, %{"remove_assignees" => "bob@example.com"}) |> json_response(200)
-    assert body["card"]["assignee"]["email"] == "ada@example.com"
-    assert Enum.sort(emails(body)) == ["ada@example.com", "tester@example.com"]
+    assert emails(body) == [
+             fixture_email("bob@example.com"),
+             fixture_email("ada@example.com"),
+             "#{default_email()}"
+           ]
+
+    body =
+      conn
+      |> patch(path, %{"remove_assignees" => fixture_email("bob@example.com")})
+      |> json_response(200)
+
+    assert body["card"]["assignee"]["email"] == fixture_email("ada@example.com")
+    assert Enum.sort(emails(body)) == [fixture_email("ada@example.com"), "#{default_email()}"]
 
     titles = fn q ->
       conn |> get("/api/boards/pairs/cards?" <> q) |> json_response(200) |> Map.fetch!("cards")
     end
 
     assert [_] = titles.("assignee=me")
-    assert [_] = titles.("assignee=ada@example.com")
-    assert [] = titles.("assignee=bob@example.com")
+    assert [_] = titles.("assignee=#{fixture_email("ada@example.com")}")
+    assert [] = titles.("assignee=#{fixture_email("bob@example.com")}")
 
     # A single assignee still means just that person, and "" nobody.
-    body = conn |> patch(path, %{"assignee" => "bob@example.com"}) |> json_response(200)
-    assert emails(body) == ["bob@example.com"]
+    body =
+      conn |> patch(path, %{"assignee" => fixture_email("bob@example.com")}) |> json_response(200)
+
+    assert emails(body) == [fixture_email("bob@example.com")]
 
     body = conn |> patch(path, %{"assignee" => ""}) |> json_response(200)
     assert body["card"]["assignees"] == [] and body["card"]["assignee"] == nil
 
-    assert conn |> patch(path, %{"assignees" => ["nobody@example.com"]}) |> json_response(404)
+    assert conn
+           |> patch(path, %{"assignees" => [fixture_email("nobody@example.com")]})
+           |> json_response(404)
   end
 
   # `slipdock edit --assignee me` sends exactly this.
@@ -67,14 +82,14 @@ defmodule SlipdockWeb.API.AssigneesTest do
     card: card
   } do
     body = conn |> patch(~p"/api/cards/#{card.id}", %{"assignee" => "me"}) |> json_response(200)
-    assert emails(body) == ["tester@example.com"]
+    assert emails(body) == ["#{default_email()}"]
 
     body =
       conn
       |> post(~p"/api/boards/pairs/cards", %{"title" => "Mine", "assignee" => "me"})
       |> json_response(201)
 
-    assert emails(body) == ["tester@example.com"]
+    assert emails(body) == ["#{default_email()}"]
   end
 
   test "a card is created with several people on it", %{conn: conn} do
@@ -82,11 +97,11 @@ defmodule SlipdockWeb.API.AssigneesTest do
       conn
       |> post(~p"/api/boards/pairs/cards", %{
         "title" => "Together",
-        "assignees" => ["ada@example.com", "bob@example.com"]
+        "assignees" => [fixture_email("ada@example.com"), fixture_email("bob@example.com")]
       })
       |> json_response(201)
 
-    assert emails(body) == ["ada@example.com", "bob@example.com"]
+    assert emails(body) == [fixture_email("ada@example.com"), fixture_email("bob@example.com")]
   end
 
   # Whether an address has an account here is not the API's to tell: somebody
@@ -95,8 +110,15 @@ defmodule SlipdockWeb.API.AssigneesTest do
     user_fixture("hidden@example.com")
     path = ~p"/api/cards/#{card.id}"
 
-    hidden = conn |> patch(path, %{"assignee" => "hidden@example.com"}) |> json_response(404)
-    nobody = conn |> patch(path, %{"assignee" => "nobody@example.com"}) |> json_response(404)
+    hidden =
+      conn
+      |> patch(path, %{"assignee" => fixture_email("hidden@example.com")})
+      |> json_response(404)
+
+    nobody =
+      conn
+      |> patch(path, %{"assignee" => fixture_email("nobody@example.com")})
+      |> json_response(404)
 
     assert String.replace(hidden["error"], "hidden", "X") ==
              String.replace(nobody["error"], "nobody", "X")
@@ -104,7 +126,7 @@ defmodule SlipdockWeb.API.AssigneesTest do
     assert conn
            |> post(~p"/api/boards/pairs/cards", %{
              "title" => "T",
-             "assignee" => "hidden@example.com"
+             "assignee" => fixture_email("hidden@example.com")
            })
            |> json_response(404)
 
@@ -122,7 +144,9 @@ defmodule SlipdockWeb.API.AssigneesTest do
     assert page["assignee"]["email"] == ada.email
 
     assert conn
-           |> patch(~p"/api/pages/#{page["id"]}", %{"assignee" => "hidden@example.com"})
+           |> patch(~p"/api/pages/#{page["id"]}", %{
+             "assignee" => fixture_email("hidden@example.com")
+           })
            |> json_response(404)
   end
 end

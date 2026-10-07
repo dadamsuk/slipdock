@@ -65,7 +65,7 @@ defmodule Slipdock.BoardArchiveTest do
       board = board_fixture()
       card = card_fixture(hd(board.columns))
       {:ok, template} = Boards.find_template("Simple")
-      {:ok, sub} = Boards.create_sub_board(card, template)
+      {:ok, sub} = sub_board(card, template)
 
       assert {:error, :sub_board} = Boards.archive_board(sub)
     end

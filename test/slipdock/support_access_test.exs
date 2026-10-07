@@ -15,9 +15,9 @@ defmodule Slipdock.SupportAccessTest do
   setup do
     {:ok, _} =
       Settings.complete_setup(%{
-        "admin_email" => "admin@example.com",
+        "admin_email" => fixture_email("admin@example.com"),
         "smtp_host" => "smtp.example.com",
-        "smtp_from_email" => "mail@example.com"
+        "smtp_from_email" => fixture_email("mail@example.com")
       })
 
     {:ok, admin} = Accounts.promote(user_fixture("admin@example.com"))
@@ -66,8 +66,15 @@ defmodule Slipdock.SupportAccessTest do
   test "the person is told, at the time, with the reason", %{admin: admin, customer: customer} do
     {:ok, _} = Accounts.open_support_session(admin, customer, "they reported a lost card")
 
-    assert_received {:email, %Swoosh.Email{to: [{_, "customer@example.com"}], text_body: body}}
-    assert body =~ "admin@example.com"
+    customer_email = fixture_email("customer@example.com")
+
+    assert_received {:email,
+                     %Swoosh.Email{
+                       to: [{_, ^customer_email}],
+                       text_body: body
+                     }}
+
+    assert body =~ fixture_email("admin@example.com")
     assert body =~ "they reported a lost card"
   end
 
@@ -106,7 +113,7 @@ defmodule Slipdock.SupportAccessTest do
     # happening is not a log.
     assert [recorded] = Accounts.support_sessions_for(customer)
     assert recorded.reason == "a lost card"
-    assert recorded.admin.email == "admin@example.com"
+    assert recorded.admin.email == fixture_email("admin@example.com")
     assert recorded.ended_at
   end
 
@@ -127,7 +134,7 @@ defmodule Slipdock.SupportAccessTest do
     board: board
   } do
     card = card_fixture(hd(board.columns), %{"title" => "Epic"})
-    {:ok, sub} = Slipdock.Boards.create_sub_board(card, hd(Slipdock.Boards.list_templates()))
+    {:ok, sub} = sub_board(card, hd(Slipdock.Boards.list_templates()))
 
     {:ok, _} = Accounts.open_support_session(admin, customer, "a lost card")
 

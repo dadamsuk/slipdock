@@ -88,10 +88,15 @@ and each of those shares something the database cannot roll back:
   tests, and every async test saves settings into a row of its own (see
   `Slipdock.DataCase`), so tests about limits and registration can be async.
   Sync tests keep the real row, id 1.
-- **Fixed unique values** — two async tests inserting the same board code or
-  allowlist entry wait on each other's uncommitted row, and with a fixed user
-  email held the other way round Postgres calls it a deadlock. Leave codes to
-  the fixtures, which make them unique.
+- **Fixed unique values** — two async tests inserting the same user email,
+  board code or shortcut wait on each other's uncommitted row until one
+  finishes, and two such values taken in opposite orders are a deadlock. The
+  fixtures keep them apart: in an async test the default user, and any
+  `user_fixture("x@example.com")`, gets an address on the test's own domain
+  (compare with `fixture_email("x@example.com")`, not the literal); board
+  fixtures get unique codes and shortcuts; `sub_board/2` is
+  `Boards.create_sub_board/2` with a unique code. A test *about* derived codes
+  needs real ones, so it is sync.
 - **`AIStub.share/0`** — it calls `Req.Test.set_req_test_to_shared()`, which
   makes the stub global. LiveViews and tasks do not need it (they find the
   test's stub through `$callers`); only code running in a process started at
@@ -103,8 +108,9 @@ and each of those shares something the database cannot roll back:
   one real directory on disk.
 
 Do not flip one of those to `async: true` without removing the sharing first.
-The win is correctness, not speed: on an 8-core machine the whole suite is
-CPU-bound and running it in parallel is only a few per cent quicker.
+Shared values cost time even when nothing fails. While every test inserted
+`tester@example.com`, async tests queued behind one another on that row and
+the suite took two minutes on 8 cores; with nothing shared it takes one.
 
 ## What good work looks like here
 

@@ -1,5 +1,7 @@
 defmodule SlipdockWeb.BoardCodesLiveTest do
-  use SlipdockWeb.ConnCase, async: true
+  # Sync: about the codes boards are given, so it uses real ones ("epic",
+  # "qvm-1"), and an async test holding the same one would block or deadlock it.
+  use SlipdockWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures

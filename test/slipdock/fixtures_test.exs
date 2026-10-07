@@ -1,101 +1,83 @@
 defmodule Slipdock.FixturesTest do
   @moduledoc """
-  The fixtures async tests share. Each async test runs in an uncommitted
-  sandbox transaction, so anything a fixture writes to a unique index can make
-  one test wait on another — and, held the other way round, deadlock (#352).
+  The fixtures that keep async tests from waiting on each other: a default
+  user, addresses, board codes and shortcuts that no other running test is
+  using. Each of these used to be one shared value, and every test that
+  inserted it queued behind every other one that had.
   """
-  use ExUnit.Case, async: true
+  use Slipdock.DataCase, async: true
 
-  alias Ecto.Adapters.SQL.Sandbox
-  alias Slipdock.Repo
   import Slipdock.Fixtures
 
-  # Runs `fun` in a sandbox transaction of its own, the way a separate async
-  # test would, and keeps that transaction open until told to finish.
-  defp in_own_sandbox(fun, lock_timeout \\ nil) do
-    parent = self()
+  alias Slipdock.Boards
 
-    Task.async(fn ->
-      owner = Sandbox.start_owner!(Repo)
+  test "the default user's email is this test's own, and the same on every call" do
+    email = default_email()
 
-      try do
-        if lock_timeout, do: Repo.query!("SET LOCAL lock_timeout = '#{lock_timeout}'")
-        send(parent, {:done, self(), fun.()})
-
-        receive do
-          :finish -> :ok
-        end
-      after
-        Sandbox.stop_owner(owner)
-      end
-    end)
+    assert email =~ ~r/^tester@t\d+\.example\.com$/
+    assert default_email() == email
+    assert user_fixture().email == email
+    assert user_fixture().id == user_fixture().id
   end
 
-  # Never the shared default user: an open transaction holding that row would
-  # make every other test that wants it wait.
-  defp owner, do: user_fixture("fixtures-#{System.unique_integer([:positive])}@example.com")
+  test "another process gets a default email of its own" do
+    mine = default_email()
+    theirs = Task.async(&default_email/0) |> Task.await()
 
-  defp result(task) do
-    pid = task.pid
-
-    receive do
-      {:done, ^pid, value} -> value
-    after
-      30_000 -> flunk("the fixture never returned")
-    end
+    refute theirs == mine
   end
 
-  defp finish(task) do
-    send(task.pid, :finish)
-    Task.await(task)
+  test "an @example.com address moves to this test's domain, and nothing else does" do
+    domain = default_email() |> String.split("@") |> List.last()
+
+    assert fixture_email("stranger@example.com") == "stranger@" <> domain
+    assert user_fixture("stranger@example.com").email == "stranger@" <> domain
+    assert fixture_email("someone@elsewhere.org") == "someone@elsewhere.org"
+    assert fixture_email("someone@sub.example.com") == "someone@sub.example.com"
+
+    # Already moved: left alone, so it is safe to apply twice.
+    assert fixture_email(fixture_email("stranger@example.com")) == "stranger@" <> domain
   end
 
-  test "same-named boards in two open transactions don't wait on each other" do
-    a =
-      in_own_sandbox(
-        fn -> board_fixture(%{"name" => "Private"}, owner: owner()) end,
-        "2s"
-      )
+  test "a sync test keeps the address as written" do
+    mark_async(false)
+    on_exit(fn -> mark_async(true) end)
 
-    first = result(a)
-
-    # Without unique keys this insert waits on `a`'s uncommitted `private`/`p`
-    # until lock_timeout gives up, and board_fixture's match fails.
-    b =
-      in_own_sandbox(
-        fn -> board_fixture(%{"name" => "Private"}, owner: owner()) end,
-        "2s"
-      )
-
-    second = result(b)
-
-    assert first.code != second.code
-    assert first.shortcut != second.shortcut
-    assert String.length(second.shortcut) == 2
-
-    finish(a)
-    finish(b)
+    assert fixture_email("stranger@example.com") == "stranger@example.com"
   end
 
-  test "a code or shortcut the test names is kept" do
-    board =
-      in_own_sandbox(fn ->
-        board_fixture(%{"name" => "Named", "code" => "fx-named", "shortcut" => "zq"},
-          owner: owner()
-        )
-      end)
+  test "sub_board/2 gives the sub-board a code of its own, not the card's title" do
+    board = board_fixture(%{"name" => "Root"})
+    card = card_fixture(hd(board.columns), %{"title" => "Epic"})
+    {:ok, t} = Boards.find_template("Simple")
 
-    assert %{code: "fx-named", shortcut: "zq"} = result(board)
-    finish(board)
+    {:ok, sub} = sub_board(card, t)
+
+    assert sub.name == "Epic"
+    assert sub.code =~ ~r/^t[0-9a-z]+$/
+    assert {:error, "This card already has subcards."} = sub_board(card, t)
   end
 
-  test "derive_keys: true takes them from the name, as the app does" do
-    board =
-      in_own_sandbox(fn ->
-        board_fixture(%{"name" => "Xylo Fixture"}, owner: owner(), derive_keys: true)
-      end)
+  test "create_sub_board/3 takes a code, and still derives one without" do
+    board = board_fixture(%{"name" => "Root"})
+    [col | _] = board.columns
+    {:ok, t} = Boards.find_template("Simple")
+    code = "s" <> String.downcase(Integer.to_string(System.unique_integer([:positive]), 36))
 
-    assert %{code: "xylo-fixtu", shortcut: "x"} = result(board)
-    finish(board)
+    {:ok, given} =
+      Boards.create_sub_board(card_fixture(col, %{"title" => "Given"}), t, code: code)
+
+    assert given.code == code
+
+    title = "Derived #{System.unique_integer([:positive])}"
+    {:ok, derived} = Boards.create_sub_board(card_fixture(col, %{"title" => title}), t)
+    assert derived.code == Boards.suggest_code(title, derived.id)
+  end
+
+  test "board shortcuts are two characters and not handed out twice while held" do
+    shortcuts = for _ <- 1..20, do: board_fixture().shortcut
+
+    assert Enum.all?(shortcuts, &(String.length(&1) == 2))
+    assert Enum.uniq(shortcuts) == shortcuts
   end
 end

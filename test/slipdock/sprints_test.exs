@@ -132,7 +132,7 @@ defmodule Slipdock.SprintsTest do
     {:ok, sprint} = Sprints.create_sprint(sprints)
     [backlog, todo | _] = work.columns
     epic = card_fixture(backlog, %{"title" => "Epic"})
-    {:ok, epic_board} = Boards.create_sub_board(epic, elem(Boards.find_template("Simple"), 1))
+    {:ok, epic_board} = sub_board(epic, elem(Boards.find_template("Simple"), 1))
     _done = card_fixture(todo, %{"title" => "Finished", "completed" => true})
     open = card_fixture(todo, %{"title" => "Open"})
 
@@ -260,7 +260,7 @@ defmodule Slipdock.SprintsTest do
       # are written in hours and kept in minutes.
       epic = card_fixture(todo, %{"title" => "Epic"})
       {:ok, simple} = Boards.find_template("Simple")
-      {:ok, epic_board} = Boards.create_sub_board(epic, simple)
+      {:ok, epic_board} = sub_board(epic, simple)
       [epic_todo | _] = Boards.get_board!(epic_board.id).columns
       task = card_fixture(epic_todo, %{"title" => "Task", "time_estimate" => 2})
       _done = card_fixture(epic_todo, %{"completed" => true, "time_estimate" => 10})

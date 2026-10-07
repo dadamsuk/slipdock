@@ -124,7 +124,7 @@ defmodule SlipdockWeb.QuotaBypassTest do
 
       epic = card_fixture(column, %{"title" => "Epic"})
       {:ok, template} = Boards.find_template("Simple")
-      {:ok, sub} = Boards.create_sub_board(epic, template)
+      {:ok, sub} = sub_board(epic, template)
       [sub_column | _] = Boards.get_board!(sub.id).columns
       card_fixture(sub_column, %{"title" => "Sub one"})
       card_fixture(sub_column, %{"title" => "Sub two"})

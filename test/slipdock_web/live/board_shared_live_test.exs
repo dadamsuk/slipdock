@@ -33,7 +33,7 @@ defmodule SlipdockWeb.BoardSharedLiveTest do
     {:ok, _view, html} = live(conn, ~p"/boards/#{board}/shared")
     assert html =~ "Shared with you"
     assert html =~ "Theirs"
-    assert html =~ "owner@example.com"
+    assert html =~ fixture_email("owner@example.com")
     assert html =~ "The whole board"
     assert html =~ "read only"
   end

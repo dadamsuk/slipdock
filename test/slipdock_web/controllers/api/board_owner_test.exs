@@ -51,7 +51,7 @@ defmodule SlipdockWeb.API.BoardOwnerTest do
     assert %{"boards" => boards} = conn |> get(~p"/api/boards") |> json_response(200)
     assert [listed] = Enum.filter(boards, &(&1["id"] == board.id))
     assert listed["owner"]["name"] == "Nadia"
-    assert listed["owner"]["email"] == "nadia@example.com"
+    assert listed["owner"]["email"] == fixture_email("nadia@example.com")
     assert listed["shared"] == true
 
     assert %{"board" => shown} = conn |> get(~p"/api/boards/#{board.id}") |> json_response(200)

@@ -28,7 +28,7 @@ defmodule Slipdock.PastDatesTest do
 
   defp epic(ctx, attrs, kids) do
     {:ok, card} = Boards.create_card(ctx.column, attrs)
-    {:ok, sub} = Boards.create_sub_board(card, ctx.template)
+    {:ok, sub} = sub_board(card, ctx.template)
     sub = Boards.get_board!(sub.id)
 
     for k <- kids, do: {:ok, _} = Boards.create_card(hd(sub.columns), k)

@@ -28,7 +28,7 @@ defmodule Slipdock.QuickAddCaptureTest do
         "start" => "in 2 days",
         "flags" => ["waiting"],
         "tags" => ["docs"],
-        "assignee" => "tester@example.com"
+        "assignee" => "#{default_email()}"
       })
 
       assert {:ok, capture} =
@@ -95,7 +95,7 @@ defmodule Slipdock.QuickAddCaptureTest do
     test "nobody is assigned unless the line named them", %{user: user} do
       Slipdock.AIStub.reply_with(%{
         "title" => "Chase the invoice",
-        "assignee" => "tester@example.com"
+        "assignee" => "#{default_email()}"
       })
 
       assert {:ok, capture} = capture(user, "chase the invoice, blocked on them")

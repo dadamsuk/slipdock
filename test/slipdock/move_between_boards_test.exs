@@ -81,7 +81,7 @@ defmodule Slipdock.MoveBetweenBoardsTest do
   } do
     bug = tag_fixture(from, "bug", "red")
     epic = card_fixture(from_todo, %{"title" => "Epic"})
-    {:ok, sub} = Boards.create_sub_board(epic, hd(Boards.list_templates()))
+    {:ok, sub} = sub_board(epic, hd(Boards.list_templates()))
     sub = Boards.get_board!(sub.id)
     subcard = card_fixture(hd(sub.columns), %{"title" => "Step one"})
     Boards.set_card_tags(subcard, [bug])
@@ -99,7 +99,7 @@ defmodule Slipdock.MoveBetweenBoardsTest do
 
   test "a card cannot be moved into its own subcards", %{from_todo: from_todo} do
     epic = card_fixture(from_todo, %{"title" => "Epic"})
-    {:ok, sub} = Boards.create_sub_board(epic, hd(Boards.list_templates()))
+    {:ok, sub} = sub_board(epic, hd(Boards.list_templates()))
     sub = Boards.get_board!(sub.id)
 
     assert {:error, message} = Boards.move_card_to_board(epic, hd(sub.columns))
@@ -163,7 +163,7 @@ defmodule Slipdock.MoveBetweenBoardsTest do
   } do
     bug = tag_fixture(from, "bug", "red")
     epic = card_fixture(from_backlog, %{"title" => "Epic"})
-    {:ok, sub} = Boards.create_sub_board(epic, hd(Boards.list_templates()))
+    {:ok, sub} = sub_board(epic, hd(Boards.list_templates()))
     sub = Boards.get_board!(sub.id)
     subcard = card_fixture(hd(sub.columns), %{"title" => "Step one"})
     Boards.set_card_tags(subcard, [bug])

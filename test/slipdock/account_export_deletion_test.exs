@@ -27,7 +27,8 @@ defmodule Slipdock.AccountExportDeletionTest do
     test "is a zip with the account, the boards and the cards in them", %{user: user} do
       {name, binary} = AccountExport.zip(user)
 
-      assert name =~ "slipdock-leaver-example-com"
+      # The address, made safe for a file name: leaver@<this test's domain>.
+      assert name =~ ~r/^slipdock-leaver-[a-z0-9-]*example-com-/
       {:ok, entries} = :zip.unzip(binary, [:memory])
       paths = Enum.map(entries, fn {path, _} -> to_string(path) end)
 
@@ -36,7 +37,7 @@ defmodule Slipdock.AccountExportDeletionTest do
 
       {_, json} = Enum.find(entries, fn {p, _} -> to_string(p) == "account.json" end)
       account = Jason.decode!(json)
-      assert account["email"] == "leaver@example.com"
+      assert account["email"] == fixture_email("leaver@example.com")
       assert [%{"name" => "Their work"}] = account["boards_owned"]
 
       {_, board_json} = Enum.find(entries, fn {p, _} -> to_string(p) =~ "boards/" end)
@@ -78,9 +79,10 @@ defmodule Slipdock.AccountExportDeletionTest do
     end
 
     test "takes their own boards and cards with them", %{user: user, board: board, card: card} do
-      assert {:ok, %{email: "leaver@example.com"}} = Accounts.delete_user(user)
+      leaver_email = fixture_email("leaver@example.com")
+      assert {:ok, %{email: ^leaver_email}} = Accounts.delete_user(user)
 
-      refute Accounts.get_user_by_email("leaver@example.com")
+      refute Accounts.get_user_by_email(fixture_email("leaver@example.com"))
       refute Repo.get(Slipdock.Boards.Board, board.id)
       refute Repo.get(Slipdock.Boards.Card, card.id)
     end
@@ -93,7 +95,10 @@ defmodule Slipdock.AccountExportDeletionTest do
       colleague = user_fixture("colleague@example.com")
       {:ok, _} = Access.grant(board, colleague, "write", user)
 
-      assert {:ok, %{handed_over: [%{to: "colleague@example.com"}]}} = Accounts.delete_user(user)
+      colleague_email = fixture_email("colleague@example.com")
+
+      assert {:ok, %{handed_over: [%{to: ^colleague_email}]}} =
+               Accounts.delete_user(user)
 
       # The board survives, with its cards, under its new owner.
       assert Repo.get(Slipdock.Boards.Board, board.id).owner_id == colleague.id
@@ -107,7 +112,7 @@ defmodule Slipdock.AccountExportDeletionTest do
       {:ok, _} = Access.grant(board, writer, "write", user)
 
       {:ok, %{handed_over: [%{to: to}]}} = Accounts.delete_user(user)
-      assert to == "writer@example.com"
+      assert to == fixture_email("writer@example.com")
     end
 
     test "what they wrote elsewhere survives, with no author", %{user: user} do
@@ -133,12 +138,15 @@ defmodule Slipdock.AccountExportDeletionTest do
 
       epic = card_fixture(hd(board.columns), %{"title" => "Epic"})
       {:ok, t} = Boards.find_template("Simple")
-      {:ok, sub} = Boards.create_sub_board(epic, t)
+      {:ok, sub} = sub_board(epic, t)
       sub = Boards.get_board!(sub.id)
       task = card_fixture(hd(sub.columns), %{"title" => "Task"})
-      {:ok, subsub} = Boards.create_sub_board(task, t)
+      {:ok, subsub} = sub_board(task, t)
 
-      assert {:ok, %{handed_over: [%{to: "colleague@example.com"}]}} = Accounts.delete_user(user)
+      colleague_email = fixture_email("colleague@example.com")
+
+      assert {:ok, %{handed_over: [%{to: ^colleague_email}]}} =
+               Accounts.delete_user(user)
 
       for b <- [board, sub, subsub] do
         assert Repo.get(Slipdock.Boards.Board, b.id).owner_id == colleague.id
@@ -150,7 +158,7 @@ defmodule Slipdock.AccountExportDeletionTest do
     test "the preview names root boards only", %{user: user, board: board} do
       epic = card_fixture(hd(board.columns), %{"title" => "Epic"})
       {:ok, t} = Boards.find_template("Simple")
-      {:ok, _} = Boards.create_sub_board(epic, t)
+      {:ok, _} = sub_board(epic, t)
 
       assert Accounts.deletion_preview(user).boards_deleted == ["Their work"]
     end
@@ -209,7 +217,7 @@ defmodule Slipdock.AccountExportDeletionTest do
     test "the last admin cannot be deleted", %{user: user} do
       {:ok, admin} = Accounts.promote(user)
       assert {:error, :last_admin} = Accounts.delete_user(admin)
-      assert Accounts.get_user_by_email("leaver@example.com")
+      assert Accounts.get_user_by_email(fixture_email("leaver@example.com"))
     end
   end
 end

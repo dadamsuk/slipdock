@@ -247,7 +247,8 @@ defmodule Slipdock.ResearcherTest do
     for {args, expected, unexpected} <- [
           {%{"due" => "overdue"}, "“Overdue thing”", "“Far off thing”"},
           {%{"deps" => "blocked"}, "“Waiting on the overdue one”", "“Far off thing”"},
-          {%{"assignee" => "jess@example.com"}, "“Overdue thing”", "“Far off thing”"},
+          {%{"assignee" => fixture_email("jess@example.com")}, "“Overdue thing”",
+           "“Far off thing”"},
           {%{"assignee" => "none"}, "“Far off thing”", "“Overdue thing”"}
         ] do
       Slipdock.AIStub.reply_sequence([
@@ -281,7 +282,7 @@ defmodule Slipdock.ResearcherTest do
     assert content =~ "# Board: Launch [launch]"
     assert content =~ "Lists (columns), in order: “Backlog”, “To Do”, “In Progress”, “Done”"
     assert content =~ "Tags available: “finance”"
-    assert content =~ "People who can be assigned: owner@example.com"
+    assert content =~ "People who can be assigned: #{fixture_email("owner@example.com")}"
     assert content =~ "Top-level cards: 1 (0 done)."
     # The furniture, not the contents.
     refute content =~ "Refund rounding is wrong"
@@ -313,7 +314,7 @@ defmodule Slipdock.ResearcherTest do
     content = Enum.find(messages, &(&1["role"] == "tool"))["content"]
 
     assert content =~
-             "2 unfinished cards assigned to Jess Smith <jess@example.com> across every board"
+             "2 unfinished cards assigned to Jess Smith <#{fixture_email("jess@example.com")}> across every board"
 
     assert content =~ "Overdue (1)"
     assert content =~ "Deep task"
@@ -330,7 +331,7 @@ defmodule Slipdock.ResearcherTest do
     {:ok, _} = Boards.update_card(deep, %{"completed" => true})
 
     Slipdock.AIStub.reply_sequence([
-      {:tool_calls, [{"assigned_cards", %{"person" => "jess@example.com"}}]},
+      {:tool_calls, [{"assigned_cards", %{"person" => fixture_email("jess@example.com")}}]},
       "All done."
     ])
 
@@ -658,8 +659,8 @@ defmodule Slipdock.ResearcherTest do
 
       {content, _} = tool_output(ctx.owner, "assigned_cards", %{"person" => "ann"})
       assert content =~ "“ann” could be any of:"
-      assert content =~ "ann.one@example.com"
-      assert content =~ "ann.two@example.com"
+      assert content =~ fixture_email("ann.one@example.com")
+      assert content =~ fixture_email("ann.two@example.com")
       assert content =~ "Ask again with the email."
     end
 

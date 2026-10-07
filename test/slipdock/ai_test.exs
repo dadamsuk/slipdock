@@ -163,10 +163,10 @@ defmodule Slipdock.AITest do
       assert text =~ "# Board: Launch"
       assert text =~ "“Backlog”"
       assert text =~ "Tags available: “ops”"
-      assert text =~ "People who can be assigned: tester@example.com"
+      assert text =~ "People who can be assigned: #{default_email()}"
 
       assert text =~
-               "##{card.id} “Write the plan” (list: Backlog; priority: high; assignee: tester@example.com; due: 2030-02-01; tags: ops)"
+               "##{card.id} “Write the plan” (list: Backlog; priority: high; assignee: #{default_email()}; due: 2030-02-01; tags: ops)"
 
       assert text =~ "description: All the details."
       assert text =~ "##{other.id} “Ship it” (list: #{doing.name}; flags: blocked)"
@@ -284,7 +284,7 @@ defmodule Slipdock.AITest do
                 "priority" => "high",
                 "column" => ctx.doing.name,
                 "add_tags" => ["ops"],
-                "assignee" => "tester@example.com",
+                "assignee" => "#{default_email()}",
                 "add_flags" => ["blocked"]
               }
             }
@@ -297,7 +297,7 @@ defmodule Slipdock.AITest do
       assert "Set priority of “Alpha” to high" in labels
       assert "Move “Alpha” to #{ctx.doing.name}" in labels
       assert "Add tag “ops” to “Alpha”" in labels
-      assert "Assign “Alpha” to tester@example.com" in labels
+      assert "Assign “Alpha” to #{default_email()}" in labels
       assert "Flag “Alpha”: blocked" in labels
       assert Enum.all?(steps, &is_nil(&1.error))
 

@@ -48,6 +48,8 @@ defmodule Slipdock.DataCase do
     # that saves settings does not wait on — or deadlock with — another test's
     # uncommitted save. Sync tests keep row 1, because they may rely on a
     # process started at boot, which does not see the override.
+    Slipdock.Fixtures.mark_async(tags[:async])
+
     if tags[:async] do
       Slipdock.TestConfig.put(:settings_row_id, System.unique_integer([:positive]) + 1)
     end

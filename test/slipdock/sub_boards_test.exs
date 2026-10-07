@@ -1,5 +1,7 @@
 defmodule Slipdock.SubBoardsTest do
-  use Slipdock.DataCase, async: true
+  # Sync: about the codes boards are given, so it uses real ones ("epic",
+  # "qvm-1"), and an async test holding the same one would block or deadlock it.
+  use Slipdock.DataCase, async: false
 
   import Slipdock.Fixtures
   alias Slipdock.Boards

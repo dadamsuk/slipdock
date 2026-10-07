@@ -108,7 +108,7 @@ defmodule SlipdockWeb.API.BoardPartsTest do
       [column | _] = board.columns
       card = card_fixture(column, %{"title" => "Epic"})
       {:ok, t} = Boards.find_template("Simple")
-      {:ok, sub} = Boards.create_sub_board(card, t)
+      {:ok, sub} = sub_board(card, t)
       sub = Boards.get_board!(sub.id)
       card_fixture(hd(sub.columns), %{"title" => "Step"})
 

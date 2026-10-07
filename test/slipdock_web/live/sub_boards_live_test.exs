@@ -86,7 +86,7 @@ defmodule SlipdockWeb.SubBoardsLiveTest do
     refute has_element?(view, "#card-#{card.id} button[title*='open them as a board']")
 
     {:ok, t} = Boards.find_template("Simple")
-    {:ok, sub} = Boards.create_sub_board(card, t)
+    {:ok, sub} = sub_board(card, t)
     [todo | _] = Boards.get_board!(sub.id).columns
     card_fixture(todo, %{"title" => "Sub one"})
 
@@ -167,7 +167,7 @@ defmodule SlipdockWeb.SubBoardsLiveTest do
     {:ok, card} = Boards.update_card(card, %{"title" => long})
     {:ok, t} = Boards.find_template("Simple")
 
-    assert {:ok, sub} = Boards.create_sub_board(card, t)
+    assert {:ok, sub} = sub_board(card, t)
     assert String.length(sub.name) == 80 and String.ends_with?(sub.name, "…")
 
     # A rename keeps the sub-board's name inside the limit too.
