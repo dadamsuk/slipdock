@@ -35,7 +35,11 @@ defmodule SlipdockWeb.WorkLive.Index do
   end
 
   @impl true
-  def handle_info({:boards_changed}, socket), do: {:noreply, load(socket)}
+  def handle_info({:boards_changed}, socket) do
+    Boards.drain_boards_changed()
+    {:noreply, load(socket)}
+  end
+
   def handle_info(_, socket), do: {:noreply, socket}
 
   @impl true

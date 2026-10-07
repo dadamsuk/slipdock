@@ -60,7 +60,7 @@ defmodule SlipdockWeb.AutomationsLiveTest do
         "spec" => %{
           "trigger" => %{"type" => "card_created", "column" => doing.name},
           "actions" => [
-            %{"type" => "email", "to" => "tester@example.com", "subject" => "{{card.title}}"}
+            %{"type" => "email", "to" => "#{default_email()}", "subject" => "{{card.title}}"}
           ]
         }
       })
@@ -69,16 +69,16 @@ defmodule SlipdockWeb.AutomationsLiveTest do
 
       view
       |> form("#rule-form", %{
-        "text" => "when creating a new card in #{doing.name}, email tester@example.com"
+        "text" => "when creating a new card in #{doing.name}, email #{default_email()}"
       })
       |> render_submit()
 
       html = render_async(view)
       assert html =~ "Tell ops about new work"
-      assert html =~ "When a card is added to #{doing.name}, email tester@example.com."
+      assert html =~ "When a card is added to #{doing.name}, email #{default_email()}."
 
       assert [rule] = Automations.list_rules(board.id)
-      assert rule.source =~ "tester@example.com"
+      assert rule.source =~ "#{default_email()}"
     end
 
     test "a rule the model got wrong is reported, not saved", %{conn: conn, board: board} do

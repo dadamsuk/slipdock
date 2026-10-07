@@ -185,4 +185,55 @@ defmodule SlipdockWeb.BoardIndexLiveTest do
       refute html =~ "Bravo"
     end
   end
+
+  describe "a flood of board changes" do
+    # "boards" hears about every board on the server, so a busy server can send
+    # the page notices faster than it reloads. It must reload once for the lot
+    # rather than once each, or it falls behind and everything waits on it.
+    test "is read once, and the page is still up to date", %{conn: conn, user: user} do
+      {:ok, view, _html} = live(conn, ~p"/")
+      queries = count_queries_by(view.pid)
+
+      for _ <- 1..500, do: send(view.pid, {:boards_changed})
+      board_fixture(%{"name" => "Delta"}, owner: user)
+
+      assert render(view) =~ "Delta"
+
+      # One reload is a handful of queries; one per notice is over 6,000. Other
+      # tests running alongside send real notices too, hence the headroom.
+      assert :counters.get(queries, 1) in 1..1000
+    end
+
+    defp count_queries_by(pid) do
+      counter = :counters.new(1, [])
+      id = {__MODULE__, make_ref()}
+
+      :telemetry.attach(
+        id,
+        [:slipdock, :repo, :query],
+        fn _, _, _, _ -> if self() == pid, do: :counters.add(counter, 1, 1) end,
+        nil
+      )
+
+      on_exit(fn -> :telemetry.detach(id) end)
+      counter
+    end
+  end
+
+  describe "Boards.drain_boards_changed/0" do
+    test "drops the waiting notices and leaves every other message" do
+      send(self(), {:boards_changed})
+      send(self(), :something_else)
+      send(self(), {:boards_changed})
+
+      assert :ok = Boards.drain_boards_changed()
+
+      refute_received {:boards_changed}
+      assert_received :something_else
+    end
+
+    test "returns straight away with nothing waiting" do
+      assert :ok = Boards.drain_boards_changed()
+    end
+  end
 end

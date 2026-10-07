@@ -30,7 +30,11 @@ defmodule Slipdock.VisibleUsersTest do
       directory(:instance)
 
       assert emails(Access.visible_users(alice)) ==
-               ["alice@example.com", "bob@example.com", "stranger@example.com"]
+               [
+                 fixture_email("alice@example.com"),
+                 fixture_email("bob@example.com"),
+                 fixture_email("stranger@example.com")
+               ]
     end
   end
 
@@ -41,7 +45,7 @@ defmodule Slipdock.VisibleUsersTest do
     end
 
     test "on your own, you see only yourself", %{alice: alice} do
-      assert emails(Access.visible_users(alice)) == ["alice@example.com"]
+      assert emails(Access.visible_users(alice)) == [fixture_email("alice@example.com")]
     end
 
     test "sharing a board makes the two of you visible to each other", %{
@@ -52,11 +56,18 @@ defmodule Slipdock.VisibleUsersTest do
     } do
       {:ok, _} = Access.grant(board, bob, "read", alice)
 
-      assert emails(Access.visible_users(alice)) == ["alice@example.com", "bob@example.com"]
-      assert emails(Access.visible_users(bob)) == ["alice@example.com", "bob@example.com"]
+      assert emails(Access.visible_users(alice)) == [
+               fixture_email("alice@example.com"),
+               fixture_email("bob@example.com")
+             ]
+
+      assert emails(Access.visible_users(bob)) == [
+               fixture_email("alice@example.com"),
+               fixture_email("bob@example.com")
+             ]
 
       # And the person who shares nothing with either of them sees neither.
-      assert emails(Access.visible_users(stranger)) == ["stranger@example.com"]
+      assert emails(Access.visible_users(stranger)) == [fixture_email("stranger@example.com")]
     end
 
     test "two guests on one board can see each other", %{
@@ -69,7 +80,7 @@ defmodule Slipdock.VisibleUsersTest do
       {:ok, _} = Access.grant(board, stranger, "read", alice)
 
       # They share a board, so they are colleagues as far as this is concerned.
-      assert "stranger@example.com" in emails(Access.visible_users(bob))
+      assert fixture_email("stranger@example.com") in emails(Access.visible_users(bob))
     end
 
     test "revoking takes it away again", %{alice: alice, bob: bob, board: board} do
@@ -77,16 +88,16 @@ defmodule Slipdock.VisibleUsersTest do
       assert length(Access.visible_users(alice)) == 2
 
       {:ok, _} = Access.revoke(grant)
-      assert emails(Access.visible_users(alice)) == ["alice@example.com"]
-      assert emails(Access.visible_users(bob)) == ["bob@example.com"]
+      assert emails(Access.visible_users(alice)) == [fixture_email("alice@example.com")]
+      assert emails(Access.visible_users(bob)) == [fixture_email("bob@example.com")]
     end
 
     test "a card shared on its own is enough", %{alice: alice, bob: bob, board: board} do
       card = card_fixture(hd(board.columns), %{"title" => "Just this one"})
       {:ok, _} = Access.grant(card, bob, "read", alice)
 
-      assert "bob@example.com" in emails(Access.visible_users(alice))
-      assert "alice@example.com" in emails(Access.visible_users(bob))
+      assert fixture_email("bob@example.com") in emails(Access.visible_users(alice))
+      assert fixture_email("alice@example.com") in emails(Access.visible_users(bob))
     end
 
     test "a group puts everybody in it in the same room", %{
@@ -97,9 +108,17 @@ defmodule Slipdock.VisibleUsersTest do
       {:ok, group} = Accounts.create_group(alice, %{"name" => "The team"})
       {:ok, _} = Accounts.add_group_member(group, bob.email)
 
-      assert emails(Access.visible_users(alice)) == ["alice@example.com", "bob@example.com"]
-      assert emails(Access.visible_users(bob)) == ["alice@example.com", "bob@example.com"]
-      assert emails(Access.visible_users(stranger)) == ["stranger@example.com"]
+      assert emails(Access.visible_users(alice)) == [
+               fixture_email("alice@example.com"),
+               fixture_email("bob@example.com")
+             ]
+
+      assert emails(Access.visible_users(bob)) == [
+               fixture_email("alice@example.com"),
+               fixture_email("bob@example.com")
+             ]
+
+      assert emails(Access.visible_users(stranger)) == [fixture_email("stranger@example.com")]
     end
 
     test "nobody is visible to nobody" do
@@ -108,7 +127,7 @@ defmodule Slipdock.VisibleUsersTest do
 
     test "you are always in your own list", %{stranger: stranger} do
       # A picker you cannot assign yourself in is broken.
-      assert emails(Access.visible_users(stranger)) == ["stranger@example.com"]
+      assert emails(Access.visible_users(stranger)) == [fixture_email("stranger@example.com")]
     end
   end
 end

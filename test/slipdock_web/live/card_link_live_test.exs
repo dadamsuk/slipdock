@@ -37,7 +37,7 @@ defmodule SlipdockWeb.CardLinkLiveTest do
     card: epic
   } do
     {:ok, t} = Boards.find_template("Simple")
-    {:ok, sub} = Boards.create_sub_board(epic, t)
+    {:ok, sub} = sub_board(epic, t)
     sub = Boards.get_board!(sub.id)
     child = card_fixture(hd(sub.columns), %{"title" => "Proofs"})
 

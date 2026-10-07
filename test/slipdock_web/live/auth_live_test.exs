@@ -17,7 +17,7 @@ defmodule SlipdockWeb.AuthLiveTest do
     {:ok, view, _} = live(conn, ~p"/login")
 
     view
-    |> form("#login-form", %{"login" => %{"email" => "visitor@example.com"}})
+    |> form("#login-form", %{"login" => %{"email" => fixture_email("visitor@example.com")}})
     |> render_submit()
 
     assert render(view) =~ "Check your email"
@@ -28,12 +28,12 @@ defmodule SlipdockWeb.AuthLiveTest do
       page = conn |> get(~p"/login/#{token}") |> html_response(200)
       assert page =~ ~s(action="/login/#{token}")
       assert page =~ ~s(method="post")
-      refute Accounts.get_user_by_email("visitor@example.com").confirmed_at
+      refute Accounts.get_user_by_email(fixture_email("visitor@example.com")).confirmed_at
 
       conn = post(conn, ~p"/login/#{token}")
       assert redirected_to(conn) == "/"
       assert get_session(conn, :user_token)
-      assert Accounts.get_user_by_email("visitor@example.com").confirmed_at
+      assert Accounts.get_user_by_email(fixture_email("visitor@example.com")).confirmed_at
 
       # Signed in now.
       {:ok, _, html} = live(conn, ~p"/")
@@ -54,7 +54,7 @@ defmodule SlipdockWeb.AuthLiveTest do
 
     # The Agentic Login button is the form submitter, adding login[mode]=agentic.
     view
-    |> form("#login-form", %{"login" => %{"email" => "agent@example.com"}})
+    |> form("#login-form", %{"login" => %{"email" => fixture_email("agent@example.com")}})
     |> render_submit(%{"login" => %{"mode" => "agentic"}})
 
     html = render(view)
@@ -79,7 +79,7 @@ defmodule SlipdockWeb.AuthLiveTest do
     conn = post(conn, ~p"/login/#{token}")
     assert redirected_to(conn) == "/"
     assert get_session(conn, :user_token)
-    assert Accounts.get_user_by_email("agent@example.com").confirmed_at
+    assert Accounts.get_user_by_email(fixture_email("agent@example.com")).confirmed_at
 
     # One-time: the link is dead once used.
     assert conn |> recycle() |> get(~p"/login/#{token}") |> redirected_to() == "/login"
@@ -117,11 +117,13 @@ defmodule SlipdockWeb.AuthLiveTest do
     [group] = Accounts.list_groups(user)
 
     view
-    |> form("#group-#{group.id} form[phx-submit=add_member]", %{"email" => "pal@example.com"})
+    |> form("#group-#{group.id} form[phx-submit=add_member]", %{
+      "email" => fixture_email("pal@example.com")
+    })
     |> render_submit()
 
-    assert has_element?(view, "#group-#{group.id}", "pal@example.com")
-    pal = Accounts.get_user_by_email("pal@example.com")
+    assert has_element?(view, "#group-#{group.id}", fixture_email("pal@example.com"))
+    pal = Accounts.get_user_by_email(fixture_email("pal@example.com"))
 
     view
     |> element("#member-#{group.id}-#{pal.id} button[phx-click=remove_member]")
@@ -148,10 +150,13 @@ defmodule SlipdockWeb.AuthLiveTest do
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/settings")
 
       view
-      |> form("form[id^=share-board]", %{"email" => "other@example.com", "level" => "read"})
+      |> form("form[id^=share-board]", %{
+        "email" => fixture_email("other@example.com"),
+        "level" => "read"
+      })
       |> render_submit()
 
-      assert has_element?(view, "[id^=grant-board-]", "other@example.com")
+      assert has_element?(view, "[id^=grant-board-]", fixture_email("other@example.com"))
       assert Access.board_permission(ctx.other, ctx.board) == :read
 
       {:ok, rview, html} = live(ctx.other_conn, ~p"/boards/#{ctx.board}")
@@ -274,7 +279,10 @@ defmodule SlipdockWeb.AuthLiveTest do
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/swimlanes?view=#{saved.id}")
 
       view
-      |> form("form[id^=share-view]", %{"email" => "other@example.com", "level" => "read"})
+      |> form("form[id^=share-view]", %{
+        "email" => fixture_email("other@example.com"),
+        "level" => "read"
+      })
       |> render_submit()
 
       assert Access.view_permission(ctx.other, saved) == :read
@@ -282,7 +290,10 @@ defmodule SlipdockWeb.AuthLiveTest do
       {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card.id}")
 
       view
-      |> form("form[id^=share-card]", %{"email" => "other@example.com", "level" => "write"})
+      |> form("form[id^=share-card]", %{
+        "email" => fixture_email("other@example.com"),
+        "level" => "write"
+      })
       |> render_submit()
 
       assert Access.card_permission(ctx.other, ctx.card) == :write

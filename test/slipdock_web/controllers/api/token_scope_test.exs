@@ -109,7 +109,7 @@ defmodule SlipdockWeb.API.TokenScopeTest do
           "columns" => [%{"name" => "To Do"}, %{"name" => "Done"}]
         })
 
-      {:ok, sub} = Boards.create_sub_board(ctx.card, template)
+      {:ok, sub} = Slipdock.Fixtures.sub_board(ctx.card, template)
 
       conn = with_token(ctx.conn, ctx.user, scope_boards: [ctx.board.id])
       assert conn |> get(~p"/api/boards/#{sub.id}") |> json_response(200)

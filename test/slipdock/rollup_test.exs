@@ -71,7 +71,7 @@ defmodule Slipdock.RollupTest do
   end
 
   test "overdue, blocked and done bubble up; a completed parent is done", ctx do
-    {:ok, _} = Boards.create_sub_board(ctx.loose, ctx.template)
+    {:ok, _} = sub_board(ctx.loose, ctx.template)
     loose = Boards.get_card!(ctx.loose.id)
 
     kid =
@@ -148,7 +148,7 @@ defmodule Slipdock.RollupTest do
     assert Enum.map(tl.unscheduled, & &1.title) == ["Stuck", "Loose"]
 
     # Give Loose subcards with dates: it is placed entirely from them.
-    {:ok, _} = Boards.create_sub_board(ctx.loose, ctx.template)
+    {:ok, _} = sub_board(ctx.loose, ctx.template)
     loose = Boards.get_card!(ctx.loose.id)
     card_fixture(hd(loose.sub_board.columns), %{"title" => "Kid", "due_date" => "2030-01-30"})
     tl = Slipdock.Timeline.build(Boards.get_board!(ctx.board.id), config, @today)

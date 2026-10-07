@@ -13,13 +13,20 @@ defmodule SlipdockWeb.UsersLiveTest do
   defp set_up(attrs \\ %{}) do
     {:ok, _} =
       Settings.complete_setup(
-        Map.merge(%{"admin_email" => "admin@example.com", "signup_mode" => :closed}, attrs)
+        Map.merge(
+          %{"admin_email" => fixture_email("admin@example.com"), "signup_mode" => :closed},
+          attrs
+        )
       )
 
     :ok
   end
 
-  defp mail, do: %{"smtp_host" => "smtp.example.com", "smtp_from_email" => "mail@example.com"}
+  defp mail,
+    do: %{
+      "smtp_host" => "smtp.example.com",
+      "smtp_from_email" => fixture_email("mail@example.com")
+    }
 
   setup %{conn: conn} do
     set_up()
@@ -118,7 +125,7 @@ defmodule SlipdockWeb.UsersLiveTest do
     test "lists who is here, where they came from, and what they use", %{conn: conn} do
       {:ok, _view, html} = live(conn, ~p"/users")
 
-      assert html =~ "ordinary@example.com"
+      assert html =~ fixture_email("ordinary@example.com")
       assert html =~ "signed up"
       assert html =~ "never"
     end
@@ -227,14 +234,17 @@ defmodule SlipdockWeb.UsersLiveTest do
   describe "signup requests" do
     setup do
       {:ok, _} = Settings.update(Map.put(mail(), "signup_mode", :approval))
-      {:ok, request} = Accounts.request_signup("hopeful@example.com", note: "Design")
+
+      {:ok, request} =
+        Accounts.request_signup(fixture_email("hopeful@example.com"), note: "Design")
+
       %{request: request}
     end
 
     test "the queue shows what they said", %{conn: conn} do
       {:ok, _view, html} = live(conn, ~p"/users/signups")
 
-      assert html =~ "hopeful@example.com"
+      assert html =~ fixture_email("hopeful@example.com")
       assert html =~ "Design"
     end
 
@@ -245,7 +255,7 @@ defmodule SlipdockWeb.UsersLiveTest do
       |> element("button[phx-click='approve'][phx-value-id='#{request.id}']")
       |> render_click()
 
-      assert Accounts.get_user_by_email("hopeful@example.com")
+      assert Accounts.get_user_by_email(fixture_email("hopeful@example.com"))
       assert Accounts.list_signup_requests() == []
     end
 
@@ -256,7 +266,7 @@ defmodule SlipdockWeb.UsersLiveTest do
       |> element("button[phx-click='reject'][phx-value-id='#{request.id}']")
       |> render_click()
 
-      refute Accounts.get_user_by_email("hopeful@example.com")
+      refute Accounts.get_user_by_email(fixture_email("hopeful@example.com"))
       assert Accounts.list_signup_requests() == []
     end
 

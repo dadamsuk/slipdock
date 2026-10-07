@@ -73,7 +73,10 @@ defmodule SlipdockWeb.BoardLive.Index do
   end
 
   @impl true
-  def handle_info({:boards_changed}, socket), do: {:noreply, load_boards(socket)}
+  def handle_info({:boards_changed}, socket) do
+    Boards.drain_boards_changed()
+    {:noreply, load_boards(socket)}
+  end
 
   def handle_info({:templates_changed}, socket),
     do: {:noreply, assign(socket, templates: Boards.list_templates())}

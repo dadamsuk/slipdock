@@ -3,12 +3,56 @@ defmodule Slipdock.Fixtures do
 
   alias Slipdock.{Accounts, Boards}
 
-  @default_email "tester@example.com"
-
-  @doc "The default test user (the one ConnCase signs in), created on first use."
-  def user_fixture(email \\ @default_email) do
-    {:ok, user} = Accounts.get_or_create_user_by_email(email)
+  @doc """
+  The default test user (the one ConnCase signs in), created on first use.
+  Its email is `default_email/0`, different in every test.
+  """
+  def user_fixture(email \\ nil) do
+    {:ok, user} = Accounts.get_or_create_user_by_email(fixture_email(email))
     user
+  end
+
+  @doc """
+  The address `user_fixture/1` really uses for `email`. In an async test an
+  `@example.com` address moves to the test's own domain (see
+  `default_email/0`), so "stranger@example.com" in two tests running at once
+  is two people rather than one row both wait on; a sync test runs alone and
+  keeps the address as written.
+  """
+  def fixture_email(nil), do: default_email()
+
+  def fixture_email(email) do
+    case {Process.get({__MODULE__, :async}), String.split(email, "@")} do
+      {true, [local, "example.com"]} -> local <> "@" <> test_domain()
+      _ -> email
+    end
+  end
+
+  @doc "Marks the calling test as async, for `fixture_email/1`. Called by `Slipdock.DataCase`."
+  def mark_async(async?), do: Process.put({__MODULE__, :async}, async? == true)
+
+  defp test_domain, do: default_email() |> String.split("@") |> List.last()
+
+  @doc """
+  The default test user's email: `tester@` a domain of this test's own, the
+  same on every call within one test.
+
+  It used to be `tester@example.com` for every test. Async tests each run in
+  an uncommitted sandbox transaction, so every one creating that user waited
+  for every other one that had, and two fixed emails taken in opposite orders
+  were a deadlock. Kept as `tester@` so it still reads, and matches, as
+  "tester".
+  """
+  def default_email do
+    case Process.get({__MODULE__, :default_email}) do
+      nil ->
+        email = "tester@t#{System.unique_integer([:positive])}.example.com"
+        Process.put({__MODULE__, :default_email}, email)
+        email
+
+      email ->
+        email
+    end
   end
 
   @doc """
@@ -31,7 +75,7 @@ defmodule Slipdock.Fixtures do
         else: %{
           "name" => "Board #{n}",
           "code" => unique_code(n),
-          "shortcut" => unique_shortcut(n)
+          "shortcut" => unique_shortcut()
         }
 
     {:ok, board} =
@@ -48,10 +92,43 @@ defmodule Slipdock.Fixtures do
 
   defp unique_code(n), do: "t" <> String.downcase(Integer.to_string(n, 36))
 
+  @shortcuts __MODULE__.Shortcuts
+
+  @doc """
+  Creates the table `board_fixture/2` hands shortcuts out from. Called once,
+  from `test/test_helper.exs`, so it lives as long as the run.
+  """
+  def start_shortcuts do
+    :ets.new(@shortcuts, [:set, :public, :named_table])
+    :ok
+  end
+
   # Two characters, so never one a name-derived single-letter shortcut takes.
-  defp unique_shortcut(n) do
-    i = rem(n, 36 * 36)
-    Enum.at(@shortcut_chars, div(i, 36)) <> Enum.at(@shortcut_chars, rem(i, 36))
+  # That is only 1,296 of them and a run makes far more boards, so they go
+  # round in turn, skipping any still held by a test that is running: drawing
+  # one of those would wait on that test's uncommitted board until it ended.
+  defp unique_shortcut do
+    Stream.repeatedly(fn -> :ets.update_counter(@shortcuts, :next, 1, {:next, -1}) end)
+    |> Enum.find_value(fn i ->
+      i = rem(i, 36 * 36)
+      shortcut = Enum.at(@shortcut_chars, div(i, 36)) <> Enum.at(@shortcut_chars, rem(i, 36))
+      if claim_shortcut(shortcut, self()), do: shortcut
+    end)
+  end
+
+  defp claim_shortcut(shortcut, me) do
+    :ets.insert_new(@shortcuts, {shortcut, me}) or
+      case :ets.lookup(@shortcuts, shortcut) do
+        [{_, ^me}] ->
+          false
+
+        [{_, pid}] ->
+          not Process.alive?(pid) and
+            :ets.select_replace(@shortcuts, [{{shortcut, pid}, [], [{{shortcut, me}}]}]) == 1
+
+        [] ->
+          claim_shortcut(shortcut, me)
+      end
   end
 
   @doc """
@@ -120,6 +197,18 @@ defmodule Slipdock.Fixtures do
   def reload(board), do: Boards.get_board!(board.id)
 
   @doc """
+  `Boards.create_sub_board/2` with a code unique to this run rather than one
+  derived from the card's title — for the same reason `board_fixture/2` does
+  it: two async tests both giving an "Epic" card subcards would otherwise
+  wait on each other's `epic`. Use the real thing in a test about the code.
+  """
+  def sub_board(card, template),
+    do:
+      Boards.create_sub_board(card, template,
+        code: unique_code(System.unique_integer([:positive]))
+      )
+
+  @doc """
   A three-level tree for rollup tests, as of 15 Jan 2030:
 
       Root: Epic (due 15 Jan) ─┬─ B (done, due 10 Jan)
@@ -133,7 +222,10 @@ defmodule Slipdock.Fixtures do
     {:ok, t} = Boards.find_template("Simple")
 
     epic = card_fixture(backlog, %{"title" => "Epic", "due_date" => "2030-01-15"})
-    {:ok, sub} = Boards.create_sub_board(epic, t)
+
+    {:ok, sub} =
+      Boards.create_sub_board(epic, t, code: unique_code(System.unique_integer([:positive])))
+
     sub = Boards.get_board!(sub.id)
 
     b =
@@ -150,7 +242,9 @@ defmodule Slipdock.Fixtures do
         "due_date" => "2030-01-20"
       })
 
-    {:ok, subsub} = Boards.create_sub_board(c, t)
+    {:ok, subsub} =
+      Boards.create_sub_board(c, t, code: unique_code(System.unique_integer([:positive])))
+
     subsub = Boards.get_board!(subsub.id)
     d = card_fixture(hd(subsub.columns), %{"title" => "D", "completed" => true})
     e = card_fixture(hd(subsub.columns), %{"title" => "E", "due_date" => "2030-02-01"})

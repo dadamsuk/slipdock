@@ -63,7 +63,7 @@ defmodule SlipdockWeb.HeaderRowsLiveTest do
   } do
     card = card_fixture(hd(board.columns), %{"title" => "Big long card title"})
     {:ok, t} = Slipdock.Boards.find_template("Simple")
-    {:ok, _} = Slipdock.Boards.create_sub_board(card, t)
+    {:ok, _} = sub_board(card, t)
     sub = Slipdock.Boards.get_card!(card.id).sub_board
 
     {:ok, view, _html} = live(conn, ~p"/boards/#{sub}")

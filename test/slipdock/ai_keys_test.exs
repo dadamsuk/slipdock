@@ -45,7 +45,7 @@ defmodule Slipdock.AIKeysTest do
       assert Bitwise.band(mode, 0o077) == 0
 
       # The email is recorded alongside, so the file is readable by a human.
-      assert File.read!(ctx.key_file) =~ "keys@example.com"
+      assert File.read!(ctx.key_file) =~ fixture_email("keys@example.com")
     end
 
     test "a second key replaces the first, and leaves other people alone", ctx do
@@ -167,7 +167,7 @@ defmodule Slipdock.AIKeysTest do
 
       assert Keys.system_key() == nil
 
-      Slipdock.TestConfig.merge(:ai, system_user: "OTHER@example.com")
+      Slipdock.TestConfig.merge(:ai, system_user: fixture_email("OTHER@example.com"))
 
       assert Keys.system_key() == "sk-other"
     end
@@ -262,7 +262,7 @@ defmodule Slipdock.AIKeysTest do
       admin = make_admin(user_fixture("admin@example.com"))
       :ok = Keys.put(admin, "sk-admin")
 
-      Slipdock.TestConfig.merge(:ai, system_user: "admin@example.com")
+      Slipdock.TestConfig.merge(:ai, system_user: fixture_email("admin@example.com"))
 
       board = board_fixture(%{"name" => "Launch"}, owner: ctx.user)
 
@@ -272,7 +272,7 @@ defmodule Slipdock.AIKeysTest do
           "name" => "Old",
           "spec" => %{
             "trigger" => %{"type" => "card_created"},
-            "actions" => [%{"type" => "email", "to" => "keys@example.com"}]
+            "actions" => [%{"type" => "email", "to" => fixture_email("keys@example.com")}]
           }
         })
 
@@ -280,7 +280,7 @@ defmodule Slipdock.AIKeysTest do
         "name" => "New",
         "spec" => %{
           "trigger" => %{"type" => "card_created"},
-          "actions" => [%{"type" => "email", "to" => "keys@example.com"}]
+          "actions" => [%{"type" => "email", "to" => fixture_email("keys@example.com")}]
         }
       })
 

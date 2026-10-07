@@ -46,6 +46,24 @@ defmodule Slipdock.Boards do
 
   def subscribe(board_id), do: Phoenix.PubSub.subscribe(@pubsub, topic(board_id))
   def subscribe_all, do: Phoenix.PubSub.subscribe(@pubsub, "boards")
+
+  @doc """
+  Drops every `{:boards_changed}` already waiting in the caller's mailbox.
+
+  `"boards"` hears about a change to any board on the server, so a busy
+  server can send a page subscribed to it many in the time one reload takes.
+  Reloading once per message, the page falls ever further behind — and so
+  does anything waiting on it. A handler that drains the rest first reloads
+  once for the lot, and is still up to date.
+  """
+  def drain_boards_changed do
+    receive do
+      {:boards_changed} -> drain_boards_changed()
+    after
+      0 -> :ok
+    end
+  end
+
   def subscribe_templates, do: Phoenix.PubSub.subscribe(@pubsub, "templates")
 
   # A change inside a sub-board is also a change to every board above it
@@ -468,8 +486,10 @@ defmodule Slipdock.Boards do
   Gives `card` a board of its own (for subcards), with lists taken from
   `template`. The sub-board is named after the card, shares the parent
   board's colour, and shares tags with the root board.
+
+  Its code comes from the card's title unless `opts[:code]` names one.
   """
-  def create_sub_board(%Card{} = card, %Template{} = template) do
+  def create_sub_board(%Card{} = card, %Template{} = template, opts \\ []) do
     parent = Repo.get!(Board, card.board_id)
 
     if Repo.exists?(from(b in Board, where: b.parent_card_id == ^card.id)) do
@@ -479,6 +499,7 @@ defmodule Slipdock.Boards do
              # A simple board's subcards are as simple as it is.
              %{
                "name" => Board.name_for_card(card.title),
+               "code" => opts[:code],
                "color" => parent.color,
                "simple" => parent.simple
              },

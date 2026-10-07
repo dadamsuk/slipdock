@@ -28,7 +28,7 @@ defmodule Slipdock.AccessTest do
   end
 
   test "board grants to users and groups, and listing", ctx do
-    {:ok, grant} = Access.grant(ctx.board, "other@example.com", "read", ctx.owner)
+    {:ok, grant} = Access.grant(ctx.board, fixture_email("other@example.com"), "read", ctx.owner)
     assert grant.user_id == ctx.other.id
     assert Access.board_permission(ctx.other, ctx.board) == :read
     assert Access.card_permission(ctx.other, ctx.card) == :read
@@ -106,7 +106,7 @@ defmodule Slipdock.AccessTest do
 
     # A sub-board inside a granted card inherits the card's permission.
     {:ok, t} = Boards.find_template("Simple")
-    {:ok, sub} = Boards.create_sub_board(ctx.card, t)
+    {:ok, sub} = sub_board(ctx.card, t)
     assert Access.board_permission(ctx.other, sub) == :write
   end
 

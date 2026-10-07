@@ -15,7 +15,9 @@ defmodule SlipdockWeb.API.AuthTest do
   end
 
   test "/api/me and permission checks", %{conn: conn, user: user} do
-    assert %{"user" => %{"email" => "tester@example.com"}} =
+    email = user.email
+
+    assert %{"user" => %{"email" => ^email}} =
              conn |> get(~p"/api/me") |> json_response(200)
 
     other = user_fixture("other@example.com")

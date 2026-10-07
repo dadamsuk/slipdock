@@ -53,7 +53,7 @@ defmodule SlipdockWeb.Wiki.RendererTest do
       assert html =~
                ~s|<a href="/boards/#{board.id}?view=#{view.id}" class="wiki-link wiki-link-view" rel="noopener noreferrer">the blocked list</a>|
 
-      assert html =~ ~s|class="wiki-mention" title="tester@example.com"|
+      assert html =~ ~s|class="wiki-mention" title="#{default_email()}"|
       assert html =~ "@#{Wiki.author_name(user)}"
 
       markdown = Renderer.to_markdown(body, board: board, as: user)
