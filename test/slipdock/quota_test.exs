@@ -5,7 +5,7 @@ defmodule Slipdock.QuotaTest do
   `Slipdock.QuotaLimitsTest`; this file turns them off so that the free tier is
   the only thing being measured.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
 

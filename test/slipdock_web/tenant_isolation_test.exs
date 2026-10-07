@@ -9,7 +9,7 @@ defmodule SlipdockWeb.TenantIsolationTest do
   `Access.visible_users/1`, which has its own unit tests. A correct function
   with one forgotten call site is still a leak.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures

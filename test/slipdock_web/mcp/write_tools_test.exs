@@ -635,7 +635,7 @@ end
 
 defmodule SlipdockWeb.MCP.WriteToolsLimitTest do
   @moduledoc "An account at its limit: the tool error says stop, not try again."
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Slipdock.Fixtures
 

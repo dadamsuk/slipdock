@@ -6,7 +6,7 @@ defmodule Slipdock.SupportAccessTest do
   database regardless. What these tests are about is that it cannot be silent,
   cannot be permanent, and cannot be used to change anything.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
 

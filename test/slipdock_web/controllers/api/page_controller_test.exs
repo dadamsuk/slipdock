@@ -649,10 +649,9 @@ end
 defmodule SlipdockWeb.API.PageControllerLimitTest do
   @moduledoc """
   The 402s a page endpoint answers when the owner's account is full: pages
-  are items, and so are the cards a page makes. Not async: the limit is a
-  server-wide setting.
+  are items, and so are the cards a page makes.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Slipdock.Fixtures
 

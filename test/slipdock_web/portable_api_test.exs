@@ -8,7 +8,7 @@ defmodule SlipdockWeb.PortableAPITest do
   of their work. And a read-only token must be able to take an export and
   unable to push one in, which is the whole reason the scope exists.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Slipdock.Fixtures
 

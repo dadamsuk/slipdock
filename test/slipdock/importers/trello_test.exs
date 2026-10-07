@@ -5,7 +5,7 @@ defmodule Slipdock.Importers.TrelloTest do
   archived card, unnamed and duplicate labels, two checklists on one card,
   comments newest first — so each test is about one decision in the mapping.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Ecto.Query
   import Slipdock.Fixtures

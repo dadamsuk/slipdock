@@ -46,8 +46,11 @@ defmodule Slipdock.Settings do
   alias Slipdock.Repo
   alias Slipdock.Settings.{AllowlistEntry, Instance}
 
-  # The singleton's id. One row, always this one.
-  @id 1
+  # The singleton's id: one row, always id 1. Read through config only so the
+  # test suite can give each async test a row of its own (see
+  # `Slipdock.DataCase`); sharing one, a test that saves settings would queue
+  # behind every other test's uncommitted save.
+  defp row_id, do: Slipdock.Config.get(:settings_row_id, 1)
   @cache_key {__MODULE__, :instance}
 
   @doc """
@@ -107,7 +110,7 @@ defmodule Slipdock.Settings do
   @spec update(map()) :: {:ok, Instance.t()} | {:error, Ecto.Changeset.t()}
   def update(attrs) do
     stored()
-    |> Kernel.||(%Instance{id: @id})
+    |> Kernel.||(%Instance{id: row_id()})
     |> Instance.changeset(attrs)
     |> Repo.insert_or_update()
     |> tap_clear_cache()
@@ -121,7 +124,7 @@ defmodule Slipdock.Settings do
   @spec complete_setup(map()) :: {:ok, Instance.t()} | {:error, Ecto.Changeset.t()}
   def complete_setup(attrs) do
     stored()
-    |> Kernel.||(%Instance{id: @id})
+    |> Kernel.||(%Instance{id: row_id()})
     |> Instance.complete_setup_changeset(attrs)
     |> Repo.insert_or_update()
     |> tap_clear_cache()
@@ -284,7 +287,7 @@ defmodule Slipdock.Settings do
         token = Base.url_encode64(:crypto.strong_rand_bytes(18), padding: false)
 
         stored()
-        |> Kernel.||(%Instance{id: @id})
+        |> Kernel.||(%Instance{id: row_id()})
         |> Ecto.Changeset.change(setup_token: token)
         |> Repo.insert_or_update()
         |> tap_clear_cache()
@@ -405,7 +408,7 @@ defmodule Slipdock.Settings do
     else
       attrs = seed_attrs()
 
-      case Repo.insert(Instance.changeset(%Instance{id: @id}, attrs)) do
+      case Repo.insert(Instance.changeset(%Instance{id: row_id()}, attrs)) do
         {:ok, _} ->
           clear_caches()
           seed_allowlist()
@@ -532,7 +535,7 @@ defmodule Slipdock.Settings do
     stored() || defaults()
   end
 
-  defp stored, do: Repo.get(Instance, @id)
+  defp stored, do: Repo.get(Instance, row_id())
 
   # What the application reads before anything has been saved. Deliberately
   # built from config rather than from the schema's defaults, so the test
@@ -550,7 +553,7 @@ defmodule Slipdock.Settings do
       end
 
     %Instance{
-      id: @id,
+      id: row_id(),
       signup_mode: mode,
       free_card_limit: configured[:free_card_limit],
       user_directory: configured[:user_directory] || :instance,

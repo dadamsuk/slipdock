@@ -4,7 +4,7 @@ defmodule Slipdock.VisibleUsersTest do
   sharing one server never learn of each other, so most of these are about what
   is *not* in the list.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
 

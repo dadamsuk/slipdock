@@ -3,7 +3,7 @@ defmodule SlipdockWeb.UsersLiveTest do
   The Users page: the people on this server, whoever is waiting to be let in,
   and the refusals that keep the last admin from locking everybody out.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures

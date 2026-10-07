@@ -3,7 +3,7 @@ defmodule SlipdockWeb.TermsTest do
   A server's terms: named on the sign-in page, agreed to by signing in — and,
   on a server that has none, never mentioned.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
