@@ -312,9 +312,13 @@ defmodule Slipdock.Boards do
           order_by: c.position,
           select: [:id, :name, :position, :color, :board_id]
         ),
+      # In board order (list, then place in the list), so callers that show
+      # or compare subcards see them as the board does, not as the rows fell.
       cards:
         from(c in Card,
+          join: col in assoc(c, :column),
           where: is_nil(c.archived_at),
+          order_by: [asc: col.position, asc: c.position, asc: c.id],
           select: [:id, :title, :completed, :archived_at, :board_id, :column_id]
         )
     ]
