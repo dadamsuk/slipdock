@@ -418,6 +418,12 @@ all under **Configuration → Server**, with the people themselves under
   addresses out of the prompts sent to a language model.
 - **Whether sharing with a stranger makes them an account**, which is how
   somebody arrives on a hosted instance and is usually wrong on a private one.
+- **Product analytics with PostHog**, off until you fill in a project key
+  (and, for the EU cloud or a proxy, a host). Without a key nothing about
+  PostHog reaches a browser — no script, no requests, no widened
+  Content-Security-Policy. From a terminal: `slipdock admin set
+  posthog_key=phc_... posthog_host=https://eu.i.posthog.com`, and
+  `posthog_key=` to turn it off again.
 
 #### The ceilings, which are not about selling anything
 
@@ -553,7 +559,8 @@ these are decisions only you can make.
   twenty per IP, so nobody can use your server to mail strangers. A refused
   address is told exactly what an accepted one is told.
 - **Responses carry a Content-Security-Policy** that allows script from this
-  origin only.
+  origin only — unless an admin turns on PostHog, which adds PostHog's script
+  host and nothing else.
 - **Administering the server needs its own token scope.** The admin pages
   (**Configuration** for registration and mail, **Users** for the people and the
   signup queue) are behind an admin account, and

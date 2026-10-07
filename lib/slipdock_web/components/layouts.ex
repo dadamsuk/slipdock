@@ -1231,6 +1231,25 @@ defmodule SlipdockWeb.Layouts do
   end
 
   @doc """
+  Tells `assets/js/posthog.js` the PostHog project key and where to send
+  events, when an admin has configured one on the Configuration page. Renders
+  nothing otherwise, and without the tag the script loads nothing.
+  """
+  def posthog_meta(assigns) do
+    assigns = assign(assigns, :posthog, Slipdock.Settings.posthog())
+
+    ~H"""
+    <meta
+      :if={@posthog}
+      name="posthog"
+      content={@posthog.key}
+      data-host={@posthog.host}
+      data-assets={@posthog.assets}
+    />
+    """
+  end
+
+  @doc """
   The one confirmation box every page shares, in place of the browser's own.
 
   Anything that asks first carries `data-confirm="Delete this card?"`, and

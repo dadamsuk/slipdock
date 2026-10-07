@@ -64,6 +64,8 @@ defmodule SlipdockCLI do
                                       board_limit=1000, item_limit=250000,
                                       storage_limit_mb=10240, and <name>_enabled=false
                                       to switch any limit off
+                                      posthog_key=phc_... posthog_host=https://eu.i.posthog.com
+                                      for analytics; posthog_key= turns it off
   admin allow <entry>                 let an address or a whole domain register
   admin disallow <entry>
   admin users                         who is here, what they use, when last seen

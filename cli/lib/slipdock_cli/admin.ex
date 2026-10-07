@@ -75,7 +75,8 @@ defmodule SlipdockCLI.Admin do
     admin settings                      what this server allows
     admin build                         the commit and build time now running
     admin set key=value...              signup_mode, free_card_limit, user_directory,
-                                        invites_create_accounts, login_fallback_enabled
+                                        invites_create_accounts, login_fallback_enabled,
+                                        posthog_key, posthog_host (empty to turn off)
     admin allow <entry> | disallow <entry>
     admin users                         who is here
     admin promote|demote|disable|enable <email>
@@ -159,9 +160,16 @@ defmodule SlipdockCLI.Admin do
     Admin address:    #{s["admin_email"] || "—"}
     Mail:             #{if s["smtp"]["configured"], do: "#{s["smtp"]["host"]}:#{s["smtp"]["port"] || 587}", else: "not configured"}
     Sign-in fallback: #{if s["login_fallback"]["enabled"], do: s["login_fallback"]["path"], else: "off"}
+    Analytics:        #{render_analytics(s["analytics"])}
     Waiting:          #{s["pending_signups"]}\
     """)
   end
+
+  # PostHog, on only while a key is set; an unset host is PostHog's US cloud.
+  defp render_analytics(%{"posthog_key" => key} = a) when is_binary(key) and key != "",
+    do: "PostHog #{key} → #{a["posthog_host"] || "https://us.i.posthog.com"}"
+
+  defp render_analytics(_), do: "off"
 
   # A limit is a number and a switch; a switch that is off means no limit at
   # all, whatever number is remembered behind it.

@@ -53,6 +53,11 @@ defmodule SlipdockWeb.API.AdminController do
           enabled: Settings.login_fallback_enabled?(),
           path: if(Settings.login_fallback_enabled?(), do: Accounts.fallback_path())
         },
+        # Off (key nil) unless an admin filled one in; host nil means the US cloud.
+        analytics: %{
+          posthog_key: settings.posthog_key,
+          posthog_host: settings.posthog_host
+        },
         pending_signups: Accounts.count_pending_signups()
       }
     })
