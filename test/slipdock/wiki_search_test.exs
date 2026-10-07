@@ -7,6 +7,8 @@ defmodule Slipdock.WikiSearchTest do
   here is the chunking, the permission filtering and the roll-up — not the
   quality of anybody's vectors.
   """
+  # Sync: drives `Slipdock.Search.Indexer`, one queue for the node in a process
+  # started at boot, so the AI stub has to be shared (see CONTRIBUTING.md).
   use Slipdock.DataCase, async: false
 
   import Slipdock.Fixtures

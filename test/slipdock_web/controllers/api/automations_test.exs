@@ -1,5 +1,5 @@
 defmodule SlipdockWeb.API.AutomationsTest do
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Slipdock.Fixtures
   import Swoosh.TestAssertions
@@ -7,7 +7,6 @@ defmodule SlipdockWeb.API.AutomationsTest do
   alias Slipdock.{Access, Automations, Boards}
 
   setup %{conn: conn} do
-    Slipdock.AIStub.share()
     board = board_fixture(%{"name" => "API Board"})
     [backlog, doing, _review, done] = board.columns
 

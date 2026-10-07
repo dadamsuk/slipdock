@@ -1,8 +1,10 @@
 defmodule Slipdock.AIStub do
   @moduledoc """
   Stands in for OpenRouter in tests: `config :slipdock, :ai` routes `Req`
-  through `Req.Test`, and these helpers script the answers. Call `share/0`
-  in a test's setup so LiveView processes see the stub too.
+  through `Req.Test`, and these helpers script the answers. A stub is seen by
+  the test and whatever it starts (LiveViews, tasks), which find it through
+  `$callers`; `share/0` is only for code that runs in a process started at
+  boot — the search indexer — and makes the test `async: false`.
 
   All three endpoints the app uses go through one stub, told apart by path:
   `/chat/completions` (see `reply_with/1` and `reply_sequence/1`),
@@ -10,7 +12,10 @@ defmodule Slipdock.AIStub do
   `stub_models/1`, always answered with `default_models/0`).
   """
 
-  @doc "Lets every process (LiveViews, async tasks) use the stubs set by this test."
+  @doc """
+  Lets every process use the stubs set by this test, including ones started
+  at boot such as `Slipdock.Search.Indexer`. Global, so only in sync tests.
+  """
   def share(_context \\ %{}) do
     Req.Test.set_req_test_to_shared()
     ExUnit.Callbacks.on_exit(fn -> Req.Test.set_req_test_to_private() end)

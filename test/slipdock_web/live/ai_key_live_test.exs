@@ -4,7 +4,7 @@ defmodule SlipdockWeb.AIKeyLiveTest do
   section, the API the CLI uses, and the AI features hiding themselves from a
   person who has neither.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
@@ -12,21 +12,11 @@ defmodule SlipdockWeb.AIKeyLiveTest do
   alias Slipdock.AI.Keys
 
   setup do
-    Slipdock.AIStub.share()
-
-    previous = Application.get_env(:slipdock, :ai)
     file = Path.join(System.tmp_dir!(), "ai_keys_live_#{System.unique_integer([:positive])}.json")
 
-    Application.put_env(
-      :slipdock,
-      :ai,
-      previous |> Keyword.put(:key_file, file) |> Keyword.put(:api_key, nil)
-    )
+    Slipdock.TestConfig.merge(:ai, key_file: file, api_key: nil)
 
-    on_exit(fn ->
-      Application.put_env(:slipdock, :ai, previous)
-      File.rm(file)
-    end)
+    on_exit(fn -> File.rm(file) end)
 
     :ok
   end
@@ -141,11 +131,7 @@ defmodule SlipdockWeb.AIKeyLiveTest do
     end
 
     test "a shared server key is said so, rather than looking like your own", %{conn: conn} do
-      Application.put_env(
-        :slipdock,
-        :ai,
-        Keyword.put(Application.get_env(:slipdock, :ai), :api_key, "sk-shared")
-      )
+      Slipdock.TestConfig.merge(:ai, api_key: "sk-shared")
 
       {:ok, _view, html} = live(conn, ~p"/account/settings")
       assert html =~ "this server has a shared key"

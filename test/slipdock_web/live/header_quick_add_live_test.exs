@@ -1,5 +1,5 @@
 defmodule SlipdockWeb.HeaderQuickAddLiveTest do
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
@@ -7,7 +7,6 @@ defmodule SlipdockWeb.HeaderQuickAddLiveTest do
   alias Slipdock.{Accounts, Repo}
 
   setup do
-    Slipdock.AIStub.share()
     board = board_fixture(%{"name" => "Plan"})
     %{board: reload(board)}
   end

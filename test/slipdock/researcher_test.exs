@@ -3,7 +3,7 @@ defmodule Slipdock.ResearcherTest do
   The assistant that searches for itself: the tool loop, what each tool
   returns, and the fact that every one of them is scoped to the asker.
   """
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
 
@@ -11,8 +11,6 @@ defmodule Slipdock.ResearcherTest do
   alias Slipdock.{Access, Boards, Search}
 
   setup do
-    Slipdock.AIStub.share()
-
     owner = user_fixture("owner@example.com")
     board = board_fixture(%{"name" => "Launch", "code" => "launch"}, owner: owner)
     column = hd(board.columns)

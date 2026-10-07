@@ -1,13 +1,12 @@
 defmodule SlipdockWeb.MCP.SearchToolTest do
   @moduledoc "The MCP `search` tool: semantic search, scoped as the API scopes it and then by the token."
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Slipdock.Fixtures
 
   alias Slipdock.{Accounts, Search}
 
   setup %{user: user} do
-    Slipdock.AIStub.share()
     Slipdock.AIStub.stub_embeddings()
 
     board = board_fixture(%{"name" => "Delivery", "code" => "delivery"}, owner: user)

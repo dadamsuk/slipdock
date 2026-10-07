@@ -1,13 +1,9 @@
 defmodule Slipdock.AITest do
-  use Slipdock.DataCase, async: false
+  use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
   alias Slipdock.{AI, Boards}
   alias Slipdock.AI.{Actions, Assistant, Context, Narrator}
-
-  setup :share_stub
-
-  defp share_stub(_), do: Slipdock.AIStub.share()
 
   describe "Slipdock.AI" do
     test "complete/2 posts the messages and returns the reply" do

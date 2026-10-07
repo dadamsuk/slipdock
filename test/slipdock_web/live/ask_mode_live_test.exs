@@ -1,5 +1,5 @@
 defmodule SlipdockWeb.AskModeLiveTest do
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
@@ -7,7 +7,6 @@ defmodule SlipdockWeb.AskModeLiveTest do
   alias Slipdock.{Boards, Search}
 
   setup %{user: user} do
-    Slipdock.AIStub.share()
     Slipdock.AIStub.stub_embeddings()
 
     board = board_fixture(%{"name" => "Delivery"}, owner: user)

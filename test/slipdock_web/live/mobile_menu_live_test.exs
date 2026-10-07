@@ -9,7 +9,7 @@ defmodule SlipdockWeb.MobileMenuLiveTest do
   so these check that both are rendered and carry the classes that pick
   between them.
   """
-  use SlipdockWeb.ConnCase, async: false
+  use SlipdockWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
@@ -54,7 +54,6 @@ defmodule SlipdockWeb.MobileMenuLiveTest do
     end
 
     test "hides the avatar, the board's chat and its … menu", %{conn: conn, board: board} do
-      Slipdock.AIStub.share()
       {:ok, view, _} = live(phone(conn), ~p"/boards/#{board}")
 
       assert has_element?(view, "header #account-menu.hidden.sm\\:block")
@@ -109,7 +108,6 @@ defmodule SlipdockWeb.MobileMenuLiveTest do
     end
 
     test "opens the board's AI chat when AI is set up", %{conn: conn, board: board} do
-      Slipdock.AIStub.share()
       {:ok, view, _} = live(phone(conn), ~p"/boards/#{board}")
 
       refute has_element?(view, "#page-ai [role=dialog]")
@@ -119,15 +117,7 @@ defmodule SlipdockWeb.MobileMenuLiveTest do
 
     test "has no chat entry without AI", %{conn: conn, board: board, user: user} do
       # The shared key kept for admins, and no key of one's own: no AI.
-      previous = Application.get_env(:slipdock, :ai)
-
-      Application.put_env(
-        :slipdock,
-        :ai,
-        Keyword.put(previous, :shared_key_for_admins_only, true)
-      )
-
-      on_exit(fn -> Application.put_env(:slipdock, :ai, previous) end)
+      Slipdock.TestConfig.merge(:ai, shared_key_for_admins_only: true)
       refute Slipdock.AI.configured?(user)
 
       {:ok, view, _} = live(phone(conn), ~p"/boards/#{board}")

@@ -3,6 +3,8 @@ defmodule Slipdock.DemoTest do
   The demo workspace is what a fresh install shows and what the README
   screenshots are taken from, so it has to keep building.
   """
+  # Sync: drives `Slipdock.Search.Indexer`, one queue for the node in a process
+  # started at boot, so the AI stub has to be shared (see CONTRIBUTING.md).
   use Slipdock.DataCase, async: false
 
   alias Slipdock.{Boards, Demo, Fields, Wiki}
