@@ -166,15 +166,20 @@ that connects gets a small set of tools rather than the whole API:
 
 | Reading | Writing |
 |---|---|
-| `whoami`, `get_guide`, `list_boards`, `get_board`, `list_cards`, `get_card`, `search`, `read_page` | `create_card`, `update_card`, `move_card`, `comment`, `complete_card`, `archive_card`, `write_page` |
+| `whoami`, `get_guide`, `list_boards`, `get_board`, `list_cards`, `get_card`, `search`, `read_page` | `create_card`, `update_card`, `move_card`, `comment`, `complete_card`, `archive_card`, `delete_card`, `create_list`, `delete_list`, `create_board`, `archive_board`, `delete_board`, `write_page` |
 
 `update_card` also sets what blocks a card and works its checklist (add
 items, tick and untick them by the ids `get_card` shows); `move_card` takes
 `board` to send a card, subcards and all, to another board; `list_cards`
 takes `archived` (`exclude`, the default, `include` or `only`); and
-`archive_card` puts a card away or, with `restore`, brings it back.
-There is no delete tool. The read tools are marked read-only, so a client
-can let them run without asking each time.
+`archive_card` puts a card away or, with `restore`, brings it back, as
+`archive_board` does for a board you own. The deletes cannot be undone, so
+each has to be meant: `delete_card` needs `confirm: true`, `delete_board`
+(owner only) needs `confirm` set to the board's code, and `delete_list`
+refuses a list that still holds cards unless `with_cards: true`. A token
+confined to some boards cannot `create_board`. The read tools are marked
+read-only, so a client can let them run without asking each time; the
+deletes are marked destructive.
 
 A client connects one of two ways.
 

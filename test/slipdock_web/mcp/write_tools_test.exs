@@ -86,7 +86,10 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
     assert tools["comment"]["destructiveHint"] == false
     # Restoring undoes it, so archiving overwrites nothing.
     assert tools["archive_card"]["destructiveHint"] == false
-    refute Enum.any?(Map.keys(tools), &String.contains?(&1, "delete"))
+    # The deletes are the destructive ones; structure_tools_test.exs has them.
+    for name <- Map.keys(tools), String.contains?(name, "delete") do
+      assert tools[name]["destructiveHint"] == true, name
+    end
   end
 
   describe "create_card" do

@@ -1,5 +1,5 @@
 defmodule SlipdockWeb.MCP.Tools.ArchiveCard do
-  @moduledoc "Puts a card away, or brings an archived one back. There is no delete."
+  @moduledoc "Puts a card away, or brings an archived one back. `delete_card` is the one that cannot be undone."
   @behaviour SlipdockWeb.MCP.Tool
 
   alias Slipdock.Boards

@@ -351,8 +351,13 @@ defmodule SlipdockWeb.APIGuide do
     `get_board`, `list_cards`, `get_card`, `search`, `read_page`, and for
     writing `create_card`, `update_card` (fields, flags, tags, assignees,
     dependencies and the checklist), `move_card` (to another board too),
-    `comment`, `complete_card`, `archive_card` (and restore) and
-    `write_page`. There is no delete tool. A read-only
+    `comment`, `complete_card`, `archive_card` (and restore), `delete_card`,
+    `create_list`, `delete_list`, `create_board`, `archive_board` (and
+    restore), `delete_board` and `write_page`. Archiving is the undoable way
+    to put something away; the deletes are not undoable, so `delete_card`
+    needs `confirm: true`, `delete_board` needs `confirm` set to the board's
+    code, and `delete_list` refuses a list holding cards unless
+    `with_cards: true`. A read-only
     token, or a connection the person approved read-only, can call the read
     tools, and a write tool answers it with an error saying so. The conventions in this guide apply the same way through
     either door.
