@@ -21,6 +21,9 @@ defmodule SlipdockWeb.BoardLive.Index do
     {"cards", "Most cards"}
   ]
 
+  # What the custom lists box starts with, to be edited rather than typed out.
+  @default_lists "Backlog\nTo Do\nIn Progress\nDone"
+
   @impl true
   def mount(_params, _session, socket) do
     if connected?(socket) do
@@ -34,6 +37,7 @@ defmodule SlipdockWeb.BoardLive.Index do
      socket
      |> assign(page_title: "Boards", creating: false, new_color: "indigo", template_id: nil)
      |> assign(auto_code: "", source_choices: nil, sources_chosen: %{})
+     |> assign(custom_lists: @default_lists, save_template: false, template_name: "")
      |> assign(board_layout: user.board_layout || "grid", sort: user.board_sort || "manual")
      |> assign(show_archived: false)
      |> assign(templates: Boards.list_templates())
@@ -57,6 +61,38 @@ defmodule SlipdockWeb.BoardLive.Index do
       assign(socket, sources_chosen: %{})
     end
   end
+
+  # "Custom lists" in the Lists menu: the lists are typed one per line, and
+  # may be kept as a template under a name of their own (the board's when
+  # left blank).
+  defp custom_opts(%{"template" => "custom"} = params) do
+    columns = String.split(params["lists"] || "", "\n")
+
+    save =
+      if params["save_template"] == "true" do
+        case String.trim(params["template_name"] || "") do
+          "" -> true
+          name -> name
+        end
+      end
+
+    [columns: columns, save_template: save]
+  end
+
+  defp custom_opts(_), do: []
+
+  # The box only exists while "Custom lists" is picked, so a change that does
+  # not carry it leaves what was typed alone.
+  defp put_custom(socket, params) do
+    assign(socket,
+      custom_lists: params["lists"] || socket.assigns.custom_lists,
+      save_template: params["save_template"] == "true",
+      template_name: params["template_name"] || socket.assigns.template_name
+    )
+  end
+
+  defp errors_on(form, field),
+    do: form.errors |> Keyword.get_values(field) |> Enum.map(&translate_error/1)
 
   defp sprint_template?(templates, id),
     do: Enum.any?(templates, &(to_string(&1.id) == id and &1.kind == "sprints"))
@@ -89,6 +125,9 @@ defmodule SlipdockWeb.BoardLive.Index do
      assign(socket,
        creating: true,
        auto_code: "",
+       custom_lists: @default_lists,
+       save_template: false,
+       template_name: "",
        form: to_form(Boards.change_board(%Board{}))
      )}
   end
@@ -106,21 +145,22 @@ defmodule SlipdockWeb.BoardLive.Index do
     {:noreply,
      socket
      |> assign(form: form, template_id: all["template"], auto_code: auto_code)
+     |> put_custom(all)
      |> put_sources(all)}
   end
 
   def handle_event("create", %{"board" => params} = all, socket) do
     template =
       case all["template"] do
-        id when id in [nil, ""] -> nil
+        id when id in [nil, "", "custom"] -> nil
         id -> Enum.find(socket.assigns.templates, &(to_string(&1.id) == id))
       end
 
     params = Map.put(params, "color", socket.assigns.new_color)
 
-    case Boards.create_board(params,
-           template: template,
-           owner_id: socket.assigns.current_user.id
+    case Boards.create_board(
+           params,
+           [template: template, owner_id: socket.assigns.current_user.id] ++ custom_opts(all)
          ) do
       {:ok, board} ->
         sources = parse_sources(all["sources"], socket.assigns.source_choices || [])
@@ -134,7 +174,7 @@ defmodule SlipdockWeb.BoardLive.Index do
         {:noreply, push_navigate(socket, to: ~p"/boards/#{board}")}
 
       {:error, changeset} ->
-        {:noreply, assign(socket, form: to_form(changeset))}
+        {:noreply, socket |> assign(form: to_form(changeset)) |> put_custom(all)}
     end
   end
 
@@ -402,8 +442,42 @@ defmodule SlipdockWeb.BoardLive.Index do
                   >
                     {t.name} ({Enum.map_join(t.columns, " · ", & &1["name"])})
                   </option>
+                  <option value="custom" selected={@template_id == "custom"}>
+                    Custom lists…
+                  </option>
                 </select>
               </label>
+              <div :if={@template_id == "custom"} id="new-board-lists" class="max-w-md space-y-2">
+                <.input
+                  type="textarea"
+                  id="new-board-lists-text"
+                  name="lists"
+                  value={@custom_lists}
+                  rows="5"
+                  label="Your lists, one per line"
+                  errors={errors_on(@form, :columns)}
+                />
+                <p class="text-xs text-base-content/50">
+                  Lists named like To Do, In Progress or Done count as such; set the rest in the
+                  board's settings afterwards.
+                </p>
+                <.input
+                  type="checkbox"
+                  id="new-board-save-template"
+                  name="save_template"
+                  value={@save_template}
+                  label="Save these lists as a template"
+                />
+                <.input
+                  :if={@save_template}
+                  id="new-board-template-name"
+                  name="template_name"
+                  value={@template_name}
+                  label="Template name"
+                  placeholder={@form[:name].value || "the board's name"}
+                  errors={errors_on(@form, :save_template)}
+                />
+              </div>
               <div :if={sprint_template?(@templates, @template_id)} id="new-board-sources">
                 <span class="mb-1 block text-sm font-medium">Plan sprints from</span>
                 <p class="mb-2 text-xs text-base-content/50">

@@ -416,6 +416,13 @@ Roadmap — Now · Next · Later · Done, for the top of a tree — and Sprint
 planning, below); manage them at `/templates`, pick one when creating a
 board, or save any board's current lists as a template from its settings.
 
+Or set the lists out when you create the board: pick **Custom lists…** in
+the **Lists** menu and type them one per line. A list named like To Do, In
+Progress or Done is given that role (the rest can be set in the board's
+settings); tick **Save these lists as a template** to keep them for next
+time, under a name of your own or the board's. A template name that is
+already taken stops the board being made too, so you can pick another.
+
 ## Simple boards
 
 Not every board is a project. A shopping list, a household to-do list or a
@@ -2266,7 +2273,9 @@ DELETE /api/saved-queries/:id      DELETE /api/saved-queries   {mode, q}
 POST   /api/ask     {q, history: [{role, content}]}     ask the assistant; it searches for itself
 GET    /api/templates                      POST   /api/templates   {name, description, columns: ["Name" | {name, wip_limit, color}]}
 GET    /api/templates/:id                  PATCH  /api/templates/:id   DELETE /api/templates/:id
-GET    /api/boards                         POST   /api/boards   {name, code, description, color, template}
+GET    /api/boards                         POST   /api/boards   {name, code, description, color, template,
+                                                   columns: ["Name" | {name, wip_limit, color, category}],
+                                                   save_template: "Name" | true}
        ?archived=true|all &sort=manual|name|active|newest|oldest|cards
 GET    /api/boards/:board                  PATCH  /api/boards/:board   DELETE /api/boards/:board
 POST   /api/boards/:board/archive          POST   /api/boards/:board/restore   (owner only)
@@ -2455,6 +2464,7 @@ slipdock unsave --id 3                                     # or `slipdock unsave
 slipdock templates
 slipdock new-template Sprint --desc "Two weeks" --list Todo --list "Doing:2:amber" --list "Done::emerald"
 slipdock new-board Q4 plan --template Sprint
+slipdock new-board Hiring --list Applied --list "Interview:3" --list Done --save-template "Hiring"
 slipdock welcome                  # rebuild the Getting Started tour board; --force for another
 slipdock boards --all             # archived boards too;  --archived for those alone
 slipdock boards --sort active     # or name, newest, oldest, cards; default is your own order
@@ -2607,7 +2617,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `delete_card` | Deletes a card with its subcards, comments and files. Needs `confirm: true`. |
 | `create_list` | A list at the end of a board, with its category (`todo`, `doing`, `done`) and an optional WIP limit. |
 | `delete_list` | Deletes an empty list; one holding cards only with `with_cards: true`. |
-| `create_board` | A board of your own, with a template's lists (Backlog, To Do, In Progress, Done by default). |
+| `create_board` | A board of your own, with a template's lists (Backlog, To Do, In Progress, Done by default), or `lists` of its own that `save_template` can keep as a new template. |
 | `archive_board` | Archives a board you own, or with `restore: true` brings it back. |
 | `delete_board` | Deletes a board you own and everything on it. `confirm` must repeat the board's code. |
 | `write_page` | The wiki: `create` a page, `append` or `append_section` to one, or `replace_section` and `replace`, which need the `content_hash` from `read_page` so nobody's edit is overwritten. |

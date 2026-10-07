@@ -258,6 +258,9 @@ defmodule SlipdockCLI do
     archive <id>...  |  restore <id>... archive / restore cards
     delete <id>...                      permanently delete (prefer archive)
     new-board <name> [--code C] [--shortcut K] [--desc TEXT] [--color C] [--template T]
+        [--list "Name[:wip[:color]]"]... [--save-template NAME]
+                                        --list (repeatable) sets the board's own lists instead
+                                        of a template's; --save-template keeps them as one too
     welcome [--force]                   build the "Getting Started" board: a tour of the whole
                                         app, cards, subcards, automation and wiki pages included
                                         (the one a first sign-in makes by itself)
@@ -390,6 +393,7 @@ defmodule SlipdockCLI do
     days: :integer,
     goal: :string,
     template: :string,
+    save_template: :string,
     list: :keep,
     fields: :string,
     group: :string,

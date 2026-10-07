@@ -580,6 +580,12 @@ defmodule SlipdockWeb.APIGuide do
         POST /api/cards/42/subboard        {"template": "Simple"}
         POST /api/boards/9/cards           {"title": "Query parser", "column": "To Do"}
 
+    A new board takes its lists from `template`, or sets its own out with
+    `POST /api/boards {"name": "Hiring", "columns": ["Applied", "Interview",
+    "Done"], "save_template": "Hiring"}` — names like To Do, In Progress and
+    Done get those roles, and `save_template` (a name, or `true` for the
+    board's) keeps the lists as a new template in the same request.
+
     `GET /api/templates` lists the named sets of lists a new sub-board can be
     built from; the response to `POST …/subboard` includes the new board, whose
     `id` is what you add cards to. `DELETE /api/cards/42/subboard` removes the
