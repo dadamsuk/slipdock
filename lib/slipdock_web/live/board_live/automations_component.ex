@@ -381,7 +381,7 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
     do: preset_text_input(assigns)
 
   defp preset_input(%{field: %{type: type}} = assigns)
-       when type in ~w(column tag notify field flag priority) do
+       when type in ~w(column tag notify field flag priority yesno) do
     options =
       case type do
         "column" -> Enum.map(assigns.board.columns, &{&1.name, &1.name})

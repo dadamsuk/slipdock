@@ -133,6 +133,7 @@ defmodule Slipdock.Automations do
     |> check_rule_count()
     |> check_recipients()
     |> check_feed_list()
+    |> check_doing_list()
     |> Repo.insert()
     |> tap_ok(&log_rule(&1, "added automation “#{&1.name}”"))
     |> tap_ok(&feed_rule/1)
@@ -143,6 +144,7 @@ defmodule Slipdock.Automations do
     |> Rule.changeset(attrs)
     |> check_recipients()
     |> check_feed_list()
+    |> check_doing_list()
     |> Repo.update()
     |> tap_ok(&feed_rule/1)
   end
@@ -197,6 +199,27 @@ defmodule Slipdock.Automations do
          name = to_string(spec["trigger"]["column"]),
          {:error, _} <- Slipdock.Boards.find_column(board, name) do
       Ecto.Changeset.add_error(changeset, :spec, "there's no list called “#{name}” on this board")
+    else
+      _ -> changeset
+    end
+  end
+
+  # Waiting while anything is in progress needs a list that means "in
+  # progress": on a board without one, the option would do nothing, quietly.
+  defp check_doing_list(changeset) do
+    with true <- changeset.valid?,
+         spec when is_map(spec) <- Ecto.Changeset.get_change(changeset, :spec),
+         true <- Enum.any?(Spec.actions(spec), &(&1["wait_while_doing"] == true)),
+         %Board{} = board <-
+           Repo.get(Board, Ecto.Changeset.get_field(changeset, :board_id))
+           |> Repo.preload(:columns),
+         false <- Enum.any?(board.columns, &(&1.category == "doing")) do
+      Ecto.Changeset.add_error(
+        changeset,
+        :spec,
+        "wait_while_doing needs an in-progress list on this board: give one of its lists " <>
+          "the In progress category"
+      )
     else
       _ -> changeset
     end

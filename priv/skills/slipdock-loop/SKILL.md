@@ -183,6 +183,10 @@ slipdock claim-job <board> --pool <pool>     # or the MCP tool claim_job
 - **`nothing queued`.** Go on to the ready list (step 2a, then 3) only if the
   invocation says to fall back ("else the top of To Do"). Otherwise the pass
   is over: report `no job queued for <pool>` and stop.
+- **`nothing queued to take: job #N waits while #M is in progress`.** A job
+  is held back because a card is in progress on the board. If that card is
+  yours, step 2 should already have resumed it; otherwise somebody is working
+  it, so report that and stop rather than starting a second card beside it.
 - **`unknown command`, or a 404 from the server** (one older than runners):
   say so once in the pass report and carry on as though no pool had been
   named.

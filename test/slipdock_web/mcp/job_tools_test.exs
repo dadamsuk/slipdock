@@ -73,6 +73,22 @@ defmodule SlipdockWeb.MCP.JobToolsTest do
       assert ctx |> claim!() == "nothing queued"
     end
 
+    test "says which job is held back while something is in progress", ctx do
+      doing = Enum.find(ctx.board.columns, &(&1.category == "doing"))
+      busy = card_fixture(doing, %{"title" => "By hand"})
+
+      {:ok, job} =
+        Runners.queue(ctx.card, %{
+          pool: "default",
+          kind: "claude",
+          prompt: "p",
+          wait_while_doing: true
+        })
+
+      assert claim!(ctx) ==
+               "nothing queued to take: job ##{job.id} waits while ##{busy.id} is in progress"
+    end
+
     test "takes the job, and the session shows in the runner list", ctx do
       {:ok, job} = queue(ctx.card)
 

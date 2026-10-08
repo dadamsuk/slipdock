@@ -714,6 +714,21 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
             </option>
           </select>
         </label>
+
+        <label
+          :if={is_nil(@editing) and String.starts_with?(to_string(@p["send"]), "top:")}
+          class="col-span-2 flex items-center gap-2 text-xs"
+        >
+          <input type="hidden" name="wizard[wait]" value="no" />
+          <input
+            type="checkbox"
+            name="wizard[wait]"
+            value="yes"
+            checked={@p["wait"] != "no"}
+            class="checkbox checkbox-xs"
+          /> Wait while anything is in progress on the board, so it never starts a card
+          beside one being worked
+        </label>
       </div>
 
       <p class="rounded-lg bg-base-100 px-3 py-2 text-xs text-base-content/70 ring-1 ring-base-content/10">

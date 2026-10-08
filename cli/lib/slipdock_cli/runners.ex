@@ -56,7 +56,13 @@ defmodule SlipdockCLI.Runners do
         "repo" => o[:repo],
         "column" => o[:column] |> List.wrap() |> List.last(),
         # The list's top card, one at a time, rather than every card arriving.
-        "feed" => if(o[:top], do: "top")
+        "feed" => if(o[:top], do: "top"),
+        "wait" =>
+          case o[:wait_while_doing] do
+            true -> "yes"
+            false -> "no"
+            nil -> nil
+          end
       })
 
     HTTP.post("/boards/#{enc(ref)}/runners/setup", body)
@@ -143,6 +149,9 @@ defmodule SlipdockCLI.Runners do
 
     HTTP.post("/boards/#{enc(ref)}/jobs/claim", %{"pool" => pool})
     |> out(o, fn
+      %{"job" => nil, "waiting" => %{"job" => id, "reason" => reason}} ->
+        IO.puts("nothing queued to take: job ##{id} waits while #{reason}")
+
       %{"job" => nil} ->
         IO.puts("nothing queued")
 

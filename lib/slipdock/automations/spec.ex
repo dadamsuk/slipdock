@@ -99,11 +99,13 @@ defmodule Slipdock.Automations.Spec do
        "method: post (the default), put or patch send JSON; get puts the same fields in the " <>
        "query string. The URL may itself use placeholders"},
     {"log", ["message"], [], "write a line into the board's activity log"},
-    {"runner", ["pool"], ["kind", "prompt"],
+    {"runner", ["pool"], ["kind", "prompt", "wait_while_doing"],
      "send the card to a coding agent on one of the user's own machines: queue a job for the " <>
        "runners of that pool, which run the kind of job named (claude by default) with the " <>
        "prompt (the card's title, link and description by default). The runner's own config " <>
-       "decides what each kind runs. At most one open job per card per rule"}
+       "decides what each kind runs. At most one open job per card per rule. " <>
+       "wait_while_doing: true keeps the job queued while any other open card is in an " <>
+       "in-progress list on the card's board"}
   ]
 
   # Names people (and models) reach for that mean an action we already have.
@@ -300,7 +302,19 @@ defmodule Slipdock.Automations.Spec do
     action = Map.update!(action, "pool", &(&1 |> to_string() |> String.downcase()))
     action = Map.update(action, "kind", "claude", &(&1 |> to_string() |> String.downcase()))
 
+    wait =
+      Map.get(
+        %{"true" => true, "false" => false},
+        action["wait_while_doing"],
+        action["wait_while_doing"]
+      )
+
+    action = if is_boolean(wait), do: Map.put(action, "wait_while_doing", wait), else: action
+
     cond do
+      not (is_nil(wait) or is_boolean(wait)) ->
+        {:error, "action “runner” wait_while_doing must be true or false"}
+
       not Regex.match?(format, action["pool"]) ->
         {:error, "action “runner” pool must be lower case letters, digits, - or _"}
 
@@ -474,30 +488,78 @@ defmodule Slipdock.Automations.Spec do
 
   defp one_action(%{"type" => type} = a) do
     case type do
-      "email" -> "email #{list(a["to"])}"
-      "notify_assignee" -> "email the assignee"
-      "alert" -> "raise #{article(a["severity"] || "info")} alert"
-      "move_card" -> "move it to #{a["column"]}"
-      "set_priority" -> "set its priority to #{a["priority"]}"
-      "add_tags" -> "tag it #{list(a["tags"])}"
-      "remove_tags" -> "untag #{list(a["tags"])}"
-      "add_flags" -> "flag it #{list(a["flags"])}"
-      "remove_flags" -> "clear the #{list(a["flags"])} flag"
-      "assign" -> "assign it to #{a["assignee"]}"
-      "unassign" -> "unassign it"
-      "comment" -> "comment on it"
-      "set_due_date" -> "set its due date #{due_target(a)}"
-      "clear_due_date" -> "clear its due date"
-      "complete_card" -> "complete it"
-      "reopen_card" -> "reopen it"
-      "archive_card" -> "archive it"
-      "add_checklist_items" -> "add #{length(List.wrap(a["items"]))} checklist items"
-      "create_card" -> "create “#{a["title"]}”" <> where(a["column"], "in")
-      "create_page" -> "start a wiki page" <> page_title(a["title"])
-      "webhook" -> "#{String.upcase(to_string(a["method"] || "post"))} #{a["url"]}"
-      "log" -> "note it in the activity log"
-      "runner" -> "send it to the #{a["pool"]} runners (#{a["kind"] || "claude"})"
-      other -> other
+      "email" ->
+        "email #{list(a["to"])}"
+
+      "notify_assignee" ->
+        "email the assignee"
+
+      "alert" ->
+        "raise #{article(a["severity"] || "info")} alert"
+
+      "move_card" ->
+        "move it to #{a["column"]}"
+
+      "set_priority" ->
+        "set its priority to #{a["priority"]}"
+
+      "add_tags" ->
+        "tag it #{list(a["tags"])}"
+
+      "remove_tags" ->
+        "untag #{list(a["tags"])}"
+
+      "add_flags" ->
+        "flag it #{list(a["flags"])}"
+
+      "remove_flags" ->
+        "clear the #{list(a["flags"])} flag"
+
+      "assign" ->
+        "assign it to #{a["assignee"]}"
+
+      "unassign" ->
+        "unassign it"
+
+      "comment" ->
+        "comment on it"
+
+      "set_due_date" ->
+        "set its due date #{due_target(a)}"
+
+      "clear_due_date" ->
+        "clear its due date"
+
+      "complete_card" ->
+        "complete it"
+
+      "reopen_card" ->
+        "reopen it"
+
+      "archive_card" ->
+        "archive it"
+
+      "add_checklist_items" ->
+        "add #{length(List.wrap(a["items"]))} checklist items"
+
+      "create_card" ->
+        "create “#{a["title"]}”" <> where(a["column"], "in")
+
+      "create_page" ->
+        "start a wiki page" <> page_title(a["title"])
+
+      "webhook" ->
+        "#{String.upcase(to_string(a["method"] || "post"))} #{a["url"]}"
+
+      "log" ->
+        "note it in the activity log"
+
+      "runner" ->
+        "send it to the #{a["pool"]} runners (#{a["kind"] || "claude"})" <>
+          if(a["wait_while_doing"] == true, do: " once nothing is in progress", else: "")
+
+      other ->
+        other
     end
   end
 

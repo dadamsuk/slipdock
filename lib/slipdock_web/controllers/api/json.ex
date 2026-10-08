@@ -773,6 +773,8 @@ defmodule SlipdockWeb.API.JSON do
       runner_id: j.runner_id,
       runner: j.runner_name,
       attempts: j.attempts,
+      wait_while_doing: j.wait_while_doing,
+      waiting_on: Slipdock.Runners.waiting_reason(j),
       cancel_requested: not is_nil(j.cancel_requested_at),
       exit_code: j.exit_code,
       error: j.error,
