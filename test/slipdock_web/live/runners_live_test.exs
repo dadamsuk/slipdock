@@ -186,7 +186,8 @@ defmodule SlipdockWeb.RunnersLiveTest do
     [runner] = Runners.list_runners(board)
 
     view |> element("#runner-#{runner.id} button", "Setup") |> render_click()
-    view |> element("#runner-setup button", "Change the answers") |> render_click()
+    refute has_element?(view, "#runner-setup button", "Change the answers")
+    view |> element("#runner-setup button", "Change Settings") |> render_click()
     assert has_element?(view, "#runner-wizard", "Changing “laptop”")
     refute has_element?(view, "#runner-wizard input[name='wizard[pool]']")
 

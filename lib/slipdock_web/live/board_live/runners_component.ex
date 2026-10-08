@@ -928,7 +928,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
           phx-click="edit_answers"
           phx-value-id={@runner.id}
         >
-          <.icon name="hero-pencil-square" class="size-3.5" /> Change the answers
+          <.icon name="hero-pencil-square" class="size-3.5" /> Change Settings
         </button>
         <button
           type="button"
