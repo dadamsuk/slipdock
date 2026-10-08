@@ -196,7 +196,8 @@ defmodule SlipdockCLI.RunnersTest do
 
   test "runner setup with new answers saves them and prints what changes first" do
     serve([
-      {200, ~s({"diff":[["eq","curl …"],["del","  --timeout 3600"],["ins","  --timeout 900"],["ins","  --instructions 'Be brief.'"]],"setup":#{@setup}})}
+      {200,
+       ~s({"diff":[["eq","curl …"],["del","  --timeout 3600"],["ins","  --timeout 900"],["ins","  --instructions 'Be brief.'"]],"setup":#{@setup}})}
     ])
 
     out =
