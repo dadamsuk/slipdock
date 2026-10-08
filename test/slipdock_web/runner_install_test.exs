@@ -30,7 +30,12 @@ defmodule SlipdockWeb.RunnerInstallTest do
   # What the config sets, read back by sourcing it the way the runner does.
   defp sourced(ctx, var) do
     config = Path.join(ctx.home, ".config/slipdock-runner/config")
-    {out, 0} = System.cmd("sh", ["-c", ". \"$1\"; printf '%s' \"$#{var}\"", "sh", config])
+
+    {out, 0} =
+      System.cmd("sh", ["-c", ". \"$1\"; printf '%s' \"$#{var}\"", "sh", config],
+        env: [{"HOME", ctx.home}, {"XDG_CONFIG_HOME", nil}]
+      )
+
     out
   end
 
@@ -124,7 +129,7 @@ defmodule SlipdockWeb.RunnerInstallTest do
           "--service",
           "none"
         ],
-        env: [{"HOME", ctx.home}],
+        env: [{"HOME", ctx.home}, {"XDG_CONFIG_HOME", nil}],
         cd: ctx.home,
         stderr_to_stdout: true
       )

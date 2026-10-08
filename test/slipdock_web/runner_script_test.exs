@@ -247,7 +247,8 @@ defmodule SlipdockWeb.RunnerScriptTest do
         "sh",
         [installer, "--url", ctx.url, "--token", ctx.token, "--pool", "dev", "--cwd", ctx.dir] ++
           ~w(--service none --no-start),
-        env: [{"HOME", home}],
+        # CI sets XDG_CONFIG_HOME, which would send the config out of HOME.
+        env: [{"HOME", home}, {"XDG_CONFIG_HOME", nil}],
         stderr_to_stdout: true
       )
 
@@ -255,7 +256,7 @@ defmodule SlipdockWeb.RunnerScriptTest do
 
     {out, 0} =
       System.cmd(Path.join(home, ".local/bin/slipdock-runner"), ["--once"],
-        env: [{"HOME", home}, {"TMPDIR", ctx.dir}],
+        env: [{"HOME", home}, {"XDG_CONFIG_HOME", nil}, {"TMPDIR", ctx.dir}],
         stderr_to_stdout: true
       )
 
