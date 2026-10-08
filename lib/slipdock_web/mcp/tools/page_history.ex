@@ -26,7 +26,8 @@ defmodule SlipdockWeb.MCP.Tools.PageHistory do
   def description,
     do:
       "A page's revisions, newest first: id, author, via, message, time. With rev, that " <>
-        "revision's body and the diff it made; diff=true alone gives the latest save's diff. " <>
+        "revision's body and the diff it made, or with against too, its diff from that other " <>
+        "revision; diff=true alone gives the latest save's diff. " <>
         "revert_page puts a revision back."
 
   @impl true
@@ -41,6 +42,11 @@ defmodule SlipdockWeb.MCP.Tools.PageHistory do
         board: %{type: "string", description: "Board, when page is a slug or title."},
         limit: %{type: "integer", description: "How many revisions to list. Default 20, max 100."},
         rev: %{type: "integer", description: "A revision id from the list: its body and diff."},
+        against: %{
+          type: "integer",
+          description:
+            "With rev: another revision id of the page to diff from, not the one before."
+        },
         diff: %{type: "boolean", description: "Without rev: the diff of the latest save."}
       },
       required: ["page"],
@@ -77,28 +83,48 @@ defmodule SlipdockWeb.MCP.Tools.PageHistory do
 
   defp one(page, args, context) do
     with {:ok, rev} <- rev(args),
-         {:ok, revision} <- Args.refusal(Wiki.get_revision(page, rev)) do
-      {:ok, change(page, revision, context, body: true)}
+         {:ok, revision} <- Args.refusal(Wiki.get_revision(page, rev)),
+         {:ok, base} <- base(page, revision, args["against"]) do
+      {:ok, change(page, revision, base, context, body: true)}
+    end
+  end
+
+  # What the diff is taken from: the save before, unless another version of
+  # the same page is named.
+  defp base(_page, revision, nil), do: {:ok, {:previous, Wiki.previous_revision(revision)}}
+
+  defp base(page, _revision, against) do
+    with {:ok, id} <- rev(%{"rev" => against}),
+         {:ok, base} <- Args.refusal(Wiki.get_revision(page, id)) do
+      {:ok, {:against, base}}
+    else
+      {:error, "rev must" <> _} -> {:error, "against must be a revision id from page_history"}
+      error -> error
     end
   end
 
   defp latest(page, context) do
     case Wiki.list_revisions(page, 1) do
-      [revision] -> {:ok, change(page, revision, context, body: false)}
-      [] -> {:error, "this page has no revisions yet"}
+      [revision] ->
+        {:ok,
+         change(page, revision, {:previous, Wiki.previous_revision(revision)}, context,
+           body: false
+         )}
+
+      [] ->
+        {:error, "this page has no revisions yet"}
     end
   end
 
-  defp change(page, revision, context, body: body?) do
-    previous = Wiki.previous_revision(revision)
-    before = if previous, do: previous.body, else: ""
+  defp change(page, revision, {key, base}, context, body: body?) do
+    before = if base, do: base.body, else: ""
 
     %{
       page: stub(page, context),
       revision: line(revision),
-      previous: previous && previous.id,
       diff: before |> Wiki.diff(revision.body) |> V.diff() |> trim()
     }
+    |> Map.put(key, base && base.id)
     |> then(&if(body?, do: Map.put(&1, :body, revision.body), else: &1))
   end
 

@@ -54,6 +54,7 @@ curl -s -X POST -H "$H" -H 'content-type: application/json' \
 # history
 curl -s -H "$H" B/api/pages/W-31/revisions
 curl -s -H "$H" "B/api/pages/W-31/revisions/12?diff=previous"
+curl -s -H "$H" "B/api/pages/W-31/revisions/12?diff=7"     # any two versions compared
 curl -s -X POST -H "$H" -H 'content-type: application/json' \
      B/api/pages/W-31/revert -d '{"revision_id":12}'
 

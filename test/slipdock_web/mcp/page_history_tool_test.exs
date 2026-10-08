@@ -144,6 +144,39 @@ defmodule SlipdockWeb.MCP.PageHistoryToolTest do
       assert first["diff"] == [%{"op" => "ins", "lines" => ["one"]}]
     end
 
+    test "against diffs from that revision instead of the one before", ctx do
+      out =
+        ctx.conn
+        |> call("page_history", %{
+          page: ctx.page.code,
+          rev: ctx.revs.third.id,
+          against: ctx.revs.first.id
+        })
+        |> ok!()
+
+      assert out["against"] == ctx.revs.first.id
+      refute Map.has_key?(out, "previous")
+
+      # Straight from the first save to the third, past the one between.
+      assert out["diff"] == [
+               %{"op" => "eq", "lines" => ["one"]},
+               %{"op" => "ins", "lines" => ["TWO"]}
+             ]
+    end
+
+    test "an against that is malformed or another page's is refused", ctx do
+      elsewhere = page_fixture(ctx.board, %{"title" => "Other"}, user: ctx.user)
+      [foreign] = Wiki.list_revisions(elsewhere)
+
+      args = %{page: ctx.page.code, rev: ctx.revs.third.id}
+
+      assert ctx.conn |> call("page_history", Map.put(args, :against, "first")) |> error!() =~
+               "against must be a revision id"
+
+      assert ctx.conn |> call("page_history", Map.put(args, :against, foreign.id)) |> error!() =~
+               "no revision you can see"
+    end
+
     test "long unchanged runs are cut to the lines next to the change", ctx do
       lines = Enum.map(1..20, &"line #{&1}")
       before = Enum.join(lines, "\n")

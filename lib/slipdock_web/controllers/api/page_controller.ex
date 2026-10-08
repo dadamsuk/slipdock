@@ -741,23 +741,42 @@ defmodule SlipdockWeb.API.PageController do
 
   @doc """
   One revision: its body, and with `?diff=previous` the change it made,
-  as hunks of equal, deleted and inserted lines.
+  as hunks of equal, deleted and inserted lines. `?diff=<revision id>`
+  diffs from that version of the same page to this one instead, so any two
+  versions can be compared.
   """
   def revision(conn, %{"id" => id, "rev" => rev} = params) do
     with {:ok, page} <- fetch_page(conn, id, :read),
-         {:ok, revision} <- Wiki.get_revision(page, rev) do
+         {:ok, revision} <- Wiki.get_revision(page, rev),
+         {:ok, before} <- diff_base(page, revision, params["diff"]) do
       body = %{revision: V.revision(revision) |> Map.put(:body, revision.body)}
 
       body =
-        if params["diff"] == "previous" do
-          previous = Wiki.previous_revision(revision)
-          before = if previous, do: previous.body, else: ""
-          Map.put(body, :diff, V.diff(Wiki.diff(before, revision.body)))
-        else
-          body
+        case before do
+          :none -> body
+          text -> Map.put(body, :diff, V.diff(Wiki.diff(text, revision.body)))
         end
 
       json(conn, body)
+    end
+  end
+
+  # What a revision is diffed from: nothing asked, the one before it, or
+  # another version of the same page by id.
+  defp diff_base(_page, _revision, diff) when diff in [nil, ""], do: {:ok, :none}
+
+  defp diff_base(_page, revision, "previous") do
+    previous = Wiki.previous_revision(revision)
+    {:ok, if(previous, do: previous.body, else: "")}
+  end
+
+  defp diff_base(page, _revision, other) do
+    with {n, ""} when n > 0 <- Integer.parse(to_string(other)),
+         {:ok, base} <- Wiki.get_revision(page, n) do
+      {:ok, base.body}
+    else
+      {:error, _, _} = not_found -> not_found
+      _ -> {:error, :bad_request, "diff must be \"previous\" or a revision id of this page"}
     end
   end
 

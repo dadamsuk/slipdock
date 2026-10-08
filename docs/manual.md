@@ -1606,7 +1606,10 @@ a **favourite**, alongside boards, lists, cards and views.
 **Every save keeps a revision** — a full snapshot, with the author, the edit's
 own message ("why", not "what"), and how it arrived (`web`, `api`, `cli`,
 `assistant`, `automation`, plus the API token's name). History lists them,
-any one can be diffed against the one before it, and any one can be put back —
+any one can be diffed against the one before it or any two compared side by
+side (old on the left, new on the right, the changed words picked out, as
+GitHub's split view does: tick two in the history and press **Compare selected
+versions**, or **Compare with current** from an old one), and any one can be put back —
 which is itself a save, so nothing is ever removed. Consecutive saves by the
 same hand within ten minutes collapse into one, so an agent appending every
 few minutes does not bury the day's real edits.
@@ -1649,7 +1652,8 @@ Over the API: `/api/boards/:board/pages` (GET, with `?tree=true`, `?q=`,
 `?parent=`, `?folder=`, `?archived=`, `?template=`; POST to write one) and
 `/api/pages/:id` (GET, PATCH, DELETE, plus `/render`, `/sections`,
 `/section/*path`, `/append`, `/links`, `/folder`, `/restore`, `/move`,
-`/revisions`, `/revisions/:rev?diff=previous` and `/revert`). Reads return the
+`/revisions`, `/revisions/:rev?diff=previous` (or `?diff=<revision id>` to compare
+with another version) and `/revert`). Reads return the
 Markdown source, not HTML — the model edits what it reads — and `/render`
 returns it with every reference followed, which is what to read to answer a
 question rather than to change the page. Folders are
@@ -2359,7 +2363,7 @@ POST   /api/boards/:board/pages            {title, body, summary, parent, status
 GET    /api/pages/:id                      PATCH  /api/pages/:id   {title, body, summary, slug, status, base_hash, message}
 DELETE /api/pages/:id      ?purge=true     POST   /api/pages/:id/restore
 POST   /api/pages/:id/move                 {parent, position: N|top|bottom}
-GET    /api/pages/:id/revisions            GET    /api/pages/:id/revisions/:rev   ?diff=previous
+GET    /api/pages/:id/revisions            GET    /api/pages/:id/revisions/:rev   ?diff=previous|<rev id>
 POST   /api/pages/:id/revert               {revision_id, message}
 GET    /api/pages/:id/render               ?format=markdown|html|text  (references resolved)
 GET    /api/pages/:id/sections             the heading paths a section may be addressed by
@@ -2528,7 +2532,7 @@ slipdock page ls qvm-v1-rem --q retry           # the board's wiki; --tree for t
 slipdock page read W-31                        # the Markdown source (--json for the hash and the rest)
 slipdock page new qvm-v1-rem Retry policy --body - --summary "How retries work" --message "first draft"
 slipdock page edit W-31 --body - --base-hash <hash> --message "log: rolled back at 14:05"
-slipdock page history W-31 | slipdock page diff W-31 --rev 12 | slipdock page revert W-31 --rev 12
+slipdock page history W-31 | slipdock page diff W-31 --rev 12 [--against 7] | slipdock page revert W-31 --rev 12
 slipdock page section W-31 Log --append "- 2026-09-29 rolled back at 14:05"   # cannot conflict
 slipdock page section W-31 "Deploy/Rollback" --file rollback.md --message "why"
 slipdock page render W-31                      # every reference followed, for answering questions
@@ -2641,7 +2645,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `read_page` | A wiki page's Markdown and its `content_hash`, by code (`W-31`) or by board and slug or title. |
 | `list_pages` | A board's wiki pages in order — code, title, summary, folder, parent and pinned cards — filtered by `q`, `archived` (`exclude`, `include` or `only`), `template` and `draft`; `tree: true` nests children under their parents. |
 | `page_info` | Finding the way round a wiki, by `what`: `links` (a page's outgoing, unresolved and incoming links), `sections` (its heading paths, as `write_page`'s section modes take them), `wanted` (a board's linked-to pages nobody has written) and `resolve` (is there a page for this `title`, and the `[[link]]` to write). Drafts stay out of sight of readers who cannot edit them. |
-| `page_history` | A page's revisions, newest first (`limit`, default 20): who saved each, how (`web`, `cli`, `mcp`…), the message and when. With `rev`, that revision's body and the diff it made against the one before; `diff: true` alone gives the latest save's diff. Long unchanged stretches come back as `skip` with a count, so a one-line edit does not return the whole page. |
+| `page_history` | A page's revisions, newest first (`limit`, default 20): who saved each, how (`web`, `cli`, `mcp`…), the message and when. With `rev`, that revision's body and the diff it made against the one before, or with `against` (another revision id) the diff from that version instead; `diff: true` alone gives the latest save's diff. Long unchanged stretches come back as `skip` with a count, so a one-line edit does not return the whole page. |
 | `activity` | A board's activity log, newest first; `card` narrows it to one card's entries. |
 | `create_card` | A card on a board, or with `parent` a subcard (making the sub-board if needed). |
 | `update_card` | Title, description, priority (or clearing it), start and due dates, percent, flags, tags, assignees, what blocks it, and its checklist — add, tick and untick items. Only what is passed changes. |

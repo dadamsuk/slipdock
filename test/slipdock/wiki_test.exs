@@ -257,6 +257,89 @@ defmodule Slipdock.WikiTest do
     end
   end
 
+  describe "split_diff/2" do
+    defp eq(n, m, line),
+      do: {:row, %{n: n, op: :eq, parts: [{:eq, line}]}, %{n: m, op: :eq, parts: [{:eq, line}]}}
+
+    test "an edited line sits beside its replacement, the changed words picked out" do
+      assert Wiki.split_diff("intro\nthe quick brown fox\nend", "intro\nthe quick red fox\nend") ==
+               [
+                 eq(1, 1, "intro"),
+                 {:row, %{n: 2, op: :del, parts: [eq: "the quick ", chg: "brown", eq: " fox"]},
+                  %{n: 2, op: :ins, parts: [eq: "the quick ", chg: "red", eq: " fox"]}},
+                 eq(3, 3, "end")
+               ]
+    end
+
+    test "lines with little in common are marked whole, not word by word" do
+      assert [
+               {:row, %{op: :del, parts: [eq: "alpha beta gamma"]},
+                %{op: :ins, parts: [eq: "one two three"]}}
+             ] =
+               Wiki.split_diff("alpha beta gamma", "one two three")
+    end
+
+    test "an uneven replacement trails against blanks, and numbers count each side" do
+      assert [
+               a,
+               {:row, %{n: 2, op: :del}, %{n: 2, op: :ins}},
+               {:row, %{n: 3, op: :del, parts: [eq: "c"]}, nil},
+               d,
+               {:row, nil, %{n: 4, op: :ins, parts: [eq: "e"]}}
+             ] = Wiki.split_diff("a\nb\nc\nd", "a\nB\nd\ne")
+
+      assert a == eq(1, 1, "a")
+      assert d == eq(4, 3, "d")
+    end
+
+    test "from nothing is all right-hand side; to nothing all left" do
+      assert Wiki.split_diff("", "a\nb") == [
+               {:row, nil, %{n: 1, op: :ins, parts: [eq: "a"]}},
+               {:row, nil, %{n: 2, op: :ins, parts: [eq: "b"]}}
+             ]
+
+      assert Wiki.split_diff("a", "") == [{:row, %{n: 1, op: :del, parts: [eq: "a"]}, nil}]
+      assert Wiki.split_diff("", "") == []
+    end
+
+    test "long unchanged runs fold away, keeping three lines next to each change" do
+      old = Enum.map_join(1..20, "\n", &"line #{&1}")
+      new = String.replace(old, "line 10\n", "line ten\n")
+
+      rows = Wiki.split_diff(old, new)
+
+      # Lines 1–6 fold (nothing above them to keep context for), 7–9 stay,
+      # the change, 11–13 stay, 14–20 fold.
+      assert [{:fold, top}, _, _, _, {:row, %{op: :del}, %{op: :ins}}, _, _, _, {:fold, bottom}] =
+               rows
+
+      assert length(top) == 6
+      assert hd(top) == eq(1, 1, "line 1")
+      assert length(bottom) == 7
+      assert List.last(bottom) == eq(20, 20, "line 20")
+    end
+
+    test "a short unchanged run is not worth folding" do
+      old = "a\nb\nc\nd\ne\nf\ng\nh"
+      new = "A\nb\nc\nd\ne\nf\ng\nH"
+
+      refute Enum.any?(Wiki.split_diff(old, new), &match?({:fold, _}, &1))
+    end
+
+    test "identical texts fold into one run" do
+      text = Enum.map_join(1..5, "\n", &"l#{&1}")
+      assert [{:fold, rows}] = Wiki.split_diff(text, text)
+      assert length(rows) == 5
+    end
+
+    test "very long lines are marked whole rather than word-diffed" do
+      old = String.duplicate("word ", 300)
+      new = old <> "more"
+
+      assert [{:row, %{parts: [eq: ^old]}, %{parts: [eq: ^new]}}] = Wiki.split_diff(old, new)
+    end
+  end
+
   describe "archiving" do
     test "takes the children with it and brings them back", %{board: board, user: user} do
       {:ok, parent} = Wiki.create_page(board, %{"title" => "Parent"}, user: user)

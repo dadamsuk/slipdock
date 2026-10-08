@@ -211,6 +211,7 @@ Tuesday. Write the question instead, and try it before you save it.
 ```sh
 slipdock page history <page>            # every save: when, who, how, and why
 slipdock page diff <page> --rev N       # what one version changed
+slipdock page diff <page> --rev N --against M   # how version N differs from M
 slipdock page revert <page> --rev N     # put it back; itself a save, nothing is lost
 ```
 

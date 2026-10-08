@@ -749,6 +749,153 @@ defmodule Slipdock.Wiki do
     List.myers_difference(lines(old), lines(new))
   end
 
+  # Unchanged lines kept either side of a change in the split view; a longer
+  # run between changes is folded away behind a count.
+  @split_context 3
+
+  # Paired lines longer than this between them are marked whole rather than
+  # word by word: the word diff is quadratic in the worst case.
+  @word_diff_limit 2000
+
+  @doc """
+  The same diff laid out the way GitHub's split view shows it: the old text
+  on the left, the new on the right, row by row.
+
+  Returns a list of `{:row, left, right}` and `{:fold, rows}`. A side is
+  `nil` where that side has no line (a pure insertion or deletion), or
+  `%{n: line_number, op: :eq | :del | :ins, parts: [{:eq | :chg, text}]}`.
+  A deleted line set against the inserted line that replaced it carries the
+  changed words as `:chg` parts, unless the two are too different for that
+  to help. A `:fold` holds a run of unchanged rows more than
+  `#{@split_context}` lines away from any change, for the view to tuck away.
+  """
+  def split_diff(old, new) do
+    old
+    |> diff(new)
+    |> split_rows({1, 1}, [], [])
+    |> fold_unchanged()
+  end
+
+  defp split_rows([], _at, dels, acc), do: Enum.reverse(flush_dels(dels, acc))
+
+  defp split_rows([{:eq, lines} | rest], {o, n}, dels, acc) do
+    acc = flush_dels(dels, acc)
+    count = length(lines)
+
+    rows =
+      lines
+      |> Enum.with_index()
+      |> Enum.map(fn {line, i} ->
+        {:row, cell(o + i, :eq, line), cell(n + i, :eq, line)}
+      end)
+
+    split_rows(rest, {o + count, n + count}, [], Enum.reverse(rows, acc))
+  end
+
+  defp split_rows([{:del, lines} | rest], {o, n}, dels, acc) do
+    numbered = lines |> Enum.with_index(o) |> Enum.map(fn {line, i} -> {i, line} end)
+    split_rows(rest, {o + length(lines), n}, dels ++ numbered, acc)
+  end
+
+  # An insertion straight after a deletion is the replacement for it: the
+  # two are set side by side, line for line, and whichever runs longer
+  # trails against blanks.
+  defp split_rows([{:ins, lines} | rest], {o, n}, dels, acc) do
+    numbered = lines |> Enum.with_index(n) |> Enum.map(fn {line, i} -> {i, line} end)
+    width = max(length(dels), length(numbered))
+
+    rows =
+      for i <- 0..(width - 1)//1 do
+        pair_row(Enum.at(dels, i), Enum.at(numbered, i))
+      end
+
+    split_rows(rest, {o, n + length(lines)}, [], Enum.reverse(rows, acc))
+  end
+
+  defp flush_dels(dels, acc),
+    do: Enum.reduce(dels, acc, fn {i, line}, acc -> [{:row, cell(i, :del, line), nil} | acc] end)
+
+  defp pair_row({o, old}, nil), do: {:row, cell(o, :del, old), nil}
+  defp pair_row(nil, {n, new}), do: {:row, nil, cell(n, :ins, new)}
+
+  defp pair_row({o, old}, {n, new}) do
+    {left, right} = word_parts(old, new)
+    {:row, %{n: o, op: :del, parts: left}, %{n: n, op: :ins, parts: right}}
+  end
+
+  defp cell(n, op, line), do: %{n: n, op: op, parts: [{:eq, line}]}
+
+  # Word by word, so a fixed typo lights up the word and not the paragraph.
+  # When less than half the text survives, the lines are different lines
+  # rather than an edit of one, and picking out the odd shared word is noise.
+  defp word_parts(old, new) do
+    whole = {[{:eq, old}], [{:eq, new}]}
+
+    if byte_size(old) + byte_size(new) > @word_diff_limit do
+      whole
+    else
+      ops = List.myers_difference(words(old), words(new))
+
+      kept =
+        for {:eq, tokens} <- ops, reduce: 0 do
+          sum -> sum + (tokens |> Enum.join() |> String.length())
+        end
+
+      if kept * 2 < max(String.length(old), String.length(new)) do
+        whole
+      else
+        {side_parts(ops, :del), side_parts(ops, :ins)}
+      end
+    end
+  end
+
+  defp words(line), do: Regex.scan(~r/\w+|\s+|[^\w\s]/u, line) |> List.flatten()
+
+  defp side_parts(ops, side) do
+    ops
+    |> Enum.flat_map(fn
+      {:eq, tokens} -> [{:eq, Enum.join(tokens)}]
+      {^side, tokens} -> [{:chg, Enum.join(tokens)}]
+      _ -> []
+    end)
+    |> Enum.chunk_by(&elem(&1, 0))
+    |> Enum.map(fn [{kind, _} | _] = parts -> {kind, Enum.map_join(parts, &elem(&1, 1))} end)
+  end
+
+  # A run of unchanged rows keeps #{@split_context} rows next to each change
+  # it touches; the rest goes into a fold. The start and end of the page have
+  # no change on their outer side, so nothing is kept there.
+  defp fold_unchanged(rows) do
+    groups = Enum.chunk_by(rows, &unchanged_row?/1)
+    last = length(groups) - 1
+
+    groups
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {group, i} ->
+      if unchanged_row?(hd(group)) do
+        head = if i == 0, do: 0, else: @split_context
+        tail = if i == last, do: 0, else: @split_context
+        fold(group, head, tail)
+      else
+        group
+      end
+    end)
+  end
+
+  defp fold(group, head, tail) do
+    # Folding away a line or two saves nothing and costs a click.
+    if length(group) - head - tail < 3 do
+      group
+    else
+      {kept_head, rest} = Enum.split(group, head)
+      {hidden, kept_tail} = Enum.split(rest, length(rest) - tail)
+      kept_head ++ [{:fold, hidden}] ++ kept_tail
+    end
+  end
+
+  defp unchanged_row?({:row, %{op: :eq}, _}), do: true
+  defp unchanged_row?(_), do: false
+
   # No text is no lines, not one empty one: the first revision is all
   # insertion, with nothing deleted before it.
   defp lines(text) when text in [nil, ""], do: []

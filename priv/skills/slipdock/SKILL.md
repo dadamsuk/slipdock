@@ -31,8 +31,8 @@ every card in full (comments, checklist, docs) in one call instead of a `get_car
 and works the checklist. `list_pages` lists a board's wiki (`tree: true` nests it, as `page tree`
 does), and `read_page` reads one. `page_info` answers what `page links`, `page sections`,
 `page wanted` and `page resolve` do — ask it for `sections` before a `write_page` section edit
-rather than guessing the heading path. `page_history` is `page history` and `page diff` (`rev`, or
-`diff: true` for the latest save), and `revert_page` is `page revert`: it needs the page's current
+rather than guessing the heading path. `page_history` is `page history` and `page diff` (`rev`, `rev` + `against` to
+compare two versions, or `diff: true` for the latest save), and `revert_page` is `page revert`: it needs the page's current
 `content_hash` as `base_hash`. `update_page` is `page edit --title/--summary`, `page mv`, `page file`,
 `page rm`/`page restore` (`archived`) and `page pin --card` (`pin_card`/`unpin_card`). Anything
 the tools don't cover (automations, sprints, attachments,
@@ -340,7 +340,7 @@ slipdock page new <board> <title...> [--body TEXT|--file F|--body -] [--parent P
 slipdock page edit <page> [--title T] [--summary S] [--body TEXT|--file F|--body -] [--message M] [--base-hash H] [--draft|--publish]
 slipdock page mv <page> [--parent P | --root] [--position N|top|bottom]
 slipdock page rm <page> [--purge] | slipdock page restore <page>
-slipdock page history <page> [--limit N] | slipdock page diff <page> [--rev N] | slipdock page revert <page> --rev N
+slipdock page history <page> [--limit N] | slipdock page diff <page> [--rev N] [--against M] | slipdock page revert <page> --rev N
 ```
 
 Folders are where a page is *kept*, as opposed to `--parent`, which is what it is *part of*:
