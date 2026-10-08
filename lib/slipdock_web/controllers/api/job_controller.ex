@@ -12,6 +12,7 @@ defmodule SlipdockWeb.API.JobController do
   use SlipdockWeb, :controller
 
   alias Slipdock.{Boards, Runners}
+  alias Slipdock.Runners.Setup
   alias SlipdockWeb.API.{Authorize, CardWrites}
   alias SlipdockWeb.API.JSON, as: V
 
@@ -34,6 +35,58 @@ defmodule SlipdockWeb.API.JobController do
       |> json(%{runner: V.runner(runner), token: token})
     end
   end
+
+  @doc """
+  The "Connect a runner" wizard (see `Slipdock.Runners.Setup`): `scenario`
+  (`server`, `windows`, `loop`, `cloud`) and its options, plus `column` to add
+  a rule sending that list's cards (or `rule_id` for one already there) and
+  `name` for the runner. Answers with the steps to follow — and, for the two
+  scenarios with a runner of their own, the runner and its token, once.
+  """
+  def setup(conn, %{"board" => ref} = params) do
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :owner) do
+      case Setup.connect(board, params, conn.assigns.current_user, base_url(conn)) do
+        {:ok, result} ->
+          conn
+          |> put_status(:created)
+          |> json(%{
+            setup: result.setup,
+            runner: result.runner && V.runner(result.runner),
+            token: result.token,
+            automation: result.rule && V.automation(result.rule)
+          })
+
+        {:error, message} ->
+          {:error, :unprocessable_entity, message}
+      end
+    end
+  end
+
+  @doc "A runner's steps again, from its saved answers, with a placeholder for the token."
+  def runner_setup(conn, %{"board" => ref, "id" => id}) do
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :owner),
+         {:ok, runner} <- Runners.find_runner(board, id) do
+      json(conn, %{
+        setup: Setup.regenerate(runner, board, base_url(conn)),
+        runner: V.runner(runner)
+      })
+    end
+  end
+
+  @doc "A new token for a runner (the old one stops working), with its steps written out for it."
+  def rotate_token(conn, %{"board" => ref, "id" => id}) do
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :owner),
+         {:ok, runner} <- Runners.find_runner(board, id),
+         {:ok, runner, token} <- Runners.rotate_token(runner) do
+      json(conn, %{
+        token: token,
+        runner: V.runner(runner),
+        setup: Setup.regenerate(runner, board, base_url(conn), token)
+      })
+    end
+  end
+
+  defp base_url(conn), do: SlipdockWeb.BaseURL.from_conn(conn)
 
   def delete_runner(conn, %{"board" => ref, "id" => id}) do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, :owner),

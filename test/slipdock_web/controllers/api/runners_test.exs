@@ -283,4 +283,81 @@ defmodule SlipdockWeb.API.RunnersTest do
       assert body["job"]["output"] == "flaky"
     end
   end
+
+  describe "the setup wizard" do
+    test "a server runner: made, its token once, the steps and the rule", ctx do
+      [_, doing | _] = ctx.board.columns
+
+      body =
+        ctx.conn
+        |> post(~p"/api/boards/#{ctx.board.id}/runners/setup", %{
+          "pool" => "dev",
+          "name" => "laptop",
+          "column" => doing.name
+        })
+        |> json_response(201)
+
+      assert "sdr_" <> _ = body["token"]
+      assert body["runner"]["name"] == "laptop"
+      assert body["automation"]["name"] =~ "dev runners"
+      assert body["setup"]["scenario"] == "server"
+      assert hd(body["setup"]["steps"])["code"] =~ body["token"]
+      assert hd(body["setup"]["steps"])["code"] =~ "/runner/install.sh"
+
+      again =
+        ctx.conn
+        |> get(~p"/api/boards/#{ctx.board.id}/runners/#{body["runner"]["id"]}/setup")
+        |> json_response(200)
+
+      refute inspect(again) =~ body["token"]
+      assert hd(again["setup"]["steps"])["code"] =~ Slipdock.Runners.Setup.token_placeholder()
+
+      rotated =
+        ctx.conn
+        |> post(~p"/api/boards/#{ctx.board.id}/runners/#{body["runner"]["id"]}/token")
+        |> json_response(200)
+
+      assert hd(rotated["setup"]["steps"])["code"] =~ rotated["token"]
+      assert post(runner_conn(body["token"]), "/api/runner/claim?wait=0").status == 401
+      assert post(runner_conn(rotated["token"]), "/api/runner/claim?wait=0").status == 204
+    end
+
+    test "a Claude scenario: steps only", ctx do
+      body =
+        ctx.conn
+        |> post(~p"/api/boards/#{ctx.board.id}/runners/setup", %{"scenario" => "loop"})
+        |> json_response(201)
+
+      assert body["runner"] == nil
+      assert body["token"] == nil
+      assert Enum.any?(body["setup"]["steps"], &(&1["code"] =~ "/loop /slipdock-loop"))
+    end
+
+    test "bad answers are a 422 that says why", ctx do
+      body =
+        ctx.conn
+        |> post(~p"/api/boards/#{ctx.board.id}/runners/setup", %{"scenario" => "fax"})
+        |> json_response(422)
+
+      assert body["error"] =~ "scenario"
+    end
+
+    test "only the board's owner", ctx do
+      other = user_fixture("w#{System.unique_integer([:positive])}@example.com")
+      share_fixture(ctx.board, [other], "write")
+      conn = conn_as(other) |> put_req_header("accept", "application/json")
+
+      assert conn
+             |> post(~p"/api/boards/#{ctx.board.id}/runners/setup", %{})
+             |> json_response(403)
+
+      assert conn
+             |> get(~p"/api/boards/#{ctx.board.id}/runners/#{ctx.runner.id}/setup")
+             |> json_response(403)
+
+      assert conn
+             |> post(~p"/api/boards/#{ctx.board.id}/runners/#{ctx.runner.id}/token")
+             |> json_response(403)
+    end
+  end
 end

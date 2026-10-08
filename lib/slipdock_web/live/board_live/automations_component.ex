@@ -664,6 +664,13 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
           </ul>
         </div>
 
+        <.live_component
+          module={SlipdockWeb.BoardLive.RunnersComponent}
+          id="board-runners-panel"
+          board={@board}
+          current_user={@current_user}
+        />
+
         <.callback_log :if={@callbacks != []} callbacks={@callbacks} />
       </div>
     </.modal>

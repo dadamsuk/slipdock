@@ -167,4 +167,40 @@ defmodule SlipdockWeb.RunnerInstallTest do
 
     refute File.exists?(Path.join(ctx.home, ".local"))
   end
+
+  # The wizard prints a one-liner and a preview of the config; neither is
+  # allowed to drift from what the installer really takes and writes.
+  for agent <- ~w(claude codex custom) do
+    test "the wizard's #{agent} one-liner runs, and writes the config it previews", ctx do
+      answers = %{
+        "pool" => "dev",
+        "agent" => unquote(agent),
+        "command" => ~S{make it P="$SLIPDOCK_PROMPT" 'quoted'},
+        "cwd" => "/srv/it's work",
+        "timeout" => "900",
+        "service" => "none"
+      }
+
+      {:ok, a} = Slipdock.Runners.Setup.normalise(answers)
+      gen_ctx = %{base_url: "https://slipdock.example", token: "sdr_t'ok"}
+      line = Slipdock.Runners.Setup.server_one_liner(a, gen_ctx)
+
+      # The pipe from curl, swapped for the file this test fetched.
+      [_curl, flags] = String.split(line, "| sh -s -- ", parts: 2)
+
+      {out, 0} =
+        System.cmd("sh", ["-c", "sh \"$0\" " <> flags <> " --no-start", ctx.script],
+          env: [{"HOME", ctx.home}, {"XDG_CONFIG_HOME", nil}],
+          stderr_to_stdout: true
+        )
+
+      assert out =~ "installed"
+
+      machine_only = ~r/^(AGENT_BIN|PATH)=.*$/m
+      written = File.read!(Path.join(ctx.home, ".config/slipdock-runner/config"))
+      preview = Slipdock.Runners.Setup.config_preview(a, gen_ctx)
+
+      assert Regex.replace(machine_only, written, "") == Regex.replace(machine_only, preview, "")
+    end
+  end
 end

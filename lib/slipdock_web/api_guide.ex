@@ -1263,6 +1263,16 @@ defmodule SlipdockWeb.APIGuide do
     /api/jobs/:id/cancel`. A queued job is cancelled at once; a running one
     is asked to stop, and its runner hears so on its next heartbeat.
 
+    **Connecting one** is easiest with the wizard, which the board's
+    Automations panel shows as *Connect a runner*: `POST
+    /api/boards/:board/runners/setup` with `scenario` (`server`, `windows`,
+    `loop`, `cloud`), `pool`, `agent`, `cwd`, `permission_mode`, `timeout`,
+    `service`, `where` and `repo`, and `column` to add a rule sending that
+    list's cards. It answers with `setup.steps` — exactly what to paste — and
+    for a runner of its own the `runner` and its `token`, once. `GET
+    …/runners/:id/setup` gives the steps again, `POST …/runners/:id/token` a
+    new token. `slipdock runner new` prints the same.
+
     **Runners themselves** are the board owner's to make and revoke: `GET`,
     `POST` (`{"name", "pool"}`, answering with the runner's token, once) and
     `DELETE /api/boards/:board/runners[/:id]`. A runner's token (`sdr_…`)

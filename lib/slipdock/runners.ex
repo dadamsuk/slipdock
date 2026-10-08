@@ -83,7 +83,7 @@ defmodule Slipdock.Runners do
   token is shown this once; only its hash is kept.
   """
   def create_runner(%Board{} = board, attrs, user \\ nil) do
-    token = "sdr_" <> Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
+    token = new_token()
 
     %Runner{
       board_id: Board.root_id(board),
@@ -118,6 +118,21 @@ defmodule Slipdock.Runners do
 
     if found, do: {:ok, found}, else: {:error, :not_found, "runner"}
   end
+
+  @doc """
+  Gives a runner a new token, returning `{:ok, runner, token}`. The old one
+  stops working at once; the new one is shown this once.
+  """
+  def rotate_token(%Runner{} = runner) do
+    token = new_token()
+
+    case runner |> Ecto.Changeset.change(token_hash: hash(token)) |> Repo.update() do
+      {:ok, runner} -> {:ok, runner, token}
+      error -> error
+    end
+  end
+
+  defp new_token, do: "sdr_" <> Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
 
   @doc "Revokes a runner: its token stops working at once."
   def delete_runner(%Runner{} = runner), do: Repo.delete(runner)
