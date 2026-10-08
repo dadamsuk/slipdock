@@ -77,6 +77,11 @@ defmodule SlipdockWeb.WikiLive.Index do
          tags: [],
          wanted: [],
          diff: [],
+         # The version a revision is compared with (nil: nothing before it),
+         # whether the reader chose it, and the page's newest version.
+         base: nil,
+         comparing: false,
+         latest_revision: nil,
          revisions: [],
          page_jumps: [],
          fields_board: nil,
@@ -296,12 +301,24 @@ defmodule SlipdockWeb.WikiLive.Index do
     end
   end
 
-  defp apply_page_action(socket, :revision, %{"rev" => rev}) do
-    case Wiki.get_revision(socket.assigns.page, rev) do
+  # A revision against the one before it, or with `?against=<id>` against
+  # any other version of the same page: the history's compare picker and
+  # "Compare with current" both come here.
+  defp apply_page_action(socket, :revision, %{"rev" => rev} = params) do
+    page = socket.assigns.page
+
+    case Wiki.get_revision(page, rev) do
       {:ok, revision} ->
-        previous = Wiki.previous_revision(revision)
-        before = if previous, do: previous.body, else: ""
-        assign(socket, revision: revision, diff: Wiki.diff(before, revision.body))
+        {base, comparing, socket} = compare_base(socket, page, revision, params["against"])
+        before = if base, do: base.body, else: ""
+
+        assign(socket,
+          revision: revision,
+          base: base,
+          comparing: comparing,
+          latest_revision: List.first(Wiki.list_revisions(page, 1)),
+          diff: Wiki.split_diff(before, revision.body)
+        )
 
       _ ->
         socket |> put_flash(:error, "No such revision.") |> assign(revision: nil)
@@ -575,6 +592,30 @@ defmodule SlipdockWeb.WikiLive.Index do
       _ -> {:noreply, put_flash(socket, :error, "That page couldn't be deleted.")}
     end
   end
+
+  # Either way round the picker is filled in, the older version goes on the
+  # left: the history lists newest first, so the later position is older.
+  def handle_event("compare", %{"from" => from, "to" => to}, socket) when from != to do
+    ids = Enum.map(socket.assigns.revisions, &to_string(&1.id))
+
+    case {Enum.find_index(ids, &(&1 == from)), Enum.find_index(ids, &(&1 == to))} do
+      {i, j} when is_integer(i) and is_integer(j) ->
+        {newer, older} = if i < j, do: {from, to}, else: {to, from}
+        board = socket.assigns.board
+        slug = socket.assigns.page.slug
+
+        {:noreply,
+         push_patch(socket,
+           to: ~p"/boards/#{board}/wiki/#{slug}/history/#{newer}?against=#{older}"
+         )}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Pick two versions from the list to compare.")}
+    end
+  end
+
+  def handle_event("compare", _params, socket),
+    do: {:noreply, put_flash(socket, :error, "Pick two different versions to compare.")}
 
   def handle_event("revert", _params, socket) do
     with true <- socket.assigns.can_write,
@@ -1314,6 +1355,20 @@ defmodule SlipdockWeb.WikiLive.Index do
     end
   end
 
+  defp compare_base(socket, _page, revision, against) when against in [nil, ""],
+    do: {Wiki.previous_revision(revision), false, socket}
+
+  defp compare_base(socket, page, revision, against) do
+    case Wiki.get_revision(page, against) do
+      {:ok, base} ->
+        {base, true, socket}
+
+      _ ->
+        {Wiki.previous_revision(revision), false,
+         put_flash(socket, :error, "No such version to compare with; showing the one before.")}
+    end
+  end
+
   defp stamp(nil), do: ""
   defp stamp(%DateTime{} = at), do: Calendar.strftime(at, "%d %b %Y, %H:%M")
 
@@ -1614,6 +1669,9 @@ defmodule SlipdockWeb.WikiLive.Index do
                     board={@board}
                     page={@page}
                     revision={@revision}
+                    base={@base}
+                    comparing={@comparing}
+                    latest={@latest_revision}
                     diff={@diff}
                     can_write={@can_write}
                   />
@@ -2943,41 +3001,86 @@ defmodule SlipdockWeb.WikiLive.Index do
   attr :page, :any, required: true
   attr :revisions, :list, required: true
 
+  # Each version links to what it changed; the two columns of radios pick any
+  # pair to compare instead, older on the left whichever way they are ticked.
   defp history_body(assigns) do
+    assigns = assign(assigns, :compare?, length(assigns.revisions) > 1)
+
     ~H"""
     <div class="flex flex-wrap items-center justify-between gap-2">
       <h1 class="text-xl font-bold tracking-tight">History of {@page.title}</h1>
       <.link navigate={page_path(@board, @page)} class="btn btn-ghost btn-sm">Back to the page</.link>
     </div>
 
-    <ul class="mt-6 divide-y divide-base-300 rounded-xl border border-base-300 bg-base-100">
-      <li :for={revision <- @revisions}>
-        <.link
-          navigate={~p"/boards/#{@board}/wiki/#{@page.slug}/history/#{revision.id}"}
-          class="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-3 hover:bg-base-200"
+    <form id="compare-form" phx-submit="compare" class="mt-6">
+      <div :if={@compare?} class="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <p class="text-sm text-base-content/60">
+          Tick two versions to see them side by side, or open one to see what it changed.
+        </p>
+        <button type="submit" class="btn btn-sm">Compare selected versions</button>
+      </div>
+
+      <ul class="divide-y divide-base-300 rounded-xl border border-base-300 bg-base-100">
+        <li
+          :for={{revision, i} <- Enum.with_index(@revisions)}
+          class="flex items-center hover:bg-base-200"
         >
-          <span class="w-40 shrink-0 text-sm text-base-content/60">{stamp(revision.inserted_at)}</span>
-          <span class="font-medium">{author_label(revision)}</span>
-          <span :if={revision.via && revision.via != "web"} class="chip chip-line text-2xs">
-            {via_label(revision.via)}{if revision.agent, do: " · #{revision.agent}"}
+          <span :if={@compare?} class="flex shrink-0 gap-2 pl-4">
+            <input
+              type="radio"
+              name="from"
+              value={revision.id}
+              checked={i == 1}
+              class="radio radio-xs"
+              aria-label={"Compare from #{stamp(revision.inserted_at)}"}
+            />
+            <input
+              type="radio"
+              name="to"
+              value={revision.id}
+              checked={i == 0}
+              class="radio radio-xs"
+              aria-label={"Compare to #{stamp(revision.inserted_at)}"}
+            />
           </span>
-          <span :if={revision.summary} class="min-w-0 flex-1 truncate text-sm text-base-content/60">
-            {revision.summary}
-          </span>
-          <span class="shrink-0 text-xs text-base-content/40">{revision.byte_size} bytes</span>
-        </.link>
-      </li>
-    </ul>
+          <.link
+            navigate={~p"/boards/#{@board}/wiki/#{@page.slug}/history/#{revision.id}"}
+            class="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-3"
+          >
+            <span class="w-40 shrink-0 text-sm text-base-content/60">{stamp(revision.inserted_at)}</span>
+            <span class="font-medium">{author_label(revision)}</span>
+            <span :if={revision.via && revision.via != "web"} class="chip chip-line text-2xs">
+              {via_label(revision.via)}{if revision.agent, do: " · #{revision.agent}"}
+            </span>
+            <span :if={revision.summary} class="min-w-0 flex-1 truncate text-sm text-base-content/60">
+              {revision.summary}
+            </span>
+            <span class="shrink-0 text-xs text-base-content/40">{revision.byte_size} bytes</span>
+          </.link>
+        </li>
+      </ul>
+    </form>
     """
   end
 
   attr :board, :any, required: true
   attr :page, :any, required: true
   attr :revision, :any, default: nil
+  attr :base, :any, default: nil
+  attr :comparing, :boolean, default: false
+  attr :latest, :any, default: nil
   attr :diff, :list, default: []
   attr :can_write, :boolean, required: true
 
+  # GitHub's split view: the older version on the left, this one on the
+  # right, with long unchanged stretches folded behind a button.
   defp revision_body(assigns) do
+    assigns =
+      assign(assigns,
+        changed?: Enum.any?(assigns.diff, &changed_row?/1),
+        current?: assigns.latest && assigns.revision && assigns.latest.id == assigns.revision.id
+      )
+
     ~H"""
     <div :if={is_nil(@revision)} class="py-16 text-center text-base-content/60">
       No such revision.
@@ -2999,6 +3102,15 @@ defmodule SlipdockWeb.WikiLive.Index do
           >
             All versions
           </.link>
+          <.link
+            :if={@latest && !@current?}
+            patch={
+              ~p"/boards/#{@board}/wiki/#{@page.slug}/history/#{@latest.id}?against=#{@revision.id}"
+            }
+            class="btn btn-ghost btn-sm"
+          >
+            Compare with current
+          </.link>
           <button
             :if={@can_write}
             type="button"
@@ -3011,29 +3123,117 @@ defmodule SlipdockWeb.WikiLive.Index do
         </div>
       </div>
 
-      <div class="mt-6 overflow-hidden rounded-xl border border-base-300 bg-base-100 font-mono text-xs">
-        <div :for={{op, lines} <- @diff}>
-          <%!-- The marker and the line are joined in Elixir rather than
-                interpolated twice, so no template whitespace can land inside
-                the pre-wrapped span. --%>
-          <div
-            :for={line <- lines}
-            class={[
-              "px-3 py-0.5",
-              op == :ins && "bg-emerald-500/10 text-emerald-900",
-              op == :del && "bg-rose-500/10 text-rose-900 line-through",
-              op == :eq && "text-base-content/50"
-            ]}
-          >
-            <span class="whitespace-pre-wrap">{diff_marker(op) <> line}</span>
-          </div>
-        </div>
+      <div id="split-diff" class="mt-6 overflow-x-auto rounded-xl border border-base-300 bg-base-100">
+        <table class="w-full min-w-[40rem] table-fixed border-collapse font-mono text-xs">
+          <colgroup>
+            <col class="w-12" />
+            <col />
+            <col class="w-12" />
+            <col />
+          </colgroup>
+          <thead class="border-b border-base-300 bg-base-200/60 font-sans text-left text-xs text-base-content/70">
+            <tr>
+              <th colspan="2" class="px-3 py-2 font-medium">
+                <%= if @base do %>
+                  {stamp(@base.inserted_at)} · {author_label(@base)}
+                  <span :if={!@comparing} class="font-normal text-base-content/50">(the version before)</span>
+                <% else %>
+                  <span class="font-normal text-base-content/50">Nothing before this version</span>
+                <% end %>
+              </th>
+              <th colspan="2" class="border-l border-base-300 px-3 py-2 font-medium">
+                {stamp(@revision.inserted_at)} · {author_label(@revision)}
+                <span :if={@current?} class="font-normal text-base-content/50">(current)</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody :if={!@changed?}>
+            <tr>
+              <td colspan="4" class="px-3 py-2 font-sans text-base-content/60">
+                No change between these two versions.
+              </td>
+            </tr>
+          </tbody>
+          <%= for {entry, i} <- Enum.with_index(@diff) do %>
+            <%= case entry do %>
+              <% {:row, left, right} -> %>
+                <tbody>
+                  <.diff_row left={left} right={right} />
+                </tbody>
+              <% {:fold, rows} -> %>
+                <tbody id={"diff-fold-#{i}"}>
+                  <tr>
+                    <td colspan="4" class="bg-sky-500/5 p-0">
+                      <button
+                        type="button"
+                        class="w-full px-3 py-1 text-left font-sans text-base-content/60 hover:bg-sky-500/10"
+                        phx-click={
+                          JS.hide(to: "#diff-fold-#{i}")
+                          |> JS.show(to: "#diff-folded-#{i}", display: "table-row-group")
+                        }
+                      >
+                        ⋯ {count(length(rows), "unchanged line")}
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+                <tbody id={"diff-folded-#{i}"} class="hidden">
+                  <.diff_row :for={{:row, left, right} <- rows} left={left} right={right} />
+                </tbody>
+            <% end %>
+          <% end %>
+        </table>
       </div>
     </div>
     """
   end
 
-  defp diff_marker(:ins), do: "+ "
-  defp diff_marker(:del), do: "- "
-  defp diff_marker(_), do: "  "
+  attr :left, :any, required: true
+  attr :right, :any, required: true
+
+  defp diff_row(assigns) do
+    ~H"""
+    <tr>
+      <.diff_cell cell={@left} />
+      <.diff_cell cell={@right} edge />
+    </tr>
+    """
+  end
+
+  attr :cell, :any, required: true
+  attr :edge, :boolean, default: false
+
+  # The text is pre-wrapped, so its cell is kept on one line: any template
+  # whitespace inside it would show up in the diff.
+  defp diff_cell(assigns) do
+    ~H"""
+    <td class={[
+      "select-none px-2 py-0.5 text-right align-top text-base-content/40",
+      @edge && "border-l border-base-300",
+      @cell && @cell.op == :del && "bg-rose-500/15",
+      @cell && @cell.op == :ins && "bg-emerald-500/15",
+      is_nil(@cell) && "bg-base-200/60"
+    ]}>
+      {@cell && @cell.n}
+    </td>
+    <td
+      data-op={@cell && @cell.op}
+      class={[
+        "whitespace-pre-wrap break-words px-2 py-0.5 align-top",
+        @cell && @cell.op == :del && "bg-rose-500/10 text-rose-950 dark:text-rose-100",
+        @cell && @cell.op == :ins && "bg-emerald-500/10 text-emerald-950 dark:text-emerald-100",
+        @cell && @cell.op == :eq && "text-base-content/70",
+        is_nil(@cell) && "bg-base-200/60"
+      ]}
+      phx-no-format
+    ><span :if={@cell && @cell.op != :eq} class="sr-only">{if @cell.op == :del, do: "removed: ", else: "added: "}</span><%= if @cell do %><span :for={{kind, text} <- @cell.parts} class={kind == :chg && diff_word(@cell.op)}>{text}</span><% end %></td>
+    """
+  end
+
+  defp changed_row?({:row, %{op: :eq}, %{op: :eq}}), do: false
+  defp changed_row?({:row, _, _}), do: true
+  defp changed_row?(_), do: false
+
+  defp diff_word(:del), do: "diff-word rounded-sm bg-rose-500/30"
+  defp diff_word(_), do: "diff-word rounded-sm bg-emerald-500/30"
 end

@@ -479,7 +479,8 @@ defmodule SlipdockCLI.Wiki do
   def run("page", ["diff", ref], o) do
     rev = o[:rev] || latest_revision(ref)
 
-    HTTP.get("/pages/#{enc(ref)}/revisions/#{enc(rev)}", diff: "previous")
+    # --against compares with any other version; without it, the one before.
+    HTTP.get("/pages/#{enc(ref)}/revisions/#{enc(rev)}", diff: o[:against] || "previous")
     |> out(o, &Render.diff(&1["diff"] || []))
   end
 

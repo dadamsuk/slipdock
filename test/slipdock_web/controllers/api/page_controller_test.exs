@@ -538,6 +538,64 @@ defmodule SlipdockWeb.API.PageControllerTest do
                |> json_response(404)
     end
 
+    test "diff=<revision id> diffs from that version; a stranger or nonsense is refused", %{
+      conn: conn,
+      page: page,
+      board: board
+    } do
+      other = user_fixture("pages.differ@example.com")
+      {:ok, _} = Slipdock.Access.grant(board, other, "write", user_fixture())
+
+      for body <- ["second", "third"] do
+        conn_as(other)
+        |> put_req_header("accept", "application/json")
+        |> patch("/api/pages/#{page["id"]}", %{body: body})
+        |> json_response(200)
+
+        # Another hand between saves, so each is a revision of its own.
+        conn |> patch("/api/pages/#{page["id"]}", %{body: body <> "!"}) |> json_response(200)
+      end
+
+      %{"revisions" => revisions} =
+        conn |> get("/api/pages/#{page["id"]}/revisions") |> json_response(200)
+
+      newest = hd(revisions)
+      oldest = List.last(revisions)
+
+      # Past every save in between, straight from the first to the last.
+      assert %{
+               "diff" => [
+                 %{"op" => "del", "lines" => ["first"]},
+                 %{"op" => "ins", "lines" => ["third!"]}
+               ]
+             } =
+               conn
+               |> get("/api/pages/#{page["id"]}/revisions/#{newest["id"]}?diff=#{oldest["id"]}")
+               |> json_response(200)
+
+      # A version against itself is no change at all.
+      assert %{"diff" => [%{"op" => "eq", "lines" => ["third!"]}]} =
+               conn
+               |> get("/api/pages/#{page["id"]}/revisions/#{newest["id"]}?diff=#{newest["id"]}")
+               |> json_response(200)
+
+      # Another page's revision is not this page's history.
+      elsewhere = create(conn, %{title: "Elsewhere", body: "x"})
+
+      %{"revisions" => [foreign]} =
+        conn |> get("/api/pages/#{elsewhere["id"]}/revisions") |> json_response(200)
+
+      assert %{"error" => "revision not found"} =
+               conn
+               |> get("/api/pages/#{page["id"]}/revisions/#{newest["id"]}?diff=#{foreign["id"]}")
+               |> json_response(404)
+
+      assert %{"error" => "diff must be " <> _} =
+               conn
+               |> get("/api/pages/#{page["id"]}/revisions/#{newest["id"]}?diff=junk")
+               |> json_response(400)
+    end
+
     test "limit caps the list, and a zero or nonsense limit means the default", %{
       conn: conn,
       page: page,

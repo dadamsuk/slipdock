@@ -355,7 +355,8 @@ defmodule SlipdockWeb.APIGuide do
     `what`: a page's `links` or `sections` — the heading paths
     `write_page` takes — a board's `wanted` pages, or `resolve` a
     title), `page_history` (a page's revisions, or with `rev` or
-    `diff` the change one save made), `activity` (the
+    `diff` the change one save made, and with `against` the
+    change between any two), `activity` (the
     board's log, or with `card` one card's), and for
     writing `create_card`, `update_card` (fields, flags, tags, assignees,
     dependencies and the checklist), `move_card` (to another board too),
@@ -1243,6 +1244,7 @@ defmodule SlipdockWeb.APIGuide do
     curl -s -X POST -H "$H" B/api/pages/W-31/restore
     curl -s -H "$H" B/api/pages/W-31/revisions
     curl -s -H "$H" "B/api/pages/W-31/revisions/12?diff=previous"
+    curl -s -H "$H" "B/api/pages/W-31/revisions/12?diff=7"   # from version 7 to 12
     curl -s -X POST -H "$H" -H 'content-type: application/json' \\
          B/api/pages/W-31/revert -d '{"revision_id": 12}'
     ```

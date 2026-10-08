@@ -157,7 +157,9 @@ defmodule SlipdockCLI do
     page rm <page> [--purge]            archive it (--purge deletes, owner only)
     page restore <page>
     page history <page> [--limit N]     every save, who made it and why
-    page diff <page> [--rev N]          what a version changed (default: the latest)
+    page diff <page> [--rev N] [--against M]
+                                        what a version changed (default: the latest),
+                                        or with --against how it differs from version M
     page revert <page> --rev N [--message M]
     page sections <page>                the heading paths a section may be addressed by
     page section <page> <path>          print one section
@@ -460,6 +462,7 @@ defmodule SlipdockCLI do
     body: :string,
     file: :string,
     rev: :string,
+    against: :string,
     position: :string,
     draft: :boolean,
     publish: :boolean,

@@ -131,18 +131,164 @@ defmodule SlipdockWeb.WikiLiveTest do
     {:ok, _, latest_html} =
       live(conn, ~p"/boards/#{board}/wiki/#{page.slug}/history/#{newest.id}")
 
-    assert latest_html =~ "- first"
-    assert latest_html =~ "+ second"
+    assert latest_html =~ ~r/data-op="del"[^>]*>.*first/s
+    assert latest_html =~ ~r/data-op="ins"[^>]*>.*second/s
 
     {:ok, revision_view, html} =
       live(conn, ~p"/boards/#{board}/wiki/#{page.slug}/history/#{oldest.id}")
 
-    assert html =~ "+ first"
+    assert html =~ "Nothing before this version"
+    assert has_element?(revision_view, ~s|td[data-op="ins"]|, "first")
+    refute has_element?(revision_view, ~s|td[data-op="del"]|)
 
     assert {:error, {:live_redirect, _}} =
              revision_view |> element("button", "Restore this version") |> render_click()
 
     assert Wiki.get_page!(page.id).body == "first"
+  end
+
+  describe "comparing versions side by side" do
+    setup %{board: board, user: user} do
+      page = page_fixture(board, %{"title" => "Spec", "body" => "the quick brown fox\nkept"})
+      editor = user_fixture("live.differ@example.com")
+      {:ok, _} = Access.grant(board, editor, "write", user)
+      # A different hand each time, so every save is its own revision.
+      {:ok, page} = Wiki.update_page(page, %{"body" => "the quick red fox\nkept"}, user: editor)
+
+      {:ok, page} =
+        Wiki.update_page(page, %{"body" => "the quick red fox\nkept\nadded"}, user: user)
+
+      [newest, middle, oldest] = Wiki.list_revisions(page)
+      %{page: page, newest: newest, middle: middle, oldest: oldest}
+    end
+
+    test "an edited line sits beside its replacement, the changed word picked out", %{
+      conn: conn,
+      board: board,
+      page: page,
+      middle: middle
+    } do
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}/history/#{middle.id}")
+
+      assert has_element?(view, "#split-diff th", "(the version before)")
+      assert has_element?(view, ~s|td[data-op="del"] span.diff-word|, "brown")
+      assert has_element?(view, ~s|td[data-op="ins"] span.diff-word|, "red")
+      # The unchanged line is on both sides, not marked either way.
+      assert has_element?(view, ~s|td[data-op="eq"]|, "kept")
+    end
+
+    test "the picker compares any two, older on the left whichever way they are ticked", %{
+      conn: conn,
+      board: board,
+      page: page,
+      newest: newest,
+      oldest: oldest
+    } do
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}/history")
+
+      # Ticked back to front: the newest as "from", the oldest as "to".
+      view
+      |> form("#compare-form", %{"from" => newest.id, "to" => oldest.id})
+      |> render_submit()
+
+      assert_patch(
+        view,
+        ~p"/boards/#{board}/wiki/#{page.slug}/history/#{newest.id}?against=#{oldest.id}"
+      )
+
+      assert has_element?(view, ~s|td[data-op="del"]|, "brown")
+      assert has_element?(view, ~s|td[data-op="ins"]|, "added")
+      assert has_element?(view, "#split-diff th", "(current)")
+      refute has_element?(view, "#split-diff th", "(the version before)")
+    end
+
+    test "the same version twice, or one from another page, is refused", %{
+      conn: conn,
+      board: board,
+      page: page,
+      newest: newest
+    } do
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}/history")
+
+      html =
+        view
+        |> form("#compare-form", %{"from" => newest.id, "to" => newest.id})
+        |> render_submit()
+
+      assert html =~ "Pick two different versions to compare."
+
+      html = render_submit(view, "compare", %{"from" => "999999", "to" => to_string(newest.id)})
+      assert html =~ "Pick two versions from the list to compare."
+    end
+
+    test "Compare with current shows an old version against the page as it is", %{
+      conn: conn,
+      board: board,
+      page: page,
+      newest: newest,
+      oldest: oldest
+    } do
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}/history/#{oldest.id}")
+
+      view |> element("a", "Compare with current") |> render_click()
+
+      assert_patch(
+        view,
+        ~p"/boards/#{board}/wiki/#{page.slug}/history/#{newest.id}?against=#{oldest.id}"
+      )
+
+      # Already on the current version, there is nothing to compare it with.
+      refute has_element?(view, "a", "Compare with current")
+    end
+
+    test "an unknown version to compare with falls back to the one before", %{
+      conn: conn,
+      board: board,
+      page: page,
+      newest: newest
+    } do
+      {:ok, view, html} =
+        live(conn, ~p"/boards/#{board}/wiki/#{page.slug}/history/#{newest.id}?against=999999")
+
+      assert html =~ "No such version to compare with"
+      assert has_element?(view, "#split-diff th", "(the version before)")
+      assert has_element?(view, ~s|td[data-op="ins"]|, "added")
+    end
+
+    test "comparing a version with itself says there is no change", %{
+      conn: conn,
+      board: board,
+      page: page,
+      newest: newest
+    } do
+      {:ok, _view, html} =
+        live(
+          conn,
+          ~p"/boards/#{board}/wiki/#{page.slug}/history/#{newest.id}?against=#{newest.id}"
+        )
+
+      assert html =~ "No change between these two versions."
+    end
+
+    test "long unchanged stretches fold behind a button that opens them", %{
+      conn: conn,
+      board: board,
+      user: user
+    } do
+      body = Enum.map_join(1..20, "\n", &"line #{&1}")
+      page = page_fixture(board, %{"title" => "Long", "body" => body})
+      other = user_fixture("live.folder@example.com")
+      {:ok, _} = Access.grant(board, other, "write", user)
+      {:ok, page} = Wiki.update_page(page, %{"body" => body <> "\nline 21"}, user: other)
+      [newest | _] = Wiki.list_revisions(page)
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}/history/#{newest.id}")
+
+      assert has_element?(view, "#split-diff button", "17 unchanged lines")
+      # Folded rows are rendered, hidden, so opening them is a client-side show.
+      assert has_element?(view, "#split-diff tbody.hidden td", "line 1")
+      assert has_element?(view, ~s|td[data-op="ins"]|, "line 21")
+    end
   end
 
   test "a reader sees the page but no way to change it", %{conn: _conn, board: board, user: user} do
