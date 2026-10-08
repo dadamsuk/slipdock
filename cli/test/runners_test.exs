@@ -117,6 +117,22 @@ defmodule SlipdockCLI.RunnersTest do
     assert out =~ "added the rule “Trouble on the loop runners”"
   end
 
+  test "runner setup --hook-prompt prints the prompt as it is" do
+    serve([
+      {200,
+       ~s({"prompt":"Write the hooks.\\n- $SLIPDOCK_STATUS: how it ended\\n","scenario":"server"})}
+    ])
+
+    out =
+      capture_io(fn ->
+        Runners.run("runner", ["setup", "b", "box"], hook_prompt: true)
+      end)
+
+    assert_received {:request, "GET", path, _}
+    assert path =~ "/boards/b/runners/box/hook-prompt"
+    assert out == "Write the hooks.\n- $SLIPDOCK_STATUS: how it ended\n"
+  end
+
   test "runner new passes --no-wait-while-doing and --wait-while-doing on" do
     serve([
       {201, ~s({"runner":null,"token":null,"automation":null,"setup":#{@setup}})},

@@ -368,6 +368,8 @@ defmodule SlipdockCLI do
     runner setup <board> <runner> [answers...]     a runner's steps again (token left out); with
                                                    any of runner new's options, saves them and
                                                    prints what changes first
+    runner setup <board> <runner> --hook-prompt    a prompt for Claude Code on that machine
+                                                   to write its before/after-job hooks
     runner token <board> <runner>                  a new token for a runner, with its steps
     runner rm <board> <runner>                     revoke a runner (its token stops working)
     cancel-job <id>                                stop a job: a queued one at once, a running one
@@ -539,6 +541,7 @@ defmodule SlipdockCLI do
     slipdock_tools: :boolean,
     wait_while_doing: :boolean,
     requeue_stuck: :integer,
+    hook_prompt: :boolean,
     alert: :boolean,
     mcp_servers: :string,
     help: :boolean

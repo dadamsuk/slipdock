@@ -182,6 +182,24 @@ defmodule SlipdockWeb.RunnersLiveTest do
            }
   end
 
+  test "Advanced → Hooks has a prompt for Claude to write the hook, for the runner chosen", %{
+    conn: conn,
+    board: board
+  } do
+    view = open(conn, board)
+    choose(view, %{"scenario" => "server", "pool" => "dev"})
+    assert has_element?(view, "#wizard-hook-prompt summary", "Have Claude write this hook")
+    assert has_element?(view, "#hook-prompt", "$SLIPDOCK_STATUS")
+    assert has_element?(view, "#hook-prompt", "/runner/examples/after-job-hook.sh")
+    assert has_element?(view, "#hook-prompt-copy")
+
+    choose(view, %{"scenario" => "windows", "pool" => "dev"})
+    assert has_element?(view, "#hook-prompt", "$env:SLIPDOCK_STATUS")
+
+    choose(view, %{"scenario" => "loop", "pool" => "dev"})
+    refute has_element?(view, "#wizard-hook-prompt")
+  end
+
   test "an answer it can't use is said, and nothing is made", %{conn: conn, board: board} do
     view = open(conn, board)
     choose(view, %{"scenario" => "server", "pool" => "My Pool"})

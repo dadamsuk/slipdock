@@ -121,6 +121,7 @@ defmodule SlipdockWeb.Router do
     get "/runner/SHA256SUMS", RunnerInstallController, :sums
     get "/runner/install.ps1", RunnerInstallController, :install_ps1
     get "/runner/slipdock-runner.ps1", RunnerInstallController, :runner_ps1
+    get "/runner/examples/:name", RunnerInstallController, :example
   end
 
   # The runner protocol (see `SlipdockWeb.API.RunnerController`): plain text,
@@ -421,6 +422,7 @@ defmodule SlipdockWeb.Router do
     post "/boards/:board/runners", JobController, :create_runner
     post "/boards/:board/runners/setup", JobController, :setup
     get "/boards/:board/runners/:id/setup", JobController, :runner_setup
+    get "/boards/:board/runners/:id/hook-prompt", JobController, :hook_prompt
     put "/boards/:board/runners/:id/setup", JobController, :update_setup
     post "/boards/:board/runners/:id/token", JobController, :rotate_token
     delete "/boards/:board/runners/:id", JobController, :delete_runner
