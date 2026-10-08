@@ -30,6 +30,9 @@ defmodule SlipdockCLI.Runners do
     if scenario in ~w(server windows) and !o[:pool],
       do: fail("pass --pool P: the pool this runner takes jobs for")
 
+    if o[:top] && !o[:column],
+      do: fail("--top goes with --column LIST: the list whose top card it sends")
+
     body =
       compact(%{
         "scenario" => scenario,
@@ -51,7 +54,9 @@ defmodule SlipdockCLI.Runners do
         "service" => o[:service],
         "where" => o[:where],
         "repo" => o[:repo],
-        "column" => o[:column] |> List.wrap() |> List.last()
+        "column" => o[:column] |> List.wrap() |> List.last(),
+        # The list's top card, one at a time, rather than every card arriving.
+        "feed" => if(o[:top], do: "top")
       })
 
     HTTP.post("/boards/#{enc(ref)}/runners/setup", body)

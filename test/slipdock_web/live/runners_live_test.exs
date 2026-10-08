@@ -104,6 +104,29 @@ defmodule SlipdockWeb.RunnersLiveTest do
     assert render(view) =~ rule.name
   end
 
+  test "picking a list's top card adds a rule that sends one at a time", %{
+    conn: conn,
+    board: board
+  } do
+    [_, todo | _] = board.columns
+    card = card_fixture(todo, %{"title" => "First"})
+    card_fixture(todo, %{"title" => "Second"})
+    view = open(conn, board)
+    assert has_element?(view, "option[value='top:#{todo.name}']", "the top card of #{todo.name}")
+    submit(view, %{"scenario" => "server", "pool" => "dev", "send" => "top:#{todo.name}"})
+
+    assert [rule] = Automations.list_rules(board.id)
+
+    assert rule.spec["trigger"] == %{
+             "type" => "list_top",
+             "column" => todo.name,
+             "unassigned" => true
+           }
+
+    assert [%Runners.Job{card_id: card_id}] = Runners.list_jobs(board, status: "open")
+    assert card_id == card.id
+  end
+
   test "an answer it can't use is said, and nothing is made", %{conn: conn, board: board} do
     view = open(conn, board)
     choose(view, %{"scenario" => "server", "pool" => "My Pool"})

@@ -304,11 +304,12 @@ slipdock dismiss <alert-id>... | --all        # dismiss yours; other people keep
 slipdock runner new <board> [name] --pool P [--scenario server|windows|loop|cloud]
     [--agent claude|codex|custom] [--command CMD] [--kind K] [--cwd DIR] [--permission-mode M]
     [--timeout S] [--service auto|systemd|launchd|none] [--where desktop|cloud] [--repo owner/repo]
-    [--column LIST] [--verbosity quiet|normal|verbose] [--instructions TEXT]
+    [--column LIST [--top]] [--verbosity quiet|normal|verbose] [--instructions TEXT]
     [--before-job CMD] [--after-job CMD] [--hooks prompt|hook]
     [--no-slipdock-tools] [--mcp-servers A,B]
                                               # prints exactly what to paste; server/windows make a
                                               # runner and print its token, ONCE; --column adds the rule
+                                              # (--top: the list's top card, one at a time)
 slipdock runner ls <board>                    # runners: pool, last seen, current job
 slipdock runner setup <board> <runner> [opts] # the steps again; with options, saves them + shows the diff
 slipdock runner token <board> <runner>        # a new token (the old one stops working)
@@ -342,7 +343,9 @@ placeholders; by default the card's number, title, link and description). It que
 that a runner of that pool takes; at most one open job per card per rule. The rule picks the
 *kind*, never a command: what a kind runs lives in the runner's config on that machine, so
 don't try to put a command in a rule, and a job failing with exit 127 means that machine has
-no function for the kind. To set the whole thing up, `slipdock runner new` (or **Automations →
+no function for the kind. With the trigger `list_top` (`{"type": "list_top", "column": "To
+Do", "unassigned": true}`, preset `feed_runner`) the rule works a list in order instead: one
+open job at a time, always for the top ready card. To set the whole thing up, `slipdock runner new` (or **Automations →
 Connect a runner** in the UI) is better than writing the rule by hand. A job's token is shown
 once: never paste it into a card, comment or page.
 

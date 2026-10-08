@@ -517,7 +517,9 @@ defmodule Slipdock.Runners do
           "#{runner.name} finished job ##{job.id}: #{status}#{exit_text(exit_code)}"
         )
 
-        {:ok, changed(job)}
+        job = changed(job)
+        refill(job)
+        {:ok, job}
       end
     end
   end
@@ -550,6 +552,7 @@ defmodule Slipdock.Runners do
         |> Ecto.Changeset.change(%{status: "cancelled", finished_at: now()})
         |> Repo.update()
         |> tap_changed()
+        |> tap_refill()
 
       status when status in ~w(claimed running) ->
         job
@@ -564,6 +567,17 @@ defmodule Slipdock.Runners do
 
   defp tap_changed({:ok, job}), do: {:ok, changed(job)}
   defp tap_changed(other), do: other
+
+  defp tap_refill({:ok, job} = result) do
+    refill(job)
+    result
+  end
+
+  defp tap_refill(other), do: other
+
+  # A job from a rule that keeps a pool fed from a list (`list_top`) has
+  # ended, so the rule may send the next card.
+  defp refill(%Job{rule_id: rule_id}), do: Slipdock.Automations.feed_rule(rule_id)
 
   ## Leases -------------------------------------------------------------------
 
@@ -587,7 +601,8 @@ defmodule Slipdock.Runners do
   defp expire(job, now) do
     cond do
       job.cancel_requested_at ->
-        settle(job, %{status: "cancelled", finished_at: now, lease_expires_at: nil})
+        if settle(job, %{status: "cancelled", finished_at: now, lease_expires_at: nil}),
+          do: refill(job)
 
       job.attempts >= max_attempts() ->
         settle(job, %{
@@ -598,6 +613,7 @@ defmodule Slipdock.Runners do
         })
 
         flag_card(job)
+        refill(job)
 
       true ->
         if settle(job, %{status: "queued", runner_id: nil, lease_expires_at: nil, claimed_at: nil}) do

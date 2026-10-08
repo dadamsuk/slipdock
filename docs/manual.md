@@ -1387,6 +1387,30 @@ say what was chosen, or comment, flag the card `waiting` and stop. The
 board has a runner): when a card
 arrives in a list, send it to a pool.
 
+**Working a list in order.** *Send cards to a runner* fires as cards arrive,
+so cards already in the list are never sent and the queue runs oldest job
+first. To have a runner work a list the way a person would — top card first,
+one at a time — use the **Work a list with a runner** preset (or *the top
+card of …, one at a time* in **Connect a runner**). Its trigger is
+`list_top`:
+
+```json
+{"trigger": {"type": "list_top", "column": "To Do", "unassigned": true},
+ "actions": [{"type": "runner", "pool": "loop"}]}
+```
+
+Whenever nothing the rule queued is still open, it sends the top open card
+of the list, in the list's order, skipping cards that are completed,
+archived, stand-ins, waiting on an unfinished card or flagged `blocked` or
+`waiting` — and, with `unassigned: true`, cards somebody has taken — plus
+any the rule's conditions rule out. It looks again whenever its job ends, a
+card on the board changes or the list is reordered, the rule is saved or
+switched on, and every few minutes besides. A card whose job just ended and
+which is still at the top (the runner gave up on it) is passed over for ten
+minutes (`feed_cooldown_seconds`), so it doesn't go straight back out;
+**Run now** sends the top card at once regardless. A `list_top` rule must
+have a `runner` action, and the list must exist.
+
 **How it is kept safe.** Runners pull: they dial out and ask for work, and
 the server never connects to them, so nothing needs a port, a tunnel or an
 exception to the outbound-address rules webhooks live by. And the server

@@ -253,7 +253,8 @@ defmodule Slipdock.Runners.Setup do
 
   @doc """
   The whole wizard: checks the answers, puts the rule in place (a new
-  *send to runner* rule on `answers["column"]`, an existing one named by
+  *send to runner* rule on `answers["column"]` — or, with `"feed" => "top"`,
+  one sending that list's top card one at a time — an existing one named by
   `answers["rule_id"]`, or none), makes the runner when the scenario needs a
   token, and generates the text. Answers `{:ok, %{setup, runner, token,
   rule}}` or `{:error, message}`.
@@ -280,11 +281,10 @@ defmodule Slipdock.Runners.Setup do
 
       column ->
         with {:ok, list} <- find_list(board, column) do
+          preset = if params["feed"] == "top", do: "feed_runner", else: "send_to_runner"
           params = %{"column" => list.name, "pool" => answers["pool"], "kind" => kind(answers)}
 
-          case Automations.create_rule_from_preset(board, "send_to_runner", params,
-                 created_by: user
-               ) do
+          case Automations.create_rule_from_preset(board, preset, params, created_by: user) do
             {:ok, rule} -> {:ok, rule}
             {:error, %Ecto.Changeset{} = changeset} -> {:error, changeset_message(changeset)}
             {:error, message} -> {:error, message}

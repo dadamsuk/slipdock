@@ -538,6 +538,11 @@ with the tail of the log — and a Cancel button.
 - **Slipdock never decides what runs.** A job carries data — its kind, the
   card and the prompt. What each kind of job runs is in a config file on the
   runner's machine, and a kind it doesn't know is refused there.
+- **A list in order, or every card that arrives.** *Send cards to a runner*
+  queues each card as it lands in a list; *Work a list with a runner*
+  (trigger `list_top`) keeps one job open at a time, always for the top
+  ready card of the list, so a runner works your To Do list the way you
+  stacked it.
 - **One queue for everything.** A Claude session (`/loop`, a scheduled task)
   takes jobs from the same queue through the MCP tools `claim_job`,
   `job_progress` and `finish_job`, or `slipdock claim-job`, so it never

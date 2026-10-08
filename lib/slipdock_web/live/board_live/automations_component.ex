@@ -286,7 +286,10 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
   # The ready-made rules, grouped, with the picked one's form opened beneath.
   defp rule_presets(assigns) do
     presets =
-      Enum.reject(Presets.all(), &(&1.key == "send_to_runner" and not assigns.runners?))
+      Enum.reject(
+        Presets.all(),
+        &(&1.key in ["send_to_runner", "feed_runner"] and not assigns.runners?)
+      )
 
     assigns =
       assign(assigns,

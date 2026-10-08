@@ -1888,6 +1888,10 @@ defmodule Slipdock.Boards do
     # The list a card sits in is part of what was embedded about it.
     unless same_column?, do: Indexer.enqueue(card.id)
 
+    # Reordering a list is no event of its own, but it can change which card
+    # a rule feeding a runner from the list's top would send next.
+    if same_column?, do: Slipdock.Automations.feed_board(card.board_id)
+
     broadcast(card.board_id)
     :ok
   end
