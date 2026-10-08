@@ -28,7 +28,8 @@ it back; `archive_board` does the same for a board. Prefer those: `delete_card` 
 `confirm: true`), `delete_list` and `delete_board` (`confirm` is the board's code) cannot be
 undone. `create_list` and `create_board` add structure. `list_cards` with `full: true` reads
 every card in full (comments, checklist, docs) in one call instead of a `get_card` each. `update_card` also sets dependencies
-and works the checklist. Anything the tools don't cover (automations, sprints, attachments,
+and works the checklist. `list_pages` lists a board's wiki (`tree: true` nests it, as `page tree`
+does), and `read_page` reads one. Anything the tools don't cover (automations, sprints, attachments,
 fields) is still the CLI or the API.
 
 ## If the CLI is not installed here
