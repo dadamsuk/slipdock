@@ -156,7 +156,12 @@ defmodule SlipdockWeb.RunnersLiveTest do
     )
     |> render_submit()
 
-    assert has_element?(view, "#runner-diff span.text-success", "--instructions 'Never push to main.'")
+    assert has_element?(
+             view,
+             "#runner-diff span.text-success",
+             "--instructions 'Never push to main.'"
+           )
+
     assert has_element?(view, "#runner-diff span.text-success", "git pull")
 
     assert Runners.list_runners(board) |> hd() |> Map.get(:settings) |> Map.get("before_job") ==
