@@ -90,10 +90,37 @@ defmodule SlipdockWeb.API.SkillsTest do
     assert body =~ "**Failed:** `Build failed:"
     assert body =~ "After **two** failed fix attempts"
     assert body =~ "CI: passed"
-    assert body =~ "**Never close a card on a red build.**"
+    assert body =~ "**Never close a top-level card on a red build.**"
+    refute body =~ "**Never close a card on a red build.**"
 
     # The version `skills check` compares moved off the copy without any of it.
     refute Skills.get("slipdock-loop").sha == "04da54775b80ab49"
+  end
+
+  @tag :anonymous
+  test "slipdock-loop waits for the build only when the top-level card closes", %{conn: conn} do
+    assert %{"content" => body} =
+             conn |> get("/api/skills/slipdock-loop") |> json_response(200)
+
+    # A subcard closes on `Build started`; only the epic (or a lone card) waits.
+    assert body =~ "4. **Wait for the build — for the pass's top-level card only.**"
+    assert body =~ "**A subcard** does not wait."
+
+    assert body =~
+             "started — <workflow> #<run-id> <run url> (checked before the\n     epic closes)"
+
+    assert body =~ "waits for the build of the last push"
+
+    # Between subcards: one look at the latest build, and a red one comes first.
+    assert body =~ "**before\nclaiming the next subcard, look at the latest build on the branch**"
+    assert body =~ "gh run list --branch <branch> --limit 1"
+    assert body =~ "`slipdock undone <id>`"
+
+    # The epic closes only on a green build of its last push.
+    assert body =~ "the build\nof the last push is green"
+
+    # A red build from a dead pass's subcard goes back to that subcard, not a new card.
+    assert body =~ "If the commit is a closed subcard's and its epic is still\nopen"
   end
 
   @tag :anonymous
