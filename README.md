@@ -537,7 +537,7 @@ claude mcp add --transport http slipdock https://your-server/mcp \
   --header "Authorization: Bearer <token>"
 ```
 
-The client gets 26 tools — `whoami`, `get_guide`, `list_boards`, `get_board`,
+The client gets 27 tools — `whoami`, `get_guide`, `list_boards`, `get_board`,
 `list_cards` (with `full: true`, every card as `get_card` gives it), `get_card`,
 `search`, `read_page`, `list_pages` (a board's wiki, flat or as a tree), `page_info` (a page's links or heading paths,
 a board's wanted pages, or whether a title has a page), `page_history` (a page's revisions,
@@ -545,7 +545,8 @@ or the diff one save made) and `activity`
 (a board's log, or one card's) to read; `create_card`,
 `update_card`, `move_card`, `comment`, `complete_card`, `archive_card`,
 `delete_card`, `create_list`, `delete_list`, `create_board`, `archive_board`,
-`delete_board`, `write_page` and `revert_page` (put a page back to a revision) to write — each checked exactly as the API
+`delete_board`, `write_page`, `update_page` (rename, summary, move, file, archive or
+restore, pin to a card) and `revert_page` (put a page back to a revision) to write — each checked exactly as the API
 checks the same token, so a read-only or board-scoped token stays that way.
 The deletes need an explicit confirmation. claude.ai connects from
 Anthropic's servers, so for it the server must be reachable from the internet

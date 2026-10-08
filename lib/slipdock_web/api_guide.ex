@@ -361,7 +361,9 @@ defmodule SlipdockWeb.APIGuide do
     dependencies and the checklist), `move_card` (to another board too),
     `comment`, `complete_card`, `archive_card` (and restore), `delete_card`,
     `create_list`, `delete_list`, `create_board`, `archive_board` (and
-    restore), `delete_board`, `write_page` and `revert_page` (a page
+    restore), `delete_board`, `write_page`, `update_page` (a page's
+    title, summary, parent, position and folder, archiving and restoring it,
+    and pinning it to a card) and `revert_page` (a page
     back to a revision, as a new one, against `base_hash`). Archiving is the undoable way
     to put something away; the deletes are not undoable, so `delete_card`
     needs `confirm: true`, `delete_board` needs `confirm` set to the board's

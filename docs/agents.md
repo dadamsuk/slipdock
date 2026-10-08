@@ -166,7 +166,7 @@ that connects gets a small set of tools rather than the whole API:
 
 | Reading | Writing |
 |---|---|
-| `whoami`, `get_guide`, `list_boards`, `get_board`, `list_cards`, `get_card`, `search`, `read_page`, `list_pages`, `page_info`, `page_history`, `activity` | `create_card`, `update_card`, `move_card`, `comment`, `complete_card`, `archive_card`, `delete_card`, `create_list`, `delete_list`, `create_board`, `archive_board`, `delete_board`, `write_page`, `revert_page` |
+| `whoami`, `get_guide`, `list_boards`, `get_board`, `list_cards`, `get_card`, `search`, `read_page`, `list_pages`, `page_info`, `page_history`, `activity` | `create_card`, `update_card`, `move_card`, `comment`, `complete_card`, `archive_card`, `delete_card`, `create_list`, `delete_list`, `create_board`, `archive_board`, `delete_board`, `write_page`, `update_page`, `revert_page` |
 
 `update_card` also sets what blocks a card and works its checklist (add
 items, tick and untick them by the ids `get_card` shows); `move_card` takes
