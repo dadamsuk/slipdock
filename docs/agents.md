@@ -243,7 +243,12 @@ and gives you exactly what to paste:
 | Claude, scheduled | a Claude Desktop local routine, or a cloud routine at claude.ai/code/routines with the Slipdock connector | a Claude turn per run |
 
 It can also add the rule that sends a list's cards to the runner's **pool**
-(the *Send cards to a runner* preset, offered once the board has a runner), and take standing instructions
+(the *Send cards to a runner* preset, offered once the board has a runner) —
+or one that works a list **top card first, one at a time** (*Work a list with
+a runner*, trigger `list_top`): whenever nothing it sent is still open it
+sends the top open card nobody has taken, skipping blocked, waiting and
+dependency-blocked ones, so a runner can take over from a `/loop` or cron
+pass working the To Do list. It takes standing instructions
 and before/after hooks, written into the config or prompt it generates.
 
 **A job runs with nobody watching**, so two things are set up for it. A

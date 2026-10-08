@@ -1221,7 +1221,13 @@ defmodule SlipdockCLI.Render do
     IO.puts(bold("TRIGGERS") <> dim("  (exactly one, as \"trigger\")"))
 
     for t <- v["triggers"] do
-      clock = if t["scheduled"], do: " ⏱", else: ""
+      clock =
+        cond do
+          t["scheduled"] -> " ⏱"
+          t["feed"] -> " ↻"
+          true -> ""
+        end
+
       IO.puts("  " <> String.pad_trailing(t["type"] <> clock, 20) <> t["description"])
       if keys(t) != "", do: IO.puts(dim("      keys: " <> keys(t)))
     end

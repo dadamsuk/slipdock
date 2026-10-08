@@ -47,6 +47,18 @@ defmodule Slipdock.Automations.Spec do
      "the clock, once a day at \"HH:MM\" (optionally only on one weekday, 1 = Monday)"}
   ]
 
+  # Neither an event nor the clock: the rule keeps one job open for a runner
+  # pool, refilled from the top of a list whenever the last one ends (see
+  # `Slipdock.Automations.feed/1`). It has to queue a job, or there is
+  # nothing to say when it is busy.
+  @feed_triggers [
+    {"list_top", ["column"], ["unassigned"],
+     "keeps a runner busy with a list, in its order: whenever nothing this rule queued is " <>
+       "still open, the top open card of the list is sent (skipping completed, archived, " <>
+       "dependency-blocked and blocked or waiting flagged cards; unassigned: true skips " <>
+       "assigned ones too). Needs a runner action"}
+  ]
+
   @condition_fields ~w(card column priority tag assignee flag title description completed
                        archived blocked has_due_date has_assignee due_date start_date
                        percent_complete health age_days has_doc)
@@ -109,7 +121,7 @@ defmodule Slipdock.Automations.Spec do
                    {{card.tags}} {{card.flags}} {{card.status}} {{board.name}} {{board.url}}
                    {{today}} {{now}} {{event}} {{rule.name}})
 
-  @triggers @event_triggers ++ @scheduled_triggers
+  @triggers @event_triggers ++ @scheduled_triggers ++ @feed_triggers
 
   # A rule is a handful of things to do, not a mailing list: these bound how
   # much one save can make the server send.
@@ -117,12 +129,14 @@ defmodule Slipdock.Automations.Spec do
   @max_recipients 10
 
   @scheduled_types Enum.map(@scheduled_triggers, &elem(&1, 0))
+  @feed_types Enum.map(@feed_triggers, &elem(&1, 0))
   @trigger_types Enum.map(@triggers, &elem(&1, 0))
   @action_types Enum.map(@actions, &elem(&1, 0))
 
   def trigger_types, do: @trigger_types
   def action_types, do: @action_types
   def scheduled_types, do: @scheduled_types
+  def feed_types, do: @feed_types
   def max_actions, do: @max_actions
   def max_recipients, do: @max_recipients
   def condition_fields, do: @condition_fields
@@ -130,6 +144,9 @@ defmodule Slipdock.Automations.Spec do
 
   @doc "Whether the spec's trigger is driven by the clock rather than an event."
   def scheduled?(spec), do: Enum.member?(@scheduled_types, trigger_type(spec))
+
+  @doc "Whether the spec keeps a runner fed from the top of a list (`list_top`)."
+  def feed?(spec), do: Enum.member?(@feed_types, trigger_type(spec))
 
   @doc "The spec's trigger type, or nil."
   def trigger_type(%{"trigger" => %{"type" => type}}) when is_binary(type), do: type
@@ -154,7 +171,8 @@ defmodule Slipdock.Automations.Spec do
   def validate(%{} = spec) do
     with {:ok, trigger} <- validate_trigger(spec["trigger"]),
          {:ok, conditions} <- validate_conditions(spec["conditions"] || []),
-         {:ok, actions} <- validate_actions(spec["actions"]) do
+         {:ok, actions} <- validate_actions(spec["actions"]),
+         {:ok, trigger} <- check_feed(trigger, actions) do
       {:ok, %{"trigger" => trigger, "conditions" => conditions, "actions" => actions}}
     end
   end
@@ -172,6 +190,27 @@ defmodule Slipdock.Automations.Spec do
   end
 
   defp validate_trigger(_), do: {:error, "needs a trigger with a type"}
+
+  defp check_feed(%{"type" => type} = trigger, actions) when type in @feed_types do
+    unassigned =
+      Map.get(%{"true" => true, "false" => false}, trigger["unassigned"], trigger["unassigned"])
+
+    cond do
+      not Enum.any?(actions, &(&1["type"] == "runner")) ->
+        {:error, "trigger “#{type}” needs a runner action: it keeps a runner pool busy"}
+
+      not (is_nil(unassigned) or is_boolean(unassigned)) ->
+        {:error, "trigger “#{type}” unassigned must be true or false"}
+
+      is_nil(unassigned) ->
+        {:ok, trigger}
+
+      true ->
+        {:ok, Map.put(trigger, "unassigned", unassigned)}
+    end
+  end
+
+  defp check_feed(trigger, _actions), do: {:ok, trigger}
 
   defp validate_conditions(conditions) when is_list(conditions) do
     Enum.reduce_while(conditions, {:ok, []}, fn condition, {:ok, acc} ->
@@ -324,28 +363,69 @@ defmodule Slipdock.Automations.Spec do
 
   defp trigger_summary(%{"type" => type} = t) do
     case type do
-      "card_created" -> "a card is added" <> where(t["column"], "to")
-      "card_entered" -> "a card arrives" <> where(t["column"], "in")
-      "card_activity" -> "anything happens to a card"
-      "card_moved" -> "a card moves" <> where(t["from"], "out of") <> where(t["to"], "into")
-      "card_updated" -> "a card's " <> to_string(t["field"] || "details") <> " changes"
-      "card_completed" -> "a card is completed"
-      "card_reopened" -> "a card is reopened"
-      "card_archived" -> "a card is archived"
-      "card_assigned" -> "a card is assigned" <> where(t["assignee"], "to")
-      "comment_added" -> "a card gets a comment"
-      "tag_added" -> "a card is tagged" <> where(t["tag"], "")
-      "flag_added" -> "a card is flagged" <> where(t["flag"], "as")
-      "card_stale" -> "a card goes #{t["days"]} days untouched" <> where(t["column"], "in")
-      "card_due_soon" -> "a card is due within #{due_window(t)}"
-      "card_overdue" -> "a card is overdue" <> by_days(t["by_days"])
-      "card_starts_soon" -> "a card starts within #{t["within_days"] || 1} days"
-      "schedule" -> "the clock reaches #{t["at"] || "09:00"}" <> weekday(t["weekday"])
-      other -> other
+      "card_created" ->
+        "a card is added" <> where(t["column"], "to")
+
+      "card_entered" ->
+        "a card arrives" <> where(t["column"], "in")
+
+      "card_activity" ->
+        "anything happens to a card"
+
+      "card_moved" ->
+        "a card moves" <> where(t["from"], "out of") <> where(t["to"], "into")
+
+      "card_updated" ->
+        "a card's " <> to_string(t["field"] || "details") <> " changes"
+
+      "card_completed" ->
+        "a card is completed"
+
+      "card_reopened" ->
+        "a card is reopened"
+
+      "card_archived" ->
+        "a card is archived"
+
+      "card_assigned" ->
+        "a card is assigned" <> where(t["assignee"], "to")
+
+      "comment_added" ->
+        "a card gets a comment"
+
+      "tag_added" ->
+        "a card is tagged" <> where(t["tag"], "")
+
+      "flag_added" ->
+        "a card is flagged" <> where(t["flag"], "as")
+
+      "card_stale" ->
+        "a card goes #{t["days"]} days untouched" <> where(t["column"], "in")
+
+      "card_due_soon" ->
+        "a card is due within #{due_window(t)}"
+
+      "card_overdue" ->
+        "a card is overdue" <> by_days(t["by_days"])
+
+      "card_starts_soon" ->
+        "a card starts within #{t["within_days"] || 1} days"
+
+      "schedule" ->
+        "the clock reaches #{t["at"] || "09:00"}" <> weekday(t["weekday"])
+
+      "list_top" ->
+        "nothing it sent is still open, take the top #{unassigned(t)}card of #{t["column"]}"
+
+      other ->
+        other
     end
   end
 
   defp trigger_summary(_), do: "something happens"
+
+  defp unassigned(%{"unassigned" => true}), do: "unassigned "
+  defp unassigned(_), do: ""
 
   defp due_window(%{"within_hours" => h}) when is_integer(h), do: "#{h} hours"
   defp due_window(%{"within_days" => d}) when is_integer(d), do: "#{d} days"
@@ -445,7 +525,8 @@ defmodule Slipdock.Automations.Spec do
     %{
       triggers:
         Enum.map(@event_triggers, &entry(&1, false)) ++
-          Enum.map(@scheduled_triggers, &entry(&1, true)),
+          Enum.map(@scheduled_triggers, &entry(&1, true)) ++
+          Enum.map(@feed_triggers, &(&1 |> entry(false) |> Map.put(:feed, true))),
       condition_fields: @condition_fields,
       condition_ops: @condition_ops,
       actions: Enum.map(@actions, &entry(&1, nil)),
@@ -474,6 +555,9 @@ defmodule Slipdock.Automations.Spec do
 
     TRIGGERS — driven by the clock, checked every few minutes:
     #{describe(@scheduled_triggers)}
+
+    TRIGGERS — keeping a runner pool busy, one card at a time:
+    #{describe(@feed_triggers)}
 
     CONDITIONS (optional, "conditions": [{"field": …, "op": …, "value": …}], all must hold):
       fields: #{Enum.join(@condition_fields, ", ")}

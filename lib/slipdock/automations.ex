@@ -132,15 +132,19 @@ defmodule Slipdock.Automations do
     |> Rule.changeset(attrs)
     |> check_rule_count()
     |> check_recipients()
+    |> check_feed_list()
     |> Repo.insert()
     |> tap_ok(&log_rule(&1, "added automation “#{&1.name}”"))
+    |> tap_ok(&feed_rule/1)
   end
 
   def update_rule(%Rule{} = rule, attrs) do
     rule
     |> Rule.changeset(attrs)
     |> check_recipients()
+    |> check_feed_list()
     |> Repo.update()
+    |> tap_ok(&feed_rule/1)
   end
 
   @doc "How many rules one board may have."
@@ -183,6 +187,21 @@ defmodule Slipdock.Automations do
     end
   end
 
+  # A rule that feeds a runner from a list names a list that has to be there:
+  # one that isn't would sit quietly sending nothing.
+  defp check_feed_list(changeset) do
+    with true <- changeset.valid?,
+         spec when is_map(spec) <- Ecto.Changeset.get_change(changeset, :spec),
+         true <- Spec.feed?(spec),
+         %Board{} = board <- Repo.get(Board, Ecto.Changeset.get_field(changeset, :board_id)),
+         name = to_string(spec["trigger"]["column"]),
+         {:error, _} <- Slipdock.Boards.find_column(board, name) do
+      Ecto.Changeset.add_error(changeset, :spec, "there's no list called “#{name}” on this board")
+    else
+      _ -> changeset
+    end
+  end
+
   defp email_recipients(spec) do
     spec
     |> Spec.actions()
@@ -210,7 +229,10 @@ defmodule Slipdock.Automations do
   end
 
   def toggle_rule(%Rule{} = rule) do
-    rule |> Ecto.Changeset.change(enabled: !rule.enabled) |> Repo.update()
+    rule
+    |> Ecto.Changeset.change(enabled: !rule.enabled)
+    |> Repo.update()
+    |> tap_ok(&feed_rule/1)
   end
 
   @doc """
@@ -319,6 +341,7 @@ defmodule Slipdock.Automations do
         |> Enum.filter(&(&1.enabled and Runner.matches?(&1, event)))
         |> Enum.each(&fire(&1, event, depth))
 
+        feed_after(event)
         :ok
     end
   end
@@ -387,16 +410,22 @@ defmodule Slipdock.Automations do
 
   @doc """
   The “Run now” button: a time-based rule forgets what it has already acted
-  on and looks again, an event rule runs once with no card. Returns how many
+  on and looks again, a `list_top` rule sends the top card if nothing it sent
+  is still open, an event rule runs once with no card. Returns how many
   times it fired.
   """
   def run_rule_now(%Rule{} = rule, now \\ DateTime.utc_now()) do
-    if Spec.scheduled?(rule.spec) do
-      clear_fires(rule)
-      run_scheduled_rule(rule, now)
-    else
-      run_now(rule)
-      1
+    cond do
+      Spec.scheduled?(rule.spec) ->
+        clear_fires(rule)
+        run_scheduled_rule(rule, now)
+
+      Spec.feed?(rule.spec) ->
+        if match?({:ok, _}, feed(rule, now: now, force: true)), do: 1, else: 0
+
+      true ->
+        run_now(rule)
+        1
     end
   end
 
@@ -411,13 +440,183 @@ defmodule Slipdock.Automations do
   """
   def run_scheduled(now \\ DateTime.utc_now()) do
     scheduled_types = Spec.scheduled_types()
+    rules = from(r in Rule, where: r.enabled == true, order_by: [asc: r.id]) |> Repo.all()
 
-    from(r in Rule, where: r.enabled == true, order_by: [asc: r.id])
-    |> Repo.all()
+    # The clock is also the backstop for feeding runners: a card that became
+    # ready without an event on the rule's board (a blocker done on another
+    # board, a cool-down over) is picked up here.
+    rules |> Enum.filter(&Spec.feed?(&1.spec)) |> Enum.each(&feed(&1, now: now))
+
+    rules
     |> Enum.filter(&(Spec.trigger_type(&1.spec) in scheduled_types))
     |> Enum.map(&run_scheduled_rule(&1, now))
     |> Enum.sum()
   end
+
+  ## Feeding runners ----------------------------------------------------------
+
+  @doc """
+  Keeps a `list_top` rule's pool fed: if nothing the rule queued is still
+  open, fires the rule on the top eligible card of its list (see
+  `next_card/2`), which queues it for the runners. At most one open job per
+  rule, so a list is worked strictly one card after another, in its order.
+
+  Called whenever the answer could have changed — a card event on the
+  rule's board, a job ending, the rule being saved — and by the clock as a
+  backstop. Answers `{:ok, card}` when it sent one, else `{:idle, reason}`.
+  `force: true` (Run now) ignores the cool-down on a card that just had a job.
+  """
+  def feed(rule, opts \\ [])
+
+  def feed(%Rule{enabled: false}, _opts), do: {:idle, :disabled}
+
+  def feed(%Rule{} = rule, opts) do
+    cond do
+      not enabled?() ->
+        {:idle, :disabled}
+
+      not Spec.feed?(rule.spec) ->
+        {:idle, :not_a_feed}
+
+      # The rule's own actions (a comment, a move) dispatch events that would
+      # come back here before its job exists.
+      Process.get({:feeding, rule.id}) ->
+        {:idle, :busy}
+
+      true ->
+        Process.put({:feeding, rule.id}, true)
+
+        try do
+          locked_feed(rule, opts)
+        after
+          Process.delete({:feeding, rule.id})
+        end
+    end
+  end
+
+  # Two events at once must not both see an empty queue and send two cards:
+  # the check and the send happen under a lock on the rule.
+  defp locked_feed(rule, opts) do
+    result =
+      Repo.transaction(fn ->
+        Repo.query!("SELECT pg_advisory_xact_lock($1, $2)", [7_400, rule.id])
+
+        cond do
+          feed_job_open?(rule) ->
+            {:idle, :job_open}
+
+          card = next_card(rule, opts) ->
+            event = %{type: "list_top", card: card, board_id: rule.board_id}
+            results = fire(rule, event, Process.get(:automation_depth, 0))
+
+            if Enum.any?(results, &match?({:ok, _}, &1)),
+              do: {:ok, card},
+              else: {:idle, :failed}
+
+          true ->
+            {:idle, :empty}
+        end
+      end)
+
+    case result do
+      {:ok, result} -> result
+      {:error, reason} -> {:idle, reason}
+    end
+  end
+
+  defp feed_job_open?(rule) do
+    Repo.exists?(
+      from(j in Slipdock.Runners.Job,
+        where: j.rule_id == ^rule.id and j.status in ^Slipdock.Runners.Job.open_statuses()
+      )
+    )
+  end
+
+  @doc """
+  The card a `list_top` rule would send next: the first, in list order, of
+  the open cards in its list that are not archived, completed, a stand-in,
+  waiting on an unfinished card, or flagged blocked or waiting — and, with
+  `unassigned: true`, nobody's — that pass the rule's conditions. A card
+  whose last job from this rule ended under `feed_cooldown_seconds` ago is
+  passed over, so one the runner left where it was doesn't go straight back
+  out; `force: true` ignores that. Nil when there is none.
+  """
+  def next_card(%Rule{} = rule, opts \\ []) do
+    trigger = rule.spec["trigger"]
+    now = opts[:now] || DateTime.utc_now()
+
+    with %Board{} = board <- Repo.get(Board, rule.board_id),
+         {:ok, column} <- Slipdock.Boards.find_column(board, to_string(trigger["column"])) do
+      cooling = if opts[:force], do: MapSet.new(), else: cooling_cards(rule, now)
+
+      from(c in Card,
+        where:
+          c.column_id == ^column.id and is_nil(c.archived_at) and c.completed == false and
+            is_nil(c.stand_in_for_id),
+        order_by: [asc: c.position, asc: c.id]
+      )
+      |> Repo.all()
+      |> Repo.preload([:column, :tags, :assignee, :assignees, :status_updates, :blocked_by])
+      |> Enum.find(fn card ->
+        not Card.blocked?(card) and
+          not Enum.any?(card.flags, &(&1 in ["blocked", "waiting"])) and
+          not (trigger["unassigned"] == true and assigned?(card)) and
+          not MapSet.member?(cooling, card.id) and
+          Runner.conditions_match?(Spec.conditions(rule.spec), card)
+      end)
+    else
+      _ -> nil
+    end
+  end
+
+  defp assigned?(card), do: not is_nil(card.assignee_id) or card.assignees != []
+
+  defp cooling_cards(rule, now) do
+    since = DateTime.add(now, -feed_cooldown())
+
+    from(j in Slipdock.Runners.Job,
+      where: j.rule_id == ^rule.id and j.finished_at > ^since,
+      select: j.card_id
+    )
+    |> Repo.all()
+    |> MapSet.new()
+  end
+
+  @doc "How long a card that just had a job from a `list_top` rule is passed over, in seconds."
+  def feed_cooldown, do: Slipdock.Config.get(:automations, [])[:feed_cooldown_seconds] || 600
+
+  @doc "Feeds the `list_top` rule with this id, if it is one (used when its job ends)."
+  def feed_rule(nil), do: :ok
+  def feed_rule(%Rule{} = rule), do: feed(rule) && :ok
+
+  def feed_rule(rule_id) when is_integer(rule_id) do
+    case Repo.get(Rule, rule_id) do
+      nil -> :ok
+      rule -> feed_rule(rule)
+    end
+  end
+
+  @doc """
+  Feeds every `list_top` rule on `board_id` and on the root of its tree:
+  something there just changed, so a list's top card may have too.
+  """
+  def feed_board(board_id) when is_integer(board_id) do
+    root_id = Slipdock.Boards.root_of_board(board_id)
+
+    from(r in Rule,
+      where: r.board_id in ^Enum.uniq([board_id, root_id]) and r.enabled == true,
+      order_by: [asc: r.id]
+    )
+    |> Repo.all()
+    |> Enum.filter(&Spec.feed?(&1.spec))
+    |> Enum.each(&feed/1)
+  end
+
+  def feed_board(_), do: :ok
+
+  defp feed_after(%{card: %Card{board_id: board_id}}), do: feed_board(board_id)
+  defp feed_after(%{board_id: board_id}) when is_integer(board_id), do: feed_board(board_id)
+  defp feed_after(_), do: :ok
 
   defp run_scheduled_rule(rule, now) do
     trigger = rule.spec["trigger"]

@@ -216,6 +216,20 @@ defmodule Slipdock.Automations.Presets do
         %{name: "pool", label: "Runner pool", type: "text", required: true, default: "default"},
         %{name: "kind", label: "Kind of job", type: "text", required: false, default: "claude"}
       ]
+    },
+    %{
+      key: "feed_runner",
+      group: "Connect",
+      title: "Work a list with a runner, top card first",
+      description:
+        "Keep a runner busy with a list, one card at a time in the list's order: whenever " <>
+          "nothing is queued or running, send the top open card nobody has taken. Blocked, " <>
+          "waiting and assigned cards are skipped.",
+      fields: [
+        %{name: "column", label: "List", type: "column", required: true, prefill: "todo"},
+        %{name: "pool", label: "Runner pool", type: "text", required: true, default: "default"},
+        %{name: "kind", label: "Kind of job", type: "text", required: false, default: "claude"}
+      ]
     }
   ]
 
@@ -256,16 +270,24 @@ defmodule Slipdock.Automations.Presets do
 
   @doc """
   The form's starting values: each field's default, and for a field marked
-  `prefill: "done"` the board's done list. A map of field name to value.
+  `prefill: "done"` the board's done list, and for `prefill: "todo"` its
+  last to-do list — the one work is taken from, after any Backlog. A map of
+  field name to value.
   """
   def defaults(%{} = preset, %Board{} = board) do
-    done = Enum.find(board.columns || [], &(&1.category == "done"))
+    list = fn
+      "todo" ->
+        board.columns |> List.wrap() |> Enum.filter(&(&1.category == "todo")) |> List.last()
+
+      category ->
+        Enum.find(board.columns || [], &(&1.category == category))
+    end
 
     Map.new(preset.fields, fn field ->
       value =
         cond do
           Map.has_key?(field, :default) -> field.default
-          field[:prefill] == "done" and done -> done.name
+          (prefilled = field[:prefill] && list.(field[:prefill])) != nil -> prefilled.name
           true -> nil
         end
 
@@ -509,6 +531,16 @@ defmodule Slipdock.Automations.Presets do
 
     {:ok, "Send #{column} to the #{pool} runners",
      %{"type" => "card_entered", "column" => column}, [],
+     [%{"type" => "runner", "pool" => pool, "kind" => kind}]}
+  end
+
+  defp spec("feed_runner", p, _opts) do
+    column = p["column"]
+    pool = p["pool"] |> to_string() |> String.downcase()
+    kind = p["kind"] |> blank_or("claude") |> to_string() |> String.downcase()
+
+    {:ok, "Work #{column} with the #{pool} runners",
+     %{"type" => "list_top", "column" => column, "unassigned" => true}, [],
      [%{"type" => "runner", "pool" => pool, "kind" => kind}]}
   end
 

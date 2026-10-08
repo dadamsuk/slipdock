@@ -260,6 +260,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
   defp sends(params) do
     case params["send"] do
       "column:" <> name -> Map.put(params, "column", name)
+      "top:" <> name -> Map.merge(params, %{"column" => name, "feed" => "top"})
       "rule:" <> id -> Map.put(params, "rule_id", id)
       _ -> params
     end
@@ -696,6 +697,13 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
               selected={@p["send"] == "column:#{column.name}"}
             >
               A new rule: every card arriving in {column.name}
+            </option>
+            <option
+              :for={column <- @board.columns}
+              value={"top:#{column.name}"}
+              selected={@p["send"] == "top:#{column.name}"}
+            >
+              A new rule: the top card of {column.name}, one at a time
             </option>
             <option
               :for={rule <- @runner_rules}

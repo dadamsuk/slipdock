@@ -345,13 +345,14 @@ defmodule SlipdockCLI do
     runner new <board> [name] --pool P [--scenario server|windows|loop|cloud]
                [--agent claude|codex|custom] [--command CMD] [--kind K] [--cwd DIR]
                [--permission-mode M] [--timeout SECONDS] [--service auto|systemd|launchd|none]
-               [--where desktop|cloud] [--repo owner/repo] [--column LIST]
+               [--where desktop|cloud] [--repo owner/repo] [--column LIST [--top]]
                [--verbosity quiet|normal|verbose] [--instructions TEXT]
                [--before-job CMD] [--after-job CMD] [--hooks prompt|hook]
                [--no-slipdock-tools] [--mcp-servers A,B]
                                                    connect a runner: prints exactly what to paste
                                                    (and, for server/windows, its token, once);
                                                    --column adds a rule sending that list's cards
+                                                   (--top: its top card, one at a time, in order)
                                                    a claude runner may use the Slipdock MCP tools
                                                    (servers claude_ai_Slipdock, slipdock) unless
                                                    --no-slipdock-tools

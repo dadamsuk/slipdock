@@ -216,9 +216,16 @@ defmodule Slipdock.Automations.SpecTest do
     end
 
     test "every trigger in the vocabulary validates with only its required keys" do
-      for %{type: type, required: required} <- Spec.vocabulary().triggers do
+      for %{type: type, required: required} = entry <- Spec.vocabulary().triggers do
         trigger = Map.new(required, &{&1, 3}) |> Map.put("type", type)
-        assert {:ok, %{"trigger" => %{"type" => ^type}}} = Spec.validate(spec(trigger)), type
+
+        # A trigger that feeds a runner needs something to feed it with.
+        spec =
+          if entry[:feed],
+            do: spec(trigger, [%{"type" => "runner", "pool" => "dev"}]),
+            else: spec(trigger)
+
+        assert {:ok, %{"trigger" => %{"type" => ^type}}} = Spec.validate(spec), type
       end
     end
   end

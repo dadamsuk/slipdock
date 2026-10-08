@@ -66,6 +66,17 @@ defmodule SlipdockCLI.RunnersTest do
     assert out =~ "free while idle"
   end
 
+  test "runner new --top asks for a rule sending the list's top card, one at a time" do
+    serve([{201, ~s({"runner":null,"token":null,"automation":null,"setup":#{@setup}})}])
+
+    capture_io(fn ->
+      Runners.run("runner", ["new", "b"], scenario: "loop", column: ["To Do"], top: true)
+    end)
+
+    assert_received {:request, "POST", "/api/boards/b/runners/setup", body}
+    assert %{"column" => "To Do", "feed" => "top"} = JSON.decode!(body)
+  end
+
   test "runner new and setup pass the Slipdock tools option, on, off or for named servers" do
     serve([
       {201, ~s({"runner":null,"token":null,"automation":null,"setup":#{@setup}})},
