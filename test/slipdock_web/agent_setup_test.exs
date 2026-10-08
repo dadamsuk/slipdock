@@ -155,6 +155,12 @@ defmodule SlipdockWeb.AgentSetupTest do
       assert html =~ "curl -fsSL #{base}/install.sh | sh"
     end
 
+    test "points at runners, for a board that sends the agent its work", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/account/agent")
+      assert has_element?(view, "#agent-runners", "Automations → Connect a runner")
+      assert has_element?(view, "#agent-runners", "the board never connects to them")
+    end
+
     test "does not pretend reading a board is free, and approves in the browser", %{conn: conn} do
       {:ok, view, html} = live(conn, ~p"/account/agent")
 

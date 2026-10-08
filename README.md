@@ -543,10 +543,18 @@ with the tail of the log — and a Cancel button.
   `job_progress` and `finish_job`, or `slipdock claim-job`, so it never
   races a runner for the same card.
 
-Make a runner with `slipdock runner new <board> <name> --pool default`
-(it prints the runner's token, once), list and revoke them with
-`slipdock runner ls|rm`, and watch jobs with `slipdock jobs <board>`. The
-details are in [the manual](docs/manual.md#runners).
+Set one up on the board under **Automations → Connect a runner**: pick a
+Linux or macOS machine (a POSIX `sh` + `curl` runner, as a systemd or launchd
+service), a Windows machine (a PowerShell runner, started by Task Scheduler,
+no admin), Claude Code in a `/loop`, or Claude on a schedule (a Desktop task
+or a cloud routine), and it gives you exactly what to paste — and can add the
+rule that sends a list's cards, plus standing instructions and before/after
+hooks for every job. A runner costs nothing while it waits; the Claude
+options need no install but use a Claude turn per check.
+`slipdock runner new <board> [name] --pool default [--scenario …]` prints the
+same, `slipdock runner ls|setup|token|rm` manage them, and `slipdock jobs
+<board>` shows what they're doing. The details are in
+[the manual](docs/manual.md#runners).
 
 ## Connecting an MCP client
 

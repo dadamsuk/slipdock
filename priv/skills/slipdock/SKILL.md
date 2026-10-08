@@ -1,6 +1,6 @@
 ---
 name: slipdock
-description: Read and write cards on the user's self-hosted Slipdock boards with the `slipdock` CLI. Use whenever the user mentions their kanban or Slipdock board, cards, lists/columns, tags, flags, or asks to add, move, complete, flag, tag, check off, comment on, archive, or look up tasks/cards. Also use to summarise what is on a board, what is overdue, blocked, or in progress, to set up or inspect board automations (rules that email, move, flag or alert by themselves) and the alerts they raise, and to read or write the wiki pages, docs, runbooks, specs and decision notes kept on a board.
+description: Read and write cards on the user's self-hosted Slipdock boards with the `slipdock` CLI. Use whenever the user mentions their kanban or Slipdock board, cards, lists/columns, tags, flags, or asks to add, move, complete, flag, tag, check off, comment on, archive, or look up tasks/cards. Also use to summarise what is on a board, what is overdue, blocked, or in progress, to set up or inspect board automations (rules that email, move, flag or alert by themselves) and the alerts they raise, to connect runners (coding agents on the user's own machines that the board sends cards to) and follow or cancel their jobs, and to read or write the wiki pages, docs, runbooks, specs and decision notes kept on a board.
 ---
 
 # Slipdock CLI
@@ -298,6 +298,26 @@ slipdock delete-automation <board> <rule>
 slipdock callbacks <board> [--limit N]        # the calls its rules made, and what came back
 slipdock alerts                               # what the rules want you to know
 slipdock dismiss <alert-id>... | --all        # dismiss yours; other people keep theirs
+
+# Runners: agents on the user's own machines that rules send cards to (owner only to make)
+slipdock runner new <board> [name] --pool P [--scenario server|windows|loop|cloud]
+    [--agent claude|codex|custom] [--command CMD] [--kind K] [--cwd DIR] [--permission-mode M]
+    [--timeout S] [--service auto|systemd|launchd|none] [--where desktop|cloud] [--repo owner/repo]
+    [--column LIST] [--verbosity quiet|normal|verbose] [--instructions TEXT]
+    [--before-job CMD] [--after-job CMD] [--hooks prompt|hook]
+                                              # prints exactly what to paste; server/windows make a
+                                              # runner and print its token, ONCE; --column adds the rule
+slipdock runner ls <board>                    # runners: pool, last seen, current job
+slipdock runner setup <board> <runner> [opts] # the steps again; with options, saves them + shows the diff
+slipdock runner token <board> <runner>        # a new token (the old one stops working)
+slipdock runner rm <board> <runner>           # revoke
+slipdock jobs <board> [--status open|queued|running|done|failed|cancelled|timeout]
+slipdock jobs --card ID                       # one card's jobs
+slipdock job <id>                             # status, runner, prompt, the tail of its log
+slipdock cancel-job <id>                      # queued: at once; running: on the next heartbeat
+slipdock claim-job <board> --pool P           # take the next job as this session ("nothing queued")
+slipdock job-progress <id> [--message NOTE]   # renew the lease (20 min for a session); note → card
+slipdock finish-job <id> --status done|failed|cancelled|timeout [--summary S]
 ```
 
 **Run `slipdock automation-help` before writing a `--spec`** — it prints the exact vocabulary
@@ -313,6 +333,16 @@ with), at most 10 per action; anyone else is refused at save. Rules are capped a
 and 50 per board, and what they send is metered (200 emails an hour per owner, 120 callbacks a
 minute per board) — a "held back" last error means the allowance ran out, not that the rule is
 wrong, so don't rewrite it.
+
+The `runner` action sends the card to a coding agent on the user's own machine:
+`{"type": "runner", "pool": "default", "kind": "claude"}` (an optional `prompt`, with
+placeholders; by default the card's number, title, link and description). It queues a job
+that a runner of that pool takes; at most one open job per card per rule. The rule picks the
+*kind*, never a command: what a kind runs lives in the runner's config on that machine, so
+don't try to put a command in a rule, and a job failing with exit 127 means that machine has
+no function for the kind. To set the whole thing up, `slipdock runner new` (or **Automations →
+Connect a runner** in the UI) is better than writing the rule by hand. A job's token is shown
+once: never paste it into a card, comment or page.
 
 The `webhook` action is the way out to anything else the user runs: it calls a URL of theirs
 with the card — id, title, a link to it, list, priority, assignee, start and due dates,
@@ -426,6 +456,11 @@ teal sky indigo violet fuchsia rose`. Multi-word titles, column names and text n
   `slipdock new-automation 1 --spec '{"trigger":{"type":"card_moved","to":"Done"},"actions":[{"type":"email","to":"me@example.com","subject":"Done: {{card.title}}","body":"{{card.url}}"}]}' --name "Email on done"`
 - "Nudge me about anything overdue" →
   `slipdock new-automation 1 --spec '{"trigger":{"type":"card_overdue"},"actions":[{"type":"alert","title":"Overdue: {{card.title}}","severity":"urgent"}]}' --name "Overdue alerts"`
+- "Have my laptop work cards that land in Doing" → `slipdock runner new 1 laptop --pool dev
+  --agent claude --cwd ~/src/app --column Doing`, then give the user the printed steps (the
+  token is in them and shown once)
+- "What is the agent doing with #129?" → `slipdock jobs --card 129`, then `slipdock job <id>`
+- "Stop that agent" → `slipdock cancel-job <id>`
 - "Stop that rule for now" → `slipdock automations 1` (find it), then `slipdock set-automation 1 3 --off`
 - "What is the board trying to tell me?" → `slipdock alerts`
 - "Write up how retries work" → `slipdock page ls 1 --q retry` first, then

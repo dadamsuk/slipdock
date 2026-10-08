@@ -193,6 +193,21 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
           label="Copy commands"
         />
       </section>
+
+      <section
+        id="agent-runners"
+        class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
+      >
+        <h2 class="text-lg font-semibold">Or let a board send it work</h2>
+        <p class="mt-1 text-sm text-base-content/60">
+          A <strong class="font-medium">runner</strong>
+          is an agent on a machine of yours that the board sends cards to — when one arrives in a
+          list, say — instead of one you start. Set it up from the board, under <strong class="font-medium">Automations → Connect a runner</strong>: a Linux or macOS machine,
+          Windows, Claude Code in a <code>/loop</code>, or Claude on a schedule. Runners
+          dial out and ask for work; the board never connects to them, and only sends a
+          card and a prompt — what runs is decided by the runner's own config.
+        </p>
+      </section>
     </div>
     """
   end
