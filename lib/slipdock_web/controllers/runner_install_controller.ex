@@ -4,7 +4,9 @@ defmodule SlipdockWeb.RunnerInstallController do
 
       GET /runner/install.sh       the installer, with the runner inside it
       GET /runner/slipdock-runner  the runner on its own
-      GET /runner/SHA256SUMS       both files' SHA-256, in `sha256sum -c` form
+      GET /runner/install.ps1          the same for Windows, PowerShell 5.1 or later
+      GET /runner/slipdock-runner.ps1  the PowerShell runner on its own
+      GET /runner/SHA256SUMS       every file's SHA-256, in `sha256sum -c` form
 
   Unlike `/install.sh` these are static — the same bytes for every caller on
   every server running this release, with nothing about the server or the
@@ -15,27 +17,50 @@ defmodule SlipdockWeb.RunnerInstallController do
 
   @runner_path Path.expand("../../../priv/runner/slipdock-runner", __DIR__)
   @install_path Path.expand("../../../priv/runner/install.sh", __DIR__)
+  @ps_runner_path Path.expand("../../../priv/runner/slipdock-runner.ps1", __DIR__)
+  @ps_install_path Path.expand("../../../priv/runner/install.ps1", __DIR__)
   @external_resource @runner_path
   @external_resource @install_path
+  @external_resource @ps_runner_path
+  @external_resource @ps_install_path
 
   @runner File.read!(@runner_path)
   @install @install_path
            |> File.read!()
            |> String.replace("__SLIPDOCK_RUNNER__\n", @runner, global: false)
 
+  @ps_runner File.read!(@ps_runner_path) |> String.trim_trailing()
+  @ps_install @ps_install_path
+              |> File.read!()
+              |> String.replace("__SLIPDOCK_RUNNER_PS1__", @ps_runner, global: false)
+
   @sums Enum.map_join(
-          [{"install.sh", @install}, {"slipdock-runner", @runner}],
+          [
+            {"install.sh", @install},
+            {"slipdock-runner", @runner},
+            {"install.ps1", @ps_install},
+            {"slipdock-runner.ps1", @ps_runner <> "\n"}
+          ],
           fn {name, body} ->
             Base.encode16(:crypto.hash(:sha256, body), case: :lower) <> "  " <> name <> "\n"
           end
         )
 
   @doc false
-  def files, do: %{"install.sh" => @install, "slipdock-runner" => @runner, "SHA256SUMS" => @sums}
+  def files,
+    do: %{
+      "install.sh" => @install,
+      "slipdock-runner" => @runner,
+      "install.ps1" => @ps_install,
+      "slipdock-runner.ps1" => @ps_runner <> "\n",
+      "SHA256SUMS" => @sums
+    }
 
   def install(conn, _params), do: text_file(conn, @install)
   def runner(conn, _params), do: text_file(conn, @runner)
   def sums(conn, _params), do: text_file(conn, @sums)
+  def install_ps1(conn, _params), do: text_file(conn, @ps_install)
+  def runner_ps1(conn, _params), do: text_file(conn, @ps_runner <> "\n")
 
   defp text_file(conn, body) do
     conn

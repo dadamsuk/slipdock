@@ -1475,6 +1475,25 @@ and a systemd user unit (Linux) or launchd agent (macOS), and starts it.
 the same file for everyone; its SHA-256 is at `/runner/SHA256SUMS` to check
 before running it.
 
+**On Windows**, `slipdock-runner.ps1` does the same in Windows PowerShell
+5.1, which every Windows has, or PowerShell 7: the same protocol, a
+dot-sourced `config.ps1` whose `Job-<Kind>` functions are the kinds of job
+the machine runs (kind `two-words` is `Job-TwoWords`), the prompt only ever
+in `$env:SLIPDOCK_PROMPT`, the job in a child process whose whole tree is
+stopped on cancel or timeout, and `Before-Job`/`After-Job` and
+`$JobInstructions` as in the shell config. Install it from PowerShell with
+
+```powershell
+& ([scriptblock]::Create((irm 'https://your-server/runner/install.ps1'))) `
+  -Url 'https://your-server' -Token 'sdr_...' -Pool default -Agent claude -Cwd 'C:\src\app'
+```
+
+which writes `%LOCALAPPDATA%\slipdock-runner\` (the runner, and the config
+with an ACL leaving it readable by you alone) and a per-user Task Scheduler
+entry, *Slipdock runner*, that starts it at logon — no admin rights. Its log
+is `runner.log` beside the config. `install.ps1` and `slipdock-runner.ps1`
+are in `/runner/SHA256SUMS` too.
+
 The runner protocol and the session endpoints are in the agent guide
 (`slipdock guide`, section *Runners*).
 ## Wiki

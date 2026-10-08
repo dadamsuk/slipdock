@@ -53,6 +53,26 @@ defmodule SlipdockWeb.RunnerInstallTest do
              (:crypto.hash(:sha256, runner) |> Base.encode16(case: :lower)) <>
                "  slipdock-runner\n"
 
+    for name <- ["install.ps1", "slipdock-runner.ps1"] do
+      served = build_conn() |> get("/runner/#{name}") |> response(200)
+      assert served == SlipdockWeb.RunnerInstallController.files()[name]
+
+      assert sums =~
+               (:crypto.hash(:sha256, served) |> Base.encode16(case: :lower)) <> "  #{name}\n"
+    end
+
+    ps_install = SlipdockWeb.RunnerInstallController.files()["install.ps1"]
+
+    assert String.contains?(
+             ps_install,
+             SlipdockWeb.RunnerInstallController.files()["slipdock-runner.ps1"]
+             |> String.trim_trailing()
+           )
+
+    refute ps_install =~ "__SLIPDOCK_RUNNER_PS1__"
+    # Nothing in the runner may end the here-string it travels in.
+    refute SlipdockWeb.RunnerInstallController.files()["slipdock-runner.ps1"] =~ ~r/^'@/m
+
     # Nothing about this server or this caller is written into it.
     refute install =~ "www.example.com"
     # The runner travels inside the installer, whole.
