@@ -26,7 +26,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   import SlipdockWeb.BoardLive.CardPanel
   import SlipdockWeb.BoardLive.CardSections
 
-  alias Slipdock.{Access, Boards, Palette, Wiki}
+  alias Slipdock.{Access, Boards, Palette, Runners, Wiki}
   alias Slipdock.Boards.{Attachment, Board, Card, CardLink}
   alias SlipdockWeb.Params
   alias SlipdockWeb.BoardLive.{ItemEvents, Paths, Sharing}
@@ -36,7 +36,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     quick_add_subcard toggle_subcard edit_description stop_editing_description
     validate_attachments cancel_upload delete_attachment add_link remove_link write_up
     toggle_pin_doc doc_search attach_doc detach_doc card_timer log_time dep_direction
-    dep_search link_search pick_template comment_change share revoke_grant)
+    dep_search link_search pick_template comment_change share revoke_grant cancel_job)
   @events @own_events ++ ItemEvents.events()
   # What a reader who can't change the card may still do: nothing stored
   # changes, only what the panel is showing.
@@ -67,6 +67,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
        share_key: 0,
        card_pages: [],
        card_grants: [],
+       card_jobs: [],
        doc_query: "",
        doc_results: [],
        dep_direction: "blocked_by",
@@ -92,7 +93,16 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
      )}
   end
 
+  # A runner took, reported on or finished one of this card's jobs (see
+  # `Slipdock.Runners`): only the jobs list changes.
   @impl true
+  def update(%{jobs_changed: card_id}, socket) do
+    case socket.assigns.card do
+      %Card{id: ^card_id} -> {:ok, assign_jobs(socket)}
+      _ -> {:ok, socket}
+    end
+  end
+
   def update(assigns, socket) do
     %{card: given, board: board, current_user: user} = assigns
 
@@ -173,9 +183,16 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
       card_pages: Wiki.pages_for_card(card, socket.assigns.current_user),
       card_grants: if(socket.assigns.can_share, do: Access.list_grants(card), else: [])
     )
+    |> assign_jobs()
   end
 
   defp assign_pages(socket), do: socket
+
+  # The jobs rules have sent this card to runners, newest first.
+  defp assign_jobs(%{assigns: %{card: %Card{} = card}} = socket),
+    do: assign(socket, card_jobs: Runners.list_card_jobs(card.id, 5))
+
+  defp assign_jobs(socket), do: socket
 
   # An in-flight upload belongs to the card that was open when it started.
   defp cancel_all_uploads(socket) do
@@ -249,6 +266,21 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
 
   # The item the shared sections (`BoardLive.ItemEvents`) act on is the card.
   defp with_item(socket), do: assign(socket, item: socket.assigns.card)
+
+  defp event("cancel_job", %{"job" => id}, socket) do
+    with %{} = job <- Enum.find(socket.assigns.card_jobs, &(to_string(&1.id) == id)),
+         {:ok, job} <- Runners.cancel_job(job) do
+      message =
+        if job.status == "cancelled",
+          do: "Job ##{job.id} cancelled.",
+          else: "Asked the runner to stop job ##{job.id}."
+
+      {:noreply, socket |> assign_jobs() |> flash(:info, message)}
+    else
+      {:error, message} -> {:noreply, socket |> assign_jobs() |> flash(:error, message)}
+      nil -> {:noreply, assign_jobs(socket)}
+    end
+  end
 
   defp event("share", %{"level" => _} = params, socket) do
     %{card: card, groups: groups, current_user: user} = socket.assigns
@@ -640,6 +672,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         can_share={@can_share}
         grants={@card_grants}
         pages={@card_pages}
+        jobs={@card_jobs}
         doc_query={@doc_query}
         doc_results={@doc_results}
         groups={@groups}
@@ -766,6 +799,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   attr :can_share, :boolean, required: true
   attr :grants, :list, required: true
   attr :pages, :list, default: [], doc: "the wiki pages that talk about this card"
+  attr :jobs, :list, default: [], doc: "the card's latest runner jobs"
   attr :doc_query, :string, default: "", doc: "what is typed into the Docs picker"
   attr :doc_results, :list, default: [], doc: "pages the Docs picker is offering"
   attr :groups, :list, required: true
@@ -905,6 +939,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
               pages={@pages}
               target={@target}
             />
+
+            <.jobs_section :if={@jobs != []} can_write={@can_write} jobs={@jobs} target={@target} />
 
             <.links_section
               board={@board}

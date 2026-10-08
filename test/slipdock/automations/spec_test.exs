@@ -200,7 +200,8 @@ defmodule Slipdock.Automations.SpecTest do
         "body" => "B",
         "items" => ["one"],
         "url" => "https://example.com/h",
-        "message" => "M"
+        "message" => "M",
+        "pool" => "dev"
       }
 
       for %{type: type, required: required} <- Spec.vocabulary().actions do

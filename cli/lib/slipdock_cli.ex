@@ -3,7 +3,7 @@ defmodule SlipdockCLI do
 
   import SlipdockCLI.Util, only: [fail: 1, bad_usage: 1]
 
-  alias SlipdockCLI.{Admin, Auth, Automations, Boards, Skills, Util, Wiki}
+  alias SlipdockCLI.{Admin, Auth, Automations, Boards, Runners, Skills, Util, Wiki}
 
   @help """
   slipdock — read and write cards on your Slipdock boards
@@ -108,6 +108,11 @@ defmodule SlipdockCLI do
     automation-presets                  the ready-made rules `new-automation --preset` can add
     callbacks <board> [--limit N]       the calls the board's rules have made, and what came back
     alerts                              alerts automation rules have raised for you
+    runners <board>                     the runners taking jobs from the board's tree (owner only)
+    jobs <board> [--status S] [--limit N]   jobs the board's rules sent to runners, newest first
+                                        (S: open, queued, claimed, running, done, failed, cancelled, timeout)
+    jobs --card ID                      one card's jobs
+    job <id>                            one job: status, runner, prompt and the tail of its log
     templates                           list board templates (sets of lists)
     fields <board>                      list custom fields (and their {keys} for formulas)
     milestones <board>                  list milestones on a board tree
@@ -337,6 +342,10 @@ defmodule SlipdockCLI do
     run-automation <board> <rule>                  run a timed rule now (forgets what it has done)
     delete-automation <board> <rule>
     dismiss <alert-id>... | dismiss --all           dismiss alerts (yours only; others keep theirs)
+    runner new <board> <name> --pool P             make a runner; prints its token, once
+    runner rm <board> <runner>                     revoke a runner (its token stops working)
+    cancel-job <id>                                stop a job: a queued one at once, a running one
+                                                   on the runner's next heartbeat
     save-view <board> <name> [view opts]            save a swimlane configuration
     update-view <board> <view> [view opts] [--name N] change a saved view
     delete-view <board> <view>
@@ -479,6 +488,8 @@ defmodule SlipdockCLI do
     format: :string,
     set: :keep,
     q: :string,
+    pool: :string,
+    status: :string,
     help: :boolean
   ]
 
@@ -513,7 +524,7 @@ defmodule SlipdockCLI do
 
   # Each area module lists the command names it answers to; the first that
   # claims a name gets every clause of it, so a name must live in one place.
-  @areas [Auth, Admin, Boards, Automations, Wiki, Skills]
+  @areas [Auth, Admin, Boards, Automations, Runners, Wiki, Skills]
 
   defp run(cmd, args, o) do
     case Enum.find(@areas, &(cmd in &1.commands())) do

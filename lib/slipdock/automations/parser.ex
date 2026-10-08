@@ -32,6 +32,7 @@ defmodule Slipdock.Automations.Parser do
   - Set a trigger's optional keys only when the user actually named them: "when a card moves to Done" is {"type": "card_moved", "to": "Done"} with no "from".
   - "Show/raise an alert", "warn me", "remind me on screen" means the "alert" action, not email.
   - "Call", "ping", "hit", "callback", "webhook", "POST to" or "GET" a URL means the "webhook" action. Set "method" to "get" only when the user asked for a GET; leave it out for a POST. The card's title, link, dates, flags and status are always sent, so there is nothing extra to configure.
+  - "Send to a runner", "hand it to Claude/Codex/an agent", "have my machine work on it" means the "runner" action. "pool" is the name of the group of runners (use what the user said, else "default"); "kind" is what the runner should run ("claude" unless the user named another, e.g. "codex"). Leave "prompt" out unless the user dictated one: the card's title, link and description are sent by default. Never put a shell command in it.
   - Give every email a subject and a body unless the user dictated them.
 
   VOCABULARY

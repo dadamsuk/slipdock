@@ -10,7 +10,7 @@ defmodule Slipdock.Automations.Presets do
   A preset is described by data (`all/0`) so the web form, the API and the
   CLI all draw the same fields: each one has a `name`, a `label`, a `type`
   (`column`, `tag`, `flag`, `field`, `priority`, `person`, `notify`, `email`,
-  `number`, `url`, `card`) and whether it is `required`. `build/3` turns the
+  `number`, `url`, `card`, `text`) and whether it is `required`. `build/3` turns the
   values into rule attributes, or says which one is wrong.
   """
 
@@ -203,6 +203,19 @@ defmodule Slipdock.Automations.Presets do
       description:
         "POST the card to another system whenever anything happens to a card on the board.",
       fields: [%{name: "url", label: "URL", type: "url", required: true}]
+    },
+    %{
+      key: "send_to_runner",
+      group: "Connect",
+      title: "Send cards to a coding agent",
+      description:
+        "When a card arrives in a list, queue it for a runner on your own machine, which works " <>
+          "it with Claude Code or whatever its config says the kind of job means.",
+      fields: [
+        %{name: "column", label: "List", type: "column", required: true},
+        %{name: "pool", label: "Runner pool", type: "text", required: true, default: "default"},
+        %{name: "kind", label: "Kind of job", type: "text", required: false, default: "claude"}
+      ]
     }
   ]
 
@@ -487,6 +500,16 @@ defmodule Slipdock.Automations.Presets do
     else
       {:error, "URL must start with http:// or https://"}
     end
+  end
+
+  defp spec("send_to_runner", p, _opts) do
+    column = p["column"]
+    pool = p["pool"] |> to_string() |> String.downcase()
+    kind = p["kind"] |> blank_or("claude") |> to_string() |> String.downcase()
+
+    {:ok, "Send #{column} to the #{pool} runners",
+     %{"type" => "card_entered", "column" => column}, [],
+     [%{"type" => "runner", "pool" => pool, "kind" => kind}]}
   end
 
   # The rule is named after the host alone: a long URL in full would run past

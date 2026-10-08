@@ -86,6 +86,29 @@ defmodule Slipdock.Automations.PresetsTest do
       assert msg =~ "http"
     end
 
+    test "send to runner: a list, a pool and a kind, defaulting to claude" do
+      assert {:ok, %{"name" => "Send Doing to the dev-box runners", "spec" => spec}} =
+               Presets.build("send_to_runner", %{"column" => "Doing", "pool" => "Dev-Box"})
+
+      assert spec["trigger"] == %{"type" => "card_entered", "column" => "Doing"}
+      assert [%{"type" => "runner", "pool" => "dev-box", "kind" => "claude"}] = spec["actions"]
+
+      assert {:ok, %{"spec" => %{"actions" => [%{"kind" => "codex"}]}}} =
+               Presets.build("send_to_runner", %{
+                 "column" => "Doing",
+                 "pool" => "dev",
+                 "kind" => "codex"
+               })
+
+      assert {:error, msg} =
+               Presets.build("send_to_runner", %{"column" => "Doing", "pool" => "my box"})
+
+      assert msg =~ "pool"
+
+      assert {:error, msg} = Presets.build("send_to_runner", %{"pool" => "dev"})
+      assert msg =~ "List"
+    end
+
     test "email goes to the person adding the rule unless told otherwise", %{owner: owner} do
       assert {:ok, %{"spec" => %{"actions" => [%{"type" => "email", "to" => to}]}}} =
                Presets.build("follow_board", %{"notify" => "email"}, user: owner)
