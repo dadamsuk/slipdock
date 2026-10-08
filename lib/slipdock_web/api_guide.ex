@@ -351,7 +351,10 @@ defmodule SlipdockWeb.APIGuide do
     `get_board`, `list_cards` (`full: true` gives every card as `get_card`
     does, comments, checklist and docs included, so a whole board reads in
     one call), `get_card`, `search`, `read_page`, `list_pages` (a
-    board's wiki, flat or with `tree` nested), `activity` (the
+    board's wiki, flat or with `tree` nested), `page_info` (by
+    `what`: a page's `links` or `sections` — the heading paths
+    `write_page` takes — a board's `wanted` pages, or `resolve` a
+    title), `activity` (the
     board's log, or with `card` one card's), and for
     writing `create_card`, `update_card` (fields, flags, tags, assignees,
     dependencies and the checklist), `move_card` (to another board too),
