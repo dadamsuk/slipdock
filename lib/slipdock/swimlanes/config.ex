@@ -78,6 +78,8 @@ defmodule Slipdock.Swimlanes.Config do
   ]
   @empties ~w(hide show)
   @densities [{"normal", "Comfortable"}, {"compact", "Compact"}]
+  # How wide a list (a board's list, a swimlane column) is drawn.
+  @widths [{"narrow", "Narrow"}, {"normal", "Normal"}, {"wide", "Wide"}, {"wider", "Extra wide"}]
   # Which date a calendar puts a card on.
   @places [{"due", "Due date"}, {"start", "Start date"}]
 
@@ -140,7 +142,7 @@ defmodule Slipdock.Swimlanes.Config do
   @default_tell @tell_keys -- ["summary"]
 
   @modes ~w(board swimlanes table timeline calendar outline narrative prioritise)
-  @scalar_fields ~w(mode rows cols unit depth sort dir q due done deps empty density date place color_by span from to)a
+  @scalar_fields ~w(mode rows cols unit depth sort dir q due done deps empty density width date place color_by span from to)a
   # Per-visit state that a saved view must not pin: the timeline/calendar
   # anchor date, and a narrative's explicit range (its span is kept, so a
   # saved narrative stays relative to today).
@@ -166,6 +168,7 @@ defmodule Slipdock.Swimlanes.Config do
             deps: nil,
             empty: "hide",
             density: "normal",
+            width: "normal",
             date: nil,
             place: "due",
             color_by: "cover",
@@ -229,6 +232,7 @@ defmodule Slipdock.Swimlanes.Config do
   def dones, do: @dones
   def deps, do: @deps
   def densities, do: @densities
+  def widths, do: @widths
   def places, do: @places
   def colorings, do: @colorings
   def coloring_label(key), do: label(@colorings, key)
@@ -448,6 +452,7 @@ defmodule Slipdock.Swimlanes.Config do
   defp cast(:done, v, d), do: pick(v, Enum.map(@dones, &elem(&1, 0)), d)
   defp cast(:empty, v, d), do: pick(v, @empties, d)
   defp cast(:density, v, d), do: pick(v, Enum.map(@densities, &elem(&1, 0)), d)
+  defp cast(:width, v, d), do: pick(v, Enum.map(@widths, &elem(&1, 0)), d)
   defp cast(:place, v, d), do: pick(v, Enum.map(@places, &elem(&1, 0)), d)
   defp cast(:color_by, v, d), do: pick(v, Enum.map(@colorings, &elem(&1, 0)), d)
   defp cast(:span, v, d), do: pick(v, @spans, d)

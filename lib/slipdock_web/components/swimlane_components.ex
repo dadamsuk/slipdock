@@ -648,6 +648,21 @@ defmodule SlipdockWeb.SwimlaneComponents do
             </label>
           </div>
         </div>
+        <div :if={@mode in [:board, :swimlanes]} id="display-width">
+          <p class={["mb-1.5", @section_title]}>List width</p>
+          <div class="flex flex-wrap gap-1">
+            <label :for={{value, label} <- Config.widths()} class="cursor-pointer">
+              <input
+                type="radio"
+                name="width"
+                value={value}
+                checked={@config.width == value}
+                class="peer sr-only"
+              />
+              <span class="btn btn-xs btn-ghost peer-checked:btn-primary">{label}</span>
+            </label>
+          </div>
+        </div>
         <div :if={@mode == :calendar}>
           <p class={["mb-1.5", @section_title]}>Place cards on</p>
           <div class="flex gap-1">
@@ -1360,9 +1375,17 @@ defmodule SlipdockWeb.SwimlaneComponents do
 
   defp grid_template(grid, config) do
     row_header = if config.rows != "none", do: "13rem ", else: ""
-    cell = if config.density == "compact", do: "minmax(15rem, 1fr)", else: "minmax(17rem, 1fr)"
+    cell = "minmax(#{cell_min(config)}, 1fr)"
     "grid-template-columns: #{row_header}repeat(#{length(grid.cols)}, #{cell});"
   end
+
+  # The narrowest a swimlane column gets, by list width; "normal" is the
+  # width it always had, a little narrower for compact cards.
+  defp cell_min(%{width: "narrow"}), do: "12rem"
+  defp cell_min(%{width: "wide"}), do: "22rem"
+  defp cell_min(%{width: "wider"}), do: "28rem"
+  defp cell_min(%{density: "compact"}), do: "15rem"
+  defp cell_min(_), do: "17rem"
 
   defp header_tone(:current), do: "border-t-2 border-t-primary text-primary"
   defp header_tone(:past), do: "text-error/80"

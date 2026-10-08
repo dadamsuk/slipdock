@@ -374,7 +374,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
               "kanban-column flex max-h-full shrink-0 flex-col",
               if(@narrow?,
                 do: "w-screen snap-start snap-always",
-                else: "w-72 rounded-2xl bg-base-300/60 shadow-inner"
+                else: [list_width(@swim), "rounded-2xl bg-base-300/60 shadow-inner"]
               ),
               @focus && @focus.column_id == column.id && "ring-2 ring-secondary/50"
             ]}
@@ -659,7 +659,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
 
           <div
             :if={@can_write}
-            class={["shrink-0", if(@narrow?, do: "w-screen snap-start p-3", else: "w-72")]}
+            class={["shrink-0", if(@narrow?, do: "w-screen snap-start p-3", else: list_width(@swim))]}
           >
             <form
               :if={@adding_column}
@@ -741,6 +741,12 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   defp card_focus(%{card_id: id}, %{id: id}), do: :cursor
 
   defp card_focus(_focus, _card), do: nil
+
+  # A list's width on a wide screen, from the Display menu's *List width*.
+  defp list_width(%Config{width: "narrow"}), do: "w-60"
+  defp list_width(%Config{width: "wide"}), do: "w-96"
+  defp list_width(%Config{width: "wider"}), do: "w-[30rem]"
+  defp list_width(_), do: "w-72"
 
   attr :card, :any, required: true
   attr :board, :any, required: true

@@ -136,4 +136,26 @@ defmodule SlipdockWeb.API.ViewsTest do
     assert %{"error" => "view not found"} =
              conn |> get(~p"/api/boards/#{board.id}/views/#{id}") |> json_response(404)
   end
+
+  test "a view saved through the API keeps a list width, and a bad one is dropped", %{
+    conn: conn,
+    board: board
+  } do
+    body =
+      conn
+      |> post(~p"/api/boards/#{board.id}/views", %{"name" => "Wide", "width" => "wide"})
+      |> json_response(201)
+
+    assert body["view"]["config"]["width"] == "wide"
+
+    body =
+      conn
+      |> post(~p"/api/boards/#{board.id}/views", %{
+        "name" => "Odd",
+        "config" => %{"width" => "enormous"}
+      })
+      |> json_response(201)
+
+    assert body["view"]["config"]["width"] == "normal"
+  end
 end

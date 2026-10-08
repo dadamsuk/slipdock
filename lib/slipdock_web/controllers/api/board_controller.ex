@@ -385,7 +385,7 @@ defmodule SlipdockWeb.API.BoardController do
 
   ## Swimlanes & saved views
 
-  @config_keys ~w(rows cols unit sort dir q due done empty density kinds tags priorities flags columns colors)
+  @config_keys ~w(rows cols unit sort dir q due done empty density width kinds tags priorities flags columns colors)
 
   def swimlanes(conn, %{"board" => ref} = params) do
     with {:ok, board} <- fetch_board(conn, ref, :read),
