@@ -221,6 +221,41 @@ claude.ai connects from Anthropic's servers, not from your browser, so a
 connector only works with a server reachable from the internet over
 https. If you self-host behind an allowlist, let in `160.79.104.0/21`.
 
+## Let the board send it work (runners)
+
+Everything above is an agent you start, that then reads the board. A
+**runner** is the other way round: the board sends a card to an agent on a
+machine of yours when something happens — a card arrives in a list, say —
+and the agent works it and reports back. You set one up from the board, under
+**Automations → Connect a runner**, which asks where the work should happen
+and gives you exactly what to paste:
+
+| Scenario | What you paste | Costs while idle |
+| --- | --- | --- |
+| Linux / macOS machine | `curl … /runner/install.sh \| sh -s -- --url … --token sdr_… --pool …` — the shell runner (`sh` and `curl` only) as a systemd user service or launchd agent | nothing |
+| Windows machine | `& ([scriptblock]::Create((irm '…/runner/install.ps1'))) -Url … -Token sdr_…` — the PowerShell runner, started at logon by Task Scheduler | nothing |
+| Claude Code on my machine | `claude mcp add …`, the skills, and a `/loop /slipdock-loop … taking a job from the … pool's queue` line | a Claude turn per check |
+| Claude, scheduled | a Claude Desktop local routine, or a cloud routine at claude.ai/code/routines with the Slipdock connector | a Claude turn per run |
+
+It can also add the rule that sends a list's cards to the runner's **pool**
+(the *Send cards to a coding agent* preset), and take standing instructions
+and before/after hooks, written into the config or prompt it generates.
+
+**The trust line.** Runners pull: they dial out and ask for work, and the
+server never connects to them, so nothing needs a port, a tunnel or an
+exception to the address rules webhooks live by. And the server sends only
+data — a job's id, its kind, the card and the prompt. What each kind of job
+*runs* is written in the runner's config on its own machine, and a kind with
+no definition there is refused without running anything. A rule can pick the
+kind; it can never pick a command. A runner's token (`sdr_…`) works only for
+taking and reporting on its own pool's jobs.
+
+A Claude session takes jobs from the same queue with the token it already
+has — the MCP tools `claim_job`, `job_progress` and `finish_job`, or
+`slipdock claim-job` — so a `/loop` and a shell runner never work the same
+card. The details, and the HTTP protocol a runner speaks, are in
+[the manual](manual.md#runners) and the guide's *Runners* section.
+
 ## If you self-host
 
 Two things to get right, both about the address:
@@ -250,6 +285,9 @@ server because that is the server that drew the page.
 | `this API token's scope doesn't allow it` | The token is confined to certain boards, or you asked an ordinary token to administer the server. |
 | `card_limit_reached` (402) | The board owner's allowance of items — cards, pages and files together — is used up. Archive something finished with; a wiki page instead of a card will not get round it. |
 | `trial_expired` (402) | A free trial has ended. Everything there stays readable and editable; nothing new can be added until there is a subscription. |
+| A runner says `the server refused this runner (HTTP 401)` | Its token was revoked or replaced. **Setup → Make a new token** on the board, then run the one-liner again on that machine. |
+| A runner job sits `queued` | No runner of that pool is running for that board: check its name and pool in **Automations → Runners** (*last seen*), and that the rule's pool is spelled the same. |
+| A job fails with exit 127, "no such job kind" | The rule queued a kind this runner's config has no `job_<kind>` (shell) or `Job-<Kind>` (PowerShell) function for. Add one, or change the rule's kind. |
 | The agent inventing list or tag names | It has not read the guide, or read it without a token. The guide with a token ends with your real boards and lists. |
 
 ## Where the pieces live
@@ -263,3 +301,6 @@ For anyone reading the code rather than using it:
 - `lib/slipdock_web/base_url.ex` — how the app works out which address to hand
   out, and why `conn.scheme` is not it.
 - `cli/` — the escript.
+- `lib/slipdock/runners.ex`, `lib/slipdock/runners/setup.ex` — the job queue
+  and the Connect-a-runner generator; `priv/runner/` — the shell and
+  PowerShell runners and their installers, served under `/runner/`.

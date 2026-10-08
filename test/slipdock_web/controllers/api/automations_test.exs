@@ -46,6 +46,35 @@ defmodule SlipdockWeb.API.AutomationsTest do
     end
   end
 
+  test "the vocabulary has the runner action, and a runner rule saves from it", %{
+    conn: conn,
+    board: board
+  } do
+    v =
+      conn
+      |> get(~p"/api/automations/vocabulary")
+      |> json_response(200)
+      |> Map.fetch!("vocabulary")
+
+    runner = Enum.find(v["actions"], &(&1["type"] == "runner"))
+    assert runner["required"] == ["pool"]
+    assert runner["optional"] == ["kind", "prompt"]
+    assert runner["description"] =~ "The runner's own config decides what each kind runs"
+
+    body =
+      conn
+      |> post(~p"/api/boards/#{board.id}/automations", %{
+        "name" => "To the dev box",
+        "spec" => %{
+          "trigger" => %{"type" => "card_created"},
+          "actions" => [%{"type" => "runner", "pool" => "dev"}]
+        }
+      })
+      |> json_response(201)
+
+    assert body["automation"]["summary"] =~ "send it to the dev runners (claude)"
+  end
+
   describe "creating rules" do
     test "a spec is taken exactly as given, with no model involved", %{conn: conn, board: board} do
       body =
