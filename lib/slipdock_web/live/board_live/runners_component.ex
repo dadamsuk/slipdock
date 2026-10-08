@@ -156,7 +156,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
            revealed: MapSet.new()
          )
          |> assign_runners()
-         |> refresh_automations(result.runner || result.rule)}
+         |> refresh_automations(result.runner || result.rule || result.alert_rule)}
 
       {:error, message} ->
         {:noreply, assign(socket, wizard: wizard(params), wizard_error: message)}
@@ -743,6 +743,17 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
             value={@p["requeue"] || 1}
             class="input input-xs w-16"
           /> times, then flag it blocked
+        </label>
+
+        <label :if={is_nil(@editing)} class="col-span-2 flex items-center gap-2 text-xs">
+          <input type="hidden" name="wizard[alert]" value="no" />
+          <input
+            type="checkbox"
+            name="wizard[alert]"
+            value="yes"
+            checked={@p["alert"] == "yes"}
+            class="checkbox checkbox-xs"
+          /> Tell me when a job times out, or a card it left in progress is put back or given up on
         </label>
       </div>
 

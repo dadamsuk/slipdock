@@ -346,7 +346,7 @@ defmodule SlipdockCLI do
                [--agent claude|codex|custom] [--command CMD] [--kind K] [--cwd DIR]
                [--permission-mode M] [--timeout SECONDS] [--service auto|systemd|launchd|none]
                [--where desktop|cloud] [--repo owner/repo]
-               [--column LIST [--top] [--[no-]wait-while-doing] [--requeue-stuck N]]
+               [--column LIST [--top] [--[no-]wait-while-doing] [--requeue-stuck N]] [--alert]
                [--verbosity quiet|normal|verbose] [--instructions TEXT]
                [--before-job CMD] [--after-job CMD] [--hooks prompt|hook]
                [--no-slipdock-tools] [--mcp-servers A,B]
@@ -358,7 +358,10 @@ defmodule SlipdockCLI do
                                                    unless --no-wait-while-doing; a card its
                                                    job leaves in progress goes back on top
                                                    --requeue-stuck times, 1 by default, then
-                                                   is flagged blocked)
+                                                   is flagged blocked); --alert adds a rule
+                                                   raising an alert when a job of the pool
+                                                   times out or its card is put back or
+                                                   given up on
                                                    a claude runner may use the Slipdock MCP tools
                                                    (servers claude_ai_Slipdock, slipdock) unless
                                                    --no-slipdock-tools
@@ -536,6 +539,7 @@ defmodule SlipdockCLI do
     slipdock_tools: :boolean,
     wait_while_doing: :boolean,
     requeue_stuck: :integer,
+    alert: :boolean,
     mcp_servers: :string,
     help: :boolean
   ]

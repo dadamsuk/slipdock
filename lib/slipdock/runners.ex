@@ -643,7 +643,24 @@ defmodule Slipdock.Runners do
   # the job left in progress, if the rule says to, so that it can be the one.
   defp refill(%Job{rule_id: rule_id} = job) do
     Recovery.recover(job)
+    announce(job)
     Slipdock.Automations.feed_rule(rule_id)
+  end
+
+  # Rules watching for jobs ending (`job_finished`) hear about it once, with
+  # the job as it ended and after its card was put back or given up on.
+  defp announce(%Job{id: id}) do
+    with %Job{} = job <- Repo.get(Job, id),
+         true <- job.status in Job.finished_statuses() do
+      card = Repo.get(Card, job.card_id)
+
+      Slipdock.Automations.dispatch(%{
+        type: "job_finished",
+        card: card,
+        job: job,
+        board_id: (card && card.board_id) || job.board_id
+      })
+    end
   end
 
   ## Leases -------------------------------------------------------------------

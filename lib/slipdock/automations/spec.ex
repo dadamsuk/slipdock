@@ -34,8 +34,16 @@ defmodule Slipdock.Automations.Spec do
     {"flag_added", [], ["flag"],
      "a flag is put on a card (flagged, blocked, review, waiting, starred)"},
     {"card_activity", [], [],
-     "anything happens to a card — added, moved, changed, commented on, tagged or archived; once per change"}
+     "anything happens to a card — added, moved, changed, commented on, tagged or archived; once per change"},
+    {"job_finished", [], ["outcome", "pool"],
+     "a runner job sent for a card ends, once per job (outcome: any of done, failed, " <>
+       "cancelled, timeout — how it ended — and requeued or gave_up — a list_top rule " <>
+       "with requeue_stuck put its card back, or gave up on it; default any; pool: only " <>
+       "that pool's jobs). Placeholders {{job.id}}, {{job.status}}, {{job.outcome}}, " <>
+       "{{job.pool}}, {{job.runner}}, {{job.exit_code}}, {{job.error}}"}
   ]
+
+  @job_outcomes ~w(done failed cancelled timeout requeued gave_up)
 
   @scheduled_triggers [
     {"card_stale", ["days"], ["column"], "a card has not been touched for N days"},
@@ -189,11 +197,46 @@ defmodule Slipdock.Automations.Spec do
         {:error, "unknown trigger “#{type}”"}
 
       {_, required, optional, _} ->
-        keep(trigger, required, optional, "trigger “#{type}”")
+        with {:ok, trigger} <- keep(trigger, required, optional, "trigger “#{type}”"),
+             do: check_trigger(trigger)
     end
   end
 
   defp validate_trigger(_), do: {:error, "needs a trigger with a type"}
+
+  defp check_trigger(%{"type" => "job_finished"} = trigger) do
+    outcomes =
+      trigger["outcome"]
+      |> List.wrap()
+      |> Enum.flat_map(&String.split(to_string(&1), ~r/[\s,]+/, trim: true))
+      |> Enum.map(&String.downcase/1)
+      |> Enum.uniq()
+
+    pool = trigger["pool"] && trigger["pool"] |> to_string() |> String.downcase()
+
+    cond do
+      (unknown = outcomes -- @job_outcomes) != [] ->
+        {:error,
+         "trigger “job_finished” outcome “#{Enum.join(unknown, ", ")}” isn't one of " <>
+           Enum.join(@job_outcomes, ", ")}
+
+      pool && not Regex.match?(Slipdock.Runners.Runner.name_format(), pool) ->
+        {:error, "trigger “job_finished” pool must be lower case letters, digits, - or _"}
+
+      true ->
+        {:ok,
+         trigger
+         |> Map.delete("outcome")
+         |> Map.delete("pool")
+         |> then(&if(outcomes == [], do: &1, else: Map.put(&1, "outcome", outcomes)))
+         |> then(&if(pool, do: Map.put(&1, "pool", pool), else: &1))}
+    end
+  end
+
+  defp check_trigger(trigger), do: {:ok, trigger}
+
+  @doc "What a `job_finished` trigger's outcome may name."
+  def job_outcomes, do: @job_outcomes
 
   defp check_feed(%{"type" => type} = trigger, actions) when type in @feed_types do
     unassigned =
@@ -440,6 +483,10 @@ defmodule Slipdock.Automations.Spec do
       "flag_added" ->
         "a card is flagged" <> where(t["flag"], "as")
 
+      "job_finished" ->
+        "a#{if t["pool"], do: " #{t["pool"]}", else: ""} runner job ends" <>
+          job_outcome_summary(t["outcome"])
+
       "card_stale" ->
         "a card goes #{t["days"]} days untouched" <> where(t["column"], "in")
 
@@ -464,6 +511,26 @@ defmodule Slipdock.Automations.Spec do
   end
 
   defp trigger_summary(_), do: "something happens"
+
+  defp job_outcome_summary(nil), do: ""
+
+  defp job_outcome_summary(outcomes) do
+    words = %{
+      "done" => "done",
+      "failed" => "failed",
+      "cancelled" => "cancelled",
+      "timeout" => "timed out",
+      "requeued" => "its card put back",
+      "gave_up" => "its card given up on"
+    }
+
+    phrases = Enum.map(List.wrap(outcomes), &Map.get(words, &1, &1))
+
+    case Enum.split(phrases, -1) do
+      {[], [one]} -> " " <> one
+      {rest, [last]} -> " " <> Enum.join(rest, ", ") <> " or " <> last
+    end
+  end
 
   defp unassigned(%{"unassigned" => true}), do: "unassigned "
   defp unassigned(_), do: ""

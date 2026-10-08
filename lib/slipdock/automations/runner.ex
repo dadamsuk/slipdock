@@ -70,12 +70,21 @@ defmodule Slipdock.Automations.Runner do
       "flag_added" ->
         named?(trigger["flag"], event[:flag])
 
+      "job_finished" ->
+        named?(trigger["pool"], event[:job] && event[:job].pool) and
+          (is_nil(trigger["outcome"]) or
+             Enum.any?(job_outcomes(event[:job]), &(&1 in List.wrap(trigger["outcome"]))))
+
       _ ->
         true
     end
   end
 
   defp trigger_matches?(_, _), do: false
+
+  # How a job ended, and what its rule then did with the card.
+  defp job_outcomes(nil), do: []
+  defp job_outcomes(job), do: Enum.reject([job.status, job.recovery], &is_nil/1)
 
   defp same_column?(nil, _), do: true
   defp same_column?(_, nil), do: false
@@ -549,6 +558,12 @@ defmodule Slipdock.Automations.Runner do
       at: DateTime.utc_now()
     }
 
+    payload =
+      case ctx.event[:job] do
+        %Slipdock.Runners.Job{} = job -> Map.put(payload, :job, job_payload(job))
+        _ -> payload
+      end
+
     # Logged against the rule's board, where its owner looks — for a tree
     # rule that is above the sub-board the card sits on.
     log = %{
@@ -770,8 +785,34 @@ defmodule Slipdock.Automations.Runner do
       "board.url" => board && "#{base_url()}/boards/#{board.id}"
     }
     |> Map.merge(card_variables(card, board))
+    |> Map.merge(job_variables(event[:job]))
     |> Enum.reject(fn {_, v} -> is_nil(v) end)
     |> Map.new()
+  end
+
+  defp job_variables(%Slipdock.Runners.Job{} = job) do
+    job
+    |> job_payload()
+    |> Map.new(fn {key, value} -> {"job.#{key}", if(is_nil(value), do: "", else: value)} end)
+  end
+
+  defp job_variables(_), do: %{}
+
+  # What a rule is told about a runner job that ended: which, where, how it
+  # ended and what its rule then did with the card ("" when nothing).
+  defp job_payload(job) do
+    %{
+      id: job.id,
+      status: job.status,
+      outcome: job.recovery || job.status,
+      recovery: job.recovery,
+      pool: job.pool,
+      kind: job.kind,
+      runner: job.runner_name,
+      attempts: job.attempts,
+      exit_code: job.exit_code,
+      error: job.error
+    }
   end
 
   defp card_variables(nil, _board), do: %{}
