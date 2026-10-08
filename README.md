@@ -543,7 +543,9 @@ with the tail of the log — and a Cancel button.
   (trigger `list_top`) keeps one job open at a time, always for the top
   ready card of the list, so a runner works your To Do list the way you
   stacked it — and, by default, waits while anything is in progress, so it
-  never starts a card beside one you're working by hand.
+  never starts a card beside one you're working by hand. A card its job
+  leaves in progress goes back on top of the list for another try, then is
+  flagged blocked, so a crashed or timed-out pass never stalls the list.
 - **One queue for everything.** A Claude session (`/loop`, a scheduled task)
   takes jobs from the same queue through the MCP tools `claim_job`,
   `job_progress` and `finish_job`, or `slipdock claim-job`, so it never

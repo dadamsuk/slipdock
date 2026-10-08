@@ -204,12 +204,13 @@ defmodule Slipdock.Automations do
     end
   end
 
-  # Waiting while anything is in progress needs a list that means "in
-  # progress": on a board without one, the option would do nothing, quietly.
+  # Waiting while anything is in progress, and putting back a card left in
+  # progress, need a list that means "in progress": on a board without one,
+  # the option would do nothing, quietly.
   defp check_doing_list(changeset) do
     with true <- changeset.valid?,
          spec when is_map(spec) <- Ecto.Changeset.get_change(changeset, :spec),
-         true <- Enum.any?(Spec.actions(spec), &(&1["wait_while_doing"] == true)),
+         option when is_binary(option) <- doing_option(Spec.actions(spec)),
          %Board{} = board <-
            Repo.get(Board, Ecto.Changeset.get_field(changeset, :board_id))
            |> Repo.preload(:columns),
@@ -217,11 +218,24 @@ defmodule Slipdock.Automations do
       Ecto.Changeset.add_error(
         changeset,
         :spec,
-        "wait_while_doing needs an in-progress list on this board: give one of its lists " <>
+        "#{option} needs an in-progress list on this board: give one of its lists " <>
           "the In progress category"
       )
     else
       _ -> changeset
+    end
+  end
+
+  defp doing_option(actions) do
+    cond do
+      Enum.any?(actions, &(&1["wait_while_doing"] == true)) ->
+        "wait_while_doing"
+
+      Enum.any?(actions, &(is_integer(&1["requeue_stuck"]) and &1["requeue_stuck"] > 0)) ->
+        "requeue_stuck"
+
+      true ->
+        nil
     end
   end
 
@@ -597,8 +611,12 @@ defmodule Slipdock.Automations do
   defp cooling_cards(rule, now) do
     since = DateTime.add(now, -feed_cooldown())
 
+    # A card the rule put back after its job left it in progress is not
+    # cooling: the retry is meant to go next, and requeue_stuck bounds it.
     from(j in Slipdock.Runners.Job,
-      where: j.rule_id == ^rule.id and j.finished_at > ^since,
+      where:
+        j.rule_id == ^rule.id and j.finished_at > ^since and
+          (is_nil(j.recovery) or j.recovery != "requeued"),
       select: j.card_id
     )
     |> Repo.all()

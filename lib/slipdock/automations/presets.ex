@@ -240,7 +240,15 @@ defmodule Slipdock.Automations.Presets do
         %{name: "column", label: "List", type: "column", required: true, prefill: "todo"},
         %{name: "pool", label: "Runner pool", type: "text", required: true, default: "default"},
         %{name: "kind", label: "Kind of job", type: "text", required: false, default: "claude"},
-        @wait
+        @wait,
+        %{
+          name: "requeue",
+          label: "Put a card left in progress back, N times",
+          type: "number",
+          required: false,
+          default: 1,
+          hint: "then flag it blocked; 0 leaves it to you"
+        }
       ]
     }
   ]
@@ -554,7 +562,20 @@ defmodule Slipdock.Automations.Presets do
 
     {:ok, "Work #{column} with the #{pool} runners",
      %{"type" => "list_top", "column" => column, "unassigned" => true}, [],
-     [runner_action(pool, kind, p["wait"], "yes")]}
+     [
+       pool
+       |> runner_action(kind, p["wait"], "yes")
+       |> Map.put("requeue_stuck", requeue(p["requeue"]))
+     ]}
+  end
+
+  # A form sends the number as text; anything that isn't one is left for the
+  # spec to refuse.
+  defp requeue(value) do
+    case value |> blank_or(1) |> to_string() |> String.trim() |> Integer.parse() do
+      {n, ""} -> n
+      _ -> value
+    end
   end
 
   defp runner_action(pool, kind, wait, default) do

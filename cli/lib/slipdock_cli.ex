@@ -346,7 +346,7 @@ defmodule SlipdockCLI do
                [--agent claude|codex|custom] [--command CMD] [--kind K] [--cwd DIR]
                [--permission-mode M] [--timeout SECONDS] [--service auto|systemd|launchd|none]
                [--where desktop|cloud] [--repo owner/repo]
-               [--column LIST [--top] [--[no-]wait-while-doing]]
+               [--column LIST [--top] [--[no-]wait-while-doing] [--requeue-stuck N]]
                [--verbosity quiet|normal|verbose] [--instructions TEXT]
                [--before-job CMD] [--after-job CMD] [--hooks prompt|hook]
                [--no-slipdock-tools] [--mcp-servers A,B]
@@ -355,7 +355,10 @@ defmodule SlipdockCLI do
                                                    --column adds a rule sending that list's cards
                                                    (--top: its top card, one at a time, in order;
                                                    its jobs wait while anything is in progress
-                                                   unless --no-wait-while-doing)
+                                                   unless --no-wait-while-doing; a card its
+                                                   job leaves in progress goes back on top
+                                                   --requeue-stuck times, 1 by default, then
+                                                   is flagged blocked)
                                                    a claude runner may use the Slipdock MCP tools
                                                    (servers claude_ai_Slipdock, slipdock) unless
                                                    --no-slipdock-tools
@@ -532,6 +535,7 @@ defmodule SlipdockCLI do
     hooks: :string,
     slipdock_tools: :boolean,
     wait_while_doing: :boolean,
+    requeue_stuck: :integer,
     mcp_servers: :string,
     help: :boolean
   ]

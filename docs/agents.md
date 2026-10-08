@@ -253,7 +253,10 @@ pass working the To Do list. Its jobs **wait while anything is in progress**
 a queued job isn't handed out while another open card sits in an
 in-progress list on its board — a card somebody is working by hand
 included — and the job listing says why (`waiting_on: "#123 is in
-progress"`). It takes standing instructions
+progress"`). A card its job leaves in progress goes back to the top of the
+list for another try (`requeue_stuck: N` on the `runner` action, 1 by
+default for that rule), then is flagged blocked and left there, so an agent
+pass never has to recover its own card. It takes standing instructions
 and before/after hooks, written into the config or prompt it generates.
 
 **A job runs with nobody watching**, so two things are set up for it. A

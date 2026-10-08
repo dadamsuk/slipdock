@@ -729,6 +729,21 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
           /> Wait while anything is in progress on the board, so it never starts a card
           beside one being worked
         </label>
+
+        <label
+          :if={is_nil(@editing) and String.starts_with?(to_string(@p["send"]), "top:")}
+          class="col-span-2 flex items-center gap-2 text-xs"
+        >
+          Put a card its job leaves in progress back on the list
+          <input
+            type="number"
+            name="wizard[requeue]"
+            min="0"
+            max={Slipdock.Runners.Recovery.max_requeues()}
+            value={@p["requeue"] || 1}
+            class="input input-xs w-16"
+          /> times, then flag it blocked
+        </label>
       </div>
 
       <p class="rounded-lg bg-base-100 px-3 py-2 text-xs text-base-content/70 ring-1 ring-base-content/10">

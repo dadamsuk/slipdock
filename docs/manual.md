@@ -1422,6 +1422,26 @@ the reason (`waiting_on`), and an empty claim says which job is held back.
 anything is in progress** field); *Send cards to a runner* leaves it off. A
 board with no in-progress list refuses the option when the rule is saved.
 
+**Putting back a card left in progress.** A job can end — done, failed,
+cancelled, timed out — with its card still in an in-progress list: the
+agent crashed, ran out of time, or simply never closed it. On a rule that
+waits while anything is in progress, that card would hold the runner for
+good. A `runner` action on a `list_top` rule with `"requeue_stuck": N` (0
+to 10) has the server deal with it when the job ends: the card gets a
+comment saying why and which retry it is, and goes back to the top of the
+rule's list (unassigned, if the rule only sends cards nobody has taken), so
+it is the next one sent — the cool-down doesn't apply to it. After N
+retries it is flagged **blocked** and left in progress, with a comment, and
+the runner waits until somebody moves or closes it. Only the job's own card
+is touched, never one somebody moved to in progress by hand, and never by a
+job cancelled before a runner took it; a job whose lease lapsed and was
+handed out again counts once, when it finally ends. Completing the card
+starts its count again. The job records what was done (`recovery`:
+`requeued` or `gave_up`). *Work a list with a runner* puts a card back once
+by default (its **Put a card left in progress back, N times** field; 0
+turns it off); `slipdock runner new … --top --requeue-stuck N` sets it from
+the command line.
+
 **How it is kept safe.** Runners pull: they dial out and ask for work, and
 the server never connects to them, so nothing needs a port, a tunnel or an
 exception to the outbound-address rules webhooks live by. And the server

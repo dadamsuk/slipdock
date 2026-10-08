@@ -78,6 +78,29 @@ defmodule SlipdockCLI.RunnersTest do
     refute Map.has_key?(body, "wait")
   end
 
+  test "runner new passes --requeue-stuck as the number of times to put a card back" do
+    serve([
+      {201, ~s({"runner":null,"token":null,"automation":null,"setup":#{@setup}})},
+      {201, ~s({"runner":null,"token":null,"automation":null,"setup":#{@setup}})}
+    ])
+
+    capture_io(fn ->
+      Runners.run("runner", ["new", "b"],
+        scenario: "loop",
+        column: ["To Do"],
+        top: true,
+        requeue_stuck: 2
+      )
+
+      Runners.run("runner", ["new", "b"], scenario: "loop", column: ["To Do"], top: true)
+    end)
+
+    assert_received {:request, "POST", _, with}
+    assert %{"requeue" => 2, "feed" => "top"} = JSON.decode!(with)
+    assert_received {:request, "POST", _, without}
+    refute Map.has_key?(JSON.decode!(without), "requeue")
+  end
+
   test "runner new passes --no-wait-while-doing and --wait-while-doing on" do
     serve([
       {201, ~s({"runner":null,"token":null,"automation":null,"setup":#{@setup}})},

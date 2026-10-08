@@ -26,7 +26,7 @@ defmodule Slipdock.Runners do
   alias Slipdock.{Boards, Repo}
   alias Slipdock.Accounts.UserToken
   alias Slipdock.Boards.{Board, Card}
-  alias Slipdock.Runners.{Job, Runner}
+  alias Slipdock.Runners.{Job, Recovery, Runner}
 
   @pubsub Slipdock.PubSub
 
@@ -639,8 +639,12 @@ defmodule Slipdock.Runners do
   defp tap_refill(other), do: other
 
   # A job from a rule that keeps a pool fed from a list (`list_top`) has
-  # ended, so the rule may send the next card.
-  defp refill(%Job{rule_id: rule_id}), do: Slipdock.Automations.feed_rule(rule_id)
+  # ended, so the rule may send the next card — after putting back the card
+  # the job left in progress, if the rule says to, so that it can be the one.
+  defp refill(%Job{rule_id: rule_id} = job) do
+    Recovery.recover(job)
+    Slipdock.Automations.feed_rule(rule_id)
+  end
 
   ## Leases -------------------------------------------------------------------
 
