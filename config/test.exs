@@ -15,7 +15,12 @@ config :slipdock, Slipdock.Repo,
     System.get_env("TEST_DATABASE_URL") ||
       "postgres://postgres:postgres@localhost:5434/slipdock_test#{System.get_env("MIX_TEST_PARTITION")}",
   pool_size: System.schedulers_online() * 2,
-  pool: Ecto.Adapters.SQL.Sandbox
+  pool: Ecto.Adapters.SQL.Sandbox,
+  # Everything a test starts shares its one sandboxed connection, so a parallel
+  # preload can queue behind another query; on a busy CI runner the default
+  # 50ms target dropped it (#468). Let it wait.
+  queue_target: 5_000,
+  queue_interval: 10_000
 
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
