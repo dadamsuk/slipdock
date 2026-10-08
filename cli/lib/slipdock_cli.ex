@@ -342,7 +342,15 @@ defmodule SlipdockCLI do
     run-automation <board> <rule>                  run a timed rule now (forgets what it has done)
     delete-automation <board> <rule>
     dismiss <alert-id>... | dismiss --all           dismiss alerts (yours only; others keep theirs)
-    runner new <board> <name> --pool P             make a runner; prints its token, once
+    runner new <board> [name] --pool P [--scenario server|windows|loop|cloud]
+               [--agent claude|codex|custom] [--command CMD] [--kind K] [--cwd DIR]
+               [--permission-mode M] [--timeout SECONDS] [--service auto|systemd|launchd|none]
+               [--where desktop|cloud] [--repo owner/repo] [--column LIST]
+                                                   connect a runner: prints exactly what to paste
+                                                   (and, for server/windows, its token, once);
+                                                   --column adds a rule sending that list's cards
+    runner setup <board> <runner>                  a runner's steps again (token left out)
+    runner token <board> <runner>                  a new token for a runner, with its steps
     runner rm <board> <runner>                     revoke a runner (its token stops working)
     cancel-job <id>                                stop a job: a queued one at once, a running one
                                                    on the runner's next heartbeat
@@ -496,6 +504,15 @@ defmodule SlipdockCLI do
     q: :string,
     pool: :string,
     status: :string,
+    scenario: :string,
+    agent: :string,
+    cwd: :string,
+    timeout: :integer,
+    permission_mode: :string,
+    service: :string,
+    command: :string,
+    where: :string,
+    repo: :string,
     help: :boolean
   ]
 

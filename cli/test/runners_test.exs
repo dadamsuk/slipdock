@@ -26,16 +26,66 @@ defmodule SlipdockCLI.RunnersTest do
 
   defp serve(responses), do: System.put_env("SLIPDOCK_URL", FakeServer.start(responses))
 
-  test "runner new posts the name and pool and prints the token once" do
+  @setup ~s({"title":"Linux / macOS machine","intro":"Run this.","steps":[{"text":"On the machine, run:","code":"curl -fsSL x | sh -s -- --token sdr_secret"},{"text":"Nothing is sent until a rule sends it."}],"warnings":["watch out"],"cost":"free while idle"})
+
+  test "runner new asks the wizard and prints its steps, token and all" do
     serve([
-      {201, ~s({"runner":{"id":4,"name":"laptop","pool":"dev"},"token":"sdr_secret"})}
+      {201, ~s({"runner":{"id":4,"name":"laptop","pool":"dev"},"token":"sdr_secret","automation":{"name":"Send Doing to the dev runners"},"setup":#{@setup}})}
     ])
 
-    out = capture_io(fn -> Runners.run("runner", ["new", "b", "laptop"], pool: "dev") end)
-    assert_received {:request, "POST", "/api/boards/b/runners", body}
-    assert JSON.decode!(body) == %{"name" => "laptop", "pool" => "dev"}
+    out =
+      capture_io(fn ->
+        Runners.run("runner", ["new", "b", "laptop"],
+          pool: "dev",
+          agent: "codex",
+          cwd: "~/src",
+          timeout: 900,
+          column: ["Doing"]
+        )
+      end)
+
+    assert_received {:request, "POST", "/api/boards/b/runners/setup", body}
+
+    assert JSON.decode!(body) == %{
+             "scenario" => "server",
+             "name" => "laptop",
+             "pool" => "dev",
+             "agent" => "codex",
+             "cwd" => "~/src",
+             "timeout" => 900,
+             "column" => "Doing"
+           }
+
     assert out =~ "made runner #4 laptop for pool dev"
-    assert out =~ "sdr_secret"
+    assert out =~ "added the rule “Send Doing to the dev runners”"
+    assert out =~ "1. On the machine, run:"
+    assert out =~ "    curl -fsSL x | sh -s -- --token sdr_secret"
+    assert out =~ "2. Nothing is sent until a rule sends it."
+    assert out =~ "⚠ watch out"
+    assert out =~ "free while idle"
+  end
+
+  test "runner new for a Claude scenario needs no pool and makes no runner" do
+    serve([{201, ~s({"runner":null,"token":null,"automation":null,"setup":#{@setup}})}])
+    out = capture_io(fn -> Runners.run("runner", ["new", "b"], scenario: "loop") end)
+    assert_received {:request, "POST", "/api/boards/b/runners/setup", body}
+    assert JSON.decode!(body) == %{"scenario" => "loop"}
+    refute out =~ "made runner"
+    assert out =~ "1. On the machine, run:"
+  end
+
+  test "runner setup and runner token" do
+    serve([
+      {200, ~s({"setup":#{@setup}})},
+      {200, ~s({"token":"sdr_new","runner":{"name":"laptop"},"setup":#{@setup}})}
+    ])
+
+    assert capture_io(fn -> Runners.run("runner", ["setup", "b", "4"], []) end) =~ "Run this."
+    assert_received {:request, "GET", "/api/boards/b/runners/4/setup", _}
+
+    out = capture_io(fn -> Runners.run("runner", ["token", "b", "4"], []) end)
+    assert_received {:request, "POST", "/api/boards/b/runners/4/token", _}
+    assert out =~ "new token for laptop"
   end
 
   test "runner ls and rm" do

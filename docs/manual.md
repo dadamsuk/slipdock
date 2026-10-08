@@ -1394,6 +1394,22 @@ moved in and out of a list does not pile up work. The card's **Runner jobs**
 section shows each job, which runner took it, when, and the tail of its log;
 **Cancel** stops a queued job at once and asks a running one to stop.
 
+**Connect a runner**, in the board's Automations panel, is the way in. Pick
+where the work should happen — a Linux or macOS machine, a Windows machine,
+Claude Code on your own machine in a `/loop`, or Claude on a schedule (a
+Claude Desktop scheduled task, or a routine in Anthropic's cloud) — and a few
+options (the pool, the agent, its working directory, permission mode and
+timeout, how to keep it running), and it gives you exactly what to paste:
+the installer's one-liner with the token in it and a preview of the config it
+will write; the PowerShell line; the `claude mcp add`, skills and `/loop`
+lines; or the connector, prompt and schedule for a routine, warning that a
+routine needs the code on GitHub and this server reachable from the internet.
+It can also add the rule that sends a list's cards to the pool, or use one
+you have. A runner on a machine costs nothing while it waits; the Claude
+scenarios need no install but every check for work is a Claude turn. The
+answers are kept on the runner (never the token), so **Setup** shows the
+steps again, and **Make a new token** replaces a lost one.
+
 **Runners** belong to a board tree and a pool. The board owner makes them:
 each has its own token (`sdr_…`), shown once, that can take and report on
 that pool's jobs and nothing else — it is not an API token and opens no
@@ -1406,7 +1422,9 @@ own work rather than from a background loop, so it holds its job on a
 
 | CLI | What it does |
 |---|---|
-| `slipdock runner new <board> <name> --pool P` | Makes a runner and prints its token, once. |
+| `slipdock runner new <board> [name] --pool P [--scenario …]` | The **Connect a runner** wizard: prints exactly what to paste for `server` (the default), `windows`, `loop` or `cloud`, with `--agent`, `--command`, `--kind`, `--cwd`, `--permission-mode`, `--timeout`, `--service`, `--where desktop\|cloud` and `--repo`. For a runner of its own (server, windows) it makes one and prints its token, once; `--column LIST` adds a rule sending that list's cards. |
+| `slipdock runner setup <board> <runner>` | A runner's steps again, from the answers saved on it (the token left out). |
+| `slipdock runner token <board> <runner>` | A new token for a runner, the old one ended, with its steps written out for it. |
 | `slipdock runner ls <board>` / `slipdock runners <board>` | The board's runners: pool, last seen, current job. |
 | `slipdock runner rm <board> <runner>` | Revokes a runner. |
 | `slipdock jobs <board> [--status S]` / `slipdock jobs --card ID` | Jobs, newest first. `S` is `open` or a status. |

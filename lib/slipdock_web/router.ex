@@ -417,6 +417,9 @@ defmodule SlipdockWeb.Router do
     # Runners on the user's own machines and the jobs rules send them.
     get "/boards/:board/runners", JobController, :runners
     post "/boards/:board/runners", JobController, :create_runner
+    post "/boards/:board/runners/setup", JobController, :setup
+    get "/boards/:board/runners/:id/setup", JobController, :runner_setup
+    post "/boards/:board/runners/:id/token", JobController, :rotate_token
     delete "/boards/:board/runners/:id", JobController, :delete_runner
     get "/boards/:board/jobs", JobController, :index
     post "/boards/:board/jobs/claim", JobController, :claim

@@ -21,14 +21,60 @@ defmodule SlipdockCLI.Runners do
     HTTP.get("/boards/#{enc(ref)}/runners") |> out(o, &Render.runners(&1["runners"]))
   end
 
-  def run("runner", ["new", ref, name], o) do
-    pool = o[:pool] || fail("pass --pool P: the pool this runner takes jobs for")
+  # The same wizard as the board's Automations panel: a scenario and its
+  # options in, the steps to follow out — and for a runner of its own, the
+  # token, once.
+  def run("runner", ["new", ref | name], o) do
+    scenario = o[:scenario] || "server"
 
-    HTTP.post("/boards/#{enc(ref)}/runners", %{"name" => name, "pool" => pool})
-    |> out(o, fn %{"runner" => r, "token" => token} ->
-      IO.puts("made runner ##{r["id"]} #{r["name"]} for pool #{r["pool"]}")
-      IO.puts("token (shown this once — keep it on the runner's machine):")
-      IO.puts("  " <> token)
+    if scenario in ~w(server windows) and !o[:pool],
+      do: fail("pass --pool P: the pool this runner takes jobs for")
+
+    body =
+      compact(%{
+        "scenario" => scenario,
+        "name" => nonblank(Enum.join(name, " ")),
+        "pool" => o[:pool],
+        "agent" => o[:agent],
+        "kind" => o[:kind] |> List.wrap() |> List.last(),
+        "command" => o[:command],
+        "cwd" => o[:cwd],
+        "permission_mode" => o[:permission_mode],
+        "timeout" => o[:timeout],
+        "service" => o[:service],
+        "where" => o[:where],
+        "repo" => o[:repo],
+        "column" => o[:column] |> List.wrap() |> List.last()
+      })
+
+    HTTP.post("/boards/#{enc(ref)}/runners/setup", body)
+    |> out(o, fn r ->
+      if r["runner"],
+        do:
+          IO.puts(
+            "made runner ##{r["runner"]["id"]} #{r["runner"]["name"]} for pool #{r["runner"]["pool"]}"
+          )
+
+      if r["automation"], do: IO.puts("added the rule “#{r["automation"]["name"]}”")
+
+      if r["token"],
+        do: IO.puts("its token is in the steps below, shown this once — keep it on that machine")
+
+      IO.puts("")
+      Render.runner_setup(r["setup"])
+    end)
+  end
+
+  def run("runner", ["setup", ref, runner], o) do
+    HTTP.get("/boards/#{enc(ref)}/runners/#{enc(runner)}/setup")
+    |> out(o, &Render.runner_setup(&1["setup"]))
+  end
+
+  def run("runner", ["token", ref, runner], o) do
+    HTTP.post("/boards/#{enc(ref)}/runners/#{enc(runner)}/token", %{})
+    |> out(o, fn r ->
+      IO.puts("new token for #{r["runner"]["name"]}: the old one no longer works\n")
+      Render.runner_setup(r["setup"])
     end)
   end
 

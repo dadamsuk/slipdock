@@ -1092,6 +1092,22 @@ defmodule SlipdockCLI.Render do
     table(["ID", "NAME", "POOL", "LAST SEEN", "NOW"], rows)
   end
 
+  # The wizard's steps, as `Slipdock.Runners.Setup` writes them.
+  def runner_setup(setup) do
+    IO.puts(setup["title"])
+    IO.puts(setup["intro"] <> "\n")
+
+    setup["steps"]
+    |> Enum.with_index(1)
+    |> Enum.each(fn {step, n} ->
+      IO.puts("#{n}. #{step["text"]}")
+      if step["code"], do: IO.puts("\n" <> indent(step["code"], "    ") <> "\n")
+    end)
+
+    Enum.each(setup["warnings"] || [], &IO.puts("\n⚠ " <> &1))
+    IO.puts("\n" <> dim(setup["cost"]))
+  end
+
   def jobs([]), do: IO.puts(dim("no jobs"))
 
   def jobs(jobs) do
