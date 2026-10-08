@@ -306,6 +306,7 @@ server because that is the server that drew the page.
 | A runner job sits `queued` | No runner of that pool is running for that board: check its name and pool in **Automations → Runners** (*last seen*), and that the rule's pool is spelled the same. |
 | A runner's agent says it can't use the Slipdock tools (`get_card`, `comment` refused) | The runner's claude line has no `--allowedTools` for the server, or names it wrongly. Its name on that machine is in `claude mcp list` (the claude.ai connector is `claude_ai_Slipdock`). **Setup**, tick *Let it use the Slipdock tools* with that name, and run the one-liner again; or set `ALLOWED_TOOLS` in the config by hand. |
 | A runner's agent can't find a project command or skill (`/genarticle` "not found") | The runner has no working directory, so jobs start in your home and the project's `.claude/` isn't loaded. Set the working directory to the project's folder and run the one-liner again. |
+| Every job fails with `cd: can't cd to ~/…` | A runner installed before `~` was understood wrote it in quotes, where sh doesn't expand it. Run the one-liner again (**Setup**), or give a full path. |
 | A job fails with exit 127, "no such job kind" | The rule queued a kind this runner's config has no `job_<kind>` (shell) or `Job-<Kind>` (PowerShell) function for. Add one, or change the rule's kind. |
 | The agent inventing list or tag names | It has not read the guide, or read it without a token. The guide with a token ends with your real boards and lists. |
 

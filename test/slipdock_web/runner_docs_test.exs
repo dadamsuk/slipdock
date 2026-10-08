@@ -78,5 +78,7 @@ defmodule SlipdockWeb.RunnerDocsTest do
     assert read("docs/agents.md") =~ "can't use the Slipdock tools"
     assert read("docs/manual.md") =~ "--no-slipdock-tools"
     assert read("README.md") =~ "nobody will answer questions"
+    assert read("docs/manual.md") =~ "another user's `~bob/…` is refused"
+    assert read("docs/agents.md") =~ "can't cd to ~/"
   end
 end

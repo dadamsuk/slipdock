@@ -1492,6 +1492,9 @@ which writes `~/.local/bin/slipdock-runner`, its config at
 `~/.config/slipdock-runner/config` (mode 600, yours to edit — it is shell,
 and each `job_<kind>` function in it is a kind of job this machine will run)
 and a systemd user unit (Linux) or launchd agent (macOS), and starts it.
+`--cwd '~/…'` (or `-Cwd '~\…'` on Windows) is the runner's own home even
+in quotes, and is written into the config as `"$HOME"/'…'` (`Join-Path $HOME
+'…'`); another user's `~bob/…` is refused — give a full path.
 `--agent codex` or `--agent custom --command '…'` run something else;
 `--service none` and `--no-start` leave starting it to you. The installer is
 the same file for everyone; its SHA-256 is at `/runner/SHA256SUMS` to check

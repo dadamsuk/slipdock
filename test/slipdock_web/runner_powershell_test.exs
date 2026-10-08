@@ -298,6 +298,29 @@ defmodule SlipdockWeb.RunnerPowerShellTest do
       assert out =~ "-McpServers must be names"
     end
 
+    test "-Cwd under ~ is the runner's own home; another user's is refused", ctx do
+      home =
+        String.trim(
+          elem(System.cmd(@pwsh, ["-NoProfile", "-Command", "[Console]::Out.Write($HOME)"]), 0)
+        )
+
+      {_, 0} = install(ctx, ["-Url", ctx.url, "-Token", "t", "-Cwd", "~/it's x"])
+      assert installed(ctx, "WorkDir") == Path.join(home, "it's x")
+
+      assert File.read!(Path.join([ctx.dir, "inst", "config.ps1"])) =~
+               "$WorkDir = Join-Path $HOME 'it''s x'"
+
+      {_, 0} = install(ctx, ["-Url", ctx.url, "-Token", "t", "-Cwd", "~"])
+      assert installed(ctx, "WorkDir") == home
+
+      {_, 0} = install(ctx, ["-Url", ctx.url, "-Token", "t", "-Cwd", "C:\\src\\~x"])
+      assert installed(ctx, "WorkDir") == "C:\\src\\~x"
+
+      {out, code} = install(ctx, ["-Url", ctx.url, "-Token", "t", "-Cwd", "~bob/x"])
+      assert code != 0
+      assert out =~ "-Cwd can't be another user's ~"
+    end
+
     test "what it installs takes and runs a job", ctx do
       {_, 0} =
         install(ctx, [

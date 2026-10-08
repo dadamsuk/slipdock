@@ -23,7 +23,8 @@
 #   --kind NAME            the job kind that runs it (default: the agent's name)
 #   --command CMD          for --agent custom: the command, run with sh -c;
 #                          the prompt is in $SLIPDOCK_PROMPT
-#   --cwd DIR              where jobs run (default: your home)
+#   --cwd DIR              where jobs run (default: your home); ~/… is your home,
+#                          even quoted
 #   --permission-mode M    for claude: its --permission-mode (default: acceptEdits)
 #   --mcp-servers A,B      for claude: the Slipdock MCP servers whose tools a job
 #                          may use without asking, as Claude Code names them
@@ -80,7 +81,7 @@ while [ $# -gt 0 ]; do
     --instructions) need "$@"; INSTRUCTIONS=$2; shift 2 ;;
     --before-job) need "$@"; BEFORE_JOB=$2; shift 2 ;;
     --after-job) need "$@"; AFTER_JOB=$2; shift 2 ;;
-    -h | --help) sed -n '2,40p' "$0" 2>/dev/null || echo "see the comments at the top of install.sh"; exit 0 ;;
+    -h | --help) sed -n '2,41p' "$0" 2>/dev/null || echo "see the comments at the top of install.sh"; exit 0 ;;
     *) die "unknown option $1 (see --help)" ;;
   esac
 done
@@ -97,6 +98,10 @@ case "$POOL" in '' | *[!a-z0-9_-]*) die "--pool must be lower case letters, digi
 case "$AGENT" in claude | codex | custom) ;; *) die "--agent must be claude, codex or custom" ;; esac
 [ -n "$KIND" ] || KIND=$AGENT
 case "$KIND" in '' | *[!a-z0-9_-]*) die "--kind must be lower case letters, digits, - or _" ;; esac
+case "$CWD" in
+  '~' | '~/'*) ;;
+  '~'*) die "--cwd can't be another user's ~: use a full path, or ~/ for the runner's own home" ;;
+esac
 case "$TIMEOUT" in '' | *[!0-9]*) die "--timeout must be a number of seconds" ;; esac
 [ "$AGENT" != custom ] || [ -n "$COMMAND" ] || die "--agent custom needs --command"
 case "$SERVICE" in auto | systemd | launchd | none) ;; *) die "--service must be auto, systemd, launchd or none" ;; esac
@@ -106,6 +111,16 @@ command -v curl >/dev/null 2>&1 || die "curl is needed and was not found"
 # Single quotes around anything, with any quote in it closed, escaped and
 # reopened: inside them the shell reads nothing.
 q() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
+
+# The working directory as the config spells it: ~ and ~/… become "$HOME",
+# which sh would not expand inside the quotes.
+workdir() {
+  case "$1" in
+    '~') printf '"$HOME"' ;;
+    '~/'*) printf '"$HOME"/%s' "$(q "${1#??}")" ;;
+    *) q "$1" ;;
+  esac
+}
 
 # A heredoc delimiter the text can't contain: random, and drawn again in the
 # unlikely event it is in there.
@@ -228,7 +243,7 @@ cat >"$CONFIG.tmp" <<EOF
 SLIPDOCK_URL=$(q "$URL")
 SLIPDOCK_RUNNER_TOKEN=$(q "$TOKEN")
 POOL=$(q "$POOL")
-WORKDIR=$(q "$CWD")
+WORKDIR=$(workdir "$CWD")
 JOB_TIMEOUT=$TIMEOUT
 PERMISSION_MODE=$(q "$PERMISSION_MODE")
 ALLOWED_TOOLS=$(q "$ALLOWED_TOOLS")

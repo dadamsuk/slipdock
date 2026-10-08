@@ -143,6 +143,55 @@ defmodule SlipdockWeb.RunnerInstallTest do
     end
   end
 
+  describe "--cwd under ~" do
+    test "~/… is the home of whoever runs it, quotes, spaces and all", ctx do
+      {_, 0} = install(ctx, @base ++ ["--cwd", "~/it's a dir/x"])
+      assert sourced(ctx, "WORKDIR") == Path.join(ctx.home, "it's a dir/x")
+
+      {_, 0} = install(ctx, @base ++ ["--cwd", "~"])
+      assert sourced(ctx, "WORKDIR") == ctx.home
+    end
+
+    test "a full path is written exactly as before", ctx do
+      {_, 0} = install(ctx, @base ++ ["--cwd", "/srv/~it's"])
+      assert sourced(ctx, "WORKDIR") == "/srv/~it's"
+
+      assert File.read!(Path.join(ctx.home, ".config/slipdock-runner/config")) =~
+               ~S(WORKDIR='/srv/~it'\''s')
+    end
+
+    test "another user's ~ is refused before anything is written", ctx do
+      for cwd <- ["~bob/x", "~root"] do
+        {out, 1} = install(ctx, @base ++ ["--cwd", cwd])
+        assert out =~ "--cwd can't be another user's ~", cwd
+      end
+
+      refute File.exists?(Path.join(ctx.home, ".local"))
+    end
+
+    test "the wizard's one-liner for ~/x writes the config it previews", ctx do
+      {:ok, a} = Slipdock.Runners.Setup.normalise(%{"cwd" => "~/x y", "service" => "none"})
+      gen_ctx = %{base_url: "https://slipdock.example", token: "sdr_t"}
+
+      [_curl, flags] =
+        String.split(Slipdock.Runners.Setup.server_one_liner(a, gen_ctx), "| sh -s -- ", parts: 2)
+
+      {_, 0} =
+        System.cmd("sh", ["-c", "sh \"$0\" " <> flags <> " --no-start", ctx.script],
+          env: [{"HOME", ctx.home}, {"XDG_CONFIG_HOME", nil}],
+          stderr_to_stdout: true
+        )
+
+      written = File.read!(Path.join(ctx.home, ".config/slipdock-runner/config"))
+      assert written =~ ~S(WORKDIR="$HOME"/'x y') <> "\n"
+
+      assert written =~
+               hd(Regex.run(~r/^WORKDIR=.*$/m, Slipdock.Runners.Setup.config_preview(a, gen_ctx)))
+
+      assert sourced(ctx, "WORKDIR") == Path.join(ctx.home, "x y")
+    end
+  end
+
   test "--help shows every option", ctx do
     {out, 0} = install(ctx, ["--help"])
     assert out =~ "--mcp-servers A,B"

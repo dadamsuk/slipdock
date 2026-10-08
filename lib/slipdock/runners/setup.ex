@@ -150,6 +150,11 @@ defmodule Slipdock.Runners.Setup do
           String.length(to_string(answers["after_job"])) > 2000 ->
         {:error, "a hook is over 2,000 characters"}
 
+      someone_elses_home?(answers["cwd"]) ->
+        {:error,
+         "the working directory can't be another user's ~: use a full path, or ~/ for the " <>
+           "runner's own home"}
+
       not match?({:ok, _}, timeout(answers["timeout"])) ->
         {:error, "the timeout must be a whole number of seconds, at least 60"}
 
@@ -191,6 +196,13 @@ defmodule Slipdock.Runners.Setup do
     do: a["mcp_servers"] |> mcp_server_list() |> Enum.map_join(",", &("mcp__" <> &1))
 
   def allowed_tools(_), do: ""
+
+  # ~ and ~/… are the runner's own home; ~bob/… would be somebody else's, which
+  # the config can't spell without the shell's help.
+  defp someone_elses_home?("~" <> rest),
+    do: not (rest == "" or String.starts_with?(rest, ["/", "\\"]))
+
+  defp someone_elses_home?(_), do: false
 
   defp timeout(n) when is_integer(n) and n >= 60, do: {:ok, n}
 
@@ -513,7 +525,7 @@ defmodule Slipdock.Runners.Setup do
       %{
         text: "Start Claude Code where the work is:",
         lang: "sh",
-        code: "cd #{sh_q(cwd(a))} && claude --permission-mode #{a["permission_mode"]}"
+        code: "cd #{sh_path(cwd(a))} && claude --permission-mode #{a["permission_mode"]}"
       },
       %{
         text:
@@ -703,7 +715,7 @@ defmodule Slipdock.Runners.Setup do
     SLIPDOCK_URL=#{sh_q(ctx.base_url)}
     SLIPDOCK_RUNNER_TOKEN=#{sh_q(ctx.token || @token_placeholder)}
     POOL=#{sh_q(a["pool"])}
-    WORKDIR=#{sh_q(if(a["cwd"] == "", do: "(your home)", else: a["cwd"]))}
+    WORKDIR=#{if(a["cwd"] == "", do: sh_q("(your home)"), else: sh_path(a["cwd"]))}
     JOB_TIMEOUT=#{a["timeout"]}
     PERMISSION_MODE=#{sh_q(a["permission_mode"])}
     ALLOWED_TOOLS=#{sh_q(if(a["agent"] == "claude", do: allowed_tools(a), else: ""))}
@@ -845,6 +857,13 @@ defmodule Slipdock.Runners.Setup do
   @doc false
   # Single quotes, with any quote inside closed, escaped and reopened.
   def sh_q(value), do: "'" <> String.replace(to_string(value), "'", ~S('\'')) <> "'"
+
+  @doc false
+  # A path for sh: quoted like any value, except that ~ and ~/… become the
+  # home directory of whoever runs it — inside quotes sh wouldn't expand them.
+  def sh_path("~"), do: ~S("$HOME")
+  def sh_path("~/" <> rest), do: ~S("$HOME"/) <> sh_q(rest)
+  def sh_path(path), do: sh_q(path)
 
   @doc false
   # PowerShell's literal string: a quote inside is doubled.
