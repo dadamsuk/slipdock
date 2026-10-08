@@ -148,6 +148,9 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
       render_hook(card_panel(view), "toggle_check", %{"id" => "#{check.id}"})
       assert Repo.get!(ChecklistItem, check.id).done
 
+      assert [%{message: "ticked a checklist item on " <> _} | _] =
+               Boards.list_activities(ctx.my_card.board_id, 1, ctx.my_card.id)
+
       render_hook(card_panel(view), "delete_comment", %{"id" => "#{comment.id}"})
       refute Repo.get(Comment, comment.id)
     end
