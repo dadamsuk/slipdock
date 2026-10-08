@@ -166,10 +166,24 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
                "board, or parent"
     end
 
-    test "an unknown tag is refused rather than dropped", ctx do
+    test "an unknown tag is refused rather than dropped, naming the tags there are", ctx do
+      tag_fixture(ctx.board, "bug")
+
       assert ctx.conn
              |> call("create_card", %{board: "delivery", title: "x", tags: ["nope"]})
-             |> error!() =~ "tag"
+             |> error!() == ~s(no tag "nope" on board delivery; its tags are: bug, ux)
+
+      refute Enum.any?(Boards.list_cards(ctx.board, %{}), &(&1.title == "x"))
+    end
+
+    test "a tag on a board with none says so", ctx do
+      bare = board_fixture(%{"name" => "Bare", "code" => "bare"}, owner: ctx.user)
+
+      assert ctx.conn
+             |> call("create_card", %{board: "bare", title: "x", tags: ["nope"]})
+             |> error!() =~ ~s(no tag "nope" on board bare; it has no tags)
+
+      assert Boards.list_cards(bare, %{}) == []
     end
 
     test "never on a stranger's board, nor under their card", ctx do
@@ -238,6 +252,51 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
       card = api_card(ctx.conn, ctx.card.id)
       assert card["priority"] == "none"
       assert card["start_date"] == nil
+    end
+
+    test "an unknown tag names the board's tags, and nothing in the call lands", ctx do
+      {:ok, item} = Boards.add_checklist_item(ctx.card, "Write it")
+
+      text =
+        ctx.conn
+        |> call("update_card", %{
+          card: ctx.card.id,
+          priority: "high",
+          add_flags: ["blocked"],
+          add_tags: ["ux", "mcp-test"],
+          add_checklist: ["Another"],
+          check_items: [item.id]
+        })
+        |> error!()
+
+      assert text == ~s(no tag "mcp-test" on board delivery; its tags are: ux)
+
+      card = Boards.get_card!(ctx.card.id)
+      assert card.priority == "none"
+      assert card.flags == []
+      assert card.tags == []
+      assert [%{text: "Write it", done: false}] = card.checklist_items
+    end
+
+    test "remove_tags with an unknown tag is refused the same way", ctx do
+      assert ctx.conn
+             |> call("update_card", %{card: ctx.card.id, remove_tags: ["gone"]})
+             |> error!() =~ ~s(no tag "gone" on board delivery; its tags are: ux)
+    end
+
+    test "tag parameters say the tag must already be on the board", ctx do
+      tools =
+        ctx.conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/mcp", Jason.encode!(%{jsonrpc: "2.0", id: 1, method: "tools/list"}))
+        |> json_response(200)
+        |> get_in(["result", "tools"])
+
+      props = fn name -> Enum.find(tools, &(&1["name"] == name))["inputSchema"]["properties"] end
+
+      assert props.("create_card")["tags"]["description"] =~ "already on the board"
+      assert props.("update_card")["add_tags"]["description"] =~ "already on the board"
+      assert props.("update_card")["remove_tags"]["description"] =~ "on the board"
     end
 
     test "an unknown priority is refused", ctx do

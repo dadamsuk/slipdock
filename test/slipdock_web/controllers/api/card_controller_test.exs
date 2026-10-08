@@ -130,8 +130,10 @@ defmodule SlipdockWeb.API.CardControllerTest do
                |> patch("/api/cards/#{card.id}", %{remove_tags: ["bug"]})
                |> json_response(200)
 
-      assert %{"error" => "tag \"nope\" not found"} =
-               conn |> patch("/api/cards/#{card.id}", %{add_tags: ["nope"]}) |> json_response(404)
+      assert %{"error" => error} =
+               conn |> patch("/api/cards/#{card.id}", %{add_tags: ["nope"]}) |> json_response(422)
+
+      assert error =~ ~r/^no tag "nope" on board \S+; its tags are: bug, ux$/
 
       assert Enum.map(Boards.get_card!(card.id).tags, & &1.name) == ["ux"]
     end
