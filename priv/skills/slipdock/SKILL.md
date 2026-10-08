@@ -29,7 +29,9 @@ it back; `archive_board` does the same for a board. Prefer those: `delete_card` 
 undone. `create_list` and `create_board` add structure. `list_cards` with `full: true` reads
 every card in full (comments, checklist, docs) in one call instead of a `get_card` each. `update_card` also sets dependencies
 and works the checklist. `list_pages` lists a board's wiki (`tree: true` nests it, as `page tree`
-does), and `read_page` reads one. Anything the tools don't cover (automations, sprints, attachments,
+does), and `read_page` reads one. `page_info` answers what `page links`, `page sections`,
+`page wanted` and `page resolve` do — ask it for `sections` before a `write_page` section edit
+rather than guessing the heading path. Anything the tools don't cover (automations, sprints, attachments,
 fields) is still the CLI or the API.
 
 ## If the CLI is not installed here
