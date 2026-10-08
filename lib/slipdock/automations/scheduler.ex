@@ -43,13 +43,21 @@ defmodule Slipdock.Automations.Scheduler do
   @impl true
   def handle_call(:tick, _from, state), do: {:reply, safe_tick(), state}
 
-  # A rule that blows up must not take the scheduler with it.
+  # A rule that blows up must not take the scheduler with it. The same clock
+  # takes back runner jobs whose lease has run out (see `Slipdock.Runners`).
   defp safe_tick do
+    sweep_runner_jobs()
     tick()
   rescue
     exception ->
       Logger.error("Automation scheduler failed: #{Exception.message(exception)}")
       0
+  end
+
+  defp sweep_runner_jobs do
+    Slipdock.Runners.sweep()
+  rescue
+    exception -> Logger.error("Runner job sweep failed: #{Exception.message(exception)}")
   end
 
   defp interval,

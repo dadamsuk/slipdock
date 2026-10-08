@@ -1,0 +1,70 @@
+defmodule SlipdockCLI.Runners do
+  @moduledoc false
+
+  # Runners on the user's own machines, and the jobs automation rules send
+  # them (the `runner` action). Making and revoking runners is the board
+  # owner's; anybody who can edit a card can cancel its jobs.
+
+  import SlipdockCLI.Util
+
+  alias SlipdockCLI.HTTP
+  alias SlipdockCLI.Render
+
+  @commands ~w(runner runners jobs job cancel-job)
+
+  @doc "The command names this module answers to; `SlipdockCLI` routes on it."
+  def commands, do: @commands
+
+  def run("runners", [ref], o), do: run("runner", ["ls", ref], o)
+
+  def run("runner", ["ls", ref], o) do
+    HTTP.get("/boards/#{enc(ref)}/runners") |> out(o, &Render.runners(&1["runners"]))
+  end
+
+  def run("runner", ["new", ref, name], o) do
+    pool = o[:pool] || fail("pass --pool P: the pool this runner takes jobs for")
+
+    HTTP.post("/boards/#{enc(ref)}/runners", %{"name" => name, "pool" => pool})
+    |> out(o, fn %{"runner" => r, "token" => token} ->
+      IO.puts("made runner ##{r["id"]} #{r["name"]} for pool #{r["pool"]}")
+      IO.puts("token (shown this once — keep it on the runner's machine):")
+      IO.puts("  " <> token)
+    end)
+  end
+
+  def run("runner", ["rm", ref, runner], o) do
+    HTTP.delete("/boards/#{enc(ref)}/runners/#{enc(runner)}")
+    |> out(o, fn _ -> IO.puts("revoked runner #{runner}: its token no longer works") end)
+  end
+
+  def run("runner", _, _o),
+    do:
+      fail(
+        "usage: slipdock runner ls <board> | new <board> <name> --pool P | rm <board> <runner>"
+      )
+
+  def run("jobs", [], o) do
+    case o[:card] do
+      nil -> fail("pass a board (`slipdock jobs <board>`) or --card ID")
+      card -> HTTP.get("/cards/#{enc(card)}/jobs") |> out(o, &Render.jobs(&1["jobs"]))
+    end
+  end
+
+  def run("jobs", [ref], o) do
+    HTTP.get("/boards/#{enc(ref)}/jobs", status: o[:status], limit: o[:limit])
+    |> out(o, &Render.jobs(&1["jobs"]))
+  end
+
+  def run("job", [id], o), do: HTTP.get("/jobs/#{enc(id)}") |> out(o, &Render.job(&1["job"]))
+
+  def run("cancel-job", [id], o) do
+    HTTP.post("/jobs/#{enc(id)}/cancel", %{})
+    |> out(o, fn %{"job" => j} ->
+      if j["status"] == "cancelled",
+        do: IO.puts("cancelled job ##{j["id"]}"),
+        else: IO.puts("asked the runner to stop job ##{j["id"]} (it hears on its next heartbeat)")
+    end)
+  end
+
+  def run(cmd, _args, _o), do: bad_usage(cmd)
+end

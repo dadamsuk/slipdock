@@ -262,6 +262,15 @@ defmodule Slipdock.Automations.Runner do
   defp days_since(%DateTime{} = at), do: DateTime.diff(DateTime.utc_now(), at, :day)
   defp days_since(_), do: 0
 
+  # What a runner is told when the rule doesn't say: which card, where to
+  # read it, and what it asks for.
+  @runner_prompt ~S"""
+  Work on Slipdock card #{{card.id}}: {{card.title}}
+  {{card.url}}
+
+  {{card.description}}
+  """
+
   ## Running ------------------------------------------------------------------
 
   @doc """
@@ -549,6 +558,27 @@ defmodule Slipdock.Automations.Runner do
     message = text(action["message"], ctx, ctx.rule.name)
     Boards.log_activity(board_id(ctx), ctx.card && ctx.card.id, "automation", message)
     {:ok, "logged"}
+  end
+
+  # Queues the card for a pool of runners. Only data goes in the job: what
+  # the kind means is the runner's own business (see `Slipdock.Runners`).
+  defp do_perform("runner", action, ctx) do
+    with {:ok, card} <- need_card(ctx) do
+      prompt = text(action["prompt"], ctx, render(@runner_prompt, ctx.bindings))
+
+      attrs = %{
+        pool: action["pool"],
+        kind: action["kind"] || "claude",
+        prompt: prompt,
+        rule: ctx.rule
+      }
+
+      case Slipdock.Runners.queue(card, attrs) do
+        {:ok, :already_open, job} -> {:ok, "job ##{job.id} is already #{job.status}"}
+        {:ok, job} -> {:ok, "queued job ##{job.id} for the #{job.pool} runners"}
+        {:error, reason} -> {:error, "runner: #{reason}"}
+      end
+    end
   end
 
   defp do_perform(type, _action, _ctx), do: {:error, "unknown action “#{type}”"}

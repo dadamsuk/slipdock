@@ -117,6 +117,14 @@ defmodule SlipdockWeb.Router do
     get "/install.sh", InstallController, :show
   end
 
+  # The runner protocol (see `SlipdockWeb.API.RunnerController`): plain text,
+  # and its own token, so outside the JSON pipelines altogether.
+  scope "/api/runner", SlipdockWeb.API do
+    post "/claim", RunnerController, :claim
+    post "/jobs/:id/heartbeat", RunnerController, :heartbeat
+    post "/jobs/:id/finish", RunnerController, :finish
+  end
+
   # The board as an MCP server (see `SlipdockWeb.MCP.Plug`). Outside every
   # pipeline: it does its own bearer auth, because the `:api` pipeline refuses
   # every POST from a read token and every MCP call is a POST, and it reads its
@@ -402,6 +410,14 @@ defmodule SlipdockWeb.Router do
     patch "/boards/:board/automations/:id", AutomationController, :update
     delete "/boards/:board/automations/:id", AutomationController, :delete
     post "/boards/:board/automations/:id/run", AutomationController, :run
+    # Runners on the user's own machines and the jobs rules send them.
+    get "/boards/:board/runners", JobController, :runners
+    post "/boards/:board/runners", JobController, :create_runner
+    delete "/boards/:board/runners/:id", JobController, :delete_runner
+    get "/boards/:board/jobs", JobController, :index
+    get "/cards/:id/jobs", JobController, :card_jobs
+    get "/jobs/:id", JobController, :show
+    post "/jobs/:id/cancel", JobController, :cancel
 
     get "/boards/:board/tags", BoardController, :tags
     post "/boards/:board/tags", BoardController, :create_tag

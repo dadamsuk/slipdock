@@ -86,11 +86,22 @@ defmodule Slipdock.Automations.Spec do
      "call a URL back with the card — its title, a link to it, its dates, flags and status. " <>
        "method: post (the default), put or patch send JSON; get puts the same fields in the " <>
        "query string. The URL may itself use placeholders"},
-    {"log", ["message"], [], "write a line into the board's activity log"}
+    {"log", ["message"], [], "write a line into the board's activity log"},
+    {"runner", ["pool"], ["kind", "prompt"],
+     "send the card to a coding agent on one of the user's own machines: queue a job for the " <>
+       "runners of that pool, which run the kind of job named (claude by default) with the " <>
+       "prompt (the card's title, link and description by default). The runner's own config " <>
+       "decides what each kind runs. At most one open job per card per rule"}
   ]
 
   # Names people (and models) reach for that mean an action we already have.
-  @action_aliases %{"callback" => "webhook", "http" => "webhook", "post" => "webhook"}
+  @action_aliases %{
+    "callback" => "webhook",
+    "http" => "webhook",
+    "post" => "webhook",
+    "send_to_runner" => "runner",
+    "send to runner" => "runner"
+  }
 
   # What text in an action (a subject, a comment, an alert body) may refer to.
   @placeholders ~w({{card.title}} {{card.id}} {{card.url}} {{card.description}} {{card.priority}}
@@ -245,6 +256,26 @@ defmodule Slipdock.Automations.Spec do
     end
   end
 
+  defp check_action(%{"type" => "runner"} = action) do
+    format = Slipdock.Runners.Runner.name_format()
+    action = Map.update!(action, "pool", &(&1 |> to_string() |> String.downcase()))
+    action = Map.update(action, "kind", "claude", &(&1 |> to_string() |> String.downcase()))
+
+    cond do
+      not Regex.match?(format, action["pool"]) ->
+        {:error, "action “runner” pool must be lower case letters, digits, - or _"}
+
+      not Regex.match?(format, action["kind"]) ->
+        {:error, "action “runner” kind must be lower case letters, digits, - or _"}
+
+      byte_size(to_string(action["prompt"])) > Slipdock.Runners.limits().max_prompt ->
+        {:error, "action “runner” prompt is too long"}
+
+      true ->
+        {:ok, action}
+    end
+  end
+
   defp check_action(action), do: {:ok, action}
 
   # Keeps the known keys of a trigger or action, checking the required ones
@@ -385,6 +416,7 @@ defmodule Slipdock.Automations.Spec do
       "create_page" -> "start a wiki page" <> page_title(a["title"])
       "webhook" -> "#{String.upcase(to_string(a["method"] || "post"))} #{a["url"]}"
       "log" -> "note it in the activity log"
+      "runner" -> "send it to the #{a["pool"]} runners (#{a["kind"] || "claude"})"
       other -> other
     end
   end

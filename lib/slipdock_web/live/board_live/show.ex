@@ -100,6 +100,7 @@ defmodule SlipdockWeb.BoardLive.Show do
         Boards.subscribe(board.id)
         Boards.subscribe_templates()
         Automations.subscribe_callbacks(board.id)
+        Slipdock.Runners.subscribe_board(board.id)
       end
 
       {:ok,
@@ -482,7 +483,16 @@ defmodule SlipdockWeb.BoardLive.Show do
     end
   end
 
+  # A runner moved one of this board's jobs along: the open card shows it.
   @impl true
+  def handle_info({:jobs_changed, card_id}, socket) do
+    if match?(%{panel: :card, card: %Card{id: ^card_id}}, socket.assigns),
+      do:
+        send_update(SlipdockWeb.BoardLive.CardComponent, id: "card-panel", jobs_changed: card_id)
+
+    {:noreply, socket}
+  end
+
   def handle_info({:board_changed, _id}, socket) do
     # A burst of writes (an import, an automation, a bulk move) queues one of
     # these per write; one reload answers all that have already arrived.

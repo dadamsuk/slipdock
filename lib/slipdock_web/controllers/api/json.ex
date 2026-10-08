@@ -743,6 +743,47 @@ defmodule SlipdockWeb.API.JSON do
     }
   end
 
+  @doc "A runner, for the board's owner. Never its token."
+  def runner(%Slipdock.Runners.Runner{} = r) do
+    %{
+      id: r.id,
+      name: r.name,
+      pool: r.pool,
+      board_id: r.board_id,
+      current_job_id: r.current_job_id,
+      last_seen_at: r.last_seen_at,
+      settings: r.settings || %{},
+      created_at: r.inserted_at
+    }
+  end
+
+  def job(%Slipdock.Runners.Job{} = j) do
+    %{
+      id: j.id,
+      card_id: j.card_id,
+      card: if(Ecto.assoc_loaded?(j.card) and j.card, do: j.card.title),
+      board_id: j.board_id,
+      rule_id: j.rule_id,
+      pool: j.pool,
+      kind: j.kind,
+      status: j.status,
+      runner_id: j.runner_id,
+      runner: j.runner_name,
+      attempts: j.attempts,
+      cancel_requested: not is_nil(j.cancel_requested_at),
+      exit_code: j.exit_code,
+      error: j.error,
+      prompt: j.prompt,
+      log_tail: j.log_tail,
+      output: j.output,
+      queued_at: j.inserted_at,
+      claimed_at: j.claimed_at,
+      started_at: j.started_at,
+      finished_at: j.finished_at,
+      lease_expires_at: j.lease_expires_at
+    }
+  end
+
   def errors(%Ecto.Changeset{} = changeset) do
     Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
       Regex.replace(~r"%{(\w+)}", msg, fn _, key ->

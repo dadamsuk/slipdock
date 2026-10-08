@@ -486,6 +486,82 @@ defmodule SlipdockWeb.BoardLive.CardSections do
     """
   end
 
+  attr :can_write, :boolean, required: true
+  attr :jobs, :list, required: true
+  attr :target, :any, required: true
+
+  @doc """
+  The runner jobs automation rules have sent this card on, newest first:
+  where each stands, who took it, the end of its log, and a way to stop it.
+  """
+  def jobs_section(assigns) do
+    ~H"""
+    <section class="space-y-2 px-1" id="card-jobs">
+      <h3 class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+        <.icon name="hero-cpu-chip" class="size-3.5" /> Runner jobs
+      </h3>
+      <ul class="space-y-1.5">
+        <li
+          :for={job <- @jobs}
+          id={"card-job-#{job.id}"}
+          class="rounded-lg border border-base-300 px-2 py-1.5 text-xs"
+        >
+          <div class="flex items-center gap-2">
+            <span class={["badge badge-xs", job_badge(job.status)]}>{job.status}</span>
+            <span class="font-mono text-base-content/50">#{job.id}</span>
+            <span class="min-w-0 flex-1 truncate text-base-content/70">
+              {job.pool} · {job.kind}{if job.runner_name, do: " · #{job.runner_name}"}
+            </span>
+            <span class="shrink-0 text-base-content/50" title={to_string(job.inserted_at)}>
+              {job_time(job)}
+            </span>
+            <button
+              :if={@can_write and Slipdock.Runners.Job.open?(job) and is_nil(job.cancel_requested_at)}
+              phx-target={@target}
+              type="button"
+              class="btn btn-ghost btn-xs"
+              phx-click="cancel_job"
+              phx-value-job={job.id}
+              title="Stop this job"
+            >
+              Cancel
+            </button>
+            <span
+              :if={job.cancel_requested_at && Slipdock.Runners.Job.open?(job)}
+              class="text-warning"
+            >
+              stopping…
+            </span>
+          </div>
+          <p :if={job.error} class="mt-1 text-error">{job.error}</p>
+          <pre
+            :if={tail = job_log(job)}
+            class="mt-1 max-h-32 overflow-auto whitespace-pre-wrap rounded bg-base-200 p-1.5 font-mono text-2xs"
+          >{tail}</pre>
+        </li>
+      </ul>
+    </section>
+    """
+  end
+
+  defp job_badge("done"), do: "badge-success"
+  defp job_badge(status) when status in ~w(failed timeout), do: "badge-error"
+  defp job_badge(status) when status in ~w(claimed running), do: "badge-info"
+  defp job_badge(_), do: "badge-ghost"
+
+  defp job_time(job) do
+    at = job.finished_at || job.started_at || job.claimed_at || job.inserted_at
+    Calendar.strftime(at, "%d %b %H:%M")
+  end
+
+  # The last few lines are what say how it went.
+  defp job_log(job) do
+    case job.output || job.log_tail do
+      text when text in [nil, ""] -> nil
+      text -> text |> String.split("\n") |> Enum.take(-12) |> Enum.join("\n")
+    end
+  end
+
   attr :board, :any, required: true
   attr :can_write, :boolean, required: true
   attr :card, Card, required: true

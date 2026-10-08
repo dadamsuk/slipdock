@@ -1074,6 +1074,62 @@ defmodule SlipdockCLI.Render do
     table(["WHEN", "RESULT", "CALL", "RULE", "CARD"], rows)
   end
 
+  def runners([]),
+    do: IO.puts(dim("no runners — make one with `slipdock runner new <board> <name> --pool P`"))
+
+  def runners(runners) do
+    rows =
+      Enum.map(runners, fn r ->
+        [
+          to_string(r["id"]),
+          r["name"],
+          r["pool"],
+          if(r["last_seen_at"], do: stamp(r["last_seen_at"]), else: dim("never")),
+          if(r["current_job_id"], do: "job ##{r["current_job_id"]}", else: dim("idle"))
+        ]
+      end)
+
+    table(["ID", "NAME", "POOL", "LAST SEEN", "NOW"], rows)
+  end
+
+  def jobs([]), do: IO.puts(dim("no jobs"))
+
+  def jobs(jobs) do
+    rows =
+      Enum.map(jobs, fn j ->
+        [
+          to_string(j["id"]),
+          job_status(j),
+          "#" <> to_string(j["card_id"]) <> " " <> fit(j["card"] || "", 30),
+          j["pool"] <> "/" <> j["kind"],
+          j["runner"] || dim("-"),
+          stamp(j["finished_at"] || j["started_at"] || j["claimed_at"] || j["queued_at"])
+        ]
+      end)
+
+    table(["JOB", "STATUS", "CARD", "POOL/KIND", "RUNNER", "WHEN"], rows)
+  end
+
+  def job(j) do
+    IO.puts("job ##{j["id"]}  #{job_status(j)}  card ##{j["card_id"]}  #{j["pool"]}/#{j["kind"]}")
+    if j["runner"], do: IO.puts("runner:   #{j["runner"]} (attempt #{j["attempts"]})")
+    if j["exit_code"], do: IO.puts("exit:     #{j["exit_code"]}")
+    if j["error"], do: IO.puts("error:    #{j["error"]}")
+    IO.puts("queued:   #{stamp(j["queued_at"])}")
+    if j["finished_at"], do: IO.puts("finished: #{stamp(j["finished_at"])}")
+    IO.puts("\nprompt:\n" <> indent(j["prompt"] || ""))
+
+    case j["output"] || j["log_tail"] do
+      text when text in [nil, ""] -> :ok
+      text -> IO.puts("\nlog (tail):\n" <> indent(text))
+    end
+  end
+
+  defp job_status(%{"cancel_requested" => true, "status" => s}) when s in ~w(claimed running),
+    do: s <> " (stopping)"
+
+  defp job_status(%{"status" => s}), do: s
+
   def alerts([]), do: IO.puts(dim("no alerts"))
 
   def alerts(alerts) do

@@ -67,6 +67,11 @@ defmodule SlipdockWeb.Endpoint do
   # `/mcp` reads its own body. JSON-RPC has its own answer to a body that is
   # not JSON (`-32700`), and `Plug.Parsers` would raise a 400 HTML page first.
   defp parse_body(%Plug.Conn{path_info: ["mcp"]} = conn, _opts), do: conn
+  # Runners send their logs as plain text from `curl`, whose default content
+  # type would otherwise have the form parser eat them.
+  defp parse_body(%Plug.Conn{path_info: ["api", "runner" | _]} = conn, _opts),
+    do: Plug.Conn.fetch_query_params(conn)
+
   defp parse_body(conn, _opts), do: Plug.Parsers.call(conn, @parsers)
 
   plug Plug.MethodOverride
