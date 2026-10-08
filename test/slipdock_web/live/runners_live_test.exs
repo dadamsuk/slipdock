@@ -125,6 +125,22 @@ defmodule SlipdockWeb.RunnersLiveTest do
 
     assert [%Runners.Job{card_id: card_id}] = Runners.list_jobs(board, status: "open")
     assert card_id == card.id
+    assert [%{"wait_while_doing" => true}] = rule.spec["actions"]
+  end
+
+  test "the top-card choice offers to wait while anything is in progress, ticked", %{
+    conn: conn,
+    board: board
+  } do
+    view = open(conn, board)
+    refute has_element?(view, "input[type=checkbox][name='wizard[wait]']")
+    choose(view, %{"scenario" => "server", "pool" => "dev", "send" => "top:To Do"})
+    assert has_element?(view, "input[type=checkbox][name='wizard[wait]'][checked]")
+
+    submit(view, %{"scenario" => "server", "pool" => "dev", "send" => "top:To Do", "wait" => "no"})
+
+    assert [rule] = Automations.list_rules(board.id)
+    refute Map.has_key?(hd(rule.spec["actions"]), "wait_while_doing")
   end
 
   test "an answer it can't use is said, and nothing is made", %{conn: conn, board: board} do

@@ -585,7 +585,8 @@ defmodule Slipdock.Automations.Runner do
         pool: action["pool"],
         kind: action["kind"] || "claude",
         prompt: prompt,
-        rule: ctx.rule
+        rule: ctx.rule,
+        wait_while_doing: action["wait_while_doing"] == true
       }
 
       case Slipdock.Runners.queue(card, attrs) do

@@ -1411,6 +1411,17 @@ minutes (`feed_cooldown_seconds`), so it doesn't go straight back out;
 **Run now** sends the top card at once regardless. A `list_top` rule must
 have a `runner` action, and the list must exist.
 
+**Waiting while anything is in progress.** A `runner` action with
+`"wait_while_doing": true` queues jobs that are not handed out while any
+other open card is in an in-progress list (a list with the *In progress*
+category) on the job's board — the job's own card doesn't count, and nor do
+cards on its sub-boards. The job stays `queued`, no try is counted, and the
+next claim after that list clears takes it. `slipdock jobs` and the API show
+the reason (`waiting_on`), and an empty claim says which job is held back.
+*Work a list with a runner* turns it on by default (its **Wait while
+anything is in progress** field); *Send cards to a runner* leaves it off. A
+board with no in-progress list refuses the option when the rule is saved.
+
 **How it is kept safe.** Runners pull: they dial out and ask for work, and
 the server never connects to them, so nothing needs a port, a tunnel or an
 exception to the outbound-address rules webhooks live by. And the server

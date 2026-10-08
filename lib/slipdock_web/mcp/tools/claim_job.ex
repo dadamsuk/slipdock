@@ -51,7 +51,15 @@ defmodule SlipdockWeb.MCP.Tools.ClaimJob do
       case Runners.claim(runner) do
         # Every idle poll is a model call: the empty answer is kept tiny.
         nil ->
-          {:ok, "nothing queued"}
+          case Runners.first_waiting(board, runner.pool) do
+            nil ->
+              {:ok, "nothing queued"}
+
+            job ->
+              {:ok,
+               "nothing queued to take: job ##{job.id} waits while " <>
+                 "#{Runners.waiting_reason(job)}"}
+          end
 
         job ->
           {:ok,

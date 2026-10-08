@@ -241,8 +241,8 @@ defmodule Slipdock.Runners do
   ## Queueing -----------------------------------------------------------------
 
   @doc """
-  Queues `card` for `pool`. `attrs` carries `:kind`, `:prompt` and `:rule`
-  (optional). Returns `{:ok, job}`, `{:ok, :already_open, job}` when the rule
+  Queues `card` for `pool`. `attrs` carries `:kind`, `:prompt`, `:rule` and
+  `:wait_while_doing` (optional). Returns `{:ok, job}`, `{:ok, :already_open, job}` when the rule
   already has an open job for the card, or `{:error, message}`.
   """
   def queue(%Card{} = card, attrs) do
@@ -266,6 +266,7 @@ defmodule Slipdock.Runners do
         pool: pool,
         kind: kind,
         prompt: prompt,
+        wait_while_doing: attrs[:wait_while_doing] == true,
         status: "queued"
       }
       |> Ecto.Changeset.change()
@@ -334,6 +335,66 @@ defmodule Slipdock.Runners do
 
   ## Claiming -----------------------------------------------------------------
 
+  # The open cards in a doing list on the job's board, other than its own: a
+  # job that waits while anything is in progress is not handed out while
+  # there is one. Its own card doesn't count, so a job put back after a
+  # lapsed claim, whose agent had already moved the card along, still goes.
+  defp busy_cards do
+    from(c in Card,
+      join: col in assoc(c, :column),
+      where:
+        c.board_id == parent_as(:job).board_id and col.category == "doing" and
+          is_nil(c.archived_at) and c.completed == false and c.id != parent_as(:job).card_id,
+      select: 1
+    )
+  end
+
+  @doc """
+  Why a queued job that waits while anything is in progress is not being
+  handed out: the card in the way (the first, in list order), or nil when
+  nothing is.
+  """
+  def waiting_on(%Job{status: "queued", wait_while_doing: true} = job) do
+    Repo.one(
+      from(c in Card,
+        join: col in assoc(c, :column),
+        where:
+          c.board_id == ^job.board_id and col.category == "doing" and is_nil(c.archived_at) and
+            c.completed == false and c.id != ^job.card_id,
+        order_by: [asc: col.position, asc: c.position, asc: c.id],
+        limit: 1
+      )
+    )
+  end
+
+  def waiting_on(_job), do: nil
+
+  @doc "What `waiting_on/1` says, as a line: `\"#123 is in progress\"`, or nil."
+  def waiting_reason(job) do
+    case waiting_on(job) do
+      nil -> nil
+      card -> "##{card.id} is in progress"
+    end
+  end
+
+  @doc """
+  The oldest queued job of `pool` on `board`'s tree that is waiting while
+  something is in progress, or nil: what a runner that got no work is
+  waiting for.
+  """
+  def first_waiting(%Board{} = board, pool) do
+    from(j in Job,
+      as: :job,
+      where:
+        j.root_board_id == ^Board.root_id(board) and j.pool == ^to_string(pool) and
+          j.status == "queued" and j.wait_while_doing,
+      where: exists(busy_cards()),
+      order_by: [asc: j.id],
+      limit: 1
+    )
+    |> Repo.one()
+  end
+
   @doc """
   Hands `runner` the oldest queued job of its pool and tree, with a lease, or
   waits up to `wait_ms` for one to arrive. Returns the job (with its card
@@ -388,9 +449,11 @@ defmodule Slipdock.Runners do
 
     candidate =
       from(j in Job,
+        as: :job,
         where:
           j.root_board_id == ^runner.board_id and j.pool == ^runner.pool and
             j.status == "queued",
+        where: not j.wait_while_doing or not exists(busy_cards()),
         order_by: [asc: j.id],
         limit: 1,
         lock: "FOR UPDATE SKIP LOCKED",

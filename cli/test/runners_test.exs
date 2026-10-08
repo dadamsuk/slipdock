@@ -74,7 +74,62 @@ defmodule SlipdockCLI.RunnersTest do
     end)
 
     assert_received {:request, "POST", "/api/boards/b/runners/setup", body}
-    assert %{"column" => "To Do", "feed" => "top"} = JSON.decode!(body)
+    assert %{"column" => "To Do", "feed" => "top"} = body = JSON.decode!(body)
+    refute Map.has_key?(body, "wait")
+  end
+
+  test "runner new passes --no-wait-while-doing and --wait-while-doing on" do
+    serve([
+      {201, ~s({"runner":null,"token":null,"automation":null,"setup":#{@setup}})},
+      {201, ~s({"runner":null,"token":null,"automation":null,"setup":#{@setup}})}
+    ])
+
+    capture_io(fn ->
+      Runners.run("runner", ["new", "b"],
+        scenario: "loop",
+        column: ["To Do"],
+        top: true,
+        wait_while_doing: false
+      )
+
+      Runners.run("runner", ["new", "b"],
+        scenario: "loop",
+        column: ["Doing"],
+        wait_while_doing: true
+      )
+    end)
+
+    assert_received {:request, "POST", _, off}
+    assert %{"wait" => "no"} = JSON.decode!(off)
+    assert_received {:request, "POST", _, on}
+    assert %{"wait" => "yes", "column" => "Doing"} = JSON.decode!(on)
+  end
+
+  test "a queued job held back says why" do
+    job = %{"id" => 7, "card_id" => 3, "pool" => "loop", "kind" => "claude", "attempts" => 0}
+
+    out =
+      capture_io(fn ->
+        SlipdockCLI.Render.job(
+          Map.merge(job, %{"status" => "queued", "waiting_on" => "#12 is in progress"})
+        )
+
+        SlipdockCLI.Render.job(Map.merge(job, %{"status" => "queued", "waiting_on" => nil}))
+      end)
+
+    assert out =~ "job #7  queued (waiting: #12 is in progress)  card #3"
+    assert out =~ ~r/job #7  queued  card #3/
+  end
+
+  test "claim-job says when a job is held back while something is in progress" do
+    serve([
+      {200, ~s({"job":null,"waiting":{"job":7,"card_id":3,"reason":"#12 is in progress"}})},
+      {200, ~s({"job":null})}
+    ])
+
+    out = capture_io(fn -> Runners.run("claim-job", ["b"], pool: "loop") end)
+    assert out =~ "nothing queued to take: job #7 waits while #12 is in progress"
+    assert capture_io(fn -> Runners.run("claim-job", ["b"], pool: "loop") end) =~ "nothing queued"
   end
 
   test "runner new and setup pass the Slipdock tools option, on, off or for named servers" do

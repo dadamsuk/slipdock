@@ -6,6 +6,10 @@ defmodule Slipdock.Runners.Job do
 
       queued → claimed → running → done | failed | cancelled | timeout
 
+  A job with `wait_while_doing` stays queued, and is not handed out, while
+  any other open card is in a doing list on its board (see
+  `Slipdock.Runners.waiting_on/1`).
+
   A claim comes with a lease; heartbeats extend it. A lease that runs out
   puts the job back in the queue, up to a retry cap (see
   `Slipdock.Runners.sweep/1`).
@@ -22,6 +26,9 @@ defmodule Slipdock.Runners.Job do
     field :prompt, :string
     field :status, :string, default: "queued"
     field :attempts, :integer, default: 0
+    # Copied from the rule's runner action when queued: claim passes the job
+    # over while another open card sits in a doing list on its board.
+    field :wait_while_doing, :boolean, default: false
     field :runner_name, :string
     field :lease_expires_at, :utc_datetime
     field :cancel_requested_at, :utc_datetime

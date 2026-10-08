@@ -1161,6 +1161,9 @@ defmodule SlipdockCLI.Render do
   defp job_status(%{"cancel_requested" => true, "status" => s}) when s in ~w(claimed running),
     do: s <> " (stopping)"
 
+  defp job_status(%{"status" => "queued", "waiting_on" => reason}) when is_binary(reason),
+    do: "queued (waiting: #{reason})"
+
   defp job_status(%{"status" => s}), do: s
 
   def alerts([]), do: IO.puts(dim("no alerts"))

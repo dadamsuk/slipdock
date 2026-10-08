@@ -248,7 +248,12 @@ or one that works a list **top card first, one at a time** (*Work a list with
 a runner*, trigger `list_top`): whenever nothing it sent is still open it
 sends the top open card nobody has taken, skipping blocked, waiting and
 dependency-blocked ones, so a runner can take over from a `/loop` or cron
-pass working the To Do list. It takes standing instructions
+pass working the To Do list. Its jobs **wait while anything is in progress**
+(`wait_while_doing` on the `runner` action, ticked by default for that rule):
+a queued job isn't handed out while another open card sits in an
+in-progress list on its board — a card somebody is working by hand
+included — and the job listing says why (`waiting_on: "#123 is in
+progress"`). It takes standing instructions
 and before/after hooks, written into the config or prompt it generates.
 
 **A job runs with nobody watching**, so two things are set up for it. A

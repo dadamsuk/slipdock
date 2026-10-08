@@ -304,12 +304,15 @@ slipdock dismiss <alert-id>... | --all        # dismiss yours; other people keep
 slipdock runner new <board> [name] --pool P [--scenario server|windows|loop|cloud]
     [--agent claude|codex|custom] [--command CMD] [--kind K] [--cwd DIR] [--permission-mode M]
     [--timeout S] [--service auto|systemd|launchd|none] [--where desktop|cloud] [--repo owner/repo]
-    [--column LIST [--top]] [--verbosity quiet|normal|verbose] [--instructions TEXT]
+    [--column LIST [--top] [--[no-]wait-while-doing]] [--verbosity quiet|normal|verbose]
+    [--instructions TEXT]
     [--before-job CMD] [--after-job CMD] [--hooks prompt|hook]
     [--no-slipdock-tools] [--mcp-servers A,B]
                                               # prints exactly what to paste; server/windows make a
                                               # runner and print its token, ONCE; --column adds the rule
-                                              # (--top: the list's top card, one at a time)
+                                              # (--top: the list's top card, one at a time,
+                                              # waiting while anything is in progress unless
+                                              # --no-wait-while-doing)
 slipdock runner ls <board>                    # runners: pool, last seen, current job
 slipdock runner setup <board> <runner> [opts] # the steps again; with options, saves them + shows the diff
 slipdock runner token <board> <runner>        # a new token (the old one stops working)
@@ -345,7 +348,10 @@ that a runner of that pool takes; at most one open job per card per rule. The ru
 don't try to put a command in a rule, and a job failing with exit 127 means that machine has
 no function for the kind. With the trigger `list_top` (`{"type": "list_top", "column": "To
 Do", "unassigned": true}`, preset `feed_runner`) the rule works a list in order instead: one
-open job at a time, always for the top ready card. To set the whole thing up, `slipdock runner new` (or **Automations →
+open job at a time, always for the top ready card. `"wait_while_doing": true` on the runner
+action (the default for `feed_runner`) holds its jobs back while any other open card is in an
+in-progress list on the board; `slipdock jobs` shows `queued (waiting: #N is in progress)`.
+To set the whole thing up, `slipdock runner new` (or **Automations →
 Connect a runner** in the UI) is better than writing the rule by hand. A job's token is shown
 once: never paste it into a card, comment or page.
 

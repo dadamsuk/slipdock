@@ -155,16 +155,27 @@ defmodule SlipdockWeb.API.JobController do
 
   @doc """
   Takes the oldest queued job of `pool` on the board's tree, or answers
-  `{"job": null}`. `wait` (seconds, at most 20) waits for one to arrive.
+  `{"job": null}` — with `waiting` (`job`, `card_id`, `reason`) when a job
+  is held back while something is in progress. `wait` (seconds, at most 20)
+  waits for one to arrive.
   """
   def claim(conn, %{"board" => ref} = params) do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, :write),
          {:ok, pool} <- need(params["pool"], "pool"),
          {:ok, runner} <- session(board, pool, conn) do
       case Runners.claim(runner, min(limit(params["wait"], 0), 20) * 1000) do
-        nil -> json(conn, %{job: nil})
+        nil -> json(conn, Map.merge(%{job: nil}, waiting(board, pool)))
         job -> json(conn, %{job: V.job(job), lease_seconds: Runners.lease_for(runner)})
       end
+    end
+  end
+
+  # No job to take, but one waiting while something is in progress: say
+  # which, so an empty answer isn't read as an empty queue.
+  defp waiting(board, pool) do
+    case Runners.first_waiting(board, pool |> to_string() |> String.downcase()) do
+      nil -> %{}
+      job -> %{waiting: %{job: job.id, card_id: job.card_id, reason: Runners.waiting_reason(job)}}
     end
   end
 

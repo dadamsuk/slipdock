@@ -248,6 +248,41 @@ defmodule SlipdockWeb.API.RunnersTest do
       assert Enum.any?(Runners.list_runners(ctx.board), &Slipdock.Runners.Runner.session?/1)
     end
 
+    test "claim says which job is held back while something is in progress, and why", ctx do
+      doing = Enum.find(ctx.board.columns, &(&1.category == "doing"))
+      busy = card_fixture(doing, %{"title" => "By hand"})
+
+      {:ok, job} =
+        Runners.queue(ctx.card, %{
+          pool: "dev",
+          kind: "claude",
+          prompt: "p",
+          wait_while_doing: true
+        })
+
+      body =
+        ctx.conn
+        |> post(~p"/api/boards/#{ctx.board.id}/jobs/claim", %{"pool" => "dev"})
+        |> json_response(200)
+
+      assert body["job"] == nil
+
+      assert body["waiting"] == %{
+               "job" => job.id,
+               "card_id" => ctx.card.id,
+               "reason" => "##{busy.id} is in progress"
+             }
+
+      [listed] =
+        ctx.conn
+        |> get(~p"/api/boards/#{ctx.board.id}/jobs?status=open")
+        |> json_response(200)
+        |> Map.fetch!("jobs")
+
+      assert listed["wait_while_doing"] == true
+      assert listed["waiting_on"] == "##{busy.id} is in progress"
+    end
+
     test "claim needs a pool", ctx do
       assert %{"error" => "pool is required"} =
                ctx.conn

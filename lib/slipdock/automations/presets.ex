@@ -43,6 +43,16 @@ defmodule Slipdock.Automations.Presets do
     hint: "for email; defaults to you"
   }
 
+  # A runner rule's job can wait while anything is in progress on the board,
+  # so a runner never starts a card beside one somebody is working.
+  @wait %{
+    name: "wait",
+    label: "Wait while anything is in progress",
+    type: "yesno",
+    required: true,
+    default: "yes"
+  }
+
   @presets [
     %{
       key: "follow_board",
@@ -214,7 +224,8 @@ defmodule Slipdock.Automations.Presets do
       fields: [
         %{name: "column", label: "List", type: "column", required: true},
         %{name: "pool", label: "Runner pool", type: "text", required: true, default: "default"},
-        %{name: "kind", label: "Kind of job", type: "text", required: false, default: "claude"}
+        %{name: "kind", label: "Kind of job", type: "text", required: false, default: "claude"},
+        Map.put(@wait, :default, "no")
       ]
     },
     %{
@@ -228,7 +239,8 @@ defmodule Slipdock.Automations.Presets do
       fields: [
         %{name: "column", label: "List", type: "column", required: true, prefill: "todo"},
         %{name: "pool", label: "Runner pool", type: "text", required: true, default: "default"},
-        %{name: "kind", label: "Kind of job", type: "text", required: false, default: "claude"}
+        %{name: "kind", label: "Kind of job", type: "text", required: false, default: "claude"},
+        @wait
       ]
     }
   ]
@@ -261,6 +273,7 @@ defmodule Slipdock.Automations.Presets do
           "field" -> Map.put(field, :options, @card_fields)
           "flag" -> Map.put(field, :options, @flags)
           "priority" -> Map.put(field, :options, ~w(low medium high critical))
+          "yesno" -> Map.put(field, :options, ~w(yes no))
           _ -> field
         end
       end)
@@ -531,7 +544,7 @@ defmodule Slipdock.Automations.Presets do
 
     {:ok, "Send #{column} to the #{pool} runners",
      %{"type" => "card_entered", "column" => column}, [],
-     [%{"type" => "runner", "pool" => pool, "kind" => kind}]}
+     [runner_action(pool, kind, p["wait"], "no")]}
   end
 
   defp spec("feed_runner", p, _opts) do
@@ -541,7 +554,15 @@ defmodule Slipdock.Automations.Presets do
 
     {:ok, "Work #{column} with the #{pool} runners",
      %{"type" => "list_top", "column" => column, "unassigned" => true}, [],
-     [%{"type" => "runner", "pool" => pool, "kind" => kind}]}
+     [runner_action(pool, kind, p["wait"], "yes")]}
+  end
+
+  defp runner_action(pool, kind, wait, default) do
+    action = %{"type" => "runner", "pool" => pool, "kind" => kind}
+
+    if blank_or(wait, default) in ["yes", "true", true],
+      do: Map.put(action, "wait_while_doing", true),
+      else: action
   end
 
   # The rule is named after the host alone: a long URL in full would run past

@@ -282,7 +282,13 @@ defmodule Slipdock.Runners.Setup do
       column ->
         with {:ok, list} <- find_list(board, column) do
           preset = if params["feed"] == "top", do: "feed_runner", else: "send_to_runner"
-          params = %{"column" => list.name, "pool" => answers["pool"], "kind" => kind(answers)}
+
+          params = %{
+            "column" => list.name,
+            "pool" => answers["pool"],
+            "kind" => kind(answers),
+            "wait" => params["wait"]
+          }
 
           case Automations.create_rule_from_preset(board, preset, params, created_by: user) do
             {:ok, rule} -> {:ok, rule}
