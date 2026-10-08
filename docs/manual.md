@@ -2766,8 +2766,10 @@ actually answers. Three ways to install them:
   its subcards included, claimed before the work and closed out with a
   wrap-up comment and the commit id. Where the work lands in a GitHub repo it
   watches the build too: a red default branch becomes a card at the top of
-  To Do before anything else is picked, every push gets a `Build started`
-  comment and then the result, and a card is never closed on a red build.
+  To Do before anything else is picked, and every push gets a `Build started`
+  comment. Subcards close without waiting for their build, which is checked
+  before the next subcard starts; the epic, or a card with no subcards, waits
+  for the build and is never closed on a red one.
   Written for `/loop`, a schedule or a cron, so the board carries all the
   state between passes.
 

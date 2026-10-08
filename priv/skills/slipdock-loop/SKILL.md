@@ -118,7 +118,8 @@ This is what stops a loop starting four cards and finishing none.
 
 If the resumed card's last comment is `Build started` (see step 7), the pass died
 while watching CI: find that run again with `gh run view <run-id>` and carry on
-from step 7's watch rather than redoing the work.
+from step 7's watch rather than redoing the work. (A subcard in that state
+doesn't wait: close it, and check its build as section 5 says.)
 
 ## 2a. Check CI before you pick
 
@@ -137,7 +138,9 @@ board knows about it. First look for an open card that already mentions it:
 `slipdock search "<run-id>" --board <board>`, or grep the run id and short sha
 across `slipdock cards <board> --open --json`. An open card that already mentions
 the run, or an open card whose commit it is, means the failure is already being
-handled. Leave it. Otherwise:
+handled. Leave it. If the commit is a closed subcard's and its epic is still
+open (a pass died partway through the epic), take that subcard back as in
+section 5 instead: the epic's own pass fixes it. Otherwise:
 
 ```sh
 slipdock add <board> "CI failing on <branch>: <workflow> run <run-id>" \
@@ -240,7 +243,22 @@ the rule repeats at each level. Work discovered along the way goes **under the
 epic as a new subcard**, never as a new top-level card, and never silently into
 the one you are doing.
 
-The parent closes last, when its rollup shows every child done, with a comment
+A subcard is closed without waiting for its build (step 7.4), so **before
+claiming the next subcard, look at the latest build on the branch** — once,
+without waiting:
+
+```sh
+gh run list --branch <branch> --limit 1 --json databaseId,status,conclusion,headSha,url
+```
+
+Still running, or passed: carry on. Failed: the subcard whose commit it is
+broke it, and it comes first. Take it back — `slipdock undone <id>`, move it
+to In Progress, comment `Build failed: …` as in step 7.4 — fix it, commit with
+its id, push, and close it again the same way. The two-attempts rule and
+**Blocked** apply as they do in step 7.4.
+
+The parent closes last, when its rollup shows every child done and the build
+of the last push is green (step 7.4: it waits for that build), with a comment
 summarising the set rather than repeating each child's write-up.
 
 ## 6. Work it, writing as you go
@@ -270,7 +288,7 @@ anybody reads later:
 
 1. **Check the work.** Run the tests if the card touched code and there are
    some, following the project's own `CLAUDE.md`/`AGENTS.md`. When CI runs the
-   whole suite on every push (step 4 waits for it either way), don't run the
+   whole suite on every push (and the build is checked either way, step 4), don't run the
    whole suite here as well: run the test files you added or changed, and the
    tests that depend on the code you changed (`mix test --stale` in Elixir,
    the project's equivalent elsewhere), then push and let CI be the full run.
@@ -297,7 +315,19 @@ anybody reads later:
    ```
    If no run appears (no `.github/workflows`, no remote, nothing pushed), write
    `Work complete: abc1234. No CI build for this repo.` instead and go to step 5.
-4. **Wait for the build, then say how it went.**
+4. **Wait for the build — for the pass's top-level card only.** A build takes
+   minutes, and an epic's subcards would each sit idle through one. So:
+   - **A subcard** does not wait. Its `Build started` comment is enough: go to
+     step 5 and close it. Its build is checked before the next subcard starts
+     (section 5, **Subcards before the parent**). Its wrap-up
+     says `CI: started — <workflow> #<run-id> <run url> (checked before the
+     epic closes)`.
+   - **The top-level card** — the epic, once every subcard is done, or a card
+     with no subcards — waits for the build of the last push, as below. A green
+     build of the last push covers every subcard pushed before it, since CI
+     tests the whole tree; it is what lets the epic close.
+
+   Waiting:
    ```sh
    gh run watch <run-id> --exit-status --interval 10 > /dev/null
    ```
@@ -315,8 +345,9 @@ anybody reads later:
      Go to step 5.
    - **Failed:** `Build failed: <workflow> #<run-id> — job <job>, step <step>`,
      followed by the few lines of `gh run view <run-id> --log-failed` that show
-     the cause, and the url. The card is not done. Fix it as part of this card:
-     reproduce locally if you can, commit with the card id again, push, and go
+     the cause, and the url. The card is not done. Fix it as part of this card
+     (on an epic, as part of the subcard whose commit broke it, taken back as in
+     section 5): reproduce locally if you can, commit with the card id again, push, and go
      back to step 3, so the card gets a new `Build started` comment and a new
      result. After **two** failed fix attempts, or a failure that is clearly
      outside this card's change (infrastructure, secrets, a flaky external
@@ -342,7 +373,7 @@ anybody reads later:
    Files: lib/foo/bar.ex, test/foo/bar_test.exs
    Tests: mix test --stale — 38 passed, 0 failed; full suite in CI
    Commit: abc1234 (master) — https://github.com/owner/repo/commit/abc1234
-   CI: passed — <workflow> #<run-id> <run url>   (or "failed once, fixed in def5678", or "no CI")
+   CI: passed — <workflow> #<run-id> <run url>   (or "failed once, fixed in def5678", "started — … (checked before the epic closes)" on a subcard, or "no CI")
    Follow-ups: <anything deliberately not done, and where it went — card #141, W-31, or "none">
    Token cost: ~135k tokens (context budget 15.00M → 14.86M, claim to close)
    ```
@@ -399,9 +430,10 @@ failure mode.
   actually did, tidy someone else's card, or close a parent whose children are
   open.
 - **Never report a card done here before it is done on the board.**
-- **Never close a card on a red build.** A push the card caused that fails CI
-  is part of the card, and every build gets a comment when it starts and
-  another when it finishes.
+- **Never close a top-level card on a red build.** A push the card caused
+  that fails CI is part of the card. Subcards close on `Build started`
+  without waiting, but their builds are checked before the next subcard, and
+  the epic waits for a green build of the last push before it closes.
 
 For command syntax, `slipdock --help` and the `slipdock` skill; for the board's own
 conventions, `slipdock guide`, always. Report ids to the user as `#129`, and call
