@@ -141,17 +141,22 @@ defmodule SlipdockWeb.RunnerPowerShellTest do
     assert after_lines(ctx) == ["timeout 124"]
   end
 
+  # pwsh can take well over 15s to start on a loaded CI machine (#483), so
+  # this waits for the job's own child pid file rather than a fixed slice of
+  # polling, with a test timeout to match.
+  @tag timeout: 180_000
   test "a job cancelled from the board is stopped on the next heartbeat", ctx do
     {:ok, queued} = queue(ctx.card, "sleep")
     cfg = config(ctx)
+    child_file = Path.join(ctx.dir, "child")
     running = Task.async(fn -> run_once(ctx, cfg) end)
-    wait_for(fn -> job(queued).status == "running" end)
+    wait_for(fn -> File.exists?(child_file) and job(queued).status == "running" end, 900)
     {:ok, _} = Runners.cancel_job(job(queued))
 
-    {out, 0} = Task.await(running, 30_000)
+    {out, 0} = Task.await(running, 60_000)
     assert out =~ "cancelled from the board"
     assert %{status: "cancelled", exit_code: 130} = job(queued)
-    refute alive?(ctx.dir |> Path.join("child") |> File.read!() |> String.trim())
+    refute alive?(child_file |> File.read!() |> String.trim())
   end
 
   test "a Before-Job that fails means the job never runs", ctx do
