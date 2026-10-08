@@ -18,7 +18,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
   alias Slipdock.Runners.{Runner, Setup}
 
   @events ~w(open_wizard close_wizard wizard_change connect regenerate rotate_token
-    revoke_runner close_setup)
+    revoke_runner close_setup edit_answers)
 
   @doc false
   def events, do: @events
@@ -32,7 +32,9 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
        wizard_error: nil,
        setup: nil,
        setup_runner: nil,
-       token: nil
+       token: nil,
+       diff: nil,
+       editing: nil
      )}
   end
 
@@ -67,14 +69,67 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
 
   def handle_event("open_wizard", params, socket) do
     answers = Map.put(Setup.defaults(), "scenario", params["scenario"] || "server")
-    {:noreply, assign(socket, wizard: wizard(answers), wizard_error: nil, setup: nil, token: nil)}
+
+    {:noreply,
+     assign(socket,
+       wizard: wizard(answers),
+       wizard_error: nil,
+       setup: nil,
+       token: nil,
+       diff: nil,
+       editing: nil
+     )}
   end
 
   def handle_event("close_wizard", _params, socket),
-    do: {:noreply, assign(socket, wizard: nil, wizard_error: nil)}
+    do: {:noreply, assign(socket, wizard: nil, wizard_error: nil, editing: nil)}
+
+  # The wizard again, filled in with a runner's saved answers; saving shows
+  # what changes.
+  def handle_event("edit_answers", %{"id" => id}, socket) do
+    with {:ok, runner} <- Runners.find_runner(socket.assigns.board, id) do
+      {:noreply,
+       assign(socket,
+         wizard: wizard(Setup.saved(runner)),
+         wizard_error: nil,
+         editing: runner,
+         setup: nil,
+         diff: nil,
+         token: nil
+       )}
+    else
+      _ -> {:noreply, flash(socket, :error, "That runner is gone.")}
+    end
+  end
 
   def handle_event("wizard_change", %{"wizard" => params}, socket),
     do: {:noreply, assign(socket, wizard: wizard(params), wizard_error: nil)}
+
+  def handle_event(
+        "connect",
+        %{"wizard" => params},
+        %{assigns: %{editing: %Runner{} = runner}} = socket
+      ) do
+    %{board: board, base_url: base_url} = socket.assigns
+
+    case Setup.update(runner, board, params, base_url) do
+      {:ok, result} ->
+        {:noreply,
+         socket
+         |> assign(
+           wizard: nil,
+           editing: nil,
+           setup: result.setup,
+           setup_runner: result.runner,
+           token: nil,
+           diff: result.diff
+         )
+         |> assign_runners()}
+
+      {:error, message} ->
+        {:noreply, assign(socket, wizard: wizard(params), wizard_error: message)}
+    end
+  end
 
   def handle_event("connect", %{"wizard" => params}, socket) do
     %{board: board, current_user: user, base_url: base_url} = socket.assigns
@@ -100,7 +155,9 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
   def handle_event("regenerate", %{"id" => id}, socket) do
     with {:ok, runner} <- Runners.find_runner(socket.assigns.board, id) do
       setup = Setup.regenerate(runner, socket.assigns.board, socket.assigns.base_url)
-      {:noreply, assign(socket, wizard: nil, setup: setup, setup_runner: runner, token: nil)}
+
+      {:noreply,
+       assign(socket, wizard: nil, setup: setup, setup_runner: runner, token: nil, diff: nil)}
     else
       _ -> {:noreply, flash(socket, :error, "That runner is gone.")}
     end
@@ -138,7 +195,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
   end
 
   def handle_event("close_setup", _params, socket),
-    do: {:noreply, assign(socket, setup: nil, setup_runner: nil, token: nil)}
+    do: {:noreply, assign(socket, setup: nil, setup_runner: nil, token: nil, diff: nil)}
 
   # "Which cards does it get?" is one select: a list for a new rule, or a
   # rule already there.
@@ -246,6 +303,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
 
       <.wizard_form
         :if={@wizard}
+        editing={@editing}
         wizard={@wizard}
         error={@wizard_error}
         preview={@preview}
@@ -259,6 +317,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
         setup={@setup}
         runner={@setup_runner}
         token={@token}
+        diff={@diff}
         target={@myself}
       />
     </div>
@@ -278,6 +337,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
   end
 
   attr :wizard, :map, required: true
+  attr :editing, :any, default: nil
   attr :error, :string, default: nil
   attr :preview, :map, default: nil
   attr :board, :any, required: true
@@ -297,7 +357,8 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
       phx-submit="connect"
       class="space-y-4 rounded-xl bg-base-200/40 p-4 ring-1 ring-base-content/10"
     >
-      <fieldset class="space-y-1.5">
+      <p :if={@editing} class="text-sm font-medium">Changing “{@editing.name}”</p>
+      <fieldset :if={is_nil(@editing)} class="space-y-1.5">
         <legend class="text-xs font-medium text-base-content/70">
           Where should the work happen?
         </legend>
@@ -325,7 +386,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
       </fieldset>
 
       <div class="grid grid-cols-2 gap-3 text-sm">
-        <label :if={Setup.needs_token?(@p["scenario"])} class="space-y-1">
+        <label :if={Setup.needs_token?(@p["scenario"]) and is_nil(@editing)} class="space-y-1">
           <span class="text-xs text-base-content/70">Name</span>
           <input
             name="wizard[name]"
@@ -334,7 +395,8 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
             class="input input-sm w-full"
           />
         </label>
-        <label class="space-y-1">
+        <input :if={@editing} type="hidden" name="wizard[scenario]" value={@p["scenario"]} />
+        <label :if={is_nil(@editing)} class="space-y-1">
           <span class="text-xs text-base-content/70">Pool</span>
           <input name="wizard[pool]" value={@p["pool"]} class="input input-sm w-full" />
         </label>
@@ -420,7 +482,87 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
             class="input input-sm w-full font-mono"
           />
         </label>
-        <label class="col-span-2 space-y-1">
+        <fieldset class="col-span-2 space-y-2 rounded-lg p-3 ring-1 ring-base-content/10">
+          <legend class="px-1 text-xs font-medium text-base-content/70">
+            Instructions for every job
+          </legend>
+          <label class="block space-y-1">
+            <span class="text-xs text-base-content/70">How much to write on the card</span>
+            <select name="wizard[verbosity]" class="select select-sm w-full">
+              <option value="" selected={@p["verbosity"] == ""}>Whatever the skill says</option>
+              <option value="quiet" selected={@p["verbosity"] == "quiet"}>
+                Quiet: a line at the start and the end
+              </option>
+              <option value="normal" selected={@p["verbosity"] == "normal"}>
+                Normal: at each decision or surprise
+              </option>
+              <option value="verbose" selected={@p["verbosity"] == "verbose"}>
+                Verbose: a running log of every step
+              </option>
+            </select>
+          </label>
+          <label class="block space-y-1">
+            <span class="text-xs text-base-content/70">
+              Anything else, added after every job's prompt
+            </span>
+            <textarea
+              name="wizard[instructions]"
+              rows="2"
+              class="textarea textarea-sm w-full"
+              placeholder="Run mix test before committing. Never push to main."
+            >{@p["instructions"]}</textarea>
+          </label>
+        </fieldset>
+
+        <fieldset
+          class="col-span-2 space-y-2 rounded-lg p-3 ring-1 ring-base-content/10"
+          disabled={not Setup.hooks?(@p)}
+        >
+          <legend class="px-1 text-xs font-medium text-base-content/70">Hooks</legend>
+          <p :if={not Setup.hooks?(@p)} class="text-xs text-base-content/60" id="hooks-off">
+            A cloud routine runs on Anthropic's machines, not yours, so there is nothing for
+            hooks to run on. Instructions still go in its prompt.
+          </p>
+          <label class="block space-y-1">
+            <span class="text-xs text-base-content/70">Before each job (the job runs only if it succeeds)</span>
+            <input
+              name="wizard[before_job]"
+              value={@p["before_job"]}
+              placeholder="git pull --ff-only"
+              class="input input-sm w-full font-mono"
+            />
+          </label>
+          <label class="block space-y-1">
+            <span class="text-xs text-base-content/70">
+              After each job, however it ended ($SLIPDOCK_STATUS, $SLIPDOCK_EXIT)
+            </span>
+            <input
+              name="wizard[after_job]"
+              value={@p["after_job"]}
+              placeholder="notify-send &quot;job $SLIPDOCK_JOB_ID: $SLIPDOCK_STATUS&quot;"
+              class="input input-sm w-full font-mono"
+            />
+          </label>
+          <label :if={@p["scenario"] == "loop"} class="block space-y-1">
+            <span class="text-xs text-base-content/70">How Claude Code runs them</span>
+            <select name="wizard[hooks]" class="select select-sm w-full">
+              <option value="prompt" selected={@p["hooks"] == "prompt"}>
+                Asked to in its prompt (best effort)
+              </option>
+              <option value="hook" selected={@p["hooks"] == "hook"}>
+                As Claude Code hooks (reliable, run by Claude Code itself)
+              </option>
+            </select>
+          </label>
+          <p
+            :if={@p["scenario"] == "cloud" and @p["where"] == "desktop"}
+            class="text-xs text-base-content/60"
+          >
+            A Desktop task is asked to run them in its prompt: best effort.
+          </p>
+        </fieldset>
+
+        <label :if={is_nil(@editing)} class="col-span-2 space-y-1">
           <span class="text-xs text-base-content/70">Which cards does it get?</span>
           <select name="wizard[send]" class="select select-sm w-full">
             <option value="" selected={blank?(@p["send"])}>
@@ -478,7 +620,11 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
           class="btn btn-primary btn-sm"
           disabled={match?({:error, _}, @wizard.preview)}
         >
-          {if Setup.needs_token?(@p["scenario"]), do: "Make the runner", else: "Show the steps"}
+          {cond do
+            @editing -> "Save and show the steps"
+            Setup.needs_token?(@p["scenario"]) -> "Make the runner"
+            true -> "Show the steps"
+          end}
         </button>
       </div>
     </.form>
@@ -488,6 +634,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
   attr :setup, :map, required: true
   attr :runner, :any, default: nil
   attr :token, :string, default: nil
+  attr :diff, :list, default: nil
   attr :target, :any, required: true
 
   defp setup_steps(assigns) do
@@ -516,6 +663,22 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
         copy it now.
       </p>
 
+      <div :if={@diff} id="runner-diff" class="space-y-1">
+        <p class="text-xs font-medium text-base-content/70">
+          {if Enum.all?(@diff, &match?({:eq, _}, &1)),
+            do: "Nothing changes on the machine.",
+            else: "What changes — run the first step again on the machine to put it in place:"}
+        </p>
+        <pre
+          :if={Enum.any?(@diff, &(not match?({:eq, _}, &1)))}
+          class="max-h-64 overflow-auto rounded-lg bg-base-300/60 p-3 font-mono text-xs"
+        ><span
+          :for={{op, line} <- @diff}
+          :if={op != :eq}
+          class={["block", if(op == :ins, do: "text-success", else: "text-error")]}
+        >{if op == :ins, do: "+ ", else: "- "}{line}</span></pre>
+      </div>
+
       <ol class="space-y-3">
         <li :for={{step, n} <- @indexed} class="space-y-1.5 text-sm">
           <p><span class="font-medium text-base-content/50">{n}.</span> {step.text}</p>
@@ -541,7 +704,16 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
         <li :for={warning <- @setup.warnings} class="text-xs text-warning">{warning}</li>
       </ul>
 
-      <div :if={@runner && is_nil(@token)} class="flex justify-end">
+      <div :if={@runner && is_nil(@token)} class="flex justify-end gap-1">
+        <button
+          type="button"
+          class="btn btn-ghost btn-xs"
+          phx-target={@target}
+          phx-click="edit_answers"
+          phx-value-id={@runner.id}
+        >
+          <.icon name="hero-pencil-square" class="size-3.5" /> Change the answers
+        </button>
         <button
           type="button"
           class="btn btn-ghost btn-xs"

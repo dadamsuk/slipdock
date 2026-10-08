@@ -73,6 +73,27 @@ defmodule SlipdockWeb.API.JobController do
     end
   end
 
+  @doc """
+  New answers for a runner: saved, with its steps and a `diff` against the
+  ones the old answers gave (`[["del", line], ["ins", line], ["eq", line]…]`).
+  """
+  def update_setup(conn, %{"board" => ref, "id" => id} = params) do
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :owner),
+         {:ok, runner} <- Runners.find_runner(board, id) do
+      case Setup.update(runner, board, Map.drop(params, ["board", "id"]), base_url(conn)) do
+        {:ok, result} ->
+          json(conn, %{
+            setup: result.setup,
+            runner: V.runner(result.runner),
+            diff: Enum.map(result.diff, fn {op, line} -> [to_string(op), line] end)
+          })
+
+        {:error, message} ->
+          {:error, :unprocessable_entity, message}
+      end
+    end
+  end
+
   @doc "A new token for a runner (the old one stops working), with its steps written out for it."
   def rotate_token(conn, %{"board" => ref, "id" => id}) do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, :owner),

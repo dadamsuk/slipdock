@@ -263,4 +263,97 @@ defmodule SlipdockWeb.RunnerScriptTest do
     assert out =~ "(pool dev)"
     assert %{status: "done", output: "installed and working\n"} = job(queued)
   end
+
+  describe "instructions and hooks" do
+    defp hooks(ctx),
+      do: """
+      after_job() { echo "$SLIPDOCK_STATUS $SLIPDOCK_EXIT $SLIPDOCK_JOB_ID" >>'#{ctx.dir}/after'; echo "after ran"; }
+      """
+
+    defp after_lines(ctx),
+      do: ctx.dir |> Path.join("after") |> File.read!() |> String.split("\n", trim: true)
+
+    test "after_job runs once a job is done, with its status and exit", ctx do
+      {:ok, queued} = queue(ctx.card, "echo")
+      {_, 0} = run_once(ctx, config(ctx, hooks(ctx)))
+      assert after_lines(ctx) == ["done 0 #{queued.id}"]
+      assert job(queued).output =~ "after ran"
+    end
+
+    test "after_job runs when the job fails", ctx do
+      {:ok, queued} = queue(ctx.card, "fail")
+      {_, 0} = run_once(ctx, config(ctx, hooks(ctx)))
+      assert after_lines(ctx) == ["failed 3 #{queued.id}"]
+      assert job(queued).status == "failed"
+    end
+
+    test "after_job runs when the job times out", ctx do
+      {:ok, queued} = queue(ctx.card, "sleep")
+      {_, 0} = run_once(ctx, config(ctx, "JOB_TIMEOUT=2\n" <> hooks(ctx)))
+      assert after_lines(ctx) == ["timeout 124 #{queued.id}"]
+    end
+
+    test "after_job runs when the job is cancelled", ctx do
+      {:ok, queued} = queue(ctx.card, "sleep")
+      cfg = config(ctx, hooks(ctx))
+      running = Task.async(fn -> run_once(ctx, cfg) end)
+      wait_for(fn -> job(queued).status == "running" end)
+      {:ok, _} = Runners.cancel_job(job(queued))
+      Task.await(running, 20_000)
+      assert after_lines(ctx) == ["cancelled 130 #{queued.id}"]
+    end
+
+    test "a before_job that fails means the job never runs", ctx do
+      {:ok, queued} = queue(ctx.card, "echo", "should not be echoed")
+      {out, 0} = run_once(ctx, config(ctx, "before_job() { echo nope; exit 5; }\n" <> hooks(ctx)))
+
+      assert out =~ "before_job failed (exit 5)"
+      refute File.exists?(Path.join(ctx.dir, "out"))
+      assert %{status: "failed", exit_code: 5, output: output} = job(queued)
+      assert output =~ "nope"
+      assert output =~ "so the job was not run"
+      assert after_lines(ctx) == ["failed 5 #{queued.id}"]
+    end
+
+    test "a before_job that succeeds runs first", ctx do
+      {:ok, queued} = queue(ctx.card, "echo")
+      {_, 0} = run_once(ctx, config(ctx, "before_job() { echo 'before ran'; }"))
+      assert %{status: "done", output: "before ran\n" <> _} = job(queued)
+    end
+
+    test "standing instructions from install.sh reach the prompt word for word", ctx do
+      instructions = ~S"""
+      Say "hi" and it's fine. $(touch PWNED) `touch PWNED` ${HOME}
+      SLIPDOCK_EOF_deadbeef
+      'quoted' — naïve café ✓
+      """
+
+      home = Path.join(ctx.dir, "home")
+      File.mkdir_p!(home)
+      installer = Path.join(ctx.dir, "install.sh")
+      File.write!(installer, SlipdockWeb.RunnerInstallController.files()["install.sh"])
+
+      {_, 0} =
+        System.cmd(
+          "sh",
+          [installer, "--url", ctx.url, "--token", ctx.token, "--pool", "dev", "--cwd", ctx.dir] ++
+            ["--instructions", String.trim(instructions)] ++ ~w(--service none --no-start),
+          env: [{"HOME", home}, {"XDG_CONFIG_HOME", nil}],
+          cd: ctx.dir,
+          stderr_to_stdout: true
+        )
+
+      {:ok, queued} = queue(ctx.card, "echo", "The card's prompt.")
+
+      {_, 0} =
+        System.cmd(Path.join(home, ".local/bin/slipdock-runner"), ["--once"],
+          env: [{"HOME", home}, {"XDG_CONFIG_HOME", nil}, {"TMPDIR", ctx.dir}],
+          cd: ctx.dir,
+          stderr_to_stdout: true
+        )
+
+      assert job(queued).output == "The card's prompt.\n\n" <> instructions
+      assert Path.wildcard(Path.join([ctx.dir, "**", "PWNED"])) == []
+    end
+  end
 end
