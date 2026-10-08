@@ -119,6 +119,8 @@ defmodule SlipdockWeb.Router do
     get "/runner/install.sh", RunnerInstallController, :install
     get "/runner/slipdock-runner", RunnerInstallController, :runner
     get "/runner/SHA256SUMS", RunnerInstallController, :sums
+    get "/runner/install.ps1", RunnerInstallController, :install_ps1
+    get "/runner/slipdock-runner.ps1", RunnerInstallController, :runner_ps1
   end
 
   # The runner protocol (see `SlipdockWeb.API.RunnerController`): plain text,

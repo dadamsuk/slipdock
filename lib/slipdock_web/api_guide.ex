@@ -1292,7 +1292,8 @@ defmodule SlipdockWeb.APIGuide do
 
     The shell runner that speaks it, `slipdock-runner` (`sh` and `curl`
     only), installs with `curl -fsSL B/runner/install.sh | sh -s -- --url B
-    --token sdr_… --pool default`; `B/runner/SHA256SUMS` has the checksums.
+    --token sdr_… --pool default`; on Windows, `slipdock-runner.ps1` from
+    `B/runner/install.ps1`. `B/runner/SHA256SUMS` has the checksums.
 
     `slipdock runner ls|new|rm`, `slipdock jobs`, `slipdock job`,
     `slipdock cancel-job`, `slipdock claim-job`, `slipdock job-progress` and
