@@ -514,7 +514,67 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
 
     test "another tenant's page reads as not there", ctx do
       text = ctx.conn |> call("read_page", %{page: ctx.their_page.code}) |> error!()
+      assert text == "no page you can see matches that"
       refute text =~ "secret"
+    end
+
+    test "says which board the page is on, by code and name", ctx do
+      page = ctx.conn |> call("read_page", %{page: ctx.page.code}) |> ok!()
+
+      assert page["board"] == %{
+               "id" => ctx.board.id,
+               "code" => "delivery",
+               "name" => "Delivery",
+               "archived" => false
+             }
+    end
+
+    # #482: W-1 came from the reader's own archived Getting Started board,
+    # which list_boards leaves out unless asked. Not a leak, but it has to say so.
+    test "a page on the reader's own archived board reads, and says the board is archived",
+         ctx do
+      old = board_fixture(%{"name" => "Getting Started", "code" => "getting-st"}, owner: ctx.user)
+      welcome = page_fixture(old, %{"title" => "Welcome to your wiki", "body" => "hello"})
+      {:ok, _} = Boards.archive_board(old)
+
+      page = ctx.conn |> call("read_page", %{page: welcome.code}) |> ok!()
+      assert page["body"] == "hello"
+      assert page["board"]["code"] == "getting-st"
+      assert page["board"]["archived"] == true
+
+      codes = fn args ->
+        ctx.conn
+        |> call("list_boards", args)
+        |> ok!()
+        |> Map.fetch!("boards")
+        |> Enum.map(& &1["code"])
+      end
+
+      refute "getting-st" in codes.(%{})
+      assert "getting-st" in codes.(%{archived: true})
+    end
+
+    test "a page on a sub-board of an archived board says archived too", ctx do
+      {:ok, t} = Boards.find_template("Simple")
+      {:ok, sub} = Boards.create_sub_board(ctx.top, t)
+      page = page_fixture(sub, %{"title" => "Notes", "body" => "x"})
+      {:ok, _} = Boards.archive_board(ctx.board)
+
+      result = ctx.conn |> call("read_page", %{page: page.code}) |> ok!()
+      assert result["board"]["id"] == sub.id
+      assert result["board"]["archived"] == true
+    end
+
+    test "a page the token's scope leaves out says it is the token", ctx do
+      other = board_fixture(%{"name" => "Other", "code" => "other"}, owner: ctx.user)
+      conn = scoped(ctx.conn, ctx.user, scope_boards: [other.id])
+
+      assert conn |> call("read_page", %{page: ctx.page.code}) |> error!() =~ "scope"
+    end
+
+    test "a page on an archived board somebody else owns is still not there", ctx do
+      {:ok, _} = Boards.archive_board(ctx.theirs)
+      assert ctx.conn |> call("read_page", %{page: ctx.their_page.code}) |> error!() =~ "no page"
     end
 
     test "a page nobody wrote", ctx do
