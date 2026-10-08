@@ -646,7 +646,7 @@ defmodule SlipdockWeb.Layouts do
               phx-debounce={if @shortcuts.panel == :find, do: "150"}
               placeholder={
                 if @shortcuts.panel == :find,
-                  do: "Type a card's title…",
+                  do: "Type a card's title, or a page's code (W-31)…",
                   else: "Type a command, a board, a page…"
               }
               class="input input-sm w-full"
@@ -680,7 +680,27 @@ defmodule SlipdockWeb.Layouts do
   attr :on, :boolean, required: true
   attr :group, :boolean, default: false
 
-  # One row of a filtered palette: a command to follow, or a card to open.
+  # One row of a filtered palette: a command to follow, or a card to open —
+  # or, in the finder, the wiki page whose code was typed.
+  defp palette_row(%{panel: :find, row: %Slipdock.Wiki.Page{}} = assigns) do
+    ~H"""
+    <.link
+      navigate={~p"/boards/#{@row.board_id}/wiki/#{@row.slug}"}
+      data-row
+      data-on={@on && ""}
+      class={[
+        "flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm hover:bg-base-200",
+        @on && "bg-base-200"
+      ]}
+    >
+      <.icon name="hero-document-text" class="size-4 shrink-0 text-base-content/50" />
+      <span class="shrink-0 font-mono text-2xs text-base-content/60">{@row.code}</span>
+      <span class="min-w-0 flex-1 truncate">{@row.title}</span>
+      <span class="shrink-0 text-2xs text-base-content/50">{@row.board.name}</span>
+    </.link>
+    """
+  end
+
   defp palette_row(%{panel: :find} = assigns) do
     ~H"""
     <.link
@@ -776,7 +796,9 @@ defmodule SlipdockWeb.Layouts do
   defp group_of(%{group: group}), do: group
   defp group_of(_), do: nil
 
-  defp empty_palette(%{panel: :find, query: ""}), do: "Type to find a card on any board."
+  defp empty_palette(%{panel: :find, query: ""}),
+    do: "Type to find a card on any board, or a page's code to open it."
+
   defp empty_palette(%{panel: :find}), do: "No cards match."
   defp empty_palette(_), do: "No commands match."
 

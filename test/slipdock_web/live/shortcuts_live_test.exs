@@ -156,7 +156,7 @@ defmodule SlipdockWeb.ShortcutsLiveTest do
 
       html = render_hook(view, "shortcut_panel", %{"panel" => "find"})
       assert html =~ "Find a card"
-      assert html =~ "Type to find a card on any board."
+      assert html =~ "Type to find a card on any board, or a page"
 
       render_hook(view, "palette_filter", %{"q" => "query"})
       assert has_element?(view, ~s{#palette-rows a[href="/boards/#{board.id}/cards/#{card.id}"]})

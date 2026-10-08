@@ -339,6 +339,26 @@ defmodule Slipdock.Wiki do
     )
   end
 
+  @doc """
+  The page a typed code names (`W-31`, `w-31`), if `user` may read it — what
+  the card finder (`Ctrl-O`) and a board's search box offer when someone
+  types a page's code rather than words from its title.
+
+  Anything else typed, an archived page, a page on a board the user cannot
+  open, and a draft they could not have written all give `nil`.
+  """
+  def page_by_code_for(user, q) when is_binary(q) do
+    with true <- Page.code?(q),
+         %Page{archived_at: nil} = page <- Repo.get_by(Page, code: Page.normalize_code(q)),
+         true <- visible?(page, Slipdock.Access.page_permission(user, page)) do
+      Repo.preload(page, :board)
+    else
+      _ -> nil
+    end
+  end
+
+  def page_by_code_for(_user, _q), do: nil
+
   defp fetch(nil), do: {:error, :not_found, "page"}
   defp fetch(%Page{} = page), do: {:ok, page}
 
