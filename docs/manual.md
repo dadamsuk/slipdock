@@ -234,7 +234,11 @@ setting lives in the URL, so a configured grid can be bookmarked or shared.
   has a date / no date), status (all / hide completed / only completed), cover
   colour.
 - **Display** — comfortable or compact cards; show empty groups (which also
-  fills gaps between date buckets).
+  fills gaps between date buckets); **List width** — narrow, normal, wide or
+  extra wide. The board view's Display menu has the same *List width*, which
+  sets how wide every list is drawn (on a phone a list still fills the
+  screen). Like the rest of the Display menu it is kept in the URL and in a
+  saved view.
 - **Drag and drop** between cells changes the card to match the target cell:
   its list, priority, status, colour or due date (set to the start of the
   bucket), or swaps the source tag/flag for the target one. Created / updated
