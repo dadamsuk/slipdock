@@ -1194,6 +1194,34 @@ defmodule Slipdock.Boards do
     end
   end
 
+  @doc """
+  Cards from `list_cards/2` on `board`, decorated as `get_card/1` decorates
+  one: rollup stats and formula scores. One rollup for the tree, and the
+  formulas computed across the board's open cards rather than just these, so
+  a weighted score reads the same here as on the card.
+  """
+  def with_details(%Board{} = board, cards) when is_list(cards) do
+    rollup = Rollup.build(Board.root_id(board))
+    fields = Slipdock.Fields.list_fields(Board.root_id(board))
+    cards = Enum.map(cards, &Rollup.put_stats(&1, rollup))
+
+    if Enum.any?(fields, &(&1.kind == "formula")) do
+      ids = Enum.map(cards, & &1.id)
+
+      peers =
+        from(c in Card,
+          where: c.board_id == ^board.id and is_nil(c.archived_at) and c.id not in ^ids,
+          select: [:id, :board_id, :completed],
+          preload: [:field_values, :votes]
+        )
+        |> Repo.all()
+
+      cards |> Kernel.++(peers) |> Slipdock.Fields.decorate(fields) |> Enum.take(length(cards))
+    else
+      Enum.map(cards, &Map.merge(&1, %{computed: %{}, scores: %{}}))
+    end
+  end
+
   defp with_rollup(%Card{} = card) do
     root_id =
       Repo.one!(

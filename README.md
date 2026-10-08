@@ -534,7 +534,8 @@ claude mcp add --transport http slipdock https://your-server/mcp \
 ```
 
 The client gets 21 tools — `whoami`, `get_guide`, `list_boards`, `get_board`,
-`list_cards`, `get_card`, `search` and `read_page` to read; `create_card`,
+`list_cards` (with `full: true`, every card as `get_card` gives it), `get_card`,
+`search` and `read_page` to read; `create_card`,
 `update_card`, `move_card`, `comment`, `complete_card`, `archive_card`,
 `delete_card`, `create_list`, `delete_list`, `create_board`, `archive_board`,
 `delete_board` and `write_page` to write — each checked exactly as the API

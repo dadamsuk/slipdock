@@ -253,6 +253,141 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
     end
   end
 
+  describe "list_cards full" do
+    setup ctx do
+      {:ok, _} = Boards.add_checklist_item(ctx.top, "write the tests")
+      {:ok, _} = Boards.add_checklist_item(ctx.top, "ship it")
+      page = page_fixture(ctx.board, %{"title" => "Spec", "body" => "About ##{ctx.top.id}."})
+      %{page: page}
+    end
+
+    defp full(conn, args),
+      do: conn |> call("list_cards", Map.merge(%{board: "delivery", full: true}, args)) |> ok!()
+
+    test "each card is what get_card returns: comments, checklist, docs, url", ctx do
+      %{"cards" => cards} = full(ctx.conn, %{})
+      top = Enum.find(cards, &(&1["id"] == ctx.top.id))
+
+      assert [%{"body" => "the real constraint is here"}] = top["comments"]
+      assert %{"done" => 0, "total" => 2, "items" => items} = top["checklist"]
+      assert Enum.map(items, & &1["text"]) == ["write the tests", "ship it"]
+      assert [%{"code" => code, "title" => "Spec"}] = top["docs"]
+      assert code == ctx.page.code
+      assert top["url"] == "http://www.example.com/boards/#{ctx.board.id}/cards/#{ctx.top.id}"
+
+      assert top == ctx.conn |> call("get_card", %{card: ctx.top.id}) |> ok!()
+
+      blocked = Enum.find(cards, &(&1["id"] == ctx.blocked.id))
+      assert [%{"title" => "Blocker"}] = blocked["blocked_by"]
+      assert blocked["docs"] == []
+      assert blocked["comments"] == []
+    end
+
+    test "full false, or left out, is the one-line listing", ctx do
+      for args <- [%{board: "delivery"}, %{board: "delivery", full: false}] do
+        %{"cards" => cards} = ctx.conn |> call("list_cards", args) |> ok!()
+        top = Enum.find(cards, &(&1["id"] == ctx.top.id))
+        refute Map.has_key?(top, "comments")
+        refute Map.has_key?(top, "checklist")
+        refute Map.has_key?(top, "docs")
+      end
+    end
+
+    test "filters still apply, archived included", ctx do
+      {:ok, _} = Boards.archive_card(ctx.done)
+
+      refute ctx.done.id in Enum.map(full(ctx.conn, %{})["cards"], & &1["id"])
+
+      assert [%{"id" => id, "archived_at" => archived_at}] =
+               full(ctx.conn, %{archived: "only"})["cards"]
+
+      assert id == ctx.done.id
+      assert archived_at
+
+      assert Enum.map(full(ctx.conn, %{q: "constraint"})["cards"], & &1["id"]) == []
+      assert Enum.map(full(ctx.conn, %{q: "what it is"})["cards"], & &1["id"]) == [ctx.top.id]
+    end
+
+    test "limit truncates and says so; the default is smaller than for lines", ctx do
+      result = full(ctx.conn, %{limit: 1})
+      assert length(result["cards"]) == 1
+      assert result["truncated"] == true
+      assert result["total"] == 4
+
+      for n <- 1..25, do: card_fixture(ctx.second, %{"title" => "Filler #{n}"})
+
+      result = full(ctx.conn, %{})
+      assert length(result["cards"]) == 20
+      assert result["truncated"] == true
+      assert result["total"] == 29
+
+      assert length(
+               ctx.conn
+               |> call("list_cards", %{board: "delivery"})
+               |> ok!()
+               |> Map.fetch!("cards")
+             ) ==
+               29
+    end
+
+    test "formula scores match get_card's, computed across the board", ctx do
+      {:ok, value} =
+        Slipdock.Fields.create_field(ctx.board, %{"name" => "Value", "kind" => "rating"})
+
+      {:ok, _} =
+        Slipdock.Fields.create_field(ctx.board, %{
+          "name" => "Score",
+          "kind" => "formula",
+          "config" => %{"mode" => "weighted", "weights" => [%{"key" => "value", "weight" => 1}]}
+        })
+
+      {:ok, _} = Slipdock.Fields.set_value(ctx.top, value, 5)
+      {:ok, _} = Slipdock.Fields.set_value(ctx.blocked, value, 1)
+
+      # Only the top card listed: its score is still normalised against the
+      # blocked one, as get_card does it.
+      assert [top] = full(ctx.conn, %{q: "what it is"})["cards"]
+
+      assert top["scores"] ==
+               ctx.conn |> call("get_card", %{card: ctx.top.id}) |> ok!() |> Map.fetch!("scores")
+
+      assert_in_delta top["scores"]["score"], 100.0, 0.01
+    end
+
+    test "a stranger's page about the card is not among its docs", ctx do
+      stranger = Accounts.get_user!(ctx.theirs.owner_id)
+
+      page_fixture(ctx.theirs, %{"title" => "Their notes", "body" => "##{ctx.top.id}"},
+        user: stranger
+      )
+
+      top = Enum.find(full(ctx.conn, %{})["cards"], &(&1["id"] == ctx.top.id))
+      assert Enum.map(top["docs"], & &1["title"]) == ["Spec"]
+    end
+
+    test "a stranger's board is refused, and so is a board outside the token's scope", ctx do
+      assert ctx.conn |> call("list_cards", %{board: "private", full: true}) |> error!() =~
+               "no board"
+
+      other = board_fixture(%{"name" => "Other"}, owner: ctx.user)
+      conn = scoped(ctx.conn, ctx.user, scope_boards: [other.id])
+      assert conn |> call("list_cards", %{board: "delivery", full: true}) |> error!() =~ "scope"
+    end
+
+    test "a dependency on a card the caller can't read stays hidden", ctx do
+      {:ok, _} = Boards.add_dependency(ctx.top, ctx.secret)
+
+      top = Enum.find(full(ctx.conn, %{})["cards"], &(&1["id"] == ctx.top.id))
+      assert [%{"title" => "A card you can't see"}] = top["blocked_by"]
+      refute inspect(top) =~ "Their secret"
+    end
+
+    test "full must be a boolean", ctx do
+      assert ctx.conn |> call("list_cards", %{board: "delivery", full: "yes"}) |> error!() =~
+               "true or false"
+    end
+  end
+
   describe "get_card" do
     test "the whole card: description, comments, dependencies", ctx do
       card = ctx.conn |> call("get_card", %{card: ctx.top.id}) |> ok!()
