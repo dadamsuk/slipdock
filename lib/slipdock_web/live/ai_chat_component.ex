@@ -13,7 +13,10 @@ defmodule SlipdockWeb.AIChatComponent do
   """
   use SlipdockWeb, :live_component
 
+  alias Slipdock.Access
   alias Slipdock.AI.{Actions, Assistant, Context}
+  alias Slipdock.Boards.Card
+  alias Slipdock.Repo
   alias SlipdockWeb.Markdown
 
   @impl true
@@ -98,6 +101,9 @@ defmodule SlipdockWeb.AIChatComponent do
       text == "" or socket.assigns.busy ->
         {:noreply, socket}
 
+      id = open_card_request(text) ->
+        {:noreply, open_card(socket, text, id)}
+
       true ->
         %{mode: mode, source: source, messages: messages} = socket.assigns
         user = socket.assigns.current_user
@@ -153,6 +159,51 @@ defmodule SlipdockWeb.AIChatComponent do
       end)
 
     {:noreply, assign(socket, messages: messages)}
+  end
+
+  # "Open card 123", "show me card id 123", "go to #123": a request to open a
+  # card by its id is answered here rather than by the model, so it opens the
+  # card the id names and nothing the model might have guessed at.
+  @open_card ~r/^(?:please\s+)?(?:open|show(?:\s+me)?|go\s+to|jump\s+to|take\s+me\s+to)\s+(?:up\s+)?(?:the\s+)?(?:card\s*(?:id|number|no\.?)?\s*:?\s*#?\s*(\d{1,18})|#\s*(\d{1,18}))(?:\s*,?\s*please)?\s*[.!]?$/iu
+
+  @doc false
+  def open_card_request(text) do
+    case Regex.run(@open_card, String.trim(text)) do
+      [_, "", digits] -> String.to_integer(digits)
+      [_, digits | _] -> String.to_integer(digits)
+      nil -> nil
+    end
+  end
+
+  defp open_card(socket, text, id) do
+    user = socket.assigns.current_user
+    user_message = %{id: next_id(), role: "user", content: text, steps: nil, applied: false}
+
+    socket =
+      assign(socket,
+        messages: socket.assigns.messages ++ [user_message],
+        error: nil,
+        form_key: socket.assigns.form_key + 1
+      )
+
+    case readable_card(user, id) do
+      %Card{} = card ->
+        socket
+        |> add_reply("Opening ##{card.id} “#{card.title}”.", nil)
+        |> push_navigate(to: ~p"/boards/#{card.board_id}/cards/#{card.id}")
+
+      nil ->
+        add_reply(socket, "There's no card ##{id} you can open.", nil)
+    end
+  end
+
+  defp readable_card(user, id) do
+    with %Card{archived_at: nil, stand_in_for_id: nil} = card <- Repo.get(Card, id),
+         true <- Access.can_read?(Access.card_permission(user, card)) do
+      card
+    else
+      _ -> nil
+    end
   end
 
   @impl true

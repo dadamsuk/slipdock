@@ -2626,6 +2626,30 @@ defmodule Slipdock.Boards do
     |> Repo.all()
   end
 
+  @doc """
+  The card a typed id names (`123`, `#123`), if it is an active card on one
+  of the board trees rooted at `root_ids` — what the card finder (`Ctrl-O`)
+  offers ahead of title matches. Anything else typed, an archived card, a
+  stand-in and a card outside those boards all give `nil`.
+  """
+  def card_by_ref_across(root_ids, q) when is_list(root_ids) and is_binary(q) do
+    case Regex.run(~r/^#?\s*(\d{1,18})$/, String.trim(q)) do
+      [_, digits] ->
+        from(c in Card,
+          join: b in Board,
+          on: b.id == c.board_id,
+          where: c.id == ^String.to_integer(digits),
+          where: (b.id in ^root_ids or b.root_id in ^root_ids) and is_nil(c.archived_at),
+          where: is_nil(c.stand_in_for_id),
+          preload: [board: b]
+        )
+        |> Repo.one()
+
+      _ ->
+        nil
+    end
+  end
+
   @doc "Active cards on the board whose title matches `q`, excluding `except` ids."
   def search_cards(board_id, q, except \\ [], limit \\ 8) do
     like = "%" <> String.downcase(String.trim(q)) <> "%"

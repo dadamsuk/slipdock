@@ -797,7 +797,7 @@ defmodule SlipdockWeb.Layouts do
   defp group_of(_), do: nil
 
   defp empty_palette(%{panel: :find, query: ""}),
-    do: "Type to find a card on any board, or a page's code to open it."
+    do: "Type to find a card on any board, its id, or a page's code to open it."
 
   defp empty_palette(%{panel: :find}), do: "No cards match."
   defp empty_palette(_), do: "No commands match."
