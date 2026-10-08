@@ -158,7 +158,7 @@ way in: what it is, the pictures, and how to get it running.
 - Accounts: passwordless sign-in by emailed magic link, sessions that last
   30 days, API tokens for the CLI
 - **An MCP server** at `/mcp`: claude.ai, the Claude apps, Claude Code and
-  other MCP clients get the boards and the wiki as 24 tools, signing in
+  other MCP clients get the boards and the wiki as 26 tools, signing in
   through the browser or with an API token (see [MCP server](#mcp-server))
 - Groups of users; boards, single cards and saved views can be shared with
   people or groups as read-only or editable
@@ -2641,6 +2641,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `read_page` | A wiki page's Markdown and its `content_hash`, by code (`W-31`) or by board and slug or title. |
 | `list_pages` | A board's wiki pages in order — code, title, summary, folder, parent and pinned cards — filtered by `q`, `archived` (`exclude`, `include` or `only`), `template` and `draft`; `tree: true` nests children under their parents. |
 | `page_info` | Finding the way round a wiki, by `what`: `links` (a page's outgoing, unresolved and incoming links), `sections` (its heading paths, as `write_page`'s section modes take them), `wanted` (a board's linked-to pages nobody has written) and `resolve` (is there a page for this `title`, and the `[[link]]` to write). Drafts stay out of sight of readers who cannot edit them. |
+| `page_history` | A page's revisions, newest first (`limit`, default 20): who saved each, how (`web`, `cli`, `mcp`…), the message and when. With `rev`, that revision's body and the diff it made against the one before; `diff: true` alone gives the latest save's diff. Long unchanged stretches come back as `skip` with a count, so a one-line edit does not return the whole page. |
 | `activity` | A board's activity log, newest first; `card` narrows it to one card's entries. |
 | `create_card` | A card on a board, or with `parent` a subcard (making the sub-board if needed). |
 | `update_card` | Title, description, priority (or clearing it), start and due dates, percent, flags, tags, assignees, what blocks it, and its checklist — add, tick and untick items. Only what is passed changes. |
@@ -2655,8 +2656,9 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `archive_board` | Archives a board you own, or with `restore: true` brings it back. |
 | `delete_board` | Deletes a board you own and everything on it. `confirm` must repeat the board's code. |
 | `write_page` | The wiki: `create` a page, `append` or `append_section` to one, or `replace_section` and `replace`, which need the `content_hash` from `read_page` so nobody's edit is overwritten. |
+| `revert_page` | Puts a page back to a revision from `page_history`. The revert is a new revision, so nothing leaves the history and it can itself be undone; it needs `base_hash`, the page's current `content_hash`, so a newer edit is not lost to it unseen. |
 
-The nine reading tools are marked read-only, so a client can let them run
+The reading tools are marked read-only, so a client can let them run
 without asking each time. The deletes are marked destructive and none of
 them can be undone, which is why each needs its confirmation; archiving,
 which restoring undoes, is not. Writes count towards the board owner's

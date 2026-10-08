@@ -235,6 +235,20 @@ defmodule Slipdock.WikiTest do
       assert "first" in bodies
     end
 
+    test "undoing your own edit at once keeps the edit in history", %{board: board, user: user} do
+      {:ok, page} = Wiki.create_page(board, %{"title" => "Doc", "body" => "first"}, user: user)
+      [first] = Wiki.list_revisions(page)
+      other = user_fixture("between@example.com")
+      {:ok, page} = Wiki.update_page(page, %{"body" => "second"}, user: other)
+      {:ok, page} = Wiki.update_page(page, %{"body" => "clobbered"}, user: user)
+
+      {:ok, _} = Wiki.revert_page(page, first, user: user)
+
+      # A quick second save by the same hand would fold into "clobbered".
+      assert Wiki.list_revisions(page) |> Enum.map(& &1.body) ==
+               ["first", "clobbered", "second", "first"]
+    end
+
     test "diffs are hunks of equal, deleted and inserted lines" do
       assert Wiki.diff("a\nb\nc", "a\nx\nc") == [eq: ["a"], del: ["b"], ins: ["x"], eq: ["c"]]
       # From nothing is all insertion; to nothing all deletion.

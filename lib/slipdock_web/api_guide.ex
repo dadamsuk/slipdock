@@ -354,13 +354,15 @@ defmodule SlipdockWeb.APIGuide do
     board's wiki, flat or with `tree` nested), `page_info` (by
     `what`: a page's `links` or `sections` — the heading paths
     `write_page` takes — a board's `wanted` pages, or `resolve` a
-    title), `activity` (the
+    title), `page_history` (a page's revisions, or with `rev` or
+    `diff` the change one save made), `activity` (the
     board's log, or with `card` one card's), and for
     writing `create_card`, `update_card` (fields, flags, tags, assignees,
     dependencies and the checklist), `move_card` (to another board too),
     `comment`, `complete_card`, `archive_card` (and restore), `delete_card`,
     `create_list`, `delete_list`, `create_board`, `archive_board` (and
-    restore), `delete_board` and `write_page`. Archiving is the undoable way
+    restore), `delete_board`, `write_page` and `revert_page` (a page
+    back to a revision, as a new one, against `base_hash`). Archiving is the undoable way
     to put something away; the deletes are not undoable, so `delete_card`
     needs `confirm: true`, `delete_board` needs `confirm` set to the board's
     code, and `delete_list` refuses a list holding cards unless
