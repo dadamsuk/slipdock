@@ -264,6 +264,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :columns, :list, required: true
   attr :filters, :map, required: true
   attr :filtering, :boolean, required: true
+  attr :page_hit, :any, default: nil, doc: "the wiki page whose code is in the search box"
   attr :swim, Config, required: true
   attr :swim_view, :any, required: true
   attr :swim_dirty, :boolean, required: true
@@ -311,6 +312,18 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         <span :if={@filters.q != ""} class="badge badge-outline gap-1">
           “{@filters.q}”
         </span>
+        <.link
+          :if={@page_hit}
+          id="search-page-hit"
+          navigate={~p"/boards/#{@page_hit.board_id}/wiki/#{@page_hit.slug}"}
+          class="badge badge-primary badge-outline gap-1 hover:bg-primary/10"
+        >
+          <.icon name="hero-document-text" class="size-3.5" />
+          <span class="font-mono">{@page_hit.code}</span> {@page_hit.title}
+          <span :if={@page_hit.board_id != @board.id} class="text-base-content/50">
+            · {@page_hit.board.name}
+          </span>
+        </.link>
         <span :for={kind <- @filters.kinds} class="badge badge-outline">
           {Slipdock.Kinds.label(kind)} only
         </span>

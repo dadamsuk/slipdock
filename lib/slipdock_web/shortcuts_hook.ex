@@ -24,6 +24,7 @@ defmodule SlipdockWeb.ShortcutsHook do
 
   alias Slipdock.Access
   alias Slipdock.Boards
+  alias Slipdock.Wiki
   alias SlipdockWeb.Commands
 
   @closed %{panel: nil, boards: [], pool: [], query: "", results: [], cursor: 0}
@@ -57,7 +58,13 @@ defmodule SlipdockWeb.ShortcutsHook do
 
       panel in [:command, :find] ->
         {:halt,
-         assign(socket, shortcuts: search(%{@closed | panel: panel, pool: pool(socket, panel)}))}
+         assign(socket,
+           shortcuts:
+             search(
+               %{@closed | panel: panel, pool: pool(socket, panel)},
+               socket.assigns[:current_user]
+             )
+         )}
 
       true ->
         {:halt, assign(socket, shortcuts: %{@closed | panel: panel})}
@@ -67,7 +74,10 @@ defmodule SlipdockWeb.ShortcutsHook do
   # Typing in the command palette or the card finder: what matched, and back
   # to the top of it.
   defp handle_event("palette_filter", %{"q" => q}, socket) do
-    {:halt, assign(socket, shortcuts: search(%{socket.assigns.shortcuts | query: q}))}
+    {:halt,
+     assign(socket,
+       shortcuts: search(%{socket.assigns.shortcuts | query: q}, socket.assigns[:current_user])
+     )}
   end
 
   defp handle_event("palette_move", %{"dir" => dir}, socket) do
@@ -107,21 +117,27 @@ defmodule SlipdockWeb.ShortcutsHook do
   defp pool(socket, :find), do: Enum.map(boards(socket), & &1.id)
 
   # What the open palette should be showing for what has been typed into it.
-  defp search(%{panel: :command, query: q, pool: commands} = shortcuts) do
+  defp search(%{panel: :command, query: q, pool: commands} = shortcuts, _user) do
     %{shortcuts | results: Commands.search(commands, q), cursor: 0}
   end
 
-  defp search(%{panel: :find, query: q, pool: board_ids} = shortcuts) do
+  # A page's code (`W-31`) finds that page, first, ahead of any card whose
+  # title happens to contain it.
+  defp search(%{panel: :find, query: q, pool: board_ids} = shortcuts, user) do
     results =
       case String.trim(q) do
-        "" -> []
-        q -> Boards.search_cards_across(board_ids, q, [], @found)
+        "" ->
+          []
+
+        q ->
+          page = Wiki.page_by_code_for(user, q)
+          List.wrap(page) ++ Boards.search_cards_across(board_ids, q, [], @found)
       end
 
     %{shortcuts | results: results, cursor: 0}
   end
 
-  defp search(shortcuts), do: shortcuts
+  defp search(shortcuts, _user), do: shortcuts
 
   # The boards the switcher offers: the ones this user can open, each with the
   # key set in its board settings. A board with no key yet is still listed —

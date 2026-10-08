@@ -130,6 +130,8 @@ defmodule SlipdockWeb.BoardLive.Show do
       # Who `@` offers in a description or a comment: the board's members.
       mention_people: SlipdockWeb.Mention.people(board),
       filters: @empty_filters,
+      # The wiki page whose code is in the search box, if any.
+      page_hit: nil,
       adding_to: nil,
       # The list a document dropped on the board belongs to: set the moment
       # the file picker opens, because the upload itself carries no column.
@@ -605,7 +607,12 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   ## Events: filters ---------------------------------------------------------
 
-  def handle_event("search", %{"q" => q}, socket), do: {:noreply, put_filter(socket, :q, q)}
+  # A page's code typed into the search box (`W-31`) names that page, which
+  # need not be on the board at all, so the strip under the toolbar offers it.
+  def handle_event("search", %{"q" => q}, socket) do
+    page_hit = Slipdock.Wiki.page_by_code_for(socket.assigns.current_user, q)
+    {:noreply, socket |> assign(page_hit: page_hit) |> put_filter(:q, q)}
+  end
 
   def handle_event("filter_tag", %{"id" => id}, socket) do
     case Params.id(id) do
@@ -642,7 +649,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   end
 
   def handle_event("clear_filters", _, socket) do
-    {:noreply, socket |> assign(filters: @empty_filters) |> assign_columns()}
+    {:noreply, socket |> assign(filters: @empty_filters, page_hit: nil) |> assign_columns()}
   end
 
   ## Events: columns ---------------------------------------------------------
@@ -1062,6 +1069,7 @@ defmodule SlipdockWeb.BoardLive.Show do
         columns={@columns}
         filters={@filters}
         filtering={@filtering}
+        page_hit={@page_hit}
         swim={@swim}
         swim_view={@swim_view}
         swim_dirty={@swim_dirty}

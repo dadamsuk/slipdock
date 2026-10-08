@@ -53,6 +53,7 @@ defmodule Slipdock.Filters do
 
     Slipdock.Kinds.matches?(item, filters.kinds) and
       (q == "" or
+         code_of(item) == String.trim(q) or
          String.contains?(String.downcase(item.title), q) or
          String.contains?(String.downcase(text_of(item)), q) or
          Enum.any?(tags, &String.contains?(String.downcase(&1.name), q))) and
@@ -69,6 +70,11 @@ defmodule Slipdock.Filters do
   defp text_of(%{description: text}) when is_binary(text), do: text
   defp text_of(%{summary: text}) when is_binary(text), do: text
   defp text_of(_), do: ""
+
+  # A page answers to its code (`W-31`) as well as its words: typed whole, it
+  # finds that page and no other.
+  defp code_of(%{code: code}) when is_binary(code), do: String.downcase(code)
+  defp code_of(_), do: nil
 
   defp tags_of(%{tags: tags}) when is_list(tags), do: tags
   defp tags_of(_), do: []

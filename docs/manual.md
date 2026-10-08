@@ -860,7 +860,7 @@ dialogs leave the page's keys alone.
   the exact to the vague, so `bs` finds *Board settings*. The arrows walk the
   answer, `Enter` follows the row you are on, `Esc` closes it.
 - `Ctrl-O` — **open a card**: type a title and jump to it, on any board you
-  can open
+  can open. Type a wiki page's code (`W-31`) and that page comes first
 - `h` — all boards (the board takes this one while the keyboard is on it)
 - `b` — **switch board**: every board you can open, each with its own key;
   press that key to go there
@@ -1073,7 +1073,8 @@ picked, matching names back to rows, writing the card),
 ## Deep search and Ask
 
 The search box in a board's toolbar filters the cards in front of you by
-substring. That is the right tool when you can half-remember the title and no
+substring. Type a wiki page's code (`W-31`) into it and the strip under the
+toolbar offers that page as a link, whether or not it is on the board. That is the right tool when you can half-remember the title and no
 help at all when you cannot — when what you remember is that somebody said
 something about refunds, on one of eleven boards, some time in the spring.
 
