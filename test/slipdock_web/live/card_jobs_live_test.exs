@@ -59,6 +59,10 @@ defmodule SlipdockWeb.CardJobsLiveTest do
 
     {:ok, running} = queue(ctx.card)
     Runners.claim(ctx.runner)
+    # As above: one render lets the broadcasts land, the next sees the panel
+    # they updated. Clicking straight away can look for a row not there yet.
+    render(view)
+    assert has_element?(view, "#card-job-#{running.id}", "laptop")
     view |> element("#card-job-#{running.id} button", "Cancel") |> render_click()
     assert Repo.get!(Job, running.id).cancel_requested_at
     assert has_element?(view, "#card-job-#{running.id}", "stopping")
