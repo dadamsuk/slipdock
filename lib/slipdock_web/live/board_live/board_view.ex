@@ -102,6 +102,15 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         <.icon name="hero-arrow-uturn-left" class="size-3.5" />
         <span class="hidden sm:inline">Parent card</span>
       </.link>
+      <.link
+        :for={%{board: pb} <- Enum.take(@ancestry, -1)}
+        navigate={~p"/boards/#{pb}"}
+        class="btn btn-ghost btn-xs shrink-0 gap-1"
+        title={"Open the board that holds the parent card: #{pb.name}"}
+      >
+        <.icon name="hero-squares-2x2" class="size-3.5" />
+        <span class="hidden sm:inline">Parent board</span>
+      </.link>
     </nav>
     """
   end

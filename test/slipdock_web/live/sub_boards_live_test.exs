@@ -55,21 +55,42 @@ defmodule SlipdockWeb.SubBoardsLiveTest do
              "Parent card"
            )
 
+    # ...and, beside it, to the board that holds that card.
+    assert has_element?(
+             sub_view,
+             "a[href='/boards/#{board.id}'][title^='Open the board that holds the parent card']",
+             "Parent board"
+           )
+
     refute has_element?(view, "a[title^='Open the parent card']")
+    refute has_element?(view, "a[title^='Open the board that holds the parent card']")
 
     # Opening a subcard shows a link back to the parent card; the root card
     # has none. Following it lands on the parent card's modal.
     {:ok, sub_view, _} = live(conn, ~p"/boards/#{card.sub_board.id}/cards/#{sub.id}")
     parent_link = "#card-modal a[href='/boards/#{board.id}/cards/#{card.id}']"
     assert has_element?(sub_view, parent_link, "Epic card")
-    assert has_element?(sub_view, parent_link, "on Root board")
+    parent_board_link = "#card-modal #card-parent a[href='/boards/#{board.id}']"
+    assert has_element?(sub_view, parent_board_link, "Parent board")
+    assert has_element?(sub_view, parent_board_link, "Root board")
     refute has_element?(view, "#card-modal a", "Parent card")
+    refute has_element?(view, "#card-parent")
 
     {:ok, parent_view, html} =
       sub_view |> element(parent_link) |> render_click() |> follow_redirect(conn)
 
     assert html =~ "Epic card"
     assert has_element?(parent_view, "#card-modal #card-title", "Epic card")
+
+    # The Parent board link lands on the board itself, with no card open.
+    {:ok, sub_view, _} = live(conn, ~p"/boards/#{card.sub_board.id}/cards/#{sub.id}")
+
+    {:ok, board_view, html} =
+      sub_view |> element(parent_board_link) |> render_click() |> follow_redirect(conn)
+
+    assert html =~ "Epic card"
+    refute has_element?(board_view, "#card-modal")
+    refute has_element?(board_view, "#card-parent")
 
     # Removing the subcards deletes the sub-board.
     view |> element("button[phx-click=delete_sub_board]") |> render_click()
