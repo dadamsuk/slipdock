@@ -1,0 +1,280 @@
+#!/bin/sh
+# slipdock-runner — takes jobs from a Slipdock board's runner queue and runs
+# them on this machine. Needs sh and curl, nothing else.
+#
+#   slipdock-runner                  run until stopped
+#   slipdock-runner --once           take at most one job, then exit
+#   slipdock-runner --config=FILE    another config than the default
+#
+# What runs is decided here, never by the server: a job arrives as an id, a
+# kind, a card and a prompt, and the config's job_<kind> function says what
+# that kind means. A kind the config has no function for is refused, and
+# nothing runs. The prompt only ever reaches a job as $SLIPDOCK_PROMPT.
+#
+# The config (default ~/.config/slipdock-runner/config) is sourced: it sets
+# SLIPDOCK_URL and SLIPDOCK_RUNNER_TOKEN, optionally POOL, WAIT, HEARTBEAT,
+# JOB_TIMEOUT and GRACE, and defines the job_<kind> functions.
+set -u
+
+CONFIG=${SLIPDOCK_RUNNER_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/slipdock-runner/config}
+ONCE=
+for arg in "$@"; do
+  case "$arg" in
+    --once) ONCE=1 ;;
+    --config=*) CONFIG=${arg#--config=} ;;
+    -h | --help)
+      sed -n '2,17p' "$0"
+      exit 0
+      ;;
+    *)
+      echo "slipdock-runner: unknown option $arg" >&2
+      exit 2
+      ;;
+  esac
+done
+
+say() { printf '%s slipdock-runner: %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >&2; }
+
+[ -r "$CONFIG" ] || {
+  say "no config at $CONFIG"
+  exit 2
+}
+# shellcheck disable=SC1090
+. "$CONFIG"
+
+: "${SLIPDOCK_URL:?the config must set SLIPDOCK_URL}"
+: "${SLIPDOCK_RUNNER_TOKEN:?the config must set SLIPDOCK_RUNNER_TOKEN}"
+SLIPDOCK_URL=${SLIPDOCK_URL%/}
+POOL=${POOL:-}
+WAIT=${WAIT:-25}
+HEARTBEAT=${HEARTBEAT:-20}
+JOB_TIMEOUT=${JOB_TIMEOUT:-3600}
+GRACE=${GRACE:-10}
+LOG_TAIL=${LOG_TAIL:-8000}
+
+command -v curl >/dev/null 2>&1 || {
+  say "curl is needed and was not found"
+  exit 2
+}
+
+WORK=$(mktemp -d "${TMPDIR:-/tmp}/slipdock-runner.XXXXXX") || exit 1
+chmod 700 "$WORK"
+# The token reaches curl in a file, never on its command line, where anybody
+# on the machine could read it with ps.
+(umask 077 && printf 'Authorization: Bearer %s\n' "$SLIPDOCK_RUNNER_TOKEN" >"$WORK/auth")
+
+JOB_PID=
+JOB_ID=
+CODE=
+
+# A runner told to stop takes its job down with it and says nothing to the
+# server: the lease runs out and the job goes back in the queue for another.
+shutdown() {
+  [ -n "$JOB_PID" ] && stop_job
+  rm -rf "$WORK"
+  exit "$1"
+}
+trap 'shutdown 130' INT
+trap 'shutdown 143' TERM
+trap 'rm -rf "$WORK"' EXIT
+
+# post PATH BODY_FILE MAX_SECONDS — sets CODE to the HTTP status (000 when
+# nothing answered); the body lands in $WORK/resp and the headers in $WORK/hdr.
+post() {
+  CODE=$(curl -sS -o "$WORK/resp" -D "$WORK/hdr" -w '%{http_code}' -X POST \
+    -H @"$WORK/auth" -H 'Content-Type: text/plain' --max-time "$3" \
+    --data-binary @"$2" "$SLIPDOCK_URL$1" 2>>"$WORK/curl.err") || CODE=000
+  [ -n "$CODE" ] || CODE=000
+}
+
+# header NAME — one response header's value, NAME in lower case.
+header() {
+  awk -v n="$1" '{
+    i = index($0, ":"); if (i == 0) next
+    if (tolower(substr($0, 1, i - 1)) == n) {
+      v = substr($0, i + 1); sub(/^[ \t]+/, "", v); sub(/\r$/, "", v); print v; exit
+    }
+  }' "$WORK/hdr"
+}
+
+# descendants PID — every process below PID, however deep. Taken from ps,
+# which Linux and macOS both have, because neither `setsid` (no macOS) nor
+# job control (dash refuses it without a terminal) is there everywhere.
+descendants() {
+  ps -A -o pid= -o ppid= 2>/dev/null | awk -v root="$1" '
+    { parent[$1] = $2 }
+    END {
+      found[root] = 1
+      more = 1
+      while (more) {
+        more = 0
+        for (p in parent) if (!(p in found) && (parent[p] in found)) { found[p] = 1; more = 1 }
+      }
+      for (p in found) if (p != root) print p
+    }'
+}
+
+# Stops the job and everything it started: the whole tree is read before
+# any of it is signalled, since a child whose parent dies is lost to init.
+stop_job() {
+  tree="$(descendants "$JOB_PID") $JOB_PID"
+  # shellcheck disable=SC2086
+  kill -TERM $tree 2>/dev/null
+  i=0
+  while [ ! -e "$WORK/rc" ] && kill -0 "$JOB_PID" 2>/dev/null && [ "$i" -lt "$GRACE" ]; do
+    sleep 1
+    i=$((i + 1))
+  done
+  tree="$tree $(descendants "$JOB_PID")"
+  # shellcheck disable=SC2086
+  kill -KILL $tree 2>/dev/null
+  wait "$JOB_PID" 2>/dev/null
+  JOB_PID=
+}
+
+# finish EXIT STATUS — reports the job ended, with the tail of its log.
+finish() {
+  query="exit=$1"
+  [ -n "$2" ] && query="$query&status=$2"
+  tail -c "$LOG_TAIL" "$WORK/log" >"$WORK/tail" 2>/dev/null || : >"$WORK/tail"
+  tries=0
+  while :; do
+    post "/api/runner/jobs/$JOB_ID/finish?$query" "$WORK/tail" 30
+    case "$CODE" in 200 | 404) return 0 ;; esac
+    tries=$((tries + 1))
+    if [ "$tries" -ge 5 ]; then
+      say "job #$JOB_ID: could not report it finished (HTTP $CODE)"
+      return 1
+    fi
+    sleep $((tries * 2))
+  done
+}
+
+run_job() {
+  JOB_ID=$(header x-job-id)
+  kind=$(header x-job-kind)
+  card=$(header x-card-id)
+
+  # These came from the server, so they are checked before anything uses them.
+  case "$JOB_ID" in '' | *[!0-9]*)
+    say "the server sent a job with no usable id"
+    return
+    ;;
+  esac
+  case "$card" in *[!0-9]*) card= ;; esac
+
+  : >"$WORK/log"
+  rm -f "$WORK/rc" "$WORK/rc.tmp"
+
+  fn=
+  case "$kind" in
+    '' | *[!a-z0-9_-]*) ;;
+    *) fn=job_$(printf '%s' "$kind" | tr '-' '_') ;;
+  esac
+
+  # A function the config defines answers `command -v` with its bare name;
+  # anything else (nothing, or a program called job_x on the PATH) does not.
+  if [ -z "$fn" ] || [ "$(command -v "$fn" 2>/dev/null)" != "$fn" ]; then
+    say "job #$JOB_ID: no job_${kind} in $CONFIG — refused, nothing run"
+    printf 'no such job kind: %s (this runner has no job_%s)\n' "$kind" "$kind" >"$WORK/log"
+    finish 127 failed
+    return
+  fi
+
+  SLIPDOCK_JOB_ID=$JOB_ID
+  SLIPDOCK_JOB_KIND=$kind
+  SLIPDOCK_CARD=$card
+  SLIPDOCK_CARD_URL=$(header x-card-url)
+  SLIPDOCK_PROMPT=$(cat "$WORK/resp")
+  export SLIPDOCK_JOB_ID SLIPDOCK_JOB_KIND SLIPDOCK_CARD SLIPDOCK_CARD_URL SLIPDOCK_PROMPT
+
+  say "job #$JOB_ID: $kind for card #$card"
+
+  # The inner subshell keeps an `exit` in the job from skipping the line
+  # that records how it ended.
+  (
+    ("$fn") >"$WORK/log" 2>&1 </dev/null
+    echo $? >"$WORK/rc.tmp" && mv "$WORK/rc.tmp" "$WORK/rc"
+  ) &
+  JOB_PID=$!
+
+  started=$(date +%s)
+  last=0
+  ended=
+  while [ ! -e "$WORK/rc" ] && kill -0 "$JOB_PID" 2>/dev/null; do
+    now=$(date +%s)
+    if [ $((now - started)) -ge "$JOB_TIMEOUT" ]; then
+      ended=timeout
+      break
+    fi
+    if [ $((now - last)) -ge "$HEARTBEAT" ]; then
+      last=$now
+      tail -c "$LOG_TAIL" "$WORK/log" >"$WORK/tail"
+      post "/api/runner/jobs/$JOB_ID/heartbeat" "$WORK/tail" 15
+      case "$CODE" in
+        200) [ "$(cat "$WORK/resp")" = cancel ] && ended=cancelled && break ;;
+        # Not ours any more: the lease ran out and somebody else has it.
+        404) ended=lost && break ;;
+      esac
+    fi
+    sleep 1
+  done
+
+  case "$ended" in
+    timeout)
+      say "job #$JOB_ID: over its ${JOB_TIMEOUT}s — stopped"
+      stop_job
+      echo "slipdock-runner: stopped after ${JOB_TIMEOUT}s" >>"$WORK/log"
+      finish 124 timeout
+      ;;
+    cancelled)
+      say "job #$JOB_ID: cancelled from the board — stopped"
+      stop_job
+      echo "slipdock-runner: cancelled from the board" >>"$WORK/log"
+      finish 130 cancelled
+      ;;
+    lost)
+      say "job #$JOB_ID: no longer this runner's — stopped"
+      stop_job
+      ;;
+    *)
+      wait "$JOB_PID" 2>/dev/null
+      JOB_PID=
+      rc=$(cat "$WORK/rc" 2>/dev/null)
+      case "$rc" in '' | *[!0-9]*) rc=1 ;; esac
+      say "job #$JOB_ID: exit $rc"
+      finish "$rc" ""
+      ;;
+  esac
+  JOB_ID=
+}
+
+backoff=1
+query="wait=$WAIT"
+[ -n "$POOL" ] && query="$query&pool=$POOL"
+say "taking jobs from $SLIPDOCK_URL${POOL:+ (pool $POOL)}"
+
+while :; do
+  post "/api/runner/claim?$query" /dev/null $((WAIT + 15))
+
+  case "$CODE" in
+    200)
+      backoff=1
+      run_job
+      ;;
+    204) backoff=1 ;;
+    401 | 403)
+      say "the server refused this runner (HTTP $CODE): $(cat "$WORK/resp" 2>/dev/null)"
+      exit 1
+      ;;
+    *)
+      say "could not reach the queue (HTTP $CODE) — trying again in ${backoff}s"
+      [ -n "$ONCE" ] && exit 1
+      sleep "$backoff"
+      backoff=$((backoff * 2))
+      [ "$backoff" -gt 60 ] && backoff=60
+      ;;
+  esac
+
+  [ -n "$ONCE" ] && exit 0
+done
