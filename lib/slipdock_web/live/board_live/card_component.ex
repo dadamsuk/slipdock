@@ -790,7 +790,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     <.modal
       id="card-modal"
       on_close={if @close_navigate, do: JS.navigate(@close_path), else: JS.patch(@close_path)}
-      size="lg"
+      size="wide"
       keys
     >
       <%!-- Outside the fieldset below, which is disabled for a read-only
