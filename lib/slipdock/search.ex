@@ -16,7 +16,10 @@ defmodule Slipdock.Search do
   `Slipdock.Search.Vector`). A query is embedded the same way, and every chunk
   the reader may see is scored by dot product. There is no index and no
   approximation: at a few thousand chunks the full scan is milliseconds and
-  the answer is exact.
+  the answer is exact. The scan reads the index in batches of
+  500 chunks and keeps only the best 120 it has seen so far, so a
+  search holds a batch and a short list in memory however large the index
+  grows, and never sorts more than those.
 
   Results are **hybrid**. Semantic recall is good at the question nobody
   phrased the same way and bad at the exact token — a card code, a name, a
@@ -56,6 +59,9 @@ defmodule Slipdock.Search do
   # same card; the second is what a person or a model actually reads.
   @chunk_limit 120
   @default_limit 20
+  # How many chunks are read, bodies and vectors, per trip to the database.
+  # Bounds what one search holds in memory alongside the running best.
+  @batch_size 500
 
   # What a keyword hit is worth. Enough to lift an exact token above a merely
   # related chunk, not enough to bury a strong semantic match under a
@@ -113,6 +119,9 @@ defmodule Slipdock.Search do
     * `:min_score` — override the relevance floor
     * `:token` — the API token asking, whose board scope narrows the user's
       reach further (see `Slipdock.Access.narrow/3`); nil for a person
+    * `:batch_size` — how many chunks are scored per read of the index
+      (default #{@batch_size}); it changes memory and round trips, never the
+      answer
   """
   @spec search(User.t() | nil, String.t(), keyword) :: {:ok, [map]} | {:error, String.t()}
   def search(user, query, opts \\ [])
@@ -144,27 +153,54 @@ defmodule Slipdock.Search do
     floor = opts[:min_score] || @min_score
     keywords = keywords(query)
 
-    scored =
-      user
-      |> candidates(opts)
-      |> Enum.map(fn row ->
-        semantic = Vector.similarity(packed, row.vector)
-        boost = if keyword_hit?(row.body, keywords), do: @keyword_boost, else: 0.0
-        penalty = if Embedding.page?(row.kind), do: @page_penalty, else: 0.0
-        %{row | score: semantic + boost - penalty}
-      end)
-      |> Enum.filter(&(&1.score >= floor))
-      |> Enum.sort_by(& &1.score, :desc)
-      |> Enum.take(@chunk_limit)
+    score = fn row ->
+      semantic = Vector.similarity(packed, row.vector)
+      boost = if keyword_hit?(row.body, keywords), do: @keyword_boost, else: 0.0
+      penalty = if Embedding.page?(row.kind), do: @page_penalty, else: 0.0
+      %{row | score: semantic + boost - penalty}
+    end
 
-    scored
+    user
+    |> candidates(opts)
+    |> best_chunks(opts[:token], opts[:batch_size] || @batch_size, score, floor)
     |> roll_up(user)
     |> Enum.take(limit)
   end
 
-  # Every chunk the reader may see, as bare rows — the vectors are scored in
-  # Elixir, so the query's job is only to keep unreadable and unwanted rows
-  # out of memory.
+  # Walks the candidates in id order, a batch at a time, keeping only the
+  # best `@chunk_limit` scored so far. The running best goes ahead of each
+  # new batch before the stable sort, so a tie is won by the lower id — the
+  # same answer one batch of everything would give.
+  defp best_chunks(query, token, batch_size, score, floor),
+    do: scan(query, token, batch_size, score, floor, 0, %{}, [])
+
+  defp scan(query, token, batch_size, score, floor, after_id, allowed, best) do
+    rows =
+      from([e, _c, _p] in query,
+        where: e.id > ^after_id,
+        order_by: [asc: e.id],
+        limit: ^batch_size
+      )
+      |> Repo.all()
+
+    {readable, allowed} = within_token_scope(rows, token, allowed)
+
+    best =
+      readable
+      |> Enum.map(score)
+      |> Enum.filter(&(&1.score >= floor))
+      |> then(&(best ++ &1))
+      |> Enum.sort_by(& &1.score, :desc)
+      |> Enum.take(@chunk_limit)
+
+    if length(rows) < batch_size,
+      do: best,
+      else: scan(query, token, batch_size, score, floor, List.last(rows).id, allowed, best)
+  end
+
+  # The query for every chunk the reader may see, as bare rows — the vectors
+  # are scored in Elixir, so the query's job is only to keep unreadable and
+  # unwanted rows out of memory. `scan/8` reads it a batch at a time.
   defp candidates(user, opts) do
     %{board_ids: board_ids, card_ids: card_ids} = Slipdock.Access.readable_scope(user)
     # A page shared on its own reaches its reader without its board, the way
@@ -193,26 +229,25 @@ defmodule Slipdock.Search do
     |> filter_archived(opts[:archived])
     |> filter_board(opts[:board_id])
     |> filter_kind(opts[:kind])
-    |> Repo.all()
-    |> within_token_scope(opts[:token])
   end
 
   # The user's reach is the outer bound; a token confined to some boards only
-  # ever narrows it. Checked once per board rather than per chunk.
-  defp within_token_scope(rows, nil), do: rows
+  # ever narrows it. Checked once per board rather than per chunk, and the
+  # answers carried from batch to batch so no board is asked about twice.
+  defp within_token_scope(rows, nil, allowed), do: {rows, allowed}
 
-  defp within_token_scope(rows, token) do
+  defp within_token_scope(rows, token, allowed) do
     allowed =
       rows
       |> Enum.map(& &1.board_id)
       |> Enum.uniq()
-      |> Enum.filter(fn board_id ->
+      |> Enum.reject(&Map.has_key?(allowed, &1))
+      |> Enum.reduce(allowed, fn board_id, acc ->
         {level, _} = Slipdock.Access.narrow(:read, token, board_id)
-        Slipdock.Access.can_read?(level)
+        Map.put(acc, board_id, Slipdock.Access.can_read?(level))
       end)
-      |> MapSet.new()
 
-    Enum.filter(rows, &MapSet.member?(allowed, &1.board_id))
+    {Enum.filter(rows, &Map.fetch!(allowed, &1.board_id)), allowed}
   end
 
   defp filter_archived(query, true), do: query
