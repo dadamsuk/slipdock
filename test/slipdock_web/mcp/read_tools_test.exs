@@ -14,7 +14,7 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
     board = board_fixture(%{"name" => "Delivery", "code" => "delivery"}, owner: user)
     [first, second | _] = board.columns
 
-    top = card_fixture(first, %{"title" => "Top of the list"})
+    top = card_fixture(first, %{"title" => "Top of the list", "description" => "what it is for"})
     done = card_fixture(first, %{"title" => "Already done", "completed" => true})
     blocker = card_fixture(second, %{"title" => "Blocker"})
     blocked = card_fixture(first, %{"title" => "Waiting on the blocker"})
@@ -127,8 +127,17 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
 
       line = Enum.find(first["cards"], &(&1["id"] == ctx.blocked.id))
       assert line["blocked"] == true
-      refute Map.has_key?(line, "description")
       refute Map.has_key?(line, "comments")
+      refute Map.has_key?(line, "checklist")
+    end
+
+    test "each card carries its description, null when it has none", ctx do
+      board = ctx.conn |> call("get_board", %{board: "delivery"}) |> ok!()
+      lines = board["lists"] |> Enum.flat_map(& &1["cards"]) |> Map.new(&{&1["id"], &1})
+
+      assert lines[ctx.top.id]["description"] == "what it is for"
+      assert Map.has_key?(lines[ctx.blocked.id], "description")
+      assert lines[ctx.blocked.id]["description"] == nil
     end
 
     test "another tenant's board reads as not there", ctx do
@@ -161,6 +170,15 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
       assert ctx.top.id in ids
       refute ctx.done.id in ids
       refute ctx.blocked.id in ids
+    end
+
+    test "each card carries its description, null when it has none", ctx do
+      %{"cards" => cards} = ctx.conn |> call("list_cards", %{board: "delivery"}) |> ok!()
+      lines = Map.new(cards, &{&1["id"], &1})
+
+      assert lines[ctx.top.id]["description"] == "what it is for"
+      assert Map.has_key?(lines[ctx.done.id], "description")
+      assert lines[ctx.done.id]["description"] == nil
     end
 
     test "open: false gives the completed ones", ctx do

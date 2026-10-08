@@ -100,8 +100,9 @@ defmodule SlipdockWeb.MCP.Tools do
 
   @doc """
   A card in a listing: enough to choose one, not to work it — `get_card` has
-  the rest. Listings are what blow a client's per-result budget, so this
-  leaves out descriptions, comments and checklists.
+  the rest. The description is in, so an agent can tell what each card is
+  about without a `get_card` per card; comments and checklists are left out,
+  since listings are what blow a client's per-result budget.
   """
   def card_line(card) do
     full = SlipdockWeb.API.JSON.card(card)
@@ -110,6 +111,7 @@ defmodule SlipdockWeb.MCP.Tools do
     |> Map.take([
       :id,
       :title,
+      :description,
       :column,
       :position,
       :priority,
