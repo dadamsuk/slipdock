@@ -24,6 +24,8 @@ defmodule Slipdock.Access do
   alias Slipdock.Accounts.{Group, User}
   alias Slipdock.Boards
   alias Slipdock.Boards.{Board, Card, SavedView}
+  alias Slipdock.Swimlanes
+  alias Slipdock.Swimlanes.Config
   alias Slipdock.Wiki.Page
 
   @pubsub Slipdock.PubSub
@@ -74,6 +76,32 @@ defmodule Slipdock.Access do
     from_board = if from_board == :view, do: :none, else: from_board
     direct = grant_level(user, card_id: card.id)
     Enum.max_by([from_board, direct], &@rank[&1])
+  end
+
+  @doc """
+  Whether `user` reaches `card` through a saved view granted to them: their
+  access to its board is view-only, the card is live, and the filters of one
+  of the views they hold select it — the same test the board applies to what
+  it shows them (`SlipdockWeb.BoardLive.Items.card_access/5`). Anyone with
+  more than view access is answered by `card_permission/2` instead, so this
+  is `false` for them.
+  """
+  @spec view_shows_card?(User.t() | nil, Card.t()) :: boolean
+  def view_shows_card?(nil, _card), do: false
+  def view_shows_card?(_user, %Card{archived_at: archived}) when not is_nil(archived), do: false
+
+  def view_shows_card?(%User{} = user, %Card{} = card) do
+    board = Repo.get!(Board, card.board_id)
+
+    if board_permission(user, board) == :view do
+      card = Boards.get_card!(card.id)
+
+      user
+      |> accessible_views(board)
+      |> Enum.any?(&Swimlanes.matches?(card, Config.from_map(&1.config)))
+    else
+      false
+    end
   end
 
   @doc """

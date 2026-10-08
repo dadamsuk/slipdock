@@ -26,11 +26,12 @@ defmodule SlipdockWeb.AttachmentController do
     end
   end
 
-  # Anyone who can read the card, or who has any access to its board (a
-  # view-only reader sees the card through a shared view).
+  # Anyone who can read the card, or a view-only reader of its board whose
+  # shared view shows this card. Reaching the board through some view is not
+  # enough: a card the view filters out keeps its files to itself.
   defp readable?(user, %Attachment{card: %Slipdock.Boards.Card{} = card}) do
     Access.can_read?(Access.card_permission(user, card)) or
-      Access.board_permission(user, Boards.get_board!(card.board_id)) != :none
+      Access.view_shows_card?(user, card)
   end
 
   # A page's images are exactly as readable as the page: a draft's screenshot
