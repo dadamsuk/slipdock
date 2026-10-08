@@ -47,7 +47,9 @@ defmodule SlipdockWeb.MCP.DocsTest do
     section = section |> String.split(~r/\n## /, parts: 2) |> hd()
 
     mentioned =
-      Regex.scan(~r/`([a-z]+_[a-z_]+|whoami|search|comment)`/, section, capture: :all_but_first)
+      Regex.scan(~r/`([a-z]+_[a-z_]+|whoami|search|comment|activity)`/, section,
+        capture: :all_but_first
+      )
       |> List.flatten()
       |> Enum.uniq()
 

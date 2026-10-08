@@ -81,7 +81,7 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
 
     names = Enum.map(tools, & &1["name"])
 
-    for name <- ~w(get_guide list_boards get_board list_cards get_card search read_page) do
+    for name <- ~w(get_guide list_boards get_board list_cards get_card search read_page activity) do
       tool = Enum.find(tools, &(&1["name"] == name))
       assert tool, "#{name} missing from #{inspect(names)}"
       assert tool["annotations"]["readOnlyHint"] == true
@@ -385,6 +385,68 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
     test "full must be a boolean", ctx do
       assert ctx.conn |> call("list_cards", %{board: "delivery", full: "yes"}) |> error!() =~
                "true or false"
+    end
+  end
+
+  describe "activity" do
+    test "the board's log, newest first, as the API gives it", ctx do
+      result = ctx.conn |> call("activity", %{board: "delivery"}) |> ok!()
+
+      assert result["board"]["code"] == "delivery"
+      messages = Enum.map(result["activity"], & &1["message"])
+      assert Enum.any?(messages, &(&1 =~ "Top of the list"))
+      assert Enum.any?(messages, &(&1 =~ "Waiting on the blocker"))
+      # Newest first: the last card made comes before the first.
+      newest = Enum.find_index(messages, &(&1 =~ "Waiting on the blocker"))
+      oldest = Enum.find_index(messages, &(&1 =~ "Already done"))
+      assert newest < oldest
+
+      assert %{"id" => _, "kind" => _, "card_id" => _, "at" => _} = hd(result["activity"])
+      refute inspect(result) =~ "Their secret"
+    end
+
+    test "limit caps how many", ctx do
+      assert %{"activity" => [_]} =
+               ctx.conn |> call("activity", %{board: ctx.board.id, limit: 1}) |> ok!()
+    end
+
+    test "card narrows it to the entries about that card", ctx do
+      %{"activity" => entries} =
+        ctx.conn |> call("activity", %{board: "delivery", card: "##{ctx.top.id}"}) |> ok!()
+
+      assert entries != []
+      assert Enum.all?(entries, &(&1["card_id"] == ctx.top.id))
+    end
+
+    test "a card with no entries on this board gives none", ctx do
+      assert %{"activity" => []} =
+               ctx.conn |> call("activity", %{board: "delivery", card: ctx.secret.id}) |> ok!()
+    end
+
+    test "an unknown board and a stranger's board read the same", ctx do
+      assert ctx.conn |> call("activity", %{board: "nowhere"}) |> error!() =~ "no board"
+      assert ctx.conn |> call("activity", %{board: "private"}) |> error!() =~ "no board"
+    end
+
+    test "a board outside the token's scope is refused", ctx do
+      other = board_fixture(%{"name" => "Other"}, owner: ctx.user)
+      conn = scoped(ctx.conn, ctx.user, scope_boards: [other.id])
+      assert conn |> call("activity", %{board: "delivery"}) |> error!() =~ "scope"
+    end
+
+    test "a read-only token may read it", ctx do
+      conn = scoped(ctx.conn, ctx.user, scope: "read")
+      assert %{"activity" => [_ | _]} = conn |> call("activity", %{board: "delivery"}) |> ok!()
+    end
+
+    test "bad arguments are tool errors", ctx do
+      assert ctx.conn |> call("activity", %{}) |> error!() =~ "board is required"
+
+      assert ctx.conn |> call("activity", %{board: "delivery", limit: 0}) |> error!() =~
+               "positive whole number"
+
+      assert ctx.conn |> call("activity", %{board: "delivery", card: "top"}) |> error!() =~
+               "card number"
     end
   end
 

@@ -3239,12 +3239,17 @@ defmodule Slipdock.Boards do
     |> Repo.all()
   end
 
-  def list_activities(board_id, limit \\ 50) do
+  @doc """
+  A board's activity, newest first. `card_id` narrows it to the entries about
+  that one card.
+  """
+  def list_activities(board_id, limit \\ 50, card_id \\ nil) do
     from(a in Activity,
       where: a.board_id == ^board_id,
       order_by: [desc: a.inserted_at, desc: a.id],
       limit: ^limit
     )
+    |> then(fn q -> if card_id, do: where(q, [a], a.card_id == ^card_id), else: q end)
     |> Repo.all()
   end
 
