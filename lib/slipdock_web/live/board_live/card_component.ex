@@ -828,15 +828,19 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
       keys
     >
       <%!-- Outside the fieldset below, which is disabled for a read-only
-            card: a favourite is the reader's own, not a change to the card. --%>
-      <.favourite_toggle
-        kind="card"
-        id={@card.id}
-        name={@card.title}
-        marks={@favourites}
-        class="btn btn-ghost btn-sm btn-circle absolute right-12 top-3 z-10"
-        size="size-5"
-      />
+            card: a favourite is the reader's own, not a change to the card.
+            The heart's weight is in its top half, so in the same box as the
+            close x it reads high: a pixel down lines the two up by eye. --%>
+      <:actions>
+        <.favourite_toggle
+          kind="card"
+          id={@card.id}
+          name={@card.title}
+          marks={@favourites}
+          class="btn btn-ghost btn-sm btn-circle"
+          size="size-5 translate-y-px"
+        />
+      </:actions>
       <div
         :if={@card.color}
         class={["h-3 rounded-t-2xl bg-gradient-to-r", Palette.gradient(@card.color)]}

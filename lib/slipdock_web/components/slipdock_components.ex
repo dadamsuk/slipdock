@@ -1376,6 +1376,9 @@ defmodule SlipdockWeb.SlipdockComponents do
     default: false,
     doc: "give the dialog the keyboard: arrows, hjkl, PageUp/Down, Home/End and the section keys"
 
+  slot :actions,
+    doc: "buttons that sit in the top corner beside the close button, on the same row"
+
   slot :inner_block, required: true
 
   def modal(assigns) do
@@ -1400,14 +1403,17 @@ defmodule SlipdockWeb.SlipdockComponents do
         ]}
         phx-click-away={@on_close}
       >
-        <button
-          type="button"
-          class="btn btn-ghost btn-sm btn-circle absolute right-3 top-3 z-10"
-          phx-click={@on_close}
-          aria-label="Close"
-        >
-          <.icon name="hero-x-mark" class="size-5" />
-        </button>
+        <div class="modal-actions absolute right-3 top-3 z-10 flex items-center gap-2">
+          {render_slot(@actions)}
+          <button
+            type="button"
+            class="btn btn-ghost btn-sm btn-circle"
+            phx-click={@on_close}
+            aria-label="Close"
+          >
+            <.icon name="hero-x-mark" class="size-5" />
+          </button>
+        </div>
         {render_slot(@inner_block)}
       </div>
     </div>
