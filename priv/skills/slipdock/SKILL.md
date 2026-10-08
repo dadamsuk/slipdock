@@ -31,7 +31,9 @@ every card in full (comments, checklist, docs) in one call instead of a `get_car
 and works the checklist. `list_pages` lists a board's wiki (`tree: true` nests it, as `page tree`
 does), and `read_page` reads one. `page_info` answers what `page links`, `page sections`,
 `page wanted` and `page resolve` do — ask it for `sections` before a `write_page` section edit
-rather than guessing the heading path. Anything the tools don't cover (automations, sprints, attachments,
+rather than guessing the heading path. `page_history` is `page history` and `page diff` (`rev`, or
+`diff: true` for the latest save), and `revert_page` is `page revert`: it needs the page's current
+`content_hash` as `base_hash`. Anything the tools don't cover (automations, sprints, attachments,
 fields) is still the CLI or the API.
 
 ## If the CLI is not installed here

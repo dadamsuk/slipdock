@@ -21,6 +21,7 @@ defmodule SlipdockWeb.MCP.Tools do
     Tools.ReadPage,
     Tools.ListPages,
     Tools.PageInfo,
+    Tools.PageHistory,
     Tools.Activity,
     Tools.CreateCard,
     Tools.UpdateCard,
@@ -34,7 +35,8 @@ defmodule SlipdockWeb.MCP.Tools do
     Tools.CreateBoard,
     Tools.ArchiveBoard,
     Tools.DeleteBoard,
-    Tools.WritePage
+    Tools.WritePage,
+    Tools.RevertPage
   ]
 
   @doc "Every tool module, in the order `tools/list` gives them."

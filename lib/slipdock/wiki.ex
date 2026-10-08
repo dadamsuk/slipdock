@@ -506,7 +506,7 @@ defmodule Slipdock.Wiki do
           case Repo.update(changeset) do
             {:ok, updated} ->
               if changed_content?(changeset) do
-                {:ok, _} = write_revision(updated, opts)
+                {:ok, _} = write_revision(updated, opts, force: opts[:new_revision])
                 log(updated.board_id, updated, "page_updated", "edited “#{updated.title}”")
               end
 
@@ -724,7 +724,9 @@ defmodule Slipdock.Wiki do
 
   @doc """
   Puts the page back to how a revision had it. This is itself a save, so it
-  writes a revision of its own — nothing is ever removed from history.
+  writes a revision of its own — nothing is ever removed from history. It is
+  never folded into the writer's last save, as quick saves are: undoing your
+  own edit straight away would otherwise overwrite the very revision undone.
   """
   def revert_page(%Page{} = page, %Revision{} = revision, opts \\ []) do
     message = opts[:message] || "reverted to the version of #{format_stamp(revision.inserted_at)}"
@@ -732,7 +734,7 @@ defmodule Slipdock.Wiki do
     update_page(
       page,
       %{"title" => revision.title, "body" => revision.body},
-      Keyword.put(opts, :message, message)
+      opts |> Keyword.put(:message, message) |> Keyword.put(:new_revision, true)
     )
   end
 
@@ -756,7 +758,7 @@ defmodule Slipdock.Wiki do
   # page and reverting is just "take that snapshot". Consecutive saves by the
   # same hand within ten minutes overwrite one another rather than piling up:
   # an agent appending every few minutes should not bury the day's real edits.
-  defp write_revision(%Page{} = page, opts, flags \\ []) do
+  defp write_revision(%Page{} = page, opts, flags) do
     user = opts[:user]
     via = opts[:via] || "web"
 
