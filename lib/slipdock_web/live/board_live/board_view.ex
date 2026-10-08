@@ -337,7 +337,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         phx-hook="ScrollEnd"
         class={[
           "kanban-scroll min-h-0 flex-1 overflow-x-auto overflow-y-hidden",
-          @narrow? && "snap-x snap-mandatory scroll-pl-4"
+          @narrow? && "snap-x snap-mandatory"
         ]}
       >
         <div
@@ -348,15 +348,21 @@ defmodule SlipdockWeb.BoardLive.BoardView do
           data-handle=".column-handle"
           data-event="move_column"
           data-disabled={to_string(!@can_write)}
-          class="flex h-full items-start gap-4 p-4"
+          class={["flex h-full items-start", if(@narrow?, do: "gap-0", else: "gap-4 p-4")]}
         >
+          <%!-- On a phone one list fills the screen, so it is the page: no
+                margin round it, no well behind it, and the cards sit straight
+                on the background, edge to edge bar a little breathing room. --%>
           <div
             :for={%{column: column, cards: cards, groups: groups, hidden: hidden} <- @columns}
             id={"column-#{column.id}"}
             data-id={column.id}
             class={[
-              "kanban-column flex max-h-full shrink-0 flex-col rounded-2xl bg-base-300/60 shadow-inner",
-              if(@narrow?, do: "w-[calc(100vw-2.5rem)] snap-start", else: "w-72"),
+              "kanban-column flex max-h-full shrink-0 flex-col",
+              if(@narrow?,
+                do: "w-screen snap-start snap-always",
+                else: "w-72 rounded-2xl bg-base-300/60 shadow-inner"
+              ),
               @focus && @focus.column_id == column.id && "ring-2 ring-secondary/50"
             ]}
           >
@@ -499,7 +505,10 @@ defmodule SlipdockWeb.BoardLive.BoardView do
               data-disabled={to_string(!@can_write)}
               data-draggable=".kanban-card"
               data-sort={to_string(!ListOrder.sorted?(column))}
-              class="kanban-scroll min-h-[2.5rem] flex-1 space-y-2 overflow-y-auto px-2 py-1"
+              class={[
+                "kanban-scroll min-h-[2.5rem] flex-1 space-y-2 overflow-y-auto py-1",
+                if(@narrow?, do: "px-3", else: "px-2")
+              ]}
             >
               <%!-- Cards and placed wiki pages are drawn by the same
                     component: a page carries the card's facets, and the one
@@ -635,7 +644,10 @@ defmodule SlipdockWeb.BoardLive.BoardView do
             <.live_file_input upload={@uploads.list_document} class="hidden" />
           </form>
 
-          <div :if={@can_write} class="w-72 shrink-0">
+          <div
+            :if={@can_write}
+            class={["shrink-0", if(@narrow?, do: "w-screen snap-start p-3", else: "w-72")]}
+          >
             <form
               :if={@adding_column}
               id={"add-column-#{@form_key}"}

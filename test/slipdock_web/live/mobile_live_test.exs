@@ -66,8 +66,38 @@ defmodule SlipdockWeb.MobileLiveTest do
       end
 
       # And the columns themselves are a viewport wide, not the desktop's 18rem.
-      assert html =~ "w-[calc(100vw-2.5rem)]"
-      refute html =~ "kanban-column flex max-h-full w-72"
+      column = hd(board.columns)
+      assert has_element?(view, "#column-#{column.id}.kanban-column.w-screen.snap-start")
+      refute has_element?(view, "#column-#{column.id}.w-72")
+    end
+
+    test "a list is the page: no margin round it, no well behind it (#419)", %{
+      conn: conn,
+      board: board
+    } do
+      {:ok, view, _} = live(phone(conn), ~p"/boards/#{board}")
+      column = hd(board.columns)
+
+      # Nothing between the edge of the screen and the list...
+      assert has_element?(view, "#columns.gap-0")
+      refute has_element?(view, "#columns.p-4")
+      refute has_element?(view, "#board-scroll.scroll-pl-4")
+      # ...and the list draws no box of its own: the cards sit on the page.
+      refute has_element?(view, "#column-#{column.id}.rounded-2xl")
+      refute has_element?(view, "#column-#{column.id}.bg-base-300\\/60")
+      assert has_element?(view, "#cards-#{column.id}.px-3")
+      # The add-a-list slot pages like a list rather than leaving 18rem.
+      assert has_element?(view, "#columns > div.w-screen.snap-start.p-3")
+    end
+
+    test "the desktop keeps its boxed lists", %{conn: conn, board: board} do
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}")
+      column = hd(board.columns)
+
+      assert has_element?(view, "#columns.gap-4.p-4")
+      assert has_element?(view, "#column-#{column.id}.w-72.rounded-2xl.bg-base-300\\/60")
+      assert has_element?(view, "#cards-#{column.id}.px-2")
+      refute has_element?(view, "#column-#{column.id}.w-screen")
     end
   end
 
