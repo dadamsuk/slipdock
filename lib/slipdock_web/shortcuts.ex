@@ -14,7 +14,7 @@ defmodule SlipdockWeb.Shortcuts do
     {"Anywhere",
      [
        {"Ctrl-P", "Commands — type what you want to do"},
-       {"Ctrl-O", "Open a card — type its title, or a page's code"},
+       {"Ctrl-O", "Open a card — type its title or id, or a page's code"},
        {"h", "All boards"},
        {"b", "Switch board — then the board's own key"},
        {"q", "Quick add a card"},

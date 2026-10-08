@@ -156,7 +156,7 @@ defmodule SlipdockWeb.ShortcutsLiveTest do
 
       html = render_hook(view, "shortcut_panel", %{"panel" => "find"})
       assert html =~ "Find a card"
-      assert html =~ "Type to find a card on any board, or a page"
+      assert html =~ "Type to find a card on any board, its id, or a page"
 
       render_hook(view, "palette_filter", %{"q" => "query"})
       assert has_element?(view, ~s{#palette-rows a[href="/boards/#{board.id}/cards/#{card.id}"]})
@@ -172,6 +172,51 @@ defmodule SlipdockWeb.ShortcutsLiveTest do
 
       render_hook(view, "shortcut_panel", %{"panel" => "find"})
       assert render_hook(view, "palette_filter", %{"q" => "secret"}) =~ "No cards match."
+    end
+
+    test "Ctrl-O opens a card by its id, ahead of titles that contain it", %{
+      view: view,
+      board: board
+    } do
+      other = board_fixture(%{"name" => "Personal"}, derive_keys: true)
+      far = card_fixture(hd(other.columns), %{"title" => "Far away"})
+      # A title with the id in it is still offered, but below the card itself.
+      near = card_fixture(hd(board.columns), %{"title" => "Fix #{far.id} things"})
+
+      render_hook(view, "shortcut_panel", %{"panel" => "find"})
+
+      for q <- ["#{far.id}", "##{far.id}", " # #{far.id} "] do
+        render_hook(view, "palette_filter", %{"q" => q})
+
+        assert has_element?(
+                 view,
+                 ~s{#palette-rows a[data-on][href="/boards/#{other.id}/cards/#{far.id}"]}
+               )
+      end
+
+      # The bare number also matches the title with it in, below the card.
+      render_hook(view, "palette_filter", %{"q" => "#{far.id}"})
+      assert has_element?(view, ~s{#palette-rows a[href="/boards/#{board.id}/cards/#{near.id}"]})
+      refute has_element?(view, ~s{#palette-rows a[data-on][href$="/cards/#{near.id}"]})
+
+      # Not an id, so only titles are matched.
+      render_hook(view, "palette_filter", %{"q" => "#{far.id}x"})
+      refute has_element?(view, ~s{#palette-rows a[href="/boards/#{other.id}/cards/#{far.id}"]})
+    end
+
+    test "Ctrl-O finds no card by id when it is archived or not yours", %{
+      view: view,
+      board: board
+    } do
+      stranger = user_fixture("stranger@example.com")
+      theirs = board_fixture(%{"name" => "Theirs"}, owner: stranger, derive_keys: true)
+      secret = card_fixture(hd(theirs.columns), %{"title" => "Secret"})
+      gone = card_fixture(hd(board.columns), %{"title" => "Gone"})
+      {:ok, _} = Boards.archive_card(gone)
+
+      render_hook(view, "shortcut_panel", %{"panel" => "find"})
+      assert render_hook(view, "palette_filter", %{"q" => "#{secret.id}"}) =~ "No cards match."
+      assert render_hook(view, "palette_filter", %{"q" => "##{gone.id}"}) =~ "No cards match."
     end
 
     test "h goes home", %{view: view} do

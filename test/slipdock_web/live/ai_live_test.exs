@@ -151,6 +151,76 @@ defmodule SlipdockWeb.AILiveTest do
     assert system =~ "##{card.id} “Write the plan”"
   end
 
+  describe "asking the chat to open a card by its id" do
+    test "opens it, on any board you can open, without asking the model", %{
+      conn: conn,
+      board: board
+    } do
+      other = board_fixture(%{"name" => "Elsewhere"})
+      far = card_fixture(hd(other.columns), %{"title" => "Far card"})
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}")
+      view |> element("#board-chat") |> render_click()
+
+      assert {:error, {:live_redirect, %{to: to}}} =
+               view
+               |> form("#page-ai-form-0", %{"message" => "open card id #{far.id}"})
+               |> render_submit()
+
+      assert to == ~p"/boards/#{other}/cards/#{far.id}"
+      refute_received {:ai_request, _}
+    end
+
+    test "says so when the card is archived or not yours", %{conn: conn, board: board, card: card} do
+      stranger = user_fixture("stranger@example.com")
+      theirs = board_fixture(%{"name" => "Theirs"}, owner: stranger)
+      secret = card_fixture(hd(theirs.columns), %{"title" => "Secret"})
+      {:ok, _} = Boards.archive_card(card)
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}")
+      view |> element("#board-chat") |> render_click()
+
+      html =
+        view |> form("#page-ai-form-0", %{"message" => "open ##{secret.id}"}) |> render_submit()
+
+      assert html =~ "There&#39;s no card ##{secret.id} you can open."
+      refute html =~ "Secret"
+
+      html =
+        view |> form("#page-ai-form-1", %{"message" => "Show card #{card.id}"}) |> render_submit()
+
+      assert html =~ "There&#39;s no card ##{card.id} you can open."
+      refute_received {:ai_request, _}
+    end
+
+    test "anything else still goes to the model", %{conn: conn, board: board} do
+      Slipdock.AIStub.reply_with("Which one?")
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}")
+      view |> element("#board-chat") |> render_click()
+
+      view |> form("#page-ai-form-0", %{"message" => "open the plan"}) |> render_submit()
+      assert render_async(view) =~ "Which one?"
+      assert_receive {:ai_request, _}
+    end
+
+    test "the requests it recognises" do
+      alias SlipdockWeb.AIChatComponent, as: Chat
+
+      assert Chat.open_card_request("open card 123") == 123
+      assert Chat.open_card_request("Open card id 123") == 123
+      assert Chat.open_card_request("  open card id: #123.  ") == 123
+      assert Chat.open_card_request("please show me card number 7") == 7
+      assert Chat.open_card_request("go to #42") == 42
+      assert Chat.open_card_request("take me to the card 9, please") == 9
+      assert Chat.open_card_request("jump to card #9!") == 9
+
+      assert Chat.open_card_request("open 123") == nil
+      assert Chat.open_card_request("open card 123 and close card 4") == nil
+      assert Chat.open_card_request("why is card 123 open?") == nil
+      assert Chat.open_card_request("open the plan") == nil
+    end
+  end
+
   test "a failing model call is reported in the drawer", %{conn: conn, board: board} do
     Slipdock.AIStub.fail_with(429, "slow down")
     {:ok, view, _} = live(conn, ~p"/boards/#{board}")

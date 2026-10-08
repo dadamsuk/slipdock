@@ -90,7 +90,7 @@ way in: what it is, the pictures, and how to get it running.
   priority, flag, due date, hide completed
 - Web links on a card: pages, shared drives and files elsewhere, datestamped
 - Command palette (`Ctrl-P`) for everywhere you can go and everything you can
-  set off, and a card finder (`Ctrl-O`) that opens any card by title
+  set off, and a card finder (`Ctrl-O`) that opens any card by title or id
 - Keyboard throughout: `?` for the sheet, `b` to switch board (each has its own
   key), `v` to switch view, `q` to add, `/` to search; on a board `j` labels
   every card so a keystroke opens it, `J` picks one up for the arrows to move,
@@ -860,7 +860,8 @@ dialogs leave the page's keys alone.
   the exact to the vague, so `bs` finds *Board settings*. The arrows walk the
   answer, `Enter` follows the row you are on, `Esc` closes it.
 - `Ctrl-O` — **open a card**: type a title and jump to it, on any board you
-  can open. Type a wiki page's code (`W-31`) and that page comes first
+  can open. Type a card's id (`123` or `#123`) and that card comes first,
+  and likewise a wiki page's code (`W-31`) for that page
 - `h` — all boards (the board takes this one while the keyboard is on it)
 - `b` — **switch board**: every board you can open, each with its own key;
   press that key to go there
@@ -1207,6 +1208,8 @@ is ever sent to a model unless you ask.
   and, when a card is open, that card in full (description, checklist,
   comments, status updates, relations, subcards). The open card also has
   its own *Ask AI about this card* section at the foot of its modal.
+  *Open card 123* (or *show card id 123*, *go to #123*) opens that card,
+  on any board you can open, without asking the model at all.
 - **Edit mode** — the *Edit* toggle in the drawer (for people who can
   write) turns a request into a list of concrete changes: set or clear
   dates, priority, assignee, flags and tags, rename, rewrite a

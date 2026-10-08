@@ -121,8 +121,8 @@ defmodule SlipdockWeb.ShortcutsHook do
     %{shortcuts | results: Commands.search(commands, q), cursor: 0}
   end
 
-  # A page's code (`W-31`) finds that page, first, ahead of any card whose
-  # title happens to contain it.
+  # A page's code (`W-31`) finds that page, and a card's id (`123`, `#123`)
+  # that card, first, ahead of any card whose title happens to contain it.
   defp search(%{panel: :find, query: q, pool: board_ids} = shortcuts, user) do
     results =
       case String.trim(q) do
@@ -131,7 +131,11 @@ defmodule SlipdockWeb.ShortcutsHook do
 
         q ->
           page = Wiki.page_by_code_for(user, q)
-          List.wrap(page) ++ Boards.search_cards_across(board_ids, q, [], @found)
+          card = Boards.card_by_ref_across(board_ids, q)
+          except = if card, do: [card.id], else: []
+
+          List.wrap(page) ++
+            List.wrap(card) ++ Boards.search_cards_across(board_ids, q, except, @found)
       end
 
     %{shortcuts | results: results, cursor: 0}
