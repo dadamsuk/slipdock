@@ -28,6 +28,20 @@ defmodule Slipdock.Runners.Setup do
   @permission_modes ~w(default acceptEdits plan bypassPermissions)
   @services ~w(auto systemd launchd none)
   @wheres ~w(desktop cloud)
+  @verbosities ["", "quiet", "normal", "verbose"]
+  @hook_modes ~w(prompt hook)
+
+  # Ready-written paragraphs for how much to write on the card.
+  @verbosity_text %{
+    "quiet" =>
+      "Keep the card's comments short: one line when you start, one when you finish, " <>
+        "and only blockers in between.",
+    "normal" =>
+      "Comment on the card when you start, at each decision or surprise, and when you finish.",
+    "verbose" =>
+      "Keep a detailed running log on the card: comment at every step with what you tried, " <>
+        "what you found and what you decided, and end with a full summary."
+  }
 
   @defaults %{
     "scenario" => "server",
@@ -40,7 +54,12 @@ defmodule Slipdock.Runners.Setup do
     "pool" => "default",
     "service" => "auto",
     "where" => "desktop",
-    "repo" => ""
+    "repo" => "",
+    "verbosity" => "",
+    "instructions" => "",
+    "before_job" => "",
+    "after_job" => "",
+    "hooks" => "prompt"
   }
 
   # Shown in place of a token that was only ever shown once.
@@ -51,6 +70,8 @@ defmodule Slipdock.Runners.Setup do
   def permission_modes, do: @permission_modes
   def services, do: @services
   def defaults, do: @defaults
+  def verbosities, do: @verbosities
+  def hook_modes, do: @hook_modes
   def token_placeholder, do: @token_placeholder
 
   @doc "What each scenario is called in the wizard."
@@ -108,6 +129,19 @@ defmodule Slipdock.Runners.Setup do
       answers["where"] not in @wheres ->
         {:error, "where must be desktop or cloud"}
 
+      answers["verbosity"] not in @verbosities ->
+        {:error, "verbosity must be quiet, normal or verbose"}
+
+      answers["hooks"] not in @hook_modes ->
+        {:error, "hooks must be prompt or hook"}
+
+      String.length(to_string(answers["instructions"])) > 4000 ->
+        {:error, "the instructions are over 4,000 characters"}
+
+      String.length(to_string(answers["before_job"])) > 2000 or
+          String.length(to_string(answers["after_job"])) > 2000 ->
+        {:error, "a hook is over 2,000 characters"}
+
       not match?({:ok, _}, timeout(answers["timeout"])) ->
         {:error, "the timeout must be a whole number of seconds, at least 60"}
 
@@ -127,6 +161,22 @@ defmodule Slipdock.Runners.Setup do
   end
 
   defp timeout(_), do: :error
+
+  @doc """
+  The standing instructions every job is given, after the card's own
+  prompt: the verbosity paragraph, then the free text. Empty when neither.
+  """
+  def instructions(a) do
+    [@verbosity_text[a["verbosity"]], a["instructions"]]
+    |> Enum.reject(&(&1 in [nil, ""]))
+    |> Enum.join("\n\n")
+  end
+
+  @doc "Whether the scenario can run hooks: not in Anthropic's cloud, which isn't your machine."
+  def hooks?(%{"scenario" => "cloud", "where" => "cloud"}), do: false
+  def hooks?(_), do: true
+
+  defp hooks_given?(a), do: a["before_job"] != "" or a["after_job"] != ""
 
   @doc "The job kind the answers queue and run: the one named, else the agent's."
   def kind(%{"kind" => kind}) when kind not in [nil, ""], do: kind
@@ -207,8 +257,51 @@ defmodule Slipdock.Runners.Setup do
   given.
   """
   def regenerate(%Runner{} = runner, %Board{} = board, base_url, token \\ nil) do
+    ctx = %{base_url: base_url, board: board, token: token, rule: nil, again: true}
+    generate(saved(runner), ctx)
+  end
+
+  @doc "The answers saved on a runner, with its pool."
+  def saved(runner) do
     {:ok, answers} = normalise(Map.put(runner.settings || %{}, "pool", runner.pool))
-    generate(answers, %{base_url: base_url, board: board, token: token, rule: nil})
+    answers
+  end
+
+  @doc """
+  New answers for a runner made earlier: saved on it (the pool stays what
+  its token is for), and the steps for them with a line-by-line `diff`
+  against the steps the old answers gave — what changes on the machine.
+  """
+  def update(%Runner{} = runner, %Board{} = board, params, base_url) do
+    old = regenerate(runner, board, base_url)
+
+    with {:ok, answers} <- normalise(Map.put(params, "pool", runner.pool)),
+         {:ok, runner} <- Runners.update_runner(runner, %{"settings" => answers}) do
+      new = regenerate(runner, board, base_url)
+      {:ok, %{runner: runner, setup: new, diff: diff(old, new)}}
+    else
+      {:error, %Ecto.Changeset{} = changeset} -> {:error, changeset_message(changeset)}
+      error -> error
+    end
+  end
+
+  @doc """
+  The lines that differ between two sets of steps' text, as `{:del, line}`
+  and `{:ins, line}` among `{:eq, line}`.
+  """
+  def diff(old, new) do
+    old
+    |> text_lines()
+    |> List.myers_difference(text_lines(new))
+    |> Enum.flat_map(fn {op, lines} -> Enum.map(lines, &{op, &1}) end)
+  end
+
+  defp text_lines(setup) do
+    setup.steps
+    |> Enum.map(& &1[:code])
+    |> Enum.reject(&is_nil/1)
+    |> Enum.join("\n")
+    |> String.split("\n")
   end
 
   @doc """
@@ -218,7 +311,7 @@ defmodule Slipdock.Runners.Setup do
   """
   def generate(answers, ctx) do
     scenario = answers["scenario"]
-    ctx = Map.merge(%{token: nil, rule: nil}, ctx)
+    ctx = Map.merge(%{token: nil, rule: nil, again: false}, ctx)
 
     %{
       scenario: scenario,
@@ -268,7 +361,18 @@ defmodule Slipdock.Runners.Setup do
         "usage, even when nothing is queued. Fine for a while; for a queue watched all day, " <>
         "a runner costs nothing while idle."
 
-  defp warnings("cloud", %{"where" => "cloud"}, ctx),
+  defp warnings(scenario, a, ctx) do
+    base_warnings(scenario, a, ctx) ++
+      if(hooks_given?(a) and not hooks?(a),
+        do: [
+          "Hooks can't run in a cloud routine: it runs on Anthropic's machines, not yours, " <>
+            "so they are left out. The instructions still go in its prompt."
+        ],
+        else: []
+      )
+  end
+
+  defp base_warnings("cloud", %{"where" => "cloud"}, ctx),
     do: [
       "The routine works on a fresh clone of a GitHub repository each run, so the code " <>
         "must be on GitHub.",
@@ -278,16 +382,20 @@ defmodule Slipdock.Runners.Setup do
       "Routines run at most once an hour."
     ]
 
-  defp warnings("windows", _a, _ctx),
-    do: []
+  defp base_warnings(scenario, _a, %{token: nil, again: true})
+       when scenario in ~w(server windows),
+       do: [
+         "Run it on the machine that already has this runner: with no token given, the " <>
+           "installer keeps the one in its config. For a new machine, make a new token."
+       ]
 
-  defp warnings(scenario, _a, %{token: nil}) when scenario in ~w(server windows),
+  defp base_warnings(scenario, _a, %{token: nil}) when scenario in ~w(server windows),
     do: [
       "The runner's token was shown once, when it was made, and isn't kept. Put it in " <>
         "place of #{@token_placeholder}, or make a new token."
     ]
 
-  defp warnings(_, _, _), do: []
+  defp base_warnings(_, _, _), do: []
 
   ## Steps --------------------------------------------------------------------
 
@@ -359,7 +467,7 @@ defmodule Slipdock.Runners.Setup do
         lang: "text",
         code: "/loop " <> loop_prompt(a, ctx)
       }
-    ] ++ rule_step(a, ctx)
+    ] ++ claude_hook_step(a) ++ rule_step(a, ctx)
   end
 
   defp steps("cloud", %{"where" => "cloud"} = a, ctx) do
@@ -410,6 +518,44 @@ defmodule Slipdock.Runners.Setup do
     ] ++ rule_step(a, ctx)
   end
 
+  # Hooks for a Claude session: written into its prompt (Claude is asked to
+  # run them — best effort), or as Claude Code hooks it runs itself.
+  defp claude_hook_step(%{"hooks" => "hook"} = a) do
+    if hooks_given?(a) do
+      [
+        %{
+          text:
+            "Claude Code runs these hooks itself: put this in .claude/settings.json in the " <>
+              "working directory. The before hook runs after every claim_job call (including " <>
+              "ones that find nothing queued), the after hook after every finish_job — so " <>
+              "it doesn't run if a pass dies before finishing its job. Each gets the tool " <>
+              "call as JSON on stdin, not the SLIPDOCK_* variables a runner sets.",
+          lang: "json",
+          code: claude_hooks_json(a)
+        }
+      ]
+    else
+      []
+    end
+  end
+
+  defp claude_hook_step(_a), do: []
+
+  @doc false
+  def claude_hooks_json(a) do
+    hooks =
+      [
+        {a["before_job"], "mcp__slipdock__claim_job"},
+        {a["after_job"], "mcp__slipdock__finish_job"}
+      ]
+      |> Enum.reject(fn {command, _} -> command == "" end)
+      |> Enum.map(fn {command, matcher} ->
+        %{"matcher" => matcher, "hooks" => [%{"type" => "command", "command" => command}]}
+      end)
+
+    Jason.encode!(%{"hooks" => %{"PostToolUse" => hooks}}, pretty: true)
+  end
+
   defp rule_step(_a, %{rule: %{} = rule}),
     do: [%{text: "On the board, the rule “#{rule.name}” sends cards: #{Spec.summary(rule.spec)}"}]
 
@@ -429,17 +575,19 @@ defmodule Slipdock.Runners.Setup do
   def server_one_liner(a, ctx) do
     flags =
       [
-        "--url #{sh_q(ctx.base_url)}",
-        "--token #{sh_q(ctx.token || @token_placeholder)}",
-        "--pool #{a["pool"]}",
-        "--agent #{a["agent"]}"
+        "--url #{sh_q(ctx.base_url)}"
       ] ++
+        token_flag(ctx, "--token #{sh_q(ctx.token || @token_placeholder)}") ++
+        ["--pool #{a["pool"]}", "--agent #{a["agent"]}"] ++
         if(a["kind"] != "", do: ["--kind #{a["kind"]}"], else: []) ++
         if(a["agent"] == "custom", do: ["--command #{sh_q(a["command"])}"], else: []) ++
         if(a["cwd"] != "", do: ["--cwd #{sh_q(a["cwd"])}"], else: []) ++
         if(a["agent"] == "claude", do: ["--permission-mode #{a["permission_mode"]}"], else: []) ++
         ["--timeout #{a["timeout"]}"] ++
-        if(a["service"] != "auto", do: ["--service #{a["service"]}"], else: [])
+        if(a["service"] != "auto", do: ["--service #{a["service"]}"], else: []) ++
+        if(instructions(a) != "", do: ["--instructions #{sh_q(instructions(a))}"], else: []) ++
+        if(a["before_job"] != "", do: ["--before-job #{sh_q(a["before_job"])}"], else: []) ++
+        if(a["after_job"] != "", do: ["--after-job #{sh_q(a["after_job"])}"], else: [])
 
     "curl -fsSL #{ctx.base_url}/runner/install.sh | sh -s -- \\\n  " <>
       Enum.join(flags, " \\\n  ")
@@ -449,20 +597,26 @@ defmodule Slipdock.Runners.Setup do
   def windows_one_liner(a, ctx) do
     params =
       [
-        "-Url #{ps_q(ctx.base_url)}",
-        "-Token #{ps_q(ctx.token || @token_placeholder)}",
-        "-Pool #{a["pool"]}",
-        "-Agent #{a["agent"]}"
+        "-Url #{ps_q(ctx.base_url)}"
       ] ++
+        token_flag(ctx, "-Token #{ps_q(ctx.token || @token_placeholder)}") ++
+        ["-Pool #{a["pool"]}", "-Agent #{a["agent"]}"] ++
         if(a["kind"] != "", do: ["-Kind #{a["kind"]}"], else: []) ++
         if(a["agent"] == "custom", do: ["-Command #{ps_q(a["command"])}"], else: []) ++
         if(a["cwd"] != "", do: ["-Cwd #{ps_q(a["cwd"])}"], else: []) ++
         if(a["agent"] == "claude", do: ["-PermissionMode #{a["permission_mode"]}"], else: []) ++
-        ["-Timeout #{a["timeout"]}"]
+        ["-Timeout #{a["timeout"]}"] ++
+        if(instructions(a) != "", do: ["-Instructions #{ps_q(instructions(a))}"], else: []) ++
+        if(a["before_job"] != "", do: ["-BeforeJob #{ps_q(a["before_job"])}"], else: []) ++
+        if(a["after_job"] != "", do: ["-AfterJob #{ps_q(a["after_job"])}"], else: [])
 
     "& ([scriptblock]::Create((irm #{ps_q(ctx.base_url <> "/runner/install.ps1")}))) `\n  " <>
       Enum.join(params, " `\n  ")
   end
+
+  # Set up again without a new token: the installer keeps the one it has.
+  defp token_flag(%{token: nil, again: true}, _flag), do: []
+  defp token_flag(_ctx, flag), do: [flag]
 
   @doc """
   The config the shell installer writes for these answers, line for line,
@@ -503,7 +657,29 @@ defmodule Slipdock.Runners.Setup do
     job_echo() {
       printf '%s\\n' "$SLIPDOCK_PROMPT"
     }
+    #{config_extra(a)}
     """
+  end
+
+  # What install.sh adds for the instructions and hooks. The heredoc's
+  # delimiter is drawn at random when it is written.
+  defp config_extra(a) do
+    text = instructions(a)
+
+    [
+      text != "" &&
+        "\n# Added after every job's prompt.\njob_instructions() {\n" <>
+          "  cat <<'SLIPDOCK_EOF_<random>'\n" <>
+          text <> "\nSLIPDOCK_EOF_<random>\n}\nJOB_INSTRUCTIONS=$(job_instructions)\n",
+      a["before_job"] != "" &&
+        "\n# Runs before each job; the job runs only if this succeeds.\nbefore_job() {\n" <>
+          a["before_job"] <> "\n}\n",
+      a["after_job"] != "" &&
+        "\n# Runs after each job however it ended, with $SLIPDOCK_EXIT and $SLIPDOCK_STATUS\n" <>
+          "# (done, failed, cancelled or timeout).\nafter_job() {\n" <> a["after_job"] <> "\n}\n"
+    ]
+    |> Enum.filter(&is_binary/1)
+    |> Enum.join()
   end
 
   defp agent_bin_note(%{"agent" => "custom"}), do: ""
@@ -519,10 +695,47 @@ defmodule Slipdock.Runners.Setup do
   def loop_prompt(a, ctx) do
     board = ctx.board
 
-    "/slipdock-loop against #{ctx.base_url}/boards/#{board.id} (board code: #{board.code}), " <>
-      "taking a job from the #{a["pool"]} pool's queue. Do exactly one card per pass, close it " <>
-      "out on the board — commit and push with the card id — finish the job, then stop."
+    ("/slipdock-loop against #{ctx.base_url}/boards/#{board.id} (board code: #{board.code}), " <>
+       "taking a job from the #{a["pool"]} pool's queue#{mcp_note(a)}. Do exactly one card per " <>
+       "pass, close it out on the board — commit and push with the card id — finish the job, " <>
+       "then stop.")
+    |> append(prompt_hooks(a))
+    |> append(standing(a))
   end
+
+  # Hooks Claude runs itself fire on the MCP tools, so the pass must use them.
+  defp mcp_note(%{"hooks" => "hook"} = a) do
+    if hooks_given?(a),
+      do: " with the Slipdock MCP tools claim_job, job_progress and finish_job (not the CLI)",
+      else: ""
+  end
+
+  defp mcp_note(_), do: ""
+
+  defp prompt_hooks(%{"hooks" => "prompt"} = a) do
+    [
+      a["before_job"] != "" &&
+        "Before starting work on a job, run this in the shell, and only go on if it succeeds: " <>
+          a["before_job"],
+      a["after_job"] != "" &&
+        "After every job, however it ended — even if it failed or was cancelled — run this in " <>
+          "the shell: " <> a["after_job"]
+    ]
+    |> Enum.filter(&is_binary/1)
+    |> Enum.join(" ")
+  end
+
+  defp prompt_hooks(_), do: ""
+
+  defp standing(a) do
+    case instructions(a) do
+      "" -> ""
+      text -> "Standing instructions for every job:\n" <> text
+    end
+  end
+
+  defp append(text, ""), do: text
+  defp append(text, more), do: text <> "\n\n" <> more
 
   @doc """
   What a cloud routine is told. Self-contained: the routine has the Slipdock
@@ -539,6 +752,7 @@ defmodule Slipdock.Runners.Setup do
     5. Comment on the card what was done (files, tests, the commit), complete it with complete_card, and call finish_job with outcome "done" and a one-line summary. If you could not finish, flag the card, say why, and finish the job "failed".
     """
     |> String.trim_trailing()
+    |> append(standing(a))
   end
 
   ## Helpers ------------------------------------------------------------------

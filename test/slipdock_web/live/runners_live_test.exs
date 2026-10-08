@@ -51,7 +51,8 @@ defmodule SlipdockWeb.RunnersLiveTest do
     # Set up again later: the same steps, the token left out, a new one on request.
     view |> element("#runner-#{runner.id} button", "Setup") |> render_click()
     refute render(view) =~ token
-    assert has_element?(view, "#runner-step-1", Slipdock.Runners.Setup.token_placeholder())
+    refute has_element?(view, "#runner-step-1", "--token")
+    assert has_element?(view, "#runner-setup", "keeps the one in its config")
 
     html = view |> element("#runner-setup button", "Make a new token") |> render_click()
     [new] = Regex.run(~r/sdr_[A-Za-z0-9_-]{20,}/, html)
@@ -134,5 +135,45 @@ defmodule SlipdockWeb.RunnersLiveTest do
       {:error, _redirect} ->
         :ok
     end
+  end
+
+  test "changing a runner's answers shows what changes on the machine", %{
+    conn: conn,
+    board: board
+  } do
+    view = open(conn, board)
+    submit(view, %{"scenario" => "server", "pool" => "dev", "name" => "laptop"})
+    [runner] = Runners.list_runners(board)
+
+    view |> element("#runner-#{runner.id} button", "Setup") |> render_click()
+    view |> element("#runner-setup button", "Change the answers") |> render_click()
+    assert has_element?(view, "#runner-wizard", "Changing “laptop”")
+    refute has_element?(view, "#runner-wizard input[name='wizard[pool]']")
+
+    view
+    |> form("#runner-wizard",
+      wizard: %{"instructions" => "Never push to main.", "before_job" => "git pull"}
+    )
+    |> render_submit()
+
+    assert has_element?(view, "#runner-diff span.text-success", "--instructions 'Never push to main.'")
+    assert has_element?(view, "#runner-diff span.text-success", "git pull")
+
+    assert Runners.list_runners(board) |> hd() |> Map.get(:settings) |> Map.get("before_job") ==
+             "git pull"
+  end
+
+  test "hooks are greyed out for a cloud routine, with the reason", %{conn: conn, board: board} do
+    view = open(conn, board)
+    assert has_element?(view, "input[name='wizard[before_job]']")
+    refute has_element?(view, "#hooks-off")
+
+    choose(view, %{"scenario" => "cloud"})
+    choose(view, %{"scenario" => "cloud", "where" => "cloud"})
+    assert has_element?(view, "#hooks-off", "runs on Anthropic's machines")
+    assert has_element?(view, "fieldset[disabled] input[name='wizard[before_job]']")
+
+    choose(view, %{"scenario" => "loop"})
+    assert has_element?(view, "select[name='wizard[hooks]']")
   end
 end

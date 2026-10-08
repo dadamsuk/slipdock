@@ -13,7 +13,10 @@
 #
 # The config (default ~/.config/slipdock-runner/config) is sourced: it sets
 # SLIPDOCK_URL and SLIPDOCK_RUNNER_TOKEN, optionally POOL, WAIT, HEARTBEAT,
-# JOB_TIMEOUT and GRACE, and defines the job_<kind> functions.
+# JOB_TIMEOUT, GRACE and JOB_INSTRUCTIONS (appended to every prompt), and
+# defines the job_<kind> functions — and, if it likes, before_job (a job runs
+# only if it succeeds) and after_job (always, with SLIPDOCK_EXIT and
+# SLIPDOCK_STATUS: done, failed, cancelled or timeout).
 set -u
 
 CONFIG=${SLIPDOCK_RUNNER_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/slipdock-runner/config}
@@ -132,6 +135,20 @@ stop_job() {
   JOB_PID=
 }
 
+# A function the config defines answers `command -v` with its bare name;
+# anything else (nothing, or a program of that name on the PATH) does not.
+defined() { [ "$(command -v "$1" 2>/dev/null)" = "$1" ]; }
+
+# after_job EXIT STATUS — the config's after_job, if it has one, whatever
+# happened to the job. Its output goes in the job's log.
+run_after_job() {
+  defined after_job || return 0
+  SLIPDOCK_EXIT=$1
+  SLIPDOCK_STATUS=$2
+  export SLIPDOCK_EXIT SLIPDOCK_STATUS
+  (after_job) >>"$WORK/log" 2>&1 </dev/null || say "job #$JOB_ID: after_job failed (exit $?)"
+}
+
 # finish EXIT STATUS — reports the job ended, with the tail of its log.
 finish() {
   query="exit=$1"
@@ -172,9 +189,7 @@ run_job() {
     *) fn=job_$(printf '%s' "$kind" | tr '-' '_') ;;
   esac
 
-  # A function the config defines answers `command -v` with its bare name;
-  # anything else (nothing, or a program called job_x on the PATH) does not.
-  if [ -z "$fn" ] || [ "$(command -v "$fn" 2>/dev/null)" != "$fn" ]; then
+  if [ -z "$fn" ] || ! defined "$fn"; then
     say "job #$JOB_ID: no job_${kind} in $CONFIG — refused, nothing run"
     printf 'no such job kind: %s (this runner has no job_%s)\n' "$kind" "$kind" >"$WORK/log"
     finish 127 failed
@@ -186,14 +201,33 @@ run_job() {
   SLIPDOCK_CARD=$card
   SLIPDOCK_CARD_URL=$(header x-card-url)
   SLIPDOCK_PROMPT=$(cat "$WORK/resp")
+  # Standing instructions from this machine's config, after the card's own.
+  if [ -n "${JOB_INSTRUCTIONS:-}" ]; then
+    SLIPDOCK_PROMPT="$SLIPDOCK_PROMPT
+
+$JOB_INSTRUCTIONS"
+  fi
   export SLIPDOCK_JOB_ID SLIPDOCK_JOB_KIND SLIPDOCK_CARD SLIPDOCK_CARD_URL SLIPDOCK_PROMPT
 
   say "job #$JOB_ID: $kind for card #$card"
 
+  if defined before_job; then
+    (before_job) >>"$WORK/log" 2>&1 </dev/null
+    rc=$?
+    if [ "$rc" -ne 0 ]; then
+      say "job #$JOB_ID: before_job failed (exit $rc) — job not run"
+      echo "slipdock-runner: before_job failed (exit $rc), so the job was not run" >>"$WORK/log"
+      run_after_job "$rc" failed
+      finish "$rc" failed
+      JOB_ID=
+      return
+    fi
+  fi
+
   # The inner subshell keeps an `exit` in the job from skipping the line
   # that records how it ended.
   (
-    ("$fn") >"$WORK/log" 2>&1 </dev/null
+    ("$fn") >>"$WORK/log" 2>&1 </dev/null
     echo $? >"$WORK/rc.tmp" && mv "$WORK/rc.tmp" "$WORK/rc"
   ) &
   JOB_PID=$!
@@ -225,17 +259,20 @@ run_job() {
       say "job #$JOB_ID: over its ${JOB_TIMEOUT}s — stopped"
       stop_job
       echo "slipdock-runner: stopped after ${JOB_TIMEOUT}s" >>"$WORK/log"
+      run_after_job 124 timeout
       finish 124 timeout
       ;;
     cancelled)
       say "job #$JOB_ID: cancelled from the board — stopped"
       stop_job
       echo "slipdock-runner: cancelled from the board" >>"$WORK/log"
+      run_after_job 130 cancelled
       finish 130 cancelled
       ;;
     lost)
       say "job #$JOB_ID: no longer this runner's — stopped"
       stop_job
+      run_after_job 130 cancelled
       ;;
     *)
       wait "$JOB_PID" 2>/dev/null
@@ -243,6 +280,7 @@ run_job() {
       rc=$(cat "$WORK/rc" 2>/dev/null)
       case "$rc" in '' | *[!0-9]*) rc=1 ;; esac
       say "job #$JOB_ID: exit $rc"
+      if [ "$rc" -eq 0 ]; then run_after_job 0 done; else run_after_job "$rc" failed; fi
       finish "$rc" ""
       ;;
   esac

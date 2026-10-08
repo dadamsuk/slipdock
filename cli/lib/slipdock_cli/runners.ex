@@ -33,6 +33,11 @@ defmodule SlipdockCLI.Runners do
     body =
       compact(%{
         "scenario" => scenario,
+        "verbosity" => o[:verbosity],
+        "instructions" => o[:instructions],
+        "before_job" => o[:before_job],
+        "after_job" => o[:after_job],
+        "hooks" => o[:hooks],
         "name" => nonblank(Enum.join(name, " ")),
         "pool" => o[:pool],
         "agent" => o[:agent],
@@ -66,8 +71,19 @@ defmodule SlipdockCLI.Runners do
   end
 
   def run("runner", ["setup", ref, runner], o) do
-    HTTP.get("/boards/#{enc(ref)}/runners/#{enc(runner)}/setup")
-    |> out(o, &Render.runner_setup(&1["setup"]))
+    answers = answers(o)
+
+    if answers == %{} do
+      HTTP.get("/boards/#{enc(ref)}/runners/#{enc(runner)}/setup")
+      |> out(o, &Render.runner_setup(&1["setup"]))
+    else
+      # New answers: saved on the runner, and what changes printed first.
+      HTTP.put("/boards/#{enc(ref)}/runners/#{enc(runner)}/setup", answers)
+      |> out(o, fn r ->
+        Render.runner_diff(r["diff"])
+        Render.runner_setup(r["setup"])
+      end)
+    end
   end
 
   def run("runner", ["token", ref, runner], o) do
@@ -149,4 +165,24 @@ defmodule SlipdockCLI.Runners do
   end
 
   def run(cmd, _args, _o), do: bad_usage(cmd)
+
+  # The wizard's answers among the options given, by the names the server uses.
+  defp answers(o) do
+    compact(%{
+      "agent" => o[:agent],
+      "kind" => o[:kind] |> List.wrap() |> List.last(),
+      "command" => o[:command],
+      "cwd" => o[:cwd],
+      "permission_mode" => o[:permission_mode],
+      "timeout" => o[:timeout],
+      "service" => o[:service],
+      "where" => o[:where],
+      "repo" => o[:repo],
+      "verbosity" => o[:verbosity],
+      "instructions" => o[:instructions],
+      "before_job" => o[:before_job],
+      "after_job" => o[:after_job],
+      "hooks" => o[:hooks]
+    })
+  end
 end

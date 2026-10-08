@@ -285,7 +285,9 @@ defmodule Slipdock.Runners.SetupTest do
       [line | _] = codes(again)
       assert line =~ "--agent codex"
       assert line =~ "--cwd '/w'"
-      assert line =~ Setup.token_placeholder()
+      # No token: run again on that machine, the installer keeps the one it has.
+      refute line =~ "--token"
+      assert hd(again.warnings) =~ "keeps the one in its config"
       assert length(again.steps) == length(first.steps)
 
       {:ok, runner, token} = Runners.rotate_token(runner)
@@ -298,5 +300,175 @@ defmodule Slipdock.Runners.SetupTest do
     {:ok, _, new} = Runners.rotate_token(runner)
     assert Runners.authenticate(old) == nil
     assert Runners.authenticate(new).id == runner.id
+  end
+
+  describe "instructions and hooks" do
+    @tricky ~S"""
+    Say "hi" and it's fine. $(touch PWNED) `touch PWNED` ${HOME}
+    SLIPDOCK_EOF_deadbeef
+    'quoted' — naïve café ✓
+    """
+
+    test "the verbosity paragraph, then the free text" do
+      assert Setup.instructions(answers()) == ""
+      assert Setup.instructions(answers(%{"verbosity" => "quiet"})) =~ "one line when you start"
+
+      both =
+        Setup.instructions(
+          answers(%{"verbosity" => "verbose", "instructions" => "Never push to main."})
+        )
+
+      assert both =~ ~r/full summary\.\n\nNever push to main\.$/
+    end
+
+    test "the server line carries them, quoted so nothing in them runs", %{board: board} do
+      [line | _] =
+        board
+        |> gen(%{
+          "instructions" => @tricky,
+          "before_job" => "git pull",
+          "after_job" => ~S(echo "$SLIPDOCK_STATUS")
+        })
+        |> codes()
+
+      assert line =~ "--instructions " <> Setup.sh_q(String.trim(@tricky))
+      assert line =~ "--before-job 'git pull'"
+      assert line =~ ~S(--after-job 'echo "$SLIPDOCK_STATUS"')
+    end
+
+    test "the config preview shows the heredoc and the hook functions", %{board: board} do
+      [_, _, config] =
+        board |> gen(%{"instructions" => "Be brief.", "before_job" => "git pull"}) |> codes()
+
+      assert config =~
+               "job_instructions() {\n  cat <<'SLIPDOCK_EOF_<random>'\nBe brief.\nSLIPDOCK_EOF_<random>\n}"
+
+      assert config =~ "JOB_INSTRUCTIONS=$(job_instructions)"
+      assert config =~ "before_job() {\ngit pull\n}"
+      refute config =~ "after_job()"
+    end
+
+    test "PowerShell gets them as literal strings", %{board: board} do
+      [line] =
+        board
+        |> gen(%{
+          "scenario" => "windows",
+          "instructions" => "it's '@ here",
+          "after_job" => "Write-Host 'x'"
+        })
+        |> codes()
+
+      assert line =~ ~S(-Instructions 'it''s ''@ here')
+      assert line =~ ~S(-AfterJob 'Write-Host ''x''')
+    end
+
+    test "a /loop is asked to run the hooks, in so many words", %{board: board} do
+      setup =
+        gen(
+          board,
+          %{
+            "scenario" => "loop",
+            "before_job" => "git pull",
+            "after_job" => "make clean",
+            "instructions" => "Be brief."
+          },
+          nil
+        )
+
+      loop = List.last(codes(setup))
+      assert loop =~ "only go on if it succeeds: git pull"
+      assert loop =~ "even if it failed or was cancelled — run this in the shell: make clean"
+      assert loop =~ "Standing instructions for every job:\nBe brief."
+      refute Enum.any?(codes(setup), &(&1 =~ "PostToolUse"))
+    end
+
+    test "or given Claude Code hooks it runs itself, on the MCP tools", %{board: board} do
+      setup =
+        gen(
+          board,
+          %{
+            "scenario" => "loop",
+            "hooks" => "hook",
+            "before_job" => "git pull",
+            "after_job" => "make clean"
+          },
+          nil
+        )
+
+      json = List.last(codes(setup))
+      assert %{"hooks" => %{"PostToolUse" => [before, after_]}} = Jason.decode!(json)
+
+      assert before == %{
+               "matcher" => "mcp__slipdock__claim_job",
+               "hooks" => [%{"type" => "command", "command" => "git pull"}]
+             }
+
+      assert after_["matcher"] == "mcp__slipdock__finish_job"
+      loop = Enum.find(codes(setup), &(&1 =~ "/loop "))
+
+      assert loop =~
+               "with the Slipdock MCP tools claim_job, job_progress and finish_job (not the CLI)"
+
+      refute loop =~ "run this in the shell"
+    end
+
+    test "a cloud routine takes the instructions and leaves the hooks out, saying why",
+         %{board: board} do
+      setup =
+        gen(
+          board,
+          %{
+            "scenario" => "cloud",
+            "where" => "cloud",
+            "instructions" => "Be brief.",
+            "after_job" => "make clean"
+          },
+          nil
+        )
+
+      prompt = List.last(codes(setup))
+      assert prompt =~ "Standing instructions for every job:\nBe brief."
+      refute prompt =~ "make clean"
+      assert Enum.any?(setup.warnings, &(&1 =~ "Hooks can't run in a cloud routine"))
+      refute Setup.hooks?(answers(%{"scenario" => "cloud", "where" => "cloud"}))
+      assert Setup.hooks?(answers(%{"scenario" => "cloud", "where" => "desktop"}))
+    end
+
+    test "too much of either, or a choice it doesn't have, is refused" do
+      assert {:error, "the instructions are over" <> _} =
+               Setup.normalise(%{"instructions" => String.duplicate("x", 4001)})
+
+      assert {:error, "a hook is over" <> _} =
+               Setup.normalise(%{"after_job" => String.duplicate("x", 2001)})
+
+      assert {:error, "verbosity" <> _} = Setup.normalise(%{"verbosity" => "shouty"})
+      assert {:error, "hooks" <> _} = Setup.normalise(%{"hooks" => "magic"})
+    end
+
+    test "changing a runner's answers saves them and says what changes", ctx do
+      {:ok, %{runner: runner}} = Setup.connect(ctx.board, %{"pool" => "dev"}, ctx.owner, @base)
+
+      {:ok, %{runner: runner, diff: diff}} =
+        Setup.update(
+          runner,
+          ctx.board,
+          %{"instructions" => "Be brief.", "timeout" => "900", "pool" => "other"},
+          @base
+        )
+
+      assert runner.settings["instructions"] == "Be brief."
+      # The pool is what the token is for: it doesn't change here.
+      assert runner.pool == "dev"
+      assert Enum.any?(diff, &match?({:del, "  --timeout 3600" <> _}, &1))
+      assert Enum.any?(diff, &match?({:ins, "  --instructions 'Be brief.'"}, &1))
+      assert Enum.any?(diff, &match?({:ins, "Be brief."}, &1))
+      assert Enum.any?(diff, &match?({:eq, _}, &1))
+
+      {:ok, %{diff: same}} = Setup.update(runner, ctx.board, Setup.saved(runner), @base)
+      assert Enum.all?(same, &match?({:eq, _}, &1))
+
+      assert {:error, "verbosity" <> _} =
+               Setup.update(runner, ctx.board, %{"verbosity" => "x"}, @base)
+    end
   end
 end

@@ -1410,6 +1410,24 @@ scenarios need no install but every check for work is a Claude turn. The
 answers are kept on the runner (never the token), so **Setup** shows the
 steps again, and **Make a new token** replaces a lost one.
 
+**Instructions and hooks.** The wizard also takes standing instructions — how
+much to write on the card (quiet, normal or verbose) and anything else you
+would otherwise add by hand — which are put after every job's prompt, and two
+hooks: a command run before each job (the job runs only if it succeeds) and
+one run after each, however it ended, with `$SLIPDOCK_STATUS` (`done`,
+`failed`, `cancelled` or `timeout`) and `$SLIPDOCK_EXIT`. They are written
+into what the wizard generates and kept on the machine; the server never
+sends them at job time. For the shell runner they become `JOB_INSTRUCTIONS`
+(in a quoted heredoc with a random delimiter, so nothing in the text is read
+as shell) and `before_job`/`after_job` functions in its config; for a `/loop`
+they go in its prompt — the hooks either as instructions Claude is asked to
+follow (best effort) or as Claude Code hooks in `.claude/settings.json` that
+run after `claim_job` and `finish_job` (reliable, and the wizard says which
+you are getting). A cloud routine takes the instructions only: it runs on
+Anthropic's machines, so there is nothing for a hook to run on. **Change the
+answers** on a runner shows a diff of what changes, and re-running the
+one-liner on the machine puts it in place, keeping the token it has.
+
 **Runners** belong to a board tree and a pool. The board owner makes them:
 each has its own token (`sdr_…`), shown once, that can take and report on
 that pool's jobs and nothing else — it is not an API token and opens no
@@ -1423,7 +1441,7 @@ own work rather than from a background loop, so it holds its job on a
 | CLI | What it does |
 |---|---|
 | `slipdock runner new <board> [name] --pool P [--scenario …]` | The **Connect a runner** wizard: prints exactly what to paste for `server` (the default), `windows`, `loop` or `cloud`, with `--agent`, `--command`, `--kind`, `--cwd`, `--permission-mode`, `--timeout`, `--service`, `--where desktop\|cloud` and `--repo`. For a runner of its own (server, windows) it makes one and prints its token, once; `--column LIST` adds a rule sending that list's cards. |
-| `slipdock runner setup <board> <runner>` | A runner's steps again, from the answers saved on it (the token left out). |
+| `slipdock runner setup <board> <runner> [options]` | A runner's steps again, from the answers saved on it (the token left out); with any of `runner new`'s options, including `--verbosity`, `--instructions`, `--before-job`, `--after-job` and `--hooks prompt\|hook`, saves them and prints what changes. |
 | `slipdock runner token <board> <runner>` | A new token for a runner, the old one ended, with its steps written out for it. |
 | `slipdock runner ls <board>` / `slipdock runners <board>` | The board's runners: pool, last seen, current job. |
 | `slipdock runner rm <board> <runner>` | Revokes a runner. |

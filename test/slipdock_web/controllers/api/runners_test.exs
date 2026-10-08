@@ -310,7 +310,7 @@ defmodule SlipdockWeb.API.RunnersTest do
         |> json_response(200)
 
       refute inspect(again) =~ body["token"]
-      assert hd(again["setup"]["steps"])["code"] =~ Slipdock.Runners.Setup.token_placeholder()
+      refute hd(again["setup"]["steps"])["code"] =~ "--token"
 
       rotated =
         ctx.conn
@@ -359,5 +359,29 @@ defmodule SlipdockWeb.API.RunnersTest do
              |> post(~p"/api/boards/#{ctx.board.id}/runners/#{ctx.runner.id}/token")
              |> json_response(403)
     end
+  end
+
+  test "new answers for a runner: saved, and the diff of what changes", ctx do
+    body =
+      ctx.conn
+      |> put(~p"/api/boards/#{ctx.board.id}/runners/#{ctx.runner.id}/setup", %{
+        "instructions" => "Be brief.",
+        "after_job" => "echo done"
+      })
+      |> json_response(200)
+
+    assert ["ins", "  --instructions 'Be brief.'" <> _] =
+             Enum.find(body["diff"], &match?(["ins", "  --instructions" <> _], &1))
+
+    assert Enum.any?(body["diff"], &(&1 == ["ins", "echo done"]))
+
+    assert Slipdock.Repo.get!(Slipdock.Runners.Runner, ctx.runner.id).settings["after_job"] ==
+             "echo done"
+
+    assert ctx.conn
+           |> put(~p"/api/boards/#{ctx.board.id}/runners/#{ctx.runner.id}/setup", %{
+             "hooks" => "x"
+           })
+           |> json_response(422)
   end
 end

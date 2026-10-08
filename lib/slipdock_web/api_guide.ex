@@ -1271,7 +1271,11 @@ defmodule SlipdockWeb.APIGuide do
     list's cards. It answers with `setup.steps` — exactly what to paste — and
     for a runner of its own the `runner` and its `token`, once. `GET
     …/runners/:id/setup` gives the steps again, `POST …/runners/:id/token` a
-    new token. `slipdock runner new` prints the same.
+    new token, and `PUT …/runners/:id/setup` saves new answers and answers
+    with a `diff` of what changes. Standing `instructions` (and a
+    `verbosity`) and `before_job`/`after_job` hooks are answers too: they
+    are written into the generated config or prompt and kept on the
+    machine, never sent with a job. `slipdock runner new` prints the same.
 
     **Runners themselves** are the board owner's to make and revoke: `GET`,
     `POST` (`{"name", "pool"}`, answering with the runner's token, once) and

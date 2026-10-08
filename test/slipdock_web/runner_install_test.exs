@@ -178,7 +178,11 @@ defmodule SlipdockWeb.RunnerInstallTest do
         "command" => ~S{make it P="$SLIPDOCK_PROMPT" 'quoted'},
         "cwd" => "/srv/it's work",
         "timeout" => "900",
-        "service" => "none"
+        "service" => "none",
+        "verbosity" => "quiet",
+        "instructions" => ~S{Don't "push". $(nope) `nope` — café},
+        "before_job" => "git pull --ff-only",
+        "after_job" => ~S{echo "$SLIPDOCK_STATUS" >>~/jobs.log}
       }
 
       {:ok, a} = Slipdock.Runners.Setup.normalise(answers)
@@ -196,7 +200,7 @@ defmodule SlipdockWeb.RunnerInstallTest do
 
       assert out =~ "installed"
 
-      machine_only = ~r/^(AGENT_BIN|PATH)=.*$/m
+      machine_only = ~r/^(AGENT_BIN|PATH)=.*$|SLIPDOCK_EOF_(<random>|[0-9a-f]{16})/m
       written = File.read!(Path.join(ctx.home, ".config/slipdock-runner/config"))
       preview = Slipdock.Runners.Setup.config_preview(a, gen_ctx)
 

@@ -16,7 +16,8 @@
 #
 # Options:
 #   --url URL              the Slipdock server (required)
-#   --token TOKEN          the runner's token, sdr_... (required)
+#   --token TOKEN          the runner's token, sdr_... (required the first time;
+#                          left out, the one in the config already there is kept)
 #   --pool NAME            the pool it takes jobs for (default: default)
 #   --agent claude|codex|custom   what a job runs (default: claude)
 #   --kind NAME            the job kind that runs it (default: the agent's name)
@@ -26,6 +27,11 @@
 #   --permission-mode M    for claude: its --permission-mode (default: acceptEdits)
 #   --timeout SECONDS      the longest a job may run (default: 3600)
 #   --service auto|systemd|launchd|none   how it keeps running (default: auto)
+#   --instructions TEXT    standing instructions, added after every job's prompt
+#   --before-job CMD       shell run before each job; the job runs only if it succeeds
+#   --after-job CMD        shell run after each job, however it ended, with
+#                          $SLIPDOCK_EXIT and $SLIPDOCK_STATUS (done, failed,
+#                          cancelled or timeout)
 #   --no-start             write everything, start nothing
 #
 # Nothing here runs as root, and nothing outside your home is touched.
@@ -42,6 +48,9 @@ PERMISSION_MODE=acceptEdits
 TIMEOUT=3600
 SERVICE=auto
 START=1
+INSTRUCTIONS=
+BEFORE_JOB=
+AFTER_JOB=
 
 die() {
   echo "slipdock-runner install: $*" >&2
@@ -63,12 +72,20 @@ while [ $# -gt 0 ]; do
     --timeout) need "$@"; TIMEOUT=$2; shift 2 ;;
     --service) need "$@"; SERVICE=$2; shift 2 ;;
     --no-start) START=; shift ;;
+    --instructions) need "$@"; INSTRUCTIONS=$2; shift 2 ;;
+    --before-job) need "$@"; BEFORE_JOB=$2; shift 2 ;;
+    --after-job) need "$@"; AFTER_JOB=$2; shift 2 ;;
     -h | --help) sed -n '2,33p' "$0" 2>/dev/null || echo "see the comments at the top of install.sh"; exit 0 ;;
     *) die "unknown option $1 (see --help)" ;;
   esac
 done
 
 [ -n "$URL" ] || die "--url is required: the Slipdock server's address"
+CONFIG_FILE=${XDG_CONFIG_HOME:-$HOME/.config}/slipdock-runner/config
+# Installing again with new settings keeps the token it has.
+if [ -z "$TOKEN" ] && [ -r "$CONFIG_FILE" ]; then
+  TOKEN=$( (. "$CONFIG_FILE" >/dev/null 2>&1 && printf '%s' "${SLIPDOCK_RUNNER_TOKEN:-}") || true)
+fi
 [ -n "$TOKEN" ] || die "--token is required: make a runner on the board to get one"
 case "$URL" in http://* | https://*) ;; *) die "--url must start with http:// or https://" ;; esac
 case "$POOL" in '' | *[!a-z0-9_-]*) die "--pool must be lower case letters, digits, - or _" ;; esac
@@ -83,6 +100,15 @@ command -v curl >/dev/null 2>&1 || die "curl is needed and was not found"
 # Single quotes around anything, with any quote in it closed, escaped and
 # reopened: inside them the shell reads nothing.
 q() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
+
+# A heredoc delimiter the text can't contain: random, and drawn again in the
+# unlikely event it is in there.
+delimiter() {
+  while :; do
+    d=SLIPDOCK_EOF_$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')
+    case "$1" in *"$d"*) ;; *) printf '%s' "$d"; return ;; esac
+  done
+}
 
 FN=job_$(printf '%s' "$KIND" | tr '-' '_')
 BIN_DIR=$HOME/.local/bin
@@ -139,6 +165,39 @@ if [ -e "$CONFIG" ]; then
   cp -p "$CONFIG" "$CONFIG.bak.$(date +%Y%m%d%H%M%S)"
 fi
 
+# Standing instructions go in a quoted heredoc — inside it nothing is
+# expanded or run — inside a function, which every sh parses the same way.
+EXTRA=
+if [ -n "$INSTRUCTIONS" ]; then
+  D=$(delimiter "$INSTRUCTIONS")
+  EXTRA="$EXTRA
+# Added after every job's prompt.
+job_instructions() {
+  cat <<'$D'
+$INSTRUCTIONS
+$D
+}
+JOB_INSTRUCTIONS=\$(job_instructions)
+"
+fi
+if [ -n "$BEFORE_JOB" ]; then
+  EXTRA="$EXTRA
+# Runs before each job; the job runs only if this succeeds.
+before_job() {
+$BEFORE_JOB
+}
+"
+fi
+if [ -n "$AFTER_JOB" ]; then
+  EXTRA="$EXTRA
+# Runs after each job however it ended, with \$SLIPDOCK_EXIT and \$SLIPDOCK_STATUS
+# (done, failed, cancelled or timeout).
+after_job() {
+$AFTER_JOB
+}
+"
+fi
+
 umask 077
 cat >"$CONFIG.tmp" <<EOF
 # slipdock-runner config — written by install.sh, yours to edit. It is sourced
@@ -168,6 +227,7 @@ $JOB
 job_echo() {
   printf '%s\n' "\$SLIPDOCK_PROMPT"
 }
+$EXTRA
 EOF
 chmod 600 "$CONFIG.tmp"
 mv "$CONFIG.tmp" "$CONFIG"

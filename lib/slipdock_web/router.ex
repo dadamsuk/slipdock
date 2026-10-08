@@ -419,6 +419,7 @@ defmodule SlipdockWeb.Router do
     post "/boards/:board/runners", JobController, :create_runner
     post "/boards/:board/runners/setup", JobController, :setup
     get "/boards/:board/runners/:id/setup", JobController, :runner_setup
+    put "/boards/:board/runners/:id/setup", JobController, :update_setup
     post "/boards/:board/runners/:id/token", JobController, :rotate_token
     delete "/boards/:board/runners/:id", JobController, :delete_runner
     get "/boards/:board/jobs", JobController, :index

@@ -1092,6 +1092,23 @@ defmodule SlipdockCLI.Render do
     table(["ID", "NAME", "POOL", "LAST SEEN", "NOW"], rows)
   end
 
+  # What new answers change in a runner's steps: the lines out and in.
+  def runner_diff(diff) do
+    changed = Enum.reject(diff || [], fn [op, _] -> op == "eq" end)
+
+    if changed == [] do
+      IO.puts(dim("nothing changes on the machine\n"))
+    else
+      IO.puts("what changes — run the first step again on the machine:")
+
+      Enum.each(changed, fn [op, line] ->
+        IO.puts(if(op == "ins", do: "+ ", else: "- ") <> line)
+      end)
+
+      IO.puts("")
+    end
+  end
+
   # The wizard's steps, as `Slipdock.Runners.Setup` writes them.
   def runner_setup(setup) do
     IO.puts(setup["title"])

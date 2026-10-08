@@ -346,10 +346,14 @@ defmodule SlipdockCLI do
                [--agent claude|codex|custom] [--command CMD] [--kind K] [--cwd DIR]
                [--permission-mode M] [--timeout SECONDS] [--service auto|systemd|launchd|none]
                [--where desktop|cloud] [--repo owner/repo] [--column LIST]
+               [--verbosity quiet|normal|verbose] [--instructions TEXT]
+               [--before-job CMD] [--after-job CMD] [--hooks prompt|hook]
                                                    connect a runner: prints exactly what to paste
                                                    (and, for server/windows, its token, once);
                                                    --column adds a rule sending that list's cards
-    runner setup <board> <runner>                  a runner's steps again (token left out)
+    runner setup <board> <runner> [answers...]     a runner's steps again (token left out); with
+                                                   any of runner new's options, saves them and
+                                                   prints what changes first
     runner token <board> <runner>                  a new token for a runner, with its steps
     runner rm <board> <runner>                     revoke a runner (its token stops working)
     cancel-job <id>                                stop a job: a queued one at once, a running one
@@ -513,6 +517,11 @@ defmodule SlipdockCLI do
     command: :string,
     where: :string,
     repo: :string,
+    verbosity: :string,
+    instructions: :string,
+    before_job: :string,
+    after_job: :string,
+    hooks: :string,
     help: :boolean
   ]
 

@@ -30,7 +30,8 @@ defmodule SlipdockCLI.RunnersTest do
 
   test "runner new asks the wizard and prints its steps, token and all" do
     serve([
-      {201, ~s({"runner":{"id":4,"name":"laptop","pool":"dev"},"token":"sdr_secret","automation":{"name":"Send Doing to the dev runners"},"setup":#{@setup}})}
+      {201,
+       ~s({"runner":{"id":4,"name":"laptop","pool":"dev"},"token":"sdr_secret","automation":{"name":"Send Doing to the dev runners"},"setup":#{@setup}})}
     ])
 
     out =
@@ -191,5 +192,33 @@ defmodule SlipdockCLI.RunnersTest do
     capture_io(fn -> Runners.run("finish-job", ["8"], status: "failed") end)
     assert_received {:request, "POST", "/api/jobs/8/finish", body}
     assert JSON.decode!(body) == %{"outcome" => "failed"}
+  end
+
+  test "runner setup with new answers saves them and prints what changes first" do
+    serve([
+      {200, ~s({"diff":[["eq","curl …"],["del","  --timeout 3600"],["ins","  --timeout 900"],["ins","  --instructions 'Be brief.'"]],"setup":#{@setup}})}
+    ])
+
+    out =
+      capture_io(fn ->
+        Runners.run("runner", ["setup", "b", "4"],
+          timeout: 900,
+          instructions: "Be brief.",
+          after_job: "echo done"
+        )
+      end)
+
+    assert_received {:request, "PUT", "/api/boards/b/runners/4/setup", body}
+
+    assert JSON.decode!(body) == %{
+             "timeout" => 900,
+             "instructions" => "Be brief.",
+             "after_job" => "echo done"
+           }
+
+    assert out =~ "- " <> "  --timeout 3600"
+    assert out =~ "+   --instructions 'Be brief.'"
+    refute out =~ "curl …\n+"
+    assert out =~ "1. On the machine, run:"
   end
 end
