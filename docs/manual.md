@@ -2773,7 +2773,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | Tool | What it does |
 |---|---|
 | `whoami` | Who the connection is signed in as, the token's scope, and how much of the account's item limit is used. |
-| `get_guide` | The [agent guide](#skills) for this caller: the conventions, and the caller's own boards and lists. Read once per session, before changing anything. |
+| `get_guide` | The [agent guide](#skills) for this caller: the conventions, and the caller's own boards and lists. Read once per session, before changing anything. Gives the short guide by default; `section` gives one of the others it names, or `all`. |
 | `list_boards` | Boards you can see, with code, lists and which list is ready, in progress and done. `archived: true` includes archived ones. |
 | `get_board` | A board's lists in order, with a summary of each card and its description. |
 | `list_cards` | Cards in list order, filtered by `column`, `open`, `deps: "ready"`, `no_assignee` and `archived` (`exclude`, `include` or `only`). `full: true` gives each card as `get_card` does (comments, checklist, docs), 20 at a time unless `limit` says otherwise. |

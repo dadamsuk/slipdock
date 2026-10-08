@@ -23,7 +23,8 @@ This file is the command reference; the guide is the workflow.
 When this session already has Slipdock tools (`list_boards`, `get_card`, `create_card`,
 `complete_card`…, from the server's `/mcp`), they are an alternative to the CLI for the same
 work: use whichever is there. The conventions are the same either way — `get_guide` returns
-the guide `slipdock guide` prints. `archive_card` puts a card away, and `restore: true` brings
+the short form of the guide `slipdock guide` prints, ending with the names of its other
+sections; `section: "automations"` (or any of those names, or `"all"`) gives one. `archive_card` puts a card away, and `restore: true` brings
 it back; `archive_board` does the same for a board. Prefer those: `delete_card` (needs
 `confirm: true`), `delete_list` and `delete_board` (`confirm` is the board's code) cannot be
 undone. `create_list` and `create_board` add structure. `list_cards` with `full: true` reads

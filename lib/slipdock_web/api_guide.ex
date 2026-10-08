@@ -173,6 +173,119 @@ defmodule SlipdockWeb.APIGuide do
     end
   end
 
+  # Each top-level heading's handle, for asking for one section at a time
+  # (the MCP `get_guide` tool). A heading missing here gets a slug of itself.
+  @section_keys %{
+    "Getting in" => "getting-in",
+    "The model" => "model",
+    "Epics and subcards" => "epics",
+    "Choosing what to do next" => "choosing",
+    "Finding something nobody can name" => "finding",
+    "Working a card" => "working",
+    "Recipes" => "recipes",
+    "Automations and alerts" => "automations",
+    "Runners" => "runners",
+    "The wiki: writing things down" => "wiki",
+    "Skills" => "skills",
+    "Moving boards between servers" => "moving",
+    "Vocabulary" => "vocabulary",
+    "Every endpoint" => "endpoints",
+    "This server's limits" => "limits",
+    "Your boards" => "boards",
+    "Your boards right now" => "boards"
+  }
+
+  # What a short guide is made of: enough to work a board, in this order.
+  # *The model* is field-by-field reference, and with it the short guide no
+  # longer fits in a tool result, so it is one of the sections to ask for.
+  @core ~w(mcp epics choosing working boards)
+
+  @doc """
+  The guide cut at its `##` headings: `{key, title, markdown}` in document
+  order, the text before the first heading under the key `"intro"`. The
+  `### Over MCP` part of *Getting in* is offered on its own as well, as `"mcp"`.
+  Takes the same options as `markdown/1`.
+  """
+  def sections(opts \\ []) do
+    [{_, _, intro} | rest] =
+      opts
+      |> markdown()
+      |> String.split(~r/^(?=## )/m)
+      |> Enum.map(&cut/1)
+
+    mcp =
+      Enum.find_value(rest, fn {key, _, text} -> key == "getting-in" && over_mcp(text) end)
+
+    [{"intro", nil, intro} | rest] ++ if(mcp, do: [mcp], else: [])
+  end
+
+  defp cut("## " <> _ = text) do
+    [heading | _] = String.split(text, "\n", parts: 2)
+    title = heading |> String.trim_leading("## ") |> String.trim()
+    {Map.get(@section_keys, title, slug(title)), title, text}
+  end
+
+  defp cut(text), do: {"intro", nil, text}
+
+  defp over_mcp(text) do
+    case Regex.run(~r/^### Over MCP\n.*?(?=^###? |\z)/ms, text) do
+      [part] -> {"mcp", "Over MCP", String.replace_prefix(part, "###", "##")}
+      nil -> nil
+    end
+  end
+
+  defp slug(title) do
+    title |> String.downcase() |> String.replace(~r/[^a-z0-9]+/, "-") |> String.trim("-")
+  end
+
+  @doc """
+  The short guide: the opening, then the sections an agent needs to work a
+  board (`#{Enum.join(@core, ", ")}`), then the names of the rest, each one
+  for the asking with `section/2`.
+  """
+  def short(opts \\ []) do
+    all = sections(opts)
+    by_key = Map.new(all, fn {key, _, text} -> {key, text} end)
+    {_, _, intro} = hd(all)
+
+    others =
+      all
+      |> Enum.reject(fn {key, _, _} -> key == "intro" or key in @core end)
+      |> Enum.uniq_by(fn {key, _, _} -> key end)
+      |> Enum.map_join("\n", fn {key, title, _} -> "- `#{key}` — #{title}" end)
+
+    Enum.join([intro | Enum.flat_map(@core, &List.wrap(by_key[&1]))], "\n") <>
+      """
+
+      ## The rest of the guide
+
+      This is the short guide. Each section below is one `get_guide` call
+      away, with `section` set to its name (`section: "all"` gives the whole
+      guide, as `GET /api/guide` does):
+
+      #{others}
+      """
+  end
+
+  @doc """
+  One section of the guide by key (see `sections/1`), `"all"` for the whole
+  thing. `{:error, message}` names the keys there are when `key` is not one.
+  """
+  def section("all", opts), do: {:ok, markdown(opts)}
+
+  def section(key, opts) do
+    all = sections(opts)
+
+    case Enum.find_value(all, fn {k, _, text} -> k == key && text end) do
+      nil ->
+        keys = all |> Enum.map(&elem(&1, 0)) |> Enum.uniq() |> Kernel.++(["all"])
+        {:error, "no section #{inspect(key)} in the guide; there are: #{Enum.join(keys, ", ")}"}
+
+      text ->
+        {:ok, text}
+    end
+  end
+
   @doc "The same thing for programs: the markdown plus the generated parts on their own."
   def json(opts \\ []) do
     %{
@@ -348,7 +461,9 @@ defmodule SlipdockWeb.APIGuide do
     (OAuth 2.1 with dynamic client registration and PKCE — the way claude.ai
     and the Claude apps connect; discovery starts from the `401` that `/mcp`
     answers without a token). It offers a small set of tools rather
-    than the whole API: `whoami`, `get_guide` (this text), `list_boards`,
+    than the whole API: `whoami`, `get_guide` (this text: a short
+    form by default, ending with the names of the other sections, and one of
+    them with `section`), `list_boards`,
     `get_board`, `list_cards` (`full: true` gives every card as `get_card`
     does, comments, checklist and docs included, so a whole board reads in
     one call), `get_card`, `search`, `read_page`, `list_pages` (a

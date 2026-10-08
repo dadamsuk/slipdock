@@ -531,12 +531,87 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
     end
   end
 
-  test "get_guide serves the same text as /api/guide", ctx do
-    %{"guide" => guide} = ctx.conn |> call("get_guide", %{}) |> ok!()
-    served = ctx.conn |> get(~p"/api/guide") |> response(200)
+  describe "get_guide" do
+    test "by default gives the short guide, small enough for one tool result", ctx do
+      %{"guide" => guide} = ctx.conn |> call("get_guide", %{}) |> ok!()
+      served = ctx.conn |> get(~p"/api/guide") |> response(200)
 
-    assert guide == served
-    assert guide =~ "Your boards right now"
+      assert byte_size(guide) < 22_000
+      assert byte_size(served) > 2 * byte_size(guide)
+
+      for heading <- [
+            "Over MCP",
+            "Epics and subcards",
+            "Choosing what to do next",
+            "Working a card",
+            "Your boards right now"
+          ] do
+        assert guide =~ "\n## #{heading}\n", "#{heading} missing from the short guide"
+      end
+
+      # The reader's own boards are in it, and the rest is named, not included.
+      assert guide =~ "`delivery`"
+      assert guide =~ "- `automations` — Automations and alerts"
+      assert guide =~ "- `model` — The model"
+      refute guide =~ "\n## Automations and alerts\n"
+      refute guide =~ "\n## Every endpoint\n"
+    end
+
+    test "section gives that section alone", ctx do
+      %{"guide" => text} = ctx.conn |> call("get_guide", %{section: "automations"}) |> ok!()
+
+      assert text =~ ~r/\A## Automations and alerts\n/
+      refute text =~ "\n## Runners\n"
+      refute text =~ "Slipdock for agents"
+
+      # The part of Getting in about MCP is a section of its own.
+      %{"guide" => mcp} = ctx.conn |> call("get_guide", %{section: "MCP"}) |> ok!()
+      assert mcp =~ ~r/\A## Over MCP\n/
+      refute mcp =~ "The AI key"
+    end
+
+    test "section all is the whole guide /api/guide serves", ctx do
+      %{"guide" => guide} = ctx.conn |> call("get_guide", %{section: "all"}) |> ok!()
+      assert guide == ctx.conn |> get(~p"/api/guide") |> response(200)
+    end
+
+    test "an unknown section is an error naming the ones there are", ctx do
+      text = ctx.conn |> call("get_guide", %{section: "nope"}) |> error!()
+
+      assert text =~ ~s(no section "nope")
+
+      for key <- ~w(model epics automations wiki recipes endpoints mcp all),
+          do: assert(text =~ key)
+    end
+
+    test "section must be a string", ctx do
+      assert ctx.conn |> call("get_guide", %{section: 3.5}) |> error!() =~
+               "section must be a string"
+    end
+
+    test "every section has its own name, and they cover the whole guide" do
+      sections = SlipdockWeb.APIGuide.sections(base_url: "https://x")
+      keys = Enum.map(sections, &elem(&1, 0))
+
+      assert keys == Enum.uniq(keys)
+      assert Enum.all?(keys, &(&1 =~ ~r/\A[a-z0-9-]+\z/))
+
+      whole = sections |> Enum.reject(&(elem(&1, 0) == "mcp")) |> Enum.map_join(&elem(&1, 2))
+      assert whole == SlipdockWeb.APIGuide.markdown(base_url: "https://x")
+    end
+  end
+
+  test "get_guide offers section in its input schema", %{conn: conn} do
+    tools =
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post("/mcp", Jason.encode!(%{jsonrpc: "2.0", id: 1, method: "tools/list"}))
+      |> json_response(200)
+      |> get_in(["result", "tools"])
+
+    tool = Enum.find(tools, &(&1["name"] == "get_guide"))
+    assert tool["inputSchema"]["properties"]["section"]["type"] == "string"
+    refute Map.has_key?(tool["inputSchema"], "required")
   end
 
   test "a mistyped argument is a tool error, not a crash", ctx do

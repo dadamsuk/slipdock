@@ -168,6 +168,11 @@ that connects gets a small set of tools rather than the whole API:
 |---|---|
 | `whoami`, `get_guide`, `list_boards`, `get_board`, `list_cards`, `get_card`, `search`, `read_page`, `list_pages`, `page_info`, `page_history`, `activity` | `create_card`, `update_card`, `move_card`, `comment`, `complete_card`, `archive_card`, `delete_card`, `create_list`, `delete_list`, `create_board`, `archive_board`, `delete_board`, `write_page`, `update_page`, `revert_page`, `claim_job`, `job_progress`, `finish_job` |
 
+`get_guide` gives the short guide — how to work a board, the reader's own
+boards and lists — and ends by naming the other sections, each one call
+away with `section` (`automations`, `wiki`, `endpoints`…, or `all`). The
+whole guide is more than a client shows in one tool result.
+
 `update_card` also sets what blocks a card and works its checklist (add
 items, tick and untick them by the ids `get_card` shows); `move_card` takes
 `board` to send a card, subcards and all, to another board; `list_cards`
