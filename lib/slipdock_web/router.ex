@@ -115,6 +115,10 @@ defmodule SlipdockWeb.Router do
   # a machine with nothing on it, so it needs neither a session nor HTML.
   scope "/", SlipdockWeb do
     get "/install.sh", InstallController, :show
+    # The shell runner and its installer (see `SlipdockWeb.RunnerInstallController`).
+    get "/runner/install.sh", RunnerInstallController, :install
+    get "/runner/slipdock-runner", RunnerInstallController, :runner
+    get "/runner/SHA256SUMS", RunnerInstallController, :sums
   end
 
   # The runner protocol (see `SlipdockWeb.API.RunnerController`): plain text,

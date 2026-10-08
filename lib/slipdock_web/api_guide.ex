@@ -1276,6 +1276,10 @@ defmodule SlipdockWeb.APIGuide do
     POST /api/runner/jobs/:id/finish?exit=N&status=S   body = last output → ok
     ```
 
+    The shell runner that speaks it, `slipdock-runner` (`sh` and `curl`
+    only), installs with `curl -fsSL B/runner/install.sh | sh -s -- --url B
+    --token sdr_… --pool default`; `B/runner/SHA256SUMS` has the checksums.
+
     `slipdock runner ls|new|rm`, `slipdock jobs`, `slipdock job`,
     `slipdock cancel-job`, `slipdock claim-job`, `slipdock job-progress` and
     `slipdock finish-job` are the same on a shell.

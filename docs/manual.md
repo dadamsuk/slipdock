@@ -1416,6 +1416,29 @@ own work rather than from a background loop, so it holds its job on a
 | `slipdock job-progress <id> [--message NOTE]` | Renews the lease; the note is also a comment on the card. Prints `ok` or `cancel`. |
 | `slipdock finish-job <id> --status done\|failed\|cancelled\|timeout [--summary S]` | Ends a job this session claimed. |
 
+**The shell runner** (`slipdock-runner`) is a POSIX `sh` script that needs
+`curl` and nothing else — no `jq`, no Python, no root. It long-polls for a
+job, runs the config's `job_<kind>` function with the prompt in
+`$SLIPDOCK_PROMPT` (and `$SLIPDOCK_JOB_ID`, `$SLIPDOCK_CARD`,
+`$SLIPDOCK_CARD_URL`), heartbeats with the tail of its log every 20 seconds,
+and reports the exit code. A cancel from the board, or a job over its
+`JOB_TIMEOUT`, stops the job and everything it started. One runner works one
+job at a time; run more for more. Install it with
+
+```sh
+curl -fsSL https://your-server/runner/install.sh | sh -s -- \
+  --url https://your-server --token sdr_... --pool default --agent claude --cwd ~/src/app
+```
+
+which writes `~/.local/bin/slipdock-runner`, its config at
+`~/.config/slipdock-runner/config` (mode 600, yours to edit — it is shell,
+and each `job_<kind>` function in it is a kind of job this machine will run)
+and a systemd user unit (Linux) or launchd agent (macOS), and starts it.
+`--agent codex` or `--agent custom --command '…'` run something else;
+`--service none` and `--no-start` leave starting it to you. The installer is
+the same file for everyone; its SHA-256 is at `/runner/SHA256SUMS` to check
+before running it.
+
 The runner protocol and the session endpoints are in the agent guide
 (`slipdock guide`, section *Runners*).
 ## Wiki
