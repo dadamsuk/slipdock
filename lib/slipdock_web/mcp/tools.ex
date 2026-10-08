@@ -37,7 +37,10 @@ defmodule SlipdockWeb.MCP.Tools do
     Tools.DeleteBoard,
     Tools.WritePage,
     Tools.UpdatePage,
-    Tools.RevertPage
+    Tools.RevertPage,
+    Tools.ClaimJob,
+    Tools.JobProgress,
+    Tools.FinishJob
   ]
 
   @doc "Every tool module, in the order `tools/list` gives them."

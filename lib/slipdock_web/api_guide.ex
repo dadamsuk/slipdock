@@ -34,6 +34,7 @@ defmodule SlipdockWeb.APIGuide do
       working(),
       recipes(base),
       automations(),
+      runners(),
       wiki(),
       portable(),
       vocabulary_section(),
@@ -365,7 +366,9 @@ defmodule SlipdockWeb.APIGuide do
     restore), `delete_board`, `write_page`, `update_page` (a page's
     title, summary, parent, position and folder, archiving and restoring it,
     and pinning it to a card) and `revert_page` (a page
-    back to a revision, as a new one, against `base_hash`). Archiving is the undoable way
+    back to a revision, as a new one, against `base_hash`), and `claim_job`,
+    `job_progress` and `finish_job` to take runner jobs from a board's
+    queue (see "Runners" below). Archiving is the undoable way
     to put something away; the deletes are not undoable, so `delete_card`
     needs `confirm: true`, `delete_board` needs `confirm` set to the board's
     code, and `delete_list` refuses a list holding cards unless
@@ -1199,6 +1202,83 @@ defmodule SlipdockWeb.APIGuide do
     ```
 
     Dismissing is per person: yours going does not take anyone else's.
+    """
+  end
+
+  defp runners do
+    """
+
+    ## Runners
+
+    A rule's `runner` action sends a card to a coding agent on somebody's own
+    machine — a laptop, a dev server, a Windows box — instead of to a URL.
+    The action queues a **job**; a **runner** on that machine takes it, runs
+    the agent on the card, and reports back. The shape of the action:
+
+    ```json
+    {"type": "runner", "pool": "default", "kind": "claude",
+     "prompt": "optional; the card's title, link and description by default"}
+    ```
+
+    - **Pull, not push.** Runners dial out to this server and ask for work.
+      Nothing ever calls the machine, so it needs no open port or tunnel.
+    - **The server never decides what runs.** A job is data: its id, its
+      `kind`, the card and the prompt. Which command a kind means is written
+      in the runner's own config on its own machine; a kind it has no
+      definition for is refused there and nothing runs.
+    - **One queue.** Every runner of a pool on a board tree takes jobs from
+      the same queue, one at a time, so two of them never work one card. A
+      rule has at most one open job per card.
+
+    A job goes `queued → claimed → running → done | failed | cancelled |
+    timeout`. A claim holds a lease (90 seconds) that each heartbeat renews;
+    a lease that runs out puts the job back in the queue, and after three
+    tries the job fails and its card is flagged.
+
+    **Taking jobs from a Claude session** (`/loop`, a scheduled task) uses the
+    token you already have — over MCP the `claim_job`, `job_progress` and
+    `finish_job` tools, over HTTP:
+
+    ```sh
+    curl -s -X POST -H "$H" -H 'content-type: application/json' \
+      B/api/boards/1/jobs/claim -d '{"pool": "default"}'
+    # {"job": null}, or {"job": {"id": 7, "card_id": 42, "card_url": "…", "kind": "claude",
+    #   "prompt": "…", …}, "lease_seconds": 1200}
+    curl -s -X POST -H "$H" -H 'content-type: application/json' \
+      B/api/jobs/7/progress -d '{"note": "tests written, fixing the parser"}'
+    # {"status": "ok"} — or "cancel": somebody stopped it; finish as cancelled
+    curl -s -X POST -H "$H" -H 'content-type: application/json' \
+      B/api/jobs/7/finish -d '{"outcome": "done", "summary": "fixed in abc1234"}'
+    ```
+
+    A session holds its job on a 20-minute lease (a runner on a machine, 90
+    seconds): report between steps, and never let 20 minutes pass without a
+    `progress`, or the lease runs out and somebody else gets the card. `note` also goes on the card as a
+    comment; finishing the job does not close the card, so close it as usual.
+    The session shows in the board's runner list as `<token label> (session)`.
+
+    **Seeing and stopping jobs** needs read access to the card, and
+    cancelling one write: `GET /api/cards/:id/jobs`, `GET
+    /api/boards/:board/jobs?status=open`, `GET /api/jobs/:id`, `POST
+    /api/jobs/:id/cancel`. A queued job is cancelled at once; a running one
+    is asked to stop, and its runner hears so on its next heartbeat.
+
+    **Runners themselves** are the board owner's to make and revoke: `GET`,
+    `POST` (`{"name", "pool"}`, answering with the runner's token, once) and
+    `DELETE /api/boards/:board/runners[/:id]`. A runner's token (`sdr_…`)
+    works only on the runner protocol, which is plain text so a machine with
+    nothing but `sh` and `curl` can speak it:
+
+    ```
+    POST /api/runner/claim?wait=25             204, or 200 with X-Job-Id, X-Job-Kind, X-Card-Id,
+                                               X-Card-Ref, X-Card-Url, X-Lease-Seconds; prompt as body
+    POST /api/runner/jobs/:id/heartbeat        body = log tail  → ok | cancel
+    POST /api/runner/jobs/:id/finish?exit=N&status=S   body = last output → ok
+    ```
+
+    `slipdock runner ls|new|rm`, `slipdock jobs`, `slipdock job`,
+    `slipdock cancel-job`, `slipdock claim-job`, `slipdock job-progress` and
+    `slipdock finish-job` are the same on a shell.
     """
   end
 

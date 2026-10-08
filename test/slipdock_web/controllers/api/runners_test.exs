@@ -226,4 +226,61 @@ defmodule SlipdockWeb.API.RunnersTest do
       assert outsider |> get(~p"/api/jobs/999999999") |> json_response(404)
     end
   end
+
+  describe "a session taking jobs with its API token" do
+    test "claim: null when nothing is queued, the job when one is", ctx do
+      assert %{"job" => nil} =
+               ctx.conn
+               |> post(~p"/api/boards/#{ctx.board.id}/jobs/claim", %{"pool" => "dev"})
+               |> json_response(200)
+
+      {:ok, job} = queue(ctx.card)
+
+      body =
+        ctx.conn
+        |> post(~p"/api/boards/#{ctx.board.id}/jobs/claim", %{"pool" => "dev"})
+        |> json_response(200)
+
+      assert body["job"]["id"] == job.id
+      assert body["job"]["prompt"] == "Work on it"
+      assert body["job"]["card_url"] =~ "/cards/#{ctx.card.id}"
+      assert body["lease_seconds"] == 1200
+      assert Enum.any?(Runners.list_runners(ctx.board), &Slipdock.Runners.Runner.session?/1)
+    end
+
+    test "claim needs a pool", ctx do
+      assert %{"error" => "pool is required"} =
+               ctx.conn
+               |> post(~p"/api/boards/#{ctx.board.id}/jobs/claim", %{})
+               |> json_response(422)
+    end
+
+    test "progress and finish, and only for the token that claimed it", ctx do
+      {:ok, job} = queue(ctx.card)
+      ctx.conn |> post(~p"/api/boards/#{ctx.board.id}/jobs/claim", %{"pool" => "dev"})
+
+      other = conn_as(ctx.user) |> put_req_header("accept", "application/json")
+      assert other |> post(~p"/api/jobs/#{job.id}/progress", %{}) |> json_response(403)
+
+      assert %{"status" => "ok"} =
+               ctx.conn
+               |> post(~p"/api/jobs/#{job.id}/progress", %{"note" => "Halfway."})
+               |> json_response(200)
+
+      comments = Slipdock.Boards.get_card!(ctx.card.id) |> Repo.preload(:comments)
+      assert Enum.any?(comments.comments, &(&1.body == "Halfway."))
+
+      assert ctx.conn
+             |> post(~p"/api/jobs/#{job.id}/finish", %{"outcome" => "nope"})
+             |> json_response(422)
+
+      body =
+        ctx.conn
+        |> post(~p"/api/jobs/#{job.id}/finish", %{"outcome" => "failed", "summary" => "flaky"})
+        |> json_response(200)
+
+      assert body["job"]["status"] == "failed"
+      assert body["job"]["output"] == "flaky"
+    end
+  end
 end

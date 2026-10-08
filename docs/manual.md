@@ -158,7 +158,7 @@ way in: what it is, the pictures, and how to get it running.
 - Accounts: passwordless sign-in by emailed magic link, sessions that last
   30 days, API tokens for the CLI
 - **An MCP server** at `/mcp`: claude.ai, the Claude apps, Claude Code and
-  other MCP clients get the boards and the wiki as 27 tools, signing in
+  other MCP clients get the boards and the wiki as 30 tools, signing in
   through the browser or with an API token (see [MCP server](#mcp-server))
 - Groups of users; boards, single cards and saved views can be shared with
   people or groups as read-only or editable
@@ -1359,6 +1359,65 @@ authenticated page). `config :slipdock, :automations` turns rules off
 (`enabled: false`), changes how often the timer runs (`interval`) or sends
 deliveries inline (`async: false`, as the tests do).
 
+
+## Runners
+
+A rule's **Send to runner** action (`runner` in a spec) sends a card to a
+coding agent on a machine of your own. It queues a **job** for a **pool**
+of runners; a runner of that pool, on the same board tree, takes it, runs
+the agent, and reports how it went.
+
+```json
+{"type": "runner", "pool": "default", "kind": "claude",
+ "prompt": "optional — by default the card's number, title, link and description"}
+```
+
+The prompt may use the same `{{card.*}}` placeholders as any action. The
+**Send cards to a coding agent** preset is the usual rule: when a card
+arrives in a list, send it to a pool.
+
+**How it is kept safe.** Runners pull: they dial out and ask for work, and
+the server never connects to them, so nothing needs a port, a tunnel or an
+exception to the outbound-address rules webhooks live by. And the server
+only ever sends data — the job's id, its kind, the card and the prompt.
+What a kind *runs* is in the config file on the runner's own machine, and a
+kind with no definition there is refused without running anything. A rule
+can choose which kind of job to queue; it can never choose a command.
+
+**Jobs.** A job goes `queued → claimed → running`, then `done`, `failed`,
+`cancelled` or `timeout`. A runner holds a claimed job on a 90-second
+lease, renewed by a heartbeat every 20 seconds or so; if the lease runs out
+(the machine slept, the network went), the job goes back in the queue for
+another runner, and after three tries it fails and the card is flagged with
+a comment. A rule never has more than one open job for a card, so a card
+moved in and out of a list does not pile up work. The card's **Runner jobs**
+section shows each job, which runner took it, when, and the tail of its log;
+**Cancel** stops a queued job at once and asks a running one to stop.
+
+**Runners** belong to a board tree and a pool. The board owner makes them:
+each has its own token (`sdr_…`), shown once, that can take and report on
+that pool's jobs and nothing else — it is not an API token and opens no
+other door. Revoking a runner ends its token at once. A Claude session can
+take jobs too, with the API token it already has, over MCP (`claim_job`,
+`job_progress`, `finish_job`) or the CLI (`slipdock claim-job`); it shows in
+the runner list as *label (session)*. A session reports between steps of its
+own work rather than from a background loop, so it holds its job on a
+20-minute lease instead of 90 seconds.
+
+| CLI | What it does |
+|---|---|
+| `slipdock runner new <board> <name> --pool P` | Makes a runner and prints its token, once. |
+| `slipdock runner ls <board>` / `slipdock runners <board>` | The board's runners: pool, last seen, current job. |
+| `slipdock runner rm <board> <runner>` | Revokes a runner. |
+| `slipdock jobs <board> [--status S]` / `slipdock jobs --card ID` | Jobs, newest first. `S` is `open` or a status. |
+| `slipdock job <id>` | One job: status, runner, prompt, log tail. |
+| `slipdock cancel-job <id>` | Stops a job. |
+| `slipdock claim-job <board> --pool P` | Takes the next job as this session. |
+| `slipdock job-progress <id> [--message NOTE]` | Renews the lease; the note is also a comment on the card. Prints `ok` or `cancel`. |
+| `slipdock finish-job <id> --status done\|failed\|cancelled\|timeout [--summary S]` | Ends a job this session claimed. |
+
+The runner protocol and the session endpoints are in the agent guide
+(`slipdock guide`, section *Runners*).
 ## Wiki
 
 The board answers *what are we doing*. It cannot answer *how does this work*,
@@ -2662,6 +2721,9 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `write_page` | The wiki: `create` a page, `append` or `append_section` to one, or `replace_section` and `replace`, which need the `content_hash` from `read_page` so nobody's edit is overwritten. |
 | `update_page` | Everything about a page but its body: `title`, `summary`, `parent` (`""` for the top) and `position` among its siblings, `folder` (made if new; `""` unfiles), `archived` (`false` restores it, children too), and `pin_card` / `unpin_card` to mark it *the* page for a card you can read. Only what is passed changes. Purging a page for good stays on the CLI. |
 | `revert_page` | Puts a page back to a revision from `page_history`. The revert is a new revision, so nothing leaves the history and it can itself be undone; it needs `base_hash`, the page's current `content_hash`, so a newer edit is not lost to it unseen. |
+| `claim_job` | Takes the oldest [runner job](#runners) queued for a pool on a board, with a lease: the card, its link, the job's kind and prompt. Answers `nothing queued` when there is none, so an idle check costs little. The session shows in the board's runner list. |
+| `job_progress` | Renews a claimed job's lease; `note`, if given, is also a comment on the card. Answers `ok`, or `cancel` when somebody has stopped the job. |
+| `finish_job` | Ends a claimed job: `outcome` done, failed, cancelled or timeout, and a `summary` kept on the job. Only the token that claimed it may. |
 
 The reading tools are marked read-only, so a client can let them run
 without asking each time. The deletes are marked destructive and none of

@@ -36,6 +36,19 @@ defmodule SlipdockWeb.API.GuideTest do
   end
 
   @tag :anonymous
+  test "the runners section explains the action, the trust line and both ways in", %{conn: conn} do
+    body = conn |> get(~p"/api/guide") |> response(200)
+
+    assert body =~ "## Runners"
+    assert body =~ ~s({"type": "runner", "pool": "default", "kind": "claude")
+    assert body =~ "The server never decides what runs"
+    assert body =~ "/api/boards/1/jobs/claim"
+    assert body =~ "POST /api/runner/claim?wait=25"
+    assert body =~ "/api/jobs/:id/cancel"
+    assert body =~ "`claim_job`, `job_progress` and"
+  end
+
+  @tag :anonymous
   test "the automations section lists the real vocabulary and endpoints", %{conn: conn} do
     body = conn |> get(~p"/api/guide") |> response(200)
 

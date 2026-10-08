@@ -132,6 +132,13 @@ whole card before touching it.
   in one dump at the end.
 - You finished something that came off the board → close it out on the board
   before reporting it done here.
+- You were started for a **runner job** (your prompt begins "Work on Slipdock
+  card #N", or you took one with `slipdock claim-job` / the MCP `claim_job`)
+  → work that card as usual, and also report on the job: `slipdock
+  job-progress <job> --message "…"` (the note is a comment on the card too,
+  and it renews the job's lease — never leave 20 minutes between them), stop
+  if it answers `cancel`, and end with `slipdock finish-job <job> --status
+  done|failed --summary "…"` once the card is closed or handed back.
 - The work produced an answer someone will want again — a decision, a runbook, a
   gotcha, the shape of a design → a wiki page on that board, named in the
   card's closing comment.

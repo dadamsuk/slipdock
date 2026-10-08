@@ -99,4 +99,47 @@ defmodule SlipdockCLI.RunnersTest do
     assert capture_io(fn -> Runners.run("cancel-job", ["8"], []) end) =~
              "asked the runner to stop job #8"
   end
+
+  test "claim-job: a job, or nothing queued" do
+    serve([
+      {200,
+       ~s({"job":{"id":7,"kind":"claude","card_id":12,"card_url":"http://x/boards/1/cards/12","prompt":"Work on #12"},"lease_seconds":1200})},
+      {200, ~s({"job":null})}
+    ])
+
+    out = capture_io(fn -> Runners.run("claim-job", ["b"], pool: "default") end)
+    assert_received {:request, "POST", "/api/boards/b/jobs/claim", body}
+    assert JSON.decode!(body) == %{"pool" => "default"}
+    assert out =~ "claimed job #7 (claude) for card #12"
+    assert out =~ "Work on #12"
+    assert out =~ "lease 1200s"
+
+    assert capture_io(fn -> Runners.run("claim-job", ["b"], pool: "default") end) =~
+             "nothing queued"
+  end
+
+  test "job-progress sends the note and prints what the server says" do
+    serve([{200, ~s({"status":"cancel"})}])
+    out = capture_io(fn -> Runners.run("job-progress", ["7"], message: "halfway") end)
+    assert_received {:request, "POST", "/api/jobs/7/progress", body}
+    assert JSON.decode!(body) == %{"note" => "halfway"}
+    assert out == "cancel\n"
+  end
+
+  test "finish-job defaults to done and sends the summary" do
+    serve([
+      {200, ~s({"job":{"id":7,"status":"done"}})},
+      {200, ~s({"job":{"id":8,"status":"failed"}})}
+    ])
+
+    assert capture_io(fn -> Runners.run("finish-job", ["7"], summary: "fixed") end) =~
+             "job #7 done"
+
+    assert_received {:request, "POST", "/api/jobs/7/finish", body}
+    assert JSON.decode!(body) == %{"outcome" => "done", "summary" => "fixed"}
+
+    capture_io(fn -> Runners.run("finish-job", ["8"], status: "failed") end)
+    assert_received {:request, "POST", "/api/jobs/8/finish", body}
+    assert JSON.decode!(body) == %{"outcome" => "failed"}
+  end
 end

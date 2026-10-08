@@ -10,7 +10,7 @@ defmodule SlipdockCLI.Runners do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(runner runners jobs job cancel-job)
+  @commands ~w(runner runners jobs job cancel-job claim-job job-progress finish-job)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -64,6 +64,42 @@ defmodule SlipdockCLI.Runners do
         do: IO.puts("cancelled job ##{j["id"]}"),
         else: IO.puts("asked the runner to stop job ##{j["id"]} (it hears on its next heartbeat)")
     end)
+  end
+
+  # Taking jobs as this session, with this token: the same queue the runners
+  # on people's machines take from, so a /loop never races one for a card.
+
+  def run("claim-job", [ref], o) do
+    pool = o[:pool] || fail("pass --pool P: the pool to take a job from")
+
+    HTTP.post("/boards/#{enc(ref)}/jobs/claim", %{"pool" => pool})
+    |> out(o, fn
+      %{"job" => nil} ->
+        IO.puts("nothing queued")
+
+      %{"job" => j} = r ->
+        IO.puts(
+          "claimed job ##{j["id"]} (#{j["kind"]}) for card ##{j["card_id"]} #{j["card_url"]}"
+        )
+
+        IO.puts(
+          "report with `slipdock job-progress #{j["id"]}` between steps (lease #{r["lease_seconds"]}s); end with `slipdock finish-job #{j["id"]} --status done`"
+        )
+
+        IO.puts("\n" <> (j["prompt"] || ""))
+    end)
+  end
+
+  def run("job-progress", [id], o) do
+    HTTP.post("/jobs/#{enc(id)}/progress", compact(%{"note" => o[:message]}))
+    |> out(o, fn %{"status" => status} -> IO.puts(status) end)
+  end
+
+  def run("finish-job", [id], o) do
+    body = compact(%{"outcome" => o[:status] || "done", "summary" => o[:summary]})
+
+    HTTP.post("/jobs/#{enc(id)}/finish", body)
+    |> out(o, fn %{"job" => j} -> IO.puts("job ##{j["id"]} #{j["status"]}") end)
   end
 
   def run(cmd, _args, _o), do: bad_usage(cmd)
