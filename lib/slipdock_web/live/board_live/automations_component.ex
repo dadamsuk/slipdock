@@ -15,7 +15,7 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
   import SlipdockWeb.SlipdockComponents
   import SlipdockWeb.BoardLive.Helpers, only: [flash: 3]
 
-  alias Slipdock.{Access, Automations}
+  alias Slipdock.{Access, Automations, Runners}
   alias Slipdock.Automations.{Callback, Presets, Rule}
 
   # How many of the board's recent callbacks the panel lists.
@@ -33,6 +33,7 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
     {:ok,
      assign(socket,
        rules: nil,
+       runners?: false,
        callbacks: [],
        rule_text: "",
        rule_error: nil,
@@ -243,7 +244,8 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
   defp assign_rules(socket) do
     rules = Automations.list_rules(socket.assigns.board.id)
     send(self(), {:rules_changed, rules})
-    assign(socket, rules: rules)
+    # Sending cards to a runner is only offered once there is one to send to.
+    assign(socket, rules: rules, runners?: Runners.list_runners(socket.assigns.board) != [])
   end
 
   ## Render ------------------------------------------------------------------
@@ -263,6 +265,7 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
         preset={@rule_preset}
         preset_params={@rule_preset_params}
         preset_error={@rule_preset_error}
+        runners?={@runners?}
         current_user={@current_user}
         ai?={@ai?}
         close_path={@close_path}
@@ -277,11 +280,13 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
   attr :params, :map, default: %{}
   attr :error, :string, default: nil
   attr :current_user, :any, default: nil
+  attr :runners?, :boolean, default: false
   attr :target, :any, required: true
 
   # The ready-made rules, grouped, with the picked one's form opened beneath.
   defp rule_presets(assigns) do
-    presets = Presets.all()
+    presets =
+      Enum.reject(Presets.all(), &(&1.key == "send_to_runner" and not assigns.runners?))
 
     assigns =
       assign(assigns,
@@ -437,6 +442,7 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
   attr :preset, :string, default: nil
   attr :preset_params, :map, default: %{}
   attr :preset_error, :string, default: nil
+  attr :runners?, :boolean, default: false
   attr :current_user, :any, default: nil
   attr :ai?, :boolean, default: false
   attr :close_path, :string, required: true
@@ -465,6 +471,7 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
 
         <.rule_presets
           board={@board}
+          runners?={@runners?}
           preset={@preset}
           params={@preset_params}
           error={@preset_error}

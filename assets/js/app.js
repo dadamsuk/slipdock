@@ -26,9 +26,11 @@ import {hooks as colocatedHooks} from "phoenix-colocated/slipdock"
 import topbar from "../vendor/topbar"
 import Sortable from "../vendor/sortable"
 import {installConfirm} from "./confirm"
+import {ModalDialog} from "./modal_dialog"
 import {installPosthog} from "./posthog"
 
 const Hooks = {}
+Hooks.ModalDialog = ModalDialog
 
 // Keeps the server's idea of the window width up to date, so views that
 // render something different on a phone (the calendar's agenda, the board's

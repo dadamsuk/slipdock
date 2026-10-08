@@ -81,4 +81,17 @@ defmodule SlipdockWeb.RunnerDocsTest do
     assert read("docs/manual.md") =~ "another user's `~bob/…` is refused"
     assert read("docs/agents.md") =~ "can't cd to ~/"
   end
+
+  test "the docs call the preset Send cards to a runner, and the old name is gone" do
+    for path <- ["docs/agents.md", "docs/manual.md"] do
+      assert read(path) =~ "Send cards to a runner", path
+    end
+
+    for path <- ["docs/agents.md", "docs/manual.md", "README.md", "priv/skills/slipdock/SKILL.md"] do
+      refute read(path) =~ "Send cards to a coding agent", path
+    end
+
+    assert read("docs/manual.md") =~ "**Verify the\nscript**"
+    assert read("docs/manual.md") =~ "**Advanced**"
+  end
 end

@@ -40,10 +40,11 @@ defmodule SlipdockWeb.RunnersLiveTest do
     assert [runner] = Runners.list_runners(board)
     assert runner.name == "laptop"
     assert html =~ "shown this once"
-    assert has_element?(view, "#runner-step-1", "/runner/install.sh")
-    assert has_element?(view, "#runner-step-1", "--pool dev")
-    assert has_element?(view, "#runner-step-1-copy")
-    assert has_element?(view, "#runner-step-3", "job_claude()")
+    assert has_element?(view, "#runner-command", "/runner/install.sh")
+    assert has_element?(view, "#runner-command", "--pool dev")
+    assert has_element?(view, "#runner-command-copy")
+    view |> element("#reveal-config") |> render_click()
+    assert has_element?(view, "#runner-config", "job_claude()")
     assert has_element?(view, "#runner-#{runner.id}", "laptop")
     [token] = Regex.run(~r/sdr_[A-Za-z0-9_-]{20,}/, html)
     assert Runners.authenticate(token).id == runner.id
@@ -51,7 +52,7 @@ defmodule SlipdockWeb.RunnersLiveTest do
     # Set up again later: the same steps, the token left out, a new one on request.
     view |> element("#runner-#{runner.id} button", "Setup") |> render_click()
     refute render(view) =~ token
-    refute has_element?(view, "#runner-step-1", "--token")
+    refute has_element?(view, "#runner-command", "--token")
     assert has_element?(view, "#runner-setup", "keeps the one in its config")
 
     html = view |> element("#runner-setup button", "Make a new token") |> render_click()
@@ -209,8 +210,9 @@ defmodule SlipdockWeb.RunnersLiveTest do
     choose(view, %{"agent" => "claude"})
     choose(view, %{"slipdock_tools" => "true"})
     submit(view, %{"pool" => "dev", "mcp_servers" => "slipdock", "cwd" => "/srv/app"})
-    assert has_element?(view, "#runner-step-1", "--mcp-servers 'slipdock'")
-    assert has_element?(view, "#runner-step-3", "ALLOWED_TOOLS='mcp__slipdock'")
+    assert has_element?(view, "#runner-command", "--mcp-servers 'slipdock'")
+    view |> element("#reveal-config") |> render_click()
+    assert has_element?(view, "#runner-config", "ALLOWED_TOOLS='mcp__slipdock'")
     assert [runner] = Runners.list_runners(board)
     assert runner.settings["slipdock_tools"] == true
   end
@@ -228,5 +230,170 @@ defmodule SlipdockWeb.RunnersLiveTest do
 
     choose(view, %{"cwd" => "/srv/app"})
     refute has_element?(view, "#runner-wizard", "No working directory")
+  end
+
+  describe "the wizard and its steps (#493)" do
+    test "the Runners text, and Connect a runner opens a dialog of its own", %{
+      conn: conn,
+      board: board
+    } do
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/automations")
+
+      assert has_element?(
+               view,
+               "#board-runners",
+               "Send cards to a coding agent or LLM on your own machine, or to Claude on a schedule"
+             )
+
+      refute has_element?(view, "#runner-dialog")
+      view |> element("#connect-runner") |> render_click()
+      assert has_element?(view, "dialog#runner-dialog[phx-hook=ModalDialog] #runner-wizard")
+      assert has_element?(view, "#runner-dialog[data-close-event=close_dialog]")
+      # The panel underneath stays open.
+      assert has_element?(view, "#automations-modal #rule-presets")
+
+      # Escape or a click outside closes it, and nothing is made.
+      view |> element("#runner-dialog") |> render_hook("close_dialog", %{})
+      refute has_element?(view, "#runner-dialog")
+      assert has_element?(view, "#automations-modal")
+      assert Runners.list_runners(board) == []
+    end
+
+    test "name is optional, the directory /tmp, Hooks under Advanced", %{conn: conn, board: board} do
+      view = open(conn, board)
+
+      assert has_element?(view, "#runner-wizard label", "(optional)")
+      assert has_element?(view, "input[name='wizard[cwd]'][value='/tmp']")
+      assert has_element?(view, "details#wizard-advanced summary", "Advanced")
+
+      assert has_element?(
+               view,
+               "details#wizard-advanced #wizard-hooks input[name='wizard[before_job]']"
+             )
+
+      refute has_element?(view, "details#wizard-advanced[open]")
+
+      # Windows gets its own scratch directory; one typed in stays put.
+      html = choose(view, %{"scenario" => "windows"})
+      assert html =~ ~S(name="wizard[cwd]" value="~\AppData\Local\Temp")
+      choose(view, %{"scenario" => "server"})
+      assert has_element?(view, "input[name='wizard[cwd]'][value='/tmp']")
+      choose(view, %{"cwd" => "/srv/app"})
+      choose(view, %{"scenario" => "windows"})
+      assert has_element?(view, "input[name='wizard[cwd]'][value='/srv/app']")
+    end
+
+    test "the hooks under Advanced still submit, and /tmp reaches the config", %{
+      conn: conn,
+      board: board
+    } do
+      view = open(conn, board)
+      assert has_element?(view, "#runner-wizard", "the default, so the project's own commands")
+      submit(view, %{"pool" => "dev", "before_job" => "git pull --ff-only"})
+
+      assert [runner] = Runners.list_runners(board)
+      assert runner.settings["before_job"] == "git pull --ff-only"
+      assert runner.settings["cwd"] == "/tmp"
+      assert has_element?(view, "#runner-command", "--cwd '/tmp'")
+      assert has_element?(view, "#runner-command", "--before-job 'git pull --ff-only'")
+    end
+
+    test "the steps: no numbers, the script and config behind links, then Verify", %{
+      conn: conn,
+      board: board
+    } do
+      view = open(conn, board)
+      html = submit(view, %{"pool" => "dev"})
+
+      refute html =~ ~r/>\s*1\.\s*</
+      refute has_element?(view, "#runner-setup ol")
+      assert has_element?(view, "#runner-setup", "On the machine, run:")
+      assert has_element?(view, "#runner-command-copy")
+      assert has_element?(view, "#runner-installs", "That command will install")
+      assert has_element?(view, "#reveal-script", "a runner script")
+      assert has_element?(view, "#reveal-config", "a config file")
+      refute has_element?(view, "#runner-setup", "Or check it first")
+      # The token note sits above the command.
+      assert html =~ ~r/shown this once.*id="runner-command"/s
+
+      refute has_element?(view, "#runner-script")
+      view |> element("#reveal-script") |> render_click()
+      assert has_element?(view, "#runner-script", "SLIPDOCK_RUNNER_TOKEN")
+      assert has_element?(view, "#runner-script-copy")
+
+      refute has_element?(view, "#runner-config")
+      view |> element("#reveal-config") |> render_click()
+      assert has_element?(view, "#runner-config", "job_claude()")
+      assert has_element?(view, "#runner-config-copy")
+      assert has_element?(view, "#runner-setup", "~/.config/slipdock-runner/config")
+
+      refute has_element?(view, "#runner-checksums")
+      view |> element("#reveal-verify", "Verify the script") |> render_click()
+      assert has_element?(view, "#runner-checksums", "/runner/SHA256SUMS")
+      assert has_element?(view, "#runner-setup", "Or check it first")
+
+      # Clicked again, a link hides what it showed.
+      view |> element("#reveal-script") |> render_click()
+      refute has_element?(view, "#runner-script")
+
+      assert has_element?(
+               view,
+               "#runner-rule",
+               "Nothing is sent until a rule sends it: add one under"
+             )
+
+      assert has_element?(view, "#runner-rule", "with the Send cards to a runner preset")
+      view |> element("#runner-to-automations", "Automations") |> render_click()
+      refute has_element?(view, "#runner-dialog")
+      assert has_element?(view, "#rule-preset-send_to_runner", "Send cards to a runner")
+    end
+
+    test "a rule the wizard made is named instead", %{conn: conn, board: board} do
+      view = open(conn, board)
+      submit(view, %{"pool" => "dev", "send" => "column:To Do"})
+      assert has_element?(view, "#runner-rule", "sends cards")
+      refute has_element?(view, "#runner-to-automations")
+    end
+
+    test "on Windows, the script is the PowerShell runner and Verify its checksums", %{
+      conn: conn,
+      board: board
+    } do
+      view = open(conn, board)
+      choose(view, %{"scenario" => "windows"})
+      submit(view, %{"scenario" => "windows", "pool" => "win"})
+
+      view |> element("#reveal-script") |> render_click()
+      assert has_element?(view, "#runner-script", "$RunnerToken")
+      view |> element("#reveal-config") |> render_click()
+      assert has_element?(view, "#runner-setup", "config.ps1")
+      view |> element("#reveal-verify") |> render_click()
+      assert has_element?(view, "#runner-checksums", "-OutFile install.ps1")
+    end
+
+    test "a Claude scenario's steps are a plain list, unnumbered", %{conn: conn, board: board} do
+      view = open(conn, board)
+      choose(view, %{"scenario" => "loop"})
+      html = submit(view, %{"scenario" => "loop", "pool" => "loop"})
+      assert has_element?(view, "#runner-step-4", "/loop /slipdock-loop against")
+      refute has_element?(view, "#runner-installs")
+      refute html =~ ~r/>\s*1\.\s*</
+    end
+
+    test "the runner preset shows only once the board has a runner", %{
+      conn: conn,
+      board: board
+    } do
+      view = open(conn, board)
+      refute has_element?(view, "#rule-preset-send_to_runner")
+      refute render(view) =~ "coding agent\""
+
+      submit(view, %{"pool" => "dev"})
+      assert has_element?(view, "#rule-preset-send_to_runner", "Send cards to a runner")
+
+      [runner] = Runners.list_runners(board)
+      view |> element("#runner-#{runner.id} button[title=Revoke]") |> render_click()
+      refute has_element?(view, "#rule-preset-send_to_runner")
+    end
   end
 end

@@ -136,7 +136,10 @@ defmodule Slipdock.Runners.SetupTest do
 
   test "the windows scenario: a PowerShell line with literal strings", %{board: board} do
     setup = gen(board, %{"scenario" => "windows", "cwd" => "C:\\src\\it's", "pool" => "win"})
-    [line] = codes(setup)
+    [line, sums] = codes(setup)
+    assert sums =~ "irm '#{@base}/runner/install.ps1' -OutFile install.ps1"
+    assert sums =~ "irm '#{@base}/runner/SHA256SUMS'"
+    assert Enum.map(setup.steps, & &1[:id]) == [:command, :checksums, :config, :rule]
     assert line =~ "& ([scriptblock]::Create((irm '#{@base}/runner/install.ps1'))) `\n"
     assert line =~ "-Token 'sdr_tok'"
     assert line =~ "-Cwd 'C:\\src\\it''s'"
@@ -349,7 +352,7 @@ defmodule Slipdock.Runners.SetupTest do
     end
 
     test "PowerShell gets them as literal strings", %{board: board} do
-      [line] =
+      [line, _sums] =
         board
         |> gen(%{
           "scenario" => "windows",
@@ -570,7 +573,7 @@ defmodule Slipdock.Runners.SetupTest do
             %{"scenario" => "loop"},
             %{"scenario" => "cloud", "where" => "desktop"}
           ] do
-        warnings = gen(board, extra).warnings
+        warnings = gen(board, Map.put(extra, "cwd", "")).warnings
         assert Enum.any?(warnings, &String.starts_with?(&1, @warning)), inspect(extra)
         assert Enum.any?(warnings, &(&1 =~ ".claude/settings.json"))
       end
@@ -628,9 +631,82 @@ defmodule Slipdock.Runners.SetupTest do
         board |> gen(Map.put(extra, "scenario", "loop")) |> codes() |> Enum.at(2)
       end
 
-      assert cd.(%{}) =~ ~S(cd "$HOME" && claude)
+      assert cd.(%{"cwd" => ""}) =~ ~S(cd "$HOME" && claude)
       assert cd.(%{"cwd" => "~/src/app"}) =~ ~S(cd "$HOME"/'src/app' && claude)
       assert cd.(%{"cwd" => "/srv/app"}) =~ "cd '/srv/app' && claude"
+    end
+  end
+
+  describe "the wizard's defaults and wording (#493)" do
+    test "a working directory not given is a scratch one; one given blank is still home" do
+      assert answers()["cwd"] == "/tmp"
+      assert answers(%{"scenario" => "loop"})["cwd"] == "/tmp"
+      assert answers(%{"scenario" => "windows"})["cwd"] == ~S"~\AppData\Local\Temp"
+      assert answers(%{"cwd" => ""})["cwd"] == ""
+      assert answers(%{"cwd" => "/srv/app"})["cwd"] == "/srv/app"
+    end
+
+    test "the default goes into the one-liner and the config", %{board: board} do
+      [line, _sums, config] = board |> gen(%{}) |> codes()
+      assert line =~ "--cwd '/tmp'"
+      assert config =~ "WORKDIR='/tmp'\n"
+
+      [ps | _] = board |> gen(%{"scenario" => "windows"}) |> codes()
+      assert ps =~ ~S"-Cwd '~\AppData\Local\Temp'"
+    end
+
+    test "the default directory warns like a blank one; a project folder doesn't", %{board: board} do
+      for scenario <- ["server", "windows", "loop"] do
+        warnings = gen(board, %{"scenario" => scenario}).warnings
+
+        assert Enum.any?(warnings, &(&1 =~ "the default, so the project's own commands")),
+               scenario
+      end
+
+      refute Enum.any?(gen(board, %{"cwd" => "/srv/app"}).warnings, &(&1 =~ "the default"))
+    end
+
+    test "the cost notes lose the sentences comparing the two", %{board: board} do
+      runner = gen(board, %{}).cost
+      claude = gen(board, %{"scenario" => "loop"}).cost
+
+      assert runner =~ "costs nothing while it waits"
+      refute runner =~ "The right choice for anything left running."
+      assert claude =~ "uses your Claude usage, even when nothing is queued."
+      refute claude =~ "Fine for a while"
+      refute claude =~ "a runner costs nothing while idle"
+    end
+
+    test "with no rule, the last step names the Send cards to a runner preset", %{board: board} do
+      rule = List.last(gen(board, %{"pool" => "dev"}).steps)
+      assert rule.id == :rule
+
+      assert rule.text ==
+               "Nothing is sent until a rule sends it: add one under Automations with the " <>
+                 "Send cards to a runner preset (pool dev, kind claude)."
+
+      assert {rule.pool, rule.kind} == {"dev", "claude"}
+      refute rule.text =~ "coding agent"
+    end
+
+    test "the runner scenarios name their steps for the wizard", %{board: board} do
+      assert Enum.map(gen(board, %{}).steps, & &1[:id]) == [:command, :checksums, :config, :rule]
+    end
+
+    test "changing one answer keeps the others the runner has", ctx do
+      {:ok, %{runner: runner}} =
+        Setup.connect(
+          ctx.board,
+          %{"pool" => "dev", "cwd" => "", "instructions" => "Be brief."},
+          ctx.owner,
+          @base
+        )
+
+      {:ok, %{runner: runner}} = Setup.update(runner, ctx.board, %{"timeout" => "900"}, @base)
+      assert runner.settings["timeout"] == 900
+      # Not reset to the defaults: home stays home, the instructions stay.
+      assert runner.settings["cwd"] == ""
+      assert runner.settings["instructions"] == "Be brief."
     end
   end
 end

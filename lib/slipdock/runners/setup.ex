@@ -48,7 +48,7 @@ defmodule Slipdock.Runners.Setup do
     "agent" => "claude",
     "kind" => "",
     "command" => "",
-    "cwd" => "",
+    "cwd" => "/tmp",
     "permission_mode" => "acceptEdits",
     "timeout" => 3600,
     "pool" => "default",
@@ -80,6 +80,14 @@ defmodule Slipdock.Runners.Setup do
   def hook_modes, do: @hook_modes
   def token_placeholder, do: @token_placeholder
 
+  @doc """
+  Where jobs run when nobody says: a scratch directory, so a new runner
+  touches nothing of yours. On Windows that is your TEMP, spelled with the
+  `~` the installer understands.
+  """
+  def default_cwd("windows"), do: ~S"~\AppData\Local\Temp"
+  def default_cwd(_scenario), do: "/tmp"
+
   @doc "What each scenario is called in the wizard."
   def label("server"), do: "Linux / macOS machine"
   def label("windows"), do: "Windows machine"
@@ -94,13 +102,19 @@ defmodule Slipdock.Runners.Setup do
   `{:error, message}`. Keys and values are strings, as a form sends them.
   """
   def normalise(answers) do
+    given =
+      for {k, v} <- answers || %{}, Map.has_key?(@defaults, to_string(k)), into: %{} do
+        {to_string(k), if(is_binary(v), do: String.trim(v), else: v)}
+      end
+
+    answers = Map.merge(@defaults, given)
+
+    # A working directory not given at all is the scenario's own default; one
+    # given blank is the home directory, as it always was.
     answers =
-      Map.merge(
-        @defaults,
-        for({k, v} <- answers || %{}, Map.has_key?(@defaults, to_string(k)), into: %{}) do
-          {to_string(k), if(is_binary(v), do: String.trim(v), else: v)}
-        end
-      )
+      if Map.has_key?(given, "cwd"),
+        do: answers,
+        else: %{answers | "cwd" => default_cwd(answers["scenario"])}
 
     answers =
       answers
@@ -328,6 +342,10 @@ defmodule Slipdock.Runners.Setup do
   def update(%Runner{} = runner, %Board{} = board, params, base_url) do
     old = regenerate(runner, board, base_url)
 
+    # Answers not given keep what the runner has: changing one thing changes
+    # one thing.
+    params = runner |> saved() |> Map.merge(Map.new(params, fn {k, v} -> {to_string(k), v} end))
+
     with {:ok, answers} <- normalise(Map.put(params, "pool", runner.pool)),
          {:ok, runner} <- Runners.update_runner(runner, %{"settings" => answers}) do
       new = regenerate(runner, board, base_url)
@@ -406,13 +424,12 @@ defmodule Slipdock.Runners.Setup do
   defp cost(scenario) when scenario in ~w(server windows),
     do:
       "A runner costs nothing while it waits: it asks the server for work and only " <>
-        "starts the agent when there is a job. The right choice for anything left running."
+        "starts the agent when there is a job."
 
   defp cost(_),
     do:
       "Nothing to install, but every check for work is a Claude turn and uses your Claude " <>
-        "usage, even when nothing is queued. Fine for a while; for a queue watched all day, " <>
-        "a runner costs nothing while idle."
+        "usage, even when nothing is queued."
 
   defp warnings(scenario, a, ctx) do
     base_warnings(scenario, a, ctx) ++
@@ -462,18 +479,32 @@ defmodule Slipdock.Runners.Setup do
         "project's folder."
     ]
 
+  defp cwd_warnings(scenario, %{"agent" => "claude", "cwd" => cwd}) do
+    if cwd == default_cwd(scenario),
+      do: [
+        "The working directory is #{cwd}, the default, so the project's own commands, " <>
+          "skills and .claude/settings.json won't be loaded. Set it to the project's folder."
+      ],
+      else: []
+  end
+
   defp cwd_warnings(_, _), do: []
 
   ## Steps --------------------------------------------------------------------
 
+  # The two runner scenarios name their steps (`id`), so the wizard can lay
+  # them out as one command with what it installs behind links; the API and
+  # the CLI list them in order.
   defp steps("server", a, ctx) do
     [
       %{
+        id: :command,
         text: "On the machine, run:",
         lang: "sh",
         code: server_one_liner(a, ctx)
       },
       %{
+        id: :checksums,
         text:
           "Or check it first: the installer is the same file for everybody, and these are " <>
             "its checksums (compare with sha256sum install.sh).",
@@ -483,6 +514,7 @@ defmodule Slipdock.Runners.Setup do
             "curl -fsSL #{ctx.base_url}/runner/SHA256SUMS"
       },
       %{
+        id: :config,
         text:
           "It writes this config to ~/.config/slipdock-runner/config (mode 600). It is yours " <>
             "to edit: each job_<kind> function is a kind of job this machine will run, and " <>
@@ -496,11 +528,23 @@ defmodule Slipdock.Runners.Setup do
   defp steps("windows", a, ctx) do
     [
       %{
+        id: :command,
         text: "In PowerShell on the machine, run:",
         lang: "powershell",
         code: windows_one_liner(a, ctx)
       },
       %{
+        id: :checksums,
+        text:
+          "Or check it first: the installer is the same file for everybody, and these are " <>
+            "its checksums (compare with Get-FileHash install.ps1).",
+        lang: "powershell",
+        code:
+          "irm #{ps_q(ctx.base_url <> "/runner/install.ps1")} -OutFile install.ps1\n" <>
+            "irm #{ps_q(ctx.base_url <> "/runner/SHA256SUMS")}"
+      },
+      %{
+        id: :config,
         text:
           "It writes its config to %LOCALAPPDATA%\\slipdock-runner\\config.ps1, readable by " <>
             "your user alone, with a Job-#{pascal(kind(a))} function for this kind of job. Logs " <>
@@ -624,15 +668,22 @@ defmodule Slipdock.Runners.Setup do
   end
 
   defp rule_step(_a, %{rule: %{} = rule}),
-    do: [%{text: "On the board, the rule “#{rule.name}” sends cards: #{Spec.summary(rule.spec)}"}]
+    do: [
+      %{
+        id: :rule,
+        text: "On the board, the rule “#{rule.name}” sends cards: #{Spec.summary(rule.spec)}"
+      }
+    ]
 
   defp rule_step(a, _ctx),
     do: [
       %{
+        id: :rule,
         text:
-          "Nothing is sent until a rule sends it: add one under Automations — the " <>
-            "\"Send cards to a coding agent\" preset, with pool #{a["pool"]} and kind " <>
-            "#{kind(a)} — or put a runner action in a rule you have."
+          "Nothing is sent until a rule sends it: add one under Automations with the " <>
+            "Send cards to a runner preset (pool #{a["pool"]}, kind #{kind(a)}).",
+        pool: a["pool"],
+        kind: kind(a)
       }
     ]
 
