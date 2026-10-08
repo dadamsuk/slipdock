@@ -1367,7 +1367,10 @@ defmodule SlipdockWeb.SlipdockComponents do
 
   attr :id, :string, required: true
   attr :on_close, JS, required: true
-  attr :size, :string, default: "md"
+
+  attr :size, :string,
+    default: "md",
+    doc: ~s("sm", "md", "lg", "xl", or "wide": 90% of the screen, for a card opened full screen)
 
   attr :keys, :boolean,
     default: false,
@@ -1392,7 +1395,8 @@ defmodule SlipdockWeb.SlipdockComponents do
           @size == "sm" && "max-w-md",
           @size == "md" && "max-w-xl",
           @size == "lg" && "max-w-4xl",
-          @size == "xl" && "max-w-6xl"
+          @size == "xl" && "max-w-6xl",
+          @size == "wide" && "sm:max-w-[90%]"
         ]}
         phx-click-away={@on_close}
       >
