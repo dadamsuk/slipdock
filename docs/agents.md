@@ -243,7 +243,7 @@ and gives you exactly what to paste:
 | Claude, scheduled | a Claude Desktop local routine, or a cloud routine at claude.ai/code/routines with the Slipdock connector | a Claude turn per run |
 
 It can also add the rule that sends a list's cards to the runner's **pool**
-(the *Send cards to a coding agent* preset), and take standing instructions
+(the *Send cards to a runner* preset, offered once the board has a runner), and take standing instructions
 and before/after hooks, written into the config or prompt it generates.
 
 **A job runs with nobody watching**, so two things are set up for it. A
@@ -256,7 +256,8 @@ prompt ends by saying nobody will answer questions: choose inputs from the
 card, say what was chosen, or comment, flag the card `waiting` and stop. Give
 the runner a **working directory** — the project's folder: Claude Code loads
 a project's own commands, skills and `.claude/settings.json` only from the
-directory it starts in, and the wizard warns when it's blank.
+directory it starts in, and the wizard warns while it's blank or still the
+default `/tmp`.
 
 **The trust line.** Runners pull: they dial out and ask for work, and the
 server never connects to them, so nothing needs a port, a tunnel or an

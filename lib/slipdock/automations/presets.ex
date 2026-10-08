@@ -207,7 +207,7 @@ defmodule Slipdock.Automations.Presets do
     %{
       key: "send_to_runner",
       group: "Connect",
-      title: "Send cards to a coding agent",
+      title: "Send cards to a runner",
       description:
         "When a card arrives in a list, queue it for a runner on your own machine, which works " <>
           "it with Claude Code or whatever its config says the kind of job means.",

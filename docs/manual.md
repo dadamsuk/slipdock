@@ -1383,7 +1383,8 @@ The prompt may use the same `{{card.*}}` placeholders as any action. Every
 job's prompt, a rule's own included, ends with a paragraph saying it runs
 unattended: nobody will answer questions, so choose inputs from the card and
 say what was chosen, or comment, flag the card `waiting` and stop. The
-**Send cards to a coding agent** preset is the usual rule: when a card
+**Send cards to a runner** preset is the usual rule (it is offered once the
+board has a runner): when a card
 arrives in a list, send it to a pool.
 
 **How it is kept safe.** Runners pull: they dial out and ask for work, and
@@ -1404,21 +1405,25 @@ moved in and out of a list does not pile up work. The card's **Runner jobs**
 section shows each job, which runner took it, when, and the tail of its log;
 **Cancel** stops a queued job at once and asks a running one to stop.
 
-**Connect a runner**, in the board's Automations panel, is the way in. Pick
+**Connect a runner**, in the board's Automations panel, is the way in: it
+opens a dialog of its own. Pick
 where the work should happen — a Linux or macOS machine, a Windows machine,
 Claude Code on your own machine in a `/loop`, or Claude on a schedule (a
 Claude Desktop scheduled task, or a routine in Anthropic's cloud) — and a few
-options (the pool, the agent, its working directory, permission mode and
-timeout, how to keep it running), and it gives you exactly what to paste:
-the installer's one-liner with the token in it and a preview of the config it
-will write; the PowerShell line; the `claude mcp add`, skills and `/loop`
+options (the pool, the agent, its working directory — `/tmp` unless you say,
+`~\AppData\Local\Temp` on Windows — permission mode and timeout, how to keep
+it running; hooks are under **Advanced**), and it gives you exactly what to
+paste: the installer's one-liner with the token in it, and behind two links the
+runner script it installs and the config it will write, with **Verify the
+script** for the installer's checksums; the PowerShell line, the same way; the `claude mcp add`, skills and `/loop`
 lines; or the connector, prompt and schedule for a routine, warning that a
 routine needs the code on GitHub and this server reachable from the internet.
 It can also add the rule that sends a list's cards to the pool, or use one
 you have. A runner on a machine costs nothing while it waits; the Claude
 scenarios need no install but every check for work is a Claude turn. The
 answers are kept on the runner (never the token), so **Setup** shows the
-steps again, and **Make a new token** replaces a lost one.
+steps again, **Change the answers** changes only what you change, and **Make
+a new token** replaces a lost one.
 
 **The Slipdock tools.** A job runs Claude with `-p`, where nobody can approve
 a tool, so a Claude runner is set up to allow every tool of the Slipdock MCP
@@ -1430,7 +1435,8 @@ A,B` / `-McpServers 'A,B'` and write it to the config as `ALLOWED_TOOLS` /
 `$AllowedTools`; `''` turns it off, and then the agent has no access to the
 board. Give a Claude runner the project's folder as its working directory, too:
 Claude Code loads a project's own commands, skills and `.claude/settings.json`
-only from where it starts, and the wizard warns when it is blank.
+only from where it starts, and the wizard warns while it is blank or still the
+default.
 
 **Instructions and hooks.** The wizard also takes standing instructions — how
 much to write on the card (quiet, normal or verbose) and anything else you
