@@ -127,7 +127,10 @@ defmodule Slipdock.Search do
         {:ok, []}
 
       not Embeddings.configured?() ->
-        {:error, "Semantic search needs an embedding model: set OPENROUTER_API_KEY."}
+        {:error,
+         "Semantic search isn't set up on this server: an admin needs to choose whose AI " <>
+           "key it uses, under Configuration → AI for search and automations " <>
+           "(or `slipdock admin set ai_system_user=<email>`)."}
 
       true ->
         with {:ok, vector} <- Embeddings.embed(query) do

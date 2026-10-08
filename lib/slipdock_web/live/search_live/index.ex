@@ -597,11 +597,11 @@ defmodule SlipdockWeb.SearchLive.Index do
     >
       <.icon name="hero-exclamation-triangle" class="mt-0.5 size-4 shrink-0" />
       <span :if={not @embeddings}>
-        This needs an embedding model. Set <code class="font-mono">OPENROUTER_API_KEY</code>
-        and run <code class="font-mono">mix slipdock.reindex</code>.
+        Search isn't set up on this server: it needs an admin's AI key. An admin chooses
+        whose under Configuration → AI for search and automations.
       </span>
       <span :if={@embeddings and not @model}>
-        Ask needs a language model. Set <code class="font-mono">OPENROUTER_API_KEY</code>.
+        Ask needs a language model: add a key or an endpoint under Account → AI model.
       </span>
     </p>
 

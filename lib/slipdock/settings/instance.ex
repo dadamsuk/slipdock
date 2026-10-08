@@ -77,6 +77,12 @@ defmodule Slipdock.Settings.Instance do
     field :posthog_host, :string
     field :posthog_respect_dnt, :boolean, default: true
 
+    # Whose AI settings unattended work runs on: the search indexer, every
+    # search query, scheduled automations. An admin, because those settings
+    # receive every board's content — see `Slipdock.AI.Keys.system_settings/0`.
+    # Nil leaves it to the environment and the single-admin fallback.
+    belongs_to :ai_system_user, Slipdock.Accounts.User
+
     timestamps(type: :utc_datetime)
   end
 
@@ -124,7 +130,7 @@ defmodule Slipdock.Settings.Instance do
                     login_fallback_enabled board_limit board_limit_enabled item_limit
                     item_limit_enabled storage_limit_mb storage_limit_enabled
                     trial_days trial_enabled posthog_key posthog_host
-                    posthog_respect_dnt)a
+                    posthog_respect_dnt ai_system_user_id)a
 
   # The admin address and the SMTP details each have a flow that proves
   # something first (a code to the new address, a test message that arrived),
@@ -175,6 +181,7 @@ defmodule Slipdock.Settings.Instance do
     )
     |> require_sender_with_host()
     |> require_mail_for_approval()
+    |> validate_ai_system_user()
     |> clear_verification_when_mail_changes()
   end
 
@@ -228,6 +235,22 @@ defmodule Slipdock.Settings.Instance do
         add_error(acc, number, "is needed when this limit is switched on")
       else
         acc
+      end
+    end)
+  end
+
+  # Every board's content goes through these settings, so only an admin's will
+  # do: anyone else could point their account at a server of their own and
+  # receive the lot. Not checked again here when the person is later demoted —
+  # `Slipdock.AI.Keys` ignores the choice then, rather than this row refusing
+  # to save something else.
+  defp validate_ai_system_user(changeset) do
+    validate_change(changeset, :ai_system_user_id, fn field, id ->
+      case Slipdock.Repo.get(Slipdock.Accounts.User, id) do
+        %{admin: true, disabled_at: nil} -> []
+        %{admin: true} -> [{field, "is disabled"}]
+        %{} -> [{field, "must be an admin: every board's content goes through their settings"}]
+        nil -> [{field, "is not an account here"}]
       end
     end)
   end

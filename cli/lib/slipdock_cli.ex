@@ -66,6 +66,9 @@ defmodule SlipdockCLI do
                                       to switch any limit off
                                       posthog_key=phc_... posthog_host=https://eu.i.posthog.com
                                       for analytics; posthog_key= turns it off
+                                      ai_system_user=you@example.com: whose AI key semantic
+                                      search and scheduled automations use (an admin's);
+                                      ai_system_user= clears it
   admin allow <entry>                 let an address or a whole domain register
   admin disallow <entry>
   admin users                         who is here, what they use, when last seen

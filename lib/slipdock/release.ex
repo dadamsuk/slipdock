@@ -321,8 +321,9 @@ defmodule Slipdock.Release do
     else
       puts(
         "No AI key or endpoint is available for unattended work, so nothing can " <>
-          "be embedded. Set one for somebody (ai-key, ai-endpoint), and name them " <>
-          "with SLIPDOCK_AI_SYSTEM_USER if more than one person has one."
+          "be embedded. Set one for an admin (ai-key, ai-endpoint), then choose them " <>
+          "under Configuration → AI for search and automations (or " <>
+          "`slipdock admin set ai_system_user=<email>`)."
       )
     end
   end

@@ -58,6 +58,10 @@ defmodule SlipdockWeb.API.AdminController do
           posthog_key: settings.posthog_key,
           posthog_host: settings.posthog_host
         },
+        # Whose AI settings search, indexing and scheduled automations run on:
+        # `system_user` is the admin chosen here (nil for none), `source` and
+        # `using` what is actually in effect — see `Slipdock.AI.Keys.system_source/0`.
+        ai: ai_json(settings),
         pending_signups: Accounts.count_pending_signups()
       }
     })
@@ -67,9 +71,40 @@ defmodule SlipdockWeb.API.AdminController do
     # Not the admin address and not the SMTP details. Both have flows that
     # prove something first — a code to the new address, a test message that
     # arrived — and letting a PATCH skip those would undo the point of them.
-    with {:ok, _} <- Settings.update(Map.take(params, Slipdock.Settings.Instance.policy_fields())) do
+    with {:ok, params} <- ai_system_user(params),
+         {:ok, _} <- Settings.update(Map.take(params, Slipdock.Settings.Instance.policy_fields())) do
       settings(conn, %{})
     end
+  end
+
+  # The server's AI is named by email, the way a person would; stored by id.
+  # Empty or "none" clears the choice.
+  defp ai_system_user(%{"ai_system_user" => email} = params) do
+    params = Map.delete(params, "ai_system_user")
+
+    cond do
+      email in ["", "none", "-", nil] ->
+        {:ok, Map.put(params, "ai_system_user_id", nil)}
+
+      user = is_binary(email) && Accounts.get_user_by_email(email) ->
+        {:ok, Map.put(params, "ai_system_user_id", user.id)}
+
+      true ->
+        {:error, :bad_request, "ai_system_user: no account here uses #{inspect(email)}"}
+    end
+  end
+
+  defp ai_system_user(params), do: {:ok, params}
+
+  defp ai_json(settings) do
+    %{source: source, user: user} = Slipdock.AI.Keys.system_source()
+    chosen = settings.ai_system_user_id && Accounts.get_user(settings.ai_system_user_id)
+
+    %{
+      system_user: chosen && chosen.email,
+      source: source,
+      using: user && user.email
+    }
   end
 
   def allow(conn, %{"entry" => entry}) do

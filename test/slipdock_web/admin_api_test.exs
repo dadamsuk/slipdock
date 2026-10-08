@@ -67,6 +67,44 @@ defmodule SlipdockWeb.AdminAPITest do
       assert Settings.signup_mode() == :open
     end
 
+    test "whose AI search runs on: chosen by email, shown, and cleared", %{
+      conn: conn,
+      admin: admin
+    } do
+      key_file =
+        Path.join(System.tmp_dir!(), "ai_keys_#{System.unique_integer([:positive])}.json")
+
+      Slipdock.TestConfig.merge(:ai, key_file: key_file, api_key: nil, system_user: nil)
+      on_exit(fn -> File.rm(key_file) end)
+      :ok = Slipdock.AI.Keys.put(admin, "sk-admin")
+      {:ok, _} = Settings.update(%{signup_mode: :open})
+
+      ai = json_response(get(conn, ~p"/api/admin/settings"), 200)["settings"]["ai"]
+      assert ai == %{"system_user" => nil, "source" => "none", "using" => nil}
+
+      body =
+        patch(conn, ~p"/api/admin/settings", %{"ai_system_user" => String.upcase(admin.email)})
+
+      ai = json_response(body, 200)["settings"]["ai"]
+      assert ai["system_user"] == admin.email
+      assert ai["source"] == "chosen"
+      assert ai["using"] == admin.email
+      assert Settings.get().ai_system_user_id == admin.id
+
+      body = patch(conn, ~p"/api/admin/settings", %{"ai_system_user" => ""})
+      assert json_response(body, 200)["settings"]["ai"]["system_user"] == nil
+      assert Settings.get().ai_system_user_id == nil
+    end
+
+    test "the AI user must be an account here, and an admin", %{conn: conn, ordinary: ordinary} do
+      body = patch(conn, ~p"/api/admin/settings", %{"ai_system_user" => "nobody@example.com"})
+      assert json_response(body, 400)["error"] =~ "no account here uses"
+
+      body = patch(conn, ~p"/api/admin/settings", %{"ai_system_user" => ordinary.email})
+      assert json_response(body, 422)
+      assert Settings.get().ai_system_user_id == nil
+    end
+
     test "the admin address and the mail server are not among them", %{conn: conn} do
       patch(conn, ~p"/api/admin/settings", %{
         "admin_email" => "hijack@example.com",

@@ -76,7 +76,8 @@ defmodule SlipdockCLI.Admin do
     admin build                         the commit and build time now running
     admin set key=value...              signup_mode, free_card_limit, user_directory,
                                         invites_create_accounts, login_fallback_enabled,
-                                        posthog_key, posthog_host (empty to turn off)
+                                        posthog_key, posthog_host (empty to turn off),
+                                        ai_system_user=<admin email> (empty to clear)
     admin allow <entry> | disallow <entry>
     admin users                         who is here
     admin promote|demote|disable|enable <email>
@@ -161,6 +162,7 @@ defmodule SlipdockCLI.Admin do
     Mail:             #{if s["smtp"]["configured"], do: "#{s["smtp"]["host"]}:#{s["smtp"]["port"] || 587}", else: "not configured"}
     Sign-in fallback: #{if s["login_fallback"]["enabled"], do: s["login_fallback"]["path"], else: "off"}
     Analytics:        #{render_analytics(s["analytics"])}
+    Search & rules AI:#{render_ai(s["ai"])}
     Waiting:          #{s["pending_signups"]}\
     """)
   end
@@ -170,6 +172,27 @@ defmodule SlipdockCLI.Admin do
     do: "PostHog #{key} → #{a["posthog_host"] || "https://us.i.posthog.com"}"
 
   defp render_analytics(_), do: "off"
+
+  # Whose AI settings unattended work runs on, and why that person's.
+  defp render_ai(%{"source" => "none"} = ai),
+    do: " off — no admin's AI settings to use#{chosen_note(ai)}"
+
+  defp render_ai(%{"source" => "server_key"}), do: " the shared OPENROUTER_API_KEY"
+  defp render_ai(%{"source" => "chosen", "using" => who}), do: " #{who} (chosen here)"
+
+  defp render_ai(%{"source" => "environment"} = ai),
+    do: " #{ai["using"] || "?"} (SLIPDOCK_AI_SYSTEM_USER)#{chosen_note(ai)}"
+
+  defp render_ai(%{"source" => "sole_admin"} = ai),
+    do: " #{ai["using"]} (the only admin with a key)#{chosen_note(ai)}"
+
+  defp render_ai(_), do: " —"
+
+  # A choice that is saved but not in effect: demoted, disabled or keyless.
+  defp chosen_note(%{"system_user" => who}) when is_binary(who),
+    do: "; #{who} is chosen but has no AI settings or is no longer an admin"
+
+  defp chosen_note(_), do: ""
 
   # A limit is a number and a switch; a switch that is off means no limit at
   # all, whatever number is remembered behind it.

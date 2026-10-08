@@ -433,7 +433,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
               class="w-full select font-mono text-xs"
             />
             <p class="-mt-1 text-xs text-base-content/50">
-              Only read for the account that indexes (SLIPDOCK_AI_SYSTEM_USER), and
+              Only read for the account that indexes (Configuration → AI for search), and
               changing it means a reindex — the old vectors are not comparable.
             </p>
           </div>

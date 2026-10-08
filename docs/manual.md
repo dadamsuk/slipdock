@@ -2129,7 +2129,7 @@ gateways. Point *Account → Settings → AI model* at one:
 | Endpoint | The API root, the part before `/chat/completions`: `http://llm.local:1234/v1` (LM Studio), `http://llm.local:11434/v1` (Ollama). A trailing slash, or a pasted `/chat/completions`, is trimmed for you. Empty means this server's default |
 | API key | Optional. Most local servers want none, and none is sent if you leave it empty. The server's shared OpenRouter key is **never** sent to an endpoint of yours |
 | Model | *List models* asks the endpoint what it has (its `/models`, the same list `slipdock ai-models` prints) and offers them in a picker. Save the endpoint first — the list comes from what is stored |
-| Embedding model | Only if the endpoint serves one, and only read for the account that indexes (`SLIPDOCK_AI_SYSTEM_USER`). Changing it invalidates every stored vector: run `mix slipdock.reindex --all` |
+| Embedding model | Only if the endpoint serves one, and only read for the account that indexes (Configuration → AI for search and automations). Changing it invalidates every stored vector: run `mix slipdock.reindex --all` |
 
 An endpoint of your own is enough on its own — with one set, the AI features
 turn on whether or not you have a key, because a box on your own network has
@@ -2142,14 +2142,24 @@ To make a whole instance local, set `SLIPDOCK_AI_BASE_URL` (and
 `SLIPDOCK_AI_MODEL`) instead: everybody who has not chosen for themselves then
 uses it, no keys anywhere, and no board content leaves the network.
 
-Unattended work — the search indexer, scheduled automations — has no person
-to bill, so it uses a *system* key: `SLIPDOCK_AI_SYSTEM_USER=<email>` names
-whose key to spend, and on a one-person install — registration closed, and
-the only stored settings an admin's — those are used without being asked for.
+Unattended work — the search indexer, every search query, scheduled
+automations — has no person to bill, so it uses a *system* key: one admin's
+AI settings. Choose whose under **Configuration → AI for search and
+automations** (or `slipdock admin set ai_system_user=<email>`; empty clears
+it). The page says what is in effect now and why. Only admins can be chosen,
+and someone demoted or disabled since stops being used at once.
+
+With nobody chosen, the older rules decide, in order:
+`SLIPDOCK_AI_SYSTEM_USER=<email>` names whose key to spend; and on a
+one-person install — registration closed, and the only stored settings an
+enabled admin's — those are used without being asked for. That last one
+switches itself off the moment registration opens or a second person saves
+a key, which is the usual reason search suddenly says it isn't set up.
 Nothing else is guessed: the indexer sends every board through the system
 settings, so one person's own endpoint never receives them unless an admin
-named that person. `OPENROUTER_API_KEY` still works, but it is now a
-**shared** key for everyone on the server, which is rarely what you want.
+named that person. `OPENROUTER_API_KEY` still works and beats all of these,
+but it is now a **shared** key for everyone on the server, which is rarely
+what you want.
 
 Other settings come from the environment or a `.env` file (`KEY=value` lines)
 in the project directory or its parent — `SLIPDOCK_ENV_FILE` names another
