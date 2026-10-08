@@ -15,8 +15,8 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
   @impl true
   def description,
     do:
-      "A board's lists in order with a one-line summary of each card. Board is an id, " <>
-        "code or name. Use get_card for a card's description and comments."
+      "A board's lists in order with a summary of each card, description included. " <>
+        "Board is an id, code or name. Use get_card for a card's comments and checklist."
 
   @impl true
   def input_schema do
