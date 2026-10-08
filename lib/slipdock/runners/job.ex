@@ -10,6 +10,10 @@ defmodule Slipdock.Runners.Job do
   any other open card is in a doing list on its board (see
   `Slipdock.Runners.waiting_on/1`).
 
+  A job from a `list_top` rule with `requeue_stuck` that ends with its card
+  still in a doing list puts the card back on its list, or gives up on it
+  (see `Slipdock.Runners.Recovery`).
+
   A claim comes with a lease; heartbeats extend it. A lease that runs out
   puts the job back in the queue, up to a retry cap (see
   `Slipdock.Runners.sweep/1`).
@@ -29,6 +33,10 @@ defmodule Slipdock.Runners.Job do
     # Copied from the rule's runner action when queued: claim passes the job
     # over while another open card sits in a doing list on its board.
     field :wait_while_doing, :boolean, default: false
+    # Set when the job ended with its card still in progress and its rule
+    # puts such cards back: "requeued" or "gave_up" ("requeued_before_done"
+    # once the card has been completed since; see `Slipdock.Runners.Recovery`).
+    field :recovery, :string
     field :runner_name, :string
     field :lease_expires_at, :utc_datetime
     field :cancel_requested_at, :utc_datetime

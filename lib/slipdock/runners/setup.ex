@@ -287,7 +287,8 @@ defmodule Slipdock.Runners.Setup do
             "column" => list.name,
             "pool" => answers["pool"],
             "kind" => kind(answers),
-            "wait" => params["wait"]
+            "wait" => params["wait"],
+            "requeue" => params["requeue"]
           }
 
           case Automations.create_rule_from_preset(board, preset, params, created_by: user) do

@@ -143,6 +143,26 @@ defmodule SlipdockWeb.RunnersLiveTest do
     refute Map.has_key?(hd(rule.spec["actions"]), "wait_while_doing")
   end
 
+  test "the top-card rule asks how many times to put back a card left in progress", %{
+    conn: conn,
+    board: board
+  } do
+    view = open(conn, board)
+    refute has_element?(view, "input[name='wizard[requeue]']")
+    choose(view, %{"scenario" => "server", "pool" => "dev", "send" => "top:To Do"})
+    assert has_element?(view, "input[type=number][name='wizard[requeue]'][value='1']")
+
+    submit(view, %{
+      "scenario" => "server",
+      "pool" => "dev",
+      "send" => "top:To Do",
+      "requeue" => "2"
+    })
+
+    assert [rule] = Automations.list_rules(board.id)
+    assert hd(rule.spec["actions"])["requeue_stuck"] == 2
+  end
+
   test "an answer it can't use is said, and nothing is made", %{conn: conn, board: board} do
     view = open(conn, board)
     choose(view, %{"scenario" => "server", "pool" => "My Pool"})

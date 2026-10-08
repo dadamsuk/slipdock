@@ -62,7 +62,8 @@ defmodule SlipdockCLI.Runners do
             true -> "yes"
             false -> "no"
             nil -> nil
-          end
+          end,
+        "requeue" => o[:requeue_stuck]
       })
 
     HTTP.post("/boards/#{enc(ref)}/runners/setup", body)

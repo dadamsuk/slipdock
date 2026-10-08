@@ -2944,9 +2944,16 @@ defmodule Slipdock.Boards do
     automate(%{type: "card_updated", card: card, fields: fields})
 
     case changes[:completed] do
-      true -> automate(%{type: "card_completed", card: card})
-      false -> automate(%{type: "card_reopened", card: card})
-      _ -> :ok
+      true ->
+        # A card that got finished starts afresh with the runners.
+        Slipdock.Runners.Recovery.forget(card)
+        automate(%{type: "card_completed", card: card})
+
+      false ->
+        automate(%{type: "card_reopened", card: card})
+
+      _ ->
+        :ok
     end
 
     # Once for each person newly on the card, so a rule waiting for "assigned

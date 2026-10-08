@@ -58,7 +58,7 @@ defmodule SlipdockWeb.API.AutomationsTest do
 
     runner = Enum.find(v["actions"], &(&1["type"] == "runner"))
     assert runner["required"] == ["pool"]
-    assert runner["optional"] == ["kind", "prompt", "wait_while_doing"]
+    assert runner["optional"] == ["kind", "prompt", "wait_while_doing", "requeue_stuck"]
     assert runner["description"] =~ "The runner's own config decides what each kind runs"
 
     body =

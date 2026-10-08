@@ -99,13 +99,15 @@ defmodule Slipdock.Automations.Spec do
        "method: post (the default), put or patch send JSON; get puts the same fields in the " <>
        "query string. The URL may itself use placeholders"},
     {"log", ["message"], [], "write a line into the board's activity log"},
-    {"runner", ["pool"], ["kind", "prompt", "wait_while_doing"],
+    {"runner", ["pool"], ["kind", "prompt", "wait_while_doing", "requeue_stuck"],
      "send the card to a coding agent on one of the user's own machines: queue a job for the " <>
        "runners of that pool, which run the kind of job named (claude by default) with the " <>
        "prompt (the card's title, link and description by default). The runner's own config " <>
        "decides what each kind runs. At most one open job per card per rule. " <>
        "wait_while_doing: true keeps the job queued while any other open card is in an " <>
-       "in-progress list on the card's board"}
+       "in-progress list on the card's board. requeue_stuck: N (list_top rules only, 0-10) " <>
+       "puts a card its job left in an in-progress list back on top of the rule's list, " <>
+       "with a comment, up to N times, then flags it blocked and leaves it"}
   ]
 
   # Names people (and models) reach for that mean an action we already have.
@@ -212,7 +214,14 @@ defmodule Slipdock.Automations.Spec do
     end
   end
 
-  defp check_feed(trigger, _actions), do: {:ok, trigger}
+  # Putting a card back on the rule's list only means something to a rule
+  # that works the list top first: one that sends cards as they arrive would
+  # send it again at once.
+  defp check_feed(trigger, actions) do
+    if Enum.any?(actions, &(is_integer(&1["requeue_stuck"]) and &1["requeue_stuck"] > 0)),
+      do: {:error, "requeue_stuck is only for a list_top rule"},
+      else: {:ok, trigger}
+  end
 
   defp validate_conditions(conditions) when is_list(conditions) do
     Enum.reduce_while(conditions, {:ok, []}, fn condition, {:ok, acc} ->
@@ -310,10 +319,16 @@ defmodule Slipdock.Automations.Spec do
       )
 
     action = if is_boolean(wait), do: Map.put(action, "wait_while_doing", wait), else: action
+    requeue = requeue_stuck(action["requeue_stuck"])
+    action = if is_integer(requeue), do: Map.put(action, "requeue_stuck", requeue), else: action
+    max_requeue = Slipdock.Runners.Recovery.max_requeues()
 
     cond do
       not (is_nil(wait) or is_boolean(wait)) ->
         {:error, "action “runner” wait_while_doing must be true or false"}
+
+      not (is_nil(requeue) or (is_integer(requeue) and requeue in 0..max_requeue)) ->
+        {:error, "action “runner” requeue_stuck must be a whole number from 0 to #{max_requeue}"}
 
       not Regex.match?(format, action["pool"]) ->
         {:error, "action “runner” pool must be lower case letters, digits, - or _"}
@@ -330,6 +345,18 @@ defmodule Slipdock.Automations.Spec do
   end
 
   defp check_action(action), do: {:ok, action}
+
+  defp requeue_stuck(nil), do: nil
+  defp requeue_stuck(n) when is_integer(n), do: n
+
+  defp requeue_stuck(text) when is_binary(text) do
+    case Integer.parse(String.trim(text)) do
+      {n, ""} -> n
+      _ -> text
+    end
+  end
+
+  defp requeue_stuck(other), do: other
 
   # Keeps the known keys of a trigger or action, checking the required ones
   # are there and not blank.
@@ -556,12 +583,20 @@ defmodule Slipdock.Automations.Spec do
 
       "runner" ->
         "send it to the #{a["pool"]} runners (#{a["kind"] || "claude"})" <>
-          if(a["wait_while_doing"] == true, do: " once nothing is in progress", else: "")
+          if(a["wait_while_doing"] == true, do: " once nothing is in progress", else: "") <>
+          requeue_summary(a["requeue_stuck"])
 
       other ->
         other
     end
   end
+
+  defp requeue_summary(1), do: ", putting back a card its job leaves in progress once"
+
+  defp requeue_summary(n) when is_integer(n) and n > 1,
+    do: ", putting back a card its job leaves in progress up to #{n} times"
+
+  defp requeue_summary(_), do: ""
 
   defp page_title(nil), do: " for it"
   defp page_title(title), do: " “#{title}” for it"
