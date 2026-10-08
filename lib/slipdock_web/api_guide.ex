@@ -367,11 +367,23 @@ defmodule SlipdockWeb.APIGuide do
 
     ### The AI key, and which model answers
 
-    Anything that asks a language model — `POST /api/ask`, semantic search's
-    answers, writing an automation rule in English, the chat and edit panels,
-    the narrative — runs on the **account holder's own** key or endpoint, kept
-    on the server and never shared between people. `GET /api/me` says what
-    yours is:
+    Anything that asks a language model — the written answer from
+    `POST /api/ask`, writing an automation rule in English, the chat and edit
+    panels, the narrative — runs on the **account holder's own** key or
+    endpoint, kept on the server and never shared between people.
+
+    **Search is the exception.** `GET /api/search` (the MCP `search` tool,
+    `slipdock search`), the index behind it and scheduled automations run on
+    the **server's** AI: one admin's settings, chosen by an admin under
+    Configuration → AI for search and automations. One index can only be
+    searched with the model that built it, so it cannot be yours. Your own key,
+    endpoint and `embed_model` change nothing about search (`embed_model` is
+    read only for the admin chosen there), and `/api/ask` needs both: the
+    server's AI to find the cards, yours to write the answer. A search that
+    answers `Semantic search isn't set up on this server` is for an admin to
+    fix — tell the user that, and do not retry or ask them for a key.
+
+    `GET /api/me` says what yours is:
 
         "ai_key": {"configured": true, "masked": "sk-or-v1…10d8",
                    "set_at": "2026-10-01T15:56:49Z", "ai_available": true},
