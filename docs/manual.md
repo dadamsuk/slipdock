@@ -158,7 +158,7 @@ way in: what it is, the pictures, and how to get it running.
 - Accounts: passwordless sign-in by emailed magic link, sessions that last
   30 days, API tokens for the CLI
 - **An MCP server** at `/mcp`: claude.ai, the Claude apps, Claude Code and
-  other MCP clients get the boards and the wiki as 21 tools, signing in
+  other MCP clients get the boards and the wiki as 22 tools, signing in
   through the browser or with an API token (see [MCP server](#mcp-server))
 - Groups of users; boards, single cards and saved views can be shared with
   people or groups as read-only or editable
@@ -2288,7 +2288,7 @@ GET    /api/boards/:board/cards            POST   /api/boards/:board/cards
 GET    /api/boards/:board/columns          POST   /api/boards/:board/columns
 PATCH  /api/boards/:board/columns/:id      DELETE /api/boards/:board/columns/:id
 GET    /api/boards/:board/tags             POST   /api/boards/:board/tags
-DELETE /api/boards/:board/tags/:id         GET    /api/boards/:board/activity?limit=
+DELETE /api/boards/:board/tags/:id         GET    /api/boards/:board/activity?limit=&card=
 GET    /api/boards/:board/swimlanes         ?view= &rows= &cols= &unit= &sort= &dir= &q= &due= &done= &empty=
                                             &tags= &priorities= &flags= &columns= &colors=   (lists are comma-joined)
 GET    /api/boards/:board/views            POST   /api/boards/:board/views   {name, ...config params}
@@ -2608,6 +2608,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `get_card` | A card in full: description, checklist with item ids, comments, dependencies, subcards and the wiki pages about it. |
 | `search` | Cards, comments and wiki pages by meaning, across every board you can read or one. |
 | `read_page` | A wiki page's Markdown and its `content_hash`, by code (`W-31`) or by board and slug or title. |
+| `activity` | A board's activity log, newest first; `card` narrows it to one card's entries. |
 | `create_card` | A card on a board, or with `parent` a subcard (making the sub-board if needed). |
 | `update_card` | Title, description, priority (or clearing it), start and due dates, percent, flags, tags, assignees, what blocks it, and its checklist — add, tick and untick items. Only what is passed changes. |
 | `move_card` | To another list on its board, or with `board` to another board, subcards and all. |
@@ -2622,7 +2623,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `delete_board` | Deletes a board you own and everything on it. `confirm` must repeat the board's code. |
 | `write_page` | The wiki: `create` a page, `append` or `append_section` to one, or `replace_section` and `replace`, which need the `content_hash` from `read_page` so nobody's edit is overwritten. |
 
-The eight reading tools are marked read-only, so a client can let them run
+The nine reading tools are marked read-only, so a client can let them run
 without asking each time. The deletes are marked destructive and none of
 them can be undone, which is why each needs its confirmation; archiving,
 which restoring undoes, is not. Writes count towards the board owner's

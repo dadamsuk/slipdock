@@ -19,6 +19,7 @@ defmodule SlipdockWeb.MCP.Tools do
     Tools.GetCard,
     Tools.Search,
     Tools.ReadPage,
+    Tools.Activity,
     Tools.CreateCard,
     Tools.UpdateCard,
     Tools.MoveCard,

@@ -283,6 +283,17 @@ defmodule SlipdockWeb.API.BoardPartsTest do
     assert newest["message"] =~ "Third"
   end
 
+  test "activity narrows to one card with ?card=", %{conn: conn, board: board} do
+    column = hd(board.columns)
+    one = card_fixture(column, %{"title" => "One"})
+    card_fixture(column, %{"title" => "Two"})
+
+    body = conn |> get(~p"/api/boards/#{board.id}/activity?card=#{one.id}") |> json_response(200)
+
+    assert [_ | _] = body["activity"]
+    assert Enum.all?(body["activity"], &(&1["card_id"] == one.id))
+  end
+
   describe "a board shared to read" do
     setup %{board: board} do
       reader = user_fixture("reader-#{System.unique_integer([:positive])}@example.com")

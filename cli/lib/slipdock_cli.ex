@@ -93,7 +93,7 @@ defmodule SlipdockCLI do
         --assignee NAME|EMAIL|me | --no-assignee
         --open | --done   --archived (archived alone) | --all (archived too)
     card <id>                           show one card in full (checklist, comments)
-    activity <board> [--limit N]        recent activity on a board
+    activity <board> [--limit N] [--card ID]  recent activity on a board (or one card)
     swimlanes <board> [view opts]       cards as a grid, grouped on two axes
     table <board> [view opts] [--fields F]  cards as a table (F: comma list of
         id title column priority assignee flags tags start due completed percent time checklist comments deps subcards

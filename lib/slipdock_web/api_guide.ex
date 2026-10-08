@@ -350,7 +350,8 @@ defmodule SlipdockWeb.APIGuide do
     than the whole API: `whoami`, `get_guide` (this text), `list_boards`,
     `get_board`, `list_cards` (`full: true` gives every card as `get_card`
     does, comments, checklist and docs included, so a whole board reads in
-    one call), `get_card`, `search`, `read_page`, and for
+    one call), `get_card`, `search`, `read_page`, `activity` (the
+    board's log, or with `card` one card's), and for
     writing `create_card`, `update_card` (fields, flags, tags, assignees,
     dependencies and the checklist), `move_card` (to another board too),
     `comment`, `complete_card`, `archive_card` (and restore), `delete_card`,
