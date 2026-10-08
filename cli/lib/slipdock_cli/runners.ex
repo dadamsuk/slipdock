@@ -91,16 +91,24 @@ defmodule SlipdockCLI.Runners do
   def run("runner", ["setup", ref, runner], o) do
     answers = answers(o)
 
-    if answers == %{} do
-      HTTP.get("/boards/#{enc(ref)}/runners/#{enc(runner)}/setup")
-      |> out(o, &Render.runner_setup(&1["setup"]))
-    else
-      # New answers: saved on the runner, and what changes printed first.
-      HTTP.put("/boards/#{enc(ref)}/runners/#{enc(runner)}/setup", answers)
-      |> out(o, fn r ->
-        Render.runner_diff(r["diff"])
-        Render.runner_setup(r["setup"])
-      end)
+    cond do
+      # The prompt that has Claude write the runner's hooks, as plain text to
+      # paste (or pipe) into Claude Code on that machine.
+      o[:hook_prompt] ->
+        HTTP.get("/boards/#{enc(ref)}/runners/#{enc(runner)}/hook-prompt")
+        |> out(o, &IO.write(&1["prompt"]))
+
+      answers == %{} ->
+        HTTP.get("/boards/#{enc(ref)}/runners/#{enc(runner)}/setup")
+        |> out(o, &Render.runner_setup(&1["setup"]))
+
+      true ->
+        # New answers: saved on the runner, and what changes printed first.
+        HTTP.put("/boards/#{enc(ref)}/runners/#{enc(runner)}/setup", answers)
+        |> out(o, fn r ->
+          Render.runner_diff(r["diff"])
+          Render.runner_setup(r["setup"])
+        end)
     end
   end
 

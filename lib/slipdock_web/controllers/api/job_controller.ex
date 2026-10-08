@@ -12,7 +12,7 @@ defmodule SlipdockWeb.API.JobController do
   use SlipdockWeb, :controller
 
   alias Slipdock.{Boards, Runners}
-  alias Slipdock.Runners.Setup
+  alias Slipdock.Runners.{HookPrompt, Setup}
   alias SlipdockWeb.API.{Authorize, CardWrites}
   alias SlipdockWeb.API.JSON, as: V
 
@@ -70,6 +70,23 @@ defmodule SlipdockWeb.API.JobController do
       json(conn, %{
         setup: Setup.regenerate(runner, board, base_url(conn)),
         runner: V.runner(runner)
+      })
+    end
+  end
+
+  @doc """
+  The prompt that has Claude write a runner's hooks on its machine (see
+  `Slipdock.Runners.HookPrompt`), for the runner's own scenario.
+  """
+  def hook_prompt(conn, %{"board" => ref, "id" => id}) do
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :owner),
+         {:ok, runner} <- Runners.find_runner(board, id) do
+      scenario = Setup.saved(runner)["scenario"]
+
+      json(conn, %{
+        prompt: HookPrompt.text(scenario, base_url(conn)),
+        scenario: scenario,
+        env: HookPrompt.env_vars()
       })
     end
   end

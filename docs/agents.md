@@ -260,7 +260,12 @@ pass never has to recover its own card. A rule with the trigger
 `job_finished` (`outcome`: done, failed, cancelled, timeout, requeued,
 gave_up) hears each job end once, with `{{job.*}}` placeholders, so alerts
 on a stalled loop come from the board rather than a hook. It takes standing instructions
-and before/after hooks, written into the config or prompt it generates.
+and before/after hooks, written into the config or prompt it generates; for the
+site-specific part of a hook (which notifier, what to keep from a pass) it gives
+a prompt to paste into Claude Code on that machine (*Have Claude write this
+hook*, or `slipdock runner setup <board> <runner> --hook-prompt`), which states
+the hook contract and points at a worked example served at
+`/runner/examples/after-job-hook.sh`.
 
 **A job runs with nobody watching**, so two things are set up for it. A
 Claude runner may use the Slipdock MCP tools without asking (`--allowedTools`

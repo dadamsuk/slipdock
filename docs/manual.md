@@ -1533,6 +1533,53 @@ Anthropic's machines, so there is nothing for a hook to run on. **Change the
 answers** on a runner shows a diff of what changes, and re-running the
 one-liner on the machine puts it in place, keeping the token it has.
 
+**Having Claude write the hooks.** What a hook should do — which notifier
+to call, what to keep from each pass — differs from one machine to the
+next, so rather than ship one, **Connect a runner** (Advanced → Hooks →
+*Have Claude write this hook*, for the shell and Windows runners) and
+`slipdock runner setup <board> <runner> --hook-prompt` give you a prompt
+to paste into Claude Code on the runner's machine. It states the contract
+a hook works under and asks you the site-specific questions, then has
+Claude write the hooks and a test for them. What every runner needs —
+putting back a card a job left in progress, and alerting on it — is the
+server's (`requeue_stuck` and `job_finished`, above), so the hooks never
+move cards. The prompt points at a worked example, one server's own hooks
+and their test, served at `/runner/examples/after-job-hook.sh` and
+`/runner/examples/after-job-hook-test.sh` (from `priv/runner/examples/`).
+For the shell runner it reads:
+
+````text
+Write the before-job and after-job hooks for the Slipdock runner on this machine.
+
+The runner takes jobs from a Slipdock board and runs a coding agent on each card. It is the shell runner, slipdock-runner; its config, ~/.config/slipdock-runner/config, is shell, and it calls the functions before_job and after_job, if the config defines them, around every job. Write the hooks as one script, ~/.local/bin/slipdock-hook, taking `before` or `after`, in bash or POSIX sh.
+
+The contract every hook works under:
+
+- The runner sets these for both hooks:
+  - $SLIPDOCK_JOB_ID: the job's number
+  - $SLIPDOCK_JOB_KIND: the job's kind (claude, codex, …)
+  - $SLIPDOCK_CARD: the card's number
+  - $SLIPDOCK_CARD_URL: a link to the card
+  - $SLIPDOCK_STATUS: how the job ended: done, failed, cancelled or timeout (after-job only)
+  - $SLIPDOCK_EXIT: the job's exit code (124 timed out, 130 cancelled) (after-job only)
+- Exit 0, always. A before-job hook that fails stops the job from running, and an after-job hook runs before the runner reports the job finished, so neither may block, hang or fail it: wrap every step so a failure is logged and skipped, and put a time limit on anything that calls the network (well under a minute in all).
+- Keep your own log file. What a hook prints goes into the job's log, whose tail the board shows as the job's output, so never print secrets there.
+- Don't move, flag, complete or comment on cards. Putting back a card a job left in progress is the server's job (the rule's "Put a card left in progress back, N times", requeue_stuck), and so is alerting on it: a rule with the trigger job_finished (outcome timeout, requeued or gave_up) can raise an alert, send an email or call a webhook. A hook that moves cards races the server and can stall the runner.
+
+What to write — ask me before you start, then write it:
+
+1. Which notifier I use, if any: PushOver, ntfy, Slack, email, or something else, and where its credentials live (an environment variable or a file only I can read — never in the hook itself). Send an alert when a job times out or fails, with the card's link.
+2. What to keep from each job. For a Claude job, a record of the pass can be made from its Claude Code transcript: in the before-job hook, touch a marker file named after the job; in the after-job hook, take the newest .jsonl in the folder under ~/.claude/projects named after the job's working directory (every / and . turned into -) written since that marker that mentions $SLIPDOCK_CARD_URL. (Or have the job function pass claude a --session-id of its own and look that file up.) It can be summarised into a page on the board's wiki (`slipdock page new <board> <title> --file F`, then `slipdock page pin <page> --card $SLIPDOCK_CARD` so it shows under the card) or kept on disk. Ask me which, if any.
+3. A test script for the hooks, run against fake notify and pass-log commands and a folder of fake transcripts, that checks each status, a missing environment, a failing notifier and the exit code, and that the hooks never touch the board.
+
+A worked example to start from — one server's own hooks, with their test:
+
+https://your-server/runner/examples/after-job-hook.sh
+https://your-server/runner/examples/after-job-hook-test.sh
+
+When it's written and its test passes, show me the two lines for the runner's config — before_job() { ~/.local/bin/slipdock-hook before; } and after_job() { ~/.local/bin/slipdock-hook after; } — or the commands to type into the wizard's hook fields (Advanced → Hooks), and remind me that the hooks run as the runner's user, with its PATH.
+````
+
 **Runners** belong to a board tree and a pool. The board owner makes them:
 each has its own token (`sdr_…`), shown once, that can take and report on
 that pool's jobs and nothing else — it is not an API token and opens no
@@ -1546,7 +1593,7 @@ own work rather than from a background loop, so it holds its job on a
 | CLI | What it does |
 |---|---|
 | `slipdock runner new <board> [name] --pool P [--scenario …]` | The **Connect a runner** wizard: prints exactly what to paste for `server` (the default), `windows`, `loop` or `cloud`, with `--agent`, `--command`, `--kind`, `--cwd`, `--permission-mode`, `--no-slipdock-tools`, `--mcp-servers A,B`, `--timeout`, `--service`, `--where desktop\|cloud` and `--repo`. For a runner of its own (server, windows) it makes one and prints its token, once; `--column LIST` adds a rule sending that list's cards. |
-| `slipdock runner setup <board> <runner> [options]` | A runner's steps again, from the answers saved on it (the token left out); with any of `runner new`'s options, including `--verbosity`, `--instructions`, `--before-job`, `--after-job` and `--hooks prompt\|hook`, saves them and prints what changes. |
+| `slipdock runner setup <board> <runner> [options]` | A runner's steps again, from the answers saved on it (the token left out); with any of `runner new`'s options, including `--verbosity`, `--instructions`, `--before-job`, `--after-job` and `--hooks prompt\|hook`, saves them and prints what changes. With `--hook-prompt`, prints the prompt that has Claude write the runner's hooks. |
 | `slipdock runner token <board> <runner>` | A new token for a runner, the old one ended, with its steps written out for it. |
 | `slipdock runner ls <board>` / `slipdock runners <board>` | The board's runners: pool, last seen, current job. |
 | `slipdock runner rm <board> <runner>` | Revokes a runner. |

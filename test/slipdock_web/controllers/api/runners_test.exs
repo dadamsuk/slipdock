@@ -368,6 +368,45 @@ defmodule SlipdockWeb.API.RunnersTest do
       assert Enum.any?(body["setup"]["steps"], &(&1["code"] =~ "/loop /slipdock-loop"))
     end
 
+    test "the hook prompt, for the runner's own scenario, owners only", ctx do
+      body =
+        ctx.conn
+        |> get(~p"/api/boards/#{ctx.board.id}/runners/#{ctx.runner.id}/hook-prompt")
+        |> json_response(200)
+
+      assert body["scenario"] == "server"
+      assert body["env"] == Slipdock.Runners.HookPrompt.env_vars()
+      assert body["prompt"] =~ "$SLIPDOCK_STATUS"
+      assert body["prompt"] =~ "/runner/examples/after-job-hook.sh"
+
+      windows =
+        ctx.conn
+        |> post(~p"/api/boards/#{ctx.board.id}/runners/setup", %{
+          "scenario" => "windows",
+          "pool" => "win"
+        })
+        |> json_response(201)
+
+      assert ctx.conn
+             |> get(
+               ~p"/api/boards/#{ctx.board.id}/runners/#{windows["runner"]["id"]}/hook-prompt"
+             )
+             |> json_response(200)
+             |> Map.fetch!("prompt") =~ "$env:SLIPDOCK_STATUS"
+
+      assert ctx.conn
+             |> get(~p"/api/boards/#{ctx.board.id}/runners/nope/hook-prompt")
+             |> json_response(404)
+
+      other = user_fixture("h#{System.unique_integer([:positive])}@example.com")
+      share_fixture(ctx.board, [other], "write")
+
+      assert conn_as(other)
+             |> put_req_header("accept", "application/json")
+             |> get(~p"/api/boards/#{ctx.board.id}/runners/#{ctx.runner.id}/hook-prompt")
+             |> json_response(403)
+    end
+
     test "bad answers are a 422 that says why", ctx do
       body =
         ctx.conn

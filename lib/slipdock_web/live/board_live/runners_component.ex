@@ -15,7 +15,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
 
   alias Slipdock.{Access, Automations, Runners}
   alias Slipdock.Automations.Spec
-  alias Slipdock.Runners.{Runner, Setup}
+  alias Slipdock.Runners.{HookPrompt, Runner, Setup}
 
   @events ~w(open_wizard close_wizard wizard_change connect regenerate rotate_token
     revoke_runner close_setup edit_answers close_dialog reveal)
@@ -380,6 +380,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
             preview={@preview}
             board={@board}
             runner_rules={@runner_rules}
+            base_url={@base_url}
             target={@myself}
           />
 
@@ -419,6 +420,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
   attr :preview, :map, default: nil
   attr :board, :any, required: true
   attr :runner_rules, :list, required: true
+  attr :base_url, :string, required: true
   attr :target, :any, required: true
 
   defp wizard_form(assigns) do
@@ -682,6 +684,33 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
             >
               A Desktop task is asked to run them in its prompt: best effort.
             </p>
+            <details
+              :if={HookPrompt.for_scenario?(@p["scenario"])}
+              id="wizard-hook-prompt"
+              class="rounded-lg bg-base-100 ring-1 ring-base-content/10"
+            >
+              <summary class="cursor-pointer select-none px-3 py-2 text-xs font-medium text-base-content/70">
+                Have Claude write this hook
+              </summary>
+              <div class="space-y-2 px-3 pb-3">
+                <p class="text-xs text-base-content/60">
+                  Paste this into Claude Code on the runner's machine. It asks which notifier you
+                  use and what to keep from each job, then writes the hooks and a test for them,
+                  starting from <a
+                    href={"#{@base_url}/runner/examples/after-job-hook.sh"}
+                    target="_blank"
+                    class="link"
+                  >a worked example</a>. Putting back a card left in progress is the server's job,
+                  so the hooks never move cards.
+                </p>
+                <.code_block
+                  id="hook-prompt"
+                  code={HookPrompt.text(@p["scenario"], @base_url)}
+                  class="max-h-64"
+                  wrap
+                />
+              </div>
+            </details>
           </fieldset>
         </details>
 
@@ -974,6 +1003,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
   attr :id, :string, required: true
   attr :code, :string, required: true
   attr :class, :string, default: nil
+  attr :wrap, :boolean, default: false, doc: "wrap long lines (prose) rather than scroll"
 
   # A block of text to paste, with its copy button.
   defp code_block(assigns) do
@@ -982,7 +1012,8 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
       <pre
         id={@id}
         class={[
-          "overflow-x-auto whitespace-pre rounded-lg bg-base-300/60 p-3 pr-16 font-mono text-xs",
+          "overflow-x-auto rounded-lg bg-base-300/60 p-3 pr-16 font-mono text-xs",
+          if(@wrap, do: "whitespace-pre-wrap", else: "whitespace-pre"),
           @class && "overflow-y-auto",
           @class
         ]}
