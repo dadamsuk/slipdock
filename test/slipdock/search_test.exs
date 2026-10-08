@@ -220,6 +220,63 @@ defmodule Slipdock.SearchTest do
       assert {:ok, results} = Search.search(ctx.owner, "rollback invoice markers", limit: 1)
       assert length(results) == 1
     end
+
+    test "reading the index in batches gives the same answer as reading it whole", ctx do
+      whole = Search.search(ctx.owner, "rollback invoice markers", batch_size: 10_000)
+      {:ok, results} = whole
+
+      assert length(results) == 3
+      # One chunk per read, a partial last batch, and an exact multiple.
+      for size <- [1, 2, 4] do
+        assert Search.search(ctx.owner, "rollback invoice markers", batch_size: size) == whole
+      end
+    end
+
+    test "across batches, only the best 120 chunks are kept, ties to the lower id", ctx do
+      # 125 more cards that all match, some better than others, so the cap
+      # bites and has to keep the right ones from batches read at different times.
+      cards =
+        for n <- 1..125 do
+          extra = if rem(n, 3) == 0, do: " rollback approvals", else: ""
+          card_fixture(ctx.column, %{"title" => "Rollback drill #{n}#{extra}"})
+        end
+
+      {:ok, _} = cards |> Enum.map(& &1.id) |> Search.load_cards() |> Search.index_cards()
+
+      query = "rollback approvals"
+      {:ok, whole} = Search.search(ctx.owner, query, limit: 500, batch_size: 10_000)
+      {:ok, batched} = Search.search(ctx.owner, query, limit: 500, batch_size: 7)
+
+      # Every card here has one chunk except the deploy card, which has two,
+      # so 120 chunks roll up to fewer than 120 cards, but not many fewer.
+      assert length(whole) in 118..120
+      assert batched == whole
+      assert Enum.map(batched, & &1.score) == Enum.sort(Enum.map(batched, & &1.score), :desc)
+
+      # The ones left out score no better than the worst one kept.
+      kept = MapSet.new(batched, & &1.card.id)
+      dropped = Enum.reject(cards, &MapSet.member?(kept, &1.id))
+      assert dropped != []
+      assert Enum.all?(dropped, &(not (&1.title =~ "approvals")))
+    end
+
+    test "a token's board scope still narrows when the index is read in batches", ctx do
+      other = board_fixture(%{"name" => "Elsewhere"}, owner: ctx.owner)
+      twin = card_fixture(hd(other.columns), %{"title" => "Invoice rounding is wrong on refunds"})
+      index(twin)
+
+      token = %{scope: "write", scope_boards: [other.id]}
+
+      for size <- [1, 2, 10_000] do
+        assert {:ok, results} =
+                 Search.search(ctx.owner, "invoice rounding refunds",
+                   token: token,
+                   batch_size: size
+                 )
+
+        assert Enum.map(results, & &1.card.id) == [twin.id]
+      end
+    end
   end
 
   describe "permissions" do
