@@ -348,9 +348,13 @@ defmodule SlipdockCLI do
                [--where desktop|cloud] [--repo owner/repo] [--column LIST]
                [--verbosity quiet|normal|verbose] [--instructions TEXT]
                [--before-job CMD] [--after-job CMD] [--hooks prompt|hook]
+               [--no-slipdock-tools] [--mcp-servers A,B]
                                                    connect a runner: prints exactly what to paste
                                                    (and, for server/windows, its token, once);
                                                    --column adds a rule sending that list's cards
+                                                   a claude runner may use the Slipdock MCP tools
+                                                   (servers claude_ai_Slipdock, slipdock) unless
+                                                   --no-slipdock-tools
     runner setup <board> <runner> [answers...]     a runner's steps again (token left out); with
                                                    any of runner new's options, saves them and
                                                    prints what changes first
@@ -522,8 +526,14 @@ defmodule SlipdockCLI do
     before_job: :string,
     after_job: :string,
     hooks: :string,
+    slipdock_tools: :boolean,
+    mcp_servers: :string,
     help: :boolean
   ]
+
+  @doc false
+  # The options every command is parsed with.
+  def switches, do: @switches
 
   def main(argv) do
     {opts, args, invalid} =

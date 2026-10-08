@@ -66,4 +66,17 @@ defmodule SlipdockWeb.RunnerDocsTest do
     assert skill =~ "slipdock runner new <board>"
     assert skill =~ "slipdock cancel-job <id>"
   end
+
+  test "the docs say a runner may use the Slipdock tools, and how to fix it when it can't" do
+    for path <- ["docs/agents.md", "docs/manual.md", "priv/skills/slipdock/SKILL.md"] do
+      text = read(path)
+      assert text =~ "--allowedTools" or text =~ "--mcp-servers", path
+      assert text =~ "claude_ai_Slipdock", path
+      assert text =~ ".claude/settings.json", path
+    end
+
+    assert read("docs/agents.md") =~ "can't use the Slipdock tools"
+    assert read("docs/manual.md") =~ "--no-slipdock-tools"
+    assert read("README.md") =~ "nobody will answer questions"
+  end
 end

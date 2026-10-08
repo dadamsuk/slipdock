@@ -181,4 +181,52 @@ defmodule SlipdockWeb.RunnersLiveTest do
     choose(view, %{"scenario" => "loop"})
     assert has_element?(view, "select[name='wizard[hooks]']")
   end
+
+  test "a claude runner may use the Slipdock tools unless it's unticked", %{
+    conn: conn,
+    board: board
+  } do
+    view = open(conn, board)
+
+    assert has_element?(view, "#wizard-slipdock-tools", "Let it use the Slipdock tools")
+    assert has_element?(view, "#wizard-slipdock-tools", "no access to the board")
+    assert has_element?(view, "#wizard-slipdock-tools input[type=checkbox][checked]")
+
+    assert has_element?(
+             view,
+             "input[name='wizard[mcp_servers]'][value='claude_ai_Slipdock, slipdock']"
+           )
+
+    # Unticked: the server's name goes, and nothing is allowed.
+    choose(view, %{"slipdock_tools" => "false"})
+    refute has_element?(view, "#wizard-slipdock-tools input[type=checkbox][checked]")
+    refute has_element?(view, "input[name='wizard[mcp_servers]']")
+
+    # Not offered for codex.
+    choose(view, %{"agent" => "codex"})
+    refute has_element?(view, "#wizard-slipdock-tools")
+
+    choose(view, %{"agent" => "claude"})
+    choose(view, %{"slipdock_tools" => "true"})
+    submit(view, %{"pool" => "dev", "mcp_servers" => "slipdock", "cwd" => "/srv/app"})
+    assert has_element?(view, "#runner-step-1", "--mcp-servers 'slipdock'")
+    assert has_element?(view, "#runner-step-3", "ALLOWED_TOOLS='mcp__slipdock'")
+    assert [runner] = Runners.list_runners(board)
+    assert runner.settings["slipdock_tools"] == true
+  end
+
+  test "a bad server name is said, and nothing is made", %{conn: conn, board: board} do
+    view = open(conn, board)
+    choose(view, %{"mcp_servers" => "not a name!"})
+    assert has_element?(view, "#runner-wizard", "an MCP server's name is letters")
+  end
+
+  test "a claude runner with no working directory is warned", %{conn: conn, board: board} do
+    view = open(conn, board)
+    choose(view, %{"cwd" => ""})
+    assert has_element?(view, "#runner-wizard", "No working directory: jobs start in your home")
+
+    choose(view, %{"cwd" => "/srv/app"})
+    refute has_element?(view, "#runner-wizard", "No working directory")
+  end
 end

@@ -279,6 +279,25 @@ defmodule SlipdockWeb.RunnerPowerShellTest do
       assert out =~ "-Pool must be"
     end
 
+    test "claude may use the Slipdock tools, both names by default, or those named", ctx do
+      {_, 0} = install(ctx, ["-Url", ctx.url, "-Token", "t"])
+      assert installed(ctx, "AllowedTools") == "mcp__claude_ai_Slipdock,mcp__slipdock"
+
+      assert File.read!(Path.join([ctx.dir, "inst", "config.ps1"])) =~
+               "--permission-mode $PermissionMode --allowedTools $AllowedTools\n"
+
+      {_, 0} = install(ctx, ["-Url", ctx.url, "-Token", "t", "-McpServers", "my-slipdock"])
+      assert installed(ctx, "AllowedTools") == "mcp__my-slipdock"
+
+      {_, 0} = install(ctx, ["-Url", ctx.url, "-Token", "t", "-Agent", "codex"])
+      assert installed(ctx, "AllowedTools") == ""
+      refute File.read!(Path.join([ctx.dir, "inst", "config.ps1"])) =~ "--allowedTools"
+
+      {out, code} = install(ctx, ["-Url", ctx.url, "-Token", "t", "-McpServers", "a b;c"])
+      assert code != 0
+      assert out =~ "-McpServers must be names"
+    end
+
     test "what it installs takes and runs a job", ctx do
       {_, 0} =
         install(ctx, [
@@ -356,5 +375,39 @@ defmodule SlipdockWeb.RunnerPowerShellTest do
       ])
 
     assert token == "sdr_t'ok|Don't push. '@ here|600"
+  end
+
+  test "the wizard's Windows claude one-liner carries the Slipdock tools, on or off", ctx do
+    installer = Path.join(ctx.dir, "install.ps1")
+    File.write!(installer, SlipdockWeb.RunnerInstallController.files()["install.ps1"])
+    cfg = Path.join([ctx.dir, "inst", "config.ps1"])
+
+    for {tools, expected} <- [{"true", "mcp__claude_ai_Slipdock,mcp__slipdock"}, {"false", ""}] do
+      {:ok, a} =
+        Slipdock.Runners.Setup.normalise(%{
+          "scenario" => "windows",
+          "cwd" => ctx.dir,
+          "slipdock_tools" => tools
+        })
+
+      line = Slipdock.Runners.Setup.windows_one_liner(a, %{base_url: ctx.url, token: "sdr_t"})
+
+      command =
+        String.replace(line, ~r/\(irm '[^']+'\)/, "(Get-Content -Raw '#{installer}')") <>
+          " `\n  -InstallDir '#{ctx.dir}/inst' -NoStart"
+
+      {out, 0} = System.cmd(@pwsh, ["-NoProfile", "-Command", command], stderr_to_stdout: true)
+      assert out =~ "installed"
+
+      {allowed, 0} =
+        System.cmd(@pwsh, [
+          "-NoProfile",
+          "-Command",
+          ". '#{cfg}'; [Console]::Out.Write($AllowedTools)"
+        ])
+
+      assert allowed == expected
+      assert File.read!(cfg) =~ "--allowedTools" == (expected != "")
+    end
   end
 end

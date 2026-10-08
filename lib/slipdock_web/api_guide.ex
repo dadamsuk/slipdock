@@ -1390,7 +1390,12 @@ defmodule SlipdockWeb.APIGuide do
     with a `diff` of what changes. Standing `instructions` (and a
     `verbosity`) and `before_job`/`after_job` hooks are answers too: they
     are written into the generated config or prompt and kept on the
-    machine, never sent with a job. `slipdock runner new` prints the same.
+    machine, never sent with a job. For a Claude runner, `slipdock_tools`
+    (default true) and `mcp_servers` (default `claude_ai_Slipdock, slipdock`)
+    let it use those MCP servers' tools without asking — in `-p` nobody can
+    approve one; `slipdock_tools: false` leaves it no access to the board.
+    Every job's prompt ends by telling the agent nobody will answer questions.
+    `slipdock runner new` prints the same.
 
     **Runners themselves** are the board owner's to make and revoke: `GET`,
     `POST` (`{"name", "pool"}`, answering with the runner's token, once) and

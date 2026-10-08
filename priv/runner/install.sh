@@ -25,6 +25,9 @@
 #                          the prompt is in $SLIPDOCK_PROMPT
 #   --cwd DIR              where jobs run (default: your home)
 #   --permission-mode M    for claude: its --permission-mode (default: acceptEdits)
+#   --mcp-servers A,B      for claude: the Slipdock MCP servers whose tools a job
+#                          may use without asking, as Claude Code names them
+#                          (default: claude_ai_Slipdock,slipdock); '' for none
 #   --timeout SECONDS      the longest a job may run (default: 3600)
 #   --service auto|systemd|launchd|none   how it keeps running (default: auto)
 #   --instructions TEXT    standing instructions, added after every job's prompt
@@ -45,6 +48,7 @@ KIND=
 COMMAND=
 CWD=$HOME
 PERMISSION_MODE=acceptEdits
+MCP_SERVERS=claude_ai_Slipdock,slipdock
 TIMEOUT=3600
 SERVICE=auto
 START=1
@@ -69,13 +73,14 @@ while [ $# -gt 0 ]; do
     --command) need "$@"; COMMAND=$2; shift 2 ;;
     --cwd) need "$@"; CWD=$2; shift 2 ;;
     --permission-mode) need "$@"; PERMISSION_MODE=$2; shift 2 ;;
+    --mcp-servers) need "$@"; MCP_SERVERS=$2; shift 2 ;;
     --timeout) need "$@"; TIMEOUT=$2; shift 2 ;;
     --service) need "$@"; SERVICE=$2; shift 2 ;;
     --no-start) START=; shift ;;
     --instructions) need "$@"; INSTRUCTIONS=$2; shift 2 ;;
     --before-job) need "$@"; BEFORE_JOB=$2; shift 2 ;;
     --after-job) need "$@"; AFTER_JOB=$2; shift 2 ;;
-    -h | --help) sed -n '2,33p' "$0" 2>/dev/null || echo "see the comments at the top of install.sh"; exit 0 ;;
+    -h | --help) sed -n '2,40p' "$0" 2>/dev/null || echo "see the comments at the top of install.sh"; exit 0 ;;
     *) die "unknown option $1 (see --help)" ;;
   esac
 done
@@ -95,6 +100,7 @@ case "$KIND" in '' | *[!a-z0-9_-]*) die "--kind must be lower case letters, digi
 case "$TIMEOUT" in '' | *[!0-9]*) die "--timeout must be a number of seconds" ;; esac
 [ "$AGENT" != custom ] || [ -n "$COMMAND" ] || die "--agent custom needs --command"
 case "$SERVICE" in auto | systemd | launchd | none) ;; *) die "--service must be auto, systemd, launchd or none" ;; esac
+case "$MCP_SERVERS" in *[!A-Za-z0-9_,-]*) die "--mcp-servers must be names of letters, digits, - or _, separated by commas" ;; esac
 command -v curl >/dev/null 2>&1 || die "curl is needed and was not found"
 
 # Single quotes around anything, with any quote in it closed, escaped and
@@ -136,15 +142,24 @@ agent_bin() {
   printf '%s' "$found"
 }
 
+# Every tool of each Slipdock MCP server: in -p nobody is there to approve one.
+ALLOWED_TOOLS=
+for server in $(printf '%s' "$MCP_SERVERS" | tr ',' ' '); do
+  ALLOWED_TOOLS=${ALLOWED_TOOLS:+$ALLOWED_TOOLS,}mcp__$server
+done
+
 case "$AGENT" in
   claude)
     AGENT_BIN=$(agent_bin claude)
+    ALLOW=
+    [ -z "$ALLOWED_TOOLS" ] || ALLOW=' --allowedTools "$ALLOWED_TOOLS"'
     JOB="$FN() {
   cd \"\$WORKDIR\" || exit 1
-  \"\$AGENT_BIN\" -p \"\$SLIPDOCK_PROMPT\" --permission-mode \"\$PERMISSION_MODE\"
+  \"\$AGENT_BIN\" -p \"\$SLIPDOCK_PROMPT\" --permission-mode \"\$PERMISSION_MODE\"$ALLOW
 }"
     ;;
   codex)
+    ALLOWED_TOOLS=
     AGENT_BIN=$(agent_bin codex)
     JOB="$FN() {
   cd \"\$WORKDIR\" || exit 1
@@ -152,6 +167,7 @@ case "$AGENT" in
 }"
     ;;
   custom)
+    ALLOWED_TOOLS=
     AGENT_BIN=
     JOB="$FN() {
   cd \"\$WORKDIR\" || exit 1
@@ -215,6 +231,7 @@ POOL=$(q "$POOL")
 WORKDIR=$(q "$CWD")
 JOB_TIMEOUT=$TIMEOUT
 PERMISSION_MODE=$(q "$PERMISSION_MODE")
+ALLOWED_TOOLS=$(q "$ALLOWED_TOOLS")
 AGENT_BIN=$(q "$AGENT_BIN")
 CUSTOM_COMMAND=$(q "$COMMAND")
 PATH=$(q "$PATH")

@@ -38,6 +38,8 @@ defmodule SlipdockCLI.Runners do
         "before_job" => o[:before_job],
         "after_job" => o[:after_job],
         "hooks" => o[:hooks],
+        "slipdock_tools" => o[:slipdock_tools],
+        "mcp_servers" => o[:mcp_servers],
         "name" => nonblank(Enum.join(name, " ")),
         "pool" => o[:pool],
         "agent" => o[:agent],
@@ -182,7 +184,9 @@ defmodule SlipdockCLI.Runners do
       "instructions" => o[:instructions],
       "before_job" => o[:before_job],
       "after_job" => o[:after_job],
-      "hooks" => o[:hooks]
+      "hooks" => o[:hooks],
+      "slipdock_tools" => o[:slipdock_tools],
+      "mcp_servers" => o[:mcp_servers]
     })
   end
 end

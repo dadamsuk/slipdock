@@ -105,7 +105,7 @@ defmodule Slipdock.Runners.SetupTest do
     end
 
     test "without the token, a placeholder and a warning saying why", %{board: board} do
-      setup = gen(board, %{}, nil)
+      setup = gen(board, %{"cwd" => "/srv/w"}, nil)
       assert hd(codes(setup)) =~ "--token '#{Setup.token_placeholder()}'"
       assert [warning] = setup.warnings
       assert warning =~ "shown once"
@@ -469,6 +469,124 @@ defmodule Slipdock.Runners.SetupTest do
 
       assert {:error, "verbosity" <> _} =
                Setup.update(runner, ctx.board, %{"verbosity" => "x"}, @base)
+    end
+  end
+
+  describe "the Slipdock tools, for a claude runner" do
+    test "on by default: both servers in the flag, the config and the claude line",
+         %{board: board} do
+      a = answers()
+      assert a["slipdock_tools"] == true
+      assert a["mcp_servers"] == "claude_ai_Slipdock, slipdock"
+      assert Setup.allowed_tools(a) == "mcp__claude_ai_Slipdock,mcp__slipdock"
+
+      [line, _sums, config] = board |> gen(%{"cwd" => "/srv/w"}) |> codes()
+      assert line =~ "--mcp-servers 'claude_ai_Slipdock,slipdock'"
+      assert config =~ "ALLOWED_TOOLS='mcp__claude_ai_Slipdock,mcp__slipdock'"
+
+      assert config =~
+               ~S("$AGENT_BIN" -p "$SLIPDOCK_PROMPT" --permission-mode "$PERMISSION_MODE" --allowedTools "$ALLOWED_TOOLS")
+
+      [ps | _] = board |> gen(%{"scenario" => "windows", "cwd" => "C:\\w"}) |> codes()
+      assert ps =~ "-McpServers 'claude_ai_Slipdock,slipdock'"
+    end
+
+    test "one server named, given as the form or the API sends it", %{board: board} do
+      for flag <- ["true", "on", true] do
+        a = answers(%{"slipdock_tools" => flag, "mcp_servers" => " my-slipdock "})
+        assert Setup.allowed_tools(a) == "mcp__my-slipdock"
+      end
+
+      [line | _] = board |> gen(%{"mcp_servers" => "slipdock"}) |> codes()
+      assert line =~ "--mcp-servers 'slipdock'"
+    end
+
+    test "off: no --allowedTools anywhere, and the installers are told so", %{board: board} do
+      for off <- ["false", false, "off", ""] do
+        a = answers(%{"slipdock_tools" => off})
+        assert a["slipdock_tools"] == false
+        assert Setup.allowed_tools(a) == ""
+      end
+
+      [line, _sums, config] = board |> gen(%{"slipdock_tools" => "false"}) |> codes()
+      assert line =~ "--mcp-servers ''"
+      assert config =~ "ALLOWED_TOOLS=''"
+      refute config =~ "--allowedTools"
+
+      [ps | _] = board |> gen(%{"scenario" => "windows", "slipdock_tools" => false}) |> codes()
+      assert ps =~ "-McpServers ''"
+    end
+
+    test "codex and custom agents aren't given it", %{board: board} do
+      for agent <- ["codex", "custom"] do
+        [line, _sums, config] =
+          board |> gen(%{"agent" => agent, "command" => "true"}) |> codes()
+
+        refute line =~ "--mcp-servers"
+        assert config =~ "ALLOWED_TOOLS=''"
+        refute config =~ "--allowedTools"
+      end
+    end
+
+    test "a server name that isn't one, or none with the option on, is refused" do
+      for names <- ["slip dock$", "mcp__x;rm", "a/b", "é"] do
+        assert {:error, "an MCP server's name" <> _} =
+                 Setup.normalise(%{"mcp_servers" => names}),
+               names
+      end
+
+      assert {:error, "name the Slipdock MCP server" <> _} =
+               Setup.normalise(%{"mcp_servers" => " , "})
+
+      assert {:ok, _} = Setup.normalise(%{"mcp_servers" => "", "slipdock_tools" => "false"})
+
+      assert {:error, "slipdock_tools must be true or false"} =
+               Setup.normalise(%{"slipdock_tools" => "maybe"})
+    end
+
+    test "turning it off shows in what changes on the machine", ctx do
+      {:ok, %{runner: runner}} = Setup.connect(ctx.board, %{"pool" => "dev"}, ctx.owner, @base)
+      assert runner.settings["slipdock_tools"] == true
+
+      {:ok, %{runner: runner, diff: diff}} =
+        Setup.update(runner, ctx.board, %{"slipdock_tools" => "false"}, @base)
+
+      assert runner.settings["slipdock_tools"] == false
+      assert {:del, "  --mcp-servers 'claude_ai_Slipdock,slipdock' \\"} in diff
+      assert {:ins, "  --mcp-servers '' \\"} in diff
+      assert {:ins, "ALLOWED_TOOLS=''"} in diff
+      assert Enum.any?(diff, &match?({:del, "  \"$AGENT_BIN\"" <> _}, &1))
+    end
+  end
+
+  describe "a blank working directory" do
+    @warning "No working directory: jobs start in your home directory"
+
+    test "warns a claude runner, loop or Desktop task that project settings won't load",
+         %{board: board} do
+      for extra <- [
+            %{},
+            %{"scenario" => "windows"},
+            %{"scenario" => "loop"},
+            %{"scenario" => "cloud", "where" => "desktop"}
+          ] do
+        warnings = gen(board, extra).warnings
+        assert Enum.any?(warnings, &String.starts_with?(&1, @warning)), inspect(extra)
+        assert Enum.any?(warnings, &(&1 =~ ".claude/settings.json"))
+      end
+    end
+
+    test "but not with a directory set, for codex or a command, or a cloud routine",
+         %{board: board} do
+      for extra <- [
+            %{"cwd" => "/srv/app"},
+            %{"agent" => "codex"},
+            %{"agent" => "custom", "command" => "true"},
+            %{"scenario" => "cloud", "where" => "cloud"}
+          ] do
+        refute Enum.any?(gen(board, extra).warnings, &String.starts_with?(&1, @warning)),
+               inspect(extra)
+      end
     end
   end
 end

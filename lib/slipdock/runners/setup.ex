@@ -59,8 +59,14 @@ defmodule Slipdock.Runners.Setup do
     "instructions" => "",
     "before_job" => "",
     "after_job" => "",
-    "hooks" => "prompt"
+    "hooks" => "prompt",
+    "slipdock_tools" => true,
+    "mcp_servers" => "claude_ai_Slipdock, slipdock"
   }
+
+  # What a Slipdock MCP server can be called: Claude Code names its tools
+  # mcp__<server>__<tool>, with the server's name in it as is.
+  @mcp_server_format ~r/^[A-Za-z0-9_-]+$/
 
   # Shown in place of a token that was only ever shown once.
   @token_placeholder "sdr_YOUR_RUNNER_TOKEN"
@@ -100,6 +106,8 @@ defmodule Slipdock.Runners.Setup do
       answers
       |> Map.update!("pool", &(&1 |> to_string() |> String.downcase()))
       |> Map.update!("kind", &(&1 |> to_string() |> String.downcase()))
+      |> Map.update!("slipdock_tools", &flag/1)
+      |> Map.update!("mcp_servers", &mcp_server_list/1)
 
     format = Runner.name_format()
 
@@ -145,11 +153,44 @@ defmodule Slipdock.Runners.Setup do
       not match?({:ok, _}, timeout(answers["timeout"])) ->
         {:error, "the timeout must be a whole number of seconds, at least 60"}
 
+      answers["slipdock_tools"] not in [true, false] ->
+        {:error, "slipdock_tools must be true or false"}
+
+      answers["slipdock_tools"] and answers["mcp_servers"] == [] ->
+        {:error, "name the Slipdock MCP server, or turn the Slipdock tools off"}
+
+      not Enum.all?(answers["mcp_servers"], &Regex.match?(@mcp_server_format, &1)) ->
+        {:error,
+         "an MCP server's name is letters, digits, - or _, as in claude_ai_Slipdock or slipdock"}
+
       true ->
         {:ok, timeout} = timeout(answers["timeout"])
-        {:ok, %{answers | "timeout" => timeout}}
+
+        {:ok,
+         %{
+           answers
+           | "timeout" => timeout,
+             "mcp_servers" => Enum.join(answers["mcp_servers"], ", ")
+         }}
     end
   end
+
+  # A checkbox: true or "true" / "on" from a form, false or "false" / "" when
+  # it isn't ticked.
+  defp flag(value) when value in [true, "true", "on"], do: true
+  defp flag(value) when value in [false, "false", "off", ""], do: false
+  defp flag(value), do: value
+
+  defp mcp_server_list(names), do: String.split(to_string(names), [",", " "], trim: true)
+
+  @doc """
+  The value of claude's `--allowedTools` that lets a job use the Slipdock
+  MCP tools — every tool of each server named — or "" with the option off.
+  """
+  def allowed_tools(%{"slipdock_tools" => true} = a),
+    do: a["mcp_servers"] |> mcp_server_list() |> Enum.map_join(",", &("mcp__" <> &1))
+
+  def allowed_tools(_), do: ""
 
   defp timeout(n) when is_integer(n) and n >= 60, do: {:ok, n}
 
@@ -363,6 +404,7 @@ defmodule Slipdock.Runners.Setup do
 
   defp warnings(scenario, a, ctx) do
     base_warnings(scenario, a, ctx) ++
+      cwd_warnings(scenario, a) ++
       if(hooks_given?(a) and not hooks?(a),
         do: [
           "Hooks can't run in a cloud routine: it runs on Anthropic's machines, not yours, " <>
@@ -396,6 +438,19 @@ defmodule Slipdock.Runners.Setup do
     ]
 
   defp base_warnings(_, _, _), do: []
+
+  # Claude Code loads a project's own commands, skills and settings only from
+  # the directory it starts in. A cloud routine works in its repository.
+  defp cwd_warnings("cloud", %{"where" => "cloud"}), do: []
+
+  defp cwd_warnings(_scenario, %{"agent" => "claude", "cwd" => ""}),
+    do: [
+      "No working directory: jobs start in your home directory, so the project's own " <>
+        "commands, skills and .claude/settings.json won't be loaded. Set it to the " <>
+        "project's folder."
+    ]
+
+  defp cwd_warnings(_, _), do: []
 
   ## Steps --------------------------------------------------------------------
 
@@ -583,6 +638,7 @@ defmodule Slipdock.Runners.Setup do
         if(a["agent"] == "custom", do: ["--command #{sh_q(a["command"])}"], else: []) ++
         if(a["cwd"] != "", do: ["--cwd #{sh_q(a["cwd"])}"], else: []) ++
         if(a["agent"] == "claude", do: ["--permission-mode #{a["permission_mode"]}"], else: []) ++
+        if(a["agent"] == "claude", do: ["--mcp-servers #{sh_q(mcp_servers_flag(a))}"], else: []) ++
         ["--timeout #{a["timeout"]}"] ++
         if(a["service"] != "auto", do: ["--service #{a["service"]}"], else: []) ++
         if(instructions(a) != "", do: ["--instructions #{sh_q(instructions(a))}"], else: []) ++
@@ -605,6 +661,7 @@ defmodule Slipdock.Runners.Setup do
         if(a["agent"] == "custom", do: ["-Command #{ps_q(a["command"])}"], else: []) ++
         if(a["cwd"] != "", do: ["-Cwd #{ps_q(a["cwd"])}"], else: []) ++
         if(a["agent"] == "claude", do: ["-PermissionMode #{a["permission_mode"]}"], else: []) ++
+        if(a["agent"] == "claude", do: ["-McpServers #{ps_q(mcp_servers_flag(a))}"], else: []) ++
         ["-Timeout #{a["timeout"]}"] ++
         if(instructions(a) != "", do: ["-Instructions #{ps_q(instructions(a))}"], else: []) ++
         if(a["before_job"] != "", do: ["-BeforeJob #{ps_q(a["before_job"])}"], else: []) ++
@@ -613,6 +670,13 @@ defmodule Slipdock.Runners.Setup do
     "& ([scriptblock]::Create((irm #{ps_q(ctx.base_url <> "/runner/install.ps1")}))) `\n  " <>
       Enum.join(params, " `\n  ")
   end
+
+  # The installers' --mcp-servers / -McpServers: always given for claude, so
+  # installing again with the option turned off turns it off.
+  defp mcp_servers_flag(%{"slipdock_tools" => true} = a),
+    do: a["mcp_servers"] |> mcp_server_list() |> Enum.join(",")
+
+  defp mcp_servers_flag(_), do: ""
 
   # Set up again without a new token: the installer keeps the one it has.
   defp token_flag(%{token: nil, again: true}, _flag), do: []
@@ -642,6 +706,7 @@ defmodule Slipdock.Runners.Setup do
     WORKDIR=#{sh_q(if(a["cwd"] == "", do: "(your home)", else: a["cwd"]))}
     JOB_TIMEOUT=#{a["timeout"]}
     PERMISSION_MODE=#{sh_q(a["permission_mode"])}
+    ALLOWED_TOOLS=#{sh_q(if(a["agent"] == "claude", do: allowed_tools(a), else: ""))}
     AGENT_BIN=#{sh_q(agent_bin_note(a))}
     CUSTOM_COMMAND=#{sh_q(if(a["agent"] == "custom", do: a["command"], else: ""))}
     PATH='(your PATH when you install)'
@@ -685,8 +750,10 @@ defmodule Slipdock.Runners.Setup do
   defp agent_bin_note(%{"agent" => "custom"}), do: ""
   defp agent_bin_note(%{"agent" => agent}), do: "(where #{agent} is on your PATH)"
 
-  defp agent_line(%{"agent" => "claude"}),
-    do: ~S|  "$AGENT_BIN" -p "$SLIPDOCK_PROMPT" --permission-mode "$PERMISSION_MODE"|
+  defp agent_line(%{"agent" => "claude"} = a) do
+    line = ~S|  "$AGENT_BIN" -p "$SLIPDOCK_PROMPT" --permission-mode "$PERMISSION_MODE"|
+    if allowed_tools(a) == "", do: line, else: line <> ~S| --allowedTools "$ALLOWED_TOOLS"|
+  end
 
   defp agent_line(%{"agent" => "codex"}), do: ~S|  "$AGENT_BIN" exec "$SLIPDOCK_PROMPT"|
   defp agent_line(%{"agent" => "custom"}), do: ~S|  sh -c "$CUSTOM_COMMAND"|

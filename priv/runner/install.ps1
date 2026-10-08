@@ -24,6 +24,9 @@ param(
   [string]$Command = '',
   [string]$Cwd = '',
   [string]$PermissionMode = 'acceptEdits',
+  # For claude: the Slipdock MCP servers whose tools a job may use without
+  # asking, as Claude Code names them, separated by commas; '' for none.
+  [string]$McpServers = 'claude_ai_Slipdock,slipdock',
   [int]$Timeout = 3600,
   # Standing instructions, added after every job's prompt.
   [string]$Instructions = '',
@@ -50,6 +53,7 @@ if (-not $Kind) { $Kind = $Agent }
 if ($Kind -notmatch '^[a-z0-9][a-z0-9_-]{0,39}$') { Fail '-Kind must be lower case letters, digits, - or _' }
 if ($Agent -eq 'custom' -and -not $Command) { Fail '-Agent custom needs -Command' }
 if ($Timeout -lt 60) { Fail '-Timeout must be at least 60 seconds' }
+if ($McpServers -notmatch '^[A-Za-z0-9_,-]*$') { Fail '-McpServers must be names of letters, digits, - or _, separated by commas' }
 
 if (-not $InstallDir) {
   $base = $env:LOCALAPPDATA
@@ -98,11 +102,19 @@ function Agent-Path([string]$name) {
 $fn = 'Job-' + (($Kind -split '[-_]' | Where-Object { $_ } | ForEach-Object {
   $_.Substring(0, 1).ToUpper() + $_.Substring(1) }) -join '')
 
+# Every tool of each Slipdock MCP server: in -p nobody is there to approve one.
+$allowedTools = ''
+if ($Agent -eq 'claude') {
+  $allowedTools = (($McpServers -split ',' | Where-Object { $_ } | ForEach-Object { 'mcp__' + $_ }) -join ',')
+}
+
 $agentBin = ''
 switch ($Agent) {
   'claude' {
     $agentBin = Agent-Path 'claude'
-    $job = "function $fn {`n  Set-Location -LiteralPath `$WorkDir`n  & `$AgentBin -p (Protect-Arg `$env:SLIPDOCK_PROMPT) --permission-mode `$PermissionMode`n  exit `$LASTEXITCODE`n}"
+    $allow = ''
+    if ($allowedTools) { $allow = ' --allowedTools $AllowedTools' }
+    $job = "function $fn {`n  Set-Location -LiteralPath `$WorkDir`n  & `$AgentBin -p (Protect-Arg `$env:SLIPDOCK_PROMPT) --permission-mode `$PermissionMode$allow`n  exit `$LASTEXITCODE`n}"
   }
   'codex' {
     $agentBin = Agent-Path 'codex'
@@ -133,6 +145,7 @@ $configText = @"
 `$WorkDir = $(Quote $Cwd)
 `$JobTimeout = $Timeout
 `$PermissionMode = $(Quote $PermissionMode)
+`$AllowedTools = $(Quote $allowedTools)
 `$AgentBin = $(Quote $agentBin)
 `$CustomCommand = $(Quote $Command)
 

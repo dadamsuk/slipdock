@@ -445,6 +445,40 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
             </option>
           </select>
         </label>
+        <div
+          :if={Setup.needs_token?(@p["scenario"]) and @p["agent"] == "claude"}
+          id="wizard-slipdock-tools"
+          class="col-span-2 space-y-1.5 rounded-lg p-3 ring-1 ring-base-content/10"
+        >
+          <label class="flex items-center gap-2">
+            <input type="hidden" name="wizard[slipdock_tools]" value="false" />
+            <input
+              type="checkbox"
+              name="wizard[slipdock_tools]"
+              value="true"
+              checked={@p["slipdock_tools"] in [true, "true"]}
+              class="checkbox checkbox-xs"
+            />
+            <span class="font-medium">Let it use the Slipdock tools</span>
+          </label>
+          <p class="text-xs text-base-content/60">
+            Claude runs each job with nobody there to approve a tool, so without this it can't
+            read the card or the wiki, comment, move or complete anything: it gets no access to
+            the board. Ticked, every tool of the Slipdock MCP servers named here is allowed
+            (--allowedTools), and nothing else.
+          </p>
+          <label :if={@p["slipdock_tools"] in [true, "true"]} class="block space-y-1">
+            <span class="text-xs text-base-content/70">
+              Its name on that machine (the claude.ai connector is claude_ai_Slipdock; one added
+              with claude mcp add is the name you gave it)
+            </span>
+            <input
+              name="wizard[mcp_servers]"
+              value={@p["mcp_servers"]}
+              class="input input-sm w-full font-mono"
+            />
+          </label>
+        </div>
         <label :if={Setup.needs_token?(@p["scenario"])} class="space-y-1">
           <span class="text-xs text-base-content/70">Longest a job may run (seconds)</span>
           <input

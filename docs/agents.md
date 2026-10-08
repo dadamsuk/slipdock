@@ -246,6 +246,18 @@ It can also add the rule that sends a list's cards to the runner's **pool**
 (the *Send cards to a coding agent* preset), and take standing instructions
 and before/after hooks, written into the config or prompt it generates.
 
+**A job runs with nobody watching**, so two things are set up for it. A
+Claude runner may use the Slipdock MCP tools without asking (`--allowedTools`
+for the servers named in the wizard — `claude_ai_Slipdock`, the claude.ai
+connector, and `slipdock`, one added with `claude mcp add`, by default):
+without that it can't read the card or write anything back. Untick **Let it
+use the Slipdock tools** and it has no access to the board. And every job's
+prompt ends by saying nobody will answer questions: choose inputs from the
+card, say what was chosen, or comment, flag the card `waiting` and stop. Give
+the runner a **working directory** — the project's folder: Claude Code loads
+a project's own commands, skills and `.claude/settings.json` only from the
+directory it starts in, and the wizard warns when it's blank.
+
 **The trust line.** Runners pull: they dial out and ask for work, and the
 server never connects to them, so nothing needs a port, a tunnel or an
 exception to the address rules webhooks live by. And the server sends only
@@ -292,6 +304,8 @@ server because that is the server that drew the page.
 | `trial_expired` (402) | A free trial has ended. Everything there stays readable and editable; nothing new can be added until there is a subscription. |
 | A runner says `the server refused this runner (HTTP 401)` | Its token was revoked or replaced. **Setup → Make a new token** on the board, then run the one-liner again on that machine. |
 | A runner job sits `queued` | No runner of that pool is running for that board: check its name and pool in **Automations → Runners** (*last seen*), and that the rule's pool is spelled the same. |
+| A runner's agent says it can't use the Slipdock tools (`get_card`, `comment` refused) | The runner's claude line has no `--allowedTools` for the server, or names it wrongly. Its name on that machine is in `claude mcp list` (the claude.ai connector is `claude_ai_Slipdock`). **Setup**, tick *Let it use the Slipdock tools* with that name, and run the one-liner again; or set `ALLOWED_TOOLS` in the config by hand. |
+| A runner's agent can't find a project command or skill (`/genarticle` "not found") | The runner has no working directory, so jobs start in your home and the project's `.claude/` isn't loaded. Set the working directory to the project's folder and run the one-liner again. |
 | A job fails with exit 127, "no such job kind" | The rule queued a kind this runner's config has no `job_<kind>` (shell) or `Job-<Kind>` (PowerShell) function for. Add one, or change the rule's kind. |
 | The agent inventing list or tag names | It has not read the guide, or read it without a token. The guide with a token ends with your real boards and lists. |
 
