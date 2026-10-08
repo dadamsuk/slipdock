@@ -63,7 +63,8 @@ defmodule SlipdockCLI.Runners do
             false -> "no"
             nil -> nil
           end,
-        "requeue" => o[:requeue_stuck]
+        "requeue" => o[:requeue_stuck],
+        "alert" => if(o[:alert], do: "yes")
       })
 
     HTTP.post("/boards/#{enc(ref)}/runners/setup", body)
@@ -75,6 +76,9 @@ defmodule SlipdockCLI.Runners do
           )
 
       if r["automation"], do: IO.puts("added the rule “#{r["automation"]["name"]}”")
+
+      if r["alert_automation"],
+        do: IO.puts("added the rule “#{r["alert_automation"]["name"]}”")
 
       if r["token"],
         do: IO.puts("its token is in the steps below, shown this once — keep it on that machine")

@@ -101,6 +101,22 @@ defmodule SlipdockCLI.RunnersTest do
     refute Map.has_key?(JSON.decode!(without), "requeue")
   end
 
+  test "runner new --alert asks for the trouble rule, and says it was added" do
+    serve([
+      {201,
+       ~s({"runner":null,"token":null,"automation":null,"alert_automation":{"id":9,"name":"Trouble on the loop runners"},"setup":#{@setup}})}
+    ])
+
+    out =
+      capture_io(fn ->
+        Runners.run("runner", ["new", "b"], scenario: "loop", pool: "loop", alert: true)
+      end)
+
+    assert_received {:request, "POST", _, body}
+    assert %{"alert" => "yes"} = JSON.decode!(body)
+    assert out =~ "added the rule “Trouble on the loop runners”"
+  end
+
   test "runner new passes --no-wait-while-doing and --wait-while-doing on" do
     serve([
       {201, ~s({"runner":null,"token":null,"automation":null,"setup":#{@setup}})},

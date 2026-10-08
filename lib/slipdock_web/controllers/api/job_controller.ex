@@ -53,7 +53,8 @@ defmodule SlipdockWeb.API.JobController do
             setup: result.setup,
             runner: result.runner && V.runner(result.runner),
             token: result.token,
-            automation: result.rule && V.automation(result.rule)
+            automation: result.rule && V.automation(result.rule),
+            alert_automation: result.alert_rule && V.automation(result.alert_rule)
           })
 
         {:error, message} ->

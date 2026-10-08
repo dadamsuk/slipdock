@@ -250,6 +250,19 @@ defmodule Slipdock.Automations.Presets do
           hint: "then flag it blocked; 0 leaves it to you"
         }
       ]
+    },
+    %{
+      key: "runner_trouble",
+      group: "Connect",
+      title: "A runner job times out or a card is given up",
+      description:
+        "Hear when a runner job times out, or a card its job left in progress is put back " <>
+          "on the list or given up on (flagged blocked).",
+      fields: [
+        %{name: "pool", label: "Runner pool", type: "text", required: false, hint: "any pool"},
+        @notify,
+        @email
+      ]
     }
   ]
 
@@ -553,6 +566,24 @@ defmodule Slipdock.Automations.Presets do
     {:ok, "Send #{column} to the #{pool} runners",
      %{"type" => "card_entered", "column" => column}, [],
      [runner_action(pool, kind, p["wait"], "no")]}
+  end
+
+  defp spec("runner_trouble", p, opts) do
+    pool = p["pool"] |> blank_or(nil) |> then(&(&1 && &1 |> to_string() |> String.downcase()))
+
+    trigger =
+      put_present(
+        %{"type" => "job_finished", "outcome" => ~w(timeout requeued gave_up)},
+        "pool",
+        pool
+      )
+
+    name = if pool, do: "Trouble on the #{pool} runners", else: "Runner trouble"
+
+    notify(p, opts, name, trigger, [],
+      title: "Runner job {{job.id}} {{job.outcome}}: {{card.title}}",
+      severity: "warning"
+    )
   end
 
   defp spec("feed_runner", p, _opts) do

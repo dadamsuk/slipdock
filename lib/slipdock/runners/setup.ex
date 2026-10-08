@@ -256,15 +256,38 @@ defmodule Slipdock.Runners.Setup do
   *send to runner* rule on `answers["column"]` — or, with `"feed" => "top"`,
   one sending that list's top card one at a time — an existing one named by
   `answers["rule_id"]`, or none), makes the runner when the scenario needs a
-  token, and generates the text. Answers `{:ok, %{setup, runner, token,
-  rule}}` or `{:error, message}`.
+  token, and generates the text. With `"alert" => "yes"` it also adds a rule
+  raising an alert when one of the pool's jobs times out or its card is put
+  back or given up on. Answers `{:ok, %{setup, runner, token, rule,
+  alert_rule}}` or `{:error, message}`.
   """
   def connect(%Board{} = board, params, user, base_url) do
     with {:ok, answers} <- normalise(params),
          {:ok, rule} <- rule(board, params, answers, user),
+         {:ok, alert_rule} <- alert_rule(board, params, answers, user),
          {:ok, runner, token} <- runner(board, params, answers, user) do
       setup = generate(answers, %{base_url: base_url, board: board, token: token, rule: rule})
-      {:ok, %{setup: setup, runner: runner, token: token, rule: rule}}
+
+      {:ok, %{setup: setup, runner: runner, token: token, rule: rule, alert_rule: alert_rule}}
+    end
+  end
+
+  # "Tell me when a job times out or a card is given up": a rule of its own,
+  # raising an alert for the pool's jobs (see the `runner_trouble` preset).
+  defp alert_rule(board, params, answers, user) do
+    if params["alert"] in ["yes", "true", true] do
+      case Automations.create_rule_from_preset(
+             board,
+             "runner_trouble",
+             %{"pool" => answers["pool"], "notify" => "alert"},
+             created_by: user
+           ) do
+        {:ok, rule} -> {:ok, rule}
+        {:error, %Ecto.Changeset{} = changeset} -> {:error, changeset_message(changeset)}
+        {:error, message} -> {:error, message}
+      end
+    else
+      {:ok, nil}
     end
   end
 

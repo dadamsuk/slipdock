@@ -163,6 +163,25 @@ defmodule SlipdockWeb.RunnersLiveTest do
     assert hd(rule.spec["actions"])["requeue_stuck"] == 2
   end
 
+  test "offers, unticked, to tell you when a job times out or a card is given up", %{
+    conn: conn,
+    board: board
+  } do
+    view = open(conn, board)
+    assert has_element?(view, "input[type=checkbox][name='wizard[alert]']")
+    refute has_element?(view, "input[type=checkbox][name='wizard[alert]'][checked]")
+
+    submit(view, %{"scenario" => "server", "pool" => "dev", "alert" => "yes"})
+
+    assert [rule] = Automations.list_rules(board.id)
+
+    assert rule.spec["trigger"] == %{
+             "type" => "job_finished",
+             "pool" => "dev",
+             "outcome" => ["timeout", "requeued", "gave_up"]
+           }
+  end
+
   test "an answer it can't use is said, and nothing is made", %{conn: conn, board: board} do
     view = open(conn, board)
     choose(view, %{"scenario" => "server", "pool" => "My Pool"})

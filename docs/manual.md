@@ -1442,6 +1442,28 @@ by default (its **Put a card left in progress back, N times** field; 0
 turns it off); `slipdock runner new … --top --requeue-stuck N` sets it from
 the command line.
 
+**Hearing when a job goes wrong.** A rule with the trigger `job_finished`
+runs once for each runner job that ends, on the job's card, so the usual
+actions — an alert, an email, a webhook — can tell you about it:
+
+```json
+{"trigger": {"type": "job_finished", "outcome": ["timeout", "requeued", "gave_up"], "pool": "loop"},
+ "actions": [{"type": "alert", "title": "Runner job {{job.id}} {{job.outcome}}: {{card.title}}", "severity": "warning"}]}
+```
+
+`outcome` is any of how the job ended (`done`, `failed`, `cancelled`,
+`timeout`) and what its rule then did with a card left in progress
+(`requeued`, `gave_up`); leave it out to hear every ending. `pool` narrows
+it to one pool's jobs. A job whose lease lapsed and was handed out again is
+heard once, when it finally ends. Its text may use `{{job.id}}`,
+`{{job.status}}`, `{{job.outcome}}` (the recovery if there was one, else the
+status), `{{job.recovery}}`, `{{job.pool}}`, `{{job.kind}}`,
+`{{job.runner}}`, `{{job.attempts}}`, `{{job.exit_code}}` and
+`{{job.error}}`, and a webhook is sent the same fields as `job` beside
+`card`. The ready-made rule *A runner job times out or a card is given up*
+fills this in, and **Connect a runner** offers it as a checkbox
+(`slipdock runner new … --alert`).
+
 **How it is kept safe.** Runners pull: they dial out and ask for work, and
 the server never connects to them, so nothing needs a port, a tunnel or an
 exception to the outbound-address rules webhooks live by. And the server
