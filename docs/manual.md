@@ -1154,11 +1154,30 @@ content-hashed, so unchanged text is never re-embedded; a card that moves board
 has the board on its chunks corrected *inline*, because that field is what
 permission filtering reads.
 
+On a deployed server (the Docker release), run it inside the release, which
+uses the server's own database and the AI key chosen under Configuration → AI
+for search and automations:
+
 ```sh
-mix slipdock.reindex              # build or repair the index (run this once, after migrating)
+docker compose run --rm slipdock reindex   # build or repair the index
+slipdock search-status                     # from anywhere: what is indexed, and whether search is on
+```
+
+From a source checkout, against a database of your own:
+
+```sh
+mix ecto.migrate                  # first: mix does not migrate on start, a release does
+mix slipdock.reindex              # build or repair the index
 mix slipdock.reindex --stats      # what is indexed right now
 mix slipdock.reindex --force      # empty it and rebuild from scratch
 ```
+
+`mix slipdock.reindex` uses whatever database `DATABASE_URL` names in that
+shell — not your live server's unless you point it there — and on one that is
+behind on migrations it fails at start with `column … does not exist`. Run
+`mix ecto.migrate` and try again. `--force`, `--stats` and `--dry-run` are
+`mix`-only; the release's `reindex` is the plain walk, which is what a
+restored database or a model change needs.
 
 Run it again after changing the embedding model: vectors from two models are
 not comparable. Walking every card is cheap — anything whose text has not
@@ -2129,7 +2148,7 @@ gateways. Point *Account → Settings → AI model* at one:
 | Endpoint | The API root, the part before `/chat/completions`: `http://llm.local:1234/v1` (LM Studio), `http://llm.local:11434/v1` (Ollama). A trailing slash, or a pasted `/chat/completions`, is trimmed for you. Empty means this server's default |
 | API key | Optional. Most local servers want none, and none is sent if you leave it empty. The server's shared OpenRouter key is **never** sent to an endpoint of yours |
 | Model | *List models* asks the endpoint what it has (its `/models`, the same list `slipdock ai-models` prints) and offers them in a picker. Save the endpoint first — the list comes from what is stored |
-| Embedding model | Only if the endpoint serves one, and only read for the account that indexes (Configuration → AI for search and automations). Changing it invalidates every stored vector: run `mix slipdock.reindex --all` |
+| Embedding model | Only if the endpoint serves one, and only read for the account that indexes (Configuration → AI for search and automations). Changing it invalidates every stored vector: reindex (`docker compose run --rm slipdock reindex`, or `mix slipdock.reindex --force` from a checkout) |
 
 An endpoint of your own is enough on its own — with one set, the AI features
 turn on whether or not you have a key, because a box on your own network has
@@ -2174,7 +2193,8 @@ endpoint, since the ids do not carry over) and `SLIPDOCK_AI_QUICK_MODEL`
 one for the header's quick add alone, where latency matters more than depth
 (it falls back to `SLIPDOCK_AI_MODEL`). `SLIPDOCK_AI_EMBED_MODEL` and
 `SLIPDOCK_AI_EMBED_DIMENSIONS` pick the embedding model behind deep search;
-run `mix slipdock.reindex` after changing either. Restart the server after
+reindex after changing either (`docker compose run --rm slipdock reindex` on a
+release, `mix slipdock.reindex` from a checkout). Restart the server after
 changing any of them.
 
 Automation emails link back to the board; set `SLIPDOCK_BASE_URL` when the

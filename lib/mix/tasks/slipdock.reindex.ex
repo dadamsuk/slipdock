@@ -17,8 +17,15 @@ defmodule Mix.Tasks.Slipdock.Reindex do
   when the app stopped, a wiki page written before pages were indexed at all
   — repaired simply by running it.
 
-  Needs `OPENROUTER_API_KEY`. Embedding the whole of a board this size costs
-  a fraction of a penny.
+  Uses the database `DATABASE_URL` names in this shell, migrated first:
+  `mix` does not run migrations on start (a release does), so on a database
+  that is behind this fails at start with `column … does not exist` — run
+  `mix ecto.migrate`. On a deployed server use the release instead:
+  `docker compose run --rm slipdock reindex`.
+
+  Needs AI settings for unattended work: an admin chosen under Configuration →
+  AI for search and automations (or `OPENROUTER_API_KEY`). Embedding the whole
+  of a board this size costs a fraction of a penny.
   """
   @shortdoc "Builds or repairs the semantic search index"
 
@@ -71,7 +78,11 @@ defmodule Mix.Tasks.Slipdock.Reindex do
 
   defp reindex(force?) do
     unless Slipdock.AI.Embeddings.configured?() do
-      Mix.raise("OPENROUTER_API_KEY is not set, so nothing can be embedded.")
+      Mix.raise(
+        "No AI settings for unattended work, so nothing can be embedded. Choose an " <>
+          "admin with an AI key under Configuration → AI for search and automations " <>
+          "(or `slipdock admin set ai_system_user=<email>`)."
+      )
     end
 
     if force? do
