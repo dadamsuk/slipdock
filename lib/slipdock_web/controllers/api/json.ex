@@ -752,6 +752,7 @@ defmodule SlipdockWeb.API.JSON do
       board_id: r.board_id,
       current_job_id: r.current_job_id,
       last_seen_at: r.last_seen_at,
+      session: Slipdock.Runners.Runner.session?(r),
       settings: r.settings || %{},
       created_at: r.inserted_at
     }
@@ -762,6 +763,8 @@ defmodule SlipdockWeb.API.JSON do
       id: j.id,
       card_id: j.card_id,
       card: if(Ecto.assoc_loaded?(j.card) and j.card, do: j.card.title),
+      card_url:
+        "#{Slipdock.Automations.Runner.base_url()}/boards/#{j.board_id}/cards/#{j.card_id}",
       board_id: j.board_id,
       rule_id: j.rule_id,
       pool: j.pool,

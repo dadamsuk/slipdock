@@ -523,6 +523,31 @@ running a production release on boot — see [the manual](docs/manual.md#as-a-se
 Do not leave the dev server reachable by other people: its `/dev/mailbox` shows
 every sign-in link it has sent.
 
+## Run an agent against a board
+
+A board can hand cards to a coding agent running on your own machine. An
+automation rule with the **Send to runner** action (`runner`) puts the card
+in a job queue; a runner on your laptop, dev server or Windows box takes
+the job, runs Claude Code (or whatever you configure) on the card, and
+reports back. The card shows its jobs — queued, running, done or failed,
+with the tail of the log — and a Cancel button.
+
+- **Pull, not push.** Runners dial out to Slipdock; Slipdock never calls the
+  machine, so there are no ports to open or tunnels to set up, and it works
+  the same for the hosted service and a self-hosted one.
+- **Slipdock never decides what runs.** A job carries data — its kind, the
+  card and the prompt. What each kind of job runs is in a config file on the
+  runner's machine, and a kind it doesn't know is refused there.
+- **One queue for everything.** A Claude session (`/loop`, a scheduled task)
+  takes jobs from the same queue through the MCP tools `claim_job`,
+  `job_progress` and `finish_job`, or `slipdock claim-job`, so it never
+  races a runner for the same card.
+
+Make a runner with `slipdock runner new <board> <name> --pool default`
+(it prints the runner's token, once), list and revoke them with
+`slipdock runner ls|rm`, and watch jobs with `slipdock jobs <board>`. The
+details are in [the manual](docs/manual.md#runners).
+
 ## Connecting an MCP client
 
 Every install is an MCP server at `https://your-server/mcp` (stateless
@@ -537,7 +562,7 @@ claude mcp add --transport http slipdock https://your-server/mcp \
   --header "Authorization: Bearer <token>"
 ```
 
-The client gets 27 tools — `whoami`, `get_guide`, `list_boards`, `get_board`,
+The client gets 30 tools — `whoami`, `get_guide`, `list_boards`, `get_board`,
 `list_cards` (with `full: true`, every card as `get_card` gives it), `get_card`,
 `search`, `read_page`, `list_pages` (a board's wiki, flat or as a tree), `page_info` (a page's links or heading paths,
 a board's wanted pages, or whether a title has a page), `page_history` (a page's revisions,
@@ -546,7 +571,9 @@ the diff one save made, or between any two) and `activity`
 `update_card`, `move_card`, `comment`, `complete_card`, `archive_card`,
 `delete_card`, `create_list`, `delete_list`, `create_board`, `archive_board`,
 `delete_board`, `write_page`, `update_page` (rename, summary, move, file, archive or
-restore, pin to a card) and `revert_page` (put a page back to a revision) to write — each checked exactly as the API
+restore, pin to a card) and `revert_page` (put a page back to a revision) to write, and
+`claim_job`, `job_progress` and `finish_job` to take [runner jobs](#run-an-agent-against-a-board)
+from a board's queue — each checked exactly as the API
 checks the same token, so a read-only or board-scoped token stays that way.
 The deletes need an explicit confirmation. claude.ai connects from
 Anthropic's servers, so for it the server must be reachable from the internet

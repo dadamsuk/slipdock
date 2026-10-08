@@ -24,6 +24,7 @@ defmodule Slipdock.Runners do
   import Ecto.Query
 
   alias Slipdock.{Boards, Repo}
+  alias Slipdock.Accounts.UserToken
   alias Slipdock.Boards.{Board, Card}
   alias Slipdock.Runners.{Job, Runner}
 
@@ -45,11 +46,22 @@ defmodule Slipdock.Runners do
       queue_per_minute: @queue_per_minute,
       max_open_per_tree: @max_open_per_tree,
       lease_seconds: lease_seconds(),
+      session_lease_seconds: session_lease_seconds(),
       max_attempts: max_attempts()
     }
 
   defp config, do: Slipdock.Config.get(:runners, [])
   def lease_seconds, do: config()[:lease_seconds] || 90
+
+  # A Claude session reports between steps of its own work, and one step
+  # (a test run, a CI watch) can take many minutes; a shell runner's
+  # heartbeat is a background loop. So a session holds a longer lease.
+  def session_lease_seconds, do: config()[:session_lease_seconds] || 1200
+
+  @doc "The lease `runner` holds a job on, in seconds."
+  def lease_for(%Runner{} = runner),
+    do: if(Runner.session?(runner), do: session_lease_seconds(), else: lease_seconds())
+
   def max_attempts, do: config()[:max_attempts] || 3
 
   ## PubSub -------------------------------------------------------------------
@@ -134,6 +146,82 @@ defmodule Slipdock.Runners do
   end
 
   defp hash(token), do: :crypto.hash(:sha256, token)
+
+  @doc """
+  The runner standing for a Claude session that takes `pool`'s jobs on
+  `board`'s tree with its API token `api_token` (over MCP or the CLI): made
+  the first time, brought up to date each time after. It has no token of its
+  own that works — the session's API token is what authenticates it — so it
+  shows in the runner list and goes when the API token is revoked.
+  """
+  def session_runner(%Board{} = board, pool, %UserToken{} = api_token, user) do
+    pool = pool |> to_string() |> String.trim() |> String.downcase()
+    root = Board.root_id(board)
+
+    with :ok <- valid_name(pool, "pool") do
+      existing =
+        Repo.one(
+          from(r in Runner,
+            where: r.board_id == ^root and r.pool == ^pool and r.api_token_id == ^api_token.id
+          )
+        )
+
+      case existing do
+        %Runner{} = runner ->
+          {:ok, touch(runner)}
+
+        nil ->
+          %Runner{
+            board_id: root,
+            created_by_id: user && user.id,
+            api_token_id: api_token.id,
+            # Nobody holds the token this hashes: a session runner is only
+            # ever reached through its API token.
+            token_hash: hash(Base.encode64(:crypto.strong_rand_bytes(32))),
+            last_seen_at: now()
+          }
+          |> Runner.changeset(%{
+            "name" => session_name(api_token),
+            "pool" => pool,
+            "settings" => %{"scenario" => "session"}
+          })
+          |> Ecto.Changeset.unique_constraint([:board_id, :pool, :api_token_id],
+            name: :runners_one_per_session
+          )
+          |> Repo.insert()
+          |> case do
+            {:ok, runner} ->
+              {:ok, runner}
+
+            {:error, changeset} ->
+              # Two first calls at once: the other one made it.
+              if Keyword.has_key?(changeset.errors, :board_id),
+                do: session_runner(board, pool, api_token, user),
+                else: {:error, changeset}
+          end
+      end
+    end
+  end
+
+  defp session_name(%UserToken{label: label}) when is_binary(label) and label != "",
+    do: String.slice("#{label} (session)", 0, 80)
+
+  defp session_name(%UserToken{id: id}), do: "session #{id}"
+
+  @doc """
+  The session runner `api_token` holds `job_id` through, or
+  `{:error, :not_found}`: a session reports only on jobs it claimed itself.
+  """
+  def session_job_runner(job_id, %UserToken{id: token_id}) do
+    with %Job{runner_id: runner_id} when not is_nil(runner_id) <- get_job(job_id),
+         %Runner{api_token_id: ^token_id} = runner <- Repo.get(Runner, runner_id) do
+      {:ok, touch(runner)}
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  def session_job_runner(_job_id, _token), do: {:error, :not_found}
 
   ## Queueing -----------------------------------------------------------------
 
@@ -305,7 +393,7 @@ defmodule Slipdock.Runners do
                    runner_id: runner.id,
                    runner_name: runner.name,
                    claimed_at: now,
-                   lease_expires_at: DateTime.add(now, lease_seconds()),
+                   lease_expires_at: DateTime.add(now, lease_for(runner)),
                    updated_at: now
                  ],
                  inc: [attempts: 1]
@@ -350,7 +438,7 @@ defmodule Slipdock.Runners do
           now = now()
 
           changes =
-            [lease_expires_at: DateTime.add(now, lease_seconds()), updated_at: now]
+            [lease_expires_at: DateTime.add(now, lease_for(runner)), updated_at: now]
             |> then(&if(log in [nil, ""], do: &1, else: [{:log_tail, tail(log)} | &1]))
             |> then(
               &if(job.status == "claimed",

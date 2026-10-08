@@ -415,9 +415,12 @@ defmodule SlipdockWeb.Router do
     post "/boards/:board/runners", JobController, :create_runner
     delete "/boards/:board/runners/:id", JobController, :delete_runner
     get "/boards/:board/jobs", JobController, :index
+    post "/boards/:board/jobs/claim", JobController, :claim
     get "/cards/:id/jobs", JobController, :card_jobs
     get "/jobs/:id", JobController, :show
     post "/jobs/:id/cancel", JobController, :cancel
+    post "/jobs/:id/progress", JobController, :progress
+    post "/jobs/:id/finish", JobController, :finish
 
     get "/boards/:board/tags", BoardController, :tags
     post "/boards/:board/tags", BoardController, :create_tag

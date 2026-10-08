@@ -1,6 +1,6 @@
 ---
 name: slipdock-loop
-description: Work the To Do list on one of the user's self-hosted Slipdock boards unattended — take the top card, do it, descend into its subcards, move it through in progress to done, and leave the record on the card. Use when asked to work through the To Do list, the board or a backlog without being driven card by card ("pick up whatever is next and do it", "keep working the board", "clear the To Do list"), and whenever this is being run repeatedly from /loop, a schedule or a cron.
+description: Work the To Do list on one of the user's self-hosted Slipdock boards unattended — take the top card, do it, descend into its subcards, move it through in progress to done, and leave the record on the card. Use when asked to work through the To Do list, the board or a backlog without being driven card by card ("pick up whatever is next and do it", "keep working the board", "clear the To Do list"), and whenever this is being run repeatedly from /loop, a schedule or a cron — including passes told to take their work from a runner pool's job queue.
 ---
 
 # Running the To Do list
@@ -151,6 +151,43 @@ Fixing the build is the card's whole brief. A newer run that is still
 `in_progress` or `queued` means wait: don't file the older failure, because the
 newer run may already fix it. If `gh` isn't authenticated, or there is no
 remote, or no workflow, skip this step and say so once in the pass report.
+
+## 2b. A job first, when you are given a pool
+
+A board can queue cards for **runners** (an automation rule's `runner`
+action), and a pass can be one of them: when the invocation names a pool
+("pool default", "jobs from the loop pool"), take a job from that queue
+before looking at the ready list. It is the same queue the runners on
+people's machines take from, so the pass never races one of them for a card.
+
+```sh
+slipdock claim-job <board> --pool <pool>     # or the MCP tool claim_job
+```
+
+- **A job.** Its card is this pass's card, wherever it sits. Read it as in
+  step 3 and claim it as in step 4, saying `Job #N` in the *Picked up*
+  comment so a later pass can tell. While it is open, write the running log
+  with `slipdock job-progress <job> --message "<the comment>"` instead of
+  `slipdock comment`: it is the same comment on the card, and it renews the
+  job's lease. A session holds the job for 20 minutes per report, so report
+  before anything long (a full test run, a CI watch) and after it. If it
+  ever answers `cancel`, somebody has stopped the job: stop work, say so on
+  the card, hand the card back (see **Handing a card back**) and
+  `slipdock finish-job <job> --status cancelled`. At the end of step 7, after
+  the wrap-up comment, `slipdock finish-job <job> --status done --summary
+  "<commit and CI result>"`; a card handed back instead ends its job
+  `--status failed`, with the reason as the summary.
+- **`nothing queued`.** Go on to the ready list (step 2a, then 3) only if the
+  invocation says to fall back ("else the top of To Do"). Otherwise the pass
+  is over: report `no job queued for <pool>` and stop.
+- **`unknown command`, or a 404 from the server** (one older than runners):
+  say so once in the pass report and carry on as though no pool had been
+  named.
+
+A resumed card (step 2) whose *Picked up* comment names a job is still that
+job's: report and finish on it as above. If its lease ran out while the pass
+was gone, `job-progress` and `finish-job` answer that it was not claimed
+with this token — note that on the card and carry on without the job.
 
 ## 3. Pick the top card
 
@@ -315,6 +352,8 @@ anybody reads later:
    the card and again here, and give the difference — one reading per card,
    measured from its own claim. If no counter is visible, write `Token cost: not
    measured` rather than estimating.
+7. **The job**, if the card came from one (step 2b): `slipdock finish-job
+   <job> --status done --summary "<commit, CI result>"`.
 
 ## 8. End the pass
 

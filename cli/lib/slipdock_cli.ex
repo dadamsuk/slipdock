@@ -346,6 +346,12 @@ defmodule SlipdockCLI do
     runner rm <board> <runner>                     revoke a runner (its token stops working)
     cancel-job <id>                                stop a job: a queued one at once, a running one
                                                    on the runner's next heartbeat
+    claim-job <board> --pool P                     take the next queued job as this session (prints
+                                                   "nothing queued" when there is none)
+    job-progress <id> [--message NOTE]             renew the job's lease (a session holds it 20 min); the
+                                                   note is also a comment on the card. Prints ok or cancel
+    finish-job <id> --status done|failed|cancelled|timeout [--summary S]
+                                                   end a job this session claimed
     save-view <board> <name> [view opts]            save a swimlane configuration
     update-view <board> <view> [view opts] [--name N] change a saved view
     delete-view <board> <view>

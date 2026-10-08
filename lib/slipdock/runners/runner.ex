@@ -23,12 +23,18 @@ defmodule Slipdock.Runners.Runner do
 
     belongs_to :board, Slipdock.Boards.Board
     belongs_to :created_by, Slipdock.Accounts.User
+    # Set for a Claude session taking jobs with its own API token (see
+    # `Slipdock.Runners.session_runner/4`); nil for a runner with a token of its own.
+    belongs_to :api_token, Slipdock.Accounts.UserToken
 
     timestamps(type: :utc_datetime)
   end
 
   @doc "What a pool or a job kind may be called: lower case, digits, `-` and `_`."
   def name_format, do: @name_format
+
+  @doc "Whether this is a Claude session working through its API token."
+  def session?(%__MODULE__{api_token_id: id}), do: not is_nil(id)
 
   def changeset(runner, attrs) do
     runner

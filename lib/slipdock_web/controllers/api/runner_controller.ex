@@ -45,7 +45,7 @@ defmodule SlipdockWeb.API.RunnerController do
           |> put_resp_header("x-card-ref", "##{job.card_id}")
           |> put_resp_header("x-card-url", card_url(job))
           |> put_resp_header("x-board-id", to_string(job.board_id))
-          |> put_resp_header("x-lease-seconds", to_string(Runners.lease_seconds()))
+          |> put_resp_header("x-lease-seconds", to_string(Runners.lease_for(conn.assigns.runner)))
           |> text_reply(200, job.prompt, newline: false)
       end
     end

@@ -42,6 +42,25 @@ defmodule SlipdockWeb.API.SkillsTest do
   end
 
   @tag :anonymous
+  test "slipdock-loop takes a job from a pool's queue when it is given one", %{conn: conn} do
+    assert %{"content" => body} =
+             conn |> get("/api/skills/slipdock-loop") |> json_response(200)
+
+    assert body =~ "## 2b. A job first, when you are given a pool"
+    assert body =~ "slipdock claim-job <board> --pool <pool>"
+    # The running log doubles as the heartbeat, and the job ends with the card.
+    assert body =~ "slipdock job-progress <job> --message"
+    assert body =~ "slipdock finish-job <job> --status done"
+    # No job means stop, unless told to fall back; an older server is no reason to fail.
+    assert body =~ "only if the\n  invocation says to fall back"
+    assert body =~ "one older than runners"
+
+    assert %{"content" => work} = conn |> get("/api/skills/slipdock-work") |> json_response(200)
+    assert work =~ "runner job"
+    assert work =~ "slipdock finish-job <job>"
+  end
+
+  @tag :anonymous
   test "slipdock-loop watches the CI build after every push", %{conn: conn} do
     assert %{"content" => body} =
              conn |> get("/api/skills/slipdock-loop") |> json_response(200)
