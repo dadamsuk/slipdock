@@ -22,6 +22,7 @@ param(
   # For -Agent custom: PowerShell, run with Invoke-Expression; the prompt is
   # in $env:SLIPDOCK_PROMPT.
   [string]$Command = '',
+  # Where jobs run (default: your home); ~\... or ~/... is your home.
   [string]$Cwd = '',
   [string]$PermissionMode = 'acceptEdits',
   # For claude: the Slipdock MCP servers whose tools a job may use without
@@ -61,6 +62,7 @@ if (-not $InstallDir) {
   $InstallDir = Join-Path $base 'slipdock-runner'
 }
 if (-not $Cwd) { $Cwd = $HOME }
+if ($Cwd -match '^~[^\\/]') { Fail '-Cwd can''t be another user''s ~: use a full path, or ~\ for the runner''s own home' }
 
 $Runner = Join-Path $InstallDir 'slipdock-runner.ps1'
 $Config = Join-Path $InstallDir 'config.ps1'
@@ -80,6 +82,13 @@ $RunnerScript = @'
 __SLIPDOCK_RUNNER_PS1__
 '@
 [IO.File]::WriteAllText($Runner, $RunnerScript + "`n", $Utf8)
+
+# The working directory as the config spells it: ~ and ~\... are $HOME.
+function WorkDir([string]$path) {
+  if ($path -match '^~[\\/]?$') { return '$HOME' }
+  if ($path -match '^~[\\/](.*)$') { return 'Join-Path $HOME ' + (Quote $Matches[1]) }
+  return Quote $path
+}
 
 # A literal string: inside single quotes PowerShell reads nothing, and a
 # quote inside is doubled.
@@ -142,7 +151,7 @@ $configText = @"
 `$SlipdockUrl = $(Quote $Url)
 `$RunnerToken = $(Quote $Token)
 `$Pool = $(Quote $Pool)
-`$WorkDir = $(Quote $Cwd)
+`$WorkDir = $(WorkDir $Cwd)
 `$JobTimeout = $Timeout
 `$PermissionMode = $(Quote $PermissionMode)
 `$AllowedTools = $(Quote $allowedTools)

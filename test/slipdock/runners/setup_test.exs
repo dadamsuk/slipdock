@@ -150,7 +150,7 @@ defmodule Slipdock.Runners.SetupTest do
 
     assert mcp == "claude mcp add --transport http slipdock #{@base}/mcp"
     assert skills == "curl -fsSL #{@base}/install.sh | sh"
-    assert start == "cd '~/src/app' && claude --permission-mode acceptEdits"
+    assert start == ~S(cd "$HOME"/'src/app' && claude --permission-mode acceptEdits)
 
     assert loop =~
              "/loop /slipdock-loop against #{@base}/boards/#{board.id} (board code: #{board.code})"
@@ -587,6 +587,50 @@ defmodule Slipdock.Runners.SetupTest do
         refute Enum.any?(gen(board, extra).warnings, &String.starts_with?(&1, @warning)),
                inspect(extra)
       end
+    end
+  end
+
+  describe "a working directory under ~" do
+    test "~ and ~/… are accepted, another user's ~ is refused" do
+      for cwd <- ["~", "~/x", "~/", "~\\x", "/srv/app", "C:\\src"] do
+        assert {:ok, %{"cwd" => ^cwd}} = Setup.normalise(%{"cwd" => cwd}), cwd
+      end
+
+      for cwd <- ["~bob/x", "~bob", "~root"] do
+        assert {:error, "the working directory can't be another user's ~" <> rest} =
+                 Setup.normalise(%{"cwd" => cwd}),
+               cwd
+
+        assert rest =~ "use a full path, or ~/"
+      end
+    end
+
+    test "the config spells ~ as $HOME, outside the quotes", %{board: board} do
+      config = fn cwd -> board |> gen(%{"cwd" => cwd}) |> codes() |> List.last() end
+
+      assert config.("~/webs/it's here") =~ ~S(WORKDIR="$HOME"/'webs/it'\''s here') <> "\n"
+      assert config.("~") =~ ~S(WORKDIR="$HOME") <> "\n"
+      # Nothing changes for a path that is already whole.
+      assert config.("/srv/app") =~ "WORKDIR='/srv/app'\n"
+      assert config.("/srv/~x") =~ "WORKDIR='/srv/~x'\n"
+    end
+
+    test "the one-liners pass it as written, for the installer to expand", %{board: board} do
+      [line | _] = board |> gen(%{"cwd" => "~/x"}) |> codes()
+      assert line =~ "--cwd '~/x'"
+
+      [ps | _] = board |> gen(%{"scenario" => "windows", "cwd" => "~\\x"}) |> codes()
+      assert ps =~ "-Cwd '~\\x'"
+    end
+
+    test "a /loop starts where it says, home included", %{board: board} do
+      cd = fn extra ->
+        board |> gen(Map.put(extra, "scenario", "loop")) |> codes() |> Enum.at(2)
+      end
+
+      assert cd.(%{}) =~ ~S(cd "$HOME" && claude)
+      assert cd.(%{"cwd" => "~/src/app"}) =~ ~S(cd "$HOME"/'src/app' && claude)
+      assert cd.(%{"cwd" => "/srv/app"}) =~ "cd '/srv/app' && claude"
     end
   end
 end
