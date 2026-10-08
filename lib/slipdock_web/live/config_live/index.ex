@@ -18,6 +18,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
   use SlipdockWeb, :live_view
 
   alias Slipdock.{Accounts, Build, Mailer, Settings}
+  alias Slipdock.AI.Keys
   alias Slipdock.Settings.Instance
 
   @impl true
@@ -49,7 +50,9 @@ defmodule SlipdockWeb.ConfigLive.Index do
       allowlist: Settings.list_allowlist(),
       allow_form: to_form(%{"entry" => ""}, as: :allow),
       requests: Accounts.list_signup_requests(),
-      admin_email_pending: settings.admin_email
+      admin_email_pending: settings.admin_email,
+      ai_source: Keys.system_source(),
+      ai_candidates: ai_candidates()
     )
   end
 
@@ -59,7 +62,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
                       board_limit board_limit_enabled item_limit item_limit_enabled
                       storage_limit_mb storage_limit_enabled trial_days trial_enabled
                       terms_url privacy_url terms_version posthog_key posthog_host
-                      posthog_respect_dnt)
+                      posthog_respect_dnt ai_system_user_id)
 
   @mail_fields ~w(smtp_host smtp_port smtp_username smtp_password smtp_tls smtp_from_email
                   smtp_from_name)
@@ -292,6 +295,31 @@ defmodule SlipdockWeb.ConfigLive.Index do
     </div>
     """
   end
+
+  # Who may be the server's AI: admins who are not disabled, each marked with
+  # whether they have a key or an endpoint saved, since choosing someone with
+  # neither changes nothing.
+  defp ai_candidates do
+    for user <- Accounts.list_admins(), is_nil(user.disabled_at) do
+      label = if Keys.own?(user), do: user.email, else: "#{user.email} (no AI key saved)"
+      {label, user.id}
+    end
+  end
+
+  defp ai_source_text(%{source: :server_key}),
+    do: "the shared OPENROUTER_API_KEY set on the server, which wins over the choice below"
+
+  defp ai_source_text(%{source: :chosen, user: user}), do: "#{user.email}'s AI settings"
+
+  defp ai_source_text(%{source: :environment, user: user}),
+    do: "#{(user && user.email) || "someone"}'s AI settings, named by SLIPDOCK_AI_SYSTEM_USER"
+
+  defp ai_source_text(%{source: :sole_admin, user: user}),
+    do:
+      "#{user.email}'s AI settings, because registration is closed and they are the only " <>
+        "admin with a key"
+
+  defp ai_source_text(_), do: nil
 
   defp mode_label(mode), do: elem(Instance.describe(mode), 0)
   defp mode_detail(mode), do: elem(Instance.describe(mode), 1)
@@ -616,6 +644,43 @@ defmodule SlipdockWeb.ConfigLive.Index do
               </span>
             </span>
           </label>
+          <button type="submit" class="btn btn-outline btn-sm">Save</button>
+        </.form>
+      </div>
+
+      <div id="ai-system" class="mt-6 border-t border-base-content/10 pt-6">
+        <h3 class="font-medium">AI for search and automations</h3>
+        <p class="mt-1 text-xs text-base-content/60">
+          Semantic search, the search index and scheduled automations run with nobody signed
+          in, so they cannot use whoever is looking. They use one admin's AI settings — the key
+          or endpoint saved under Account → AI model — and every board's content is sent
+          through them.
+        </p>
+
+        <p :if={@ai_source.source != :none} id="ai-system-status" class="mt-3 text-sm">
+          <.icon name="hero-check-circle" class="size-4 text-success" />
+          <span>Now using {ai_source_text(@ai_source)}.</span>
+        </p>
+        <p :if={@ai_source.source == :none} id="ai-system-status" class="mt-3 text-sm text-warning">
+          <.icon name="hero-exclamation-triangle" class="size-4" />
+          Off: semantic search and AI automations will not run until an admin with an AI key
+          is chosen here.
+        </p>
+
+        <.form for={@form} id="ai-system-form" phx-submit="save-settings" class="mt-3 space-y-3">
+          <input type="hidden" name="settings[signup_mode]" value={@settings.signup_mode} />
+          <.input
+            field={@form[:ai_system_user_id]}
+            type="select"
+            label="Whose AI settings to use"
+            options={@ai_candidates}
+            prompt="Nobody chosen (fall back to the environment, or the only admin with a key)"
+            value={@settings.ai_system_user_id}
+          />
+          <p class="text-xs text-base-content/60">
+            Only admins are offered: anyone else could point their account at a server of their
+            own and receive every card. Searches and indexing are billed to that person's key.
+          </p>
           <button type="submit" class="btn btn-outline btn-sm">Save</button>
         </.form>
       </div>

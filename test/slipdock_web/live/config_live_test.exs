@@ -287,4 +287,66 @@ defmodule SlipdockWeb.ConfigLiveTest do
       assert html =~ Slipdock.Build.short_sha()
     end
   end
+
+  describe "AI for search and automations" do
+    setup %{admin: admin} do
+      key_file =
+        Path.join(System.tmp_dir!(), "ai_keys_#{System.unique_integer([:positive])}.json")
+
+      Slipdock.TestConfig.merge(:ai, key_file: key_file, api_key: nil, system_user: nil)
+      on_exit(fn -> File.rm(key_file) end)
+      # Open, so the single-admin fallback does not decide before anyone chooses.
+      {:ok, _} = Settings.update(%{signup_mode: :open})
+      :ok = Slipdock.AI.Keys.put(admin, "sk-admin")
+      :ok
+    end
+
+    test "says it is off, then choosing an admin turns it on", %{conn: conn, admin: admin} do
+      {:ok, view, html} = live(conn, ~p"/config")
+      assert html =~ "AI for search and automations"
+      assert view |> element("#ai-system-status") |> render() =~ "Off"
+
+      view
+      |> form("#ai-system-form", %{"settings" => %{"ai_system_user_id" => admin.id}})
+      |> render_submit()
+
+      assert Settings.get().ai_system_user_id == admin.id
+      assert Settings.signup_mode() == :open
+      status = view |> element("#ai-system-status") |> render()
+      assert status =~ "Now using"
+      assert status =~ admin.email
+    end
+
+    test "only admins are offered, and one without a key is marked", %{
+      conn: conn,
+      ordinary: ordinary
+    } do
+      {:ok, keyless} = Accounts.promote(user_fixture("keyless-admin@example.com"))
+      {:ok, view, _html} = live(conn, ~p"/config")
+
+      refute has_element?(view, "#ai-system-form option", ordinary.email)
+      assert has_element?(view, "#ai-system-form option", "#{keyless.email} (no AI key saved)")
+    end
+
+    test "a non-admin's id sent by hand is refused", %{conn: conn, ordinary: ordinary} do
+      {:ok, view, _html} = live(conn, ~p"/config")
+
+      view
+      |> element("#ai-system-form")
+      |> render_submit(%{"settings" => %{"ai_system_user_id" => ordinary.id}})
+
+      assert Settings.get().ai_system_user_id == nil
+    end
+
+    test "clearing the choice", %{conn: conn, admin: admin} do
+      {:ok, _} = Settings.update(%{ai_system_user_id: admin.id})
+      {:ok, view, _html} = live(conn, ~p"/config")
+
+      view
+      |> form("#ai-system-form", %{"settings" => %{"ai_system_user_id" => ""}})
+      |> render_submit()
+
+      assert Settings.get().ai_system_user_id == nil
+    end
+  end
 end

@@ -170,6 +170,19 @@ defmodule Slipdock.SearchTest do
       assert Enum.any?(hd(results).matches, &(&1.kind == "comment"))
     end
 
+    test "with no AI for unattended work, the error says where an admin sets it", ctx do
+      key_file =
+        Path.join(System.tmp_dir!(), "ai_keys_#{System.unique_integer([:positive])}.json")
+
+      Slipdock.TestConfig.merge(:ai, key_file: key_file, api_key: nil, system_user: nil)
+      on_exit(fn -> File.rm(key_file) end)
+
+      assert {:error, message} = Search.search(ctx.owner, "invoice rounding")
+      assert message =~ "Configuration → AI for search and automations"
+      assert message =~ "slipdock admin set ai_system_user="
+      refute message =~ "OPENROUTER_API_KEY"
+    end
+
     test "an empty query searches for nothing", ctx do
       assert {:ok, []} = Search.search(ctx.owner, "   ")
     end

@@ -182,6 +182,104 @@ defmodule Slipdock.AIKeysTest do
     end
   end
 
+  describe "system_source/0 — an admin chosen on the Configuration page" do
+    defp choose(user), do: {:ok, _} = Slipdock.Settings.update(%{ai_system_user_id: user.id})
+
+    test "the chosen admin's settings are used, even with registration open", ctx do
+      admin = make_admin(ctx.user)
+      :ok = Keys.put(admin, "sk-chosen")
+      {:ok, _} = Slipdock.Settings.update(%{signup_mode: :open})
+      assert Keys.system_key() == nil
+
+      choose(admin)
+
+      assert %{source: :chosen, user: %{id: id}} = Keys.system_source()
+      assert id == admin.id
+      assert Keys.system_key() == "sk-chosen"
+      assert AI.configured?()
+    end
+
+    test "the choice beats SLIPDOCK_AI_SYSTEM_USER and the single-admin fallback", ctx do
+      close_signups()
+      admin = make_admin(ctx.user)
+      other = make_admin(user_fixture("other@example.com"))
+      :ok = Keys.put(admin, "sk-chosen")
+      :ok = Keys.put(other, "sk-env")
+      Slipdock.TestConfig.merge(:ai, system_user: fixture_email("other@example.com"))
+      assert %{source: :environment} = Keys.system_source()
+
+      choose(admin)
+
+      assert Keys.system_key() == "sk-chosen"
+    end
+
+    test "a shared server key still wins over the choice", ctx do
+      admin = make_admin(ctx.user)
+      :ok = Keys.put(admin, "sk-chosen")
+      choose(admin)
+      shared_key("sk-shared")
+
+      assert %{source: :server_key, user: nil} = Keys.system_source()
+      assert Keys.system_key() == "sk-shared"
+    end
+
+    test "an endpoint of their own counts, with no key", ctx do
+      admin = make_admin(ctx.user)
+      :ok = Keys.put_settings(admin, %{base_url: "http://llm.local:1234/v1"})
+      choose(admin)
+
+      assert %{source: :chosen, settings: %{base_url: "http://llm.local:1234/v1"}} =
+               Keys.system_source()
+    end
+
+    test "chosen but with nothing saved: the next rule decides", ctx do
+      admin = make_admin(ctx.user)
+      choose(admin)
+      assert %{source: :none} = Keys.system_source()
+
+      Slipdock.TestConfig.merge(:ai, system_user: fixture_email("keys@example.com"))
+      :ok = Keys.put(admin, "sk-later")
+      # Now they have a key, the choice applies again, ahead of the environment.
+      assert %{source: :chosen} = Keys.system_source()
+    end
+
+    test "demoted since being chosen: no longer used", ctx do
+      admin = make_admin(ctx.user)
+      :ok = Keys.put(admin, "sk-chosen")
+      choose(admin)
+
+      admin |> Ecto.Changeset.change(admin: false) |> Slipdock.Repo.update!()
+
+      assert Keys.system_key() == nil
+      assert %{source: :none} = Keys.system_source()
+    end
+
+    test "disabled since being chosen: no longer used", ctx do
+      admin = make_admin(ctx.user)
+      :ok = Keys.put(admin, "sk-chosen")
+      choose(admin)
+
+      admin
+      |> Ecto.Changeset.change(disabled_at: DateTime.utc_now() |> DateTime.truncate(:second))
+      |> Slipdock.Repo.update!()
+
+      # Nor by the single-admin fallback, which would otherwise pick them up.
+      close_signups()
+      assert Keys.system_key() == nil
+      assert %{source: :none} = Keys.system_source()
+    end
+
+    test "each older rule reports itself", ctx do
+      assert %{source: :none, user: nil} = Keys.system_source()
+
+      close_signups()
+      admin = make_admin(ctx.user)
+      :ok = Keys.put(admin, "sk-mine")
+      assert %{source: :sole_admin, user: %{id: id}} = Keys.system_source()
+      assert id == admin.id
+    end
+  end
+
   describe "Slipdock.AI picks the key" do
     test "the user's own key goes in the Authorization header", ctx do
       :ok = Keys.put(ctx.user, "sk-mine")

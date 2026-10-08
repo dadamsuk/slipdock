@@ -107,4 +107,72 @@ defmodule SlipdockCLI.AdminTest do
 
     assert output =~ "PostHog phc_abc → https://us.i.posthog.com"
   end
+
+  defp ai_settings(ai) do
+    JSON.encode!(%{
+      "build" => nil,
+      "settings" => %{
+        "signup_mode" => "open",
+        "limits" => %{},
+        "smtp" => %{"configured" => false},
+        "login_fallback" => %{"enabled" => false},
+        "analytics" => %{},
+        "ai" => ai
+      }
+    })
+  end
+
+  test "set ai_system_user sends the email, and the answer says who search runs on" do
+    serve([
+      {200,
+       ai_settings(%{
+         "system_user" => "sam@example.com",
+         "source" => "chosen",
+         "using" => "sam@example.com"
+       })}
+    ])
+
+    output =
+      capture_io(fn -> Admin.run("admin", ["set", "ai_system_user=sam@example.com"], []) end)
+
+    assert_received {:request, "PATCH", "/api/admin/settings", body}
+    assert JSON.decode!(body) == %{"ai_system_user" => "sam@example.com"}
+    assert output =~ "Search & rules AI: sam@example.com (chosen here)"
+  end
+
+  test "an empty ai_system_user clears it, and off is shown as off" do
+    serve([{200, ai_settings(%{"system_user" => nil, "source" => "none", "using" => nil})}])
+
+    output = capture_io(fn -> Admin.run("admin", ["set", "ai_system_user="], []) end)
+
+    assert_received {:request, "PATCH", "/api/admin/settings", body}
+    assert JSON.decode!(body) == %{"ai_system_user" => ""}
+    assert output =~ "Search & rules AI: off"
+    refute output =~ "is chosen but"
+  end
+
+  test "a choice that is saved but not in effect is called out" do
+    serve([
+      {200,
+       ai_settings(%{"system_user" => "sam@example.com", "source" => "none", "using" => nil})}
+    ])
+
+    output = capture_io(fn -> Admin.run("admin", ["settings"], []) end)
+
+    assert output =~ "sam@example.com is chosen but has no AI settings or is no longer an admin"
+  end
+
+  test "the other sources are named" do
+    for {ai, expected} <- [
+          {%{"source" => "server_key"}, "the shared OPENROUTER_API_KEY"},
+          {%{"source" => "environment", "using" => "a@example.com"},
+           "a@example.com (SLIPDOCK_AI_SYSTEM_USER)"},
+          {%{"source" => "sole_admin", "using" => "a@example.com"},
+           "a@example.com (the only admin with a key)"}
+        ] do
+      serve([{200, ai_settings(ai)}])
+      output = capture_io(fn -> Admin.run("admin", ["settings"], []) end)
+      assert output =~ expected
+    end
+  end
 end

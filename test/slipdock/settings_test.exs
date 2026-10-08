@@ -236,4 +236,50 @@ defmodule Slipdock.SettingsTest do
       assert Settings.signup_mode() == :closed
     end
   end
+
+  describe "ai_system_user — whose AI settings unattended work runs on" do
+    defp admin(email) do
+      {:ok, user} = Slipdock.Accounts.promote(user_fixture(email))
+      user
+    end
+
+    test "an admin can be chosen, and the choice cleared" do
+      chosen = admin("ai-admin@example.com")
+
+      assert {:ok, settings} = Settings.update(%{"ai_system_user_id" => chosen.id})
+      assert settings.ai_system_user_id == chosen.id
+      assert Settings.get().ai_system_user_id == chosen.id
+
+      assert {:ok, settings} = Settings.update(%{"ai_system_user_id" => nil})
+      assert settings.ai_system_user_id == nil
+    end
+
+    test "a non-admin is refused: their own endpoint would receive every board" do
+      user = user_fixture("plain@example.com")
+
+      assert {:error, changeset} = Settings.update(%{"ai_system_user_id" => user.id})
+      assert {"must be an admin" <> _, _} = changeset.errors[:ai_system_user_id]
+      assert Settings.get().ai_system_user_id == nil
+    end
+
+    test "a disabled admin is refused" do
+      chosen = admin("off-admin@example.com")
+
+      chosen
+      |> Ecto.Changeset.change(disabled_at: DateTime.utc_now() |> DateTime.truncate(:second))
+      |> Slipdock.Repo.update!()
+
+      assert {:error, changeset} = Settings.update(%{"ai_system_user_id" => chosen.id})
+      assert {"is disabled", _} = changeset.errors[:ai_system_user_id]
+    end
+
+    test "an id that is nobody is refused" do
+      assert {:error, changeset} = Settings.update(%{"ai_system_user_id" => -1})
+      assert {"is not an account here", _} = changeset.errors[:ai_system_user_id]
+    end
+
+    test "is one of the fields an admin may set directly" do
+      assert "ai_system_user_id" in Slipdock.Settings.Instance.policy_fields()
+    end
+  end
 end

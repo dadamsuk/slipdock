@@ -255,14 +255,28 @@ defmodule Slipdock.AI.Keys do
 
   @doc """
   The settings to use for work nobody is sitting in front of — the search
-  indexer, scheduled automations.
+  indexer, scheduled automations. See `system_source/0` for how they are
+  chosen; this is just its `:settings`.
+  """
+  @spec system_settings() :: settings()
+  def system_settings, do: system_source().settings
 
-  The server-wide `config :slipdock, :ai, :api_key` when one is set;
-  otherwise, when `SLIPDOCK_AI_SYSTEM_USER` names a user by email, that
-  person's; otherwise, on a server with registration closed, when exactly one
-  person has settings of their own and that person is an admin, theirs — a
-  single-user install should not have to say so twice. Blank when none of
-  that holds, and background AI work then stays off.
+  @doc """
+  Where unattended work's AI settings come from, and why. In order:
+
+    * `:server_key` — the server-wide `config :slipdock, :ai, :api_key`
+      (`OPENROUTER_API_KEY`), a key shared with everyone;
+    * `:chosen` — the admin an admin picked on the Configuration page (the
+      `ai_system_user` setting), as long as they are still an admin, still
+      enabled and have settings of their own;
+    * `:environment` — the person `SLIPDOCK_AI_SYSTEM_USER` names by email;
+    * `:sole_admin` — on a server with registration closed, when exactly one
+      person has settings of their own and that person is an admin, theirs —
+      a single-user install should not have to say so twice;
+    * `:none` — none of that holds, and background AI work stays off.
+
+  Returns `%{source: atom, user: %User{} | nil, settings: settings}`; `user`
+  is whose settings they are, nil for a shared key or none.
 
   The indexer sends every board's content through these settings, and every
   search query too, so they are never a person's own endpoint or key unless
@@ -270,11 +284,14 @@ defmodule Slipdock.AI.Keys do
   no guessing a non-admin: the first person to point their account at a
   server of their own would otherwise receive everybody's cards.
   """
-  @spec system_settings() :: settings()
-  def system_settings do
+  @spec system_source() :: %{source: atom(), user: User.t() | nil, settings: settings()}
+  def system_source do
     cond do
       is_binary(value(config()[:api_key])) ->
-        %{blank() | api_key: value(config()[:api_key])}
+        source(:server_key, nil, %{blank() | api_key: value(config()[:api_key])})
+
+      found = chosen_system_settings() ->
+        found
 
       found = named_system_settings() ->
         found
@@ -283,13 +300,29 @@ defmodule Slipdock.AI.Keys do
         found
 
       true ->
-        blank()
+        source(:none, nil, blank())
     end
   end
+
+  defp source(source, user, settings), do: %{source: source, user: user, settings: settings}
 
   @doc "The key unattended work spends, or nil. See `system_settings/0`."
   @spec system_key() :: String.t() | nil
   def system_key, do: system_settings().api_key
+
+  # Checked again on every read, not only when it was saved: someone demoted
+  # or disabled since stops being the server's AI at once, and the next rule
+  # decides instead.
+  defp chosen_system_settings do
+    with id when is_integer(id) <- Slipdock.Settings.get().ai_system_user_id,
+         %User{admin: true, disabled_at: nil} = user <- user(id),
+         settings = settings(id),
+         true <- usable?(settings) do
+      source(:chosen, user, settings)
+    else
+      _ -> nil
+    end
+  end
 
   defp named_system_settings do
     with email when is_binary(email) <-
@@ -298,7 +331,7 @@ defmodule Slipdock.AI.Keys do
            Enum.find(read()["users"], fn {_id, e} ->
              is_binary(e["email"]) and String.downcase(e["email"]) == String.downcase(email)
            end) do
-      settings(id)
+      source(:environment, user(id), settings(id))
     else
       _ -> nil
     end
@@ -307,8 +340,8 @@ defmodule Slipdock.AI.Keys do
   defp sole_settings do
     with :closed <- Slipdock.Settings.signup_mode(),
          [{id, _entry}] <- Enum.filter(read()["users"], fn {id, _e} -> usable?(settings(id)) end),
-         %User{admin: true} <- user(id) do
-      settings(id)
+         %User{admin: true, disabled_at: nil} = user <- user(id) do
+      source(:sole_admin, user, settings(id))
     else
       _ -> nil
     end
