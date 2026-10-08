@@ -848,17 +848,30 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
       >
         <.icon name="hero-lock-closed" class="size-3.5" /> You have read-only access to this card.
       </p>
-      <.link
+      <div
         :if={@parent}
-        navigate={~p"/boards/#{@parent.board}/cards/#{@parent.card.id}"}
-        class="flex min-w-0 items-center gap-1.5 bg-base-200/60 px-6 py-1.5 text-xs text-base-content/60 hover:text-base-content"
-        title={"Back to parent card: #{@parent.card.title}"}
+        id="card-parent"
+        class="flex min-w-0 items-center gap-3 bg-base-200/60 px-6 py-1.5 text-xs text-base-content/60"
       >
-        <.icon name="hero-arrow-uturn-left" class="size-3.5 shrink-0" />
-        <span class="shrink-0">Parent card</span>
-        <span class="truncate font-medium">{@parent.card.title}</span>
-        <span class="shrink-0 text-base-content/40">on {@parent.board.name}</span>
-      </.link>
+        <.link
+          navigate={~p"/boards/#{@parent.board}/cards/#{@parent.card.id}"}
+          class="flex min-w-0 items-center gap-1.5 hover:text-base-content"
+          title={"Back to parent card: #{@parent.card.title}"}
+        >
+          <.icon name="hero-arrow-uturn-left" class="size-3.5 shrink-0" />
+          <span class="shrink-0">Parent card</span>
+          <span class="truncate font-medium">{@parent.card.title}</span>
+        </.link>
+        <.link
+          navigate={~p"/boards/#{@parent.board}"}
+          class="flex min-w-0 shrink items-center gap-1.5 hover:text-base-content"
+          title={"Open the board that holds the parent card: #{@parent.board.name}"}
+        >
+          <.icon name="hero-squares-2x2" class="size-3.5 shrink-0" />
+          <span class="shrink-0">Parent board</span>
+          <span class="truncate font-medium">{@parent.board.name}</span>
+        </.link>
+      </div>
       <%!-- At the very top, so a card that is really an epic opens onto its
             board in one click instead of a scroll down to its subcards. --%>
       <div
