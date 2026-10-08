@@ -398,6 +398,25 @@ defmodule SlipdockWeb.API.CardControllerTest do
       assert [%{text: "Write it"}] = card.checklist_items
     end
 
+    test "adding, ticking and removing a checklist item over the API is in the activity log",
+         %{conn: conn, card: card} do
+      %{"item" => %{"id" => id}} =
+        conn |> post("/api/cards/#{card.id}/checklist", %{text: "Write it"}) |> json_response(201)
+
+      conn |> post("/api/checklist/#{id}/toggle") |> json_response(200)
+      conn |> delete("/api/checklist/#{id}") |> json_response(200)
+
+      %{"activity" => activity} =
+        conn |> get("/api/boards/#{card.board_id}/activity?card=#{card.id}") |> json_response(200)
+
+      assert [
+               "removed a checklist item from " <> _,
+               "ticked a checklist item on " <> _,
+               "added a checklist item to " <> _
+             ] =
+               activity |> Enum.filter(&(&1["kind"] == "checklist")) |> Enum.map(& &1["message"])
+    end
+
     test "a status update with an unknown health is a validation failure", %{
       conn: conn,
       card: card

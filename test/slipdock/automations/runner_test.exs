@@ -455,6 +455,12 @@ defmodule Slipdock.Automations.RunnerTest do
       card = fresh(card)
       assert [%{body: "Release is in " <> _}] = card.comments
       assert Enum.map(card.checklist_items, & &1.text) == ["Tag Release", "Announce"]
+
+      assert [~s(added 2 checklist items to “Release”)] ==
+               ctx.board.id
+               |> Boards.list_activities(50, card.id)
+               |> Enum.filter(&(&1.kind == "checklist"))
+               |> Enum.map(& &1.message)
     end
 
     test "a checklist item the card won't take is reported", ctx do

@@ -391,6 +391,23 @@ defmodule Slipdock.AITest do
              ]
     end
 
+    test "the assistant adding several checklist items is one line in the activity log", ctx do
+      lines = fn ->
+        ctx.card.board_id
+        |> Boards.list_activities(50, ctx.card.id)
+        |> Enum.filter(&(&1.kind == "checklist"))
+        |> Enum.map(& &1.message)
+      end
+
+      before = lines.()
+
+      [%{"type" => "checklist", "card_id" => ctx.card.id, "add" => ["One", "Two"]}]
+      |> Actions.prepare(scope(ctx))
+      |> Actions.apply()
+
+      assert lines.() -- before == [~s(added 2 checklist items to “Alpha”)]
+    end
+
     test "checklist items can be removed outright", ctx do
       steps =
         Actions.prepare(

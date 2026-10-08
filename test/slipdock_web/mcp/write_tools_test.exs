@@ -299,6 +299,39 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
       assert props.("update_card")["remove_tags"]["description"] =~ "on the board"
     end
 
+    test "one call that changes the checklist is one line in the activity log", ctx do
+      {:ok, a} = Boards.add_checklist_item(ctx.card, "One", log: false)
+      {:ok, b} = Boards.add_checklist_item(ctx.card, "Two", log: false)
+
+      ctx.conn |> call("update_card", %{card: ctx.card.id, check_items: [a.id, b.id]}) |> ok!()
+
+      ctx.conn
+      |> call("update_card", %{card: ctx.card.id, add_checklist: ["Three"], uncheck_items: [a.id]})
+      |> ok!()
+
+      %{"activity" => activity} =
+        ctx.conn |> call("activity", %{board: "delivery", card: ctx.card.id}) |> ok!()
+
+      assert [
+               ~s(changed the checklist on “Existing”: added 1, unticked 1),
+               ~s(ticked 2 checklist items on “Existing”)
+             ] ==
+               activity |> Enum.filter(&(&1["kind"] == "checklist")) |> Enum.map(& &1["message"])
+    end
+
+    test "a refused call leaves no checklist line", ctx do
+      {:ok, a} = Boards.add_checklist_item(ctx.card, "One", log: false)
+
+      ctx.conn
+      |> call("update_card", %{card: ctx.card.id, check_items: [a.id], add_tags: ["nope"]})
+      |> error!()
+
+      refute Enum.any?(
+               Boards.list_activities(ctx.board.id, 50, ctx.card.id),
+               &(&1.kind == "checklist")
+             )
+    end
+
     test "an unknown priority is refused", ctx do
       assert ctx.conn |> call("update_card", %{card: ctx.card.id, priority: "urgent"}) |> error!() =~
                "priority"

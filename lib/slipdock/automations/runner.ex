@@ -456,7 +456,11 @@ defmodule Slipdock.Automations.Runner do
   defp do_perform("add_checklist_items", action, ctx) do
     with {:ok, card} <- need_card(ctx) do
       items = action["items"] |> List.wrap() |> Enum.map(&text(&1, ctx, ""))
-      added = Enum.count(items, &match?({:ok, _}, Boards.add_checklist_item(card, &1)))
+
+      added =
+        Enum.count(items, &match?({:ok, _}, Boards.add_checklist_item(card, &1, log: false)))
+
+      Boards.log_checklist(card, added: added)
 
       if added == length(items),
         do: {:ok, "added #{added} checklist items"},

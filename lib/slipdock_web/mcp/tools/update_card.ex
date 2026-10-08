@@ -93,9 +93,18 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
              update_fields(auth, card, Map.drop(params, @id_lists ++ ["add_checklist"])),
            :ok <- each(blockers, &add_blocker(card, &1)),
            :ok <- each(unblockers, &Boards.remove_dependency(card, &1)),
-           :ok <- each(params["add_checklist"] || [], &Boards.add_checklist_item(card, &1)),
-           :ok <- each(Enum.reject(to_check, & &1.done), &Boards.toggle_checklist_item/1),
-           :ok <- each(Enum.filter(to_uncheck, & &1.done), &Boards.toggle_checklist_item/1) do
+           added = params["add_checklist"] || [],
+           ticked = Enum.reject(to_check, & &1.done),
+           unticked = Enum.filter(to_uncheck, & &1.done),
+           :ok <- each(added, &Boards.add_checklist_item(card, &1, log: false)),
+           :ok <- each(ticked, &Boards.toggle_checklist_item(&1, log: false)),
+           :ok <- each(unticked, &Boards.toggle_checklist_item(&1, log: false)),
+           :ok <-
+             Boards.log_checklist(card,
+               added: length(added),
+               ticked: length(ticked),
+               unticked: length(unticked)
+             ) do
         Boards.get_card!(card.id)
       else
         error -> Repo.rollback(error)

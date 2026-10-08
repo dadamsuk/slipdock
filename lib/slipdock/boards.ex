@@ -2952,35 +2952,92 @@ defmodule Slipdock.Boards do
 
   ## Checklist
 
-  @doc "Adds a tick box to a card or to a wiki page."
-  def add_checklist_item(owner, text) do
+  # Every change to a checklist is a line in the activity log. One that does
+  # several at once (an agent's `update_card`, a rule, the assistant) passes
+  # `log: false` to each and then `log_checklist/2` once, so one call is one
+  # line rather than one per tick box.
+
+  @doc "Adds a tick box to a card or to a wiki page. `log: false` leaves it out of the activity log."
+  def add_checklist_item(owner, text, opts \\ []) do
     position = next_position(where(ChecklistItem, ^owned_clause(owner)))
 
     %ChecklistItem{position: position}
     |> struct!(owned_by(owner))
     |> ChecklistItem.changeset(%{"text" => text})
     |> Repo.insert()
-    |> tap_ok(fn _ -> notify_owned(owner) end)
+    |> tap_ok(fn _ ->
+      notify_owned(owner)
+      if Keyword.get(opts, :log, true), do: log_checklist(owner, added: 1)
+    end)
   end
 
   @doc "A tick box on `owner` (a card or a page), or nil if it is not one of its own."
   def get_checklist_item(owner, id), do: get_owned(ChecklistItem, owner, id)
 
-  def toggle_checklist_item(%ChecklistItem{} = item) do
+  @doc "Ticks a tick box, or unticks a ticked one. `log: false` as for `add_checklist_item/3`."
+  def toggle_checklist_item(item, opts \\ [])
+
+  def toggle_checklist_item(%ChecklistItem{} = item, opts) do
     item
     |> Ecto.Changeset.change(done: !item.done)
     |> Repo.update()
-    |> tap_ok(fn _ -> notify_owned(owner_of(item)) end)
+    |> tap_ok(fn updated ->
+      owner = owner_of(item)
+      notify_owned(owner)
+
+      if Keyword.get(opts, :log, true),
+        do: log_checklist(owner, [{if(updated.done, do: :ticked, else: :unticked), 1}])
+    end)
   end
 
-  def toggle_checklist_item(id), do: toggle_checklist_item(Repo.get!(ChecklistItem, id))
+  def toggle_checklist_item(id, opts),
+    do: toggle_checklist_item(Repo.get!(ChecklistItem, id), opts)
 
-  def delete_checklist_item(%ChecklistItem{} = item) do
+  @doc "Removes a tick box. `log: false` as for `add_checklist_item/3`."
+  def delete_checklist_item(item, opts \\ [])
+
+  def delete_checklist_item(%ChecklistItem{} = item, opts) do
     Repo.delete(item)
-    |> tap_ok(fn _ -> notify_owned(owner_of(item)) end)
+    |> tap_ok(fn _ ->
+      owner = owner_of(item)
+      notify_owned(owner)
+      if Keyword.get(opts, :log, true), do: log_checklist(owner, removed: 1)
+    end)
   end
 
-  def delete_checklist_item(id), do: delete_checklist_item(Repo.get!(ChecklistItem, id))
+  def delete_checklist_item(id, opts),
+    do: delete_checklist_item(Repo.get!(ChecklistItem, id), opts)
+
+  @doc """
+  One activity line for what was done to `owner`'s checklist: `changes` counts
+  any of `added`, `ticked`, `unticked` and `removed`. Nothing is logged when
+  every count is zero.
+  """
+  def log_checklist(owner, changes) do
+    case for verb <- ~w(added ticked unticked removed)a,
+             (n = changes[verb] || 0) > 0,
+             do: {verb, n} do
+      [] ->
+        :ok
+
+      done ->
+        with {:ok, _} <- log_owned(owner, "checklist", checklist_message(done, owner.title)),
+             do: :ok
+    end
+  end
+
+  defp checklist_message([{verb, n}], title) do
+    on = %{added: "to", removed: "from"}[verb] || "on"
+    "#{verb} #{items(n)} #{on} “#{title}”"
+  end
+
+  defp checklist_message(done, title) do
+    "changed the checklist on “#{title}”: " <>
+      Enum.map_join(done, ", ", fn {v, n} -> "#{v} #{n}" end)
+  end
+
+  defp items(1), do: "a checklist item"
+  defp items(n), do: "#{n} checklist items"
 
   ## Comments
 

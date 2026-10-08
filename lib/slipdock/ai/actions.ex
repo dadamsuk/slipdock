@@ -169,7 +169,13 @@ defmodule Slipdock.AI.Actions do
               "Add #{length(add)} checklist #{plural(length(add), "item")} to “#{card.title}”: #{Enum.join(add, "; ")}",
               fn ->
                 with {:ok, fresh} <- fresh(card, scope) do
-                  Enum.each(add, &Boards.add_checklist_item(fresh, &1))
+                  added =
+                    Enum.count(
+                      add,
+                      &match?({:ok, _}, Boards.add_checklist_item(fresh, &1, log: false))
+                    )
+
+                  Boards.log_checklist(fresh, added: added)
                   :ok
                 end
               end
