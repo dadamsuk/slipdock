@@ -271,6 +271,15 @@ defmodule Slipdock.Automations.Runner do
   {{card.description}}
   """
 
+  # After every runner job's prompt, the rule's own included: a job runs with
+  # nobody watching, and an agent that stops to ask waits for ever.
+  @unattended "You are running unattended: nobody will answer questions. Choose any inputs " <>
+                "from the card, say what you chose in a comment, and carry on. If something " <>
+                "is missing that you can't infer, comment, flag the card waiting and stop."
+
+  @doc "The paragraph that ends every runner job's prompt."
+  def unattended, do: @unattended
+
   ## Running ------------------------------------------------------------------
 
   @doc """
@@ -568,7 +577,9 @@ defmodule Slipdock.Automations.Runner do
   # the kind means is the runner's own business (see `Slipdock.Runners`).
   defp do_perform("runner", action, ctx) do
     with {:ok, card} <- need_card(ctx) do
-      prompt = text(action["prompt"], ctx, render(@runner_prompt, ctx.bindings))
+      prompt =
+        String.trim_trailing(text(action["prompt"], ctx, render(@runner_prompt, ctx.bindings))) <>
+          "\n\n" <> @unattended
 
       attrs = %{
         pool: action["pool"],

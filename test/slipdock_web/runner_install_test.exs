@@ -107,6 +107,49 @@ defmodule SlipdockWeb.RunnerInstallTest do
     assert unit =~ "Restart=always"
   end
 
+  describe "the Slipdock tools for claude" do
+    defp config_text(ctx), do: File.read!(Path.join(ctx.home, ".config/slipdock-runner/config"))
+
+    test "allowed by default, for both names the server can have", ctx do
+      {_, 0} = install(ctx, @base)
+      assert sourced(ctx, "ALLOWED_TOOLS") == "mcp__claude_ai_Slipdock,mcp__slipdock"
+
+      assert config_text(ctx) =~
+               ~S(--permission-mode "$PERMISSION_MODE" --allowedTools "$ALLOWED_TOOLS") <> "\n}"
+    end
+
+    test "or for the servers named, or none at all", ctx do
+      {_, 0} = install(ctx, @base ++ ["--mcp-servers", "my-slipdock"])
+      assert sourced(ctx, "ALLOWED_TOOLS") == "mcp__my-slipdock"
+
+      {_, 0} = install(ctx, @base ++ ["--mcp-servers", ""])
+      assert sourced(ctx, "ALLOWED_TOOLS") == ""
+      refute config_text(ctx) =~ "--allowedTools"
+    end
+
+    test "never for codex, whatever is named", ctx do
+      {_, 0} = install(ctx, @base ++ ~w(--agent codex --mcp-servers slipdock))
+      assert sourced(ctx, "ALLOWED_TOOLS") == ""
+      refute config_text(ctx) =~ "--allowedTools"
+    end
+
+    test "a name that isn't one is refused before anything is written", ctx do
+      for names <- ["slip dock", "a;rm -rf ~", "x/y", "$(id)"] do
+        {out, 1} = install(ctx, @base ++ ["--mcp-servers", names])
+        assert out =~ "--mcp-servers must be names", names
+      end
+
+      refute File.exists?(Path.join(ctx.home, ".local"))
+    end
+  end
+
+  test "--help shows every option", ctx do
+    {out, 0} = install(ctx, ["--help"])
+    assert out =~ "--mcp-servers A,B"
+    assert out =~ "cancelled or timeout"
+    assert out =~ "--no-start"
+  end
+
   test "on macOS, a launchd agent instead", ctx do
     {out, 0} = install(ctx, @base ++ ~w(--service launchd))
     plist = File.read!(Path.join(ctx.home, "Library/LaunchAgents/us.slipdock.runner.plist"))
@@ -190,11 +233,18 @@ defmodule SlipdockWeb.RunnerInstallTest do
 
   # The wizard prints a one-liner and a preview of the config; neither is
   # allowed to drift from what the installer really takes and writes.
-  for agent <- ~w(claude codex custom) do
-    test "the wizard's #{agent} one-liner runs, and writes the config it previews", ctx do
+  for {agent, tools} <- [
+        {"claude", "true"},
+        {"claude", "false"},
+        {"codex", "true"},
+        {"custom", "true"}
+      ] do
+    test "the wizard's #{agent} one-liner (Slipdock tools #{tools}) runs, and writes the config it previews",
+         ctx do
       answers = %{
         "pool" => "dev",
         "agent" => unquote(agent),
+        "slipdock_tools" => unquote(tools),
         "command" => ~S{make it P="$SLIPDOCK_PROMPT" 'quoted'},
         "cwd" => "/srv/it's work",
         "timeout" => "900",

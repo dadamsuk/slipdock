@@ -87,6 +87,10 @@ defmodule Slipdock.Automations.RunnerActionTest do
       assert job.prompt =~ "Work on Slipdock card ##{card.id}: Fix login"
       assert job.prompt =~ "/boards/#{ctx.board.id}/cards/#{card.id}"
       assert job.prompt =~ "It 500s"
+      # Nobody is there to answer: it says so, last.
+      assert String.ends_with?(job.prompt, "It 500s\n\n" <> Runner.unattended())
+      assert Runner.unattended() =~ "nobody will answer questions"
+      assert Runner.unattended() =~ "flag the card waiting and stop"
     end
 
     test "fills placeholders in a prompt the rule writes", ctx do
@@ -106,7 +110,9 @@ defmodule Slipdock.Automations.RunnerActionTest do
         })
 
       Runner.run(rule, %{type: "card_updated", card: card, board_id: ctx.board.id})
-      assert [%Job{kind: "codex", prompt: "Review Ship it"}] = Repo.all(Job)
+      # The rule's prompt replaces the default, and is still told it's unattended.
+      assert [%Job{kind: "codex", prompt: prompt}] = Repo.all(Job)
+      assert prompt == "Review Ship it\n\n" <> Runner.unattended()
     end
 
     test "a second run while the first job is open queues nothing new", ctx do

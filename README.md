@@ -549,7 +549,9 @@ service), a Windows machine (a PowerShell runner, started by Task Scheduler,
 no admin), Claude Code in a `/loop`, or Claude on a schedule (a Desktop task
 or a cloud routine), and it gives you exactly what to paste — and can add the
 rule that sends a list's cards, plus standing instructions and before/after
-hooks for every job. A runner costs nothing while it waits; the Claude
+hooks for every job. A Claude runner may use the Slipdock MCP tools without
+asking (on by default) and every job is told nobody will answer questions, since
+nobody is watching. A runner costs nothing while it waits; the Claude
 options need no install but use a Claude turn per check.
 `slipdock runner new <board> [name] --pool default [--scenario …]` prints the
 same, `slipdock runner ls|setup|token|rm` manage them, and `slipdock jobs

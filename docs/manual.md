@@ -1379,7 +1379,10 @@ the agent, and reports how it went.
  "prompt": "optional — by default the card's number, title, link and description"}
 ```
 
-The prompt may use the same `{{card.*}}` placeholders as any action. The
+The prompt may use the same `{{card.*}}` placeholders as any action. Every
+job's prompt, a rule's own included, ends with a paragraph saying it runs
+unattended: nobody will answer questions, so choose inputs from the card and
+say what was chosen, or comment, flag the card `waiting` and stop. The
 **Send cards to a coding agent** preset is the usual rule: when a card
 arrives in a list, send it to a pool.
 
@@ -1417,6 +1420,18 @@ scenarios need no install but every check for work is a Claude turn. The
 answers are kept on the runner (never the token), so **Setup** shows the
 steps again, and **Make a new token** replaces a lost one.
 
+**The Slipdock tools.** A job runs Claude with `-p`, where nobody can approve
+a tool, so a Claude runner is set up to allow every tool of the Slipdock MCP
+server without asking: **Let it use the Slipdock tools**, on by default, adds
+`--allowedTools` for the servers it names (`claude_ai_Slipdock`, the claude.ai
+connector, and `slipdock`, one added with `claude mcp add`; the name on a
+machine is in `claude mcp list`). The installers take it as `--mcp-servers
+A,B` / `-McpServers 'A,B'` and write it to the config as `ALLOWED_TOOLS` /
+`$AllowedTools`; `''` turns it off, and then the agent has no access to the
+board. Give a Claude runner the project's folder as its working directory, too:
+Claude Code loads a project's own commands, skills and `.claude/settings.json`
+only from where it starts, and the wizard warns when it is blank.
+
 **Instructions and hooks.** The wizard also takes standing instructions — how
 much to write on the card (quiet, normal or verbose) and anything else you
 would otherwise add by hand — which are put after every job's prompt, and two
@@ -1447,7 +1462,7 @@ own work rather than from a background loop, so it holds its job on a
 
 | CLI | What it does |
 |---|---|
-| `slipdock runner new <board> [name] --pool P [--scenario …]` | The **Connect a runner** wizard: prints exactly what to paste for `server` (the default), `windows`, `loop` or `cloud`, with `--agent`, `--command`, `--kind`, `--cwd`, `--permission-mode`, `--timeout`, `--service`, `--where desktop\|cloud` and `--repo`. For a runner of its own (server, windows) it makes one and prints its token, once; `--column LIST` adds a rule sending that list's cards. |
+| `slipdock runner new <board> [name] --pool P [--scenario …]` | The **Connect a runner** wizard: prints exactly what to paste for `server` (the default), `windows`, `loop` or `cloud`, with `--agent`, `--command`, `--kind`, `--cwd`, `--permission-mode`, `--no-slipdock-tools`, `--mcp-servers A,B`, `--timeout`, `--service`, `--where desktop\|cloud` and `--repo`. For a runner of its own (server, windows) it makes one and prints its token, once; `--column LIST` adds a rule sending that list's cards. |
 | `slipdock runner setup <board> <runner> [options]` | A runner's steps again, from the answers saved on it (the token left out); with any of `runner new`'s options, including `--verbosity`, `--instructions`, `--before-job`, `--after-job` and `--hooks prompt\|hook`, saves them and prints what changes. |
 | `slipdock runner token <board> <runner>` | A new token for a runner, the old one ended, with its steps written out for it. |
 | `slipdock runner ls <board>` / `slipdock runners <board>` | The board's runners: pool, last seen, current job. |

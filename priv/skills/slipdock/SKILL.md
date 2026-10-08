@@ -306,6 +306,7 @@ slipdock runner new <board> [name] --pool P [--scenario server|windows|loop|clou
     [--timeout S] [--service auto|systemd|launchd|none] [--where desktop|cloud] [--repo owner/repo]
     [--column LIST] [--verbosity quiet|normal|verbose] [--instructions TEXT]
     [--before-job CMD] [--after-job CMD] [--hooks prompt|hook]
+    [--no-slipdock-tools] [--mcp-servers A,B]
                                               # prints exactly what to paste; server/windows make a
                                               # runner and print its token, ONCE; --column adds the rule
 slipdock runner ls <board>                    # runners: pool, last seen, current job
@@ -344,6 +345,14 @@ don't try to put a command in a rule, and a job failing with exit 127 means that
 no function for the kind. To set the whole thing up, `slipdock runner new` (or **Automations →
 Connect a runner** in the UI) is better than writing the rule by hand. A job's token is shown
 once: never paste it into a card, comment or page.
+
+Every runner job's prompt ends by saying it runs unattended (nobody answers questions). A
+Claude runner may use the Slipdock MCP tools without asking, for the servers named with
+`--mcp-servers` (default `claude_ai_Slipdock,slipdock`; the name on that machine is in
+`claude mcp list`); `--no-slipdock-tools` leaves it with no access to the board. When a runner's
+agent says it can't use the Slipdock tools, that name is the first thing to check. Give a Claude
+runner `--cwd` the project's folder: Claude Code loads the project's own commands, skills and
+`.claude/settings.json` only from where it starts, so with none a project command is "not found".
 
 The `webhook` action is the way out to anything else the user runs: it calls a URL of theirs
 with the card — id, title, a link to it, list, priority, assignee, start and due dates,
