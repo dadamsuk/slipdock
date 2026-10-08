@@ -33,7 +33,9 @@ does), and `read_page` reads one. `page_info` answers what `page links`, `page s
 `page wanted` and `page resolve` do — ask it for `sections` before a `write_page` section edit
 rather than guessing the heading path. `page_history` is `page history` and `page diff` (`rev`, or
 `diff: true` for the latest save), and `revert_page` is `page revert`: it needs the page's current
-`content_hash` as `base_hash`. Anything the tools don't cover (automations, sprints, attachments,
+`content_hash` as `base_hash`. `update_page` is `page edit --title/--summary`, `page mv`, `page file`,
+`page rm`/`page restore` (`archived`) and `page pin --card` (`pin_card`/`unpin_card`). Anything
+the tools don't cover (automations, sprints, attachments,
 fields) is still the CLI or the API.
 
 ## If the CLI is not installed here

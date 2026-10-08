@@ -36,6 +36,7 @@ defmodule SlipdockWeb.MCP.Tools do
     Tools.ArchiveBoard,
     Tools.DeleteBoard,
     Tools.WritePage,
+    Tools.UpdatePage,
     Tools.RevertPage
   ]
 
