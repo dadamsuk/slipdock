@@ -1457,7 +1457,7 @@ It can also add the rule that sends a list's cards to the pool, or use one
 you have. A runner on a machine costs nothing while it waits; the Claude
 scenarios need no install but every check for work is a Claude turn. The
 answers are kept on the runner (never the token), so **Setup** shows the
-steps again, **Change the answers** changes only what you change, and **Make
+steps again, **Change Settings** changes only what you change, and **Make
 a new token** replaces a lost one.
 
 **The Slipdock tools.** A job runs Claude with `-p`, where nobody can approve
