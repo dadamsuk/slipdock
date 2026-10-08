@@ -43,8 +43,9 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
         percent_complete: %{type: "integer", minimum: 0, maximum: 100},
         add_flags: list,
         remove_flags: list,
-        add_tags: list,
-        remove_tags: list,
+        add_tags:
+          Map.put(list, :description, "Tag names already on the board (get_board lists them)."),
+        remove_tags: Map.put(list, :description, "Tag names on the board."),
         assignees:
           Map.put(list, :description, "Replaces who is on it; [] unassigns. \"me\" for yourself."),
         add_assignees: list,

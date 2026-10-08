@@ -30,7 +30,11 @@ defmodule SlipdockWeb.MCP.Tools.CreateCard do
         column: %{type: "string", description: "List name; default the board's ready list."},
         top: %{type: "boolean", description: "Put it at the top of the list (default bottom)."},
         priority: %{type: "string", enum: ["none", "low", "medium", "high", "critical"]},
-        tags: %{type: "array", items: %{type: "string"}},
+        tags: %{
+          type: "array",
+          items: %{type: "string"},
+          description: "Tag names already on the board (get_board lists them)."
+        },
         assignees: %{
           type: "array",
           items: %{type: "string"},

@@ -10,7 +10,7 @@ defmodule SlipdockWeb.API.CardWrites do
   controller answers and MCP turns into tool errors.
   """
   alias Slipdock.Boards
-  alias Slipdock.Boards.Card
+  alias Slipdock.Boards.{Board, Card}
 
   @card_fields ~w(title description priority flags start_date due_date date_precision completed percent_complete time_spent time_estimate time_unit log_time color)
 
@@ -135,12 +135,23 @@ defmodule SlipdockWeb.API.CardWrites do
     Enum.reduce_while(names, {:ok, []}, fn name, {:ok, acc} ->
       case Boards.find_tag(board, name) do
         {:ok, tag} -> {:cont, {:ok, acc ++ [tag]}}
-        _ -> {:halt, {:error, :not_found, "tag #{inspect(name)}"}}
+        _ -> {:halt, {:error, :unprocessable_entity, unknown_tag(board, name)}}
       end
     end)
   end
 
   def resolve_tags(board, name) when is_binary(name), do: resolve_tags(board, [name])
+
+  # Tags are made on the board, never by naming one on a card, so the way out
+  # of a typo is to know which there are.
+  defp unknown_tag(board, name) do
+    on = "no tag #{inspect(to_string(name))} on board #{board.code || board.id}"
+
+    case board |> Board.root_id() |> Boards.list_tags() do
+      [] -> on <> "; it has no tags (they are made on the board, not by naming one here)"
+      tags -> on <> "; its tags are: " <> Enum.map_join(tags, ", ", & &1.name)
+    end
+  end
 
   def maybe_set_tags(_card, nil), do: {:ok, nil}
   def maybe_set_tags(card, tags), do: Boards.set_card_tags(card, tags)
