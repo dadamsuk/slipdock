@@ -824,6 +824,7 @@ defmodule Slipdock.Wiki do
   defdelegate backlinks(page, reader \\ nil), to: Links
   defdelegate wanted(board), to: Links
   defdelegate pages_for_card(card, reader \\ nil), to: Links, as: :for_card
+  defdelegate pages_for_cards(cards, reader \\ nil), to: Links, as: :for_cards
   defdelegate members(board), to: Links
   defdelegate reconcile_links(page), to: Links, as: :reconcile
 

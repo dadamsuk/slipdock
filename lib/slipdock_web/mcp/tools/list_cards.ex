@@ -5,9 +5,14 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
   alias Slipdock.Boards
   alias Slipdock.Swimlanes.Config
   alias SlipdockWeb.API.Authorize
+  alias SlipdockWeb.API.JSON, as: V
   alias SlipdockWeb.MCP.{Args, Tools}
+  alias SlipdockWeb.MCP.Tools.GetCard
 
   @max 200
+  # A card in full carries every comment and checklist item, so a page of
+  # them is far bigger than a page of lines.
+  @full_default 20
 
   # What `Boards.list_cards/2` takes for each.
   @archived %{"exclude" => nil, "include" => "all", "only" => "true"}
@@ -22,7 +27,8 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
   def description,
     do:
       "Cards on a board, in list order. To find the next thing to do: column = the ready " <>
-        "list, open = true, deps = \"ready\", no_assignee = true, then take the first."
+        "list, open = true, deps = \"ready\", no_assignee = true, then take the first. " <>
+        "full = true: each card as get_card returns it."
 
   @impl true
   def input_schema do
@@ -50,7 +56,17 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
         due: %{type: "string", enum: keys(Config.dues())},
         tag: %{type: "string"},
         q: %{type: "string", description: "Words in the title or description."},
-        limit: %{type: "integer", description: "At most this many (default 50, max #{@max})."}
+        full: %{
+          type: "boolean",
+          description:
+            "Each card in full, as get_card returns it (comments, checklist, docs), " <>
+              "instead of a line."
+        },
+        limit: %{
+          type: "integer",
+          description:
+            "At most this many (default 50, or #{@full_default} when full; max #{@max})."
+        }
       },
       required: ["board"],
       additionalProperties: false
@@ -66,18 +82,36 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
 
     with {:ok, ref} <- Args.required(args, "board"),
          {:ok, filters} <- filters(args, context.user),
-         {:ok, limit} <- Args.limit(args, "limit", 50, @max),
+         {:ok, full} <- Args.boolean(args, "full", false),
+         {:ok, limit} <- Args.limit(args, "limit", if(full, do: @full_default, else: 50), @max),
          {:ok, board} <- Args.refusal(Authorize.fetch_board(auth, ref, :read)) do
       cards = Authorize.visible(auth, Boards.list_cards(board, filters))
+      page = Enum.take(cards, limit)
 
       {:ok,
        %{
          board: %{id: board.id, code: board.code, name: board.name},
          total: length(cards),
          truncated: length(cards) > limit,
-         cards: cards |> Enum.take(limit) |> Enum.map(&Tools.card_line/1)
+         cards:
+           if(full, do: in_full(board, page, context), else: Enum.map(page, &Tools.card_line/1))
        }}
     end
+  end
+
+  # What get_card answers, for each card, with the docs looked up in one go
+  # rather than once a card.
+  defp in_full(board, cards, context) do
+    docs = Slipdock.Wiki.pages_for_cards(cards, context.user)
+
+    board
+    |> Boards.with_details(cards)
+    |> Enum.map(fn card ->
+      card
+      |> V.card()
+      |> Map.put(:docs, docs |> Map.get(card.id, []) |> Enum.map(&GetCard.doc/1))
+      |> Map.put(:url, GetCard.url(card, context.base_url))
+    end)
   end
 
   defp filters(args, user) do

@@ -2604,7 +2604,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `get_guide` | The [agent guide](#skills) for this caller: the conventions, and the caller's own boards and lists. Read once per session, before changing anything. |
 | `list_boards` | Boards you can see, with code, lists and which list is ready, in progress and done. `archived: true` includes archived ones. |
 | `get_board` | A board's lists in order, with a summary of each card and its description. |
-| `list_cards` | Cards in list order, filtered by `column`, `open`, `deps: "ready"`, `no_assignee` and `archived` (`exclude`, `include` or `only`). |
+| `list_cards` | Cards in list order, filtered by `column`, `open`, `deps: "ready"`, `no_assignee` and `archived` (`exclude`, `include` or `only`). `full: true` gives each card as `get_card` does (comments, checklist, docs), 20 at a time unless `limit` says otherwise. |
 | `get_card` | A card in full: description, checklist with item ids, comments, dependencies, subcards and the wiki pages about it. |
 | `search` | Cards, comments and wiki pages by meaning, across every board you can read or one. |
 | `read_page` | A wiki page's Markdown and its `content_hash`, by code (`W-31`) or by board and slug or title. |

@@ -455,12 +455,25 @@ defmodule Slipdock.Wiki.Links do
   end
 
   @doc "The pages that reference a card, pinned first — the card's Docs section."
-  def for_card(%Card{id: id}, reader \\ nil) do
-    from(l in Link, where: l.target_card_id == ^id, order_by: [desc: l.pinned, desc: l.count])
+  def for_card(%Card{id: id} = card, reader \\ nil),
+    do: [card] |> for_cards(reader) |> Map.get(id, [])
+
+  @doc """
+  `for_card/2` for many cards in one query: a map of card id to the pages
+  that reference it, pinned first. Cards nothing references are left out.
+  """
+  def for_cards(cards, reader \\ nil) do
+    ids = Enum.map(cards, & &1.id)
+
+    from(l in Link,
+      where: l.target_card_id in ^ids,
+      order_by: [desc: l.pinned, desc: l.count, asc: l.id]
+    )
     |> Repo.all()
     |> Repo.preload([:source_page, page: [:board], source_card: [:column]])
     |> Enum.map(&name_the_source/1)
     |> Enum.filter(&readable_link_source?(&1, reader))
+    |> Enum.group_by(& &1.target_card_id)
   end
 
   # What a backlink shows is the page it was written on, and a comment left

@@ -171,7 +171,8 @@ that connects gets a small set of tools rather than the whole API:
 `update_card` also sets what blocks a card and works its checklist (add
 items, tick and untick them by the ids `get_card` shows); `move_card` takes
 `board` to send a card, subcards and all, to another board; `list_cards`
-takes `archived` (`exclude`, the default, `include` or `only`); and
+takes `archived` (`exclude`, the default, `include` or `only`) and `full:
+true` for every card as `get_card` gives it; and
 `archive_card` puts a card away or, with `restore`, brings it back, as
 `archive_board` does for a board you own. The deletes cannot be undone, so
 each has to be meant: `delete_card` needs `confirm: true`, `delete_board`

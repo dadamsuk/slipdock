@@ -39,19 +39,22 @@ defmodule SlipdockWeb.MCP.Tools.GetCard do
     with {:ok, id} <- Args.id(args, "card"),
          {:ok, card} <- fetch(id),
          :ok <- Args.refusal(Authorize.card(auth, card, :read)) do
-      docs =
-        card
-        |> Slipdock.Wiki.pages_for_card(context.user)
-        |> Enum.map(&%{code: &1.page.code, title: &1.page.title, pinned: &1.pinned})
+      docs = card |> Slipdock.Wiki.pages_for_card(context.user) |> Enum.map(&doc/1)
 
       {:ok,
        auth
        |> Authorize.visible(card)
        |> V.card()
        |> Map.put(:docs, docs)
-       |> Map.put(:url, context.base_url <> "/boards/#{card.board_id}/cards/#{card.id}")}
+       |> Map.put(:url, url(card, context.base_url))}
     end
   end
+
+  @doc "A wiki page about a card, as a card's `docs` lists it."
+  def doc(link), do: %{code: link.page.code, title: link.page.title, pinned: link.pinned}
+
+  @doc "Where the card opens in the web app."
+  def url(card, base_url), do: base_url <> "/boards/#{card.board_id}/cards/#{card.id}"
 
   defp fetch(id) do
     case Boards.get_card(id) do

@@ -348,7 +348,9 @@ defmodule SlipdockWeb.APIGuide do
     and the Claude apps connect; discovery starts from the `401` that `/mcp`
     answers without a token). It offers a small set of tools rather
     than the whole API: `whoami`, `get_guide` (this text), `list_boards`,
-    `get_board`, `list_cards`, `get_card`, `search`, `read_page`, and for
+    `get_board`, `list_cards` (`full: true` gives every card as `get_card`
+    does, comments, checklist and docs included, so a whole board reads in
+    one call), `get_card`, `search`, `read_page`, and for
     writing `create_card`, `update_card` (fields, flags, tags, assignees,
     dependencies and the checklist), `move_card` (to another board too),
     `comment`, `complete_card`, `archive_card` (and restore), `delete_card`,
