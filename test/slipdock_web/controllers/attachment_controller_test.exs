@@ -56,6 +56,43 @@ defmodule SlipdockWeb.AttachmentControllerTest do
     assert conn.status == 200
   end
 
+  test "a view-only reader gets files only on cards their view shows", %{
+    board: board,
+    card: card,
+    image: image,
+    user: owner
+  } do
+    viewer = user_fixture("viewer@example.com")
+    {:ok, card} = Boards.update_card(card, %{"title" => "Public notes"})
+    hidden = card_fixture(hd(board.columns), %{"title" => "Payroll"})
+
+    {:ok, hidden_file} =
+      Boards.add_attachment(
+        hidden,
+        %{filename: "salaries.png", content_type: "image/png"},
+        Boards.attachment_path(image)
+      )
+
+    {:ok, view} =
+      Boards.create_saved_view(board, %{
+        "name" => "Public",
+        "config" => Slipdock.Swimlanes.Config.to_map(%Slipdock.Swimlanes.Config{q: "public"})
+      })
+
+    {:ok, _} = Access.grant(view, viewer, "read", owner)
+    assert Access.board_permission(viewer, board) == :view
+
+    assert get(conn_as(viewer), Boards.attachment_url(image)).status == 200
+    assert get(conn_as(viewer), Boards.attachment_url(hidden_file)).status == 404
+
+    # Once the card leaves the view, so do its files.
+    {:ok, _} = Boards.update_card(card, %{"title" => "Notes"})
+    assert get(conn_as(viewer), Boards.attachment_url(image)).status == 404
+
+    # The owner still reaches both.
+    assert get(conn_as(owner), Boards.attachment_url(hidden_file)).status == 200
+  end
+
   @tag :anonymous
   test "signed-out requests are sent to the login page", %{conn: conn, image: image} do
     conn = get(conn, Boards.attachment_url(image))

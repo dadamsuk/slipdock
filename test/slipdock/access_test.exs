@@ -130,6 +130,36 @@ defmodule Slipdock.AccessTest do
     assert Access.view_permission(ctx.other, view) == :write
   end
 
+  test "view_shows_card? is true only for cards a granted view selects", ctx do
+    hidden = card_fixture(hd(ctx.board.columns), %{"title" => "Payroll"})
+
+    {:ok, view} =
+      Boards.create_saved_view(ctx.board, %{
+        "name" => "Secrets",
+        "config" => Config.to_map(%Config{q: "secret"})
+      })
+
+    # No grant yet: nothing at all.
+    refute Access.view_shows_card?(ctx.other, ctx.card)
+
+    {:ok, _} = Access.grant(view, ctx.other, "read", ctx.owner)
+    assert Access.view_shows_card?(ctx.other, ctx.card)
+    refute Access.view_shows_card?(ctx.other, hidden)
+    refute Access.view_shows_card?(nil, ctx.card)
+
+    # An archived card is gone from every view.
+    {:ok, archived} = Boards.archive_card(ctx.card)
+    refute Access.view_shows_card?(ctx.other, archived)
+
+    # A view on another board is no way into this one's cards.
+    elsewhere = board_fixture(%{"name" => "Elsewhere"}, owner: ctx.owner)
+    stranger_card = card_fixture(hd(elsewhere.columns), %{"title" => "Secret too"})
+    refute Access.view_shows_card?(ctx.other, stranger_card)
+
+    # Real board access is card_permission's question, not this one's.
+    refute Access.view_shows_card?(ctx.owner, hidden)
+  end
+
   test "grant validation", ctx do
     assert {:error, msg} = Access.grant(ctx.board, "not an email", "read", ctx.owner)
     assert msg =~ "email"
