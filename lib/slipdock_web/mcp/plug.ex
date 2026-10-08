@@ -264,8 +264,8 @@ defmodule SlipdockWeb.MCP.Plug do
     "Slipdock is a kanban board with a wiki. Top-level cards are epics and the work " <>
       "is in their subcards; take work from the top of the ready list, move a card " <>
       "to the doing list when you start it, comment as you go, and mark it complete " <>
-      "and move it to the done list when it is finished. Read the full conventions " <>
-      "with the get_guide tool, or at #{SlipdockWeb.BaseURL.from_conn(conn)}/api/guide."
+      "and move it to the done list when it is finished. Read the conventions with " <>
+      "the get_guide tool (a short guide; it names the rest), or in full at #{SlipdockWeb.BaseURL.from_conn(conn)}/api/guide."
   end
 
   ## Answers -----------------------------------------------------------------
