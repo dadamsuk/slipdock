@@ -62,6 +62,12 @@ defmodule SlipdockWeb.API.AdminController do
         # `system_user` is the admin chosen here (nil for none), `source` and
         # `using` what is actually in effect — see `Slipdock.AI.Keys.system_source/0`.
         ai: ai_json(settings),
+        # Meeting capture: off unless turned on, and where it shows when on.
+        meetings: %{
+          enabled: settings.meetings_enabled,
+          visibility: settings.meetings_visibility,
+          hideable: settings.meetings_hideable
+        },
         pending_signups: Accounts.count_pending_signups()
       }
     })

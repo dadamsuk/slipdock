@@ -50,6 +50,12 @@ defmodule Slipdock.Boards.Board do
     # archived — a sub-board goes away with the card it hangs off.
     field :archived_at, :utc_datetime
 
+    # When this board had its first meeting capture (see `Slipdock.Meetings`).
+    # Kept on the row so the board page can tell whether its Meetings tab is
+    # due without asking the captures table: a board that never had one pays
+    # nothing for meeting mode existing.
+    field :meetings_used_at, :utc_datetime
+
     # Set when this board lives inside a card (a "sub-board").
     belongs_to :parent_card, Slipdock.Boards.Card
     # The top-level board of the tree; nil on a root board. Tags are shared

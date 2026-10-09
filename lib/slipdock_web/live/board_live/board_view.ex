@@ -125,6 +125,10 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :ai?, :boolean, required: true
   attr :rules, :list, required: true
 
+  attr :meetings_path, :string,
+    default: nil,
+    doc: "where the menu's Capture a meeting goes, if anywhere"
+
   @doc "The board's header buttons: sprints, the chat and the board's menu, sharing among it."
   def board_actions(assigns) do
     ~H"""
@@ -196,6 +200,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
           paths={@paths}
           can_manage={@can_manage}
           rules={@rules}
+          meetings_path={@meetings_path}
         />
       </ul>
     </div>
@@ -208,6 +213,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :view_only, :boolean, required: true
   attr :ai?, :boolean, required: true
   attr :rules, :list, required: true
+  attr :meetings_path, :string, default: nil
 
   @doc """
   The board's entries in the phone's navigation Menu: what the header's
@@ -226,6 +232,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
       paths={@paths}
       can_manage={@can_manage}
       rules={@rules}
+      meetings_path={@meetings_path}
     />
     """
   end
@@ -234,6 +241,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :paths, :map, required: true
   attr :can_manage, :boolean, required: true
   attr :rules, :list, required: true
+  attr :meetings_path, :string, default: nil
 
   # The board's own menu, wherever it is drawn: the header's `…` or the
   # phone's Menu, each with its own id on the share link.
@@ -266,6 +274,13 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         <.icon name="hero-cog-6-tooth" class="size-4" /> Board settings
       </.link>
     </li>
+    <%!-- Meeting mode on, but this board has had no capture yet: one way in,
+          rather than a tab with nothing behind it (see `Slipdock.Meetings`). --%>
+    <li :if={@meetings_path}>
+      <.link navigate={@meetings_path} id={@share_id <> "-capture-meeting"}>
+        <.icon name="hero-microphone" class="size-4" /> Capture a meeting
+      </.link>
+    </li>
     """
   end
 
@@ -286,6 +301,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :share_key, :integer, required: true
   attr :favourites, :any, required: true
   attr :narrow?, :boolean, required: true
+  attr :meetings, :atom, default: :none, doc: "`Slipdock.Meetings.presence/2` for this board"
   attr :renaming_column, :any, required: true
   attr :focus, :any, required: true
   attr :adding_to, :any, required: true
@@ -298,6 +314,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
     <div class="flex h-full flex-col">
       <.board_toolbar
         board={@board}
+        meetings={@meetings}
         filters={@filters}
         filtering={@filtering}
         columns={@columns}
@@ -901,6 +918,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :groups, :list, default: []
   attr :share_key, :integer, default: 0
   attr :marks, :any, default: nil, doc: "the reader's favourites (`Slipdock.Favourites.marks/1`)"
+  attr :meetings, :atom, default: :none
 
   # Board view's toolbar: the view switcher, search, filters, display options,
   # saved views and the count, laid out like `swim_toolbar/1` so nothing
@@ -915,6 +933,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
       <.view_tabs
         :if={!@view_only}
         board={@board}
+        meetings={@meetings}
         mode={:board}
         config={@config}
         view={@view}

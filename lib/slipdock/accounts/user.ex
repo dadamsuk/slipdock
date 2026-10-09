@@ -15,6 +15,10 @@ defmodule Slipdock.Accounts.User do
     # table), and the order the boards are listed in. Both are theirs alone.
     field :board_layout, :string, default: "grid"
     field :board_sort, :string, default: "manual"
+    # Meeting capture out of sight for this person, when the server's admin
+    # lets people choose (see `Slipdock.Meetings.visible?/2`). A display
+    # preference: the API and the CLI answer the same either way.
+    field :hide_meetings, :boolean, default: false
     # Standing on this server. `admin` is the only role there is; `disabled_at`
     # is the reversible alternative to deleting somebody, which would orphan
     # their cards and comments; `card_limit_override` beats the instance's free
@@ -90,6 +94,9 @@ defmodule Slipdock.Accounts.User do
     |> validate_inclusion(:board_layout, @layouts)
     |> validate_inclusion(:board_sort, @sorts)
   end
+
+  @doc "This person's display preferences: for now, whether meeting capture is hidden."
+  def display_changeset(user, attrs), do: cast(user, attrs, [:hide_meetings])
 
   @doc """
   The admin's view of somebody: whether they may administer this server, what

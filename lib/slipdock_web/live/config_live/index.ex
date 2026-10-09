@@ -62,7 +62,8 @@ defmodule SlipdockWeb.ConfigLive.Index do
                       board_limit board_limit_enabled item_limit item_limit_enabled
                       storage_limit_mb storage_limit_enabled trial_days trial_enabled
                       terms_url privacy_url terms_version posthog_key posthog_host
-                      posthog_respect_dnt ai_system_user_id)
+                      posthog_respect_dnt ai_system_user_id meetings_enabled
+                      meetings_visibility meetings_hideable)
 
   @mail_fields ~w(smtp_host smtp_port smtp_username smtp_password smtp_tls smtp_from_email
                   smtp_from_name)
@@ -356,10 +357,18 @@ defmodule SlipdockWeb.ConfigLive.Index do
             <.link patch={~p"/config/mail"} role="tab" class={["tab", @tab == :mail && "tab-active"]}>
               Email
             </.link>
+            <.link
+              patch={~p"/config/meetings"}
+              role="tab"
+              class={["tab", @tab == :meetings && "tab-active"]}
+            >
+              Meetings
+            </.link>
           </div>
 
           <.server_tab :if={@tab == :index} {assigns} />
           <.mail_tab :if={@tab == :mail} {assigns} />
+          <.meetings_tab :if={@tab == :meetings} {assigns} />
         </div>
       </div>
     </Layouts.app>
@@ -400,6 +409,93 @@ defmodule SlipdockWeb.ConfigLive.Index do
         <span class="font-mono font-medium">{@build.version}</span>
       </span>
     </div>
+    """
+  end
+
+  # Meeting capture (see `Slipdock.Meetings`): whether it exists here at all,
+  # and where it shows. Screen 1 of the mockups.
+  defp meetings_tab(assigns) do
+    ~H"""
+    <section
+      id="meetings-settings"
+      class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
+    >
+      <h2 class="text-lg font-semibold">Meeting mode</h2>
+      <p class="mt-1 text-sm text-base-content/60">
+        People send a meeting's recording or transcript, and Slipdock proposes the decisions,
+        actions and card changes in it, each tied to the words it came from. Nothing reaches a
+        board until somebody reviews and commits it. Off, there is no trace of it anywhere:
+        no menus, no routes, no commands, no MCP tools. Turning it off deletes nothing.
+      </p>
+
+      <.form for={@form} id="meetings-form" phx-submit="save-settings" class="mt-4 space-y-5">
+        <input type="hidden" name="settings[signup_mode]" value={@settings.signup_mode} />
+        <label class="flex cursor-pointer items-start gap-3 text-sm">
+          <input type="hidden" name="settings[meetings_enabled]" value="false" />
+          <input
+            type="checkbox"
+            id="meetings-enabled"
+            name="settings[meetings_enabled]"
+            value="true"
+            checked={@settings.meetings_enabled}
+            class="toggle toggle-sm mt-0.5"
+          />
+          <span>
+            <span class="block font-medium">Meeting mode is on</span>
+            <span class="block text-xs text-base-content/60">
+              Captures are read with each person's AI settings, so their key or endpoint is
+              what a meeting is sent to.
+            </span>
+          </span>
+        </label>
+
+        <fieldset class="space-y-2">
+          <legend class="text-sm font-medium">Where it shows</legend>
+          <label
+            :for={
+              {value, title, text} <- [
+                {:used_only, "Only where used",
+                 "A board's Meetings tab appears after its first capture. Until then there is one entry in the board's … menu."},
+                {:every_board, "On every board", "Every board has a Meetings tab."}
+              ]
+            }
+            class="flex cursor-pointer gap-3 rounded-xl p-3 ring-1 ring-base-content/10 hover:bg-base-200 has-[:checked]:bg-primary/5 has-[:checked]:ring-primary"
+          >
+            <input
+              type="radio"
+              name="settings[meetings_visibility]"
+              value={value}
+              checked={@settings.meetings_visibility == value}
+              class="radio radio-sm mt-0.5"
+            />
+            <span class="text-sm">
+              <span class="block font-medium">{title}</span>
+              <span class="block text-xs text-base-content/60">{text}</span>
+            </span>
+          </label>
+        </fieldset>
+
+        <label class="flex cursor-pointer items-start gap-3 text-sm">
+          <input type="hidden" name="settings[meetings_hideable]" value="false" />
+          <input
+            type="checkbox"
+            name="settings[meetings_hideable]"
+            value="true"
+            checked={@settings.meetings_hideable}
+            class="checkbox checkbox-sm mt-0.5"
+          />
+          <span>
+            <span class="block font-medium">Let people hide it</span>
+            <span class="block text-xs text-base-content/60">
+              Each person can put meeting capture out of sight for themselves, under Account →
+              Settings → Display.
+            </span>
+          </span>
+        </label>
+
+        <button type="submit" class="btn btn-primary btn-sm">Save</button>
+      </.form>
+    </section>
     """
   end
 

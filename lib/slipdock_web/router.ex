@@ -40,6 +40,12 @@ defmodule SlipdockWeb.Router do
     plug :require_token_write
   end
 
+  # Meeting capture (see `Slipdock.Meetings`): the API's routes, which are not
+  # there at all while an admin has meeting mode off.
+  pipeline :meetings do
+    plug SlipdockWeb.MeetingsHook
+  end
+
   # The agent guide: readable without a token, richer with one.
   pipeline :api_guide do
     plug :maybe_fetch_api_user
@@ -168,6 +174,7 @@ defmodule SlipdockWeb.Router do
       live "/users/signups", UsersLive.Index, :signups
       live "/config", ConfigLive.Index, :index
       live "/config/mail", ConfigLive.Index, :mail
+      live "/config/meetings", ConfigLive.Index, :meetings
     end
 
     live_session :authenticated,
@@ -211,6 +218,9 @@ defmodule SlipdockWeb.Router do
       live "/boards/:id/wiki/:slug/edit", WikiLive.Index, :edit
       live "/boards/:id/wiki/:slug/history", WikiLive.Index, :history
       live "/boards/:id/wiki/:slug/history/:rev", WikiLive.Index, :revision
+      # A board's meetings (see `Slipdock.Meetings`): only while an admin has
+      # meeting mode on, which each page checks for itself as it mounts.
+      live "/boards/:id/meetings", MeetingLive.Index, :index
       live "/boards/:id", BoardLive.Show, :show
       # The receiving end of a share: who handed this board over, and the way
       # out of it. A page of its own because it is not part of the board.
@@ -334,6 +344,12 @@ defmodule SlipdockWeb.Router do
     get "/skills/:name/chatgpt.zip", SkillController, :chatgpt
     get "/skills/:name", SkillController, :show
     get "/skills/:name/*file", SkillController, :show
+  end
+
+  scope "/api", SlipdockWeb.API do
+    pipe_through [:api, :meetings]
+
+    get "/meetings", MeetingController, :mode
   end
 
   scope "/api", SlipdockWeb.API do

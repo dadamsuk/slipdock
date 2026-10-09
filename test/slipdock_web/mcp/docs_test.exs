@@ -12,7 +12,7 @@ defmodule SlipdockWeb.MCP.DocsTest do
   @root Path.expand("../../..", __DIR__)
 
   defp read(path), do: File.read!(Path.join(@root, path))
-  defp names, do: Enum.map(Tools.all(), & &1.name())
+  defp names, do: Enum.map(Tools.every(), & &1.name())
 
   # The `## MCP server` section of the manual, up to the next `## ` heading.
   defp manual_section do
