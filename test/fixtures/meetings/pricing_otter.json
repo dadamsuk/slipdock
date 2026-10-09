@@ -1,0 +1,6 @@
+{"speakers": [{"id": 1, "name": "Priya"}, {"id": 2, "name": "Sam"}],
+ "transcripts": [
+  {"speaker_id": 1, "transcript": "Let's settle the pricing page.", "start_offset": 0, "end_offset": 4000},
+  {"speaker_id": 2, "transcript": "We go with the annual plan at 20% off.", "start_offset": 4000, "end_offset": 9000},
+  {"speaker_id": 1, "transcript": "Sam, can you update PL-14 by Friday?", "start_offset": 9000, "end_offset": 14000}
+ ]}

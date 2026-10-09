@@ -1,0 +1,14 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example//EN
+BEGIN:VEVENT
+UID:abc@example.com
+SUMMARY:Pricing sync\, weekly
+DTSTART:20261007T100000Z
+DTEND:20261007T103000Z
+ORGANIZER;CN=Priya Shah:mailto:priya@example.com
+ATTENDEE;CN=Sam Smith;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED:mailto:SAM@exam
+ ple.com
+ATTENDEE;CN="Lee, Jo":mailto:jo@example.com
+END:VEVENT
+END:VCALENDAR
