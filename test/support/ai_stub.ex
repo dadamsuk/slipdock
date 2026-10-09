@@ -33,7 +33,8 @@ defmodule Slipdock.AIStub do
   Scripts a series of chat answers, one per call, the last repeating once
   the list runs out. Each entry is a string, a map (encoded as JSON), or
   `{:tool_calls, [{name, args_map}]}` for a turn where the model asks for a
-  tool instead of answering — which is how `Slipdock.AI.Researcher` is driven.
+  tool instead of answering, or `{:cut_off, text}` for an answer that ran
+  out of tokens part-way — which is how `Slipdock.AI.Researcher` is driven.
   """
   def reply_sequence(replies) when is_list(replies) and replies != [] do
     test_pid = self()
@@ -185,6 +186,14 @@ defmodule Slipdock.AIStub do
       end)
 
     envelope(%{"role" => "assistant", "content" => nil, "tool_calls" => tool_calls})
+  end
+
+  # An answer that hit the token limit: what the model had written so far,
+  # with `finish_reason: "length"`.
+  defp chat_body({:cut_off, text}) do
+    %{"role" => "assistant", "content" => text}
+    |> envelope()
+    |> update_in(["choices"], fn [choice] -> [Map.put(choice, "finish_reason", "length")] end)
   end
 
   defp chat_body(content),

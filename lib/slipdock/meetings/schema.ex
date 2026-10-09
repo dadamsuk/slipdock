@@ -118,7 +118,20 @@ defmodule Slipdock.Meetings.Schema do
   with string keys and nothing unknown kept), or `{:error, [problem]}` naming
   each problem with the finding it is in.
   """
-  def validate(%{"findings" => findings}) when is_list(findings) do
+  def validate(doc) do
+    case partition(doc) do
+      {:ok, kept, []} -> {:ok, kept}
+      {:ok, _kept, problems} -> {:error, problems}
+      error -> error
+    end
+  end
+
+  @doc """
+  Like `validate/1`, but keeps what fits: `{:ok, kept, problems}`, the
+  findings that passed and one problem per finding that didn't. A document
+  that isn't a findings list at all is still `{:error, [problem]}`.
+  """
+  def partition(%{"findings" => findings}) when is_list(findings) do
     {kept, problems} =
       findings
       |> Enum.with_index(1)
@@ -129,14 +142,64 @@ defmodule Slipdock.Meetings.Schema do
         end
       end)
 
-    case problems do
-      [] -> {:ok, Enum.reverse(kept)}
-      problems -> {:error, Enum.reverse(problems)}
+    {:ok, Enum.reverse(kept), Enum.reverse(problems)}
+  end
+
+  def partition(%{}), do: {:error, ["the answer has no \"findings\" list"]}
+  def partition(_), do: {:error, ["the answer is not a JSON object"]}
+
+  @title_aliases ~w(text decision action question summary name)
+
+  @doc """
+  Mends the slips a model makes most often before a model's answer is
+  checked: a finding with no `title` takes it from the field the model put
+  it in instead (`text`, `decision`, `question`…), or from the first
+  sentence of its `body`; a title over 200 characters is cut at a word.
+  Never invents anything: a finding with no words to take a title from
+  stays without one, and fails the check. Not used on an agent's findings,
+  which are sent back to the agent to put right.
+  """
+  def mend(%{"findings" => findings} = doc) when is_list(findings),
+    do: %{doc | "findings" => Enum.map(findings, &mend_finding/1)}
+
+  def mend(doc), do: doc
+
+  defp mend_finding(%{} = f) do
+    title =
+      if is_binary(f["title"]) and String.trim(f["title"]) != "" do
+        f["title"]
+      else
+        Enum.find_value(@title_aliases, &text(f[&1])) || first_sentence(f["body"])
+      end
+
+    case title do
+      nil -> f
+      title -> Map.put(f, "title", shorten(String.trim(title)))
     end
   end
 
-  def validate(%{}), do: {:error, ["the answer has no \"findings\" list"]}
-  def validate(_), do: {:error, ["the answer is not a JSON object"]}
+  defp mend_finding(f), do: f
+
+  defp text(v) when is_binary(v), do: if(String.trim(v) != "", do: v)
+  defp text(_), do: nil
+
+  defp first_sentence(body) when is_binary(body) do
+    case body |> String.trim() |> String.split(~r/(?<=[.!?])\s|\n/, parts: 2) do
+      [""] -> nil
+      [first | _] -> first
+    end
+  end
+
+  defp first_sentence(_), do: nil
+
+  defp shorten(title) do
+    if String.length(title) <= 200 do
+      title
+    else
+      cut = String.slice(title, 0, 199)
+      String.replace(cut, ~r/\s+\S*$/, "") <> "…"
+    end
+  end
 
   @fields ~w(kind title body evidence owner due card change comment topic decided_by supersedes confirmed)
 

@@ -10,6 +10,7 @@ defmodule Slipdock.Meetings.ReaderTest do
 
   import Slipdock.Fixtures
   import Slipdock.MeetingsFixtures
+  import Ecto.Query
 
   alias Slipdock.{AIStub, Meetings, Repo, Settings}
   alias Slipdock.Meetings.{Reader, Schema, UsageEntry}
@@ -151,6 +152,73 @@ defmodule Slipdock.Meetings.ReaderTest do
     assert {:error, ^reason} = Meetings.read_meeting(capture)
   end
 
+  describe "a model's slips (a finding with no title)" do
+    test "a title put under another name, or only in the body, is taken from there, with no second ask",
+         %{capture: capture} do
+      {_, decision} = Map.pop(@decision, "title")
+      {_, action} = Map.pop(@action, "title")
+
+      AIStub.reply_with(%{
+        "findings" => [
+          Map.put(decision, "text", "Annual plan at 20% off"),
+          Map.put(action, "body", "Update PL-14 by Friday. Sam said he would.")
+        ]
+      })
+
+      {:ok, readings} = Reader.read(capture)
+
+      assert [%{"title" => "Annual plan at 20% off"}, %{"title" => "Update PL-14 by Friday."}] =
+               readings["1"]
+
+      # One call per reading: nothing was sent back.
+      assert length(drain_requests()) == 2
+    end
+
+    test "a title over 200 characters is cut at a word, not refused", %{capture: capture} do
+      long = String.duplicate("annual plan ", 30)
+      AIStub.reply_with(%{"findings" => [Map.put(@decision, "title", long)]})
+
+      {:ok, readings} = Reader.read(capture)
+      [%{"title" => title}] = readings["1"]
+      assert String.length(title) <= 200
+      assert title =~ ~r/ (annual|plan)…$/
+    end
+
+    test "what still doesn't fit after asking twice is left out and recorded; the rest is kept",
+         %{capture: capture} do
+      untitled = %{"kind" => "idea", "evidence" => [%{"line" => "L2", "quote" => "We go"}]}
+
+      AIStub.reply_sequence([
+        %{"findings" => [@decision, untitled]},
+        %{"findings" => [@decision, untitled]},
+        %{"findings" => [@action]}
+      ])
+
+      {:ok, readings} = Reader.read(capture)
+      assert [%{"title" => "Annual plan at 20% off"}] = readings["1"]
+      assert [%{"title" => "Update PL-14"}] = readings["2"]
+
+      assert [event] =
+               Repo.all(
+                 from(e in Slipdock.Meetings.Event,
+                   where: e.capture_id == ^capture.id and e.kind == "dropped"
+                 )
+               )
+
+      assert event.message =~ "Reading 1 left out 1"
+      assert event.message =~ "finding 2: title is required"
+      assert event.data == %{"reading" => 1, "problems" => ["finding 2: title is required"]}
+    end
+
+    test "with nothing that fits, the reading still fails, readably", %{capture: capture} do
+      AIStub.reply_with(%{"findings" => [%{"kind" => "idea", "evidence" => []}]})
+
+      assert {:error,
+              "reading 1: the model's answer did not match the findings format twice " <>
+                "(finding 1: title is required)"} = Reader.read(capture)
+    end
+  end
+
   test "an answer that is not JSON at all fails readably", %{capture: capture} do
     AIStub.reply_with("I'm sorry, I can't do that.")
     assert {:error, "reading 1: The model's answer wasn't valid JSON."} = Reader.read(capture)
@@ -230,6 +298,61 @@ defmodule Slipdock.Meetings.ReaderTest do
     assert List.last(second_stretch["messages"])["content"] =~ "decision: Ship it"
   end
 
+  describe "an answer cut off by the token limit" do
+    setup %{board: board, owner: owner} do
+      lines =
+        for n <- 1..40, do: %{speaker: "Sam", text: "Line #{n}: we go with option #{n}."}
+
+      capture =
+        capture_fixture(board, owner, %{transcript: "busy #{System.unique_integer()}"},
+          utterances: lines
+        )
+
+      found = fn line ->
+        %{
+          "kind" => "decision",
+          "title" => "Option #{line}",
+          "evidence" => [%{"line" => "L#{line}", "quote" => "we go with option #{line}."}]
+        }
+      end
+
+      %{busy: capture, found: found}
+    end
+
+    test "is read again in halves, the second told what the first found, with no wasted retry",
+         %{busy: capture, found: found} do
+      AIStub.reply_sequence([
+        {:cut_off, ~s({"findings": [{"kind": "decision", "title": "Opt)},
+        %{"findings" => [found.(5)]},
+        %{"findings" => [found.(30)]},
+        %{"findings" => [found.(5), found.(30)]}
+      ])
+
+      {:ok, readings} = Reader.read(capture)
+      assert Enum.map(readings["1"], & &1["title"]) == ["Option 5", "Option 30"]
+      assert Enum.map(readings["2"], & &1["title"]) == ["Option 5", "Option 30"]
+
+      [whole, first_half, second_half | _] =
+        Enum.map(drain_requests(), &List.last(&1["messages"])["content"])
+
+      assert whole =~ "L1 " and whole =~ "L40 "
+      assert first_half =~ "L1 " and not (first_half =~ "L21 ")
+      assert second_half =~ "L21 " and second_half =~ "L40 " and not (second_half =~ "L20 ")
+      assert second_half =~ "decision: Option 5"
+    end
+
+    test "that can't be split any further fails the reading, saying what to do", %{
+      capture: capture
+    } do
+      AIStub.reply_with({:cut_off, ~s({"findings": [)})
+
+      assert {:error, "reading 1: the model's answer ran out of room" <> rest} =
+               Reader.read(capture)
+
+      assert rest =~ "larger output limit"
+    end
+  end
+
   describe "agent findings" do
     test "go through the same check, and are kept beside the readings", %{
       board: board,
@@ -249,6 +372,22 @@ defmodule Slipdock.Meetings.ReaderTest do
       capture =
         capture_fixture(board, owner, %{
           sources: %{"findings" => %{"document" => %{"findings" => [%{"kind" => "action"}]}}}
+        })
+
+      assert {:error, "the agent's findings: finding 1: title is required"} = Reader.read(capture)
+    end
+
+    test "are not mended: a title under another name goes back to the agent", %{
+      board: board,
+      owner: owner
+    } do
+      {_, untitled} = Map.pop(@decision, "title")
+
+      capture =
+        capture_fixture(board, owner, %{
+          sources: %{
+            "findings" => %{"document" => %{"findings" => [Map.put(untitled, "text", "Annual")]}}
+          }
         })
 
       assert {:error, "the agent's findings: finding 1: title is required"} = Reader.read(capture)
@@ -288,6 +427,9 @@ defmodule Slipdock.Meetings.ReaderTest do
       end
 
       assert {:error, ["the answer has no \"findings\" list"]} = Schema.validate(%{})
+      assert {:error, ["the answer has no \"findings\" list"]} = Schema.partition(%{})
+      assert Schema.mend("not a document") == "not a document"
+      assert Schema.mend(%{"findings" => ["nope"]}) == %{"findings" => ["nope"]}
       assert {:error, ["the answer is not a JSON object"]} = Schema.validate([])
     end
   end
