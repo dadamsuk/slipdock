@@ -397,7 +397,10 @@ defmodule SlipdockWeb.RunnerPowerShellTest do
         ". '#{cfg}'; [Console]::Out.Write($RunnerToken + '|' + $JobInstructions + '|' + $JobTimeout)"
       ])
 
-    assert token == "sdr_t'ok|Don't push. '@ here|600"
+    # What to do to the card and Nothing's paragraph come first, then the free text.
+    assert token == "sdr_t'ok|" <> Slipdock.Runners.Setup.instructions(a) <> "|600"
+    assert token =~ "What to do to the card: Don't move the card"
+    assert token =~ "\n\nDon't push. '@ here|600"
   end
 
   test "the wizard's Windows claude one-liner carries the Slipdock tools, on or off", ctx do
