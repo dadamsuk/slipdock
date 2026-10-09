@@ -1042,6 +1042,9 @@ line are recognised as you type and shown as chips:
 - `#high` (a priority), `#blocked` (a flag), `#todo` or `#in-progress`
   (a list), `#docs` (a tag) — matched loosely, in that order
 - `@dan` (an assignee, by name or email prefix)
+- `; seen on Safari only` — everything after the first semicolon becomes
+  the card's first comment, as written (commands in it are not read). This
+  works in a list's own "Add a card" box and in the header's quick add too
 
 Anything not recognised stays in the title. In a grouped table each group
 has its own row and new cards take the group's value; in the outline a

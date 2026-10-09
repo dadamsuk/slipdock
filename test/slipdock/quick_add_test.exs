@@ -24,6 +24,31 @@ defmodule Slipdock.QuickAddTest do
     refute QuickAdd.commands?(parsed)
   end
 
+  test "everything after the first semicolon is the comment, taken as written" do
+    parsed = parse("Write the launch post #high; check with @sam first; due: tomorrow #docs ")
+    assert parsed.title == "Write the launch post"
+    assert parsed.comment == "check with @sam first; due: tomorrow #docs"
+    # Commands are only read in the title.
+    assert parsed.attrs == %{"priority" => "high"}
+    assert parsed.tags == []
+    assert {:comment, "Comment"} in parsed.chips
+    assert QuickAdd.commands?(parsed)
+  end
+
+  test "a semicolon with nothing after it leaves no comment" do
+    parsed = parse("Write it;   ")
+    assert parsed.title == "Write it"
+    assert parsed.comment == nil
+    refute QuickAdd.commands?(parsed)
+    assert parse("Write it").comment == nil
+  end
+
+  test "a line that is only a comment has no title" do
+    parsed = parse("; just a note")
+    assert parsed.title == ""
+    assert parsed.comment == "just a note"
+  end
+
   test "due and start dates, priority, flag, list, tag and assignee all come out of the line" do
     parsed =
       parse("Write the launch post due: tomorrow start: today #high #todo #docs #blocked @dan")

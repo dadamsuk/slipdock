@@ -252,7 +252,7 @@ defmodule SlipdockWeb.KeyboardLiveTest do
 
       # "c" again opens that list's add row and hands the keyboard over to it.
       html = render_hook(view, "focus_add", %{})
-      assert html =~ "Card title, then Enter"
+      assert html =~ "Card title; a comment, then Enter"
       assert has_element?(view, "#quick-add-#{todo.id}-0")
       refute has_element?(view, "#board-keys[data-focus]")
     end

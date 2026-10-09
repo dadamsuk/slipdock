@@ -55,6 +55,19 @@ defmodule Slipdock.QuickAddCaptureTest do
       assert {:tag, "docs"} in capture.chips
     end
 
+    test "the comment after a semicolon is kept from the model and added as written", %{
+      user: user
+    } do
+      Slipdock.AIStub.reply_with(%{"title" => "Call the printers"})
+
+      assert {:ok, capture} = capture(user, "call the printers; banners are 2m wide")
+      assert capture.card.title == "Call the printers"
+      assert [%{body: "banners are 2m wide"}] = Boards.get_card!(capture.card.id).comments
+
+      assert_receive {:ai_request, %{"messages" => messages}}
+      refute inspect(messages) =~ "banners"
+    end
+
     test "the model is told today, the boards, their lists and tags, and the people", %{
       user: user
     } do
@@ -178,6 +191,26 @@ defmodule Slipdock.QuickAddCaptureTest do
       assert capture.card.title == "Write it"
       assert capture.column.name == "To Do"
       refute_receive {:ai_request, _}
+    end
+
+    test "what follows a semicolon goes on the card as a comment", %{user: user} do
+      {:ok, user} = Accounts.update_quick_add(user, %{"quick_add_ai" => false})
+
+      assert {:ok, capture} = capture(user, "Write it #todo; ask Sam about the #docs first")
+      assert capture.card.title == "Write it"
+      assert capture.column.name == "To Do"
+      assert {:comment, "Comment"} in capture.chips
+
+      assert [%{body: "ask Sam about the #docs first"}] =
+               Boards.get_card!(capture.card.id).comments
+
+      assert Repo.preload(capture.card, :tags).tags == []
+    end
+
+    test "a line that is only a comment is refused", %{user: user} do
+      {:ok, user} = Accounts.update_quick_add(user, %{"quick_add_ai" => false})
+      assert {:error, message} = capture(user, "; a note with no card")
+      assert message =~ "no title"
     end
   end
 
