@@ -58,6 +58,10 @@ defmodule Slipdock.Meetings.Commit do
         )
       )
 
+    # What is still to be written: a finding is written once (G10), so one
+    # already on the board is neither shown again nor left out.
+    findings = Enum.reject(findings, & &1.written_at)
+
     {included, excluded} =
       Enum.split_with(
         findings,
@@ -114,6 +118,26 @@ defmodule Slipdock.Meetings.Commit do
       )
     )
   end
+
+  @doc """
+  Whether a committed capture has something left to write: an item that
+  waited for its speaker and has been answered since.
+  """
+  def pending?(%Capture{state: "committed", undone_at: nil} = capture) do
+    Repo.exists?(
+      from(f in Finding,
+        where:
+          f.capture_id == ^capture.id and f.status == "kept" and f.included and
+            is_nil(f.written_at)
+      )
+    ) and build(capture)["changes"] != []
+  end
+
+  def pending?(_capture), do: false
+
+  @doc "Whether this capture can be committed now (the first time, or what waited)."
+  def committable?(%Capture{state: "ready"}), do: true
+  def committable?(%Capture{} = capture), do: pending?(capture)
 
   @doc "The fingerprint of a change set: what the preview showed, for the commit to match."
   def digest(set) do
@@ -732,6 +756,15 @@ defmodule Slipdock.Meetings.Commit do
     end
   end
 
+  # A capture committed while an item waited for its speaker: once they
+  # answer, that item is written in a commit of its own. Nothing else is
+  # written twice.
+  defp committable(%Capture{state: "committed", undone_at: nil} = capture) do
+    if pending?(capture),
+      do: :ok,
+      else: {:error, :conflict, "this capture was committed already; it is never written twice"}
+  end
+
   defp committable(%Capture{state: "committed"}),
     do: {:error, :conflict, "this capture was committed already; it is never written twice"}
 
@@ -792,22 +825,54 @@ defmodule Slipdock.Meetings.Commit do
         # compares with it to see what has been edited since.
         applied = Enum.map(applied, &with_version_after/1)
 
-        committed_set =
-          Map.merge(set, %{
-            "changes" => applied,
-            "committed_at" => DateTime.to_iso8601(now),
-            "committed_by" => user.email
-          })
+        written_ids =
+          applied
+          |> Enum.flat_map(&(&1["finding_ids"] || [&1["finding_id"]]))
+          |> Enum.reject(&is_nil/1)
+
+        Repo.update_all(from(f in Finding, where: f.id in ^written_ids), set: [written_at: now])
 
         {:ok, capture} =
-          capture
-          |> Capture.transition("committed", %{
-            change_set: committed_set,
-            committed_at: now,
-            committed_by_id: user.id,
-            state_reason: nil
-          })
-          |> Repo.update()
+          if capture.state == "committed" do
+            # What waited for its speaker, written now: added to the record of
+            # the commit, numbered on from it, so undo reverses the lot.
+            earlier = capture.change_set["changes"] || []
+
+            applied =
+              applied
+              |> Enum.with_index(length(earlier) + 1)
+              |> Enum.map(fn {c, n} -> Map.put(c, "id", "c#{n}") end)
+
+            later = %{
+              "at" => DateTime.to_iso8601(now),
+              "by" => user.email,
+              "changes" => length(applied)
+            }
+
+            capture
+            |> Ecto.Changeset.change(
+              change_set:
+                Map.merge(capture.change_set, %{
+                  "changes" => earlier ++ applied,
+                  "later" => (capture.change_set["later"] || []) ++ [later]
+                })
+            )
+            |> Repo.update()
+          else
+            capture
+            |> Capture.transition("committed", %{
+              change_set:
+                Map.merge(set, %{
+                  "changes" => applied,
+                  "committed_at" => DateTime.to_iso8601(now),
+                  "committed_by" => user.email
+                }),
+              committed_at: now,
+              committed_by_id: user.id,
+              state_reason: nil
+            })
+            |> Repo.update()
+          end
 
         Meetings.record(
           capture,

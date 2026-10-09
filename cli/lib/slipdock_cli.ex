@@ -85,7 +85,8 @@ defmodule SlipdockCLI do
                                       meetings_transcription_model=openai/whisper-large-v3,
                                       meetings_transcription_url=, meetings_transcription_max_mb=25,
                                       meetings_diarisation=labels|endpoint,
-                                      meetings_diarisation_url=, meetings_dialogue_inference=false
+                                      meetings_diarisation_url=, meetings_dialogue_inference=false,
+                                      meetings_relisten_model=<audio-capable model> (empty: off)
   admin meetings-usage                meeting capture this month: totals, heaviest users
   admin allow <entry>                 let an address or a whole domain register
   admin disallow <entry>

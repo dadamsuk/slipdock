@@ -88,7 +88,8 @@ defmodule SlipdockWeb.API.AdminController do
           reading: %{
             model: settings.meetings_reading_model,
             second: settings.meetings_second_reading,
-            second_model: settings.meetings_second_model
+            second_model: settings.meetings_second_model,
+            relisten_model: settings.meetings_relisten_model
           }
         },
         pending_signups: Accounts.count_pending_signups()

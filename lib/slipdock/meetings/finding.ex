@@ -41,6 +41,7 @@ defmodule Slipdock.Meetings.Finding do
     belongs_to :edited_by, Slipdock.Accounts.User
     field :edited_at, :utc_datetime
     belongs_to :added_by, Slipdock.Accounts.User
+    field :written_at, :utc_datetime
     has_many :evidence, Slipdock.Meetings.Evidence, preload_order: [asc: :id]
     has_many :questions, Slipdock.Meetings.Question
     timestamps(type: :utc_datetime)
