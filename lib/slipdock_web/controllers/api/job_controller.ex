@@ -63,6 +63,42 @@ defmodule SlipdockWeb.API.JobController do
     end
   end
 
+  @doc """
+  One runner and everything known about it: who made it, the session's API
+  token, the job it holds, how its jobs ended, its latest jobs and the rules
+  that feed its pool.
+  """
+  def show_runner(conn, %{"board" => ref, "id" => id} = params) do
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :owner),
+         {:ok, runner} <- Runners.find_runner(board, id) do
+      d = Runners.runner_details(runner, limit: min(limit(params["limit"], 10), 50))
+
+      json(conn, %{
+        runner:
+          V.runner(runner)
+          |> Map.merge(%{
+            created_by: d.created_by && (d.created_by.name || d.created_by.email),
+            api_token:
+              d.api_token &&
+                %{
+                  id: d.api_token.id,
+                  label: d.api_token.label,
+                  scope: d.api_token.scope,
+                  last_used_at: d.api_token.last_used_at,
+                  expires_at: d.api_token.expires_at
+                },
+            current_job: d.current_job && V.job(d.current_job),
+            job_counts: d.job_counts,
+            jobs_total: d.jobs_total,
+            # The list, not the logs: `slipdock job <id>` has those.
+            recent_jobs:
+              Enum.map(d.recent_jobs, &(&1 |> V.job() |> Map.drop([:prompt, :log_tail, :output]))),
+            rules: Enum.map(d.rules, &%{id: &1.id, name: &1.name, board_id: &1.board_id})
+          })
+      })
+    end
+  end
+
   @doc "A runner's steps again, from its saved answers, with a placeholder for the token."
   def runner_setup(conn, %{"board" => ref, "id" => id}) do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, :owner),

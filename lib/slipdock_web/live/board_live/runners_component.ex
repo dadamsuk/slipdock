@@ -18,7 +18,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
   alias Slipdock.Runners.{HookPrompt, Runner, Setup}
 
   @events ~w(open_wizard close_wizard wizard_change connect regenerate rotate_token
-    revoke_runner close_setup edit_answers close_dialog reveal)
+    revoke_runner close_setup edit_answers close_dialog reveal show_runner)
 
   # What the setup steps keep behind a link until it's clicked.
   @reveals ~w(script config verify)
@@ -38,7 +38,9 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
        token: nil,
        diff: nil,
        editing: nil,
-       revealed: MapSet.new()
+       revealed: MapSet.new(),
+       shown: nil,
+       details: nil
      )}
   end
 
@@ -58,9 +60,20 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
   end
 
   defp assign_runners(%{assigns: %{can_manage: true, board: board}} = socket),
-    do: assign(socket, runners: Runners.list_runners(board))
+    do: socket |> assign(runners: Runners.list_runners(board)) |> assign_details()
 
-  defp assign_runners(socket), do: assign(socket, runners: [])
+  defp assign_runners(socket), do: assign(socket, runners: [], shown: nil, details: nil)
+
+  # The runner whose details are open, read again whenever the list is: a
+  # revoked one closes them.
+  defp assign_details(%{assigns: %{shown: nil}} = socket), do: assign(socket, details: nil)
+
+  defp assign_details(%{assigns: %{shown: id, runners: runners}} = socket) do
+    case Enum.find(runners, &(&1.id == id)) do
+      nil -> assign(socket, shown: nil, details: nil)
+      runner -> assign(socket, details: Runners.runner_details(runner))
+    end
+  end
 
   ## Events ------------------------------------------------------------------
 
@@ -213,6 +226,21 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
     end
   end
 
+  # Clicking a runner opens what is known about it under its row; clicking it
+  # again closes it.
+  def handle_event("show_runner", %{"id" => id}, socket) do
+    case Runners.find_runner(socket.assigns.board, id) do
+      {:ok, %Runner{id: id}} when id == socket.assigns.shown ->
+        {:noreply, assign(socket, shown: nil, details: nil)}
+
+      {:ok, runner} ->
+        {:noreply, assign(socket, shown: runner.id, details: Runners.runner_details(runner))}
+
+      _ ->
+        {:noreply, flash(socket, :error, "That runner is gone.")}
+    end
+  end
+
   def handle_event("close_setup", _params, socket),
     do: {:noreply, assign(socket, setup: nil, setup_runner: nil, token: nil, diff: nil)}
 
@@ -342,52 +370,67 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
       </div>
 
       <ul :if={@runners != [] or @waiting_pools != []} id="runner-list" class="space-y-1">
-        <li
-          :for={runner <- @runners}
-          id={"runner-#{runner.id}"}
-          class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm odd:bg-base-200/40"
-        >
-          <.icon
-            name={if Runner.session?(runner), do: "hero-chat-bubble-left-right", else: "hero-server"}
-            class="size-4 shrink-0 text-base-content/50"
-          />
-          <span class="min-w-0 flex-1 truncate">
-            {runner.name}
-            <span class="text-xs text-base-content/50">· pool {runner.pool}</span>
-          </span>
-          <span class="shrink-0 text-xs text-base-content/50">
-            <%= cond do %>
-              <% runner.current_job_id -> %>
-                job #{runner.current_job_id}
-              <% runner.last_seen_at -> %>
-                seen {relative_time(runner.last_seen_at)}
-              <% true -> %>
-                never seen
-            <% end %>
-          </span>
-          <button
-            :if={not Runner.session?(runner)}
-            phx-target={@myself}
-            type="button"
-            class="btn btn-ghost btn-xs"
-            phx-click="regenerate"
-            phx-value-id={runner.id}
-            title="Show the setup steps again"
+        <%= for runner <- @runners do %>
+          <li
+            id={"runner-#{runner.id}"}
+            class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm odd:bg-base-200/40"
           >
-            Setup
-          </button>
-          <button
-            phx-target={@myself}
-            type="button"
-            class="btn btn-ghost btn-xs btn-square text-error"
-            phx-click="revoke_runner"
-            phx-value-id={runner.id}
-            data-confirm={"Revoke “#{runner.name}”? Its token stops working at once."}
-            title="Revoke"
-          >
-            <.icon name="hero-trash" class="size-3.5" />
-          </button>
-        </li>
+            <.icon
+              name={
+                if Runner.session?(runner), do: "hero-chat-bubble-left-right", else: "hero-server"
+              }
+              class="size-4 shrink-0 text-base-content/50"
+            />
+            <button
+              type="button"
+              phx-target={@myself}
+              phx-click="show_runner"
+              phx-value-id={runner.id}
+              id={"show-runner-#{runner.id}"}
+              class="min-w-0 flex-1 cursor-pointer truncate text-left hover:underline"
+              aria-expanded={to_string(@shown == runner.id)}
+              title="Show what is known about this runner"
+            >
+              {runner.name}
+              <span class="text-xs text-base-content/50">· pool {runner.pool}</span>
+            </button>
+            <span class="shrink-0 text-xs text-base-content/50">
+              <%= cond do %>
+                <% runner.current_job_id -> %>
+                  job #{runner.current_job_id}
+                <% runner.last_seen_at -> %>
+                  seen {relative_time(runner.last_seen_at)}
+                <% true -> %>
+                  never seen
+              <% end %>
+            </span>
+            <button
+              :if={not Runner.session?(runner)}
+              phx-target={@myself}
+              type="button"
+              class="btn btn-ghost btn-xs"
+              phx-click="regenerate"
+              phx-value-id={runner.id}
+              title="Show the setup steps again"
+            >
+              Setup
+            </button>
+            <button
+              phx-target={@myself}
+              type="button"
+              class="btn btn-ghost btn-xs btn-square text-error"
+              phx-click="revoke_runner"
+              phx-value-id={runner.id}
+              data-confirm={"Revoke “#{runner.name}”? Its token stops working at once."}
+              title="Revoke"
+            >
+              <.icon name="hero-trash" class="size-3.5" />
+            </button>
+          </li>
+          <li :if={@shown == runner.id and @details} id={"runner-details-#{runner.id}"}>
+            <.runner_details details={@details} />
+          </li>
+        <% end %>
         <li
           :for={pool <- @waiting_pools}
           id={"waiting-pool-#{pool}"}
@@ -473,6 +516,119 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
     board.id
     |> Automations.list_rules()
     |> Enum.filter(fn rule -> Enum.any?(Spec.actions(rule.spec), &(&1["type"] == "runner")) end)
+  end
+
+  attr :details, :map, required: true
+
+  # Everything known about one runner, opened by clicking its name.
+  defp runner_details(assigns) do
+    assigns = assign(assigns, runner: assigns.details.runner, d: assigns.details)
+
+    ~H"""
+    <div class="mb-1 ml-6 space-y-2 rounded-lg bg-base-200/40 p-3 text-xs ring-1 ring-base-content/10">
+      <dl class="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1">
+        <dt class="text-base-content/60">Kind</dt>
+        <dd>
+          <%= if Runner.session?(@runner) do %>
+            Claude session, taking jobs with an API token
+          <% else %>
+            Runner with a token of its own
+          <% end %>
+          <span
+            :if={(scenario = @runner.settings["scenario"]) in Setup.scenarios()}
+            class="text-base-content/60"
+          >
+            · {Setup.label(scenario)}
+          </span>
+        </dd>
+        <dt class="text-base-content/60">Pool</dt>
+        <dd>{@runner.pool}</dd>
+        <dt class="text-base-content/60">Made</dt>
+        <dd>
+          {relative_time(@runner.inserted_at)}
+          <span :if={@d.created_by}>by {@d.created_by.name || @d.created_by.email}</span>
+        </dd>
+        <dt class="text-base-content/60">Last seen</dt>
+        <dd>
+          {if @runner.last_seen_at, do: relative_time(@runner.last_seen_at), else: "never"}
+        </dd>
+        <%= if @d.api_token do %>
+          <dt class="text-base-content/60">API token</dt>
+          <dd>
+            {@d.api_token.label || "token ##{@d.api_token.id}"}
+            <span class="text-base-content/60">· {@d.api_token.scope}</span>
+            <span :if={@d.api_token.expires_at} class="text-base-content/60">
+              · expires {relative_time(@d.api_token.expires_at)}
+            </span>
+          </dd>
+        <% end %>
+        <%= if setting(@runner, "agent") do %>
+          <dt class="text-base-content/60">Agent</dt>
+          <dd>{setting(@runner, "agent")}</dd>
+        <% end %>
+        <%= if setting(@runner, "cwd") do %>
+          <dt class="text-base-content/60">Works in</dt>
+          <dd class="font-mono">{setting(@runner, "cwd")}</dd>
+        <% end %>
+        <%= if setting(@runner, "repo") do %>
+          <dt class="text-base-content/60">Repository</dt>
+          <dd class="font-mono">{setting(@runner, "repo")}</dd>
+        <% end %>
+        <dt class="text-base-content/60">Now</dt>
+        <dd id={"runner-now-#{@runner.id}"}>
+          <%= if job = @d.current_job do %>
+            job #{job.id} ({job.status}) on
+            <.link navigate={~p"/boards/#{job.board_id}/cards/#{job.card_id}"} class="link">
+              #{job.card_id} {job.card && job.card.title}
+            </.link>
+          <% else %>
+            idle
+          <% end %>
+        </dd>
+        <dt class="text-base-content/60">Jobs</dt>
+        <dd id={"runner-job-counts-#{@runner.id}"}>
+          {@d.jobs_total}
+          <span :if={@d.jobs_total > 0} class="text-base-content/60">
+            ({@d.job_counts |> Enum.sort() |> Enum.map_join(", ", fn {s, n} -> "#{n} #{s}" end)})
+          </span>
+        </dd>
+        <dt class="text-base-content/60">Rules</dt>
+        <dd>
+          <%= if @d.rules == [] do %>
+            <span class="text-base-content/60">no enabled rule sends cards to this pool</span>
+          <% else %>
+            {Enum.map_join(@d.rules, ", ", & &1.name)}
+          <% end %>
+        </dd>
+      </dl>
+      <div :if={@d.recent_jobs != []}>
+        <p class="mb-1 text-base-content/60">Latest jobs</p>
+        <ul id={"runner-jobs-#{@runner.id}"} class="space-y-0.5">
+          <li :for={job <- @d.recent_jobs} class="flex gap-2">
+            <span class="shrink-0 text-base-content/60">#{job.id}</span>
+            <span class="shrink-0">{job.status}</span>
+            <.link
+              navigate={~p"/boards/#{job.board_id}/cards/#{job.card_id}"}
+              class="link min-w-0 flex-1 truncate"
+            >
+              #{job.card_id} {job.card && job.card.title}
+            </.link>
+            <span class="shrink-0 text-base-content/50">
+              {relative_time(job.finished_at || job.started_at || job.claimed_at || job.inserted_at)}
+            </span>
+          </li>
+        </ul>
+      </div>
+    </div>
+    """
+  end
+
+  # A saved setup answer worth showing, or nil.
+  defp setting(%Runner{settings: settings}, key) do
+    case (settings || %{})[key] do
+      value when is_binary(value) and value != "" -> value
+      _ -> nil
+    end
   end
 
   attr :wizard, :map, required: true

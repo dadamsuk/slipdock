@@ -371,6 +371,8 @@ defmodule SlipdockCLI do
                                                    its card or repo unless told: --in-progress,
                                                    --assign, --commit, --push (needs --commit),
                                                    --move-done, --complete, --percent-100
+    runner show <board> <runner>                   one runner in full: who made it, its job now,
+                                                   how its jobs ended, its latest jobs, its rules
     runner setup <board> <runner> [answers...]     a runner's steps again (token left out); with
                                                    any of runner new's options, saves them and
                                                    prints what changes first

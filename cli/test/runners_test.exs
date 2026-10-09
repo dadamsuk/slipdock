@@ -117,6 +117,42 @@ defmodule SlipdockCLI.RunnersTest do
     assert out =~ "added the rule “Trouble on the loop runners”"
   end
 
+  test "runner show asks for one runner and prints it in full (#526)" do
+    serve([
+      {200,
+       ~s({"runner":{"id":4,"name":"laptop","pool":"dev","session":false,"settings":{"scenario":"server"},"created_at":"2026-10-01T10:00:00Z","created_by":"David","last_seen_at":null,"api_token":null,"current_job":{"id":9,"status":"running","card_id":12,"card":"Fix it"},"job_counts":{"done":3,"failed":1},"jobs_total":4,"rules":[{"id":2,"name":"Feeds dev"}],"recent_jobs":[{"id":9,"status":"running","card_id":12,"card":"Fix it","pool":"dev","kind":"claude","runner":"laptop","queued_at":"2026-10-01T10:00:00Z"}]}})}
+    ])
+
+    out = capture_io(fn -> Runners.run("runner", ["show", "b", "laptop"], limit: 3) end)
+
+    assert_received {:request, "GET", path, _}
+    assert path =~ "/api/boards/b/runners/laptop"
+    assert path =~ "limit=3"
+    assert out =~ "runner #4 laptop  pool dev  (runner with its own token)"
+    assert out =~ "by David"
+    assert out =~ "seen:      never"
+    assert out =~ "now:       job #9 running on card #12 Fix it"
+    assert out =~ "jobs:      4 (3 done, 1 failed)"
+    assert out =~ "rules:     #2 Feeds dev"
+    assert out =~ "latest jobs:"
+  end
+
+  test "runner show for an idle session with no jobs or rules" do
+    serve([
+      {200,
+       ~s({"runner":{"id":5,"name":"desktop","pool":"loop","session":true,"settings":{},"created_at":"2026-10-01T10:00:00Z","created_by":null,"last_seen_at":"2026-10-02T10:00:00Z","api_token":{"id":7,"label":"desktop","scope":"write"},"current_job":null,"job_counts":{},"jobs_total":0,"rules":[],"recent_jobs":[]}})}
+    ])
+
+    out = capture_io(fn -> Runners.run("runner", ["show", "b", "desktop"], []) end)
+
+    assert out =~ "(Claude session)"
+    assert out =~ "api token: desktop (write)"
+    assert out =~ "now:       idle"
+    assert out =~ "jobs:      0\n"
+    assert out =~ "none send cards to this pool"
+    refute out =~ "latest jobs"
+  end
+
   test "runner setup --hook-prompt prints the prompt as it is" do
     serve([
       {200,

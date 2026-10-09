@@ -576,7 +576,7 @@ lease renewed (the server's own notes, such as a card put back or given up on,
 still appear). Until a Claude session takes its first job, its pool shows in the
 runner list as waiting.
 `slipdock runner new <board> [name] --pool default [--scenario …]` prints the
-same, `slipdock runner ls|setup|token|rm` manage them, and `slipdock jobs
+same, `slipdock runner ls|show|setup|token|rm` manage them, and `slipdock jobs
 <board>` shows what they're doing. The details are in
 [the manual](docs/manual.md#runners).
 

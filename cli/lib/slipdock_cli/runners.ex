@@ -95,6 +95,12 @@ defmodule SlipdockCLI.Runners do
     end)
   end
 
+  # One runner and everything known about it, with its latest jobs.
+  def run("runner", ["show", ref, runner], o) do
+    HTTP.get("/boards/#{enc(ref)}/runners/#{enc(runner)}", limit: o[:limit])
+    |> out(o, &Render.runner(&1["runner"]))
+  end
+
   def run("runner", ["setup", ref, runner], o) do
     answers = answers(o)
 
@@ -135,7 +141,7 @@ defmodule SlipdockCLI.Runners do
   def run("runner", _, _o),
     do:
       fail(
-        "usage: slipdock runner ls <board> | new <board> <name> --pool P | rm <board> <runner>"
+        "usage: slipdock runner ls <board> | show <board> <runner> | new <board> <name> --pool P | rm <board> <runner>"
       )
 
   def run("jobs", [], o) do

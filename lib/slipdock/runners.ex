@@ -105,6 +105,62 @@ defmodule Slipdock.Runners do
     )
   end
 
+  @doc """
+  Everything known about a runner, for its detail view: who made it, the API
+  token a Claude session works through (`nil` for a runner with a token of
+  its own), the job it holds now, how its jobs have ended, its latest jobs and
+  the enabled rules on its board that send cards to its pool.
+  """
+  def runner_details(%Runner{} = runner, opts \\ []) do
+    runner = Repo.preload(runner, [:created_by, :api_token])
+
+    jobs =
+      Repo.all(
+        from(j in Job,
+          where: j.runner_id == ^runner.id,
+          order_by: [desc: j.id],
+          limit: ^(opts[:limit] || 5),
+          preload: :card
+        )
+      )
+
+    counts =
+      Repo.all(
+        from(j in Job,
+          where: j.runner_id == ^runner.id,
+          group_by: j.status,
+          select: {j.status, count(j.id)}
+        )
+      )
+      |> Map.new()
+
+    current =
+      runner.current_job_id &&
+        Repo.one(from(j in Job, where: j.id == ^runner.current_job_id, preload: :card))
+
+    rules =
+      runner.board_id
+      |> Slipdock.Automations.list_rules()
+      |> Enum.filter(fn rule ->
+        rule.enabled and
+          Enum.any?(
+            Slipdock.Automations.Spec.actions(rule.spec),
+            &(&1["type"] == "runner" and to_string(&1["pool"]) == runner.pool)
+          )
+      end)
+
+    %{
+      runner: runner,
+      created_by: runner.created_by,
+      api_token: runner.api_token,
+      current_job: current,
+      job_counts: counts,
+      jobs_total: counts |> Map.values() |> Enum.sum(),
+      recent_jobs: jobs,
+      rules: rules
+    }
+  end
+
   @doc "A runner of `board`'s tree by id or name."
   def find_runner(%Board{} = board, ref) do
     ref = to_string(ref)

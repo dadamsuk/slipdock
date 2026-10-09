@@ -319,6 +319,7 @@ slipdock runner new <board> [name] --pool P [--scenario server|windows|loop|clou
                                               # waiting while anything is in progress unless
                                               # --no-wait-while-doing)
 slipdock runner ls <board>                    # runners: pool, last seen, current job
+slipdock runner show <board> <runner>         # one in full: maker, job now, job counts, latest jobs, rules
 slipdock runner setup <board> <runner> [opts] # the steps again; with options, saves them + shows the diff
 slipdock runner token <board> <runner>        # a new token (the old one stops working)
 slipdock runner rm <board> <runner>           # revoke

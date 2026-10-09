@@ -1604,6 +1604,7 @@ own work rather than from a background loop, so it holds its job on a
 | `slipdock runner setup <board> <runner> [options]` | A runner's steps again, from the answers saved on it (the token left out); with any of `runner new`'s options, including `--verbosity`, the seven `--[no-]in-progress` … `--[no-]percent-100` toggles, `--instructions`, `--before-job`, `--after-job` and `--hooks prompt\|hook`, saves them and prints what changes. With `--hook-prompt`, prints the prompt that has Claude write the runner's hooks. |
 | `slipdock runner token <board> <runner>` | A new token for a runner, the old one ended, with its steps written out for it. |
 | `slipdock runner ls <board>` / `slipdock runners <board>` | The board's runners: pool, last seen, current job. |
+| `slipdock runner show <board> <runner>` | One runner in full: what kind it is, who made it and when, last seen, the API token a Claude session works through, the job it holds now, how many of its jobs ended each way, its latest jobs (`--limit N`, 10 by default) and the rules sending cards to its pool. On the Automations panel, clicking a runner's name shows the same. |
 | `slipdock runner rm <board> <runner>` | Revokes a runner. |
 | `slipdock jobs <board> [--status S]` / `slipdock jobs --card ID` | Jobs, newest first. `S` is `open` or a status. |
 | `slipdock job <id>` | One job: status, runner, prompt, log tail. |

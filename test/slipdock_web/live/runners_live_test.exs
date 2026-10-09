@@ -256,6 +256,99 @@ defmodule SlipdockWeb.RunnersLiveTest do
     assert Runners.list_runners(board) == []
   end
 
+  describe "clicking a runner shows what is known about it (#526)" do
+    test "who made it, the job it holds, its job counts, latest jobs and rules", ctx do
+      %{conn: conn, board: board, user: user} = ctx
+      [todo | _] = board.columns
+
+      {:ok, runner, _} =
+        Runners.create_runner(
+          board,
+          %{
+            "name" => "box",
+            "pool" => "dev",
+            "settings" => %{"scenario" => "server", "cwd" => "~/src"}
+          },
+          user
+        )
+
+      done_card = card_fixture(todo, %{"title" => "Finished one"})
+      busy_card = card_fixture(todo, %{"title" => "Busy one"})
+      {:ok, done_job} = Runners.queue(done_card, %{pool: "dev", kind: "claude", prompt: "x"})
+      Runners.claim(runner)
+      {:ok, _} = Runners.finish(runner, done_job.id, %{exit: "0"})
+      {:ok, busy_job} = Runners.queue(busy_card, %{pool: "dev", kind: "claude", prompt: "x"})
+      Runners.claim(runner)
+
+      rule_fixture(
+        board,
+        %{
+          "trigger" => %{"type" => "card_created"},
+          "actions" => [%{"type" => "runner", "pool" => "dev"}]
+        },
+        %{"name" => "Feeds dev"}
+      )
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/automations")
+      refute has_element?(view, "#runner-details-#{runner.id}")
+
+      view |> element("#show-runner-#{runner.id}") |> render_click()
+      details = "#runner-details-#{runner.id}"
+      assert has_element?(view, details, "Runner with a token of its own")
+      assert has_element?(view, details, "Linux / macOS machine")
+      assert has_element?(view, details, "~/src")
+      assert has_element?(view, details, "by #{user.name || user.email}")
+      assert has_element?(view, "#runner-now-#{runner.id}", "job ##{busy_job.id}")
+      assert has_element?(view, "#runner-now-#{runner.id}", "Busy one")
+      assert has_element?(view, "#runner-job-counts-#{runner.id}", "1 claimed, 1 done")
+      assert has_element?(view, "#runner-jobs-#{runner.id}", "Finished one")
+
+      assert has_element?(
+               view,
+               "#runner-jobs-#{runner.id} a[href='/boards/#{board.id}/cards/#{done_card.id}']"
+             )
+
+      assert has_element?(view, details, "Feeds dev")
+
+      # Clicking again closes it.
+      view |> element("#show-runner-#{runner.id}") |> render_click()
+      refute has_element?(view, details)
+    end
+
+    test "an idle runner with no jobs or rules says so", %{conn: conn, board: board} do
+      {:ok, runner, _} = Runners.create_runner(board, %{"name" => "box", "pool" => "dev"})
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/automations")
+      view |> element("#show-runner-#{runner.id}") |> render_click()
+
+      assert has_element?(view, "#runner-now-#{runner.id}", "idle")
+      assert has_element?(view, "#runner-details-#{runner.id}", "never")
+      assert has_element?(view, "#runner-details-#{runner.id}", "no enabled rule sends cards")
+      refute has_element?(view, "#runner-jobs-#{runner.id}")
+    end
+
+    test "a Claude session's runner names its API token", %{conn: conn, board: board, user: user} do
+      {_token, api_token} = Slipdock.Accounts.create_api_token(user, "desktop")
+      {:ok, runner} = Runners.session_runner(board, "loop", api_token, user)
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/automations")
+      view |> element("#show-runner-#{runner.id}") |> render_click()
+
+      assert has_element?(view, "#runner-details-#{runner.id}", "Claude session")
+      assert has_element?(view, "#runner-details-#{runner.id}", "desktop")
+    end
+
+    test "a runner revoked while open closes its details; a gone one is said", ctx do
+      %{conn: conn, board: board} = ctx
+      {:ok, runner, _} = Runners.create_runner(board, %{"name" => "box", "pool" => "dev"})
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/automations")
+      view |> element("#show-runner-#{runner.id}") |> render_click()
+      view |> element("#runner-#{runner.id} button[title=Revoke]") |> render_click()
+      refute has_element?(view, "#runner-details-#{runner.id}")
+
+      render_click(with_target(view, "#board-runners"), "show_runner", %{"id" => runner.id})
+      assert render(view) =~ "That runner is gone."
+    end
+  end
+
   test "revoking a runner ends its token", %{conn: conn, board: board} do
     {:ok, runner, token} = Runners.create_runner(board, %{"name" => "box", "pool" => "dev"})
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/automations")
@@ -265,7 +358,7 @@ defmodule SlipdockWeb.RunnersLiveTest do
   end
 
   test "somebody the board is shared with sees no runners and can't make one", %{board: board} do
-    {:ok, _runner, _} = Runners.create_runner(board, %{"name" => "box", "pool" => "dev"})
+    {:ok, runner, _} = Runners.create_runner(board, %{"name" => "box", "pool" => "dev"})
     other = user_fixture("w#{System.unique_integer([:positive])}@example.com")
     share_fixture(board, [other], "write")
 
@@ -276,6 +369,9 @@ defmodule SlipdockWeb.RunnersLiveTest do
 
         render_click(with_target(view, "#board-runners"), "open_wizard", %{})
         refute has_element?(view, "#runner-wizard")
+
+        render_click(with_target(view, "#board-runners"), "show_runner", %{"id" => runner.id})
+        refute has_element?(view, "#runner-details-#{runner.id}")
 
       {:error, _redirect} ->
         :ok
