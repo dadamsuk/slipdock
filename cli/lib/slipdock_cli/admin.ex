@@ -41,6 +41,9 @@ defmodule SlipdockCLI.Admin do
 
   def run("admin", ["users"], o), do: HTTP.get("/admin/users") |> out(o, &render_admin_users/1)
 
+  def run("admin", ["meetings-usage"], o),
+    do: HTTP.get("/admin/meetings/usage") |> out(o, &render_meetings_usage/1)
+
   def run("admin", ["promote", email], o), do: admin_user(email, %{admin: true}, o)
   def run("admin", ["demote", email], o), do: admin_user(email, %{admin: false}, o)
   def run("admin", ["disable", email], o), do: admin_user(email, %{disabled: true}, o)
@@ -83,6 +86,7 @@ defmodule SlipdockCLI.Admin do
                                         meetings_accept_transcripts|audio|findings
     admin allow <entry> | disallow <entry>
     admin users                         who is here
+    admin meetings-usage                meeting capture this month: totals, heaviest users
     admin promote|demote|disable|enable <email>
     admin limit <email> <n|none>        their own card limit
     admin paid <email> <date|none>      paid up to a date
@@ -129,7 +133,12 @@ defmodule SlipdockCLI.Admin do
               "board_limit",
               "item_limit",
               "storage_limit_mb",
-              "trial_days"
+              "trial_days",
+              "meetings_transcription_minutes",
+              "meetings_audio_storage_mb",
+              "meetings_transcript_captures",
+              "meetings_longest_minutes",
+              "meetings_max_file_mb"
             ] do
     case Integer.parse(value) do
       {n, ""} -> n
@@ -149,7 +158,10 @@ defmodule SlipdockCLI.Admin do
               "meetings_hideable",
               "meetings_accept_transcripts",
               "meetings_accept_audio",
-              "meetings_accept_findings"
+              "meetings_accept_findings",
+              "meetings_transcription_minutes_enabled",
+              "meetings_audio_storage_mb_enabled",
+              "meetings_transcript_captures_enabled"
             ],
        do: value in ["1", "true", "yes", "on"]
 
@@ -174,6 +186,23 @@ defmodule SlipdockCLI.Admin do
     Meeting mode:     #{render_meetings(s["meetings"])}
     Waiting:          #{s["pending_signups"]}\
     """)
+  end
+
+  defp render_meetings_usage(%{"usage" => u}) do
+    IO.puts("""
+    Meeting capture since #{u["month"]} (shared key only; own keys are not counted):
+      transcription  #{u["transcription_minutes"]} min
+      model tokens   #{u["tokens"]}
+      cost reported  $#{:erlang.float_to_binary((u["cost"] || 0) / 1, decimals: 2)}
+      audio stored   #{div(u["audio_bytes"] || 0, 1024 * 1024)} MB
+      people         #{u["people"]}\
+    """)
+
+    for h <- u["heaviest"] || [] do
+      IO.puts(
+        "  #{h["name"] || h["email"]}: #{div(round(h["transcription_seconds"] || 0), 60)} min, #{h["tokens"]} tokens"
+      )
+    end
   end
 
   # Off, or on and where it shows; older servers say nothing about it.

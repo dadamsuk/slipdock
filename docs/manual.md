@@ -1776,6 +1776,21 @@ Display); what may be sent (`meetings_accept_transcripts`, `…_audio`,
 for each person's own; `meetings_second_reading=same|model|off` and
 `meetings_second_model`). Readings run on the sender's AI settings.
 
+Limits, per person per month, each with a switch: `meetings_transcription_minutes`
+(600), `meetings_audio_storage_mb` (2048, the recordings they have stored now)
+and `meetings_transcript_captures` (200); for every meeting,
+`meetings_longest_minutes` (240) and `meetings_max_file_mb` (500); and how long
+recordings are kept, `meetings_audio_retention`. They are checked before
+anything is stored or sent to a provider, and a meeting over one is refused
+with `meeting_limit_reached` (HTTP 402), naming the limit — retrying will not
+help. Transcription and reading on a person's own AI key or endpoint don't
+count; stored audio does. A recording's length is read from a WAV header, or
+estimated from its size until the transcriber reports it. Every
+transcription, model call and stored recording goes on a usage ledger;
+Configuration → Meetings shows this month's totals and the heaviest users
+(`slipdock admin meetings-usage`, `GET /api/admin/meetings/usage`), and the
+upload page shows each person what they have left.
+
 ### From a terminal, and from agents
 
 ```

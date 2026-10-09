@@ -58,6 +58,9 @@ defmodule SlipdockWeb.API.MeetingController do
         {:error, {:invalid, message}} ->
           {:error, :unprocessable_entity, message}
 
+        {:error, {:limit, code, message}} ->
+          {:error, :payment_required, code, message}
+
         {:error, other} ->
           {:error, other}
       end

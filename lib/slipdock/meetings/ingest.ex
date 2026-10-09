@@ -35,7 +35,9 @@ defmodule Slipdock.Meetings.Ingest do
   @doc """
   `{:ok, capture}`, `{:existing, capture}` (the same meeting was sent to this
   board before), `{:error, {:invalid, message}}` (a 422: nothing was stored),
-  or `{:error, changeset}` (a limit, or the capture itself refused).
+  `{:error, {:limit, code, message}}` (a 402: over this person's monthly
+  allowance, see `Slipdock.Meetings.Usage`), or `{:error, changeset}` (the
+  board's storage limit, or the capture itself refused).
   """
   @spec ingest(Board.t(), User.t(), map()) ::
           {:ok, Meetings.Capture.t()}
@@ -53,6 +55,9 @@ defmodule Slipdock.Meetings.Ingest do
          {:ok, invite} <- parse_invite(params[:ics]),
          {:ok, findings_json} <- parse_findings(findings),
          :ok <- not_too_long(parsed),
+         duration = audio && Slipdock.Meetings.Audio.duration_ms(audio.path, audio[:filename]),
+         :ok <- recording_not_too_long(duration),
+         :ok <- within_allowance(user, transcript, audio, duration),
          {:ok, started_at} <- started_at(params[:started_at], invite) do
       text = transcript && transcript.content
       fingerprint = Meetings.fingerprint(transcript: text, audio: audio && audio.path)
@@ -65,14 +70,19 @@ defmodule Slipdock.Meetings.Ingest do
         source: params[:source] || "upload",
         sources: sources(transcript, parsed, audio, findings_json, params),
         context_scope: context_scope(board, params[:context]),
-        retention: params[:retention] || "30_days",
+        retention:
+          params[:retention] || Slipdock.Settings.get().meetings_audio_retention || "30_days",
         transcript: text,
         transcript_format: parsed && parsed.format
       }
 
       case Meetings.create_capture(board, user, attrs,
              utterances: (parsed && parsed.lines) || [],
-             audio: audio && Map.put_new(audio, :filename, "recording")
+             audio:
+               audio &&
+                 audio
+                 |> Map.put_new(:filename, "recording")
+                 |> Map.put(:duration_ms, duration)
            ) do
         # Received: the reading starts (in the background, unless config
         # says otherwise — see `Slipdock.Meetings.Pipeline`).
@@ -172,6 +182,29 @@ defmodule Slipdock.Meetings.Ingest do
       {:ok, _} -> invalid("the findings file should be {\"findings\": [...]} (see the schema)")
       {:error, _} -> invalid("the findings file is not valid JSON")
     end
+  end
+
+  # A recording's length, read or estimated, against the longest meeting.
+  defp recording_not_too_long(nil), do: :ok
+
+  defp recording_not_too_long(ms) do
+    if ms > Limits.longest_meeting_minutes() * 60_000,
+      do:
+        invalid(
+          "the recording runs about #{div(ms, 60_000)} minutes; the longest this server reads is " <>
+            "#{Limits.longest_meeting_minutes()} minutes"
+        ),
+      else: :ok
+  end
+
+  # What this person has left this month (see `Slipdock.Meetings.Usage`):
+  # checked before anything is stored, let alone sent to a provider.
+  defp within_allowance(user, transcript, audio, duration) do
+    Slipdock.Meetings.Usage.check(user,
+      transcript_capture: transcript != nil and audio == nil,
+      audio_bytes: (audio && audio_size(audio)) || 0,
+      transcription_seconds: if(audio && is_nil(transcript), do: div(duration, 1000), else: 0)
+    )
   end
 
   # A transcript's own times say how long the meeting ran.

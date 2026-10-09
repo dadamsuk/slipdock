@@ -321,6 +321,7 @@ defmodule SlipdockWeb.Router do
 
     get "/settings", AdminController, :settings
     patch "/settings", AdminController, :update_settings
+    get "/meetings/usage", AdminController, :meetings_usage
     post "/allowlist", AdminController, :allow
     delete "/allowlist", AdminController, :disallow
     get "/users", AdminController, :users

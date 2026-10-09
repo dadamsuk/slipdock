@@ -256,6 +256,16 @@ defmodule Slipdock.Meetings do
             {:ok, capture} ->
               :ok = insert_utterances(capture, opts[:utterances] || [])
               record(capture, "received", received_message(capture), user: owner)
+
+              # Stored audio is on the ledger from the moment it is kept.
+              if capture.audio_key do
+                Slipdock.Meetings.Usage.record(capture, %{
+                  kind: :storage,
+                  step: "ingest",
+                  bytes: capture.audio_size
+                })
+              end
+
               capture
 
             {:error, reason} ->

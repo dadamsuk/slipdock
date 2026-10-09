@@ -75,7 +75,13 @@ defmodule SlipdockCLI do
                                       meetings_accept_transcripts|audio|findings=false,
                                       meetings_reading_model=<id> (empty: each person's own),
                                       meetings_second_reading=same|model|off,
-                                      meetings_second_model=<id>
+                                      meetings_second_model=<id>; per person per month:
+                                      meetings_transcription_minutes=600,
+                                      meetings_audio_storage_mb=2048,
+                                      meetings_transcript_captures=200 (each with _enabled),
+                                      meetings_longest_minutes=240, meetings_max_file_mb=500,
+                                      meetings_audio_retention=until_committed|30_days|90_days
+  admin meetings-usage                meeting capture this month: totals, heaviest users
   admin allow <entry>                 let an address or a whole domain register
   admin disallow <entry>
   admin users                         who is here, what they use, when last seen
