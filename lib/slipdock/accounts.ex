@@ -448,7 +448,11 @@ defmodule Slipdock.Accounts do
     with {:ok, {handed_over, keys}} <-
            unless_last_admin(user, fn ->
              handed_over = hand_over_shared_boards(user)
-             keys = Slipdock.Boards.file_keys(from(b in Board, where: b.owner_id == ^user.id))
+
+             keys =
+               Slipdock.Boards.file_keys(from(b in Board, where: b.owner_id == ^user.id)) ++
+                 Slipdock.Meetings.audio_keys_of_owner(user)
+
              Repo.delete!(user)
              {:ok, {handed_over, keys}}
            end) do

@@ -204,7 +204,18 @@ defmodule Slipdock.Portable.Export do
       saved_views: Enum.map(saved_views_of(root), &saved_view_json/1),
       folders: Enum.map(folders, &folder_json(&1, refs)),
       cards: Enum.map(cards, &card_json(&1, refs)),
-      pages: Enum.map(pages, &page_json(&1, refs))
+      pages: Enum.map(pages, &page_json(&1, refs)),
+      # Meeting captures, for the record: read back by nobody (an import
+      # leaves them out — see `Slipdock.Portable`), but the trail behind cards
+      # that came from a meeting should not be lost by moving the board.
+      captures:
+        board_ids
+        |> Slipdock.Meetings.Export.on_boards()
+        |> Enum.map(fn capture ->
+          capture
+          |> Slipdock.Meetings.Export.capture_json()
+          |> Map.put(:board, refs.boards[capture.board_id])
+        end)
     }
   end
 
