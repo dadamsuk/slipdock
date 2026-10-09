@@ -106,6 +106,11 @@ defmodule Slipdock.Settings.Instance do
     field :meetings_longest_minutes, :integer, default: 240
     field :meetings_max_file_mb, :integer, default: 500
     field :meetings_audio_retention, :string, default: "30_days"
+    # Who turns a recording into words (see `Slipdock.Meetings.Transcriber`).
+    field :meetings_transcription, :string, default: "none"
+    field :meetings_transcription_model, :string, default: "openai/whisper-large-v3"
+    field :meetings_transcription_url, :string
+    field :meetings_transcription_max_mb, :integer, default: 25
 
     # Whose AI settings unattended work runs on: the search indexer, every
     # search query, scheduled automations. An admin, because those settings
@@ -170,7 +175,9 @@ defmodule Slipdock.Settings.Instance do
                     meetings_transcription_minutes meetings_transcription_minutes_enabled
                     meetings_audio_storage_mb meetings_audio_storage_mb_enabled
                     meetings_transcript_captures meetings_transcript_captures_enabled
-                    meetings_longest_minutes meetings_max_file_mb meetings_audio_retention)a
+                    meetings_longest_minutes meetings_max_file_mb meetings_audio_retention
+                    meetings_transcription meetings_transcription_model
+                    meetings_transcription_url meetings_transcription_max_mb)a
 
   # The admin address and the SMTP details each have a flow that proves
   # something first (a code to the new address, a test message that arrived),
@@ -204,8 +211,19 @@ defmodule Slipdock.Settings.Instance do
       :posthog_key,
       :posthog_host,
       :meetings_reading_model,
-      :meetings_second_model
+      :meetings_second_model,
+      :meetings_transcription_model,
+      :meetings_transcription_url
     ])
+    |> validate_inclusion(:meetings_transcription, ~w(none provider endpoint))
+    |> validate_number(:meetings_transcription_max_mb, greater_than: 0)
+    |> validate_web_url(:meetings_transcription_url)
+    |> then(fn cs ->
+      if get_field(cs, :meetings_transcription) == "endpoint" and
+           get_field(cs, :meetings_transcription_url) in [nil, ""],
+         do: add_error(cs, :meetings_transcription_url, "is needed to transcribe on an endpoint"),
+         else: cs
+    end)
     |> validate_number(:meetings_transcription_minutes, greater_than_or_equal_to: 0)
     |> validate_number(:meetings_audio_storage_mb, greater_than_or_equal_to: 0)
     |> validate_number(:meetings_transcript_captures, greater_than_or_equal_to: 0)

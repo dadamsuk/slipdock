@@ -141,7 +141,13 @@ defmodule Slipdock.Meetings do
         {:error, _} -> nil
       end
 
-    %{reading: reading, transcription: nil}
+    transcription =
+      case Slipdock.Meetings.Transcriber.target(user) do
+        {:ok, t} -> %{host: host(t.base_url), model: t.model, own?: t.own?}
+        _ -> nil
+      end
+
+    %{reading: reading, transcription: transcription}
   end
 
   defp host(url) do

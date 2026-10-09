@@ -65,6 +65,7 @@ defmodule Slipdock.Automations.Scheduler do
   # `Slipdock.Meetings.Pipeline`).
   defp resume_captures do
     Slipdock.Meetings.Pipeline.sweep()
+    Slipdock.Meetings.Audio.purge_expired()
   rescue
     exception -> Logger.error("Meeting capture sweep failed: #{Exception.message(exception)}")
   end

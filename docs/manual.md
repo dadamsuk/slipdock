@@ -1776,6 +1776,23 @@ Display); what may be sent (`meetings_accept_transcripts`, `…_audio`,
 for each person's own; `meetings_second_reading=same|model|off` and
 `meetings_second_model`). Readings run on the sender's AI settings.
 
+Transcription: `meetings_transcription=none` (the default: a recording needs a
+transcript sent with it), `provider` (each sender's own AI settings —
+OpenRouter's `/api/v1/audio/transcriptions` with their key or the shared one,
+or their own OpenAI-compatible endpoint) or `endpoint` (one of the server's:
+`meetings_transcription_url`, a local whisper server, say), with
+`meetings_transcription_model` (`openai/whisper-large-v3`) and
+`meetings_transcription_max_mb` (25), the largest file sent at once. Longer
+recordings are cut into stretches that overlap by five seconds and stitched at
+the middle of each overlap, word by word, so nothing is lost or said twice at a
+seam: WAV files here, other formats when `ffmpeg` is installed on the server
+(the Docker image does not include it; send WAV or a transcript instead). A
+transcript sent with a recording is used word for word and lined up with it —
+by its own times, or, for plain text, spread over the recording in proportion
+to what was said, and marked as estimated. Recordings are deleted when their
+keeping runs out (the scheduler checks every minute), which frees the storage;
+the capture then says replay is no longer possible.
+
 Limits, per person per month, each with a switch: `meetings_transcription_minutes`
 (600), `meetings_audio_storage_mb` (2048, the recordings they have stored now)
 and `meetings_transcript_captures` (200); for every meeting,
