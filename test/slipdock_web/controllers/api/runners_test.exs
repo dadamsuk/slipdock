@@ -305,6 +305,13 @@ defmodule SlipdockWeb.API.RunnersTest do
       comments = Slipdock.Boards.get_card!(ctx.card.id) |> Repo.preload(:comments)
       assert Enum.any?(comments.comments, &(&1.body == "Halfway."))
 
+      # No note, no comment (#514's "Nothing").
+      assert %{"status" => "ok"} =
+               ctx.conn |> post(~p"/api/jobs/#{job.id}/progress", %{}) |> json_response(200)
+
+      assert length(Repo.preload(Slipdock.Boards.get_card!(ctx.card.id), :comments).comments) ==
+               length(comments.comments)
+
       assert ctx.conn
              |> post(~p"/api/jobs/#{job.id}/finish", %{"outcome" => "nope"})
              |> json_response(422)
@@ -467,8 +474,7 @@ defmodule SlipdockWeb.API.RunnersTest do
       })
       |> json_response(200)
 
-    assert ["ins", "  --instructions 'Be brief.'" <> _] =
-             Enum.find(body["diff"], &match?(["ins", "  --instructions" <> _], &1))
+    assert Enum.any?(body["diff"], &(&1 == ["ins", "Be brief.' \\"]))
 
     assert Enum.any?(body["diff"], &(&1 == ["ins", "echo done"]))
 
@@ -480,5 +486,40 @@ defmodule SlipdockWeb.API.RunnersTest do
              "hooks" => "x"
            })
            |> json_response(422)
+  end
+
+  test "the seven toggles: set through setup, saved, and push refused without commit", ctx do
+    url = ~p"/api/boards/#{ctx.board.id}/runners/#{ctx.runner.id}/setup"
+
+    body =
+      ctx.conn
+      |> put(url, %{"commit" => true, "push" => true, "assign" => true, "verbosity" => "nothing"})
+      |> json_response(200)
+
+    assert Enum.any?(body["diff"], fn [op, line] ->
+             op == "ins" and line =~ "commit with the card id in the message and push"
+           end)
+
+    settings = Slipdock.Repo.get!(Slipdock.Runners.Runner, ctx.runner.id).settings
+    assert %{"commit" => true, "push" => true, "assign" => true} = settings
+    assert %{"in_progress" => false, "move_done" => false, "complete" => false} = settings
+    assert settings["percent_100"] == false
+
+    assert %{"error" => "push needs commit" <> _} =
+             ctx.conn |> put(url, %{"commit" => false}) |> json_response(422)
+
+    assert %{"error" => "complete must be true or false"} =
+             ctx.conn |> put(url, %{"complete" => "maybe"}) |> json_response(422)
+
+    # A Claude scenario's steps say them too, all off when not given.
+    steps =
+      ctx.conn
+      |> post(~p"/api/boards/#{ctx.board.id}/runners/setup", %{"scenario" => "loop"})
+      |> json_response(201)
+      |> get_in(["setup", "steps"])
+      |> Enum.map_join("\n", &(&1["code"] || ""))
+
+    assert steps =~ "Don't move the card to the doing list"
+    assert steps =~ "Don't comment on the card at all"
   end
 end

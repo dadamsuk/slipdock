@@ -1400,10 +1400,14 @@ defmodule SlipdockWeb.APIGuide do
     let it use those MCP servers' tools without asking — in `-p` nobody can
     approve one; `slipdock_tools: false` leaves it no access to the board.
     Every job's prompt ends by telling the agent nobody will answer questions.
-    `slipdock runner new` prints the same. For the two Claude scenarios,
-    `commit` (`push`, the default, `commit` or `none`) and `close` (`done`, the
-    default, or `open`) say whether a pass commits its work — only in a git
-    repository — and whether it completes the card or leaves it open. A
+    `slipdock runner new` prints the same. What a job does to its card and
+    repository is seven booleans, all false unless given, in every scenario:
+    `in_progress`, `assign`, `commit` (only in a git repository), `push`
+    (refused without `commit`), `move_done`, `complete` and `percent_100`.
+    Each is said in the prompt, or a runner's standing instructions, on or
+    off. `verbosity` is `nothing` (the default: no comments, `job_progress`
+    with no note), `quiet`, `normal`, `verbose`, or `""` for whatever the
+    skill says. Answers saved as #511's `commit` and `close` carry over. A
     session with no job tools (a connector added before they existed keeps its
     old tool list) is told to stop and say so rather than work the lists.
 

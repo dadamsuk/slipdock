@@ -564,10 +564,15 @@ those hooks for you (your notifier, what to keep from each pass), from a
 worked example. A Claude runner may use the Slipdock MCP tools without
 asking (on by default) and every job is told nobody will answer questions, since
 nobody is watching. A runner costs nothing while it waits; the Claude
-options need no install but use a Claude turn per check. For those you choose
-whether a pass commits (and pushes) its work — only ever in a git repository —
-and whether it closes the card or leaves it open for you; until such a session
-takes its first job, its pool shows in the runner list as waiting.
+options need no install but use a Claude turn per check. In every scenario a job
+does nothing to its card or repository unless you tick it: move it to In
+Progress, assign it, git commit, git push (with commit; commits only ever in a
+git repository), move it to Done, mark it complete, mark it 100%. Unticked ones
+are said in the prompt as don'ts, since the skill would otherwise do them. How
+much it writes on the card defaults to Nothing: no comments, just the job's
+lease renewed (the server's own notes, such as a card put back or given up on,
+still appear). Until a Claude session takes its first job, its pool shows in the
+runner list as waiting.
 `slipdock runner new <board> [name] --pool default [--scenario …]` prints the
 same, `slipdock runner ls|setup|token|rm` manage them, and `slipdock jobs
 <board>` shows what they're doing. The details are in

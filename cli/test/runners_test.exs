@@ -213,11 +213,29 @@ defmodule SlipdockCLI.RunnersTest do
              )
   end
 
-  test "runner new and setup pass --commit and --close; unset, they are left out" do
-    assert {[commit: "none", close: "open"], [], []} =
-             OptionParser.parse(["--commit", "none", "--close", "open"],
-               strict: SlipdockCLI.switches()
-             )
+  test "the seven toggles parse as --[no-]flags, are sent as given, and left out unset" do
+    args =
+      ~w(--in-progress --assign --commit --push --move-done --complete --percent-100 --verbosity nothing)
+
+    assert {opts, [], []} = OptionParser.parse(args, strict: SlipdockCLI.switches())
+
+    assert opts == [
+             in_progress: true,
+             assign: true,
+             commit: true,
+             push: true,
+             move_done: true,
+             complete: true,
+             percent_100: true,
+             verbosity: "nothing"
+           ]
+
+    assert {[commit: false, push: false], [], []} =
+             OptionParser.parse(~w(--no-commit --no-push), strict: SlipdockCLI.switches())
+
+    # The old answers are gone: --commit takes no value, --close is unknown.
+    assert {[commit: true], ["push", "done"], [{"--close", nil}]} =
+             OptionParser.parse(~w(--commit push --close done), strict: SlipdockCLI.switches())
 
     serve([
       {201, ~s({"runner":null,"token":null,"automation":null,"setup":#{@setup}})},
@@ -225,16 +243,25 @@ defmodule SlipdockCLI.RunnersTest do
     ])
 
     capture_io(fn ->
-      Runners.run("runner", ["new", "b"], scenario: "loop", commit: "none", close: "open")
+      Runners.run("runner", ["new", "b"], [scenario: "loop"] ++ Keyword.delete(opts, :verbosity))
     end)
 
     assert_received {:request, "POST", "/api/boards/b/runners/setup", body}
 
-    assert JSON.decode!(body) == %{"scenario" => "loop", "commit" => "none", "close" => "open"}
+    assert JSON.decode!(body) == %{
+             "scenario" => "loop",
+             "in_progress" => true,
+             "assign" => true,
+             "commit" => true,
+             "push" => true,
+             "move_done" => true,
+             "complete" => true,
+             "percent_100" => true
+           }
 
-    capture_io(fn -> Runners.run("runner", ["setup", "b", "4"], commit: "commit") end)
+    capture_io(fn -> Runners.run("runner", ["setup", "b", "4"], commit: false, push: false) end)
     assert_received {:request, "PUT", "/api/boards/b/runners/4/setup", body}
-    assert JSON.decode!(body) == %{"commit" => "commit"}
+    assert JSON.decode!(body) == %{"commit" => false, "push" => false}
   end
 
   test "runner new for a Claude scenario needs no pool and makes no runner" do

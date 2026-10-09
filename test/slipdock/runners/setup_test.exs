@@ -191,70 +191,240 @@ defmodule Slipdock.Runners.SetupTest do
     end
   end
 
-  describe "committing and closing the card (#511)" do
+  describe "what a pass does to the card: seven toggles, all off (#514)" do
     defp loop(board, extra),
       do: Setup.loop_prompt(answers(extra), %{base_url: @base, board: board})
 
     defp cloud(board, extra),
       do: Setup.cloud_prompt(answers(Map.put(extra, "scenario", "cloud")), %{board: board})
 
-    test "by default a pass commits and pushes, in a git repository only, and closes the card",
-         %{board: board} do
-      prompt = loop(board, %{"scenario" => "loop"})
+    @all_on Map.new(Setup.toggles(), &{&1, "true"})
 
-      assert prompt =~
+    # The sentence each toggle gives, on and off.
+    @said %{
+      "in_progress" =>
+        {"Move the card to the doing list when you start.",
+         "Don't move the card to the doing list: leave it where it is."},
+      "assign" =>
+        {"Assign the card to yourself when you start.", "Don't assign the card to anyone."},
+      "move_done" =>
+        {"Move the card to the done list when you finish.",
+         "Don't move the card to the done list."},
+      "complete" => {"Mark the card complete when you finish.", "Don't mark the card complete."},
+      "percent_100" =>
+        {"Set the card's % complete to 100 when you finish.",
+         "Don't set the card's % complete at all."}
+    }
+
+    test "all off by default, and off is said, not left unsaid" do
+      a = answers()
+      assert Enum.all?(Setup.toggles(), &(a[&1] == false))
+      assert length(Setup.toggles()) == 7
+
+      text = Setup.card_text(a)
+      for {_key, {on, off}} <- @said, do: assert(text =~ off) && refute(text =~ on)
+      assert text =~ "Don't commit or push anything."
+      refute text =~ "git repository"
+    end
+
+    test "each toggle on its own turns only its own sentence on", %{board: board} do
+      for {key, {on, off}} <- @said do
+        prompt = loop(board, %{"scenario" => "loop", key => "true"})
+        assert prompt =~ on, key
+        refute prompt =~ off, key
+
+        for {other, {other_on, other_off}} <- @said, other != key do
+          assert prompt =~ other_off, "#{key} on: #{other}"
+          refute prompt =~ other_on, "#{key} on: #{other}"
+        end
+      end
+    end
+
+    test "commit, commit and push, or neither — committing only in a git repository",
+         %{board: board} do
+      commit = loop(board, %{"scenario" => "loop", "commit" => "on"})
+
+      assert commit =~
+               "If the working directory is a git repository, commit with the card id in the " <>
+                 "message, but don't push; if it isn't one, skip the commit."
+
+      both = loop(board, %{"scenario" => "loop", "commit" => true, "push" => true})
+
+      assert both =~
                "If the working directory is a git repository, commit with the card id in the " <>
                  "message and push; if it isn't one, skip the commit."
 
-      assert prompt =~ "complete it and move it to the done list."
+      refute both =~ "don't push"
+      assert loop(board, %{"scenario" => "loop"}) =~ "Don't commit or push anything."
+    end
+
+    test "push needs commit" do
+      assert Setup.normalise(%{"push" => "true"}) ==
+               {:error, "push needs commit: a pass can only push a commit it made"}
+
+      assert Setup.normalise(%{"push" => "true", "commit" => "false"}) ==
+               {:error, "push needs commit: a pass can only push a commit it made"}
+
+      assert {:ok, %{"push" => true, "commit" => true}} =
+               Setup.normalise(%{"push" => "on", "commit" => "on"})
+    end
+
+    test "a toggle is a checkbox: anything else is refused, #511's values included" do
+      assert Setup.normalise(%{"commit" => "push"}) == {:error, "commit must be true or false"}
+      assert Setup.normalise(%{"complete" => "yes"}) == {:error, "complete must be true or false"}
+      assert {:ok, %{"assign" => false}} = Setup.normalise(%{"assign" => ""})
+      assert {:ok, %{"assign" => false}} = Setup.normalise(%{"assign" => "off"})
+      # #511's close is no longer an answer, and is dropped like any unknown key.
+      refute Map.has_key?(answers(%{"close" => "done"}), "close")
+    end
+
+    test "all on, the loop prompt says each one on", %{board: board} do
+      prompt = loop(board, Map.put(@all_on, "scenario", "loop"))
+      for {_key, {on, off}} <- @said, do: assert(prompt =~ on) && refute(prompt =~ off)
+      assert prompt =~ "commit with the card id in the message and push"
       assert prompt =~ "Then finish the job and stop."
     end
 
-    test "commit, don't push; or no commit at all", %{board: board} do
-      commit = loop(board, %{"scenario" => "loop", "commit" => "commit"})
-      assert commit =~ "but don't push"
-      refute commit =~ "and push"
+    test "a cloud routine's steps 2, 4 and 5 follow them", %{board: board} do
+      off = cloud(board, %{"where" => "cloud"})
 
-      none = loop(board, %{"scenario" => "loop", "commit" => "none"})
-      assert none =~ "Don't commit or push anything."
-      refute none =~ "git repository"
+      assert off =~
+               "2. Otherwise the job names a card. Read it with get_card. Don't move the card " <>
+                 "to the doing list: leave it where it is. Don't assign the card to anyone.\n"
+
+      assert off =~ "4. Run the tests if there are any. Don't commit or push anything."
+
+      assert off =~
+               "5. Don't move the card to the done list. Don't mark the card complete. Don't " <>
+                 "set the card's % complete at all. Then call finish_job"
+
+      refute off =~ "complete_card"
+
+      on = cloud(board, Map.merge(@all_on, %{"where" => "cloud", "verbosity" => "normal"}))
+
+      assert on =~
+               "Read it with get_card. Move the card to the doing list when you start. Assign " <>
+                 "the card to yourself when you start. Comment that you have picked it up"
+
+      assert on =~ "4. Run the tests if there are any. If the working directory is a git"
+      assert on =~ "and push; if it isn't one"
+
+      assert on =~
+               "5. Comment on the card what was done (files, tests, any commit). Move the card " <>
+                 "to the done list when you finish. Mark the card complete when you finish. Set " <>
+                 "the card's % complete to 100 when you finish. Then call finish_job"
     end
 
-    test "a card left open is never completed or moved to done", %{board: board} do
-      prompt = loop(board, %{"scenario" => "loop", "close" => "open"})
-      assert prompt =~ "leave it open where it is: don't complete it or move it to the done list"
-      refute prompt =~ "complete it and move it"
-    end
+    test "a runner of its own is told in its standing instructions", %{board: board} do
+      for scenario <- ~w(server windows) do
+        text = Setup.instructions(answers(%{"scenario" => scenario}))
+        assert text =~ "What to do to the card: Don't move the card to the doing list"
+        assert text =~ "Don't commit or push anything."
 
-    test "a cloud routine's prompt follows the same answers", %{board: board} do
-      default = cloud(board, %{"where" => "cloud"})
-      assert default =~ "4. Run the tests, commit with the card number in the message, and push."
-      assert default =~ "complete it with complete_card, and move it to the done list."
+        on = Setup.instructions(answers(Map.put(@all_on, "scenario", scenario)))
+        assert on =~ "What to do to the card: Move the card to the doing list when you start."
+        assert on =~ "Set the card's % complete to 100 when you finish."
+      end
 
-      chosen = cloud(board, %{"where" => "cloud", "commit" => "none", "close" => "open"})
-      assert chosen =~ "4. Run the tests if there are any. Don't commit or push anything."
-      assert chosen =~ "don't complete it or move it to the done list."
-      refute chosen =~ "complete_card"
-      refute chosen =~ "and push"
+      [line | _] = board |> gen(%{"commit" => "true"}) |> codes()
+      assert line =~ "--instructions 'What to do to the card:"
+      assert line =~ "commit with the card id in the message, but don'\\''t push"
 
-      assert cloud(board, %{"commit" => "commit"}) =~ "but don't push."
-    end
-
-    test "unknown answers are refused" do
-      assert Setup.normalise(%{"commit" => "maybe"}) ==
-               {:error, "commit must be push, commit or none"}
-
-      assert Setup.normalise(%{"close" => "archive"}) == {:error, "close must be done or open"}
+      # A Claude session hears it in its prompt, so not twice.
+      refute Setup.instructions(answers(%{"scenario" => "loop"})) =~ "What to do to the card"
     end
 
     test "saved with the runner and changed later like any answer", ctx do
       {:ok, %{runner: runner}} =
-        Setup.connect(ctx.board, %{"pool" => "dev", "commit" => "none"}, ctx.owner, @base)
+        Setup.connect(
+          ctx.board,
+          %{"pool" => "dev", "commit" => "true", "assign" => "true"},
+          ctx.owner,
+          @base
+        )
 
-      assert {runner.settings["commit"], runner.settings["close"]} == {"none", "done"}
+      assert %{"commit" => true, "assign" => true, "push" => false} = runner.settings
 
-      {:ok, %{runner: runner}} = Setup.update(runner, ctx.board, %{"close" => "open"}, @base)
-      assert {runner.settings["commit"], runner.settings["close"]} == {"none", "open"}
+      {:ok, %{runner: runner}} = Setup.update(runner, ctx.board, %{"push" => "true"}, @base)
+      assert %{"commit" => true, "assign" => true, "push" => true} = runner.settings
+
+      assert {:error, "push needs commit" <> _} =
+               Setup.update(runner, ctx.board, %{"commit" => "false"}, @base)
+    end
+
+    test "answers saved under #511 carry over", ctx do
+      {:ok, %{runner: runner}} = Setup.connect(ctx.board, %{"pool" => "dev"}, ctx.owner, @base)
+
+      for {old, want} <- [
+            {%{"commit" => "push", "close" => "done"},
+             %{"commit" => true, "push" => true, "move_done" => true, "complete" => true}},
+            {%{"commit" => "commit", "close" => "open"},
+             %{"commit" => true, "push" => false, "move_done" => false, "complete" => false}},
+            {%{"commit" => "none", "close" => "done"},
+             %{"commit" => false, "push" => false, "move_done" => true, "complete" => true}}
+          ] do
+        {:ok, runner} =
+          Runners.update_runner(runner, %{"settings" => Map.merge(runner.settings, old)})
+
+        saved = Setup.saved(runner)
+        assert Map.take(saved, Map.keys(want)) == want, inspect(old)
+
+        assert {saved["in_progress"], saved["assign"], saved["percent_100"]} ==
+                 {false, false, false}
+
+        refute Map.has_key?(saved, "close")
+      end
+
+      # And changing one answer saves the carried-over ones as toggles.
+      {:ok, runner} =
+        Runners.update_runner(runner, %{
+          "settings" => Map.merge(runner.settings, %{"commit" => "none", "close" => "done"})
+        })
+
+      {:ok, %{runner: runner}} = Setup.update(runner, ctx.board, %{"assign" => "true"}, @base)
+      assert %{"commit" => false, "move_done" => true, "assign" => true} = runner.settings
+      refute Map.has_key?(runner.settings, "close")
+    end
+  end
+
+  describe "how much to write on the card: Nothing, the default (#514)" do
+    test "is the default, and says not to comment at all" do
+      assert answers()["verbosity"] == "nothing"
+      text = Setup.instructions(answers(%{"scenario" => "loop"}))
+      assert text =~ "Don't comment on the card at all"
+      assert text =~ "job_progress (or slipdock job-progress) without a note"
+    end
+
+    test "whatever the skill says is still a choice, and adds nothing" do
+      assert Setup.instructions(answers(%{"scenario" => "loop", "verbosity" => ""})) == ""
+    end
+
+    test "reaches the loop prompt and a runner's standing instructions", %{board: board} do
+      assert loop(board, %{"scenario" => "loop"}) =~
+               "Standing instructions for every job:\nDon't comment on the card at all"
+
+      [line | _] = board |> gen(%{}) |> codes()
+      assert line =~ "Don'\\''t comment on the card at all"
+    end
+
+    test "a cloud routine is told no notes and no comments, and says why only in the job",
+         %{board: board} do
+      prompt = cloud(board, %{"where" => "cloud"})
+      assert prompt =~ "Call job_progress with the job id and no note"
+      refute prompt =~ "Comment that you have picked it up"
+      refute prompt =~ "Comment on the card what was done"
+      refute prompt =~ "say so on the card"
+      assert prompt =~ "say why in finish_job's summary"
+
+      chatty = cloud(board, %{"where" => "cloud", "verbosity" => "quiet"})
+      assert chatty =~ "Call job_progress with the job id and a short note"
+      assert chatty =~ "say so on the card"
+      refute chatty =~ "in finish_job's summary"
+    end
+
+    test "an unknown verbosity names Nothing among the choices" do
+      assert Setup.normalise(%{"verbosity" => "shouty"}) ==
+               {:error, "verbosity must be nothing, quiet, normal or verbose"}
     end
   end
 
@@ -440,15 +610,16 @@ defmodule Slipdock.Runners.SetupTest do
     """
 
     test "the verbosity paragraph, then the free text" do
-      assert Setup.instructions(answers()) == ""
-      assert Setup.instructions(answers(%{"verbosity" => "quiet"})) =~ "one line when you start"
+      loop = &answers(Map.put(&1, "scenario", "loop"))
+      assert Setup.instructions(loop.(%{"verbosity" => ""})) == ""
+      assert Setup.instructions(loop.(%{"verbosity" => "quiet"})) =~ "one line when you start"
 
       both =
         Setup.instructions(
-          answers(%{"verbosity" => "verbose", "instructions" => "Never push to main."})
+          loop.(%{"verbosity" => "verbose", "instructions" => "Never push to main."})
         )
 
-      assert both =~ ~r/full summary\.\n\nNever push to main\.$/
+      assert both =~ ~r/^Keep a detailed.*full summary\.\n\nNever push to main\.$/s
     end
 
     test "the server line carries them, quoted so nothing in them runs", %{board: board} do
@@ -461,7 +632,9 @@ defmodule Slipdock.Runners.SetupTest do
         })
         |> codes()
 
-      assert line =~ "--instructions " <> Setup.sh_q(String.trim(@tricky))
+      text = Setup.instructions(answers(%{"instructions" => @tricky}))
+      assert text =~ ~r/\n\n#{Regex.escape(String.trim(@tricky))}$/
+      assert line =~ "--instructions " <> Setup.sh_q(text)
       assert line =~ "--before-job 'git pull'"
       assert line =~ ~S(--after-job 'echo "$SLIPDOCK_STATUS"')
     end
@@ -471,7 +644,9 @@ defmodule Slipdock.Runners.SetupTest do
         board |> gen(%{"instructions" => "Be brief.", "before_job" => "git pull"}) |> codes()
 
       assert config =~
-               "job_instructions() {\n  cat <<'SLIPDOCK_EOF_<random>'\nBe brief.\nSLIPDOCK_EOF_<random>\n}"
+               "job_instructions() {\n  cat <<'SLIPDOCK_EOF_<random>'\nWhat to do to the card:"
+
+      assert config =~ "\n\nBe brief.\nSLIPDOCK_EOF_<random>\n}"
 
       assert config =~ "JOB_INSTRUCTIONS=$(job_instructions)"
       assert config =~ "before_job() {\ngit pull\n}"
@@ -488,7 +663,8 @@ defmodule Slipdock.Runners.SetupTest do
         })
         |> codes()
 
-      assert line =~ ~S(-Instructions 'it''s ''@ here')
+      assert line =~ ~S(-Instructions 'What to do to the card: Don''t move)
+      assert line =~ "\n\nit''s ''@ here' `"
       assert line =~ ~S(-AfterJob 'Write-Host ''x''')
     end
 
@@ -500,7 +676,8 @@ defmodule Slipdock.Runners.SetupTest do
             "scenario" => "loop",
             "before_job" => "git pull",
             "after_job" => "make clean",
-            "instructions" => "Be brief."
+            "instructions" => "Be brief.",
+            "verbosity" => ""
           },
           nil
         )
@@ -551,6 +728,7 @@ defmodule Slipdock.Runners.SetupTest do
             "scenario" => "cloud",
             "where" => "cloud",
             "instructions" => "Be brief.",
+            "verbosity" => "",
             "after_job" => "make clean"
           },
           nil
@@ -590,7 +768,7 @@ defmodule Slipdock.Runners.SetupTest do
       # The pool is what the token is for: it doesn't change here.
       assert runner.pool == "dev"
       assert Enum.any?(diff, &match?({:del, "  --timeout 3600" <> _}, &1))
-      assert Enum.any?(diff, &match?({:ins, "  --instructions 'Be brief.'"}, &1))
+      assert Enum.any?(diff, &match?({:ins, "Be brief.'"}, &1))
       assert Enum.any?(diff, &match?({:ins, "Be brief."}, &1))
       assert Enum.any?(diff, &match?({:eq, _}, &1))
 
