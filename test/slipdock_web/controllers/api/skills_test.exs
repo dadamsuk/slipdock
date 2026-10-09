@@ -60,6 +60,40 @@ defmodule SlipdockWeb.API.SkillsTest do
     assert work =~ "slipdock finish-job <job>"
   end
 
+  # The runner setup's prompts turn each toggle off in so many words; the
+  # skill names those same words, so the two can't drift apart (#514).
+  @tag :anonymous
+  test "slipdock-loop names every toggle the setup prompts can turn off", %{conn: conn} do
+    assert %{"content" => body} =
+             conn |> get("/api/skills/slipdock-loop") |> json_response(200)
+
+    assert body =~ "## What the invocation says wins"
+
+    for {toggle, words} <- Slipdock.Runners.Setup.off_wording() do
+      assert body =~ words, "#{toggle}: #{words}"
+      # ...and they are what the prompts actually say.
+      {:ok, a} = Slipdock.Runners.Setup.normalise(%{"commit" => toggle == "push"})
+      assert Slipdock.Runners.Setup.card_text(a) =~ words, toggle
+    end
+
+    assert Enum.sort(Map.keys(Slipdock.Runners.Setup.off_wording())) ==
+             Enum.sort(Slipdock.Runners.Setup.toggles())
+
+    # Nothing written on the card: no comments, and job-progress with no message.
+    assert body =~ ~s("Don't comment on the card at all")
+    assert body =~ "with no `--message`"
+
+    assert Slipdock.Runners.Setup.instructions(%{
+             "scenario" => "loop",
+             "verbosity" => "nothing",
+             "instructions" => ""
+           }) =~
+             "Don't comment on the card at all"
+
+    # Run by hand, the skill still does all of it.
+    assert body =~ "Run by hand, with nothing said, do all of it"
+  end
+
   @tag :anonymous
   test "slipdock-loop watches the CI build after every push", %{conn: conn} do
     assert %{"content" => body} =

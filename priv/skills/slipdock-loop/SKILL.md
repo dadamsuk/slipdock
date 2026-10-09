@@ -81,6 +81,38 @@ with nobody told why. So make it loud:
    cron every pass raises the same alarm until someone signs in again, which is
    the point.
 
+## What the invocation says wins
+
+A pass started by a runner setup (a `/loop` prompt, a scheduled task, a
+runner's standing instructions) says what to do to the card and the
+repository, each on or off. Off is said in so many words, because everything
+below does all of it by default — so do exactly what it says, for the whole
+pass, not just at the end:
+
+| The invocation says | Then |
+|---|---|
+| "Don't move the card to the doing list" | step 4: no move; the card stays where it is |
+| "Don't assign the card to anyone" | step 4: no `--assignee me`; leave the assignee alone |
+| "Don't set the card's % complete at all" | no `--percent`, at the claim, as you go or at the end |
+| "Don't commit or push anything" | step 7: no steps 2 to 4; `Commit: none` |
+| "commit … but don't push" | step 7: commit, skip the push and the build watch |
+| "Don't move the card to the done list" | step 7.5: no `move … "Done"` |
+| "Don't mark the card complete" | step 7.5: no `slipdock done` |
+
+The **claim** in step 4 is then just the job (or the *Picked up* comment): it
+is still the lock, and a card left where it was is still this pass's. And a
+**resumed** card (step 2) is one whose *Picked up* comment or job is this
+session's, wherever it sits.
+
+**"Don't comment on the card at all"** (How much to write: *Nothing*) means
+no *Picked up*, no running log, no `Build started`, no wrap-up: renew the job
+with `slipdock job-progress <job>` (or `job_progress`) with no `--message`
+(the message is what makes the comment), and put the outcome — commit, build,
+why it stopped — in `finish-job --summary` instead. Comments the server
+itself adds (a card put back or given up on) are not yours and still appear.
+
+Run by hand, with nothing said, do all of it as below.
+
 ## 1. Which board
 
 In order: the board named in the invocation; then a board the user has
@@ -237,6 +269,9 @@ On a **simple** board (`slipdock board` says `· simple` in its heading) leave
 `--percent` off, here and below: the person turned the tracking details off,
 and a percentage they cannot see is noise in the record.
 
+Leave out whatever the invocation rules out (see **What the invocation says
+wins**): the move, the assignee, the percentage, the comment.
+
 If what the card asks for is genuinely unclear, do not guess a scope: hand it
 back (see **Handing a card back**) rather than inventing work on it.
 
@@ -293,14 +328,11 @@ blockers and what happened *now* stay on the card. Never both.
 
 ## 7. Close it out
 
-**What the invocation says wins.** A pass started by a runner setup says
-whether to commit ("don't commit or push anything", "commit, but don't push")
-and whether to close the card ("leave it open where it is"). Then skip what it
-rules out: no commit means no steps 2 to 4 (`Commit: none` in the wrap-up);
-leaving it open means no step 5, and the wrap-up says it is ready for the
-person to close. A working directory that isn't a git repository has nothing
-to commit to either: skip steps 2 to 4 and write `Commit: none (not a git
-repository)`.
+Skip what the invocation rules out (see **What the invocation says wins**):
+no commit means no steps 2 to 4 (`Commit: none` in the wrap-up), and no
+complete, move to Done or 100% means leaving those parts of step 5 out. A
+working directory that isn't a git repository has nothing to commit to
+either: skip steps 2 to 4 and write `Commit: none (not a git repository)`.
 
 In this order, because the commit id goes in the comment and the comment is what
 anybody reads later:
