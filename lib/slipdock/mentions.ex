@@ -103,7 +103,10 @@ defmodule Slipdock.Mentions do
     |> Enum.reject(&(by && &1.id == by.id))
     |> Enum.filter(&Access.can_read?(Access.card_permission(&1, card)))
     |> Enum.each(fn person ->
-      Notifier.deliver([person.email], subject(card, board, by), body(card, by, where, text))
+      # Held back inside a write that may yet roll back (`Slipdock.Deferred`).
+      Slipdock.Deferred.defer(fn ->
+        Notifier.deliver([person.email], subject(card, board, by), body(card, by, where, text))
+      end)
     end)
   end
 

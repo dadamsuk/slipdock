@@ -65,7 +65,16 @@ defmodule SlipdockWeb.MeetingLive.Show do
   end
 
   defp load(socket, capture) do
+    user = socket.assigns.current_user
     capture = Meetings.load(capture)
+
+    # Only what the viewer can open is named (see `Slipdock.Meetings.Visibility`).
+    capture = %{
+      capture
+      | findings: Slipdock.Meetings.Visibility.findings(capture.findings, user),
+        questions: Slipdock.Meetings.Visibility.questions(capture.questions, user)
+    }
+
     kept = Enum.filter(capture.findings, &(&1.status == "kept"))
     selected = socket.assigns[:selected]
 
@@ -257,14 +266,21 @@ defmodule SlipdockWeb.MeetingLive.Show do
         &(&1.finding_id == finding_id and &1.status == "open")
       )
 
+  # From the database, not the page's copy: that one has what the viewer
+  # can't open taken out (`Slipdock.Meetings.Visibility`), and must never be
+  # what is written back.
   defp question(socket, id) do
-    id = SlipdockWeb.Params.id(id)
-    Enum.find(socket.assigns.capture.questions, &(&1.id == id))
+    case SlipdockWeb.Params.id(id) do
+      nil -> nil
+      id -> Slipdock.Repo.get_by(Meetings.Question, id: id, capture_id: socket.assigns.capture.id)
+    end
   end
 
   defp finding(socket, id) do
-    id = SlipdockWeb.Params.id(id)
-    Enum.find(socket.assigns.capture.findings, &(&1.id == id))
+    case SlipdockWeb.Params.id(id) do
+      nil -> nil
+      id -> Slipdock.Repo.get_by(Meetings.Finding, id: id, capture_id: socket.assigns.capture.id)
+    end
   end
 
   # Writers only; the result reloads the page (everyone else hears it by

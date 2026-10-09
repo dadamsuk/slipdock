@@ -49,7 +49,12 @@ defmodule SlipdockWeb.MeetingLive.Preview do
 
   defp load(socket, capture) do
     set = Commit.build(capture)
-    assign(socket, capture: capture, set: set, stale: Commit.stale(set))
+
+    assign(socket,
+      capture: capture,
+      set: Slipdock.Meetings.Visibility.change_set(set, socket.assigns.current_user),
+      stale: Commit.stale(set)
+    )
   end
 
   @impl true

@@ -112,57 +112,69 @@ defmodule Slipdock.Meetings.Undo do
       |> Enum.reject(&MapSet.member?(skip, &1["id"]))
       |> Enum.reverse()
 
-    result =
-      Repo.transaction(fn ->
-        Enum.each(changes, fn change ->
-          case reverse(change, capture, user) do
-            :ok -> :ok
-            {:error, reason} -> Repo.rollback({change, reason})
-            other -> Repo.rollback({change, other})
-          end
-        end)
-
-        set =
-          Map.put(capture.change_set, "undone", %{
-            "at" => DateTime.to_iso8601(now),
-            "by" => user.email,
-            "kept" => Enum.map(conflicts, & &1["id"])
-          })
-
-        capture =
-          capture
-          |> Ecto.Changeset.change(undone_at: now, undone_by_id: user.id, change_set: set)
-          |> Repo.update!()
-
-        kept =
-          case conflicts do
-            [] ->
-              ""
-
-            list ->
-              "; left #{length(list)} edited since as they are (#{Enum.map_join(list, ", ", &(&1["ref"] || &1["title"]))})"
-          end
-
-        Meetings.record(
-          capture,
-          "undone",
-          "Undid #{length(changes)} #{if length(changes) == 1, do: "change", else: "changes"}#{kept}.",
-          user: user,
-          via: opts[:via]
-        )
-
-        capture
+    {result, held} =
+      Slipdock.Deferred.collect(fn ->
+        Repo.transaction(fn -> undo_inside(capture, user, changes, conflicts, opts, now) end)
       end)
 
     case result do
       {:ok, capture} ->
+        Slipdock.Deferred.run(held)
         Meetings.broadcast(capture)
         {:ok, capture}
+
+      {:error, {:conflict, message}} ->
+        {:error, :conflict, message}
 
       {:error, {change, reason}} ->
         {:error,
          "nothing was undone: putting back #{change["ref"] || change["page_title"] || change["title"]} failed (#{inspect(reason)})"}
     end
+  end
+
+  defp undo_inside(capture, user, changes, conflicts, opts, now) do
+    # Held, so two undos at once can't both run.
+    locked = Repo.one!(from(c in Capture, where: c.id == ^capture.id, lock: "FOR UPDATE"))
+    if locked.undone_at, do: Repo.rollback({:conflict, "this capture was undone already"})
+
+    Enum.each(changes, fn change ->
+      case reverse(change, capture, user) do
+        :ok -> :ok
+        {:error, reason} -> Repo.rollback({change, reason})
+        other -> Repo.rollback({change, other})
+      end
+    end)
+
+    set =
+      Map.put(capture.change_set, "undone", %{
+        "at" => DateTime.to_iso8601(now),
+        "by" => user.email,
+        "kept" => Enum.map(conflicts, & &1["id"])
+      })
+
+    capture =
+      capture
+      |> Ecto.Changeset.change(undone_at: now, undone_by_id: user.id, change_set: set)
+      |> Repo.update!()
+
+    kept =
+      case conflicts do
+        [] ->
+          ""
+
+        list ->
+          "; left #{length(list)} edited since as they are (#{Enum.map_join(list, ", ", &(&1["ref"] || &1["title"]))})"
+      end
+
+    Meetings.record(
+      capture,
+      "undone",
+      "Undid #{length(changes)} #{if length(changes) == 1, do: "change", else: "changes"}#{kept}.",
+      user: user,
+      via: opts[:via]
+    )
+
+    capture
   end
 
   # The opposite of each change, through the ordinary functions.

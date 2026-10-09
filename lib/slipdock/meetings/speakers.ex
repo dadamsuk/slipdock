@@ -467,45 +467,64 @@ defmodule Slipdock.Meetings.Speakers do
   """
   def reassign(%Voice{} = voice, who, %User{} = by) do
     capture = Repo.get!(Capture, voice.capture_id)
-    user = who["user_id"] && Repo.get(User, who["user_id"])
+    board = Repo.get!(Slipdock.Boards.Board, capture.board_id)
+    # Only somebody on the board: a voice's person is who questions about
+    # their words are emailed to.
+    user =
+      with id when is_integer(id) <- who["user_id"],
+           %User{} = u <- Repo.get(User, id),
+           true <- Slipdock.Access.can_read?(Slipdock.Access.board_permission(u, board)) do
+        u
+      else
+        _ -> nil
+      end
+
     name = (user && (user.name || user.email)) || blank(who["name"])
 
-    if is_nil(name) do
-      {:error, "say who it is: one of the people offered, or a name"}
-    else
-      Repo.transaction(fn ->
-        voice =
-          voice
-          |> Ecto.Changeset.change(
-            user_id: user && user.id,
-            name: name,
-            confidence: "confirmed",
-            confirmed_by_id: by.id,
-            confirmed_at: DateTime.utc_now() |> DateTime.truncate(:second),
-            evidence:
-              voice.evidence ++
-                [
-                  %{
-                    "kind" => "confirmed",
-                    "detail" => "#{by.name || by.email} said this is #{name}"
-                  }
-                ]
+    cond do
+      capture.state in ~w(committed discarded) ->
+        {:error, "this capture is #{capture.state}: who spoke can no longer change what it wrote"}
+
+      who["user_id"] != nil and is_nil(user) ->
+        {:error, "that person isn't on this board"}
+
+      is_nil(name) ->
+        {:error, "say who it is: one of the people offered, or a name"}
+
+      true ->
+        Repo.transaction(fn ->
+          voice =
+            voice
+            |> Ecto.Changeset.change(
+              user_id: user && user.id,
+              name: name,
+              confidence: "confirmed",
+              confirmed_by_id: by.id,
+              confirmed_at: DateTime.utc_now() |> DateTime.truncate(:second),
+              evidence:
+                voice.evidence ++
+                  [
+                    %{
+                      "kind" => "confirmed",
+                      "detail" => "#{by.name || by.email} said this is #{name}"
+                    }
+                  ]
+            )
+            |> Repo.update!()
+
+          changed = rederive(capture, voice, user, name)
+
+          Meetings.record(
+            capture,
+            "voice",
+            "#{voice.label} is #{name}#{if changed > 0, do: " (#{changed} finding#{if changed == 1, do: "", else: "s"} follow)", else: ""}.",
+            user: by,
+            data: %{"voice_id" => voice.id}
           )
-          |> Repo.update!()
 
-        changed = rederive(capture, voice, user, name)
-
-        Meetings.record(
-          capture,
-          "voice",
-          "#{voice.label} is #{name}#{if changed > 0, do: " (#{changed} finding#{if changed == 1, do: "", else: "s"} follow)", else: ""}.",
-          user: by,
-          data: %{"voice_id" => voice.id}
-        )
-
-        voice
-      end)
-      |> tap(fn _ -> Meetings.broadcast(capture) end)
+          voice
+        end)
+        |> tap(fn _ -> Meetings.broadcast(capture) end)
     end
   end
 

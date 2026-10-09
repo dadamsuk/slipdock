@@ -83,7 +83,7 @@ defmodule SlipdockWeb.MeetingLive.Speakers do
          %Voice{} = voice <- Enum.find(socket.assigns.voices, &(to_string(&1.id) == voice_id)) do
       choice =
         case who do
-          "user:" <> id -> %{"user_id" => String.to_integer(id)}
+          "user:" <> id -> %{"user_id" => SlipdockWeb.Params.id(id) || -1}
           "name:" <> name -> %{"name" => name}
           "other" -> %{"name" => params["other"]}
           _ -> %{}

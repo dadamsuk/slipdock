@@ -180,7 +180,7 @@ defmodule Slipdock.Meetings.Commit do
             "card_id" => e["card_id"],
             "ref" => e["ref"],
             "title" => e["card_title"],
-            "base_version" => base_version(f, e["card_id"]),
+            "base_version" => base_version(f, e["card_id"], capture),
             "fields" => %{},
             "missing" => true
           }
@@ -207,7 +207,7 @@ defmodule Slipdock.Meetings.Commit do
                 "card_id" => card.id,
                 "ref" => "##{card.id}",
                 "title" => card.title,
-                "base_version" => base_version(f, card.id),
+                "base_version" => base_version(f, card.id, capture),
                 "fields" => fields,
                 "provenance" => provenance(f, capture)
               }
@@ -224,7 +224,7 @@ defmodule Slipdock.Meetings.Commit do
                   "card_id" => card.id,
                   "ref" => "##{card.id}",
                   "title" => card.title,
-                  "base_version" => base_version(f, card.id),
+                  "base_version" => base_version(f, card.id, capture),
                   "body" => comment_body(text, f, capture),
                   "provenance" => provenance(f, capture)
                 }
@@ -265,12 +265,32 @@ defmodule Slipdock.Meetings.Commit do
 
   # The version the review was based on: what the context step read, kept on
   # the finding's link. A link added by a person in review is read then.
-  defp base_version(%Finding{links: links}, card_id) do
-    case Enum.find(links || [], &(&1["type"] == "card" and &1["id"] == card_id)) do
-      %{"version" => v} when is_binary(v) -> v
-      _ -> Version.current("card", card_id)
+  # For an item written after the rest of its capture (it waited for its
+  # speaker), a card the earlier commit wrote is judged against what that
+  # commit left, not what the review read before it.
+  defp base_version(%Finding{links: links}, card_id, capture) do
+    case earlier_version(capture, {:card, card_id}) do
+      v when is_binary(v) ->
+        v
+
+      nil ->
+        case Enum.find(links || [], &(&1["type"] == "card" and &1["id"] == card_id)) do
+          %{"version" => v} when is_binary(v) -> v
+          _ -> Version.current("card", card_id)
+        end
     end
   end
+
+  # The version an earlier commit of this capture left a target at, if it
+  # wrote it.
+  defp earlier_version(%Capture{change_set: %{"changes" => changes}}, target) do
+    changes
+    |> Enum.filter(&(target(&1) == target and &1["version_after"]))
+    |> List.last()
+    |> then(&(&1 && &1["version_after"]))
+  end
+
+  defp earlier_version(_capture, _target), do: nil
 
   defp field_diffs(card, changes, columns) do
     Enum.reduce(changes, %{}, fn
@@ -446,7 +466,13 @@ defmodule Slipdock.Meetings.Commit do
       # check: a page edited since, or made since, is not written over.
       read =
         page &&
-          Enum.find((capture.context || %{})["decisions"] || [], &(&1["page_id"] == page.id))
+          case earlier_version(capture, {:page, page.id}) do
+            v when is_binary(v) ->
+              %{"version" => v}
+
+            nil ->
+              Enum.find((capture.context || %{})["decisions"] || [], &(&1["page_id"] == page.id))
+          end
 
       %{
         "op" => "decision_entry",
@@ -506,7 +532,9 @@ defmodule Slipdock.Meetings.Commit do
     if own_has? do
       own
     else
+      # Only this board's decisions pages: a capture writes to its own board.
       ((capture.context || %{})["decisions"] || [])
+      |> Enum.filter(&(&1["board_id"] in [nil, capture.board_id]))
       |> Enum.find(fn d ->
         Enum.any?(
           d["entries"] || [],
@@ -802,99 +830,139 @@ defmodule Slipdock.Meetings.Commit do
   defp apply_set(capture, set, user, opts) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
-    result =
-      Repo.transaction(fn ->
-        applied =
-          set["changes"]
-          |> Enum.with_index(1)
-          |> Enum.map(fn {change, n} ->
-            case apply_change(change, capture, user) do
-              {:ok, done} ->
-                # A test's way in, to fail a write part of the way through.
-                case opts[:after_change] && opts[:after_change].(n, change) do
-                  {:error, reason} -> Repo.rollback({change, reason})
-                  _ -> Map.merge(change, done)
-                end
+    {result, effects} =
+      Slipdock.Deferred.collect(fn ->
+        Repo.transaction(fn ->
+          # The capture's row, held: two commits at once (two tabs, an agent
+          # retrying) queue here, and the second finds the first's work done.
+          locked = Repo.one!(from(c in Capture, where: c.id == ^capture.id, lock: "FOR UPDATE"))
 
-              {:error, reason} ->
-                Repo.rollback({change, reason})
-            end
-          end)
-
-        # What each target looks like once everything is written: undo
-        # compares with it to see what has been edited since.
-        applied = Enum.map(applied, &with_version_after/1)
-
-        written_ids =
-          applied
-          |> Enum.flat_map(&(&1["finding_ids"] || [&1["finding_id"]]))
-          |> Enum.reject(&is_nil/1)
-
-        Repo.update_all(from(f in Finding, where: f.id in ^written_ids), set: [written_at: now])
-
-        {:ok, capture} =
-          if capture.state == "committed" do
-            # What waited for its speaker, written now: added to the record of
-            # the commit, numbered on from it, so undo reverses the lot.
-            earlier = capture.change_set["changes"] || []
-
-            applied =
-              applied
-              |> Enum.with_index(length(earlier) + 1)
-              |> Enum.map(fn {c, n} -> Map.put(c, "id", "c#{n}") end)
-
-            later = %{
-              "at" => DateTime.to_iso8601(now),
-              "by" => user.email,
-              "changes" => length(applied)
-            }
-
-            capture
-            |> Ecto.Changeset.change(
-              change_set:
-                Map.merge(capture.change_set, %{
-                  "changes" => earlier ++ applied,
-                  "later" => (capture.change_set["later"] || []) ++ [later]
-                })
-            )
-            |> Repo.update()
-          else
-            capture
-            |> Capture.transition("committed", %{
-              change_set:
-                Map.merge(set, %{
-                  "changes" => applied,
-                  "committed_at" => DateTime.to_iso8601(now),
-                  "committed_by" => user.email
-                }),
-              committed_at: now,
-              committed_by_id: user.id,
-              state_reason: nil
-            })
-            |> Repo.update()
+          case committable(locked) do
+            :ok -> :ok
+            {:error, :conflict, message} -> Repo.rollback({:conflict, message})
           end
 
-        Meetings.record(
-          capture,
-          "committed",
-          "Committed #{length(applied)} #{if length(applied) == 1, do: "change", else: "changes"}#{via_words(opts[:via])}.",
-          user: user,
-          via: opts[:via],
-          data: %{"digest" => set["digest"]}
-        )
+          ids = Enum.flat_map(set["changes"], &(&1["finding_ids"] || [&1["finding_id"]]))
 
-        capture
+          if Repo.exists?(from(f in Finding, where: f.id in ^ids and not is_nil(f.written_at))),
+            do:
+              Repo.rollback(
+                {:conflict, "this capture was committed already; it is never written twice"}
+              )
+
+          capture = locked
+          commit_inside(capture, set, user, opts, now)
+        end)
       end)
 
     case result do
       {:ok, capture} ->
+        Slipdock.Deferred.run(effects)
         Meetings.broadcast(capture)
         {:ok, capture}
+
+      {:error, {:conflict, message}} ->
+        {:error, :conflict, message}
 
       {:error, {change, reason}} ->
         {:error, "nothing was written: #{change_words(change)} failed (#{reason_words(reason)})"}
     end
   end
+
+  defp commit_inside(capture, set, user, opts, now) do
+    applied =
+      set["changes"]
+      |> Enum.with_index(1)
+      |> Enum.map(fn {change, n} ->
+        case apply_change(change, capture, user) do
+          {:ok, done} ->
+            # A test's way in, to fail a write part of the way through.
+            case opts[:after_change] && opts[:after_change].(n, change) do
+              {:error, reason} -> Repo.rollback({change, reason})
+              _ -> Map.merge(change, done)
+            end
+
+          {:error, reason} ->
+            Repo.rollback({change, reason})
+        end
+      end)
+
+    # What each target looks like once everything is written: undo
+    # compares with it to see what has been edited since.
+    applied = Enum.map(applied, &with_version_after/1)
+
+    written_ids =
+      applied
+      |> Enum.flat_map(&(&1["finding_ids"] || [&1["finding_id"]]))
+      |> Enum.reject(&is_nil/1)
+
+    Repo.update_all(from(f in Finding, where: f.id in ^written_ids), set: [written_at: now])
+
+    {:ok, capture} =
+      if capture.state == "committed" do
+        # What waited for its speaker, written now: added to the record of
+        # the commit, numbered on from it, so undo reverses the lot.
+        # Earlier changes to a target this commit writes again now
+        # stand at this commit's version, so undo does not mistake our
+        # own later write for somebody's edit.
+        touched = MapSet.new(applied, &target/1)
+
+        earlier =
+          Enum.map(capture.change_set["changes"] || [], fn c ->
+            if MapSet.member?(touched, target(c)), do: with_version_after(c), else: c
+          end)
+
+        applied =
+          applied
+          |> Enum.with_index(length(earlier) + 1)
+          |> Enum.map(fn {c, n} -> Map.put(c, "id", "c#{n}") end)
+
+        later = %{
+          "at" => DateTime.to_iso8601(now),
+          "by" => user.email,
+          "changes" => length(applied)
+        }
+
+        capture
+        |> Ecto.Changeset.change(
+          change_set:
+            Map.merge(capture.change_set, %{
+              "changes" => earlier ++ applied,
+              "later" => (capture.change_set["later"] || []) ++ [later]
+            })
+        )
+        |> Repo.update()
+      else
+        capture
+        |> Capture.transition("committed", %{
+          change_set:
+            Map.merge(set, %{
+              "changes" => applied,
+              "committed_at" => DateTime.to_iso8601(now),
+              "committed_by" => user.email
+            }),
+          committed_at: now,
+          committed_by_id: user.id,
+          state_reason: nil
+        })
+        |> Repo.update()
+      end
+
+    Meetings.record(
+      capture,
+      "committed",
+      "Committed #{length(applied)} #{if length(applied) == 1, do: "change", else: "changes"}#{via_words(opts[:via])}.",
+      user: user,
+      via: opts[:via],
+      data: %{"digest" => set["digest"]}
+    )
+
+    capture
+  end
+
+  defp target(%{"op" => "decision_entry", "page_id" => id}), do: {:page, id}
+  defp target(%{"card_id" => id}), do: {:card, id}
+  defp target(_), do: nil
 
   defp with_version_after(%{"op" => "decision_entry", "page_id" => id} = c),
     do: Map.put(c, "version_after", Version.current("page", id))

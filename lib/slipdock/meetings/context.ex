@@ -378,6 +378,7 @@ defmodule Slipdock.Meetings.Context do
     |> Enum.map(fn page ->
       %{
         "page_id" => page.id,
+        "board_id" => page.board_id,
         "ref" => page.code,
         "title" => page.title,
         "version" => Version.of(page),
