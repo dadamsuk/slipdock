@@ -81,6 +81,54 @@ defmodule SlipdockWeb.API.MeetingController do
     end
   end
 
+  @doc """
+  What committing would write: the change set, its digest (send it back with
+  the commit to be sure the same thing is written), and what has moved since
+  the review read it.
+  """
+  def preview(conn, %{"id" => id}) do
+    with {:ok, capture} <- fetch(conn, id, :read) do
+      set = Slipdock.Meetings.Commit.build(capture)
+      json(conn, %{preview: set, stale: Slipdock.Meetings.Commit.stale(set)})
+    end
+  end
+
+  @doc """
+  Commits a capture: one write, all or nothing. `preview` (optional) is the
+  digest of the preview the caller saw; if the change set is no longer that
+  one, nothing is written and the answer is 409.
+  """
+  def commit(conn, %{"id" => id} = params) do
+    with {:ok, capture} <- fetch(conn, id, :write) do
+      case Slipdock.Meetings.Commit.commit(capture, conn.assigns.current_user,
+             digest: blank(params["preview"]),
+             via: if(params["via"] == "agent", do: "agent", else: "api")
+           ) do
+        {:ok, capture} ->
+          json(conn, %{capture: show_json(conn, capture)})
+
+        {:error, :stale, targets} ->
+          conn
+          |> put_status(:conflict)
+          |> json(%{
+            error:
+              "conflict: changed since the review read them — " <>
+                Enum.map_join(targets, "; ", &"#{&1["ref"] || &1["title"]} (#{&1["why"]})"),
+            stale: targets
+          })
+
+        {:error, :conflict, message} ->
+          {:error, :conflict, message}
+
+        {:error, :forbidden, message} ->
+          {:error, :forbidden, message}
+
+        {:error, message} ->
+          {:error, :unprocessable_entity, message}
+      end
+    end
+  end
+
   @doc "A board's captures, newest first."
   def index(conn, %{"board" => ref}) do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, :read) do

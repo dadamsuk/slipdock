@@ -223,6 +223,7 @@ defmodule SlipdockWeb.Router do
       live "/boards/:id/meetings", MeetingLive.Index, :index
       live "/boards/:id/meetings/new", MeetingLive.New, :new
       live "/boards/:id/meetings/:capture_id", MeetingLive.Show, :show
+      live "/boards/:id/meetings/:capture_id/preview", MeetingLive.Preview, :preview
       live "/boards/:id", BoardLive.Show, :show
       # The receiving end of a share: who handed this board over, and the way
       # out of it. A page of its own because it is not part of the board.
@@ -357,6 +358,8 @@ defmodule SlipdockWeb.Router do
     post "/boards/:board/captures", MeetingController, :create
     get "/captures/:id", MeetingController, :show
     post "/captures/:id/retry", MeetingController, :retry
+    get "/captures/:id/preview", MeetingController, :preview
+    post "/captures/:id/commit", MeetingController, :commit
   end
 
   scope "/api", SlipdockWeb.API do

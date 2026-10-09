@@ -8,12 +8,13 @@ defmodule Slipdock.Wiki.Revision do
   which the diff already says. `via` and `agent` say who made it: `"web"`
   for the editor, `"api"` or `"cli"` for a token (with the token's name in
   `agent`), `"mcp"` for an MCP client (likewise), `"assistant"` for the
-  in-app model, `"automation"` for a rule.
+  in-app model, `"automation"` for a rule, `"meeting"` for a meeting
+  capture committed (see `Slipdock.Meetings.Commit`).
   """
   use Ecto.Schema
   import Ecto.Changeset
 
-  @vias ~w(web api cli assistant automation mcp)
+  @vias ~w(web api cli assistant automation mcp meeting)
 
   schema "page_revisions" do
     field :title, :string
