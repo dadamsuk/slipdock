@@ -256,6 +256,7 @@ defmodule SlipdockWeb.BoardLive.State do
 
     socket
     |> assign(board: board, page_title: board.name, ancestry: Boards.ancestry(board))
+    |> assign(meetings: Slipdock.Meetings.presence(socket.assigns.current_user, board))
     |> assign_columns()
     |> assign_access()
   end

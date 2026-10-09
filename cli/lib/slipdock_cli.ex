@@ -3,7 +3,7 @@ defmodule SlipdockCLI do
 
   import SlipdockCLI.Util, only: [fail: 1, bad_usage: 1]
 
-  alias SlipdockCLI.{Admin, Auth, Automations, Boards, Runners, Skills, Util, Wiki}
+  alias SlipdockCLI.{Admin, Auth, Automations, Boards, Meetings, Runners, Skills, Util, Wiki}
 
   @help """
   slipdock — read and write cards on your Slipdock boards
@@ -69,6 +69,9 @@ defmodule SlipdockCLI do
                                       ai_system_user=you@example.com: whose AI key semantic
                                       search and scheduled automations use (an admin's);
                                       ai_system_user= clears it
+                                      meetings_enabled=true turns meeting capture on;
+                                      meetings_visibility=used_only|every_board,
+                                      meetings_hideable=false
   admin allow <entry>                 let an address or a whole domain register
   admin disallow <entry>
   admin users                         who is here, what they use, when last seen
@@ -226,6 +229,10 @@ defmodule SlipdockCLI do
     skills install [--dir D]            write them to ~/.claude/skills (or D)
     skills check                        say whether the local copies are behind
     skills chatgpt [--dir D]            save ChatGPT's versions, one zip per skill, here (or D)
+
+  MEETINGS  (meeting capture: off unless this server's admin turns it on, and
+             every command here says "meeting mode is off on this server" until then)
+    meetings                            whether meeting mode is on, and where it shows
 
   WRITE
     add <board> <title> [opts]          create a card
@@ -597,7 +604,7 @@ defmodule SlipdockCLI do
 
   # Each area module lists the command names it answers to; the first that
   # claims a name gets every clause of it, so a name must live in one place.
-  @areas [Auth, Admin, Boards, Automations, Runners, Wiki, Skills]
+  @areas [Auth, Admin, Boards, Automations, Runners, Wiki, Skills, Meetings]
 
   defp run(cmd, args, o) do
     case Enum.find(@areas, &(cmd in &1.commands())) do

@@ -1549,6 +1549,10 @@ defmodule SlipdockWeb.SlipdockComponents do
   attr :view, :any, default: nil, doc: "the saved view currently loaded, if any"
   attr :marks, :any, default: nil, doc: "the reader's favourites (`Slipdock.Favourites.marks/1`)"
 
+  attr :meetings, :atom,
+    default: :none,
+    doc: "`:tab` puts Meetings beside the wiki (see `Slipdock.Meetings.presence/2`)"
+
   # The view switcher that leads every board toolbar: the current view, with
   # the others in a menu, followed by the reader's own favourite saved views.
   def view_tabs(assigns) do
@@ -1561,6 +1565,7 @@ defmodule SlipdockWeb.SlipdockComponents do
     {_, _, label, icon, _, _} =
       case assigns.mode do
         :wiki -> {:wiki, "/wiki", "Wiki", "hero-book-open", "Wiki", nil}
+        :meetings -> {:meetings, "/meetings", "Meetings", "hero-microphone", "Meetings", nil}
         mode -> Enum.find(tabs, hd(tabs), fn {m, _, _, _, _, _} -> m == mode end)
       end
 
@@ -1617,6 +1622,21 @@ defmodule SlipdockWeb.SlipdockComponents do
             <.icon name="hero-book-open" class="size-4 shrink-0" />
             <span class="flex-1">Wiki</span>
             <.icon :if={@mode == :wiki} name="hero-check" class="size-3.5" />
+          </.link>
+        </li>
+        <%!-- Meeting capture, the other thing a board keeps beside its cards,
+              while meeting mode shows here (see `Slipdock.Meetings`). --%>
+        <li :if={@meetings == :tab or @mode == :meetings}>
+          <.link
+            id="view-menu-meetings"
+            navigate={~p"/boards/#{@board.id}/meetings"}
+            class={["flex items-center gap-2", @mode == :meetings && "menu-active"]}
+            title="Meetings: captures of what was decided and agreed"
+            aria-current={@mode == :meetings && "page"}
+          >
+            <.icon name="hero-microphone" class="size-4 shrink-0" />
+            <span class="flex-1">Meetings</span>
+            <.icon :if={@mode == :meetings} name="hero-check" class="size-3.5" />
           </.link>
         </li>
         <%!-- The honest way to write a live query into a document: point at

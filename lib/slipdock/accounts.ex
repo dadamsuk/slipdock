@@ -82,6 +82,11 @@ defmodule Slipdock.Accounts do
     user |> User.board_view_changeset(attrs) |> Repo.update()
   end
 
+  @doc "Saves this person's display preferences (see `User.display_changeset/2`)."
+  def update_display(%User{} = user, attrs) do
+    user |> User.display_changeset(attrs) |> Repo.update()
+  end
+
   def change_profile(%User{} = user, attrs \\ %{}), do: User.profile_changeset(user, attrs)
 
   def count_users, do: Repo.aggregate(User, :count)

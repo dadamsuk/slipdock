@@ -22,7 +22,7 @@ defmodule Slipdock.Skills.ChatGPTTest do
   end
 
   test "every tool the mapping names is one the MCP server has" do
-    served = Enum.map(SlipdockWeb.MCP.Tools.all(), & &1.name())
+    served = Enum.map(SlipdockWeb.MCP.Tools.every(), & &1.name())
 
     for tool <- ChatGPT.tool_names() do
       assert tool in served, "#{tool} is not an MCP tool"

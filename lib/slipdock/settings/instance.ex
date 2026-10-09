@@ -22,6 +22,7 @@ defmodule Slipdock.Settings.Instance do
   @signup_modes [:open, :allowlist, :approval, :closed]
   @directories [:instance, :shared_only]
   @tls_modes [:always, :never, :if_available]
+  @meeting_visibilities [:used_only, :every_board]
 
   schema "settings" do
     field :signup_mode, Ecto.Enum, values: @signup_modes, default: :closed
@@ -77,6 +78,14 @@ defmodule Slipdock.Settings.Instance do
     field :posthog_host, :string
     field :posthog_respect_dnt, :boolean, default: true
 
+    # Meeting capture (see `Slipdock.Meetings`): off until an admin turns it
+    # on, and then either shown only on boards that have had a capture
+    # (`:used_only`, with one entry in the board's menu everywhere else) or
+    # on every board. `meetings_hideable` lets each person put it out of sight.
+    field :meetings_enabled, :boolean, default: false
+    field :meetings_visibility, Ecto.Enum, values: @meeting_visibilities, default: :used_only
+    field :meetings_hideable, :boolean, default: true
+
     # Whose AI settings unattended work runs on: the search indexer, every
     # search query, scheduled automations. An admin, because those settings
     # receive every board's content — see `Slipdock.AI.Keys.system_settings/0`.
@@ -94,6 +103,9 @@ defmodule Slipdock.Settings.Instance do
 
   @doc "What `smtp_tls` may be."
   def tls_modes, do: @tls_modes
+
+  @doc "What `meetings_visibility` may be."
+  def meeting_visibilities, do: @meeting_visibilities
 
   @doc """
   How each mode reads to a person choosing one. The admin UI and the setup
@@ -130,7 +142,8 @@ defmodule Slipdock.Settings.Instance do
                     login_fallback_enabled board_limit board_limit_enabled item_limit
                     item_limit_enabled storage_limit_mb storage_limit_enabled
                     trial_days trial_enabled posthog_key posthog_host
-                    posthog_respect_dnt ai_system_user_id)a
+                    posthog_respect_dnt ai_system_user_id meetings_enabled
+                    meetings_visibility meetings_hideable)a
 
   # The admin address and the SMTP details each have a flow that proves
   # something first (a code to the new address, a test message that arrived),

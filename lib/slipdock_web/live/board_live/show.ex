@@ -127,6 +127,8 @@ defmodule SlipdockWeb.BoardLive.Show do
     socket
     |> assign(
       board: Access.hide_unreadable_dependencies(socket.assigns.current_user, board),
+      # Read from the board row and the cached settings: no query of its own.
+      meetings: Slipdock.Meetings.presence(socket.assigns.current_user, board),
       page_title: board.name,
       # Who `@` offers in a description or a comment: the board's members.
       mention_people: SlipdockWeb.Mention.people(board),
@@ -912,6 +914,13 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   defp view_nav(_assigns), do: nil
 
+  # The board menu's way into meeting capture, for a board that has had no
+  # capture yet — and only for somebody who could start one.
+  defp meetings_path(%{meetings: :menu, can_write: true, board: board}),
+    do: ~p"/boards/#{board}/meetings"
+
+  defp meetings_path(_assigns), do: nil
+
   @impl true
   def render(assigns) do
     assigns = assign(assigns, focus_title: Keyboard.focus_title(assigns.columns, assigns.focus))
@@ -948,6 +957,7 @@ defmodule SlipdockWeb.BoardLive.Show do
           sprint_of={@sprint_of}
           ai?={@ai?}
           rules={@rules}
+          meetings_path={meetings_path(assigns)}
         />
       </:subactions>
       <:menu :if={!@card_only and (@ai? or !@view_only)}>
@@ -958,6 +968,7 @@ defmodule SlipdockWeb.BoardLive.Show do
           view_only={@view_only}
           ai?={@ai?}
           rules={@rules}
+          meetings_path={meetings_path(assigns)}
         />
       </:menu>
 
@@ -986,6 +997,7 @@ defmodule SlipdockWeb.BoardLive.Show do
               :if={!@view_only}
               board={@board}
               mode={@mode}
+              meetings={@meetings}
               config={@swim}
               view={@swim_view}
               marks={@favourites}
@@ -1080,6 +1092,7 @@ defmodule SlipdockWeb.BoardLive.Show do
       <.kanban
         :if={@mode == :board and !@card_only}
         board={@board}
+        meetings={@meetings}
         columns={@columns}
         filters={@filters}
         filtering={@filtering}

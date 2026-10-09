@@ -43,11 +43,25 @@ defmodule SlipdockWeb.MCP.Tools do
     Tools.FinishJob
   ]
 
-  @doc "Every tool module, in the order `tools/list` gives them."
-  def all, do: @tools
+  # Meeting capture's tools (see `Slipdock.Meetings`): listed, and callable,
+  # only while an admin has meeting mode on. Off, a client is not shown them
+  # and calling one by name is an unknown tool, the same as any other name
+  # this server has never heard of.
+  @meeting_tools []
 
-  @doc "The tool called `name`, or nil."
-  def find(name), do: Enum.find(@tools, &(&1.name() == name))
+  @doc "Every tool module offered right now, in the order `tools/list` gives them."
+  def all do
+    if Slipdock.Meetings.enabled?(), do: @tools ++ @meeting_tools, else: @tools
+  end
+
+  @doc "Every tool this server has, meeting mode or not: what the docs must describe."
+  def every, do: @tools ++ @meeting_tools
+
+  @doc "Meeting capture's tools, which only exist while meeting mode is on."
+  def meeting_tools, do: @meeting_tools
+
+  @doc "The tool called `name`, or nil — nil too for a tool not offered right now."
+  def find(name), do: Enum.find(all(), &(&1.name() == name))
 
   @doc "A tool as `tools/list` describes it."
   def describe(tool) do

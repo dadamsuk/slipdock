@@ -77,7 +77,9 @@ defmodule SlipdockCLI.Admin do
     admin set key=value...              signup_mode, free_card_limit, user_directory,
                                         invites_create_accounts, login_fallback_enabled,
                                         posthog_key, posthog_host (empty to turn off),
-                                        ai_system_user=<admin email> (empty to clear)
+                                        ai_system_user=<admin email> (empty to clear),
+                                        meetings_enabled, meetings_visibility
+                                        (used_only|every_board), meetings_hideable
     admin allow <entry> | disallow <entry>
     admin users                         who is here
     admin promote|demote|disable|enable <email>
@@ -141,7 +143,9 @@ defmodule SlipdockCLI.Admin do
               "board_limit_enabled",
               "item_limit_enabled",
               "storage_limit_enabled",
-              "trial_enabled"
+              "trial_enabled",
+              "meetings_enabled",
+              "meetings_hideable"
             ],
        do: value in ["1", "true", "yes", "on"]
 
@@ -163,9 +167,19 @@ defmodule SlipdockCLI.Admin do
     Sign-in fallback: #{if s["login_fallback"]["enabled"], do: s["login_fallback"]["path"], else: "off"}
     Analytics:        #{render_analytics(s["analytics"])}
     Search & rules AI:#{render_ai(s["ai"])}
+    Meeting mode:     #{render_meetings(s["meetings"])}
     Waiting:          #{s["pending_signups"]}\
     """)
   end
+
+  # Off, or on and where it shows; older servers say nothing about it.
+  defp render_meetings(%{"enabled" => true} = m),
+    do:
+      "on, #{String.replace(m["visibility"] || "used_only", "_", " ")}" <>
+        if(m["hideable"], do: ", people may hide it", else: "")
+
+  defp render_meetings(%{}), do: "off"
+  defp render_meetings(_), do: "—"
 
   # PostHog, on only while a key is set; an unset host is PostHog's US cloud.
   defp render_analytics(%{"posthog_key" => key} = a) when is_binary(key) and key != "",

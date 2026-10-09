@@ -40,6 +40,7 @@ defmodule SlipdockWeb.WikiLive.Index do
          perm: perm,
          can_write: Access.can_write?(perm),
          can_manage: perm == :owner,
+         meetings: Slipdock.Meetings.presence(socket.assigns.current_user, board),
          page: nil,
          revision: nil,
          form: nil,
@@ -1442,7 +1443,13 @@ defmodule SlipdockWeb.WikiLive.Index do
               looking at a board, and a page is one more thing that answers a
               filter, so switching view and narrowing down work here too. --%>
         <div class="flex flex-wrap items-center gap-x-2 gap-y-2 border-b border-base-300 bg-base-100/70 px-3 py-2 text-sm">
-          <.view_tabs board={@board} mode={:wiki} view={nil} marks={@marks} />
+          <.view_tabs
+            board={@board}
+            mode={:wiki}
+            view={nil}
+            marks={@marks}
+            meetings={@meetings}
+          />
           <span class="hidden h-5 w-px bg-base-300 sm:block"></span>
 
           <form id="wiki-search" phx-change="search" phx-submit="search" class="relative">

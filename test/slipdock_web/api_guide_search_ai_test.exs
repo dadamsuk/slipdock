@@ -5,7 +5,8 @@ defmodule SlipdockWeb.APIGuideSearchAITest do
   was broken when the server's AI was missing. The guide must say search is
   the server's, and what to do when it is not set up.
   """
-  use ExUnit.Case, async: true
+  # The guide reads the server's settings (meeting mode), so it needs the sandbox.
+  use Slipdock.DataCase, async: true
 
   setup do
     # Wrapping and indentation are the guide's business; the words are ours.

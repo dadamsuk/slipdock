@@ -35,6 +35,7 @@ defmodule SlipdockWeb.APIGuide do
       recipes(base),
       automations(),
       runners(),
+      meetings(),
       wiki(),
       portable(),
       vocabulary_section(),
@@ -185,6 +186,7 @@ defmodule SlipdockWeb.APIGuide do
     "Recipes" => "recipes",
     "Automations and alerts" => "automations",
     "Runners" => "runners",
+    "Meeting capture" => "meetings",
     "The wiki: writing things down" => "wiki",
     "Skills" => "skills",
     "Moving boards between servers" => "moving",
@@ -1325,6 +1327,29 @@ defmodule SlipdockWeb.APIGuide do
     """
   end
 
+  # Meeting capture (see `Slipdock.Meetings`): only on a server whose admin
+  # has turned it on. Off, the guide says nothing about it at all.
+  defp meetings do
+    if Slipdock.Meetings.enabled?() do
+      """
+
+      ## Meeting capture
+
+      This server has **meeting mode** on: a meeting's recording or transcript
+      can be turned into proposed decisions, actions and card changes, read
+      alongside a board's cards and wiki. Nothing is written to a board until a
+      person reviews the capture and commits it, in one write that can be
+      undone as a whole.
+
+          GET /api/meetings        whether meeting mode is on, and where it shows
+
+      `slipdock meetings` says the same from a terminal.
+      """
+    else
+      ""
+    end
+  end
+
   defp runners do
     """
 
@@ -2232,9 +2257,14 @@ defmodule SlipdockWeb.APIGuide do
   ## The endpoint list, from the router itself ---------------------------------
 
   defp endpoints do
+    meetings? = Slipdock.Meetings.enabled?()
+
     SlipdockWeb.Router
     |> Phoenix.Router.routes()
     |> Enum.filter(&String.starts_with?(&1.path, "/api"))
+    # Meeting capture's routes answer 404 while it is off, so they are not
+    # offered either.
+    |> Enum.reject(&(not meetings? and &1.plug == SlipdockWeb.API.MeetingController))
     |> Enum.map(fn route -> {route.verb |> Atom.to_string() |> String.upcase(), route.path} end)
   end
 end
