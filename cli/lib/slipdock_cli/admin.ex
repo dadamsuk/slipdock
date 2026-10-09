@@ -138,7 +138,8 @@ defmodule SlipdockCLI.Admin do
               "meetings_audio_storage_mb",
               "meetings_transcript_captures",
               "meetings_longest_minutes",
-              "meetings_max_file_mb"
+              "meetings_max_file_mb",
+              "meetings_transcription_max_mb"
             ] do
     case Integer.parse(value) do
       {n, ""} -> n

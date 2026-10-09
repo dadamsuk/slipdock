@@ -74,6 +74,12 @@ defmodule SlipdockWeb.API.AdminController do
           },
           limits: Slipdock.Meetings.Usage.limits(),
           audio_retention: settings.meetings_audio_retention,
+          transcription: %{
+            with: settings.meetings_transcription,
+            model: settings.meetings_transcription_model,
+            url: settings.meetings_transcription_url,
+            max_mb: settings.meetings_transcription_max_mb
+          },
           reading: %{
             model: settings.meetings_reading_model,
             second: settings.meetings_second_reading,

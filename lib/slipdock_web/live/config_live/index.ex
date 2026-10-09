@@ -70,7 +70,9 @@ defmodule SlipdockWeb.ConfigLive.Index do
                       meetings_transcription_minutes meetings_transcription_minutes_enabled
                       meetings_audio_storage_mb meetings_audio_storage_mb_enabled
                       meetings_transcript_captures meetings_transcript_captures_enabled
-                      meetings_longest_minutes meetings_max_file_mb meetings_audio_retention)
+                      meetings_longest_minutes meetings_max_file_mb meetings_audio_retention
+                      meetings_transcription meetings_transcription_model
+                      meetings_transcription_url meetings_transcription_max_mb)
 
   @mail_fields ~w(smtp_host smtp_port smtp_username smtp_password smtp_tls smtp_from_email
                   smtp_from_name)
@@ -559,6 +561,46 @@ defmodule SlipdockWeb.ConfigLive.Index do
             placeholder="Only used with “Another model”"
             value={@settings.meetings_second_model}
           />
+        </fieldset>
+
+        <fieldset id="meetings-transcription" class="space-y-3">
+          <legend class="text-sm font-medium">Transcription</legend>
+          <p class="text-xs text-base-content/60">
+            Who turns a recording into words. Any OpenAI-compatible transcription endpoint works:
+            OpenRouter's, a local whisper server, a gateway. Recordings larger than it takes are
+            split (WAV always; other formats when ffmpeg is installed on this server).
+          </p>
+          <.input
+            field={@form[:meetings_transcription]}
+            type="select"
+            label="Transcribe with"
+            options={[
+              {"Nothing: a recording needs a transcript sent with it", "none"},
+              {"Each person's own AI settings (OpenRouter or their endpoint)", "provider"},
+              {"An endpoint of this server's", "endpoint"}
+            ]}
+            value={@settings.meetings_transcription}
+          />
+          <div class="grid gap-3 sm:grid-cols-3">
+            <.input
+              field={@form[:meetings_transcription_model]}
+              label="Model"
+              value={@settings.meetings_transcription_model}
+            />
+            <.input
+              field={@form[:meetings_transcription_url]}
+              type="url"
+              label="Endpoint"
+              placeholder="http://whisper.local:8000/v1"
+              value={@settings.meetings_transcription_url}
+            />
+            <.input
+              field={@form[:meetings_transcription_max_mb]}
+              type="number"
+              label="Largest file it takes (MB)"
+              value={@settings.meetings_transcription_max_mb}
+            />
+          </div>
         </fieldset>
 
         <fieldset id="meetings-limits" class="space-y-3">

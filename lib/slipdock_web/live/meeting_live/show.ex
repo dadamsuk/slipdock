@@ -319,6 +319,10 @@ defmodule SlipdockWeb.MeetingLive.Show do
     Enum.take(steps, Enum.find_index(steps, &(&1 == step)) + 1)
   end
 
+  defp retention_words("until_committed"), do: "until it is committed"
+  defp retention_words("90_days"), do: "for 90 days"
+  defp retention_words(_), do: "for 30 days"
+
   defp analysing?(capture), do: capture.state in ~w(receiving reading failed)
 
   @impl true
@@ -356,6 +360,12 @@ defmodule SlipdockWeb.MeetingLive.Show do
                   "somebody"}
                 <span :if={@capture.started_at}>
                   · met {Calendar.strftime(@capture.started_at, "%d %b %Y, %H:%M")}
+                </span>
+                <span :if={@capture.audio_key} id="recording-kept">
+                  · recording kept {retention_words(@capture.retention)}
+                </span>
+                <span :if={@capture.audio_purged_at} id="recording-gone">
+                  · recording deleted {Calendar.strftime(@capture.audio_purged_at, "%d %b %Y")}: replay is no longer possible
                 </span>
                 <span :if={@capture.attendees != []}>
                   · {Enum.map_join(@capture.attendees, ", ", &(&1["name"] || &1["email"]))}

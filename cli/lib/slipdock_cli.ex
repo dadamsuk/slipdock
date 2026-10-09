@@ -80,7 +80,10 @@ defmodule SlipdockCLI do
                                       meetings_audio_storage_mb=2048,
                                       meetings_transcript_captures=200 (each with _enabled),
                                       meetings_longest_minutes=240, meetings_max_file_mb=500,
-                                      meetings_audio_retention=until_committed|30_days|90_days
+                                      meetings_audio_retention=until_committed|30_days|90_days,
+                                      meetings_transcription=none|provider|endpoint,
+                                      meetings_transcription_model=openai/whisper-large-v3,
+                                      meetings_transcription_url=, meetings_transcription_max_mb=25
   admin meetings-usage                meeting capture this month: totals, heaviest users
   admin allow <entry>                 let an address or a whole domain register
   admin disallow <entry>
