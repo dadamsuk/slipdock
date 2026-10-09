@@ -14,6 +14,7 @@ defmodule Slipdock.Meetings.Voice do
     field :name, :string
     belongs_to :user, Slipdock.Accounts.User
     field :evidence, {:array, :map}, default: []
+    field :confidence, :string, default: "unknown"
     belongs_to :confirmed_by, Slipdock.Accounts.User
     field :confirmed_at, :utc_datetime
     belongs_to :merged_into, __MODULE__
@@ -22,7 +23,7 @@ defmodule Slipdock.Meetings.Voice do
 
   def changeset(voice, attrs) do
     voice
-    |> cast(attrs, [:label, :name, :user_id, :evidence, :merged_into_id])
+    |> cast(attrs, [:label, :name, :user_id, :evidence, :merged_into_id, :confidence])
     |> validate_required([:label])
   end
 end

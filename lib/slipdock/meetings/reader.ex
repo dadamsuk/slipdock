@@ -108,7 +108,13 @@ defmodule Slipdock.Meetings.Reader do
   def meeting_date(_), do: Date.utc_today()
 
   defp lines(%Capture{id: id}) do
-    Repo.all(from(u in Utterance, where: u.capture_id == ^id, order_by: [asc: u.position]))
+    Repo.all(
+      from(u in Utterance,
+        where: u.capture_id == ^id,
+        order_by: [asc: u.position],
+        preload: [:voice]
+      )
+    )
   end
 
   ## One reading -------------------------------------------------------------
@@ -266,9 +272,22 @@ defmodule Slipdock.Meetings.Reader do
 
   defp line(u) do
     stamp = if u.start_ms, do: " [#{clock(u.start_ms)}]", else: ""
-    speaker = if u.speaker, do: "#{neutralise(u.speaker)}: ", else: ""
+
+    speaker =
+      case speaker_name(u) do
+        nil -> ""
+        name -> "#{neutralise(name)}: "
+      end
+
     "#{u.line_id}#{stamp} #{speaker}#{neutralise(u.text)}"
   end
+
+  # Who said it, as the speakers step worked it out: the attributed person,
+  # else the transcript's label or the voice's.
+  defp speaker_name(%{voice: %{name: name}}) when is_binary(name), do: name
+  defp speaker_name(%{speaker: speaker}) when is_binary(speaker), do: speaker
+  defp speaker_name(%{voice: %{label: label}}), do: label
+  defp speaker_name(_), do: nil
 
   # The fence's own markers are taken out of the words, so a transcript
   # cannot close the fence early and speak as the prompt.

@@ -72,7 +72,8 @@ defmodule SlipdockWeb.ConfigLive.Index do
                       meetings_transcript_captures meetings_transcript_captures_enabled
                       meetings_longest_minutes meetings_max_file_mb meetings_audio_retention
                       meetings_transcription meetings_transcription_model
-                      meetings_transcription_url meetings_transcription_max_mb)
+                      meetings_transcription_url meetings_transcription_max_mb
+                      meetings_diarisation meetings_diarisation_url meetings_dialogue_inference)
 
   @mail_fields ~w(smtp_host smtp_port smtp_username smtp_password smtp_tls smtp_from_email
                   smtp_from_name)
@@ -601,6 +602,48 @@ defmodule SlipdockWeb.ConfigLive.Index do
               value={@settings.meetings_transcription_max_mb}
             />
           </div>
+        </fieldset>
+
+        <fieldset id="meetings-voices" class="space-y-3">
+          <legend class="text-sm font-medium">Voices</legend>
+          <.input
+            field={@form[:meetings_diarisation]}
+            type="select"
+            label="Separate voices with"
+            options={[
+              {"The transcript's own speaker labels", "labels"},
+              {"A diarisation endpoint (for recordings)", "endpoint"}
+            ]}
+            value={@settings.meetings_diarisation}
+          />
+          <.input
+            field={@form[:meetings_diarisation_url]}
+            type="url"
+            label="Diarisation endpoint"
+            placeholder="http://diarise.local:8000/diarise"
+            value={@settings.meetings_diarisation_url}
+          />
+          <p class="text-xs text-base-content/60">
+            It is sent the recording and answers {"{\"segments\": [{\"start\", \"end\", \"speaker\"}]}"} in
+            seconds — a pyannote or WhisperX server fits.
+          </p>
+          <label class="flex cursor-pointer items-start gap-3 text-sm">
+            <input type="hidden" name="settings[meetings_dialogue_inference]" value="false" />
+            <input
+              type="checkbox"
+              name="settings[meetings_dialogue_inference]"
+              value="true"
+              checked={@settings.meetings_dialogue_inference}
+              class="checkbox checkbox-sm mt-0.5"
+            />
+            <span>
+              <span class="block font-medium">Work out who is speaking from the dialogue</span>
+              <span class="block text-xs text-base-content/60">
+                Being addressed by name and then answering, introducing oneself. Every inference is
+                shown, and anything a finding depends on is asked.
+              </span>
+            </span>
+          </label>
         </fieldset>
 
         <fieldset id="meetings-limits" class="space-y-3">

@@ -162,7 +162,8 @@ defmodule SlipdockCLI.Admin do
               "meetings_accept_findings",
               "meetings_transcription_minutes_enabled",
               "meetings_audio_storage_mb_enabled",
-              "meetings_transcript_captures_enabled"
+              "meetings_transcript_captures_enabled",
+              "meetings_dialogue_inference"
             ],
        do: value in ["1", "true", "yes", "on"]
 

@@ -153,6 +153,9 @@ defmodule SlipdockWeb.Router do
     get "/account/export.zip", ExportController, :account
     # Board trees as one portable JSON document — the file an import reads.
     get "/account/boards.json", ExportController, :portable
+    # A meeting capture's recording, for replaying a passage (see
+    # `SlipdockWeb.CaptureAudioController`).
+    get "/captures/:id/audio", CaptureAudioController, :show
     get "/boards/:id/export.csv", ExportController, :table
     # The board's wiki as a folder of Markdown: the escape hatch.
     get "/boards/:id/wiki.zip", ExportController, :wiki
@@ -224,6 +227,7 @@ defmodule SlipdockWeb.Router do
       live "/boards/:id/meetings/new", MeetingLive.New, :new
       live "/boards/:id/meetings/:capture_id", MeetingLive.Show, :show
       live "/boards/:id/meetings/:capture_id/preview", MeetingLive.Preview, :preview
+      live "/boards/:id/meetings/:capture_id/speakers", MeetingLive.Speakers, :speakers
       live "/boards/:id", BoardLive.Show, :show
       # The receiving end of a share: who handed this board over, and the way
       # out of it. A page of its own because it is not part of the board.

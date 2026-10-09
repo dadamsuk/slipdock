@@ -57,6 +57,14 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
           <.icon name="hero-check-circle" class="size-4" /> Nothing left to settle
         </span>
         <span class="flex-1"></span>
+        <.link
+          :if={@capture.voices != []}
+          id="who-said-what"
+          navigate={"/boards/#{@capture.board_id}/meetings/#{@capture.id}/speakers"}
+          class="btn btn-ghost btn-sm"
+        >
+          <.icon name="hero-users" class="size-4" /> Who said what
+        </.link>
         <button
           :if={@narrow?}
           id="toggle-transcript"

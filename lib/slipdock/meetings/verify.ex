@@ -90,7 +90,13 @@ defmodule Slipdock.Meetings.Verify do
     capture = Repo.preload(capture, [:board], force: true)
 
     lines =
-      Repo.all(from(u in Utterance, where: u.capture_id == ^capture.id, order_by: u.position))
+      Repo.all(
+        from(u in Utterance,
+          where: u.capture_id == ^capture.id,
+          order_by: u.position,
+          preload: [:voice]
+        )
+      )
 
     readings = capture.readings || %{}
     context = capture.context || %{}
@@ -321,7 +327,7 @@ defmodule Slipdock.Meetings.Verify do
         existing_or_new(raw, link, f.evidence, candidates) ++
         who_said_it(raw, unsure, f.evidence, capture)
 
-    effect = effect(raw, link, owner, capture)
+    effect = raw |> effect(link, owner, capture) |> voice_dependency(raw, f.evidence)
 
     %{
       raw: raw,
@@ -712,6 +718,47 @@ defmodule Slipdock.Meetings.Verify do
     end
   end
 
+  # Who said a line: the person its voice was attributed to, else the
+  # transcript's label.
+  defp speaker(%{voice: %{name: name}}) when is_binary(name), do: name
+  defp speaker(line), do: line.speaker
+
+  # A finding whose owner or decision-maker is whoever was speaking — "Yes,
+  # that's mine.", a decision with no other name on it — remembers the
+  # voice, so a person changing who that voice is changes this too (see
+  # `Slipdock.Meetings.Speakers.reassign/3`).
+  defp voice_dependency(effect, raw, [first | _]) do
+    case first.line.voice do
+      %{id: id, name: name} when is_binary(name) ->
+        cond do
+          effect["type"] == "decision_entry" and is_nil(raw["decided_by"]) ->
+            effect |> Map.put("decided_by", name) |> Map.put("decided_by_voice_id", id)
+
+          effect["type"] == "decision_entry" and same_person?(raw["decided_by"], name) ->
+            Map.put(effect, "decided_by_voice_id", id)
+
+          effect["type"] in ["new_card", "card_change"] and same_person?(raw["owner"], name) ->
+            Map.put(effect, "owner_voice_id", id)
+
+          true ->
+            effect
+        end
+
+      _ ->
+        effect
+    end
+  end
+
+  defp voice_dependency(effect, _raw, _), do: effect
+
+  defp same_person?(nil, _), do: false
+
+  defp same_person?(said, name) do
+    said = said |> String.downcase() |> String.trim()
+    name = String.downcase(name)
+    said == name or said == name |> String.split() |> List.first()
+  end
+
   defp change_effect(raw, link, assignee, due) do
     changes =
       case raw["change"] do
@@ -810,7 +857,7 @@ defmodule Slipdock.Meetings.Verify do
         char_start: e.from,
         char_end: e.to,
         quote: String.slice(e.line.text, e.from, e.to - e.from),
-        speaker: e.line.speaker,
+        speaker: speaker(e.line),
         start_ms: e.line.start_ms
       })
     end
