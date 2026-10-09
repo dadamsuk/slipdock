@@ -384,6 +384,16 @@ defmodule Slipdock.Meetings do
     :ok
   end
 
+  @doc "A board's lists, in order: where a new card from a meeting can go."
+  def lists(board_id) do
+    Repo.all(
+      from(c in Slipdock.Boards.Column,
+        where: c.board_id == ^board_id,
+        order_by: [asc: c.position]
+      )
+    )
+  end
+
   @doc "A capture, or nil."
   def get_capture(id), do: Repo.get(Capture, id)
 

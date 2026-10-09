@@ -92,4 +92,56 @@ defmodule Slipdock.MeetingsFixtures do
       )
     )
   end
+
+  @doc """
+  A capture read and verified, ready for review: `readings` is the first
+  reading's findings (the second is off), `context` what the context step
+  found. In `needs_review` or `ready`, whichever its questions make it.
+  """
+  def reviewed_capture(board, owner, findings, context \\ %{}, attrs \\ %{}) do
+    capture = capture_fixture(board, owner, attrs)
+    {:ok, capture} = Meetings.transition(capture, "reading")
+
+    capture =
+      capture
+      |> Ecto.Changeset.change(
+        readings: %{"1" => findings, "2" => nil, "agent" => nil},
+        context: Map.merge(%{"candidates" => [], "decisions" => []}, context),
+        step: "relisten"
+      )
+      |> Repo.update!()
+
+    {:ok, _} = Meetings.verify(capture)
+    to = if Meetings.open_questions(capture) == [], do: "ready", else: "needs_review"
+    {:ok, capture} = Meetings.transition(capture, to)
+    capture
+  end
+
+  @doc "A decision quoting line L2 of `lines/0`."
+  def decision_finding(attrs \\ %{}) do
+    Map.merge(
+      %{
+        "kind" => "decision",
+        "title" => "Annual plan at 20% off",
+        "topic" => "Pricing",
+        "evidence" => [%{"line" => "L2", "quote" => "We go with the annual plan at 20% off."}]
+      },
+      attrs
+    )
+  end
+
+  @doc "An action for `owner` (a name as said) quoting line L3."
+  def action_finding(owner, attrs \\ %{}) do
+    Map.merge(
+      %{
+        "kind" => "action",
+        "title" => "Update the pricing page",
+        "owner" => owner,
+        "due" => "fri",
+        "due_date" => "2026-10-09",
+        "evidence" => [%{"line" => "L3", "quote" => "can you update PL-14 by Friday?"}]
+      },
+      attrs
+    )
+  end
 end

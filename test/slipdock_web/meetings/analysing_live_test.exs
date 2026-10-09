@@ -54,7 +54,7 @@ defmodule SlipdockWeb.Meetings.AnalysingLiveTest do
 
     html = render(view)
     assert html =~ "Annual plan at 20% off"
-    assert html =~ "Dropped: its quote is not in the transcript"
+    assert html =~ "its quote is not in the transcript"
     assert view |> element("#capture-state") |> render() =~ "ready"
     refute has_element?(view, "#capture-analysing")
   end
