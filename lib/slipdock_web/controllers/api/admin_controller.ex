@@ -71,6 +71,11 @@ defmodule SlipdockWeb.API.AdminController do
             transcripts: settings.meetings_accept_transcripts,
             audio: settings.meetings_accept_audio,
             findings: settings.meetings_accept_findings
+          },
+          reading: %{
+            model: settings.meetings_reading_model,
+            second: settings.meetings_second_reading,
+            second_model: settings.meetings_second_model
           }
         },
         pending_signups: Accounts.count_pending_signups()

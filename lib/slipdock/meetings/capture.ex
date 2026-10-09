@@ -57,6 +57,7 @@ defmodule Slipdock.Meetings.Capture do
     field :retention, :string, default: "30_days"
     field :stats, :map, default: %{}
     field :context, :map
+    field :readings, :map
     field :transcript, :string
     field :transcript_format, :string
     field :audio_key, :string

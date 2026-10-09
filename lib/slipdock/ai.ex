@@ -281,7 +281,8 @@ defmodule Slipdock.AI do
   with a message fit to show the user.
 
   Options: `:json` (ask for a JSON object), `:max_tokens`, `:temperature`,
-  `:model`.
+  `:model`, and `:on_usage` — a function called with what each successful
+  call cost (`:model`, `:tokens_in`, `:tokens_out`, `:cost`, `:custom?`).
   """
   def complete(messages, opts \\ []) do
     case do_complete(messages, opts) do
@@ -332,6 +333,8 @@ defmodule Slipdock.AI do
               usage(resp["usage"])
           )
 
+          report_usage(opts[:on_usage], resp, body, provider)
+
           case get_in(choice, ["message", "content"]) do
             text when is_binary(text) and text != "" ->
               {:ok, text}
@@ -359,6 +362,23 @@ defmodule Slipdock.AI do
           {:error, "Couldn't reach the model."}
       end
     end
+  end
+
+  # Somebody keeping accounts (meeting capture's usage ledger) is told what
+  # each call cost, as the endpoint reported it: tokens, and a cost where the
+  # provider gives one (OpenRouter does, as `usage.cost`).
+  defp report_usage(nil, _resp, _body, _provider), do: :ok
+
+  defp report_usage(fun, resp, body, provider) when is_function(fun, 1) do
+    usage = resp["usage"] || %{}
+
+    fun.(%{
+      model: resp["model"] || body[:model] || provider.model,
+      tokens_in: usage["prompt_tokens"],
+      tokens_out: usage["completion_tokens"],
+      cost: usage["cost"],
+      custom?: provider.custom?
+    })
   end
 
   # A thinking model that spent its whole budget thinking: there is no answer

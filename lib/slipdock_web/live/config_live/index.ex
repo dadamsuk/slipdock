@@ -64,7 +64,8 @@ defmodule SlipdockWeb.ConfigLive.Index do
                       terms_url privacy_url terms_version posthog_key posthog_host
                       posthog_respect_dnt ai_system_user_id meetings_enabled
                       meetings_visibility meetings_hideable meetings_accept_transcripts
-                      meetings_accept_audio meetings_accept_findings)
+                      meetings_accept_audio meetings_accept_findings meetings_reading_model
+                      meetings_second_reading meetings_second_model)
 
   @mail_fields ~w(smtp_host smtp_port smtp_username smtp_password smtp_tls smtp_from_email
                   smtp_from_name)
@@ -522,6 +523,37 @@ defmodule SlipdockWeb.ConfigLive.Index do
               <span class="block text-xs text-base-content/60">{text}</span>
             </span>
           </label>
+        </fieldset>
+
+        <fieldset class="space-y-3">
+          <legend class="text-sm font-medium">Reading</legend>
+          <p class="text-xs text-base-content/60">
+            Every meeting is read twice, independently, and what only one reading found is marked
+            so. Each reading runs on the AI settings of the person who sent the meeting.
+          </p>
+          <.input
+            field={@form[:meetings_reading_model]}
+            label="Model for the first reading"
+            placeholder="Empty: each person's own model"
+            value={@settings.meetings_reading_model}
+          />
+          <.input
+            field={@form[:meetings_second_reading]}
+            type="select"
+            label="Second reading"
+            options={[
+              {"The same model again", "same"},
+              {"Another model", "model"},
+              {"None (one reading only)", "off"}
+            ]}
+            value={@settings.meetings_second_reading}
+          />
+          <.input
+            field={@form[:meetings_second_model]}
+            label="Model for the second reading"
+            placeholder="Only used with “Another model”"
+            value={@settings.meetings_second_model}
+          />
         </fieldset>
 
         <button type="submit" class="btn btn-primary btn-sm">Save</button>

@@ -249,6 +249,12 @@ defmodule SlipdockWeb.Meetings.IngestAPITest do
     end
   end
 
+  test "GET /api/meetings/findings-schema serves the published format", %{conn: conn} do
+    body = conn |> get(~p"/api/meetings/findings-schema") |> json_response(200)
+    assert body["title"] == "Meeting findings"
+    assert body["properties"]["findings"]["items"]["required"] == ["kind", "title", "evidence"]
+  end
+
   describe "reading them back" do
     test "GET /api/captures/:id for somebody who can read the board", %{
       conn: conn,

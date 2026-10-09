@@ -352,6 +352,7 @@ defmodule SlipdockWeb.Router do
     pipe_through [:api, :meetings]
 
     get "/meetings", MeetingController, :mode
+    get "/meetings/findings-schema", MeetingController, :schema
     get "/boards/:board/captures", MeetingController, :index
     post "/boards/:board/captures", MeetingController, :create
     get "/captures/:id", MeetingController, :show
