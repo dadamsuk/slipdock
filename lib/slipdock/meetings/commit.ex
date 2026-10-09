@@ -695,6 +695,10 @@ defmodule Slipdock.Meetings.Commit do
             end
           end)
 
+        # What each target looks like once everything is written: undo
+        # compares with it to see what has been edited since.
+        applied = Enum.map(applied, &with_version_after/1)
+
         committed_set =
           Map.merge(set, %{
             "changes" => applied,
@@ -733,6 +737,14 @@ defmodule Slipdock.Meetings.Commit do
         {:error, "nothing was written: #{change_words(change)} failed (#{reason_words(reason)})"}
     end
   end
+
+  defp with_version_after(%{"op" => "decision_entry", "page_id" => id} = c),
+    do: Map.put(c, "version_after", Version.current("page", id))
+
+  defp with_version_after(%{"card_id" => id} = c) when is_integer(id),
+    do: Map.put(c, "version_after", Version.current("card", id))
+
+  defp with_version_after(c), do: c
 
   defp via_words("agent"), do: " via agent"
   defp via_words(_), do: ""
@@ -859,6 +871,7 @@ defmodule Slipdock.Meetings.Commit do
       {:ok,
        %{
          "page_id" => page.id,
+         "page_slug" => page.slug,
          "page_code" => page.code,
          "created_page" => before == nil and c["page_id"] == nil,
          "body_before" => before,

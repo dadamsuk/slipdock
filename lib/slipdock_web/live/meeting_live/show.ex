@@ -37,6 +37,7 @@ defmodule SlipdockWeb.MeetingLive.Show do
          adding: false,
          show_transcript: false,
          review_error: nil,
+         undo_conflicts: nil,
          members: Slipdock.Wiki.Links.members(socket.assigns.board),
          lists: Meetings.lists(socket.assigns.board.id)
        )
@@ -157,6 +158,32 @@ defmodule SlipdockWeb.MeetingLive.Show do
     socket = assign(socket, adding: false)
     with_writer(socket, fn user -> Review.add(socket.assigns.capture, params, user) end)
   end
+
+  def handle_event("undo", params, socket) do
+    %{capture: capture, can_write: can_write, current_user: user} = socket.assigns
+
+    if can_write do
+      case Slipdock.Meetings.Undo.undo(capture, user, rest: params["rest"] == "true", via: "web") do
+        {:ok, capture} ->
+          {:noreply,
+           socket |> assign(undo_conflicts: nil) |> put_flash(:info, "Undone.") |> load(capture)}
+
+        {:error, :conflicts, conflicts} ->
+          {:noreply, assign(socket, undo_conflicts: conflicts)}
+
+        {:error, _kind, message} ->
+          {:noreply, put_flash(socket, :error, message)}
+
+        {:error, message} ->
+          {:noreply, put_flash(socket, :error, message)}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("cancel_undo", _params, socket),
+    do: {:noreply, assign(socket, undo_conflicts: nil)}
 
   def handle_event("commit", _params, socket) do
     %{board: board, capture: capture, open_count: open} = socket.assigns
@@ -383,6 +410,14 @@ defmodule SlipdockWeb.MeetingLive.Show do
                 </button>
               </div>
             </section>
+
+            <.receipt
+              :if={@capture.state == "committed"}
+              capture={@capture}
+              board={@board}
+              can_write={@can_write}
+              conflicts={@undo_conflicts}
+            />
 
             <.review
               :if={not analysing?(@capture)}
