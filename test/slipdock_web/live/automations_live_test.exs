@@ -124,6 +124,37 @@ defmodule SlipdockWeb.AutomationsLiveTest do
       assert Automations.list_rules(board.id) == []
     end
 
+    test "a rule with no sentence behind it opens for rewording with what it does", %{
+      conn: conn,
+      board: board
+    } do
+      spec = %{
+        "trigger" => %{"type" => "card_created"},
+        "actions" => [%{"type" => "add_flags", "flags" => ["review"]}]
+      }
+
+      # Added from a preset, by runner setup or as an exact spec: no source.
+      bare = rule_fixture(board, spec, %{"name" => "No words"})
+      blank = rule_fixture(board, spec, %{"name" => "Blank words", "source" => "   "})
+      assert is_nil(bare.source)
+      summary = Automations.Rule.summary(bare)
+      assert summary != ""
+
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/automations")
+
+      view |> element("#rule-#{bare.id} button[phx-click=edit_rule]") |> render_click()
+      assert view |> element("#rule-form textarea") |> render() =~ summary
+      assert has_element?(view, "#rule-form button[type=submit]", "Rewrite rule")
+
+      # Cancelling empties the box again.
+      view |> element("#rule-form button[phx-click=cancel_edit_rule]") |> render_click()
+      refute view |> element("#rule-form textarea") |> render() =~ summary
+      assert has_element?(view, "#rule-form button[type=submit]", "Create rule")
+
+      view |> element("#rule-#{blank.id} button[phx-click=edit_rule]") |> render_click()
+      assert view |> element("#rule-form textarea") |> render() =~ summary
+    end
+
     test "a timed rule can be run by hand", %{conn: conn, board: board, backlog: backlog} do
       rule_fixture(board, %{
         "trigger" => %{"type" => "card_overdue"},
