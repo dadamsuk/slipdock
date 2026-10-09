@@ -285,9 +285,12 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
 
   @impl true
   def render(assigns) do
+    runner_rules = runner_rules(assigns.board)
+
     assigns =
       assign(assigns,
-        runner_rules: runner_rules(assigns.board),
+        runner_rules: runner_rules,
+        waiting_pools: waiting_pools(runner_rules, assigns.runners, assigns.can_manage),
         preview: preview(assigns)
       )
 
@@ -312,7 +315,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
         </button>
       </div>
 
-      <ul :if={@runners != []} id="runner-list" class="space-y-1">
+      <ul :if={@runners != [] or @waiting_pools != []} id="runner-list" class="space-y-1">
         <li
           :for={runner <- @runners}
           id={"runner-#{runner.id}"}
@@ -358,6 +361,20 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
           >
             <.icon name="hero-trash" class="size-3.5" />
           </button>
+        </li>
+        <li
+          :for={pool <- @waiting_pools}
+          id={"waiting-pool-#{pool}"}
+          class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-base-content/60 odd:bg-base-200/40"
+        >
+          <.icon name="hero-clock" class="size-4 shrink-0 text-base-content/40" />
+          <span class="min-w-0 flex-1">
+            Waiting for a runner <span class="text-xs">· pool {pool}</span>
+            <span class="block text-xs text-base-content/50">
+              A rule sends cards here but nothing has taken a job yet. A Claude session shows
+              up the first time it takes one.
+            </span>
+          </span>
         </li>
       </ul>
 
@@ -406,6 +423,24 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
     do: Setup.generate(answers, %{base_url: assigns.base_url, board: assigns.board})
 
   defp preview(_), do: nil
+
+  # Pools a rule sends cards to that no runner takes from yet. A Claude
+  # session has no runner until its first claim, so without these a setup
+  # that worked would look like it did nothing.
+  defp waiting_pools(_rules, _runners, false), do: []
+
+  defp waiting_pools(rules, runners, true) do
+    served = MapSet.new(runners, & &1.pool)
+
+    rules
+    |> Enum.filter(& &1.enabled)
+    |> Enum.flat_map(&Spec.actions(&1.spec))
+    |> Enum.filter(&(&1["type"] == "runner"))
+    |> Enum.map(&to_string(&1["pool"]))
+    |> Enum.uniq()
+    |> Enum.reject(&MapSet.member?(served, &1))
+    |> Enum.sort()
+  end
 
   # The board's rules that already send cards to a runner, to link to.
   defp runner_rules(board) do
@@ -616,6 +651,31 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
               </option>
             </select>
           </label>
+          <div :if={not Setup.needs_token?(@p["scenario"])} class="grid grid-cols-2 gap-3">
+            <label class="block space-y-1">
+              <span class="text-xs text-base-content/70">When the work is done</span>
+              <select name="wizard[commit]" id="wizard-commit" class="select select-sm w-full">
+                <option value="push" selected={@p["commit"] == "push"}>Commit and push</option>
+                <option value="commit" selected={@p["commit"] == "commit"}>
+                  Commit, don't push
+                </option>
+                <option value="none" selected={@p["commit"] == "none"}>
+                  Don't commit: not a git project
+                </option>
+              </select>
+            </label>
+            <label class="block space-y-1">
+              <span class="text-xs text-base-content/70">The card</span>
+              <select name="wizard[close]" id="wizard-close" class="select select-sm w-full">
+                <option value="done" selected={@p["close"] == "done"}>
+                  Complete it and move it to Done
+                </option>
+                <option value="open" selected={@p["close"] == "open"}>
+                  Leave it open for me to close
+                </option>
+              </select>
+            </label>
+          </div>
           <label class="block space-y-1">
             <span class="text-xs text-base-content/70">
               Anything else, added after every job's prompt

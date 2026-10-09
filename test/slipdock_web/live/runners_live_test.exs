@@ -493,4 +493,71 @@ defmodule SlipdockWeb.RunnersLiveTest do
       refute has_element?(view, "#rule-preset-send_to_runner")
     end
   end
+
+  describe "a Claude scenario's runner before its first job (#511)" do
+    test "the pool shows as waiting until a session takes a job", ctx do
+      %{conn: conn, board: board, user: user} = ctx
+      view = open(conn, board)
+      submit(view, %{"scenario" => "loop", "pool" => "loop", "send" => "column:To Do"})
+      assert Runners.list_runners(board) == []
+
+      assert has_element?(view, "#waiting-pool-loop", "Waiting for a runner")
+      assert has_element?(view, "#waiting-pool-loop", "first time it takes one")
+
+      {_token, api_token} = Slipdock.Accounts.create_api_token(user, "session")
+      {:ok, runner} = Runners.session_runner(board, "loop", api_token, user)
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/automations")
+      assert has_element?(view, "#runner-#{runner.id}")
+      refute has_element?(view, "#waiting-pool-loop")
+    end
+
+    test "a pool with a runner, or only a paused rule, isn't waiting", ctx do
+      %{conn: conn, board: board} = ctx
+      {:ok, _runner, _} = Runners.create_runner(board, %{"name" => "box", "pool" => "dev"})
+
+      [_dev, paused] =
+        for pool <- ["dev", "paused"] do
+          {:ok, rule} =
+            Automations.create_rule_from_preset(board, "send_to_runner", %{
+              "column" => "To Do",
+              "pool" => pool
+            })
+
+          rule
+        end
+
+      {:ok, _} = Automations.toggle_rule(paused)
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/automations")
+      assert has_element?(view, "#runner-list")
+      refute has_element?(view, "[id^=waiting-pool-]")
+    end
+  end
+
+  describe "committing and closing, in the wizard (#511)" do
+    test "offered for the Claude scenarios only, and written into the steps", ctx do
+      %{conn: conn, board: board} = ctx
+      view = open(conn, board)
+      refute has_element?(view, "#wizard-commit")
+      refute has_element?(view, "#wizard-close")
+
+      choose(view, %{"scenario" => "cloud"})
+      assert has_element?(view, "#wizard-commit option[value=push][selected]")
+      assert has_element?(view, "#wizard-close option[value=done][selected]")
+
+      submit(view, %{
+        "scenario" => "cloud",
+        "where" => "desktop",
+        "cwd" => ~S"C:\Users\da\GMinds",
+        "commit" => "none",
+        "close" => "open"
+      })
+
+      assert has_element?(view, "#runner-setup", "Don't commit or push anything.")
+      assert has_element?(view, "#runner-setup", "leave it open where it is")
+      assert has_element?(view, "#runner-setup", "/install.ps1")
+      refute render(view) =~ "/install.sh |"
+    end
+  end
 end

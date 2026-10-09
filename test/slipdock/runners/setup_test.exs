@@ -184,10 +184,137 @@ defmodule Slipdock.Runners.SetupTest do
 
     test "on this computer: a local Desktop routine running the loop skill", %{board: board} do
       setup = gen(board, %{"scenario" => "cloud", "where" => "desktop", "cwd" => "~/app"}, nil)
-      assert Enum.at(setup.steps, 1).text =~ "Routines → New routine → Local"
-      assert Enum.at(setup.steps, 1).text =~ "Folder: ~/app"
-      assert Enum.at(codes(setup), 1) =~ "/slipdock-loop against"
+      assert Enum.at(setup.steps, 2).text =~ "Routines → New routine → Local"
+      assert Enum.at(setup.steps, 2).text =~ "Folder: ~/app"
+      assert Enum.at(codes(setup), 2) =~ "/slipdock-loop against"
       assert setup.warnings == []
+    end
+  end
+
+  describe "committing and closing the card (#511)" do
+    defp loop(board, extra),
+      do: Setup.loop_prompt(answers(extra), %{base_url: @base, board: board})
+
+    defp cloud(board, extra),
+      do: Setup.cloud_prompt(answers(Map.put(extra, "scenario", "cloud")), %{board: board})
+
+    test "by default a pass commits and pushes, in a git repository only, and closes the card",
+         %{board: board} do
+      prompt = loop(board, %{"scenario" => "loop"})
+
+      assert prompt =~
+               "If the working directory is a git repository, commit with the card id in the " <>
+                 "message and push; if it isn't one, skip the commit."
+
+      assert prompt =~ "complete it and move it to the done list."
+      assert prompt =~ "Then finish the job and stop."
+    end
+
+    test "commit, don't push; or no commit at all", %{board: board} do
+      commit = loop(board, %{"scenario" => "loop", "commit" => "commit"})
+      assert commit =~ "but don't push"
+      refute commit =~ "and push"
+
+      none = loop(board, %{"scenario" => "loop", "commit" => "none"})
+      assert none =~ "Don't commit or push anything."
+      refute none =~ "git repository"
+    end
+
+    test "a card left open is never completed or moved to done", %{board: board} do
+      prompt = loop(board, %{"scenario" => "loop", "close" => "open"})
+      assert prompt =~ "leave it open where it is: don't complete it or move it to the done list"
+      refute prompt =~ "complete it and move it"
+    end
+
+    test "a cloud routine's prompt follows the same answers", %{board: board} do
+      default = cloud(board, %{"where" => "cloud"})
+      assert default =~ "4. Run the tests, commit with the card number in the message, and push."
+      assert default =~ "complete it with complete_card, and move it to the done list."
+
+      chosen = cloud(board, %{"where" => "cloud", "commit" => "none", "close" => "open"})
+      assert chosen =~ "4. Run the tests if there are any. Don't commit or push anything."
+      assert chosen =~ "don't complete it or move it to the done list."
+      refute chosen =~ "complete_card"
+      refute chosen =~ "and push"
+
+      assert cloud(board, %{"commit" => "commit"}) =~ "but don't push."
+    end
+
+    test "unknown answers are refused" do
+      assert Setup.normalise(%{"commit" => "maybe"}) ==
+               {:error, "commit must be push, commit or none"}
+
+      assert Setup.normalise(%{"close" => "archive"}) == {:error, "close must be done or open"}
+    end
+
+    test "saved with the runner and changed later like any answer", ctx do
+      {:ok, %{runner: runner}} =
+        Setup.connect(ctx.board, %{"pool" => "dev", "commit" => "none"}, ctx.owner, @base)
+
+      assert {runner.settings["commit"], runner.settings["close"]} == {"none", "done"}
+
+      {:ok, %{runner: runner}} = Setup.update(runner, ctx.board, %{"close" => "open"}, @base)
+      assert {runner.settings["commit"], runner.settings["close"]} == {"none", "open"}
+    end
+  end
+
+  describe "a session without the job tools (#511)" do
+    test "is told to stop and say so, not to work the lists", %{board: board} do
+      prompt =
+        Setup.loop_prompt(answers(%{"scenario" => "loop"}), %{base_url: @base, board: board})
+
+      assert prompt =~ Setup.no_job_tools()
+      assert Setup.no_job_tools() =~ "don't work the board's lists directly"
+      assert Setup.no_job_tools() =~ "Slipdock connector needs reconnecting"
+
+      cloud =
+        Setup.cloud_prompt(answers(%{"scenario" => "cloud", "where" => "cloud"}), %{board: board})
+
+      assert cloud =~ "If there is no claim_job tool, stop and say the Slipdock connector needs"
+    end
+  end
+
+  describe "a Windows working directory (#511)" do
+    test "is told apart by its drive letter, ~\\ or a share" do
+      for path <- [~S"C:\Users\da\GMinds", "d:/work", ~S"~\GMinds", ~S"\\nas\share"],
+          do: assert(Setup.windows_path?(path), path)
+
+      for path <- ["/tmp", "~/app", "", "~", "relative\\dir", nil],
+          do: refute(Setup.windows_path?(path), inspect(path))
+    end
+
+    test "a Desktop routine installs the skills with PowerShell, into the Windows home",
+         %{board: board} do
+      setup =
+        gen(
+          board,
+          %{"scenario" => "cloud", "where" => "desktop", "cwd" => ~S"C:\Users\da\GMinds"},
+          nil
+        )
+
+      skills = Enum.at(setup.steps, 1)
+      assert skills.lang == "powershell"
+      assert skills.code == "irm '#{@base}/install.ps1' | iex"
+      assert skills.text =~ ~S"%USERPROFILE%\.claude\skills"
+      refute Enum.any?(codes(setup), &(&1 =~ "install.sh"))
+      assert Enum.at(setup.steps, 2).text =~ ~S"Folder: C:\Users\da\GMinds"
+    end
+
+    test "a /loop gets PowerShell to start Claude Code there too", %{board: board} do
+      setup = gen(board, %{"scenario" => "loop", "cwd" => ~S"C:\Users\da\it's"}, nil)
+      [_mcp, skills, start, _loop] = codes(setup)
+
+      assert skills =~ "/install.ps1' | iex"
+      assert start == ~S"Set-Location 'C:\Users\da\it''s'; claude --permission-mode acceptEdits"
+    end
+
+    test "anywhere else keeps the shell steps, and names the PowerShell one", %{board: board} do
+      setup = gen(board, %{"scenario" => "loop", "cwd" => "~/app"}, nil)
+      [_mcp, skills, start, _loop] = codes(setup)
+
+      assert skills == "curl -fsSL #{@base}/install.sh | sh"
+      assert Enum.at(setup.steps, 1).text =~ "irm #{@base}/install.ps1 | iex"
+      assert start =~ ~S(cd "$HOME"/'app' && claude)
     end
   end
 

@@ -564,7 +564,10 @@ those hooks for you (your notifier, what to keep from each pass), from a
 worked example. A Claude runner may use the Slipdock MCP tools without
 asking (on by default) and every job is told nobody will answer questions, since
 nobody is watching. A runner costs nothing while it waits; the Claude
-options need no install but use a Claude turn per check.
+options need no install but use a Claude turn per check. For those you choose
+whether a pass commits (and pushes) its work — only ever in a git repository —
+and whether it closes the card or leaves it open for you; until such a session
+takes its first job, its pool shows in the runner list as waiting.
 `slipdock runner new <board> [name] --pool default [--scenario …]` prints the
 same, `slipdock runner ls|setup|token|rm` manage them, and `slipdock jobs
 <board>` shows what they're doing. The details are in
@@ -575,7 +578,9 @@ same, `slipdock runner ls|setup|token|rm` manage them, and `slipdock jobs
 Every install is an MCP server at `https://your-server/mcp` (stateless
 Streamable HTTP). In claude.ai or the Claude apps: **Settings → Connectors →
 Add custom connector**, give it that address, press **Connect** and approve it
-in the browser. In Claude Code:
+in the browser. A connector keeps the tool list it had when it was added, so
+after an upgrade that adds tools (the job tools, say), disconnect and connect
+it again. In Claude Code:
 
 ```sh
 claude mcp add --transport http slipdock https://your-server/mcp   # then /mcp to sign in
