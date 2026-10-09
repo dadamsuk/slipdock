@@ -361,6 +361,7 @@ defmodule SlipdockWeb.Router do
     get "/captures/:id/preview", MeetingController, :preview
     post "/captures/:id/commit", MeetingController, :commit
     post "/captures/:id/undo", MeetingController, :undo
+    post "/captures/:id/discard", MeetingController, :discard
   end
 
   scope "/api", SlipdockWeb.API do
