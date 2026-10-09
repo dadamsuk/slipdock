@@ -12,7 +12,7 @@ defmodule SlipdockWeb.API.JobController do
   use SlipdockWeb, :controller
 
   alias Slipdock.{Boards, Runners}
-  alias Slipdock.Runners.{HookPrompt, Setup}
+  alias Slipdock.Runners.{HookPrompt, Runner, Setup}
   alias SlipdockWeb.API.{Authorize, CardWrites}
   alias SlipdockWeb.API.JSON, as: V
 
@@ -66,7 +66,8 @@ defmodule SlipdockWeb.API.JobController do
   @doc "A runner's steps again, from its saved answers, with a placeholder for the token."
   def runner_setup(conn, %{"board" => ref, "id" => id}) do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, :owner),
-         {:ok, runner} <- Runners.find_runner(board, id) do
+         {:ok, runner} <- Runners.find_runner(board, id),
+         :ok <- not_session(runner) do
       json(conn, %{
         setup: Setup.regenerate(runner, board, base_url(conn)),
         runner: V.runner(runner)
@@ -80,7 +81,8 @@ defmodule SlipdockWeb.API.JobController do
   """
   def hook_prompt(conn, %{"board" => ref, "id" => id}) do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, :owner),
-         {:ok, runner} <- Runners.find_runner(board, id) do
+         {:ok, runner} <- Runners.find_runner(board, id),
+         :ok <- not_session(runner) do
       scenario = Setup.saved(runner)["scenario"]
 
       json(conn, %{
@@ -97,7 +99,8 @@ defmodule SlipdockWeb.API.JobController do
   """
   def update_setup(conn, %{"board" => ref, "id" => id} = params) do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, :owner),
-         {:ok, runner} <- Runners.find_runner(board, id) do
+         {:ok, runner} <- Runners.find_runner(board, id),
+         :ok <- not_session(runner) do
       case Setup.update(runner, board, Map.drop(params, ["board", "id"]), base_url(conn)) do
         {:ok, result} ->
           json(conn, %{
@@ -116,6 +119,7 @@ defmodule SlipdockWeb.API.JobController do
   def rotate_token(conn, %{"board" => ref, "id" => id}) do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, :owner),
          {:ok, runner} <- Runners.find_runner(board, id),
+         :ok <- not_session(runner),
          {:ok, runner, token} <- Runners.rotate_token(runner) do
       json(conn, %{
         token: token,
@@ -126,6 +130,21 @@ defmodule SlipdockWeb.API.JobController do
   end
 
   defp base_url(conn), do: SlipdockWeb.BaseURL.from_conn(conn)
+
+  # A Claude session's runner is made by its first claim and authenticated by
+  # the session's API token: it has no answers, steps or token of its own, and
+  # its instructions are in the session's task, which the server never sees.
+  defp not_session(runner) do
+    if Runner.session?(runner) do
+      {:error, :unprocessable_entity,
+       "“#{runner.name}” is a Claude session, so it has no setup steps or token of its " <>
+         "own: its instructions are in the session's own task. To change them, run " <>
+         "Connect a runner again (slipdock runner new <board> --scenario loop|cloud) and " <>
+         "paste the new ones into the task."}
+    else
+      :ok
+    end
+  end
 
   def delete_runner(conn, %{"board" => ref, "id" => id}) do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, :owner),
