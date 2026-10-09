@@ -201,40 +201,50 @@ defmodule SlipdockWeb.Meetings.ModeTest do
   end
 
   describe "the board page's cost" do
-    # Meeting mode is decided from the board row and the (cached) settings,
-    # so a board that never had a capture reloads with exactly the queries
-    # it made before meeting mode existed.
-    test "no extra queries for a board with no captures", %{conn: conn, board: board} do
-      {:ok, view, _html} = live(conn, ~p"/boards/#{board}")
-      off = queries_on_reload(view, board)
-
-      turn_on()
-      {:ok, view, _html} = live(conn, ~p"/boards/#{board}")
-      on = queries_on_reload(view, board)
-
-      assert on == off
+    # What decides the tab is `Meetings.presence/2`, read from the board row
+    # the page already has and the settings (cached in production). Counting
+    # its own queries is deterministic; counting a whole page reload was not,
+    # since the page process does other work in the same moment (#530).
+    test "deciding the tab for a board with no captures asks the database nothing", %{
+      board: board,
+      user: user
+    } do
+      for setup <- [
+            fn -> :ok end,
+            fn -> turn_on() end,
+            fn -> turn_on(%{"meetings_visibility" => "every_board"}) end
+          ] do
+        setup.()
+        assert {presence, 0} = counting_queries(fn -> Meetings.presence(user, board) end)
+        assert presence in [:none, :menu, :tab]
+      end
     end
 
-    defp queries_on_reload(view, board) do
+    test "the board page shows it all the same", %{conn: conn, board: board} do
+      turn_on()
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}")
+      assert has_element?(view, "#board-share-capture-meeting")
+    end
+
+    # Queries made by this process while `fun` runs, leaving out the settings
+    # row, which the test suite reads uncached.
+    defp counting_queries(fun) do
       counter = :counters.new(1, [])
       id = {__MODULE__, make_ref()}
-      pid = view.pid
+      me = self()
 
       :telemetry.attach(
         id,
         [:slipdock, :repo, :query],
         fn _, _, meta, _ ->
-          # Settings are cached in production; the test suite reads the row
-          # every time, the same number of times either way, so it is left out.
-          if self() == pid and meta[:source] != "settings", do: :counters.add(counter, 1, 1)
+          if self() == me and meta[:source] != "settings", do: :counters.add(counter, 1, 1)
         end,
         nil
       )
 
-      send(view.pid, {:board_changed, board.id})
-      _ = render(view)
+      result = fun.()
       :telemetry.detach(id)
-      :counters.get(counter, 1)
+      {result, :counters.get(counter, 1)}
     end
   end
 
