@@ -1092,6 +1092,51 @@ defmodule SlipdockCLI.Render do
     table(["ID", "NAME", "POOL", "LAST SEEN", "NOW"], rows)
   end
 
+  # One runner in full: what it is, who made it, what it is doing now, how
+  # its jobs have ended, its latest jobs and the rules that feed its pool.
+  def runner(r) do
+    kind = if r["session"], do: "Claude session", else: "runner with its own token"
+    IO.puts("runner ##{r["id"]} #{r["name"]}  pool #{r["pool"]}  (#{kind})")
+    if r["settings"]["scenario"], do: IO.puts("setup:     #{r["settings"]["scenario"]}")
+
+    if r["created_by"],
+      do: IO.puts("made:      #{stamp(r["created_at"])} by #{r["created_by"]}"),
+      else: IO.puts("made:      #{stamp(r["created_at"])}")
+
+    IO.puts("seen:      " <> if(r["last_seen_at"], do: stamp(r["last_seen_at"]), else: "never"))
+
+    if t = r["api_token"] do
+      IO.puts("api token: #{t["label"] || "##{t["id"]}"} (#{t["scope"]})")
+    end
+
+    case r["current_job"] do
+      nil ->
+        IO.puts("now:       idle")
+
+      j ->
+        IO.puts("now:       job ##{j["id"]} #{j["status"]} on card ##{j["card_id"]} #{j["card"]}")
+    end
+
+    counts =
+      (r["job_counts"] || %{})
+      |> Enum.sort()
+      |> Enum.map_join(", ", fn {status, n} -> "#{n} #{status}" end)
+
+    IO.puts(
+      "jobs:      #{r["jobs_total"] || 0}" <> if(counts == "", do: "", else: " (#{counts})")
+    )
+
+    case r["rules"] || [] do
+      [] -> IO.puts("rules:     " <> dim("none send cards to this pool"))
+      rules -> IO.puts("rules:     " <> Enum.map_join(rules, ", ", &"##{&1["id"]} #{&1["name"]}"))
+    end
+
+    if (r["recent_jobs"] || []) != [] do
+      IO.puts("\nlatest jobs:")
+      jobs(r["recent_jobs"])
+    end
+  end
+
   # What new answers change in a runner's steps: the lines out and in.
   def runner_diff(diff) do
     changed = Enum.reject(diff || [], fn [op, _] -> op == "eq" end)

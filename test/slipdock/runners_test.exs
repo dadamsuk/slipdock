@@ -80,6 +80,80 @@ defmodule Slipdock.RunnersTest do
     end
   end
 
+  describe "runner_details/2 (#526)" do
+    defp runner_rule(board, pool, attrs \\ %{}) do
+      rule_fixture(
+        board,
+        %{
+          "trigger" => %{"type" => "card_created"},
+          "actions" => [%{"type" => "runner", "pool" => pool}]
+        },
+        attrs
+      )
+    end
+
+    test "who made it, the job it holds, how its jobs ended, its latest jobs and its rules",
+         ctx do
+      %{board: board, todo: todo, owner: owner} = ctx
+
+      {:ok, runner, _} =
+        Runners.create_runner(board, %{"name" => "laptop", "pool" => "dev"}, owner)
+
+      second = card_fixture(todo, %{"title" => "Second"})
+      {:ok, first_job} = queue(ctx.card)
+      {:ok, second_job} = queue(second)
+      claimed = Runners.claim(runner)
+      assert claimed.id == first_job.id
+      {:ok, _} = Runners.finish(runner, first_job.id, %{exit: "0"})
+      assert Runners.claim(runner).id == second_job.id
+
+      feeds = runner_rule(board, "dev", %{"name" => "Feeds dev"})
+      _other_pool = runner_rule(board, "elsewhere")
+      _paused = runner_rule(board, "dev", %{"enabled" => false})
+
+      d = Runners.runner_details(Repo.get!(Runner, runner.id))
+
+      assert d.created_by.id == owner.id
+      assert d.api_token == nil
+      assert d.current_job.id == second_job.id
+      assert d.current_job.card.title == "Second"
+      assert d.job_counts == %{"done" => 1, "claimed" => 1}
+      assert d.jobs_total == 2
+      assert Enum.map(d.recent_jobs, & &1.id) == [second_job.id, first_job.id]
+      assert hd(d.recent_jobs).card.title == "Second"
+      assert Enum.map(d.rules, & &1.id) == [feeds.id]
+
+      # Another runner's jobs aren't counted as this one's.
+      other = Runners.runner_details(ctx.runner)
+      assert other.jobs_total == 0
+      assert other.recent_jobs == []
+      assert other.current_job == nil
+      assert other.created_by == nil
+    end
+
+    test "limit caps the latest jobs but not the counts", ctx do
+      for _ <- 1..3 do
+        {:ok, job} = queue(card_fixture(ctx.todo))
+        Runners.claim(ctx.runner)
+        {:ok, _} = Runners.finish(ctx.runner, job.id, %{exit: "1"})
+      end
+
+      d = Runners.runner_details(ctx.runner, limit: 2)
+      assert length(d.recent_jobs) == 2
+      assert d.job_counts == %{"failed" => 3}
+      assert d.jobs_total == 3
+    end
+
+    test "a Claude session's runner names the API token it works through", ctx do
+      {_token, api_token} = Slipdock.Accounts.create_api_token(ctx.owner, "desktop")
+      {:ok, session} = Runners.session_runner(ctx.board, "dev", api_token, ctx.owner)
+
+      d = Runners.runner_details(session)
+      assert d.api_token.id == api_token.id
+      assert d.api_token.label == "desktop"
+    end
+  end
+
   describe "queue/2" do
     test "queues a job for the card's tree and pool", %{board: board, card: card} do
       assert {:ok, job} = queue(card)

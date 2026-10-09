@@ -426,6 +426,7 @@ defmodule SlipdockWeb.Router do
     get "/boards/:board/runners", JobController, :runners
     post "/boards/:board/runners", JobController, :create_runner
     post "/boards/:board/runners/setup", JobController, :setup
+    get "/boards/:board/runners/:id", JobController, :show_runner
     get "/boards/:board/runners/:id/setup", JobController, :runner_setup
     get "/boards/:board/runners/:id/hook-prompt", JobController, :hook_prompt
     put "/boards/:board/runners/:id/setup", JobController, :update_setup

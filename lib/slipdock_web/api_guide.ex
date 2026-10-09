@@ -1390,6 +1390,9 @@ defmodule SlipdockWeb.APIGuide do
     `service`, `where` and `repo`, and `column` to add a rule sending that
     list's cards. It answers with `setup.steps` — exactly what to paste — and
     for a runner of its own the `runner` and its `token`, once. `GET
+    …/runners/:id` is one runner in full (`created_by`, a session's
+    `api_token`, `current_job`, `job_counts`, `recent_jobs` up to `limit`,
+    and the `rules` sending to its pool), `GET
     …/runners/:id/setup` gives the steps again, `POST …/runners/:id/token` a
     new token, and `PUT …/runners/:id/setup` saves new answers and answers
     with a `diff` of what changes. Standing `instructions` (and a

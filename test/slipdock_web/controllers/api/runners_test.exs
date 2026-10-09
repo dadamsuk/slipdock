@@ -148,6 +148,58 @@ defmodule SlipdockWeb.API.RunnersTest do
       assert post(runner_conn(body["token"]), "/api/runner/claim?wait=0").status == 204
     end
 
+    test "one runner in full, by id or name, with its jobs and rules (#526)", ctx do
+      %{conn: conn, board: board, runner: runner, card: card} = ctx
+      {:ok, job} = queue(card)
+      Runners.claim(runner)
+
+      rule_fixture(
+        board,
+        %{
+          "trigger" => %{"type" => "card_created"},
+          "actions" => [%{"type" => "runner", "pool" => "dev"}]
+        },
+        %{"name" => "Feeds dev"}
+      )
+
+      body = conn |> get(~p"/api/boards/#{board.id}/runners/box") |> json_response(200)
+      r = body["runner"]
+
+      assert r["id"] == runner.id
+      assert r["session"] == false
+      assert r["api_token"] == nil
+      assert r["current_job"]["id"] == job.id
+      assert r["current_job"]["card"] == "Do the thing"
+      assert r["job_counts"] == %{"claimed" => 1}
+      assert r["jobs_total"] == 1
+      assert [latest] = r["recent_jobs"]
+      assert latest["id"] == job.id
+      refute Map.has_key?(latest, "prompt")
+      assert [%{"name" => "Feeds dev"}] = r["rules"]
+      refute inspect(body) =~ ctx.token
+
+      by_id = conn |> get(~p"/api/boards/#{board.id}/runners/#{runner.id}") |> json_response(200)
+      assert by_id["runner"]["name"] == "box"
+    end
+
+    test "showing a runner that isn't there is a 404", %{conn: conn, board: board} do
+      assert conn |> get(~p"/api/boards/#{board.id}/runners/nope") |> json_response(404)
+    end
+
+    test "a session's runner shows its API token's label, never the token", ctx do
+      {token, api_token} = Accounts.create_api_token(ctx.user, "desktop")
+      {:ok, session} = Runners.session_runner(ctx.board, "dev", api_token, ctx.user)
+
+      body =
+        ctx.conn
+        |> get(~p"/api/boards/#{ctx.board.id}/runners/#{session.id}")
+        |> json_response(200)
+
+      assert body["runner"]["session"] == true
+      assert body["runner"]["api_token"]["label"] == "desktop"
+      refute inspect(body) =~ token
+    end
+
     test "a bad pool is a validation error", %{conn: conn, board: board} do
       conn = post(conn, ~p"/api/boards/#{board.id}/runners", %{"name" => "x", "pool" => "a b"})
       assert %{"details" => %{"pool" => [_]}} = json_response(conn, 422)
@@ -168,6 +220,7 @@ defmodule SlipdockWeb.API.RunnersTest do
       conn = conn_as(other) |> put_req_header("accept", "application/json")
 
       assert conn |> get(~p"/api/boards/#{board.id}/runners") |> json_response(403)
+      assert conn |> get(~p"/api/boards/#{board.id}/runners/box") |> json_response(403)
 
       assert conn
              |> post(~p"/api/boards/#{board.id}/runners", %{"name" => "x", "pool" => "dev"})
