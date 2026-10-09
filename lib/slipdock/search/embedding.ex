@@ -15,7 +15,7 @@ defmodule Slipdock.Search.Embedding do
   use Ecto.Schema
   import Ecto.Changeset
 
-  @kinds ~w(card comment status_update page page_section)
+  @kinds ~w(card comment status_update page page_section provenance)
 
   schema "search_embeddings" do
     field :kind, :string
@@ -45,6 +45,7 @@ defmodule Slipdock.Search.Embedding do
   def label("status_update"), do: "status update"
   def label("page"), do: "page"
   def label("page_section"), do: "page section"
+  def label("provenance"), do: "said in a meeting"
   def label(other), do: other
 
   @doc "Whether a chunk of this kind came from a wiki page."

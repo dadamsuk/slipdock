@@ -562,6 +562,48 @@ defmodule SlipdockWeb.BoardLive.CardSections do
     end
   end
 
+  attr :provenance, :list, required: true
+
+  @doc """
+  *From a meeting* (G11): the meeting a card, or a change to it, came from —
+  when in it, who said what, how it was read and who committed it. Kept on
+  the card, so it reads the same after the capture is gone.
+  """
+  def provenance_section(assigns) do
+    ~H"""
+    <section class="space-y-2 px-1" id="card-provenance">
+      <h3 class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-base-content/50">
+        <.icon name="hero-microphone" class="size-3.5" /> From a meeting
+      </h3>
+      <div
+        :for={p <- @provenance}
+        id={"provenance-#{p.id}"}
+        class="rounded-lg bg-base-200/60 px-3 py-2 text-sm"
+      >
+        <p class="text-xs text-base-content/60">
+          {if p.kind == "created", do: "Made", else: "Changed"} from “{p.meeting}”<span :if={p.met_at}>, {Calendar.strftime(
+            p.met_at,
+            "%-d %b %Y"
+          )}</span><span :if={p.at_ms}> at {provenance_clock(p.at_ms)}</span>
+        </p>
+        <blockquote :if={p.quote} class="mt-1 border-l-2 border-base-content/20 pl-2 italic">
+          “{p.quote}”
+          <span class="not-italic text-xs text-base-content/60">— {p.speaker || "unnamed"}</span>
+        </blockquote>
+        <p :if={p.read not in [nil, ""]} class="mt-1 text-xs text-base-content/60">
+          Read as: {p.read}
+        </p>
+        <p :if={p.committed_by} class="text-xs text-base-content/60">Committed by {p.committed_by}</p>
+      </div>
+    </section>
+    """
+  end
+
+  defp provenance_clock(ms) do
+    s = div(ms, 1000)
+    "#{div(s, 60)}:#{String.pad_leading(Integer.to_string(rem(s, 60)), 2, "0")}"
+  end
+
   attr :board, :any, required: true
   attr :can_write, :boolean, required: true
   attr :card, Card, required: true

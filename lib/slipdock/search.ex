@@ -393,7 +393,8 @@ defmodule Slipdock.Search do
         :assignees,
         :checklist_items,
         :comments,
-        :status_updates
+        :status_updates,
+        :provenance
       ]
     )
   end

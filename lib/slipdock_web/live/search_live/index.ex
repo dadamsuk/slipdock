@@ -308,6 +308,7 @@ defmodule SlipdockWeb.SearchLive.Index do
   defp kind_icon("card"), do: "hero-rectangle-stack"
   defp kind_icon("comment"), do: "hero-chat-bubble-left"
   defp kind_icon("status_update"), do: "hero-signal"
+  defp kind_icon("provenance"), do: "hero-microphone"
   defp kind_icon(_), do: "hero-document-text"
 
   @snippet 260

@@ -369,36 +369,60 @@ defmodule Slipdock.Meetings.Commit do
 
   ## Decisions -------------------------------------------------------------------
 
-  # One change per decisions page: every entry for it, the lines struck as
-  # replaced, and the body it will have.
+  # One change per decisions page touched: the entries written to it, and
+  # the earlier entries struck on it because a new decision replaces them —
+  # which may be on another topic's page, found among the decisions the
+  # context step read. Each side links to the other's page.
   defp decision_changes([], _capture), do: []
 
   defp decision_changes(findings, capture) do
-    findings
-    |> Enum.group_by(& &1.effect["page"])
-    |> Enum.map(fn {title, group} ->
-      page =
-        Repo.one(
-          from(p in Page,
-            where:
-              p.board_id == ^capture.board_id and p.title == ^title and is_nil(p.archived_at),
-            limit: 1
-          )
+    pages = fn title ->
+      Repo.one(
+        from(p in Page,
+          where: p.board_id == ^capture.board_id and p.title == ^title and is_nil(p.archived_at),
+          limit: 1
         )
+      )
+    end
 
+    entries = Enum.group_by(findings, & &1.effect["page"])
+
+    strikes =
+      findings
+      |> Enum.filter(& &1.effect["supersedes"])
+      |> Enum.flat_map(fn f ->
+        case where_decided(f, capture, pages) do
+          nil -> []
+          title -> [{title, f}]
+        end
+      end)
+      |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+
+    (Map.keys(entries) ++ Map.keys(strikes))
+    |> Enum.uniq()
+    |> Enum.sort()
+    |> Enum.map(fn title ->
+      page = pages.(title)
+      group = Map.get(entries, title, [])
       body = (page && page.body) || intro(group)
+
+      {body, struck} =
+        Enum.reduce(Map.get(strikes, title, []), {body, []}, fn f, {body, struck} ->
+          {body, now} = strike(body, f.effect["supersedes"], f, title, capture)
+          {body, struck ++ now}
+        end)
+
+      {body, added} =
+        Enum.reduce(group, {body, []}, fn f, {body, added} ->
+          entry = entry_line(f, capture, Enum.find(Map.keys(strikes), &(f in strikes[&1])))
+          {append_line(body, entry), added ++ [entry]}
+        end)
+
       # The page as the review read it (the context step), for the stale
       # check: a page edited since, or made since, is not written over.
       read =
         page &&
           Enum.find((capture.context || %{})["decisions"] || [], &(&1["page_id"] == page.id))
-
-      {body, added, struck} =
-        Enum.reduce(group, {body, [], []}, fn f, {body, added, struck} ->
-          {body, struck_now} = strike(body, f.effect["supersedes"], f)
-          entry = entry_line(f, capture)
-          {append_line(body, entry), added ++ [entry], struck ++ struck_now}
-        end)
 
       %{
         "op" => "decision_entry",
@@ -409,24 +433,90 @@ defmodule Slipdock.Meetings.Commit do
         "base_hash" => page && page.content_hash,
         "base_version" => read && read["version"],
         "made_since_read" => page != nil and read == nil,
+        "page_slug" => (page && page.slug) || slug_for(title, capture.board_id),
         "lines_added" => added,
         "lines_struck" => struck,
         "body_after" => body
       }
     end)
-    |> Enum.sort_by(& &1["page_title"])
+  end
+
+  # A link to a decisions page that survives the " / " in its title (a slash
+  # in a wiki link names another board): by slug, labelled with the title.
+  defp link(title, capture), do: "[[#{slug_for(title, capture.board_id)}|#{title}]]"
+
+  # The page's slug: its own if it exists, else the one it will be made with.
+  defp slug_for(title, board_id) do
+    case Repo.one(
+           from(p in Page,
+             where: p.board_id == ^board_id and p.title == ^title and is_nil(p.archived_at),
+             select: p.slug,
+             limit: 1
+           )
+         ) do
+      nil ->
+        Page.slug_from_title(title, fn slug ->
+          Repo.exists?(from(p in Page, where: p.board_id == ^board_id and p.slug == ^slug))
+        end)
+
+      slug ->
+        slug
+    end
+  end
+
+  # Which page holds the decision this one replaces: its own page if the
+  # words are there, else whichever decisions page the context read has them.
+  defp where_decided(f, capture, pages) do
+    needle = Slipdock.Meetings.Context.normalise(f.effect["supersedes"])
+    own = f.effect["page"]
+
+    own_has? =
+      case pages.(own) do
+        %Page{body: body} ->
+          String.contains?(Slipdock.Meetings.Context.normalise(body || ""), needle)
+
+        nil ->
+          false
+      end
+
+    if own_has? do
+      own
+    else
+      ((capture.context || %{})["decisions"] || [])
+      |> Enum.find(fn d ->
+        Enum.any?(
+          d["entries"] || [],
+          &(not &1["superseded"] and
+              String.contains?(Slipdock.Meetings.Context.normalise(&1["text"]), needle))
+        )
+      end)
+      |> then(&(&1 && &1["title"]))
+    end
   end
 
   defp intro([f | _]),
     do:
       "Decisions about #{f.effect["topic"] || "this"}, as they were made in meetings. Newest last; a replaced decision is struck through.\n"
 
+  defp intro([]), do: ""
+
   @doc false
-  def entry_line(%Finding{} = f, capture) do
+  def entry_line(%Finding{} = f, capture, replaced_on \\ nil) do
     e = List.first(f.evidence || [])
     said = if e, do: " #{e.speaker || "Somebody"}: “#{e.quote}”", else: " (added in review)"
-    replaces = if f.effect["supersedes"], do: " Replaces “#{f.effect["supersedes"]}”.", else: ""
     by = if f.effect["decided_by"], do: " Decided by #{f.effect["decided_by"]}.", else: ""
+
+    replaces =
+      cond do
+        is_nil(f.effect["supersedes"]) ->
+          ""
+
+        replaced_on && replaced_on != f.effect["page"] ->
+          " Replaces “#{f.effect["supersedes"]}” on #{link(replaced_on, capture)}."
+
+        true ->
+          " Replaces “#{f.effect["supersedes"]}”."
+      end
 
     "- **#{f.effect["text"] || f.title}** — #{date(capture)}, in “#{capture.title}”.#{said}#{by}#{replaces}"
   end
@@ -434,11 +524,10 @@ defmodule Slipdock.Meetings.Commit do
   defp date(%Capture{started_at: nil, inserted_at: at}), do: Calendar.strftime(at, "%-d %b %Y")
   defp date(%Capture{started_at: at}), do: Calendar.strftime(at, "%-d %b %Y")
 
-  # An earlier entry the decision replaces is struck through, with a note of
-  # what replaced it — found by its words, among the entries not already struck.
-  defp strike(body, nil, _f), do: {body, []}
-
-  defp strike(body, supersedes, f) do
+  # An earlier entry the decision replaces is struck through, saying what
+  # replaced it and where — found by its words, among the entries not already
+  # struck.
+  defp strike(body, supersedes, f, on_page, capture) do
     needle = Slipdock.Meetings.Context.normalise(supersedes)
     lines = String.split(body, "\n")
 
@@ -452,7 +541,11 @@ defmodule Slipdock.Meetings.Commit do
       i ->
         line = Enum.at(lines, i)
         [_, bullet, text] = Regex.run(~r/^(\s*[-*]\s+)(.*)$/, line)
-        struck = "#{bullet}~~#{text}~~ (replaced by “#{f.effect["text"] || f.title}”)"
+
+        where =
+          if on_page == f.effect["page"], do: "", else: " on #{link(f.effect["page"], capture)}"
+
+        struck = "#{bullet}~~#{text}~~ (replaced by “#{f.effect["text"] || f.title}”#{where})"
         {lines |> List.replace_at(i, struck) |> Enum.join("\n"), [line]}
     end
   end
@@ -830,7 +923,13 @@ defmodule Slipdock.Meetings.Commit do
       case c["page_id"] && Repo.get(Page, c["page_id"]) do
         nil ->
           with {:ok, page} <-
-                 Wiki.create_page(board, %{"title" => c["page_title"], "body" => c["body_after"]},
+                 Wiki.create_page(
+                   board,
+                   %{
+                     "title" => c["page_title"],
+                     "slug" => c["page_slug"],
+                     "body" => c["body_after"]
+                   },
                    user: user,
                    via: "meeting",
                    message: "From the meeting “#{capture.title}”"
@@ -880,9 +979,23 @@ defmodule Slipdock.Meetings.Commit do
     end
   end
 
-  # Where it came from, kept in the change set for now; written onto the
-  # card itself by #540.
-  defp provenance_for(_card, _change, _user), do: :ok
+  # Where it came from, on the card itself (G11), and into the search index
+  # with it.
+  defp provenance_for(card, change, user) do
+    if prov = change["provenance"] do
+      kind = if change["op"] == "create_card", do: "created", else: "changed"
+
+      Slipdock.Meetings.Provenance.record(
+        card,
+        Map.put(prov, "committed_by", user.name || user.email),
+        kind
+      )
+
+      Slipdock.Search.Indexer.enqueue(card)
+    end
+
+    :ok
+  end
 
   defp log(board_id, card_id, what, capture, user) do
     Boards.log_activity(
