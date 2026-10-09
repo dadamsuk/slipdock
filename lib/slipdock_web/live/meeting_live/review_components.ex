@@ -183,6 +183,117 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
     """
   end
 
+  attr :capture, :any, required: true
+  attr :board, :any, required: true
+  attr :can_write, :boolean, required: true
+  attr :conflicts, :any, default: nil
+
+  @doc """
+  What a commit wrote (screen 8): each change with a link to where it
+  landed, Undo all (with what was edited since, when anything was), and
+  who committed it when.
+  """
+  def receipt(assigns) do
+    set = assigns.capture.change_set || %{}
+    assigns = assign(assigns, changes: set["changes"] || [], undone: set["undone"])
+
+    ~H"""
+    <section id="receipt" class="rounded-xl bg-base-100 p-4 ring-1 ring-base-content/10">
+      <div class="flex flex-wrap items-center gap-3">
+        <h2 class="flex-1 font-medium">
+          <%= if @undone do %>
+            Undone by {@undone["by"]}
+          <% else %>
+            Written to the board
+          <% end %>
+        </h2>
+        <span class="text-xs text-base-content/60">
+          committed by {(@capture.committed_by &&
+                           (@capture.committed_by.name || @capture.committed_by.email)) || "—"}
+          {@capture.committed_at && Calendar.strftime(@capture.committed_at, "%d %b %Y, %H:%M")}
+        </span>
+        <button
+          :if={@can_write and is_nil(@capture.undone_at) and is_nil(@conflicts)}
+          id="undo-all"
+          type="button"
+          phx-click="undo"
+          data-confirm="Undo everything this capture wrote?"
+          class="btn btn-outline btn-sm"
+        >
+          <.icon name="hero-arrow-uturn-left" class="size-4" /> Undo all
+        </button>
+      </div>
+
+      <div :if={@conflicts} id="undo-conflicts" class="mt-3 rounded-lg bg-warning/10 p-3 text-sm">
+        <p class="font-medium">
+          Edited since the commit — undoing these would throw those edits away:
+        </p>
+        <ul class="mt-1 list-disc pl-5">
+          <li :for={c <- @conflicts} data-conflict={c["id"]}>
+            {c["ref"]} “{c["title"]}”: {c["why"]}
+          </li>
+        </ul>
+        <div class="mt-2 flex gap-2">
+          <button
+            id="undo-rest"
+            type="button"
+            phx-click="undo"
+            phx-value-rest="true"
+            class="btn btn-warning btn-xs"
+          >
+            Undo the rest, keep these
+          </button>
+          <button id="undo-cancel" type="button" phx-click="cancel_undo" class="btn btn-ghost btn-xs">Cancel</button>
+        </div>
+      </div>
+
+      <ul class="mt-3 space-y-1 text-sm">
+        <li
+          :for={c <- @changes}
+          id={"written-#{c["id"]}"}
+          class={[@undone && "line-through text-base-content/50"]}
+        >
+          <%= case c["op"] do %>
+            <% "create_card" -> %>
+              New card
+              <.link
+                :if={c["card_id"]}
+                navigate={"/boards/#{c["board_id"]}/cards/#{c["card_id"]}"}
+                class="link"
+              >
+                {c["ref"]} {c["title"]}
+              </.link>
+              <span class="text-base-content/60">in {c["list"]}</span>
+            <% "update_card" -> %>
+              Changed
+              <.link navigate={"/boards/#{c["board_id"]}/cards/#{c["card_id"]}"} class="link">{c[
+                "ref"
+              ]} {c["title"]}</.link>
+              <span class="text-base-content/60">({Enum.join(
+                Map.keys(c["fields"]) -- ["column_id"],
+                ", "
+              )})</span>
+            <% "comment" -> %>
+              Commented on
+              <.link navigate={"/boards/#{c["board_id"]}/cards/#{c["card_id"]}"} class="link">{c[
+                "ref"
+              ]} {c["title"]}</.link>
+            <% "decision_entry" -> %>
+              {length(c["lines_added"])} {if length(c["lines_added"]) == 1,
+                do: "decision",
+                else: "decisions"} on
+              <.link navigate={"/boards/#{c["board_id"]}/wiki/#{c["page_slug"]}"} class="link">{c[
+                "page_title"
+              ]}</.link>
+            <% _ -> %>
+              {c["op"]}
+          <% end %>
+        </li>
+      </ul>
+    </section>
+    """
+  end
+
   attr :finding, :any, required: true
   attr :selected, :boolean, required: true
   attr :editing, :boolean, required: true

@@ -129,6 +129,40 @@ defmodule SlipdockWeb.API.MeetingController do
     end
   end
 
+  @doc """
+  Undoes a committed capture as a whole. When something it wrote has been
+  edited since, nothing is undone and the answer is 409 listing them;
+  `rest: true` undoes everything else and leaves those as they are.
+  """
+  def undo(conn, %{"id" => id} = params) do
+    with {:ok, capture} <- fetch(conn, id, :write) do
+      case Slipdock.Meetings.Undo.undo(capture, conn.assigns.current_user,
+             rest: params["rest"] in [true, "true", "1"],
+             via: "api"
+           ) do
+        {:ok, capture} ->
+          json(conn, %{capture: show_json(conn, capture)})
+
+        {:error, :conflicts, conflicts} ->
+          conn
+          |> put_status(:conflict)
+          |> json(%{
+            error:
+              "conflict: edited since the commit — " <>
+                Enum.map_join(conflicts, "; ", &"#{&1["ref"] || &1["title"]} (#{&1["why"]})") <>
+                ". Send rest: true to undo everything else.",
+            edited: conflicts
+          })
+
+        {:error, :conflict, message} ->
+          {:error, :conflict, message}
+
+        {:error, message} ->
+          {:error, :unprocessable_entity, message}
+      end
+    end
+  end
+
   @doc "A board's captures, newest first."
   def index(conn, %{"board" => ref}) do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, :read) do
