@@ -28,13 +28,19 @@ defmodule Slipdock.Runners.Setup do
   @permission_modes ~w(default acceptEdits plan bypassPermissions)
   @services ~w(auto systemd launchd none)
   @wheres ~w(desktop cloud)
-  @verbosities ["", "quiet", "normal", "verbose"]
+  @verbosities ["nothing", "", "quiet", "normal", "verbose"]
   @hook_modes ~w(prompt hook)
-  @commits ~w(push commit none)
-  @closes ~w(done open)
+
+  # What a pass does to the card and the repository, each on or off and all
+  # off unless ticked: whether any of it is wanted depends on the board.
+  @toggles ~w(in_progress assign commit push move_done complete percent_100)
 
   # Ready-written paragraphs for how much to write on the card.
   @verbosity_text %{
+    "nothing" =>
+      "Don't comment on the card at all: not when you start, not as you go, not when you " <>
+        "finish. Report on the job with job_progress (or slipdock job-progress) without a " <>
+        "note: a note is posted on the card as a comment.",
     "quiet" =>
       "Keep the card's comments short: one line when you start, one when you finish, " <>
         "and only blockers in between.",
@@ -57,13 +63,18 @@ defmodule Slipdock.Runners.Setup do
     "service" => "auto",
     "where" => "desktop",
     "repo" => "",
-    "verbosity" => "",
+    "verbosity" => "nothing",
     "instructions" => "",
     "before_job" => "",
     "after_job" => "",
     "hooks" => "prompt",
-    "commit" => "push",
-    "close" => "done",
+    "in_progress" => false,
+    "assign" => false,
+    "commit" => false,
+    "push" => false,
+    "move_done" => false,
+    "complete" => false,
+    "percent_100" => false,
     "slipdock_tools" => true,
     "mcp_servers" => "claude_ai_Slipdock, slipdock"
   }
@@ -82,8 +93,7 @@ defmodule Slipdock.Runners.Setup do
   def defaults, do: @defaults
   def verbosities, do: @verbosities
   def hook_modes, do: @hook_modes
-  def commits, do: @commits
-  def closes, do: @closes
+  def toggles, do: @toggles
   def token_placeholder, do: @token_placeholder
 
   @doc """
@@ -127,6 +137,7 @@ defmodule Slipdock.Runners.Setup do
       |> Map.update!("pool", &(&1 |> to_string() |> String.downcase()))
       |> Map.update!("kind", &(&1 |> to_string() |> String.downcase()))
       |> Map.update!("slipdock_tools", &flag/1)
+      |> Map.merge(Map.new(@toggles, &{&1, flag(answers[&1])}))
       |> Map.update!("mcp_servers", &mcp_server_list/1)
 
     format = Runner.name_format()
@@ -158,16 +169,16 @@ defmodule Slipdock.Runners.Setup do
         {:error, "where must be desktop or cloud"}
 
       answers["verbosity"] not in @verbosities ->
-        {:error, "verbosity must be quiet, normal or verbose"}
+        {:error, "verbosity must be nothing, quiet, normal or verbose"}
 
       answers["hooks"] not in @hook_modes ->
         {:error, "hooks must be prompt or hook"}
 
-      answers["commit"] not in @commits ->
-        {:error, "commit must be push, commit or none"}
+      toggle = Enum.find(@toggles, &(answers[&1] not in [true, false])) ->
+        {:error, "#{toggle} must be true or false"}
 
-      answers["close"] not in @closes ->
-        {:error, "close must be done or open"}
+      answers["push"] and not answers["commit"] ->
+        {:error, "push needs commit: a pass can only push a commit it made"}
 
       String.length(to_string(answers["instructions"])) > 4000 ->
         {:error, "the instructions are over 4,000 characters"}
@@ -243,10 +254,12 @@ defmodule Slipdock.Runners.Setup do
 
   @doc """
   The standing instructions every job is given, after the card's own
-  prompt: the verbosity paragraph, then the free text. Empty when neither.
+  prompt: for a runner of its own (server, windows) what to do to the card
+  and the repository, then the verbosity paragraph, then the free text. The
+  Claude scenarios say the first in their prompt instead.
   """
   def instructions(a) do
-    [@verbosity_text[a["verbosity"]], a["instructions"]]
+    [runner_card_text(a), @verbosity_text[a["verbosity"]], a["instructions"]]
     |> Enum.reject(&(&1 in [nil, ""]))
     |> Enum.join("\n\n")
   end
@@ -370,10 +383,32 @@ defmodule Slipdock.Runners.Setup do
     generate(saved(runner), ctx)
   end
 
-  @doc "The answers saved on a runner, with its pool."
+  @doc """
+  The answers saved on a runner, with its pool. Those saved before the
+  toggles (#511's commit push|commit|none and close done|open) carry over.
+  """
   def saved(runner) do
-    {:ok, answers} = normalise(Map.put(runner.settings || %{}, "pool", runner.pool))
+    settings = (runner.settings || %{}) |> carry_over() |> Map.put("pool", runner.pool)
+    {:ok, answers} = normalise(settings)
     answers
+  end
+
+  defp carry_over(settings) do
+    commit =
+      case settings["commit"] do
+        "push" -> %{"commit" => true, "push" => true}
+        "commit" -> %{"commit" => true}
+        "none" -> %{"commit" => false}
+        _ -> %{}
+      end
+
+    close =
+      case settings["close"] do
+        "done" -> %{"move_done" => true, "complete" => true}
+        _ -> %{}
+      end
+
+    settings |> Map.delete("close") |> Map.merge(commit) |> Map.merge(close)
   end
 
   @doc """
@@ -916,16 +951,51 @@ defmodule Slipdock.Runners.Setup do
 
     ("/slipdock-loop against #{ctx.base_url}/boards/#{board.id} (board code: #{board.code}), " <>
        "taking a job from the #{a["pool"]} pool's queue#{mcp_note(a)}. Do exactly one card per " <>
-       "pass. #{commit_text(a)} #{close_text(a)} Then finish the job and stop. " <> @no_job_tools)
+       "pass. #{card_text(a)} Then finish the job and stop. " <> @no_job_tools)
     |> append(prompt_hooks(a))
     |> append(standing(a))
   end
 
-  # Whether a pass commits its work, and whether it closes the card: both the
-  # person's choice, since not every working directory is a project.
-  defp commit_text(%{"commit" => "none"}), do: "Don't commit or push anything."
+  # What a pass does to the card and the repository, a sentence for each
+  # toggle. Off is said too: the slipdock-loop skill does all of it unless
+  # told not to, so leaving it unsaid would mean yes.
+  @doc false
+  def card_text(a), do: Enum.join(start_text(a) ++ finish_text(a), " ")
 
-  defp commit_text(%{"commit" => "commit"}),
+  defp start_text(a) do
+    [
+      if(a["in_progress"],
+        do: "Move the card to the doing list when you start.",
+        else: "Don't move the card to the doing list: leave it where it is."
+      ),
+      if(a["assign"],
+        do: "Assign the card to yourself when you start.",
+        else: "Don't assign the card to anyone."
+      )
+    ]
+  end
+
+  defp finish_text(a) do
+    [
+      commit_text(a),
+      if(a["move_done"],
+        do: "Move the card to the done list when you finish.",
+        else: "Don't move the card to the done list."
+      ),
+      if(a["complete"],
+        do: "Mark the card complete when you finish.",
+        else: "Don't mark the card complete."
+      ),
+      if(a["percent_100"],
+        do: "Set the card's % complete to 100 when you finish.",
+        else: "Don't set the card's % complete at all."
+      )
+    ]
+  end
+
+  defp commit_text(%{"commit" => false}), do: "Don't commit or push anything."
+
+  defp commit_text(%{"push" => false}),
     do:
       "If the working directory is a git repository, commit with the card id in the message, " <>
         "but don't push; if it isn't one, skip the commit."
@@ -935,12 +1005,27 @@ defmodule Slipdock.Runners.Setup do
       "If the working directory is a git repository, commit with the card id in the message " <>
         "and push; if it isn't one, skip the commit."
 
-  defp close_text(%{"close" => "open"}),
-    do:
-      "Comment on the card what you did, but leave it open where it is: don't complete it or " <>
-        "move it to the done list, I'll do that."
+  # A runner of its own is told in its standing instructions, which go after
+  # every job's prompt; a Claude session in the prompt it is given.
+  defp runner_card_text(a) do
+    if needs_token?(a["scenario"]), do: "What to do to the card: " <> card_text(a)
+  end
 
-  defp close_text(_), do: "Close it out on the board: complete it and move it to the done list."
+  @doc """
+  The words the prompts use to turn each toggle off, which the slipdock-loop
+  skill names in what it lets an invocation override.
+  """
+  def off_wording do
+    %{
+      "in_progress" => "Don't move the card to the doing list",
+      "assign" => "Don't assign the card to anyone",
+      "commit" => "Don't commit or push anything",
+      "push" => "but don't push",
+      "move_done" => "Don't move the card to the done list",
+      "complete" => "Don't mark the card complete",
+      "percent_100" => "Don't set the card's % complete at all"
+    }
+  end
 
   # Hooks Claude runs itself fire on the MCP tools, so the pass must use them.
   defp mcp_note(%{"hooks" => "hook"} = a) do
@@ -985,32 +1070,44 @@ defmodule Slipdock.Runners.Setup do
     Take one job from the Slipdock job queue and do it.
 
     1. Call the Slipdock tool claim_job with board "#{ctx.board.code}" and pool "#{a["pool"]}". If it answers "nothing queued", stop: there is nothing to do this run. If there is no claim_job tool, stop and say the Slipdock connector needs reconnecting to get the job tools; don't work the board's lists directly.
-    2. Otherwise the job names a card. Read it with get_card, move it to the board's doing list, and comment that you have picked it up and what you plan.
-    3. Do the work in this repository. Call job_progress with the job id and a short note at each step — at least every 15 minutes. If it answers "cancel", stop, say so on the card, and call finish_job with outcome "cancelled".
-    4. #{cloud_commit(a)}
-    5. #{cloud_close(a)} Then call finish_job with outcome "done" and a one-line summary. If you could not finish, flag the card, say why, and finish the job "failed".
+    2. Otherwise the job names a card. Read it with get_card. #{cloud_start(a)}
+    3. Do the work in this repository. #{cloud_progress(a)}
+    4. Run the tests if there are any. #{commit_text(a)}
+    5. #{cloud_finish(a)} Then call finish_job with outcome "done" and a one-line summary. If you could not finish, flag the card, say why#{if silent?(a), do: " in finish_job's summary", else: ""}, and finish the job "failed".
     """
     |> String.trim_trailing()
     |> append(standing(a))
   end
 
-  defp cloud_commit(%{"commit" => "none"}),
-    do: "Run the tests if there are any. Don't commit or push anything."
+  # "Nothing" written on the card: the job's lease is still renewed, with no note.
+  defp silent?(a), do: a["verbosity"] == "nothing"
 
-  defp cloud_commit(%{"commit" => "commit"}),
-    do: "Run the tests, and commit with the card number in the message, but don't push."
+  defp cloud_start(a) do
+    comment =
+      if silent?(a), do: [], else: ["Comment that you have picked it up and what you plan."]
 
-  defp cloud_commit(_), do: "Run the tests, commit with the card number in the message, and push."
+    Enum.join(start_text(a) ++ comment, " ")
+  end
 
-  defp cloud_close(%{"close" => "open"}),
-    do:
-      "Comment on the card what was done (files, tests, any commit), but leave it open where " <>
-        "it is: don't complete it or move it to the done list."
+  defp cloud_progress(a) do
+    if silent?(a),
+      do:
+        "Call job_progress with the job id and no note at each step — at least every 15 " <>
+          "minutes. If it answers \"cancel\", stop and call finish_job with outcome \"cancelled\".",
+      else:
+        "Call job_progress with the job id and a short note at each step — at least every 15 " <>
+          "minutes. If it answers \"cancel\", stop, say so on the card, and call finish_job " <>
+          "with outcome \"cancelled\"."
+  end
 
-  defp cloud_close(_),
-    do:
-      "Comment on the card what was done (files, tests, any commit), complete it with " <>
-        "complete_card, and move it to the done list."
+  defp cloud_finish(a) do
+    comment =
+      if silent?(a),
+        do: [],
+        else: ["Comment on the card what was done (files, tests, any commit)."]
+
+    Enum.join(comment ++ tl(finish_text(a)), " ")
+  end
 
   ## Helpers ------------------------------------------------------------------
 

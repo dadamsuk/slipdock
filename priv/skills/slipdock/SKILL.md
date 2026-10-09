@@ -305,10 +305,11 @@ slipdock dismiss <alert-id>... | --all        # dismiss yours; other people keep
 slipdock runner new <board> [name] --pool P [--scenario server|windows|loop|cloud]
     [--agent claude|codex|custom] [--command CMD] [--kind K] [--cwd DIR] [--permission-mode M]
     [--timeout S] [--service auto|systemd|launchd|none] [--where desktop|cloud] [--repo owner/repo]
-    [--column LIST [--top] [--[no-]wait-while-doing]] [--verbosity quiet|normal|verbose]
+    [--column LIST [--top] [--[no-]wait-while-doing]] [--verbosity nothing|quiet|normal|verbose]
     [--instructions TEXT]
     [--before-job CMD] [--after-job CMD] [--hooks prompt|hook]
-    [--commit push|commit|none] [--close done|open]   # loop/cloud: commit? close the card?
+    [--[no-]in-progress] [--[no-]assign] [--[no-]commit] [--[no-]push] [--[no-]move-done]
+    [--[no-]complete] [--[no-]percent-100]    # what a job does to the card: each off unless given
     [--no-slipdock-tools] [--mcp-servers A,B]
                                               # prints exactly what to paste; server/windows make a
                                               # runner and print its token, ONCE; --column adds the rule

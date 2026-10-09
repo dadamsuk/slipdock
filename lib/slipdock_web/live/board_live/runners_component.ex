@@ -110,7 +110,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
   end
 
   def handle_event("wizard_change", %{"wizard" => params}, socket) do
-    params = follow_default_cwd(params, socket.assigns.wizard)
+    params = params |> follow_default_cwd(socket.assigns.wizard) |> push_needs_commit()
     {:noreply, assign(socket, wizard: wizard(params), wizard_error: nil)}
   end
 
@@ -274,6 +274,27 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
     send_update(SlipdockWeb.BoardLive.AutomationsComponent, id: "automations", refresh: true)
     socket
   end
+
+  # Unticking commit unticks push, which is greyed out without it, rather than
+  # showing an error for a box that can't be changed.
+  defp push_needs_commit(params) do
+    if ticked?(params["commit"]), do: params, else: Map.put(params, "push", "false")
+  end
+
+  # The seven things a job may do to the card, in the order a job meets them.
+  defp toggle_labels do
+    [
+      {"in_progress", "Move to In Progress when running"},
+      {"assign", "Assign the card to the session when running"},
+      {"commit", "Git commit when done"},
+      {"push", "Git push when done"},
+      {"move_done", "Move to Done when done"},
+      {"complete", "Mark as complete when done"},
+      {"percent_100", "Mark as 100% when done"}
+    ]
+  end
+
+  defp ticked?(value), do: value in [true, "true"]
 
   # The form's values, and the steps they'd give — a preview with the token
   # left out until the runner is made.
@@ -639,6 +660,9 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
           <label class="block space-y-1">
             <span class="text-xs text-base-content/70">How much to write on the card</span>
             <select name="wizard[verbosity]" class="select select-sm w-full">
+              <option value="nothing" selected={@p["verbosity"] == "nothing"}>
+                Nothing: no comments at all
+              </option>
               <option value="" selected={@p["verbosity"] == ""}>Whatever the skill says</option>
               <option value="quiet" selected={@p["verbosity"] == "quiet"}>
                 Quiet: a line at the start and the end
@@ -651,30 +675,31 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
               </option>
             </select>
           </label>
-          <div :if={not Setup.needs_token?(@p["scenario"])} class="grid grid-cols-2 gap-3">
-            <label class="block space-y-1">
-              <span class="text-xs text-base-content/70">When the work is done</span>
-              <select name="wizard[commit]" id="wizard-commit" class="select select-sm w-full">
-                <option value="push" selected={@p["commit"] == "push"}>Commit and push</option>
-                <option value="commit" selected={@p["commit"] == "commit"}>
-                  Commit, don't push
-                </option>
-                <option value="none" selected={@p["commit"] == "none"}>
-                  Don't commit: not a git project
-                </option>
-              </select>
-            </label>
-            <label class="block space-y-1">
-              <span class="text-xs text-base-content/70">The card</span>
-              <select name="wizard[close]" id="wizard-close" class="select select-sm w-full">
-                <option value="done" selected={@p["close"] == "done"}>
-                  Complete it and move it to Done
-                </option>
-                <option value="open" selected={@p["close"] == "open"}>
-                  Leave it open for me to close
-                </option>
-              </select>
-            </label>
+          <div id="wizard-toggles" class="space-y-1">
+            <span class="text-xs text-base-content/70">
+              What a job does to the card (nothing unless ticked)
+            </span>
+            <div class="grid grid-cols-2 gap-x-3 gap-y-1">
+              <label
+                :for={{key, label} <- toggle_labels()}
+                class={[
+                  "flex items-center gap-2 text-sm",
+                  (key == "push" and not ticked?(@p["commit"])) && "opacity-50"
+                ]}
+              >
+                <input type="hidden" name={"wizard[#{key}]"} value="false" />
+                <input
+                  type="checkbox"
+                  id={"wizard-#{key}"}
+                  name={"wizard[#{key}]"}
+                  value="true"
+                  checked={ticked?(@p[key])}
+                  disabled={key == "push" and not ticked?(@p["commit"])}
+                  class="checkbox checkbox-xs"
+                />
+                <span>{label}</span>
+              </label>
+            </div>
           </div>
           <label class="block space-y-1">
             <span class="text-xs text-base-content/70">

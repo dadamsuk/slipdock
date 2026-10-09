@@ -347,9 +347,10 @@ defmodule SlipdockCLI do
                [--permission-mode M] [--timeout SECONDS] [--service auto|systemd|launchd|none]
                [--where desktop|cloud] [--repo owner/repo]
                [--column LIST [--top] [--[no-]wait-while-doing] [--requeue-stuck N]] [--alert]
-               [--verbosity quiet|normal|verbose] [--instructions TEXT]
+               [--verbosity nothing|quiet|normal|verbose] [--instructions TEXT]
                [--before-job CMD] [--after-job CMD] [--hooks prompt|hook]
-               [--commit push|commit|none] [--close done|open]
+               [--[no-]in-progress] [--[no-]assign] [--[no-]commit] [--[no-]push]
+               [--[no-]move-done] [--[no-]complete] [--[no-]percent-100]
                [--no-slipdock-tools] [--mcp-servers A,B]
                                                    connect a runner: prints exactly what to paste
                                                    (and, for server/windows, its token, once);
@@ -365,7 +366,10 @@ defmodule SlipdockCLI do
                                                    given up on
                                                    a claude runner may use the Slipdock MCP tools
                                                    (servers claude_ai_Slipdock, slipdock) unless
-                                                   --no-slipdock-tools
+                                                   --no-slipdock-tools; a job does nothing to
+                                                   its card or repo unless told: --in-progress,
+                                                   --assign, --commit, --push (needs --commit),
+                                                   --move-done, --complete, --percent-100
     runner setup <board> <runner> [answers...]     a runner's steps again (token left out); with
                                                    any of runner new's options, saves them and
                                                    prints what changes first
@@ -539,8 +543,13 @@ defmodule SlipdockCLI do
     before_job: :string,
     after_job: :string,
     hooks: :string,
-    commit: :string,
-    close: :string,
+    in_progress: :boolean,
+    assign: :boolean,
+    commit: :boolean,
+    push: :boolean,
+    move_done: :boolean,
+    complete: :boolean,
+    percent_100: :boolean,
     slipdock_tools: :boolean,
     wait_while_doing: :boolean,
     requeue_stuck: :integer,

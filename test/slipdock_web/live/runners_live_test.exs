@@ -257,7 +257,7 @@ defmodule SlipdockWeb.RunnersLiveTest do
     assert has_element?(
              view,
              "#runner-diff span.text-success",
-             "--instructions 'Never push to main.'"
+             "Never push to main.'"
            )
 
     assert has_element?(view, "#runner-diff span.text-success", "git pull")
@@ -535,29 +535,100 @@ defmodule SlipdockWeb.RunnersLiveTest do
     end
   end
 
-  describe "committing and closing, in the wizard (#511)" do
-    test "offered for the Claude scenarios only, and written into the steps", ctx do
-      %{conn: conn, board: board} = ctx
-      view = open(conn, board)
-      refute has_element?(view, "#wizard-commit")
-      refute has_element?(view, "#wizard-close")
+  describe "what a job does to the card, in the wizard (#514)" do
+    @toggle_ids ~w(in_progress assign commit push move_done complete percent_100)
 
-      choose(view, %{"scenario" => "cloud"})
-      assert has_element?(view, "#wizard-commit option[value=push][selected]")
-      assert has_element?(view, "#wizard-close option[value=done][selected]")
+    test "seven checkboxes, unticked, for every scenario, and Nothing written by default", ctx do
+      view = open(ctx.conn, ctx.board)
+
+      for scenario <- ~w(server windows loop cloud) do
+        choose(view, %{"scenario" => scenario})
+
+        for id <- @toggle_ids do
+          assert has_element?(view, "#wizard-#{id}[type=checkbox]"), "#{scenario}: #{id}"
+          refute has_element?(view, "#wizard-#{id}[checked]"), "#{scenario}: #{id}"
+        end
+
+        assert has_element?(
+                 view,
+                 "select[name='wizard[verbosity]'] option[value=nothing][selected]"
+               )
+      end
+
+      assert has_element?(view, "#wizard-toggles", "Move to In Progress when running")
+      assert has_element?(view, "#wizard-toggles", "Assign the card to the session when running")
+      assert has_element?(view, "#wizard-toggles", "Mark as 100% when done")
+      refute has_element?(view, "#wizard-commit option")
+    end
+
+    test "push is greyed out until commit is ticked, and unticked with it", ctx do
+      view = open(ctx.conn, ctx.board)
+      choose(view, %{"scenario" => "loop"})
+      assert has_element?(view, "#wizard-push[disabled]")
+
+      choose(view, %{"scenario" => "loop", "commit" => "true"})
+      refute has_element?(view, "#wizard-push[disabled]")
+
+      choose(view, %{"scenario" => "loop", "commit" => "true", "push" => "true"})
+      assert has_element?(view, "#wizard-push[checked]")
+
+      # Unticking commit unticks push too, rather than showing an error.
+      choose(view, %{"scenario" => "loop", "commit" => "false", "push" => "true"})
+      assert has_element?(view, "#wizard-push[disabled]")
+      refute has_element?(view, "#wizard-push[checked]")
+      refute render(view) =~ "push needs commit"
+    end
+
+    test "ticked boxes reach the steps; unticked ones are said off", ctx do
+      view = open(ctx.conn, ctx.board)
+      choose(view, %{"scenario" => "loop", "commit" => "true"})
 
       submit(view, %{
-        "scenario" => "cloud",
-        "where" => "desktop",
-        "cwd" => ~S"C:\Users\da\GMinds",
-        "commit" => "none",
-        "close" => "open"
+        "scenario" => "loop",
+        "in_progress" => "true",
+        "commit" => "true",
+        "push" => "true",
+        "complete" => "true"
       })
 
-      assert has_element?(view, "#runner-setup", "Don't commit or push anything.")
-      assert has_element?(view, "#runner-setup", "leave it open where it is")
-      assert has_element?(view, "#runner-setup", "/install.ps1")
-      refute render(view) =~ "/install.sh |"
+      assert has_element?(
+               view,
+               "#runner-setup",
+               "Move the card to the doing list when you start."
+             )
+
+      assert has_element?(
+               view,
+               "#runner-setup",
+               "commit with the card id in the message and push"
+             )
+
+      assert has_element?(view, "#runner-setup", "Mark the card complete when you finish.")
+      assert has_element?(view, "#runner-setup", "Don't assign the card to anyone.")
+      assert has_element?(view, "#runner-setup", "Don't move the card to the done list.")
+      assert has_element?(view, "#runner-setup", "Don't comment on the card at all")
+    end
+
+    test "a runner's saved toggles show ticked when its answers are changed", ctx do
+      view = open(ctx.conn, ctx.board)
+      choose(view, %{"scenario" => "server", "commit" => "true"})
+
+      submit(view, %{
+        "scenario" => "server",
+        "pool" => "dev",
+        "name" => "box",
+        "commit" => "true",
+        "move_done" => "true"
+      })
+
+      [runner] = Runners.list_runners(ctx.board)
+      assert %{"commit" => true, "move_done" => true, "push" => false} = runner.settings
+
+      view |> element("#runner-#{runner.id} button", "Setup") |> render_click()
+      view |> element("#runner-setup button", "Change Settings") |> render_click()
+      assert has_element?(view, "#wizard-commit[checked]")
+      assert has_element?(view, "#wizard-move_done[checked]")
+      refute has_element?(view, "#wizard-assign[checked]")
     end
   end
 end

@@ -190,6 +190,23 @@ defmodule SlipdockWeb.MCP.JobToolsTest do
                Repo.get!(Job, ctx.job.id)
     end
 
+    # What "Nothing" on the card rests on (#514): the lease is renewed and the
+    # job finished without a word on the card.
+    test "progress with no note, and finishing with a summary, comment nothing", ctx do
+      before = Slipdock.Boards.get_card!(ctx.card.id) |> Repo.preload(:comments)
+
+      assert %{"status" => "ok"} = ctx.conn |> call("job_progress", %{job: ctx.job.id}) |> ok!()
+      assert Repo.get!(Job, ctx.job.id).status == "running"
+
+      assert %{"status" => "done"} =
+               ctx.conn
+               |> call("finish_job", %{job: ctx.job.id, outcome: "done", summary: "abc1234"})
+               |> ok!()
+
+      after_ = Slipdock.Boards.get_card!(ctx.card.id) |> Repo.preload(:comments)
+      assert length(after_.comments) == length(before.comments)
+    end
+
     test "after a cancel, progress says cancel", ctx do
       {:ok, _} = Runners.cancel_job(Repo.get!(Job, ctx.job.id))
 
