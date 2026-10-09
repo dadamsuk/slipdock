@@ -191,6 +191,8 @@ defmodule Slipdock.Meetings.Undo do
             {field, %{"from" => from}}, acc -> Map.put(acc, field, from)
           end)
 
+        Slipdock.Meetings.Provenance.forget(card.id, capture.id)
+
         with {:ok, card} <- Boards.update_card(card, attrs, by: user) do
           log(
             card.board_id,

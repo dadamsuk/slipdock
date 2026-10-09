@@ -68,6 +68,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
        card_pages: [],
        card_grants: [],
        card_jobs: [],
+       card_provenance: [],
        doc_query: "",
        doc_results: [],
        dep_direction: "blocked_by",
@@ -190,7 +191,13 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
 
   # The jobs rules have sent this card to runners, newest first.
   defp assign_jobs(%{assigns: %{card: %Card{} = card}} = socket),
-    do: assign(socket, card_jobs: Runners.list_card_jobs(card.id, 5))
+    do:
+      assign(socket,
+        card_jobs: Runners.list_card_jobs(card.id, 5),
+        # Where it came from, when that was a meeting. Shown whether or not
+        # meeting mode is on now: it is the card's own history (G11).
+        card_provenance: Slipdock.Meetings.Provenance.for_card(card.id)
+      )
 
   defp assign_jobs(socket), do: socket
 
@@ -673,6 +680,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         grants={@card_grants}
         pages={@card_pages}
         jobs={@card_jobs}
+        provenance={@card_provenance}
         doc_query={@doc_query}
         doc_results={@doc_results}
         groups={@groups}
@@ -800,6 +808,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   attr :grants, :list, required: true
   attr :pages, :list, default: [], doc: "the wiki pages that talk about this card"
   attr :jobs, :list, default: [], doc: "the card's latest runner jobs"
+  attr :provenance, :list, default: [], doc: "where it came from, when a meeting"
   attr :doc_query, :string, default: "", doc: "what is typed into the Docs picker"
   attr :doc_results, :list, default: [], doc: "pages the Docs picker is offering"
   attr :groups, :list, required: true
@@ -956,6 +965,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
               pages={@pages}
               target={@target}
             />
+
+            <.provenance_section :if={@provenance != []} provenance={@provenance} />
 
             <.jobs_section :if={@jobs != []} can_write={@can_write} jobs={@jobs} target={@target} />
 

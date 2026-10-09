@@ -67,6 +67,9 @@ defmodule Slipdock.Boards.Card do
       on_replace: :delete,
       preload_order: [asc: :name, asc: :email]
 
+    # Where it came from, when that was a meeting (see `Slipdock.Meetings.Provenance`).
+    has_many :provenance, Slipdock.Meetings.Provenance, preload_order: [asc: :id]
+
     many_to_many :tags, Slipdock.Boards.Tag,
       join_through: "card_tags",
       on_replace: :delete,
