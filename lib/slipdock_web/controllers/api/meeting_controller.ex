@@ -71,6 +71,16 @@ defmodule SlipdockWeb.API.MeetingController do
     end
   end
 
+  @doc "Carries a failed capture on from where it stopped."
+  def retry(conn, %{"id" => id}) do
+    with {:ok, capture} <- fetch(conn, id, :write) do
+      case Slipdock.Meetings.Pipeline.retry(capture, conn.assigns.current_user, via: "api") do
+        {:error, message} -> {:error, :conflict, message}
+        capture -> json(conn, %{capture: show_json(conn, capture)})
+      end
+    end
+  end
+
   @doc "A board's captures, newest first."
   def index(conn, %{"board" => ref}) do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, :read) do

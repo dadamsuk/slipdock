@@ -53,7 +53,7 @@ defmodule SlipdockWeb.Meetings.IngestAPITest do
 
     assert %{"existing" => false, "capture" => capture} = body
     assert capture["title"] == "Pricing sync"
-    assert capture["state"] == "receiving"
+    assert capture["state"] == "reading"
     assert capture["started_at"] == "2026-10-07T10:00:00Z"
     assert capture["sent_by"] == user.email
     assert capture["url"] == "http://www.example.com/boards/#{board.id}/meetings/#{capture["id"]}"
@@ -162,7 +162,7 @@ defmodule SlipdockWeb.Meetings.IngestAPITest do
     end
 
     test "a transcript over the size limit", %{conn: conn, board: board} do
-      Slipdock.TestConfig.put(:meetings, max_transcript_bytes: 20)
+      Slipdock.TestConfig.merge(:meetings, max_transcript_bytes: 20)
 
       body =
         conn
@@ -174,7 +174,7 @@ defmodule SlipdockWeb.Meetings.IngestAPITest do
     end
 
     test "a meeting longer than the longest read", %{conn: conn, board: board} do
-      Slipdock.TestConfig.put(:meetings, longest_meeting_minutes: 1)
+      Slipdock.TestConfig.merge(:meetings, longest_meeting_minutes: 1)
 
       body =
         conn

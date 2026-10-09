@@ -356,6 +356,7 @@ defmodule SlipdockWeb.Router do
     get "/boards/:board/captures", MeetingController, :index
     post "/boards/:board/captures", MeetingController, :create
     get "/captures/:id", MeetingController, :show
+    post "/captures/:id/retry", MeetingController, :retry
   end
 
   scope "/api", SlipdockWeb.API do
