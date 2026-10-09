@@ -52,6 +52,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
       requests: Accounts.list_signup_requests(),
       admin_email_pending: settings.admin_email,
       ai_source: Keys.system_source(),
+      meetings_usage: Slipdock.Meetings.Usage.server_month(),
       ai_candidates: ai_candidates()
     )
   end
@@ -65,7 +66,11 @@ defmodule SlipdockWeb.ConfigLive.Index do
                       posthog_respect_dnt ai_system_user_id meetings_enabled
                       meetings_visibility meetings_hideable meetings_accept_transcripts
                       meetings_accept_audio meetings_accept_findings meetings_reading_model
-                      meetings_second_reading meetings_second_model)
+                      meetings_second_reading meetings_second_model
+                      meetings_transcription_minutes meetings_transcription_minutes_enabled
+                      meetings_audio_storage_mb meetings_audio_storage_mb_enabled
+                      meetings_transcript_captures meetings_transcript_captures_enabled
+                      meetings_longest_minutes meetings_max_file_mb meetings_audio_retention)
 
   @mail_fields ~w(smtp_host smtp_port smtp_username smtp_password smtp_tls smtp_from_email
                   smtp_from_name)
@@ -556,8 +561,112 @@ defmodule SlipdockWeb.ConfigLive.Index do
           />
         </fieldset>
 
+        <fieldset id="meetings-limits" class="space-y-3">
+          <legend class="text-sm font-medium">Limits, per person per month</legend>
+          <p class="text-xs text-base-content/60">
+            Checked before anything is stored or sent to a provider. Transcription and reading on a
+            person's own AI key or endpoint don't count; stored audio always does.
+          </p>
+          <div
+            :for={
+              {switch, number, label} <- [
+                {:meetings_transcription_minutes_enabled, :meetings_transcription_minutes,
+                 "Transcription minutes"},
+                {:meetings_audio_storage_mb_enabled, :meetings_audio_storage_mb,
+                 "Stored meeting audio (MB)"},
+                {:meetings_transcript_captures_enabled, :meetings_transcript_captures,
+                 "Captures from transcripts"}
+              ]
+            }
+            class="flex items-end gap-3"
+          >
+            <label class="flex items-center gap-2 pb-2 text-sm">
+              <input type="hidden" name={"settings[#{switch}]"} value="false" />
+              <input
+                type="checkbox"
+                name={"settings[#{switch}]"}
+                value="true"
+                checked={Map.get(@settings, switch)}
+                class="checkbox checkbox-sm"
+              /> {label}
+            </label>
+            <input
+              type="number"
+              min="0"
+              name={"settings[#{number}]"}
+              value={Map.get(@settings, number)}
+              class="input input-sm w-28"
+              aria-label={label}
+            />
+          </div>
+          <div class="grid gap-3 sm:grid-cols-3">
+            <.input
+              field={@form[:meetings_longest_minutes]}
+              type="number"
+              label="Longest meeting (minutes)"
+              value={@settings.meetings_longest_minutes}
+            />
+            <.input
+              field={@form[:meetings_max_file_mb]}
+              type="number"
+              label="Largest recording (MB)"
+              value={@settings.meetings_max_file_mb}
+            />
+            <.input
+              field={@form[:meetings_audio_retention]}
+              type="select"
+              label="Keep recordings"
+              options={[
+                {"Until committed", "until_committed"},
+                {"30 days", "30_days"},
+                {"90 days", "90_days"}
+              ]}
+              value={@settings.meetings_audio_retention}
+            />
+          </div>
+        </fieldset>
+
         <button type="submit" class="btn btn-primary btn-sm">Save</button>
       </.form>
+    </section>
+
+    <section
+      id="meetings-usage"
+      class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
+    >
+      <h2 class="text-lg font-semibold">This month</h2>
+      <p class="mt-1 text-sm text-base-content/60">
+        What meeting capture has cost the server since {Calendar.strftime(
+          @meetings_usage.month,
+          "%-d %B"
+        )}:
+        work on people's own keys is theirs and not counted here.
+      </p>
+      <dl class="mt-3 grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-4">
+        <dt class="text-base-content/60">Transcription</dt>
+        <dd id="usage-minutes">{@meetings_usage.transcription_minutes} min</dd>
+        <dt class="text-base-content/60">Model tokens</dt>
+        <dd id="usage-tokens">{@meetings_usage.tokens}</dd>
+        <dt class="text-base-content/60">Cost reported</dt>
+        <dd id="usage-cost">${:erlang.float_to_binary(@meetings_usage.cost, decimals: 2)}</dd>
+        <dt class="text-base-content/60">Audio stored</dt>
+        <dd id="usage-audio">{div(@meetings_usage.audio_bytes, 1024 * 1024)} MB</dd>
+      </dl>
+      <table :if={@meetings_usage.heaviest != []} id="usage-heaviest" class="table table-sm mt-3">
+        <thead>
+          <tr>
+            <th>Heaviest users</th><th>Transcription</th><th>Tokens</th><th>Cost</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr :for={h <- @meetings_usage.heaviest}>
+            <td>{h.name || h.email}</td>
+            <td>{div(round(h.transcription_seconds), 60)} min</td>
+            <td>{h.tokens}</td>
+            <td>${:erlang.float_to_binary(h.cost, decimals: 2)}</td>
+          </tr>
+        </tbody>
+      </table>
     </section>
     """
   end

@@ -246,4 +246,50 @@ defmodule SlipdockCLI.MeetingsTest do
       assert_received {:request, "GET", "/api/meetings/findings-schema", _}
     end
   end
+
+  describe "admin, for meeting capture" do
+    test "set sends the limits as numbers and their switches as booleans" do
+      serve([
+        {200,
+         ~s({"build":{"git_short_sha":"abc","built_at":"x"},"settings":{"signup_mode":"closed","limits":{"trial":{"enabled":false},"boards":{"enabled":false},"items":{"enabled":false},"storage":{"enabled":false}},"user_directory":"instance","invites_create_accounts":true,"smtp":{"configured":false},"login_fallback":{"enabled":false},"analytics":{},"ai":{"source":"none"},"meetings":{"enabled":false},"pending_signups":0}})}
+      ])
+
+      capture_io(fn ->
+        Admin.run(
+          "admin",
+          [
+            "set",
+            "meetings_transcription_minutes=90",
+            "meetings_transcription_minutes_enabled=yes",
+            "meetings_max_file_mb=50",
+            "meetings_audio_retention=90_days"
+          ],
+          []
+        )
+      end)
+
+      assert_received {:request, "PATCH", "/api/admin/settings", body}
+
+      assert JSON.decode!(body) == %{
+               "meetings_transcription_minutes" => 90,
+               "meetings_transcription_minutes_enabled" => true,
+               "meetings_max_file_mb" => 50,
+               "meetings_audio_retention" => "90_days"
+             }
+    end
+
+    test "meetings-usage prints the month's totals and the heaviest users" do
+      serve([
+        {200,
+         ~s({"usage":{"month":"2026-10-01","transcription_minutes":12,"tokens":3400,"cost":1.25,"audio_bytes":10485760,"people":2,"heaviest":[{"email":"sam@example.com","name":"Sam","transcription_seconds":600.0,"tokens":3000,"cost":1.0}]}})}
+      ])
+
+      out = capture_io(fn -> Admin.run("admin", ["meetings-usage"], []) end)
+      assert_received {:request, "GET", "/api/admin/meetings/usage", _}
+      assert out =~ "transcription  12 min"
+      assert out =~ "cost reported  $1.25"
+      assert out =~ "audio stored   10 MB"
+      assert out =~ "Sam: 10 min, 3000 tokens"
+    end
+  end
 end

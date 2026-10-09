@@ -72,6 +72,8 @@ defmodule SlipdockWeb.API.AdminController do
             audio: settings.meetings_accept_audio,
             findings: settings.meetings_accept_findings
           },
+          limits: Slipdock.Meetings.Usage.limits(),
+          audio_retention: settings.meetings_audio_retention,
           reading: %{
             model: settings.meetings_reading_model,
             second: settings.meetings_second_reading,
@@ -121,6 +123,11 @@ defmodule SlipdockWeb.API.AdminController do
       source: source,
       using: user && user.email
     }
+  end
+
+  @doc "Meeting capture this month: the server's totals and the heaviest users."
+  def meetings_usage(conn, _params) do
+    json(conn, %{usage: Slipdock.Meetings.Usage.server_month()})
   end
 
   def allow(conn, %{"entry" => entry}) do

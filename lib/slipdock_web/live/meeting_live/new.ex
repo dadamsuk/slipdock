@@ -33,6 +33,7 @@ defmodule SlipdockWeb.MeetingLive.New do
            page_title: "Capture a meeting · #{socket.assigns.board.name}",
            settings: settings,
            destinations: Meetings.destinations(user),
+           allowance: Slipdock.Meetings.Usage.allowance(user),
            parent?: socket.assigns.board.parent_card_id != nil,
            error: nil,
            form:
@@ -131,6 +132,10 @@ defmodule SlipdockWeb.MeetingLive.New do
       {:error, {:invalid, message}} ->
         {:noreply, assign(socket, error: message)}
 
+      {:error, {:limit, _code, message}} ->
+        {:noreply,
+         assign(socket, error: message, allowance: Slipdock.Meetings.Usage.allowance(user))}
+
       {:error, %Ecto.Changeset{} = cs} ->
         {:noreply,
          assign(socket,
@@ -154,6 +159,9 @@ defmodule SlipdockWeb.MeetingLive.New do
 
   defp blank(""), do: nil
   defp blank(v), do: v
+
+  defp allowance_line(%{limit: nil, used: used}, what), do: "no limit on #{what} (#{used} used)"
+  defp allowance_line(%{limit: limit, left: left}, what), do: "#{left} of #{limit} #{what}"
 
   # Which row of the table the person's choices are, so it can be marked.
   defp combination(assigns) do
@@ -398,16 +406,29 @@ defmodule SlipdockWeb.MeetingLive.New do
             </section>
 
             <section id="capture-cost" class="text-sm text-base-content/70">
-              <%= case @combination do %>
-                <% :transcript -> %>
-                  This counts as one capture from a transcript.
-                <% :both -> %>
-                  The recording counts against this board's file storage; no transcription is used.
-                <% :audio -> %>
-                  The recording counts against this board's file storage and your transcription minutes.
-                <% nil -> %>
-                  Add a recording or a transcript to start.
-              <% end %>
+              <p>
+                <%= case @combination do %>
+                  <% :transcript -> %>
+                    This counts as one capture from a transcript.
+                  <% :both -> %>
+                    The recording counts against your stored meeting audio; no transcription is used.
+                  <% :audio -> %>
+                    The recording counts against your stored meeting audio and your transcription minutes.
+                  <% nil -> %>
+                    Add a recording or a transcript to start.
+                <% end %>
+              </p>
+              <ul id="capture-allowance" class="mt-1 space-y-0.5 text-xs text-base-content/60">
+                <li>This month you have left:</li>
+                <li>
+                  {allowance_line(@allowance.transcript_captures, "captures from transcripts")}
+                </li>
+                <li>
+                  {allowance_line(@allowance.transcription_minutes, "transcription minutes")}
+                  <span :if={@allowance.own_key?}>— not used: transcription runs on your own key</span>
+                </li>
+                <li>{allowance_line(@allowance.audio_storage_mb, "MB of stored meeting audio")}</li>
+              </ul>
             </section>
 
             <div class="flex justify-end gap-2">
