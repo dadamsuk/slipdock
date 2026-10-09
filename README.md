@@ -141,6 +141,13 @@ Briefly, with the detail in [the manual](docs/manual.md):
   as a connector by its address and sign in through the browser (OAuth), or
   connect with an API token ([the tools](docs/manual.md#mcp-server),
   [connecting](docs/agents.md#over-mcp)).
+- **Meeting capture**, when an admin turns on meeting mode — send a meeting's
+  recording or transcript (WebVTT, SRT, Fireflies, Otter) and it proposes the
+  decisions, actions and card changes in it, read alongside the board's cards
+  and wiki: every proposal quoted word for word from the transcript, anything
+  uncertain asked as a question, nothing written until a person commits it in
+  one write that can be undone as a whole, and a *From a meeting* trail back to
+  the words on every card it touches ([how it works](docs/manual.md#meeting-capture)).
 - **An agent on your board in a minute** —
   [setting one up](docs/agents.md) needs no software and no access to the
   server: give it the address, approve it once in the browser, and it reads the

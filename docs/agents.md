@@ -123,6 +123,7 @@ What you get:
 | `slipdock-wiki` | The wiki: finding, reading, writing, linking, section writes. |
 | `slipdock-docs` | The harder half of the wiki — what is worth writing down, and where it goes. |
 | `slipdock-loop` | Working the ready list unattended, one card per pass, for `/loop` or a cron — watching the GitHub build after each push and never closing a card on a red one. |
+| `slipdock-capture` | Meeting capture, where an admin has it on: sending a recording or transcript, putting its questions to *you*, and committing only when you say. |
 
 ### In ChatGPT
 

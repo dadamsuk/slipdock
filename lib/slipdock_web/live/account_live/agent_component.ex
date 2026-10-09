@@ -235,6 +235,23 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
       </section>
 
       <section
+        :if={Slipdock.Meetings.enabled?()}
+        id="agent-meetings"
+        class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
+      >
+        <h2 class="text-lg font-semibold">Hand it a meeting</h2>
+        <p class="mt-1 text-sm text-base-content/60">
+          Meeting mode is on here. An agent can send a meeting's transcript to a board — <code>slipdock capture new &lt;board&gt; --transcript meeting.vtt</code>, or
+          <code>capture_meeting</code>
+          over MCP — and Slipdock proposes the decisions,
+          actions and card changes in it for a person to review. The <code>slipdock-capture</code>
+          skill tells the agent the two rules that keep it honest: it answers a capture's
+          questions only with <em>your</em>
+          answers, and commits only when you ask.
+        </p>
+      </section>
+
+      <section
         id="agent-runners"
         class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
       >
