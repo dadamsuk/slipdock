@@ -49,6 +49,51 @@ defmodule SlipdockWeb.QuickAddLiveTest do
     refute render(view) =~ "chip-tint text-warning"
   end
 
+  test "a list's add-a-card box puts what follows a semicolon in the comments", %{
+    conn: conn,
+    board: board
+  } do
+    [backlog | _] = board.columns
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}")
+    render_click(view, "start_add_card", %{"id" => to_string(backlog.id)})
+    assert render(view) =~ "Card title; a comment, then Enter"
+
+    view
+    |> form("#quick-add-#{backlog.id}-0", %{
+      "title" => "Fix the login #high; seen on Safari only; #docs"
+    })
+    |> render_submit()
+
+    [card] = cards(board)
+    assert card.title == "Fix the login"
+    assert card.priority == "high"
+    assert card.column_id == backlog.id
+    assert card.tags == []
+    assert [%{body: "seen on Safari only; #docs"}] = Boards.get_card!(card.id).comments
+
+    # Nothing after the semicolon: just the card.
+    render_click(view, "start_add_card", %{"id" => to_string(backlog.id)})
+
+    render_hook(view, "quick_add_card", %{
+      "column_id" => to_string(backlog.id),
+      "title" => "Bare;  "
+    })
+
+    bare = Enum.find(cards(board), &(&1.title == "Bare"))
+    assert Boards.get_card!(bare.id).comments == []
+  end
+
+  test "the comment shows as a chip while typing", %{conn: conn, board: board} do
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}/table")
+
+    html =
+      view
+      |> form("#table-add", %{"title" => "Write it; with a note"})
+      |> render_change()
+
+    assert html =~ "hero-chat-bubble-left"
+  end
+
   test "a grouped table adds into the group", %{conn: conn, board: board} do
     card_fixture(hd(board.columns), %{"title" => "Existing", "priority" => "critical"})
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/table?rows=priority")

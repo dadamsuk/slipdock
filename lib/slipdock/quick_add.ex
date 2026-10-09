@@ -12,6 +12,8 @@ defmodule Slipdock.QuickAdd do
       blocked, review, waiting, starred), a list on the board (`#todo` is
       "To Do", `#in-progress` is "In Progress") or a tag, in that order
     * `@name` – an assignee, by name or email prefix
+    * `; <text>` – everything after the first semicolon is a comment on the
+      new card, taken as written (commands in it are not read)
 
   `parse/3` returns what was recognised; nothing is written.
   """
@@ -25,6 +27,7 @@ defmodule Slipdock.QuickAdd do
           column: Column.t() | nil,
           tags: [Tag.t()],
           assignee: User.t() | nil,
+          comment: String.t() | nil,
           unknown: [String.t()],
           chips: [{atom, String.t()}]
         }
@@ -62,12 +65,14 @@ defmodule Slipdock.QuickAdd do
     columns = opts[:columns] || Map.get(board, :columns) || []
     tags = if is_list(Map.get(board, :tags)), do: board.tags, else: []
     users = opts[:users] || []
+    {text, comment} = split_comment(text)
 
     acc = %{
       attrs: %{},
       column: nil,
       tags: [],
       assignee: nil,
+      comment: comment,
       unknown: [],
       chips: []
     }
@@ -75,13 +80,34 @@ defmodule Slipdock.QuickAdd do
     {text, acc} = take_dates(text, acc, today)
     {text, acc} = take_mentions(text, acc, users)
     {text, acc} = take_hashes(text, acc, columns, tags)
+    acc = if comment, do: chip(acc, :comment, "Comment"), else: acc
 
     Map.put(acc, :title, text |> String.replace(~r/\s+/, " ") |> String.trim())
   end
 
   @doc "Whether the text contains anything beyond a plain title."
-  def commands?(%{attrs: attrs, column: col, tags: tags, assignee: a, unknown: u}),
-    do: attrs != %{} or not is_nil(col) or tags != [] or not is_nil(a) or u != []
+  def commands?(%{attrs: attrs, column: col, tags: tags, assignee: a, unknown: u} = parsed),
+    do:
+      attrs != %{} or not is_nil(col) or tags != [] or not is_nil(a) or u != [] or
+        not is_nil(parsed[:comment])
+
+  @doc """
+  Splits a line at its first semicolon: `{title, comment}`, the comment nil
+  when there is nothing after it.
+  """
+  @spec split_comment(String.t()) :: {String.t(), String.t() | nil}
+  def split_comment(text) do
+    case String.split(text, ";", parts: 2) do
+      [title, comment] ->
+        case String.trim(comment) do
+          "" -> {title, nil}
+          comment -> {title, comment}
+        end
+
+      [title] ->
+        {title, nil}
+    end
+  end
 
   ## Dates ------------------------------------------------------------------
 

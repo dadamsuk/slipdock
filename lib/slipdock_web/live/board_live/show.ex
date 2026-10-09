@@ -751,6 +751,10 @@ defmodule SlipdockWeb.BoardLive.Show do
             {:ok, card} ->
               tags = board_tags(board, swim_tag_ids(ops) || []) ++ parsed.tags
               if tags != [], do: Boards.set_card_tags(card, Enum.uniq_by(tags, & &1.id))
+
+              if parsed.comment,
+                do: Boards.add_comment(card, parsed.comment, by: socket.assigns.current_user)
+
               if parent, do: Boards.broadcast_tree(Boards.root_of_board(board.id))
 
               {:noreply,

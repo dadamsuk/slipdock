@@ -497,6 +497,7 @@ defmodule SlipdockWeb.CoreComponents do
   defp quick_chip_icon(:board), do: "hero-rectangle-stack"
   defp quick_chip_icon(:tag), do: "hero-tag"
   defp quick_chip_icon(:assignee), do: "hero-user"
+  defp quick_chip_icon(:comment), do: "hero-chat-bubble-left"
   defp quick_chip_icon(_), do: "hero-sparkles"
 
   defp quick_chip_class(:date), do: "chip-tint text-primary"

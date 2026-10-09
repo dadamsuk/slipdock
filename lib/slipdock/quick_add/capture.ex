@@ -85,8 +85,11 @@ defmodule Slipdock.QuickAdd.Capture do
         {:error, "Your default board has no lists — pick another in Account settings."}
 
       true ->
-        {plan, notes} = read(user, text, catalogue, opts)
-        create(plan, notes, catalogue)
+        # The comment is never the model's to read: it goes on the card as
+        # written, like it does from a list's own quick add row.
+        {line, comment} = QuickAdd.split_comment(text)
+        {plan, notes} = read(user, String.trim(line), catalogue, opts)
+        create(Map.merge(plan, %{comment: comment, user: user}), notes, catalogue)
     end
   end
 
@@ -308,6 +311,7 @@ defmodule Slipdock.QuickAdd.Capture do
     case Boards.create_card(plan.column, attrs) do
       {:ok, card} ->
         if plan.tags != [], do: Boards.set_card_tags(card, plan.tags)
+        if plan.comment, do: Boards.add_comment(card, plan.comment, by: plan.user)
 
         if plan.board.parent_card_id,
           do: Boards.broadcast_tree(Boards.root_of_board(plan.board.id))
@@ -317,7 +321,7 @@ defmodule Slipdock.QuickAdd.Capture do
            card: card,
            board: plan.board,
            column: plan.column,
-           chips: plan.chips,
+           chips: if(plan.comment, do: plan.chips ++ [{:comment, "Comment"}], else: plan.chips),
            notes: notes
          }}
 

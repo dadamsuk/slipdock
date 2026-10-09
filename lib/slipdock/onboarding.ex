@@ -298,7 +298,8 @@ defmodule Slipdock.Onboarding do
           about the banners friday, urgent" — read by a cheap model into a card
           on the board and list you nominate on your account page.
         * **At the foot of a list.** The ordinary way: type a title, press
-          Enter, keep typing for the next one.
+          Enter, keep typing for the next one. Anything after a `;` goes on
+          the card as its first comment.
         * **In the table or outline view**, a line of shorthand:
           `Write the post due: tomorrow #high #tour @#{short_name(user)}`.
         * **`Ctrl-P`**, the command palette, for this and everywhere else you

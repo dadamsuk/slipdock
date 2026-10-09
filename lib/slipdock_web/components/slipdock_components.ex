@@ -1477,7 +1477,7 @@ defmodule SlipdockWeb.SlipdockComponents do
 
   ## Quick add -----------------------------------------------------------------
 
-  @quick_add_help "Type a title and press Enter. Mix in commands: due: tomorrow · start: next mon · #high · #blocked · #todo (a list) · #tag · @name"
+  @quick_add_help "Type a title and press Enter. Mix in commands: due: tomorrow · start: next mon · #high · #blocked · #todo (a list) · #tag · @name · ; a comment"
 
   attr :id, :string, required: true, doc: "the form id; the server clears the input by it"
   attr :placeholder, :string, default: "Add a card…"
