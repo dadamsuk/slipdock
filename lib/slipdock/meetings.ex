@@ -511,6 +511,22 @@ defmodule Slipdock.Meetings do
     )
   end
 
+  @doc """
+  Gathers what the board already knows about the meeting
+  (`Slipdock.Meetings.Context`) and keeps it on the capture, with the
+  candidate count and what the search cost in `stats["context"]`.
+  """
+  def gather_context(%Capture{} = capture) do
+    context = Slipdock.Meetings.Context.gather(capture)
+
+    capture
+    |> Ecto.Changeset.change(
+      context: context,
+      stats: Map.put(capture.stats || %{}, "context", context["stats"])
+    )
+    |> Repo.update()
+  end
+
   @doc "The open blocking questions on a capture."
   def open_questions(%Capture{id: id}) do
     Repo.all(
