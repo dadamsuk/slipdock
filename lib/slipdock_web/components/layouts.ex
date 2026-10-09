@@ -1085,8 +1085,11 @@ defmodule SlipdockWeb.Layouts do
         id="client-error"
         kind={:error}
         title={gettext("We can't find the internet")}
-        phx-disconnected={show(".phx-client-error #client-error") |> JS.remove_attribute("hidden")}
-        phx-connected={hide("#client-error") |> JS.set_attribute({"hidden", ""})}
+        phx-hook="ConnectionToast"
+        phx-disconnected={JS.dispatch("slipdock:conn-lost", to: "#client-error")}
+        phx-connected={JS.dispatch("slipdock:conn-restored", to: "#client-error")}
+        data-show-js={show(".phx-client-error #client-error") |> JS.remove_attribute("hidden")}
+        data-hide-js={hide("#client-error") |> JS.set_attribute({"hidden", ""})}
         hidden
       >
         {gettext("Attempting to reconnect")}
@@ -1097,8 +1100,11 @@ defmodule SlipdockWeb.Layouts do
         id="server-error"
         kind={:error}
         title={gettext("Something went wrong!")}
-        phx-disconnected={show(".phx-server-error #server-error") |> JS.remove_attribute("hidden")}
-        phx-connected={hide("#server-error") |> JS.set_attribute({"hidden", ""})}
+        phx-hook="ConnectionToast"
+        phx-disconnected={JS.dispatch("slipdock:conn-lost", to: "#server-error")}
+        phx-connected={JS.dispatch("slipdock:conn-restored", to: "#server-error")}
+        data-show-js={show(".phx-server-error #server-error") |> JS.remove_attribute("hidden")}
+        data-hide-js={hide("#server-error") |> JS.set_attribute({"hidden", ""})}
         hidden
       >
         {gettext("Attempting to reconnect")}

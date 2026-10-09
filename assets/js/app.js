@@ -426,6 +426,32 @@ Hooks.AutoDismiss = {
   destroyed() { clearTimeout(this.timer) },
 }
 
+// Reconnect toasts (#client-error / #server-error): the layout fires
+// slipdock:conn-lost / slipdock:conn-restored on these elements via
+// phx-disconnected / phx-connected. Delay the reveal so momentary blips
+// (e.g. a deploy restart) stay silent, and hide automatically on reconnect.
+Hooks.ConnectionToast = {
+  REVEAL_DELAY_MS: 3000,
+  mounted() {
+    this.revealTimer = null
+    this.el.addEventListener("slipdock:conn-lost", () => {
+      if (this.revealTimer) return
+      this.revealTimer = setTimeout(() => {
+        this.revealTimer = null
+        this.liveSocket.execJS(this.el, this.el.dataset.showJs)
+      }, this.REVEAL_DELAY_MS)
+    })
+    this.el.addEventListener("slipdock:conn-restored", () => {
+      clearTimeout(this.revealTimer)
+      this.revealTimer = null
+      this.liveSocket.execJS(this.el, this.el.dataset.hideJs)
+    })
+  },
+  destroyed() {
+    clearTimeout(this.revealTimer)
+  },
+}
+
 // A running card timer: counts up from `data-since` once a second, so the
 // server needn't push a tick. Keyed on the start time, so a restart remounts.
 Hooks.Elapsed = {
