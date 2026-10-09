@@ -1341,7 +1341,10 @@ defmodule SlipdockWeb.APIGuide do
       person reviews the capture and commits it, in one write that can be
       undone as a whole. Every finding quotes the transcript word for word (a
       quote that is not there is dropped), and anything uncertain becomes a
-      question for a person.
+      question for a person. A meeting's decisions go on one wiki page of its
+      own, *Decisions / <meeting> · <date>*, grouped by topic when there are
+      several; one that replaces an earlier decision strikes it on whichever
+      page holds it.
 
           GET  /api/meetings                         is meeting mode on, and what may be sent
           GET  /api/meetings/findings-schema         the format for your own findings
@@ -1352,6 +1355,7 @@ defmodule SlipdockWeb.APIGuide do
           GET  /api/captures/:id                     state, lines, findings, questions, record
           POST /api/captures/:id/resolve             {question, answer} — an option's number or label
           POST /api/captures/:id/findings/:fid       {included: false} or {title, body, list, due_date, topic}
+                                                     (topic: a decision's heading on the meeting's page)
           GET  /api/captures/:id/preview             exactly what committing writes, and its digest
           POST /api/captures/:id/commit              {preview: digest}; 409 if anything moved since
           POST /api/captures/:id/undo                409 lists what was edited since; {rest: true}

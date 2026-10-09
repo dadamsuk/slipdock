@@ -175,6 +175,51 @@ defmodule Slipdock.Meetings.ContextTest do
     assert {"##{up_there.id}", "name"} in refs(with_parent)
   end
 
+  test "a meeting's decisions page: its topic headings and header are not entries", ctx do
+    body = """
+    Decisions from the meeting “Pricing sync” on 7 Oct 2026. Attendees: Priya, Sam. From [the meeting's capture](/boards/1/meetings/2). Newest last; a replaced decision is struck through.
+
+    ## Pricing
+
+    - **Annual plan at 20% off** — 7 Oct 2026, in “Pricing sync”.
+    - ~~**Monthly plan only**~~ (replaced by “Annual plan at 20% off”)
+
+    ## Launch
+
+    - **Launch on Friday** — 7 Oct 2026, in “Pricing sync”.
+    ### Free tier stays
+    #### Not an entry
+    """
+
+    {:ok, _} =
+      Wiki.create_page(
+        ctx.board,
+        %{"title" => "Decisions / Pricing sync · 7 Oct 2026", "body" => body},
+        user: ctx.owner
+      )
+
+    context = Context.gather(capture(ctx.board, ctx.owner, said(["hello"])))
+
+    assert [%{"title" => "Decisions / Pricing sync · 7 Oct 2026", "entries" => entries}] =
+             context["decisions"]
+
+    assert entries == [
+             %{
+               "text" => "**Annual plan at 20% off** — 7 Oct 2026, in “Pricing sync”.",
+               "superseded" => false
+             },
+             %{
+               "text" => "**Monthly plan only** (replaced by “Annual plan at 20% off”)",
+               "superseded" => true
+             },
+             %{
+               "text" => "**Launch on Friday** — 7 Oct 2026, in “Pricing sync”.",
+               "superseded" => false
+             },
+             %{"text" => "Free tier stays", "superseded" => false}
+           ]
+  end
+
   test "decisions already written down are collected, struck-through ones as superseded", ctx do
     {:ok, _} =
       Wiki.create_page(

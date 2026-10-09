@@ -60,7 +60,7 @@ defmodule SlipdockWeb.Meetings.ReviewLiveTest do
     refute view |> element("#review-findings") |> render() =~ ~r/\d+(\.\d+)?%\s*(confidence|sure)/
 
     assert view |> element("#becomes-#{ctx.decision.id}") |> render() =~
-             "an entry on Decisions / Pricing"
+             "decisions page (Pricing)"
 
     assert view |> element("#becomes-#{ctx.action.id}") |> render() =~
              "a new card “Update the pricing page” in To Do"

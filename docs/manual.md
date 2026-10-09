@@ -1756,9 +1756,14 @@ edits, N the next question.
 **Commit…** opens the preview: new cards by list, changes to cards as before →
 after, comments, the lines added to and struck on decisions pages, cards that
 slip as a knock-on, who is assigned, what is left out, and whether anything
-has moved since it was read. Decisions go to a wiki page per topic,
-*Decisions / Pricing*: a decision that replaces an earlier one strikes it
-through, on whichever decisions page it is, and the two link to each other.
+has moved since it was read. A meeting's decisions go on one wiki page of its
+own, *Decisions / Pricing sync · 7 Oct 2026* (a second capture of a meeting of
+the same name on the same day gets *… (2)*, never the first one's page). The
+page opens with the meeting, its date, who was there and a link back to the
+capture; when the decisions span more than one topic, each topic is a heading
+on it. A decision that replaces an earlier one strikes it through on whichever
+decisions page it is — an earlier meeting's, or an older page per topic such
+as *Decisions / Pricing* — and the two link to each other.
 
 Each open question has **listen and resolve**, which opens them one at a time:
 the passage with the lines around it, what the transcriber was unsure of, what
@@ -2895,6 +2900,7 @@ POST   /api/boards/:board/captures        multipart: audio, transcript, findings
 GET    /api/boards/:board/captures        GET  /api/captures/:id    state, lines, findings, questions, record
 POST   /api/captures/:id/resolve          {question, answer: value | number | label | null, replayed}
 POST   /api/captures/:id/findings/:fid    {included} or {title, body, list, due_date, topic}
+                                          (topic: a decision's heading on the meeting's decisions page)
 GET    /api/captures/:id/preview          the change set and its digest, and what has moved
 POST   /api/captures/:id/commit           {preview: digest}; 409 committed / stale (named) / changed
 POST   /api/captures/:id/undo             {rest}; 409 lists what was edited since

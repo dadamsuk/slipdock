@@ -82,7 +82,7 @@ defmodule SlipdockWeb.Meetings.InboxLiveTest do
     assert {:error, :conflict, "this capture was discarded, so nothing from it can be written"} =
              Commit.commit(capture, user)
 
-    refute Repo.exists?(from(p in Slipdock.Wiki.Page, where: p.title == "Decisions / Pricing"))
+    refute Repo.exists?(from(p in Slipdock.Wiki.Page, where: like(p.title, "Decisions /%")))
 
     assert Repo.exists?(
              from(e in Slipdock.Meetings.Event,

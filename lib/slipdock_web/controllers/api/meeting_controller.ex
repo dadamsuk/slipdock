@@ -219,7 +219,9 @@ defmodule SlipdockWeb.API.MeetingController do
 
   @doc """
   Includes, leaves out or edits a finding: `included` (true/false), or any of
-  `title`, `body`, `list`, `due_date`, `topic`.
+  `title`, `body`, `list`, `due_date`, `topic`. A decision's `topic` is its
+  label — its heading on the meeting's decisions page — not which page it
+  goes on.
   """
   def finding(conn, %{"id" => id, "fid" => fid} = params) do
     with {:ok, capture} <- fetch(conn, id, :write),

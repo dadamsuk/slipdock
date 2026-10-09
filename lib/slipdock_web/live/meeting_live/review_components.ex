@@ -529,6 +529,7 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
         value={@finding.effect["topic"]}
         class="input input-sm w-full"
         aria-label="Topic"
+        placeholder="Topic: its heading on the meeting's decisions page"
       />
       <div class="flex gap-2">
         <button type="submit" class="btn btn-primary btn-xs">Save</button>
@@ -581,7 +582,8 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
         type="text"
         name="added[topic]"
         class="input input-sm w-full"
-        placeholder="Topic, for a decision (e.g. Pricing)"
+        aria-label="Topic"
+        placeholder="Topic, for a decision: its heading on the meeting's decisions page (e.g. Pricing)"
       />
       <div class="flex gap-2">
         <button type="submit" class="btn btn-primary btn-xs">Add</button>
