@@ -228,6 +228,8 @@ defmodule SlipdockWeb.Router do
       live "/boards/:id/meetings/:capture_id", MeetingLive.Show, :show
       live "/boards/:id/meetings/:capture_id/preview", MeetingLive.Preview, :preview
       live "/boards/:id/meetings/:capture_id/speakers", MeetingLive.Speakers, :speakers
+      live "/boards/:id/meetings/:capture_id/resolve", MeetingLive.Resolve, :resolve
+      live "/boards/:id/meetings/:capture_id/resolve/:question_id", MeetingLive.Resolve, :resolve
       live "/boards/:id", BoardLive.Show, :show
       # The receiving end of a share: who handed this board over, and the way
       # out of it. A page of its own because it is not part of the board.

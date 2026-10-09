@@ -28,9 +28,11 @@ import Sortable from "../vendor/sortable"
 import {installConfirm} from "./confirm"
 import {ModalDialog} from "./modal_dialog"
 import {installPosthog} from "./posthog"
+import {Replay} from "./replay"
 
 const Hooks = {}
 Hooks.ModalDialog = ModalDialog
+Hooks.Replay = Replay
 
 // Keeps the server's idea of the window width up to date, so views that
 // render something different on a phone (the calendar's agenda, the board's

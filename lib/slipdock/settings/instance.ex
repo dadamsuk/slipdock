@@ -115,6 +115,9 @@ defmodule Slipdock.Settings.Instance do
     field :meetings_diarisation, :string, default: "labels"
     field :meetings_diarisation_url, :string
     field :meetings_dialogue_inference, :boolean, default: true
+    # The audio-capable model unclear passages are re-listened to with
+    # (see `Slipdock.Meetings.Relisten`); nil leaves re-listening off.
+    field :meetings_relisten_model, :string
 
     # Whose AI settings unattended work runs on: the search indexer, every
     # search query, scheduled automations. An admin, because those settings
@@ -182,7 +185,8 @@ defmodule Slipdock.Settings.Instance do
                     meetings_longest_minutes meetings_max_file_mb meetings_audio_retention
                     meetings_transcription meetings_transcription_model
                     meetings_transcription_url meetings_transcription_max_mb
-                    meetings_diarisation meetings_diarisation_url meetings_dialogue_inference)a
+                    meetings_diarisation meetings_diarisation_url meetings_dialogue_inference
+                    meetings_relisten_model)a
 
   # The admin address and the SMTP details each have a flow that proves
   # something first (a code to the new address, a test message that arrived),
@@ -219,7 +223,8 @@ defmodule Slipdock.Settings.Instance do
       :meetings_second_model,
       :meetings_transcription_model,
       :meetings_transcription_url,
-      :meetings_diarisation_url
+      :meetings_diarisation_url,
+      :meetings_relisten_model
     ])
     |> validate_inclusion(:meetings_transcription, ~w(none provider endpoint))
     |> validate_inclusion(:meetings_diarisation, ~w(labels endpoint))

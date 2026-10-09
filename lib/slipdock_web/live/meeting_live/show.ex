@@ -188,7 +188,7 @@ defmodule SlipdockWeb.MeetingLive.Show do
   def handle_event("commit", _params, socket) do
     %{board: board, capture: capture, open_count: open} = socket.assigns
 
-    if socket.assigns.can_write and open == 0 and capture.state == "ready",
+    if socket.assigns.can_write and open == 0 and Slipdock.Meetings.Commit.committable?(capture),
       do:
         {:noreply,
          push_navigate(socket, to: "/boards/#{board.id}/meetings/#{capture.id}/preview")},

@@ -36,7 +36,7 @@ defmodule Slipdock.Meetings.Review do
   def answer(%Question{} = question, value, %User{} = user, opts \\ []) do
     question = Repo.preload(question, [:capture, :finding], force: true)
 
-    with :ok <- open_capture(question.capture),
+    with :ok <- answerable(question),
          {:ok, option} <- option(question, value) do
       Repo.transaction(fn ->
         before = question.finding && snapshot(question.finding)
@@ -284,6 +284,91 @@ defmodule Slipdock.Meetings.Review do
     end
   end
 
+  @doc """
+  Puts a question to the person who said the words it is about: they are
+  sent the question, the passage and a link to replay it, and it waits for
+  their answer (`status: "waiting"`). The rest of the capture can be
+  committed meanwhile; the item that waits is written when they answer.
+  """
+  def ask_speaker(%Question{} = question, %User{} = user) do
+    question =
+      Repo.preload(question, [:capture, finding: [evidence: [utterance: :voice]]], force: true)
+
+    with :ok <- open_capture(question.capture),
+         %User{} = speaker <-
+           speaker_of(question) ||
+             {:error, "nobody here is known to have said it, so there is nobody to ask"},
+         true <- speaker.id != user.id || {:error, "you are the speaker: answer it yourself"} do
+      question
+      |> Ecto.Changeset.change(
+        status: "waiting",
+        context:
+          Map.merge(question.context, %{
+            "asked_user_id" => speaker.id,
+            "asked_by_id" => user.id,
+            "asked_at" => DateTime.to_iso8601(now())
+          })
+      )
+      |> Repo.update!()
+      |> tap(fn q -> tell_speaker(q, speaker, user) end)
+      |> then(fn q ->
+        message = "Asked #{speaker.name || speaker.email}: “#{question.prompt}”."
+        Meetings.record(question.capture, "asked", message, user: user)
+
+        {:ok, q}
+      end)
+      |> finish(question.capture)
+    end
+  end
+
+  @doc "The person a question is about the words of, when that is known."
+  def speaker_of(%Question{} = question) do
+    question = Repo.preload(question, finding: [evidence: [utterance: :voice]])
+
+    line_voice =
+      case question.context["line"] do
+        line_id when is_binary(line_id) ->
+          Repo.one(
+            from(u in Slipdock.Meetings.Utterance,
+              where: u.capture_id == ^question.capture_id and u.line_id == ^line_id,
+              preload: :voice
+            )
+          )
+          |> then(&(&1 && &1.voice))
+
+        _ ->
+          case question.finding do
+            %Finding{evidence: [%{utterance: %{voice: voice}} | _]} -> voice
+            _ -> nil
+          end
+      end
+
+    case line_voice do
+      %{user_id: id} when is_integer(id) -> Repo.get(User, id)
+      _ -> nil
+    end
+  end
+
+  defp tell_speaker(question, speaker, asker) do
+    url =
+      "#{Slipdock.Config.get(:base_url) || SlipdockWeb.Endpoint.url()}/boards/#{question.capture.board_id}/meetings/#{question.capture_id}/resolve/#{question.id}"
+
+    Slipdock.Automations.Notifier.deliver(
+      [speaker.email],
+      "A question about what you said in “#{question.capture.title}”",
+      """
+      #{asker.name || asker.email} is reviewing the meeting “#{question.capture.title}” and asks you:
+
+      #{question.prompt}
+
+      You can listen to the passage again and answer here:
+      #{url}
+
+      Nothing from the meeting that depends on your answer is written until you give it.
+      """
+    )
+  end
+
   ## Answers ------------------------------------------------------------------
 
   defp option(%Question{options: options}, value) do
@@ -450,6 +535,16 @@ defmodule Slipdock.Meetings.Review do
 
   ## Helpers ------------------------------------------------------------------
 
+  # A question waiting for its speaker can be answered after the rest of
+  # the capture was committed; then its item is written in a commit of its own.
+  defp answerable(%Question{
+         status: "waiting",
+         capture: %Capture{state: "committed", undone_at: nil}
+       }),
+       do: :ok
+
+  defp answerable(%Question{capture: capture}), do: open_capture(capture)
+
   defp open_capture(%Capture{} = capture) do
     if reviewable?(capture),
       do: :ok,
@@ -462,7 +557,7 @@ defmodule Slipdock.Meetings.Review do
   # After any change: the state follows the questions, and everyone watching
   # hears about it.
   defp finish({:ok, result}, capture) do
-    {:ok, _} = refresh_state(capture)
+    if reviewable?(Repo.get!(Capture, capture.id)), do: {:ok, _} = refresh_state(capture)
     Meetings.broadcast(Repo.get!(Capture, capture.id))
     {:ok, result}
   end

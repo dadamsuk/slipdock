@@ -73,7 +73,8 @@ defmodule SlipdockWeb.ConfigLive.Index do
                       meetings_longest_minutes meetings_max_file_mb meetings_audio_retention
                       meetings_transcription meetings_transcription_model
                       meetings_transcription_url meetings_transcription_max_mb
-                      meetings_diarisation meetings_diarisation_url meetings_dialogue_inference)
+                      meetings_diarisation meetings_diarisation_url meetings_dialogue_inference
+                      meetings_relisten_model)
 
   @mail_fields ~w(smtp_host smtp_port smtp_username smtp_password smtp_tls smtp_from_email
                   smtp_from_name)
@@ -561,6 +562,12 @@ defmodule SlipdockWeb.ConfigLive.Index do
             label="Model for the second reading"
             placeholder="Only used with “Another model”"
             value={@settings.meetings_second_model}
+          />
+          <.input
+            field={@form[:meetings_relisten_model]}
+            label="Model to re-listen to unclear passages"
+            placeholder="Empty: re-listening is off. An audio-capable model, e.g. openai/gpt-4o-audio-preview"
+            value={@settings.meetings_relisten_model}
           />
         </fieldset>
 

@@ -77,11 +77,11 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
           {if @show_transcript, do: "Findings", else: "Transcript"}
         </button>
         <button
-          :if={@can_write and @reviewable?}
+          :if={@can_write and (@reviewable? or Slipdock.Meetings.Commit.pending?(@capture))}
           id="commit-capture"
           type="button"
           phx-click="commit"
-          disabled={@open_count > 0 or @capture.state != "ready"}
+          disabled={@open_count > 0 or not Slipdock.Meetings.Commit.committable?(@capture)}
           class="btn btn-primary btn-sm"
           title={
             if @open_count > 0,
@@ -156,6 +156,7 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
             can_write={@can_write and @reviewable?}
             lists={@lists}
             members={@members}
+            board_id={@capture.board_id}
           />
 
           <div :if={@can_write and @reviewable?}>
@@ -309,6 +310,7 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
   attr :can_write, :boolean, required: true
   attr :lists, :list, required: true
   attr :members, :list, required: true
+  attr :board_id, :integer, required: true
 
   defp finding_card(assigns) do
     ~H"""
@@ -373,7 +375,12 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
         </ul>
       </div>
 
-      <.question_block :for={q <- @questions} question={q} can_write={@can_write} />
+      <.question_block
+        :for={q <- @questions}
+        question={q}
+        can_write={@can_write}
+        board_id={@board_id}
+      />
 
       <p class="mt-3 text-sm">
         <span class="text-base-content/50">becomes →</span>
@@ -421,6 +428,7 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
 
   attr :question, :any, required: true
   attr :can_write, :boolean, required: true
+  attr :board_id, :integer, required: true
 
   defp question_block(assigns) do
     ~H"""
@@ -433,7 +441,20 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
         @question.status != "open" && "bg-base-200/60"
       ]}
     >
-      <p class="font-medium">{@question.prompt}</p>
+      <p class="font-medium">
+        {@question.prompt}
+        <.link
+          :if={@question.status in ["open", "waiting"]}
+          id={"resolve-link-#{@question.id}"}
+          navigate={"/boards/#{@board_id}/meetings/#{@question.capture_id}/resolve/#{@question.id}"}
+          class="link ml-1 text-xs font-normal"
+        >
+          listen and resolve
+        </.link>
+      </p>
+      <p :if={@question.status == "waiting"} class="mt-1 text-xs text-warning">
+        Asked the speaker; waiting for their answer. The rest can be committed meanwhile.
+      </p>
       <div :if={@question.status == "open"} class="mt-2 flex flex-wrap gap-2">
         <button
           :for={{option, i} <- Enum.with_index(@question.options, 1)}

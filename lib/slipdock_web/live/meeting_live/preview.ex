@@ -299,7 +299,7 @@ defmodule SlipdockWeb.MeetingLive.Preview do
                 else: "changes"}
             </button>
           </form>
-          <p :if={@capture.state != "ready"} class="text-sm text-base-content/60">
+          <p :if={not Commit.committable?(@capture)} class="text-sm text-base-content/60">
             This capture is {state_label(@capture.state)}, so it can't be committed from here.
           </p>
         </div>

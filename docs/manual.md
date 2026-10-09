@@ -1760,6 +1760,22 @@ has moved since it was read. Decisions go to a wiki page per topic,
 *Decisions / Pricing*: a decision that replaces an earlier one strikes it
 through, on whichever decisions page it is, and the two link to each other.
 
+Each open question has **listen and resolve**, which opens them one at a time:
+the passage with the lines around it, what the transcriber was unsure of, what
+each reading heard, other lines that bear on it, and — where a model re-listened
+to it — that model's view, labelled a guess. With a recording there is a
+waveform with the passage marked, **Replay**, **At 0.75×** and **Loop**; an answer
+given after replaying is recorded that way ("after replaying 7:38–7:44").
+Without one, the page says why there is nothing to replay. **Ask the speaker**
+sends the question and the passage to the person who said it; that item waits
+for their answer while everything else can be committed, and is written in a
+commit of its own once they answer — every item is still written only once,
+and undo reverses the lot. Re-listening is the admin's to switch on
+(`meetings_relisten_model`, an audio-capable model): unclear passages a finding
+depends on are cut from the recording and listened to again, and what comes
+back is a signal, never an override — it agrees (the finding says
+*re-listened*), or it hears something else and that becomes a question.
+
 After the commit the capture's page is its receipt — everything written, with
 links — with **Undo all**. The board's Meetings tab is the inbox: every
 capture, its state, what it found and has left to settle, and who committed or
