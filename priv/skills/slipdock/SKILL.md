@@ -74,6 +74,8 @@ curl -s -X POST "$B/api/auth/device/token" -H 'content-type: application/json' \
 To install these skills on a machine that has none of them:
 `curl -fsSL "$B/install.sh" | sh` (needs only `curl` and `tar`); on Windows, in PowerShell,
 `irm "$B/install.ps1" | iex` (into `%USERPROFILE%\.claude\skills`, not WSL's home).
+For ChatGPT, which can't run this CLI, `slipdock skills chatgpt` saves them as zips to upload,
+each mapping the commands onto the MCP connector's tools (`$B/api/skills/<name>/chatgpt.zip`).
 
 ## Signing in
 

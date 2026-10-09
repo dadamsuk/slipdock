@@ -328,6 +328,10 @@ defmodule SlipdockWeb.Router do
     get "/skills.tar.gz", SkillController, :archive
 
     get "/skills", SkillController, :index
+    # One skill rewritten for ChatGPT (see `Slipdock.Skills.ChatGPT`), as the
+    # zip its skill upload takes. Before the catch-all, which would read it as
+    # a file of the skill.
+    get "/skills/:name/chatgpt.zip", SkillController, :chatgpt
     get "/skills/:name", SkillController, :show
     get "/skills/:name/*file", SkillController, :show
   end

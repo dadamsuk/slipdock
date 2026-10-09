@@ -131,7 +131,8 @@ Briefly, with the detail in [the manual](docs/manual.md):
   it is, lists, cards, labels, checklists and comments.
 - **A JSON API and a CLI** — [everything the UI can do](docs/manual.md#json-api),
   [from the shell](docs/manual.md#cli), plus
-  [agent skills](docs/manual.md#skills) the server ships and a
+  [agent skills](docs/manual.md#skills) the server ships (for ChatGPT too,
+  as zips that use the MCP connector instead of the CLI) and a
   `/api/guide` that describes *your* boards to whatever is driving them.
 - **An MCP server** at `/mcp`, so claude.ai, the Claude apps, Claude Code
   and other MCP clients get the board as a small set of tools: reading,

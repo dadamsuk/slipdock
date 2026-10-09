@@ -225,6 +225,7 @@ defmodule SlipdockCLI do
     skills                              list them, with a version each
     skills install [--dir D]            write them to ~/.claude/skills (or D)
     skills check                        say whether the local copies are behind
+    skills chatgpt [--dir D]            save ChatGPT's versions, one zip per skill, here (or D)
 
   WRITE
     add <board> <title> [opts]          create a card

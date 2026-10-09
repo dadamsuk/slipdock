@@ -73,8 +73,41 @@ defmodule SlipdockCLI.Skills do
       else: Render.table(["SKILL", "SERVER", "LOCAL COPY"], Render.scrub(rows))
   end
 
+  # ChatGPT can't run this CLI, so its versions of the skills are zips to
+  # upload by hand: saved here, into the current directory unless told
+  # otherwise. Which skills have one is the server's to say.
+  def run("skills", ["chatgpt"], o) do
+    dir = o[:dir] || "."
+    {:ok, %{"skills" => skills}} = HTTP.get("/skills")
+
+    written =
+      for %{"name" => name, "chatgpt_zip" => "/api" <> zip} <- skills do
+        case HTTP.get(zip) do
+          {:ok, %{"raw" => bytes}} ->
+            path = contained!(dir, name <> ".zip")
+            File.mkdir_p!(Path.dirname(path))
+            File.write!(path, bytes)
+            path
+
+          _ ->
+            fail("could not download the ChatGPT version of #{name}")
+        end
+      end
+
+    if o[:json] do
+      Render.json(%{"saved" => written, "dir" => dir})
+    else
+      IO.puts("saved #{length(written)} ChatGPT skill(s) into #{dir}:")
+      Enum.each(written, &IO.puts("  " <> Render.scrub(&1)))
+      IO.puts("Upload each in ChatGPT, and connect it to #{HTTP.base_url()}/mcp first.")
+    end
+  end
+
   def run("skills", _args, _o),
-    do: fail("usage: slipdock skills | skills install [--dir D] | skills check")
+    do:
+      fail(
+        "usage: slipdock skills | skills install [--dir D] | skills check | skills chatgpt [--dir D]"
+      )
 
   def run(cmd, _args, _o), do: bad_usage(cmd)
 
