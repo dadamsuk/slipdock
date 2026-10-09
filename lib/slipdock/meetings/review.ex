@@ -72,6 +72,31 @@ defmodule Slipdock.Meetings.Review do
     end
   end
 
+  @doc """
+  An answer as a person or an agent might give it: an option's value
+  (`user:12`, `none`), its number (`1`), or its label (`Sam Smith`, any
+  case). The option's value, or nil when it names none.
+  """
+  def option_value(%Question{options: options}, given) do
+    given = given |> to_string() |> String.trim()
+
+    cond do
+      option = Enum.find(options, &(&1["value"] == given)) ->
+        option["value"]
+
+      match?({_, ""}, Integer.parse(given)) ->
+        {n, ""} = Integer.parse(given)
+        option = Enum.at(options, n - 1)
+        option && n > 0 && option["value"]
+
+      option = Enum.find(options, &(String.downcase(&1["label"] || "") == String.downcase(given))) ->
+        option["value"]
+
+      true ->
+        nil
+    end
+  end
+
   @doc "Takes an answer back: the question is open again and its finding as it was."
   def unanswer(%Question{} = question, %User{} = user) do
     question = Repo.preload(question, [:capture, :finding], force: true)

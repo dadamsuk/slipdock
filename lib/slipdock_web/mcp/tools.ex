@@ -47,7 +47,12 @@ defmodule SlipdockWeb.MCP.Tools do
   # only while an admin has meeting mode on. Off, a client is not shown them
   # and calling one by name is an unknown tool, the same as any other name
   # this server has never heard of.
-  @meeting_tools []
+  @meeting_tools [
+    Tools.CaptureMeeting,
+    Tools.GetCapture,
+    Tools.ResolveCaptureQuestion,
+    Tools.CommitCapture
+  ]
 
   @doc "Every tool module offered right now, in the order `tools/list` gives them."
   def all do

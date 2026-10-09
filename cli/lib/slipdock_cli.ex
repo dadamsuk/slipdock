@@ -237,6 +237,24 @@ defmodule SlipdockCLI do
   MEETINGS  (meeting capture: off unless this server's admin turns it on, and
              every command here says "meeting mode is off on this server" until then)
     meetings                            whether meeting mode is on, and where it shows
+    capture new <board> [opts]          send a meeting: prints its id, link and questions
+        --transcript F  WebVTT, SRT, Name: text, a Fireflies or Otter export (- for stdin)
+        --audio F       the recording (wav, mp3, m4a, flac, ogg, webm, aac)
+        --findings F    your own findings, in the schema `capture schema` prints
+        --ics F         the invite: attendees, start and title
+        --title T  --when 2026-10-07T10:00  --attendees "Priya, sam@example.com"
+        --format vtt|srt|text|blocks|fireflies|otter  --with-parent (read the parent board too)
+    capture ls <board>                  the board's captures, newest first
+    capture show <id>                   what it found, and the questions to settle
+    capture resolve <id> <question> <answer>   answer by number or label;
+                                        --replayed 7:38-7:44 says what you listened to
+    capture include|leave-out <id> <finding>
+    capture preview <id>                exactly what committing writes, and its digest
+    capture commit <id> [--preview D]   write it, in one go (refused if anything moved)
+    capture undo <id> [--rest]          undo it all (--rest: all but what was edited since)
+    capture retry <id>                  carry a failed capture on
+    capture discard <id>                decide against it; nothing is written
+    capture schema                      the findings format, as JSON Schema
 
   WRITE
     add <board> <title> [opts]          create a card
@@ -539,6 +557,17 @@ defmodule SlipdockCLI do
     before: :string,
     undone: :boolean,
     format: :string,
+    # Meeting capture (`slipdock capture …`).
+    audio: :string,
+    transcript: :string,
+    findings: :string,
+    ics: :string,
+    when: :string,
+    attendees: :string,
+    with_parent: :boolean,
+    preview: :string,
+    replayed: :string,
+    rest: :boolean,
     set: :keep,
     q: :string,
     pool: :string,

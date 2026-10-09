@@ -158,7 +158,8 @@ way in: what it is, the pictures, and how to get it running.
 - Accounts: passwordless sign-in by emailed magic link, sessions that last
   30 days, API tokens for the CLI
 - **An MCP server** at `/mcp`: claude.ai, the Claude apps, Claude Code and
-  other MCP clients get the boards and the wiki as 30 tools, signing in
+  other MCP clients get the boards and the wiki as 34 tools (four of them only
+  while meeting mode is on), signing in
   through the browser or with an API token (see [MCP server](#mcp-server))
 - Groups of users; boards, single cards and saved views can be shared with
   people or groups as read-only or editable
@@ -1660,6 +1661,19 @@ are in `/runner/SHA256SUMS` too.
 
 The runner protocol and the session endpoints are in the agent guide
 (`slipdock guide`, section *Runners*).
+## Meeting capture
+
+Off unless an admin turns on **meeting mode** (Configuration → Meetings, or
+`slipdock admin set meetings_enabled=true`). Then a meeting's recording or
+transcript can be sent to a board, and Slipdock proposes the decisions,
+actions and card changes in it, each tied to the exact words it came from.
+Nothing reaches the board until a person reviews the capture and commits it,
+in one write that can be undone as a whole. From a terminal: `slipdock
+capture new <board> --transcript meeting.vtt`, `capture show`, `capture
+resolve`, `capture preview`, `capture commit`, `capture undo` (see
+[CLI](#cli)); from an agent, the MCP tools `capture_meeting`, `get_capture`,
+`resolve_capture_question` and `commit_capture`.
+
 ## Wiki
 
 The board answers *what are we doing*. It cannot answer *how does this work*,
@@ -2984,6 +2998,13 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `claim_job` | Takes the oldest [runner job](#runners) queued for a pool on a board, with a lease: the card, its link, the job's kind and prompt. Answers `nothing queued` when there is none, so an idle check costs little. The session shows in the board's runner list. |
 | `job_progress` | Renews a claimed job's lease; `note`, if given, is also a comment on the card. Answers `ok`, or `cancel` when somebody has stopped the job. |
 | `finish_job` | Ends a claimed job: `outcome` done, failed, cancelled or timeout, and a `summary` kept on the job. Only the token that claimed it may. |
+| `capture_meeting` | Sends a meeting's transcript (WebVTT, SRT, `Name:` lines, a Fireflies or Otter export) to a board for [meeting capture](#meeting-capture), with `title`, `when`, `attendees`, and optionally the agent's own `findings` in the published schema. Nothing is written to the board by it. Recordings go through the CLI or the API. |
+| `get_capture` | A capture: its state, what it found and what each finding becomes, the open questions with numbered answers, and — once it is ready — the `preview` digest to commit with. |
+| `resolve_capture_question` | Answers one question with the answer the person gave in the conversation (never the model's own); recorded as theirs, *via agent*. |
+| `commit_capture` | Writes a ready capture to the board in one go, when the person asks; pass `preview` so exactly what they saw is written. Refused, naming the card, if something it changes was edited since. |
+
+The last four exist only while an admin has [meeting mode](#meeting-capture)
+on: off, they are not listed, and calling one by name is an unknown tool.
 
 The reading tools are marked read-only, so a client can let them run
 without asking each time. The deletes are marked destructive and none of

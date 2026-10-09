@@ -174,6 +174,99 @@ defmodule SlipdockWeb.API.MeetingController do
     end
   end
 
+  @doc """
+  Answers one of a capture's questions: `question` (its id), `answer` (an
+  option's value, its number, or its label), and optionally `replayed`
+  (what was listened to first, e.g. "07:38–07:44"). `via: "agent"` marks an
+  answer an agent relayed from the person. `answer: null` takes it back.
+  """
+  def resolve(conn, %{"id" => id} = params) do
+    with {:ok, capture} <- fetch(conn, id, :write),
+         %Slipdock.Meetings.Question{} = q <- question(capture, params["question"]) do
+      user = conn.assigns.current_user
+      via = if params["via"] == "agent", do: "agent", else: "api"
+
+      result =
+        case params["answer"] do
+          nil ->
+            Slipdock.Meetings.Review.unanswer(q, user)
+
+          given ->
+            case Slipdock.Meetings.Review.option_value(q, given) do
+              nil ->
+                {:error,
+                 "#{inspect(given)} is not an answer to this question; the answers are " <>
+                   Enum.map_join(Enum.with_index(q.options, 1), ", ", fn {o, i} ->
+                     "#{i}. #{o["label"]}"
+                   end)}
+
+              value ->
+                context = if params["replayed"], do: %{replayed: params["replayed"]}, else: %{}
+                Slipdock.Meetings.Review.answer(q, value, user, via: via, context: context)
+            end
+        end
+
+      reply(conn, capture, result)
+    else
+      nil -> {:error, :not_found, "question"}
+      other -> other
+    end
+  end
+
+  @doc """
+  Includes, leaves out or edits a finding: `included` (true/false), or any of
+  `title`, `body`, `list`, `due_date`, `topic`.
+  """
+  def finding(conn, %{"id" => id, "fid" => fid} = params) do
+    with {:ok, capture} <- fetch(conn, id, :write),
+         %Slipdock.Meetings.Finding{} = f <- finding_of(capture, fid) do
+      user = conn.assigns.current_user
+
+      result =
+        case params["included"] do
+          included when included in [true, false, "true", "false"] ->
+            Slipdock.Meetings.Review.include(f, included in [true, "true"], user)
+
+          _ ->
+            Slipdock.Meetings.Review.edit(
+              f,
+              Map.take(params, ~w(title body list due_date topic)),
+              user
+            )
+        end
+
+      reply(conn, capture, result)
+    else
+      nil -> {:error, :not_found, "finding"}
+      other -> other
+    end
+  end
+
+  defp question(capture, id) do
+    case SlipdockWeb.Params.id(id) do
+      nil -> nil
+      id -> Slipdock.Repo.get_by(Slipdock.Meetings.Question, id: id, capture_id: capture.id)
+    end
+  end
+
+  defp finding_of(capture, id) do
+    case SlipdockWeb.Params.id(id) do
+      nil -> nil
+      id -> Slipdock.Repo.get_by(Slipdock.Meetings.Finding, id: id, capture_id: capture.id)
+    end
+  end
+
+  defp reply(conn, capture, {:ok, _}),
+    do: json(conn, %{capture: show_json(conn, Meetings.get_capture!(capture.id))})
+
+  defp reply(_conn, _capture, {:error, %Ecto.Changeset{} = cs}), do: {:error, cs}
+
+  defp reply(_conn, capture, {:error, message}) when is_binary(message) do
+    if Slipdock.Meetings.Review.reviewable?(Meetings.get_capture!(capture.id)),
+      do: {:error, :unprocessable_entity, message},
+      else: {:error, :conflict, message}
+  end
+
   @doc "A board's captures, newest first."
   def index(conn, %{"board" => ref}) do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, :read) do

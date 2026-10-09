@@ -202,6 +202,41 @@ defmodule SlipdockCLI.HTTP do
   # needs to say beyond the path goes in the query string.
   def delete(path, query \\ []), do: request(:delete, path <> encode_query(query), nil)
 
+  @doc """
+  A multipart POST: `fields` as `{name, value}`, `files` as `{name, filename,
+  content_type, bytes}`. For sending a meeting's recording, which can be
+  large, so it is given ten minutes rather than the usual fifteen seconds.
+  """
+  def post_multipart(path, fields, files) do
+    boundary = "slipdock-" <> Base.encode16(:crypto.strong_rand_bytes(12), case: :lower)
+
+    parts =
+      Enum.map(fields, fn {name, value} ->
+        [
+          "--",
+          boundary,
+          "\r\n",
+          ~s(content-disposition: form-data; name="#{name}"\r\n\r\n),
+          to_string(value),
+          "\r\n"
+        ]
+      end) ++
+        Enum.map(files, fn {name, filename, type, bytes} ->
+          [
+            "--",
+            boundary,
+            "\r\n",
+            ~s(content-disposition: form-data; name="#{name}"; filename="#{filename}"\r\n),
+            "content-type: #{type}\r\n\r\n",
+            bytes,
+            "\r\n"
+          ]
+        end)
+
+    body = IO.iodata_to_binary([parts, "--", boundary, "--\r\n"])
+    request(:post, path, {:multipart, boundary, body})
+  end
+
   defp request(method, path, body) do
     Application.ensure_all_started(:inets)
     Application.ensure_all_started(:ssl)
@@ -220,13 +255,20 @@ defmodule SlipdockCLI.HTTP do
           [{~c"authorization", String.to_charlist("Bearer " <> t)} | headers]
       end
 
-    req =
+    {req, timeout} =
       case body do
-        nil -> {url, headers}
-        body -> {url, headers, ~c"application/json", encode(body)}
+        nil ->
+          {{url, headers}, 15_000}
+
+        {:multipart, boundary, bytes} ->
+          {{url, headers, String.to_charlist("multipart/form-data; boundary=" <> boundary),
+            bytes}, 600_000}
+
+        body ->
+          {{url, headers, ~c"application/json", encode(body)}, 15_000}
       end
 
-    case :httpc.request(method, req, [{:timeout, 15_000}], body_format: :binary) do
+    case :httpc.request(method, req, [{:timeout, timeout}], body_format: :binary) do
       {:ok, {{_, status, _}, _headers, resp_body}} ->
         decoded =
           case resp_body do

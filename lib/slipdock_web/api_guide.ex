@@ -1339,11 +1339,35 @@ defmodule SlipdockWeb.APIGuide do
       can be turned into proposed decisions, actions and card changes, read
       alongside a board's cards and wiki. Nothing is written to a board until a
       person reviews the capture and commits it, in one write that can be
-      undone as a whole.
+      undone as a whole. Every finding quotes the transcript word for word (a
+      quote that is not there is dropped), and anything uncertain becomes a
+      question for a person.
 
-          GET /api/meetings        whether meeting mode is on, and where it shows
+          GET  /api/meetings                         is meeting mode on, and what may be sent
+          GET  /api/meetings/findings-schema         the format for your own findings
+          POST /api/boards/:board/captures           send one: multipart (audio, transcript,
+                                                     findings, ics) or JSON (transcript, findings,
+                                                     ics as text); title, when, attendees, format
+          GET  /api/boards/:board/captures           a board's captures
+          GET  /api/captures/:id                     state, lines, findings, questions, record
+          POST /api/captures/:id/resolve             {question, answer} — an option's number or label
+          POST /api/captures/:id/findings/:fid       {included: false} or {title, body, list, due_date, topic}
+          GET  /api/captures/:id/preview             exactly what committing writes, and its digest
+          POST /api/captures/:id/commit              {preview: digest}; 409 if anything moved since
+          POST /api/captures/:id/undo                409 lists what was edited since; {rest: true}
+          POST /api/captures/:id/retry | /discard
 
-      `slipdock meetings` says the same from a terminal.
+      Over MCP: `capture_meeting` (send a transcript, with your own findings if
+      you have them), `get_capture`, `resolve_capture_question`,
+      `commit_capture`. From a terminal: `slipdock capture new <board>
+      --transcript meeting.vtt`, then `capture show`, `resolve`, `preview`,
+      `commit`.
+
+      Two rules for agents. **Answer a capture's questions only with the
+      person's own answer**, given to you in the conversation — never your
+      own reading of the transcript; it is recorded as theirs, *via agent*. And
+      **commit only when the person asks**, passing the preview digest so
+      exactly what they saw is written.
       """
     else
       ""

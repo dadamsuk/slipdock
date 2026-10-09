@@ -178,6 +178,11 @@ that connects gets a small set of tools rather than the whole API:
 |---|---|
 | `whoami`, `get_guide`, `list_boards`, `get_board`, `list_cards`, `get_card`, `search`, `read_page`, `list_pages`, `page_info`, `page_history`, `activity` | `create_card`, `update_card`, `move_card`, `comment`, `complete_card`, `archive_card`, `delete_card`, `create_list`, `delete_list`, `create_board`, `archive_board`, `delete_board`, `write_page`, `update_page`, `revert_page`, `claim_job`, `job_progress`, `finish_job` |
 
+While an admin has meeting mode on, four more: `get_capture` to read, and
+`capture_meeting`, `resolve_capture_question` and `commit_capture` to write.
+An agent answers a capture's questions only with the person's own answers,
+and commits only when asked; see [the manual](manual.md#meeting-capture).
+
 `get_guide` gives the short guide — how to work a board, the reader's own
 boards and lists — and ends by naming the other sections, each one call
 away with `section` (`automations`, `wiki`, `endpoints`…, or `all`). The

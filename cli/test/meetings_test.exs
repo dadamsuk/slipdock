@@ -81,4 +81,169 @@ defmodule SlipdockCLI.MeetingsTest do
 
     assert out =~ "Meeting mode:     on, every board"
   end
+
+  describe "capture" do
+    @capture ~s({"capture":{"id":12,"title":"Pricing sync","state":"reading","url":"https://x/boards/3/meetings/12","counts":{"open_questions":0},"findings":[],"questions":[]},"existing":false})
+
+    @reviewed ~s({"capture":{"id":12,"title":"Pricing sync","state":"needs_review","url":"https://x/boards/3/meetings/12","findings":[{"id":5,"kind":"decision","title":"Annual plan","status":"kept","included":true,"becomes":"an entry on Decisions / Pricing","evidence":[{"quote":"We go annual.","speaker":"Sam","line":"L2"}]},{"id":6,"kind":"idea","title":"Gone","status":"dropped","included":false}],"questions":[{"id":9,"prompt":"Who is Sammy?","status":"open","options":[{"value":"user:2","label":"Sam Smith"},{"value":"none","label":"Nobody yet"}]}]}})
+
+    defp file(name, contents) do
+      path = Path.join(System.tmp_dir!(), "#{System.unique_integer([:positive])}-#{name}")
+      File.write!(path, contents)
+      on_exit(fn -> File.rm(path) end)
+      path
+    end
+
+    test "new with a transcript sends it as JSON and prints the id, link and questions" do
+      serve([{201, @capture}])
+      t = file("m.vtt", "WEBVTT\n\n00:00.000 --> 00:01.000\n<v Sam>Hi</v>\n")
+
+      out =
+        capture_io(fn ->
+          Meetings.run("capture", ["new", "PL"],
+            transcript: t,
+            title: "Pricing sync",
+            attendees: "Sam, Priya",
+            with_parent: true
+          )
+        end)
+
+      assert_received {:request, "POST", "/api/boards/PL/captures", body}
+      body = JSON.decode!(body)
+      assert body["transcript"] =~ "<v Sam>Hi</v>"
+      assert body["title"] == "Pricing sync"
+      assert body["attendees"] == "Sam, Priya"
+      assert body["parent"] == "true"
+      assert body["source"] == "agent"
+
+      assert out =~ "sent: capture #12 “Pricing sync” (reading)"
+      assert out =~ "https://x/boards/3/meetings/12"
+      assert out =~ "questions: 0 so far"
+    end
+
+    test "new with a recording sends multipart, the transcript alongside" do
+      serve([{201, @capture}])
+      audio = file("call.mp3", "ID3 fake audio bytes")
+      t = file("m.srt", "1\n00:00:00,000 --> 00:00:01,000\nSam: Hi\n")
+
+      capture_io(fn -> Meetings.run("capture", ["new", "PL"], audio: audio, transcript: t) end)
+
+      assert_received {:request, "POST", "/api/boards/PL/captures", body}
+      assert body =~ ~s(name="audio"; filename=")
+      assert body =~ "content-type: audio/mpeg"
+      assert body =~ "ID3 fake audio bytes"
+      assert body =~ ~s(name="transcript"; filename=")
+      assert body =~ "Sam: Hi"
+    end
+
+    test "new for a meeting already sent says so" do
+      serve([{200, String.replace(@capture, ~s("existing":false), ~s("existing":true))}])
+      t = file("m.txt", "Sam: Hi")
+
+      assert capture_io(fn -> Meetings.run("capture", ["new", "PL"], transcript: t) end) =~
+               "already sent: capture #12"
+    end
+
+    test "ls, and --json passes the answer through" do
+      list =
+        ~s({"captures":[{"id":12,"title":"Pricing sync","state":"ready","started_at":"2026-10-07T10:00:00Z"}]})
+
+      serve([{200, list}, {200, list}])
+
+      assert capture_io(fn -> Meetings.run("capture", ["ls", "PL"], []) end) =~
+               "#12  ready        Pricing sync"
+
+      assert_received {:request, "GET", "/api/boards/PL/captures", _}
+
+      json = capture_io(fn -> Meetings.run("capture", ["ls", "PL"], json: true) end)
+      assert %{"captures" => [%{"id" => 12}]} = JSON.decode!(json)
+    end
+
+    test "show lists what was found and the questions with numbered answers" do
+      serve([{200, @reviewed}])
+      out = capture_io(fn -> Meetings.run("capture", ["show", "12"], []) end)
+      assert_received {:request, "GET", "/api/captures/12", _}
+
+      assert out =~ "[x] 5  decision: Annual plan"
+      assert out =~ "becomes → an entry on Decisions / Pricing"
+      assert out =~ "“We go annual.” — Sam, L2"
+      assert out =~ "1 dropped"
+      assert out =~ "9  Who is Sammy?"
+      assert out =~ "1. Sam Smith"
+      assert out =~ "2. Nobody yet"
+    end
+
+    test "resolve sends the answer as given, with what was replayed" do
+      serve([{200, @reviewed}])
+
+      capture_io(fn ->
+        Meetings.run("capture", ["resolve", "12", "9", "Sam Smith"], replayed: "0:09-0:14")
+      end)
+
+      assert_received {:request, "POST", "/api/captures/12/resolve", body}
+
+      assert JSON.decode!(body) == %{
+               "question" => "9",
+               "answer" => "Sam Smith",
+               "replayed" => "0:09-0:14"
+             }
+    end
+
+    test "include and leave-out" do
+      serve([{200, @reviewed}, {200, @reviewed}])
+      capture_io(fn -> Meetings.run("capture", ["leave-out", "12", "5"], []) end)
+      assert_received {:request, "POST", "/api/captures/12/findings/5", body}
+      assert JSON.decode!(body) == %{"included" => false}
+
+      capture_io(fn -> Meetings.run("capture", ["include", "12", "5"], []) end)
+      assert_received {:request, "POST", "/api/captures/12/findings/5", body}
+      assert JSON.decode!(body) == %{"included" => true}
+    end
+
+    test "preview prints the changes and the digest to commit with" do
+      preview =
+        ~s({"preview":{"digest":"abc123","changes":[{"op":"create_card","title":"Tell sales","list":"To Do"},{"op":"update_card","ref":"#4","title":"Refresh","fields":{"due_date":{"from":null,"to":"2026-10-09"}}},{"op":"decision_entry","page_title":"Decisions / Pricing","lines_added":["- x"]}],"left_out":[{"title":"Maybe","why":"left out in review"}]},"stale":[]})
+
+      serve([{200, preview}])
+      out = capture_io(fn -> Meetings.run("capture", ["preview", "12"], []) end)
+      assert out =~ "new card “Tell sales” in To Do"
+      assert out =~ ~s(#4 “Refresh”: due_date nil → "2026-10-09")
+      assert out =~ "1 decision(s) on Decisions / Pricing"
+      assert out =~ "left out: Maybe"
+      assert out =~ "--preview abc123"
+    end
+
+    test "commit sends the preview digest; undo --rest; retry; discard" do
+      done =
+        ~s({"capture":{"id":12,"title":"Pricing sync","state":"committed","url":"u","findings":[],"questions":[]}})
+
+      serve([{200, done}, {200, done}, {200, done}, {200, done}])
+
+      assert capture_io(fn -> Meetings.run("capture", ["commit", "12"], preview: "abc123") end) =~
+               "committed capture #12"
+
+      assert_received {:request, "POST", "/api/captures/12/commit", body}
+      assert JSON.decode!(body) == %{"preview" => "abc123"}
+
+      assert capture_io(fn -> Meetings.run("capture", ["undo", "12"], rest: true) end) =~
+               "undid capture #12"
+
+      assert_received {:request, "POST", "/api/captures/12/undo", body}
+      assert JSON.decode!(body) == %{"rest" => true}
+
+      capture_io(fn -> Meetings.run("capture", ["retry", "12"], []) end)
+      assert_received {:request, "POST", "/api/captures/12/retry", _}
+
+      assert capture_io(fn -> Meetings.run("capture", ["discard", "12"], []) end) =~
+               "nothing from it was written"
+
+      assert_received {:request, "POST", "/api/captures/12/discard", _}
+    end
+
+    test "schema prints the findings format" do
+      serve([{200, ~s({"title":"Meeting findings","type":"object"})}])
+      assert capture_io(fn -> Meetings.run("capture", ["schema"], []) end) =~ "Meeting findings"
+      assert_received {:request, "GET", "/api/meetings/findings-schema", _}
+    end
+  end
 end
