@@ -21,20 +21,50 @@ defmodule SlipdockWeb.MeetingLive.Index do
         board = socket.assigns.board
         if connected?(socket), do: Meetings.subscribe_board(board.id)
 
-        {:ok,
-         socket
-         |> assign(page_title: "Meetings · #{board.name}")
-         |> assign(captures: Meetings.list_captures(board))}
+        {:ok, socket |> assign(page_title: "Meetings · #{board.name}") |> load()}
 
       {:error, socket} ->
         {:ok, socket}
     end
   end
 
-  @impl true
-  def handle_info({:captures_changed, _board_id}, socket) do
-    {:noreply, assign(socket, captures: Meetings.list_captures(socket.assigns.board))}
+  defp load(socket) do
+    captures = Meetings.list_captures(socket.assigns.board)
+    assign(socket, captures: captures, counts: Meetings.counts(captures))
   end
+
+  @impl true
+  def handle_info({:captures_changed, _board_id}, socket), do: {:noreply, load(socket)}
+
+  def handle_info(_message, socket), do: {:noreply, socket}
+
+  @impl true
+  def handle_event("discard", %{"id" => id}, socket) do
+    with true <- socket.assigns.can_write,
+         %Meetings.Capture{board_id: board_id} = capture when board_id == socket.assigns.board.id <-
+           Meetings.get_capture(SlipdockWeb.Params.id(id) || 0),
+         {:ok, _} <- Meetings.discard(capture, socket.assigns.current_user, via: "web") do
+      {:noreply, socket |> put_flash(:info, "Discarded. Nothing from it was written.") |> load()}
+    else
+      {:error, :conflict, message} -> {:noreply, put_flash(socket, :error, message)}
+      _ -> {:noreply, socket}
+    end
+  end
+
+  # Where a capture is, in a few words: the step it is on while reading.
+  defp status_words(%{state: "reading", step: step}) do
+    next = Slipdock.Meetings.Pipeline.next_step(step) || "ready"
+    "reading — " <> String.downcase(Slipdock.Meetings.Pipeline.step_label(next))
+  end
+
+  defp status_words(%{state: state}), do: state_label(state)
+
+  defp source_words("agent"), do: "from an agent"
+  defp source_words("connector"), do: "from a connector"
+  defp source_words(_), do: "uploaded"
+
+  defp who(nil), do: "somebody"
+  defp who(user), do: user.name || user.email
 
   @impl true
   def render(assigns) do
@@ -88,19 +118,54 @@ defmodule SlipdockWeb.MeetingLive.Index do
               id="captures"
               class="divide-y divide-base-content/5 rounded-2xl bg-base-100 ring-1 ring-base-content/10"
             >
-              <li :for={c <- @captures} id={"capture-#{c.id}"}>
+              <li
+                :for={c <- @captures}
+                id={"capture-#{c.id}"}
+                data-state={c.state}
+                class="flex items-center gap-3 px-4 py-3"
+              >
                 <.link
                   navigate={~p"/boards/#{@board}/meetings/#{c.id}"}
-                  class="flex items-center gap-3 px-4 py-3 hover:bg-base-200"
+                  class="min-w-0 flex-1 hover:underline"
                 >
-                  <span class="min-w-0 flex-1">
-                    <span class="block truncate font-medium">{c.title}</span>
-                    <span class="block text-xs text-base-content/60">
-                      {Calendar.strftime(c.started_at || c.inserted_at, "%d %b %Y")}
+                  <span class="block truncate font-medium">{c.title}</span>
+                  <span class="block text-xs text-base-content/60">
+                    {Calendar.strftime(c.started_at || c.inserted_at, "%d %b %Y")} · {source_words(
+                      c.source
+                    )} by {who(c.owner)}
+                    <span :if={@counts[c.id].findings > 0}>· {@counts[c.id].findings} found</span>
+                    <span :if={@counts[c.id].open > 0} class="text-warning">
+                      · {@counts[c.id].open} to settle
                     </span>
                   </span>
-                  <span class={["badge badge-sm", state_class(c.state)]}>{state_label(c.state)}</span>
+                  <span :if={c.state == "committed"} class="block text-xs text-base-content/60">
+                    committed by {who(c.committed_by)}{if c.undone_at, do: ", since undone"}
+                  </span>
+                  <span :if={c.state == "discarded"} class="block text-xs text-base-content/60">
+                    discarded by {who(c.discarded_by)}
+                  </span>
+                  <span :if={c.state == "failed"} class="block truncate text-xs text-error">
+                    {c.state_reason}
+                  </span>
                 </.link>
+                <span
+                  id={"capture-#{c.id}-state"}
+                  class={["badge badge-sm shrink-0", state_class(c.state)]}
+                >
+                  {status_words(c)}
+                </span>
+                <button
+                  :if={@can_write and c.state not in ~w(committed discarded)}
+                  id={"discard-#{c.id}"}
+                  type="button"
+                  phx-click="discard"
+                  phx-value-id={c.id}
+                  data-confirm="Discard this capture? Nothing from it will be written; its record is kept."
+                  class="btn btn-ghost btn-xs shrink-0"
+                  title="Discard"
+                >
+                  <.icon name="hero-trash" class="size-4" />
+                </button>
               </li>
             </ul>
           </div>

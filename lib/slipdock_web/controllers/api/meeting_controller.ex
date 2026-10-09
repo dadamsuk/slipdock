@@ -163,6 +163,17 @@ defmodule SlipdockWeb.API.MeetingController do
     end
   end
 
+  @doc "Decides against a capture: nothing from it is written; the record stays."
+  def discard(conn, %{"id" => id}) do
+    with {:ok, capture} <- fetch(conn, id, :write) do
+      case Meetings.discard(capture, conn.assigns.current_user, via: "api") do
+        {:ok, capture} -> json(conn, %{capture: show_json(conn, capture)})
+        {:error, :conflict, message} -> {:error, :conflict, message}
+        {:error, %Ecto.Changeset{} = cs} -> {:error, cs}
+      end
+    end
+  end
+
   @doc "A board's captures, newest first."
   def index(conn, %{"board" => ref}) do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, :read) do

@@ -553,6 +553,58 @@ defmodule Slipdock.Meetings do
   """
   def verify(%Capture{} = capture), do: Slipdock.Meetings.Verify.verify(capture)
 
+  @doc """
+  Decides against a capture: nothing from it is written, ever, and the
+  record stays (who discarded it, and when). A committed capture cannot be
+  discarded — undo it instead.
+  """
+  def discard(%Capture{} = capture, %User{} = user, opts \\ []) do
+    capture = Repo.get!(Capture, capture.id)
+
+    if capture.state in ~w(committed discarded) do
+      {:error, :conflict, "this capture is #{capture.state} already"}
+    else
+      transition(capture, "discarded",
+        user: user,
+        via: opts[:via],
+        changes: %{
+          discarded_at: DateTime.utc_now() |> DateTime.truncate(:second),
+          discarded_by_id: user.id
+        }
+      )
+    end
+  end
+
+  @doc """
+  For a board's inbox: each capture's kept findings and open questions,
+  counted in two queries for the lot, as `%{id => %{findings:, open:}}`.
+  """
+  def counts(captures) do
+    ids = Enum.map(captures, & &1.id)
+
+    findings =
+      Repo.all(
+        from(f in Finding,
+          where: f.capture_id in ^ids and f.status == "kept",
+          group_by: f.capture_id,
+          select: {f.capture_id, count(f.id)}
+        )
+      )
+      |> Map.new()
+
+    open =
+      Repo.all(
+        from(q in Question,
+          where: q.capture_id in ^ids and q.status == "open" and q.blocking,
+          group_by: q.capture_id,
+          select: {q.capture_id, count(q.id)}
+        )
+      )
+      |> Map.new()
+
+    Map.new(ids, &{&1, %{findings: Map.get(findings, &1, 0), open: Map.get(open, &1, 0)}})
+  end
+
   @doc "The open blocking questions on a capture."
   def open_questions(%Capture{id: id}) do
     Repo.all(
