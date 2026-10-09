@@ -537,6 +537,12 @@ defmodule Slipdock.Meetings do
     end
   end
 
+  @doc """
+  Verifies the readings (`Slipdock.Meetings.Verify`): findings, evidence and
+  questions as a person will review them.
+  """
+  def verify(%Capture{} = capture), do: Slipdock.Meetings.Verify.verify(capture)
+
   @doc "The open blocking questions on a capture."
   def open_questions(%Capture{id: id}) do
     Repo.all(
