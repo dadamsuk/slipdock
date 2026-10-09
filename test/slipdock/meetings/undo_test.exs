@@ -86,10 +86,8 @@ defmodule Slipdock.Meetings.UndoTest do
   end
 
   test "a clean undo puts every card, comment and page back exactly", ctx do
-    {:ok, page} =
-      Wiki.create_page(
-        ctx.board,
-        %{"title" => "Decisions / Pricing", "body" => "- Monthly plan only\n"}, user: ctx.owner)
+    attrs = %{"title" => "Decisions / Pricing", "body" => "- Monthly plan only\n"}
+    {:ok, page} = Wiki.create_page(ctx.board, attrs, user: ctx.owner)
 
     before_card = snapshot(ctx.card)
     before_page = Repo.reload!(page)
