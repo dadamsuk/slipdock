@@ -469,7 +469,15 @@ defmodule Slipdock.Meetings.Verify do
             "label" => u.name || u.email,
             "effect" => "assign it to #{u.name || u.email}"
           }
-        end) ++ [%{"value" => "none", "label" => "Nobody yet", "effect" => "leave it unassigned"}],
+        end) ++
+          [
+            %{
+              "value" => "name:#{name}",
+              "label" => "Someone not on this board",
+              "effect" => "keep “#{name}” as the name, with nobody assigned"
+            },
+            %{"value" => "none", "label" => "Nobody yet", "effect" => "leave it unassigned"}
+          ],
       context: %{"name" => name}
     }
   end

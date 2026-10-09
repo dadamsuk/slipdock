@@ -115,6 +115,30 @@ defmodule SlipdockWeb.MeetingLive.Show do
   def handle_event("select", %{"id" => id}, socket),
     do: {:noreply, assign(socket, selected: SlipdockWeb.Params.id(id), editing: nil)}
 
+  # The next open question after the selected finding (round to the first),
+  # selected and scrolled to: the count in the bar is the way to them.
+  def handle_event("next_question", _params, socket) do
+    %{kept: kept, capture: capture, selected: selected} = socket.assigns
+
+    open =
+      MapSet.new(for q <- capture.questions, q.status == "open" and q.blocking, do: q.finding_id)
+
+    ids = for f <- kept, MapSet.member?(open, f.id), do: f.id
+    order = Enum.map(kept, & &1.id)
+    at = Enum.find_index(order, &(&1 == selected)) || -1
+
+    case Enum.find(ids, &(Enum.find_index(order, fn id -> id == &1 end) > at)) || List.first(ids) do
+      nil ->
+        {:noreply, socket}
+
+      id ->
+        {:noreply,
+         socket
+         |> assign(selected: id, editing: nil)
+         |> push_event("scroll-to-finding", %{id: id})}
+    end
+  end
+
   def handle_event("toggle_transcript", _params, socket),
     do: {:noreply, update(socket, :show_transcript, &(not &1))}
 
@@ -243,12 +267,7 @@ defmodule SlipdockWeb.MeetingLive.Show do
     end
   end
 
-  defp keys("n", socket) do
-    case Enum.find(socket.assigns.capture.questions, &(&1.status == "open" and &1.finding_id)) do
-      nil -> {:noreply, socket}
-      q -> {:noreply, assign(socket, selected: q.finding_id)}
-    end
-  end
+  defp keys("n", socket), do: handle_event("next_question", %{}, socket)
 
   defp keys("enter", socket) do
     case socket.assigns.selected do
