@@ -1663,16 +1663,139 @@ The runner protocol and the session endpoints are in the agent guide
 (`slipdock guide`, section *Runners*).
 ## Meeting capture
 
-Off unless an admin turns on **meeting mode** (Configuration → Meetings, or
-`slipdock admin set meetings_enabled=true`). Then a meeting's recording or
-transcript can be sent to a board, and Slipdock proposes the decisions,
-actions and card changes in it, each tied to the exact words it came from.
-Nothing reaches the board until a person reviews the capture and commits it,
-in one write that can be undone as a whole. From a terminal: `slipdock
-capture new <board> --transcript meeting.vtt`, `capture show`, `capture
-resolve`, `capture preview`, `capture commit`, `capture undo` (see
-[CLI](#cli)); from an agent, the MCP tools `capture_meeting`, `get_capture`,
-`resolve_capture_question` and `commit_capture`.
+Send a meeting's recording or transcript to a board, and Slipdock proposes what
+it produced — decisions, actions, changes to cards already on the board, open
+questions, ideas — each tied to the exact words it came from. A person reviews
+the proposals, settles anything uncertain, and commits them in one write. It is
+**off unless an admin turns on meeting mode**, and with it off there is no trace
+of it: no menu entries, no pages, no API routes, no CLI commands that do
+anything, no MCP tools, no section in the agent guide. Turning it off deletes
+nothing; turning it back on shows every capture again.
+
+### What it promises
+
+These are what meeting capture is built around, and each is tested.
+
+- **Nothing is written that a person didn't approve.** Reading a meeting
+  produces proposals only; the model that reads it has no tools and cannot
+  write anything. The board changes when somebody presses **Commit**.
+- **Nothing is claimed that the transcript doesn't say.** Every proposal
+  quotes the transcript, and code — not a model — checks each quote is there
+  word for word (forgiving only case, quote marks, dashes and spacing). A
+  proposal whose quote isn't there is dropped, and the drop is shown.
+- **Uncertainty is shown, never quietly resolved.** When the two readings of
+  the meeting disagree (15% or 50%?), a name matches nobody on the board, a
+  proposal only loosely matches an existing card, or who said something
+  decides who owns it and the speaker is unsure, it becomes a question.
+  "Not decided" and "Nobody yet" are always answers.
+- **A person's call is recorded as theirs.** Every answer keeps who gave it,
+  when, through what (the web, the API, an agent relaying it) and after what
+  (a passage replayed). The transcript itself is never edited.
+- **Existing work is changed, not duplicated.** Talk about a card already on
+  the board proposes a change or a comment on it; a weak match asks.
+- **What you preview is what is written.** The commit preview is the change
+  set the commit applies, and the commit refuses if the review has changed
+  since the preview you saw.
+- **Nothing is written over newer changes.** Each proposed change remembers
+  the version of the card or page it was based on; if somebody edited it
+  since, the commit refuses and names it.
+- **All or nothing.** The commit is one transaction: a failure part of the way
+  through writes nothing.
+- **Undoable as a whole**, and it says first if anything it wrote has been
+  edited since, so an edit is never silently thrown away.
+- **Once.** Sending the same transcript or recording to a board again finds
+  the first capture; a committed capture is never committed again.
+- **The trail survives.** A card or decision that came from a meeting keeps
+  the quote, the speaker, the time and who committed it, after the capture
+  and its recording are gone.
+- **Nothing leaks across permissions.** A meeting is read alongside only what
+  its sender can open.
+
+### Sending a meeting
+
+From a board's **Meetings** tab (or **… → Capture a meeting** on a board that
+has had none yet), **Capture a meeting** takes up to three things:
+
+| Sent | Transcribed here | Replay | Speakers from | Counts against |
+|---|---|---|---|---|
+| A recording | yes | yes | voices, dialogue, the invite | transcription minutes, storage |
+| A recording and a transcript | no, lined up only | yes | voices, the transcript's labels, dialogue | storage |
+| A transcript | no | no | the transcript's labels, dialogue | captures |
+| …and an agent's findings | — | — | — | nothing more; still checked word for word |
+
+Transcripts: WebVTT, SRT, plain `Name: words` lines (with or without
+`[00:01:02]` stamps), and Fireflies or Otter exports, text or JSON. An `.ics`
+invite gives the attendees — the strongest hint at who is speaking — the
+start and the title. The page says where the meeting will be sent before
+anything is (the reading model and its host, from your AI settings), and what
+it counts against.
+
+### What happens next
+
+The capture is read in steps, each stored before the next, so a restart
+carries on where it stopped: transcribing (for a recording), working out who
+spoke, gathering what the board and its wiki already know (cards mentioned by
+`#412`, `W-31` or a board code and number like `PL-14`, titles said aloud, and
+semantically similar cards and pages), reading the meeting **twice**,
+independently, and checking every quote. The capture's page shows the steps as
+they go and the findings as they appear; you can leave, and the sender is
+emailed when it is ready.
+
+### Reviewing and committing
+
+The review shows the transcript beside the findings. Selecting a finding
+lights up the words it came from; each one shows its signals as words
+(*quoted word for word*, *both readings agree*, *linked by id*, *name not
+recognised*… — never a confidence percentage), what Slipdock already knew
+about the cards involved, its questions, and what it **becomes** in plain
+words. Include it, leave it out, edit it, or add something the transcript
+missed (marked as added by a person). **Commit** stays off while a question is
+open. Keys: J/K between findings, 1–4 answer, I/X include or leave out, Enter
+edits, N the next question.
+
+**Commit…** opens the preview: new cards by list, changes to cards as before →
+after, comments, the lines added to and struck on decisions pages, cards that
+slip as a knock-on, who is assigned, what is left out, and whether anything
+has moved since it was read. Decisions go to a wiki page per topic,
+*Decisions / Pricing*: a decision that replaces an earlier one strikes it
+through, on whichever decisions page it is, and the two link to each other.
+
+After the commit the capture's page is its receipt — everything written, with
+links — with **Undo all**. The board's Meetings tab is the inbox: every
+capture, its state, what it found and has left to settle, and who committed or
+discarded it. **Discard** decides against a capture without writing anything.
+
+### Settings
+
+Configuration → **Meetings** (or `slipdock admin set meetings_…=…`):
+`meetings_enabled`; where it shows — `meetings_visibility=used_only` (a
+board's tab appears after its first capture) or `every_board`; whether people
+may hide it for themselves (`meetings_hideable`, then Account → Settings →
+Display); what may be sent (`meetings_accept_transcripts`, `…_audio`,
+`…_findings`); and which models read a meeting (`meetings_reading_model`, empty
+for each person's own; `meetings_second_reading=same|model|off` and
+`meetings_second_model`). Readings run on the sender's AI settings.
+
+### From a terminal, and from agents
+
+```
+slipdock meetings                                   is it on here
+slipdock capture new <board> --transcript F [--audio F] [--findings F] [--ics F]
+                                [--title T] [--when T] [--attendees A] [--with-parent]
+slipdock capture ls <board> | show <id> | preview <id> | schema
+slipdock capture resolve <id> <question> <answer> [--replayed SPAN]
+slipdock capture include|leave-out <id> <finding>
+slipdock capture commit <id> [--preview DIGEST] | undo <id> [--rest]
+slipdock capture retry <id> | discard <id>
+```
+
+The API is under `/api/meetings`, `/api/boards/:board/captures` and
+`/api/captures/:id` (see [JSON API](#json-api)); an agent's own findings use
+the format at `GET /api/meetings/findings-schema`. Over MCP, `capture_meeting`,
+`get_capture`, `resolve_capture_question` and `commit_capture`. An agent
+answers a capture's questions **only with the person's own answers**, and
+commits only when asked; its answers are recorded as the person's, *via
+agent*. The `slipdock-capture` skill says all of this to an agent.
 
 ## Wiki
 
@@ -2699,6 +2822,19 @@ POST   /api/import   <a document>                       build the trees in it, a
 GET    /api/pages/query-vocabulary        the grammar a ```slipdock block is written in
 POST   /api/pages/query    {board, body}  try a block without writing it anywhere
 GET    /api/skills                         GET  /api/skills/:name    GET /api/skills/:name/*file
+
+# Meeting capture: only while meeting mode is on (404 "meeting mode is off on this server" otherwise)
+GET    /api/meetings                      is it on, where it shows, what may be sent
+GET    /api/meetings/findings-schema      the format an agent's own findings use
+POST   /api/boards/:board/captures        multipart: audio, transcript, findings, ics; or JSON with
+                                          them as text; title, when, attendees, format, parent
+GET    /api/boards/:board/captures        GET  /api/captures/:id    state, lines, findings, questions, record
+POST   /api/captures/:id/resolve          {question, answer: value | number | label | null, replayed}
+POST   /api/captures/:id/findings/:fid    {included} or {title, body, list, due_date, topic}
+GET    /api/captures/:id/preview          the change set and its digest, and what has moved
+POST   /api/captures/:id/commit           {preview: digest}; 409 committed / stale (named) / changed
+POST   /api/captures/:id/undo             {rest}; 409 lists what was edited since
+POST   /api/captures/:id/retry            POST /api/captures/:id/discard
 ```
 
 A page's `:id` is its numeric id, its code (`W-31`), or `board-code/slug` with
@@ -2935,6 +3071,10 @@ CI, which a chat can't.
   for the build and is never closed on a red one.
   Written for `/loop`, a schedule or a cron, so the board carries all the
   state between passes.
+- **`slipdock-capture`** — [meeting capture](#meeting-capture), where an admin
+  has meeting mode on: sending a recording or transcript, putting the
+  capture's questions to the user and recording only their answers,
+  previewing, and committing only when asked.
 
 Board-specific detail — board codes, list names, tag vocabularies — stays out
 of these files on purpose and comes from `GET /api/guide`, which generates it

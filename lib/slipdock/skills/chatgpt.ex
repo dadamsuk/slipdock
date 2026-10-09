@@ -48,7 +48,11 @@ defmodule Slipdock.Skills.ChatGPT do
     {"page revert", "revert_page"},
     {"claim-job", "claim_job"},
     {"job-progress", "job_progress"},
-    {"finish-job", "finish_job"}
+    {"finish-job", "finish_job"},
+    {"capture new <board> --transcript", "capture_meeting"},
+    {"capture show / capture preview", "get_capture"},
+    {"capture resolve", "resolve_capture_question"},
+    {"capture commit", "commit_capture"}
   ]
 
   @doc "The connector tool names the mapping uses, for the tests to check."
@@ -144,9 +148,13 @@ defmodule Slipdock.Skills.ChatGPT do
     |---|---|
     #{rows}
 
+    The `capture` tools are there only while the server's admin has meeting
+    mode on.
+
     A few things the skill mentions have no tool: automations, runners and
-    their setup, views, swimlanes, attachments and files, folders, tags on a
-    board, `slipdock auth` and anything under `slipdock admin`. For those, say
+    their setup, views, swimlanes, attachments and files (meeting recordings
+    included — send a transcript instead), folders, tags on a board, `slipdock
+    auth` and anything under `slipdock admin`. For those, say
     what you would have done and point the person to the board in the web app,
     at #{base_url}. Don't pretend a write landed when there was no tool to make
     it.
