@@ -27,6 +27,9 @@ defmodule Slipdock.Meetings.Speakers do
     * **dialogue** (unless the admin turns it off) — being addressed by name
       and then answering ("Good question, Sam." then this voice), introducing
       themselves ("I'm Sam", "Sam here");
+    * **a voiceprint** (only where an admin has turned voiceprints on, and only
+      for people who enrolled themselves — `Slipdock.Meetings.Voiceprints`) —
+      the voice's own lines sound like that person's voiceprint;
     * **elimination** — the one voice left, and the one attendee left.
 
   A voice with strong or agreeing evidence is *sure*; one weak signal is
@@ -46,7 +49,7 @@ defmodule Slipdock.Meetings.Speakers do
 
   alias Slipdock.{Meetings, Repo, Settings}
   alias Slipdock.Accounts.User
-  alias Slipdock.Meetings.{Capture, Finding, Utterance, Voice}
+  alias Slipdock.Meetings.{Capture, Finding, Utterance, Voice, Voiceprints}
 
   ## Step 3: voices ----------------------------------------------------------
 
@@ -172,7 +175,7 @@ defmodule Slipdock.Meetings.Speakers do
   ## Step 4: who each voice is ------------------------------------------------
 
   @doc "Attributes each voice to a person (step 4)."
-  def attribute(%Capture{} = capture, _opts \\ []) do
+  def attribute(%Capture{} = capture, opts \\ []) do
     voices = Repo.all(from(v in Voice, where: v.capture_id == ^capture.id, order_by: v.id))
     lines = lines(capture)
     people = people(capture)
@@ -181,6 +184,7 @@ defmodule Slipdock.Meetings.Speakers do
     evidence =
       Map.new(voices, fn v -> {v.id, label_evidence(v, people)} end)
       |> add_all(if(dialogue?, do: dialogue_evidence(lines, people), else: []))
+      |> add_all(Voiceprints.evidence(capture, voices, people, opts))
 
     decided = Map.new(voices, fn v -> {v.id, decide(Map.get(evidence, v.id, []))} end)
     decided = eliminate(voices, decided, people, capture)

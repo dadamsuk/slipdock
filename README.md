@@ -148,6 +148,8 @@ Briefly, with the detail in [the manual](docs/manual.md):
   uncertain asked as a question, nothing written until a person commits it in
   one write that can be undone as a whole, and a *From a meeting* trail back to
   the words on every card it touches ([how it works](docs/manual.md#meeting-capture)).
+  Voiceprints, if an admin turns them on, are each person's own choice: opted
+  into with their consent recorded, only the embedding kept, deletable at any time.
 - **An agent on your board in a minute** —
   [setting one up](docs/agents.md) needs no software and no access to the
   server: give it the address, approve it once in the browser, and it reads the

@@ -208,6 +208,8 @@ defmodule SlipdockWeb.Router do
       # How to point an agent at this server. A page rather than a doc because
       # the one thing it has to get right is this install's own address.
       live "/account/agent", AccountLive.Index, :agent
+      # A person's own voiceprint: only while an admin has voiceprints on.
+      live "/account/voiceprint", AccountLive.Index, :voiceprint
       live "/groups", GroupLive.Index, :index
       live "/templates", TemplateLive.Index, :index
       live "/favourites", FavouriteLive.Index, :index
@@ -371,6 +373,12 @@ defmodule SlipdockWeb.Router do
     post "/captures/:id/discard", MeetingController, :discard
     post "/captures/:id/resolve", MeetingController, :resolve
     post "/captures/:id/findings/:fid", MeetingController, :finding
+
+    # The caller's own voiceprint, and only theirs: no route takes a person
+    # (see `Slipdock.Meetings.Voiceprints`).
+    get "/me/voiceprint", VoiceprintController, :show
+    post "/me/voiceprint", VoiceprintController, :create
+    delete "/me/voiceprint", VoiceprintController, :delete
   end
 
   scope "/api", SlipdockWeb.API do

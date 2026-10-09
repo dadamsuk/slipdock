@@ -86,6 +86,7 @@ defmodule SlipdockCLI do
                                       meetings_transcription_url=, meetings_transcription_max_mb=25,
                                       meetings_diarisation=labels|endpoint,
                                       meetings_diarisation_url=, meetings_dialogue_inference=false,
+                                      meetings_voiceprints=true, meetings_voiceprint_url=,
                                       meetings_relisten_model=<audio-capable model> (empty: off)
   admin meetings-usage                meeting capture this month: totals, heaviest users
   admin allow <entry>                 let an address or a whole domain register
@@ -267,6 +268,12 @@ defmodule SlipdockCLI do
     capture retry <id>                  carry a failed capture on
     capture discard <id>                decide against it; nothing is written
     capture schema                      the findings format, as JSON Schema
+    voiceprint                          your own voiceprint, if you have one (only while the
+                                        admin has voiceprints on), and meetings to enrol from
+    voiceprint enrol --audio F --consent       from a recording of your own voice;
+    voiceprint enrol --from-capture ID --consent   or a meeting where your voice was confirmed.
+                                        Prints the consent wording; --consent agrees to it
+    voiceprint delete                   delete it now: meetings stop using it
 
   WRITE
     add <board> <title> [opts]          create a card
@@ -580,6 +587,8 @@ defmodule SlipdockCLI do
     preview: :string,
     replayed: :string,
     rest: :boolean,
+    consent: :boolean,
+    from_capture: :string,
     set: :keep,
     q: :string,
     pool: :string,

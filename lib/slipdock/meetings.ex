@@ -101,7 +101,10 @@ defmodule Slipdock.Meetings do
         transcripts: settings.meetings_accept_transcripts,
         audio: settings.meetings_accept_audio,
         findings: settings.meetings_accept_findings
-      }
+      },
+      # Whether a person may enrol a voiceprint of their own
+      # (see `Slipdock.Meetings.Voiceprints`).
+      voiceprints: Slipdock.Meetings.Voiceprints.enabled?()
     }
   end
 

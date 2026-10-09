@@ -10,11 +10,21 @@ defmodule SlipdockWeb.AccountLive.Index do
 
   @impl true
   def mount(_params, _session, socket) do
+    voiceprints? = Slipdock.Meetings.Voiceprints.enabled?()
+
+    # Not there at all while voiceprints are off, like every meeting page.
+    if socket.assigns.live_action == :voiceprint and not voiceprints?,
+      do: raise(SlipdockWeb.MeetingsOff)
+
     # Each tab is its own mount (the tab bar navigates rather than patches),
     # so a tab pays only for its own queries — the one-page version ran all
     # of them to show you a fifth of the result. The component does its own
     # loading when it first renders.
-    {:ok, assign(socket, page_title: tab_title(socket.assigns.live_action))}
+    {:ok,
+     assign(socket,
+       page_title: tab_title(socket.assigns.live_action),
+       voiceprints?: voiceprints?
+     )}
   end
 
   # What the tabs send up. A flash is drawn by the layout, which is ours, and
@@ -33,12 +43,14 @@ defmodule SlipdockWeb.AccountLive.Index do
   defp tab_title(:tokens), do: "API tokens"
   defp tab_title(:data), do: "Import & export"
   defp tab_title(:agent), do: "Set up an agent"
+  defp tab_title(:voiceprint), do: "Voiceprint"
   defp tab_title(_), do: "Account"
 
   defp tab_component(:settings), do: AccountLive.SettingsComponent
   defp tab_component(:tokens), do: AccountLive.TokensComponent
   defp tab_component(:data), do: AccountLive.DataComponent
   defp tab_component(:agent), do: AccountLive.AgentComponent
+  defp tab_component(:voiceprint), do: AccountLive.VoiceprintComponent
   defp tab_component(_), do: AccountLive.ProfileComponent
 
   attr :to, :string, required: true
@@ -113,6 +125,13 @@ defmodule SlipdockWeb.AccountLive.Index do
               active={@live_action == :agent}
               icon="hero-cpu-chip"
               label="Set up an agent"
+            />
+            <.account_tab
+              :if={@voiceprints?}
+              to={~p"/account/voiceprint"}
+              active={@live_action == :voiceprint}
+              icon="hero-microphone"
+              label="Voiceprint"
             />
           </nav>
 

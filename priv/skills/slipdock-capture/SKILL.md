@@ -117,3 +117,11 @@ curl -s -H "Authorization: Bearer $SLIPDOCK_TOKEN" -H 'content-type: application
 
 Over MCP: `capture_meeting`, `get_capture`, `resolve_capture_question`,
 `commit_capture` — with the same two rules.
+
+## Voiceprints are not yours to make
+
+If the server has voiceprints on (`slipdock meetings` says so), a person can
+enrol their own voice to help attribute who spoke. That is consent to
+biometric data, so it is theirs to give: point them at Account › Voiceprint,
+or at `slipdock voiceprint enrol --audio me.wav --consent` to run themselves.
+Never enrol, or delete, a voiceprint on the user's behalf.

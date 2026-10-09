@@ -1360,7 +1360,7 @@ defmodule SlipdockWeb.APIGuide do
           POST /api/captures/:id/commit              {preview: digest}; 409 if anything moved since
           POST /api/captures/:id/undo                409 lists what was edited since; {rest: true}
           POST /api/captures/:id/retry | /discard
-
+      #{voiceprints()}
       Over MCP: `capture_meeting` (send a transcript, with your own findings if
       you have them), `get_capture`, `resolve_capture_question`,
       `commit_capture`. From a terminal: `slipdock capture new <board>
@@ -1372,6 +1372,23 @@ defmodule SlipdockWeb.APIGuide do
       own reading of the transcript; it is recorded as theirs, *via agent*. And
       **commit only when the person asks**, passing the preview digest so
       exactly what they saw is written.
+      """
+    else
+      ""
+    end
+  end
+
+  # Voiceprints are a person's own decision: the guide names the routes so an
+  # agent can tell its user where to go, and says it isn't the agent's to do.
+  defp voiceprints do
+    if Slipdock.Meetings.Voiceprints.enabled?() do
+      """
+          GET|POST|DELETE /api/me/voiceprint     the caller's own voiceprint (enrolling needs
+                                                 consent: the wording's version)
+
+      Voiceprints are on here. Enrolling is consent to biometric data, so it is
+      the person's own to do (Account › Voiceprint, or `slipdock voiceprint
+      enrol --consent` run by them); never enrol or delete one on their behalf.
       """
     else
       ""

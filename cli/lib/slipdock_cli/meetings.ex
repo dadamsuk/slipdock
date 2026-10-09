@@ -9,7 +9,7 @@ defmodule SlipdockCLI.Meetings do
 
   alias SlipdockCLI.HTTP
 
-  @commands ~w(meetings capture)
+  @commands ~w(meetings capture voiceprint)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -102,7 +102,53 @@ defmodule SlipdockCLI.Meetings do
     """)
   end
 
+  # Your own voiceprint, and only yours: no command here names anybody else.
+  def run("voiceprint", [], o), do: HTTP.get("/me/voiceprint") |> out(o, &render_voiceprint/1)
+
+  def run("voiceprint", ["enrol"], o) do
+    unless o[:audio] || o[:from_capture],
+      do: fail("voiceprint enrol needs --audio F (a recording of you) or --from-capture ID")
+
+    # The wording is the server's, and agreeing to it means having seen it.
+    {:ok, %{"consent" => consent}} = with_ok(HTTP.get("/me/voiceprint"))
+    IO.puts(:stderr, consent["wording"])
+
+    unless o[:consent],
+      do: fail("nothing saved: re-run with --consent to agree to the wording above")
+
+    request =
+      if o[:audio] do
+        audio = o[:audio]
+        unless File.regular?(audio), do: fail("no file at #{audio}")
+
+        HTTP.post_multipart("/me/voiceprint", [{"consent", consent["version"]}], [
+          {"audio", Path.basename(audio), audio_type(audio), File.read!(audio)}
+        ])
+      else
+        HTTP.post("/me/voiceprint", %{
+          "capture" => o[:from_capture],
+          "consent" => consent["version"]
+        })
+      end
+
+    out(request, o, &render_voiceprint/1)
+  end
+
+  def run("voiceprint", ["delete"], o) do
+    HTTP.delete("/me/voiceprint")
+    |> out(o, fn _ -> IO.puts("deleted your voiceprint: meetings stop using it now") end)
+  end
+
+  def run("voiceprint", _args, _o) do
+    fail(
+      "voiceprint | voiceprint enrol --audio F|--from-capture ID --consent | voiceprint delete"
+    )
+  end
+
   def run(cmd, _args, _o), do: bad_usage(cmd)
+
+  defp with_ok({:ok, _} = ok), do: ok
+  defp with_ok(other), do: out(other, [], fn _ -> :ok end)
 
   ## Requests -------------------------------------------------------------------
 
@@ -151,6 +197,26 @@ defmodule SlipdockCLI.Meetings do
 
   ## Output ---------------------------------------------------------------------
 
+  defp render_voiceprint(%{"voiceprint" => nil} = body) do
+    IO.puts("You have no voiceprint.")
+
+    for o <- body["offers"] || [] do
+      IO.puts(
+        "  could enrol from capture ##{o["capture"]} “#{o["title"]}” (#{o["voice"]} was confirmed as you)"
+      )
+    end
+
+    IO.puts("Enrol: slipdock voiceprint enrol --audio F --consent")
+  end
+
+  defp render_voiceprint(%{"voiceprint" => v}) do
+    from =
+      if v["source"] == "meeting", do: "capture ##{v["source_capture_id"]}", else: "a recording"
+
+    IO.puts("You have a voiceprint, from #{from}, consented #{v["consented_at"]}.")
+    IO.puts("Delete it: slipdock voiceprint delete")
+  end
+
   defp render_mode(%{"meetings" => m}) do
     where =
       case m["visibility"] do
@@ -161,7 +227,8 @@ defmodule SlipdockCLI.Meetings do
     IO.puts("""
     Meeting mode: on
     Shown:        #{where}
-    Hideable:     #{if m["hideable"], do: "yes#{if m["hidden"], do: " (you have hidden it)"}", else: "no"}\
+    Hideable:     #{if m["hideable"], do: "yes#{if m["hidden"], do: " (you have hidden it)"}", else: "no"}
+    Voiceprints:  #{if m["voiceprints"], do: "on, by each person's consent (slipdock voiceprint)", else: "off"}\
     """)
   end
 

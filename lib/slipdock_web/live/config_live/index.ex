@@ -74,7 +74,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
                       meetings_transcription meetings_transcription_model
                       meetings_transcription_url meetings_transcription_max_mb
                       meetings_diarisation meetings_diarisation_url meetings_dialogue_inference
-                      meetings_relisten_model)
+                      meetings_relisten_model meetings_voiceprints meetings_voiceprint_url)
 
   @mail_fields ~w(smtp_host smtp_port smtp_username smtp_password smtp_tls smtp_from_email
                   smtp_from_name)
@@ -651,6 +651,36 @@ defmodule SlipdockWeb.ConfigLive.Index do
               </span>
             </span>
           </label>
+          <label class="flex cursor-pointer items-start gap-3 text-sm">
+            <input type="hidden" name="settings[meetings_voiceprints]" value="false" />
+            <input
+              type="checkbox"
+              name="settings[meetings_voiceprints]"
+              value="true"
+              checked={@settings.meetings_voiceprints}
+              class="checkbox checkbox-sm mt-0.5"
+            />
+            <span>
+              <span class="block font-medium">Offer voiceprints</span>
+              <span class="block text-xs text-base-content/60">
+                Biometric data. Each person decides for themselves in their account, with their consent
+                recorded; nobody can enrol somebody else. Only the embedding is kept, never the audio,
+                and it is one signal among the others.
+              </span>
+            </span>
+          </label>
+          <.input
+            field={@form[:meetings_voiceprint_url]}
+            type="url"
+            label="Voiceprint endpoint"
+            placeholder="http://voice.local:8000/embed"
+            value={@settings.meetings_voiceprint_url}
+          />
+          <p class="text-xs text-base-content/60">
+            It is sent a recording (and the stretches to listen to, as {"\"segments\": [[start, end]]"} in
+            seconds) and answers {"{\"embedding\": [numbers]}"} — a SpeechBrain ECAPA or pyannote
+            embedding server fits.
+          </p>
         </fieldset>
 
         <fieldset id="meetings-limits" class="space-y-3">
