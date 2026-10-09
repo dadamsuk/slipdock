@@ -191,6 +191,126 @@ defmodule Slipdock.Runners.SetupTest do
     end
   end
 
+  describe "the ChatGPT scenario (#522)" do
+    test "a connector, a self-contained prompt for one job, and the warnings", %{board: board} do
+      setup = gen(board, %{"scenario" => "chatgpt", "pool" => "writing"}, nil)
+      [connector, prompt] = codes(setup)
+
+      assert setup.title == "ChatGPT"
+      assert connector == "#{@base}/mcp"
+      assert hd(setup.steps).text =~ "Settings → Apps & Connectors"
+      assert prompt =~ ~s(claim_job with board "#{board.code}" and pool "writing")
+      assert prompt =~ "get_card"
+      assert prompt =~ "job_progress"
+      assert prompt =~ ~s(finish_job with outcome "done")
+      assert prompt =~ "You have no repository, shell or tests"
+      # Nothing it can't do: no skill, no CLI, no commit.
+      refute prompt =~ "/slipdock-loop"
+      refute prompt =~ "commit with the card id"
+      assert prompt =~ "Don't move the card to the doing list"
+      refute Enum.any?(codes(setup), &(&1 =~ "sdr_"))
+
+      assert Enum.any?(setup.warnings, &(&1 =~ "#{@base} must be reachable from the internet"))
+      assert Enum.any?(setup.warnings, &(&1 =~ "can't commit, push or run your tests"))
+      # No working directory to warn about, though the agent defaults to claude.
+      refute Enum.any?(setup.warnings, &(&1 =~ "working directory"))
+      assert setup.cost =~ "uses your ChatGPT usage"
+      assert setup.intro =~ "ChatGPT takes writing jobs"
+    end
+
+    test "its jobs are of kind chatgpt unless another is named" do
+      assert Setup.kind(answers(%{"scenario" => "chatgpt"})) == "chatgpt"
+      assert Setup.kind(answers(%{"scenario" => "chatgpt", "kind" => "Docs"})) == "docs"
+      assert Setup.kind(answers(%{"scenario" => "loop"})) == "claude"
+    end
+
+    test "committing is refused: it has no repository" do
+      assert {:error, "ChatGPT has no repository to commit to" <> _} =
+               Setup.normalise(%{"scenario" => "chatgpt", "commit" => "true"})
+
+      assert {:error, "ChatGPT has no repository to commit to" <> _} =
+               Setup.normalise(%{"scenario" => "chatgpt", "commit" => true, "push" => true})
+
+      refute Setup.commits?(answers(%{"scenario" => "chatgpt"}))
+      assert Setup.commits?(answers(%{"scenario" => "loop", "commit" => true}))
+    end
+
+    test "the other toggles and the verbosity reach its prompt", %{board: board} do
+      setup =
+        gen(
+          board,
+          %{
+            "scenario" => "chatgpt",
+            "in_progress" => true,
+            "assign" => true,
+            "move_done" => true,
+            "complete" => true,
+            "percent_100" => true,
+            "verbosity" => "normal"
+          },
+          nil
+        )
+
+      prompt = List.last(codes(setup))
+      assert prompt =~ "Move the card to the doing list when you start."
+      assert prompt =~ "Assign the card to yourself when you start."
+      assert prompt =~ "Move the card to the done list when you finish."
+      assert prompt =~ "Mark the card complete when you finish."
+      assert prompt =~ "Set the card's % complete to 100 when you finish."
+      assert prompt =~ "Comment on the card what was done, with the result itself"
+      assert prompt =~ "comment on the card what it needs and why you stopped"
+      assert prompt =~ "Standing instructions for every job:\nComment on the card when you start"
+    end
+
+    test "saying nothing on the card: no comments asked for, only finish_job's summary",
+         %{board: board} do
+      prompt = List.last(codes(gen(board, %{"scenario" => "chatgpt"}, nil)))
+      refute prompt =~ "Comment on the card what was done"
+      refute prompt =~ "comment on the card what it needs"
+      assert prompt =~ "Don't comment on the card at all"
+      assert prompt =~ "say what it needs in finish_job's summary"
+      assert prompt =~ "job_progress with the job id and no note"
+    end
+
+    test "hooks are left out, saying why; instructions stay", %{board: board} do
+      setup =
+        gen(
+          board,
+          %{
+            "scenario" => "chatgpt",
+            "instructions" => "Use British spelling.",
+            "before_job" => "git pull"
+          },
+          nil
+        )
+
+      prompt = List.last(codes(setup))
+      assert prompt =~ "Use British spelling."
+      refute prompt =~ "git pull"
+      assert Enum.any?(setup.warnings, &(&1 =~ "Hooks can't run in ChatGPT: it runs on OpenAI's"))
+      refute Setup.hooks?(answers(%{"scenario" => "chatgpt"}))
+    end
+
+    test "connect makes no runner and no token, and a rule sending chatgpt jobs", ctx do
+      [_, doing | _] = ctx.board.columns
+
+      {:ok, result} =
+        Setup.connect(
+          ctx.board,
+          %{"scenario" => "chatgpt", "pool" => "writing", "column" => doing.name},
+          ctx.owner,
+          @base
+        )
+
+      assert result.runner == nil
+      assert result.token == nil
+      assert Runners.list_runners(ctx.board) == []
+
+      assert [%{"type" => "runner", "pool" => "writing", "kind" => "chatgpt"}] =
+               result.rule.spec["actions"]
+    end
+  end
+
   describe "what a pass does to the card: seven toggles, all off (#514)" do
     defp loop(board, extra),
       do: Setup.loop_prompt(answers(extra), %{base_url: @base, board: board})

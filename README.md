@@ -549,7 +549,7 @@ with the tail of the log — and a Cancel button.
   flagged blocked, so a crashed or timed-out pass never stalls the list;
   a `job_finished` rule can alert, email or call a webhook when a job times
   out or a card is given up.
-- **One queue for everything.** A Claude session (`/loop`, a scheduled task)
+- **One queue for everything.** A Claude session (`/loop`, a scheduled task), or ChatGPT through its connector,
   takes jobs from the same queue through the MCP tools `claim_job`,
   `job_progress` and `finish_job`, or `slipdock claim-job`, so it never
   races a runner for the same card.
@@ -557,15 +557,16 @@ with the tail of the log — and a Cancel button.
 Set one up on the board under **Automations → Connect a runner**: pick a
 Linux or macOS machine (a POSIX `sh` + `curl` runner, as a systemd or launchd
 service), a Windows machine (a PowerShell runner, started by Task Scheduler,
-no admin), Claude Code in a `/loop`, or Claude on a schedule (a Desktop task
-or a cloud routine), and it gives you exactly what to paste — and can add the
+no admin), Claude Code in a `/loop`, Claude on a schedule (a Desktop task
+or a cloud routine), or ChatGPT (its Slipdock connector and a prompt for a chat
+or a scheduled task; no repository, so no commit or push), and it gives you exactly what to paste — and can add the
 rule that sends a list's cards, plus standing instructions and before/after
 hooks for every job — and a prompt that has Claude Code on the machine write
 those hooks for you (your notifier, what to keep from each pass), from a
 worked example. A Claude runner may use the Slipdock MCP tools without
 asking (on by default) and every job is told nobody will answer questions, since
-nobody is watching. A runner costs nothing while it waits; the Claude
-options need no install but use a Claude turn per check. In every scenario a job
+nobody is watching. A runner costs nothing while it waits; the Claude and
+ChatGPT options need no install but use a turn per check. In every scenario a job
 does nothing to its card or repository unless you tick it: move it to In
 Progress, assign it, git commit, git push (with commit; commits only ever in a
 git repository), move it to Done, mark it complete, mark it 100%. Unticked ones

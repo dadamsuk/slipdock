@@ -1,20 +1,21 @@
 defmodule Slipdock.Runners.Setup do
   @moduledoc """
   The "Connect a runner" wizard's answers turned into exactly what to paste,
-  for each of the four ways of running an agent against a board:
+  for each of the five ways of running an agent against a board:
 
     * `server` — a Linux or macOS machine: the shell runner's one-line
       install, and the config it will write
     * `windows` — a Windows machine: the PowerShell runner's one-line install
     * `loop` — Claude Code on your own machine, in a `/loop`
     * `cloud` — a Claude Desktop scheduled task, or a cloud routine
+    * `chatgpt` — ChatGPT, through the Slipdock connector
 
   One generator behind the web wizard, the API and `slipdock runner new`, so
   the three can't tell people different things. It writes text and nothing
   else; `connect/4` is what makes the runner and the rule.
 
-  The two runner scenarios need a runner token in what they print; the two
-  Claude ones don't — a Claude session takes jobs with the sign-in it
+  The two runner scenarios need a runner token in what they print; the
+  Claude and ChatGPT ones don't — a session takes jobs with the sign-in it
   already has (see `Slipdock.Runners.session_runner/4`).
   """
 
@@ -23,7 +24,7 @@ defmodule Slipdock.Runners.Setup do
   alias Slipdock.Boards.Board
   alias Slipdock.Runners.Runner
 
-  @scenarios ~w(server windows loop cloud)
+  @scenarios ~w(server windows loop cloud chatgpt)
   @agents ~w(claude codex custom)
   @permission_modes ~w(default acceptEdits plan bypassPermissions)
   @services ~w(auto systemd launchd none)
@@ -109,6 +110,7 @@ defmodule Slipdock.Runners.Setup do
   def label("windows"), do: "Windows machine"
   def label("loop"), do: "Claude Code on my machine"
   def label("cloud"), do: "Claude, scheduled"
+  def label("chatgpt"), do: "ChatGPT"
 
   @doc "Whether a scenario's runner takes jobs with a runner token of its own."
   def needs_token?(scenario), do: scenario in ~w(server windows)
@@ -154,6 +156,9 @@ defmodule Slipdock.Runners.Setup do
 
       answers["kind"] != "" and not Regex.match?(format, answers["kind"]) ->
         {:error, "kind must be lower case letters, digits, - or _"}
+
+      answers["scenario"] == "chatgpt" and answers["commit"] ->
+        {:error, "ChatGPT has no repository to commit to: leave commit and push off"}
 
       answers["agent"] == "custom" and answers["command"] == "" and
           needs_token?(answers["scenario"]) ->
@@ -264,14 +269,23 @@ defmodule Slipdock.Runners.Setup do
     |> Enum.join("\n\n")
   end
 
-  @doc "Whether the scenario can run hooks: not in Anthropic's cloud, which isn't your machine."
+  @doc """
+  Whether the scenario can run hooks: not in Anthropic's cloud or in ChatGPT,
+  neither of which is your machine.
+  """
   def hooks?(%{"scenario" => "cloud", "where" => "cloud"}), do: false
+  def hooks?(%{"scenario" => "chatgpt"}), do: false
   def hooks?(_), do: true
+
+  @doc "Whether the scenario has a repository to commit to: ChatGPT has none."
+  def commits?(%{"scenario" => "chatgpt"}), do: false
+  def commits?(_), do: true
 
   defp hooks_given?(a), do: a["before_job"] != "" or a["after_job"] != ""
 
   @doc "The job kind the answers queue and run: the one named, else the agent's."
   def kind(%{"kind" => kind}) when kind not in [nil, ""], do: kind
+  def kind(%{"scenario" => "chatgpt"}), do: "chatgpt"
   def kind(%{"agent" => agent}), do: agent
 
   ## Doing it -----------------------------------------------------------------
@@ -493,6 +507,13 @@ defmodule Slipdock.Runners.Setup do
       "A Claude Code routine takes #{a["pool"]} jobs on a schedule, in Anthropic's cloud, " <>
         "even while your computer is off."
 
+  defp intro("chatgpt", a),
+    do:
+      "ChatGPT takes #{a["pool"]} jobs through the Slipdock connector, in a chat or a " <>
+        "scheduled task. Nothing is installed; it signs in through your browser. It has no " <>
+        "repository or shell, so it suits cards whose work can be done in a conversation: " <>
+        "writing, research, planning, triage."
+
   defp intro("cloud", a),
     do:
       "A Claude Desktop scheduled task takes #{a["pool"]} jobs on a schedule, on this " <>
@@ -502,6 +523,11 @@ defmodule Slipdock.Runners.Setup do
     do:
       "A runner costs nothing while it waits: it asks the server for work and only " <>
         "starts the agent when there is a job."
+
+  defp cost("chatgpt"),
+    do:
+      "Nothing to install, but every check for work is a ChatGPT turn and uses your " <>
+        "ChatGPT usage, even when nothing is queued."
 
   defp cost(_),
     do:
@@ -513,12 +539,21 @@ defmodule Slipdock.Runners.Setup do
       cwd_warnings(scenario, a) ++
       if(hooks_given?(a) and not hooks?(a),
         do: [
-          "Hooks can't run in a cloud routine: it runs on Anthropic's machines, not yours, " <>
-            "so they are left out. The instructions still go in its prompt."
+          "Hooks can't run in #{hookless(scenario)}: it runs on #{hookless_owner(scenario)} " <>
+            "machines, not yours, so they are left out. The instructions still go in its prompt."
         ],
         else: []
       )
   end
+
+  defp base_warnings("chatgpt", _a, ctx),
+    do: [
+      "ChatGPT reaches Slipdock from OpenAI's servers, so #{ctx.base_url} must be " <>
+        "reachable from the internet over https. The hosted service is; a self-hosted " <>
+        "server behind a firewall or only on your tailnet is not — use another scenario.",
+      "ChatGPT can't commit, push or run your tests: send it only cards it can finish in a " <>
+        "conversation, from a list or pool of their own."
+    ]
 
   defp base_warnings("cloud", %{"where" => "cloud"}, ctx),
     do: [
@@ -545,9 +580,16 @@ defmodule Slipdock.Runners.Setup do
 
   defp base_warnings(_, _, _), do: []
 
+  defp hookless("chatgpt"), do: "ChatGPT"
+  defp hookless(_), do: "a cloud routine"
+
+  defp hookless_owner("chatgpt"), do: "OpenAI's"
+  defp hookless_owner(_), do: "Anthropic's"
+
   # Claude Code loads a project's own commands, skills and settings only from
   # the directory it starts in. A cloud routine works in its repository.
   defp cwd_warnings("cloud", %{"where" => "cloud"}), do: []
+  defp cwd_warnings("chatgpt", _a), do: []
 
   defp cwd_warnings(_scenario, %{"agent" => "claude", "cwd" => ""}),
     do: [
@@ -693,6 +735,32 @@ defmodule Slipdock.Runners.Setup do
           "Click Run now once and approve what it asks for, choosing \"always allow\", so " <>
             "later runs don't stop for permission. It only runs while the app is open and " <>
             "the computer awake."
+      }
+    ] ++ rule_step(a, ctx)
+  end
+
+  defp steps("chatgpt", a, ctx) do
+    [
+      %{
+        text:
+          "Add Slipdock to ChatGPT as a connector: Settings → Apps & Connectors → Create " <>
+            "(turn on developer mode under Advanced settings if Create isn't there), with " <>
+            "this URL and OAuth, and sign in when Slipdock asks.",
+        lang: "text",
+        code: "#{ctx.base_url}/mcp"
+      },
+      %{
+        text:
+          "In a new chat with the Slipdock connector turned on, give it this prompt. It " <>
+            "does one job and stops: paste it again for the next, or make it a scheduled " <>
+            "task to have ChatGPT check the queue by itself.",
+        lang: "text",
+        code: chatgpt_prompt(a, ctx)
+      },
+      %{
+        text:
+          "The first time, approve the Slipdock tools it asks to use, choosing to always " <>
+            "allow them, so later jobs don't stop for permission."
       }
     ] ++ rule_step(a, ctx)
   end
@@ -1079,6 +1147,31 @@ defmodule Slipdock.Runners.Setup do
     |> append(standing(a))
   end
 
+  @doc """
+  What ChatGPT is told. Self-contained, as a cloud routine's is: it has the
+  connector's tools but neither the skills nor a machine, so it works the
+  card in the conversation and hands back what needs one.
+  """
+  def chatgpt_prompt(a, ctx) do
+    """
+    Take one job from the Slipdock job queue and do it, using the Slipdock connector's tools.
+
+    1. Call claim_job with board "#{ctx.board.code}" and pool "#{a["pool"]}". If it answers "nothing queued", stop: there is nothing to do this time. If there is no claim_job tool, stop and say the Slipdock connector needs adding or reconnecting; don't work the board's lists directly.
+    2. Otherwise the job names a card. Read it with get_card. #{cloud_start(a)}
+    3. Do the work the card asks for, here in the conversation: write, research, plan or answer it. #{cloud_progress(a)}
+    4. You have no repository, shell or tests. If the card needs one (a code change, a commit, a deploy), don't pretend: #{handback(a)} and finish the job "failed".
+    5. #{cloud_finish(a, "what was done, with the result itself or where it went")} Then call finish_job with outcome "done" and a one-line summary. If you could not finish, flag the card, say why#{if silent?(a), do: " in finish_job's summary", else: ""}, and finish the job "failed".
+    """
+    |> String.trim_trailing()
+    |> append(standing(a))
+  end
+
+  defp handback(a) do
+    if silent?(a),
+      do: "say what it needs in finish_job's summary",
+      else: "comment on the card what it needs and why you stopped"
+  end
+
   # "Nothing" written on the card: the job's lease is still renewed, with no note.
   defp silent?(a), do: a["verbosity"] == "nothing"
 
@@ -1100,11 +1193,11 @@ defmodule Slipdock.Runners.Setup do
           "with outcome \"cancelled\"."
   end
 
-  defp cloud_finish(a) do
+  defp cloud_finish(a, what \\ "what was done (files, tests, any commit)") do
     comment =
       if silent?(a),
         do: [],
-        else: ["Comment on the card what was done (files, tests, any commit)."]
+        else: ["Comment on the card #{what}."]
 
     Enum.join(comment ++ tl(finish_text(a)), " ")
   end

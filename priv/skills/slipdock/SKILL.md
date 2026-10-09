@@ -304,7 +304,7 @@ slipdock alerts                               # what the rules want you to know
 slipdock dismiss <alert-id>... | --all        # dismiss yours; other people keep theirs
 
 # Runners: agents on the user's own machines that rules send cards to (owner only to make)
-slipdock runner new <board> [name] --pool P [--scenario server|windows|loop|cloud]
+slipdock runner new <board> [name] --pool P [--scenario server|windows|loop|cloud|chatgpt]
     [--agent claude|codex|custom] [--command CMD] [--kind K] [--cwd DIR] [--permission-mode M]
     [--timeout S] [--service auto|systemd|launchd|none] [--where desktop|cloud] [--repo owner/repo]
     [--column LIST [--top] [--[no-]wait-while-doing]] [--verbosity nothing|quiet|normal|verbose]

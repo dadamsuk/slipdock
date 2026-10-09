@@ -340,7 +340,8 @@ defmodule SlipdockWeb.API.RunnersTest do
           post(ctx.conn, base <> "/token")
         ] do
       message = json_response(conn, 422)["error"]
-      assert message =~ "is a Claude session, so it has no setup steps or token"
+      assert message =~ "is a Claude or ChatGPT session, so it has no setup steps or token"
+      assert message =~ "--scenario loop|cloud|chatgpt"
       assert message =~ "Connect a runner again"
     end
 
@@ -396,6 +397,31 @@ defmodule SlipdockWeb.API.RunnersTest do
       assert body["runner"] == nil
       assert body["token"] == nil
       assert Enum.any?(body["setup"]["steps"], &(&1["code"] =~ "/loop /slipdock-loop"))
+    end
+
+    test "ChatGPT: steps only, and committing is a 422 (#522)", ctx do
+      body =
+        ctx.conn
+        |> post(~p"/api/boards/#{ctx.board.id}/runners/setup", %{
+          "scenario" => "chatgpt",
+          "pool" => "writing"
+        })
+        |> json_response(201)
+
+      assert body["runner"] == nil
+      assert body["token"] == nil
+      assert body["setup"]["title"] == "ChatGPT"
+      assert Enum.any?(body["setup"]["steps"], &(&1["code"] =~ ~s(pool "writing")))
+
+      refused =
+        ctx.conn
+        |> post(~p"/api/boards/#{ctx.board.id}/runners/setup", %{
+          "scenario" => "chatgpt",
+          "commit" => true
+        })
+        |> json_response(422)
+
+      assert refused["error"] =~ "ChatGPT has no repository to commit to"
     end
 
     test "the hook prompt, for the runner's own scenario, owners only", ctx do
