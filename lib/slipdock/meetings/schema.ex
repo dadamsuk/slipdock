@@ -1,0 +1,191 @@
+defmodule Slipdock.Meetings.Schema do
+  @moduledoc """
+  The findings format: what a reading of a meeting produces, and what an
+  agent may send with a capture (`slipdock capture new --findings f.json`).
+  Published as JSON Schema at `GET /api/meetings/findings-schema`.
+
+  `validate/1` checks a document in code — every finding, every field — and
+  says what is wrong in words a model (or a person) can act on. It is the
+  gate between what a model wrote and what anybody sees; anything it lets
+  through is still checked against the transcript word for word afterwards
+  (see `Slipdock.Meetings.Verify`).
+  """
+
+  @kinds ~w(decision action card_change open_question idea)
+  @change_fields ~w(due_date start_date assignee list title priority completed description)
+
+  def kinds, do: @kinds
+  def change_fields, do: @change_fields
+
+  @doc "The JSON Schema, as a map."
+  def json_schema do
+    %{
+      "$schema" => "https://json-schema.org/draft/2020-12/schema",
+      "$id" => "https://slipdock.us/schemas/meeting-findings.json",
+      "title" => "Meeting findings",
+      "description" =>
+        "What a meeting produced, each finding tied to the exact words it came from. " <>
+          "Quotes are checked against the transcript character for character; a finding " <>
+          "whose quote is not there is dropped.",
+      "type" => "object",
+      "required" => ["findings"],
+      "properties" => %{
+        "findings" => %{
+          "type" => "array",
+          "items" => %{
+            "type" => "object",
+            "required" => ["kind", "title", "evidence"],
+            "properties" => %{
+              "kind" => %{"enum" => @kinds},
+              "title" => %{
+                "type" => "string",
+                "maxLength" => 200,
+                "description" => "What it is, in a short line: the card title or the decision."
+              },
+              "body" => %{
+                "type" => "string",
+                "description" => "More detail, if the meeting gave any."
+              },
+              "evidence" => %{
+                "type" => "array",
+                "minItems" => 1,
+                "items" => %{
+                  "type" => "object",
+                  "required" => ["line", "quote"],
+                  "properties" => %{
+                    "line" => %{
+                      "type" => "string",
+                      "pattern" => "^L[0-9]+$",
+                      "description" => "The transcript line id, e.g. L12."
+                    },
+                    "quote" => %{
+                      "type" => "string",
+                      "minLength" => 1,
+                      "description" => "Words copied exactly from that line."
+                    }
+                  }
+                }
+              },
+              "owner" => %{
+                "type" => "string",
+                "description" => "Who an action was given to, as the meeting named them."
+              },
+              "due" => %{
+                "type" => "string",
+                "description" =>
+                  "A deadline as said, rewritten as one of: today, tomorrow, mon…sun, " <>
+                    "next mon…next sun, next week, next month, eow, eom, in 3 days, in 2 weeks, " <>
+                    "1 oct, 2026-10-01."
+              },
+              "card" => %{
+                "type" => "string",
+                "description" => "The existing card or page it is about: #412, PL-14 or W-31."
+              },
+              "change" => %{
+                "type" => "object",
+                "required" => ["field", "to"],
+                "properties" => %{
+                  "field" => %{"enum" => @change_fields},
+                  "to" => %{"type" => ["string", "boolean"]}
+                }
+              },
+              "comment" => %{
+                "type" => "string",
+                "description" => "What to say on the card it is about."
+              },
+              "topic" => %{
+                "type" => "string",
+                "description" => "For a decision: the subject it belongs under, e.g. Pricing."
+              },
+              "decided_by" => %{"type" => "string"},
+              "supersedes" => %{
+                "type" => "string",
+                "description" => "For a decision: the earlier decision it replaces, in its words."
+              },
+              "confirmed" => %{
+                "type" => "boolean",
+                "description" => "Whether somebody else in the meeting agreed to it out loud."
+              }
+            }
+          }
+        }
+      }
+    }
+  end
+
+  @doc """
+  Checks a findings document. `{:ok, findings}` (the list, each finding a map
+  with string keys and nothing unknown kept), or `{:error, [problem]}` naming
+  each problem with the finding it is in.
+  """
+  def validate(%{"findings" => findings}) when is_list(findings) do
+    {kept, problems} =
+      findings
+      |> Enum.with_index(1)
+      |> Enum.reduce({[], []}, fn {finding, n}, {kept, problems} ->
+        case validate_finding(finding) do
+          {:ok, f} -> {[f | kept], problems}
+          {:error, why} -> {kept, ["finding #{n}: #{why}" | problems]}
+        end
+      end)
+
+    case problems do
+      [] -> {:ok, Enum.reverse(kept)}
+      problems -> {:error, Enum.reverse(problems)}
+    end
+  end
+
+  def validate(%{}), do: {:error, ["the answer has no \"findings\" list"]}
+  def validate(_), do: {:error, ["the answer is not a JSON object"]}
+
+  @fields ~w(kind title body evidence owner due card change comment topic decided_by supersedes confirmed)
+
+  defp validate_finding(%{} = f) do
+    cond do
+      f["kind"] not in @kinds ->
+        {:error, "kind must be one of #{Enum.join(@kinds, ", ")}"}
+
+      not (is_binary(f["title"]) and String.trim(f["title"]) != "") ->
+        {:error, "title is required"}
+
+      String.length(f["title"]) > 200 ->
+        {:error, "title is longer than 200 characters"}
+
+      not (is_list(f["evidence"]) and f["evidence"] != []) ->
+        {:error, "evidence must list at least one {line, quote}"}
+
+      not Enum.all?(f["evidence"], &evidence?/1) ->
+        {:error, "each evidence item needs a line like \"L12\" and a non-empty quote"}
+
+      not optional_strings?(f) ->
+        {:error, "owner, due, card, comment, topic, decided_by, supersedes and body must be text"}
+
+      f["change"] != nil and not change?(f["change"]) ->
+        {:error,
+         "change must be {field, to} with field one of #{Enum.join(@change_fields, ", ")}"}
+
+      f["confirmed"] not in [nil, true, false] ->
+        {:error, "confirmed must be true or false"}
+
+      true ->
+        {:ok, f |> Map.take(@fields) |> Map.update!("title", &String.trim/1)}
+    end
+  end
+
+  defp validate_finding(_), do: {:error, "is not an object"}
+
+  defp evidence?(%{"line" => line, "quote" => quote}) when is_binary(line) and is_binary(quote),
+    do: Regex.match?(~r/^L\d+$/, line) and quote != ""
+
+  defp evidence?(_), do: false
+
+  defp optional_strings?(f) do
+    ~w(owner due card comment topic decided_by supersedes body)
+    |> Enum.all?(&(f[&1] == nil or is_binary(f[&1])))
+  end
+
+  defp change?(%{"field" => field, "to" => to}) when field in @change_fields,
+    do: is_binary(to) or is_boolean(to)
+
+  defp change?(_), do: false
+end

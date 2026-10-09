@@ -17,6 +17,9 @@ defmodule SlipdockWeb.API.MeetingController do
     json(conn, %{meetings: Meetings.mode(conn.assigns.current_user)})
   end
 
+  @doc "The findings format an agent sends with a capture, as JSON Schema."
+  def schema(conn, _params), do: json(conn, Slipdock.Meetings.Schema.json_schema())
+
   @doc """
   Sends a meeting to a board: multipart with any of `audio`, `transcript`,
   `findings` and `ics` as files, or JSON with `transcript`, `findings` and

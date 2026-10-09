@@ -527,6 +527,16 @@ defmodule Slipdock.Meetings do
     |> Repo.update()
   end
 
+  @doc """
+  Reads the meeting (`Slipdock.Meetings.Reader`): two readings and any agent
+  findings, kept on the capture as they came back, before verification.
+  """
+  def read_meeting(%Capture{} = capture, opts \\ []) do
+    with {:ok, readings} <- Slipdock.Meetings.Reader.read(capture, opts) do
+      capture |> Ecto.Changeset.change(readings: readings) |> Repo.update()
+    end
+  end
+
   @doc "The open blocking questions on a capture."
   def open_questions(%Capture{id: id}) do
     Repo.all(
