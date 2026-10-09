@@ -70,10 +70,15 @@ defmodule Slipdock.Meetings.Ingest do
         transcript_format: parsed && parsed.format
       }
 
-      Meetings.create_capture(board, user, attrs,
-        utterances: (parsed && parsed.lines) || [],
-        audio: audio && Map.put_new(audio, :filename, "recording")
-      )
+      case Meetings.create_capture(board, user, attrs,
+             utterances: (parsed && parsed.lines) || [],
+             audio: audio && Map.put_new(audio, :filename, "recording")
+           ) do
+        # Received: the reading starts (in the background, unless config
+        # says otherwise — see `Slipdock.Meetings.Pipeline`).
+        {:ok, capture} -> {:ok, Slipdock.Meetings.Pipeline.start(capture)}
+        other -> other
+      end
     end
   end
 

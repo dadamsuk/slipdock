@@ -50,6 +50,10 @@ config :slipdock, :automations,
 
 config :slipdock, :base_url, "http://localhost:4002"
 
+# Meeting capture: ingest does not start the pipeline by itself; the tests
+# drive it (`Slipdock.Meetings.Pipeline.run/2`), or ask for `pipeline: :sync`.
+config :slipdock, :meetings, pipeline: :manual
+
 config :slipdock, :uploads_dir, Path.expand("../tmp/test_uploads", __DIR__)
 
 # Signing in through the login page writes the sign-in fallback while no mail

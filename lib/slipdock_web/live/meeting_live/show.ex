@@ -48,6 +48,48 @@ defmodule SlipdockWeb.MeetingLive.Show do
     {:noreply, load(socket, Meetings.get_capture!(id))}
   end
 
+  def handle_info(_message, socket), do: {:noreply, socket}
+
+  @impl true
+  def handle_event("retry", _params, socket) do
+    %{capture: capture, can_write: can_write, current_user: user} = socket.assigns
+
+    if can_write and capture.state == "failed" do
+      Slipdock.Meetings.Pipeline.retry(capture, user, via: "web")
+      {:noreply, load(socket, Meetings.get_capture!(capture.id))}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  # Where each step stands: done, running now, failed, or still to come.
+  defp step_states(capture) do
+    done = (capture.progress || %{})["done"] || done_through(capture.step)
+    current = Slipdock.Meetings.Pipeline.next_step(capture.step)
+
+    for step <- Slipdock.Meetings.Pipeline.steps() do
+      state =
+        cond do
+          step in done -> :done
+          capture.state == "failed" and step == current -> :failed
+          capture.state == "reading" and step == current -> :running
+          capture.state in ~w(needs_review ready committed discarded) -> :done
+          true -> :pending
+        end
+
+      {step, state}
+    end
+  end
+
+  defp done_through(nil), do: []
+
+  defp done_through(step) do
+    steps = Slipdock.Meetings.Pipeline.steps()
+    Enum.take(steps, Enum.find_index(steps, &(&1 == step)) + 1)
+  end
+
+  defp analysing?(capture), do: capture.state in ~w(receiving reading failed)
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -85,10 +127,78 @@ defmodule SlipdockWeb.MeetingLive.Show do
                   · {Enum.map_join(@capture.attendees, ", ", &(&1["name"] || &1["email"]))}
                 </span>
               </p>
-              <p :if={@capture.state == "failed"} class="mt-2 text-sm text-error">
-                {@capture.state_reason}
-              </p>
             </header>
+
+            <section
+              :if={analysing?(@capture)}
+              id="capture-analysing"
+              class="rounded-xl bg-base-100 p-4 ring-1 ring-base-content/10"
+            >
+              <h2 class="text-sm font-medium">
+                {if @capture.state == "failed", do: "Stopped", else: "Reading the meeting"}
+              </h2>
+              <p :if={@capture.state != "failed"} class="mt-1 text-xs text-base-content/60">
+                You can leave this page: {(@capture.owner && @capture.owner.email) ||
+                  "whoever sent it"} is emailed when it is ready.
+              </p>
+              <ol class="mt-3 space-y-1.5 text-sm">
+                <li
+                  :for={{step, state} <- step_states(@capture)}
+                  id={"step-#{step}"}
+                  data-state={state}
+                  class="flex items-center gap-2"
+                >
+                  <.icon :if={state == :done} name="hero-check-circle" class="size-4 text-success" />
+                  <span
+                    :if={state == :running}
+                    class="loading loading-spinner loading-xs text-primary"
+                  ></span>
+                  <.icon :if={state == :failed} name="hero-x-circle" class="size-4 text-error" />
+                  <span
+                    :if={state == :pending}
+                    class="inline-block size-4 rounded-full border border-base-content/20"
+                  ></span>
+                  <span class={[state == :pending && "text-base-content/50"]}>
+                    {Slipdock.Meetings.Pipeline.step_label(step)}
+                  </span>
+                </li>
+              </ol>
+              <div :if={@capture.state == "failed"} class="mt-3 flex flex-wrap items-center gap-3">
+                <p id="capture-failure" class="text-sm text-error">{@capture.state_reason}</p>
+                <button
+                  :if={@can_write}
+                  id="retry-capture"
+                  type="button"
+                  phx-click="retry"
+                  class="btn btn-sm btn-outline"
+                >
+                  <.icon name="hero-arrow-path" class="size-4" /> Retry
+                </button>
+              </div>
+            </section>
+
+            <section
+              :if={@capture.findings != []}
+              id="capture-findings"
+              class="rounded-xl bg-base-100 ring-1 ring-base-content/10"
+            >
+              <h2 class="border-b border-base-content/10 px-4 py-2 text-sm font-medium">Found</h2>
+              <ul class="divide-y divide-base-content/5 text-sm">
+                <li
+                  :for={f <- @capture.findings}
+                  id={"finding-#{f.id}"}
+                  class={["px-4 py-2", f.status == "dropped" && "text-base-content/50"]}
+                >
+                  <span class="badge badge-ghost badge-xs mr-1">
+                    {String.replace(f.kind, "_", " ")}
+                  </span>
+                  <span class={[f.status == "dropped" && "line-through"]}>{f.title}</span>
+                  <p :if={f.status == "dropped"} class="mt-0.5 text-xs">
+                    Dropped: {f.drop_reason}
+                  </p>
+                </li>
+              </ul>
+            </section>
 
             <section
               id="capture-transcript"

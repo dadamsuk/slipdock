@@ -46,6 +46,12 @@ defmodule SlipdockWeb.API.FallbackController do
     conn |> put_status(:unprocessable_entity) |> json(%{error: message})
   end
 
+  # A request that cannot happen in the state the thing is in: a capture
+  # committed already, or not failed when asked to retry.
+  def call(conn, {:error, :conflict, message}) when is_binary(message) do
+    conn |> put_status(:conflict) |> json(%{error: message})
+  end
+
   # A write made against a version that has since moved on. Both sides come
   # back so the caller can merge rather than guess: `content_hash` is what to
   # send next time, and `title`/`body` are the page as it now stands.

@@ -24,6 +24,9 @@ defmodule Slipdock.Application do
       {Task.Supervisor,
        name: Slipdock.TaskSupervisor,
        max_children: Application.get_env(:slipdock, :automations, [])[:max_in_flight] || 50},
+      # Which meeting captures this node is reading (see
+      # `Slipdock.Meetings.Pipeline`): one runner per capture.
+      {Registry, keys: :unique, name: Slipdock.Meetings.Registry},
       # The clock behind the time-based automation triggers.
       Slipdock.Automations.Scheduler,
       # Embeds changed cards for semantic search, off the saver's back.

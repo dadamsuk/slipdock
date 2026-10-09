@@ -47,6 +47,7 @@ defmodule Slipdock.Automations.Scheduler do
   # takes back runner jobs whose lease has run out (see `Slipdock.Runners`).
   defp safe_tick do
     sweep_runner_jobs()
+    resume_captures()
     tick()
   rescue
     exception ->
@@ -58,6 +59,14 @@ defmodule Slipdock.Automations.Scheduler do
     Slipdock.Runners.sweep()
   rescue
     exception -> Logger.error("Runner job sweep failed: #{Exception.message(exception)}")
+  end
+
+  # Meeting captures a restart or a crash left half-read (see
+  # `Slipdock.Meetings.Pipeline`).
+  defp resume_captures do
+    Slipdock.Meetings.Pipeline.sweep()
+  rescue
+    exception -> Logger.error("Meeting capture sweep failed: #{Exception.message(exception)}")
   end
 
   defp interval,
