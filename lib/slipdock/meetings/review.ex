@@ -174,7 +174,8 @@ defmodule Slipdock.Meetings.Review do
   @doc """
   Edits what a finding says or does (`title`, `body`, and the effect's
   assignee, due date, list or topic) — never its evidence. Marks it edited by
-  the person.
+  the person. A decision's topic is only its label (its heading on the
+  meeting's decisions page), never which page it goes on.
   """
   def edit(%Finding{} = finding, attrs, %User{} = user) do
     capture = Repo.get!(Capture, finding.capture_id)
@@ -197,11 +198,6 @@ defmodule Slipdock.Meetings.Review do
             _ ->
               e
           end
-        end)
-        |> then(fn e ->
-          if e["type"] == "decision_entry" and attrs["topic"] not in [nil, ""],
-            do: Map.put(e, "page", "Decisions / #{String.trim(attrs["topic"])}"),
-            else: e
         end)
         |> then(fn e ->
           if e["type"] == "decision_entry" and is_binary(attrs["title"]),
@@ -239,12 +235,9 @@ defmodule Slipdock.Meetings.Review do
       effect =
         case kind do
           "decision" ->
-            topic = blank(attrs["topic"]) || "General"
-
             %{
               "type" => "decision_entry",
-              "topic" => topic,
-              "page" => "Decisions / #{topic}",
+              "topic" => blank(attrs["topic"]) || "General",
               "text" => title
             }
 

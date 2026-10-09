@@ -682,12 +682,11 @@ defmodule Slipdock.Meetings.Verify do
 
     case {raw["kind"], link} do
       {"decision", _} ->
-        topic = raw["topic"] |> blank() || "General"
-
+        # The topic is a label: the decision goes on the meeting's own
+        # decisions page, under a heading for it when there are several.
         %{
           "type" => "decision_entry",
-          "topic" => topic,
-          "page" => "Decisions / #{topic}",
+          "topic" => raw["topic"] |> blank() || "General",
           "text" => raw["title"],
           "supersedes" => raw["supersedes"],
           "decided_by" => raw["decided_by"]

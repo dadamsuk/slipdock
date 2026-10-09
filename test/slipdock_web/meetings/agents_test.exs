@@ -205,7 +205,12 @@ defmodule SlipdockWeb.Meetings.AgentsTest do
       result = ok!(call(ctx.conn, "get_capture", %{capture: ctx.capture.id}))
       assert [%{"id" => qid, "answers" => ["1. Sam Smith" | _]}] = result["questions"]
       assert qid == ctx.question.id
-      assert Enum.any?(result["findings"], &(&1["becomes"] =~ "an entry on Decisions / Pricing"))
+
+      assert Enum.any?(
+               result["findings"],
+               &(&1["becomes"] =~ "an entry on the meeting's decisions page (Pricing)")
+             )
+
       assert result["preview"] == nil
     end
 
@@ -251,7 +256,7 @@ defmodule SlipdockWeb.Meetings.AgentsTest do
 
       result = ok!(call(ctx.conn, "commit_capture", %{capture: ctx.capture.id, preview: preview}))
       assert result["committed"] == true
-      assert "decisions on Decisions / Pricing" in result["written"]
+      assert "decisions on Decisions / Pricing sync · 7 Oct 2026" in result["written"]
 
       assert Repo.exists?(
                from(e in Event,

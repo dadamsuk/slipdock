@@ -191,7 +191,9 @@ defmodule Slipdock.Meetings.ReviewTest do
       )
 
     assert edited.edited_by_id == owner.id
-    assert edited.effect["page"] == "Decisions / Plans"
+    # The topic is a label (a heading on the meeting's page), not a page.
+    assert edited.effect["topic"] == "Plans"
+    refute Map.has_key?(edited.effect, "page")
     assert edited.effect["text"] == "Annual plan, 20% off"
 
     {:ok, added} =

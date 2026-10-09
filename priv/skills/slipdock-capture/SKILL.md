@@ -6,7 +6,8 @@ description: Turn a meeting into decisions, actions and card changes on the user
 # Meeting capture
 
 Slipdock reads a meeting alongside the board's cards and wiki and proposes
-what it produced: **decisions** (written to a *Decisions / Topic* wiki page),
+what it produced: **decisions** (written to the meeting's own wiki page,
+*Decisions / <meeting> · <date>*, grouped by topic),
 **actions** (new cards), **changes to existing cards**, **open questions** and
 **ideas**. Every proposal quotes the transcript word for word, and anything
 uncertain becomes a question for a person. **Nothing reaches the board until

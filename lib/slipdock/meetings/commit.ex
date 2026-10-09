@@ -413,10 +413,13 @@ defmodule Slipdock.Meetings.Commit do
 
   ## Decisions -------------------------------------------------------------------
 
-  # One change per decisions page touched: the entries written to it, and
-  # the earlier entries struck on it because a new decision replaces them —
-  # which may be on another topic's page, found among the decisions the
-  # context step read. Each side links to the other's page.
+  # One page per meeting: every decision a capture writes goes on its own
+  # page, "Decisions / <meeting> · <date>", grouped under a `## <topic>`
+  # heading when they span more than one topic. An earlier entry a new
+  # decision replaces is struck where it is — on this meeting's page, an
+  # earlier meeting's, or an older page per topic — found among the
+  # decisions the context step read. Each side links to the other's page.
+  # One change per page touched.
   defp decision_changes([], _capture), do: []
 
   defp decision_changes(findings, capture) do
@@ -429,7 +432,12 @@ defmodule Slipdock.Meetings.Commit do
       )
     end
 
-    entries = Enum.group_by(findings, & &1.effect["page"])
+    {own, earlier} = meeting_page(capture)
+
+    # The page is the meeting's, not the finding's: set here, as the build
+    # sees it, whatever an older finding's effect says.
+    findings = Enum.map(findings, &%{&1 | effect: Map.put(&1.effect, "page", own)})
+    grouped? = length(Enum.uniq(earlier ++ Enum.map(findings, &topic/1))) > 1
 
     strikes =
       findings
@@ -442,13 +450,12 @@ defmodule Slipdock.Meetings.Commit do
       end)
       |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
 
-    (Map.keys(entries) ++ Map.keys(strikes))
-    |> Enum.uniq()
-    |> Enum.sort()
+    # The meeting's page first, then the earlier pages struck on.
+    [own | Enum.sort(Map.keys(strikes) -- [own])]
     |> Enum.map(fn title ->
       page = pages.(title)
-      group = Map.get(entries, title, [])
-      body = (page && page.body) || intro(group)
+      group = if title == own, do: findings, else: []
+      body = (page && page.body) || header(capture)
 
       {body, struck} =
         Enum.reduce(Map.get(strikes, title, []), {body, []}, fn f, {body, struck} ->
@@ -459,7 +466,7 @@ defmodule Slipdock.Meetings.Commit do
       {body, added} =
         Enum.reduce(group, {body, []}, fn f, {body, added} ->
           entry = entry_line(f, capture, Enum.find(Map.keys(strikes), &(f in strikes[&1])))
-          {append_line(body, entry), added ++ [entry]}
+          {place(body, topic(f), entry, grouped?, List.first(earlier)), added ++ [entry]}
         end)
 
       # The page as the review read it (the context step), for the stale
@@ -491,6 +498,66 @@ defmodule Slipdock.Meetings.Commit do
     end)
   end
 
+  # The meeting's page, and the topics already on it (when this capture
+  # made it in an earlier commit; none for a page still to be made).
+  defp meeting_page(capture) do
+    case made_page(capture) do
+      %Page{title: title} ->
+        earlier =
+          Repo.all(
+            from(f in Finding,
+              where: f.capture_id == ^capture.id and not is_nil(f.written_at),
+              order_by: [asc: f.position, asc: f.id]
+            )
+          )
+          |> Enum.filter(&(&1.effect["type"] == "decision_entry"))
+          |> Enum.map(&topic/1)
+          |> Enum.uniq()
+
+        {title, earlier}
+
+      nil ->
+        base = "Decisions / #{String.slice(capture.title || "", 0, 160)} · #{date(capture)}"
+
+        title =
+          Stream.iterate(1, &(&1 + 1))
+          |> Stream.map(fn
+            1 -> base
+            n -> "#{base} (#{n})"
+          end)
+          |> Enum.find(fn title ->
+            not Repo.exists?(
+              from(p in Page,
+                where:
+                  p.board_id == ^capture.board_id and p.title == ^title and is_nil(p.archived_at)
+              )
+            )
+          end)
+
+        {title, []}
+    end
+  end
+
+  # The page an earlier commit of this capture made, while it is still there.
+  defp made_page(%Capture{change_set: %{"changes" => changes}}) do
+    changes
+    |> Enum.find(&(&1["op"] == "decision_entry" and &1["created_page"] == true))
+    |> then(&(&1 && Repo.get(Page, &1["page_id"])))
+    |> then(fn
+      %Page{archived_at: nil} = page -> page
+      _ -> nil
+    end)
+  end
+
+  defp made_page(_capture), do: nil
+
+  defp topic(%Finding{effect: effect}) do
+    case String.trim(effect["topic"] || "") do
+      "" -> "General"
+      topic -> topic
+    end
+  end
+
   # A link to a decisions page that survives the " / " in its title (a slash
   # in a wiki link names another board): by slug, labelled with the title.
   defp link(title, capture), do: "[[#{slug_for(title, capture.board_id)}|#{title}]]"
@@ -514,8 +581,9 @@ defmodule Slipdock.Meetings.Commit do
     end
   end
 
-  # Which page holds the decision this one replaces: its own page if the
-  # words are there, else whichever decisions page the context read has them.
+  # Which page holds the decision this one replaces: this meeting's page if
+  # the words are there (written by an earlier commit of it), else whichever
+  # decisions page the context read has them, while it is still there.
   defp where_decided(f, capture, pages) do
     needle = Slipdock.Meetings.Context.normalise(f.effect["supersedes"])
     own = f.effect["page"]
@@ -542,15 +610,27 @@ defmodule Slipdock.Meetings.Commit do
               String.contains?(Slipdock.Meetings.Context.normalise(&1["text"]), needle))
         )
       end)
-      |> then(&(&1 && &1["title"]))
+      |> then(&(&1 && pages.(&1["title"]) && &1["title"]))
     end
   end
 
-  defp intro([f | _]),
-    do:
-      "Decisions about #{f.effect["topic"] || "this"}, as they were made in meetings. Newest last; a replaced decision is struck through.\n"
+  # The top of a new page: the meeting, its date, who was there and the way
+  # back to the capture. Plain sentences, not list items — the context step
+  # reads list items as decisions.
+  defp header(capture) do
+    who =
+      (capture.attendees || [])
+      |> Enum.map(&(&1["name"] || &1[:name] || &1["email"] || &1[:email]))
+      |> Enum.reject(&(&1 in [nil, ""]))
+      |> case do
+        [] -> ""
+        names -> " Attendees: #{Enum.join(names, ", ")}."
+      end
 
-  defp intro([]), do: ""
+    "Decisions from the meeting “#{capture.title}” on #{date(capture)}.#{who} " <>
+      "From [the meeting's capture](/boards/#{capture.board_id}/meetings/#{capture.id}). " <>
+      "Newest last; a replaced decision is struck through.\n"
+  end
 
   @doc false
   def entry_line(%Finding{} = f, capture, replaced_on \\ nil) do
@@ -602,8 +682,61 @@ defmodule Slipdock.Meetings.Commit do
     end
   end
 
+  # An entry onto the meeting's page: at the end, or — when the meeting's
+  # decisions span more than one topic — at the end of its topic's `##`
+  # section, made if it is not there. A page an earlier commit wrote with one
+  # topic and no headings gets that topic's heading over what is on it first.
+  defp place(body, _topic, line, false, _earlier), do: append_line(body, line)
+
+  defp place(body, topic, line, true, earlier) do
+    lines = body |> String.trim_trailing() |> String.split("\n")
+    lines = if earlier, do: head_up(lines, earlier), else: lines
+    heading = "## #{topic}"
+
+    case Enum.find_index(lines, &(String.trim(&1) == heading)) do
+      nil ->
+        Enum.join(lines, "\n") <> "\n\n" <> heading <> "\n\n" <> line <> "\n"
+
+      i ->
+        {section, rest} =
+          case Enum.find_index(Enum.drop(lines, i + 1), &topic_heading?/1) do
+            nil -> {lines, []}
+            j -> Enum.split(lines, i + 1 + j)
+          end
+
+        section =
+          section |> Enum.reverse() |> Enum.drop_while(&(String.trim(&1) == "")) |> Enum.reverse()
+
+        rest = if rest == [], do: [], else: ["" | rest]
+        Enum.join(section ++ [line] ++ rest, "\n") <> "\n"
+    end
+  end
+
+  defp head_up(lines, earlier) do
+    with false <- Enum.any?(lines, &topic_heading?/1),
+         i when is_integer(i) <- Enum.find_index(lines, &String.match?(&1, ~r/^\s*[-*]\s+/)) do
+      {top, entries} = Enum.split(lines, i)
+      top ++ ["## #{earlier}", ""] ++ entries
+    else
+      _ -> lines
+    end
+  end
+
+  defp topic_heading?(line), do: String.match?(line, ~r/^##(?!#)\s+\S/)
+
+  # A line onto the end of a page; a list starts a paragraph of its own.
   defp append_line(body, line) do
-    String.trim_trailing(body) <> "\n" <> line <> "\n"
+    body = String.trim_trailing(body)
+    last = body |> String.split("\n") |> List.last()
+
+    gap =
+      cond do
+        body == "" -> ""
+        String.match?(last, ~r/^\s*[-*]\s+/) -> "\n"
+        true -> "\n\n"
+      end
+
+    body <> gap <> line <> "\n"
   end
 
   ## Who hears, and what slips --------------------------------------------------

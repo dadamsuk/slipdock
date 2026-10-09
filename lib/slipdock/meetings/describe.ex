@@ -39,7 +39,7 @@ defmodule Slipdock.Meetings.Describe do
   end
 
   def effect_words(%{"type" => "decision_entry"} = e) do
-    "an entry on #{e["page"]}" <>
+    "an entry on the meeting's decisions page#{if e["topic"], do: " (#{e["topic"]})", else: ""}" <>
       if(e["supersedes"], do: ", replacing “#{e["supersedes"]}”", else: "")
   end
 

@@ -370,7 +370,9 @@ defmodule Slipdock.Meetings.Context do
   @doc """
   The decisions already written down on the boards in scope: every page whose
   title starts "Decisions", and each entry on it — a list item or a `###`
-  heading — with whether it has been struck through (superseded).
+  heading — with whether it has been struck through (superseded). A
+  meeting's page groups its decisions under `## <topic>` headings and opens
+  with a sentence about the meeting; neither is an entry.
   """
   def decisions(pages) do
     pages

@@ -271,7 +271,7 @@ defmodule Slipdock.Meetings.HardeningTest do
     {:ok, committed} = Commit.commit(capture, ctx.owner)
 
     assert Enum.map(committed.change_set["changes"], & &1["page_title"]) == [
-             "Decisions / Pricing"
+             "Decisions / Pricing sync · 7 Oct 2026"
            ]
 
     refute Repo.exists?(

@@ -91,7 +91,7 @@ defmodule Slipdock.Meetings.CommitTest do
       assert comment["body"] =~ "Agreed in the pricing sync: due Friday."
       assert comment["body"] =~ "> update PL-14 by Friday"
 
-      assert decision["page_title"] == "Decisions / Pricing"
+      assert decision["page_title"] == "Decisions / Pricing sync · 7 Oct 2026"
       assert decision["page_id"] == nil
       assert [line] = decision["lines_added"]
       assert line =~ "**Annual plan at 20% off**"
@@ -176,13 +176,18 @@ defmodule Slipdock.Meetings.CommitTest do
           decision_finding(%{"supersedes" => "monthly plan only"})
         ])
 
-      [decision] = Commit.build(capture)["changes"]
+      # The new decision on the meeting's page; the old one struck on the
+      # older page per topic, where it is.
+      [own, decision] = Commit.build(capture)["changes"]
+      assert own["page_title"] == "Decisions / Pricing sync · 7 Oct 2026"
+      assert own["lines_struck"] == []
       assert decision["page_id"] == page.id
       assert decision["base_hash"] == page.content_hash
+      assert decision["finding_ids"] == []
       assert decision["lines_struck"] == ["- Monthly plan only"]
 
       assert decision["body_after"] =~
-               "- ~~Monthly plan only~~ (replaced by “Annual plan at 20% off”)"
+               "- ~~Monthly plan only~~ (replaced by “Annual plan at 20% off” on [[decisions-pricing-sync-7-oct-2026|Decisions / Pricing sync · 7 Oct 2026]])"
 
       assert decision["body_after"] =~ "- Free tier stays"
     end
@@ -221,7 +226,7 @@ defmodule Slipdock.Meetings.CommitTest do
       assert Repo.get!(Comment, comment["comment_id"]).body == comment["body"]
 
       page = Repo.get!(Page, decision["page_id"])
-      assert page.title == "Decisions / Pricing"
+      assert page.title == "Decisions / Pricing sync · 7 Oct 2026"
       assert page.body == decision["body_after"]
       assert [%{via: "meeting"}] = Wiki.list_revisions(page)
 
@@ -289,27 +294,52 @@ defmodule Slipdock.Meetings.CommitTest do
       assert stale["ref"] == "##{ctx.card.id}"
       assert stale["why"] == "it was changed after the review read it"
       assert Repo.aggregate(Card, :count) == before
-      refute Repo.exists?(from(p in Page, where: p.title == "Decisions / Pricing"))
+
+      refute Repo.exists?(
+               from(p in Page, where: p.title == "Decisions / Pricing sync · 7 Oct 2026")
+             )
     end
 
-    test "a decisions page edited, or made, since the review read it is stale too", ctx do
+    test "a decisions page struck on and edited since the review read it is stale too", ctx do
       {:ok, page} =
         Wiki.create_page(ctx.board, %{"title" => "Decisions / Pricing", "body" => "- Old\n"},
           user: ctx.owner
         )
 
-      capture = reviewed_capture(ctx.board, ctx.owner, [decision_finding()])
+      capture =
+        reviewed_capture(ctx.board, ctx.owner, [decision_finding(%{"supersedes" => "old"})])
+
       {:ok, _} = Wiki.update_page(page, %{"body" => "- Old\n- Someone else's\n"}, user: ctx.owner)
 
       assert {:error, :stale, [%{"why" => "it was edited after the review read it"}]} =
                Commit.commit(capture, ctx.owner)
+    end
 
-      other = board_fixture(%{"name" => "Other"}, owner: ctx.owner)
-      capture = reviewed_capture(other, ctx.owner, [decision_finding()])
-      {:ok, _} = Wiki.create_page(other, %{"title" => "Decisions / Pricing"}, user: ctx.owner)
+    test "a page made with the meeting's title since the review is not written over", ctx do
+      capture = reviewed_capture(ctx.board, ctx.owner, [decision_finding()])
+      preview = Commit.build(capture)
 
-      assert {:error, :stale, [%{"why" => "it was made after the review read the wiki"}]} =
-               Commit.commit(capture, ctx.owner)
+      {:ok, theirs} =
+        Wiki.create_page(
+          ctx.board,
+          %{"title" => "Decisions / Pricing sync · 7 Oct 2026", "body" => "Somebody's notes.\n"},
+          user: ctx.owner
+        )
+
+      # The preview named a page that is somebody else's now: committing
+      # against it is refused, and the next preview names another.
+      assert {:error, :conflict, _} = Commit.commit(capture, ctx.owner, digest: preview["digest"])
+      {:ok, committed} = Commit.commit(capture, ctx.owner)
+
+      assert [
+               %{
+                 "page_title" => "Decisions / Pricing sync · 7 Oct 2026 (2)",
+                 "created_page" => true
+               }
+             ] =
+               committed.change_set["changes"]
+
+      assert Repo.reload!(theirs).body == "Somebody's notes.\n"
     end
 
     test "a second commit is refused and writes nothing (G10)", ctx do
@@ -376,6 +406,215 @@ defmodule Slipdock.Meetings.CommitTest do
 
       assert {:error, :stale, [%{"why" => "it no longer exists"} | _]} =
                Commit.commit(capture, ctx.owner)
+    end
+  end
+
+  describe "one decisions page per meeting (#550)" do
+    test "decisions on two topics go on one page, each under its topic's heading", ctx do
+      capture =
+        reviewed_capture(
+          ctx.board,
+          ctx.owner,
+          [
+            decision_finding(),
+            decision_finding(%{
+              "title" => "Launch on Friday",
+              "topic" => "Launch",
+              "evidence" => [%{"line" => "L3", "quote" => "update PL-14 by Friday"}]
+            }),
+            decision_finding(%{
+              "title" => "No discount codes",
+              "evidence" => [%{"line" => "L1", "quote" => "Let's settle the pricing page."}]
+            })
+          ],
+          %{},
+          %{attendees: [%{"name" => "Priya"}, %{"email" => "sam@example.com"}]}
+        )
+
+      {:ok, committed} = Commit.commit(capture, ctx.owner)
+      assert [change] = committed.change_set["changes"]
+      assert change["page_title"] == "Decisions / Pricing sync · 7 Oct 2026"
+      assert length(change["finding_ids"]) == 3
+
+      page = Repo.get!(Page, change["page_id"])
+      [header, pricing, launch] = String.split(page.body, ~r/\n(?=## )/)
+
+      # The header: the meeting, its date, who was there, and the way back.
+      assert header =~ "Decisions from the meeting “Pricing sync” on 7 Oct 2026."
+      assert header =~ "Attendees: Priya, sam@example.com."
+      assert header =~ "(/boards/#{ctx.board.id}/meetings/#{capture.id})"
+      refute header =~ ~r/^\s*[-*] /m
+
+      # Both Pricing decisions under one heading, in order; Launch under its own.
+      assert pricing =~
+               ~r/\A## Pricing\n\n- \*\*Annual plan at 20% off\*\*.*\n- \*\*No discount codes\*\*/
+
+      assert launch =~ ~r/\A## Launch\n\n- \*\*Launch on Friday\*\*/
+
+      # The context step reads the three decisions, not the headings or header.
+      [read] = Slipdock.Meetings.Context.decisions([page])
+
+      assert Enum.map(read["entries"], & &1["text"]) |> Enum.map(&String.slice(&1, 0, 26)) == [
+               "**Annual plan at 20% off**",
+               "**No discount codes** — 7 ",
+               "**Launch on Friday** — 7 O"
+             ]
+    end
+
+    test "decisions on one topic need no heading", ctx do
+      {:ok, committed} =
+        ctx.board
+        |> reviewed_capture(ctx.owner, [decision_finding()])
+        |> Commit.commit(ctx.owner)
+
+      [change] = committed.change_set["changes"]
+      body = Repo.get!(Page, change["page_id"]).body
+      refute body =~ "## "
+      assert body =~ ~r/struck through\.\n\n- \*\*Annual plan at 20% off\*\*/
+    end
+
+    test "two captures of the same meeting on the same day write two pages", ctx do
+      {:ok, first} =
+        ctx.board
+        |> reviewed_capture(ctx.owner, [decision_finding()])
+        |> Commit.commit(ctx.owner)
+
+      {:ok, second} =
+        ctx.board
+        |> reviewed_capture(ctx.owner, [decision_finding(%{"title" => "Free tier stays"})])
+        |> Commit.commit(ctx.owner)
+
+      {:ok, third} =
+        ctx.board
+        |> reviewed_capture(ctx.owner, [decision_finding(%{"title" => "Trial is 14 days"})])
+        |> Commit.commit(ctx.owner)
+
+      [a] = first.change_set["changes"]
+      [b] = second.change_set["changes"]
+      [c] = third.change_set["changes"]
+      assert a["page_title"] == "Decisions / Pricing sync · 7 Oct 2026"
+      assert b["page_title"] == "Decisions / Pricing sync · 7 Oct 2026 (2)"
+      assert c["page_title"] == "Decisions / Pricing sync · 7 Oct 2026 (3)"
+      assert b["created_page"] and c["created_page"]
+      assert length(Enum.uniq([a["page_id"], b["page_id"], c["page_id"]])) == 3
+
+      # The first meeting's page is not appended to.
+      refute Repo.get!(Page, a["page_id"]).body =~ "Free tier stays"
+      assert Repo.get!(Page, b["page_id"]).body =~ "Free tier stays"
+
+      # A different day is a different title.
+      {:ok, next_day} =
+        ctx.board
+        |> reviewed_capture(ctx.owner, [decision_finding()], %{}, %{
+          started_at: ~U[2026-10-08 10:00:00Z]
+        })
+        |> Commit.commit(ctx.owner)
+
+      assert [%{"page_title" => "Decisions / Pricing sync · 8 Oct 2026"}] =
+               next_day.change_set["changes"]
+    end
+
+    test "a long meeting title still makes a page title that fits", ctx do
+      long = String.duplicate("Quarterly planning ", 10) |> String.trim()
+
+      {:ok, committed} =
+        ctx.board
+        |> reviewed_capture(ctx.owner, [decision_finding()], %{}, %{title: long})
+        |> Commit.commit(ctx.owner)
+
+      [change] = committed.change_set["changes"]
+      assert String.length(change["page_title"]) <= Page.title_length()
+      assert change["page_title"] =~ ~r/^Decisions \/ Quarterly planning .* · 7 Oct 2026$/
+    end
+
+    test "replacing decisions strikes them on an earlier meeting's page and a legacy topic page, linking both ways",
+         ctx do
+      {:ok, legacy} =
+        Wiki.create_page(
+          ctx.board,
+          %{"title" => "Decisions / Plans", "body" => "- Free tier stays\n"},
+          user: ctx.owner
+        )
+
+      {:ok, earlier} =
+        ctx.board
+        |> reviewed_capture(
+          ctx.owner,
+          [decision_finding(%{"title" => "Monthly plan only"})],
+          %{},
+          %{title: "Kick-off", started_at: ~U[2026-10-01 10:00:00Z]}
+        )
+        |> Commit.commit(ctx.owner)
+
+      [%{"page_id" => earlier_id, "page_title" => earlier_title}] =
+        earlier.change_set["changes"]
+
+      assert earlier_title == "Decisions / Kick-off · 1 Oct 2026"
+
+      capture =
+        reviewed_capture(ctx.board, ctx.owner, [
+          decision_finding(%{"supersedes" => "monthly plan only"}),
+          decision_finding(%{
+            "title" => "Free tier goes",
+            "topic" => "Plans",
+            "supersedes" => "free tier stays",
+            "evidence" => [%{"line" => "L1", "quote" => "Let's settle the pricing page."}]
+          })
+        ])
+
+      {:ok, committed} = Commit.commit(capture, ctx.owner)
+      [own | struck] = committed.change_set["changes"]
+      assert own["page_title"] == "Decisions / Pricing sync · 7 Oct 2026"
+      assert Enum.map(struck, & &1["page_title"]) == [earlier_title, "Decisions / Plans"]
+      assert Enum.all?(struck, &(&1["finding_ids"] == [] and &1["lines_added"] == []))
+
+      own_link = "[[decisions-pricing-sync-7-oct-2026|Decisions / Pricing sync · 7 Oct 2026]]"
+
+      # Struck where they are, each saying what replaced it and where.
+      assert Repo.get!(Page, earlier_id).body =~
+               ~r/- ~~\*\*Monthly plan only\*\*.*~~ \(replaced by “Annual plan at 20% off” on \Q#{own_link}\E\)/
+
+      assert Repo.reload!(legacy).body ==
+               "- ~~Free tier stays~~ (replaced by “Free tier goes” on #{own_link})\n"
+
+      # And the new page links back to each.
+      body = Repo.get!(Page, own["page_id"]).body
+      earlier_slug = Repo.get!(Page, earlier_id).slug
+
+      assert body =~
+               "Replaces “monthly plan only” on [[#{earlier_slug}|Decisions / Kick-off · 1 Oct 2026]]."
+
+      assert body =~ "Replaces “free tier stays” on [[decisions-plans|Decisions / Plans]]."
+    end
+
+    test "a later commit of the same capture adds to its own page, headings and all", ctx do
+      capture = reviewed_capture(ctx.board, ctx.owner, [decision_finding()])
+      {:ok, committed} = Commit.commit(capture, ctx.owner)
+      [first] = committed.change_set["changes"]
+
+      # What waited for its speaker, answered since: on another topic.
+      later =
+        finding_fixture(committed, %{
+          title: "Launch on Friday",
+          position: 99,
+          effect: %{"type" => "decision_entry", "topic" => "Launch", "text" => "Launch on Friday"}
+        })
+
+      assert Commit.pending?(committed)
+      {:ok, again} = Commit.commit(committed, ctx.owner)
+
+      [_, second] = again.change_set["changes"]
+
+      assert second["page_id"] == first["page_id"]
+      assert second["page_title"] == first["page_title"]
+      assert second["finding_ids"] == [later.id]
+      refute second["created_page"]
+
+      # The page was one topic with no heading; now it is two, each headed.
+      body = Repo.get!(Page, first["page_id"]).body
+      assert body =~ ~r/struck through\.\n\n## Pricing\n\n- \*\*Annual plan at 20% off\*\*/
+      assert body =~ ~r/\n\n## Launch\n\n- \*\*Launch on Friday\*\*/
+      assert length(Regex.scan(~r/^## /m, body)) == 2
     end
   end
 end

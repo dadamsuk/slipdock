@@ -116,8 +116,48 @@ defmodule Slipdock.Meetings.UndoTest do
     capture = committed(ctx)
     [page_change] = Enum.filter(capture.change_set["changes"], &(&1["op"] == "decision_entry"))
     assert page_change["created_page"]
+    assert page_change["page_title"] == "Decisions / Pricing sync · 7 Oct 2026"
     {:ok, _} = Undo.undo(capture, ctx.owner)
     assert Repo.get!(Page, page_change["page_id"]).archived_at
+  end
+
+  test "undo archives the meeting's page and puts back the earlier meeting's page it struck on",
+       ctx do
+    {:ok, earlier} =
+      ctx.board
+      |> reviewed_capture(
+        ctx.owner,
+        [decision_finding(%{"title" => "Monthly plan only"})],
+        %{},
+        %{title: "Kick-off", started_at: ~U[2026-10-01 10:00:00Z]}
+      )
+      |> Commit.commit(ctx.owner)
+
+    [%{"page_id" => earlier_id}] = earlier.change_set["changes"]
+    before = Repo.get!(Page, earlier_id)
+
+    {:ok, capture} =
+      ctx.board
+      |> reviewed_capture(ctx.owner, [decision_finding(%{"supersedes" => "monthly plan only"})])
+      |> Commit.commit(ctx.owner)
+
+    [own, struck] = capture.change_set["changes"]
+    assert own["created_page"] and struck["page_id"] == earlier_id
+    assert Repo.get!(Page, earlier_id).body =~ "~~"
+
+    {:ok, _} = Undo.undo(capture, ctx.owner)
+    assert Repo.get!(Page, own["page_id"]).archived_at
+    assert Repo.get!(Page, earlier_id).body == before.body
+    assert Repo.get!(Page, earlier_id).archived_at == nil
+
+    # A capture of the same meeting made after the undo takes the title again.
+    {:ok, again} =
+      ctx.board
+      |> reviewed_capture(ctx.owner, [decision_finding()])
+      |> Commit.commit(ctx.owner)
+
+    assert [%{"page_title" => "Decisions / Pricing sync · 7 Oct 2026"}] =
+             Enum.filter(again.change_set["changes"], &(&1["op"] == "decision_entry"))
   end
 
   test "an edit made since is listed, not thrown away; undo the rest leaves it", ctx do

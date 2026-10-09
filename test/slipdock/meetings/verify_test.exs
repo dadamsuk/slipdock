@@ -361,7 +361,9 @@ defmodule Slipdock.Meetings.VerifyTest do
     assert [%{kind: "who_said_it", context: %{"line" => "L2"}}] = questions(capture)
   end
 
-  test "ideas are left out by default; decisions are entries on a topic page", %{capture: capture} do
+  test "ideas are left out by default; decisions are entries with a topic label", %{
+    capture: capture
+  } do
     idea = %{
       "kind" => "idea",
       "title" => "A lifetime plan",
@@ -377,7 +379,6 @@ defmodule Slipdock.Meetings.VerifyTest do
     assert decision.effect == %{
              "type" => "decision_entry",
              "topic" => "Pricing",
-             "page" => "Decisions / Pricing",
              "text" => "Annual plan at 20% off",
              "supersedes" => nil,
              "decided_by" => nil
