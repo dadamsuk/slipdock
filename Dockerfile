@@ -12,10 +12,13 @@
 
 # Elixir 1.20: config/runtime.exs uses the `E` regex modifier, which older
 # versions cannot compile — the release would build and then die on boot.
-ARG ELIXIR_IMAGE="hexpm/elixir:1.20.4-erlang-27.3.4.18-debian-bookworm-20260918-slim"
+#
+# Both images are pulled through mirror.gcr.io, Google's cache of Docker Hub:
+# the same images, without Hub's timeouts and rate limits on CI runners.
+ARG ELIXIR_IMAGE="mirror.gcr.io/hexpm/elixir:1.20.4-erlang-27.3.4.18-debian-bookworm-20260918-slim"
 # Must be the same Debian release as the builder: the release carries Erlang's
 # own shared libraries and expects that one's libc and OpenSSL.
-ARG RUNNER_IMAGE="debian:bookworm-20260918-slim"
+ARG RUNNER_IMAGE="mirror.gcr.io/library/debian:bookworm-20260918-slim"
 
 # ── build ───────────────────────────────────────────────────────────────────
 FROM ${ELIXIR_IMAGE} AS builder
