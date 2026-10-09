@@ -29,9 +29,13 @@ jobs:
     # usual one — the same address `compose.dev.yaml` gives a developer, which
     # means CI and a laptop run the suite against the same URL and neither
     # needs TEST_DATABASE_URL set.
+    #
+    # Images come through mirror.gcr.io (Google's cache of Docker Hub), not
+    # Docker Hub itself: Hub's anonymous pulls from runners time out or are
+    # rate-limited often enough to fail whole runs before any code is checked.
     services:
       postgres:
-        image: postgres:17-alpine
+        image: mirror.gcr.io/library/postgres:17-alpine
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres

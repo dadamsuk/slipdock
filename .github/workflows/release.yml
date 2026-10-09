@@ -56,7 +56,11 @@ jobs:
         env:
           PLATFORM: ${{ matrix.platform }}
 
+      # BuildKit from mirror.gcr.io rather than Docker Hub, which times out
+      # from runners often enough to fail the build before it starts.
       - uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: image=mirror.gcr.io/moby/buildkit:buildx-stable-1
 
       - uses: docker/login-action@v3
         with:
@@ -116,7 +120,11 @@ jobs:
           pattern: digests-*
           merge-multiple: true
 
+      # BuildKit from mirror.gcr.io rather than Docker Hub, which times out
+      # from runners often enough to fail the build before it starts.
       - uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: image=mirror.gcr.io/moby/buildkit:buildx-stable-1
 
       - uses: docker/login-action@v3
         with:
