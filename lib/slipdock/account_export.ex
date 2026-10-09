@@ -35,7 +35,10 @@ defmodule Slipdock.AccountExport do
     entries =
       [{"account.json", Jason.encode_to_iodata!(account(user), pretty: true)}] ++
         board_entries(user) ++
-        page_entries(user) ++ elsewhere_entries(user) ++ capture_entries(user, opts)
+        page_entries(user) ++
+        elsewhere_entries(user) ++
+        capture_entries(user, opts) ++
+        voiceprint_entries(user)
 
     entries = for {path, contents} <- entries, do: {String.to_charlist(path), to_binary(contents)}
 
@@ -193,6 +196,15 @@ defmodule Slipdock.AccountExport do
     if audio && File.exists?(audio),
       do: [json, {base <> Path.extname(capture.audio_key), File.read!(audio)}],
       else: [json]
+  end
+
+  # Their voiceprint (the embedding, never audio) and every consent given or
+  # withdrawn, whenever there is either — whether or not voiceprints are on now.
+  defp voiceprint_entries(user) do
+    case Slipdock.Meetings.Voiceprints.export(user) do
+      %{voiceprint: nil, consent: []} -> []
+      data -> [{"voiceprint.json", Jason.encode_to_iodata!(data, pretty: true)}]
+    end
   end
 
   defp to_binary(iodata) when is_binary(iodata), do: iodata

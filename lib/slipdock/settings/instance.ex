@@ -115,6 +115,10 @@ defmodule Slipdock.Settings.Instance do
     field :meetings_diarisation, :string, default: "labels"
     field :meetings_diarisation_url, :string
     field :meetings_dialogue_inference, :boolean, default: true
+    # Voiceprints, by each person's consent (see `Slipdock.Meetings.Voiceprints`):
+    # off unless turned on, and the endpoint that turns speech into an embedding.
+    field :meetings_voiceprints, :boolean, default: false
+    field :meetings_voiceprint_url, :string
     # The audio-capable model unclear passages are re-listened to with
     # (see `Slipdock.Meetings.Relisten`); nil leaves re-listening off.
     field :meetings_relisten_model, :string
@@ -186,7 +190,7 @@ defmodule Slipdock.Settings.Instance do
                     meetings_transcription meetings_transcription_model
                     meetings_transcription_url meetings_transcription_max_mb
                     meetings_diarisation meetings_diarisation_url meetings_dialogue_inference
-                    meetings_relisten_model)a
+                    meetings_relisten_model meetings_voiceprints meetings_voiceprint_url)a
 
   # The admin address and the SMTP details each have a flow that proves
   # something first (a code to the new address, a test message that arrived),
@@ -224,7 +228,8 @@ defmodule Slipdock.Settings.Instance do
       :meetings_transcription_model,
       :meetings_transcription_url,
       :meetings_diarisation_url,
-      :meetings_relisten_model
+      :meetings_relisten_model,
+      :meetings_voiceprint_url
     ])
     |> validate_inclusion(:meetings_transcription, ~w(none provider endpoint))
     |> validate_inclusion(:meetings_diarisation, ~w(labels endpoint))
@@ -234,6 +239,13 @@ defmodule Slipdock.Settings.Instance do
            get_field(cs, :meetings_diarisation_url) in [nil, ""],
          do:
            add_error(cs, :meetings_diarisation_url, "is needed to separate voices on an endpoint"),
+         else: cs
+    end)
+    |> validate_web_url(:meetings_voiceprint_url)
+    |> then(fn cs ->
+      if get_field(cs, :meetings_voiceprints) == true and
+           get_field(cs, :meetings_voiceprint_url) in [nil, ""],
+         do: add_error(cs, :meetings_voiceprint_url, "is needed to turn voiceprints on"),
          else: cs
     end)
     |> validate_number(:meetings_transcription_max_mb, greater_than: 0)

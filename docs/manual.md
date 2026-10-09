@@ -1830,6 +1830,25 @@ recording, the person and why, confirm or change — and the unsure lines a
 finding depends on. Changing a voice changes the owner or decision-maker of
 exactly the findings that took it from that voice, without reading again.
 
+Voiceprints, by consent: off unless an admin turns them on
+(`meetings_voiceprints=true`, with `meetings_voiceprint_url`, an embedding
+service of yours that is sent a recording — and, for a stretch of a meeting,
+`segments` as `[[start, end]]` in seconds — and answers `{"embedding":
+[numbers]}`; a SpeechBrain ECAPA or pyannote server fits). Then each person
+decides for themselves, under **Account › Voiceprint** (or `slipdock voiceprint
+enrol --audio me.wav --consent`): from a short recording of their own voice,
+or from a meeting where their voice was confirmed. Nobody can enrol, see or
+delete anybody else's: every route is the caller's own, and one that names a
+person is refused. The consent wording they agreed to is recorded, word for
+word with its version, beside when; only the embedding is kept, never the
+audio it was made from. Deleting it takes effect at once — later captures stop
+using it — and the withdrawal is recorded. The voiceprint and the consent
+record are in the person's own export (`voiceprint.json`). In a capture with a
+recording, a voice whose lines sound like somebody's voiceprint gets that as
+one more piece of evidence, shown with its similarity, weighed with the rest
+and confirmable like any other. There is deliberately no MCP tool for it:
+consent to biometric data is the person's to give, not an agent's.
+
 Limits, per person per month, each with a switch: `meetings_transcription_minutes`
 (600), `meetings_audio_storage_mb` (2048, the recordings they have stored now)
 and `meetings_transcript_captures` (200); for every meeting,
@@ -2905,6 +2924,10 @@ GET    /api/captures/:id/preview          the change set and its digest, and wha
 POST   /api/captures/:id/commit           {preview: digest}; 409 committed / stale (named) / changed
 POST   /api/captures/:id/undo             {rest}; 409 lists what was edited since
 POST   /api/captures/:id/retry            POST /api/captures/:id/discard
+GET    /api/me/voiceprint                 your own voiceprint, the consent wording, meetings to enrol from
+POST   /api/me/voiceprint                 multipart audio, or capture (id); consent: the wording's version
+DELETE /api/me/voiceprint                 delete it now (only while an admin has voiceprints on;
+                                          any user, user_id or email in the request is a 403)
 ```
 
 A page's `:id` is its numeric id, its code (`W-31`), or `board-code/slug` with

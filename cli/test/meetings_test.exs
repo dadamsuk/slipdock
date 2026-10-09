@@ -37,6 +37,7 @@ defmodule SlipdockCLI.MeetingsTest do
     assert out =~ "Meeting mode: on"
     assert out =~ "on boards that have had a capture"
     assert out =~ "yes (you have hidden it)"
+    assert out =~ "Voiceprints:  off"
   end
 
   test "meetings on every board, with --json passing the answer through" do
@@ -291,5 +292,99 @@ defmodule SlipdockCLI.MeetingsTest do
       assert out =~ "audio stored   10 MB"
       assert out =~ "Sam: 10 min, 3000 tokens"
     end
+  end
+
+  test "meetings says when voiceprints are on" do
+    serve([
+      {200,
+       ~s({"meetings":{"enabled":true,"visibility":"every_board","hideable":false,"hidden":false,"voiceprints":true}})}
+    ])
+
+    assert capture_io(fn -> Meetings.run("meetings", [], []) end) =~
+             "Voiceprints:  on, by each person's consent"
+  end
+
+  describe "voiceprint" do
+    @state ~s({"voiceprint":null,"consent":{"version":"2026-10-09","wording":"I agree to Slipdock keeping a voiceprint"},"offers":[{"capture":7,"title":"Weekly","board_id":3,"voice":"Voice A"}]})
+    @saved ~s({"voiceprint":{"source":"recording","consented_at":"2026-10-09T10:00:00Z","consent_version":"2026-10-09","dimensions":192},"consent":{},"offers":[]})
+
+    test "shows none, and the meetings it could be made from" do
+      serve([{200, @state}])
+      out = capture_io(fn -> Meetings.run("voiceprint", [], []) end)
+      assert_received {:request, "GET", "/api/me/voiceprint", _}
+      assert out =~ "You have no voiceprint."
+      assert out =~ "could enrol from capture #7 “Weekly” (Voice A was confirmed as you)"
+    end
+
+    test "enrol --audio --consent prints the wording, then sends the recording and its version" do
+      serve([{200, @state}, {201, @saved}])
+      audio = Path.join(System.tmp_dir!(), "vp-#{System.unique_integer([:positive])}.wav")
+      File.write!(audio, "MY VOICE")
+      on_exit(fn -> File.rm(audio) end)
+
+      {out, err} =
+        with_stderr(fn -> Meetings.run("voiceprint", ["enrol"], audio: audio, consent: true) end)
+
+      assert err =~ "I agree to Slipdock keeping a voiceprint"
+      assert_received {:request, "GET", "/api/me/voiceprint", _}
+      assert_received {:request, "POST", "/api/me/voiceprint", body}
+      assert body =~ ~s(name="audio"; filename=")
+      assert body =~ "content-type: audio/wav"
+      assert body =~ "MY VOICE"
+      assert body =~ ~s(name="consent")
+      assert body =~ "2026-10-09"
+      refute body =~ "user"
+      assert out =~ "You have a voiceprint, from a recording"
+    end
+
+    test "enrol --from-capture sends the meeting's id and the version" do
+      serve([{200, @state}, {201, @saved}])
+
+      capture_io(:stderr, fn ->
+        capture_io(fn ->
+          Meetings.run("voiceprint", ["enrol"], from_capture: "7", consent: true)
+        end)
+      end)
+
+      assert_received {:request, "POST", "/api/me/voiceprint", body}
+      assert JSON.decode!(body) == %{"capture" => "7", "consent" => "2026-10-09"}
+    end
+
+    test "delete" do
+      serve([{200, ~s({"deleted":true,"voiceprint":null})}])
+      out = capture_io(fn -> Meetings.run("voiceprint", ["delete"], []) end)
+      assert_received {:request, "DELETE", "/api/me/voiceprint", _}
+      assert out =~ "deleted your voiceprint"
+    end
+
+    test "admin set sends the voiceprint switch as a boolean" do
+      serve([{200, ~s({"settings":{}})}])
+
+      capture_io(fn ->
+        try do
+          Admin.run(
+            "admin",
+            ["set", "meetings_voiceprints=yes", "meetings_voiceprint_url=http://v/embed"],
+            []
+          )
+        rescue
+          _ -> :ok
+        end
+      end)
+
+      assert_received {:request, "PATCH", "/api/admin/settings", body}
+
+      assert JSON.decode!(body) == %{
+               "meetings_voiceprints" => true,
+               "meetings_voiceprint_url" => "http://v/embed"
+             }
+    end
+  end
+
+  defp with_stderr(fun) do
+    me = self()
+    err = capture_io(:stderr, fn -> send(me, {:out, capture_io(fun)}) end)
+    assert_received {:out, out}
+    {out, err}
   end
 end

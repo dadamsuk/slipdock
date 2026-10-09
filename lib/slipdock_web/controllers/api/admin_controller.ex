@@ -77,7 +77,9 @@ defmodule SlipdockWeb.API.AdminController do
           voices: %{
             diarisation: settings.meetings_diarisation,
             url: settings.meetings_diarisation_url,
-            dialogue_inference: settings.meetings_dialogue_inference
+            dialogue_inference: settings.meetings_dialogue_inference,
+            voiceprints: settings.meetings_voiceprints,
+            voiceprint_url: settings.meetings_voiceprint_url
           },
           transcription: %{
             with: settings.meetings_transcription,
