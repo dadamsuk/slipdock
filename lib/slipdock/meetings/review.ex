@@ -97,7 +97,9 @@ defmodule Slipdock.Meetings.Review do
         Meetings.record(
           question.capture,
           "unanswered",
-          "Took back the answer to “#{question.prompt}”.", user: user)
+          "Took back the answer to “#{question.prompt}”.",
+          user: user
+        )
       end)
       |> finish(question.capture)
     end

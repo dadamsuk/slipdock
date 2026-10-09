@@ -106,7 +106,7 @@ defmodule Slipdock.MeetingsFixtures do
       capture
       |> Ecto.Changeset.change(
         readings: %{"1" => findings, "2" => nil, "agent" => nil},
-        context: Map.merge(%{"candidates" => [], "decisions" => []}, context),
+        context: Map.merge(%{"candidates" => [], "decisions" => decisions(board)}, context),
         step: "relisten"
       )
       |> Repo.update!()
@@ -143,5 +143,16 @@ defmodule Slipdock.MeetingsFixtures do
       },
       attrs
     )
+  end
+
+  # The decisions pages on the board as the context step would read them.
+  defp decisions(board) do
+    import Ecto.Query
+
+    board.id
+    |> then(
+      &Repo.all(from(p in Slipdock.Wiki.Page, where: p.board_id == ^&1 and is_nil(p.archived_at)))
+    )
+    |> Slipdock.Meetings.Context.decisions()
   end
 end
