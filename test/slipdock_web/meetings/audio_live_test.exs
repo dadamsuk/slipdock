@@ -21,12 +21,23 @@ defmodule SlipdockWeb.Meetings.AudioLiveTest do
 
   defp upload_audio(view) do
     view
-    |> file_input("#new-capture-form", :audio, [%{name: "call.wav", content: "RIFF....WAVE", type: "audio/wav"}])
+    |> file_input("#new-capture-form", :audio, [
+      %{name: "call.wav", content: "RIFF....WAVE", type: "audio/wav"}
+    ])
     |> render_upload("call.wav")
   end
 
-  test "with a transcriber set up, the upload page names it before anything is sent", %{conn: conn, board: board} do
-    {:ok, _} = Settings.update(%{"meetings_transcription" => "endpoint", "meetings_transcription_url" => "http://whisper.example/v1", "meetings_transcription_model" => "large-v3"})
+  test "with a transcriber set up, the upload page names it before anything is sent", %{
+    conn: conn,
+    board: board
+  } do
+    {:ok, _} =
+      Settings.update(%{
+        "meetings_transcription" => "endpoint",
+        "meetings_transcription_url" => "http://whisper.example/v1",
+        "meetings_transcription_model" => "large-v3"
+      })
+
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/meetings/new")
     upload_audio(view)
 
@@ -36,19 +47,31 @@ defmodule SlipdockWeb.Meetings.AudioLiveTest do
     assert html =~ "whisper.example"
   end
 
-  test "with none, it says the recording stays here and needs a transcript", %{conn: conn, board: board} do
+  test "with none, it says the recording stays here and needs a transcript", %{
+    conn: conn,
+    board: board
+  } do
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/meetings/new")
     upload_audio(view)
-    assert view |> element("#capture-destination") |> render() =~ "it transcribes nothing, so send a transcript with it"
+
+    assert view |> element("#capture-destination") |> render() =~
+             "it transcribes nothing, so send a transcript with it"
   end
 
-  test "a capture says how long its recording is kept, then that replay is gone", %{conn: conn, board: board, user: user} do
+  test "a capture says how long its recording is kept, then that replay is gone", %{
+    conn: conn,
+    board: board,
+    user: user
+  } do
     path = Path.join(System.tmp_dir!(), "l-#{System.unique_integer([:positive])}.wav")
     File.write!(path, "RIFF....WAVE")
     on_exit(fn -> File.rm(path) end)
 
     {:ok, capture} =
-      Meetings.create_capture(board, user, %{title: "Call", fingerprint: Meetings.fingerprint(audio: path), retention: "90_days"},
+      Meetings.create_capture(
+        board,
+        user,
+        %{title: "Call", fingerprint: Meetings.fingerprint(audio: path), retention: "90_days"},
         audio: %{path: path, filename: "call.wav"}
       )
 
