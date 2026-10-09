@@ -137,9 +137,9 @@ defmodule SlipdockWeb.API.JobController do
   defp not_session(runner) do
     if Runner.session?(runner) do
       {:error, :unprocessable_entity,
-       "“#{runner.name}” is a Claude session, so it has no setup steps or token of its " <>
+       "“#{runner.name}” is a Claude or ChatGPT session, so it has no setup steps or token of its " <>
          "own: its instructions are in the session's own task. To change them, run " <>
-         "Connect a runner again (slipdock runner new <board> --scenario loop|cloud) and " <>
+         "Connect a runner again (slipdock runner new <board> --scenario loop|cloud|chatgpt) and " <>
          "paste the new ones into the task."}
     else
       :ok

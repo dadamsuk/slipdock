@@ -85,6 +85,54 @@ defmodule SlipdockWeb.RunnersLiveTest do
     assert has_element?(view, "#runner-setup", "claim_job")
   end
 
+  describe "ChatGPT (#522)" do
+    test "its own options: no directory, permission mode or agent; the connector and prompt",
+         %{conn: conn, board: board} do
+      view = open(conn, board)
+      choose(view, %{"scenario" => "chatgpt"})
+
+      assert has_element?(view, "#runner-wizard label", "ChatGPT")
+      refute has_element?(view, "#runner-wizard input[name='wizard[cwd]']")
+      refute has_element?(view, "#runner-wizard select[name='wizard[permission_mode]']")
+      refute has_element?(view, "#runner-wizard select[name='wizard[agent]']")
+      refute has_element?(view, "#runner-wizard input[name='wizard[name]']")
+      assert has_element?(view, "#runner-wizard", "uses your ChatGPT usage")
+      assert has_element?(view, "#runner-wizard", "must be reachable from the internet")
+
+      submit(view, %{"scenario" => "chatgpt", "pool" => "writing"})
+      assert has_element?(view, "#runner-setup", "Settings → Apps & Connectors")
+      assert has_element?(view, "#runner-setup", ~s(claim_job with board))
+      assert has_element?(view, "#runner-setup", "You have no repository, shell or tests")
+      assert Runners.list_runners(board) == []
+    end
+
+    test "commit and push are greyed out, and switching to it unticks them", %{
+      conn: conn,
+      board: board
+    } do
+      view = open(conn, board)
+      choose(view, %{"scenario" => "loop", "commit" => "true"})
+      choose(view, %{"scenario" => "loop", "commit" => "true", "push" => "true"})
+      assert has_element?(view, "#wizard-commit[checked]")
+
+      choose(view, %{"scenario" => "chatgpt", "commit" => "true", "push" => "true"})
+      assert has_element?(view, "#wizard-commit[disabled]")
+      assert has_element?(view, "#wizard-push[disabled]")
+      refute has_element?(view, "#wizard-commit[checked]")
+      refute has_element?(view, "#wizard-push[checked]")
+      refute render(view) =~ "no repository to commit to"
+      # The others stay free to tick.
+      refute has_element?(view, "#wizard-complete[disabled]")
+    end
+
+    test "hooks are greyed out, saying ChatGPT isn't your machine", %{conn: conn, board: board} do
+      view = open(conn, board)
+      choose(view, %{"scenario" => "chatgpt"})
+      assert has_element?(view, "#hooks-off", "ChatGPT runs on OpenAI's machines")
+      assert has_element?(view, "fieldset[disabled] input[name='wizard[before_job]']")
+    end
+  end
+
   test "a custom agent shows a command field", %{conn: conn, board: board} do
     view = open(conn, board)
     refute has_element?(view, "input[name='wizard[command]']")
@@ -339,7 +387,7 @@ defmodule SlipdockWeb.RunnersLiveTest do
       assert has_element?(
                view,
                "#board-runners",
-               "Send cards to a coding agent or LLM on your own machine, or to Claude on a schedule"
+               "Send cards to a coding agent or LLM on your own machine, to Claude on a schedule, or to ChatGPT"
              )
 
       refute has_element?(view, "#runner-dialog")
@@ -541,7 +589,7 @@ defmodule SlipdockWeb.RunnersLiveTest do
     test "seven checkboxes, unticked, for every scenario, and Nothing written by default", ctx do
       view = open(ctx.conn, ctx.board)
 
-      for scenario <- ~w(server windows loop cloud) do
+      for scenario <- ~w(server windows loop cloud chatgpt) do
         choose(view, %{"scenario" => scenario})
 
         for id <- @toggle_ids do

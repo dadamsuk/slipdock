@@ -1386,7 +1386,7 @@ defmodule SlipdockWeb.APIGuide do
     **Connecting one** is easiest with the wizard, which the board's
     Automations panel shows as *Connect a runner*: `POST
     /api/boards/:board/runners/setup` with `scenario` (`server`, `windows`,
-    `loop`, `cloud`), `pool`, `agent`, `cwd`, `permission_mode`, `timeout`,
+    `loop`, `cloud`, `chatgpt`), `pool`, `agent`, `cwd`, `permission_mode`, `timeout`,
     `service`, `where` and `repo`, and `column` to add a rule sending that
     list's cards. It answers with `setup.steps` — exactly what to paste — and
     for a runner of its own the `runner` and its `token`, once. `GET
@@ -1403,7 +1403,8 @@ defmodule SlipdockWeb.APIGuide do
     `slipdock runner new` prints the same. What a job does to its card and
     repository is seven booleans, all false unless given, in every scenario:
     `in_progress`, `assign`, `commit` (only in a git repository), `push`
-    (refused without `commit`), `move_done`, `complete` and `percent_100`.
+    (refused without `commit`; `commit` is refused for `chatgpt`, which has no
+    repository), `move_done`, `complete` and `percent_100`.
     Each is said in the prompt, or a runner's standing instructions, on or
     off. `verbosity` is `nothing` (the default: no comments, `job_progress`
     with no note), `quiet`, `normal`, `verbose`, or `""` for whatever the

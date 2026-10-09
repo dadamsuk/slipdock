@@ -343,7 +343,7 @@ defmodule SlipdockCLI do
     run-automation <board> <rule>                  run a timed rule now (forgets what it has done)
     delete-automation <board> <rule>
     dismiss <alert-id>... | dismiss --all           dismiss alerts (yours only; others keep theirs)
-    runner new <board> [name] --pool P [--scenario server|windows|loop|cloud]
+    runner new <board> [name] --pool P [--scenario server|windows|loop|cloud|chatgpt]
                [--agent claude|codex|custom] [--command CMD] [--kind K] [--cwd DIR]
                [--permission-mode M] [--timeout SECONDS] [--service auto|systemd|launchd|none]
                [--where desktop|cloud] [--repo owner/repo]

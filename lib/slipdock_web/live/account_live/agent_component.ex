@@ -243,7 +243,8 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
           A <strong class="font-medium">runner</strong>
           is an agent on a machine of yours that the board sends cards to — when one arrives in a
           list, say — instead of one you start. Set it up from the board, under <strong class="font-medium">Automations → Connect a runner</strong>: a Linux or macOS machine,
-          Windows, Claude Code in a <code>/loop</code>, or Claude on a schedule. Runners
+          Windows, Claude Code in a <code>/loop</code>, Claude on a schedule, or ChatGPT through
+          its Slipdock connector. Runners
           dial out and ask for work; the board never connects to them, and only sends a
           card and a prompt — what runs is decided by the runner's own config.
         </p>

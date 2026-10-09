@@ -276,9 +276,14 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
   end
 
   # Unticking commit unticks push, which is greyed out without it, rather than
-  # showing an error for a box that can't be changed.
+  # showing an error for a box that can't be changed. Switching to ChatGPT,
+  # which has no repository, unticks both.
   defp push_needs_commit(params) do
-    if ticked?(params["commit"]), do: params, else: Map.put(params, "push", "false")
+    cond do
+      not Setup.commits?(params) -> Map.merge(params, %{"commit" => "false", "push" => "false"})
+      ticked?(params["commit"]) -> params
+      true -> Map.put(params, "push", "false")
+    end
   end
 
   # The seven things a job may do to the card, in the order a job meets them.
@@ -321,7 +326,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
         <div>
           <p class="text-sm font-medium">Runners</p>
           <p class="text-xs text-base-content/60">
-            Send cards to a coding agent or LLM on your own machine, or to Claude on a schedule
+            Send cards to a coding agent or LLM on your own machine, to Claude on a schedule, or to ChatGPT
           </p>
         </div>
         <button
@@ -558,7 +563,12 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
             class="input input-sm w-full font-mono"
           />
         </label>
-        <label :if={@p["scenario"] != "cloud" or @p["where"] == "desktop"} class="space-y-1">
+        <label
+          :if={
+            @p["scenario"] != "chatgpt" and (@p["scenario"] != "cloud" or @p["where"] == "desktop")
+          }
+          class="space-y-1"
+        >
           <span class="text-xs text-base-content/70">Working directory</span>
           <input
             name="wizard[cwd]"
@@ -568,7 +578,10 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
           />
         </label>
         <label
-          :if={@p["agent"] == "claude" or not Setup.needs_token?(@p["scenario"])}
+          :if={
+            @p["scenario"] != "chatgpt" and
+              (@p["agent"] == "claude" or not Setup.needs_token?(@p["scenario"]))
+          }
           class="space-y-1"
         >
           <span class="text-xs text-base-content/70">Permission mode</span>
@@ -684,7 +697,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
                 :for={{key, label} <- toggle_labels()}
                 class={[
                   "flex items-center gap-2 text-sm",
-                  (key == "push" and not ticked?(@p["commit"])) && "opacity-50"
+                  off_here?(key, @p) && "opacity-50"
                 ]}
               >
                 <input type="hidden" name={"wizard[#{key}]"} value="false" />
@@ -694,7 +707,7 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
                   name={"wizard[#{key}]"}
                   value="true"
                   checked={ticked?(@p[key])}
-                  disabled={key == "push" and not ticked?(@p["commit"])}
+                  disabled={off_here?(key, @p)}
                   class="checkbox checkbox-xs"
                 />
                 <span>{label}</span>
@@ -728,7 +741,19 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
             disabled={not Setup.hooks?(@p)}
           >
             <legend class="px-1 text-xs font-medium text-base-content/70">Hooks</legend>
-            <p :if={not Setup.hooks?(@p)} class="text-xs text-base-content/60" id="hooks-off">
+            <p
+              :if={not Setup.hooks?(@p) and @p["scenario"] == "chatgpt"}
+              class="text-xs text-base-content/60"
+              id="hooks-off"
+            >
+              ChatGPT runs on OpenAI's machines, not yours, so there is nothing for hooks to run
+              on. Instructions still go in its prompt.
+            </p>
+            <p
+              :if={not Setup.hooks?(@p) and @p["scenario"] != "chatgpt"}
+              class="text-xs text-base-content/60"
+              id="hooks-off"
+            >
               A cloud routine runs on Anthropic's machines, not yours, so there is nothing for
               hooks to run on. Instructions still go in its prompt.
             </p>
@@ -1124,4 +1149,11 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
     do: SlipdockWeb.RunnerInstallController.files()["slipdock-runner"]
 
   defp blank?(value), do: value in [nil, ""]
+
+  # A toggle that can't be ticked here: push without commit, and either of
+  # them for ChatGPT, which has no repository.
+  defp off_here?(key, p) when key in ~w(commit push),
+    do: not Setup.commits?(p) or (key == "push" and not ticked?(p["commit"]))
+
+  defp off_here?(_key, _p), do: false
 end

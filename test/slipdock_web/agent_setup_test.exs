@@ -206,6 +206,7 @@ defmodule SlipdockWeb.AgentSetupTest do
       {:ok, view, _html} = live(conn, ~p"/account/agent")
       assert has_element?(view, "#agent-runners", "Automations → Connect a runner")
       assert has_element?(view, "#agent-runners", "the board never connects to them")
+      assert has_element?(view, "#agent-runners", "ChatGPT through")
     end
 
     test "does not pretend reading a board is free, and approves in the browser", %{conn: conn} do

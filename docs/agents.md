@@ -251,6 +251,7 @@ and gives you exactly what to paste:
 | Windows machine | `& ([scriptblock]::Create((irm '…/runner/install.ps1'))) -Url … -Token sdr_…` — the PowerShell runner, started at logon by Task Scheduler | nothing |
 | Claude Code on my machine | `claude mcp add …`, the skills, and a `/loop /slipdock-loop … taking a job from the … pool's queue` line | a Claude turn per check |
 | Claude, scheduled | a Claude Desktop local routine, or a cloud routine at claude.ai/code/routines with the Slipdock connector | a Claude turn per run |
+| ChatGPT | the Slipdock connector in ChatGPT, and a prompt for a chat or a scheduled task that takes one job with `claim_job`, works it in the conversation and ends with `finish_job` | a ChatGPT turn per check |
 
 It can also add the rule that sends a list's cards to the runner's **pool**
 (the *Send cards to a runner* preset, offered once the board has a runner) —
@@ -299,7 +300,14 @@ no definition there is refused without running anything. A rule can pick the
 kind; it can never pick a command. A runner's token (`sdr_…`) works only for
 taking and reporting on its own pool's jobs.
 
-A Claude session takes jobs from the same queue with the token it already
+**ChatGPT** has no repository or shell, so its prompt has it do the work
+in the conversation (writing, research, planning) and hand back, with the job
+finished `failed`, a card that needs a machine; commit and push can't be
+ticked for it, and hooks are left out. Its jobs are of kind `chatgpt`, so a
+rule can send it only the cards it can finish — give it a list or pool of its
+own.
+
+A Claude or ChatGPT session takes jobs from the same queue with the token it already
 has — the MCP tools `claim_job`, `job_progress` and `finish_job`, or
 `slipdock claim-job` — so a `/loop` and a shell runner never work the same
 card. The details, and the HTTP protocol a runner speaks, are in
