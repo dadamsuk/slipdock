@@ -32,8 +32,10 @@ defmodule Slipdock.Meetings do
   import Ecto.Query, warn: false
 
   alias Slipdock.Accounts.User
+  alias Slipdock.Boards
   alias Slipdock.Boards.Board
-  alias Slipdock.Settings
+  alias Slipdock.Meetings.{Capture, Event, Finding, Question, Utterance}
+  alias Slipdock.{Quota, Repo, Settings}
 
   @off_message "meeting mode is off on this server"
 
@@ -116,4 +118,408 @@ defmodule Slipdock.Meetings do
   end
 
   def mark_used(%Board{} = board), do: board
+
+  ## Captures -----------------------------------------------------------------
+
+  @doc """
+  The fingerprint a meeting is known by on a board (G10): SHA-256 of the
+  transcript's text, normalised so that the same words with different line
+  endings, a byte-order mark or trailing spaces are the same meeting, and/or
+  of the audio's bytes. Sending the same transcript or recording to a board
+  again finds the first capture rather than making a second.
+
+  Takes `transcript:` (text) and `audio:` (a path to the bytes); at least one.
+  """
+  @spec fingerprint(keyword()) :: String.t()
+  def fingerprint(parts) do
+    pieces =
+      [
+        parts[:transcript] && "t:" <> sha256(normalise_transcript(parts[:transcript])),
+        parts[:audio] && "a:" <> sha256_file(parts[:audio])
+      ]
+      |> Enum.reject(&is_nil/1)
+
+    case pieces do
+      [] -> raise ArgumentError, "a fingerprint needs a transcript or audio"
+      pieces -> Enum.join(pieces, "+")
+    end
+  end
+
+  @doc """
+  A transcript's text, reduced to what makes it the same meeting: Unicode
+  NFC, no byte-order mark, `\n` line endings, each line's surrounding blanks
+  and the blank lines gone. Only for the fingerprint — the stored transcript
+  is always the bytes as received.
+  """
+  def normalise_transcript(text) when is_binary(text) do
+    text
+    |> String.replace_prefix("\uFEFF", "")
+    |> :unicode.characters_to_nfc_binary()
+    |> String.replace(~r/\r\n?/, "\n")
+    |> String.split("\n")
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.join("\n")
+  end
+
+  defp sha256(data), do: :crypto.hash(:sha256, data) |> Base.encode16(case: :lower)
+
+  defp sha256_file(path) do
+    path
+    |> File.stream!(65_536)
+    |> Enum.reduce(:crypto.hash_init(:sha256), &:crypto.hash_update(&2, &1))
+    |> :crypto.hash_final()
+    |> Base.encode16(case: :lower)
+  end
+
+  @doc "The capture on this board with this fingerprint, or nil."
+  def find_by_fingerprint(%Board{id: board_id}, fingerprint),
+    do: Repo.get_by(Capture, board_id: board_id, fingerprint: fingerprint)
+
+  @doc """
+  Records a meeting sent to a board.
+
+  `attrs` holds the capture's own fields (`title`, `started_at`, `attendees`,
+  `fingerprint`, `source`, `sources`, `transcript`, …). Options:
+
+    * `:utterances` — the transcript's lines, as maps (`text`, `speaker`,
+      `start_ms`, `end_ms`, `words`), in order; they get positions and line
+      ids `L1`, `L2`, …
+    * `:audio` — `%{path:, filename:, content_type:}`: the recording, copied
+      into the uploads directory and counted against the board owner's file
+      storage before a byte is copied.
+
+  Returns `{:ok, capture}`, or `{:existing, capture}` when this board already
+  has a capture with the same fingerprint (G10) — nothing new is stored then.
+  The board is stamped as having had a capture (`mark_used/1`).
+  """
+  @spec create_capture(Board.t(), User.t(), map(), keyword()) ::
+          {:ok, Capture.t()} | {:existing, Capture.t()} | {:error, term()}
+  def create_capture(%Board{} = board, %User{} = owner, attrs, opts \\ []) do
+    fingerprint = attrs[:fingerprint] || attrs["fingerprint"]
+
+    case fingerprint && find_by_fingerprint(board, fingerprint) do
+      %Capture{} = existing ->
+        {:existing, existing}
+
+      nil ->
+        insert_capture(board, owner, attrs, opts)
+    end
+  end
+
+  defp insert_capture(board, owner, attrs, opts) do
+    audio = opts[:audio]
+
+    changeset =
+      %Capture{board_id: board.id, owner_id: owner.id}
+      |> Capture.create_changeset(attrs)
+      |> put_audio_fields(audio)
+      |> Quota.enforce(board, :storage, want: (audio && audio_size(audio)) || 0)
+
+    result =
+      with {:ok, _} <- Ecto.Changeset.apply_action(changeset, :insert),
+           :ok <- store_audio(changeset, audio) do
+        Repo.transaction(fn ->
+          case Repo.insert(changeset) do
+            {:ok, capture} ->
+              :ok = insert_utterances(capture, opts[:utterances] || [])
+              record(capture, "received", received_message(capture), user: owner)
+              capture
+
+            {:error, reason} ->
+              Repo.rollback(reason)
+          end
+        end)
+      end
+
+    case result do
+      {:ok, capture} ->
+        mark_used(board)
+        {:ok, capture}
+
+      {:error, %Ecto.Changeset{} = cs} ->
+        # The file went down before the row: take it back up.
+        remove_audio_file(Ecto.Changeset.get_field(changeset, :audio_key))
+
+        # Two uploads of the same meeting at once: the second finds the first.
+        fingerprint = Ecto.Changeset.get_field(changeset, :fingerprint)
+
+        case fingerprint && cs.errors[:board_id] && find_by_fingerprint(board, fingerprint) do
+          %Capture{} = existing -> {:existing, existing}
+          _ -> {:error, cs}
+        end
+
+      {:error, reason} ->
+        remove_audio_file(Ecto.Changeset.get_field(changeset, :audio_key))
+        {:error, reason}
+    end
+  end
+
+  defp received_message(%Capture{} = capture) do
+    parts =
+      [
+        capture.transcript && "a transcript",
+        capture.audio_key && "a recording",
+        get_in(capture.sources, ["findings", "count"]) && "findings from an agent"
+      ]
+      |> Enum.reject(&(&1 in [nil, false]))
+
+    "Received #{Enum.join(parts, " and ")} for “#{capture.title}”."
+  end
+
+  defp audio_size(%{size: size}) when is_integer(size), do: size
+  defp audio_size(%{path: path}), do: File.stat!(path).size
+
+  defp put_audio_fields(changeset, nil), do: changeset
+
+  defp put_audio_fields(changeset, %{path: _} = audio) do
+    ext = audio |> Map.get(:filename, "") |> Path.extname() |> String.downcase()
+    ext = if Regex.match?(~r/^\.[a-z0-9]{1,8}$/, ext), do: ext, else: ""
+
+    Ecto.Changeset.change(changeset,
+      audio_key: Path.join("captures", Ecto.UUID.generate() <> ext),
+      audio_filename: audio[:filename],
+      audio_content_type: audio[:content_type],
+      audio_size: audio_size(audio),
+      audio_duration_ms: audio[:duration_ms]
+    )
+  end
+
+  defp store_audio(_changeset, nil), do: :ok
+
+  defp store_audio(changeset, %{path: source}) do
+    dest = Path.join(Boards.uploads_dir(), Ecto.Changeset.get_field(changeset, :audio_key))
+
+    with :ok <- File.mkdir_p(Path.dirname(dest)),
+         {:ok, _} <- File.copy(source, dest) do
+      :ok
+    else
+      {:error, reason} ->
+        {:error,
+         Ecto.Changeset.add_error(
+           changeset,
+           :audio_key,
+           "could not be stored: #{inspect(reason)}"
+         )}
+    end
+  end
+
+  @doc "Where a capture's audio is on disk, or nil when it has none (or no longer has it)."
+  def audio_path(%Capture{audio_key: nil}), do: nil
+  def audio_path(%Capture{audio_key: key}), do: Path.join(Boards.uploads_dir(), key)
+
+  defp remove_audio_file(nil), do: :ok
+  defp remove_audio_file(key), do: Boards.remove_files([key])
+
+  @doc """
+  Replaces a capture's transcript lines: what ingest parsed, or what
+  transcription produced. Each line gets its position and an `L<n>` id.
+  """
+  def put_utterances(%Capture{} = capture, lines) do
+    {:ok, :ok} =
+      Repo.transaction(fn ->
+        Repo.delete_all(from(u in Utterance, where: u.capture_id == ^capture.id))
+        insert_utterances(capture, lines)
+      end)
+
+    :ok
+  end
+
+  defp insert_utterances(_capture, []), do: :ok
+
+  defp insert_utterances(%Capture{id: id}, lines) do
+    rows =
+      lines
+      |> Enum.with_index(1)
+      |> Enum.map(fn {line, n} ->
+        %{
+          capture_id: id,
+          position: n,
+          line_id: "L#{n}",
+          text: line[:text] || line["text"] || "",
+          speaker: line[:speaker] || line["speaker"],
+          start_ms: line[:start_ms] || line["start_ms"],
+          end_ms: line[:end_ms] || line["end_ms"],
+          words: line[:words] || line["words"],
+          voice_unsure: false
+        }
+      end)
+
+    rows
+    |> Enum.chunk_every(1000)
+    |> Enum.each(&Repo.insert_all(Utterance, &1))
+
+    :ok
+  end
+
+  @doc "A capture, or nil."
+  def get_capture(id), do: Repo.get(Capture, id)
+
+  @doc "A capture, or raises."
+  def get_capture!(id), do: Repo.get!(Capture, id)
+
+  @doc """
+  A capture with everything a review shows: its lines, voices, findings
+  (with their evidence) and questions, and its record.
+  """
+  def load(%Capture{} = capture) do
+    Repo.preload(
+      capture,
+      [
+        :owner,
+        :committed_by,
+        :discarded_by,
+        :utterances,
+        :voices,
+        questions: [:answered_by],
+        findings: [:evidence, :edited_by, :added_by],
+        events: [:user]
+      ],
+      force: true
+    )
+  end
+
+  @doc "A board's captures, newest first."
+  def list_captures(%Board{id: board_id}, opts \\ []) do
+    from(c in Capture,
+      where: c.board_id == ^board_id,
+      order_by: [desc: c.inserted_at, desc: c.id],
+      preload: [:owner, :committed_by, :discarded_by]
+    )
+    |> then(fn q -> if opts[:limit], do: limit(q, ^opts[:limit]), else: q end)
+    |> Repo.all()
+  end
+
+  @doc """
+  Moves a capture to another state (see `Slipdock.Meetings.Capture` for the
+  ones it may go to), writing a line on its record. Options: `:reason`
+  (stored as `state_reason`, and the record's message when no `:message` is
+  given), `:message`, `:user`, `:via`, `:changes` (more fields to set in the
+  same write).
+  """
+  def transition(%Capture{} = capture, to, opts \\ []) do
+    extra =
+      Map.merge(
+        %{state_reason: opts[:reason]},
+        Map.new(opts[:changes] || %{})
+      )
+
+    with {:ok, updated} <- capture |> Capture.transition(to, extra) |> Repo.update() do
+      record(updated, "state", opts[:message] || state_message(to, opts[:reason]),
+        user: opts[:user],
+        via: opts[:via],
+        data: %{"from" => capture.state, "to" => to}
+      )
+
+      broadcast(updated)
+      {:ok, updated}
+    end
+  end
+
+  defp state_message("reading", _), do: "Reading the meeting."
+  defp state_message("needs_review", _), do: "Read. Some things need a person to settle."
+  defp state_message("ready", _), do: "Ready to commit."
+  defp state_message("committed", _), do: "Committed."
+  defp state_message("discarded", _), do: "Discarded: nothing was written."
+  defp state_message("failed", reason), do: "Failed: #{reason || "no reason given"}."
+  defp state_message(to, _), do: "Now #{to}."
+
+  @doc """
+  Writes a line on a capture's record. Options: `:user`, `:via` (`web`,
+  `api`, `agent`), `:data`.
+  """
+  def record(%Capture{id: id}, kind, message, opts \\ []) do
+    Repo.insert!(%Event{
+      capture_id: id,
+      kind: kind,
+      message: message,
+      user_id: opts[:user] && opts[:user].id,
+      via: opts[:via] && to_string(opts[:via]),
+      data: opts[:data] || %{},
+      inserted_at: DateTime.utc_now()
+    })
+  end
+
+  @doc """
+  Deletes a capture and everything hanging off it, then its audio file, which
+  frees the storage it was counted against. What it committed stays on the
+  board, provenance and all (G11).
+  """
+  def delete_capture(%Capture{} = capture) do
+    with {:ok, deleted} <- Repo.delete(capture) do
+      remove_audio_file(capture.audio_key)
+      broadcast(deleted)
+      {:ok, deleted}
+    end
+  end
+
+  @doc """
+  The audio keys of every capture on the boards `boards` selects, for
+  `Slipdock.Boards.file_keys/1`: the cascade takes the rows, nothing takes
+  the bytes.
+  """
+  def audio_keys(%Ecto.Query{} = boards) do
+    ids = from(b in subquery(boards), select: b.id)
+
+    Repo.all(
+      from(c in Capture,
+        where: c.board_id in subquery(ids) and not is_nil(c.audio_key),
+        select: c.audio_key
+      )
+    )
+  end
+
+  @doc "The audio keys of the captures this person sent, on any board."
+  def audio_keys_of_owner(%User{id: user_id}) do
+    Repo.all(
+      from(c in Capture,
+        where: c.owner_id == ^user_id and not is_nil(c.audio_key),
+        select: c.audio_key
+      )
+    )
+  end
+
+  @doc "The open blocking questions on a capture."
+  def open_questions(%Capture{id: id}) do
+    Repo.all(
+      from(q in Question,
+        where: q.capture_id == ^id and q.status == "open" and q.blocking,
+        order_by: [asc: q.id]
+      )
+    )
+  end
+
+  @doc "A capture's kept findings, in order."
+  def kept_findings(%Capture{id: id}) do
+    Repo.all(
+      from(f in Finding,
+        where: f.capture_id == ^id and f.status == "kept",
+        order_by: [asc: f.position, asc: f.id],
+        preload: [:evidence]
+      )
+    )
+  end
+
+  ## PubSub -------------------------------------------------------------------
+
+  @doc "Subscribes to one capture's changes: `{:capture_changed, id}`."
+  def subscribe(%Capture{id: id}), do: subscribe_capture(id)
+
+  def subscribe_capture(id),
+    do: Phoenix.PubSub.subscribe(Slipdock.PubSub, "capture:#{id}")
+
+  @doc "Subscribes to a board's captures: `{:captures_changed, board_id}`."
+  def subscribe_board(board_id),
+    do: Phoenix.PubSub.subscribe(Slipdock.PubSub, "captures:#{board_id}")
+
+  @doc "Tells whoever is watching that a capture changed."
+  def broadcast(%Capture{id: id, board_id: board_id}) do
+    Phoenix.PubSub.broadcast(Slipdock.PubSub, "capture:#{id}", {:capture_changed, id})
+
+    Phoenix.PubSub.broadcast(
+      Slipdock.PubSub,
+      "captures:#{board_id}",
+      {:captures_changed, board_id}
+    )
+  end
 end

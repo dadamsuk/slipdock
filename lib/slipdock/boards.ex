@@ -3258,8 +3258,8 @@ defmodule Slipdock.Boards do
   defp attachment_keys(query), do: Repo.all(from(a in query, select: a.key))
 
   @doc """
-  The on-disk keys of every file on the boards `boards` selects — cards' and
-  wiki pages' alike. Read them before the rows go, and hand them to
+  The on-disk keys of every file on the boards `boards` selects — cards',
+  wiki pages' and meeting recordings' alike. Read them before the rows go, and hand them to
   `remove_files/1` once the delete has committed: the database cascades take
   the rows, but nothing takes the bytes.
   """
@@ -3272,7 +3272,7 @@ defmodule Slipdock.Boards do
         left_join: p in assoc(a, :page),
         where: c.board_id in subquery(ids) or p.board_id in subquery(ids)
       )
-    )
+    ) ++ Slipdock.Meetings.audio_keys(boards)
   end
 
   @doc "Removes uploaded files by key, and any folder they leave empty."

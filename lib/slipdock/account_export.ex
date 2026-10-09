@@ -24,12 +24,18 @@ defmodule Slipdock.AccountExport do
   alias Slipdock.Repo
   alias Slipdock.Wiki.Archive
 
-  @doc "Returns `{filename, zip_binary}`."
-  @spec zip(User.t()) :: {String.t(), binary()}
-  def zip(%User{} = user) do
+  @doc """
+  Returns `{filename, zip_binary}`. `audio: true` puts the recordings of the
+  meetings they sent in as well (see `Slipdock.Meetings`); without it each
+  capture names its recording and leaves the bytes out, since a few meetings'
+  audio can outweigh everything else in the file many times over.
+  """
+  @spec zip(User.t(), keyword()) :: {String.t(), binary()}
+  def zip(%User{} = user, opts \\ []) do
     entries =
       [{"account.json", Jason.encode_to_iodata!(account(user), pretty: true)}] ++
-        board_entries(user) ++ page_entries(user) ++ elsewhere_entries(user)
+        board_entries(user) ++
+        page_entries(user) ++ elsewhere_entries(user) ++ capture_entries(user, opts)
 
     entries = for {path, contents} <- entries, do: {String.to_charlist(path), to_binary(contents)}
 
@@ -49,8 +55,8 @@ defmodule Slipdock.AccountExport do
       invited: user.invited_at != nil,
       boards_owned: Enum.map(owned_boards(user), &%{id: &1.id, name: &1.name, code: &1.code}),
       note:
-        "Boards are under boards/, wiki pages under pages/, and anything you wrote on " <>
-          "other people's boards under elsewhere/."
+        "Boards are under boards/, wiki pages under pages/, anything you wrote on " <>
+          "other people's boards under elsewhere/, and the meetings you sent under captures/."
     }
   end
 
@@ -161,6 +167,32 @@ defmodule Slipdock.AccountExport do
            )}
         ]
     end
+  end
+
+  # The meetings they sent, wherever they were sent: the transcript, what
+  # was found, every question and how it was settled, the record. With
+  # `audio: true`, the recording beside each one that still has it.
+  defp capture_entries(user, opts) do
+    for capture <- Slipdock.Meetings.Export.sent_by(user),
+        base = "captures/#{slug(capture.board.code || capture.board.name)}-#{capture.id}",
+        entry <- capture_files(capture, base, opts) do
+      entry
+    end
+  end
+
+  defp capture_files(capture, base, opts) do
+    json =
+      {base <> ".json",
+       Jason.encode_to_iodata!(
+         Map.put(Slipdock.Meetings.Export.capture_json(capture), :board, capture.board.name),
+         pretty: true
+       )}
+
+    audio = opts[:audio] && Slipdock.Meetings.audio_path(capture)
+
+    if audio && File.exists?(audio),
+      do: [json, {base <> Path.extname(capture.audio_key), File.read!(audio)}],
+      else: [json]
   end
 
   defp to_binary(iodata) when is_binary(iodata), do: iodata
