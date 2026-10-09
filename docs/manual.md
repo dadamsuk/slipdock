@@ -1795,7 +1795,12 @@ may hide it for themselves (`meetings_hideable`, then Account → Settings →
 Display); what may be sent (`meetings_accept_transcripts`, `…_audio`,
 `…_findings`); and which models read a meeting (`meetings_reading_model`, empty
 for each person's own; `meetings_second_reading=same|model|off` and
-`meetings_second_model`). Readings run on the sender's AI settings.
+`meetings_second_model`). Readings run on the sender's AI settings. An answer
+outside the findings format is sent back once; whatever still doesn't fit after
+that is left out and listed on the capture's record, and the rest is kept. An
+answer cut off by the model's output limit (a busy meeting) is read again in
+halves; if even a few lines are too much, pick a model with a larger output
+limit.
 
 Transcription: `meetings_transcription=none` (the default: a recording needs a
 transcript sent with it), `provider` (each sender's own AI settings —

@@ -23,6 +23,25 @@ defmodule Slipdock.AITest do
       assert_receive {:ai_request, %{"response_format" => %{"type" => "json_object"}}}
     end
 
+    test "a JSON answer cut off by the token limit is said so, once, not taken for bad JSON" do
+      Slipdock.AIStub.reply_with({:cut_off, ~s({"reply": "o)})
+
+      assert {:error, "The model's answer was cut off: it ran out of room (900 tokens)" <> _} =
+               AI.complete_json([%{role: "user", content: "x"}], max_tokens: 900)
+
+      assert {:error, :cut_off} =
+               AI.complete_json([%{role: "user", content: "x"}], cut_off: :return)
+
+      # One request each: a cut-off answer isn't asked for again as bad JSON.
+      assert_receive {:ai_request, _}
+      assert_receive {:ai_request, _}
+      refute_receive {:ai_request, _}
+
+      # Plain text that hit the limit is still text: only JSON can't be read.
+      Slipdock.AIStub.reply_with({:cut_off, "Hello th"})
+      assert {:ok, "Hello th"} = AI.complete([%{role: "user", content: "hi"}])
+    end
+
     test "decode_json/1 salvages an object surrounded by prose" do
       assert {:ok, %{"a" => 1}} = AI.decode_json("Sure! {\"a\": 1} Hope that helps.")
       assert {:error, _} = AI.decode_json("nothing here")

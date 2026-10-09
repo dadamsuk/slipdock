@@ -280,11 +280,28 @@ defmodule Slipdock.AI do
   and returns `{:ok, text}` with the assistant's reply, or `{:error, reason}`
   with a message fit to show the user.
 
-  Options: `:json` (ask for a JSON object), `:max_tokens`, `:temperature`,
+  Options: `:json` (ask for a JSON object; one cut off by the token limit
+  is an error, `{:error, :cut_off}` with `cut_off: :return`), `:max_tokens`, `:temperature`,
   `:model`, and `:on_usage` — a function called with what each successful
   call cost (`:model`, `:tokens_in`, `:tokens_out`, `:cost`, `:custom?`).
   """
   def complete(messages, opts \\ []) do
+    case {complete_once(messages, opts), opts[:cut_off]} do
+      # A JSON answer that hit the token limit is cut off mid-object, so it
+      # can never be read. The caller that can do something about it (read
+      # a shorter piece) asks for `cut_off: :return`; everyone else is told
+      # in words.
+      {{:error, :cut_off}, keep} when keep != :return ->
+        {:error,
+         "The model's answer was cut off: it ran out of room " <>
+           "(#{opts[:max_tokens] || 1500} tokens) before it finished."}
+
+      {other, _} ->
+        other
+    end
+  end
+
+  defp complete_once(messages, opts) do
     case do_complete(messages, opts) do
       # Not every endpoint takes `response_format: json_object` — LM Studio
       # wants a `json_schema` or nothing at all. The prompts ask for JSON in
@@ -337,7 +354,9 @@ defmodule Slipdock.AI do
 
           case get_in(choice, ["message", "content"]) do
             text when is_binary(text) and text != "" ->
-              {:ok, text}
+              if opts[:json] && choice["finish_reason"] == "length",
+                do: {:error, :cut_off},
+                else: {:ok, text}
 
             _ ->
               Logger.warning("AI completion returned no text: #{inspect(resp)}")

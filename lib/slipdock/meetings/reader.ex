@@ -44,7 +44,7 @@ defmodule Slipdock.Meetings.Reader do
 
   require Logger
 
-  alias Slipdock.{AI, QuickAdd, Repo, Settings}
+  alias Slipdock.{AI, Meetings, QuickAdd, Repo, Settings}
   alias Slipdock.Accounts.User
   alias Slipdock.Meetings.{Capture, Schema, Usage, Utterance}
 
@@ -53,6 +53,7 @@ defmodule Slipdock.Meetings.Reader do
   @chunk_chars 40_000
   @overlap_lines 6
   @max_tokens 6_000
+  @min_lines 10
 
   @doc """
   Reads a capture. `{:ok, readings}` — a map with `"1"`, `"2"` (nil when the
@@ -127,9 +128,7 @@ defmodule Slipdock.Meetings.Reader do
     |> Enum.reduce_while({:ok, []}, fn {stretch, i}, {:ok, found} ->
       earlier = Enum.map(found, &"#{&1["kind"]}: #{&1["title"]}")
 
-      messages = messages(capture, stretch, earlier, {i, length(stretches)})
-
-      case ask(messages, capture, owner, n, model, opts) do
+      case read_stretch(stretch, earlier, {i, length(stretches)}, capture, owner, n, model, opts) do
         {:ok, findings} -> {:cont, {:ok, found ++ findings}}
         {:error, reason} -> {:halt, {:error, "reading #{n}: #{reason}"}}
       end
@@ -140,6 +139,33 @@ defmodule Slipdock.Meetings.Reader do
     end
   end
 
+  # A stretch whose answer ran out of room (a busy meeting: many findings,
+  # each with its quotes) is read again as two halves, each told what the
+  # first found, down to @min_lines lines.
+  defp read_stretch(stretch, earlier, part, capture, owner, n, model, opts) do
+    messages = messages(capture, stretch, earlier, part)
+
+    case ask(messages, capture, owner, n, model, opts) do
+      {:error, :cut_off} when length(stretch) >= 2 * @min_lines ->
+        Logger.info("Meeting reading #{n} ran out of room; reading the stretch in halves")
+        {first, second} = Enum.split(stretch, div(length(stretch), 2))
+
+        with {:ok, a} <- read_stretch(first, earlier, part, capture, owner, n, model, opts),
+             more = earlier ++ Enum.map(a, &"#{&1["kind"]}: #{&1["title"]}"),
+             {:ok, b} <- read_stretch(second, more, part, capture, owner, n, model, opts) do
+          {:ok, a ++ b}
+        end
+
+      {:error, :cut_off} ->
+        {:error,
+         "the model's answer ran out of room even for a few lines of the transcript; " <>
+           "choose a model with a larger output limit in Configuration › Meetings"}
+
+      other ->
+        other
+    end
+  end
+
   # One call, and one more if the answer did not fit the schema.
   defp ask(messages, capture, owner, n, model, opts) do
     ai_opts =
@@ -147,12 +173,15 @@ defmodule Slipdock.Meetings.Reader do
         user: owner,
         max_tokens: @max_tokens,
         temperature: 0.2,
+        cut_off: :return,
         on_usage: Usage.recorder(capture, :reading, "read #{n}", AI.Keys.own?(owner))
       ]
       |> then(fn o -> if model, do: Keyword.put(o, :model, model), else: o end)
       |> Keyword.merge(opts[:ai] || [])
 
     with {:ok, answer} <- AI.complete_json(messages, ai_opts) do
+      answer = Schema.mend(answer)
+
       case Schema.validate(answer) do
         {:ok, findings} ->
           {:ok, findings}
@@ -176,18 +205,39 @@ defmodule Slipdock.Meetings.Reader do
               ]
 
           with {:ok, again} <- AI.complete_json(retry, ai_opts) do
-            case Schema.validate(again) do
-              {:ok, findings} ->
+            case Schema.partition(Schema.mend(again)) do
+              {:ok, findings, []} ->
                 {:ok, findings}
 
+              # What fits is kept; what still doesn't is left out and said
+              # so on the capture's record, rather than one bad finding
+              # losing the whole meeting.
+              {:ok, [_ | _] = findings, problems} ->
+                Meetings.record(
+                  capture,
+                  "dropped",
+                  "Reading #{n} left out #{length(problems)} that didn't fit the findings " <>
+                    "format after asking twice: " <> Enum.join(problems, "; ") <> ".",
+                  data: %{"reading" => n, "problems" => problems}
+                )
+
+                {:ok, findings}
+
+              {_, _, problems} ->
+                twice(problems)
+
               {:error, problems} ->
-                {:error,
-                 "the model's answer did not match the findings format twice (" <>
-                   Enum.join(Enum.take(problems, 3), "; ") <> ")"}
+                twice(problems)
             end
           end
       end
     end
+  end
+
+  defp twice(problems) do
+    {:error,
+     "the model's answer did not match the findings format twice (" <>
+       Enum.join(Enum.take(problems, 3), "; ") <> ")"}
   end
 
   ## The prompt --------------------------------------------------------------
@@ -226,6 +276,8 @@ defmodule Slipdock.Meetings.Reader do
   6. "confirmed": true when somebody else agreed out loud ("yes", "agreed",
      repeating it back).
   7. Answer with one JSON object only: {"findings": [...]}, no prose.
+  8. Every finding, of every kind, has a "title": the decision, the action,
+     the question or the idea, in a short line.
 
   Each finding: {"kind", "title" (a short line), "body"?, "evidence":
   [{"line": "L12", "quote": "..."}], "owner"?, "due"?, "card"?, "change"?:
