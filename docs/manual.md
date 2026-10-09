@@ -1793,6 +1793,22 @@ to what was said, and marked as estimated. Recordings are deleted when their
 keeping runs out (the scheduler checks every minute), which frees the storage;
 the capture then says replay is no longer possible.
 
+Voices: who said something decides who owns an action and who made a
+decision. `meetings_diarisation=labels` (the default) takes the voices from the
+transcript's own speaker labels; `endpoint` sends a recording whose transcript
+has none to a diarisation service of yours (`meetings_diarisation_url`), which
+answers `{"segments": [{"start", "end", "speaker"}]}` in seconds — a pyannote or
+WhisperX server fits; lines two voices talk over are marked *voice unsure*.
+Each voice is then attributed with its evidence shown: a label that names a
+member or an attendee, being addressed by name and then answering ("Good
+question, Sam."), an introduction ("I'm Ollie"), and elimination against the
+attendees (`meetings_dialogue_inference=false` turns the dialogue part off).
+Two voices that come out as the same person are merged. **Who said what**,
+from the review, shows a card per voice — clips to replay where there is a
+recording, the person and why, confirm or change — and the unsure lines a
+finding depends on. Changing a voice changes the owner or decision-maker of
+exactly the findings that took it from that voice, without reading again.
+
 Limits, per person per month, each with a switch: `meetings_transcription_minutes`
 (600), `meetings_audio_storage_mb` (2048, the recordings they have stored now)
 and `meetings_transcript_captures` (200); for every meeting,
