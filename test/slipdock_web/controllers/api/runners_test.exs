@@ -319,6 +319,29 @@ defmodule SlipdockWeb.API.RunnersTest do
     end
   end
 
+  # A session's runner has no answers of its own: asking for its steps used
+  # to crash on the "session" scenario it is saved with.
+  test "a session's runner has no setup, hook prompt or token: 422, saying why", ctx do
+    {_token, api_token} = Accounts.create_api_token(ctx.user, "desktop")
+    {:ok, session} = Runners.session_runner(ctx.board, "dev", api_token, ctx.user)
+    base = "/api/boards/#{ctx.board.id}/runners/#{session.id}"
+
+    for conn <- [
+          get(ctx.conn, base <> "/setup"),
+          get(ctx.conn, base <> "/hook-prompt"),
+          put(ctx.conn, base <> "/setup", %{"commit" => "none"}),
+          post(ctx.conn, base <> "/token")
+        ] do
+      message = json_response(conn, 422)["error"]
+      assert message =~ "is a Claude session, so it has no setup steps or token"
+      assert message =~ "Connect a runner again"
+    end
+
+    # Nothing changed on it, and its sign-in still works.
+    assert Repo.reload!(session).settings == session.settings
+    assert Repo.reload!(session).token_hash == session.token_hash
+  end
+
   describe "the setup wizard" do
     test "a server runner: made, its token once, the steps and the rule", ctx do
       [_, doing | _] = ctx.board.columns
