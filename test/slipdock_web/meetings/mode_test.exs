@@ -145,6 +145,11 @@ defmodule SlipdockWeb.Meetings.ModeTest do
       body = conn |> get(~p"/api/guide") |> response(200)
       assert body =~ "## Meeting capture"
       assert body =~ "GET    /api/meetings"
+      assert body =~ "POST   /api/captures/:id/commit"
+      assert body =~ "Answer a capture's questions only with the"
+
+      # Every tool offered while it is on is named in the guide.
+      for tool <- SlipdockWeb.MCP.Tools.meeting_tools(), do: assert(body =~ "`#{tool.name()}`")
     end
 
     test "turning it back off takes it all away again", %{conn: conn, board: board} do

@@ -88,6 +88,7 @@ defmodule SlipdockWeb.API.MeetingJSON do
       signals: f.signals,
       links: f.links,
       known: f.known,
+      becomes: Slipdock.Meetings.Describe.becomes(f),
       edited_by: email(f.edited_by),
       evidence: Enum.map(loaded(f.evidence), &evidence/1)
     }
