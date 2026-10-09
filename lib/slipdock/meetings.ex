@@ -575,19 +575,30 @@ defmodule Slipdock.Meetings do
   discarded — undo it instead.
   """
   def discard(%Capture{} = capture, %User{} = user, opts \\ []) do
-    capture = Repo.get!(Capture, capture.id)
+    # Held, so a discard and a commit arriving together can't both win.
+    Repo.transaction(fn ->
+      capture = Repo.one!(from(c in Capture, where: c.id == ^capture.id, lock: "FOR UPDATE"))
 
-    if capture.state in ~w(committed discarded) do
-      {:error, :conflict, "this capture is #{capture.state} already"}
-    else
-      transition(capture, "discarded",
-        user: user,
-        via: opts[:via],
-        changes: %{
-          discarded_at: DateTime.utc_now() |> DateTime.truncate(:second),
-          discarded_by_id: user.id
-        }
-      )
+      if capture.state in ~w(committed discarded) do
+        Repo.rollback({:conflict, "this capture is #{capture.state} already"})
+      else
+        case transition(capture, "discarded",
+               user: user,
+               via: opts[:via],
+               changes: %{
+                 discarded_at: DateTime.utc_now() |> DateTime.truncate(:second),
+                 discarded_by_id: user.id
+               }
+             ) do
+          {:ok, capture} -> capture
+          {:error, cs} -> Repo.rollback(cs)
+        end
+      end
+    end)
+    |> case do
+      {:ok, capture} -> {:ok, capture}
+      {:error, {:conflict, message}} -> {:error, :conflict, message}
+      {:error, cs} -> {:error, cs}
     end
   end
 

@@ -92,7 +92,8 @@ defmodule SlipdockWeb.API.MeetingController do
   def preview(conn, %{"id" => id}) do
     with {:ok, capture} <- fetch(conn, id, :read) do
       set = Slipdock.Meetings.Commit.build(capture)
-      json(conn, %{preview: set, stale: Slipdock.Meetings.Commit.stale(set)})
+      shown = Slipdock.Meetings.Visibility.change_set(set, conn.assigns.current_user)
+      json(conn, %{preview: shown, stale: Slipdock.Meetings.Commit.stale(set)})
     end
   end
 
@@ -308,8 +309,18 @@ defmodule SlipdockWeb.API.MeetingController do
        else: {:error, :not_found, "capture"}
   end
 
-  defp show_json(conn, capture),
-    do: MeetingJSON.capture(Meetings.load(capture), SlipdockWeb.BaseURL.from_conn(conn))
+  defp show_json(conn, capture) do
+    user = conn.assigns.current_user
+    capture = Meetings.load(capture)
+
+    capture = %{
+      capture
+      | findings: Slipdock.Meetings.Visibility.findings(capture.findings, user),
+        questions: Slipdock.Meetings.Visibility.questions(capture.questions, user)
+    }
+
+    MeetingJSON.capture(capture, SlipdockWeb.BaseURL.from_conn(conn))
+  end
 
   # A file upload, or the text itself.
   defp file(%Plug.Upload{path: path, filename: name}),

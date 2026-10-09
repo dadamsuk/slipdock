@@ -39,6 +39,16 @@ defmodule Slipdock.Meetings.Review do
     with :ok <- answerable(question),
          {:ok, option} <- option(question, value) do
       Repo.transaction(fn ->
+        # Answering again replaces the earlier answer: its effect on the
+        # finding comes off first, the others' stay.
+        question =
+          if question.status == "answered" and question.finding do
+            rebuild(question.finding, question.id)
+            %{question | finding: Repo.get!(Finding, question.finding_id)}
+          else
+            question
+          end
+
         before = question.finding && snapshot(question.finding)
         apply_answer(question, option, user)
 
@@ -53,6 +63,9 @@ defmodule Slipdock.Meetings.Review do
             question.context
             |> Map.merge(Map.new(opts[:context] || %{}, fn {k, v} -> {to_string(k), v} end))
             |> Map.put("finding_before", before)
+            # The order answers were given in, to the instant: what a
+            # finding is rebuilt from when one is taken back.
+            |> Map.put("answer_seq", System.unique_integer([:monotonic, :positive]))
         )
         |> Repo.update!()
       end)
@@ -77,6 +90,8 @@ defmodule Slipdock.Meetings.Review do
   (`user:12`, `none`), its number (`1`), or its label (`Sam Smith`, any
   case). The option's value, or nil when it names none.
   """
+  def option_value(%Question{}, given) when not (is_binary(given) or is_integer(given)), do: nil
+
   def option_value(%Question{options: options}, given) do
     given = given |> to_string() |> String.trim()
 
@@ -86,8 +101,8 @@ defmodule Slipdock.Meetings.Review do
 
       match?({_, ""}, Integer.parse(given)) ->
         {n, ""} = Integer.parse(given)
-        option = Enum.at(options, n - 1)
-        option && n > 0 && option["value"]
+        option = n > 0 && Enum.at(options, n - 1)
+        if option, do: option["value"]
 
       option = Enum.find(options, &(String.downcase(&1["label"] || "") == String.downcase(given))) ->
         option["value"]
@@ -103,19 +118,24 @@ defmodule Slipdock.Meetings.Review do
 
     with :ok <- open_capture(question.capture) do
       Repo.transaction(fn ->
-        if before = question.finding && question.context["finding_before"] do
-          question.finding |> Ecto.Changeset.change(restore(before)) |> Repo.update!()
-        end
+        # The finding goes back to how it was before any answer, and the
+        # answers still standing are applied to it again — so taking back one
+        # answer never takes another with it.
+        if question.finding, do: rebuild(question.finding, question.id)
 
-        question
-        |> Ecto.Changeset.change(
-          status: "open",
-          answer: nil,
-          answered_by_id: nil,
-          answered_at: nil,
-          via: nil,
-          context: Map.delete(question.context, "finding_before")
-        )
+        q =
+          question
+          |> Ecto.Changeset.change(
+            status: "open",
+            answer: nil,
+            answered_by_id: nil,
+            answered_at: nil,
+            via: nil
+          )
+          |> Repo.update!()
+
+        q
+        |> Ecto.Changeset.change(context: Map.delete(q.context, "finding_before"))
         |> Repo.update!()
       end)
       |> tap(fn _ ->
@@ -161,7 +181,8 @@ defmodule Slipdock.Meetings.Review do
     attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
 
     with :ok <- open_capture(capture),
-         :ok <- kept(finding) do
+         :ok <- kept(finding),
+         :ok <- valid_edit(attrs, capture) do
       effect =
         finding.effect
         |> Map.merge(
@@ -209,7 +230,9 @@ defmodule Slipdock.Meetings.Review do
   def add(%Capture{} = capture, attrs, %User{} = user) do
     attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
 
-    with :ok <- open_capture(capture) do
+    with :ok <- open_capture(capture),
+         :ok <- valid_edit(attrs, capture),
+         :ok <- valid_kind(attrs["kind"]) do
       kind = attrs["kind"] || "action"
       title = String.trim(attrs["title"] || "")
 
@@ -298,7 +321,11 @@ defmodule Slipdock.Meetings.Review do
          %User{} = speaker <-
            speaker_of(question) ||
              {:error, "nobody here is known to have said it, so there is nobody to ask"},
-         true <- speaker.id != user.id || {:error, "you are the speaker: answer it yourself"} do
+         true <- speaker.id != user.id || {:error, "you are the speaker: answer it yourself"},
+         true <-
+           can_answer?(speaker, question.capture) ||
+             {:error,
+              "#{speaker.name || speaker.email} can't edit this board, so couldn't answer: share it with them first"} do
       question
       |> Ecto.Changeset.change(
         status: "waiting",
@@ -319,6 +346,11 @@ defmodule Slipdock.Meetings.Review do
       end)
       |> finish(question.capture)
     end
+  end
+
+  defp can_answer?(%User{} = user, %Capture{board_id: board_id}) do
+    board = Repo.get!(Slipdock.Boards.Board, board_id)
+    Slipdock.Access.can_write?(Slipdock.Access.board_permission(user, board))
   end
 
   @doc "The person a question is about the words of, when that is known."
@@ -368,6 +400,34 @@ defmodule Slipdock.Meetings.Review do
       """
     )
   end
+
+  # What a person (or an API client) may set on a finding, checked before it
+  # is stored, so nothing malformed waits there to break the commit.
+  defp valid_edit(attrs, capture) do
+    lists = capture.board_id |> Meetings.lists() |> Enum.map(& &1.name)
+
+    cond do
+      Enum.any?(
+        ~w(title body topic list due_date),
+        &(attrs[&1] != nil and not is_binary(attrs[&1]))
+      ) ->
+        {:error, "title, body, topic, list and due_date are text"}
+
+      attrs["list"] not in [nil, ""] and attrs["list"] not in lists ->
+        {:error, "“#{attrs["list"]}” is not a list on this board (#{Enum.join(lists, ", ")})"}
+
+      attrs["due_date"] not in [nil, ""] and
+          match?({:error, _}, Date.from_iso8601(attrs["due_date"])) ->
+        {:error, "due_date should be a date like 2026-10-09"}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp valid_kind(nil), do: :ok
+  defp valid_kind(kind) when kind in ["action", "decision"], do: :ok
+  defp valid_kind(_), do: {:error, "what the transcript missed is an action or a decision"}
 
   ## Answers ------------------------------------------------------------------
 
@@ -509,6 +569,37 @@ defmodule Slipdock.Meetings.Review do
   end
 
   defp apply_answer(_question, _option, _user), do: :ok
+
+  # The finding as it was before any of its questions were answered (the
+  # earliest answer's snapshot), with every answer still standing but
+  # `except` applied again, in the order they were given.
+  defp rebuild(%Finding{} = finding, except) do
+    answered =
+      Repo.all(from(q in Question, where: q.finding_id == ^finding.id and q.status == "answered"))
+      |> Enum.sort_by(&{&1.context["answer_seq"] || 0, &1.id})
+
+    original = answered |> Enum.map(& &1.context["finding_before"]) |> Enum.find(& &1)
+
+    if original do
+      Repo.get!(Finding, finding.id) |> Ecto.Changeset.change(restore(original)) |> Repo.update!()
+
+      for q <- answered, q.id != except do
+        current = Repo.get!(Finding, finding.id)
+        before = snapshot(current)
+
+        case option(q, q.answer && q.answer["value"]) do
+          {:ok, option} -> apply_answer(%{q | finding: current}, option, nil)
+          _ -> :ok
+        end
+
+        q
+        |> Ecto.Changeset.change(context: Map.put(q.context, "finding_before", before))
+        |> Repo.update!()
+      end
+    end
+
+    :ok
+  end
 
   # The parts of a finding an answer may change, to put back on un-answer.
   defp snapshot(%Finding{} = f) do

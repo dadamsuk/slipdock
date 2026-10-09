@@ -362,6 +362,18 @@ defmodule Slipdock.Automations do
   `:assignee`, `:tag`, `:flag`.
   """
   def dispatch(event) when is_map(event) do
+    # Inside a write that may yet roll back (a meeting capture's commit),
+    # rules wait until it has landed — see `Slipdock.Deferred`.
+    if Slipdock.Deferred.collecting?() do
+      Slipdock.Deferred.defer(fn -> dispatch(event) end)
+    else
+      run_dispatch(event)
+    end
+  end
+
+  def dispatch(_), do: :ok
+
+  defp run_dispatch(event) do
     depth = Process.get(:automation_depth, 0)
 
     cond do
@@ -382,8 +394,6 @@ defmodule Slipdock.Automations do
         :ok
     end
   end
-
-  def dispatch(_), do: :ok
 
   # Rules live on a board; a "tree" rule also watches the sub-boards beneath it.
   defp rules_for(%{card: %Card{board_id: board_id}}), do: rules_watching(board_id)

@@ -51,6 +51,14 @@ defmodule SlipdockWeb.MeetingLive.Resolve do
   # one shown: the one asked for, else the first.
   defp load(socket, capture, wanted) do
     capture = Meetings.load(capture)
+    user = socket.assigns.current_user
+
+    capture = %{
+      capture
+      | findings: Slipdock.Meetings.Visibility.findings(capture.findings, user),
+        questions: Slipdock.Meetings.Visibility.questions(capture.questions, user)
+    }
+
     pending = Enum.filter(capture.questions, &(&1.status in ["open", "waiting"]))
 
     question =
@@ -131,7 +139,9 @@ defmodule SlipdockWeb.MeetingLive.Resolve do
   end
 
   def handle_event("answer", %{"value" => value}, socket) do
-    %{question: q, current_user: user} = socket.assigns
+    %{question: shown, current_user: user} = socket.assigns
+    # The stored question, not the page's copy with hidden cards' names out.
+    q = shown && Slipdock.Repo.get!(Question, shown.id)
 
     if q && socket.assigns.can_write do
       context = if span = socket.assigns.replayed[q.id], do: %{replayed: span}, else: %{}
@@ -146,7 +156,8 @@ defmodule SlipdockWeb.MeetingLive.Resolve do
   end
 
   def handle_event("ask_speaker", _params, socket) do
-    %{question: q, current_user: user} = socket.assigns
+    %{question: shown, current_user: user} = socket.assigns
+    q = shown && Slipdock.Repo.get!(Question, shown.id)
 
     if q && socket.assigns.can_write do
       case Review.ask_speaker(q, user) do

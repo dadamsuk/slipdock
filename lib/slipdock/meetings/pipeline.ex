@@ -167,15 +167,24 @@ defmodule Slipdock.Meetings.Pipeline do
     remaining = Enum.drop_while(@steps, &(&1 != next_step(capture.step)))
 
     Enum.reduce_while(remaining, capture, fn step, capture ->
-      case run_step(step, capture, opts) do
-        {:ok, capture} ->
-          capture = finished(capture, step)
-          if opts[:stop_after] == step, do: {:halt, capture}, else: {:cont, capture}
-
-        {:error, reason} ->
-          {:halt, fail(capture, reason)}
+      # Somebody discarded it while it was being read: stop here, rather
+      # than go on spending their allowance on a meeting nobody wants.
+      case Meetings.get_capture!(capture.id) do
+        %Capture{state: "reading"} -> run_or_fail(step, capture, opts)
+        stopped -> {:halt, stopped}
       end
     end)
+  end
+
+  defp run_or_fail(step, capture, opts) do
+    case run_step(step, capture, opts) do
+      {:ok, capture} ->
+        capture = finished(capture, step)
+        if opts[:stop_after] == step, do: {:halt, capture}, else: {:cont, capture}
+
+      {:error, reason} ->
+        {:halt, fail(capture, reason)}
+    end
   end
 
   @doc "The step after `step` (nil is before the first)."

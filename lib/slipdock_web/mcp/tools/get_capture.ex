@@ -56,6 +56,13 @@ defmodule SlipdockWeb.MCP.Tools.GetCapture do
   @doc false
   def summary(capture, context) do
     capture = Meetings.load(capture)
+
+    capture = %{
+      capture
+      | findings: Slipdock.Meetings.Visibility.findings(capture.findings, context.user),
+        questions: Slipdock.Meetings.Visibility.questions(capture.questions, context.user)
+    }
+
     kept = Enum.filter(capture.findings, &(&1.status == "kept"))
 
     %{
