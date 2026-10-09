@@ -1893,7 +1893,13 @@ defmodule SlipdockWeb.APIGuide do
 
     slipdock skills install                     # writes them to ~/.claude/skills
     slipdock skills check                       # says whether a local copy is behind
+    slipdock skills chatgpt                     # zips for ChatGPT, one per skill
     ```
+
+    ChatGPT can't run the CLI, so every skill but `slipdock-loop` also comes
+    as a zip for its skill upload, `B/api/skills/<name>/chatgpt.zip`, with
+    each `slipdock` command mapped onto the tool of this server's MCP
+    connector that does the same. The listing's `chatgpt_zip` says which.
 
     They need no token, because they say how to call this API and nothing
     about what is on it. Board codes, list names and tag vocabularies stay out

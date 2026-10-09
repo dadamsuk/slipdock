@@ -193,6 +193,34 @@ defmodule SlipdockWeb.API.SkillsTest do
   end
 
   @tag :anonymous
+  test "serves a ChatGPT version of a skill as a zip, and says which have one", %{conn: conn} do
+    conn = Map.put(conn, :host, "boards.example.test")
+    resp = get(conn, "/api/skills/slipdock-work/chatgpt.zip")
+
+    assert response_content_type(resp, :zip) =~ "application/zip"
+
+    assert get_resp_header(resp, "content-disposition") == [
+             ~s(attachment; filename="slipdock-work.zip")
+           ]
+
+    {:ok, [{path, md}]} = :zip.unzip(response(resp, 200), [:memory])
+    assert to_string(path) == "slipdock-work/SKILL.md"
+    # The connector address is the one the caller reached this server on.
+    assert md =~ "http://boards.example.test/mcp"
+
+    assert %{"skills" => skills} = conn |> get("/api/skills") |> json_response(200)
+    zips = Map.new(skills, &{&1["name"], &1["chatgpt_zip"]})
+    assert zips["slipdock-work"] == "/api/skills/slipdock-work/chatgpt.zip"
+    assert zips["slipdock-loop"] == nil
+  end
+
+  @tag :anonymous
+  test "the loop and missing skills have no ChatGPT version", %{conn: conn} do
+    assert conn |> get("/api/skills/slipdock-loop/chatgpt.zip") |> json_response(404)
+    assert conn |> get("/api/skills/nope/chatgpt.zip") |> json_response(404)
+  end
+
+  @tag :anonymous
   test "a skill that is not there is a 404", %{conn: conn} do
     assert conn |> get("/api/skills/nope") |> json_response(404)
   end

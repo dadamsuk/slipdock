@@ -220,6 +220,21 @@ defmodule SlipdockWeb.AgentSetupTest do
       assert has_element?(view, ~s{a[href="/account/tokens"]})
     end
 
+    test "offers each ChatGPT skill as a zip, and not the unattended loop", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/account/agent")
+
+      for name <- ~w(slipdock slipdock-docs slipdock-wiki slipdock-work) do
+        assert has_element?(
+                 view,
+                 ~s{#agent-chatgpt-skills a[href="/api/skills/#{name}/chatgpt.zip"]},
+                 "#{name}.zip"
+               )
+      end
+
+      refute has_element?(view, ~s{#agent-chatgpt-skills a[href*="slipdock-loop"]})
+      assert has_element?(view, "#agent-chatgpt-skills", "#{SlipdockWeb.Endpoint.url()}/mcp")
+    end
+
     test "gives the MCP address and a Claude Code command that uses a token", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/account/agent")
 

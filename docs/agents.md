@@ -124,6 +124,16 @@ What you get:
 | `slipdock-docs` | The harder half of the wiki — what is worth writing down, and where it goes. |
 | `slipdock-loop` | Working the ready list unattended, one card per pass, for `/loop` or a cron — watching the GitHub build after each push and never closing a card on a red one. |
 
+### In ChatGPT
+
+ChatGPT can't run the `slipdock` command, so it gets its own versions of the
+skills, one zip each, from *Set up an agent* on the account page (or
+`https://app.slipdock.us/api/skills/<name>/chatgpt.zip`, or all of them with
+`slipdock skills chatgpt`). Each says which tool of the Slipdock connector to
+use for each command, so connect ChatGPT to `https://app.slipdock.us/mcp` first
+(see [Over MCP](#over-mcp)), then upload the zips as skills. `slipdock-loop` has no ChatGPT
+version: it commits, pushes and watches builds, which a chat can't.
+
 Board-specific detail — board codes, list names, tag vocabularies — is
 deliberately **not** in these files. It comes from `/api/guide`, per caller. A
 skill that hardcodes your board layout is wrong the first time you rename a

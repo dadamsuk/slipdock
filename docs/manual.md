@@ -2855,6 +2855,7 @@ slipdock export qvm-v1-rem --archived --out b.json   # one board, archived thing
 slipdock import boards.json                    # build the trees in it; always new boards
 slipdock import trello.json                    # a Trello board's JSON export works too
 slipdock skills | slipdock skills install | slipdock skills check   # the agent instructions this server ships
+slipdock skills chatgpt --dir ~/Downloads     # the same skills as zips for ChatGPT, which can't run this
 slipdock favourites                            # what you keep going back to, with the URL of each
 slipdock fav list qvm-v1-rem "In Progress"     # also: fav card 42 | fav view <board> <view> | fav board <board>
 slipdock unfav list qvm-v1-rem "In Progress"   # or `fav ... --off`
@@ -2884,6 +2885,16 @@ actually answers. Three ways to install them:
 - `GET /api/skills` for the listing — every file, with a sha over each skill —
   and `GET /api/skills/<name>/<file>` for one file, for a client that would
   rather walk it itself.
+
+**For ChatGPT**, which can't run the CLI, every skill but `slipdock-loop` is
+also a zip to upload: `GET /api/skills/<name>/chatgpt.zip`, linked from *Set
+up an agent*, or all of them at once with `slipdock skills chatgpt` (`--dir`
+for somewhere other than here). They are built from `priv/skills` when asked
+for, with a section at the top that maps each `slipdock` command onto the
+tool of the MCP connector that does the same, and a description that names
+the connector rather than the CLI. The listing's `chatgpt_zip` says which
+skills have one. `slipdock-loop` is left out: it commits, pushes and watches
+CI, which a chat can't.
 
 - **`slipdock`** — the command and API reference: what each call does and when
   to reach for it, and the `curl` form for a machine with no CLI on it.

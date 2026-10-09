@@ -19,6 +19,7 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
      |> assign(assigns)
      |> assign(
        base_url: base,
+       chatgpt_skills: Slipdock.Skills.ChatGPT.list(),
        agent_prompt:
          "Work from my Slipdock board at #{base}. Read #{base}/api/guide and " <>
            "follow it. Nothing about my boards is readable until you sign in, so " <>
@@ -139,6 +140,37 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
           and <.link href={~p"/api/skills"} class="link">a JSON listing</.link>, each
           versioned with this server.
         </p>
+      </section>
+
+      <section
+        id="agent-chatgpt-skills"
+        class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
+      >
+        <h2 class="text-lg font-semibold">
+          Optional · the skills in ChatGPT
+          <span class="ml-1 align-middle text-xs font-normal text-base-content/50">
+            one zip per skill, for ChatGPT's skill upload
+          </span>
+        </h2>
+        <p class="mt-1 text-sm text-base-content/60">
+          ChatGPT can't run the <code>slipdock</code>
+          command, so these versions of the skills
+          say which tool of the Slipdock connector to use for each command instead. Connect
+          ChatGPT to <code>{@base_url}/mcp</code>
+          first (as below), then upload the ones you want. The skill for working a board
+          unattended isn't here: it commits, pushes and watches builds, which a chat can't.
+        </p>
+        <ul class="mt-3 space-y-1 text-sm">
+          <li :for={skill <- @chatgpt_skills}>
+            <.link
+              href={~p"/api/skills/#{skill.name}/chatgpt.zip"}
+              class="link font-medium"
+              download
+            >
+              {skill.name}.zip
+            </.link>
+          </li>
+        </ul>
       </section>
 
       <section

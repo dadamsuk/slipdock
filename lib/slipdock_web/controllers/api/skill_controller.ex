@@ -9,10 +9,21 @@ defmodule SlipdockWeb.API.SkillController do
   use SlipdockWeb, :controller
 
   alias Slipdock.Skills
+  alias Slipdock.Skills.ChatGPT
 
   action_fallback SlipdockWeb.API.FallbackController
 
-  def index(conn, _params), do: json(conn, %{skills: Skills.list()})
+  # Each skill says where its ChatGPT version is, or null when there is none,
+  # so a client asks the server rather than knowing which ones are left out.
+  def index(conn, _params) do
+    skills =
+      Enum.map(Skills.list(), fn skill ->
+        zip = if ChatGPT.offered?(skill.name), do: "/api/skills/#{skill.name}/chatgpt.zip"
+        Map.put(skill, :chatgpt_zip, zip)
+      end)
+
+    json(conn, %{skills: skills})
+  end
 
   @doc """
   Every skill as one `.tar.gz`, for a client that has `curl` and `tar` and
@@ -31,6 +42,23 @@ defmodule SlipdockWeb.API.SkillController do
 
       _ ->
         {:error, :not_found, "the skills archive"}
+    end
+  end
+
+  @doc """
+  One skill as ChatGPT takes it: a `.zip` with the skill's folder in it, the
+  CLI commands mapped onto the MCP connector (see `Slipdock.Skills.ChatGPT`).
+  """
+  def chatgpt(conn, %{"name" => name}) do
+    case ChatGPT.zip(name, SlipdockWeb.BaseURL.from_conn(conn)) do
+      {:ok, bytes} ->
+        conn
+        |> put_resp_content_type("application/zip")
+        |> put_resp_header("content-disposition", ~s(attachment; filename="#{name}.zip"))
+        |> send_resp(200, bytes)
+
+      _ ->
+        {:error, :not_found, "a ChatGPT version of skill #{inspect(name)}"}
     end
   end
 
