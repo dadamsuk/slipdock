@@ -144,7 +144,7 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
 
       rule ->
         {:noreply,
-         assign(socket, editing_rule: rule.id, rule_text: rule.source || "", rule_error: nil)}
+         assign(socket, editing_rule: rule.id, rule_text: edit_text(rule), rule_error: nil)}
     end
   end
 
@@ -238,6 +238,12 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
   def handle_async(:rule, {:exit, reason}, socket) do
     {:noreply,
      assign(socket, rule_busy: false, rule_error: "Writing the rule failed: #{inspect(reason)}")}
+  end
+
+  # A rule added from a preset, by runner setup or as an exact spec has no
+  # sentence behind it, so the box starts from what the rule does instead.
+  defp edit_text(%{source: source} = rule) do
+    if is_binary(source) and String.trim(source) != "", do: source, else: Rule.summary(rule)
   end
 
   # The rules, and the count beside Automations in the board's menu.
