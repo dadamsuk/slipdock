@@ -12,7 +12,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/licence-AGPL--3.0-green" alt="AGPL-3.0"></a>
 </p>
 
-A self-hosted kanban board for people who want their work tracker to be theirs and to really help get their job done: you can easily self-host for free or use the [hosted version](https://slipdock.us). Functionality of the two is identical. It's different (better?) than most Kanban boards though, because it incorporates features built on real world experience of hundreds of projects, none of the fluff you don't need and everything that you do. This system was built for a real use case: replacing Jira Tickets, Jira Product Discovery, Jira Atlas (particularly sharing updates with stakeholders) and Confluence. And with the optional AI integrations, it's better than all of them. 
+Self-hosted kanban board for people who want their work tracker to be theirs and to really help get their job done: you can easily self-host for free or use the [hosted version](https://slipdock.us). Functionality of the two is identical. It's different (better?) than most Kanban boards though, because it incorporates features built on real world experience of hundreds of projects, none of the fluff you don't need and everything that you do. This system was built for a real use case: replacing Jira Tickets, Jira Product Discovery, Jira Atlas (particularly sharing updates with stakeholders) and Confluence. And with the optional AI integrations, it's better than all of them. 
 
 ![A board](docs/screenshots/board.png)
 
