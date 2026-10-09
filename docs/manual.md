@@ -1586,13 +1586,17 @@ that pool's jobs and nothing else — it is not an API token and opens no
 other door. Revoking a runner ends its token at once. A Claude session can
 take jobs too, with the API token it already has, over MCP (`claim_job`,
 `job_progress`, `finish_job`) or the CLI (`slipdock claim-job`); it shows in
-the runner list as *label (session)*. A session reports between steps of its
+the runner list as *label (session)* — from its first claim on; until then a
+pool a rule sends to shows there as *waiting for a runner*. A claude.ai
+connector keeps the tool list it was added with, so one added before the job
+tools existed has none of them: disconnect and connect it again. A session
+told to take jobs that finds no job tools stops and says so. A session reports between steps of its
 own work rather than from a background loop, so it holds its job on a
 20-minute lease instead of 90 seconds.
 
 | CLI | What it does |
 |---|---|
-| `slipdock runner new <board> [name] --pool P [--scenario …]` | The **Connect a runner** wizard: prints exactly what to paste for `server` (the default), `windows`, `loop` or `cloud`, with `--agent`, `--command`, `--kind`, `--cwd`, `--permission-mode`, `--no-slipdock-tools`, `--mcp-servers A,B`, `--timeout`, `--service`, `--where desktop\|cloud` and `--repo`. For a runner of its own (server, windows) it makes one and prints its token, once; `--column LIST` adds a rule sending that list's cards. |
+| `slipdock runner new <board> [name] --pool P [--scenario …]` | The **Connect a runner** wizard: prints exactly what to paste for `server` (the default), `windows`, `loop` or `cloud`, with `--agent`, `--command`, `--kind`, `--cwd`, `--permission-mode`, `--no-slipdock-tools`, `--mcp-servers A,B`, `--timeout`, `--service`, `--where desktop\|cloud`, `--repo`, and for `loop` and `cloud` `--commit push\|commit\|none` (whether a pass commits, and pushes, its work; never outside a git repository) and `--close done\|open` (complete the card and move it to the done list, or leave it open for you). A working directory spelled the Windows way (`C:\…`, `~\…`) gets PowerShell steps, the skills from `/install.ps1`. For a runner of its own (server, windows) it makes one and prints its token, once; `--column LIST` adds a rule sending that list's cards. |
 | `slipdock runner setup <board> <runner> [options]` | A runner's steps again, from the answers saved on it (the token left out); with any of `runner new`'s options, including `--verbosity`, `--instructions`, `--before-job`, `--after-job` and `--hooks prompt\|hook`, saves them and prints what changes. With `--hook-prompt`, prints the prompt that has Claude write the runner's hooks. |
 | `slipdock runner token <board> <runner>` | A new token for a runner, the old one ended, with its steps written out for it. |
 | `slipdock runner ls <board>` / `slipdock runners <board>` | The board's runners: pool, last seen, current job. |
@@ -2870,6 +2874,11 @@ actually answers. Three ways to install them:
   works on the machine an agent is actually running on. It unpacks
   `/api/skills.tar.gz` into `~/.claude/skills` (an argument puts them
   elsewhere) and saves the server's address in `~/.config/slipdock/url`.
+- `irm <server>/install.ps1 | iex` — the same on Windows, in PowerShell, into
+  `%USERPROFILE%\.claude\skills` (`-Dir` for elsewhere, run as
+  `& ([scriptblock]::Create((irm <server>/install.ps1))) -Dir C:\somewhere`).
+  `install.sh` under WSL would put them in the WSL home instead, which
+  Claude on Windows doesn't read.
 - `slipdock skills install` (`--dir` for somewhere else), for anyone who has
   the CLI, with `slipdock skills check` to say whether a local copy is behind.
 - `GET /api/skills` for the listing — every file, with a sha over each skill —

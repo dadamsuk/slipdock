@@ -30,6 +30,8 @@ defmodule Slipdock.Runners.Setup do
   @wheres ~w(desktop cloud)
   @verbosities ["", "quiet", "normal", "verbose"]
   @hook_modes ~w(prompt hook)
+  @commits ~w(push commit none)
+  @closes ~w(done open)
 
   # Ready-written paragraphs for how much to write on the card.
   @verbosity_text %{
@@ -60,6 +62,8 @@ defmodule Slipdock.Runners.Setup do
     "before_job" => "",
     "after_job" => "",
     "hooks" => "prompt",
+    "commit" => "push",
+    "close" => "done",
     "slipdock_tools" => true,
     "mcp_servers" => "claude_ai_Slipdock, slipdock"
   }
@@ -78,6 +82,8 @@ defmodule Slipdock.Runners.Setup do
   def defaults, do: @defaults
   def verbosities, do: @verbosities
   def hook_modes, do: @hook_modes
+  def commits, do: @commits
+  def closes, do: @closes
   def token_placeholder, do: @token_placeholder
 
   @doc """
@@ -156,6 +162,12 @@ defmodule Slipdock.Runners.Setup do
 
       answers["hooks"] not in @hook_modes ->
         {:error, "hooks must be prompt or hook"}
+
+      answers["commit"] not in @commits ->
+        {:error, "commit must be push, commit or none"}
+
+      answers["close"] not in @closes ->
+        {:error, "close must be done or open"}
 
       String.length(to_string(answers["instructions"])) > 4000 ->
         {:error, "the instructions are over 4,000 characters"}
@@ -591,16 +603,8 @@ defmodule Slipdock.Runners.Setup do
         lang: "sh",
         code: "claude mcp add --transport http slipdock #{ctx.base_url}/mcp"
       },
-      %{
-        text: "Install the Slipdock skills, which /slipdock-loop is one of:",
-        lang: "sh",
-        code: "curl -fsSL #{ctx.base_url}/install.sh | sh"
-      },
-      %{
-        text: "Start Claude Code where the work is:",
-        lang: "sh",
-        code: "cd #{sh_path(cwd(a))} && claude --permission-mode #{a["permission_mode"]}"
-      },
+      skills_step("Install the Slipdock skills, which /slipdock-loop is one of", a, ctx),
+      start_step(a),
       %{
         text:
           "And in it, run this. With no interval, /loop paces itself: soon while there is " <>
@@ -635,12 +639,11 @@ defmodule Slipdock.Runners.Setup do
   defp steps("cloud", a, ctx) do
     [
       %{
-        text: "Connect Claude Code to Slipdock, and install the skills:",
+        text: "Connect Claude Code to Slipdock:",
         lang: "sh",
-        code:
-          "claude mcp add --transport http slipdock #{ctx.base_url}/mcp\n" <>
-            "curl -fsSL #{ctx.base_url}/install.sh | sh"
+        code: "claude mcp add --transport http slipdock #{ctx.base_url}/mcp"
       },
+      skills_step("Install the Slipdock skills", a, ctx),
       %{
         text:
           "In Claude Desktop, Code tab → Routines → New routine → Local. Folder: " <>
@@ -658,6 +661,51 @@ defmodule Slipdock.Runners.Setup do
       }
     ] ++ rule_step(a, ctx)
   end
+
+  # The skills go in the home directory of whoever runs Claude, so a Windows
+  # machine gets the PowerShell installer: install.sh run under WSL would put
+  # them in the WSL home, where Windows' Claude never looks.
+  defp skills_step(text, a, ctx) do
+    if windows_path?(cwd(a)) do
+      %{
+        text: text <> " (in PowerShell, into %USERPROFILE%\\.claude\\skills):",
+        lang: "powershell",
+        code: "irm #{ps_q(ctx.base_url <> "/install.ps1")} | iex"
+      }
+    else
+      %{
+        text:
+          text <> " (on Windows, use the PowerShell one: irm #{ctx.base_url}/install.ps1 | iex):",
+        lang: "sh",
+        code: "curl -fsSL #{ctx.base_url}/install.sh | sh"
+      }
+    end
+  end
+
+  defp start_step(a) do
+    if windows_path?(cwd(a)) do
+      %{
+        text: "Start Claude Code where the work is (in PowerShell):",
+        lang: "powershell",
+        code: "Set-Location #{ps_q(cwd(a))}; claude --permission-mode #{a["permission_mode"]}"
+      }
+    else
+      %{
+        text: "Start Claude Code where the work is:",
+        lang: "sh",
+        code: "cd #{sh_path(cwd(a))} && claude --permission-mode #{a["permission_mode"]}"
+      }
+    end
+  end
+
+  @doc """
+  Whether a working directory is spelled the Windows way — a drive letter,
+  `~\\…` or a share — so the steps to get there are PowerShell's.
+  """
+  def windows_path?(path) when is_binary(path),
+    do: Regex.match?(~r/^([A-Za-z]:[\\\/]|~\\|\\\\)/, path)
+
+  def windows_path?(_), do: false
 
   # Hooks for a Claude session: written into its prompt (Claude is asked to
   # run them — best effort), or as Claude Code hooks it runs itself.
@@ -851,17 +899,48 @@ defmodule Slipdock.Runners.Setup do
   defp agent_line(%{"agent" => "codex"}), do: ~S|  "$AGENT_BIN" exec "$SLIPDOCK_PROMPT"|
   defp agent_line(%{"agent" => "custom"}), do: ~S|  sh -c "$CUSTOM_COMMAND"|
 
+  # A session whose connector was added before the job tools existed has
+  # none: working the lists directly would race the runners and leave the
+  # job queued, so it stops and says why instead.
+  @no_job_tools "Take work only from the job queue: if neither the claim_job tool nor the " <>
+                  "slipdock claim-job command is available, don't work the board's lists " <>
+                  "directly. Stop, and say the Slipdock connector needs reconnecting (or the " <>
+                  "slipdock CLI installing) to get the job tools."
+
+  @doc false
+  def no_job_tools, do: @no_job_tools
+
   @doc "What a /loop or a Desktop task is told: take a job from the pool, and nothing else."
   def loop_prompt(a, ctx) do
     board = ctx.board
 
     ("/slipdock-loop against #{ctx.base_url}/boards/#{board.id} (board code: #{board.code}), " <>
        "taking a job from the #{a["pool"]} pool's queue#{mcp_note(a)}. Do exactly one card per " <>
-       "pass, close it out on the board — commit and push with the card id — finish the job, " <>
-       "then stop.")
+       "pass. #{commit_text(a)} #{close_text(a)} Then finish the job and stop. " <> @no_job_tools)
     |> append(prompt_hooks(a))
     |> append(standing(a))
   end
+
+  # Whether a pass commits its work, and whether it closes the card: both the
+  # person's choice, since not every working directory is a project.
+  defp commit_text(%{"commit" => "none"}), do: "Don't commit or push anything."
+
+  defp commit_text(%{"commit" => "commit"}),
+    do:
+      "If the working directory is a git repository, commit with the card id in the message, " <>
+        "but don't push; if it isn't one, skip the commit."
+
+  defp commit_text(_),
+    do:
+      "If the working directory is a git repository, commit with the card id in the message " <>
+        "and push; if it isn't one, skip the commit."
+
+  defp close_text(%{"close" => "open"}),
+    do:
+      "Comment on the card what you did, but leave it open where it is: don't complete it or " <>
+        "move it to the done list, I'll do that."
+
+  defp close_text(_), do: "Close it out on the board: complete it and move it to the done list."
 
   # Hooks Claude runs itself fire on the MCP tools, so the pass must use them.
   defp mcp_note(%{"hooks" => "hook"} = a) do
@@ -905,15 +984,33 @@ defmodule Slipdock.Runners.Setup do
     """
     Take one job from the Slipdock job queue and do it.
 
-    1. Call the Slipdock tool claim_job with board "#{ctx.board.code}" and pool "#{a["pool"]}". If it answers "nothing queued", stop: there is nothing to do this run.
+    1. Call the Slipdock tool claim_job with board "#{ctx.board.code}" and pool "#{a["pool"]}". If it answers "nothing queued", stop: there is nothing to do this run. If there is no claim_job tool, stop and say the Slipdock connector needs reconnecting to get the job tools; don't work the board's lists directly.
     2. Otherwise the job names a card. Read it with get_card, move it to the board's doing list, and comment that you have picked it up and what you plan.
     3. Do the work in this repository. Call job_progress with the job id and a short note at each step — at least every 15 minutes. If it answers "cancel", stop, say so on the card, and call finish_job with outcome "cancelled".
-    4. Run the tests, commit with the card number in the message, and push.
-    5. Comment on the card what was done (files, tests, the commit), complete it with complete_card, and call finish_job with outcome "done" and a one-line summary. If you could not finish, flag the card, say why, and finish the job "failed".
+    4. #{cloud_commit(a)}
+    5. #{cloud_close(a)} Then call finish_job with outcome "done" and a one-line summary. If you could not finish, flag the card, say why, and finish the job "failed".
     """
     |> String.trim_trailing()
     |> append(standing(a))
   end
+
+  defp cloud_commit(%{"commit" => "none"}),
+    do: "Run the tests if there are any. Don't commit or push anything."
+
+  defp cloud_commit(%{"commit" => "commit"}),
+    do: "Run the tests, and commit with the card number in the message, but don't push."
+
+  defp cloud_commit(_), do: "Run the tests, commit with the card number in the message, and push."
+
+  defp cloud_close(%{"close" => "open"}),
+    do:
+      "Comment on the card what was done (files, tests, any commit), but leave it open where " <>
+        "it is: don't complete it or move it to the done list."
+
+  defp cloud_close(_),
+    do:
+      "Comment on the card what was done (files, tests, any commit), complete it with " <>
+        "complete_card, and move it to the done list."
 
   ## Helpers ------------------------------------------------------------------
 

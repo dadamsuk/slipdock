@@ -187,6 +187,12 @@ slipdock claim-job <board> --pool <pool>     # or the MCP tool claim_job
   is held back because a card is in progress on the board. If that card is
   yours, step 2 should already have resumed it; otherwise somebody is working
   it, so report that and stop rather than starting a second card beside it.
+- **No job tools at all** — no `claim_job` MCP tool and no `slipdock`
+  command to run `claim-job` with: don't take a card from the lists instead.
+  That would leave the job queued and race the runners for its card. Stop,
+  and say the Slipdock connector needs reconnecting (claude.ai → Settings →
+  Connectors: a connector keeps the tool list it had when it was added) or the
+  `slipdock` CLI installing.
 - **`unknown command`, or a 404 from the server** (one older than runners):
   say so once in the pass report and carry on as though no pool had been
   named.
@@ -286,6 +292,15 @@ otherwise) and is named in the closing comment by its code (`W-31`). Progress,
 blockers and what happened *now* stay on the card. Never both.
 
 ## 7. Close it out
+
+**What the invocation says wins.** A pass started by a runner setup says
+whether to commit ("don't commit or push anything", "commit, but don't push")
+and whether to close the card ("leave it open where it is"). Then skip what it
+rules out: no commit means no steps 2 to 4 (`Commit: none` in the wrap-up);
+leaving it open means no step 5, and the wrap-up says it is ready for the
+person to close. A working directory that isn't a git repository has nothing
+to commit to either: skip steps 2 to 4 and write `Commit: none (not a git
+repository)`.
 
 In this order, because the commit id goes in the comment and the comment is what
 anybody reads later:

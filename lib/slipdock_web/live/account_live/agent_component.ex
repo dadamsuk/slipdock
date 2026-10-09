@@ -124,6 +124,14 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
           text={"curl -fsSL #{@base_url}/install.sh | sh"}
           label="Copy command"
         />
+        <p class="mt-2 text-xs text-base-content/60">
+          On Windows, in PowerShell — not WSL, whose home Claude on Windows doesn't read:
+        </p>
+        <.copy_block
+          id="agent-install-windows"
+          text={"irm #{@base_url}/install.ps1 | iex"}
+          label="Copy command"
+        />
         <p class="mt-2 text-xs text-base-content/50">
           Rather read it first? <code>curl {@base_url}/install.sh</code>
           prints it. The skills are also

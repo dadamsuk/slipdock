@@ -213,6 +213,30 @@ defmodule SlipdockCLI.RunnersTest do
              )
   end
 
+  test "runner new and setup pass --commit and --close; unset, they are left out" do
+    assert {[commit: "none", close: "open"], [], []} =
+             OptionParser.parse(["--commit", "none", "--close", "open"],
+               strict: SlipdockCLI.switches()
+             )
+
+    serve([
+      {201, ~s({"runner":null,"token":null,"automation":null,"setup":#{@setup}})},
+      {200, ~s({"setup":#{@setup},"diff":[]})}
+    ])
+
+    capture_io(fn ->
+      Runners.run("runner", ["new", "b"], scenario: "loop", commit: "none", close: "open")
+    end)
+
+    assert_received {:request, "POST", "/api/boards/b/runners/setup", body}
+
+    assert JSON.decode!(body) == %{"scenario" => "loop", "commit" => "none", "close" => "open"}
+
+    capture_io(fn -> Runners.run("runner", ["setup", "b", "4"], commit: "commit") end)
+    assert_received {:request, "PUT", "/api/boards/b/runners/4/setup", body}
+    assert JSON.decode!(body) == %{"commit" => "commit"}
+  end
+
   test "runner new for a Claude scenario needs no pool and makes no runner" do
     serve([{201, ~s({"runner":null,"token":null,"automation":null,"setup":#{@setup}})}])
     out = capture_io(fn -> Runners.run("runner", ["new", "b"], scenario: "loop") end)

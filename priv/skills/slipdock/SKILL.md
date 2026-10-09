@@ -72,7 +72,8 @@ curl -s -X POST "$B/api/auth/device/token" -H 'content-type: application/json' \
 ```
 
 To install these skills on a machine that has none of them:
-`curl -fsSL "$B/install.sh" | sh` (needs only `curl` and `tar`).
+`curl -fsSL "$B/install.sh" | sh` (needs only `curl` and `tar`); on Windows, in PowerShell,
+`irm "$B/install.ps1" | iex` (into `%USERPROFILE%\.claude\skills`, not WSL's home).
 
 ## Signing in
 
@@ -307,6 +308,7 @@ slipdock runner new <board> [name] --pool P [--scenario server|windows|loop|clou
     [--column LIST [--top] [--[no-]wait-while-doing]] [--verbosity quiet|normal|verbose]
     [--instructions TEXT]
     [--before-job CMD] [--after-job CMD] [--hooks prompt|hook]
+    [--commit push|commit|none] [--close done|open]   # loop/cloud: commit? close the card?
     [--no-slipdock-tools] [--mcp-servers A,B]
                                               # prints exactly what to paste; server/windows make a
                                               # runner and print its token, ONCE; --column adds the rule

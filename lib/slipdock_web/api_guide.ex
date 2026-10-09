@@ -402,6 +402,11 @@ defmodule SlipdockWeb.APIGuide do
 
         curl -fsSL #{base}/install.sh | sh
 
+    On Windows, in PowerShell (into `%USERPROFILE%\\.claude\\skills`, which
+    WSL's `install.sh` would miss):
+
+        irm #{base}/install.ps1 | iex
+
     `401` means no token or a dead one — ask for a new one rather than guessing.
     `403` means the token is good but that board or card is not yours to
     change; say so rather than working around it. A board you cannot read at
@@ -1395,7 +1400,12 @@ defmodule SlipdockWeb.APIGuide do
     let it use those MCP servers' tools without asking — in `-p` nobody can
     approve one; `slipdock_tools: false` leaves it no access to the board.
     Every job's prompt ends by telling the agent nobody will answer questions.
-    `slipdock runner new` prints the same.
+    `slipdock runner new` prints the same. For the two Claude scenarios,
+    `commit` (`push`, the default, `commit` or `none`) and `close` (`done`, the
+    default, or `open`) say whether a pass commits its work — only in a git
+    repository — and whether it completes the card or leaves it open. A
+    session with no job tools (a connector added before they existed keeps its
+    old tool list) is told to stop and say so rather than work the lists.
 
     **Runners themselves** are the board owner's to make and revoke: `GET`,
     `POST` (`{"name", "pool"}`, answering with the runner's token, once) and

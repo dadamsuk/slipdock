@@ -10,6 +10,11 @@ defmodule SlipdockWeb.InstallController do
   `slipdock` CLI is an escript and wants Erlang, which the person whose agent
   wants a board usually has not got.
 
+  `GET /install.ps1` is the same for Windows, in PowerShell: the skills in
+  `%USERPROFILE%\\.claude\\skills`, where Claude Code and Claude Desktop on
+  Windows look. `install.sh` run under WSL would put them in the WSL home
+  instead, which Windows' Claude never reads.
+
   Served as plain text, not a download, so the script can be read before it is
   run. Anybody who would rather not pipe a script into a shell
   does not have to: paste the prompt from **Set up an agent** instead and the
@@ -26,6 +31,70 @@ defmodule SlipdockWeb.InstallController do
   # BaseURL already refuses a Host that is not a plain name, so this is the
   # second lock: inside single quotes nothing but a quote means anything.
   defp shell_quote(value), do: String.replace(value, "'", ~S('\''))
+
+  def powershell(conn, _params) do
+    conn
+    |> put_resp_content_type("text/plain")
+    |> send_resp(200, powershell_script(SlipdockWeb.BaseURL.from_conn(conn)))
+  end
+
+  # The same second lock for PowerShell: in a single-quoted string only a
+  # quote means anything, and it is doubled.
+  defp ps_quote(value), do: String.replace(value, "'", "''")
+
+  # Run as `irm …/install.ps1 | iex`, so it sets no preference and calls no
+  # exit: either would land in the person's own PowerShell session.
+  defp powershell_script(base) do
+    """
+    # Set an agent up to work the boards on #{base}, on Windows.
+    #
+    #   irm #{base}/install.ps1 | iex
+    #       into %USERPROFILE%\\.claude\\skills
+    #   & ([scriptblock]::Create((irm #{base}/install.ps1))) -Dir C:\\somewhere\\else
+    #
+    # It writes two things and nothing else:
+    #   DIR\\slipdock*\\              the agent skills this server ships
+    #   ~\\.config\\slipdock\\url      this server's address, so you need not repeat it
+    #                              (unless it already names another server)
+    #
+    # It does not sign you in. Your agent does that itself.
+    param([string]$Dir)
+
+    $Base = '#{ps_quote(base)}'
+    if (-not $Dir) {
+      $Dir = if ($env:SLIPDOCK_SKILLS_DIR) { $env:SLIPDOCK_SKILLS_DIR } else { Join-Path $HOME '.claude\\skills' }
+    }
+
+    if (-not (Get-Command tar.exe -ErrorAction SilentlyContinue)) {
+      throw 'slipdock: tar.exe is needed (Windows 10 1803 and later have it) and was not found'
+    }
+
+    New-Item -ItemType Directory -Force -Path $Dir -ErrorAction Stop | Out-Null
+    $Archive = Join-Path ([IO.Path]::GetTempPath()) ('slipdock-skills-' + [guid]::NewGuid() + '.tar.gz')
+    try {
+      Invoke-WebRequest -UseBasicParsing -Uri "$Base/api/skills.tar.gz" -OutFile $Archive -ErrorAction Stop
+      tar.exe -xzf $Archive -C $Dir
+      if ($LASTEXITCODE -ne 0) { throw 'slipdock: tar could not unpack the skills' }
+    } finally {
+      Remove-Item -Force -ErrorAction SilentlyContinue $Archive
+    }
+
+    # A url already pointing somewhere else is left alone: the token beside it
+    # belongs to that server.
+    $Conf = Join-Path $HOME '.config\\slipdock'
+    New-Item -ItemType Directory -Force -Path $Conf -ErrorAction Stop | Out-Null
+    $UrlFile = Join-Path $Conf 'url'
+    $Current = if (Test-Path $UrlFile) { (Get-Content -Raw $UrlFile).Trim() } else { '' }
+    if (-not $Current) {
+      Set-Content -Path $UrlFile -Value $Base -Encoding ascii
+    } elseif ($Current -ne $Base) {
+      Write-Warning "slipdock: $UrlFile already names $Current; left it alone."
+    }
+
+    Write-Host "Installed the Slipdock skills for ${Base}:"
+    Get-ChildItem -Directory -Path $Dir -Filter 'slipdock*' | ForEach-Object { Write-Host "  $($_.FullName)" }
+    """
+  end
 
   defp script(base) do
     """

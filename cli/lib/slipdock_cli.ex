@@ -349,6 +349,7 @@ defmodule SlipdockCLI do
                [--column LIST [--top] [--[no-]wait-while-doing] [--requeue-stuck N]] [--alert]
                [--verbosity quiet|normal|verbose] [--instructions TEXT]
                [--before-job CMD] [--after-job CMD] [--hooks prompt|hook]
+               [--commit push|commit|none] [--close done|open]
                [--no-slipdock-tools] [--mcp-servers A,B]
                                                    connect a runner: prints exactly what to paste
                                                    (and, for server/windows, its token, once);
@@ -538,6 +539,8 @@ defmodule SlipdockCLI do
     before_job: :string,
     after_job: :string,
     hooks: :string,
+    commit: :string,
+    close: :string,
     slipdock_tools: :boolean,
     wait_while_doing: :boolean,
     requeue_stuck: :integer,
