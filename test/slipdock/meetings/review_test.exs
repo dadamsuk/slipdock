@@ -7,6 +7,7 @@ defmodule Slipdock.Meetings.ReviewTest do
   """
   use Slipdock.DataCase, async: true
 
+  import Ecto.Query
   import Slipdock.Fixtures
   import Slipdock.MeetingsFixtures
 
@@ -27,6 +28,96 @@ defmodule Slipdock.Meetings.ReviewTest do
 
   defp only_finding(capture),
     do: Repo.one!(from(f in Finding, where: f.capture_id == ^capture.id))
+
+  describe "the same name, asked about on several findings" do
+    setup %{board: board, owner: owner} do
+      capture =
+        reviewed_capture(board, owner, [
+          action_finding("Johnny", %{"title" => "Send the deck"}),
+          action_finding("Johnny", %{"title" => "Book the room"}),
+          action_finding("Sammy", %{"title" => "Draft the brief"})
+        ])
+
+      questions =
+        Repo.all(
+          from(q in Question,
+            where: q.capture_id == ^capture.id and q.kind == "who_is_meant",
+            order_by: q.id
+          )
+        )
+
+      %{capture: capture, questions: questions}
+    end
+
+    test "one answer settles every open question about that name, and only that name", ctx do
+      [johnny1, johnny2, sammy] = ctx.questions
+      assert johnny1.context["name"] == "Johnny" and sammy.context["name"] == "Sammy"
+
+      {:ok, _} = Review.answer(johnny1, "user:#{ctx.sam.id}", ctx.owner)
+
+      assert Repo.reload!(johnny2).status == "answered"
+      assert Repo.reload!(johnny2).answered_by_id == ctx.owner.id
+      assert Repo.reload!(sammy).status == "open"
+
+      findings =
+        Repo.all(from(f in Finding, where: f.capture_id == ^ctx.capture.id, order_by: f.position))
+
+      assert Enum.map(findings, & &1.effect["assignee_id"]) == [ctx.sam.id, ctx.sam.id, nil]
+
+      [_, second] =
+        Repo.all(
+          from(e in Event,
+            where: e.capture_id == ^ctx.capture.id and e.kind == "answered",
+            order_by: e.id
+          )
+        )
+
+      assert second.message =~ "the same name as question #{johnny1.id}"
+
+      # Each can still be taken back on its own.
+      {:ok, _} = Review.unanswer(Repo.reload!(johnny2), ctx.owner)
+      assert Repo.reload!(johnny1).status == "answered"
+      assert Repo.reload!(johnny2).status == "open"
+    end
+
+    test "someone not on the board keeps the name as said, with nobody assigned", ctx do
+      [johnny1, johnny2, _] = ctx.questions
+
+      assert %{"label" => "Someone not on this board"} =
+               Enum.find(johnny1.options, &(&1["value"] == "name:Johnny"))
+
+      {:ok, _} = Review.answer(johnny1, "name:Johnny", ctx.owner)
+      assert Repo.reload!(johnny2).status == "answered"
+
+      for f <-
+            Repo.all(
+              from(f in Finding,
+                where: f.capture_id == ^ctx.capture.id and f.title != "Draft the brief"
+              )
+            ) do
+        assert f.effect["assignee"] == "Johnny"
+        refute Map.has_key?(f.effect, "assignee_id")
+        refute "owner_unknown" in f.signals
+      end
+    end
+
+    test "an answered one is left alone, and an answer it can't take is skipped", ctx do
+      [johnny1, johnny2, _] = ctx.questions
+      {:ok, _} = Review.answer(johnny2, "none", ctx.owner)
+
+      # A question whose options don't include the answer is left open.
+      johnny3 =
+        question_fixture(ctx.capture, %{
+          prompt: "Who is “Johnny”?",
+          context: %{"name" => "Johnny"},
+          options: [%{"value" => "none", "label" => "Nobody yet"}]
+        })
+
+      {:ok, _} = Review.answer(johnny1, "user:#{ctx.sam.id}", ctx.owner)
+      assert Repo.reload!(johnny2).answer["value"] == "none"
+      assert Repo.reload!(johnny3).status == "open"
+    end
+  end
 
   test "answering who is meant assigns them; the last answer makes it ready", %{
     board: board,

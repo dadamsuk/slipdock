@@ -95,6 +95,25 @@ defmodule SlipdockWeb.Meetings.SpeakersLiveTest do
     assert view |> element("#unsure-L2") |> render() =~ "We ship Friday."
   end
 
+  test "open questions on the review are pointed to, since confirming voices doesn't answer them",
+       ctx do
+    path = ~p"/boards/#{ctx.board}/meetings/#{ctx.capture.id}/speakers"
+    {:ok, view, _} = live(ctx.conn, path)
+    refute has_element?(view, "#questions-elsewhere")
+
+    question_fixture(ctx.capture, %{blocking: true})
+    question_fixture(ctx.capture, %{blocking: true})
+    {:ok, view, _} = live(ctx.conn, path)
+
+    assert view |> element("#questions-elsewhere") |> render() =~
+             "2 questions are still open on the review"
+
+    assert has_element?(
+             view,
+             ~s(#questions-elsewhere a[href="/boards/#{ctx.board.id}/meetings/#{ctx.capture.id}"])
+           )
+  end
+
   test "a reader cannot change who a voice is", ctx do
     reader = user_fixture("reader@example.com")
     share_fixture(ctx.board, [reader], "read")

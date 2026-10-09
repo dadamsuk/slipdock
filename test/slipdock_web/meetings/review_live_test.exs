@@ -81,6 +81,21 @@ defmodule SlipdockWeb.Meetings.ReviewLiveTest do
     assert has_element?(view, "#commit-capture[disabled]")
   end
 
+  test "the question count goes to the next open question, and says why commit is off", ctx do
+    {:ok, view, _} = open(ctx.conn, ctx.board, ctx.capture)
+    assert has_element?(view, "#finding-#{ctx.decision.id}[data-selected=true]")
+    assert view |> element("#commit-blocked") |> render() =~ "not on Who said what"
+
+    view |> element("#open-questions") |> render_click()
+    assert has_element?(view, "#finding-#{ctx.action.id}[data-selected=true]")
+    assert_push_event(view, "scroll-to-finding", %{id: id})
+    assert id == ctx.action.id
+
+    view |> element("#answer-#{ctx.question.id}-1") |> render_click()
+    refute has_element?(view, "#open-questions")
+    refute has_element?(view, "#commit-blocked")
+  end
+
   test "commit goes to the preview once nothing is left to settle", ctx do
     {:ok, view, _} = open(ctx.conn, ctx.board, ctx.capture)
     view |> element("#answer-#{ctx.question.id}-1") |> render_click()

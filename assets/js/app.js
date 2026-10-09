@@ -1463,6 +1463,13 @@ window.addEventListener("phx:scroll-to-list", ({detail: {id}}) => {
   requestAnimationFrame(find)
 })
 
+// A meeting's review: "N questions to settle · next" selects the next
+// finding with an open question; this brings it into view.
+window.addEventListener("phx:scroll-to-finding", ({detail: {id}}) => {
+  requestAnimationFrame(() =>
+    document.getElementById(`finding-${id}`)?.scrollIntoView({behavior: "smooth", block: "center"}))
+})
+
 // data-confirm asks with the app's own dialog rather than the browser's.
 installConfirm(window)
 

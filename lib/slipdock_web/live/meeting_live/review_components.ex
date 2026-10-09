@@ -49,10 +49,18 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
         id="review-bar"
         class="sticky top-0 z-10 flex flex-wrap items-center gap-3 rounded-xl bg-base-100/95 px-4 py-2 shadow-sm ring-1 ring-base-content/10 backdrop-blur"
       >
-        <span :if={@open_count > 0} id="open-questions" class="text-sm">
+        <button
+          :if={@open_count > 0}
+          id="open-questions"
+          type="button"
+          phx-click="next_question"
+          class="btn btn-ghost btn-sm"
+          title="Go to the next one (N)"
+        >
           <.icon name="hero-question-mark-circle" class="size-4 text-warning" />
           {@open_count} {if @open_count == 1, do: "question", else: "questions"} to settle
-        </span>
+          <span class="text-base-content/60">· next ›</span>
+        </button>
         <span :if={@open_count == 0 and @reviewable?} class="text-sm text-success">
           <.icon name="hero-check-circle" class="size-4" /> Nothing left to settle
         </span>
@@ -91,6 +99,14 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
         >
           Commit…
         </button>
+        <span
+          :if={@can_write and @open_count > 0 and @reviewable?}
+          id="commit-blocked"
+          class="basis-full text-right text-xs text-base-content/60"
+        >
+          Commit opens once every question is answered. They're under the findings marked
+          <.icon name="hero-question-mark-circle" class="size-3 text-warning" />, not on Who said what.
+        </span>
       </div>
 
       <p

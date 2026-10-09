@@ -57,6 +57,13 @@ defmodule SlipdockWeb.MeetingLive.Speakers do
       voices: voices,
       lines_by_voice: Enum.group_by(lines, & &1.voice_id),
       unsure: Speakers.unsure_lines_that_matter(capture),
+      open_questions:
+        Repo.aggregate(
+          from(q in Slipdock.Meetings.Question,
+            where: q.capture_id == ^capture.id and q.status == "open" and q.blocking
+          ),
+          :count
+        ),
       people: people(socket.assigns.members, capture)
     )
   end
@@ -144,6 +151,19 @@ defmodule SlipdockWeb.MeetingLive.Speakers do
           <p class="text-sm text-base-content/60">
             Who said something decides who owns an action and who made a decision. Changing a voice
             here changes those findings too; nothing else is read again.
+          </p>
+          <p
+            :if={@open_questions > 0}
+            id="questions-elsewhere"
+            class="rounded-xl bg-warning/10 px-4 py-2 text-sm"
+          >
+            {@open_questions} {if @open_questions == 1, do: "question is", else: "questions are"} still open on the review, under the findings they're about. Confirming voices here doesn't answer them.
+            <.link
+              navigate={~p"/boards/#{@board}/meetings/#{@capture.id}"}
+              class="link link-primary"
+            >
+              Go to the questions
+            </.link>
           </p>
           <p :if={!@capture.audio_key} class="text-xs text-base-content/60">
             {if @capture.audio_purged_at,

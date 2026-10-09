@@ -75,15 +75,44 @@ defmodule Slipdock.Meetings.Review do
         Meetings.record(
           question.capture,
           "answered",
-          "“#{question.prompt}” — #{option["label"]}#{via_words(via)}#{after_words(opts[:context])}.",
+          "“#{question.prompt}” — #{option["label"]}#{via_words(via)}#{after_words(opts[:context])}" <>
+            if(opts[:same_name],
+              do: ", the same name as question #{opts[:same_name]}.",
+              else: "."
+            ),
           user: user,
           via: via,
           data: %{"question_id" => question.id, "value" => option["value"]}
         )
       end)
       |> finish(question.capture)
+      |> tap(fn
+        {:ok, _} -> unless opts[:same_name], do: same_name(question, option, user, opts)
+        _ -> :ok
+      end)
     end
   end
+
+  # "Who is Johnny?" is asked once per finding that names Johnny; the
+  # answer is the same for every one of them, so it settles all the open
+  # ones (each still recorded, and each can be taken back on its own).
+  defp same_name(
+         %Question{kind: "who_is_meant", id: id, context: %{"name" => name}} = q,
+         option,
+         user,
+         opts
+       ) do
+    from(o in Question,
+      where:
+        o.capture_id == ^q.capture_id and o.id != ^id and o.kind == "who_is_meant" and
+          o.status == "open" and fragment("?->>'name' = ?", o.context, ^name)
+    )
+    |> Repo.all()
+    |> Enum.filter(&Enum.any?(&1.options, fn o -> o["value"] == option["value"] end))
+    |> Enum.each(&answer(&1, option["value"], user, Keyword.put(opts, :same_name, id)))
+  end
+
+  defp same_name(_question, _option, _user, _opts), do: :ok
 
   @doc """
   An answer as a person or an agent might give it: an option's value
@@ -492,11 +521,19 @@ defmodule Slipdock.Meetings.Review do
        when kind in ["who_is_meant", "who_said_it"] do
     effect =
       case f.effect do
-        %{"type" => "decision_entry"} = e -> Map.put(e, "decided_by", name)
-        e -> e
+        %{"type" => "decision_entry"} = e ->
+          Map.put(e, "decided_by", name)
+
+        %{"type" => "new_card"} = e ->
+          e |> Map.delete("assignee_id") |> Map.put("assignee", name)
+
+        e ->
+          e
       end
 
-    f |> Ecto.Changeset.change(effect: effect) |> Repo.update!()
+    f
+    |> Ecto.Changeset.change(effect: effect, signals: Enum.uniq(f.signals -- ["owner_unknown"]))
+    |> Repo.update!()
   end
 
   defp apply_answer(%Question{kind: kind, finding: f}, %{"value" => "none"}, _user)
