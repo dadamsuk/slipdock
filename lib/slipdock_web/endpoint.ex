@@ -59,7 +59,10 @@ defmodule SlipdockWeb.Endpoint do
   plug :parse_body
 
   @parsers Plug.Parsers.init(
-             parsers: [:urlencoded, :multipart, :json],
+             # Multipart bodies stream to temporary files, so a meeting's
+             # recording (see `Slipdock.Meetings.Limits`) can be this large
+             # without being held in memory; the 8 MB default refused it.
+             parsers: [:urlencoded, {:multipart, length: 520_000_000}, :json],
              pass: ["*/*"],
              json_decoder: Phoenix.json_library()
            )

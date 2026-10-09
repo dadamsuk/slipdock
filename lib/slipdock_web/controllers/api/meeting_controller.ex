@@ -7,6 +7,8 @@ defmodule SlipdockWeb.API.MeetingController do
   use SlipdockWeb, :controller
 
   alias Slipdock.Meetings
+  alias Slipdock.Meetings.Ingest
+  alias SlipdockWeb.API.{Authorize, MeetingJSON}
 
   action_fallback SlipdockWeb.API.FallbackController
 
@@ -14,4 +16,111 @@ defmodule SlipdockWeb.API.MeetingController do
   def mode(conn, _params) do
     json(conn, %{meetings: Meetings.mode(conn.assigns.current_user)})
   end
+
+  @doc """
+  Sends a meeting to a board: multipart with any of `audio`, `transcript`,
+  `findings` and `ics` as files, or JSON with `transcript`, `findings` and
+  `ics` as text; plus `title`, `when`, `attendees`, `format`, `parent`,
+  `retention`. 201 with the capture, or 200 and `existing: true` when this
+  board already has a capture of the same meeting.
+  """
+  def create(conn, %{"board" => ref} = params) do
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :write) do
+      result =
+        Ingest.ingest(board, conn.assigns.current_user, %{
+          transcript: file(params["transcript"]),
+          audio: audio(params["audio"]),
+          findings: file(params["findings"]),
+          ics: file(params["ics"]),
+          title: params["title"],
+          started_at: params["when"] || params["started_at"],
+          attendees: params["attendees"],
+          format: blank(params["format"]),
+          context: %{parent: params["parent"]},
+          retention: blank(params["retention"]),
+          source:
+            if(params["source"] in ["agent", "connector"], do: params["source"], else: "upload"),
+          via: "api"
+        })
+
+      case result do
+        {:ok, capture} ->
+          conn
+          |> put_status(:created)
+          |> json(%{capture: show_json(conn, capture), existing: false})
+
+        {:existing, capture} ->
+          json(conn, %{capture: show_json(conn, capture), existing: true})
+
+        {:error, {:invalid, message}} ->
+          {:error, :unprocessable_entity, message}
+
+        {:error, other} ->
+          {:error, other}
+      end
+    end
+  end
+
+  @doc "A capture: its state, lines, findings, questions and record."
+  def show(conn, %{"id" => id}) do
+    with {:ok, capture} <- fetch(conn, id, :read) do
+      json(conn, %{capture: show_json(conn, capture)})
+    end
+  end
+
+  @doc "A board's captures, newest first."
+  def index(conn, %{"board" => ref}) do
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :read) do
+      base = SlipdockWeb.BaseURL.from_conn(conn)
+
+      json(conn, %{
+        captures: Enum.map(Meetings.list_captures(board), &MeetingJSON.summary(&1, base))
+      })
+    end
+  end
+
+  @doc false
+  # A capture the caller can read (`:read`) or write (`:write`) through its
+  # board; one they cannot read is a 404, the same as one that is not there.
+  def fetch(conn, id, need) do
+    with %Meetings.Capture{} = capture <- id |> SlipdockWeb.Params.id() |> get(),
+         board = Slipdock.Boards.get_board!(capture.board_id),
+         :ok <- readable(conn, board),
+         :ok <- Authorize.board(conn, board, need) do
+      {:ok, capture}
+    else
+      nil -> {:error, :not_found, "capture"}
+      {:error, :not_found, _} -> {:error, :not_found, "capture"}
+      other -> other
+    end
+  end
+
+  defp get(nil), do: nil
+  defp get(id), do: Meetings.get_capture(id)
+
+  defp readable(conn, board) do
+    if Slipdock.Access.can_read?(
+         Slipdock.Access.board_permission(conn.assigns.current_user, board)
+       ),
+       do: :ok,
+       else: {:error, :not_found, "capture"}
+  end
+
+  defp show_json(conn, capture),
+    do: MeetingJSON.capture(Meetings.load(capture), SlipdockWeb.BaseURL.from_conn(conn))
+
+  # A file upload, or the text itself.
+  defp file(%Plug.Upload{path: path, filename: name}),
+    do: %{content: File.read!(path), filename: name}
+
+  defp file(text) when is_binary(text) and text != "", do: %{content: text, filename: nil}
+  defp file(_), do: nil
+
+  defp audio(%Plug.Upload{path: path, filename: name, content_type: type}),
+    do: %{path: path, filename: name, content_type: type}
+
+  defp audio(_), do: nil
+
+  defp blank(""), do: nil
+  defp blank(value), do: value
 end

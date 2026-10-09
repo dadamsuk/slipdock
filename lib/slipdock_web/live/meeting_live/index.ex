@@ -7,34 +7,33 @@ defmodule SlipdockWeb.MeetingLive.Index do
   """
   use SlipdockWeb, :live_view
 
-  import SlipdockWeb.SlipdockComponents, only: [view_tabs: 1]
+  import SlipdockWeb.MeetingLive.Components
 
-  alias Slipdock.{Access, Boards, Meetings, Palette}
+  alias Slipdock.Meetings
+  alias SlipdockWeb.MeetingLive.Access
 
   on_mount {SlipdockWeb.MeetingsHook, :require_enabled}
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
-    board = Boards.get_board!(id)
-    user = socket.assigns.current_user
-    perm = Access.board_permission(user, board)
+    case Access.mount_board(socket, id, :read) do
+      {:ok, socket} ->
+        board = socket.assigns.board
+        if connected?(socket), do: Meetings.subscribe_board(board.id)
 
-    if Access.can_read?(perm) do
-      {:ok,
-       assign(socket,
-         board: board,
-         can_write: Access.can_write?(perm),
-         meetings: Meetings.presence(user, board),
-         marks: Slipdock.Favourites.marks(user),
-         page_title: "Meetings · #{board.name}",
-         page_jumps: []
-       )}
-    else
-      {:ok,
-       socket
-       |> put_flash(:error, "You don't have access to that board.")
-       |> push_navigate(to: ~p"/")}
+        {:ok,
+         socket
+         |> assign(page_title: "Meetings · #{board.name}")
+         |> assign(captures: Meetings.list_captures(board))}
+
+      {:error, socket} ->
+        {:ok, socket}
     end
+  end
+
+  @impl true
+  def handle_info({:captures_changed, _board_id}, socket) do
+    {:noreply, assign(socket, captures: Meetings.list_captures(socket.assigns.board))}
   end
 
   @impl true
@@ -51,28 +50,26 @@ defmodule SlipdockWeb.MeetingLive.Index do
       nav_active={:boards}
       page_jumps={@page_jumps}
     >
-      <:subnav>
-        <nav class="flex min-w-0 items-center gap-1 text-sm">
-          <.link
-            navigate={~p"/boards/#{@board}"}
-            class="flex min-w-0 items-center gap-2 rounded-lg px-2 py-1 hover:bg-base-200"
-          >
-            <span class={["size-2.5 shrink-0 rounded-full", Palette.dot(@board.color)]}></span>
-            <span class="truncate font-semibold">{@board.name}</span>
-          </.link>
-          <.icon name="hero-chevron-right" class="size-3 shrink-0 text-base-content/40" />
-          <span class="rounded-lg px-2 py-1 font-semibold">Meetings</span>
-        </nav>
-      </:subnav>
+      <:subnav><.meeting_nav board={@board} /></:subnav>
+      <:subactions>
+        <.link
+          :if={@can_write}
+          id="new-capture"
+          navigate={~p"/boards/#{@board}/meetings/new"}
+          class="btn btn-primary btn-sm gap-1.5"
+        >
+          <.icon name="hero-plus" class="size-4" />
+          <span class="hidden sm:inline">Capture a meeting</span>
+        </.link>
+      </:subactions>
 
       <div id="meetings-shell" class="flex h-full flex-col">
-        <div class="flex flex-wrap items-center gap-x-2 gap-y-2 border-b border-base-300 bg-base-100/70 px-3 py-2 text-sm">
-          <.view_tabs board={@board} mode={:meetings} view={nil} marks={@marks} meetings={@meetings} />
-        </div>
+        <.meeting_toolbar board={@board} marks={@marks} meetings={@meetings} />
 
         <div class="kanban-scroll min-h-0 flex-1 overflow-y-auto">
-          <div class="mx-auto max-w-3xl p-6">
+          <div class="mx-auto max-w-3xl p-4 sm:p-6">
             <div
+              :if={@captures == []}
               id="meetings-empty"
               class="rounded-2xl bg-base-100 p-8 text-center shadow-sm ring-1 ring-base-content/10"
             >
@@ -85,6 +82,27 @@ defmodule SlipdockWeb.MeetingLive.Index do
                 and commits it.
               </p>
             </div>
+
+            <ul
+              :if={@captures != []}
+              id="captures"
+              class="divide-y divide-base-content/5 rounded-2xl bg-base-100 ring-1 ring-base-content/10"
+            >
+              <li :for={c <- @captures} id={"capture-#{c.id}"}>
+                <.link
+                  navigate={~p"/boards/#{@board}/meetings/#{c.id}"}
+                  class="flex items-center gap-3 px-4 py-3 hover:bg-base-200"
+                >
+                  <span class="min-w-0 flex-1">
+                    <span class="block truncate font-medium">{c.title}</span>
+                    <span class="block text-xs text-base-content/60">
+                      {Calendar.strftime(c.started_at || c.inserted_at, "%d %b %Y")}
+                    </span>
+                  </span>
+                  <span class={["badge badge-sm", state_class(c.state)]}>{state_label(c.state)}</span>
+                </.link>
+              </li>
+            </ul>
           </div>
         </div>
       </div>

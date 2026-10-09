@@ -96,7 +96,12 @@ defmodule Slipdock.Meetings do
       enabled: settings.meetings_enabled == true,
       visibility: settings.meetings_visibility,
       hideable: settings.meetings_hideable != false,
-      hidden: hidden_by?(user)
+      hidden: hidden_by?(user),
+      accepts: %{
+        transcripts: settings.meetings_accept_transcripts,
+        audio: settings.meetings_accept_audio,
+        findings: settings.meetings_accept_findings
+      }
     }
   end
 
@@ -118,6 +123,33 @@ defmodule Slipdock.Meetings do
   end
 
   def mark_used(%Board{} = board), do: board
+
+  @doc """
+  Where a capture sent by this person goes before anyone reviews it — shown
+  before anything is sent (the disclosure on the New capture page):
+
+    * `:reading` — `%{host:, model:, own?:}`, the model that reads the
+      transcript, on the person's own AI settings (or the server's shared
+      key), or nil when they have none and nothing can be read;
+    * `:transcription` — the same for recordings, or nil when this server
+      transcribes nothing (the recording is then stored for replay only).
+  """
+  def destinations(%User{} = user) do
+    reading =
+      case Slipdock.AI.provider(user: user) do
+        {:ok, p} -> %{host: host(p.base_url), model: p.model, own?: Slipdock.AI.Keys.own?(user)}
+        {:error, _} -> nil
+      end
+
+    %{reading: reading, transcription: nil}
+  end
+
+  defp host(url) do
+    case URI.parse(url || "") do
+      %URI{host: host} when is_binary(host) -> host
+      _ -> url
+    end
+  end
 
   ## Captures -----------------------------------------------------------------
 

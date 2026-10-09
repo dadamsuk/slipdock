@@ -71,7 +71,7 @@ defmodule Slipdock.Meetings.CapturesTest do
 
     test "line endings, a byte-order mark and stray spaces are the same meeting" do
       plain = "Priya: Hello\nSam: Hi there"
-      messy = "﻿Priya: Hello  \r\n\r\nSam: Hi there\r\n"
+      messy = "\uFEFFPriya: Hello  \r\n\r\nSam: Hi there\r\n"
       assert Meetings.fingerprint(transcript: plain) == Meetings.fingerprint(transcript: messy)
 
       refute Meetings.fingerprint(transcript: plain) ==

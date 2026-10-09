@@ -66,7 +66,12 @@ defmodule SlipdockWeb.API.AdminController do
         meetings: %{
           enabled: settings.meetings_enabled,
           visibility: settings.meetings_visibility,
-          hideable: settings.meetings_hideable
+          hideable: settings.meetings_hideable,
+          accepts: %{
+            transcripts: settings.meetings_accept_transcripts,
+            audio: settings.meetings_accept_audio,
+            findings: settings.meetings_accept_findings
+          }
         },
         pending_signups: Accounts.count_pending_signups()
       }

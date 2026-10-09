@@ -79,7 +79,8 @@ defmodule SlipdockCLI.Admin do
                                         posthog_key, posthog_host (empty to turn off),
                                         ai_system_user=<admin email> (empty to clear),
                                         meetings_enabled, meetings_visibility
-                                        (used_only|every_board), meetings_hideable
+                                        (used_only|every_board), meetings_hideable,
+                                        meetings_accept_transcripts|audio|findings
     admin allow <entry> | disallow <entry>
     admin users                         who is here
     admin promote|demote|disable|enable <email>
@@ -145,7 +146,10 @@ defmodule SlipdockCLI.Admin do
               "storage_limit_enabled",
               "trial_enabled",
               "meetings_enabled",
-              "meetings_hideable"
+              "meetings_hideable",
+              "meetings_accept_transcripts",
+              "meetings_accept_audio",
+              "meetings_accept_findings"
             ],
        do: value in ["1", "true", "yes", "on"]
 

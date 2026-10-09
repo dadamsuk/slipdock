@@ -1,0 +1,12 @@
+1
+00:00:00,000 --> 00:00:04,000
+Priya: Let's settle the pricing page.
+
+2
+00:00:04,000 --> 00:00:09,000
+Sam: We go with the annual plan
+at 20% off.
+
+3
+00:00:09,000 --> 00:00:14,000
+Priya: Sam, can you update PL-14 by Friday?

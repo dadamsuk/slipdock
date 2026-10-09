@@ -221,6 +221,8 @@ defmodule SlipdockWeb.Router do
       # A board's meetings (see `Slipdock.Meetings`): only while an admin has
       # meeting mode on, which each page checks for itself as it mounts.
       live "/boards/:id/meetings", MeetingLive.Index, :index
+      live "/boards/:id/meetings/new", MeetingLive.New, :new
+      live "/boards/:id/meetings/:capture_id", MeetingLive.Show, :show
       live "/boards/:id", BoardLive.Show, :show
       # The receiving end of a share: who handed this board over, and the way
       # out of it. A page of its own because it is not part of the board.
@@ -350,6 +352,9 @@ defmodule SlipdockWeb.Router do
     pipe_through [:api, :meetings]
 
     get "/meetings", MeetingController, :mode
+    get "/boards/:board/captures", MeetingController, :index
+    post "/boards/:board/captures", MeetingController, :create
+    get "/captures/:id", MeetingController, :show
   end
 
   scope "/api", SlipdockWeb.API do

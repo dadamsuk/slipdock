@@ -71,7 +71,8 @@ defmodule SlipdockCLI do
                                       ai_system_user= clears it
                                       meetings_enabled=true turns meeting capture on;
                                       meetings_visibility=used_only|every_board,
-                                      meetings_hideable=false
+                                      meetings_hideable=false, and what may be sent:
+                                      meetings_accept_transcripts|audio|findings=false
   admin allow <entry>                 let an address or a whole domain register
   admin disallow <entry>
   admin users                         who is here, what they use, when last seen

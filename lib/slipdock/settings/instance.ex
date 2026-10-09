@@ -85,6 +85,10 @@ defmodule Slipdock.Settings.Instance do
     field :meetings_enabled, :boolean, default: false
     field :meetings_visibility, Ecto.Enum, values: @meeting_visibilities, default: :used_only
     field :meetings_hideable, :boolean, default: true
+    # What a capture may be sent, each switched on or off for the server.
+    field :meetings_accept_transcripts, :boolean, default: true
+    field :meetings_accept_audio, :boolean, default: true
+    field :meetings_accept_findings, :boolean, default: true
 
     # Whose AI settings unattended work runs on: the search indexer, every
     # search query, scheduled automations. An admin, because those settings
@@ -143,7 +147,8 @@ defmodule Slipdock.Settings.Instance do
                     item_limit_enabled storage_limit_mb storage_limit_enabled
                     trial_days trial_enabled posthog_key posthog_host
                     posthog_respect_dnt ai_system_user_id meetings_enabled
-                    meetings_visibility meetings_hideable)a
+                    meetings_visibility meetings_hideable meetings_accept_transcripts
+                    meetings_accept_audio meetings_accept_findings)a
 
   # The admin address and the SMTP details each have a flow that proves
   # something first (a code to the new address, a test message that arrived),

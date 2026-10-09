@@ -63,7 +63,8 @@ defmodule SlipdockWeb.ConfigLive.Index do
                       storage_limit_mb storage_limit_enabled trial_days trial_enabled
                       terms_url privacy_url terms_version posthog_key posthog_host
                       posthog_respect_dnt ai_system_user_id meetings_enabled
-                      meetings_visibility meetings_hideable)
+                      meetings_visibility meetings_hideable meetings_accept_transcripts
+                      meetings_accept_audio meetings_accept_findings)
 
   @mail_fields ~w(smtp_host smtp_port smtp_username smtp_password smtp_tls smtp_from_email
                   smtp_from_name)
@@ -492,6 +493,36 @@ defmodule SlipdockWeb.ConfigLive.Index do
             </span>
           </span>
         </label>
+
+        <fieldset class="space-y-2">
+          <legend class="text-sm font-medium">What may be sent</legend>
+          <label
+            :for={
+              {field, title, text} <- [
+                {:meetings_accept_transcripts, "Transcripts",
+                 "WebVTT, SRT, Name: text, and Fireflies or Otter exports. Cost no transcription."},
+                {:meetings_accept_audio, "Recordings",
+                 "Stored on this server, counted against the board owner's file storage."},
+                {:meetings_accept_findings, "Findings from an agent",
+                 "An agent's own reading of the meeting, checked like Slipdock's."}
+              ]
+            }
+            class="flex cursor-pointer items-start gap-3 text-sm"
+          >
+            <input type="hidden" name={"settings[#{field}]"} value="false" />
+            <input
+              type="checkbox"
+              name={"settings[#{field}]"}
+              value="true"
+              checked={Map.get(@settings, field)}
+              class="checkbox checkbox-sm mt-0.5"
+            />
+            <span>
+              <span class="block font-medium">{title}</span>
+              <span class="block text-xs text-base-content/60">{text}</span>
+            </span>
+          </label>
+        </fieldset>
 
         <button type="submit" class="btn btn-primary btn-sm">Save</button>
       </.form>

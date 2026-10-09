@@ -6,9 +6,9 @@ defmodule Slipdock.MeetingsFixtures do
 
   @doc "Meeting mode on, on a server that has been set up."
   def meetings_on(attrs \\ %{}) do
-    unless Settings.setup_complete?() do
-      {:ok, _} = Settings.complete_setup(%{"admin_email" => "admin@example.com"})
-    end
+    # A row of this test's own, marked set up: a fresh row would send every
+    # page to the setup wizard.
+    {:ok, _} = Settings.complete_setup(%{"admin_email" => "admin@example.com"})
 
     {:ok, _} = Settings.update(Map.merge(%{"meetings_enabled" => true}, attrs))
     :ok
