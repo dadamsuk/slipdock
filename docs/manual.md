@@ -1812,7 +1812,9 @@ board's tab appears after its first capture) or `every_board`; whether people
 may hide it for themselves (`meetings_hideable`, then Account → Settings →
 Display); what may be sent (`meetings_accept_transcripts`, `…_audio`,
 `…_findings`); and which models read a meeting (`meetings_reading_model`, empty
-for each person's own; `meetings_second_reading=same|model|off` and
+for each person's own; `meetings_second_reading=off|same|model` (off by
+default: a second, independent reading doubles the cost, and where the two
+differ it asks which is right) and
 `meetings_second_model`). Readings run on the sender's AI settings. An answer
 outside the findings format is sent back once; whatever still doesn't fit after
 that is left out and listed on the capture's record, and the rest is kept. An

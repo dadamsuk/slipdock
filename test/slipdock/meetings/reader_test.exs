@@ -15,7 +15,12 @@ defmodule Slipdock.Meetings.ReaderTest do
   alias Slipdock.{AIStub, Meetings, Repo, Settings}
   alias Slipdock.Meetings.{Reader, Schema, UsageEntry}
 
-  setup do
+  setup ctx do
+    # Most of these are about two readings, which an admin turns on; a test
+    # tagged :default_settings keeps the default (one).
+    unless ctx[:default_settings],
+      do: {:ok, _} = Settings.update(%{"meetings_second_reading" => "same"})
+
     owner = user_fixture("owner@example.com")
     board = board_fixture(%{"name" => "Pricing", "code" => "PL"}, owner: owner)
     %{owner: owner, board: board, capture: capture_fixture(board, owner)}
@@ -243,12 +248,21 @@ defmodule Slipdock.Meetings.ReaderTest do
     assert Reader.meeting_date(capture) == DateTime.to_date(capture.inserted_at)
   end
 
-  test "the second reading can be off, or another model", %{capture: capture} do
-    {:ok, _} = Settings.update(%{"meetings_second_reading" => "off"})
+  @tag :default_settings
+  test "one reading by default; a second is the same model again, or another", %{
+    capture: capture
+  } do
+    assert Settings.get().meetings_second_reading == "off"
     AIStub.reply_with(%{"findings" => [@decision]})
     {:ok, readings} = Reader.read(capture)
     assert readings["2"] == nil
+    assert readings["meta"]["second"] == "off"
     assert length(drain_requests()) == 1
+
+    {:ok, _} = Settings.update(%{"meetings_second_reading" => "same"})
+    {:ok, readings} = Reader.read(capture)
+    assert readings["2"] != nil
+    assert length(drain_requests()) == 2
 
     {:ok, _} =
       Settings.update(%{

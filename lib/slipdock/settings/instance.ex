@@ -92,7 +92,7 @@ defmodule Slipdock.Settings.Instance do
     # Which models read a meeting: nil reads with the person's own model;
     # the second reading is the same model again, another, or none.
     field :meetings_reading_model, :string
-    field :meetings_second_reading, :string, default: "same"
+    field :meetings_second_reading, :string, default: "off"
     field :meetings_second_model, :string
     # What one person may use of meeting capture in a month (see
     # `Slipdock.Meetings.Usage`). A number and a switch each, like the

@@ -47,7 +47,7 @@ defmodule Slipdock.Meetings.Pipeline do
   def step_label("diarise"), do: "Separating voices"
   def step_label("attribute"), do: "Working out who spoke"
   def step_label("context"), do: "Reading the board and its wiki"
-  def step_label("read"), do: "Reading the meeting, twice"
+  def step_label("read"), do: "Reading the meeting"
   def step_label("verify"), do: "Checking every quote"
   def step_label("relisten"), do: "Re-listening to unclear words"
   def step_label("ready"), do: "Ready for review"

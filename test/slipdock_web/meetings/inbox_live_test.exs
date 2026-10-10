@@ -40,7 +40,7 @@ defmodule SlipdockWeb.Meetings.InboxLiveTest do
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/meetings")
 
     assert view |> element("#capture-#{reading.id}-state") |> render() =~
-             "reading — reading the meeting, twice"
+             "reading — reading the meeting"
 
     assert view |> element("#capture-#{reading.id}") |> render() =~
              "from an agent by #{user.email}"
