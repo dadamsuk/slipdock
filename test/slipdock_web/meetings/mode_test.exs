@@ -284,6 +284,22 @@ defmodule SlipdockWeb.Meetings.ModeTest do
       refute Meetings.enabled?()
     end
 
+    test "one reading by default, said so; a second is the admin's to turn on", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/config/meetings")
+      assert view |> element("#reading-explained") |> render() =~ "read once, whole"
+
+      assert has_element?(
+               view,
+               ~s(select[name="settings[meetings_second_reading]"] option[value="off"][selected])
+             )
+
+      view
+      |> form("#meetings-form", settings: %{meetings_second_reading: "same"})
+      |> render_submit()
+
+      assert Slipdock.Settings.get().meetings_second_reading == "same"
+    end
+
     test "PATCH /api/admin/settings does the same, and reads it back", %{admin: admin} do
       {token, _} = Accounts.create_api_token(admin, "admin", scope: "admin")
 

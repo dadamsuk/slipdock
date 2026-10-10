@@ -536,9 +536,11 @@ defmodule SlipdockWeb.ConfigLive.Index do
 
         <fieldset class="space-y-3">
           <legend class="text-sm font-medium">Reading</legend>
-          <p class="text-xs text-base-content/60">
-            Every meeting is read twice, independently, and what only one reading found is marked
-            so. Each reading runs on the AI settings of the person who sent the meeting.
+          <p id="reading-explained" class="text-xs text-base-content/60">
+            A meeting is read once, whole, for its summary, key topics and the few things that go
+            on the board. A second, independent reading is off unless you turn it on: it doubles
+            the cost, marks what only one reading found, and asks which is right where they differ.
+            Each reading runs on the AI settings of the person who sent the meeting.
           </p>
           <.input
             field={@form[:meetings_reading_model]}
@@ -551,9 +553,9 @@ defmodule SlipdockWeb.ConfigLive.Index do
             type="select"
             label="Second reading"
             options={[
+              {"None (one reading)", "off"},
               {"The same model again", "same"},
-              {"Another model", "model"},
-              {"None (one reading only)", "off"}
+              {"Another model", "model"}
             ]}
             value={@settings.meetings_second_reading}
           />

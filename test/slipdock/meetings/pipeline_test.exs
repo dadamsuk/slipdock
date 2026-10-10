@@ -66,7 +66,8 @@ defmodule Slipdock.Meetings.PipelineTest do
     assert capture.stats["found"] == %{"kept" => 1, "dropped" => 0, "questions" => 0}
 
     kinds = Repo.all(from(u in UsageEntry, where: u.capture_id == ^capture.id, select: u.kind))
-    assert Enum.sort(kinds) == ["context", "reading", "reading"]
+    # One reading by default.
+    assert Enum.sort(kinds) == ["context", "reading"]
 
     assert_email_sent(fn email ->
       assert email.subject == "Meeting ready for review: Pricing sync"
@@ -121,12 +122,12 @@ defmodule Slipdock.Meetings.PipelineTest do
     capture = Meetings.get_capture!(capture.id)
     assert capture.state == "ready"
     assert capture.context["stats"]["marker"] == "first"
-    # Read twice (two readings), not gathered again, not ingested again.
-    assert length(requests()) == 2
+    # Read (once, by default), not gathered again, not ingested again.
+    assert length(requests()) == 1
 
     assert Enum.any?(
              events(capture),
-             &match?({"resumed", "Resumed after a restart, from Reading the meeting, twice."}, &1)
+             &match?({"resumed", "Resumed after a restart, from Reading the meeting."}, &1)
            )
   end
 
@@ -156,7 +157,7 @@ defmodule Slipdock.Meetings.PipelineTest do
     AIStub.reply_with(%{"findings" => [@decision]})
     capture = Pipeline.retry(capture, owner, mode: :sync)
     assert capture.state == "ready"
-    assert {"state", "Retrying from Reading the meeting, twice."} in events(capture)
+    assert {"state", "Retrying from Reading the meeting."} in events(capture)
   end
 
   test "only a failed capture can be retried", %{capture: capture, owner: owner} do
