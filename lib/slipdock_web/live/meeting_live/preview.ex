@@ -242,7 +242,7 @@ defmodule SlipdockWeb.MeetingLive.Preview do
             id="preview-wiki"
             class="rounded-xl bg-base-100 p-4 ring-1 ring-base-content/10"
           >
-            <h2 class="text-sm font-medium">Decisions</h2>
+            <h2 class="text-sm font-medium">The meeting's page</h2>
             <div
               :for={c <- by_op(@set, "decision_entry")}
               id={"change-#{c["id"]}"}
@@ -252,7 +252,18 @@ defmodule SlipdockWeb.MeetingLive.Preview do
                 {c["page_title"]}
                 <span :if={is_nil(c["page_id"])} class="badge badge-ghost badge-xs">new page</span>
               </p>
-              <pre class="mt-1 overflow-x-auto whitespace-pre-wrap rounded bg-base-200 p-2 font-mono text-xs"><span :for={l <- c["lines_struck"]} class="block text-error">- {l}</span><span :for={l <- c["lines_added"]} class="block text-success">+ {l}</span></pre>
+              <%!-- A new page is shown whole, exactly as it will be written
+                   (header, summary, topics, headings); a page already there
+                   as the lines it gains and loses. --%>
+              <pre
+                :if={is_nil(c["page_id"])}
+                id={"page-#{c["id"]}"}
+                class="mt-1 overflow-x-auto whitespace-pre-wrap rounded bg-base-200 p-2 font-mono text-xs"
+              >{c["body_after"]}</pre>
+              <pre
+                :if={c["page_id"]}
+                class="mt-1 overflow-x-auto whitespace-pre-wrap rounded bg-base-200 p-2 font-mono text-xs"
+              ><span :for={l <- c["lines_struck"]} class="block text-error">- {l}</span><span :for={l <- c["lines_added"]} class="block text-success">+ {l}</span></pre>
             </div>
           </section>
 

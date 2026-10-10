@@ -423,16 +423,29 @@ defmodule Slipdock.Meetings.Commit do
 
   ## Decisions -------------------------------------------------------------------
 
-  # One page per meeting: every decision a capture writes goes on its own
-  # page, "Decisions / <meeting> · <date>", grouped under a `## <topic>`
+  # One page per meeting: it opens with the meeting's summary and key topics,
+  # and every decision a capture writes goes on it,
+  # "Decisions / <meeting> · <date>", grouped under a `## <topic>`
   # heading when they span more than one topic. An earlier entry a new
   # decision replaces is struck where it is — on this meeting's page, an
   # earlier meeting's, or an older page per topic — found among the
   # decisions the context step read. Each side links to the other's page.
-  # One change per page touched.
-  defp decision_changes([], _capture), do: []
-
+  # One change per page touched. A meeting with a summary but no decisions
+  # still gets its page; one with neither gets none.
   defp decision_changes(findings, capture) do
+    if findings == [] and not has_notes?(capture) and made_page(capture) == nil,
+      do: [],
+      else: meeting_changes(findings, capture)
+  end
+
+  defp has_notes?(capture) do
+    case Meetings.notes(capture) do
+      %{"summary" => nil, "topics" => []} -> false
+      _ -> true
+    end
+  end
+
+  defp meeting_changes(findings, capture) do
     pages = fn title ->
       Repo.one(
         from(p in Page,
@@ -460,8 +473,10 @@ defmodule Slipdock.Meetings.Commit do
       end)
       |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
 
-    # The meeting's page first, then the earlier pages struck on.
+    # The meeting's page first, then the earlier pages struck on. A page an
+    # earlier commit made, with nothing new for it, is left alone.
     [own | Enum.sort(Map.keys(strikes) -- [own])]
+    |> Enum.reject(&(&1 == own and findings == [] and pages.(own) != nil))
     |> Enum.map(fn title ->
       page = pages.(title)
       group = if title == own, do: findings, else: []
@@ -625,9 +640,11 @@ defmodule Slipdock.Meetings.Commit do
   end
 
   # The top of a new page: the meeting, its date, who was there and the way
-  # back to the capture. Plain sentences, not list items — the context step
-  # reads list items as decisions.
-  defp header(capture) do
+  # back to the capture, then its summary and key topics. Plain paragraphs,
+  # not list items or headings — the context step reads list items and
+  # `###` headings as decisions, and `##` headings are the decisions' topics.
+  @doc false
+  def header(capture) do
     who =
       (capture.attendees || [])
       |> Enum.map(&(&1["name"] || &1[:name] || &1["email"] || &1[:email]))
@@ -637,9 +654,37 @@ defmodule Slipdock.Meetings.Commit do
         names -> " Attendees: #{Enum.join(names, ", ")}."
       end
 
-    "Decisions from the meeting “#{capture.title}” on #{date(capture)}.#{who} " <>
-      "From [the meeting's capture](/boards/#{capture.board_id}/meetings/#{capture.id}). " <>
-      "Newest last; a replaced decision is struck through.\n"
+    "Notes from the meeting “#{capture.title}” on #{date(capture)}.#{who} " <>
+      "From [the meeting's capture](/boards/#{capture.board_id}/meetings/#{capture.id}).\n" <>
+      notes_text(Meetings.notes(capture)) <>
+      "\n**Decisions**, newest last; a replaced decision is struck through.\n"
+  end
+
+  defp notes_text(%{"summary" => summary, "topics" => topics}) do
+    summary = if summary, do: "\n**Summary.** #{one_paragraph(summary)}\n", else: ""
+
+    topics =
+      case topics do
+        [] ->
+          ""
+
+        topics ->
+          "\n**Key topics**\n\n" <>
+            Enum.map_join(topics, "\n\n", fn t ->
+              "**#{String.trim_trailing(one_paragraph(t["title"]), ".")}.**" <>
+                if(t["summary"], do: " #{one_paragraph(t["summary"])}", else: "")
+            end) <> "\n"
+      end
+
+    summary <> topics
+  end
+
+  # Words from the model as one paragraph that can't turn into a list item
+  # or a heading on the page.
+  defp one_paragraph(text) do
+    text
+    |> String.split(~r/\s*\n\s*/, trim: true)
+    |> Enum.map_join(" ", &String.replace(&1, ~r/^\s*([-*#>]+|\d+\.)\s+/, ""))
   end
 
   @doc false

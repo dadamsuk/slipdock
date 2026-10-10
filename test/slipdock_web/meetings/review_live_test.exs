@@ -146,6 +146,44 @@ defmodule SlipdockWeb.Meetings.ReviewLiveTest do
     assert_redirect(view, "/boards/#{ctx.board.id}/meetings/#{ctx.capture.id}/preview")
   end
 
+  test "the meeting's summary and topics sit above the findings, to read", %{
+    conn: conn,
+    board: board,
+    user: user
+  } do
+    {:ok, view, _} =
+      open(
+        conn,
+        board,
+        ctx_capture =
+          reviewed_capture(board, user, [], %{}, %{
+            notes: %{
+              "summary" => "A CTO interview.",
+              "topics" => [
+                %{"title" => "Equity", "summary" => "Rate plus equity."},
+                %{"title" => "Hiring", "summary" => nil}
+              ]
+            }
+          })
+      )
+
+    assert view |> element("#review-summary") |> render() =~ "A CTO interview."
+    topics = view |> element("#review-topics") |> render()
+    assert topics =~ "2 key topics"
+    assert topics =~ "Rate plus equity."
+
+    assert view |> element("#review-nothing") |> render() =~
+             "Nothing in this meeting to put on the board"
+
+    refute has_element?(view, "#commit-capture[disabled]")
+    assert ctx_capture.state == "ready"
+  end
+
+  test "no summary, no notes section", ctx do
+    {:ok, view, _} = open(ctx.conn, ctx.board, ctx.capture)
+    refute has_element?(view, "#review-notes")
+  end
+
   test "leave out and include", ctx do
     {:ok, view, _} = open(ctx.conn, ctx.board, ctx.capture)
     view |> element("#leave-out-#{ctx.decision.id}") |> render_click()

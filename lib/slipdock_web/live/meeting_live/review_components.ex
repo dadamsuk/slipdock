@@ -156,11 +156,14 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
         </section>
 
         <section :if={!@narrow? or !@show_transcript} id="review-findings" class="min-w-0 space-y-3">
+          <.meeting_notes notes={Slipdock.Meetings.notes(@capture)} />
+
           <p
             :if={@kept == []}
+            id="review-nothing"
             class="rounded-xl bg-base-100 p-4 text-sm text-base-content/60 ring-1 ring-base-content/10"
           >
-            The readings found nothing in this meeting to write down.
+            Nothing in this meeting to put on the board.
           </p>
 
           <.finding_card
@@ -305,9 +308,14 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
                 "ref"
               ]} {c["title"]}</.link>
             <% "decision_entry" -> %>
-              {length(c["lines_added"])} {if length(c["lines_added"]) == 1,
-                do: "decision",
-                else: "decisions"} on
+              <%= case length(c["lines_added"]) do %>
+                <% 0 -> %>
+                  Wrote the meeting's page
+                <% 1 -> %>
+                  1 decision on
+                <% n -> %>
+                  {n} decisions on
+              <% end %>
               <.link navigate={"/boards/#{c["board_id"]}/wiki/#{c["page_slug"]}"} class="link">{c[
                 "page_title"
               ]}</.link>
@@ -316,6 +324,41 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
           <% end %>
         </li>
       </ul>
+    </section>
+    """
+  end
+
+  attr :notes, :map, required: true
+
+  # The meeting's summary and key topics, as they will open its page: to
+  # read, not to review one by one.
+  defp meeting_notes(assigns) do
+    ~H"""
+    <section
+      :if={@notes["summary"] || @notes["topics"] != []}
+      id="review-notes"
+      class="rounded-xl bg-base-100 p-4 text-sm ring-1 ring-base-content/10"
+    >
+      <h2 class="font-medium">The meeting</h2>
+      <p :if={@notes["summary"]} id="review-summary" class="mt-1 text-base-content/80">
+        {@notes["summary"]}
+      </p>
+      <details :if={@notes["topics"] != []} id="review-topics" class="mt-2">
+        <summary class="cursor-pointer text-xs text-base-content/60">
+          {length(@notes["topics"])} key {if length(@notes["topics"]) == 1,
+            do: "topic",
+            else: "topics"}
+        </summary>
+        <dl class="mt-2 space-y-2">
+          <div :for={t <- @notes["topics"]}>
+            <dt class="font-medium">{t["title"]}</dt>
+            <dd :if={t["summary"]} class="text-base-content/70">{t["summary"]}</dd>
+          </div>
+        </dl>
+      </details>
+      <p class="mt-2 text-xs text-base-content/50">
+        These open the meeting's page when it is committed. Below is what goes on the board.
+      </p>
     </section>
     """
   end

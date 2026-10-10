@@ -99,13 +99,15 @@ defmodule Slipdock.MeetingsFixtures do
   found. In `needs_review` or `ready`, whichever its questions make it.
   """
   def reviewed_capture(board, owner, findings, context \\ %{}, attrs \\ %{}) do
+    # `notes:` in attrs is the reading's summary and topics.
+    {notes, attrs} = Map.pop(Map.new(attrs), :notes)
     capture = capture_fixture(board, owner, attrs)
     {:ok, capture} = Meetings.transition(capture, "reading")
 
     capture =
       capture
       |> Ecto.Changeset.change(
-        readings: %{"1" => findings, "2" => nil, "agent" => nil},
+        readings: %{"1" => findings, "2" => nil, "agent" => nil, "notes" => notes},
         context: Map.merge(%{"candidates" => [], "decisions" => decisions(board)}, context),
         step: "relisten"
       )
