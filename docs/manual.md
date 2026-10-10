@@ -1755,10 +1755,17 @@ lights up the words it came from; each one shows its signals as words
 recognised*… — never a confidence percentage), what Slipdock already knew
 about the cards involved, its questions, and what it **becomes** in plain
 words. Include it, leave it out, edit it, or add something the transcript
-missed (marked as added by a person). **Commit** stays off while a question is
-open on something that is going in; leaving a finding out sets its questions
-aside (they come back if it is included again), and an answered question is
-marked *Settled*. Keys: J/K between findings, 1–4 answer, I/X include or leave out, Enter
+missed (marked as added by a person). Questions are asked only where the
+answer changes what is written, and most are **optional**: a name nobody on
+the board has (the card keeps the name, *For Ryan (not on this board)*, or is
+matched to the person in the meeting who has it), a card only similar in
+meaning (left alone, it is a new card), who said an unsure line (left alone,
+unattributed). **Commit** stays off only while a question with no sensible
+default is open on something going in — two members with the name said, a
+card named aloud, which reading is right; leaving a finding out sets its
+questions aside (they come back if it is included again), and an answered
+question is marked *Settled*. A change to a card Slipdock can't find, with
+none to offer, is shown left out rather than asked about. Keys: J/K between findings, 1–4 answer, I/X include or leave out, Enter
 edits, N the next question.
 
 **Commit…** opens the preview: new cards by list, changes to cards as before →

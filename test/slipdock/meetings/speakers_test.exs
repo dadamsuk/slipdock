@@ -277,4 +277,27 @@ defmodule Slipdock.Meetings.SpeakersTest do
     assert [%Question{kind: "who_said_it", context: %{"line" => "L2"}}] = questions
     assert Enum.map(Speakers.unsure_lines_that_matter(c), & &1.line_id) == ["L2"]
   end
+
+  test "person_label? tells a person's name from a placeholder for a voice" do
+    for name <- ["Priya Nair", "Ryan", "José", "Dr. Okafor"],
+        do: assert(Speakers.person_label?(name))
+
+    for label <- [
+          "Speaker 2",
+          "speaker_00",
+          "SPEAKER_01",
+          "Unknown-3",
+          "Unknown",
+          "Voice 4",
+          "S1",
+          "spk 2",
+          "Participant 7",
+          "Guest",
+          "",
+          "  ",
+          "42",
+          nil
+        ],
+        do: refute(Speakers.person_label?(label), inspect(label))
+  end
 end

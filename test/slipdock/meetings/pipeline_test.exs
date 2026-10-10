@@ -80,8 +80,15 @@ defmodule Slipdock.Meetings.PipelineTest do
   end
 
   test "questions left open end it in needs_review, and the email says how many", %{
-    capture: capture
+    capture: capture,
+    board: board
   } do
+    # Two Zeds on the board: which one is meant can't be left to a default.
+    for {email, name} <- [{"zed.a@example.com", "Zed Adams"}, {"zed.b@example.com", "Zed Brown"}] do
+      {:ok, zed} = Slipdock.Accounts.update_profile(user_fixture(email), %{"name" => name})
+      share_fixture(board, [zed], "write")
+    end
+
     AIStub.reply_with(%{"findings" => [@unknown_owner]})
     capture = Pipeline.start(capture, mode: :sync)
 

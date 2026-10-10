@@ -172,6 +172,16 @@ defmodule SlipdockCLI.MeetingsTest do
       assert out =~ "9  Who is Sammy?"
       assert out =~ "1. Sam Smith"
       assert out =~ "2. Nobody yet"
+      refute out =~ "optional"
+    end
+
+    test "show marks a question commit doesn't wait for" do
+      optional =
+        String.replace(@reviewed, ~s("status":"open",), ~s("status":"open","blocking":false,))
+
+      serve([{200, optional}])
+      out = capture_io(fn -> Meetings.run("capture", ["show", "12"], []) end)
+      assert out =~ "9  Who is Sammy? (optional: commit doesn't wait for it)"
     end
 
     test "resolve sends the answer as given, with what was replayed" do

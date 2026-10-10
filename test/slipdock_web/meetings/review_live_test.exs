@@ -21,7 +21,11 @@ defmodule SlipdockWeb.Meetings.ReviewLiveTest do
     sam = user_fixture("sam@example.com")
     {:ok, sam} = Slipdock.Accounts.update_profile(sam, %{"name" => "Sam Smith"})
     share_fixture(board, [sam], "write")
-    capture = reviewed_capture(board, user, [decision_finding(), action_finding("Sammy")])
+
+    capture =
+      reviewed_capture(board, user, [decision_finding(), action_finding("Sammy")], %{}, %{
+        blocking: true
+      })
 
     [decision, action] =
       Repo.all(from(f in Finding, where: f.capture_id == ^capture.id, order_by: f.position))
@@ -177,6 +181,26 @@ defmodule SlipdockWeb.Meetings.ReviewLiveTest do
 
     refute has_element?(view, "#commit-capture[disabled]")
     assert ctx_capture.state == "ready"
+  end
+
+  test "an optional question says so, and doesn't hold up commit", %{
+    conn: conn,
+    board: board,
+    user: user
+  } do
+    capture = reviewed_capture(board, user, [action_finding("Sammy")])
+    [q] = Slipdock.Repo.all(from(q in Question, where: q.capture_id == ^capture.id))
+    refute q.blocking
+
+    {:ok, view, _} = open(conn, board, capture)
+    assert has_element?(view, "#question-#{q.id}[data-blocking=false]")
+    assert view |> element("#optional-#{q.id}") |> render() =~ "optional"
+    refute has_element?(view, "#commit-capture[disabled]")
+    refute has_element?(view, "#open-questions")
+
+    # Answering it still works, and assigns.
+    view |> element("#answer-#{q.id}-1") |> render_click()
+    assert view |> element("#settled-#{q.id}") |> render() =~ "Sam Smith"
   end
 
   test "no summary, no notes section", ctx do

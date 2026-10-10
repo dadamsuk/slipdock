@@ -20,7 +20,12 @@ defmodule SlipdockWeb.Meetings.AgentsTest do
     sam = user_fixture("sam@example.com")
     {:ok, sam} = Slipdock.Accounts.update_profile(sam, %{"name" => "Sam Smith"})
     share_fixture(board, [sam], "write")
-    capture = reviewed_capture(board, user, [decision_finding(), action_finding("Sammy")])
+
+    capture =
+      reviewed_capture(board, user, [decision_finding(), action_finding("Sammy")], %{}, %{
+        blocking: true
+      })
+
     question = Repo.one!(from(q in Question, where: q.capture_id == ^capture.id))
 
     [decision, _action] =

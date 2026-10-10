@@ -465,6 +465,23 @@ defmodule Slipdock.Meetings.Speakers do
   def name(%Voice{name: name, label: label}), do: name || label
 
   @doc """
+  Whether a transcript's speaker label is a person's name ("Priya Nair",
+  "Ryan") rather than a placeholder for a voice ("Speaker 2", "Unknown-3",
+  "SPEAKER_00", "S1").
+  """
+  def person_label?(label) when is_binary(label) do
+    label = String.trim(label)
+
+    label != "" and String.match?(label, ~r/\p{L}/u) and
+      not String.match?(
+        label,
+        ~r/^(speaker|unknown|voice|spk|participant|guest)\b|^(speaker|spk|s)[\s_-]*\d+$/i
+      )
+  end
+
+  def person_label?(_label), do: false
+
+  @doc """
   A person decides who a voice is (`%{"user_id" => id}` or `%{"name" =>
   name}`), and every finding that took its owner or decision-maker from that
   voice follows — those, and no others. Recorded as theirs.

@@ -393,7 +393,8 @@ defmodule Slipdock.Meetings.CommitTest do
     end
 
     test "questions still open, or nothing included, are refused", ctx do
-      capture = reviewed_capture(ctx.board, ctx.owner, [action_finding("Sammy")])
+      capture =
+        reviewed_capture(ctx.board, ctx.owner, [action_finding("Sammy")], %{}, %{blocking: true})
 
       assert {:error, :conflict, "questions are still open" <> _} =
                Commit.commit(capture, ctx.owner)

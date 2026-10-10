@@ -209,10 +209,75 @@ defmodule Slipdock.Meetings.VerifyTest do
 
       [q] = questions(capture)
       assert q.kind == "who_is_meant"
-      assert q.prompt =~ "“Sammy”"
+      assert q.prompt =~ "“Sammy” isn't on this board"
       assert hd(q.options)["value"] == "user:#{sam.id}"
       assert List.last(q.options)["label"] == "Nobody yet"
-      assert "owner_unknown" in hd(findings(capture)).signals
+      [f] = findings(capture)
+      assert "owner_unknown" in f.signals
+
+      # Optional: as it stands the card names Sammy, and nothing waits on it.
+      refute q.blocking
+      assert f.effect["assignee"] == "Sammy" and is_nil(f.effect["assignee_id"])
+      assert Meetings.open_questions(capture) == []
+    end
+
+    test "two members answering to the name must be told apart before the commit", %{
+      board: board,
+      capture: capture,
+      sam: sam
+    } do
+      other = user_fixture("sam.jones@example.com")
+      {:ok, other} = Slipdock.Accounts.update_profile(other, %{"name" => "Sam Jones"})
+      share_fixture(board, [other], "write")
+
+      {:ok, _} = Meetings.verify(with_readings(capture, [Map.put(@action, "owner", "Sam")]))
+      [q] = questions(capture)
+      assert q.blocking
+
+      users = for o <- q.options, String.starts_with?(o["value"], "user:"), do: o["value"]
+      assert Enum.sort(users) == Enum.sort(["user:#{sam.id}", "user:#{other.id}"])
+    end
+
+    test "a name a person in the meeting has becomes theirs; a speaker label is nobody", %{
+      board: board,
+      owner: owner
+    } do
+      capture =
+        capture_fixture(board, owner, %{transcript: "names #{System.unique_integer()}"},
+          utterances: [
+            %{speaker: "Priya Nair", text: "Ryan, send Nick the changes."},
+            %{speaker: "Johnny Walsh", text: "I'll book the room."},
+            %{speaker: "Unknown-3", text: "I can join full-time."}
+          ]
+        )
+
+      act = fn owner, line, quote ->
+        %{
+          "kind" => "action",
+          "title" => "Do #{owner}",
+          "owner" => owner,
+          "evidence" => [%{"line" => line, "quote" => quote}]
+        }
+      end
+
+      {:ok, _} =
+        Meetings.verify(
+          with_readings(capture, [
+            act.("Johnny", "L2", "I'll book the room."),
+            act.("priya nair", "L1", "send Nick the changes"),
+            act.("Unknown-3", "L3", "I can join full-time.")
+          ])
+        )
+
+      [johnny, priya, label] = findings(capture)
+      assert johnny.effect["assignee"] == "Johnny Walsh"
+      assert priya.effect["assignee"] == "Priya Nair"
+      assert is_nil(label.effect["assignee"])
+      refute "owner_unknown" in label.signals
+
+      qs = questions(capture)
+      assert length(qs) == 2 and Enum.all?(qs, &(not &1.blocking))
+      refute Enum.any?(qs, &(&1.finding_id == label.id))
     end
 
     test "who is meant also offers the people in the meeting whose name it is", %{
@@ -318,9 +383,27 @@ defmodule Slipdock.Meetings.VerifyTest do
       assert q.kind == "existing_or_new"
       assert Enum.map(q.options, & &1["value"]) == ["card:#{ctx.card.id}", "new", "none"]
       assert "linked_by_similarity" in hd(findings(capture)).signals
+      # Only similar in meaning: a hint, and left alone it makes a new card.
+      refute q.blocking
     end
 
-    test "a change to a card nobody read asks which card", ctx do
+    test "an action naming a card's title must say which before the commit", ctx do
+      action = %{
+        "kind" => "action",
+        "title" => "Refresh pricing",
+        "evidence" => [%{"line" => "L3", "quote" => "update PL-14 by Friday"}]
+      }
+
+      capture =
+        with_readings(ctx.capture, [action], nil, nil, %{
+          "candidates" => [Map.put(ctx.candidate, "strength", "name")]
+        })
+
+      {:ok, _} = Meetings.verify(capture)
+      assert [%{kind: "existing_or_new", blocking: true}] = questions(capture)
+    end
+
+    test "a change to a card nobody read asks which card, offering those read", ctx do
       change = %{
         "kind" => "card_change",
         "title" => "Move it",
@@ -328,10 +411,36 @@ defmodule Slipdock.Meetings.VerifyTest do
         "evidence" => [%{"line" => "L1", "quote" => "settle the pricing page"}]
       }
 
-      capture = with_readings(ctx.capture, [change])
-      {:ok, %{questions: 1}} = Meetings.verify(capture)
-      assert [%{kind: "existing_or_new"}] = questions(capture)
+      # The candidate sits on another line, so it isn't linked to this finding.
+      capture =
+        with_readings(ctx.capture, [change, Map.delete(change, "card")], nil, nil, %{
+          "candidates" => [
+            Map.merge(ctx.candidate, %{"strength" => "similarity", "lines" => ["L9"]})
+          ]
+        })
+
+      {:ok, %{questions: 2}} = Meetings.verify(capture)
+      [named, unnamed] = questions(capture)
+      assert named.kind == "existing_or_new" and named.blocking
+      assert named.prompt =~ "#999999 isn't one Slipdock read."
+      assert unnamed.prompt =~ "It doesn't name one."
+      assert hd(named.options)["value"] == "card:#{ctx.card.id}"
       assert hd(findings(capture)).links == []
+    end
+
+    test "a change to a card nobody can find, with none to offer, is shown left out", ctx do
+      change = %{
+        "kind" => "card_change",
+        "title" => "CTO role is in transition",
+        "evidence" => [%{"line" => "L1", "quote" => "settle the pricing page"}]
+      }
+
+      capture = with_readings(ctx.capture, [change])
+      {:ok, %{questions: 0}} = Meetings.verify(capture)
+      [f] = findings(capture)
+      refute f.included
+      assert "card_not_found" in f.signals
+      assert f.effect["type"] == "new_card"
     end
   end
 
@@ -400,7 +509,9 @@ defmodule Slipdock.Meetings.VerifyTest do
     capture = with_readings(capture, [unsure_decision, sure])
 
     {:ok, %{questions: 1}} = Meetings.verify(capture)
-    assert [%{kind: "who_said_it", context: %{"line" => "L2"}}] = questions(capture)
+    assert [%{kind: "who_said_it", context: %{"line" => "L2"}} = q] = questions(capture)
+    # Unanswered, it stays unattributed: asked, not waited on.
+    refute q.blocking
   end
 
   test "ideas are left out by default; decisions are entries with a topic label", %{

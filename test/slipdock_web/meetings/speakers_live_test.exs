@@ -54,6 +54,34 @@ defmodule SlipdockWeb.Meetings.SpeakersLiveTest do
     refute html =~ "<audio"
   end
 
+  test "a speaker the transcript names, who isn't on the board, is shown by that name", %{
+    conn: conn,
+    board: board,
+    user: user
+  } do
+    capture =
+      capture_fixture(board, user, %{transcript: "y#{System.unique_integer()}"},
+        utterances: [
+          %{speaker: "Priya Nair", text: "Thanks for coming.", start_ms: 0, end_ms: 2000},
+          %{speaker: "Speaker 2", text: "Glad to.", start_ms: 2000, end_ms: 4000}
+        ]
+      )
+
+    {:ok, _} = Speakers.diarise(capture)
+    {:ok, _} = Speakers.attribute(capture)
+
+    voices =
+      Repo.all(from(v in Voice, where: v.capture_id == ^capture.id)) |> Map.new(&{&1.label, &1})
+
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}/meetings/#{capture.id}/speakers")
+    priya = view |> element("#voice-#{voices["Priya Nair"].id}-name") |> render()
+    assert priya =~ "Priya Nair"
+    assert priya =~ "not on this board"
+    refute priya =~ "Not known yet"
+
+    assert view |> element("#voice-#{voices["Speaker 2"].id}-name") |> render() =~ "Not known yet"
+  end
+
   test "confirming somebody else changes the voice, and the page follows", ctx do
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/meetings/#{ctx.capture.id}/speakers")
     id = ctx.voices["Speaker 1"].id

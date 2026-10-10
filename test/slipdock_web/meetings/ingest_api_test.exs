@@ -284,7 +284,7 @@ defmodule SlipdockWeb.Meetings.IngestAPITest do
       board: board,
       user: user
     } do
-      capture = reviewed_capture(board, user, [action_finding("Sammy")])
+      capture = reviewed_capture(board, user, [action_finding("Sammy")], %{}, %{blocking: true})
       body = conn |> get(~p"/api/captures/#{capture.id}") |> json_response(200)
       assert body["capture"]["counts"]["open_questions"] == 1
 
