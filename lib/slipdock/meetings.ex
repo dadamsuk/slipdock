@@ -624,8 +624,8 @@ defmodule Slipdock.Meetings do
 
     open =
       Repo.all(
-        from(q in Question,
-          where: q.capture_id in ^ids and q.status == "open" and q.blocking,
+        from([q] in blocking_questions(),
+          where: q.capture_id in ^ids,
           group_by: q.capture_id,
           select: {q.capture_id, count(q.id)}
         )
@@ -635,15 +635,37 @@ defmodule Slipdock.Meetings do
     Map.new(ids, &{&1, %{findings: Map.get(findings, &1, 0), open: Map.get(open, &1, 0)}})
   end
 
-  @doc "The open blocking questions on a capture."
+  @doc "The questions that keep a capture from being committed (see `blocking_questions/0`)."
   def open_questions(%Capture{id: id}) do
-    Repo.all(
-      from(q in Question,
-        where: q.capture_id == ^id and q.status == "open" and q.blocking,
-        order_by: [asc: q.id]
-      )
+    Repo.all(from([q] in blocking_questions(), where: q.capture_id == ^id, order_by: [asc: q.id]))
+  end
+
+  @doc """
+  The questions that keep a capture from being committed, as a query: open,
+  blocking, and about a finding that is going in (or about no finding).
+  Leaving a finding out sets its questions aside, since nothing they would
+  settle gets written; including it again brings them back.
+  """
+  def blocking_questions do
+    from(q in Question,
+      left_join: f in Finding,
+      on: f.id == q.finding_id,
+      where: q.status == "open" and q.blocking,
+      where: is_nil(q.finding_id) or (f.status == "kept" and f.included)
     )
   end
+
+  @doc "`blocking_questions/0` for a question already loaded, given its capture's findings."
+  def blocks?(%Question{status: "open", blocking: true} = q, findings),
+    do: not set_aside?(q, findings)
+
+  def blocks?(_question, _findings), do: false
+
+  @doc "Whether a question is about a finding that is left out, so needs no answer."
+  def set_aside?(%Question{finding_id: nil}, _findings), do: false
+
+  def set_aside?(%Question{finding_id: id}, findings),
+    do: not Enum.any?(findings, &(&1.id == id and &1.status == "kept" and &1.included))
 
   @doc "A capture's kept findings, in order."
   def kept_findings(%Capture{id: id}) do

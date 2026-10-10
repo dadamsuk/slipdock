@@ -57,13 +57,7 @@ defmodule SlipdockWeb.MeetingLive.Speakers do
       voices: voices,
       lines_by_voice: Enum.group_by(lines, & &1.voice_id),
       unsure: Speakers.unsure_lines_that_matter(capture),
-      open_questions:
-        Repo.aggregate(
-          from(q in Slipdock.Meetings.Question,
-            where: q.capture_id == ^capture.id and q.status == "open" and q.blocking
-          ),
-          :count
-        ),
+      open_questions: length(Meetings.open_questions(capture)),
       people: people(socket.assigns.members, capture)
     )
   end

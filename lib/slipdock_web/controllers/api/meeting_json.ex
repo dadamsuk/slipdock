@@ -53,7 +53,7 @@ defmodule SlipdockWeb.API.MeetingJSON do
         findings: Enum.count(findings, &(&1.status == "kept")),
         included: Enum.count(findings, &(&1.status == "kept" and &1.included)),
         dropped: Enum.count(findings, &(&1.status == "dropped")),
-        open_questions: Enum.count(questions, &(&1.status == "open" and &1.blocking))
+        open_questions: Enum.count(questions, &Slipdock.Meetings.blocks?(&1, findings))
       },
       lines:
         Enum.map(loaded(c.utterances), fn u ->

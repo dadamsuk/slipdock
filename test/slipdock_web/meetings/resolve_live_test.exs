@@ -79,6 +79,26 @@ defmodule SlipdockWeb.Meetings.ResolveLiveTest do
       assert_redirect(view, ~p"/boards/#{board}/meetings/#{capture.id}")
     end
 
+    test "a question on a finding left out is skipped: not counted, not moved on to", %{
+      conn: conn,
+      board: board,
+      capture: capture,
+      user: user
+    } do
+      [first, second] = questions(capture)
+      finding = Repo.get!(Slipdock.Meetings.Finding, second.finding_id)
+      {:ok, _} = Slipdock.Meetings.Review.include(finding, false, user)
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/meetings/#{capture.id}/resolve")
+      assert render(view) =~ "1 left"
+
+      view |> element("#choose-1") |> render_click()
+      assert Repo.reload!(first).status == "answered"
+      assert Repo.reload!(second).status == "open"
+      assert_redirect(view, ~p"/boards/#{board}/meetings/#{capture.id}")
+      assert Meetings.get_capture!(capture.id).state == "ready"
+    end
+
     test "the review links each open question here", %{conn: conn, board: board, capture: capture} do
       [first | _] = questions(capture)
       {:ok, view, _} = live(conn, ~p"/boards/#{board}/meetings/#{capture.id}")

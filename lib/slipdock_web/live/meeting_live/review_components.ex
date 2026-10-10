@@ -396,6 +396,7 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
       <.question_block
         :for={q <- @questions}
         question={q}
+        set_aside={!@finding.included}
         can_write={@can_write}
         board_id={@board_id}
         audio={@audio}
@@ -449,6 +450,22 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
   attr :can_write, :boolean, required: true
   attr :board_id, :integer, required: true
   attr :audio, :boolean, default: false
+  attr :set_aside, :boolean, default: false
+
+  # A question on a finding that is left out needs no answer: it is shown
+  # set aside, without its buttons, and comes back if the finding is included.
+  defp question_block(%{set_aside: true, question: %{status: "open"}} = assigns) do
+    ~H"""
+    <div
+      id={"question-#{@question.id}"}
+      data-status="set_aside"
+      class="mt-3 rounded-lg bg-base-200/60 px-3 py-2 text-sm text-base-content/60"
+    >
+      <p class="line-through">{@question.prompt}</p>
+      <p class="mt-1 text-xs">Not needed: this is left out, so nothing it would settle is written.</p>
+    </div>
+    """
+  end
 
   defp question_block(assigns) do
     ~H"""
@@ -458,7 +475,8 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
       class={[
         "mt-3 rounded-lg px-3 py-2 text-sm",
         @question.status == "open" && "bg-warning/10 ring-1 ring-warning/40",
-        @question.status != "open" && "bg-base-200/60"
+        @question.status == "waiting" && "bg-base-200/60",
+        @question.status == "answered" && "bg-success/10 ring-1 ring-success/40"
       ]}
     >
       <p class="font-medium">
@@ -494,7 +512,13 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
         </button>
         <span :if={!@can_write} class="text-xs text-base-content/60">Waiting for somebody who can edit the board.</span>
       </div>
-      <p :if={@question.status != "open"} class="mt-1 text-xs text-base-content/70">
+      <p
+        :if={@question.status == "answered"}
+        id={"settled-#{@question.id}"}
+        class="mt-1 flex flex-wrap items-center gap-1 text-xs text-base-content/70"
+      >
+        <.icon name="hero-check-circle" class="size-4 text-success" />
+        <span class="font-medium text-success">Settled:</span>
         {@question.answer && @question.answer["label"]}
         <span :if={@question.answered_by}>
           — {@question.answered_by.name || @question.answered_by.email}{if @question.via == "agent",
