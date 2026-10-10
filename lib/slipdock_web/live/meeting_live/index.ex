@@ -57,7 +57,7 @@ defmodule SlipdockWeb.MeetingLive.Index do
     "reading — " <> String.downcase(Slipdock.Meetings.Pipeline.step_label(next))
   end
 
-  defp status_words(%{state: state}), do: state_label(state)
+  defp status_words(capture), do: state_label(capture)
 
   defp source_words("agent"), do: "from an agent"
   defp source_words("connector"), do: "from a connector"
@@ -150,7 +150,7 @@ defmodule SlipdockWeb.MeetingLive.Index do
                 </.link>
                 <span
                   id={"capture-#{c.id}-state"}
-                  class={["badge badge-sm shrink-0", state_class(c.state)]}
+                  class={["badge badge-sm shrink-0", state_class(c)]}
                 >
                   {status_words(c)}
                 </span>

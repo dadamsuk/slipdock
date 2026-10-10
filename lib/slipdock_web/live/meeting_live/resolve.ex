@@ -428,12 +428,14 @@ defmodule SlipdockWeb.MeetingLive.Resolve do
               id="answers"
               class="space-y-2"
             >
+              <%!-- value= as well: a browser sends the button's own value. --%>
               <button
                 :for={{o, i} <- Enum.with_index(@question.options, 1)}
                 id={"choose-#{i}"}
                 type="button"
                 phx-click="answer"
                 phx-value-value={o["value"]}
+                value={o["value"]}
                 class="btn btn-outline btn-block justify-start text-left normal-case"
               >
                 <kbd :if={i <= 4} class="mr-2 font-mono text-2xs opacity-60">{i}</kbd>

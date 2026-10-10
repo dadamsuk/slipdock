@@ -46,7 +46,10 @@ defmodule SlipdockWeb.Meetings.ReceiptLiveTest do
     view |> element("#undo-all") |> render_click()
 
     assert Repo.get!(Card, ctx.create["card_id"]).archived_at
-    assert view |> element("#receipt") |> render() =~ "Undone by #{ctx.user.email}"
+
+    assert view |> element("#receipt") |> render() =~
+             "Undone by #{ctx.user.name || ctx.user.email}"
+
     refute has_element?(view, "#undo-all")
   end
 

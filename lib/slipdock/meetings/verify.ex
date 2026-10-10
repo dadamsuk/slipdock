@@ -58,9 +58,9 @@ defmodule Slipdock.Meetings.Verify do
   @labels %{
     "quoted" => "quoted word for word",
     "confirmed" => "confirmed in the meeting",
-    "both_readings" => "both readings agree",
+    "both_readings" => "both readings found it",
     "one_reading" => "only one reading found it",
-    "readings_differ" => "the readings differ",
+    "readings_differ" => "the readings differ on a detail",
     "from_agent" => "sent by an agent",
     "added_by_person" => "added by a person",
     "audio_clear" => "audio clear",
@@ -323,7 +323,7 @@ defmodule Slipdock.Meetings.Verify do
 
     questions =
       which_reading(differences) ++
-        who_is_meant(owner, members) ++
+        who_is_meant(owner, members, heard(capture, lines)) ++
         existing_or_new(raw, link, f.evidence, candidates) ++
         who_said_it(raw, unsure, f.evidence, capture)
 
@@ -449,16 +449,44 @@ defmodule Slipdock.Meetings.Verify do
       (name == full or name == handle or (full != "" and hd(String.split(full)) == name))
   end
 
-  defp who_is_meant(nil, _), do: []
-  defp who_is_meant({:known, _, _}, _), do: []
+  defp who_is_meant(nil, _, _), do: []
+  defp who_is_meant({:known, _, _}, _, _), do: []
 
-  defp who_is_meant({:ambiguous, name, several}, _members),
-    do: [who_question(name, several)]
+  defp who_is_meant({:ambiguous, name, several}, _members, heard),
+    do: [who_question(name, several, heard)]
 
-  defp who_is_meant({:unknown, name}, members),
-    do: [who_question(name, nearest(name, members))]
+  defp who_is_meant({:unknown, name}, members, heard),
+    do: [who_question(name, nearest(name, members), heard)]
 
-  defp who_question(name, users) do
+  # The people in the meeting who aren't on the board — the transcript's
+  # speakers and the invite's attendees — by the names it gives them. "Who
+  # is Johnny?" is most often answered by "Johnny Walsh, who was speaking".
+  defp heard(capture, lines) do
+    speakers =
+      Enum.map(lines, fn u ->
+        case u.voice do
+          %{name: name} when is_binary(name) -> name
+          _ -> u.speaker
+        end
+      end)
+
+    attendees = for a <- capture.attendees || [], is_nil(a["user_id"]), do: a["name"]
+
+    (speakers ++ attendees)
+    |> Enum.filter(&(is_binary(&1) and String.contains?(String.trim(&1), " ")))
+    |> Enum.reject(&String.match?(&1, ~r/^(speaker|unknown|voice)\b/i))
+    |> Enum.uniq()
+  end
+
+  defp who_question(name, users, heard) do
+    said = Slipdock.Meetings.Context.normalise(name)
+
+    in_meeting =
+      Enum.filter(heard, fn full ->
+        full = Slipdock.Meetings.Context.normalise(full)
+        full != said and hd(String.split(full)) == said
+      end)
+
     %{
       kind: "who_is_meant",
       prompt: "Who is “#{name}”? Nobody on this board is called that.",
@@ -470,6 +498,13 @@ defmodule Slipdock.Meetings.Verify do
             "effect" => "assign it to #{u.name || u.email}"
           }
         end) ++
+          Enum.map(in_meeting, fn full ->
+            %{
+              "value" => "name:#{full}",
+              "label" => "#{full} (in the meeting)",
+              "effect" => "name #{full}, who isn't on this board, with nobody assigned"
+            }
+          end) ++
           [
             %{
               "value" => "name:#{name}",

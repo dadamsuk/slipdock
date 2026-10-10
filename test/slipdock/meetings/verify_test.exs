@@ -214,6 +214,48 @@ defmodule Slipdock.Meetings.VerifyTest do
       assert List.last(q.options)["label"] == "Nobody yet"
       assert "owner_unknown" in hd(findings(capture)).signals
     end
+
+    test "who is meant also offers the people in the meeting whose name it is", %{
+      board: board,
+      owner: owner
+    } do
+      capture =
+        capture_fixture(board, owner, %{transcript: "names #{System.unique_integer()}"},
+          utterances: [
+            %{speaker: "Priya Nair", text: "Johnny, can you send the deck?"},
+            %{speaker: "Johnny Walsh", text: "Yes."},
+            %{speaker: "Speaker 3", text: "Mm."}
+          ]
+        )
+        |> Ecto.Changeset.change(attendees: [%{"name" => "Johnny Marr"}, %{"name" => "Sam"}])
+        |> Repo.update!()
+
+      action = %{
+        "kind" => "action",
+        "title" => "Send the deck",
+        "owner" => "Johnny",
+        "evidence" => [%{"line" => "L1", "quote" => "Johnny, can you send the deck?"}]
+      }
+
+      {:ok, _} = Meetings.verify(with_readings(capture, [action]))
+      [q] = questions(capture)
+
+      # After the members nearest the name: the meeting's own Johnnys.
+      assert q.options
+             |> Enum.map(& &1["value"])
+             |> Enum.drop_while(&String.starts_with?(&1, "user:")) == [
+               "name:Johnny Walsh",
+               "name:Johnny Marr",
+               "name:Johnny",
+               "none"
+             ]
+
+      labels = Map.new(q.options, &{&1["value"], &1["label"]})
+      assert labels["name:Johnny Walsh"] == "Johnny Walsh (in the meeting)"
+      assert labels["name:Johnny"] == "Someone not on this board"
+      # A one-word attendee or a "Speaker 3" label names nobody in particular.
+      refute Map.has_key?(labels, "name:Sam")
+    end
   end
 
   describe "links" do

@@ -96,6 +96,26 @@ defmodule SlipdockWeb.Meetings.ReviewLiveTest do
     refute has_element?(view, "#commit-blocked")
   end
 
+  test "each answer button carries its value as the button's own value, as a browser sends it",
+       ctx do
+    {:ok, view, _} = open(ctx.conn, ctx.board, ctx.capture)
+
+    # LiveView sends a clicked button's `value` attribute under "value",
+    # over phx-value-value: without it a real click answers "" (#553).
+    for {option, i} <- Enum.with_index(ctx.question.options, 1) do
+      assert has_element?(
+               view,
+               ~s(#answer-#{ctx.question.id}-#{i}[value="#{option["value"]}"])
+             )
+    end
+
+    # No recording: nothing to listen to, only to resolve.
+    assert view |> element("#resolve-link-#{ctx.question.id}") |> render() =~
+             ~r/>\s*resolve\s*</
+
+    refute render(view) =~ "listen and resolve"
+  end
+
   test "commit goes to the preview once nothing is left to settle", ctx do
     {:ok, view, _} = open(ctx.conn, ctx.board, ctx.capture)
     view |> element("#answer-#{ctx.question.id}-1") |> render_click()

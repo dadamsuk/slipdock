@@ -53,7 +53,9 @@ defmodule SlipdockWeb.MeetingLive.Components do
     """
   end
 
-  @doc "How a capture's state reads to a person."
+  @doc "How a capture's state reads to a person (a capture, or a state)."
+  def state_label(%{state: "committed", undone_at: %DateTime{}}), do: "undone"
+  def state_label(%{state: state}), do: state_label(state)
   def state_label("receiving"), do: "receiving"
   def state_label("reading"), do: "reading"
   def state_label("needs_review"), do: "needs you"
@@ -63,7 +65,9 @@ defmodule SlipdockWeb.MeetingLive.Components do
   def state_label("failed"), do: "failed"
   def state_label(other), do: other
 
-  @doc "The badge colour for a state."
+  @doc "The badge colour for a state (a capture, or a state)."
+  def state_class(%{state: "committed", undone_at: %DateTime{}}), do: "badge-ghost"
+  def state_class(%{state: state}), do: state_class(state)
   def state_class("needs_review"), do: "badge-warning"
   def state_class("ready"), do: "badge-success"
   def state_class("committed"), do: "badge-primary"
