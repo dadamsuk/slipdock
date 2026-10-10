@@ -83,7 +83,7 @@ defmodule Slipdock.Meetings.ReviewTest do
     test "someone not on the board keeps the name as said, with nobody assigned", ctx do
       [johnny1, johnny2, _] = ctx.questions
 
-      assert %{"label" => "Someone not on this board"} =
+      assert %{"label" => "Keep “Johnny”"} =
                Enum.find(johnny1.options, &(&1["value"] == "name:Johnny"))
 
       {:ok, _} = Review.answer(johnny1, "name:Johnny", ctx.owner)

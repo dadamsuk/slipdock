@@ -217,6 +217,7 @@ defmodule Slipdock.Meetings.VerifyTest do
 
       # Optional: as it stands the card names Sammy, and nothing waits on it.
       refute q.blocking
+      assert Enum.find(q.options, &(&1["value"] == "name:Sammy"))["label"] == "Keep “Sammy”"
       assert f.effect["assignee"] == "Sammy" and is_nil(f.effect["assignee_id"])
       assert Meetings.open_questions(capture) == []
     end
@@ -317,7 +318,7 @@ defmodule Slipdock.Meetings.VerifyTest do
 
       labels = Map.new(q.options, &{&1["value"], &1["label"]})
       assert labels["name:Johnny Walsh"] == "Johnny Walsh (in the meeting)"
-      assert labels["name:Johnny"] == "Someone not on this board"
+      assert labels["name:Johnny"] == "Keep “Johnny”"
       # A one-word attendee or a "Speaker 3" label names nobody in particular.
       refute Map.has_key?(labels, "name:Sam")
     end
@@ -441,6 +442,9 @@ defmodule Slipdock.Meetings.VerifyTest do
       refute f.included
       assert "card_not_found" in f.signals
       assert f.effect["type"] == "new_card"
+
+      assert [%{"why" => "about a card Slipdock couldn't find"}] =
+               Slipdock.Meetings.Commit.build(Meetings.get_capture!(capture.id))["left_out"]
     end
   end
 

@@ -97,6 +97,7 @@ defmodule Slipdock.Meetings.Commit do
               cond do
                 f.status == "dropped" -> "dropped: #{f.drop_reason}"
                 waiting?(capture, f) -> "waiting for the speaker's answer"
+                "card_not_found" in f.signals -> "about a card Slipdock couldn't find"
                 true -> "left out in review"
               end
           }
