@@ -190,7 +190,16 @@ defmodule SlipdockWeb.MeetingLive.Speakers do
             >
               <div class="flex items-center gap-2">
                 <span class="font-mono text-xs text-base-content/50">{v.label}</span>
-                <span class="flex-1 font-medium">{v.name || "Not known yet"}</span>
+                <span class="flex-1 font-medium" id={"voice-#{v.id}-name"}>
+                  {v.name || (Slipdock.Meetings.Speakers.person_label?(v.label) && v.label) ||
+                    "Not known yet"}
+                  <span
+                    :if={is_nil(v.name) and Slipdock.Meetings.Speakers.person_label?(v.label)}
+                    class="text-xs font-normal text-base-content/50"
+                  >
+                    (as the transcript names them; not on this board)
+                  </span>
+                </span>
                 <span class={["badge badge-sm", elem(confidence_label(v.confidence), 1)]}>
                   {elem(confidence_label(v.confidence), 0)}
                 </span>

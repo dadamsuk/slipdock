@@ -124,7 +124,7 @@ defmodule Slipdock.Meetings.ReviewTest do
     owner: owner,
     sam: sam
   } do
-    capture = reviewed_capture(board, owner, [action_finding("Sammy")])
+    capture = reviewed_capture(board, owner, [action_finding("Sammy")], %{}, %{blocking: true})
     assert capture.state == "needs_review"
 
     {:ok, _} = Review.answer(only_question(capture), "user:#{sam.id}", owner)
@@ -141,10 +141,16 @@ defmodule Slipdock.Meetings.ReviewTest do
   describe "leaving out a finding with an open question" do
     setup %{board: board, owner: owner} do
       capture =
-        reviewed_capture(board, owner, [
-          action_finding("Sammy", %{"title" => "Send the deck"}),
-          action_finding("Johnny", %{"title" => "Book the room"})
-        ])
+        reviewed_capture(
+          board,
+          owner,
+          [
+            action_finding("Sammy", %{"title" => "Send the deck"}),
+            action_finding("Johnny", %{"title" => "Book the room"})
+          ],
+          %{},
+          %{blocking: true}
+        )
 
       [sammy, johnny] =
         Repo.all(from(f in Finding, where: f.capture_id == ^capture.id, order_by: f.position))
@@ -206,7 +212,7 @@ defmodule Slipdock.Meetings.ReviewTest do
     owner: owner,
     sam: sam
   } do
-    capture = reviewed_capture(board, owner, [action_finding("Sammy")])
+    capture = reviewed_capture(board, owner, [action_finding("Sammy")], %{}, %{blocking: true})
     before = only_finding(capture)
     {:ok, _} = Review.answer(only_question(capture), "user:#{sam.id}", owner)
     {:ok, _} = Review.unanswer(only_question(capture), owner)
@@ -222,7 +228,7 @@ defmodule Slipdock.Meetings.ReviewTest do
     board: board,
     owner: owner
   } do
-    capture = reviewed_capture(board, owner, [action_finding("Sammy")])
+    capture = reviewed_capture(board, owner, [action_finding("Sammy")], %{}, %{blocking: true})
 
     {:ok, _} =
       Review.answer(only_question(capture), "none", owner,
@@ -391,7 +397,7 @@ defmodule Slipdock.Meetings.ReviewTest do
   end
 
   test "an answer that is not one of the options is refused", %{board: board, owner: owner} do
-    capture = reviewed_capture(board, owner, [action_finding("Sammy")])
+    capture = reviewed_capture(board, owner, [action_finding("Sammy")], %{}, %{blocking: true})
 
     assert {:error, "that is not one of the answers to this question"} =
              Review.answer(only_question(capture), "user:999999", owner)

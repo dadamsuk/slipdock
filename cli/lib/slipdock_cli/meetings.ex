@@ -284,7 +284,8 @@ defmodule SlipdockCLI.Meetings do
 
       Enum.each(open, fn q ->
         IO.puts(
-          "  #{q["id"]}  #{q["prompt"]}#{if q["status"] == "waiting", do: " (asked the speaker)", else: ""}"
+          "  #{q["id"]}  #{q["prompt"]}#{if q["status"] == "waiting", do: " (asked the speaker)", else: ""}" <>
+            if(q["blocking"] == false, do: " (optional: commit doesn't wait for it)", else: "")
         )
 
         q["options"]

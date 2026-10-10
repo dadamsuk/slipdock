@@ -70,7 +70,8 @@ defmodule Slipdock.Meetings.Verify do
     "linked_by_name" => "linked by name",
     "linked_by_similarity" => "linked by similarity only",
     "owner_known" => "owner named",
-    "owner_unknown" => "name not recognised",
+    "owner_unknown" => "not on this board",
+    "card_not_found" => "about a card Slipdock couldn't find",
     "answered_in_wiki" => "the wiki already answers it",
     "voice_unsure" => "speaker unsure"
   }
@@ -307,7 +308,9 @@ defmodule Slipdock.Meetings.Verify do
 
     differences = differences(f.group)
     link = link(raw, f.evidence, candidates)
-    owner = owner(raw, members)
+    heard = heard(capture, lines)
+    owner = raw |> owner(members) |> in_meeting(heard)
+    unfound = unfound_card?(raw, link, candidates)
     unsure = Enum.any?(f.evidence, & &1.line.voice_unsure)
     answered = raw["kind"] == "open_question" && wiki_answer(f.evidence, candidates)
 
@@ -319,11 +322,12 @@ defmodule Slipdock.Meetings.Verify do
         if(link, do: ["linked_by_#{link["strength"]}"], else: []) ++
         owner_signal(owner) ++
         if(unsure, do: ["voice_unsure"], else: []) ++
-        if(answered, do: ["answered_in_wiki"], else: [])
+        if(answered, do: ["answered_in_wiki"], else: []) ++
+        if(unfound, do: ["card_not_found"], else: [])
 
     questions =
       which_reading(differences) ++
-        who_is_meant(owner, members, heard(capture, lines)) ++
+        who_is_meant(owner, members, heard) ++
         existing_or_new(raw, link, f.evidence, candidates) ++
         who_said_it(raw, unsure, f.evidence, capture)
 
@@ -338,7 +342,9 @@ defmodule Slipdock.Meetings.Verify do
       links: List.wrap(link),
       known: known(link, answered, raw, capture),
       effect: effect,
-      included: raw["kind"] != "idea" and answered in [nil, false],
+      # An idea, an answered question or a change to a card nobody can find
+      # is shown left out: there to include, not to settle.
+      included: raw["kind"] != "idea" and answered in [nil, false] and not unfound,
       questions: questions,
       origin: if(readings == [0], do: "agent", else: "reading"),
       lines: lines
@@ -435,6 +441,35 @@ defmodule Slipdock.Meetings.Verify do
 
   defp owner(_, _), do: nil
 
+  # A name nobody on the board has, matched to a person in the meeting:
+  # said in full ("Priya Nair"), or by a first name only one of them has
+  # ("Johnny", with Johnny Walsh speaking), it is that person. A speaker
+  # label the transcript gave ("Unknown-3", "Speaker 2") is no owner at all.
+  defp in_meeting({:unknown, name}, heard) do
+    said = Slipdock.Meetings.Context.normalise(name)
+
+    cond do
+      label?(name) ->
+        nil
+
+      full = Enum.find(heard, &(Slipdock.Meetings.Context.normalise(&1) == said)) ->
+        {:unknown, full}
+
+      true ->
+        case Enum.filter(heard, &(first_name(&1) == said)) do
+          [full] -> {:unknown, full}
+          _ -> {:unknown, name}
+        end
+    end
+  end
+
+  defp in_meeting(owner, _heard), do: owner
+
+  defp label?(name), do: not Slipdock.Meetings.Speakers.person_label?(name)
+
+  defp first_name(full),
+    do: full |> Slipdock.Meetings.Context.normalise() |> String.split() |> List.first()
+
   defp owner_signal({:known, _, _}), do: ["owner_known"]
   defp owner_signal({_, _, _}), do: ["owner_unknown"]
   defp owner_signal({:unknown, _}), do: ["owner_unknown"]
@@ -452,11 +487,27 @@ defmodule Slipdock.Meetings.Verify do
   defp who_is_meant(nil, _, _), do: []
   defp who_is_meant({:known, _, _}, _, _), do: []
 
+  # Two people on the board answer to the name: which one is a choice
+  # nobody else can make, so it is settled before the commit.
   defp who_is_meant({:ambiguous, name, several}, _members, heard),
     do: [who_question(name, several, heard)]
 
-  defp who_is_meant({:unknown, name}, members, heard),
-    do: [who_question(name, nearest(name, members), heard)]
+  # Nobody on the board has the name: the card keeps it ("For Ryan (not on
+  # this board)"), and the question is there to assign it instead, if the
+  # reviewer wants to — it doesn't hold up the commit.
+  defp who_is_meant({:unknown, name}, members, heard) do
+    question = who_question(name, nearest(name, members), heard)
+
+    [
+      %{
+        question
+        | prompt:
+            "“#{name}” isn't on this board. Assign it to somebody who is? " <>
+              "Left as it is, the card names #{name} with nobody assigned."
+      }
+      |> Map.put(:blocking, false)
+    ]
+  end
 
   # The people in the meeting who aren't on the board — the transcript's
   # speakers and the invite's attendees — by the names it gives them. "Who
@@ -474,7 +525,7 @@ defmodule Slipdock.Meetings.Verify do
 
     (speakers ++ attendees)
     |> Enum.filter(&(is_binary(&1) and String.contains?(String.trim(&1), " ")))
-    |> Enum.reject(&String.match?(&1, ~r/^(speaker|unknown|voice)\b/i))
+    |> Enum.filter(&Slipdock.Meetings.Speakers.person_label?/1)
     |> Enum.uniq()
   end
 
@@ -587,11 +638,15 @@ defmodule Slipdock.Meetings.Verify do
     }
   end
 
+  # A card named aloud is a real choice (a second card for the same work is
+  # a cost); one only similar in meaning is a hint, and left alone it makes
+  # a new card.
   defp existing_or_new(%{"kind" => "action"} = raw, %{"strength" => s} = link, _ev, _c)
        when s in ["name", "similarity"] do
     [
       %{
         kind: "existing_or_new",
+        blocking: s == "name",
         prompt:
           "Is “#{raw["title"]}” the existing card #{link["ref"]} “#{link["title"]}”, or new work?",
         options: [
@@ -611,11 +666,23 @@ defmodule Slipdock.Meetings.Verify do
   defp existing_or_new(%{"kind" => "card_change"} = raw, nil, _evidence, candidates) do
     cards = candidates |> Enum.filter(&(&1["type"] == "card")) |> Enum.take(3)
 
+    # With no card to offer there is nothing to choose between: the finding
+    # is shown left out instead (see `unfound_card?/3`).
+    if cards == [], do: [], else: card_question(raw, cards)
+  end
+
+  defp existing_or_new(_raw, _link, _evidence, _candidates), do: []
+
+  defp card_question(raw, cards) do
     [
       %{
         kind: "existing_or_new",
         prompt:
-          "Which card is “#{raw["title"]}” about? #{raw["card"] || "It names none"} isn't one Slipdock read.",
+          "Which card is “#{raw["title"]}” about? " <>
+            if(raw["card"],
+              do: "#{raw["card"]} isn't one Slipdock read.",
+              else: "It doesn't name one."
+            ),
         options:
           Enum.map(cards, fn c ->
             %{
@@ -633,7 +700,12 @@ defmodule Slipdock.Meetings.Verify do
     ]
   end
 
-  defp existing_or_new(_raw, _link, _evidence, _candidates), do: []
+  # A change to a card that isn't among those the context read, with none
+  # to offer instead.
+  defp unfound_card?(%{"kind" => "card_change"}, nil, candidates),
+    do: not Enum.any?(candidates, &(&1["type"] == "card"))
+
+  defp unfound_card?(_raw, _link, _candidates), do: false
 
   # Who said it matters when it decides who owns or who decided.
   defp who_said_it(raw, true, evidence, capture) do
@@ -641,9 +713,11 @@ defmodule Slipdock.Meetings.Verify do
          is_nil(raw["decided_by"]) do
       line = Enum.find(evidence, & &1.line.voice_unsure).line
 
+      # Unanswered, it stays unattributed: worth asking, not worth waiting on.
       [
         %{
           kind: "who_said_it",
+          blocking: false,
           prompt:
             "Who said “#{String.slice(line.text, 0, 80)}” (#{line.line_id})? It decides who #{if raw["kind"] == "action", do: "owns it", else: "made the decision"}.",
           options:
@@ -911,7 +985,7 @@ defmodule Slipdock.Meetings.Verify do
         kind: q.kind,
         prompt: q.prompt,
         options: q.options,
-        blocking: true,
+        blocking: Map.get(q, :blocking, true),
         context: q.context
       })
     end

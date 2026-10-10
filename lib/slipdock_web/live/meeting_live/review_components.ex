@@ -515,14 +515,24 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
     <div
       id={"question-#{@question.id}"}
       data-status={@question.status}
+      data-blocking={to_string(@question.blocking)}
       class={[
         "mt-3 rounded-lg px-3 py-2 text-sm",
-        @question.status == "open" && "bg-warning/10 ring-1 ring-warning/40",
+        @question.status == "open" && @question.blocking && "bg-warning/10 ring-1 ring-warning/40",
+        @question.status == "open" && !@question.blocking && "bg-base-200/60",
         @question.status == "waiting" && "bg-base-200/60",
         @question.status == "answered" && "bg-success/10 ring-1 ring-success/40"
       ]}
     >
       <p class="font-medium">
+        <span
+          :if={@question.status == "open" and !@question.blocking}
+          id={"optional-#{@question.id}"}
+          class="badge badge-ghost badge-xs mr-1"
+          title="Commit doesn't wait for this one"
+        >
+          optional
+        </span>
         {@question.prompt}
         <.link
           :if={@question.status in ["open", "waiting"]}

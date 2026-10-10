@@ -29,6 +29,7 @@ defmodule SlipdockWeb.Meetings.InboxLiveTest do
 
     review =
       reviewed_capture(board, user, [decision_finding(), action_finding("Sammy")], %{}, %{
+        blocking: true,
         title: "Needs you"
       })
 

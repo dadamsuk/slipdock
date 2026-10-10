@@ -1,6 +1,8 @@
 defmodule Slipdock.MeetingsFixtures do
   @moduledoc "Captures, findings and questions for meeting capture's tests."
 
+  require Ecto.Query
+
   alias Slipdock.{Meetings, Repo, Settings}
   alias Slipdock.Meetings.{Evidence, Finding, Question}
 
@@ -99,8 +101,11 @@ defmodule Slipdock.MeetingsFixtures do
   found. In `needs_review` or `ready`, whichever its questions make it.
   """
   def reviewed_capture(board, owner, findings, context \\ %{}, attrs \\ %{}) do
-    # `notes:` in attrs is the reading's summary and topics.
+    # `notes:` in attrs is the reading's summary and topics; `blocking: true`
+    # makes every question hold up the commit, for tests about that rather
+    # than about which questions do.
     {notes, attrs} = Map.pop(Map.new(attrs), :notes)
+    {blocking, attrs} = Map.pop(attrs, :blocking)
     capture = capture_fixture(board, owner, attrs)
     {:ok, capture} = Meetings.transition(capture, "reading")
 
@@ -114,6 +119,12 @@ defmodule Slipdock.MeetingsFixtures do
       |> Repo.update!()
 
     {:ok, _} = Meetings.verify(capture)
+
+    if blocking do
+      id = capture.id
+      Repo.update_all(Ecto.Query.where(Question, capture_id: ^id), set: [blocking: true])
+    end
+
     to = if Meetings.open_questions(capture) == [], do: "ready", else: "needs_review"
     {:ok, capture} = Meetings.transition(capture, to)
     capture

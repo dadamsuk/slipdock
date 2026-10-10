@@ -30,13 +30,19 @@ defmodule SlipdockWeb.Meetings.ResolveLiveTest do
   describe "a transcript-only capture" do
     setup %{board: board, user: user} do
       capture =
-        reviewed_capture(board, user, [
-          action_finding("Sammy"),
-          action_finding("Zed", %{
-            "title" => "Other",
-            "evidence" => [%{"line" => "L1", "quote" => "pricing page"}]
-          })
-        ])
+        reviewed_capture(
+          board,
+          user,
+          [
+            action_finding("Sammy"),
+            action_finding("Zed", %{
+              "title" => "Other",
+              "evidence" => [%{"line" => "L1", "quote" => "pricing page"}]
+            })
+          ],
+          %{},
+          %{blocking: true}
+        )
 
       %{capture: capture}
     end
