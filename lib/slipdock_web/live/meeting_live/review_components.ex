@@ -173,6 +173,7 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
             lists={@lists}
             members={@members}
             board_id={@capture.board_id}
+            audio={@capture.audio_key != nil}
           />
 
           <div :if={@can_write and @reviewable?}>
@@ -327,6 +328,7 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
   attr :lists, :list, required: true
   attr :members, :list, required: true
   attr :board_id, :integer, required: true
+  attr :audio, :boolean, default: false
 
   defp finding_card(assigns) do
     ~H"""
@@ -396,6 +398,7 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
         question={q}
         can_write={@can_write}
         board_id={@board_id}
+        audio={@audio}
       />
 
       <p class="mt-3 text-sm">
@@ -445,6 +448,7 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
   attr :question, :any, required: true
   attr :can_write, :boolean, required: true
   attr :board_id, :integer, required: true
+  attr :audio, :boolean, default: false
 
   defp question_block(assigns) do
     ~H"""
@@ -465,13 +469,15 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
           navigate={"/boards/#{@board_id}/meetings/#{@question.capture_id}/resolve/#{@question.id}"}
           class="link ml-1 text-xs font-normal"
         >
-          listen and resolve
+          {if @audio, do: "listen and resolve", else: "resolve"}
         </.link>
       </p>
       <p :if={@question.status == "waiting"} class="mt-1 text-xs text-warning">
         Asked the speaker; waiting for their answer. The rest can be committed meanwhile.
       </p>
       <div :if={@question.status == "open"} class="mt-2 flex flex-wrap gap-2">
+        <%!-- value= as well as phx-value-value: a browser sends a clicked
+             button's own value under "value", which would otherwise be "". --%>
         <button
           :for={{option, i} <- Enum.with_index(@question.options, 1)}
           :if={@can_write}
@@ -480,6 +486,7 @@ defmodule SlipdockWeb.MeetingLive.ReviewComponents do
           phx-click="answer"
           phx-value-question={@question.id}
           phx-value-value={option["value"]}
+          value={option["value"]}
           class="btn btn-outline btn-xs"
           title={option["effect"]}
         >

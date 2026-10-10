@@ -203,6 +203,25 @@ defmodule Slipdock.Meetings.CommitTest do
     end
   end
 
+  test "a card for somebody not on the board says who it's for", ctx do
+    capture = reviewed_capture(ctx.board, ctx.owner, [action_finding("Johnny")])
+    [q] = Repo.all(from(q in Slipdock.Meetings.Question, where: q.capture_id == ^capture.id))
+    {:ok, _} = Slipdock.Meetings.Review.answer(q, "name:Johnny", ctx.owner)
+
+    set = Commit.build(Repo.reload!(capture))
+    [card] = Enum.filter(set["changes"], &(&1["op"] == "create_card"))
+    assert card["description"] == "For Johnny (not on this board)."
+    assert card["assignee_ids"] == []
+
+    # An assigned card says nothing of the kind.
+    capture =
+      reviewed_capture(ctx.board, ctx.owner, [action_finding("Sam")], %{}, %{transcript: "x"})
+
+    set = Commit.build(capture)
+    [card] = Enum.filter(set["changes"], &(&1["op"] == "create_card"))
+    assert card["description"] == nil
+  end
+
   describe "committing" do
     test "writes everything once, attributed, and the board matches the change set", ctx do
       capture = capture_with_everything(ctx)

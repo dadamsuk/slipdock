@@ -161,7 +161,7 @@ defmodule Slipdock.Meetings.Commit do
         "column_id" => column && column.id,
         "list" => column && column.name,
         "title" => String.slice(e["title"] || f.title, 0, 255),
-        "description" => e["description"],
+        "description" => for_someone_else(e["description"], e, assignees),
         "assignee_ids" => assignees,
         "assignees" => names(assignees),
         "due_date" => e["due_date"],
@@ -359,6 +359,16 @@ defmodule Slipdock.Meetings.Commit do
         columns,
         &(&1.category == "todo" and String.downcase(&1.name) not in ["backlog", "later", "icebox"])
       )
+
+  # Somebody who isn't on the board ("Someone not on this board", or a
+  # speaker in the meeting) can't be assigned, so the card says who it's for.
+  defp for_someone_else(description, %{"assignee" => name}, [])
+       when is_binary(name) and name != "" do
+    line = "For #{name} (not on this board)."
+    if description in [nil, ""], do: line, else: line <> "\n\n" <> description
+  end
+
+  defp for_someone_else(description, _effect, _assignees), do: description
 
   defp assignee_ids(nil), do: []
   defp assignee_ids(id) when is_integer(id), do: [id]

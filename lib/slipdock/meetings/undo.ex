@@ -148,7 +148,7 @@ defmodule Slipdock.Meetings.Undo do
     set =
       Map.put(capture.change_set, "undone", %{
         "at" => DateTime.to_iso8601(now),
-        "by" => user.email,
+        "by" => user.name || user.email,
         "kept" => Enum.map(conflicts, & &1["id"])
       })
 

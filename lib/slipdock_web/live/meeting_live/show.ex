@@ -378,8 +378,8 @@ defmodule SlipdockWeb.MeetingLive.Show do
 
       <div class="flex h-full flex-col">
         <.meeting_toolbar board={@board} marks={@marks} meetings={@meetings}>
-          <span id="capture-state" class={["badge badge-sm", state_class(@capture.state)]}>
-            {state_label(@capture.state)}
+          <span id="capture-state" class={["badge badge-sm", state_class(@capture)]}>
+            {state_label(@capture)}
           </span>
         </.meeting_toolbar>
 

@@ -57,6 +57,9 @@ defmodule SlipdockWeb.Meetings.ResolveLiveTest do
                "There is no recording of this meeting"
 
       assert view |> element("#choose-1") |> render() =~ "Sam Smith"
+
+      # The value a browser sends with the click (#553).
+      assert has_element?(view, ~s(#choose-1[value="#{hd(first.options)["value"]}"]))
     end
 
     test "answering moves on to the next question, then back to the review", %{
