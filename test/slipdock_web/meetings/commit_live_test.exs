@@ -66,12 +66,59 @@ defmodule SlipdockWeb.Meetings.CommitLiveTest do
     assert changes =~ "##{ctx.card.id} Pricing page refresh"
     assert changes =~ "Due"
     assert changes =~ "Fri 9 Oct"
-    assert view |> element("#preview-wiki") |> render() =~ "+ - **Annual plan at 20% off**"
+    assert view |> element("#preview-wiki") |> render() =~ "- **Annual plan at 20% off**"
     assert view |> element("#stale-check") |> render() =~ "Everything is as the review read it."
 
     view |> form("#commit-form") |> render_submit()
     assert_redirect(view, ~p"/boards/#{ctx.board}/meetings/#{ctx.capture.id}")
     assert Meetings.get_capture!(ctx.capture.id).state == "committed"
+  end
+
+  test "a new meeting page is previewed whole, exactly as it is written", %{
+    conn: conn,
+    user: user
+  } do
+    board = board_fixture(%{"name" => "Hiring"}, owner: user)
+
+    capture =
+      reviewed_capture(
+        board,
+        user,
+        [
+          decision_finding(),
+          decision_finding(%{
+            "title" => "Start part-time",
+            "topic" => "The role",
+            "evidence" => [%{"line" => "L3", "quote" => "update PL-14 by Friday"}]
+          })
+        ],
+        %{},
+        %{
+          notes: %{
+            "summary" => "A CTO interview.",
+            "topics" => [%{"title" => "Equity", "summary" => "Rate plus equity."}]
+          }
+        }
+      )
+
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}/meetings/#{capture.id}/preview")
+    [change] = Slipdock.Meetings.Commit.build(capture)["changes"]
+    shown = view |> element("#page-#{change["id"]}") |> render()
+
+    for words <- [
+          "**Summary.** A CTO interview.",
+          "**Equity.** Rate plus equity.",
+          "## Pricing",
+          "## The role"
+        ],
+        do: assert(shown =~ words)
+
+    view |> form("#commit-form") |> render_submit()
+    [written] = Meetings.get_capture!(capture.id).change_set["changes"]
+    page = Repo.get!(Slipdock.Wiki.Page, written["page_id"])
+
+    # What the preview showed is the page, character for character.
+    assert shown =~ Phoenix.HTML.html_escape(page.body) |> Phoenix.HTML.safe_to_string()
   end
 
   test "a card edited after the review is named, and commit is held back", ctx do

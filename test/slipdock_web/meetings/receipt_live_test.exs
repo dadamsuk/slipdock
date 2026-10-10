@@ -36,9 +36,26 @@ defmodule SlipdockWeb.Meetings.ReceiptLiveTest do
     assert receipt =~ ~s(href="/boards/#{ctx.board.id}/cards/#{ctx.create["card_id"]}")
     assert receipt =~ "Tell sales"
     assert receipt =~ ~s(href="/boards/#{ctx.board.id}/wiki/#{ctx.decision["page_slug"]}")
+    assert receipt =~ ~r/1 decision on\s*<a/
     assert receipt =~ "committed by #{ctx.user.email}"
     # The record says who did what.
     assert view |> element("#capture-record") |> render() =~ "Committed 2 changes."
+  end
+
+  test "a page with only the summary on it is named as the meeting's page", %{
+    conn: conn,
+    board: board,
+    user: user
+  } do
+    capture =
+      reviewed_capture(board, user, [], %{}, %{
+        title: "Notes only",
+        notes: %{"summary" => "Talked it through.", "topics" => []}
+      })
+
+    {:ok, _} = Commit.commit(capture, user)
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}/meetings/#{capture.id}")
+    assert view |> element("#receipt") |> render() =~ "Wrote the meeting&#39;s page"
   end
 
   test "Undo all reverses it", ctx do

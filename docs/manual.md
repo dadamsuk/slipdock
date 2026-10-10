@@ -1764,12 +1764,15 @@ edits, N the next question.
 **Commit…** opens the preview: new cards by list, changes to cards as before →
 after, comments, the lines added to and struck on decisions pages, cards that
 slip as a knock-on, who is assigned, what is left out, and whether anything
-has moved since it was read. A meeting's decisions go on one wiki page of its
-own, *Decisions / Pricing sync · 7 Oct 2026* (a second capture of a meeting of
-the same name on the same day gets *… (2)*, never the first one's page). The
-page opens with the meeting, its date, who was there and a link back to the
-capture; when the decisions span more than one topic, each topic is a heading
-on it. A decision that replaces an earlier one strikes it through on whichever
+has moved since it was read. Each meeting gets one wiki page of its own,
+*Decisions / Pricing sync · 7 Oct 2026* (a second capture of a meeting of the
+same name on the same day gets *… (2)*, never the first one's page). The page
+opens with the meeting, its date, who was there and a link back to the
+capture, then the meeting's **summary** and **key topics** (shown above the
+findings on the review, to read rather than settle), then its decisions; when
+the decisions span more than one topic, each topic is a heading. A meeting
+with a summary and no decisions still gets its page. The preview shows a new
+page whole, exactly as it will be written. A decision that replaces an earlier one strikes it through on whichever
 decisions page it is — an earlier meeting's, or an older page per topic such
 as *Decisions / Pricing* — and the two link to each other.
 

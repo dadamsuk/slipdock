@@ -1341,9 +1341,9 @@ defmodule SlipdockWeb.APIGuide do
       person reviews the capture and commits it, in one write that can be
       undone as a whole. Every finding quotes the transcript word for word (a
       quote that is not there is dropped), and anything uncertain becomes a
-      question for a person. A meeting's decisions go on one wiki page of its
-      own, *Decisions / <meeting> · <date>*, grouped by topic when there are
-      several; one that replaces an earlier decision strikes it on whichever
+      question for a person. Each meeting gets one wiki page of its own,
+      *Decisions / <meeting> · <date>*: its summary and key topics, then its
+      decisions, grouped by topic when there are several; one that replaces an earlier decision strikes it on whichever
       page holds it.
 
           GET  /api/meetings                         is meeting mode on, and what may be sent

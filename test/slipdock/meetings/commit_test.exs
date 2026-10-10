@@ -459,7 +459,7 @@ defmodule Slipdock.Meetings.CommitTest do
       [header, pricing, launch] = String.split(page.body, ~r/\n(?=## )/)
 
       # The header: the meeting, its date, who was there, and the way back.
-      assert header =~ "Decisions from the meeting “Pricing sync” on 7 Oct 2026."
+      assert header =~ "Notes from the meeting “Pricing sync” on 7 Oct 2026."
       assert header =~ "Attendees: Priya, sam@example.com."
       assert header =~ "(/boards/#{ctx.board.id}/meetings/#{capture.id})"
       refute header =~ ~r/^\s*[-*] /m
@@ -478,6 +478,68 @@ defmodule Slipdock.Meetings.CommitTest do
                "**No discount codes** — 7 ",
                "**Launch on Friday** — 7 O"
              ]
+    end
+
+    test "the page opens with the meeting's summary and key topics, then its decisions", ctx do
+      notes = %{
+        "summary" => "An interview for the CTO role.\n- Went well.",
+        "topics" => [
+          %{"title" => "The role.", "summary" => "Part-time to start."},
+          %{"title" => "# Equity", "summary" => nil}
+        ]
+      }
+
+      capture =
+        reviewed_capture(ctx.board, ctx.owner, [decision_finding()], %{}, %{notes: notes})
+
+      {:ok, committed} = Commit.commit(capture, ctx.owner)
+      [change] = committed.change_set["changes"]
+      body = Repo.get!(Page, change["page_id"]).body
+
+      assert body =~ "**Summary.** An interview for the CTO role. Went well.\n"
+      assert body =~ "**Key topics**\n\n**The role.** Part-time to start.\n\n**Equity.**\n"
+
+      # In order: summary, topics, then the decisions.
+      [summary, topics, decisions, entry] =
+        Enum.map(["**Summary.**", "**Key topics**", "**Decisions**", "- **Annual plan"], fn s ->
+          :binary.match(body, s) |> elem(0)
+        end)
+
+      assert summary < topics and topics < decisions and decisions < entry
+
+      # The model's words can't make a list item or a heading: the context
+      # step reads only the decision.
+      [read] = Slipdock.Meetings.Context.decisions([Repo.get!(Page, change["page_id"])])
+      assert [%{"text" => "**Annual plan at 20% off**" <> _}] = read["entries"]
+      refute body =~ ~r/^\s*[-*] (?!\*\*Annual)/m
+      refute body =~ ~r/^#+ /m
+    end
+
+    test "a meeting with a summary and no decisions still gets its page; undo archives it",
+         ctx do
+      capture =
+        reviewed_capture(ctx.board, ctx.owner, [], %{}, %{
+          notes: %{"summary" => "Nothing was decided.", "topics" => []}
+        })
+
+      set = Commit.build(capture)
+
+      assert [%{"op" => "decision_entry", "lines_added" => [], "finding_ids" => []}] =
+               set["changes"]
+
+      {:ok, committed} = Commit.commit(capture, ctx.owner)
+      [change] = committed.change_set["changes"]
+      page = Repo.get!(Page, change["page_id"])
+      assert page.body =~ "**Summary.** Nothing was decided."
+
+      {:ok, _} = Slipdock.Meetings.Undo.undo(Meetings.get_capture!(capture.id), ctx.owner)
+      assert Repo.get!(Page, page.id).archived_at
+    end
+
+    test "a meeting with neither summary nor decisions writes no page", ctx do
+      capture = reviewed_capture(ctx.board, ctx.owner, [action_finding("Sam Smith")])
+      set = Commit.build(capture)
+      refute Enum.any?(set["changes"], &(&1["op"] == "decision_entry"))
     end
 
     test "decisions on one topic need no heading", ctx do
