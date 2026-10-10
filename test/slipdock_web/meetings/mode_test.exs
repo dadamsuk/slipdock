@@ -147,6 +147,7 @@ defmodule SlipdockWeb.Meetings.ModeTest do
       assert body =~ "GET    /api/meetings"
       assert body =~ "POST   /api/captures/:id/commit"
       assert body =~ "Answer a capture's questions only with the"
+      assert body =~ "A reading is selective"
 
       # Every tool offered while it is on is named in the guide.
       for tool <- SlipdockWeb.MCP.Tools.meeting_tools(), do: assert(body =~ "`#{tool.name()}`")

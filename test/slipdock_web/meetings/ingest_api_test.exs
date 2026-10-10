@@ -266,6 +266,17 @@ defmodule SlipdockWeb.Meetings.IngestAPITest do
       assert body["capture"]["id"] == capture.id
       assert body["capture"]["counts"]["lines"] == 4
       assert [%{"kind" => "received"}] = body["capture"]["record"]
+      # Not read yet: no summary or topics.
+      assert body["capture"]["notes"] == %{"summary" => nil, "topics" => []}
+
+      notes = %{
+        "summary" => "A CTO interview.",
+        "topics" => [%{"title" => "Equity", "summary" => "Some."}]
+      }
+
+      capture |> Ecto.Changeset.change(readings: %{"notes" => notes}) |> Repo.update!()
+      body = conn |> get(~p"/api/captures/#{capture.id}") |> json_response(200)
+      assert body["capture"]["notes"] == notes
     end
 
     test "open questions counted leave out those on a finding left out", %{

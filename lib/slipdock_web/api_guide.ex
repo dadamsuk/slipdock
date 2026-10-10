@@ -1361,6 +1361,12 @@ defmodule SlipdockWeb.APIGuide do
           POST /api/captures/:id/undo                409 lists what was edited since; {rest: true}
           POST /api/captures/:id/retry | /discard
       #{voiceprints()}
+      A reading is selective: a short summary and the key topics (`notes` on
+      the capture) carry the talk, and findings are only actions somebody took
+      on, decisions agreed and changes to existing cards. Findings you send
+      may carry a `summary` and `topics` too, which then stand in for the
+      reading's.
+
       Over MCP: `capture_meeting` (send a transcript, with your own findings if
       you have them), `get_capture`, `resolve_capture_question`,
       `commit_capture`. From a terminal: `slipdock capture new <board>

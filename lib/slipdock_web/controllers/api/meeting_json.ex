@@ -40,7 +40,7 @@ defmodule SlipdockWeb.API.MeetingJSON do
     }
   end
 
-  @doc "A capture in full: its lines, findings, questions and record."
+  @doc "A capture in full: its summary and topics, lines, findings, questions and record."
   def capture(%Capture{} = c, base \\ "") do
     findings = loaded(c.findings)
     questions = loaded(c.questions)
@@ -48,6 +48,7 @@ defmodule SlipdockWeb.API.MeetingJSON do
     c
     |> summary(base)
     |> Map.merge(%{
+      notes: Slipdock.Meetings.notes(c),
       counts: %{
         lines: length(loaded(c.utterances)),
         findings: Enum.count(findings, &(&1.status == "kept")),

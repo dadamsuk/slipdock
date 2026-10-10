@@ -85,7 +85,7 @@ defmodule Slipdock.Meetings.ReaderTest do
     assert lines =~ "L2 [0:04] Sam: We go with the annual plan at 20% off."
   end
 
-  test "an injected instruction is at most a finding, never a write", %{
+  test "an injected instruction is never a write, and an idea is not a finding", %{
     board: board,
     owner: owner
   } do
@@ -118,7 +118,9 @@ defmodule Slipdock.Meetings.ReaderTest do
 
     {:ok, capture} = Meetings.read_meeting(capture)
 
-    assert [%{"kind" => "idea"}] = capture.readings["1"]
+    # Listed as an idea, it is left out of the findings: ideas are the
+    # topics' to tell.
+    assert capture.readings["1"] == []
     assert Repo.reload!(card).archived_at == nil
     # The fence's markers cannot be spoken: the line cannot close it early.
     [request | _] = drain_requests()
@@ -265,7 +267,7 @@ defmodule Slipdock.Meetings.ReaderTest do
   } do
     long =
       for n <- 1..900,
-          do: %{speaker: "Sam", text: "Line #{n}: " <> String.duplicate("word ", 12)}
+          do: %{speaker: "Sam", text: "Line #{n}: " <> String.duplicate("word ", 40)}
 
     capture =
       capture_fixture(board, owner, %{transcript: "long #{System.unique_integer()}"},
@@ -296,6 +298,128 @@ defmodule Slipdock.Meetings.ReaderTest do
     [_, second_stretch | _] = drain_requests()
     assert List.last(second_stretch["messages"])["content"] =~ "ALREADY FOUND"
     assert List.last(second_stretch["messages"])["content"] =~ "decision: Ship it"
+  end
+
+  describe "what a reading is asked for" do
+    test "a summary and key topics, kept on the capture as its notes", %{capture: capture} do
+      AIStub.reply_sequence([
+        %{
+          "summary" => "  An interview for the CTO role.  ",
+          "topics" => [
+            %{"title" => "The role", "summary" => "Part-time to start."},
+            %{"title" => "Equity", "body" => "Hourly rate plus equity."}
+          ],
+          "findings" => [@action]
+        },
+        %{"summary" => "The second reading's own words.", "findings" => [@action]}
+      ])
+
+      {:ok, capture} = Meetings.read_meeting(capture)
+
+      assert Meetings.notes(capture) == %{
+               "summary" => "An interview for the CTO role.",
+               "topics" => [
+                 %{"title" => "The role", "summary" => "Part-time to start."},
+                 %{"title" => "Equity", "summary" => "Hourly rate plus equity."}
+               ]
+             }
+    end
+
+    test "ideas and open questions a model lists anyway are left out of the findings", %{
+      capture: capture
+    } do
+      idea = %{@decision | "kind" => "idea", "title" => "A data moat"}
+      question = %{@decision | "kind" => "open_question", "title" => "Who pays?"}
+      AIStub.reply_with(%{"findings" => [idea, @decision, question, @action]})
+
+      {:ok, readings} = Reader.read(capture)
+      assert Enum.map(readings["1"], & &1["kind"]) == ["decision", "action"]
+      assert Enum.map(readings["2"], & &1["kind"]) == ["decision", "action"]
+    end
+
+    test "the prompt asks for few findings, and for the summary and topics", %{capture: capture} do
+      AIStub.reply_with(%{"findings" => []})
+      {:ok, readings} = Reader.read(capture)
+
+      [first | _] = drain_requests()
+      [system, _user] = first["messages"]
+      assert system["content"] =~ "Be selective"
+      assert system["content"] =~ "AFTER the meeting"
+      assert system["content"] =~ ~s("summary")
+      assert system["content"] =~ ~s("topics")
+      refute system["content"] =~ "- idea:"
+
+      # No summary in the answer: the notes are empty, not a failure.
+      assert readings["notes"] == %{"summary" => nil, "topics" => []}
+    end
+
+    test "an hour's interview is read in one pass, not in stretches", %{
+      board: board,
+      owner: owner
+    } do
+      lines =
+        for n <- 1..472,
+            do: %{speaker: "Ryan", text: "Line #{n}: " <> String.duplicate("talk ", 25)}
+
+      capture =
+        capture_fixture(board, owner, %{transcript: "hour #{System.unique_integer()}"},
+          utterances: lines
+        )
+
+      assert length(Reader.stretches(Meetings.load(capture).utterances)) == 1
+    end
+
+    test "an agent's summary stands in for the reading's; without one, the reading's is kept",
+         %{board: board, owner: owner} do
+      doc = %{
+        "summary" => "The agent heard it first-hand.",
+        "topics" => [%{"title" => "Hiring", "summary" => "A CTO."}],
+        "findings" => []
+      }
+
+      sent =
+        capture_fixture(board, owner, %{
+          transcript: "agent #{System.unique_integer()}",
+          sources: %{"findings" => %{"document" => doc}}
+        })
+
+      AIStub.reply_with(%{"summary" => "The model's.", "findings" => []})
+      {:ok, readings} = Reader.read(sent)
+      assert readings["notes"]["summary"] == "The agent heard it first-hand."
+
+      bare =
+        capture_fixture(board, owner, %{
+          transcript: "agent #{System.unique_integer()}",
+          sources: %{"findings" => %{"document" => %{"findings" => []}}}
+        })
+
+      {:ok, readings} = Reader.read(bare)
+      assert readings["notes"]["summary"] == "The model's."
+    end
+
+    test "a meeting read in stretches has its summaries joined and a topic named twice once" do
+      notes =
+        Reader.join_notes([
+          %{"summary" => "First part.", "topics" => [%{"title" => "Equity", "summary" => "A."}]},
+          %{"summary" => nil, "topics" => []},
+          %{
+            "summary" => "Second part.",
+            "topics" => [
+              %{"title" => "equity ", "summary" => "B."},
+              %{"title" => "Hiring", "summary" => nil}
+            ]
+          }
+        ])
+
+      assert notes["summary"] == "First part.\n\nSecond part."
+
+      assert notes["topics"] == [
+               %{"title" => "Equity", "summary" => "A. B."},
+               %{"title" => "Hiring", "summary" => nil}
+             ]
+
+      assert Reader.join_notes([]) == %{"summary" => nil, "topics" => []}
+    end
   end
 
   describe "an answer cut off by the token limit" do
@@ -400,6 +524,44 @@ defmodule Slipdock.Meetings.ReaderTest do
       item = schema["properties"]["findings"]["items"]
       assert item["required"] == ["kind", "title", "evidence"]
       assert item["properties"]["kind"]["enum"] == Schema.kinds()
+    end
+
+    test "the published schema has the summary and topics, neither required" do
+      props = Schema.json_schema()["properties"]
+      assert props["summary"]["type"] == "string"
+      assert props["topics"]["items"]["required"] == ["title", "summary"]
+      assert Schema.json_schema()["required"] == ["findings"]
+      assert Schema.read_kinds() == ~w(decision action card_change)
+    end
+
+    test "notes are lenient: what can be read is kept, what can't is left out" do
+      topics =
+        [
+          %{"title" => "  Equity ", "summary" => " Rate plus equity. "},
+          %{"name" => "Hiring", "text" => "A CTO."},
+          "Go to market",
+          %{"summary" => "no title"},
+          %{"title" => "   "},
+          42,
+          %{"title" => String.duplicate("long ", 40)}
+        ] ++ for(n <- 1..20, do: %{"title" => "Topic #{n}"})
+
+      notes = Schema.notes(%{"summary" => "   ", "topics" => topics})
+      assert notes["summary"] == nil
+      assert length(notes["topics"]) == 12
+
+      assert [
+               %{"title" => "Equity", "summary" => "Rate plus equity."},
+               %{"title" => "Hiring", "summary" => "A CTO."},
+               %{"title" => "Go to market", "summary" => nil},
+               %{"title" => long} | _
+             ] = notes["topics"]
+
+      assert String.length(long) <= 120 and String.ends_with?(long, "…")
+
+      assert Schema.notes(%{"topics" => "not a list"}) == %{"summary" => nil, "topics" => []}
+      assert Schema.notes(nil) == %{"summary" => nil, "topics" => []}
+      assert Schema.notes(%{"summary" => 7})["summary"] == nil
     end
 
     test "a sample findings file validates, and unknown fields are dropped" do

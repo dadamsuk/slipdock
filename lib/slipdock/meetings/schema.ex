@@ -12,9 +12,14 @@ defmodule Slipdock.Meetings.Schema do
   """
 
   @kinds ~w(decision action card_change open_question idea)
+  # What a model's reading is asked for: the things that go on the board.
+  # Ideas and open questions are the summary's and topics' to tell; an
+  # agent may still send them.
+  @read_kinds ~w(decision action card_change)
   @change_fields ~w(due_date start_date assignee list title priority completed description)
 
   def kinds, do: @kinds
+  def read_kinds, do: @read_kinds
   def change_fields, do: @change_fields
 
   @doc "The JSON Schema, as a map."
@@ -30,6 +35,24 @@ defmodule Slipdock.Meetings.Schema do
       "type" => "object",
       "required" => ["findings"],
       "properties" => %{
+        "summary" => %{
+          "type" => "string",
+          "description" => "What the meeting was for and what came of it, in a few sentences."
+        },
+        "topics" => %{
+          "type" => "array",
+          "description" =>
+            "The main subjects discussed, each with what was said and where it landed. " <>
+              "Opinions, background and ideas belong here rather than in findings.",
+          "items" => %{
+            "type" => "object",
+            "required" => ["title", "summary"],
+            "properties" => %{
+              "title" => %{"type" => "string", "maxLength" => 120},
+              "summary" => %{"type" => "string"}
+            }
+          }
+        },
         "findings" => %{
           "type" => "array",
           "items" => %{
@@ -148,6 +171,48 @@ defmodule Slipdock.Meetings.Schema do
   def partition(%{}), do: {:error, ["the answer has no \"findings\" list"]}
   def partition(_), do: {:error, ["the answer is not a JSON object"]}
 
+  @max_topics 12
+
+  @doc """
+  The summary and topics of a findings document, as
+  `%{"summary" => text | nil, "topics" => [%{"title", "summary"}]}`. Lenient:
+  they are notes for a person to read, so a malformed one is left out rather
+  than failing the reading — a topic needs a title, takes `summary` (or
+  `body`, `text`) for its words, and at most #{@max_topics} are kept.
+  """
+  def notes(%{} = doc) do
+    %{
+      "summary" => text(doc["summary"]) && String.trim(doc["summary"]),
+      "topics" =>
+        case doc["topics"] do
+          list when is_list(list) -> list |> Enum.flat_map(&topic/1) |> Enum.take(@max_topics)
+          _ -> []
+        end
+    }
+  end
+
+  def notes(_doc), do: %{"summary" => nil, "topics" => []}
+
+  defp topic(%{} = t) do
+    title = text(t["title"]) || text(t["name"]) || text(t["topic"])
+    words = text(t["summary"]) || text(t["body"]) || text(t["text"])
+
+    if title,
+      do: [
+        %{"title" => shorten(String.trim(title), 120), "summary" => words && String.trim(words)}
+      ],
+      else: []
+  end
+
+  defp topic(title) when is_binary(title) do
+    case text(title) do
+      nil -> []
+      t -> [%{"title" => shorten(String.trim(t), 120), "summary" => nil}]
+    end
+  end
+
+  defp topic(_), do: []
+
   @title_aliases ~w(text decision action question summary name)
 
   @doc """
@@ -192,11 +257,11 @@ defmodule Slipdock.Meetings.Schema do
 
   defp first_sentence(_), do: nil
 
-  defp shorten(title) do
-    if String.length(title) <= 200 do
+  defp shorten(title, max \\ 200) do
+    if String.length(title) <= max do
       title
     else
-      cut = String.slice(title, 0, 199)
+      cut = String.slice(title, 0, max - 1)
       String.replace(cut, ~r/\s+\S*$/, "") <> "…"
     end
   end
