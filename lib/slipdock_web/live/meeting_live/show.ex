@@ -82,7 +82,7 @@ defmodule SlipdockWeb.MeetingLive.Show do
       capture: capture,
       kept: kept,
       dropped: Enum.filter(capture.findings, &(&1.status == "dropped")),
-      open_count: Enum.count(capture.questions, &(&1.status == "open" and &1.blocking)),
+      open_count: Enum.count(capture.questions, &Meetings.blocks?(&1, capture.findings)),
       selected:
         if(Enum.any?(kept, &(&1.id == selected)),
           do: selected,
@@ -121,7 +121,9 @@ defmodule SlipdockWeb.MeetingLive.Show do
     %{kept: kept, capture: capture, selected: selected} = socket.assigns
 
     open =
-      MapSet.new(for q <- capture.questions, q.status == "open" and q.blocking, do: q.finding_id)
+      MapSet.new(
+        for q <- capture.questions, Meetings.blocks?(q, capture.findings), do: q.finding_id
+      )
 
     ids = for f <- kept, MapSet.member?(open, f.id), do: f.id
     order = Enum.map(kept, & &1.id)

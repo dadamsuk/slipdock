@@ -268,6 +268,26 @@ defmodule SlipdockWeb.Meetings.IngestAPITest do
       assert [%{"kind" => "received"}] = body["capture"]["record"]
     end
 
+    test "open questions counted leave out those on a finding left out", %{
+      conn: conn,
+      board: board,
+      user: user
+    } do
+      capture = reviewed_capture(board, user, [action_finding("Sammy")])
+      body = conn |> get(~p"/api/captures/#{capture.id}") |> json_response(200)
+      assert body["capture"]["counts"]["open_questions"] == 1
+
+      [finding] =
+        Repo.all(from(f in Slipdock.Meetings.Finding, where: f.capture_id == ^capture.id))
+
+      {:ok, _} = Slipdock.Meetings.Review.include(finding, false, user)
+
+      body = conn |> get(~p"/api/captures/#{capture.id}") |> json_response(200)
+      assert body["capture"]["counts"]["open_questions"] == 0
+      assert body["capture"]["state"] == "ready"
+      assert [%{"status" => "open"}] = body["capture"]["questions"]
+    end
+
     test "a capture on a board the caller cannot read is a 404", %{board: board, user: user} do
       capture = capture_fixture(board, user)
       stranger = user_fixture("stranger@example.com")

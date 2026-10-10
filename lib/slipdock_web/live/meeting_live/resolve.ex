@@ -59,7 +59,11 @@ defmodule SlipdockWeb.MeetingLive.Resolve do
         questions: Slipdock.Meetings.Visibility.questions(capture.questions, user)
     }
 
-    pending = Enum.filter(capture.questions, &(&1.status in ["open", "waiting"]))
+    pending =
+      Enum.filter(
+        capture.questions,
+        &(&1.status in ["open", "waiting"] and not Meetings.set_aside?(&1, capture.findings))
+      )
 
     question =
       Enum.find(capture.questions, &(&1.id == wanted)) || List.first(pending)
@@ -193,11 +197,13 @@ defmodule SlipdockWeb.MeetingLive.Resolve do
     capture = Meetings.get_capture!(socket.assigns.capture.id)
     current = socket.assigns.question && socket.assigns.question.id
 
+    capture = Meetings.load(capture)
+
     left =
-      capture
-      |> Meetings.load()
-      |> Map.get(:questions)
-      |> Enum.filter(&(&1.status == "open" and &1.id != current))
+      Enum.filter(
+        capture.questions,
+        &(&1.id != current and Meetings.blocks?(&1, capture.findings))
+      )
 
     case left do
       [] ->

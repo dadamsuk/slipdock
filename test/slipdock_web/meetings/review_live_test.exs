@@ -74,10 +74,33 @@ defmodule SlipdockWeb.Meetings.ReviewLiveTest do
 
     view |> element("#answer-#{ctx.question.id}-1") |> render_click()
     refute has_element?(view, "#commit-capture[disabled]")
-    assert view |> element("#question-#{ctx.question.id}") |> render() =~ "Sam Smith"
+    assert has_element?(view, "#question-#{ctx.question.id}[data-status=answered]")
+    assert view |> element("#settled-#{ctx.question.id}") |> render() =~ "Settled:"
+    assert view |> element("#settled-#{ctx.question.id}") |> render() =~ "Sam Smith"
     assert view |> element("#becomes-#{ctx.action.id}") |> render() =~ "for Sam Smith"
 
     view |> element("#unanswer-#{ctx.question.id}") |> render_click()
+    assert has_element?(view, "#commit-capture[disabled]")
+    refute has_element?(view, "#settled-#{ctx.question.id}")
+  end
+
+  test "leaving out the finding a question is about sets the question aside and opens commit",
+       ctx do
+    {:ok, view, _} = open(ctx.conn, ctx.board, ctx.capture)
+    assert has_element?(view, "#commit-capture[disabled]")
+
+    view |> element("#leave-out-#{ctx.action.id}") |> render_click()
+    assert has_element?(view, "#question-#{ctx.question.id}[data-status=set_aside]")
+    assert view |> element("#question-#{ctx.question.id}") |> render() =~ "Not needed"
+    refute has_element?(view, "#answer-#{ctx.question.id}-1")
+    refute has_element?(view, "#open-questions")
+    refute has_element?(view, "#commit-blocked")
+    refute has_element?(view, "#commit-capture[disabled]")
+
+    # Back in, the question is back, and commit is off again.
+    view |> element("#include-#{ctx.action.id}") |> render_click()
+    assert has_element?(view, "#question-#{ctx.question.id}[data-status=open]")
+    assert has_element?(view, "#answer-#{ctx.question.id}-1")
     assert has_element?(view, "#commit-capture[disabled]")
   end
 

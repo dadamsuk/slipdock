@@ -138,6 +138,69 @@ defmodule Slipdock.Meetings.ReviewTest do
     assert q.answer["label"] == "Sam Smith"
   end
 
+  describe "leaving out a finding with an open question" do
+    setup %{board: board, owner: owner} do
+      capture =
+        reviewed_capture(board, owner, [
+          action_finding("Sammy", %{"title" => "Send the deck"}),
+          action_finding("Johnny", %{"title" => "Book the room"})
+        ])
+
+      [sammy, johnny] =
+        Repo.all(from(f in Finding, where: f.capture_id == ^capture.id, order_by: f.position))
+
+      %{capture: capture, sammy: sammy, johnny: johnny}
+    end
+
+    test "sets its question aside, and the last one left out makes it ready", ctx do
+      assert length(Meetings.open_questions(ctx.capture)) == 2
+
+      {:ok, _} = Review.include(ctx.sammy, false, ctx.owner)
+      assert [%{finding_id: id}] = Meetings.open_questions(ctx.capture)
+      assert id == ctx.johnny.id
+      assert Meetings.get_capture!(ctx.capture.id).state == "needs_review"
+
+      {:ok, _} = Review.include(ctx.johnny, false, ctx.owner)
+      assert Meetings.open_questions(ctx.capture) == []
+      assert Meetings.get_capture!(ctx.capture.id).state == "ready"
+      assert Meetings.counts([ctx.capture])[ctx.capture.id].open == 0
+
+      # The questions themselves are untouched: still open, unanswered.
+      assert Repo.all(from(q in Question, where: q.capture_id == ^ctx.capture.id))
+             |> Enum.all?(&(&1.status == "open" and is_nil(&1.answer)))
+    end
+
+    test "including it again brings its question back, and the state with it", ctx do
+      {:ok, _} = Review.include(ctx.sammy, false, ctx.owner)
+      {:ok, _} = Review.include(ctx.johnny, false, ctx.owner)
+      assert Meetings.get_capture!(ctx.capture.id).state == "ready"
+
+      {:ok, _} = Review.include(Repo.reload!(ctx.johnny), true, ctx.owner)
+      assert [%{finding_id: id}] = Meetings.open_questions(ctx.capture)
+      assert id == ctx.johnny.id
+      assert Meetings.get_capture!(ctx.capture.id).state == "needs_review"
+      assert Meetings.counts([ctx.capture])[ctx.capture.id].open == 1
+    end
+
+    test "blocks? and set_aside? agree with the query", ctx do
+      {:ok, _} = Review.include(ctx.sammy, false, ctx.owner)
+      capture = Meetings.load(Meetings.get_capture!(ctx.capture.id))
+
+      by_finding = Map.new(capture.questions, &{&1.finding_id, &1})
+      assert Meetings.set_aside?(by_finding[ctx.sammy.id], capture.findings)
+      refute Meetings.blocks?(by_finding[ctx.sammy.id], capture.findings)
+      refute Meetings.set_aside?(by_finding[ctx.johnny.id], capture.findings)
+      assert Meetings.blocks?(by_finding[ctx.johnny.id], capture.findings)
+
+      # Answered, or not blocking, never blocks; about no finding, never set aside.
+      q = by_finding[ctx.johnny.id]
+      refute Meetings.blocks?(%{q | status: "answered"}, capture.findings)
+      refute Meetings.blocks?(%{q | blocking: false}, capture.findings)
+      assert Meetings.blocks?(%{q | finding_id: nil}, [])
+      refute Meetings.set_aside?(%{q | finding_id: nil}, [])
+    end
+  end
+
   test "taking an answer back reopens it, puts the finding back and the state too", %{
     board: board,
     owner: owner,
