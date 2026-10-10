@@ -557,14 +557,26 @@ defmodule Slipdock.Meetings do
   end
 
   @doc """
-  Reads the meeting (`Slipdock.Meetings.Reader`): two readings and any agent
-  findings, kept on the capture as they came back, before verification.
+  Reads the meeting (`Slipdock.Meetings.Reader`): its readings, summary and
+  topics, and any agent findings, kept on the capture as they came back,
+  before verification.
   """
   def read_meeting(%Capture{} = capture, opts \\ []) do
     with {:ok, readings} <- Slipdock.Meetings.Reader.read(capture, opts) do
       capture |> Ecto.Changeset.change(readings: readings) |> Repo.update()
     end
   end
+
+  @doc """
+  A capture's summary and key topics, as the reading wrote them:
+  `%{"summary" => text | nil, "topics" => [%{"title", "summary"}]}`. Empty
+  for a capture not yet read, or read before there were any.
+  """
+  def notes(%Capture{readings: %{"notes" => %{} = notes}}) do
+    %{"summary" => notes["summary"], "topics" => notes["topics"] || []}
+  end
+
+  def notes(_capture), do: %{"summary" => nil, "topics" => []}
 
   @doc """
   Verifies the readings (`Slipdock.Meetings.Verify`): findings, evidence and

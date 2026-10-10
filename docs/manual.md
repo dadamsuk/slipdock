@@ -1663,9 +1663,11 @@ The runner protocol and the session endpoints are in the agent guide
 (`slipdock guide`, section *Runners*).
 ## Meeting capture
 
-Send a meeting's recording or transcript to a board, and Slipdock proposes what
-it produced — decisions, actions, changes to cards already on the board, open
-questions, ideas — each tied to the exact words it came from. A person reviews
+Send a meeting's recording or transcript to a board, and Slipdock writes it up
+the way a person would afterwards: a short summary, the key topics, and the few
+things that go on the board — actions somebody took on, decisions the meeting
+agreed, changes to cards already there — each tied to the exact words it came
+from. A person reviews
 the proposals, settles anything uncertain, and commits them in one write. It is
 **off unless an admin turns on meeting mode**, and with it off there is no trace
 of it: no menu entries, no pages, no API routes, no CLI commands that do
@@ -1736,8 +1738,12 @@ The capture is read in steps, each stored before the next, so a restart
 carries on where it stopped: transcribing (for a recording), working out who
 spoke, gathering what the board and its wiki already know (cards mentioned by
 `#412`, `W-31` or a board code and number like `PL-14`, titles said aloud, and
-semantically similar cards and pages), reading the meeting **twice**,
-independently, and checking every quote. The capture's page shows the steps as
+semantically similar cards and pages), reading the meeting, and checking every
+quote. The whole meeting is read at once, and the model is asked to be
+selective: an hour's conversation usually has a handful of actions, and
+opinion, background, ideas and open questions go in the summary and topics
+rather than becoming things to review. (A transcript too long to read at once
+is read in overlapping stretches.) The capture's page shows the steps as
 they go and the findings as they appear; you can leave, and the sender is
 emailed when it is ready.
 
