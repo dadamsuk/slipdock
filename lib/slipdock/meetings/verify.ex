@@ -498,12 +498,19 @@ defmodule Slipdock.Meetings.Verify do
   defp who_is_meant({:unknown, name}, members, heard) do
     question = who_question(name, nearest(name, members), heard)
 
+    keep = "name:#{name}"
+
     [
       %{
         question
         | prompt:
             "“#{name}” isn't on this board. Assign it to somebody who is? " <>
-              "Left as it is, the card names #{name} with nobody assigned."
+              "Left as it is, the card names #{name} with nobody assigned.",
+          options:
+            Enum.map(question.options, fn
+              %{"value" => ^keep} = o -> %{o | "label" => "Keep “#{name}”"}
+              o -> o
+            end)
       }
       |> Map.put(:blocking, false)
     ]
