@@ -10,7 +10,7 @@ defmodule SlipdockCLI.Boards do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(guide search ask search-status saved save unsave boards board columns tags activity cards card swimlanes views favourites fav unfav table fields milestones templates add edit set vote status new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
+  @commands ~w(guide search ask search-status saved save unsave boards board columns tags activity cards card swimlanes views favourites fav unfav table fields milestones templates add edit set vote status new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments detach blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -401,6 +401,48 @@ defmodule SlipdockCLI.Boards do
 
   def run("unweblink", [id | url_ids], o) when url_ids != [] do
     each(url_ids, o, &HTTP.delete(item_path(id, "/urls/#{enc(&1)}")), "unlinked")
+  end
+
+  # The server works out the type from the name, so every file goes as
+  # octet-stream and the CLI needs no table of extensions of its own.
+  def run("attach", [id | files], o) when files != [] do
+    if o[:name] && length(files) > 1, do: fail("--name names one file; give one at a time")
+
+    Enum.each(files, fn file ->
+      bytes =
+        case File.read(file) do
+          {:ok, bytes} -> bytes
+          {:error, _} -> fail("can't read #{file}")
+        end
+
+      name = o[:name] || Path.basename(file)
+
+      HTTP.post_multipart(item_path(id, "/attachments"), [], [
+        {"file", name, "application/octet-stream", bytes}
+      ])
+      |> out(o, fn %{"attachment" => a} ->
+        IO.puts("attached #{a["filename"]} to #{item_name(id)} [attachment ##{a["id"]}]")
+        IO.puts("  " <> a["markdown"])
+      end)
+    end)
+  end
+
+  def run("attachments", [id], o) do
+    HTTP.get(item_path(id, "/attachments"))
+    |> out(o, fn
+      %{"attachments" => []} ->
+        IO.puts("no attachments on #{item_name(id)}")
+
+      %{"attachments" => list} ->
+        Enum.each(list, &IO.puts(Render.attachment_line(&1)))
+    end)
+  end
+
+  def run("detach", [id | attachment_ids], o) when attachment_ids != [] do
+    Enum.each(attachment_ids, fn aid ->
+      HTTP.delete(item_path(id, "/attachments/#{enc(aid)}"))
+      |> out(o, fn _ -> IO.puts("removed attachment ##{aid} from #{item_name(id)}") end)
+    end)
   end
 
   def run("blocked-by", [id | others], o) when others != [],

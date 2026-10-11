@@ -4,6 +4,7 @@ defmodule SlipdockWeb.API.CardController do
   alias Slipdock.Boards
   alias Slipdock.Swimlanes.Config
   alias SlipdockWeb.API.Authorize
+  alias SlipdockWeb.API.Uploads
   alias SlipdockWeb.API.JSON, as: V
 
   action_fallback SlipdockWeb.API.FallbackController
@@ -381,6 +382,52 @@ defmodule SlipdockWeb.API.CardController do
            Slipdock.Repo.get(Slipdock.Boards.CardUrl, int),
          true <- card_id == card.id do
       url
+    else
+      _ -> nil
+    end
+  end
+
+  @doc "The files attached to the card, oldest first."
+  def attachments(conn, %{"id" => id}) do
+    with {:ok, card} <- fetch_card(id),
+         :ok <- Authorize.card(conn, card, :read) do
+      card = Slipdock.Repo.preload(card, :attachments, force: true)
+      json(conn, %{attachments: Enum.map(card.attachments, &Uploads.json/1)})
+    end
+  end
+
+  @doc """
+  Attaches a file to the card: the multipart field `file`, and an optional
+  `filename` to store it under instead of the one it was sent with.
+  """
+  def add_attachment(conn, %{"id" => id} = params) do
+    with {:ok, card} <- fetch_card(id),
+         :ok <- Authorize.card(conn, card, :write),
+         {:ok, meta, path} <- Uploads.take(params),
+         {:ok, attachment} <- Boards.add_attachment(card, meta, path) do
+      conn |> put_status(:created) |> json(%{attachment: Uploads.json(attachment)})
+    end
+  end
+
+  def remove_attachment(conn, %{"id" => id, "attachment_id" => attachment_id}) do
+    with {:ok, card} <- fetch_card(id),
+         :ok <- Authorize.card(conn, card, :write),
+         %{} = attachment <- attachment_of(card, attachment_id),
+         {:ok, _} <- Boards.delete_attachment(attachment) do
+      json(conn, %{ok: true})
+    else
+      nil -> {:error, :not_found, "attachment"}
+      other -> other
+    end
+  end
+
+  # A file is only this card's to remove.
+  defp attachment_of(card, attachment_id) do
+    with {int, ""} <- Integer.parse(to_string(attachment_id)),
+         %Slipdock.Boards.Attachment{card_id: card_id} = attachment <-
+           Slipdock.Repo.get(Slipdock.Boards.Attachment, int),
+         true <- card_id == card.id do
+      attachment
     else
       _ -> nil
     end

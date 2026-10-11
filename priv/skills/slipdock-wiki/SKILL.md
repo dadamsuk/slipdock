@@ -258,6 +258,7 @@ slipdock comment W-31 "the backoff needs a worked example"
 slipdock check W-31 "worked example for backoff"   # slipdock tick <item-id> to tick it
 slipdock status W-31 at_risk "stalled on the SRE review"
 slipdock weblink W-31 https://example.com/rfc --label "the RFC"
+slipdock attach W-31 diagram.png                   # prints ![diagram.png](/attachments/…) to put in the body
 slipdock vote W-31 2                               # out of the board's one budget
 slipdock set W-31 effort=3                         # the board's custom fields
 slipdock page read W-31 --json                     # comments, checklist, urls, status, votes

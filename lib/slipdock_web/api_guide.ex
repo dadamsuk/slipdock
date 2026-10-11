@@ -638,6 +638,16 @@ defmodule SlipdockWeb.APIGuide do
       with `POST /api/cards/:id/urls {"url": "…", "title": "…"}`, remove it
       with `DELETE /api/cards/:id/urls/:url_id`. Use these for anything that
       lives outside the board; `attachments` are files the board itself holds.
+    - **Attachments** (`attachments`) — files the board holds, up to 25 MB
+      each. Upload one as the multipart field `file`:
+      `curl -H "$H" -F file=@shot.png B/api/cards/:id/attachments` (an optional
+      `filename` field renames it). The 201 carries the `attachment` with its
+      `url` and a ready-made `markdown` — `![shot.png](/attachments/5/shot.png)`
+      for an image, a plain link otherwise — to put in the description or a
+      comment, where an image shows inline. `GET /api/cards/:id/attachments`
+      lists them; `DELETE /api/cards/:id/attachments/:attachment_id` removes
+      one. A screenshot of what you changed is worth attaching. Pages take the
+      same three at `/api/pages/:id/attachments`.
     - **Moving a card to another board** —
       `POST /api/cards/:id/move {"board": "errands", "column": "To Do"}`. The
       card's subcards, comments, history and links go with it, its tags travel
@@ -1822,6 +1832,10 @@ defmodule SlipdockWeb.APIGuide do
     curl -s -X POST -H "$H" -H 'content-type: application/json' \\
          B/api/pages/W-31/urls -d '{"url": "example.com/rfc", "title": "the RFC"}'
     curl -s -X DELETE -H "$H" B/api/pages/W-31/urls/7
+    # An image for the page: put the `markdown` that comes back in the body.
+    curl -s -H "$H" -F file=@diagram.png B/api/pages/W-31/attachments
+    curl -s -H "$H" B/api/pages/W-31/attachments
+    curl -s -X DELETE -H "$H" B/api/pages/W-31/attachments/5
     curl -s -X POST -H "$H" -H 'content-type: application/json' \\
          B/api/pages/W-31/vote -d '{"count": 2}'
     curl -s -X PATCH -H "$H" -H 'content-type: application/json' B/api/pages/W-31 \\

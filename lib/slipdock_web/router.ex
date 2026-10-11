@@ -546,6 +546,9 @@ defmodule SlipdockWeb.Router do
     post "/pages/:id/status", PageController, :add_status_update
     post "/pages/:id/urls", PageController, :add_url
     delete "/pages/:id/urls/:url_id", PageController, :remove_url
+    get "/pages/:id/attachments", PageController, :attachments
+    post "/pages/:id/attachments", PageController, :add_attachment
+    delete "/pages/:id/attachments/:attachment_id", PageController, :remove_attachment
     post "/pages/:id/vote", PageController, :vote
     get "/boards/:board/pages/export", PageController, :export
     post "/boards/:board/pages/import", PageController, :import_files
@@ -564,6 +567,10 @@ defmodule SlipdockWeb.Router do
     delete "/cards/:id/links/:link_id", CardController, :remove_link
     post "/cards/:id/urls", CardController, :add_url
     delete "/cards/:id/urls/:url_id", CardController, :remove_url
+    # Files, sent as the multipart field `file` (see `SlipdockWeb.API.Uploads`).
+    get "/cards/:id/attachments", CardController, :attachments
+    post "/cards/:id/attachments", CardController, :add_attachment
+    delete "/cards/:id/attachments/:attachment_id", CardController, :remove_attachment
     post "/cards/:id/status", CardController, :add_status_update
     post "/cards/:id/dependencies", CardController, :add_dependency
     post "/cards/:id/subboard", CardController, :create_sub_board

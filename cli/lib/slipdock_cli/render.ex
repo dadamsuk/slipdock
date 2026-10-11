@@ -318,6 +318,10 @@ defmodule SlipdockCLI.Render do
       )
     end
 
+    if c["attachments"] not in [nil, []] do
+      field("Files", Enum.map_join(c["attachments"], "; ", &attachment_line/1))
+    end
+
     if c["date_precision"] not in [nil, "day"], do: field("Precision", c["date_precision"])
     if c["stated_health"], do: field("Reported", c["stated_health"])
     if (c["votes"] || 0) > 0, do: field("Votes", c["votes"])
@@ -409,6 +413,15 @@ defmodule SlipdockCLI.Render do
       end)
     )
   end
+
+  @doc "One attached file: name, size, and the id `detach` takes."
+  def attachment_line(a),
+    do:
+      "#{a["filename"]} (#{a["content_type"]}, #{size(a["size"])}) #{a["url"]} [attachment ##{a["id"]}]"
+
+  defp size(n) when is_integer(n) and n >= 1_048_576, do: "#{Float.round(n / 1_048_576, 1)} MB"
+  defp size(n) when is_integer(n) and n >= 1024, do: "#{div(n, 1024)} KB"
+  defp size(n), do: "#{n} B"
 
   def field_line(f), do: "##{f["id"]} #{f["name"]} {#{f["key"]}} (#{f["kind"]})"
 

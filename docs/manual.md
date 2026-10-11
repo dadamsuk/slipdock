@@ -21,7 +21,8 @@ way in: what it is, the pictures, and how to get it running.
   [Time tracking](#time-tracking)
 - Attachments: files up to 25 MB on any card, and images pasted or dropped into
   the description or a comment are uploaded and shown inline (stored under
-  `priv/uploads/`, `SLIPDOCK_UPLOADS_DIR` to move it; served with access checks)
+  `priv/uploads/`, `SLIPDOCK_UPLOADS_DIR` to move it; served with access checks).
+  The API and CLI upload them too — see [Attachments over the API](#attachments-over-the-api)
 - @mentions: `@someone` in a card's description or a comment — the part of
   their email before the "@", or a one-word name — names a person who can see
   the board. Typing `@` offers the board's members; a mention shows as a chip,
@@ -686,6 +687,41 @@ Attachments are files the board itself holds; web links point at things it
 does not own. On the API they are `urls` on the card (`POST
 /api/cards/:id/urls`, `DELETE /api/cards/:id/urls/:url_id`), and from the CLI
 `slipdock weblink <id> <url> [--label TEXT]` and `slipdock unweblink <id> <url-id>`.
+
+### Attachments over the API
+
+A file goes up as the multipart form field `file` — the same upload the
+card's drop zone takes, to a card or to a wiki page:
+
+```sh
+curl -s -H "authorization: Bearer $TOKEN" -F file=@shot.png \
+     https://slipdock.example/api/cards/12/attachments
+curl -s -H "authorization: Bearer $TOKEN" -F file=@diagram.png \
+     https://slipdock.example/api/pages/W-31/attachments
+```
+
+The answer is the stored file — `id`, `filename`, `content_type`, `size`,
+`url` — and the `markdown` that shows it: `![shot.png](/attachments/5/shot.png)`
+for an image, a plain link for anything else. Put that in a description, a
+comment or a page body and the image appears inline, exactly as a pasted one
+does. An optional `filename` field stores the file under another name; a
+type the client leaves as `application/octet-stream` (curl's answer for
+anything it does not know) is worked out from the name.
+
+`GET …/attachments` lists a card's or a page's files and
+`DELETE …/attachments/:attachment_id` removes one, bytes and all. A card's
+files are also in `attachments` on `GET /api/cards/:id`. The 25 MB limit and the
+account's item and storage limits apply as they do in the browser: too large or
+empty is a 422, a full account a 402.
+
+From the CLI, a number is a card and anything else (`W-31`) a page:
+
+```sh
+slipdock attach 12 shot.png               # prints the Markdown that embeds it
+slipdock attach W-31 /tmp/x.png --name diagram.png
+slipdock attachments 12                   # ids, sizes and URLs
+slipdock detach 12 5                      # attachment #5
+```
 
 ## Narrative
 
@@ -2607,6 +2643,7 @@ CLI: `slipdock fields <board>`, `new-field`, `delete-field`, `preset <board>
 rice|ice|value_effort`, `set <id> key=value…`, `vote <id> <n>`, `status <id>
 on_track|at_risk|off_track [note]`, `link <id> <kind> <card-id>…`, `unlink`,
 `weblink <id> <url> [--label TEXT]`, `unweblink <id> <url-id>…`,
+`attach <id> <file>… [--name N]`, `attachments <id>`, `detach <id> <attachment-id>…`,
 `milestones <board>`, `milestone <board> <name> --date D`,
 `delete-milestone`. Sorting accepts `votes` and `f:<field id>`.
 
