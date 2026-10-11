@@ -306,12 +306,16 @@ defmodule SlipdockCLI do
     check <id> <text>                   add a checklist item
     tick <item-id>                      toggle a checklist item done/undone
     comment <id> <text>                 add a comment
-                                        (check, comment, status, vote, weblink and unweblink take
+                                        (check, comment, status, vote, weblink, unweblink and attach take
                                         a wiki page too: a page code like W-31 instead of a number)
     link <id> <kind> <card-id>...       link cards across boards (kind: relates contributes duplicates)
     unlink <id> <link-id>...            remove links (ids shown by `card`)
     weblink <id> <url> [--label TEXT]   link a card to a web page, drive or file (datestamped)
     unweblink <id> <url-id>...          remove web links (ids shown by `card`)
+    attach <id> <file>... [--name N]    upload files to a card or page; prints the Markdown that
+                                        embeds each (an image shows inline, anything else links)
+    attachments <id>                    list a card's or page's files
+    detach <id> <attachment-id>...      delete attached files
     blocked-by <id> <card-id>... [--off] mark <id> as waiting on other cards, on any board you
                                         can read (or remove)
     blocks <id> <card-id>... [--off]     mark <id> as holding up other cards; you need write on

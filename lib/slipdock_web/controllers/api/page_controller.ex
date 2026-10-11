@@ -20,6 +20,7 @@ defmodule SlipdockWeb.API.PageController do
   alias Slipdock.{Boards, Wiki}
   alias Slipdock.Wiki.{Archive, Page, Query}
   alias SlipdockWeb.API.Authorize
+  alias SlipdockWeb.API.Uploads
   alias SlipdockWeb.API.JSON, as: V
   alias SlipdockWeb.Wiki.Renderer
 
@@ -970,6 +971,48 @@ defmodule SlipdockWeb.API.PageController do
       conn
       |> put_status(:created)
       |> json(%{page: V.page(with_users(Wiki.get_page!(page.id)))})
+    end
+  end
+
+  @doc "The files attached to a page — its pasted images among them — oldest first."
+  def attachments(conn, %{"id" => id}) do
+    with {:ok, page} <- fetch_page(conn, id, :read) do
+      json(conn, %{attachments: Enum.map(Wiki.attachments(page), &Uploads.json/1)})
+    end
+  end
+
+  @doc """
+  Attaches a file to a page: the multipart field `file`, and an optional
+  `filename`. The `markdown` that comes back is what to put in the body.
+  """
+  def add_attachment(conn, %{"id" => id} = params) do
+    with {:ok, page} <- fetch_page(conn, id, :write),
+         {:ok, meta, path} <- Uploads.take(params),
+         {:ok, attachment} <- Wiki.add_attachment(page, meta, path) do
+      conn |> put_status(:created) |> json(%{attachment: Uploads.json(attachment)})
+    end
+  end
+
+  def remove_attachment(conn, %{"id" => id, "attachment_id" => attachment_id}) do
+    with {:ok, page} <- fetch_page(conn, id, :write),
+         %{} = attachment <- page_attachment_of(page, attachment_id),
+         {:ok, _} <- Boards.delete_attachment(attachment) do
+      json(conn, %{ok: true})
+    else
+      nil -> {:error, :not_found, "attachment"}
+      other -> other
+    end
+  end
+
+  # A file is only this page's to remove.
+  defp page_attachment_of(page, attachment_id) do
+    with {int, ""} <- Integer.parse(to_string(attachment_id)),
+         %Slipdock.Boards.Attachment{page_id: page_id} = attachment <-
+           Slipdock.Repo.get(Slipdock.Boards.Attachment, int),
+         true <- page_id == page.id do
+      attachment
+    else
+      _ -> nil
     end
   end
 
