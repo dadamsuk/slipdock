@@ -418,6 +418,15 @@ defmodule SlipdockCLI.Render do
   def attachment_line(a) do
     off = if a["hide_on_card"], do: " (not on the card front)", else: ""
 
+    off =
+      off <>
+        case a["transcript_status"] do
+          "running" -> " (transcribing)"
+          "done" -> " (transcribed)"
+          "failed" -> " (transcription failed)"
+          _ -> ""
+        end
+
     "#{a["filename"]} (#{a["content_type"]}, #{size(a["size"])}) #{a["url"]}#{off} [attachment ##{a["id"]}]"
   end
 

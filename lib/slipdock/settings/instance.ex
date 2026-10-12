@@ -118,6 +118,11 @@ defmodule Slipdock.Settings.Instance do
     # Voiceprints, by each person's consent (see `Slipdock.Meetings.Voiceprints`):
     # off unless turned on, and the endpoint that turns speech into an embedding.
     field :meetings_voiceprints, :boolean, default: false
+    # The server that transcribes a recording attached to a card when someone
+    # presses Transcribe (see `Slipdock.Transcription`), and the key it wants.
+    # The token never leaves the server: not to the page, not to the API.
+    field :transcription_server_url, :string
+    field :transcription_server_token, :string
     field :meetings_voiceprint_url, :string
     # The audio-capable model unclear passages are re-listened to with
     # (see `Slipdock.Meetings.Relisten`); nil leaves re-listening off.
@@ -190,7 +195,8 @@ defmodule Slipdock.Settings.Instance do
                     meetings_transcription meetings_transcription_model
                     meetings_transcription_url meetings_transcription_max_mb
                     meetings_diarisation meetings_diarisation_url meetings_dialogue_inference
-                    meetings_relisten_model meetings_voiceprints meetings_voiceprint_url)a
+                    meetings_relisten_model meetings_voiceprints meetings_voiceprint_url
+                    transcription_server_url transcription_server_token)a
 
   # The admin address and the SMTP details each have a flow that proves
   # something first (a code to the new address, a test message that arrived),
@@ -229,7 +235,9 @@ defmodule Slipdock.Settings.Instance do
       :meetings_transcription_url,
       :meetings_diarisation_url,
       :meetings_relisten_model,
-      :meetings_voiceprint_url
+      :meetings_voiceprint_url,
+      :transcription_server_url,
+      :transcription_server_token
     ])
     |> validate_inclusion(:meetings_transcription, ~w(none provider endpoint))
     |> validate_inclusion(:meetings_diarisation, ~w(labels endpoint))
@@ -250,6 +258,7 @@ defmodule Slipdock.Settings.Instance do
     end)
     |> validate_number(:meetings_transcription_max_mb, greater_than: 0)
     |> validate_web_url(:meetings_transcription_url)
+    |> validate_web_url(:transcription_server_url)
     |> then(fn cs ->
       if get_field(cs, :meetings_transcription) == "endpoint" and
            get_field(cs, :meetings_transcription_url) in [nil, ""],

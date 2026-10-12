@@ -101,7 +101,8 @@ defmodule Slipdock.AI.Actions do
       true ->
         with {:ok, column} <- find_column(action["column"], board),
              {:ok, attrs} <- create_attrs(action, scope) do
-          tags = for name <- list(action["tags"]), {:ok, tag} <- [find_tag(name, board)], do: tag
+          tags =
+            for name <- list(action["tags"]), {:ok, tag} <- [tag_or_new(name, board)], do: tag
 
           details =
             [
@@ -109,7 +110,7 @@ defmodule Slipdock.AI.Actions do
               attrs["start_date"] && "starts #{attrs["start_date"]}",
               attrs["due_date"] && "due #{attrs["due_date"]}",
               attrs["assignee_id"] && "assigned to #{name_of(attrs["assignee_id"], scope)}",
-              tags != [] && "tags #{Enum.map_join(tags, ", ", & &1.name)}",
+              tags != [] && "tags #{Enum.map_join(tags, ", ", &tag_label/1)}",
               attrs["flags"] && "flags #{Enum.join(attrs["flags"], ", ")}"
             ]
             |> Enum.filter(&is_binary/1)
@@ -120,7 +121,8 @@ defmodule Slipdock.AI.Actions do
 
           [
             step(label, fn ->
-              with {:ok, card} <- Boards.create_card(column, attrs) do
+              with {:ok, card} <- Boards.create_card(column, attrs),
+                   {:ok, tags} <- ensure_tags(tags, card.board_id) do
                 if tags != [], do: Boards.set_card_tags(card, tags)
                 :ok
               end
@@ -477,6 +479,23 @@ defmodule Slipdock.AI.Actions do
 
     for name <- list(names) do
       case find_tag(name, %{tags: scope_tags(scope, card)}) do
+        {:error, _} when adding? ->
+          case new_tag_name(name) do
+            {:ok, name} ->
+              step("Create tag “#{name}” and add it to “#{card.title}”", fn ->
+                with {:ok, fresh} <- fresh(card, scope),
+                     {:ok, [tag]} <- ensure_tags([{:new, name}], fresh.board_id) do
+                  still_has = Enum.any?(fresh.tags, &(&1.id == tag.id))
+                  unless still_has, do: Boards.toggle_card_tag(fresh, tag)
+                  :ok
+                end
+                |> normalize_result()
+              end)
+
+            {:error, msg} ->
+              failed("Add tag “#{name}”", msg)
+          end
+
         {:ok, %Tag{} = tag} ->
           has = Enum.any?(current, &(&1.id == tag.id))
 
@@ -698,11 +717,56 @@ defmodule Slipdock.AI.Actions do
 
     case Enum.find(tags, &(String.downcase(&1.name) == n)) do
       %Tag{} = tag -> {:ok, tag}
-      nil -> {:error, "there is no tag called “#{name}” (tags aren't created by the assistant)"}
+      nil -> {:error, "there is no tag called “#{name}”"}
     end
   end
 
   defp find_tag(name, _), do: {:error, "there is no tag called “#{name}”"}
+
+  # A tag for a new card: the board's own, or a name to create it under. A
+  # name that could never be a tag is dropped, as an unknown one used to be.
+  defp tag_or_new(name, board) do
+    with {:error, _} <- find_tag(name, board),
+         {:ok, name} <- new_tag_name(name),
+         do: {:ok, {:new, name}}
+  end
+
+  defp tag_label(%Tag{name: name}), do: name
+  defp tag_label({:new, name}), do: name <> " (new)"
+
+  defp new_tag_name(name) do
+    name = name |> to_s() |> String.trim()
+
+    cond do
+      name == "" -> {:error, "a tag needs a name"}
+      String.length(name) > 30 -> {:error, "a tag name is at most 30 characters"}
+      true -> {:ok, name}
+    end
+  end
+
+  # Turns `{:new, name}` into a tag on the board's tree, at the moment of
+  # applying: one made in the meantime (by a person, or an earlier step of the
+  # same proposal) is used rather than doubled.
+  defp ensure_tags(tags, board_id) do
+    Enum.reduce_while(tags, {:ok, []}, fn
+      %Tag{} = tag, {:ok, acc} ->
+        {:cont, {:ok, acc ++ [tag]}}
+
+      {:new, name}, {:ok, acc} ->
+        existing = Boards.list_tags(Boards.root_of_board(board_id))
+
+        case find_tag(name, %{tags: existing}) do
+          {:ok, tag} ->
+            {:cont, {:ok, acc ++ [tag]}}
+
+          {:error, _} ->
+            case Boards.create_tag(Boards.get_board!(board_id), %{"name" => name}) do
+              {:ok, tag} -> {:cont, {:ok, acc ++ [tag]}}
+              {:error, _} = error -> {:halt, error}
+            end
+        end
+    end)
+  end
 
   # The tags the card may carry: the board's when it is on it, else its own root's.
   defp scope_tags(%{board: %Board{id: id, tags: tags}}, %Card{board_id: id}) when is_list(tags),

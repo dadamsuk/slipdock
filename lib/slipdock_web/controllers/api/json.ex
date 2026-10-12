@@ -374,6 +374,9 @@ defmodule SlipdockWeb.API.JSON do
       size: a.size,
       url: Slipdock.Boards.attachment_url(a),
       hide_on_card: a.hide_on_card,
+      transcript_status: a.transcript_status,
+      transcript: a.transcript,
+      transcript_error: a.transcript_error,
       inserted_at: a.inserted_at
     }
   end

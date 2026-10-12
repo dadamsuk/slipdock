@@ -320,12 +320,24 @@ defmodule Slipdock.Settings do
   def to_form_params(%Instance{} = instance) do
     instance
     |> Map.from_struct()
-    |> Map.drop([:__meta__, :id, :smtp_password, :setup_token, :inserted_at, :updated_at])
+    |> Map.drop([
+      :__meta__,
+      :id,
+      :smtp_password,
+      :transcription_server_token,
+      :setup_token,
+      :inserted_at,
+      :updated_at
+    ])
     |> Map.new(fn {k, v} -> {Atom.to_string(k), v} end)
   end
 
   @doc "Whether a password is stored, without saying what it is."
   def smtp_password_set?, do: is_binary(get().smtp_password) and get().smtp_password != ""
+
+  @doc "Whether the transcription server has a token stored, without saying what it is."
+  def transcription_token_set?,
+    do: is_binary(get().transcription_server_token) and get().transcription_server_token != ""
 
   ## The setup token
 

@@ -11,7 +11,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   import SlipdockWeb.ItemComponents
   import SlipdockWeb.BoardLive.Helpers
 
-  alias Slipdock.{Boards, Dates, Palette}
+  alias Slipdock.{Boards, Dates, Palette, Transcription}
   alias Slipdock.Boards.{Attachment, Card}
   alias SlipdockWeb.RichText
 
@@ -255,6 +255,10 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   attr :target, :any, required: true
   attr :uploads, :map, required: true
 
+  attr :transcribe, :boolean,
+    default: false,
+    doc: "whether a transcription server is set up, so recordings offer Transcribe"
+
   @doc "The card's files, and the uploads under way."
   def attachments_section(assigns) do
     ~H"""
@@ -287,7 +291,10 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         <li
           :for={a <- @card.attachments}
           id={"attachment-#{a.id}"}
-          class="group flex items-center gap-3 rounded-xl bg-base-200/70 p-2"
+          class={[
+            "group flex flex-wrap items-center gap-3 rounded-xl bg-base-200/70 p-2",
+            Attachment.audio?(a) && "sm:col-span-2"
+          ]}
         >
           <a
             href={Boards.attachment_url(a)}
@@ -354,6 +361,56 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           >
             <.icon name="hero-trash" class="size-3.5" />
           </button>
+          <%!-- A recording plays where it is. preload="metadata" fetches its
+                length and no more until somebody presses play. --%>
+          <audio
+            :if={Attachment.audio?(a)}
+            id={"audio-#{a.id}"}
+            controls
+            preload="metadata"
+            src={Boards.attachment_url(a)}
+            class="h-9 min-w-0 flex-1 basis-60"
+          ></audio>
+          <button
+            :if={Attachment.audio?(a) and @transcribe and @can_write}
+            id={"transcribe-#{a.id}"}
+            phx-target={@target}
+            type="button"
+            class="btn btn-ghost btn-xs shrink-0"
+            phx-click="transcribe"
+            phx-value-id={a.id}
+            disabled={Transcription.running?(a)}
+            title="Send the recording to the transcription server"
+          >
+            <span :if={Transcription.running?(a)} class="loading loading-spinner loading-xs"></span>
+            <.icon :if={not Transcription.running?(a)} name="hero-language" class="size-3.5" />
+            {transcribe_label(a)}
+          </button>
+          <p
+            :if={a.transcript_status == "failed" and not Transcription.running?(a)}
+            id={"transcript-error-#{a.id}"}
+            class="basis-full text-xs text-error"
+          >
+            Couldn't transcribe it: {a.transcript_error}
+          </p>
+          <details
+            :if={a.transcript_status == "done"}
+            id={"transcript-#{a.id}"}
+            class="basis-full rounded-lg bg-base-100/70 px-2 py-1 text-sm"
+          >
+            <summary class="cursor-pointer text-xs font-medium text-base-content/60">
+              Transcript
+            </summary>
+            <%!-- Silence is not an error: the server answers with no text. --%>
+            <p :if={a.transcript in [nil, ""]} class="mt-1 text-xs text-base-content/50">
+              No speech was found in the recording.
+            </p>
+            <p
+              :if={a.transcript not in [nil, ""]}
+              class="mt-1 max-h-80 overflow-y-auto whitespace-pre-wrap"
+              phx-no-format
+            >{a.transcript}</p>
+          </details>
         </li>
       </ul>
       <div
@@ -390,6 +447,15 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
       </p>
     </section>
     """
+  end
+
+  defp transcribe_label(a) do
+    cond do
+      Transcription.running?(a) -> "Transcribing…"
+      a.transcript_status == "done" -> "Transcribe again"
+      a.transcript_status == "failed" -> "Try again"
+      true -> "Transcribe"
+    end
   end
 
   attr :board, :any, required: true

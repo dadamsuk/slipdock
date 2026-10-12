@@ -94,6 +94,12 @@ defmodule SlipdockWeb.API.AdminController do
             relisten_model: settings.meetings_relisten_model
           }
         },
+        # Where Transcribe on a card's recording sends it. The token is only
+        # ever said to be there, never what it is.
+        transcription_server: %{
+          url: settings.transcription_server_url,
+          token_set: Settings.transcription_token_set?()
+        },
         pending_signups: Accounts.count_pending_signups()
       }
     })

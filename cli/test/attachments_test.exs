@@ -185,6 +185,72 @@ defmodule SlipdockCLI.AttachmentsTest do
     refute Render.attachment_line(%{"filename" => "f.png", "size" => 1}) =~ "card front"
   end
 
+  describe "transcribe" do
+    setup do
+      saved = System.get_env("SLIPDOCK_POLL_MS")
+      System.put_env("SLIPDOCK_POLL_MS", "0")
+
+      on_exit(fn ->
+        if saved,
+          do: System.put_env("SLIPDOCK_POLL_MS", saved),
+          else: System.delete_env("SLIPDOCK_POLL_MS")
+      end)
+    end
+
+    defp audio(status, extra \\ "") do
+      ~s({"id":5,"filename":"call.mp3","content_type":"audio/mpeg","size":9,"url":"/attachments/5/call.mp3","transcript_status":"#{status}"#{extra}})
+    end
+
+    test "starts it and says how to follow it" do
+      serve([{202, ~s({"attachment":#{audio("running")}})}])
+
+      out = capture_io(fn -> Boards.run("transcribe", ["12", "5"], []) end)
+
+      assert_received {:request, "POST", "/api/cards/12/attachments/5/transcribe", _}
+      assert out =~ "transcribing call.mp3 [attachment #5]"
+      assert out =~ "--wait"
+    end
+
+    test "--wait asks after it until it is done, and prints the transcript" do
+      serve([
+        {202, ~s({"attachment":#{audio("running")}})},
+        {200, ~s({"attachments":[#{audio("running")}]})},
+        {200,
+         ~s({"attachments":[#{audio("done", ~s(,"transcript":"Steve: Ship it.\\nJohn: Agreed."))}]})}
+      ])
+
+      out = capture_io(fn -> Boards.run("transcribe", ["12", "5"], wait: true) end)
+
+      assert_received {:request, "POST", "/api/cards/12/attachments/5/transcribe", _}
+      assert_received {:request, "GET", "/api/cards/12/attachments", _}
+      assert_received {:request, "GET", "/api/cards/12/attachments", _}
+      assert out == "Steve: Ship it.\nJohn: Agreed.\n"
+    end
+
+    test "--wait on silence says there was no speech" do
+      serve([{202, ~s({"attachment":#{audio("done", ~s(,"transcript":null))}})}])
+      out = capture_io(fn -> Boards.run("transcribe", ["12", "5"], wait: true) end)
+      assert out =~ "call.mp3: no speech was found"
+    end
+
+    test "a listing says where each recording has got to" do
+      for {status, words} <- [
+            {"running", "(transcribing)"},
+            {"done", "(transcribed)"},
+            {"failed", "(transcription failed)"}
+          ] do
+        line =
+          Render.attachment_line(%{
+            "filename" => "c.mp3",
+            "size" => 1,
+            "transcript_status" => status
+          })
+
+        assert line =~ words
+      end
+    end
+  end
+
   test "a file's line gives its size in the unit that reads" do
     line = fn size -> Render.attachment_line(%{"filename" => "f", "size" => size}) end
 

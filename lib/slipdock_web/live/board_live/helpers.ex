@@ -52,6 +52,7 @@ defmodule SlipdockWeb.BoardLive.Helpers do
   def attachment_icon(%Attachment{} = a) do
     case Attachment.kind(a) do
       :pdf -> "hero-document-text"
+      :audio -> "hero-musical-note"
       :text -> "hero-document-text"
       :archive -> "hero-archive-box"
       :sheet -> "hero-table-cells"

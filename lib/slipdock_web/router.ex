@@ -571,6 +571,11 @@ defmodule SlipdockWeb.Router do
     get "/cards/:id/attachments", CardController, :attachments
     post "/cards/:id/attachments", CardController, :add_attachment
     patch "/cards/:id/attachments/:attachment_id", CardController, :update_attachment
+
+    post "/cards/:id/attachments/:attachment_id/transcribe",
+         CardController,
+         :transcribe_attachment
+
     delete "/cards/:id/attachments/:attachment_id", CardController, :remove_attachment
     post "/cards/:id/status", CardController, :add_status_update
     post "/cards/:id/dependencies", CardController, :add_dependency

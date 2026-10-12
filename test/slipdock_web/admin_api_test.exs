@@ -57,6 +57,39 @@ defmodule SlipdockWeb.AdminAPITest do
     end
   end
 
+  describe "the transcription server" do
+    test "is set by PATCH; the token is only ever said to be there", %{admin: admin} do
+      conn = token_conn(admin, "admin")
+
+      body =
+        conn
+        |> patch(~p"/api/admin/settings", %{
+          transcription_server_url: "https://manuel.example:8765",
+          transcription_server_token: "s3cret"
+        })
+        |> json_response(200)
+
+      assert Settings.get().transcription_server_token == "s3cret"
+      refute Jason.encode!(body) =~ "s3cret"
+
+      shown = conn |> get(~p"/api/admin/settings") |> json_response(200)
+      refute Jason.encode!(shown) =~ "s3cret"
+
+      assert shown["settings"]["transcription_server"] == %{
+               "url" => "https://manuel.example:8765",
+               "token_set" => true
+             }
+    end
+
+    test "an address that isn't http(s) is refused", %{admin: admin} do
+      assert token_conn(admin, "admin")
+             |> patch(~p"/api/admin/settings", %{transcription_server_url: "file:///etc"})
+             |> json_response(422)
+
+      assert Settings.get().transcription_server_url == nil
+    end
+  end
+
   describe "settings" do
     setup %{admin: admin}, do: %{conn: token_conn(admin, "admin")}
 

@@ -55,7 +55,9 @@ Briefly, with the detail in [the manual](docs/manual.md):
 - **Boards, lists and cards** — drag and drop, priorities, five flags, due
   dates, tags, checklists, comments with `@mentions` that email the person
   named, attachments (uploaded in the browser, or over the API and CLI —
-  `slipdock attach 12 shot.png`), cover colours, archive and restore. Each board has a short code (`qvm-v1-rem`) that addresses it
+  `slipdock attach 12 shot.png`), image thumbnails on card fronts, recordings that
+  play in place and transcribe on your own [Manuel2](https://github.com/dadamsuk/Manuel2)
+  server (Configuration → Server → Transcription server), cover colours, archive and restore. Each board has a short code (`qvm-v1-rem`) that addresses it
   everywhere.
 - **Time tracking** — [a timer on each card, time spent and an estimate](docs/manual.md#time-tracking)
   in minutes, hours, days, weeks or months, and a bar that turns amber near the

@@ -426,6 +426,34 @@ defmodule SlipdockWeb.API.CardController do
     end
   end
 
+  @doc """
+  Sends a recording to the transcription server. It runs in the background:
+  the 202 carries the attachment marked `running`, and reading it again
+  (`GET /api/cards/:id/attachments`) shows the `transcript` once it is done.
+  """
+  def transcribe_attachment(conn, %{"id" => id, "attachment_id" => attachment_id}) do
+    with {:ok, card} <- fetch_card(id),
+         :ok <- Authorize.card(conn, card, :write),
+         %{} = attachment <- attachment_of(card, attachment_id) do
+      case Slipdock.Transcription.transcribe_attachment(attachment) do
+        {:ok, _} ->
+          # Inline in the tests, so read it back rather than trust the copy
+          # that set off.
+          attachment = Boards.get_attachment!(attachment.id)
+          conn |> put_status(:accepted) |> json(%{attachment: Uploads.json(attachment)})
+
+        {:error, :running} ->
+          {:error, :conflict, Slipdock.Transcription.describe(:running)}
+
+        {:error, reason} ->
+          {:error, :unprocessable_entity, Slipdock.Transcription.describe(reason)}
+      end
+    else
+      nil -> {:error, :not_found, "attachment"}
+      other -> other
+    end
+  end
+
   def remove_attachment(conn, %{"id" => id, "attachment_id" => attachment_id}) do
     with {:ok, card} <- fetch_card(id),
          :ok <- Authorize.card(conn, card, :write),
