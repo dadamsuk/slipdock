@@ -1153,6 +1153,7 @@ defmodule SlipdockWeb.BoardLive.Show do
             adding={@swim_adding}
             form_key={@form_key}
             can_write={@can_write}
+            favourites={@favourites}
           />
         </div>
       </div>

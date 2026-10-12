@@ -132,4 +132,89 @@ defmodule SlipdockWeb.FavouritesLiveTest do
     assert html =~ "Nothing favourited yet"
     assert Favourites.count(other) == 1
   end
+
+  describe "the heart on the front of a card" do
+    defp mark(dom_id), do: "##{dom_id} [data-role=favourite-mark]"
+
+    test "only a favourited card shows it, and it follows the toggle", %{
+      conn: conn,
+      board: board,
+      todo: todo,
+      card: card,
+      user: user
+    } do
+      other = card_fixture(todo, %{"title" => "Not this one"})
+      {:ok, :added} = Favourites.toggle(user, :card, card.id)
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}")
+      assert has_element?(view, mark("card-#{card.id}"))
+      refute has_element?(view, mark("card-#{other.id}"))
+
+      # The mark follows the reader's favourites as they change, without a reload.
+      render_click(view, "toggle_favourite", %{"kind" => "card", "id" => "#{card.id}"})
+      refute has_element?(view, mark("card-#{card.id}"))
+
+      render_click(view, "toggle_favourite", %{"kind" => "card", "id" => "#{other.id}"})
+      assert has_element?(view, mark("card-#{other.id}"))
+    end
+
+    test "is a mark, not a button: a click on it opens the card", %{
+      conn: conn,
+      board: board,
+      card: card,
+      user: user
+    } do
+      {:ok, :added} = Favourites.toggle(user, :card, card.id)
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}")
+
+      refute has_element?(view, "#card-#{card.id} button[phx-click=toggle_favourite]")
+      assert has_element?(view, "#{mark("card-#{card.id}")}[title='In your favourites']")
+    end
+
+    test "shows on the compact card too", %{conn: conn, board: board, card: card, user: user} do
+      {:ok, :added} = Favourites.toggle(user, :card, card.id)
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}?#{[density: "compact"]}")
+      assert has_element?(view, mark("card-#{card.id}"))
+    end
+
+    test "shows in the swimlanes view", %{conn: conn, board: board, card: card, user: user} do
+      {:ok, :added} = Favourites.toggle(user, :card, card.id)
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/swimlanes")
+      assert has_element?(view, "[id$='-card-#{card.id}'] [data-role=favourite-mark]")
+    end
+
+    test "a placed wiki page shows it when the page is favourited", %{
+      conn: conn,
+      board: board,
+      todo: todo,
+      card: card,
+      user: user
+    } do
+      page = page_fixture(board, %{"title" => "Runbook"}, user: user)
+      {:ok, _} = Slipdock.Wiki.place(page, todo)
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}")
+      refute has_element?(view, mark("page-#{page.id}"))
+
+      # Favouriting the page marks the page, not some card beside it.
+      {:ok, :added} = Favourites.toggle(user, :page, page.id)
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}")
+      assert has_element?(view, mark("page-#{page.id}"))
+      refute has_element?(view, mark("card-#{card.id}"))
+    end
+
+    test "is the reader's own: someone else's favourite shows nothing", %{
+      conn: conn,
+      board: board,
+      card: card,
+      user: user
+    } do
+      other = user_fixture("fan@example.com")
+      {:ok, _} = Slipdock.Access.grant(board, other, "read", user)
+      {:ok, :added} = Favourites.toggle(other, :card, card.id)
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}")
+      refute has_element?(view, mark("card-#{card.id}"))
+    end
+  end
 end

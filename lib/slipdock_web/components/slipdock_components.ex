@@ -927,6 +927,13 @@ defmodule SlipdockWeb.SlipdockComponents do
     not (`false`); nil outside select mode
     """
 
+  attr :marks, :any,
+    default: nil,
+    doc: """
+    the reader's favourites (`Slipdock.Favourites.marks/1`); a card in them
+    shows a heart on its front
+    """
+
   slot :actions,
     doc: """
     controls rendered at the end of the card's title row — the board view's
@@ -979,6 +986,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         cover_color: cover,
         image: image,
         page?: page?,
+        favourite?: favourite_mark?(assigns.marks, card),
         # A wiki page is `page-7` where a card is `12`, so the drag-and-drop
         # and the click handlers can tell the two apart.
         item_id: item_id(card),
@@ -1069,6 +1077,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         >
           {@card.title}
         </p>
+        <.favourite_mark :if={@favourite?} class="size-3" />
         <span
           :if={@f.tags}
           class="flex shrink-0 items-center gap-0.5"
@@ -1124,6 +1133,7 @@ defmodule SlipdockWeb.SlipdockComponents do
           ]}>
             {@card.title}
           </p>
+          <.favourite_mark :if={@favourite?} class="mt-0.5 size-3.5" />
           <span :if={@actions != []} class="-mr-1 -mt-0.5 shrink-0">{render_slot(@actions)}</span>
         </div>
 
@@ -1175,6 +1185,24 @@ defmodule SlipdockWeb.SlipdockComponents do
         </div>
       </div>
     </div>
+    """
+  end
+
+  # A card or a placed page the reader has favourited. Only a mark, not the
+  # toggle: a click on the front of the card opens it.
+  defp favourite_mark?(nil, _card), do: false
+
+  defp favourite_mark?(marks, card),
+    do: Slipdock.Favourites.favourite?(marks, if(page?(card), do: :page, else: :card), card.id)
+
+  attr :class, :string, default: "size-3.5"
+
+  defp favourite_mark(assigns) do
+    ~H"""
+    <span class="shrink-0 text-rose-500" data-role="favourite-mark" title="In your favourites">
+      <.icon name="hero-heart-solid" class={@class} />
+      <span class="sr-only">Favourite</span>
+    </span>
     """
   end
 

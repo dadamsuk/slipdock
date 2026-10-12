@@ -1061,6 +1061,10 @@ defmodule SlipdockWeb.SwimlaneComponents do
   attr :can_write, :boolean, default: true
   attr :narrow, :boolean, default: false, doc: "stack the grid instead of laying it out"
 
+  attr :favourites, :any,
+    default: nil,
+    doc: "the reader's favourites (`Slipdock.Favourites.marks/1`)"
+
   def swim_grid(%{narrow: true} = assigns), do: swim_stack(assigns)
 
   def swim_grid(assigns) do
@@ -1168,6 +1172,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
                 compact={@config.density == "compact"}
                 show={@show}
                 cover={Slipdock.Coloring.color(card, @config.color_by, @board)}
+                marks={@favourites}
               />
               <form
                 :if={@adding == "#{ri}:#{ci}"}
@@ -1322,6 +1327,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
                     compact={@config.density == "compact"}
                     show={@show}
                     cover={Slipdock.Coloring.color(card, @config.color_by, @board)}
+                    marks={@favourites}
                   />
                 </div>
 
