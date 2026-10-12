@@ -16,6 +16,8 @@ defmodule Slipdock.AI.Actions do
       remove_tags, add_flags, remove_flags)
     * `create` – `title` plus any of column, description, priority,
       start_date, due_date, assignee, tags, flags
+    * `tag` – `card_ids` with `add` and/or `remove` lists of tag names:
+      one tag on several cards at once, one step per tag
     * `comment` – `card_id`, `body`
     * `checklist` – `card_id` and `add`, `check`, `uncheck` or `remove` lists
     * `subcards` – `card_id` and `titles` (plus an optional `column` on the
@@ -27,7 +29,7 @@ defmodule Slipdock.AI.Actions do
       board; it is the only change this can make to the wiki, because a
       document is written in the wiki's own editor and not dictated here.
 
-  A tag name the board doesn't have, in `add_tags`, `tags` or a `create`,
+  A tag name the board doesn't have, in `add_tags`, `tags`, a `tag`'s `add` or a `create`,
   makes that tag on the board's tree when the step is applied; the step's
   label says so, so nothing is created that the user didn't see first.
   """
@@ -273,6 +275,48 @@ defmodule Slipdock.AI.Actions do
     else
       true -> [failed("Add subcards to card #{action["card_id"]}", "no subcard titles given")]
       {:error, msg} -> [failed("Add subcards to card #{action["card_id"]}", msg)]
+    end
+  end
+
+  # Tags on several cards at once: one step per tag, naming every card it
+  # touches, rather than an update per card. A card that already has the tag
+  # (or, removing, doesn't) is left out of the step.
+  defp prepare_one(%{"type" => "tag"} = action, scope) do
+    ids = list(action["card_ids"] || action["cards"] || action["card_id"])
+    add = list(action["add"] || action["add_tags"])
+    remove = list(action["remove"] || action["remove_tags"])
+
+    cond do
+      ids == [] ->
+        [failed("Tag cards", "no cards given")]
+
+      add == [] and remove == [] ->
+        [failed("Tag cards", "no tags given")]
+
+      true ->
+        {cards, refused} =
+          ids
+          |> Enum.uniq_by(&to_int/1)
+          |> Enum.map(fn id ->
+            with {:ok, card} <- find_card(id, scope),
+                 :ok <- authorize(card, scope) do
+              {:ok, card}
+            else
+              {:error, msg} -> {:error, failed("Tag card #{id}", msg)}
+            end
+          end)
+          |> Enum.split_with(&match?({:ok, _}, &1))
+
+        cards = Enum.map(cards, &elem(&1, 1))
+
+        tag_steps =
+          if cards == [],
+            do: [],
+            else:
+              Enum.map(add, &bulk_tag_step(&1, true, cards, scope)) ++
+                Enum.map(remove, &bulk_tag_step(&1, false, cards, scope))
+
+        Enum.map(refused, &elem(&1, 1)) ++ Enum.reject(tag_steps, &is_nil/1)
     end
   end
 
@@ -615,6 +659,77 @@ defmodule Slipdock.AI.Actions do
       end
     end)
   end
+
+  # One tag added to, or removed from, several cards. Each card resolves the
+  # name against its own tree's tags; a name none of them has is created on
+  # Apply when adding, and refused when removing.
+  defp bulk_tag_step(name, adding?, cards, scope) do
+    refs =
+      for card <- cards do
+        case find_tag(name, %{tags: scope_tags(scope, card)}) do
+          {:ok, tag} -> {card, tag}
+          {:error, _} -> {card, nil}
+        end
+      end
+
+    new? = Enum.all?(refs, &is_nil(elem(&1, 1)))
+
+    cond do
+      new? and not adding? ->
+        failed("Remove tag “#{to_s(name)}”", "there is no tag called “#{name}”")
+
+      new? ->
+        case new_tag_name(name) do
+          {:ok, name} ->
+            bulk_tag_run(
+              "Create tag “#{name}” and add it to",
+              Enum.map(cards, &{&1, {:new, name}}),
+              true,
+              scope
+            )
+
+          {:error, msg} ->
+            failed("Add tag “#{name}”", msg)
+        end
+
+      true ->
+        targets =
+          for {card, tag} <- refs, tag != nil, has_tag?(card, tag) != adding?, do: {card, tag}
+
+        tag_name = Enum.find_value(refs, &(elem(&1, 1) && elem(&1, 1).name))
+        verb = if adding?, do: "Add tag “#{tag_name}” to", else: "Remove tag “#{tag_name}” from"
+        if targets != [], do: bulk_tag_run(verb, targets, adding?, scope)
+    end
+  end
+
+  defp bulk_tag_run(verb, targets, adding?, scope) do
+    titles = Enum.map_join(targets, ", ", fn {card, _} -> "“#{card.title}”" end)
+    count = if length(targets) == 1, do: "", else: "#{length(targets)} cards: "
+
+    step("#{verb} #{count}#{titles}", fn ->
+      failures =
+        for {card, ref} <- targets,
+            result = tag_one(card, ref, adding?, scope),
+            result != :ok,
+            do: "“#{card.title}”: #{elem(result, 1)}"
+
+      if failures == [], do: :ok, else: {:error, Enum.join(failures, "; ")}
+    end)
+  end
+
+  defp tag_one(card, ref, adding?, scope) do
+    with {:ok, fresh} <- fresh(card, scope),
+         {:ok, [tag]} <- ensure_tags([ref], fresh.board_id) do
+      if has_tag?(fresh, tag) != adding?, do: Boards.toggle_card_tag(fresh, tag)
+      :ok
+    end
+    |> normalize_result()
+  end
+
+  defp has_tag?(%Card{tags: tags}, %Tag{id: id}) when is_list(tags),
+    do: Enum.any?(tags, &(&1.id == id))
+
+  defp has_tag?(_, _), do: false
 
   # The card's sub-board with its columns, created from the default template
   # when the card has none yet.
