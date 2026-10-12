@@ -252,7 +252,9 @@ defmodule Slipdock.Wiki.FrontMatter do
   defp strip_comment(text) do
     case Regex.run(
            ~r/\A((?:"(?:[^"\\]|\\.)*"|'(?:[^']|'')*'|[^#"'])*?)(?:\s+#.*)?\r?\n?\z/s,
-           text, capture: :all_but_first) do
+           text,
+           capture: :all_but_first
+         ) do
       [kept] -> kept
       _ -> text
     end
