@@ -22,7 +22,8 @@ way in: what it is, the pictures, and how to get it running.
 - Attachments: files up to 25 MB on any card, and images pasted or dropped into
   the description or a comment are uploaded and shown inline (stored under
   `priv/uploads/`, `SLIPDOCK_UPLOADS_DIR` to move it; served with access checks).
-  The API and CLI upload them too — see [Attachments over the API](#attachments-over-the-api)
+  The API and CLI upload them too — see [Attachments over the API](#attachments-over-the-api).
+  A card's first image is a thumbnail on its front — see [Images on the card front](#images-on-the-card-front)
 - @mentions: `@someone` in a card's description or a comment — the part of
   their email before the "@", or a one-word name — names a person who can see
   the board. Typing `@` offers the board's members; a mention shows as a chip,
@@ -687,6 +688,26 @@ Attachments are files the board itself holds; web links point at things it
 does not own. On the API they are `urls` on the card (`POST
 /api/cards/:id/urls`, `DELETE /api/cards/:id/urls/:url_id`), and from the CLI
 `slipdock weblink <id> <url> [--label TEXT]` and `slipdock unweblink <id> <url-id>`.
+
+### Images on the card front
+
+A card with an image attached shows it as a thumbnail across the top of its
+front, under the cover strip — the first image attached, which counts the
+screenshots pasted into its description and comments. Beside each image in
+the card's **Attachments** there is a **Don't show on the card front** tick
+box; tick it and the next image takes its place, or the card shows none.
+Only PNG, JPEG, GIF and WebP images qualify, the kinds the app shows inline.
+
+The **Display** menu's **Images** turns thumbnails off for the view. It is on
+for comfortable cards and off for compact ones, where it shows a small square
+in the row instead. A saved view made before thumbnails existed keeps the
+facets it was saved with, so tick Images there and save it to get them.
+
+On the API, `hide_on_card` is on each attachment: `PATCH
+/api/cards/:id/attachments/:attachment_id {"hide_on_card": true}` sets it, and
+an upload can send it as a field. From the CLI, `slipdock card-front <id>
+<attachment-id> --off` keeps an image off the front (without `--off`, lets it
+back), and `slipdock attach <id> <file> --hide-on-card` uploads it kept off.
 
 ### Attachments over the API
 

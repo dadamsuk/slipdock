@@ -145,6 +145,46 @@ defmodule SlipdockCLI.AttachmentsTest do
     refute capture_io(fn -> Render.card(%{card | "attachments" => []}) end) =~ "Files"
   end
 
+  test "attach --hide-on-card sends the field; without it, nothing is sent", %{home: home} do
+    serve([
+      {201, attached(5, "a.png", "![a.png](/attachments/5/a.png)")},
+      {201, attached(6, "b.png", "![b.png](/attachments/6/b.png)")}
+    ])
+
+    a = file(home, "a.png", "A")
+    capture_io(fn -> Boards.run("attach", ["12", a], hide_on_card: true) end)
+    assert_received {:request, "POST", "/api/cards/12/attachments", body}
+    assert body =~ ~s(name="hide_on_card"\r\n\r\ntrue)
+
+    capture_io(fn -> Boards.run("attach", ["12", a], []) end)
+    assert_received {:request, "POST", "/api/cards/12/attachments", body}
+    refute body =~ "hide_on_card"
+  end
+
+  test "card-front lets an image be the thumbnail, and --off keeps it off" do
+    patched = fn hide ->
+      ~s({"attachment":{"id":5,"filename":"shot.png","hide_on_card":#{hide}}})
+    end
+
+    serve([{200, patched.(true)}, {200, patched.(false)}])
+
+    out = capture_io(fn -> Boards.run("card-front", ["12", "5"], off: true) end)
+    assert_received {:request, "PATCH", "/api/cards/12/attachments/5", body}
+    assert JSON.decode!(body) == %{"hide_on_card" => true}
+    assert out =~ "shot.png [attachment #5] kept off the front of card #12"
+
+    out = capture_io(fn -> Boards.run("card-front", ["12", "5"], []) end)
+    assert_received {:request, "PATCH", "/api/cards/12/attachments/5", body}
+    assert JSON.decode!(body) == %{"hide_on_card" => false}
+    assert out =~ "may show on the front of card #12"
+  end
+
+  test "a file kept off the card front says so in its line" do
+    line = Render.attachment_line(%{"filename" => "f.png", "size" => 1, "hide_on_card" => true})
+    assert line =~ "(not on the card front)"
+    refute Render.attachment_line(%{"filename" => "f.png", "size" => 1}) =~ "card front"
+  end
+
   test "a file's line gives its size in the unit that reads" do
     line = fn size -> Render.attachment_line(%{"filename" => "f", "size" => size}) end
 

@@ -86,6 +86,7 @@ defmodule Slipdock.Swimlanes.Config do
   # What a card (or row, or chip) can show. Each density keeps its own set.
   @facets [
     {"cover", "Cover colour"},
+    {"images", "Images"},
     {"status", "Status"},
     {"tags", "Tags"},
     {"priority", "Priority"},

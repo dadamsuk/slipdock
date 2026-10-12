@@ -409,6 +409,23 @@ defmodule SlipdockWeb.API.CardController do
     end
   end
 
+  @doc """
+  Changes how a file shows: `hide_on_card: true` keeps an image off the
+  card's front, `false` lets it be the thumbnail again.
+  """
+  def update_attachment(conn, %{"id" => id, "attachment_id" => attachment_id} = params) do
+    with {:ok, card} <- fetch_card(id),
+         :ok <- Authorize.card(conn, card, :write),
+         %{} = attachment <- attachment_of(card, attachment_id),
+         {:ok, hide?} <- Uploads.hide_on_card(params, attachment.hide_on_card),
+         {:ok, attachment} <- Boards.hide_attachment_on_card(attachment, hide?) do
+      json(conn, %{attachment: Uploads.json(attachment)})
+    else
+      nil -> {:error, :not_found, "attachment"}
+      other -> other
+    end
+  end
+
   def remove_attachment(conn, %{"id" => id, "attachment_id" => attachment_id}) do
     with {:ok, card} <- fetch_card(id),
          :ok <- Authorize.card(conn, card, :write),

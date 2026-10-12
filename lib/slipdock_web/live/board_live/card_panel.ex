@@ -321,6 +321,26 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
             <p class="text-xs text-base-content/50">
               {human_size(a.size)} · {relative_time(a.inserted_at)}
             </p>
+            <label
+              :if={Attachment.image?(a)}
+              class={[
+                "mt-0.5 flex items-center gap-1.5 text-xs text-base-content/60",
+                @can_write && "cursor-pointer"
+              ]}
+              title="The card's front shows the first image that isn't ticked here, unless Display leaves images out"
+            >
+              <input
+                type="checkbox"
+                id={"hide-on-card-#{a.id}"}
+                class="checkbox checkbox-xs"
+                checked={a.hide_on_card}
+                disabled={!@can_write}
+                phx-target={@target}
+                phx-click="hide_on_card"
+                phx-value-id={a.id}
+                phx-value-hide={to_string(!a.hide_on_card)}
+              /> Don't show on the card front
+            </label>
           </div>
           <button
             :if={@can_write}

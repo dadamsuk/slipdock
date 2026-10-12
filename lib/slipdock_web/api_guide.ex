@@ -647,7 +647,10 @@ defmodule SlipdockWeb.APIGuide do
       comment, where an image shows inline. `GET /api/cards/:id/attachments`
       lists them; `DELETE /api/cards/:id/attachments/:attachment_id` removes
       one. A screenshot of what you changed is worth attaching. Pages take the
-      same three at `/api/pages/:id/attachments`.
+      same three at `/api/pages/:id/attachments`. A card's first image is the
+      thumbnail on its front; `hide_on_card: true` (on the upload, or
+      `PATCH /api/cards/:id/attachments/:attachment_id`) keeps one off it — do
+      that for a log or a diagram nobody needs to see at a glance.
     - **Moving a card to another board** —
       `POST /api/cards/:id/move {"board": "errands", "column": "To Do"}`. The
       card's subcards, comments, history and links go with it, its tags travel

@@ -142,6 +142,107 @@ defmodule SlipdockWeb.API.AttachmentsTest do
     end
   end
 
+  describe "the card front" do
+    test "an upload may be kept off it from the start", %{conn: conn, card: card} do
+      assert %{"attachment" => %{"hide_on_card" => false}} =
+               conn
+               |> post("/api/cards/#{card.id}/attachments", %{file: upload("a.png", @png)})
+               |> json_response(201)
+
+      assert %{"attachment" => %{"id" => id, "hide_on_card" => true}} =
+               conn
+               |> post("/api/cards/#{card.id}/attachments", %{
+                 file: upload("b.png", @png),
+                 hide_on_card: "true"
+               })
+               |> json_response(201)
+
+      assert Boards.get_attachment!(id).hide_on_card
+    end
+
+    test "PATCH keeps an image off it, and puts it back", %{conn: conn, card: card} do
+      {:ok, a} =
+        Boards.add_attachment(
+          card,
+          %{filename: "a.png", content_type: "image/png"},
+          upload("a.png", @png).path
+        )
+
+      assert %{"attachment" => %{"hide_on_card" => true}} =
+               conn
+               |> patch("/api/cards/#{card.id}/attachments/#{a.id}", %{hide_on_card: true})
+               |> json_response(200)
+
+      assert Boards.get_attachment!(a.id).hide_on_card
+
+      # Leaving the field out changes nothing.
+      assert %{"attachment" => %{"hide_on_card" => true}} =
+               conn
+               |> patch("/api/cards/#{card.id}/attachments/#{a.id}", %{})
+               |> json_response(200)
+
+      assert %{"attachment" => %{"hide_on_card" => false}} =
+               conn
+               |> patch("/api/cards/#{card.id}/attachments/#{a.id}", %{hide_on_card: false})
+               |> json_response(200)
+
+      refute Boards.get_attachment!(a.id).hide_on_card
+    end
+
+    test "a value that is not a boolean is a 422, and changes nothing", %{
+      conn: conn,
+      card: card
+    } do
+      {:ok, a} =
+        Boards.add_attachment(
+          card,
+          %{filename: "a.png", content_type: "image/png"},
+          upload("a.png", @png).path
+        )
+
+      assert %{"error" => "hide_on_card must be true or false"} =
+               conn
+               |> patch("/api/cards/#{card.id}/attachments/#{a.id}", %{hide_on_card: "yes"})
+               |> json_response(422)
+
+      assert conn
+             |> post("/api/cards/#{card.id}/attachments", %{
+               file: upload("b.png", @png),
+               hide_on_card: "maybe"
+             })
+             |> json_response(422)
+
+      refute Boards.get_attachment!(a.id).hide_on_card
+      assert [_] = Boards.get_card!(card.id).attachments
+    end
+
+    test "another card's file, or a read-only token, cannot change it", %{
+      conn: conn,
+      user: user,
+      board: board,
+      card: card
+    } do
+      theirs = card_fixture(hd(board.columns), %{"title" => "Theirs"})
+
+      {:ok, a} =
+        Boards.add_attachment(
+          theirs,
+          %{filename: "a.png", content_type: "image/png"},
+          upload("a.png", @png).path
+        )
+
+      assert conn
+             |> patch("/api/cards/#{card.id}/attachments/#{a.id}", %{hide_on_card: true})
+             |> json_response(404)
+
+      assert with_token(user, scope: "read")
+             |> patch("/api/cards/#{theirs.id}/attachments/#{a.id}", %{hide_on_card: true})
+             |> json_response(403)
+
+      refute Boards.get_attachment!(a.id).hide_on_card
+    end
+  end
+
   describe "the refusals" do
     test "no file field is a 422 that says how to send one", %{conn: conn, card: card} do
       assert %{"error" => error} =
