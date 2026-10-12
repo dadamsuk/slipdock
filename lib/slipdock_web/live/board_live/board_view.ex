@@ -581,6 +581,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
                   focus={@focus && card_focus(@focus, item)}
                   dismiss={@can_write}
                   selected={@select_mode && card_selected?(@selected, item)}
+                  marks={@favourites}
                 >
                   <:actions :if={@can_write and length(@board.columns) > 1}>
                     <.move_menu card={item} board={@board} />
