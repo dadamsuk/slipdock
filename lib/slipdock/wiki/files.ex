@@ -57,6 +57,8 @@ defmodule Slipdock.Wiki.Files do
          :ok <- copy(source, key),
          {:ok, file} <- Repo.insert(changeset) do
       touched(file)
+      # Pages that embed or link this file by name before it arrived.
+      Wiki.resolve_waiting(board.id, [file.name])
       {:ok, file}
     end
   end
@@ -122,8 +124,24 @@ defmodule Slipdock.Wiki.Files do
   whose folder path ends that way. The board's own file wins, then the
   shortest folder path. Nil when there is none the reader can see.
   """
-  def resolve(%Board{} = board, target, reader) do
-    parts = target |> to_string() |> String.split("/", trim: true)
+  def resolve(%Board{} = board, target, reader), do: lookup(board, target, reader, true)
+
+  @doc """
+  As `resolve/3`, but with no reader it looks as the system does — what a
+  page's stored links are worked out as, whoever is looking (see
+  `Slipdock.Wiki.Links`). With a reader it is `resolve/3`.
+  """
+  def find(%Board{} = board, target, nil), do: lookup(board, target, nil, false)
+  def find(%Board{} = board, target, reader), do: resolve(board, target, reader)
+
+  defp lookup(board, target, reader, check?) do
+    # `../attachments/x.png`, as Obsidian writes a relative link: the
+    # folders it names, wherever they are.
+    parts =
+      target
+      |> to_string()
+      |> String.split("/", trim: true)
+      |> Enum.reject(&(&1 in [".", ".."]))
 
     case parts do
       [] ->
@@ -149,7 +167,8 @@ defmodule Slipdock.Wiki.Files do
           ends_with?(segments, Enum.map(dirs, &String.downcase/1))
         end)
         |> Enum.filter(fn {f, _} ->
-          Slipdock.Access.can_read?(Slipdock.Access.board_permission(reader, f.board))
+          not check? or
+            Slipdock.Access.can_read?(Slipdock.Access.board_permission(reader, f.board))
         end)
         |> Enum.sort_by(fn {f, segments} -> {f.board_id != board.id, length(segments), f.id} end)
         |> case do

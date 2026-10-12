@@ -1117,11 +1117,20 @@ defmodule Slipdock.Wiki do
   # holding a matching unresolved link are touched — on this board, or on
   # every board of its vault, where a plain `[[link]]` reaches that far.
   defp resolve_wanted(%Page{} = page) do
-    wanted = ([page.title, page.slug, page.code] ++ page.aliases) |> Enum.map(&String.downcase/1)
+    names = [page.title, page.slug, page.code, page.file_name] ++ page.aliases
+    resolve_waiting(page.board_id, Enum.reject(names, &is_nil/1))
+  end
+
+  @doc false
+  # The pages on `board_id` (or its vault) holding an unresolved link whose
+  # words, or their last part, are one of `names`, worked out again: a page
+  # or a file of that name has just arrived.
+  def resolve_waiting(board_id, names) do
+    wanted = Enum.map(names, &String.downcase/1)
 
     board_ids =
-      case Slipdock.Vaults.for_board(page.board_id) do
-        nil -> [page.board_id]
+      case Slipdock.Vaults.for_board(board_id) do
+        nil -> [board_id]
         vault -> Slipdock.Vaults.board_ids(vault)
       end
 
@@ -1134,8 +1143,9 @@ defmodule Slipdock.Wiki do
     )
     |> Repo.all()
     |> Enum.filter(fn {_id, raw} ->
-      inner = String.downcase(inner_of(raw))
-      # `[[Folder/Note]]` is waiting for a page called Note.
+      # `[[Folder/Note]]` is waiting for a page called Note, and so is
+      # `[[Folder/Note.md]]`, as Obsidian lets a link be written.
+      inner = raw |> inner_of() |> String.downcase() |> String.replace_suffix(".md", "")
       last = inner |> String.split("/") |> List.last() |> String.trim()
       inner in wanted or last in wanted
     end)
