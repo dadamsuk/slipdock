@@ -200,6 +200,11 @@ defmodule SlipdockCLI do
                                         file it in a folder, or take it out of one.
                                         Where a page is *kept*; `page mv` is what it is
                                         *part of*
+    page file <page> --also F | --not-in F [--board B]
+                                        file it in one more folder as well as its home
+                                        (one page, several places), or take it out of
+                                        one. F is a folder on its board, on --board B,
+                                        or a vault path ("/Jobs/Notes") in its vault
     page mv <page> [--parent P | --root] [--position N|top|bottom]
     page rm <page> [--purge]            archive it (--purge deletes, owner only)
     page restore <page>
@@ -608,6 +613,8 @@ defmodule SlipdockCLI do
     folder: :string,
     no_folder: :boolean,
     note_tag: :string,
+    also: :string,
+    not_in: :string,
     summary: :string,
     message: :string,
     base_hash: :string,

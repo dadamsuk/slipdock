@@ -2118,6 +2118,19 @@ it as you type, matching anywhere in the path, so "dec" finds `Design/
 Decisions` and the arrow keys and Enter pick it without the mouse. A folder
 you cannot choose, like the one you are moving, is greyed rather than hidden.
 
+**One page, several folders.** A page has one **home** folder and can be
+**also filed in** others, like a symbolic link: every one opens the same
+page, with one body and one history. On a board in a vault the other folders
+can be on any board of the vault. Listing a folder includes the pages also
+filed there, marked `also: true` over the API, and each page appears once.
+Archiving or moving a page keeps its other folders; taking it out of one
+never archives it; deleting a folder takes only its placements.
+`slipdock page file <page> --also F` (or `--not-in F`) — F a folder on its
+board, on `--board B`, or a vault path such as `/Jobs/Notes` — and
+`{"also": F}` / `{"not_in": F}` on `POST /api/pages/:id/folder` (MCP:
+`update_page`'s `also` and `not_in`) do it; a page's JSON lists them as
+`also_in`.
+
 **Filing never destroys writing — unless you say so.** Deleting a folder
 deletes the folder: its subfolders move up to its parent and its pages go back
 to the board's root. Deleting one that holds something asks which you meant,
@@ -3325,6 +3338,7 @@ slipdock folder rm qvm-v1-rem Choices          # the folder only; nothing filed 
 slipdock folder rm qvm-v1-rem Choices --purge  # and the pages in it, history and all (owner only)
 slipdock page file W-31 --folder "Design/Decisions"   # where it is kept; --no-folder takes it out
 slipdock page ls qvm-v1-rem --folder decisions       # or --no-folder for the unfiled
+slipdock page file W-31 --also Ideas [--board B]   # also filed there too (or a /vault/path); --not-in F takes it out
 slipdock vault new Notes | slipdock vault ls      # board wikis laid out as one vault
 slipdock vault map Notes /Jobs --board jobs [--folder Notes]   # a vault path onto a wiki
 slipdock vault locate Notes /Jobs/Acme.md       # which mapping a path lands in (longest prefix)

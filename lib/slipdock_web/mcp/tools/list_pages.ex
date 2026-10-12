@@ -31,6 +31,10 @@ defmodule SlipdockWeb.MCP.Tools.ListPages do
       properties: %{
         board: %{type: "string", description: "Board id, code or name."},
         q: %{type: "string", description: "Only pages whose title or text contains this."},
+        folder: %{
+          type: "string",
+          description: "Only one folder's pages (name or path), with those also filed there."
+        },
         note_tag: %{
           type: "string",
           description:
@@ -61,12 +65,14 @@ defmodule SlipdockWeb.MCP.Tools.ListPages do
     with {:ok, ref} <- Args.required(args, "board"),
          {:ok, q} <- Args.optional(args, "q"),
          {:ok, note_tag} <- Args.optional(args, "note_tag"),
+         {:ok, folder_ref} <- Args.optional(args, "folder"),
          {:ok, archived} <- archived(args),
          {:ok, template} <- Args.boolean(args, "template"),
          {:ok, draft} <- Args.boolean(args, "draft"),
          {:ok, tree?} <- Args.boolean(args, "tree", false),
          {:ok, limit} <- Args.limit(args, "limit", 100, @max),
-         {:ok, board} <- Args.refusal(Authorize.fetch_board(auth, ref, :read)) do
+         {:ok, board} <- Args.refusal(Authorize.fetch_board(auth, ref, :read)),
+         {:ok, folder} <- folder(board, folder_ref) do
       pages =
         case status(draft, writer?(context.user, board)) do
           :none ->
@@ -74,6 +80,8 @@ defmodule SlipdockWeb.MCP.Tools.ListPages do
 
           status ->
             Wiki.list_pages(board,
+              folder: folder,
+              as: context.user,
               q: q,
               note_tag: note_tag,
               archived: archived,
@@ -93,6 +101,9 @@ defmodule SlipdockWeb.MCP.Tools.ListPages do
        }}
     end
   end
+
+  defp folder(_board, nil), do: {:ok, nil}
+  defp folder(board, ref), do: Args.refusal(Wiki.find_folder(board, ref))
 
   defp archived(args) do
     case args["archived"] do
@@ -140,6 +151,7 @@ defmodule SlipdockWeb.MCP.Tools.ListPages do
         draft: Page.draft?(page),
         template: page.template,
         note_tags: page.note_tags,
+        also: page.also,
         archived: not is_nil(page.archived_at),
         updated_at: page.updated_at,
         url: base_url <> SlipdockWeb.API.JSON.page_url(page)

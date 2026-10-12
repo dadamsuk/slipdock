@@ -24,7 +24,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdatePage do
   @impl true
   def description,
     do:
-      "Changes a page but not its body: title, summary, front_matter, parent (\"\" for the top) and " <>
+      "Changes a page but not its body: title, summary, front_matter, also/not_in folders, parent (\"\" for the top) and " <>
         "position, folder, archived (false restores), and pinning it as the page for a card. " <>
         "Only what you pass changes. write_page edits the body."
 
@@ -56,6 +56,12 @@ defmodule SlipdockWeb.MCP.Tools.UpdatePage do
           type: "string",
           description: "Folder name or path like \"Design/Decisions\", made if new; \"\" unfiles."
         },
+        also: %{
+          type: "string",
+          description:
+            "File it in this folder as well as its home: a folder on its board, or a vault path like /Jobs/Notes."
+        },
+        not_in: %{type: "string", description: "Take it out of a folder it is also filed in."},
         archived: %{type: "boolean", description: "true puts it away with its children."},
         pin_card: %{type: "integer", description: "Card this is *the* page for."},
         unpin_card: %{type: "integer"},
@@ -87,6 +93,8 @@ defmodule SlipdockWeb.MCP.Tools.UpdatePage do
          {:ok, unpin} <- pin_target(auth, args, "unpin_card"),
          {:ok, page} <- restore(page, archived),
          {:ok, page} <- save(page, attrs, opts(args, context)),
+         :ok <- placement(page, args, "also", context),
+         :ok <- placement(page, args, "not_in", context),
          {:ok, page} <- reposition(page, move),
          :ok <- pin(page, pin, true),
          :ok <- pin(page, unpin, false),
@@ -108,10 +116,40 @@ defmodule SlipdockWeb.MCP.Tools.UpdatePage do
          :archived_at,
          :content_hash
        ])
+       |> Map.put(
+         :also_in,
+         Enum.map(Slipdock.Wiki.Placements.folders(page), &Wiki.folder_path/1)
+       )
        |> Map.merge(%{
          pinned_to: pinned_to(pin, unpin),
          url: context.base_url <> V.page_url(page)
        })}
+    end
+  end
+
+  # Also filed in (W-103 R12): a folder on the page's board, or a vault path.
+  defp placement(_page, args, key, _context) when not is_map_key(args, key), do: :ok
+
+  defp placement(page, args, key, context) do
+    with {:ok, ref} <- Args.required(args, key),
+         {:ok, folder} <- placement_folder(page, ref, key == "also"),
+         {:ok, _} <- Args.refusal(act(key, page, folder, context.user)),
+         do: :ok
+  end
+
+  defp act("also", page, folder, user), do: Slipdock.Wiki.Placements.add(page, folder, user)
+  defp act("not_in", page, folder, user), do: Slipdock.Wiki.Placements.remove(page, folder, user)
+
+  defp placement_folder(page, "/" <> _ = path, create?),
+    do: Args.refusal(Slipdock.Wiki.Placements.folder_at(page, path, create: create?))
+
+  defp placement_folder(page, ref, create?) do
+    board = Wiki.board_of(page)
+
+    case Wiki.find_folder(board, ref) do
+      {:ok, folder} -> {:ok, folder}
+      _ when create? -> Args.refusal(Wiki.create_folder(board, %{"name" => ref}))
+      error -> Args.refusal(error)
     end
   end
 

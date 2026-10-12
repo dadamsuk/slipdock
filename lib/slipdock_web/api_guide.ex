@@ -1644,6 +1644,15 @@ defmodule SlipdockWeb.APIGuide do
     # → {"deleted": {...}, "purged": {"pages": 4, "folders": 1}}
     ```
 
+    **One page, several folders.** `folder_id` is a page's **home**; it can be
+    **also filed in** other folders, as a symbolic link would be — one body,
+    one history. `POST /api/pages/W-31/folder {"also": "Ideas"}` adds one
+    (made if new), `{"not_in": "Ideas"}` takes it away, `board` names another
+    board's folder, and a vault path (`"/Jobs/Notes"`) reaches any board of
+    the page's vault. A page's JSON lists them as `also_in`; a folder's
+    listing (`?folder=`, `/folders`) includes them marked `"also": true`, each
+    page once. Archiving keeps them; deleting a folder drops its own.
+
     **File it, don't nest it.** Making a parent page called "Design" that
     exists only to hold other pages is the mistake folders are for: the page
     is about nothing, and it has to be read to be got past. A folder is a

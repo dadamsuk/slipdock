@@ -18,7 +18,7 @@ defmodule SlipdockWeb.API.PageController do
   use SlipdockWeb, :controller
 
   alias Slipdock.{Boards, Wiki}
-  alias Slipdock.Wiki.{Archive, FrontMatter, Page, Query}
+  alias Slipdock.Wiki.{Archive, FrontMatter, Page, Placements, Query}
   alias SlipdockWeb.API.Authorize
   alias SlipdockWeb.API.Uploads
   alias SlipdockWeb.API.JSON, as: V
@@ -59,7 +59,8 @@ defmodule SlipdockWeb.API.PageController do
       q: params["q"],
       parent: parent_opt(params["parent"]),
       folder: folder_opt(board, params["folder"]),
-      note_tag: params["note_tag"]
+      note_tag: params["note_tag"],
+      as: conn.assigns.current_user
     ]
   end
 
@@ -815,10 +816,14 @@ defmodule SlipdockWeb.API.PageController do
   @doc "The board's folders, nested, with the pages filed in each."
   def folders(conn, %{"board" => ref} = params) do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, :read) do
-      pages = Wiki.list_pages(board, list_opts(conn, board, params))
+      opts = list_opts(conn, board, params)
+      pages = Wiki.list_pages(board, opts)
+
+      also =
+        Placements.pages_by_folder(board.id, conn.assigns.current_user, archived: opts[:archived])
 
       json(conn, %{
-        folders: V.folder_tree(Wiki.folder_tree(board, pages)),
+        folders: V.folder_tree(Wiki.folder_tree(board, pages), also),
         pages: V.page_tree(Wiki.unfiled(pages))
       })
     end
@@ -865,13 +870,72 @@ defmodule SlipdockWeb.API.PageController do
     end
   end
 
-  @doc "Files a page in a folder, or takes it out of one with no `folder`."
+  @doc """
+  Files a page in a folder, or takes it out of one with no `folder`.
+
+  And in several folders (W-103 R12): `also` files it in one more, `not_in`
+  takes it out of one it was also filed in. Either names a folder on the
+  page's board, on `board` when one is given, or by vault path
+  (`"/Jobs/Notes"`) on a board in the same vault. `folder` may come too.
+  """
+  def file(conn, %{"id" => id} = params)
+      when is_map_key(params, "also") or is_map_key(params, "not_in") do
+    user = conn.assigns.current_user
+
+    with {:ok, page} <- fetch_page(conn, id, :write),
+         {:ok, page} <- maybe_home(conn, page, params),
+         {:ok, _} <- placement(conn, page, params, "also", &Placements.add(page, &1, user)),
+         {:ok, _} <- placement(conn, page, params, "not_in", &Placements.remove(page, &1, user)) do
+      json(conn, %{page: V.page(with_users(Wiki.get_page!(page.id)))})
+    end
+  end
+
   def file(conn, %{"id" => id} = params) do
     with {:ok, page} <- fetch_page(conn, id, :write),
          board <- Wiki.board_of(page),
          {:ok, attrs} <- resolve_folder(board, %{}, Map.put_new(params, "folder", nil)),
          {:ok, page} <- Wiki.update_page(page, attrs, write_opts(conn, params)) do
       json(conn, %{page: V.page(with_users(page))})
+    end
+  end
+
+  defp maybe_home(conn, page, params) when is_map_key(params, "folder") do
+    board = Wiki.board_of(page)
+
+    with {:ok, attrs} <- resolve_folder(board, %{}, params),
+         do: Wiki.update_page(page, attrs, write_opts(conn, params))
+  end
+
+  defp maybe_home(_conn, page, _params), do: {:ok, page}
+
+  defp placement(_conn, _page, params, key, _act) when not is_map_key(params, key),
+    do: {:ok, nil}
+
+  defp placement(conn, page, params, key, act) do
+    with {:ok, folder} <-
+           placement_folder(conn, page, params[key], params["board"], key == "also"),
+         do: act.(folder)
+  end
+
+  # A vault path, a folder on a named board, or a folder on the page's own.
+  defp placement_folder(_conn, _page, ref, _board, _create?) when ref in [nil, ""],
+    do: {:error, :bad_request, "say which folder"}
+
+  defp placement_folder(_conn, page, "/" <> _ = path, _board, create?),
+    do: Placements.folder_at(page, path, create: create?)
+
+  defp placement_folder(conn, page, ref, board_ref, create?) do
+    board_result =
+      if board_ref in [nil, ""],
+        do: {:ok, Wiki.board_of(page)},
+        else: Authorize.fetch_board(conn, board_ref, :write)
+
+    with {:ok, board} <- board_result do
+      case Wiki.find_folder(board, ref) do
+        {:ok, folder} -> {:ok, folder}
+        _ when create? and is_binary(ref) -> Wiki.create_folder(board, %{"name" => ref})
+        error -> error
+      end
     end
   end
 

@@ -477,13 +477,10 @@ defmodule SlipdockCLI.Wiki do
 
   # Filing a page that already exists. Separate from `mv`, which moves it in
   # the page tree: where a page is kept and what it is part of are two axes.
+  # Also filed in: a page has one home folder (--folder) and may be filed in
+  # others as well, like a symbolic link — one page, several places.
   def run("page", ["file", ref], o) do
-    if is_nil(o[:folder]) and o[:no_folder] != true and o[:root] != true,
-      do: fail("say where: --folder PATH, or --no-folder to take it out of one")
-
-    body = %{"folder" => if(o[:no_folder] || o[:root], do: nil, else: o[:folder])}
-
-    HTTP.post("/pages/#{enc(ref)}/folder", body) |> out(o, &page_ok("filed", &1))
+    if o[:also] || o[:not_in], do: file_also(ref, o), else: file_home(ref, o)
   end
 
   def run("page", ["mv", ref], o) do
@@ -629,5 +626,36 @@ defmodule SlipdockCLI.Wiki do
   rescue
     e in [File.Error] -> fail("couldn't read #{path}: #{Exception.message(e)}")
     _ -> fail("#{path} isn't valid JSON")
+  end
+
+  defp file_also(ref, o) do
+    body =
+      compact(%{
+        "also" => o[:also],
+        "not_in" => o[:not_in],
+        "board" => o[:board],
+        "folder" => o[:folder]
+      })
+
+    HTTP.post("/pages/#{enc(ref)}/folder", body)
+    |> out(o, fn %{"page" => page} = r ->
+      page_ok("filed", r)
+
+      for f <- page["also_in"] || [],
+          do: IO.puts("  also in " <> f["path"] <> "  " <> Render.dim(f["board"] || ""))
+    end)
+  end
+
+  defp file_home(ref, o) do
+    if is_nil(o[:folder]) and o[:no_folder] != true and o[:root] != true,
+      do:
+        fail(
+          "say where: --folder PATH, --no-folder to take it out of one, " <>
+            "or --also PATH / --not-in PATH for the folders it is also filed in"
+        )
+
+    body = %{"folder" => if(o[:no_folder] || o[:root], do: nil, else: o[:folder])}
+
+    HTTP.post("/pages/#{enc(ref)}/folder", body) |> out(o, &page_ok("filed", &1))
   end
 end
