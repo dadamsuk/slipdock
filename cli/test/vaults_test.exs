@@ -117,4 +117,16 @@ defmodule SlipdockCLI.VaultsTest do
     assert out =~ "folder deleted  #9"
     assert out =~ "cursor 13 — more to come"
   end
+
+  test "changes says to resync when the cursor is older than what is kept" do
+    {_, _, _, out} =
+      run(
+        ["changes", "Notes"],
+        [since: 1],
+        ~s({"changes":[],"cursor":900,"more":false,"resync":true})
+      )
+
+    assert out =~ "resync"
+    assert out =~ "cursor 900"
+  end
 end

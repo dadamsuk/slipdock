@@ -2489,6 +2489,9 @@ cursor, each page or folder once and as it is now (a page's code, title,
 with the one to start from. A client can also keep a websocket open at
 `/socket/websocket?token=<API token>&vsn=2.0.0` and join `vault:<id or name>`:
 each change pushes `change` with the new cursor, so it knows when to ask.
+The log keeps 90 days (`config :slipdock, :wiki_changes, retention_days:`);
+asked from a cursor older than that, the feed answers `resync: true` and the
+current cursor, which means list the vault again rather than trust the gap.
 
 **Tags in notes.** On a board in a vault, a note's front matter `tags` and
 every inline `#tag` in its body are its tags, nested ones (`#area/sub`)

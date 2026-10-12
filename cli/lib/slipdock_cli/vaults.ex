@@ -83,18 +83,25 @@ defmodule SlipdockCLI.Vaults do
   # cursor to start from.
   def run("vault", ["changes", ref], o) do
     HTTP.get("/vaults/#{enc(ref)}/changes", since: o[:since], limit: o[:limit])
-    |> out(o, fn r ->
-      Enum.each(r["changes"], fn c ->
-        what = c["path"] || c["code"] || c["filename"] || c["name"] || "##{c["id"]}"
+    |> out(o, fn
+      %{"resync" => true} = r ->
+        IO.puts(
+          "resync: changes from before that cursor are no longer kept — list the vault " <>
+            "again, then follow from cursor #{r["cursor"]}"
+        )
+
+      r ->
+        Enum.each(r["changes"], fn c ->
+          what = c["path"] || c["code"] || c["filename"] || c["name"] || "##{c["id"]}"
+
+          IO.puts(
+            String.pad_trailing("#{c["cursor"]}", 8) <> "#{c["subject"]} #{c["action"]}  #{what}"
+          )
+        end)
 
         IO.puts(
-          String.pad_trailing("#{c["cursor"]}", 8) <> "#{c["subject"]} #{c["action"]}  #{what}"
+          Render.dim("cursor #{r["cursor"]}" <> if(r["more"], do: " — more to come", else: ""))
         )
-      end)
-
-      IO.puts(
-        Render.dim("cursor #{r["cursor"]}" <> if(r["more"], do: " — more to come", else: ""))
-      )
     end)
   end
 

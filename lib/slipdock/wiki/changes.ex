@@ -12,6 +12,11 @@ defmodule Slipdock.Wiki.Changes do
   row per save, and a board that joins a vault later needs nothing backfilled
   — a client starting out lists the vault, then follows the feed.
 
+  Rows older than a retention window (`config :slipdock, :wiki_changes,
+  retention_days: 90`) are pruned (`prune/1`). A client asking from a cursor
+  older than what is kept is told `resync: true`: re-list the vault, because
+  some changes — deletions among them — are no longer here to be read.
+
   A change is also announced on `"vault_changes:<vault id>"` as
   `{:vault_change, vault_id, cursor}`, which is what the websocket channel
   passes on, so an open client knows to poll rather than polling blind.
@@ -107,23 +112,81 @@ defmodule Slipdock.Wiki.Changes do
 
     case since do
       nil ->
-        %{changes: [], cursor: latest(board_ids), more: false}
+        %{changes: [], cursor: latest(board_ids), more: false, resync: false}
 
       since when is_integer(since) ->
-        rows =
-          from(c in Change,
-            where: c.board_id in ^board_ids and c.id > ^since,
-            order_by: [asc: c.id],
-            limit: ^(limit + 1)
-          )
-          |> Repo.all()
+        if pruned_past?(since),
+          do: %{changes: [], cursor: latest(board_ids), more: false, resync: true},
+          else: window(vault, board_ids, since, reader, limit)
+    end
+  end
 
-        {rows, more?} =
-          if length(rows) > limit, do: {Enum.take(rows, limit), true}, else: {rows, false}
+  defp window(vault, board_ids, since, reader, limit) do
+    rows =
+      from(c in Change,
+        where: c.board_id in ^board_ids and c.id > ^since,
+        order_by: [asc: c.id],
+        limit: ^(limit + 1)
+      )
+      |> Repo.all()
 
-        cursor = if rows == [], do: since, else: List.last(rows).id
+    {rows, more?} =
+      if length(rows) > limit, do: {Enum.take(rows, limit), true}, else: {rows, false}
 
-        %{changes: describe(rows, vault, reader), cursor: cursor, more: more?}
+    cursor = if rows == [], do: since, else: List.last(rows).id
+
+    %{changes: describe(rows, vault, reader), cursor: cursor, more: more?, resync: false}
+  end
+
+  ## Keeping it short ---------------------------------------------------------
+
+  @doc "How many days of changes are kept."
+  def retention_days,
+    do: Application.get_env(:slipdock, :wiki_changes, [])[:retention_days] || 90
+
+  @doc """
+  Deletes the rows older than the retention window, as of `now`. Returns how
+  many went. A client whose cursor falls among them is told to resync.
+  """
+  def prune(now \\ DateTime.utc_now()) do
+    cutoff = DateTime.add(now, -retention_days(), :day)
+
+    {count, ids} =
+      Repo.delete_all(from(c in Change, where: c.inserted_at < ^cutoff, select: c.id))
+
+    if ids != [] do
+      up_to = Enum.max(ids)
+
+      Repo.query!(
+        """
+        INSERT INTO wiki_change_marks (name, cursor) VALUES ('pruned', $1)
+        ON CONFLICT (name) DO UPDATE SET cursor = GREATEST(wiki_change_marks.cursor, EXCLUDED.cursor)
+        """,
+        [up_to]
+      )
+    end
+
+    count
+  end
+
+  @doc "`prune/1`, at most once an hour on this node, for a clock that ticks every minute."
+  def prune_hourly(now \\ DateTime.utc_now()) do
+    last = :persistent_term.get({__MODULE__, :pruned_at}, nil)
+
+    if is_nil(last) or DateTime.diff(now, last) >= 3600 do
+      :persistent_term.put({__MODULE__, :pruned_at}, now)
+      prune(now)
+    else
+      0
+    end
+  end
+
+  # Whether rows after `since` have been pruned: the highest cursor pruned
+  # so far is kept, and a client below it may have missed something.
+  defp pruned_past?(since) do
+    case Repo.query!("SELECT cursor FROM wiki_change_marks WHERE name = 'pruned'") do
+      %{rows: [[pruned]]} -> since < pruned
+      _ -> false
     end
   end
 
