@@ -89,7 +89,10 @@ Briefly, with the detail in [the manual](docs/manual.md):
   budget voting, typed links and goals](docs/manual.md#roadmapping).
 - **A wiki per board** — [Markdown pages in a tree of folders](docs/manual.md#wiki),
   `[[links]]`, live card chips, live query blocks, backlinks, revisions,
-  templates, export and public links. Plus a
+  templates, export and public links. Several boards' wikis can be laid out as
+  one Obsidian-style [vault](docs/manual.md#vaults): links, `#tags`, aliases,
+  embeds and front matter as Obsidian reads them, a page filed in several
+  folders, and a change feed for sync. Plus a
   [Narrative view](docs/manual.md#narrative) that tells you what happened to a
   set of cards over a date range.
 - **Automations** — ["when a card lands in Done, email the team"](docs/manual.md#automations-and-alerts),
