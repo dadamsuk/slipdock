@@ -62,13 +62,15 @@ defmodule SlipdockWeb.AttachmentsLiveTest do
     board: board,
     card: card
   } do
+    # The real limit is 250 MB; a small one shows the same refusal.
+    Slipdock.TestConfig.put(:attachment_max_size, 1000)
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/cards/#{card.id}")
 
     input =
       file_input(view, "#attach-form", :attachment, [
         %{
           name: "huge.bin",
-          content: :binary.copy(<<0>>, Slipdock.Boards.Attachment.max_size() + 1),
+          content: :binary.copy(<<0>>, 1001),
           type: "application/octet-stream"
         }
       ])

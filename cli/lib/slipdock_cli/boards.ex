@@ -409,18 +409,14 @@ defmodule SlipdockCLI.Boards do
     if o[:name] && length(files) > 1, do: fail("--name names one file; give one at a time")
 
     Enum.each(files, fn file ->
-      bytes =
-        case File.read(file) do
-          {:ok, bytes} -> bytes
-          {:error, _} -> fail("can't read #{file}")
-        end
+      unless File.regular?(file), do: fail("can't read #{file}")
 
       name = o[:name] || Path.basename(file)
 
       fields = if o[:hide_on_card], do: [{"hide_on_card", "true"}], else: []
 
       HTTP.post_multipart(item_path(id, "/attachments"), fields, [
-        {"file", name, "application/octet-stream", bytes}
+        {"file", name, "application/octet-stream", {:path, file}}
       ])
       |> out(o, fn %{"attachment" => a} ->
         IO.puts("attached #{a["filename"]} to #{item_name(id)} [attachment ##{a["id"]}]")

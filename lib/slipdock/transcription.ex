@@ -62,11 +62,11 @@ defmodule Slipdock.Transcription do
     with {:ok, server} <- server(opts),
          req = req(server),
          {:ok, status} <- get_status(req),
-         {:ok, bytes} <- read(path) do
+         {:ok, file} <- open(path) do
       diarize? = "diarization" in List.wrap(status["capabilities"])
 
       form = [
-        file: {bytes, [filename: filename] ++ content_type(opts[:content_type])},
+        file: {file, [filename: filename] ++ content_type(opts[:content_type])},
         model: "default",
         response_format: if(diarize?, do: "diarized_json", else: "json")
       ]
@@ -161,9 +161,13 @@ defmodule Slipdock.Transcription do
   ## The server ---------------------------------------------------------------
 
   defp server(opts) do
-    settings = Settings.get()
-    url = opts[:url] || settings.transcription_server_url
-    token = Keyword.get(opts, :token, settings.transcription_server_token)
+    # The stored settings only for what the caller didn't say.
+    url = opts[:url] || Settings.get().transcription_server_url
+
+    token =
+      if Keyword.has_key?(opts, :token),
+        do: opts[:token],
+        else: Settings.get().transcription_server_token
 
     if present?(url),
       do: {:ok, %{root: root(url), token: token}},
@@ -218,11 +222,12 @@ defmodule Slipdock.Transcription do
 
   defp major(version), do: version |> to_string() |> String.split(".") |> hd()
 
-  defp read(path) do
-    case File.read(path) do
-      {:ok, bytes} -> {:ok, bytes}
-      {:error, reason} -> {:error, "can't read the recording (#{reason})"}
-    end
+  # Streamed from disk a megabyte at a time, never read whole: an attachment
+  # can be 250 MB. A retry enumerates it again from the start.
+  defp open(path) do
+    if File.regular?(path),
+      do: {:ok, File.stream!(path, 1_048_576)},
+      else: {:error, "can't read the recording (it is not on disk)"}
   end
 
   ## Submitting, and the retries section 6 allows ------------------------------
@@ -407,7 +412,7 @@ defmodule Slipdock.Transcription do
     if config()[:sleep] == false, do: :ok, else: Process.sleep(ms)
   end
 
-  defp config, do: Application.get_env(:slipdock, :transcription, [])
+  defp config, do: Slipdock.Config.get(:transcription, [])
 
   defp present?(value), do: is_binary(value) and String.trim(value) != ""
 end

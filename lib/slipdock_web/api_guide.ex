@@ -638,8 +638,11 @@ defmodule SlipdockWeb.APIGuide do
       with `POST /api/cards/:id/urls {"url": "…", "title": "…"}`, remove it
       with `DELETE /api/cards/:id/urls/:url_id`. Use these for anything that
       lives outside the board; `attachments` are files the board itself holds.
-    - **Attachments** (`attachments`) — files the board holds, up to 25 MB
-      each. Upload one as the multipart field `file`:
+    - **Attachments** (`attachments`) — files the board holds, up to 250 MB
+      each (a proxy in front of the server may refuse one request well before
+      that: Cloudflare's free and pro plans stop at 100 MB, with a 413 that
+      never reaches Slipdock — a person can still upload it in the browser,
+      which sends it in chunks). Upload one as the multipart field `file`:
       `curl -H "$H" -F file=@shot.png B/api/cards/:id/attachments` (an optional
       `filename` field renames it). The 201 carries the `attachment` with its
       `url` and a ready-made `markdown` — `![shot.png](/attachments/5/shot.png)`

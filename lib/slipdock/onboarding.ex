@@ -271,7 +271,7 @@ defmodule Slipdock.Onboarding do
         can carry is down the right-hand side: a Markdown description, a
         checklist, tags, five flags (flagged, blocked, needs review, waiting,
         starred), a priority, start and due dates, an assignee, dependencies on
-        other cards, typed links, web links, file attachments up to 25 MB, docs
+        other cards, typed links, web links, file attachments up to 250 MB, docs
         and comments.
 
         Each heading has one letter underlined: that letter jumps to the

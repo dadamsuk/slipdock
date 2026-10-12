@@ -23,7 +23,7 @@ defmodule SlipdockCLI.Meetings do
         unless File.regular?(audio), do: fail("no file at #{audio}")
 
         files =
-          [{"audio", Path.basename(audio), audio_type(audio), File.read!(audio)}] ++
+          [{"audio", Path.basename(audio), audio_type(audio), {:path, audio}}] ++
             file_part("transcript", o[:transcript]) ++
             file_part("findings", o[:findings]) ++ file_part("ics", o[:ics])
 

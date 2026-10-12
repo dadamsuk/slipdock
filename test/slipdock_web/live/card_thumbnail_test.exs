@@ -78,6 +78,42 @@ defmodule SlipdockWeb.CardThumbnailTest do
     refute has_element?(view, thumb(card))
   end
 
+  test "an image too large to be a thumbnail gives way to a smaller one", %{
+    conn: conn,
+    board: board,
+    card: card
+  } do
+    path = Path.join(System.tmp_dir!(), "thumb-#{System.unique_integer([:positive])}")
+    File.write!(path, @png)
+    on_exit(fn -> File.rm(path) end)
+
+    {:ok, huge} =
+      Boards.add_attachment(
+        card,
+        %{
+          filename: "poster.png",
+          content_type: "image/png",
+          size: Attachment.thumbnail_max() + 1
+        },
+        path
+      )
+
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}")
+    refute has_element?(view, thumb(card))
+
+    small = attach(card, "small.png")
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}")
+    assert has_element?(view, thumb_of(card, small))
+    refute has_element?(view, thumb_of(card, huge))
+
+    # Exactly the limit is still small enough.
+    assert Attachment.front_image?(%Attachment{
+             content_type: "image/png",
+             hide_on_card: false,
+             size: Attachment.thumbnail_max()
+           })
+  end
+
   test "Display can leave images out, comfortable and compact alike", %{
     conn: conn,
     board: board,
