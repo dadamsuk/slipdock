@@ -31,7 +31,7 @@ defmodule Slipdock.Wiki.Archive do
 
   alias Slipdock.Boards.Board
   alias Slipdock.Wiki
-  alias Slipdock.Wiki.Page
+  alias Slipdock.Wiki.{FrontMatter, Page}
 
   ## Out -----------------------------------------------------------------------
 
@@ -106,8 +106,15 @@ defmodule Slipdock.Wiki.Archive do
     end)
   end
 
-  @doc "One page as a Markdown file, front matter and all."
-  def file(%Page{} = page) do
+  @doc """
+  One page as a Markdown file, front matter and all.
+
+  A page that came from a file with front matter of its own keeps it: the
+  keys Slipdock owns are patched where they stand, and every other key,
+  comment and quote is written back exactly as it was read (see
+  `Slipdock.Wiki.FrontMatter`). A page with none gets Slipdock's keys alone.
+  """
+  def file(%Page{front_matter: nil} = page) do
     front =
       [
         {"title", page.title},
@@ -123,6 +130,93 @@ defmodule Slipdock.Wiki.Archive do
       |> Enum.map_join("\n", fn {k, v} -> "#{k}: #{v}" end)
 
     "---\n" <> front <> "\n---\n\n" <> String.trim_trailing(to_string(page.body)) <> "\n"
+  end
+
+  def file(%Page{front_matter: header} = page) do
+    yaml =
+      header
+      |> FrontMatter.yaml()
+      |> FrontMatter.put("title", page.title)
+      |> FrontMatter.put("code", page.code)
+      |> FrontMatter.put("slug", page.slug)
+      |> FrontMatter.put("summary", page.summary)
+      |> put_ours("status", page.status, Page.statuses())
+      |> put_ours("template", page.template && true, ~w(true false))
+      |> put_board_tags(page)
+      |> FrontMatter.put("updated", page.updated_at && DateTime.to_iso8601(page.updated_at))
+
+    FrontMatter.with_yaml(header, yaml) <> String.trim_trailing(to_string(page.body)) <> "\n"
+  end
+
+  @doc """
+  One page as the file a sync writes: its own front matter, exactly as it
+  was read, with only what the page has changed since patched in — and no
+  key that changes on every save (W-103 R3.3), so a sync never rewrites a
+  file just to move a timestamp.
+
+    * `title` only when it differs from `:file_title`, the title the file's
+      name already says (or when the file carried one already);
+    * `code` only with `code: true`;
+    * `summary` when there is one, `status` when it is a draft, `template`
+      when it is one — or when the file already said otherwise;
+    * no `updated`, no `slug`, no author.
+
+  A page with nothing to say and no front matter of its own is its body.
+  """
+  def sync_file(%Page{} = page, opts \\ []) do
+    header = page.front_matter
+    yaml = FrontMatter.yaml(header) || ""
+    file_title = Keyword.get(opts, :file_title, page.title)
+
+    yaml =
+      yaml
+      |> put_if(
+        "title",
+        page.title,
+        page.title != file_title or FrontMatter.has_key?(yaml, "title")
+      )
+      |> put_if("code", page.code, opts[:code] == true)
+      |> put_if(
+        "summary",
+        page.summary,
+        page.summary != nil or FrontMatter.has_key?(yaml, "summary")
+      )
+      |> put_if(
+        "status",
+        page.status,
+        page.status == "draft" or ours?(yaml, "status", Page.statuses())
+      )
+      |> put_if(
+        "template",
+        page.template,
+        page.template or ours?(yaml, "template", ~w(true false))
+      )
+
+    case FrontMatter.with_yaml(header, yaml) do
+      nil -> to_string(page.body)
+      header -> header <> to_string(page.body)
+    end
+  end
+
+  defp put_if(yaml, key, value, true), do: FrontMatter.put(yaml, key, value)
+  defp put_if(yaml, _key, _value, false), do: yaml
+
+  # A key Slipdock owns, unless the file already uses it for something else:
+  # `status: reading` is the writer's own, and stays.
+  defp put_ours(yaml, key, value, vocabulary) do
+    if FrontMatter.has_key?(yaml, key) and not ours?(yaml, key, vocabulary),
+      do: yaml,
+      else: FrontMatter.put(yaml, key, value)
+  end
+
+  defp ours?(yaml, key, vocabulary), do: FrontMatter.get(yaml, key) in vocabulary
+
+  # A file's own `tags` are the note's (see W-103 R3.2); the board's tags are
+  # written only where the file has none.
+  defp put_board_tags(yaml, page) do
+    if FrontMatter.has_key?(yaml, "tags"),
+      do: yaml,
+      else: FrontMatter.put(yaml, "tags", tags(page))
   end
 
   # Not `v in [nil, "", false]`: :cover cannot compile that inside an
@@ -309,7 +403,8 @@ defmodule Slipdock.Wiki.Archive do
   end
 
   defp write(board, path, text, parent, folder, opts) do
-    {front, body} = split_front_matter(text)
+    {header, body} = FrontMatter.split(text)
+    front = known_keys(header)
     title = front["title"] || readable_title(path)
 
     attrs =
@@ -318,7 +413,8 @@ defmodule Slipdock.Wiki.Archive do
         "body" => body,
         "summary" => front["summary"],
         "status" => if(front["status"] in ["draft", "published"], do: front["status"]),
-        "template" => front["template"] == "true"
+        "template" => front["template"] == "true",
+        "front_matter" => header || ""
       }
       |> Enum.reject(fn {_k, v} -> is_nil(v) end)
       |> Map.new()
@@ -368,28 +464,26 @@ defmodule Slipdock.Wiki.Archive do
   defp markdown?(name), do: String.ends_with?(String.downcase(name), [".md", ".markdown"])
 
   @doc """
-  Splits YAML-ish front matter off a Markdown file: `{map, body}`.
-
-  Deliberately simple — `key: value` lines between `---` markers, which is
-  what every Markdown editor writes and all this needs to read.
+  Splits front matter off a Markdown file: `{map, body}`, the map holding the
+  keys a page maps onto its own fields — `title`, `summary`, `status`,
+  `template` — as strings. The rest is kept, exactly, by the page's
+  `front_matter` (see `Slipdock.Wiki.FrontMatter`).
   """
   def split_front_matter(text) do
-    case Regex.run(~r/\A---\s*\n(.*?)\n---\s*\n?(.*)\z/s, text) do
-      [_, front, body] -> {parse_front(front), String.trim_leading(body)}
-      _ -> {%{}, text}
-    end
+    {header, body} = FrontMatter.split(text)
+    {known_keys(header), body}
   end
 
-  defp parse_front(text) do
-    text
-    |> String.split("\n")
-    |> Enum.flat_map(fn line ->
-      case String.split(line, ":", parts: 2) do
-        [key, value] -> [{String.trim(key), value |> String.trim() |> String.trim("\"")}]
-        _ -> []
-      end
-    end)
-    |> Map.new()
+  defp known_keys(nil), do: %{}
+
+  defp known_keys(header) do
+    yaml = FrontMatter.yaml(header)
+
+    for key <- ~w(title summary status template),
+        value = FrontMatter.get(yaml, key),
+        is_binary(value),
+        into: %{},
+        do: {key, value}
   end
 
   defp errors(%Ecto.Changeset{} = changeset) do

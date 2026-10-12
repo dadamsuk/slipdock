@@ -2667,6 +2667,20 @@ defmodule SlipdockWeb.WikiLive.Index do
         </span>
       </div>
 
+      <%!-- The front matter the page's file came with, kept exactly as it
+            was written (W-103 R3). Folded away: it is the file's business
+            more than the reader's, and most pages have none. --%>
+      <details
+        :if={@page.front_matter}
+        id="page-properties"
+        class="mt-4 rounded-xl border border-base-300 bg-base-200/40 px-4 py-2 text-sm"
+      >
+        <summary class="cursor-pointer select-none text-xs font-semibold uppercase tracking-wide text-base-content/60">
+          Properties
+        </summary>
+        <pre class="mt-2 overflow-x-auto whitespace-pre-wrap font-mono text-xs text-base-content/80">{Slipdock.Wiki.FrontMatter.yaml(@page.front_matter)}</pre>
+      </details>
+
       <div
         id="wiki-body"
         phx-hook="WikiSelection"

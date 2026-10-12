@@ -85,6 +85,10 @@ defmodule Slipdock.Wiki.Page do
     field :frozen, :map
     field :published_at, :utc_datetime
     field :content_hash, :string
+    # The front matter of the file the page came from, exactly as written:
+    # the whole header, `---` lines and all (see `Slipdock.Wiki.FrontMatter`).
+    # Keys Slipdock does not know live only here.
+    field :front_matter, :string
     field :archived_at, :utc_datetime
 
     belongs_to :board, Board
@@ -255,9 +259,14 @@ defmodule Slipdock.Wiki.Page do
       :completed,
       :percent_complete,
       :color,
-      :assignee_id
+      :assignee_id,
+      :front_matter
     ])
     |> update_change(:title, &String.trim/1)
+    |> update_change(:front_matter, fn
+      "" -> nil
+      header -> header
+    end)
     |> update_change(:slug, &sanitize_slug/1)
     |> validate_required([:title])
     |> validate_length(:title, min: 1, max: @title_length)
@@ -265,6 +274,7 @@ defmodule Slipdock.Wiki.Page do
     |> validate_length(:summary, max: 300)
     |> validate_inclusion(:status, @statuses)
     |> validate_facets()
+    |> validate_front_matter()
     |> put_hash()
     |> unique_constraint([:board_id, :slug],
       error_key: :slug,
@@ -297,6 +307,23 @@ defmodule Slipdock.Wiki.Page do
       greater_than_or_equal_to: 0,
       less_than_or_equal_to: 100
     )
+  end
+
+  # Stored as a whole header, so whatever is stored splits back off a file as
+  # exactly itself — which is the round trip the column exists for.
+  defp validate_front_matter(changeset) do
+    validate_change(changeset, :front_matter, fn :front_matter, header ->
+      cond do
+        byte_size(header) > 65_536 ->
+          [front_matter: "is too long (64 KB at most)"]
+
+        Slipdock.Wiki.FrontMatter.split(header) != {header, ""} ->
+          [front_matter: "is not front matter"]
+
+        true ->
+          []
+      end
+    end)
   end
 
   defp validate_dates(changeset) do

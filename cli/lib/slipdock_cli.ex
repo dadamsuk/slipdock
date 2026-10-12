@@ -166,6 +166,10 @@ defmodule SlipdockCLI do
                     [--folder F | --no-folder]
     page tree <board>                   the page tree, nesting shown by indent
     page read <page>                    print the Markdown source
+    page props <page> [--body TEXT | --file F | --clear]
+                                        the front matter its file came with, kept exactly as
+                                        written; with --body/--file, replace it (YAML only,
+                                        no --- lines)
     page render <page> [--format markdown|html|text]
                                         the same with every reference resolved: links
                                         followed, #412 filled in with what the card says

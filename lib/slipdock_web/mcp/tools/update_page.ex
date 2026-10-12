@@ -24,7 +24,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdatePage do
   @impl true
   def description,
     do:
-      "Changes a page but not its body: title, summary, parent (\"\" for the top) and " <>
+      "Changes a page but not its body: title, summary, front_matter, parent (\"\" for the top) and " <>
         "position, folder, archived (false restores), and pinning it as the page for a card. " <>
         "Only what you pass changes. write_page edits the body."
 
@@ -40,6 +40,10 @@ defmodule SlipdockWeb.MCP.Tools.UpdatePage do
         board: %{type: "string", description: "Board, when page is a slug or title."},
         title: %{type: "string"},
         summary: %{type: "string", description: "One line on what the page is; \"\" clears it."},
+        front_matter: %{
+          type: "string",
+          description: "The YAML between the --- lines, as read_page gives it; \"\" removes it."
+        },
         parent: %{
           type: "string",
           description: "Page to sit under (code, slug or title); \"\" moves it to the top."
@@ -77,6 +81,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdatePage do
          {:ok, archived} <- Args.boolean(args, "archived"),
          {:ok, attrs} <- attrs(args),
          {:ok, attrs} <- folder(board, attrs, args),
+         {:ok, attrs} <- front_matter(page, attrs, args),
          {:ok, move} <- move(board, page, args),
          {:ok, pin} <- pin_target(auth, args, "pin_card"),
          {:ok, unpin} <- pin_target(auth, args, "unpin_card"),
@@ -147,6 +152,16 @@ defmodule SlipdockWeb.MCP.Tools.UpdatePage do
   defp summary(_), do: {:ok, nil}
 
   defp drop_unsent(attrs, args), do: Map.filter(attrs, fn {k, _} -> is_map_key(args, k) end)
+
+  # Kept as the whole header, so a page from a file keeps its own delimiters.
+  defp front_matter(_page, attrs, args) when not is_map_key(args, "front_matter"),
+    do: {:ok, attrs}
+
+  defp front_matter(page, attrs, args) do
+    with {:ok, header} <-
+           Slipdock.Wiki.FrontMatter.replace(page.front_matter, args["front_matter"]),
+         do: {:ok, Map.put(attrs, "front_matter", header)}
+  end
 
   # The folder by id, slug, name or path, made when it is not there yet, as
   # the API files a page; "" takes it out of the one it is in.
