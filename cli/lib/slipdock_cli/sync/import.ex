@@ -62,6 +62,18 @@ defmodule SlipdockCLI.Sync.Import do
   def drop_record(root), do: File.rm(record_path(root))
 
   @doc """
+  After a sync pass that adopted from the record (`imported` not nil): the
+  record is spent once a pass has had no errors, so every path in it has
+  been reconciled; until then the next pass adopts from it again.
+  """
+  def spent(_root, nil, _errors), do: :kept
+  def spent(root, _imported, []) do
+    drop_record(root)
+    :dropped
+  end
+  def spent(_root, _imported, _errors), do: :kept
+
+  @doc """
   The entries of a record that belong to `vault_id`, for the sync engine to
   adopt (`Engine.run/4`'s `:imported`); nil when there are none.
   """

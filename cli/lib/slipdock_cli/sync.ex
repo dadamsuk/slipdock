@@ -16,7 +16,7 @@ defmodule SlipdockCLI.Sync do
 
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
-  alias SlipdockCLI.Sync.{Engine, Remote, Service, State, Status, Watch}
+  alias SlipdockCLI.Sync.{Engine, Import, Remote, Service, State, Status, Watch}
 
   @commands ~w(sync)
 
@@ -51,6 +51,24 @@ defmodule SlipdockCLI.Sync do
     File.mkdir_p!(root)
     State.save(root, State.new(HTTP.base_url(), vault, Engine.hostname()))
     IO.puts("bound #{dir} to the vault #{Render.bold(vault["name"])}")
+
+    vault_id = vault["id"]
+
+    case Import.load_record(root) do
+      %{"vault" => %{"id" => ^vault_id}, "entries" => entries} ->
+        IO.puts("adopting the #{map_size(entries)} files `vault import` sent up from here")
+
+      %{"vault" => %{"name" => name}} ->
+        IO.puts(
+          :stderr,
+          "this folder was imported into #{name}, not #{vault["name"]}: " <>
+            "its files are matched by path and hash only"
+        )
+
+      _ ->
+        :ok
+    end
+
     warn_other_tools(root)
     pass(root, o)
   end
@@ -115,10 +133,15 @@ defmodule SlipdockCLI.Sync do
     with_lock(root, fn ->
       {:ok, state} = State.load(root)
 
-      case Engine.run(root, state, {Remote, state["vault"]["id"]}) do
+      # A folder `vault import` sent up is adopted, not sent again (R9.4).
+      # Its record is spent once a pass has come through without an error.
+      imported = root |> Import.load_record() |> Import.entries_for(state["vault"]["id"])
+
+      case Engine.run(root, state, {Remote, state["vault"]["id"]}, imported: imported) do
         {:ok, state, report} ->
           state = settle_cursor(state, report)
           State.save(root, state)
+          Import.spent(root, imported, report.errors)
           if o[:json], do: Render.json(json(report, state)), else: print(report, state, o)
           {:ok, state, report.errors}
 

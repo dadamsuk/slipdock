@@ -10,7 +10,7 @@ defmodule SlipdockCLI.SyncTest do
   import ExUnit.CaptureIO
 
   alias SlipdockCLI.{FakeServer, Sync}
-  alias SlipdockCLI.Sync.{Remote, State}
+  alias SlipdockCLI.Sync.{Import, Remote, State}
 
   setup do
     home = Path.join(System.tmp_dir!(), "slipdock-sync-cmd-#{System.unique_integer([:positive])}")
@@ -61,6 +61,66 @@ defmodule SlipdockCLI.SyncTest do
     assert state["last_run"]
     # The lock is gone once the pass is over.
     refute File.exists?(Path.join([dir, ".slipdock", "lock"]))
+  end
+
+  test "init on a folder `vault import` sent up adopts it, then lets the record go",
+       %{home: home} do
+    url = FakeServer.start([{200, @vault}, {200, @listing}])
+    System.put_env("SLIPDOCK_URL", url)
+    dir = Path.join(home, "Obsidian")
+    File.mkdir_p!(Path.join(dir, "Ops"))
+    File.write!(Path.join(dir, "Ops/Retry.md"), "Back off.\n")
+
+    Import.save_record(dir, %{
+      "vault" => %{"id" => 3, "name" => "Brain"},
+      "entries" => %{
+        "Ops/Retry.md" => %{"kind" => "page", "id" => 7, "sha" => @hash, "hash" => @hash}
+      }
+    })
+
+    out = capture_io(fn -> Sync.run("sync", ["init", dir], vault: "Brain") end)
+
+    assert out =~ "adopting the 1 files"
+    assert out =~ "sent 0, received 0"
+    # Only the vault and its listing were asked for: nothing sent, nothing fetched.
+    assert_received {:request, "GET", "/api/vaults/Brain", _}
+    assert_received {:request, "GET", "/api/vaults/3/sync", _}
+    refute_received {:request, _, _, _}
+    {:ok, state} = State.load(dir)
+    assert state["entries"]["Ops/Retry.md"]["id"] == 7
+    refute File.exists?(Import.record_path(dir))
+  end
+
+  test "init warns when the folder was imported into another vault", %{home: home} do
+    System.put_env(
+      "SLIPDOCK_URL",
+      FakeServer.start([{200, @vault}, {200, @listing}, {200, @page}])
+    )
+
+    dir = Path.join(home, "Obsidian")
+    Import.save_record(dir, %{"vault" => %{"id" => 99, "name" => "Old"}, "entries" => %{}})
+
+    err =
+      capture_io(:stderr, fn ->
+        capture_io(fn -> Sync.run("sync", ["init", dir], vault: "Brain") end)
+      end)
+
+    assert err =~ "imported into Old, not Brain"
+    # Another vault's record is not this one's to spend.
+    assert File.exists?(Import.record_path(dir))
+  end
+
+  test "the import record is spent only by a pass with no errors", %{home: home} do
+    dir = Path.join(home, "Obsidian")
+    record = %{"vault" => %{"id" => 3}, "entries" => %{}}
+
+    Import.save_record(dir, record)
+    assert Import.spent(dir, %{}, [%{path: "A.md", error: "boom"}]) == :kept
+    assert Import.spent(dir, nil, []) == :kept
+    assert File.exists?(Import.record_path(dir))
+
+    assert Import.spent(dir, %{}, []) == :dropped
+    refute File.exists?(Import.record_path(dir))
   end
 
   test "a pass from a folder inside the mirror finds the mirror, and talks to its own server",
