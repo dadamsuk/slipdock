@@ -99,7 +99,9 @@ defmodule SlipdockCLI.Wiki do
         IO.puts(Render.dim("no note tags — they are read on boards that are in a vault"))
 
       %{"tags" => tags} ->
-        Enum.each(tags, fn t -> IO.puts(String.pad_trailing("#" <> t["tag"], 32) <> " #{t["count"]}") end)
+        Enum.each(tags, fn t ->
+          IO.puts(String.pad_trailing("#" <> t["tag"], 32) <> " #{t["count"]}")
+        end)
     end)
   end
 
