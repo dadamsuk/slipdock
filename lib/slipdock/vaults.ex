@@ -27,7 +27,7 @@ defmodule Slipdock.Vaults do
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.Board
   alias Slipdock.Vaults.{Mapping, Vault}
-  alias Slipdock.Wiki.Folder
+  alias Slipdock.Wiki.{Folder, NoteTags}
 
   @preloads [mappings: [:board, :folder]]
 
@@ -164,7 +164,14 @@ defmodule Slipdock.Vaults do
   Deletes a vault and its mappings. The pages are untouched: they were always
   the boards', and the boards simply stop being in a vault.
   """
-  def delete_vault(%Vault{} = vault), do: Repo.delete(vault)
+  def delete_vault(%Vault{} = vault) do
+    boards = board_ids(vault)
+
+    with {:ok, deleted} <- Repo.delete(vault) do
+      Enum.each(boards, &NoteTags.refresh_board/1)
+      {:ok, deleted}
+    end
+  end
 
   @doc """
   Maps a vault path to a board's wiki, or to one folder of it.
@@ -186,8 +193,13 @@ defmodule Slipdock.Vaults do
       |> Mapping.changeset(%{path: path, board_id: board.id, folder_id: folder && folder.id})
       |> Repo.insert()
       |> case do
-        {:ok, mapping} -> {:ok, Repo.preload(mapping, [:board, :folder])}
-        error -> error
+        {:ok, mapping} ->
+          # Notes on a board in a vault read their inline #tags (W-103 R3.4).
+          NoteTags.refresh_board(board)
+          {:ok, Repo.preload(mapping, [:board, :folder])}
+
+        error ->
+          error
       end
     end
   end
@@ -239,8 +251,14 @@ defmodule Slipdock.Vaults do
       end
 
     case found do
-      nil -> {:error, :not_found, "mapping #{inspect(ref)}"}
-      mapping -> Repo.delete(mapping)
+      nil ->
+        {:error, :not_found, "mapping #{inspect(ref)}"}
+
+      mapping ->
+        with {:ok, deleted} <- Repo.delete(mapping) do
+          NoteTags.refresh_board(deleted.board_id)
+          {:ok, deleted}
+        end
     end
   end
 

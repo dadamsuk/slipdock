@@ -73,6 +73,7 @@ defmodule SlipdockWeb.MCP.Tools.ReadPage do
          :status,
          :content_hash,
          :front_matter,
+         :note_tags,
          :updated_at,
          :comments,
          :checklist

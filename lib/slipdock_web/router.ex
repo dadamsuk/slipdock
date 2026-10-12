@@ -540,6 +540,7 @@ defmodule SlipdockWeb.Router do
     get "/pages/:id/links", PageController, :links
     post "/pages/:id/links", PageController, :pin
     get "/boards/:board/pages/wanted", PageController, :wanted
+    get "/boards/:board/pages/tags", PageController, :note_tags
     post "/boards/:board/pages/from-template", PageController, :from_template
     get "/cards/:id/pages", PageController, :for_card
     post "/cards/:id/pages", PageController, :write_up

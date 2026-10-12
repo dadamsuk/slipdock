@@ -485,6 +485,9 @@ defmodule SlipdockWeb.API.JSON do
       color: p.color,
       assignee: assignee_ref(p),
       tags: page_tags(p),
+      # The tags the note gives itself, on a board in a vault — never the
+      # board's card tags above (see `Slipdock.Wiki.NoteTags`).
+      note_tags: p.note_tags,
       # Where it sits on the board, when it has been put there.
       column_id: p.column_id,
       board_position: p.column_id && p.board_position,

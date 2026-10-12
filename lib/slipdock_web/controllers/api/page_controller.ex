@@ -58,7 +58,8 @@ defmodule SlipdockWeb.API.PageController do
       status: status,
       q: params["q"],
       parent: parent_opt(params["parent"]),
-      folder: folder_opt(board, params["folder"])
+      folder: folder_opt(board, params["folder"]),
+      note_tag: params["note_tag"]
     ]
   end
 
@@ -100,6 +101,17 @@ defmodule SlipdockWeb.API.PageController do
          {:ok, attrs} <- front_matter(attrs, params, nil),
          {:ok, page} <- Wiki.create_page(board, attrs, write_opts(conn, params)) do
       conn |> put_status(:created) |> json(%{page: V.page(with_users(page))})
+    end
+  end
+
+  @doc """
+  The tags a board's notes give themselves — front matter `tags` and inline
+  `#tags`, read on boards in a vault — with how many pages carry each. A
+  nested tag counts for its parents too. Never the board's card tags.
+  """
+  def note_tags(conn, %{"board" => ref}) do
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :read) do
+      json(conn, %{tags: Slipdock.Wiki.NoteTags.counts(board)})
     end
   end
 

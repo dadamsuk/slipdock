@@ -1694,6 +1694,14 @@ defmodule SlipdockWeb.APIGuide do
     On a shell: `slipdock vault ls|show|new|rename|rm|map|unmap|locate`; over
     MCP, `list_vaults` and `manage_vault`.
 
+    **Notes in a vault tag themselves.** On a board in a vault, a page's front
+    matter `tags` and its inline `#tags` (nested `#area/sub` too; not in code,
+    headings or links; an all-digit `#412` is still a card) are its
+    `note_tags`, lower-case and apart from the board's card `tags`.
+    `GET /api/boards/:board/pages?note_tag=area` lists the notes tagged
+    `area` or anything under it, and `GET /api/boards/:board/pages/tags`
+    counts them. Off a vault, `note_tags` is always empty.
+
     ### Writing one section at a time
 
     A page is addressed by heading: `Deploy/Rollback` is the `## Rollback`
