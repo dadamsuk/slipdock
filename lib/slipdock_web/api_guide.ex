@@ -1744,6 +1744,9 @@ defmodule SlipdockWeb.APIGuide do
     [[QVM/Retry policy]]              a page on another board
     [[W-31]]  or bare  W-31           a page by its code
     [[#412]]  or bare  #412           card 412 — drawn live, never stale
+    [[Retry policy#Backoff]]          a heading of a page; #^a1b2 a block (` ^a1b2` ends it)
+    [[#Backoff]]                      a heading on this same page (digits stay a card)
+    ![[Retry policy]]  ![[…#Backoff]] the page, or that section, drawn in place
     [[board:QVM]]  [[view:QVM/Blocked work]]
     [[!toc]]  [[!children]]  [[!backlinks]]
     @name                             someone on the board

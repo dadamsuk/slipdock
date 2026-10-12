@@ -215,15 +215,47 @@ defmodule SlipdockWeb.Wiki.Renderer do
     end
   end
 
+  defp markdown_for(%{kind: :page, target: "", anchor: anchor} = ref, _context),
+    do: "[#{ref.label || anchor}](##{anchor_id(anchor)})"
+
+  # An agent reading a page wants what an embed shows, not where it points:
+  # the embedded text, quoted, under the name of where it came from.
+  defp markdown_for(%{embed: true} = ref, context) do
+    with false <- file_embed?(ref),
+         {:page, page} <- resolve_one(ref, context),
+         {:ok, source} <- embed_source(page, Map.get(ref, :anchor)) do
+      quoted =
+        source |> String.split("\n") |> Enum.map_join("\n", &String.trim_trailing("> " <> &1))
+
+      "\n> **[#{ref.label || link_text(page, ref)}](#{page_path(page)}#{fragment(ref)})**\n>\n" <>
+        quoted <> "\n"
+    else
+      _ -> ref.raw
+    end
+  end
+
   defp markdown_for(ref, context) do
     case resolve_one(ref, context) do
-      {:page, page} -> "[#{ref.label || page.title}](#{page_path(page)})"
-      {:card, card} -> "#{ref.label || card.title} (##{card.id}#{card_meta(card)})"
-      {:board, board} -> "[#{ref.label || board.name}](/boards/#{board.id})"
-      {:view, view} -> "[#{ref.label || view.name}](/boards/#{view.board_id}?view=#{view.id})"
-      {:mention, user} -> "@#{Wiki.author_name(user)}"
-      {:directive, name} -> directive_markdown(name, context)
-      _ -> ref.label || strip_brackets(ref.raw)
+      {:page, page} ->
+        "[#{ref.label || link_text(page, ref)}](#{page_path(page)}#{fragment(ref)})"
+
+      {:card, card} ->
+        "#{ref.label || card.title} (##{card.id}#{card_meta(card)})"
+
+      {:board, board} ->
+        "[#{ref.label || board.name}](/boards/#{board.id})"
+
+      {:view, view} ->
+        "[#{ref.label || view.name}](/boards/#{view.board_id}?view=#{view.id})"
+
+      {:mention, user} ->
+        "@#{Wiki.author_name(user)}"
+
+      {:directive, name} ->
+        directive_markdown(name, context)
+
+      _ ->
+        ref.label || strip_brackets(ref.raw)
     end
   end
 
@@ -245,6 +277,9 @@ defmodule SlipdockWeb.Wiki.Renderer do
       reader: Keyword.get(opts, :as),
       today: Keyword.get(opts, :today, Date.utc_today()),
       static: Keyword.get(opts, :static, false),
+      # The pages being embedded on the way here, so an embed cannot embed
+      # its way round in a circle (see `embed_html/3`).
+      embedding: Keyword.get(opts, :embedding, []),
       # A published page answers its queries as of the moment it was
       # published: there is nobody on the other side to have permissions, so
       # a live query would be a way to read private cards from the open web.
@@ -271,6 +306,8 @@ defmodule SlipdockWeb.Wiki.Renderer do
   defp expand_node(%MDEx.Paragraph{nodes: [%MDEx.Text{literal: text}]} = node, context) do
     case Markup.tokens(String.trim(text)) do
       [{:ref, %{kind: :directive} = ref}] -> [html_block(directive_html(ref.target, context))]
+      # A paragraph that is only `![[Note]]` becomes the note, as a block.
+      [{:ref, %{embed: true} = ref}] -> [html_block(embed_html(ref, context))]
       _ -> [%{node | nodes: expand_list(node.nodes, context)}]
     end
   end
@@ -293,13 +330,32 @@ defmodule SlipdockWeb.Wiki.Renderer do
   defp expand_node(node, _context), do: [node]
 
   defp text_nodes(text, context) do
+    {text, block} = block_id(text)
+
     text
     |> Markup.tokens()
     |> Enum.map(fn
       {:text, literal} -> %MDEx.Text{literal: literal}
       {:ref, ref} -> ref_node(ref, context)
     end)
+    |> Kernel.++(block_anchor(block))
   end
+
+  # Obsidian's block id: ` ^a1b2` at the end of a paragraph or list item. It
+  # is an address, not prose, so it is not shown; `[[Note#^a1b2]]` lands on it.
+  defp block_id(text) do
+    case Regex.run(~r/\A(.*?)\s+\^([A-Za-z0-9-]+)\s*\z/s, text, capture: :all_but_first) do
+      [before, id] -> {before, id}
+      _ -> {text, nil}
+    end
+  end
+
+  defp block_anchor(nil), do: []
+
+  defp block_anchor(id),
+    do: [
+      %MDEx.HtmlInline{literal: ~s|<span id="^#{escape(id)}" class="wiki-block-anchor"></span>|}
+    ]
 
   defp ref_node(%{kind: :inline} = ref, context) do
     case inline_answer(ref, context) do
@@ -308,6 +364,19 @@ defmodule SlipdockWeb.Wiki.Renderer do
 
       :error ->
         %MDEx.Text{literal: ref.raw}
+    end
+  end
+
+  # `[[#Heading]]`: a place on this page, which needs no looking up.
+  defp ref_node(%{kind: :page, target: "", anchor: anchor} = ref, context) do
+    if context.static do
+      %MDEx.Text{literal: ref.label || anchor}
+    else
+      %MDEx.HtmlInline{
+        literal:
+          ~s|<a href="##{escape(anchor_id(anchor))}" class="wiki-link">| <>
+            escape(ref.label || anchor) <> "</a>"
+      }
     end
   end
 
@@ -335,8 +404,8 @@ defmodule SlipdockWeb.Wiki.Renderer do
     do: ~s|<span class="wiki-static">#{escape(ref.label || strip_brackets(ref.raw))}</span>|
 
   defp resolved_html(ref, {:page, page}, _context) do
-    ~s|<a href="#{page_path(page)}" class="wiki-link" title="#{escape(page.code)}">| <>
-      escape(ref.label || page.title) <> "</a>"
+    ~s|<a href="#{page_path(page)}#{fragment(ref)}" class="wiki-link" title="#{escape(page.code)}">| <>
+      escape(ref.label || link_text(page, ref)) <> "</a>"
   end
 
   # A card is drawn live — title, list and state read at render time — so a
@@ -641,6 +710,104 @@ defmodule SlipdockWeb.Wiki.Renderer do
 
   @doc "Where a page lives, as a path."
   def page_path(%Page{} = page), do: "/boards/#{page.board_id}/wiki/#{page.slug}"
+
+  # `[[Note#Heading]]` reads "Note › Heading", as Obsidian shows it.
+  defp link_text(page, %{anchor: anchor}) when is_binary(anchor),
+    do: page.title <> " › " <> anchor
+
+  defp link_text(page, _ref), do: page.title
+
+  defp fragment(%{anchor: anchor}) when is_binary(anchor), do: "#" <> escape(anchor_id(anchor))
+  defp fragment(_ref), do: ""
+
+  # A heading's anchor is the id comrak gives it; a block's is `^id`, as
+  # `block_anchor/1` writes it.
+  defp anchor_id("^" <> _ = block), do: block
+  defp anchor_id(heading), do: anchor(heading)
+
+  ## Embeds -------------------------------------------------------------------
+
+  # `![[Note]]`, `![[Note#Heading]]` or `![[Note#^block]]`: the page, the
+  # section under that heading, or the block, drawn in place for this reader.
+  # One level deep and never round in a circle — past that, and for anything
+  # that is not a page, it is a link. A published page names what it embeds
+  # rather than showing it: nobody is behind it to have permissions.
+  @max_embed_depth 2
+
+  defp embed_html(ref, %{static: true}),
+    do:
+      ~s|<p><span class="wiki-static">#{escape(ref.label || strip_brackets(ref.raw))}</span></p>|
+
+  defp embed_html(ref, context) do
+    seen = Enum.reject([context.page && context.page.id | context.embedding], &is_nil/1)
+
+    if file_embed?(ref) do
+      # A file: attachments come across with sync (W-103 R2.9); until then
+      # the embed stays exactly as written.
+      "<p>" <> escape(ref.raw) <> "</p>"
+    else
+      case resolve_one(ref, context) do
+        {:page, page} ->
+          with false <- page.id in seen or length(seen) >= @max_embed_depth,
+               {:ok, source} <- embed_source(page, Map.get(ref, :anchor)) do
+            inner =
+              to_html(source,
+                page: page,
+                as: context.reader,
+                embedding: seen,
+                today: context.today
+              )
+
+            ~s|<div class="wiki-embed">| <>
+              ~s|<div class="wiki-embed-title">#{resolved_html(ref, {:page, page}, context)}</div>| <>
+              inner <> "</div>"
+          else
+            _ -> "<p>" <> resolved_html(ref, {:page, page}, context) <> "</p>"
+          end
+
+        _ ->
+          html_of_nodes([unresolved_node(ref, context)])
+      end
+    end
+  end
+
+  defp html_of_nodes(nodes) do
+    paragraph = %MDEx.Document{nodes: [%MDEx.Paragraph{nodes: nodes}]}
+
+    case MDEx.to_html(paragraph, extension: @extension, render: @render) do
+      {:ok, html} -> html
+      _ -> ""
+    end
+  end
+
+  # `![[diagram.png]]` names a file, not a page: anything with an extension
+  # other than `.md`.
+  defp file_embed?(%{target: target}) do
+    ext = target |> Path.extname() |> String.downcase()
+    ext not in ["", ".md"] and Regex.match?(~r/\A\.[a-z0-9]{1,8}\z/, ext)
+  end
+
+  defp embed_source(page, nil), do: {:ok, page.body || ""}
+
+  defp embed_source(page, "^" <> id) do
+    body = page.body || ""
+
+    paragraphs = String.split(body, ~r/\n\s*\n/)
+
+    case Enum.find(paragraphs, &Regex.match?(~r/\s\^#{Regex.escape(id)}\s*$/m, &1)) do
+      nil -> :error
+      paragraph -> {:ok, String.trim(paragraph)}
+    end
+  end
+
+  defp embed_source(page, heading) do
+    wanted = anchor(heading)
+
+    case Enum.find(Section.headings(page.body), &(anchor(&1.title) == wanted)) do
+      nil -> :error
+      found -> Section.read(page.body, found.path)
+    end
+  end
 
   @doc """
   The heading anchor comrak generates for a heading's text: lowercased,

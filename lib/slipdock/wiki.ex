@@ -1099,9 +1099,12 @@ defmodule Slipdock.Wiki do
 
   defp inner_of(raw) do
     raw
+    |> String.trim_leading("!")
     |> String.trim_leading("[[")
     |> String.trim_trailing("]]")
     |> String.split("|", parts: 2)
+    |> hd()
+    |> String.split("#", parts: 2)
     |> hd()
     |> String.trim()
   end

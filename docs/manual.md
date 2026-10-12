@@ -2158,6 +2158,16 @@ uses a page's code, and `[[board:QVM]]` / `[[view:QVM/Blocked work]]` reach a
 board or a saved view. `@name` mentions someone on the board.
 `[[!toc]]`, `[[!children]]` and `[[!backlinks]]` expand when the page is read.
 
+As in Obsidian, `[[Retry policy#Backoff]]` goes to a heading of a page and
+`[[Retry policy#^a1b2]]` to a block — a paragraph or list item ending in
+` ^a1b2`, which is an address and is not shown — and `[[#Backoff]]` to a
+heading on the page itself. `![[Retry policy]]` **embeds** the page where it
+is written, and `![[Retry policy#Backoff]]` or `![[Retry policy#^a1b2]]` just
+that section or block: drawn for whoever is reading, one level deep (an embed
+inside an embed is a link), and on a published page only named. An embed of a
+file (`![[diagram.png]]`) stays as written for now. The API's Markdown
+render quotes what an embed shows.
+
 `#412` (or `[[#412]]`) is a **card chip**, drawn from what the card says at
 the moment the page is read — its title, its list, whether it is done — so a
 card renamed or finished after you wrote about it is never stale in your
