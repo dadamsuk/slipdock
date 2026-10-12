@@ -340,7 +340,7 @@ defmodule Slipdock.AITest do
             %{
               "type" => "update",
               "card_id" => ctx.card.id,
-              "changes" => %{"add_tags" => ["nope"]}
+              "changes" => %{"remove_tags" => ["nope"]}
             },
             %{
               "type" => "update",
@@ -738,6 +738,109 @@ defmodule Slipdock.AITest do
       assert Enum.map(Boards.get_card!(ctx.card.id).tags, & &1.name) == ["ux"]
     end
 
+    test "a tag the board doesn't have is created when the step is applied, not before", ctx do
+      [step] = propose_change(ctx, %{"add_tags" => ["  Release 2  "]})
+      assert step.error == nil
+      assert step.label == "Create tag “Release 2” and add it to “Alpha”"
+      refute "Release 2" in Enum.map(Boards.list_tags(ctx.board.id), & &1.name)
+
+      run!([step])
+
+      tag = Enum.find(Boards.list_tags(ctx.board.id), &(&1.name == "Release 2"))
+      assert tag.color == "slate"
+      assert Enum.map(Boards.get_card!(ctx.card.id).tags, & &1.name) == ["Release 2"]
+    end
+
+    test "a new tag made in the meantime is used, not doubled", ctx do
+      [step] = propose_change(ctx, %{"tags" => ["perf"]})
+      {:ok, made} = Boards.create_tag(ctx.board, %{"name" => "Perf"})
+
+      run!([step])
+
+      assert Enum.count(Boards.list_tags(ctx.board.id), &(String.downcase(&1.name) == "perf")) ==
+               1
+
+      assert [%{id: id}] = Boards.get_card!(ctx.card.id).tags
+      assert id == made.id
+    end
+
+    test "two cards asking for the same new tag share one", ctx do
+      other = card_fixture(ctx.backlog, %{"title" => "Beta"}) |> then(&Boards.get_card!(&1.id))
+
+      steps =
+        Actions.prepare(
+          [
+            %{
+              "type" => "update",
+              "card_id" => ctx.card.id,
+              "changes" => %{"add_tags" => ["infra"]}
+            },
+            %{"type" => "update", "card_id" => other.id, "changes" => %{"add_tags" => ["Infra"]}}
+          ],
+          %{scope_for(ctx) | cards: [ctx.card, other]}
+        )
+
+      run!(steps)
+
+      assert [tag] = Enum.filter(Boards.list_tags(ctx.board.id), &(&1.name =~ ~r/infra/i))
+      assert Enum.map(Boards.get_card!(ctx.card.id).tags, & &1.id) == [tag.id]
+      assert Enum.map(Boards.get_card!(other.id).tags, & &1.id) == [tag.id]
+    end
+
+    test "a card on a sub-board gets the new tag on the root, shared by the tree", ctx do
+      {:ok, t} = Boards.find_template("Simple")
+      {:ok, sub} = sub_board(ctx.card, t)
+      sub = Boards.get_board!(sub.id)
+
+      child =
+        card_fixture(hd(sub.columns), %{"title" => "Child"}) |> then(&Boards.get_card!(&1.id))
+
+      [step] =
+        Actions.prepare(
+          [%{"type" => "update", "card_id" => child.id, "changes" => %{"add_tags" => ["deep"]}}],
+          %{scope_for(ctx) | cards: [child]}
+        )
+
+      run!([step])
+
+      assert "deep" in Enum.map(Boards.list_tags(ctx.board.id), & &1.name)
+      assert Enum.map(Boards.get_card!(child.id).tags, & &1.name) == ["deep"]
+    end
+
+    test "a name that can't be a tag is refused before anything is applied", ctx do
+      long = String.duplicate("x", 31)
+
+      assert [blank, too_long] = propose_change(ctx, %{"add_tags" => [" ", long]})
+      assert blank.error == "a tag needs a name"
+      assert too_long.error == "a tag name is at most 30 characters"
+      refute Actions.runnable?([blank, too_long])
+
+      # Removing a tag that isn't there never makes one.
+      assert [gone] = propose_change(ctx, %{"remove_tags" => ["ghost"]})
+      assert gone.error =~ "no tag called “ghost”"
+      assert Enum.map(Boards.list_tags(ctx.board.id), & &1.name) |> Enum.sort() == ["ops", "ux"]
+    end
+
+    test "a read-only user makes no tag", ctx do
+      reader = user_fixture("reader@example.com")
+
+      assert [step] =
+               Actions.prepare(
+                 [
+                   %{
+                     "type" => "update",
+                     "card_id" => ctx.card.id,
+                     "changes" => %{"add_tags" => ["new"]}
+                   }
+                 ],
+                 Map.put(scope_for(ctx), :user, reader)
+               )
+
+      assert step.error =~ "read-only"
+      Actions.apply([step])
+      refute "new" in Enum.map(Boards.list_tags(ctx.board.id), & &1.name)
+    end
+
     test "a tag step is idempotent if the card changed in between", ctx do
       [add] = propose_change(ctx, %{"add_tags" => ["ops"]})
       # Someone else tags it first; the step must not toggle it back off.
@@ -807,7 +910,7 @@ defmodule Slipdock.AITest do
               "due_date" => "2030-02-01",
               "assignee" => ctx.user.email,
               "flags" => ["Starred"],
-              "tags" => ["ops", "missing"]
+              "tags" => ["ops", "missing", " "]
             }
           ],
           scope_for(ctx)
@@ -815,7 +918,8 @@ defmodule Slipdock.AITest do
 
       assert step.label ==
                "Create “Gamma” in #{ctx.backlog.name} (starts 2030-01-01, due 2030-02-01, " <>
-                 "assigned to #{Slipdock.Accounts.User.display_name(ctx.user)}, tags ops, flags starred)"
+                 "assigned to #{Slipdock.Accounts.User.display_name(ctx.user)}, " <>
+                 "tags ops, missing (new), flags starred)"
 
       run!([step])
 
@@ -828,7 +932,8 @@ defmodule Slipdock.AITest do
       assert gamma.due_date == ~D[2030-02-01]
       assert gamma.assignee_id == ctx.user.id
       assert gamma.flags == ["starred"]
-      assert Enum.map(gamma.tags, & &1.name) == ["ops"]
+      assert Enum.map(gamma.tags, & &1.name) |> Enum.sort() == ["missing", "ops"]
+      assert "missing" in Enum.map(Boards.list_tags(ctx.board.id), & &1.name)
     end
 
     test "creating is refused without a title, a board, or valid details", ctx do

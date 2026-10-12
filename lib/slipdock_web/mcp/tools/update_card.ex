@@ -47,7 +47,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
           Map.put(
             list,
             :description,
-            "Tag names on the board (get_board lists them; create_tag adds one)."
+            "Tag names already on the board (get_board lists them; create_tag adds one)."
           ),
         remove_tags: Map.put(list, :description, "Tag names on the board."),
         assignees:

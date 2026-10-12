@@ -27,7 +27,8 @@ the short form of the guide `slipdock guide` prints, ending with the names of it
 sections; `section: "automations"` (or any of those names, or `"all"`) gives one. `archive_card` puts a card away, and `restore: true` brings
 it back; `archive_board` does the same for a board. Prefer those: `delete_card` (needs
 `confirm: true`), `delete_list` and `delete_board` (`confirm` is the board's code) cannot be
-undone. `create_list` and `create_board` add structure. `list_cards` with `full: true` reads
+undone. `create_list`, `create_tag` and `create_board` add structure (a tag must exist before
+`create_card`/`update_card` can put it on a card). `list_cards` with `full: true` reads
 every card in full (comments, checklist, docs) in one call instead of a `get_card` each. `update_card` also sets dependencies
 and works the checklist. `list_pages` lists a board's wiki (`tree: true` nests it, as `page tree`
 does), and `read_page` reads one. `page_info` answers what `page links`, `page sections`,

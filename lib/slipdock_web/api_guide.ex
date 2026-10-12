@@ -484,7 +484,7 @@ defmodule SlipdockWeb.APIGuide do
     writing `create_card`, `update_card` (fields, flags, tags, assignees,
     dependencies and the checklist), `move_card` (to another board too),
     `comment`, `complete_card`, `archive_card` (and restore), `delete_card`,
-    `create_list`, `delete_list`, `create_board`, `archive_board` (and
+    `create_list`, `create_tag`, `delete_list`, `create_board`, `archive_board` (and
     restore), `delete_board`, `write_page`, `update_page` (a page's
     title, summary, parent, position and folder, archiving and restoring it,
     and pinning it to a card) and `revert_page` (a page
@@ -806,7 +806,8 @@ defmodule SlipdockWeb.APIGuide do
 
     Tags live on the root board and are shared by the whole tree, so a tag made
     anywhere below it is available everywhere — but a tag must exist before a
-    card can wear it (`POST /api/boards/:board/tags`). Renaming an epic renames
+    card can wear it (`POST /api/boards/:board/tags`, `slipdock new-tag`, or the MCP
+    tool `create_tag`). Renaming an epic renames
     its sub-board (a board name is at most 80 characters, so a longer title is
     cut short with an ellipsis).
 
