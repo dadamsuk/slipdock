@@ -307,6 +307,11 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :adding_to, :any, required: true
   attr :adding_column, :boolean, required: true
   attr :uploads, :map, required: true
+  attr :select_mode, :boolean, default: false
+
+  attr :selected, :any,
+    default: MapSet.new(),
+    doc: "the ids of the cards picked out in select mode"
 
   @doc "The board view: its toolbar, then the lists side by side."
   def kanban(assigns) do
@@ -329,6 +334,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         groups={@groups}
         share_key={@share_key}
         marks={@favourites}
+        select_mode={@select_mode}
       />
       <div
         :if={@filtering}
@@ -574,6 +580,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
                   show={Config.shown(@swim)}
                   focus={@focus && card_focus(@focus, item)}
                   dismiss={@can_write}
+                  selected={@select_mode && card_selected?(@selected, item)}
                 >
                   <:actions :if={@can_write and length(@board.columns) > 1}>
                     <.move_menu card={item} board={@board} />
@@ -755,6 +762,100 @@ defmodule SlipdockWeb.BoardLive.BoardView do
     """
   end
 
+  attr :selected, :any, required: true
+  attr :tags, :list, required: true
+  attr :destinations, :list, required: true, doc: "`Slipdock.BulkEdit.destinations/2`"
+
+  @doc """
+  Select mode's action bar (#592): how many cards are picked out, and what
+  can be done to all of them at once. Every choice is a `bulk_apply` with an
+  action `Slipdock.BulkEdit.parse_action/1` reads; the two menus apply as
+  soon as something is chosen in them.
+  """
+  def bulk_bar(assigns) do
+    assigns = assign(assigns, count: MapSet.size(assigns.selected))
+
+    ~H"""
+    <div
+      id="bulk-bar"
+      class="kanban-toast-in fixed bottom-4 left-1/2 z-50 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-wrap items-center gap-2 rounded-2xl bg-base-100 px-3 py-2 text-sm shadow-xl ring-1 ring-base-content/10"
+    >
+      <span id="bulk-count" class="font-semibold">
+        {if @count == 0, do: "Click cards to select them", else: "#{@count} selected"}
+      </span>
+      <%= if @count > 0 do %>
+        <span class="h-5 w-px bg-base-300"></span>
+        <button
+          :for={{action, label, icon} <- bulk_buttons()}
+          type="button"
+          id={"bulk-#{action}"}
+          class="btn btn-ghost btn-xs gap-1"
+          phx-click="bulk_apply"
+          phx-value-action={action}
+          data-confirm={
+            action == "delete" &&
+              "Delete #{@count} #{if @count == 1, do: "card", else: "cards"}? This can't be undone."
+          }
+        >
+          <.icon name={icon} class="size-3.5" /> {label}
+        </button>
+        <form id="bulk-set" phx-change="bulk_apply" class="contents">
+          <select name="action" class="select select-xs w-36" aria-label="Set on the selected cards">
+            <option value="">Set…</option>
+            <optgroup :if={@tags != []} label="Add tag">
+              <option :for={t <- @tags} value={"tag:#{t.id}"}>{t.name}</option>
+            </optgroup>
+            <optgroup :if={@tags != []} label="Remove tag">
+              <option :for={t <- @tags} value={"untag:#{t.id}"}>{t.name}</option>
+            </optgroup>
+            <optgroup label="Priority">
+              <option :for={p <- Slipdock.Boards.Card.priorities()} value={"priority:#{p}"}>
+                {p}
+              </option>
+            </optgroup>
+            <optgroup label="Add flag">
+              <option :for={f <- Slipdock.Boards.Card.flags()} value={"flag:#{f}"}>{f}</option>
+            </optgroup>
+            <optgroup label="Remove flag">
+              <option :for={f <- Slipdock.Boards.Card.flags()} value={"unflag:#{f}"}>{f}</option>
+            </optgroup>
+          </select>
+        </form>
+        <form id="bulk-move" phx-change="bulk_apply" class="contents">
+          <select name="action" class="select select-xs w-40" aria-label="Move the selected cards">
+            <option value="">Move to…</option>
+            <optgroup :for={{board, columns} <- @destinations} label={board.name}>
+              <option :for={c <- columns} value={"move:#{c.id}"}>{c.name}</option>
+            </optgroup>
+          </select>
+        </form>
+        <button type="button" id="bulk-clear" class="btn btn-ghost btn-xs" phx-click="clear_selection">
+          Clear
+        </button>
+      <% end %>
+      <button
+        type="button"
+        id="bulk-done"
+        class="btn btn-primary btn-xs"
+        phx-click="toggle_select_mode"
+      >
+        Done
+      </button>
+    </div>
+    """
+  end
+
+  defp bulk_buttons do
+    [
+      {"complete", "Complete", "hero-check"},
+      {"reopen", "Reopen", "hero-arrow-uturn-left"},
+      {"assign_me", "Assign me", "hero-user-plus"},
+      {"unassign", "Unassign", "hero-user-minus"},
+      {"archive", "Archive", "hero-archive-box"},
+      {"delete", "Delete", "hero-trash"}
+    ]
+  end
+
   # Where the keyboard is, for one card: pointing at it, carrying it, or
   # somewhere else entirely.
   # The keyboard cursor walks cards. A placed wiki page is drawn beside them
@@ -767,6 +868,10 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   defp card_focus(%{card_id: id}, %{id: id}), do: :cursor
 
   defp card_focus(_focus, _card), do: nil
+
+  # A placed page is never selected, whatever number it shares with a card.
+  defp card_selected?(_selected, %Slipdock.Wiki.Page{}), do: false
+  defp card_selected?(selected, %{id: id}), do: MapSet.member?(selected, id)
 
   # A list's width on a wide screen, from the Display menu's *List width*.
   defp list_width(%Config{width: "narrow"}), do: "w-60"
@@ -919,6 +1024,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :share_key, :integer, default: 0
   attr :marks, :any, default: nil, doc: "the reader's favourites (`Slipdock.Favourites.marks/1`)"
   attr :meetings, :atom, default: :none
+  attr :select_mode, :boolean, default: false
 
   # Board view's toolbar: the view switcher, search, filters, display options,
   # saved views and the count, laid out like `swim_toolbar/1` so nothing
@@ -969,6 +1075,18 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         <span class="hidden text-xs text-base-content/50 lg:inline" title="Cards shown">
           {@shown} {if @shown == 1, do: "card", else: "cards"}<span :if={@hidden > 0}> · {@hidden} hidden</span>
         </span>
+        <button
+          :if={@can_write}
+          id="select-mode-toggle"
+          type="button"
+          phx-click="toggle_select_mode"
+          class={["btn btn-sm gap-1", if(@select_mode, do: "btn-primary", else: "btn-ghost")]}
+          aria-pressed={to_string(@select_mode)}
+          title="Select several cards and change them all at once"
+        >
+          <.icon name="hero-check-circle" class="size-4" />
+          <span class="hidden sm:inline">{if @select_mode, do: "Selecting", else: "Select"}</span>
+        </button>
         <.view_controls
           board={@board}
           mode={:board}

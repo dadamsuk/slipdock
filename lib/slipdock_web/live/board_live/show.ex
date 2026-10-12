@@ -20,6 +20,7 @@ defmodule SlipdockWeb.BoardLive.Show do
     Accounts,
     Automations,
     Boards,
+    BulkEdit,
     Favourites,
     Sprints,
     Swimlanes,
@@ -53,7 +54,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   # Events that change the board; refused with read-only access.
   @board_write_events ~w(add_column rename_column move_column quick_add_card move_card place_page focus_move
     focus_hold focus_add swim_move swim_quick_add cal_quick_add swim_save_view
-    swim_update_view swim_rename_view swim_delete_view)
+    swim_update_view swim_rename_view swim_delete_view bulk_apply)
   # Events whose handler checks the permission itself, because what it acts
   # on is not the open board or the open card: a card named by id, a page,
   # another board, a sprint picked from several boards.
@@ -66,7 +67,7 @@ defmodule SlipdockWeb.BoardLive.Show do
     start_rename_column cancel_rename_column start_add_card aim_document cancel_add_card
     quick_add_change open_card open_page focus_column focus_card focus_open focus_end
     validate_document swim_config swim_set swim_clear_filters table_sort cal_toggle_day
-    swim_toggle_row swim_start_add swim_cancel_add)
+    swim_toggle_row swim_start_add swim_cancel_add toggle_select_mode clear_selection)
 
   # Events only the board owner may perform.
   @owner_events ~w(swim_publish_view swim_unpublish_view)
@@ -141,6 +142,11 @@ defmodule SlipdockWeb.BoardLive.Show do
       document_column: nil,
       adding_column: false,
       focus: nil,
+      # Select mode (#592): clicking a card picks it out instead of opening
+      # it, and `bulk_bar/1` changes every card picked out at once.
+      select_mode: false,
+      selected: MapSet.new(),
+      bulk_destinations: [],
       page_jumps: [],
       renaming_column: nil,
       form_key: 0,
@@ -794,6 +800,16 @@ defmodule SlipdockWeb.BoardLive.Show do
      end)}
   end
 
+  def handle_event("open_card", %{"id" => id}, %{assigns: %{select_mode: true}} = socket) do
+    case load_card(socket.assigns.board, Params.id(id)) do
+      {:ok, %Card{stand_in_for_id: nil} = card} ->
+        {:noreply, update(socket, :selected, &toggle_member(&1, card.id))}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
   def handle_event("open_card", %{"id" => id}, socket) do
     case Boards.get_card(Params.id(id)) do
       %Card{stand_in_for_id: target} = stand_in when not is_nil(target) ->
@@ -853,6 +869,51 @@ defmodule SlipdockWeb.BoardLive.Show do
     end
   end
 
+  ## Events: select mode -------------------------------------------------------
+
+  def handle_event("toggle_select_mode", _, %{assigns: %{select_mode: true}} = socket),
+    do: {:noreply, assign(socket, select_mode: false, selected: MapSet.new())}
+
+  def handle_event("toggle_select_mode", _, socket) do
+    %{current_user: user, board: board, can_write: can_write} = socket.assigns
+
+    if can_write do
+      {:noreply,
+       assign(socket,
+         select_mode: true,
+         selected: MapSet.new(),
+         bulk_destinations: BulkEdit.destinations(user, board)
+       )}
+    else
+      {:noreply, put_flash(socket, :error, "You have read-only access to this board.")}
+    end
+  end
+
+  def handle_event("clear_selection", _, socket),
+    do: {:noreply, assign(socket, selected: MapSet.new())}
+
+  def handle_event("bulk_apply", %{"action" => text}, socket) do
+    %{current_user: user, board: board, selected: selected} = socket.assigns
+
+    case BulkEdit.parse_action(text) do
+      {:ok, action, verb} ->
+        result = BulkEdit.apply(user, board, MapSet.to_list(selected), action)
+        kind = if match?({:ok, %{failed: []}}, result), do: :info, else: :error
+
+        {:noreply,
+         socket
+         |> assign(selected: MapSet.new())
+         |> reload_board()
+         |> put_flash(kind, BulkEdit.describe(result, verb))}
+
+      # The menus' empty "Set…" and "Move to…" choices.
+      :error ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("bulk_apply", _, socket), do: {:noreply, socket}
+
   def handle_event("validate_document", _, socket),
     do: {:noreply, drop_invalid_uploads(socket, :list_document)}
 
@@ -873,6 +934,9 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   # What may be shared from here, by whom: a saved view, by the board's owner.
   # (The board is shared from its settings panel, a card from its own.)
+  defp toggle_member(set, id),
+    do: if(MapSet.member?(set, id), do: MapSet.delete(set, id), else: MapSet.put(set, id))
+
   defp share_target(%{assigns: %{can_manage: true, swim_view: %{} = view}}, "view"),
     do: {:ok, view}
 
@@ -1114,6 +1178,15 @@ defmodule SlipdockWeb.BoardLive.Show do
         adding_to={@adding_to}
         adding_column={@adding_column}
         uploads={@uploads}
+        select_mode={@select_mode}
+        selected={@selected}
+      />
+
+      <.bulk_bar
+        :if={@select_mode and @mode == :board and !@card_only}
+        selected={@selected}
+        tags={@board.tags}
+        destinations={@bulk_destinations}
       />
 
       <div

@@ -15,7 +15,8 @@ way in: what it is, the pictures, and how to get it running.
 - Cards with drag-and-drop between and within lists, description, priority
   (low → critical), five flags (flagged, blocked, needs review, waiting, starred),
   due dates with overdue/soon states, completion toggle, cover colours, tags,
-  checklists, comments, archive/restore and delete
+  checklists, comments, archive/restore and delete — one at a time, or several
+  at once from the board's select mode (see [Changing several cards at once](#changing-several-cards-at-once))
 - Time tracking: a start/stop timer on each card, time spent and an estimate
   shown in a unit of its own, and a colour-coded bar between them — see
   [Time tracking](#time-tracking)
@@ -341,6 +342,25 @@ move in their activity. Landing in a *done* list completes the card, and a
 horizon list schedules it, exactly as a move within one board does. A card
 cannot be moved into its own subcards, and an archived card has to be restored
 first.
+
+### Changing several cards at once
+
+**Select** in the board view's toolbar turns on select mode. Clicking a card
+then picks it out — a ring and a tick — instead of opening it; clicking it
+again lets go. A bar along the bottom counts what is picked out and changes
+all of it in one go:
+
+- **Complete**, **Reopen**, **Assign me**, **Unassign**, **Archive** and
+  **Delete** (which asks first: it cannot be undone).
+- **Set…** — add or remove a tag, set the priority, add or remove a flag.
+- **Move to…** — any list on this board, or on another board you can write
+  to, with everything a single move carries (see above).
+
+Each card is changed as it would be one at a time, so automations, history
+and search see every change. One card refusing — a move into its own
+subcards, a full account — does not stop the others; the flash names it and
+says why. **Done** leaves select mode. From a terminal, `slipdock archive`,
+`restore`, `delete`, `done` and `undone` already take several card ids.
 
 ## Time tracking
 
