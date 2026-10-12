@@ -1713,14 +1713,46 @@ defmodule SlipdockWeb.APIGuide do
     unwritten anywhere in the vault. Boards in no vault are unchanged.
 
     **The change feed.** `GET /api/vaults/:id/changes` gives the cursor to
-    start from; `?since=<cursor>` then gives every page, folder and attachment
-    change on the vault's boards after it — each once, as it is now (a page's
+    start from; `?since=<cursor>` then gives every page, folder, attachment
+    and wiki-file change on the vault's boards after it — each once, as it is now (a page's
     `code`, `title`, `content_hash`, `folder_id`, `archived` and vault
     `path`), or `"action": "deleted"` — with the next `cursor` and `more`.
     Keep a websocket on `/socket/websocket?token=<token>&vsn=2.0.0`, join
     `vault:<id>`, and a `change` event with the cursor says when to ask.
     The log keeps a window (90 days by default): `"resync": true` means your
     cursor is older than that — list the vault again, then follow on.
+
+    **Sync: the vault as a folder of files.** `slipdock sync init DIR --vault V`
+    binds a local folder and `slipdock sync` (or `--watch`, or `slipdock sync
+    service install`) keeps it level with the vault both ways; the folder
+    stays a valid Obsidian vault. `slipdock sync status` says what is waiting
+    on each side and which conflict copies are left. Underneath is
+    `/api/vaults/:id/sync`:
+
+    ```sh
+    curl -s -H "$H" B/api/vaults/Notes/sync            # every file: kind, id, path, hash, cursor
+    curl -s -H "$H" B/api/vaults/Notes/sync/pages/412  # one note's file: path, hash, content
+    curl -s -X PUT -H "$H" -H 'content-type: application/json' \\
+         B/api/vaults/Notes/sync/pages/412 -d '{"path": "Jobs/Acme.md", "content": "…", "base": "<hash>"}'
+    curl -s -X PUT -H "$H" -H 'content-type: application/json' \\
+         B/api/vaults/Notes/sync/pages -d '{"path": "Ideas/New.md", "content": "…"}'
+    curl -s -X DELETE -H "$H" "B/api/vaults/Notes/sync/pages/412?base=<hash>"   # archives
+    curl -s -H "$H" B/api/vaults/Notes/sync/files/9 -o photo.png                # bytes
+    curl -s -H "$H" -F path=Img/photo.png -F file=@photo.png B/api/vaults/Notes/sync/files
+    ```
+
+    Paths are vault paths of files: a page is `Title.md`, or `Title/index.md`
+    when it has children; a title a file name can't hold has its characters
+    substituted, and the true title is kept in front matter. A **hash** is the
+    sha256 of the exact bytes sync writes (front matter included, `also-in:
+    [Path]` for the other folders a page is filed in), so it moves exactly
+    when the file would. Every write sends the `base` hash it was made
+    against; a stale one is a 409 with the file as it now stands. Writing a
+    file at a new path renames or refiles the page; a directory that is no
+    folder yet becomes one. Files that are not notes (images, PDFs,
+    `.excalidraw`) are kept at their vault path as wiki files —
+    `POST /sync/files[/:id]` multipart, `PATCH /sync/files/:id {path, base}`
+    to move, `DELETE` to archive — and `![[photo.png]]` draws them.
 
     **Notes in a vault tag themselves.** On a board in a vault, a page's front
     matter `tags` and its inline `#tags` (nested `#area/sub` too; not in code,

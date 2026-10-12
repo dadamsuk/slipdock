@@ -2440,8 +2440,8 @@ The full specification, and the decisions behind it, is in `docs/wiki.md`.
 ### Vaults
 
 A **vault** lays several boards' wikis out as one Obsidian-style vault: one
-tree of Markdown files, which is what the coming `slipdock sync` mirrors to a
-folder on each computer (the plan is W-103). A vault is yours alone and holds
+tree of Markdown files, which `slipdock sync` mirrors to a folder on each
+computer (see [Syncing a vault to a folder](#syncing-a-vault-to-a-folder)). A vault is yours alone and holds
 no pages of its own. It is a name and a set of **mappings**, each a vault path
 onto a board's wiki or one folder of it:
 
@@ -2505,6 +2505,69 @@ notes under a tag — and anything nested beneath it — with
 `note_tag` on MCP's `list_pages`; `slipdock page tags <board>` (or
 `GET /api/boards/:board/pages/tags`) counts them. On a board in no vault
 nothing changes: `#word` is a word.
+
+### Syncing a vault to a folder
+
+`slipdock sync` keeps a folder on your computer and a vault level with each
+other, both ways. The server is where the notes live; the folder is a
+working copy that stays a valid Obsidian vault, so Obsidian, vim, a script
+or anything else that writes a file can add to it, and what they write
+becomes a page.
+
+```sh
+slipdock sync init ~/Notes --vault Brain    # bind the folder, then bring the vault down
+slipdock sync ~/Notes                        # one pass, both ways
+slipdock sync ~/Notes --watch                # keep at it
+slipdock sync service install ~/Notes        # …in the background, starting at login
+slipdock sync status ~/Notes                 # what is waiting, and what is in conflict
+```
+
+**Files.** A note is `Title.md` in the directory its folder names; a page
+with pages under it is `Title/index.md`, with its children beside it. A
+title a file name cannot hold (`Retry: why`) is written with the
+characters substituted (`Retry- why.md`), and the true title kept in front
+matter. Renaming the file renames the page, and the other way round; moving
+it to another directory refiles it, making the folder if there is none, and
+under another board's mapping it becomes a page on that board. Notes made
+in the folder are always plain files. A page filed in several folders is
+written once, at its home, with `also-in: [Path/One, Path/Two]` in its front
+matter; edit that list and the page is filed accordingly. Images, PDFs,
+`.excalidraw` drawings and other files are kept at the same vault path, up
+to 250 MB each, and `![[photo.png]]` draws them in the web app too.
+
+**What the folder remembers.** `.slipdock/state.json` holds, for each file,
+which page it is and the hash both sides last agreed on — never front
+matter, so your files stay your own. That is what makes a rename the same
+page rather than a delete and a new one.
+
+**Conflicts.** Every write to the server says which version it was made
+against. If a note changed on both sides, the server's version keeps the
+name and yours is saved beside it as `Name (conflict 2026-10-12 laptop).md`
+— and synced too, so nothing lives only on one machine. Merge it into the
+note and delete the copy; `sync status` lists the ones left.
+
+**Deletes.** Deleting a file archives its page (restore it from the wiki's
+archive); it is never purged. A page archived on the server is removed from
+the folder, unless you had edited it there, in which case your edit goes
+back up as a new page.
+
+**What is left alone.** `.obsidian/`, `.trash/`, every other dot folder and
+file, and the temporary and swap files editors write while saving. Add your
+own in `.slipdockignore` at the folder's root, one gitignore-style pattern a
+line (`*.pdf`, `Private/`, `drafts/*.md`).
+
+**Watching.** `--watch` looks at the folder every second and sends a change
+once the folder has been still for two seconds, so an editor that saves
+through a temporary file has finished. It asks the server's change feed
+every ten seconds (`--interval`), and passes anyway every ten minutes.
+`sync service install` sets that up as a systemd user service on Linux, a
+launchd agent on macOS or a logon task on Windows (`print` shows what it
+would write; `uninstall` takes it away).
+
+**One sync per folder.** It replaces Obsidian Sync rather than running
+beside it. `sync` warns when Obsidian Sync, Dropbox, iCloud Drive,
+OneDrive, Google Drive or Syncthing seems to be syncing the same folder:
+two of them undo each other's changes and make conflicts out of nothing.
 
 ## Moving boards between servers
 

@@ -13,6 +13,7 @@ defmodule SlipdockCLI.Sync.Watch do
   #   * **There.** The change feed is asked every `interval` seconds from
   #     the state's cursor. Anything new, or `resync`, runs a pass (which
   #     lists the vault whole, so a resync needs nothing more).
+  #   * **Anyway.** Every ten minutes with nothing else to do, a pass.
   #
   # A pass that fails — the server down, the network gone — is said once
   # and tried again on the next tick that has reason to, never in a loop.
@@ -20,6 +21,10 @@ defmodule SlipdockCLI.Sync.Watch do
   alias SlipdockCLI.Sync.Scan
 
   @settle_ms 2_000
+  # A pass now and then whatever the feed says: the one way to catch a change
+  # made in the moment between a pass's own writes and its cursor (see
+  # `SlipdockCLI.Sync`), and a check that nothing has drifted.
+  @full_ms 600_000
 
   def settle_ms, do: @settle_ms
 
@@ -28,7 +33,7 @@ defmodule SlipdockCLI.Sync.Watch do
   (path → `{size, mtime}`).
   """
   def new(snapshot, now_ms),
-    do: %{snapshot: snapshot, changed_at: nil, polled_at: now_ms, dirty: false}
+    do: %{snapshot: snapshot, changed_at: nil, polled_at: now_ms, passed_at: now_ms, dirty: false}
 
   @doc "The folder's names, sizes and times: what a tick compares."
   def snapshot(root) do
@@ -53,8 +58,13 @@ defmodule SlipdockCLI.Sync.Watch do
           watch
       end
 
+    full = Keyword.get(opts, :full_ms, @full_ms)
+
     cond do
       watch.dirty and now_ms - watch.changed_at >= settle ->
+        {:pass, watch}
+
+      not watch.dirty and now_ms - watch.passed_at >= full ->
         {:pass, watch}
 
       not watch.dirty and now_ms - watch.polled_at >= interval ->
@@ -68,7 +78,14 @@ defmodule SlipdockCLI.Sync.Watch do
   @doc "After a pass: the folder as it now stands is the new still point."
   def passed(watch, snapshot, now_ms),
     do:
-      %{watch | snapshot: snapshot, changed_at: nil, dirty: false, polled_at: now_ms}
+      %{
+        watch
+        | snapshot: snapshot,
+          changed_at: nil,
+          dirty: false,
+          polled_at: now_ms,
+          passed_at: now_ms
+      }
       |> Map.put(:last_seen, snapshot)
 
   @doc """
