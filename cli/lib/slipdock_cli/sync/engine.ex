@@ -35,16 +35,29 @@ defmodule SlipdockCLI.Sync.Engine do
   def run(root, state, {mod, ctx} = remote, opts \\ []) do
     with {:ok, listing} <- mod.list(ctx) do
       local = Scan.scan(root, opts[:cache] || %{})
+      patterns = Scan.ignores(root)
 
+      # What .slipdockignore names is neither sent nor fetched, and what the
+      # state knew there is left as it was.
       server =
-        for e <- listing["entries"] || [], e["kind"] in [nil, "page"], into: %{}, do: {e["id"], e}
+        for e <- listing["entries"] || [],
+            e["kind"] in [nil, "page"],
+            not Scan.ignored?(e["path"], patterns),
+            into: %{},
+            do: {e["id"], e}
+
+      {set_aside, old} =
+        (state["entries"] || %{})
+        |> Enum.split_with(fn {path, e} ->
+          Scan.ignored?(path, patterns) and not Map.has_key?(server, e["id"])
+        end)
 
       acc = %{
         root: root,
         remote: remote,
         host: opts[:host] || state["host"] || hostname(),
         today: opts[:today] || Date.utc_today(),
-        old: state["entries"] || %{},
+        old: Map.new(old),
         entries: %{},
         done_ids: MapSet.new(),
         done_paths: MapSet.new(),
@@ -76,7 +89,7 @@ defmodule SlipdockCLI.Sync.Engine do
 
       state =
         state
-        |> Map.put("entries", acc.entries)
+        |> Map.put("entries", Map.merge(Map.new(set_aside), acc.entries))
         |> Map.put("cursor", listing["cursor"])
         |> Map.put("conflicts", conflicts)
         |> Map.put("errors", Enum.map(report.errors, &%{"path" => &1.path, "error" => &1.error}))

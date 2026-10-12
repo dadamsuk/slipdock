@@ -7,18 +7,70 @@ defmodule SlipdockCLI.Sync.Scan do
   # (W-103: rely on hashes, never on modification times).
   #
   # Left out (R2.6): dot files and folders — .obsidian, .trash, .slipdock,
-  # .git among them — and the files editors write while saving: swap files,
-  # backups, partial downloads.
+  # .git among them — the files editors write while saving (swap files,
+  # backups, partial downloads), and whatever `.slipdockignore` at the
+  # mirror's root names.
 
   @temp ~r/(~$|\.(swp|swx|swo|tmp|temp|part|crdownload|bak)$|^~\$|^4913$|^#.*#$)/i
 
+  @ignore_file ".slipdockignore"
+
+  def ignore_file, do: @ignore_file
+
+  @doc """
+  The patterns in a mirror's `.slipdockignore`, compiled: gitignore-style
+  globs, one a line, `#` for comments. `*` and `?` stay within a name, `**`
+  crosses folders, a trailing `/` matches a folder and all in it, and a
+  pattern with no `/` in it matches a name at any depth. `!` (un-ignoring)
+  is not supported, and such a line is skipped.
+  """
+  def ignores(root) do
+    case File.read(Path.join(root, @ignore_file)) do
+      {:ok, text} -> parse_ignores(text)
+      _ -> []
+    end
+  end
+
+  @doc false
+  def parse_ignores(text) do
+    text
+    |> String.split(~r/\r?\n/)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == "" or String.starts_with?(&1, ["#", "!"])))
+    |> Enum.map(&compile/1)
+  end
+
+  defp compile(pattern) do
+    dir? = String.ends_with?(pattern, "/")
+    pattern = String.trim(pattern, "/")
+    anchored? = String.contains?(pattern, "/")
+
+    body =
+      Regex.split(~r/(\*\*\/|\*\*|\*|\?)/, pattern, include_captures: true, trim: true)
+      |> Enum.map_join(fn
+        "**/" -> "(?:.*/)?"
+        "**" -> ".*"
+        "*" -> "[^/]*"
+        "?" -> "[^/]"
+        text -> Regex.escape(text)
+      end)
+
+    # A folder pattern matches the folder and everything under it; any
+    # pattern matches a folder's contents when it matches the folder.
+    prefix = if anchored?, do: "^", else: "(?:^|/)"
+    Regex.compile!(prefix <> body <> if(dir?, do: "/", else: "(?:/|$)"))
+  end
+
   @doc "Whether a vault path is never synced."
-  def ignored?(path) do
-    path
-    |> String.split("/", trim: true)
-    |> Enum.any?(fn segment ->
-      String.starts_with?(segment, ".") or Regex.match?(@temp, segment)
-    end)
+  def ignored?(path, patterns \\ []) do
+    hidden? =
+      path
+      |> String.split("/", trim: true)
+      |> Enum.any?(fn segment ->
+        String.starts_with?(segment, ".") or Regex.match?(@temp, segment)
+      end)
+
+    hidden? or Enum.any?(patterns, &Regex.match?(&1, path))
   end
 
   @doc "Whether a file is a note (the rest are attachments, W-103 R2.9)."
@@ -30,8 +82,10 @@ defmodule SlipdockCLI.Sync.Scan do
   hash it had rather than being read again.
   """
   def scan(root, cache \\ %{}) do
+    patterns = ignores(root)
+
     root
-    |> walk("")
+    |> walk("", patterns)
     |> Map.new(fn {path, stat} ->
       sig = {stat.size, stat.mtime}
 
@@ -47,7 +101,10 @@ defmodule SlipdockCLI.Sync.Scan do
     |> Map.new()
   end
 
-  defp walk(root, rel) do
+  @doc "Every synced file's stat, without reading any of them: what a watcher compares."
+  def scan_stats(root), do: walk(root, "", ignores(root))
+
+  defp walk(root, rel, patterns) do
     case File.ls(Path.join(root, rel)) do
       {:ok, names} ->
         names
@@ -57,11 +114,13 @@ defmodule SlipdockCLI.Sync.Scan do
           full = Path.join(root, path)
 
           cond do
-            ignored?(path) ->
+            ignored?(path, patterns) ->
               []
 
+            # A folder pattern ends in a slash, so a folder is asked about
+            # with one too.
             File.dir?(full) ->
-              walk(root, path)
+              if ignored?(path <> "/", patterns), do: [], else: walk(root, path, patterns)
 
             true ->
               case File.stat(full, time: :posix) do
