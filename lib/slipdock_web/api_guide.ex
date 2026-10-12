@@ -1994,7 +1994,9 @@ defmodule SlipdockWeb.APIGuide do
     **Templates** are ordinary pages with `"template": true`, not read as
     content but copied. Bodies may use the same `{{…}}` placeholders an
     automation action does — `{{card.title}}`, `{{board.name}}`, `{{today}}` —
-    plus anything passed in `values`.
+    plus anything passed in `values`, and Obsidian's `{{title}}`, `{{date}}`,
+    `{{time}}`, `{{date:YYYY-MM-DD}}` and `{{time:HH:mm}}` (Moment formats,
+    UTC), so an Obsidian template works unchanged.
 
     **Conventions worth keeping to**, because they are what make a wiki
     readable a year later rather than a pile of near-duplicates:

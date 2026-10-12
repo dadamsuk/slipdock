@@ -2316,7 +2316,11 @@ backlinks — writing on cards is writing.
 
 **Templates.** A page marked a template is not read as content, it is copied.
 Bodies may use the same `{{…}}` placeholders an automation action does —
-`{{card.title}}`, `{{board.name}}`, `{{today}}` — plus any values passed in.
+`{{card.title}}`, `{{board.name}}`, `{{today}}` — plus any values passed in,
+and Obsidian's own: `{{title}}` (the new page's title), `{{date}}`
+(`2026-03-07`), `{{time}}` (`14:05`), and `{{date:dddd D MMMM YYYY}}` or
+`{{time:h:mm A}}` in Moment's format, as Obsidian writes them — so a template
+brought over from a vault works as it is. Dates and times are UTC.
 A board template can carry `pages` as well as lists, so a new board arrives
 with its documentation skeleton rather than an empty wiki. A page can also be
 a **favourite**, alongside boards, lists, cards and views.

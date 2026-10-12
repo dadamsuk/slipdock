@@ -39,6 +39,7 @@ defmodule Slipdock.Wiki do
     Links,
     Markup,
     NoteTags,
+    ObsidianPlaceholders,
     Page,
     Placements,
     Query,
@@ -1234,17 +1235,26 @@ defmodule Slipdock.Wiki do
   """
   def create_from_template(%Board{} = board, %Page{} = template, values \\ %{}, opts \\ []) do
     bindings = bindings(board, opts[:card], values)
+    now = opts[:now] || DateTime.utc_now()
+
+    title =
+      opts[:title] ||
+        render_template(ObsidianPlaceholders.fill(template.title, nil, now), bindings)
+
+    # Obsidian's {{title}}, {{date}} and {{time}} first, so a template written
+    # for Obsidian works as it is; a value passed in by name still wins.
+    obsidian = &ObsidianPlaceholders.fill(&1, bindings["title"] || title, now)
 
     attrs = %{
-      "title" => opts[:title] || render_template(template.title, bindings),
-      "body" => render_template(template.body, bindings),
-      "summary" => render_template(template.summary, bindings),
+      "title" => title,
+      "body" => template.body |> obsidian.() |> render_template(bindings),
+      "summary" => template.summary |> obsidian.() |> render_template(bindings),
       "parent_id" => parent_id(board, opts[:parent]),
       "folder_id" => folder_id(board, opts[:folder])
     }
 
     with {:ok, page} <-
-           create_page(board, attrs, Keyword.drop(opts, [:title, :parent, :folder, :card])) do
+           create_page(board, attrs, Keyword.drop(opts, [:title, :parent, :folder, :card, :now])) do
       maybe_pin_to_card(page, opts[:card])
       {:ok, page}
     end
