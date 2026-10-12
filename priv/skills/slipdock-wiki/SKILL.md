@@ -138,6 +138,23 @@ slipdock folder rm <board> Choices                 # the folder only
 called "Design" that is about nothing and only holds other pages — a document
 you have to read past. A folder is a place, and a place costs nothing.
 
+## Vaults: several wikis as one Obsidian-style vault
+
+A **vault** is the user's own, and holds no pages: it maps vault paths onto
+board wikis, or onto one folder of a wiki, so the wikis read as one tree of
+Markdown files (`/` → KnowledgeBase, `/Jobs` → Job Hunt). The longest matching
+prefix wins; a board can be in one vault only, and only a board the user can
+write to. Deleting a vault removes its mappings and never a page.
+
+```sh
+slipdock vault ls                                  # the vaults, with their mappings
+slipdock vault new Notes
+slipdock vault map Notes / --board kb              # the vault's root
+slipdock vault map Notes /Jobs --board jobs --folder Notes
+slipdock vault locate Notes /Jobs/Acme/Call.md     # which mapping, and the rest of the path
+slipdock vault unmap Notes /Jobs
+```
+
 **Deleting a folder never deletes writing.** Its subfolders move up to its
 parent and its pages go back to the board's root.
 

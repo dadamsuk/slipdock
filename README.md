@@ -608,17 +608,17 @@ claude mcp add --transport http slipdock https://your-server/mcp \
   --header "Authorization: Bearer <token>"
 ```
 
-The client gets 35 tools — `whoami`, `get_guide` (a short guide that names
+The client gets 37 tools — `whoami`, `get_guide` (a short guide that names
 the rest of its sections, one call each with `section`), `list_boards`, `get_board`,
 `list_cards` (with `full: true`, every card as `get_card` gives it), `get_card`,
 `search`, `read_page`, `list_pages` (a board's wiki, flat or as a tree), `page_info` (a page's links or heading paths,
 a board's wanted pages, or whether a title has a page), `page_history` (a page's revisions,
-the diff one save made, or between any two) and `activity`
+the diff one save made, or between any two), `list_vaults` (your vaults, or where a vault path lands) and `activity`
 (a board's log, or one card's) to read; `create_card`,
 `update_card`, `move_card`, `comment`, `complete_card`, `archive_card`,
 `delete_card`, `create_list`, `create_tag`, `delete_list`, `create_board`, `archive_board`,
 `delete_board`, `write_page`, `update_page` (rename, summary, move, file, archive or
-restore, pin to a card) and `revert_page` (put a page back to a revision) to write, and
+restore, pin to a card), `revert_page` (put a page back to a revision) and `manage_vault` (make a vault and map vault paths onto board wikis) to write, and
 `claim_job`, `job_progress` and `finish_job` to take [runner jobs](#run-an-agent-against-a-board)
 from a board's queue, and — only while an admin has meeting mode on — `capture_meeting`,
 `get_capture`, `resolve_capture_question` and `commit_capture` for meeting capture
