@@ -3243,9 +3243,15 @@ defmodule Slipdock.Boards do
       if a.card_id && a.transcript_status == "done", do: Indexer.enqueue(a.card_id)
 
       case attachment do
-        %Attachment{card: %Card{board_id: board_id}} -> broadcast(board_id)
-        %Attachment{page: %{board_id: board_id}} -> broadcast(board_id)
-        _ -> :ok
+        %Attachment{card: %Card{board_id: board_id}} ->
+          broadcast(board_id)
+
+        %Attachment{page: %{board_id: board_id}} ->
+          Slipdock.Wiki.Changes.record(board_id, "attachment", a.id, "deleted")
+          broadcast(board_id)
+
+        _ ->
+          :ok
       end
     end)
   end

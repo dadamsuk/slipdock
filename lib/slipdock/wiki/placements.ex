@@ -204,6 +204,7 @@ defmodule Slipdock.Wiki.Placements do
   end
 
   defp touched(page, folder) do
+    Slipdock.Wiki.Changes.record(page.board_id, "page", page.id)
     Wiki.broadcast_board(page.board_id)
     if folder.board_id != page.board_id, do: Wiki.broadcast_board(folder.board_id)
   end

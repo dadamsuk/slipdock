@@ -116,5 +116,36 @@ defmodule SlipdockWeb.API.VaultController do
     end
   end
 
+  @doc """
+  What changed in the vault after `?since=` (a cursor): pages, folders and
+  attachments on every board of it, each once, as they are now. Without
+  `since`, just the cursor to start following from. `limit` (default 500,
+  at most 1000); `more: true` means ask again at once. A websocket on
+  `/socket` (channel `vault:<id>`) says when to ask.
+  """
+  def changes(conn, %{"id" => ref} = params) do
+    with {:ok, vault} <- Vaults.get_vault(user(conn), ref),
+         {:ok, since} <- cursor(params["since"]),
+         {:ok, limit} <- cursor(params["limit"]) do
+      json(
+        conn,
+        Slipdock.Wiki.Changes.since(vault, since, user(conn),
+          limit: limit || 500,
+          token: conn.assigns[:api_token]
+        )
+      )
+    end
+  end
+
+  defp cursor(nil), do: {:ok, nil}
+  defp cursor(""), do: {:ok, nil}
+
+  defp cursor(value) do
+    case Integer.parse(to_string(value)) do
+      {n, ""} when n >= 0 -> {:ok, n}
+      _ -> {:error, :bad_request, "since and limit are whole numbers"}
+    end
+  end
+
   defp user(conn), do: conn.assigns.current_user
 end

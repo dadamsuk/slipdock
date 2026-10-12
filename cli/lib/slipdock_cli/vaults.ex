@@ -79,11 +79,30 @@ defmodule SlipdockCLI.Vaults do
     end)
   end
 
+  # What changed since a cursor: what a sync polls. Without --since, the
+  # cursor to start from.
+  def run("vault", ["changes", ref], o) do
+    HTTP.get("/vaults/#{enc(ref)}/changes", since: o[:since], limit: o[:limit])
+    |> out(o, fn r ->
+      Enum.each(r["changes"], fn c ->
+        what = c["path"] || c["code"] || c["filename"] || c["name"] || "##{c["id"]}"
+
+        IO.puts(
+          String.pad_trailing("#{c["cursor"]}", 8) <> "#{c["subject"]} #{c["action"]}  #{what}"
+        )
+      end)
+
+      IO.puts(
+        Render.dim("cursor #{r["cursor"]}" <> if(r["more"], do: " — more to come", else: ""))
+      )
+    end)
+  end
+
   def run("vault", _args, _o),
     do:
       fail(
         "usage: slipdock vault ls | show V | new NAME | rename V NAME | rm V | " <>
-          "map V PATH --board B [--folder F] | unmap V PATH | locate V PATH | resolve V LINK | wanted V"
+          "map V PATH --board B [--folder F] | unmap V PATH | locate V PATH | resolve V LINK | wanted V | changes V [--since N]"
       )
 
   defp vaults([]), do: IO.puts(Render.dim("no vaults — `slipdock vault new NAME` makes one"))

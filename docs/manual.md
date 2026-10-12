@@ -2474,6 +2474,18 @@ which page a link finds; `slipdock vault wanted <vault>` (or
 `GET /api/vaults/:id/wanted`, MCP `page_info` with `vault`) lists the pages
 wanted anywhere in it. A board in no vault resolves exactly as before.
 
+**What changed, for sync.** Every change to a page, a folder or a page's
+attachment is logged with an increasing **cursor**, on every board. A
+vault's feed — `GET /api/vaults/:id/changes?since=<cursor>`,
+`slipdock vault changes <vault> --since N`, or MCP `list_vaults` with
+`changes_since` — answers with what changed on any of its boards after that
+cursor, each page or folder once and as it is now (a page's code, title,
+`content_hash`, home folder, whether it is archived, and its vault path), or
+`deleted`; `more: true` means ask again at once. Without a cursor it answers
+with the one to start from. A client can also keep a websocket open at
+`/socket/websocket?token=<API token>&vsn=2.0.0` and join `vault:<id or name>`:
+each change pushes `change` with the new cursor, so it knows when to ask.
+
 **Tags in notes.** On a board in a vault, a note's front matter `tags` and
 every inline `#tag` in its body are its tags, nested ones (`#area/sub`)
 included, as Obsidian reads them: not inside code, headings, links or HTML,
@@ -3344,6 +3356,7 @@ slipdock vault map Notes /Jobs --board jobs [--folder Notes]   # a vault path on
 slipdock vault locate Notes /Jobs/Acme.md       # which mapping a path lands in (longest prefix)
 slipdock vault unmap Notes /Jobs | slipdock vault rm Notes      # the pages always stay
 slipdock vault resolve Notes X/Dup | slipdock vault wanted Notes   # links across the whole vault
+slipdock vault changes Notes [--since 812]     # what changed after a cursor: what sync polls
 slipdock page tags brain | slipdock page ls brain --note-tag area   # a vault's notes' own #tags
 slipdock page props W-31 [--file F | --clear]  # the front matter its file came with, kept exactly
 slipdock page ls qvm-v1-rem --q retry           # the board's wiki; --tree for the shape of it

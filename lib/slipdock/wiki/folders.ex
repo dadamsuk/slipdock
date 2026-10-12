@@ -14,7 +14,7 @@ defmodule Slipdock.Wiki.Folders do
 
   alias Slipdock.Repo
   alias Slipdock.Boards.Board
-  alias Slipdock.Wiki.{Folder, Page}
+  alias Slipdock.Wiki.{Changes, Folder, Page}
 
   ## Reading ------------------------------------------------------------------
 
@@ -269,6 +269,7 @@ defmodule Slipdock.Wiki.Folders do
       |> Repo.insert()
 
     with {:ok, folder} <- result do
+      Changes.record(board.id, "folder", folder.id)
       broadcast(board.id)
       {:ok, folder}
     end
@@ -319,6 +320,7 @@ defmodule Slipdock.Wiki.Folders do
         # A position asked for by name — over the API or from the CLI — is
         # packed the same way a dragged one is, so the two never disagree.
         if attrs["position"], do: repack(folder, {:index, folder.position})
+        Changes.record(folder.board_id, "folder", folder.id)
         broadcast(folder.board_id)
         {:ok, get!(folder.id)}
       end
@@ -366,6 +368,7 @@ defmodule Slipdock.Wiki.Folders do
     with :ok <- check_cycle(folder, %{"parent_id" => parent_id}),
          {:ok, moved} <- folder |> Folder.changeset(%{"parent_id" => parent_id}) |> Repo.update() do
       repack(moved, {:before, before})
+      Changes.record(moved.board_id, "folder", moved.id)
       broadcast(moved.board_id)
       {:ok, get!(moved.id)}
     end
@@ -434,11 +437,15 @@ defmodule Slipdock.Wiki.Folders do
     |> Enum.each(&Slipdock.Wiki.delete_page/1)
 
     Repo.delete_all(from(f in Folder, where: f.id in ^ids))
+    Enum.each(ids, &Changes.record(folder.board_id, "folder", &1, "deleted"))
     broadcast(folder.board_id)
     {:ok, folder}
   end
 
   def delete(%Folder{} = folder, :keep) do
+    # Its pages go back to the root, and a sync has to move their files.
+    refiled = Repo.all(from(p in Page, where: p.folder_id == ^folder.id, select: p.id))
+
     Repo.transaction(fn ->
       Repo.update_all(
         from(f in Folder, where: f.parent_id == ^folder.id),
@@ -450,6 +457,8 @@ defmodule Slipdock.Wiki.Folders do
     end)
     |> case do
       {:ok, folder} ->
+        Changes.record(folder.board_id, "folder", folder.id, "deleted")
+        Changes.record_pages(folder.board_id, refiled, "changed")
         broadcast(folder.board_id)
         {:ok, folder}
 
@@ -476,6 +485,7 @@ defmodule Slipdock.Wiki.Folders do
            page |> Ecto.Changeset.change(folder_id: folder_id) |> Repo.update() do
       # Home now, so no longer "also" filed there.
       Slipdock.Wiki.Placements.drop_home(page)
+      Changes.record(page.board_id, "page", page.id)
       broadcast(page.board_id)
       {:ok, page}
     end

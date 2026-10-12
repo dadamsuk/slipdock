@@ -1712,6 +1712,14 @@ defmodule SlipdockWeb.APIGuide do
     and its path; `GET /api/vaults/:id/wanted` lists what is linked to and
     unwritten anywhere in the vault. Boards in no vault are unchanged.
 
+    **The change feed.** `GET /api/vaults/:id/changes` gives the cursor to
+    start from; `?since=<cursor>` then gives every page, folder and attachment
+    change on the vault's boards after it — each once, as it is now (a page's
+    `code`, `title`, `content_hash`, `folder_id`, `archived` and vault
+    `path`), or `"action": "deleted"` — with the next `cursor` and `more`.
+    Keep a websocket on `/socket/websocket?token=<token>&vsn=2.0.0`, join
+    `vault:<id>`, and a `change` event with the cursor says when to ask.
+
     **Notes in a vault tag themselves.** On a board in a vault, a page's front
     matter `tags` and its inline `#tags` (nested `#area/sub` too; not in code,
     headings or links; an all-digit `#412` is still a card) are its
