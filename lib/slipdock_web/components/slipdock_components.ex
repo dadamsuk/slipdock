@@ -920,6 +920,13 @@ defmodule SlipdockWeb.SlipdockComponents do
     default: false,
     doc: "on a stand-in, offer to dismiss it (the reader can change the board)"
 
+  attr :selected, :boolean,
+    default: nil,
+    doc: """
+    in the board's select mode, whether this card is picked out (`true`) or
+    not (`false`); nil outside select mode
+    """
+
   slot :actions,
     doc: """
     controls rendered at the end of the card's title row — the board view's
@@ -990,15 +997,25 @@ defmodule SlipdockWeb.SlipdockComponents do
         @page? && "kanban-page",
         @card.completed && "opacity-60",
         @focus == :cursor && "z-10 ring-2 ring-secondary",
-        @focus == :held && "z-10 scale-[1.02] shadow-lg ring-2 ring-primary"
+        @focus == :held && "z-10 scale-[1.02] shadow-lg ring-2 ring-primary",
+        @selected && "z-10 bg-primary/5 ring-2 ring-primary"
       ]}
       data-focus={@focus}
+      data-selected={@selected}
       tabindex="0"
       role="button"
+      aria-pressed={if is_boolean(@selected), do: to_string(@selected)}
       phx-click={open_item(@page?, @card.id)}
       phx-keydown={open_item(@page?, @card.id)}
       phx-key="Enter"
     >
+      <span
+        :if={@selected}
+        class="absolute -top-1.5 -right-1.5 z-10 flex size-5 items-center justify-center rounded-full bg-primary text-primary-content shadow"
+        aria-hidden="true"
+      >
+        <.icon name="hero-check" class="size-3.5" />
+      </span>
       <div
         :if={@f.cover && !@compact}
         class={["h-1.5 rounded-t-xl bg-gradient-to-r", Palette.gradient(@cover_color)]}
