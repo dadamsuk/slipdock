@@ -26,6 +26,10 @@ defmodule Slipdock.AI.Actions do
       title. Archiving a page puts the document away and takes it off the
       board; it is the only change this can make to the wiki, because a
       document is written in the wiki's own editor and not dictated here.
+
+  A tag name the board doesn't have, in `add_tags`, `tags` or a `create`,
+  makes that tag on the board's tree when the step is applied; the step's
+  label says so, so nothing is created that the user didn't see first.
   """
 
   alias Slipdock.{Access, Boards}

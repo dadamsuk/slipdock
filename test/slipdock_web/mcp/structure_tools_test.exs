@@ -149,6 +149,94 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
     end
   end
 
+  describe "create_tag" do
+    defp tag_names(board), do: board.id |> Boards.list_tags() |> Enum.map(& &1.name)
+
+    test "adds a tag to the board, with its colour", ctx do
+      result =
+        ctx.conn |> call("create_tag", %{board: "delivery", name: "infra", color: "red"}) |> ok!()
+
+      assert result["created"] == true
+      assert %{"name" => "infra", "color" => "red", "id" => id} = result["tag"]
+      assert [%{id: ^id, color: "red"}] = Boards.list_tags(ctx.board.id)
+    end
+
+    test "is listed as a plain write", %{conn: conn} do
+      tool =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/mcp", Jason.encode!(%{jsonrpc: "2.0", id: 1, method: "tools/list"}))
+        |> json_response(200)
+        |> get_in(["result", "tools"])
+        |> Enum.find(&(&1["name"] == "create_tag"))
+
+      assert tool["annotations"]["readOnlyHint"] == false
+      assert tool["annotations"]["destructiveHint"] == false
+      assert String.length(tool["description"]) < 250
+    end
+
+    test "a name already there, in any case, is returned rather than doubled", ctx do
+      {:ok, tag} = Boards.create_tag(ctx.board, %{"name" => "Ops"})
+
+      result = ctx.conn |> call("create_tag", %{board: "delivery", name: " ops "}) |> ok!()
+
+      assert result["created"] == false
+      assert result["tag"]["id"] == tag.id
+      assert tag_names(ctx.board) == ["Ops"]
+    end
+
+    test "a name that looks like an id is still a name", ctx do
+      {:ok, other} = Boards.create_tag(ctx.board, %{"name" => "other"})
+
+      result =
+        ctx.conn |> call("create_tag", %{board: "delivery", name: to_string(other.id)}) |> ok!()
+
+      assert result["created"] == true
+      assert to_string(other.id) in tag_names(ctx.board)
+    end
+
+    test "made on a sub-board, it lands on the root and is shared by the tree", ctx do
+      {:ok, t} = Boards.find_template("Simple")
+      {:ok, sub} = sub_board(ctx.card, t)
+
+      ctx.conn |> call("create_tag", %{board: sub.id, name: "deep"}) |> ok!()
+
+      assert tag_names(ctx.board) == ["deep"]
+    end
+
+    test "an unknown colour, a blank name or one too long is refused", ctx do
+      assert ctx.conn
+             |> call("create_tag", %{board: "delivery", name: "x", color: "plaid"})
+             |> error!() =~ "not saved"
+
+      assert ctx.conn |> call("create_tag", %{board: "delivery", name: " "}) |> error!() =~
+               "name is required"
+
+      assert ctx.conn
+             |> call("create_tag", %{board: "delivery", name: String.duplicate("x", 31)})
+             |> error!() =~ "not saved"
+
+      assert tag_names(ctx.board) == []
+    end
+
+    test "works on a board shared for writing, not on a stranger's", ctx do
+      ctx.conn |> call("create_tag", %{board: ctx.shared.id, name: "ours"}) |> ok!()
+      assert tag_names(ctx.shared) == ["ours"]
+
+      ctx.conn |> call("create_tag", %{board: ctx.theirs.id, name: "mine"}) |> error!()
+      assert tag_names(ctx.theirs) == []
+    end
+
+    test "a read-only token cannot", ctx do
+      ctx.conn
+      |> with_token(ctx.user, scope: "read")
+      |> call("create_tag", %{board: "delivery", name: "nope"})
+      |> error!()
+
+      assert tag_names(ctx.board) == []
+    end
+  end
+
   describe "create_list" do
     test "adds a list at the end, with its category", ctx do
       result =

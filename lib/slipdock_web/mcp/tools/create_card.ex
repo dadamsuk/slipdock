@@ -33,7 +33,7 @@ defmodule SlipdockWeb.MCP.Tools.CreateCard do
         tags: %{
           type: "array",
           items: %{type: "string"},
-          description: "Tag names on the board (get_board lists them; create_tag adds one)."
+          description: "Tag names already on the board (get_board lists them; create_tag adds one)."
         },
         assignees: %{
           type: "array",

@@ -161,7 +161,7 @@ way in: what it is, the pictures, and how to get it running.
 - Accounts: passwordless sign-in by emailed magic link, sessions that last
   30 days, API tokens for the CLI
 - **An MCP server** at `/mcp`: claude.ai, the Claude apps, Claude Code and
-  other MCP clients get the boards and the wiki as 34 tools (four of them only
+  other MCP clients get the boards and the wiki as 35 tools (four of them only
   while meeting mode is on), signing in
   through the browser or with an API token (see [MCP server](#mcp-server))
 - Groups of users; boards, single cards and saved views can be shared with
@@ -1313,13 +1313,17 @@ is ever sent to a model unless you ask.
   write) turns a request into a list of concrete changes: set or clear
   dates, priority, assignee, flags and tags, rename, rewrite a
   description, move between lists, complete or reopen, create cards,
-  comment, add or tick checklist items, archive. It can also **archive a
+  comment, add or tick checklist items, archive. Ask for a tag the board
+  doesn't have yet and it makes it: the step reads *Create tag “x” and add
+  it to …*, and the tag (in the default colour, on the top board so its
+  sub-boards share it) is only made when you apply. It can also **archive a
   wiki page**, named by its code or its exact title — the one change it
   makes to the wiki, since a document is written in the wiki's own editor
   rather than dictated here. Relative dates are
   resolved from today. Nothing changes until you click *Apply*; every
   step is checked against the page and your permissions first, and
-  anything the model got wrong (an unknown tag, a card not on the page)
+  anything the model got wrong (a tag to remove that isn't there, a card
+  not on the page)
   is shown struck through with the reason.
 - **Generator** — on the narrative page, *Generate narrative* offers
   five levels — one-liner, three-liner, summary, stakeholder update,
@@ -3338,6 +3342,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `archive_card` | Puts a card away, or with `restore: true` brings it back. |
 | `delete_card` | Deletes a card with its subcards, comments and files. Needs `confirm: true`. |
 | `create_list` | A list at the end of a board, with its category (`todo`, `doing`, `done`) and an optional WIP limit. |
+| `create_tag` | A tag on a board (on its root, so the whole tree shares it), with an optional colour. A tag of that name already there comes back with `created: false` rather than a second one. |
 | `delete_list` | Deletes an empty list; one holding cards only with `with_cards: true`. |
 | `create_board` | A board of your own, with a template's lists (Backlog, To Do, In Progress, Done by default), or `lists` of its own that `save_template` can keep as a new template. |
 | `archive_board` | Archives a board you own, or with `restore: true` brings it back. |

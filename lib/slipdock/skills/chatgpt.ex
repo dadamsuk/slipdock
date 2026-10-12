@@ -35,6 +35,7 @@ defmodule Slipdock.Skills.ChatGPT do
     {"archive <id>", "archive_card"},
     {"delete <id>", "delete_card"},
     {"new-column", "create_list"},
+    {"new-tag <board> <name>", "create_tag"},
     {"new-board", "create_board"},
     {"archive-board / restore-board", "archive_board"},
     {"activity", "activity"},

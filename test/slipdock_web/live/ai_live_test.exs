@@ -55,7 +55,8 @@ defmodule SlipdockWeb.AILiveTest do
           "card_id" => card.id,
           "changes" => %{"priority" => "high", "due_date" => "2030-03-05"}
         },
-        %{"type" => "update", "card_id" => card.id, "changes" => %{"add_tags" => ["missing"]}}
+        %{"type" => "update", "card_id" => card.id, "changes" => %{"remove_tags" => ["missing"]}},
+        %{"type" => "update", "card_id" => card.id, "changes" => %{"add_tags" => ["fresh"]}}
       ]
     })
 
@@ -70,19 +71,23 @@ defmodule SlipdockWeb.AILiveTest do
     assert html =~ "Set priority of “Write the plan” to high"
     assert html =~ "Set the due date of “Write the plan” to Tue 5 Mar 2030"
     assert html =~ "no tag called “missing”"
-    assert html =~ "2 changes ready"
+    assert html =~ "Create tag “fresh” and add it to “Write the plan”"
+    assert html =~ "3 changes ready"
 
     assert_receive {:ai_request, %{"response_format" => %{"type" => "json_object"}}}
 
     # Nothing has changed yet.
     assert Boards.get_card!(card.id).priority == "low"
+    refute "fresh" in Enum.map(Boards.list_tags(board.id), & &1.name)
 
     html = view |> element("#page-ai button[phx-click=apply]") |> render_click()
-    assert html =~ "Applied 2 of 3"
+    assert html =~ "Applied 3 of 4"
 
     fresh = Boards.get_card!(card.id)
     assert fresh.priority == "high"
     assert fresh.due_date == ~D[2030-03-05]
+    assert Enum.map(fresh.tags, & &1.name) == ["fresh"]
+    assert "fresh" in Enum.map(Boards.list_tags(board.id), & &1.name)
   end
 
   test "read-only users only get chat mode", %{conn: conn, board: board} do
