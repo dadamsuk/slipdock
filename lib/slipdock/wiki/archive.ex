@@ -172,17 +172,9 @@ defmodule Slipdock.Wiki.Archive do
 
     yaml =
       yaml
-      |> put_if(
-        "title",
-        page.title,
-        page.title != file_title or FrontMatter.has_key?(yaml, "title")
-      )
+      |> put_if("title", page.title, page.title != file_title or title_key?(yaml))
       |> put_if("code", page.code, opts[:code] == true)
-      |> put_if(
-        "summary",
-        page.summary,
-        page.summary != nil or FrontMatter.has_key?(yaml, "summary")
-      )
+      |> put_if("summary", page.summary, page.summary != nil or summary_key?(yaml))
       |> put_if(
         "status",
         page.status,
@@ -219,6 +211,27 @@ defmodule Slipdock.Wiki.Archive do
   end
 
   defp ours?(yaml, key, vocabulary), do: FrontMatter.get(yaml, key) in vocabulary
+
+  # A `title` key that says something, so it is kept in step with the page.
+  # An empty one (`title:`, as a template leaves it) says nothing while the
+  # file's name is the title, and is left as written.
+  defp title_key?(yaml) do
+    case FrontMatter.get(yaml, "title") do
+      value when is_binary(value) -> String.trim(value) != ""
+      nil -> false
+      _ -> true
+    end
+  end
+
+  # A `summary` key that could have been the page's summary, so one the page
+  # no longer has is taken out. Any other — too long to be one, or not text —
+  # is the writer's own, and stays.
+  defp summary_key?(yaml) do
+    case FrontMatter.get(yaml, "summary") do
+      value when is_binary(value) -> String.length(value) <= Page.summary_length()
+      _ -> false
+    end
+  end
 
   # A file's own `tags` are the note's (see W-103 R3.2); the board's tags are
   # written only where the file has none.

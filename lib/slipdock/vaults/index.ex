@@ -65,6 +65,7 @@ defmodule Slipdock.Vaults.Index do
           title: p.title,
           slug: p.slug,
           aliases: p.aliases,
+          file_name: p.file_name,
           archived: not is_nil(p.archived_at)
         }
       )
@@ -144,7 +145,11 @@ defmodule Slipdock.Vaults.Index do
       board_id: page.board_id,
       segments: segments,
       path: Enum.join(segments, "/"),
-      names: Enum.map([page.title, page.slug | page.aliases || []], &norm/1) |> Enum.uniq(),
+      names:
+        [page.title, page.slug, page.file_name | page.aliases || []]
+        |> Enum.reject(&is_nil/1)
+        |> Enum.map(&norm/1)
+        |> Enum.uniq(),
       dirs: segments |> Enum.drop(-1) |> Enum.map(&norm/1)
     }
   end

@@ -2526,7 +2526,9 @@ slipdock sync status ~/Notes                 # what is waiting, and what is in c
 with pages under it is `Title/index.md`, with its children beside it. A
 title a file name cannot hold (`Retry: why`) is written with the
 characters substituted (`Retry- why.md`), and the true title kept in front
-matter. Renaming the file renames the page, and the other way round; moving
+matter. A note that arrived with a name of its own — front matter giving it
+another title, a name longer than 80 characters or ending in a space — keeps
+that name until the page is renamed. Renaming the file renames the page, and the other way round; moving
 it to another directory refiles it, making the folder if there is none, and
 under another board's mapping it becomes a page on that board. Notes made
 in the folder are always plain files. A page filed in several folders is
