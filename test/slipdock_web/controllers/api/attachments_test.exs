@@ -371,6 +371,34 @@ defmodule SlipdockWeb.API.AttachmentsTest do
       assert Boards.get_card!(card.id).attachments == []
     end
 
+    test "up to 250 MB is taken; a byte more is a 422, and nothing is stored", %{
+      conn: conn,
+      card: card
+    } do
+      assert Slipdock.Boards.Attachment.max_size() == 250 * 1024 * 1024
+
+      # Sparse: the size a stat reports without writing 250 MB to disk.
+      sparse = fn size ->
+        path = Path.join(System.tmp_dir!(), "sparse-#{System.unique_integer([:positive])}")
+        {:ok, io} = :file.open(path, [:write, :binary])
+        {:ok, _} = :file.position(io, size - 1)
+        :ok = :file.write(io, <<0>>)
+        :ok = :file.close(io)
+        on_exit(fn -> File.rm(path) end)
+        %Plug.Upload{path: path, filename: "big.bin", content_type: "application/octet-stream"}
+      end
+
+      assert %{"details" => %{"size" => [msg]}} =
+               conn
+               |> post("/api/cards/#{card.id}/attachments", %{
+                 file: sparse.(Slipdock.Boards.Attachment.max_size() + 1)
+               })
+               |> json_response(422)
+
+      assert msg =~ "less than or equal to"
+      assert Boards.get_card!(card.id).attachments == []
+    end
+
     test "an empty file is a validation failure", %{conn: conn, card: card} do
       assert %{"details" => %{"size" => _}} =
                conn

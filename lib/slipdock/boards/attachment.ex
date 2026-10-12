@@ -12,7 +12,14 @@ defmodule Slipdock.Boards.Attachment do
   import Ecto.Changeset
 
   @image_types ~w(image/png image/jpeg image/gif image/webp)
-  @max_size 25 * 1024 * 1024
+  # Uploaded through the browser this is no trouble: a LiveView upload goes
+  # over the websocket in small chunks. One API request this size may be
+  # refused before it gets here by a proxy in front (Cloudflare's own cap is
+  # 100 MB on its free and pro plans).
+  @max_size 250 * 1024 * 1024
+  # An image larger than this is never a card's thumbnail: the front shows
+  # the original file, and every reader of the board would download it.
+  @thumbnail_max 10 * 1024 * 1024
 
   schema "attachments" do
     field :filename, :string
@@ -34,7 +41,11 @@ defmodule Slipdock.Boards.Attachment do
     timestamps(type: :utc_datetime)
   end
 
-  def max_size, do: @max_size
+  @doc """
+  The largest file accepted: 250 MB. Fixed; the override exists so a test can
+  show the refusal without building a file that size.
+  """
+  def max_size, do: Slipdock.Config.get(:attachment_max_size, @max_size)
   def image_types, do: @image_types
 
   @doc "Whether the browser can safely show the file inline (raster images only)."
@@ -58,16 +69,19 @@ defmodule Slipdock.Boards.Attachment do
     |> validate_required([:filename, :content_type, :size, :key])
     |> Slipdock.Boards.Owned.validate_owner()
     |> validate_length(:filename, min: 1, max: 255)
-    |> validate_number(:size, greater_than: 0, less_than_or_equal_to: @max_size)
+    |> validate_number(:size, greater_than: 0, less_than_or_equal_to: max_size())
     |> unique_constraint(:key)
   end
 
   @doc "Whether the file may be shown on the front of its card."
-  def front_image?(%__MODULE__{} = a), do: image?(a) and not a.hide_on_card
+  def front_image?(%__MODULE__{} = a),
+    do: image?(a) and not a.hide_on_card and (a.size || 0) <= @thumbnail_max
+
+  def thumbnail_max, do: @thumbnail_max
 
   @doc """
   The image a card's front shows as its thumbnail: the first one attached
-  that nobody has kept off the front, or nil.
+  that nobody has kept off the front and that is small enough to show, or nil.
   """
   def front_image(attachments) when is_list(attachments),
     do: Enum.find(attachments, &front_image?/1)

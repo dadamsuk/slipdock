@@ -19,7 +19,7 @@ way in: what it is, the pictures, and how to get it running.
 - Time tracking: a start/stop timer on each card, time spent and an estimate
   shown in a unit of its own, and a colour-coded bar between them — see
   [Time tracking](#time-tracking)
-- Attachments: files up to 25 MB on any card, and images pasted or dropped into
+- Attachments: files up to 250 MB on any card, and images pasted or dropped into
   the description or a comment are uploaded and shown inline (stored under
   `priv/uploads/`, `SLIPDOCK_UPLOADS_DIR` to move it; served with access checks).
   The API and CLI upload them too — see [Attachments over the API](#attachments-over-the-api).
@@ -697,7 +697,8 @@ front, under the cover strip — the first image attached, which counts the
 screenshots pasted into its description and comments. Beside each image in
 the card's **Attachments** there is a **Don't show on the card front** tick
 box; tick it and the next image takes its place, or the card shows none.
-Only PNG, JPEG, GIF and WebP images qualify, the kinds the app shows inline.
+Only PNG, JPEG, GIF and WebP images of 10 MB or less qualify: the front shows
+the original file, and every reader of the board would download a larger one.
 
 The **Display** menu's **Images** turns thumbnails off for the view. It is on
 for comfortable cards and off for compact ones, where it shows a small square
@@ -766,9 +767,18 @@ anything it does not know) is worked out from the name.
 
 `GET …/attachments` lists a card's or a page's files and
 `DELETE …/attachments/:attachment_id` removes one, bytes and all. A card's
-files are also in `attachments` on `GET /api/cards/:id`. The 25 MB limit and the
+files are also in `attachments` on `GET /api/cards/:id`. The 250 MB limit and the
 account's item and storage limits apply as they do in the browser: too large or
 empty is a 422, a full account a 402.
+
+**Behind a proxy, one request may be capped lower.** Cloudflare's free and pro
+plans refuse a request body over 100 MB (business 200 MB) with a 413 that never
+reaches Slipdock, and nginx's default `client_max_body_size` is 1 MB. In the
+browser it makes no difference: the card sends a file over its websocket in
+small chunks. Over the API and the CLI a file is one request, so upload
+anything larger than the proxy allows through the browser, or raise the limit
+(`client_max_body_size 260m;` for nginx). The CLI streams a file from disk, so
+its size costs no memory.
 
 From the CLI, a number is a card and anything else (`W-31`) a page:
 

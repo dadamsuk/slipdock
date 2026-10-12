@@ -79,6 +79,34 @@ defmodule Slipdock.TranscriptionTest do
       assert body =~ ~s(name="response_format"\r\n\r\njson)
     end
 
+    # Over a real socket: Req.Test's plug adapter carries no streamed body this
+    # size, so the stub would see nothing whatever the client sent.
+    test "a recording larger than one read is streamed to the server whole" do
+      bytes = for n <- 0..(3 * 1_048_576 + 7), into: <<>>, do: <<rem(n, 251)>>
+      path = Path.join(System.tmp_dir!(), "long-#{System.unique_integer([:positive])}.mp3")
+      File.write!(path, bytes)
+      on_exit(fn -> File.rm(path) end)
+
+      Slipdock.TestConfig.merge(:transcription, req_options: [])
+
+      {:ok, server} =
+        Bandit.start_link(
+          plug: {__MODULE__.Server, self()},
+          ip: {127, 0, 0, 1},
+          port: 0,
+          startup_log: false
+        )
+
+      {:ok, {_ip, port}} = ThousandIsland.listener_info(server)
+      on_exit(fn -> Process.exit(server, :normal) end)
+
+      assert {:ok, "ok"} =
+               Transcription.transcribe_file(path, url: "http://127.0.0.1:#{port}", token: nil)
+
+      assert_received {:posted, body}
+      assert :binary.match(body, bytes) != :nomatch
+    end
+
     test "with diarisation on offer, writes one speaker turn a line", %{path: path} do
       serve(
         [
@@ -238,7 +266,9 @@ defmodule Slipdock.TranscriptionTest do
                Transcription.transcribe_file(path)
 
       serve([])
-      assert {:error, "can't read the recording" <> _} = transcribe(path <> ".gone")
+
+      assert {:error, "can't read the recording (it is not on disk)"} =
+               transcribe(path <> ".gone")
     end
   end
 
@@ -327,5 +357,25 @@ defmodule Slipdock.TranscriptionTest do
       assert {:ok, _} = Transcription.transcribe_attachment(stale)
       assert Boards.get_attachment!(audio.id).transcript == "Fresh."
     end
+  end
+end
+
+defmodule Slipdock.TranscriptionTest.Server do
+  @moduledoc false
+  # Just enough of a Manuel2 server, on a real socket, to receive an upload.
+  import Plug.Conn
+
+  def init(test), do: test
+
+  def call(%{request_path: "/v1/status"} = conn, _test),
+    do:
+      conn
+      |> put_resp_content_type("application/json")
+      |> send_resp(200, ~s({"api_version":"1.0.0"}))
+
+  def call(conn, test) do
+    {:ok, body, conn} = read_body(conn, length: 20_000_000)
+    send(test, {:posted, body})
+    conn |> put_resp_content_type("application/json") |> send_resp(200, ~s({"text":"ok"}))
   end
 end

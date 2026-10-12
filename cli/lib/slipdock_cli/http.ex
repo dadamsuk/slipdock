@@ -204,8 +204,10 @@ defmodule SlipdockCLI.HTTP do
 
   @doc """
   A multipart POST: `fields` as `{name, value}`, `files` as `{name, filename,
-  content_type, bytes}`. For sending a meeting's recording, which can be
-  large, so it is given ten minutes rather than the usual fifteen seconds.
+  content_type, content}`, where `content` is the bytes or `{:path, path}`.
+  A path is streamed from disk a megabyte at a time rather than read whole,
+  so a 250 MB attachment or a long recording is never held in memory. It is
+  given ten minutes rather than the usual fifteen seconds.
   """
   def post_multipart(path, fields, files) do
     boundary = "slipdock-" <> Base.encode16(:crypto.strong_rand_bytes(12), case: :lower)
@@ -221,20 +223,66 @@ defmodule SlipdockCLI.HTTP do
           "\r\n"
         ]
       end) ++
-        Enum.map(files, fn {name, filename, type, bytes} ->
+        Enum.map(files, fn {name, filename, type, content} ->
           [
             "--",
             boundary,
             "\r\n",
             ~s(content-disposition: form-data; name="#{name}"; filename="#{filename}"\r\n),
             "content-type: #{type}\r\n\r\n",
-            bytes,
+            content,
             "\r\n"
           ]
         end)
 
-    body = IO.iodata_to_binary([parts, "--", boundary, "--\r\n"])
-    request(:post, path, {:multipart, boundary, body})
+    request(:post, path, {:multipart, boundary, segments([parts, "--", boundary, "--\r\n"])})
+  end
+
+  # The body as a list of binaries and `{:path, path}`s, neighbouring
+  # binaries run together.
+  defp segments(iodata) do
+    iodata
+    |> List.flatten()
+    |> Enum.chunk_by(&match?({:path, _}, &1))
+    |> Enum.flat_map(fn
+      [{:path, _} | _] = paths -> paths
+      binaries -> [IO.iodata_to_binary(binaries)]
+    end)
+  end
+
+  # All bytes: send them as they are. Any file in it: stream, which
+  # :httpc does from a {fun, acc} body once it is told the length.
+  defp multipart_body([bytes]) when is_binary(bytes), do: {bytes, []}
+  defp multipart_body([]), do: {"", []}
+
+  defp multipart_body(segments) do
+    length =
+      Enum.reduce(segments, 0, fn
+        {:path, path}, n -> n + File.stat!(path).size
+        bytes, n -> n + byte_size(bytes)
+      end)
+
+    {{&stream_body/1, {segments, nil}},
+     [{~c"content-length", String.to_charlist(Integer.to_string(length))}]}
+  end
+
+  defp stream_body({[], nil}), do: :eof
+  defp stream_body({[bytes | rest], nil}) when is_binary(bytes), do: {:ok, bytes, {rest, nil}}
+
+  defp stream_body({[{:path, path} | rest], nil}) do
+    {:ok, device} = File.open(path, [:read, :binary])
+    stream_body({rest, device})
+  end
+
+  defp stream_body({rest, device}) do
+    case IO.binread(device, 1_048_576) do
+      data when is_binary(data) ->
+        {:ok, data, {rest, device}}
+
+      _eof ->
+        File.close(device)
+        stream_body({rest, nil})
+    end
   end
 
   defp request(method, path, body) do
@@ -260,9 +308,11 @@ defmodule SlipdockCLI.HTTP do
         nil ->
           {{url, headers}, 15_000}
 
-        {:multipart, boundary, bytes} ->
-          {{url, headers, String.to_charlist("multipart/form-data; boundary=" <> boundary),
-            bytes}, 600_000}
+        {:multipart, boundary, segments} ->
+          {body, length} = multipart_body(segments)
+
+          {{url, length ++ headers,
+            String.to_charlist("multipart/form-data; boundary=" <> boundary), body}, 600_000}
 
         body ->
           {{url, headers, ~c"application/json", encode(body)}, 15_000}

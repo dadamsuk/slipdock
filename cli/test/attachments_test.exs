@@ -58,6 +58,20 @@ defmodule SlipdockCLI.AttachmentsTest do
     assert out =~ "![shot.png](/attachments/5/shot.png)"
   end
 
+  test "a file larger than a read is streamed from disk whole, length and all", %{home: home} do
+    serve([{201, attached(7, "big.bin", "[big.bin](/attachments/7/big.bin)")}])
+    # Three reads' worth and a bit, with a pattern that shows any lost chunk.
+    bytes = for(n <- 0..(3 * 1_048_576 + 4), into: <<>>, do: <<rem(n, 251)>>)
+    big = file(home, "big.bin", bytes)
+
+    capture_io(fn -> Boards.run("attach", ["12", big], []) end)
+
+    assert_received {:request, "POST", "/api/cards/12/attachments", body}
+    [_head, rest] = :binary.split(body, "\r\n\r\n")
+    [boundary_line | _] = String.split(body, "\r\n", parts: 2)
+    assert rest == bytes <> "\r\n" <> boundary_line <> "--\r\n"
+  end
+
   test "a page code goes to the page, and --name renames the file", %{home: home} do
     serve([{201, attached(6, "diagram.png", "![diagram.png](/attachments/6/diagram.png)")}])
     tmp = file(home, "tmp-123", "PNG!")
