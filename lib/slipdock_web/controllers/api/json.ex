@@ -458,8 +458,10 @@ defmodule SlipdockWeb.API.JSON do
       number: p.number,
       board_id: p.board_id,
       parent_id: p.parent_id,
-      # Where it is filed, as opposed to what it is part of.
+      # Where it is filed, as opposed to what it is part of: its home folder.
       folder_id: p.folder_id,
+      # Listed in a folder it is also filed in, rather than its home.
+      also: p.also,
       title: p.title,
       # The third kind of thing a list can hold (see `Slipdock.Kinds`), said out
       # loud so a client holding cards and pages together can tell them apart.
@@ -512,6 +514,8 @@ defmodule SlipdockWeb.API.JSON do
       # The YAML of the front matter the page's file came with, kept exactly
       # (see `Slipdock.Wiki.FrontMatter`); null for a page that had none.
       front_matter: Slipdock.Wiki.FrontMatter.yaml(p.front_matter),
+      # The folders it is also filed in, beside its home `folder_id`.
+      also_in: Enum.map(Slipdock.Wiki.Placements.folders(p), &placement_folder/1),
       created_by: user_ref(p.created_by),
       updated_by: user_ref(p.updated_by),
       # The card contents a page carries (see `Slipdock.Boards.Owned`), named
@@ -547,6 +551,14 @@ defmodule SlipdockWeb.API.JSON do
       page |> page_summary() |> Map.put(:children, page_tree(children))
     end)
   end
+
+  defp placement_folder(%Slipdock.Wiki.Folder{} = f),
+    do: %{
+      folder_id: f.id,
+      board_id: f.board_id,
+      board: f.board && f.board.code,
+      path: Slipdock.Wiki.folder_path(f)
+    }
 
   @doc "One wiki folder — filing, not writing (see `Slipdock.Wiki.Folder`)."
   def folder(%Slipdock.Wiki.Folder{} = f) do
@@ -588,11 +600,21 @@ defmodule SlipdockWeb.API.JSON do
   A folder tree with the pages filed in each — `%{folder:, children:, pages:}`
   nodes, as `Slipdock.Wiki.Folders.tree/2` builds them.
   """
-  def folder_tree(nodes) when is_list(nodes) do
+  def folder_tree(nodes, also \\ %{}) when is_list(nodes) do
     Enum.map(nodes, fn %{folder: f, children: children, pages: pages} ->
+      # The pages also filed here follow the ones at home, marked `also`,
+      # each page once (W-103 R12.6, R12.7).
+      home_ids = MapSet.new(pages, & &1.page.id)
+
+      placed =
+        also
+        |> Map.get(f.id, [])
+        |> Enum.reject(&MapSet.member?(home_ids, &1.id))
+        |> Enum.map(&(&1 |> page_summary() |> Map.put(:children, [])))
+
       f
       |> folder()
-      |> Map.merge(%{folders: folder_tree(children), pages: page_tree(pages)})
+      |> Map.merge(%{folders: folder_tree(children, also), pages: page_tree(pages) ++ placed})
     end)
   end
 

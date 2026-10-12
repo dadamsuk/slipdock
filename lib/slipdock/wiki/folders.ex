@@ -474,6 +474,8 @@ defmodule Slipdock.Wiki.Folders do
 
     with {:ok, page} <-
            page |> Ecto.Changeset.change(folder_id: folder_id) |> Repo.update() do
+      # Home now, so no longer "also" filed there.
+      Slipdock.Wiki.Placements.drop_home(page)
       broadcast(page.board_id)
       {:ok, page}
     end

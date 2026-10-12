@@ -134,6 +134,12 @@ slipdock folder mv <board> Decisions --name Choices --parent Design
 slipdock folder rm <board> Choices                 # the folder only
 ```
 
+**One page, several folders.** A page lives in one home folder and can be
+*also filed in* others — the same page, not a copy:
+`slipdock page file <page> --also "Design/Decisions"` (`--not-in` to undo;
+`--board B`, or a vault path like `/Jobs/Notes`, for another board in the
+same vault). File it twice rather than writing it twice.
+
 **File it, don't nest it.** The mistake folders exist to stop is a parent page
 called "Design" that is about nothing and only holds other pages — a document
 you have to read past. A folder is a place, and a place costs nothing.

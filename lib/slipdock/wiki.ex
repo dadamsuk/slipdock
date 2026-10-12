@@ -39,6 +39,7 @@ defmodule Slipdock.Wiki do
     Markup,
     NoteTags,
     Page,
+    Placements,
     Query,
     Revision,
     Section
@@ -102,7 +103,50 @@ defmodule Slipdock.Wiki do
     * `:note_tag` — only notes tagged this, or anything nested under it
       (`area` finds `area/sub`; see `Slipdock.Wiki.NoteTags`)
   """
-  def list_pages(%Board{id: board_id}, opts \\ []) do
+  def list_pages(board, opts \\ [])
+
+  # A folder's listing holds the pages also filed there as well as the ones
+  # at home in it, each page once (W-103 R12.6, R12.7). `:as` narrows the
+  # placements to what that reader may open; the home pages are the board's.
+  def list_pages(%Board{} = board, opts) do
+    home = board_pages(board, opts)
+
+    case folder_for_also(board, Keyword.get(opts, :folder)) do
+      %Folder{} = folder ->
+        also =
+          folder
+          |> Placements.pages_in(opts[:as], archived: Keyword.get(opts, :archived, false))
+          |> filter_also(opts)
+
+        Enum.uniq_by(home ++ also, & &1.id)
+
+      _ ->
+        home
+    end
+  end
+
+  defp folder_for_also(_board, %Folder{} = folder), do: folder
+  defp folder_for_also(_board, id) when is_integer(id), do: Folders.get(id)
+  defp folder_for_also(_board, _), do: nil
+
+  # The listing's other filters reach the placed pages too.
+  defp filter_also(pages, opts) do
+    q = opts[:q] && String.downcase(String.trim(opts[:q]))
+
+    Enum.filter(pages, fn page ->
+      (is_nil(opts[:template]) or page.template == opts[:template]) and
+        (opts[:status] not in ["draft", "published"] or page.status == opts[:status]) and
+        (is_nil(q) or q == "" or
+           String.contains?(String.downcase(page.title <> " " <> (page.body || "")), q)) and
+        (is_nil(opts[:note_tag]) or opts[:note_tag] == "" or
+           Enum.any?(
+             page.note_tags,
+             &(&1 == opts[:note_tag] or String.starts_with?(&1, opts[:note_tag] <> "/"))
+           ))
+    end)
+  end
+
+  defp board_pages(%Board{id: board_id}, opts) do
     from(p in Page,
       where: p.board_id == ^board_id,
       order_by: [asc: p.position, asc: p.title],
@@ -561,6 +605,7 @@ defmodule Slipdock.Wiki do
       with {:ok, updated} <- result do
         Links.reconcile(updated)
         updated = NoteTags.refresh(updated)
+        if updated.folder_id != page.folder_id, do: Placements.drop_home(updated)
         Indexer.enqueue_page(updated)
 
         if renamed?(page, updated) or page.aliases != updated.aliases,

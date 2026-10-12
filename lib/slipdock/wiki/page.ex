@@ -152,6 +152,9 @@ defmodule Slipdock.Wiki.Page do
     field :links_out, {:array, :map}, virtual: true, default: []
     field :links_in, {:array, :map}, virtual: true, default: []
     field :sub_board, :map, virtual: true
+    # True when a folder listing holds the page as a placement — also filed
+    # there — rather than as its home (see `Slipdock.Wiki.Placements`).
+    field :also, :boolean, virtual: true, default: false
 
     timestamps(type: :utc_datetime)
   end
