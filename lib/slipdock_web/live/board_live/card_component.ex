@@ -123,6 +123,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         groups: assigns.groups,
         favourites: assigns.favourites,
         ai?: assigns.ai?,
+        at: assigns[:at],
         parent: assigns.parent,
         close_navigate: assigns.close_navigate
       )
@@ -685,6 +686,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
       <.card_modal
         :if={@card}
         card={@card}
+        at={@at}
         ai?={@ai?}
         current_user={@current_user}
         users={@users}
@@ -847,6 +849,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   attr :close_navigate, :boolean, default: false
   attr :parent, :any, default: nil
   attr :ai?, :boolean, default: false, doc: "offer the AI assistant on the card"
+  attr :at, :string, default: nil, doc: "where in the card a search result points"
 
   attr :current_user, :any, default: nil
 
@@ -952,6 +955,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
             />
 
             <.attachments_section
+              at={@at}
               can_write={@can_write}
               transcribe={Slipdock.Transcription.configured?()}
               card={@card}

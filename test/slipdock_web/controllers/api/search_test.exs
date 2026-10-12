@@ -43,6 +43,15 @@ defmodule SlipdockWeb.API.SearchTest do
       assert [%{"matches" => matches}] = body["results"]
       comment = Enum.find(matches, &(&1["kind"] == "comment"))
       assert comment["text"] =~ "staging rollback was blocked"
+
+      # Each match links to where it is, not just to its card.
+      assert comment["url"] ==
+               "/boards/#{ctx.board.id}/cards/#{ctx.card.id}?at=comment-#{comment["source_id"]}"
+
+      card_match = Enum.find(matches, &(&1["kind"] == "card"))
+
+      if card_match,
+        do: assert(card_match["url"] == "/boards/#{ctx.board.id}/cards/#{ctx.card.id}")
     end
 
     test "q is required", %{conn: conn} do

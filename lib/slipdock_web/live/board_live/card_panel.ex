@@ -255,6 +255,11 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   attr :target, :any, required: true
   attr :uploads, :map, required: true
 
+  attr :at, :string,
+    default: nil,
+    doc:
+      "where a search result points (`transcript-5-part-2`): that transcript opens at that part"
+
   attr :transcribe, :boolean,
     default: false,
     doc: "whether a transcription server is set up, so recordings offer Transcribe"
@@ -396,6 +401,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           <details
             :if={a.transcript_status == "done"}
             id={"transcript-#{a.id}"}
+            open={opened_at?(@at, a)}
             class="basis-full rounded-lg bg-base-100/70 px-2 py-1 text-sm"
           >
             <summary class="cursor-pointer text-xs font-medium text-base-content/60">
@@ -405,11 +411,22 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
             <p :if={a.transcript in [nil, ""]} class="mt-1 text-xs text-base-content/50">
               No speech was found in the recording.
             </p>
-            <p
-              :if={a.transcript not in [nil, ""]}
-              class="mt-1 max-h-80 overflow-y-auto whitespace-pre-wrap"
-              phx-no-format
-            >{a.transcript}</p>
+            <%!-- Drawn in the parts search indexes it in, so a result can land
+                  on the one that matched (see `SlipdockWeb.SearchLinks`). --%>
+            <div :if={a.transcript not in [nil, ""]} class="mt-1 max-h-80 overflow-y-auto">
+              <p
+                :for={
+                  {part, n} <-
+                    Enum.with_index(Slipdock.Search.Chunk.transcript_parts(a.transcript), 1)
+                }
+                id={"transcript-#{a.id}-part-#{n}"}
+                class={[
+                  "whitespace-pre-wrap rounded",
+                  @at == "transcript-#{a.id}-part-#{n}" && "bg-warning/15"
+                ]}
+                phx-no-format
+              >{part}</p>
+            </div>
           </details>
         </li>
       </ul>
@@ -448,6 +465,11 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
     </section>
     """
   end
+
+  defp opened_at?(at, a) when is_binary(at),
+    do: String.starts_with?(at <> "-", "transcript-#{a.id}-")
+
+  defp opened_at?(_at, _a), do: false
 
   defp transcribe_label(a) do
     cond do

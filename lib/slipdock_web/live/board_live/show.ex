@@ -293,6 +293,10 @@ defmodule SlipdockWeb.BoardLive.Show do
       # are on. A query parameter rather than a route because it has to work
       # in all eight modes, and a route each would be eight more.
       |> assign(page_id: params["page"])
+      # `?at=comment-12`, `?at=transcript-5-part-2`: where in the card a
+      # search result points (see `SlipdockWeb.SearchLinks`).
+      |> assign(card_at: SlipdockWeb.SearchLinks.at(params["at"]))
+      |> scroll_to_anchor()
 
     if socket.assigns.view_only and is_nil(socket.redirected) do
       {:noreply, enforce_view_only(socket, params)}
@@ -306,6 +310,13 @@ defmodule SlipdockWeb.BoardLive.Show do
   # so opening it at the list you asked for is the difference between two
   # taps and two taps plus a swipe hunt. The browser does the scrolling; the
   # server only says which one.
+  # The panel is drawn after this is pushed; the browser waits for the element.
+  defp scroll_to_anchor(%{assigns: %{panel: :card, card: %Card{}, card_at: at}} = socket)
+       when is_binary(at),
+       do: push_event(socket, "scroll-to-anchor", %{id: at})
+
+  defp scroll_to_anchor(socket), do: socket
+
   defp scroll_to_list(socket, nil), do: socket
 
   defp scroll_to_list(socket, id) do
@@ -1249,6 +1260,7 @@ defmodule SlipdockWeb.BoardLive.Show do
         ai?={@ai?}
         parent={List.last(@ancestry)}
         close_navigate={@card_only}
+        at={@card_at}
       />
       <.live_component
         :if={@can_write}

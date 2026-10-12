@@ -84,6 +84,7 @@ defmodule SlipdockWeb.MCP.Tools.Search do
       excerpt: excerpt(r),
       url: base <> "/boards/#{card.board_id}/cards/#{card.id}"
     }
+    |> Map.merge(best_match(r, card, base))
   end
 
   defp result(%{page: page} = r, base) do
@@ -97,7 +98,18 @@ defmodule SlipdockWeb.MCP.Tools.Search do
       excerpt: excerpt(r),
       url: base <> "/boards/#{page.board_id}/wiki/#{page.slug}"
     }
+    |> Map.merge(best_match(r, page, base))
   end
+
+  # What the excerpt is from — "comment", "transcript of call.mp3, part 2 of
+  # 5" — and the link straight to it, so a reply can point there.
+  defp best_match(%{matches: [m | _]}, subject, base),
+    do: %{
+      matched: SlipdockWeb.SearchLinks.label(m),
+      match_url: base <> SlipdockWeb.SearchLinks.path(subject, m)
+    }
+
+  defp best_match(_r, _subject, _base), do: %{}
 
   defp excerpt(%{matches: [m | _]}), do: String.slice(m.body || "", 0, 300)
   defp excerpt(_), do: nil

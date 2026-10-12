@@ -1463,6 +1463,25 @@ window.addEventListener("phx:scroll-to-list", ({detail: {id}}) => {
   requestAnimationFrame(find)
 })
 
+// A search result that points inside a card (`?at=comment-12`, see
+// SlipdockWeb.SearchLinks): once the card panel has drawn it, bring that
+// comment, update or part of a transcript into view and light it up briefly,
+// so it is plain why the card came back.
+window.addEventListener("phx:scroll-to-anchor", ({detail: {id}}) => {
+  let tries = 0
+  const find = () => {
+    const el = document.getElementById(id)
+    if (!el) return tries++ < 60 && requestAnimationFrame(find)
+    el.closest("details")?.setAttribute("open", "")
+    // A transcript part can be taller than the box it scrolls in; centred,
+    // its first lines would be out of sight, so a tall one is put at the top.
+    el.scrollIntoView({behavior: "smooth", block: el.offsetHeight > 160 ? "start" : "center"})
+    el.classList.add("search-hit")
+    setTimeout(() => el.classList.remove("search-hit"), 2600)
+  }
+  requestAnimationFrame(find)
+})
+
 // A meeting's review: "N questions to settle · next" selects the next
 // finding with an open question; this brings it into view.
 window.addEventListener("phx:scroll-to-finding", ({detail: {id}}) => {

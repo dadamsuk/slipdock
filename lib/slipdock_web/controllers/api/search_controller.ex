@@ -152,7 +152,9 @@ defmodule SlipdockWeb.API.SearchController do
             source_id: m.source_id,
             section: nonblank(m[:section]),
             score: Float.round(m.score, 4),
-            text: m.body
+            text: m.body,
+            # Straight to the comment, update or transcript part that matched.
+            url: SlipdockWeb.SearchLinks.path(result.card || result.page, m)
           }
         end)
     }

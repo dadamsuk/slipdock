@@ -40,6 +40,23 @@ defmodule SlipdockWeb.MCP.SearchToolTest do
 
   defp ids(result), do: Enum.map(result["structuredContent"]["results"], & &1["id"])
 
+  test "says what the excerpt is from, and links straight to it", ctx do
+    {:ok, comment} =
+      Slipdock.Boards.add_comment(ctx.card, "the refunds rounding is off by a penny")
+
+    {:ok, _} = Search.index_card(ctx.card.id)
+
+    result = search(ctx.conn, %{q: "refunds rounding off by a penny"})
+    hit = Enum.find(result["structuredContent"]["results"], &(&1["id"] == ctx.card.id))
+
+    assert hit["matched"] in ["comment", "card"]
+
+    case hit["matched"] do
+      "comment" -> assert hit["match_url"] =~ "/cards/#{ctx.card.id}?at=comment-#{comment.id}"
+      "card" -> assert hit["match_url"] == hit["url"]
+    end
+  end
+
   test "finds the caller's cards and never a stranger's", ctx do
     result = search(ctx.conn, %{q: "invoice rounding refunds"})
 

@@ -24,7 +24,7 @@ defmodule SlipdockWeb.SearchLive.Index do
   alias Slipdock.AI.Researcher
   alias Slipdock.SavedQueries
   alias Slipdock.Search
-  alias Slipdock.Search.Embedding
+  alias SlipdockWeb.SearchLinks
   alias SlipdockWeb.Markdown
 
   # What each mode offers before you have typed anything, until the person
@@ -371,16 +371,6 @@ defmodule SlipdockWeb.SearchLive.Index do
     do: ~p"/boards/#{page.board_id}/wiki/#{page.slug}"
 
   defp result_path(%{card: card}), do: card_path(card)
-
-  # "Deploy/Rollback#2" is the second part of a long section; the heading is
-  # what a person recognises and what the anchor is built from.
-  defp section_title(section) do
-    section
-    |> String.split("#", parts: 2)
-    |> hd()
-    |> String.split("/")
-    |> List.last()
-  end
 
   defp board_name(%{board: %{name: name}}), do: name
   defp board_name(_), do: nil
@@ -746,19 +736,17 @@ defmodule SlipdockWeb.SearchLive.Index do
             class="flex items-start gap-2 px-4 py-2 text-xs leading-relaxed"
           >
             <.icon name={kind_icon(match.kind)} class="mt-0.5 size-3.5 shrink-0 text-base-content/35" />
-            <span class="min-w-0 flex-1">
-              <.link
-                :if={match.section != ""}
-                navigate={"#{result_path(result)}##{SlipdockWeb.Wiki.Renderer.anchor(section_title(match.section))}"}
-                class="font-medium text-base-content/60 hover:underline"
-              >
-                {section_title(match.section)}
-              </.link>
-              <span :if={match.section == ""} class="font-medium text-base-content/60">
-                {Embedding.label(match.kind)}
+            <%!-- Each match is a way in of its own: to the comment, the update,
+                  the part of a transcript, the section that said it. --%>
+            <.link
+              navigate={SearchLinks.path(result.card || result.page, match)}
+              class="match-link group/match min-w-0 flex-1"
+            >
+              <span class="font-medium text-base-content/60 group-hover/match:underline">
+                {SearchLinks.label(match)}
               </span>
               <span class="text-base-content/70">— {snippet(match)}</span>
-            </span>
+            </.link>
           </li>
           <li :if={length(result.matches) > 3} class="px-4 py-1.5 text-xs text-base-content/40">
             and {length(result.matches) - 3} more
