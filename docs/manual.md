@@ -436,7 +436,10 @@ badge. The sub-board's header shows a breadcrumb back through every parent.
 Tags are shared by a whole board tree: they live on the root board, so a tag
 created on a sub-board is available everywhere under that root. Renaming a
 card renames its sub-board. Deleting a card, or **Remove subcards**, deletes
-the sub-board and everything on it. The board index lists root boards only.
+the sub-board and everything on it, files included: the attachments of every
+card beneath it, its wiki pages' images and its meeting recordings are removed
+from disk, as are those of every card when a list is deleted with its cards.
+The board index lists root boards only.
 
 **Templates** are named lists of columns (name, optional WIP limit, colour).
 Seven ship by default (Slipdock, Simple, Checklist, Bug triage, Research,
@@ -2126,7 +2129,7 @@ filing a document never has to build the filing cabinet in a separate call.
 
 **Deleting a page.** Archiving is the reversible one and is what the page's
 actions menu offers first; **Delete permanently** below it is the owner's
-purge — the page and its whole history, gone, with the pages *under* it kept
+purge — the page, its whole history and its attached images, gone, with the pages *under* it kept
 and lifted to the top of the tree rather than going silently with it. The same
 menu downloads one page as Markdown, front matter and all.
 
