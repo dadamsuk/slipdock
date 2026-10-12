@@ -47,6 +47,7 @@ defmodule Slipdock.Automations.Scheduler do
   # takes back runner jobs whose lease has run out (see `Slipdock.Runners`).
   defp safe_tick do
     sweep_runner_jobs()
+    prune_wiki_changes()
     resume_captures()
     tick()
   rescue
@@ -59,6 +60,14 @@ defmodule Slipdock.Automations.Scheduler do
     Slipdock.Runners.sweep()
   rescue
     exception -> Logger.error("Runner job sweep failed: #{Exception.message(exception)}")
+  end
+
+  # The wiki's change log keeps a window, not everything (see
+  # `Slipdock.Wiki.Changes`); hourly is plenty.
+  defp prune_wiki_changes do
+    Slipdock.Wiki.Changes.prune_hourly()
+  rescue
+    exception -> Logger.error("Wiki change log prune failed: #{Exception.message(exception)}")
   end
 
   # Meeting captures a restart or a crash left half-read (see

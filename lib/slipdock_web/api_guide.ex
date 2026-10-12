@@ -1719,6 +1719,8 @@ defmodule SlipdockWeb.APIGuide do
     `path`), or `"action": "deleted"` — with the next `cursor` and `more`.
     Keep a websocket on `/socket/websocket?token=<token>&vsn=2.0.0`, join
     `vault:<id>`, and a `change` event with the cursor says when to ask.
+    The log keeps a window (90 days by default): `"resync": true` means your
+    cursor is older than that — list the vault again, then follow on.
 
     **Notes in a vault tag themselves.** On a board in a vault, a page's front
     matter `tags` and its inline `#tags` (nested `#area/sub` too; not in code,

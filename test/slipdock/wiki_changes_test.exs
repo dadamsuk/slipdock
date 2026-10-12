@@ -165,4 +165,64 @@ defmodule Slipdock.WikiChangesTest do
     page!(ctx.outside, ctx.user, "Quiet")
     refute_receive {:vault_change, _, _}, 50
   end
+
+  describe "keeping a window" do
+    defp old_row!(board_id, days_ago) do
+      at = DateTime.add(DateTime.utc_now(), -days_ago, :day)
+
+      {1, [%{id: id}]} =
+        Repo.insert_all(
+          Slipdock.Wiki.Change,
+          [
+            %{
+              board_id: board_id,
+              subject: "page",
+              subject_id: 1,
+              action: "changed",
+              inserted_at: at
+            }
+          ],
+          returning: [:id]
+        )
+
+      id
+    end
+
+    test "prune deletes what is older than the window and keeps the rest", ctx do
+      old = old_row!(ctx.kb.id, Changes.retention_days() + 1)
+      page!(ctx.kb, ctx.user, "Recent")
+
+      assert Changes.prune() >= 1
+      refute Repo.get(Slipdock.Wiki.Change, old)
+      assert [%{title: "Recent"}] = Changes.since(ctx.vault, old, ctx.user).changes
+      assert Changes.prune() == 0
+    end
+
+    test "a cursor older than what is kept is told to resync", ctx do
+      old = old_row!(ctx.kb.id, Changes.retention_days() + 5)
+      page!(ctx.kb, ctx.user, "Recent")
+      Changes.prune()
+
+      stale = Changes.since(ctx.vault, old - 1, ctx.user)
+      assert stale.resync
+      assert stale.changes == []
+      assert stale.cursor > old
+
+      fresh = Changes.since(ctx.vault, old, ctx.user)
+      refute fresh.resync
+      assert [%{title: "Recent"}] = fresh.changes
+    end
+
+    test "nothing pruned, nothing to resync", ctx do
+      refute Changes.since(ctx.vault, 0, ctx.user).resync
+      refute Changes.since(ctx.vault, nil, ctx.user).resync
+    end
+
+    test "prune_hourly prunes at most once an hour" do
+      now = ~U[2031-01-01 00:00:00Z]
+      assert is_integer(Changes.prune_hourly(now))
+      assert Changes.prune_hourly(DateTime.add(now, 59, :minute)) == 0
+      assert is_integer(Changes.prune_hourly(DateTime.add(now, 61, :minute)))
+    end
+  end
 end
