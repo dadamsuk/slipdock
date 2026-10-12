@@ -2006,6 +2006,13 @@ defmodule SlipdockWeb.APIGuide do
     board is skipped and reported rather than duplicated.
     `/boards/:id/wiki.zip` is the same thing zipped.
 
+    **Front matter is kept exactly.** A page imported from a file keeps that
+    file's front matter as written — key order, quoting, comments — and a
+    page's JSON carries it as `front_matter`, the YAML between the `---`
+    lines (null when there is none). Send `front_matter` on create or
+    `PATCH /api/pages/:id` to replace it (`""` clears it; a line of `---` or
+    `...` is refused). Export patches only Slipdock's own keys into it.
+
     **Publishing freezes the answers.** A published page's live queries show
     what they said when it was published, and its references are plain text:
     there is nobody behind an anonymous request to have permissions, so a

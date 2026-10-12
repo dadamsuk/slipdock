@@ -97,6 +97,31 @@ defmodule SlipdockCLI.Wiki do
   def run("page", ["read", ref], o),
     do: HTTP.get("/pages/#{enc(ref)}") |> out(o, &Render.page(&1["page"]))
 
+  # Front matter: the YAML a page's file came with, kept exactly as it was
+  # written. Printed bare, so it can be edited and sent back with --file.
+  def run("page", ["props", ref], o) do
+    yaml = page_body(o)
+
+    cond do
+      o[:clear] ->
+        HTTP.patch("/pages/#{enc(ref)}", %{"front_matter" => ""})
+        |> out(o, &page_ok("cleared the properties of", &1))
+
+      yaml ->
+        HTTP.patch("/pages/#{enc(ref)}", %{"front_matter" => yaml})
+        |> out(o, &page_ok("saved the properties of", &1))
+
+      true ->
+        HTTP.get("/pages/#{enc(ref)}")
+        |> out(o, fn %{"page" => page} ->
+          case page["front_matter"] do
+            nil -> IO.puts(:stderr, "#{page["code"]} has no front matter")
+            yaml -> IO.puts(yaml)
+          end
+        end)
+    end
+  end
+
   # `read` is the source you would edit; `render` is what it says once every
   # reference has been followed. Answering a question wants the second.
   def run("page", ["render", ref], o) do

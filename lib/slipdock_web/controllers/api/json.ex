@@ -504,6 +504,9 @@ defmodule SlipdockWeb.API.JSON do
     |> page_summary()
     |> Map.merge(%{
       body: p.body,
+      # The YAML of the front matter the page's file came with, kept exactly
+      # (see `Slipdock.Wiki.FrontMatter`); null for a page that had none.
+      front_matter: Slipdock.Wiki.FrontMatter.yaml(p.front_matter),
       created_by: user_ref(p.created_by),
       updated_by: user_ref(p.updated_by),
       # The card contents a page carries (see `Slipdock.Boards.Owned`), named

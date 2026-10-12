@@ -2381,6 +2381,17 @@ than duplicated. This is the escape hatch, and it is deliberate: a wiki you
 cannot get your writing out of is one to think twice about putting writing
 into.
 
+**Front matter is kept exactly.** A file imported with front matter keeps
+all of it — key order, quoting, comments, the blank line before the body —
+not just the keys Slipdock reads (`title`, `summary`, `status`, `template`).
+The page shows it folded away as **Properties**, and an export writes it back
+with only Slipdock's own keys patched in place; a `status: reading` of your
+own is left alone. The file a later sync writes gets no key that changes on
+every save — no `updated`, no author, and `code` only if asked. Read and
+replace it with `slipdock page props <page> [--file F | --clear]`, the API's
+`front_matter` field (the YAML between the `---` lines), or MCP's
+`read_page` and `update_page`.
+
 **The wiki keeps the board's bar.** The view selector, the search box, the
 filter menu and the display options sit above the wiki the way they sit above
 every card view — because a page answers the same filters now that it carries
@@ -3272,6 +3283,7 @@ slipdock vault new Notes | slipdock vault ls      # board wikis laid out as one 
 slipdock vault map Notes /Jobs --board jobs [--folder Notes]   # a vault path onto a wiki
 slipdock vault locate Notes /Jobs/Acme.md       # which mapping a path lands in (longest prefix)
 slipdock vault unmap Notes /Jobs | slipdock vault rm Notes      # the pages always stay
+slipdock page props W-31 [--file F | --clear]  # the front matter its file came with, kept exactly
 slipdock page ls qvm-v1-rem --q retry           # the board's wiki; --tree for the shape of it
 slipdock page read W-31                        # the Markdown source (--json for the hash and the rest)
 slipdock page new qvm-v1-rem Retry policy --body - --summary "How retries work" --message "first draft"

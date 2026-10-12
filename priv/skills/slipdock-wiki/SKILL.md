@@ -138,6 +138,11 @@ slipdock folder rm <board> Choices                 # the folder only
 called "Design" that is about nothing and only holds other pages — a document
 you have to read past. A folder is a place, and a place costs nothing.
 
+**Front matter.** A page imported from a file keeps that file's front matter
+exactly as written. `slipdock page props <page>` prints the YAML; edit it and
+send it back with `--file F` (or `--clear`). Never paste front matter into the
+body: it lives beside the body, and a `---` block in the body is just text.
+
 ## Vaults: several wikis as one Obsidian-style vault
 
 A **vault** is the user's own, and holds no pages: it maps vault paths onto

@@ -18,7 +18,7 @@ defmodule SlipdockWeb.API.PageController do
   use SlipdockWeb, :controller
 
   alias Slipdock.{Boards, Wiki}
-  alias Slipdock.Wiki.{Archive, Page, Query}
+  alias Slipdock.Wiki.{Archive, FrontMatter, Page, Query}
   alias SlipdockWeb.API.Authorize
   alias SlipdockWeb.API.Uploads
   alias SlipdockWeb.API.JSON, as: V
@@ -97,6 +97,7 @@ defmodule SlipdockWeb.API.PageController do
   def create(conn, %{"board" => ref} = params) do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, :write),
          {:ok, attrs} <- page_attrs(conn, board, params),
+         {:ok, attrs} <- front_matter(attrs, params, nil),
          {:ok, page} <- Wiki.create_page(board, attrs, write_opts(conn, params)) do
       conn |> put_status(:created) |> json(%{page: V.page(with_users(page))})
     end
@@ -115,6 +116,7 @@ defmodule SlipdockWeb.API.PageController do
          board <- Wiki.board_of(page),
          params <- Map.put_new(params, "flags", page.flags),
          {:ok, attrs} <- page_attrs(conn, board, params),
+         {:ok, attrs} <- front_matter(attrs, params, page.front_matter),
          {:ok, page} <- Wiki.update_page(page, attrs, write_opts(conn, params)),
          :ok <- set_fields(board, page, params["fields"]) do
       json(conn, %{page: V.page(with_users(Wiki.get_page!(page.id)))})
@@ -1107,6 +1109,19 @@ defmodule SlipdockWeb.API.PageController do
         {:ok, parent} -> {:ok, Map.put(attrs, "parent_id", parent.id)}
         error -> error
       end
+    end
+  end
+
+  # `front_matter` is the YAML between the `---` lines, as the page shows it;
+  # stored as a whole header, so a page imported from a file keeps that
+  # file's delimiters and the blank line before its body. "" or null clears it.
+  defp front_matter(attrs, params, _header) when not is_map_key(params, "front_matter"),
+    do: {:ok, attrs}
+
+  defp front_matter(attrs, %{"front_matter" => yaml}, header) do
+    case FrontMatter.replace(header, yaml) do
+      {:ok, header} -> {:ok, Map.put(attrs, "front_matter", header)}
+      {:error, message} -> {:error, :unprocessable_entity, message}
     end
   end
 
