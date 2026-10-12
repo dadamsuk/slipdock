@@ -11,6 +11,7 @@ defmodule SlipdockCLI do
     Meetings,
     Runners,
     Skills,
+    Sync,
     Util,
     Vaults,
     Wiki
@@ -287,6 +288,19 @@ defmodule SlipdockCLI do
                                         what changed (pages, folders, attachments) after cursor
                                         N, each once and as it is now; without --since, the
                                         cursor to start from. What sync polls
+
+  SYNC  (a vault mirrored both ways to a local folder that stays a valid Obsidian
+         vault. The server is the source of truth; the folder is a working copy,
+         and anything that writes a .md file into it writes a page)
+    sync init <dir> --vault V           bind a folder to a vault, then run once. Files already
+                                        there that match the vault are adopted, not duplicated
+    sync [<dir>]                        one pass, both ways (default: the folder you are in).
+                                        A rename or move is the same page; a delete archives it.
+                                        Changed on both sides: the server's version keeps the
+                                        path and yours is saved beside it as
+                                        "Name (conflict DATE host).md", and synced too.
+                                        Dot folders (.obsidian, .trash) and editors' temp
+                                        files are left alone
 
   SKILLS  (the agent instructions this server ships, versioned with its API)
     skills                              list them, with a version each
@@ -685,6 +699,10 @@ defmodule SlipdockCLI do
     hook_prompt: :boolean,
     alert: :boolean,
     mcp_servers: :string,
+    # `slipdock sync`.
+    vault: :string,
+    watch: :boolean,
+    interval: :integer,
     help: :boolean
   ]
 
@@ -723,7 +741,7 @@ defmodule SlipdockCLI do
 
   # Each area module lists the command names it answers to; the first that
   # claims a name gets every clause of it, so a name must live in one place.
-  @areas [Auth, Admin, Boards, Automations, Runners, Wiki, Vaults, Skills, Meetings]
+  @areas [Auth, Admin, Boards, Automations, Runners, Wiki, Vaults, Sync, Skills, Meetings]
 
   defp run(cmd, args, o) do
     case Enum.find(@areas, &(cmd in &1.commands())) do
