@@ -59,7 +59,7 @@ defmodule SlipdockCLI.Sync.Engine do
         remote: remote,
         host: opts[:host] || state["host"] || hostname(),
         today: opts[:today] || Date.utc_today(),
-        old: Map.new(old),
+        old: adopt(Map.new(old), opts[:imported], server, local),
         server: server,
         entries: %{},
         done: MapSet.new(),
@@ -111,6 +111,44 @@ defmodule SlipdockCLI.Sync.Engine do
   defp kind(_), do: "page"
 
   defp kind_of_path(path), do: if(Scan.markdown?(path), do: "page", else: "file")
+
+  ## An imported folder ----------------------------------------------------
+
+  # A folder `slipdock vault import` sent up (R9.4): each path it recorded is
+  # known already — the page or file it became, and the hashes on both sides
+  # at the time — so it is reconciled as though an earlier pass had seen it,
+  # not met as a stranger. That is what keeps a note the server stores a
+  # little differently (a title key), or under another name, from becoming a
+  # conflict copy and a second page.
+  #
+  # The base is the file's own hash while the file is as it was imported, so
+  # the server's version (the same note, as the server writes it) comes down
+  # over it; once edited here it is the server's hash from then, so the edit
+  # goes up against it, and an edit on both sides is a conflict as ever.
+  # Only what is still on both sides is adopted: a recorded file gone here,
+  # or a page gone there, is left to the usual rules for strangers, so
+  # adopting never archives or removes anything.
+  defp adopt(old, nil, _server, _local), do: old
+
+  defp adopt(old, imported, server, local) do
+    known = MapSet.new(old, fn {_path, e} -> {kind(e), e["id"]} end)
+
+    Enum.reduce(imported, old, fn {path, r}, old ->
+      key = {kind(r), r["id"]}
+
+      cond do
+        Map.has_key?(old, path) or MapSet.member?(known, key) ->
+          old
+
+        not Map.has_key?(server, key) or not Map.has_key?(local, path) ->
+          old
+
+        true ->
+          base = if local[path].sha == r["sha"], do: r["sha"], else: r["hash"]
+          Map.put(old, path, %{"id" => r["id"], "kind" => kind(r), "hash" => base})
+      end
+    end)
+  end
 
   ## What both sides knew ---------------------------------------------------
 

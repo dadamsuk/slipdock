@@ -2603,6 +2603,16 @@ a long list, `--json` all of it.
 The folder's files are not touched. The import remembers what each became in
 `.slipdock/import.json`, so running it again sends only what is new.
 
+**Then sync.** Stop Obsidian Sync (or whatever else syncs the folder) first,
+then `slipdock sync init` the same folder. It adopts what the import sent
+rather than sending it again: a note still as it was imported takes the
+vault's copy of itself (the same note, perhaps with a `title` key the server
+added), a note edited since goes up to the page it became, and one edited on
+both sides is a conflict like any other. Nothing is archived or removed by
+adopting: a file deleted since comes back down, and one whose page was
+archived goes up again. Once a pass has come through without an error the
+import record is spent and removed.
+
 ## Moving boards between servers
 
 A board as one JSON file that another Slipdock can read back: its lists, its
