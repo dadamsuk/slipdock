@@ -2392,6 +2392,14 @@ replace it with `slipdock page props <page> [--file F | --clear]`, the API's
 `front_matter` field (the YAML between the `---` lines), or MCP's
 `read_page` and `update_page`.
 
+**Aliases.** A page whose front matter lists `aliases` (or Obsidian's older
+`alias`) answers to each of them: `[[Retries]]` finds the page whose aliases
+include "Retries", case aside, wherever `[[Retry policy]]` would. A page
+titled with the word beats one that only answers to it, and a link written
+before the alias existed comes alive when it is added. Aliases are read from
+the front matter, so they are changed there (`slipdock page props`), and a
+page's JSON lists them as `aliases`.
+
 **The wiki keeps the board's bar.** The view selector, the search box, the
 filter menu and the display options sit above the wiki the way they sit above
 every card view — because a page answers the same filters now that it carries

@@ -2020,6 +2020,9 @@ defmodule SlipdockWeb.APIGuide do
     lines (null when there is none). Send `front_matter` on create or
     `PATCH /api/pages/:id` to replace it (`""` clears it; a line of `---` or
     `...` is refused). Export patches only Slipdock's own keys into it.
+    Its `aliases` (a list, or Obsidian's older `alias`) become the page's
+    `aliases`: `[[Alias]]` and `/api/pages/resolve?title=Alias` find the page
+    as its title would, a real title winning over an alias.
 
     **Publishing freezes the answers.** A published page's live queries show
     what they said when it was published, and its references are plain text:

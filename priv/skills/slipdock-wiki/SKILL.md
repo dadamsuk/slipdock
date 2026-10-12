@@ -142,6 +142,7 @@ you have to read past. A folder is a place, and a place costs nothing.
 exactly as written. `slipdock page props <page>` prints the YAML; edit it and
 send it back with `--file F` (or `--clear`). Never paste front matter into the
 body: it lives beside the body, and a `---` block in the body is just text.
+Its `aliases` are other names `[[links]]` find the page by.
 
 ## Vaults: several wikis as one Obsidian-style vault
 

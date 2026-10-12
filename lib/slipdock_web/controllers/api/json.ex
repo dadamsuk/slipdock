@@ -488,6 +488,8 @@ defmodule SlipdockWeb.API.JSON do
       # The tags the note gives itself, on a board in a vault — never the
       # board's card tags above (see `Slipdock.Wiki.NoteTags`).
       note_tags: p.note_tags,
+      # The other names `[[links]]` find it by, from its front matter.
+      aliases: p.aliases,
       # Where it sits on the board, when it has been put there.
       column_id: p.column_id,
       board_position: p.column_id && p.board_position,

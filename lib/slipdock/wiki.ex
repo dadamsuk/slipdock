@@ -319,8 +319,9 @@ defmodule Slipdock.Wiki do
   Finds a page on `board` by id, code, slug, or (case-insensitively) title.
 
   Title matching is what makes `[[Retry policy]]` work without anyone having
-  to know the slug; it is deliberately last, so a page whose title happens to
-  read like another page's slug never wins.
+  to know the slug; it is deliberately late, so a page whose title happens to
+  read like another page's slug never wins. An alias from a page's front
+  matter comes after every title.
   """
   def find_page(%Board{id: board_id}, ref) do
     ref = ref |> to_string() |> String.trim()
@@ -328,7 +329,8 @@ defmodule Slipdock.Wiki do
     with nil <- by_id_on_board(board_id, ref),
          nil <- by_code_on_board(board_id, ref),
          nil <- Repo.get_by(Page, board_id: board_id, slug: Page.sanitize_slug(ref)),
-         nil <- by_title(board_id, ref) do
+         nil <- by_title(board_id, ref),
+         nil <- by_alias(board_id, ref) do
       {:error, :not_found, "page #{inspect(ref)}"}
     else
       %Page{} = page -> {:ok, page}
@@ -353,6 +355,24 @@ defmodule Slipdock.Wiki do
       from(p in Page,
         where: p.board_id == ^board_id,
         where: fragment("lower(?) = lower(?)", p.title, ^ref),
+        order_by: [asc: p.id],
+        limit: 1
+      )
+    )
+  end
+
+  # An alias from the page's front matter (W-103 R3.5), last of all: a page
+  # whose title is the word wins over one that merely answers to it.
+  defp by_alias(board_id, ref) do
+    Repo.one(
+      from(p in Page,
+        where: p.board_id == ^board_id,
+        where:
+          fragment(
+            "EXISTS (SELECT 1 FROM unnest(?) AS a WHERE lower(a) = lower(?))",
+            p.aliases,
+            ^ref
+          ),
         order_by: [asc: p.id],
         limit: 1
       )
@@ -542,7 +562,10 @@ defmodule Slipdock.Wiki do
         Links.reconcile(updated)
         updated = NoteTags.refresh(updated)
         Indexer.enqueue_page(updated)
-        if renamed?(page, updated), do: resolve_wanted(updated)
+
+        if renamed?(page, updated) or page.aliases != updated.aliases,
+          do: resolve_wanted(updated)
+
         broadcast(updated.board_id)
         {:ok, updated}
       end
@@ -1041,7 +1064,7 @@ defmodule Slipdock.Wiki do
   # renaming) a page can bring other pages' links to life. Only the pages
   # holding a matching unresolved link are touched.
   defp resolve_wanted(%Page{} = page) do
-    wanted = [page.title, page.slug, page.code] |> Enum.map(&String.downcase/1)
+    wanted = ([page.title, page.slug, page.code] ++ page.aliases) |> Enum.map(&String.downcase/1)
 
     from(l in Link,
       join: p in Page,
