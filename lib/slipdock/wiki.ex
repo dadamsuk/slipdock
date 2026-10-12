@@ -673,10 +673,13 @@ defmodule Slipdock.Wiki do
   """
   def delete_page(%Page{} = page) do
     board_id = page.board_id
+    # The rows go by cascade; the images pasted into it are bytes on a disk.
+    keys = Repo.all(from(a in Attachment, where: a.page_id == ^page.id, select: a.key))
 
     Repo.delete(page)
     |> case do
       {:ok, deleted} ->
+        Slipdock.Boards.remove_files(keys)
         Indexer.forget_page(page.id)
         log(board_id, nil, "page_deleted", "deleted “#{page.title}”")
         broadcast(board_id)

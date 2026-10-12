@@ -1090,8 +1090,14 @@ defmodule Slipdock.Boards do
   end
 
   def delete_column(%Column{} = column) do
+    # The cards go with the list by a cascade, archived ones too; their files
+    # and everything beneath them have to be gathered first.
+    keys =
+      card_file_keys(Repo.all(from(c in Card, where: c.column_id == ^column.id, select: c.id)))
+
     Repo.delete(column)
     |> tap_ok(fn col ->
+      remove_files(keys)
       log(Repo, col.board_id, nil, "column", "deleted list “#{col.name}”")
       broadcast(col.board_id)
     end)
@@ -1808,7 +1814,7 @@ defmodule Slipdock.Boards do
   end
 
   def delete_card(%Card{} = card) do
-    keys = attachment_keys(from(a in Attachment, where: a.card_id == ^card.id))
+    keys = card_file_keys([card.id])
 
     Repo.delete(card)
     |> tap_ok(fn c ->
@@ -3291,6 +3297,24 @@ defmodule Slipdock.Boards do
   end
 
   defp attachment_keys(query), do: Repo.all(from(a in query, select: a.key))
+
+  @doc """
+  The on-disk keys of every file deleting these cards takes with it: their
+  own attachments, and everything on the boards beneath them — subcards'
+  files, sub-board wiki pages' images, meeting recordings — which the
+  database cascade deletes the rows of and leaves the bytes behind. Read
+  them before the delete; hand them to `remove_files/1` after it.
+  """
+  def card_file_keys([]), do: []
+
+  def card_file_keys(card_ids) when is_list(card_ids) do
+    own = attachment_keys(from(a in Attachment, where: a.card_id in ^card_ids))
+
+    case Enum.flat_map(card_ids, &subtree_board_ids/1) do
+      [] -> own
+      board_ids -> own ++ file_keys(from(b in Board, where: b.id in ^board_ids))
+    end
+  end
 
   @doc """
   The on-disk keys of every file on the boards `boards` selects — cards',
