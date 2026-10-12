@@ -16,7 +16,7 @@ defmodule SlipdockCLI.Sync do
 
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
-  alias SlipdockCLI.Sync.{Engine, Remote, State}
+  alias SlipdockCLI.Sync.{Engine, Remote, Service, State, Watch}
 
   @commands ~w(sync)
 
@@ -49,52 +49,119 @@ defmodule SlipdockCLI.Sync do
         )
 
     File.mkdir_p!(root)
-    state = State.save(root, State.new(HTTP.base_url(), vault, Engine.hostname()))
+    State.save(root, State.new(HTTP.base_url(), vault, Engine.hostname()))
     IO.puts("bound #{dir} to the vault #{Render.bold(vault["name"])}")
-    pass(root, state, o)
+    pass(root, o)
   end
 
   def run("sync", ["init"], _o), do: fail("usage: slipdock sync init DIR --vault V")
+
+  def run("sync", ["service", action | rest], o) when action in ~w(install uninstall print) do
+    root = root!(List.first(rest) || ".")
+
+    plan =
+      Service.plan(
+        :os.type(),
+        root,
+        Service.command(),
+        System.user_home!(),
+        System.get_env("PATH") || ""
+      )
+
+    service(action, plan, o)
+  end
+
+  def run("sync", ["service" | _], _o),
+    do: fail("usage: slipdock sync service install|uninstall|print [DIR]")
 
   def run("sync", [], o), do: run("sync", ["."], o)
 
   def run("sync", [dir], o) do
     root = root!(dir)
-    pass(root, load!(root), o)
+    load!(root)
+
+    if o[:watch], do: watch(root, o), else: pass(root, o)
   end
 
   def run("sync", _args, _o),
-    do: fail("usage: slipdock sync init DIR --vault V | sync [DIR]")
+    do: fail("usage: slipdock sync init DIR --vault V | sync [DIR] [--watch [--interval S]]")
 
   ## A pass -------------------------------------------------------------------
 
   # The lock is let go before anything halts: `System.halt/1` skips `after`.
-  defp pass(root, state, o) do
-    result =
-      with_lock(root, fn ->
-        case Engine.run(root, state, {Remote, state["vault"]["id"]}) do
-          {:ok, state, report} ->
-            State.save(root, state)
-            if o[:json], do: Render.json(json(report, state)), else: print(report, state)
-            if report.errors != [], do: :errors, else: :ok
-
-          {:error, :unauthorized} ->
-            {:fail, "not signed in to #{HTTP.origin(HTTP.base_url())}. Run `slipdock auth`."}
-
-          {:error, msg} ->
-            {:fail, "sync didn't run: #{msg}"}
-        end
-      end)
-
-    case result do
-      :ok -> :ok
-      :errors -> System.halt(1)
+  defp pass(root, o) do
+    case pass_once(root, o) do
+      {:ok, _state, []} -> :ok
+      {:ok, _state, _errors} -> System.halt(1)
       {:fail, msg} -> fail(msg)
     end
   end
 
+  # One pass, the state read afresh (a watcher's last pass changed it) and
+  # saved after. Never halts: a watcher carries on past a failed pass.
+  defp pass_once(root, o) do
+    with_lock(root, fn ->
+      {:ok, state} = State.load(root)
+
+      case Engine.run(root, state, {Remote, state["vault"]["id"]}) do
+        {:ok, state, report} ->
+          State.save(root, state)
+          if o[:json], do: Render.json(json(report, state)), else: print(report, state, o)
+          {:ok, state, report.errors}
+
+        {:error, :unauthorized} ->
+          {:fail, "not signed in to #{HTTP.origin(HTTP.base_url())}. Run `slipdock auth`."}
+
+        {:error, msg} ->
+          {:fail, "sync didn't run: #{msg}"}
+      end
+    end)
+  end
+
+  defp watch(root, o) do
+    interval = max(o[:interval] || 10, 1)
+
+    # Stopped by the service manager (or Ctrl-C's cousin, `kill`): let go of
+    # the folder and leave quietly rather than with a crash report. A pass cut
+    # short is harmless: files are only ever renamed into place, and the next
+    # pass finds both sides agreeing where they do.
+    System.trap_signal(:sigterm, :slipdock_sync, fn ->
+      File.rm(Path.join([root, State.dir_name(), "lock"]))
+      System.halt(0)
+    end)
+
+    IO.puts(Render.dim("watching #{root} (the server every #{interval}s); Ctrl-C to stop"))
+
+    pass = fn ->
+      case pass_once(root, Keyword.put(o, :stamp, true)) do
+        {:ok, state, _errors} ->
+          state["cursor"]
+
+        {:fail, msg} ->
+          IO.puts(:stderr, "#{stamp()} error: #{msg}")
+          nil
+      end
+    end
+
+    {:ok, state} = State.load(root)
+    cursor = pass.() || state["cursor"]
+
+    Watch.loop(root, cursor, pass, &Remote.changes(state["vault"]["id"], &1),
+      interval_ms: interval * 1000
+    )
+  end
+
+  defp stamp, do: Time.utc_now() |> Time.truncate(:second) |> Time.to_iso8601()
+
   @doc false
-  def print(report, state) do
+  def print(report, state, o \\ []) do
+    # A watcher says when, and only when something happened.
+    quiet? = Enum.all?(report, fn {_k, v} -> v == [] end)
+
+    if o[:stamp] && quiet?, do: :ok, else: print_report(report, state, o)
+  end
+
+  defp print_report(report, state, o) do
     for %{path: p} <- report.sent, do: IO.puts("↑ " <> p)
     for %{path: p} <- report.received, do: IO.puts("↓ " <> p)
     for %{from: f, path: p} <- report.moved, do: IO.puts("→ #{f} → #{p}")
@@ -114,7 +181,8 @@ defmodule SlipdockCLI.Sync do
       [:sent, :received, :moved, :archived, :removed, :conflicts]
       |> Enum.map_join(", ", &"#{&1} #{length(Map.fetch!(report, &1))}")
 
-    IO.puts(Render.dim("#{state["vault"]["name"]}: #{counts}"))
+    when_ = if o[:stamp], do: stamp() <> " ", else: ""
+    IO.puts(Render.dim("#{when_}#{state["vault"]["name"]}: #{counts}"))
   end
 
   defp json(report, state) do
@@ -126,6 +194,68 @@ defmodule SlipdockCLI.Sync do
   end
 
   defp stringify(map), do: Map.new(map, fn {k, v} -> {to_string(k), v} end)
+
+  ## Running in the background ----------------------------------------------
+
+  defp service("print", plan, _o) do
+    if plan.file do
+      IO.puts(Render.dim("# " <> plan.file))
+      IO.write(plan.content)
+    end
+
+    IO.puts(Render.dim("# then:"))
+    Enum.each(plan.install, &IO.puts(Enum.map_join(&1, " ", fn w -> shell_word(w) end)))
+  end
+
+  defp service("install", plan, _o) do
+    if plan.file do
+      File.mkdir_p!(Path.dirname(plan.file))
+      File.write!(plan.file, plan.content)
+      IO.puts("wrote #{plan.file}")
+    end
+
+    # `launchctl unload` of an agent not yet loaded fails, and is meant to.
+    [last | earlier] = Enum.reverse(plan.install)
+    Enum.each(Enum.reverse(earlier), &run_cmd(&1, false))
+
+    case run_cmd(last, true) do
+      :ok ->
+        IO.puts("started #{plan.name}; it starts again when you log in. Logs: #{plan.logs}")
+
+      {:error, msg} ->
+        fail(
+          "#{msg}\n  the service file is written; start it by hand with: " <> Enum.join(last, " ")
+        )
+    end
+  end
+
+  defp service("uninstall", plan, _o) do
+    Enum.each(plan.uninstall, &run_cmd(&1, false))
+    if plan.file, do: File.rm(plan.file)
+    IO.puts("stopped and removed #{plan.name}")
+  end
+
+  defp run_cmd([cmd | args], strict?) do
+    case System.find_executable(cmd) do
+      nil ->
+        if strict?, do: {:error, "#{cmd} is not on this machine"}, else: :ok
+
+      exe ->
+        case System.cmd(exe, args, stderr_to_stdout: true) do
+          {_, 0} ->
+            :ok
+
+          {out, code} ->
+            if strict?, do: {:error, "#{cmd} failed (#{code}): #{String.trim(out)}"}, else: :ok
+        end
+    end
+  end
+
+  defp shell_word(word) do
+    if String.match?(word, ~r/[^\w\/.\-=:]/),
+      do: "'" <> String.replace(word, "'", "'\\''") <> "'",
+      else: word
+  end
 
   ## The folder ---------------------------------------------------------------
 
