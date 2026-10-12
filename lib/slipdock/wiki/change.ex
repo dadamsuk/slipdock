@@ -6,7 +6,7 @@ defmodule Slipdock.Wiki.Change do
   """
   use Ecto.Schema
 
-  @subjects ~w(page folder attachment)
+  @subjects ~w(page folder attachment file)
   @actions ~w(changed archived restored deleted)
 
   schema "wiki_changes" do

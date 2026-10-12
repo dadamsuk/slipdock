@@ -238,6 +238,45 @@ defmodule SlipdockCLI.HTTP do
     request(:post, path, {:multipart, boundary, segments([parts, "--", boundary, "--\r\n"])})
   end
 
+  @doc """
+  A GET whose body goes straight to `dest` rather than into memory: `:ok`,
+  or the error a request would give. Ten minutes, as an upload gets.
+  """
+  def download(path, dest) do
+    Application.ensure_all_started(:inets)
+    Application.ensure_all_started(:ssl)
+    url = String.to_charlist(base_url() <> "/api" <> path)
+
+    headers =
+      case token() do
+        nil ->
+          [{~c"x-slipdock-client", ~c"cli"}]
+
+        t ->
+          [
+            {~c"authorization", String.to_charlist("Bearer " <> t)},
+            {~c"x-slipdock-client", ~c"cli"}
+          ]
+      end
+
+    case :httpc.request(:get, {url, headers}, [{:timeout, 600_000}],
+           stream: String.to_charlist(dest),
+           body_format: :binary
+         ) do
+      {:ok, :saved_to_file} ->
+        :ok
+
+      # Anything but a 200 is not streamed: it comes back as a body.
+      {:ok, {{_, status, _}, _headers, body}} ->
+        if status in 200..299,
+          do: File.write!(dest, body),
+          else: {:error, status, try_decode(body)}
+
+      {:error, reason} ->
+        {:error, :connect, reason}
+    end
+  end
+
   # The body as a list of binaries and `{:path, path}`s, neighbouring
   # binaries run together.
   defp segments(iodata) do

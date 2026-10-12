@@ -37,6 +37,8 @@ defmodule Slipdock.Vaults.Layout do
           pages: %{pos_integer => page},
           paths: %{String.t() => pos_integer},
           page_dirs: %{String.t() => pos_integer},
+          files: %{pos_integer => map},
+          file_paths: %{String.t() => pos_integer},
           folders: %{pos_integer => String.t()},
           folder_dirs: %{String.t() => pos_integer},
           mappings: [%{board_id: pos_integer, folder_id: pos_integer | nil, path: String.t()}]
@@ -138,6 +140,17 @@ defmodule Slipdock.Vaults.Layout do
 
     page_map = Map.new(placed, &{&1.id, &1})
 
+    taken =
+      Enum.reduce(placed, taken, fn p, taken ->
+        taken = Map.put(taken, String.downcase(p.path), p.id)
+
+        if p.children?,
+          do: Map.put(taken, String.downcase(join(p.dir, p.stem)), p.id),
+          else: taken
+      end)
+
+    files = place_files(board_ids, folder_dirs, by_board, taken)
+
     %{
       pages: page_map,
       paths: Map.new(placed, &{String.downcase(&1.path), &1.id}),
@@ -147,10 +160,50 @@ defmodule Slipdock.Vaults.Layout do
           into: %{},
           do: {String.downcase(join(p.dir, p.stem)), p.id}
         ),
+      files: Map.new(files, &{&1.id, &1}),
+      file_paths: Map.new(files, &{String.downcase(&1.path), &1.id}),
       folders: folder_dirs,
       folder_dirs: Map.new(folder_dirs, fn {id, dir} -> {String.downcase(dir), id} end),
       mappings: mappings
     }
+  end
+
+  # A vault's other files (W-103 R2.9): each in its folder's directory, or
+  # at its board's mapped root, under its own name — with its id added when
+  # something placed earlier has that name already.
+  defp place_files(board_ids, folder_dirs, by_board, taken) do
+    from(f in Slipdock.Wiki.WikiFile,
+      where: f.board_id in ^board_ids and is_nil(f.archived_at),
+      order_by: [asc: f.id],
+      select: %{id: f.id, board_id: f.board_id, folder_id: f.folder_id, name: f.name}
+    )
+    |> Repo.all()
+    |> Enum.reduce({[], taken}, fn file, {acc, taken} ->
+      dir =
+        case file.folder_id do
+          nil -> root_dir(Map.get(by_board, file.board_id, []))
+          id -> folder_dirs[id]
+        end
+
+      if is_nil(dir) do
+        {acc, taken}
+      else
+        name = String.replace(file.name, ~r/[:*?"<>|]+/, "-")
+        path = join(dir, name)
+
+        path =
+          if Map.has_key?(taken, String.downcase(path)) do
+            ext = Path.extname(name)
+            join(dir, Path.basename(name, ext) <> "-F#{file.id}" <> ext)
+          else
+            path
+          end
+
+        entry = Map.merge(file, %{path: path, dir: dir})
+        {[entry | acc], Map.put(taken, String.downcase(path), {:file, file.id})}
+      end
+    end)
+    |> elem(0)
   end
 
   # How many pages sit above this one.

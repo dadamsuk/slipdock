@@ -111,4 +111,74 @@ defmodule SlipdockWeb.API.VaultSyncTest do
 
     assert Repo.get!(Page, page.id).body == "one"
   end
+
+  describe "files" do
+    defp upload(bytes, name) do
+      path = Path.join(System.tmp_dir!(), "up-#{System.unique_integer([:positive])}")
+      File.write!(path, bytes)
+      %Plug.Upload{path: path, filename: name, content_type: "application/octet-stream"}
+    end
+
+    test "post, list, fetch, move, replace and archive a file", %{conn: conn} do
+      created =
+        conn
+        |> post("/api/vaults/Brain/sync/files", %{
+          "path" => "Img/a.png",
+          "file" => upload("png", "a.png")
+        })
+        |> json_response(200)
+        |> Map.fetch!("file")
+
+      assert %{"kind" => "file", "path" => "Img/a.png", "size" => 3, "hash" => hash} = created
+
+      assert [%{"kind" => "file", "id" => id}] =
+               conn
+               |> get("/api/vaults/Brain/sync")
+               |> json_response(200)
+               |> Map.fetch!("entries")
+
+      fetched = conn |> get("/api/vaults/Brain/sync/files/#{id}")
+      assert fetched.status == 200
+      assert fetched.resp_body == "png"
+      assert get_resp_header(fetched, "x-slipdock-hash") == [hash]
+
+      moved =
+        conn
+        |> patch("/api/vaults/Brain/sync/files/#{id}", %{"path" => "b.png", "base" => hash})
+        |> json_response(200)
+
+      assert moved["file"]["path"] == "b.png"
+
+      replaced =
+        conn
+        |> post("/api/vaults/Brain/sync/files/#{id}", %{
+          "path" => "b.png",
+          "base" => hash,
+          "file" => upload("png2", "b.png")
+        })
+        |> json_response(200)
+
+      assert replaced["file"]["size"] == 4
+
+      assert conn
+             |> post("/api/vaults/Brain/sync/files/#{id}", %{
+               "path" => "b.png",
+               "base" => hash,
+               "file" => upload("png3", "b.png")
+             })
+             |> json_response(409)
+
+      assert conn
+             |> delete("/api/vaults/Brain/sync/files/#{id}?base=#{replaced["file"]["hash"]}")
+             |> json_response(200)
+
+      assert conn |> get("/api/vaults/Brain/sync/files/#{id}") |> json_response(404)
+    end
+
+    test "a post without the file is a bad request", %{conn: conn} do
+      assert conn
+             |> post("/api/vaults/Brain/sync/files", %{"path" => "a.png"})
+             |> json_response(400)
+    end
+  end
 end

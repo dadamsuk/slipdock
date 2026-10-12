@@ -301,4 +301,90 @@ defmodule SlipdockCLI.SyncEngineTest do
     assert {:error, "could not reach the server"} = Engine.run(ctx.root, ctx.state, {Down, nil})
     assert exists?(ctx, "Note.md")
   end
+
+  describe "files that are not notes (R2.9)" do
+    test "an image goes up as a file and comes down on another mirror, bytes intact", ctx do
+      bytes = :crypto.strong_rand_bytes(3000)
+      write(ctx, "Images/photo.png", bytes)
+
+      {state, report} = pass(ctx)
+
+      assert [%{path: "Images/photo.png"}] = report.sent
+      assert %{bytes: ^bytes} = FakeVault.file_by_path(ctx.vault, "Images/photo.png")
+      assert state["entries"]["Images/photo.png"]["kind"] == "file"
+      assert FakeVault.pages(ctx.vault) == %{}
+
+      other = Path.join(ctx.root, "../other-#{System.unique_integer([:positive])}")
+      File.mkdir_p!(other)
+      on_exit(fn -> File.rm_rf!(other) end)
+      {_state, report} = pass(%{ctx | root: other})
+      assert [%{path: "Images/photo.png"}] = report.received
+      assert File.read!(Path.join(other, "Images/photo.png")) == bytes
+    end
+
+    test "a renamed file is moved on the server without sending its bytes again", ctx do
+      id = FakeVault.put_file(ctx.vault, "a.pdf", "pdf")
+      {state, _} = pass(ctx)
+
+      File.rename!(Path.join(ctx.root, "a.pdf"), Path.join(ctx.root, "b.pdf"))
+      {_state, report} = pass(ctx, state)
+
+      assert [%{path: "b.pdf", id: ^id}] = report.sent
+      assert {:move_file, id, "b.pdf"} in FakeVault.calls(ctx.vault)
+      refute Enum.any?(FakeVault.calls(ctx.vault), &match?({:write_file, _, _}, &1))
+    end
+
+    test "edits, deletes and conflicts go by the same rules as notes", ctx do
+      edited = FakeVault.put_file(ctx.vault, "edit.png", "v1")
+      gone = FakeVault.put_file(ctx.vault, "gone.png", "g")
+      both = FakeVault.put_file(ctx.vault, "both.png", "base")
+      {state, _} = pass(ctx)
+
+      write(ctx, "edit.png", "v2")
+      File.rm!(Path.join(ctx.root, "gone.png"))
+      write(ctx, "both.png", "mine")
+      FakeVault.put_file(ctx.vault, "both.png", "theirs")
+
+      {state, report} = pass(ctx, state)
+
+      assert FakeVault.files(ctx.vault)[edited].bytes == "v2"
+      refute Map.has_key?(FakeVault.files(ctx.vault), gone)
+      assert [%{path: "gone.png"}] = report.archived
+
+      copy = "both (conflict 2026-10-12 testhost).png"
+      assert [%{path: "both.png", copy: ^copy}] = report.conflicts
+      assert read(ctx, "both.png") == "theirs"
+      assert read(ctx, copy) == "mine"
+      assert FakeVault.files(ctx.vault)[both].bytes == "theirs"
+      assert %{bytes: "mine"} = FakeVault.file_by_path(ctx.vault, copy)
+
+      FakeVault.archive_file_server(ctx.vault, edited)
+      {_state, report} = pass(ctx, state)
+      assert [%{path: "edit.png"}] = report.removed
+      refute exists?(ctx, "edit.png")
+    end
+
+    test "a page and a file with the same id are different things", ctx do
+      # On the server pages and files are numbered apart; here, too, a
+      # {kind, id} is the identity, never the id alone.
+      FakeVault.put(ctx.vault, "Note.md", "n")
+      {state, _} = pass(ctx)
+      [{"Note.md", %{"id" => id}}] = Map.to_list(state["entries"])
+
+      state =
+        put_in(state["entries"]["x.png"], %{
+          "id" => id,
+          "kind" => "file",
+          "hash" => FakeVault.hash("p")
+        })
+
+      write(ctx, "x.png", "p")
+
+      {_state, report} = pass(ctx, state)
+      # The file's id isn't on the server, so it is removed as archived
+      # there, and the page with that id is untouched.
+      assert [%{path: "x.png"}] = report.removed
+      assert read(ctx, "Note.md") == "n"
+    end
+  end
 end

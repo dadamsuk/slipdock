@@ -17,6 +17,12 @@ defmodule SlipdockCLI.Sync.Remote do
   @callback write(ctx :: term, id :: integer | nil, params :: map) :: result
   @callback archive(ctx :: term, id :: integer, base :: String.t() | nil) :: result
   @callback changes(ctx :: term, cursor :: integer | nil) :: result
+  @callback read_file(ctx :: term, id :: integer, dest :: Path.t()) ::
+              {:ok, String.t()} | {:error, String.t()}
+  @callback write_file(ctx :: term, id :: integer | nil, params :: map, source :: Path.t()) ::
+              result
+  @callback move_file(ctx :: term, id :: integer, params :: map) :: result
+  @callback archive_file(ctx :: term, id :: integer, base :: String.t() | nil) :: result
 
   @behaviour __MODULE__
 
@@ -40,6 +46,38 @@ defmodule SlipdockCLI.Sync.Remote do
   @impl true
   def changes(vault, cursor),
     do: HTTP.get("/vaults/#{vault}/changes", since: cursor) |> norm(nil)
+
+  # A file's bytes go straight to `dest` on disk; the answer is their hash,
+  # worked out from what arrived rather than taken on trust.
+  @impl true
+  def read_file(vault, id, dest) do
+    case HTTP.download("/vaults/#{vault}/sync/files/#{id}", dest) do
+      :ok -> {:ok, SlipdockCLI.Sync.Scan.sha_file(dest)}
+      error -> norm(error, nil)
+    end
+  end
+
+  # Streamed from disk a megabyte at a time (`HTTP.post_multipart/3`), so a
+  # 250 MB file is never in memory.
+  @impl true
+  def write_file(vault, id, params, source) do
+    path = if id, do: "/vaults/#{vault}/sync/files/#{id}", else: "/vaults/#{vault}/sync/files"
+    fields = params |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+    name = Path.basename(params["path"] || source)
+
+    HTTP.post_multipart(path, fields, [
+      {"file", name, "application/octet-stream", {:path, source}}
+    ])
+    |> norm("file")
+  end
+
+  @impl true
+  def move_file(vault, id, params),
+    do: HTTP.patch("/vaults/#{vault}/sync/files/#{id}", params) |> norm("file")
+
+  @impl true
+  def archive_file(vault, id, base),
+    do: HTTP.delete("/vaults/#{vault}/sync/files/#{id}", base: base) |> norm("file")
 
   defp norm({:ok, data}, nil), do: {:ok, data}
   defp norm({:ok, data}, key), do: {:ok, data[key]}

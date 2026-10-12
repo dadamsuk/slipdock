@@ -139,6 +139,53 @@ defmodule SlipdockCLI.SyncTest do
       assert_received {:request, "DELETE", "/api/vaults/3/sync/pages/7?base=abc", _}
     end
 
+    test "a file's bytes stream to disk and come back as their hash; a 404 is an error",
+         %{home: home} do
+      System.put_env(
+        "SLIPDOCK_URL",
+        FakeServer.start([
+          {200, "raw bytes"},
+          {404, ~s({"error":"file 9 in this vault not found"})}
+        ])
+      )
+
+      dest = Path.join(home, "dl")
+
+      assert {:ok, hash} = Remote.read_file(3, 8, dest)
+      assert File.read!(dest) == "raw bytes"
+      assert hash == :crypto.hash(:sha256, "raw bytes") |> Base.encode16(case: :lower)
+      assert_received {:request, "GET", "/api/vaults/3/sync/files/8", _}
+
+      assert {:error, "file 9 in this vault not found (HTTP 404)"} = Remote.read_file(3, 9, dest)
+    end
+
+    test "a file goes up as multipart with its path and base; a move is a PATCH", %{home: home} do
+      src = Path.join(home, "pic.png")
+      File.write!(src, "PNGDATA")
+      file = ~s({"file":{"kind":"file","id":4,"path":"Img/pic.png","hash":"h"}})
+
+      System.put_env(
+        "SLIPDOCK_URL",
+        FakeServer.start([{200, file}, {200, file}, {200, ~s({"file":{"id":4,"archived":true}})}])
+      )
+
+      assert {:ok, %{"id" => 4}} =
+               Remote.write_file(3, 4, %{"path" => "Img/pic.png", "base" => "old"}, src)
+
+      assert_received {:request, "POST", "/api/vaults/3/sync/files/4", body}
+      assert body =~ ~s(name="path")
+      assert body =~ "Img/pic.png"
+      assert body =~ ~s(name="base")
+      assert body =~ ~s(name="file"; filename="pic.png")
+      assert body =~ "PNGDATA"
+
+      assert {:ok, _} = Remote.move_file(3, 4, %{"path" => "b.png", "base" => "h"})
+      assert_received {:request, "PATCH", "/api/vaults/3/sync/files/4", _}
+
+      assert {:ok, %{"archived" => true}} = Remote.archive_file(3, 4, "h")
+      assert_received {:request, "DELETE", "/api/vaults/3/sync/files/4?base=h", _}
+    end
+
     test "errors come back as messages, and a 401 as :unauthorized" do
       System.put_env(
         "SLIPDOCK_URL",

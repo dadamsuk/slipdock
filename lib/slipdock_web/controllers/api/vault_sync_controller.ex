@@ -9,6 +9,7 @@ defmodule SlipdockWeb.API.VaultSyncController do
 
   alias Slipdock.Vaults
   alias Slipdock.Vaults.Sync
+  alias Slipdock.Wiki.Files
 
   action_fallback SlipdockWeb.API.FallbackController
 
@@ -52,6 +53,61 @@ defmodule SlipdockWeb.API.VaultSyncController do
       json(conn, %{page: entry})
     end
   end
+
+  @doc "A file's bytes, streamed from disk, with its hash in `x-slipdock-hash`."
+  def show_file(conn, %{"id" => ref, "file" => id}) do
+    with {:ok, vault} <- Vaults.get_vault(user(conn), ref),
+         {:ok, file, entry} <- Sync.read_file(vault, user(conn), id, opts(conn)) do
+      conn
+      |> put_resp_header("x-slipdock-hash", entry.hash)
+      |> put_resp_header("x-slipdock-path", URI.encode(entry.path))
+      |> put_resp_header("x-content-type-options", "nosniff")
+      |> send_download({:file, Files.disk_path(file)},
+        filename: file.name,
+        content_type: "application/octet-stream"
+      )
+    end
+  end
+
+  @doc """
+  Stores a file: multipart `file`, `path`, and `base` for one the client
+  knows (`POST /sync/files/:file`), or neither for a new one (`POST
+  /sync/files`). Up to the 250 MB attachments take.
+  """
+  def post_file(conn, %{"id" => ref} = params) do
+    with {:ok, vault} <- Vaults.get_vault(user(conn), ref),
+         {:ok, source} <- upload(params["file"]),
+         {:ok, entry} <-
+           Sync.write_file(
+             vault,
+             user(conn),
+             Map.take(params, ["path", "base"]) |> Map.put("id", params["file_id"]),
+             source,
+             opts(conn)
+           ) do
+      json(conn, %{file: entry})
+    end
+  end
+
+  @doc "Renames or moves a file: `path`, `base`."
+  def patch_file(conn, %{"id" => ref, "file_id" => id} = params) do
+    with {:ok, vault} <- Vaults.get_vault(user(conn), ref),
+         {:ok, entry} <-
+           Sync.move_file(vault, user(conn), id, Map.take(params, ["path", "base"]), opts(conn)) do
+      json(conn, %{file: entry})
+    end
+  end
+
+  @doc "Archives a file whose copy was deleted. `?base=` guards a change made elsewhere."
+  def delete_file(conn, %{"id" => ref, "file_id" => id} = params) do
+    with {:ok, vault} <- Vaults.get_vault(user(conn), ref),
+         {:ok, entry} <- Sync.archive_file(vault, user(conn), id, params["base"], opts(conn)) do
+      json(conn, %{file: entry})
+    end
+  end
+
+  defp upload(%Plug.Upload{path: path}), do: {:ok, path}
+  defp upload(_), do: {:error, :bad_request, "send the file as multipart `file`"}
 
   defp opts(conn), do: [token: conn.assigns[:api_token]]
 

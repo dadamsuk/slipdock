@@ -2,7 +2,8 @@ defmodule Slipdock.Wiki.Changes do
   @moduledoc """
   The wiki's change log, and the feed a vault's sync polls (W-103 R2.8).
 
-  Every mutation of a page, a folder or a page's attachment appends a row:
+  Every mutation of a page, a folder, a page's attachment or a wiki file
+  (`Slipdock.Wiki.WikiFile`) appends a row:
   `board`, `subject` and its id, and what happened (`changed`, `archived`,
   `restored`, `deleted`). The row's id is the **cursor**, increasing and
   never reused, so "what has changed since cursor 812?" has one exact answer
@@ -267,6 +268,30 @@ defmodule Slipdock.Wiki.Changes do
 
       _ ->
         []
+    end
+  end
+
+  defp entry(%Change{subject: "file"} = row, _paths, reader) do
+    case Repo.get(Slipdock.Wiki.WikiFile, row.subject_id) do
+      nil ->
+        [base(row, "deleted")]
+
+      file ->
+        board = Repo.get(Slipdock.Boards.Board, file.board_id)
+
+        if board && Access.can_read?(Access.board_permission(reader, board)),
+          do: [
+            row
+            |> base(row.action)
+            |> Map.merge(%{
+              name: file.name,
+              folder_id: file.folder_id,
+              size: file.size,
+              sha256: file.sha256,
+              archived: not is_nil(file.archived_at)
+            })
+          ],
+          else: []
     end
   end
 
