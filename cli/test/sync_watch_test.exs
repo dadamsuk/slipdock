@@ -160,15 +160,15 @@ defmodule SlipdockCLI.SyncWatchTest do
       plan =
         Service.plan(
           {:unix, :linux},
-          "/home/me/My Notes",
+          "/u/me/My Notes",
           ["/usr/bin/slipdock"],
-          "/home/me",
+          "/u/me",
           "/usr/bin:/bin"
         )
 
       assert plan.name =~ ~r/^slipdock-sync-my-notes-[0-9a-f]{6}\.service$/
-      assert plan.file == "/home/me/.config/systemd/user/#{plan.name}"
-      assert plan.content =~ ~s(ExecStart=/usr/bin/slipdock sync --watch "/home/me/My Notes")
+      assert plan.file == "/u/me/.config/systemd/user/#{plan.name}"
+      assert plan.content =~ ~s(ExecStart=/usr/bin/slipdock sync --watch "/u/me/My Notes")
       assert plan.content =~ "Environment=PATH=/usr/bin:/bin\n"
       assert plan.content =~ "Restart=always"
       assert ["systemctl", "--user", "enable", "--now", plan.name] in plan.install
