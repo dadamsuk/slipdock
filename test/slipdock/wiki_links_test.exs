@@ -475,7 +475,7 @@ defmodule Slipdock.WikiLinksTest do
       changeset = link_changeset(%{kind: "page", raw: "[[X]]", page_id: page.id, label: "x"})
       assert changeset.valid?
 
-      assert Link.kinds() == ~w(page card board view external)
+      assert Link.kinds() == ~w(page card board view external file)
 
       for kind <- Link.kinds() do
         assert link_changeset(%{kind: kind, raw: "r", page_id: page.id}).valid?

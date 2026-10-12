@@ -28,7 +28,7 @@ defmodule Slipdock.Wiki.Links do
   alias Slipdock.Vaults.Index
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.{Board, Card, Comment, SavedView, StatusUpdate}
-  alias Slipdock.Wiki.{Link, Markup, Page}
+  alias Slipdock.Wiki.{Files, Link, Markup, Page}
 
   @type resolution :: %{
           required(:kind) => Markup.kind(),
@@ -111,19 +111,41 @@ defmodule Slipdock.Wiki.Links do
     * `:as` — a `%User{}`, in which case a target that reader cannot see
       resolves to `nil`. Leave it out to resolve as the system, which is what
       the stored index wants.
+    * `:from` — the page the references are written on, which a relative
+      link (`[[../Tasks/Inbox]]`, as Obsidian writes them) is read from.
   """
   @spec resolve(Board.t(), [map], keyword) :: [resolution]
   def resolve(%Board{} = board, refs, opts \\ []) do
     reader = Keyword.get(opts, :as)
+    from = Keyword.get(opts, :from)
 
     Index.cached(fn ->
-      Enum.map(refs, &Map.put(&1, :to, target(board, &1, reader)))
+      Enum.map(refs, &Map.put(&1, :to, target(board, &1, reader, from)))
     end)
   end
 
+  # A link that names a file — `[[Report.pdf]]`, `![[photo.png]]` — is the
+  # wiki file of that name when there is one (W-103 R2.9), and otherwise
+  # whatever page answers to the words, as `[[Release 1.2]]` may.
+  defp target(board, %{kind: :page} = ref, reader, from) do
+    file =
+      if file_like?(ref.target) do
+        link = if ref.board, do: ref.board <> "/" <> ref.target, else: ref.target
+
+        case Files.find(board, link, reader) do
+          nil -> nil
+          file -> {:file, file}
+        end
+      end
+
+    file || page_target(board, ref, reader, from)
+  end
+
+  defp target(board, ref, reader, _from), do: target(board, ref, reader)
+
   # The board the page is on first — or the board a `[[QVM/Page]]` names —
   # and then, on a board in a vault, every board of the vault (W-103 R4.1).
-  defp target(board, %{kind: :page} = ref, reader) do
+  defp page_target(board, ref, reader, from) do
     scope = board_for(board, ref.board, reader)
 
     with %Board{} <- scope,
@@ -131,8 +153,15 @@ defmodule Slipdock.Wiki.Links do
          true <- visible_page?(page, reader) do
       {:page, page}
     else
-      _ -> vault_target(board, ref, reader)
+      _ -> vault_target(board, ref, reader, from)
     end
+  end
+
+  @doc false
+  # Anything with an extension other than `.md`, as `![[diagram.png]]` has.
+  def file_like?(target) do
+    ext = target |> to_string() |> Path.extname() |> String.downcase()
+    ext not in ["", ".md"] and Regex.match?(~r/\A\.[a-z0-9]{1,8}\z/, ext)
   end
 
   defp target(_board, %{kind: :card} = ref, reader) do
@@ -183,23 +212,77 @@ defmodule Slipdock.Wiki.Links do
   # `[[Note]]` by name, `[[Folder/Note]]` by the end of its vault path, the
   # shortest path winning (see `Slipdock.Vaults.Index`). A board in no vault
   # never gets here with anything to find, so it resolves as it always did.
-  defp vault_target(%Board{id: board_id}, ref, reader) do
+  #
+  # A link relative to the page it is written on — `./Note`, `../Tasks/Inbox`,
+  # or a folder path that finds nothing from the vault's root — is read from
+  # that page's own directory, as Obsidian writes links when its "new link
+  # format" is relative.
+  defp vault_target(%Board{id: board_id}, ref, reader, from) do
     case Vaults.for_board(board_id) do
       nil ->
         nil
 
       vault ->
         link = if ref.board, do: ref.board <> "/" <> ref.target, else: ref.target
+        index = Index.for_vault(vault)
 
-        vault
-        |> Index.for_vault()
-        |> Index.match(link)
+        index
+        |> candidates(link, from)
         |> Enum.find_value(fn entry ->
           with %Page{} = page <- Repo.get(Page, entry.id),
                true <- visible_page?(page, reader),
                do: {:page, page},
                else: (_ -> nil)
         end)
+    end
+  end
+
+  defp candidates(index, link, from) do
+    here = from && Enum.find(index, &(&1.id == from.id))
+
+    cond do
+      String.starts_with?(link, ["./", "../"]) and here != nil ->
+        case relative_to(here, link) do
+          nil -> []
+          path -> Index.match(index, path)
+        end
+
+      # Written on something with no place in the vault (a page being
+      # previewed, say): the folders it names, wherever they are.
+      String.starts_with?(link, ["./", "../"]) ->
+        link
+        |> String.split("/")
+        |> Enum.reject(&(&1 in [".", ".."]))
+        |> Enum.join("/")
+        |> then(&Index.match(index, &1))
+
+      true ->
+        case Index.match(index, link) do
+          [] when here != nil ->
+            if String.contains?(link, "/"),
+              do: Index.match(index, relative_to(here, link) || ""),
+              else: []
+
+          found ->
+            found
+        end
+    end
+  end
+
+  # `link` read from the directory the page `here` sits in, as a vault
+  # path; nil when it climbs out of the vault.
+  defp relative_to(here, link) do
+    (Enum.drop(here.segments, -1) ++ String.split(link, "/", trim: true))
+    |> Enum.reduce_while([], fn
+      ".", acc -> {:cont, acc}
+      "..", [] -> {:halt, :outside}
+      "..", [_ | acc] -> {:cont, acc}
+      segment, acc -> {:cont, [segment | acc]}
+    end)
+    |> case do
+      :outside -> nil
+      [] -> nil
+      segments -> segments |> Enum.reverse() |> Enum.join("/")
     end
   end
 
@@ -322,7 +405,7 @@ defmodule Slipdock.Wiki.Links do
     resolutions =
       page.body
       |> extract()
-      |> then(&resolve(board, &1))
+      |> then(&resolve(board, &1, from: page))
       # Directives, mentions and inline queries are not references to a
       # thing; they are instructions to the renderer.
       |> Enum.reject(&Enum.member?([:directive, :mention, :inline], &1.kind))
@@ -452,6 +535,7 @@ defmodule Slipdock.Wiki.Links do
     }
 
     case resolution.to do
+      {:file, _file} -> %{base | kind: "file"}
       {:page, %Page{id: id}} -> %{base | target_page_id: id}
       {:card, %Card{id: id}} -> %{base | target_card_id: id}
       {:board, %Board{id: id}} -> %{base | target_board_id: id}

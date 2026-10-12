@@ -290,7 +290,12 @@ defmodule SlipdockWeb.Wiki.Renderer do
   defp resolve_one(_ref, %{board: nil}), do: nil
 
   defp resolve_one(ref, context) do
-    [resolution] = Links.resolve(context.board, [Map.put(ref, :count, 1)], as: context.reader)
+    [resolution] =
+      Links.resolve(context.board, [Map.put(ref, :count, 1)],
+        as: context.reader,
+        from: context.page
+      )
+
     resolution.to
   end
 
@@ -413,6 +418,12 @@ defmodule SlipdockWeb.Wiki.Renderer do
   defp resolved_html(ref, {:page, page}, _context) do
     ~s|<a href="#{page_path(page)}#{fragment(ref)}" class="wiki-link" title="#{escape(page.code)}">| <>
       escape(ref.label || link_text(page, ref)) <> "</a>"
+  end
+
+  # `[[Report.pdf]]`: a file in the wiki, linked.
+  defp resolved_html(ref, {:file, file}, _context) do
+    ~s|<a class="wiki-file-link" href="#{escape(Slipdock.Wiki.Files.url(file))}">| <>
+      escape(ref.label || file.name) <> "</a>"
   end
 
   # A card is drawn live — title, list and state read at render time — so a

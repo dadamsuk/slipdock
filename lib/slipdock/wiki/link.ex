@@ -22,7 +22,9 @@ defmodule Slipdock.Wiki.Link do
   use Ecto.Schema
   import Ecto.Changeset
 
-  @kinds ~w(page card board view external)
+  # `file`: a `[[link]]` or `![[embed]]` that found a wiki file rather than
+  # a page (W-103 R2.9). Resolved, with no target row to point at.
+  @kinds ~w(page card board view external file)
 
   schema "page_links" do
     field :kind, :string

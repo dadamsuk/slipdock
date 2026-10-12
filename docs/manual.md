@@ -2470,9 +2470,14 @@ it sits under, its title: the layout an export writes — and a link matches
 by name (title, slug or alias, compared as file names are, case aside).
 When several pages match, the shortest path wins; write more of it,
 `[[X/Dup]]` or `[[Projects/X/Dup]]`, to pick another, the way Obsidian
-does. `[[QVM/Page]]` still means board QVM first. The words are never
+does. A link written relative to its note, as Obsidian writes them when
+its new link format is relative — `[[../Tasks/Inbox]]`, `[[./Plan]]`, or
+`[[2026/Journal/Note]]` from the note's own folder — is read from the
+note's folder. A link or embed naming a file, `[[Report.pdf]]` or
+`![[photo.png]]`, finds the wiki file of that name and links to it, and is
+not counted as a wanted page. `[[QVM/Page]]` still means board QVM first. The words are never
 rewritten, a resolved link is kept by id so a rename cannot break it, and a
-page written later brings links on any board of the vault to life. Backlinks
+page or file written later brings links on any board of the vault to life. Backlinks
 cross boards with the links. `slipdock vault resolve <vault> <link>` says
 which page a link finds; `slipdock vault wanted <vault>` (or
 `GET /api/vaults/:id/wanted`, MCP `page_info` with `vault`) lists the pages

@@ -171,4 +171,134 @@ defmodule Slipdock.VaultLinksTest do
       assert from |> Enum.map(& &1.title) |> Enum.sort() == ~w(A B)
     end
   end
+
+  describe "links as Obsidian writes them relative to the note (R4, R9)" do
+    setup ctx do
+      {:ok, tasks} = Wiki.create_folder(ctx.kb, %{"name" => "Tasks"})
+      {:ok, daily} = Wiki.create_folder(ctx.kb, %{"name" => "Daily"})
+      {:ok, trading} = Wiki.create_folder(ctx.kb, %{"name" => "Trading"})
+      {:ok, year} = Wiki.create_folder(ctx.kb, %{"name" => "2026", "parent_id" => trading.id})
+      %{tasks: tasks, daily: daily, trading: trading, year: year}
+    end
+
+    defp linker(ctx, folder, body),
+      do:
+        page!(ctx.kb, ctx.user, "Linker #{System.unique_integer([:positive])}", %{
+          "body" => body,
+          "folder_id" => folder.id
+        })
+
+    defp targets(page),
+      do: page |> Wiki.outgoing_links() |> Enum.map(&{&1.raw, &1.resolved, &1.target_page_id})
+
+    test "../ and ./ are read from the note's own folder", ctx do
+      inbox = page!(ctx.kb, ctx.user, "Inbox", %{"folder_id" => ctx.tasks.id})
+      day = page!(ctx.kb, ctx.user, "Plan", %{"folder_id" => ctx.daily.id})
+
+      page = linker(ctx, ctx.daily, "[[../Tasks/Inbox]] [[./Plan|plan]] [[../../Tasks/Inbox]]")
+
+      assert {"[[../Tasks/Inbox]]", true, inbox.id} in targets(page)
+      assert {"[[./Plan|plan]]", true, day.id} in targets(page)
+      # Climbing out of the vault reaches nothing.
+      assert {"[[../../Tasks/Inbox]]", false, nil} in targets(page)
+    end
+
+    test "a folder path that finds nothing from the root is read from the note's folder", ctx do
+      gaw = page!(ctx.kb, ctx.user, "GAW", %{"folder_id" => ctx.year.id})
+      page = linker(ctx, ctx.trading, "[[2026/GAW]]")
+      assert targets(page) == [{"[[2026/GAW]]", true, gaw.id}]
+    end
+
+    test "a relative link written before its page resolves once the page arrives", ctx do
+      page = linker(ctx, ctx.daily, "[[../Tasks/Later]]")
+      assert [{_, false, nil}] = targets(page)
+      assert [%{raw: "[[../Tasks/Later]]"}] = Vaults.wanted(ctx.vault, ctx.user)
+
+      later = page!(ctx.kb, ctx.user, "Later", %{"folder_id" => ctx.tasks.id})
+
+      assert [{_, true, id}] = targets(page)
+      assert id == later.id
+      assert Vaults.wanted(ctx.vault, ctx.user) == []
+    end
+
+    test "a link written with .md resolves once its page arrives", ctx do
+      page = linker(ctx, ctx.daily, "[[Tasks/Guide.md]]")
+      guide = page!(ctx.kb, ctx.user, "Guide", %{"folder_id" => ctx.tasks.id})
+      assert targets(page) == [{"[[Tasks/Guide.md]]", true, guide.id}]
+    end
+
+    test "the renderer follows a relative link from the page it draws", ctx do
+      inbox = page!(ctx.kb, ctx.user, "Inbox", %{"folder_id" => ctx.tasks.id})
+      page = linker(ctx, ctx.daily, "x")
+
+      html = Renderer.to_html("See [[../Tasks/Inbox]].", board: ctx.kb, as: ctx.user, page: page)
+      assert html =~ ~s(href="/boards/#{ctx.kb.id}/wiki/#{inbox.slug}")
+    end
+  end
+
+  describe "links and embeds of files (R2.9)" do
+    defp file!(board, name, folder \\ nil) do
+      path = Path.join(System.tmp_dir!(), "vl-file-#{System.unique_integer([:positive])}")
+      File.write!(path, "bytes")
+      on_exit(fn -> File.rm(path) end)
+
+      {:ok, file} =
+        Slipdock.Wiki.Files.create(board, %{name: name, folder_id: folder && folder.id}, path)
+
+      file
+    end
+
+    test "a file that exists is a resolved link, not a wanted page", ctx do
+      {:ok, att} = Wiki.create_folder(ctx.kb, %{"name" => "attachments"})
+      file!(ctx.kb, "TSaM.pdf")
+      file!(ctx.jobs, "photo.jpg", nil)
+      file!(ctx.kb, "deep.png", att)
+
+      page =
+        page!(ctx.kb, ctx.user, "Embeds", %{
+          "body" =>
+            "![[TSaM.pdf]] [[TSaM.pdf|the report]] ![[photo.jpg]] ![[../attachments/deep.png]] ![[gone.png]]"
+        })
+
+      rows = page |> Wiki.outgoing_links() |> Map.new(&{&1.raw, {&1.kind, &1.resolved}})
+      assert rows["![[TSaM.pdf]]"] == {"file", true}
+      assert rows["[[TSaM.pdf|the report]]"] == {"file", true}
+      assert rows["![[photo.jpg]]"] == {"file", true}
+      assert rows["![[../attachments/deep.png]]"] == {"file", true}
+      assert rows["![[gone.png]]"] == {"page", false}
+      assert [%{raw: "![[gone.png]]"}] = Vaults.wanted(ctx.vault, ctx.user)
+    end
+
+    test "a file arriving after the note brings its embed to life", ctx do
+      page = page!(ctx.kb, ctx.user, "Early", %{"body" => "![[late.png]]"})
+      assert [%{resolved: false}] = Wiki.outgoing_links(page)
+
+      file!(ctx.kb, "late.png")
+
+      assert [%{kind: "file", resolved: true}] = Wiki.outgoing_links(page)
+    end
+
+    test "a page whose title looks like a file name is still found when no file is", ctx do
+      release = page!(ctx.kb, ctx.user, "Release 1.2")
+      assert links_to(ctx.kb, ctx.user, "[[Release 1.2]]") == [release.id]
+    end
+
+    test "the renderer links a [[file]] to the file", ctx do
+      file = file!(ctx.kb, "TSaM.pdf")
+      html = Renderer.to_html("Read [[TSaM.pdf]].", board: ctx.kb, as: ctx.user)
+      assert html =~ ~s(class="wiki-file-link" href="/wiki-files/#{file.id}/TSaM.pdf")
+    end
+
+    test "a file the reader can't open is not linked for them", ctx do
+      file!(ctx.jobs, "Private.pdf")
+      reader = user_fixture("file-reader@example.com")
+      share_fixture(ctx.kb, reader, "read")
+
+      refute Renderer.to_html("Read [[Private.pdf]].", board: ctx.kb, as: reader) =~
+               "wiki-file-link"
+
+      assert Renderer.to_html("Read [[Private.pdf]].", board: ctx.kb, as: ctx.user) =~
+               "wiki-file-link"
+    end
+  end
 end
