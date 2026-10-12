@@ -422,6 +422,14 @@ slipdock page file <page> --folder F | --no-folder
 slipdock page new <board> <title...> --folder F   # or file it as you write it
 ```
 
+Vaults lay several boards' wikis out as one Obsidian-style vault (a vault path → a board's wiki
+or a folder of it, longest prefix winning; one vault per board):
+```
+slipdock vault ls | slipdock vault show <vault> | slipdock vault new <name...>
+slipdock vault map <vault> <path> --board B [--folder F] | slipdock vault unmap <vault> <path>
+slipdock vault locate <vault> <path> | slipdock vault rename <vault> <name...> | slipdock vault rm <vault>
+```
+
 `<page>` is the page's **code** (`W-31`), its slug, or `board-code/slug`. The code is stable
 across renames and re-slugs, so it is what to write in a commit message or hand back to the
 user; the slug is what the URL reads as.

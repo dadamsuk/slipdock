@@ -162,7 +162,7 @@ way in: what it is, the pictures, and how to get it running.
 - Accounts: passwordless sign-in by emailed magic link, sessions that last
   30 days, API tokens for the CLI
 - **An MCP server** at `/mcp`: claude.ai, the Claude apps, Claude Code and
-  other MCP clients get the boards and the wiki as 35 tools (four of them only
+  other MCP clients get the boards and the wiki as 37 tools (four of them only
   while meeting mode is on), signing in
   through the browser or with an API token (see [MCP server](#mcp-server))
 - Groups of users; boards, single cards and saved views can be shared with
@@ -2391,6 +2391,32 @@ list drafts, templates and archived pages at all.
 
 The full specification, and the decisions behind it, is in `docs/wiki.md`.
 
+### Vaults
+
+A **vault** lays several boards' wikis out as one Obsidian-style vault: one
+tree of Markdown files, which is what the coming `slipdock sync` mirrors to a
+folder on each computer (the plan is W-103). A vault is yours alone and holds
+no pages of its own. It is a name and a set of **mappings**, each a vault path
+onto a board's wiki or one folder of it:
+
+```
+/            → KnowledgeBase wiki (root)
+/Jobs        → Job Hunt wiki (root)
+/Projects/X  → board X wiki, folder "Notes"
+```
+
+A mapping inside another is allowed, and the **longest matching prefix
+wins**, segment by segment, so `/Jobs/Acme.md` lands in Job Hunt and
+`/Jobsearch.md` in KnowledgeBase. You can only map a board you can write to,
+and **a board belongs to one vault** (it may be mapped there more than once,
+its root and a folder of it, say), because the vault is also where a plain
+`[[link]]` on that board is looked for. Deleting a vault takes its mappings
+and leaves every page where it was; deleting a board or a folder takes the
+mappings onto it.
+
+Vaults are made and mapped from the CLI (`slipdock vault`), the API
+(`/api/vaults`) and MCP (`list_vaults`, `manage_vault`).
+
 ## Moving boards between servers
 
 A board as one JSON file that another Slipdock can read back: its lists, its
@@ -3242,6 +3268,10 @@ slipdock folder rm qvm-v1-rem Choices          # the folder only; nothing filed 
 slipdock folder rm qvm-v1-rem Choices --purge  # and the pages in it, history and all (owner only)
 slipdock page file W-31 --folder "Design/Decisions"   # where it is kept; --no-folder takes it out
 slipdock page ls qvm-v1-rem --folder decisions       # or --no-folder for the unfiled
+slipdock vault new Notes | slipdock vault ls      # board wikis laid out as one vault
+slipdock vault map Notes /Jobs --board jobs [--folder Notes]   # a vault path onto a wiki
+slipdock vault locate Notes /Jobs/Acme.md       # which mapping a path lands in (longest prefix)
+slipdock vault unmap Notes /Jobs | slipdock vault rm Notes      # the pages always stay
 slipdock page ls qvm-v1-rem --q retry           # the board's wiki; --tree for the shape of it
 slipdock page read W-31                        # the Markdown source (--json for the hash and the rest)
 slipdock page new qvm-v1-rem Retry policy --body - --summary "How retries work" --message "first draft"
@@ -3382,6 +3412,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `list_pages` | A board's wiki pages in order — code, title, summary, folder, parent and pinned cards — filtered by `q`, `archived` (`exclude`, `include` or `only`), `template` and `draft`; `tree: true` nests children under their parents. |
 | `page_info` | Finding the way round a wiki, by `what`: `links` (a page's outgoing, unresolved and incoming links), `sections` (its heading paths, as `write_page`'s section modes take them), `wanted` (a board's linked-to pages nobody has written) and `resolve` (is there a page for this `title`, and the `[[link]]` to write). Drafts stay out of sight of readers who cannot edit them. |
 | `page_history` | A page's revisions, newest first (`limit`, default 20): who saved each, how (`web`, `cli`, `mcp`…), the message and when. With `rev`, that revision's body and the diff it made against the one before, or with `against` (another revision id) the diff from that version instead; `diff: true` alone gives the latest save's diff. Long unchanged stretches come back as `skip` with a count, so a one-line edit does not return the whole page. |
+| `list_vaults` | Your [vaults](#vaults) and their mappings; with `vault`, one of them; with `vault` and `path`, which mapping that vault path lands in (the longest matching prefix) and what is left of the path below it. |
 | `activity` | A board's activity log, newest first; `card` narrows it to one card's entries. |
 | `create_card` | A card on a board, or with `parent` a subcard (making the sub-board if needed). |
 | `update_card` | Title, description, priority (or clearing it), start and due dates, percent, flags, tags, assignees, what blocks it, and its checklist — add, tick and untick items. Only what is passed changes. |
@@ -3399,6 +3430,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `write_page` | The wiki: `create` a page, `append` or `append_section` to one, or `replace_section` and `replace`, which need the `content_hash` from `read_page` so nobody's edit is overwritten. |
 | `update_page` | Everything about a page but its body: `title`, `summary`, `parent` (`""` for the top) and `position` among its siblings, `folder` (made if new; `""` unfiles), `archived` (`false` restores it, children too), and `pin_card` / `unpin_card` to mark it *the* page for a card you can read. Only what is passed changes. Purging a page for good stays on the CLI. |
 | `revert_page` | Puts a page back to a revision from `page_history`. The revert is a new revision, so nothing leaves the history and it can itself be undone; it needs `base_hash`, the page's current `content_hash`, so a newer edit is not lost to it unseen. |
+| `manage_vault` | Changes a [vault](#vaults), by `action`: `create` (`name`), `rename` (`vault`, `name`), `delete` (`vault`, `confirm: true`; the pages stay on their boards), `map` (`vault`, `path`, `board` and optionally `folder`) and `unmap` (`vault`, `path`). |
 | `claim_job` | Takes the oldest [runner job](#runners) queued for a pool on a board, with a lease: the card, its link, the job's kind and prompt. Answers `nothing queued` when there is none, so an idle check costs little. The session shows in the board's runner list. |
 | `job_progress` | Renews a claimed job's lease; `note`, if given, is also a comment on the card. Answers `ok`, or `cancel` when somebody has stopped the job. |
 | `finish_job` | Ends a claimed job: `outcome` done, failed, cancelled or timeout, and a `summary` kept on the job. Only the token that claimed it may. |

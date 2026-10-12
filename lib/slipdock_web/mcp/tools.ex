@@ -22,6 +22,7 @@ defmodule SlipdockWeb.MCP.Tools do
     Tools.ListPages,
     Tools.PageInfo,
     Tools.PageHistory,
+    Tools.ListVaults,
     Tools.Activity,
     Tools.CreateCard,
     Tools.UpdateCard,
@@ -39,6 +40,7 @@ defmodule SlipdockWeb.MCP.Tools do
     Tools.WritePage,
     Tools.UpdatePage,
     Tools.RevertPage,
+    Tools.ManageVault,
     Tools.ClaimJob,
     Tools.JobProgress,
     Tools.FinishJob

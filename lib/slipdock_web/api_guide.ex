@@ -1667,6 +1667,33 @@ defmodule SlipdockWeb.APIGuide do
     one click away at `/search?q=…&board=N` (which is a link worth handing
     somebody when the name they tried is not what the page is called).
 
+    ### Vaults: board wikis as one Obsidian-style vault
+
+    A **vault** is yours alone and holds no pages: it is a set of
+    **mappings**, each a vault path → a board's wiki or one folder of it, so
+    several boards' wikis read as one tree of files (`/` → KnowledgeBase,
+    `/Jobs` → Job Hunt). A mapping inside another is fine; the longest
+    matching prefix wins. You can only map a board you can write to, and a
+    board belongs to one vault — that vault is where a plain `[[link]]` on it
+    is looked for.
+
+    ```sh
+    curl -s -H "$H" B/api/vaults                                   # yours, mappings and all
+    curl -s -X POST -H "$H" -H 'content-type: application/json' \\
+         B/api/vaults -d '{"name": "Notes"}'
+    curl -s -X POST -H "$H" -H 'content-type: application/json' \\
+         B/api/vaults/Notes/mappings -d '{"path": "/Jobs", "board": "jobs", "folder": "Notes"}'
+    curl -s -H "$H" "B/api/vaults/Notes/locate?path=/Jobs/Acme/Call.md"
+    # → {"mapping": {"path": "/Jobs", "board": {...}, ...}, "rest": "Acme/Call.md"}
+    curl -s -X DELETE -H "$H" "B/api/vaults/Notes/mappings?path=/Jobs"
+    curl -s -X PATCH -H "$H" -H 'content-type: application/json' \\
+         B/api/vaults/Notes -d '{"name": "Brain"}'
+    curl -s -X DELETE -H "$H" B/api/vaults/Brain   # its mappings go; the pages stay
+    ```
+
+    On a shell: `slipdock vault ls|show|new|rename|rm|map|unmap|locate`; over
+    MCP, `list_vaults` and `manage_vault`.
+
     ### Writing one section at a time
 
     A page is addressed by heading: `Deploy/Rollback` is the `## Rollback`

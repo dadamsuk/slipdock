@@ -3,7 +3,18 @@ defmodule SlipdockCLI do
 
   import SlipdockCLI.Util, only: [fail: 1, bad_usage: 1]
 
-  alias SlipdockCLI.{Admin, Auth, Automations, Boards, Meetings, Runners, Skills, Util, Wiki}
+  alias SlipdockCLI.{
+    Admin,
+    Auth,
+    Automations,
+    Boards,
+    Meetings,
+    Runners,
+    Skills,
+    Util,
+    Vaults,
+    Wiki
+  }
 
   @help """
   slipdock — read and write cards on your Slipdock boards
@@ -243,6 +254,19 @@ defmodule SlipdockCLI do
                                         delete the folder only: its subfolders move up and
                                         its pages go back to the root. --purge deletes the
                                         pages in it as well, history and all (owner only)
+
+  VAULTS  (board wikis laid out as one Obsidian-style vault: each mapping puts a
+           vault path onto a board's wiki or one folder of it, the longest prefix
+           winning. A board belongs to one vault, and only one you can write to)
+    vault ls                            your vaults and their mappings
+    vault show <vault>                  one of them
+    vault new <name...>                 make one
+    vault rename <vault> <name...>
+    vault rm <vault>                    its mappings go; every page stays on its board
+    vault map <vault> <path> --board B [--folder F]
+                                        put a vault path ("/", "/Jobs") onto a board's wiki
+    vault unmap <vault> <path>          take a mapping out
+    vault locate <vault> <path>         which mapping a vault path lands in, and the rest
 
   SKILLS  (the agent instructions this server ships, versioned with its API)
     skills                              list them, with a version each
@@ -675,7 +699,7 @@ defmodule SlipdockCLI do
 
   # Each area module lists the command names it answers to; the first that
   # claims a name gets every clause of it, so a name must live in one place.
-  @areas [Auth, Admin, Boards, Automations, Runners, Wiki, Skills, Meetings]
+  @areas [Auth, Admin, Boards, Automations, Runners, Wiki, Vaults, Skills, Meetings]
 
   defp run(cmd, args, o) do
     case Enum.find(@areas, &(cmd in &1.commands())) do

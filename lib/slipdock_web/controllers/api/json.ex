@@ -555,6 +555,27 @@ defmodule SlipdockWeb.API.JSON do
     }
   end
 
+  @doc "A vault and its mappings (see `Slipdock.Vaults`)."
+  def vault(%Slipdock.Vaults.Vault{} = v) do
+    %{
+      id: v.id,
+      name: v.name,
+      mappings: Enum.map(v.mappings, &vault_mapping/1),
+      inserted_at: v.inserted_at,
+      updated_at: v.updated_at
+    }
+  end
+
+  @doc "One vault mapping: a vault path and the wiki, or folder, it lands in."
+  def vault_mapping(%Slipdock.Vaults.Mapping{} = m) do
+    %{
+      id: m.id,
+      path: Slipdock.Vaults.Mapping.display_path(m),
+      board: %{id: m.board.id, code: m.board.code, name: m.board.name},
+      folder: m.folder && %{id: m.folder.id, path: Slipdock.Wiki.folder_path(m.folder)}
+    }
+  end
+
   @doc """
   A folder tree with the pages filed in each — `%{folder:, children:, pages:}`
   nodes, as `Slipdock.Wiki.Folders.tree/2` builds them.

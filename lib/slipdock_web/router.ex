@@ -496,6 +496,16 @@ defmodule SlipdockWeb.Router do
     put "/boards/:board/sprints/sources", SprintController, :put_sources
     post "/boards/:board/sprints", SprintController, :create
 
+    # Vaults: board wikis laid out as one Obsidian-style vault (W-103).
+    get "/vaults", VaultController, :index
+    post "/vaults", VaultController, :create
+    get "/vaults/:id", VaultController, :show
+    patch "/vaults/:id", VaultController, :update
+    delete "/vaults/:id", VaultController, :delete
+    get "/vaults/:id/locate", VaultController, :locate
+    post "/vaults/:id/mappings", VaultController, :map
+    delete "/vaults/:id/mappings", VaultController, :unmap
+    delete "/vaults/:id/mappings/:mapping", VaultController, :unmap
     # The board's wiki (see `Slipdock.Wiki`). `:id` takes a numeric id, a page
     # code like W-31, or board-code/slug.
     get "/pages/resolve", PageController, :resolve
