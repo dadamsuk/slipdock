@@ -95,6 +95,7 @@ defmodule SlipdockWeb.AudioAttachmentTest do
     # Shown as written: no template whitespace before it in a pre-wrap block.
     assert view |> element("#transcript-#{audio.id} p") |> render() =~
              ~r/>We agreed to ship on Friday\.<\/p>/
+
     assert has_element?(view, "#transcribe-#{audio.id}", "Transcribe again")
     assert Boards.get_attachment!(audio.id).transcript == "We agreed to ship on Friday."
   end
