@@ -34,7 +34,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   @own_events ~w(card_change toggle_flag toggle_tag set_cover archive_card delete_card
     add_dependency remove_dependency create_sub_board remove_assignee delete_sub_board
     quick_add_subcard toggle_subcard edit_description stop_editing_description
-    validate_attachments cancel_upload delete_attachment add_link remove_link write_up
+    validate_attachments cancel_upload delete_attachment hide_on_card add_link remove_link write_up
     toggle_pin_doc doc_search attach_doc detach_doc card_timer log_time dep_direction
     dep_search link_search pick_template comment_change share revoke_grant cancel_job)
   @events @own_events ++ ItemEvents.events()
@@ -505,6 +505,18 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
 
     if attachment.card_id == socket.assigns.card.id do
       {:ok, _} = Boards.delete_attachment(attachment)
+    end
+
+    {:noreply, socket}
+  end
+
+  # `hide` is the state asked for, not a toggle: a double click, or a panel
+  # drawn before someone else's change, cannot flip it back the wrong way.
+  defp event("hide_on_card", %{"id" => id, "hide" => hide}, socket) when hide in ~w(true false) do
+    attachment = Boards.get_attachment!(id)
+
+    if attachment.card_id == socket.assigns.card.id do
+      {:ok, _} = Boards.hide_attachment_on_card(attachment, hide == "true")
     end
 
     {:noreply, socket}

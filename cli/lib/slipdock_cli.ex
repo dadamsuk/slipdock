@@ -312,8 +312,13 @@ defmodule SlipdockCLI do
     unlink <id> <link-id>...            remove links (ids shown by `card`)
     weblink <id> <url> [--label TEXT]   link a card to a web page, drive or file (datestamped)
     unweblink <id> <url-id>...          remove web links (ids shown by `card`)
-    attach <id> <file>... [--name N]    upload files to a card or page; prints the Markdown that
-                                        embeds each (an image shows inline, anything else links)
+    attach <id> <file>... [--name N] [--hide-on-card]
+                                        upload files to a card or page; prints the Markdown that
+                                        embeds each (an image shows inline, anything else links).
+                                        A card's first image is the thumbnail on its front unless
+                                        --hide-on-card keeps it off
+    card-front <id> <attachment-id>... [--off]
+                                        let an image be the card's thumbnail (--off: keep it off)
     attachments <id>                    list a card's or page's files
     detach <id> <attachment-id>...      delete attached files
     blocked-by <id> <card-id>... [--off] mark <id> as waiting on other cards, on any board you
@@ -541,6 +546,7 @@ defmodule SlipdockCLI do
     category: :string,
     kind: :keep,
     label: :string,
+    hide_on_card: :boolean,
     options: :string,
     formula: :string,
     sum: :boolean,

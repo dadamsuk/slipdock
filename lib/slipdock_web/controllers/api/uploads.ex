@@ -18,12 +18,15 @@ defmodule SlipdockWeb.API.Uploads do
   def take(%{"file" => %Plug.Upload{path: path, filename: name} = upload} = params) do
     filename = present(params["filename"]) || name
 
-    {:ok,
-     %{
-       filename: filename,
-       content_type: content_type(upload.content_type, filename),
-       size: File.stat!(path).size
-     }, path}
+    with {:ok, hide?} <- hide_on_card(params, false) do
+      {:ok,
+       %{
+         filename: filename,
+         content_type: content_type(upload.content_type, filename),
+         size: File.stat!(path).size,
+         hide_on_card: hide?
+       }, path}
+    end
   end
 
   def take(%{"file" => _}),
@@ -33,6 +36,19 @@ defmodule SlipdockWeb.API.Uploads do
     do:
       {:error, :unprocessable_entity,
        "send the file as the multipart form field `file` (curl -F file=@shot.png)"}
+
+  @doc """
+  `hide_on_card` from the params — a JSON boolean, or "true"/"false" as a
+  form sends it — else `default`.
+  """
+  def hide_on_card(params, default) do
+    case params["hide_on_card"] do
+      nil -> {:ok, default}
+      v when v in [true, "true"] -> {:ok, true}
+      v when v in [false, "false"] -> {:ok, false}
+      _ -> {:error, :unprocessable_entity, "hide_on_card must be true or false"}
+    end
+  end
 
   @doc "The attachment as the API shows it, with the Markdown that embeds or links it."
   def json(%Attachment{} = a) do

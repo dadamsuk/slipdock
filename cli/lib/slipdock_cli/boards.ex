@@ -10,7 +10,7 @@ defmodule SlipdockCLI.Boards do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(guide search ask search-status saved save unsave boards board columns tags activity cards card swimlanes views favourites fav unfav table fields milestones templates add edit set vote status new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments detach blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
+  @commands ~w(guide search ask search-status saved save unsave boards board columns tags activity cards card swimlanes views favourites fav unfav table fields milestones templates add edit set vote status new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments detach card-front card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -417,7 +417,9 @@ defmodule SlipdockCLI.Boards do
 
       name = o[:name] || Path.basename(file)
 
-      HTTP.post_multipart(item_path(id, "/attachments"), [], [
+      fields = if o[:hide_on_card], do: [{"hide_on_card", "true"}], else: []
+
+      HTTP.post_multipart(item_path(id, "/attachments"), fields, [
         {"file", name, "application/octet-stream", bytes}
       ])
       |> out(o, fn %{"attachment" => a} ->
@@ -435,6 +437,30 @@ defmodule SlipdockCLI.Boards do
 
       %{"attachments" => list} ->
         Enum.each(list, &IO.puts(Render.attachment_line(&1)))
+    end)
+  end
+
+  # Whether an image may be the thumbnail on its card's front; --off keeps it
+  # off. Cards only: a page has no front.
+  def run("card-front", [id | attachment_ids], o) when attachment_ids != [] do
+    Enum.each(attachment_ids, fn aid ->
+      HTTP.patch("/cards/#{enc(id)}/attachments/#{enc(aid)}", %{"hide_on_card" => o[:off] == true})
+      |> out(o, fn %{"attachment" => a} ->
+        where = if a["hide_on_card"], do: "kept off", else: "may show on"
+        IO.puts("#{a["filename"]} [attachment ##{a["id"]}] #{where} the front of card ##{id}")
+      end)
+    end)
+  end
+
+  # Whether an image may be the thumbnail on its card's front; --off keeps it
+  # off. Cards only: a page has no front.
+  def run("card-front", [id | attachment_ids], o) when attachment_ids != [] do
+    Enum.each(attachment_ids, fn aid ->
+      HTTP.patch("/cards/#{enc(id)}/attachments/#{enc(aid)}", %{"hide_on_card" => o[:off] == true})
+      |> out(o, fn %{"attachment" => a} ->
+        where = if a["hide_on_card"], do: "kept off", else: "may show on"
+        IO.puts("#{a["filename"]} [attachment ##{a["id"]}] #{where} the front of card ##{id}")
+      end)
     end)
   end
 

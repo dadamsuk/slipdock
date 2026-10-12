@@ -373,6 +373,7 @@ defmodule SlipdockWeb.API.JSON do
       content_type: a.content_type,
       size: a.size,
       url: Slipdock.Boards.attachment_url(a),
+      hide_on_card: a.hide_on_card,
       inserted_at: a.inserted_at
     }
   end

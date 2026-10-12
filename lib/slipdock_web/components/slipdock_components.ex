@@ -938,9 +938,11 @@ defmodule SlipdockWeb.SlipdockComponents do
     done = Enum.count(card.checklist_items, & &1.done)
     total = length(card.checklist_items)
     cover = if assigns.cover == :auto, do: card.color, else: assigns.cover
+    image = if on.("images"), do: Slipdock.Boards.Attachment.front_image(loaded_attachments(card))
 
     facets = %{
       cover: on.("cover") and not is_nil(cover),
+      image: not is_nil(image),
       stated: on.("status") and not is_nil(Slipdock.Boards.Card.stated_health(card)),
       status: on.("status"),
       tags: on.("tags") and card.tags != [],
@@ -959,7 +961,7 @@ defmodule SlipdockWeb.SlipdockComponents do
       attachments: on.("attachments") and loaded_attachments(card) != []
     }
 
-    meta? = facets |> Map.drop([:cover, :status, :tags]) |> Map.values() |> Enum.any?()
+    meta? = facets |> Map.drop([:cover, :image, :status, :tags]) |> Map.values() |> Enum.any?()
 
     assigns =
       assign(assigns,
@@ -968,6 +970,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         f: facets,
         meta?: meta?,
         cover_color: cover,
+        image: image,
         page?: page?,
         # A wiki page is `page-7` where a card is `12`, so the drag-and-drop
         # and the click handlers can tell the two apart.
@@ -1001,8 +1004,29 @@ defmodule SlipdockWeb.SlipdockComponents do
         class={["h-1.5 rounded-t-xl bg-gradient-to-r", Palette.gradient(@cover_color)]}
       >
       </div>
+      <img
+        :if={@f.image && !@compact}
+        src={Slipdock.Boards.attachment_url(@image)}
+        alt={@image.filename}
+        loading="lazy"
+        draggable="false"
+        data-role="card-image"
+        class={[
+          "max-h-40 w-full bg-base-200 object-cover",
+          !@f.cover && "rounded-t-xl"
+        ]}
+      />
       <div :if={@compact} class="flex items-center gap-2 px-2.5 py-1.5">
         <span :if={@f.cover} class={["size-2 shrink-0 rounded-full", Palette.dot(@cover_color)]}></span>
+        <img
+          :if={@f.image}
+          src={Slipdock.Boards.attachment_url(@image)}
+          alt={@image.filename}
+          loading="lazy"
+          draggable="false"
+          data-role="card-image"
+          class="size-5 shrink-0 rounded object-cover"
+        />
         <.doc_link :if={@page?} path={@page_path} class="size-3.5" />
         <button
           :if={@f.status and not @page?}

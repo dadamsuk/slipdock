@@ -3163,7 +3163,8 @@ defmodule Slipdock.Boards do
           filename: meta[:filename],
           content_type: meta[:content_type],
           size: size,
-          key: key
+          key: key,
+          hide_on_card: Map.get(meta, :hide_on_card, false)
         })
       )
       # An upload is both a thing stored and bytes on a disk, so it is checked
@@ -3193,6 +3194,23 @@ defmodule Slipdock.Boards do
     do: Repo.one(from(p in Slipdock.Wiki.Page, where: p.id == ^page_id, select: p.board_id))
 
   defp attachment_scope(_owner), do: nil
+
+  @doc """
+  Keeps an image off the front of its card (`hide? = true`), or puts it back.
+  The card's front shows the first image that is not kept off it.
+  """
+  def hide_attachment_on_card(%Attachment{} = attachment, hide?) when is_boolean(hide?) do
+    attachment
+    |> Attachment.front_changeset(hide?)
+    |> Repo.update()
+    |> tap_ok(fn a ->
+      case Repo.preload(a, [:card, :page]) do
+        %Attachment{card: %Card{board_id: board_id}} -> broadcast(board_id)
+        %Attachment{page: %{board_id: board_id}} -> broadcast(board_id)
+        _ -> :ok
+      end
+    end)
+  end
 
   def delete_attachment(%Attachment{} = attachment) do
     attachment = Repo.preload(attachment, [:card, :page])

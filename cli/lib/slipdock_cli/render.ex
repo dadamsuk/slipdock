@@ -415,9 +415,11 @@ defmodule SlipdockCLI.Render do
   end
 
   @doc "One attached file: name, size, and the id `detach` takes."
-  def attachment_line(a),
-    do:
-      "#{a["filename"]} (#{a["content_type"]}, #{size(a["size"])}) #{a["url"]} [attachment ##{a["id"]}]"
+  def attachment_line(a) do
+    off = if a["hide_on_card"], do: " (not on the card front)", else: ""
+
+    "#{a["filename"]} (#{a["content_type"]}, #{size(a["size"])}) #{a["url"]}#{off} [attachment ##{a["id"]}]"
+  end
 
   defp size(n) when is_integer(n) and n >= 1_048_576, do: "#{Float.round(n / 1_048_576, 1)} MB"
   defp size(n) when is_integer(n) and n >= 1024, do: "#{div(n, 1024)} KB"

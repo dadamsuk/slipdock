@@ -19,6 +19,9 @@ defmodule Slipdock.Boards.Attachment do
     field :content_type, :string
     field :size, :integer
     field :key, :string
+    # An image shows as a thumbnail on the front of its card unless this is
+    # set (see `front_image/1`). Meaningless for anything else.
+    field :hide_on_card, :boolean, default: false
     belongs_to :card, Slipdock.Boards.Card
     belongs_to :page, Slipdock.Wiki.Page
     timestamps(type: :utc_datetime)
@@ -32,7 +35,7 @@ defmodule Slipdock.Boards.Attachment do
 
   def changeset(attachment, attrs) do
     attachment
-    |> cast(attrs, [:filename, :content_type, :size, :key, :card_id, :page_id])
+    |> cast(attrs, [:filename, :content_type, :size, :key, :card_id, :page_id, :hide_on_card])
     |> update_change(:filename, &clean_filename/1)
     |> update_change(:content_type, &clean_content_type/1)
     |> validate_required([:filename, :content_type, :size, :key])
@@ -41,6 +44,22 @@ defmodule Slipdock.Boards.Attachment do
     |> validate_number(:size, greater_than: 0, less_than_or_equal_to: @max_size)
     |> unique_constraint(:key)
   end
+
+  @doc "Whether the file may be shown on the front of its card."
+  def front_image?(%__MODULE__{} = a), do: image?(a) and not a.hide_on_card
+
+  @doc """
+  The image a card's front shows as its thumbnail: the first one attached
+  that nobody has kept off the front, or nil.
+  """
+  def front_image(attachments) when is_list(attachments),
+    do: Enum.find(attachments, &front_image?/1)
+
+  def front_image(_), do: nil
+
+  @doc "Shows the file on its card's front, or keeps it off."
+  def front_changeset(attachment, hide?) when is_boolean(hide?),
+    do: change(attachment, hide_on_card: hide?)
 
   @doc "What this file hangs off."
   defdelegate owner(attachment), to: Slipdock.Boards.Owned
