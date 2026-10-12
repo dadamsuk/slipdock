@@ -85,7 +85,8 @@ defmodule Slipdock.Vaults.Layout do
           parent_id: p.parent_id,
           folder_id: p.folder_id,
           title: p.title,
-          code: p.code
+          code: p.code,
+          file_name: p.file_name
         }
       )
       |> Repo.all()
@@ -286,6 +287,9 @@ defmodule Slipdock.Vaults.Layout do
 
   defp file_path(dir, stem, true), do: join(join(dir, stem), "index.md")
   defp file_path(dir, stem, false), do: join(dir, stem <> ".md")
+
+  # The name the page's own file had, kept; otherwise its title.
+  defp file_name(%{file_name: name}) when is_binary(name) and name != "", do: name
 
   defp file_name(page) do
     case safe(page.title) do

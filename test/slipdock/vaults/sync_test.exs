@@ -492,12 +492,151 @@ defmodule Slipdock.Vaults.SyncTest do
       for {path, content} <- @samples, do: assert(listed[path] == Sync.hash(content))
     end
 
+    test "a summary too long to be the page's stays the writer's own key, byte for byte",
+         %{vault: vault, user: user} do
+      long = String.duplicate("A clipped paragraph. ", 20)
+
+      content =
+        "---\ntitle: \"Clipped\"\nauthor:\n  - \"[[Someone]]\"\npublished:\nsummary: \"#{long}\"\n---\nBody\n"
+
+      assert {:ok, written} =
+               Sync.write_page(vault, user, %{
+                 "path" => "Clippings/Clipped.md",
+                 "content" => content
+               })
+
+      assert written.content == content
+      assert Repo.get!(Page, written.id).summary == nil
+
+      short = "---\nsummary: Short and sweet\n---\nBody\n"
+      {:ok, written} = Sync.write_page(vault, user, %{"path" => "Short.md", "content" => short})
+      assert written.content == short
+      assert Repo.get!(Page, written.id).summary == "Short and sweet"
+    end
+
+    test "a summary cleared in the app leaves a long summary key alone, and takes a short one out",
+         %{kb: kb} do
+      long = String.duplicate("x", 301)
+      page = page!(kb, %{"title" => "Long", "front_matter" => "---\nsummary: #{long}\n---\n"})
+      assert Archive.sync_file(page) =~ "summary: #{long}"
+
+      page = page!(kb, %{"title" => "Short", "front_matter" => "---\nsummary: old\n---\n"})
+      refute Archive.sync_file(%{page | summary: nil}) =~ "summary"
+    end
+
     test "a note in a mapped folder lands on that board", %{vault: vault, user: user, jobs: jobs} do
       {:ok, written} =
         Sync.write_page(vault, user, %{"path" => "Jobs/Acme/Offer.md", "content" => "offer"})
 
       assert written.board_id == jobs.id
       assert written.content == "offer"
+    end
+  end
+
+  describe "an imported note keeps its file name (R9)" do
+    defp write!(vault, user, path, content) do
+      {:ok, entry} = Sync.write_page(vault, user, %{"path" => path, "content" => content})
+      entry
+    end
+
+    test "a note whose front matter gives it another title stays where it was, and links find it",
+         %{vault: vault, user: user} do
+      content = "---\ntitle: \"CTO Candidate Interview: David\"\n---\nNotes\n"
+      entry = write!(vault, user, "Meetings/2026-03-05 CTO-Candidate-Interview-David.md", content)
+
+      assert entry.path == "Meetings/2026-03-05 CTO-Candidate-Interview-David.md"
+      assert entry.content == content
+      page = Repo.get!(Page, entry.id)
+      assert page.title == "CTO Candidate Interview: David"
+      assert page.file_name == "2026-03-05 CTO-Candidate-Interview-David"
+
+      index = Slipdock.Vaults.Index.build(vault)
+
+      assert [%{id: id}] =
+               Slipdock.Vaults.Index.match(index, "2026-03-05 CTO-Candidate-Interview-David")
+
+      assert id == entry.id
+      assert [%{id: ^id}] = Slipdock.Vaults.Index.match(index, "CTO Candidate Interview: David")
+    end
+
+    test "a trailing space or a name over 80 characters is kept, and no title key is added",
+         %{vault: vault, user: user} do
+      spaced = write!(vault, user, "Meetings/2025-05-13 13-01 Catchup .md", "Catch up\n")
+      assert spaced.path == "Meetings/2025-05-13 13-01 Catchup .md"
+      assert spaced.content == "Catch up\n"
+      assert Repo.get!(Page, spaced.id).title == "2025-05-13 13-01 Catchup"
+
+      name =
+        "2025-04-24 14-31 Atheneum  McKinsey - Maintaining high quality service delivery in lieu"
+
+      assert String.length(name) > 80
+      long = write!(vault, user, name <> ".md", "Long\n")
+      assert long.path == name <> ".md"
+      assert long.content == "Long\n"
+
+      # Listed the same way, so a sync sees nothing to do.
+      listed = Sync.listing(vault, user).entries |> Map.new(&{&1.id, &1.path})
+      assert listed[spaced.id] == spaced.path
+      assert listed[long.id] == long.path
+    end
+
+    test "an empty title key and a note that is only a blank line come back as they went",
+         %{vault: vault, user: user} do
+      templated = "---\ntitle:\ntags: [daily]\n---\nToday\n"
+      assert write!(vault, user, "Daily/2025-02-27.md", templated).content == templated
+      assert write!(vault, user, "Tasks/Inbox.md", "\n").content == "\n"
+    end
+
+    test "renamed in the app, the file follows the new title", %{vault: vault, user: user} do
+      entry = write!(vault, user, "Catchup .md", "x\n")
+      page = Repo.get!(Page, entry.id)
+
+      {:ok, page} = Wiki.update_page(page, %{"title" => "Weekly catch-up"})
+
+      assert page.file_name == nil
+      {:ok, read} = Sync.read_page(vault, user, page.id)
+      assert read.path == "Weekly catch-up.md"
+    end
+
+    test "an edit that keeps the title keeps the file name", %{vault: vault, user: user} do
+      entry = write!(vault, user, "Catchup .md", "x\n")
+      page = Repo.get!(Page, entry.id)
+
+      {:ok, page} = Wiki.update_page(page, %{"body" => "y\n"})
+      assert page.file_name == "Catchup "
+
+      {:ok, again} =
+        Sync.write_page(vault, user, %{
+          "id" => page.id,
+          "path" => "Catchup .md",
+          "content" => "z\n",
+          "base" => Sync.hash("y\n")
+        })
+
+      assert again.path == "Catchup .md"
+      assert Repo.get!(Page, page.id).file_name == "Catchup "
+    end
+
+    test "a file renamed here to a name its title can't give keeps that name",
+         %{vault: vault, user: user, kb: kb} do
+      page = page!(kb, %{"title" => "Plain", "body" => "b"})
+      {:ok, %{hash: base}} = Sync.read_page(vault, user, page.id)
+
+      {:ok, entry} =
+        Sync.write_page(vault, user, %{
+          "id" => page.id,
+          "path" => "Plain renamed .md",
+          "content" => "b",
+          "base" => base
+        })
+
+      assert entry.path == "Plain renamed .md"
+      assert Repo.get!(Page, page.id).title == "Plain renamed"
+    end
+
+    test "a file name can't hold a slash" do
+      changeset = Page.changeset(%Page{}, %{"title" => "T", "file_name" => "a/b"})
+      assert %{file_name: [_]} = errors_on(changeset)
     end
   end
 end

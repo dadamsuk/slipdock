@@ -52,6 +52,7 @@ defmodule Slipdock.Wiki.Page do
 
   @statuses ~w(draft published)
   @title_length 200
+  @summary_length 300
   @slug_length 120
 
   schema "pages" do
@@ -89,6 +90,11 @@ defmodule Slipdock.Wiki.Page do
     # the whole header, `---` lines and all (see `Slipdock.Wiki.FrontMatter`).
     # Keys Slipdock does not know live only here.
     field :front_matter, :string
+    # The name of the file the page came from, when it is not just the
+    # title made safe for a file: a vault writes the page back under it, so
+    # a synced or imported note keeps its own name (W-103 R9). A new title
+    # given anywhere but a file clears it, and the file follows the title.
+    field :file_name, :string
     # The tags the note gives itself — front matter `tags` and inline `#tags`
     # — on a board in a vault (see `Slipdock.Wiki.NoteTags`). Derived on
     # every save; never the board's card tags.
@@ -181,6 +187,9 @@ defmodule Slipdock.Wiki.Page do
 
   def statuses, do: @statuses
   def title_length, do: @title_length
+
+  @doc "The longest a summary may be."
+  def summary_length, do: @summary_length
   def slug_length, do: @slug_length
 
   @doc "Whether the page has been put away."
@@ -250,12 +259,21 @@ defmodule Slipdock.Wiki.Page do
   """
   def sanitize_slug(value), do: Board.sanitize_code(value)
 
+  # Renamed without a file name to go with it — in the app, by the API, by
+  # an agent — the page's file is named after its new title again.
+  defp follow_title(changeset, attrs) do
+    named? = Map.has_key?(attrs, "file_name") or Map.has_key?(attrs, :file_name)
+
+    if get_change(changeset, :title) && not named?,
+      do: put_change(changeset, :file_name, nil),
+      else: changeset
+  end
+
   def changeset(page, attrs) do
     page
     |> cast(attrs, [
       :title,
       :slug,
-      :body,
       :summary,
       :status,
       :template,
@@ -273,7 +291,15 @@ defmodule Slipdock.Wiki.Page do
       :assignee_id,
       :front_matter
     ])
+    # A body is text as written: one that is only a blank line stays one,
+    # rather than being taken for no body at all, so a file synced in comes
+    # back out with the same bytes.
+    |> cast(attrs, [:body], empty_values: [])
+    |> cast(attrs, [:file_name])
     |> update_change(:title, &String.trim/1)
+    |> follow_title(attrs)
+    |> validate_length(:file_name, max: 255)
+    |> validate_format(:file_name, ~r/\A[^\/\\]+\z/, message: "can't hold a slash")
     |> update_change(:front_matter, fn
       "" -> nil
       header -> header
@@ -282,7 +308,7 @@ defmodule Slipdock.Wiki.Page do
     |> validate_required([:title])
     |> validate_length(:title, min: 1, max: @title_length)
     |> validate_length(:slug, min: 1, max: @slug_length)
-    |> validate_length(:summary, max: 300)
+    |> validate_length(:summary, max: @summary_length)
     |> validate_inclusion(:status, @statuses)
     |> validate_facets()
     |> validate_front_matter()

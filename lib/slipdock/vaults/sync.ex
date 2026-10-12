@@ -103,7 +103,10 @@ defmodule Slipdock.Vaults.Sync do
     also = also || also_in(layout, [page.id])
 
     content =
-      Archive.sync_file(page, file_title: placed.stem, also_in: Map.get(also, page.id, []))
+      Archive.sync_file(page,
+        file_title: String.trim(placed.stem),
+        also_in: Map.get(also, page.id, [])
+      )
 
     %{
       kind: "page",
@@ -629,10 +632,26 @@ defmodule Slipdock.Vaults.Sync do
       "title" => title,
       "body" => body,
       "front_matter" => header || "",
-      "summary" => string(FrontMatter.get(yaml, "summary")),
+      "summary" => summary(FrontMatter.get(yaml, "summary")),
       "status" => if(status in Page.statuses(), do: status, else: "published"),
       "template" => FrontMatter.get(yaml, "template") == "true"
     }
+    |> file_name(stem, title, current, layout)
+  end
+
+  # The file's own name is kept when the title alone wouldn't give it back
+  # (R9: an import renames nothing) — for a new note, and for a file renamed
+  # here. A title changed in the file's front matter, the file not renamed,
+  # renames the file after it, as a title changed anywhere else does.
+  defp file_name(attrs, stem, title, current, layout) do
+    own = if stem != Archive.safe_name(title), do: stem
+
+    cond do
+      is_nil(current) -> Map.put(attrs, "file_name", own)
+      stem != layout.pages[current.id].stem -> Map.put(attrs, "file_name", own)
+      String.trim(title) != current.title -> Map.put(attrs, "file_name", nil)
+      true -> attrs
+    end
   end
 
   defp names?(title, stem, page) do
@@ -640,8 +659,14 @@ defmodule Slipdock.Vaults.Sync do
     String.downcase(stem) in [safe, safe <> "-" <> String.downcase(page.code)]
   end
 
-  defp string(value) when is_binary(value), do: value
-  defp string(_), do: nil
+  # A `summary` key becomes the page's summary when it can be one. A longer
+  # one (Obsidian's Web Clipper writes whole paragraphs) is the writer's own
+  # key, kept in the file as it is, rather than a reason to refuse the note.
+  defp summary(value) when is_binary(value) do
+    if String.length(value) <= Page.summary_length(), do: value
+  end
+
+  defp summary(_), do: nil
 
   defp write_opts(user), do: [user: user, via: "sync", message: "synced"]
 
