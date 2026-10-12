@@ -93,6 +93,10 @@ defmodule Slipdock.Wiki.Page do
     # — on a board in a vault (see `Slipdock.Wiki.NoteTags`). Derived on
     # every save; never the board's card tags.
     field :note_tags, {:array, :string}, default: []
+    # The other names the page answers to, from its front matter's `aliases`
+    # (and Obsidian's older `alias`): `[[Alias]]` finds it as `[[Title]]`
+    # does. Derived whenever the front matter changes; never set directly.
+    field :aliases, {:array, :string}, default: []
     field :archived_at, :utc_datetime
 
     belongs_to :board, Board
@@ -279,6 +283,7 @@ defmodule Slipdock.Wiki.Page do
     |> validate_inclusion(:status, @statuses)
     |> validate_facets()
     |> validate_front_matter()
+    |> put_aliases()
     |> put_hash()
     |> unique_constraint([:board_id, :slug],
       error_key: :slug,
@@ -328,6 +333,36 @@ defmodule Slipdock.Wiki.Page do
           []
       end
     end)
+  end
+
+  defp put_aliases(changeset) do
+    case fetch_change(changeset, :front_matter) do
+      {:ok, header} -> put_change(changeset, :aliases, aliases_from(header))
+      :error -> changeset
+    end
+  end
+
+  @doc """
+  The aliases a stored front matter header gives: `aliases` as a list or a
+  comma-separated string, and Obsidian's older `alias`. Trimmed, blank ones
+  dropped, each kept once regardless of case.
+  """
+  def aliases_from(nil), do: []
+
+  def aliases_from(header) do
+    yaml = Slipdock.Wiki.FrontMatter.yaml(header)
+
+    ~w(aliases alias)
+    |> Enum.flat_map(fn key ->
+      case Slipdock.Wiki.FrontMatter.get(yaml, key) do
+        nil -> []
+        list when is_list(list) -> list
+        text -> String.split(text, ",")
+      end
+    end)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq_by(&String.downcase/1)
   end
 
   defp validate_dates(changeset) do
