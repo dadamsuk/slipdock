@@ -14,7 +14,7 @@ defmodule Slipdock.Wiki.Revision do
   use Ecto.Schema
   import Ecto.Changeset
 
-  @vias ~w(web api cli assistant automation mcp meeting)
+  @vias ~w(web api cli assistant automation mcp meeting sync)
 
   schema "page_revisions" do
     field :title, :string

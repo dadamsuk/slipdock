@@ -506,6 +506,12 @@ defmodule SlipdockWeb.Router do
     get "/vaults/:id/resolve", VaultController, :resolve
     get "/vaults/:id/wanted", VaultController, :wanted
     get "/vaults/:id/changes", VaultController, :changes
+    # `slipdock sync`: the vault as a folder of files (W-103 R2).
+    get "/vaults/:id/sync", VaultSyncController, :index
+    get "/vaults/:id/sync/pages/:page", VaultSyncController, :show_page
+    put "/vaults/:id/sync/pages", VaultSyncController, :put_page
+    put "/vaults/:id/sync/pages/:page", VaultSyncController, :put_page
+    delete "/vaults/:id/sync/pages/:page", VaultSyncController, :delete_page
     post "/vaults/:id/mappings", VaultController, :map
     delete "/vaults/:id/mappings", VaultController, :unmap
     delete "/vaults/:id/mappings/:mapping", VaultController, :unmap
