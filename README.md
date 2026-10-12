@@ -93,7 +93,8 @@ Briefly, with the detail in [the manual](docs/manual.md):
   one Obsidian-style [vault](docs/manual.md#vaults): links, `#tags`, aliases,
   embeds and front matter as Obsidian reads them, a page filed in several
   folders, and [`slipdock sync`](docs/manual.md#syncing-a-vault-to-a-folder)
-  to mirror it both ways to a folder on each computer, Obsidian included. Plus a
+  to mirror it both ways to a folder on each computer, Obsidian included, after
+  a one-time [import](docs/manual.md#importing-an-obsidian-vault) of the vault you have. Plus a
   [Narrative view](docs/manual.md#narrative) that tells you what happened to a
   set of cards over a date range.
 - **Automations** — ["when a card lands in Done, email the team"](docs/manual.md#automations-and-alerts),

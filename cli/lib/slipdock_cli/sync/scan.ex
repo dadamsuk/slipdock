@@ -101,6 +101,42 @@ defmodule SlipdockCLI.Sync.Scan do
     |> Map.new()
   end
 
+  @doc """
+  What under `root` is never synced, at the highest level it is left out:
+  a folder as `name/` (nothing under it listed), a file by its path. What an
+  import says it skipped.
+  """
+  def ignored_paths(root), do: skipped(root, "", ignores(root))
+
+  defp skipped(root, rel, patterns) do
+    case File.ls(Path.join(root, rel)) do
+      {:ok, names} ->
+        names
+        |> Enum.sort()
+        |> Enum.flat_map(fn name ->
+          path = if rel == "", do: name, else: rel <> "/" <> name
+          dir? = File.dir?(Path.join(root, path))
+
+          cond do
+            dir? and (ignored?(path, patterns) or ignored?(path <> "/", patterns)) ->
+              [path <> "/"]
+
+            dir? ->
+              skipped(root, path, patterns)
+
+            ignored?(path, patterns) ->
+              [path]
+
+            true ->
+              []
+          end
+        end)
+
+      _ ->
+        []
+    end
+  end
+
   @doc "Every synced file's stat, without reading any of them: what a watcher compares."
   def scan_stats(root), do: walk(root, "", ignores(root))
 

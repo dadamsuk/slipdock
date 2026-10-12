@@ -288,6 +288,15 @@ defmodule SlipdockCLI do
                                         what changed (pages, folders, attachments) after cursor
                                         N, each once and as it is now; without --since, the
                                         cursor to start from. What sync polls
+    vault import <dir> --vault V [--dry-run] [--all]
+                                        bring an existing Obsidian vault in, once: each note a
+                                        page and each other file a file at its vault path,
+                                        routed by the mappings, bytes as they are (front matter,
+                                        Excalidraw, Meld ciphertext). What the server has at a
+                                        path already is left alone. --dry-run says what would be
+                                        created or skipped, and which links, embeds and plugin
+                                        blocks won't resolve. Afterwards, `sync init` on the
+                                        same folder adopts the files instead of duplicating them
 
   SYNC  (a vault mirrored both ways to a local folder that stays a valid Obsidian
          vault. The server is the source of truth; the folder is a working copy,
@@ -661,6 +670,7 @@ defmodule SlipdockCLI do
     publish: :boolean,
     purge: :boolean,
     force: :boolean,
+    dry_run: :boolean,
     append: :string,
     card: :string,
     page: :string,

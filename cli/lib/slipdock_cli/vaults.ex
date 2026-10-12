@@ -8,6 +8,7 @@ defmodule SlipdockCLI.Vaults do
 
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
+  alias SlipdockCLI.Sync.{Import, Remote, State}
 
   @commands ~w(vault)
 
@@ -105,12 +106,197 @@ defmodule SlipdockCLI.Vaults do
     end)
   end
 
+  # A one-time import of an Obsidian vault (W-103 R9): see `Sync.Import`.
+  def run("vault", ["import", dir], o) do
+    if is_nil(o[:vault]),
+      do: fail("say which vault: slipdock vault import #{dir} --vault V")
+
+    root = Path.expand(dir)
+    if not File.dir?(root), do: fail("#{dir} is not a folder")
+
+    if File.exists?(State.path(root)),
+      do:
+        fail(
+          "#{dir} is already a mirror of a vault, kept level by `slipdock sync` — " <>
+            "there is nothing to import"
+        )
+
+    vault =
+      case HTTP.get("/vaults/#{enc(o[:vault])}") do
+        {:ok, %{"vault" => vault}} -> vault
+        error -> out(error, o, fn _ -> :ok end)
+      end
+
+    if vault["mappings"] == [],
+      do:
+        fail(
+          "#{vault["name"]} has nothing mapped yet — `slipdock vault map` a board into it first"
+        )
+
+    listing =
+      case Remote.list(vault["id"]) do
+        {:ok, listing} -> listing
+        {:error, :unauthorized} -> fail("not signed in. Run `slipdock auth`.")
+        {:error, msg} -> fail("couldn't list #{vault["name"]}: #{msg}")
+      end
+
+    record = Import.record_for(Import.load_record(root), HTTP.base_url(), vault)
+    plan = Import.plan(root, vault, listing, record)
+
+    if o[:dry_run] do
+      if o[:json],
+        do: Render.json(import_json(vault, plan, nil)),
+        else: print_import(dir, vault, plan, nil, o)
+    else
+      {_record, report} = Import.run(root, plan, {Remote, vault["id"]}, record)
+
+      if o[:json],
+        do: Render.json(import_json(vault, plan, report)),
+        else: print_import(dir, vault, plan, report, o)
+
+      if report.errors != [], do: System.halt(1)
+    end
+  end
+
+  def run("vault", ["import" | _], _o),
+    do: fail("usage: slipdock vault import DIR --vault V [--dry-run]")
+
   def run("vault", _args, _o),
     do:
       fail(
         "usage: slipdock vault ls | show V | new NAME | rename V NAME | rm V | " <>
-          "map V PATH --board B [--folder F] | unmap V PATH | locate V PATH | resolve V LINK | wanted V | changes V [--since N]"
+          "map V PATH --board B [--folder F] | unmap V PATH | locate V PATH | resolve V LINK | " <>
+          "wanted V | changes V [--since N] | import DIR --vault V [--dry-run]"
       )
+
+  ## Import -------------------------------------------------------------------
+
+  # Long lists are cut at this many lines unless --all is given.
+  @shown 20
+
+  @doc false
+  def print_import(dir, vault, plan, report, o \\ []) do
+    dry? = is_nil(report)
+
+    IO.puts(
+      "import #{dir} into #{Render.bold(vault["name"])}" <>
+        if(dry?, do: Render.dim("  (dry run: nothing is written)"), else: "")
+    )
+
+    created = if dry?, do: plan.create, else: report.created
+    verb = if dry?, do: "would create", else: "created"
+    IO.puts("#{verb}: #{counts(created)}")
+
+    created
+    |> Enum.group_by(& &1.mapping)
+    |> Enum.sort_by(fn {m, _} -> m["path"] end)
+    |> Enum.each(fn {m, items} ->
+      IO.puts("  " <> String.pad_trailing(target(m), 36) <> " " <> counts(items))
+    end)
+
+    there = plan.present ++ plan.imported
+
+    if there != [],
+      do: IO.puts("skipped, already there: #{length(there)} " <> Render.dim("(the same bytes)"))
+
+    differs = plan.differs ++ if(dry?, do: [], else: report.differs)
+
+    section(
+      "skipped, on the server already and different — left as they are",
+      Enum.map(differs, & &1.path),
+      o
+    )
+
+    section("skipped, no mapping covers them", plan.unmapped, o)
+    section("skipped, over the 250 MB limit", plan.too_big, o)
+
+    if plan.ignored != [] do
+      IO.puts(
+        "skipped, never synced: " <>
+          Enum.join(Enum.take(plan.ignored, @shown), ", ") <>
+          if(length(plan.ignored) > @shown, do: ", …", else: "")
+      )
+    end
+
+    {embeds, links} = Enum.split_with(plan.unresolved, & &1.embed)
+    section("unresolved links", Enum.map(links, &"#{&1.path} → #{&1.link}"), o)
+    section("unresolved embeds", Enum.map(embeds, &"#{&1.path} → #{&1.link}"), o)
+
+    section(
+      "plugin syntax, kept as text but not drawn",
+      Enum.map(plan.plugins, &"#{&1.path}: #{&1.what}"),
+      o
+    )
+
+    if report, do: for(e <- report.errors, do: IO.puts(:stderr, "error: #{e.path}: #{e.error}"))
+
+    unless dry?,
+      do:
+        IO.puts(
+          Render.dim(
+            "next: `slipdock sync init #{dir} --vault #{vault["name"]}` adopts these files " <>
+              "rather than sending them again — but stop Obsidian Sync on this folder first"
+          )
+        )
+  end
+
+  defp counts(items) do
+    {pages, files} = Enum.split_with(items, &(&1.kind == "page"))
+    "#{plural(length(pages), "note")}, #{plural(length(files), "file")}"
+  end
+
+  defp plural(1, word), do: "1 #{word}"
+  defp plural(n, word), do: "#{n} #{word}s"
+
+  defp target(%{"folder" => %{"path" => folder}} = m),
+    do: "#{m["path"]} → #{m["board"]["name"]} wiki, #{folder}"
+
+  defp target(m), do: "#{m["path"]} → #{m["board"]["name"]} wiki"
+
+  defp section(_title, [], _o), do: :ok
+
+  defp section(title, lines, o) do
+    IO.puts("#{title}: #{length(lines)}")
+    shown = if o[:all], do: lines, else: Enum.take(lines, @shown)
+    Enum.each(shown, &IO.puts("  " <> &1))
+
+    if length(lines) > length(shown),
+      do: IO.puts(Render.dim("  … #{length(lines) - length(shown)} more (--all to see them)"))
+  end
+
+  defp import_json(vault, plan, report) do
+    item = fn i ->
+      %{"path" => i.path, "kind" => i.kind, "mapping" => i.mapping && i.mapping["path"]}
+      |> Map.merge(if Map.has_key?(i, :id), do: %{"id" => i.id}, else: %{})
+      |> Map.merge(if Map.has_key?(i, :to), do: %{"to" => i.to}, else: %{})
+    end
+
+    base = %{
+      "vault" => %{"id" => vault["id"], "name" => vault["name"]},
+      "dry_run" => is_nil(report),
+      "create" => Enum.map(plan.create, item),
+      "already_there" => Enum.map(plan.present ++ plan.imported, item),
+      "differs" => Enum.map(plan.differs, item),
+      "unmapped" => plan.unmapped,
+      "too_big" => plan.too_big,
+      "ignored" => plan.ignored,
+      "unresolved" =>
+        Enum.map(plan.unresolved, &%{"path" => &1.path, "link" => &1.link, "embed" => &1.embed}),
+      "plugins" => Enum.map(plan.plugins, &%{"path" => &1.path, "what" => &1.what})
+    }
+
+    case report do
+      nil ->
+        base
+
+      r ->
+        Map.merge(base, %{
+          "created" => Enum.map(r.created, item),
+          "differs" => Enum.map(plan.differs ++ r.differs, item),
+          "errors" => Enum.map(r.errors, &%{"path" => &1.path, "error" => &1.error})
+        })
+    end
+  end
 
   defp vaults([]), do: IO.puts(Render.dim("no vaults — `slipdock vault new NAME` makes one"))
   defp vaults(list), do: Enum.each(list, &vault/1)

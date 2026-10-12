@@ -437,6 +437,7 @@ local copy is saved as `Name (conflict DATE host).md`):
 ```
 slipdock sync init <dir> --vault V | slipdock sync [<dir>] [--watch] | slipdock sync status [<dir>]
 slipdock sync service install|uninstall|print [<dir>]   # keep --watch running in the background
+slipdock vault import <dir> --vault V [--dry-run]       # an existing Obsidian vault, in once
 ```
 
 `<page>` is the page's **code** (`W-31`), its slug, or `board-code/slug`. The code is stable
