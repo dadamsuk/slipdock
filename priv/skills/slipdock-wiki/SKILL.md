@@ -226,6 +226,10 @@ slipdock page make-card W-31 --body -       # a passage of a page becomes a card
 slipdock page from <board> "Decision record" --title "Dropping the queue" --set owner=ops
 ```
 
+A template's `{{…}}` are Slipdock's (`{{card.title}}`, `{{today}}`, `--set`
+values) and Obsidian's (`{{title}}`, `{{date}}`, `{{time}}`,
+`{{date:YYYY-MM-DD}}`), so templates brought over from a vault work as they are.
+
 **Pin the page to the card it explains.** A page nobody can reach from the
 work is a page nobody reads; pinning puts it at the top of that card's Docs.
 It is a judgement rather than something the prose says, so it survives
