@@ -159,6 +159,8 @@ defmodule Slipdock.Wiki.Archive do
     * `code` only with `code: true`;
     * `summary` when there is one, `status` when it is a draft, `template`
       when it is one — or when the file already said otherwise;
+    * `also-in` with `:also_in` — the vault paths of the other folders the
+      page is filed in (R12.5) — and taken out when that is empty;
     * no `updated`, no `slug`, no author.
 
   A page with nothing to say and no front matter of its own is its body.
@@ -191,12 +193,19 @@ defmodule Slipdock.Wiki.Archive do
         page.template,
         page.template or ours?(yaml, "template", ~w(true false))
       )
+      |> put_also_in(opts[:also_in])
 
     case FrontMatter.with_yaml(header, yaml) do
       nil -> to_string(page.body)
       header -> header <> to_string(page.body)
     end
   end
+
+  # Not given: leave whatever the file says. Given: say exactly that, and
+  # nothing at all when it is nothing.
+  defp put_also_in(yaml, nil), do: yaml
+  defp put_also_in(yaml, []), do: FrontMatter.put(yaml, "also-in", nil)
+  defp put_also_in(yaml, paths), do: FrontMatter.put(yaml, "also-in", paths)
 
   defp put_if(yaml, key, value, true), do: FrontMatter.put(yaml, key, value)
   defp put_if(yaml, _key, _value, false), do: yaml
