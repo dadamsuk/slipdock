@@ -16,7 +16,7 @@ defmodule SlipdockCLI.Sync do
 
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
-  alias SlipdockCLI.Sync.{Engine, Remote, Service, State, Watch}
+  alias SlipdockCLI.Sync.{Engine, Remote, Service, State, Status, Watch}
 
   @commands ~w(sync)
 
@@ -51,6 +51,7 @@ defmodule SlipdockCLI.Sync do
     File.mkdir_p!(root)
     State.save(root, State.new(HTTP.base_url(), vault, Engine.hostname()))
     IO.puts("bound #{dir} to the vault #{Render.bold(vault["name"])}")
+    warn_other_tools(root)
     pass(root, o)
   end
 
@@ -74,17 +75,28 @@ defmodule SlipdockCLI.Sync do
   def run("sync", ["service" | _], _o),
     do: fail("usage: slipdock sync service install|uninstall|print [DIR]")
 
+  def run("sync", ["status" | rest], o) when length(rest) <= 1 do
+    root = root!(List.first(rest) || ".")
+    state = load!(root)
+    status(root, state, o)
+  end
+
   def run("sync", [], o), do: run("sync", ["."], o)
 
   def run("sync", [dir], o) do
     root = root!(dir)
     load!(root)
+    warn_other_tools(root)
 
     if o[:watch], do: watch(root, o), else: pass(root, o)
   end
 
   def run("sync", _args, _o),
-    do: fail("usage: slipdock sync init DIR --vault V | sync [DIR] [--watch [--interval S]]")
+    do:
+      fail(
+        "usage: slipdock sync init DIR --vault V | sync [DIR] [--watch [--interval S]] | " <>
+          "sync status [DIR] | sync service install|uninstall|print [DIR]"
+      )
 
   ## A pass -------------------------------------------------------------------
 
@@ -105,6 +117,7 @@ defmodule SlipdockCLI.Sync do
 
       case Engine.run(root, state, {Remote, state["vault"]["id"]}) do
         {:ok, state, report} ->
+          state = settle_cursor(state, report)
           State.save(root, state)
           if o[:json], do: Render.json(json(report, state)), else: print(report, state, o)
           {:ok, state, report.errors}
@@ -116,6 +129,162 @@ defmodule SlipdockCLI.Sync do
           {:fail, "sync didn't run: #{msg}"}
       end
     end)
+  end
+
+  # The cursor a pass keeps is the feed's position from before it listed the
+  # vault, so nothing that happened while it ran is missed. But a pass that
+  # wrote has put its own writes after that cursor, and the feed would hand
+  # them back as news: move past them. A change somebody else made in the
+  # same few moments is caught by the watcher's pass every ten minutes.
+  defp settle_cursor(state, report) do
+    wrote? = Enum.any?([:sent, :archived], &(Map.fetch!(report, &1) != []))
+
+    with true <- wrote?,
+         {:ok, %{"cursor" => latest}} when is_integer(latest) <-
+           Remote.changes(state["vault"]["id"], nil) do
+      Map.put(state, "cursor", latest)
+    else
+      _ -> state
+    end
+  end
+
+  defp warn_other_tools(root) do
+    case root |> Status.other_tools() |> Status.warning() do
+      nil -> :ok
+      warning -> IO.puts(:stderr, warning)
+    end
+  end
+
+  ## Status -------------------------------------------------------------------
+
+  defp status(root, state, o) do
+    pending = Status.pending(state, Status.local(root))
+    conflicts = Status.conflicts(root, state)
+    tools = Status.other_tools(root)
+
+    server =
+      case Remote.changes(state["vault"]["id"], state["cursor"]) do
+        {:ok, %{"resync" => true}} -> {:resync, nil}
+        {:ok, %{"changes" => changes} = r} -> {:waiting, length(changes), r["more"] == true}
+        {:error, :unauthorized} -> {:error, "not signed in — run `slipdock auth`"}
+        {:error, msg} -> {:error, msg}
+      end
+
+    if o[:json] do
+      Render.json(%{
+        "root" => root,
+        "vault" => state["vault"],
+        "url" => state["url"],
+        "last_run" => state["last_run"],
+        "last_result" => state["last_result"],
+        "pending_here" =>
+          Map.new(pending, fn
+            {:renamed, pairs} ->
+              {"renamed", Enum.map(pairs, fn {f, t} -> %{"from" => f, "to" => t} end)}
+
+            {k, v} ->
+              {to_string(k), v}
+          end),
+        "pending_there" =>
+          case server do
+            {:waiting, n, more} -> %{"changes" => n, "more" => more}
+            {:resync, _} -> %{"resync" => true}
+            {:error, msg} -> %{"error" => msg}
+          end,
+        "conflicts" => conflicts,
+        "errors" => state["errors"] || [],
+        "other_sync_tools" =>
+          Enum.map(tools, fn {name, why} -> %{"name" => name, "why" => why} end)
+      })
+    else
+      print_status(root, state, pending, server, conflicts, tools)
+    end
+  end
+
+  defp print_status(root, state, pending, server, conflicts, tools) do
+    IO.puts(
+      Render.bold(state["vault"]["name"]) <> "  " <> Render.dim("#{root} ⇄ #{state["url"]}")
+    )
+
+    case state["last_run"] do
+      nil ->
+        IO.puts("last sync: never")
+
+      at ->
+        counts =
+          (state["last_result"] || %{})
+          |> Enum.filter(fn {_k, n} -> n > 0 end)
+          |> Enum.map_join(", ", fn {k, n} -> "#{k} #{n}" end)
+
+        IO.puts("last sync: #{at} (#{ago(at)})" <> if(counts == "", do: "", else: " — #{counts}"))
+    end
+
+    case Status.count(pending) do
+      0 ->
+        IO.puts("here: nothing waiting")
+
+      n ->
+        IO.puts("here: #{n} change#{if n == 1, do: "", else: "s"} waiting to be sent")
+        for p <- pending.new, do: IO.puts("  + " <> p)
+        for p <- pending.changed, do: IO.puts("  ~ " <> p)
+        for p <- pending.deleted, do: IO.puts("  - " <> p)
+        for {f, t} <- pending.renamed, do: IO.puts("  → #{f} → #{t}")
+    end
+
+    case server do
+      {:waiting, 0, _} ->
+        IO.puts("there: nothing waiting")
+
+      {:waiting, n, more} ->
+        IO.puts(
+          "there: #{n}#{if more, do: "+", else: ""} change#{if n == 1, do: "", else: "s"} waiting to come down"
+        )
+
+      {:resync, _} ->
+        IO.puts(
+          "there: the last sync was too long ago to follow; the next one lists the vault afresh"
+        )
+
+      {:error, msg} ->
+        IO.puts("there: couldn't ask (#{msg})")
+    end
+
+    case conflicts do
+      [] ->
+        IO.puts("conflicts: none")
+
+      list ->
+        IO.puts(
+          "conflicts: #{length(list)} unresolved — merge each into the file it is named for, then delete the copy"
+        )
+
+        for c <- list, do: IO.puts("  ! " <> c)
+    end
+
+    for e <- state["errors"] || [],
+        do: IO.puts(:stderr, "error last time: #{e["path"]}: #{e["error"]}")
+
+    case Status.warning(tools) do
+      nil -> :ok
+      warning -> IO.puts(:stderr, warning)
+    end
+  end
+
+  defp ago(iso) do
+    case DateTime.from_iso8601(iso) do
+      {:ok, at, _} ->
+        seconds = DateTime.diff(DateTime.utc_now(), at)
+
+        cond do
+          seconds < 60 -> "just now"
+          seconds < 3600 -> "#{div(seconds, 60)} min ago"
+          seconds < 86_400 -> "#{div(seconds, 3600)} h ago"
+          true -> "#{div(seconds, 86_400)} days ago"
+        end
+
+      _ ->
+        "when, unknown"
+    end
   end
 
   defp watch(root, o) do

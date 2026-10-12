@@ -291,16 +291,31 @@ defmodule SlipdockCLI do
 
   SYNC  (a vault mirrored both ways to a local folder that stays a valid Obsidian
          vault. The server is the source of truth; the folder is a working copy,
-         and anything that writes a .md file into it writes a page)
+         and anything that writes a file into it writes into the vault)
     sync init <dir> --vault V           bind a folder to a vault, then run once. Files already
                                         there that match the vault are adopted, not duplicated
     sync [<dir>]                        one pass, both ways (default: the folder you are in).
-                                        A rename or move is the same page; a delete archives it.
-                                        Changed on both sides: the server's version keeps the
-                                        path and yours is saved beside it as
+                                        A .md file is a page; images, PDFs, .excalidraw and
+                                        other files are kept at the same vault path (250 MB
+                                        each), so ![[image.png]] works on both sides.
+                                        A rename or move is the same page; a delete archives
+                                        it. Changed on both sides: the server's version keeps
+                                        the path and yours is saved beside it as
                                         "Name (conflict DATE host).md", and synced too.
                                         Dot folders (.obsidian, .trash) and editors' temp
-                                        files are left alone
+                                        files are left alone, and so is anything named in
+                                        .slipdockignore (gitignore-style: *.pdf, Private/)
+        --watch       keep running: a pass once the folder has been still for 2 s, and
+                      whenever the server's change feed has news
+        --interval S  how often --watch asks the server (default 10)
+    sync status [<dir>]                 the last sync, what is waiting on each side, conflicts
+                                        left to resolve, and a warning if Obsidian Sync,
+                                        Dropbox, iCloud, OneDrive or Syncthing is syncing the
+                                        same folder (two sync tools on one folder fight)
+    sync service install|uninstall|print [<dir>]
+                                        run sync --watch in the background: a systemd user
+                                        unit, a launchd agent or a Windows logon task.
+                                        print shows what install would do
 
   SKILLS  (the agent instructions this server ships, versioned with its API)
     skills                              list them, with a version each

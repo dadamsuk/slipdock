@@ -176,6 +176,15 @@ is the vault's backlog of unwritten pages.
 `slipdock vault changes <vault> --since N` lists what changed in the vault after
 cursor N (without `--since`, the cursor to start from) — the feed a sync polls.
 
+`slipdock sync init <dir> --vault V` binds a local folder to a vault, and
+`slipdock sync [<dir>]` (or `--watch`) keeps the two level both ways: a note is
+`Title.md` (`Title/index.md` with children), renaming the file renames the page,
+a delete archives it, and a note changed on both sides keeps the server's
+version and saves the local one beside it as `Name (conflict DATE host).md`.
+`slipdock sync status` lists what is waiting and the conflicts left. When the
+user keeps notes in a synced folder, editing the file and letting sync carry it
+is as good as `page edit` — but don't do both to one note at once.
+
 On a board in a vault, a note's front matter `tags` and inline `#tags` (and
 nested `#area/sub`) are its own tags, apart from the board's card tags:
 `slipdock page tags <board>` counts them, `slipdock page ls <board> --note-tag

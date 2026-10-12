@@ -431,6 +431,14 @@ slipdock vault map <vault> <path> --board B [--folder F] | slipdock vault unmap 
 slipdock vault locate <vault> <path> | slipdock vault rename <vault> <name...> | slipdock vault rm <vault>
 ```
 
+`slipdock sync` mirrors a vault both ways to a local folder that stays a valid Obsidian vault
+(notes as `.md`, other files at the same path; a delete archives; changed on both sides, the
+local copy is saved as `Name (conflict DATE host).md`):
+```
+slipdock sync init <dir> --vault V | slipdock sync [<dir>] [--watch] | slipdock sync status [<dir>]
+slipdock sync service install|uninstall|print [<dir>]   # keep --watch running in the background
+```
+
 `<page>` is the page's **code** (`W-31`), its slug, or `board-code/slug`. The code is stable
 across renames and re-slugs, so it is what to write in a commit message or hand back to the
 user; the slug is what the URL reads as.
