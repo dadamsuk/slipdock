@@ -166,6 +166,10 @@ defmodule SlipdockCLI do
                     [--folder F | --no-folder]
     page tree <board>                   the page tree, nesting shown by indent
     page read <page>                    print the Markdown source
+    page tags <board>                   the tags its notes give themselves (front matter tags
+                                        and inline #tags, on a board in a vault), with counts.
+                                        page ls <board> --note-tag T lists the notes tagged T
+                                        or anything under it (T/sub)
     page props <page> [--body TEXT | --file F | --clear]
                                         the front matter its file came with, kept exactly as
                                         written; with --body/--file, replace it (YAML only,
@@ -600,6 +604,7 @@ defmodule SlipdockCLI do
     root: :boolean,
     folder: :string,
     no_folder: :boolean,
+    note_tag: :string,
     summary: :string,
     message: :string,
     base_hash: :string,

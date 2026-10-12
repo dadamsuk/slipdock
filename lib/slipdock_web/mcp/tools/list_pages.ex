@@ -31,6 +31,11 @@ defmodule SlipdockWeb.MCP.Tools.ListPages do
       properties: %{
         board: %{type: "string", description: "Board id, code or name."},
         q: %{type: "string", description: "Only pages whose title or text contains this."},
+        note_tag: %{
+          type: "string",
+          description:
+            "Only notes tagged this (#tags, on a board in a vault), or nested under it."
+        },
         archived: %{
           type: "string",
           enum: Map.keys(@archived),
@@ -55,6 +60,7 @@ defmodule SlipdockWeb.MCP.Tools.ListPages do
 
     with {:ok, ref} <- Args.required(args, "board"),
          {:ok, q} <- Args.optional(args, "q"),
+         {:ok, note_tag} <- Args.optional(args, "note_tag"),
          {:ok, archived} <- archived(args),
          {:ok, template} <- Args.boolean(args, "template"),
          {:ok, draft} <- Args.boolean(args, "draft"),
@@ -67,7 +73,13 @@ defmodule SlipdockWeb.MCP.Tools.ListPages do
             []
 
           status ->
-            Wiki.list_pages(board, q: q, archived: archived, template: template, status: status)
+            Wiki.list_pages(board,
+              q: q,
+              note_tag: note_tag,
+              archived: archived,
+              template: template,
+              status: status
+            )
         end
 
       shown = Enum.take(pages, limit)
@@ -127,6 +139,7 @@ defmodule SlipdockWeb.MCP.Tools.ListPages do
         pinned_cards: Map.get(pinned, page.id, []),
         draft: Page.draft?(page),
         template: page.template,
+        note_tags: page.note_tags,
         archived: not is_nil(page.archived_at),
         updated_at: page.updated_at,
         url: base_url <> SlipdockWeb.API.JSON.page_url(page)

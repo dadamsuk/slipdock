@@ -160,6 +160,11 @@ slipdock vault locate Notes /Jobs/Acme/Call.md     # which mapping, and the rest
 slipdock vault unmap Notes /Jobs
 ```
 
+On a board in a vault, a note's front matter `tags` and inline `#tags` (and
+nested `#area/sub`) are its own tags, apart from the board's card tags:
+`slipdock page tags <board>` counts them, `slipdock page ls <board> --note-tag
+area` lists the notes under one. `#412` is still a card.
+
 **Deleting a folder never deletes writing.** Its subfolders move up to its
 parent and its pages go back to the board's root.
 

@@ -30,7 +30,19 @@ defmodule Slipdock.Wiki do
   alias Slipdock.Boards.{Activity, Attachment, Board, Card, Column, Tag}
   alias Slipdock.Quota
   alias Slipdock.Search.Indexer
-  alias Slipdock.Wiki.{Folder, Folders, Link, Links, Markup, Page, Query, Revision, Section}
+
+  alias Slipdock.Wiki.{
+    Folder,
+    Folders,
+    Link,
+    Links,
+    Markup,
+    NoteTags,
+    Page,
+    Query,
+    Revision,
+    Section
+  }
 
   @pubsub Slipdock.PubSub
 
@@ -87,6 +99,8 @@ defmodule Slipdock.Wiki do
     * `:parent` — a page (or id) whose direct children to list, or `:root`
     * `:folder` — a folder (or id) whose pages to list, or `:none` for the
       pages filed nowhere
+    * `:note_tag` — only notes tagged this, or anything nested under it
+      (`area` finds `area/sub`; see `Slipdock.Wiki.NoteTags`)
   """
   def list_pages(%Board{id: board_id}, opts \\ []) do
     from(p in Page,
@@ -100,6 +114,7 @@ defmodule Slipdock.Wiki do
     |> filter_parent(Keyword.get(opts, :parent))
     |> filter_folder(Keyword.get(opts, :folder))
     |> filter_text(Keyword.get(opts, :q))
+    |> filter_note_tag(Keyword.get(opts, :note_tag))
     |> Repo.all()
   end
 
@@ -139,6 +154,11 @@ defmodule Slipdock.Wiki do
   end
 
   defp filter_text(query, _), do: query
+
+  defp filter_note_tag(query, tag) when is_binary(tag) and tag != "",
+    do: NoteTags.where_tagged(query, tag)
+
+  defp filter_note_tag(query, _), do: query
 
   @doc """
   The board's pages as a tree: `[%{page: page, children: [...]}, ...]`.
@@ -430,6 +450,7 @@ defmodule Slipdock.Wiki do
 
     with {:ok, page} <- result do
       Links.reconcile(page)
+      page = NoteTags.refresh(page)
       # Semantic search keeps its own index of everything written (see
       # `Slipdock.Search`); the queue embeds a moment later so no save waits
       # on the model.
@@ -519,6 +540,7 @@ defmodule Slipdock.Wiki do
 
       with {:ok, updated} <- result do
         Links.reconcile(updated)
+        updated = NoteTags.refresh(updated)
         Indexer.enqueue_page(updated)
         if renamed?(page, updated), do: resolve_wanted(updated)
         broadcast(updated.board_id)

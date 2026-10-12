@@ -84,9 +84,23 @@ defmodule SlipdockCLI.Wiki do
       template: if(o[:template], do: "true"),
       status: if(o[:draft], do: "draft"),
       parent: if(o[:root], do: "root", else: o[:parent]),
-      folder: if(o[:no_folder], do: "none", else: o[:folder])
+      folder: if(o[:no_folder], do: "none", else: o[:folder]),
+      note_tag: o[:note_tag]
     )
     |> out(o, &Render.pages(&1["pages"]))
+  end
+
+  # The tags notes give themselves on a board in a vault: front matter `tags`
+  # and inline `#tags`, apart from the board's card tags.
+  def run("page", ["tags", ref], o) do
+    HTTP.get("/boards/#{enc(ref)}/pages/tags")
+    |> out(o, fn
+      %{"tags" => []} ->
+        IO.puts(Render.dim("no note tags — they are read on boards that are in a vault"))
+
+      %{"tags" => tags} ->
+        Enum.each(tags, fn t -> IO.puts(String.pad_trailing("#" <> t["tag"], 32) <> " #{t["count"]}") end)
+    end)
   end
 
   def run("page", ["tree", ref], o) do

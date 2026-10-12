@@ -2667,6 +2667,22 @@ defmodule SlipdockWeb.WikiLive.Index do
         </span>
       </div>
 
+      <%!-- The tags the note gives itself (front matter tags and inline
+            #tags), on a board in a vault. Not the board's card tags. --%>
+      <div
+        :if={@page.note_tags != []}
+        id="page-note-tags"
+        class="mt-3 flex flex-wrap items-center gap-1.5"
+      >
+        <span
+          :for={tag <- @page.note_tags}
+          class="chip chip-line text-xs text-primary"
+          title="A tag this note gives itself"
+        >
+          #{tag}
+        </span>
+      </div>
+
       <%!-- The front matter the page's file came with, kept exactly as it
             was written (W-103 R3). Folded away: it is the file's business
             more than the reader's, and most pages have none. --%>

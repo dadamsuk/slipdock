@@ -89,6 +89,10 @@ defmodule Slipdock.Wiki.Page do
     # the whole header, `---` lines and all (see `Slipdock.Wiki.FrontMatter`).
     # Keys Slipdock does not know live only here.
     field :front_matter, :string
+    # The tags the note gives itself — front matter `tags` and inline `#tags`
+    # — on a board in a vault (see `Slipdock.Wiki.NoteTags`). Derived on
+    # every save; never the board's card tags.
+    field :note_tags, {:array, :string}, default: []
     field :archived_at, :utc_datetime
 
     belongs_to :board, Board

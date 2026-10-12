@@ -2428,6 +2428,19 @@ mappings onto it.
 Vaults are made and mapped from the CLI (`slipdock vault`), the API
 (`/api/vaults`) and MCP (`list_vaults`, `manage_vault`).
 
+**Tags in notes.** On a board in a vault, a note's front matter `tags` and
+every inline `#tag` in its body are its tags, nested ones (`#area/sub`)
+included, as Obsidian reads them: not inside code, headings, links or HTML,
+and only where `#` starts a word, so a URL's `#fragment` is not one. They are
+the note's own, kept apart from the board's card tags so they never fill the
+tag picker, stored lower-case, and shown as chips at the top of the page. A
+tag whose first part is all digits stays a card reference (`#412`). List the
+notes under a tag — and anything nested beneath it — with
+`slipdock page ls <board> --note-tag area`, `?note_tag=area` on the API or
+`note_tag` on MCP's `list_pages`; `slipdock page tags <board>` (or
+`GET /api/boards/:board/pages/tags`) counts them. On a board in no vault
+nothing changes: `#word` is a word.
+
 ## Moving boards between servers
 
 A board as one JSON file that another Slipdock can read back: its lists, its
@@ -3283,6 +3296,7 @@ slipdock vault new Notes | slipdock vault ls      # board wikis laid out as one 
 slipdock vault map Notes /Jobs --board jobs [--folder Notes]   # a vault path onto a wiki
 slipdock vault locate Notes /Jobs/Acme.md       # which mapping a path lands in (longest prefix)
 slipdock vault unmap Notes /Jobs | slipdock vault rm Notes      # the pages always stay
+slipdock page tags brain | slipdock page ls brain --note-tag area   # a vault's notes' own #tags
 slipdock page props W-31 [--file F | --clear]  # the front matter its file came with, kept exactly
 slipdock page ls qvm-v1-rem --q retry           # the board's wiki; --tree for the shape of it
 slipdock page read W-31                        # the Markdown source (--json for the hash and the rest)
