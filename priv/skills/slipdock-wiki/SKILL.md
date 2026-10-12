@@ -173,6 +173,9 @@ whole vault; when two notes share a name the shortest vault path wins, and
 which page a link finds before you write it; `slipdock vault wanted <vault>`
 is the vault's backlog of unwritten pages.
 
+`slipdock vault changes <vault> --since N` lists what changed in the vault after
+cursor N (without `--since`, the cursor to start from) — the feed a sync polls.
+
 On a board in a vault, a note's front matter `tags` and inline `#tags` (and
 nested `#area/sub`) are its own tags, apart from the board's card tags:
 `slipdock page tags <board>` counts them, `slipdock page ls <board> --note-tag

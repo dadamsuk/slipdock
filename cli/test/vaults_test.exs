@@ -104,4 +104,17 @@ defmodule SlipdockCLI.VaultsTest do
     {_, _, _, none} = run(["wanted", "Notes"], [], ~s({"wanted":[]}))
     assert none =~ "nothing wanted"
   end
+
+  test "changes asks for what changed after --since and prints each with the cursor" do
+    response =
+      ~s({"changes":[{"cursor":12,"subject":"page","action":"changed","path":"/Jobs/Acme","id":4},{"cursor":13,"subject":"folder","action":"deleted","id":9}],"cursor":13,"more":true})
+
+    {"GET", path, _, out} = run(["changes", "Notes"], [since: 11, limit: 2], response)
+    assert path =~ "/api/vaults/Notes/changes?"
+    assert path =~ "since=11"
+    assert path =~ "limit=2"
+    assert out =~ "page changed  /Jobs/Acme"
+    assert out =~ "folder deleted  #9"
+    assert out =~ "cursor 13 — more to come"
+  end
 end

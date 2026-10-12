@@ -21,7 +21,7 @@ defmodule SlipdockWeb.MCP.Tools.ListVaults do
       "Your vaults: board wikis laid out as one Obsidian-style vault, each mapping a vault " <>
         "path to a board's wiki or a folder of it. Give vault and path to ask which mapping " <>
         "a path lands in (longest prefix wins) and what is left of it; vault and link, which " <>
-        "page a [[link]] finds in it."
+        "page a [[link]] finds in it; vault and changes_since, what changed after a cursor."
 
   @impl true
   def input_schema do
@@ -33,6 +33,10 @@ defmodule SlipdockWeb.MCP.Tools.ListVaults do
         link: %{
           type: "string",
           description: "A link's words to resolve, e.g. Note or Folder/Note."
+        },
+        changes_since: %{
+          type: "integer",
+          description: "With vault: what changed after this cursor (0 for everything kept)."
         }
       },
       additionalProperties: false
@@ -43,7 +47,25 @@ defmodule SlipdockWeb.MCP.Tools.ListVaults do
   def read_only?, do: true
 
   @impl true
-  def call(args, %{user: user}) do
+  def call(args, %{user: user} = context) do
+    case args do
+      %{"changes_since" => since} -> changes(args, since, user, context)
+      _ -> lookup(args, user)
+    end
+  end
+
+  defp changes(args, since, user, context) do
+    with {:ok, ref} <- Args.required(args, "vault"),
+         :ok <- cursor(since),
+         {:ok, vault} <- Args.refusal(Vaults.get_vault(user, ref)) do
+      {:ok, Slipdock.Wiki.Changes.since(vault, since, user, limit: 200, token: context[:token])}
+    end
+  end
+
+  defp cursor(since) when is_integer(since) and since >= 0, do: :ok
+  defp cursor(_), do: {:error, "changes_since is a cursor: a whole number, 0 or more"}
+
+  defp lookup(args, user) do
     with {:ok, ref} <- Args.optional(args, "vault"),
          {:ok, path} <- Args.optional(args, "path"),
          {:ok, link} <- Args.optional(args, "link") do

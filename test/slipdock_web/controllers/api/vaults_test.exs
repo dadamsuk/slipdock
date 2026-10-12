@@ -147,4 +147,30 @@ defmodule SlipdockWeb.API.VaultsTest do
     assert [%{"title" => "Ghost", "from" => [%{"title" => "Linker"}]}] =
              conn |> get("/api/vaults/Notes/wanted") |> json_response(200) |> Map.fetch!("wanted")
   end
+
+  test "the change feed: a cursor to start from, then what changed", %{
+    conn: conn,
+    user: user,
+    kb: kb
+  } do
+    make(conn, "Notes")
+    conn |> post("/api/vaults/Notes/mappings", %{"board" => "kb"}) |> json_response(201)
+
+    %{"changes" => [], "cursor" => start} =
+      conn |> get("/api/vaults/Notes/changes") |> json_response(200)
+
+    {:ok, page} = Wiki.create_page(kb, %{"title" => "Fresh"}, user: user)
+
+    body = conn |> get("/api/vaults/Notes/changes?since=#{start}") |> json_response(200)
+
+    assert [%{"subject" => "page", "id" => id, "path" => "/Fresh", "action" => "changed"}] =
+             body["changes"]
+
+    assert id == page.id
+    assert body["more"] == false
+
+    assert conn |> get("/api/vaults/Notes/changes?since=-1") |> json_response(400)
+    assert conn |> get("/api/vaults/Notes/changes?since=x") |> json_response(400)
+    assert conn |> get("/api/vaults/Elsewhere/changes") |> json_response(404)
+  end
 end

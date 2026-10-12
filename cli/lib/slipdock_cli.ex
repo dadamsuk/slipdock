@@ -283,6 +283,10 @@ defmodule SlipdockCLI do
     vault resolve <vault> <link...>     the page a [[link]] finds anywhere in the vault
                                         (Note, or Folder/Note; the shortest path wins)
     vault wanted <vault>                pages linked to but never written, every board at once
+    vault changes <vault> [--since N] [--limit N]
+                                        what changed (pages, folders, attachments) after cursor
+                                        N, each once and as it is now; without --since, the
+                                        cursor to start from. What sync polls
 
   SKILLS  (the agent instructions this server ships, versioned with its API)
     skills                              list them, with a version each
@@ -564,6 +568,7 @@ defmodule SlipdockCLI do
     archived: :boolean,
     deps: :string,
     limit: :integer,
+    since: :integer,
     board: :string,
     title: :string,
     desc: :string,

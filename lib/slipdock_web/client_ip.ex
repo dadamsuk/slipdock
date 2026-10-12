@@ -50,6 +50,18 @@ defmodule SlipdockWeb.ClientIP do
   end
 
   @doc """
+  The client address of a plain `Phoenix.Socket` connection, from the
+  `connect_info` it was given (`:peer_data` and `:x_headers`); nil when
+  there is none to read.
+  """
+  def from_connect_info(%{peer_data: %{address: address}} = info) do
+    forwarded = for {"x-forwarded-for", value} <- Map.get(info, :x_headers) || [], do: value
+    address |> resolve(forwarded) |> format()
+  end
+
+  def from_connect_info(_info), do: nil
+
+  @doc """
   The client address given the peer (a tuple) and every `X-Forwarded-For`
   value the request carried, in order.
   """

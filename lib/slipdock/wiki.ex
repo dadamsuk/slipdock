@@ -32,6 +32,7 @@ defmodule Slipdock.Wiki do
   alias Slipdock.Search.Indexer
 
   alias Slipdock.Wiki.{
+    Changes,
     Folder,
     Folders,
     Link,
@@ -522,6 +523,7 @@ defmodule Slipdock.Wiki do
       # A page people kept linking to before anyone wrote it: the links that
       # were waiting for this title start working now.
       resolve_wanted(page)
+      Changes.record(board.id, "page", page.id)
       broadcast(board.id)
       {:ok, page}
     end
@@ -606,6 +608,7 @@ defmodule Slipdock.Wiki do
         Links.reconcile(updated)
         updated = NoteTags.refresh(updated)
         if updated.folder_id != page.folder_id, do: Placements.drop_home(updated)
+        Changes.record(updated.board_id, "page", updated.id)
         Indexer.enqueue_page(updated)
 
         if renamed?(page, updated) or page.aliases != updated.aliases,
@@ -731,6 +734,7 @@ defmodule Slipdock.Wiki do
     # An archived page is out of the index at once: leaving it searchable
     # while the queue settles is exactly the wrong way round.
     Enum.each(ids, &Indexer.forget_page/1)
+    Changes.record_pages(page.board_id, ids, "archived")
     log(page.board_id, page, "page_archived", "archived “#{page.title}”")
     broadcast(page.board_id)
     {:ok, Repo.get!(Page, page.id)}
@@ -750,6 +754,7 @@ defmodule Slipdock.Wiki do
     with :ok <- Quota.refusal(page.board_id, items: returning) do
       Repo.update_all(from(p in Page, where: p.id in ^ids), set: [archived_at: nil])
       Indexer.enqueue_pages(ids)
+      Changes.record_pages(page.board_id, ids, "restored")
       log(page.board_id, page, "page_restored", "restored “#{page.title}”")
       broadcast(page.board_id)
       {:ok, Repo.get!(Page, page.id)}
@@ -771,6 +776,7 @@ defmodule Slipdock.Wiki do
       {:ok, deleted} ->
         Slipdock.Boards.remove_files(keys)
         Indexer.forget_page(page.id)
+        Changes.record(board_id, "page", page.id, "deleted")
         log(board_id, nil, "page_deleted", "deleted “#{page.title}”")
         broadcast(board_id)
         {:ok, deleted}
@@ -1741,6 +1747,7 @@ defmodule Slipdock.Wiki do
     Slipdock.Boards.store_attachment(%{page_id: page.id}, "pages/#{page.id}", meta, source)
     |> case do
       {:ok, attachment} ->
+        Changes.record(page.board_id, "attachment", attachment.id)
         broadcast(page.board_id)
         {:ok, attachment}
 

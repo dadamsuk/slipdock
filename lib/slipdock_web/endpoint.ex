@@ -19,6 +19,12 @@ defmodule SlipdockWeb.Endpoint do
     websocket: [connect_info: [:peer_data, :x_headers, session: @session_options]],
     longpoll: [connect_info: [:peer_data, :x_headers, session: @session_options]]
 
+  # API clients told when something changed (a vault's sync; see
+  # `SlipdockWeb.UserSocket`). An API token authenticates it, not a cookie.
+  socket "/socket", SlipdockWeb.UserSocket,
+    websocket: [connect_info: [:peer_data, :x_headers]],
+    longpoll: false
+
   # Serve at "/" the static files from "priv/static" directory.
   #
   # When code reloading is disabled (e.g., in production),

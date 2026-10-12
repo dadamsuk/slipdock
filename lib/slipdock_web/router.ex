@@ -505,6 +505,7 @@ defmodule SlipdockWeb.Router do
     get "/vaults/:id/locate", VaultController, :locate
     get "/vaults/:id/resolve", VaultController, :resolve
     get "/vaults/:id/wanted", VaultController, :wanted
+    get "/vaults/:id/changes", VaultController, :changes
     post "/vaults/:id/mappings", VaultController, :map
     delete "/vaults/:id/mappings", VaultController, :unmap
     delete "/vaults/:id/mappings/:mapping", VaultController, :unmap

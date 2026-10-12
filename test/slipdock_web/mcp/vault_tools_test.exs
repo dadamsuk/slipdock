@@ -126,4 +126,17 @@ defmodule SlipdockWeb.MCP.VaultToolsTest do
     wanted = ok!(call(conn, "page_info", %{what: "wanted", vault: "Notes"}))
     assert [%{"title" => "Ghost"}] = wanted["wanted"]
   end
+
+  test "list_vaults gives the change feed after a cursor", %{conn: conn, user: user} do
+    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
+    {:ok, kb} = Slipdock.Access.find_board(user, "kb")
+    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
+    {:ok, _} = Slipdock.Wiki.create_page(kb, %{"title" => "Fresh"}, user: user)
+
+    feed = ok!(call(conn, "list_vaults", %{vault: "Notes", changes_since: 0}))
+    assert Enum.any?(feed["changes"], &(&1["title"] == "Fresh"))
+    assert is_integer(feed["cursor"])
+    assert error!(call(conn, "list_vaults", %{vault: "Notes", changes_since: -1})) =~ "cursor"
+    assert error!(call(conn, "list_vaults", %{changes_since: 0})) =~ "vault"
+  end
 end
