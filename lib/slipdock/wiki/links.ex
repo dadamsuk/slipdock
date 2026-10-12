@@ -53,6 +53,9 @@ defmodule Slipdock.Wiki.Links do
     body
     |> text_runs()
     |> Enum.flat_map(&Markup.refs/1)
+    # `[[#Heading]]` points into the page it is written on: not a link to
+    # anything, so not a row.
+    |> Enum.reject(&match?(%{kind: :page, target: ""}, &1))
     |> tally()
   end
 
@@ -575,9 +578,12 @@ defmodule Slipdock.Wiki.Links do
   defp title_of(%Link{raw: raw, label: label}) do
     inner =
       raw
+      |> String.trim_leading("!")
       |> String.trim_leading("[[")
       |> String.trim_trailing("]]")
       |> String.split("|", parts: 2)
+      |> hd()
+      |> String.split("#", parts: 2)
       |> hd()
       |> String.trim()
 

@@ -24,6 +24,9 @@ defmodule Slipdock.Wiki.Markup do
   | `[[QVM/Retry policy]]` | a page on another board, by board code or name |
   | `[[W-31]]` or bare `W-31` | a page by its code |
   | `[[#412]]` or bare `#412` | card 412, drawn as a live chip |
+  | `[[Retry policy#Backoff]]`, `[[Retry policy#^a1b2]]` | a heading, or a block, of a page (`anchor`) |
+  | `[[#Backoff]]`, `[[#^a1b2]]` | a heading or block on this same page (`target: ""`) |
+  | `![[Retry policy]]`, `![[Retry policy#Backoff]]` | an embed of a page or a part of it (`embed: true`) |
   | `[[board:QVM]]` | a board |
   | `[[view:QVM/Blocked work]]` | a saved view |
   | `[[!toc]]` `[[!children]]` `[[!backlinks]]` | a directive, expanded at render time |
@@ -42,11 +45,13 @@ defmodule Slipdock.Wiki.Markup do
           | {:ref, ref}
 
   @type ref :: %{
-          kind: kind,
-          target: String.t(),
-          board: String.t() | nil,
-          label: String.t() | nil,
-          raw: String.t()
+          required(:kind) => kind,
+          required(:target) => String.t(),
+          required(:board) => String.t() | nil,
+          required(:label) => String.t() | nil,
+          required(:raw) => String.t(),
+          optional(:anchor) => String.t() | nil,
+          optional(:embed) => boolean
         }
 
   @directives ~w(toc children backlinks)
@@ -54,7 +59,7 @@ defmodule Slipdock.Wiki.Markup do
   # One pass, four shapes. Order matters only in that `[[…]]` is tried first,
   # so a bracketed reference is never also read as a bare one.
   @pattern ~r/
-      \[\[(?<wiki>[^\]\n]*)\]\]
+      (?<embed>!)?\[\[(?<wiki>[^\]\n]*)\]\]
     | \{\{(?<inline>[^}\n]{1,200})\}\}
     | (?<![\w#])\#(?<card>\d+)(?![\w-])
     | (?<![\w-])(?<code>[Ww]-\d+)(?![\w-])
@@ -112,16 +117,28 @@ defmodule Slipdock.Wiki.Markup do
   def raw({:ref, %{raw: raw}}), do: raw
 
   # Which alternative of @pattern matched, by looking at which group has a
-  # non-negative offset. The groups are positional — wiki, card, code,
-  # mention — and `:re` drops unmatched *trailing* groups, so the list is
-  # padded back out to four before it is read.
+  # non-negative offset. The groups are positional — embed, wiki, inline,
+  # card, code, mention — and `:re` drops unmatched *trailing* groups, so the
+  # list is padded back out to six before it is read.
   defp reference(raw, [_whole | groups], text) do
-    case Enum.map(0..4, &(groups |> Enum.at(&1) |> capture(text))) do
-      [inner, nil, nil, nil, nil] when is_binary(inner) -> bracketed(inner, raw)
-      [nil, expr, nil, nil, nil] when is_binary(expr) -> inline_ref(expr, raw)
-      [nil, nil, number, nil, nil] when is_binary(number) -> card_ref(number, raw)
-      [nil, nil, nil, code, nil] when is_binary(code) -> page_code_ref(code, raw)
-      [nil, nil, nil, nil, name] when is_binary(name) -> mention_ref(name, raw)
+    case Enum.map(0..5, &(groups |> Enum.at(&1) |> capture(text))) do
+      [bang, inner, nil, nil, nil, nil] when is_binary(inner) -> embedded(bang, inner, raw)
+      [nil, nil, expr, nil, nil, nil] when is_binary(expr) -> inline_ref(expr, raw)
+      [nil, nil, nil, number, nil, nil] when is_binary(number) -> card_ref(number, raw)
+      [nil, nil, nil, nil, code, nil] when is_binary(code) -> page_code_ref(code, raw)
+      [nil, nil, nil, nil, nil, name] when is_binary(name) -> mention_ref(name, raw)
+      _ -> nil
+    end
+  end
+
+  # `![[…]]` embeds a page (or a part of one). Only a page can be embedded;
+  # `![[#412]]` and friends read as the reference they would be without it,
+  # with the `!` left as text in front.
+  defp embedded(nil, inner, raw), do: bracketed(inner, raw)
+
+  defp embedded("!", inner, raw) do
+    case bracketed(inner, raw) do
+      %{kind: :page, target: target} = ref when target != "" -> Map.put(ref, :embed, true)
       _ -> nil
     end
   end
@@ -150,9 +167,19 @@ defmodule Slipdock.Wiki.Markup do
       String.starts_with?(target, "#") ->
         case Integer.parse(String.trim_leading(target, "#")) do
           {_, ""} -> card_ref(String.trim_leading(target, "#"), raw, label)
-          _ -> nil
+          _ -> same_page_ref(target, raw, label)
         end
 
+      true ->
+        {target, anchor} = split_anchor(target)
+        target |> page_ref(raw, label) |> with_anchor(anchor)
+    end
+  end
+
+  defp page_ref("", _raw, _label), do: nil
+
+  defp page_ref(target, raw, label) do
+    cond do
       page_code?(target) ->
         page_code_ref(target, raw, label)
 
@@ -169,6 +196,32 @@ defmodule Slipdock.Wiki.Markup do
 
       true ->
         %{kind: :page, target: target, board: nil, label: label, raw: raw}
+    end
+  end
+
+  # `[[#Heading]]` and `[[#^block]]`: a place on the page being read.
+  defp same_page_ref(target, raw, label) do
+    case target |> String.trim_leading("#") |> String.trim() do
+      "" -> nil
+      anchor -> %{kind: :page, target: "", board: nil, label: label, raw: raw, anchor: anchor}
+    end
+  end
+
+  defp with_anchor(nil, _anchor), do: nil
+  defp with_anchor(ref, nil), do: ref
+  defp with_anchor(ref, anchor), do: Map.put(ref, :anchor, anchor)
+
+  # "Note#Heading" — the page, and the heading or `^block` within it.
+  defp split_anchor(target) do
+    case String.split(target, "#", parts: 2) do
+      [page, anchor] ->
+        case String.trim(anchor) do
+          "" -> {String.trim(page), nil}
+          anchor -> {String.trim(page), anchor}
+        end
+
+      [page] ->
+        {page, nil}
     end
   end
 
@@ -245,6 +298,7 @@ defmodule Slipdock.Wiki.Markup do
       {:ref, %{kind: :directive}} -> ""
       {:ref, %{kind: :inline}} -> ""
       {:ref, %{label: label}} when is_binary(label) -> label
+      {:ref, %{kind: :page, target: "", anchor: anchor}} -> anchor
       {:ref, %{kind: :card, target: number}} -> "##{number}"
       {:ref, %{kind: :mention, target: name}} -> "@#{name}"
       {:ref, %{target: target}} -> target

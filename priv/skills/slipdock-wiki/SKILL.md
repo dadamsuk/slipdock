@@ -196,6 +196,9 @@ Written inside a page body:
 | `[[QVM/Retry policy]]` | a page on another board |
 | `[[W-31]]` or bare `W-31` | a page by its code |
 | `[[#412]]` or bare `#412` | card 412, drawn live: title, list, state |
+| `[[Retry policy#Backoff]]` · `[[Retry policy#^a1b2]]` | a heading of a page · a block (a paragraph ending ` ^a1b2`) |
+| `[[#Backoff]]` | a heading on this same page (all digits is still a card) |
+| `![[Retry policy]]` · `![[Retry policy#Backoff]]` | the page, or that section, drawn in place |
 | `[[board:QVM]]` · `[[view:QVM/Blocked work]]` | a board · a saved view |
 | `[[!toc]]` `[[!children]]` `[[!backlinks]]` | expanded when the page is read |
 | `@name` | a mention of someone on the board |

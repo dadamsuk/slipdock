@@ -591,6 +591,17 @@ body.tl-tray-dragging { cursor: grabbing; }
   border-bottom: 1px dashed color-mix(in oklab, var(--color-base-content) 35%, transparent);
 }
 .wiki-prose .wiki-wanted::after { content: "+"; font-size: 0.7em; vertical-align: super; margin-left: 0.1em; }
+/* An embedded note (![[Note]]): the other page's words, set off as a quote
+   with where they came from on top, so nobody mistakes them for this page's. */
+.wiki-prose .wiki-embed {
+  margin: 1rem 0; padding: 0.25rem 1rem 0.5rem;
+  border-left: 3px solid color-mix(in oklab, var(--color-primary) 45%, transparent);
+  background: color-mix(in oklab, var(--color-base-200) 60%, transparent);
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+.wiki-prose .wiki-embed-title { font-size: 0.8rem; margin: 0.25rem 0 0.25rem; opacity: 0.8; }
+/* A block's address (^id): where [[Note#^id]] lands, and nothing to see. */
+.wiki-prose .wiki-block-anchor { scroll-margin-top: 5rem; }
 .wiki-prose .wiki-mention {
   color: var(--color-primary);
   background: color-mix(in oklab, var(--color-primary) 10%, transparent);
