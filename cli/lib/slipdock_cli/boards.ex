@@ -10,7 +10,7 @@ defmodule SlipdockCLI.Boards do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(guide search ask search-status saved save unsave boards board columns tags activity cards card swimlanes views favourites fav unfav table fields milestones templates add edit set vote status new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments detach card-front card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
+  @commands ~w(guide search ask search-status saved save unsave boards board columns tags activity cards card swimlanes views favourites fav unfav table fields milestones templates add edit set vote status new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -461,6 +461,20 @@ defmodule SlipdockCLI.Boards do
         where = if a["hide_on_card"], do: "kept off", else: "may show on"
         IO.puts("#{a["filename"]} [attachment ##{a["id"]}] #{where} the front of card ##{id}")
       end)
+    end)
+  end
+
+  def run("transcribe", [id, aid], o) do
+    HTTP.post("/cards/#{enc(id)}/attachments/#{enc(aid)}/transcribe", %{})
+    |> out(o, fn %{"attachment" => a} ->
+      if o[:wait] do
+        a |> await_transcript(id) |> print_transcript()
+      else
+        IO.puts(
+          "transcribing #{a["filename"]} [attachment ##{a["id"]}]; " <>
+            "`slipdock attachments #{id}` shows when it is done, or pass --wait"
+        )
+      end
     end)
   end
 
@@ -1033,6 +1047,41 @@ defmodule SlipdockCLI.Boards do
   # wiki page. A page holds comments, a checklist, status updates, web links
   # and votes in the same tables a card does (see `Slipdock.Boards.Owned`), so
   # the commands below take either and only the path changes.
+  # The server does the work in the background; ask after it until it is not
+  # running any more. The interval is the environment's so tests need not wait.
+  defp await_transcript(%{"transcript_status" => "running"} = a, card) do
+    Process.sleep(poll_ms())
+
+    case HTTP.get("/cards/#{enc(card)}/attachments") do
+      {:ok, %{"attachments" => list}} ->
+        list |> Enum.find(a, &(&1["id"] == a["id"])) |> await_transcript(card)
+
+      other ->
+        out(other, [], fn _ -> fail("unexpected answer while waiting for the transcript") end)
+    end
+  end
+
+  defp await_transcript(a, _card), do: a
+
+  defp poll_ms do
+    case Integer.parse(System.get_env("SLIPDOCK_POLL_MS") || "") do
+      {ms, ""} when ms >= 0 -> ms
+      _ -> 3_000
+    end
+  end
+
+  defp print_transcript(%{"transcript_status" => "done"} = a) do
+    case a["transcript"] do
+      t when t in [nil, ""] -> IO.puts("#{a["filename"]}: no speech was found")
+      t -> IO.puts(t)
+    end
+  end
+
+  defp print_transcript(%{"transcript_status" => "failed"} = a),
+    do: fail("couldn't transcribe #{a["filename"]}: #{a["transcript_error"]}")
+
+  defp print_transcript(a), do: fail("#{a["filename"]} was not transcribed")
+
   defp item_path(ref, suffix) do
     ref = to_string(ref)
 

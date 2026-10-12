@@ -81,6 +81,13 @@ config :slipdock, :ai,
   key_file: Path.expand("../tmp/test_ai_keys.json", __DIR__),
   req_options: [plug: {Req.Test, Slipdock.AI}]
 
+# The transcription server (see `Slipdock.Transcription`) is a Req.Test stub;
+# a job runs inline and its retries don't wait, so a test sees the end of it.
+config :slipdock, :transcription,
+  req_options: [plug: {Req.Test, Slipdock.Transcription}],
+  async: false,
+  sleep: false
+
 # Tests sign in as whoever they like, and a few of them post the form more
 # than five times; the limiter has its own test, which turns it on.
 config :slipdock, :rate_limit, enabled: false

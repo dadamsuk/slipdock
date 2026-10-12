@@ -40,6 +40,78 @@ defmodule SlipdockWeb.ConfigLive.Index do
 
   defp tab(%{assigns: %{live_action: action}}), do: action
 
+  defp transcription_form(settings, errors \\ []) do
+    to_form(%{"url" => settings.transcription_server_url || "", "token" => ""},
+      as: :transcription,
+      errors: errors
+    )
+  end
+
+  defp save_transcription(params, socket) do
+    attrs = %{"transcription_server_url" => params["url"]}
+
+    attrs =
+      cond do
+        params["forget_token"] == "true" -> Map.put(attrs, "transcription_server_token", nil)
+        present?(params["token"]) -> Map.put(attrs, "transcription_server_token", params["token"])
+        true -> attrs
+      end
+
+    case Settings.update(attrs) do
+      {:ok, _} ->
+        socket |> put_flash(:info, "Saved.") |> load()
+
+      {:error, changeset} ->
+        errors =
+          for {:transcription_server_url, error} <- changeset.errors, do: {:url, error}
+
+        assign(socket,
+          transcription_form:
+            transcription_form(%{transcription_server_url: params["url"]}, errors)
+        )
+    end
+  end
+
+  # What was typed, so an address can be tried before it is saved; the
+  # stored token when none was typed.
+  defp test_transcription(params, socket) do
+    token =
+      if present?(params["token"]),
+        do: params["token"],
+        else: Settings.get().transcription_server_token
+
+    check =
+      if present?(params["url"]) do
+        case Slipdock.Transcription.status(url: params["url"], token: token) do
+          {:ok, status} -> {:ok, describe_status(status)}
+          {:error, reason} -> {:error, reason}
+        end
+      else
+        {:error, "Give the server's address first."}
+      end
+
+    assign(socket,
+      transcription_check: check,
+      transcription_form:
+        to_form(%{"url" => params["url"] || "", "token" => params["token"] || ""},
+          as: :transcription
+        )
+    )
+  end
+
+  defp describe_status(status) do
+    capabilities =
+      case List.wrap(status["capabilities"]) do
+        [] -> ""
+        caps -> " — offers #{Enum.join(caps, ", ")}"
+      end
+
+    "Connected: version #{status["version"] || "unknown"}, API #{status["api_version"]}" <>
+      capabilities
+  end
+
+  defp present?(value), do: is_binary(value) and String.trim(value) != ""
+
   defp load(socket) do
     settings = Settings.get()
 
@@ -49,6 +121,8 @@ defmodule SlipdockWeb.ConfigLive.Index do
       mail_form: mail_form(settings, socket),
       allowlist: Settings.list_allowlist(),
       allow_form: to_form(%{"entry" => ""}, as: :allow),
+      transcription_form: transcription_form(settings),
+      transcription_check: nil,
       requests: Accounts.list_signup_requests(),
       admin_email_pending: settings.admin_email,
       ai_source: Keys.system_source(),
@@ -95,6 +169,17 @@ defmodule SlipdockWeb.ConfigLive.Index do
 
       {:error, changeset} ->
         {:noreply, assign(socket, form: to_form(Map.put(changeset, :action, :validate)))}
+    end
+  end
+
+  ## Transcription server
+
+  # Save, or try the address first. The token is never sent to the page: a
+  # blank box keeps the one stored, and "Forget the token" is how to clear it.
+  def handle_event("transcription", %{"transcription" => params} = all, socket) do
+    case all["step_action"] do
+      "test" -> {:noreply, test_transcription(params, socket)}
+      _ -> {:noreply, save_transcription(params, socket)}
     end
   end
 
@@ -1116,6 +1201,72 @@ defmodule SlipdockWeb.ConfigLive.Index do
           <button type="submit" class="btn btn-outline">Add</button>
         </.form>
       </div>
+    </section>
+
+    <section
+      id="transcription-settings"
+      class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
+    >
+      <h2 class="text-lg font-semibold">Transcription server</h2>
+      <p class="mt-1 text-sm text-base-content/60">
+        Where a recording attached to a card goes when somebody presses Transcribe: a Manuel2
+        server, or anything that speaks its API. The text comes back onto the card, under the
+        recording. Blank, there is no Transcribe button.
+      </p>
+
+      <.form
+        for={@transcription_form}
+        id="transcription-form"
+        phx-submit="transcription"
+        class="mt-4 space-y-3"
+      >
+        <.input
+          field={@transcription_form[:url]}
+          type="url"
+          label="Server address"
+          placeholder="https://manuel.example.ts.net:8765"
+        />
+        <.input
+          field={@transcription_form[:token]}
+          type="password"
+          label="Auth token"
+          placeholder={if Settings.transcription_token_set?(), do: "unchanged", else: ""}
+          autocomplete="off"
+        />
+        <p class="-mt-1 text-xs text-base-content/60">
+          Sent as a bearer token. Leave it empty to keep the one already stored; a server on the
+          same machine with no keys set up needs none.
+        </p>
+        <label
+          :if={Settings.transcription_token_set?()}
+          class="flex cursor-pointer items-center gap-2 text-sm"
+        >
+          <input
+            type="checkbox"
+            name="transcription[forget_token]"
+            value="true"
+            class="checkbox checkbox-sm"
+          /> Forget the stored token
+        </label>
+        <p
+          :if={@transcription_check}
+          id="transcription-check"
+          class={[
+            "text-sm",
+            if(match?({:ok, _}, @transcription_check), do: "text-success", else: "text-error")
+          ]}
+        >
+          {elem(@transcription_check, 1)}
+        </p>
+        <div class="flex gap-2">
+          <button type="submit" name="step_action" value="save" class="btn btn-primary btn-sm">
+            Save
+          </button>
+          <button type="submit" name="step_action" value="test" class="btn btn-outline btn-sm">
+            Test connection
+          </button>
+        </div>
+      </.form>
     </section>
     """
   end

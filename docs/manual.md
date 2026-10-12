@@ -23,7 +23,8 @@ way in: what it is, the pictures, and how to get it running.
   the description or a comment are uploaded and shown inline (stored under
   `priv/uploads/`, `SLIPDOCK_UPLOADS_DIR` to move it; served with access checks).
   The API and CLI upload them too — see [Attachments over the API](#attachments-over-the-api).
-  A card's first image is a thumbnail on its front — see [Images on the card front](#images-on-the-card-front)
+  A card's first image is a thumbnail on its front — see [Images on the card front](#images-on-the-card-front).
+  A recording plays in place, and can be transcribed — see [Recordings](#recordings)
 - @mentions: `@someone` in a card's description or a comment — the part of
   their email before the "@", or a one-word name — names a person who can see
   the board. Typing `@` offers the board's members; a mention shows as a chip,
@@ -708,6 +709,39 @@ On the API, `hide_on_card` is on each attachment: `PATCH
 an upload can send it as a field. From the CLI, `slipdock card-front <id>
 <attachment-id> --off` keeps an image off the front (without `--off`, lets it
 back), and `slipdock attach <id> <file> --hide-on-card` uploads it kept off.
+
+### Recordings
+
+An audio file attached to a card (MP3, M4A, WAV, OGG, FLAC, WebM — anything
+whose type is `audio/…`) plays in the card's **Attachments**, with a player
+that can seek: the server answers the byte ranges a player asks for.
+
+**Transcribe**, beside the player, sends the recording to the transcription
+server an admin has set up under Configuration → Server → **Transcription
+server**: a [Manuel2](https://github.com/dadamsuk/Manuel2) server, or anything
+that speaks its API. Give its address (`https://host:8765`; `/v1` or
+`/api/v1` on the end is fine too) and the auth token it issued; **Test
+connection** asks the server for its status before anything is saved. The
+token is kept on the server and never shown again — leave the box empty to
+keep it, or tick **Forget the stored token**. With no address there is no
+Transcribe button.
+
+The work runs in the background, so the card can be closed meanwhile. The
+transcript appears under the recording, folded away as **Transcript**; when the
+server can tell voices apart it is written one speaker turn a line
+(`Steve: …`). If it fails the reason shows instead, and **Try again** sends it
+again. Slipdock follows the server's client rules: it checks the server's API
+version first, sends every recording with an idempotency key so a retry
+never transcribes it twice, waits up to a minute for an answer before
+following it as a job, and retries only what the server says is worth
+retrying (a full queue, a model still loading, a timeout).
+
+On the API, `POST /api/cards/:id/attachments/:attachment_id/transcribe` starts
+it (202), and each attachment carries `transcript_status` (`running`, `done`,
+`failed`), `transcript` and `transcript_error`. From the CLI, `slipdock
+transcribe <id> <attachment-id> [--wait]`; an admin sets the server with
+`slipdock admin set transcription_server_url=https://host:8765
+transcription_server_token=…`.
 
 ### Attachments over the API
 

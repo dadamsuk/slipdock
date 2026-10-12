@@ -650,7 +650,12 @@ defmodule SlipdockWeb.APIGuide do
       same three at `/api/pages/:id/attachments`. A card's first image is the
       thumbnail on its front; `hide_on_card: true` (on the upload, or
       `PATCH /api/cards/:id/attachments/:attachment_id`) keeps one off it — do
-      that for a log or a diagram nobody needs to see at a glance.
+      that for a log or a diagram nobody needs to see at a glance. A recording
+      (`audio/…`) can be transcribed, when the server has a transcription server
+      set up: `POST /api/cards/:id/attachments/:attachment_id/transcribe` answers
+      202 and works in the background; the attachment's `transcript_status`
+      goes `running` → `done` (with `transcript`) or `failed` (with
+      `transcript_error`). Read the transcript before summarising a call.
     - **Moving a card to another board** —
       `POST /api/cards/:id/move {"board": "errands", "column": "To Do"}`. The
       card's subcards, comments, history and links go with it, its tags travel

@@ -88,6 +88,9 @@ defmodule SlipdockCLI do
                                       meetings_diarisation_url=, meetings_dialogue_inference=false,
                                       meetings_voiceprints=true, meetings_voiceprint_url=,
                                       meetings_relisten_model=<audio-capable model> (empty: off)
+                                      transcription_server_url=https://host:8765 (a Manuel2
+                                      server: Transcribe on a card's recording; empty: off),
+                                      transcription_server_token=<key> (empty: none)
   admin meetings-usage                meeting capture this month: totals, heaviest users
   admin allow <entry>                 let an address or a whole domain register
   admin disallow <entry>
@@ -317,6 +320,9 @@ defmodule SlipdockCLI do
                                         embeds each (an image shows inline, anything else links).
                                         A card's first image is the thumbnail on its front unless
                                         --hide-on-card keeps it off
+    transcribe <id> <attachment-id> [--wait]
+                                        send a card's recording to the transcription server;
+                                        --wait prints the transcript once it is done
     card-front <id> <attachment-id>... [--off]
                                         let an image be the card's thumbnail (--off: keep it off)
     attachments <id>                    list a card's or page's files
@@ -547,6 +553,7 @@ defmodule SlipdockCLI do
     kind: :keep,
     label: :string,
     hide_on_card: :boolean,
+    wait: :boolean,
     options: :string,
     formula: :string,
     sum: :boolean,

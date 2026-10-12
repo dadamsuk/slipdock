@@ -66,6 +66,43 @@ defmodule SlipdockCLI.AdminTest do
         ~s("smtp":{"configured":false},"login_fallback":{"enabled":false},) <>
         ~s("analytics":#{analytics}}})
 
+  test "set transcription_server_url and _token send strings; the answer says whether a token is set" do
+    with_server =
+      String.replace(
+        settings("null"),
+        ~s("analytics":null),
+        ~s("analytics":null,"transcription_server":{"url":"https://manuel.example","token_set":true})
+      )
+
+    serve([{200, with_server}, {200, settings("null")}])
+
+    output =
+      capture_io(fn ->
+        Admin.run(
+          "admin",
+          [
+            "set",
+            "transcription_server_url=https://manuel.example",
+            "transcription_server_token=k3y"
+          ],
+          []
+        )
+      end)
+
+    assert_received {:request, "PATCH", "/api/admin/settings", body}
+
+    assert :json.decode(body) == %{
+             "transcription_server_url" => "https://manuel.example",
+             "transcription_server_token" => "k3y"
+           }
+
+    assert output =~ "Transcription:    https://manuel.example (with a token)"
+    refute output =~ "k3y"
+
+    output = capture_io(fn -> Admin.run("admin", ["set", "transcription_server_url="], []) end)
+    assert output =~ "Transcription:    not set up"
+  end
+
   test "set posthog_key sends it as a string, and settings show analytics on" do
     serve([
       {200, settings(~s({"posthog_key":"phc_abc","posthog_host":"https://eu.i.posthog.com"}))}

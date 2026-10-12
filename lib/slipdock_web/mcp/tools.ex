@@ -31,6 +31,7 @@ defmodule SlipdockWeb.MCP.Tools do
     Tools.ArchiveCard,
     Tools.DeleteCard,
     Tools.CreateList,
+    Tools.CreateTag,
     Tools.DeleteList,
     Tools.CreateBoard,
     Tools.ArchiveBoard,

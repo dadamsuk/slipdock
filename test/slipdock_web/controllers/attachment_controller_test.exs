@@ -103,4 +103,75 @@ defmodule SlipdockWeb.AttachmentControllerTest do
     File.rm!(Boards.attachment_path(image))
     assert get(conn, Boards.attachment_url(image)).status == 404
   end
+
+  describe "a recording" do
+    setup %{card: card} do
+      src = Path.join(System.tmp_dir!(), "kanban-audio-#{System.unique_integer([:positive])}")
+      File.write!(src, "0123456789")
+      on_exit(fn -> File.rm(src) end)
+
+      {:ok, audio} =
+        Boards.add_attachment(card, %{filename: "call.mp3", content_type: "audio/mpeg"}, src)
+
+      %{audio: audio}
+    end
+
+    test "is served inline, and says it takes ranges", %{conn: conn, audio: audio} do
+      conn = get(conn, Boards.attachment_url(audio))
+      assert conn.status == 200
+      assert conn.resp_body == "0123456789"
+      assert [disp] = get_resp_header(conn, "content-disposition")
+      assert disp =~ "inline"
+      assert get_resp_header(conn, "accept-ranges") == ["bytes"]
+    end
+
+    test "a range gets just those bytes", %{conn: conn, audio: audio} do
+      for {range, body, content_range} <- [
+            {"bytes=2-5", "2345", "bytes 2-5/10"},
+            {"bytes=7-", "789", "bytes 7-9/10"},
+            {"bytes=-3", "789", "bytes 7-9/10"},
+            # Past the end is cut to the end; a suffix longer than the file is all of it.
+            {"bytes=8-99", "89", "bytes 8-9/10"},
+            {"bytes=-50", "0123456789", "bytes 0-9/10"}
+          ] do
+        conn = conn |> put_req_header("range", range) |> get(Boards.attachment_url(audio))
+        assert conn.status == 206, range
+        assert conn.resp_body == body, range
+        assert get_resp_header(conn, "content-range") == [content_range], range
+        assert get_resp_header(conn, "content-type") == ["audio/mpeg"]
+        assert [disp] = get_resp_header(conn, "content-disposition")
+        assert disp =~ "inline" and disp =~ "call.mp3"
+      end
+    end
+
+    test "a range that starts past the end is a 416", %{conn: conn, audio: audio} do
+      for range <- ["bytes=10-", "bytes=20-30", "bytes=5-2", "bytes=-0"] do
+        conn = conn |> put_req_header("range", range) |> get(Boards.attachment_url(audio))
+        assert conn.status == 416, range
+        assert get_resp_header(conn, "content-range") == ["bytes */10"]
+      end
+    end
+
+    test "a range header that doesn't parse, or asks for several, gets the whole file", %{
+      conn: conn,
+      audio: audio
+    } do
+      for range <- ["bytes=abc", "items=0-1", "bytes=-", "bytes=0-1,4-5"] do
+        conn = conn |> put_req_header("range", range) |> get(Boards.attachment_url(audio))
+        assert conn.status == 200, range
+        assert conn.resp_body == "0123456789"
+      end
+    end
+
+    test "a range is no way round the access check", %{audio: audio} do
+      stranger = user_fixture("range.stranger@example.com")
+
+      conn =
+        conn_as(stranger)
+        |> put_req_header("range", "bytes=0-1")
+        |> get(Boards.attachment_url(audio))
+
+      assert conn.status == 404
+    end
+  end
 end

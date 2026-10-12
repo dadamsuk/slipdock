@@ -187,9 +187,16 @@ defmodule SlipdockCLI.Admin do
     Analytics:        #{render_analytics(s["analytics"])}
     Search & rules AI:#{render_ai(s["ai"])}
     Meeting mode:     #{render_meetings(s["meetings"])}
+    Transcription:    #{render_transcription_server(s["transcription_server"])}
     Waiting:          #{s["pending_signups"]}\
     """)
   end
+
+  # Where Transcribe on a card's recording sends it.
+  defp render_transcription_server(%{"url" => url} = t) when is_binary(url),
+    do: "#{url}#{if t["token_set"], do: " (with a token)", else: " (no token)"}"
+
+  defp render_transcription_server(_), do: "not set up"
 
   defp render_meetings_usage(%{"usage" => u}) do
     IO.puts("""

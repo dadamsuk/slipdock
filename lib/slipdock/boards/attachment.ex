@@ -22,6 +22,13 @@ defmodule Slipdock.Boards.Attachment do
     # An image shows as a thumbnail on the front of its card unless this is
     # set (see `front_image/1`). Meaningless for anything else.
     field :hide_on_card, :boolean, default: false
+    # What the transcription server made of a recording (see
+    # `Slipdock.Transcription`): nil until somebody asks, then "running",
+    # "done" or "failed", with the text or the reason.
+    field :transcript, :string
+    field :transcript_status, :string
+    field :transcript_error, :string
+    field :transcript_started_at, :utc_datetime
     belongs_to :card, Slipdock.Boards.Card
     belongs_to :page, Slipdock.Wiki.Page
     timestamps(type: :utc_datetime)
@@ -32,6 +39,16 @@ defmodule Slipdock.Boards.Attachment do
 
   @doc "Whether the browser can safely show the file inline (raster images only)."
   def image?(%__MODULE__{content_type: type}), do: type in @image_types
+
+  @doc """
+  Whether the file is a recording: the card plays it in place, and offers to
+  transcribe it. Audio can't run script, so it is as safe inline as an image.
+  """
+  def audio?(%__MODULE__{content_type: "audio/" <> _}), do: true
+  def audio?(%__MODULE__{}), do: false
+
+  @doc "Whether the file is served inline rather than as a download."
+  def inline?(%__MODULE__{} = a), do: image?(a) or audio?(a)
 
   def changeset(attachment, attrs) do
     attachment
@@ -56,6 +73,13 @@ defmodule Slipdock.Boards.Attachment do
     do: Enum.find(attachments, &front_image?/1)
 
   def front_image(_), do: nil
+
+  @doc "Records where a transcription has got to (see `Slipdock.Transcription`)."
+  def transcript_changeset(attachment, attrs) do
+    attachment
+    |> cast(attrs, [:transcript, :transcript_status, :transcript_error, :transcript_started_at])
+    |> validate_inclusion(:transcript_status, ~w(running done failed))
+  end
 
   @doc "Shows the file on its card's front, or keeps it off."
   def front_changeset(attachment, hide?) when is_boolean(hide?),
@@ -89,6 +113,7 @@ defmodule Slipdock.Boards.Attachment do
   def kind(%__MODULE__{} = a) do
     cond do
       image?(a) -> :image
+      audio?(a) -> :audio
       a.content_type == "application/pdf" -> :pdf
       String.starts_with?(a.content_type, "text/") -> :text
       String.contains?(a.content_type, ["zip", "compressed", "tar"]) -> :archive

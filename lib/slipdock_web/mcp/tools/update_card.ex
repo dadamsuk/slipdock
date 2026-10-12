@@ -44,7 +44,11 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
         add_flags: list,
         remove_flags: list,
         add_tags:
-          Map.put(list, :description, "Tag names already on the board (get_board lists them)."),
+          Map.put(
+            list,
+            :description,
+            "Tag names on the board (get_board lists them; create_tag adds one)."
+          ),
         remove_tags: Map.put(list, :description, "Tag names on the board."),
         assignees:
           Map.put(list, :description, "Replaces who is on it; [] unassigns. \"me\" for yourself."),

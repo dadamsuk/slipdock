@@ -243,6 +243,116 @@ defmodule SlipdockWeb.API.AttachmentsTest do
     end
   end
 
+  describe "transcribing" do
+    setup %{card: card} do
+      {:ok, a} =
+        Boards.add_attachment(
+          card,
+          %{filename: "call.mp3", content_type: "audio/mpeg"},
+          upload("call.mp3", "ID3 audio", "audio/mpeg").path
+        )
+
+      %{audio: a}
+    end
+
+    defp set_up_server do
+      {:ok, _} =
+        Slipdock.Settings.complete_setup(%{
+          "admin_email" => "admin@example.com",
+          "transcription_server_url" => "https://manuel.example"
+        })
+    end
+
+    test "a recording is sent, and its transcript read back", %{
+      conn: conn,
+      card: card,
+      audio: audio
+    } do
+      set_up_server()
+
+      Req.Test.stub(Slipdock.Transcription, fn conn ->
+        if conn.request_path == "/v1/status",
+          do: Req.Test.json(conn, %{"api_version" => "1.0.0"}),
+          else: Req.Test.json(conn, %{"text" => "Ship it Friday."})
+      end)
+
+      assert %{"attachment" => %{"id" => id, "transcript_status" => status}} =
+               conn
+               |> post("/api/cards/#{card.id}/attachments/#{audio.id}/transcribe")
+               |> json_response(202)
+
+      assert id == audio.id
+      # Inline here; on a server it would still be "running".
+      assert status in ["running", "done"]
+
+      assert %{
+               "attachments" => [
+                 %{"transcript_status" => "done", "transcript" => "Ship it Friday."}
+               ]
+             } = conn |> get("/api/cards/#{card.id}/attachments") |> json_response(200)
+    end
+
+    test "without a server, or for a file that isn't audio, is a 422", %{
+      conn: conn,
+      card: card,
+      audio: audio
+    } do
+      assert %{"error" => "No transcription server is set up on this Slipdock."} =
+               conn
+               |> post("/api/cards/#{card.id}/attachments/#{audio.id}/transcribe")
+               |> json_response(422)
+
+      set_up_server()
+
+      {:ok, pdf} =
+        Boards.add_attachment(
+          card,
+          %{filename: "a.pdf", content_type: "application/pdf"},
+          upload("a.pdf", "%PDF").path
+        )
+
+      assert %{"error" => "Only audio files can be transcribed."} =
+               conn
+               |> post("/api/cards/#{card.id}/attachments/#{pdf.id}/transcribe")
+               |> json_response(422)
+    end
+
+    test "one already running is a 409", %{conn: conn, card: card, audio: audio} do
+      set_up_server()
+
+      {:ok, _} =
+        Boards.update_attachment_transcript(audio, %{
+          transcript_status: "running",
+          transcript_started_at: DateTime.utc_now(:second)
+        })
+
+      assert %{"error" => "It is being transcribed already."} =
+               conn
+               |> post("/api/cards/#{card.id}/attachments/#{audio.id}/transcribe")
+               |> json_response(409)
+    end
+
+    test "another card's recording is a 404; a read-only token a 403", %{
+      conn: conn,
+      user: user,
+      board: board,
+      audio: audio
+    } do
+      set_up_server()
+      other = card_fixture(hd(board.columns), %{"title" => "Other"})
+
+      assert conn
+             |> post("/api/cards/#{other.id}/attachments/#{audio.id}/transcribe")
+             |> json_response(404)
+
+      assert with_token(user, scope: "read")
+             |> post("/api/cards/#{audio.card_id}/attachments/#{audio.id}/transcribe")
+             |> json_response(403)
+
+      assert Boards.get_attachment!(audio.id).transcript_status == nil
+    end
+  end
+
   describe "the refusals" do
     test "no file field is a 422 that says how to send one", %{conn: conn, card: card} do
       assert %{"error" => error} =

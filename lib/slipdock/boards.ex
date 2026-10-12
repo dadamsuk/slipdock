@@ -3203,13 +3203,23 @@ defmodule Slipdock.Boards do
     attachment
     |> Attachment.front_changeset(hide?)
     |> Repo.update()
-    |> tap_ok(fn a ->
-      case Repo.preload(a, [:card, :page]) do
-        %Attachment{card: %Card{board_id: board_id}} -> broadcast(board_id)
-        %Attachment{page: %{board_id: board_id}} -> broadcast(board_id)
-        _ -> :ok
-      end
-    end)
+    |> tap_ok(&broadcast_attachment/1)
+  end
+
+  @doc "Records where a transcription has got to (see `Slipdock.Transcription`)."
+  def update_attachment_transcript(%Attachment{} = attachment, attrs) do
+    attachment
+    |> Attachment.transcript_changeset(attrs)
+    |> Repo.update()
+    |> tap_ok(&broadcast_attachment/1)
+  end
+
+  defp broadcast_attachment(attachment) do
+    case Repo.preload(attachment, [:card, :page]) do
+      %Attachment{card: %Card{board_id: board_id}} -> broadcast(board_id)
+      %Attachment{page: %{board_id: board_id}} -> broadcast(board_id)
+      _ -> :ok
+    end
   end
 
   def delete_attachment(%Attachment{} = attachment) do
