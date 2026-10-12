@@ -729,7 +729,8 @@ Transcribe button.
 The work runs in the background, so the card can be closed meanwhile. The
 transcript appears under the recording, folded away as **Transcript**; when the
 server can tell voices apart it is written one speaker turn a line
-(`Steve: …`). If it fails the reason shows instead, and **Try again** sends it
+(`Steve: …`). The transcript goes into [search](#deep-search-and-ask), so what was said on
+the call finds the card. If it fails the reason shows instead, and **Try again** sends it
 again. Slipdock follows the server's client rules: it checks the server's API
 version first, sends every recording with an idempotency key so a retry
 never transcribes it twice, waits up to a minute for an answer before
@@ -1185,7 +1186,8 @@ Each mode keeps its own state — your results are still there when you come bac
 from asking. The mode is the URL (`/search` and `/ask`, the header's ⌕ and ✨
 icons, or `Ctrl-P`), so it is linkable and the back button works through it.
 
-**Search** embeds every card, comment and status update as a vector; your query
+**Search** embeds every card, comment, status update and recording transcript
+as a vector; your query
 is embedded the same way and matched by meaning, so the words you type need
 never appear in what comes back. A result is a **card**, because a card is what
 you open. Under it are the chunks that actually matched — the comment, the
@@ -1240,7 +1242,9 @@ without its neighbours coming along.
 ### How it works
 
 `Slipdock.Search.Chunk` breaks each card into the pieces a person wrote — the
-card, each comment, each status update. `Slipdock.AI.Embeddings` turns each into
+card, each comment, each status update, and the transcript of each recording on
+it (split between lines into parts when it is long, each part naming the
+recording and the card). `Slipdock.AI.Embeddings` turns each into
 a unit-length vector through OpenRouter's `/embeddings` endpoint, stored packed
 as 32-bit floats in `search_embeddings` (see `Slipdock.Search.Vector`, which
 keeps cosine similarity to a plain dot product). A query is embedded the same

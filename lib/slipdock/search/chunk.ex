@@ -4,7 +4,7 @@ defmodule Slipdock.Search.Chunk do
 
   One chunk per thing that was written by a person: the card itself (title,
   description, checklist and its facets), each comment, each status update,
-  and **each section of a page**. Embedding them separately rather than
+  the transcript of each recording on it, and **each section of a page**. Embedding them separately rather than
   rolling a card into one vector is what lets a search for "the Stripe
   webhook problem" land on the comment that said it, and it means editing one
   comment — or one section — re-embeds one chunk rather than everything.
@@ -41,7 +41,8 @@ defmodule Slipdock.Search.Chunk do
 
   @doc """
   Every chunk for `card`, which must be preloaded with `:board`, `:column`,
-  `:tags`, `:assignee`, `:checklist_items`, `:comments` and `:status_updates`
+  `:tags`, `:assignee`, `:checklist_items`, `:comments`, `:status_updates`
+  and `:attachments`
   (see `Slipdock.Search.card_query/0`).
   """
   @spec for_card(Card.t()) :: [t]
@@ -49,7 +50,8 @@ defmodule Slipdock.Search.Chunk do
     [card_chunk(card)] ++
       Enum.map(card.comments, &comment_chunk(&1, card)) ++
       Enum.map(card.status_updates, &status_chunk(&1, card)) ++
-      provenance_chunks(card)
+      provenance_chunks(card) ++
+      transcript_chunks(card)
   end
 
   @doc """
@@ -156,6 +158,79 @@ defmodule Slipdock.Search.Chunk do
   end
 
   defp provenance_chunks(_card), do: []
+
+  # What was said in a recording attached to the card, once it has been
+  # transcribed (see `Slipdock.Transcription`). A call runs long, so a
+  # transcript over one chunk's worth is split between lines — a speaker's
+  # turn is a line — into numbered parts, each saying whose recording it is.
+  defp transcript_chunks(%Card{attachments: list} = card) when is_list(list) do
+    for %{transcript_status: "done", transcript: text} = a <- list,
+        is_binary(text) and String.trim(text) != "",
+        parts = split_lines(String.trim(text), @max_section),
+        {part, n} <- Enum.with_index(parts, 1) do
+      heading =
+        "Transcript of the recording “#{a.filename}” on card “#{card.title}” " <>
+          "(#{where_inline(card)})" <>
+          if(length(parts) > 1, do: ", part #{n} of #{length(parts)}:", else: ":")
+
+      %{
+        kind: "transcript",
+        source_id: a.id,
+        section: if(length(parts) > 1, do: "part #{n}", else: ""),
+        card_id: card.id,
+        page_id: nil,
+        board_id: card.board_id,
+        body: join([heading, part])
+      }
+    end
+  end
+
+  defp transcript_chunks(_card), do: []
+
+  # Whole lines, as many as fit; a single line longer than `max` (a speaker
+  # who never paused, a transcript with no line breaks) is cut between words.
+  defp split_lines(text, max) do
+    text
+    |> String.split("\n", trim: true)
+    |> Enum.flat_map(&split_words(&1, max))
+    |> Enum.chunk_while(
+      "",
+      fn line, acc ->
+        cond do
+          acc == "" -> {:cont, line}
+          String.length(acc) + 1 + String.length(line) <= max -> {:cont, acc <> "\n" <> line}
+          true -> {:cont, acc, line}
+        end
+      end,
+      fn
+        "" -> {:cont, ""}
+        acc -> {:cont, acc, ""}
+      end
+    )
+  end
+
+  defp split_words(line, max) do
+    if String.length(line) <= max do
+      [line]
+    else
+      line
+      |> String.split(" ")
+      |> Enum.chunk_while(
+        "",
+        fn word, acc ->
+          cond do
+            acc == "" -> {:cont, word}
+            String.length(acc) + 1 + String.length(word) <= max -> {:cont, acc <> " " <> word}
+            true -> {:cont, acc, word}
+          end
+        end,
+        fn
+          "" -> {:cont, ""}
+          acc -> {:cont, acc, ""}
+        end
+      )
+    end
+  end
 
   defp status_chunk(%StatusUpdate{} = update, %Card{} = card) do
     body =

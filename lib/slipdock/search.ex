@@ -394,7 +394,8 @@ defmodule Slipdock.Search do
         :checklist_items,
         :comments,
         :status_updates,
-        :provenance
+        :provenance,
+        :attachments
       ]
     )
   end

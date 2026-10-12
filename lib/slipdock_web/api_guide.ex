@@ -1066,7 +1066,8 @@ defmodule SlipdockWeb.APIGuide do
     together.
 
     `GET /api/search?q=…` is different. It searches by **meaning**, across every
-    card, comment and status update on every board you can see, so the words in
+    card, comment, status update and recording transcript on every board you can
+    see, so the words in
     the query need not appear anywhere in the result. Reach for it when:
 
     - the person describes a thing rather than naming it — "the card about the
