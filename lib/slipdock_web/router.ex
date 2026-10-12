@@ -149,6 +149,8 @@ defmodule SlipdockWeb.Router do
     pipe_through [:browser, :require_authenticated_user]
 
     get "/attachments/:id/:filename", AttachmentController, :show
+    # A file in a wiki that is not a page: a synced vault's images and PDFs.
+    get "/wiki-files/:id/:name", WikiFileController, :show
     # Everything you have, as a zip. Yours, so you do not have to ask.
     get "/account/export.zip", ExportController, :account
     # Board trees as one portable JSON document — the file an import reads.
@@ -512,6 +514,11 @@ defmodule SlipdockWeb.Router do
     put "/vaults/:id/sync/pages", VaultSyncController, :put_page
     put "/vaults/:id/sync/pages/:page", VaultSyncController, :put_page
     delete "/vaults/:id/sync/pages/:page", VaultSyncController, :delete_page
+    get "/vaults/:id/sync/files/:file", VaultSyncController, :show_file
+    post "/vaults/:id/sync/files", VaultSyncController, :post_file
+    post "/vaults/:id/sync/files/:file_id", VaultSyncController, :post_file
+    patch "/vaults/:id/sync/files/:file_id", VaultSyncController, :patch_file
+    delete "/vaults/:id/sync/files/:file_id", VaultSyncController, :delete_file
     post "/vaults/:id/mappings", VaultController, :map
     delete "/vaults/:id/mappings", VaultController, :unmap
     delete "/vaults/:id/mappings/:mapping", VaultController, :unmap

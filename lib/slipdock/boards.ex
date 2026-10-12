@@ -3337,7 +3337,10 @@ defmodule Slipdock.Boards do
         left_join: p in assoc(a, :page),
         where: c.board_id in subquery(ids) or p.board_id in subquery(ids)
       )
-    ) ++ Slipdock.Meetings.audio_keys(boards)
+    ) ++
+      Repo.all(
+        from(f in Slipdock.Wiki.WikiFile, where: f.board_id in subquery(ids), select: f.key)
+      ) ++ Slipdock.Meetings.audio_keys(boards)
   end
 
   @doc "Removes uploaded files by key, and any folder they leave empty."

@@ -143,8 +143,12 @@ defmodule Slipdock.Quota do
       )
 
     files = from(a in owned_attachments(user_id), select: %{id: a.id})
+    wiki_files = from(f in owned_wiki_files(user_id), select: %{id: f.id})
 
-    Repo.aggregate(subquery(union_all(union_all(cards, ^pages), ^files)), :count)
+    Repo.aggregate(
+      subquery(union_all(union_all(union_all(cards, ^pages), ^files), ^wiki_files)),
+      :count
+    )
   end
 
   def used(user_id, :cards) when is_integer(user_id) do
@@ -170,11 +174,13 @@ defmodule Slipdock.Quota do
   end
 
   def used(user_id, :files) when is_integer(user_id) do
-    Repo.aggregate(owned_attachments(user_id), :count)
+    Repo.aggregate(owned_attachments(user_id), :count) +
+      Repo.aggregate(owned_wiki_files(user_id), :count)
   end
 
   def used(user_id, :storage) when is_integer(user_id) do
     (Repo.aggregate(owned_attachments(user_id), :sum, :size) || 0) +
+      (Repo.one(from(f in owned_wiki_files(user_id), select: type(sum(f.size), :integer))) || 0) +
       (Repo.one(from(c in owned_audio(user_id), select: type(sum(c.audio_size), :integer))) || 0)
   end
 
@@ -461,6 +467,17 @@ defmodule Slipdock.Quota do
       |> Repo.all()
       |> Map.new()
 
+    # A synced vault's images and PDFs (see `Slipdock.Wiki.Files`).
+    wiki_files =
+      from(f in Slipdock.Wiki.WikiFile,
+        join: b in subquery(owners_of_boards(user_ids)),
+        on: b.id == f.board_id,
+        group_by: b.owner_id,
+        select: {b.owner_id, {count(f.id), type(sum(f.size), :integer)}}
+      )
+      |> Repo.all()
+      |> Map.new()
+
     # Meeting recordings are bytes on the disk too (see `Slipdock.Meetings`).
     audio =
       from(c in Slipdock.Meetings.Capture,
@@ -483,7 +500,10 @@ defmodule Slipdock.Quota do
       |> Map.new()
 
     Map.new(user_ids, fn id ->
-      {file_count, bytes} = Map.get(files, id, {0, 0})
+      {attached, attached_bytes} = Map.get(files, id, {0, 0})
+      {filed, filed_bytes} = Map.get(wiki_files, id, {0, 0})
+      file_count = attached + filed
+      bytes = (attached_bytes || 0) + (filed_bytes || 0)
       card_count = Map.get(cards, id, 0)
       page_count = Map.get(pages, id, 0)
 
@@ -494,7 +514,7 @@ defmodule Slipdock.Quota do
          pages: page_count,
          files: file_count,
          boards: Map.get(boards, id, 0),
-         storage: (bytes || 0) + (Map.get(audio, id) || 0)
+         storage: bytes + (Map.get(audio, id) || 0)
        }}
     end)
   end
@@ -834,6 +854,14 @@ defmodule Slipdock.Quota do
       on: p.id == a.page_id,
       join: b in subquery(owned_boards(user_id)),
       on: b.id == coalesce(c.board_id, p.board_id)
+    )
+  end
+
+  # Every file in the wikis of those boards, archived or not, for the same reason.
+  defp owned_wiki_files(user_id) do
+    from(f in Slipdock.Wiki.WikiFile,
+      join: b in subquery(owned_boards(user_id)),
+      on: b.id == f.board_id
     )
   end
 

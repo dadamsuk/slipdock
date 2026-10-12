@@ -380,6 +380,13 @@ defmodule SlipdockWeb.Wiki.Renderer do
     end
   end
 
+  # `![[photo.png]]` in the middle of a sentence: the file, inline.
+  defp ref_node(%{embed: true} = ref, context) do
+    if file_embed?(ref) and not context.static,
+      do: %MDEx.HtmlInline{literal: file_inline(ref, context)},
+      else: ref_node(Map.delete(ref, :embed), context)
+  end
+
   defp ref_node(ref, context) do
     case resolve_one(ref, context) do
       nil -> unresolved_node(ref, context)
@@ -742,9 +749,7 @@ defmodule SlipdockWeb.Wiki.Renderer do
     seen = Enum.reject([context.page && context.page.id | context.embedding], &is_nil/1)
 
     if file_embed?(ref) do
-      # A file: attachments come across with sync (W-103 R2.9); until then
-      # the embed stays exactly as written.
-      "<p>" <> escape(ref.raw) <> "</p>"
+      file_html(ref, context)
     else
       case resolve_one(ref, context) do
         {:page, page} ->
@@ -770,6 +775,28 @@ defmodule SlipdockWeb.Wiki.Renderer do
       end
     end
   end
+
+  # `![[diagram.png]]`: a file in the wiki (W-103 R2.9), drawn in place when
+  # it is an image the browser may show, linked when it is anything else, and
+  # left exactly as written when there is no such file.
+  defp file_html(ref, context), do: "<p>" <> file_inline(ref, context) <> "</p>"
+
+  defp file_inline(ref, %{board: %Slipdock.Boards.Board{} = board} = context) do
+    case Slipdock.Wiki.Files.resolve(board, ref.target, context.reader) do
+      nil ->
+        escape(ref.raw)
+
+      file ->
+        url = escape(Slipdock.Wiki.Files.url(file))
+        label = escape(ref.label || file.name)
+
+        if Slipdock.Wiki.WikiFile.image?(file),
+          do: ~s|<img class="wiki-file-embed" src="#{url}" alt="#{label}">|,
+          else: ~s|<a class="wiki-file-link" href="#{url}">#{label}</a>|
+    end
+  end
+
+  defp file_inline(ref, _context), do: escape(ref.raw)
 
   defp html_of_nodes(nodes) do
     paragraph = %MDEx.Document{nodes: [%MDEx.Paragraph{nodes: nodes}]}

@@ -30,7 +30,7 @@ defmodule Slipdock.Vaults.Sync do
   alias Slipdock.Boards.Board
   alias Slipdock.Vaults
   alias Slipdock.Vaults.{Layout, Vault}
-  alias Slipdock.Wiki.{Archive, Changes, Folder, FrontMatter, Page}
+  alias Slipdock.Wiki.{Archive, Changes, Files, Folder, FrontMatter, Page, WikiFile}
 
   @doc "The sha256 of a file's bytes, as a sync compares them."
   def hash(content), do: :crypto.hash(:sha256, content) |> Base.encode16(case: :lower)
@@ -40,7 +40,8 @@ defmodule Slipdock.Vaults.Sync do
   @doc """
   Every file of the vault `reader` may open:
 
-      %{cursor: 931, entries: [%{kind: "page", id:, board_id:, path:, hash:, code:, title:}]}
+      %{cursor: 931, entries: [%{kind: "page", id:, board_id:, path:, hash:, code:, title:},
+                               %{kind: "file", id:, board_id:, path:, hash:, size:, name:}]}
 
   `cursor` is the change feed's position taken *before* the listing was
   read, so following the feed from it sees anything that changed while it
@@ -60,7 +61,16 @@ defmodule Slipdock.Vaults.Sync do
       end)
       |> Enum.filter(&Wiki.visible?(&1, Map.get(levels, &1.board_id, :none)))
       |> Enum.map(&(entry(layout, &1) |> Map.drop([:content])))
-      |> Enum.sort_by(& &1.path)
+
+    files =
+      layout.files
+      |> Map.keys()
+      |> then(&from(f in WikiFile, where: f.id in ^&1))
+      |> Repo.all()
+      |> Enum.filter(&Access.can_read?(Map.get(levels, &1.board_id, :none)))
+      |> Enum.map(&file_entry(layout, &1))
+
+    entries = Enum.sort_by(entries ++ files, & &1.path)
 
     %{cursor: cursor, entries: entries}
   end
@@ -179,11 +189,175 @@ defmodule Slipdock.Vaults.Sync do
     end
   end
 
+  ## Other files ---------------------------------------------------------------
+
+  @doc """
+  A file that is not a note (W-103 R2.9): `{:ok, %WikiFile{}, entry}`, for
+  the caller to stream from `Slipdock.Wiki.Files.disk_path/1`.
+  """
+  def read_file(%Vault{} = vault, %User{} = reader, id, opts \\ []) do
+    layout = Layout.build(vault)
+
+    with {:ok, file} <- vault_file(layout, id, reader, :read, opts),
+         do: {:ok, file, file_entry(layout, file)}
+  end
+
+  @doc """
+  Stores the bytes at `source` as the file at `params["path"]`: a new file
+  without an `id`, new bytes (and perhaps a new place) for one with. As
+  `write_page/4`: a stale `base`, or a path another file has, is a conflict.
+  """
+  def write_file(%Vault{} = vault, %User{} = user, params, source, opts \\ []) do
+    layout = Layout.build(vault)
+
+    with {:ok, path} <- clean_path(params["path"], :file),
+         {:ok, current} <- current_file(layout, params["id"], user, opts),
+         :ok <- check_file_base(layout, current, params["base"]),
+         :ok <- file_path_free(layout, path, current),
+         {:ok, board, folder_ref} <- file_target(layout, path, user, opts),
+         {:ok, folder_id} <- ensure_folder(board, folder_ref) do
+      attrs = %{name: Path.basename(path), folder_id: folder_id}
+
+      result =
+        cond do
+          is_nil(current) ->
+            Files.create(board, attrs, source, user)
+
+          current.board_id == board.id ->
+            Files.replace(current, attrs, source)
+
+          true ->
+            with {:ok, file} <- Files.create(board, attrs, source, user),
+                 {:ok, _} <- Files.archive(current),
+                 do: {:ok, file}
+        end
+
+      with {:ok, file} <- result do
+        written = vault |> Layout.build() |> file_entry(Repo.get!(WikiFile, file.id))
+
+        {:ok,
+         if(current && current.id != file.id,
+           do: Map.put(written, :replaced, current.id),
+           else: written
+         )}
+      end
+    end
+  end
+
+  @doc """
+  Renames or moves a file without sending its bytes again: what a rename
+  on disk is. Between boards the bytes are copied to the new board's file.
+  """
+  def move_file(%Vault{} = vault, %User{} = user, id, params, opts \\ []) do
+    layout = Layout.build(vault)
+
+    with {:ok, path} <- clean_path(params["path"], :file),
+         {:ok, file} <- vault_file(layout, id, user, :write, opts),
+         :ok <- check_file_base(layout, file, params["base"]),
+         :ok <- file_path_free(layout, path, file),
+         {:ok, board, folder_ref} <- file_target(layout, path, user, opts),
+         {:ok, folder_id} <- ensure_folder(board, folder_ref) do
+      attrs = %{name: Path.basename(path), folder_id: folder_id}
+
+      result =
+        if board.id == file.board_id do
+          Files.move(file, attrs)
+        else
+          with {:ok, moved} <- Files.create(board, attrs, Files.disk_path(file), user),
+               {:ok, _} <- Files.archive(file),
+               do: {:ok, moved}
+        end
+
+      with {:ok, moved} <- result do
+        written = vault |> Layout.build() |> file_entry(Repo.get!(WikiFile, moved.id))
+        {:ok, if(moved.id != file.id, do: Map.put(written, :replaced, file.id), else: written)}
+      end
+    end
+  end
+
+  @doc "Archives a file whose copy on disk was deleted, guarded by its base."
+  def archive_file(%Vault{} = vault, %User{} = user, id, base, opts \\ []) do
+    layout = Layout.build(vault)
+
+    with {:ok, file} <- vault_file(layout, id, user, :write, opts),
+         :ok <- check_file_base(layout, file, base),
+         {:ok, archived} <- Files.archive(file) do
+      {:ok, %{kind: "file", id: archived.id, archived: true}}
+    end
+  end
+
+  defp file_entry(layout, %WikiFile{} = file) do
+    %{
+      kind: "file",
+      id: file.id,
+      board_id: file.board_id,
+      name: file.name,
+      path: layout.files[file.id].path,
+      hash: file.sha256,
+      size: file.size
+    }
+  end
+
+  defp current_file(_layout, id, _user, _opts) when id in [nil, ""], do: {:ok, nil}
+  defp current_file(layout, id, user, opts), do: vault_file(layout, id, user, :write, opts)
+
+  defp vault_file(layout, id, user, need, opts) do
+    with {:ok, id} <- int(id),
+         %WikiFile{} = file <- Repo.get(WikiFile, id),
+         true <- Map.has_key?(layout.files, file.id) do
+      level = level(user, Repo.get!(Board, file.board_id), opts[:token])
+
+      cond do
+        not Access.can_read?(level) ->
+          {:error, :not_found, "file #{id} in this vault"}
+
+        need == :write and not Access.can_write?(level) ->
+          {:error, :forbidden, "you don't edit #{file.name}"}
+
+        true ->
+          {:ok, file}
+      end
+    else
+      {:error, _, _} = error -> error
+      _ -> {:error, :not_found, "file #{id} in this vault"}
+    end
+  end
+
+  defp check_file_base(_layout, nil, _base), do: :ok
+  defp check_file_base(_layout, _file, base) when base in [nil, ""], do: :ok
+
+  defp check_file_base(layout, file, base) do
+    if String.downcase(String.trim(base)) == file.sha256,
+      do: :ok,
+      else: {:error, :conflict, file_entry(layout, file)}
+  end
+
+  defp file_path_free(layout, path, current) do
+    case layout.file_paths[String.downcase(path)] do
+      nil -> :ok
+      id when not is_nil(current) and id == current.id -> :ok
+      id -> {:error, :conflict, file_entry(layout, Repo.get!(WikiFile, id))}
+    end
+  end
+
+  defp file_target(layout, path, user, opts) do
+    case Layout.place(layout, path) do
+      {:parent, _id} ->
+        {:error, :unprocessable_entity,
+         "#{Path.dirname(path)} is a page's own folder, which holds pages; keep files in a folder"}
+
+      other ->
+        with {:ok, board, nil, folder_ref} <- target(layout, other, user, opts),
+             do: {:ok, board, folder_ref}
+    end
+  end
+
   ## The parts ----------------------------------------------------------------
 
   @doc """
   A vault path as a sync may name it: relative, forward slashes, no `.` or
-  `..` segment, no hidden segment, ending in `.md`.
+  `..` segment, no hidden segment — ending in `.md` for a page (`:markdown`),
+  and in anything else for a file (`:file`).
   """
   def clean_path(path, ext \\ :markdown)
 
@@ -199,6 +373,9 @@ defmodule Slipdock.Vaults.Sync do
 
       ext == :markdown and not String.ends_with?(String.downcase(path), ".md") ->
         {:error, :unprocessable_entity, "#{path} is not a Markdown file"}
+
+      ext == :file and String.ends_with?(String.downcase(path), ".md") ->
+        {:error, :unprocessable_entity, "#{path} is a Markdown file, so a page, not a file"}
 
       true ->
         {:ok, Enum.join(segments, "/")}

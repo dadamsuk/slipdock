@@ -15,7 +15,15 @@ defmodule SlipdockCLI.FakeVault do
   def start(opts \\ []) do
     {:ok, pid} =
       Agent.start_link(fn ->
-        %{pages: %{}, next: 1, cursor: 0, normalise: opts[:normalise], fail: nil, calls: []}
+        %{
+          pages: %{},
+          files: %{},
+          next: 1,
+          cursor: 0,
+          normalise: opts[:normalise],
+          fail: nil,
+          calls: []
+        }
       end)
 
     pid
@@ -63,7 +71,124 @@ defmodule SlipdockCLI.FakeVault do
 
   defp bump(s), do: %{s | cursor: s.cursor + 1}
 
+  @doc "A file that is not a note, put on the server side (ids shared with pages, as on the server they are not)."
+  def put_file(vault, path, bytes) do
+    Agent.get_and_update(vault, fn s ->
+      case Enum.find(s.files, fn {_id, f} -> f.path == path end) do
+        {id, f} ->
+          {id, bump(%{s | files: Map.put(s.files, id, %{f | bytes: bytes})})}
+
+        nil ->
+          {s.next,
+           bump(%{
+             s
+             | files: Map.put(s.files, s.next, %{path: path, bytes: bytes}),
+               next: s.next + 1
+           })}
+      end
+    end)
+  end
+
+  def files(vault), do: Agent.get(vault, fn s -> s.files end)
+
+  def file_by_path(vault, path) do
+    vault
+    |> files()
+    |> Enum.find_value(fn {id, f} -> if f.path == path, do: Map.put(f, :id, id) end)
+  end
+
+  def archive_file_server(vault, id),
+    do: Agent.update(vault, fn s -> bump(%{s | files: Map.delete(s.files, id)}) end)
+
   ## The remote, as the engine calls it -------------------------------------
+
+  @impl true
+  def read_file(vault, id, dest) do
+    case Agent.get(vault, fn s -> s.files[id] end) do
+      nil ->
+        {:error, "file #{id} not found (HTTP 404)"}
+
+      f ->
+        File.write!(dest, f.bytes)
+        {:ok, hash(f.bytes)}
+    end
+  end
+
+  @impl true
+  def write_file(vault, id, params, source) do
+    bytes = File.read!(source)
+
+    Agent.get_and_update(vault, fn s ->
+      s = %{s | calls: [{:write_file, id, params["path"]} | s.calls]}
+      path = params["path"]
+
+      taken =
+        Enum.find(s.files, fn {other, f} ->
+          other != id and String.downcase(f.path) == String.downcase(path)
+        end)
+
+      cond do
+        s.fail ->
+          {{:error, s.fail}, %{s | fail: nil}}
+
+        taken ->
+          {other, f} = taken
+          {{:conflict, file_entry(other, f)}, s}
+
+        is_nil(id) ->
+          f = %{path: path, bytes: bytes}
+
+          {{:ok, file_entry(s.next, f)},
+           bump(%{s | files: Map.put(s.files, s.next, f), next: s.next + 1})}
+
+        params["base"] && params["base"] != hash(s.files[id].bytes) ->
+          {{:conflict, file_entry(id, s.files[id])}, s}
+
+        true ->
+          f = %{path: path, bytes: bytes}
+          {{:ok, file_entry(id, f)}, bump(%{s | files: Map.put(s.files, id, f)})}
+      end
+    end)
+  end
+
+  @impl true
+  def move_file(vault, id, params) do
+    Agent.get_and_update(vault, fn s ->
+      s = %{s | calls: [{:move_file, id, params["path"]} | s.calls]}
+
+      case s.files[id] do
+        nil ->
+          {{:error, "not found"}, s}
+
+        f ->
+          if params["base"] && params["base"] != hash(f.bytes) do
+            {{:conflict, file_entry(id, f)}, s}
+          else
+            f = %{f | path: params["path"]}
+            {{:ok, file_entry(id, f)}, bump(%{s | files: Map.put(s.files, id, f)})}
+          end
+      end
+    end)
+  end
+
+  @impl true
+  def archive_file(vault, id, base) do
+    Agent.get_and_update(vault, fn s ->
+      s = %{s | calls: [{:archive_file, id} | s.calls]}
+
+      case s.files[id] do
+        nil ->
+          {{:error, "not found"}, s}
+
+        f ->
+          if base && base != hash(f.bytes),
+            do: {{:conflict, file_entry(id, f)}, s},
+            else:
+              {{:ok, %{"id" => id, "archived" => true}},
+               bump(%{s | files: Map.delete(s.files, id)})}
+      end
+    end)
+  end
 
   @impl true
   def list(vault) do
@@ -72,7 +197,8 @@ defmodule SlipdockCLI.FakeVault do
         for {id, p} <- s.pages,
             do: %{"kind" => "page", "id" => id, "path" => p.path, "hash" => hash(p.content)}
 
-      {:ok, %{"cursor" => s.cursor, "entries" => entries}}
+      files = for {id, f} <- s.files, do: file_entry(id, f)
+      {:ok, %{"cursor" => s.cursor, "entries" => entries ++ files}}
     end)
   end
 
@@ -155,6 +281,15 @@ defmodule SlipdockCLI.FakeVault do
       {:ok, %{"changes" => changed, "cursor" => s.cursor, "more" => false, "resync" => false}}
     end)
   end
+
+  defp file_entry(id, f),
+    do: %{
+      "kind" => "file",
+      "id" => id,
+      "path" => f.path,
+      "hash" => hash(f.bytes),
+      "size" => byte_size(f.bytes)
+    }
 
   defp entry(id, p),
     do: %{
