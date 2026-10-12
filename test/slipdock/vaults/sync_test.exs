@@ -466,4 +466,38 @@ defmodule Slipdock.Vaults.SyncTest do
       assert entry.content == "b"
     end
   end
+
+  describe "an Obsidian vault imported (R9.2)" do
+    # What `slipdock vault import` sends is the file as it is on disk; the
+    # server must hand the same bytes back, or a later `sync init` would
+    # see every note as changed on both sides.
+    @samples %{
+      "Front matter.md" =>
+        "---\n# kept\nzeta: 1\ntags: [a, b]\naliases:\n  - Other name\nalpha: \"two\"\n---\nBody with #tag and [[Link]]\n",
+      "Drawing.excalidraw.md" =>
+        "---\nexcalidraw-plugin: parsed\ntags: [excalidraw]\n---\n==⚠  Switch to EXCALIDRAW VIEW in the MORE OPTIONS menu of this document. ⚠==\n\n# Text Elements\nHello ^abc123\n\n%%\n# Drawing\n```compressed-json\nN4KAkARALgngDgUwgLgAQQQDwMYEMA2AlgCYBOuA7hADTgQBuCpAzoQPYB2KqATLZMzYBXUtiRoIACyhQ4zZAHoFAc0JRJQgEYA6bGwC2CgF7N6hbEcK4OCtptbErHALRY8RMpWdx8Q1TdIEfARcZgRmBShcZQUebQBGAHZ4mjoghH0EDihmbgBtcDBQMBKIEm4IAElUyTQAawQcmQBGfQBhJlZURtwATgAOfQA5TrSq3QAFeXbS9g72Wt0hiF\n```\n%%\n",
+      "Secret.md" => "Before %%🔐β Y2lwaGVydGV4dA== 🔐%% after\n",
+      "No newline at end.md" => "just text"
+    }
+
+    test "a note's file is the bytes it was imported from", %{vault: vault, user: user} do
+      for {path, content} <- @samples do
+        {:ok, written} = Sync.write_page(vault, user, %{"path" => path, "content" => content})
+        assert written.path == path
+        assert written.content == content, "#{path} came back changed"
+        assert written.hash == Sync.hash(content)
+      end
+
+      listed = Sync.listing(vault, user).entries |> Map.new(&{&1.path, &1.hash})
+      for {path, content} <- @samples, do: assert(listed[path] == Sync.hash(content))
+    end
+
+    test "a note in a mapped folder lands on that board", %{vault: vault, user: user, jobs: jobs} do
+      {:ok, written} =
+        Sync.write_page(vault, user, %{"path" => "Jobs/Acme/Offer.md", "content" => "offer"})
+
+      assert written.board_id == jobs.id
+      assert written.content == "offer"
+    end
+  end
 end

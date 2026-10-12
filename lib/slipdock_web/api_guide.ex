@@ -1726,7 +1726,11 @@ defmodule SlipdockWeb.APIGuide do
     binds a local folder and `slipdock sync` (or `--watch`, or `slipdock sync
     service install`) keeps it level with the vault both ways; the folder
     stays a valid Obsidian vault. `slipdock sync status` says what is waiting
-    on each side and which conflict copies are left. Underneath is
+    on each side and which conflict copies are left. An existing Obsidian
+    vault comes in once with `slipdock vault import DIR --vault V` (try
+    `--dry-run` first: what would be created or skipped, and the links,
+    embeds and plugin blocks that won't resolve); notes go up byte for byte,
+    nothing already in the vault is overwritten. Underneath is
     `/api/vaults/:id/sync`:
 
     ```sh

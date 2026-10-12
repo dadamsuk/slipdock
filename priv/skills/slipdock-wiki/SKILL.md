@@ -185,6 +185,12 @@ version and saves the local one beside it as `Name (conflict DATE host).md`.
 user keeps notes in a synced folder, editing the file and letting sync carry it
 is as good as `page edit` — but don't do both to one note at once.
 
+`slipdock vault import <dir> --vault V --dry-run` reports what bringing an
+existing Obsidian vault in would create or skip and which links, embeds and
+plugin blocks won't resolve; without `--dry-run` it does it (one way, once,
+never overwriting what the vault has). Run the dry run and show the user before
+the real import: it creates a page for every note.
+
 On a board in a vault, a note's front matter `tags` and inline `#tags` (and
 nested `#area/sub`) are its own tags, apart from the board's card tags:
 `slipdock page tags <board>` counts them, `slipdock page ls <board> --note-tag

@@ -2569,6 +2569,40 @@ beside it. `sync` warns when Obsidian Sync, Dropbox, iCloud Drive,
 OneDrive, Google Drive or Syncthing seems to be syncing the same folder:
 two of them undo each other's changes and make conflicts out of nothing.
 
+### Importing an Obsidian vault
+
+An Obsidian vault you already have comes in once with `slipdock vault import`,
+and then the same folder carries on as a synced mirror:
+
+```sh
+slipdock vault import ~/Obsidian --vault Brain --dry-run   # what would happen; nothing is written
+slipdock vault import ~/Obsidian --vault Brain             # do it
+slipdock sync init ~/Obsidian --vault Brain                # then keep it level, both ways
+```
+
+Each path goes where the vault's mappings send it (the longest prefix
+wins), each note becomes a page and every other file — images, PDFs,
+drawings, `.canvas` — a file at the same vault path. A note goes up byte for
+byte: its front matter (key order, quoting and comments), tags, aliases and
+links, an Excalidraw drawing's `.excalidraw.md`, and Meld's ciphertext,
+which is never decrypted. What the import leaves out, it says: whatever
+sync leaves alone (`.obsidian/`, `.trash/`, `.slipdockignore`), paths no
+mapping covers, files over 250 MB, and paths the vault already has — the
+same bytes count as already there, anything else is listed and left as it
+is, never overwritten.
+
+The dry run also reads every note's `[[links]]`, `![[embeds]]` and local
+Markdown links, and lists those that would find nothing — by Obsidian's
+rules, against the folder and what is already in the vault: a bare name
+finds a note or file of that name anywhere, `Folder/Note` one whose path
+ends that way, and an alias counts as a name. It lists what only an
+Obsidian plugin draws (Dataview, Tasks, Templater, a Kanban board, a
+Canvas), which comes across as the text it is. `--all` shows every line of
+a long list, `--json` all of it.
+
+The folder's files are not touched. The import remembers what each became in
+`.slipdock/import.json`, so running it again sends only what is new.
+
 ## Moving boards between servers
 
 A board as one JSON file that another Slipdock can read back: its lists, its
