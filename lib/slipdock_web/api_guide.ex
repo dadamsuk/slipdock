@@ -1081,8 +1081,11 @@ defmodule SlipdockWeb.APIGuide do
       this is across all of them at once.
 
     Each result is a card, with `matches`: the chunks that matched, each with
-    its `kind` (`card`, `comment`, `status_update`) and the text. Read the
-    match, not just the title — it is why the card came back. Then
+    its `kind` (`card`, `comment`, `status_update`, `transcript`, …), the text
+    and a `url` that lands on that chunk rather than the card —
+    `…/cards/12?at=comment-7`, `…/cards/12?at=transcript-5-part-2`. Read the
+    match, not just the title — it is why the card came back — and give the
+    person the match's `url` when you point them at it. Then
     `GET /api/cards/<id>` for the whole thing before acting on it.
 
     ```sh

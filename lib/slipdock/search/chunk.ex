@@ -166,7 +166,7 @@ defmodule Slipdock.Search.Chunk do
   defp transcript_chunks(%Card{attachments: list} = card) when is_list(list) do
     for %{transcript_status: "done", transcript: text} = a <- list,
         is_binary(text) and String.trim(text) != "",
-        parts = split_lines(String.trim(text), @max_section),
+        parts = transcript_parts(text),
         {part, n} <- Enum.with_index(parts, 1) do
       heading =
         "Transcript of the recording “#{a.filename}” on card “#{card.title}” " <>
@@ -186,6 +186,17 @@ defmodule Slipdock.Search.Chunk do
   end
 
   defp transcript_chunks(_card), do: []
+
+  @doc """
+  A transcript as the parts it is indexed in: whole lines, as many as fit a
+  chunk. The card panel draws it in the same parts, so a search result can
+  open it at the one that matched (see `SlipdockWeb.SearchLinks`).
+  """
+  @spec transcript_parts(String.t() | nil) :: [String.t()]
+  def transcript_parts(text) when is_binary(text),
+    do: split_lines(String.trim(text), @max_section)
+
+  def transcript_parts(_), do: []
 
   # Whole lines, as many as fit; a single line longer than `max` (a speaker
   # who never paused, a transcript with no line breaks) is cut between words.

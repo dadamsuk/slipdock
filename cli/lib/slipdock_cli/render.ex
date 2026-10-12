@@ -576,6 +576,8 @@ defmodule SlipdockCLI.Render do
       |> Enum.each(fn m ->
         label = if (m["section"] || "") != "", do: m["section"], else: kind_label(m["kind"])
         IO.puts(dim("   [#{label}] ") <> snippet(m, full?))
+        # Where it is: the comment, update or transcript part, not just the card.
+        if full? and m["url"], do: IO.puts(dim("     " <> m["url"]))
       end)
 
       IO.puts("")

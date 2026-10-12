@@ -272,7 +272,7 @@ defmodule SlipdockWeb.SearchLiveTest do
     render_async(view)
 
     assert view
-           |> element("#result-card-#{ctx.refunds.id} a")
+           |> element("#result-card-#{ctx.refunds.id} > a")
            |> render() =~ "/boards/#{ctx.board.id}/cards/#{ctx.refunds.id}"
   end
 end

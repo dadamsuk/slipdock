@@ -1223,7 +1223,16 @@ never appear in what comes back. A result is a **card**, because a card is what
 you open. Under it are the chunks that actually matched — the comment, the
 status update, the description — each labelled with what it is. That matters: a
 card whose only match is a two-year-old comment looks exactly like a card whose
-title is a bullseye until you can see which it was. Filter to one board or
+title is a bullseye until you can see which it was.
+
+Each match is a link of its own, to where it is rather than to the card: the
+card opens scrolled to that comment, status update or meeting quote, lit up for
+a moment. A recording's transcript is labelled with the file and the part
+(*transcript of call.mp3, part 2 of 5*); its link opens the transcript at that
+part, shaded. A page section's link goes to its heading. The links are
+`…/cards/<id>?at=comment-7`, `?at=status-update-7`, `?at=provenance-7` and
+`?at=transcript-5-part-2`, so they can be shared; the API gives each match
+its `url`, and `slipdock search --full` prints it. Filter to one board or
 include archived cards.
 
 Either mode's box has a **star**: press it and the query is saved. In Ask the
