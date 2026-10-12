@@ -90,6 +90,38 @@ defmodule SlipdockWeb.AILiveTest do
     assert "fresh" in Enum.map(Boards.list_tags(board.id), & &1.name)
   end
 
+  test "edit mode tags several cards in one step", %{
+    conn: conn,
+    board: board,
+    card: card,
+    backlog: backlog
+  } do
+    other = card_fixture(backlog, %{"title" => "Book the venue"})
+
+    Slipdock.AIStub.reply_with(%{
+      "reply" => "I'll tag both as urgent, a new tag.",
+      "actions" => [%{"type" => "tag", "card_ids" => [card.id, other.id], "add" => ["urgent"]}]
+    })
+
+    {:ok, view, _html} = live(conn, ~p"/boards/#{board}")
+    view |> element("#board-chat") |> render_click()
+    view |> element("#page-ai button[phx-value-mode=edit]") |> render_click()
+    view |> form("#page-ai-form-0", %{"message" => "Tag both urgent"}) |> render_submit()
+
+    html = render_async(view)
+
+    assert html =~
+             "Create tag “urgent” and add it to 2 cards: “Write the plan”, “Book the venue”"
+
+    refute "urgent" in Enum.map(Boards.list_tags(board.id), & &1.name)
+
+    html = view |> element("#page-ai button[phx-click=apply]") |> render_click()
+    assert html =~ "Applied"
+
+    for id <- [card.id, other.id],
+        do: assert(Enum.map(Boards.get_card!(id).tags, & &1.name) == ["urgent"])
+  end
+
   test "read-only users only get chat mode", %{conn: conn, board: board} do
     stranger = user_fixture("stranger@example.com")
     owner = user_fixture()

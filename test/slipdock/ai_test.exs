@@ -841,6 +841,144 @@ defmodule Slipdock.AITest do
       refute "new" in Enum.map(Boards.list_tags(ctx.board.id), & &1.name)
     end
 
+    test "a tag action tags several cards in one step, leaving out those that have it", ctx do
+      ops = Enum.find(ctx.board.tags, &(&1.name == "ops"))
+      beta = card_fixture(ctx.backlog, %{"title" => "Beta"}) |> then(&Boards.get_card!(&1.id))
+      gamma = card_fixture(ctx.doing, %{"title" => "Gamma"}) |> then(&Boards.get_card!(&1.id))
+      {:ok, _} = Boards.toggle_card_tag(gamma, ops)
+      gamma = Boards.get_card!(gamma.id)
+      scope = %{scope_for(ctx) | cards: [ctx.card, beta, gamma]}
+
+      [step] =
+        Actions.prepare(
+          [
+            %{
+              "type" => "tag",
+              "card_ids" => [ctx.card.id, "##{beta.id}", gamma.id],
+              "add" => "OPS"
+            }
+          ],
+          scope
+        )
+
+      assert step.label == "Add tag “ops” to 2 cards: “Alpha”, “Beta”"
+      run!([step])
+
+      for card <- [ctx.card, beta, gamma],
+          do: assert(Enum.map(Boards.get_card!(card.id).tags, & &1.name) == ["ops"])
+
+      # Everything already tagged: adding is no step; removing is one, for all three.
+      cards = Enum.map([ctx.card, beta, gamma], &Boards.get_card!(&1.id))
+      ids = Enum.map(cards, & &1.id)
+
+      assert [] =
+               Actions.prepare([%{"type" => "tag", "card_ids" => ids, "add" => ["ops"]}], %{
+                 scope
+                 | cards: cards
+               })
+
+      [off] =
+        Actions.prepare(
+          [%{"type" => "tag", "card_ids" => ids, "remove" => ["ops"]}],
+          %{scope | cards: cards}
+        )
+
+      assert off.label == "Remove tag “ops” from 3 cards: “Alpha”, “Beta”, “Gamma”"
+      run!([off])
+      assert Enum.all?(ids, &(Boards.get_card!(&1).tags == []))
+    end
+
+    test "a tag action naming a new tag creates it once, on Apply, for every card", ctx do
+      beta = card_fixture(ctx.backlog, %{"title" => "Beta"}) |> then(&Boards.get_card!(&1.id))
+
+      steps =
+        Actions.prepare(
+          [
+            %{
+              "type" => "tag",
+              "card_ids" => [ctx.card.id, beta.id],
+              "add" => ["Urgent", "ux"]
+            }
+          ],
+          %{scope_for(ctx) | cards: [ctx.card, beta]}
+        )
+
+      assert Enum.map(steps, & &1.label) == [
+               "Create tag “Urgent” and add it to 2 cards: “Alpha”, “Beta”",
+               "Add tag “ux” to 2 cards: “Alpha”, “Beta”"
+             ]
+
+      refute "Urgent" in Enum.map(Boards.list_tags(ctx.board.id), & &1.name)
+      run!(steps)
+
+      assert [urgent] = Enum.filter(Boards.list_tags(ctx.board.id), &(&1.name == "Urgent"))
+
+      for card <- [ctx.card, beta] do
+        tags = Boards.get_card!(card.id).tags
+        assert Enum.sort(Enum.map(tags, & &1.name)) == ["Urgent", "ux"]
+        assert urgent.id in Enum.map(tags, & &1.id)
+      end
+    end
+
+    test "a tag action reports cards it can't touch and names it can't be", ctx do
+      reader = user_fixture("reader2@example.com")
+      long = String.duplicate("x", 31)
+
+      prepare = fn action, scope -> Actions.prepare([Map.put(action, "type", "tag")], scope) end
+
+      assert [%{error: "no cards given"}] = prepare.(%{"add" => ["ops"]}, scope_for(ctx))
+
+      assert [%{error: "no tags given"}] =
+               prepare.(%{"card_ids" => [ctx.card.id]}, scope_for(ctx))
+
+      # A card off the page is refused on its own; the rest still get the tag.
+      [off_page, step] =
+        prepare.(%{"card_ids" => [ctx.card.id, 999_999], "add" => ["ops"]}, scope_for(ctx))
+
+      assert off_page.label == "Tag card 999999"
+      assert off_page.error =~ "isn't on this page"
+      assert step.label == "Add tag “ops” to “Alpha”"
+
+      # Nothing left to tag makes no tag step at all.
+      assert [%{error: "card #999999 isn't on this page"}] =
+               prepare.(%{"card_ids" => [999_999], "add" => ["ops"]}, scope_for(ctx))
+
+      assert [%{error: msg}] =
+               prepare.(
+                 %{"card_ids" => [ctx.card.id], "add" => ["ops"]},
+                 Map.put(scope_for(ctx), :user, reader)
+               )
+
+      assert msg =~ "read-only"
+
+      assert [blank, too_long, ghost] =
+               prepare.(
+                 %{"card_ids" => [ctx.card.id], "add" => [" ", long], "remove" => ["ghost"]},
+                 scope_for(ctx)
+               )
+
+      assert blank.error == "a tag needs a name"
+      assert too_long.error == "a tag name is at most 30 characters"
+      assert ghost.error =~ "no tag called “ghost”"
+      assert Enum.map(Boards.list_tags(ctx.board.id), & &1.name) |> Enum.sort() == ["ops", "ux"]
+    end
+
+    test "a tag action tags the cards still there when one is archived before Apply", ctx do
+      beta = card_fixture(ctx.backlog, %{"title" => "Beta"}) |> then(&Boards.get_card!(&1.id))
+
+      [step] =
+        Actions.prepare(
+          [%{"type" => "tag", "card_ids" => [ctx.card.id, beta.id], "add" => ["ux"]}],
+          %{scope_for(ctx) | cards: [ctx.card, beta]}
+        )
+
+      {:ok, _} = Boards.archive_card(beta)
+      [applied] = Actions.apply([step])
+
+      assert applied.result == {:error, "“Beta”: the card was archived"}
+      assert Enum.map(Boards.get_card!(ctx.card.id).tags, & &1.name) == ["ux"]
+    end
+
     test "a tag step is idempotent if the card changed in between", ctx do
       [add] = propose_change(ctx, %{"add_tags" => ["ops"]})
       # Someone else tags it first; the step must not toggle it back off.
@@ -1132,6 +1270,8 @@ defmodule Slipdock.AITest do
 
       assert system =~ "ctx"
       assert system =~ "\"type\": \"update\""
+      # Tagging several cards is one action, not an update per card.
+      assert system =~ "\"type\": \"tag\", \"card_ids\""
     end
 
     test "chat/3 carries the recent history" do

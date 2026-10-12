@@ -1316,7 +1316,10 @@ is ever sent to a model unless you ask.
   comment, add or tick checklist items, archive. Ask for a tag the board
   doesn't have yet and it makes it: the step reads *Create tag “x” and add
   it to …*, and the tag (in the default colour, on the top board so its
-  sub-boards share it) is only made when you apply. It can also **archive a
+  sub-boards share it) is only made when you apply. Ask for a tag on several
+  cards at once (*tag everything in Doing as urgent*) and it is one step per
+  tag naming every card it touches — *Add tag “urgent” to 3 cards: …* —
+  leaving out any that already have it. It can also **archive a
   wiki page**, named by its code or its exact title — the one change it
   makes to the wiki, since a document is written in the wiki's own editor
   rather than dictated here. Relative dates are
