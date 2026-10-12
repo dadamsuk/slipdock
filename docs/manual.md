@@ -2436,6 +2436,21 @@ mappings onto it.
 Vaults are made and mapped from the CLI (`slipdock vault`), the API
 (`/api/vaults`) and MCP (`list_vaults`, `manage_vault`).
 
+**Links across a vault.** On a board in a vault, a plain `[[Note]]` looks
+on its own board first and then on every board of the vault. Every page
+there has a vault path — its mapping's path, the folders below it, the pages
+it sits under, its title: the layout an export writes — and a link matches
+by name (title, slug or alias, compared as file names are, case aside).
+When several pages match, the shortest path wins; write more of it,
+`[[X/Dup]]` or `[[Projects/X/Dup]]`, to pick another, the way Obsidian
+does. `[[QVM/Page]]` still means board QVM first. The words are never
+rewritten, a resolved link is kept by id so a rename cannot break it, and a
+page written later brings links on any board of the vault to life. Backlinks
+cross boards with the links. `slipdock vault resolve <vault> <link>` says
+which page a link finds; `slipdock vault wanted <vault>` (or
+`GET /api/vaults/:id/wanted`, MCP `page_info` with `vault`) lists the pages
+wanted anywhere in it. A board in no vault resolves exactly as before.
+
 **Tags in notes.** On a board in a vault, a note's front matter `tags` and
 every inline `#tag` in its body are its tags, nested ones (`#area/sub`)
 included, as Obsidian reads them: not inside code, headings, links or HTML,
@@ -3304,6 +3319,7 @@ slipdock vault new Notes | slipdock vault ls      # board wikis laid out as one 
 slipdock vault map Notes /Jobs --board jobs [--folder Notes]   # a vault path onto a wiki
 slipdock vault locate Notes /Jobs/Acme.md       # which mapping a path lands in (longest prefix)
 slipdock vault unmap Notes /Jobs | slipdock vault rm Notes      # the pages always stay
+slipdock vault resolve Notes X/Dup | slipdock vault wanted Notes   # links across the whole vault
 slipdock page tags brain | slipdock page ls brain --note-tag area   # a vault's notes' own #tags
 slipdock page props W-31 [--file F | --clear]  # the front matter its file came with, kept exactly
 slipdock page ls qvm-v1-rem --q retry           # the board's wiki; --tree for the shape of it

@@ -503,6 +503,8 @@ defmodule SlipdockWeb.Router do
     patch "/vaults/:id", VaultController, :update
     delete "/vaults/:id", VaultController, :delete
     get "/vaults/:id/locate", VaultController, :locate
+    get "/vaults/:id/resolve", VaultController, :resolve
+    get "/vaults/:id/wanted", VaultController, :wanted
     post "/vaults/:id/mappings", VaultController, :map
     delete "/vaults/:id/mappings", VaultController, :unmap
     delete "/vaults/:id/mappings/:mapping", VaultController, :unmap

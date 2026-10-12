@@ -1694,6 +1694,15 @@ defmodule SlipdockWeb.APIGuide do
     On a shell: `slipdock vault ls|show|new|rename|rm|map|unmap|locate`; over
     MCP, `list_vaults` and `manage_vault`.
 
+    **Links reach across the vault.** On a board in a vault, a plain
+    `[[Note]]` tries its own board, then every board of the vault: each page
+    has a vault path (mapping path, folders, parent pages, title), the last
+    part of a link matches a title, slug or alias, any parts before it the
+    end of the path, and the shortest path wins a tie — so `[[X/Note]]`
+    picks one. `GET /api/vaults/:id/resolve?link=X/Note` answers which page
+    and its path; `GET /api/vaults/:id/wanted` lists what is linked to and
+    unwritten anywhere in the vault. Boards in no vault are unchanged.
+
     **Notes in a vault tag themselves.** On a board in a vault, a page's front
     matter `tags` and its inline `#tags` (nested `#area/sub` too; not in code,
     headings or links; an all-digit `#412` is still a card) are its

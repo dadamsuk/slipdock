@@ -81,7 +81,7 @@ defmodule SlipdockWeb.API.VaultsTest do
     assert %{"error" => error} =
              conn |> delete("/api/vaults/Notes/mappings") |> json_response(400)
 
-    assert error =~ "which mapping"
+    assert error =~ "mapping"
 
     # A board you can only read cannot go into your vault.
     owner = user_fixture("someone@example.com")
@@ -117,5 +117,34 @@ defmodule SlipdockWeb.API.VaultsTest do
 
     assert conn |> get("/api/vaults") |> json_response(200)
     assert conn |> post("/api/vaults", %{"name" => "More"}) |> json_response(403)
+  end
+
+  test "resolve a link and list what is wanted, across the vault", %{
+    conn: conn,
+    user: user,
+    kb: kb,
+    jobs: jobs
+  } do
+    make(conn, "Notes")
+    conn |> post("/api/vaults/Notes/mappings", %{"board" => "kb"}) |> json_response(201)
+
+    conn
+    |> post("/api/vaults/Notes/mappings", %{"path" => "/Jobs", "board" => "jobs"})
+    |> json_response(201)
+
+    {:ok, note} = Wiki.create_page(jobs, %{"title" => "Acme"}, user: user)
+
+    {:ok, _} =
+      Wiki.create_page(kb, %{"title" => "Linker", "body" => "[[Acme]] [[Ghost]]"}, user: user)
+
+    found = conn |> get("/api/vaults/Notes/resolve?link=Jobs/Acme") |> json_response(200)
+    assert found["page"]["code"] == note.code
+    assert found["path"] == "/Jobs/Acme"
+
+    assert conn |> get("/api/vaults/Notes/resolve?link=Nope") |> json_response(404)
+    assert conn |> get("/api/vaults/Notes/resolve") |> json_response(400)
+
+    assert [%{"title" => "Ghost", "from" => [%{"title" => "Linker"}]}] =
+             conn |> get("/api/vaults/Notes/wanted") |> json_response(200) |> Map.fetch!("wanted")
   end
 end

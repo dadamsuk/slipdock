@@ -81,7 +81,7 @@ defmodule SlipdockWeb.API.VaultController do
   end
 
   defp present(ref) when ref in [nil, ""],
-    do: {:error, :bad_request, "say which mapping: its id, or ?path="}
+    do: {:error, :bad_request, "say which one: a mapping's id or ?path=, or a ?link="}
 
   defp present(_ref), do: :ok
 
@@ -93,6 +93,26 @@ defmodule SlipdockWeb.API.VaultController do
     with {:ok, vault} <- Vaults.get_vault(user(conn), ref),
          {:ok, mapping, rest} <- Vaults.locate(vault, params["path"] || "") do
       json(conn, %{mapping: V.vault_mapping(mapping), rest: rest})
+    end
+  end
+
+  @doc """
+  The page a link's words name in the vault — `?link=Note` or
+  `?link=Folder/Note` — as a `[[link]]` on one of its boards finds it once
+  its own board has nothing: by name, the shortest vault path winning.
+  """
+  def resolve(conn, %{"id" => ref} = params) do
+    with {:ok, vault} <- Vaults.get_vault(user(conn), ref),
+         :ok <- present(params["link"]),
+         {:ok, page, path} <- Vaults.resolve_link(vault, params["link"], user(conn)) do
+      json(conn, %{page: V.page_summary(page), path: "/" <> path})
+    end
+  end
+
+  @doc "Pages linked to but never written, across every board in the vault."
+  def wanted(conn, %{"id" => ref}) do
+    with {:ok, vault} <- Vaults.get_vault(user(conn), ref) do
+      json(conn, %{wanted: vault |> Vaults.wanted(user(conn)) |> Enum.map(&V.wanted/1)})
     end
   end
 

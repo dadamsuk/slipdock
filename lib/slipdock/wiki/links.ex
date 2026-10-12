@@ -24,7 +24,8 @@ defmodule Slipdock.Wiki.Links do
 
   import Ecto.Query, warn: false
 
-  alias Slipdock.{Access, Boards, Repo}
+  alias Slipdock.{Access, Boards, Repo, Vaults}
+  alias Slipdock.Vaults.Index
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.{Board, Card, Comment, SavedView, StatusUpdate}
   alias Slipdock.Wiki.{Link, Markup, Page}
@@ -111,9 +112,14 @@ defmodule Slipdock.Wiki.Links do
   @spec resolve(Board.t(), [map], keyword) :: [resolution]
   def resolve(%Board{} = board, refs, opts \\ []) do
     reader = Keyword.get(opts, :as)
-    Enum.map(refs, &Map.put(&1, :to, target(board, &1, reader)))
+
+    Index.cached(fn ->
+      Enum.map(refs, &Map.put(&1, :to, target(board, &1, reader)))
+    end)
   end
 
+  # The board the page is on first — or the board a `[[QVM/Page]]` names —
+  # and then, on a board in a vault, every board of the vault (W-103 R4.1).
   defp target(board, %{kind: :page} = ref, reader) do
     scope = board_for(board, ref.board, reader)
 
@@ -122,7 +128,7 @@ defmodule Slipdock.Wiki.Links do
          true <- visible_page?(page, reader) do
       {:page, page}
     else
-      _ -> nil
+      _ -> vault_target(board, ref, reader)
     end
   end
 
@@ -169,6 +175,30 @@ defmodule Slipdock.Wiki.Links do
   # An inline query is answered by `Slipdock.Wiki.Query`, not resolved to a
   # row; anything else unknown simply points at nothing.
   defp target(_board, _ref, _reader), do: nil
+
+  # Across the vault the page's board is in, by the words as written:
+  # `[[Note]]` by name, `[[Folder/Note]]` by the end of its vault path, the
+  # shortest path winning (see `Slipdock.Vaults.Index`). A board in no vault
+  # never gets here with anything to find, so it resolves as it always did.
+  defp vault_target(%Board{id: board_id}, ref, reader) do
+    case Vaults.for_board(board_id) do
+      nil ->
+        nil
+
+      vault ->
+        link = if ref.board, do: ref.board <> "/" <> ref.target, else: ref.target
+
+        vault
+        |> Index.for_vault()
+        |> Index.match(link)
+        |> Enum.find_value(fn entry ->
+          with %Page{} = page <- Repo.get(Page, entry.id),
+               true <- visible_page?(page, reader),
+               do: {:page, page},
+               else: (_ -> nil)
+        end)
+    end
+  end
 
   # An unqualified reference means "this board"; a qualified one names
   # another by code or name, and silently resolves to nothing when there is
@@ -516,8 +546,11 @@ defmodule Slipdock.Wiki.Links do
   This is the classic way a wiki grows, and a good work queue: the pages
   people keep reaching for are the pages worth writing.
   """
-  def wanted(%Board{} = board) do
-    page_ids = from(p in Page, where: p.board_id == ^board.id, select: p.id)
+  def wanted(%Board{} = board), do: wanted([board.id])
+
+  # Several boards at once: a vault's wanted pages are every board's in it.
+  def wanted(board_ids) when is_list(board_ids) do
+    page_ids = from(p in Page, where: p.board_id in ^board_ids, select: p.id)
 
     from(l in Link,
       where: l.page_id in subquery(page_ids),

@@ -58,11 +58,32 @@ defmodule SlipdockCLI.Vaults do
     end)
   end
 
+  def run("vault", ["resolve", ref | words], o) when words != [] do
+    HTTP.get("/vaults/#{enc(ref)}/resolve", link: Enum.join(words, " "))
+    |> out(o, fn r ->
+      IO.puts("#{r["page"]["code"]} #{r["page"]["title"]}  " <> Render.dim(r["path"]))
+    end)
+  end
+
+  def run("vault", ["wanted", ref], o) do
+    HTTP.get("/vaults/#{enc(ref)}/wanted")
+    |> out(o, fn
+      %{"wanted" => []} ->
+        IO.puts(Render.dim("nothing wanted: every link in the vault finds a page"))
+
+      %{"wanted" => wanted} ->
+        Enum.each(wanted, fn w ->
+          from = Enum.map_join(w["from"], ", ", & &1["code"])
+          IO.puts("[[#{w["title"]}]]  ×#{w["count"]}  " <> Render.dim("from " <> from))
+        end)
+    end)
+  end
+
   def run("vault", _args, _o),
     do:
       fail(
         "usage: slipdock vault ls | show V | new NAME | rename V NAME | rm V | " <>
-          "map V PATH --board B [--folder F] | unmap V PATH | locate V PATH"
+          "map V PATH --board B [--folder F] | unmap V PATH | locate V PATH | resolve V LINK | wanted V"
       )
 
   defp vaults([]), do: IO.puts(Render.dim("no vaults — `slipdock vault new NAME` makes one"))
