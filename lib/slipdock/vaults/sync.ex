@@ -30,7 +30,18 @@ defmodule Slipdock.Vaults.Sync do
   alias Slipdock.Boards.Board
   alias Slipdock.Vaults
   alias Slipdock.Vaults.{Layout, Vault}
-  alias Slipdock.Wiki.{Archive, Changes, Files, Folder, FrontMatter, Page, WikiFile}
+
+  alias Slipdock.Wiki.{
+    Archive,
+    Changes,
+    Files,
+    Folder,
+    FrontMatter,
+    Page,
+    Placement,
+    Placements,
+    WikiFile
+  }
 
   @doc "The sha256 of a file's bytes, as a sync compares them."
   def hash(content), do: :crypto.hash(:sha256, content) |> Base.encode16(case: :lower)
@@ -52,6 +63,8 @@ defmodule Slipdock.Vaults.Sync do
     layout = Layout.build(vault)
     levels = levels(vault, reader, opts[:token])
 
+    also = also_in(layout, Map.keys(layout.pages))
+
     entries =
       layout.pages
       |> Map.keys()
@@ -60,7 +73,7 @@ defmodule Slipdock.Vaults.Sync do
         from(p in Page, where: p.id in ^ids) |> Repo.all()
       end)
       |> Enum.filter(&Wiki.visible?(&1, Map.get(levels, &1.board_id, :none)))
-      |> Enum.map(&(entry(layout, &1) |> Map.drop([:content])))
+      |> Enum.map(&(entry(layout, &1, also) |> Map.drop([:content])))
 
     files =
       layout.files
@@ -85,9 +98,12 @@ defmodule Slipdock.Vaults.Sync do
   end
 
   # What a listing and every write answer with for a page.
-  defp entry(layout, %Page{} = page) do
+  defp entry(layout, %Page{} = page, also \\ nil) do
     placed = layout.pages[page.id]
-    content = render(page, placed)
+    also = also || also_in(layout, [page.id])
+
+    content =
+      Archive.sync_file(page, file_title: placed.stem, also_in: Map.get(also, page.id, []))
 
     %{
       kind: "page",
@@ -101,7 +117,25 @@ defmodule Slipdock.Vaults.Sync do
     }
   end
 
-  defp render(page, placed), do: Archive.sync_file(page, file_title: placed.stem)
+  # The other folders each page is filed in (R12.5), as vault paths, in the
+  # order they were added. A folder in no mapped part of the vault has no
+  # path to write, and is left out of the file (and alone on the server).
+  defp also_in(layout, page_ids) do
+    from(pl in Placement,
+      where: pl.page_id in ^page_ids,
+      order_by: [asc: pl.inserted_at, asc: pl.id],
+      select: {pl.page_id, pl.folder_id}
+    )
+    |> Repo.all()
+    |> Enum.flat_map(fn {page_id, folder_id} ->
+      case layout.folders[folder_id] do
+        nil -> []
+        "" -> []
+        dir -> [{page_id, dir}]
+      end
+    end)
+    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+  end
 
   ## Writing ------------------------------------------------------------------
 
@@ -163,6 +197,7 @@ defmodule Slipdock.Vaults.Sync do
         end
 
       with {:ok, page} <- result do
+        place_also(vault, Repo.get!(Page, page.id), content, user)
         written = vault |> Layout.build() |> entry(Repo.get!(Page, page.id))
 
         {:ok,
@@ -187,6 +222,53 @@ defmodule Slipdock.Vaults.Sync do
          {:ok, archived} <- Wiki.archive_page(page) do
       {:ok, %{kind: "page", id: archived.id, archived: true}}
     end
+  end
+
+  # A file's `also-in` (R12.5) made true: placements in vault folders it no
+  # longer names are taken away, the ones it names are added, their folders
+  # made where missing. Placements in folders outside the vault's paths are
+  # not the file's to say anything about, and stay. A path that can't be a
+  # placement — the page's home, another vault's board — is simply left out,
+  # and the file the server writes back shows that.
+  defp place_also(vault, page, content, user) do
+    {header, _body} = FrontMatter.split(content)
+
+    wanted =
+      case FrontMatter.get(FrontMatter.yaml(header), "also-in") do
+        nil -> []
+        path when is_binary(path) -> [path]
+        paths -> paths
+      end
+      |> Enum.map(&String.trim(&1, "/"))
+      |> Enum.reject(&(&1 == ""))
+
+    layout = Layout.build(vault)
+    in_vault = Placements.folders(page) |> Enum.filter(&Map.has_key?(layout.folders, &1.id))
+
+    wanted_ids =
+      Enum.flat_map(wanted, fn path ->
+        case layout.folder_dirs[String.downcase(path)] do
+          nil ->
+            case Placements.folder_at(page, "/" <> path, create: true) do
+              {:ok, folder} -> [folder.id]
+              _ -> []
+            end
+
+          id ->
+            [id]
+        end
+      end)
+
+    for folder <- in_vault, folder.id not in wanted_ids, do: Placements.remove(page, folder, user)
+
+    have = MapSet.new(in_vault, & &1.id)
+
+    for id <- Enum.uniq(wanted_ids),
+        id != page.folder_id,
+        not MapSet.member?(have, id),
+        do: Placements.add(page, Slipdock.Wiki.Folders.get!(id), user)
+
+    :ok
   end
 
   ## Other files ---------------------------------------------------------------

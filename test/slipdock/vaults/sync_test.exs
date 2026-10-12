@@ -380,4 +380,90 @@ defmodule Slipdock.Vaults.SyncTest do
       assert {:error, :not_found, _} = Sync.archive_page(vault, user, page.id, nil)
     end
   end
+
+  describe "also-in (R12.5)" do
+    alias Slipdock.Wiki.Placements
+
+    test "a page filed in other folders says so in front matter, by vault path, and only those in the vault",
+         %{vault: vault, user: user, kb: kb, jobs: jobs, notes: notes} do
+      {:ok, ideas} = Wiki.create_folder(kb, %{"name" => "Ideas"})
+      {:ok, outside} = Wiki.create_folder(jobs, %{"name" => "Elsewhere"})
+      page = page!(kb, %{"title" => "Plan", "body" => "b"})
+      %{entries: [%{hash: before}]} = Sync.listing(vault, user)
+
+      {:ok, _} = Placements.add(page, ideas, user)
+      {:ok, _} = Placements.add(page, notes, user)
+      {:ok, _} = Placements.add(page, outside, user)
+
+      {:ok, %{content: content, hash: hash}} = Sync.read_page(vault, user, page.id)
+      assert content == "---\nalso-in: [Ideas, Jobs]\n---\n\nb"
+      # Filing it elsewhere changed its file, so a sync brings it down again.
+      refute hash == before
+      assert [%{hash: ^hash}] = Sync.listing(vault, user).entries
+    end
+
+    test "editing also-in in the file changes the placements, folders made as needed",
+         %{vault: vault, user: user, kb: kb, jobs: jobs} do
+      {:ok, outside} = Wiki.create_folder(jobs, %{"name" => "Elsewhere"})
+      {:ok, ideas} = Wiki.create_folder(kb, %{"name" => "Ideas"})
+      page = page!(kb, %{"title" => "Plan", "body" => "b"})
+      {:ok, _} = Placements.add(page, ideas, user)
+      {:ok, _} = Placements.add(page, outside, user)
+      {:ok, %{hash: base}} = Sync.read_page(vault, user, page.id)
+
+      sent = "---\nalso-in: [Jobs/Acme, Later]\n---\n\nb"
+
+      {:ok, entry} =
+        Sync.write_page(vault, user, %{
+          "id" => page.id,
+          "path" => "Plan.md",
+          "content" => sent,
+          "base" => base
+        })
+
+      paths =
+        page
+        |> Placements.folders()
+        |> Enum.map(&{&1.board_id, Wiki.folder_path(&1)})
+        |> Enum.sort()
+
+      # Ideas is gone; Acme (under Notes, which /Jobs maps) and Later (on kb)
+      # are new; the folder outside the vault's paths was not the file's to touch.
+      assert paths ==
+               Enum.sort([{jobs.id, "Elsewhere"}, {jobs.id, "Notes/Acme"}, {kb.id, "Later"}])
+
+      assert entry.content == sent
+      assert entry.hash == Sync.hash(sent)
+    end
+
+    test "a new note can be filed in several folders from the start, and its home is never one",
+         %{vault: vault, user: user} do
+      sent = "---\nalso-in: [Ideas, Projects]\n---\n\nb"
+      {:ok, entry} = Sync.write_page(vault, user, %{"path" => "Ideas/Plan.md", "content" => sent})
+
+      page = Repo.get!(Page, entry.id)
+      assert page |> Placements.folders() |> Enum.map(&Wiki.folder_path/1) == ["Projects"]
+      # The home folder isn't a placement, so the file the server writes says only the other.
+      assert entry.content == "---\nalso-in: [Projects]\n---\n\nb"
+    end
+
+    test "taking also-in out takes the placements in the vault away, and the key stays out",
+         %{vault: vault, user: user, kb: kb} do
+      {:ok, ideas} = Wiki.create_folder(kb, %{"name" => "Ideas"})
+      page = page!(kb, %{"title" => "Plan", "body" => "b"})
+      {:ok, _} = Placements.add(page, ideas, user)
+      {:ok, %{hash: base}} = Sync.read_page(vault, user, page.id)
+
+      {:ok, entry} =
+        Sync.write_page(vault, user, %{
+          "id" => page.id,
+          "path" => "Plan.md",
+          "content" => "b",
+          "base" => base
+        })
+
+      assert Placements.folders(page) == []
+      assert entry.content == "b"
+    end
+  end
 end
