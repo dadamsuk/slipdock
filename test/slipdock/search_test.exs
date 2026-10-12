@@ -144,6 +144,105 @@ defmodule Slipdock.SearchTest do
     end
   end
 
+  describe "recording transcripts" do
+    setup ctx do
+      Slipdock.TestConfig.own_uploads_dir()
+      card = card_fixture(ctx.column, %{"title" => "Call with Acme"})
+      path = Path.join(System.tmp_dir!(), "rec-#{System.unique_integer([:positive])}")
+      File.write!(path, "ID3")
+      on_exit(fn -> File.rm(path) end)
+
+      {:ok, audio} =
+        Boards.add_attachment(card, %{filename: "call.mp3", content_type: "audio/mpeg"}, path)
+
+      %{card: card, audio: audio}
+    end
+
+    defp transcribed(audio, text) do
+      {:ok, audio} =
+        Boards.update_attachment_transcript(audio, %{transcript_status: "done", transcript: text})
+
+      audio
+    end
+
+    test "a finished transcript is indexed, and finds its card", ctx do
+      transcribed(ctx.audio, "Steve: the pallet racking quote expires on Thursday")
+      # Finishing a transcript queues the card.
+      assert {:ok, _} = Indexer.flush()
+
+      assert [%Embedding{body: body, source_id: id, section: ""}] =
+               Repo.all(from(e in Embedding, where: e.kind == "transcript"))
+
+      assert id == ctx.audio.id
+      assert body =~ "Transcript of the recording “call.mp3” on card “Call with Acme”"
+      assert body =~ "pallet racking quote expires"
+
+      assert {:ok, [result | _]} = Search.search(ctx.owner, "pallet racking quote")
+      assert result.card.id == ctx.card.id
+      assert Enum.any?(result.matches, &(&1.kind == "transcript"))
+      assert Embedding.label("transcript") == "recording transcript"
+    end
+
+    test "nothing is indexed until it is done, or when it found no speech", ctx do
+      {:ok, _} =
+        Boards.update_attachment_transcript(ctx.audio, %{
+          transcript_status: "failed",
+          transcript_error: "refused"
+        })
+
+      index(ctx.card)
+      assert Repo.aggregate(from(e in Embedding, where: e.kind == "transcript"), :count) == 0
+
+      transcribed(ctx.audio, nil)
+      index(ctx.card)
+      assert Repo.aggregate(from(e in Embedding, where: e.kind == "transcript"), :count) == 0
+    end
+
+    test "a long transcript is split between lines into numbered parts", ctx do
+      lines =
+        for n <- 1..60, do: "Speaker #{rem(n, 2) + 1}: line #{n}#{String.duplicate(" words", 8)}"
+
+      transcribed(ctx.audio, Enum.join(lines, "\n"))
+      card = hd(Search.load_cards([ctx.card.id]))
+
+      parts = card |> Chunk.for_card() |> Enum.filter(&(&1.kind == "transcript"))
+      assert length(parts) > 1
+      assert Enum.map(parts, & &1.section) == for(n <- 1..length(parts), do: "part #{n}")
+      assert hd(parts).body =~ "part 1 of #{length(parts)}:"
+
+      # Every line is in exactly one part, whole.
+      text = Enum.map_join(parts, "\n", &(&1.body |> String.split("\n", parts: 2) |> List.last()))
+      assert String.split(text, "\n") == lines
+    end
+
+    test "one line longer than a chunk is cut between words, losing none", ctx do
+      words = for n <- 1..600, do: "w#{n}"
+      transcribed(ctx.audio, Enum.join(words, " "))
+      card = hd(Search.load_cards([ctx.card.id]))
+
+      parts = card |> Chunk.for_card() |> Enum.filter(&(&1.kind == "transcript"))
+      assert length(parts) > 1
+
+      rejoined =
+        Enum.flat_map(
+          parts,
+          &(&1.body |> String.split("\n", parts: 2) |> List.last() |> String.split(" "))
+        )
+
+      assert rejoined == words
+    end
+
+    test "deleting the recording takes its transcript out of search", ctx do
+      audio = transcribed(ctx.audio, "the warehouse lease renewal")
+      {:ok, _} = Indexer.flush()
+      assert Repo.aggregate(from(e in Embedding, where: e.kind == "transcript"), :count) == 1
+
+      {:ok, _} = Boards.delete_attachment(audio)
+      {:ok, _} = Indexer.flush()
+      assert Repo.aggregate(from(e in Embedding, where: e.kind == "transcript"), :count) == 0
+    end
+  end
+
   describe "searching" do
     setup ctx do
       billing = card_fixture(ctx.column, %{"title" => "Invoice rounding is wrong on refunds"})

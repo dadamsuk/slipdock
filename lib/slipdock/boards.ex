@@ -3211,7 +3211,11 @@ defmodule Slipdock.Boards do
     attachment
     |> Attachment.transcript_changeset(attrs)
     |> Repo.update()
-    |> tap_ok(&broadcast_attachment/1)
+    |> tap_ok(fn a ->
+      broadcast_attachment(a)
+      # A finished transcript is something to find (see `Slipdock.Search.Chunk`).
+      if a.card_id && a.transcript_status == "done", do: Indexer.enqueue(a.card_id)
+    end)
   end
 
   defp broadcast_attachment(attachment) do
@@ -3228,6 +3232,9 @@ defmodule Slipdock.Boards do
     Repo.delete(attachment)
     |> tap_ok(fn a ->
       remove_files([a.key])
+
+      # Its transcript was in search; reindexing the card takes it out.
+      if a.card_id && a.transcript_status == "done", do: Indexer.enqueue(a.card_id)
 
       case attachment do
         %Attachment{card: %Card{board_id: board_id}} -> broadcast(board_id)
