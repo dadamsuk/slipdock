@@ -244,7 +244,8 @@ defmodule Slipdock.Wiki.Archive do
   # A leading dot goes too: a title of `..` would otherwise be a path segment
   # that climbs out of the export folder (or the zip), and `.claude` a hidden
   # directory nobody asked to have written.
-  defp safe_name(name) do
+  @doc "A title or folder name as the file or directory name it is written as."
+  def safe_name(name) do
     name
     |> to_string()
     |> String.replace(~r/[\/\\:*?"<>|]+/u, "-")

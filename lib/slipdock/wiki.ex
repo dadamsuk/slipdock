@@ -1062,19 +1062,31 @@ defmodule Slipdock.Wiki do
 
   # Links written as words rather than ids resolve late, so writing (or
   # renaming) a page can bring other pages' links to life. Only the pages
-  # holding a matching unresolved link are touched.
+  # holding a matching unresolved link are touched — on this board, or on
+  # every board of its vault, where a plain `[[link]]` reaches that far.
   defp resolve_wanted(%Page{} = page) do
     wanted = ([page.title, page.slug, page.code] ++ page.aliases) |> Enum.map(&String.downcase/1)
+
+    board_ids =
+      case Slipdock.Vaults.for_board(page.board_id) do
+        nil -> [page.board_id]
+        vault -> Slipdock.Vaults.board_ids(vault)
+      end
 
     from(l in Link,
       join: p in Page,
       on: p.id == l.page_id,
-      where: p.board_id == ^page.board_id,
+      where: p.board_id in ^board_ids,
       where: l.kind == "page" and not l.resolved,
       select: {l.page_id, l.raw}
     )
     |> Repo.all()
-    |> Enum.filter(fn {_id, raw} -> String.downcase(inner_of(raw)) in wanted end)
+    |> Enum.filter(fn {_id, raw} ->
+      inner = String.downcase(inner_of(raw))
+      # `[[Folder/Note]]` is waiting for a page called Note.
+      last = inner |> String.split("/") |> List.last() |> String.trim()
+      inner in wanted or last in wanted
+    end)
     |> Enum.map(&elem(&1, 0))
     |> Enum.uniq()
     |> Enum.each(fn id ->

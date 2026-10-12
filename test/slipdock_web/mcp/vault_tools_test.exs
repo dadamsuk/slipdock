@@ -105,4 +105,25 @@ defmodule SlipdockWeb.MCP.VaultToolsTest do
     assert [_] = ok!(call(conn, "list_vaults", %{}))["vaults"]
     assert error!(call(conn, "manage_vault", %{action: "create", name: "More"})) =~ "read-only"
   end
+
+  test "list_vaults resolves a link, page_info lists a vault's wanted pages", %{
+    conn: conn,
+    user: user
+  } do
+    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
+    {:ok, kb} = Slipdock.Access.find_board(user, "kb")
+    {:ok, jobs} = Slipdock.Access.find_board(user, "jobs")
+    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
+    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Jobs", board: jobs})
+    {:ok, note} = Slipdock.Wiki.create_page(jobs, %{"title" => "Acme"}, user: user)
+    {:ok, _} = Slipdock.Wiki.create_page(kb, %{"title" => "L", "body" => "[[Ghost]]"}, user: user)
+
+    found = ok!(call(conn, "list_vaults", %{vault: "Notes", link: "Acme"}))
+    assert found["page"]["code"] == note.code
+    assert found["path"] == "/Jobs/Acme"
+    assert error!(call(conn, "list_vaults", %{link: "Acme"})) =~ "which vault"
+
+    wanted = ok!(call(conn, "page_info", %{what: "wanted", vault: "Notes"}))
+    assert [%{"title" => "Ghost"}] = wanted["wanted"]
+  end
 end

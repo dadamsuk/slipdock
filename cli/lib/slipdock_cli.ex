@@ -275,6 +275,9 @@ defmodule SlipdockCLI do
                                         put a vault path ("/", "/Jobs") onto a board's wiki
     vault unmap <vault> <path>          take a mapping out
     vault locate <vault> <path>         which mapping a vault path lands in, and the rest
+    vault resolve <vault> <link...>     the page a [[link]] finds anywhere in the vault
+                                        (Note, or Folder/Note; the shortest path wins)
+    vault wanted <vault>                pages linked to but never written, every board at once
 
   SKILLS  (the agent instructions this server ships, versioned with its API)
     skills                              list them, with a version each

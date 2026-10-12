@@ -161,6 +161,12 @@ slipdock vault locate Notes /Jobs/Acme/Call.md     # which mapping, and the rest
 slipdock vault unmap Notes /Jobs
 ```
 
+On a board in a vault, `[[Note]]` looks on its own board, then across the
+whole vault; when two notes share a name the shortest vault path wins, and
+`[[Folder/Note]]` picks one. `slipdock vault resolve <vault> <link>` says
+which page a link finds before you write it; `slipdock vault wanted <vault>`
+is the vault's backlog of unwritten pages.
+
 On a board in a vault, a note's front matter `tags` and inline `#tags` (and
 nested `#area/sub`) are its own tags, apart from the board's card tags:
 `slipdock page tags <board>` counts them, `slipdock page ls <board> --note-tag

@@ -76,16 +76,19 @@ defmodule SlipdockWeb.Wiki.Renderer do
     context = context(opts)
 
     # Extensions belong on the *parse*, not just the render: a pipe table is
-    # only a table if the parser was told tables exist.
-    with {:ok, doc} <- MDEx.parse_document(body, extension: @extension),
-         {:ok, html} <-
-           doc
-           |> expand(context)
-           |> MDEx.to_html(extension: @extension, render: @render, sanitize: @sanitize) do
-      html
-    else
-      _ -> "<pre>" <> escape(body) <> "</pre>"
-    end
+    # only a table if the parser was told tables exist. Each link resolves on
+    # its own, so a vault's index is built once for the page, not per link.
+    Slipdock.Vaults.Index.cached(fn ->
+      with {:ok, doc} <- MDEx.parse_document(body, extension: @extension),
+           {:ok, html} <-
+             doc
+             |> expand(context)
+             |> MDEx.to_html(extension: @extension, render: @render, sanitize: @sanitize) do
+        html
+      else
+        _ -> "<pre>" <> escape(body) <> "</pre>"
+      end
+    end)
   rescue
     # Resolving references reads cards, pages and links as they stand now,
     # and a reference the code did not foresee should cost the reader the

@@ -85,4 +85,23 @@ defmodule SlipdockCLI.VaultsTest do
     assert path =~ "/api/vaults/Notes"
     assert out =~ "every page stays"
   end
+
+  test "resolve sends the link's words and prints the page and its path" do
+    response = ~s({"page":{"code":"W-9","title":"Acme"},"path":"/Jobs/Acme"})
+    {"GET", path, _, out} = run(["resolve", "Notes", "Jobs/Acme"], [], response)
+    assert path =~ "/api/vaults/Notes/resolve?link=Jobs%2FAcme"
+    assert out =~ "W-9 Acme"
+    assert out =~ "/Jobs/Acme"
+  end
+
+  test "wanted lists each wanted page with where it is wanted from" do
+    response = ~s({"wanted":[{"title":"Ghost","count":2,"from":[{"code":"W-1"},{"code":"W-2"}]}]})
+    {"GET", path, _, out} = run(["wanted", "Notes"], [], response)
+    assert path =~ "/api/vaults/Notes/wanted"
+    assert out =~ "[[Ghost]]"
+    assert out =~ "from W-1, W-2"
+
+    {_, _, _, none} = run(["wanted", "Notes"], [], ~s({"wanted":[]}))
+    assert none =~ "nothing wanted"
+  end
 end

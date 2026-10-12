@@ -26,8 +26,9 @@ defmodule Slipdock.Vaults do
   alias Slipdock.{Access, Repo}
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.Board
-  alias Slipdock.Vaults.{Mapping, Vault}
-  alias Slipdock.Wiki.{Folder, NoteTags}
+  alias Slipdock.Vaults.{Index, Mapping, Vault}
+  alias Slipdock.Wiki
+  alias Slipdock.Wiki.{Folder, NoteTags, Page}
 
   @preloads [mappings: [:board, :folder]]
 
@@ -144,6 +145,57 @@ defmodule Slipdock.Vaults do
       do: {:error, :unprocessable_entity, "a vault path cannot contain . or .."},
       else: {:ok, Enum.join(segments, "/")}
   end
+
+  @doc """
+  The page a link's words name across a vault, as a `[[link]]` on one of its
+  boards would find it after its own board: `{:ok, page, path}` with the
+  page's vault path, or not found. `reader` sees only what they may open.
+  """
+  def resolve_link(%Vault{} = vault, link, %User{} = reader) do
+    link =
+      link
+      |> to_string()
+      |> String.trim()
+      |> String.trim_leading("[[")
+      |> String.trim_trailing("]]")
+
+    link = link |> String.split("|", parts: 2) |> hd() |> String.split("#", parts: 2) |> hd()
+
+    vault
+    |> Index.build()
+    |> Index.match(link)
+    |> Enum.find_value(fn entry ->
+      with %Page{} = page <- Repo.get(Page, entry.id),
+           true <- Wiki.visible?(page, Access.page_permission(reader, page)) do
+        {:ok, page, entry.path}
+      else
+        _ -> nil
+      end
+    end)
+    |> case do
+      nil -> {:error, :not_found, "a page for [[#{link}]] in #{vault.name}"}
+      found -> found
+    end
+  end
+
+  @doc """
+  Pages linked to but never written, anywhere in the vault: the wanted pages
+  of all its boards at once, most wanted first. Only the pages doing the
+  wanting that `reader` may open are listed, and a want nobody visible has
+  is left out.
+  """
+  def wanted(%Vault{} = vault, %User{} = reader) do
+    vault
+    |> board_ids()
+    |> Wiki.Links.wanted()
+    |> Enum.map(fn want ->
+      %{want | from: Enum.filter(want.from, &readable?(&1, reader))}
+    end)
+    |> Enum.reject(&(&1.from == []))
+  end
+
+  defp readable?(page, reader),
+    do: is_nil(page.archived_at) and Wiki.visible?(page, Access.page_permission(reader, page))
 
   ## Writing ------------------------------------------------------------------
 
