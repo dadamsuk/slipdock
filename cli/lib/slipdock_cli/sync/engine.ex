@@ -24,6 +24,11 @@ defmodule SlipdockCLI.Sync.Engine do
   #     rename or a move, the same page or file (R2.3). A renamed file that
   #     is not a note is moved on the server without sending its bytes again.
   #
+  # Folders come last, once every file is where it belongs: one new on the
+  # server is made here, even empty, and one deleted there goes from here —
+  # but only when nothing is left in it but empty folders, so a file the
+  # server never had is never lost with it.
+  #
   # Every write to the server names the hash it was made against, so a change
   # made on the server since this pass listed it is a conflict, not an
   # overwrite. Every write to disk checks the file still holds what this
@@ -85,6 +90,8 @@ defmodule SlipdockCLI.Sync.Engine do
         |> send_queued()
         |> unseen()
 
+      {acc, folders} = folders(acc, listing["folders"], state, patterns)
+
       report = acc.report |> Map.new(fn {k, v} -> {k, Enum.reverse(v)} end)
 
       conflicts =
@@ -96,6 +103,7 @@ defmodule SlipdockCLI.Sync.Engine do
         state
         |> Map.put("entries", Map.merge(Map.new(set_aside), acc.entries))
         |> Map.put("cursor", listing["cursor"])
+        |> Map.put("folders", folders)
         |> Map.put("conflicts", conflicts)
         |> Map.put("errors", Enum.map(report.errors, &%{"path" => &1.path, "error" => &1.error}))
         |> Map.put(
@@ -331,6 +339,66 @@ defmodule SlipdockCLI.Sync.Engine do
     |> Enum.reject(fn {key, _s} -> MapSet.member?(acc.done, key) end)
     |> Enum.sort_by(fn {_key, s} -> order(s["path"]) end)
     |> Enum.reduce(acc, fn {key, s}, acc -> download(acc, key, s, nil, nil) end)
+  end
+
+  ## Folders ----------------------------------------------------------------
+
+  # The server's folders (`listing["folders"]`, nil from a server too old to
+  # send them) against the ones the state remembers from last time. A
+  # folder made here is the server's to hear about by the files put in it,
+  # and one deleted here stays deleted: only what changed on the server is
+  # done here. A mirror made before folders were remembered makes none the
+  # first time, since it can't tell a folder new on the server from one
+  # deleted here.
+  defp folders(acc, nil, state, _patterns), do: {acc, state["folders"]}
+
+  defp folders(acc, listed, state, patterns) do
+    # A folder pattern ends in a slash, so a folder is asked about with one.
+    ignored? = &(Scan.ignored?(&1, patterns) or Scan.ignored?(&1 <> "/", patterns))
+    listed = Enum.reject(listed, ignored?)
+    had = state["folders"]
+    now = MapSet.new(listed)
+
+    acc =
+      (had || [])
+      |> Enum.reject(&(MapSet.member?(now, &1) or ignored?.(&1)))
+      |> Enum.sort_by(&(-length(String.split(&1, "/"))))
+      |> Enum.reduce(acc, fn dir, acc ->
+        if remove_dir(Path.join(acc.root, dir)) == :ok,
+          do: report(acc, :removed, %{path: dir <> "/", folder: true}),
+          else: acc
+      end)
+
+    new =
+      cond do
+        had -> Enum.reject(listed, &(&1 in had))
+        (state["entries"] || %{}) == %{} -> listed
+        true -> []
+      end
+
+    for dir <- new, do: FS.mkdir_p(Path.join(acc.root, dir))
+
+    {acc, listed}
+  end
+
+  # A directory with nothing in it but empty directories, taken away; one
+  # holding anything else is left as it is. `:ok` when it is gone, or was.
+  defp remove_dir(full) do
+    case FS.ls(full) do
+      {:ok, names} ->
+        names
+        |> Enum.map(&Path.join(full, &1))
+        |> Enum.filter(&FS.own_dir?/1)
+        |> Enum.each(&remove_dir/1)
+
+        if FS.rmdir(full) == :ok, do: :ok, else: :kept
+
+      {:error, :enoent} ->
+        :ok
+
+      _ ->
+        :kept
+    end
   end
 
   ## Moving bytes -----------------------------------------------------------

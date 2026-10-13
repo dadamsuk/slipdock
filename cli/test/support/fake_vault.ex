@@ -9,6 +9,10 @@ defmodule SlipdockCLI.FakeVault do
 
   `ctx` is the Agent. A `:normalise` function, when set, rewrites content
   on the way in, as the server patches a title key after a rename.
+
+  Its folders are every directory a page or file sits in, and any made
+  empty with `add_folder/2`; `folders: false` lists none at all, as a
+  server from before folders were listed.
   """
   @behaviour SlipdockCLI.Sync.Remote
 
@@ -21,6 +25,7 @@ defmodule SlipdockCLI.FakeVault do
           next: 1,
           cursor: 0,
           normalise: opts[:normalise],
+          folders: if(opts[:folders] == false, do: false, else: MapSet.new()),
           fail: nil,
           calls: []
         }
@@ -57,6 +62,24 @@ defmodule SlipdockCLI.FakeVault do
     do: Agent.update(vault, fn s -> bump(%{s | pages: Map.delete(s.pages, id)}) end)
 
   def pages(vault), do: Agent.get(vault, fn s -> s.pages end)
+
+  def add_folder(vault, path),
+    do: Agent.update(vault, fn s -> bump(%{s | folders: MapSet.put(s.folders, path)}) end)
+
+  @doc "Deletes a folder, its pages and files moved out to the root first."
+  def delete_folder(vault, path) do
+    Agent.update(vault, fn s ->
+      out = fn p -> if String.starts_with?(p, path <> "/"), do: Path.basename(p), else: p end
+
+      bump(%{
+        s
+        | folders:
+            MapSet.reject(s.folders, &(&1 == path or String.starts_with?(&1, path <> "/"))),
+          pages: Map.new(s.pages, fn {id, p} -> {id, %{p | path: out.(p.path)}} end),
+          files: Map.new(s.files, fn {id, f} -> {id, %{f | path: out.(f.path)}} end)
+      })
+    end)
+  end
 
   def by_path(vault, path) do
     vault
@@ -198,9 +221,24 @@ defmodule SlipdockCLI.FakeVault do
             do: %{"kind" => "page", "id" => id, "path" => p.path, "hash" => hash(p.content)}
 
       files = for {id, f} <- s.files, do: file_entry(id, f)
-      {:ok, %{"cursor" => s.cursor, "entries" => entries ++ files}}
+      listing = %{"cursor" => s.cursor, "entries" => entries ++ files}
+
+      if s.folders,
+        do: {:ok, Map.put(listing, "folders", folders(s, entries ++ files))},
+        else: {:ok, listing}
     end)
   end
+
+  defp folders(s, entries) do
+    entries
+    |> Enum.flat_map(fn e -> dirs(Path.dirname(e["path"])) end)
+    |> Enum.concat(Enum.flat_map(s.folders, &dirs/1))
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
+  defp dirs("."), do: []
+  defp dirs(dir), do: [dir | dirs(Path.dirname(dir))]
 
   @impl true
   def read(vault, id) do

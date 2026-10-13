@@ -542,4 +542,158 @@ defmodule SlipdockCLI.SyncEngineTest do
       assert report.conflicts == []
     end
   end
+
+  describe "folders" do
+    defp dir?(ctx, path), do: File.dir?(Path.join(ctx.root, path))
+
+    test "a folder deleted on the server goes from here, once its pages have moved out", ctx do
+      FakeVault.put(ctx.vault, "Jobs/Acme/Call.md", "call")
+      {state, _} = pass(ctx)
+      assert state["folders"] == ["Jobs", "Jobs/Acme"]
+
+      FakeVault.delete_folder(ctx.vault, "Jobs")
+      {state, report} = pass(ctx, state)
+
+      assert files(ctx) == ["Call.md"]
+      refute dir?(ctx, "Jobs")
+      assert %{path: "Jobs/", folder: true} in report.removed
+      assert state["folders"] == []
+
+      {_state, report} = pass(ctx, state)
+      assert quiet?(report)
+    end
+
+    test "an empty folder made on the server is made here, and taken away with it", ctx do
+      FakeVault.put(ctx.vault, "Note.md", "one")
+      {state, _} = pass(ctx)
+
+      FakeVault.add_folder(ctx.vault, "Design/Old")
+      {state, report} = pass(ctx, state)
+      assert dir?(ctx, "Design/Old")
+      assert report.removed == []
+
+      FakeVault.delete_folder(ctx.vault, "Design")
+      {state, report} = pass(ctx, state)
+
+      refute dir?(ctx, "Design")
+      assert Enum.map(report.removed, & &1.path) == ["Design/Old/", "Design/"]
+      assert state["folders"] == []
+    end
+
+    test "a folder emptied here before the server deleted it still goes", ctx do
+      FakeVault.put(ctx.vault, "Jobs/Call.md", "call")
+      {state, _} = pass(ctx)
+
+      File.rm!(Path.join(ctx.root, "Jobs/Call.md"))
+      {state, _} = pass(ctx, state)
+      # The page is archived, but its folder is still on the server, and here.
+      FakeVault.add_folder(ctx.vault, "Jobs")
+      {state, _} = pass(ctx, state)
+      assert dir?(ctx, "Jobs")
+
+      FakeVault.delete_folder(ctx.vault, "Jobs")
+      {_state, report} = pass(ctx, state)
+      refute dir?(ctx, "Jobs")
+      assert [%{path: "Jobs/"}] = report.removed
+    end
+
+    test "anything left in a deleted folder keeps it, and nothing in it is lost", ctx do
+      FakeVault.add_folder(ctx.vault, "Jobs/Empty")
+      {state, _} = pass(ctx)
+      write(ctx, "Jobs/.private", "not synced")
+
+      FakeVault.delete_folder(ctx.vault, "Jobs")
+      {state, report} = pass(ctx, state)
+
+      assert read(ctx, "Jobs/.private") == "not synced"
+      # The empty folder inside it still went.
+      refute dir?(ctx, "Jobs/Empty")
+      assert [%{path: "Jobs/Empty/"}] = report.removed
+      # Not tried again on the next pass: the server has forgotten it.
+      assert state["folders"] == []
+      {_state, report} = pass(ctx, state)
+      assert quiet?(report)
+    end
+
+    test "a file new here in a folder the server deleted goes up, and keeps it", ctx do
+      FakeVault.add_folder(ctx.vault, "Jobs")
+      {state, _} = pass(ctx)
+
+      FakeVault.delete_folder(ctx.vault, "Jobs")
+      write(ctx, "Jobs/New.md", "fresh")
+      {_state, report} = pass(ctx, state)
+
+      assert [%{path: "Jobs/New.md"}] = report.sent
+      assert read(ctx, "Jobs/New.md") == "fresh"
+      assert report.removed == []
+    end
+
+    test "a folder deleted here, but not on the server, is not made again", ctx do
+      FakeVault.add_folder(ctx.vault, "Jobs")
+      {state, _} = pass(ctx)
+      File.rmdir!(Path.join(ctx.root, "Jobs"))
+
+      {state, report} = pass(ctx, state)
+      refute dir?(ctx, "Jobs")
+      assert quiet?(report)
+      assert state["folders"] == ["Jobs"]
+    end
+
+    test "a link to a folder elsewhere is not followed into", ctx do
+      outside = ctx.root <> "-outside"
+      File.mkdir_p!(Path.join(outside, "Inner"))
+      on_exit(fn -> File.rm_rf!(outside) end)
+
+      FakeVault.add_folder(ctx.vault, "Jobs")
+      {state, _} = pass(ctx)
+      File.ln_s!(outside, Path.join(ctx.root, "Jobs/Link"))
+
+      FakeVault.delete_folder(ctx.vault, "Jobs")
+      {_state, _report} = pass(ctx, state)
+
+      assert File.dir?(Path.join(outside, "Inner"))
+    end
+
+    test "a folder .slipdockignore names is neither made nor taken away", ctx do
+      write(ctx, ".slipdockignore", "Private/\n")
+      FakeVault.add_folder(ctx.vault, "Private")
+      {state, _} = pass(ctx)
+      refute dir?(ctx, "Private")
+      assert state["folders"] == []
+
+      File.mkdir_p!(Path.join(ctx.root, "Private"))
+      {state, _} = pass(ctx, Map.put(state, "folders", ["Private"]))
+      FakeVault.delete_folder(ctx.vault, "Private")
+      {_state, report} = pass(ctx, state)
+      assert dir?(ctx, "Private")
+      assert report.removed == []
+    end
+
+    test "a server that lists no folders leaves folders here alone", ctx do
+      vault = FakeVault.start(folders: false)
+      ctx = %{ctx | vault: vault}
+      FakeVault.put(vault, "Jobs/Call.md", "call")
+      File.mkdir_p!(Path.join(ctx.root, "Empty"))
+
+      {state, _} = pass(ctx, Map.put(ctx.state, "folders", ["Empty"]))
+      assert dir?(ctx, "Empty")
+      assert state["folders"] == ["Empty"]
+    end
+
+    test "a mirror from before folders were remembered makes none the first time", ctx do
+      FakeVault.put(ctx.vault, "Note.md", "one")
+      {state, _} = pass(ctx)
+      state = Map.delete(state, "folders")
+      FakeVault.add_folder(ctx.vault, "Gone here")
+
+      {state, _} = pass(ctx, state)
+      refute dir?(ctx, "Gone here")
+      assert state["folders"] == ["Gone here"]
+
+      # From then on the server's changes come down as ever.
+      FakeVault.add_folder(ctx.vault, "New")
+      {_state, _} = pass(ctx, state)
+      assert dir?(ctx, "New")
+    end
+  end
 end
