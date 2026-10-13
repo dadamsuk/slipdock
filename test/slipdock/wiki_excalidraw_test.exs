@@ -78,6 +78,23 @@ defmodule Slipdock.WikiExcalidrawTest do
       assert Excalidraw.texts(%{}) == []
     end
 
+    test "readable: a note's prose and its drawing's words, without the plugin's wrapping" do
+      assert Excalidraw.readable(@sketch) == "Ship it\nSecond line of notes ✓"
+
+      assert Excalidraw.readable("A caption.\n\n%%\n" <> @sketch) ==
+               "A caption.\n\nShip it\nSecond line of notes ✓"
+
+      # The plugin's older layout, with no "# Excalidraw Data" heading.
+      old = "Intro\n\n# Text Elements\nHi ^a\n\n# Drawing\n```json\n#{@sketch_json}\n```\n"
+      assert Excalidraw.readable(old) == "Intro\n\nShip it\nSecond line of notes ✓"
+
+      empty = "# Excalidraw Data\n## Drawing\n```json\n{\"elements\":[]}\n```\n"
+      assert Excalidraw.readable(empty) == ""
+
+      assert Excalidraw.readable("plain *prose*") == "plain *prose*"
+      assert Excalidraw.readable(nil) == nil
+    end
+
     test "names and pages that are drawings" do
       assert Excalidraw.name?("Plan.excalidraw")
       assert Excalidraw.name?("Plan.Excalidraw.md")

@@ -27,6 +27,75 @@ defmodule Slipdock.WikiSearchTest do
 
   defp index(page), do: {:ok, _} = Search.index_page(page.id)
 
+  describe "Excalidraw drawings (W-103 R5.4)" do
+    @sketch File.read!("test/support/fixtures/excalidraw/Sketch.excalidraw.md")
+
+    defp drawing(board, user, body \\ @sketch) do
+      {:ok, page} =
+        Wiki.create_page(
+          board,
+          %{
+            "title" => "Release plan",
+            "file_name" => "Release plan.excalidraw",
+            "front_matter" => "---\nexcalidraw-plugin: parsed\n---\n",
+            "body" => body
+          },
+          user: user
+        )
+
+      page
+    end
+
+    test "a drawing is indexed by the words in it, not its compressed scene",
+         %{board: board, user: user} do
+      page = drawing(board, user)
+      assert [%{kind: "page", body: body}] = Chunk.for_page(Slipdock.Repo.preload(page, :board))
+
+      assert body =~ "Page: Release plan"
+      assert body =~ "Ship it"
+      assert body =~ "Second line of notes ✓"
+      refute body =~ "deleted words"
+      refute body =~ "EXCALIDRAW VIEW"
+      refute body =~ "compressed-json"
+      refute body =~ "N4KAkA"
+
+      index(page)
+      {:ok, results} = Search.search(user, "ship it notes", kind: :page)
+      assert Enum.any?(results, &(&1.page.id == page.id))
+    end
+
+    test "prose written above the drawing is indexed with it", %{board: board, user: user} do
+      page = drawing(board, user, "Sketched in the planning meeting.\n\n" <> @sketch)
+      [%{body: body}] = Chunk.for_page(Slipdock.Repo.preload(page, :board))
+      assert body =~ "Sketched in the planning meeting."
+      assert body =~ "Ship it"
+    end
+
+    test "its listing excerpt and its agent rendering are its words too", %{
+      board: board,
+      user: user
+    } do
+      page = drawing(board, user)
+      assert SlipdockWeb.Wiki.Renderer.excerpt(page.body) == "Ship it Second line of notes ✓"
+
+      markdown = SlipdockWeb.Wiki.Renderer.to_markdown(page.body, page: page, as: user)
+      assert markdown == "Ship it\nSecond line of notes ✓"
+
+      # Off a drawing page, the same body is left as written.
+      assert SlipdockWeb.Wiki.Renderer.to_markdown(page.body, board: board, as: user) =~
+               "compressed-json"
+    end
+
+    test "a page that only looks like a drawing is indexed as written", %{
+      board: board,
+      user: user
+    } do
+      page = drawing(board, user, "No scene here, just *words*.")
+      [%{body: body}] = Chunk.for_page(Slipdock.Repo.preload(page, :board))
+      assert body =~ "No scene here, just *words*."
+    end
+  end
+
   describe "chunking" do
     test "a short page is one chunk", %{board: board, user: user} do
       {:ok, page} =

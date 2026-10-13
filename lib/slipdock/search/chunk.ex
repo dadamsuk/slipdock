@@ -367,11 +367,13 @@ defmodule Slipdock.Search.Chunk do
   # embeds as "Retry policy", and a live query block embeds as nothing at all
   # since its answer is not part of what the page says. Meld Encrypt's
   # ciphertext is left out too (W-103 R6.7): it says nothing to search, and
-  # what it hides is not the server's to know.
+  # what it hides is not the server's to know. An Excalidraw drawing is
+  # searched by the words in it, not by its compressed scene (R5.4).
   defp plain(nil), do: ""
 
   defp plain(body) do
     body
+    |> Slipdock.Wiki.Excalidraw.readable()
     |> Slipdock.Wiki.Meld.conceal("")
     |> String.replace(~r/^\s*(```|~~~)(?:slipdock|kanban).*?^\s*\1\s*$/ms, "")
     |> Markup.to_plain()
