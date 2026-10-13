@@ -37,7 +37,45 @@ defmodule SlipdockWeb.WikiLive.Index do
   @folder_listing 200
   @index_pages 8
 
+  # The vault view (#752): a vault's own page, its tree and its pages at
+  # their vault paths. What the address names decides which board's wiki
+  # this is a view of — the page's, the folder's, or the board mounted at
+  # the top — and everything else is that board's wiki as ever, shown with
+  # the vault's tree and the vault's breadcrumbs. `?page=` and `?folder=`
+  # (ids) are how a board's wiki links here before it knows the path.
   @impl true
+  def mount(%{"vault" => ref} = params, session, socket) do
+    user = socket.assigns.current_user
+
+    with {:ok, vault} <- Slipdock.Vaults.get_vault(user, ref),
+         {:ok, target, board_id} <- vault_target(vault, params) do
+      {:ok, socket} = mount(%{"id" => to_string(board_id)}, session, socket)
+
+      {:ok,
+       assign(socket,
+         vault_view: vault,
+         vault_target: target,
+         vault_addresses: Slipdock.Vaults.addresses(vault),
+         tree_scope: "vault"
+       )}
+    else
+      {:error, :empty, vault} ->
+        {:ok,
+         socket
+         |> put_flash(
+           :info,
+           "#{vault.name} has nothing mapped into it yet: map a board's wiki onto it."
+         )
+         |> push_navigate(to: SlipdockWeb.VaultUrls.settings(vault))}
+
+      _ ->
+        {:ok,
+         socket
+         |> put_flash(:error, "There's nothing at that address in your vaults.")
+         |> push_navigate(to: ~p"/")}
+    end
+  end
+
   def mount(%{"id" => id}, _session, socket) do
     board = Boards.get_board!(id)
     perm = Access.board_permission(socket.assigns.current_user, board)
@@ -91,6 +129,11 @@ defmodule SlipdockWeb.WikiLive.Index do
          tree_current: "",
          tree_reveal: [],
          vault: Slipdock.Vaults.for_board(board),
+         # The vault view's own (#752): the vault, what the address named,
+         # and where everything of it sits. Nil on a board's wiki.
+         vault_view: nil,
+         vault_target: nil,
+         vault_addresses: nil,
          # The middle column's own listings: the index's folders and recent
          # pages, or what is in the folder being looked at.
          index_folders: [],
@@ -304,6 +347,31 @@ defmodule SlipdockWeb.WikiLive.Index do
   end
 
   @impl true
+  def handle_params(params, _uri, %{assigns: %{live_action: :vault}} = socket) do
+    %{board: board, vault_target: target} = socket.assigns
+
+    {action, extra} =
+      case target do
+        {:page, id} -> {:show, %{"slug" => Wiki.get_page!(id).slug}}
+        {:folder, id} -> {:index, %{"folder" => to_string(id)}}
+        :index -> {:index, %{}}
+      end
+
+    socket =
+      socket
+      |> assign(live_action: action, folder: nil, tree_drawer: false)
+      |> apply_action(action, Map.merge(%{"id" => to_string(board.id)}, extra))
+
+    # Opened by id from a board's wiki: settle on the address itself.
+    socket =
+      case {params["page"] || params["folder"], vault_here(socket)} do
+        {nil, _} -> socket
+        {_, url} -> push_patch(socket, to: url, replace: true)
+      end
+
+    {:noreply, assign_current(socket)}
+  end
+
   def handle_params(params, _uri, socket) do
     # `folder` is the index's own state; every other action clears it rather
     # than inheriting the last one looked at.
@@ -1923,7 +1991,13 @@ defmodule SlipdockWeb.WikiLive.Index do
   # the vault's. Anything else is this board's. A changed scope changes the
   # way to the current page too.
   defp assign_scope(socket, scope) do
-    scope = if scope == "vault" and socket.assigns.vault, do: "vault", else: "board"
+    # The vault view shows the vault's tree, whatever the hook remembers.
+    scope =
+      cond do
+        socket.assigns.vault_view -> "vault"
+        scope == "vault" and socket.assigns.vault -> "vault"
+        true -> "board"
+      end
 
     if scope == socket.assigns.tree_scope,
       do: socket,
@@ -2002,8 +2076,30 @@ defmodule SlipdockWeb.WikiLive.Index do
   # board's wiki. Only what is drawn goes over the wire.
   defp client_rows(rows, socket) do
     writable = writable_ids(socket)
-    Enum.map(rows, &client_row(&1, socket.assigns.board, writable))
+
+    rows
+    |> Enum.map(&client_row(&1, socket.assigns.board, writable))
+    |> in_vault_view(socket.assigns)
   end
+
+  # In the vault view a row opens at its vault address, and as a fresh view:
+  # the page may be on another board, whose wiki this then shows.
+  defp in_vault_view(rows, %{vault_view: %{} = vault, vault_addresses: addresses}) do
+    Enum.map(rows, fn row ->
+      path =
+        case row do
+          %{kind: "page", id: id} -> addresses.pages[id]
+          %{kind: "folder", id: id} when is_integer(id) -> addresses.folders[id]
+          _ -> nil
+        end
+
+      if path,
+        do: %{row | href: SlipdockWeb.VaultUrls.url(vault, path), nav: "redirect"},
+        else: row
+    end)
+  end
+
+  defp in_vault_view(rows, _assigns), do: rows
 
   # The boards whose rows the reader can move, rename and archive: this one
   # when they can write to it, and the vault's others they can write to.
@@ -2089,6 +2185,111 @@ defmodule SlipdockWeb.WikiLive.Index do
     else
       _ -> nil
     end
+  end
+
+  # What a vault view's address names, and the board whose wiki shows it.
+  defp vault_target(vault, params) do
+    vault = Slipdock.Repo.preload(vault, [mappings: [:board, :folder]], force: true)
+
+    found =
+      cond do
+        id = Params.id(params["page"]) ->
+          {:page, id}
+
+        id = Params.id(params["folder"]) ->
+          {:folder, id}
+
+        true ->
+          case Enum.join(params["path"] || [], "/") do
+            "" -> top_of(vault)
+            path -> Slipdock.Vaults.resolve_address(vault, path)
+          end
+      end
+
+    case found do
+      {:page, id} ->
+        with %Page{} = page <- Wiki.get_page(id),
+             true <- page.board_id in Slipdock.Vaults.board_ids(vault),
+             do: {:ok, {:page, id}, page.board_id},
+             else: (_ -> :error)
+
+      {:folder, id} ->
+        with %Folder{} = folder <- Wiki.get_folder(id),
+             true <- folder.board_id in Slipdock.Vaults.board_ids(vault),
+             do: {:ok, {:folder, id}, folder.board_id},
+             else: (_ -> :error)
+
+      {:mapping, %{folder_id: nil, board_id: board_id}} ->
+        {:ok, :index, board_id}
+
+      {:mapping, %{folder_id: folder_id, board_id: board_id}} ->
+        {:ok, {:folder, folder_id}, board_id}
+
+      {:empty, vault} ->
+        {:error, :empty, vault}
+
+      _ ->
+        :error
+    end
+  end
+
+  # The top of a vault: the board mounted at `/`, or the first one mounted
+  # anywhere.
+  defp top_of(%{mappings: []} = vault), do: {:empty, vault}
+
+  defp top_of(%{mappings: mappings}) do
+    {:mapping, Enum.find(mappings, &(&1.path == "")) || hd(mappings)}
+  end
+
+  # The vault view's address for what is shown now.
+  defp vault_here(%{assigns: %{vault_view: %{} = vault} = assigns}) do
+    path =
+      case assigns do
+        %{page: %Page{id: id}} -> assigns.vault_addresses.pages[id]
+        %{folder: %Folder{id: id}} -> assigns.vault_addresses.folders[id]
+        _ -> nil
+      end
+
+    SlipdockWeb.VaultUrls.url(vault, path || "")
+  end
+
+  defp vault_here(_socket), do: nil
+
+  # Where "Open in <vault>" on a board's wiki goes: the same page or folder
+  # in the vault view.
+  defp open_in_vault(vault, page, folder) do
+    case {page, folder} do
+      {%Page{id: id}, _} ->
+        "/vaults/#{URI.encode(vault.name, &URI.char_unreserved?/1)}?page=#{id}"
+
+      {_, %Folder{id: id}} ->
+        "/vaults/#{URI.encode(vault.name, &URI.char_unreserved?/1)}?folder=#{id}"
+
+      _ ->
+        SlipdockWeb.VaultUrls.url(vault)
+    end
+  end
+
+  # The vault view's breadcrumbs: the vault, then each directory down to
+  # what is shown, each a link to its place in the view.
+  defp vault_crumbs(vault, addresses, page, folder) do
+    path =
+      case {page, folder} do
+        {%Page{id: id}, _} -> addresses.pages[id]
+        {_, %Folder{id: id}} -> addresses.folders[id]
+        _ -> nil
+      end
+
+    segments = if path, do: String.split(path, "/"), else: []
+
+    segments
+    |> Enum.with_index(1)
+    |> Enum.map(fn {name, n} ->
+      %{
+        name: name,
+        url: SlipdockWeb.VaultUrls.url(vault, segments |> Enum.take(n) |> Enum.join("/"))
+      }
+    end)
   end
 
   # Where a drop landed, on whichever board the tree shows: "folder:" is the
@@ -2682,7 +2883,35 @@ defmodule SlipdockWeb.WikiLive.Index do
       page_jumps={@page_jumps}
     >
       <:subnav>
-        <nav class="flex min-w-0 items-center gap-1 text-sm">
+        <%!-- The vault view's breadcrumbs: the vault, the directories down to
+              what is shown, and quietly, the board that holds it. --%>
+        <nav :if={@vault_view} id="vault-crumbs" class="flex min-w-0 items-center gap-1 text-sm">
+          <.link
+            navigate={SlipdockWeb.VaultUrls.url(@vault_view)}
+            class="flex min-w-0 items-center gap-1.5 rounded-lg px-2 py-1 font-semibold hover:bg-base-200"
+          >
+            <.icon name="hero-rectangle-stack" class="size-4 shrink-0 text-primary" />
+            <span class="truncate">{@vault_view.name}</span>
+          </.link>
+          <%= for crumb <- vault_crumbs(@vault_view, @vault_addresses, @page, @folder) do %>
+            <.icon name="hero-chevron-right" class="size-3 shrink-0 text-base-content/40" />
+            <.link
+              navigate={crumb.url}
+              class="min-w-0 truncate rounded-lg px-1.5 py-1 hover:bg-base-200"
+            >
+              {crumb.name}
+            </.link>
+          <% end %>
+          <.link
+            id="vault-board"
+            navigate={if @page, do: page_path(@board, @page), else: wiki_path(@board)}
+            class="ml-2 hidden shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs text-base-content/50 hover:bg-base-200 sm:flex"
+            title="The board that holds it: its permissions, history and comments"
+          >
+            <span class={["size-2 rounded-full", Palette.dot(@board.color)]}></span> on {@board.name}
+          </.link>
+        </nav>
+        <nav :if={!@vault_view} class="flex min-w-0 items-center gap-1 text-sm">
           <.link
             navigate={~p"/boards/#{@board}"}
             class="flex min-w-0 items-center gap-2 rounded-lg px-2 py-1 hover:bg-base-200"
@@ -2953,8 +3182,63 @@ defmodule SlipdockWeb.WikiLive.Index do
             </div>
             <%!-- A board in a vault can show its own tree or the vault's:
                   every board of it, laid out by the vault's paths. --%>
+            <%!-- In the vault view the tree is the vault's, and its settings
+                  are a click away. --%>
+            <div :if={@vault_view} class="mb-2 flex items-center gap-1">
+              <span class="min-w-0 flex-1 truncate px-1 text-xs font-semibold text-base-content/60">
+                Every board in {@vault_view.name}
+              </span>
+              <.link
+                id="vault-settings"
+                navigate={SlipdockWeb.VaultUrls.settings(@vault_view)}
+                class="btn btn-ghost btn-xs gap-1"
+                title="Mount a board's wiki at a path, and what is synced where"
+              >
+                <.icon name="hero-cog-6-tooth" class="size-3.5" /> Settings
+              </.link>
+            </div>
+            <%!-- The vault's owner opens it in its own view; anyone else
+                  reading a board of somebody's vault can still flip the
+                  tree to the vault's. --%>
             <div
-              :if={@vault && @tree_view == "tree"}
+              :if={
+                !@vault_view && @vault && @tree_view == "tree" && @vault.user_id == @current_user.id
+              }
+              class="join mb-2 w-full"
+              role="group"
+              aria-label="Which tree"
+            >
+              <button
+                type="button"
+                data-tree-scope="board"
+                class={["btn btn-xs join-item flex-1", @tree_scope == "board" && "btn-active"]}
+                aria-pressed={to_string(@tree_scope == "board")}
+                title="This board's wiki"
+              >
+                This board
+              </button>
+              <.link
+                id="open-in-vault"
+                navigate={open_in_vault(@vault, @page, @folder)}
+                class="btn btn-xs join-item flex-1 truncate"
+                title={"Vault #{@vault.name}: not a folder, but every board in it laid out as one tree"}
+              >
+                Open in {@vault.name}
+              </.link>
+              <.link
+                id="manage-vault"
+                navigate={SlipdockWeb.VaultUrls.settings(@vault)}
+                class="btn btn-xs btn-ghost btn-square join-item"
+                title="Manage vault… what a vault is, and what is mapped where"
+                aria-label="Manage vault"
+              >
+                <.icon name="hero-cog-6-tooth" class="size-3.5" />
+              </.link>
+            </div>
+            <div
+              :if={
+                !@vault_view && @vault && @tree_view == "tree" && @vault.user_id != @current_user.id
+              }
               class="join mb-2 w-full"
               role="group"
               aria-label="Which tree"
@@ -2977,16 +3261,6 @@ defmodule SlipdockWeb.WikiLive.Index do
               >
                 {label}
               </button>
-              <.link
-                :if={@vault.user_id == @current_user.id}
-                id="manage-vault"
-                navigate={~p"/vaults" <> "#vault-#{@vault.id}"}
-                class="btn btn-xs btn-ghost btn-square join-item"
-                title="Manage vault… what a vault is, and what is mapped where"
-                aria-label="Manage vault"
-              >
-                <.icon name="hero-cog-6-tooth" class="size-3.5" />
-              </.link>
             </div>
             <p
               :if={@organising}

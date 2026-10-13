@@ -22,11 +22,9 @@ try {
   // follows links never gets past it.
   const confirm = page.locator('form[method=post] button[type=submit]').first()
   if (await confirm.count()) await Promise.all([page.waitForNavigation(), confirm.click()])
-  await page.goto(`${base}/boards/${kb}/wiki`, { waitUntil: 'networkidle' })
+  // The vault's own view, whose tree is the vault's (#752), organising.
+  await page.goto(`${base}/vaults/GMinds`, { waitUntil: 'networkidle' })
   await page.waitForSelector('.phx-connected')
-
-  // The vault's tree, organising.
-  await page.click('button[data-tree-scope=vault]')
   await page.waitForSelector('[data-key="board:' + hunt + '"]')
   await page.click("button[phx-click='toggle_organise']")
 

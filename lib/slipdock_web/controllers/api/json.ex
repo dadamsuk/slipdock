@@ -596,6 +596,8 @@ defmodule SlipdockWeb.API.JSON do
     %{
       id: v.id,
       name: v.name,
+      # The vault's own view in the web app (#752).
+      url: SlipdockWeb.VaultUrls.url(v),
       mappings: Enum.map(v.mappings, &vault_mapping(&1, Map.get(counts, &1.id, 0))),
       # The folders it is synced to, as far as the server can tell: each
       # token that has listed it or followed its feed (`touch_mirror/2`).

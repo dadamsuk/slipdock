@@ -444,7 +444,8 @@ has at those paths is refused with the count. The one-step way out:
 `slipdock vault split <vault> /Jobs --board B [--dry-run]` (or `--new-board NAME`) moves what is
 in that folder to B's top and maps `/Jobs` onto B; notes keep their vault paths, so synced
 folders see no change. Dry-run first and show the person the report. People do the same on the web app's Vaults screen
-(`/vaults`, avatar menu › Vaults).
+(`/vaults`, avatar menu › Vaults); each vault also has a view of its own, its pages
+at their vault paths (a vault's `url` in `--json`, e.g. `/vaults/GMinds/Jobs/Interview Questions`).
 
 `slipdock sync` mirrors a vault both ways to a local folder that stays a valid Obsidian vault
 (notes as `.md`, other files at the same path; a delete archives; changed on both sides, the

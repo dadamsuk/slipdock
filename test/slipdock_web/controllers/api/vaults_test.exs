@@ -182,6 +182,8 @@ defmodule SlipdockWeb.API.VaultsTest do
 
     shown = conn |> get("/api/vaults/Brain") |> json_response(200) |> Map.fetch!("vault")
     assert [%{"path" => "/", "pages" => 1}] = shown["mappings"]
+    # Its own view in the web app (#752).
+    assert shown["url"] == "/vaults/Brain"
     assert shown["mirrors"] == []
 
     # Listing it for a sync, or following its feed, marks the token a mirror.

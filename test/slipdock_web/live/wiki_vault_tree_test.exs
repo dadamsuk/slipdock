@@ -31,12 +31,14 @@ defmodule SlipdockWeb.WikiVaultTreeTest do
   } do
     {:ok, view, _html} = live(conn, ~p"/boards/#{kb}/wiki")
     assert has_element?(view, "button[data-tree-scope='board'][aria-pressed='true']")
-    assert has_element?(view, "button[data-tree-scope='vault']", "Brain")
+    # The owner opens the vault in its own view (#752).
+    assert has_element?(view, "#open-in-vault", "Open in Brain")
+    refute has_element?(view, "button[data-tree-scope='vault']")
     # Two lines at most (#739): the head, with the Tree / Recent switch in
     # it, and this switch, which needs the room for the vault's name.
     assert has_element?(view, "#wiki-tree-head #wiki-tree-view")
 
-    assert has_element?(view, "#wiki-tree > [role='group'] [data-tree-scope='vault']")
+    assert has_element?(view, "#wiki-tree > [role='group'] #open-in-vault")
     refute has_element?(view, "#wiki-tree > [role='group'] #wiki-tree-view-tree")
 
     lone = board_fixture(%{"name" => "Lone", "code" => "lonevt"}, owner: user)
@@ -44,6 +46,18 @@ defmodule SlipdockWeb.WikiVaultTreeTest do
     refute has_element?(view, "[data-tree-scope]")
     # And asking for the vault's tree there gets the board's.
     assert tree_load(view, %{"scope" => "vault"}).scope == "board"
+  end
+
+  test "someone else reading a board of the vault keeps the switch between the trees", ctx do
+    %{kb: kb, user: owner} = ctx
+    reader = user_fixture("switch.reader@example.com")
+    {:ok, _} = Slipdock.Access.grant(kb, reader, "read", owner)
+    {:ok, view, _html} = live(conn_as(reader), ~p"/boards/#{kb}/wiki")
+
+    assert has_element?(view, "button[data-tree-scope='vault']", "Brain")
+    refute has_element?(view, "#open-in-vault")
+    assert tree_load(view, %{"scope" => "vault"}).scope == "vault"
+    assert has_element?(view, "button[data-tree-scope='vault'][aria-pressed='true']")
   end
 
   test "the vault's tree spans its boards, and links across them navigate", %{
@@ -66,7 +80,6 @@ defmodule SlipdockWeb.WikiVaultTreeTest do
     assert %{nav: "patch"} = row(reply, "vault", "Home")
     assert %{nav: "redirect", href: call_href} = row(reply, "folder:#{acme.id}", "Call notes")
     assert call_href == "/boards/#{jobs.id}/wiki/#{call.slug}"
-    assert has_element?(view, "button[data-tree-scope='vault'][aria-pressed='true']")
   end
 
   test "in the vault's tree, the way to a page runs through the vault's folders", %{
@@ -94,7 +107,6 @@ defmodule SlipdockWeb.WikiVaultTreeTest do
 
     view |> element("button[phx-click='toggle_organise']") |> render_click()
 
-    assert has_element?(view, "[data-tree-scope='vault'][aria-pressed='true']")
     reply = tree_load(view, %{"scope" => "vault", "keys" => ["board:#{jobs.id}"]})
     assert reply.scope == "vault"
     assert %{writable: true} = row(reply, "vault", "Home")
