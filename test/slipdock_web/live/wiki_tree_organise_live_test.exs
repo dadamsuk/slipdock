@@ -150,6 +150,33 @@ defmodule SlipdockWeb.WikiTreeOrganiseLiveTest do
     assert id == acme.id
   end
 
+  test "a page also filed in a folder shows there, and can be taken out", %{
+    conn: conn,
+    kb: kb,
+    specs: specs,
+    one: one
+  } do
+    {:ok, _} = Placements.add(one, specs, Slipdock.Accounts.get_user!(kb.owner_id))
+    {:ok, view, _} = live(conn, ~p"/boards/#{kb}/wiki")
+
+    reply = tree_load(view, %{"keys" => ["folder:#{specs.id}"]})
+    assert %{also: true, placed_in: placed_in, key: key} = row(reply, "folder:#{specs.id}", "One")
+    assert placed_in == specs.id
+    assert key == "page:#{one.id}"
+    # Its home row is still at the top of the wiki.
+    refute Map.has_key?(row(reply, "root", "One"), :also)
+
+    html =
+      render_hook(view, "remove_placement", %{
+        "id" => to_string(one.id),
+        "folder" => to_string(specs.id)
+      })
+
+    assert html =~ "no longer filed in Specs"
+    assert Placements.folders(Repo.get!(Page, one.id)) == []
+    assert Repo.get!(Page, one.id).archived_at == nil
+  end
+
   test "several picked are archived after asking, or tagged", %{
     conn: conn,
     kb: kb,

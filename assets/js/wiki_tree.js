@@ -242,7 +242,9 @@ function rowHtml(item, index, ctx) {
   const active = ctx.active === row.key
   // A vault's mapped folders are where another board's wiki is shown, not
   // folders of this one: nothing moves them, and they have no menu.
-  const movable = ctx.organising && ["page", "folder"].includes(row.kind) && !row.mount && row.writable
+  // An extra placement is the page seen from another folder: the page is
+  // moved from its home row, and the placement taken away from its menu.
+  const movable = ctx.organising && ["page", "folder"].includes(row.kind) && !row.mount && !row.also && row.writable
   const selected = ctx.selected && ctx.selected.has(row.key)
   const title = escapeHtml(row.title)
   const nav = row.kind === "file"
@@ -250,6 +252,7 @@ function rowHtml(item, index, ctx) {
     : `data-phx-link="${row.nav === "redirect" ? "redirect" : "patch"}" data-phx-link-state="push"`
 
   const badges = [
+    row.also ? `<span class="hero-link size-3 shrink-0 text-base-content/40" title="Also filed here; its home is another folder"></span>` : "",
     row.draft ? `<span class="shrink-0 rounded bg-amber-500/15 px-1 text-2xs font-medium text-amber-700">draft</span>` : "",
     row.template ? `<span class="shrink-0 rounded bg-base-content/10 px-1 text-2xs text-base-content/60">template</span>` : "",
     row.archived ? `<span class="shrink-0 rounded bg-base-content/10 px-1 text-2xs text-base-content/60">archived</span>` : "",
@@ -318,6 +321,14 @@ export function menuItems(row, ctx) {
   if (row.kind === "file") {
     add(true, {label: "Open in a new tab", icon: "hero-arrow-top-right-on-square", action: "newTab", href: row.href})
     add(true, {label: "Copy link", icon: "hero-link", action: "copy", href: row.href})
+    return items
+  }
+
+  if (row.also) {
+    add(true, {label: "Open", icon: "hero-document-text", href: row.href, nav})
+    add(true, {label: "Open in a new tab", icon: "hero-arrow-top-right-on-square", action: "newTab", href: row.href})
+    add(writable && row.placed_in, {label: "Take out of this folder", icon: "hero-folder-minus", event: "remove_placement", payload: {id, folder: String(row.placed_in)}, group: "edit"})
+    add(true, {label: "Copy link", icon: "hero-link", action: "copy", href: row.href, group: "share"})
     return items
   }
 

@@ -516,3 +516,18 @@ test("a menu item's event goes to the server; copy and new tab stay here", () =>
   hook.menuAction(ev, 1)
   assert.equal(opened, "https://example.test/boards/1/wiki/p7")
 })
+
+test("a page also filed in a folder is marked, cannot be dragged, and can be taken out", () => {
+  const also = page(7, {also: true, placed_in: 4, href: "/boards/1/wiki/p7"})
+  const {rowsEl} = (() => {
+    const env = mountHook({dataset: {organising: "true"}, replies: [root([also])]})
+    env.hook.mounted()
+    return env
+  })()
+  assert.match(rowsEl.innerHTML, /hero-link size-3/)
+  assert.doesNotMatch(rowsEl.innerHTML, /data-drag/)
+  const items = menuItems(also, {board: 1, canWrite: true, selected: new Set()})
+  assert.deepEqual(labels(items), ["Open", "Open in a new tab", "Take out of this folder", "Copy link"])
+  assert.deepEqual(items[2].payload, {id: "7", folder: "4"})
+  assert.deepEqual(labels(menuItems({...also, writable: false}, {board: 1, canWrite: false})), ["Open", "Open in a new tab", "Copy link"])
+})
