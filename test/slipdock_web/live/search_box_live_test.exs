@@ -84,6 +84,60 @@ defmodule SlipdockWeb.SearchBoxLiveTest do
     end
   end
 
+  describe "the X that clears the query (#767)" do
+    test "is only there while the board view's box has a query in it", %{
+      conn: conn,
+      board: board
+    } do
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}")
+      refute has_element?(view, "#board-search-box-clear")
+
+      view |> form("#board-search", %{"q" => "login"}) |> render_change()
+      assert has_element?(view, ~s(#board-search-box-clear[aria-label="Clear the search"]))
+
+      # Emptied by hand, the X goes with the query.
+      view |> form("#board-search", %{"q" => ""}) |> render_change()
+      refute has_element?(view, "#board-search-box-clear")
+    end
+
+    test "on the board view, empties the box and brings every card back", %{
+      conn: conn,
+      board: board
+    } do
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}")
+      view |> form("#board-search", %{"q" => "login"}) |> render_change()
+      refute render(view) =~ "Write the release notes"
+
+      html = view |> element("#board-search-box-clear") |> render_click()
+
+      assert html =~ "Fix the login page"
+      assert html =~ "Write the release notes"
+      refute has_element?(view, "#board-search input[name=q][value=login]")
+      refute has_element?(view, "#board-search-box-clear")
+      refute has_element?(view, "#board-search-box.search-open")
+    end
+
+    test "on the swimlane and table toolbars, drops the query from the address", %{
+      conn: conn,
+      board: board
+    } do
+      for mode <- ["swimlanes", "table"] do
+        {:ok, view, _} = live(conn, "/boards/#{board.id}/#{mode}?q=login")
+        refute render(view) =~ "Write the release notes"
+
+        view |> element("#swim-search-clear") |> render_click()
+
+        path = assert_patch(view)
+        refute path =~ "q=login"
+        html = render(view)
+        assert html =~ "Fix the login page"
+        assert html =~ "Write the release notes"
+        refute has_element?(view, "#swim-search-clear")
+        refute has_element?(view, "#swim-search.search-open")
+      end
+    end
+  end
+
   describe "the swimlane and table toolbars" do
     test "fold the box the same way", %{conn: conn, board: board} do
       for path <- [~p"/boards/#{board}/swimlanes", ~p"/boards/#{board}/table"] do
