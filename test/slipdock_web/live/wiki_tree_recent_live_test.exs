@@ -32,6 +32,33 @@ defmodule SlipdockWeb.WikiTreeRecentLiveTest do
     |> Enum.map(fn [_, id] -> String.to_integer(id) end)
   end
 
+  # The top of the tree is one line (#739): the switch sits beside All pages
+  # and the tree's own buttons rather than on a row of its own, as icons with
+  # their names for screen readers and in the tooltip.
+  test "the Tree / Recent switch shares the tree's first line", %{conn: conn, board: board} do
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}/wiki")
+
+    assert has_element?(view, "#wiki-tree-head a", "All pages")
+    assert has_element?(view, "#wiki-tree-head #wiki-tree-view")
+    assert has_element?(view, "#wiki-tree-head button[phx-click='toggle_organise']")
+
+    assert has_element?(
+             view,
+             "#wiki-tree-view-tree[aria-label='Tree'][title='Pages in their folders'] .hero-folder"
+           )
+
+    assert has_element?(
+             view,
+             "#wiki-tree-view-recent[aria-label='Recent'][title='The most recently edited pages first'] .hero-clock"
+           )
+
+    # Nothing else is stacked above the tree, in either view.
+    refute has_element?(view, "#wiki-tree > [role='group']")
+    view |> element("#wiki-tree-view-recent") |> render_click()
+    assert has_element?(view, "#wiki-tree-head #wiki-tree-view-recent[aria-pressed='true']")
+    refute has_element?(view, "#wiki-tree > [role='group']")
+  end
+
   test "the tree is the default, and Recent lists pages newest edit first", %{
     conn: conn,
     board: board,
