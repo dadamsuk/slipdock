@@ -741,14 +741,41 @@ defmodule SlipdockWeb.WikiLive.Index do
     collapsed = socket.assigns.collapsed
 
     {:noreply,
-     assign(socket,
-       collapsed:
-         if(MapSet.member?(collapsed, id),
-           do: MapSet.delete(collapsed, id),
-           else: MapSet.put(collapsed, id)
-         )
+     put_collapsed(
+       socket,
+       if(MapSet.member?(collapsed, id),
+         do: MapSet.delete(collapsed, id),
+         else: MapSet.put(collapsed, id)
+       )
      )}
   end
+
+  # One switch for the whole tree: while any folder with something in it is
+  # open it shuts them all, and once they are all shut it opens them again.
+  def handle_event("toggle_all_folders", _params, socket) do
+    openable = openable_folder_ids(socket.assigns.folders)
+
+    collapsed =
+      if all_shut?(openable, socket.assigns.collapsed),
+        do: MapSet.new(),
+        else: openable
+
+    {:noreply, put_collapsed(socket, collapsed)}
+  end
+
+  # The WikiTree hook hands back what the reader had shut last time on this
+  # board: following a link to another page mounts the wiki afresh, and a
+  # tree that springs open on every click is one nobody bothers shutting.
+  # Whatever leads to the page or folder being looked at stays open, so
+  # what you just opened is never hidden behind a lid.
+  def handle_event("restore_collapsed", %{"ids" => ids}, socket) when is_list(ids) do
+    ids = ids |> Enum.take(1000) |> Enum.map(&Params.id/1) |> Enum.filter(&is_integer/1)
+
+    {:noreply,
+     assign(socket, collapsed: MapSet.difference(MapSet.new(ids), shown_folder_ids(socket)))}
+  end
+
+  def handle_event("restore_collapsed", _params, socket), do: {:noreply, socket}
 
   # Organise mode opens every folder: a shut folder is not a place anything
   # can be dropped, and a target you cannot see is not a target.
@@ -1101,6 +1128,36 @@ defmodule SlipdockWeb.WikiLive.Index do
       [] -> {:noreply, put_flash(socket, :error, "That board has no lists to put a card in.")}
       _ -> {:noreply, put_flash(socket, :error, "That card couldn't be made.")}
     end
+  end
+
+  defp put_collapsed(socket, collapsed) do
+    socket
+    |> assign(collapsed: collapsed)
+    |> push_event("wiki-tree:collapsed", %{ids: MapSet.to_list(collapsed)})
+  end
+
+  # The folders a toggle could shut: an empty one has no lid to close.
+  defp openable_folder_ids(nodes) do
+    Enum.reduce(nodes, MapSet.new(), fn %{folder: folder, children: children, pages: pages},
+                                        acc ->
+      acc = MapSet.union(acc, openable_folder_ids(children))
+      if children == [] and pages == [], do: acc, else: MapSet.put(acc, folder.id)
+    end)
+  end
+
+  defp all_shut?(openable, collapsed),
+    do: MapSet.size(openable) > 0 and MapSet.subset?(openable, collapsed)
+
+  # The folders on the way to what is being looked at, itself included.
+  defp shown_folder_ids(socket) do
+    crumbs =
+      case socket.assigns do
+        %{page: %Page{} = page} -> folder_crumbs(page)
+        %{folder: %{} = folder} -> Wiki.folder_ancestors(folder) ++ [folder]
+        _ -> []
+      end
+
+    MapSet.new(crumbs, & &1.id)
   end
 
   # Where a drop landed. "folder:" is the top of the wiki; "page:7" is inside
@@ -1553,6 +1610,7 @@ defmodule SlipdockWeb.WikiLive.Index do
           <aside
             id="wiki-tree"
             phx-hook="WikiTree"
+            data-board={@board.id}
             data-organising={to_string(@organising)}
             class="kanban-scroll hidden w-64 shrink-0 overflow-y-auto border-r border-base-300 bg-base-100 p-3 lg:block"
           >
@@ -1566,6 +1624,32 @@ defmodule SlipdockWeb.WikiLive.Index do
               >
                 <.icon name="hero-book-open" class="size-4" /> All pages
               </.link>
+              <%!-- Open or shut every folder at once. Not while searching
+                    or organising: both open the whole tree themselves. --%>
+              <button
+                :if={
+                  @filters.q == "" and not @organising and
+                    MapSet.size(openable_folder_ids(@folders)) > 0
+                }
+                id="wiki-tree-toggle-all"
+                type="button"
+                phx-click="toggle_all_folders"
+                class="btn btn-ghost btn-xs btn-square shrink-0"
+                title={
+                  if all_shut?(openable_folder_ids(@folders), @collapsed),
+                    do: "Open all folders",
+                    else: "Close all folders"
+                }
+              >
+                <.icon
+                  name={
+                    if all_shut?(openable_folder_ids(@folders), @collapsed),
+                      do: "hero-chevron-double-down",
+                      else: "hero-chevron-double-up"
+                  }
+                  class="size-4"
+                />
+              </button>
               <%!-- Rearranging is a mode, and it says so: in it the tree is
                     draggable and nothing else about it changes. --%>
               <button
@@ -1663,7 +1747,15 @@ defmodule SlipdockWeb.WikiLive.Index do
           <%!-- `relative`: the status buttons' radios are `sr-only`, which is
                 `position: absolute`, and with nothing positioned above them
                 they stretched the whole document to the page's length. --%>
-          <main id="wiki-main" class="kanban-scroll relative min-w-0 flex-1 overflow-y-auto">
+          <%!-- A page is opened in place (a patch), so the tree stays as it was
+                rather than being rebuilt and sent again; ScrollTopOnPage puts
+                this column back at the top when the page changes. --%>
+          <main
+            id="wiki-main"
+            phx-hook="ScrollTopOnPage"
+            data-page={"#{@live_action}:#{@page && @page.id}"}
+            class="kanban-scroll relative min-w-0 flex-1 overflow-y-auto"
+          >
             <div class="mx-auto max-w-4xl px-4 py-6 sm:px-8 sm:py-8">
               <%= case @live_action do %>
                 <% :index when not is_nil(@folder) -> %>
@@ -1921,7 +2013,15 @@ defmodule SlipdockWeb.WikiLive.Index do
           >
             <.icon name="hero-bars-2" class="size-3.5" />
           </span>
+          <%!-- An empty folder has nothing to open, so no chevron: just
+                the room one takes, to keep the names lined up. --%>
+          <span
+            :if={children == [] and pages == [] and not @organising}
+            class="w-3.5 shrink-0"
+            data-empty-folder
+          />
           <button
+            :if={children != [] or pages != [] or @organising}
             type="button"
             phx-click="toggle_folder"
             phx-value-id={folder.id}
@@ -2016,13 +2116,6 @@ defmodule SlipdockWeb.WikiLive.Index do
             into={"folder:#{folder.id}"}
             depth={@depth + 1}
           />
-          <p
-            :if={children == [] and pages == [] and not @organising}
-            class="py-1 text-xs italic text-base-content/40"
-            style={"padding-left: #{1.25 + @depth * 0.75}rem"}
-          >
-            Empty
-          </p>
         </div>
       </li>
     </ul>
@@ -2061,7 +2154,7 @@ defmodule SlipdockWeb.WikiLive.Index do
             <.icon name="hero-bars-2" class="size-3.5" />
           </span>
           <.link
-            navigate={page_path(@board, page)}
+            patch={page_path(@board, page)}
             class="flex min-w-0 flex-1 items-center gap-1.5 py-1.5"
             title={page.title}
           >
@@ -2228,7 +2321,7 @@ defmodule SlipdockWeb.WikiLive.Index do
       >
         <li :for={%{page: page, children: kids} <- @pages}>
           <.link
-            navigate={page_path(@board, page)}
+            patch={page_path(@board, page)}
             class="flex items-baseline gap-3 px-4 py-3 hover:bg-base-200"
           >
             <span class="min-w-0 flex-1">
@@ -2322,7 +2415,7 @@ defmodule SlipdockWeb.WikiLive.Index do
                 </.link>
               </li>
               <li :for={%{page: page} <- node.pages}>
-                <.link navigate={page_path(@board, page)} class="link link-hover">
+                <.link patch={page_path(@board, page)} class="link link-hover">
                   {page.title}
                 </.link>
               </li>
@@ -2367,7 +2460,7 @@ defmodule SlipdockWeb.WikiLive.Index do
       <ul class="mt-3 divide-y divide-base-300 rounded-xl border border-base-300 bg-base-100">
         <li :for={page <- @recent}>
           <.link
-            navigate={page_path(@board, page)}
+            patch={page_path(@board, page)}
             class="flex items-baseline gap-3 px-4 py-3 hover:bg-base-200"
           >
             <span class="min-w-0 flex-1">
@@ -2428,7 +2521,7 @@ defmodule SlipdockWeb.WikiLive.Index do
           <.icon name="hero-chevron-right" class="size-3" />
         </span>
         <span :for={ancestor <- Wiki.ancestors(@page)} class="flex items-center gap-1">
-          <.link navigate={page_path(@board, ancestor)} class="hover:text-base-content">
+          <.link patch={page_path(@board, ancestor)} class="hover:text-base-content">
             {ancestor.title}
           </.link>
           <.icon name="hero-chevron-right" class="size-3" />
@@ -2836,7 +2929,7 @@ defmodule SlipdockWeb.WikiLive.Index do
         <ul class="mt-3 space-y-1">
           <li :for={child <- @children}>
             <.link
-              navigate={page_path(@board, child)}
+              patch={page_path(@board, child)}
               class="flex items-baseline gap-2 rounded-lg px-2 py-1.5 hover:bg-base-200"
             >
               <.icon name="hero-document-text" class="size-3.5 shrink-0 text-base-content/40" />
@@ -3076,7 +3169,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     ~H"""
     <div class="flex flex-wrap items-center justify-between gap-2">
       <h1 class="text-xl font-bold tracking-tight">History of {@page.title}</h1>
-      <.link navigate={page_path(@board, @page)} class="btn btn-ghost btn-sm">Back to the page</.link>
+      <.link patch={page_path(@board, @page)} class="btn btn-ghost btn-sm">Back to the page</.link>
     </div>
 
     <form id="compare-form" phx-submit="compare" class="mt-6">

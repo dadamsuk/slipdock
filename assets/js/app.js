@@ -1201,6 +1201,18 @@ Hooks.DropdownAlign = {
   },
 }
 
+// The wiki's middle column scrolls on its own. A page linked from inside the
+// wiki opens in place (a patch, so the tree is not rebuilt and sent again),
+// and without this it would open scrolled to wherever the last one was left.
+Hooks.ScrollTopOnPage = {
+  mounted() { this.page = this.el.dataset.page },
+  updated() {
+    if (this.el.dataset.page === this.page) return
+    this.page = this.el.dataset.page
+    this.el.scrollTop = 0
+  },
+}
+
 // The wiki's tree, in organise mode: every list in it becomes a Sortable, and
 // a drop pushes where the thing landed rather than the whole new shape —
 // the server owns the order, as it does on the board.
@@ -1210,7 +1222,22 @@ Hooks.DropdownAlign = {
 // is, in `data-into`: "folder:4", "folder:" for the top of the wiki, or
 // "page:7" for inside a page.
 Hooks.WikiTree = {
-  mounted() { this.build() },
+  mounted() {
+    // Which folders the reader shut, per board, kept in the browser: every
+    // link to another page mounts the wiki afresh, and without this the tree
+    // would spring open on each one.
+    const key = `slipdock:wiki-collapsed:${this.el.dataset.board}`
+    let ids = []
+    try { ids = JSON.parse(localStorage.getItem(key) || "[]") } catch (_e) {}
+    if (Array.isArray(ids) && ids.length) this.pushEvent("restore_collapsed", {ids})
+    this.handleEvent("wiki-tree:collapsed", ({ids}) => {
+      try {
+        if (ids.length) localStorage.setItem(key, JSON.stringify(ids))
+        else localStorage.removeItem(key)
+      } catch (_e) {}
+    })
+    this.build()
+  },
   updated() { this.build() },
   destroyed() { this.teardown() },
 
