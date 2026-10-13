@@ -642,7 +642,15 @@ export const WikiTree = {
     for (let i = start; i < end; i++) html += rowHtml(this.flat[i], i, ctx)
     this.rowsEl.style.height = `${this.flat.length * this.rowH}px`
     this.rowsEl.setAttribute("role", "tree")
-    this.rowsEl.innerHTML = html + (this.dragGuide ? this.dragGuide.outerHTML : "")
+    // Only what changed is drawn again. Every update of the page calls this,
+    // and so does a reload after anything on the board changes (a sync, an
+    // agent writing): rows replaced with the same rows still flicker, drop
+    // the hover, and restart a press, so the same rows are left alone.
+    const drawn = html + (this.dragGuide ? this.dragGuide.outerHTML : "")
+    if (drawn !== this.drawn) {
+      this.rowsEl.innerHTML = drawn
+      this.drawn = drawn
+    }
     const activeIndex = this.active ? this.flat.findIndex(i => i.row.key === this.active) : -1
     if (activeIndex >= start && activeIndex < end) this.rowsEl.setAttribute("aria-activedescendant", `wt-row-${activeIndex}`)
     else if (this.rowsEl.removeAttribute) this.rowsEl.removeAttribute("aria-activedescendant")
