@@ -141,6 +141,64 @@ defmodule SlipdockWeb.WikiFoldersLiveTest do
     assert Wiki.get_folder(folder.id) == nil
   end
 
+  describe "deleting a folder with everything in it, as a writer who does not own the board" do
+    setup %{board: board, user: owner} do
+      {:ok, folder} = Wiki.create_folder(board, %{"name" => "Specs"})
+      page = page_fixture(board, %{"title" => "Retry policy"})
+      {:ok, _} = Wiki.file_page(page, folder)
+
+      writer = user_fixture("folder-writer@example.com")
+      {:ok, _} = Slipdock.Access.grant(board, writer, "write", owner)
+
+      %{folder: folder, page: page, conn: log_in_user(build_conn(), writer)}
+    end
+
+    test "is not offered: only the folder-only delete, and a line saying whose it is", %{
+      conn: conn,
+      board: board,
+      folder: folder
+    } do
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki?folder=#{folder.id}")
+
+      view |> element("button[phx-click='ask_delete_folder']") |> render_click()
+
+      assert has_element?(view, "#folder-delete-modal button[phx-value-how='keep']")
+      refute has_element?(view, "#folder-delete-modal button[phx-value-how='purge']")
+      assert has_element?(view, "#folder-purge-owner-only")
+    end
+
+    test "is refused when the event is sent anyway, and nothing is deleted", %{
+      conn: conn,
+      board: board,
+      folder: folder,
+      page: page
+    } do
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki?folder=#{folder.id}")
+
+      html = render_click(view, "delete_folder", %{"id" => folder.id, "how" => "purge"})
+
+      assert html =~ "Only the board&#39;s owner can delete a folder with everything in it."
+      assert Wiki.get_folder(folder.id)
+      assert Wiki.get_page!(page.id).folder_id == folder.id
+    end
+
+    test "can still delete the folder itself, keeping its pages", %{
+      conn: conn,
+      board: board,
+      folder: folder,
+      page: page
+    } do
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki?folder=#{folder.id}")
+
+      view |> element("button[phx-click='ask_delete_folder']") |> render_click()
+      html = view |> element("button[phx-value-how='keep']") |> render_click()
+
+      assert html =~ "Nothing in it was deleted"
+      assert Wiki.get_folder(folder.id) == nil
+      assert Wiki.get_page!(page.id).folder_id == nil
+    end
+  end
+
   describe "searching the tree" do
     test "a folder name is a hit, and brings what is in it", %{conn: conn, board: board} do
       {:ok, specs} = Wiki.create_folder(board, %{"name" => "Specs"})
