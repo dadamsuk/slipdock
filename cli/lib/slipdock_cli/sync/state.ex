@@ -1,6 +1,8 @@
 defmodule SlipdockCLI.Sync.State do
   @moduledoc false
 
+  alias SlipdockCLI.FS
+
   # A mirror's memory, in `<dir>/.slipdock/state.json` (W-103 R2.3): which
   # server and vault the folder is bound to, the change feed's cursor, and for
   # every file the id of what it is on the server and the hash both sides
@@ -23,7 +25,7 @@ defmodule SlipdockCLI.Sync.State do
     dir = Path.expand(dir)
 
     cond do
-      File.exists?(path(dir)) -> {:ok, dir}
+      FS.exists?(path(dir)) -> {:ok, dir}
       Path.dirname(dir) == dir -> :error
       true -> find_root(Path.dirname(dir))
     end
@@ -45,7 +47,7 @@ defmodule SlipdockCLI.Sync.State do
   end
 
   def load(root) do
-    case File.read(path(root)) do
+    case FS.read(path(root)) do
       {:ok, text} ->
         {state, _, ""} = :json.decode(text, :ok, %{null: nil})
         {:ok, state}
@@ -59,11 +61,11 @@ defmodule SlipdockCLI.Sync.State do
 
   @doc "Written whole to a temp file and renamed over, so a crash never leaves half a state."
   def save(root, state) do
-    File.mkdir_p!(Path.join(root, @dir))
+    FS.mkdir_p!(Path.join(root, @dir))
     target = path(root)
     tmp = target <> ".#{System.unique_integer([:positive])}.tmp"
-    File.write!(tmp, HTTP.encode(state))
-    File.rename!(tmp, target)
+    FS.write!(tmp, HTTP.encode(state))
+    FS.rename!(tmp, target)
     state
   end
 end

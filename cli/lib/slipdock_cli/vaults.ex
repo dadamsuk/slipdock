@@ -1,6 +1,8 @@
 defmodule SlipdockCLI.Vaults do
   @moduledoc false
 
+  alias SlipdockCLI.FS
+
   # Vaults: board wikis laid out as one Obsidian-style vault (W-103). A vault
   # is named by its id or its name; a path is vault-relative, "/" the root.
 
@@ -112,9 +114,9 @@ defmodule SlipdockCLI.Vaults do
       do: fail("say which vault: slipdock vault import #{dir} --vault V")
 
     root = Path.expand(dir)
-    if not File.dir?(root), do: fail("#{dir} is not a folder")
+    if not FS.dir?(root), do: fail("#{dir} is not a folder")
 
-    if File.exists?(State.path(root)),
+    if FS.exists?(State.path(root)),
       do:
         fail(
           "#{dir} is already a mirror of a vault, kept level by `slipdock sync` — " <>

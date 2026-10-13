@@ -1,6 +1,8 @@
 defmodule SlipdockCLI.Sync.Status do
   @moduledoc false
 
+  alias SlipdockCLI.FS
+
   # What `slipdock sync status` reports (W-103 R2.13), and the other sync
   # tools a mirror must not share its folder with (the PRD's first risk).
   #
@@ -69,11 +71,11 @@ defmodule SlipdockCLI.Sync.Status do
     plugins = Path.join([root, ".obsidian", "core-plugins.json"])
 
     cond do
-      File.exists?(sync_json) ->
+      FS.exists?(sync_json) ->
         {"Obsidian Sync", ".obsidian/sync.json is there"}
 
-      match?({:ok, _}, File.read(plugins)) and
-          Regex.match?(~r/"sync"\s*(:\s*true|[,\]])/, File.read!(plugins)) ->
+      match?({:ok, _}, FS.read(plugins)) and
+          Regex.match?(~r/"sync"\s*(:\s*true|[,\]])/, FS.read!(plugins)) ->
         {"Obsidian Sync", "it is on in .obsidian/core-plugins.json"}
 
       true ->
@@ -83,7 +85,7 @@ defmodule SlipdockCLI.Sync.Status do
 
   defp found(dirs, marker, name) do
     Enum.find_value(dirs, fn dir ->
-      if File.exists?(Path.join(dir, marker)),
+      if FS.exists?(Path.join(dir, marker)),
         do: {name, "#{Path.join(dir, marker)} is there"}
     end)
   end
@@ -111,7 +113,7 @@ defmodule SlipdockCLI.Sync.Status do
   @doc "Paths of the conflict copies still on disk, for status to list."
   def conflicts(root, state) do
     (state["conflicts"] || [])
-    |> Enum.filter(&File.exists?(Path.join(root, &1)))
+    |> Enum.filter(&FS.exists?(Path.join(root, &1)))
   end
 
   @doc "A local scan for `pending/2`."

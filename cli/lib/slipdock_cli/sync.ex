@@ -1,6 +1,8 @@
 defmodule SlipdockCLI.Sync do
   @moduledoc false
 
+  alias SlipdockCLI.FS
+
   # `slipdock sync`: a vault mirrored both ways to a local folder that stays
   # a valid Obsidian vault (W-103 R2). The server is the source of truth; the
   # folder is a working copy, and anything that writes a text file into it
@@ -27,7 +29,7 @@ defmodule SlipdockCLI.Sync do
     if is_nil(o[:vault]), do: fail("say which vault: slipdock sync init #{dir} --vault V")
     root = Path.expand(dir)
 
-    if File.exists?(State.path(root)) and not o[:force] do
+    if FS.exists?(State.path(root)) and not o[:force] do
       {:ok, state} = State.load(root)
 
       fail(
@@ -48,7 +50,7 @@ defmodule SlipdockCLI.Sync do
           "#{vault["name"]} has nothing mapped yet — `slipdock vault map` a board into it first"
         )
 
-    File.mkdir_p!(root)
+    FS.mkdir_p!(root)
     State.save(root, State.new(HTTP.base_url(), vault, Engine.hostname()))
     IO.puts("bound #{dir} to the vault #{Render.bold(vault["name"])}")
 
@@ -318,7 +320,7 @@ defmodule SlipdockCLI.Sync do
     # short is harmless: files are only ever renamed into place, and the next
     # pass finds both sides agreeing where they do.
     System.trap_signal(:sigterm, :slipdock_sync, fn ->
-      File.rm(Path.join([root, State.dir_name(), "lock"]))
+      FS.rm(Path.join([root, State.dir_name(), "lock"]))
       System.halt(0)
     end)
 
@@ -401,8 +403,8 @@ defmodule SlipdockCLI.Sync do
 
   defp service("install", plan, _o) do
     if plan.file do
-      File.mkdir_p!(Path.dirname(plan.file))
-      File.write!(plan.file, plan.content)
+      FS.mkdir_p!(Path.dirname(plan.file))
+      FS.write!(plan.file, plan.content)
       IO.puts("wrote #{plan.file}")
     end
 
@@ -423,7 +425,7 @@ defmodule SlipdockCLI.Sync do
 
   defp service("uninstall", plan, _o) do
     Enum.each(plan.uninstall, &run_cmd(&1, false))
-    if plan.file, do: File.rm(plan.file)
+    if plan.file, do: FS.rm(plan.file)
     IO.puts("stopped and removed #{plan.name}")
   end
 
@@ -484,25 +486,25 @@ defmodule SlipdockCLI.Sync do
   @doc false
   def with_lock(root, fun) do
     lock = Path.join([root, State.dir_name(), "lock"])
-    File.mkdir_p!(Path.dirname(lock))
+    FS.mkdir_p!(Path.dirname(lock))
 
     stale? =
-      case File.stat(lock, time: :posix) do
+      case FS.stat(lock, time: :posix) do
         {:ok, %{mtime: mtime}} -> System.os_time(:second) - mtime > 600
         _ -> false
       end
 
-    if stale?, do: File.rm(lock)
+    if stale?, do: FS.rm(lock)
 
-    case File.open(lock, [:write, :exclusive]) do
+    case FS.open(lock, [:write, :exclusive]) do
       {:ok, device} ->
         IO.write(device, System.pid())
-        File.close(device)
+        FS.close(device)
 
         try do
           fun.()
         after
-          File.rm(lock)
+          FS.rm(lock)
         end
 
       {:error, :eexist} ->

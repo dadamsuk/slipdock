@@ -1,6 +1,8 @@
 defmodule SlipdockCLI.Sync.Import do
   @moduledoc false
 
+  alias SlipdockCLI.FS
+
   # `slipdock vault import DIR --vault V` (W-103 R9): an existing Obsidian
   # vault brought into a Slipdock vault once, each path routed through the
   # vault's mappings. One way only: nothing on the server comes down, and the
@@ -40,7 +42,7 @@ defmodule SlipdockCLI.Sync.Import do
 
   @doc "The import record left in `root`, or nil."
   def load_record(root) do
-    with {:ok, text} <- File.read(record_path(root)),
+    with {:ok, text} <- FS.read(record_path(root)),
          {record, _, ""} <- :json.decode(text, :ok, %{null: nil}) do
       record
     else
@@ -51,15 +53,15 @@ defmodule SlipdockCLI.Sync.Import do
   end
 
   def save_record(root, record) do
-    File.mkdir_p!(Path.join(root, State.dir_name()))
+    FS.mkdir_p!(Path.join(root, State.dir_name()))
     target = record_path(root)
     tmp = target <> ".#{System.unique_integer([:positive])}.tmp"
-    File.write!(tmp, SlipdockCLI.HTTP.encode(record))
-    File.rename!(tmp, target)
+    FS.write!(tmp, SlipdockCLI.HTTP.encode(record))
+    FS.rename!(tmp, target)
     record
   end
 
-  def drop_record(root), do: File.rm(record_path(root))
+  def drop_record(root), do: FS.rm(record_path(root))
 
   @doc """
   After a sync pass that adopted from the record (`imported` not nil): the
@@ -67,10 +69,12 @@ defmodule SlipdockCLI.Sync.Import do
   been reconciled; until then the next pass adopts from it again.
   """
   def spent(_root, nil, _errors), do: :kept
+
   def spent(root, _imported, []) do
     drop_record(root)
     :dropped
   end
+
   def spent(_root, _imported, _errors), do: :kept
 
   @doc """
@@ -211,7 +215,7 @@ defmodule SlipdockCLI.Sync.Import do
   end
 
   defp read(root, path) do
-    case File.read(Path.join(root, path)) do
+    case FS.read(Path.join(root, path)) do
       {:ok, text} -> text
       _ -> ""
     end
@@ -396,7 +400,7 @@ defmodule SlipdockCLI.Sync.Import do
         result =
           case item.kind do
             "page" ->
-              case File.read(Path.join(root, item.path)) do
+              case FS.read(Path.join(root, item.path)) do
                 {:ok, content} ->
                   mod.write(ctx, nil, %{"path" => item.path, "content" => content})
 

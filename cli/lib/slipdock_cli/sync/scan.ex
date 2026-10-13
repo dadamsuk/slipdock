@@ -1,6 +1,8 @@
 defmodule SlipdockCLI.Sync.Scan do
   @moduledoc false
 
+  alias SlipdockCLI.FS
+
   # What is in a mirror folder, as sync sees it: every file it syncs, with
   # its size, modification time and sha256. The time and size are only for
   # noticing that something changed; whether it *did* is always the hash
@@ -25,7 +27,7 @@ defmodule SlipdockCLI.Sync.Scan do
   is not supported, and such a line is skipped.
   """
   def ignores(root) do
-    case File.read(Path.join(root, @ignore_file)) do
+    case FS.read(Path.join(root, @ignore_file)) do
       {:ok, text} -> parse_ignores(text)
       _ -> []
     end
@@ -109,13 +111,13 @@ defmodule SlipdockCLI.Sync.Scan do
   def ignored_paths(root), do: skipped(root, "", ignores(root))
 
   defp skipped(root, rel, patterns) do
-    case File.ls(Path.join(root, rel)) do
+    case FS.ls(Path.join(root, rel)) do
       {:ok, names} ->
         names
         |> Enum.sort()
         |> Enum.flat_map(fn name ->
           path = if rel == "", do: name, else: rel <> "/" <> name
-          dir? = File.dir?(Path.join(root, path))
+          dir? = FS.dir?(Path.join(root, path))
 
           cond do
             dir? and (ignored?(path, patterns) or ignored?(path <> "/", patterns)) ->
@@ -141,7 +143,7 @@ defmodule SlipdockCLI.Sync.Scan do
   def scan_stats(root), do: walk(root, "", ignores(root))
 
   defp walk(root, rel, patterns) do
-    case File.ls(Path.join(root, rel)) do
+    case FS.ls(Path.join(root, rel)) do
       {:ok, names} ->
         names
         |> Enum.sort()
@@ -155,11 +157,11 @@ defmodule SlipdockCLI.Sync.Scan do
 
             # A folder pattern ends in a slash, so a folder is asked about
             # with one too.
-            File.dir?(full) ->
+            FS.dir?(full) ->
               if ignored?(path <> "/", patterns), do: [], else: walk(root, path, patterns)
 
             true ->
-              case File.stat(full, time: :posix) do
+              case FS.stat(full, time: :posix) do
                 {:ok, %File.Stat{type: :regular} = stat} -> [{path, stat}]
                 _ -> []
               end
@@ -173,7 +175,7 @@ defmodule SlipdockCLI.Sync.Scan do
 
   @doc "The sha256 of a file, or nil when it can't be read (gone already)."
   def sha_file(path) do
-    case File.open(path, [:read, :binary]) do
+    case FS.open(path, [:read, :binary]) do
       {:ok, device} ->
         try do
           device
@@ -182,7 +184,7 @@ defmodule SlipdockCLI.Sync.Scan do
           |> :crypto.hash_final()
           |> Base.encode16(case: :lower)
         after
-          File.close(device)
+          FS.close(device)
         end
 
       _ ->
