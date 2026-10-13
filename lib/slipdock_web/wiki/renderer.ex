@@ -28,7 +28,7 @@ defmodule SlipdockWeb.Wiki.Renderer do
 
   alias Slipdock.Boards.{Card, Column}
   alias Slipdock.Wiki
-  alias Slipdock.Wiki.{Links, Markup, Page, Query, Section}
+  alias Slipdock.Wiki.{Links, Markup, Meld, Page, Query, Section}
 
   @extension [
     table: true,
@@ -48,7 +48,7 @@ defmodule SlipdockWeb.Wiki.Renderer do
     add_tag_attributes: %{
       "input" => ["type", "checked", "disabled"],
       "a" => ["title"],
-      "span" => ["title"]
+      "span" => ["title", "role", "tabindex", "data-meld-block"]
     },
     add_generic_attributes: ["id", "class"]
   ]
@@ -337,13 +337,37 @@ defmodule SlipdockWeb.Wiki.Renderer do
   defp text_nodes(text, context) do
     {text, block} = block_id(text)
 
-    text
-    |> Markup.tokens()
-    |> Enum.map(fn
-      {:text, literal} -> %MDEx.Text{literal: literal}
-      {:ref, ref} -> ref_node(ref, context)
+    Meld.inline()
+    |> Regex.split(text, include_captures: true, trim: true)
+    |> Enum.flat_map(fn piece ->
+      case Meld.blocks(piece) do
+        [%{text: ^piece} = meld] ->
+          [meld_node(meld)]
+
+        _ ->
+          piece
+          |> Markup.tokens()
+          |> Enum.map(fn
+            {:text, literal} -> %MDEx.Text{literal: literal}
+            {:ref, ref} -> ref_node(ref, context)
+          end)
+      end
     end)
     |> Kernel.++(block_anchor(block))
+  end
+
+  # A Meld Encrypt block is drawn locked, carrying its ciphertext for the
+  # browser to decrypt (assets/js/meld_view.js). The server only ever has the
+  # ciphertext, so that is all there is to put here.
+  defp meld_node(meld) do
+    hint =
+      if meld.hint == "", do: "", else: ~s| <span class="meld-hint">#{escape(meld.hint)}</span>|
+
+    %MDEx.HtmlInline{
+      literal:
+        ~s|<span class="meld-locked" role="button" tabindex="0" title="Encrypted. Select to decrypt in this browser" | <>
+          ~s|data-meld-block="#{escape(meld.text)}">🔒 Encrypted#{hint}</span>|
+    }
   end
 
   # Obsidian's block id: ` ^a1b2` at the end of a paragraph or list item. It
@@ -882,6 +906,7 @@ defmodule SlipdockWeb.Wiki.Renderer do
 
   def excerpt(body, limit) when is_binary(body) do
     body
+    |> Meld.conceal()
     |> String.split(~r/\n\s*\n/, parts: 6)
     |> Enum.map(&String.trim/1)
     |> Enum.reject(

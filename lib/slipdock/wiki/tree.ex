@@ -62,6 +62,7 @@ defmodule Slipdock.Wiki.Tree do
     :code,
     :status,
     :template,
+    :encrypted,
     :archived_at,
     :parent_id,
     :folder_id,
@@ -948,6 +949,7 @@ defmodule Slipdock.Wiki.Tree do
       draft: page.status == "draft",
       template: page.template,
       archived: not is_nil(page.archived_at),
+      encrypted: page.encrypted == true,
       priority: page.priority,
       flags: page.flags || [],
       due: page.due_date,
@@ -977,6 +979,7 @@ defmodule Slipdock.Wiki.Tree do
           title: file.name,
           content_type: file.content_type,
           folder_id: file.folder_id,
+          encrypted: Slipdock.Wiki.Meld.note_file?(file.name),
           count: 0
         }
       end)

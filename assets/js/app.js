@@ -30,6 +30,7 @@ import {ModalDialog} from "./modal_dialog"
 import {installPosthog} from "./posthog"
 import {Replay} from "./replay"
 import {WikiTree} from "./wiki_tree"
+import {installMeld} from "./meld_view"
 
 const Hooks = {}
 Hooks.ModalDialog = ModalDialog
@@ -613,6 +614,12 @@ Hooks.Mention = {
   },
 }
 
+function touchesPlaintext(range) {
+  const inside = node => (node.nodeType === 1 ? node : node.parentElement)?.closest("[data-meld-open]")
+  return Boolean(inside(range.startContainer) || inside(range.endContainer) ||
+    range.cloneContents().querySelector("[data-meld-open], .meld-plain"))
+}
+
 // A passage of a wiki page becomes a card. Selecting text inside the element
 // raises a small button beside the selection; pressing it sends the text to
 // the server, which makes the card and writes the link into both ends.
@@ -637,6 +644,8 @@ Hooks.WikiSelection = {
     if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null
     const range = sel.getRangeAt(0)
     if (!this.el.contains(range.commonAncestorContainer)) return null
+    // Decrypted text stays in the browser: it never becomes a card.
+    if (touchesPlaintext(range)) return null
     const text = sel.toString().trim()
     return text.length > 2 ? text : null
   },
@@ -1472,6 +1481,7 @@ window.addEventListener("phx:scroll-to-finding", ({detail: {id}}) => {
 
 // data-confirm asks with the app's own dialog rather than the browser's.
 installConfirm(window)
+installMeld(window)
 
 // Product analytics, only if this server has a PostHog key configured.
 installPosthog(window, document)

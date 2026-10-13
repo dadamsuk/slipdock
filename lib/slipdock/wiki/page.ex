@@ -86,6 +86,8 @@ defmodule Slipdock.Wiki.Page do
     field :frozen, :map
     field :published_at, :utc_datetime
     field :content_hash, :string
+    # Holds Meld Encrypt ciphertext; set from the body on every save.
+    field :encrypted, :boolean, default: false
     # The front matter of the file the page came from, exactly as written:
     # the whole header, `---` lines and all (see `Slipdock.Wiki.FrontMatter`).
     # Keys Slipdock does not know live only here.
@@ -314,6 +316,7 @@ defmodule Slipdock.Wiki.Page do
     |> validate_front_matter()
     |> put_aliases()
     |> put_hash()
+    |> put_encrypted()
     |> unique_constraint([:board_id, :slug],
       error_key: :slug,
       message: "is already used by another page on this board"
@@ -429,6 +432,13 @@ defmodule Slipdock.Wiki.Page do
   end
 
   # The hash travels with the body so a row and its token can never disagree.
+  defp put_encrypted(changeset) do
+    case fetch_change(changeset, :body) do
+      {:ok, body} -> put_change(changeset, :encrypted, Slipdock.Wiki.Meld.encrypted?(body))
+      :error -> changeset
+    end
+  end
+
   defp put_hash(changeset) do
     case fetch_change(changeset, :body) do
       {:ok, body} -> put_change(changeset, :content_hash, hash(body))

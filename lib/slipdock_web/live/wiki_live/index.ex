@@ -1828,9 +1828,13 @@ defmodule SlipdockWeb.WikiLive.Index do
       })
 
     base =
-      Enum.reduce([:draft, :template, :archived, :context, :also, :mount], base, fn flag, acc ->
-        if row[flag], do: Map.put(acc, flag, true), else: acc
-      end)
+      Enum.reduce(
+        [:draft, :template, :archived, :encrypted, :context, :also, :mount],
+        base,
+        fn flag, acc ->
+          if row[flag], do: Map.put(acc, flag, true), else: acc
+        end
+      )
 
     base
     |> then(
@@ -1841,8 +1845,11 @@ defmodule SlipdockWeb.WikiLive.Index do
 
   defp row_href(%{kind: "page"} = row, _key), do: ~p"/boards/#{row.board_id}/wiki/#{row.slug}"
 
-  defp row_href(%{kind: "file"} = row, _key),
-    do: Slipdock.Wiki.Files.url(%Slipdock.Wiki.WikiFile{id: row.id, name: row.title})
+  defp row_href(%{kind: "file"} = row, _key) do
+    url = Slipdock.Wiki.Files.url(%Slipdock.Wiki.WikiFile{id: row.id, name: row.title})
+    # A whole note Meld encrypted opens where the browser can decrypt it.
+    if Slipdock.Wiki.Meld.note_file?(row.title), do: url <> "?view=locked", else: url
+  end
 
   defp row_href(%{kind: "dir"}, _key), do: nil
   defp row_href(%{board_id: board_id}, "board:" <> _), do: ~p"/boards/#{board_id}/wiki"

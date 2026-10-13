@@ -259,6 +259,7 @@ function rowHtml(item, index, ctx) {
     row.also ? `<span class="hero-link size-3 shrink-0 text-base-content/40" title="Also filed here; its home is another folder"></span>` : "",
     row.draft ? `<span class="shrink-0 rounded bg-amber-500/15 px-1 text-2xs font-medium text-amber-700">draft</span>` : "",
     row.template ? `<span class="shrink-0 rounded bg-base-content/10 px-1 text-2xs text-base-content/60">template</span>` : "",
+    row.encrypted ? `<span class="hero-lock-closed size-3 shrink-0 text-base-content/40" title="Holds encrypted text"></span>` : "",
     row.archived ? `<span class="shrink-0 rounded bg-base-content/10 px-1 text-2xs text-base-content/60">archived</span>` : "",
     row.kind === "folder" || row.kind === "dir"
       ? `<span class="shrink-0 text-2xs text-base-content/40">${row.pages ?? ""}</span>`
