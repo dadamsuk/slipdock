@@ -2991,6 +2991,14 @@ defmodule SlipdockWeb.WikiLive.Index do
   end
 
   # What a page says about where it stands, for the places that only show it.
+  # Whether the page has anything to show in its folded details: a writer
+  # always does (the folder picker and the list menu are there to use).
+  defp page_details?(page, can_write) do
+    can_write or not is_nil(page.folder_id) or not is_nil(page.column_id) or
+      not is_nil(page.public_token) or facets(page) != [] or page.note_tags != [] or
+      not is_nil(page.front_matter)
+  end
+
   defp facets(page) do
     [
       page.priority != "none" && {page.priority, "Priority"},
@@ -4657,121 +4665,6 @@ defmodule SlipdockWeb.WikiLive.Index do
         A draft: only people who can write on this board can see it.
       </div>
 
-      <%!-- Where it is filed. A page starts at the root, which is a place
-            rather than a limbo; a folder is filing and nothing else. --%>
-      <div
-        :if={@can_write or not is_nil(@page.folder_id)}
-        class="mt-4 flex flex-wrap items-center gap-2 text-sm text-base-content/60"
-      >
-        <.icon name="hero-folder" class="size-4 shrink-0" />
-        <span>{if @page.folder_id, do: "Filed in", else: "Not in a folder."}</span>
-        <%!-- The same picker the editor uses, pushing straight at `file_page`
-              rather than through a form: filing a page is one click from
-              reading it, and the tree is filterable here too. --%>
-        <.folder_picker
-          :if={@can_write}
-          id="page-folder-picker"
-          outline={@outline}
-          selected={@page.folder_id}
-          event="file_page"
-          new_event="new_folder"
-          size="xs"
-          class="w-60"
-        />
-        <.link
-          :if={not @can_write and @page.folder_id}
-          patch={~p"/boards/#{@board}/wiki?#{[folder: @page.folder_id]}"}
-          class="link font-medium"
-        >
-          {filed_in(@page)}
-        </.link>
-        <.link
-          :if={@can_write and @page.folder_id}
-          patch={~p"/boards/#{@board}/wiki?#{[folder: @page.folder_id]}"}
-          class="link"
-        >
-          Open the folder
-        </.link>
-      </div>
-
-      <%!-- On the board as well as in the wiki: a spec can sit in the list
-            beside the work it describes, and be dragged about like a card. --%>
-      <div
-        :if={@can_write or @page.column_id}
-        class="mt-4 flex flex-wrap items-center gap-2 text-sm text-base-content/60"
-      >
-        <.icon name="hero-view-columns" class="size-4 shrink-0" />
-        <span :if={@page.column_id}>
-          On the board in
-          <.link navigate={~p"/boards/#{@board}"} class="link font-medium">
-            {column_name(@columns, @page.column_id)}
-          </.link>
-        </span>
-        <span :if={is_nil(@page.column_id)}>Not on the board.</span>
-        <.link
-          :if={@page.column_id}
-          navigate={~p"/boards/#{@board}?#{[page: @page.id]}"}
-          class="link"
-        >
-          Open its panel
-        </.link>
-        <div :if={@can_write} class="dropdown dropdown-end">
-          <div tabindex="0" role="button" class="btn btn-ghost btn-xs">
-            {if @page.column_id, do: "Move to…", else: "Put it in a list…"}
-          </div>
-          <ul
-            tabindex="0"
-            class="menu dropdown-content z-40 mt-1 w-56 rounded-xl bg-base-100 p-1 text-sm shadow-lg ring-1 ring-base-content/10"
-          >
-            <li :for={column <- @columns}>
-              <button
-                type="button"
-                phx-click="place"
-                phx-value-column={column.id}
-                class={@page.column_id == column.id && "menu-active"}
-              >
-                {column.name}
-              </button>
-            </li>
-          </ul>
-        </div>
-        <button
-          :if={@can_write and @page.column_id}
-          type="button"
-          phx-click="unplace"
-          class="btn btn-ghost btn-xs"
-        >
-          Take it off
-        </button>
-      </div>
-
-      <%!-- A published page is a live copy of its prose and a snapshot of its
-            answers: nobody is behind an anonymous request to have the
-            permissions a live query would need. --%>
-      <div
-        :if={@page.public_token}
-        class="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm"
-      >
-        <.icon name="hero-globe-alt" class="size-4 shrink-0 text-primary" />
-        <span class="min-w-0 flex-1">
-          Published at
-          <a href={~p"/w/#{@page.public_token}"} class="link link-primary break-all" target="_blank">
-            /w/{@page.public_token}
-          </a>
-          <span class="block text-xs text-base-content/50">
-            Anything counted or listed in it was counted when you published, {stamp(
-              @page.published_at
-            )}.
-          </span>
-        </span>
-        <button :if={@can_write} type="button" phx-click="publish" class="btn btn-xs">
-          Refresh the answers
-        </button>
-        <button :if={@can_write} type="button" phx-click="unpublish" class="btn btn-ghost btn-xs">
-          Withdraw
-        </button>
-      </div>
-
       <%!-- Selecting a passage offers to make a card of it, with the link
             written into both ends. A doc is where a backlog comes from. --%>
       <button
@@ -4784,43 +4677,178 @@ defmodule SlipdockWeb.WikiLive.Index do
       >
         <.icon name="hero-plus" class="size-3" /> Make a card
       </button>
-      <%!-- The card facets this page carries. They are set on the board — in
-            the page's panel, or by dragging it onto an axis — because that is
-            the only place they mean anything. --%>
-      <div :if={facets(@page) != []} class="mt-4 flex flex-wrap items-center gap-1.5">
-        <span :for={{label, title} <- facets(@page)} class="chip chip-line text-xs" title={title}>
-          {label}
-        </span>
-      </div>
-
-      <%!-- The tags the note gives itself (front matter tags and inline
-            #tags), on a board in a vault. Not the board's card tags. --%>
-      <div
-        :if={@page.note_tags != []}
-        id="page-note-tags"
-        class="mt-3 flex flex-wrap items-center gap-1.5"
-      >
-        <span
-          :for={tag <- @page.note_tags}
-          class="chip chip-line text-xs text-primary"
-          title="A tag this note gives itself"
-        >
-          #{tag}
-        </span>
-      </div>
-
-      <%!-- The front matter the page's file came with, kept exactly as it
-            was written (W-103 R3). Folded away: it is the file's business
-            more than the reader's, and most pages have none. --%>
+      <%!-- Everything about the page rather than in it — where it is filed,
+            where it sits on the board, its public link, facets, tags and
+            front matter — folded away under the title so the prose comes
+            first (#761). Closed on every page: the id carries the page's, so
+            moving to another page starts it closed again, while
+            `ignore_attributes` keeps it open across this page's own updates
+            (filing it, placing it). --%>
       <details
-        :if={@page.front_matter}
-        id="page-properties"
-        class="mt-4 rounded-xl border border-base-300 bg-base-200/40 px-4 py-2 text-sm"
+        :if={page_details?(@page, @can_write)}
+        id={"page-details-#{@page.id}"}
+        data-role="page-details"
+        phx-mounted={JS.ignore_attributes("open")}
+        class="group mt-4"
       >
-        <summary class="cursor-pointer select-none text-xs font-semibold uppercase tracking-wide text-base-content/60">
-          Properties
+        <summary class="flex cursor-pointer select-none items-center gap-1 text-xs font-semibold uppercase tracking-wide text-base-content/50 hover:text-base-content/80">
+          <.icon name="hero-chevron-right" class="size-3 transition-transform group-open:rotate-90" />
+          Page details
         </summary>
-        <pre class="mt-2 overflow-x-auto whitespace-pre-wrap font-mono text-xs text-base-content/80">{Slipdock.Wiki.FrontMatter.yaml(@page.front_matter)}</pre>
+        <%!-- Where it is filed. A page starts at the root, which is a place
+              rather than a limbo; a folder is filing and nothing else. --%>
+        <div
+          :if={@can_write or not is_nil(@page.folder_id)}
+          class="mt-4 flex flex-wrap items-center gap-2 text-sm text-base-content/60"
+        >
+          <.icon name="hero-folder" class="size-4 shrink-0" />
+          <span>{if @page.folder_id, do: "Filed in", else: "Not in a folder."}</span>
+          <%!-- The same picker the editor uses, pushing straight at `file_page`
+                rather than through a form: filing a page is one click from
+                reading it, and the tree is filterable here too. --%>
+          <.folder_picker
+            :if={@can_write}
+            id="page-folder-picker"
+            outline={@outline}
+            selected={@page.folder_id}
+            event="file_page"
+            new_event="new_folder"
+            size="xs"
+            class="w-60"
+          />
+          <.link
+            :if={not @can_write and @page.folder_id}
+            patch={~p"/boards/#{@board}/wiki?#{[folder: @page.folder_id]}"}
+            class="link font-medium"
+          >
+            {filed_in(@page)}
+          </.link>
+          <.link
+            :if={@can_write and @page.folder_id}
+            patch={~p"/boards/#{@board}/wiki?#{[folder: @page.folder_id]}"}
+            class="link"
+          >
+            Open the folder
+          </.link>
+        </div>
+
+        <%!-- On the board as well as in the wiki: a spec can sit in the list
+              beside the work it describes, and be dragged about like a card. --%>
+        <div
+          :if={@can_write or @page.column_id}
+          class="mt-4 flex flex-wrap items-center gap-2 text-sm text-base-content/60"
+        >
+          <.icon name="hero-view-columns" class="size-4 shrink-0" />
+          <span :if={@page.column_id}>
+            On the board in
+            <.link navigate={~p"/boards/#{@board}"} class="link font-medium">
+              {column_name(@columns, @page.column_id)}
+            </.link>
+          </span>
+          <span :if={is_nil(@page.column_id)}>Not on the board.</span>
+          <.link
+            :if={@page.column_id}
+            navigate={~p"/boards/#{@board}?#{[page: @page.id]}"}
+            class="link"
+          >
+            Open its panel
+          </.link>
+          <div :if={@can_write} class="dropdown dropdown-end">
+            <div tabindex="0" role="button" class="btn btn-ghost btn-xs">
+              {if @page.column_id, do: "Move to…", else: "Put it in a list…"}
+            </div>
+            <ul
+              tabindex="0"
+              class="menu dropdown-content z-40 mt-1 w-56 rounded-xl bg-base-100 p-1 text-sm shadow-lg ring-1 ring-base-content/10"
+            >
+              <li :for={column <- @columns}>
+                <button
+                  type="button"
+                  phx-click="place"
+                  phx-value-column={column.id}
+                  class={@page.column_id == column.id && "menu-active"}
+                >
+                  {column.name}
+                </button>
+              </li>
+            </ul>
+          </div>
+          <button
+            :if={@can_write and @page.column_id}
+            type="button"
+            phx-click="unplace"
+            class="btn btn-ghost btn-xs"
+          >
+            Take it off
+          </button>
+        </div>
+
+        <%!-- A published page is a live copy of its prose and a snapshot of its
+              answers: nobody is behind an anonymous request to have the
+              permissions a live query would need. --%>
+        <div
+          :if={@page.public_token}
+          class="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm"
+        >
+          <.icon name="hero-globe-alt" class="size-4 shrink-0 text-primary" />
+          <span class="min-w-0 flex-1">
+            Published at
+            <a href={~p"/w/#{@page.public_token}"} class="link link-primary break-all" target="_blank">
+              /w/{@page.public_token}
+            </a>
+            <span class="block text-xs text-base-content/50">
+              Anything counted or listed in it was counted when you published, {stamp(
+                @page.published_at
+              )}.
+            </span>
+          </span>
+          <button :if={@can_write} type="button" phx-click="publish" class="btn btn-xs">
+            Refresh the answers
+          </button>
+          <button :if={@can_write} type="button" phx-click="unpublish" class="btn btn-ghost btn-xs">
+            Withdraw
+          </button>
+        </div>
+
+        <%!-- The card facets this page carries. They are set on the board — in
+              the page's panel, or by dragging it onto an axis — because that is
+              the only place they mean anything. --%>
+        <div :if={facets(@page) != []} class="mt-4 flex flex-wrap items-center gap-1.5">
+          <span :for={{label, title} <- facets(@page)} class="chip chip-line text-xs" title={title}>
+            {label}
+          </span>
+        </div>
+
+        <%!-- The tags the note gives itself (front matter tags and inline
+              #tags), on a board in a vault. Not the board's card tags. --%>
+        <div
+          :if={@page.note_tags != []}
+          id="page-note-tags"
+          class="mt-3 flex flex-wrap items-center gap-1.5"
+        >
+          <span
+            :for={tag <- @page.note_tags}
+            class="chip chip-line text-xs text-primary"
+            title="A tag this note gives itself"
+          >
+            #{tag}
+          </span>
+        </div>
+
+        <%!-- The front matter the page's file came with, kept exactly as it
+              was written (W-103 R3). Folded away: it is the file's business
+              more than the reader's, and most pages have none. --%>
+        <details
+          :if={@page.front_matter}
+          id="page-properties"
+          phx-mounted={JS.ignore_attributes("open")}
+          class="mt-4 rounded-xl border border-base-300 bg-base-200/40 px-4 py-2 text-sm"
+        >
+          <summary class="cursor-pointer select-none text-xs font-semibold uppercase tracking-wide text-base-content/60">
+            Properties
+          </summary>
+          <pre class="mt-2 overflow-x-auto whitespace-pre-wrap font-mono text-xs text-base-content/80">{Slipdock.Wiki.FrontMatter.yaml(@page.front_matter)}</pre>
+        </details>
       </details>
 
       <div
