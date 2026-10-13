@@ -14,6 +14,7 @@ defmodule SlipdockWeb.API.SearchController do
   use SlipdockWeb, :controller
 
   alias Slipdock.AI.Researcher
+  alias SlipdockWeb.API.Authorize
   alias Slipdock.SavedQueries
   alias Slipdock.Search
 
@@ -52,7 +53,9 @@ defmodule SlipdockWeb.API.SearchController do
   def ask(conn, params) do
     with :ok <- whole_account(conn.assigns[:api_token]),
          {:ok, question} <- required(params["q"] || params["question"], "q"),
-         {:ok, answer} <- Researcher.ask(conn.assigns.current_user, history(params), question) do
+         {:ok, board} <- ask_board(conn, params["board"]),
+         {:ok, answer} <-
+           Researcher.ask(conn.assigns.current_user, history(params), question, board: board) do
       json(conn, %{
         question: question,
         answer: answer.reply,
@@ -75,6 +78,10 @@ defmodule SlipdockWeb.API.SearchController do
          "and this token is confined to some (use search, or an unscoped token)"}
 
   defp whole_account(_token), do: :ok
+
+  # `board` keeps the assistant to one board, as the MCP `ask` tool's does.
+  defp ask_board(_conn, ref) when ref in [nil, ""], do: {:ok, nil}
+  defp ask_board(conn, ref), do: Authorize.fetch_board(conn, ref, :read)
 
   @doc "What is indexed right now — useful for telling a stale index from an empty one."
   def status(conn, _params) do

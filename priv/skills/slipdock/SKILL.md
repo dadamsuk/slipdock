@@ -182,7 +182,7 @@ slipdock table <board> [view options] [--group A] [--fields id,title,column,prio
 slipdock views <board>                      # saved swimlane views
 slipdock favourites                         # what this person keeps going back to, with a URL each
 slipdock search <words...> [--board B] [--limit N] [--archived] [--full]
-slipdock ask <question...>                  # the assistant searches for itself, then answers
+slipdock ask <question...> [--board B]      # the assistant searches for itself, then answers
 slipdock search-status                      # is the index built, is anything queued
 slipdock saved [--ask | --mode search]      # queries this person saved (theirs alone)
 slipdock save <words...> [--ask]            # save a search, or with --ask a question

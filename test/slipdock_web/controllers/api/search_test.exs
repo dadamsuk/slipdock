@@ -169,6 +169,57 @@ defmodule SlipdockWeb.API.SearchTest do
       assert %{"error" => "q is required"} = conn |> post(~p"/api/ask", %{}) |> json_response(400)
     end
 
+    test "question is taken as well as q, and GET answers the same", ctx do
+      Slipdock.AIStub.reply_with("Synchronously.")
+
+      assert %{"question" => "is it async?", "answer" => "Synchronously."} =
+               ctx.conn
+               |> post(~p"/api/ask", %{"question" => "is it async?"})
+               |> json_response(200)
+
+      Slipdock.AIStub.reply_with("Same again.")
+
+      assert %{"answer" => "Same again."} =
+               ctx.conn |> get(~p"/api/ask", %{"q" => "and by GET?"}) |> json_response(200)
+    end
+
+    test "board keeps the assistant to that board", ctx do
+      Slipdock.AIStub.reply_with("Nothing much.")
+
+      assert %{"answer" => "Nothing much."} =
+               ctx.conn
+               |> post(~p"/api/ask", %{"q" => "What's going on?", "board" => "delivery"})
+               |> json_response(200)
+
+      assert_receive {:ai_request,
+                      %{"messages" => [%{"role" => "system", "content" => system} | _]}}
+
+      assert system =~ ~s[about the board "Delivery" (code `delivery`)]
+    end
+
+    test "without a board the assistant is not told about one", ctx do
+      Slipdock.AIStub.reply_with("Nothing much.")
+      ctx.conn |> post(~p"/api/ask", %{"q" => "What's going on?"}) |> json_response(200)
+
+      assert_receive {:ai_request,
+                      %{"messages" => [%{"role" => "system", "content" => system} | _]}}
+
+      refute system =~ "This question is about the board"
+    end
+
+    test "a board the caller cannot see is refused before any model call", ctx do
+      stranger = user_fixture("stranger@example.com")
+      board_fixture(%{"name" => "Theirs", "code" => "theirs"}, owner: stranger)
+      Slipdock.AIStub.reply_with("should not be asked")
+
+      assert %{"error" => _} =
+               ctx.conn
+               |> post(~p"/api/ask", %{"q" => "anything", "board" => "theirs"})
+               |> json_response(404)
+
+      refute_receive {:ai_request, _}
+    end
+
     test "a model failure comes back as an error", ctx do
       Slipdock.AIStub.fail_with(429, "slow down")
 

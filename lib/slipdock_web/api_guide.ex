@@ -1090,7 +1090,7 @@ defmodule SlipdockWeb.APIGuide do
     - you do not know which board to look on. Substring search is per board;
       this is across all of them at once.
 
-    Each result is a card, with `matches`: the chunks that matched, each with
+    Each result is a card (or a wiki page), with `matches`: the chunks that matched, each with
     its `kind` (`card`, `comment`, `status_update`, `transcript`, …), the text
     and a `url` that lands on that chunk rather than the card —
     `…/cards/12?at=comment-7`, `…/cards/12?at=transcript-5-part-2`. Read the
@@ -1191,6 +1191,119 @@ defmodule SlipdockWeb.APIGuide do
     curl -s -X POST -H "$H" B/api/boards/welcome      # the Getting Started tour board, again
     curl -s -X POST -H "$H" -H 'content-type: application/json' B/api/boards/order \
          -d '{"boards": ["roadmap", "qvm-v1-rem", 3]}'   # your own order for the index
+    ```
+
+    ### What comes back
+
+    The samples below are real responses, trimmed: every field shown is
+    there, and the real thing carries more. URLs inside them are relative to
+    the server (`/boards/3/cards/57`), not absolute.
+
+    **A whole board.** Each list carries its own `cards` (and the wiki
+    `pages` placed in it), in order, so one call draws the board; a card
+    inside a list has `column: null`, since the list it sits in says that.
+    Reach for `/boards/1/cards` when you want a filter, not to fill the lists.
+
+    ```sh
+    curl -s -H "$H" B/api/boards/1
+    ```
+
+    ```json
+    {"board": {"id": 1, "name": "Delivery", "code": "delivery", "simple": false,
+      "columns": [{"id": 9, "name": "To Do", "category": "todo", "position": 0,
+                   "cards": [{"id": 57, "title": "Refund rounding", "column": null,
+                              "column_id": 9, "position": 0, "completed": false}],
+                   "pages": []}],
+      "tags": [{"id": 4, "name": "api", "color": "sky"}]}}
+    ```
+
+    **One card.** A comment is `id`, `body` and `inserted_at`, and nothing
+    else: comments do not record who wrote them. A status update names its
+    writer by `user_id`. A checklist item is `id`, `position`, `done` and
+    `text`.
+
+    ```sh
+    curl -s -H "$H" B/api/cards/57
+    ```
+
+    ```json
+    {"card": {"id": 57, "title": "Refund rounding", "column": "To Do", "column_id": 9,
+      "completed": false, "stated_health": "at_risk",
+      "checklist": {"done": 0, "total": 1,
+                    "items": [{"id": 11, "position": 0, "done": false, "text": "Write the test"}]},
+      "comments": [{"id": 1411, "body": "Rollback was blocked on approvals",
+                    "inserted_at": "2026-10-13T00:41:41Z"}],
+      "status_updates": [{"id": 7, "health": "at_risk", "body": "Waiting on finance",
+                          "user_id": 2, "inserted_at": "2026-10-13T00:50:00Z"}]}}
+    ```
+
+    **A stated health.** `POST /api/cards/:id/status` takes `health` —
+    `on_track`, `at_risk` or `off_track` — and an optional `body` of up to
+    4000 characters. It answers `201` with the whole card, the new update
+    first in `status_updates` and `stated_health` set from it; any other
+    `health` is a `422`. Over MCP it is the `status_update` tool.
+
+    ```sh
+    curl -s -H "$H" -H 'content-type: application/json' B/api/cards/57/status \\
+         -d '{"health": "at_risk", "body": "Waiting on finance"}'
+    ```
+
+    ```json
+    {"card": {"id": 57, "title": "Refund rounding", "stated_health": "at_risk",
+      "status_updates": [{"id": 7, "health": "at_risk", "body": "Waiting on finance",
+                          "user_id": 2, "inserted_at": "2026-10-13T00:50:00Z"}]}}
+    ```
+
+    ```json
+    {"error": "validation failed", "details": {"health": ["is invalid"]}}
+    ```
+
+    **Search.** `GET /api/search` takes `q`, and optionally `board` (id,
+    code or name), `kind` (`cards`, `pages` or `all`), `limit` (default 20,
+    at most 50) and `archived=true`. A result is either a card or a page:
+    `kind` says which, `subject` has the title and URL whichever it is, and
+    the other of `card`/`page` is `null`. Read the title from `subject`.
+
+    ```sh
+    curl -sH "$H" --get --data-urlencode 'q=staging rollback' -d board=delivery -d limit=5 \\
+      B/api/search
+    ```
+
+    ```json
+    {"query": "staging rollback", "count": 1,
+     "results": [{"kind": "card", "score": 0.5422,
+       "subject": {"title": "Refund rounding", "url": "/boards/1/cards/57"},
+       "card": {"id": 57, "title": "Refund rounding", "completed": false, "priority": "none",
+                "due_date": null, "archived": false, "tags": [],
+                "board": {"id": 1, "name": "Delivery", "code": "delivery"},
+                "column": {"id": 9, "name": "To Do"}, "url": "/boards/1/cards/57"},
+       "page": null,
+       "matches": [{"kind": "comment", "source_id": 1411, "section": null, "score": 0.5422,
+                    "text": "Comment on card “Refund rounding” (Delivery), 2026-10-13:\\nRollback was blocked on approvals",
+                    "url": "/boards/1/cards/57?at=comment-1411"}]}]}
+    ```
+
+    **Ask.** `POST /api/ask` takes the question as `q` or `question`, an
+    optional `board` (id, code or name) to keep the assistant to one board,
+    and an optional `history` (`[{"role": "user"|"assistant", "content":
+    "…"}]`) to carry a conversation on. It answers **synchronously**, in the
+    same response, after the model has finished — allow it a minute.
+    `GET /api/ask?q=…` is the same call, not a poll. The prose is in
+    `answer` (Markdown), the cards and pages it read in `sources`, and the
+    searches it ran in `searches`. A token confined to some boards is a
+    `403`; a model failure is a `400` with the reason.
+
+    ```sh
+    curl -s -H "$H" -H 'content-type: application/json' B/api/ask \\
+         -d '{"q": "What is happening with refunds?", "board": "delivery"}'
+    ```
+
+    ```json
+    {"question": "What is happening with refunds?",
+     "answer": "Finance are waiting on the refund rounding card (#57).",
+     "searches": ["refund rounding"],
+     "sources": [{"kind": "card", "id": 57, "title": "Refund rounding", "board": "Delivery",
+                  "found_by": "refund rounding", "url": "/boards/1/cards/57"}]}
     ```
 
     An **archived board** is put away, not deleted: it comes off the board
