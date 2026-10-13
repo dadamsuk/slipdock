@@ -319,45 +319,74 @@ defmodule Slipdock.Wiki.Tree do
   A mapped path is a folder of the tree holding what it maps to — a board's
   whole wiki, or one folder of it. A path that only leads to deeper mappings
   (`Projects` when `Projects/X` is mapped) is a folder of its own, keyed
-  `dir:Projects`. What is mapped at the vault's root is its top level. Below
-  the mappings, every key is a board's own (`folder:12`, `page:7`), so the
-  rows are the ones `children/3` gives for that board.
+  `dir:Projects`, unless a folder of a board already sits at that path, when
+  the deeper mappings show inside that folder. What is mapped at the vault's
+  root is its top level. Below the mappings, every key is a board's own
+  (`folder:12`, `page:7`), so the rows are the ones `children/3` gives for
+  that board, with whatever is mounted below that place in the vault among
+  its folders, in their order (#758).
 
   `boards` is `%{board_id => {board, opts}}`: the vault's boards this reader
   may open, each with the options its tree is read with (drafts only where
-  they can write). Anything on another board is not found.
+  they can write). Anything on another board is not found, and a mapping of
+  one is left out.
+
+  `extra` is passed on to `children/3`, but for `:layout`: what
+  `vault_prepare/2` read, for a caller asking for several keys at once.
   """
   def vault_children(%Vault{} = vault, key, boards, extra \\ []) do
-    mappings = vault_mappings(vault, boards)
+    {layout, extra} = Keyword.pop_lazy(extra, :layout, fn -> vault_layout(vault, boards) end)
 
     case key do
       "vault" ->
-        {:ok, dir_rows(mappings, "", boards, extra)}
+        {:ok, level(layout, key, "", [], boards, extra)}
 
       "dir:" <> path ->
-        if Enum.any?(mappings, &under?(&1.path, path)),
-          do: {:ok, dir_rows(mappings, path, boards, extra)},
+        if Enum.any?(layout.mappings, &under?(&1.path, path)),
+          do: {:ok, level(layout, key, path, [], boards, extra)},
           else: {:error, :not_found}
 
       "board:" <> id ->
         with {:ok, {board, opts}} <- board_in(boards, id),
-             do: children(board, :root, opts ++ extra)
+             {:ok, rows} <- children(board, :root, opts ++ extra),
+             do: {:ok, level(layout, key, container_path(layout, key), rows, boards, extra)}
 
       other ->
         with {:ok, ref} <- parse_ref(other),
              {:ok, board_id} <- board_of(ref),
              {:ok, {board, opts}} <- board_in(boards, board_id),
-             do: children(board, ref, opts ++ extra)
+             {:ok, rows} <- children(board, ref, opts ++ extra),
+             do: {:ok, level(layout, other, container_path(layout, other), rows, boards, extra)}
     end
+  end
+
+  @doc """
+  The vault's mappings and where its folders sit, read once for a caller
+  about to ask `vault_children/4` for several keys (pass it as `layout:`).
+  """
+  def vault_prepare(%Vault{} = vault, boards), do: vault_layout(vault, boards)
+
+  @doc """
+  The vault path a board's own wiki starts at, when it is in a vault: where
+  its whole wiki is mapped, the shallowest of them when it is mapped twice.
+  Nil when only a folder of it is mapped (its wiki is then shown whole, as
+  ever, with what is mounted below that folder inside it).
+  """
+  def vault_root(%Vault{} = vault, board_id, boards) do
+    vault |> vault_layout(boards) |> whole_path(board_id)
   end
 
   @doc """
   The keys to open in a vault's tree to show a page or folder, outermost
   first: the vault's own folders down to the mapping it is under, then the
   board's folders and parent pages below that.
+
+  With `root:` (a vault path), only the keys below it: the way from a
+  board's wiki mounted there.
   """
-  def vault_path_to(%Vault{} = vault, %{board_id: board_id} = item, boards) do
-    mappings = vault_mappings(vault, boards)
+  def vault_path_to(%Vault{} = vault, %{board_id: board_id} = item, boards, opts \\ []) do
+    layout = vault_layout(vault, boards)
+    root = Keyword.get(opts, :root, "")
     folders = Folders.list(board_id)
 
     board_path =
@@ -371,7 +400,7 @@ defmodule Slipdock.Wiki.Tree do
     # The deepest mapping the item is under: one on a folder on its way, or
     # one on its board's whole wiki.
     mapping =
-      mappings
+      layout.mappings
       |> Enum.filter(
         &(&1.board_id == board_id and (is_nil(&1.folder_id) or &1.folder_id in folder_ids))
       )
@@ -388,7 +417,13 @@ defmodule Slipdock.Wiki.Tree do
             id -> Enum.drop_while(board_path, &(&1 != {:folder, id})) |> Enum.drop(1)
           end
 
-        vault_keys(mappings, m) ++ Enum.map(below, &ref_key/1)
+        above =
+          m.path
+          |> prefixes()
+          |> Enum.filter(&(root == "" or (&1 != root and under?(&1, root))))
+          |> Enum.map(&row_key(layout, &1))
+
+        Enum.uniq(above ++ Enum.map(below, &ref_key/1))
     end
   end
 
@@ -398,13 +433,13 @@ defmodule Slipdock.Wiki.Tree do
   boards. What "open all" opens.
   """
   def vault_folder_keys(%Vault{} = vault, boards) do
-    mappings = vault_mappings(vault, boards)
+    layout = vault_layout(vault, boards)
 
     vault_rows =
-      mappings
+      layout.mappings
       |> Enum.flat_map(&prefixes(&1.path))
       |> Enum.uniq()
-      |> Enum.map(&row_key(mappings, &1))
+      |> Enum.map(&row_key(layout, &1))
 
     folders =
       from(f in Folder, where: f.board_id in ^Map.keys(boards), select: f.id)
@@ -417,20 +452,29 @@ defmodule Slipdock.Wiki.Tree do
   defp depth_in(nil, _ids), do: -1
   defp depth_in(id, ids), do: Enum.find_index(ids, &(&1 == id))
 
-  # The rows along a mapping's path, and the mapping itself when it is a row
-  # of its own rather than folded into a `dir:` one.
-  defp vault_keys(mappings, m) do
-    m.path
-    |> prefixes()
-    |> Enum.map(&row_key(mappings, &1))
-    |> Enum.uniq()
-  end
-
   defp prefixes(""), do: []
 
   defp prefixes(path) do
     segments = String.split(path, "/", trim: true)
     for n <- 1..length(segments), do: segments |> Enum.take(n) |> Enum.join("/")
+  end
+
+  # The vault as its tree needs it: the mappings this reader may open, where
+  # each mapped board's folders sit in it, and which of those paths are a
+  # folder in its board's own place (`native`), rather than a folder mounted
+  # there by a mapping of its own.
+  defp vault_layout(%Vault{} = vault, boards) do
+    mappings = vault_mappings(vault, boards)
+    dirs = Slipdock.Vaults.Layout.folder_dirs(mappings)
+    mounted = for %{folder_id: id} <- mappings, id, into: MapSet.new(), do: id
+
+    native =
+      for {id, dir} <- dirs,
+          not MapSet.member?(mounted, id),
+          into: %{},
+          do: {String.downcase(dir), id}
+
+    %{mappings: mappings, dirs: dirs, native: native}
   end
 
   defp vault_mappings(%Vault{id: vault_id}, boards) do
@@ -441,6 +485,34 @@ defmodule Slipdock.Wiki.Tree do
     )
     |> Repo.all()
     |> Enum.filter(&Map.has_key?(boards, &1.board_id))
+  end
+
+  # Where a container sits in the vault, or nil for one in no mapped part of
+  # it (a page, which holds pages and nothing mounted).
+  defp container_path(_layout, "vault"), do: ""
+  defp container_path(_layout, "dir:" <> path), do: path
+
+  defp container_path(layout, "board:" <> id) do
+    case Integer.parse(id) do
+      {n, ""} -> whole_path(layout, n)
+      _ -> nil
+    end
+  end
+
+  defp container_path(layout, "folder:" <> id) do
+    case Integer.parse(id) do
+      {n, ""} -> layout.dirs[n]
+      _ -> nil
+    end
+  end
+
+  defp container_path(_layout, _key), do: nil
+
+  defp whole_path(layout, board_id) do
+    layout.mappings
+    |> Enum.filter(&(&1.board_id == board_id and is_nil(&1.folder_id)))
+    |> Enum.map(& &1.path)
+    |> Enum.min_by(&{length(String.split(&1, "/", trim: true)), &1}, fn -> nil end)
   end
 
   defp board_in(boards, id) when is_binary(id) do
@@ -472,29 +544,44 @@ defmodule Slipdock.Wiki.Tree do
     end
   end
 
+  defp under?(path, ""), do: path != nil
   defp under?(path, dir), do: String.starts_with?(path, dir <> "/") or path == dir
 
-  # A path's row: the mapping itself when it is the only thing there, or a
-  # `dir:` row holding what is mapped there and below.
-  defp row_key(mappings, path) do
-    exact = Enum.filter(mappings, &(&1.path == path))
-    deeper? = Enum.any?(mappings, &String.starts_with?(&1.path, path <> "/"))
+  defp same_path?(a, b), do: String.downcase(a) == String.downcase(b)
 
-    case exact do
-      [m] when not deeper? -> mount_key(m)
-      _ -> "dir:" <> path
+  # A path's row: a board's folder that sits there in its own place; the
+  # mapping itself when it is the only thing mapped there; or a `dir:` row
+  # holding what is mapped there and below.
+  defp row_key(layout, path) do
+    exact = Enum.filter(layout.mappings, &same_path?(&1.path, path))
+
+    cond do
+      id = layout.native[String.downcase(path)] ->
+        "folder:#{id}"
+
+      match?([_], exact) and container_path(layout, mount_key(hd(exact))) == path ->
+        mount_key(hd(exact))
+
+      true ->
+        "dir:" <> path
     end
   end
 
   defp mount_key(%{folder_id: nil, board_id: id}), do: "board:#{id}"
   defp mount_key(%{folder_id: id}), do: "folder:#{id}"
 
-  # What sits at `dir`: what is mapped right there, with a row before it for
-  # each path that goes deeper.
-  defp dir_rows(mappings, dir, boards, extra) do
+  defp mount_ref(%{folder_id: nil}), do: :root
+  defp mount_ref(%{folder_id: id}), do: {:folder, id}
+
+  # A container's rows with the vault around it: what else is mapped right
+  # where it sits, and a row for each path mounted below it, sorted in among
+  # its folders. Mounts come with the first page of rows, as folders do.
+  defp level(_layout, _key, nil, rows, _boards, _extra), do: rows
+
+  defp level(layout, key, path, rows, boards, extra) do
     here =
-      mappings
-      |> Enum.filter(&(&1.path == dir))
+      layout.mappings
+      |> Enum.filter(&(same_path?(&1.path, path) and mount_key(&1) != key))
       |> Enum.flat_map(fn m ->
         {board, opts} = boards[m.board_id]
 
@@ -504,40 +591,70 @@ defmodule Slipdock.Wiki.Tree do
         end
       end)
 
-    prefix = if dir == "", do: "", else: dir <> "/"
-
     mounts =
-      mappings
-      |> Enum.filter(&(&1.path != dir and String.starts_with?(&1.path, prefix)))
-      |> Enum.map(fn m ->
-        prefix <> hd(String.split(String.replace_prefix(m.path, prefix, ""), "/"))
-      end)
-      |> Enum.uniq()
-      |> Enum.sort_by(&String.downcase/1)
-      |> Enum.map(&mount_row(mappings, &1, boards))
+      if Keyword.get(extra, :offset, 0) == 0,
+        do: layout |> mounted_below(path) |> Enum.map(&mount_row(layout, &1, boards)),
+        else: []
 
-    mounts ++ here
+    (rows ++ here)
+    |> Enum.map(&holding_mounts(&1, layout))
+    |> arrange(mounts)
   end
 
-  defp mount_ref(%{folder_id: nil}), do: :root
-  defp mount_ref(%{folder_id: id}), do: {:folder, id}
+  # A board's folder with nothing of its own in it can still hold what is
+  # mounted below it: it opens.
+  defp holding_mounts(%{kind: "folder", id: id, count: 0} = row, layout) when is_integer(id) do
+    case layout.dirs[id] do
+      nil -> row
+      dir -> if mounted_below(layout, dir) == [], do: row, else: %{row | count: 1}
+    end
+  end
 
-  defp mount_row(mappings, path, boards) do
-    key = row_key(mappings, path)
-    name = path |> String.split("/") |> List.last()
+  defp holding_mounts(row, _layout), do: row
 
-    {board_id, pages} =
-      case Enum.filter(mappings, &(&1.path == path)) do
+  # The paths one step below `path` that something is mounted at or under,
+  # and that are no board's folder in its own place (those are rows of
+  # their board already, and what is mounted below them shows inside them).
+  defp mounted_below(layout, path) do
+    prefix = if path == "", do: "", else: path <> "/"
+
+    layout.mappings
+    |> Enum.filter(&(not same_path?(&1.path, path) and under?(&1.path, path)))
+    |> Enum.map(fn m ->
+      rest = String.slice(m.path, String.length(prefix)..-1//1)
+      prefix <> hd(String.split(rest, "/"))
+    end)
+    |> Enum.uniq_by(&String.downcase/1)
+    |> Enum.reject(&Map.has_key?(layout.native, String.downcase(&1)))
+  end
+
+  # Folders (the board's and the mounted ones together) in their order, then
+  # pages and files, then where to ask for more. Mounts go in among the
+  # folders by name: before the first folder whose name sorts after theirs,
+  # so a tree sorted by name stays sorted and a hand-ordered one keeps its
+  # order.
+  defp arrange(rows, mounts) do
+    {folders, rest} = Enum.split_with(rows, &(&1.kind in ["folder", "dir"]))
+    {more, rest} = Enum.split_with(rest, &(&1.kind == "more"))
+    merge(folders, Enum.sort_by(mounts, &String.downcase(&1.title))) ++ rest ++ more
+  end
+
+  defp merge(folders, []), do: folders
+  defp merge([], mounts), do: mounts
+
+  defp merge([f | fs] = folders, [m | ms] = mounts) do
+    if String.downcase(m.title) < String.downcase(to_string(f.title)),
+      do: [m | merge(folders, ms)],
+      else: [f | merge(fs, mounts)]
+  end
+
+  defp mount_row(layout, path, boards, pages \\ nil) do
+    key = row_key(layout, path)
+
+    {board_id, count} =
+      case Enum.filter(layout.mappings, &same_path?(&1.path, path)) do
         [m] ->
-          {board, opts} = boards[m.board_id]
-
-          pages =
-            case m.folder_id do
-              nil -> count(board, opts)
-              id -> board |> stats(Folders.list(board), opts) |> get_in([:totals, id])
-            end
-
-          {m.board_id, pages}
+          {m.board_id, if(pages, do: pages.(m), else: mount_pages(m, boards))}
 
         _ ->
           {nil, nil}
@@ -548,11 +665,25 @@ defmodule Slipdock.Wiki.Tree do
       key: key,
       id: key,
       board_id: board_id,
-      title: name,
+      title: path |> String.split("/") |> List.last(),
       mount: true,
       count: 1,
-      pages: pages
+      pages: count
     }
+  end
+
+  defp mount_pages(m, boards) do
+    {board, opts} = boards[m.board_id]
+
+    case m.folder_id do
+      nil ->
+        count(board, opts)
+
+      id ->
+        opts
+        |> Keyword.get_lazy(:stats, fn -> stats(board, Folders.list(board), opts) end)
+        |> get_in([:totals, id])
+    end
   end
 
   @doc """
@@ -560,22 +691,34 @@ defmodule Slipdock.Wiki.Tree do
   would be, laid out under the vault's paths, with only the mapped folders
   and vault folders that hold something shown. Keys as `vault_children/4`
   gives them; `shown` counts every board's matches.
+
+  With `root:` (a vault path), only what is at or below it: a board's wiki
+  mounted there filters what it shows, and no more. `top` is the key the
+  top of it is under: `vault`, or the board's (`board:<id>`) mounted there.
   """
   def vault_filter(%Vault{} = vault, boards, filters, extra \\ []) do
-    mappings = vault_mappings(vault, boards)
+    {root, extra} = Keyword.pop(extra, :root)
+    layout = vault_layout(vault, boards)
+
+    layout =
+      if root,
+        do: %{layout | mappings: Enum.filter(layout.mappings, &under?(&1.path, root))},
+        else: layout
+
+    in_scope = layout.mappings |> Enum.map(& &1.board_id) |> MapSet.new()
 
     per_board =
-      Map.new(boards, fn {id, {board, opts}} ->
+      for {id, {board, opts}} <- boards, MapSet.member?(in_scope, id), into: %{} do
         result = filter(board, filters, opts ++ extra)
 
         nodes =
           Map.new(result.nodes, fn {k, v} -> {if(k == "root", do: "board:#{id}", else: k), v} end)
 
         {id, %{result | nodes: nodes}}
-      end)
+      end
 
     nodes = per_board |> Map.values() |> Enum.map(& &1.nodes) |> Enum.reduce(%{}, &Map.merge/2)
-    kept = Enum.filter(mappings, &Map.has_key?(nodes, mount_key(&1)))
+    kept = Enum.filter(layout.mappings, &Map.has_key?(nodes, mount_key(&1)))
 
     folder_pages =
       for {_k, rows} <- nodes, %{kind: "folder", id: id, pages: n} <- rows, into: %{}, do: {id, n}
@@ -585,55 +728,47 @@ defmodule Slipdock.Wiki.Tree do
       %{folder_id: id} -> Map.get(folder_pages, id)
     end
 
-    dirs =
+    kept_layout = %{layout | mappings: kept}
+    root = root || ""
+    top = top_key(layout, root)
+
+    # Every place in the vault that holds a match below it: the paths down
+    # to each kept mapping, below the root.
+    paths =
       kept
-      |> Enum.flat_map(&["" | prefixes(&1.path)])
-      |> Enum.uniq()
-      |> Enum.reject(&(&1 != "" and row_key(kept, &1) != "dir:" <> &1))
+      |> Enum.flat_map(&prefixes(&1.path))
+      |> Enum.filter(&(root == "" or (&1 != root and under?(&1, root))))
+      |> Enum.uniq_by(&String.downcase/1)
+
+    # Each such path is a row of the place above it: a mount, a vault
+    # folder, or a board's folder that only holds a match through what is
+    # mounted inside it.
+    containers = [root | paths]
 
     vault_nodes =
-      for dir <- dirs, into: %{} do
+      for path <- containers, into: %{} do
+        key = if path == root, do: top, else: row_key(kept_layout, path)
+
         here =
           kept
-          |> Enum.filter(&(&1.path == dir))
+          |> Enum.filter(&(same_path?(&1.path, path) and mount_key(&1) != key))
           |> Enum.flat_map(&Map.get(nodes, mount_key(&1), []))
 
-        prefix = if dir == "", do: "", else: dir <> "/"
+        own = Map.get(nodes, key, [])
+        listed = MapSet.new(own ++ here, &"#{&1.kind}:#{&1[:key] || &1.id}")
 
         mounts =
-          kept
-          |> Enum.filter(&(&1.path != dir and String.starts_with?(&1.path, prefix)))
-          |> Enum.map(
-            &(prefix <> hd(String.split(String.replace_prefix(&1.path, prefix, ""), "/")))
-          )
-          |> Enum.uniq()
-          |> Enum.sort_by(&String.downcase/1)
-          |> Enum.map(fn path ->
-            key = row_key(kept, path)
+          paths
+          |> Enum.filter(&(parent_path(&1) |> same_path?(path)))
+          |> Enum.map(&row_for(kept_layout, &1, boards, pages_of))
+          |> Enum.reject(&MapSet.member?(listed, "#{&1.kind}:#{&1[:key] || &1.id}"))
 
-            {board_id, pages} =
-              case Enum.filter(kept, &(&1.path == path)) do
-                [m] -> {m.board_id, pages_of.(m)}
-                _ -> {nil, nil}
-              end
-
-            %{
-              kind: if(String.starts_with?(key, "dir:"), do: "dir", else: "folder"),
-              key: key,
-              id: key,
-              board_id: board_id,
-              title: path |> String.split("/") |> List.last(),
-              mount: true,
-              count: 1,
-              pages: pages
-            }
-          end)
-
-        {if(dir == "", do: "vault", else: "dir:" <> dir), mounts ++ here}
+        {key, arrange(own ++ here, mounts)}
       end
 
     %{
       nodes: nodes |> Map.merge(vault_nodes) |> Map.reject(fn {_k, rows} -> rows == [] end),
+      top: top,
       shown: per_board |> Map.values() |> Enum.map(& &1.shown) |> Enum.sum(),
       only:
         per_board
@@ -641,6 +776,52 @@ defmodule Slipdock.Wiki.Tree do
         |> Enum.map(& &1.only)
         |> Enum.reduce(MapSet.new(), &MapSet.union/2)
     }
+  end
+
+  # The key of the top of a filtered tree: the vault's, or the board's
+  # mounted at the root asked for.
+  defp top_key(_layout, ""), do: "vault"
+
+  defp top_key(layout, root) do
+    case Enum.find(layout.mappings, &(is_nil(&1.folder_id) and same_path?(&1.path, root))) do
+      nil -> row_key(layout, root)
+      m -> mount_key(m)
+    end
+  end
+
+  defp parent_path(path) do
+    case String.split(path, "/") |> Enum.drop(-1) do
+      [] -> ""
+      segments -> Enum.join(segments, "/")
+    end
+  end
+
+  # A filtered tree's row for a path: its board's folder when one sits
+  # there (holding a match only through what is mounted in it, so it is
+  # context), or the mount or vault folder.
+  defp row_for(layout, path, boards, pages_of) do
+    case layout.native[String.downcase(path)] do
+      nil ->
+        mount_row(layout, path, boards, pages_of)
+
+      id ->
+        %{
+          kind: "folder",
+          id: id,
+          board_id: board_id_of(layout, id),
+          title: path |> String.split("/") |> List.last(),
+          count: 1,
+          pages: nil,
+          context: true
+        }
+    end
+  end
+
+  defp board_id_of(_layout, folder_id) do
+    case board_of({:folder, folder_id}) do
+      {:ok, id} -> id
+      _ -> nil
+    end
   end
 
   ## Filtering -----------------------------------------------------------------

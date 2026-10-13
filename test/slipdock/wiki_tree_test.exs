@@ -713,6 +713,152 @@ defmodule Slipdock.WikiTreeTest do
                %{}
     end
 
+    test "mounts sort in among the board's folders, not above them (#758)", %{
+      vault: vault,
+      boards: boards,
+      board: kb,
+      jobs: jobs
+    } do
+      folder(kb, "Archive")
+      folder(kb, "Zeta")
+
+      {:ok, rows} = Tree.vault_children(vault, "vault", boards)
+
+      assert Enum.map(rows, &{&1.kind, &1.title}) == [
+               {"folder", "Archive"},
+               {"folder", "Jobs"},
+               {"dir", "Projects"},
+               {"folder", "Zeta"},
+               {"page", "Home note"}
+             ]
+
+      # The board's own top, keyed as its wiki asks for it, is the same.
+      {:ok, rows} = Tree.vault_children(vault, "board:#{kb.id}", boards)
+      assert Enum.map(rows, & &1.title) == ["Archive", "Jobs", "Projects", "Zeta", "Home note"]
+      assert %{mount: true, board_id: id} = Enum.find(rows, &(&1.title == "Jobs"))
+      assert id == jobs.id
+    end
+
+    test "mounts come with the first page of rows, as folders do", %{
+      vault: vault,
+      boards: boards,
+      board: kb,
+      user: user
+    } do
+      page(kb, user, "Second note")
+
+      {:ok, first} = Tree.vault_children(vault, "board:#{kb.id}", boards, limit: 1)
+      assert Enum.map(first, & &1.kind) == ["folder", "dir", "page", "more"]
+
+      {:ok, second} =
+        Tree.vault_children(vault, "board:#{kb.id}", boards, limit: 1, offset: 1)
+
+      assert Enum.map(second, & &1.kind) == ["page"]
+    end
+
+    test "a board's folder at a mounted path holds the mounts below it", %{
+      vault: vault,
+      boards: boards,
+      board: kb,
+      notes: notes,
+      idea: idea
+    } do
+      projects = folder(kb, "Projects")
+
+      {:ok, rows} = Tree.vault_children(vault, "vault", boards)
+
+      assert Enum.map(rows, &{&1.kind, &1.title}) == [
+               {"folder", "Jobs"},
+               {"folder", "Projects"},
+               {"page", "Home note"}
+             ]
+
+      # The board's own folder, with nothing of its own in it, still opens.
+      assert %{id: id, count: 1} = Enum.find(rows, &(&1.title == "Projects"))
+      assert id == projects.id
+
+      assert {:ok, [%{title: "X", key: key}]} =
+               Tree.vault_children(vault, "folder:#{projects.id}", boards)
+
+      assert key == "folder:#{notes.id}"
+      assert Tree.vault_path_to(vault, idea, boards) == ["folder:#{projects.id}", key]
+
+      result = Tree.vault_filter(vault, boards, Map.put(Slipdock.Filters.empty(), :q, "idea"))
+      assert [%{title: "Projects", context: true}] = result.nodes["vault"]
+      assert [%{title: "X"}] = result.nodes["folder:#{projects.id}"]
+    end
+
+    test "a board with only a folder mapped is whole, with what is mounted below the folder", %{
+      vault: vault,
+      boards: boards,
+      user: user,
+      proj: proj,
+      notes: notes
+    } do
+      deep = board_fixture(%{"name" => "Deep", "code" => "deepvt"}, owner: user)
+      page(deep, user, "Bottom")
+
+      {:ok, _} =
+        Slipdock.Vaults.add_mapping(vault, user, %{path: "/Projects/X/Deep", board: deep})
+
+      boards = Map.put(boards, deep.id, {deep, []})
+
+      assert Tree.vault_root(vault, proj.id, boards) == nil
+      {:ok, rows} = Tree.vault_children(vault, "board:#{proj.id}", boards)
+      assert Enum.map(rows, & &1.title) == ["Notes"]
+
+      {:ok, rows} = Tree.vault_children(vault, "folder:#{notes.id}", boards)
+      assert Enum.map(rows, &{&1.title, &1[:mount]}) == [{"Deep", true}, {"Idea", nil}]
+    end
+
+    test "a board mapped twice is rooted where its whole wiki is", %{
+      vault: vault,
+      boards: boards,
+      board: kb,
+      user: user,
+      jobs: jobs,
+      acme: acme,
+      call: call
+    } do
+      old = folder(kb, "Old")
+
+      {:ok, _} =
+        Slipdock.Vaults.add_mapping(vault, user, %{path: "/Attic", board: kb, folder: old})
+
+      assert Tree.vault_root(vault, kb.id, boards) == ""
+      assert Tree.vault_root(vault, jobs.id, boards) == "Jobs"
+      assert Tree.vault_root(vault, jobs.id, Map.delete(boards, jobs.id)) == nil
+
+      # The way from Job Hunt's own top leaves out what is above it.
+      assert Tree.vault_path_to(vault, call, boards, root: "Jobs") == ["folder:#{acme.id}"]
+
+      assert Tree.vault_path_to(vault, call, boards, root: "") == [
+               "board:#{jobs.id}",
+               "folder:#{acme.id}"
+             ]
+    end
+
+    test "a filter from a mount down leaves out what is above it", %{
+      vault: vault,
+      boards: boards,
+      jobs: jobs,
+      acme: acme
+    } do
+      q = fn text -> Map.put(Slipdock.Filters.empty(), :q, text) end
+
+      result = Tree.vault_filter(vault, boards, q.("call"), root: "Jobs")
+      assert result.top == "board:#{jobs.id}"
+      assert [%{title: "Acme"}] = result.nodes["board:#{jobs.id}"]
+      assert [%{title: "Call"}] = result.nodes["folder:#{acme.id}"]
+      refute Map.has_key?(result.nodes, "vault")
+
+      result = Tree.vault_filter(vault, boards, q.("home"), root: "Jobs")
+      assert result.nodes == %{}
+      assert result.shown == 0
+
+      assert Tree.vault_filter(vault, boards, q.("home")).top == "vault"
+    end
+
     test "open all names every folder in the vault", %{
       vault: vault,
       boards: boards,

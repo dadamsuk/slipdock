@@ -166,7 +166,10 @@ A **vault** is the user's own, and holds no pages: it maps vault paths onto
 board wikis, or onto one folder of a wiki, so the wikis read as one tree of
 Markdown files (`/` → KnowledgeBase, `/Jobs` → Job Hunt). The longest matching
 prefix wins; a board can be in one vault only, and only a board the user can
-write to. Deleting a vault removes its mappings and never a page.
+write to. Deleting a vault removes its mappings and never a page. In the web
+app a board's wiki shows the vault from where the board is mounted down
+(KnowledgeBase at `/` shows Jobs among its folders; Job Hunt shows only
+`/Jobs`), so to point someone at a note, the board it is on is enough.
 
 ```sh
 slipdock vault ls                                  # the vaults, with their mappings

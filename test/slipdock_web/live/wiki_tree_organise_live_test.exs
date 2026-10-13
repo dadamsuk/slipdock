@@ -95,12 +95,12 @@ defmodule SlipdockWeb.WikiTreeOrganiseLiveTest do
     one: one
   } do
     {:ok, view, _} = live(conn, ~p"/boards/#{kb}/wiki")
-    tree_load(view, %{"scope" => "vault"})
     view |> element("button[phx-click='toggle_organise']") |> render_click()
 
-    # Rows of both boards can be moved by this writer.
-    reply = tree_load(view, %{"scope" => "vault", "keys" => ["board:#{jobs.id}"]})
-    assert %{writable: true} = row(reply, "vault", "One")
+    # Rows of both boards can be moved by this writer, from the board's own
+    # wiki, which shows the vault from where it is mounted down (#758).
+    reply = tree_load(view, %{"keys" => ["board:#{jobs.id}"]})
+    assert %{writable: true} = row(reply, "root", "One")
 
     html =
       render_click(view, "tree_move", %{
