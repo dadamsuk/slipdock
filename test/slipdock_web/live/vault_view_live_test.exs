@@ -65,10 +65,45 @@ defmodule SlipdockWeb.VaultViewLiveTest do
     assert reply.scope == "vault"
     row = row(reply, "vault", "Big Ideas")
     assert row.href == "/vaults/GMinds/Big%20Ideas"
-    assert row.nav == "redirect"
+    assert row.nav == "patch"
 
     assert row(reply, "board:#{hunt.id}", "Interview Questions").href ==
              "/vaults/GMinds/Jobs/Interview%20Questions"
+  end
+
+  # The tree's rows open by patching (none of them by a fresh view, which
+  # would tear the tree down and draw it again from nothing on every click).
+  test "a row opens by patching, onto another board too, in the same view", ctx do
+    %{conn: conn, kb: kb, hunt: hunt, questions: questions} = ctx
+    {:ok, view, _} = live(conn, "/vaults/GMinds/Big%20Ideas/Plain%20text")
+    render_hook(view, "tree_view", %{"view" => "recent"})
+    before = version(view)
+    assert topics(view) == ["wiki:#{kb.id}"]
+
+    # A page on another board: its board's wiki, under the vault's tree.
+    html = render_patch(view, "/vaults/GMinds/Jobs/Interview%20Questions")
+    assert html =~ "Why us?"
+    assert has_element?(view, "#vault-board", "on Job Hunt")
+    assert has_element?(view, "#vault-crumbs a[href='/vaults/GMinds/Jobs']", "Jobs")
+    assert has_element?(view, "#wiki-tree[data-current='page:#{questions.id}']")
+    assert tree_load(view).scope == "vault"
+    # The hook is told to ask for the rows again; the reader's choice of
+    # list is kept; and it now hears about this board's changes, not the last.
+    assert version(view) > before
+    assert has_element?(view, "#wiki-tree-view-recent[aria-pressed='true']")
+    assert topics(view) == ["wiki:#{hunt.id}"]
+
+    # Another page of the same board changes only what is shown.
+    after_switch = version(view)
+    assert render_patch(view, "/vaults/GMinds/Jobs") =~ "Interview Questions"
+    assert version(view) == after_switch
+  end
+
+  test "patched to an address with nothing there, the view starts afresh", %{conn: conn} do
+    {:ok, view, _} = live(conn, "/vaults/GMinds/Big%20Ideas")
+
+    assert {:error, {:live_redirect, %{to: "/vaults/GMinds/Nope"}}} =
+             render_patch(view, "/vaults/GMinds/Nope")
   end
 
   test "a page on a board the owner can now only read opens, read-only", ctx do
@@ -131,5 +166,17 @@ defmodule SlipdockWeb.VaultViewLiveTest do
     {:ok, view, _} = live(conn, "/vaults/GMinds/Big%20Ideas")
     reply = tree_load(view, %{"scope" => "vault", "keys" => ["folder:#{notes.id}"]})
     assert row(reply, "vault", "Big Ideas").board_id == kb.id
+  end
+
+  defp version(view) do
+    [_, v] = Regex.run(~r/id="wiki-tree"[^>]*data-version="(\d+)"/s, render(view))
+    String.to_integer(v)
+  end
+
+  # The wiki topics the view's process is subscribed to.
+  defp topics(view) do
+    Slipdock.PubSub
+    |> Registry.keys(view.pid)
+    |> Enum.filter(&String.starts_with?(&1, "wiki:"))
   end
 end

@@ -56,6 +56,9 @@ defmodule Slipdock.Wiki do
 
   def subscribe(board_id), do: Phoenix.PubSub.subscribe(@pubsub, topic(board_id))
 
+  @doc "Stops hearing about a board's wiki: a view that has moved to another."
+  def unsubscribe(board_id), do: Phoenix.PubSub.unsubscribe(@pubsub, topic(board_id))
+
   defp topic(board_id), do: "wiki:#{board_id}"
 
   defp broadcast(board_id) do
