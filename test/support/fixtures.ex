@@ -90,7 +90,17 @@ defmodule Slipdock.Fixtures do
 
   @shortcut_chars Enum.map(~c"abcdefghijklmnopqrstuvwxyz0123456789", &<<&1>>)
 
-  defp unique_code(n), do: "t" <> String.downcase(Integer.to_string(n, 36))
+  # "fx" and a counter: a prefix no test writes by hand and no name a test
+  # uses turns into. A plain "t" prefix once handed out "taken" and "team",
+  # codes other tests give their boards, and an insert then waited on that
+  # test's uncommitted board until it ended (#732).
+  defp unique_code(n), do: "fx" <> String.downcase(Integer.to_string(n, 36))
+
+  @doc """
+  A board code unique to this run, in the namespace `board_fixture/2` draws
+  from. For a test that sets a code itself and must not meet another's.
+  """
+  def unique_code, do: unique_code(System.unique_integer([:positive]))
 
   @shortcuts __MODULE__.Shortcuts
 
@@ -107,7 +117,13 @@ defmodule Slipdock.Fixtures do
   # That is only 1,296 of them and a run makes far more boards, so they go
   # round in turn, skipping any still held by a test that is running: drawing
   # one of those would wait on that test's uncommitted board until it ended.
-  defp unique_shortcut do
+  # A test that sets a two-character shortcut by hand takes it from here too
+  # (#732), for the same reason.
+  @doc """
+  A two-character board shortcut held for the calling test, so no
+  `board_fixture/2` running alongside is handed the same one.
+  """
+  def unique_shortcut do
     Stream.repeatedly(fn -> :ets.update_counter(@shortcuts, :next, 1, {:next, -1}) end)
     |> Enum.find_value(fn i ->
       i = rem(i, 36 * 36)
@@ -205,7 +221,7 @@ defmodule Slipdock.Fixtures do
   def sub_board(card, template),
     do:
       Boards.create_sub_board(card, template,
-        code: unique_code(System.unique_integer([:positive]))
+        code: unique_code()
       )
 
   @doc """
@@ -224,7 +240,7 @@ defmodule Slipdock.Fixtures do
     epic = card_fixture(backlog, %{"title" => "Epic", "due_date" => "2030-01-15"})
 
     {:ok, sub} =
-      Boards.create_sub_board(epic, t, code: unique_code(System.unique_integer([:positive])))
+      Boards.create_sub_board(epic, t, code: unique_code())
 
     sub = Boards.get_board!(sub.id)
 
@@ -243,7 +259,7 @@ defmodule Slipdock.Fixtures do
       })
 
     {:ok, subsub} =
-      Boards.create_sub_board(c, t, code: unique_code(System.unique_integer([:positive])))
+      Boards.create_sub_board(c, t, code: unique_code())
 
     subsub = Boards.get_board!(subsub.id)
     d = card_fixture(hd(subsub.columns), %{"title" => "D", "completed" => true})

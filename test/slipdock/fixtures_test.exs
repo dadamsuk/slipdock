@@ -54,7 +54,7 @@ defmodule Slipdock.FixturesTest do
     {:ok, sub} = sub_board(card, t)
 
     assert sub.name == "Epic"
-    assert sub.code =~ ~r/^t[0-9a-z]+$/
+    assert sub.code =~ ~r/^fx[0-9a-z]+$/
     assert {:error, "This card already has subcards."} = sub_board(card, t)
   end
 
@@ -62,7 +62,7 @@ defmodule Slipdock.FixturesTest do
     board = board_fixture(%{"name" => "Root"})
     [col | _] = board.columns
     {:ok, t} = Boards.find_template("Simple")
-    code = "s" <> String.downcase(Integer.to_string(System.unique_integer([:positive]), 36))
+    code = unique_code()
 
     {:ok, given} =
       Boards.create_sub_board(card_fixture(col, %{"title" => "Given"}), t, code: code)
@@ -72,6 +72,33 @@ defmodule Slipdock.FixturesTest do
     title = "Derived #{System.unique_integer([:positive])}"
     {:ok, derived} = Boards.create_sub_board(card_fixture(col, %{"title" => title}), t)
     assert derived.code == Boards.suggest_code(title, derived.id)
+  end
+
+  test "board codes come from a namespace other tests' codes and names don't reach" do
+    codes = for _ <- 1..20, do: board_fixture().code
+
+    assert Enum.all?(codes, &(&1 =~ ~r/^fx[0-9a-z]+$/))
+    assert Enum.uniq(codes) == codes
+    refute unique_code() in codes
+
+    # The old "t" prefix handed out codes like these, which other tests set
+    # by hand or derive from a board's name, and the insert then waited on
+    # that test's uncommitted board.
+    for code <- ~w(taken team todo tiny tick tess) do
+      refute code =~ ~r/^fx/
+      refute Boards.suggest_code(String.capitalize(code)) =~ ~r/^fx/
+    end
+  end
+
+  test "a shortcut taken by hand is held for this test, and a board can have it" do
+    key = unique_shortcut()
+    assert key =~ ~r/^[0-9a-z]{2}$/
+
+    theirs = Task.async(fn -> for _ <- 1..20, do: board_fixture().shortcut end) |> Task.await()
+    refute key in theirs
+
+    board = board_fixture()
+    assert {:ok, %{shortcut: ^key}} = Boards.update_board(board, %{"shortcut" => key})
   end
 
   test "board shortcuts are two characters and not handed out twice while held" do
