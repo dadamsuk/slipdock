@@ -2203,17 +2203,27 @@ reading a board of your vault keeps a switch between this board's tree and
 the vault's (the boards of it they can open). Organising uses this board's
 tree.
 
-**Organise mode.** The pencil at the top of the wiki's sidebar turns the tree
-into a drag-and-drop one, and only then: dragging by default would make every
-mis-aimed click a filing change in the one place somebody is trying to read.
-In it, every row has a handle, and both axes are rearranged in the same tree —
-a page dropped in a folder is *kept* there and belongs to no page; a page
-dropped on a page becomes *part of* it, filed where that page is filed; a
-folder dropped in a folder moves under it, and cannot be dropped inside
-itself. Drop on the middle of a row to put something inside it, or on its top
-or bottom edge to put it beside it. Order is what you dragged: positions are
-packed afterwards so a tree arranged by hand stays arranged. Rest a drag on a
-shut folder and it opens, so you can drop deeper without opening it first.
+**Dragging rows about.** With a mouse, a writer drags a page, a folder or a
+file straight from the tree: press on its row and move. A press that moves
+less than a few pixels is still a click and opens the row, so reading is
+never a filing change. Both axes are rearranged in the same tree — a page
+dropped in a folder is *kept* there and belongs to no page; a page dropped
+on a page becomes *part of* it, filed where that page is filed; a folder
+dropped in a folder moves under it, and cannot be dropped inside itself; a
+file (an image, a PDF, a drawing) dropped in a folder is filed there, and
+dropped on anything else goes to the folder that row is in — a file is never
+part of a page, stays on its own board, and is refused where a file of the
+same name already is. Drop on the middle of a row to put something inside
+it, or on its top or bottom edge to put it beside it. Order is what you
+dragged: positions are packed afterwards so a tree arranged by hand stays
+arranged. Rest a drag on a shut folder and it opens, so you can drop deeper
+without opening it first. In a vault, a file moved here moves on disk at the
+next sync.
+
+**Organise mode.** The pencil at the top of the wiki's sidebar gives every
+row a handle to drag by, with a reminder of what a drop does. It is how a
+touch screen drags (a finger on a row scrolls, and resting on it opens its
+menu), and works the same with a mouse.
 
 **A row's menu.** Right-click a row, or press its `⋯`, for what can be done
 to it. Anyone can open it, open it in a new tab, or copy its link. A writer

@@ -62,9 +62,10 @@ A flow LiveView tests can't reach — a drag in the wiki's tree, say — gets an
 end-to-end script under `tools/e2e/`: a throwaway database, a server of its
 own, and Playwright driving Chromium (`NODE_PATH` pointing at a
 `playwright-core` install, `CHROME_PATH` at the browser). Run one with
-`tools/e2e/folder-move-drag.sh` or `tools/e2e/vault-view.sh`; each says
-`ok` or why not, and drops its database on the way out. `tools/e2e/lib.sh`
-is the shared set-up for a new one.
+`tools/e2e/folder-move-drag.sh`, `tools/e2e/tree-drag.sh` or
+`tools/e2e/vault-view.sh`; each says `ok` or why not, and drops its
+database on the way out. `tools/e2e/lib.sh` is the shared set-up for a new
+one.
 
 New or changed code comes with tests for it, in the same commit: the paths
 you added, error and edge cases included, with assertions on what happens
