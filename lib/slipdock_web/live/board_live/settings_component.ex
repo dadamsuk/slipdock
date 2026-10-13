@@ -387,6 +387,30 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
               </span>
             </label>
           </div>
+          <%!-- Every board has a wiki: this is the whole wiki's switch for
+                the card contents under a page's prose. Hidden, not removed. --%>
+          <div class="space-y-1">
+            <input type="hidden" name={@form[:page_card_features].name} value="false" />
+            <label class="flex cursor-pointer items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                id="board-page-card-features"
+                name={@form[:page_card_features].name}
+                value="true"
+                checked={
+                  Phoenix.HTML.Form.normalize_value("checkbox", @form[:page_card_features].value)
+                }
+                class="checkbox checkbox-sm mt-0.5"
+              />
+              <span>
+                <span class="font-medium">Card features on wiki pages</span>
+                <span class="block text-xs text-base-content/50">
+                  Status, checklist, links, fields, votes and comments under every page in this
+                  board's wiki. Untick for a wiki that is only documents; nothing is deleted.
+                </span>
+              </span>
+            </label>
+          </div>
           <div class="space-y-1.5">
             <span class="text-sm font-medium">Colour</span>
             <div class="flex flex-wrap gap-1.5">

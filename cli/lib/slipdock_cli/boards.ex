@@ -589,6 +589,8 @@ defmodule SlipdockCLI.Boards do
         "add_card" => o[:add_card],
         "add_page" => o[:add_page],
         "add_document" => o[:add_document],
+        # The card contents under every wiki page: --no-page-card-features.
+        "page_card_features" => o[:page_card_features],
         "simple" => o[:simple],
         "kind" =>
           case o[:sprints] do
@@ -602,7 +604,7 @@ defmodule SlipdockCLI.Boards do
       do:
         fail(
           "nothing to change — pass --name, --code, --shortcut, --desc, --color, " <>
-            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints or --[no-]simple"
+            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple or --[no-]page-card-features"
         )
 
     HTTP.patch("/boards/#{enc(ref)}", body)

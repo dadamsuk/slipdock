@@ -361,8 +361,14 @@ defmodule SlipdockWeb.BoardLive.PageComponent do
         </div>
 
         <%!-- The card contents a page carries. Same components the card panel
-              draws, same events: a page is read here exactly as a card is. --%>
-        <div class="space-y-5 border-t border-base-300 pt-4">
+              draws, same events: a page is read here exactly as a card is.
+              Off for the whole wiki with the board's `page_card_features`
+              (a page is only ever placed on its own board's lists). --%>
+        <div
+          :if={@board.page_card_features}
+          id="page-panel-card-features"
+          class="space-y-5 border-t border-base-300 pt-4"
+        >
           <.status_section target={@target} item={@page} can_write={@can_write} form_key={@form_key} />
           <.checklist_section
             target={@target}

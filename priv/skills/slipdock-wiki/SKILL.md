@@ -343,6 +343,11 @@ Prefer the body for anything that is really prose. A comment is for a remark
 about the document; a checklist is for the work of writing it. What the
 document *says* belongs in the document.
 
+A board can turn these off for its whole wiki (`slipdock set-board <board>
+--no-page-card-features`; `page_card_features` in `slipdock board <board> --json`).
+The commands still work, but nobody reading the page sees what they write — on
+such a wiki, put a remark in a card about the page, not a comment on it.
+
 In the web app this is also the foot of every list: a document icon beside
 **Add** and a paperclip. The document icon opens the wiki editor with the list
 already chosen, so the page is placed there when it is saved. All three are

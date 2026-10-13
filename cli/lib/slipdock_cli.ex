@@ -425,13 +425,15 @@ defmodule SlipdockCLI do
                                         (the one a first sign-in makes by itself)
     set-board <board> [--name N] [--code C] [--shortcut K] [--desc TEXT] [--color C]
         [--no-add-card] [--no-add-page] [--no-add-document] [--sprints | --no-sprints]
-        [--simple | --no-simple]
+        [--simple | --no-simple] [--page-card-features | --no-page-card-features]
                                         rename a board, change its code, shortcut key or colour,
                                         say what the foot of each list offers, make it a
                                         sprint board (every card a sprint), or a simple one (a
                                         plain to-do list: % complete, start dates, health,
                                         time, votes, dependencies, Timeline and Prioritise
-                                        hidden — not deleted)
+                                        hidden — not deleted); --no-page-card-features hides
+                                        status, checklist, links, fields, votes and comments
+                                        on every page of the board's wiki (not deleted)
     sprint <board> [--name N] [--start DATE] [--days N] [--goal TEXT]
                                         start the next sprint on a sprint board: a dated card
                                         ("Sprint 4", following on from the last, 14 days unless
@@ -591,6 +593,7 @@ defmodule SlipdockCLI do
     add_card: :boolean,
     add_page: :boolean,
     add_document: :boolean,
+    page_card_features: :boolean,
     sprints: :boolean,
     clear: :boolean,
     simple: :boolean,

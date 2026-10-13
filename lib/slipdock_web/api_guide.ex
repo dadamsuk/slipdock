@@ -2084,6 +2084,14 @@ defmodule SlipdockWeb.APIGuide do
          -d '{"fields": {"effort": 3}}'
     ```
 
+    A board can turn the lot off for its whole wiki: `PATCH /api/boards/:board
+    {"page_card_features": false}` (`slipdock set-board B
+    --no-page-card-features`), and a board's JSON carries
+    `page_card_features`. The web app then leaves status, checklist, links,
+    fields, votes and comments off every page of that wiki. Nothing is
+    deleted and the endpoints above still answer, so read the flag before
+    commenting on such a page: the people reading it will not see the comment.
+
     Checklist items and comments are removed through the routes they share
     with cards — `POST /api/checklist/:id/toggle`, `DELETE /api/checklist/:id`,
     `DELETE /api/comments/:id` — which authorise against whichever the row

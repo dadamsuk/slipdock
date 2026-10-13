@@ -35,6 +35,7 @@ defmodule SlipdockWeb.API.JSON do
       color: b.color,
       kind: b.kind,
       simple: b.simple,
+      page_card_features: b.page_card_features,
       owner: owner_ref(b),
       shared: shared?(b, viewer),
       columns: length(columns),
@@ -76,6 +77,9 @@ defmodule SlipdockWeb.API.JSON do
       votes: %{budget: b.vote_budget, max_per_card: b.vote_max},
       # What the foot of every list offers, and so what a client should draw.
       add: %{card: b.add_card, page: b.add_page, document: b.add_document},
+      # Whether the wiki's pages show the card contents (status, checklist,
+      # links, fields, votes, comments). The data is there either way.
+      page_card_features: b.page_card_features,
       # A plain to-do list: a client should leave out the tracking details
       # (`hidden_facets`) and the Timeline and Prioritise views.
       simple: b.simple,
