@@ -623,6 +623,26 @@ test("a reader only opens and copies; another board's folder makes no folders he
   assert.ok(!labels(menuItems(page(8, {board_id: 2}), {board: 1, canWrite: true, selected: new Set()})).includes("Tag…"))
 })
 
+test("a file's menu archives or deletes it, for a writer only (#769)", () => {
+  const items = menuItems(file(5, {href: "/files/5"}), {board: 1, canWrite: true, selected: new Set()})
+  assert.deepEqual(labels(items), ["Open in a new tab", "Copy link", "Archive…", "Delete…"])
+  assert.deepEqual(items.find(i => i.label === "Archive…"), {label: "Archive…", icon: "hero-archive-box", event: "ask_archive_file", payload: {id: "5"}, danger: true, group: "danger"})
+  assert.equal(items.find(i => i.label === "Delete…").event, "ask_delete_file")
+  assert.deepEqual(items.find(i => i.label === "Delete…").payload, {id: "5"})
+  const reader = menuItems(file(5, {href: "/files/5", writable: false}), {board: 1, canWrite: false, selected: new Set()})
+  assert.deepEqual(labels(reader), ["Open in a new tab", "Copy link"])
+})
+
+test("Delete on a file asks to archive it; F2 on a file and keys on another board's file do nothing", () => {
+  const {hook, pushed, press} = keyHook([file(5), file(6, {board_id: 9, writable: false})])
+  hook.active = "file:5"
+  assert.ok(press("F2").prevented)
+  press("Delete")
+  hook.active = "file:6"
+  press("Delete")
+  assert.deepEqual(pushed.slice(1).map(p => [p.event, p.payload.id]), [["ask_archive_file", "5"]])
+})
+
 test("with several picked, the menu acts on all of them", () => {
   const selected = new Set(["page:7", "page:8", "folder:4"])
   const items = menuItems(page(7), {board: 1, canWrite: true, selected})
