@@ -354,12 +354,14 @@ test("organising puts a handle on this board's pages and folders only", () => {
   assert.deepEqual(handles, [true, true, false, false])
 })
 
-test("rows from another board open that board's wiki, files open in a tab", () => {
-  const file = {kind: "file", id: 5, key: "file:5", title: "a.png", count: 0, board_id: 1, href: "/wiki-files/5/a.png"}
+test("rows from another board open that board's wiki, files open in place in their viewer", () => {
+  const file = {kind: "file", id: 5, key: "file:5", title: "a.png", count: 0, board_id: 1, href: "/files/5"}
   const {hook, rowsEl} = mountHook({replies: [root([page(3, {board_id: 2, nav: "redirect"}), file])]})
   hook.mounted()
   assert.match(rowsEl.innerHTML, /data-phx-link="redirect"/)
-  assert.match(rowsEl.innerHTML, /target="_blank"/)
+  const fileRow = rowsEl.innerHTML.split("data-key=").find(r => r.startsWith('"file:5"'))
+  assert.match(fileRow, /href="\/files\/5"/)
+  assert.doesNotMatch(fileRow, /target="_blank"|data-phx-link/)
 })
 
 test("a drag keeps hold of its row when a folder opens above it mid-drag", () => {

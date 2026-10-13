@@ -267,8 +267,10 @@ function rowHtml(item, index, ctx) {
   const movable = movableRow(row)
   const selected = ctx.selected && ctx.selected.has(row.key)
   const title = escapeHtml(row.title)
+  // A file opens in place, in its viewer or editor: a page of its own, so
+  // an ordinary link rather than a patch of the wiki.
   const nav = row.kind === "file"
-    ? `target="_blank" rel="noopener"`
+    ? ""
     : `data-phx-link="${row.nav === "redirect" ? "redirect" : "patch"}" data-phx-link-state="push"`
 
   const badges = [

@@ -283,10 +283,16 @@ defmodule Slipdock.VaultLinksTest do
       assert links_to(ctx.kb, ctx.user, "[[Release 1.2]]") == [release.id]
     end
 
-    test "the renderer links a [[file]] to the file", ctx do
+    test "the renderer links a [[file]] to the file's viewer", ctx do
       file = file!(ctx.kb, "TSaM.pdf")
       html = Renderer.to_html("Read [[TSaM.pdf]].", board: ctx.kb, as: ctx.user)
-      assert html =~ ~s(class="wiki-file-link" href="/wiki-files/#{file.id}/TSaM.pdf")
+      assert html =~ ~s(class="wiki-file-link" href="/files/#{file.id}")
+    end
+
+    test "a [[link]] to a Meld note opens it where the browser can decrypt it", ctx do
+      note = file!(ctx.kb, "Diary.mdenc")
+      html = Renderer.to_html("[[Diary.mdenc]]", board: ctx.kb, as: ctx.user)
+      assert html =~ ~s(href="/wiki-files/#{note.id}/Diary.mdenc?view=locked")
     end
 
     test "a file the reader can't open is not linked for them", ctx do

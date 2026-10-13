@@ -240,6 +240,9 @@ defmodule SlipdockWeb.Router do
       # An Excalidraw drawing in the Excalidraw editor: `kind` is page (the
       # plugin's .excalidraw.md) or file (a .excalidraw).
       live "/drawings/:kind/:id", DrawingLive, :show
+      # Any other wiki file that is not a page, in a viewer: an image, a PDF,
+      # JSON, CSV, text (see `SlipdockWeb.FileLive`).
+      live "/files/:id", FileLive, :show
       live "/boards/:id/wiki/:slug/history", WikiLive.Index, :history
       live "/boards/:id/wiki/:slug/history/:rev", WikiLive.Index, :revision
       # A board's meetings (see `Slipdock.Meetings`): only while an admin has
