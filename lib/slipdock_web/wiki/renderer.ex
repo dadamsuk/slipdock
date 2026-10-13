@@ -28,7 +28,7 @@ defmodule SlipdockWeb.Wiki.Renderer do
 
   alias Slipdock.Boards.{Card, Column}
   alias Slipdock.Wiki
-  alias Slipdock.Wiki.{Links, Markup, Meld, Page, Query, Section}
+  alias Slipdock.Wiki.{Drawings, Excalidraw, Links, Markup, Meld, Page, Query, Section}
 
   @extension [
     table: true,
@@ -411,9 +411,12 @@ defmodule SlipdockWeb.Wiki.Renderer do
 
   # `![[photo.png]]` in the middle of a sentence: the file, inline.
   defp ref_node(%{embed: true} = ref, context) do
-    if file_embed?(ref) and not context.static,
-      do: %MDEx.HtmlInline{literal: file_inline(ref, context)},
-      else: ref_node(Map.delete(ref, :embed), context)
+    cond do
+      context.static -> ref_node(Map.delete(ref, :embed), context)
+      drawing = drawing_html(ref, context) -> %MDEx.HtmlInline{literal: drawing}
+      file_embed?(ref) -> %MDEx.HtmlInline{literal: file_inline(ref, context)}
+      true -> ref_node(Map.delete(ref, :embed), context)
+    end
   end
 
   defp ref_node(ref, context) do
@@ -783,33 +786,60 @@ defmodule SlipdockWeb.Wiki.Renderer do
   defp embed_html(ref, context) do
     seen = Enum.reject([context.page && context.page.id | context.embedding], &is_nil/1)
 
-    if file_embed?(ref) do
-      file_html(ref, context)
-    else
-      case resolve_one(ref, context) do
-        {:page, page} ->
-          with false <- page.id in seen or length(seen) >= @max_embed_depth,
-               {:ok, source} <- embed_source(page, Map.get(ref, :anchor)) do
-            inner =
-              to_html(source,
-                page: page,
-                as: context.reader,
-                embedding: seen,
-                today: context.today
-              )
+    drawing = drawing_html(ref, context)
 
-            ~s|<div class="wiki-embed">| <>
-              ~s|<div class="wiki-embed-title">#{resolved_html(ref, {:page, page}, context)}</div>| <>
-              inner <> "</div>"
-          else
-            _ -> "<p>" <> resolved_html(ref, {:page, page}, context) <> "</p>"
-          end
-
-        _ ->
-          html_of_nodes([unresolved_node(ref, context)])
-      end
+    cond do
+      drawing -> "<p>" <> drawing <> "</p>"
+      file_embed?(ref) -> file_html(ref, context)
+      true -> page_embed_html(ref, context, seen)
     end
   end
+
+  defp page_embed_html(ref, context, seen) do
+    case resolve_one(ref, context) do
+      {:page, page} ->
+        with false <- page.id in seen or length(seen) >= @max_embed_depth,
+             {:ok, source} <- embed_source(page, Map.get(ref, :anchor)) do
+          inner =
+            to_html(source,
+              page: page,
+              as: context.reader,
+              embedding: seen,
+              today: context.today
+            )
+
+          ~s|<div class="wiki-embed">| <>
+            ~s|<div class="wiki-embed-title">#{resolved_html(ref, {:page, page}, context)}</div>| <>
+            inner <> "</div>"
+        else
+          _ -> "<p>" <> resolved_html(ref, {:page, page}, context) <> "</p>"
+        end
+
+      _ ->
+        html_of_nodes([unresolved_node(ref, context)])
+    end
+  end
+
+  # `![[sketch.excalidraw]]` or `![[sketch.excalidraw.md]]`: the drawing's
+  # preview, an SVG made on the server (W-103 R5.1) and shown as an image,
+  # so it never passes through the sanitiser and cannot run anything. It
+  # opens the drawing. Nil when the target is not a drawing this reader has.
+  defp drawing_html(%{target: target} = ref, %{board: %Slipdock.Boards.Board{} = board} = context) do
+    with true <- Excalidraw.name?(target),
+         {_kind, drawing} = found <- Drawings.resolve(board, target, context.reader) do
+      label = escape(ref.label || target)
+
+      ~s|<a class="wiki-drawing" href="#{escape(drawing_href(found))}" title="#{label}">| <>
+        ~s|<img class="wiki-drawing-preview" src="#{escape(Drawings.preview_url(drawing))}" alt="#{label}"></a>|
+    else
+      _ -> nil
+    end
+  end
+
+  defp drawing_html(_ref, _context), do: nil
+
+  defp drawing_href({:page, page}), do: page_path(page)
+  defp drawing_href({:file, file}), do: Slipdock.Wiki.Files.url(file)
 
   # `![[diagram.png]]`: a file in the wiki (W-103 R2.9), drawn in place when
   # it is an image the browser may show, linked when it is anything else, and
@@ -889,6 +919,7 @@ defmodule SlipdockWeb.Wiki.Renderer do
 
   defp strip_brackets(raw) do
     raw
+    |> String.trim_leading("!")
     |> String.trim_leading("[[")
     |> String.trim_trailing("]]")
     |> String.split("|", parts: 2)
