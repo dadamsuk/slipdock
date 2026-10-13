@@ -23,6 +23,8 @@ defmodule Slipdock.Wiki.Folder do
     field :name, :string
     field :slug, :string
     field :position, :integer, default: 0
+    # How the tree orders the pages in it (W-103 R11.9): see `sorts/0`.
+    field :sort, :string, default: "manual"
 
     belongs_to :board, Slipdock.Boards.Board
     belongs_to :parent, __MODULE__
@@ -35,9 +37,18 @@ defmodule Slipdock.Wiki.Folder do
 
   def name_length, do: @name_length
 
+  @sorts ~w(manual name modified created)
+
+  @doc """
+  The orders a folder's pages can be shown in: as dragged, by name, newest
+  change first, or newest first. Folders always come before pages.
+  """
+  def sorts, do: @sorts
+
   def changeset(folder, attrs) do
     folder
-    |> cast(attrs, [:name, :slug, :position, :parent_id])
+    |> cast(attrs, [:name, :slug, :position, :parent_id, :sort])
+    |> validate_inclusion(:sort, @sorts)
     |> update_change(:name, &String.trim/1)
     |> update_change(:slug, &sanitize_slug/1)
     |> validate_required([:name])

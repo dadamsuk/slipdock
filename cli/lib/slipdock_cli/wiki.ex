@@ -52,14 +52,18 @@ defmodule SlipdockCLI.Wiki do
   end
 
   def run("folder", ["mv", ref, folder], o) do
-    if is_nil(o[:parent]) and o[:root] != true and is_nil(o[:name]),
-      do: fail("say what to change: --parent P, --root, or --name N")
+    if is_nil(o[:parent]) and o[:root] != true and is_nil(o[:name]) and is_nil(o[:sort]),
+      do:
+        fail(
+          "say what to change: --parent P, --root, --name N, or --sort manual|name|modified|created"
+        )
 
     body =
       compact(%{
         "name" => o[:name],
         "parent" => if(o[:root], do: "root", else: o[:parent]),
-        "position" => o[:position]
+        "position" => o[:position],
+        "sort" => o[:sort]
       })
 
     HTTP.patch("/boards/#{enc(ref)}/folders/#{path_enc(folder)}", body)
@@ -525,16 +529,7 @@ defmodule SlipdockCLI.Wiki do
   end
 
   def run("page", ["mv", ref], o) do
-    if is_nil(o[:parent]) and o[:root] != true and is_nil(o[:position]),
-      do: fail("say where: --parent P, --root, or --position N|top|bottom")
-
-    body =
-      compact(%{
-        "parent" => if(o[:root], do: "root", else: o[:parent]),
-        "position" => o[:position]
-      })
-
-    HTTP.post("/pages/#{enc(ref)}/move", body) |> out(o, &page_ok("moved", &1))
+    if is_binary(o[:board]), do: move_to_board(ref, o), else: move_in_board(ref, o)
   end
 
   def run("page", ["rm", ref], o) do
@@ -698,5 +693,46 @@ defmodule SlipdockCLI.Wiki do
     body = %{"folder" => if(o[:no_folder] || o[:root], do: nil, else: o[:folder])}
 
     HTTP.post("/pages/#{enc(ref)}/folder", body) |> out(o, &page_ok("filed", &1))
+  end
+
+  defp report_line(_what, []), do: :ok
+  defp report_line(what, items), do: IO.puts("  #{what}: #{Enum.join(items, ", ")}")
+
+  # To another board of the page's vault: it keeps its code, history and
+  # comments; --dry-run says what its tags, fields, pins and so on would do.
+  defp move_to_board(ref, o) do
+    body = compact(%{"board" => o[:board], "folder" => o[:folder], "dry_run" => o[:dry_run]})
+
+    HTTP.post("/pages/#{enc(ref)}/move", body)
+    |> out(o, fn
+      %{"dry_run" => true, "report" => r, "board" => board} ->
+        IO.puts("moving it to #{board} would:")
+        if r["pages"] > 1, do: IO.puts("  take #{r["pages"] - 1} page(s) under it along")
+        report_line("carry tags", r["tags"]["carried"])
+        report_line("drop tags", r["tags"]["dropped"])
+        report_line("carry fields", r["fields"]["carried"])
+        report_line("drop field values", r["fields"]["dropped"])
+        report_line("unpin cards", r["pins"]["dropped"])
+        report_line("let go of its assignee", List.wrap(r["assignee"]["dropped"]))
+        report_line("leave its list", List.wrap(r["list"]))
+        report_line("leave its parent page", List.wrap(r["parent"]))
+
+      r ->
+        page_ok("moved", r)
+    end)
+  end
+
+  defp move_in_board(ref, o) do
+    if is_nil(o[:parent]) and o[:root] != true and is_nil(o[:position]),
+      do:
+        fail("say where: --parent P, --root, --position N|top|bottom, or --board B [--folder F]")
+
+    body =
+      compact(%{
+        "parent" => if(o[:root], do: "root", else: o[:parent]),
+        "position" => o[:position]
+      })
+
+    HTTP.post("/pages/#{enc(ref)}/move", body) |> out(o, &page_ok("moved", &1))
   end
 end

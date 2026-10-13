@@ -148,7 +148,7 @@ export function dropZone(offsetY, rowHeight = ROW_HEIGHT) {
 // no drop.
 function intoOf(key) {
   if (key === "root") return "folder:"
-  if (/^(folder|page):\d+$/.test(key)) return key
+  if (/^(folder|page|board):\d+$/.test(key)) return key
   return null
 }
 
@@ -242,7 +242,8 @@ function rowHtml(item, index, ctx) {
   const active = ctx.active === row.key
   // A vault's mapped folders are where another board's wiki is shown, not
   // folders of this one: nothing moves them, and they have no menu.
-  const movable = ctx.organising && ["page", "folder"].includes(row.kind) && !row.mount && row.board_id === ctx.board
+  const movable = ctx.organising && ["page", "folder"].includes(row.kind) && !row.mount && row.writable
+  const selected = ctx.selected && ctx.selected.has(row.key)
   const title = escapeHtml(row.title)
   const nav = row.kind === "file"
     ? `target="_blank" rel="noopener"`
@@ -265,13 +266,14 @@ function rowHtml(item, index, ctx) {
     ? `<span data-drag class="shrink-0 cursor-grab touch-none py-1.5 text-base-content/30 hover:text-base-content/60" title="Drag to move this ${row.kind}"><span class="hero-bars-2 size-3.5"></span></span>`
     : ""
 
-  const menu = row.kind === "folder" && !row.mount && ctx.canWrite && row.board_id === ctx.board
-    ? `<button type="button" data-menu class="btn btn-ghost btn-xs btn-square shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100" title="Folder actions"><span class="hero-ellipsis-horizontal size-3.5"></span></button>`
+  const menu = ["page", "folder", "file"].includes(row.kind) && !row.mount
+    ? `<button type="button" data-menu class="btn btn-ghost btn-xs btn-square shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100" title="More (or right-click)"><span class="hero-ellipsis-horizontal size-3.5"></span></button>`
     : ""
 
   const classes = [
     "wt-row group absolute inset-x-0 flex items-center gap-1 rounded-lg pr-1 text-sm hover:bg-base-200",
     current ? "bg-base-200 font-medium" : "",
+    selected ? "bg-primary/10" : "",
     row.context ? "opacity-60" : "",
     row.archived ? "text-base-content/50" : "",
     active ? "ring-1 ring-inset ring-primary/60" : "",
@@ -285,19 +287,82 @@ function rowHtml(item, index, ctx) {
     badges + `</a>` + menu + `</div>`
 }
 
-function folderMenuHtml(row, ctx) {
-  const id = escapeHtml(row.id)
-  const base = `/boards/${ctx.board}/wiki`
-  const link = (href, icon, label) =>
-    `<li><a href="${href}" data-phx-link="patch" data-phx-link-state="push"><span class="${icon} size-4"></span> ${label}</a></li>`
-  const action = (event, attr, icon, label, extra = "") =>
-    `<li><button type="button" phx-click="${event}" ${attr}="${id}" class="${extra}"><span class="${icon} size-4"></span> ${label}</button></li>`
+const SORTS = [["manual", "As arranged"], ["name", "By name"], ["modified", "Last changed first"], ["created", "Newest first"]]
 
-  return link(`${base}?folder=${id}`, "hero-folder-open", "Open this folder") +
-    link(`${base}/new?folder=${id}`, "hero-document-plus", "New page here") +
-    action("new_folder", "phx-value-parent", "hero-folder-plus", "New folder inside") +
-    action("rename_folder", "phx-value-id", "hero-pencil", "Rename or move…") +
-    action("ask_delete_folder", "phx-value-id", "hero-trash", "Delete folder…", "text-error")
+// What a row's menu offers (R11.10), for whoever is reading: opening and
+// copying for anyone, the rest for a writer on the row's board. Each item
+// is a link (followed as the tree's own links are), an event for the
+// server, or an action done here. `keys` are what a move, archive or tag
+// acts on: the whole selection when the row is part of one.
+export function menuItems(row, ctx) {
+  const selection = ctx.selected && ctx.selected.has(row.key) && ctx.selected.size > 1 ? [...ctx.selected] : [row.key]
+  const many = selection.length > 1
+  const writable = !!row.writable
+  const nav = row.nav === "redirect" ? "redirect" : "patch"
+  const base = `/boards/${row.board_id}/wiki`
+  const items = []
+  const add = (when, item) => { if (when) items.push(item) }
+  const id = String(row.id)
+
+  if (row.kind === "root") {
+    add(ctx.canWrite, {label: "New note", icon: "hero-document-plus", href: `/boards/${ctx.board}/wiki/new`, nav: "patch"})
+    add(ctx.canWrite, {label: "New folder", icon: "hero-folder-plus", event: "new_folder", payload: {}})
+    add(ctx.canWrite, {label: "New drawing", icon: "hero-paint-brush", event: "new_drawing", payload: {key: "root"}})
+    if (ctx.canWrite) SORTS.forEach(([sort, label]) =>
+      items.push({label: `Sort: ${label}`, icon: (ctx.rootSort || "manual") === sort ? "hero-check" : "hero-arrows-up-down", event: "set_tree_sort", payload: {key: "root", sort}, group: "sort"}))
+    return items
+  }
+
+  if (row.mount || row.kind === "dir" || row.kind === "loading" || row.kind === "more") return items
+
+  if (row.kind === "file") {
+    add(true, {label: "Open in a new tab", icon: "hero-arrow-top-right-on-square", action: "newTab", href: row.href})
+    add(true, {label: "Copy link", icon: "hero-link", action: "copy", href: row.href})
+    return items
+  }
+
+  add(!many, {label: "Open", icon: row.kind === "folder" ? "hero-folder-open" : "hero-document-text", href: row.href, nav})
+  add(!many, {label: "Open in a new tab", icon: "hero-arrow-top-right-on-square", action: "newTab", href: row.href})
+
+  if (row.kind === "folder") {
+    add(writable && !many, {label: "New note here", icon: "hero-document-plus", href: `${base}/new?folder=${id}`, nav, group: "new"})
+    add(writable && !many && row.board_id === ctx.board, {label: "New folder inside", icon: "hero-folder-plus", event: "new_folder", payload: {parent: id}, group: "new"})
+    add(writable && !many, {label: "New drawing here", icon: "hero-paint-brush", event: "new_drawing", payload: {key: row.key}, group: "new"})
+    add(writable && !many, {label: "Rename…", icon: "hero-pencil", event: "rename_folder", payload: {id}, group: "edit"})
+  } else {
+    add(writable && !many, {label: "New note inside", icon: "hero-document-plus", href: `${base}/new?parent=${id}`, nav, group: "new"})
+    add(writable && !many, {label: "Rename…", icon: "hero-pencil", event: "rename_page", payload: {id}, group: "edit"})
+  }
+
+  add(writable, {label: many ? `Move ${selection.length}…` : "Move…", icon: "hero-arrow-right-circle", event: "tree_dialog", payload: {kind: "move", keys: selection}, group: "edit"})
+  add(writable && row.kind === "page" && !many, {label: "Also file in…", icon: "hero-link", event: "tree_dialog", payload: {kind: "also", keys: [row.key]}, group: "edit"})
+  add(writable && row.kind === "page" && row.board_id === ctx.board, {label: many ? `Tag ${selection.length}…` : "Tag…", icon: "hero-tag", event: "tree_dialog", payload: {kind: "tag", keys: selection}, group: "edit"})
+
+  if (row.kind === "folder" && writable && !many) SORTS.forEach(([sort, label]) =>
+    items.push({label: `Sort: ${label}`, icon: (row.sort || "manual") === sort ? "hero-check" : "hero-arrows-up-down", event: "set_tree_sort", payload: {key: row.key, sort}, group: "sort"}))
+
+  add(!many, {label: "Copy link", icon: "hero-link", action: "copy", href: row.href, group: "share"})
+
+  if (writable) {
+    if (row.kind === "folder" && !many) items.push({label: "Delete folder…", icon: "hero-trash", event: "ask_delete_folder", payload: {id}, danger: true, group: "danger"})
+    if (row.kind === "page") items.push(many
+      ? {label: `Archive ${selection.length}…`, icon: "hero-archive-box", event: "tree_dialog", payload: {kind: "archive", keys: selection}, danger: true, group: "danger"}
+      : {label: "Archive…", icon: "hero-archive-box", event: "ask_archive_page", payload: {id}, danger: true, group: "danger"})
+  }
+  return items
+}
+
+function menuHtml(items) {
+  let group = null
+  return items.map((item, i) => {
+    const rule = i > 0 && item.group !== group ? `<li class="my-0.5 border-t border-base-300/70"></li>` : ""
+    group = item.group
+    const inner = `<span class="${item.icon} size-4"></span> ${escapeHtml(item.label)}`
+    const tone = item.danger ? "text-error" : ""
+    if (item.href && !item.action)
+      return rule + `<li><a href="${escapeHtml(item.href)}" data-phx-link="${item.nav}" data-phx-link-state="push" class="${tone}">${inner}</a></li>`
+    return rule + `<li><button type="button" data-menu-item="${i}" class="${tone}">${inner}</button></li>`
+  }).join("")
 }
 
 function storageGet(key, fallback) {
@@ -336,6 +401,11 @@ export const WikiTree = {
     this.onPointerDown = e => this.dragStart(e)
     this.rowsEl.addEventListener("pointerdown", this.onPointerDown)
     this.onAway = e => { if (this.menuEl && !this.menuEl.contains(e.target)) this.closeMenu() }
+    this.selected = new Set()
+    this.selectionEl = this.el.querySelector("#wiki-tree-selection")
+    this.onContextMenu = e => this.contextMenu(e)
+    this.rowsEl.addEventListener("contextmenu", this.onContextMenu)
+    if (this.selectionEl) this.selectionEl.addEventListener("click", e => this.selectionAction(e))
     document.addEventListener("click", this.onAway, true)
 
     this.el.addEventListener("click", e => {
@@ -374,6 +444,8 @@ export const WikiTree = {
       board: Number(this.el.dataset.board),
       current: this.el.dataset.current || null,
       active: this.active || null,
+      selected: this.selected,
+      rootSort: this.rootSort,
       organising: this.el.dataset.organising === "true",
       canWrite: this.el.dataset.canWrite === "true",
     }
@@ -389,6 +461,9 @@ export const WikiTree = {
       if (!reply || !reply.nodes) return
       this.scope = reply.scope
       this.filtering = reply.filtering
+      this.rootSort = reply.sort
+      // What was picked was acted on, or the tree changed under it.
+      this.selected = new Set()
       this.model.reset(reply.root)
       for (const [key, rows] of Object.entries(reply.nodes)) this.model.set(key, rows)
 
@@ -543,6 +618,8 @@ export const WikiTree = {
     if (this.menuEl) this.rowsEl.appendChild(this.menuEl)
     this.el.dataset.rows = String(this.flat.length)
 
+    this.renderSelection()
+
     // A "more" row in view asks for the next page of its folder.
     this.rowsEl.querySelectorAll("[data-more]").forEach(el =>
       this.more(el.dataset.more, Number(el.dataset.offset)))
@@ -559,12 +636,24 @@ export const WikiTree = {
   },
 
   click(e) {
+    const menuItem = e.target.closest("[data-menu-item]")
+    if (menuItem) return this.menuAction(e, Number(menuItem.dataset.menuItem))
     const rowEl = e.target.closest("[data-key]")
     if (!rowEl) return
     const key = rowEl.dataset.key
+    if (this.rowsEl.focus) this.rowsEl.focus({preventScroll: true})
+
+    // Ctrl/Cmd-click picks a row, Shift-click every row from the last one.
+    if ((e.ctrlKey || e.metaKey || e.shiftKey) && !e.target.closest("[data-toggle]")) {
+      e.preventDefault()
+      e.stopPropagation()
+      this.pick(key, e.shiftKey)
+      this.active = key
+      return this.render()
+    }
+    if (this.selected.size && !e.target.closest("[data-menu]")) this.selected = new Set()
     // The keyboard carries on from the row clicked.
     this.active = key
-    if (this.rowsEl.focus) this.rowsEl.focus({preventScroll: true})
     if (rowEl.dataset.dir !== undefined && !e.target.closest("[data-menu]")) {
       e.preventDefault()
       return this.toggle(key)
@@ -584,8 +673,14 @@ export const WikiTree = {
     const flat = this.flat || []
     let index = this.active ? flat.findIndex(i => i.row.key === this.active) : -1
     const item = flat[index]
-    const ctx = this.ctx()
-    const mine = item && ctx.canWrite && item.row.board_id === ctx.board && !item.row.mount
+    const mine = item && item.row.writable && !item.row.mount
+
+    if (e.key === "Escape" && (this.selected.size || this.menuEl)) {
+      e.preventDefault()
+      this.closeMenu()
+      this.selected = new Set()
+      return this.render()
+    }
 
     if (e.key === "F2" || e.key === "Delete") {
       e.preventDefault()
@@ -639,18 +734,103 @@ export const WikiTree = {
     if (link) link.click()
   },
 
-  openMenu(rowEl) {
-    this.closeMenu()
+  // Ctrl/Cmd-click adds or takes away one row; Shift-click takes in every
+  // row from the last one picked. Only rows that can be moved, archived or
+  // tagged are picked.
+  pick(key, range) {
+    const flat = this.flat || []
+    const pickable = i => ["page", "folder"].includes(i.row.kind) && i.row.writable && !i.row.mount
+    if (range && this.active) {
+      const a = flat.findIndex(i => i.row.key === this.active)
+      const b = flat.findIndex(i => i.row.key === key)
+      if (a >= 0 && b >= 0) {
+        flat.slice(Math.min(a, b), Math.max(a, b) + 1).filter(pickable).forEach(i => this.selected.add(i.row.key))
+        return
+      }
+    }
+    const item = flat.find(i => i.row.key === key)
+    if (!item || !pickable(item)) return
+    if (this.selected.has(key)) this.selected.delete(key)
+    else this.selected.add(key)
+  },
+
+  renderSelection() {
+    if (!this.selectionEl) return
+    const n = this.selected ? this.selected.size : 0
+    this.selectionEl.innerHTML = n === 0 ? "" :
+      `<div class="mb-2 flex flex-wrap items-center gap-1 rounded-lg bg-primary/10 px-2 py-1 text-xs shadow-sm">` +
+      `<span class="mr-auto font-medium">${n} picked</span>` +
+      `<button type="button" data-sel="move" class="btn btn-ghost btn-xs">Move…</button>` +
+      `<button type="button" data-sel="archive" class="btn btn-ghost btn-xs">Archive…</button>` +
+      `<button type="button" data-sel="tag" class="btn btn-ghost btn-xs">Tag…</button>` +
+      `<button type="button" data-sel="clear" class="btn btn-ghost btn-xs btn-square" title="Let go (Esc)" aria-label="Let go"><span class="hero-x-mark size-3.5"></span></button>` +
+      `</div>`
+  },
+
+  selectionAction(e) {
+    const button = e.target.closest("[data-sel]")
+    if (!button) return
+    e.preventDefault()
+    const kind = button.dataset.sel
+    if (kind === "clear") {
+      this.selected = new Set()
+      return this.render()
+    }
+    this.pushEvent("tree_dialog", {kind, keys: [...this.selected]})
+  },
+
+  contextMenu(e) {
+    const rowEl = e.target.closest("[data-key]")
+    const box = this.rowsEl.getBoundingClientRect()
+    const at = {x: e.clientX - box.left, y: e.clientY - box.top}
+    if (rowEl) {
+      e.preventDefault()
+      return this.openMenu(rowEl, at)
+    }
+    // The tree's own background: what can be made at its top.
+    if (this.scope === "board" && this.ctx().canWrite) {
+      e.preventDefault()
+      this.showMenu(menuItems({kind: "root"}, this.ctx()), at)
+    }
+  },
+
+  openMenu(rowEl, at) {
     const item = this.flat[Number(rowEl.dataset.index)]
     if (!item) return
+    if (this.selected.size && !this.selected.has(item.row.key)) this.selected = new Set()
+    const top = Number(rowEl.dataset.index) * ROW_HEIGHT + ROW_HEIGHT
+    this.showMenu(menuItems(item.row, this.ctx()), at || {y: top})
+  },
+
+  showMenu(items, at) {
+    this.closeMenu()
+    if (!items.length) return
     const menu = document.createElement("ul")
-    menu.className = "menu absolute right-1 z-40 w-52 rounded-xl bg-base-100 p-1 text-sm shadow-lg ring-1 ring-base-content/10"
-    menu.style.top = `${Number(rowEl.dataset.index) * ROW_HEIGHT + ROW_HEIGHT}px`
+    menu.className = "menu absolute z-40 w-56 rounded-xl bg-base-100 p-1 text-sm shadow-lg ring-1 ring-base-content/10"
+    menu.style.top = `${at.y}px`
+    if (at.x !== undefined) menu.style.left = `${Math.max(0, Math.min(at.x, (this.rowsEl.clientWidth || 224) - 224))}px`
+    else menu.style.right = "4px"
     menu.dataset.treeMenu = ""
-    menu.innerHTML = folderMenuHtml(item.row, this.ctx())
-    menu.addEventListener("click", () => setTimeout(() => this.closeMenu(), 0))
+    menu.setAttribute("role", "menu")
+    menu.innerHTML = menuHtml(items)
+    menu.addEventListener("click", e => {
+      if (e.target.closest("a")) setTimeout(() => this.closeMenu(), 0)
+    })
+    this.menuItems = items
     this.menuEl = menu
     this.rowsEl.appendChild(menu)
+  },
+
+  menuAction(e, index) {
+    e.preventDefault()
+    e.stopPropagation()
+    const item = (this.menuItems || [])[index]
+    this.closeMenu()
+    if (!item) return
+    if (item.event) return this.pushEvent(item.event, item.payload)
+    const url = new URL(item.href, window.location.href).toString()
+    if (item.action === "newTab") window.open(url, "_blank", "noopener")
+    if (item.action === "copy" && navigator.clipboard) navigator.clipboard.writeText(url)
   },
 
   closeMenu() {

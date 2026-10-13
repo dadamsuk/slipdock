@@ -265,6 +265,36 @@ defmodule Slipdock.Wiki do
   """
   def folder_outline(board), do: board |> folders() |> Folders.outline()
 
+  @doc """
+  How the wiki's tree orders the pages in `folder`, or at the top of the
+  board with nil (W-103 R11.9): one of `Slipdock.Wiki.Folder.sorts/0`.
+  """
+  def set_tree_sort(%Board{} = board, nil, sort) do
+    if sort in Folder.sorts() do
+      Repo.update_all(from(b in Board, where: b.id == ^board.id), set: [wiki_sort: sort])
+      broadcast(board.id)
+      {:ok, %{board | wiki_sort: sort}}
+    else
+      {:error, :unprocessable_entity, "sort by #{Enum.join(Folder.sorts(), ", ")}"}
+    end
+  end
+
+  def set_tree_sort(%Board{id: board_id}, %Folder{board_id: board_id} = folder, sort) do
+    case Folders.update(folder, %{"sort" => sort}) do
+      {:ok, folder} ->
+        {:ok, folder}
+
+      {:error, %Ecto.Changeset{}} ->
+        {:error, :unprocessable_entity, "sort by #{Enum.join(Folder.sorts(), ", ")}"}
+
+      error ->
+        error
+    end
+  end
+
+  def set_tree_sort(_board, _folder, _sort),
+    do: {:error, :unprocessable_entity, "that folder is not on this board"}
+
   @doc "The board's folders as a tree, with `pages` filed into them."
   defdelegate folder_tree(board, pages), to: Folders, as: :tree
 

@@ -104,7 +104,8 @@ defmodule Slipdock.Wiki.Tree do
 
     case container(board, ref, folders) do
       {:ok, {:folder, folder_id}} ->
-        {pages, more} = paged(top_pages(board, folder_id, opts), opts)
+        sort = sort_of(board, folders, folder_id)
+        {pages, more} = paged(top_pages(board, folder_id, sort, opts), opts)
 
         # A later page of a big folder is its pages alone: the folders came
         # with the first.
@@ -114,7 +115,8 @@ defmodule Slipdock.Wiki.Tree do
               folder_rows(
                 folders,
                 folder_id,
-                Keyword.get_lazy(opts, :stats, fn -> stats(board, folders, opts) end)
+                Keyword.get_lazy(opts, :stats, fn -> stats(board, folders, opts) end),
+                sort
               ),
             else: []
 
@@ -734,19 +736,23 @@ defmodule Slipdock.Wiki.Tree do
 
     folder_nodes =
       for parent <- [nil | Enum.map(kept_folders, & &1.id)], into: %{} do
+        sort = sort_of(board, folders, parent)
+
         rows =
           subfolders
           |> Map.get(parent, [])
-          |> Enum.sort_by(&{&1.position, &1.name})
+          |> sort_folders(sort)
           |> Enum.map(folder_row)
 
-        pages = pages_in |> Map.get(folder_key(parent), []) |> sort_pages() |> Enum.map(page_row)
+        pages =
+          pages_in |> Map.get(folder_key(parent), []) |> sort_pages(sort) |> Enum.map(page_row)
+
         {folder_key(parent), rows ++ pages}
       end
 
     page_nodes =
       for {"page:" <> _ = key, kids} <- pages_in, into: %{} do
-        {key, kids |> sort_pages() |> Enum.map(page_row)}
+        {key, kids |> sort_pages("manual") |> Enum.map(page_row)}
       end
 
     %{
@@ -759,7 +765,21 @@ defmodule Slipdock.Wiki.Tree do
   defp folder_key(nil), do: "root"
   defp folder_key(id), do: "folder:#{id}"
 
-  defp sort_pages(pages), do: Enum.sort_by(pages, &{&1.position, &1.title, &1.id})
+  defp sort_pages(pages, "name"), do: Enum.sort_by(pages, &{String.downcase(&1.title), &1.id})
+
+  defp sort_pages(pages, "modified"),
+    do:
+      Enum.sort_by(pages, &{&1.updated_at, &1.id}, fn {a, i}, {b, j} ->
+        DateTime.compare(a, b) == :gt or (a == b and i >= j)
+      end)
+
+  defp sort_pages(pages, "created"),
+    do:
+      Enum.sort_by(pages, &{&1.inserted_at, &1.id}, fn {a, i}, {b, j} ->
+        DateTime.compare(a, b) == :gt or (a == b and i >= j)
+      end)
+
+  defp sort_pages(pages, _manual), do: Enum.sort_by(pages, &{&1.position, &1.title, &1.id})
 
   defp up_chain(%{parent_id: nil}, _by_id, acc), do: acc
 
@@ -865,10 +885,28 @@ defmodule Slipdock.Wiki.Tree do
 
   ## Rows ----------------------------------------------------------------------
 
-  defp folder_rows(folders, parent_id, stats) do
+  # How a container orders its pages: the folder's own choice, or the
+  # board's for its top.
+  defp sort_of(%Board{} = board, _folders, nil), do: Map.get(board, :wiki_sort) || "manual"
+
+  defp sort_of(_board, folders, folder_id) do
+    case Enum.find(folders, &(&1.id == folder_id)) do
+      %Folder{sort: sort} when is_binary(sort) -> sort
+      _ -> "manual"
+    end
+  end
+
+  # Folders come first whatever the order: by name when the pages are,
+  # otherwise as they were arranged.
+  defp sort_folders(folders, "name"),
+    do: Enum.sort_by(folders, &{String.downcase(&1.name), &1.id})
+
+  defp sort_folders(folders, _sort), do: Enum.sort_by(folders, &{&1.position, &1.name})
+
+  defp folder_rows(folders, parent_id, stats, sort) do
     folders
     |> Enum.filter(&(&1.parent_id == parent_id))
-    |> Enum.sort_by(&{&1.position, &1.name})
+    |> sort_folders(sort)
     |> Enum.map(fn folder ->
       %{
         kind: "folder",
@@ -880,7 +918,8 @@ defmodule Slipdock.Wiki.Tree do
         count:
           Enum.count(folders, &(&1.parent_id == folder.id)) +
             Map.get(stats.top, folder.id, 0) + Map.get(stats.files, folder.id, 0),
-        pages: Map.get(stats.totals, folder.id, 0)
+        pages: Map.get(stats.totals, folder.id, 0),
+        sort: folder.sort || "manual"
       }
     end)
   end
@@ -968,12 +1007,24 @@ defmodule Slipdock.Wiki.Tree do
     dynamic([up: up], is_nil(up.id) or not (^visible(opts, :up)))
   end
 
-  defp top_pages(%Board{id: board_id}, folder_id, opts) do
+  defp top_pages(%Board{id: board_id}, folder_id, sort, opts) do
     top_query(board_id, opts)
     |> in_folder(folder_id)
-    |> order_by([page: p], asc: p.position, asc: p.title, asc: p.id)
+    |> order_pages(sort)
     |> select([page: p], struct(p, ^@page_fields))
   end
+
+  defp order_pages(query, "name"),
+    do: order_by(query, [page: p], asc: fragment("lower(?)", p.title), asc: p.id)
+
+  defp order_pages(query, "modified"),
+    do: order_by(query, [page: p], desc: p.updated_at, desc: p.id)
+
+  defp order_pages(query, "created"),
+    do: order_by(query, [page: p], desc: p.inserted_at, desc: p.id)
+
+  defp order_pages(query, _manual),
+    do: order_by(query, [page: p], asc: p.position, asc: p.title, asc: p.id)
 
   defp child_pages(%Page{} = parent, opts) do
     from(p in Page,
