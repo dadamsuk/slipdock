@@ -5,7 +5,7 @@ import assert from "node:assert/strict"
 import {
   clampWidth, restorePane, setCollapsed, setWidth, resetWidth, savedWidth,
   WikiTreeCollapse, WikiTreeResize, WikiTreeView, VIEW_KEY,
-  WikiWidthToggle, setFullWidth, isFullWidth, FULL_WIDTH_KEY,
+  WikiWidthToggle, WikiFileOpen, fileLinkId, setFullWidth, isFullWidth, FULL_WIDTH_KEY,
   WIDTH_KEY, COLLAPSED_KEY, DEFAULT_WIDTH, MIN_WIDTH, MAX_WIDTH, STEP,
 } from "./wiki_pane.js"
 
@@ -289,4 +289,65 @@ test("the width button mounts showing a full width restored before it", () => {
   root.setAttribute("data-wiki-width", "full")
   const hook = mount(WikiWidthToggle, {root})
   assert.equal(hook.el.attrs["aria-pressed"], "true")
+})
+
+// #768: a click on a link to a file opens it beside the page.
+function fileClick(href, opts = {}) {
+  const attrs = {href, ...(opts.attrs || {})}
+  const link = {
+    target: attrs.target || "",
+    getAttribute: k => (k in attrs ? attrs[k] : null),
+    hasAttribute: k => k in attrs,
+  }
+  const target = {closest: sel => (sel === "a[href]" && href !== null ? link : null)}
+  return {
+    target, button: 0, ctrlKey: false, metaKey: false, shiftKey: false, altKey: false,
+    defaultPrevented: false, prevented: false,
+    preventDefault() { this.prevented = true; this.defaultPrevented = true },
+    ...opts.event,
+  }
+}
+
+test("fileLinkId: a plain click on a /files/<id> link names the file", () => {
+  assert.equal(fileLinkId(fileClick("/files/42")), "42")
+})
+
+test("fileLinkId: other links, modified clicks and downloads are the browser's", () => {
+  assert.equal(fileLinkId(fileClick("/boards/3/wiki/home")), null)
+  assert.equal(fileLinkId(fileClick("/files/42/extra")), null)
+  assert.equal(fileLinkId(fileClick("/wiki-files/42/a.png")), null)
+  assert.equal(fileLinkId(fileClick(null)), null)
+  assert.equal(fileLinkId(fileClick("/files/42", {event: {metaKey: true}})), null)
+  assert.equal(fileLinkId(fileClick("/files/42", {event: {ctrlKey: true}})), null)
+  assert.equal(fileLinkId(fileClick("/files/42", {event: {shiftKey: true}})), null)
+  assert.equal(fileLinkId(fileClick("/files/42", {event: {button: 1}})), null)
+  assert.equal(fileLinkId(fileClick("/files/42", {event: {defaultPrevented: true}})), null)
+  assert.equal(fileLinkId(fileClick("/files/42", {attrs: {target: "_blank"}})), null)
+  assert.equal(fileLinkId(fileClick("/files/42", {attrs: {download: ""}})), null)
+  assert.equal(fileLinkId(fileClick("/files/42", {attrs: {"data-own-page": ""}})), null)
+})
+
+test("WikiFileOpen: asks the server to open the file and keeps the browser put", () => {
+  const listeners = {}
+  const pushed = []
+  const hook = Object.create(WikiFileOpen)
+  hook.el = {
+    addEventListener: (type, fn) => { listeners[type] = fn },
+    removeEventListener: (type, fn) => { if (listeners[type] === fn) delete listeners[type] },
+  }
+  hook.pushEvent = (event, payload) => pushed.push([event, payload])
+  hook.mounted()
+
+  const click = fileClick("/files/7")
+  listeners.click(click)
+  assert.deepEqual(pushed, [["open_file", {id: "7"}]])
+  assert.equal(click.prevented, true)
+
+  const other = fileClick("/boards/3/wiki/home")
+  listeners.click(other)
+  assert.equal(pushed.length, 1)
+  assert.equal(other.prevented, false)
+
+  hook.destroyed()
+  assert.equal(listeners.click, undefined)
 })

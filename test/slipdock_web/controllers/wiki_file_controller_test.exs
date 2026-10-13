@@ -37,7 +37,8 @@ defmodule SlipdockWeb.WikiFileControllerTest do
       File.write!(path, "%PDF-1.4")
       {:ok, pdf} = Files.create(board, %{name: "Spec.pdf"}, path)
       {:ok, txt} = Files.create(board, %{name: "notes.txt"}, path)
-      %{pdf: pdf, txt: txt}
+      {:ok, html} = Files.create(board, %{name: "Report.html"}, path)
+      %{pdf: pdf, txt: txt, html: html}
     end
 
     test "a PDF is shown inline as a PDF", %{conn: conn, pdf: pdf} do
@@ -59,6 +60,30 @@ defmodule SlipdockWeb.WikiFileControllerTest do
       assert policy =~ "sandbox"
       assert [disposition] = get_resp_header(resp, "content-disposition")
       assert disposition =~ "inline"
+    end
+
+    test "an HTML file is shown inline in a sandbox: no scripts, nothing fetched",
+         %{conn: conn, html: html} do
+      resp = get(conn, Files.url(html) <> "?view=inline")
+      assert resp.status == 200
+      assert [type] = get_resp_header(resp, "content-type")
+      assert type =~ "text/html"
+      assert [policy] = get_resp_header(resp, "content-security-policy")
+      assert policy =~ "default-src 'none'"
+      assert policy =~ "sandbox"
+      refute policy =~ "allow-scripts"
+      refute policy =~ "script-src"
+      assert [disposition] = get_resp_header(resp, "content-disposition")
+      assert disposition =~ "inline"
+      assert get_resp_header(resp, "referrer-policy") == ["no-referrer"]
+    end
+
+    test "an HTML file asked for plainly is still a download", %{conn: conn, html: html} do
+      resp = get(conn, Files.url(html))
+      assert [disposition] = get_resp_header(resp, "content-disposition")
+      assert disposition =~ "attachment"
+      assert [type] = get_resp_header(resp, "content-type")
+      assert type =~ "application/octet-stream"
     end
 
     test "anything else is still a download", %{conn: conn, txt: txt} do
