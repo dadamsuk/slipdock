@@ -1167,10 +1167,22 @@ defmodule SlipdockWeb.WikiLive.Index do
         id -> tree_item(socket, "folder:#{id}")
       end
 
-    if socket.assigns.can_write and folder do
-      {:noreply, delete_folder(socket, folder, strategy)}
-    else
-      {:noreply, put_flash(socket, :error, "That folder couldn't be deleted.")}
+    # Everything in it, history and all, is the owner's purge (#733), as it
+    # is over the API and as deleting a single page for good is.
+    cond do
+      strategy == :purge and not socket.assigns.can_manage ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           "Only the board's owner can delete a folder with everything in it."
+         )}
+
+      socket.assigns.can_write and folder ->
+        {:noreply, delete_folder(socket, folder, strategy)}
+
+      true ->
+        {:noreply, put_flash(socket, :error, "That folder couldn't be deleted.")}
     end
   end
 
@@ -2835,7 +2847,7 @@ defmodule SlipdockWeb.WikiLive.Index do
       </div>
 
       <.folder_modal :if={@folder_modal} modal={@folder_modal} outline={@folder_outline} />
-      <.folder_delete_modal :if={@folder_delete} folder={@folder_delete} />
+      <.folder_delete_modal :if={@folder_delete} folder={@folder_delete} owner={@can_manage} />
       <.tree_prompt :if={@tree_prompt} prompt={@tree_prompt} />
     </Layouts.app>
     """
@@ -3132,6 +3144,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   end
 
   attr :folder, :map, required: true
+  attr :owner, :boolean, default: false, doc: "the board's owner, who alone may purge (#733)"
 
   @doc false
   # Deleting a folder that has something in it: the two answers are offered
@@ -3167,6 +3180,7 @@ defmodule SlipdockWeb.WikiLive.Index do
             </span>
           </button>
           <button
+            :if={@owner}
             type="button"
             phx-click="delete_folder"
             phx-value-how="purge"
@@ -3181,6 +3195,9 @@ defmodule SlipdockWeb.WikiLive.Index do
               behind.
             </span>
           </button>
+          <p :if={!@owner} id="folder-purge-owner-only" class="text-xs text-base-content/60">
+            Only the board's owner can delete the folder and everything in it.
+          </p>
         </div>
 
         <div class="flex justify-end">
