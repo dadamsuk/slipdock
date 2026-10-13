@@ -22,7 +22,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   alias Slipdock.{Access, Boards, Fields, Votes, Wiki}
   alias Slipdock.Boards.Attachment
   alias Slipdock.Palette
-  alias Slipdock.Wiki.{Folder, Page, Tree}
+  alias Slipdock.Wiki.{Folder, Page, Tree, TreeStates}
   alias SlipdockWeb.Params
   alias SlipdockWeb.Wiki.Renderer
 
@@ -76,6 +76,10 @@ defmodule SlipdockWeb.WikiLive.Index do
          # through, and whether it is this board's tree or its vault's.
          tree_version: 0,
          tree_filter: nil,
+         # Whether the search box looks inside pages too, not only at names.
+         tree_contents: false,
+         # A page the tree's keyboard is renaming (F2) or archiving (Delete).
+         tree_prompt: nil,
          tree_scope: "board",
          tree_empty: true,
          tree_current: "",
@@ -166,7 +170,16 @@ defmodule SlipdockWeb.WikiLive.Index do
     opts = tree_opts(socket.assigns)
     total = Tree.count(board, opts)
     filtering = Slipdock.Filters.any?(filters)
-    filter = if filtering, do: Tree.filter(board, filters, [folders: folders] ++ opts)
+
+    filter =
+      if filtering,
+        do:
+          Tree.filter(
+            board,
+            filters,
+            [folders: folders, contents: socket.assigns.tree_contents] ++ opts
+          )
+
     shown = if filter, do: filter.shown, else: total
 
     socket
@@ -868,12 +881,14 @@ defmodule SlipdockWeb.WikiLive.Index do
   # Filing, not writing. Every one of these is refused without write access,
   # and none of them can lose a page: see `Slipdock.Wiki.Folders`.
 
-  # The WikiTree hook asking for rows (see `SlipdockWeb.WikiLive.Index`'s
-  # moduledoc and `assets/js/wiki_tree.js`). `keys` are the containers it
-  # has open — kept in the browser, so a reader's tree comes back as they
-  # left it — and the root comes with them unless `only` says it is just
-  # those. `all` opens every folder. The way to what is being looked at is
-  # always loaded and sent back as `reveal`, so it is never behind a lid.
+  # The WikiTree hook asking for rows (see `assets/js/wiki_tree.js`). With no
+  # `keys`, the containers this reader had open in this tree last time are
+  # loaded — kept on the server per reader and per tree (`TreeStates`), so
+  # the tree comes back as they left it, on any machine — and sent back as
+  # `open`. `keys` loads those instead, with the root unless `only` says it
+  # is just those. `all` opens every folder. The way to what is being looked
+  # at is always loaded and sent back as `reveal`, so it is never behind a
+  # lid.
   #
   # While the filter bar is on, every level holding a match is sent and
   # opened: a hit three folders down is no use behind a shut one.
@@ -881,7 +896,12 @@ defmodule SlipdockWeb.WikiLive.Index do
     socket = assign_scope(socket, params["scope"])
     scope = socket.assigns.tree_scope
     root = if scope == "vault", do: "vault", else: "root"
-    filter = scope == "board" && socket.assigns.tree_filter
+    filter = scope_filter(socket, scope)
+
+    kept =
+      if is_list(params["keys"]),
+        do: nil,
+        else: TreeStates.get(socket.assigns.current_user, tree_state_scope(socket))
 
     {nodes, reveal} =
       if filter do
@@ -893,7 +913,7 @@ defmodule SlipdockWeb.WikiLive.Index do
           cond do
             params["all"] == true -> [root | all_container_keys(socket, scope)]
             params["only"] == true -> keys_param(params["keys"])
-            true -> [root | keys_param(params["keys"]) ++ reveal]
+            true -> [root | keys_param(params["keys"] || kept) ++ reveal]
           end
 
         {load_nodes(
@@ -911,9 +931,21 @@ defmodule SlipdockWeb.WikiLive.Index do
        filtering: filter != false and filter != nil,
        nodes: Map.new(nodes, fn {key, rows} -> {key, client_rows(rows, socket)} end),
        reveal: reveal,
+       # What was kept of this tree's open folders: the hook's open set, or
+       # nil the first time, when a small wiki opens whole.
+       open: kept && Enum.filter(kept, &Map.has_key?(nodes_map(nodes), &1)),
        small: socket.assigns.shown + socket.assigns.hidden <= @tree_small
      }, socket}
   end
+
+  # The hook saying what is open now, after a folder is opened or shut.
+  def handle_event("tree_open", %{"keys" => keys} = params, socket) when is_list(keys) do
+    socket = assign_scope(socket, params["scope"])
+    TreeStates.put(socket.assigns.current_user, tree_state_scope(socket), keys)
+    {:noreply, socket}
+  end
+
+  def handle_event("tree_open", _params, socket), do: {:noreply, socket}
 
   # The next page of a big container's rows, from the "more" row the hook
   # scrolled into view.
@@ -1110,6 +1142,74 @@ defmodule SlipdockWeb.WikiLive.Index do
   end
 
   def handle_event("search", %{"q" => q}, socket), do: {:noreply, put_filter(socket, :q, q)}
+
+  # F2 on a page in the tree: its title, in a box. (On a folder, F2 sends
+  # rename_folder, as the folder's menu does.)
+  def handle_event("rename_page", %{"id" => id}, socket) do
+    case tree_page(socket, id) do
+      %Page{} = page -> {:noreply, assign(socket, tree_prompt: %{kind: :rename, page: page})}
+      nil -> {:noreply, socket}
+    end
+  end
+
+  # Delete on a page in the tree asks first: archiving can be undone, but a
+  # key pressed by mistake should not need undoing.
+  def handle_event("ask_archive_page", %{"id" => id}, socket) do
+    case tree_page(socket, id) do
+      %Page{} = page -> {:noreply, assign(socket, tree_prompt: %{kind: :archive, page: page})}
+      nil -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("close_tree_prompt", _params, socket),
+    do: {:noreply, assign(socket, tree_prompt: nil)}
+
+  def handle_event("save_page_title", %{"title" => title}, socket) do
+    with %{kind: :rename, page: page} <- socket.assigns.tree_prompt,
+         {:ok, renamed} <-
+           Wiki.update_page(page, %{"title" => String.trim(title)},
+             user: socket.assigns.current_user,
+             via: "web"
+           ) do
+      socket =
+        socket
+        |> assign(tree_prompt: nil)
+        |> put_flash(:info, "Renamed to “#{renamed.title}”.")
+        |> load_tree()
+
+      # The page being read was the one renamed: its slug may have moved.
+      {:noreply,
+       if(match?(%Page{id: id} when id == renamed.id, socket.assigns.page),
+         do: push_patch(socket, to: page_path(socket.assigns.board, renamed)),
+         else: socket
+       )}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "That page couldn't be renamed.")}
+    end
+  end
+
+  def handle_event("archive_from_tree", _params, socket) do
+    with %{kind: :archive, page: page} <- socket.assigns.tree_prompt,
+         {:ok, _} <- Wiki.archive_page(page) do
+      socket =
+        socket
+        |> assign(tree_prompt: nil)
+        |> put_flash(:info, "Archived “#{page.title}”.")
+        |> load_tree()
+
+      {:noreply,
+       if(match?(%Page{id: id} when id == page.id, socket.assigns.page),
+         do: push_patch(socket, to: wiki_path(socket.assigns.board)),
+         else: socket
+       )}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "That page couldn't be archived.")}
+    end
+  end
+
+  # The search box reads names; this has it read the pages' words too.
+  def handle_event("toggle_tree_contents", _params, socket),
+    do: {:noreply, socket |> update(:tree_contents, &(not &1)) |> load_tree()}
 
   def handle_event("filter_tag", %{"id" => id}, socket) do
     case Params.id(id) do
@@ -1311,6 +1411,30 @@ defmodule SlipdockWeb.WikiLive.Index do
 
   ## The tree's rows ----------------------------------------------------------
 
+  # A page the tree's keyboard acts on: this board's, and only for a writer.
+  defp tree_page(socket, id) do
+    with true <- socket.assigns.can_write,
+         id when is_integer(id) <- Params.id(to_string(id)),
+         %Page{board_id: board_id} = page when board_id == socket.assigns.board.id <-
+           Wiki.get_page(id) do
+      page
+    else
+      _ -> nil
+    end
+  end
+
+  # A filter in the vault's tree filters every board of it (R11.5), worked out
+  # when asked for; this board's is worked out with the filter bar.
+  defp scope_filter(%{assigns: %{tree_filter: nil}}, _scope), do: nil
+
+  defp scope_filter(socket, "vault") do
+    Tree.vault_filter(socket.assigns.vault, vault_boards(socket), socket.assigns.filters,
+      contents: socket.assigns.tree_contents
+    )
+  end
+
+  defp scope_filter(socket, _board), do: socket.assigns.tree_filter
+
   # The tree the hook asked for: this board's, or — on a board in a vault —
   # the vault's. Anything else is this board's. A changed scope changes the
   # way to the current page too.
@@ -1336,6 +1460,15 @@ defmodule SlipdockWeb.WikiLive.Index do
     do: {List.last(reveal) || root, id}
 
   defp through(_socket, _params, _root), do: nil
+
+  defp nodes_map(nodes) when is_map(nodes), do: nodes
+  defp nodes_map(nodes), do: Map.new(nodes)
+
+  # Which kept open set this tree is: the board's own, or its vault's.
+  defp tree_state_scope(%{assigns: %{tree_scope: "vault", vault: %{id: id}}}),
+    do: TreeStates.scope(:vault, id)
+
+  defp tree_state_scope(%{assigns: %{board: board}}), do: TreeStates.scope(:board, board.id)
 
   defp keys_param(keys) when is_list(keys), do: Enum.filter(keys, &is_binary/1)
   defp keys_param(_), do: []
@@ -1804,7 +1937,7 @@ defmodule SlipdockWeb.WikiLive.Index do
               type="search"
               name="q"
               value={@filters.q}
-              placeholder="Search page/folder titles…"
+              placeholder="Titles, folders, #tags…"
               phx-debounce="200"
               class="input input-sm w-56 rounded-full pl-8 transition-[width] focus:w-72"
               autocomplete="off"
@@ -1915,6 +2048,18 @@ defmodule SlipdockWeb.WikiLive.Index do
                   </button>
                 </span>
               </span>
+              <%!-- Back to where you are, after shutting or scrolling it away
+                    (the hook opens the way and scrolls to it). --%>
+              <button
+                :if={@tree_current != ""}
+                id="wiki-tree-reveal"
+                type="button"
+                data-tree-reveal
+                class="btn btn-ghost btn-xs btn-square shrink-0"
+                title="Show where I am in the tree"
+              >
+                <.icon name="hero-viewfinder-circle" class="size-4" />
+              </button>
               <%!-- Rearranging is a mode, and it says so: in it the tree is
                     draggable and nothing else about it changes. --%>
               <button
@@ -1960,12 +2105,6 @@ defmodule SlipdockWeb.WikiLive.Index do
               Drag to rearrange. A page dropped in a folder is <em>kept</em> there; dropped on a
               page, it becomes part of it. Rest on a shut folder to open it.
             </p>
-            <p
-              :if={@filtering and @tree_scope == "vault"}
-              class="mb-2 rounded-lg bg-base-200/60 px-2 py-1.5 text-xs text-base-content/60"
-            >
-              The filters narrow this board's tree, so it is shown while they are on.
-            </p>
             <%!-- This box matches names — a page's title and summary, a
                   folder's. The words *inside* the pages are Search's job, so
                   the way there is one click from the search that just missed,
@@ -1982,6 +2121,14 @@ defmodule SlipdockWeb.WikiLive.Index do
               >
                 {@filters.q}
               </.link>
+              <label class="mt-1 flex cursor-pointer items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  class="checkbox checkbox-xs"
+                  checked={@tree_contents}
+                  phx-click="toggle_tree_contents"
+                /> Match the words inside pages here too
+              </label>
             </p>
             <p
               :if={@tree_empty and not @filtering and @tree_scope == "board"}
@@ -1995,11 +2142,17 @@ defmodule SlipdockWeb.WikiLive.Index do
             >
               No page or folder name matches that.
             </p>
+            <%!-- Focusable, and owning its keys while focused (the arrows,
+                  F2, Delete, type-ahead), which the page-wide shortcuts
+                  stand down for. --%>
             <div
               id="wiki-tree-rows"
               phx-update="ignore"
               data-tree-rows
-              class="relative"
+              data-own-keys
+              tabindex="0"
+              role="tree"
+              class="relative rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
               aria-label="Pages and folders"
             >
             </div>
@@ -2104,6 +2257,7 @@ defmodule SlipdockWeb.WikiLive.Index do
 
       <.folder_modal :if={@folder_modal} modal={@folder_modal} outline={@folder_outline} />
       <.folder_delete_modal :if={@folder_delete} folder={@folder_delete} />
+      <.tree_prompt :if={@tree_prompt} prompt={@tree_prompt} />
     </Layouts.app>
     """
   end
@@ -2162,6 +2316,62 @@ defmodule SlipdockWeb.WikiLive.Index do
             </button>
           </div>
         </form>
+      </div>
+    </.modal>
+    """
+  end
+
+  attr :prompt, :map, required: true
+
+  # What the tree's keyboard asks before it changes a page: F2's new title,
+  # or Delete's "archive this?".
+  defp tree_prompt(%{prompt: %{kind: :rename}} = assigns) do
+    ~H"""
+    <.modal id="tree-prompt" on_close={JS.push("close_tree_prompt")} size="sm">
+      <form id="tree-rename-form" phx-submit="save_page_title" class="space-y-4 p-6">
+        <h2 class="text-lg font-semibold">Rename page</h2>
+        <input
+          type="text"
+          name="title"
+          value={@prompt.page.title}
+          autofocus
+          required
+          class="input input-bordered w-full"
+        />
+        <div class="flex justify-end gap-2">
+          <button type="button" phx-click="close_tree_prompt" class="btn btn-ghost btn-sm">
+            Cancel
+          </button>
+          <button type="submit" class="btn btn-primary btn-sm">Rename</button>
+        </div>
+      </form>
+    </.modal>
+    """
+  end
+
+  defp tree_prompt(%{prompt: %{kind: :archive}} = assigns) do
+    ~H"""
+    <.modal id="tree-prompt" on_close={JS.push("close_tree_prompt")} size="sm">
+      <div class="space-y-4 p-6">
+        <h2 class="text-lg font-semibold">Archive “{@prompt.page.title}”?</h2>
+        <p class="text-sm text-base-content/60">
+          It leaves the tree, with the pages under it. Archived pages can be shown again from
+          Display, and restored.
+        </p>
+        <div class="flex justify-end gap-2">
+          <button type="button" phx-click="close_tree_prompt" class="btn btn-ghost btn-sm">
+            Cancel
+          </button>
+          <button
+            id="tree-archive-confirm"
+            type="button"
+            phx-click="archive_from_tree"
+            class="btn btn-error btn-sm"
+            autofocus
+          >
+            Archive
+          </button>
+        </div>
       </div>
     </.modal>
     """

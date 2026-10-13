@@ -709,7 +709,7 @@ defmodule SlipdockWeb.WikiLiveTest do
       {:ok, view, html} = live(conn, ~p"/boards/#{board}/wiki")
 
       # The same switcher the card views carry, naming the wiki as current.
-      assert html =~ "Search page/folder titles…"
+      assert html =~ "Titles, folders, #tags…"
       assert has_element?(view, "#view-menu", "Wiki")
       assert has_element?(view, ~s|#view-menu a[href="/boards/#{board.id}/table"]|)
 

@@ -411,6 +411,31 @@ defmodule SlipdockWeb.WikiFoldersLiveTest do
       refute Map.has_key?(reply.nodes, "folder:#{drafts.id}")
     end
 
+    test "what a reader has open is kept on the server and comes back", %{
+      conn: conn,
+      board: board,
+      specs: specs,
+      drafts: drafts
+    } do
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki")
+
+      # Nothing kept yet: the hook is told so, and opens a small wiki whole.
+      reply = SlipdockWeb.WikiTreeHelpers.tree_load_kept(view)
+      assert reply.open == nil
+
+      render_hook(view, "tree_open", %{"scope" => "board", "keys" => ["folder:#{specs.id}"]})
+
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki")
+      reply = SlipdockWeb.WikiTreeHelpers.tree_load_kept(view)
+      assert reply.open == ["folder:#{specs.id}"]
+      assert titles(reply, "folder:#{specs.id}") == ["Drafts", "Retry policy"]
+      refute Map.has_key?(reply.nodes, "folder:#{drafts.id}")
+
+      # A garbled one changes nothing.
+      render_hook(view, "tree_open", %{"keys" => "folder:1"})
+      assert SlipdockWeb.WikiTreeHelpers.tree_load_kept(view).open == ["folder:#{specs.id}"]
+    end
+
     test "all opens every folder, and only loads just the keys asked for", %{
       conn: conn,
       board: board,

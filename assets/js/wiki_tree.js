@@ -24,6 +24,8 @@ export const ROW_HEIGHT = 30
 const OVERSCAN = 12
 // How long a drag has to hover over a closed folder before it opens.
 const HOVER_OPEN_MS = 600
+// How long type-ahead keeps what was typed before starting afresh.
+const TYPE_AHEAD_MS = 700
 // The most open containers kept between visits: an open set is a reader's
 // convenience, and a runaway one would make every visit slow.
 const MAX_OPEN = 300
@@ -79,6 +81,51 @@ export class TreeModel {
 
   // Every folder-like key loaded: what "close all" shuts.
   openKeys() { return [...this.open] }
+}
+
+// The row the keyboard moves to from `index` (R11.6): `{index}` to move,
+// `{toggle: key}` to open or shut, `{open: index}` to follow the row, or
+// null for a key the tree does not use. Loading and "more" rows are
+// stepped over.
+export function keyMove(flat, index, key, model) {
+  const usable = i => flat[i] && !["loading", "more"].includes(flat[i].row.kind)
+  const step = (from, dir) => {
+    for (let i = from + dir; i >= 0 && i < flat.length; i += dir) if (usable(i)) return i
+    return from
+  }
+  const item = flat[index]
+
+  switch (key) {
+    case "ArrowDown": return {index: index < 0 ? step(-1, 1) : step(index, 1)}
+    case "ArrowUp": return {index: index < 0 ? step(-1, 1) : step(index, -1)}
+    case "Home": return {index: step(-1, 1)}
+    case "End": return {index: step(flat.length, -1)}
+    case "ArrowRight":
+      if (!item) return null
+      if (model.openable(item.row) && !item.open) return {toggle: item.row.key}
+      if (item.open) return {index: step(index, 1)}
+      return null
+    case "ArrowLeft": {
+      if (!item) return null
+      if (item.open) return {toggle: item.row.key}
+      const parent = flat.findIndex(i => i.row.key === item.parent)
+      return parent >= 0 ? {index: parent} : null
+    }
+    case "Enter": return item ? {open: index} : null
+    default: return null
+  }
+}
+
+// Type-ahead: the next row after `index` whose title starts with what was
+// typed, wrapping round to the top; -1 for none.
+export function typeAhead(flat, index, typed) {
+  const want = typed.toLowerCase()
+  for (let n = 1; n <= flat.length; n++) {
+    const i = (Math.max(index, -1) + n) % flat.length
+    const title = flat[i].row.title
+    if (title && title.toLowerCase().startsWith(want)) return i
+  }
+  return -1
 }
 
 // The slice of rows to draw for a scroll position: [start, end).
@@ -192,6 +239,7 @@ function rowHtml(item, index, ctx) {
 
   const key = escapeHtml(row.key)
   const current = ctx.current === row.key
+  const active = ctx.active === row.key
   // A vault's mapped folders are where another board's wiki is shown, not
   // folders of this one: nothing moves them, and they have no menu.
   const movable = ctx.organising && ["page", "folder"].includes(row.kind) && !row.mount && row.board_id === ctx.board
@@ -226,9 +274,10 @@ function rowHtml(item, index, ctx) {
     current ? "bg-base-200 font-medium" : "",
     row.context ? "opacity-60" : "",
     row.archived ? "text-base-content/50" : "",
+    active ? "ring-1 ring-inset ring-primary/60" : "",
   ].join(" ")
 
-  return `<div class="${classes}" style="top:${top}px;height:${ROW_HEIGHT}px;padding-left:${pad}rem" role="treeitem" aria-level="${depth + 1}" ${ctx.model.openable(row) ? `aria-expanded="${open}"` : ""} ${current ? `aria-current="page"` : ""} data-key="${key}" data-index="${index}">` +
+  return `<div id="wt-row-${index}" class="${classes}" style="top:${top}px;height:${ROW_HEIGHT}px;padding-left:${pad}rem" role="treeitem" ${active ? `aria-selected="true"` : ""} aria-level="${depth + 1}" ${ctx.model.openable(row) ? `aria-expanded="${open}"` : ""} ${current ? `aria-current="page"` : ""} data-key="${key}" data-index="${index}" ${row.href ? "" : "data-dir"}>` +
     handle + chevron +
     `<a href="${escapeHtml(row.href || "#")}" ${nav} class="flex min-w-0 flex-1 items-center gap-1.5 py-1.5" title="${escapeHtml(row.tip || row.title)}">` +
     `<span class="${ICONS[row.kind] || ICONS.page} size-3.5 shrink-0 text-base-content/50"></span>` +
@@ -278,6 +327,12 @@ export const WikiTree = {
 
     this.onClick = e => this.click(e)
     this.rowsEl.addEventListener("click", this.onClick)
+    // The tree takes the keyboard while it has focus (R11.6), and says so
+    // with data-own-keys, which the page-wide shortcuts stand down for.
+    this.rowsEl.tabIndex = 0
+    this.rowsEl.dataset.ownKeys = ""
+    this.onKeyDown = e => this.keydown(e)
+    this.rowsEl.addEventListener("keydown", this.onKeyDown)
     this.onPointerDown = e => this.dragStart(e)
     this.rowsEl.addEventListener("pointerdown", this.onPointerDown)
     this.onAway = e => { if (this.menuEl && !this.menuEl.contains(e.target)) this.closeMenu() }
@@ -288,6 +343,7 @@ export const WikiTree = {
       if (button) { e.preventDefault(); this.toggleAll() }
       const scope = e.target.closest("[data-tree-scope]")
       if (scope) { e.preventDefault(); this.setScope(scope.dataset.treeScope) }
+      if (e.target.closest("[data-tree-reveal]")) { e.preventDefault(); this.revealAgain() }
     })
 
     this.handleEvent("wiki-tree:scope", ({scope}) => this.setScope(scope, false))
@@ -312,31 +368,24 @@ export const WikiTree = {
 
   scopeKey() { return `slipdock:wiki-scope:${this.el.dataset.vault}` },
 
-  openKey() {
-    return this.scope === "vault"
-      ? `slipdock:wiki-open:vault:${this.el.dataset.vault}`
-      : `slipdock:wiki-open:board:${this.el.dataset.board}`
-  },
-
   ctx() {
     return {
       model: this.model,
       board: Number(this.el.dataset.board),
       current: this.el.dataset.current || null,
+      active: this.active || null,
       organising: this.el.dataset.organising === "true",
       canWrite: this.el.dataset.canWrite === "true",
     }
   },
 
-  // Asks for the root and whatever is open, and draws the answer. While the
-  // filter bar is on, the server sends every level that holds a match and
-  // they all open; the reader's own open folders come back when it is off.
+  // Asks for the root and whatever this reader had open in this tree (kept
+  // on the server, per reader and per tree), and draws the answer. While
+  // the filter bar is on, the server sends every level that holds a match
+  // and they all open; the reader's own open folders come back when it is
+  // off.
   load({first = false, all = false}) {
-    const stored = storageGet(this.openKey(), null)
-    if (!this.filtering) this.model.open = new Set(Array.isArray(stored) ? stored : [])
-    const keys = [...this.model.open]
-
-    this.pushEvent("tree_load", {scope: this.scope, keys, all}, reply => {
+    this.pushEvent("tree_load", {scope: this.scope, all}, reply => {
       if (!reply || !reply.nodes) return
       this.scope = reply.scope
       this.filtering = reply.filtering
@@ -346,12 +395,13 @@ export const WikiTree = {
       if (reply.filtering) {
         this.model.open = new Set(Object.keys(reply.nodes))
       } else {
-        const open = all ? Object.keys(reply.nodes) : keys.filter(k => reply.nodes[k])
+        const kept = Array.isArray(reply.open) ? reply.open : null
+        const open = all ? Object.keys(reply.nodes) : (kept || [])
         this.model.open = new Set(open.concat(reply.reveal || []))
         // A first visit to a small wiki opens it all, as the tree always did;
         // a big one opens only the way to what is being looked at.
-        if (first && stored === null && reply.small) return this.load({all: true})
-        if (all || stored !== null) this.save()
+        if (first && kept === null && reply.small) return this.load({all: true})
+        if (all) this.save()
       }
       this.revealed = this.el.dataset.current
       this.render()
@@ -359,9 +409,11 @@ export const WikiTree = {
     })
   },
 
+  // Tells the server what is open now, so this tree opens the same way next
+  // time, on this machine or another.
   save() {
     if (this.filtering) return
-    storageSet(this.openKey(), [...this.model.open].slice(0, MAX_OPEN))
+    this.pushEvent("tree_open", {scope: this.scope, keys: [...this.model.open].slice(0, MAX_OPEN)})
   },
 
   // Opening a container asks for it the first time; shutting one keeps what
@@ -441,14 +493,23 @@ export const WikiTree = {
     else reach()
   },
 
-  scrollToCurrent() {
+  // "Show where I am": the way to the page opened again, and the page
+  // scrolled to, after the reader has shut or scrolled it away.
+  revealAgain() {
+    this.revealed = null
+    this.reveal()
+    this.active = this.el.dataset.current || this.active
+    this.scrollToCurrent(true)
+  },
+
+  scrollToCurrent(always = false) {
     const current = this.el.dataset.current
     if (!current) return
     const index = this.model.flatten().findIndex(item => item.row.key === current)
     if (index < 0) return
     const top = this.rowsTop() + index * ROW_HEIGHT
     const view = this.el
-    if (top < view.scrollTop || top + ROW_HEIGHT > view.scrollTop + view.clientHeight)
+    if (always || top < view.scrollTop || top + ROW_HEIGHT > view.scrollTop + view.clientHeight)
       view.scrollTop = Math.max(0, top - view.clientHeight / 3)
     this.render()
   },
@@ -476,6 +537,9 @@ export const WikiTree = {
     this.rowsEl.style.height = `${this.flat.length * ROW_HEIGHT}px`
     this.rowsEl.setAttribute("role", "tree")
     this.rowsEl.innerHTML = html + (this.dragGuide ? this.dragGuide.outerHTML : "")
+    const activeIndex = this.active ? this.flat.findIndex(i => i.row.key === this.active) : -1
+    if (activeIndex >= start && activeIndex < end) this.rowsEl.setAttribute("aria-activedescendant", `wt-row-${activeIndex}`)
+    else if (this.rowsEl.removeAttribute) this.rowsEl.removeAttribute("aria-activedescendant")
     if (this.menuEl) this.rowsEl.appendChild(this.menuEl)
     this.el.dataset.rows = String(this.flat.length)
 
@@ -498,6 +562,13 @@ export const WikiTree = {
     const rowEl = e.target.closest("[data-key]")
     if (!rowEl) return
     const key = rowEl.dataset.key
+    // The keyboard carries on from the row clicked.
+    this.active = key
+    if (this.rowsEl.focus) this.rowsEl.focus({preventScroll: true})
+    if (rowEl.dataset.dir !== undefined && !e.target.closest("[data-menu]")) {
+      e.preventDefault()
+      return this.toggle(key)
+    }
     if (e.target.closest("[data-toggle]")) {
       e.preventDefault()
       this.toggle(key)
@@ -506,6 +577,66 @@ export const WikiTree = {
       e.stopPropagation()
       this.openMenu(rowEl)
     }
+  },
+
+  keydown(e) {
+    if (e.altKey || e.ctrlKey || e.metaKey) return
+    const flat = this.flat || []
+    let index = this.active ? flat.findIndex(i => i.row.key === this.active) : -1
+    const item = flat[index]
+    const ctx = this.ctx()
+    const mine = item && ctx.canWrite && item.row.board_id === ctx.board && !item.row.mount
+
+    if (e.key === "F2" || e.key === "Delete") {
+      e.preventDefault()
+      if (!mine || !["page", "folder"].includes(item.row.kind)) return
+      const id = String(item.row.id)
+      if (e.key === "F2") return item.row.kind === "folder" ? this.pushEvent("rename_folder", {id}) : this.pushEvent("rename_page", {id})
+      return item.row.kind === "folder" ? this.pushEvent("ask_delete_folder", {id}) : this.pushEvent("ask_archive_page", {id})
+    }
+
+    const move = keyMove(flat, index, e.key, this.model)
+    if (move) {
+      e.preventDefault()
+      if (move.toggle) return this.toggle(move.toggle)
+      if (move.open !== undefined) return this.follow(move.open)
+      return this.setActive(move.index)
+    }
+
+    // Type-ahead: letters jump to the next row starting with them.
+    if (e.key.length === 1 && e.key !== " ") {
+      e.preventDefault()
+      clearTimeout(this.typedTimer)
+      this.typed = (this.typed || "") + e.key
+      this.typedTimer = setTimeout(() => { this.typed = "" }, TYPE_AHEAD_MS)
+      let found = typeAhead(flat, index - (this.typed.length > 1 ? 1 : 0), this.typed)
+      if (found < 0 && this.typed.length > 1) {
+        this.typed = e.key
+        found = typeAhead(flat, index, this.typed)
+      }
+      if (found >= 0) this.setActive(found)
+    }
+  },
+
+  setActive(index) {
+    const item = (this.flat || [])[index]
+    if (!item) return
+    this.active = item.row.key
+    const top = this.rowsTop() + index * ROW_HEIGHT
+    if (top < this.el.scrollTop) this.el.scrollTop = top
+    else if (top + ROW_HEIGHT > this.el.scrollTop + this.el.clientHeight) this.el.scrollTop = top + ROW_HEIGHT - this.el.clientHeight
+    this.render()
+  },
+
+  // Enter: what clicking the row's name does. A vault's own folder has no
+  // page of its own, so it opens or shuts instead.
+  follow(index) {
+    const item = (this.flat || [])[index]
+    if (!item) return
+    if (!item.row.href) return this.toggle(item.row.key)
+    this.setActive(index)
+    const link = this.rowsEl.querySelector && this.rowsEl.querySelector(`#wt-row-${index} a`)
+    if (link) link.click()
   },
 
   openMenu(rowEl) {
