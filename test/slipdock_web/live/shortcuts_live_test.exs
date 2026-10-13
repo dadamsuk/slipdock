@@ -240,13 +240,15 @@ defmodule SlipdockWeb.ShortcutsLiveTest do
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/settings")
 
     assert has_element?(view, ~s{#board-form input[name="board[shortcut]"]})
+    # Held for this test, so a board_fixture alongside isn't handed it too.
+    key = unique_shortcut()
 
     view
     |> form("#board-form",
-      board: %{"name" => board.name, "code" => board.code, "shortcut" => "zz"}
+      board: %{"name" => board.name, "code" => board.code, "shortcut" => key}
     )
     |> render_submit()
 
-    assert Boards.get_board!(board.id).shortcut == "zz"
+    assert Boards.get_board!(board.id).shortcut == key
   end
 end
