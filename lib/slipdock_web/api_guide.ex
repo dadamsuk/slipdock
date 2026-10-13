@@ -1864,7 +1864,10 @@ defmodule SlipdockWeb.APIGuide do
     knows: each API token that has listed it (`/sync`) or followed its feed,
     by label, with `last_synced_at`. On a shell: `slipdock vault
     ls|show|new|rename|rm|map|unmap|locate`; over MCP, `list_vaults` and
-    `manage_vault`; in the web app, the Vaults screen (`/vaults`).
+    `manage_vault`; in the web app, the Vaults screen (`/vaults`). A vault's
+    `url` is its own view in the web app, where a page's address is its vault
+    path (`/vaults/GMinds/Jobs/Interview Questions`): give the person that
+    link rather than a board's when the page is in their vault.
 
     **Links reach across the vault.** On a board in a vault, a plain
     `[[Note]]` tries its own board, then every board of the vault: each page

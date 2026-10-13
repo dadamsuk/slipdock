@@ -128,8 +128,9 @@ defmodule SlipdockWeb.VaultsLiveTest do
 
     {:ok, view, _html} = live(conn, ~p"/boards/#{kb.id}/wiki")
 
-    assert has_element?(view, "button[data-tree-scope=vault][title*='not a folder']")
-    assert has_element?(view, "#manage-vault[href='/vaults#vault-#{vault.id}']")
+    assert has_element?(view, "#open-in-vault[title*='not a folder']", "Open in GMinds")
+    assert has_element?(view, "#manage-vault[href='/vaults/GMinds/.settings']")
+    _ = vault
   end
 
   describe "mappings" do

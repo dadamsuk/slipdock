@@ -140,6 +140,60 @@ defmodule Slipdock.Vaults do
   def touch_mirror(_vault, _token), do: :ok
 
   @doc """
+  Where everything of the vault is, as the vault view addresses it (#752):
+  `%{pages: %{id => "Jobs/Interview Questions"}, folders: %{id => "Jobs"}}`
+  — the paths of its files on disk (`Slipdock.Vaults.Layout`) without the
+  `.md`, and a page with pages under it at its own name rather than its
+  `index.md`.
+  """
+  def addresses(%Vault{} = vault) do
+    layout = Slipdock.Vaults.Layout.build(vault)
+
+    %{
+      pages: Map.new(layout.pages, fn {id, p} -> {id, join_path(p.dir, p.stem)} end),
+      folders: layout.folders
+    }
+  end
+
+  defp join_path("", name), do: name
+  defp join_path(dir, name), do: dir <> "/" <> name
+
+  @doc """
+  What a vault view address names: `{:page, id}`, `{:folder, id}` or
+  `{:mapping, mapping}` (a board's wiki, or a folder of it, mounted there),
+  matched case aside, a trailing `.md` ignored; `:error` for nothing.
+  """
+  def resolve_address(%Vault{} = vault, path) do
+    want =
+      path
+      |> to_string()
+      |> String.trim("/")
+      |> String.replace_suffix(".md", "")
+      |> String.downcase()
+
+    %{pages: pages, folders: folders} = addresses(vault)
+    find = fn map -> Enum.find_value(map, fn {id, p} -> String.downcase(p) == want && id end) end
+
+    cond do
+      id = find.(pages) ->
+        {:page, id}
+
+      id = find.(folders) ->
+        {:folder, id}
+
+      m =
+          Enum.find(
+            Repo.preload(vault, @preloads, force: true).mappings,
+            &(String.downcase(&1.path) == want)
+          ) ->
+        {:mapping, m}
+
+      true ->
+        :error
+    end
+  end
+
+  @doc """
   Which mapping a vault path falls in, and what is left of the path below it:
   `{:ok, mapping, rest}`. The longest matching prefix wins, matched whole
   segment by segment, so `/Jobs` does not swallow `/Jobsearch`.

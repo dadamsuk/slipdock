@@ -12,8 +12,27 @@ defmodule SlipdockWeb.VaultLive.Index do
   alias SlipdockWeb.SlipdockComponents
 
   @impl true
-  def mount(_params, _session, socket) do
-    {:ok, socket |> assign(page_title: "Vaults", form_key: 0, drafts: %{}) |> load()}
+  def mount(params, _session, socket) do
+    socket = assign(socket, page_title: "Vaults", form_key: 0, drafts: %{}, only: nil)
+
+    case params["vault"] do
+      nil ->
+        {:ok, load(socket)}
+
+      # One vault's settings, reached from its view (#752).
+      ref ->
+        case Vaults.get_vault(socket.assigns.current_user, ref) do
+          {:ok, vault} ->
+            {:ok,
+             socket |> assign(only: vault.id, page_title: "#{vault.name} · Settings") |> load()}
+
+          _ ->
+            {:ok,
+             socket
+             |> put_flash(:error, "There's no vault of yours by that name.")
+             |> push_navigate(to: ~p"/vaults")}
+        end
+    end
   end
 
   defp load(socket) do
@@ -22,6 +41,7 @@ defmodule SlipdockWeb.VaultLive.Index do
     vaults =
       user
       |> Vaults.list_vaults()
+      |> Enum.filter(&(is_nil(socket.assigns.only) or &1.id == socket.assigns.only))
       |> Enum.map(fn vault ->
         %{
           vault: vault,
@@ -280,7 +300,10 @@ defmodule SlipdockWeb.VaultLive.Index do
       <div class="kanban-scroll h-full overflow-y-auto">
         <div class="mx-auto max-w-3xl space-y-6 px-4 py-6 sm:py-10 sm:px-6">
           <div>
-            <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">Vaults</h1>
+            <h1 :if={!@only} class="text-2xl font-bold tracking-tight sm:text-3xl">Vaults</h1>
+            <h1 :if={@only} class="text-2xl font-bold tracking-tight sm:text-3xl">
+              Vault settings
+            </h1>
             <p id="vaults-what" class="mt-1 text-sm text-base-content/60">
               A vault lays several boards' wikis out as one Obsidian-style tree of notes.
               It owns no pages: each page stays on its board, and the vault only says
@@ -288,7 +311,7 @@ defmodule SlipdockWeb.VaultLive.Index do
             </p>
           </div>
 
-          <form id={"new-vault-#{@form_key}"} phx-submit="create" class="flex gap-2">
+          <form :if={!@only} id={"new-vault-#{@form_key}"} phx-submit="create" class="flex gap-2">
             <input
               type="text"
               name="name"
@@ -349,6 +372,14 @@ defmodule SlipdockWeb.VaultLive.Index do
                 />
                 <button type="submit" class="btn btn-sm">Rename</button>
               </form>
+              <.link
+                id={"open-vault-#{vault.id}"}
+                navigate={SlipdockWeb.VaultUrls.url(vault)}
+                class="btn btn-ghost btn-sm"
+                title="Open the vault: its tree and its pages at their vault paths"
+              >
+                <.icon name="hero-arrow-top-right-on-square" class="size-4" /> Open
+              </.link>
               <button
                 type="button"
                 id={"delete-vault-#{vault.id}"}
@@ -478,7 +509,9 @@ defmodule SlipdockWeb.VaultLive.Index do
       class="mt-3 space-y-2 rounded-xl bg-base-200/50 p-3"
     >
       <input type="hidden" name="vault_id" value={@vault.id} />
-      <p class="text-xs font-semibold text-base-content/70">Map a path</p>
+      <p class="text-xs font-semibold text-base-content/70">
+        Mount a board's wiki at a path
+      </p>
       <div class="flex flex-wrap gap-2">
         <input
           type="text"

@@ -1029,6 +1029,6 @@ defmodule SlipdockWeb.BoardLive.Index do
     """
   end
 
-  # Where a vault's tile goes: its own view.
-  defp vault_href(vault), do: ~p"/vaults" <> "#vault-#{vault.id}"
+  # Where a vault's tile goes: its own view (#752).
+  defp vault_href(vault), do: SlipdockWeb.VaultUrls.url(vault)
 end

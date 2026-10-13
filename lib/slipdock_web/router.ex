@@ -223,6 +223,12 @@ defmodule SlipdockWeb.Router do
       live "/favourites", FavouriteLive.Index, :index
       # Vaults: which boards' wikis lay out as one Obsidian-style tree (W-103).
       live "/vaults", VaultLive.Index, :index
+      # A vault's own view (#752): its tree, and its pages at their vault
+      # paths, the same paths as the files on disk. `.settings` can't be a
+      # note's name (Obsidian hides dotfiles), so it can't shadow one.
+      live "/vaults/:vault/.settings", VaultLive.Index, :settings
+      live "/vaults/:vault", WikiLive.Index, :vault
+      live "/vaults/:vault/*path", WikiLive.Index, :vault
       # Every board's documents in one tree: boards as the top level, then
       # each board's folders and pages (see `SlipdockWeb.WikiLive.All`).
       live "/wiki", WikiLive.All, :index

@@ -2176,13 +2176,27 @@ you are reading is always loaded, however far down its folder it is.
 a few letters of a note's title, an alias or its vault path, matched in order
 the way editors' switchers match, across the whole vault (see *Keyboard*).
 
-**A vault's tree.** On a board in a vault (see *Vaults*), a switch at the top of
-the sidebar chooses between **This board** and the vault's tree. The vault's
-tree holds every board of the vault, laid out by the vault's paths: a mapped
-path is a folder holding that board's wiki, or one folder of it. Opening a
-page on another board opens that board's wiki, still showing the vault's
-tree. A search or a filter there runs across every board of the vault, keeping
-only the paths that hold a match. Organising uses this board's tree.
+**A vault's own view.** A vault opens from its tile on the home page into a
+view of its own, at `/vaults/<vault>`: the vault's tree down the side, every
+board of it laid out by the vault's paths (a mapped path is a folder holding
+that board's wiki, or one folder of it, marked with the board it comes from),
+and pages addressed by their vault paths, the same as the files on disk —
+`/vaults/GMinds/Jobs/Interview Questions`, with `.md` or without, case aside.
+A page opens inside the view, under the vault's breadcrumbs, with a quiet
+*on KnowledgeBase* saying which board holds it: its permissions, history and
+comments are that board's, and editing, history and new pages behave as on a
+board's wiki (a new note made in a folder lands on the board mapped there).
+Folder **Move…**, dragging across boards and **Give it its own board…** work in
+its tree. A search or a filter runs across every board of the vault, keeping
+only the paths that hold a match. **Settings** (`/vaults/<vault>/.settings`)
+is where boards are mounted at a path and the vault is renamed or deleted.
+Board wiki addresses keep working.
+
+On a board's wiki, the vault's owner gets **Open in GMinds** beside *This
+board*, opening the same page or folder in the vault view. Somebody else
+reading a board of your vault keeps a switch between this board's tree and
+the vault's (the boards of it they can open). Organising uses this board's
+tree.
 
 **Organise mode.** The pencil at the top of the wiki's sidebar turns the tree
 into a drag-and-drop one, and only then: dragging by default would make every

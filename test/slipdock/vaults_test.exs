@@ -365,4 +365,36 @@ defmodule Slipdock.VaultsTest do
       assert reasons["Old"] == "is archived"
     end
   end
+
+  describe "addresses (#752)" do
+    test "pages, folders and mappings by their vault paths, nested mappings too", ctx do
+      %{user: user, kb: kb, jobs: jobs, vault: vault} = ctx
+      {:ok, notes} = Wiki.create_folder(kb, %{"name" => "Big Ideas"})
+
+      {:ok, idea} =
+        Wiki.create_page(kb, %{"title" => "Plain text", "folder_id" => notes.id}, user: user)
+
+      {:ok, parent} = Wiki.create_page(jobs, %{"title" => "Acme"}, user: user)
+
+      {:ok, child} =
+        Wiki.create_page(jobs, %{"title" => "Call", "parent_id" => parent.id}, user: user)
+
+      map!(vault, user, %{path: "/", board: kb})
+      jobs_map = map!(vault, user, %{path: "/Jobs", board: jobs})
+
+      addresses = Vaults.addresses(vault)
+      assert addresses.pages[idea.id] == "Big Ideas/Plain text"
+      # A page with pages under it is addressed by its own name, not its index.md.
+      assert addresses.pages[parent.id] == "Jobs/Acme"
+      assert addresses.pages[child.id] == "Jobs/Acme/Call"
+      assert addresses.folders[notes.id] == "Big Ideas"
+
+      assert Vaults.resolve_address(vault, "big ideas/plain text.md") == {:page, idea.id}
+      assert Vaults.resolve_address(vault, "/Jobs/Acme/") == {:page, parent.id}
+      assert Vaults.resolve_address(vault, "Big Ideas") == {:folder, notes.id}
+      assert {:mapping, %{id: id}} = Vaults.resolve_address(vault, "jobs")
+      assert id == jobs_map.id
+      assert Vaults.resolve_address(vault, "Nope") == :error
+    end
+  end
 end
