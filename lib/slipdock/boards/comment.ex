@@ -1,7 +1,9 @@
 defmodule Slipdock.Boards.Comment do
   @moduledoc """
   A remark on a card or on a wiki page. Exactly one of `card_id` and
-  `page_id` is set; see `Slipdock.Boards.Owned`.
+  `page_id` is set; see `Slipdock.Boards.Owned`. `user` is who wrote it —
+  nil for comments from before that was recorded, and for the ones the
+  system writes itself.
   """
   use Ecto.Schema
   import Ecto.Changeset
@@ -10,6 +12,7 @@ defmodule Slipdock.Boards.Comment do
     field :body, :string
     belongs_to :card, Slipdock.Boards.Card
     belongs_to :page, Slipdock.Wiki.Page
+    belongs_to :user, Slipdock.Accounts.User
     timestamps(type: :utc_datetime)
   end
 

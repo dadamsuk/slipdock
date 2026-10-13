@@ -25,6 +25,18 @@ defmodule SlipdockWeb.API.PageContentsTest do
     %{conn: conn, board: board, column: hd(board.columns), page: page}
   end
 
+  test "a page's comment carries its author", %{conn: conn, user: user, page: page} do
+    assert %{"comment" => %{"author" => %{"id" => id, "email" => email}}} =
+             conn
+             |> post("/api/pages/#{page["id"]}/comments", %{body: "signed"})
+             |> json_response(201)
+
+    assert {id, email} == {user.id, user.email}
+
+    assert %{"page" => %{"comments" => [%{"author" => %{"id" => ^id}}]}} =
+             conn |> get("/api/pages/#{page["id"]}") |> json_response(200)
+  end
+
   test "a page takes a comment, and gives it back with the page", %{conn: conn, page: page} do
     assert %{"comment" => %{"id" => id, "body" => "reads well"}} =
              conn

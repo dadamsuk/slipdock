@@ -422,7 +422,7 @@ defmodule Slipdock.Boards do
       :assignee,
       :assignees,
       :checklist_items,
-      :comments,
+      [comments: :user],
       :attachments,
       :urls,
       :status_updates,
@@ -3084,11 +3084,15 @@ defmodule Slipdock.Boards do
 
   @doc """
   Comments on a card or on a wiki page. `opts[:by]` is who wrote it, when
-  known; anybody it `@mentions` on a card is told (see `Slipdock.Mentions`).
+  known, and is kept as its author; anybody it `@mentions` on a card is told
+  (see `Slipdock.Mentions`).
   """
   def add_comment(owner, body, opts \\ []) do
+    author = if match?(%Slipdock.Accounts.User{}, opts[:by]), do: opts[:by]
+
     %Comment{}
     |> struct!(owned_by(owner))
+    |> struct!(user_id: author && author.id, user: author)
     |> Comment.changeset(%{"body" => body})
     |> Repo.insert()
     |> tap_ok(fn comment ->

@@ -402,7 +402,13 @@ defmodule SlipdockWeb.API.JSON do
   def checklist_item(%ChecklistItem{} = i),
     do: %{id: i.id, text: i.text, done: i.done, position: i.position}
 
-  def comment(%Comment{} = c), do: %{id: c.id, body: c.body, inserted_at: c.inserted_at}
+  # `author` is who wrote it, shaped like an assignee; null for a comment from
+  # before authors were kept, or one the system wrote.
+  def comment(%Comment{} = c),
+    do: %{id: c.id, body: c.body, author: author(c), inserted_at: c.inserted_at}
+
+  defp author(%Comment{user: %Slipdock.Accounts.User{} = u}), do: person_ref(u)
+  defp author(_), do: nil
 
   @doc """
   A saved view. `favourite?` is the *reading* user's own mark, not the

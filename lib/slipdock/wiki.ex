@@ -77,7 +77,7 @@ defmodule Slipdock.Wiki do
     :tags,
     :assignee,
     :checklist_items,
-    :comments,
+    [comments: :user],
     :urls,
     :status_updates,
     :votes,

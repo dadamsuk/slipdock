@@ -385,11 +385,16 @@ defmodule SlipdockCLI.Render do
       IO.puts(bold("Comments"))
 
       Enum.each(c["comments"], fn m ->
-        IO.puts("  " <> dim("#{m["inserted_at"]} (comment ##{m["id"]})"))
+        IO.puts("  " <> dim("#{m["inserted_at"]}#{comment_author(m)} (comment ##{m["id"]})"))
         IO.puts(indent(m["body"], "    "))
       end)
     end
   end
+
+  # Who wrote it; nothing for a comment from before authors were kept, or a
+  # server that does not send them.
+  defp comment_author(%{"author" => %{"name" => name}}) when is_binary(name), do: " #{name}"
+  defp comment_author(_), do: ""
 
   defp score(nil), do: "-"
   defp score(v) when is_float(v), do: Float.round(v, 2)

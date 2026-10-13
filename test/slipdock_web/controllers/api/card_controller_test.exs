@@ -398,6 +398,31 @@ defmodule SlipdockWeb.API.CardControllerTest do
       assert [%{text: "Write it"}] = card.checklist_items
     end
 
+    test "a comment carries its author; one without is null", %{
+      conn: conn,
+      user: user,
+      card: card
+    } do
+      author = %{
+        "id" => user.id,
+        "email" => user.email,
+        "name" => Slipdock.Accounts.User.display_name(user)
+      }
+
+      assert %{"comment" => %{"author" => ^author}} =
+               conn
+               |> post("/api/cards/#{card.id}/comments", %{body: "Signed"})
+               |> json_response(201)
+
+      {:ok, _} = Boards.add_comment(card, "From an automation")
+
+      %{"card" => %{"comments" => comments}} =
+        conn |> get("/api/cards/#{card.id}") |> json_response(200)
+
+      authors = Map.new(comments, &{&1["body"], &1["author"]})
+      assert authors == %{"From an automation" => nil, "Signed" => author}
+    end
+
     test "adding, ticking and removing a checklist item over the API is in the activity log",
          %{conn: conn, card: card} do
       %{"item" => %{"id" => id}} =

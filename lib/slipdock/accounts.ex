@@ -426,13 +426,10 @@ defmodule Slipdock.Accounts do
 
   ## What survives
 
-  Status updates and wiki revisions they wrote on boards they did not own stay
-  where they are with the author nulled — the `nilify_all` already on those
-  columns. The words were addressed to other people, and a page history with
-  holes in it is unreadable.
-
-  Comments are not mentioned because they carry no author in the first place
-  (see `Slipdock.Boards.Comment`): there is nothing to null.
+  Comments, status updates and wiki revisions they wrote on boards they did
+  not own stay where they are with the author nulled — the `nilify_all`
+  already on those columns. The words were addressed to other people, and a
+  conversation or a page history with holes in it is unreadable.
   """
   @spec delete_user(User.t()) :: {:ok, map()} | {:error, :last_admin}
   def delete_user(%User{} = user) do

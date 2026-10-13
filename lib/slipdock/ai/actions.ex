@@ -153,7 +153,7 @@ defmodule Slipdock.AI.Actions do
       [
         step("Comment on “#{card.title}”: #{excerpt(body)}", fn ->
           with {:ok, fresh} <- fresh(card, scope) do
-            normalize_result(Boards.add_comment(fresh, body))
+            normalize_result(Boards.add_comment(fresh, body, by: scope[:user]))
           end
         end)
       ]

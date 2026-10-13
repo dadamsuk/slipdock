@@ -283,12 +283,20 @@ defmodule SlipdockWeb.ItemComponents do
       </form>
       <ul class="space-y-3">
         <li :for={comment <- @item.comments} id={"comment-#{comment.id}"} class="group flex gap-3">
-          <div class="flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-xs font-bold text-white">
-            Me
+          <div
+            title={comment_author(comment)}
+            class="flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-xs font-bold text-white"
+          >
+            {comment_initials(comment)}
           </div>
           <div class="min-w-0 flex-1 rounded-xl bg-base-200/70 px-3 py-2">
             <div class="flex items-center justify-between gap-2">
-              <span class="text-xs text-base-content/50">{relative_time(comment.inserted_at)}</span>
+              <span class="text-xs text-base-content/50">
+                <span :if={comment_author(comment)} class="font-semibold text-base-content/70">
+                  {comment_author(comment)}
+                </span>
+                {relative_time(comment.inserted_at)}
+              </span>
               <button
                 :if={@can_write}
                 phx-target={@target}
@@ -554,4 +562,16 @@ defmodule SlipdockWeb.ItemComponents do
     </div>
     """
   end
+
+  # Who wrote a comment: nil for one from before authors were kept, or one
+  # the system wrote (see `Slipdock.Boards.Comment`).
+  defp comment_author(%{user: %Slipdock.Accounts.User{} = u}),
+    do: Slipdock.Accounts.User.display_name(u)
+
+  defp comment_author(_), do: nil
+
+  defp comment_initials(%{user: %Slipdock.Accounts.User{} = u}),
+    do: Slipdock.Accounts.User.initials(u)
+
+  defp comment_initials(_), do: "?"
 end
