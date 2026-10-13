@@ -2147,6 +2147,11 @@ deletes a folder (both ask first), and typing a few letters jumps to the next
 row that starts with them. The page-wide shortcuts stand down while it has
 the keyboard.
 
+**On a phone** the tree is a drawer: **Pages** in the wiki's bar slides it in
+over the page, opened to where you are, and a tap outside it, Esc, or opening
+a page shuts it again. Its rows are taller for a finger, holding one opens its
+menu, and the `⋯` on each row is always shown.
+
 **Big wikis.** The tree is built for thousands of notes. It loads one folder at
 a time, when you open it, and never a page's text. Only the rows on screen
 are drawn, so a folder of 5,000 notes scrolls like one of fifty. A big

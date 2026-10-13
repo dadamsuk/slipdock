@@ -21,6 +21,10 @@
 // board, since ids are, which is what lets the vault's tree be one tree.
 
 export const ROW_HEIGHT = 30
+// Rows a finger can hit, on a touch screen (R11.11).
+export const TOUCH_ROW_HEIGHT = 40
+// How long a finger rests on a row before its menu opens.
+const LONG_PRESS_MS = 500
 const OVERSCAN = 12
 // How long a drag has to hover over a closed folder before it opens.
 const HOVER_OPEN_MS = 600
@@ -229,12 +233,12 @@ const ICONS = {
 
 function rowHtml(item, index, ctx) {
   const {row, depth, open} = item
-  const top = index * ROW_HEIGHT
+  const top = index * ctx.rowH
   const pad = 0.25 + depth * 0.75
 
   if (row.kind === "loading" || row.kind === "more") {
     const label = row.kind === "loading" ? "Loading…" : "Loading more…"
-    return `<div class="absolute inset-x-0 flex items-center text-xs text-base-content/40" style="top:${top}px;height:${ROW_HEIGHT}px;padding-left:${pad + 1}rem" data-index="${index}" ${row.kind === "more" ? `data-more="${escapeHtml(item.parent)}" data-offset="${row.offset}"` : ""}>${label}</div>`
+    return `<div class="absolute inset-x-0 flex items-center text-xs text-base-content/40" style="top:${top}px;height:${ctx.rowH}px;padding-left:${pad + 1}rem" data-index="${index}" ${row.kind === "more" ? `data-more="${escapeHtml(item.parent)}" data-offset="${row.offset}"` : ""}>${label}</div>`
   }
 
   const key = escapeHtml(row.key)
@@ -270,7 +274,7 @@ function rowHtml(item, index, ctx) {
     : ""
 
   const menu = ["page", "folder", "file"].includes(row.kind) && !row.mount
-    ? `<button type="button" data-menu class="btn btn-ghost btn-xs btn-square shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100" title="More (or right-click)"><span class="hero-ellipsis-horizontal size-3.5"></span></button>`
+    ? `<button type="button" data-menu class="btn btn-ghost btn-xs btn-square shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 [@media(hover:none)]:opacity-100" title="More (or right-click)"><span class="hero-ellipsis-horizontal size-3.5"></span></button>`
     : ""
 
   const classes = [
@@ -282,7 +286,7 @@ function rowHtml(item, index, ctx) {
     active ? "ring-1 ring-inset ring-primary/60" : "",
   ].join(" ")
 
-  return `<div id="wt-row-${index}" class="${classes}" style="top:${top}px;height:${ROW_HEIGHT}px;padding-left:${pad}rem" role="treeitem" ${active ? `aria-selected="true"` : ""} aria-level="${depth + 1}" ${ctx.model.openable(row) ? `aria-expanded="${open}"` : ""} ${current ? `aria-current="page"` : ""} data-key="${key}" data-index="${index}" ${row.href ? "" : "data-dir"}>` +
+  return `<div id="wt-row-${index}" class="${classes}" style="top:${top}px;height:${ctx.rowH}px;padding-left:${pad}rem" role="treeitem" ${active ? `aria-selected="true"` : ""} aria-level="${depth + 1}" ${ctx.model.openable(row) ? `aria-expanded="${open}"` : ""} ${current ? `aria-current="page"` : ""} data-key="${key}" data-index="${index}" ${row.href ? "" : "data-dir"}>` +
     handle + chevron +
     `<a href="${escapeHtml(row.href || "#")}" ${nav} class="flex min-w-0 flex-1 items-center gap-1.5 py-1.5" title="${escapeHtml(row.tip || row.title)}">` +
     `<span class="${ICONS[row.kind] || ICONS.page} size-3.5 shrink-0 text-base-content/50"></span>` +
@@ -390,6 +394,9 @@ function storageSet(key, value) {
 export const WikiTree = {
   mounted() {
     this.model = new TreeModel()
+    const coarse = typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches
+    this.rowH = coarse ? TOUCH_ROW_HEIGHT : ROW_HEIGHT
+    this.hidden = this.el.clientHeight === 0
     this.rowsEl = this.el.querySelector("[data-tree-rows]")
     this.menuEl = null
     this.loadingMore = new Set()
@@ -411,7 +418,9 @@ export const WikiTree = {
     this.rowsEl.addEventListener("keydown", this.onKeyDown)
     this.onPointerDown = e => this.dragStart(e)
     this.rowsEl.addEventListener("pointerdown", this.onPointerDown)
-    this.onAway = e => { if (this.menuEl && !this.menuEl.contains(e.target)) this.closeMenu() }
+    // A click anywhere else shuts the menu, except the one a long press ends
+    // with, which is what opened it.
+    this.onAway = e => { if (this.menuEl && !this.pressed && !this.menuEl.contains(e.target)) this.closeMenu() }
     this.selected = new Set()
     this.selectionEl = this.el.querySelector("#wiki-tree-selection")
     this.onContextMenu = e => this.contextMenu(e)
@@ -432,6 +441,15 @@ export const WikiTree = {
   },
 
   updated() {
+    // Opened as a drawer on a phone: it has a height now, so draw it, at the
+    // page being read.
+    const shown = this.el.clientHeight > 0
+    if (shown && this.hidden) {
+      this.hidden = false
+      this.render()
+      this.scrollToCurrent(true)
+    }
+    this.hidden = !shown
     if (this.el.dataset.version !== this.version) {
       this.version = this.el.dataset.version
       this.load({})
@@ -456,6 +474,7 @@ export const WikiTree = {
       current: this.el.dataset.current || null,
       active: this.active || null,
       selected: this.selected,
+      rowH: this.rowH,
       rootSort: this.rootSort,
       organising: this.el.dataset.organising === "true",
       canWrite: this.el.dataset.canWrite === "true",
@@ -593,9 +612,9 @@ export const WikiTree = {
     if (!current) return
     const index = this.model.flatten().findIndex(item => item.row.key === current)
     if (index < 0) return
-    const top = this.rowsTop() + index * ROW_HEIGHT
+    const top = this.rowsTop() + index * this.rowH
     const view = this.el
-    if (always || top < view.scrollTop || top + ROW_HEIGHT > view.scrollTop + view.clientHeight)
+    if (always || top < view.scrollTop || top + this.rowH > view.scrollTop + view.clientHeight)
       view.scrollTop = Math.max(0, top - view.clientHeight / 3)
     this.render()
   },
@@ -616,11 +635,11 @@ export const WikiTree = {
     const ctx = this.ctx()
     this.flat = this.model.flatten()
     const offset = this.rowsTop()
-    const [start, end] = windowRange(this.el.scrollTop - offset, this.el.clientHeight, this.flat.length)
+    const [start, end] = windowRange(this.el.scrollTop - offset, this.el.clientHeight, this.flat.length, this.rowH)
 
     let html = ""
     for (let i = start; i < end; i++) html += rowHtml(this.flat[i], i, ctx)
-    this.rowsEl.style.height = `${this.flat.length * ROW_HEIGHT}px`
+    this.rowsEl.style.height = `${this.flat.length * this.rowH}px`
     this.rowsEl.setAttribute("role", "tree")
     this.rowsEl.innerHTML = html + (this.dragGuide ? this.dragGuide.outerHTML : "")
     const activeIndex = this.active ? this.flat.findIndex(i => i.row.key === this.active) : -1
@@ -649,6 +668,11 @@ export const WikiTree = {
   click(e) {
     const menuItem = e.target.closest("[data-menu-item]")
     if (menuItem) return this.menuAction(e, Number(menuItem.dataset.menuItem))
+    if (this.pressed && !e.target.closest("[data-tree-menu]")) {
+      e.preventDefault()
+      e.stopPropagation()
+      return
+    }
     const rowEl = e.target.closest("[data-key]")
     if (!rowEl) return
     const key = rowEl.dataset.key
@@ -728,9 +752,9 @@ export const WikiTree = {
     const item = (this.flat || [])[index]
     if (!item) return
     this.active = item.row.key
-    const top = this.rowsTop() + index * ROW_HEIGHT
+    const top = this.rowsTop() + index * this.rowH
     if (top < this.el.scrollTop) this.el.scrollTop = top
-    else if (top + ROW_HEIGHT > this.el.scrollTop + this.el.clientHeight) this.el.scrollTop = top + ROW_HEIGHT - this.el.clientHeight
+    else if (top + this.rowH > this.el.scrollTop + this.el.clientHeight) this.el.scrollTop = top + this.rowH - this.el.clientHeight
     this.render()
   },
 
@@ -809,7 +833,7 @@ export const WikiTree = {
     const item = this.flat[Number(rowEl.dataset.index)]
     if (!item) return
     if (this.selected.size && !this.selected.has(item.row.key)) this.selected = new Set()
-    const top = Number(rowEl.dataset.index) * ROW_HEIGHT + ROW_HEIGHT
+    const top = Number(rowEl.dataset.index) * this.rowH + this.rowH
     this.showMenu(menuItems(item.row, this.ctx()), at || {y: top})
   },
 
@@ -854,6 +878,7 @@ export const WikiTree = {
   // scrolls) and a touch screen both defeat.
   dragStart(e) {
     const handle = e.target.closest("[data-drag]")
+    if (!handle && e.pointerType === "touch") return this.pressStart(e)
     if (!handle || e.button > 0) return
     const rowEl = handle.closest("[data-key]")
     e.preventDefault()
@@ -866,6 +891,34 @@ export const WikiTree = {
     window.addEventListener("pointermove", this.onMove)
     window.addEventListener("pointerup", this.onUp)
     window.addEventListener("pointercancel", this.onUp)
+  },
+
+  // A finger resting on a row opens its menu, as a right-click does: touch
+  // screens have no right button, and iOS sends no contextmenu event.
+  pressStart(e) {
+    const rowEl = e.target.closest("[data-key]")
+    if (!rowEl) return
+    clearTimeout(this.pressTimer)
+    const x = e.clientX
+    const y = e.clientY
+    const cancel = ev => {
+      if (ev.type === "pointermove" && Math.abs(ev.clientX - x) + Math.abs(ev.clientY - y) < 8) return
+      clearTimeout(this.pressTimer)
+      window.removeEventListener("pointermove", cancel)
+      window.removeEventListener("pointerup", cancel)
+      window.removeEventListener("pointercancel", cancel)
+    }
+    window.addEventListener("pointermove", cancel)
+    window.addEventListener("pointerup", cancel)
+    window.addEventListener("pointercancel", cancel)
+    this.pressTimer = setTimeout(() => {
+      cancel({type: "pointerup"})
+      // The click the finger's lifting makes is the menu's, not the row's.
+      this.pressed = true
+      setTimeout(() => { this.pressed = false }, 700)
+      const box = this.rowsEl.getBoundingClientRect()
+      this.openMenu(rowEl, {x: x - box.left, y: y - box.top})
+    }, LONG_PRESS_MS)
   },
 
   dragMove(e) {
@@ -893,10 +946,10 @@ export const WikiTree = {
 
     const rowsBox = this.rowsEl.getBoundingClientRect()
     const y = e.clientY - rowsBox.top
-    const to = Math.floor(y / ROW_HEIGHT)
+    const to = Math.floor(y / this.rowH)
     const target = this.flat[to]
     if (!target) { this.setGuide(null); return }
-    const zone = dropZone(y - to * ROW_HEIGHT)
+    const zone = dropZone(y - to * this.rowH, this.rowH)
     const from = this.flat.findIndex(i => i.row.key === drag.key)
     const intent = from < 0 ? null : dropIntent(this.flat, from, to, zone)
     drag.target = intent
@@ -924,9 +977,9 @@ export const WikiTree = {
       const pad = 0.25 + at.depth * 0.75
       if (at.zone === "inside") {
         guide.className = "pointer-events-none absolute inset-x-0 rounded-lg ring-2 ring-primary/60"
-        guide.style.cssText = `top:${at.to * ROW_HEIGHT}px;height:${ROW_HEIGHT}px`
+        guide.style.cssText = `top:${at.to * this.rowH}px;height:${this.rowH}px`
       } else {
-        const top = (at.to + (at.zone === "after" ? 1 : 0)) * ROW_HEIGHT - 1
+        const top = (at.to + (at.zone === "after" ? 1 : 0)) * this.rowH - 1
         guide.className = "pointer-events-none absolute right-0 h-0.5 rounded bg-primary"
         guide.style.cssText = `top:${top}px;left:${pad}rem`
       }

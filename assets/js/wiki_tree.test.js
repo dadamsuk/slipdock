@@ -131,7 +131,7 @@ function fakeStorage() {
 function mountHook({dataset = {}, replies = []} = {}) {
   globalThis.localStorage = fakeStorage()
   globalThis.window = {addEventListener() {}, removeEventListener() {}}
-  globalThis.document = {addEventListener() {}, removeEventListener() {}, createElement: () => ({style: {}, dataset: {}, remove() {}, addEventListener() {}})}
+  globalThis.document = {addEventListener() {}, removeEventListener() {}, createElement: () => ({style: {}, dataset: {}, remove() {}, addEventListener() {}, setAttribute() {}})}
   globalThis.requestAnimationFrame = fn => fn()
 
   const rowsEl = {
@@ -530,4 +530,65 @@ test("a page also filed in a folder is marked, cannot be dragged, and can be tak
   assert.deepEqual(labels(items), ["Open", "Open in a new tab", "Take out of this folder", "Copy link"])
   assert.deepEqual(items[2].payload, {id: "7", folder: "4"})
   assert.deepEqual(labels(menuItems({...also, writable: false}, {board: 1, canWrite: false})), ["Open", "Open in a new tab", "Copy link"])
+})
+
+test("on a touch screen the rows are taller", () => {
+  const {hook, rowsEl} = mountHook({replies: [root([page(1), page(2)])]})
+  globalThis.window.matchMedia = q => ({matches: q === "(pointer: coarse)"})
+  hook.mounted()
+  delete globalThis.window.matchMedia
+  assert.equal(hook.rowH, 40)
+  assert.equal(rowsEl.style.height, "80px")
+  assert.match(rowsEl.innerHTML, /top:40px;height:40px/)
+})
+
+test("a finger resting on a row opens its menu, and the lift does not follow the link", async () => {
+  const {hook, rowsEl} = mountHook({replies: [root([page(7, {href: "/x"})])]})
+  const listeners = {}
+  globalThis.window.addEventListener = (type, fn) => { listeners[type] = fn }
+  globalThis.window.removeEventListener = type => { delete listeners[type] }
+  rowsEl.getBoundingClientRect = () => ({top: 0, left: 0})
+  hook.el.getBoundingClientRect = () => ({top: 0, bottom: 600})
+  hook.mounted()
+  const rowEl = {dataset: {key: "page:7", index: "0"}}
+  hook.dragStart({pointerType: "touch", clientX: 20, clientY: 10, button: 0, target: {closest: sel => (sel === "[data-key]" ? rowEl : null)}})
+  await new Promise(r => setTimeout(r, 560))
+  assert.ok(hook.menuEl)
+  assert.deepEqual(labels(hook.menuItems).slice(0, 2), ["Open", "Open in a new tab"])
+  // The click the lift makes lands outside the menu, and must not shut it.
+  hook.onAway({target: {}})
+  assert.ok(hook.menuEl)
+  const click = {prevented: false, preventDefault() { this.prevented = true }, stopPropagation() {}, target: {closest: sel => (sel === "[data-key]" ? rowEl : null)}}
+  hook.click(click)
+  assert.ok(click.prevented)
+})
+
+test("a finger that moves is scrolling, not pressing", async () => {
+  const {hook, rowsEl} = mountHook({replies: [root([page(7)])]})
+  const listeners = {}
+  globalThis.window.addEventListener = (type, fn) => { listeners[type] = fn }
+  globalThis.window.removeEventListener = type => { delete listeners[type] }
+  rowsEl.getBoundingClientRect = () => ({top: 0, left: 0})
+  hook.el.getBoundingClientRect = () => ({top: 0, bottom: 600})
+  hook.mounted()
+  const rowEl = {dataset: {key: "page:7", index: "0"}}
+  hook.dragStart({pointerType: "touch", clientX: 20, clientY: 10, button: 0, target: {closest: sel => (sel === "[data-key]" ? rowEl : null)}})
+  listeners.pointermove({type: "pointermove", clientX: 20, clientY: 60})
+  await new Promise(r => setTimeout(r, 560))
+  assert.equal(hook.menuEl, null)
+})
+
+test("a tree that was hidden draws itself, at the page, when it is opened as a drawer", () => {
+  const {hook, el} = mountHook({dataset: {current: "page:1"}, replies: [root([page(1)])]})
+  el.clientHeight = 0
+  hook.mounted()
+  const scrolled = []
+  hook.scrollToCurrent = always => scrolled.push(always)
+  hook.updated()
+  assert.deepEqual(scrolled, [])
+  el.clientHeight = 600
+  hook.updated()
+  assert.deepEqual(scrolled, [true])
+  hook.updated()
+  assert.deepEqual(scrolled, [true])
 })

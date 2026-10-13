@@ -80,6 +80,8 @@ defmodule SlipdockWeb.WikiLive.Index do
          tree_contents: false,
          # A page the tree's keyboard is renaming (F2) or archiving (Delete).
          tree_prompt: nil,
+         # On a phone the tree is a drawer, shut until asked for (R11.11).
+         tree_drawer: false,
          tree_scope: "board",
          tree_empty: true,
          tree_current: "",
@@ -287,7 +289,15 @@ defmodule SlipdockWeb.WikiLive.Index do
   def handle_params(params, _uri, socket) do
     # `folder` is the index's own state; every other action clears it rather
     # than inheriting the last one looked at.
-    socket = apply_action(assign(socket, folder: nil), socket.assigns.live_action, params)
+    # Opening something from the drawer shuts it: the page is what was asked
+    # for.
+    socket =
+      apply_action(
+        assign(socket, folder: nil, tree_drawer: false),
+        socket.assigns.live_action,
+        params
+      )
+
     {:noreply, assign_current(socket)}
   end
 
@@ -1473,6 +1483,13 @@ defmodule SlipdockWeb.WikiLive.Index do
     end
   end
 
+  # The tree as a drawer, on a screen too narrow to keep it beside the page.
+  def handle_event("toggle_tree_drawer", _params, socket),
+    do: {:noreply, update(socket, :tree_drawer, &(not &1))}
+
+  def handle_event("close_tree_drawer", _params, socket),
+    do: {:noreply, assign(socket, tree_drawer: false)}
+
   # The search box reads names; this has it read the pages' words too.
   def handle_event("toggle_tree_contents", _params, socket),
     do: {:noreply, socket |> update(:tree_contents, &(not &1)) |> load_tree()}
@@ -2387,6 +2404,18 @@ defmodule SlipdockWeb.WikiLive.Index do
               looking at a board, and a page is one more thing that answers a
               filter, so switching view and narrowing down work here too. --%>
         <div class="flex flex-wrap items-center gap-x-2 gap-y-2 border-b border-base-300 bg-base-100/70 px-3 py-2 text-sm">
+          <%!-- The tree, on a phone: it opens as a drawer (R11.11). --%>
+          <button
+            id="wiki-tree-drawer-toggle"
+            type="button"
+            phx-click="toggle_tree_drawer"
+            class="btn btn-ghost btn-sm gap-1 lg:hidden"
+            aria-controls="wiki-tree"
+            aria-expanded={to_string(@tree_drawer)}
+            title="Pages and folders"
+          >
+            <.icon name="hero-bars-3-bottom-left" class="size-4" /> Pages
+          </button>
           <.view_tabs
             board={@board}
             mode={:wiki}
@@ -2485,7 +2514,14 @@ defmodule SlipdockWeb.WikiLive.Index do
             data-version={@tree_version}
             data-current={@tree_current}
             data-reveal={Jason.encode!(@tree_reveal)}
-            class="kanban-scroll hidden w-64 shrink-0 overflow-y-auto border-r border-base-300 bg-base-100 p-3 lg:block"
+            class={[
+              "kanban-scroll w-64 shrink-0 overflow-y-auto border-r border-base-300 bg-base-100 p-3 lg:block",
+              if(@tree_drawer,
+                do:
+                  "fixed inset-y-0 left-0 z-50 block w-[85vw] max-w-80 pt-4 shadow-2xl lg:static lg:z-auto lg:w-64 lg:max-w-none lg:shadow-none",
+                else: "hidden"
+              )
+            ]}
           >
             <div class="mb-2 flex items-center gap-1">
               <.link
@@ -2642,6 +2678,15 @@ defmodule SlipdockWeb.WikiLive.Index do
             </button>
           </aside>
 
+          <div
+            :if={@tree_drawer}
+            id="wiki-tree-backdrop"
+            class="fixed inset-0 z-40 bg-base-content/30 lg:hidden"
+            phx-click="close_tree_drawer"
+            phx-window-keydown="close_tree_drawer"
+            phx-key="Escape"
+          >
+          </div>
           <%!-- `relative`: the status buttons' radios are `sr-only`, which is
                 `position: absolute`, and with nothing positioned above them
                 they stretched the whole document to the page's length. --%>
