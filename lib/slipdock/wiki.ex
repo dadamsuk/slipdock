@@ -491,7 +491,7 @@ defmodule Slipdock.Wiki do
           %Page{
             board_id: board.id,
             number: number,
-            code: next_code(),
+            code: next_page_code(),
             created_by_id: user && user.id,
             updated_by_id: user && user.id,
             content_hash: Page.hash(attrs["body"] || "")
@@ -542,15 +542,15 @@ defmodule Slipdock.Wiki do
   # one page. (docs/wiki.md wanted the board's own counter behind it; a
   # per-board counter cannot be globally unique, and resolving without a
   # board is the more useful half. The per-board ordinal survives as
-  # `number`.) Taken in the same transaction as the insert.
-  defp next_code do
-    highest =
-      from(p in Page,
-        select: max(fragment("CAST(substr(?, 3) AS INTEGER)", p.code))
-      )
-      |> Repo.one()
-
-    Page.code_for((highest || 0) + 1)
+  # `number`.) It comes off a sequence, not max(code) + 1: the max cannot see
+  # a page another transaction has not committed yet, and two writers then
+  # took the same code and the second waited on the first (#656). A code
+  # taken by a write that rolls back is simply never used.
+  @doc false
+  def next_page_code do
+    Page.code_for(
+      Repo.one!(from(s in fragment("SELECT nextval('page_codes') AS n"), select: s.n))
+    )
   end
 
   defp slug_taken?(board_id, slug) do

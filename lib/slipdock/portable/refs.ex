@@ -91,12 +91,7 @@ defmodule Slipdock.Portable.Refs do
   end
 
   @doc false
-  def fresh_page_code do
-    highest =
-      Repo.one(from(p in Page, select: max(fragment("CAST(substr(?, 3) AS INTEGER)", p.code))))
-
-    Page.code_for((highest || 0) + 1)
-  end
+  def fresh_page_code, do: Slipdock.Wiki.next_page_code()
 
   @doc false
   def fresh_page_number(board_id) do

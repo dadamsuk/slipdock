@@ -39,6 +39,47 @@ defmodule Slipdock.WikiTest do
       refute first.code == second.code
     end
 
+    # #656: the code was max(code) + 1, which cannot see a page another
+    # transaction has written and not yet committed, so both took the same
+    # code and the second insert waited on the first's unique key — a
+    # deadlock between two async tests, and a stall between two writers.
+    test "a page written in an open transaction elsewhere does not hold up the next code",
+         %{board: board, user: user} do
+      test = self()
+
+      other =
+        spawn(fn ->
+          # Its own connection and its own transaction, left open.
+          Ecto.Adapters.SQL.Sandbox.start_owner!(Slipdock.Repo)
+          owner = user_fixture()
+          {:ok, page} = Wiki.create_page(board_fixture(%{}, owner: owner), %{"title" => "Held"})
+          send(test, {:held, page.code})
+
+          receive do
+            :release -> :ok
+          end
+        end)
+
+      on_exit(fn -> send(other, :release) end)
+      assert_receive {:held, held_code}, 5_000
+
+      # Waiting on the other transaction's row would be a lock wait; make it
+      # fail fast rather than sit there.
+      Repo.query!("SET LOCAL lock_timeout = '1s'")
+      {:ok, page} = Wiki.create_page(board, %{"title" => "Next"}, user: user)
+
+      refute page.code == held_code
+      send(other, :release)
+    end
+
+    test "codes keep counting up, never handing one out twice" do
+      codes = for _ <- 1..3, do: Wiki.next_page_code()
+      numbers = Enum.map(codes, fn "W-" <> n -> String.to_integer(n) end)
+
+      assert numbers == Enum.sort(numbers)
+      assert numbers == Enum.uniq(numbers)
+    end
+
     test "a clashing slug gets a number rather than a failure", %{board: board, user: user} do
       {:ok, _} = Wiki.create_page(board, %{"title" => "Runbook"}, user: user)
       {:ok, second} = Wiki.create_page(board, %{"title" => "Runbook"}, user: user)
