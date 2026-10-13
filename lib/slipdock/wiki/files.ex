@@ -107,6 +107,21 @@ defmodule Slipdock.Wiki.Files do
     end
   end
 
+  @doc """
+  Whether another live file on `board_id` already has `name` in the folder
+  `folder_id` (nil: the top of the wiki), case aside — the one path on disk
+  a vault would give them both.
+  """
+  def taken?(board_id, folder_id, name, except_id \\ nil) do
+    from(f in WikiFile,
+      where: f.board_id == ^board_id and is_nil(f.archived_at),
+      where: fragment("lower(?)", f.name) == ^String.downcase(name)
+    )
+    |> where([f], ^folder_is(folder_id))
+    |> where([f], f.id != ^(except_id || 0))
+    |> Repo.exists?()
+  end
+
   @doc "Puts a file away. The bytes stay, so it can come back."
   def archive(%WikiFile{} = file) do
     at = DateTime.utc_now() |> DateTime.truncate(:second)
@@ -220,6 +235,9 @@ defmodule Slipdock.Wiki.Files do
     Changes.record(file.board_id, "file", file.id)
     Wiki.broadcast_board(file.board_id)
   end
+
+  defp folder_is(nil), do: dynamic([f], is_nil(f.folder_id))
+  defp folder_is(id), do: dynamic([f], f.folder_id == ^id)
 
   defp user_id(%User{id: id}), do: id
   defp user_id(_), do: nil

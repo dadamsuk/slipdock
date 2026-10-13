@@ -187,20 +187,38 @@ function nextSibling(flat, index, kind) {
   return null
 }
 
+// Whether a writer can drag the row about: a page, folder or file of a board
+// they can write to. A vault's mapped folders are where another board's
+// wiki is shown, not folders of this one, and an extra placement is the
+// page seen from another folder (it is moved from its home row).
+export function movableRow(row) {
+  return !!row && ["page", "folder", "file"].includes(row.kind) && !row.mount && !row.also && !!row.writable
+}
+
 // What dropping row `from` on row `to` (in `zone`) asks the server for:
 // `{kind, id, into, before}` as the `tree_move` event takes it, or null for
 // a drop that means nothing (on itself, inside itself, on a vault's own
 // rows). A folder only ever lands among folders; a page dropped on a page's
-// middle becomes part of it.
+// middle becomes part of it. A file is only ever filed in a folder (or the
+// top), the one its target is in, and never part of a page.
 export function dropIntent(flat, from, to, zone) {
   const dragged = flat[from] && flat[from].row
   const target = flat[to] && flat[to].row
   if (!dragged || !target || from === to) return null
-  if (!["page", "folder"].includes(dragged.kind)) return null
+  if (!["page", "folder", "file"].includes(dragged.kind)) return null
   if (ancestors(flat, to).includes(dragged.key)) return null
 
   const move = (into, before = null) =>
     into ? {kind: dragged.kind, id: String(dragged.id), into, before: before && String(before)} : null
+
+  if (dragged.kind === "file") {
+    const into = target.kind === "folder" && zone === "inside"
+      ? intoOf(target.key)
+      : intoOf(target.kind === "folder" ? flat[to].parent : folderAbove(flat, to))
+    // Where it already is: nothing to ask for.
+    if (!into || !into.startsWith("folder:") || into === intoOf(folderAbove(flat, from))) return null
+    return move(into)
+  }
 
   if (dragged.kind === "folder") {
     if (target.kind === "folder") {
@@ -244,11 +262,9 @@ function rowHtml(item, index, ctx) {
   const key = escapeHtml(row.key)
   const current = ctx.current === row.key
   const active = ctx.active === row.key
-  // A vault's mapped folders are where another board's wiki is shown, not
-  // folders of this one: nothing moves them, and they have no menu.
-  // An extra placement is the page seen from another folder: the page is
-  // moved from its home row, and the placement taken away from its menu.
-  const movable = ctx.organising && ["page", "folder"].includes(row.kind) && !row.mount && !row.also && row.writable
+  // A vault's mapped folders have no menu; an extra placement's menu takes
+  // the placement away (see movableRow for what drags).
+  const movable = movableRow(row)
   const selected = ctx.selected && ctx.selected.has(row.key)
   const title = escapeHtml(row.title)
   const nav = row.kind === "file"
@@ -270,7 +286,7 @@ function rowHtml(item, index, ctx) {
     ? `<button type="button" data-toggle class="shrink-0 py-1.5 pr-0.5" title="${open ? "Close" : "Open"}" aria-label="Open or close"><span class="${open ? "hero-chevron-down" : "hero-chevron-right"} size-3 shrink-0 text-base-content/40"></span></button>`
     : `<span class="w-3.5 shrink-0"></span>`
 
-  const handle = movable
+  const handle = movable && ctx.organising
     ? `<span data-drag class="shrink-0 cursor-grab touch-none py-1.5 text-base-content/30 hover:text-base-content/60" title="Drag to move this ${row.kind}"><span class="hero-bars-2 size-3.5"></span></span>`
     : ""
 
@@ -287,9 +303,9 @@ function rowHtml(item, index, ctx) {
     active ? "ring-1 ring-inset ring-primary/60" : "",
   ].join(" ")
 
-  return `<div id="wt-row-${index}" class="${classes}" style="top:${top}px;height:${ctx.rowH}px;padding-left:${pad}rem" role="treeitem" ${active ? `aria-selected="true"` : ""} aria-level="${depth + 1}" ${ctx.model.openable(row) ? `aria-expanded="${open}"` : ""} ${current ? `aria-current="page"` : ""} data-key="${key}" data-index="${index}" ${row.href ? "" : "data-dir"}>` +
+  return `<div id="wt-row-${index}" class="${classes}" style="top:${top}px;height:${ctx.rowH}px;padding-left:${pad}rem" role="treeitem" ${active ? `aria-selected="true"` : ""} aria-level="${depth + 1}" ${ctx.model.openable(row) ? `aria-expanded="${open}"` : ""} ${current ? `aria-current="page"` : ""} data-key="${key}" data-index="${index}" ${row.href ? "" : "data-dir"} ${movable ? "data-movable" : ""}>` +
     handle + chevron +
-    `<a href="${escapeHtml(row.href || "#")}" ${nav} class="flex min-w-0 flex-1 items-center gap-1.5 py-1.5" title="${escapeHtml(row.tip || row.title)}">` +
+    `<a href="${escapeHtml(row.href || "#")}" ${nav} ${movable ? `draggable="false"` : ""} class="flex min-w-0 flex-1 items-center gap-1.5 py-1.5" title="${escapeHtml(row.tip || row.title)}">` +
     `<span class="${ICONS[row.kind] || ICONS.page} size-3.5 shrink-0 text-base-content/50"></span>` +
     `<span class="min-w-0 flex-1 truncate ${row.kind === "folder" || row.kind === "dir" ? "font-medium" : ""}">${title}</span>` +
     badges + `</a>` + menu + `</div>`
@@ -673,7 +689,7 @@ export const WikiTree = {
   click(e) {
     const menuItem = e.target.closest("[data-menu-item]")
     if (menuItem) return this.menuAction(e, Number(menuItem.dataset.menuItem))
-    if (this.pressed && !e.target.closest("[data-tree-menu]")) {
+    if ((this.pressed && !e.target.closest("[data-tree-menu]")) || this.dragged) {
       e.preventDefault()
       e.stopPropagation()
       return
@@ -878,15 +894,26 @@ export const WikiTree = {
     this.menuEl = null
   },
 
-  // Organise mode's drag: pointer events rather than the browser's own
-  // drag and drop, which a virtual list (whose rows come and go as it
-  // scrolls) and a touch screen both defeat.
+  // The tree's drag: pointer events rather than the browser's own drag and
+  // drop, which a virtual list (whose rows come and go as it scrolls) and a
+  // touch screen both defeat. With a mouse a writer's row drags from
+  // anywhere on it (#749): a press that moves less than a few pixels is
+  // still the click it was. A finger scrolls, and holds for the menu, so
+  // on a touch screen only Organise mode's handles drag.
   dragStart(e) {
     const handle = e.target.closest("[data-drag]")
     if (!handle && e.pointerType === "touch") return this.pressStart(e)
-    if (!handle || e.button > 0) return
-    const rowEl = handle.closest("[data-key]")
-    e.preventDefault()
+    if (e.button > 0) return
+    let rowEl
+    if (handle) {
+      rowEl = handle.closest("[data-key]")
+      e.preventDefault()
+    } else {
+      if (e.pointerType !== "mouse" || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return
+      if (e.target.closest("[data-toggle], [data-menu]")) return
+      rowEl = e.target.closest("[data-movable]")
+      if (!rowEl) return
+    }
 
     // The dragged row is held by its key, not its place: a folder opening
     // under the drag puts rows above it, and its place changes.
@@ -932,6 +959,8 @@ export const WikiTree = {
     if (!drag.started) {
       if (Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y) < 4) return
       drag.started = true
+      this.closeMenu()
+      if (window.getSelection) window.getSelection().removeAllRanges()
       this.el.classList.add("wiki-dragging")
       const ghost = document.createElement("div")
       ghost.className = "pointer-events-none fixed z-50 rounded-lg bg-base-100 px-2 py-1 text-sm shadow-lg ring-1 ring-primary/40"
@@ -997,11 +1026,17 @@ export const WikiTree = {
   dragEnd() {
     const drag = this.drag
     this.endDrag()
-    if (drag && drag.started && drag.target) this.pushEvent("tree_move", drag.target)
+    if (!drag || !drag.started) return
+    // The click the mouse's release makes is the drag's, not the row's: it
+    // would open the row it was dropped on.
+    this.dragged = true
+    setTimeout(() => { this.dragged = false }, 0)
+    if (drag.target) this.pushEvent("tree_move", drag.target)
   },
 
   endDrag() {
     if (!this.drag) return
+    const started = this.drag.started
     clearTimeout(this.drag.hoverTimer)
     if (this.drag.ghost) this.drag.ghost.remove()
     this.drag = null
@@ -1010,6 +1045,8 @@ export const WikiTree = {
     window.removeEventListener("pointermove", this.onMove)
     window.removeEventListener("pointerup", this.onUp)
     window.removeEventListener("pointercancel", this.onUp)
-    this.render()
+    // A press that never became a drag drew nothing, and redrawing now
+    // would swap the link out from under the click that is coming.
+    if (started) this.render()
   },
 }

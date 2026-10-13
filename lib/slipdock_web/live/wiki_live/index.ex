@@ -22,7 +22,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   alias Slipdock.{Access, Boards, Fields, Votes, Wiki}
   alias Slipdock.Boards.Attachment
   alias Slipdock.Palette
-  alias Slipdock.Wiki.{Folder, Page, Tree, TreeStates}
+  alias Slipdock.Wiki.{Folder, Page, Tree, TreeStates, WikiFile}
   alias SlipdockWeb.Params
   alias SlipdockWeb.Wiki.Renderer
 
@@ -2420,7 +2420,57 @@ defmodule SlipdockWeb.WikiLive.Index do
     end
   end
 
+  # A file (an image, a PDF, a drawing) is filed in a folder of its own
+  # board, the way a vault keeps it on disk: it is never part of a page,
+  # and it doesn't cross boards (#749).
+  defp tree_move(socket, "file", id, into, _before) do
+    with %WikiFile{} = file <- tree_file(socket, id),
+         target when target != :none <- drop_target(socket, into) do
+      {board, folder} =
+        case target do
+          {:folder, board, folder} -> {board, folder}
+          {:page, board, page} -> {board, page.folder_id && Wiki.get_folder(page.folder_id)}
+        end
+
+      folder_id = folder && folder.id
+
+      cond do
+        board.id != file.board_id ->
+          put_flash(socket, :error, "A file can only move within its own board.")
+
+        folder_id == file.folder_id ->
+          socket
+
+        Wiki.Files.taken?(board.id, folder_id, file.name, file.id) ->
+          put_flash(
+            socket,
+            :error,
+            "#{folder_label(folder)} already has a file called #{file.name}."
+          )
+
+        true ->
+          case Wiki.Files.move(file, %{folder_id: folder_id}) do
+            {:ok, _} -> socket
+            _ -> put_flash(socket, :error, "That file couldn't be moved.")
+          end
+      end
+    else
+      _ -> put_flash(socket, :error, "That file couldn't be moved.")
+    end
+  end
+
   defp tree_move(socket, _kind, _id, _into, _before), do: socket
+
+  defp tree_file(socket, ref) do
+    with id when is_integer(id) <- Params.id(ref),
+         %WikiFile{archived_at: nil} = file <- Wiki.Files.get(id),
+         %{} <- writable_board(socket, file.board_id),
+         do: file,
+         else: (_ -> nil)
+  end
+
+  defp folder_label(nil), do: "The top of the wiki"
+  defp folder_label(%Folder{name: name}), do: name
 
   defp move_within(socket, page, board, parent, folder, before) do
     with {:ok, page} <- Wiki.file_page(page, folder),

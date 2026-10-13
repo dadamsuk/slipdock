@@ -2,7 +2,7 @@
 // things wiki_tree.js touches, and the server is a pushEvent that answers.
 import {test} from "node:test"
 import assert from "node:assert/strict"
-import {TreeModel, windowRange, dropZone, dropIntent, escapeHtml, keyMove, typeAhead, menuItems, WikiTree, ROW_HEIGHT} from "./wiki_tree.js"
+import {TreeModel, windowRange, dropZone, dropIntent, movableRow, escapeHtml, keyMove, typeAhead, menuItems, WikiTree, ROW_HEIGHT} from "./wiki_tree.js"
 
 // Rows as the server sends them to a writer on board 1.
 const folder = (id, extra = {}) => ({kind: "folder", id, key: `folder:${id}`, title: `F${id}`, count: 1, board_id: 1, writable: true, ...extra})
@@ -109,6 +109,58 @@ test("nothing is dropped on itself, inside itself, or from a vault's own rows", 
   const vault = new TreeModel("vault")
   vault.set("vault", [{kind: "dir", key: "dir:Jobs", id: "dir:Jobs", title: "Jobs", count: 1}, page(9)])
   assert.equal(dropIntent(vault.flatten(), 1, 0, "inside"), null)
+})
+
+// root: F1 (open: F2 (open: A3.png), P4, A5.png), P6, A7.png
+const file = (id, extra = {}) => ({kind: "file", id, key: `file:${id}`, title: `A${id}.png`, count: 0, board_id: 1, writable: true, ...extra})
+function withFiles() {
+  const model = new TreeModel("root")
+  model.set("root", [folder(1), page(6), file(7)])
+  model.set("folder:1", [folder(2), page(4), file(5)])
+  model.set("folder:2", [file(3)])
+  model.open = new Set(["folder:1", "folder:2"])
+  return model
+}
+
+test("a file dropped on a folder's middle is filed in it (#749)", () => {
+  const flat = withFiles().flatten()
+  // A7 (index 6) onto F2 (index 1); A3 (index 2) onto F1 (index 0)
+  assert.deepEqual(dropIntent(flat, 6, 1, "inside"), {kind: "file", id: "7", into: "folder:2", before: null})
+  assert.deepEqual(dropIntent(flat, 2, 0, "inside"), {kind: "file", id: "3", into: "folder:1", before: null})
+})
+
+test("a file dropped anywhere else goes to the folder its target is in, never into a page", () => {
+  const flat = withFiles().flatten()
+  // A7 on P4's middle: P4's folder, F1
+  assert.deepEqual(dropIntent(flat, 6, 3, "inside"), {kind: "file", id: "7", into: "folder:1", before: null})
+  // A3 beside F1, on P6, or beside A7: the top of the wiki
+  assert.deepEqual(dropIntent(flat, 2, 0, "before"), {kind: "file", id: "3", into: "folder:", before: null})
+  assert.deepEqual(dropIntent(flat, 2, 5, "inside"), {kind: "file", id: "3", into: "folder:", before: null})
+  assert.deepEqual(dropIntent(flat, 2, 6, "after"), {kind: "file", id: "3", into: "folder:", before: null})
+  // A5 beside F2: F2 sits in F1, so into F1 — where A5 already is
+  assert.equal(dropIntent(flat, 4, 1, "before"), null)
+})
+
+test("a file dropped where it already is, or on a vault's own rows, asks for nothing", () => {
+  const flat = withFiles().flatten()
+  assert.equal(dropIntent(flat, 4, 3, "inside"), null) // A5 on P4, both in F1
+  assert.equal(dropIntent(flat, 6, 5, "after"), null) // A7 beside P6, both at the top
+  assert.equal(dropIntent(flat, 6, 6, "inside"), null)
+  const vault = new TreeModel("vault")
+  vault.set("vault", [{kind: "dir", key: "dir:Jobs", id: "dir:Jobs", title: "Jobs", count: 1}, file(9)])
+  assert.equal(dropIntent(vault.flatten(), 1, 0, "inside"), null)
+})
+
+test("movableRow: a writer's pages, folders and files, never a mount, a placement or a vault row", () => {
+  assert.ok(movableRow(page(1)))
+  assert.ok(movableRow(folder(1)))
+  assert.ok(movableRow(file(1)))
+  assert.ok(!movableRow(page(1, {writable: false})))
+  assert.ok(!movableRow(file(1, {writable: undefined})))
+  assert.ok(!movableRow(folder(1, {mount: true})))
+  assert.ok(!movableRow(page(1, {also: true})))
+  assert.ok(!movableRow({kind: "dir", key: "dir:Jobs", writable: true}))
+  assert.ok(!movableRow(null))
 })
 
 test("escapeHtml leaves nothing a title could inject", () => {
@@ -304,6 +356,85 @@ test("a drag keeps hold of its row when a folder opens above it mid-drag", () =>
   listeners.pointermove({clientX: 20, clientY: 15})
   listeners.pointerup({})
   assert.deepEqual(pushed.at(-1), {event: "tree_move", payload: {kind: "page", id: "3", into: "folder:1", before: null}})
+})
+
+// A mouse pressing on a row (not a handle): `closest` answers for the row's
+// own parts, as the browser would for a press on its title.
+function rowPress(rowEl, extra = {}) {
+  return {
+    pointerType: "mouse", button: 0, clientX: 5, clientY: 5, preventDefault() {},
+    target: {closest: sel => (sel === "[data-movable]" || sel === "[data-key]" ? rowEl : null)},
+    ...extra,
+  }
+}
+
+function dragEnv(rows, dataset = {}) {
+  const env = mountHook({dataset, replies: [root(rows)]})
+  const listeners = {}
+  globalThis.window.addEventListener = (type, fn) => { listeners[type] = fn }
+  globalThis.window.removeEventListener = type => { delete listeners[type] }
+  globalThis.document.body = {appendChild() {}}
+  env.el.getBoundingClientRect = () => ({top: 0, bottom: 600})
+  env.rowsEl.getBoundingClientRect = () => ({top: 0, left: 0})
+  env.hook.mounted()
+  return {...env, listeners}
+}
+
+test("without organising, a writer's rows drag by a mouse and their links don't (#749)", () => {
+  const {rowsEl} = dragEnv([folder(1), page(2), file(3), page(4, {board_id: 2, writable: false})])
+  const rows = rowsEl.innerHTML.split("data-key=").slice(1)
+  assert.deepEqual(rows.map(r => r.includes("data-movable")), [true, true, true, false])
+  assert.deepEqual(rows.map(r => r.includes(`draggable="false"`)), [true, true, true, false])
+  // No handles: those are Organise mode's.
+  assert.doesNotMatch(rowsEl.innerHTML, /data-drag/)
+})
+
+test("a mouse drags a file onto a folder without organising, and the drop opens nothing", () => {
+  const {hook, pushed, listeners} = dragEnv([folder(1), page(2), file(3)])
+  hook.dragStart(rowPress({dataset: {key: "file:3", index: "2"}}))
+  listeners.pointermove({clientX: 20, clientY: 70})
+  listeners.pointermove({clientX: 20, clientY: 15}) // F1's middle
+  listeners.pointerup({})
+  assert.deepEqual(pushed.at(-1), {event: "tree_move", payload: {kind: "file", id: "3", into: "folder:1", before: null}})
+  // The release's click lands on a row; it must not open it.
+  const click = {prevented: false, preventDefault() { this.prevented = true }, stopPropagation() {}, target: {closest: () => null}}
+  hook.click(click)
+  assert.ok(click.prevented)
+})
+
+test("a mouse press that barely moves is a click, not a drag, and leaves its link in place", () => {
+  const {hook, rowsEl, pushed, listeners} = dragEnv([folder(1), page(2)])
+  hook.dragStart(rowPress({dataset: {key: "page:2", index: "1"}}))
+  listeners.pointermove({clientX: 7, clientY: 6})
+  // The rows aren't redrawn: the click to come is on the link pressed.
+  rowsEl.innerHTML = "the link pressed"
+  listeners.pointerup({})
+  assert.equal(rowsEl.innerHTML, "the link pressed")
+  assert.equal(pushed.filter(p => p.event === "tree_move").length, 0)
+  const click = {prevented: false, preventDefault() { this.prevented = true }, stopPropagation() {}, target: {closest: () => null}}
+  hook.click(click)
+  assert.ok(!click.prevented)
+})
+
+test("no row drag from a toggle, a menu button, a modifier click, a reader's row or a finger", () => {
+  const {hook, listeners} = dragEnv([folder(1), page(2)])
+  const rowEl = {dataset: {key: "page:2", index: "1"}}
+  const onPart = part => ({closest: sel => (sel === part || sel === "[data-movable]" || sel === "[data-key]" ? rowEl : null)})
+  hook.dragStart(rowPress(rowEl, {target: onPart("[data-toggle], [data-menu]")}))
+  assert.equal(hook.drag, undefined)
+  hook.dragStart(rowPress(rowEl, {ctrlKey: true}))
+  hook.dragStart(rowPress(rowEl, {shiftKey: true}))
+  hook.dragStart(rowPress(rowEl, {button: 2}))
+  hook.dragStart(rowPress(rowEl, {pointerType: "pen"}))
+  assert.equal(hook.drag, undefined)
+  // A reader's row has no data-movable.
+  hook.dragStart(rowPress(rowEl, {target: {closest: sel => (sel === "[data-key]" ? rowEl : null)}}))
+  assert.equal(hook.drag, undefined)
+  // A finger on a row is a press for the menu, not a drag.
+  hook.dragStart(rowPress(rowEl, {pointerType: "touch"}))
+  assert.equal(hook.drag, undefined)
+  clearTimeout(hook.pressTimer)
+  listeners.pointerup({type: "pointerup"})
 })
 
 test("revealing a page its folder has not reached yet asks for the rows through it", () => {
