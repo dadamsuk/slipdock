@@ -872,4 +872,47 @@ defmodule Slipdock.WikiTreeTest do
           do: assert(key in keys)
     end
   end
+
+  describe "preview/3 (#760)" do
+    test "a page with its summary, tags, writer, the start of its body and its sub-pages", %{
+      board: board,
+      user: user
+    } do
+      parent = page(board, user, "Plans", body: String.duplicate("word ", 1_000))
+      page(board, user, "Child", parent: parent)
+      page(board, user, "Draft child", parent: parent, status: "draft")
+      {:ok, _} = Wiki.update_page(parent, %{"summary" => "What we mean to do"}, user: user)
+
+      from(p in Wiki.Page, where: p.id == ^parent.id)
+      |> Repo.update_all(set: [note_tags: ["work"]])
+
+      found = Tree.preview(board, parent.id)
+      assert found.page.title == "Plans"
+      assert found.page.summary == "What we mean to do"
+      assert found.page.note_tags == ["work"]
+      assert found.updated_by.id == user.id
+      # Cut, not read whole.
+      assert String.length(found.body) == 2_000
+      assert found.children == 2
+      # Under the tree's filters, a draft child isn't counted.
+      assert Tree.preview(board, parent.id, status: "published").children == 1
+    end
+
+    test "nil for a page on another board, one the options hide, or none at all", %{
+      board: board,
+      user: user
+    } do
+      other = board_fixture(%{"name" => "Other"}, owner: user)
+      elsewhere = page(other, user, "Elsewhere")
+      draft = page(board, user, "Draft", status: "draft")
+      {:ok, gone} = Wiki.archive_page(page(board, user, "Gone"))
+
+      assert Tree.preview(board, elsewhere.id) == nil
+      assert Tree.preview(board, draft.id, status: "published") == nil
+      assert Tree.preview(board, draft.id).page.status == "draft"
+      assert Tree.preview(board, gone.id) == nil
+      assert Tree.preview(board, gone.id, archived: :all).page.title == "Gone"
+      assert Tree.preview(board, -1) == nil
+    end
+  end
 end

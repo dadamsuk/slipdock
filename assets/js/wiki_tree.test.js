@@ -2,7 +2,7 @@
 // things wiki_tree.js touches, and the server is a pushEvent that answers.
 import {test} from "node:test"
 import assert from "node:assert/strict"
-import {TreeModel, windowRange, dropZone, dropIntent, movableRow, escapeHtml, keyMove, typeAhead, menuItems, WikiTree, ROW_HEIGHT} from "./wiki_tree.js"
+import {TreeModel, windowRange, dropZone, dropIntent, movableRow, escapeHtml, keyMove, typeAhead, menuItems, WikiTree, ROW_HEIGHT, previewHtml, PREVIEW_MS} from "./wiki_tree.js"
 
 // Rows as the server sends them to a writer on board 1.
 const folder = (id, extra = {}) => ({kind: "folder", id, key: `folder:${id}`, title: `F${id}`, count: 1, board_id: 1, writable: true, ...extra})
@@ -770,4 +770,126 @@ test("a folder offers its own board to the vault's owner only (#747)", () => {
 
   const page7 = menuItems(page(7, {href: "/boards/1/wiki/p7"}), {board: 1, canWrite: true, vaultOwner: true, selected: new Set()})
   assert.ok(!labels(page7).includes("Give it its own board…"))
+})
+
+// A page's preview (#760).
+
+const preview = (extra = {}) => ({found: true, key: "page:7", title: "Plans", paragraphs: ["First.", "Second."], tags: [], children: 0, ...extra})
+
+test("a preview shows the title, the start of the body, tags and who changed it", () => {
+  const html = previewHtml(preview({summary: "In short", tags: ["work"], code: "W-7", updated: "2h ago", updated_by: "Ann", children: 2, board: "Jobs", draft: true}))
+  assert.match(html, /Plans/)
+  assert.match(html, /In short/)
+  assert.match(html, /<p class="mb-1.5 last:mb-0">First.<\/p><p class="mb-1.5 last:mb-0">Second.<\/p>/)
+  assert.match(html, /#work/)
+  assert.match(html, /W-7 · Changed 2h ago by Ann · 2 pages inside/)
+  assert.match(html, /Jobs/)
+  assert.match(html, />draft</)
+})
+
+test("a preview of an empty page says so, one page inside reads singular, and nothing is injected", () => {
+  assert.match(previewHtml(preview({paragraphs: []})), /Nothing written yet/)
+  assert.doesNotMatch(previewHtml(preview({paragraphs: [], summary: "S"})), /Nothing written yet/)
+  assert.match(previewHtml(preview({children: 1})), /1 page inside/)
+  assert.doesNotMatch(previewHtml(preview()), /inside|Changed/)
+  const html = previewHtml(preview({title: "<img onerror=x>", paragraphs: ["<script>"], tags: ["<b>"], updated_by: "<i>", updated: "now"}))
+  assert.doesNotMatch(html, /<img|<script|<b>|<i>/)
+})
+
+function previewHook(replies) {
+  const made = []
+  const mounted = mountHook({replies: [root([page(7), page(8), folder(1)]), ...replies]})
+  globalThis.document.createElement = () => {
+    const el = {style: {}, dataset: {}, hidden: false, attrs: {}, setAttribute(k, v) { this.attrs[k] = v }, remove() { this.removed = true }}
+    made.push(el)
+    return el
+  }
+  globalThis.document.body = {appendChild() {}}
+  mounted.hook.mounted()
+  return {...mounted, made}
+}
+
+const over = (key, pointerType = "mouse") => ({pointerType, target: {closest: () => ({dataset: {key}, getBoundingClientRect: () => ({top: 40})})}})
+const wait = ms => new Promise(r => setTimeout(r, ms))
+
+test("the mouse resting on a page row asks for its preview once and draws it beside the tree", async () => {
+  const {hook, pushed, made, rowsEl} = previewHook([preview({title: "Seven"})])
+  hook.el.getBoundingClientRect = () => ({right: 256})
+  hook.hoverRow(over("page:7"))
+  assert.equal(pushed.filter(p => p.event === "tree_preview").length, 0)
+  await wait(PREVIEW_MS + 20)
+  assert.deepEqual(pushed.at(-1), {event: "tree_preview", payload: {key: "page:7"}})
+  assert.match(made[0].innerHTML, /Seven/)
+  assert.equal(made[0].hidden, false)
+  assert.equal(made[0].style.left, "264px")
+  assert.equal(made[0].style.top, "40px")
+  assert.equal(rowsEl.attrs["aria-describedby"], "wiki-tree-preview")
+
+  // Off the rows it goes; back on, it comes from what was kept.
+  hook.onLeave()
+  assert.equal(made[0].hidden, true)
+  hook.hoverRow(over("page:7"))
+  await wait(PREVIEW_MS + 20)
+  assert.equal(pushed.filter(p => p.event === "tree_preview").length, 1)
+  assert.equal(made[0].hidden, false)
+})
+
+test("moving on before the preview shows, a folder, a finger or a missing page shows nothing", async () => {
+  const {hook, pushed, made} = previewHook([{found: false}])
+  hook.hoverRow(over("page:7"))
+  hook.hoverRow(over("folder:1"))
+  hook.hoverRow(over("page:8", "touch"))
+  await wait(PREVIEW_MS + 20)
+  assert.equal(pushed.filter(p => p.event === "tree_preview").length, 0)
+  hook.hoverRow(over("page:8"))
+  await wait(PREVIEW_MS + 20)
+  assert.deepEqual(pushed.at(-1).payload, {key: "page:8"})
+  assert.equal(made.length, 0)
+})
+
+test("a reply that comes after the mouse has gone draws nothing", async () => {
+  let answer
+  const {hook, made} = previewHook([])
+  hook.pushEvent = (event, payload, reply) => { answer = reply }
+  hook.hoverRow(over("page:7"))
+  await wait(PREVIEW_MS + 20)
+  hook.onLeave()
+  answer(preview())
+  assert.equal(made.length, 0)
+})
+
+test("Space shows the highlighted page's preview and puts it away; other keys put it away", () => {
+  const {hook, pushed, made} = previewHook([preview({title: "Seven"}), preview({key: "page:8", title: "Eight"})])
+  const key = k => hook.keydown({key: k, preventDefault() {}})
+  hook.active = "page:7"
+  key(" ")
+  assert.deepEqual(pushed.at(-1), {event: "tree_preview", payload: {key: "page:7"}})
+  assert.match(made[0].innerHTML, /Seven/)
+  key(" ")
+  assert.equal(made[0].hidden, true)
+  key(" ")
+  assert.equal(made[0].hidden, false)
+  key("ArrowDown")
+  assert.equal(made[0].hidden, true)
+  assert.equal(hook.active, "page:8")
+  // A folder has no preview.
+  hook.active = "folder:1"
+  key(" ")
+  assert.equal(made[0].hidden, true)
+})
+
+test("a new version of the tree forgets the previews it had", async () => {
+  const {hook, pushed, el} = previewHook([preview(), root([page(7)]), preview({title: "New"})])
+  hook.preview("page:7", null)
+  el.dataset.version = "2"
+  hook.updated()
+  hook.preview("page:7", null)
+  assert.equal(pushed.filter(p => p.event === "tree_preview").length, 2)
+})
+
+test("a page row has no browser tooltip; a folder row keeps one", () => {
+  const {rowsEl} = previewHook([])
+  const link = key => rowsEl.innerHTML.split(`data-key="${key}"`)[1].split("<a ")[1].split(">")[0]
+  assert.doesNotMatch(link("page:7"), /title=/)
+  assert.match(link("folder:1"), /title="F1"/)
 })

@@ -201,6 +201,39 @@ defmodule Slipdock.Wiki.Tree do
   end
 
   @doc """
+  What a preview of one page in the tree shows (#760): the page, with its
+  summary, tags, who changed it last and how many pages are under it, and
+  the start of its body (the first 2,000 characters) — or nil when it is
+  not on `board`, or these options (the tree's own) would not show it.
+  """
+  def preview(%Board{id: board_id}, page_id, opts \\ []) when is_integer(page_id) do
+    from(p in Page,
+      as: :page,
+      where: p.id == ^page_id and p.board_id == ^board_id,
+      left_join: u in assoc(p, :updated_by),
+      select: %{
+        page: struct(p, ^[:summary, :note_tags | @page_fields]),
+        body: fragment("substr(?, 1, 2000)", p.body),
+        updated_by: u
+      }
+    )
+    |> where(^visible(opts, :page))
+    |> Repo.one()
+    |> case do
+      nil ->
+        nil
+
+      found ->
+        children =
+          from(p in Page, as: :page, where: p.parent_id == ^page_id)
+          |> where(^visible(opts, :page))
+          |> Repo.aggregate(:count)
+
+        Map.put(found, :children, children)
+    end
+  end
+
+  @doc """
   How many pages are shown on `board` under these options: what the count in
   the wiki's toolbar says.
   """

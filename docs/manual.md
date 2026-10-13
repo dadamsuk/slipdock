@@ -2143,9 +2143,18 @@ scrolls to it, so what you just went to is never hidden.
 **The keyboard.** Click a row and the tree takes the keyboard: the arrows walk
 it, right opens a folder and steps into it, left shuts it or goes up to the
 folder it is in, Enter opens the row, F2 renames it, Delete archives a page or
-deletes a folder (both ask first), and typing a few letters jumps to the next
-row that starts with them. The page-wide shortcuts stand down while it has
-the keyboard.
+deletes a folder (both ask first), Space shows the highlighted page's
+preview (and Space again puts it away), and typing a few letters jumps to the
+next row that starts with them. The page-wide shortcuts stand down while it
+has the keyboard.
+
+**A page's preview.** Rest the mouse on a page in the tree for a moment and a
+card beside the tree shows what is in it without opening it: its summary, the
+start of its text (headings kept, code and embedded files left out, encrypted
+text a 🔒), its tags, how many pages are under it, which board it is on when
+that is another board of the vault, and who changed it last and when. Moving
+off the page puts it away. A touch screen has no hover, so there a tap opens
+the page as before.
 
 **Wider, narrower, or out of the way.** On a wide screen the « at the left of
 the wiki's bar folds the tree away, and » brings it back. Drag the tree's right
