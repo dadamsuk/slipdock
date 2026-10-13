@@ -238,6 +238,23 @@ test("which tree it is is the server's to say, not a switch the browser remember
   assert.deepEqual(pushed[1].payload, {scope: "vault", keys: ["board:6"], only: true})
 })
 
+test("drawing the same rows again leaves the DOM alone; a change redraws", () => {
+  const same = root([folder(1), page(2)])
+  const {hook, rowsEl} = mountHook({replies: [same, same, root([folder(1), page(3)])]})
+  let writes = 0
+  let value = ""
+  Object.defineProperty(rowsEl, "innerHTML", {get: () => value, set: v => { writes++; value = v }})
+  hook.mounted()
+  assert.equal(writes, 1)
+  // An update of the page, and a reload that brings the same rows back.
+  hook.updated()
+  hook.load({})
+  assert.equal(writes, 1)
+  hook.load({})
+  assert.equal(writes, 2)
+  assert.match(value, /data-key="page:3"/)
+})
+
 test("a first visit to a small wiki opens every folder, and remembers it", () => {
   const all = {...root([folder(1)]), nodes: {root: [folder(1)], "folder:1": [page(2)]}}
   const {hook, pushed} = mountHook({replies: [{...root([folder(1)]), small: true, open: null}, all]})
