@@ -30,7 +30,7 @@ import {ModalDialog} from "./modal_dialog"
 import {installPosthog} from "./posthog"
 import {Replay} from "./replay"
 import {WikiTree} from "./wiki_tree"
-import {WikiTreeCollapse, WikiTreeResize, WikiTreeView} from "./wiki_pane"
+import {WikiTreeCollapse, WikiTreeResize, WikiTreeView, WikiWidthToggle} from "./wiki_pane"
 import {installMeld} from "./meld_view"
 import {MeldEditor} from "./meld_editor"
 import {ExcalidrawEditor} from "./excalidraw_editor"
@@ -1262,6 +1262,7 @@ Hooks.WikiTree = WikiTree
 Hooks.WikiTreeCollapse = WikiTreeCollapse
 Hooks.WikiTreeResize = WikiTreeResize
 Hooks.WikiTreeView = WikiTreeView
+Hooks.WikiWidthToggle = WikiWidthToggle
 Hooks.MeldEditor = MeldEditor
 
 // The folder picker (see `SlipdockWeb.FolderPicker`): a tree of folders you can

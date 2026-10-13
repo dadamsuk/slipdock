@@ -69,4 +69,52 @@ defmodule SlipdockWeb.WikiTreePaneLiveTest do
     # --wiki-tree-width on <html>, which the patches cannot undo.
     refute has_element?(view, "#wiki-tree[style]")
   end
+
+  # #748: the page read in a column or across the whole width.
+  describe "the page width toggle" do
+    test "is on wide screens only, worked by its hook, with the column it widens", %{
+      conn: conn,
+      board: board,
+      page: page
+    } do
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}")
+
+      assert has_element?(
+               view,
+               "#wiki-width-toggle-keep.hidden.lg\\:inline-flex[phx-update='ignore'] " <>
+                 "#wiki-width-toggle[phx-hook='WikiWidthToggle']" <>
+                 "[aria-controls='wiki-column'][aria-pressed='false']"
+             )
+
+      # The width is the browser's business, never a round trip.
+      refute has_element?(view, "#wiki-width-toggle[phx-click]")
+      # The column keeps its reading measure in the markup; the full width
+      # comes from data-wiki-width on <html>, which the patches cannot undo.
+      assert has_element?(view, "#wiki-main #wiki-column.max-w-4xl")
+    end
+
+    test "is there on the wiki's index and survives moving between pages", %{
+      conn: conn,
+      board: board,
+      page: page
+    } do
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/wiki")
+      assert has_element?(view, "#wiki-width-toggle")
+
+      render_patch(view, ~p"/boards/#{board}/wiki/#{page.slug}")
+      assert has_element?(view, "#wiki-width-toggle")
+      assert has_element?(view, "#wiki-column.max-w-4xl")
+    end
+
+    test "is not offered while writing, which takes the whole width anyway", %{
+      conn: conn,
+      board: board,
+      page: page
+    } do
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}/edit")
+
+      refute has_element?(view, "#wiki-width-toggle")
+      assert has_element?(view, "#wiki-column.max-w-none")
+    end
+  end
 end
