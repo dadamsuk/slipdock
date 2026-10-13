@@ -212,7 +212,7 @@ defmodule SlipdockWeb.WikiTreeOrganiseLiveTest do
     assert render_hook(view, "set_tree_sort", %{"key" => "root", "sort" => "random"}) =~ "sort by"
   end
 
-  test "New drawing makes an Excalidraw note in the folder and opens it", %{
+  test "New drawing makes an Excalidraw note in the folder and opens it in the editor", %{
     conn: conn,
     kb: kb,
     specs: specs
@@ -225,7 +225,10 @@ defmodule SlipdockWeb.WikiTreeOrganiseLiveTest do
     assert drawing.file_name == drawing.title <> ".excalidraw"
     assert drawing.front_matter =~ "excalidraw-plugin: parsed"
     assert drawing.body =~ ~s("type":"excalidraw")
-    assert_patch(view, ~p"/boards/#{kb}/wiki/#{drawing.slug}")
+    assert_redirect(view, ~p"/drawings/page/#{drawing.id}")
+    # Which the plugin's reader, and so Slipdock's, takes for an empty drawing.
+    assert {:ok, %{scene: %{"elements" => []}, format: :json}} =
+             Slipdock.Wiki.Excalidraw.parse_markdown(drawing.body)
   end
 
   describe "folders are only acted on where the reader can write" do

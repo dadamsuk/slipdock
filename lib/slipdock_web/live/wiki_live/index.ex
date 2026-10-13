@@ -1505,13 +1505,8 @@ defmodule SlipdockWeb.WikiLive.Index do
              user: socket.assigns.current_user,
              via: "web"
            ) do
-      path = ~p"/boards/#{board}/wiki/#{page.slug}"
-
-      {:noreply,
-       if(board.id == socket.assigns.board.id,
-         do: socket |> load_tree() |> push_patch(to: path),
-         else: push_navigate(socket, to: path)
-       )}
+      # Straight into the editor: an empty drawing is there to be drawn on.
+      {:noreply, push_navigate(socket, to: ~p"/drawings/page/#{page.id}")}
     else
       _ -> {:noreply, put_flash(socket, :error, "A drawing couldn't be made there.")}
     end
@@ -1881,8 +1876,14 @@ defmodule SlipdockWeb.WikiLive.Index do
 
   defp row_href(%{kind: "file"} = row, _key) do
     url = Slipdock.Wiki.Files.url(%Slipdock.Wiki.WikiFile{id: row.id, name: row.title})
-    # A whole note Meld encrypted opens where the browser can decrypt it.
-    if Slipdock.Wiki.Meld.note_file?(row.title), do: url <> "?view=locked", else: url
+
+    cond do
+      # A whole note Meld encrypted opens where the browser can decrypt it.
+      Slipdock.Wiki.Meld.note_file?(row.title) -> url <> "?view=locked"
+      # A drawing opens in the Excalidraw editor.
+      Slipdock.Wiki.Excalidraw.name?(row.title) -> ~p"/drawings/file/#{row.id}"
+      true -> url
+    end
   end
 
   defp row_href(%{kind: "dir"}, _key), do: nil
@@ -3573,12 +3574,24 @@ defmodule SlipdockWeb.WikiLive.Index do
         </div>
         <div class="flex shrink-0 items-center gap-1">
           <span class="chip chip-line font-mono text-2xs" title="Page code">{@page.code}</span>
+          <%!-- A drawing opens in the Excalidraw editor (W-103 R5.2); its
+                Markdown is still there under Edit, for the rare fix by hand. --%>
+          <.link
+            :if={Slipdock.Wiki.Excalidraw.page?(@page)}
+            id="open-drawing"
+            navigate={~p"/drawings/page/#{@page.id}"}
+            class="btn btn-primary btn-sm gap-1.5"
+          >
+            <.icon name="hero-paint-brush" class="size-4" />
+            {if @can_write, do: "Edit drawing", else: "Open drawing"}
+          </.link>
           <.link
             :if={@can_write}
             patch={~p"/boards/#{@board}/wiki/#{@page.slug}/edit"}
             class="btn btn-sm gap-1.5"
           >
-            <.icon name="hero-pencil-square" class="size-4" /> Edit
+            <.icon name="hero-pencil-square" class="size-4" />
+            {if Slipdock.Wiki.Excalidraw.page?(@page), do: "Edit Markdown", else: "Edit"}
           </.link>
           <.link
             patch={~p"/boards/#{@board}/wiki/#{@page.slug}/history"}

@@ -61,7 +61,7 @@ defmodule SlipdockWeb.WikiExcalidrawWebTest do
       assert doc |> LazyHTML.query("a.wiki-drawing") |> LazyHTML.attribute("href") == [
                "/boards/#{board.id}/wiki/#{drawing.slug}",
                "/boards/#{board.id}/wiki/#{drawing.slug}",
-               Files.url(file)
+               "/drawings/file/#{file.id}"
              ]
 
       assert previews |> LazyHTML.attribute("alt") |> Enum.at(1) == "The plan"

@@ -394,9 +394,11 @@ defmodule Slipdock.Wiki.Excalidraw.SVG do
     ]
   end
 
-  # Excalidraw's font ids, as the nearest the reader will have.
+  # Excalidraw's font ids, as the nearest the reader will have. The
+  # hand-drawn ones end in sans-serif, not `cursive`, which is a script face
+  # on some systems and a serif on others.
   defp font(family) when family in [1, 5, 8],
-    do: "Excalifont, Virgil, 'Comic Sans MS', 'Segoe Print', cursive"
+    do: "Excalifont, Virgil, 'Comic Sans MS', 'Comic Neue', 'Segoe Print', sans-serif"
 
   defp font(3), do: "'Cascadia Code', Consolas, Menlo, monospace"
   defp font(7), do: "'Lilita One', Impact, sans-serif"

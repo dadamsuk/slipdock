@@ -1917,8 +1917,11 @@ defmodule SlipdockWeb.APIGuide do
     import as they are. In the web app `![[Plan.excalidraw]]` (or
     `.excalidraw.md`) is drawn as a preview, served as SVG from
     `/wiki-drawings/page/:id` or `/wiki-drawings/file/:id` to readers of the
-    board. Edit a drawing page's body only if you mean to rewrite the plugin's
-    Markdown; the scene is lz-string compressed.
+    board. People edit drawings in the Excalidraw editor at
+    `/drawings/page/:id` or `/drawings/file/:id`, which saves in the format
+    the drawing came in. Edit a drawing page's body through the API only if
+    you mean to rewrite the plugin's Markdown; the scene is lz-string
+    compressed, and a body that no longer holds one shows as Markdown.
 
     ### Encrypted notes (Meld Encrypt)
 

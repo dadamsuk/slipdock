@@ -839,7 +839,7 @@ defmodule SlipdockWeb.Wiki.Renderer do
   defp drawing_html(_ref, _context), do: nil
 
   defp drawing_href({:page, page}), do: page_path(page)
-  defp drawing_href({:file, file}), do: Slipdock.Wiki.Files.url(file)
+  defp drawing_href({:file, file}), do: "/drawings/file/#{file.id}"
 
   # `![[diagram.png]]`: a file in the wiki (W-103 R2.9), drawn in place when
   # it is an image the browser may show, linked when it is anything else, and

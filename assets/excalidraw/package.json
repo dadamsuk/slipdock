@@ -1,0 +1,13 @@
+{
+  "name": "slipdock-excalidraw",
+  "private": true,
+  "description": "The Excalidraw editor, built once into priv/static/vendor/excalidraw by build.sh and committed, so the app's own build needs no Node.",
+  "dependencies": {
+    "@excalidraw/excalidraw": "0.18.1",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.4"
+  }
+}
