@@ -987,7 +987,36 @@ defmodule SlipdockWeb.API.PageController do
     end
   end
 
-  @doc "Renames a folder, moves it under another, or reorders it."
+  @doc """
+  Renames a folder, moves it under another, or reorders it.
+
+  With `to_board`, moves it — its subfolders, every page at home in them and
+  their files — to another board you can write to (`Slipdock.Wiki.FolderMove`):
+  under `parent` there (a folder on that board; default its top), or with
+  `contents: true` only what is in it, the emptied folder deleted. `dry_run`
+  reports what would move and what can't be carried, and moves nothing.
+  """
+  def update_folder(conn, %{"id" => _id, "to_board" => board_ref} = params)
+      when board_ref not in [nil, ""] do
+    user = conn.assigns.current_user
+
+    with {:ok, folder, _board} <- fetch_folder(conn, params, :write),
+         {:ok, target} <- Authorize.fetch_board(conn, board_ref, :write),
+         {:ok, parent} <- move_folder_param(target, params["parent"]) do
+      opts = [parent: parent, contents: truthy?(params["contents"]), via: via(conn)]
+
+      if truthy?(params["dry_run"]) do
+        with {:ok, report} <- Wiki.FolderMove.preview(folder, target, user, opts),
+             do: json(conn, %{dry_run: true, board: target.code, report: report})
+      else
+        with {:ok, %{folder: moved, report: report}} <-
+               Wiki.FolderMove.to_board(folder, target, user, opts),
+             do:
+               json(conn, %{folder: moved && V.folder(moved), board: target.code, report: report})
+      end
+    end
+  end
+
   def update_folder(conn, %{"id" => _id} = params) do
     with {:ok, folder, board} <- fetch_folder(conn, params, :write),
          {:ok, attrs} <- folder_attrs(board, params),

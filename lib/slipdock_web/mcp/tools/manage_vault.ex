@@ -11,7 +11,7 @@ defmodule SlipdockWeb.MCP.Tools.ManageVault do
   alias SlipdockWeb.API.JSON, as: V
   alias SlipdockWeb.MCP.Args
 
-  @actions ~w(create rename delete map unmap)
+  @actions ~w(create rename delete map unmap move_folder)
 
   @impl true
   def name, do: "manage_vault"
@@ -26,7 +26,10 @@ defmodule SlipdockWeb.MCP.Tools.ManageVault do
         "pages are kept), map a vault path to a board's wiki or one of its folders " <>
         "(vault, path, board, folder) or unmap one (vault, path). A board belongs to one vault. " <>
         "dry_run: true with map or unmap says which pages it brings in, takes over or takes " <>
-        "out, and changes nothing."
+        "out, and changes nothing. move_folder moves a folder (board, folder) with its subfolders, " <>
+        "pages and files to another board you can write to (to_board, optional parent folder " <>
+        "there; contents: true moves only what is in it): pages keep codes and history; " <>
+        "dry_run reports what moves and what can't be carried."
 
   @impl true
   def input_schema do
@@ -37,8 +40,24 @@ defmodule SlipdockWeb.MCP.Tools.ManageVault do
         vault: %{type: "string", description: "Vault id or name."},
         name: %{type: "string", description: "The vault's (new) name."},
         path: %{type: "string", description: "Vault path, e.g. / or /Jobs."},
-        board: %{type: "string", description: "Board id, code or name (map)."},
-        folder: %{type: "string", description: "A folder on that board (map); default its root."},
+        board: %{
+          type: "string",
+          description: "Board id, code or name (map; move_folder: the folder's board)."
+        },
+        folder: %{
+          type: "string",
+          description:
+            "A folder on that board (map: default its root; move_folder: the one to move)."
+        },
+        to_board: %{type: "string", description: "move_folder: the board it goes to."},
+        parent: %{
+          type: "string",
+          description: "move_folder: a folder on to_board to put it in; default its top."
+        },
+        contents: %{
+          type: "boolean",
+          description: "move_folder: move what is in the folder, not the folder itself."
+        },
         confirm: %{type: "boolean", description: "Must be true to delete a vault."},
         dry_run: %{
           type: "boolean",
@@ -126,6 +145,35 @@ defmodule SlipdockWeb.MCP.Tools.ManageVault do
         with {:ok, _} <- Args.refusal(Vaults.remove_mapping(vault, path)),
              {:ok, vault} <- Args.refusal(Vaults.get_vault(user, vault.id)),
              do: {:ok, %{vault: V.vault(vault)}}
+      end
+    end
+  end
+
+  # Not a vault's own change, but the one that makes a vault's layout
+  # possible: a folder of one board becoming another's (#745).
+  defp act("move_folder", args, user, context) do
+    auth = Args.auth(context)
+
+    with {:ok, board_ref} <- Args.required(args, "board"),
+         {:ok, folder_ref} <- Args.required(args, "folder"),
+         {:ok, to_ref} <- Args.required(args, "to_board"),
+         {:ok, parent_ref} <- Args.optional(args, "parent"),
+         {:ok, contents} <- Args.boolean(args, "contents", false),
+         {:ok, dry_run} <- Args.boolean(args, "dry_run", false),
+         {:ok, source} <- Args.refusal(Authorize.fetch_board(auth, board_ref, :write)),
+         {:ok, folder} <- Args.refusal(Wiki.find_folder(source, folder_ref)),
+         {:ok, target} <- Args.refusal(Authorize.fetch_board(auth, to_ref, :write)),
+         {:ok, parent} <- folder(target, parent_ref) do
+      opts = [parent: parent, contents: contents]
+
+      if dry_run do
+        with {:ok, report} <-
+               Args.refusal(Wiki.FolderMove.preview(folder, target, user, opts)),
+             do: {:ok, %{dry_run: true, board: target.code, report: report}}
+      else
+        with {:ok, %{folder: moved, report: report}} <-
+               Args.refusal(Wiki.FolderMove.to_board(folder, target, user, opts)),
+             do: {:ok, %{folder: moved && V.folder(moved), board: target.code, report: report}}
       end
     end
   end

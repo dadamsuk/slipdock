@@ -423,6 +423,7 @@ slipdock folder ls <board>                    # one board's filing, pages and al
 slipdock folder open <board> [<folder>]       # one level of it, with counts (big wikis)
 slipdock folder new <board> "Design/Decisions"    # a path makes every level
 slipdock folder mv <board> <folder> [--name N] [--parent F | --root]
+slipdock folder mv <board> <folder> --board B [--parent F] [--contents] [--dry-run]   # to another board, pages and all
 slipdock folder rm <board> <folder>           # the folder only: nothing filed in it is deleted
 slipdock page file <page> --folder F | --no-folder
 slipdock page file <page> --also F | --not-in F [--board B]   # also filed in more folders
@@ -439,7 +440,8 @@ slipdock vault locate <vault> <path> | slipdock vault rename <vault> <name...> |
 `vault ls` also shows how many pages each mapping holds and the folders the vault is synced to
 (each sync token's label and last sync); `--dry-run` on map/unmap previews which pages join,
 move or leave the vault before changing it. A mapping over pages another mapped board already
-has at those paths is refused with the count: move those pages to that board first. People do the same on the web app's Vaults screen
+has at those paths is refused with the count: move those pages to that board first
+(`folder mv <board> <folder> --board B --contents`). People do the same on the web app's Vaults screen
 (`/vaults`, avatar menu › Vaults).
 
 `slipdock sync` mirrors a vault both ways to a local folder that stays a valid Obsidian vault

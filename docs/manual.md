@@ -2225,9 +2225,29 @@ links and its other folders, and the pages under it go with it. Tags and
 custom field values go where the other board has one of the same name (or
 key), and pinned cards stay pinned where the card is in that board's tree.
 Whatever has no match is listed and stays behind, as do its place in a list,
-an assignee who can't open that board, and its parent page. Folders move
-within their own board only. On a shell, `slipdock page mv <page> --board B
-[--folder F] [--dry-run]`.
+an assignee who can't open that board, and its parent page. On a shell,
+`slipdock page mv <page> --board B [--folder F] [--dry-run]`.
+
+**Moving a folder to another board.** A folder moves to any board you can
+write to — in a vault or not — with its subfolders, every page at home in
+them (and the pages under those pages) and the files kept in them, in one go:
+`slipdock folder mv <board> <folder> --board B [--parent F] [--contents]
+[--dry-run]`. The folders keep their names and order, under `--parent` on the
+other board or at its top; with `--contents` only what is *in* the folder
+moves, landing straight there, and the emptied folder goes. Each page keeps
+its code, history, comments, checklist and links, and carries its tags,
+field values, pins and assignee the way a single page does. `--dry-run`
+reports it all first, folder by folder: how many pages, what can't be
+carried, any page that stays behind (one filed there under a parent page
+that isn't moving), filing in other folders that can't follow across boards
+outside a vault, and pages landing beside one of the same title. It is
+refused, with nothing changed, when a folder of that name is already where
+it would land, when a vault maps onto a folder in it (take that mapping out
+first), or when you can't write to both boards; and it happens all at once
+or not at all. A synced vault sees each moved note as the same file at its
+new path, or — when the vault's mappings put it at the same path — no change
+at all. Over the API it is `PATCH /api/boards/:board/folders/:folder` with
+`to_board`; over MCP, `manage_vault` with `action: "move_folder"`.
 
 **Searching the tree** matches a page's title and summary *and* a folder's
 name, and hides everything that doesn't match. A folder that matches brings
@@ -3919,7 +3939,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `write_page` | The wiki: `create` a page, `append` or `append_section` to one, or `replace_section` and `replace`, which need the `content_hash` from `read_page` so nobody's edit is overwritten. |
 | `update_page` | Everything about a page but its body: `title`, `summary`, `parent` (`""` for the top) and `position` among its siblings, `folder` (made if new; `""` unfiles), `archived` (`false` restores it, children too), and `pin_card` / `unpin_card` to mark it *the* page for a card you can read. Only what is passed changes. Purging a page for good stays on the CLI. |
 | `revert_page` | Puts a page back to a revision from `page_history`. The revert is a new revision, so nothing leaves the history and it can itself be undone; it needs `base_hash`, the page's current `content_hash`, so a newer edit is not lost to it unseen. |
-| `manage_vault` | Changes a [vault](#vaults), by `action`: `create` (`name`), `rename` (`vault`, `name`), `delete` (`vault`, `confirm: true`; the pages stay on their boards), `map` (`vault`, `path`, `board` and optionally `folder`) and `unmap` (`vault`, `path`). |
+| `manage_vault` | Changes a [vault](#vaults), by `action`: `create` (`name`), `rename` (`vault`, `name`), `delete` (`vault`, `confirm: true`; the pages stay on their boards), `map` (`vault`, `path`, `board` and optionally `folder`) and `unmap` (`vault`, `path`), either with `dry_run` to preview which pages join, move or leave; and `move_folder` (`board`, `folder`, `to_board`, optionally `parent`, `contents`, `dry_run`), a folder with everything in it to another board. |
 | `claim_job` | Takes the oldest [runner job](#runners) queued for a pool on a board, with a lease: the card, its link, the job's kind and prompt. Answers `nothing queued` when there is none, so an idle check costs little. The session shows in the board's runner list. |
 | `job_progress` | Renews a claimed job's lease; `note`, if given, is also a comment on the card. Answers `ok`, or `cancel` when somebody has stopped the job. |
 | `finish_job` | Ends a claimed job: `outcome` done, failed, cancelled or timeout, and a `summary` kept on the job. Only the token that claimed it may. |

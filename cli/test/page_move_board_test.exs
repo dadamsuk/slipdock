@@ -78,4 +78,44 @@ defmodule SlipdockCLI.PageMoveBoardTest do
     assert path =~ "/boards/kb/folders/Specs"
     assert body =~ ~s("sort":"name")
   end
+
+  test "folder mv --board --contents --dry-run sends to_board and prints the report" do
+    report =
+      ~s({"dry_run":true,"board":"hunt","report":{"into":"Job Hunt","folders":2,"pages":201,"files":3,
+        "per_folder":[{"path":"Jobs","pages":180},{"path":"Jobs/Acme","pages":21},{"path":"Jobs/Empty","pages":0}],
+        "tags":{"carried":["ops"],"dropped":["kb"]},"fields":{"carried":[],"dropped":[]},
+        "pins":{"carried":[],"dropped":[]},"assignees":{"carried":[],"dropped":["Sam"]},
+        "left_behind":["Odd one"],"filing_dropped":2,"title_clashes":["Readme"]}})
+
+    {method, path, body, out} =
+      run("folder", ["mv", "kb", "Jobs"], [board: "hunt", contents: true, dry_run: true], report)
+
+    assert method == "PATCH"
+    assert path =~ "/boards/kb/folders/Jobs"
+    assert body =~ ~s("to_board":"hunt")
+    assert body =~ ~s("contents":true)
+    assert body =~ ~s("dry_run":true)
+    assert out =~ "moving Jobs to hunt would move:"
+    assert out =~ "2 folder(s), 201 page(s), 3 file(s)"
+    assert out =~ "Jobs/Acme: 21"
+    refute out =~ "Jobs/Empty"
+    assert out =~ "drop tags: kb"
+    assert out =~ "let go of assignees: Sam"
+    assert out =~ "leave behind (under a page that stays): Odd one"
+    assert out =~ "land beside pages of the same title: Readme"
+    assert out =~ "take away 2 filing(s)"
+  end
+
+  test "folder mv without --board still moves within the board" do
+    {method, _path, body, _out} =
+      run(
+        "folder",
+        ["mv", "kb", "Jobs"],
+        [root: true],
+        ~s({"folder":{"id":1,"name":"Jobs","path":"Jobs"}})
+      )
+
+    assert method == "PATCH"
+    refute body =~ "to_board"
+  end
 end

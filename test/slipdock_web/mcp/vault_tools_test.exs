@@ -179,4 +179,44 @@ defmodule SlipdockWeb.MCP.VaultToolsTest do
              })
            ) =~ "mapping"
   end
+
+  test "move_folder: a dry run, then the move, then a refusal", %{conn: conn} do
+    jobs = Slipdock.Repo.get_by!(Slipdock.Boards.Board, code: "jobs")
+
+    dry =
+      ok!(
+        call(conn, "manage_vault", %{
+          action: "move_folder",
+          board: "jobs",
+          folder: "Notes",
+          to_board: "kb",
+          dry_run: true
+        })
+      )
+
+    assert dry["dry_run"] == true
+    assert dry["report"]["folders"] == 1
+
+    moved =
+      ok!(
+        call(conn, "manage_vault", %{
+          action: "move_folder",
+          board: "jobs",
+          folder: "Notes",
+          to_board: "kb"
+        })
+      )
+
+    assert moved["folder"]["name"] == "Notes"
+    refute moved["folder"]["board_id"] == jobs.id
+
+    assert error!(
+             call(conn, "manage_vault", %{
+               action: "move_folder",
+               board: "kb",
+               folder: "Notes",
+               to_board: "kb"
+             })
+           ) =~ "on that board already"
+  end
 end

@@ -20,7 +20,8 @@ defmodule Slipdock.Wiki.Move do
     * its parent page, which stays behind: the page lands at the top.
 
   `preview/3` says all of that before anything moves, and `to_board/5` does
-  it in one transaction. Folders move within their own board only.
+  it in one transaction. A whole folder moves with `Slipdock.Wiki.FolderMove`,
+  which carries its pages across the same way.
   """
 
   import Ecto.Query, warn: false
@@ -159,9 +160,10 @@ defmodule Slipdock.Wiki.Move do
 
   defp writer?(user, board), do: Access.can_write?(Access.board_permission(user, board))
 
-  defp reader?(nil, _board), do: false
+  @doc false
+  def reader?(nil, _board), do: false
 
-  defp reader?(user_id, board) do
+  def reader?(user_id, board) do
     case Repo.get(User, user_id) do
       nil -> false
       user -> Access.can_read?(Access.board_permission(user, board))
@@ -171,7 +173,8 @@ defmodule Slipdock.Wiki.Move do
   ## What is carried ------------------------------------------------------------
 
   # The pages' tags, matched by name (case aside) to the target's.
-  defp tag_plan(ids, target) do
+  @doc false
+  def tag_plan(ids, target) do
     tags =
       from(t in Tag,
         join: pt in "page_tags",
@@ -195,7 +198,8 @@ defmodule Slipdock.Wiki.Move do
      }, map}
   end
 
-  defp retag(ids, map) do
+  @doc false
+  def retag(ids, map) do
     rows =
       from(pt in "page_tags", where: pt.page_id in ^ids, select: {pt.page_id, pt.tag_id})
       |> Repo.all()
@@ -212,7 +216,8 @@ defmodule Slipdock.Wiki.Move do
   end
 
   # Custom field values, matched by the field's key.
-  defp field_plan(ids, target) do
+  @doc false
+  def field_plan(ids, target) do
     fields =
       from(f in FieldDefinition,
         join: v in FieldValue,
@@ -240,7 +245,8 @@ defmodule Slipdock.Wiki.Move do
      }, map}
   end
 
-  defp refield(ids, map) do
+  @doc false
+  def refield(ids, map) do
     Enum.each(map, fn
       {from, %FieldDefinition{id: to}} ->
         Repo.update_all(from(v in FieldValue, where: v.page_id in ^ids and v.field_id == ^from),
@@ -253,7 +259,8 @@ defmodule Slipdock.Wiki.Move do
   end
 
   # Cards the pages are pinned to: kept when the card is in the target's tree.
-  defp pin_plan(ids, target) do
+  @doc false
+  def pin_plan(ids, target) do
     root = Board.root_id(target)
 
     pins =
@@ -275,8 +282,9 @@ defmodule Slipdock.Wiki.Move do
     }
   end
 
-  defp unpin([]), do: :ok
-  defp unpin(ids), do: Repo.update_all(from(l in Link, where: l.id in ^ids), set: [pinned: false])
+  @doc false
+  def unpin([]), do: :ok
+  def unpin(ids), do: Repo.update_all(from(l in Link, where: l.id in ^ids), set: [pinned: false])
 
   defp assignee_plan(%Page{assignee_id: nil}, _target), do: %{carried: nil, dropped: nil}
 
@@ -295,7 +303,8 @@ defmodule Slipdock.Wiki.Move do
 
   # A slug taken on the target gets the page's code on the end, which no
   # other page has.
-  defp free_slug(%Page{} = page, target) do
+  @doc false
+  def free_slug(%Page{} = page, target) do
     taken? =
       Repo.exists?(from(p in Page, where: p.board_id == ^target.id and p.slug == ^page.slug))
 

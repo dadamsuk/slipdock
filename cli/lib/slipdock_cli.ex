@@ -291,6 +291,12 @@ defmodule SlipdockCLI do
     folder mv <board> <folder> [--name N] [--parent F | --root] [--position N]
                                         [--sort manual|name|modified|created]  how the
                                         tree orders the pages in it
+    folder mv <board> <folder> --board B [--parent F] [--contents] [--dry-run]
+                                        to another board you can write to, with its
+                                        subfolders, every page in them and their files;
+                                        pages keep codes and history. --contents moves
+                                        only what is in it (the folder itself goes).
+                                        --dry-run: what would move and what can't
     folder rm <board> <folder> [--purge]
                                         delete the folder only: its subfolders move up and
                                         its pages go back to the root. --purge deletes the
@@ -718,6 +724,7 @@ defmodule SlipdockCLI do
     purge: :boolean,
     force: :boolean,
     dry_run: :boolean,
+    contents: :boolean,
     append: :string,
     card: :string,
     page: :string,

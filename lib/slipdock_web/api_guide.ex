@@ -1763,6 +1763,10 @@ defmodule SlipdockWeb.APIGuide do
          B/api/pages/W-31/move -d '{"board": "jobs", "folder": "Acme", "dry_run": true}'
     curl -s -X PATCH -H "$H" -H 'content-type: application/json' \\
          "B/api/boards/1/folders/Design" -d '{"sort": "name"}'   # manual, name, modified, created
+    # a whole folder to another board you can write to: subfolders, pages (codes and history kept)
+    # and files; "parent" a folder there, "contents": true moves only what is in it, dry_run reports
+    curl -s -X PATCH -H "$H" -H 'content-type: application/json' \\
+         "B/api/boards/1/folders/Jobs" -d '{"to_board": "jobs", "dry_run": true}'
 
     curl -s -X POST -H "$H" -H 'content-type: application/json' \\
          B/api/boards/1/folders -d '{"name": "Design/Decisions"}'   # makes both
