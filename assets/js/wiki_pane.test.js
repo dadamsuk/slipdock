@@ -5,6 +5,7 @@ import assert from "node:assert/strict"
 import {
   clampWidth, restorePane, setCollapsed, setWidth, resetWidth, savedWidth,
   WikiTreeCollapse, WikiTreeResize, WikiTreeView, VIEW_KEY,
+  WikiWidthToggle, setFullWidth, isFullWidth, FULL_WIDTH_KEY,
   WIDTH_KEY, COLLAPSED_KEY, DEFAULT_WIDTH, MIN_WIDTH, MAX_WIDTH, STEP,
 } from "./wiki_pane.js"
 
@@ -233,4 +234,59 @@ test("the server's word on the view is what is kept, and the tree is kept as not
   assert.equal(store.items[VIEW_KEY], undefined)
   // A storage that throws loses the choice, not the page.
   viewHook(brokenStorage).handlers["wiki-tree:view"]({view: "recent"})
+})
+
+// #748: the page in a column, or across the whole width.
+test("restorePane puts back a saved full width, and only that", () => {
+  const root = element()
+  restorePane(root, storage({[FULL_WIDTH_KEY]: "1"}))
+  assert.equal(root.attrs["data-wiki-width"], "full")
+
+  for (const store of [storage({[FULL_WIDTH_KEY]: "yes"}), storage(), brokenStorage]) {
+    const plain = element()
+    restorePane(plain, store)
+    assert.equal(plain.getAttribute("data-wiki-width"), null)
+  }
+})
+
+test("setting full width writes through to storage, and a broken one still works", () => {
+  const root = element()
+  const store = storage()
+  setFullWidth(root, store, true)
+  assert.equal(isFullWidth(root), true)
+  assert.equal(store.items[FULL_WIDTH_KEY], "1")
+  setFullWidth(root, store, false)
+  assert.equal(isFullWidth(root), false)
+  assert.equal(store.items[FULL_WIDTH_KEY], undefined)
+
+  const other = element()
+  assert.equal(setFullWidth(other, brokenStorage, true), true)
+  assert.equal(other.attrs["data-wiki-width"], "full")
+})
+
+test("the width button widens the page and back, saying which on itself", () => {
+  const hook = mount(WikiWidthToggle)
+  assert.equal(hook.el.attrs["aria-pressed"], "false")
+  assert.equal(hook.el.attrs.title, "Read across the full width")
+
+  hook.el.fire("click")
+  assert.equal(hook.root.attrs["data-wiki-width"], "full")
+  assert.equal(hook.el.attrs["aria-pressed"], "true")
+  assert.equal(hook.el.attrs.title, "Read in a column")
+  assert.equal(hook.storage.items[FULL_WIDTH_KEY], "1")
+
+  hook.el.fire("click")
+  assert.equal(hook.root.getAttribute("data-wiki-width"), null)
+  assert.equal(hook.el.attrs["aria-pressed"], "false")
+  assert.equal(hook.storage.items[FULL_WIDTH_KEY], undefined)
+
+  hook.destroyed()
+  assert.equal(hook.el.listeners.click, undefined)
+})
+
+test("the width button mounts showing a full width restored before it", () => {
+  const root = element()
+  root.setAttribute("data-wiki-width", "full")
+  const hook = mount(WikiWidthToggle, {root})
+  assert.equal(hook.el.attrs["aria-pressed"], "true")
 })

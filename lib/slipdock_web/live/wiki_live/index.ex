@@ -2982,6 +2982,36 @@ defmodule SlipdockWeb.WikiLive.Index do
               <span class="sr-only">Page tree</span>
             </button>
           </span>
+          <%!-- The page in a column, or across the whole width (#748). The
+                WikiWidthToggle hook keeps the choice in this browser and
+                puts it on <html> (see `#wiki-column` in app.css); writing
+                takes the whole width either way. --%>
+          <span
+            :if={@live_action not in [:new, :edit]}
+            id="wiki-width-toggle-keep"
+            phx-update="ignore"
+            class="hidden lg:inline-flex"
+          >
+            <button
+              id="wiki-width-toggle"
+              type="button"
+              phx-hook="WikiWidthToggle"
+              class="group btn btn-ghost btn-sm btn-square"
+              aria-controls="wiki-column"
+              aria-pressed="false"
+              title="Read across the full width"
+            >
+              <.icon
+                name="hero-arrows-pointing-out"
+                class="size-4 group-aria-pressed:hidden"
+              />
+              <.icon
+                name="hero-arrows-pointing-in"
+                class="size-4 hidden group-aria-pressed:inline-block"
+              />
+              <span class="sr-only">Page width</span>
+            </button>
+          </span>
           <.view_tabs
             board={@board}
             mode={:wiki}
@@ -3416,12 +3446,17 @@ defmodule SlipdockWeb.WikiLive.Index do
             data-page={"#{@live_action}:#{@page && @page.id}"}
             class="kanban-scroll relative min-w-0 flex-1 overflow-y-auto"
           >
-            <%!-- Reading keeps a comfortable measure; writing takes the whole
-                  width, source and preview side by side. --%>
-            <div class={[
-              "mx-auto px-4 py-6 sm:px-8 sm:py-8",
-              if(@live_action in [:new, :edit], do: "max-w-none", else: "max-w-4xl")
-            ]}>
+            <%!-- Reading keeps a comfortable measure, unless the reader asked
+                  for the full width (#748, `#wiki-column` in app.css);
+                  writing takes the whole width, source and preview side by
+                  side. --%>
+            <div
+              id="wiki-column"
+              class={[
+                "mx-auto px-4 py-6 sm:px-8 sm:py-8",
+                if(@live_action in [:new, :edit], do: "max-w-none", else: "max-w-4xl")
+              ]}
+            >
               <%= case @live_action do %>
                 <% :index when not is_nil(@folder) -> %>
                   <.folder_body

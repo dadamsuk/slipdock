@@ -528,6 +528,8 @@ body.tl-tray-dragging { cursor: grabbing; }
   #wiki-tree { width: var(--wiki-tree-width, 16rem); }
   html[data-wiki-tree="collapsed"] #wiki-tree,
   html[data-wiki-tree="collapsed"] #wiki-tree-resize { display: none; }
+  /* The page read across the whole width rather than in a column (#748). */
+  html[data-wiki-width="full"] #wiki-column { max-width: none; }
 }
 
 /* Wiki ---------------------------------------------------------------

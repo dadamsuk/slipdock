@@ -6,9 +6,13 @@
 // restores them before the first paint, so the pane never jumps.
 //
 // On a phone the tree is a drawer (`toggle_tree_drawer`), and neither applies.
+//
+// The page beside it is read in a column, or across the whole width
+// (#748): `data-wiki-width="full"` on <html>, kept the same way.
 
 export const WIDTH_KEY = "slipdock:wiki-tree-width"
 export const COLLAPSED_KEY = "slipdock:wiki-tree-collapsed"
+export const FULL_WIDTH_KEY = "slipdock:wiki-full-width"
 export const DEFAULT_WIDTH = 256
 export const MIN_WIDTH = 180
 export const MAX_WIDTH = 640
@@ -64,11 +68,23 @@ export function setCollapsed(root, storage, collapsed) {
   return collapsed
 }
 
+export function isFullWidth(root) {
+  return root.getAttribute("data-wiki-width") === "full"
+}
+
+export function setFullWidth(root, storage, full) {
+  if (full) root.setAttribute("data-wiki-width", "full")
+  else root.removeAttribute("data-wiki-width")
+  write(storage, FULL_WIDTH_KEY, full ? "1" : null)
+  return full
+}
+
 // What theme.js runs before the first paint.
 export function restorePane(root, storage) {
   const width = savedWidth(storage)
   if (width !== null) setWidth(root, storage, width, {save: false})
   if (read(storage, COLLAPSED_KEY) === "1") root.setAttribute("data-wiki-tree", "collapsed")
+  if (read(storage, FULL_WIDTH_KEY) === "1") root.setAttribute("data-wiki-width", "full")
 }
 
 function currentWidth(root) {
@@ -96,6 +112,29 @@ export const WikiTreeCollapse = {
     const open = !isCollapsed(this.root)
     this.el.setAttribute("aria-expanded", String(open))
     this.el.setAttribute("title", open ? "Hide the page tree" : "Show the page tree")
+  },
+}
+
+// The button that widens the page to the whole width and back to a column
+// (#748). Like the fold's, it sits in a `phx-update="ignore"` box.
+export const WikiWidthToggle = {
+  mounted() {
+    this.root = this.root || document.documentElement
+    this.storage = this.storage || localStorage
+    this.sync()
+    this.onClick = () => {
+      setFullWidth(this.root, this.storage, !isFullWidth(this.root))
+      this.sync()
+    }
+    this.el.addEventListener("click", this.onClick)
+  },
+  destroyed() {
+    this.el.removeEventListener("click", this.onClick)
+  },
+  sync() {
+    const full = isFullWidth(this.root)
+    this.el.setAttribute("aria-pressed", String(full))
+    this.el.setAttribute("title", full ? "Read in a column" : "Read across the full width")
   },
 }
 
