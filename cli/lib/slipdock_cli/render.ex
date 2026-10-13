@@ -28,6 +28,9 @@ defmodule SlipdockCLI.Render do
     # in them, so the everyday listing stays as narrow as it was.
     any_archived? = Enum.any?(boards, & &1["archived_at"])
     any_shared? = Enum.any?(boards, & &1["shared"])
+    # A board one of your vaults keeps inside it (#757), named on the vault's
+    # tile in the web app rather than among your boards.
+    any_inside? = Enum.any?(boards, & &1["inside_vault"])
 
     rows =
       Enum.map(boards, fn b ->
@@ -39,6 +42,10 @@ defmodule SlipdockCLI.Render do
         ] ++
           if(any_archived?, do: [if(b["archived_at"], do: "archived", else: "")], else: []) ++
           if(any_shared?, do: [if(b["shared"], do: owner_name(b), else: "")], else: []) ++
+          if(any_inside?,
+            do: [if(v = b["inside_vault"], do: "in #{v}", else: "")],
+            else: []
+          ) ++
           [
             "#{b["cards"]}",
             "#{b["completed"]}",
@@ -49,7 +56,8 @@ defmodule SlipdockCLI.Render do
     headers =
       ["ID", "CODE", "KEY", "NAME"] ++
         if(any_archived?, do: ["STATE"], else: []) ++
-        if(any_shared?, do: ["OWNER"], else: []) ++ ["CARDS", "DONE", "DESCRIPTION"]
+        if(any_shared?, do: ["OWNER"], else: []) ++
+        if(any_inside?, do: ["VAULT"], else: []) ++ ["CARDS", "DONE", "DESCRIPTION"]
 
     table(headers, rows)
   end

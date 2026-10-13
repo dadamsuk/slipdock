@@ -19,9 +19,27 @@ defmodule SlipdockWeb.API.VaultController do
     json(conn, %{vaults: conn |> user() |> Vaults.list_vaults() |> Enum.map(&V.vault/1)})
   end
 
+  @doc """
+  Makes a vault: `name`. With `with_board`, a board named after it comes
+  too, mapped at `/` and kept inside the vault (#757).
+  """
   def create(conn, params) do
-    with {:ok, vault} <- Vaults.create_vault(user(conn), Map.take(params, ["name"])) do
-      conn |> put_status(:created) |> json(%{vault: V.vault(vault)})
+    attrs = Map.take(params, ["name"])
+
+    result =
+      if truthy?(params["with_board"]),
+        do: Vaults.create_vault_with_board(user(conn), attrs),
+        else: Vaults.create_vault(user(conn), attrs)
+
+    case result do
+      {:ok, vault} ->
+        conn |> put_status(:created) |> json(%{vault: V.vault(vault)})
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        {:error, changeset}
+
+      {:error, reason} ->
+        {:error, :unprocessable_entity, "that vault couldn't be made: #{inspect(reason)}"}
     end
   end
 
@@ -81,7 +99,8 @@ defmodule SlipdockWeb.API.VaultController do
            Vaults.add_mapping(vault, user(conn), %{
              path: params["path"],
              board: board,
-             folder: folder
+             folder: folder,
+             inside: truthy?(params["inside"])
            }),
          {:ok, vault} <- Vaults.get_vault(user(conn), vault.id) do
       conn |> put_status(:created) |> json(%{vault: V.vault(vault)})
@@ -148,6 +167,31 @@ defmodule SlipdockWeb.API.VaultController do
       end
     end
   end
+
+  @doc """
+  Changes a mapping, by its id (`/mappings/12`) or its path (`?path=/`):
+  `inside` keeps a board mapped whole inside the vault, named on its tile
+  rather than among the owner's boards, or (false) lets it out (#757).
+  """
+  def update_mapping(conn, %{"id" => ref} = params) do
+    mapping = params["mapping"] || params["path"]
+
+    with {:ok, vault} <- Vaults.get_vault(user(conn), ref),
+         :ok <- present(mapping),
+         :ok <- given(params, "inside"),
+         {:ok, _} <- Vaults.set_inside(vault, mapping, truthy?(params["inside"])),
+         {:ok, vault} <- Vaults.get_vault(user(conn), vault.id) do
+      json(conn, %{vault: V.vault(vault)})
+    end
+  end
+
+  defp given(params, key) do
+    if Map.has_key?(params, key),
+      do: :ok,
+      else: {:error, :bad_request, "say what to change: inside (true or false)"}
+  end
+
+  defp truthy?(value), do: value in [true, "true", "1", "yes"]
 
   defp dry_run?(params), do: params["dry_run"] in [true, "true", "1"]
 

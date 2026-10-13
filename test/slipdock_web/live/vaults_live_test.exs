@@ -134,6 +134,41 @@ defmodule SlipdockWeb.VaultsLiveTest do
     refute render(view) =~ "Open in GMinds"
   end
 
+  test "a board mapped whole is kept inside the vault, and let out (#757)", ctx do
+    %{conn: conn, user: user, kb: kb} = ctx
+    {:ok, folder} = Wiki.create_folder(kb, %{"name" => "Jobs"})
+    {:ok, vault} = Vaults.create_vault(user, %{"name" => "GMinds"})
+    {:ok, root} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
+    {:ok, jobs} = Vaults.add_mapping(vault, user, %{path: "/Jobs", board: kb, folder: folder})
+
+    {:ok, view, _html} = live(conn, ~p"/vaults")
+    # Only a whole board can be: no toggle on a folder's mapping.
+    refute has_element?(view, "#inside-mapping-#{jobs.id}")
+    assert has_element?(view, "#inside-mapping-#{root.id}[aria-pressed='false']", "Keep inside")
+
+    html = view |> element("#inside-mapping-#{root.id}") |> render_click()
+    assert html =~ "KnowledgeBase is kept inside GMinds"
+    assert has_element?(view, "#inside-mapping-#{root.id}[aria-pressed='true']", "Inside")
+    assert Map.has_key?(Vaults.inside_boards(user), kb.id)
+
+    html = view |> element("#inside-mapping-#{root.id}") |> render_click()
+    assert html =~ "back among your boards"
+    assert Vaults.inside_boards(user) == %{}
+  end
+
+  test "makes a vault with a board to hold its pages", %{conn: conn, user: user} do
+    {:ok, view, _html} = live(conn, ~p"/vaults")
+
+    html =
+      view
+      |> form("form[phx-submit='create']", %{"name" => "Brain", "with_board" => "true"})
+      |> render_submit()
+
+    assert html =~ "with a board of the same name holding its pages"
+    {:ok, brain} = Vaults.get_vault(user, "Brain")
+    assert [%{inside: true, board: %{name: "Brain"}}] = brain.mappings
+  end
+
   describe "mappings" do
     setup %{user: user} do
       {:ok, vault} = Vaults.create_vault(user, %{"name" => "GMinds"})

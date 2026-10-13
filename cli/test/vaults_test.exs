@@ -56,6 +56,37 @@ defmodule SlipdockCLI.VaultsTest do
     assert out =~ "made Notes"
   end
 
+  test "new --with-board asks for a board to hold its pages (#757)" do
+    {"POST", _path, body, _out} = run(["new", "Brain"], with_board: true)
+    assert body =~ ~s("with_board":true)
+
+    {"POST", _path, body, _out} = run(["new", "Brain"])
+    refute body =~ "with_board"
+  end
+
+  test "map --inside keeps the board inside the vault" do
+    {"POST", _path, body, _out} = run(["map", "Notes", "/"], board: "kb", inside: true)
+    assert body =~ ~s("inside":true)
+  end
+
+  test "inside keeps a mapped board inside, --off lets it out, and ls says which" do
+    inside =
+      ~s({"vault":{"id":3,"name":"Notes","mappings":[
+        {"id":1,"path":"/","board":{"id":1,"code":"kb","name":"KnowledgeBase"},"folder":null,"inside":true}]}})
+
+    {"PATCH", path, body, out} = run(["inside", "Notes", "/"], [], inside)
+    assert path =~ "/api/vaults/Notes/mappings"
+    assert body =~ ~s("inside":true)
+    assert body =~ ~s("path":"/")
+    assert out =~ "kept inside Notes"
+    assert out =~ "· kept inside"
+
+    {"PATCH", _path, body, out} = run(["inside", "Notes", "/"], off: true)
+    assert body =~ ~s("inside":false)
+    assert out =~ "let out Notes"
+    refute out =~ "· kept inside"
+  end
+
   test "map sends path, board and folder" do
     {"POST", path, body, out} = run(["map", "Notes", "/Jobs"], board: "jobs", folder: "Notes")
     assert path =~ "/api/vaults/Notes/mappings"

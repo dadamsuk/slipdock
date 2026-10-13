@@ -59,4 +59,77 @@ defmodule SlipdockWeb.HomeVaultsLiveTest do
     assert html =~ "already have a vault with that name"
     assert length(Vaults.list_vaults(user)) == 2
   end
+
+  describe "a board kept inside its vault (#757)" do
+    setup %{user: user} do
+      kb = board_fixture(%{"name" => "KnowledgeBase", "code" => "kbin"}, owner: user)
+      plain = board_fixture(%{"name" => "Plain Board", "code" => "plainin"}, owner: user)
+      {:ok, vault} = Vaults.create_vault(user, %{"name" => "GMinds"})
+      {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb, inside: true})
+      %{kb: kb, plain: plain, vault: vault}
+    end
+
+    test "leaves the owner's boards and is named on the vault's tile", ctx do
+      %{conn: conn, kb: kb, plain: plain, vault: vault} = ctx
+      [column | _] = Slipdock.Repo.preload(kb, :columns).columns
+      card_fixture(column, %{"title" => "Something to do"})
+      {:ok, view, _} = live(conn, ~p"/")
+
+      refute has_element?(view, "#boards a[href='/boards/#{kb.id}']")
+      assert has_element?(view, "#boards", plain.name)
+
+      inside = "#vault-inside-#{vault.id}-#{kb.id}"
+
+      assert has_element?(
+               view,
+               "#{inside}[href='/boards/#{kb.id}']",
+               "pages stored on KnowledgeBase"
+             )
+
+      assert has_element?(view, inside, "1 card")
+    end
+
+    test "still reachable at its address", %{conn: conn, kb: kb} do
+      assert {:ok, _view, html} = live(conn, ~p"/boards/#{kb}")
+      assert html =~ "KnowledgeBase"
+    end
+
+    test "anyone it is shared with sees an ordinary board", %{kb: kb, user: owner} do
+      member = user_fixture("inside-member@example.com")
+      {:ok, _} = Slipdock.Access.grant(kb, member, "read", owner)
+
+      {:ok, view, _} = live(conn_as(member), ~p"/")
+      assert has_element?(view, "#boards", "KnowledgeBase")
+      refute has_element?(view, "#vaults")
+    end
+
+    test "back on the home page when unmapped, or the vault is deleted", ctx do
+      %{conn: conn, kb: kb, vault: vault, user: user} = ctx
+      {:ok, _} = Vaults.remove_mapping(vault, "/")
+      {:ok, view, _} = live(conn, ~p"/")
+      assert has_element?(view, "#boards", "KnowledgeBase")
+
+      {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb, inside: true})
+      {:ok, _} = Vaults.delete_vault(vault)
+      {:ok, view, _} = live(conn, ~p"/")
+      assert has_element?(view, "#boards", "KnowledgeBase")
+    end
+
+    test "a new vault can come with a board to hold its pages, kept inside", ctx do
+      %{conn: conn, user: user} = ctx
+      {:ok, view, _} = live(conn, ~p"/")
+      view |> element("#new-vault") |> render_click()
+
+      html =
+        view
+        |> form("#new-vault-form", %{"name" => "Brain", "with_board" => "true"})
+        |> render_submit()
+
+      assert html =~ "with a board of the same name holding its pages"
+      {:ok, brain} = Vaults.get_vault(user, "Brain")
+      assert [%{path: "", inside: true, board: board}] = brain.mappings
+      assert has_element?(view, "#vault-inside-#{brain.id}-#{board.id}", "pages stored on Brain")
+      refute has_element?(view, "#boards a[href='/boards/#{board.id}']")
+    end
+  end
 end

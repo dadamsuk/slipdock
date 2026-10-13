@@ -62,17 +62,55 @@ defmodule SlipdockWeb.VaultLive.Index do
   end
 
   @impl true
-  def handle_event("create", %{"name" => name}, socket) do
-    case Vaults.create_vault(socket.assigns.current_user, %{"name" => name}) do
+  # With "Make a board to hold its pages" ticked, the vault comes with a
+  # board named after it, mapped at / and kept inside it (#757).
+  def handle_event("create", %{"name" => name} = params, socket) do
+    user = socket.assigns.current_user
+
+    {result, made} =
+      if params["with_board"] == "true",
+        do:
+          {Vaults.create_vault_with_board(user, %{"name" => name}),
+           &"Made #{&1.name}, with a board of the same name holding its pages, kept inside it."},
+        else:
+          {Vaults.create_vault(user, %{"name" => name}),
+           &"Made #{&1.name}. Map a board onto it to give it pages."}
+
+    case result do
       {:ok, vault} ->
         {:noreply,
          socket
          |> update(:form_key, &(&1 + 1))
-         |> put_flash(:info, "Made #{vault.name}. Map a board onto it to give it pages.")
+         |> put_flash(:info, made.(vault))
          |> load()}
 
-      {:error, cs} ->
+      {:error, %Ecto.Changeset{} = cs} ->
         {:noreply, put_flash(socket, :error, "Vault name #{name_error(cs)}.")}
+
+      {:error, message} ->
+        {:noreply, put_flash(socket, :error, "That vault couldn't be made: #{inspect(message)}.")}
+    end
+  end
+
+  # A board mapped whole kept inside the vault, or let out onto the home
+  # page again (#757).
+  def handle_event("toggle_inside", %{"vault_id" => id, "mapping_id" => mapping_id}, socket) do
+    with {:ok, vault} <- own_vault(socket, id),
+         {:ok, mapping} <- Vaults.find_mapping(vault, mapping_id),
+         {:ok, mapping} <- Vaults.set_inside(vault, mapping.id, not mapping.inside) do
+      message =
+        if mapping.inside,
+          do:
+            "#{mapping.board.name} is kept inside #{vault.name}: it's on the vault's tile now, not among your boards.",
+          else: "#{mapping.board.name} is back among your boards."
+
+      {:noreply, socket |> put_flash(:info, message) |> load()}
+    else
+      {:error, _status, message} when is_binary(message) ->
+        {:noreply, put_flash(socket, :error, String.capitalize(message) <> ".")}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "That mapping isn't there any more.")}
     end
   end
 
@@ -311,7 +349,12 @@ defmodule SlipdockWeb.VaultLive.Index do
             </p>
           </div>
 
-          <form :if={!@only} id={"new-vault-#{@form_key}"} phx-submit="create" class="flex gap-2">
+          <form
+            :if={!@only}
+            id={"new-vault-#{@form_key}"}
+            phx-submit="create"
+            class="flex flex-wrap items-center gap-2"
+          >
             <input
               type="text"
               name="name"
@@ -324,6 +367,15 @@ defmodule SlipdockWeb.VaultLive.Index do
             <button type="submit" class="btn btn-primary">
               <.icon name="hero-plus" class="size-4" /> Make vault
             </button>
+            <label class="flex cursor-pointer items-center gap-1.5 text-xs text-base-content/70">
+              <input
+                type="checkbox"
+                name="with_board"
+                value="true"
+                class="checkbox checkbox-xs"
+                title="Pages live on a board: this makes one named after the vault, maps it at / and keeps it inside the vault"
+              /> Make a board to hold its pages
+            </label>
           </form>
 
           <div
@@ -413,6 +465,29 @@ defmodule SlipdockWeb.VaultLive.Index do
                 <span class="ml-auto text-xs text-base-content/50">
                   {pages(Map.get(counts, mapping.id, 0))}
                 </span>
+                <button
+                  :if={is_nil(mapping.folder_id)}
+                  type="button"
+                  id={"inside-mapping-#{mapping.id}"}
+                  class={[
+                    "btn btn-xs",
+                    if(mapping.inside, do: "btn-primary btn-soft", else: "btn-ghost")
+                  ]}
+                  phx-click="toggle_inside"
+                  phx-value-vault_id={vault.id}
+                  phx-value-mapping_id={mapping.id}
+                  aria-pressed={to_string(mapping.inside)}
+                  title={
+                    if mapping.inside,
+                      do:
+                        "Kept inside #{vault.name}: named on its tile, not among your boards. Click to put it back among your boards.",
+                      else:
+                        "Keep #{mapping.board.name} inside #{vault.name}: named on its tile rather than among your boards"
+                  }
+                >
+                  <.icon name="hero-archive-box-arrow-down" class="size-3.5" />
+                  {if mapping.inside, do: "Inside", else: "Keep inside"}
+                </button>
                 <button
                   type="button"
                   id={"remove-mapping-#{mapping.id}"}

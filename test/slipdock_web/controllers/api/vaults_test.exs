@@ -316,4 +316,76 @@ defmodule SlipdockWeb.API.VaultsTest do
       assert done["board"]["name"] == "Careers"
     end
   end
+
+  describe "a board kept inside its vault (#757)" do
+    test "map with inside, change it, and the board list says so", %{conn: conn} do
+      make(conn, "GMinds")
+
+      vault =
+        conn
+        |> post("/api/vaults/GMinds/mappings", %{"board" => "kb", "inside" => true})
+        |> json_response(201)
+        |> Map.fetch!("vault")
+
+      assert [%{"path" => "/", "inside" => true}] = vault["mappings"]
+
+      boards = conn |> get("/api/boards") |> json_response(200) |> Map.fetch!("boards")
+      assert %{"inside_vault" => "GMinds"} = Enum.find(boards, &(&1["code"] == "kb"))
+      assert %{"inside_vault" => nil} = Enum.find(boards, &(&1["code"] == "jobs"))
+
+      out =
+        conn
+        |> patch("/api/vaults/GMinds/mappings", %{"path" => "/", "inside" => false})
+        |> json_response(200)
+
+      assert [%{"inside" => false}] = out["vault"]["mappings"]
+      [%{"id" => id}] = out["vault"]["mappings"]
+
+      back =
+        conn
+        |> patch("/api/vaults/GMinds/mappings/#{id}", %{"inside" => "true"})
+        |> json_response(200)
+
+      assert [%{"inside" => true}] = back["vault"]["mappings"]
+    end
+
+    test "refusals: a folder's mapping, nothing said, no such mapping", %{conn: conn} do
+      make(conn, "GMinds")
+
+      conn
+      |> post("/api/vaults/GMinds/mappings", %{
+        "path" => "/Jobs",
+        "board" => "jobs",
+        "folder" => "Notes"
+      })
+      |> json_response(201)
+
+      assert conn
+             |> patch("/api/vaults/GMinds/mappings", %{"path" => "/Jobs", "inside" => true})
+             |> json_response(422)
+             |> inspect() =~ "only a whole board"
+
+      conn |> patch("/api/vaults/GMinds/mappings", %{"path" => "/Jobs"}) |> json_response(400)
+      conn |> patch("/api/vaults/GMinds/mappings", %{"inside" => true}) |> json_response(400)
+
+      conn
+      |> patch("/api/vaults/GMinds/mappings", %{"path" => "/Nope", "inside" => true})
+      |> json_response(404)
+    end
+
+    test "with_board makes the vault a board to hold its pages", %{conn: conn} do
+      vault =
+        conn
+        |> post("/api/vaults", %{"name" => "Brain", "with_board" => true})
+        |> json_response(201)
+        |> Map.fetch!("vault")
+
+      assert [%{"path" => "/", "inside" => true, "board" => %{"name" => "Brain"}}] =
+               vault["mappings"]
+
+      conn
+      |> post("/api/vaults", %{"name" => "brain", "with_board" => true})
+      |> json_response(422)
+    end
+  end
 end
