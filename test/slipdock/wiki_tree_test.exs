@@ -7,6 +7,7 @@ defmodule Slipdock.WikiTreeTest do
   use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
+  import Ecto.Query
 
   alias Slipdock.Repo
   alias Slipdock.Wiki
@@ -246,6 +247,304 @@ defmodule Slipdock.WikiTreeTest do
 
       assert Tree.count(board) == 2
       assert Tree.count(board, status: "published") == 1
+    end
+  end
+
+  describe "filter/3" do
+    setup %{board: board, user: user} do
+      specs = folder(board, "Specs")
+      drafts = folder(board, "Drafts", specs)
+      _contracts = folder(board, "Contracts")
+      plan = page(board, user, "Plan", folder: drafts)
+      retry = page(board, user, "Retry policy", folder: drafts, parent: plan)
+      loose = page(board, user, "Launch notes")
+      %{specs: specs, drafts: drafts, plan: plan, retry: retry, loose: loose}
+    end
+
+    defp filters(changes), do: Map.merge(Slipdock.Filters.empty(), changes)
+
+    test "a match comes with the folders and pages above it, marked as context", %{
+      board: board,
+      specs: specs,
+      drafts: drafts,
+      plan: plan
+    } do
+      result = Tree.filter(board, filters(%{q: "retry"}))
+
+      assert result.shown == 1
+      assert Enum.map(result.nodes["root"], & &1.title) == ["Specs"]
+      assert [%{title: "Drafts", count: 1, pages: 2}] = result.nodes["folder:#{specs.id}"]
+      assert [%{title: "Plan", context: true, count: 1}] = result.nodes["folder:#{drafts.id}"]
+      assert [%{title: "Retry policy"} = hit] = result.nodes["page:#{plan.id}"]
+      refute Map.has_key?(hit, :context)
+      assert MapSet.member?(result.only, hd(result.nodes["page:#{plan.id}"]).id)
+    end
+
+    test "a folder whose name matches brings everything filed beneath it", %{
+      board: board,
+      specs: specs
+    } do
+      result = Tree.filter(board, filters(%{q: "spec"}))
+
+      assert result.shown == 2
+      assert Enum.map(result.nodes["root"], & &1.title) == ["Specs"]
+      assert [%{title: "Drafts"}] = result.nodes["folder:#{specs.id}"]
+    end
+
+    test "a folder hit with nothing in it is still shown, and nothing else is", %{board: board} do
+      result = Tree.filter(board, filters(%{q: "contract"}))
+
+      assert result.shown == 0
+      assert [%{title: "Contracts", count: 0, pages: 0}] = result.nodes["root"]
+      assert Map.keys(result.nodes) == ["root"]
+    end
+
+    test "the facet filters read each page, and nothing matching leaves no nodes", %{
+      board: board,
+      user: user,
+      loose: loose
+    } do
+      {:ok, _} = Wiki.update_page(loose, %{"priority" => "high"}, user: user)
+
+      result = Tree.filter(board, filters(%{priority: "high"}))
+      assert Map.keys(result.nodes) == ["root"]
+      assert [%{title: "Launch notes", priority: "high"}] = result.nodes["root"]
+
+      assert Tree.filter(board, filters(%{priority: "critical"})).nodes == %{}
+    end
+
+    test "the visibility options still apply under a filter", %{board: board, user: user} do
+      page(board, user, "Launch draft", status: "draft")
+
+      assert board |> Tree.filter(filters(%{q: "launch"})) |> Map.get(:shown) == 2
+
+      assert board
+             |> Tree.filter(filters(%{q: "launch"}), status: "published")
+             |> Map.get(:shown) == 1
+    end
+  end
+
+  describe "a big container, a page at a time" do
+    setup %{board: board, user: user} do
+      inbox = folder(board, "Inbox")
+
+      pages =
+        for n <- 1..12,
+            do: page(board, user, "Note #{String.pad_leading("#{n}", 2, "0")}", folder: inbox)
+
+      file(board, "last.png", inbox)
+      %{inbox: inbox, pages: pages}
+    end
+
+    test "limit gives a page of rows and says where the rest starts", %{
+      board: board,
+      inbox: inbox
+    } do
+      {:ok, rows} = Tree.children(board, {:folder, inbox.id}, limit: 5)
+      assert length(rows) == 6
+      assert %{kind: "more", offset: 5} = List.last(rows)
+      refute Enum.any?(rows, &(&1.kind == "file"))
+
+      {:ok, rest} = Tree.children(board, {:folder, inbox.id}, limit: 5, offset: 10)
+      assert Enum.map(rest, & &1.title) == ["Note 11", "Note 12", "last.png"]
+    end
+
+    test "through reaches as far as the page asked for", %{
+      board: board,
+      inbox: inbox,
+      pages: pages
+    } do
+      deep = Enum.at(pages, 10)
+      {:ok, rows} = Tree.children(board, {:folder, inbox.id}, limit: 5, through: deep.id)
+
+      assert Enum.any?(rows, &(&1[:id] == deep.id))
+      assert %{kind: "more", offset: 11} = List.last(rows)
+
+      # A page that is not in the container changes nothing.
+      {:ok, rows} = Tree.children(board, {:folder, inbox.id}, limit: 5, through: 999_999)
+      assert length(rows) == 6
+    end
+  end
+
+  describe "moving a page among its siblings" do
+    test "sibling_ids lists them in order, and a move packs every position", %{
+      board: board,
+      user: user
+    } do
+      [a, b, c] = for t <- ["A", "B", "C"], do: page(board, user, t)
+      moving = page(board, user, "D")
+
+      assert Wiki.sibling_ids(board.id, nil, moving.id) == [a.id, b.id, c.id]
+
+      {:ok, _} = Wiki.move_page(moving, nil, 1)
+
+      positions =
+        Map.new(Repo.all(from(p in Slipdock.Wiki.Page, select: {p.id, p.position})))
+
+      assert Enum.sort_by([a, moving, b, c], &positions[&1.id]) |> Enum.map(& &1.title) ==
+               ["A", "D", "B", "C"]
+
+      assert Enum.sort(Map.values(positions)) == [0, 1, 2, 3]
+      assert Wiki.sibling_ids(board.id, nil) == [a.id, moving.id, b.id, c.id]
+    end
+  end
+
+  describe "the helpers a listing uses" do
+    test "recent lists the latest changed, as rows", %{board: board, user: user} do
+      old = page(board, user, "Old")
+      page(board, user, "New")
+
+      Repo.update_all(
+        from(p in Slipdock.Wiki.Page, where: p.id == ^old.id),
+        set: [updated_at: ~U[2020-01-01 00:00:00Z]]
+      )
+
+      assert [%{title: "New", kind: "page"}, %{title: "Old"}] = Tree.recent(board, [], 5)
+      assert [%{title: "New"}] = Tree.recent(board, [], 1)
+      assert [%{title: "Old"}] = Tree.recent(board, [only: MapSet.new([old.id])], 5)
+    end
+
+    test "excerpts read the summary and the start of the body only", %{board: board, user: user} do
+      long = page(board, user, "Long", body: String.duplicate("a", 2000))
+
+      {:ok, summed} =
+        Wiki.create_page(board, %{"title" => "Summed", "summary" => "In short."}, user: user)
+
+      excerpts = Tree.excerpts([long.id, summed.id])
+      assert String.length(excerpts[long.id].body) == 400
+      assert excerpts[summed.id].summary == "In short."
+      assert Tree.excerpts([]) == %{}
+    end
+
+    test "prepare reads the folders and their counts once for several containers", %{
+      board: board,
+      user: user
+    } do
+      design = folder(board, "Design")
+      page(board, user, "Inside", folder: design)
+      opts = Tree.prepare(board, status: "published")
+
+      assert [%{id: id}] = opts[:folders]
+      assert id == design.id
+      assert opts[:stats].totals[design.id] == 1
+      assert {:ok, [%{pages: 1}]} = Tree.children(board, :root, opts)
+    end
+  end
+
+  describe "a vault's tree" do
+    setup %{board: kb, user: user} do
+      jobs = board_fixture(%{"name" => "Job Hunt", "code" => "jobhunt"}, owner: user)
+      proj = board_fixture(%{"name" => "Project X", "code" => "projx"}, owner: user)
+      notes = folder(proj, "Notes")
+      {:ok, vault} = Slipdock.Vaults.create_vault(user, %{"name" => "Brain"})
+      {:ok, _} = Slipdock.Vaults.add_mapping(vault, user, %{path: "/", board: kb})
+      {:ok, _} = Slipdock.Vaults.add_mapping(vault, user, %{path: "/Jobs", board: jobs})
+
+      {:ok, _} =
+        Slipdock.Vaults.add_mapping(vault, user, %{
+          path: "/Projects/X",
+          board: proj,
+          folder: notes
+        })
+
+      page(kb, user, "Home note")
+      acme = folder(jobs, "Acme")
+      call = page(jobs, user, "Call", folder: acme)
+      idea = page(proj, user, "Idea", folder: notes)
+
+      boards = Map.new([kb, jobs, proj], &{&1.id, {&1, []}})
+
+      %{
+        vault: vault,
+        jobs: jobs,
+        proj: proj,
+        notes: notes,
+        acme: acme,
+        call: call,
+        idea: idea,
+        boards: boards
+      }
+    end
+
+    test "the root holds the vault's folders, then what is mapped at the root", %{
+      vault: vault,
+      boards: boards,
+      jobs: jobs
+    } do
+      {:ok, rows} = Tree.vault_children(vault, "vault", boards)
+
+      assert Enum.map(rows, &{&1.kind, &1.title, &1[:key]}) == [
+               {"folder", "Jobs", "board:#{jobs.id}"},
+               {"dir", "Projects", "dir:Projects"},
+               {"page", "Home note", nil}
+             ]
+
+      assert %{mount: true, pages: 1, board_id: board_id} = hd(rows)
+      assert board_id == jobs.id
+    end
+
+    test "a path leading to deeper mappings opens onto them; a mapping onto its board", %{
+      vault: vault,
+      boards: boards,
+      jobs: jobs,
+      notes: notes,
+      acme: acme
+    } do
+      assert {:ok, [%{title: "X", key: key, pages: 1}]} =
+               Tree.vault_children(vault, "dir:Projects", boards)
+
+      assert key == "folder:#{notes.id}"
+      assert {:ok, [%{title: "Idea"}]} = Tree.vault_children(vault, key, boards)
+      assert {:ok, [%{title: "Acme"}]} = Tree.vault_children(vault, "board:#{jobs.id}", boards)
+      assert {:ok, [%{title: "Call"}]} = Tree.vault_children(vault, "folder:#{acme.id}", boards)
+    end
+
+    test "nothing outside the boards given is found", %{
+      vault: vault,
+      boards: boards,
+      jobs: jobs,
+      acme: acme,
+      user: user
+    } do
+      stranger = board_fixture(%{"name" => "Elsewhere", "code" => "elsewhere"}, owner: user)
+      theirs = folder(stranger, "Theirs")
+
+      assert Tree.vault_children(vault, "folder:#{theirs.id}", boards) == {:error, :not_found}
+      assert Tree.vault_children(vault, "dir:Nowhere", boards) == {:error, :not_found}
+      assert Tree.vault_children(vault, "board:junk", boards) == {:error, :not_found}
+
+      # A board the reader may not open drops out of the vault's tree.
+      without = Map.delete(boards, jobs.id)
+      assert Tree.vault_children(vault, "folder:#{acme.id}", without) == {:error, :not_found}
+      {:ok, rows} = Tree.vault_children(vault, "vault", without)
+      refute Enum.any?(rows, &(&1.title == "Jobs"))
+    end
+
+    test "the way to a page runs through the vault's folders to the board's", %{
+      vault: vault,
+      boards: boards,
+      jobs: jobs,
+      notes: notes,
+      acme: acme,
+      call: call,
+      idea: idea
+    } do
+      assert Tree.vault_path_to(vault, call, boards) == ["board:#{jobs.id}", "folder:#{acme.id}"]
+      assert Tree.vault_path_to(vault, idea, boards) == ["dir:Projects", "folder:#{notes.id}"]
+      assert Tree.vault_path_to(vault, acme, boards) == ["board:#{jobs.id}", "folder:#{acme.id}"]
+    end
+
+    test "open all names every folder in the vault", %{
+      vault: vault,
+      boards: boards,
+      jobs: jobs,
+      notes: notes,
+      acme: acme
+    } do
+      keys = Tree.vault_folder_keys(vault, boards)
+
+      for key <- ["board:#{jobs.id}", "dir:Projects", "folder:#{notes.id}", "folder:#{acme.id}"],
+          do: assert(key in keys)
     end
   end
 end

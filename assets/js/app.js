@@ -29,6 +29,7 @@ import {installConfirm} from "./confirm"
 import {ModalDialog} from "./modal_dialog"
 import {installPosthog} from "./posthog"
 import {Replay} from "./replay"
+import {WikiTree} from "./wiki_tree"
 
 const Hooks = {}
 Hooks.ModalDialog = ModalDialog
@@ -1238,78 +1239,7 @@ Hooks.EditorPrefs = {
     })
   }
 }
-
-Hooks.WikiTree = {
-  mounted() {
-    // Which folders the reader shut, per board, kept in the browser: coming
-    // back to the wiki mounts it afresh, and without this the tree would
-    // spring open every time.
-    const key = `slipdock:wiki-collapsed:${this.el.dataset.board}`
-    let ids = []
-    try { ids = JSON.parse(localStorage.getItem(key) || "[]") } catch (_e) {}
-    if (Array.isArray(ids) && ids.length) this.pushEvent("restore_collapsed", {ids})
-    this.handleEvent("wiki-tree:collapsed", ({ids}) => {
-      try {
-        if (ids.length) localStorage.setItem(key, JSON.stringify(ids))
-        else localStorage.removeItem(key)
-      } catch (_e) {}
-    })
-    this.build()
-  },
-  updated() { this.build() },
-  destroyed() { this.teardown() },
-
-  teardown() {
-    (this.sortables || []).forEach(s => s.destroy())
-    this.sortables = []
-  },
-
-  build() {
-    this.teardown()
-    if (this.el.dataset.organising !== "true") return
-    const hook = this
-
-    this.sortables = [...this.el.querySelectorAll("[data-tree-list]")].map(list =>
-      new Sortable(list, {
-        group: `wiki-${list.dataset.treeList}`,
-        animation: 150,
-        fallbackOnBody: true,
-        forceFallback: true,
-        fallbackTolerance: 4,
-        swapThreshold: 0.7,
-        // An empty folder is a target like any other: without this, Sortable
-        // only notices a list that already has something in it, and the one
-        // place you most want to drop the first page is the one place you
-        // cannot.
-        emptyInsertThreshold: 12,
-        handle: "[data-drag]",
-        ghostClass: "sortable-ghost",
-        chosenClass: "sortable-chosen",
-        dragClass: "sortable-drag",
-        // While a drag is on, the empty lists open into targets you can hit
-        // (see `#wiki-tree.wiki-dragging` in app.css).
-        onStart() { hook.el.classList.add("wiki-dragging") },
-        onEnd(evt) {
-          hook.el.classList.remove("wiki-dragging")
-          const {item, from, to, oldIndex, newIndex} = evt
-          if (from === to && oldIndex === newIndex) return
-          const next = item.nextElementSibling
-          const before = next && next.dataset.id ? next.dataset.id : null
-          // Put the DOM back as it was: what comes back from the server is
-          // the tree, and a half-applied drag on screen is a lie.
-          to.removeChild(item)
-          from.insertBefore(item, from.children[oldIndex] || null)
-          hook.pushEvent("tree_move", {
-            kind: to.dataset.treeList === "folders" ? "folder" : "page",
-            id: item.dataset.id,
-            into: to.dataset.into,
-            before: before,
-          })
-        },
-      })
-    )
-  },
-}
+Hooks.WikiTree = WikiTree
 
 // The folder picker (see `SlipdockWeb.FolderPicker`): a tree of folders you can
 // type at. Filtering, the arrow keys and — in form mode — remembering the

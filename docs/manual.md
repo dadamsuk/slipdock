@@ -2120,13 +2120,30 @@ and most pages are in no folder at all, which is the root rather than a limbo.
 to a folder — write a page here, make one inside, rename or move it, delete it
 — gathered in one place rather than only on a hover menu.
 
-**Opening and shutting the tree.** A folder's chevron opens or shuts it; the
-double chevron at the top of the sidebar shuts every folder at once, and opens
-them all again once they are all shut. An empty folder has no chevron, there
-being nothing in it to show. The browser remembers which folders you shut on
-each board, so following a link to another page doesn't spring the tree open
-again — though the folders leading to the page or folder you are on always
-open, so what you just went to is never hidden.
+**Opening and shutting the tree.** A folder's chevron opens or shuts it, and
+so does a page's when it has pages under it. The double chevron at the top of
+the sidebar shuts every folder at once, and opens them all again once they
+are all shut. An empty folder has no chevron, there being nothing in it to
+show. The browser remembers which folders you had open on each board, so
+following a link to another page doesn't spring the tree open or shut. On a
+first visit a small wiki (300 pages or fewer) opens with every folder open,
+and a bigger one opens only the folders on the way to where you are. The
+folders leading to the page or folder you are on always open, and the tree
+scrolls to it, so what you just went to is never hidden.
+
+**Big wikis.** The tree is built for thousands of notes. It loads one folder at
+a time, when you open it, and never a page's text. Only the rows on screen
+are drawn, so a folder of 5,000 notes scrolls like one of fifty. A big
+folder's rows arrive 500 at a time as you scroll down to them, and the page
+you are reading is always loaded, however far down its folder it is.
+
+**A vault's tree.** On a board in a vault (see *Vaults*), a switch at the top of
+the sidebar chooses between **This board** and the vault's tree. The vault's
+tree holds every board of the vault, laid out by the vault's paths: a mapped
+path is a folder holding that board's wiki, or one folder of it. Opening a
+page on another board opens that board's wiki, still showing the vault's
+tree. The filter bar narrows this board's tree, so it is what you see while a
+filter is on. Organising uses this board's tree too.
 
 **Organise mode.** The pencil at the top of the wiki's sidebar turns the tree
 into a drag-and-drop one, and only then: dragging by default would make every
@@ -2135,10 +2152,10 @@ In it, every row has a handle, and both axes are rearranged in the same tree —
 a page dropped in a folder is *kept* there and belongs to no page; a page
 dropped on a page becomes *part of* it, filed where that page is filed; a
 folder dropped in a folder moves under it, and cannot be dropped inside
-itself. Order is what you dragged: positions are packed afterwards so a tree
-arranged by hand stays arranged. Every folder opens while you organise,
-including the empty ones, which open into a drop target the moment a drag
-starts.
+itself. Drop on the middle of a row to put something inside it, or on its top
+or bottom edge to put it beside it. Order is what you dragged: positions are
+packed afterwards so a tree arranged by hand stays arranged. Rest a drag on a
+shut folder and it opens, so you can drop deeper without opening it first.
 
 **Searching the tree** matches a page's title and summary *and* a folder's
 name, and hides everything that doesn't match. A folder that matches brings

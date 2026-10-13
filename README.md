@@ -89,8 +89,9 @@ Briefly, with the detail in [the manual](docs/manual.md):
 - **Planning** — [dependencies with cycle detection, list categories and
   horizons, milestones, custom and formula fields (RICE, ICE, value/effort),
   budget voting, typed links and goals](docs/manual.md#roadmapping).
-- **A wiki per board** — [Markdown pages in a tree of folders](docs/manual.md#wiki),
-  `[[links]]`, live card chips, live query blocks, backlinks, revisions,
+- **A wiki per board** — [Markdown pages in a tree of folders](docs/manual.md#wiki)
+  that stays quick with thousands of notes (loaded a folder at a time, only the rows
+  on screen drawn), `[[links]]`, live card chips, live query blocks, backlinks, revisions,
   templates, export and public links. Several boards' wikis can be laid out as
   one Obsidian-style [vault](docs/manual.md#vaults): links, `#tags`, aliases,
   embeds and front matter as Obsidian reads them, a page filed in several
