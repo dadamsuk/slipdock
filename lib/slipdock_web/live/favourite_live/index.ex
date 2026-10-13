@@ -14,7 +14,7 @@ defmodule SlipdockWeb.FavouriteLive.Index do
   use SlipdockWeb, :live_view
 
   import SlipdockWeb.SlipdockComponents
-  import SlipdockWeb.SwimlaneComponents, only: [view_path: 2, mode_icon: 1]
+  import SlipdockWeb.SwimlaneComponents, only: [view_path: 2, mode_icon: 1, board_home_path: 1]
 
   alias Slipdock.Favourites
 
@@ -82,7 +82,7 @@ defmodule SlipdockWeb.FavouriteLive.Index do
     do: ~p"/boards/#{board}/wiki/#{page.slug}"
 
   defp path(%{kind: :view, resource: view, board: board}), do: view_path(board, view)
-  defp path(%{kind: :board, board: board}), do: ~p"/boards/#{board}"
+  defp path(%{kind: :board, board: board}), do: board_home_path(board)
 
   defp name(%{kind: :card, resource: card}), do: card.title
   defp name(%{kind: :page, resource: page}), do: page.title

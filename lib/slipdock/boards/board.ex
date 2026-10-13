@@ -34,6 +34,11 @@ defmodule Slipdock.Boards.Board do
     # for the whole wiki; off hides them without deleting anything.
     field :page_card_features, :boolean, default: true
 
+    # The view that opening the board lands on, from the board index, the
+    # board switcher and favourites: one of `default_views/0`. nil is the
+    # board itself. The view menu still reaches every view.
+    field :default_view, :string
+
     # A simple board is a plain to-do list: the project-tracking details
     # (see `technical_facets/0`) are hidden on its cards and its tiles, and
     # the Timeline and Prioritise views drop out of its view menu. The data
@@ -274,8 +279,29 @@ defmodule Slipdock.Boards.Board do
   @doc "The view modes a simple board leaves out of its view menu."
   def hidden_views(board), do: if(simple?(board), do: @technical_views, else: [])
 
+  # What a board can open on: its view modes, and its wiki.
+  @default_views ~w(board swimlanes table timeline calendar outline narrative prioritise wiki)
+
+  @doc "The views a board can be set to open on."
+  def default_views, do: @default_views
+
+  @doc """
+  The view `board` opens on, as a string from `default_views/0`: its
+  `default_view`, or "board" when that is unset or is a view the board hides
+  (a simple board has no Timeline or Prioritise).
+  """
+  def home_view(%{default_view: view} = board) when view in @default_views do
+    if String.to_existing_atom(view) in hidden_views(board), do: "board", else: view
+  end
+
+  def home_view(_board), do: "board"
+
   defp blank_to_nil(""), do: nil
   defp blank_to_nil(value), do: value
+
+  # Unset and "board" mean the same, so both are stored as nil.
+  defp default_view_to_nil("board"), do: nil
+  defp default_view_to_nil(value), do: blank_to_nil(value)
 
   # Deliberately no `:owner_id`: this changeset is fed the board settings
   # form, and an owner who could set it could hand the board (and its quota)
@@ -296,9 +322,14 @@ defmodule Slipdock.Boards.Board do
       :add_document,
       :page_card_features,
       :simple,
-      :kind
+      :kind,
+      :default_view
     ])
     |> update_change(:kind, &blank_to_nil/1)
+    |> update_change(:default_view, &default_view_to_nil/1)
+    |> validate_inclusion(:default_view, @default_views,
+      message: "must be one of: #{Enum.join(@default_views, ", ")}"
+    )
     |> validate_inclusion(:kind, @kinds, message: "must be one of: #{Enum.join(@kinds, ", ")}")
     |> update_change(:code, &sanitize_code/1)
     |> update_change(:shortcut, &sanitize_shortcut/1)

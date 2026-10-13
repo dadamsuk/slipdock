@@ -1019,6 +1019,17 @@ defmodule SlipdockWeb.SwimlaneComponents do
   def view_mode_path(board, "calendar", query), do: ~p"/boards/#{board}/calendar?#{query}"
   def view_mode_path(board, _, query), do: ~p"/boards/#{board}/swimlanes?#{query}"
 
+  @doc """
+  Where opening `board` lands: the view it is set to open on
+  (`Slipdock.Boards.Board.home_view/1`), its wiki included.
+  """
+  def board_home_path(board) do
+    case Slipdock.Boards.Board.home_view(board) do
+      "wiki" -> ~p"/boards/#{board}/wiki"
+      view -> view_mode_path(board, view)
+    end
+  end
+
   @doc "The icon for a view mode (an atom or the string stored in a saved view)."
   def mode_icon(mode) when is_atom(mode), do: mode |> Atom.to_string() |> mode_icon()
   def mode_icon("table"), do: "hero-table-cells"

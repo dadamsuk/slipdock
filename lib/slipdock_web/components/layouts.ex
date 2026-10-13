@@ -574,7 +574,7 @@ defmodule SlipdockWeb.Layouts do
         <ul :if={@shortcuts.panel == :boards} class="max-h-[60vh] overflow-y-auto p-1.5">
           <li :for={board <- @shortcuts.boards}>
             <.link
-              navigate={~p"/boards/#{board}"}
+              navigate={SlipdockWeb.SwimlaneComponents.board_home_path(board)}
               data-shortcut={board.shortcut}
               class="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm hover:bg-base-200"
             >

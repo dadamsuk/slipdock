@@ -298,6 +298,13 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   attr :source_choices, :list, default: []
   attr :target, :any, required: true
 
+  # The views a board can open on, less the ones it hides (a simple board's
+  # Timeline and Prioritise). "board" first, as it is what nil means.
+  defp default_view_options(board) do
+    hidden = Enum.map(Board.hidden_views(board), &Atom.to_string/1)
+    for view <- Board.default_views(), view not in hidden, do: {String.capitalize(view), view}
+  end
+
   defp settings_modal(assigns) do
     ~H"""
     <.modal id="settings-modal" on_close={JS.patch(@close_path)} size="sm">
@@ -338,6 +345,21 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
             </p>
           </div>
           <.input field={@form[:description]} type="textarea" label="Description" />
+          <%!-- Where the board index, the switcher and favourites land. Only a
+                root board is opened from those, so a sub-board has no say. --%>
+          <div :if={is_nil(@board.parent_card_id)}>
+            <.input
+              field={@form[:default_view]}
+              id="board-default-view"
+              type="select"
+              label="Default view"
+              options={default_view_options(@board)}
+            />
+            <p class="-mt-1 text-xs text-base-content/50">
+              What opening this board shows, from the board list, the switcher and favourites.
+              The view menu still reaches every view.
+            </p>
+          </div>
           <div :if={is_nil(@board.parent_card_id)} class="grid grid-cols-2 gap-2">
             <.input field={@form[:vote_budget]} type="number" min="0" label="Votes per person" />
             <.input field={@form[:vote_max]} type="number" min="1" label="Max votes per card" />

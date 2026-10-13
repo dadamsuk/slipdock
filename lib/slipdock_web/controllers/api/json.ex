@@ -36,6 +36,7 @@ defmodule SlipdockWeb.API.JSON do
       kind: b.kind,
       simple: b.simple,
       page_card_features: b.page_card_features,
+      default_view: Board.home_view(b),
       owner: owner_ref(b),
       shared: shared?(b, viewer),
       columns: length(columns),
@@ -80,6 +81,9 @@ defmodule SlipdockWeb.API.JSON do
       # Whether the wiki's pages show the card contents (status, checklist,
       # links, fields, votes, comments). The data is there either way.
       page_card_features: b.page_card_features,
+      # The view opening the board lands on in the web app ("board", "wiki",
+      # "table"…), from the board list, the switcher and favourites.
+      default_view: Board.home_view(b),
       # A plain to-do list: a client should leave out the tracking details
       # (`hidden_facets`) and the Timeline and Prioritise views.
       simple: b.simple,

@@ -642,7 +642,7 @@ defmodule SlipdockWeb.BoardLive.Index do
           @archived && "opacity-70"
         ]}
       >
-        <.link navigate={~p"/boards/#{board}"} class="block">
+        <.link navigate={SlipdockWeb.SwimlaneComponents.board_home_path(board)} class="block">
           <div class={["h-2 bg-gradient-to-br sm:h-20", Palette.gradient(board.color)]}></div>
           <div class="p-3.5 sm:p-4">
             <h2 class="flex items-center gap-2 truncate text-base font-semibold">
@@ -761,7 +761,10 @@ defmodule SlipdockWeb.BoardLive.Index do
               />
             </td>
             <td class="align-middle">
-              <.link navigate={~p"/boards/#{board}"} class="flex items-center gap-2">
+              <.link
+                navigate={SlipdockWeb.SwimlaneComponents.board_home_path(board)}
+                class="flex items-center gap-2"
+              >
                 <span class={["size-2.5 shrink-0 rounded-full", Palette.dot(board.color)]}></span>
                 <span class="max-w-56 truncate font-medium">{board.name}</span>
                 <span

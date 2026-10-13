@@ -817,6 +817,7 @@ defmodule SlipdockWeb.APIGuide do
     simple board, keep to what the person can see: do not set `--percent`,
     start dates, estimates or dependencies there unless asked to.
 
+
     Tags live on the root board and are shared by the whole tree, so a tag made
     anywhere below it is available everywhere — but a tag must exist before a
     card can wear it (`POST /api/boards/:board/tags`, `slipdock new-tag`, or the MCP
@@ -2091,6 +2092,15 @@ defmodule SlipdockWeb.APIGuide do
     fields, votes and comments off every page of that wiki. Nothing is
     deleted and the endpoints above still answer, so read the flag before
     commenting on such a page: the people reading it will not see the comment.
+
+    **Default view.** A board's JSON carries `default_view`: what opening it
+    in the web app lands on — `board`, `swimlanes`, `table`, `timeline`,
+    `calendar`, `outline`, `narrative`, `prioritise` or `wiki` — from the
+    board list, the switcher and favourites (a favourite board's `url` points
+    there). Set it with `PATCH /api/boards/:board {"default_view": "wiki"}`
+    (`slipdock set-board B --default-view wiki`); `"board"` or `""` clears it,
+    anything else is a 422. A board whose default is `wiki` is mostly read as
+    its wiki, so link people to its pages rather than its lists.
 
     Checklist items and comments are removed through the routes they share
     with cards — `POST /api/checklist/:id/toggle`, `DELETE /api/checklist/:id`,

@@ -55,4 +55,36 @@ defmodule SlipdockCLI.SetBoardTest do
     assert_received {:request, "PATCH", "/api/boards/docs", body}
     assert JSON.decode!(body) == %{"page_card_features" => true}
   end
+
+  test "--default-view parses as a string and sends it" do
+    {opts, ["set-board", "docs"], []} =
+      OptionParser.parse(["set-board", "docs", "--default-view", "wiki"],
+        strict: SlipdockCLI.switches()
+      )
+
+    assert opts[:default_view] == "wiki"
+
+    serve([{200, @updated}])
+    capture_io(fn -> Boards.run("set-board", ["docs"], default_view: "wiki") end)
+
+    assert_received {:request, "PATCH", "/api/boards/docs", body}
+    assert JSON.decode!(body) == %{"default_view" => "wiki"}
+  end
+
+  test "the board heading says what a board opens on, unless it is the board" do
+    board = %{
+      "id" => 3,
+      "name" => "Docs",
+      "code" => "docs",
+      "color" => "indigo",
+      "columns" => [],
+      "tags" => []
+    }
+
+    out = capture_io(fn -> SlipdockCLI.Render.board(Map.put(board, "default_view", "wiki")) end)
+    assert out =~ "opens on wiki"
+
+    out = capture_io(fn -> SlipdockCLI.Render.board(Map.put(board, "default_view", "board")) end)
+    refute out =~ "opens on"
+  end
 end

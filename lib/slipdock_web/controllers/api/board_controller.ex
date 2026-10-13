@@ -182,7 +182,8 @@ defmodule SlipdockWeb.API.BoardController do
              Map.take(
                params,
                ~w(name code shortcut description color vote_budget vote_max
-                  add_card add_page add_document page_card_features simple kind)
+                  add_card add_page add_document page_card_features simple kind
+                  default_view)
              )
            ) do
       json(conn, %{board: V.board_summary(board, conn.assigns.current_user)})
