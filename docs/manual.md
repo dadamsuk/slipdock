@@ -2187,6 +2187,9 @@ The editor is **raw Markdown with a live preview**, deliberately and for good:
 the source stays diffable, greppable and identical to what an agent reads and
 writes over the API, which a rich-text layer could not promise. Pasting or
 dropping an image into it attaches the image, the way it does on a card.
+The editor spans the whole width of the page; **Preview** beside Save puts the
+preview away (and brings it back) for the source alone, and your browser
+remembers which you chose.
 
 **References.** Inside a body, `[[Retry policy]]` links a page on this board
 (by title, then slug), `[[retry-policy|how it works]]` gives it link text,
