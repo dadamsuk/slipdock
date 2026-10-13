@@ -32,6 +32,7 @@ defmodule Slipdock.Skills.ChatGPT do
     {"move <id> <list>", "move_card"},
     {"comment <id> <text>", "comment"},
     {"done <id>", "complete_card"},
+    {"status <id> <health> [note]", "status_update"},
     {"archive <id>", "archive_card"},
     {"delete <id>", "delete_card"},
     {"new-column", "create_list"},

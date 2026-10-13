@@ -77,13 +77,14 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
       |> Map.new(&{&1["name"], &1["annotations"]})
 
     for name <-
-          ~w(create_card update_card move_card comment complete_card archive_card write_page) do
+          ~w(create_card update_card move_card comment complete_card status_update archive_card write_page) do
       assert tools[name]["readOnlyHint"] == false, name
     end
 
     assert tools["update_card"]["destructiveHint"] == true
     assert tools["write_page"]["destructiveHint"] == true
     assert tools["comment"]["destructiveHint"] == false
+    assert tools["status_update"]["destructiveHint"] == false
     # Restoring undoes it, so archiving overwrites nothing.
     assert tools["archive_card"]["destructiveHint"] == false
     # The deletes are the destructive ones; structure_tools_test.exs has them.
@@ -534,6 +535,58 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
     test "not on a stranger's card", ctx do
       ctx.conn |> call("comment", %{card: ctx.secret.id, body: "hi"}) |> error!()
       assert Repo.preload(Boards.get_card!(ctx.secret.id), :comments).comments == []
+    end
+  end
+
+  describe "status_update" do
+    test "becomes the card's stated health and reads back over the API", ctx do
+      result =
+        ctx.conn
+        |> call("status_update", %{card: ctx.card.id, health: "at_risk", body: "  Slipping.  "})
+        |> ok!()
+
+      assert result["card"] == ctx.card.id
+      assert result["stated_health"] == "at_risk"
+      assert result["status_update"]["body"] == "Slipping."
+      assert result["status_update"]["user_id"] == ctx.user.id
+
+      ctx.conn |> call("status_update", %{card: ctx.card.id, health: "on_track"}) |> ok!()
+
+      card = api_card(ctx.conn, ctx.card.id)
+      assert card["stated_health"] == "on_track"
+
+      assert [%{"health" => "on_track", "body" => nil}, %{"health" => "at_risk"}] =
+               card["status_updates"]
+    end
+
+    test "a health that isn't one of the three is refused", ctx do
+      assert ctx.conn
+             |> call("status_update", %{card: ctx.card.id, health: "fine"})
+             |> error!() =~ "health is invalid"
+
+      assert api_card(ctx.conn, ctx.card.id)["status_updates"] == []
+    end
+
+    test "health is required", ctx do
+      assert ctx.conn |> call("status_update", %{card: ctx.card.id}) |> error!() ==
+               "health is required"
+    end
+
+    test "not on a stranger's card", ctx do
+      ctx.conn
+      |> call("status_update", %{card: ctx.secret.id, health: "off_track"})
+      |> error!()
+
+      assert Repo.preload(Boards.get_card!(ctx.secret.id), :status_updates).status_updates == []
+    end
+
+    test "a read-only token cannot", ctx do
+      assert ctx.conn
+             |> read_only(ctx.user)
+             |> call("status_update", %{card: ctx.card.id, health: "on_track"})
+             |> error!() =~ "read-only"
+
+      assert Repo.preload(Boards.get_card!(ctx.card.id), :status_updates).status_updates == []
     end
   end
 
