@@ -961,6 +961,36 @@ defmodule SlipdockWeb.Wiki.Renderer do
 
   def excerpt(_, _), do: ""
 
+  @doc """
+  The start of a body as plain-text paragraphs, `limit` characters in all,
+  for a preview of the page (#760): headings kept as lines of their own,
+  code blocks and embeds left out, encrypted text a 🔒.
+  """
+  def preview_paragraphs(body, limit \\ 600)
+
+  def preview_paragraphs(body, limit) when is_binary(body) do
+    body
+    |> Excalidraw.readable()
+    |> Meld.conceal()
+    |> String.replace(~r/^```.*?(^```[^\n]*$|\z)/ms, "")
+    |> String.split(~r/\n\s*\n/)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == "" or String.starts_with?(&1, ["[[!", "![[", "---"])))
+    |> Enum.map(&(&1 |> Markup.to_plain() |> strip_markup()))
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.reduce_while({[], limit}, fn para, {acc, left} ->
+      cond do
+        left <= 1 -> {:halt, {acc, left}}
+        String.length(para) >= left -> {:halt, {[truncate(para, left) | acc], 0}}
+        true -> {:cont, {[para | acc], left - String.length(para)}}
+      end
+    end)
+    |> elem(0)
+    |> Enum.reverse()
+  end
+
+  def preview_paragraphs(_, _), do: []
+
   # Enough to make a one-line summary read as prose rather than as source.
   defp strip_markup(text) do
     text

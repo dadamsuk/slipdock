@@ -1145,6 +1145,23 @@ defmodule SlipdockWeb.WikiLive.Index do
     {:reply, %{key: key, rows: client_rows(rows, socket)}, socket}
   end
 
+  # A page row rested on (#760): what the hook's preview card shows. Only a
+  # page this tree would show this reader: one of this board's, or of a
+  # vault board they can read, under the same filters as its rows. Anything
+  # else answers `found: false`, which draws nothing.
+  def handle_event("tree_preview", %{"key" => "page:" <> ref}, socket) do
+    with id when is_integer(id) <- Params.id(ref),
+         %Page{board_id: board_id} <- Wiki.get_page(id),
+         {board, opts} <- preview_board(socket, board_id),
+         %{} = found <- Tree.preview(board, id, opts) do
+      {:reply, preview_reply(found, board, socket.assigns.board), socket}
+    else
+      _ -> {:reply, %{found: false}, socket}
+    end
+  end
+
+  def handle_event("tree_preview", _params, socket), do: {:reply, %{found: false}, socket}
+
   # The preview beside the editor, on or off. The choice is the writer's,
   # kept by their browser (the EditorPrefs hook) so every page opens the
   # same way.
@@ -2134,6 +2151,37 @@ defmodule SlipdockWeb.WikiLive.Index do
         {:ok, rows} <- [Tree.children(socket.assigns.board, ref, extra ++ opts)],
         do: {key, rows}
   end
+
+  # The board a previewed page is on, with the options its tree rows are
+  # read with: this board, or another of the vault's the reader can read.
+  defp preview_board(%{assigns: %{board: %{id: id} = board}} = socket, id),
+    do: {board, tree_opts(socket.assigns)}
+
+  defp preview_board(socket, board_id), do: Map.get(vault_boards(socket), board_id)
+
+  defp preview_reply(%{page: page} = found, board, here) do
+    %{
+      found: true,
+      key: "page:#{page.id}",
+      title: page.title,
+      code: page.code,
+      board: if(board.id != here.id, do: board.name),
+      summary: if(page.summary not in [nil, ""], do: page.summary),
+      paragraphs: Renderer.preview_paragraphs(found.body || ""),
+      tags: page.note_tags || [],
+      children: found.children,
+      draft: page.status == "draft",
+      template: page.template == true,
+      archived: page.archived_at != nil,
+      updated:
+        page.updated_at &&
+          SlipdockWeb.SlipdockComponents.relative_time(as_datetime(page.updated_at)),
+      updated_by: found.updated_by && Slipdock.Accounts.User.display_name(found.updated_by)
+    }
+  end
+
+  defp as_datetime(%DateTime{} = dt), do: dt
+  defp as_datetime(%NaiveDateTime{} = dt), do: DateTime.from_naive!(dt, "Etc/UTC")
 
   defp through_opt({key, id}, key), do: [through: id]
   defp through_opt(_through, _key), do: []

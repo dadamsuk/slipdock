@@ -429,4 +429,26 @@ defmodule SlipdockWeb.Wiki.RendererTest do
       assert Renderer.anchor("a_b c.d") == "a_b-cd"
     end
   end
+
+  describe "preview_paragraphs/2 (#760)" do
+    test "paragraphs as plain text, headings kept, code and embeds left out" do
+      body =
+        "## Aim\n\nShip **it**.\n\n```\ncode\n\nmore code\n```\n\n![[Chart.png]]\n\n---\n\nThen rest."
+
+      assert Renderer.preview_paragraphs(body) == ["Aim", "Ship it.", "Then rest."]
+    end
+
+    test "stops at the limit, cutting the last paragraph short" do
+      body = "#{String.duplicate("a", 8)}\n\n#{String.duplicate("b", 20)}\n\nnever"
+      assert Renderer.preview_paragraphs(body, 15) == ["aaaaaaaa", "bbbbbb…"]
+      assert Renderer.preview_paragraphs(body, 8) == ["aaaaaaaa"]
+      assert Renderer.preview_paragraphs(body, 5) == ["aaaa…"]
+    end
+
+    test "an unclosed code block at the cut is left out, and nothing gives nothing" do
+      assert Renderer.preview_paragraphs("Intro.\n\n```\nhalf a block") == ["Intro."]
+      assert Renderer.preview_paragraphs("") == []
+      assert Renderer.preview_paragraphs(nil) == []
+    end
+  end
 end

@@ -33,6 +33,9 @@ const TYPE_AHEAD_MS = 700
 // The most open containers kept between visits: an open set is a reader's
 // convenience, and a runaway one would make every visit slow.
 const MAX_OPEN = 300
+// How long the mouse rests on a page row before its preview shows (#760).
+export const PREVIEW_MS = 450
+const PREVIEW_WIDTH = 320
 
 export function escapeHtml(text) {
   return String(text ?? "").replace(/[&<>"']/g, c => ({
@@ -305,12 +308,45 @@ function rowHtml(item, index, ctx) {
     active ? "ring-1 ring-inset ring-primary/60" : "",
   ].join(" ")
 
+  // A page's name has no browser tooltip: its preview (#760) shows the whole
+  // of it, and a tooltip would land on top of the preview.
   return `<div id="wt-row-${index}" class="${classes}" style="top:${top}px;height:${ctx.rowH}px;padding-left:${pad}rem" role="treeitem" ${active ? `aria-selected="true"` : ""} aria-level="${depth + 1}" ${ctx.model.openable(row) ? `aria-expanded="${open}"` : ""} ${current ? `aria-current="page"` : ""} data-key="${key}" data-index="${index}" ${row.href ? "" : "data-dir"} ${movable ? "data-movable" : ""}>` +
     handle + chevron +
-    `<a href="${escapeHtml(row.href || "#")}" ${nav} ${movable ? `draggable="false"` : ""} class="flex min-w-0 flex-1 items-center gap-1.5 py-1.5" title="${escapeHtml(row.tip || row.title)}">` +
+    `<a href="${escapeHtml(row.href || "#")}" ${nav} ${movable ? `draggable="false"` : ""} class="flex min-w-0 flex-1 items-center gap-1.5 py-1.5" ${row.kind === "page" ? "" : `title="${escapeHtml(row.title)}"`}>` +
     `<span class="${ICONS[row.kind] || ICONS.page} size-3.5 shrink-0 text-base-content/50"></span>` +
     `<span class="min-w-0 flex-1 truncate ${row.kind === "folder" || row.kind === "dir" ? "font-medium" : ""}">${title}</span>` +
     badges + `</a>` + menu + `</div>`
+}
+
+// The card a page row's preview draws (#760), from what `tree_preview`
+// answers: the page's summary and the start of its body as plain text, its
+// tags, and who changed it and when. Everything in it is escaped.
+export function previewHtml(p) {
+  const chip = text => `<span class="rounded bg-base-content/10 px-1 text-2xs text-base-content/60">${escapeHtml(text)}</span>`
+  const badges = [p.draft && "draft", p.template && "template", p.archived && "archived"].filter(Boolean).map(chip).join("")
+  const where = p.board
+    ? `<div class="mb-1 flex items-center gap-1 text-2xs text-base-content/50"><span class="hero-squares-2x2 size-3"></span>${escapeHtml(p.board)}</div>`
+    : ""
+  const summary = p.summary ? `<p class="mb-2 font-medium text-base-content/80">${escapeHtml(p.summary)}</p>` : ""
+  const paragraphs = p.paragraphs || []
+  const body = paragraphs.length
+    ? paragraphs.map(t => `<p class="mb-1.5 last:mb-0">${escapeHtml(t)}</p>`).join("")
+    : (p.summary ? "" : `<p class="italic text-base-content/40">Nothing written yet</p>`)
+  const tags = (p.tags || []).length
+    ? `<div class="mt-2 flex flex-wrap gap-1">${p.tags.map(t => `<span class="rounded bg-primary/10 px-1 text-2xs text-primary">#${escapeHtml(t)}</span>`).join("")}</div>`
+    : ""
+  const meta = [
+    p.code,
+    p.updated && `Changed ${p.updated}${p.updated_by ? ` by ${p.updated_by}` : ""}`,
+    p.children ? `${p.children} ${p.children === 1 ? "page" : "pages"} inside` : null,
+  ].filter(Boolean).map(escapeHtml).join(" · ")
+
+  return where +
+    `<div class="mb-1.5 flex items-start gap-1.5"><span class="min-w-0 flex-1 font-semibold leading-snug">${escapeHtml(p.title)}</span>${badges}</div>` +
+    summary +
+    `<div class="text-base-content/70">${body}</div>` +
+    tags +
+    (meta ? `<div class="mt-2 border-t border-base-300/70 pt-1.5 text-2xs text-base-content/50">${meta}</div>` : "")
 }
 
 const SORTS = [["manual", "As arranged"], ["name", "By name"], ["modified", "Last changed first"], ["created", "Newest first"]]
@@ -416,7 +452,7 @@ export const WikiTree = {
     // say (#758); it comes back with every load.
     this.scope = "board"
 
-    this.onScroll = () => this.schedule()
+    this.onScroll = () => { this.hidePreview(); this.schedule() }
     this.el.addEventListener("scroll", this.onScroll, {passive: true})
     this.onResize = () => this.schedule()
     window.addEventListener("resize", this.onResize)
@@ -437,6 +473,12 @@ export const WikiTree = {
     this.selected = new Set()
     this.selectionEl = this.el.querySelector("#wiki-tree-selection")
     this.onContextMenu = e => this.contextMenu(e)
+    // A page row the mouse rests on shows a preview of the page (#760).
+    this.previews = new Map()
+    this.onOver = e => this.hoverRow(e)
+    this.rowsEl.addEventListener("pointerover", this.onOver)
+    this.onLeave = () => this.hidePreview()
+    this.rowsEl.addEventListener("pointerleave", this.onLeave)
     this.rowsEl.addEventListener("contextmenu", this.onContextMenu)
     if (this.selectionEl) this.selectionEl.addEventListener("click", e => this.selectionAction(e))
     document.addEventListener("click", this.onAway, true)
@@ -462,6 +504,8 @@ export const WikiTree = {
     this.hidden = !shown
     if (this.el.dataset.version !== this.version) {
       this.version = this.el.dataset.version
+      this.previews = new Map()
+      this.hidePreview()
       this.load({})
     } else {
       this.reveal()
@@ -473,6 +517,71 @@ export const WikiTree = {
     window.removeEventListener("resize", this.onResize)
     document.removeEventListener("click", this.onAway, true)
     this.endDrag()
+    this.hidePreview()
+    if (this.previewEl) this.previewEl.remove()
+  },
+
+  // The mouse resting on a page row, for a moment, shows its preview; on to
+  // another row starts again, and anything that isn't a page shows nothing.
+  // Not for a finger, whose resting press opens the row's menu.
+  hoverRow(e) {
+    if (e.pointerType !== "mouse" || this.drag || this.menuEl) return
+    const rowEl = e.target.closest && e.target.closest("[data-key]")
+    const key = rowEl && rowEl.dataset.key
+    if (key && key === this.previewKey) return
+    this.hidePreview()
+    if (!key || !key.startsWith("page:")) return
+    this.previewKey = key
+    this.previewTimer = setTimeout(() => this.preview(key, rowEl), PREVIEW_MS)
+  },
+
+  // Asked for once per page while the tree's rows stand: a reload (the
+  // version going up) forgets them all.
+  preview(key, rowEl) {
+    this.previewKey = key
+    const show = p => {
+      if (this.previewKey !== key || !p || !p.found) return
+      this.drawPreview(p, rowEl)
+    }
+    if (this.previews.has(key)) return show(this.previews.get(key))
+    this.pushEvent("tree_preview", {key}, reply => {
+      this.previews.set(key, reply)
+      show(reply)
+    })
+  },
+
+  // Beside the tree, level with the row, kept on screen. It takes no
+  // pointer, so it never stands between the mouse and the next row.
+  drawPreview(p, rowEl) {
+    if (!this.previewEl) {
+      const el = document.createElement("div")
+      el.id = "wiki-tree-preview"
+      el.setAttribute("role", "tooltip")
+      el.className = "pointer-events-none fixed z-50 max-h-[70vh] overflow-hidden rounded-xl border border-base-300 bg-base-100 p-3 text-sm shadow-xl"
+      el.style.width = `${PREVIEW_WIDTH}px`
+      document.body.appendChild(el)
+      this.previewEl = el
+    }
+    const el = this.previewEl
+    el.innerHTML = previewHtml(p)
+    el.dataset.key = p.key
+    el.hidden = false
+    const winW = window.innerWidth || 1024
+    const winH = window.innerHeight || 768
+    const tree = this.el.getBoundingClientRect ? this.el.getBoundingClientRect() : {right: 0}
+    const row = rowEl && rowEl.getBoundingClientRect ? rowEl.getBoundingClientRect() : {top: 8}
+    const left = Math.max(8, Math.min(tree.right + 8, winW - PREVIEW_WIDTH - 8))
+    const top = Math.max(8, Math.min(row.top, winH - (el.offsetHeight || 0) - 8))
+    el.style.left = `${left}px`
+    el.style.top = `${top}px`
+    this.rowsEl.setAttribute("aria-describedby", el.id)
+  },
+
+  hidePreview() {
+    clearTimeout(this.previewTimer)
+    this.previewKey = null
+    if (this.previewEl) this.previewEl.hidden = true
+    if (this.rowsEl && this.rowsEl.removeAttribute) this.rowsEl.removeAttribute("aria-describedby")
   },
 
 
@@ -677,6 +786,7 @@ export const WikiTree = {
   },
 
   click(e) {
+    this.hidePreview()
     const menuItem = e.target.closest("[data-menu-item]")
     if (menuItem) return this.menuAction(e, Number(menuItem.dataset.menuItem))
     if ((this.pressed && !e.target.closest("[data-tree-menu]")) || this.dragged) {
@@ -720,6 +830,17 @@ export const WikiTree = {
     let index = this.active ? flat.findIndex(i => i.row.key === this.active) : -1
     const item = flat[index]
     const mine = item && item.row.writable && !item.row.mount
+
+    // Space shows the highlighted page's preview, or puts it away (#760);
+    // any other key puts it away.
+    if (e.key === " ") {
+      e.preventDefault()
+      if (!item || item.row.kind !== "page" || this.previewKey === item.row.key) return this.hidePreview()
+      this.hidePreview()
+      const rowEl = this.rowsEl.querySelector && this.rowsEl.querySelector(`#wt-row-${index}`)
+      return this.preview(item.row.key, rowEl)
+    }
+    this.hidePreview()
 
     if (e.key === "Escape" && (this.selected.size || this.menuEl)) {
       e.preventDefault()
@@ -841,6 +962,7 @@ export const WikiTree = {
   },
 
   openMenu(rowEl, at) {
+    this.hidePreview()
     const item = this.flat[Number(rowEl.dataset.index)]
     if (!item) return
     if (this.selected.size && !this.selected.has(item.row.key)) this.selected = new Set()
@@ -891,6 +1013,7 @@ export const WikiTree = {
   // still the click it was. A finger scrolls, and holds for the menu, so
   // on a touch screen only Organise mode's handles drag.
   dragStart(e) {
+    this.hidePreview()
     const handle = e.target.closest("[data-drag]")
     if (!handle && e.pointerType === "touch") return this.pressStart(e)
     if (e.button > 0) return
