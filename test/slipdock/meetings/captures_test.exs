@@ -194,14 +194,9 @@ defmodule Slipdock.Meetings.CapturesTest do
       {:ok, _} = Settings.update(%{"storage_limit_mb" => 1, "storage_limit_enabled" => true})
       path = audio_file(:binary.copy("x", 1_100_000))
 
-      stored = fn ->
-        case File.ls(Path.join(Boards.uploads_dir(), "captures")) do
-          {:ok, names} -> length(names)
-          {:error, _} -> 0
-        end
-      end
-
-      files_before = stored.()
+      # An uploads dir of its own: other async tests store recordings in the
+      # shared one while this runs (#659).
+      uploads = Slipdock.TestConfig.own_uploads_dir()
 
       assert {:error, cs} =
                Meetings.create_capture(
@@ -213,7 +208,9 @@ defmodule Slipdock.Meetings.CapturesTest do
 
       assert Quota.limit_kind(cs) == :storage
       assert Repo.aggregate(Capture, :count) == 0
-      assert stored.() == files_before
+
+      assert Path.wildcard(Path.join(uploads, "**/*"), match_dot: true)
+             |> Enum.filter(&File.regular?/1) == []
     end
   end
 
