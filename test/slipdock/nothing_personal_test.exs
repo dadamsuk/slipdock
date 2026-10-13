@@ -35,13 +35,21 @@ defmodule Slipdock.NothingPersonalTest do
     # The CLI's own: which private addresses plain http may go to unwarned.
     "cli/test/security_test.exs",
     # The default trusted proxies: the private ranges, by name.
-    "lib/slipdock_web/client_ip.ex"
+    "lib/slipdock_web/client_ip.ex",
+    # npm's lockfile for the vendored Excalidraw build: version ranges such
+    # of node versions starting at ten read as addresses.
+    "assets/excalidraw/package-lock.json"
   ]
+
+  # Folders of somebody else's code, committed as it was built
+  # (assets/excalidraw/build.sh): minified numbers read as addresses.
+  @allowed_dirs ["priv/static/vendor/"]
 
   test "no file in this repository carries anything personal" do
     offences =
       for path <- tracked_files(),
           path not in @allowed,
+          not Enum.any?(@allowed_dirs, &String.starts_with?(path, &1)),
           {what, pattern, instead} <- @forbidden,
           line_number_and_text <- matches(path, pattern) do
         {line, text} = line_number_and_text
