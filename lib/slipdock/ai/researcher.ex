@@ -378,12 +378,20 @@ defmodule Slipdock.AI.Researcher do
   Answers `message` for `user`, searching as needed.
 
   `history` is the conversation so far as maps with `:role` and `:content`.
+  `opts` may name a `:board` the question is about, which the model is told
+  to keep to. That narrows the answer; it is not a fence — every tool is
+  still scoped to the user, not to the board.
+
   Returns `{:ok, %{reply: markdown, sources: [%{card:, board:, why:}], searches: [query]}}`
   or `{:error, message}`.
   """
   @spec ask(User.t(), [map], String.t(), keyword) :: {:ok, map} | {:error, String.t()}
   def ask(%User{} = user, history, message, opts \\ []) do
-    system = String.replace(@prompt, "%{today}", Date.to_string(Date.utc_today()))
+    {board, opts} = Keyword.pop(opts, :board)
+
+    system =
+      String.replace(@prompt, "%{today}", Date.to_string(Date.utc_today())) <> about(board)
+
     # The key is the asker's own (see `Slipdock.AI.api_key/1`).
     opts = Keyword.put_new(opts, :user, user)
 
@@ -399,6 +407,13 @@ defmodule Slipdock.AI.Researcher do
       opts
     )
   end
+
+  defp about(nil), do: ""
+
+  defp about(board),
+    do:
+      "\n\nThis question is about the board \"#{board.name}\" (code `#{board.code}`). " <>
+        "Keep to it and its sub-boards unless the question plainly names another."
 
   defp loop(_user, _messages, state, 0, _opts) do
     {:ok,

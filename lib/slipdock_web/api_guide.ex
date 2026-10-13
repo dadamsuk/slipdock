@@ -478,7 +478,9 @@ defmodule SlipdockWeb.APIGuide do
     them with `section`), `list_boards`,
     `get_board`, `list_cards` (`full: true` gives every card as `get_card`
     does, comments, checklist and docs included, so a whole board reads in
-    one call), `get_card`, `search`, `read_page`, `list_pages` (a
+    one call), `get_card`, `search`, `ask` (`POST /api/ask` as a
+    tool: a question answered in prose, with what it read; a model call, so
+    slower), `read_page`, `list_pages` (a
     board's wiki, flat or with `tree` nested), `page_info` (by
     `what`: a page's `links` or `sections` — the heading paths
     `write_page` takes — a board's `wanted` pages, or `resolve` a
@@ -1109,7 +1111,8 @@ defmodule SlipdockWeb.APIGuide do
     `/search`
     when you want to pick the card yourself — which is most of the time, and
     always when you are about to change something. Use `/ask` when the person
-    asked a question in words and wants an answer rather than a list.
+    asked a question in words and wants an answer rather than a list. Over
+    MCP it is the `ask` tool (`question`, and `board` to keep to one).
 
     `GET /api/saved-queries` is what this person has chosen to keep asking —
     their own, and not derivable from the boards. Worth a look alongside
