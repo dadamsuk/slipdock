@@ -1048,7 +1048,11 @@ defmodule SlipdockWeb.BoardLive.BoardView do
       />
       <span class="hidden h-5 w-px bg-base-300 sm:block"></span>
 
-      <.search_box id="board-search-box" q={@filters.q}>
+      <.search_box
+        id="board-search-box"
+        q={@filters.q}
+        clear={JS.push("search", value: %{q: ""})}
+      >
         <form id="board-search" phx-change="search" phx-submit="search" class="relative">
           <.icon
             name="hero-magnifying-glass"
@@ -1060,7 +1064,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
             value={@filters.q}
             placeholder="Search cards…"
             phx-debounce="200"
-            class="input input-sm w-40 rounded-full pl-8 transition-[width] focus:w-64"
+            class="input input-sm w-40 rounded-full pl-8 pr-8 transition-[width] focus:w-64"
             autocomplete="off"
           />
         </form>

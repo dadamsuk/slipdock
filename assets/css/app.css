@@ -321,6 +321,8 @@ body {
 .search-box { display: none; }
 .search-box.search-open { display: block; }
 @media (min-width: 40rem) { .search-box { display: block; } }
+/* The box draws its own X to clear the query, in every browser alike. */
+.search-box input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
 
 /* The timeline's and calendar's date navigator. On a phone "‹ Today ›" plus
    "Sep 2026 – Dec 2026" is a row on its own, so let it be one, below the

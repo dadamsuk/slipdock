@@ -460,7 +460,12 @@ defmodule SlipdockWeb.SwimlaneComponents do
 
           <span class="hidden h-5 w-px bg-base-300 sm:block"></span>
 
-          <.search_box id="swim-search" q={@config.q} class="relative min-w-0 flex-1 sm:flex-none">
+          <.search_box
+            id="swim-search"
+            q={@config.q}
+            clear={JS.push("swim_set", value: %{key: "q", value: ""})}
+            class="relative min-w-0 flex-1 sm:flex-none"
+          >
             <.icon
               name="hero-magnifying-glass"
               class="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-base-content/40"
@@ -471,7 +476,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
               value={@config.q}
               placeholder="Search…"
               phx-debounce="300"
-              class="input input-sm w-full rounded-full pl-8 transition-[width] sm:w-36 sm:focus:w-56"
+              class="input input-sm w-full rounded-full pl-8 pr-8 transition-[width] sm:w-36 sm:focus:w-56"
               autocomplete="off"
             />
           </.search_box>
@@ -536,6 +541,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
   attr :id, :string, required: true, doc: "the box's id; its button's is this plus `-toggle`"
   attr :q, :string, default: nil, doc: "the current query: a box with one in it stays open"
   attr :class, :any, default: nil
+  attr :clear, JS, default: nil, doc: "what the X at the box's right edge does: empties the query"
   slot :inner_block, required: true
 
   @doc """
@@ -544,6 +550,10 @@ defmodule SlipdockWeb.SwimlaneComponents do
   screen with room for a few. Tapping it opens the box and puts the cursor
   in it. A box with a query in it is never folded, so a filter is never
   hidden. From `sm` up the box is simply there and the button is gone.
+
+  Given `clear`, a box with a query in it has an X at its right edge that
+  empties it, so a search is undone in one tap rather than by selecting and
+  deleting the text.
   """
   def search_box(assigns) do
     open =
@@ -566,8 +576,19 @@ defmodule SlipdockWeb.SwimlaneComponents do
     >
       <.icon name="hero-magnifying-glass" class="size-5" />
     </button>
-    <div id={@id} class={["search-box", @query? && "search-open", @class]}>
+    <div id={@id} class={["search-box relative", @query? && "search-open", @class]}>
       {render_slot(@inner_block)}
+      <button
+        :if={@query? && @clear}
+        id={"#{@id}-clear"}
+        type="button"
+        phx-click={@clear}
+        class="btn btn-ghost btn-xs btn-circle absolute right-1 top-1/2 -translate-y-1/2 text-base-content/50"
+        title="Clear the search"
+        aria-label="Clear the search"
+      >
+        <.icon name="hero-x-mark" class="size-4" />
+      </button>
     </div>
     """
   end
