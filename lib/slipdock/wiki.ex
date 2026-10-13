@@ -104,6 +104,9 @@ defmodule Slipdock.Wiki do
       pages filed nowhere
     * `:note_tag` — only notes tagged this, or anything nested under it
       (`area` finds `area/sub`; see `Slipdock.Wiki.NoteTags`)
+    * `:listing` — `true` for what a list of pages draws: the body cut to its
+      first 1,000 characters, and no front matter or frozen copy. Never save
+      a page loaded this way; fetch it whole first
   """
   def list_pages(board, opts \\ [])
 
@@ -161,8 +164,24 @@ defmodule Slipdock.Wiki do
     |> filter_folder(Keyword.get(opts, :folder))
     |> filter_text(Keyword.get(opts, :q))
     |> filter_note_tag(Keyword.get(opts, :note_tag))
+    |> listing(Keyword.get(opts, :listing, false))
     |> Repo.all()
   end
+
+  # A listing draws each page's title and at most a line of it, never the
+  # whole of one, so the body comes cut to what an excerpt needs and the front
+  # matter and frozen copy stay behind. In a vault of thousands of notes that
+  # is most of the bytes a tree would otherwise load on every change.
+  @listing_fields Page.__schema__(:fields) -- [:body, :front_matter, :frozen]
+  @listing_body_chars 1000
+
+  defp listing(query, true) do
+    query
+    |> select([p], struct(p, ^@listing_fields))
+    |> select_merge([p], %{body: fragment("substr(?, 1, ?)", p.body, @listing_body_chars)})
+  end
+
+  defp listing(query, _), do: query
 
   defp filter_archived(query, :all), do: query
   defp filter_archived(query, true), do: where(query, [p], not is_nil(p.archived_at))
