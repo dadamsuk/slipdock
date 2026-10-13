@@ -633,6 +633,8 @@ defmodule Slipdock.Wiki.Links do
   This is the classic way a wiki grows, and a good work queue: the pages
   people keep reaching for are the pages worth writing.
   """
+  @linker_fields Page.__schema__(:fields) -- [:body, :front_matter, :frozen]
+
   def wanted(%Board{} = board), do: wanted([board.id])
 
   # Several boards at once: a vault's wanted pages are every board's in it.
@@ -644,7 +646,9 @@ defmodule Slipdock.Wiki.Links do
       where: l.kind == "page" and not l.resolved
     )
     |> Repo.all()
-    |> Repo.preload(page: [])
+    # Who links, without what they say: a vault has thousands of these links,
+    # and each linking page's whole text would otherwise come with every one.
+    |> Repo.preload(page: from(p in Page, select: struct(p, ^@linker_fields)))
     |> Enum.group_by(& &1.raw)
     |> Enum.map(fn {raw, links} ->
       %{

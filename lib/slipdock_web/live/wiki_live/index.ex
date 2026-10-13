@@ -120,7 +120,7 @@ defmodule SlipdockWeb.WikiLive.Index do
 
     # What the tree is drawn from, before the filter bar narrows it. A draft
     # is only ever listed for someone who could have written it.
-    all = Wiki.list_pages(board, list_opts(can_write, show))
+    all = Wiki.list_pages(board, [listing: true] ++ list_opts(can_write, show))
     all_folders = Wiki.folders(board)
 
     # The search box searches the filing as well as what is filed: a folder
@@ -147,7 +147,6 @@ defmodule SlipdockWeb.WikiLive.Index do
       # page (see `SlipdockWeb.FolderPicker`).
       folder_outline: Slipdock.Wiki.Folders.outline(all_folders),
       recent: shown |> Enum.sort_by(& &1.updated_at, {:desc, DateTime}) |> Enum.take(8),
-      wanted: Wiki.wanted(board),
       shown: length(shown),
       hidden: length(all) - length(shown),
       filtering: Slipdock.Filters.any?(filters)
@@ -222,7 +221,9 @@ defmodule SlipdockWeb.WikiLive.Index do
         do: "#{Wiki.folder_path(folder)} · #{socket.assigns.board.name} wiki",
         else: "#{socket.assigns.board.name} · Wiki"
 
-    assign(socket, page: nil, revision: nil, folder: folder, page_title: title)
+    socket
+    |> assign(page: nil, revision: nil, folder: folder, page_title: title)
+    |> assign_wanted()
   end
 
   defp apply_action(socket, :new, params) do
@@ -281,6 +282,13 @@ defmodule SlipdockWeb.WikiLive.Index do
         |> assign(page_title: "Page not found")
     end
   end
+
+  # The wanted pages are drawn on the index alone, so they are worked out
+  # only when it is what is showing: an open page never pays for them.
+  defp assign_wanted(%{assigns: %{page: nil, board: board}} = socket),
+    do: assign(socket, wanted: Wiki.wanted(board))
+
+  defp assign_wanted(socket), do: assign(socket, wanted: [])
 
   defp apply_page_action(socket, :edit, _params) do
     if socket.assigns.can_write do
@@ -516,6 +524,10 @@ defmodule SlipdockWeb.WikiLive.Index do
   end
 
   @upload_placeholder "![Uploading image…]()"
+
+  # How long a change waits for the rest of its burst (see the
+  # `:wiki_changed` handler). Short enough that one edit still shows at once.
+  @reload_after_ms Application.compile_env(:slipdock, :wiki_reload_after_ms, 300)
 
   # The placeholder is the browser's, not the document's: it must never be saved.
   defp strip_placeholder(nil), do: nil
@@ -1303,8 +1315,21 @@ defmodule SlipdockWeb.WikiLive.Index do
   end
 
   @impl true
+  # Changes come in bursts — an import or a sync sends one per page, several a
+  # second for minutes — and each reload reads the whole wiki. So a change
+  # only books a reload a moment off, and those that land before it share it:
+  # one reload per burst, not one per page, and the tab stays answerable.
   def handle_info({:wiki_changed, _board_id}, socket) do
-    socket = load_tree(socket)
+    if socket.assigns[:reload_booked] do
+      {:noreply, socket}
+    else
+      Process.send_after(self(), :reload_wiki, @reload_after_ms)
+      {:noreply, assign(socket, reload_booked: true)}
+    end
+  end
+
+  def handle_info(:reload_wiki, socket) do
+    socket = socket |> assign(reload_booked: false) |> load_tree() |> assign_wanted()
 
     {:noreply,
      case socket.assigns.page do
@@ -2847,8 +2872,13 @@ defmodule SlipdockWeb.WikiLive.Index do
             votes, reported health and comments. The same components the card
             panel draws, because they are the same rows in the same tables
             (see `Slipdock.Boards.Owned`). This is the document's own view, so
-            there are no keyboard section keys. --%>
-      <section class="mt-10 space-y-8 border-t border-base-300 pt-6">
+            there are no keyboard section keys. A wiki that is only documents
+            turns the lot off (`page_card_features` on its board). --%>
+      <section
+        :if={@board.page_card_features}
+        id="page-card-features"
+        class="mt-10 space-y-8 border-t border-base-300 pt-6"
+      >
         <%!-- A grid of equal panels rather than one tall rail beside the
               prose: these are short, and a skinny column of them runs on
               far below everything else on the page. --%>
