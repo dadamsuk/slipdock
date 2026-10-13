@@ -1,6 +1,8 @@
 defmodule SlipdockCLI.Sync.Engine do
   @moduledoc false
 
+  alias SlipdockCLI.FS
+
   # One pass of `slipdock sync` (W-103 R2.2–R2.5, R2.9): the folder and the
   # vault brought level, both ways.
   #
@@ -88,7 +90,7 @@ defmodule SlipdockCLI.Sync.Engine do
       conflicts =
         ((state["conflicts"] || []) ++ Enum.map(report.conflicts, & &1.copy))
         |> Enum.uniq()
-        |> Enum.filter(&File.exists?(Path.join(root, &1)))
+        |> Enum.filter(&FS.exists?(Path.join(root, &1)))
 
       state =
         state
@@ -348,7 +350,7 @@ defmodule SlipdockCLI.Sync.Engine do
         result =
           cond do
             kind == "page" ->
-              case File.read(full) do
+              case FS.read(full) do
                 {:ok, content} ->
                   call(acc, :write, [id, %{"path" => lpath, "content" => content, "base" => base}])
 
@@ -461,7 +463,7 @@ defmodule SlipdockCLI.Sync.Engine do
         {:ok, %{path: s["path"], hash: sha, data: {:tmp, tmp}}}
 
       {:error, _} = error ->
-        File.rm(tmp)
+        FS.rm(tmp)
         error
     end
   end
@@ -527,7 +529,7 @@ defmodule SlipdockCLI.Sync.Engine do
       n -> "#{base} #{n}#{ext}"
     end)
     |> Stream.map(&if(dir == ".", do: &1, else: Path.join(dir, &1)))
-    |> Enum.find(&(not File.exists?(Path.join(acc.root, &1))))
+    |> Enum.find(&(not FS.exists?(Path.join(acc.root, &1))))
   end
 
   ## The disk ---------------------------------------------------------------
@@ -547,27 +549,27 @@ defmodule SlipdockCLI.Sync.Engine do
 
         bytes when is_binary(bytes) ->
           tmp = temp_path(acc)
-          File.write!(tmp, bytes)
+          FS.write!(tmp, bytes)
           {tmp, Scan.sha(bytes)}
       end
 
     acc =
       if there && there != expect && there != sha do
         copy = conflict_name(acc, path)
-        :ok = File.rename(full, Path.join(acc.root, copy))
+        :ok = FS.rename(full, Path.join(acc.root, copy))
         acc |> queue(copy) |> report(:conflicts, %{path: path, copy: copy})
       else
         acc
       end
 
-    File.mkdir_p!(Path.dirname(full))
-    File.rename!(tmp, full)
+    FS.mkdir_p!(Path.dirname(full))
+    FS.rename!(tmp, full)
     {:ok, acc}
   end
 
   defp temp_path(acc) do
     tmp = Path.join([acc.root, State.dir_name(), "tmp-#{System.unique_integer([:positive])}"])
-    File.mkdir_p!(Path.dirname(tmp))
+    FS.mkdir_p!(Path.dirname(tmp))
     tmp
   end
 
@@ -579,7 +581,7 @@ defmodule SlipdockCLI.Sync.Engine do
         :ok
 
       ^expect ->
-        File.rm!(full)
+        FS.rm!(full)
         prune(acc.root, Path.dirname(path))
         :ok
 
@@ -595,16 +597,16 @@ defmodule SlipdockCLI.Sync.Engine do
       dest = Path.join(acc.root, to)
 
       acc =
-        if File.exists?(dest) and Scan.sha_file(dest) != expect do
+        if FS.exists?(dest) and Scan.sha_file(dest) != expect do
           copy = conflict_name(acc, to)
-          :ok = File.rename(dest, Path.join(acc.root, copy))
+          :ok = FS.rename(dest, Path.join(acc.root, copy))
           acc |> queue(copy) |> report(:conflicts, %{path: to, copy: copy})
         else
           acc
         end
 
-      File.mkdir_p!(Path.dirname(dest))
-      :ok = File.rename(src, dest)
+      FS.mkdir_p!(Path.dirname(dest))
+      :ok = FS.rename(src, dest)
       prune(acc.root, Path.dirname(from))
       {:ok, acc}
     else
@@ -616,7 +618,7 @@ defmodule SlipdockCLI.Sync.Engine do
   defp prune(_root, "."), do: :ok
 
   defp prune(root, dir) do
-    case File.rmdir(Path.join(root, dir)) do
+    case FS.rmdir(Path.join(root, dir)) do
       :ok -> prune(root, Path.dirname(dir))
       _ -> :ok
     end
