@@ -433,6 +433,9 @@ defmodule SlipdockWeb.Layouts do
       <.link navigate={~p"/wiki"}><.icon name="hero-book-open" class="size-4" /> Wiki</.link>
     </li>
     <li>
+      <.link navigate={~p"/vaults"}><.icon name="hero-rectangle-stack" class="size-4" /> Vaults</.link>
+    </li>
+    <li>
       <.link navigate={~p"/search"}><.icon
         name="hero-magnifying-glass-circle"
         class="size-4"

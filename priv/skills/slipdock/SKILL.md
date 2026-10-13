@@ -436,6 +436,9 @@ slipdock vault ls | slipdock vault show <vault> | slipdock vault new <name...>
 slipdock vault map <vault> <path> --board B [--folder F] | slipdock vault unmap <vault> <path>
 slipdock vault locate <vault> <path> | slipdock vault rename <vault> <name...> | slipdock vault rm <vault>
 ```
+`vault ls` also shows how many pages each mapping holds and the folders the vault is synced to
+(each sync token's label and last sync). People do the same on the web app's Vaults screen
+(`/vaults`, avatar menu › Vaults).
 
 `slipdock sync` mirrors a vault both ways to a local folder that stays a valid Obsidian vault
 (notes as `.md`, other files at the same path; a delete archives; changed on both sides, the

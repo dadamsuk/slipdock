@@ -311,6 +311,13 @@ defmodule SlipdockCLI.Vaults do
       [] -> IO.puts("  " <> Render.dim("nothing mapped yet"))
       mappings -> Enum.each(mappings, &IO.puts("  " <> mapping_line(&1)))
     end
+
+    # The folders it is synced to, from servers that record them.
+    for m <- v["mirrors"] || [] do
+      IO.puts(
+        "  " <> Render.dim("synced to #{m["label"] || "a token"}, last #{m["last_synced_at"]}")
+      )
+    end
   end
 
   @doc false
@@ -321,7 +328,14 @@ defmodule SlipdockCLI.Vaults do
         folder -> "#{m["board"]["name"]} wiki, folder #{folder["path"]}"
       end
 
+    pages =
+      case m["pages"] do
+        nil -> ""
+        1 -> " · 1 page"
+        n -> " · #{n} pages"
+      end
+
     String.pad_trailing(m["path"], 16) <>
-      " → " <> target <> "  " <> Render.dim(m["board"]["code"] || "")
+      " → " <> target <> "  " <> Render.dim((m["board"]["code"] || "") <> pages)
   end
 end

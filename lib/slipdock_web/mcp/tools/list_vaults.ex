@@ -19,7 +19,8 @@ defmodule SlipdockWeb.MCP.Tools.ListVaults do
   def description,
     do:
       "Your vaults: board wikis laid out as one Obsidian-style vault, each mapping a vault " <>
-        "path to a board's wiki or a folder of it. Give vault and path to ask which mapping " <>
+        "path to a board's wiki or a folder of it, with how many pages each holds and the " <>
+        "folders the vault is synced to (each sync token, last sync). Give vault and path to ask which mapping " <>
         "a path lands in (longest prefix wins) and what is left of it; vault and link, which " <>
         "page a [[link]] finds in it; vault and changes_since, what changed after a cursor."
 

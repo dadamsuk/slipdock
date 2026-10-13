@@ -591,23 +591,35 @@ defmodule SlipdockWeb.API.JSON do
 
   @doc "A vault and its mappings (see `Slipdock.Vaults`)."
   def vault(%Slipdock.Vaults.Vault{} = v) do
+    counts = Slipdock.Vaults.page_counts(v)
+
     %{
       id: v.id,
       name: v.name,
-      mappings: Enum.map(v.mappings, &vault_mapping/1),
+      mappings: Enum.map(v.mappings, &vault_mapping(&1, Map.get(counts, &1.id, 0))),
+      # The folders it is synced to, as far as the server can tell: each
+      # token that has listed it or followed its feed (`touch_mirror/2`).
+      mirrors:
+        v
+        |> Slipdock.Vaults.mirrors()
+        |> Enum.map(&%{label: &1.label, last_synced_at: &1.last_synced_at}),
       inserted_at: v.inserted_at,
       updated_at: v.updated_at
     }
   end
 
-  @doc "One vault mapping: a vault path and the wiki, or folder, it lands in."
-  def vault_mapping(%Slipdock.Vaults.Mapping{} = m) do
+  @doc """
+  One vault mapping: a vault path and the wiki, or folder, it lands in, and
+  (when known) how many live pages it holds.
+  """
+  def vault_mapping(%Slipdock.Vaults.Mapping{} = m, pages \\ nil) do
     %{
       id: m.id,
       path: Slipdock.Vaults.Mapping.display_path(m),
       board: %{id: m.board.id, code: m.board.code, name: m.board.name},
       folder: m.folder && %{id: m.folder.id, path: Slipdock.Wiki.folder_path(m.folder)}
     }
+    |> then(&if(pages, do: Map.put(&1, :pages, pages), else: &1))
   end
 
   @doc """

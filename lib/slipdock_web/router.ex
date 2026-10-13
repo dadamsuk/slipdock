@@ -221,6 +221,8 @@ defmodule SlipdockWeb.Router do
       live "/groups", GroupLive.Index, :index
       live "/templates", TemplateLive.Index, :index
       live "/favourites", FavouriteLive.Index, :index
+      # Vaults: which boards' wikis lay out as one Obsidian-style tree (W-103).
+      live "/vaults", VaultLive.Index, :index
       # Every board's documents in one tree: boards as the top level, then
       # each board's folders and pages (see `SlipdockWeb.WikiLive.All`).
       live "/wiki", WikiLive.All, :index

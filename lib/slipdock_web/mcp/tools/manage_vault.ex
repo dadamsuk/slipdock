@@ -76,8 +76,11 @@ defmodule SlipdockWeb.MCP.Tools.ManageVault do
     with {:ok, vault} <- vault(args, user),
          {:ok, confirmed} <- Args.boolean(args, "confirm", false) do
       if confirmed do
+        # Rendered first, so the reply still counts what it held.
+        deleted = V.vault(vault)
+
         with {:ok, _} <- Args.refusal(Vaults.delete_vault(vault)),
-             do: {:ok, %{deleted: V.vault(vault)}}
+             do: {:ok, %{deleted: deleted}}
       else
         {:error, "deleting a vault removes its mappings (not its pages); send confirm: true"}
       end

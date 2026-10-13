@@ -1830,7 +1830,7 @@ defmodule SlipdockWeb.APIGuide do
     is looked for.
 
     ```sh
-    curl -s -H "$H" B/api/vaults                                   # yours, mappings and all
+    curl -s -H "$H" B/api/vaults          # yours: mappings (each with its `pages`) and `mirrors`
     curl -s -X POST -H "$H" -H 'content-type: application/json' \\
          B/api/vaults -d '{"name": "Notes"}'
     curl -s -X POST -H "$H" -H 'content-type: application/json' \\
@@ -1843,8 +1843,11 @@ defmodule SlipdockWeb.APIGuide do
     curl -s -X DELETE -H "$H" B/api/vaults/Brain   # its mappings go; the pages stay
     ```
 
-    On a shell: `slipdock vault ls|show|new|rename|rm|map|unmap|locate`; over
-    MCP, `list_vaults` and `manage_vault`.
+    `mirrors` are the folders the vault is synced to, as far as the server
+    knows: each API token that has listed it (`/sync`) or followed its feed,
+    by label, with `last_synced_at`. On a shell: `slipdock vault
+    ls|show|new|rename|rm|map|unmap|locate`; over MCP, `list_vaults` and
+    `manage_vault`; in the web app, the Vaults screen (`/vaults`).
 
     **Links reach across the vault.** On a board in a vault, a plain
     `[[Note]]` tries its own board, then every board of the vault: each page

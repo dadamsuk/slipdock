@@ -18,6 +18,7 @@ defmodule Slipdock.Vaults.Vault do
 
     belongs_to :user, Slipdock.Accounts.User
     has_many :mappings, Slipdock.Vaults.Mapping, preload_order: [asc: :path]
+    has_many :mirrors, Slipdock.Vaults.Mirror, preload_order: [desc: :last_synced_at]
 
     timestamps(type: :utc_datetime)
   end

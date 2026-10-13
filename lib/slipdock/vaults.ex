@@ -26,7 +26,7 @@ defmodule Slipdock.Vaults do
   alias Slipdock.{Access, Repo}
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.Board
-  alias Slipdock.Vaults.{Index, Mapping, Vault}
+  alias Slipdock.Vaults.{Index, Mapping, Mirror, Vault}
   alias Slipdock.Wiki
   alias Slipdock.Wiki.{Folder, NoteTags, Page}
 
@@ -95,6 +95,49 @@ defmodule Slipdock.Vaults do
     from(m in Mapping, where: m.vault_id == ^id, distinct: true, select: m.board_id)
     |> Repo.all()
   end
+
+  @doc """
+  How many live pages each mapping of the vault holds, `%{mapping_id =>
+  count}`: a page counts once, under the deepest mapping above it, as the
+  vault's tree lays it out. A mapping holding nothing is absent.
+  """
+  def page_counts(%Vault{} = vault) do
+    vault |> Index.build() |> Enum.frequencies_by(& &1.mapping_id)
+  end
+
+  @doc """
+  The folders the vault is synced to, as far as the server knows: one per
+  API token that has listed it or followed its feed, most recent first.
+  """
+  def mirrors(%Vault{id: id}) do
+    from(m in Mirror, where: m.vault_id == ^id, order_by: [desc: m.last_synced_at, desc: m.id])
+    |> Repo.all()
+  end
+
+  @doc """
+  Notes that `token` has just synced the vault — listed it or read its
+  change feed — so the vaults screen can say where it is mirrored. A call
+  without an API token (a browser session) is not a mirror and is ignored.
+  """
+  def touch_mirror(%Vault{id: vault_id}, %{id: token_id} = token) when is_integer(token_id) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    label = Map.get(token, :label)
+
+    Repo.insert(
+      %Mirror{
+        vault_id: vault_id,
+        token_id: token_id,
+        label: label,
+        last_synced_at: now
+      },
+      on_conflict: [set: [last_synced_at: now, label: label, updated_at: now]],
+      conflict_target: [:vault_id, :token_id]
+    )
+
+    :ok
+  end
+
+  def touch_mirror(_vault, _token), do: :ok
 
   @doc """
   Which mapping a vault path falls in, and what is left of the path below it:

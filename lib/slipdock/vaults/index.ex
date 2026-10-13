@@ -30,6 +30,7 @@ defmodule Slipdock.Vaults.Index do
   @type entry :: %{
           id: pos_integer,
           board_id: pos_integer,
+          mapping_id: pos_integer,
           segments: [String.t()],
           path: String.t(),
           names: [String.t()],
@@ -43,7 +44,7 @@ defmodule Slipdock.Vaults.Index do
       Repo.all(
         from(m in Mapping,
           where: m.vault_id == ^vault_id,
-          select: {m.board_id, m.folder_id, m.path}
+          select: {m.board_id, m.folder_id, m.path, m.id}
         )
       )
 
@@ -79,29 +80,30 @@ defmodule Slipdock.Vaults.Index do
     |> Enum.flat_map(fn page ->
       case place(page, by_id, folders, Map.get(by_board, page.board_id, [])) do
         nil -> []
-        segments -> [entry(page, segments)]
+        {mapping_id, segments} -> [entry(page, mapping_id, segments)]
       end
     end)
     |> Enum.sort_by(&{length(&1.segments), &1.path})
   end
 
-  # The page's vault path as segments, or nil when no mapping holds it. A
+  # The mapping that holds the page and its vault path as segments, or nil
+  # when no mapping holds it. A
   # child page sits wherever its top ancestor is filed, as in an export.
   defp place(page, by_id, folders, mappings) do
     {top, ancestors} = ancestry(page, by_id, [])
     chain = folder_chain(top.folder_id, folders, [])
 
     mappings
-    |> Enum.map(fn {_board, folder_id, path} -> {depth(folder_id, chain), folder_id, path} end)
-    |> Enum.reject(fn {depth, _f, _p} -> is_nil(depth) end)
-    |> Enum.max_by(fn {depth, _f, _p} -> depth end, fn -> nil end)
+    |> Enum.map(fn {_board, folder_id, path, id} -> {depth(folder_id, chain), path, id} end)
+    |> Enum.reject(fn {depth, _p, _id} -> is_nil(depth) end)
+    |> Enum.max_by(fn {depth, _p, _id} -> depth end, fn -> nil end)
     |> case do
       nil ->
         nil
 
-      {depth, _folder_id, path} ->
+      {depth, path, id} ->
         below = chain |> Enum.drop(depth + 1) |> Enum.map(&folder_name(&1, folders))
-        split(path) ++ below ++ Enum.map(ancestors, & &1.title) ++ [page.title]
+        {id, split(path) ++ below ++ Enum.map(ancestors, & &1.title) ++ [page.title]}
     end
   end
 
@@ -139,10 +141,11 @@ defmodule Slipdock.Vaults.Index do
   defp split(""), do: []
   defp split(path), do: String.split(path, "/")
 
-  defp entry(page, segments) do
+  defp entry(page, mapping_id, segments) do
     %{
       id: page.id,
       board_id: page.board_id,
+      mapping_id: mapping_id,
       segments: segments,
       path: Enum.join(segments, "/"),
       names:
