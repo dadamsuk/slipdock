@@ -2147,6 +2147,12 @@ deletes a folder (both ask first), and typing a few letters jumps to the next
 row that starts with them. The page-wide shortcuts stand down while it has
 the keyboard.
 
+**Wider, narrower, or out of the way.** On a wide screen the « at the left of
+the wiki's bar folds the tree away, and » brings it back. Drag the tree's right
+edge to make it wider or narrower (180–640px); the edge can be focused with Tab
+and moved with the arrow keys, Home and End, and a double-click or Enter puts
+the width back. Both are remembered in this browser, not on the board.
+
 **On a phone** the tree is a drawer: **Pages** in the wiki's bar slides it in
 over the page, opened to where you are, and a tap outside it, Esc, or opening
 a page shuts it again. Its rows are taller for a finger, holding one opens its
