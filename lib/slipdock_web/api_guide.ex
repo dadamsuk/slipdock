@@ -1921,7 +1921,10 @@ defmodule SlipdockWeb.APIGuide do
     `/drawings/page/:id` or `/drawings/file/:id`, which saves in the format
     the drawing came in. Edit a drawing page's body through the API only if
     you mean to rewrite the plugin's Markdown; the scene is lz-string
-    compressed, and a body that no longer holds one shows as Markdown.
+    compressed, and a body that no longer holds one shows as Markdown. To
+    read a drawing, `GET /api/pages/:id/render` gives its words (prose above
+    the drawing, then each text element) rather than the scene, and search
+    finds a drawing page by those same words.
 
     ### Encrypted notes (Meld Encrypt)
 

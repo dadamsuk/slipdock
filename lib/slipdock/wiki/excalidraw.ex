@@ -116,6 +116,34 @@ defmodule Slipdock.Wiki.Excalidraw do
   def plain_text(scene), do: scene |> texts() |> Enum.map_join("\n", &elem(&1, 1))
 
   @doc """
+  What a drawing note says, as text — for search and for the excerpt a
+  listing shows (W-103 R5.4): any prose written above the plugin's data,
+  without its "switch to Excalidraw view" banner, then the text of every
+  text element in the drawing. A body that holds no drawing comes back as
+  it is.
+  """
+  @spec readable(String.t() | nil) :: String.t() | nil
+  def readable(body) when is_binary(body) do
+    case parse_markdown(body) do
+      {:ok, %{scene: scene}} ->
+        prose =
+          body
+          |> String.split(~r/^#+ (Excalidraw Data|Text Elements|Drawing)\s*$/m, parts: 2)
+          |> hd()
+          |> String.replace(~r/^==⚠.*$/mu, "")
+          |> String.replace(~r/^%%\s*$/m, "")
+          |> String.trim()
+
+        [prose, plain_text(scene)] |> Enum.reject(&(&1 == "")) |> Enum.join("\n\n")
+
+      :error ->
+        body
+    end
+  end
+
+  def readable(body), do: body
+
+  @doc """
   The body of a `.excalidraw.md` note with `json` (the scene, as the editor
   serialised it) in place of the drawing it held, in the encoding it had,
   and `## Text Elements` rewritten to match. Everything else is kept.

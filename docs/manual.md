@@ -2815,6 +2815,9 @@ is kept with the wiki's other files.
   refused and says so rather than overwriting it. People who can only read
   the board can open a drawing to look round, but not save. *Edit Markdown*
   is still there for fixing the note by hand.
+- **Search.** A drawing note is found by the words in it: its text, and any
+  prose written above the drawing. Its listing shows them too. (A plain
+  `.excalidraw` file is not searched; files in the wiki aren't yet.)
 - **New drawing.** *New drawing* in a folder's menu in the tree makes an
   empty drawing there, named the way the plugin names one, and opens it in
   the editor.

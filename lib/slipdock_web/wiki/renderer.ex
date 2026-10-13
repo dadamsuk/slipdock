@@ -115,6 +115,10 @@ defmodule SlipdockWeb.Wiki.Renderer do
   def to_markdown(body, opts) when is_binary(body) do
     context = context(opts)
 
+    # A drawing reads as the words in it, not as its compressed scene.
+    body =
+      if Excalidraw.page?(context.page), do: Excalidraw.readable(body), else: body
+
     body
     |> String.split("\n")
     |> resolve_lines(context, [], nil)
@@ -937,6 +941,7 @@ defmodule SlipdockWeb.Wiki.Renderer do
 
   def excerpt(body, limit) when is_binary(body) do
     body
+    |> Excalidraw.readable()
     |> Meld.conceal()
     |> String.split(~r/\n\s*\n/, parts: 6)
     |> Enum.map(&String.trim/1)
