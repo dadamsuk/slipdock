@@ -565,7 +565,8 @@ defmodule SlipdockCLI.Render do
   end
 
   def search_results(%{"results" => results}, opts) do
-    full? = Keyword.get(opts, :full, false)
+    # `search` passes `full: o[:full]`, which is nil without --full.
+    full? = opts[:full] == true
 
     Enum.each(results, fn result ->
       IO.puts(bold(result_heading(result)) <> "  " <> dim(strength(result["score"])))
