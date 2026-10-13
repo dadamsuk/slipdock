@@ -249,6 +249,9 @@ defmodule SlipdockCLI do
     page import <board> --dir D [--overwrite]
                                         read a folder of Markdown in; folders become parents,
                                         and a title already on the board is skipped
+    page switch <board> <letters...> [--limit N]
+                                        the quick switcher: notes whose title, alias or path
+                                        the letters run through in order, across the vault
     page card <card-id>                 the pages that talk about a card, pinned first
     page from <board> <template> --title T [--set k=v]... [--card N] [--folder F]
                                         a page from a template page, {{placeholders}} filled

@@ -107,6 +107,30 @@ defmodule SlipdockCLI.Wiki do
     |> out(o, &Render.pages(&1["pages"]))
   end
 
+  # The quick switcher from a shell: a few letters of a note's title, an
+  # alias or its path, across the board's vault.
+  def run("page", ["switch", ref | words], o) when words != [] do
+    HTTP.get("/boards/#{enc(ref)}/pages/switch", q: Enum.join(words, " "), limit: o[:limit])
+    |> out(o, fn
+      %{"matches" => []} ->
+        IO.puts(Render.dim("no note's title, alias or path matches"))
+
+      %{"matches" => matches} ->
+        Enum.each(matches, fn m ->
+          via =
+            case m["matched"] do
+              "alias:" <> name -> Render.dim("  (alias #{name})")
+              _ -> ""
+            end
+
+          IO.puts(
+            String.pad_trailing(m["code"] || "", 8) <>
+              " " <> m["title"] <> via <> "  " <> Render.dim("#{m["path"]} · #{m["board"]}")
+          )
+        end)
+    end)
+  end
+
   # The tags notes give themselves on a board in a vault: front matter `tags`
   # and inline `#tags`, apart from the board's card tags.
   def run("page", ["tags", ref], o) do

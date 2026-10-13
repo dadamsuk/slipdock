@@ -1753,6 +1753,7 @@ defmodule SlipdockWeb.APIGuide do
     curl -s -H "$H" B/api/boards/1/folders          # the filing, nested, pages and all
     curl -s -H "$H" B/api/wiki                      # every board you can open, folders and all
     curl -s -H "$H" "B/api/boards/1/tree?folder=Design"   # one level: rows and counts, no bodies
+    curl -s -H "$H" "B/api/boards/1/pages/switch?q=acme+call"   # the quick switcher: fuzzy title, alias, path
 
     curl -s -X POST -H "$H" -H 'content-type: application/json' \\
          B/api/boards/1/folders -d '{"name": "Design/Decisions"}'   # makes both

@@ -1007,7 +1007,13 @@ dialogs leave the page's keys alone.
   answer, `Enter` follows the row you are on, `Esc` closes it.
 - `Ctrl-O` — **open a card**: type a title and jump to it, on any board you
   can open. Type a card's id (`123` or `#123`) and that card comes first,
-  and likewise a wiki page's code (`W-31`) for that page
+  and likewise a wiki page's code (`W-31`) for that page. On a wiki it is
+  the **note switcher** instead (`Cmd-O` on a Mac): type a few letters of a
+  note's title, one of its aliases or its path, in order but not necessarily
+  together (`acmcall` finds `Jobs/Acme/Call`), across every board of the
+  vault the board is in, or the board alone. Nothing typed lists the notes
+  changed most lately, and a page's code still goes straight to it. On a
+  shell, `slipdock page switch <board> <letters…>`
 - `h` — all boards (the board takes this one while the keyboard is on it)
 - `b` — **switch board**: every board you can open, each with its own key;
   press that key to go there
@@ -2136,6 +2142,10 @@ a time, when you open it, and never a page's text. Only the rows on screen
 are drawn, so a folder of 5,000 notes scrolls like one of fifty. A big
 folder's rows arrive 500 at a time as you scroll down to them, and the page
 you are reading is always loaded, however far down its folder it is.
+
+**Jumping to a note.** `Ctrl-O` (`Cmd-O`) on a wiki opens the note switcher:
+a few letters of a note's title, an alias or its vault path, matched in order
+the way editors' switchers match, across the whole vault (see *Keyboard*).
 
 **A vault's tree.** On a board in a vault (see *Vaults*), a switch at the top of
 the sidebar chooses between **This board** and the vault's tree. The vault's

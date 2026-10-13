@@ -562,6 +562,8 @@ defmodule SlipdockWeb.Router do
     get "/pages/:id/links", PageController, :links
     post "/pages/:id/links", PageController, :pin
     get "/boards/:board/pages/wanted", PageController, :wanted
+    # The quick switcher's matching, for a shell: title, alias or vault path.
+    get "/boards/:board/pages/switch", PageController, :switch
     get "/boards/:board/pages/tags", PageController, :note_tags
     post "/boards/:board/pages/from-template", PageController, :from_template
     get "/cards/:id/pages", PageController, :for_card

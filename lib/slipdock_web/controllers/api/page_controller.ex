@@ -830,6 +830,44 @@ defmodule SlipdockWeb.API.PageController do
   end
 
   @doc """
+  The quick switcher's answer (W-103 R11.4): the pages whose title, alias or
+  path the letters in `?q=` run through in order, best first, across the
+  board's vault (or the board, outside one). `?limit=` up to 50.
+  """
+  def switch(conn, %{"board" => ref} = params) do
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :read) do
+      limit =
+        params["limit"] |> to_string() |> Integer.parse() |> elem_or(12) |> min(50) |> max(1)
+
+      matches =
+        conn.assigns.current_user
+        |> Wiki.Switcher.pool(board)
+        |> Wiki.Switcher.search(params["q"], limit)
+        |> Enum.map(fn m ->
+          %{
+            id: m.id,
+            code: m.code,
+            title: m.title,
+            slug: m.slug,
+            board_id: m.board_id,
+            board: m.board,
+            path: m.path,
+            matched:
+              case m.matched do
+                {:alias, name} -> "alias:" <> name
+                other -> to_string(other)
+              end
+          }
+        end)
+
+      json(conn, %{matches: matches})
+    end
+  end
+
+  defp elem_or({n, _}, _default), do: n
+  defp elem_or(_, default), do: default
+
+  @doc """
   One level of the wiki tree, as the browser's tree loads it (W-103 R11.1):
   the rows directly inside the root, a folder or a page — folders, pages
   and files, each with how many rows are under it — and never a body.
