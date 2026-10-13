@@ -409,6 +409,11 @@ defmodule SlipdockWeb.APIGuide do
 
         irm #{base}/install.ps1 | iex
 
+    The `slipdock` CLI installs on Windows the same way, from here, Erlang and
+    all (elsewhere it is built from the repository's `cli/`):
+
+        irm #{base}/cli/install.ps1 | iex
+
     `401` means no token or a dead one — ask for a new one rather than guessing.
     `403` means the token is good but that board or card is not yours to
     change; say so rather than working around it. A board you cannot read at

@@ -202,6 +202,16 @@ defmodule SlipdockWeb.AgentSetupTest do
       assert html =~ "irm #{base}/install.ps1 | iex"
     end
 
+    test "installs the CLI on Windows from this server, and says how to build it elsewhere",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/account/agent")
+      base = SlipdockWeb.Endpoint.url()
+
+      assert has_element?(view, "#agent-cli-windows", "irm #{base}/cli/install.ps1 | iex")
+      assert has_element?(view, "#agent-cli-section", "Erlang too, through winget")
+      assert has_element?(view, "#agent-cli", "slipdock url #{base}")
+    end
+
     test "points at runners, for a board that sends the agent its work", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/account/agent")
       assert has_element?(view, "#agent-runners", "Automations → Connect a runner")

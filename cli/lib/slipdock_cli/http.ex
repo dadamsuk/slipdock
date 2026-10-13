@@ -72,8 +72,22 @@ defmodule SlipdockCLI.HTTP do
   # one still signs you in, so nobody has to re-authenticate.
   defp legacy_token_file, do: config_path("kanban", "token")
 
-  defp config_path(dir, name),
-    do: Path.join([System.get_env("HOME") || ".", ".config", dir, name])
+  defp config_path(dir, name), do: Path.join([home(), ".config", dir, name])
+
+  @doc """
+  The home folder the config and the skills live under: `$HOME`, else
+  `%USERPROFILE%`. Windows sets no HOME, and falling straight back to "."
+  would scatter a token into whichever folder the command was run from.
+  """
+  def home do
+    Enum.find_value(~w(HOME USERPROFILE), fn name ->
+      case System.get_env(name) do
+        nil -> nil
+        "" -> nil
+        dir -> dir
+      end
+    end) || System.user_home() || "."
+  end
 
   @doc "scheme://host:port, the part of an address a token is bound to."
   def origin(url) do

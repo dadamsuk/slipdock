@@ -59,6 +59,13 @@ COPY priv priv
 COPY lib lib
 COPY assets assets
 
+# The slipdock CLI, served at /cli/slipdock.escript for /cli/install.ps1 to
+# fetch (see SlipdockWeb.CLIInstallController). It has no dependencies, so
+# this is a compile and nothing fetched. Into priv before `mix compile`, so it
+# rides into the release with the rest of priv.
+COPY cli cli
+RUN cd cli && mix escript.build && mkdir -p ../priv/cli && mv slipdock ../priv/cli/slipdock.escript
+
 # Compile before the assets: LiveView's colocated hooks are generated into
 # _build during compilation and the stylesheet imports them, so Tailwind cannot
 # resolve them until this has run.

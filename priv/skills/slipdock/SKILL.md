@@ -43,8 +43,11 @@ fields) is still the CLI or the API.
 ## If the CLI is not installed here
 
 Everything below is a wrapper around a JSON API, and the API is the fallback: it needs nothing
-but `curl`. Do not tell the user to install the CLI (it is an escript and wants Elixir) —
-use the API, and mention the CLI only if they ask for something nicer to type.
+but `curl`. Do not tell the user to install the CLI (it is an escript and wants Erlang) —
+use the API, and mention the CLI only if they ask for something nicer to type, or for vault
+sync, which only the CLI does. On Windows that is one line in PowerShell, from their own
+server: `irm "$B/cli/install.ps1" | iex`, then `slipdock auth`. Elsewhere it is built from
+the repository's `cli/`.
 
 ```sh
 B="${SLIPDOCK_URL:-$(cat ~/.config/slipdock/url 2>/dev/null)}"

@@ -20,6 +20,12 @@ defmodule SlipdockWeb.API.GuideTest do
   end
 
   @tag :anonymous
+  test "the guide says how to install the CLI on Windows, from this server", %{conn: conn} do
+    body = conn |> get(~p"/api/guide") |> response(200)
+    assert body =~ "irm http://www.example.com/cli/install.ps1 | iex"
+  end
+
+  @tag :anonymous
   test "the guide points MCP clients at /mcp and names every tool it offers", %{conn: conn} do
     body = conn |> get(~p"/api/guide") |> response(200)
 

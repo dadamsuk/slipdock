@@ -47,6 +47,7 @@ npm-debug.log
 # CLI build output and escript binary
 /cli/_build/
 /cli/kanban
+/priv/cli/slipdock.escript
 
 # Files attached to cards
 /priv/uploads/

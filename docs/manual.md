@@ -3378,7 +3378,29 @@ response holds `rows`, `cols` (with labels and counts), `cells[row][col]`
 
 ## CLI
 
-`cli/` is a zero-dependency escript that wraps the API. Build and install:
+`cli/` is a zero-dependency escript that wraps the API.
+
+On Windows, one line in PowerShell installs it from the server you use, for
+you alone and with no admin rights of its own:
+
+```powershell
+irm https://your-server/cli/install.ps1 | iex     # again later to update it
+slipdock auth
+```
+
+It puts the escript and a `slipdock.cmd` that runs it in
+`%LOCALAPPDATA%\Programs\slipdock`, adds that folder to your PATH and saves the
+server's address in `~\.config\slipdock\url`. The escript needs Erlang/OTP 27
+or later: if there is none it is installed with winget (`Erlang.ErlangOTP`,
+which asks for admin rights once); `-NoErlang` stops instead, and `-Escript
+C:\path\to\escript.exe` names one it can't find. The download is checked
+against `/cli/SHA256SUMS` before anything is written. To take it away again:
+`& ([scriptblock]::Create((irm https://your-server/cli/install.ps1))) -Uninstall`
+(your sign-in is kept). The Docker image builds the escript from its own `cli/`
+and serves it at `/cli/slipdock.escript`; a server run from a checkout has none
+to serve, and says so.
+
+Everywhere else, build and install it:
 
 ```sh
 cd cli && mix escript.build && cp slipdock ~/.local/bin/
@@ -3397,7 +3419,8 @@ slipdock guide             # the server's instructions for agents (GET /api/guid
 slipdock --help
 ```
 
-It finds the server via `SLIPDOCK_URL`, else `~/.config/slipdock/url`, else this
+`~` is `$HOME`, else `%USERPROFILE%` (Windows sets no HOME). It finds the
+server via `SLIPDOCK_URL`, else `~/.config/slipdock/url`, else this
 machine's tailnet address on port 4000; and the token via `SLIPDOCK_TOKEN`, else
 the one saved for that server under `~/.config/slipdock/tokens/`. `slipdock url
 <address>` writes the first of those (`slipdock auth` writes it too, for the

@@ -215,17 +215,30 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
         </p>
       </section>
 
-      <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
+      <section
+        id="agent-cli-section"
+        class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
+      >
         <h2 class="text-lg font-semibold">
           Optional · the <code>slipdock</code>
           CLI
           <span class="ml-1 align-middle text-xs font-normal text-base-content/50">
-            needs Elixir to build
+            an Erlang escript
           </span>
         </h2>
         <p class="mt-1 text-sm text-base-content/60">
           A command-line client that wraps every call the agent would otherwise make with <code>curl</code>. Nicer to read in a transcript, and it keeps the token for
-          you. Build it from the repository, then point it here:
+          you. It is also what mirrors a vault to a local folder (<code>slipdock sync</code>).
+          On Windows, in PowerShell, one line installs it from here for you alone —
+          Erlang too, through winget, if there is none — and puts it on your PATH:
+        </p>
+        <.copy_block
+          id="agent-cli-windows"
+          text={"irm #{@base_url}/cli/install.ps1 | iex\nslipdock auth"}
+          label="Copy commands"
+        />
+        <p class="mt-2 text-xs text-base-content/60">
+          Elsewhere, build it from the repository (Elixir 1.19 or later), then point it here:
         </p>
         <.copy_block
           id="agent-cli"
