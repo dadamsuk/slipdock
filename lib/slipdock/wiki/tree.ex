@@ -548,6 +548,94 @@ defmodule Slipdock.Wiki.Tree do
     }
   end
 
+  @doc """
+  `filter/3` over a whole vault: each board's pages filtered as its own tree
+  would be, laid out under the vault's paths, with only the mapped folders
+  and vault folders that hold something shown. Keys as `vault_children/4`
+  gives them; `shown` counts every board's matches.
+  """
+  def vault_filter(%Vault{} = vault, boards, filters, extra \\ []) do
+    mappings = vault_mappings(vault, boards)
+
+    per_board =
+      Map.new(boards, fn {id, {board, opts}} ->
+        result = filter(board, filters, opts ++ extra)
+
+        nodes =
+          Map.new(result.nodes, fn {k, v} -> {if(k == "root", do: "board:#{id}", else: k), v} end)
+
+        {id, %{result | nodes: nodes}}
+      end)
+
+    nodes = per_board |> Map.values() |> Enum.map(& &1.nodes) |> Enum.reduce(%{}, &Map.merge/2)
+    kept = Enum.filter(mappings, &Map.has_key?(nodes, mount_key(&1)))
+
+    folder_pages =
+      for {_k, rows} <- nodes, %{kind: "folder", id: id, pages: n} <- rows, into: %{}, do: {id, n}
+
+    pages_of = fn
+      %{folder_id: nil, board_id: id} -> per_board[id].shown
+      %{folder_id: id} -> Map.get(folder_pages, id)
+    end
+
+    dirs =
+      kept
+      |> Enum.flat_map(&["" | prefixes(&1.path)])
+      |> Enum.uniq()
+      |> Enum.reject(&(&1 != "" and row_key(kept, &1) != "dir:" <> &1))
+
+    vault_nodes =
+      for dir <- dirs, into: %{} do
+        here =
+          kept
+          |> Enum.filter(&(&1.path == dir))
+          |> Enum.flat_map(&Map.get(nodes, mount_key(&1), []))
+
+        prefix = if dir == "", do: "", else: dir <> "/"
+
+        mounts =
+          kept
+          |> Enum.filter(&(&1.path != dir and String.starts_with?(&1.path, prefix)))
+          |> Enum.map(
+            &(prefix <> hd(String.split(String.replace_prefix(&1.path, prefix, ""), "/")))
+          )
+          |> Enum.uniq()
+          |> Enum.sort_by(&String.downcase/1)
+          |> Enum.map(fn path ->
+            key = row_key(kept, path)
+
+            {board_id, pages} =
+              case Enum.filter(kept, &(&1.path == path)) do
+                [m] -> {m.board_id, pages_of.(m)}
+                _ -> {nil, nil}
+              end
+
+            %{
+              kind: if(String.starts_with?(key, "dir:"), do: "dir", else: "folder"),
+              key: key,
+              id: key,
+              board_id: board_id,
+              title: path |> String.split("/") |> List.last(),
+              mount: true,
+              count: 1,
+              pages: pages
+            }
+          end)
+
+        {if(dir == "", do: "vault", else: "dir:" <> dir), mounts ++ here}
+      end
+
+    %{
+      nodes: nodes |> Map.merge(vault_nodes) |> Map.reject(fn {_k, rows} -> rows == [] end),
+      shown: per_board |> Map.values() |> Enum.map(& &1.shown) |> Enum.sum(),
+      only:
+        per_board
+        |> Map.values()
+        |> Enum.map(& &1.only)
+        |> Enum.reduce(MapSet.new(), &MapSet.union/2)
+    }
+  end
+
   ## Filtering -----------------------------------------------------------------
 
   @doc """
@@ -568,14 +656,27 @@ defmodule Slipdock.Wiki.Tree do
   """
   def filter(%Board{} = board, filters, opts \\ []) do
     folders = Keyword.get_lazy(opts, :folders, fn -> Folders.list(board) end)
+    {text, tags} = split_query(filters.q)
     pages = candidates(board, filters, opts)
-    hit_folders = matching_folders(folders, filters.q)
+    hit_folders = matching_folders(folders, text)
+
+    # The search box's words, on their own; the rest of the bar applies to
+    # every page, folder hits included.
+    facets = %{filters | q: ""}
+    words = %{Filters.empty() | q: text}
+
+    in_body =
+      if opts[:contents] && text != "",
+        do: body_matches(board, text, opts),
+        else: MapSet.new()
 
     matched =
       pages
-      |> Enum.filter(
-        &(Filters.matches?(&1, filters) or MapSet.member?(hit_folders, &1.folder_id))
-      )
+      |> Enum.filter(fn page ->
+        Filters.matches?(page, facets) and tagged?(page, tags) and
+          (text == "" or Filters.matches?(page, words) or
+             MapSet.member?(in_body, page.id) or MapSet.member?(hit_folders, page.folder_id))
+      end)
       |> MapSet.new(& &1.id)
 
     by_id = Map.new(pages, &{&1.id, &1})
@@ -672,14 +773,60 @@ defmodule Slipdock.Wiki.Tree do
     end
   end
 
+  @doc """
+  The search box's words and its `#tags`, apart: `"retry #ops/oncall"` is
+  `{"retry", ["ops/oncall"]}`.
+  """
+  def split_query(q) do
+    {tags, words} =
+      (q || "")
+      |> String.split(~r/\s+/u, trim: true)
+      |> Enum.split_with(&(String.starts_with?(&1, "#") and String.length(&1) > 1))
+
+    {Enum.join(words, " "),
+     Enum.map(tags, &(&1 |> String.trim_leading("#") |> String.downcase()))}
+  end
+
+  # A `#tag` in the search box: a note tag (or one nested under it,
+  # `#area` finding `area/sub`), or one of the board's own tags by name.
+  defp tagged?(_page, []), do: true
+
+  defp tagged?(page, tags) do
+    note = Enum.map(page.note_tags || [], &String.downcase/1)
+    board = for %{name: name} <- tags_of(page), do: String.downcase(name)
+
+    Enum.all?(tags, fn tag ->
+      tag in board or Enum.any?(note, &(&1 == tag or String.starts_with?(&1, tag <> "/")))
+    end)
+  end
+
+  defp tags_of(%{tags: tags}) when is_list(tags), do: tags
+  defp tags_of(_), do: []
+
+  # The pages whose text holds the words, worked out by the database: the
+  # bodies are matched where they are and never come back.
+  defp body_matches(%Board{id: board_id}, text, opts) do
+    like = "%" <> String.replace(text, ~r/([\\%_])/, "\\\\\\1") <> "%"
+
+    from(p in Page,
+      as: :page,
+      where: p.board_id == ^board_id and ilike(p.body, ^like),
+      select: p.id
+    )
+    |> where(^visible(Keyword.delete(opts, :only), :page))
+    |> Repo.all()
+    |> MapSet.new()
+  end
+
   # What a filter reads of each page: the row's columns, the summary its
-  # search box matches, and the tags when a filter asks about them.
+  # search box matches, its note tags, and the board's tags when a filter
+  # asks about them.
   defp candidates(%Board{id: board_id}, filters, opts) do
     query =
       from(p in Page,
         as: :page,
         where: p.board_id == ^board_id,
-        select: struct(p, ^[:summary | @page_fields])
+        select: struct(p, ^[:summary, :note_tags | @page_fields])
       )
       |> where(^visible(Keyword.delete(opts, :only), :page))
 

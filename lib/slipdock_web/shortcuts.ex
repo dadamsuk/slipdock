@@ -60,6 +60,15 @@ defmodule SlipdockWeb.Shortcuts do
        {"c", "Add a card to this list"},
        {"Esc", "Stop"}
      ]},
+    {"In a wiki's tree (click a row first)",
+     [
+       {"↑ ↓", "The row above or below"},
+       {"→ ←", "Open or shut; into a folder, or up to the one it is in"},
+       {"Enter", "Open the page or folder"},
+       {"F2", "Rename it"},
+       {"Delete", "Archive the page, or delete the folder (both ask first)"},
+       {"a–z", "Jump to the next row starting with what you type"}
+     ]},
     {"In a palette you type into",
      [
        {"↑ ↓", "The row above or below"},

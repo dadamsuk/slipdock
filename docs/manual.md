@@ -2130,12 +2130,22 @@ to a folder — write a page here, make one inside, rename or move it, delete it
 so does a page's when it has pages under it. The double chevron at the top of
 the sidebar shuts every folder at once, and opens them all again once they
 are all shut. An empty folder has no chevron, there being nothing in it to
-show. The browser remembers which folders you had open on each board, so
-following a link to another page doesn't spring the tree open or shut. On a
+show. Which folders you had open is kept for you on the server, per board and per
+vault, so the tree opens the same way next time, on any machine, and
+following a link to another page doesn't spring it open or shut. The
+crosshair at the top of the tree shows where you are again after you have
+shut or scrolled it away. On a
 first visit a small wiki (300 pages or fewer) opens with every folder open,
 and a bigger one opens only the folders on the way to where you are. The
 folders leading to the page or folder you are on always open, and the tree
 scrolls to it, so what you just went to is never hidden.
+
+**The keyboard.** Click a row and the tree takes the keyboard: the arrows walk
+it, right opens a folder and steps into it, left shuts it or goes up to the
+folder it is in, Enter opens the row, F2 renames it, Delete archives a page or
+deletes a folder (both ask first), and typing a few letters jumps to the next
+row that starts with them. The page-wide shortcuts stand down while it has
+the keyboard.
 
 **Big wikis.** The tree is built for thousands of notes. It loads one folder at
 a time, when you open it, and never a page's text. Only the rows on screen
@@ -2152,8 +2162,8 @@ the sidebar chooses between **This board** and the vault's tree. The vault's
 tree holds every board of the vault, laid out by the vault's paths: a mapped
 path is a folder holding that board's wiki, or one folder of it. Opening a
 page on another board opens that board's wiki, still showing the vault's
-tree. The filter bar narrows this board's tree, so it is what you see while a
-filter is on. Organising uses this board's tree too.
+tree. A search or a filter there runs across every board of the vault, keeping
+only the paths that hold a match. Organising uses this board's tree.
 
 **Organise mode.** The pencil at the top of the wiki's sidebar turns the tree
 into a drag-and-drop one, and only then: dragging by default would make every
@@ -2170,12 +2180,15 @@ shut folder and it opens, so you can drop deeper without opening it first.
 **Searching the tree** matches a page's title and summary *and* a folder's
 name, and hides everything that doesn't match. A folder that matches brings
 what is in it, because somebody typing the name of a folder is asking where
-things are; a page that matches keeps the folders above it so you can see
-where it lives. What it does *not* match is the words inside the pages — that
-is Search (`/search`), which reads bodies and matches by meaning — so above
-the results sits **Full text search for: _what you typed_**, one click to the
-same words on `/search`, already narrowed to this board. It is most useful
-exactly when the tree search has just come back empty.
+things are. A page that matches keeps the pages and folders above it, shown
+faded, so you can see where it lives. A word starting with `#` matches a tag:
+a note's own `#tags` (nested ones too, so `#area` finds `#area/sub`) or one of
+the board's tags by name, so `retry #ops` is pages tagged *ops* with *retry*
+in their name. By default it does not read the words inside the pages; under
+the search, **Match the words inside pages here too** turns that on. That is
+a plain match on the text. Search (`/search`) reads bodies and matches by
+meaning: **Full text search for: _what you typed_** is one click to the same
+words there, already narrowed to this board.
 
 **Picking a folder is a tree you type at.** Everywhere the app asks which
 folder — filing the page you are reading, the Folder field in the editor, the

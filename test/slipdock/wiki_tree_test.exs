@@ -313,6 +313,39 @@ defmodule Slipdock.WikiTreeTest do
       assert Tree.filter(board, filters(%{priority: "critical"})).nodes == %{}
     end
 
+    test "#tag finds notes tagged so, nested tags included, and board tags by name", %{
+      board: board,
+      user: user,
+      loose: loose,
+      plan: plan
+    } do
+      Repo.update_all(
+        from(p in Slipdock.Wiki.Page, where: p.id == ^loose.id),
+        set: [note_tags: ["area/ops"]]
+      )
+
+      tag = tag_fixture(board, "Urgent")
+      {:ok, _} = Wiki.set_tags(plan, [tag])
+
+      assert Tree.filter(board, filters(%{q: "#area"})).shown == 1
+      assert Tree.filter(board, filters(%{q: "#area/ops launch"})).shown == 1
+      assert Tree.filter(board, filters(%{q: "#area retry"})).shown == 0
+      assert %{shown: 1, only: only} = Tree.filter(board, filters(%{q: "#urgent"}))
+      assert MapSet.member?(only, plan.id)
+      assert Tree.split_query("retry  #Ops/On #x") == {"retry", ["ops/on", "x"]}
+      assert Tree.split_query("#") == {"#", []}
+    end
+
+    test "contents finds the words inside a page, only when asked", %{board: board, user: user} do
+      page(board, user, "Plain title", body: "The rollback takes 100% of the night")
+
+      assert Tree.filter(board, filters(%{q: "rollback"})).shown == 0
+      assert Tree.filter(board, filters(%{q: "rollback"}), contents: true).shown == 1
+      # Wildcards typed are only characters.
+      assert Tree.filter(board, filters(%{q: "100%"}), contents: true).shown == 1
+      assert Tree.filter(board, filters(%{q: "1_0"}), contents: true).shown == 0
+    end
+
     test "the visibility options still apply under a filter", %{board: board, user: user} do
       page(board, user, "Launch draft", status: "draft")
 
@@ -532,6 +565,31 @@ defmodule Slipdock.WikiTreeTest do
       assert Tree.vault_path_to(vault, call, boards) == ["board:#{jobs.id}", "folder:#{acme.id}"]
       assert Tree.vault_path_to(vault, idea, boards) == ["dir:Projects", "folder:#{notes.id}"]
       assert Tree.vault_path_to(vault, acme, boards) == ["board:#{jobs.id}", "folder:#{acme.id}"]
+    end
+
+    test "a filter runs across the vault, keeping only the paths that hold a match", %{
+      vault: vault,
+      boards: boards,
+      jobs: jobs,
+      acme: acme,
+      notes: notes
+    } do
+      result = Tree.vault_filter(vault, boards, Map.put(Slipdock.Filters.empty(), :q, "call"))
+
+      assert result.shown == 1
+      assert [%{title: "Jobs", key: key, pages: 1}] = result.nodes["vault"]
+      assert key == "board:#{jobs.id}"
+      assert [%{title: "Acme"}] = result.nodes["board:#{jobs.id}"]
+      assert [%{title: "Call"}] = result.nodes["folder:#{acme.id}"]
+      refute Map.has_key?(result.nodes, "dir:Projects")
+      refute Map.has_key?(result.nodes, "folder:#{notes.id}")
+
+      result = Tree.vault_filter(vault, boards, Map.put(Slipdock.Filters.empty(), :q, "idea"))
+      assert [%{title: "Projects", key: "dir:Projects"}] = result.nodes["vault"]
+      assert [%{title: "X", pages: 1}] = result.nodes["dir:Projects"]
+
+      assert Tree.vault_filter(vault, boards, Map.put(Slipdock.Filters.empty(), :q, "zzz")).nodes ==
+               %{}
     end
 
     test "open all names every folder in the vault", %{

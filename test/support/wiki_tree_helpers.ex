@@ -14,6 +14,13 @@ defmodule SlipdockWeb.WikiTreeHelpers do
     reply
   end
 
+  @doc "What the hook gets on a fresh visit: no keys, so what the server kept."
+  def tree_load_kept(view, params \\ %{}) do
+    render_hook(view, "tree_load", Map.merge(%{"scope" => "board"}, params))
+    assert_reply(view, reply)
+    reply
+  end
+
   @doc "The titles of one container's rows, in order."
   def titles(reply, key), do: reply.nodes |> Map.get(key, []) |> Enum.map(& &1.title)
 

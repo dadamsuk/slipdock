@@ -770,9 +770,15 @@ function onScreen(selector) {
 }
 
 // Is the user typing into something, rather than at the page?
+// Somewhere keys are being typed into, or a widget that takes the keyboard
+// for itself while it has focus (the wiki's tree, marked data-own-keys).
 function typing() {
   const el = document.activeElement
-  return !!el && (el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName))
+  return !!el && (
+    el.isContentEditable ||
+    ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName) ||
+    !!(el.closest && el.closest("[data-own-keys]"))
+  )
 }
 
 // A shifted "j". Some layouts and synthetic events report the unshifted

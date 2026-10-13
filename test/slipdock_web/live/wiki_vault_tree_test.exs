@@ -88,18 +88,38 @@ defmodule SlipdockWeb.WikiVaultTreeTest do
     assert tree_load(view).scope == "board"
   end
 
-  test "a filter narrows this board's tree, even from the vault's", %{conn: conn, kb: kb} do
+  test "a filter in the vault's tree filters every board of it", %{
+    conn: conn,
+    kb: kb,
+    jobs: jobs,
+    acme: acme
+  } do
     {:ok, view, _html} = live(conn, ~p"/boards/#{kb}/wiki")
     tree_load(view, %{"scope" => "vault"})
 
-    view |> form("#wiki-search") |> render_change(%{"q" => "home"})
-    assert render(view) =~ "The filters narrow this board&#39;s tree"
+    view |> form("#wiki-search") |> render_change(%{"q" => "call"})
 
     reply = tree_load(view, %{"scope" => "vault"})
-    refute reply.filtering
+    assert reply.filtering
+    assert titles(reply, "vault") == ["Jobs"]
+    assert titles(reply, "board:#{jobs.id}") == ["Acme"]
+    assert titles(reply, "folder:#{acme.id}") == ["Call notes"]
+
+    # This board's own tree has nothing to show for it.
     reply = tree_load(view, %{"scope" => "board"})
     assert reply.filtering
-    assert all_titles(reply) == ["Home"]
+    assert reply.nodes == %{}
+  end
+
+  test "the search can look inside pages too", %{conn: conn, kb: kb, user: user} do
+    {:ok, _} = Wiki.create_page(kb, %{"title" => "Plain", "body" => "about tea"}, user: user)
+    {:ok, view, _html} = live(conn, ~p"/boards/#{kb}/wiki")
+
+    view |> form("#wiki-search") |> render_change(%{"q" => "tea"})
+    assert tree_load(view).nodes == %{}
+
+    view |> element("input[phx-click='toggle_tree_contents']") |> render_click()
+    assert all_titles(tree_load(view)) == ["Plain"]
   end
 
   test "a vault board the reader cannot open is not in their vault tree", %{
