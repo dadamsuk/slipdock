@@ -58,6 +58,13 @@ and test it with Node's built-in runner — no packages, no browser:
 `node --test 'assets/js/**/*.test.js'` (Node 22 or later). The confirm dialog
 (`assets/js/confirm.js`) is the example to copy.
 
+A flow LiveView tests can't reach — a drag in the wiki's tree, say — gets an
+end-to-end script under `tools/e2e/`: a throwaway database, a server of its
+own, and Playwright driving Chromium (`NODE_PATH` pointing at a
+`playwright-core` install, `CHROME_PATH` at the browser). Run one with
+`tools/e2e/folder-move-drag.sh`; it says `ok` or why not, and drops its
+database on the way out.
+
 New or changed code comes with tests for it, in the same commit: the paths
 you added, error and edge cases included, with assertions on what happens
 rather than tests that only run the lines. A change that cannot be tested (a

@@ -2228,9 +2228,18 @@ Whatever has no match is listed and stays behind, as do its place in a list,
 an assignee who can't open that board, and its parent page. On a shell,
 `slipdock page mv <page> --board B [--folder F] [--dry-run]`.
 
-**Moving a folder to another board.** A folder moves to any board you can
-write to — in a vault or not — with its subfolders, every page at home in
-them (and the pages under those pages) and the files kept in them, in one go:
+**Moving a folder to another board.** In the wiki, a folder's **Move…**
+offers every board of the vault you can write to and its folders, and
+dragging a folder onto another board in the vault's tree does the same.
+Either way you are shown what goes first — how many folders, pages and files,
+what can't be carried, what stays behind, pages landing beside one of the
+same title — and nothing moves until you confirm. Pick several rows (pages
+and folders together) and **Move** them as one, with one combined report; a
+page inside a folder you also picked goes with the folder, once.
+
+A folder moves to any board you can write to — in a vault or not — with its
+subfolders, every page at home in them (and the pages under those pages) and
+the files kept in them, in one go:
 `slipdock folder mv <board> <folder> --board B [--parent F] [--contents]
 [--dry-run]`. The folders keep their names and order, under `--parent` on the
 other board or at its top; with `--contents` only what is *in* the folder

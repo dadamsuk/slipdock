@@ -1353,9 +1353,9 @@ defmodule SlipdockWeb.WikiLive.Index do
     end
   end
 
-  # "Move to…": what is on the target's board moves there at once; pages
-  # bound for another board of the vault wait for the confirmation of what
-  # goes with them. Folders move within their own board.
+  # "Move to…": what is on the target's board moves there at once; pages and
+  # folders bound for another board of the vault wait for the confirmation
+  # of what goes with them.
   def handle_event("move_to", %{"target" => target}, socket) do
     with %{kind: :move, items: items} <- socket.assigns.tree_prompt,
          {:folder, board, folder} <- drop_target(socket, target) do
@@ -1374,7 +1374,7 @@ defmodule SlipdockWeb.WikiLive.Index do
             match?({:ok, _}, Wiki.move_folder(moving, folder, nil))
         end)
 
-      folders_left = for %Folder{} = f <- there, do: f.name
+      folders_there = for %Folder{} = f <- there, do: f
       pages_there = for %Page{} = p <- there, do: p
 
       socket =
@@ -1383,22 +1383,12 @@ defmodule SlipdockWeb.WikiLive.Index do
         |> then(
           &if(moved > 0, do: put_flash(&1, :info, "Moved #{count(moved, "item")}."), else: &1)
         )
-        |> then(fn socket ->
-          if folders_left != [],
-            do:
-              put_flash(
-                socket,
-                :error,
-                "A folder moves within its own board: #{Enum.join(folders_left, ", ")} stayed."
-              ),
-            else: socket
-        end)
         |> load_tree()
         |> assign_current()
 
       {:noreply,
-       if(pages_there != [],
-         do: cross_move_prompt(socket, pages_there, board, folder, nil),
+       if(there != [],
+         do: cross_move_prompt(socket, pages_there, board, folder, nil, folders_there),
          else: socket
        )}
     else
@@ -1407,12 +1397,29 @@ defmodule SlipdockWeb.WikiLive.Index do
   end
 
   def handle_event("confirm_cross_move", _params, socket) do
-    with %{kind: :cross_move, pages: pages, board: board, folder: folder, parent: parent} <-
-           socket.assigns.tree_prompt do
+    with %{kind: :cross_move, pages: pages, board: board, folder: folder, parent: parent} =
+           prompt <- socket.assigns.tree_prompt do
       user = socket.assigns.current_user
 
+      # Folders first, with everything in them; then the pages, each looked
+      # at again so one that went with a folder is not moved twice.
+      {folders_moved, errors} =
+        Enum.reduce(Map.get(prompt, :folders, []), {0, []}, fn f, {n, errors} ->
+          with %Folder{} = f <- Wiki.get_folder(f.id),
+               false <- f.board_id == board.id,
+               {:ok, _} <-
+                 Slipdock.Wiki.FolderMove.to_board(f, board, user, parent: folder, via: "web") do
+            {n + 1, errors}
+          else
+            {:error, _status, message} -> {n, [message | errors]}
+            _ -> {n, errors}
+          end
+        end)
+
       results =
-        for page <- pages do
+        for page <- pages,
+            %Page{} = page <- [Wiki.get_page(page.id)],
+            page.board_id != board.id do
           with {:ok, moved} <- Slipdock.Wiki.Move.to_board(page, board, folder, user, via: "web") do
             if parent, do: Wiki.move_page(moved, parent, :bottom, user: user, via: "web")
             {:ok, moved}
@@ -1421,17 +1428,38 @@ defmodule SlipdockWeb.WikiLive.Index do
 
       moved = for {:ok, page} <- results, do: page
 
+      what =
+        [
+          folders_moved > 0 && count(folders_moved, "folder"),
+          moved != [] && count(length(moved), "page")
+        ]
+        |> Enum.filter(& &1)
+        |> Enum.join(" and ")
+
       socket =
         socket
         |> assign(tree_prompt: nil)
-        |> put_flash(:info, "Moved #{count(length(moved), "page")} to #{board.name}.")
+        |> then(
+          &if(what != "", do: put_flash(&1, :info, "Moved #{what} to #{board.name}."), else: &1)
+        )
+        |> then(
+          &if(errors != [],
+            do: put_flash(&1, :error, Enum.join(Enum.reverse(errors), " ")),
+            else: &1
+          )
+        )
         |> load_tree()
 
       # The page being read went with them: follow it to its new board.
+      current = socket.assigns.page && Wiki.get_page(socket.assigns.page.id)
+
       {:noreply,
-       case Enum.find(moved, &(socket.assigns.page && &1.id == socket.assigns.page.id)) do
-         nil -> assign_current(socket)
-         page -> push_navigate(socket, to: ~p"/boards/#{board}/wiki/#{page.slug}")
+       case current do
+         %Page{board_id: id} = page when id == board.id ->
+           push_navigate(socket, to: ~p"/boards/#{board}/wiki/#{page.slug}")
+
+         _ ->
+           assign_current(socket)
        end}
     else
       _ -> {:noreply, socket}
@@ -2047,17 +2075,21 @@ defmodule SlipdockWeb.WikiLive.Index do
     end
   end
 
+  # Dropped on another board of the vault, a folder waits, as a page does,
+  # for the reader to see what goes with it (#746).
   defp tree_move(socket, "folder", id, into, before) do
     with %Folder{} = folder <- tree_item(socket, "folder:#{id}"),
-         {:folder, board, parent} <- drop_target(socket, into),
-         true <-
-           board.id == folder.board_id ||
-             {:error, :unprocessable_entity,
-              "A folder moves within its own board; move the pages in it instead."},
-         {:ok, _} <- Wiki.move_folder(folder, parent, blank_to_integer(before)) do
-      socket
+         {:folder, board, parent} <- drop_target(socket, into) do
+      if board.id == folder.board_id do
+        case Wiki.move_folder(folder, parent, blank_to_integer(before)) do
+          {:ok, _} -> socket
+          {:error, :unprocessable_entity, message} -> put_flash(socket, :error, message)
+          _ -> put_flash(socket, :error, "That folder couldn't be moved.")
+        end
+      else
+        cross_move_prompt(socket, [], board, parent, nil, [folder])
+      end
     else
-      {:error, :unprocessable_entity, message} -> put_flash(socket, :error, message)
       _ -> put_flash(socket, :error, "That folder couldn't be moved.")
     end
   end
@@ -2075,46 +2107,88 @@ defmodule SlipdockWeb.WikiLive.Index do
     end
   end
 
-  # Pages bound for another board of the vault wait for the reader to see
-  # what goes with them and what cannot (R11.8): see `Slipdock.Wiki.Move`.
-  defp cross_move_prompt(socket, pages, board, folder, parent) do
+  # Pages and folders bound for another board of the vault wait for the
+  # reader to see what goes with them and what cannot (R11.8, #746): see
+  # `Slipdock.Wiki.Move` and `Slipdock.Wiki.FolderMove`. A page or folder
+  # inside a folder that is moving goes with it, and is counted once.
+  defp cross_move_prompt(socket, pages, board, folder, parent, folders \\ []) do
     user = socket.assigns.current_user
+    folders = outermost(folders)
 
-    reports =
-      for page <- pages,
-          {:ok, report} <- [Slipdock.Wiki.Move.preview(page, board, user)],
-          do: report
+    inside =
+      folders
+      |> Enum.flat_map(&[&1 | Slipdock.Wiki.Folders.descendants(&1)])
+      |> MapSet.new(& &1.id)
 
-    if length(reports) == length(pages) do
-      assign(socket,
-        tree_prompt: %{
-          kind: :cross_move,
-          pages: pages,
-          board: board,
-          folder: folder,
-          parent: parent,
-          report: merge_reports(reports)
-        }
-      )
-    else
-      put_flash(socket, :error, "Those pages can't move to #{board.name}.")
+    pages = Enum.reject(pages, &MapSet.member?(inside, &1.folder_id))
+
+    page_reports =
+      for page <- pages, do: Slipdock.Wiki.Move.preview(page, board, user)
+
+    folder_reports =
+      for f <- folders,
+          do: Slipdock.Wiki.FolderMove.preview(f, board, user, parent: folder)
+
+    case Enum.find(page_reports ++ folder_reports, &(not match?({:ok, _}, &1))) do
+      nil ->
+        pages_r = for {:ok, r} <- page_reports, do: r
+        folders_r = for {:ok, r} <- folder_reports, do: r
+
+        assign(socket,
+          tree_prompt: %{
+            kind: :cross_move,
+            pages: pages,
+            folders: folders,
+            board: board,
+            folder: folder,
+            parent: parent,
+            report: merge_reports(pages_r, folders_r)
+          }
+        )
+
+      {:error, _status, message} when is_binary(message) ->
+        put_flash(socket, :error, "That can't move to #{board.name}: #{message}")
+
+      _ ->
+        put_flash(socket, :error, "Those can't move to #{board.name}.")
     end
   end
 
-  defp merge_reports(reports) do
+  # The selected folders not inside another selected folder.
+  defp outermost(folders) do
+    ids = MapSet.new(folders, & &1.id)
+
+    Enum.reject(folders, fn f ->
+      f |> Slipdock.Wiki.Folders.ancestors() |> Enum.any?(&MapSet.member?(ids, &1.id))
+    end)
+  end
+
+  defp merge_reports(reports, folder_reports) do
+    all = reports ++ folder_reports
+
     both = fn key, part ->
-      reports |> Enum.flat_map(&(&1[key][part] || [])) |> Enum.uniq() |> Enum.sort()
+      all |> Enum.flat_map(&(&1[key][part] || [])) |> Enum.uniq() |> Enum.sort()
     end
 
+    from_folders = fn key -> folder_reports |> Enum.flat_map(&Map.fetch!(&1, key)) end
+
     %{
-      pages: reports |> Enum.map(& &1.pages) |> Enum.sum(),
+      pages: all |> Enum.map(& &1.pages) |> Enum.sum(),
+      folders: folder_reports |> Enum.map(& &1.folders) |> Enum.sum(),
+      files: folder_reports |> Enum.map(& &1.files) |> Enum.sum(),
       tags: %{carried: both.(:tags, :carried), dropped: both.(:tags, :dropped)},
       fields: %{carried: both.(:fields, :carried), dropped: both.(:fields, :dropped)},
       pins: %{carried: both.(:pins, :carried), dropped: both.(:pins, :dropped)},
       assignees:
-        reports |> Enum.map(& &1.assignee.dropped) |> Enum.reject(&is_nil/1) |> Enum.uniq(),
+        (Enum.map(reports, & &1.assignee.dropped) ++
+           Enum.flat_map(folder_reports, & &1.assignees.dropped))
+        |> Enum.reject(&is_nil/1)
+        |> Enum.uniq(),
       lists: reports |> Enum.map(& &1.list) |> Enum.reject(&is_nil/1) |> Enum.uniq(),
-      parents: reports |> Enum.map(& &1.parent) |> Enum.reject(&is_nil/1) |> Enum.uniq()
+      parents: reports |> Enum.map(& &1.parent) |> Enum.reject(&is_nil/1) |> Enum.uniq(),
+      left_behind: from_folders.(:left_behind),
+      filing_dropped: folder_reports |> Enum.map(& &1.filing_dropped) |> Enum.sum(),
+      title_clashes: from_folders.(:title_clashes) |> Enum.uniq()
     }
   end
 
@@ -2168,7 +2242,12 @@ defmodule SlipdockWeb.WikiLive.Index do
         "Pinned cards (they stay linked, unpinned): " <> Enum.join(report.pins.dropped, ", "),
       report.assignees != [] && "Assigned to: " <> Enum.join(report.assignees, ", "),
       report.lists != [] && "A place in the list: " <> Enum.join(report.lists, ", "),
-      report.parents != [] && "Its parent page: " <> Enum.join(report.parents, ", ")
+      report.parents != [] && "Its parent page: " <> Enum.join(report.parents, ", "),
+      report.left_behind != [] &&
+        "Pages filed there under a page that isn't moving: " <>
+          Enum.join(report.left_behind, ", "),
+      report.filing_dropped > 0 &&
+        "#{count(report.filing_dropped, "filing")} in folders on boards outside the vault"
     ]
     |> Enum.filter(& &1)
   end
@@ -3174,18 +3253,40 @@ defmodule SlipdockWeb.WikiLive.Index do
     <.modal id="tree-prompt" on_close={JS.push("close_tree_prompt")} size="sm">
       <div class="space-y-4 p-6">
         <h2 class="text-lg font-semibold">
-          <%= case @prompt.pages do %>
-            <% [page] -> %>
+          <%= case {@prompt.pages, Map.get(@prompt, :folders, [])} do %>
+            <% {[page], []} -> %>
               Move “{page.title}” to {@prompt.board.name}?
-            <% pages -> %>
+            <% {[], [folder]} -> %>
+              Move the folder “{folder.name}” to {@prompt.board.name}?
+            <% {pages, []} -> %>
               Move {length(pages)} pages to {@prompt.board.name}?
+            <% {pages, folders} -> %>
+              Move {count(length(pages) + length(folders), "item")} to {@prompt.board.name}?
           <% end %>
         </h2>
-        <p class="text-sm text-base-content/70">
+        <p :if={Map.get(@prompt, :folders, []) == []} class="text-sm text-base-content/70">
           It keeps its code, history, comments, checklist, links and its other folders.
           <span :if={@prompt.report.pages > length(@prompt.pages)}>
             {count(@prompt.report.pages - length(@prompt.pages), "page")} under it come too.
           </span>
+        </p>
+        <p
+          :if={Map.get(@prompt, :folders, []) != []}
+          id="cross-move-folders"
+          class="text-sm text-base-content/70"
+        >
+          {count(@prompt.report.folders, "folder")}, {count(@prompt.report.pages, "page")}<span :if={
+            @prompt.report.files > 0
+          }> and {count(@prompt.report.files, "file")}</span>
+          move, keeping their names and order. Every page keeps its code, history, comments,
+          checklist and links.
+        </p>
+        <p
+          :if={@prompt.report.title_clashes != []}
+          id="cross-move-clashes"
+          class="text-sm text-base-content/70"
+        >
+          Landing beside pages of the same title: {Enum.join(@prompt.report.title_clashes, ", ")}
         </p>
         <ul id="cross-move-report" class="space-y-1 text-sm">
           <li :if={@prompt.report.tags.carried != []}>

@@ -115,7 +115,9 @@ defmodule SlipdockWeb.WikiTreeOrganiseLiveTest do
     assert Repo.get!(Page, one.id).board_id == jobs.id
   end
 
-  test "a folder does not move to another board", %{conn: conn, kb: kb, jobs: jobs, specs: specs} do
+  test "a folder dragged to another board asks first, then moves with its pages", ctx do
+    %{conn: conn, kb: kb, jobs: jobs, specs: specs} = ctx
+    {:ok, inside} = Wiki.file_page(ctx.two, specs)
     {:ok, view, _} = live(conn, ~p"/boards/#{kb}/wiki")
 
     html =
@@ -126,7 +128,58 @@ defmodule SlipdockWeb.WikiTreeOrganiseLiveTest do
         "before" => nil
       })
 
-    assert html =~ "moves within its own board"
+    assert html =~ "Move the folder “Specs” to Job Hunt?"
+    assert has_element?(view, "#cross-move-folders", "1 folder, 1 page")
+    assert Wiki.get_folder(specs.id).board_id == kb.id
+
+    html = view |> element("#cross-move-confirm") |> render_click()
+    assert html =~ "Moved 1 folder to Job Hunt."
+    assert Wiki.get_folder(specs.id).board_id == jobs.id
+    assert %{board_id: jid, folder_id: fid} = Repo.get!(Page, inside.id)
+    assert {jid, fid} == {jobs.id, specs.id}
+  end
+
+  test "Move… with a folder and pages: one report, and a page inside the folder moves once",
+       ctx do
+    %{conn: conn, kb: kb, jobs: jobs, acme: acme, specs: specs, one: one, two: two} = ctx
+    {:ok, two} = Wiki.file_page(two, specs)
+    tag = tag_fixture(kb, "Only here")
+    {:ok, _} = Wiki.set_tags(two, [tag])
+    {:ok, view, _} = live(conn, ~p"/boards/#{kb}/wiki")
+
+    dialog(view, "move", ["folder:#{specs.id}", "page:#{two.id}", "page:#{one.id}"])
+
+    html =
+      view
+      |> element("#tree-targets button[phx-value-target='folder:#{acme.id}']")
+      |> render_click()
+
+    assert html =~ "Move 2 items to Job Hunt?"
+    assert has_element?(view, "#cross-move-folders", "1 folder, 2 pages")
+    assert has_element?(view, "#cross-move-losses", "Only here")
+
+    html = view |> element("#cross-move-confirm") |> render_click()
+    assert html =~ "Moved 1 folder and 1 page to Job Hunt."
+    assert Wiki.get_folder(specs.id).parent_id == acme.id
+    assert Repo.get!(Page, two.id).folder_id == specs.id
+    assert Repo.get!(Page, one.id).board_id == jobs.id
+  end
+
+  test "a folder that can't go says why, and nothing moves", ctx do
+    %{conn: conn, kb: kb, jobs: jobs, specs: specs} = ctx
+    {:ok, _} = Wiki.create_folder(jobs, %{"name" => "Specs"})
+    {:ok, view, _} = live(conn, ~p"/boards/#{kb}/wiki")
+
+    html =
+      render_click(view, "tree_move", %{
+        "kind" => "folder",
+        "id" => to_string(specs.id),
+        "into" => "board:#{jobs.id}",
+        "before" => nil
+      })
+
+    assert html =~ "can&#39;t move to Job Hunt: Job Hunt already has a folder named Specs"
+    refute has_element?(view, "#cross-move-confirm")
     assert Wiki.get_folder(specs.id).board_id == kb.id
   end
 
