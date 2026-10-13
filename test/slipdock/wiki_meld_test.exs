@@ -8,11 +8,14 @@ defmodule Slipdock.WikiMeldTest do
   use Slipdock.DataCase, async: true
 
   import Slipdock.Fixtures
+  import Ecto.Query
 
   alias Slipdock.Repo
   alias Slipdock.Search.Chunk
   alias Slipdock.Wiki
-  alias Slipdock.Wiki.{Meld, Page, Tree, WikiFile}
+  alias Slipdock.Access
+  alias Slipdock.Boards.Activity
+  alias Slipdock.Wiki.{Meld, Page, Revision, Tree, WikiFile}
   alias SlipdockWeb.Wiki.Renderer
 
   @vectors "test/support/fixtures/meld_vectors.json" |> File.read!() |> Jason.decode!()
@@ -191,6 +194,81 @@ defmodule Slipdock.WikiMeldTest do
       assert by_title["Locked"].encrypted
       refute by_title["Open"].encrypted
       assert by_title["Diary.mdenc"].encrypted
+    end
+  end
+
+  describe "purging revisions that held text since encrypted" do
+    # Each save under a different `via`, so none is folded into the last.
+    defp history(board, user) do
+      page = page_fixture(board, %{"title" => "Bank", "body" => "PIN 4921"}, user: user)
+
+      {:ok, page} =
+        Wiki.update_page(page, %{"body" => "PIN 4921, sort code"}, user: user, via: "api")
+
+      {:ok, page} =
+        Wiki.update_page(page, %{"body" => "PIN #{v(0)["text"]}"}, user: user, via: "cli")
+
+      revisions = page |> Wiki.revision_bodies()
+      {page, revisions}
+    end
+
+    test "revision_bodies gives every revision's id and body, oldest first", %{
+      board: board,
+      user: user
+    } do
+      {_page, revisions} = history(board, user)
+
+      assert Enum.map(revisions, & &1.body) == [
+               "PIN 4921",
+               "PIN 4921, sort code",
+               "PIN #{v(0)["text"]}"
+             ]
+    end
+
+    test "the owner purges the named revisions, never the newest, and it is logged",
+         %{board: board, user: user} do
+      {page, [first, second, newest]} = history(board, user)
+
+      assert {:ok, 2} =
+               Wiki.purge_revisions(page, ["#{first.id}", second.id, newest.id, "junk", -1],
+                 user: user
+               )
+
+      assert [%{id: id}] = Wiki.revision_bodies(page)
+      assert id == newest.id
+
+      assert [activity] =
+               Repo.all(
+                 from a in Activity,
+                   where: a.page_id == ^page.id and a.kind == "page_revisions_purged"
+               )
+
+      assert activity.message =~ "purged 2 earlier revisions of “Bank”"
+    end
+
+    test "a writer who is not the owner is refused, and nothing goes", %{board: board, user: user} do
+      {page, [first | _]} = history(board, user)
+      writer = user_fixture("meld.writer@example.com")
+      {:ok, _} = Access.grant(board, writer, "write", user)
+
+      assert Wiki.purge_revisions(page, [first.id], user: writer) == {:error, :forbidden}
+      assert Wiki.purge_revisions(page, [first.id], user: nil) == {:error, :forbidden}
+      assert length(Wiki.revision_bodies(page)) == 3
+    end
+
+    test "another page's revisions are out of reach, and no ids purges nothing", %{
+      board: board,
+      user: user
+    } do
+      {page, _} = history(board, user)
+      other = page_fixture(board, %{"title" => "Other", "body" => "x"}, user: user)
+      [%{id: theirs}] = Wiki.revision_bodies(other)
+      page_fixture(board, %{"title" => "Third", "body" => "y"}, user: user)
+
+      assert {:ok, 0} = Wiki.purge_revisions(page, [theirs], user: user)
+      assert Repo.get(Revision, theirs)
+      assert {:ok, 0} = Wiki.purge_revisions(page, [], user: user)
+      refute Repo.exists?(from a in Activity, where: a.kind == "page_revisions_purged")
     end
   end
 end
