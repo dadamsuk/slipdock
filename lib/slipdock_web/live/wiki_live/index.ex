@@ -1464,6 +1464,65 @@ defmodule SlipdockWeb.WikiLive.Index do
     end
   end
 
+  # A file in the tree is archived or deleted for good (#769), each asked
+  # first. Deleting gives the storage back, and like a page's, only the
+  # board's owner may do it; the prompt says so rather than the menu hiding it.
+  def handle_event("ask_archive_file", %{"id" => id}, socket) do
+    case tree_file(socket, id) do
+      %WikiFile{} = file ->
+        {:noreply, assign(socket, tree_prompt: %{kind: :archive_file, file: file})}
+
+      nil ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("ask_delete_file", %{"id" => id}, socket) do
+    case tree_file(socket, id) do
+      %WikiFile{} = file ->
+        {:noreply,
+         assign(socket,
+           tree_prompt: %{kind: :delete_file, file: file, owner: file_owner?(socket, file)}
+         )}
+
+      nil ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("archive_file", _params, socket) do
+    with %{kind: :archive_file, file: file} <- socket.assigns.tree_prompt,
+         %WikiFile{} = file <- tree_file(socket, file.id),
+         {:ok, _} <- Wiki.Files.archive(file) do
+      {:noreply,
+       socket
+       |> assign(tree_prompt: nil)
+       |> put_flash(:info, "Archived #{file.name}.")
+       |> load_tree()}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "That file couldn't be archived.")}
+    end
+  end
+
+  def handle_event("delete_file", _params, socket) do
+    with %{kind: :delete_file, file: file} <- socket.assigns.tree_prompt,
+         %WikiFile{} = file <- tree_file(socket, file.id),
+         true <- file_owner?(socket, file),
+         {:ok, _} <- Wiki.Files.delete(file) do
+      {:noreply,
+       socket
+       |> assign(tree_prompt: nil)
+       |> put_flash(:info, "Deleted #{file.name} for good.")
+       |> load_tree()}
+    else
+      false ->
+        {:noreply, put_flash(socket, :error, "Only the board's owner can delete a file.")}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "That file couldn't be deleted.")}
+    end
+  end
+
   def handle_event("close_tree_prompt", _params, socket),
     do: {:noreply, assign(socket, tree_prompt: nil)}
 
@@ -2706,6 +2765,16 @@ defmodule SlipdockWeb.WikiLive.Index do
          %{} <- writable_board(socket, file.board_id),
          do: file,
          else: (_ -> nil)
+  end
+
+  defp file_owner?(socket, %WikiFile{board_id: board_id}) do
+    case Boards.get_board(board_id) do
+      %Slipdock.Boards.Board{} = board ->
+        Access.board_permission(socket.assigns.current_user, board) == :owner
+
+      nil ->
+        false
+    end
   end
 
   defp folder_label(nil), do: "The top of the wiki"
@@ -4219,6 +4288,66 @@ defmodule SlipdockWeb.WikiLive.Index do
         <div class="flex justify-end">
           <button type="button" phx-click="close_tree_prompt" class="btn btn-ghost btn-sm">
             Cancel
+          </button>
+        </div>
+      </div>
+    </.modal>
+    """
+  end
+
+  defp tree_prompt(%{prompt: %{kind: :archive_file}} = assigns) do
+    ~H"""
+    <.modal id="tree-prompt" on_close={JS.push("close_tree_prompt")} size="sm">
+      <div class="space-y-4 p-6">
+        <h2 class="text-lg font-semibold">Archive {@prompt.file.name}?</h2>
+        <p class="text-sm text-base-content/60">
+          It leaves the tree. Its bytes are kept, and still count towards the board owner's
+          storage; deleting it gives that back.
+        </p>
+        <div class="flex justify-end gap-2">
+          <button type="button" phx-click="close_tree_prompt" class="btn btn-ghost btn-sm">
+            Cancel
+          </button>
+          <button
+            id="tree-archive-file-confirm"
+            type="button"
+            phx-click="archive_file"
+            class="btn btn-error btn-sm"
+            autofocus
+          >
+            Archive
+          </button>
+        </div>
+      </div>
+    </.modal>
+    """
+  end
+
+  defp tree_prompt(%{prompt: %{kind: :delete_file}} = assigns) do
+    ~H"""
+    <.modal id="tree-prompt" on_close={JS.push("close_tree_prompt")} size="sm">
+      <div class="space-y-4 p-6">
+        <h2 class="text-lg font-semibold">Delete {@prompt.file.name}?</h2>
+        <p class="text-sm text-base-content/60">
+          It is deleted for good, and its storage given back. This cannot be undone, and a
+          synced vault takes its copy away too.
+        </p>
+        <p :if={not @prompt.owner} id="tree-delete-file-owner-only" class="text-sm text-warning">
+          Only the board's owner can delete a file for good. Archive puts it away instead.
+        </p>
+        <div class="flex justify-end gap-2">
+          <button type="button" phx-click="close_tree_prompt" class="btn btn-ghost btn-sm">
+            Cancel
+          </button>
+          <button
+            :if={@prompt.owner}
+            id="tree-delete-file-confirm"
+            type="button"
+            phx-click="delete_file"
+            class="btn btn-error btn-sm"
+            autofocus
+          >
+            <.icon name="hero-trash" class="size-4" /> Delete for good
           </button>
         </div>
       </div>

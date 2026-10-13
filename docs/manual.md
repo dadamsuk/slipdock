@@ -2872,6 +2872,13 @@ and kinds with no viewer yet (audio, video, archives), offer the download.
 Drawings still open in the Excalidraw editor and whole Meld notes where
 the browser decrypts them.
 
+**Archiving or deleting a file.** A file's menu in the tree (right-click,
+or a long press) has **Archive…** and **Delete…**, and Delete on the
+keyboard asks to archive the highlighted file. Archiving takes it out of
+the tree but keeps its bytes, which still count towards the board owner's
+storage. Deleting it is for good and gives that storage back; only the
+board's owner can delete a file, and a synced vault takes its copy away too.
+
 **What the folder remembers.** `.slipdock/state.json` holds, for each file,
 which page it is and the hash both sides last agreed on — never front
 matter, so your files stay your own. That is what makes a rename the same

@@ -1,8 +1,8 @@
 defmodule Slipdock.Wiki.Files do
   @moduledoc """
   Files in a board's wiki that are not pages (`Slipdock.Wiki.WikiFile`):
-  stored, replaced, moved and archived, each change written to the wiki's
-  change log as a `file` so a sync hears of it (W-103 R2.9).
+  stored, replaced, moved, archived and deleted, each change written to the
+  wiki's change log as a `file` so a sync hears of it (W-103 R2.9).
 
   The bytes are copied into the uploads directory from a path — an upload
   the web server has already spooled to disk — and hashed on the way, a
@@ -130,6 +130,20 @@ defmodule Slipdock.Wiki.Files do
       Changes.record(file.board_id, "file", file.id, "archived")
       Wiki.broadcast_board(file.board_id)
       {:ok, archived}
+    end
+  end
+
+  @doc """
+  Deletes a file for good: its row, and its bytes on disk, which is what
+  gives the owner's storage back. A sync hears of it as `deleted` and takes
+  its copy away too.
+  """
+  def delete(%WikiFile{} = file) do
+    with {:ok, deleted} <- Repo.delete(file) do
+      Boards.remove_files([file.key])
+      Changes.record(file.board_id, "file", file.id, "deleted")
+      Wiki.broadcast_board(file.board_id)
+      {:ok, deleted}
     end
   end
 

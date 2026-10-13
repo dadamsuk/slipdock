@@ -380,6 +380,9 @@ export function menuItems(row, ctx) {
   if (row.kind === "file") {
     add(true, {label: "Open in a new tab", icon: "hero-arrow-top-right-on-square", action: "newTab", href: row.href})
     add(true, {label: "Copy link", icon: "hero-link", action: "copy", href: row.href})
+    // Put away, or gone for good (#769): the server asks, and says who may delete.
+    add(writable, {label: "Archive…", icon: "hero-archive-box", event: "ask_archive_file", payload: {id}, danger: true, group: "danger"})
+    add(writable, {label: "Delete…", icon: "hero-trash", event: "ask_delete_file", payload: {id}, danger: true, group: "danger"})
     return items
   }
 
@@ -851,8 +854,10 @@ export const WikiTree = {
 
     if (e.key === "F2" || e.key === "Delete") {
       e.preventDefault()
-      if (!mine || !["page", "folder"].includes(item.row.kind)) return
+      if (!mine) return
       const id = String(item.row.id)
+      if (item.row.kind === "file") return e.key === "Delete" ? this.pushEvent("ask_archive_file", {id}) : undefined
+      if (!["page", "folder"].includes(item.row.kind)) return
       if (e.key === "F2") return item.row.kind === "folder" ? this.pushEvent("rename_folder", {id}) : this.pushEvent("rename_page", {id})
       return item.row.kind === "folder" ? this.pushEvent("ask_delete_folder", {id}) : this.pushEvent("ask_archive_page", {id})
     }
