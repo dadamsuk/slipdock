@@ -1,0 +1,68 @@
+{
+  "source": "Meld Encrypt 2.4.5 main.js (meld-cp/obsidian-encrypt), run under Node's WebCrypto",
+  "inline": [
+    {
+      "version": 2,
+      "passphrase": "correct horse",
+      "hint": "the usual",
+      "visible": true,
+      "plaintext": "My PIN is 4921",
+      "text": "🔐β 💡the usual💡zwYlpy4SXht7oQygC5e62+9NnBAPMbdLU9QMDA6OAB9th1bixTl7WljmyN5xV2jSB3xznAmiRiWQhm+RQKs= 🔐"
+    },
+    {
+      "version": 2,
+      "passphrase": "pässwörd 🔑",
+      "hint": "",
+      "visible": false,
+      "plaintext": "Line one\nLine two — with ünïcödé and emoji 🎉\n\n- a list",
+      "text": "%%🔐β XAIftwJyMvNpJYEhs2CTL3TD8gv4xUNcINJxjEKCksGBjPO9mdRHuynLEKyg2UVfKa1D0fTDIz475V/oCVPAD5UMPLQgKVjFRDFxqhmxNUHHUk/GLkdE0uQZKyG0aeVFxqkB55FBgHnjyFdOUon3 🔐%%"
+    },
+    {
+      "version": 1,
+      "passphrase": "legacy",
+      "hint": "old one",
+      "visible": true,
+      "plaintext": "encrypted by Meld 1.x",
+      "text": "🔐α 💡old one💡wrVmo0swIHd7gmfMhI4G+8J667XSkae7yZ7zY7vOVx2I2TABnYeWntaC83seyOBFQhGYx6g= 🔐"
+    },
+    {
+      "version": 1,
+      "passphrase": "legacy",
+      "hint": "",
+      "visible": false,
+      "plaintext": "hidden in reading view",
+      "text": "%%🔐α YfOxpyYBGvXRcALKO+Ar19z+b3oVvse8rKOKokmlQNG4e7Ue5QhcMRFrvfbd672XCNV35v2C 🔐%%"
+    },
+    {
+      "version": 0,
+      "passphrase": "ancient",
+      "hint": "",
+      "visible": true,
+      "plaintext": "the very first format",
+      "text": "🔐 CzYRCK0lP2MRTZP1W74Z3MG43IEDmBaATh/6W/zFDNj7mNXfGQ== 🔐"
+    }
+  ],
+  "notes": [
+    {
+      "passphrase": "whole note",
+      "hint": "notes",
+      "plaintext": "# Secret\n\nThe whole note.\n",
+      "version": "2.0",
+      "file": "{\n  \"version\": \"2.0\",\n  \"hint\": \"notes\",\n  \"encodedData\": \"sLwAXuUYUrEPh0mdU51Jh8rXohjAFHRFwiZga7JfWD21TObjhIXwtidgZEZhoNV+0hNLhJt5PY4UsJGAK7vMGDWkPY7H/PQm6nw=\"\n}"
+    },
+    {
+      "passphrase": "whole note",
+      "hint": "",
+      "plaintext": "",
+      "version": "2.0",
+      "file": "{\n  \"version\": \"2.0\",\n  \"hint\": \"\",\n  \"encodedData\": \"msRNTtES7cUNgsrfj5VZDA6GLTRVIg/ZGNBP8ZbRsshrIsNtl3xDVH1ITelb0N5w\"\n}"
+    },
+    {
+      "passphrase": "legacy",
+      "hint": "v1 note",
+      "plaintext": "old whole note",
+      "version": "1.0",
+      "file": "{\n  \"version\": \"1.0\",\n  \"hint\": \"v1 note\",\n  \"encodedData\": \"WIvAL2yr5A3p8ouTaJqepJqxBqlsRazc2eU4Lurp6B+NQLKVCbUqkyrHLq4rYw==\"\n}"
+    }
+  ]
+}
