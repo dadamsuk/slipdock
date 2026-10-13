@@ -29,6 +29,11 @@ defmodule Slipdock.Boards.Board do
     field :add_page, :boolean, default: true
     field :add_document, :boolean, default: true
 
+    # Whether this board's wiki pages carry the card contents under their
+    # prose: status, checklist, links, fields, votes and comments. One switch
+    # for the whole wiki; off hides them without deleting anything.
+    field :page_card_features, :boolean, default: true
+
     # A simple board is a plain to-do list: the project-tracking details
     # (see `technical_facets/0`) are hidden on its cards and its tiles, and
     # the Timeline and Prioritise views drop out of its view menu. The data
@@ -289,6 +294,7 @@ defmodule Slipdock.Boards.Board do
       :add_card,
       :add_page,
       :add_document,
+      :page_card_features,
       :simple,
       :kind
     ])

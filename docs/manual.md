@@ -2296,6 +2296,15 @@ status updates, links, fields and votes — with **Open the document** in it.
 Two gestures, no ambiguity. The document's own page carries the same sections
 below the prose, which is where most of that conversation actually happens.
 
+A wiki that is only documents can do without them. Untick **Card features on
+wiki pages** in the board's settings and every page in that board's wiki — its
+own view and its panel on the board — leaves out the status, checklist, links,
+fields, votes and comments. It is one switch for the whole wiki, and nothing
+is deleted: tick it again and they are all back. From the command line it is
+`slipdock set-board <board> --no-page-card-features` (or
+`--page-card-features`), and over the API `PATCH /api/boards/:board
+{"page_card_features": false}`.
+
 A draft on the board is visible only to people who could edit it, and a page
 counts towards nothing — not the card count, not the WIP limit. Deleting a
 list leaves its pages behind, unplaced rather than deleted.

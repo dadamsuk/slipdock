@@ -815,6 +815,17 @@ the same names. In `BoardLive.Show`, `subject/1` is the whole of it: the open
 page when a page panel is up, the open card otherwise. `@item_write_events`
 is guarded by `item_can_write`, which follows the subject.
 
+**One switch to turn them off.** A wiki that is only documents found the six
+sections under every page clutter, so `boards.page_card_features` (default
+true) hides them for the whole wiki — on the page's own view and in its panel
+on the board, the only two places they are drawn. A board's wiki is the
+board's, and a page is only ever placed on its own board's lists, so the
+panel's `@board` is always the right board to ask. Hidden, not removed: the
+rows and the API are untouched, exactly as `simple` hides a card's tracking
+details. Settable in the board's settings, over the API and from
+`slipdock set-board --[no-]page-card-features`; export and import carry it,
+and an export that predates it imports as on.
+
 **A comment on a page is writing too.** `page_links` grew `source_page_id`,
 the twin of the `source_card_id` that already carried "the card this remark
 was written on". `Links.name_the_source/1` fills a comment link's `page` in
