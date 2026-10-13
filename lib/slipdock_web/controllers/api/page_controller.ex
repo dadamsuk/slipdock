@@ -38,13 +38,25 @@ defmodule SlipdockWeb.API.PageController do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, :read) do
       opts = list_opts(conn, board, params)
 
-      if truthy?(params["tree"]) do
-        json(conn, %{pages: V.page_tree(Wiki.tree(board, opts))})
-      else
-        json(conn, %{pages: Enum.map(Wiki.list_pages(board, opts), &V.page_summary/1)})
+      cond do
+        truthy?(params["tree"]) ->
+          json(conn, %{pages: V.page_tree(Wiki.tree(board, opts))})
+
+        truthy?(params["recent"]) ->
+          pages = board |> Wiki.list_pages(opts) |> recent()
+          json(conn, %{pages: Enum.map(pages, &V.page_summary/1)})
+
+        true ->
+          json(conn, %{pages: Enum.map(Wiki.list_pages(board, opts), &V.page_summary/1)})
       end
     end
   end
+
+  # `recent`: the wiki tree's Recent view (#738) — the most recently edited
+  # first, the newest 100.
+  @recent 100
+
+  defp recent(pages), do: pages |> Wiki.newest_first() |> Enum.take(@recent)
 
   # Drafts are half-written by definition, so a reader who could not edit the
   # page never sees one listed.

@@ -130,6 +130,16 @@ defmodule Slipdock.Wiki do
     end
   end
 
+  @doc """
+  `pages` with the most recently edited first, the newer id first on a tie:
+  the order of the wiki tree's Recent view (#738), for the API and MCP lists.
+  """
+  def newest_first(pages) do
+    pages
+    |> Enum.sort_by(& &1.id, :desc)
+    |> Enum.sort_by(& &1.updated_at, {:desc, DateTime})
+  end
+
   defp folder_for_also(_board, %Folder{} = folder), do: folder
   defp folder_for_also(_board, id) when is_integer(id), do: Folders.get(id)
   defp folder_for_also(_board, _), do: nil

@@ -83,6 +83,10 @@ defmodule SlipdockWeb.WikiLive.Index do
          # On a phone the tree is a drawer, shut until asked for (R11.11).
          tree_drawer: false,
          tree_scope: "board",
+         # The tree, or "recent": this board's pages, last edited first
+         # (#738). The browser keeps the choice (WikiTreeView hook).
+         tree_view: "tree",
+         tree_recent: [],
          tree_empty: true,
          tree_current: "",
          tree_reveal: [],
@@ -196,8 +200,22 @@ defmodule SlipdockWeb.WikiLive.Index do
       hidden: total - shown,
       filtering: filtering
     )
+    |> assign_tree_recent()
     |> update(:tree_version, &(&1 + 1))
   end
+
+  # How many pages the tree's Recent view lists (#738).
+  @tree_recent 100
+
+  # The Recent view's rows: what the tree would show, newest edit first, and
+  # narrowed by the filter bar as the tree is. Only read while it is shown.
+  defp assign_tree_recent(%{assigns: %{tree_view: "recent"} = assigns} = socket) do
+    only = assigns.tree_filter && assigns.tree_filter.only
+    recent = Tree.recent(assigns.board, [only: only] ++ tree_opts(assigns), @tree_recent)
+    assign(socket, tree_recent: recent)
+  end
+
+  defp assign_tree_recent(socket), do: assign(socket, tree_recent: [])
 
   # `as`: whose tree it is, which decides the pages also filed in a folder
   # that it shows (W-103 R12.2).
@@ -1035,6 +1053,20 @@ defmodule SlipdockWeb.WikiLive.Index do
   # folder opens when a drag rests on it, so nothing has to be opened first.
   # In a vault's tree a page can be dragged to another board of the vault,
   # which asks first (R11.8).
+  # The tree pane's Tree / Recent switch (#738). The hook keeps the choice in
+  # this browser and asks for it again on the next visit; organising is a
+  # tree thing, so Recent ends it.
+  def handle_event("tree_view", %{"view" => view}, socket) when view in ["tree", "recent"] do
+    socket =
+      socket
+      |> assign(tree_view: view, organising: socket.assigns.organising and view == "tree")
+      |> assign_tree_recent()
+
+    {:noreply, push_event(socket, "wiki-tree:view", %{view: view})}
+  end
+
+  def handle_event("tree_view", _params, socket), do: {:noreply, socket}
+
   def handle_event("toggle_organise", _params, socket) do
     if socket.assigns.can_write do
       {:noreply, assign(socket, organising: not socket.assigns.organising)}
@@ -2404,6 +2436,15 @@ defmodule SlipdockWeb.WikiLive.Index do
   defp stamp(nil), do: ""
   defp stamp(%DateTime{} = at), do: Calendar.strftime(at, "%d %b %Y, %H:%M")
 
+  # Short, for the tree's Recent view: the time today, the day otherwise.
+  defp recent_stamp(nil), do: ""
+
+  defp recent_stamp(%DateTime{} = at) do
+    if DateTime.to_date(at) == Date.utc_today(),
+      do: Calendar.strftime(at, "%H:%M"),
+      else: Calendar.strftime(at, "%d %b")
+  end
+
   defp via_label("web"), do: "in the app"
   defp via_label("api"), do: "over the API"
   defp via_label("cli"), do: "from the CLI"
@@ -2630,7 +2671,10 @@ defmodule SlipdockWeb.WikiLive.Index do
                     hook keeps its icon and title, so it is left alone here. --%>
               <span
                 id="wiki-tree-toggle-all-box"
-                class={[(@filtering or @organising or @all_folders == []) && "hidden"]}
+                class={[
+                  (@filtering or @organising or @all_folders == [] or @tree_view == "recent") &&
+                    "hidden"
+                ]}
               >
                 <span id="wiki-tree-toggle-all-keep" phx-update="ignore">
                   <button
@@ -2647,7 +2691,7 @@ defmodule SlipdockWeb.WikiLive.Index do
               <%!-- Back to where you are, after shutting or scrolling it away
                     (the hook opens the way and scrolls to it). --%>
               <button
-                :if={@tree_current != ""}
+                :if={@tree_current != "" and @tree_view == "tree"}
                 id="wiki-tree-reveal"
                 type="button"
                 data-tree-reveal
@@ -2659,7 +2703,7 @@ defmodule SlipdockWeb.WikiLive.Index do
               <%!-- Rearranging is a mode, and it says so: in it the tree is
                     draggable and nothing else about it changes. --%>
               <button
-                :if={@can_write}
+                :if={@can_write and @tree_view == "tree"}
                 type="button"
                 phx-click="toggle_organise"
                 class={[
@@ -2672,10 +2716,36 @@ defmodule SlipdockWeb.WikiLive.Index do
                 <.icon name={if @organising, do: "hero-check", else: "hero-pencil"} class="size-4" />
               </button>
             </div>
+            <%!-- The tree, or this board's pages last edited first (#738).
+                  The WikiTreeView hook keeps the choice in this browser. --%>
+            <div
+              id="wiki-tree-view"
+              phx-hook="WikiTreeView"
+              class="join mb-2 w-full"
+              role="group"
+              aria-label="How to list the pages"
+            >
+              <button
+                :for={{view, label} <- [{"tree", "Tree"}, {"recent", "Recent"}]}
+                id={"wiki-tree-view-#{view}"}
+                type="button"
+                phx-click="tree_view"
+                phx-value-view={view}
+                class={["btn btn-xs join-item flex-1", @tree_view == view && "btn-active"]}
+                aria-pressed={to_string(@tree_view == view)}
+                title={
+                  if view == "recent",
+                    do: "The most recently edited pages first",
+                    else: "Pages in their folders"
+                }
+              >
+                {label}
+              </button>
+            </div>
             <%!-- A board in a vault can show its own tree or the vault's:
                   every board of it, laid out by the vault's paths. --%>
             <div
-              :if={@vault}
+              :if={@vault && @tree_view == "tree"}
               class="join mb-2 w-full"
               role="group"
               aria-label="Which tree"
@@ -2727,13 +2797,15 @@ defmodule SlipdockWeb.WikiLive.Index do
               </label>
             </p>
             <p
-              :if={@tree_empty and not @filtering and @tree_scope == "board"}
+              :if={
+                @tree_empty and not @filtering and (@tree_scope == "board" or @tree_view == "recent")
+              }
               class="px-2 py-4 text-sm text-base-content/50"
             >
               Nothing written yet.
             </p>
             <p
-              :if={@tree_filter && @tree_filter.nodes == %{}}
+              :if={@tree_view == "tree" && @tree_filter && @tree_filter.nodes == %{}}
               class="px-2 py-4 text-sm text-base-content/50"
             >
               No page or folder name matches that.
@@ -2743,22 +2815,58 @@ defmodule SlipdockWeb.WikiLive.Index do
                   stand down for. --%>
             <%!-- What is picked with Ctrl/Cmd- or Shift-click, and what can be
                   done to all of it: drawn by the hook. --%>
-            <div
-              id="wiki-tree-selection"
-              phx-update="ignore"
-              class="sticky top-0 z-20 empty:hidden"
+            <%!-- Recent: a flat list, newest edit first, drawn here rather
+                  than by the hook. The tree's own rows stay mounted, hidden,
+                  so switching back finds them as they were left. --%>
+            <ul
+              :if={@tree_view == "recent"}
+              id="wiki-tree-recent"
+              class="space-y-0.5"
+              aria-label="Recently edited pages"
             >
-            </div>
-            <div
-              id="wiki-tree-rows"
-              phx-update="ignore"
-              data-tree-rows
-              data-own-keys
-              tabindex="0"
-              role="tree"
-              class="relative rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-              aria-label="Pages and folders"
-            >
+              <li :for={page <- @tree_recent} id={"wiki-recent-#{page.id}"}>
+                <.link
+                  patch={~p"/boards/#{@board}/wiki/#{page.slug}"}
+                  class={[
+                    "flex items-baseline gap-2 rounded-lg px-2 py-1 text-sm hover:bg-base-200",
+                    @page && @page.id == page.id && "bg-base-200 font-medium"
+                  ]}
+                  title={"Edited #{stamp(page.updated_at)}"}
+                >
+                  <span class={["min-w-0 flex-1 truncate", page.archived && "line-through opacity-60"]}>
+                    {page.title}
+                  </span>
+                  <span :if={page.draft} class="badge badge-ghost badge-xs shrink-0">draft</span>
+                  <span class="shrink-0 text-2xs text-base-content/40">
+                    {recent_stamp(page.updated_at)}
+                  </span>
+                </.link>
+              </li>
+              <li
+                :if={@tree_recent == [] and not @tree_empty}
+                class="px-2 py-4 text-sm text-base-content/50"
+              >
+                No page matches that.
+              </li>
+            </ul>
+            <div class={[@tree_view == "recent" && "hidden"]}>
+              <div
+                id="wiki-tree-selection"
+                phx-update="ignore"
+                class="sticky top-0 z-20 empty:hidden"
+              >
+              </div>
+              <div
+                id="wiki-tree-rows"
+                phx-update="ignore"
+                data-tree-rows
+                data-own-keys
+                tabindex="0"
+                role="tree"
+                class="relative rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                aria-label="Pages and folders"
+              >
+              </div>
             </div>
             <button
               :if={@can_write}

@@ -2153,6 +2153,14 @@ edge to make it wider or narrower (180–640px); the edge can be focused with Ta
 and moved with the arrow keys, Home and End, and a double-click or Enter puts
 the width back. Both are remembered in this browser, not on the board.
 
+**Recent.** The *Tree · Recent* switch at the top of the tree turns it into a
+flat list of the board's pages, the most recently edited first (up to 100),
+each with the time it was edited (the day, if not today). The filter bar
+narrows it as it narrows the tree, and it keeps itself up to date as pages
+change. The choice is remembered in this browser. The same list from a
+shell is `slipdock page ls <board> --recent`; `?recent=true` on the API, or
+`recent` on MCP's `list_pages`.
+
 **On a phone** the tree is a drawer: **Pages** in the wiki's bar slides it in
 over the page, opened to where you are, and a tap outside it, Esc, or opening
 a page shuts it again. Its rows are taller for a finger, holding one opens its

@@ -48,6 +48,10 @@ defmodule SlipdockWeb.MCP.Tools.ListPages do
         template: %{type: "boolean", description: "true = only templates, false = none."},
         draft: %{type: "boolean", description: "true = only drafts, false = only published."},
         tree: %{type: "boolean", description: "Nest each page's children under it."},
+        recent: %{
+          type: "boolean",
+          description: "Most recently edited first (the wiki tree's Recent view)."
+        },
         limit: %{type: "integer", description: "At most this many (default 100, max #{@max})."}
       },
       required: ["board"],
@@ -70,6 +74,7 @@ defmodule SlipdockWeb.MCP.Tools.ListPages do
          {:ok, template} <- Args.boolean(args, "template"),
          {:ok, draft} <- Args.boolean(args, "draft"),
          {:ok, tree?} <- Args.boolean(args, "tree", false),
+         {:ok, recent?} <- Args.boolean(args, "recent", false),
          {:ok, limit} <- Args.limit(args, "limit", 100, @max),
          {:ok, board} <- Args.refusal(Authorize.fetch_board(auth, ref, :read)),
          {:ok, folder} <- folder(board, folder_ref) do
@@ -90,6 +95,7 @@ defmodule SlipdockWeb.MCP.Tools.ListPages do
             )
         end
 
+      pages = if recent?, do: Wiki.newest_first(pages), else: pages
       shown = Enum.take(pages, limit)
       line = liner(board, shown, context.base_url)
 

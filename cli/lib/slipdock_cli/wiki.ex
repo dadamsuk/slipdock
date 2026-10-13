@@ -107,7 +107,8 @@ defmodule SlipdockCLI.Wiki do
       status: if(o[:draft], do: "draft"),
       parent: if(o[:root], do: "root", else: o[:parent]),
       folder: if(o[:no_folder], do: "none", else: o[:folder]),
-      note_tag: o[:note_tag]
+      note_tag: o[:note_tag],
+      recent: if(o[:recent], do: "true")
     )
     |> out(o, &Render.pages(&1["pages"]))
   end
