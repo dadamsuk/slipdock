@@ -22,9 +22,20 @@ defmodule SlipdockWeb.WikiLive.Index do
   alias Slipdock.{Access, Boards, Fields, Votes, Wiki}
   alias Slipdock.Boards.Attachment
   alias Slipdock.Palette
-  alias Slipdock.Wiki.Page
+  alias Slipdock.Wiki.{Folder, Page, Tree}
   alias SlipdockWeb.Params
   alias SlipdockWeb.Wiki.Renderer
+
+  # How much the tree asks for at once: a page of a big folder's rows, and
+  # at most this many open containers in one go.
+  @tree_page 500
+  @tree_max_keys 300
+  # A wiki this small opens with every folder open on a first visit, as the
+  # tree always did; a bigger one opens only the way to what is shown.
+  @tree_small 300
+  # What the middle column lists of a folder, and of each on the index.
+  @folder_listing 200
+  @index_pages 8
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
@@ -54,13 +65,29 @@ defmodule SlipdockWeb.WikiLive.Index do
          new_parent: nil,
          new_column: nil,
          new_folder: nil,
-         # Filing (see `Slipdock.Wiki.Folder`): the folder tree down the side,
-         # the pages filed nowhere, and which folders the reader has shut.
-         folders: [],
-         unfiled: [],
+         # Filing (see `Slipdock.Wiki.Folder`): every folder, for the pickers.
          all_folders: [],
          folder_outline: [],
-         collapsed: MapSet.new(),
+         # The tree down the side is drawn by the WikiTree hook, which asks
+         # for one container at a time (`tree_load`, `tree_children`; see
+         # `Slipdock.Wiki.Tree`). The server keeps what the hook cannot: a
+         # version it bumps when the tree should be asked for again (a
+         # filter, a toggle, a change by anyone), what the filter bar lets
+         # through, and whether it is this board's tree or its vault's.
+         tree_version: 0,
+         tree_filter: nil,
+         tree_scope: "board",
+         tree_empty: true,
+         tree_current: "",
+         tree_reveal: [],
+         vault: Slipdock.Vaults.for_board(board),
+         # The middle column's own listings: the index's folders and recent
+         # pages, or what is in the folder being looked at.
+         index_folders: [],
+         recent: [],
+         folder_rows: [],
+         folder_more: false,
+         excerpts: %{},
          # Organise mode: the tree becomes drag-and-drop, and only then.
          # Dragging by default would make every mis-aimed click a filing
          # change, in the one place a reader is trying to read.
@@ -110,7 +137,7 @@ defmodule SlipdockWeb.WikiLive.Index do
          auto_upload: true,
          progress: &handle_upload/3
        )
-       |> load_tree()}
+       |> load_tree_state()}
     else
       {:ok,
        socket
@@ -119,84 +146,117 @@ defmodule SlipdockWeb.WikiLive.Index do
     end
   end
 
-  defp load_tree(socket) do
-    %{board: board, can_write: can_write, filters: filters, show: show} = socket.assigns
+  # Everything the tree is drawn from that is not its rows: the counts, what
+  # the filter bar lets through, the folders for the pickers. Then the
+  # version goes up, which is the WikiTree hook's cue to ask for the rows it
+  # shows again. No page is loaded whole for any of it, and without a filter
+  # none is loaded at all.
+  #
+  # The filter bar's search matches the filing as well as what is filed: a
+  # folder whose name matches is a hit, and everything in it comes with it,
+  # because "where are the design decisions" is the question somebody typing
+  # the name of a folder is asking (see `Slipdock.Wiki.Tree.filter/3`).
+  defp load_tree(socket), do: socket |> load_tree_state() |> assign_listing()
 
-    # What the tree is drawn from, before the filter bar narrows it. A draft
-    # is only ever listed for someone who could have written it.
-    all = Wiki.list_pages(board, [listing: true] ++ list_opts(can_write, show))
-    all_folders = Wiki.folders(board)
+  # Mount reads the state alone: the listing comes with `handle_params`,
+  # which knows which view it is for.
+  defp load_tree_state(socket) do
+    %{board: board, filters: filters} = socket.assigns
+    folders = Wiki.folders(board)
+    opts = tree_opts(socket.assigns)
+    total = Tree.count(board, opts)
+    filtering = Slipdock.Filters.any?(filters)
+    filter = if filtering, do: Tree.filter(board, filters, [folders: folders] ++ opts)
+    shown = if filter, do: filter.shown, else: total
 
-    # The search box searches the filing as well as what is filed: a folder
-    # whose name matches is a hit, and everything in it comes with it, because
-    # "where are the design decisions" is the question somebody typing the
-    # name of a folder is asking. Everything else is pruned away — a folder
-    # with nothing matching in it is noise at that moment.
-    hit_folders = matching_folders(all_folders, filters.q)
-
-    shown =
-      Enum.filter(all, fn page ->
-        Slipdock.Filters.matches?(page, filters) or MapSet.member?(hit_folders, page.folder_id)
-      end)
-
-    assign(socket,
-      tree: Wiki.tree_from(shown),
-      folders:
-        all_folders
-        |> Wiki.folder_tree_from(shown)
-        |> prune_folders(filters.q, hit_folders),
-      unfiled: Wiki.unfiled(shown),
-      all_folders: all_folders,
+    socket
+    |> assign(
+      all_folders: folders,
       # Paths and depths worked out once, in memory, for every picker on the
       # page (see `SlipdockWeb.FolderPicker`).
-      folder_outline: Slipdock.Wiki.Folders.outline(all_folders),
-      recent: shown |> Enum.sort_by(& &1.updated_at, {:desc, DateTime}) |> Enum.take(8),
-      shown: length(shown),
-      hidden: length(all) - length(shown),
-      filtering: Slipdock.Filters.any?(filters)
+      folder_outline: Slipdock.Wiki.Folders.outline(folders),
+      tree_filter: filter,
+      tree_empty: total == 0 and folders == [],
+      shown: shown,
+      hidden: total - shown,
+      filtering: filtering
+    )
+    |> update(:tree_version, &(&1 + 1))
+  end
+
+  defp tree_opts(%{can_write: can_write, show: show}), do: list_opts(can_write, show)
+
+  # A container's rows on this board, as the tree draws them: from what the
+  # filter left when one is on, from the database when not.
+  defp tree_rows(socket, key, extra) do
+    case socket.assigns.tree_filter do
+      %{nodes: nodes} ->
+        {:ok, Map.get(nodes, key, [])}
+
+      nil ->
+        with {:ok, ref} <- Tree.parse_ref(key),
+             do: Tree.children(socket.assigns.board, ref, tree_opts(socket.assigns) ++ extra)
+    end
+  end
+
+  # The middle column's listings, read only for the view that draws them.
+  defp assign_listing(%{assigns: %{live_action: :index, folder: %Folder{} = folder}} = socket) do
+    rows =
+      case tree_rows(socket, "folder:#{folder.id}", limit: @folder_listing) do
+        {:ok, rows} -> rows
+        _ -> []
+      end
+
+    {more, rows} = Enum.split_with(rows, &(&1.kind == "more"))
+    pages = for %{kind: "page", id: id} <- rows, do: id
+
+    assign(socket,
+      folder_rows: rows,
+      folder_more: more != [],
+      excerpts: Tree.excerpts(pages)
     )
   end
 
-  # Every folder whose name matches, and everything beneath it: filing is a
-  # path, so matching "Design" means its Decisions are in the answer too.
-  defp matching_folders(_folders, ""), do: MapSet.new()
+  defp assign_listing(%{assigns: %{live_action: :index}} = socket) do
+    # The folders and their counts are read once for every card on the index.
+    prepared =
+      Tree.prepare(socket.assigns.board,
+        folders: socket.assigns.all_folders,
+        status: tree_opts(socket.assigns)[:status],
+        template: tree_opts(socket.assigns)[:template],
+        archived: tree_opts(socket.assigns)[:archived]
+      )
+      |> Keyword.take([:folders, :stats])
 
-  defp matching_folders(folders, q) do
-    term = String.downcase(String.trim(q))
+    {:ok, top} = tree_rows(socket, "root", prepared)
 
-    if term == "" do
-      MapSet.new()
-    else
-      hit =
-        folders
-        |> Slipdock.Wiki.Folders.outline()
-        |> Enum.filter(&String.contains?(String.downcase(&1.folder.name), term))
+    index_folders =
+      for %{kind: "folder"} = folder <- top do
+        inner =
+          case tree_rows(socket, "folder:#{folder.id}", [limit: @index_pages] ++ prepared) do
+            {:ok, rows} -> rows
+            _ -> []
+          end
 
-      prefixes = Enum.map(hit, & &1.path)
+        %{
+          folder: folder,
+          children: Enum.filter(inner, &(&1.kind == "folder")),
+          pages: inner |> Enum.filter(&(&1.kind == "page")) |> Enum.take(@index_pages),
+          more: Enum.any?(inner, &(&1.kind == "more"))
+        }
+      end
 
-      folders
-      |> Slipdock.Wiki.Folders.outline()
-      |> Enum.filter(fn %{path: path} ->
-        Enum.any?(prefixes, &(path == &1 or String.starts_with?(path, &1 <> "/")))
-      end)
-      |> MapSet.new(& &1.folder.id)
-    end
+    only = socket.assigns.tree_filter && socket.assigns.tree_filter.only
+    recent = Tree.recent(socket.assigns.board, [only: only] ++ tree_opts(socket.assigns), 8)
+
+    assign(socket,
+      index_folders: index_folders,
+      recent: recent,
+      excerpts: Tree.excerpts(Enum.map(recent, & &1.id))
+    )
   end
 
-  # While a search is running, a folder stays only if it is a hit itself or
-  # has something matching inside it.
-  defp prune_folders(nodes, q, hit_folders) do
-    if String.trim(q) == "" do
-      nodes
-    else
-      nodes
-      |> Enum.map(&%{&1 | children: prune_folders(&1.children, q, hit_folders)})
-      |> Enum.reject(fn node ->
-        node.pages == [] and node.children == [] and
-          not MapSet.member?(hit_folders, node.folder.id)
-      end)
-    end
-  end
+  defp assign_listing(socket), do: socket
 
   defp list_opts(can_write, show) do
     [
@@ -212,20 +272,74 @@ defmodule SlipdockWeb.WikiLive.Index do
     # `folder` is the index's own state; every other action clears it rather
     # than inheriting the last one looked at.
     socket = apply_action(assign(socket, folder: nil), socket.assigns.live_action, params)
-    {:noreply, reveal_shown(socket)}
+    {:noreply, assign_current(socket)}
   end
 
-  # A page is opened in place, so the folders leading to it are opened here as
-  # well as on a fresh visit: one reached by a link in a note may sit in a
-  # folder the reader shut. Only this view's tree: what the browser keeps of
-  # what they shut is theirs to change.
-  defp reveal_shown(%{assigns: %{collapsed: collapsed}} = socket) do
-    if MapSet.size(collapsed) == 0,
-      do: socket,
-      else: assign(socket, collapsed: MapSet.difference(collapsed, shown_folder_ids(socket)))
+  # What the tree highlights, and the way to it: a page is opened in place,
+  # so the hook opens the folders leading to it here as well as on a fresh
+  # visit (one reached by a link in a note may sit in a folder the reader
+  # shut). Worked out for the tree the reader has on screen, the board's or
+  # the vault's.
+  defp assign_current(socket) do
+    current =
+      case socket.assigns do
+        %{page: %Page{id: id}} -> "page:#{id}"
+        %{folder: %Folder{id: id}} -> "folder:#{id}"
+        _ -> ""
+      end
+
+    assign(socket, tree_current: current, tree_reveal: reveal_keys(socket))
   end
 
-  defp reveal_shown(socket), do: socket
+  defp reveal_keys(socket) do
+    item =
+      case socket.assigns do
+        %{page: %Page{} = page} -> page
+        %{folder: %Folder{} = folder} -> folder
+        _ -> nil
+      end
+
+    case {item, socket.assigns.tree_scope, socket.assigns.vault} do
+      {nil, _, _} ->
+        []
+
+      {item, "vault", %{} = vault} ->
+        Tree.vault_path_to(vault, item, vault_boards(socket))
+
+      {%Page{} = page, _, _} ->
+        page |> Tree.path_to(socket.assigns.all_folders) |> Enum.map(&Tree.ref_key/1)
+
+      {%Folder{} = folder, _, _} ->
+        folder
+        |> Tree.path_to_folder(socket.assigns.all_folders)
+        |> Enum.map(&Tree.ref_key/1)
+    end
+  end
+
+  # The vault's boards this reader may open, each with the options its tree
+  # is read with: drafts and archived pages only where they can write.
+  defp vault_boards(%{assigns: %{vault: nil}}), do: %{}
+
+  defp vault_boards(socket) do
+    %{vault: vault, current_user: user, show: show} = socket.assigns
+
+    vault
+    |> Slipdock.Vaults.board_ids()
+    |> Enum.flat_map(fn id ->
+      case Slipdock.Repo.get(Slipdock.Boards.Board, id) do
+        nil ->
+          []
+
+        board ->
+          perm = Access.board_permission(user, board)
+
+          if Access.can_read?(perm),
+            do: [{id, {board, list_opts(Access.can_write?(perm), show)}}],
+            else: []
+      end
+    end)
+    |> Map.new()
+  end
 
   # The index does double duty: the whole wiki, or one folder of it with
   # `?folder=`. A query parameter rather than a path of its own, so a folder
@@ -241,6 +355,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     socket
     |> assign(page: nil, revision: nil, folder: folder, page_title: title)
     |> assign_wanted()
+    |> assign_listing()
   end
 
   defp apply_action(socket, :new, params) do
@@ -753,46 +868,70 @@ defmodule SlipdockWeb.WikiLive.Index do
   # Filing, not writing. Every one of these is refused without write access,
   # and none of them can lose a page: see `Slipdock.Wiki.Folders`.
 
-  def handle_event("toggle_folder", %{"id" => id}, socket) do
-    id = Params.id(id)
-    collapsed = socket.assigns.collapsed
+  # The WikiTree hook asking for rows (see `SlipdockWeb.WikiLive.Index`'s
+  # moduledoc and `assets/js/wiki_tree.js`). `keys` are the containers it
+  # has open — kept in the browser, so a reader's tree comes back as they
+  # left it — and the root comes with them unless `only` says it is just
+  # those. `all` opens every folder. The way to what is being looked at is
+  # always loaded and sent back as `reveal`, so it is never behind a lid.
+  #
+  # While the filter bar is on, every level holding a match is sent and
+  # opened: a hit three folders down is no use behind a shut one.
+  def handle_event("tree_load", params, socket) do
+    socket = assign_scope(socket, params["scope"])
+    scope = socket.assigns.tree_scope
+    root = if scope == "vault", do: "vault", else: "root"
+    filter = scope == "board" && socket.assigns.tree_filter
 
-    {:noreply,
-     put_collapsed(
-       socket,
-       if(MapSet.member?(collapsed, id),
-         do: MapSet.delete(collapsed, id),
-         else: MapSet.put(collapsed, id)
-       )
-     )}
+    {nodes, reveal} =
+      if filter do
+        {filter.nodes, []}
+      else
+        reveal = socket.assigns.tree_reveal
+
+        keys =
+          cond do
+            params["all"] == true -> [root | all_container_keys(socket, scope)]
+            params["only"] == true -> keys_param(params["keys"])
+            true -> [root | keys_param(params["keys"]) ++ reveal]
+          end
+
+        {load_nodes(
+           socket,
+           scope,
+           keys |> Enum.uniq() |> Enum.take(@tree_max_keys),
+           through(socket, params, root)
+         ), reveal}
+      end
+
+    {:reply,
+     %{
+       scope: scope,
+       root: root,
+       filtering: filter != false and filter != nil,
+       nodes: Map.new(nodes, fn {key, rows} -> {key, client_rows(rows, socket)} end),
+       reveal: reveal,
+       small: socket.assigns.shown + socket.assigns.hidden <= @tree_small
+     }, socket}
   end
 
-  # One switch for the whole tree: while any folder with something in it is
-  # open it shuts them all, and once they are all shut it opens them again.
-  def handle_event("toggle_all_folders", _params, socket) do
-    openable = openable_folder_ids(socket.assigns.folders)
+  # The next page of a big container's rows, from the "more" row the hook
+  # scrolled into view.
+  def handle_event("tree_children", %{"key" => key} = params, socket) when is_binary(key) do
+    offset = max(Params.id(to_string(params["offset"] || 0)) || 0, 0)
+    socket = assign_scope(socket, params["scope"])
 
-    collapsed =
-      if all_shut?(openable, socket.assigns.collapsed),
-        do: MapSet.new(),
-        else: openable
+    rows =
+      case container_rows(socket, socket.assigns.tree_scope, key,
+             limit: @tree_page,
+             offset: offset
+           ) do
+        {:ok, rows} -> rows
+        _ -> []
+      end
 
-    {:noreply, put_collapsed(socket, collapsed)}
+    {:reply, %{key: key, rows: client_rows(rows, socket)}, socket}
   end
-
-  # The WikiTree hook hands back what the reader had shut last time on this
-  # board: following a link to another page mounts the wiki afresh, and a
-  # tree that springs open on every click is one nobody bothers shutting.
-  # Whatever leads to the page or folder being looked at stays open, so
-  # what you just opened is never hidden behind a lid.
-  def handle_event("restore_collapsed", %{"ids" => ids}, socket) when is_list(ids) do
-    ids = ids |> Enum.take(1000) |> Enum.map(&Params.id/1) |> Enum.filter(&is_integer/1)
-
-    {:noreply,
-     assign(socket, collapsed: MapSet.difference(MapSet.new(ids), shown_folder_ids(socket)))}
-  end
-
-  def handle_event("restore_collapsed", _params, socket), do: {:noreply, socket}
 
   # The preview beside the editor, on or off. The choice is the writer's,
   # kept by their browser (the EditorPrefs hook) so every page opens the
@@ -811,17 +950,23 @@ defmodule SlipdockWeb.WikiLive.Index do
 
   def handle_event("restore_preview", _params, socket), do: {:noreply, socket}
 
-  # Organise mode opens every folder: a shut folder is not a place anything
-  # can be dropped, and a target you cannot see is not a target.
+  # Organise mode puts a handle on every row. A shut folder opens when a
+  # drag rests on it, so nothing has to be opened first. It works on this
+  # board's own tree: a vault's tree switches back to it, since what the
+  # tree can move is this board's filing.
   def handle_event("toggle_organise", _params, socket) do
     if socket.assigns.can_write do
       organising = not socket.assigns.organising
 
-      {:noreply,
-       assign(socket,
-         organising: organising,
-         collapsed: if(organising, do: MapSet.new(), else: socket.assigns.collapsed)
-       )}
+      socket =
+        if organising and socket.assigns.tree_scope == "vault",
+          do:
+            socket
+            |> assign(tree_scope: "board")
+            |> push_event("wiki-tree:scope", %{scope: "board"}),
+          else: socket
+
+      {:noreply, assign(socket, organising: organising)}
     else
       {:noreply, socket}
     end
@@ -840,7 +985,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     before = blank_to_nil(params["before"])
 
     if socket.assigns.can_write do
-      {:noreply, socket |> tree_move(kind, id, into, before) |> load_tree()}
+      {:noreply, socket |> tree_move(kind, id, into, before) |> load_tree() |> assign_current()}
     else
       {:noreply, put_flash(socket, :error, "You can't write on this board.")}
     end
@@ -1164,35 +1309,114 @@ defmodule SlipdockWeb.WikiLive.Index do
     end
   end
 
-  defp put_collapsed(socket, collapsed) do
-    socket
-    |> assign(collapsed: collapsed)
-    |> push_event("wiki-tree:collapsed", %{ids: MapSet.to_list(collapsed)})
+  ## The tree's rows ----------------------------------------------------------
+
+  # The tree the hook asked for: this board's, or — on a board in a vault —
+  # the vault's. Anything else is this board's. A changed scope changes the
+  # way to the current page too.
+  defp assign_scope(socket, scope) do
+    scope = if scope == "vault" and socket.assigns.vault, do: "vault", else: "board"
+
+    if scope == socket.assigns.tree_scope,
+      do: socket,
+      else: socket |> assign(tree_scope: scope) |> assign_current()
   end
 
-  # The folders a toggle could shut: an empty one has no lid to close.
-  defp openable_folder_ids(nodes) do
-    Enum.reduce(nodes, MapSet.new(), fn %{folder: folder, children: children, pages: pages},
-                                        acc ->
-      acc = MapSet.union(acc, openable_folder_ids(children))
-      if children == [] and pages == [], do: acc, else: MapSet.put(acc, folder.id)
+  # The page the rows of its container must reach, however far down a big
+  # folder it is: the one asked for (`through`, when the hook reveals the
+  # page being read), or else the page being read, in its own container.
+  defp through(_socket, %{"through" => "page:" <> id, "keys" => [key | _]}, _root) do
+    case Params.id(id) do
+      nil -> nil
+      id -> {key, id}
+    end
+  end
+
+  defp through(%{assigns: %{page: %Page{id: id}, tree_reveal: reveal}}, _params, root),
+    do: {List.last(reveal) || root, id}
+
+  defp through(_socket, _params, _root), do: nil
+
+  defp keys_param(keys) when is_list(keys), do: Enum.filter(keys, &is_binary/1)
+  defp keys_param(_), do: []
+
+  # Each asked-for container's rows, the board's folders and counts read
+  # once for all of them. A key that is gone, or not this reader's, is left
+  # out, and the hook stops asking for it.
+  defp load_nodes(socket, "vault", keys, through) do
+    boards = vault_boards(socket)
+
+    for key <- keys,
+        extra = [limit: @tree_page] ++ through_opt(through, key),
+        {:ok, rows} <- [Tree.vault_children(socket.assigns.vault, key, boards, extra)],
+        do: {key, rows}
+  end
+
+  defp load_nodes(socket, _board, keys, through) do
+    opts = Tree.prepare(socket.assigns.board, tree_opts(socket.assigns))
+
+    for key <- keys,
+        {:ok, ref} <- [Tree.parse_ref(key)],
+        extra = [limit: @tree_page] ++ through_opt(through, key),
+        {:ok, rows} <- [Tree.children(socket.assigns.board, ref, extra ++ opts)],
+        do: {key, rows}
+  end
+
+  defp through_opt({key, id}, key), do: [through: id]
+  defp through_opt(_through, _key), do: []
+
+  defp container_rows(socket, "vault", key, extra),
+    do: Tree.vault_children(socket.assigns.vault, key, vault_boards(socket), extra)
+
+  defp container_rows(socket, _board, key, extra), do: tree_rows(socket, key, extra)
+
+  # Every container "open all" opens: the folders, and in a vault the
+  # vault's own folders and every mapped board's folders too.
+  defp all_container_keys(socket, "vault") do
+    boards = vault_boards(socket)
+    Tree.vault_folder_keys(socket.assigns.vault, boards)
+  end
+
+  defp all_container_keys(socket, _board),
+    do: Enum.map(socket.assigns.all_folders, &"folder:#{&1.id}")
+
+  # A row as the hook draws it: its key, where it links to, and whether
+  # following that link stays in this view (a patch) or opens another
+  # board's wiki. Only what is drawn goes over the wire.
+  defp client_rows(rows, socket), do: Enum.map(rows, &client_row(&1, socket.assigns.board))
+
+  defp client_row(%{kind: "more"} = row, _board),
+    do: %{kind: "more", key: "more:#{row.offset}", offset: row.offset, count: 0}
+
+  defp client_row(row, board) do
+    key = row[:key] || "#{row.kind}:#{row.id}"
+
+    base =
+      row
+      |> Map.take([:kind, :id, :board_id, :title, :count, :pages, :code])
+      |> Map.merge(%{
+        key: key,
+        href: row_href(row, key),
+        nav: if(row.board_id in [nil, board.id], do: "patch", else: "redirect")
+      })
+
+    Enum.reduce([:draft, :template, :archived, :context, :also, :mount], base, fn flag, acc ->
+      if row[flag], do: Map.put(acc, flag, true), else: acc
     end)
   end
 
-  defp all_shut?(openable, collapsed),
-    do: MapSet.size(openable) > 0 and MapSet.subset?(openable, collapsed)
+  defp row_href(%{kind: "page"} = row, _key), do: ~p"/boards/#{row.board_id}/wiki/#{row.slug}"
 
-  # The folders on the way to what is being looked at, itself included.
-  defp shown_folder_ids(socket) do
-    crumbs =
-      case socket.assigns do
-        %{page: %Page{} = page} -> folder_crumbs(page)
-        %{folder: %{} = folder} -> Wiki.folder_ancestors(folder) ++ [folder]
-        _ -> []
-      end
+  defp row_href(%{kind: "file"} = row, _key),
+    do: Slipdock.Wiki.Files.url(%Slipdock.Wiki.WikiFile{id: row.id, name: row.title})
 
-    MapSet.new(crumbs, & &1.id)
-  end
+  defp row_href(%{kind: "dir"}, _key), do: nil
+  defp row_href(%{board_id: board_id}, "board:" <> _), do: ~p"/boards/#{board_id}/wiki"
+
+  defp row_href(%{board_id: board_id}, "folder:" <> id),
+    do: ~p"/boards/#{board_id}/wiki?#{[folder: id]}"
+
+  defp row_href(_row, _key), do: nil
 
   # Where a drop landed. "folder:" is the top of the wiki; "page:7" is inside
   # a page, which is the other axis (see `Slipdock.Wiki.Folder`).
@@ -1252,20 +1476,12 @@ defmodule SlipdockWeb.WikiLive.Index do
   # is per parent rather than per folder, so the answer is the index of what
   # it was dropped above in *that* list, not in the list on the screen.
   defp sibling_index(board, %Page{} = page, parent, before) do
-    siblings = siblings_of(board, page, parent)
+    siblings = Wiki.sibling_ids(board.id, parent && parent.id, page.id)
 
-    case before && Enum.find_index(siblings, &(to_string(&1.id) == to_string(before))) do
+    case before && Enum.find_index(siblings, &(to_string(&1) == to_string(before))) do
       nil -> length(siblings)
       n -> n
     end
-  end
-
-  defp siblings_of(board, %Page{} = page, parent) do
-    case parent do
-      %Page{} = parent -> Wiki.children(parent)
-      _ -> Wiki.list_pages(board, parent: :root, archived: :all)
-    end
-    |> Enum.reject(&(&1.id == page.id))
   end
 
   defp delete_folder(socket, folder, strategy) do
@@ -1420,7 +1636,8 @@ defmodule SlipdockWeb.WikiLive.Index do
   end
 
   def handle_info(:reload_wiki, socket) do
-    socket = socket |> assign(reload_booked: false) |> load_tree() |> assign_wanted()
+    socket =
+      socket |> assign(reload_booked: false) |> load_tree() |> assign_wanted() |> assign_current()
 
     {:noreply,
      case socket.assigns.page do
@@ -1444,6 +1661,16 @@ defmodule SlipdockWeb.WikiLive.Index do
     do: summary
 
   defp summary_of(%Page{body: body}), do: Renderer.excerpt(body, 140)
+
+  # A listing's line under a title, from what `Slipdock.Wiki.Tree.excerpts/1`
+  # read of the page: the summary, or the start of the body.
+  defp excerpt_of(excerpts, id) do
+    case excerpts[id] do
+      %{summary: summary} when is_binary(summary) and summary != "" -> summary
+      %{body: body} -> Renderer.excerpt(body, 140)
+      _ -> ""
+    end
+  end
 
   # What a page says about where it stands, for the places that only show it.
   defp facets(page) do
@@ -1641,11 +1868,22 @@ defmodule SlipdockWeb.WikiLive.Index do
         </div>
 
         <div class="flex min-h-0 flex-1 overflow-hidden">
+          <%!-- The tree is drawn by the WikiTree hook (assets/js/wiki_tree.js)
+                into the box marked data-tree-rows, which LiveView leaves
+                alone: only the rows on screen exist, and each folder's are
+                asked for when it is opened. Everything around the rows is
+                drawn here. `data-version` going up is the hook's cue to ask
+                again; `data-current` and `data-reveal` say what to show. --%>
           <aside
             id="wiki-tree"
             phx-hook="WikiTree"
             data-board={@board.id}
+            data-vault={@vault && @vault.id}
             data-organising={to_string(@organising)}
+            data-can-write={to_string(@can_write)}
+            data-version={@tree_version}
+            data-current={@tree_current}
+            data-reveal={Jason.encode!(@tree_reveal)}
             class="kanban-scroll hidden w-64 shrink-0 overflow-y-auto border-r border-base-300 bg-base-100 p-3 lg:block"
           >
             <div class="mb-2 flex items-center gap-1">
@@ -1658,32 +1896,25 @@ defmodule SlipdockWeb.WikiLive.Index do
               >
                 <.icon name="hero-book-open" class="size-4" /> All pages
               </.link>
-              <%!-- Open or shut every folder at once. Not while searching
-                    or organising: both open the whole tree themselves. --%>
-              <button
-                :if={
-                  @filters.q == "" and not @organising and
-                    MapSet.size(openable_folder_ids(@folders)) > 0
-                }
-                id="wiki-tree-toggle-all"
-                type="button"
-                phx-click="toggle_all_folders"
-                class="btn btn-ghost btn-xs btn-square shrink-0"
-                title={
-                  if all_shut?(openable_folder_ids(@folders), @collapsed),
-                    do: "Open all folders",
-                    else: "Close all folders"
-                }
+              <%!-- Open or shut every folder at once. Not while filtering or
+                    organising: a filter opens what it found itself. The
+                    hook keeps its icon and title, so it is left alone here. --%>
+              <span
+                id="wiki-tree-toggle-all-box"
+                class={[(@filtering or @organising or @all_folders == []) && "hidden"]}
               >
-                <.icon
-                  name={
-                    if all_shut?(openable_folder_ids(@folders), @collapsed),
-                      do: "hero-chevron-double-down",
-                      else: "hero-chevron-double-up"
-                  }
-                  class="size-4"
-                />
-              </button>
+                <span id="wiki-tree-toggle-all-keep" phx-update="ignore">
+                  <button
+                    id="wiki-tree-toggle-all"
+                    type="button"
+                    data-tree-toggle-all
+                    class="btn btn-ghost btn-xs btn-square shrink-0"
+                    title="Open or close all folders"
+                  >
+                    <span class="hero-chevron-double-down size-4"></span>
+                  </button>
+                </span>
+              </span>
               <%!-- Rearranging is a mode, and it says so: in it the tree is
                     draggable and nothing else about it changes. --%>
               <button
@@ -1700,12 +1931,40 @@ defmodule SlipdockWeb.WikiLive.Index do
                 <.icon name={if @organising, do: "hero-check", else: "hero-pencil"} class="size-4" />
               </button>
             </div>
+            <%!-- A board in a vault can show its own tree or the vault's:
+                  every board of it, laid out by the vault's paths. --%>
+            <div
+              :if={@vault && not @organising}
+              class="join mb-2 w-full"
+              role="group"
+              aria-label="Which tree"
+            >
+              <button
+                :for={{scope, label} <- [{"board", "This board"}, {"vault", @vault.name}]}
+                type="button"
+                data-tree-scope={scope}
+                class={[
+                  "btn btn-xs join-item flex-1 truncate",
+                  @tree_scope == scope && "btn-active"
+                ]}
+                aria-pressed={to_string(@tree_scope == scope)}
+                title={if scope == "vault", do: "Every board in the vault", else: "This board's wiki"}
+              >
+                {label}
+              </button>
+            </div>
             <p
               :if={@organising}
               class="mb-2 rounded-lg bg-primary/10 px-2 py-1.5 text-xs text-base-content/70"
             >
               Drag to rearrange. A page dropped in a folder is <em>kept</em> there; dropped on a
-              page, it becomes part of it.
+              page, it becomes part of it. Rest on a shut folder to open it.
+            </p>
+            <p
+              :if={@filtering and @tree_scope == "vault"}
+              class="mb-2 rounded-lg bg-base-200/60 px-2 py-1.5 text-xs text-base-content/60"
+            >
+              The filters narrow this board's tree, so it is shown while they are on.
             </p>
             <%!-- This box matches names — a page's title and summary, a
                   folder's. The words *inside* the pages are Search's job, so
@@ -1725,49 +1984,25 @@ defmodule SlipdockWeb.WikiLive.Index do
               </.link>
             </p>
             <p
-              :if={@tree == [] and @folders == [] and @filters.q == ""}
+              :if={@tree_empty and not @filtering and @tree_scope == "board"}
               class="px-2 py-4 text-sm text-base-content/50"
             >
               Nothing written yet.
             </p>
             <p
-              :if={@folders == [] and @unfiled == [] and @filters.q != ""}
+              :if={@tree_filter && @tree_filter.nodes == %{}}
               class="px-2 py-4 text-sm text-base-content/50"
             >
               No page or folder name matches that.
             </p>
-            <%!-- Folders first, then the pages filed nowhere. Two axes, drawn
-                  as one tree: a folder is where a page is kept, a child page is
-                  part of its parent (see `Slipdock.Wiki.Folder`). --%>
-            <%!-- While a search is running every folder is open: a hit three
-                  folders down is no use behind a shut one. --%>
-            <.folder_tree
-              nodes={@folders}
-              board={@board}
-              current={@page}
-              collapsed={if @filters.q == "", do: @collapsed, else: MapSet.new()}
-              can_write={@can_write}
-              organising={@organising}
-              open={@folder}
-              parent={nil}
-              depth={0}
-            />
-            <%!-- The pages filed nowhere, under a heading of their own once
-                  there are folders to tell them apart from. --%>
-            <p
-              :if={@unfiled != [] and @folders != []}
-              class="mt-2 px-2 pb-0.5 text-2xs font-semibold uppercase tracking-wide text-base-content/40"
+            <div
+              id="wiki-tree-rows"
+              phx-update="ignore"
+              data-tree-rows
+              class="relative"
+              aria-label="Pages and folders"
             >
-              Not in a folder
-            </p>
-            <.page_tree
-              nodes={@unfiled}
-              board={@board}
-              current={@page}
-              organising={@organising}
-              into="folder:"
-              depth={0}
-            />
+            </div>
             <button
               :if={@can_write}
               type="button"
@@ -1801,15 +2036,18 @@ defmodule SlipdockWeb.WikiLive.Index do
                   <.folder_body
                     board={@board}
                     folder={@folder}
-                    node={folder_node(@folders, @folder.id)}
+                    rows={@folder_rows}
+                    more={@folder_more}
+                    excerpts={@excerpts}
                     can_write={@can_write}
                   />
                 <% :index -> %>
                   <.index_body
                     board={@board}
-                    tree={@tree}
-                    folders={@folders}
+                    empty={@tree_empty}
+                    folders={@index_folders}
                     recent={@recent}
+                    excerpts={@excerpts}
                     wanted={@wanted}
                     can_write={@can_write}
                   />
@@ -2005,236 +2243,11 @@ defmodule SlipdockWeb.WikiLive.Index do
     end
   end
 
-  attr :nodes, :list, required: true
-  attr :board, :any, required: true
-  attr :current, :any, default: nil
-  attr :collapsed, :any, required: true
-  attr :can_write, :boolean, default: false
-  attr :depth, :integer, default: 0
-  attr :open, :any, default: nil, doc: "the folder being looked at, if any"
-  attr :organising, :boolean, default: false
-  attr :parent, :any, default: nil, doc: "the folder these sit in, for a drop"
-
-  @doc false
-  # A folder and what is filed in it: the folders below it, then the pages.
-  # Shut folders keep their contents — collapsing is a reader's convenience,
-  # so it lives in the socket rather than in anything saved.
-  defp folder_tree(assigns) do
-    ~H"""
-    <%!-- In organise mode every list is a drop target, including the empty
-          ones: a folder with nothing in it is exactly where you want to drag
-          the first thing. Folders and pages are separate lists in the same
-          tree, which is what stops a page being dropped where only a folder
-          belongs. --%>
-    <ul
-      class="space-y-0.5"
-      data-tree-list={@organising && "folders"}
-      data-into={@organising && "folder:#{@parent && @parent.id}"}
-      data-empty={@organising and @nodes == []}
-    >
-      <li
-        :for={%{folder: folder, children: children, pages: pages} = node <- @nodes}
-        data-id={folder.id}
-      >
-        <%!-- The chevron opens the folder in the tree; the name opens the
-              folder itself. A folder is a place you can be, not only a lid. --%>
-        <div
-          class={[
-            "group flex items-center gap-1 rounded-lg pr-1 text-sm hover:bg-base-200",
-            @open && @open.id == folder.id && "bg-base-200"
-          ]}
-          style={"padding-left: #{0.25 + @depth * 0.75}rem"}
-        >
-          <span
-            :if={@organising}
-            data-drag
-            class="shrink-0 cursor-grab py-1.5 text-base-content/30 hover:text-base-content/60"
-            title="Drag to move this folder"
-          >
-            <.icon name="hero-bars-2" class="size-3.5" />
-          </span>
-          <%!-- An empty folder has nothing to open, so no chevron: just
-                the room one takes, to keep the names lined up. --%>
-          <span
-            :if={children == [] and pages == [] and not @organising}
-            class="w-3.5 shrink-0"
-            data-empty-folder
-          />
-          <button
-            :if={children != [] or pages != [] or @organising}
-            type="button"
-            phx-click="toggle_folder"
-            phx-value-id={folder.id}
-            class="shrink-0 py-1.5 pr-0.5"
-            title={if MapSet.member?(@collapsed, folder.id), do: "Open", else: "Close"}
-            aria-label="Open or close this folder"
-          >
-            <.icon
-              name={
-                if MapSet.member?(@collapsed, folder.id),
-                  do: "hero-chevron-right",
-                  else: "hero-chevron-down"
-              }
-              class="size-3 shrink-0 text-base-content/40"
-            />
-          </button>
-          <.link
-            patch={~p"/boards/#{@board}/wiki?#{[folder: folder.id]}"}
-            class="flex min-w-0 flex-1 items-center gap-1.5 py-1.5 text-left"
-            title={Wiki.folder_path(folder)}
-          >
-            <.icon name="hero-folder" class="size-3.5 shrink-0 text-base-content/50" />
-            <span class="min-w-0 flex-1 truncate font-medium">{folder.name}</span>
-            <span class="shrink-0 text-2xs text-base-content/40">
-              {Slipdock.Wiki.Folders.page_count(node)}
-            </span>
-          </.link>
-          <div :if={@can_write} class="dropdown dropdown-end shrink-0">
-            <div
-              tabindex="0"
-              role="button"
-              class="btn btn-ghost btn-xs btn-square opacity-0 group-hover:opacity-100"
-              title="Folder actions"
-            >
-              <.icon name="hero-ellipsis-horizontal" class="size-3.5" />
-            </div>
-            <ul
-              tabindex="0"
-              class="menu dropdown-content z-40 mt-1 w-48 rounded-xl bg-base-100 p-1 text-sm shadow-lg ring-1 ring-base-content/10"
-            >
-              <li>
-                <.link patch={~p"/boards/#{@board}/wiki?#{[folder: folder.id]}"}>
-                  <.icon name="hero-folder-open" class="size-4" /> Open this folder
-                </.link>
-              </li>
-              <li>
-                <.link patch={~p"/boards/#{@board}/wiki/new?#{[folder: folder.id]}"}>
-                  <.icon name="hero-document-plus" class="size-4" /> New page here
-                </.link>
-              </li>
-              <li>
-                <button type="button" phx-click="new_folder" phx-value-parent={folder.id}>
-                  <.icon name="hero-folder-plus" class="size-4" /> New folder inside
-                </button>
-              </li>
-              <li>
-                <button type="button" phx-click="rename_folder" phx-value-id={folder.id}>
-                  <.icon name="hero-pencil" class="size-4" /> Rename or move…
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  phx-click="ask_delete_folder"
-                  phx-value-id={folder.id}
-                  class="text-error"
-                >
-                  <.icon name="hero-trash" class="size-4" /> Delete folder…
-                </button>
-              </li>
-            </ul>
-          </div>
-        </div>
-        <div :if={not MapSet.member?(@collapsed, folder.id)}>
-          <.folder_tree
-            :if={children != [] or @organising}
-            nodes={children}
-            board={@board}
-            current={@current}
-            collapsed={@collapsed}
-            can_write={@can_write}
-            organising={@organising}
-            open={@open}
-            parent={folder}
-            depth={@depth + 1}
-          />
-          <.page_tree
-            nodes={pages}
-            board={@board}
-            current={@current}
-            organising={@organising}
-            into={"folder:#{folder.id}"}
-            depth={@depth + 1}
-          />
-        </div>
-      </li>
-    </ul>
-    """
-  end
-
-  attr :nodes, :list, required: true
-  attr :board, :any, required: true
-  attr :current, :any, default: nil
-  attr :depth, :integer, default: 0
-  attr :organising, :boolean, default: false
-  attr :into, :string, default: nil, doc: "the container a drop here lands in"
-
-  defp page_tree(assigns) do
-    ~H"""
-    <ul
-      class="space-y-0.5"
-      data-tree-list={@organising && "pages"}
-      data-into={@organising && @into}
-      data-empty={@organising and @nodes == []}
-    >
-      <li :for={%{page: page, children: children} <- @nodes} data-id={page.id}>
-        <div
-          class={[
-            "flex items-center gap-1.5 rounded-lg pr-2 text-sm hover:bg-base-200",
-            @current && @current.id == page.id && "bg-base-200 font-medium"
-          ]}
-          style={"padding-left: #{0.5 + @depth * 0.75}rem"}
-        >
-          <span
-            :if={@organising}
-            data-drag
-            class="shrink-0 cursor-grab py-1.5 text-base-content/30 hover:text-base-content/60"
-            title="Drag to move this page"
-          >
-            <.icon name="hero-bars-2" class="size-3.5" />
-          </span>
-          <.link
-            patch={page_path(@board, page)}
-            class="flex min-w-0 flex-1 items-center gap-1.5 py-1.5"
-            title={page.title}
-          >
-            <.icon name="hero-document-text" class="size-3.5 shrink-0 text-base-content/40" />
-            <span class="min-w-0 flex-1 truncate">{page.title}</span>
-            <span
-              :if={page.status == "draft"}
-              class="shrink-0 rounded bg-amber-500/15 px-1 text-2xs font-medium text-amber-700"
-            >
-              draft
-            </span>
-          </.link>
-        </div>
-        <%!-- A page's children are a container of their own, so dragging a
-              page onto one makes it part of that page — the second axis,
-              reachable without leaving the tree. --%>
-        <.page_tree
-          :if={children != [] or @organising}
-          nodes={children}
-          board={@board}
-          current={@current}
-          organising={@organising}
-          into={"page:#{page.id}"}
-          depth={@depth + 1}
-        />
-      </li>
-    </ul>
-    """
-  end
-
-  # The node for one folder, wherever it sits in the tree the sidebar draws.
-  defp folder_node(nodes, id) do
-    Enum.find_value(nodes, fn %{folder: folder, children: children} = node ->
-      if folder.id == id, do: node, else: folder_node(children, id)
-    end)
-  end
-
   attr :board, :any, required: true
   attr :folder, :any, required: true
-  attr :node, :any, default: nil
+  attr :rows, :list, default: [], doc: "what is in it, as `Slipdock.Wiki.Tree` rows"
+  attr :more, :boolean, default: false, doc: "whether there were more than are listed"
+  attr :excerpts, :map, default: %{}
   attr :can_write, :boolean, required: true
 
   @doc false
@@ -2242,8 +2255,14 @@ defmodule SlipdockWeb.WikiLive.Index do
   # to it. A folder with no page of its own to stand on is the thing that made
   # filing feel like an afterthought — this is that page.
   defp folder_body(assigns) do
-    assigns = assign(assigns, children: (assigns.node && assigns.node.children) || [])
-    assigns = assign(assigns, pages: (assigns.node && assigns.node.pages) || [])
+    assigns =
+      assign(assigns,
+        children: Enum.filter(assigns.rows, &(&1.kind == "folder")),
+        pages: Enum.filter(assigns.rows, &(&1.kind == "page")),
+        total:
+          Enum.sum(for(%{kind: "folder", pages: n} <- assigns.rows, do: n)) +
+            Enum.count(assigns.rows, &(&1.kind == "page"))
+      )
 
     ~H"""
     <nav class="mb-2 flex flex-wrap items-center gap-1 text-sm text-base-content/50">
@@ -2268,9 +2287,7 @@ defmodule SlipdockWeb.WikiLive.Index do
           {@folder.name}
         </h1>
         <p class="mt-1 text-sm text-base-content/60">
-          {count((@node && Slipdock.Wiki.Folders.page_count(@node)) || 0, "page")}<span :if={
-            @children != []
-          }>
+          {count(@total, "page")}<span :if={@children != []}>
             in {count(length(@children), "folder")}</span>. Filed at <span class="font-mono text-xs">{Wiki.folder_path(@folder)}</span>.
         </p>
       </div>
@@ -2324,13 +2341,13 @@ defmodule SlipdockWeb.WikiLive.Index do
       <ul class="mt-3 grid gap-2 sm:grid-cols-2">
         <li :for={sub <- @children}>
           <.link
-            patch={~p"/boards/#{@board}/wiki?#{[folder: sub.folder.id]}"}
+            patch={~p"/boards/#{@board}/wiki?#{[folder: sub.id]}"}
             class="flex items-center gap-2 rounded-xl border border-base-300 bg-base-100 p-3 text-sm hover:border-primary"
           >
             <.icon name="hero-folder" class="size-4 shrink-0 text-base-content/50" />
-            <span class="min-w-0 flex-1 truncate font-medium">{sub.folder.name}</span>
+            <span class="min-w-0 flex-1 truncate font-medium">{sub.title}</span>
             <span class="shrink-0 text-xs text-base-content/40">
-              {count(Slipdock.Wiki.Folders.page_count(sub), "page")}
+              {count(sub.pages, "page")}
             </span>
           </.link>
         </li>
@@ -2359,20 +2376,23 @@ defmodule SlipdockWeb.WikiLive.Index do
         :if={@pages != []}
         class="mt-3 divide-y divide-base-300 rounded-xl border border-base-300 bg-base-100"
       >
-        <li :for={%{page: page, children: kids} <- @pages}>
+        <li :for={page <- @pages}>
           <.link
-            patch={page_path(@board, page)}
+            patch={~p"/boards/#{@board}/wiki/#{page.slug}"}
             class="flex items-baseline gap-3 px-4 py-3 hover:bg-base-200"
           >
             <span class="min-w-0 flex-1">
               <span class="font-medium">{page.title}</span>
-              <span :if={page.status == "draft"} class="chip chip-line ml-2 text-2xs">draft</span>
-              <span :if={summary_of(page) != ""} class="ml-2 text-sm text-base-content/50">
-                {summary_of(page)}
+              <span :if={page.draft} class="chip chip-line ml-2 text-2xs">draft</span>
+              <span
+                :if={excerpt_of(@excerpts, page.id) != ""}
+                class="ml-2 text-sm text-base-content/50"
+              >
+                {excerpt_of(@excerpts, page.id)}
               </span>
             </span>
-            <span :if={kids != []} class="shrink-0 text-2xs text-base-content/40">
-              {length(kids)} under it
+            <span :if={page.count > 0} class="shrink-0 text-2xs text-base-content/40">
+              {page.count} under it
             </span>
             <span class="shrink-0 font-mono text-2xs text-base-content/40">{page.code}</span>
             <span class="hidden shrink-0 text-xs text-base-content/40 sm:inline">
@@ -2381,14 +2401,18 @@ defmodule SlipdockWeb.WikiLive.Index do
           </.link>
         </li>
       </ul>
+      <p :if={@more} class="mt-3 text-sm text-base-content/50">
+        The first {length(@pages)} are listed here; the tree beside has every one.
+      </p>
     </section>
     """
   end
 
   attr :board, :any, required: true
-  attr :tree, :list, required: true
-  attr :folders, :list, default: []
+  attr :empty, :boolean, default: false
+  attr :folders, :list, default: [], doc: "the top folders, each with what is in it"
   attr :recent, :list, required: true
+  attr :excerpts, :map, default: %{}
   attr :wanted, :list, default: []
   attr :can_write, :boolean, required: true
 
@@ -2400,7 +2424,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     </p>
 
     <div
-      :if={@tree == []}
+      :if={@empty}
       class="mt-10 rounded-xl border border-dashed border-base-300 p-8 text-center"
     >
       <.icon name="hero-book-open" class="size-8 text-base-content/30" />
@@ -2414,8 +2438,6 @@ defmodule SlipdockWeb.WikiLive.Index do
       </.link>
     </div>
 
-    <%!-- Pages people have linked to but nobody has written. The classic way
-          a wiki grows, and the best work queue it has. --%>
     <p class="mt-4 text-sm">
       <a href={~p"/boards/#{@board}/wiki.zip"} class="link text-base-content/60">
         Download the whole wiki as Markdown
@@ -2440,23 +2462,31 @@ defmodule SlipdockWeb.WikiLive.Index do
               class="flex items-baseline gap-2 hover:text-primary"
             >
               <.icon name="hero-folder" class="size-4 shrink-0 text-base-content/50" />
-              <span class="min-w-0 flex-1 truncate font-medium">{node.folder.name}</span>
+              <span class="min-w-0 flex-1 truncate font-medium">{node.folder.title}</span>
               <span class="shrink-0 text-xs text-base-content/40">
-                {count(Slipdock.Wiki.Folders.page_count(node), "page")}
+                {count(node.folder.pages, "page")}
               </span>
             </.link>
             <ul class="mt-2 space-y-0.5 text-sm">
               <li :for={sub <- node.children}>
                 <.link
-                  patch={~p"/boards/#{@board}/wiki?#{[folder: sub.folder.id]}"}
+                  patch={~p"/boards/#{@board}/wiki?#{[folder: sub.id]}"}
                   class="flex items-center gap-1.5 text-base-content/60 hover:text-base-content"
                 >
-                  <.icon name="hero-folder" class="size-3 shrink-0" /> {sub.folder.name}
+                  <.icon name="hero-folder" class="size-3 shrink-0" /> {sub.title}
                 </.link>
               </li>
-              <li :for={%{page: page} <- node.pages}>
-                <.link patch={page_path(@board, page)} class="link link-hover">
+              <li :for={page <- node.pages}>
+                <.link patch={~p"/boards/#{@board}/wiki/#{page.slug}"} class="link link-hover">
                   {page.title}
+                </.link>
+              </li>
+              <li :if={node.more}>
+                <.link
+                  patch={~p"/boards/#{@board}/wiki?#{[folder: node.folder.id]}"}
+                  class="text-xs text-base-content/50 hover:text-base-content"
+                >
+                  and more…
                 </.link>
               </li>
             </ul>
@@ -2472,6 +2502,8 @@ defmodule SlipdockWeb.WikiLive.Index do
       </ul>
     </section>
 
+    <%!-- Pages people have linked to but nobody has written. The classic way
+          a wiki grows, and the best work queue it has. --%>
     <section :if={@wanted != []} class="mt-8">
       <h2 class="text-xs font-semibold uppercase tracking-wide text-base-content/50">
         Wanted pages
@@ -2500,13 +2532,16 @@ defmodule SlipdockWeb.WikiLive.Index do
       <ul class="mt-3 divide-y divide-base-300 rounded-xl border border-base-300 bg-base-100">
         <li :for={page <- @recent}>
           <.link
-            patch={page_path(@board, page)}
+            patch={~p"/boards/#{@board}/wiki/#{page.slug}"}
             class="flex items-baseline gap-3 px-4 py-3 hover:bg-base-200"
           >
             <span class="min-w-0 flex-1">
               <span class="font-medium">{page.title}</span>
-              <span :if={summary_of(page) != ""} class="ml-2 text-sm text-base-content/50">
-                {summary_of(page)}
+              <span
+                :if={excerpt_of(@excerpts, page.id) != ""}
+                class="ml-2 text-sm text-base-content/50"
+              >
+                {excerpt_of(@excerpts, page.id)}
               </span>
             </span>
             <span class="shrink-0 font-mono text-2xs text-base-content/40">{page.code}</span>

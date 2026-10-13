@@ -109,24 +109,31 @@ defmodule SlipdockWeb.WikiBigVaultTest do
       {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki/#{one.slug}")
       pid = view.pid
 
-      link = "#wiki-tree a[href='/boards/#{board.id}/wiki/#{two.slug}']"
-      assert has_element?(view, link <> "[data-phx-link='patch']")
+      # The hook draws the rows with patch links (see assets/js/wiki_tree.js).
+      reply = SlipdockWeb.WikiTreeHelpers.tree_load(view)
+      assert %{nav: "patch", href: href} = SlipdockWeb.WikiTreeHelpers.row(reply, "root", "Two")
+      assert href == "/boards/#{board.id}/wiki/#{two.slug}"
 
-      refute has_element?(
-               view,
-               "#wiki-tree a[data-phx-link='redirect'][href*='/wiki/#{two.slug}']"
-             )
-
-      assert tree_loads(pid, 50, fn -> view |> element(link) |> render_click() end) == 0
+      version = tree_version(view)
+      render_patch(view, href)
 
       assert view.pid == pid
-      assert_patch(view, ~p"/boards/#{board}/wiki/#{two.slug}")
       assert render(view) =~ "second page"
       assert has_element?(view, "#wiki-main[data-page='show:#{two.id}']")
+      assert has_element?(view, "#wiki-tree[data-current='page:#{two.id}']")
+      # Opening a page does not ask the tree for its rows again…
+      assert tree_version(view) == version
 
-      # Which is to say the tree query is one a reload does run.
-      assert tree_loads(pid, 500, fn -> send(pid, {:wiki_changed, board.id}) end) == 1
+      # …and a change to the wiki does, once.
+      send(pid, {:wiki_changed, board.id})
+      Process.sleep(500)
+      assert tree_version(view) == version + 1
     end
+  end
+
+  defp tree_version(view) do
+    [_, v] = Regex.run(~r/data-version="(\d+)"/, view |> element("#wiki-tree") |> render())
+    String.to_integer(v)
   end
 
   describe "editing" do

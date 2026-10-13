@@ -680,17 +680,9 @@ body.tl-tray-dragging { cursor: grabbing; }
 .kanban-page { border-left: 3px solid color-mix(in oklab, var(--color-primary) 55%, transparent); }
 .kanban-page:hover { border-left-color: var(--color-primary); }
 
-/* The wiki's tree in organise mode (see `SlipdockWeb.WikiLive.Index`). An empty
-   list is still a place to drop something, so it keeps a seam of height at
-   rest and opens into a real target the moment a drag starts — a tree that
-   showed every empty target all the time would be twice as long and half as
-   readable. */
-#wiki-tree [data-tree-list][data-empty] { min-height: 0.375rem; }
-#wiki-tree.wiki-dragging [data-tree-list][data-empty] {
-  min-height: 1.5rem;
-  border: 1px dashed color-mix(in oklab, var(--color-primary) 45%, transparent);
-  border-radius: 0.5rem;
-}
+/* The wiki's tree while a row is being dragged (see assets/js/wiki_tree.js):
+   no text selection, and the hand stays a grab wherever it goes. */
+#wiki-tree.wiki-dragging, #wiki-tree.wiki-dragging * { user-select: none; cursor: grabbing; }
 
 /* Where a search result landed inside a card (see the scroll-to-anchor
    listener in app.js): a ring that fades, so the eye finds it and it goes.

@@ -714,16 +714,27 @@ defmodule Slipdock.Wiki do
     end
   end
 
+  @doc """
+  The ids of the pages that share a parent (a page, or nil for the top of
+  the board), in order, leaving `except` out: where a dropped page can go,
+  without loading any of them.
+  """
+  def sibling_ids(board_id, parent_id, except \\ nil) do
+    from(p in Page,
+      where: p.board_id == ^board_id,
+      where: ^parent_clause(parent_id),
+      order_by: [asc: p.position, asc: p.title],
+      select: p.id
+    )
+    |> then(fn q -> if except, do: where(q, [p], p.id != ^except), else: q end)
+    |> Repo.all()
+  end
+
+  # Positions are packed 0, 1, 2… among a page's siblings. One statement for
+  # all of them, touching only the rows that change: the top of a big vault
+  # has thousands of pages, and a drag must not write each one.
   defp repack(%Page{} = page, position) do
-    siblings =
-      from(p in Page,
-        where: p.board_id == ^page.board_id,
-        where: ^parent_clause(page.parent_id),
-        where: p.id != ^page.id,
-        order_by: [asc: p.position, asc: p.title],
-        select: p.id
-      )
-      |> Repo.all()
+    siblings = sibling_ids(page.board_id, page.parent_id, page.id)
 
     index =
       case position do
@@ -734,12 +745,16 @@ defmodule Slipdock.Wiki do
       end
 
     {before, rest} = Enum.split(siblings, index)
+    ids = before ++ [page.id] ++ rest
 
-    (before ++ [page.id] ++ rest)
-    |> Enum.with_index()
-    |> Enum.each(fn {id, i} ->
-      Repo.update_all(from(p in Page, where: p.id == ^id), set: [position: i])
-    end)
+    Repo.query!(
+      """
+      UPDATE pages AS p SET position = v.pos
+      FROM unnest($1::bigint[], $2::int[]) AS v(id, pos)
+      WHERE p.id = v.id AND p.position IS DISTINCT FROM v.pos
+      """,
+      [ids, Enum.to_list(0..(length(ids) - 1))]
+    )
   end
 
   defp parent_clause(nil), do: dynamic([p], is_nil(p.parent_id))

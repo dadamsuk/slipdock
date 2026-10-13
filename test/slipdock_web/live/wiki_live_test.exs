@@ -3,6 +3,7 @@ defmodule SlipdockWeb.WikiLiveTest do
   use SlipdockWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import SlipdockWeb.WikiTreeHelpers
   import Slipdock.Fixtures
 
   alias Slipdock.{Access, Boards, Wiki}
@@ -310,6 +311,7 @@ defmodule SlipdockWeb.WikiLiveTest do
 
     {:ok, view, _html} = live(conn_as(reader), ~p"/boards/#{board}/wiki")
     refute render(view) =~ "Half written"
+    refute "Half written" in all_titles(tree_load(view))
 
     assert {:error, {:live_redirect, %{to: path}}} =
              live(conn_as(reader), ~p"/boards/#{board}/wiki/#{draft.slug}")
@@ -718,22 +720,80 @@ defmodule SlipdockWeb.WikiLiveTest do
       render_click(view, "filter_priority", %{"priority" => "critical"})
       assert render(view) =~ "Urgent spec"
       refute render(view) =~ "Idle notes"
+      assert all_titles(tree_load(view)) == ["Urgent spec"]
+      assert render(view) =~ "1 page"
 
       render_click(view, "clear_filters", %{})
       assert render(view) =~ "Idle notes"
+      reply = tree_load(view)
+      refute reply.filtering
+      assert all_titles(reply) == ["Idle notes", "Urgent spec"]
 
       render_change(view, "search", %{"q" => "idle"})
       refute render(view) =~ "Urgent spec"
+      assert all_titles(tree_load(view)) == ["Idle notes"]
+    end
+
+    test "every filter on the bar narrows the tree: tags, flags, due and done", %{
+      conn: conn,
+      board: board
+    } do
+      tag = tag_fixture(board, "ops")
+      tagged = page_fixture(board, %{"title" => "Tagged"})
+      {:ok, _} = Wiki.set_tags(tagged, [tag])
+
+      Wiki.update_page(
+        page_fixture(board, %{"title" => "Flagged"}),
+        %{"flags" => ["blocked"]},
+        []
+      )
+
+      Wiki.update_page(
+        page_fixture(board, %{"title" => "Late"}),
+        %{"due_date" => Date.add(Date.utc_today(), -3)},
+        []
+      )
+
+      Wiki.update_page(page_fixture(board, %{"title" => "Finished"}), %{"completed" => true}, [])
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/wiki")
+
+      render_click(view, "filter_tag", %{"id" => to_string(tag.id)})
+      assert all_titles(tree_load(view)) == ["Tagged"]
+      render_click(view, "clear_filters", %{})
+
+      render_click(view, "filter_flag", %{"flag" => "blocked"})
+      assert all_titles(tree_load(view)) == ["Flagged"]
+      render_click(view, "clear_filters", %{})
+
+      render_click(view, "filter_due", %{"due" => "overdue"})
+      assert all_titles(tree_load(view)) == ["Late"]
+      render_click(view, "clear_filters", %{})
+
+      render_click(view, "toggle_hide_completed", %{})
+      refute "Finished" in all_titles(tree_load(view))
     end
 
     test "display options say what the tree lists at all", %{conn: conn, board: board} do
       page_fixture(board, %{"title" => "A draft", "status" => "draft"})
 
+      template = page_fixture(board, %{"title" => "A template", "template" => true})
+      gone = page_fixture(board, %{"title" => "Gone"})
+      {:ok, _} = Wiki.archive_page(gone)
+
       {:ok, view, _} = live(conn, ~p"/boards/#{board}/wiki")
       assert render(view) =~ "A draft"
+      assert all_titles(tree_load(view)) == ["A draft", "A template"]
 
       render_click(view, "toggle_show", %{"what" => "drafts"})
       refute render(view) =~ "A draft"
+      assert all_titles(tree_load(view)) == ["A template"]
+
+      render_click(view, "toggle_show", %{"what" => "templates"})
+      assert all_titles(tree_load(view)) == []
+
+      render_click(view, "toggle_show", %{"what" => "archived"})
+      assert %{archived: true} = row(tree_load(view), "root", "Gone")
+      assert template.template
     end
   end
 

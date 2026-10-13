@@ -33,12 +33,20 @@ defmodule Slipdock.Wiki.Tree do
     * `:only` — a set of page ids, when a filter has already decided which
       pages are shown; anything else is left out
     * `:folders` — the board's folders, when the caller already has them
+    * `:limit`, `:offset` — a page of a big container's pages at a time. When
+      more are left, the last row is `%{kind: "more", offset: n}`, which is
+      where to ask from next; files come with the last page
+    * `:through` — a page id: the first page of rows reaches at least as far
+      as that page, so the page being read can be shown however far down a
+      big folder it is
   """
 
   import Ecto.Query, warn: false
 
   alias Slipdock.Repo
   alias Slipdock.Boards.Board
+  alias Slipdock.Filters
+  alias Slipdock.Vaults.{Mapping, Vault}
   alias Slipdock.Wiki.{Folder, Folders, Page, WikiFile}
 
   @type ref :: :root | {:folder, pos_integer} | {:page, pos_integer}
@@ -96,15 +104,26 @@ defmodule Slipdock.Wiki.Tree do
 
     case container(board, ref, folders) do
       {:ok, {:folder, folder_id}} ->
-        stats = stats(board, folders, opts)
+        {pages, more} = paged(top_pages(board, folder_id, opts), opts)
 
-        {:ok,
-         folder_rows(folders, folder_id, stats) ++
-           page_rows(top_pages(board, folder_id, opts), opts) ++
-           file_rows(board, folder_id, opts)}
+        # A later page of a big folder is its pages alone: the folders came
+        # with the first.
+        folder_rows =
+          if Keyword.get(opts, :offset, 0) == 0,
+            do:
+              folder_rows(
+                folders,
+                folder_id,
+                Keyword.get_lazy(opts, :stats, fn -> stats(board, folders, opts) end)
+              ),
+            else: []
+
+        files = if more, do: [], else: file_rows(board, folder_id, opts)
+        {:ok, folder_rows ++ page_rows(pages, opts) ++ files ++ more_row(more)}
 
       {:ok, {:page, page}} ->
-        {:ok, page_rows(child_pages(page, opts), opts)}
+        {pages, more} = paged(child_pages(page, opts), opts)
+        {:ok, page_rows(pages, opts) ++ more_row(more)}
 
       error ->
         error
@@ -129,6 +148,50 @@ defmodule Slipdock.Wiki.Tree do
   end
 
   defp container(_board, _ref, _folders), do: {:error, :not_found}
+
+  @doc """
+  The options with the board's folders and their counts read into them, for
+  a caller about to ask for several containers at once: each asks the
+  database for its own rows and nothing else.
+  """
+  def prepare(%Board{} = board, opts) do
+    folders = Keyword.get_lazy(opts, :folders, fn -> Folders.list(board) end)
+    opts = Keyword.put(opts, :folders, folders)
+    Keyword.put_new_lazy(opts, :stats, fn -> stats(board, folders, opts) end)
+  end
+
+  @doc """
+  The `n` pages changed most lately, as rows, for the wiki's index. Takes
+  the same options as `children/3`.
+  """
+  def recent(%Board{id: board_id}, opts, n) do
+    from(p in Page,
+      as: :page,
+      where: p.board_id == ^board_id,
+      order_by: [desc: p.updated_at, desc: p.id],
+      limit: ^n,
+      select: struct(p, ^@page_fields)
+    )
+    |> where(^visible(opts, :page))
+    |> Repo.all()
+    |> Enum.map(&page_row(&1, 0))
+  end
+
+  @doc """
+  What a listing shows under each of these pages' titles, and no more: the
+  summary, and the first 400 characters of the body for when there is none.
+  `%{page_id => %{summary: text, body: text}}`.
+  """
+  def excerpts([]), do: %{}
+
+  def excerpts(ids) do
+    from(p in Page,
+      where: p.id in ^ids,
+      select: {p.id, %{summary: p.summary, body: fragment("substr(?, 1, 400)", p.body)}}
+    )
+    |> Repo.all()
+    |> Map.new()
+  end
 
   @doc """
   How many pages are shown on `board` under these options: what the count in
@@ -190,6 +253,467 @@ defmodule Slipdock.Wiki.Tree do
     end)
     |> Enum.take(50)
     |> Enum.reverse()
+  end
+
+  # The query asked for one row more than the page holds: if it came, there
+  # is more to come.
+  defp paged(query, opts) do
+    case opts[:limit] do
+      nil ->
+        {Repo.all(query), nil}
+
+      limit ->
+        offset = Keyword.get(opts, :offset, 0)
+        rows = query |> limit(^(limit + 1)) |> offset(^offset) |> Repo.all()
+        through = opts[:through]
+
+        cond do
+          length(rows) <= limit ->
+            {rows, nil}
+
+          through && offset == 0 && not Enum.any?(Enum.take(rows, limit), &(&1.id == through)) ->
+            through_page(query, through, limit)
+
+          true ->
+            {Enum.take(rows, limit), offset + limit}
+        end
+    end
+  end
+
+  # The rows up to the page asked for and a little past it, read as ids
+  # first so a page that is not in the container costs one narrow query.
+  defp through_page(query, through, limit) do
+    ids = query |> exclude(:select) |> select([page: p], p.id) |> Repo.all()
+
+    case Enum.find_index(ids, &(&1 == through)) do
+      nil ->
+        rows = query |> limit(^(limit + 1)) |> Repo.all()
+        {Enum.take(rows, limit), limit}
+
+      index ->
+        take = max(limit, index + div(limit, 5))
+        rows = query |> limit(^(take + 1)) |> Repo.all()
+
+        if length(rows) > take,
+          do: {Enum.take(rows, take), take},
+          else: {rows, nil}
+    end
+  end
+
+  defp more_row(nil), do: []
+  defp more_row(offset), do: [%{kind: "more", id: offset, offset: offset, count: 0}]
+
+  ## A vault's tree -------------------------------------------------------------
+
+  @doc """
+  One level of a vault's tree (R11.3): every board of the vault in one tree,
+  laid out by the vault's paths.
+
+  A mapped path is a folder of the tree holding what it maps to — a board's
+  whole wiki, or one folder of it. A path that only leads to deeper mappings
+  (`Projects` when `Projects/X` is mapped) is a folder of its own, keyed
+  `dir:Projects`. What is mapped at the vault's root is its top level. Below
+  the mappings, every key is a board's own (`folder:12`, `page:7`), so the
+  rows are the ones `children/3` gives for that board.
+
+  `boards` is `%{board_id => {board, opts}}`: the vault's boards this reader
+  may open, each with the options its tree is read with (drafts only where
+  they can write). Anything on another board is not found.
+  """
+  def vault_children(%Vault{} = vault, key, boards, extra \\ []) do
+    mappings = vault_mappings(vault, boards)
+
+    case key do
+      "vault" ->
+        {:ok, dir_rows(mappings, "", boards, extra)}
+
+      "dir:" <> path ->
+        if Enum.any?(mappings, &under?(&1.path, path)),
+          do: {:ok, dir_rows(mappings, path, boards, extra)},
+          else: {:error, :not_found}
+
+      "board:" <> id ->
+        with {:ok, {board, opts}} <- board_in(boards, id),
+             do: children(board, :root, opts ++ extra)
+
+      other ->
+        with {:ok, ref} <- parse_ref(other),
+             {:ok, board_id} <- board_of(ref),
+             {:ok, {board, opts}} <- board_in(boards, board_id),
+             do: children(board, ref, opts ++ extra)
+    end
+  end
+
+  @doc """
+  The keys to open in a vault's tree to show a page or folder, outermost
+  first: the vault's own folders down to the mapping it is under, then the
+  board's folders and parent pages below that.
+  """
+  def vault_path_to(%Vault{} = vault, %{board_id: board_id} = item, boards) do
+    mappings = vault_mappings(vault, boards)
+    folders = Folders.list(board_id)
+
+    board_path =
+      case item do
+        %Page{} = page -> path_to(page, folders)
+        %Folder{} = folder -> path_to_folder(folder, folders)
+      end
+
+    folder_ids = for {:folder, id} <- board_path, do: id
+
+    # The deepest mapping the item is under: one on a folder on its way, or
+    # one on its board's whole wiki.
+    mapping =
+      mappings
+      |> Enum.filter(
+        &(&1.board_id == board_id and (is_nil(&1.folder_id) or &1.folder_id in folder_ids))
+      )
+      |> Enum.max_by(&depth_in(&1.folder_id, folder_ids), fn -> nil end)
+
+    case mapping do
+      nil ->
+        []
+
+      m ->
+        below =
+          case m.folder_id do
+            nil -> board_path
+            id -> Enum.drop_while(board_path, &(&1 != {:folder, id})) |> Enum.drop(1)
+          end
+
+        vault_keys(mappings, m) ++ Enum.map(below, &ref_key/1)
+    end
+  end
+
+  @doc """
+  Every container in a vault's tree that holds folders: the vault's own
+  folders, the mapped boards and folders, and every folder on the vault's
+  boards. What "open all" opens.
+  """
+  def vault_folder_keys(%Vault{} = vault, boards) do
+    mappings = vault_mappings(vault, boards)
+
+    vault_rows =
+      mappings
+      |> Enum.flat_map(&prefixes(&1.path))
+      |> Enum.uniq()
+      |> Enum.map(&row_key(mappings, &1))
+
+    folders =
+      from(f in Folder, where: f.board_id in ^Map.keys(boards), select: f.id)
+      |> Repo.all()
+      |> Enum.map(&"folder:#{&1}")
+
+    Enum.uniq(vault_rows ++ folders)
+  end
+
+  defp depth_in(nil, _ids), do: -1
+  defp depth_in(id, ids), do: Enum.find_index(ids, &(&1 == id))
+
+  # The rows along a mapping's path, and the mapping itself when it is a row
+  # of its own rather than folded into a `dir:` one.
+  defp vault_keys(mappings, m) do
+    m.path
+    |> prefixes()
+    |> Enum.map(&row_key(mappings, &1))
+    |> Enum.uniq()
+  end
+
+  defp prefixes(""), do: []
+
+  defp prefixes(path) do
+    segments = String.split(path, "/", trim: true)
+    for n <- 1..length(segments), do: segments |> Enum.take(n) |> Enum.join("/")
+  end
+
+  defp vault_mappings(%Vault{id: vault_id}, boards) do
+    from(m in Mapping,
+      where: m.vault_id == ^vault_id,
+      order_by: [asc: m.path],
+      select: %{board_id: m.board_id, folder_id: m.folder_id, path: m.path}
+    )
+    |> Repo.all()
+    |> Enum.filter(&Map.has_key?(boards, &1.board_id))
+  end
+
+  defp board_in(boards, id) when is_binary(id) do
+    case Integer.parse(id) do
+      {n, ""} -> board_in(boards, n)
+      _ -> {:error, :not_found}
+    end
+  end
+
+  defp board_in(boards, id) do
+    case Map.fetch(boards, id) do
+      {:ok, entry} -> {:ok, entry}
+      :error -> {:error, :not_found}
+    end
+  end
+
+  defp board_of({:folder, id}),
+    do: one_board(from(f in Folder, where: f.id == ^id, select: f.board_id))
+
+  defp board_of({:page, id}),
+    do: one_board(from(p in Page, where: p.id == ^id, select: p.board_id))
+
+  defp board_of(:root), do: {:error, :not_found}
+
+  defp one_board(query) do
+    case Repo.one(query) do
+      nil -> {:error, :not_found}
+      id -> {:ok, id}
+    end
+  end
+
+  defp under?(path, dir), do: String.starts_with?(path, dir <> "/") or path == dir
+
+  # A path's row: the mapping itself when it is the only thing there, or a
+  # `dir:` row holding what is mapped there and below.
+  defp row_key(mappings, path) do
+    exact = Enum.filter(mappings, &(&1.path == path))
+    deeper? = Enum.any?(mappings, &String.starts_with?(&1.path, path <> "/"))
+
+    case exact do
+      [m] when not deeper? -> mount_key(m)
+      _ -> "dir:" <> path
+    end
+  end
+
+  defp mount_key(%{folder_id: nil, board_id: id}), do: "board:#{id}"
+  defp mount_key(%{folder_id: id}), do: "folder:#{id}"
+
+  # What sits at `dir`: what is mapped right there, with a row before it for
+  # each path that goes deeper.
+  defp dir_rows(mappings, dir, boards, extra) do
+    here =
+      mappings
+      |> Enum.filter(&(&1.path == dir))
+      |> Enum.flat_map(fn m ->
+        {board, opts} = boards[m.board_id]
+
+        case children(board, mount_ref(m), opts ++ extra) do
+          {:ok, rows} -> rows
+          _ -> []
+        end
+      end)
+
+    prefix = if dir == "", do: "", else: dir <> "/"
+
+    mounts =
+      mappings
+      |> Enum.filter(&(&1.path != dir and String.starts_with?(&1.path, prefix)))
+      |> Enum.map(fn m ->
+        prefix <> hd(String.split(String.replace_prefix(m.path, prefix, ""), "/"))
+      end)
+      |> Enum.uniq()
+      |> Enum.sort_by(&String.downcase/1)
+      |> Enum.map(&mount_row(mappings, &1, boards))
+
+    mounts ++ here
+  end
+
+  defp mount_ref(%{folder_id: nil}), do: :root
+  defp mount_ref(%{folder_id: id}), do: {:folder, id}
+
+  defp mount_row(mappings, path, boards) do
+    key = row_key(mappings, path)
+    name = path |> String.split("/") |> List.last()
+
+    {board_id, pages} =
+      case Enum.filter(mappings, &(&1.path == path)) do
+        [m] ->
+          {board, opts} = boards[m.board_id]
+
+          pages =
+            case m.folder_id do
+              nil -> count(board, opts)
+              id -> board |> stats(Folders.list(board), opts) |> get_in([:totals, id])
+            end
+
+          {m.board_id, pages}
+
+        _ ->
+          {nil, nil}
+      end
+
+    %{
+      kind: if(String.starts_with?(key, "dir:"), do: "dir", else: "folder"),
+      key: key,
+      id: key,
+      board_id: board_id,
+      title: name,
+      mount: true,
+      count: 1,
+      pages: pages
+    }
+  end
+
+  ## Filtering -----------------------------------------------------------------
+
+  @doc """
+  The tree a filter leaves, every level of it at once (a hit three folders
+  down is no use behind a shut one): `%{nodes: %{ref_key => rows}, shown: n,
+  only: ids}`, `only` being the matches themselves.
+
+  A page is shown when the filter bar lets it through (`Slipdock.Filters`),
+  or when it is filed under a folder whose name matches the search, with
+  everything else in that folder. The pages it is part of and the folders it
+  is filed under come with it, so a match is always seen where it lives;
+  those that are only there for that are marked `context: true`. Folders with
+  nothing shown in them are left out. Files answer no filter and are left
+  out too.
+
+  One query of the board's pages, without their bodies, and the rest in
+  memory. `shown` counts the matches, not the context.
+  """
+  def filter(%Board{} = board, filters, opts \\ []) do
+    folders = Keyword.get_lazy(opts, :folders, fn -> Folders.list(board) end)
+    pages = candidates(board, filters, opts)
+    hit_folders = matching_folders(folders, filters.q)
+
+    matched =
+      pages
+      |> Enum.filter(
+        &(Filters.matches?(&1, filters) or MapSet.member?(hit_folders, &1.folder_id))
+      )
+      |> MapSet.new(& &1.id)
+
+    by_id = Map.new(pages, &{&1.id, &1})
+
+    shown_ids =
+      Enum.reduce(matched, matched, fn id, acc -> up_chain(by_id[id], by_id, acc) end)
+
+    shown = Enum.filter(pages, &MapSet.member?(shown_ids, &1.id))
+
+    # A page's container in what is shown: under its parent when that is
+    # shown and filed alongside it, otherwise at the top of its folder.
+    container = fn page ->
+      case page.parent_id && by_id[page.parent_id] do
+        %{folder_id: f} = up when f == page.folder_id ->
+          if MapSet.member?(shown_ids, up.id), do: "page:#{up.id}", else: folder_key(f)
+
+        _ ->
+          folder_key(page.folder_id)
+      end
+    end
+
+    pages_in = Enum.group_by(shown, container)
+
+    direct = shown |> Enum.reject(&is_nil(&1.folder_id)) |> Enum.frequencies_by(& &1.folder_id)
+    totals = roll_up(folders, direct)
+
+    folder_ids =
+      folders
+      |> Enum.filter(&(Map.get(totals, &1.id, 0) > 0 or MapSet.member?(hit_folders, &1.id)))
+      |> MapSet.new(& &1.id)
+
+    kept_folders = Enum.filter(folders, &MapSet.member?(folder_ids, &1.id))
+    subfolders = Enum.group_by(kept_folders, & &1.parent_id)
+
+    page_row = fn page ->
+      kids = length(Map.get(pages_in, "page:#{page.id}", []))
+      row = page_row(page, kids)
+      if MapSet.member?(matched, page.id), do: row, else: Map.put(row, :context, true)
+    end
+
+    folder_row = fn folder ->
+      key = folder_key(folder.id)
+
+      %{
+        kind: "folder",
+        id: folder.id,
+        board_id: folder.board_id,
+        title: folder.name,
+        slug: folder.slug,
+        parent_id: folder.parent_id,
+        count: length(Map.get(subfolders, folder.id, [])) + length(Map.get(pages_in, key, [])),
+        pages: Map.get(totals, folder.id, 0)
+      }
+    end
+
+    folder_nodes =
+      for parent <- [nil | Enum.map(kept_folders, & &1.id)], into: %{} do
+        rows =
+          subfolders
+          |> Map.get(parent, [])
+          |> Enum.sort_by(&{&1.position, &1.name})
+          |> Enum.map(folder_row)
+
+        pages = pages_in |> Map.get(folder_key(parent), []) |> sort_pages() |> Enum.map(page_row)
+        {folder_key(parent), rows ++ pages}
+      end
+
+    page_nodes =
+      for {"page:" <> _ = key, kids} <- pages_in, into: %{} do
+        {key, kids |> sort_pages() |> Enum.map(page_row)}
+      end
+
+    %{
+      nodes: folder_nodes |> Map.merge(page_nodes) |> Map.reject(fn {_k, rows} -> rows == [] end),
+      shown: MapSet.size(matched),
+      only: matched
+    }
+  end
+
+  defp folder_key(nil), do: "root"
+  defp folder_key(id), do: "folder:#{id}"
+
+  defp sort_pages(pages), do: Enum.sort_by(pages, &{&1.position, &1.title, &1.id})
+
+  defp up_chain(%{parent_id: nil}, _by_id, acc), do: acc
+
+  defp up_chain(page, by_id, acc) do
+    case by_id[page.parent_id] do
+      %{folder_id: f} = up when f == page.folder_id ->
+        if MapSet.member?(acc, up.id), do: acc, else: up_chain(up, by_id, MapSet.put(acc, up.id))
+
+      _ ->
+        acc
+    end
+  end
+
+  # What a filter reads of each page: the row's columns, the summary its
+  # search box matches, and the tags when a filter asks about them.
+  defp candidates(%Board{id: board_id}, filters, opts) do
+    query =
+      from(p in Page,
+        as: :page,
+        where: p.board_id == ^board_id,
+        select: struct(p, ^[:summary | @page_fields])
+      )
+      |> where(^visible(Keyword.delete(opts, :only), :page))
+
+    query =
+      if filters.tags != [] or String.trim(filters.q) != "",
+        do: preload(query, :tags),
+        else: query
+
+    Repo.all(query)
+  end
+
+  # Every folder whose name holds the search, and everything beneath it:
+  # filing is a path, so matching "Design" means its Decisions are in too.
+  defp matching_folders(folders, q) do
+    case String.downcase(String.trim(q || "")) do
+      "" ->
+        MapSet.new()
+
+      term ->
+        hits =
+          folders
+          |> Enum.filter(&String.contains?(String.downcase(&1.name), term))
+          |> MapSet.new(& &1.id)
+
+        by_id = Map.new(folders, &{&1.id, &1})
+
+        folders
+        |> Enum.filter(fn folder ->
+          Stream.iterate(folder, &(&1.parent_id && by_id[&1.parent_id]))
+          |> Enum.take_while(& &1)
+          |> Enum.any?(&MapSet.member?(hits, &1.id))
+        end)
+        |> MapSet.new(& &1.id)
+    end
   end
 
   ## Rows ----------------------------------------------------------------------
@@ -302,7 +826,6 @@ defmodule Slipdock.Wiki.Tree do
     |> in_folder(folder_id)
     |> order_by([page: p], asc: p.position, asc: p.title, asc: p.id)
     |> select([page: p], struct(p, ^@page_fields))
-    |> Repo.all()
   end
 
   defp child_pages(%Page{} = parent, opts) do
@@ -314,7 +837,6 @@ defmodule Slipdock.Wiki.Tree do
       select: struct(p, ^@page_fields)
     )
     |> where(^visible(opts, :page))
-    |> Repo.all()
   end
 
   # How many shown pages are part of each of these, filed alongside it.

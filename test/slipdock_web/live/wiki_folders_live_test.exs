@@ -7,6 +7,7 @@ defmodule SlipdockWeb.WikiFoldersLiveTest do
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
+  import SlipdockWeb.WikiTreeHelpers
 
   alias Slipdock.Wiki
 
@@ -21,14 +22,14 @@ defmodule SlipdockWeb.WikiFoldersLiveTest do
     view |> element("button", "New folder") |> render_click()
     assert has_element?(view, "#folder-modal")
 
-    html =
-      view
-      |> element("#folder-form")
-      |> render_submit(%{"name" => "Design decisions", "parent_id" => ""})
+    view
+    |> element("#folder-form")
+    |> render_submit(%{"name" => "Design decisions", "parent_id" => ""})
 
-    assert html =~ "Design decisions"
     assert {:ok, folder} = Wiki.find_folder(board, "design-decisions")
     assert folder.parent_id == nil
+    assert %{key: key} = row(tree_load(view), "root", "Design decisions")
+    assert key == "folder:#{folder.id}"
   end
 
   test "the New folder dialog opens with folders already on the board", %{
@@ -39,7 +40,9 @@ defmodule SlipdockWeb.WikiFoldersLiveTest do
     # when there is something to list.
     {:ok, parent} = Wiki.create_folder(board, %{"name" => "Design"})
 
-    {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki")
+    # The folder's own page carries its actions; the tree's menu (drawn by
+    # the hook) sends the same events.
+    {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki?folder=#{parent.id}")
 
     html =
       view |> element("button[phx-click='new_folder']:not([phx-value-parent])") |> render_click()
@@ -94,7 +97,7 @@ defmodule SlipdockWeb.WikiFoldersLiveTest do
     page = page_fixture(board, %{"title" => "Retry policy"})
     {:ok, _} = Wiki.file_page(page, folder)
 
-    {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki")
+    {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki?folder=#{folder.id}")
 
     html = view |> element("button[phx-click='ask_delete_folder']") |> render_click()
     assert html =~ "Delete “Specs”?"
@@ -110,7 +113,7 @@ defmodule SlipdockWeb.WikiFoldersLiveTest do
   test "an empty folder is deleted without being asked twice", %{conn: conn, board: board} do
     {:ok, folder} = Wiki.create_folder(board, %{"name" => "Specs"})
 
-    {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki")
+    {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki?folder=#{folder.id}")
 
     html = view |> element("button[phx-click='ask_delete_folder']") |> render_click()
 
@@ -127,7 +130,7 @@ defmodule SlipdockWeb.WikiFoldersLiveTest do
     page = page_fixture(board, %{"title" => "Retry policy"})
     {:ok, _} = Wiki.file_page(page, folder)
 
-    {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki")
+    {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki?folder=#{folder.id}")
 
     view |> element("button[phx-click='ask_delete_folder']") |> render_click()
     html = view |> element("button[phx-value-how='purge']") |> render_click()
@@ -148,14 +151,15 @@ defmodule SlipdockWeb.WikiFoldersLiveTest do
 
       {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki")
 
-      html = view |> form("#wiki-search") |> render_change(%{"q" => "spec"})
+      view |> form("#wiki-search") |> render_change(%{"q" => "spec"})
+      reply = tree_load(view)
 
-      # The folder matched, so it and everything in it stay…
-      assert html =~ "Specs"
-      assert html =~ "Retry policy"
+      # The folder matched, so it and everything in it stay, open…
+      assert reply.filtering
+      assert titles(reply, "root") == ["Specs"]
+      assert titles(reply, "folder:#{specs.id}") == ["Retry policy"]
       # …and the filing with nothing matching in it goes.
-      refute html =~ "Contracts"
-      refute html =~ "Launch plan"
+      assert all_titles(reply) == ["Retry policy", "Specs"]
     end
 
     test "a page still matches on its own, and empties its folder's siblings", %{
@@ -169,11 +173,12 @@ defmodule SlipdockWeb.WikiFoldersLiveTest do
 
       {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki")
 
-      html = view |> form("#wiki-search") |> render_change(%{"q" => "retry"})
+      view |> form("#wiki-search") |> render_change(%{"q" => "retry"})
+      reply = tree_load(view)
 
-      assert html =~ "Retry policy"
-      assert html =~ "Specs"
-      refute html =~ "Contracts"
+      assert titles(reply, "root") == ["Specs"]
+      assert titles(reply, "folder:#{specs.id}") == ["Retry policy"]
+      refute "Contracts" in all_titles(reply)
     end
 
     test "the way to full text is one click from the search that missed", %{
@@ -213,13 +218,37 @@ defmodule SlipdockWeb.WikiFoldersLiveTest do
       {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki")
 
       refute has_element?(view, "#wiki-tree[data-organising='true']")
-      refute has_element?(view, "[data-tree-list]")
 
       view |> element("button[phx-click='toggle_organise']") |> render_click()
 
+      # The hook puts a handle on each row when it reads this.
       assert has_element?(view, "#wiki-tree[data-organising='true']")
-      assert has_element?(view, "[data-tree-list='folders'][data-into='folder:']")
-      assert has_element?(view, "[data-tree-list='pages'][data-into='folder:']")
+      assert render(view) =~ "Rest on a shut folder to open it"
+
+      view |> element("button[phx-click='toggle_organise']") |> render_click()
+      refute has_element?(view, "#wiki-tree[data-organising='true']")
+    end
+
+    test "a drop is followed by the tree being asked for again", %{
+      conn: conn,
+      board: board,
+      folder: folder,
+      page: page
+    } do
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki")
+      version = view |> element("#wiki-tree") |> render() |> version_of()
+
+      render_click(view, "tree_move", %{
+        "kind" => "page",
+        "id" => to_string(page.id),
+        "into" => "folder:#{folder.id}",
+        "before" => nil
+      })
+
+      assert view |> element("#wiki-tree") |> render() |> version_of() > version
+
+      assert titles(tree_load(view, %{"keys" => ["folder:#{folder.id}"]}), "folder:#{folder.id}") ==
+               ["Retry policy"]
     end
 
     test "a page dropped in a folder is filed there and parented to nothing", %{
@@ -362,112 +391,97 @@ defmodule SlipdockWeb.WikiFoldersLiveTest do
       %{specs: specs, drafts: drafts, empty: empty, retry: retry, sketch: sketch}
     end
 
-    defp in_tree?(view, board, page),
-      do: has_element?(view, "#wiki-tree a[href='/boards/#{board.id}/wiki/#{page.slug}']")
+    test "only the root and what the browser has open are sent", %{
+      conn: conn,
+      board: board,
+      specs: specs,
+      drafts: drafts
+    } do
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki")
 
-    test "one button shuts every folder, and the same button opens them again", %{
+      reply = tree_load(view)
+      assert reply.root == "root"
+      assert Map.keys(reply.nodes) == ["root"]
+      assert titles(reply, "root") == ["Specs", "Contracts"]
+      # Small enough that a first visit opens everything, as it always did.
+      assert reply.small
+
+      reply = tree_load(view, %{"keys" => ["folder:#{specs.id}"]})
+      assert titles(reply, "folder:#{specs.id}") == ["Drafts", "Retry policy"]
+      refute Map.has_key?(reply.nodes, "folder:#{drafts.id}")
+    end
+
+    test "all opens every folder, and only loads just the keys asked for", %{
       conn: conn,
       board: board,
       specs: specs,
       drafts: drafts,
-      retry: retry,
-      sketch: sketch
-    } do
-      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki")
-
-      assert in_tree?(view, board, retry)
-      assert has_element?(view, "#wiki-tree-toggle-all[title='Close all folders']")
-
-      view |> element("#wiki-tree-toggle-all") |> render_click()
-
-      refute in_tree?(view, board, retry)
-      refute in_tree?(view, board, sketch)
-      assert has_element?(view, "#wiki-tree-toggle-all[title='Open all folders']")
-      # The browser is told, so the next page it mounts is shut the same way;
-      # the empty folder is not in it, having nothing to shut.
-      assert_push_event(view, "wiki-tree:collapsed", %{ids: ids})
-      assert Enum.sort(ids) == Enum.sort([specs.id, drafts.id])
-
-      view |> element("#wiki-tree-toggle-all") |> render_click()
-
-      assert in_tree?(view, board, retry)
-      assert in_tree?(view, board, sketch)
-      assert_push_event(view, "wiki-tree:collapsed", %{ids: []})
-    end
-
-    test "with one folder still open it closes, rather than opening", %{
-      conn: conn,
-      board: board,
-      drafts: drafts,
-      retry: retry,
-      sketch: sketch
-    } do
-      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki")
-
-      view
-      |> element("button[phx-click='toggle_folder'][phx-value-id='#{drafts.id}']")
-      |> render_click()
-
-      refute in_tree?(view, board, sketch)
-      assert has_element?(view, "#wiki-tree-toggle-all[title='Close all folders']")
-
-      view |> element("#wiki-tree-toggle-all") |> render_click()
-      refute in_tree?(view, board, retry)
-    end
-
-    test "an empty folder has no chevron and no 'Empty' line", %{
-      conn: conn,
-      board: board,
       empty: empty
     } do
-      {:ok, view, html} = live(conn, ~p"/boards/#{board}/wiki")
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki")
 
-      assert html =~ "Contracts"
-      refute html =~ "Empty"
-      refute has_element?(view, "button[phx-click='toggle_folder'][phx-value-id='#{empty.id}']")
-      assert has_element?(view, "li[data-id='#{empty.id}'] [data-empty-folder]")
+      reply = tree_load(view, %{"all" => true})
+
+      assert Enum.sort(Map.keys(reply.nodes)) ==
+               Enum.sort([
+                 "root",
+                 "folder:#{specs.id}",
+                 "folder:#{drafts.id}",
+                 "folder:#{empty.id}"
+               ])
+
+      assert titles(reply, "folder:#{drafts.id}") == ["Sketch"]
+
+      reply = tree_load(view, %{"keys" => ["folder:#{drafts.id}"], "only" => true})
+      assert Map.keys(reply.nodes) == ["folder:#{drafts.id}"]
     end
 
-    test "there is no toggle when no folder has anything in it", %{
-      conn: conn,
-      user: user
-    } do
-      bare = board_fixture(%{"name" => "Bare", "code" => "bare"}, owner: user)
-      {:ok, _} = Wiki.create_folder(bare, %{"name" => "Hollow"})
-      {:ok, view, _html} = live(conn, ~p"/boards/#{bare}/wiki")
-      refute has_element?(view, "#wiki-tree-toggle-all")
-    end
-
-    test "searching or organising hides it, since both open everything", %{
+    test "an empty folder says it has nothing under it, so no chevron is drawn", %{
       conn: conn,
       board: board
     } do
       {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki")
 
+      assert %{count: 0, pages: 0} = row(tree_load(view), "root", "Contracts")
+      assert %{count: 2, pages: 2} = row(tree_load(view), "root", "Specs")
+    end
+
+    test "keys that are garbage, gone or another board's are left out", %{
+      conn: conn,
+      board: board,
+      user: user
+    } do
+      other = board_fixture(%{"name" => "Other", "code" => "otherfold"}, owner: user)
+      {:ok, theirs} = Wiki.create_folder(other, %{"name" => "Theirs"})
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki")
+
+      reply =
+        tree_load(view, %{"keys" => ["junk", "folder:999999", "folder:#{theirs.id}", 7, nil]})
+
+      assert Map.keys(reply.nodes) == ["root"]
+    end
+
+    test "the toggle is hidden with no folders, while filtering and while organising", %{
+      conn: conn,
+      board: board,
+      user: user
+    } do
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki")
+      refute has_element?(view, "#wiki-tree-toggle-all-box.hidden")
+
       view |> form("#wiki-search") |> render_change(%{"q" => "retry"})
-      refute has_element?(view, "#wiki-tree-toggle-all")
+      assert has_element?(view, "#wiki-tree-toggle-all-box.hidden")
 
       view |> form("#wiki-search") |> render_change(%{"q" => ""})
       view |> element("button[phx-click='toggle_organise']") |> render_click()
-      refute has_element?(view, "#wiki-tree-toggle-all")
+      assert has_element?(view, "#wiki-tree-toggle-all-box.hidden")
+
+      bare = board_fixture(%{"name" => "Bare", "code" => "bare"}, owner: user)
+      {:ok, view, _html} = live(conn, ~p"/boards/#{bare}/wiki")
+      assert has_element?(view, "#wiki-tree-toggle-all-box.hidden")
     end
 
-    test "what the reader shut last time comes back shut", %{
-      conn: conn,
-      board: board,
-      specs: specs,
-      drafts: drafts,
-      retry: retry
-    } do
-      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki")
-
-      render_hook(view, "restore_collapsed", %{"ids" => [specs.id, "#{drafts.id}", "junk", nil]})
-
-      refute in_tree?(view, board, retry)
-      assert has_element?(view, "#wiki-tree-toggle-all[title='Open all folders']")
-    end
-
-    test "the folders leading to the page being read stay open", %{
+    test "the folders leading to the page being read are loaded and revealed", %{
       conn: conn,
       board: board,
       specs: specs,
@@ -476,12 +490,13 @@ defmodule SlipdockWeb.WikiFoldersLiveTest do
     } do
       {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki/#{sketch.slug}")
 
-      render_hook(view, "restore_collapsed", %{"ids" => [specs.id, drafts.id]})
-
-      assert in_tree?(view, board, sketch)
+      reply = tree_load(view)
+      assert reply.reveal == ["folder:#{specs.id}", "folder:#{drafts.id}"]
+      assert titles(reply, "folder:#{drafts.id}") == ["Sketch"]
+      assert has_element?(view, "#wiki-tree[data-current='page:#{sketch.id}']")
     end
 
-    test "a page opened in place inside a shut folder opens the folders to it", %{
+    test "a page opened in place says the way to it, for the hook to open", %{
       conn: conn,
       board: board,
       specs: specs,
@@ -489,40 +504,81 @@ defmodule SlipdockWeb.WikiFoldersLiveTest do
       sketch: sketch
     } do
       {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki")
-      render_hook(view, "restore_collapsed", %{"ids" => [specs.id, drafts.id]})
-      refute in_tree?(view, board, sketch)
+      assert has_element?(view, "#wiki-tree[data-current='']")
 
       render_patch(view, ~p"/boards/#{board}/wiki/#{sketch.slug}")
 
-      assert in_tree?(view, board, sketch)
+      reveal = Jason.encode!(["folder:#{specs.id}", "folder:#{drafts.id}"])
+      assert has_element?(view, "#wiki-tree[data-current='page:#{sketch.id}']")
+      assert has_element?(view, ~s|#wiki-tree[data-reveal='#{reveal}']|)
     end
 
-    test "the folder being looked at, and those above it, stay open", %{
+    test "the folder being looked at, and those above it, are revealed", %{
       conn: conn,
       board: board,
       specs: specs,
-      drafts: drafts,
-      sketch: sketch
+      drafts: drafts
     } do
       {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki?folder=#{drafts.id}")
 
-      render_hook(view, "restore_collapsed", %{"ids" => [specs.id, drafts.id]})
-
-      assert in_tree?(view, board, sketch)
+      assert tree_load(view).reveal == ["folder:#{specs.id}", "folder:#{drafts.id}"]
+      assert has_element?(view, "#wiki-tree[data-current='folder:#{drafts.id}']")
     end
 
-    test "a restore that isn't a list changes nothing", %{
+    test "rows link where they go, and drafts, templates and counts ride along", %{
       conn: conn,
       board: board,
-      retry: retry
+      specs: specs
     } do
+      page_fixture(board, %{"title" => "Half", "status" => "draft"})
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki")
+      reply = tree_load(view, %{"keys" => ["folder:#{specs.id}"]})
+
+      assert %{href: href, nav: "patch", key: key} = row(reply, "root", "Specs")
+      assert href == "/boards/#{board.id}/wiki?folder=#{specs.id}"
+      assert key == "folder:#{specs.id}"
+      assert %{draft: true, href: "/boards/" <> _} = row(reply, "root", "Half")
+      refute Map.has_key?(row(reply, "folder:#{specs.id}", "Retry policy"), :draft)
+    end
+
+    test "the page being read is in its folder's rows, however far down", %{
+      conn: conn,
+      board: board,
+      specs: specs
+    } do
+      notes = for n <- 1..3, do: page_fixture(board, %{"title" => "Note #{n}"})
+      Enum.each(notes, &Wiki.file_page(&1, specs))
+      last = List.last(notes)
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki/#{last.slug}")
+
+      # The hook's own ask, when it reveals a page its folder has not
+      # reached yet.
+      reply =
+        tree_load(view, %{
+          "keys" => ["folder:#{specs.id}"],
+          "only" => true,
+          "through" => "page:#{last.id}"
+        })
+
+      assert "Note 3" in titles(reply, "folder:#{specs.id}")
+    end
+
+    test "a big folder comes a page of rows at a time", %{conn: conn, board: board, specs: specs} do
+      for n <- 1..3, do: Wiki.file_page(page_fixture(board, %{"title" => "Note #{n}"}), specs)
       {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki")
 
-      render_hook(view, "restore_collapsed", %{"ids" => "1,2"})
-      render_hook(view, "restore_collapsed", %{})
-
-      assert in_tree?(view, board, retry)
+      render_hook(view, "tree_children", %{"key" => "folder:#{specs.id}", "offset" => 2})
+      assert_reply(view, %{key: key, rows: rows})
+      assert key == "folder:#{specs.id}"
+      # Past the first two pages (Drafts is a folder, not a page): no folders
+      # again, and the rest of the pages in their order.
+      assert Enum.map(rows, & &1.title) == ["Note 3", "Retry policy"]
     end
+  end
+
+  defp version_of(html) do
+    [_, v] = Regex.run(~r/data-version="(\d+)"/, html)
+    String.to_integer(v)
   end
 
   describe "a folder, looked at" do
