@@ -595,6 +595,10 @@ much it writes on the card defaults to Nothing: no comments, just the job's
 lease renewed (the server's own notes, such as a card put back or given up on,
 still appear). Until a Claude session takes its first job, its pool shows in the
 runner list as waiting.
+One machine can run several runners — one per board, say: the steps install
+each under a name of its own (its board's code and pool, as in
+`--name slipdock-loop`), with its own config and service, so setting up a
+second never replaces the first.
 `slipdock runner new <board> [name] --pool default [--scenario …]` prints the
 same, `slipdock runner ls|show|setup|token|rm` manage them, and `slipdock jobs
 <board>` shows what they're doing. The details are in

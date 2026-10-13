@@ -715,6 +715,94 @@ defmodule Slipdock.Runners.SetupTest do
     end
   end
 
+  describe "the runner's name on its machine" do
+    test "a new server or Windows runner is named for its board and pool, and keeps it",
+         ctx do
+      {:ok, %{runner: runner, setup: setup}} =
+        Setup.connect(ctx.board, %{"pool" => "loop"}, ctx.owner, @base)
+
+      name = "#{ctx.board.code}-loop"
+      assert runner.settings["install_name"] == name
+      assert hd(codes(setup)) =~ " \\\n  --name #{name}"
+
+      config = Enum.find(setup.steps, &(&1[:id] == :config))
+      assert config.text =~ "~/.config/slipdock-runner/config-#{name} (mode 600)"
+
+      # Set up again, rotated or changed, it is still the same install.
+      assert hd(codes(Setup.regenerate(runner, ctx.board, @base))) =~ "--name #{name}"
+
+      {:ok, %{runner: changed, setup: again}} =
+        Setup.update(runner, ctx.board, %{"timeout" => "900", "install_name" => "x"}, @base)
+
+      assert changed.settings["install_name"] == name
+      assert hd(codes(again)) =~ "--name #{name}"
+
+      {:ok, %{setup: win}} =
+        Setup.connect(ctx.board, %{"pool" => "pc", "scenario" => "windows"}, ctx.owner, @base)
+
+      assert hd(codes(win)) =~ "-Name #{ctx.board.code}-pc"
+      win_config = Enum.find(win.steps, &(&1[:id] == :config))
+      assert win_config.text =~ "config-#{ctx.board.code}-pc.ps1"
+      assert win_config.text =~ "runner-#{ctx.board.code}-pc.log"
+    end
+
+    test "the wizard's preview shows the name it will get", ctx do
+      assert hd(codes(gen(ctx.board, %{"pool" => "dev"}))) =~ "--name #{ctx.board.code}-dev"
+    end
+
+    test "one given is used instead, and a name that isn't one is refused", ctx do
+      {:ok, %{runner: runner, setup: setup}} =
+        Setup.connect(
+          ctx.board,
+          %{"pool" => "dev", "install_name" => " Laptop "},
+          ctx.owner,
+          @base
+        )
+
+      assert runner.settings["install_name"] == "laptop"
+      assert hd(codes(setup)) =~ "--name laptop"
+
+      for bad <- ["a/b", "-x", "two words", String.duplicate("a", 61)] do
+        assert {:error, message} = Setup.normalise(%{"install_name" => bad})
+        assert message =~ "name on the machine", bad
+      end
+    end
+
+    test "a runner made before names keeps none, until one is given", ctx do
+      {:ok, runner, _token} =
+        Runners.create_runner(ctx.board, %{
+          "name" => "old",
+          "pool" => "dev",
+          "settings" => Map.delete(answers(%{"pool" => "dev"}), "install_name")
+        })
+
+      again = Setup.regenerate(runner, ctx.board, @base)
+      refute hd(codes(again)) =~ "--name"
+      assert Enum.find(again.steps, &(&1[:id] == :config)).text =~ "slipdock-runner/config (mode"
+
+      {:ok, %{setup: same}} = Setup.update(runner, ctx.board, %{"timeout" => "900"}, @base)
+      refute hd(codes(same)) =~ "--name"
+
+      {:ok, %{runner: named, setup: setup}} =
+        Setup.update(runner, ctx.board, %{"install_name" => "old-one"}, @base)
+
+      assert named.settings["install_name"] == "old-one"
+      assert hd(codes(setup)) =~ "--name old-one"
+    end
+
+    test "a code with characters a name can't have is cleaned up", ctx do
+      a = Setup.install_name(answers(%{"pool" => "dev"}), %{ctx.board | code: "Q.V M"})
+      assert a["install_name"] == "q-v-m-dev"
+    end
+
+    test "runners that aren't installed get none", ctx do
+      for scenario <- ~w(loop cloud chatgpt) do
+        a = Setup.install_name(answers(%{"scenario" => scenario}), ctx.board)
+        assert a["install_name"] == "", scenario
+      end
+    end
+  end
+
   test "rotating a token ends the old one", %{board: board} do
     {:ok, runner, old} = Runners.create_runner(board, %{"name" => "r", "pool" => "dev"})
     {:ok, _, new} = Runners.rotate_token(runner)

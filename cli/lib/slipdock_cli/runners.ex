@@ -50,6 +50,7 @@ defmodule SlipdockCLI.Runners do
         "percent_100" => o[:percent_100],
         "slipdock_tools" => o[:slipdock_tools],
         "mcp_servers" => o[:mcp_servers],
+        "install_name" => o[:install_name],
         "name" => nonblank(Enum.join(name, " ")),
         "pool" => o[:pool],
         "agent" => o[:agent],
@@ -233,7 +234,8 @@ defmodule SlipdockCLI.Runners do
       "complete" => o[:complete],
       "percent_100" => o[:percent_100],
       "slipdock_tools" => o[:slipdock_tools],
-      "mcp_servers" => o[:mcp_servers]
+      "mcp_servers" => o[:mcp_servers],
+      "install_name" => o[:install_name]
     })
   end
 end

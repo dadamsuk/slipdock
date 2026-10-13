@@ -1658,7 +1658,14 @@ defmodule SlipdockWeb.APIGuide do
     The shell runner that speaks it, `slipdock-runner` (`sh` and `curl`
     only), installs with `curl -fsSL B/runner/install.sh | sh -s -- --url B
     --token sdr_… --pool default`; on Windows, `slipdock-runner.ps1` from
-    `B/runner/install.ps1`. `B/runner/SHA256SUMS` has the checksums.
+    `B/runner/install.ps1`. `B/runner/SHA256SUMS` has the checksums. One
+    machine runs several runners — one per board, say — when each is
+    installed with its own `--name NAME` (`-Name` on Windows): runner NAME
+    has its own config (`config-NAME`) and service, and installing it leaves
+    the others alone. The setup steps name each new runner after its board
+    and pool, as in `--name slipdock-loop`. Installed with no name over
+    another server's or pool's runner, the installer refuses rather than
+    replace it, unless given `--replace`.
 
     `slipdock runner ls|new|rm`, `slipdock jobs`, `slipdock job`,
     `slipdock cancel-job`, `slipdock claim-job`, `slipdock job-progress` and

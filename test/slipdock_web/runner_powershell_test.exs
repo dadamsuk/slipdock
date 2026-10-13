@@ -277,6 +277,16 @@ defmodule SlipdockWeb.RunnerPowerShellTest do
       {out, code} = install(ctx, ["-Url", ctx.url, "-Token", "t", "-Pool", "Bad Pool"])
       assert code != 0
       assert out =~ "-Pool must be"
+
+      # PowerShell matches without case unless told: a pool the server would
+      # never send jobs for.
+      {out, code} = install(ctx, ["-Url", ctx.url, "-Token", "t", "-Pool", "Dev"])
+      assert code != 0
+      assert out =~ "-Pool must be"
+
+      {out, code} = install(ctx, ["-Url", ctx.url, "-Token", "t", "-Kind", "Big"])
+      assert code != 0
+      assert out =~ "-Kind must be"
     end
 
     test "claude may use the Slipdock tools, both names by default, or those named", ctx do
@@ -356,6 +366,88 @@ defmodule SlipdockWeb.RunnerPowerShellTest do
 
       assert %{status: "done"} = done = job(queued)
       assert done.output =~ "ran: the card"
+    end
+
+    defp installed_from(file, var) do
+      {out, 0} =
+        System.cmd(@pwsh, ["-NoProfile", "-Command", ". '#{file}'; [Console]::Out.Write($#{var})"])
+
+      out
+    end
+
+    test "a named runner gets its own config and log beside the first, and runs", ctx do
+      inst = Path.join(ctx.dir, "inst")
+      {_, 0} = install(ctx, ["-Url", ctx.url, "-Token", "sdr_first", "-Pool", "loop"])
+      first = File.read!(Path.join(inst, "config.ps1"))
+
+      {out, 0} =
+        install(ctx, [
+          "-Url",
+          ctx.url,
+          "-Token",
+          ctx.token,
+          "-Pool",
+          "dev",
+          "-Name",
+          "two",
+          "-Agent",
+          "custom",
+          "-Command",
+          "Write-Output \"ran: $env:SLIPDOCK_PROMPT\"",
+          "-Cwd",
+          ctx.dir
+        ])
+
+      named = Path.join(inst, "config-two.ps1")
+      assert out =~ "name two"
+      assert out =~ ~s(-Config "#{named}")
+      assert File.read!(Path.join(inst, "config.ps1")) == first
+      assert Path.wildcard(Path.join(inst, "*.bak.*")) == []
+      assert installed_from(named, "RunnerToken") == ctx.token
+
+      {:ok, queued} = queue(ctx.card, "custom", "the card")
+
+      {_out, 0} =
+        System.cmd(
+          @pwsh,
+          [
+            "-NoProfile",
+            "-File",
+            Path.join(inst, "slipdock-runner.ps1"),
+            "-Once",
+            "-Config",
+            named
+          ],
+          stderr_to_stdout: true
+        )
+
+      assert %{status: "done"} = job(queued)
+      assert File.read!(Path.join(inst, "runner-two.log")) =~ "slipdock-runner:"
+      refute File.exists?(Path.join(inst, "runner.log"))
+    end
+
+    test "unnamed over another pool's runner is refused, unless -Replace", ctx do
+      inst = Path.join(ctx.dir, "inst")
+      {_, 0} = install(ctx, ["-Url", ctx.url, "-Token", "sdr_first", "-Pool", "loop"])
+      first = File.read!(Path.join(inst, "config.ps1"))
+
+      {out, code} = install(ctx, ["-Url", ctx.url, "-Token", "sdr_new", "-Pool", "dev"])
+      assert code != 0
+      assert out =~ "is another runner's"
+      assert out =~ "-Name NAME"
+      assert File.read!(Path.join(inst, "config.ps1")) == first
+
+      {_, 0} = install(ctx, ["-Url", ctx.url, "-Token", "sdr_new", "-Pool", "dev", "-Replace"])
+      assert installed(ctx, "Pool") == "dev"
+      assert [_] = Path.wildcard(Path.join(inst, "config.ps1.bak.*"))
+    end
+
+    test "a -Name that isn't one is refused", ctx do
+      for name <- ["Two", "a/b", "-x"] do
+        {out, code} = install(ctx, ["-Url", ctx.url, "-Token", "t", "-Name", name])
+        assert code != 0, name
+        assert out =~ "-Name must be", name
+      end
     end
   end
 

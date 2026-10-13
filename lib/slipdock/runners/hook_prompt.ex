@@ -70,11 +70,11 @@ defmodule Slipdock.Runners.HookPrompt do
 
   defp shape(false),
     do:
-      "It is the shell runner, slipdock-runner; its config, ~/.config/slipdock-runner/config, is shell, and it calls the functions before_job and after_job, if the config defines them, around every job. Write the hooks as one script, ~/.local/bin/slipdock-hook, taking `before` or `after`, in bash or POSIX sh."
+      "It is the shell runner, slipdock-runner; its config, ~/.config/slipdock-runner/config (config-NAME for a runner installed with --name NAME), is shell, and it calls the functions before_job and after_job, if the config defines them, around every job. Write the hooks as one script, ~/.local/bin/slipdock-hook, taking `before` or `after`, in bash or POSIX sh."
 
   defp shape(true),
     do:
-      "It is the Windows runner, slipdock-runner.ps1; its config, %LOCALAPPDATA%\\slipdock-runner\\config.ps1, is PowerShell, and it calls the functions Before-Job and After-Job, if the config defines them, around every job. Write the hooks as one PowerShell script, slipdock-hook.ps1 beside the config, taking `before` or `after`. The example below is bash: translate it."
+      "It is the Windows runner, slipdock-runner.ps1; its config, %LOCALAPPDATA%\\slipdock-runner\\config.ps1 (config-NAME.ps1 for a runner installed with -Name NAME), is PowerShell, and it calls the functions Before-Job and After-Job, if the config defines them, around every job. Write the hooks as one PowerShell script, slipdock-hook.ps1 beside the config, taking `before` or `after`. The example below is bash: translate it."
 
   defp env_list(windows?) do
     prefix = if windows?, do: "$env:", else: "$"
