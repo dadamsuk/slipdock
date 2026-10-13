@@ -40,8 +40,10 @@ defmodule SlipdockWeb.Wiki.Renderer do
   ]
 
   # Raw HTML is rendered so the chips below survive; the sanitiser decides
-  # what any of it is allowed to be.
-  @render [unsafe: true]
+  # what any of it is allowed to be. A single newline is a line break, as it
+  # is in Obsidian, where most of these pages are written: a list of dates
+  # one per line should not run together into one paragraph.
+  @render [unsafe: true, hardbreaks: true]
 
   @sanitize [
     add_tags: ["input"],
