@@ -330,6 +330,15 @@ defmodule Slipdock.Vaults do
 
   @doc "Takes a mapping out of a vault, by its id or by its path."
   def remove_mapping(%Vault{} = vault, ref) do
+    with {:ok, mapping} <- find_mapping(vault, ref),
+         {:ok, deleted} <- Repo.delete(mapping) do
+      NoteTags.refresh_board(deleted.board_id)
+      {:ok, deleted}
+    end
+  end
+
+  @doc "One of the vault's mappings, by its id or by its path."
+  def find_mapping(%Vault{} = vault, ref) do
     vault = Repo.preload(vault, @preloads, force: true)
     ref = ref |> to_string() |> String.trim()
 
@@ -346,15 +355,148 @@ defmodule Slipdock.Vaults do
       end
 
     case found do
-      nil ->
-        {:error, :not_found, "mapping #{inspect(ref)}"}
-
-      mapping ->
-        with {:ok, deleted} <- Repo.delete(mapping) do
-          NoteTags.refresh_board(deleted.board_id)
-          {:ok, deleted}
-        end
+      nil -> {:error, :not_found, "mapping #{inspect(ref)}"}
+      mapping -> {:ok, mapping}
     end
+  end
+
+  ## Previews -------------------------------------------------------------------
+
+  @sample 10
+
+  @doc """
+  What adding a mapping would do, before it is done — refused for the same
+  reasons `add_mapping/3` refuses, and otherwise:
+
+      %{path: "/Jobs", arriving: %{count: 12, sample: ["Jobs/Acme.md", ...]},
+        moving: %{count: 3, sample: [%{from: "Jobs/Old.md", to: "Jobs/Old.md"}, ...]},
+        mirrors: ["slipdock CLI on laptop"]}
+
+  `arriving` are the pages of the board (or folder) that join the vault,
+  with their vault paths; `moving` the pages already in the vault that the
+  new mapping takes over, being the longer prefix. The synced folders named
+  in `mirrors` gain the arriving files.
+  """
+  def preview_mapping(%Vault{} = vault, %User{} = user, attrs) do
+    board = attrs[:board]
+    folder = attrs[:folder]
+
+    with {:ok, path} <- normalize_path(attrs[:path]),
+         :ok <- check_board(board, user),
+         :ok <- check_folder(folder, board),
+         :ok <- check_one_vault(vault, board),
+         :ok <- check_free(vault, path, board, folder) do
+      mappings = Index.mappings(vault)
+      before = Index.build_from(mappings)
+      later = Index.build_from(mappings ++ [{board.id, folder && folder.id, path, :new}])
+      {_gone, moved, came} = diff(before, later)
+
+      {:ok,
+       %{
+         path: Mapping.display_path(path),
+         arriving: sample(came, & &1.path),
+         moving:
+           sample(Enum.filter(moved, &(&1.to_mapping == :new)), &Map.take(&1, [:from, :to])),
+         mirrors: mirror_names(vault)
+       }}
+    end
+  end
+
+  @doc """
+  What taking a mapping out would do: the pages that leave the vault (and so
+  the synced folders), and those that fall back to an outer mapping and so
+  move to another path. The pages themselves stay on their board.
+
+      %{path: "/Jobs", leaving: %{count:, sample: [...]}, moving: %{count:, sample: [...]},
+        mirrors: [...]}
+  """
+  def preview_unmapping(%Vault{} = vault, ref) do
+    with {:ok, mapping} <- find_mapping(vault, ref) do
+      mappings = Index.mappings(vault)
+      before = Index.build_from(mappings)
+      later = Index.build_from(Enum.reject(mappings, &(elem(&1, 3) == mapping.id)))
+      {gone, moved, _came} = diff(before, later)
+
+      {:ok,
+       %{
+         path: Mapping.display_path(mapping),
+         leaving: sample(gone, & &1.path),
+         moving: sample(moved, &Map.take(&1, [:from, :to])),
+         mirrors: mirror_names(vault)
+       }}
+    end
+  end
+
+  # Pages in `before` and not `later`, in both but at another path or under
+  # another mapping, and in `later` alone.
+  defp diff(before, later) do
+    old = Map.new(before, &{&1.id, &1})
+    new = Map.new(later, &{&1.id, &1})
+
+    gone = Enum.reject(before, &Map.has_key?(new, &1.id))
+    came = Enum.reject(later, &Map.has_key?(old, &1.id))
+
+    moved =
+      for entry <- later,
+          %{} = was <- [old[entry.id]],
+          was.path != entry.path or was.mapping_id != entry.mapping_id,
+          do: %{from: was.path <> ".md", to: entry.path <> ".md", to_mapping: entry.mapping_id}
+
+    {gone, moved, came}
+  end
+
+  defp sample(list, fun) do
+    %{count: length(list), sample: list |> Enum.take(@sample) |> Enum.map(&file(fun.(&1)))}
+  end
+
+  defp file(path) when is_binary(path), do: path <> ".md"
+  defp file(other), do: other
+
+  defp mirror_names(vault), do: vault |> mirrors() |> Enum.map(&(&1.label || "an unnamed token"))
+
+  # The same refusals the unique indexes make, worded the same, before
+  # anything is written.
+  defp check_free(vault, path, board, folder) do
+    mappings = Repo.preload(vault, @preloads, force: true).mappings
+
+    cond do
+      Enum.any?(mappings, &(&1.path == path)) ->
+        {:error, :unprocessable_entity,
+         "#{Mapping.display_path(path)} is already mapped in this vault"}
+
+      folder && Repo.exists?(from(m in Mapping, where: m.folder_id == ^folder.id)) ->
+        {:error, :unprocessable_entity, "that folder is already mapped into a vault"}
+
+      is_nil(folder) and
+          Repo.exists?(from(m in Mapping, where: m.board_id == ^board.id and is_nil(m.folder_id))) ->
+        {:error, :unprocessable_entity, "#{board.name} is already mapped into a vault"}
+
+      true ->
+        :ok
+    end
+  end
+
+  @doc """
+  Every board `user` can see, each with why it cannot be mapped into
+  `vault` — `nil` when it can: `[{board, reason}]`, by name. The same rules
+  as `add_mapping/3`.
+  """
+  def mapping_candidates(%Vault{} = vault, %User{} = user) do
+    user
+    |> Access.list_boards(archived: :all)
+    |> Enum.sort_by(&String.downcase(&1.name))
+    |> Enum.map(fn board ->
+      reason =
+        with :ok <- check_board(board, user),
+             :ok <- check_one_vault(vault, board) do
+          nil
+        else
+          {:error, :forbidden, _} -> "you can't write to it"
+          {:error, _, message} -> String.replace_prefix(message, board.name <> " ", "")
+        end
+
+      {board, reason}
+    end)
   end
 
   defp preloaded({:ok, vault}), do: {:ok, Repo.preload(vault, @preloads, force: true)}

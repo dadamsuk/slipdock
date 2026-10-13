@@ -433,11 +433,12 @@ Vaults lay several boards' wikis out as one Obsidian-style vault (a vault path â
 or a folder of it, longest prefix winning; one vault per board):
 ```
 slipdock vault ls | slipdock vault show <vault> | slipdock vault new <name...>
-slipdock vault map <vault> <path> --board B [--folder F] | slipdock vault unmap <vault> <path>
+slipdock vault map <vault> <path> --board B [--folder F] [--dry-run] | slipdock vault unmap <vault> <path> [--dry-run]
 slipdock vault locate <vault> <path> | slipdock vault rename <vault> <name...> | slipdock vault rm <vault>
 ```
 `vault ls` also shows how many pages each mapping holds and the folders the vault is synced to
-(each sync token's label and last sync). People do the same on the web app's Vaults screen
+(each sync token's label and last sync); `--dry-run` on map/unmap previews which pages join,
+move or leave the vault before changing it. People do the same on the web app's Vaults screen
 (`/vaults`, avatar menu â€º Vaults).
 
 `slipdock sync` mirrors a vault both ways to a local folder that stays a valid Obsidian vault

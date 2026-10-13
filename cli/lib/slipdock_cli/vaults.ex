@@ -45,12 +45,22 @@ defmodule SlipdockCLI.Vaults do
 
     body = compact(%{"path" => path, "board" => o[:board], "folder" => o[:folder]})
 
-    HTTP.post("/vaults/#{enc(ref)}/mappings", body) |> out(o, &vault(&1["vault"], "mapped"))
+    if o[:dry_run] do
+      HTTP.post("/vaults/#{enc(ref)}/mappings", Map.put(body, "dry_run", true))
+      |> out(o, &print_preview(&1["preview"], :map))
+    else
+      HTTP.post("/vaults/#{enc(ref)}/mappings", body) |> out(o, &vault(&1["vault"], "mapped"))
+    end
   end
 
   def run("vault", ["unmap", ref, path], o) do
-    HTTP.delete("/vaults/#{enc(ref)}/mappings", path: path)
-    |> out(o, &vault(&1["vault"], "unmapped"))
+    if o[:dry_run] do
+      HTTP.delete("/vaults/#{enc(ref)}/mappings", path: path, dry_run: "true")
+      |> out(o, &print_preview(&1["preview"], :unmap))
+    else
+      HTTP.delete("/vaults/#{enc(ref)}/mappings", path: path)
+      |> out(o, &vault(&1["vault"], "unmapped"))
+    end
   end
 
   def run("vault", ["locate", ref, path], o) do
@@ -167,7 +177,7 @@ defmodule SlipdockCLI.Vaults do
     do:
       fail(
         "usage: slipdock vault ls | show V | new NAME | rename V NAME | rm V | " <>
-          "map V PATH --board B [--folder F] | unmap V PATH | locate V PATH | resolve V LINK | " <>
+          "map V PATH --board B [--folder F] [--dry-run] | unmap V PATH [--dry-run] | locate V PATH | resolve V LINK | " <>
           "wanted V | changes V [--since N] | import DIR --vault V [--dry-run]"
       )
 
@@ -299,6 +309,42 @@ defmodule SlipdockCLI.Vaults do
         })
     end
   end
+
+  @doc false
+  # What a mapping would do before it is made (or taken out): `--dry-run`.
+  def print_preview(p, kind) do
+    verb = if kind == :map, do: "mapping", else: "unmapping"
+    IO.puts("#{verb} #{p["path"]} would — nothing is changed yet:")
+
+    if kind == :map do
+      preview_group("bring into the vault", p["arriving"], & &1)
+      preview_group("take over from another mapping", p["moving"], &move_line/1)
+      preview_group("clash with pages already at those paths", p["clashes"], &clash_line/1)
+    else
+      preview_group("take out of the vault (they stay on their board)", p["leaving"], & &1)
+      preview_group("move to another path", p["moving"], &move_line/1)
+    end
+
+    case p["mirrors"] || [] do
+      [] -> :ok
+      names -> IO.puts(Render.dim("synced folders that follow: " <> Enum.join(names, ", ")))
+    end
+  end
+
+  defp preview_group(_title, nil, _fun), do: :ok
+  defp preview_group(_title, %{"count" => 0}, _fun), do: :ok
+
+  defp preview_group(title, %{"count" => n, "sample" => sample}, fun) do
+    IO.puts("  #{title}: #{n}")
+    Enum.each(sample, &IO.puts("    " <> fun.(&1)))
+    if n > length(sample), do: IO.puts(Render.dim("    … #{n - length(sample)} more"))
+  end
+
+  defp move_line(%{"from" => same, "to" => same}), do: same
+  defp move_line(%{"from" => from, "to" => to}), do: "#{from} → #{to}"
+
+  defp clash_line(%{"path" => path, "board" => board}), do: "#{path} (on #{board})"
+  defp clash_line(other), do: inspect(other)
 
   defp vaults([]), do: IO.puts(Render.dim("no vaults — `slipdock vault new NAME` makes one"))
   defp vaults(list), do: Enum.each(list, &vault/1)

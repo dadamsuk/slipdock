@@ -50,9 +50,30 @@ defmodule SlipdockWeb.API.VaultController do
   @doc """
   Maps a vault path onto a board's wiki: `path` (default `/`), `board` (id,
   code or name; you must be able to write to it) and optionally `folder` (a
-  folder on that board, by id, slug, name or path).
+  folder on that board, by id, slug, name or path). With `dry_run`, only
+  says what the mapping would bring in and take over (`Vaults.preview_mapping/3`).
   """
   def map(conn, %{"id" => ref} = params) do
+    if dry_run?(params), do: preview_map(conn, ref, params), else: do_map(conn, ref, params)
+  end
+
+  # `dry_run`: what the mapping would bring into the vault, and take over
+  # from the mappings already there, without making it.
+  defp preview_map(conn, ref, params) do
+    with {:ok, vault} <- Vaults.get_vault(user(conn), ref),
+         {:ok, board} <- Authorize.fetch_board(conn, params["board"], :write),
+         {:ok, folder} <- folder(board, params["folder"]),
+         {:ok, preview} <-
+           Vaults.preview_mapping(vault, user(conn), %{
+             path: params["path"],
+             board: board,
+             folder: folder
+           }) do
+      json(conn, %{dry_run: true, preview: preview})
+    end
+  end
+
+  defp do_map(conn, ref, params) do
     with {:ok, vault} <- Vaults.get_vault(user(conn), ref),
          {:ok, board} <- Authorize.fetch_board(conn, params["board"], :write),
          {:ok, folder} <- folder(board, params["folder"]),
@@ -70,17 +91,28 @@ defmodule SlipdockWeb.API.VaultController do
   defp folder(_board, ref) when ref in [nil, ""], do: {:ok, nil}
   defp folder(board, ref), do: Wiki.find_folder(board, ref)
 
-  @doc "Takes a mapping out, by its id (`/mappings/12`) or its path (`?path=/Jobs`)."
+  @doc """
+  Takes a mapping out, by its id (`/mappings/12`) or its path (`?path=/Jobs`).
+  With `dry_run`, only says which pages would leave the vault and which
+  would move to another path.
+  """
   def unmap(conn, %{"id" => ref} = params) do
     mapping = params["mapping"] || params["path"]
 
     with {:ok, vault} <- Vaults.get_vault(user(conn), ref),
-         :ok <- present(mapping),
-         {:ok, _} <- Vaults.remove_mapping(vault, mapping),
-         {:ok, vault} <- Vaults.get_vault(user(conn), vault.id) do
-      json(conn, %{vault: V.vault(vault)})
+         :ok <- present(mapping) do
+      if dry_run?(params) do
+        with {:ok, preview} <- Vaults.preview_unmapping(vault, mapping),
+             do: json(conn, %{dry_run: true, preview: preview})
+      else
+        with {:ok, _} <- Vaults.remove_mapping(vault, mapping),
+             {:ok, vault} <- Vaults.get_vault(user(conn), vault.id),
+             do: json(conn, %{vault: V.vault(vault)})
+      end
     end
   end
+
+  defp dry_run?(params), do: params["dry_run"] in [true, "true", "1"]
 
   defp present(ref) when ref in [nil, ""],
     do: {:error, :bad_request, "say which one: a mapping's id or ?path=, or a ?link="}

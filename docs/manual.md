@@ -2618,6 +2618,19 @@ its feed, by the token's label, with when it last did. Make, rename and
 delete vaults there. Deleting asks first, saying that every page stays on its
 board and naming the synced folders that will stop getting changes.
 
+**Mapping from the screen.** Under each vault, *Map a path* takes a vault
+path (`/`, `/Jobs`), a board and, once a board is picked, optionally one of
+its folders. Boards you can't map are listed but greyed out, with the reason:
+you can't write to it, it is archived, or it is already in another vault.
+Before you press **Map** it previews where things land: how many of the
+board's pages join the vault and at which paths, which pages already in the
+vault the new mapping takes over (being the longer prefix), and which synced
+folders will get the new files. Each mapping's **×** takes it out, after a
+confirmation naming the files that leave the vault (the pages stay on their
+board) and any that fall back to an outer mapping's path. The CLI's
+`vault map … --dry-run` and `vault unmap … --dry-run`, and `dry_run` on the
+API and MCP, give the same preview without changing anything.
+
 Vaults are also made and mapped from the CLI (`slipdock vault`; `vault ls`
 shows the same page counts and synced folders), the API (`/api/vaults`,
 whose vaults carry `mirrors` and each mapping its `pages`) and MCP

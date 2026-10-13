@@ -299,14 +299,17 @@ defmodule SlipdockCLI do
   VAULTS  (board wikis laid out as one Obsidian-style vault: each mapping puts a
            vault path onto a board's wiki or one folder of it, the longest prefix
            winning. A board belongs to one vault, and only one you can write to)
-    vault ls                            your vaults and their mappings
+    vault ls                            your vaults, their mappings (with page counts)
+                                        and the folders each is synced to
     vault show <vault>                  one of them
     vault new <name...>                 make one
     vault rename <vault> <name...>
     vault rm <vault>                    its mappings go; every page stays on its board
-    vault map <vault> <path> --board B [--folder F]
-                                        put a vault path ("/", "/Jobs") onto a board's wiki
-    vault unmap <vault> <path>          take a mapping out
+    vault map <vault> <path> --board B [--folder F] [--dry-run]
+                                        put a vault path ("/", "/Jobs") onto a board's wiki;
+                                        --dry-run lists the pages it brings in and takes over
+    vault unmap <vault> <path> [--dry-run]
+                                        take a mapping out (--dry-run: which pages leave)
     vault locate <vault> <path>         which mapping a vault path lands in, and the rest
     vault resolve <vault> <link...>     the page a [[link]] finds anywhere in the vault
                                         (Note, or Folder/Note; the shortest path wins)

@@ -1837,6 +1837,8 @@ defmodule SlipdockWeb.APIGuide do
          B/api/vaults/Notes/mappings -d '{"path": "/Jobs", "board": "jobs", "folder": "Notes"}'
     curl -s -H "$H" "B/api/vaults/Notes/locate?path=/Jobs/Acme/Call.md"
     # → {"mapping": {"path": "/Jobs", "board": {...}, ...}, "rest": "Acme/Call.md"}
+    # "dry_run": true on a mapping (or &dry_run=true on its removal) previews it, changing nothing:
+    # `arriving`/`leaving` pages with their vault paths, `moving` ones and the `mirrors` affected
     curl -s -X DELETE -H "$H" "B/api/vaults/Notes/mappings?path=/Jobs"
     curl -s -X PATCH -H "$H" -H 'content-type: application/json' \\
          B/api/vaults/Notes -d '{"name": "Brain"}'

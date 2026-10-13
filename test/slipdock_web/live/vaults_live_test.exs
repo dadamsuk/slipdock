@@ -131,4 +131,119 @@ defmodule SlipdockWeb.VaultsLiveTest do
     assert has_element?(view, "button[data-tree-scope=vault][title*='not a folder']")
     assert has_element?(view, "#manage-vault[href='/vaults#vault-#{vault.id}']")
   end
+
+  describe "mappings" do
+    setup %{user: user} do
+      {:ok, vault} = Vaults.create_vault(user, %{"name" => "GMinds"})
+      %{vault: vault}
+    end
+
+    test "boards that can't be mapped are disabled, with the reason", ctx do
+      %{conn: conn, user: user, vault: vault} = ctx
+      lender = user_fixture("lender@example.com")
+      ro = board_fixture(%{"name" => "Borrowed", "code" => "bor"}, owner: lender)
+      share_fixture(ro, user, "read")
+      taken = board_fixture(%{"name" => "Taken", "code" => "tkn"}, owner: user)
+      {:ok, other} = Vaults.create_vault(user, %{"name" => "Other"})
+      {:ok, _} = Vaults.add_mapping(other, user, %{path: "/", board: taken})
+
+      {:ok, view, _html} = live(conn, ~p"/vaults")
+      form = "#map-form-#{vault.id}"
+
+      assert has_element?(view, "#{form} option[disabled]", "Borrowed — you can't write to it")
+      assert has_element?(view, "#{form} option[disabled]", "Taken — is already in another vault")
+      assert has_element?(view, "#{form} option:not([disabled])", "KnowledgeBase")
+    end
+
+    test "previews where things land, then maps, then takes it out again", ctx do
+      %{conn: conn, user: user, kb: kb, vault: vault} = ctx
+      {:ok, jobs} = Wiki.create_folder(kb, %{"name" => "Jobs"})
+      {:ok, _} = Wiki.create_page(kb, %{"title" => "Top"})
+      {:ok, _} = Wiki.create_page(kb, %{"title" => "Acme", "folder_id" => jobs.id})
+
+      {:ok, view, _html} = live(conn, ~p"/vaults")
+      form = "#map-form-#{vault.id}"
+
+      view
+      |> form(form, %{"vault_id" => vault.id, "path" => "/", "board_id" => kb.id})
+      |> render_change()
+
+      assert has_element?(view, "#map-preview-#{vault.id}", "2 pages")
+      assert has_element?(view, "#map-preview-#{vault.id} li", "Jobs/Acme.md")
+      assert has_element?(view, "#{form} select[name=folder_id] option", "Jobs")
+
+      view
+      |> form(form, %{"vault_id" => vault.id, "path" => "/", "board_id" => kb.id})
+      |> render_submit()
+
+      {:ok, vault} = Vaults.get_vault(user, vault.id)
+      assert [%{path: "", board_id: board_id} = root] = vault.mappings
+      assert board_id == kb.id
+      assert has_element?(view, "#mapping-#{root.id}", "2 pages")
+
+      # The same board's folder at its own path takes the folder's pages over:
+      # picking the board first offers its folders.
+      view
+      |> form(form, %{"vault_id" => vault.id, "path" => "/Work", "board_id" => kb.id})
+      |> render_change()
+
+      view
+      |> form(form, %{
+        "vault_id" => vault.id,
+        "path" => "/Work",
+        "board_id" => kb.id,
+        "folder_id" => jobs.id
+      })
+      |> render_change()
+
+      assert has_element?(view, "#map-preview-#{vault.id}", "take over")
+      assert has_element?(view, "#map-preview-#{vault.id} li", "Jobs/Acme.md → Work/Acme.md")
+
+      # Taking the root out confirms which files leave.
+      confirm = view |> element("#remove-mapping-#{root.id}") |> render()
+      assert confirm =~ "2 pages leave the vault"
+      assert confirm =~ "the pages stay on their board"
+
+      view |> element("#remove-mapping-#{root.id}") |> render_click()
+      {:ok, vault} = Vaults.get_vault(user, vault.id)
+      assert vault.mappings == []
+    end
+
+    test "a path already mapped is refused before saving", ctx do
+      %{conn: conn, user: user, kb: kb, vault: vault} = ctx
+      other = board_fixture(%{"name" => "Other board", "code" => "ob"}, owner: user)
+      {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
+      {:ok, view, _html} = live(conn, ~p"/vaults")
+
+      view
+      |> form("#map-form-#{vault.id}", %{
+        "vault_id" => vault.id,
+        "path" => "/",
+        "board_id" => other.id
+      })
+      |> render_change()
+
+      assert has_element?(view, "#map-error-#{vault.id}", "/ is already mapped in this vault")
+      assert has_element?(view, "#map-form-#{vault.id} button[type=submit][disabled]")
+    end
+
+    test "somebody else's board is refused, even sent by hand", ctx do
+      %{conn: conn, vault: vault} = ctx
+      stranger = user_fixture("stranger@example.com")
+      theirs = board_fixture(%{"name" => "Theirs", "code" => "thr"}, owner: stranger)
+
+      {:ok, view, html} = live(conn, ~p"/vaults")
+      refute html =~ "Theirs"
+
+      html =
+        render_submit(view, "add_mapping", %{
+          "vault_id" => to_string(vault.id),
+          "path" => "/",
+          "board_id" => to_string(theirs.id)
+        })
+
+      assert html =~ "Not mapped: that board isn&#39;t there"
+      assert {:ok, %{mappings: []}} = Vaults.get_vault(ctx.user, vault.id)
+    end
+  end
 end
