@@ -129,6 +129,32 @@ defmodule SlipdockWeb.WikiBigVaultTest do
     end
   end
 
+  describe "editing" do
+    test "edit, save and back to the page never reload the tree", %{conn: conn, board: board} do
+      page = page_fixture(board, %{"title" => "Notes", "body" => "before"})
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}")
+      pid = view.pid
+
+      assert tree_loads(pid, 50, fn ->
+               view |> element("a[href$='/wiki/#{page.slug}/edit']") |> render_click()
+             end) == 0
+
+      assert_patch(view, ~p"/boards/#{board}/wiki/#{page.slug}/edit")
+
+      assert tree_loads(pid, 50, fn ->
+               view |> form("#page-form", page: %{body: "after"}) |> render_submit()
+             end) == 0
+
+      assert_patch(view, ~p"/boards/#{board}/wiki/#{page.slug}")
+      assert view.pid == pid
+      assert render(view) =~ "after"
+
+      # The save's own change reaches the tree once, in its own time.
+      Process.sleep(500)
+      assert render(view) =~ "Notes"
+    end
+  end
+
   describe "list_pages(listing: true)" do
     test "cuts the body to what an excerpt needs and leaves the front matter", %{board: board} do
       page = page_fixture(board, %{"title" => "Long", "body" => String.duplicate("word ", 1000)})

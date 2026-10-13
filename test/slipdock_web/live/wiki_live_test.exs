@@ -67,12 +67,13 @@ defmodule SlipdockWeb.WikiLiveTest do
   test "writing a page creates it and lands on it", %{conn: conn, board: board} do
     {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki/new")
 
-    assert {:error, {:live_redirect, %{to: path}}} =
-             view
-             |> form("#page-form", page: %{title: "Deploys", body: "# How we ship"})
-             |> render_submit()
+    view
+    |> form("#page-form", page: %{title: "Deploys", body: "# How we ship"})
+    |> render_submit()
 
-    assert path == "/boards/#{board.id}/wiki/deploys"
+    # In place: the same view, now on the new page.
+    assert_patch(view, "/boards/#{board.id}/wiki/deploys")
+    assert has_element?(view, "#wiki-main[data-page^='show:']")
     assert {:ok, %{title: "Deploys"}} = Wiki.find_page(board, "deploys")
   end
 
@@ -141,8 +142,8 @@ defmodule SlipdockWeb.WikiLiveTest do
     assert has_element?(revision_view, ~s|td[data-op="ins"]|, "first")
     refute has_element?(revision_view, ~s|td[data-op="del"]|)
 
-    assert {:error, {:live_redirect, _}} =
-             revision_view |> element("button", "Restore this version") |> render_click()
+    revision_view |> element("button", "Restore this version") |> render_click()
+    assert_patch(revision_view, ~p"/boards/#{board}/wiki/#{page.slug}")
 
     assert Wiki.get_page!(page.id).body == "first"
   end
