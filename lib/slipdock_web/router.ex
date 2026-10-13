@@ -531,6 +531,8 @@ defmodule SlipdockWeb.Router do
     patch "/vaults/:id/sync/files/:file_id", VaultSyncController, :patch_file
     delete "/vaults/:id/sync/files/:file_id", VaultSyncController, :delete_file
     post "/vaults/:id/mappings", VaultController, :map
+    # Give a vault folder its own board: move its contents and map its path (#747).
+    post "/vaults/:id/split", VaultController, :split
     delete "/vaults/:id/mappings", VaultController, :unmap
     delete "/vaults/:id/mappings/:mapping", VaultController, :unmap
     # The board's wiki (see `Slipdock.Wiki`). `:id` takes a numeric id, a page

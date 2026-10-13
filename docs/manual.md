@@ -2679,6 +2679,27 @@ shows the same page counts and synced folders), the API (`/api/vaults`,
 whose vaults carry `mirrors` and each mapping its `pages`) and MCP
 (`list_vaults`, `manage_vault`).
 
+**Giving a vault folder its own board.** Say GMinds maps `/` onto
+KnowledgeBase, and KnowledgeBase keeps a `Jobs` folder that should be the
+Job Hunt board's. On that folder in the wiki's tree (yours, since it changes
+your vault), **Give it its own board…** asks which board — or a new one —
+and shows what would happen: how many notes and folders move, how many files
+in synced folders stay exactly as they are, which of the board's own pages
+join `/Jobs`, and any note that lands beside one of the same title. Confirm,
+and in one step everything in the folder moves to the top of that board and
+`/Jobs` is mapped onto it. The notes keep their vault paths, so a synced
+folder sees no change to them; only the board's own pages arrive as new
+files. It all happens or none of it does. On a shell:
+
+```
+slipdock vault split GMinds /Jobs --board jobhunt --dry-run   # what would happen
+slipdock vault split GMinds /Jobs --board jobhunt             # do it
+slipdock vault split GMinds /Jobs --new-board "Job Hunt"      # a board made for it
+```
+
+The API is `POST /api/vaults/:id/split` (`path`, `board` or `new_board`,
+`dry_run`); MCP is `manage_vault` with `action: "split"`.
+
 **Links across a vault.** On a board in a vault, a plain `[[Note]]` looks
 on its own board first and then on every board of the vault. Every page
 there has a vault path — its mapping's path, the folders below it, the pages
@@ -3948,7 +3969,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `write_page` | The wiki: `create` a page, `append` or `append_section` to one, or `replace_section` and `replace`, which need the `content_hash` from `read_page` so nobody's edit is overwritten. |
 | `update_page` | Everything about a page but its body: `title`, `summary`, `parent` (`""` for the top) and `position` among its siblings, `folder` (made if new; `""` unfiles), `archived` (`false` restores it, children too), and `pin_card` / `unpin_card` to mark it *the* page for a card you can read. Only what is passed changes. Purging a page for good stays on the CLI. |
 | `revert_page` | Puts a page back to a revision from `page_history`. The revert is a new revision, so nothing leaves the history and it can itself be undone; it needs `base_hash`, the page's current `content_hash`, so a newer edit is not lost to it unseen. |
-| `manage_vault` | Changes a [vault](#vaults), by `action`: `create` (`name`), `rename` (`vault`, `name`), `delete` (`vault`, `confirm: true`; the pages stay on their boards), `map` (`vault`, `path`, `board` and optionally `folder`) and `unmap` (`vault`, `path`), either with `dry_run` to preview which pages join, move or leave; and `move_folder` (`board`, `folder`, `to_board`, optionally `parent`, `contents`, `dry_run`), a folder with everything in it to another board. |
+| `manage_vault` | Changes a [vault](#vaults), by `action`: `create` (`name`), `rename` (`vault`, `name`), `delete` (`vault`, `confirm: true`; the pages stay on their boards), `map` (`vault`, `path`, `board` and optionally `folder`) and `unmap` (`vault`, `path`), either with `dry_run` to preview which pages join, move or leave; `move_folder` (`board`, `folder`, `to_board`, optionally `parent`, `contents`, `dry_run`), a folder with everything in it to another board; and `split` (`vault`, `path`, `board` or `new_board`, `dry_run`), giving a vault folder its own board and mapping its path onto it. |
 | `claim_job` | Takes the oldest [runner job](#runners) queued for a pool on a board, with a lease: the card, its link, the job's kind and prompt. Answers `nothing queued` when there is none, so an idle check costs little. The session shows in the board's runner list. |
 | `job_progress` | Renews a claimed job's lease; `note`, if given, is also a comment on the card. Answers `ok`, or `cancel` when somebody has stopped the job. |
 | `finish_job` | Ends a claimed job: `outcome` done, failed, cancelled or timeout, and a `summary` kept on the job. Only the token that claimed it may. |

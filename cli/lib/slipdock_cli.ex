@@ -316,6 +316,11 @@ defmodule SlipdockCLI do
                                         --dry-run lists the pages it brings in and takes over
     vault unmap <vault> <path> [--dry-run]
                                         take a mapping out (--dry-run: which pages leave)
+    vault split <vault> <path> --board B | --new-board NAME [--dry-run]
+                                        give a vault folder its own board: what is in it
+                                        moves to B (or a board made for it) and <path> is
+                                        mapped onto B. The notes keep their vault paths,
+                                        so a synced folder sees no change to them
     vault locate <vault> <path>         which mapping a vault path lands in, and the rest
     vault resolve <vault> <link...>     the page a [[link]] finds anywhere in the vault
                                         (Note, or Folder/Note; the shortest path wins)
@@ -725,6 +730,7 @@ defmodule SlipdockCLI do
     force: :boolean,
     dry_run: :boolean,
     contents: :boolean,
+    new_board: :string,
     append: :string,
     card: :string,
     page: :string,

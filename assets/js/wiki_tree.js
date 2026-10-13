@@ -345,6 +345,9 @@ export function menuItems(row, ctx) {
     add(writable && !many && row.board_id === ctx.board, {label: "New folder inside", icon: "hero-folder-plus", event: "new_folder", payload: {parent: id}, group: "new"})
     add(writable && !many, {label: "New drawing here", icon: "hero-paint-brush", event: "new_drawing", payload: {key: row.key}, group: "new"})
     add(writable && !many, {label: "Rename…", icon: "hero-pencil", event: "rename_folder", payload: {id}, group: "edit"})
+    // Its contents to a board of their own, mapped at its vault path (#747):
+    // for whoever owns the vault, since it changes the vault's mappings.
+    add(writable && !many && ctx.vaultOwner, {label: "Give it its own board…", icon: "hero-arrow-up-on-square-stack", event: "split_folder", payload: {id}, group: "edit"})
   } else {
     add(writable && !many, {label: "New note inside", icon: "hero-document-plus", href: `${base}/new?parent=${id}`, nav, group: "new"})
     add(writable && !many, {label: "Rename…", icon: "hero-pencil", event: "rename_page", payload: {id}, group: "edit"})
@@ -479,6 +482,7 @@ export const WikiTree = {
       rootSort: this.rootSort,
       organising: this.el.dataset.organising === "true",
       canWrite: this.el.dataset.canWrite === "true",
+      vaultOwner: this.el.dataset.vaultOwner === "true",
     }
   },
 

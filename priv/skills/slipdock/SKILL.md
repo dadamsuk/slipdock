@@ -440,8 +440,10 @@ slipdock vault locate <vault> <path> | slipdock vault rename <vault> <name...> |
 `vault ls` also shows how many pages each mapping holds and the folders the vault is synced to
 (each sync token's label and last sync); `--dry-run` on map/unmap previews which pages join,
 move or leave the vault before changing it. A mapping over pages another mapped board already
-has at those paths is refused with the count: move those pages to that board first
-(`folder mv <board> <folder> --board B --contents`). People do the same on the web app's Vaults screen
+has at those paths is refused with the count. The one-step way out:
+`slipdock vault split <vault> /Jobs --board B [--dry-run]` (or `--new-board NAME`) moves what is
+in that folder to B's top and maps `/Jobs` onto B; notes keep their vault paths, so synced
+folders see no change. Dry-run first and show the person the report. People do the same on the web app's Vaults screen
 (`/vaults`, avatar menu › Vaults).
 
 `slipdock sync` mirrors a vault both ways to a local folder that stays a valid Obsidian vault

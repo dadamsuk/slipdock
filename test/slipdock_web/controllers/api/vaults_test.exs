@@ -263,4 +263,55 @@ defmodule SlipdockWeb.API.VaultsTest do
     assert conn |> get("/api/vaults/Brain") |> json_response(200) |> get_in(["vault", "overlaps"]) ==
              []
   end
+
+  describe "split" do
+    setup %{conn: conn, kb: kb} do
+      {:ok, folder} = Wiki.create_folder(kb, %{"name" => "Work"})
+      {:ok, page} = Wiki.create_page(kb, %{"title" => "Acme", "folder_id" => folder.id})
+      make(conn, "Brain")
+      conn |> post("/api/vaults/Brain/mappings", %{"board" => "kb"}) |> json_response(201)
+      %{page: page}
+    end
+
+    test "dry_run previews, then it moves the folder's contents and maps the path", ctx do
+      %{conn: conn, jobs: jobs, page: page} = ctx
+
+      dry =
+        conn
+        |> post("/api/vaults/Brain/split", %{
+          "path" => "/Work",
+          "board" => "jobs",
+          "dry_run" => true
+        })
+        |> json_response(200)
+
+      assert %{"path" => "/Work", "into" => "Job Hunt", "unchanged" => 1} = dry["preview"]
+      assert Wiki.get_page!(page.id).board_id != jobs.id
+
+      done =
+        conn
+        |> post("/api/vaults/Brain/split", %{"path" => "/Work", "board" => "jobs"})
+        |> json_response(200)
+
+      assert done["board"]["code"] == "jobs"
+      assert done["result"]["unchanged"] == 1
+      assert Enum.map(done["vault"]["mappings"], & &1["path"]) == ["/", "/Work"]
+      assert Wiki.get_page!(page.id).board_id == jobs.id
+    end
+
+    test "new_board makes one; a missing board is a 400, a mapping path a 422", %{conn: conn} do
+      conn |> post("/api/vaults/Brain/split", %{"path" => "/Work"}) |> json_response(400)
+
+      conn
+      |> post("/api/vaults/Brain/split", %{"path" => "/", "new_board" => "Fresh"})
+      |> json_response(422)
+
+      done =
+        conn
+        |> post("/api/vaults/Brain/split", %{"path" => "/Work", "new_board" => "Careers"})
+        |> json_response(200)
+
+      assert done["board"]["name"] == "Careers"
+    end
+  end
 end

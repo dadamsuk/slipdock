@@ -11,7 +11,7 @@ defmodule SlipdockWeb.MCP.Tools.ManageVault do
   alias SlipdockWeb.API.JSON, as: V
   alias SlipdockWeb.MCP.Args
 
-  @actions ~w(create rename delete map unmap move_folder)
+  @actions ~w(create rename delete map unmap move_folder split)
 
   @impl true
   def name, do: "manage_vault"
@@ -29,7 +29,10 @@ defmodule SlipdockWeb.MCP.Tools.ManageVault do
         "out, and changes nothing. move_folder moves a folder (board, folder) with its subfolders, " <>
         "pages and files to another board you can write to (to_board, optional parent folder " <>
         "there; contents: true moves only what is in it): pages keep codes and history; " <>
-        "dry_run reports what moves and what can't be carried."
+        "dry_run reports what moves and what can't be carried. split gives the folder at a vault " <>
+        "path its own board in one step (vault, path, board — or new_board to make one): its " <>
+        "contents move there and the path is mapped onto it, notes keeping their vault paths; " <>
+        "dry_run first."
 
   @impl true
   def input_schema do
@@ -50,6 +53,7 @@ defmodule SlipdockWeb.MCP.Tools.ManageVault do
             "A folder on that board (map: default its root; move_folder: the one to move)."
         },
         to_board: %{type: "string", description: "move_folder: the board it goes to."},
+        new_board: %{type: "string", description: "split: make a board of this name for it."},
         parent: %{
           type: "string",
           description: "move_folder: a folder on to_board to put it in; default its top."
@@ -177,6 +181,41 @@ defmodule SlipdockWeb.MCP.Tools.ManageVault do
       end
     end
   end
+
+  # A vault folder becomes its own board's, and its path that board (#747).
+  defp act("split", args, user, context) do
+    with {:ok, vault} <- vault(args, user),
+         {:ok, path} <- Args.required(args, "path"),
+         {:ok, new_board} <- Args.optional(args, "new_board"),
+         {:ok, board_ref} <- Args.optional(args, "board"),
+         {:ok, dry_run} <- Args.boolean(args, "dry_run", false),
+         {:ok, target} <- split_target(new_board, board_ref, context) do
+      if dry_run do
+        with {:ok, preview} <- Args.refusal(Vaults.Split.preview(vault, user, path, target)),
+             do: {:ok, %{dry_run: true, preview: preview}}
+      else
+        with {:ok, result} <- Args.refusal(Vaults.Split.run(vault, user, path, target)),
+             {:ok, vault} <- Args.refusal(Vaults.get_vault(user, vault.id)) do
+          {board, result} = Map.pop(result, :board)
+
+          {:ok,
+           %{
+             result: result,
+             board: %{id: board.id, code: board.code, name: board.name},
+             vault: V.vault(vault)
+           }}
+        end
+      end
+    end
+  end
+
+  defp split_target(name, _ref, _context) when is_binary(name), do: {:ok, {:new, name}}
+
+  defp split_target(nil, ref, context) when is_binary(ref),
+    do: Args.refusal(Authorize.fetch_board(Args.auth(context), ref, :write))
+
+  defp split_target(_name, _ref, _context),
+    do: {:error, "say which board: board, or new_board to make one"}
 
   defp vault(args, user) do
     with {:ok, ref} <- Args.required(args, "vault"),

@@ -88,6 +88,43 @@ defmodule SlipdockWeb.API.VaultController do
     end
   end
 
+  @doc """
+  Gives the folder at vault `path` its own board: what is in it moves to
+  `board` (id, code or name; one you can write to) — or to a board made for
+  it, `new_board` naming it — and `path` is mapped onto that board, in one
+  step. The notes keep their vault paths. `dry_run` reports it all
+  (`Slipdock.Vaults.Split`) and changes nothing.
+  """
+  def split(conn, %{"id" => ref} = params) do
+    with {:ok, vault} <- Vaults.get_vault(user(conn), ref),
+         {:ok, target} <- split_target(conn, params) do
+      if dry_run?(params) do
+        with {:ok, preview} <- Vaults.Split.preview(vault, user(conn), params["path"], target),
+             do: json(conn, %{dry_run: true, preview: preview})
+      else
+        with {:ok, result} <- Vaults.Split.run(vault, user(conn), params["path"], target),
+             {:ok, vault} <- Vaults.get_vault(user(conn), vault.id) do
+          {board, result} = Map.pop(result, :board)
+
+          json(conn, %{
+            result: result,
+            board: %{id: board.id, code: board.code, name: board.name},
+            vault: V.vault(vault)
+          })
+        end
+      end
+    end
+  end
+
+  defp split_target(_conn, %{"new_board" => name}) when is_binary(name) and name != "",
+    do: {:ok, {:new, name}}
+
+  defp split_target(conn, %{"board" => ref}) when is_binary(ref) and ref != "",
+    do: Authorize.fetch_board(conn, ref, :write)
+
+  defp split_target(_conn, _params),
+    do: {:error, :bad_request, "say which board: board, or new_board to make one"}
+
   defp folder(_board, ref) when ref in [nil, ""], do: {:ok, nil}
   defp folder(board, ref), do: Wiki.find_folder(board, ref)
 
