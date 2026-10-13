@@ -51,7 +51,7 @@ defmodule Slipdock.Runners.JobEventsTest do
     for status <- ~w(done failed cancelled timeout) do
       test "#{status} is heard once, with the job's fields", ctx do
         listener(ctx.board)
-        {:ok, job} = queue(ctx.card)
+        {:ok, _} = queue(ctx.card)
         job = Runners.claim(ctx.runner)
 
         {:ok, _} = Runners.finish(ctx.runner, job.id, %{status: unquote(status), exit: "4"})
