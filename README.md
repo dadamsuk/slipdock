@@ -634,7 +634,7 @@ the diff one save made, or between any two), `list_vaults` (your vaults, or wher
 `update_card`, `move_card`, `comment`, `complete_card`, `status_update` (a card's stated health, with a note), `archive_card`,
 `delete_card`, `create_list`, `create_tag`, `delete_list`, `create_board`, `archive_board`,
 `delete_board`, `write_page`, `update_page` (rename, summary, move, file, archive or
-restore, pin to a card), `revert_page` (put a page back to a revision) and `manage_vault` (make a vault and map vault paths onto board wikis) to write, and
+restore, pin to a card), `revert_page` (put a page back to a revision) and `manage_vault` (make a vault, map vault paths onto board wikis, move a folder to another board) to write, and
 `claim_job`, `job_progress` and `finish_job` to take [runner jobs](#run-an-agent-against-a-board)
 from a board's queue, and — only while an admin has meeting mode on — `capture_meeting`,
 `get_capture`, `resolve_capture_question` and `commit_capture` for meeting capture

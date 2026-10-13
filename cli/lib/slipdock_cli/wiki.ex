@@ -53,44 +53,17 @@ defmodule SlipdockCLI.Wiki do
   end
 
   def run("folder", ["mv", ref, folder], o) do
-    if is_nil(o[:parent]) and o[:root] != true and is_nil(o[:name]) and is_nil(o[:sort]),
-      do:
-        fail(
-          "say what to change: --parent P, --root, --name N, or --sort manual|name|modified|created"
-        )
-
-    body =
-      compact(%{
-        "name" => o[:name],
-        "parent" => if(o[:root], do: "root", else: o[:parent]),
-        "position" => o[:position],
-        "sort" => o[:sort]
-      })
-
-    HTTP.patch("/boards/#{enc(ref)}/folders/#{path_enc(folder)}", body)
-    |> out(o, &Render.folder(&1["folder"]))
+    if is_binary(o[:board]), do: folder_to_board(ref, folder, o), else: folder_mv(ref, folder, o)
   end
 
   def run("folder", ["rm", ref, folder], o) do
-    query = if o[:purge], do: [purge: "true"], else: []
-
-    HTTP.delete("/boards/#{enc(ref)}/folders/#{path_enc(folder)}", query)
-    |> out(o, fn
-      %{"purged" => purged} = r ->
-        IO.puts(
-          "deleted the folder #{r["deleted"]["path"]} and everything in it " <>
-            "— #{purged["pages"]} page(s), #{purged["folders"]} subfolder(s)"
-        )
-
-      r ->
-        IO.puts("deleted the folder #{r["deleted"]["path"]} — nothing in it was deleted")
-    end)
+    folder_rm(ref, folder, o)
   end
 
   def run("folder", _args, _o),
     do:
       fail(
-        "usage: slipdock folder ls BOARD | open BOARD [F] [--page P] | new BOARD NAME [--parent F] | mv BOARD F --parent G|--root|--name N | rm BOARD F [--purge]"
+        "usage: slipdock folder ls BOARD | open BOARD [F] [--page P] | new BOARD NAME [--parent F] | mv BOARD F --parent G|--root|--name N|--board B [--contents] | rm BOARD F [--purge]"
       )
 
   # Every board's wiki at once: what the Wiki view on the web shows.
@@ -832,6 +805,34 @@ defmodule SlipdockCLI.Wiki do
     HTTP.post("/pages/#{enc(ref)}/folder", body) |> out(o, &page_ok("filed", &1))
   end
 
+  @doc false
+  # A folder moved to another board, or what moving it would do.
+  def print_folder_move(%{"report" => r, "board" => board} = reply, folder) do
+    dry? = reply["dry_run"] == true
+
+    IO.puts(
+      if dry?,
+        do: "moving #{folder} to #{board} would move:",
+        else: "moved #{folder} to #{board}:"
+    )
+
+    IO.puts("  #{r["folders"]} folder(s), #{r["pages"]} page(s), #{r["files"]} file(s)")
+
+    for f <- r["per_folder"] || [], f["pages"] > 0, do: IO.puts("    #{f["path"]}: #{f["pages"]}")
+
+    report_line("carry tags", r["tags"]["carried"])
+    report_line("drop tags", r["tags"]["dropped"])
+    report_line("carry fields", r["fields"]["carried"])
+    report_line("drop field values", r["fields"]["dropped"])
+    report_line("unpin cards", r["pins"]["dropped"])
+    report_line("let go of assignees", r["assignees"]["dropped"])
+    report_line("leave behind (under a page that stays)", r["left_behind"])
+    report_line("land beside pages of the same title", r["title_clashes"])
+
+    if r["filing_dropped"] > 0,
+      do: IO.puts("  take away #{r["filing_dropped"]} filing(s) in folders across boards")
+  end
+
   defp report_line(_what, []), do: :ok
   defp report_line(what, items), do: IO.puts("  #{what}: #{Enum.join(items, ", ")}")
 
@@ -871,5 +872,53 @@ defmodule SlipdockCLI.Wiki do
       })
 
     HTTP.post("/pages/#{enc(ref)}/move", body) |> out(o, &page_ok("moved", &1))
+  end
+
+  defp folder_to_board(ref, folder, o) do
+    body =
+      compact(%{
+        "to_board" => o[:board],
+        "parent" => o[:parent],
+        "contents" => o[:contents],
+        "dry_run" => o[:dry_run]
+      })
+
+    HTTP.patch("/boards/#{enc(ref)}/folders/#{path_enc(folder)}", body)
+    |> out(o, &print_folder_move(&1, folder))
+  end
+
+  defp folder_mv(ref, folder, o) do
+    if is_nil(o[:parent]) and o[:root] != true and is_nil(o[:name]) and is_nil(o[:sort]),
+      do:
+        fail(
+          "say what to change: --parent P, --root, --name N, or --sort manual|name|modified|created"
+        )
+
+    body =
+      compact(%{
+        "name" => o[:name],
+        "parent" => if(o[:root], do: "root", else: o[:parent]),
+        "position" => o[:position],
+        "sort" => o[:sort]
+      })
+
+    HTTP.patch("/boards/#{enc(ref)}/folders/#{path_enc(folder)}", body)
+    |> out(o, &Render.folder(&1["folder"]))
+  end
+
+  defp folder_rm(ref, folder, o) do
+    query = if o[:purge], do: [purge: "true"], else: []
+
+    HTTP.delete("/boards/#{enc(ref)}/folders/#{path_enc(folder)}", query)
+    |> out(o, fn
+      %{"purged" => purged} = r ->
+        IO.puts(
+          "deleted the folder #{r["deleted"]["path"]} and everything in it " <>
+            "— #{purged["pages"]} page(s), #{purged["folders"]} subfolder(s)"
+        )
+
+      r ->
+        IO.puts("deleted the folder #{r["deleted"]["path"]} — nothing in it was deleted")
+    end)
   end
 end

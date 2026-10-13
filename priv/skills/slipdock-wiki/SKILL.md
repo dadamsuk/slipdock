@@ -140,6 +140,7 @@ slipdock page new <board> Why SQLite --folder "Design/Decisions" --body -
 slipdock page ls <board> --folder decisions        # what is in one
 slipdock page ls <board> --no-folder               # what is filed nowhere
 slipdock folder mv <board> Decisions --name Choices --parent Design
+slipdock folder mv kb Jobs --board jobs --dry-run    # to another board: subfolders, pages (codes kept), files
 slipdock folder rm <board> Choices                 # the folder only
 ```
 
