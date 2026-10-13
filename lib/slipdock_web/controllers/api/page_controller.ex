@@ -1135,7 +1135,7 @@ defmodule SlipdockWeb.API.PageController do
   @doc "Comments on a page."
   def add_comment(conn, %{"id" => id, "body" => body}) do
     with {:ok, page} <- fetch_page(conn, id, :write),
-         {:ok, comment} <- Boards.add_comment(page, body) do
+         {:ok, comment} <- Boards.add_comment(page, body, by: conn.assigns.current_user) do
       conn |> put_status(:created) |> json(%{comment: V.comment(comment)})
     end
   end

@@ -57,6 +57,10 @@ defmodule Slipdock.AccountExportDeletionTest do
       {:ok, _} =
         Boards.add_status_update(card, user, %{"health" => "at_risk", "body" => "slipping a week"})
 
+      {:ok, _} = Boards.add_comment(card, "Finance signed it off", by: user)
+      {:ok, _} = Boards.add_comment(card, "Somebody else's remark", by: other)
+      {:ok, _} = Boards.add_comment(card, "An automation's note")
+
       {_name, binary} = AccountExport.zip(user)
       {:ok, entries} = :zip.unzip(binary, [:memory])
 
@@ -65,6 +69,12 @@ defmodule Slipdock.AccountExportDeletionTest do
         Enum.find(entries, fn {p, _} -> to_string(p) == "elsewhere/written-by-you.json" end)
 
       assert Jason.decode!(json)["status_updates"] |> hd() |> Map.get("body") =~ "slipping"
+
+      # Only their own comments: not other people's, nor the unattributed.
+      assert [%{"body" => "Finance signed it off", "card_id" => card_id}] =
+               Jason.decode!(json)["comments"]
+
+      assert card_id == card.id
     end
   end
 
@@ -123,7 +133,13 @@ defmodule Slipdock.AccountExportDeletionTest do
       {:ok, update} =
         Boards.add_status_update(card, user, %{"health" => "at_risk", "body" => "still readable"})
 
+      {:ok, comment} = Boards.add_comment(card, "also still readable", by: user)
+
       {:ok, _} = Accounts.delete_user(user)
+
+      kept_comment = Repo.get(Slipdock.Boards.Comment, comment.id)
+      assert kept_comment.body == "also still readable"
+      assert kept_comment.user_id == nil
 
       # The words were addressed to other people, and a history with holes in
       # it is unreadable.

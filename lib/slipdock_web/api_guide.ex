@@ -1218,9 +1218,11 @@ defmodule SlipdockWeb.APIGuide do
       "tags": [{"id": 4, "name": "api", "color": "sky"}]}}
     ```
 
-    **One card.** A comment is `id`, `body` and `inserted_at`, and nothing
-    else: comments do not record who wrote them. A status update names its
-    writer by `user_id`. A checklist item is `id`, `position`, `done` and
+    **One card.** A comment is `id`, `body`, `author` and `inserted_at`. The
+    `author` is who wrote it, `{id, name, email}` as an assignee is; it is
+    `null` on comments written before authors were kept and on the ones the
+    server writes itself (automations, runner notes). A status update names
+    its writer by `user_id`. A checklist item is `id`, `position`, `done` and
     `text`.
 
     ```sh
@@ -1233,6 +1235,7 @@ defmodule SlipdockWeb.APIGuide do
       "checklist": {"done": 0, "total": 1,
                     "items": [{"id": 11, "position": 0, "done": false, "text": "Write the test"}]},
       "comments": [{"id": 1411, "body": "Rollback was blocked on approvals",
+                    "author": {"id": 2, "name": "Ada", "email": "ada@example.com"},
                     "inserted_at": "2026-10-13T00:41:41Z"}],
       "status_updates": [{"id": 7, "health": "at_risk", "body": "Waiting on finance",
                           "user_id": 2, "inserted_at": "2026-10-13T00:50:00Z"}]}}

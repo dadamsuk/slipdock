@@ -62,6 +62,8 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
   defp api_card(conn, id),
     do: conn |> get(~p"/api/cards/#{id}") |> json_response(200) |> Map.fetch!("card")
 
+  defp display(user), do: Accounts.User.display_name(user)
+
   defp read_only(conn, user) do
     {token, _} = Accounts.create_api_token(user, "reader", scope: "read")
     put_req_header(conn, "authorization", "Bearer " <> token)
@@ -525,6 +527,17 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
       result = ctx.conn |> call("comment", %{card: ctx.card.id, body: "Picked up."}) |> ok!()
       assert result["comment"]["body"] == "Picked up."
       assert [%{"body" => "Picked up."}] = api_card(ctx.conn, ctx.card.id)["comments"]
+    end
+
+    test "is signed by the token's owner, in the reply, on the API and on get_card", ctx do
+      author = %{"id" => ctx.user.id, "email" => ctx.user.email, "name" => display(ctx.user)}
+
+      result = ctx.conn |> call("comment", %{card: ctx.card.id, body: "Mine."}) |> ok!()
+      assert result["comment"]["author"] == author
+      assert [%{"author" => ^author}] = api_card(ctx.conn, ctx.card.id)["comments"]
+
+      card = ctx.conn |> call("get_card", %{card: ctx.card.id}) |> ok!()
+      assert [%{"body" => "Mine.", "author" => ^author}] = card["comments"]
     end
 
     test "a blank comment is refused", ctx do

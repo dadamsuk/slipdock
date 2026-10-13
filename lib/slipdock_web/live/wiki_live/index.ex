@@ -1548,7 +1548,11 @@ defmodule SlipdockWeb.WikiLive.Index do
   def handle_event("add_comment", %{"body" => body}, socket) do
     if String.trim(body) == "",
       do: {:noreply, socket},
-      else: contents_event(socket, &Boards.add_comment(&1, String.trim(body)))
+      else:
+        contents_event(
+          socket,
+          &Boards.add_comment(&1, String.trim(body), by: socket.assigns.current_user)
+        )
   end
 
   # The page's own view has no paste-an-image upload on the comment box, so

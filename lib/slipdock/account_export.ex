@@ -5,12 +5,12 @@ defmodule Slipdock.AccountExport do
   The test of an export is whether somebody could leave with it and still have
   their work, so this is deliberately more than a gesture: the boards they own
   as JSON with every card, their wiki pages as the same Markdown files the
-  per-board export writes, and the status updates and wiki revisions they wrote
-  on *other people's* boards — theirs too, and invisible to every other export
-  because those boards are not.
+  per-board export writes, and the comments, status updates and wiki revisions
+  they wrote on *other people's* boards — theirs too, and invisible to every
+  other export because those boards are not.
 
-  Comments are deliberately absent: this app's comments carry no author at all
-  (see `Slipdock.Boards.Comment`), so there is nothing to attribute.
+  Comments written before authors were kept (#668) carry none, so only the
+  ones written since can be told apart as theirs.
 
   JSON rather than CSV for the structure, because cards have subcards, and a
   flat file loses the shape of the thing being exported.
@@ -19,7 +19,7 @@ defmodule Slipdock.AccountExport do
 
   alias Slipdock.Accounts.User
   alias Slipdock.Boards
-  alias Slipdock.Boards.{Board, Card, StatusUpdate}
+  alias Slipdock.Boards.{Board, Card, Comment, StatusUpdate}
   alias Slipdock.Wiki.{Page, Revision}
   alias Slipdock.Repo
   alias Slipdock.Wiki.Archive
@@ -127,11 +127,16 @@ defmodule Slipdock.AccountExport do
   # What they wrote that is attributed to them on boards they do not own —
   # invisible to every other export, because those boards belong to somebody
   # else.
-  #
-  # Comments are **not** here, and that is not an omission: this app's comments
-  # carry no author at all (see `Slipdock.Boards.Comment`), so there is nothing
-  # to attribute, nothing to export and nothing to anonymise on deletion.
   defp elsewhere_entries(user) do
+    comments =
+      Repo.all(
+        from(c in Comment,
+          where: c.user_id == ^user.id,
+          order_by: [asc: c.inserted_at],
+          select: %{card_id: c.card_id, page_id: c.page_id, body: c.body, written: c.inserted_at}
+        )
+      )
+
     updates =
       Repo.all(
         from(s in StatusUpdate,
@@ -158,14 +163,15 @@ defmodule Slipdock.AccountExport do
         )
       )
 
-    case {updates, revisions} do
-      {[], []} ->
+    case {comments, updates, revisions} do
+      {[], [], []} ->
         []
 
       _ ->
         [
           {"elsewhere/written-by-you.json",
-           Jason.encode_to_iodata!(%{status_updates: updates, wiki_revisions: revisions},
+           Jason.encode_to_iodata!(
+             %{comments: comments, status_updates: updates, wiki_revisions: revisions},
              pretty: true
            )}
         ]

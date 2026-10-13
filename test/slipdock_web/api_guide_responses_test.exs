@@ -16,7 +16,7 @@ defmodule SlipdockWeb.APIGuideResponsesTest do
 
     board = board_fixture(%{"name" => "Delivery", "code" => "delivery"}, owner: user)
     card = card_fixture(hd(board.columns), %{"title" => "Refund rounding"})
-    {:ok, _} = Boards.add_comment(card, "Rollback was blocked on approvals")
+    {:ok, _} = Boards.add_comment(card, "Rollback was blocked on approvals", by: user)
     {:ok, _} = Boards.add_checklist_item(card, "Write the test")
     {:ok, _} = Search.index_cards(Search.load_cards(Search.all_card_ids()))
     {:ok, _} = Boards.create_tag(board, %{"name" => "api", "color" => "sky"})
@@ -119,8 +119,9 @@ defmodule SlipdockWeb.APIGuideResponsesTest do
 
     # Board: cards come inside each list.
     assert text =~ "Each list carries its own `cards`"
-    # Card: what a comment is, and that it has no author.
-    assert text =~ "comments do not record who wrote them"
+    # Card: what a comment is, and who wrote it.
+    assert text =~ "A comment is `id`, `body`, `author` and `inserted_at`"
+    assert text =~ "`null` on comments written before authors were kept"
     # Status: the body and its values.
     assert text =~
              "takes `health` — `on_track`, `at_risk` or `off_track` — and an optional `body`"
