@@ -358,6 +358,18 @@ defmodule SlipdockCLI.Vaults do
       mappings -> Enum.each(mappings, &IO.puts("  " <> mapping_line(&1)))
     end
 
+    case v["overlaps"] || [] do
+      [] ->
+        :ok
+
+      [first | _] = overlaps ->
+        IO.puts(
+          "  warning: #{length(overlaps)} page(s) of #{first["board"]} sit under " <>
+            "#{first["under"]}, which #{first["owner"]}'s mapping owns (#{first["path"]}…): " <>
+            "move them to #{first["owner"]} or take that mapping out"
+        )
+    end
+
     # The folders it is synced to, from servers that record them.
     for m <- v["mirrors"] || [] do
       IO.puts(

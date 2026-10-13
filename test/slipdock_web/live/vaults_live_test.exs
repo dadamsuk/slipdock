@@ -246,4 +246,53 @@ defmodule SlipdockWeb.VaultsLiveTest do
       assert {:ok, %{mappings: []}} = Vaults.get_vault(ctx.user, vault.id)
     end
   end
+
+  describe "overlaps" do
+    setup %{user: user, kb: kb} do
+      hunt = board_fixture(%{"name" => "Job Hunt", "code" => "hunt"}, owner: user)
+      {:ok, jobs} = Wiki.create_folder(kb, %{"name" => "Jobs"})
+      {:ok, _} = Wiki.create_page(kb, %{"title" => "Acme", "folder_id" => jobs.id})
+      {:ok, vault} = Vaults.create_vault(user, %{"name" => "GMinds"})
+      {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
+      %{hunt: hunt, vault: vault}
+    end
+
+    test "the form says why before saving, and the Map button stays off", ctx do
+      %{conn: conn, hunt: hunt, vault: vault} = ctx
+      {:ok, view, _html} = live(conn, ~p"/vaults")
+
+      view
+      |> form("#map-form-#{vault.id}", %{
+        "vault_id" => vault.id,
+        "path" => "/Jobs",
+        "board_id" => hunt.id
+      })
+      |> render_change()
+
+      assert has_element?(view, "#map-error-#{vault.id}", "would overlap 1 page")
+      assert has_element?(view, "#map-error-#{vault.id}", "move them to Job Hunt first")
+      assert has_element?(view, "#map-form-#{vault.id} button[type=submit][disabled]")
+      refute has_element?(view, "#overlaps-#{vault.id}")
+    end
+
+    test "a vault that already has one is flagged", ctx do
+      %{conn: conn, hunt: hunt, vault: vault} = ctx
+
+      Slipdock.Repo.insert!(%Slipdock.Vaults.Mapping{
+        vault_id: vault.id,
+        board_id: hunt.id,
+        path: "Jobs"
+      })
+
+      {:ok, view, _html} = live(conn, ~p"/vaults")
+
+      assert has_element?(
+               view,
+               "#overlaps-#{vault.id}",
+               "1 page sits at paths another mapping owns"
+             )
+
+      assert has_element?(view, "#overlaps-#{vault.id} li", "Jobs/Acme.md")
+    end
+  end
 end

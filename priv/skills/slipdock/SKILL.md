@@ -438,7 +438,8 @@ slipdock vault locate <vault> <path> | slipdock vault rename <vault> <name...> |
 ```
 `vault ls` also shows how many pages each mapping holds and the folders the vault is synced to
 (each sync token's label and last sync); `--dry-run` on map/unmap previews which pages join,
-move or leave the vault before changing it. People do the same on the web app's Vaults screen
+move or leave the vault before changing it. A mapping over pages another mapped board already
+has at those paths is refused with the count: move those pages to that board first. People do the same on the web app's Vaults screen
 (`/vaults`, avatar menu › Vaults).
 
 `slipdock sync` mirrors a vault both ways to a local folder that stays a valid Obsidian vault

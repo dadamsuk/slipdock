@@ -283,7 +283,8 @@ defmodule Slipdock.Vaults do
     with {:ok, path} <- normalize_path(attrs[:path]),
          :ok <- check_board(board, user),
          :ok <- check_folder(folder, board),
-         :ok <- check_one_vault(vault, board) do
+         :ok <- check_one_vault(vault, board),
+         :ok <- check_overlap(vault, path, board, folder) do
       %Mapping{vault_id: vault.id}
       |> Mapping.changeset(%{path: path, board_id: board.id, folder_id: folder && folder.id})
       |> Repo.insert()
@@ -385,7 +386,8 @@ defmodule Slipdock.Vaults do
          :ok <- check_board(board, user),
          :ok <- check_folder(folder, board),
          :ok <- check_one_vault(vault, board),
-         :ok <- check_free(vault, path, board, folder) do
+         :ok <- check_free(vault, path, board, folder),
+         :ok <- check_overlap(vault, path, board, folder) do
       mappings = Index.mappings(vault)
       before = Index.build_from(mappings)
       later = Index.build_from(mappings ++ [{board.id, folder && folder.id, path, :new}])
@@ -473,6 +475,96 @@ defmodule Slipdock.Vaults do
 
       true ->
         :ok
+    end
+  end
+
+  ## Overlaps -------------------------------------------------------------------
+
+  @doc """
+  Pages that sit at a vault path another mapping owns: a page of the board
+  mapped at `/` filed in its `Jobs` folder, once `/Jobs` is mapped onto
+  another board. Both boards then claim `/Jobs/...`, and a synced edit to
+  such a file would be sent to the inner mapping's board. `add_mapping/3`
+  refuses to make one; this finds any made before it did.
+
+      [%{path: "Jobs/Acme.md", board: "KnowledgeBase", under: "/Jobs"}]
+  """
+  def overlaps(%Vault{} = vault) do
+    mappings = Index.mappings(vault)
+    mappings |> Index.build_from() |> shadowed(mappings) |> describe_overlaps(mappings)
+  end
+
+  # The entries whose own mapping is not the one their directory locates to,
+  # the longest prefix winning, as `locate/2` and a sync's writes decide.
+  defp shadowed(index, mappings) do
+    paths = Enum.map(mappings, fn {_b, _f, path, id} -> {split(path), id} end)
+
+    Enum.filter(index, fn entry ->
+      dir = Enum.drop(entry.segments, -1)
+
+      owner =
+        paths
+        |> Enum.filter(fn {prefix, _id} -> prefix?(prefix, dir) end)
+        |> Enum.max_by(fn {prefix, _id} -> length(prefix) end, fn -> nil end)
+
+      match?({_, id} when id != entry.mapping_id, owner)
+    end)
+  end
+
+  defp describe_overlaps(entries, mappings) do
+    paths = Map.new(mappings, fn {_b, _f, path, id} -> {id, path} end)
+    owners = Map.new(mappings, fn {board_id, _f, path, _id} -> {split(path), board_id} end)
+    names = board_names(Enum.map(entries, & &1.board_id) ++ Map.values(owners))
+
+    Enum.map(entries, fn entry ->
+      dir = Enum.drop(entry.segments, -1)
+      under = owners |> Map.keys() |> Enum.filter(&prefix?(&1, dir)) |> Enum.max_by(&length/1)
+
+      %{
+        path: entry.path <> ".md",
+        board: names[entry.board_id],
+        mapping: Mapping.display_path(paths[entry.mapping_id]),
+        under: Mapping.display_path(Enum.join(under, "/")),
+        owner: names[owners[under]]
+      }
+    end)
+  end
+
+  defp board_names([]), do: %{}
+
+  defp board_names(ids),
+    do:
+      Repo.all(from(b in Board, where: b.id in ^Enum.uniq(ids), select: {b.id, b.name}))
+      |> Map.new()
+
+  # A new mapping is refused while it would make an overlap the vault does
+  # not already have: pages of one mapping at paths another owns. The way
+  # out is to move those pages first, or to map somewhere else.
+  defp check_overlap(vault, path, board, folder) do
+    mappings = Index.mappings(vault)
+    before = mappings |> Index.build_from() |> shadowed(mappings) |> MapSet.new(& &1.id)
+    later_mappings = mappings ++ [{board.id, folder && folder.id, path, :new}]
+
+    fresh =
+      later_mappings
+      |> Index.build_from()
+      |> shadowed(later_mappings)
+      |> Enum.reject(&MapSet.member?(before, &1.id))
+
+    case describe_overlaps(fresh, later_mappings) do
+      [] ->
+        :ok
+
+      overlaps ->
+        n = length(overlaps)
+        [%{board: board_name, under: under, owner: owner} | _] = overlaps
+        examples = overlaps |> Enum.take(3) |> Enum.map_join(", ", & &1.path)
+        more = if n > 3, do: ", …", else: ""
+
+        {:error, :unprocessable_entity,
+         "#{Mapping.display_path(path)} would overlap #{n} #{if n == 1, do: "page", else: "pages"} " <>
+           "#{board_name} already has under #{under} (#{examples}#{more}), which would then " <>
+           "belong to #{owner}'s mapping: move them to #{owner} first, or map somewhere else"}
     end
   end
 

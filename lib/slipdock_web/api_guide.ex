@@ -1845,6 +1845,10 @@ defmodule SlipdockWeb.APIGuide do
     curl -s -X DELETE -H "$H" B/api/vaults/Brain   # its mappings go; the pages stay
     ```
 
+    A mapping that would put one mapping's pages at paths another owns
+    (`/Jobs` onto Job Hunt while KnowledgeBase at `/` still has pages in
+    `Jobs`) is a 422 naming the count: move those pages first, or map
+    elsewhere. `overlaps` on a vault lists any made before that check.
     `mirrors` are the folders the vault is synced to, as far as the server
     knows: each API token that has listed it (`/sync`) or followed its feed,
     by label, with `last_synced_at`. On a shell: `slipdock vault

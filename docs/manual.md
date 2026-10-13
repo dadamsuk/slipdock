@@ -2606,7 +2606,21 @@ wins**, segment by segment, so `/Jobs/Acme.md` lands in Job Hunt and
 `/Jobsearch.md` in KnowledgeBase. You can only map a board you can write to,
 and **a board belongs to one vault** (it may be mapped there more than once,
 its root and a folder of it, say), because the vault is also where a plain
-`[[link]]` on that board is looked for. Deleting a vault takes its mappings
+`[[link]]` on that board is looked for.
+
+**Mappings don't overlap.** A mapping is refused while it would put pages
+of one mapping at paths another owns: with KnowledgeBase at `/` holding
+notes in its `Jobs` folder, mapping `/Jobs` onto Job Hunt is refused (and so
+is mapping `/` onto KnowledgeBase after `/Jobs`), because both boards would
+claim `/Jobs/...` and a synced edit to one of those notes would land on the
+wrong board. The refusal says how many pages and which, and the way out:
+move them to the other board first (see *Giving a vault folder its own
+board*), or map somewhere else. An empty folder, or one holding only
+archived pages, is no obstacle. A vault that already has an overlap is
+flagged on the Vaults screen, in `slipdock vault ls` and in `overlaps` on
+the API; it still syncs one file per path.
+
+Deleting a vault takes its mappings
 and leaves every page where it was; deleting a board or a folder takes the
 mappings onto it.
 

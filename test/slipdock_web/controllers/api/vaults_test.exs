@@ -238,4 +238,29 @@ defmodule SlipdockWeb.API.VaultsTest do
     |> post("/api/vaults/Brain/mappings", %{"path" => "/Jobs", "board" => "kb", "dry_run" => true})
     |> json_response(422)
   end
+
+  test "a mapping over pages another board has there is a 422 with the count", ctx do
+    %{conn: conn, kb: kb} = ctx
+    {:ok, jobs} = Wiki.create_folder(kb, %{"name" => "Jobs"})
+    {:ok, _} = Wiki.create_page(kb, %{"title" => "Acme", "folder_id" => jobs.id})
+    make(conn, "Brain")
+    conn |> post("/api/vaults/Brain/mappings", %{"board" => "kb"}) |> json_response(201)
+
+    for dry_run <- [false, true] do
+      error =
+        conn
+        |> post("/api/vaults/Brain/mappings", %{
+          "path" => "/Jobs",
+          "board" => "jobs",
+          "dry_run" => dry_run
+        })
+        |> json_response(422)
+        |> inspect()
+
+      assert error =~ "would overlap 1 page KnowledgeBase already has under /Jobs"
+    end
+
+    assert conn |> get("/api/vaults/Brain") |> json_response(200) |> get_in(["vault", "overlaps"]) ==
+             []
+  end
 end
