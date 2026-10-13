@@ -551,7 +551,7 @@ defmodule SlipdockWeb.Layouts do
     ~H"""
     <div
       id="key-palette"
-      data-key-capture={if @shortcuts.panel in [:command, :find], do: "filter", else: "keys"}
+      data-key-capture={if @shortcuts.panel in [:command, :find, :notes], do: "filter", else: "keys"}
       phx-click-away={JS.push("close_shortcuts")}
       phx-window-keydown={JS.push("close_shortcuts")}
       phx-key="Escape"
@@ -628,7 +628,7 @@ defmodule SlipdockWeb.Layouts do
           </section>
         </div>
 
-        <div :if={Enum.member?([:command, :find], @shortcuts.panel)}>
+        <div :if={Enum.member?([:command, :find, :notes], @shortcuts.panel)}>
           <form
             id="palette-form"
             phx-change="palette_filter"
@@ -643,12 +643,8 @@ defmodule SlipdockWeb.Layouts do
               phx-hook="Focus"
               data-select
               autocomplete="off"
-              phx-debounce={if @shortcuts.panel == :find, do: "150"}
-              placeholder={
-                if @shortcuts.panel == :find,
-                  do: "Type a card's title, or a page's code (W-31)…",
-                  else: "Type a command, a board, a page…"
-              }
+              phx-debounce={if @shortcuts.panel in [:find, :notes], do: "100"}
+              placeholder={palette_placeholder(@shortcuts.panel)}
               class="input input-sm w-full"
             />
           </form>
@@ -697,6 +693,34 @@ defmodule SlipdockWeb.Layouts do
       <span class="shrink-0 font-mono text-2xs text-base-content/60">{@row.code}</span>
       <span class="min-w-0 flex-1 truncate">{@row.title}</span>
       <span class="shrink-0 text-2xs text-base-content/50">{@row.board.name}</span>
+    </.link>
+    """
+  end
+
+  # A note in the switcher: its title, where it is, and the alias it was
+  # found by when that is what matched.
+  defp palette_row(%{panel: :notes} = assigns) do
+    ~H"""
+    <.link
+      navigate={~p"/boards/#{@row.board_id}/wiki/#{@row.slug}"}
+      data-row
+      data-on={@on && ""}
+      class={[
+        "flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm hover:bg-base-200",
+        @on && "bg-base-200"
+      ]}
+    >
+      <.icon name="hero-document-text" class="size-4 shrink-0 text-base-content/50" />
+      <span class="min-w-0 flex-1">
+        <span class="block truncate">
+          {@row.title}
+          <span :if={match?({:alias, _}, @row.matched)} class="text-base-content/50">
+            · {elem(@row.matched, 1)}
+          </span>
+        </span>
+        <span class="block truncate text-2xs text-base-content/50">{@row.path}</span>
+      </span>
+      <span class="shrink-0 text-2xs text-base-content/50">{@row.board}</span>
     </.link>
     """
   end
@@ -800,6 +824,8 @@ defmodule SlipdockWeb.Layouts do
     do: "Type to find a card on any board, its id, or a page's code to open it."
 
   defp empty_palette(%{panel: :find}), do: "No cards match."
+  defp empty_palette(%{panel: :notes, query: ""}), do: "No notes yet."
+  defp empty_palette(%{panel: :notes}), do: "No note's title, alias or path matches."
   defp empty_palette(_), do: "No commands match."
 
   attr :key, :string, default: nil
@@ -823,12 +849,18 @@ defmodule SlipdockWeb.Layouts do
   defp panel_title(:help), do: "Keyboard shortcuts"
   defp panel_title(:command), do: "Commands"
   defp panel_title(:find), do: "Find a card"
+  defp panel_title(:notes), do: "Open a note"
 
   defp panel_icon(:boards), do: "hero-view-columns"
   defp panel_icon(:views), do: "hero-rectangle-group"
   defp panel_icon(:help), do: "hero-command-line"
   defp panel_icon(:command), do: "hero-chevron-right"
   defp panel_icon(:find), do: "hero-magnifying-glass"
+  defp panel_icon(:notes), do: "hero-document-magnifying-glass"
+
+  defp palette_placeholder(:find), do: "Type a card's title, or a page's code (W-31)…"
+  defp palette_placeholder(:notes), do: "Type part of a note's title, alias or path…"
+  defp palette_placeholder(_), do: "Type a command, a board, a page…"
 
   attr :quick_add, :map, required: true
 

@@ -6,6 +6,8 @@ defmodule SlipdockWeb.ShortcutsHook do
   and handles the palettes the `Keys` hook opens — the help sheet (`?`), the
   board switcher (`b`), the view switcher (`v`), the command palette
   (`Ctrl-P`) and the card finder (`Ctrl-O`) — before the LiveView sees them,
+  except that on a wiki `Ctrl-O` is the note switcher (`:notes`, see
+  `Slipdock.Wiki.Switcher`),
   the same arrangement `SlipdockWeb.AlertsHook` uses. Pages that have somewhere
   to jump to assign `:page_jumps`; the view switcher is theirs.
 
@@ -45,7 +47,7 @@ defmodule SlipdockWeb.ShortcutsHook do
 
   defp handle_event("shortcut_panel", %{"panel" => panel}, socket)
        when panel in ~w(help boards views command find) do
-    panel = String.to_existing_atom(panel)
+    panel = socket |> wiki?() |> panel_for(String.to_existing_atom(panel))
     open = socket.assigns.shortcuts.panel
 
     cond do
@@ -56,7 +58,7 @@ defmodule SlipdockWeb.ShortcutsHook do
       panel == :boards ->
         {:halt, assign(socket, shortcuts: %{@closed | panel: panel, boards: boards(socket)})}
 
-      panel in [:command, :find] ->
+      panel in [:command, :find, :notes] ->
         {:halt,
          assign(socket,
            shortcuts:
@@ -116,6 +118,17 @@ defmodule SlipdockWeb.ShortcutsHook do
 
   defp pool(socket, :find), do: Enum.map(boards(socket), & &1.id)
 
+  defp pool(socket, :notes),
+    do: Slipdock.Wiki.Switcher.pool(socket.assigns.current_user, socket.assigns.board)
+
+  # On a wiki, the key that finds a card finds a note: that is where the
+  # reader is, and what they are after (W-103 R11.4).
+  defp wiki?(socket),
+    do: socket.view == SlipdockWeb.WikiLive.Index and match?(%{}, socket.assigns[:board])
+
+  defp panel_for(true, :find), do: :notes
+  defp panel_for(_wiki, panel), do: panel
+
   # What the open palette should be showing for what has been typed into it.
   defp search(%{panel: :command, query: q, pool: commands} = shortcuts, _user) do
     %{shortcuts | results: Commands.search(commands, q), cursor: 0}
@@ -139,6 +152,10 @@ defmodule SlipdockWeb.ShortcutsHook do
       end
 
     %{shortcuts | results: results, cursor: 0}
+  end
+
+  defp search(%{panel: :notes, query: q, pool: pool} = shortcuts, _user) do
+    %{shortcuts | results: Slipdock.Wiki.Switcher.search(pool, q), cursor: 0}
   end
 
   defp search(shortcuts, _user), do: shortcuts
