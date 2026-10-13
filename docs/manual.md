@@ -2089,6 +2089,14 @@ and most pages are in no folder at all, which is the root rather than a limbo.
 to a folder — write a page here, make one inside, rename or move it, delete it
 — gathered in one place rather than only on a hover menu.
 
+**Opening and shutting the tree.** A folder's chevron opens or shuts it; the
+double chevron at the top of the sidebar shuts every folder at once, and opens
+them all again once they are all shut. An empty folder has no chevron, there
+being nothing in it to show. The browser remembers which folders you shut on
+each board, so following a link to another page doesn't spring the tree open
+again — though the folders leading to the page or folder you are on always
+open, so what you just went to is never hidden.
+
 **Organise mode.** The pencil at the top of the wiki's sidebar turns the tree
 into a drag-and-drop one, and only then: dragging by default would make every
 mis-aimed click a filing change in the one place somebody is trying to read.
