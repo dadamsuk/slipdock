@@ -221,3 +221,34 @@ export const WikiTreeView = {
       write(this.storage, VIEW_KEY, view === "recent" ? "recent" : null))
   },
 }
+
+// A link to a wiki file opens it in a panel beside the page (#768) rather
+// than on a page of its own: the tree's file rows and a page's [[file]]
+// links both go to `/files/<id>`, so one listener on the wiki takes them
+// all. A click with a modifier, or any other button, is the browser's: a
+// new tab still gets the page of its own, and so does a link marked
+// `data-own-page` (the panel's own "open on a page of its own").
+export function fileLinkId(e) {
+  if (e.defaultPrevented || e.button !== 0) return null
+  if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return null
+  const link = e.target && e.target.closest && e.target.closest("a[href]")
+  if (!link || link.target === "_blank") return null
+  if (link.hasAttribute("download") || link.hasAttribute("data-own-page")) return null
+  const match = /^\/files\/(\d+)$/.exec(link.getAttribute("href") || "")
+  return match ? match[1] : null
+}
+
+export const WikiFileOpen = {
+  mounted() {
+    this.onClick = e => {
+      const id = fileLinkId(e)
+      if (id === null) return
+      e.preventDefault()
+      this.pushEvent("open_file", {id})
+    }
+    this.el.addEventListener("click", this.onClick)
+  },
+  destroyed() {
+    this.el.removeEventListener("click", this.onClick)
+  },
+}

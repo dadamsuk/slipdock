@@ -46,6 +46,16 @@ defmodule SlipdockWeb.FileLiveTest do
     assert view |> element("iframe#file-pdf") |> render() =~ "#{Files.url(pdf)}?view=inline"
   end
 
+  test "an HTML file is drawn in a sandboxed frame, asked for inline",
+       %{conn: conn, board: board} do
+    file = stored(board, "Report.html", "<h1>Hi</h1>")
+    {:ok, view, _} = live(conn, ~p"/files/#{file.id}")
+
+    frame = view |> element("iframe#file-html") |> render()
+    assert frame =~ "#{Files.url(file)}?view=inline"
+    assert frame =~ ~s(sandbox="")
+  end
+
   test "JSON is a tree whose outer levels are open and deeper ones folded",
        %{conn: conn, board: board} do
     file = stored(board, "config.json", ~s({"name": "x", "deep": {"inner": {"leaf": [1, 2]}}}))

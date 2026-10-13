@@ -13,7 +13,10 @@ defmodule SlipdockWeb.WikiFileController do
   The file viewer (`SlipdockWeb.FileLive`) asks for a PDF or an SVG with
   `?view=inline`, to show it rather than download it: a PDF goes to the
   browser's own PDF viewer, and an SVG comes with a policy that lets it run
-  nothing and fetch nothing, the same one a drawing's preview has.
+  nothing and fetch nothing, the same one a drawing's preview has. An HTML
+  file is shown the same way (#768): the policy's `sandbox` gives it an
+  origin of its own, with no scripts, no forms and nothing fetched, so it
+  is a document to read and never code running as the reader.
   """
   use SlipdockWeb, :controller
 
@@ -21,6 +24,7 @@ defmodule SlipdockWeb.WikiFileController do
   alias Slipdock.Wiki.{Files, Meld, Viewer, WikiFile}
 
   @svg_policy "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox"
+  @html_policy "default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:; form-action 'none'; sandbox"
 
   def show(conn, %{"id" => id} = params) do
     with {n, ""} <- Integer.parse(id),
@@ -63,6 +67,13 @@ defmodule SlipdockWeb.WikiFileController do
     conn
     |> put_resp_header("content-security-policy", @svg_policy)
     |> send_inline(file, "image/svg+xml")
+  end
+
+  defp inline(conn, file, :html) do
+    conn
+    |> put_resp_header("content-security-policy", @html_policy)
+    |> put_resp_header("referrer-policy", "no-referrer")
+    |> send_inline(file, "text/html; charset=utf-8")
   end
 
   defp inline(conn, file, _kind), do: send_file(conn, file)

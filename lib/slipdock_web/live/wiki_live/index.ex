@@ -146,6 +146,9 @@ defmodule SlipdockWeb.WikiLive.Index do
       tree_prompt: nil,
       # On a phone the tree is a drawer, shut until asked for (R11.11).
       tree_drawer: false,
+      # A wiki file opened beside the page (#768): what
+      # `SlipdockWeb.FileViewer.load/2` gave, or nil.
+      file_shown: nil,
       tree_scope: "board",
       tree_root: "root",
       # Opened from another board's tree (`?in=`): that board, whose tree
@@ -1902,6 +1905,22 @@ defmodule SlipdockWeb.WikiLive.Index do
   def handle_event("close_tree_drawer", _params, socket),
     do: {:noreply, assign(socket, tree_drawer: false)}
 
+  # A file clicked in the tree or in a page opens in a panel on the right,
+  # the tree and the page staying where they were (#768). The WikiFileOpen
+  # hook sends it; the link itself still goes to `/files/:id` for a new tab.
+  def handle_event("open_file", %{"id" => id}, socket) do
+    case SlipdockWeb.FileViewer.load(socket.assigns.current_user, id) do
+      {:ok, shown} ->
+        {:noreply, assign(socket, file_shown: shown)}
+
+      :error ->
+        {:noreply, put_flash(socket, :error, "That file isn't there, or isn't yours to see.")}
+    end
+  end
+
+  def handle_event("close_file", _params, socket),
+    do: {:noreply, assign(socket, file_shown: nil)}
+
   # The search box reads names; this has it read the pages' words too.
   def handle_event("toggle_tree_contents", _params, socket),
     do: {:noreply, socket |> update(:tree_contents, &(not &1)) |> load_tree()}
@@ -3251,7 +3270,9 @@ defmodule SlipdockWeb.WikiLive.Index do
             the page each scroll inside it. Without it the two panes grow to
             the length of the page and run out past the bottom of the app
             (#323). --%>
-      <div id="wiki-shell" class="flex h-full flex-col">
+      <%!-- WikiFileOpen: a click on a link to a file opens it beside the
+            page rather than in place of it (#768). --%>
+      <div id="wiki-shell" phx-hook="WikiFileOpen" class="flex h-full flex-col">
         <%!-- The same bar the card views carry. The wiki is one more way of
               looking at a board, and a page is one more thing that answers a
               filter, so switching view and narrowing down work here too. --%>
@@ -3766,6 +3787,8 @@ defmodule SlipdockWeb.WikiLive.Index do
               <% end %>
             </div>
           </main>
+
+          <.file_panel :if={@file_shown} shown={@file_shown} />
         </div>
       </div>
 
@@ -3832,6 +3855,69 @@ defmodule SlipdockWeb.WikiLive.Index do
         </form>
       </div>
     </.modal>
+    """
+  end
+
+  attr :shown, :map, required: true
+
+  # A file beside the page (#768): on a wide screen a pane on the right of
+  # it, on a phone over it. Escape or the X puts it away; the arrow opens it
+  # on a page of its own, which is also where a new tab goes.
+  defp file_panel(assigns) do
+    ~H"""
+    <aside
+      id="wiki-file-panel"
+      data-kind={@shown.kind}
+      aria-label={@shown.file.name}
+      phx-window-keydown="close_file"
+      phx-key="Escape"
+      class="fixed inset-0 z-40 flex min-h-0 flex-col bg-base-100 lg:static lg:z-auto lg:w-[38%] lg:max-w-3xl lg:shrink-0 lg:border-l lg:border-base-300"
+    >
+      <div class="flex items-center gap-2 border-b border-base-300 px-3 py-2">
+        <.icon name="hero-paper-clip" class="size-4 shrink-0 text-base-content/50" />
+        <h2 class="min-w-0 flex-1 truncate text-sm font-semibold" title={@shown.file.name}>
+          {@shown.file.name}
+        </h2>
+        <span class="text-xs text-base-content/60">
+          {SlipdockWeb.FileViewer.size(@shown.file.size)}
+        </span>
+        <a
+          href={Slipdock.Wiki.Files.url(@shown.file)}
+          class="btn btn-ghost btn-sm btn-square"
+          id="wiki-file-download"
+          title="Download"
+          download
+        >
+          <.icon name="hero-arrow-down-tray" class="size-4" />
+        </a>
+        <a
+          href={~p"/files/#{@shown.file.id}"}
+          class="btn btn-ghost btn-sm btn-square"
+          id="wiki-file-full"
+          data-own-page
+          title="Open on a page of its own"
+        >
+          <.icon name="hero-arrows-pointing-out" class="size-4" />
+        </a>
+        <button
+          type="button"
+          id="wiki-file-close"
+          phx-click="close_file"
+          class="btn btn-ghost btn-sm btn-square"
+          title="Close (Esc)"
+          aria-label="Close"
+        >
+          <.icon name="hero-x-mark" class="size-4" />
+        </button>
+      </div>
+      <div class="kanban-scroll min-h-0 flex-1 overflow-auto p-4">
+        <SlipdockWeb.FileViewer.viewer
+          kind={@shown.kind}
+          file={@shown.file}
+          {Map.take(@shown, [:tree, :text, :table, :problem])}
+        />
+      </div>
+    </aside>
     """
   end
 

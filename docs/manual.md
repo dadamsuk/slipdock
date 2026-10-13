@@ -2855,10 +2855,15 @@ matter; edit that list and the page is filed accordingly. Images, PDFs,
 to 250 MB each, and `![[photo.png]]` draws them in the web app too.
 
 **Opening a file.** Click a file in the tree, or a `[[Report.pdf]]` link
-in a page, and it opens in the file viewer (`/files/<id>`), with a
-Download button always beside it. Images (PNG, JPEG, GIF, WebP, and SVG,
-which is shown so it can run nothing) are drawn; a PDF opens in the
-browser's own PDF viewer; JSON is a tree whose objects and arrays fold
+in a page, and it opens in a panel on the right of the wiki, the tree and
+the page you were reading staying where they were (on a phone it covers
+the page). The panel has Download, an arrow that opens the file on a page
+of its own (`/files/<id>`, also where Ctrl/Cmd-click and "open in a new
+tab" go), and an X; Escape closes it too. Images (PNG, JPEG, GIF, WebP,
+and SVG, which is shown so it can run nothing) are drawn; a PDF opens in
+the browser's own PDF viewer; an HTML file (`.html`, `.htm`) is drawn in a
+sandbox: its scripts don't run, its forms don't send and it fetches
+nothing, so pictures it links to are left out; JSON is a tree whose objects and arrays fold
 (the outer two levels open), JSON Lines an array of its lines, invalid
 JSON the line and column where it went wrong; CSV and TSV are a table
 with the first row as its header, the first 1,000 rows shown; `.txt`,

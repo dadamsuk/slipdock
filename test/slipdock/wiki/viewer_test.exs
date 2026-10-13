@@ -11,6 +11,8 @@ defmodule Slipdock.Wiki.ViewerTest do
     assert Viewer.kind(file("cat.jpeg")) == :image
     assert Viewer.kind(file("logo.svg")) == :svg
     assert Viewer.kind(file("Spec.pdf")) == :pdf
+    assert Viewer.kind(file("Report.html")) == :html
+    assert Viewer.kind(file("old.HTM")) == :html
     assert Viewer.kind(file("data.json")) == :json
     assert Viewer.kind(file("events.ndjson")) == :json
     assert Viewer.kind(file("sales.csv")) == :csv
