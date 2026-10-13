@@ -7,6 +7,7 @@ defmodule SlipdockCLI.Wiki do
   import SlipdockCLI.Util
 
   alias SlipdockCLI.HTTP
+  alias SlipdockCLI.Meld
   alias SlipdockCLI.Render
 
   @commands ~w(folder wiki page export import writeup)
@@ -242,6 +243,41 @@ defmodule SlipdockCLI.Wiki do
           })
         )
         |> out(o, &page_ok("appended to", &1))
+    end
+  end
+
+  # Meld Encrypt (W-103 R6.8): done here, with the passphrase asked for on
+  # this machine. The server is sent ciphertext, or with `decrypt
+  # --in-place` the plaintext the person has chosen to put back.
+  def run("page", ["encrypt", ref], o) do
+    if hint_problem = Meld.check_hint(o[:hint]), do: fail(hint_problem)
+    {page, text} = meld_text(ref, o)
+    if refusal = Meld.refuse_encrypt(text), do: fail(refusal)
+
+    passphrase = meld_passphrase(o, twice: true)
+    encrypted = Meld.encrypt_text(text, passphrase, o[:hint] || "")
+    saved = meld_save(ref, page, encrypted, o, "encrypted #{meld_where(o)}")
+    page_ok("encrypted #{meld_where(o)} of", saved)
+    meld_history(ref, saved["page"], String.trim(text), o)
+  end
+
+  def run("page", ["decrypt", ref], o) do
+    {page, text} = meld_text(ref, o)
+    if not Meld.encrypted?(text), do: fail("there is no encrypted text in #{meld_where(o)}")
+
+    case Meld.decrypt_all(text, meld_passphrase(o, [])) do
+      {:error, n} ->
+        fail(
+          "that passphrase doesn't open #{if n == 1, do: "it", else: "#{n} of the encrypted blocks"}"
+        )
+
+      {:ok, plain} ->
+        if o[:in_place] do
+          saved = meld_save(ref, page, plain, o, "removed the encryption from #{meld_where(o)}")
+          page_ok("removed the encryption from #{meld_where(o)} of", saved)
+        else
+          IO.write(plain)
+        end
     end
   end
 
@@ -574,12 +610,112 @@ defmodule SlipdockCLI.Wiki do
   def run("page", _args, _o),
     do:
       fail(
-        "usage: slipdock page ls|tree|read|new|edit|file|mv|rm|restore|history|diff|revert (see --help)"
+        "usage: slipdock page ls|tree|read|new|edit|file|mv|rm|restore|history|diff|revert|encrypt|decrypt (see --help)"
       )
 
   def run(cmd, _args, _o), do: bad_usage(cmd)
 
   ## Wiki helpers ------------------------------------------------------------
+
+  # The page, and the text to work on: the body, or one section without its
+  # heading line.
+  defp meld_text(ref, o) do
+    page = fetch!("/pages/#{enc(ref)}")["page"]
+
+    case o[:section] do
+      nil ->
+        {page, page["body"] || ""}
+
+      section ->
+        body = fetch!("/pages/#{enc(ref)}/section/#{section_path(section)}")["body"] || ""
+        [_heading | rest] = String.split(body, "\n", parts: 2) ++ [""]
+        {page, hd(rest)}
+    end
+  end
+
+  defp meld_save(ref, page, text, o, message) do
+    message = o[:message] || message
+    hash = page["content_hash"]
+
+    result =
+      case o[:section] do
+        nil ->
+          HTTP.patch(
+            "/pages/#{enc(ref)}",
+            compact(%{"body" => text, "message" => message, "base_hash" => hash})
+          )
+
+        section ->
+          heading = meld_heading(ref, section)
+
+          HTTP.put(
+            "/pages/#{enc(ref)}/section/#{section_path(section)}",
+            compact(%{
+              "body" => heading <> "\n" <> text,
+              "message" => message,
+              "base_hash" => hash
+            })
+          )
+      end
+
+    case result do
+      {:ok, saved} -> saved
+      error -> out(error, o, fn _ -> :ok end)
+    end
+  end
+
+  defp meld_heading(ref, section) do
+    body = fetch!("/pages/#{enc(ref)}/section/#{section_path(section)}")["body"] || ""
+    body |> String.split("\n", parts: 2) |> hd()
+  end
+
+  defp meld_where(o), do: if(o[:section], do: "section #{o[:section]}", else: "the page")
+
+  defp meld_passphrase(o, opts) do
+    case Meld.passphrase(o, opts) do
+      {:ok, passphrase} -> passphrase
+      {:error, why} -> fail(why)
+    end
+  end
+
+  # Encrypting text that was already on the page leaves it in the page's
+  # earlier revisions. They are matched here, so the text is not sent; with
+  # --purge-history (the board's owner only) they are deleted, otherwise
+  # the count is said.
+  defp meld_history(ref, page, plain, o) do
+    held =
+      case HTTP.get("/pages/#{enc(ref)}/revisions", bodies: "all") do
+        {:ok, %{"revisions" => revisions}} ->
+          revisions
+          |> Enum.drop(-1)
+          |> Enum.filter(&String.contains?(&1["body"] || "", plain))
+          |> Enum.map(& &1["id"])
+
+        _ ->
+          []
+      end
+
+    cond do
+      held == [] ->
+        :ok
+
+      o[:purge_history] ->
+        HTTP.post("/pages/#{enc(ref)}/revisions/purge", %{"ids" => held})
+        |> out(o, fn %{"purged" => n} ->
+          IO.puts(
+            "purged #{n} earlier #{if n == 1, do: "revision", else: "revisions"} of #{page["code"]} that held the text in plain"
+          )
+        end)
+
+      true ->
+        IO.puts(
+          :stderr,
+          "note: #{if length(held) == 1, do: "1 earlier revision", else: "#{length(held)} earlier revisions"} of #{page["code"]} " <>
+            "#{if length(held) == 1, do: "still holds", else: "still hold"} the text in plain. " <>
+            "The board's owner can delete them: run this again with --purge-history, or purge them from the web editor."
+        )
+    end
+  end
 
   # The body can be given outright, read from a file, or piped in — the last
   # is how an agent writes a document without quoting a page of Markdown.

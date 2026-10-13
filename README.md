@@ -97,7 +97,9 @@ Briefly, with the detail in [the manual](docs/manual.md):
   embeds and front matter as Obsidian reads them, a page filed in several
   folders, and [`slipdock sync`](docs/manual.md#syncing-a-vault-to-a-folder)
   to mirror it both ways to a folder on each computer, Obsidian included, after
-  a one-time [import](docs/manual.md#importing-an-obsidian-vault) of the vault you have. Plus a
+  a one-time [import](docs/manual.md#importing-an-obsidian-vault) of the vault you have, and
+  [encrypted notes](docs/manual.md#encrypted-notes) in Meld Encrypt's format, encrypted and
+  decrypted in your browser or the CLI so the server never sees them. Plus a
   [Narrative view](docs/manual.md#narrative) that tells you what happened to a
   set of cards over a date range.
 - **Automations** — ["when a card lands in Done, email the team"](docs/manual.md#automations-and-alerts),

@@ -702,6 +702,67 @@ defmodule SlipdockWeb.API.PageControllerTest do
       assert Slipdock.Repo.get(Slipdock.Boards.CardUrl, url.id)
     end
   end
+
+  describe "revisions holding text since encrypted (W-103 R6.2)" do
+    setup %{conn: conn, user: user} do
+      page = create(conn, %{title: "Bank", body: "PIN 4921"})
+
+      {:ok, _} =
+        Wiki.update_page(Wiki.get_page!(page["id"]), %{"body" => "PIN 4921 again"},
+          user: user,
+          via: "cli"
+        )
+
+      {:ok, _} =
+        Wiki.update_page(Wiki.get_page!(page["id"]), %{"body" => "🔐β YWJj 🔐"},
+          user: user,
+          via: "mcp"
+        )
+
+      %{page: page}
+    end
+
+    test "bodies=all gives every revision's id and body, oldest first", %{conn: conn, page: page} do
+      assert %{"revisions" => revisions} =
+               conn |> get("/api/pages/#{page["id"]}/revisions?bodies=all") |> json_response(200)
+
+      assert Enum.map(revisions, & &1["body"]) == ["PIN 4921", "PIN 4921 again", "🔐β YWJj 🔐"]
+    end
+
+    test "the owner purges the ids named, never the newest", %{conn: conn, page: page} do
+      ids = conn |> get("/api/pages/#{page["id"]}/revisions?bodies=all") |> json_response(200)
+      ids = Enum.map(ids["revisions"], & &1["id"])
+
+      assert %{"purged" => 2} =
+               conn
+               |> post("/api/pages/#{page["id"]}/revisions/purge", %{ids: ids})
+               |> json_response(200)
+
+      assert [%{body: "🔐β YWJj 🔐"}] = Wiki.revision_bodies(Wiki.get_page!(page["id"]))
+    end
+
+    test "a writer who isn't the owner, and a read-only token, are refused",
+         %{user: owner, board: board, page: page} do
+      writer = user_fixture("purge.writer@example.com")
+      {:ok, _} = Slipdock.Access.grant(board, writer, "write", owner)
+      [first | _] = Wiki.revision_bodies(Wiki.get_page!(page["id"]))
+
+      assert %{"error" => error} =
+               writer
+               |> with_token([])
+               |> post("/api/pages/#{page["id"]}/revisions/purge", %{ids: [first.id]})
+               |> json_response(403)
+
+      assert error =~ "owner"
+
+      assert owner
+             |> with_token(scope: "read")
+             |> post("/api/pages/#{page["id"]}/revisions/purge", %{ids: [first.id]})
+             |> Map.fetch!(:status) == 403
+
+      assert length(Wiki.revision_bodies(Wiki.get_page!(page["id"]))) == 3
+    end
+  end
 end
 
 defmodule SlipdockWeb.API.PageControllerLimitTest do

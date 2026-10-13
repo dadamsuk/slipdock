@@ -761,10 +761,37 @@ defmodule SlipdockWeb.API.PageController do
 
   ## History ------------------------------------------------------------------
 
+  def revisions(conn, %{"id" => id, "bodies" => "all"}) do
+    # Every revision's body, oldest first: what a client that has just
+    # encrypted a passage matches against, on its own side (W-103 R6.2).
+    with {:ok, page} <- fetch_page(conn, id, :read) do
+      json(conn, %{revisions: Wiki.revision_bodies(page)})
+    end
+  end
+
   def revisions(conn, %{"id" => id} = params) do
     with {:ok, page} <- fetch_page(conn, id, :read) do
       limit = params["limit"] |> to_limit()
       json(conn, %{revisions: Enum.map(Wiki.list_revisions(page, limit), &V.revision/1)})
+    end
+  end
+
+  @doc """
+  Deletes the named revisions, which the client found still hold text it
+  has since encrypted (`Slipdock.Wiki.purge_revisions/3`): the board's owner
+  only, never the newest revision, logged. `{"ids": [..]}`.
+  """
+  def purge_revisions(conn, %{"id" => id} = params) do
+    with {:ok, page} <- fetch_page(conn, id, :write) do
+      case Wiki.purge_revisions(page, List.wrap(params["ids"]), user: conn.assigns.current_user) do
+        {:ok, count} ->
+          json(conn, %{purged: count})
+
+        {:error, :forbidden} ->
+          conn
+          |> put_status(:forbidden)
+          |> json(%{error: "only the board's owner can purge a page's revisions"})
+      end
     end
   end
 

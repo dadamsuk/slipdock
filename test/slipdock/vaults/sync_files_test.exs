@@ -192,4 +192,35 @@ defmodule Slipdock.Vaults.SyncFilesTest do
     assert Files.resolve(kb, "Other/x.png", user) == nil
     assert Files.resolve(kb, "x.png", user_fixture("stranger@example.com")) == nil
   end
+
+  describe "Meld Encrypt's ciphertext (W-103 R6.6)" do
+    @vectors "test/support/fixtures/meld_vectors.json" |> File.read!() |> Jason.decode!()
+
+    test "a whole encrypted note (.mdenc) is a file, its bytes kept, and read back the same",
+         %{vault: vault, user: user} do
+      for {note, n} <- Enum.with_index(@vectors["notes"]) do
+        path = "Private/Diary #{n}.mdenc"
+        entry = put!(vault, user, path, note["file"])
+        file = Repo.get!(WikiFile, entry.id)
+        assert File.read!(Files.disk_path(file)) == note["file"]
+        assert {:ok, %WikiFile{}, %{hash: hash}} = Sync.read_file(vault, user, file.id)
+        assert hash == sha(note["file"])
+      end
+    end
+
+    test "notes holding blocks of every version come back byte for byte, marked encrypted",
+         %{vault: vault, user: user} do
+      body = Enum.map_join(@vectors["inline"], "\r\n\r\n", &("Line " <> &1["text"])) <> "\r\n"
+      content = "---\ntags: [secret]\n---\n" <> body
+
+      {:ok, written} =
+        Sync.write_page(vault, user, %{"path" => "Secrets.md", "content" => content})
+
+      assert written.content == content
+      assert Wiki.get_page!(written.id).encrypted
+
+      listed = Sync.listing(vault, user).entries |> Map.new(&{&1.path, &1.hash})
+      assert listed["Secrets.md"] == Sync.hash(content)
+    end
+  end
 end
