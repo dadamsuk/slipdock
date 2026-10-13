@@ -33,4 +33,18 @@ defmodule SlipdockCLI.SearchRenderTest do
     out = capture_io(fn -> Render.search_results(@results, []) end)
     refute out =~ "?at="
   end
+
+  # The search command passes `full: o[:full]`, nil when --full isn't given (#667).
+  test "full: nil renders the short form instead of crashing" do
+    out = capture_io(fn -> Render.search_results(@results, full: nil) end)
+    assert out =~ "Call with Acme"
+    assert out =~ "Steve: Friday it is."
+    refute out =~ "?at="
+    assert out =~ "1 card"
+  end
+
+  test "full: false renders the short form" do
+    out = capture_io(fn -> Render.search_results(@results, full: false) end)
+    refute out =~ "?at="
+  end
 end
