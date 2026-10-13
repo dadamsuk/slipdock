@@ -44,6 +44,7 @@ slipdock page mv W-31 --board jobs --folder Acme --dry-run   # to another board 
 slipdock page tree <board>                 # the shape of the wiki, nesting by indent
 slipdock page ls <board> --q retry         # substring of title or body
 slipdock page ls <board> --all             # archived pages too (--archived for those alone)
+slipdock page ls <board> --recent          # most recently edited first, the newest 100
 slipdock search <words...> --kind pages    # by meaning, across every board you can see
 slipdock page wanted <board>               # linked to, but nobody has written them yet
 ```

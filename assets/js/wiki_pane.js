@@ -167,3 +167,18 @@ export const WikiTreeResize = {
     this.el.setAttribute("aria-valuenow", String(width))
   },
 }
+
+// The tree pane's Tree / Recent switch (#738). The server draws both and
+// does the switching; this keeps which one the reader last chose, for this
+// browser, and asks for it again when the wiki opens. Only "recent" is
+// stored: the tree is the default.
+export const VIEW_KEY = "slipdock:wiki-tree-view"
+
+export const WikiTreeView = {
+  mounted() {
+    this.storage = this.storage || localStorage
+    if (read(this.storage, VIEW_KEY) === "recent") this.pushEvent("tree_view", {view: "recent"})
+    this.handleEvent("wiki-tree:view", ({view}) =>
+      write(this.storage, VIEW_KEY, view === "recent" ? "recent" : null))
+  },
+}

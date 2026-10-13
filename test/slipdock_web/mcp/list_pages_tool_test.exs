@@ -133,6 +133,29 @@ defmodule SlipdockWeb.MCP.ListPagesToolTest do
     refute Enum.any?(roots, &(&1["title"] == "Install"))
   end
 
+  test "recent lists the most recently edited first, within the limit", ctx do
+    import Ecto.Query
+
+    Slipdock.Repo.update_all(from(p in Slipdock.Wiki.Page),
+      set: [updated_at: ~U[2026-01-01 00:00:00Z]]
+    )
+
+    Slipdock.Repo.update_all(from(p in Slipdock.Wiki.Page, where: p.id == ^ctx.guide.id),
+      set: [updated_at: ~U[2026-09-01 00:00:00Z]]
+    )
+
+    %{"pages" => pages} = ctx.conn |> call(%{board: "delivery", recent: true}) |> ok!()
+    assert hd(pages)["title"] == "Guide"
+    # The rest tie on time, so the newer page comes first.
+    assert Enum.map(tl(pages), & &1["id"]) == Enum.sort(Enum.map(tl(pages), & &1["id"]), :desc)
+
+    two = ctx.conn |> call(%{board: "delivery", recent: true, limit: 2}) |> ok!()
+    assert length(two["pages"]) == 2 and two["truncated"]
+    assert hd(two["pages"])["title"] == "Guide"
+
+    assert ctx.conn |> call(%{board: "delivery", recent: "soon"}) |> error!() =~ "true or false"
+  end
+
   test "q matches titles and text", ctx do
     assert ctx.conn |> call(%{board: "delivery", q: "guide"}) |> ok!() |> titles() == ["Guide"]
 

@@ -4,7 +4,7 @@ import {test} from "node:test"
 import assert from "node:assert/strict"
 import {
   clampWidth, restorePane, setCollapsed, setWidth, resetWidth, savedWidth,
-  WikiTreeCollapse, WikiTreeResize,
+  WikiTreeCollapse, WikiTreeResize, WikiTreeView, VIEW_KEY,
   WIDTH_KEY, COLLAPSED_KEY, DEFAULT_WIDTH, MIN_WIDTH, MAX_WIDTH, STEP,
 } from "./wiki_pane.js"
 
@@ -197,4 +197,40 @@ test("the handle picks up a width restored before it mounted, and lets go on des
   assert.equal(hook.root.style.props["--wiki-tree-width"], `${420 + STEP}px`)
   hook.destroyed()
   assert.deepEqual(Object.keys(hook.el.listeners), [])
+})
+
+// The Tree / Recent switch (#738): the server switches, the hook remembers.
+function viewHook(store) {
+  const hook = Object.create(WikiTreeView)
+  const pushed = []
+  const handlers = {}
+  Object.assign(hook, {
+    el: element(), storage: store, pushed, handlers,
+    pushEvent: (name, payload) => pushed.push([name, payload]),
+    handleEvent: (name, fn) => { handlers[name] = fn },
+  })
+  hook.mounted()
+  return hook
+}
+
+test("the Recent view chosen last time is asked for again on mount", () => {
+  const hook = viewHook(storage({[VIEW_KEY]: "recent"}))
+  assert.deepEqual(hook.pushed, [["tree_view", {view: "recent"}]])
+})
+
+test("with nothing saved, or storage refused, the tree stays and nothing is asked", () => {
+  for (const store of [storage(), storage({[VIEW_KEY]: "nonsense"}), brokenStorage]) {
+    assert.deepEqual(viewHook(store).pushed, [])
+  }
+})
+
+test("the server's word on the view is what is kept, and the tree is kept as nothing", () => {
+  const store = storage()
+  const hook = viewHook(store)
+  hook.handlers["wiki-tree:view"]({view: "recent"})
+  assert.equal(store.items[VIEW_KEY], "recent")
+  hook.handlers["wiki-tree:view"]({view: "tree"})
+  assert.equal(store.items[VIEW_KEY], undefined)
+  // A storage that throws loses the choice, not the page.
+  viewHook(brokenStorage).handlers["wiki-tree:view"]({view: "recent"})
 })

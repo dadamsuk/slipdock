@@ -73,6 +73,52 @@ defmodule SlipdockWeb.API.PageControllerTest do
     end
   end
 
+  describe "recent (#738)" do
+    defp edited(id, at) do
+      import Ecto.Query
+
+      Slipdock.Repo.update_all(from(p in Slipdock.Wiki.Page, where: p.id == ^id),
+        set: [updated_at: at]
+      )
+    end
+
+    defp recent_titles(conn, query) do
+      conn
+      |> get("/api/boards/pagesapi/pages?recent=true" <> query)
+      |> json_response(200)
+      |> Map.fetch!("pages")
+      |> Enum.map(& &1["title"])
+    end
+
+    test "the most recently edited first, with the other filters still applied", %{conn: conn} do
+      a = create(conn, %{title: "Alpha"})
+      b = create(conn, %{title: "Beta", folder: "Ops"})
+      c = create(conn, %{title: "Gamma"})
+      edited(a["id"], ~U[2026-05-01 00:00:00Z])
+      edited(b["id"], ~U[2026-03-01 00:00:00Z])
+      edited(c["id"], ~U[2026-01-01 00:00:00Z])
+
+      assert recent_titles(conn, "") == ["Alpha", "Beta", "Gamma"]
+      assert recent_titles(conn, "&folder=Ops") == ["Beta"]
+
+      edited(c["id"], ~U[2026-09-01 00:00:00Z])
+      assert recent_titles(conn, "") == ["Gamma", "Alpha", "Beta"]
+
+      # Not asked for, the listing keeps its own order.
+      assert titles(conn, "recent=no") == ["Alpha", "Beta", "Gamma"]
+    end
+
+    test "the newest 100 and no more", %{conn: conn, user: user, board: board} do
+      first = page_fixture(board, %{"title" => "Oldest"}, user: user)
+      edited(first.id, ~U[2020-01-01 00:00:00Z])
+      for n <- 1..100, do: page_fixture(board, %{"title" => "Bulk #{n}"}, user: user)
+
+      titles = recent_titles(conn, "")
+      assert length(titles) == 100
+      refute "Oldest" in titles
+    end
+  end
+
   describe "a token that may not" do
     setup %{conn: conn} do
       %{page: create(conn, %{title: "Runbook", body: "one"})}

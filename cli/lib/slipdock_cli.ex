@@ -165,7 +165,9 @@ defmodule SlipdockCLI do
   WIKI  (Markdown pages on a board: how it works, what was decided and why.
          A page answers to its code — W-31 — its slug, or board/slug.)
     page ls <board> [--q TEXT] [--archived|--all] [--template] [--draft]
-                    [--folder F | --no-folder]
+                    [--folder F | --no-folder] [--recent]
+                                        --recent: the most recently edited first, the
+                                        newest 100 (the wiki tree's Recent view)
     page tree <board>                   the page tree, nesting shown by indent
     page read <page>                    print the Markdown source
     page tags <board>                   the tags its notes give themselves (front matter tags
@@ -691,6 +693,7 @@ defmodule SlipdockCLI do
     root: :boolean,
     folder: :string,
     no_folder: :boolean,
+    recent: :boolean,
     note_tag: :string,
     also: :string,
     not_in: :string,

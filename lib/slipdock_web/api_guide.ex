@@ -1701,6 +1701,7 @@ defmodule SlipdockWeb.APIGuide do
     curl -s -H "$H" B/api/boards/1/pages            # the board's pages
     curl -s -H "$H" "B/api/boards/1/pages?tree=true"   # nested, as the sidebar shows them
     curl -s -H "$H" "B/api/boards/1/pages?q=refund"    # by substring
+    curl -s -H "$H" "B/api/boards/1/pages?recent=true" # newest edit first, the newest 100
     curl -s -H "$H" B/api/pages/W-31                # one page: Markdown source, not HTML
 
     # write one
