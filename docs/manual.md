@@ -2756,6 +2756,42 @@ adopting: a file deleted since comes back down, and one whose page was
 archived goes up again. Once a pass has come through without an error the
 import record is spent and removed.
 
+### Encrypted notes
+
+A note can hold an encrypted passage, written in the format of
+[Meld Encrypt](https://github.com/meld-cp/obsidian-encrypt), the Obsidian
+plugin. The vault's Obsidian opens Slipdock's, and Slipdock opens Meld's
+(every version Meld has written). Encrypting and decrypting happen in your
+browser or on your machine, and the passphrase and the plain text never
+reach the server.
+
+- **Reading.** An encrypted passage shows as a locked chip with its hint.
+  Select it and enter the passphrase, and the text appears in place. It
+  locks again after five minutes, when you press *Lock*, or when you leave
+  the page or reload. *Remember for this session* keeps the passphrase in
+  the tab's memory, so the next passage opens without asking. Nothing
+  decrypted can be turned into a card. A whole encrypted note (`.mdenc`)
+  opens the same way from the tree.
+- **Writing.** In the editor, *Encrypt* with nothing selected opens a box
+  where you type the secret, the passphrase twice and an optional hint.
+  Only the encrypted block goes into the page, so the secret is never saved
+  or sent. With text selected, *Encrypt* encrypts the selection, and
+  *Encrypt whole note* does the whole body as one block. *Decrypt to edit*
+  opens the block under the cursor so you can change it, and saves it
+  encrypted again with the same passphrase. *Remove encryption* puts the
+  plain text back, after asking.
+- **History.** Text that was on the page before you encrypted it is still in
+  the page's earlier revisions, and the editor says how many. The board's
+  owner can choose *Purge them when I save*. Only those revisions are
+  deleted, the page as saved is kept, and the purge is written in the
+  board's activity. It is the one exception to "nothing is lost to a save".
+- **Search** never sees the ciphertext. Listings show 🔒 in its place, and
+  the tree marks a page holding some with a lock.
+- **CLI.** `slipdock page encrypt <page> [--section S] [--hint H]
+  [--purge-history]` and `slipdock page decrypt <page> [--section S]
+  [--in-place]` do the same on your machine. They ask for the passphrase, or
+  read it from `--passphrase-file` or `$SLIPDOCK_MELD_PASSPHRASE`.
+
 ## Moving boards between servers
 
 A board as one JSON file that another Slipdock can read back: its lists, its

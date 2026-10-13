@@ -1908,6 +1908,34 @@ defmodule SlipdockWeb.APIGuide do
     `area` or anything under it, and `GET /api/boards/:board/pages/tags`
     counts them. Off a vault, `note_tags` is always empty.
 
+    ### Encrypted notes (Meld Encrypt)
+
+    A passage can be encrypted in Meld Encrypt's format, the Obsidian plugin's,
+    so Obsidian with Meld opens it too. The server only ever holds ciphertext:
+    an inline block `🔐β 💡hint💡<base64> 🔐` (or between `%%`, to hide it in
+    Obsidian's reading view), or a whole `.mdenc` note kept as a file. It is
+    never decrypted here, never indexed for search, and goes through sync and
+    import byte for byte. A page holding one says `encrypted` in the tree. The
+    format is written up on the wiki of the board that built it.
+
+    Don't decrypt or encrypt by hand through the API: you would be sending the
+    plaintext. Do it on your own machine with the CLI, which asks for the
+    passphrase (or reads `--passphrase-file`, or `$SLIPDOCK_MELD_PASSPHRASE`):
+
+    ```sh
+    slipdock page encrypt W-31 --section Keys --hint "the usual"   # or the whole page
+    slipdock page decrypt W-31 --section Keys                       # print it, here only
+    slipdock page decrypt W-31 --in-place                           # remove the encryption
+    ```
+
+    Text that was on the page before it was encrypted is still in the page's
+    earlier revisions. `page encrypt` counts them. With `--purge-history`, the
+    board's owner deletes them: the client matches the text against
+    `GET /api/pages/W-31/revisions?bodies=all` and sends only the ids, to
+    `POST /api/pages/W-31/revisions/purge {"ids": [..]}`. It never touches the
+    newest revision, and it is logged. This is the one write that removes
+    history, so it is owner-only.
+
     ### Writing one section at a time
 
     A page is addressed by heading: `Deploy/Rollback` is the `## Rollback`

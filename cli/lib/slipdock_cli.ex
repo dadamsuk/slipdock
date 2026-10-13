@@ -225,6 +225,17 @@ defmodule SlipdockCLI do
                                         add to, or replace, one section. Appending cannot
                                         conflict and needs no hash — the write to prefer
     page append <page> --body TEXT|--file F [--message M]   add to the end of the page
+    page encrypt <page> [--section S] [--hint H] [--purge-history]
+                                        encrypt the page, or one section, in Meld Encrypt's
+                                        format (Obsidian opens it). Done here: the passphrase,
+                                        asked for twice, and the text never reach the server.
+                                        Earlier revisions still holding the text are counted;
+                                        --purge-history deletes them (the board's owner only)
+    page decrypt <page> [--section S] [--in-place]
+                                        print the page, or a section, with its encrypted
+                                        blocks opened; --in-place removes the encryption and
+                                        saves the plain text. Both take --passphrase-file F or
+                                        $SLIPDOCK_MELD_PASSPHRASE where nobody can type it
     page links <page>                   what it points at, what points at it, what it wanted
     page pin <page> --card N | --page P [--off]
                                         "this page is *the* spec for that"
@@ -686,6 +697,11 @@ defmodule SlipdockCLI do
     summary: :string,
     message: :string,
     base_hash: :string,
+    section: :string,
+    hint: :string,
+    in_place: :boolean,
+    passphrase_file: :string,
+    purge_history: :boolean,
     body: :string,
     file: :string,
     rev: :string,

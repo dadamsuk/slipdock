@@ -95,6 +95,11 @@ slipdock page new <board> Retry policy --body - --summary "How retries work" \
 
 # The whole body at once — last resort, and only with --base-hash.
 slipdock page edit <page> --body - --base-hash <hash> --message "why"
+
+# Encrypted passages (Meld Encrypt's format): done here, never through the API
+# by hand. Asks for the passphrase, or --passphrase-file F.
+slipdock page encrypt <page> --section Keys --hint "the usual"
+slipdock page decrypt <page> --section Keys        # print it; --in-place removes it
 ```
 
 `--body -` reads the text from stdin, which is how to write a page of

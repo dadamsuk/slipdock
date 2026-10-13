@@ -214,6 +214,27 @@ defmodule SlipdockCLI.VaultImportTest do
       refute File.exists?(State.path(ctx.root))
     end
 
+    test "Meld's own ciphertext, inline in every version and as a whole .mdenc note, goes up untouched",
+         ctx do
+      vectors =
+        "../../test/support/fixtures/meld_vectors.json"
+        |> Path.expand(__DIR__)
+        |> File.read!()
+        |> :json.decode()
+
+      inline = Enum.map_join(vectors["inline"], "\r\n", & &1["text"]) <> "\n"
+      [note | _] = vectors["notes"]
+      write(ctx, "Secrets.md", inline)
+      write(ctx, "Private/Diary.mdenc", note["file"])
+
+      {record, report} = import!(ctx)
+
+      assert report.errors == []
+      assert FakeVault.by_path(ctx.vault, "Secrets.md").content == inline
+      assert FakeVault.file_by_path(ctx.vault, "Private/Diary.mdenc").bytes == note["file"]
+      assert record["entries"]["Private/Diary.mdenc"]["kind"] == "file"
+    end
+
     test "run again, nothing is sent twice, and only what is new goes up", ctx do
       write(ctx, "One.md", "one")
       {_record, _} = import!(ctx)
