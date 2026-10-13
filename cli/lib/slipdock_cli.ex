@@ -38,6 +38,7 @@ defmodule SlipdockCLI do
         --full        print the whole matching text, not a snippet
     ask <question...>                   ask the assistant, which searches for itself and
                                         answers in prose, naming the cards it read
+        --board B     keep it to one board (id, code or name)
     search-status                       what is indexed, and whether anything is queued
     saved [--ask | --mode search]       the searches and questions you have saved (yours alone)
     save <words...> [--ask]             save a search (with --ask, a question)

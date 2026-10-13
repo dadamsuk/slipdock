@@ -32,7 +32,10 @@ defmodule SlipdockCLI.Boards do
   end
 
   def run("ask", words, o) when words != [] do
-    HTTP.post("/ask", %{q: Enum.join(words, " ")}) |> out(o, &Render.answer/1)
+    %{q: Enum.join(words, " ")}
+    |> then(&if(o[:board], do: Map.put(&1, :board, o[:board]), else: &1))
+    |> then(&HTTP.post("/ask", &1))
+    |> out(o, &Render.answer/1)
   end
 
   def run("search-status", [], o),
