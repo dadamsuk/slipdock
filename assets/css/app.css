@@ -521,6 +521,15 @@ body.tl-tray-dragging { cursor: grabbing; }
 }
 @keyframes ai-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 
+/* The wiki's tree pane on a wide screen: as wide as the reader dragged it,
+   or folded away (#737, assets/js/wiki_pane.js). Both are set on <html>, out
+   of LiveView's reach. A phone's drawer is left as it is. */
+@media (min-width: 64rem) {
+  #wiki-tree { width: var(--wiki-tree-width, 16rem); }
+  html[data-wiki-tree="collapsed"] #wiki-tree,
+  html[data-wiki-tree="collapsed"] #wiki-tree-resize { display: none; }
+}
+
 /* Wiki ---------------------------------------------------------------
    Rendered Markdown (see `SlipdockWeb.Wiki.Renderer`). Documents are the one
    place in this app where the text itself is the interface, so give it

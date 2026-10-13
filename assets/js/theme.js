@@ -3,6 +3,11 @@
 // Content-Security-Policy allows script from this origin only (see
 // SlipdockWeb.Plugs.ContentSecurityPolicy), and because it must run before
 // app.js finishes loading.
+import {restorePane} from "./wiki_pane"
+
+// The wiki tree's width, and whether it is folded away, for the same reason.
+try { restorePane(document.documentElement, localStorage) } catch (_e) {}
+
 (() => {
   const systemTheme = () => matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 

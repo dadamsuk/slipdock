@@ -2486,6 +2486,28 @@ defmodule SlipdockWeb.WikiLive.Index do
           >
             <.icon name="hero-bars-3-bottom-left" class="size-4" /> Pages
           </button>
+          <%!-- The tree, on a wide screen: folded away and back (#737). The
+                WikiTreeCollapse hook (assets/js/wiki_pane.js) keeps the
+                choice in this browser, and sets aria-expanded, hence the
+                ignore. --%>
+          <span id="wiki-tree-collapse-keep" phx-update="ignore" class="hidden lg:inline-flex">
+            <button
+              id="wiki-tree-collapse"
+              type="button"
+              phx-hook="WikiTreeCollapse"
+              class="group btn btn-ghost btn-sm btn-square"
+              aria-controls="wiki-tree"
+              aria-expanded="true"
+              title="Hide the page tree"
+            >
+              <.icon
+                name="hero-chevron-double-left"
+                class="size-4 group-aria-expanded:inline-block hidden"
+              />
+              <.icon name="hero-chevron-double-right" class="size-4 group-aria-expanded:hidden" />
+              <span class="sr-only">Page tree</span>
+            </button>
+          </span>
           <.view_tabs
             board={@board}
             mode={:wiki}
@@ -2747,6 +2769,25 @@ defmodule SlipdockWeb.WikiLive.Index do
               <.icon name="hero-folder-plus" class="size-4" /> New folder
             </button>
           </aside>
+
+          <%!-- Drag to make the tree wider or narrower; the arrow keys too,
+                and a double-click or Enter puts it back (#737). Wide screens
+                only: on a phone the tree is a drawer. --%>
+          <div id="wiki-tree-resize-keep" phx-update="ignore" class="hidden lg:contents">
+            <div
+              id="wiki-tree-resize"
+              phx-hook="WikiTreeResize"
+              data-pane="wiki-tree"
+              role="separator"
+              aria-orientation="vertical"
+              aria-controls="wiki-tree"
+              aria-label="Resize the page tree"
+              tabindex="0"
+              title="Drag to resize · double-click to reset"
+              class="-ml-1 w-2 shrink-0 cursor-col-resize touch-none select-none border-l-2 border-transparent hover:border-primary/50 focus-visible:border-primary focus-visible:outline-none data-[dragging]:border-primary"
+            >
+            </div>
+          </div>
 
           <div
             :if={@tree_drawer}
