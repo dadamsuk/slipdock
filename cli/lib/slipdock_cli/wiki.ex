@@ -28,6 +28,23 @@ defmodule SlipdockCLI.Wiki do
     |> out(o, &Render.folders(&1["folders"], &1["pages"]))
   end
 
+  # One level of the tree, as the browser's tree loads it: what opening the
+  # root, a folder or a page shows, with how much is under each row.
+  def run("folder", ["open", ref | folder], o) do
+    query =
+      case {folder, o[:page]} do
+        {[], nil} -> []
+        {[], page} -> [page: page]
+        {words, _} -> [folder: Enum.join(words, " ")]
+      end
+
+    HTTP.get(
+      "/boards/#{enc(ref)}/tree",
+      query ++ [archived: if(o[:archived] || o[:all], do: "all")]
+    )
+    |> out(o, &Render.tree_rows(&1["rows"]))
+  end
+
   def run("folder", ["new", ref | name_words], o) when name_words != [] do
     body = compact(%{"name" => Enum.join(name_words, " "), "parent" => o[:parent]})
 
@@ -68,7 +85,7 @@ defmodule SlipdockCLI.Wiki do
   def run("folder", _args, _o),
     do:
       fail(
-        "usage: slipdock folder ls BOARD | new BOARD NAME [--parent F] | mv BOARD F --parent G|--root|--name N | rm BOARD F [--purge]"
+        "usage: slipdock folder ls BOARD | open BOARD [F] [--page P] | new BOARD NAME [--parent F] | mv BOARD F --parent G|--root|--name N | rm BOARD F [--purge]"
       )
 
   # Every board's wiki at once: what the Wiki view on the web shows.

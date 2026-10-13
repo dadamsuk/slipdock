@@ -38,6 +38,7 @@ Every `<page>` argument takes any of the three.
 ```sh
 slipdock wiki                              # every board's wiki at once, folders and all
 slipdock folder ls <board>                 # one board's filing: folders, then pages
+slipdock folder open <board> [<folder>]    # one level only, with counts: cheap on a big wiki
 slipdock page tree <board>                 # the shape of the wiki, nesting by indent
 slipdock page ls <board> --q retry         # substring of title or body
 slipdock page ls <board> --all             # archived pages too (--archived for those alone)

@@ -420,6 +420,7 @@ Folders are where a page is *kept*, as opposed to `--parent`, which is what it i
 ```
 slipdock wiki                                 # every board's wiki at once, folders and all
 slipdock folder ls <board>                    # one board's filing, pages and all
+slipdock folder open <board> [<folder>]       # one level of it, with counts (big wikis)
 slipdock folder new <board> "Design/Decisions"    # a path makes every level
 slipdock folder mv <board> <folder> [--name N] [--parent F | --root]
 slipdock folder rm <board> <folder>           # the folder only: nothing filed in it is deleted

@@ -836,6 +836,42 @@ defmodule SlipdockCLI.Render do
     end)
   end
 
+  @doc """
+  One level of the wiki tree: folders with how many pages are beneath them,
+  pages with their code, files with their type, and how many rows each one
+  would open onto.
+  """
+  def tree_rows([]), do: IO.puts(dim("nothing here"))
+
+  def tree_rows(rows) do
+    Enum.each(rows, fn row ->
+      under = if (row["count"] || 0) > 0, do: dim("  ▸ #{row["count"]}"), else: ""
+
+      line =
+        case row["kind"] do
+          "folder" ->
+            bold(row["title"]) <> "/  " <> dim("#{row["pages"]} page(s) · folder:#{row["id"]}")
+
+          "file" ->
+            row["title"] <> "  " <> dim("#{row["content_type"]} · file #{row["id"]}")
+
+          _ ->
+            marks =
+              [
+                row["draft"] && "draft",
+                row["template"] && "template",
+                row["archived"] && "archived"
+              ]
+              |> Enum.filter(& &1)
+              |> Enum.map_join("", &(" · " <> &1))
+
+            row["title"] <> "  " <> dim("#{row["code"]} · page:#{row["id"]}#{marks}")
+        end
+
+      IO.puts(line <> under)
+    end)
+  end
+
   @doc "One folder, after it has been made, renamed or moved."
   def folder(f) do
     IO.puts(bold(f["path"]) <> "  " <> dim("#{f["slug"]} · id #{f["id"]}"))
