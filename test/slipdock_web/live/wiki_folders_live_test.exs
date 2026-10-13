@@ -566,6 +566,34 @@ defmodule SlipdockWeb.WikiFoldersLiveTest do
       refute Map.has_key?(row(reply, "folder:#{specs.id}", "Retry policy"), :draft)
     end
 
+    test "a page holding Meld ciphertext, and a whole encrypted note, carry a lock and open where they decrypt",
+         %{conn: conn, board: board} do
+      [vector | _] =
+        "test/support/fixtures/meld_vectors.json"
+        |> File.read!()
+        |> Jason.decode!()
+        |> Map.fetch!("inline")
+
+      page_fixture(board, %{"title" => "Locked", "body" => vector["text"]})
+
+      Slipdock.Repo.insert!(%Slipdock.Wiki.WikiFile{
+        board_id: board.id,
+        name: "Diary.mdenc",
+        content_type: "application/octet-stream",
+        size: 1,
+        sha256: "x",
+        key: "k/Diary.mdenc"
+      })
+
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki")
+      reply = tree_load(view)
+
+      assert %{encrypted: true} = row(reply, "root", "Locked")
+      assert %{encrypted: true, href: href} = row(reply, "root", "Diary.mdenc")
+      assert href =~ ~r|^/wiki-files/\d+/Diary.mdenc\?view=locked$|
+      refute Map.has_key?(row(reply, "root", "Specs"), :encrypted)
+    end
+
     test "the page being read is in its folder's rows, however far down", %{
       conn: conn,
       board: board,

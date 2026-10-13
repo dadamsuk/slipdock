@@ -365,11 +365,14 @@ defmodule Slipdock.Search.Chunk do
 
   # A vector should be built from words, not from syntax: `[[Retry policy]]`
   # embeds as "Retry policy", and a live query block embeds as nothing at all
-  # since its answer is not part of what the page says.
+  # since its answer is not part of what the page says. Meld Encrypt's
+  # ciphertext is left out too (W-103 R6.7): it says nothing to search, and
+  # what it hides is not the server's to know.
   defp plain(nil), do: ""
 
   defp plain(body) do
     body
+    |> Slipdock.Wiki.Meld.conceal("")
     |> String.replace(~r/^\s*(```|~~~)(?:slipdock|kanban).*?^\s*\1\s*$/ms, "")
     |> Markup.to_plain()
   end
