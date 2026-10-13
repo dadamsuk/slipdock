@@ -45,7 +45,7 @@ defmodule SlipdockWeb.WikiVaultTreeTest do
     assert titles(reply, "root") == ["Archive", "Jobs", "Projects", "Home"]
 
     # Jobs is Job Hunt's wiki, opened in this board's tree.
-    assert %{nav: "redirect", mount: true, href: href} = row(reply, "root", "Jobs")
+    assert %{nav: "patch", mount: true, href: href} = row(reply, "root", "Jobs")
     assert href == "/boards/#{jobs.id}/wiki?in=#{kb.id}"
     assert %{nav: "patch", href: home_href} = row(reply, "root", "Home")
     refute home_href =~ "in="
@@ -100,8 +100,37 @@ defmodule SlipdockWeb.WikiVaultTreeTest do
     # Job Hunt's rows stay in this tree; KnowledgeBase's go back to its own.
     assert %{nav: "patch", href: href} = row(reply, "folder:#{acme.id}", "Call notes")
     assert href == "/boards/#{jobs.id}/wiki/#{call.slug}?in=#{kb.id}"
-    assert %{nav: "redirect", href: home} = row(reply, "board:#{kb.id}", "Home")
+    assert %{nav: "patch", href: home} = row(reply, "board:#{kb.id}", "Home")
     assert home =~ ~r{^/boards/#{kb.id}/wiki/[^?]+$}
+  end
+
+  test "a row of another board patches the view onto it, keeping the tree", %{
+    conn: conn,
+    kb: kb,
+    jobs: jobs,
+    call: call
+  } do
+    {:ok, view, _html} = live(conn, ~p"/boards/#{kb}/wiki")
+
+    html = render_patch(view, ~p"/boards/#{jobs}/wiki/#{call.slug}?in=#{kb.id}")
+    assert html =~ "Call notes"
+    assert has_element?(view, "#context-crumbs", "KnowledgeBase")
+    assert has_element?(view, "#context-board", "on Job Hunt")
+    assert has_element?(view, "#wiki-tree[data-board='#{jobs.id}']")
+    assert tree_load(view).root == "board:#{kb.id}"
+  end
+
+  test "patched to a board the reader can't see, the view goes home", %{conn: conn, kb: kb} do
+    stranger = user_fixture("stranger-vt@example.com")
+    theirs = board_fixture(%{"name" => "Theirs", "code" => "theirsvt"}, owner: stranger)
+    {:ok, view, _html} = live(conn, ~p"/boards/#{kb}/wiki")
+
+    assert {:error, {:live_redirect, %{to: "/"}}} =
+             redirect =
+             render_patch(view, ~p"/boards/#{theirs}/wiki")
+
+    assert {:ok, _home, html} = follow_redirect(redirect, conn)
+    assert html =~ "access to that board"
   end
 
   test "an ?in= that names no tree this page is in is ignored", %{

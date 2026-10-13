@@ -86,112 +86,7 @@ defmodule SlipdockWeb.WikiLive.Index do
 
       {:ok,
        socket
-       |> assign(
-         board: board,
-         perm: perm,
-         can_write: Access.can_write?(perm),
-         can_manage: perm == :owner,
-         meetings: Slipdock.Meetings.presence(socket.assigns.current_user, board),
-         page: nil,
-         revision: nil,
-         form: nil,
-         preview: "",
-         # The editor's preview beside the source; a writer can put it away
-         # for the whole width, and the browser remembers (EditorPrefs).
-         show_preview: true,
-         conflict: nil,
-         base_hash: nil,
-         new_parent: nil,
-         new_column: nil,
-         new_folder: nil,
-         # Filing (see `Slipdock.Wiki.Folder`): every folder, for the pickers.
-         all_folders: [],
-         folder_outline: [],
-         # The tree down the side is drawn by the WikiTree hook, which asks
-         # for one container at a time (`tree_load`, `tree_children`; see
-         # `Slipdock.Wiki.Tree`). The server keeps what the hook cannot: a
-         # version it bumps when the tree should be asked for again (a
-         # filter, a toggle, a change by anyone), what the filter bar lets
-         # through, and whether it is this board's tree or its vault's.
-         # On a board in a vault the tree is the vault's from where the
-         # board is mounted down, its own rows and what is mounted below
-         # them together (#758); `tree_root` is the key of its top.
-         tree_version: 0,
-         tree_filter: nil,
-         # Whether the search box looks inside pages too, not only at names.
-         tree_contents: false,
-         # A page the tree's keyboard is renaming (F2) or archiving (Delete).
-         tree_prompt: nil,
-         # On a phone the tree is a drawer, shut until asked for (R11.11).
-         tree_drawer: false,
-         tree_scope: "board",
-         tree_root: "root",
-         # Opened from another board's tree (`?in=`): that board, whose tree
-         # and breadcrumbs are kept, and where its wiki is mounted.
-         tree_context: nil,
-         tree_context_root: nil,
-         # The tree, or "recent": this board's pages, last edited first
-         # (#738). The browser keeps the choice (WikiTreeView hook).
-         tree_view: "tree",
-         tree_recent: [],
-         tree_empty: true,
-         tree_current: "",
-         tree_reveal: [],
-         vault: Slipdock.Vaults.for_board(board),
-         # The vault view's own (#752): the vault, what the address named,
-         # and where everything of it sits. Nil on a board's wiki.
-         vault_view: nil,
-         vault_target: nil,
-         vault_addresses: nil,
-         # The middle column's own listings: the index's folders and recent
-         # pages, or what is in the folder being looked at.
-         index_folders: [],
-         recent: [],
-         folder_rows: [],
-         folder_more: false,
-         excerpts: %{},
-         # Organise mode: the tree becomes drag-and-drop, and only then.
-         # Dragging by default would make every mis-aimed click a filing
-         # change, in the one place a reader is trying to read.
-         organising: false,
-         folder_modal: nil,
-         # The folder being looked *at*, when the index is scoped to one.
-         folder: nil,
-         # A folder whose deletion is being decided: keep what is in it, or
-         # take it all with it (see `Slipdock.Wiki.Folders.delete/2`).
-         folder_delete: nil,
-         html: "",
-         columns: [],
-         backlinks: [],
-         children: [],
-         # The cards this page is about, and the picker for adding another.
-         cards: [],
-         card_query: "",
-         card_results: [],
-         tags: [],
-         wanted: [],
-         diff: [],
-         # The version a revision is compared with (nil: nothing before it),
-         # whether the reader chose it, and the page's newest version.
-         base: nil,
-         comparing: false,
-         latest_revision: nil,
-         revisions: [],
-         page_jumps: [],
-         fields_board: nil,
-         # Bumped to clear a form after it submits, as the card panel does.
-         form_key: 0,
-         # The board's own filter bar. A page answers every one of these now
-         # that it carries the card's facets, so the wiki keeps the bar the
-         # card views have rather than inventing a second one.
-         filters: Slipdock.Filters.empty(),
-         filtering: false,
-         shown: 0,
-         hidden: 0,
-         # What the tree lists at all, as opposed to what the filters narrow.
-         show: %{drafts: true, templates: true, archived: false},
-         marks: Slipdock.Favourites.marks(socket.assigns.current_user)
-       )
+       |> assign(board_assigns(socket, board, perm))
        |> allow_upload(:page_image,
          accept: ~w(.png .jpg .jpeg .gif .webp image/png image/jpeg image/gif image/webp),
          max_entries: 5,
@@ -203,6 +98,152 @@ defmodule SlipdockWeb.WikiLive.Index do
        |> load_tree_state()}
     else
       {:ok,
+       socket
+       |> put_flash(:error, "You don't have access to that board.")
+       |> push_navigate(to: ~p"/")}
+    end
+  end
+
+  # Everything a view of one board's wiki starts from. Mount sets it all;
+  # opening a page of another board from the tree sets it again in
+  # `switch_board/3`, apart from what the reader chose about the view itself.
+  defp board_assigns(socket, board, perm) do
+    [
+      board: board,
+      perm: perm,
+      can_write: Access.can_write?(perm),
+      can_manage: perm == :owner,
+      meetings: Slipdock.Meetings.presence(socket.assigns.current_user, board),
+      page: nil,
+      revision: nil,
+      form: nil,
+      preview: "",
+      # The editor's preview beside the source; a writer can put it away
+      # for the whole width, and the browser remembers (EditorPrefs).
+      show_preview: true,
+      conflict: nil,
+      base_hash: nil,
+      new_parent: nil,
+      new_column: nil,
+      new_folder: nil,
+      # Filing (see `Slipdock.Wiki.Folder`): every folder, for the pickers.
+      all_folders: [],
+      folder_outline: [],
+      # The tree down the side is drawn by the WikiTree hook, which asks
+      # for one container at a time (`tree_load`, `tree_children`; see
+      # `Slipdock.Wiki.Tree`). The server keeps what the hook cannot: a
+      # version it bumps when the tree should be asked for again (a
+      # filter, a toggle, a change by anyone), what the filter bar lets
+      # through, and whether it is this board's tree or its vault's.
+      # On a board in a vault the tree is the vault's from where the
+      # board is mounted down, its own rows and what is mounted below
+      # them together (#758); `tree_root` is the key of its top.
+      tree_version: 0,
+      tree_filter: nil,
+      # Whether the search box looks inside pages too, not only at names.
+      tree_contents: false,
+      # A page the tree's keyboard is renaming (F2) or archiving (Delete).
+      tree_prompt: nil,
+      # On a phone the tree is a drawer, shut until asked for (R11.11).
+      tree_drawer: false,
+      tree_scope: "board",
+      tree_root: "root",
+      # Opened from another board's tree (`?in=`): that board, whose tree
+      # and breadcrumbs are kept, and where its wiki is mounted.
+      tree_context: nil,
+      tree_context_root: nil,
+      # The tree, or "recent": this board's pages, last edited first
+      # (#738). The browser keeps the choice (WikiTreeView hook).
+      tree_view: "tree",
+      tree_recent: [],
+      tree_empty: true,
+      tree_current: "",
+      tree_reveal: [],
+      vault: Slipdock.Vaults.for_board(board),
+      # The vault view's own (#752): the vault, what the address named,
+      # and where everything of it sits. Nil on a board's wiki.
+      vault_view: nil,
+      vault_target: nil,
+      vault_addresses: nil,
+      # The middle column's own listings: the index's folders and recent
+      # pages, or what is in the folder being looked at.
+      index_folders: [],
+      recent: [],
+      folder_rows: [],
+      folder_more: false,
+      excerpts: %{},
+      # Organise mode: the tree becomes drag-and-drop, and only then.
+      # Dragging by default would make every mis-aimed click a filing
+      # change, in the one place a reader is trying to read.
+      organising: false,
+      folder_modal: nil,
+      # The folder being looked *at*, when the index is scoped to one.
+      folder: nil,
+      # A folder whose deletion is being decided: keep what is in it, or
+      # take it all with it (see `Slipdock.Wiki.Folders.delete/2`).
+      folder_delete: nil,
+      html: "",
+      columns: [],
+      backlinks: [],
+      children: [],
+      # The cards this page is about, and the picker for adding another.
+      cards: [],
+      card_query: "",
+      card_results: [],
+      tags: [],
+      wanted: [],
+      diff: [],
+      # The version a revision is compared with (nil: nothing before it),
+      # whether the reader chose it, and the page's newest version.
+      base: nil,
+      comparing: false,
+      latest_revision: nil,
+      revisions: [],
+      page_jumps: [],
+      fields_board: nil,
+      # Bumped to clear a form after it submits, as the card panel does.
+      form_key: 0,
+      # The board's own filter bar. A page answers every one of these now
+      # that it carries the card's facets, so the wiki keeps the bar the
+      # card views have rather than inventing a second one.
+      filters: Slipdock.Filters.empty(),
+      filtering: false,
+      shown: 0,
+      hidden: 0,
+      # What the tree lists at all, as opposed to what the filters narrow.
+      show: %{drafts: true, templates: true, archived: false},
+      marks: Slipdock.Favourites.marks(socket.assigns.current_user)
+    ]
+  end
+
+  # Opening a page of another board from the tree (a vault's tree holds
+  # several) is a patch, not a fresh view, so the tree isn't torn down and
+  # drawn again from nothing on every click. The board this is a view of
+  # changes here as well as at mount, keeping what the reader chose about
+  # the view itself.
+  @kept_on_switch [:tree_version, :tree_view, :show, :show_preview, :tree_contents, :marks]
+
+  defp switch_board(%{assigns: %{board: %{id: id}}} = socket, id, _params), do: {:ok, socket}
+  defp switch_board(socket, nil, _params), do: {:ok, socket}
+
+  defp switch_board(socket, board_id, params) do
+    old = socket.assigns.board
+    board = Boards.get_board!(board_id)
+    perm = Access.board_permission(socket.assigns.current_user, board)
+
+    if Access.can_read?(perm) do
+      if connected?(socket) do
+        Wiki.unsubscribe(old.id)
+        Wiki.subscribe(board.id)
+      end
+
+      {:ok,
+       socket
+       |> assign(Keyword.drop(board_assigns(socket, board, perm), @kept_on_switch))
+       |> assign_context(params["in"])
+       |> load_tree_state()}
+    else
+      {:error,
        socket
        |> put_flash(:error, "You don't have access to that board.")
        |> push_navigate(to: ~p"/")}
@@ -357,7 +398,42 @@ defmodule SlipdockWeb.WikiLive.Index do
   end
 
   @impl true
-  def handle_params(params, _uri, %{assigns: %{live_action: :vault}} = socket) do
+  def handle_params(params, uri, %{assigns: %{live_action: :vault}} = socket) do
+    # The address is read again on every patch: a row of the vault's tree
+    # opens by patching to its address, so the tree stays put.
+    %{vault_view: vault, vault_addresses: addresses} = socket.assigns
+
+    with {:ok, target, board_id} <- vault_target(vault, params),
+         {:ok, socket} <- switch_board(socket, board_id, %{}) do
+      socket
+      |> assign(
+        vault_view: vault,
+        vault_target: target,
+        vault_addresses: addresses,
+        tree_scope: "vault",
+        tree_root: "vault"
+      )
+      |> show_vault_target(params)
+    else
+      {:error, %Phoenix.LiveView.Socket{} = socket} ->
+        {:noreply, socket}
+
+      # Nothing there now: a fresh visit says why, as it does at mount.
+      _ ->
+        %URI{path: path, query: query} = URI.parse(uri)
+        {:noreply, push_navigate(socket, to: if(query, do: path <> "?" <> query, else: path))}
+    end
+  end
+
+  def handle_params(params, _uri, socket) do
+    # A row of another board in the tree patches to that board's wiki.
+    case switch_board(socket, Params.id(params["id"]), params) do
+      {:ok, socket} -> show_params(socket, params)
+      {:error, socket} -> {:noreply, socket}
+    end
+  end
+
+  defp show_vault_target(socket, params) do
     %{board: board, vault_target: target} = socket.assigns
 
     {action, extra} =
@@ -382,7 +458,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     {:noreply, assign_current(socket)}
   end
 
-  def handle_params(params, _uri, socket) do
+  defp show_params(socket, params) do
     # `folder` is the index's own state; every other action clears it rather
     # than inheriting the last one looked at.
     # Opening something from the drawer shuts it: the page is what was asked
@@ -2225,7 +2301,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     writable = writable_ids(socket)
 
     rows
-    |> Enum.map(&client_row(&1, socket.assigns.board, writable))
+    |> Enum.map(&client_row(&1, writable))
     |> in_vault_view(socket.assigns)
     |> in_context(socket.assigns)
   end
@@ -2249,8 +2325,8 @@ defmodule SlipdockWeb.WikiLive.Index do
 
   defp in_context(rows, _assigns), do: rows
 
-  # In the vault view a row opens at its vault address, and as a fresh view:
-  # the page may be on another board, whose wiki this then shows.
+  # In the vault view a row opens at its vault address, patched in even when
+  # the page is on another board (see `switch_board/3`).
   defp in_vault_view(rows, %{vault_view: %{} = vault, vault_addresses: addresses}) do
     Enum.map(rows, fn row ->
       path =
@@ -2261,7 +2337,7 @@ defmodule SlipdockWeb.WikiLive.Index do
         end
 
       if path,
-        do: %{row | href: SlipdockWeb.VaultUrls.url(vault, path), nav: "redirect"},
+        do: %{row | href: SlipdockWeb.VaultUrls.url(vault, path), nav: "patch"},
         else: row
     end)
   end
@@ -2281,10 +2357,10 @@ defmodule SlipdockWeb.WikiLive.Index do
     if socket.assigns.can_write, do: MapSet.new([socket.assigns.board.id]), else: MapSet.new()
   end
 
-  defp client_row(%{kind: "more"} = row, _board, _writable),
+  defp client_row(%{kind: "more"} = row, _writable),
     do: %{kind: "more", key: "more:#{row.offset}", offset: row.offset, count: 0}
 
-  defp client_row(row, board, writable) do
+  defp client_row(row, writable) do
     key = row[:key] || "#{row.kind}:#{row.id}"
 
     base =
@@ -2293,7 +2369,8 @@ defmodule SlipdockWeb.WikiLive.Index do
       |> Map.merge(%{
         key: key,
         href: row_href(row, key),
-        nav: if(row.board_id in [nil, board.id], do: "patch", else: "redirect")
+        # Another board's row too: `switch_board/3` moves the view to it.
+        nav: "patch"
       })
 
     base =

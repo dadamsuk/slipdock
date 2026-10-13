@@ -44,13 +44,35 @@ try {
     await page.waitForTimeout(700)
   }
   await note.waitFor()
+  // Marked, so a tree torn down and drawn anew (a fresh view rather than a
+  // patch) shows: the mark goes with it.
+  const kept = () => page.evaluate(() => document.querySelector('[data-tree-rows]').__kept === true)
+  await page.evaluate(() => { document.querySelector('[data-tree-rows]').__kept = true })
   await note.locator('a').click()
   await page.waitForURL(/\/vaults\/GMinds\/Specs\/Acme%20call$/)
   await page.getByText('Went well.').waitFor()
+  if (!(await kept())) fail('the tree was drawn anew opening a page')
   const crumbs = await page.locator('#vault-crumbs').innerText()
   if (!/GMinds[\s\S]*Specs[\s\S]*Acme call[\s\S]*on KnowledgeBase/.test(crumbs)) fail('crumbs: ' + crumbs)
 
-  // Edit it, as on a board's wiki.
+  // A page on the other board, from the same tree: still a patch.
+  const offer = page.locator('.wt-row', { hasText: 'Offer' }).first()
+  for (let i = 0; i < 3 && !(await offer.count()); i++) {
+    await page.locator('.wt-row', { hasText: 'Hunt' }).first().locator('[data-toggle]').click()
+    await page.waitForTimeout(700)
+  }
+  await offer.locator('a').click()
+  await page.waitForURL(/\/vaults\/GMinds\/Hunt\/Offer$/)
+  await page.getByText('Start in May.').waitFor()
+  if (!/on Job Hunt/.test(await page.locator('#vault-crumbs').innerText())) fail('not on Job Hunt')
+  if (!(await kept())) fail('the tree was drawn anew opening a page on another board')
+  console.log('ok: pages open from the tree without drawing it anew, across boards too')
+
+  // Back to the note on the first board, and edit it, as on a board's wiki.
+  await page.locator('.wt-row', { hasText: 'Acme call' }).first().locator('a').click()
+  await page.getByText('Went well.').waitFor()
+  if (!(await kept())) fail('the tree was drawn anew going back')
+
   await page.getByRole('link', { name: 'Edit', exact: true }).first().click()
   const body = page.locator('textarea[name="page[body]"]')
   await body.waitFor()
