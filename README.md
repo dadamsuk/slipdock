@@ -614,10 +614,10 @@ claude mcp add --transport http slipdock https://your-server/mcp \
   --header "Authorization: Bearer <token>"
 ```
 
-The client gets 37 tools — `whoami`, `get_guide` (a short guide that names
+The client gets 38 tools — `whoami`, `get_guide` (a short guide that names
 the rest of its sections, one call each with `section`), `list_boards`, `get_board`,
 `list_cards` (with `full: true`, every card as `get_card` gives it), `get_card`,
-`search`, `read_page`, `list_pages` (a board's wiki, flat or as a tree), `page_info` (a page's links or heading paths,
+`search`, `ask` (a question in prose, answered from the boards with what it read — a model call on your AI key, so slower), `read_page`, `list_pages` (a board's wiki, flat or as a tree), `page_info` (a page's links or heading paths,
 a board's wanted pages, or whether a title has a page), `page_history` (a page's revisions,
 the diff one save made, or between any two), `list_vaults` (your vaults, or where a vault path lands) and `activity`
 (a board's log, or one card's) to read; `create_card`,

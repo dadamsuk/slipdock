@@ -162,7 +162,7 @@ way in: what it is, the pictures, and how to get it running.
 - Accounts: passwordless sign-in by emailed magic link, sessions that last
   30 days, API tokens for the CLI
 - **An MCP server** at `/mcp`: claude.ai, the Claude apps, Claude Code and
-  other MCP clients get the boards and the wiki as 37 tools (four of them only
+  other MCP clients get the boards and the wiki as 38 tools (four of them only
   while meeting mode is on), signing in
   through the browser or with an API token (see [MCP server](#mcp-server))
 - Groups of users; boards, single cards and saved views can be shared with
@@ -3639,6 +3639,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `list_cards` | Cards in list order, filtered by `column`, `open`, `deps: "ready"`, `no_assignee` and `archived` (`exclude`, `include` or `only`). `full: true` gives each card as `get_card` does (comments, checklist, docs), 20 at a time unless `limit` says otherwise. |
 | `get_card` | A card in full: description, checklist with item ids, comments, dependencies, subcards and the wiki pages about it. |
 | `search` | Cards, comments and wiki pages by meaning, across every board you can read or one. |
+| `ask` | A `question` in prose, answered from the boards as `POST /api/ask` answers it, with the cards and pages it read (`id`, `title`, `kind`). `board` keeps it to one board. A model call on your own AI key and provider, so it can take a while; a token confined to some boards is refused, as it is by `/api/ask`. |
 | `read_page` | A wiki page's Markdown and its `content_hash`, by code (`W-31`) or by board and slug or title. `board` says whose page it is (`id`, `code`, `name`) and whether that board is `archived` — a code reaches pages on your archived boards, which `list_boards` leaves out unless asked. A page on a board you cannot see is not found. |
 | `list_pages` | A board's wiki pages in order — code, title, summary, folder, parent and pinned cards — filtered by `q`, `archived` (`exclude`, `include` or `only`), `template` and `draft`; `tree: true` nests children under their parents. |
 | `page_info` | Finding the way round a wiki, by `what`: `links` (a page's outgoing, unresolved and incoming links), `sections` (its heading paths, as `write_page`'s section modes take them), `wanted` (a board's linked-to pages nobody has written) and `resolve` (is there a page for this `title`, and the `[[link]]` to write). Drafts stay out of sight of readers who cannot edit them. |
