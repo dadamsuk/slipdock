@@ -219,10 +219,7 @@ defmodule Slipdock.Fixtures do
   wait on each other's `epic`. Use the real thing in a test about the code.
   """
   def sub_board(card, template),
-    do:
-      Boards.create_sub_board(card, template,
-        code: unique_code()
-      )
+    do: Boards.create_sub_board(card, template, code: unique_code())
 
   @doc """
   A three-level tree for rollup tests, as of 15 Jan 2030:
