@@ -114,7 +114,7 @@ defmodule SlipdockCLI.Skills do
   ## Helpers ------------------------------------------------------------------
 
   defp skills_dir(o) do
-    o[:dir] || Path.join([System.get_env("HOME") || ".", ".claude", "skills"])
+    o[:dir] || Path.join([HTTP.home(), ".claude", "skills"])
   end
 
   # The server's sha is over every file of the skill; recomputing it locally is

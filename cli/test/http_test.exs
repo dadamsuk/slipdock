@@ -11,7 +11,13 @@ defmodule SlipdockCLI.HTTPTest do
   setup do
     home = Path.join(System.tmp_dir!(), "slipdock-http-#{System.unique_integer([:positive])}")
     File.mkdir_p!(home)
-    saved = Map.new(~w(HOME SLIPDOCK_URL SLIPDOCK_TOKEN KANBAN_TOKEN), &{&1, System.get_env(&1)})
+
+    saved =
+      Map.new(
+        ~w(HOME USERPROFILE SLIPDOCK_URL SLIPDOCK_TOKEN KANBAN_TOKEN),
+        &{&1, System.get_env(&1)}
+      )
+
     System.put_env("HOME", home)
     Enum.each(~w(SLIPDOCK_URL SLIPDOCK_TOKEN KANBAN_TOKEN), &System.delete_env/1)
 
@@ -23,6 +29,8 @@ defmodule SlipdockCLI.HTTPTest do
 
       File.rm_rf!(home)
     end)
+
+    %{home: home}
   end
 
   defp serve(responses), do: System.put_env("SLIPDOCK_URL", FakeServer.start(responses))
@@ -44,6 +52,35 @@ defmodule SlipdockCLI.HTTPTest do
       serve([{200, "{}"}])
       assert {:ok, %{}} = HTTP.get("/boards/#{HTTP.seg("Road map/2")}/cards", q: "x&y")
       assert_received {:request, "GET", "/api/boards/Road%20map%2F2/cards?q=x%26y", ""}
+    end
+  end
+
+  describe "home, on Windows too" do
+    test "with no HOME, the config goes under USERPROFILE, not the current folder", %{home: home} do
+      System.delete_env("HOME")
+      System.put_env("USERPROFILE", home)
+
+      assert HTTP.home() == home
+
+      assert HTTP.save_url("https://boards.example/") ==
+               Path.join([home, ".config", "slipdock", "url"])
+
+      assert File.read!(Path.join([home, ".config", "slipdock", "url"])) ==
+               "https://boards.example\n"
+
+      assert HTTP.base_url() == "https://boards.example"
+      refute File.exists?(".config/slipdock/url")
+    end
+
+    test "an empty HOME counts as none", %{home: home} do
+      System.put_env("HOME", "")
+      System.put_env("USERPROFILE", home)
+      assert HTTP.home() == home
+    end
+
+    test "HOME wins when both are set", %{home: home} do
+      System.put_env("USERPROFILE", Path.join(home, "elsewhere"))
+      assert HTTP.home() == home
     end
   end
 

@@ -30,3 +30,5 @@ priv/static/cache_manifest.json
 # Docs and the CLI, which are not part of the server image
 cli/_build
 cli/kanban
+cli/slipdock
+priv/cli/slipdock.escript

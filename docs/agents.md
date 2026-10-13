@@ -145,7 +145,15 @@ list; one that sends the agent to the guide first never is.
 [The `slipdock` CLI](manual.md#cli) wraps every call, and is pleasanter to read
 in a transcript than a wall of `curl`. It is an Elixir escript, so it needs
 Erlang/OTP on the machine that runs it — which is why nothing above depends on
-it. If you have Elixir:
+it. On Windows, one line in PowerShell installs it from the server, for you
+alone, with Erlang through winget if there is none, and puts it on your PATH:
+
+```powershell
+irm https://app.slipdock.us/cli/install.ps1 | iex   # again later to update it
+slipdock auth
+```
+
+Elsewhere, if you have Elixir:
 
 ```sh
 cd cli && mix escript.build && cp slipdock ~/.local/bin/
@@ -366,7 +374,10 @@ For anyone reading the code rather than using it:
 - `lib/slipdock_web/controllers/install_controller.ex` — `/install.sh`.
 - `lib/slipdock_web/base_url.ex` — how the app works out which address to hand
   out, and why `conn.scheme` is not it.
-- `cli/` — the escript.
+- `cli/` — the escript. The Docker image builds it into
+  `priv/cli/slipdock.escript`, and
+  `lib/slipdock_web/controllers/cli_install_controller.ex` serves it with its
+  checksum and the Windows installer (`priv/cli/install.ps1`) under `/cli/`.
 - `lib/slipdock/runners.ex`, `lib/slipdock/runners/setup.ex` — the job queue
   and the Connect-a-runner generator; `priv/runner/` — the shell and
   PowerShell runners and their installers, served under `/runner/`.

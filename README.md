@@ -138,7 +138,8 @@ Briefly, with the detail in [the manual](docs/manual.md):
   too: [a Trello board's JSON export](docs/manual.md#from-trello) imports as
   it is, lists, cards, labels, checklists and comments.
 - **A JSON API and a CLI** — [everything the UI can do](docs/manual.md#json-api),
-  [from the shell](docs/manual.md#cli), plus
+  [from the shell](docs/manual.md#cli) (on Windows, `irm <server>/cli/install.ps1 | iex`
+  installs the CLI from your own server), plus
   [agent skills](docs/manual.md#skills) the server ships (for ChatGPT too,
   as zips that use the MCP connector instead of the CLI) and a
   `/api/guide` that describes *your* boards to whatever is driving them.
