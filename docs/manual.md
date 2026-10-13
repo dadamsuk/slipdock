@@ -2792,6 +2792,20 @@ reach the server.
   [--in-place]` do the same on your machine. They ask for the passphrase, or
   read it from `--passphrase-file` or `$SLIPDOCK_MELD_PASSPHRASE`.
 
+### Drawings
+
+Drawings made with Obsidian's [Excalidraw](https://github.com/zsviczian/obsidian-excalidraw-plugin)
+plugin are drawn in the page. Both of its files work: a `.excalidraw.md` note
+(compressed or not), which is a page, and a plain `.excalidraw` file, which
+is kept with the wiki's other files.
+
+- **Viewing.** `![[Plan.excalidraw]]` or `![[Plan.excalidraw.md]]` shows a
+  preview of the drawing where it is written; select it to open the drawing.
+  A drawing's own page shows the drawing rather than the plugin's Markdown.
+  The preview is drawn by the server with clean lines rather than
+  Excalidraw's hand-drawn ones, in the fonts your computer has, and a
+  dark-theme drawing is shown dark. Images the drawing holds are drawn too.
+
 ## Moving boards between servers
 
 A board as one JSON file that another Slipdock can read back: its lists, its

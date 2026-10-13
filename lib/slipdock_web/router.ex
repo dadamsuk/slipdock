@@ -155,6 +155,8 @@ defmodule SlipdockWeb.Router do
     get "/attachments/:id/:filename", AttachmentController, :show
     # A file in a wiki that is not a page: a synced vault's images and PDFs.
     get "/wiki-files/:id/:name", WikiFileController, :show
+    # An Excalidraw drawing's preview, as SVG: `kind` is page or file.
+    get "/wiki-drawings/:kind/:id", WikiDrawingController, :show
     # Everything you have, as a zip. Yours, so you do not have to ask.
     get "/account/export.zip", ExportController, :account
     # Board trees as one portable JSON document — the file an import reads.

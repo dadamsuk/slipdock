@@ -1908,6 +1908,18 @@ defmodule SlipdockWeb.APIGuide do
     `area` or anything under it, and `GET /api/boards/:board/pages/tags`
     counts them. Off a vault, `note_tags` is always empty.
 
+    ### Drawings (Excalidraw)
+
+    Obsidian's Excalidraw plugin keeps a drawing as a `.excalidraw.md` page
+    (front matter `excalidraw-plugin: parsed`, its text listed under
+    `## Text Elements`, the scene in a ```json or ```compressed-json block
+    under `## Drawing`) or as a `.excalidraw` wiki file of JSON. Both sync and
+    import as they are. In the web app `![[Plan.excalidraw]]` (or
+    `.excalidraw.md`) is drawn as a preview, served as SVG from
+    `/wiki-drawings/page/:id` or `/wiki-drawings/file/:id` to readers of the
+    board. Edit a drawing page's body only if you mean to rewrite the plugin's
+    Markdown; the scene is lz-string compressed.
+
     ### Encrypted notes (Meld Encrypt)
 
     A passage can be encrypted in Meld Encrypt's format, the Obsidian plugin's,

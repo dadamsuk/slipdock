@@ -623,7 +623,26 @@ defmodule SlipdockWeb.WikiLive.Index do
   # Rendering needs the page (for `[[!toc]]` and friends), the board (to read
   # unqualified references against) and the reader (so a chip for a card they
   # cannot open degrades to plain text).
-  defp render_body(socket, page, body) do
+  # A drawing's page (the Excalidraw plugin's `.excalidraw.md`) shows the
+  # drawing, not the plugin's wrapping of it (W-103 R5.1); a body that does
+  # not hold a readable scene falls back to its Markdown.
+  defp render_body(socket, %Page{} = page, body)
+       when is_binary(body) and body == page.body do
+    if Slipdock.Wiki.Excalidraw.page?(page) and
+         match?({:ok, _}, Slipdock.Wiki.Excalidraw.parse_markdown(body)),
+       do: drawing_body(page),
+       else: markdown_body(socket, page, body)
+  end
+
+  defp render_body(socket, page, body), do: markdown_body(socket, page, body)
+
+  defp drawing_body(page) do
+    ~s|<figure class="wiki-drawing-page"><img class="wiki-drawing-preview" src="| <>
+      Phoenix.HTML.Engine.html_escape(Slipdock.Wiki.Drawings.preview_url(page)) <>
+      ~s|" alt="| <> Phoenix.HTML.Engine.html_escape(page.title) <> ~s|"></figure>|
+  end
+
+  defp markdown_body(socket, page, body) do
     Renderer.to_html(body,
       page: page,
       board: socket.assigns.board,

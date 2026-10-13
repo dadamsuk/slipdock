@@ -97,7 +97,8 @@ Briefly, with the detail in [the manual](docs/manual.md):
   embeds and front matter as Obsidian reads them, a page filed in several
   folders, and [`slipdock sync`](docs/manual.md#syncing-a-vault-to-a-folder)
   to mirror it both ways to a folder on each computer, Obsidian included, after
-  a one-time [import](docs/manual.md#importing-an-obsidian-vault) of the vault you have, and
+  a one-time [import](docs/manual.md#importing-an-obsidian-vault) of the vault you have,
+  Excalidraw [drawings](docs/manual.md#drawings) drawn in the page, and
   [encrypted notes](docs/manual.md#encrypted-notes) in Meld Encrypt's format, encrypted and
   decrypted in your browser or the CLI so the server never sees them. Plus a
   [Narrative view](docs/manual.md#narrative) that tells you what happened to a

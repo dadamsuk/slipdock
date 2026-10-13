@@ -1,0 +1,37 @@
+{
+ "source": "lz-string 1.5.0 compressToBase64",
+ "vectors": [
+  {
+   "plain": "a",
+   "compressed": "IZA="
+  },
+  {
+   "plain": "Hello, world!",
+   "compressed": "BIUwNmD2A0AEDukBOYAmBCIA"
+  },
+  {
+   "plain": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "compressed": "IY18ZVkA"
+  },
+  {
+   "plain": "TOBEORNOTTOBEORTOBEORNOT#",
+   "compressed": "CoeQQgoiBKByLFJGSpwQYiA="
+  },
+  {
+   "plain": "héllo wörld — “quotes” ✓",
+   "compressed": "BYS4NmD2AEDuBvAnMATagUAmoHAICOBXSAFwFMBnQXAJpBkciA=="
+  },
+  {
+   "plain": "emoji 🎨🖌️ and 漢字 and тест",
+   "compressed": "KYWw9gVglgBIPBuAr9wvBuBjdw8H8wIYDsAmNAie0HVtLPGQIRBBWEEEEQcoA==="
+  },
+  {
+   "plain": "{\"type\":\"excalidraw\",\"version\":2,\"source\":\"https://excalidraw.com\",\"elements\":[{\"id\":\"abc\",\"type\":\"text\",\"text\":\"Hi ^ there\",\"x\":1.5,\"y\":-2}],\"appState\":{\"viewBackgroundColor\":\"#ffffff\"},\"files\":{}}",
+   "compressed": "N4IgLgngDgpiBcIYA8DGBDANgSwCYCd0B3EAGhADcZ8BnbAewDsEAmcm+gV31TkQAswYKDXgB6MSgw4CxAHSp6AWzJJMMJTEZgaCANqg8CEOgBGqVZFjGwKMJbvGAEtgAEAPVdh+1OOWQIAIxyAKzkEAgAtCwAvgC65OhQUADKYOi2CKAU2DBEAELoqADWAOb4XIy4AML0mPT4xgDEAGZt7SAx5C3Y6rrwwDExQA"
+  },
+  {
+   "plain": " ĎYÐŇĉTËłĄOÆĽÿJÁĸúE¼ĳ~õ@·Įyð;²ĩtë6­Ĥoæ1¨ğjá,£ĚeÜ'ĕ`×\"Đ[ÒŉċVÍńĆQÈĿāLÃĺüG¾ĵ÷B¹İ{ò=´īví8¯Ħqè3ªġlã.¥ĜgÞ) ėbÙ$Ē]ÔŋčXÏņĈSÊŁăNÅļþIÀķùD»Ĳ}ô?¶ĭxï:±Ĩsê5¬ģnå0§Ğià+¢ędÛ&Ĕ_Ö!ďZÑňĊUÌŃąPÇľĀKÂĹûF½ĴöA¸įzñ<³Īuì7®ĥpç2©Ġkâ-¤ěfÝ(ĖaØ#đ\\ÓŊČWÎŅćRÉŀĂMÄĻýH¿ĶøCºı|ó>µĬwî9°ħré4«Ģmä/¦ĝhß*¡ĘcÚ%ē^Õ ĎYÐŇĉTËłĄOÆĽÿJÁĸúE¼ĳ~õ@·Įyð;²ĩtë6­Ĥoæ1¨ğjá,£ĚeÜ'ĕ`×\"Đ[ÒŉċVÍńĆQÈĿāLÃĺüG¾ĵ÷B¹İ{ò=´īví8¯Ħq",
+   "compressed": "AQdMcIAJoAuOKABJhIQACoGnBCgAWMCCAB5AY4LyAAEQP8BSAg4ByAAwQF8CiAPYMyAAfgK8ACA7YHSAATwAPAbgBNgSkAALgGuAbAFrAJIAB7AGcBGABWB8QABWAQ4A0AYsBYgAFMAOwHIAeYFRAAAYB1gEQBMwAiAAbQBLgJKAACmA0IAAagCzgCKAAPGAYIAAigATgPyAAFGAgIAAMgDDgFyAAKEAPwDiAH2ArIAAAQDvAEIAnYAMgADeAE8AvAAtgNSAAG4AtwAcAPWAZIAAjgAXAMwAVYCEgAA2AMcAdAClgDiAAOYAewCUAAWA6IAARgCbACQA2YBIgAC6ACuA0oAAaYCwgAAaAPOAYoAARMAEIAAZQAU4BBQAAMYBgQAAcgBRwA8gABwgB/AEkAAOAdkAAEEAT4AIgBuwBMgABfAAvAH4AG2AWkAAB4Ae4AXABGwAUgABnABXAFYADWAYkAAHYAU4ADABywB4gABLAAHAGoAEWATEAACYAbYAZABcwAogAB9ABrAEIABmAeEAAFoARcAEoAAZMAUIAAVQAM4BhQAAcYBQQAACgBxwB8gABIwAAgABpABDgE5AAAhAG+AGIAXsALIAAfwAbwBBAAdgHpAABeAEeADwAZsAVIAAVwANwB2AB1gFJAAAOAHOAEwASsABIAAawARwBaAAlgGxAABmAF2ABQAfMAaIAAQwAGwBiABZgERAAA6AGXAFKAAFTADCAAHUAHOAUUAAAmAcEAAEoAScAAoAAaMAQIAALIACOANyAABhAC/AASAD9gBsgAAgQAHwAwgAXYAjIAAD4AM8AHwAK2ADSAADuAB3ACcAANgDkgAATgAlwALAA1YARIAALYACcAPQAGWALiAAAWAD7ABUACFgAYgAAxgAWwApAAOYAyIAAHoAKugJAsCIKgmC4IQpCULQjCsJwvCCKIkiyIoqiaLohimJYtiOK4ni+IEoSRLEiSpJkuSFKUlS1I0rSdL0gyjJMQA="
+  }
+ ]
+}
