@@ -260,4 +260,109 @@ defmodule Slipdock.VaultsTest do
       assert Slipdock.Repo.all(Slipdock.Vaults.Mirror) == []
     end
   end
+
+  describe "previews" do
+    test "a new mapping lists the pages it brings in, with their vault paths", ctx do
+      %{user: user, kb: kb, jobs: jobs, vault: vault} = ctx
+      map!(vault, user, %{path: "/", board: kb})
+      {:ok, _} = Wiki.create_page(jobs, %{"title" => "Acme"}, user: user)
+      {:ok, _} = Wiki.create_page(jobs, %{"title" => "Beta"}, user: user)
+
+      assert {:ok, preview} = Vaults.preview_mapping(vault, user, %{path: "/Jobs", board: jobs})
+      assert preview.path == "/Jobs"
+      assert preview.arriving == %{count: 2, sample: ["Jobs/Acme.md", "Jobs/Beta.md"]}
+      assert preview.moving.count == 0
+      # Nothing is written.
+      assert length(Slipdock.Repo.preload(vault, :mappings, force: true).mappings) == 1
+    end
+
+    test "a mapping inside another takes over the pages under its path", ctx do
+      %{user: user, kb: kb, vault: vault} = ctx
+      {:ok, notes} = Wiki.create_folder(kb, %{"name" => "Notes"})
+      {:ok, _} = Wiki.create_page(kb, %{"title" => "Top"}, user: user)
+
+      {:ok, _} =
+        Wiki.create_page(kb, %{"title" => "Inside", "folder_id" => notes.id}, user: user)
+
+      map!(vault, user, %{path: "/", board: kb})
+
+      assert {:ok, preview} =
+               Vaults.preview_mapping(vault, user, %{path: "/Notes", board: kb, folder: notes})
+
+      assert preview.arriving.count == 0
+
+      assert preview.moving == %{
+               count: 1,
+               sample: [%{from: "Notes/Inside.md", to: "Notes/Inside.md"}]
+             }
+    end
+
+    test "names the synced folders that will gain the files", ctx do
+      %{user: user, kb: kb, vault: vault} = ctx
+      {_raw, token} = Slipdock.Accounts.create_api_token(user, "slipdock CLI on laptop")
+      Vaults.touch_mirror(vault, token)
+
+      assert {:ok, %{mirrors: ["slipdock CLI on laptop"]}} =
+               Vaults.preview_mapping(vault, user, %{path: "/", board: kb})
+    end
+
+    test "is refused for the reasons a mapping is", ctx do
+      %{user: user, kb: kb, jobs: jobs, vault: vault} = ctx
+      map!(vault, user, %{path: "/", board: kb})
+
+      assert {:error, :unprocessable_entity, "/ is already mapped in this vault"} =
+               Vaults.preview_mapping(vault, user, %{path: "/", board: jobs})
+
+      assert {:error, :unprocessable_entity, "KnowledgeBase is already mapped into a vault"} =
+               Vaults.preview_mapping(vault, user, %{path: "/Again", board: kb})
+
+      {:ok, other} = Vaults.create_vault(user, %{"name" => "Other"})
+
+      assert {:error, :unprocessable_entity, "KnowledgeBase is already in another vault"} =
+               Vaults.preview_mapping(other, user, %{path: "/", board: kb})
+
+      assert {:error, :unprocessable_entity, _} =
+               Vaults.preview_mapping(vault, user, %{path: "/../x", board: jobs})
+    end
+
+    test "taking a mapping out lists the pages that leave, and those that fall back", ctx do
+      %{user: user, kb: kb, jobs: jobs, vault: vault} = ctx
+      {:ok, notes} = Wiki.create_folder(kb, %{"name" => "Notes"})
+      {:ok, _} = Wiki.create_page(kb, %{"title" => "Inside", "folder_id" => notes.id}, user: user)
+      {:ok, _} = Wiki.create_page(jobs, %{"title" => "Acme"}, user: user)
+      map!(vault, user, %{path: "/", board: kb})
+      inner = map!(vault, user, %{path: "/Filed", board: kb, folder: notes})
+      map!(vault, user, %{path: "/Jobs", board: jobs})
+
+      assert {:ok, gone} = Vaults.preview_unmapping(vault, "/Jobs")
+      assert gone.leaving == %{count: 1, sample: ["Jobs/Acme.md"]}
+      assert gone.moving.count == 0
+
+      assert {:ok, back} = Vaults.preview_unmapping(vault, inner.id)
+      assert back.leaving.count == 0
+      assert back.moving.sample == [%{from: "Filed/Inside.md", to: "Notes/Inside.md"}]
+
+      assert {:error, :not_found, _} = Vaults.preview_unmapping(vault, "/Nope")
+    end
+
+    test "candidates say why a board can't be mapped", ctx do
+      %{user: user, kb: kb, jobs: jobs, vault: vault} = ctx
+      stranger = user_fixture("lender@example.com")
+      read_only = board_fixture(%{"name" => "Read only", "code" => "ro2"}, owner: stranger)
+      share_fixture(read_only, user, "read")
+      old = board_fixture(%{"name" => "Old", "code" => "old"}, owner: user)
+      {:ok, _} = Boards.archive_board(old)
+      {:ok, other} = Vaults.create_vault(user, %{"name" => "Other"})
+      map!(other, user, %{path: "/", board: jobs})
+      map!(vault, user, %{path: "/", board: kb})
+
+      reasons = vault |> Vaults.mapping_candidates(user) |> Map.new(fn {b, r} -> {b.name, r} end)
+
+      # Mapping the same board twice in one vault is allowed.
+      assert reasons["KnowledgeBase"] == nil
+      assert reasons["Job Hunt"] == "is already in another vault"
+      assert reasons["Read only"] == "you can't write to it"
+      assert reasons["Old"] == "is archived"
+    end
+  end
 end

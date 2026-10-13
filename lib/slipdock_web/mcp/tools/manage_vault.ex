@@ -24,7 +24,9 @@ defmodule SlipdockWeb.MCP.Tools.ManageVault do
     do:
       "create a vault (name), rename it (vault, name), delete it (vault, confirm: true; " <>
         "pages are kept), map a vault path to a board's wiki or one of its folders " <>
-        "(vault, path, board, folder) or unmap one (vault, path). A board belongs to one vault."
+        "(vault, path, board, folder) or unmap one (vault, path). A board belongs to one vault. " <>
+        "dry_run: true with map or unmap says which pages it brings in, takes over or takes " <>
+        "out, and changes nothing."
 
   @impl true
   def input_schema do
@@ -37,7 +39,11 @@ defmodule SlipdockWeb.MCP.Tools.ManageVault do
         path: %{type: "string", description: "Vault path, e.g. / or /Jobs."},
         board: %{type: "string", description: "Board id, code or name (map)."},
         folder: %{type: "string", description: "A folder on that board (map); default its root."},
-        confirm: %{type: "boolean", description: "Must be true to delete a vault."}
+        confirm: %{type: "boolean", description: "Must be true to delete a vault."},
+        dry_run: %{
+          type: "boolean",
+          description: "map/unmap: say which pages would move, change nothing."
+        }
       },
       required: ["action"],
       additionalProperties: false
@@ -95,20 +101,33 @@ defmodule SlipdockWeb.MCP.Tools.ManageVault do
          {:ok, board} <-
            Args.refusal(Authorize.fetch_board(Args.auth(context), board_ref, :write)),
          {:ok, folder} <- folder(board, folder_ref),
-         {:ok, _} <-
-           Args.refusal(
-             Vaults.add_mapping(vault, user, %{path: path, board: board, folder: folder})
-           ),
-         {:ok, vault} <- Args.refusal(Vaults.get_vault(user, vault.id)),
-         do: {:ok, %{vault: V.vault(vault)}}
+         {:ok, dry_run} <- Args.boolean(args, "dry_run", false) do
+      attrs = %{path: path, board: board, folder: folder}
+
+      if dry_run do
+        with {:ok, preview} <- Args.refusal(Vaults.preview_mapping(vault, user, attrs)),
+             do: {:ok, %{dry_run: true, preview: preview}}
+      else
+        with {:ok, _} <- Args.refusal(Vaults.add_mapping(vault, user, attrs)),
+             {:ok, vault} <- Args.refusal(Vaults.get_vault(user, vault.id)),
+             do: {:ok, %{vault: V.vault(vault)}}
+      end
+    end
   end
 
   defp act("unmap", args, user, _context) do
     with {:ok, vault} <- vault(args, user),
          {:ok, path} <- Args.required(args, "path"),
-         {:ok, _} <- Args.refusal(Vaults.remove_mapping(vault, path)),
-         {:ok, vault} <- Args.refusal(Vaults.get_vault(user, vault.id)),
-         do: {:ok, %{vault: V.vault(vault)}}
+         {:ok, dry_run} <- Args.boolean(args, "dry_run", false) do
+      if dry_run do
+        with {:ok, preview} <- Args.refusal(Vaults.preview_unmapping(vault, path)),
+             do: {:ok, %{dry_run: true, preview: preview}}
+      else
+        with {:ok, _} <- Args.refusal(Vaults.remove_mapping(vault, path)),
+             {:ok, vault} <- Args.refusal(Vaults.get_vault(user, vault.id)),
+             do: {:ok, %{vault: V.vault(vault)}}
+      end
+    end
   end
 
   defp vault(args, user) do

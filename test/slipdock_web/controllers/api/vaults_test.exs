@@ -195,4 +195,47 @@ defmodule SlipdockWeb.API.VaultsTest do
     deleted = conn |> delete("/api/vaults/Brain") |> json_response(200) |> Map.fetch!("deleted")
     assert [%{"pages" => 1}] = deleted["mappings"]
   end
+
+  test "dry_run previews a mapping and its removal, and changes nothing", ctx do
+    %{conn: conn, jobs: jobs} = ctx
+    {:ok, _} = Wiki.create_page(jobs, %{"title" => "Acme"})
+    make(conn, "Brain")
+
+    preview =
+      conn
+      |> post("/api/vaults/Brain/mappings", %{
+        "path" => "/Jobs",
+        "board" => "jobs",
+        "dry_run" => true
+      })
+      |> json_response(200)
+
+    assert preview["dry_run"]
+    assert preview["preview"]["arriving"] == %{"count" => 1, "sample" => ["Jobs/Acme.md"]}
+
+    assert conn |> get("/api/vaults/Brain") |> json_response(200) |> get_in(["vault", "mappings"]) ==
+             []
+
+    conn
+    |> post("/api/vaults/Brain/mappings", %{"path" => "/Jobs", "board" => "jobs"})
+    |> json_response(201)
+
+    out =
+      conn
+      |> delete("/api/vaults/Brain/mappings?path=/Jobs&dry_run=true")
+      |> json_response(200)
+
+    assert out["preview"]["leaving"]["sample"] == ["Jobs/Acme.md"]
+
+    assert [_] =
+             conn
+             |> get("/api/vaults/Brain")
+             |> json_response(200)
+             |> get_in(["vault", "mappings"])
+
+    # A refusal is the same refusal as the real thing.
+    conn
+    |> post("/api/vaults/Brain/mappings", %{"path" => "/Jobs", "board" => "kb", "dry_run" => true})
+    |> json_response(422)
+  end
 end

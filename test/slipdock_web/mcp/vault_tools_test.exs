@@ -139,4 +139,44 @@ defmodule SlipdockWeb.MCP.VaultToolsTest do
     assert error!(call(conn, "list_vaults", %{vault: "Notes", changes_since: -1})) =~ "cursor"
     assert error!(call(conn, "list_vaults", %{changes_since: 0})) =~ "vault"
   end
+
+  test "map and unmap with dry_run preview and change nothing", %{conn: conn, user: user} do
+    ok!(call(conn, "manage_vault", %{action: "create", name: "Notes"}))
+
+    preview =
+      ok!(
+        call(conn, "manage_vault", %{
+          action: "map",
+          vault: "Notes",
+          path: "/",
+          board: "kb",
+          dry_run: true
+        })
+      )
+
+    assert preview["dry_run"] == true
+    assert preview["preview"]["arriving"]["count"] == 0
+    {:ok, vault} = Vaults.get_vault(user, "Notes")
+    assert vault.mappings == []
+
+    ok!(call(conn, "manage_vault", %{action: "map", vault: "Notes", path: "/", board: "kb"}))
+
+    out =
+      ok!(
+        call(conn, "manage_vault", %{action: "unmap", vault: "Notes", path: "/", dry_run: true})
+      )
+
+    assert out["preview"]["path"] == "/"
+    {:ok, vault} = Vaults.get_vault(user, "Notes")
+    assert [_] = vault.mappings
+
+    assert error!(
+             call(conn, "manage_vault", %{
+               action: "unmap",
+               vault: "Notes",
+               path: "/x",
+               dry_run: true
+             })
+           ) =~ "mapping"
+  end
 end

@@ -30,7 +30,7 @@ defmodule Slipdock.Vaults.Index do
   @type entry :: %{
           id: pos_integer,
           board_id: pos_integer,
-          mapping_id: pos_integer,
+          mapping_id: term,
           segments: [String.t()],
           path: String.t(),
           names: [String.t()],
@@ -39,15 +39,27 @@ defmodule Slipdock.Vaults.Index do
 
   @doc "Every live page of the vault with its vault path, shortest paths first."
   @spec build(Vault.t()) :: [entry]
-  def build(%Vault{id: vault_id}) do
-    mappings =
-      Repo.all(
-        from(m in Mapping,
-          where: m.vault_id == ^vault_id,
-          select: {m.board_id, m.folder_id, m.path, m.id}
-        )
-      )
+  def build(%Vault{} = vault), do: vault |> mappings() |> build_from()
 
+  @doc """
+  The vault's mappings in the shape `build_from/1` takes: `{board_id,
+  folder_id, path, mapping_id}`.
+  """
+  def mappings(%Vault{id: vault_id}) do
+    Repo.all(
+      from(m in Mapping,
+        where: m.vault_id == ^vault_id,
+        select: {m.board_id, m.folder_id, m.path, m.id}
+      )
+    )
+  end
+
+  @doc """
+  The index a set of mappings would make — the vault's own, or one with a
+  mapping added or taken away, which is how a change is previewed before it
+  is made. A mapping's id may be any term (`:new` for one not yet saved).
+  """
+  def build_from(mappings) do
     board_ids = mappings |> Enum.map(&elem(&1, 0)) |> Enum.uniq()
 
     folders =
