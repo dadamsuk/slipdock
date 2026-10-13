@@ -16,12 +16,15 @@ defmodule SlipdockWeb.WikiFileController do
   nothing and fetch nothing, the same one a drawing's preview has. An HTML
   file is shown the same way (#768): the policy's `sandbox` gives it an
   origin of its own, with no scripts, no forms and nothing fetched, so it
-  is a document to read and never code running as the reader.
+  is a document to read and never code running as the reader. An audio
+  file (#770) is served as audio, a byte range at a time when the player
+  asks for one (`SlipdockWeb.ByteRange`), so it can seek.
   """
   use SlipdockWeb, :controller
 
   alias Slipdock.{Access, Repo}
   alias Slipdock.Wiki.{Files, Meld, Viewer, WikiFile}
+  alias SlipdockWeb.ByteRange
 
   @svg_policy "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox"
   @html_policy "default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:; form-action 'none'; sandbox"
@@ -74,6 +77,13 @@ defmodule SlipdockWeb.WikiFileController do
     |> put_resp_header("content-security-policy", @html_policy)
     |> put_resp_header("referrer-policy", "no-referrer")
     |> send_inline(file, "text/html; charset=utf-8")
+  end
+
+  defp inline(conn, file, :audio) do
+    conn
+    |> put_resp_header("cache-control", "private, max-age=86400")
+    |> put_resp_header("x-content-type-options", "nosniff")
+    |> ByteRange.send(Files.disk_path(file), file.name, MIME.from_path(file.name), :inline)
   end
 
   defp inline(conn, file, _kind), do: send_file(conn, file)

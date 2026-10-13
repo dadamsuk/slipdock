@@ -11,6 +11,8 @@ defmodule SlipdockWeb.FileViewer do
     * a PDF is the browser's own PDF viewer, in a frame;
     * an HTML file is drawn in a sandboxed frame, served with the same
       policy as an SVG: no scripts, no fetching, an origin of its own;
+    * audio (.mp3, .m4a and the like) plays in the browser's own player,
+      the one a card's attachments have, seeking by byte range (#770);
     * JSON is a tree whose objects and arrays fold, or pretty-printed text
       when it is too big to fold, or the line where it stopped being JSON;
     * CSV and TSV are a table, the first row its header;
@@ -129,6 +131,21 @@ defmodule SlipdockWeb.FileViewer do
       referrerpolicy="no-referrer"
       class="h-full min-h-[70vh] w-full rounded border border-base-300 bg-white"
     ></iframe>
+    """
+  end
+
+  # preload="metadata" fetches its length and no more until play is pressed.
+  def viewer(%{kind: :audio} = assigns) do
+    ~H"""
+    <div class="mx-auto max-w-xl py-8">
+      <audio
+        id="file-audio"
+        controls
+        preload="metadata"
+        src={inline_url(@file)}
+        class="w-full"
+      ></audio>
+    </div>
     """
   end
 

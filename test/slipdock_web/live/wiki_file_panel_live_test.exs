@@ -56,6 +56,16 @@ defmodule SlipdockWeb.WikiFilePanelLiveTest do
     assert frame =~ ~s(sandbox="")
   end
 
+  test "an .m4a plays in the panel", %{conn: conn, board: board} do
+    file = stored(board, "Memo.m4a", "ftyp")
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}/wiki")
+    open_file(view, file.id)
+
+    player = view |> element("#wiki-file-panel audio#file-audio") |> render()
+    assert player =~ "#{Files.url(file)}?view=inline"
+    assert player =~ "controls"
+  end
+
   test "another file takes the panel's place", %{conn: conn, board: board} do
     one = stored(board, "one.txt", "first")
     two = stored(board, "two.txt", "second")
