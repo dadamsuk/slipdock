@@ -208,6 +208,10 @@ defmodule SlipdockCLI do
                                         one. F is a folder on its board, on --board B,
                                         or a vault path ("/Jobs/Notes") in its vault
     page mv <page> [--parent P | --root] [--position N|top|bottom]
+    page mv <page> --board B [--folder F] [--dry-run]
+                                        to another board of its vault: it keeps its code,
+                                        history and comments; tags, fields and pins go where
+                                        that board has a match (--dry-run says which won't)
     page rm <page> [--purge]            archive it (--purge deletes, owner only)
     page restore <page>
     page history <page> [--limit N]     every save, who made it and why
@@ -272,6 +276,8 @@ defmodule SlipdockCLI do
     folder new <board> <name...> [--parent F]
                                         a name with slashes makes the whole path
     folder mv <board> <folder> [--name N] [--parent F | --root] [--position N]
+                                        [--sort manual|name|modified|created]  how the
+                                        tree orders the pages in it
     folder rm <board> <folder> [--purge]
                                         delete the folder only: its subfolders move up and
                                         its pages go back to the root. --purge deletes the

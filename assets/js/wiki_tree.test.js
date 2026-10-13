@@ -2,10 +2,11 @@
 // things wiki_tree.js touches, and the server is a pushEvent that answers.
 import {test} from "node:test"
 import assert from "node:assert/strict"
-import {TreeModel, windowRange, dropZone, dropIntent, escapeHtml, keyMove, typeAhead, WikiTree, ROW_HEIGHT} from "./wiki_tree.js"
+import {TreeModel, windowRange, dropZone, dropIntent, escapeHtml, keyMove, typeAhead, menuItems, WikiTree, ROW_HEIGHT} from "./wiki_tree.js"
 
-const folder = (id, extra = {}) => ({kind: "folder", id, key: `folder:${id}`, title: `F${id}`, count: 1, board_id: 1, ...extra})
-const page = (id, extra = {}) => ({kind: "page", id, key: `page:${id}`, title: `P${id}`, count: 0, board_id: 1, ...extra})
+// Rows as the server sends them to a writer on board 1.
+const folder = (id, extra = {}) => ({kind: "folder", id, key: `folder:${id}`, title: `F${id}`, count: 1, board_id: 1, writable: true, ...extra})
+const page = (id, extra = {}) => ({kind: "page", id, key: `page:${id}`, title: `P${id}`, count: 0, board_id: 1, writable: true, ...extra})
 
 // root: F1 (open: F2 (open: P3), P4 (open: P5)), P6
 function sample() {
@@ -262,7 +263,7 @@ test("a more row in view asks for the next page of its container", () => {
 test("organising puts a handle on this board's pages and folders only", () => {
   const {hook, rowsEl} = mountHook({
     dataset: {organising: "true"},
-    replies: [root([folder(1), page(2), page(3, {board_id: 2}), folder(4, {mount: true})])],
+    replies: [root([folder(1), page(2), page(3, {board_id: 2, writable: false}), folder(4, {mount: true})])],
   })
   hook.mounted()
   const handles = rowsEl.innerHTML.split("data-key=").slice(1).map(r => r.includes("data-drag"))
@@ -370,7 +371,7 @@ function keyHook(rows, dataset = {}) {
 }
 
 test("F2 and Delete act on a page or folder of this board, for a writer", () => {
-  const {hook, pushed, press} = keyHook([folder(1), page(2), page(3, {board_id: 9})])
+  const {hook, pushed, press} = keyHook([folder(1), page(2), page(3, {board_id: 9, writable: false})])
   hook.active = "page:2"
   press("F2")
   press("Delete")
@@ -385,7 +386,7 @@ test("F2 and Delete act on a page or folder of this board, for a writer", () => 
 })
 
 test("a reader's F2 and Delete do nothing", () => {
-  const {hook, pushed, press} = keyHook([page(2)], {canWrite: "false"})
+  const {hook, pushed, press} = keyHook([page(2, {writable: false})], {canWrite: "false"})
   hook.active = "page:2"
   assert.ok(press("Delete").prevented)
   assert.equal(pushed.length, 1)
@@ -423,4 +424,95 @@ test("show where I am opens the way to the page again and scrolls to it", () => 
   assert.equal(hook.active, "page:2")
   assert.equal(el.scrollTop, 0)
   assert.equal(pushed.length, 1)
+})
+
+const labels = items => items.map(i => i.label)
+
+test("a page's menu, for a writer", () => {
+  const items = menuItems(page(7, {href: "/boards/1/wiki/p7"}), {board: 1, canWrite: true, selected: new Set()})
+  assert.deepEqual(labels(items), [
+    "Open", "Open in a new tab", "New note inside", "Rename…", "Move…", "Also file in…", "Tag…", "Copy link", "Archive…",
+  ])
+  assert.deepEqual(items.find(i => i.label === "Move…").payload, {kind: "move", keys: ["page:7"]})
+  assert.equal(items.find(i => i.label === "New note inside").href, "/boards/1/wiki/new?parent=7")
+  assert.ok(items.find(i => i.label === "Archive…").danger)
+})
+
+test("a folder's menu offers making, sorting and deleting, its sort ticked", () => {
+  const items = menuItems(folder(4, {href: "/boards/1/wiki?folder=4", sort: "name"}), {board: 1, canWrite: true, selected: new Set()})
+  assert.ok(labels(items).includes("New note here"))
+  assert.ok(labels(items).includes("New folder inside"))
+  assert.ok(labels(items).includes("New drawing here"))
+  assert.ok(labels(items).includes("Delete folder…"))
+  assert.equal(items.find(i => i.label === "Sort: By name").icon, "hero-check")
+  assert.deepEqual(items.find(i => i.label === "Sort: Newest first").payload, {key: "folder:4", sort: "created"})
+  assert.deepEqual(items.find(i => i.label === "New drawing here").payload, {key: "folder:4"})
+})
+
+test("a reader only opens and copies; another board's folder makes no folders here", () => {
+  const reader = menuItems(page(7, {writable: false, href: "/x"}), {board: 1, canWrite: false, selected: new Set()})
+  assert.deepEqual(labels(reader), ["Open", "Open in a new tab", "Copy link"])
+  const theirs = menuItems(folder(4, {board_id: 2, href: "/y", nav: "redirect"}), {board: 1, canWrite: true, selected: new Set()})
+  assert.ok(!labels(theirs).includes("New folder inside"))
+  assert.equal(theirs.find(i => i.label === "Open").nav, "redirect")
+  assert.ok(!labels(menuItems(page(8, {board_id: 2}), {board: 1, canWrite: true, selected: new Set()})).includes("Tag…"))
+})
+
+test("with several picked, the menu acts on all of them", () => {
+  const selected = new Set(["page:7", "page:8", "folder:4"])
+  const items = menuItems(page(7), {board: 1, canWrite: true, selected})
+  assert.deepEqual(labels(items), ["Move 3…", "Tag 3…", "Archive 3…"])
+  assert.deepEqual(items[2].payload, {kind: "archive", keys: ["page:7", "page:8", "folder:4"]})
+})
+
+test("the background's menu makes things at the top, and a vault's own rows have none", () => {
+  const root = menuItems({kind: "root"}, {board: 1, canWrite: true, rootSort: "modified"})
+  assert.deepEqual(labels(root).slice(0, 3), ["New note", "New folder", "New drawing"])
+  assert.equal(root.find(i => i.label === "Sort: Last changed first").icon, "hero-check")
+  assert.deepEqual(menuItems({kind: "dir", key: "dir:X"}, {board: 1, canWrite: true}), [])
+  assert.deepEqual(menuItems(folder(3, {mount: true}), {board: 1, canWrite: true}), [])
+})
+
+test("Ctrl-click and Shift-click pick rows, and the bar acts on them", () => {
+  const {hook, pushed} = mountHook({replies: [root([folder(1), page(2), page(3), page(4, {writable: false})])]})
+  const bar = {innerHTML: "", addEventListener() {}}
+  const find = hook.el.querySelector
+  hook.el.querySelector = sel => (sel === "#wiki-tree-selection" ? bar : find(sel))
+  hook.mounted()
+  const rowClick = (key, mods = {}) => hook.click({
+    ...mods, preventDefault() {}, stopPropagation() {},
+    target: {closest: sel => (sel === "[data-key]" ? {dataset: {key}} : null)},
+  })
+  rowClick("folder:1", {ctrlKey: true})
+  rowClick("page:4", {shiftKey: true})
+  assert.deepEqual([...hook.selected], ["folder:1", "page:2", "page:3"])
+  rowClick("page:2", {metaKey: true})
+  assert.deepEqual([...hook.selected], ["folder:1", "page:3"])
+  hook.selectionEl = bar
+  hook.renderSelection()
+  assert.match(bar.innerHTML, /2 picked/)
+  hook.selectionAction({preventDefault() {}, target: {closest: () => ({dataset: {sel: "archive"}})}})
+  assert.deepEqual(pushed.at(-1), {event: "tree_dialog", payload: {kind: "archive", keys: ["folder:1", "page:3"]}})
+  rowClick("page:3")
+  assert.equal(hook.selected.size, 0)
+})
+
+test("a menu item's event goes to the server; copy and new tab stay here", () => {
+  const {hook, pushed} = mountHook({replies: [root([page(7, {href: "/boards/1/wiki/p7"})])]})
+  hook.mounted()
+  let copied = null
+  let opened = null
+  Object.defineProperty(globalThis, "navigator", {value: {clipboard: {writeText: t => { copied = t }}}, configurable: true})
+  globalThis.window.location = {href: "https://example.test/boards/1/wiki"}
+  globalThis.window.open = url => { opened = url }
+  hook.menuItems = menuItems(page(7, {href: "/boards/1/wiki/p7"}), {board: 1, canWrite: true, selected: new Set()})
+  const ev = {preventDefault() {}, stopPropagation() {}}
+  hook.menuAction(ev, labels(hook.menuItems).indexOf("Rename…"))
+  assert.deepEqual(pushed.at(-1), {event: "rename_page", payload: {id: "7"}})
+  hook.menuItems = menuItems(page(7, {href: "/boards/1/wiki/p7"}), {board: 1, canWrite: true, selected: new Set()})
+  hook.menuAction(ev, labels(hook.menuItems).indexOf("Copy link"))
+  assert.equal(copied, "https://example.test/boards/1/wiki/p7")
+  hook.menuItems = menuItems(page(7, {href: "/boards/1/wiki/p7"}), {board: 1, canWrite: true, selected: new Set()})
+  hook.menuAction(ev, 1)
+  assert.equal(opened, "https://example.test/boards/1/wiki/p7")
 })

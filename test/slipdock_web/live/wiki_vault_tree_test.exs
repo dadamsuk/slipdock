@@ -77,15 +77,31 @@ defmodule SlipdockWeb.WikiVaultTreeTest do
     assert titles(reply, "folder:#{acme.id}") == ["Call notes"]
   end
 
-  test "organising goes back to this board's tree, and tells the browser", %{conn: conn, kb: kb} do
+  test "organising works in the vault's tree, on what the reader can write", %{
+    conn: conn,
+    kb: kb,
+    jobs: jobs,
+    user: owner
+  } do
     {:ok, view, _html} = live(conn, ~p"/boards/#{kb}/wiki")
     tree_load(view, %{"scope" => "vault"})
 
     view |> element("button[phx-click='toggle_organise']") |> render_click()
 
-    assert_push_event(view, "wiki-tree:scope", %{scope: "board"})
-    refute has_element?(view, "[data-tree-scope]")
-    assert tree_load(view).scope == "board"
+    assert has_element?(view, "[data-tree-scope='vault'][aria-pressed='true']")
+    reply = tree_load(view, %{"scope" => "vault", "keys" => ["board:#{jobs.id}"]})
+    assert reply.scope == "vault"
+    assert %{writable: true} = row(reply, "vault", "Home")
+    assert %{writable: true} = row(reply, "board:#{jobs.id}", "Acme")
+
+    # A board of the vault this reader can only read has nothing to move.
+    reader = user_fixture("organise.reader@example.com")
+    {:ok, _} = Slipdock.Access.grant(kb, reader, "write", owner)
+    {:ok, _} = Slipdock.Access.grant(jobs, reader, "read", owner)
+    {:ok, view, _html} = live(conn_as(reader), ~p"/boards/#{kb}/wiki")
+    reply = tree_load(view, %{"scope" => "vault", "keys" => ["board:#{jobs.id}"]})
+    assert %{writable: true} = row(reply, "vault", "Home")
+    refute Map.has_key?(row(reply, "board:#{jobs.id}", "Acme"), :writable)
   end
 
   test "a filter in the vault's tree filters every board of it", %{

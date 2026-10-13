@@ -2177,6 +2177,39 @@ or bottom edge to put it beside it. Order is what you dragged: positions are
 packed afterwards so a tree arranged by hand stays arranged. Rest a drag on a
 shut folder and it opens, so you can drop deeper without opening it first.
 
+**A row's menu.** Right-click a row, or press its `⋯`, for what can be done
+to it. Anyone can open it, open it in a new tab, or copy its link. A writer
+can also:
+
+- make a new note, folder or drawing in a folder (a drawing is an empty
+  Excalidraw note, `….excalidraw.md`, as Obsidian's plugin writes one), or
+  a new note inside a page;
+- rename it, move it, or file a page in another folder as well (see
+  *One page in several folders*);
+- tag a page, archive a page, or delete a folder;
+- sort a folder: as arranged, by name, last changed first, or newest first,
+  with its folders always before its pages.
+
+Right-click the tree's background for the same things at the top of the
+wiki, including how the top is sorted.
+
+**Picking several.** Ctrl-click (Cmd-click on a Mac) picks rows one at a time
+and Shift-click picks every row from the last one. A bar above the tree then
+moves, archives or tags them all at once, and a row's menu acts on all of
+them. Esc lets go.
+
+**Moving a page to another board.** In a vault, a page can move to any other
+board of the vault you can write to: drag it there in the vault's tree, or
+use **Move…** from its menu. Before it moves you are shown what it takes and
+what it can't. It keeps its code (`W-31`), history, comments, checklist,
+links and its other folders, and the pages under it go with it. Tags and
+custom field values go where the other board has one of the same name (or
+key), and pinned cards stay pinned where the card is in that board's tree.
+Whatever has no match is listed and stays behind, as do its place in a list,
+an assignee who can't open that board, and its parent page. Folders move
+within their own board only. On a shell, `slipdock page mv <page> --board B
+[--folder F] [--dry-run]`.
+
 **Searching the tree** matches a page's title and summary *and* a folder's
 name, and hides everything that doesn't match. A folder that matches brings
 what is in it, because somebody typing the name of a folder is asking where

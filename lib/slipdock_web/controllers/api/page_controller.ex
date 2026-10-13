@@ -186,6 +186,25 @@ defmodule SlipdockWeb.API.PageController do
   end
 
   @doc "Reparents or reorders a page: `{parent, position}`."
+  # To another board of the page's vault (W-103 R11.8): it keeps its code
+  # and what is its own, and `dry_run` says what would be carried and what
+  # dropped without moving anything (see `Slipdock.Wiki.Move`).
+  def move(conn, %{"id" => id, "board" => board_ref} = params) when board_ref not in [nil, ""] do
+    user = conn.assigns.current_user
+
+    with {:ok, page} <- fetch_page(conn, id, :write),
+         {:ok, target} <- Authorize.fetch_board(conn, board_ref, :write),
+         {:ok, folder} <- move_folder_param(target, params["folder"]) do
+      if truthy?(params["dry_run"]) do
+        with {:ok, report} <- Wiki.Move.preview(page, target, user),
+             do: json(conn, %{dry_run: true, board: target.code, report: report})
+      else
+        with {:ok, page} <- Wiki.Move.to_board(page, target, folder, user, via: via(conn)),
+             do: json(conn, %{page: V.page(with_users(page))})
+      end
+    end
+  end
+
   def move(conn, %{"id" => id} = params) do
     with {:ok, page} <- fetch_page(conn, id, :write),
          board <- Wiki.board_of(page),
@@ -194,6 +213,9 @@ defmodule SlipdockWeb.API.PageController do
       json(conn, %{page: V.page(with_users(page))})
     end
   end
+
+  defp move_folder_param(_board, ref) when ref in [nil, "", "root", "none"], do: {:ok, nil}
+  defp move_folder_param(board, ref), do: Wiki.find_folder(board, ref)
 
   defp position(nil), do: :bottom
   defp position("top"), do: :top
@@ -1057,7 +1079,8 @@ defmodule SlipdockWeb.API.PageController do
   end
 
   defp folder_attrs(board, params) do
-    attrs = Map.take(params, ~w(name slug position))
+    # `sort` is how the tree orders the folder's pages (W-103 R11.9).
+    attrs = Map.take(params, ~w(name slug position sort))
 
     case params["parent"] do
       nil ->

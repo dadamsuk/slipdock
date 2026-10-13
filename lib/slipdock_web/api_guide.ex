@@ -1754,6 +1754,11 @@ defmodule SlipdockWeb.APIGuide do
     curl -s -H "$H" B/api/wiki                      # every board you can open, folders and all
     curl -s -H "$H" "B/api/boards/1/tree?folder=Design"   # one level: rows and counts, no bodies
     curl -s -H "$H" "B/api/boards/1/pages/switch?q=acme+call"   # the quick switcher: fuzzy title, alias, path
+    # to another board of the page's vault, keeping its code; dry_run says what would stay behind
+    curl -s -X POST -H "$H" -H 'content-type: application/json' \\
+         B/api/pages/W-31/move -d '{"board": "jobs", "folder": "Acme", "dry_run": true}'
+    curl -s -X PATCH -H "$H" -H 'content-type: application/json' \\
+         "B/api/boards/1/folders/Design" -d '{"sort": "name"}'   # manual, name, modified, created
 
     curl -s -X POST -H "$H" -H 'content-type: application/json' \\
          B/api/boards/1/folders -d '{"name": "Design/Decisions"}'   # makes both

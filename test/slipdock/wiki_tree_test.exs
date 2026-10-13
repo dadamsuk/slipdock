@@ -399,6 +399,75 @@ defmodule Slipdock.WikiTreeTest do
     end
   end
 
+  describe "sorting a folder (R11.9)" do
+    setup %{board: board, user: user} do
+      inbox = folder(board, "Inbox")
+      zeta = folder(board, "Zeta", inbox)
+      alpha = folder(board, "alpha", inbox)
+      b = page(board, user, "banana", folder: inbox)
+      a = page(board, user, "Apple", folder: inbox)
+      c = page(board, user, "cherry", folder: inbox)
+
+      stamp = fn page, at ->
+        Repo.update_all(from(p in Slipdock.Wiki.Page, where: p.id == ^page.id),
+          set: [updated_at: at, inserted_at: at]
+        )
+      end
+
+      stamp.(a, ~U[2026-01-01 00:00:00Z])
+      stamp.(b, ~U[2026-03-01 00:00:00Z])
+      stamp.(c, ~U[2026-02-01 00:00:00Z])
+      Repo.update_all(from(p in Slipdock.Wiki.Page, where: p.id == ^c.id), set: [position: -1])
+      %{inbox: inbox, zeta: zeta, alpha: alpha}
+    end
+
+    defp listed(board, inbox) do
+      {:ok, rows} = Tree.children(board, {:folder, inbox.id})
+      Enum.map(rows, & &1.title)
+    end
+
+    test "manual by default, then by name, modified or created, folders first", %{
+      board: board,
+      inbox: inbox
+    } do
+      assert listed(board, inbox) == ["Zeta", "alpha", "cherry", "Apple", "banana"]
+
+      {:ok, inbox} = Wiki.set_tree_sort(board, inbox, "name")
+      assert listed(board, inbox) == ["alpha", "Zeta", "Apple", "banana", "cherry"]
+
+      {:ok, inbox} = Wiki.set_tree_sort(board, inbox, "modified")
+      assert listed(board, inbox) == ["Zeta", "alpha", "banana", "cherry", "Apple"]
+
+      {:ok, inbox} = Wiki.set_tree_sort(board, inbox, "created")
+      assert {:ok, [_, _ | _]} = Tree.children(board, {:folder, inbox.id})
+      assert %{sort: "created"} = hd(elem(Tree.children(board, :root), 1))
+    end
+
+    test "a filter keeps the folder's order", %{board: board, inbox: inbox} do
+      {:ok, _} = Wiki.set_tree_sort(board, inbox, "name")
+      result = Tree.filter(board, Map.put(Slipdock.Filters.empty(), :q, "a"))
+      # Zeta is a hit by its name, as alpha is; then the pages, by name.
+      assert Enum.map(result.nodes["folder:#{inbox.id}"], & &1.title) ==
+               ["alpha", "Zeta", "Apple", "banana"]
+    end
+
+    test "the top of the board has its own, and nonsense is refused", %{
+      board: board,
+      user: user,
+      inbox: inbox
+    } do
+      page(board, user, "Zed")
+      page(board, user, "Ant")
+      {:ok, board} = Wiki.set_tree_sort(board, nil, "name")
+      assert {:ok, [_inbox, %{title: "Ant"}, %{title: "Zed"}]} = Tree.children(board, :root)
+
+      assert {:error, :unprocessable_entity, _} = Wiki.set_tree_sort(board, nil, "random")
+      assert {:error, :unprocessable_entity, _} = Wiki.set_tree_sort(board, inbox, "random")
+      other = board_fixture(%{"name" => "O", "code" => "osort"}, owner: user)
+      assert {:error, :unprocessable_entity, _} = Wiki.set_tree_sort(other, inbox, "name")
+    end
+  end
+
   describe "moving a page among its siblings" do
     test "sibling_ids lists them in order, and a move packs every position", %{
       board: board,

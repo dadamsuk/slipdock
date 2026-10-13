@@ -931,6 +931,8 @@ defmodule SlipdockWeb.WikiLive.Index do
        filtering: filter != false and filter != nil,
        nodes: Map.new(nodes, fn {key, rows} -> {key, client_rows(rows, socket)} end),
        reveal: reveal,
+       # How the top of this board's tree is sorted, for its menu.
+       sort: socket.assigns.board.wiki_sort || "manual",
        # What was kept of this tree's open folders: the hook's open set, or
        # nil the first time, when a small wiki opens whole.
        open: kept && Enum.filter(kept, &Map.has_key?(nodes_map(nodes), &1)),
@@ -982,23 +984,13 @@ defmodule SlipdockWeb.WikiLive.Index do
 
   def handle_event("restore_preview", _params, socket), do: {:noreply, socket}
 
-  # Organise mode puts a handle on every row. A shut folder opens when a
-  # drag rests on it, so nothing has to be opened first. It works on this
-  # board's own tree: a vault's tree switches back to it, since what the
-  # tree can move is this board's filing.
+  # Organise mode puts a handle on every row the reader can move. A shut
+  # folder opens when a drag rests on it, so nothing has to be opened first.
+  # In a vault's tree a page can be dragged to another board of the vault,
+  # which asks first (R11.8).
   def handle_event("toggle_organise", _params, socket) do
     if socket.assigns.can_write do
-      organising = not socket.assigns.organising
-
-      socket =
-        if organising and socket.assigns.tree_scope == "vault",
-          do:
-            socket
-            |> assign(tree_scope: "board")
-            |> push_event("wiki-tree:scope", %{scope: "board"}),
-          else: socket
-
-      {:noreply, assign(socket, organising: organising)}
+      {:noreply, assign(socket, organising: not socket.assigns.organising)}
     else
       {:noreply, socket}
     end
@@ -1032,9 +1024,11 @@ defmodule SlipdockWeb.WikiLive.Index do
     end
   end
 
+  # A folder is only ever acted on where the reader can write: this board,
+  # or another board of its vault (`tree_item/2`), never one named by an id
+  # alone.
   def handle_event("rename_folder", %{"id" => id}, socket) do
-    with true <- socket.assigns.can_write,
-         %{} = folder <- Wiki.get_folder(Params.id(id)) do
+    with %Folder{} = folder <- tree_item(socket, "folder:#{id}") do
       {:noreply,
        assign(socket,
          folder_modal: %{
@@ -1054,17 +1048,27 @@ defmodule SlipdockWeb.WikiLive.Index do
   def handle_event("save_folder", %{"name" => name} = params, socket) do
     modal = socket.assigns.folder_modal
     parent_id = blank_to_nil(params["parent_id"])
+    # A folder being renamed was checked when its dialog opened; a new one
+    # goes on this board, which takes a writer.
+    board_id = if modal && modal.folder, do: modal.folder.board_id, else: socket.assigns.board.id
 
     result =
-      case modal && modal.folder do
-        nil ->
+      cond do
+        is_nil(modal) or (is_nil(modal.folder) and not socket.assigns.can_write) ->
+          {:error, :forbidden, "You can't write on this board."}
+
+        not (is_nil(parent_id) or match?(%Folder{board_id: ^board_id}, Wiki.get_folder(parent_id))) ->
+          {:error, :unprocessable_entity,
+           "A folder can only go inside a folder on its own board."}
+
+        is_nil(modal.folder) ->
           Wiki.create_folder(socket.assigns.board, %{
             "name" => name,
-            "parent_id" => parent_id || (modal && modal.parent && modal.parent.id)
+            "parent_id" => parent_id || (modal.parent && modal.parent.id)
           })
 
-        folder ->
-          Wiki.update_folder(folder, %{"name" => name, "parent_id" => parent_id})
+        true ->
+          Wiki.update_folder(modal.folder, %{"name" => name, "parent_id" => parent_id})
       end
 
     case result do
@@ -1075,7 +1079,7 @@ defmodule SlipdockWeb.WikiLive.Index do
          |> put_flash(:info, "Folder “#{folder.name}” saved.")
          |> load_tree()}
 
-      {:error, :unprocessable_entity, message} ->
+      {:error, status, message} when status in [:unprocessable_entity, :forbidden] ->
         {:noreply, put_flash(socket, :error, message)}
 
       _ ->
@@ -1087,8 +1091,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   # because the two answers are not close: one loses nothing, the other loses
   # pages. An empty folder is not worth a question and goes at once.
   def handle_event("ask_delete_folder", %{"id" => id}, socket) do
-    with true <- socket.assigns.can_write,
-         %{} = folder <- Wiki.get_folder(Params.id(id)) do
+    with %Folder{} = folder <- tree_item(socket, "folder:#{id}") do
       case Wiki.folder_contents_count(folder) do
         %{folders: 0, pages: 0} ->
           {:noreply, delete_folder(socket, folder, :keep)}
@@ -1114,7 +1117,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     folder =
       case params["id"] do
         nil -> socket.assigns.folder_delete && socket.assigns.folder_delete.folder
-        id -> Wiki.get_folder(Params.id(id))
+        id -> tree_item(socket, "folder:#{id}")
       end
 
     if socket.assigns.can_write and folder do
@@ -1204,6 +1207,250 @@ defmodule SlipdockWeb.WikiLive.Index do
        )}
     else
       _ -> {:noreply, put_flash(socket, :error, "That page couldn't be archived.")}
+    end
+  end
+
+  # The tree's menu and its selection (R11.8, R11.10) ask for one of these
+  # with the keys of the rows they act on. Anything the reader cannot change
+  # is left out.
+  def handle_event("tree_dialog", %{"kind" => kind, "keys" => keys}, socket)
+      when kind in ~w(move also archive tag) do
+    items = tree_items(socket, keys)
+    pages = for %Page{} = page <- items, do: page
+
+    prompt =
+      case kind do
+        "move" when items != [] ->
+          %{kind: :move, items: items, targets: move_targets(socket), q: ""}
+
+        "also" when pages != [] ->
+          page = hd(pages)
+
+          %{
+            kind: :also,
+            items: [page],
+            targets:
+              Enum.reject(move_targets(socket, false), &(&1.key == "folder:#{page.folder_id}")),
+            q: ""
+          }
+
+        "archive" when pages != [] ->
+          %{kind: :archive_many, items: pages}
+
+        "tag" when pages != [] ->
+          %{
+            kind: :tag_many,
+            items: pages,
+            tags: Boards.list_tags(Slipdock.Boards.Board.root_id(socket.assigns.board))
+          }
+
+        _ ->
+          nil
+      end
+
+    {:noreply,
+     if(prompt,
+       do: assign(socket, tree_prompt: prompt),
+       else: put_flash(socket, :error, "Nothing there you can change.")
+     )}
+  end
+
+  def handle_event("tree_dialog_filter", %{"q" => q}, socket) do
+    case socket.assigns.tree_prompt do
+      %{targets: _} = prompt -> {:noreply, assign(socket, tree_prompt: %{prompt | q: q})}
+      _ -> {:noreply, socket}
+    end
+  end
+
+  # "Move to…": what is on the target's board moves there at once; pages
+  # bound for another board of the vault wait for the confirmation of what
+  # goes with them. Folders move within their own board.
+  def handle_event("move_to", %{"target" => target}, socket) do
+    with %{kind: :move, items: items} <- socket.assigns.tree_prompt,
+         {:folder, board, folder} <- drop_target(socket, target) do
+      {here, there} = Enum.split_with(items, &(&1.board_id == board.id))
+      user = socket.assigns.current_user
+
+      moved =
+        Enum.count(here, fn
+          %Page{} = page ->
+            with {:ok, page} <- Wiki.file_page(page, folder),
+                 {:ok, _} <- Wiki.move_page(page, nil, :bottom, user: user, via: "web"),
+                 do: true,
+                 else: (_ -> false)
+
+          %Folder{} = moving ->
+            match?({:ok, _}, Wiki.move_folder(moving, folder, nil))
+        end)
+
+      folders_left = for %Folder{} = f <- there, do: f.name
+      pages_there = for %Page{} = p <- there, do: p
+
+      socket =
+        socket
+        |> assign(tree_prompt: nil)
+        |> then(
+          &if(moved > 0, do: put_flash(&1, :info, "Moved #{count(moved, "item")}."), else: &1)
+        )
+        |> then(fn socket ->
+          if folders_left != [],
+            do:
+              put_flash(
+                socket,
+                :error,
+                "A folder moves within its own board: #{Enum.join(folders_left, ", ")} stayed."
+              ),
+            else: socket
+        end)
+        |> load_tree()
+        |> assign_current()
+
+      {:noreply,
+       if(pages_there != [],
+         do: cross_move_prompt(socket, pages_there, board, folder, nil),
+         else: socket
+       )}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "Those couldn't be moved there.")}
+    end
+  end
+
+  def handle_event("confirm_cross_move", _params, socket) do
+    with %{kind: :cross_move, pages: pages, board: board, folder: folder, parent: parent} <-
+           socket.assigns.tree_prompt do
+      user = socket.assigns.current_user
+
+      results =
+        for page <- pages do
+          with {:ok, moved} <- Slipdock.Wiki.Move.to_board(page, board, folder, user, via: "web") do
+            if parent, do: Wiki.move_page(moved, parent, :bottom, user: user, via: "web")
+            {:ok, moved}
+          end
+        end
+
+      moved = for {:ok, page} <- results, do: page
+
+      socket =
+        socket
+        |> assign(tree_prompt: nil)
+        |> put_flash(:info, "Moved #{count(length(moved), "page")} to #{board.name}.")
+        |> load_tree()
+
+      # The page being read went with them: follow it to its new board.
+      {:noreply,
+       case Enum.find(moved, &(socket.assigns.page && &1.id == socket.assigns.page.id)) do
+         nil -> assign_current(socket)
+         page -> push_navigate(socket, to: ~p"/boards/#{board}/wiki/#{page.slug}")
+       end}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  # "Also file in…": a placement beside the page's home (W-103 R12).
+  def handle_event("also_file_in", %{"target" => target}, socket) do
+    with %{kind: :also, items: [page]} <- socket.assigns.tree_prompt,
+         {:folder, _board, %Folder{} = folder} <- drop_target(socket, target),
+         {:ok, _} <- Slipdock.Wiki.Placements.add(page, folder, socket.assigns.current_user) do
+      {:noreply,
+       socket
+       |> assign(tree_prompt: nil)
+       |> put_flash(:info, "“#{page.title}” is also filed in #{Wiki.folder_path(folder)}.")
+       |> load_tree()}
+    else
+      {:error, _status, message} -> {:noreply, put_flash(socket, :error, message)}
+      _ -> {:noreply, put_flash(socket, :error, "That page couldn't be filed there.")}
+    end
+  end
+
+  def handle_event("bulk_archive", _params, socket) do
+    with %{kind: :archive_many, items: pages} <- socket.assigns.tree_prompt do
+      done = Enum.count(pages, &match?({:ok, _}, Wiki.archive_page(&1)))
+
+      {:noreply,
+       socket
+       |> assign(tree_prompt: nil)
+       |> put_flash(:info, "Archived #{count(done, "page")}.")
+       |> load_tree()
+       |> then(fn socket ->
+         if socket.assigns.page && Enum.any?(pages, &(&1.id == socket.assigns.page.id)),
+           do: push_patch(socket, to: wiki_path(socket.assigns.board)),
+           else: socket
+       end)}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  # A tag for every page picked: the board's own tags, which a page on
+  # another board of the vault does not share, so those are left as they are.
+  def handle_event("bulk_tag", %{"tag" => tag_id}, socket) do
+    with %{kind: :tag_many, items: pages, tags: tags} <- socket.assigns.tree_prompt,
+         %{} = tag <- Enum.find(tags, &(to_string(&1.id) == to_string(tag_id))) do
+      root = Slipdock.Boards.Board.root_id(socket.assigns.board)
+
+      {mine, others} =
+        Enum.split_with(pages, fn page ->
+          Slipdock.Boards.Board.root_id(Boards.get_board!(page.board_id)) == root
+        end)
+
+      Enum.each(mine, fn page ->
+        Wiki.set_tags(page, Enum.uniq_by(Wiki.tags(page) ++ [tag], & &1.id))
+      end)
+
+      note =
+        if others == [],
+          do: "Tagged #{count(length(mine), "page")} “#{tag.name}”.",
+          else:
+            "Tagged #{count(length(mine), "page")} “#{tag.name}”; #{count(length(others), "page")} on other boards left as they were."
+
+      {:noreply, socket |> assign(tree_prompt: nil) |> put_flash(:info, note) |> load_tree()}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  # How a folder, or the top of a board, orders its pages (R11.9).
+  def handle_event("set_tree_sort", %{"key" => key, "sort" => sort}, socket) do
+    target =
+      case key do
+        "root" -> drop_target(socket, "folder:")
+        other -> drop_target(socket, other)
+      end
+
+    with {:folder, board, folder} <- target,
+         {:ok, result} <- Wiki.set_tree_sort(board, folder, sort) do
+      socket =
+        if is_nil(folder) and board.id == socket.assigns.board.id,
+          do: assign(socket, board: result),
+          else: socket
+
+      {:noreply, load_tree(socket)}
+    else
+      {:error, _status, message} -> {:noreply, put_flash(socket, :error, message)}
+      _ -> {:noreply, put_flash(socket, :error, "That can't be sorted.")}
+    end
+  end
+
+  # "New drawing" (R11.10): an Excalidraw drawing, as Obsidian's plugin
+  # writes one, in the folder the menu was opened on.
+  def handle_event("new_drawing", %{"key" => key}, socket) do
+    with {:folder, board, folder} <-
+           drop_target(socket, if(key == "root", do: "folder:", else: key)),
+         {:ok, page} <-
+           Slipdock.Wiki.Drawings.create(board, folder,
+             user: socket.assigns.current_user,
+             via: "web"
+           ) do
+      path = ~p"/boards/#{board}/wiki/#{page.slug}"
+
+      {:noreply,
+       if(board.id == socket.assigns.board.id,
+         do: socket |> load_tree() |> push_patch(to: path),
+         else: push_navigate(socket, to: path)
+       )}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "A drawing couldn't be made there.")}
     end
   end
 
@@ -1411,17 +1658,8 @@ defmodule SlipdockWeb.WikiLive.Index do
 
   ## The tree's rows ----------------------------------------------------------
 
-  # A page the tree's keyboard acts on: this board's, and only for a writer.
-  defp tree_page(socket, id) do
-    with true <- socket.assigns.can_write,
-         id when is_integer(id) <- Params.id(to_string(id)),
-         %Page{board_id: board_id} = page when board_id == socket.assigns.board.id <-
-           Wiki.get_page(id) do
-      page
-    else
-      _ -> nil
-    end
-  end
+  # A page the tree's keyboard acts on: on a board the reader can write to.
+  defp tree_page(socket, id), do: tree_item(socket, "page:#{id}")
 
   # A filter in the vault's tree filters every board of it (R11.5), worked out
   # when asked for; this board's is worked out with the filter bar.
@@ -1516,12 +1754,28 @@ defmodule SlipdockWeb.WikiLive.Index do
   # A row as the hook draws it: its key, where it links to, and whether
   # following that link stays in this view (a patch) or opens another
   # board's wiki. Only what is drawn goes over the wire.
-  defp client_rows(rows, socket), do: Enum.map(rows, &client_row(&1, socket.assigns.board))
+  defp client_rows(rows, socket) do
+    writable = writable_ids(socket)
+    Enum.map(rows, &client_row(&1, socket.assigns.board, writable))
+  end
 
-  defp client_row(%{kind: "more"} = row, _board),
+  # The boards whose rows the reader can move, rename and archive: this one
+  # when they can write to it, and the vault's others they can write to.
+  defp writable_ids(%{assigns: %{tree_scope: "vault", vault: %{} = vault}} = socket) do
+    vault
+    |> Slipdock.Vaults.board_ids()
+    |> Enum.filter(&writable_board(socket, &1))
+    |> MapSet.new()
+  end
+
+  defp writable_ids(socket) do
+    if socket.assigns.can_write, do: MapSet.new([socket.assigns.board.id]), else: MapSet.new()
+  end
+
+  defp client_row(%{kind: "more"} = row, _board, _writable),
     do: %{kind: "more", key: "more:#{row.offset}", offset: row.offset, count: 0}
 
-  defp client_row(row, board) do
+  defp client_row(row, board, writable) do
     key = row[:key] || "#{row.kind}:#{row.id}"
 
     base =
@@ -1533,9 +1787,16 @@ defmodule SlipdockWeb.WikiLive.Index do
         nav: if(row.board_id in [nil, board.id], do: "patch", else: "redirect")
       })
 
-    Enum.reduce([:draft, :template, :archived, :context, :also, :mount], base, fn flag, acc ->
-      if row[flag], do: Map.put(acc, flag, true), else: acc
-    end)
+    base =
+      Enum.reduce([:draft, :template, :archived, :context, :also, :mount], base, fn flag, acc ->
+        if row[flag], do: Map.put(acc, flag, true), else: acc
+      end)
+
+    base
+    |> then(
+      &if(MapSet.member?(writable, row[:board_id]), do: Map.put(&1, :writable, true), else: &1)
+    )
+    |> then(&if(row[:sort] && row.sort != "manual", do: Map.put(&1, :sort, row.sort), else: &1))
   end
 
   defp row_href(%{kind: "page"} = row, _key), do: ~p"/boards/#{row.board_id}/wiki/#{row.slug}"
@@ -1551,50 +1812,122 @@ defmodule SlipdockWeb.WikiLive.Index do
 
   defp row_href(_row, _key), do: nil
 
-  # Where a drop landed. "folder:" is the top of the wiki; "page:7" is inside
-  # a page, which is the other axis (see `Slipdock.Wiki.Folder`).
-  defp drop_target(socket, "folder:" <> ref),
-    do: {:folder, folder_from(socket.assigns.board, ref)}
+  # Where a drop landed, on whichever board the tree shows: "folder:" is the
+  # top of this board's wiki, "board:4" the top of that board's (in a vault's
+  # tree), "folder:9" a folder, and "page:7" inside a page, which is the
+  # other axis (see `Slipdock.Wiki.Folder`). Only boards the reader can write.
+  defp drop_target(socket, "folder:") do
+    case writable_board(socket, socket.assigns.board.id) do
+      nil -> :none
+      board -> {:folder, board, nil}
+    end
+  end
+
+  defp drop_target(socket, "folder:" <> ref) do
+    with id when is_integer(id) <- Params.id(ref),
+         %Folder{} = folder <- Wiki.get_folder(id),
+         %Slipdock.Boards.Board{} = board <- writable_board(socket, folder.board_id) do
+      {:folder, board, folder}
+    else
+      _ -> :none
+    end
+  end
+
+  defp drop_target(socket, "board:" <> ref) do
+    case Params.id(ref) && writable_board(socket, Params.id(ref)) do
+      nil -> :none
+      board -> {:folder, board, nil}
+    end
+  end
 
   defp drop_target(socket, "page:" <> ref) do
-    case Wiki.find_page(socket.assigns.board, ref) do
-      {:ok, page} -> {:page, page}
+    with id when is_integer(id) <- Params.id(ref),
+         %Page{} = page <- Wiki.get_page(id),
+         %Slipdock.Boards.Board{} = board <- writable_board(socket, page.board_id) do
+      {:page, board, page}
+    else
       _ -> :none
     end
   end
 
   defp drop_target(_socket, _into), do: :none
 
+  # The board `board_id` as one the reader can write to from here: this one,
+  # or another board of its vault.
+  defp writable_board(%{assigns: %{board: %{id: id} = board, can_write: true}}, id), do: board
+  defp writable_board(%{assigns: %{board: %{id: id}}}, id), do: nil
+  defp writable_board(%{assigns: %{vault: nil}}, _id), do: nil
+
+  defp writable_board(socket, id) do
+    with true <- id in Slipdock.Vaults.board_ids(socket.assigns.vault),
+         %Slipdock.Boards.Board{} = board <- Boards.get_board(id),
+         true <- Access.can_write?(Access.board_permission(socket.assigns.current_user, board)) do
+      board
+    else
+      _ -> nil
+    end
+  end
+
+  # A row of the tree the reader can change: a page or a folder on a board
+  # they can write to.
+  defp tree_item(socket, "page:" <> ref) do
+    with id when is_integer(id) <- Params.id(ref),
+         %Page{} = page <- Wiki.get_page(id),
+         %{} <- writable_board(socket, page.board_id),
+         do: page,
+         else: (_ -> nil)
+  end
+
+  defp tree_item(socket, "folder:" <> ref) do
+    with id when is_integer(id) <- Params.id(ref),
+         %Folder{} = folder <- Wiki.get_folder(id),
+         %{} <- writable_board(socket, folder.board_id),
+         do: folder,
+         else: (_ -> nil)
+  end
+
+  defp tree_item(_socket, _key), do: nil
+
+  defp tree_items(socket, keys) when is_list(keys) do
+    keys
+    |> Enum.filter(&is_binary/1)
+    |> Enum.uniq()
+    |> Enum.take(500)
+    |> Enum.map(&tree_item(socket, &1))
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp tree_items(_socket, _keys), do: []
+
   defp tree_move(socket, "page", id, into, before) do
-    with {:ok, page} <- Wiki.find_page(socket.assigns.board, id),
+    with %Page{} = page <- tree_item(socket, "page:#{id}"),
          target when target != :none <- drop_target(socket, into) do
-      {parent, folder} =
+      {board, parent, folder} =
         case target do
           # Filed in a folder, and part of nothing: the two axes are set
           # together because the tree draws them together.
-          {:folder, folder} -> {nil, folder}
-          {:page, parent} -> {parent, parent.folder_id && Wiki.get_folder(parent.folder_id)}
+          {:folder, board, folder} ->
+            {board, nil, folder}
+
+          {:page, board, parent} ->
+            {board, parent, parent.folder_id && Wiki.get_folder(parent.folder_id)}
         end
 
-      with {:ok, page} <- Wiki.file_page(page, folder),
-           index <- sibling_index(socket.assigns.board, page, parent, before),
-           {:ok, _} <-
-             Wiki.move_page(page, parent, index,
-               user: socket.assigns.current_user,
-               via: "web"
-             ) do
-        socket
-      else
-        _ -> put_flash(socket, :error, "That page couldn't be moved.")
-      end
+      if board.id == page.board_id,
+        do: move_within(socket, page, board, parent, folder, before),
+        else: cross_move_prompt(socket, [page], board, folder, parent)
     else
       _ -> put_flash(socket, :error, "That page couldn't be moved.")
     end
   end
 
   defp tree_move(socket, "folder", id, into, before) do
-    with {:ok, folder} <- Wiki.find_folder(socket.assigns.board, id),
-         {:folder, parent} <- drop_target(socket, into),
+    with %Folder{} = folder <- tree_item(socket, "folder:#{id}"),
+         {:folder, board, parent} <- drop_target(socket, into),
+         true <-
+           board.id == folder.board_id ||
+             {:error, :unprocessable_entity,
+              "A folder moves within its own board; move the pages in it instead."},
          {:ok, _} <- Wiki.move_folder(folder, parent, blank_to_integer(before)) do
       socket
     else
@@ -1604,6 +1937,122 @@ defmodule SlipdockWeb.WikiLive.Index do
   end
 
   defp tree_move(socket, _kind, _id, _into, _before), do: socket
+
+  defp move_within(socket, page, board, parent, folder, before) do
+    with {:ok, page} <- Wiki.file_page(page, folder),
+         index <- sibling_index(board, page, parent, before),
+         {:ok, _} <-
+           Wiki.move_page(page, parent, index, user: socket.assigns.current_user, via: "web") do
+      socket
+    else
+      _ -> put_flash(socket, :error, "That page couldn't be moved.")
+    end
+  end
+
+  # Pages bound for another board of the vault wait for the reader to see
+  # what goes with them and what cannot (R11.8): see `Slipdock.Wiki.Move`.
+  defp cross_move_prompt(socket, pages, board, folder, parent) do
+    user = socket.assigns.current_user
+
+    reports =
+      for page <- pages,
+          {:ok, report} <- [Slipdock.Wiki.Move.preview(page, board, user)],
+          do: report
+
+    if length(reports) == length(pages) do
+      assign(socket,
+        tree_prompt: %{
+          kind: :cross_move,
+          pages: pages,
+          board: board,
+          folder: folder,
+          parent: parent,
+          report: merge_reports(reports)
+        }
+      )
+    else
+      put_flash(socket, :error, "Those pages can't move to #{board.name}.")
+    end
+  end
+
+  defp merge_reports(reports) do
+    both = fn key, part ->
+      reports |> Enum.flat_map(&(&1[key][part] || [])) |> Enum.uniq() |> Enum.sort()
+    end
+
+    %{
+      pages: reports |> Enum.map(& &1.pages) |> Enum.sum(),
+      tags: %{carried: both.(:tags, :carried), dropped: both.(:tags, :dropped)},
+      fields: %{carried: both.(:fields, :carried), dropped: both.(:fields, :dropped)},
+      pins: %{carried: both.(:pins, :carried), dropped: both.(:pins, :dropped)},
+      assignees:
+        reports |> Enum.map(& &1.assignee.dropped) |> Enum.reject(&is_nil/1) |> Enum.uniq(),
+      lists: reports |> Enum.map(& &1.list) |> Enum.reject(&is_nil/1) |> Enum.uniq(),
+      parents: reports |> Enum.map(& &1.parent) |> Enum.reject(&is_nil/1) |> Enum.uniq()
+    }
+  end
+
+  # Where "Move to…" and "Also file in…" offer to put things: the top of
+  # each board the reader can write to, then its folders by path. Every
+  # board of the vault, or this board alone outside one.
+  defp move_targets(socket, roots? \\ true) do
+    boards =
+      case socket.assigns.vault do
+        nil ->
+          if socket.assigns.can_write, do: [socket.assigns.board], else: []
+
+        vault ->
+          vault
+          |> Slipdock.Vaults.board_ids()
+          |> Enum.map(&writable_board(socket, &1))
+          |> Enum.reject(&is_nil/1)
+          |> Enum.sort_by(&{&1.id != socket.assigns.board.id, String.downcase(&1.name)})
+      end
+
+    many? = length(boards) > 1
+
+    Enum.flat_map(boards, fn board ->
+      top = %{
+        key: "board:#{board.id}",
+        label: if(many?, do: "#{board.name} — the top", else: "The top of the wiki"),
+        depth: 0
+      }
+
+      folders =
+        for o <- Slipdock.Wiki.Folders.outline(Wiki.folders(board)),
+            do: %{
+              key: "folder:#{o.folder.id}",
+              label: if(many?, do: "#{board.name} / #{o.path}", else: o.path),
+              depth: o.depth + 1
+            }
+
+      if roots?, do: [top | folders], else: folders
+    end)
+  end
+
+  defp item_name(%Page{title: title}), do: title
+  defp item_name(%Folder{name: name}), do: name
+
+  # What a move to another board leaves behind, one line each.
+  defp cross_losses(report) do
+    [
+      report.tags.dropped != [] && "Tags: " <> Enum.join(report.tags.dropped, ", "),
+      report.fields.dropped != [] && "Field values: " <> Enum.join(report.fields.dropped, ", "),
+      report.pins.dropped != [] &&
+        "Pinned cards (they stay linked, unpinned): " <> Enum.join(report.pins.dropped, ", "),
+      report.assignees != [] && "Assigned to: " <> Enum.join(report.assignees, ", "),
+      report.lists != [] && "A place in the list: " <> Enum.join(report.lists, ", "),
+      report.parents != [] && "Its parent page: " <> Enum.join(report.parents, ", ")
+    ]
+    |> Enum.filter(& &1)
+  end
+
+  defp visible_targets(%{targets: targets, q: q}) do
+    case String.downcase(String.trim(q || "")) do
+      "" -> targets
+      term -> Enum.filter(targets, &String.contains?(String.downcase(&1.label), term))
+    end
+  end
 
   # Where in its new parent's children the page lands. The page tree's order
   # is per parent rather than per folder, so the answer is the index of what
@@ -2079,7 +2528,7 @@ defmodule SlipdockWeb.WikiLive.Index do
             <%!-- A board in a vault can show its own tree or the vault's:
                   every board of it, laid out by the vault's paths. --%>
             <div
-              :if={@vault && not @organising}
+              :if={@vault}
               class="join mb-2 w-full"
               role="group"
               aria-label="Which tree"
@@ -2145,6 +2594,14 @@ defmodule SlipdockWeb.WikiLive.Index do
             <%!-- Focusable, and owning its keys while focused (the arrows,
                   F2, Delete, type-ahead), which the page-wide shortcuts
                   stand down for. --%>
+            <%!-- What is picked with Ctrl/Cmd- or Shift-click, and what can be
+                  done to all of it: drawn by the hook. --%>
+            <div
+              id="wiki-tree-selection"
+              phx-update="ignore"
+              class="sticky top-0 z-20 empty:hidden"
+            >
+            </div>
             <div
               id="wiki-tree-rows"
               phx-update="ignore"
@@ -2345,6 +2802,181 @@ defmodule SlipdockWeb.WikiLive.Index do
           <button type="submit" class="btn btn-primary btn-sm">Rename</button>
         </div>
       </form>
+    </.modal>
+    """
+  end
+
+  # "Move to…" and "Also file in…": where, typed at to narrow it.
+  defp tree_prompt(%{prompt: %{kind: kind}} = assigns) when kind in [:move, :also] do
+    assigns =
+      assign(assigns,
+        targets: visible_targets(assigns.prompt),
+        event: if(kind == :move, do: "move_to", else: "also_file_in"),
+        heading:
+          case {kind, assigns.prompt.items} do
+            {:also, [page]} -> "Also file “#{page.title}” in…"
+            {:move, [item]} -> "Move “#{item_name(item)}” to…"
+            {:move, items} -> "Move #{length(items)} items to…"
+          end
+      )
+
+    ~H"""
+    <.modal id="tree-prompt" on_close={JS.push("close_tree_prompt")} size="sm">
+      <div class="space-y-3 p-6">
+        <h2 class="text-lg font-semibold">{@heading}</h2>
+        <form id="tree-target-filter" phx-change="tree_dialog_filter" phx-submit="tree_dialog_filter">
+          <input
+            type="text"
+            name="q"
+            value={@prompt.q}
+            autofocus
+            autocomplete="off"
+            placeholder="Type part of a folder's name…"
+            class="input input-bordered input-sm w-full"
+          />
+        </form>
+        <ul id="tree-targets" class="max-h-80 space-y-0.5 overflow-y-auto">
+          <li :for={target <- @targets}>
+            <button
+              type="button"
+              phx-click={@event}
+              phx-value-target={target.key}
+              class="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-base-200"
+              style={"padding-left: #{0.5 + if(@prompt.q == "", do: target.depth, else: 0) * 0.75}rem"}
+            >
+              <.icon
+                name={if target.depth == 0, do: "hero-book-open", else: "hero-folder"}
+                class="size-4 shrink-0 text-base-content/50"
+              />
+              <span class="truncate">{target.label}</span>
+            </button>
+          </li>
+          <li :if={@targets == []} class="px-2 py-4 text-center text-sm text-base-content/50">
+            No folder by that name.
+          </li>
+        </ul>
+        <div class="flex justify-end">
+          <button type="button" phx-click="close_tree_prompt" class="btn btn-ghost btn-sm">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </.modal>
+    """
+  end
+
+  # What a move to another board of the vault carries and what it cannot,
+  # before it happens (R11.8).
+  defp tree_prompt(%{prompt: %{kind: :cross_move}} = assigns) do
+    ~H"""
+    <.modal id="tree-prompt" on_close={JS.push("close_tree_prompt")} size="sm">
+      <div class="space-y-4 p-6">
+        <h2 class="text-lg font-semibold">
+          <%= case @prompt.pages do %>
+            <% [page] -> %>
+              Move “{page.title}” to {@prompt.board.name}?
+            <% pages -> %>
+              Move {length(pages)} pages to {@prompt.board.name}?
+          <% end %>
+        </h2>
+        <p class="text-sm text-base-content/70">
+          It keeps its code, history, comments, checklist, links and its other folders.
+          <span :if={@prompt.report.pages > length(@prompt.pages)}>
+            {count(@prompt.report.pages - length(@prompt.pages), "page")} under it come too.
+          </span>
+        </p>
+        <ul id="cross-move-report" class="space-y-1 text-sm">
+          <li :if={@prompt.report.tags.carried != []}>
+            Tags carried across: {Enum.join(@prompt.report.tags.carried, ", ")}
+          </li>
+          <li :if={@prompt.report.fields.carried != []}>
+            Fields carried across: {Enum.join(@prompt.report.fields.carried, ", ")}
+          </li>
+          <li :if={@prompt.report.pins.carried != []}>
+            Still pinned to: {Enum.join(@prompt.report.pins.carried, ", ")}
+          </li>
+        </ul>
+        <div
+          :if={cross_losses(@prompt.report) != []}
+          class="rounded-lg bg-warning/10 p-3 text-sm"
+        >
+          <p class="font-medium">{@prompt.board.name} has no match for these, so they stay behind:</p>
+          <ul id="cross-move-losses" class="mt-1 list-inside list-disc space-y-0.5">
+            <li :for={line <- cross_losses(@prompt.report)}>{line}</li>
+          </ul>
+        </div>
+        <div class="flex justify-end gap-2">
+          <button type="button" phx-click="close_tree_prompt" class="btn btn-ghost btn-sm">
+            Cancel
+          </button>
+          <button
+            id="cross-move-confirm"
+            type="button"
+            phx-click="confirm_cross_move"
+            class="btn btn-primary btn-sm"
+          >
+            Move
+          </button>
+        </div>
+      </div>
+    </.modal>
+    """
+  end
+
+  defp tree_prompt(%{prompt: %{kind: :archive_many}} = assigns) do
+    ~H"""
+    <.modal id="tree-prompt" on_close={JS.push("close_tree_prompt")} size="sm">
+      <div class="space-y-4 p-6">
+        <h2 class="text-lg font-semibold">Archive {count(length(@prompt.items), "page")}?</h2>
+        <ul class="max-h-48 list-inside list-disc overflow-y-auto text-sm text-base-content/70">
+          <li :for={page <- @prompt.items}>{page.title}</li>
+        </ul>
+        <p class="text-sm text-base-content/60">
+          The pages under them go too. Archived pages can be shown again from Display, and restored.
+        </p>
+        <div class="flex justify-end gap-2">
+          <button type="button" phx-click="close_tree_prompt" class="btn btn-ghost btn-sm">
+            Cancel
+          </button>
+          <button
+            id="bulk-archive-confirm"
+            type="button"
+            phx-click="bulk_archive"
+            class="btn btn-error btn-sm"
+          >
+            Archive
+          </button>
+        </div>
+      </div>
+    </.modal>
+    """
+  end
+
+  defp tree_prompt(%{prompt: %{kind: :tag_many}} = assigns) do
+    ~H"""
+    <.modal id="tree-prompt" on_close={JS.push("close_tree_prompt")} size="sm">
+      <div class="space-y-4 p-6">
+        <h2 class="text-lg font-semibold">Tag {count(length(@prompt.items), "page")}</h2>
+        <div :if={@prompt.tags == []} class="text-sm text-base-content/60">
+          This board has no tags yet; make one in the board's settings.
+        </div>
+        <div id="bulk-tags" class="flex flex-wrap gap-1.5">
+          <button
+            :for={tag <- @prompt.tags}
+            type="button"
+            phx-click="bulk_tag"
+            phx-value-tag={tag.id}
+            class={["chip cursor-pointer", Palette.chip(tag.color)]}
+          >
+            {tag.name}
+          </button>
+        </div>
+        <div class="flex justify-end">
+          <button type="button" phx-click="close_tree_prompt" class="btn btn-ghost btn-sm">
+            Cancel
+          </button>
+        </div>
+      </div>
     </.modal>
     """
   end

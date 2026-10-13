@@ -67,7 +67,9 @@ defmodule SlipdockWeb.Shortcuts do
        {"Enter", "Open the page or folder"},
        {"F2", "Rename it"},
        {"Delete", "Archive the page, or delete the folder (both ask first)"},
-       {"a–z", "Jump to the next row starting with what you type"}
+       {"a–z", "Jump to the next row starting with what you type"},
+       {"Ctrl-click", "Pick a row; Shift-click picks every row from the last"},
+       {"Esc", "Let go of what is picked"}
      ]},
     {"In a palette you type into",
      [

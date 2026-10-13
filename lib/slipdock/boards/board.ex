@@ -38,6 +38,9 @@ defmodule Slipdock.Boards.Board do
     # board switcher and favourites: one of `default_views/0`. nil is the
     # board itself. The view menu still reaches every view.
     field :default_view, :string
+    # How the top of the board's wiki tree orders its pages, as a folder's
+    # `sort` does for the folder (see `Slipdock.Wiki.Folder.sorts/0`).
+    field :wiki_sort, :string, default: "manual"
 
     # A simple board is a plain to-do list: the project-tracking details
     # (see `technical_facets/0`) are hidden on its cards and its tiles, and
