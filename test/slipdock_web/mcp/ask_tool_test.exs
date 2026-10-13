@@ -82,7 +82,9 @@ defmodule SlipdockWeb.MCP.AskToolTest do
     page =
       page_fixture(
         ctx.board,
-        %{"title" => "Refunds runbook", "body" => "How refunds are rounded."}, user: ctx.user)
+        %{"title" => "Refunds runbook", "body" => "How refunds are rounded."},
+        user: ctx.user
+      )
 
     Slipdock.AIStub.reply_sequence([
       {:tool_calls, [{"read_page", %{"page" => page.code}}]},
