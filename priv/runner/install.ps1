@@ -12,6 +12,10 @@
 #   %LOCALAPPDATA%\slipdock-runner\config.ps1            its settings and job kinds,
 #                                                        readable by you alone
 #   a Task Scheduler entry, "Slipdock runner", that starts it when you log on
+#
+# One machine can run several runners - one per board, say - each installed
+# with its own -Name: runner NAME has config-NAME.ps1, runner-NAME.log and
+# the task "Slipdock runner (NAME)", and the others are left alone.
 param(
   [string]$Url = '',
   # Left out, the token in the config already there is kept.
@@ -36,6 +40,12 @@ param(
   [string]$BeforeJob = '',
   [string]$AfterJob = '',
   [string]$InstallDir = '',
+  # This runner's name on this machine, so it runs beside the others
+  # (default: none, the machine's one runner).
+  [string]$Name = '',
+  # Replace the config even if it is another runner's (another server or
+  # pool); it is kept beside it as a .bak.
+  [switch]$Replace,
   # Write everything, start nothing and register nothing.
   [switch]$NoStart
 )
@@ -49,11 +59,12 @@ function Fail([string]$message) {
 
 if (-not $Url) { Fail '-Url is required: the Slipdock server''s address' }
 if ($Url -notmatch '^https?://') { Fail '-Url must start with http:// or https://' }
-if ($Pool -notmatch '^[a-z0-9][a-z0-9_-]{0,39}$') { Fail '-Pool must be lower case letters, digits, - or _' }
+if ($Pool -cnotmatch '^[a-z0-9][a-z0-9_-]{0,39}$') { Fail '-Pool must be lower case letters, digits, - or _' }
 if (-not $Kind) { $Kind = $Agent }
-if ($Kind -notmatch '^[a-z0-9][a-z0-9_-]{0,39}$') { Fail '-Kind must be lower case letters, digits, - or _' }
+if ($Kind -cnotmatch '^[a-z0-9][a-z0-9_-]{0,39}$') { Fail '-Kind must be lower case letters, digits, - or _' }
 if ($Agent -eq 'custom' -and -not $Command) { Fail '-Agent custom needs -Command' }
 if ($Timeout -lt 60) { Fail '-Timeout must be at least 60 seconds' }
+if ($Name -and $Name -cnotmatch '^[a-z0-9][a-z0-9_-]{0,59}$') { Fail '-Name must be lower case letters, digits, - or _' }
 if ($McpServers -notmatch '^[A-Za-z0-9_,-]*$') { Fail '-McpServers must be names of letters, digits, - or _, separated by commas' }
 
 if (-not $InstallDir) {
@@ -65,13 +76,29 @@ if (-not $Cwd) { $Cwd = $HOME }
 if ($Cwd -match '^~[^\\/]') { Fail '-Cwd can''t be another user''s ~: use a full path, or ~\ for the runner''s own home' }
 
 $Runner = Join-Path $InstallDir 'slipdock-runner.ps1'
-$Config = Join-Path $InstallDir 'config.ps1'
+# What this runner's files are called: unnamed, the machine's one runner.
+if ($Name) {
+  $Config = Join-Path $InstallDir "config-$Name.ps1"
+  $LogFile = Join-Path $InstallDir "runner-$Name.log"
+  $TaskName = "Slipdock runner ($Name)"
+} else {
+  $Config = Join-Path $InstallDir 'config.ps1'
+  $LogFile = Join-Path $InstallDir 'runner.log'
+  $TaskName = 'Slipdock runner'
+}
 $Utf8 = New-Object System.Text.UTF8Encoding($false)
 $OnWindows = ($PSVersionTable.PSEdition -ne 'Core') -or $IsWindows
 
-# Installing again with new settings keeps the token it has.
-if (-not $Token -and (Test-Path -LiteralPath $Config)) {
-  $Token = & { . $Config; $RunnerToken }
+if (Test-Path -LiteralPath $Config) {
+  $old = & { . $Config; @{ Url = $SlipdockUrl; Pool = $Pool; Token = $RunnerToken } }
+  # Another server or pool is another runner: installing over it would stop
+  # it, so that takes -Replace - or a -Name of its own, to run beside it.
+  if (-not $Replace -and (([string]$old.Url).TrimEnd('/') -ne $Url.TrimEnd('/') -or ($old.Pool -and $old.Pool -ne $Pool))) {
+    $was = if ($old.Pool) { "pool $($old.Pool) on $($old.Url)" } else { $old.Url }
+    Fail "$Config is another runner's ($was), and installing would replace it. To run this one beside it, give it a name: -Name NAME. To replace it, add -Replace."
+  }
+  # Installing again with new settings keeps the token it has.
+  if (-not $Token) { $Token = $old.Token }
 }
 if (-not $Token) { Fail '-Token is required: make a runner on the board to get one' }
 
@@ -189,20 +216,25 @@ if ($OnWindows) {
 }
 
 Write-Output "slipdock-runner: installed $Runner"
-Write-Output "slipdock-runner: config in $Config (pool $Pool, kind $Kind)"
+$named = if ($Name) { ", name $Name" } else { '' }
+Write-Output "slipdock-runner: config in $Config (pool $Pool, kind $Kind$named)"
+
+# A named runner is told its config; the machine's one runner finds it.
+$runArgs = "-File `"$Runner`""
+if ($Name) { $runArgs += " -Config `"$Config`"" }
 
 if ($NoStart) {
-  Write-Output "slipdock-runner: start it with: powershell -NoProfile -ExecutionPolicy Bypass -File `"$Runner`""
+  Write-Output "slipdock-runner: start it with: powershell -NoProfile -ExecutionPolicy Bypass $runArgs"
 } elseif (-not $OnWindows) {
-  Write-Output "slipdock-runner: not Windows, so no Task Scheduler entry. Run it with: pwsh -File `"$Runner`""
+  Write-Output "slipdock-runner: not Windows, so no Task Scheduler entry. Run it with: pwsh $runArgs"
 } else {
   $action = New-ScheduledTaskAction -Execute 'powershell.exe' `
-    -Argument "-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$Runner`""
+    -Argument "-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass $runArgs"
   $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
   $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
     -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1)
-  Register-ScheduledTask -TaskName 'Slipdock runner' -Action $action -Trigger $trigger -Settings $settings `
+  Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings `
     -Description "Takes $Pool jobs from $Url" -Force | Out-Null
-  Start-ScheduledTask -TaskName 'Slipdock runner'
-  Write-Output "slipdock-runner: started, and starts again when you log on. Logs: $(Join-Path $InstallDir 'runner.log')"
+  Start-ScheduledTask -TaskName $TaskName
+  Write-Output "slipdock-runner: started, and starts again when you log on. Logs: $LogFile"
 }

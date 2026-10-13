@@ -64,7 +64,9 @@ if ($null -eq $JobTimeout) { $JobTimeout = 3600 }
 if ($null -eq $LogTail) { $LogTail = 8000 }
 
 $Here = Split-Path -Parent $Config
+# Runner NAME's config is config-NAME.ps1, and its log runner-NAME.log.
 $RunnerLog = Join-Path $Here 'runner.log'
+if ((Split-Path -Leaf $Config) -match '^config-(.+)\.ps1$') { $RunnerLog = Join-Path $Here "runner-$($Matches[1]).log" }
 $Work = Join-Path ([IO.Path]::GetTempPath()) ("slipdock-runner-" + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $Work | Out-Null
 $Utf8 = New-Object System.Text.UTF8Encoding($false)

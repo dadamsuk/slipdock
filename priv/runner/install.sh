@@ -14,6 +14,10 @@
 #   ~/.config/systemd/user/slipdock-runner.service   (Linux, with systemd), or
 #   ~/Library/LaunchAgents/us.slipdock.runner.plist  (macOS)
 #
+# One machine can run several runners — one per board, say — each installed
+# with its own --name: runner NAME has config-NAME, slipdock-runner-NAME.service
+# and us.slipdock.runner.NAME, and the others are left alone.
+#
 # Options:
 #   --url URL              the Slipdock server (required)
 #   --token TOKEN          the runner's token, sdr_... (required the first time;
@@ -36,6 +40,10 @@
 #   --after-job CMD        shell run after each job, however it ended, with
 #                          $SLIPDOCK_EXIT and $SLIPDOCK_STATUS (done, failed,
 #                          cancelled or timeout)
+#   --name NAME            this runner's name on this machine, so it runs beside
+#                          the others (default: none, the machine's one runner)
+#   --replace              replace the config even if it is another runner's
+#                          (another server or pool); kept beside it as a .bak
 #   --no-start             write everything, start nothing
 #
 # Nothing here runs as root, and nothing outside your home is touched.
@@ -56,6 +64,8 @@ START=1
 INSTRUCTIONS=
 BEFORE_JOB=
 AFTER_JOB=
+NAME=
+REPLACE=
 
 die() {
   echo "slipdock-runner install: $*" >&2
@@ -78,19 +88,45 @@ while [ $# -gt 0 ]; do
     --timeout) need "$@"; TIMEOUT=$2; shift 2 ;;
     --service) need "$@"; SERVICE=$2; shift 2 ;;
     --no-start) START=; shift ;;
+    --name) need "$@"; NAME=$2; shift 2 ;;
+    --replace) REPLACE=1; shift ;;
     --instructions) need "$@"; INSTRUCTIONS=$2; shift 2 ;;
     --before-job) need "$@"; BEFORE_JOB=$2; shift 2 ;;
     --after-job) need "$@"; AFTER_JOB=$2; shift 2 ;;
-    -h | --help) sed -n '2,41p' "$0" 2>/dev/null || echo "see the comments at the top of install.sh"; exit 0 ;;
+    -h | --help) sed -n '2,50p' "$0" 2>/dev/null || echo "see the comments at the top of install.sh"; exit 0 ;;
     *) die "unknown option $1 (see --help)" ;;
   esac
 done
 
 [ -n "$URL" ] || die "--url is required: the Slipdock server's address"
-CONFIG_FILE=${XDG_CONFIG_HOME:-$HOME/.config}/slipdock-runner/config
-# Installing again with new settings keeps the token it has.
-if [ -z "$TOKEN" ] && [ -r "$CONFIG_FILE" ]; then
-  TOKEN=$( (. "$CONFIG_FILE" >/dev/null 2>&1 && printf '%s' "${SLIPDOCK_RUNNER_TOKEN:-}") || true)
+case "$NAME" in *[!a-z0-9_-]* | [!a-z0-9]*) die "--name must be lower case letters, digits, - or _" ;; esac
+CONF_DIR=${XDG_CONFIG_HOME:-$HOME/.config}/slipdock-runner
+# What this runner's files are called: unnamed, the machine's one runner.
+if [ -n "$NAME" ]; then
+  CONFIG=$CONF_DIR/config-$NAME
+  UNIT=slipdock-runner-$NAME
+  LABEL=us.slipdock.runner.$NAME
+else
+  CONFIG=$CONF_DIR/config
+  UNIT=slipdock-runner
+  LABEL=us.slipdock.runner
+fi
+
+# A setting of the config already there, read the way the runner reads it.
+existing() {
+  (. "$CONFIG" >/dev/null 2>&1 && eval "printf '%s' \"\${$1:-}\"") || true
+}
+
+if [ -r "$CONFIG" ]; then
+  # Another server or pool is another runner: installing over it would stop
+  # it, so that takes --replace — or a --name of its own, to run beside it.
+  OLD_URL=$(existing SLIPDOCK_URL)
+  OLD_POOL=$(existing POOL)
+  if [ -z "$REPLACE" ] && { [ "${OLD_URL%/}" != "${URL%/}" ] || { [ -n "$OLD_POOL" ] && [ "$OLD_POOL" != "$POOL" ]; }; }; then
+    die "$CONFIG is another runner's (${OLD_POOL:+pool $OLD_POOL on }$OLD_URL), and installing would replace it. To run this one beside it, give it a name: --name NAME. To replace it, add --replace."
+  fi
+  # Installing again with new settings keeps the token it has.
+  [ -n "$TOKEN" ] || TOKEN=$(existing SLIPDOCK_RUNNER_TOKEN)
 fi
 [ -n "$TOKEN" ] || die "--token is required: make a runner on the board to get one"
 case "$URL" in http://* | https://*) ;; *) die "--url must start with http:// or https://" ;; esac
@@ -133,9 +169,10 @@ delimiter() {
 
 FN=job_$(printf '%s' "$KIND" | tr '-' '_')
 BIN_DIR=$HOME/.local/bin
-CONF_DIR=${XDG_CONFIG_HOME:-$HOME/.config}/slipdock-runner
 BIN=$BIN_DIR/slipdock-runner
-CONFIG=$CONF_DIR/config
+# A named runner is told its config; the machine's one runner finds it.
+RUN=$BIN
+[ -z "$NAME" ] || RUN="$BIN --config=$CONFIG"
 
 mkdir -p "$BIN_DIR" "$CONF_DIR"
 
@@ -276,50 +313,54 @@ if [ "$SERVICE" = auto ]; then
 fi
 
 echo "slipdock-runner: installed $BIN"
-echo "slipdock-runner: config in $CONFIG (pool $POOL, kind $KIND)"
+echo "slipdock-runner: config in $CONFIG (pool $POOL, kind $KIND${NAME:+, name $NAME})"
 
 case "$SERVICE" in
   systemd)
     UNIT_DIR=${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user
     mkdir -p "$UNIT_DIR"
-    cat >"$UNIT_DIR/slipdock-runner.service" <<EOF
+    cat >"$UNIT_DIR/$UNIT.service" <<EOF
 [Unit]
-Description=Slipdock runner (pool $POOL)
+Description=Slipdock runner ${NAME:+$NAME }(pool $POOL)
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-ExecStart=$BIN
+ExecStart=$RUN
 Restart=always
 RestartSec=10
 
 [Install]
 WantedBy=default.target
 EOF
-    echo "slipdock-runner: systemd user unit in $UNIT_DIR/slipdock-runner.service"
+    echo "slipdock-runner: systemd user unit in $UNIT_DIR/$UNIT.service"
     if [ -n "$START" ]; then
       systemctl --user daemon-reload
-      systemctl --user enable --now slipdock-runner.service
-      echo "slipdock-runner: started. Logs: journalctl --user -u slipdock-runner -f"
+      # Restarted, not just started: installing again changes what it runs.
+      systemctl --user enable "$UNIT.service"
+      systemctl --user restart "$UNIT.service"
+      echo "slipdock-runner: started. Logs: journalctl --user -u $UNIT -f"
       echo "slipdock-runner: to keep it running while you are logged out: loginctl enable-linger $(id -un)"
     else
-      echo "slipdock-runner: start it with: systemctl --user enable --now slipdock-runner"
+      echo "slipdock-runner: start it with: systemctl --user enable --now $UNIT"
     fi
     ;;
   launchd)
     AGENTS=$HOME/Library/LaunchAgents
-    PLIST=$AGENTS/us.slipdock.runner.plist
+    PLIST=$AGENTS/$LABEL.plist
+    PROGRAM="<string>$BIN</string>"
+    [ -z "$NAME" ] || PROGRAM="$PROGRAM<string>--config=$CONFIG</string>"
     mkdir -p "$AGENTS" "$HOME/Library/Logs"
     cat >"$PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>Label</key><string>us.slipdock.runner</string>
-  <key>ProgramArguments</key><array><string>$BIN</string></array>
+  <key>Label</key><string>$LABEL</string>
+  <key>ProgramArguments</key><array>$PROGRAM</array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
-  <key>StandardErrorPath</key><string>$HOME/Library/Logs/slipdock-runner.log</string>
+  <key>StandardErrorPath</key><string>$HOME/Library/Logs/$UNIT.log</string>
 </dict>
 </plist>
 EOF
@@ -327,13 +368,13 @@ EOF
     if [ -n "$START" ]; then
       launchctl unload "$PLIST" 2>/dev/null || true
       launchctl load -w "$PLIST"
-      echo "slipdock-runner: started. Logs: ~/Library/Logs/slipdock-runner.log"
+      echo "slipdock-runner: started. Logs: ~/Library/Logs/$UNIT.log"
     else
       echo "slipdock-runner: start it with: launchctl load -w $PLIST"
     fi
     ;;
   none)
     echo "slipdock-runner: no service manager set up. Run it with:"
-    echo "  nohup $BIN >>\$HOME/slipdock-runner.log 2>&1 &"
+    echo "  nohup $RUN >>\$HOME/$UNIT.log 2>&1 &"
     ;;
 esac

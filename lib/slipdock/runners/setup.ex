@@ -77,8 +77,13 @@ defmodule Slipdock.Runners.Setup do
     "complete" => false,
     "percent_100" => false,
     "slipdock_tools" => true,
-    "mcp_servers" => "claude_ai_Slipdock, slipdock"
+    "mcp_servers" => "claude_ai_Slipdock, slipdock",
+    # The runner's name on its machine, so several can run there side by
+    # side (see `install_name/2`). Blank is the machine's one runner.
+    "install_name" => ""
   }
+
+  @install_name_format ~r/^[a-z0-9][a-z0-9_-]{0,59}$/
 
   # What a Slipdock MCP server can be called: Claude Code names its tools
   # mcp__<server>__<tool>, with the server's name in it as is.
@@ -138,6 +143,7 @@ defmodule Slipdock.Runners.Setup do
       answers
       |> Map.update!("pool", &(&1 |> to_string() |> String.downcase()))
       |> Map.update!("kind", &(&1 |> to_string() |> String.downcase()))
+      |> Map.update!("install_name", &(&1 |> to_string() |> String.downcase()))
       |> Map.update!("slipdock_tools", &flag/1)
       |> Map.merge(Map.new(@toggles, &{&1, flag(answers[&1])}))
       |> Map.update!("mcp_servers", &mcp_server_list/1)
@@ -156,6 +162,10 @@ defmodule Slipdock.Runners.Setup do
 
       answers["kind"] != "" and not Regex.match?(format, answers["kind"]) ->
         {:error, "kind must be lower case letters, digits, - or _"}
+
+      answers["install_name"] != "" and
+          not Regex.match?(@install_name_format, answers["install_name"]) ->
+        {:error, "the name on the machine must be lower case letters, digits, - or _"}
 
       answers["scenario"] == "chatgpt" and answers["commit"] ->
         {:error, "ChatGPT has no repository to commit to: leave commit and push off"}
@@ -302,6 +312,7 @@ defmodule Slipdock.Runners.Setup do
   """
   def connect(%Board{} = board, params, user, base_url) do
     with {:ok, answers} <- normalise(params),
+         answers = install_name(answers, board),
          {:ok, rule} <- rule(board, params, answers, user),
          {:ok, alert_rule} <- alert_rule(board, params, answers, user),
          {:ok, runner, token} <- runner(board, params, answers, user) do
@@ -437,6 +448,14 @@ defmodule Slipdock.Runners.Setup do
     # one thing.
     params = runner |> saved() |> Map.merge(Map.new(params, fn {k, v} -> {to_string(k), v} end))
 
+    # Its name on the machine stays too, once it has one: another would
+    # install a second copy beside it rather than change it.
+    params =
+      case saved(runner)["install_name"] do
+        "" -> params
+        name -> Map.put(params, "install_name", name)
+      end
+
     with {:ok, answers} <- normalise(Map.put(params, "pool", runner.pool)),
          {:ok, runner} <- Runners.update_runner(runner, %{"settings" => answers}) do
       new = regenerate(runner, board, base_url)
@@ -467,13 +486,44 @@ defmodule Slipdock.Runners.Setup do
   end
 
   @doc """
+  `answers` with the runner's name on its machine filled in, when it isn't
+  given: the board's code and the pool, as in "slipdock-loop". Named, a
+  second runner on the same machine — for another board — is installed
+  beside the first instead of over it. Only the two installed runners have
+  one.
+  """
+  def install_name(%{"install_name" => name} = answers, %Board{code: code})
+      when name in [nil, ""] and is_binary(code) do
+    if needs_token?(answers["scenario"]) do
+      name =
+        "#{code}-#{answers["pool"]}"
+        |> String.downcase()
+        |> String.replace(~r/[^a-z0-9_-]+/, "-")
+        |> String.trim("-")
+        |> String.slice(0, 60)
+
+      if Regex.match?(@install_name_format, name),
+        do: %{answers | "install_name" => name},
+        else: answers
+    else
+      answers
+    end
+  end
+
+  def install_name(answers, _board), do: answers
+
+  @doc """
   The steps for `answers` (already normalised): a map with the scenario,
   its `title`, an `intro`, the `steps` (each `%{text, code, lang}`, code
   optional), `warnings` and a `cost` note.
   """
   def generate(answers, ctx) do
     scenario = answers["scenario"]
-    ctx = Map.merge(%{token: nil, rule: nil, again: false}, ctx)
+    ctx = Map.merge(%{token: nil, rule: nil, again: false, board: nil}, ctx)
+
+    # A runner set up again keeps the name it was installed with — none, for
+    # one made before runners had names.
+    answers = if ctx.again, do: answers, else: install_name(answers, ctx.board)
 
     %{
       scenario: scenario,
@@ -635,7 +685,8 @@ defmodule Slipdock.Runners.Setup do
       %{
         id: :config,
         text:
-          "It writes this config to ~/.config/slipdock-runner/config (mode 600). It is yours " <>
+          "It writes this config to ~/.config/slipdock-runner/#{sh_config(a)} (mode 600). " <>
+            "It is yours " <>
             "to edit: each job_<kind> function is a kind of job this machine will run, and " <>
             "nothing else ever runs.",
         lang: "sh",
@@ -665,9 +716,9 @@ defmodule Slipdock.Runners.Setup do
       %{
         id: :config,
         text:
-          "It writes its config to %LOCALAPPDATA%\\slipdock-runner\\config.ps1, readable by " <>
-            "your user alone, with a Job-#{pascal(kind(a))} function for this kind of job. Logs " <>
-            "are in %LOCALAPPDATA%\\slipdock-runner\\runner.log."
+          "It writes its config to %LOCALAPPDATA%\\slipdock-runner\\#{ps_file(a, "config", "ps1")}, " <>
+            "readable by your user alone, with a Job-#{pascal(kind(a))} function for this kind " <>
+            "of job. Logs are in %LOCALAPPDATA%\\slipdock-runner\\#{ps_file(a, "runner", "log")}."
       }
     ] ++ rule_step(a, ctx)
   end
@@ -885,6 +936,7 @@ defmodule Slipdock.Runners.Setup do
         if(a["agent"] == "claude", do: ["--mcp-servers #{sh_q(mcp_servers_flag(a))}"], else: []) ++
         ["--timeout #{a["timeout"]}"] ++
         if(a["service"] != "auto", do: ["--service #{a["service"]}"], else: []) ++
+        if(a["install_name"] != "", do: ["--name #{a["install_name"]}"], else: []) ++
         if(instructions(a) != "", do: ["--instructions #{sh_q(instructions(a))}"], else: []) ++
         if(a["before_job"] != "", do: ["--before-job #{sh_q(a["before_job"])}"], else: []) ++
         if(a["after_job"] != "", do: ["--after-job #{sh_q(a["after_job"])}"], else: [])
@@ -907,6 +959,7 @@ defmodule Slipdock.Runners.Setup do
         if(a["agent"] == "claude", do: ["-PermissionMode #{a["permission_mode"]}"], else: []) ++
         if(a["agent"] == "claude", do: ["-McpServers #{ps_q(mcp_servers_flag(a))}"], else: []) ++
         ["-Timeout #{a["timeout"]}"] ++
+        if(a["install_name"] != "", do: ["-Name #{a["install_name"]}"], else: []) ++
         if(instructions(a) != "", do: ["-Instructions #{ps_q(instructions(a))}"], else: []) ++
         if(a["before_job"] != "", do: ["-BeforeJob #{ps_q(a["before_job"])}"], else: []) ++
         if(a["after_job"] != "", do: ["-AfterJob #{ps_q(a["after_job"])}"], else: [])
@@ -914,6 +967,14 @@ defmodule Slipdock.Runners.Setup do
     "& ([scriptblock]::Create((irm #{ps_q(ctx.base_url <> "/runner/install.ps1")}))) `\n  " <>
       Enum.join(params, " `\n  ")
   end
+
+  # Where the installers put a runner's files: runner NAME's are config-NAME
+  # and the like, beside the machine's one unnamed runner's.
+  defp sh_config(%{"install_name" => ""}), do: "config"
+  defp sh_config(%{"install_name" => name}), do: "config-#{name}"
+
+  defp ps_file(%{"install_name" => ""}, base, ext), do: "#{base}.#{ext}"
+  defp ps_file(%{"install_name" => name}, base, ext), do: "#{base}-#{name}.#{ext}"
 
   # The installers' --mcp-servers / -McpServers: always given for claude, so
   # installing again with the option turned off turns it off.

@@ -1716,7 +1716,7 @@ For the shell runner it reads:
 ````text
 Write the before-job and after-job hooks for the Slipdock runner on this machine.
 
-The runner takes jobs from a Slipdock board and runs a coding agent on each card. It is the shell runner, slipdock-runner; its config, ~/.config/slipdock-runner/config, is shell, and it calls the functions before_job and after_job, if the config defines them, around every job. Write the hooks as one script, ~/.local/bin/slipdock-hook, taking `before` or `after`, in bash or POSIX sh.
+The runner takes jobs from a Slipdock board and runs a coding agent on each card. It is the shell runner, slipdock-runner; its config, ~/.config/slipdock-runner/config (config-NAME for a runner installed with --name NAME), is shell, and it calls the functions before_job and after_job, if the config defines them, around every job. Write the hooks as one script, ~/.local/bin/slipdock-hook, taking `before` or `after`, in bash or POSIX sh.
 
 The contract every hook works under:
 
@@ -1796,7 +1796,22 @@ and a systemd user unit (Linux) or launchd agent (macOS), and starts it.
 in quotes, and is written into the config as `"$HOME"/'…'` (`Join-Path $HOME
 '…'`); another user's `~bob/…` is refused — give a full path.
 `--agent codex` or `--agent custom --command '…'` run something else;
-`--service none` and `--no-start` leave starting it to you. The installer is
+`--service none` and `--no-start` leave starting it to you.
+
+**Several runners on one machine** — one per board, say — each need a name
+of their own: `--name NAME` (`-Name NAME` on Windows). Runner NAME has its
+config at `~/.config/slipdock-runner/config-NAME`, its own systemd unit
+`slipdock-runner-NAME` (launchd `us.slipdock.runner.NAME`; on Windows
+`config-NAME.ps1`, `runner-NAME.log` and the task *Slipdock runner (NAME)*),
+and installing it leaves the others running. The setup steps name each new
+runner after its board's code and its pool, as in `--name slipdock-loop`, so
+setting up a second board on the same machine just works. Installing with no
+name over a config that is another runner's — another server or pool — is
+refused rather than replace it; `--replace` (`-Replace`) replaces it anyway,
+keeping the old one beside it as a `.bak`. A runner set up before runners
+had names keeps none: set up again, it updates the unnamed one.
+
+The installer is
 the same file for everyone; its SHA-256 is at `/runner/SHA256SUMS` to check
 before running it.
 

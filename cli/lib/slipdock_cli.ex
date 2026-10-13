@@ -508,7 +508,7 @@ defmodule SlipdockCLI do
                [--before-job CMD] [--after-job CMD] [--hooks prompt|hook]
                [--[no-]in-progress] [--[no-]assign] [--[no-]commit] [--[no-]push]
                [--[no-]move-done] [--[no-]complete] [--[no-]percent-100]
-               [--no-slipdock-tools] [--mcp-servers A,B]
+               [--no-slipdock-tools] [--mcp-servers A,B] [--install-name NAME]
                                                    connect a runner: prints exactly what to paste
                                                    (and, for server/windows, its token, once);
                                                    --column adds a rule sending that list's cards
@@ -526,7 +526,10 @@ defmodule SlipdockCLI do
                                                    --no-slipdock-tools; a job does nothing to
                                                    its card or repo unless told: --in-progress,
                                                    --assign, --commit, --push (needs --commit),
-                                                   --move-done, --complete, --percent-100
+                                                   --move-done, --complete, --percent-100;
+                                                   server/windows runners are installed under a
+                                                   name of their own (default <board>-<pool>),
+                                                   so one machine runs several: --install-name
     runner show <board> <runner>                   one runner in full: who made it, its job now,
                                                    how its jobs ended, its latest jobs, its rules
     runner setup <board> <runner> [answers...]     a runner's steps again (token left out); with
@@ -716,6 +719,7 @@ defmodule SlipdockCLI do
     timeout: :integer,
     permission_mode: :string,
     service: :string,
+    install_name: :string,
     command: :string,
     where: :string,
     repo: :string,

@@ -197,6 +197,8 @@ defmodule SlipdockWeb.RunnerInstallTest do
     assert out =~ "--mcp-servers A,B"
     assert out =~ "cancelled or timeout"
     assert out =~ "--no-start"
+    assert out =~ "--name NAME"
+    assert out =~ "--replace"
   end
 
   test "on macOS, a launchd agent instead", ctx do
@@ -254,7 +256,10 @@ defmodule SlipdockWeb.RunnerInstallTest do
     {_, 0} = install(ctx, @base ++ ~w(--service none))
 
     {_, 0} =
-      install(ctx, ~w(--url https://other.example --token sdr_new --no-start --service none))
+      install(
+        ctx,
+        ~w(--url https://other.example --token sdr_new --no-start --service none --replace)
+      )
 
     dir = Path.join(ctx.home, ".config/slipdock-runner")
     assert [backup] = Path.wildcard(Path.join(dir, "config.bak.*"))
@@ -271,6 +276,9 @@ defmodule SlipdockWeb.RunnerInstallTest do
           {~w(--url https://x --token t --agent vim), "--agent must be"},
           {~w(--url https://x --token t --agent custom), "needs --command"},
           {~w(--url https://x --token t --timeout soon), "--timeout must be"},
+          {~w(--url https://x --token t --name Loop), "--name must be"},
+          {~w(--url https://x --token t --name -x), "--name must be"},
+          {["--url", "https://x", "--token", "t", "--name", "a/../b"], "--name must be"},
           {~w(--url https://x --token t --frobnicate), "unknown option"}
         ] do
       {out, 1} = install(ctx, args)
@@ -324,6 +332,183 @@ defmodule SlipdockWeb.RunnerInstallTest do
       preview = Slipdock.Runners.Setup.config_preview(a, gen_ctx)
 
       assert Regex.replace(machine_only, written, "") == Regex.replace(machine_only, preview, "")
+    end
+  end
+
+  describe "several runners on one machine" do
+    defp dir(ctx), do: Path.join(ctx.home, ".config/slipdock-runner")
+    defp units(ctx), do: Path.join(ctx.home, ".config/systemd/user")
+
+    defp sourced_from(ctx, file, var) do
+      {out, 0} =
+        System.cmd("sh", ["-c", ". \"$1\"; printf '%s' \"$#{var}\"", "sh", file],
+          env: [{"HOME", ctx.home}, {"XDG_CONFIG_HOME", nil}]
+        )
+
+      out
+    end
+
+    test "a named runner gets its own config and unit, told where its config is", ctx do
+      {out, 0} =
+        install(
+          ctx,
+          ~w(--url https://slipdock.example --token sdr_two --pool default --name work-default
+             --service systemd --no-start)
+        )
+
+      config = Path.join(dir(ctx), "config-work-default")
+      unit = File.read!(Path.join(units(ctx), "slipdock-runner-work-default.service"))
+      bin = Path.join(ctx.home, ".local/bin/slipdock-runner")
+
+      assert mode(config) == 0o600
+      assert sourced_from(ctx, config, "SLIPDOCK_RUNNER_TOKEN") == "sdr_two"
+      refute File.exists?(Path.join(dir(ctx), "config"))
+      assert unit =~ "ExecStart=#{bin} --config=#{config}\n"
+      assert unit =~ "Description=Slipdock runner work-default (pool default)"
+      assert out =~ "name work-default"
+      assert out =~ "systemctl --user enable --now slipdock-runner-work-default"
+    end
+
+    test "installing a second, named, leaves the first running as it was", ctx do
+      {_, 0} = install(ctx, @base ++ ~w(--pool loop --cwd /srv/one --service systemd))
+      first = File.read!(Path.join(dir(ctx), "config"))
+      first_unit = File.read!(Path.join(units(ctx), "slipdock-runner.service"))
+
+      {_, 0} =
+        install(
+          ctx,
+          ~w(--url https://slipdock.example --token sdr_two --pool default --cwd /srv/two
+             --name other --service systemd --no-start)
+        )
+
+      assert File.read!(Path.join(dir(ctx), "config")) == first
+      assert File.read!(Path.join(units(ctx), "slipdock-runner.service")) == first_unit
+      assert Path.wildcard(Path.join(dir(ctx), "*.bak.*")) == []
+      assert sourced_from(ctx, Path.join(dir(ctx), "config-other"), "WORKDIR") == "/srv/two"
+      assert sourced(ctx, "WORKDIR") == "/srv/one"
+    end
+
+    test "installed again by name, it keeps its own token, not the other's", ctx do
+      {_, 0} = install(ctx, @base ++ ~w(--service none))
+
+      {_, 0} =
+        install(
+          ctx,
+          ~w(--url https://slipdock.example --token sdr_b --pool b --name b --no-start
+             --service none)
+        )
+
+      {_, 0} =
+        install(
+          ctx,
+          ~w(--url https://slipdock.example --pool b --name b --timeout 120 --no-start --service none)
+        )
+
+      config = Path.join(dir(ctx), "config-b")
+      assert sourced_from(ctx, config, "SLIPDOCK_RUNNER_TOKEN") == "sdr_b"
+      assert sourced_from(ctx, config, "JOB_TIMEOUT") == "120"
+      assert [_] = Path.wildcard(config <> ".bak.*")
+      assert sourced(ctx, "SLIPDOCK_RUNNER_TOKEN") == "sdr_secret"
+    end
+
+    test "unnamed over another pool's or server's runner is refused, and nothing changes",
+         ctx do
+      {_, 0} = install(ctx, @base ++ ~w(--pool loop --service systemd))
+      before = File.ls!(dir(ctx))
+      config = File.read!(Path.join(dir(ctx), "config"))
+
+      for args <- [
+            ~w(--url https://slipdock.example --token sdr_new --pool default),
+            ~w(--url https://other.example --token sdr_new --pool loop)
+          ] do
+        {out, 1} = install(ctx, args ++ ~w(--no-start --service systemd))
+        assert out =~ "is another runner's", inspect(args)
+        assert out =~ "--name NAME"
+        assert out =~ "--replace"
+      end
+
+      assert File.ls!(dir(ctx)) == before
+      assert File.read!(Path.join(dir(ctx), "config")) == config
+    end
+
+    test "the same runner again — trailing slash and all — is no other runner's", ctx do
+      {_, 0} = install(ctx, @base ++ ~w(--pool loop --service none))
+
+      {_, 0} =
+        install(
+          ctx,
+          ~w(--url https://slipdock.example/ --pool loop --timeout 60 --no-start --service none)
+        )
+
+      assert sourced(ctx, "JOB_TIMEOUT") == "60"
+      assert sourced(ctx, "SLIPDOCK_RUNNER_TOKEN") == "sdr_secret"
+    end
+
+    test "a hand-written config with no pool is taken to be this one", ctx do
+      File.mkdir_p!(dir(ctx))
+
+      File.write!(
+        Path.join(dir(ctx), "config"),
+        "SLIPDOCK_URL='https://slipdock.example'\nSLIPDOCK_RUNNER_TOKEN='sdr_hand'\n"
+      )
+
+      {_, 0} =
+        install(ctx, ~w(--url https://slipdock.example --pool dev --no-start --service none))
+
+      assert sourced(ctx, "SLIPDOCK_RUNNER_TOKEN") == "sdr_hand"
+      assert sourced(ctx, "POOL") == "dev"
+    end
+
+    test "--replace replaces it, keeping the old one beside it", ctx do
+      {_, 0} = install(ctx, @base ++ ~w(--pool loop --service none))
+
+      {_, 0} =
+        install(
+          ctx,
+          ~w(--url https://slipdock.example --token sdr_new --pool default --replace --no-start --service none)
+        )
+
+      assert sourced(ctx, "POOL") == "default"
+      assert [backup] = Path.wildcard(Path.join(dir(ctx), "config.bak.*"))
+      assert File.read!(backup) =~ "POOL='loop'"
+    end
+
+    test "on macOS, a launchd agent of its own, with its own log", ctx do
+      {out, 0} = install(ctx, @base ++ ~w(--name two --service launchd))
+      plist = File.read!(Path.join(ctx.home, "Library/LaunchAgents/us.slipdock.runner.two.plist"))
+      config = Path.join(dir(ctx), "config-two")
+
+      assert plist =~ "<key>Label</key><string>us.slipdock.runner.two</string>"
+      assert plist =~ "<string>--config=#{config}</string></array>"
+      assert plist =~ "Library/Logs/slipdock-runner-two.log"
+      refute File.exists?(Path.join(ctx.home, "Library/LaunchAgents/us.slipdock.runner.plist"))
+      assert out =~ "launchctl load -w"
+    end
+
+    test "with no service manager, says how to run it with its config", ctx do
+      {out, 0} = install(ctx, @base ++ ~w(--name two --service none))
+      config = Path.join(dir(ctx), "config-two")
+      assert out =~ "--config=#{config} >>$HOME/slipdock-runner-two.log"
+    end
+
+    test "the wizard's one-liner for a board's runner installs under its name", ctx do
+      board = %Slipdock.Boards.Board{code: "slipdock"}
+      {:ok, a} = Slipdock.Runners.Setup.normalise(%{"pool" => "loop", "service" => "none"})
+      a = Slipdock.Runners.Setup.install_name(a, board)
+      gen_ctx = %{base_url: "https://slipdock.example", token: "sdr_t", board: board}
+      line = Slipdock.Runners.Setup.server_one_liner(a, gen_ctx)
+      assert line =~ "--name slipdock-loop"
+
+      [_curl, flags] = String.split(line, "| sh -s -- ", parts: 2)
+
+      {_, 0} =
+        System.cmd("sh", ["-c", "sh \"$0\" " <> flags <> " --no-start", ctx.script],
+          env: [{"HOME", ctx.home}, {"XDG_CONFIG_HOME", nil}],
+          stderr_to_stdout: true
+        )
+
+      assert sourced_from(ctx, Path.join(dir(ctx), "config-slipdock-loop"), "POOL") == "loop"
+      refute File.exists?(Path.join(dir(ctx), "config"))
     end
   end
 end
