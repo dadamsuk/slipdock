@@ -42,10 +42,11 @@ defmodule SlipdockWeb.WikiCardsLiveTest do
 
     {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}/edit")
 
-    assert {:error, {:live_redirect, _}} =
-             view
-             |> form("#page-form", page: %{body: "Some completely different text."})
-             |> render_submit()
+    view
+    |> form("#page-form", page: %{body: "Some completely different text."})
+    |> render_submit()
+
+    assert_patch(view, ~p"/boards/#{board}/wiki/#{page.slug}")
 
     assert [%{pinned: true}] = Wiki.pages_for_card(card)
 

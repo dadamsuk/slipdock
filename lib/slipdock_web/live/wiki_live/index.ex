@@ -585,7 +585,7 @@ defmodule SlipdockWeb.WikiLive.Index do
       {:noreply,
        socket
        |> put_flash(:info, "Archived “#{page.title}”.")
-       |> push_navigate(to: ~p"/boards/#{socket.assigns.board}/wiki")}
+       |> push_patch(to: ~p"/boards/#{socket.assigns.board}/wiki")}
     else
       _ -> {:noreply, put_flash(socket, :error, "That page couldn't be archived.")}
     end
@@ -616,7 +616,7 @@ defmodule SlipdockWeb.WikiLive.Index do
       {:noreply,
        socket
        |> put_flash(:info, "Deleted “#{page.title}” for good.")
-       |> push_navigate(to: ~p"/boards/#{socket.assigns.board}/wiki")}
+       |> push_patch(to: ~p"/boards/#{socket.assigns.board}/wiki")}
     else
       false -> {:noreply, put_flash(socket, :error, "Only the board's owner can delete a page.")}
       _ -> {:noreply, put_flash(socket, :error, "That page couldn't be deleted.")}
@@ -656,7 +656,7 @@ defmodule SlipdockWeb.WikiLive.Index do
       {:noreply,
        socket
        |> put_flash(:info, "Put “#{page.title}” back to that version.")
-       |> push_navigate(to: ~p"/boards/#{socket.assigns.board}/wiki/#{page.slug}")}
+       |> push_patch(to: ~p"/boards/#{socket.assigns.board}/wiki/#{page.slug}")}
     else
       _ -> {:noreply, put_flash(socket, :error, "That version couldn't be restored.")}
     end
@@ -1355,7 +1355,7 @@ defmodule SlipdockWeb.WikiLive.Index do
 
         socket
         |> put_flash(:info, "Wrote “#{page.title}”.#{note}")
-        |> push_navigate(to: ~p"/boards/#{board}/wiki/#{page.slug}")
+        |> push_patch(to: ~p"/boards/#{board}/wiki/#{page.slug}")
 
       {:error, changeset} ->
         assign(socket, form: to_form(changeset))
@@ -1381,7 +1381,7 @@ defmodule SlipdockWeb.WikiLive.Index do
       {:ok, saved} ->
         socket
         |> put_flash(:info, "Saved.")
-        |> push_navigate(to: ~p"/boards/#{socket.assigns.board}/wiki/#{saved.slug}")
+        |> push_patch(to: ~p"/boards/#{socket.assigns.board}/wiki/#{saved.slug}")
 
       {:error, :conflict, current} ->
         # Re-base on the version now shown beside the editor, so saving again
@@ -1532,7 +1532,7 @@ defmodule SlipdockWeb.WikiLive.Index do
           </.link>
           <.icon name="hero-chevron-right" class="size-3 shrink-0 text-base-content/40" />
           <.link
-            navigate={wiki_path(@board)}
+            patch={wiki_path(@board)}
             class="rounded-lg px-2 py-1 font-semibold hover:bg-base-200"
           >
             Wiki
@@ -1542,7 +1542,7 @@ defmodule SlipdockWeb.WikiLive.Index do
       <:subactions>
         <.link
           :if={@can_write}
-          navigate={~p"/boards/#{@board}/wiki/new"}
+          patch={~p"/boards/#{@board}/wiki/new"}
           class="btn btn-primary btn-sm gap-1.5"
         >
           <.icon name="hero-plus" class="size-4" />
@@ -1650,7 +1650,7 @@ defmodule SlipdockWeb.WikiLive.Index do
           >
             <div class="mb-2 flex items-center gap-1">
               <.link
-                navigate={wiki_path(@board)}
+                patch={wiki_path(@board)}
                 class={[
                   "flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-semibold hover:bg-base-200",
                   @live_action == :index && is_nil(@folder) && "bg-base-200"
@@ -2108,7 +2108,7 @@ defmodule SlipdockWeb.WikiLive.Index do
                 </.link>
               </li>
               <li>
-                <.link navigate={~p"/boards/#{@board}/wiki/new?#{[folder: folder.id]}"}>
+                <.link patch={~p"/boards/#{@board}/wiki/new?#{[folder: folder.id]}"}>
                   <.icon name="hero-document-plus" class="size-4" /> New page here
                 </.link>
               </li>
@@ -2276,7 +2276,7 @@ defmodule SlipdockWeb.WikiLive.Index do
       </div>
       <div :if={@can_write} class="flex shrink-0 items-center gap-1">
         <.link
-          navigate={~p"/boards/#{@board}/wiki/new?#{[folder: @folder.id]}"}
+          patch={~p"/boards/#{@board}/wiki/new?#{[folder: @folder.id]}"}
           class="btn btn-primary btn-sm gap-1.5"
         >
           <.icon name="hero-document-plus" class="size-4" /> New page here
@@ -2349,7 +2349,7 @@ defmodule SlipdockWeb.WikiLive.Index do
         </p>
         <.link
           :if={@can_write}
-          navigate={~p"/boards/#{@board}/wiki/new?#{[folder: @folder.id]}"}
+          patch={~p"/boards/#{@board}/wiki/new?#{[folder: @folder.id]}"}
           class="btn btn-sm mt-4"
         >
           Write the first page
@@ -2407,7 +2407,7 @@ defmodule SlipdockWeb.WikiLive.Index do
       <p class="mt-3 text-sm text-base-content/60">No pages yet.</p>
       <.link
         :if={@can_write}
-        navigate={~p"/boards/#{@board}/wiki/new"}
+        patch={~p"/boards/#{@board}/wiki/new"}
         class="btn btn-primary btn-sm mt-4"
       >
         Write the first one
@@ -2462,7 +2462,7 @@ defmodule SlipdockWeb.WikiLive.Index do
             </ul>
             <.link
               :if={@can_write}
-              navigate={~p"/boards/#{@board}/wiki/new?#{[folder: node.folder.id]}"}
+              patch={~p"/boards/#{@board}/wiki/new?#{[folder: node.folder.id]}"}
               class="mt-2 inline-flex items-center gap-1 text-xs text-base-content/50 hover:text-base-content"
             >
               <.icon name="hero-plus" class="size-3" /> New page here
@@ -2482,7 +2482,7 @@ defmodule SlipdockWeb.WikiLive.Index do
       <ul class="mt-3 flex flex-wrap gap-2">
         <li :for={want <- @wanted}>
           <.link
-            navigate={~p"/boards/#{@board}/wiki/new?#{[title: want.title]}"}
+            patch={~p"/boards/#{@board}/wiki/new?#{[title: want.title]}"}
             class="chip chip-line border-dashed hover:bg-base-200"
             title={"Linked from #{Enum.map_join(want.from, ", ", & &1.title)}"}
           >
@@ -2541,7 +2541,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     ~H"""
     <div :if={is_nil(@page)} class="py-16 text-center">
       <p class="text-base-content/60">That page doesn't exist.</p>
-      <.link navigate={wiki_path(@board)} class="btn btn-sm mt-4">Back to the wiki</.link>
+      <.link patch={wiki_path(@board)} class="btn btn-sm mt-4">Back to the wiki</.link>
     </div>
 
     <article :if={@page}>
@@ -2577,13 +2577,13 @@ defmodule SlipdockWeb.WikiLive.Index do
           <span class="chip chip-line font-mono text-2xs" title="Page code">{@page.code}</span>
           <.link
             :if={@can_write}
-            navigate={~p"/boards/#{@board}/wiki/#{@page.slug}/edit"}
+            patch={~p"/boards/#{@board}/wiki/#{@page.slug}/edit"}
             class="btn btn-sm gap-1.5"
           >
             <.icon name="hero-pencil-square" class="size-4" /> Edit
           </.link>
           <.link
-            navigate={~p"/boards/#{@board}/wiki/#{@page.slug}/history"}
+            patch={~p"/boards/#{@board}/wiki/#{@page.slug}/history"}
             class="btn btn-ghost btn-sm gap-1.5"
           >
             <.icon name="hero-clock" class="size-4" />
@@ -2621,7 +2621,7 @@ defmodule SlipdockWeb.WikiLive.Index do
                 </button>
               </li>
               <li>
-                <.link navigate={~p"/boards/#{@board}/wiki/new?#{[parent: @page.id]}"}>
+                <.link patch={~p"/boards/#{@board}/wiki/new?#{[parent: @page.id]}"}>
                   <.icon name="hero-document-plus" class="size-4" /> New page under this one
                 </.link>
               </li>
@@ -2712,14 +2712,14 @@ defmodule SlipdockWeb.WikiLive.Index do
         />
         <.link
           :if={not @can_write and @page.folder_id}
-          navigate={~p"/boards/#{@board}/wiki?#{[folder: @page.folder_id]}"}
+          patch={~p"/boards/#{@board}/wiki?#{[folder: @page.folder_id]}"}
           class="link font-medium"
         >
           {filed_in(@page)}
         </.link>
         <.link
           :if={@can_write and @page.folder_id}
-          navigate={~p"/boards/#{@board}/wiki?#{[folder: @page.folder_id]}"}
+          patch={~p"/boards/#{@board}/wiki?#{[folder: @page.folder_id]}"}
           class="link"
         >
           Open the folder
@@ -3052,7 +3052,7 @@ defmodule SlipdockWeb.WikiLive.Index do
 
       <footer class="mt-10 border-t border-base-300 pt-4 text-xs text-base-content/50">
         Last edited {stamp(@page.updated_at)}
-        <.link navigate={~p"/boards/#{@board}/wiki/#{@page.slug}/history"} class="link">
+        <.link patch={~p"/boards/#{@board}/wiki/#{@page.slug}/history"} class="link">
           see history
         </.link>
       </footer>
@@ -3261,7 +3261,7 @@ defmodule SlipdockWeb.WikiLive.Index do
             />
           </span>
           <.link
-            navigate={~p"/boards/#{@board}/wiki/#{@page.slug}/history/#{revision.id}"}
+            patch={~p"/boards/#{@board}/wiki/#{@page.slug}/history/#{revision.id}"}
             class="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-3"
           >
             <span class="w-40 shrink-0 text-sm text-base-content/60">{stamp(revision.inserted_at)}</span>
@@ -3314,7 +3314,7 @@ defmodule SlipdockWeb.WikiLive.Index do
         </div>
         <div class="flex items-center gap-2">
           <.link
-            navigate={~p"/boards/#{@board}/wiki/#{@page.slug}/history"}
+            patch={~p"/boards/#{@board}/wiki/#{@page.slug}/history"}
             class="btn btn-ghost btn-sm"
           >
             All versions

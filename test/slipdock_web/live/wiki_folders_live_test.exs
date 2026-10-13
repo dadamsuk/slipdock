@@ -563,10 +563,11 @@ defmodule SlipdockWeb.WikiFoldersLiveTest do
 
     {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki/new?folder=#{folder.id}")
 
-    assert {:error, {:live_redirect, %{to: _}}} =
-             view
-             |> form("#page-form", page: %{title: "Rollback", folder_id: to_string(folder.id)})
-             |> render_submit()
+    view
+    |> form("#page-form", page: %{title: "Rollback", folder_id: to_string(folder.id)})
+    |> render_submit()
+
+    assert_patch(view, ~p"/boards/#{board}/wiki/rollback")
 
     assert {:ok, page} = Wiki.find_page(board, "rollback")
     assert page.folder_id == folder.id
