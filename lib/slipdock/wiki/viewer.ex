@@ -2,7 +2,8 @@ defmodule Slipdock.Wiki.Viewer do
   @moduledoc """
   What the file viewer (`SlipdockWeb.FileLive`) shows a wiki file as, and
   the reading that takes: images and PDFs are the browser's to draw, so
-  only their kind is decided here, and HTML too, drawn in a sandbox; JSON, CSV and plain text are read on the
+  only their kind is decided here, and HTML too, drawn in a sandbox, and
+  audio, which the browser's own player plays; JSON, CSV and plain text are read on the
   server and handed over as a tree, a table or the text.
 
   Text is read only up to `max_text/0` bytes, so a 200 MB log is a
@@ -12,6 +13,7 @@ defmodule Slipdock.Wiki.Viewer do
 
   alias Slipdock.Wiki.{Files, WikiFile}
 
+  @audio ~w(.mp3 .m4a .wav .ogg .oga .opus .aac .flac)
   @max_text 2_000_000
   @max_rows 1_000
   @max_nodes 5_000
@@ -20,8 +22,8 @@ defmodule Slipdock.Wiki.Viewer do
   def max_rows, do: @max_rows
 
   @doc """
-  Which viewer a file gets: `:image`, `:svg`, `:pdf`, `:html`, `:json`, `:csv`,
-  `:tsv`, `:text` or `:none`. Decided by the name, which is what a synced
+  Which viewer a file gets: `:image`, `:svg`, `:pdf`, `:html`, `:audio`,
+  `:json`, `:csv`, `:tsv`, `:text` or `:none`. Decided by the name, which is what a synced
   vault reliably has.
   """
   def kind(%WikiFile{} = file) do
@@ -36,6 +38,7 @@ defmodule Slipdock.Wiki.Viewer do
       ".svg" -> :svg
       ".pdf" -> :pdf
       ext when ext in ~w(.html .htm) -> :html
+      ext when ext in @audio -> :audio
       ext when ext in ~w(.json .geojson .jsonl .ndjson) -> :json
       ".csv" -> :csv
       ".tsv" -> :tsv

@@ -56,6 +56,20 @@ defmodule SlipdockWeb.FileLiveTest do
     assert frame =~ ~s(sandbox="")
   end
 
+  test "an .mp3 or .m4a plays in an audio player, asked for inline",
+       %{conn: conn, board: board} do
+    for name <- ["song.mp3", "Memo.m4a"] do
+      file = stored(board, name, "ID3")
+      {:ok, view, _} = live(conn, ~p"/files/#{file.id}")
+
+      player = view |> element("audio#file-audio") |> render()
+      assert player =~ ~s(src="#{Files.url(file)}?view=inline")
+      assert player =~ "controls"
+      assert player =~ ~s(preload="metadata")
+      refute has_element?(view, "#file-none")
+    end
+  end
+
   test "JSON is a tree whose outer levels are open and deeper ones folded",
        %{conn: conn, board: board} do
     file = stored(board, "config.json", ~s({"name": "x", "deep": {"inner": {"leaf": [1, 2]}}}))
@@ -112,7 +126,7 @@ defmodule SlipdockWeb.FileLiveTest do
   end
 
   test "a kind with no viewer offers the download", %{conn: conn, board: board} do
-    file = stored(board, "song.mp3", "ID3")
+    file = stored(board, "clip.mp4", "ID3")
     {:ok, view, _} = live(conn, ~p"/files/#{file.id}")
     assert view |> element("#file-none") |> render() =~ ~s(href="#{Files.url(file)}")
   end

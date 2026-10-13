@@ -18,7 +18,10 @@ defmodule Slipdock.Wiki.ViewerTest do
     assert Viewer.kind(file("sales.csv")) == :csv
     assert Viewer.kind(file("sales.tsv")) == :tsv
     assert Viewer.kind(file("notes.txt")) == :text
-    assert Viewer.kind(file("song.mp3")) == :none
+    assert Viewer.kind(file("song.mp3")) == :audio
+    assert Viewer.kind(file("Memo.M4A")) == :audio
+    assert Viewer.kind(file("take.wav")) == :audio
+    assert Viewer.kind(file("clip.mp4")) == :none
     assert Viewer.kind(file("README")) == :none
   end
 

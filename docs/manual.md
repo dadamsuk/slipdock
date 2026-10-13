@@ -2863,12 +2863,14 @@ tab" go), and an X; Escape closes it too. Images (PNG, JPEG, GIF, WebP,
 and SVG, which is shown so it can run nothing) are drawn; a PDF opens in
 the browser's own PDF viewer; an HTML file (`.html`, `.htm`) is drawn in a
 sandbox: its scripts don't run, its forms don't send and it fetches
-nothing, so pictures it links to are left out; JSON is a tree whose objects and arrays fold
+nothing, so pictures it links to are left out; audio (`.mp3`, `.m4a`,
+`.wav`, `.ogg`, `.opus`, `.aac`, `.flac`) plays in the browser's own
+player, the one a card's recordings have, and can be skipped through; JSON is a tree whose objects and arrays fold
 (the outer two levels open), JSON Lines an array of its lines, invalid
 JSON the line and column where it went wrong; CSV and TSV are a table
 with the first row as its header, the first 1,000 rows shown; `.txt`,
 `.log`, `.md`, YAML, TOML, INI and XML are shown as text. Text over 2 MB,
-and kinds with no viewer yet (audio, video, archives), offer the download.
+and kinds with no viewer yet (video, archives), offer the download.
 Drawings still open in the Excalidraw editor and whole Meld notes where
 the browser decrypts them.
 

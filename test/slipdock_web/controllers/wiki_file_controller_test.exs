@@ -95,6 +95,77 @@ defmodule SlipdockWeb.WikiFileControllerTest do
     end
   end
 
+  describe "audio, which the file viewer plays" do
+    setup %{user: user} do
+      board = board_fixture(%{"name" => "Audio"}, owner: user)
+      path = Path.join(System.tmp_dir!(), "wf-#{System.unique_integer([:positive])}")
+      File.write!(path, "0123456789")
+      {:ok, mp3} = Files.create(board, %{name: "song.mp3"}, path)
+      {:ok, m4a} = Files.create(board, %{name: "Memo.m4a"}, path)
+      %{mp3: mp3, m4a: m4a}
+    end
+
+    test "asked for inline, it is served whole as audio, saying it takes ranges",
+         %{conn: conn, mp3: mp3, m4a: m4a} do
+      for {file, type} <- [{mp3, "audio/mpeg"}, {m4a, "audio/mp4"}] do
+        resp = get(conn, Files.url(file) <> "?view=inline")
+        assert resp.status == 200
+        assert resp.resp_body == "0123456789"
+        assert [content_type] = get_resp_header(resp, "content-type")
+        assert content_type =~ type
+        assert [disposition] = get_resp_header(resp, "content-disposition")
+        assert disposition =~ "inline"
+        assert get_resp_header(resp, "accept-ranges") == ["bytes"]
+        assert get_resp_header(resp, "x-content-type-options") == ["nosniff"]
+      end
+    end
+
+    test "a range gets just those bytes, so the player can seek",
+         %{conn: conn, user: user, m4a: m4a} do
+      resp =
+        conn |> put_req_header("range", "bytes=2-5") |> get(Files.url(m4a) <> "?view=inline")
+
+      assert resp.status == 206
+      assert resp.resp_body == "2345"
+      assert get_resp_header(resp, "content-range") == ["bytes 2-5/10"]
+      assert [content_type] = get_resp_header(resp, "content-type")
+      assert content_type =~ "audio/mp4"
+
+      tail =
+        build_conn()
+        |> log_in_user(user)
+        |> put_req_header("range", "bytes=-3")
+        |> get(Files.url(m4a) <> "?view=inline")
+
+      assert tail.status == 206
+      assert tail.resp_body == "789"
+    end
+
+    test "a range past the end is a 416", %{conn: conn, mp3: mp3} do
+      resp =
+        conn |> put_req_header("range", "bytes=50-") |> get(Files.url(mp3) <> "?view=inline")
+
+      assert resp.status == 416
+      assert get_resp_header(resp, "content-range") == ["bytes */10"]
+    end
+
+    test "a range that doesn't parse gets the whole file", %{conn: conn, mp3: mp3} do
+      resp =
+        conn |> put_req_header("range", "bytes=x-y") |> get(Files.url(mp3) <> "?view=inline")
+
+      assert resp.status == 200
+      assert resp.resp_body == "0123456789"
+    end
+
+    test "asked for plainly, it is still a download", %{conn: conn, mp3: mp3} do
+      resp = get(conn, Files.url(mp3))
+      assert [disposition] = get_resp_header(resp, "content-disposition")
+      assert disposition =~ "attachment"
+      assert [type] = get_resp_header(resp, "content-type")
+      assert type =~ "application/octet-stream"
+    end
+  end
+
   test "somebody who can't read the board, or an archived file, gets a 404",
        %{conn: conn, png: png} do
     stranger = user_fixture("stranger@example.com")
