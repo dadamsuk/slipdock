@@ -713,9 +713,24 @@ defmodule SlipdockWeb.WikiLive.Index do
     params = Map.update(params, "body", nil, &strip_placeholder/1)
 
     if socket.assigns.can_write do
-      {:noreply, save(socket, socket.assigns.page, params, all["message"])}
+      {:noreply,
+       save(socket, socket.assigns.page, params, all["message"], all["purge_revisions"])}
     else
       {:noreply, put_flash(socket, :error, "You can't write on this board.")}
+    end
+  end
+
+  # The editor has just encrypted a passage that was already on the page,
+  # and wants to know which revisions still hold it. It gets the bodies and
+  # looks for itself, so the passage is never sent here (W-103 R6.2).
+  def handle_event("meld_history", _params, socket) do
+    case socket.assigns do
+      %{page: %Page{} = page, can_write: true} ->
+        {:reply, %{revisions: Wiki.revision_bodies(page), owner: socket.assigns.can_manage},
+         socket}
+
+      _ ->
+        {:reply, %{revisions: [], owner: false}, socket}
     end
   end
 
@@ -2171,7 +2186,7 @@ defmodule SlipdockWeb.WikiLive.Index do
 
   defp blank_to_nil(value), do: value
 
-  defp save(socket, nil, params, message) do
+  defp save(socket, nil, params, message, _purge) do
     board = socket.assigns.board
     parent = socket.assigns[:new_parent]
     column = socket.assigns[:new_column]
@@ -2207,7 +2222,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     end
   end
 
-  defp save(socket, %Page{} = page, params, message) do
+  defp save(socket, %Page{} = page, params, message, purge) do
     # "" from the Folder select means the top of the wiki. Ecto reads "" as
     # "not sent", so it has to be said as nil for the page to be unfiled.
     params =
@@ -2225,7 +2240,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     case Wiki.update_page(page, Map.delete(params, "base_hash"), opts) do
       {:ok, saved} ->
         socket
-        |> put_flash(:info, "Saved.")
+        |> put_flash(:info, "Saved." <> purged(saved, purge, socket.assigns.current_user))
         |> push_patch(to: ~p"/boards/#{socket.assigns.board}/wiki/#{saved.slug}")
 
       {:error, :conflict, current} ->
@@ -2237,6 +2252,18 @@ defmodule SlipdockWeb.WikiLive.Index do
 
       {:error, changeset} ->
         assign(socket, form: to_form(changeset))
+    end
+  end
+
+  # After the save, so the newest revision is the encrypted one and is kept.
+  defp purged(_page, purge, _user) when purge in [nil, ""], do: ""
+
+  defp purged(page, purge, user) do
+    case Wiki.purge_revisions(page, String.split(purge, ","), user: user) do
+      {:ok, 0} -> ""
+      {:ok, 1} -> " One earlier revision that held the text in plain was purged."
+      {:ok, n} -> " #{n} earlier revisions that held the text in plain were purged."
+      {:error, :forbidden} -> " Only the board's owner can purge earlier revisions."
     end
   end
 
@@ -4116,6 +4143,44 @@ defmodule SlipdockWeb.WikiLive.Index do
             Body (Markdown)
             <span class="ml-1 font-normal text-base-content/50">— paste or drop an image to attach it</span>
           </label>
+          <%!-- Meld Encrypt (W-103 R6.2, R6.4): secrets are typed into the
+                passphrase dialog, outside this form, and only ciphertext
+                comes into the body. Ignored by LiveView, since the hook
+                keeps the purge choice and its notes. --%>
+          <div
+            id="meld-tools"
+            phx-hook="MeldEditor"
+            phx-update="ignore"
+            data-textarea="page_body"
+            class="mb-1 flex flex-wrap items-center gap-1 text-xs"
+          >
+            <button
+              type="button"
+              data-meld-action="encrypt"
+              class="btn btn-ghost btn-xs"
+              title="Encrypt the selected text, or type a new secret to add encrypted"
+            >
+              <.icon name="hero-lock-closed" class="size-3.5" /> Encrypt
+            </button>
+            <button
+              type="button"
+              data-meld-action="whole"
+              class="btn btn-ghost btn-xs"
+              title="Encrypt the whole note into one block"
+            >
+              Encrypt whole note
+            </button>
+            <button
+              type="button"
+              data-meld-action="edit"
+              class="btn btn-ghost btn-xs"
+              title="Decrypt the block the cursor is in, to change it or remove its encryption"
+            >
+              <.icon name="hero-lock-open" class="size-3.5" /> Decrypt to edit
+            </button>
+            <span data-meld-note class="text-warning" hidden></span>
+            <input type="hidden" name="purge_revisions" value="" data-meld-purge />
+          </div>
           <textarea
             id="page_body"
             name="page[body]"

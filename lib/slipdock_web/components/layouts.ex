@@ -1344,7 +1344,8 @@ defmodule SlipdockWeb.Layouts do
   @doc """
   The passphrase box for Meld Encrypt's encrypted notes (W-103 R6), shared
   by every page like the confirmation box above. `assets/js/meld_view.js`
-  opens it to decrypt (one passphrase) and to encrypt (twice, and a hint).
+  opens it to decrypt (one passphrase), to encrypt (twice, and a hint), and
+  `assets/js/meld_editor.js` to type a new secret or edit a decrypted one.
   It is a `method="dialog"` form outside every LiveView, so nothing typed
   into it is ever submitted or pushed to the server.
   """
@@ -1355,44 +1356,67 @@ defmodule SlipdockWeb.Layouts do
       class="modal modal-bottom sm:modal-middle"
       aria-labelledby="meld-dialog-title"
     >
-      <form method="dialog" class="modal-box max-w-sm" autocomplete="off" data-meld-form>
+      <form method="dialog" class="modal-box max-w-lg" autocomplete="off" data-meld-form>
         <h3 id="meld-dialog-title" class="text-base font-semibold">Decrypt</h3>
         <p data-meld-hint class="mt-1 text-sm text-base-content/60" hidden></p>
-        <label class="mt-4 block text-sm">
-          Passphrase
-          <input
-            type="password"
-            data-meld-passphrase
-            class="input input-bordered input-sm mt-1 w-full"
+        <label data-meld-text-row class="mt-4 block text-sm" hidden>
+          <span data-meld-text-label>Text to encrypt</span>
+          <textarea
+            data-meld-text
+            rows="8"
+            class="textarea textarea-bordered mt-1 w-full font-mono text-sm"
             autocomplete="off"
-          />
+            spellcheck="false"
+          ></textarea>
         </label>
-        <label data-meld-confirm-row class="mt-3 block text-sm" hidden>
-          Passphrase again
-          <input
-            type="password"
-            data-meld-confirm
-            class="input input-bordered input-sm mt-1 w-full"
-            autocomplete="off"
-          />
-        </label>
-        <label data-meld-hint-row class="mt-3 block text-sm" hidden>
-          Hint <span class="text-base-content/50">(optional, stored unencrypted)</span>
-          <input
-            type="text"
-            data-meld-new-hint
-            class="input input-bordered input-sm mt-1 w-full"
-            autocomplete="off"
-          />
-        </label>
-        <label class="mt-3 flex items-center gap-2 text-sm">
-          <input type="checkbox" data-meld-remember class="checkbox checkbox-sm" />
-          Remember for this session
-        </label>
+        <div data-meld-pass-rows>
+          <label class="mt-4 block text-sm">
+            Passphrase
+            <input
+              type="password"
+              data-meld-passphrase
+              class="input input-bordered input-sm mt-1 w-full"
+              autocomplete="off"
+            />
+          </label>
+          <label data-meld-confirm-row class="mt-3 block text-sm" hidden>
+            Passphrase again
+            <input
+              type="password"
+              data-meld-confirm
+              class="input input-bordered input-sm mt-1 w-full"
+              autocomplete="off"
+            />
+          </label>
+          <label data-meld-hint-row class="mt-3 block text-sm" hidden>
+            Hint <span class="text-base-content/50">(optional, kept unencrypted)</span>
+            <input
+              type="text"
+              data-meld-new-hint
+              class="input input-bordered input-sm mt-1 w-full"
+              autocomplete="off"
+            />
+          </label>
+          <label class="mt-3 flex items-center gap-2 text-sm">
+            <input type="checkbox" data-meld-remember class="checkbox checkbox-sm" />
+            Remember for this session
+          </label>
+        </div>
         <p data-meld-error class="mt-3 text-sm text-error" hidden></p>
         <div class="modal-action mt-5">
-          <button type="submit" value="cancel" class="btn btn-ghost btn-sm" formnovalidate>Cancel</button>
-          <button type="submit" value="ok" class="btn btn-primary btn-sm" data-meld-ok>Decrypt</button>
+          <button
+            type="submit"
+            value="remove"
+            class="btn btn-ghost btn-sm mr-auto text-error"
+            data-meld-remove
+            hidden
+          >
+            Remove encryption
+          </button>
+          <button type="submit" value="cancel" class="btn btn-ghost btn-sm">Cancel</button>
+          <button type="submit" value="ok" class="btn btn-primary btn-sm" data-meld-ok>
+            Decrypt
+          </button>
         </div>
       </form>
       <form method="dialog" class="modal-backdrop">

@@ -31,6 +31,7 @@ import {installPosthog} from "./posthog"
 import {Replay} from "./replay"
 import {WikiTree} from "./wiki_tree"
 import {installMeld} from "./meld_view"
+import {MeldEditor} from "./meld_editor"
 
 const Hooks = {}
 Hooks.ModalDialog = ModalDialog
@@ -1255,6 +1256,7 @@ Hooks.EditorPrefs = {
   }
 }
 Hooks.WikiTree = WikiTree
+Hooks.MeldEditor = MeldEditor
 
 // The folder picker (see `SlipdockWeb.FolderPicker`): a tree of folders you can
 // type at. Filtering, the arrow keys and — in form mode — remembering the

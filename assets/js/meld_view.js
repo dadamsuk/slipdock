@@ -50,33 +50,47 @@ export async function tryRemembered(cipher) {
   return null
 }
 
-// Opens the dialog and resolves to {passphrase, remember, hint} or null.
-// mode "decrypt" asks once; "encrypt" asks twice and for a hint, and will
-// not close on a mismatch or a hint that would break the format.
-export function askPassphrase(dialog, {mode = "decrypt", hint = "", error = ""} = {}) {
+// Opens the dialog and resolves to {action, passphrase, remember, hint,
+// text}, or null when it was cancelled. The modes:
+//   decrypt  one passphrase
+//   encrypt  the passphrase twice and a hint (for text already chosen)
+//   insert   as encrypt, with a box to type the new secret into
+//   edit     the decrypted text to change, and Remove encryption; no passphrase
+// An encrypting mode will not close on a mismatch, an empty secret or a hint
+// that would break the format. Whatever was typed is cleared on closing.
+export function askPassphrase(dialog, {mode = "decrypt", hint = "", error = "", text = ""} = {}) {
   const q = sel => dialog.querySelector(sel)
   const form = q("[data-meld-form]")
   const pass = q("[data-meld-passphrase]")
   const confirm = q("[data-meld-confirm]")
   const newHint = q("[data-meld-new-hint]")
   const remember = q("[data-meld-remember]")
+  const textBox = q("[data-meld-text]")
   const err = q("[data-meld-error]")
-  const encrypting = mode === "encrypt"
+  const encrypting = mode === "encrypt" || mode === "insert"
+  const withText = mode === "insert" || mode === "edit"
+  const title = {decrypt: "Decrypt", encrypt: "Encrypt", insert: "Add encrypted text", edit: "Edit encrypted text"}[mode]
 
-  q("#meld-dialog-title").textContent = encrypting ? "Encrypt" : "Decrypt"
-  q("[data-meld-ok]").textContent = encrypting ? "Encrypt" : "Decrypt"
+  q("#meld-dialog-title").textContent = title
+  q("[data-meld-ok]").textContent = {decrypt: "Decrypt", edit: "Encrypt again"}[mode] || "Encrypt"
   q("[data-meld-hint]").textContent = hint ? `Hint: ${hint}` : ""
   q("[data-meld-hint]").hidden = !hint
+  q("[data-meld-text-row]").hidden = !withText
+  q("[data-meld-text-label]").textContent = mode === "edit" ? "Decrypted text, only in this browser" : "Text to encrypt"
+  q("[data-meld-pass-rows]").hidden = mode === "edit"
   q("[data-meld-confirm-row]").hidden = !encrypting
   q("[data-meld-hint-row]").hidden = !encrypting
+  q("[data-meld-remove]").hidden = mode !== "edit"
   err.textContent = error
   err.hidden = !error
   pass.value = confirm.value = newHint.value = ""
+  textBox.value = text
   dialog.returnValue = ""
 
   const check = e => {
     if (!encrypting || e.submitter?.value !== "ok") return
-    const problem = !pass.value ? "Enter a passphrase."
+    const problem = mode === "insert" && !textBox.value ? "Type the text to encrypt."
+      : !pass.value ? "Enter a passphrase."
       : pass.value !== confirm.value ? "The two passphrases don't match."
       : checkHint(newHint.value)
     if (problem) {
@@ -90,23 +104,34 @@ export function askPassphrase(dialog, {mode = "decrypt", hint = "", error = ""} 
   return new Promise(resolve => {
     dialog.addEventListener("close", () => {
       form.removeEventListener("submit", check)
-      const result = dialog.returnValue === "ok" && pass.value
-        ? {passphrase: pass.value, remember: remember.checked, hint: newHint.value}
+      const action = dialog.returnValue
+      const answered = (action === "ok" && (mode === "edit" || pass.value)) || (action === "remove" && mode === "edit")
+      const result = answered
+        ? {action, passphrase: pass.value, remember: remember.checked, hint: newHint.value, text: textBox.value}
         : null
-      // The passphrase does not stay in the page once it has been read.
-      pass.value = confirm.value = ""
+      // Neither the passphrase nor the secret stays in the page once read.
+      pass.value = confirm.value = textBox.value = ""
       resolve(result)
     }, {once: true})
     dialog.showModal()
-    pass.focus()
+    ;(withText ? textBox : pass).focus()
   })
 }
 
 // Asks until the passphrase opens it or the reader gives up. Resolves to the
 // plaintext, or null.
-export async function unlockCipher(cipher, {hint = "", prompt}) {
-  const remembered = await tryRemembered(cipher)
-  if (remembered !== null) return remembered
+export async function unlockCipher(cipher, opts) {
+  const opened = await unlockWith(cipher, opts)
+  return opened && opened.plain
+}
+
+// The same, resolving to {plain, passphrase}: editing needs the passphrase
+// again to encrypt the changed text.
+export async function unlockWith(cipher, {hint = "", prompt}) {
+  for (const passphrase of session.passphrases) {
+    const plain = await decryptCipher(cipher, passphrase)
+    if (plain !== null) return {plain, passphrase}
+  }
   let error = ""
   for (;;) {
     const answer = await prompt({mode: "decrypt", hint, error})
@@ -114,7 +139,7 @@ export async function unlockCipher(cipher, {hint = "", prompt}) {
     const plain = await decryptCipher(cipher, answer.passphrase)
     if (plain !== null) {
       if (answer.remember) session.remember(answer.passphrase)
-      return plain
+      return {plain, passphrase: answer.passphrase}
     }
     error = "That passphrase doesn't open it."
   }
@@ -156,12 +181,17 @@ export function relockAll(doc) {
   doc.querySelectorAll("[data-meld-open]").forEach(relock)
 }
 
-export function installMeld(win, opts = {}) {
-  const doc = win.document
-  const prompt = opts.prompt || (o => {
+// Asks with the root layout's #meld-dialog; a page without it asks nothing.
+export function dialogPrompt(doc) {
+  return o => {
     const dialog = doc.getElementById("meld-dialog")
     return dialog && dialog.showModal ? askPassphrase(dialog, o) : Promise.resolve(null)
-  })
+  }
+}
+
+export function installMeld(win, opts = {}) {
+  const doc = win.document
+  const prompt = opts.prompt || dialogPrompt(doc)
 
   const open = async el => {
     if (el.dataset.meldBusy) return

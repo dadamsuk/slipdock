@@ -887,6 +887,79 @@ defmodule Slipdock.Wiki do
   end
 
   @doc """
+  Every revision's id and body, oldest first. The browser reads them to find
+  which still hold a passage it has just encrypted (W-103 R6.2): the match
+  is made there, so the passage itself never comes back here.
+  """
+  def revision_bodies(%Page{id: id}) do
+    from(r in Revision,
+      where: r.page_id == ^id,
+      order_by: [asc: r.inserted_at, asc: r.id],
+      select: %{id: r.id, body: r.body}
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Deletes the page's revisions that still hold text since encrypted (W-103
+  R6.2): the one deliberate exception to "nothing is lost to a save". Only
+  the board's owner may, and only revisions of this page, never the newest
+  (which is the page as it stands). Logged in the board's activity.
+
+  The browser chose the ids, by matching the plaintext against
+  `revision_bodies/1`; the server cannot check the choice without the
+  plaintext, and that is the point. Returns `{:ok, count}`.
+  """
+  def purge_revisions(%Page{} = page, ids, opts \\ []) do
+    user = opts[:user]
+    ids = ids |> List.wrap() |> Enum.flat_map(&to_id/1) |> Enum.uniq()
+
+    cond do
+      Slipdock.Access.page_permission(user, page) != :owner ->
+        {:error, :forbidden}
+
+      ids == [] ->
+        {:ok, 0}
+
+      true ->
+        newest =
+          from(r in Revision,
+            where: r.page_id == ^page.id,
+            order_by: [desc: r.inserted_at, desc: r.id],
+            limit: 1,
+            select: r.id
+          )
+          |> Repo.one()
+
+        {count, _} =
+          from(r in Revision, where: r.page_id == ^page.id and r.id in ^ids and r.id != ^newest)
+          |> Repo.delete_all()
+
+        if count > 0 do
+          log(
+            page.board_id,
+            page,
+            "page_revisions_purged",
+            "purged #{count} earlier #{if count == 1, do: "revision", else: "revisions"} of “#{page.title}” that held text since encrypted"
+          )
+        end
+
+        {:ok, count}
+    end
+  end
+
+  defp to_id(id) when is_integer(id) and id > 0, do: [id]
+
+  defp to_id(id) when is_binary(id) do
+    case Integer.parse(String.trim(id)) do
+      {n, ""} when n > 0 -> [n]
+      _ -> []
+    end
+  end
+
+  defp to_id(_), do: []
+
+  @doc """
   Puts the page back to how a revision had it. This is itself a save, so it
   writes a revision of its own — nothing is ever removed from history. It is
   never folded into the writer's last save, as quick saves are: undoing your
