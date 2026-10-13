@@ -40,6 +40,36 @@ defmodule SlipdockWeb.Wiki.RendererTest do
     end
   end
 
+  describe "line breaks" do
+    test "a single newline inside a paragraph is a line break, as in Obsidian" do
+      html = Renderer.to_html("Jim born 1931\nJean born 1933\nMarried 1957")
+
+      assert html =~ ~r{Jim born 1931<br\s*/?>\s*Jean born 1933<br\s*/?>\s*Married 1957}
+      assert length(Regex.scan(~r{<p>}, html)) == 1
+    end
+
+    test "a blank line still starts a new paragraph, with no break between" do
+      html = Renderer.to_html("First line\n\nSecond paragraph")
+
+      assert length(Regex.scan(~r{<p>}, html)) == 2
+      refute html =~ "<br"
+    end
+
+    test "a newline inside a code block stays a newline, not a break" do
+      html = Renderer.to_html("```\none\ntwo\n```")
+
+      assert html =~ "one\ntwo"
+      refute html =~ "<br"
+    end
+
+    test "lines carrying wiki references still break between them", %{board: board} do
+      html = Renderer.to_html("See [[Retry policy]]\nand #12", board: board)
+
+      assert html =~ ~r{<br\s*/?>}
+      assert html =~ "#12"
+    end
+  end
+
   describe "references" do
     test "a board, a saved view and a mention", %{board: board, user: user} do
       {:ok, view} = Boards.create_saved_view(board, %{"name" => "Blocked work", "config" => %{}})
