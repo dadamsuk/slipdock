@@ -2805,6 +2805,19 @@ is kept with the wiki's other files.
   The preview is drawn by the server with clean lines rather than
   Excalidraw's hand-drawn ones, in the fonts your computer has, and a
   dark-theme drawing is shown dark. Images the drawing holds are drawn too.
+- **Editing.** *Edit drawing* on a drawing's page (or selecting a `.excalidraw`
+  file in the tree) opens it in Excalidraw itself, the same editor as the
+  plugin's. Draw, then *Save* or Ctrl+S; leaving with changes unsaved asks
+  first. The drawing is saved in the format it came in — a compressed note
+  stays compressed, its text list is brought up to date, and anything else in
+  the note is kept — so the plugin goes on opening it. If the drawing changed
+  somewhere else since you opened it (a sync, another tab), the save is
+  refused and says so rather than overwriting it. People who can only read
+  the board can open a drawing to look round, but not save. *Edit Markdown*
+  is still there for fixing the note by hand.
+- **New drawing.** *New drawing* in a folder's menu in the tree makes an
+  empty drawing there, named the way the plugin names one, and opens it in
+  the editor.
 
 ## Moving boards between servers
 

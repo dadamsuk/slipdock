@@ -42,17 +42,24 @@ defmodule Slipdock.Wiki.Excalidraw do
   def page?(_), do: false
 
   @doc """
-  The scene in a `.excalidraw.md` body, with how it was encoded and the
-  files the note embeds by link (`id => "[[image.png]]"`'s target).
+  The scene in a `.excalidraw.md` body — parsed, and as the JSON it was
+  written as — with how it was encoded and the files the note embeds by
+  link (`id => "[[image.png]]"`'s target).
   """
   @spec parse_markdown(String.t() | nil) ::
-          {:ok, %{scene: map, format: :compressed | :json, links: %{String.t() => String.t()}}}
+          {:ok,
+           %{
+             scene: map,
+             json: String.t(),
+             format: :compressed | :json,
+             links: %{String.t() => String.t()}
+           }}
           | :error
   def parse_markdown(body) when is_binary(body) do
     with [_, _, kind, data] <- Regex.run(@drawing, body),
          {:ok, json} <- decode_block(kind, data),
          {:ok, scene} <- scene(json) do
-      {:ok, %{scene: scene, format: format(kind), links: embedded_links(body)}}
+      {:ok, %{scene: scene, json: json, format: format(kind), links: embedded_links(body)}}
     else
       _ -> :error
     end

@@ -32,10 +32,12 @@ import {Replay} from "./replay"
 import {WikiTree} from "./wiki_tree"
 import {installMeld} from "./meld_view"
 import {MeldEditor} from "./meld_editor"
+import {ExcalidrawEditor} from "./excalidraw_editor"
 
 const Hooks = {}
 Hooks.ModalDialog = ModalDialog
 Hooks.Replay = Replay
+Hooks.ExcalidrawEditor = ExcalidrawEditor
 
 // Keeps the server's idea of the window width up to date, so views that
 // render something different on a phone (the calendar's agenda, the board's

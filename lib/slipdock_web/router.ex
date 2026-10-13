@@ -229,6 +229,9 @@ defmodule SlipdockWeb.Router do
       live "/boards/:id/wiki/new", WikiLive.Index, :new
       live "/boards/:id/wiki/:slug", WikiLive.Index, :show
       live "/boards/:id/wiki/:slug/edit", WikiLive.Index, :edit
+      # An Excalidraw drawing in the Excalidraw editor: `kind` is page (the
+      # plugin's .excalidraw.md) or file (a .excalidraw).
+      live "/drawings/:kind/:id", DrawingLive, :show
       live "/boards/:id/wiki/:slug/history", WikiLive.Index, :history
       live "/boards/:id/wiki/:slug/history/:rev", WikiLive.Index, :revision
       # A board's meetings (see `Slipdock.Meetings`): only while an admin has
