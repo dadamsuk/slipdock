@@ -2653,6 +2653,11 @@ Deleting a vault takes its mappings
 and leaves every page where it was; deleting a board or a folder takes the
 mappings onto it.
 
+**On the home page** your vaults stand beside your boards, a tile each: its
+name, the boards mapped into it, how many pages it holds and the folders it
+is synced to, with when each last synced. **New vault** there makes one. With
+no vaults the home page is as it was.
+
 **The Vaults screen** (avatar menu › **Vaults**, or the gear beside the
 *This board / <vault>* switch at the top of a wiki's tree) lists your vaults,
 each with its mappings and how many pages each holds, and the folders it is

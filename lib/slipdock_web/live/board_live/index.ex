@@ -40,7 +40,27 @@ defmodule SlipdockWeb.BoardLive.Index do
      |> assign(show_archived: false)
      |> assign(templates: Boards.list_templates())
      |> assign(:form, to_form(Boards.change_board(%Board{})))
-     |> load_boards()}
+     |> assign(creating_vault: false)
+     |> load_boards()
+     |> load_vaults()}
+  end
+
+  # Your vaults, beside the boards rather than inside one (#751): each with
+  # the boards mapped into it, its pages and where it is synced.
+  defp load_vaults(socket) do
+    vaults =
+      socket.assigns.current_user
+      |> Slipdock.Vaults.list_vaults()
+      |> Enum.map(fn vault ->
+        %{
+          vault: vault,
+          boards: vault.mappings |> Enum.map(& &1.board) |> Enum.uniq_by(& &1.id),
+          pages: vault |> Slipdock.Vaults.page_counts() |> Map.values() |> Enum.sum(),
+          mirrors: Slipdock.Vaults.mirrors(vault)
+        }
+      end)
+
+    assign(socket, vaults: vaults)
   end
 
   # A sprint template asks which boards its sprints are planned from; the
@@ -110,7 +130,7 @@ defmodule SlipdockWeb.BoardLive.Index do
   def handle_info({:boards_changed}, socket) do
     Boards.drain_boards_changed()
     socket = SlipdockWeb.BoardNotices.resubscribe(socket)
-    {:noreply, load_boards(socket)}
+    {:noreply, socket |> load_boards() |> load_vaults()}
   end
 
   def handle_info({:templates_changed}, socket),
@@ -132,6 +152,29 @@ defmodule SlipdockWeb.BoardLive.Index do
   end
 
   def handle_event("cancel_create", _, socket), do: {:noreply, assign(socket, creating: false)}
+
+  def handle_event("start_vault", _, socket), do: {:noreply, assign(socket, creating_vault: true)}
+
+  def handle_event("cancel_vault", _, socket),
+    do: {:noreply, assign(socket, creating_vault: false)}
+
+  def handle_event("create_vault", %{"name" => name}, socket) do
+    case Slipdock.Vaults.create_vault(socket.assigns.current_user, %{"name" => name}) do
+      {:ok, vault} ->
+        {:noreply,
+         socket
+         |> assign(creating_vault: false)
+         |> put_flash(
+           :info,
+           "Made the vault #{vault.name}. Map a board's wiki onto it to fill it."
+         )
+         |> load_vaults()}
+
+      {:error, cs} ->
+        message = cs.errors[:name] |> Kernel.||({"is invalid", []}) |> elem(0)
+        {:noreply, put_flash(socket, :error, "Vault name #{message}.")}
+    end
+  end
 
   def handle_event("pick_color", %{"color" => color}, socket) do
     {:noreply, assign(socket, new_color: color)}
@@ -527,6 +570,8 @@ defmodule SlipdockWeb.BoardLive.Index do
             Every board you can see is archived. Open Archived below to bring one back.
           </p>
 
+          <.vault_tiles :if={@vaults != []} vaults={@vaults} creating={@creating_vault} />
+
           <.board_grid
             :if={@board_layout == "grid" and @boards != []}
             id="boards"
@@ -903,4 +948,87 @@ defmodule SlipdockWeb.BoardLive.Index do
     </div>
     """
   end
+
+  attr :vaults, :list, required: true
+  attr :creating, :boolean, default: false
+
+  # A vault is yours and owns no pages, so it stands beside the boards: a
+  # tile each, opening the vault's own view.
+  defp vault_tiles(assigns) do
+    ~H"""
+    <section id="vaults" class="mb-8">
+      <div class="mb-3 flex items-center justify-between gap-2">
+        <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/50">
+          Your vaults
+        </h2>
+        <button
+          :if={!@creating}
+          id="new-vault"
+          type="button"
+          class="btn btn-ghost btn-xs"
+          phx-click="start_vault"
+        >
+          <.icon name="hero-plus" class="size-3.5" /> New vault
+        </button>
+      </div>
+      <form
+        :if={@creating}
+        id="new-vault-form"
+        phx-submit="create_vault"
+        class="mb-3 flex max-w-md gap-2"
+      >
+        <input
+          type="text"
+          name="name"
+          placeholder="Vault name"
+          class="input input-sm flex-1"
+          maxlength={Slipdock.Vaults.Vault.name_length()}
+          autocomplete="off"
+          phx-hook="Focus"
+          id="new-vault-name"
+          required
+        />
+        <button type="submit" class="btn btn-primary btn-sm">Make vault</button>
+        <button type="button" class="btn btn-ghost btn-sm" phx-click="cancel_vault">Cancel</button>
+      </form>
+      <ul class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <li :for={%{vault: vault, boards: boards, pages: pages, mirrors: mirrors} <- @vaults}>
+          <.link
+            id={"vault-tile-#{vault.id}"}
+            navigate={vault_href(vault)}
+            class="block h-full rounded-2xl bg-base-100 p-4 shadow-sm ring-1 ring-base-content/10 transition hover:ring-primary/40"
+          >
+            <div class="flex items-center gap-2">
+              <span class="flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <.icon name="hero-rectangle-stack" class="size-4" />
+              </span>
+              <span class="min-w-0 flex-1 truncate font-semibold">{vault.name}</span>
+              <span class="shrink-0 text-xs text-base-content/50">
+                {pages} {if pages == 1, do: "page", else: "pages"}
+              </span>
+            </div>
+            <p class="mt-2 truncate text-xs text-base-content/60">
+              <%= if boards == [] do %>
+                No boards mapped yet
+              <% else %>
+                {Enum.map_join(boards, " · ", & &1.name)}
+              <% end %>
+            </p>
+            <p
+              :for={m <- Enum.take(mirrors, 2)}
+              class="mt-1 flex items-center gap-1 truncate text-xs text-base-content/50"
+            >
+              <.icon name="hero-computer-desktop" class="size-3.5 shrink-0" />
+              <span class="truncate">{m.label || "an unnamed token"}</span>
+              <span class="shrink-0">· {SlipdockWeb.SlipdockComponents.relative_time(m.last_synced_at)}</span>
+            </p>
+          </.link>
+        </li>
+      </ul>
+    </section>
+    """
+  end
+
+  # Where a vault's tile goes: its own view.
+  defp vault_href(vault), do: ~p"/vaults" <> "#vault-#{vault.id}"
 end
