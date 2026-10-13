@@ -614,14 +614,14 @@ claude mcp add --transport http slipdock https://your-server/mcp \
   --header "Authorization: Bearer <token>"
 ```
 
-The client gets 38 tools — `whoami`, `get_guide` (a short guide that names
+The client gets 39 tools — `whoami`, `get_guide` (a short guide that names
 the rest of its sections, one call each with `section`), `list_boards`, `get_board`,
 `list_cards` (with `full: true`, every card as `get_card` gives it), `get_card`,
 `search`, `ask` (a question in prose, answered from the boards with what it read — a model call on your AI key, so slower), `read_page`, `list_pages` (a board's wiki, flat or as a tree), `page_info` (a page's links or heading paths,
 a board's wanted pages, or whether a title has a page), `page_history` (a page's revisions,
 the diff one save made, or between any two), `list_vaults` (your vaults, or where a vault path lands) and `activity`
 (a board's log, or one card's) to read; `create_card`,
-`update_card`, `move_card`, `comment`, `complete_card`, `archive_card`,
+`update_card`, `move_card`, `comment`, `complete_card`, `status_update` (a card's stated health, with a note), `archive_card`,
 `delete_card`, `create_list`, `create_tag`, `delete_list`, `create_board`, `archive_board`,
 `delete_board`, `write_page`, `update_page` (rename, summary, move, file, archive or
 restore, pin to a card), `revert_page` (put a page back to a revision) and `manage_vault` (make a vault and map vault paths onto board wikis) to write, and

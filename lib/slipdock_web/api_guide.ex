@@ -490,7 +490,10 @@ defmodule SlipdockWeb.APIGuide do
     board's log, or with `card` one card's), and for
     writing `create_card`, `update_card` (fields, flags, tags, assignees,
     dependencies and the checklist), `move_card` (to another board too),
-    `comment`, `complete_card`, `archive_card` (and restore), `delete_card`,
+    `comment`, `complete_card`, `status_update` (a card's stated health —
+    `on_track`, `at_risk` or `off_track` — with a note, as
+    `POST /api/cards/:id/status` takes it: the progress report on an epic),
+    `archive_card` (and restore), `delete_card`,
     `create_list`, `create_tag`, `delete_list`, `create_board`, `archive_board` (and
     restore), `delete_board`, `write_page`, `update_page` (a page's
     title, summary, parent, position and folder, archiving and restoring it,

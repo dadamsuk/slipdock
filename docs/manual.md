@@ -162,7 +162,7 @@ way in: what it is, the pictures, and how to get it running.
 - Accounts: passwordless sign-in by emailed magic link, sessions that last
   30 days, API tokens for the CLI
 - **An MCP server** at `/mcp`: claude.ai, the Claude apps, Claude Code and
-  other MCP clients get the boards and the wiki as 38 tools (four of them only
+  other MCP clients get the boards and the wiki as 39 tools (four of them only
   while meeting mode is on), signing in
   through the browser or with an API token (see [MCP server](#mcp-server))
 - Groups of users; boards, single cards and saved views can be shared with
@@ -3651,6 +3651,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `move_card` | To another list on its board, or with `board` to another board, subcards and all. |
 | `comment` | A Markdown comment on a card; `@name` mentions notify. |
 | `complete_card` | Marks a card completed and moves it to the done list, with an optional closing comment. |
+| `status_update` | Posts a status update on a card, as `POST /api/cards/:id/status` does: its `health` (`on_track`, `at_risk`, `off_track`) and an optional `body`. The latest is the card's stated health. |
 | `archive_card` | Puts a card away, or with `restore: true` brings it back. |
 | `delete_card` | Deletes a card with its subcards, comments and files. Needs `confirm: true`. |
 | `create_list` | A list at the end of a board, with its category (`todo`, `doing`, `done`) and an optional WIP limit. |
