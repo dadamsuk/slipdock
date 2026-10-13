@@ -2185,7 +2185,7 @@ can also:
   Excalidraw note, `….excalidraw.md`, as Obsidian's plugin writes one), or
   a new note inside a page;
 - rename it, move it, or file a page in another folder as well (see
-  *One page in several folders*);
+  *One page, several folders*);
 - tag a page, archive a page, or delete a folder;
 - sort a folder: as arranged, by name, last changed first, or newest first,
   with its folders always before its pages.
@@ -2236,7 +2236,11 @@ page, with one body and one history. On a board in a vault the other folders
 can be on any board of the vault. Listing a folder includes the pages also
 filed there, marked `also: true` over the API, and each page appears once.
 Archiving or moving a page keeps its other folders; taking it out of one
-never archives it; deleting a folder takes only its placements.
+never archives it; deleting a folder takes only its placements. In the
+wiki's tree the page shows in each folder it is filed in, with a link marker
+on the extra ones. Its menu there has **Also file in…** to add one, and the
+extra row's menu has **Take out of this folder**. Only readers who can open
+the page's own board see it in the other folders.
 `slipdock page file <page> --also F` (or `--not-in F`) — F a folder on its
 board, on `--board B`, or a vault path such as `/Jobs/Notes` — and
 `{"also": F}` / `{"not_in": F}` on `POST /api/pages/:id/folder` (MCP:

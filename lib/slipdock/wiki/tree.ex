@@ -36,6 +36,9 @@ defmodule Slipdock.Wiki.Tree do
     * `:limit`, `:offset` — a page of a big container's pages at a time. When
       more are left, the last row is `%{kind: "more", offset: n}`, which is
       where to ask from next; files come with the last page
+    * `:as` — the reader: a folder's rows include the pages also filed in it
+      (W-103 R12.2), marked `also: true`, for the pages whose home board the
+      reader can open. Without a reader, only pages of the folder's own board
     * `:through` — a page id: the first page of rows reaches at least as far
       as that page, so the page being read can be shown however far down a
       big folder it is
@@ -47,7 +50,7 @@ defmodule Slipdock.Wiki.Tree do
   alias Slipdock.Boards.Board
   alias Slipdock.Filters
   alias Slipdock.Vaults.{Mapping, Vault}
-  alias Slipdock.Wiki.{Folder, Folders, Page, WikiFile}
+  alias Slipdock.Wiki.{Folder, Folders, Page, Placement, WikiFile}
 
   @type ref :: :root | {:folder, pos_integer} | {:page, pos_integer}
 
@@ -121,7 +124,8 @@ defmodule Slipdock.Wiki.Tree do
             else: []
 
         files = if more, do: [], else: file_rows(board, folder_id, opts)
-        {:ok, folder_rows ++ page_rows(pages, opts) ++ files ++ more_row(more)}
+        also = if more, do: [], else: also_rows(board, folder_id, Enum.map(pages, & &1.id), opts)
+        {:ok, folder_rows ++ page_rows(pages, opts) ++ also ++ files ++ more_row(more)}
 
       {:ok, {:page, page}} ->
         {pages, more} = paged(child_pages(page, opts), opts)
@@ -979,6 +983,67 @@ defmodule Slipdock.Wiki.Tree do
     end
   end
 
+  # The pages also filed in a folder (W-103 R12.2): after the ones at home
+  # there, each marked `also` and with the folder it is placed in, never
+  # one that is already listed. The page's home board decides who sees it:
+  # a draft only for its writers, the page only for its readers.
+  defp also_rows(_board, nil, _listed, _opts), do: []
+
+  defp also_rows(%Board{} = board, folder_id, listed, opts) do
+    pages =
+      from(p in Page,
+        as: :page,
+        join: pl in Placement,
+        on: pl.page_id == p.id,
+        where: pl.folder_id == ^folder_id and p.id not in ^listed,
+        order_by: [asc: pl.position, asc: p.title],
+        select: struct(p, ^@page_fields)
+      )
+      |> where(^visible(Keyword.drop(opts, [:status, :template]), :page))
+      |> Repo.all()
+      |> readable_also(board, opts)
+
+    counts = child_counts(Enum.map(pages, & &1.id), opts)
+
+    Enum.map(pages, fn page ->
+      page
+      |> page_row(Map.get(counts, page.id, 0))
+      |> Map.merge(%{also: true, placed_in: folder_id})
+    end)
+  end
+
+  defp readable_also([], _board, _opts), do: []
+
+  defp readable_also(pages, %Board{id: board_id} = board, opts) do
+    reader = opts[:as]
+
+    levels =
+      pages
+      |> Enum.map(& &1.board_id)
+      |> Enum.uniq()
+      |> Map.new(fn
+        ^board_id when is_nil(reader) ->
+          {board_id, {true, opts[:status] != "published"}}
+
+        id when is_nil(reader) ->
+          {id, {false, false}}
+
+        id ->
+          home = if id == board_id, do: board, else: Repo.get(Board, id)
+          perm = home && Slipdock.Access.board_permission(reader, home)
+
+          {id,
+           {perm && Slipdock.Access.can_read?(perm), perm && Slipdock.Access.can_write?(perm)}}
+      end)
+
+    Enum.filter(pages, fn page ->
+      {read, write} = levels[page.board_id]
+
+      read && (page.status != "draft" or write) &&
+        (Keyword.get(opts, :template) != false or not page.template)
+    end)
+  end
+
   defp in_folder(query, nil), do: where(query, [x], is_nil(x.folder_id))
   defp in_folder(query, id), do: where(query, [x], x.folder_id == ^id)
 
@@ -1090,6 +1155,26 @@ defmodule Slipdock.Wiki.Tree do
         |> Map.new()
       end
 
+    # Pages also filed in a folder make it something to open, but are
+    # counted once, at home, in its page total (R12.7).
+    also =
+      if opts[:only] do
+        %{}
+      else
+        folder_ids = Enum.map(folders, & &1.id)
+
+        from(pl in Placement,
+          join: p in Page,
+          on: p.id == pl.page_id,
+          where: pl.folder_id in ^folder_ids and is_nil(p.archived_at),
+          group_by: pl.folder_id,
+          select: {pl.folder_id, count(pl.id)}
+        )
+        |> Repo.all()
+        |> Map.new()
+      end
+
+    files = Map.merge(files, also, fn _k, a, b -> a + b end)
     %{top: top, files: files, totals: roll_up(folders, direct)}
   end
 

@@ -399,6 +399,58 @@ defmodule Slipdock.WikiTreeTest do
     end
   end
 
+  describe "pages filed in several folders (R12.2)" do
+    test "a folder lists the pages also filed in it, marked, once each", %{
+      board: board,
+      user: user
+    } do
+      home = folder(board, "Home")
+      ideas = folder(board, "Ideas")
+      page = page(board, user, "Plan", folder: home)
+      {:ok, _} = Slipdock.Wiki.Placements.add(page, ideas, user)
+
+      {:ok, rows} = Tree.children(board, {:folder, ideas.id}, as: user)
+      assert [%{title: "Plan", also: true, placed_in: placed_in, id: id}] = rows
+      assert placed_in == ideas.id
+      assert id == page.id
+
+      # At home it is an ordinary row, and the folder totals count it once.
+      {:ok, [%{title: "Plan"} = at_home]} = Tree.children(board, {:folder, home.id}, as: user)
+      refute Map.has_key?(at_home, :also)
+      {:ok, folders} = Tree.children(board, :root, as: user)
+      assert %{pages: 1} = Enum.find(folders, &(&1.title == "Home"))
+      assert %{pages: 0, count: 1} = Enum.find(folders, &(&1.title == "Ideas"))
+    end
+
+    test "only readers of the page's home board see it, and drafts only its writers", %{
+      board: board,
+      user: owner
+    } do
+      ideas = folder(board, "Ideas")
+      other = board_fixture(%{"name" => "Other", "code" => "otheralso"}, owner: owner)
+      {:ok, vault} = Slipdock.Vaults.create_vault(owner, %{"name" => "V"})
+      {:ok, _} = Slipdock.Vaults.add_mapping(vault, owner, %{path: "/", board: board})
+      {:ok, _} = Slipdock.Vaults.add_mapping(vault, owner, %{path: "/O", board: other})
+      theirs = page(other, owner, "Elsewhere")
+      draft = page(board, owner, "Half", status: "draft")
+      {:ok, _} = Slipdock.Wiki.Placements.add(theirs, ideas, owner)
+      {:ok, _} = Slipdock.Wiki.Placements.add(draft, ideas, owner)
+
+      {:ok, rows} = Tree.children(board, {:folder, ideas.id}, as: owner)
+      assert Enum.map(rows, & &1.title) |> Enum.sort() == ["Elsewhere", "Half"]
+
+      reader = user_fixture("also.reader@example.com")
+      share_fixture(board, reader, "read")
+
+      {:ok, rows} = Tree.children(board, {:folder, ideas.id}, as: reader, status: "published")
+      assert rows == []
+
+      # With nobody named, only the folder's own board's pages.
+      {:ok, rows} = Tree.children(board, {:folder, ideas.id})
+      assert Enum.map(rows, & &1.title) == ["Half"]
+    end
+  end
+
   describe "sorting a folder (R11.9)" do
     setup %{board: board, user: user} do
       inbox = folder(board, "Inbox")

@@ -197,7 +197,10 @@ defmodule SlipdockWeb.WikiLive.Index do
     |> update(:tree_version, &(&1 + 1))
   end
 
-  defp tree_opts(%{can_write: can_write, show: show}), do: list_opts(can_write, show)
+  # `as`: whose tree it is, which decides the pages also filed in a folder
+  # that it shows (W-103 R12.2).
+  defp tree_opts(%{can_write: can_write, show: show} = assigns),
+    do: list_opts(can_write, show) ++ [as: assigns[:current_user]]
 
   # A container's rows on this board, as the tree draws them: from what the
   # filter left when one is on, from the database when not.
@@ -347,7 +350,7 @@ defmodule SlipdockWeb.WikiLive.Index do
           perm = Access.board_permission(user, board)
 
           if Access.can_read?(perm),
-            do: [{id, {board, list_opts(Access.can_write?(perm), show)}}],
+            do: [{id, {board, list_opts(Access.can_write?(perm), show) ++ [as: user]}}],
             else: []
       end
     end)
@@ -1410,6 +1413,22 @@ defmodule SlipdockWeb.WikiLive.Index do
     end
   end
 
+  # "Take out of this folder", on a page's extra placement (R12.4: the page
+  # itself stays where it is).
+  def handle_event("remove_placement", %{"id" => id, "folder" => folder_id}, socket) do
+    with %Page{} = page <- tree_item(socket, "page:#{id}"),
+         {:folder, _board, %Folder{} = folder} <- drop_target(socket, "folder:#{folder_id}"),
+         {:ok, _} <- Slipdock.Wiki.Placements.remove(page, folder, socket.assigns.current_user) do
+      {:noreply,
+       socket
+       |> put_flash(:info, "“#{page.title}” is no longer filed in #{folder.name}.")
+       |> load_tree()}
+    else
+      {:error, _status, message} -> {:noreply, put_flash(socket, :error, message)}
+      _ -> {:noreply, put_flash(socket, :error, "That page couldn't be taken out of the folder.")}
+    end
+  end
+
   # How a folder, or the top of a board, orders its pages (R11.9).
   def handle_event("set_tree_sort", %{"key" => key, "sort" => sort}, socket) do
     target =
@@ -1780,7 +1799,7 @@ defmodule SlipdockWeb.WikiLive.Index do
 
     base =
       row
-      |> Map.take([:kind, :id, :board_id, :title, :count, :pages, :code])
+      |> Map.take([:kind, :id, :board_id, :title, :count, :pages, :code, :placed_in])
       |> Map.merge(%{
         key: key,
         href: row_href(row, key),
