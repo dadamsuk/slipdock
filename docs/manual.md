@@ -2418,9 +2418,12 @@ question rather than to change the page. Folders are
 `/api/boards/:board/folders` (GET, POST), `/api/folders/:id` (PATCH, DELETE —
 `?purge=true` takes the pages in it too, owner only; also by any handle at
 `/api/boards/:board/folders/*path`), and `/api/wiki` is
-every board at once. On a shell, `slipdock page ls|tree|read|render|new|edit|
+every board at once. `/api/boards/:board/tree` is one level of the tree the
+way the web's tree loads it — the rows directly in the root, a folder
+(`?folder=`) or a page (`?page=`), each with how many rows are under it, and
+never a body; `slipdock folder open <board> [<folder>]` prints it. On a shell, `slipdock page ls|tree|read|render|new|edit|
 section|append|file|mv|rm|restore|links|pin|wanted|history|diff|revert`, plus
-`slipdock wiki` and `slipdock folder ls|new|mv|rm [--purge]`.
+`slipdock wiki` and `slipdock folder ls|open|new|mv|rm [--purge]`.
 
 **Publishing.** A page can be published read-only at `/w/:token`, the way a
 saved view can. Its live queries are answered **when you publish** and the

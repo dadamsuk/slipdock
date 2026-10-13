@@ -538,6 +538,8 @@ defmodule SlipdockWeb.Router do
     # board the reader can open, folders and all — the Wiki view's own call.
     get "/wiki", PageController, :wiki
     get "/boards/:board/folders", PageController, :folders
+    # One level of the tree at a time, never a body (W-103 R11.1).
+    get "/boards/:board/tree", PageController, :tree
     post "/boards/:board/folders", PageController, :create_folder
     patch "/folders/:id", PageController, :update_folder
     delete "/folders/:id", PageController, :delete_folder

@@ -829,6 +829,56 @@ defmodule SlipdockWeb.API.PageController do
     end
   end
 
+  @doc """
+  One level of the wiki tree, as the browser's tree loads it (W-103 R11.1):
+  the rows directly inside the root, a folder or a page — folders, pages
+  and files, each with how many rows are under it — and never a body.
+
+  `?folder=` (id, slug, name or path) or `?page=` (id or code) names the
+  container, or `?node=folder:12|page:7|root`; nothing named is the root.
+  `?archived=all` adds archived pages, `?template=false` leaves templates
+  out; drafts are listed for writers only.
+  """
+  def tree(conn, %{"board" => ref} = params) do
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :read),
+         {:ok, node} <- tree_node(board, params),
+         {:ok, rows} <- Wiki.Tree.children(board, node, tree_opts(conn, board, params)) do
+      json(conn, %{node: Wiki.Tree.ref_key(node), rows: rows})
+    else
+      {:error, :not_found} -> {:error, :not_found, "folder or page"}
+      other -> other
+    end
+  end
+
+  defp tree_node(board, %{"folder" => ref}) when ref not in [nil, ""] do
+    case Wiki.find_folder(board, ref) do
+      {:ok, folder} -> {:ok, {:folder, folder.id}}
+      error -> error
+    end
+  end
+
+  defp tree_node(board, %{"page" => ref}) when ref not in [nil, ""] do
+    case Wiki.find_page(board, ref) do
+      {:ok, page} -> {:ok, {:page, page.id}}
+      error -> error
+    end
+  end
+
+  defp tree_node(_board, params) do
+    case Wiki.Tree.parse_ref(params["node"]) do
+      {:ok, node} -> {:ok, node}
+      :error -> {:error, :bad_request, "node is root, folder:<id> or page:<id>"}
+    end
+  end
+
+  defp tree_opts(conn, board, params) do
+    [
+      status: if(writer?(conn, board), do: nil, else: "published"),
+      archived: if(params["archived"] == "all", do: :all, else: false),
+      template: if(params["template"] in ["false", "0"], do: false)
+    ]
+  end
+
   @doc ~S'Makes a folder. `name` may be a path — "Design/Decisions" makes both.'
   def create_folder(conn, %{"board" => ref} = params) do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, :write),

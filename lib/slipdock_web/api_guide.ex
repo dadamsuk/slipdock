@@ -1745,6 +1745,7 @@ defmodule SlipdockWeb.APIGuide do
     ```sh
     curl -s -H "$H" B/api/boards/1/folders          # the filing, nested, pages and all
     curl -s -H "$H" B/api/wiki                      # every board you can open, folders and all
+    curl -s -H "$H" "B/api/boards/1/tree?folder=Design"   # one level: rows and counts, no bodies
 
     curl -s -X POST -H "$H" -H 'content-type: application/json' \\
          B/api/boards/1/folders -d '{"name": "Design/Decisions"}'   # makes both

@@ -262,6 +262,10 @@ defmodule SlipdockCLI do
             Deleting one never deletes writing.)
     wiki                                every board's wiki at once: boards, then folders
     folder ls <board>                   the board's filing, pages and all
+    folder open <board> [<folder>] [--page P] [--all]
+                                        one level of the tree, as the web's tree loads it:
+                                        folders, pages and files with how much is under each,
+                                        never a body. No folder: the top of the wiki
     folder new <board> <name...> [--parent F]
                                         a name with slashes makes the whole path
     folder mv <board> <folder> [--name N] [--parent F | --root] [--position N]
