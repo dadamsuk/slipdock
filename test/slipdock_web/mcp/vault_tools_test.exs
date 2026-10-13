@@ -78,6 +78,42 @@ defmodule SlipdockWeb.MCP.VaultToolsTest do
     assert Vaults.list_vaults(user) == []
   end
 
+  test "inside: map a board inside, let it out; create with_board (#757)", %{
+    conn: conn,
+    user: user
+  } do
+    ok!(call(conn, "manage_vault", %{action: "create", name: "Notes"}))
+
+    mapped =
+      ok!(call(conn, "manage_vault", %{action: "map", vault: "Notes", board: "kb", inside: true}))
+
+    assert [%{"inside" => true}] = mapped["vault"]["mappings"]
+
+    out =
+      ok!(
+        call(conn, "manage_vault", %{action: "inside", vault: "Notes", path: "/", inside: false})
+      )
+
+    assert [%{"inside" => false}] = out["vault"]["mappings"]
+
+    ok!(
+      call(conn, "manage_vault", %{
+        action: "map",
+        vault: "Notes",
+        path: "/Jobs",
+        board: "jobs",
+        folder: "Notes"
+      })
+    )
+
+    assert error!(call(conn, "manage_vault", %{action: "inside", vault: "Notes", path: "/Jobs"})) =~
+             "only a whole board"
+
+    made = ok!(call(conn, "manage_vault", %{action: "create", name: "Brain", with_board: true}))
+    assert [%{"inside" => true, "board" => %{"name" => "Brain"}}] = made["vault"]["mappings"]
+    assert map_size(Vaults.inside_boards(user)) == 1
+  end
+
   test "mistakes come back as sentences", %{conn: conn} do
     assert error!(call(conn, "manage_vault", %{action: "fly"})) =~ "action must be one of"
 

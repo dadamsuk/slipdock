@@ -11,7 +11,7 @@ defmodule SlipdockWeb.MCP.Tools.ManageVault do
   alias SlipdockWeb.API.JSON, as: V
   alias SlipdockWeb.MCP.Args
 
-  @actions ~w(create rename delete map unmap move_folder split)
+  @actions ~w(create rename delete map unmap inside move_folder split)
 
   @impl true
   def name, do: "manage_vault"
@@ -22,9 +22,13 @@ defmodule SlipdockWeb.MCP.Tools.ManageVault do
   @impl true
   def description,
     do:
-      "create a vault (name), rename it (vault, name), delete it (vault, confirm: true; " <>
+      "create a vault (name; with_board: true also makes a board named after it, mapped at / " <>
+        "and kept inside the vault), rename it (vault, name), delete it (vault, confirm: true; " <>
         "pages are kept), map a vault path to a board's wiki or one of its folders " <>
-        "(vault, path, board, folder) or unmap one (vault, path). A board belongs to one vault. " <>
+        "(vault, path, board, folder; inside: true keeps a whole board inside the vault, named " <>
+        "on its tile in the web app rather than among the owner's boards) or unmap one " <>
+        "(vault, path). inside (vault, path, inside: true or false) keeps a mapped board " <>
+        "inside the vault or lets it out. A board belongs to one vault. " <>
         "dry_run: true with map or unmap says which pages it brings in, takes over or takes " <>
         "out, and changes nothing. move_folder moves a folder (board, folder) with its subfolders, " <>
         "pages and files to another board you can write to (to_board, optional parent folder " <>
@@ -63,6 +67,15 @@ defmodule SlipdockWeb.MCP.Tools.ManageVault do
           description: "move_folder: move what is in the folder, not the folder itself."
         },
         confirm: %{type: "boolean", description: "Must be true to delete a vault."},
+        inside: %{
+          type: "boolean",
+          description:
+            "map, inside: keep the board inside the vault (a whole board only), or false to let it out."
+        },
+        with_board: %{
+          type: "boolean",
+          description: "create: also make a board to hold its pages, mapped at / and kept inside."
+        },
         dry_run: %{
           type: "boolean",
           description: "map/unmap: say which pages would move, change nothing."
@@ -90,7 +103,23 @@ defmodule SlipdockWeb.MCP.Tools.ManageVault do
 
   defp act("create", args, user, _context) do
     with {:ok, name} <- Args.required(args, "name"),
-         {:ok, vault} <- Args.refusal(Vaults.create_vault(user, %{"name" => name})),
+         {:ok, with_board} <- Args.boolean(args, "with_board", false),
+         {:ok, vault} <-
+           Args.refusal(
+             if(with_board,
+               do: Vaults.create_vault_with_board(user, %{"name" => name}),
+               else: Vaults.create_vault(user, %{"name" => name})
+             )
+           ),
+         do: {:ok, %{vault: V.vault(vault)}}
+  end
+
+  defp act("inside", args, user, _context) do
+    with {:ok, vault} <- vault(args, user),
+         {:ok, path} <- Args.required(args, "path"),
+         {:ok, inside} <- Args.boolean(args, "inside", true),
+         {:ok, _} <- Args.refusal(Vaults.set_inside(vault, path, inside)),
+         {:ok, vault} <- Args.refusal(Vaults.get_vault(user, vault.id)),
          do: {:ok, %{vault: V.vault(vault)}}
   end
 
@@ -124,8 +153,9 @@ defmodule SlipdockWeb.MCP.Tools.ManageVault do
          {:ok, board} <-
            Args.refusal(Authorize.fetch_board(Args.auth(context), board_ref, :write)),
          {:ok, folder} <- folder(board, folder_ref),
-         {:ok, dry_run} <- Args.boolean(args, "dry_run", false) do
-      attrs = %{path: path, board: board, folder: folder}
+         {:ok, dry_run} <- Args.boolean(args, "dry_run", false),
+         {:ok, inside} <- Args.boolean(args, "inside", false) do
+      attrs = %{path: path, board: board, folder: folder, inside: inside}
 
       if dry_run do
         with {:ok, preview} <- Args.refusal(Vaults.preview_mapping(vault, user, attrs)),

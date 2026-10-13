@@ -24,7 +24,10 @@ defmodule SlipdockCLI.Vaults do
     do: HTTP.get("/vaults/#{enc(ref)}") |> out(o, &vault(&1["vault"]))
 
   def run("vault", ["new" | words], o) when words != [] do
-    HTTP.post("/vaults", %{"name" => Enum.join(words, " ")})
+    HTTP.post(
+      "/vaults",
+      compact(%{"name" => Enum.join(words, " "), "with_board" => o[:with_board]})
+    )
     |> out(o, &vault(&1["vault"], "made"))
   end
 
@@ -43,7 +46,13 @@ defmodule SlipdockCLI.Vaults do
   def run("vault", ["map", ref, path], o) do
     if is_nil(o[:board]), do: fail("say which board: --board B (and --folder F for one folder)")
 
-    body = compact(%{"path" => path, "board" => o[:board], "folder" => o[:folder]})
+    body =
+      compact(%{
+        "path" => path,
+        "board" => o[:board],
+        "folder" => o[:folder],
+        "inside" => o[:inside]
+      })
 
     if o[:dry_run] do
       HTTP.post("/vaults/#{enc(ref)}/mappings", Map.put(body, "dry_run", true))
@@ -51,6 +60,12 @@ defmodule SlipdockCLI.Vaults do
     else
       HTTP.post("/vaults/#{enc(ref)}/mappings", body) |> out(o, &vault(&1["vault"], "mapped"))
     end
+  end
+
+  # Keep a board mapped whole inside the vault, or let it out (#757).
+  def run("vault", ["inside", ref, path], o) do
+    HTTP.patch("/vaults/#{enc(ref)}/mappings", %{"path" => path, "inside" => !o[:off]})
+    |> out(o, &vault(&1["vault"], if(o[:off], do: "let out", else: "kept inside")))
   end
 
   def run("vault", ["unmap", ref, path], o) do
@@ -357,7 +372,10 @@ defmodule SlipdockCLI.Vaults do
   end
 
   def print_split(%{"result" => r, "board" => board}) do
-    IO.puts("#{r["path"]} now belongs to #{board["name"]} (#{board["code"]}), mapped in the vault:")
+    IO.puts(
+      "#{r["path"]} now belongs to #{board["name"]} (#{board["code"]}), mapped in the vault:"
+    )
+
     split_lines(r)
   end
 
@@ -448,7 +466,9 @@ defmodule SlipdockCLI.Vaults do
         n -> " · #{n} pages"
       end
 
+    inside = if m["inside"], do: " · kept inside", else: ""
+
     String.pad_trailing(m["path"], 16) <>
-      " → " <> target <> "  " <> Render.dim((m["board"]["code"] || "") <> pages)
+      " → " <> target <> "  " <> Render.dim((m["board"]["code"] || "") <> pages <> inside)
   end
 end

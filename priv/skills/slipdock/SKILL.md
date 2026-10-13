@@ -434,9 +434,14 @@ Vaults lay several boards' wikis out as one Obsidian-style vault (a vault path â
 or a folder of it, longest prefix winning; one vault per board):
 ```
 slipdock vault ls | slipdock vault show <vault> | slipdock vault new <name...>
-slipdock vault map <vault> <path> --board B [--folder F] [--dry-run] | slipdock vault unmap <vault> <path> [--dry-run]
+slipdock vault map <vault> <path> --board B [--folder F] [--inside] [--dry-run] | slipdock vault unmap <vault> <path> [--dry-run]
+slipdock vault inside <vault> <path> [--off] | slipdock vault new <name...> --with-board
 slipdock vault locate <vault> <path> | slipdock vault rename <vault> <name...> | slipdock vault rm <vault>
 ```
+A board that only holds a vault's pages can be kept inside it (`--inside`, `vault inside`): the
+owner's home page names it on the vault's tile instead of among their boards, and `boards` marks it
+`in <vault>`; it's still an ordinary board at its address. `vault new --with-board` makes the
+vault with such a board at `/`.
 `vault ls` also shows how many pages each mapping holds and the folders the vault is synced to
 (each sync token's label and last sync); `--dry-run` on map/unmap previews which pages join,
 move or leave the vault before changing it. A mapping over pages another mapped board already

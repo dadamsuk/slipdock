@@ -541,6 +541,9 @@ defmodule SlipdockWeb.Router do
     post "/vaults/:id/split", VaultController, :split
     delete "/vaults/:id/mappings", VaultController, :unmap
     delete "/vaults/:id/mappings/:mapping", VaultController, :unmap
+    # Keep a board mapped whole inside the vault, or let it out (#757).
+    patch "/vaults/:id/mappings", VaultController, :update_mapping
+    patch "/vaults/:id/mappings/:mapping", VaultController, :update_mapping
     # The board's wiki (see `Slipdock.Wiki`). `:id` takes a numeric id, a page
     # code like W-31, or board-code/slug.
     get "/pages/resolve", PageController, :resolve

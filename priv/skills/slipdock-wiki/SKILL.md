@@ -176,6 +176,7 @@ slipdock vault ls                                  # the vaults, with their mapp
 slipdock vault new Notes
 slipdock vault map Notes / --board kb              # the vault's root
 slipdock vault map Notes /Jobs --board jobs --folder Notes
+slipdock vault inside Notes /                      # keep the board at / inside the vault (--off: let it out)
 slipdock vault locate Notes /Jobs/Acme/Call.md     # which mapping, and the rest of the path
 slipdock vault unmap Notes /Jobs
 ```

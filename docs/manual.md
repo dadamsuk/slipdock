@@ -2699,8 +2699,25 @@ mappings onto it.
 
 **On the home page** your vaults stand beside your boards, a tile each: its
 name, the boards mapped into it, how many pages it holds and the folders it
-is synced to, with when each last synced. **New vault** there makes one. With
-no vaults the home page is as it was.
+is synced to, with when each last synced. **New vault** there makes one;
+tick *Make a board to hold its pages* and it comes with a board of the same
+name, mapped at `/` and kept inside it. With no vaults the home page is as it
+was.
+
+**A board kept inside its vault.** Pages live on a board — that is where their
+codes, permissions and history are — so a vault like GMinds has a board such
+as KnowledgeBase holding its pages at `/`. That board need not stand beside
+the vault as if it were something else: on the Vaults screen, **Keep inside**
+on a whole board's mapping takes it off your home page's board list and names
+it on the vault's tile instead (*pages stored on KnowledgeBase*, with its
+card count when it has cards, linking to it). It is still the same board: its
+address, the board switcher, search and its cards and rules work as before,
+`slipdock boards` marks it *in GMinds*, and anyone it is shared with sees it
+as an ordinary board, since the vault is yours. Taking the mapping out, or
+deleting the vault, puts it back on your home page. Only a whole board can be
+kept inside, not one folder of it. On a shell: `slipdock vault map GMinds /
+--board kb --inside`, `slipdock vault inside GMinds / [--off]`, `slipdock
+vault new NAME --with-board`.
 
 **The Vaults screen** (avatar menu › **Vaults**, or **Settings** at the top
 of a vault view's tree) lists your vaults,

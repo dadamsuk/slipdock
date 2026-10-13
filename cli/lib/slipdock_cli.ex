@@ -308,12 +308,18 @@ defmodule SlipdockCLI do
     vault ls                            your vaults, their mappings (with page counts)
                                         and the folders each is synced to
     vault show <vault>                  one of them
-    vault new <name...>                 make one
+    vault new <name...> [--with-board]  make one; --with-board also makes a board named
+                                        after it to hold its pages, mapped at / and kept
+                                        inside the vault
     vault rename <vault> <name...>
     vault rm <vault>                    its mappings go; every page stays on its board
-    vault map <vault> <path> --board B [--folder F] [--dry-run]
+    vault map <vault> <path> --board B [--folder F] [--inside] [--dry-run]
                                         put a vault path ("/", "/Jobs") onto a board's wiki;
-                                        --dry-run lists the pages it brings in and takes over
+                                        --dry-run lists the pages it brings in and takes over;
+                                        --inside keeps the board inside the vault
+    vault inside <vault> <path> [--off] keep the board mapped whole at <path> inside the
+                                        vault: the web app names it on the vault's tile, not
+                                        among your boards (`boards` marks it). --off lets it out
     vault unmap <vault> <path> [--dry-run]
                                         take a mapping out (--dry-run: which pages leave)
     vault split <vault> <path> --board B | --new-board NAME [--dry-run]
@@ -731,6 +737,8 @@ defmodule SlipdockCLI do
     dry_run: :boolean,
     contents: :boolean,
     new_board: :string,
+    inside: :boolean,
+    with_board: :boolean,
     append: :string,
     card: :string,
     page: :string,

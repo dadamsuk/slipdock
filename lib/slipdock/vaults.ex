@@ -326,8 +326,9 @@ defmodule Slipdock.Vaults do
   Maps a vault path to a board's wiki, or to one folder of it.
 
   `attrs`: `path` (default `/`), `board` (a `%Board{}`), and optionally
-  `folder` (a `%Folder{}` on that board). `user` must be able to write to the
-  board. Refused when the path is already mapped in this vault, when the
+  `folder` (a `%Folder{}` on that board), and `inside: true` to keep a
+  whole board inside the vault (`set_inside/3`). `user` must be able to
+  write to the board. Refused when the path is already mapped in this vault, when the
   board or folder is already mapped, or when the board is in another vault.
   """
   def add_mapping(%Vault{} = vault, %User{} = user, attrs) do
@@ -340,7 +341,12 @@ defmodule Slipdock.Vaults do
          :ok <- check_one_vault(vault, board),
          :ok <- check_overlap(vault, path, board, folder) do
       %Mapping{vault_id: vault.id}
-      |> Mapping.changeset(%{path: path, board_id: board.id, folder_id: folder && folder.id})
+      |> Mapping.changeset(%{
+        path: path,
+        board_id: board.id,
+        folder_id: folder && folder.id,
+        inside: attrs[:inside] == true
+      })
       |> Repo.insert()
       |> case do
         {:ok, mapping} ->
@@ -381,6 +387,68 @@ defmodule Slipdock.Vaults do
       %Vault{id: ^id} -> :ok
       %Vault{} -> {:error, :unprocessable_entity, "#{board.name} is already in another vault"}
     end
+  end
+
+  @doc """
+  Keeps a board mapped whole inside the vault, or lets it out (#757). Kept
+  inside, it leaves the vault owner's board list (`inside_boards/1`) and is
+  named on the vault's tile; it is still the board it was, at its address,
+  for everyone, and anyone it is shared with sees it as an ordinary board.
+  `ref` is the mapping's id or path. A folder's mapping can't be: a board is
+  inside a vault whole or not at all.
+  """
+  def set_inside(%Vault{} = vault, ref, inside) when is_boolean(inside) do
+    with {:ok, mapping} <- find_mapping(vault, ref) do
+      if inside and mapping.folder_id do
+        {:error, :unprocessable_entity,
+         "only a whole board can be kept inside the vault; #{Mapping.display_path(mapping)} maps one folder of #{mapping.board.name}"}
+      else
+        mapping
+        |> Mapping.changeset(%{inside: inside})
+        |> Repo.update()
+        |> case do
+          {:ok, m} -> {:ok, Repo.preload(m, [:board, :folder], force: true)}
+          error -> error
+        end
+      end
+    end
+  end
+
+  @doc """
+  The boards `user`'s own vaults keep inside them, as `%{board_id => vault}`:
+  what their home page names on the vault's tile rather than among their
+  boards. A vault somebody else owns keeps nothing out of `user`'s list.
+  """
+  def inside_boards(%User{id: user_id}) do
+    from(m in Mapping,
+      join: v in Vault,
+      on: v.id == m.vault_id,
+      where: v.user_id == ^user_id and m.inside and is_nil(m.folder_id),
+      select: {m.board_id, v}
+    )
+    |> Repo.all()
+    |> Map.new()
+  end
+
+  @doc """
+  Makes a vault and a board to hold its pages (#757): the board is named
+  after the vault, owned by `user`, mapped at `/` and kept inside the vault.
+  All or nothing.
+  """
+  def create_vault_with_board(%User{} = user, attrs) do
+    Repo.transaction(fn ->
+      with {:ok, vault} <- create_vault(user, attrs),
+           {:ok, board} <-
+             Slipdock.Boards.create_board(%{"name" => vault.name}, owner_id: user.id),
+           board = Slipdock.Boards.get_board!(board.id),
+           {:ok, _} <- add_mapping(vault, user, %{path: "/", board: board, inside: true}) do
+        Repo.preload(vault, @preloads, force: true)
+      else
+        {:error, %Ecto.Changeset{} = changeset} -> Repo.rollback(changeset)
+        {:error, _status, message} -> Repo.rollback(message)
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
   end
 
   @doc "Takes a mapping out of a vault, by its id or by its path."

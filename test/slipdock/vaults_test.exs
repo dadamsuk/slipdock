@@ -397,4 +397,83 @@ defmodule Slipdock.VaultsTest do
       assert Vaults.resolve_address(vault, "Nope") == :error
     end
   end
+
+  describe "a board kept inside its vault (#757)" do
+    test "a whole board can be kept inside, and let out again", %{
+      user: user,
+      kb: kb,
+      vault: vault
+    } do
+      mapping = map!(vault, user, %{path: "/", board: kb})
+      refute mapping.inside
+      assert Vaults.inside_boards(user) == %{}
+
+      assert {:ok, %{inside: true}} = Vaults.set_inside(vault, "/", true)
+      assert %{} = inside = Vaults.inside_boards(user)
+      assert %Vault{name: "Notes"} = inside[kb.id]
+
+      assert {:ok, %{inside: false}} = Vaults.set_inside(vault, mapping.id, false)
+      assert Vaults.inside_boards(user) == %{}
+    end
+
+    test "only a whole board: never one folder of it", %{user: user, jobs: jobs, vault: vault} do
+      {:ok, notes} = Wiki.create_folder(jobs, %{"name" => "Notes"})
+      map!(vault, user, %{path: "/Jobs", board: jobs, folder: notes})
+
+      assert {:error, :unprocessable_entity, message} = Vaults.set_inside(vault, "/Jobs", true)
+      assert message =~ "only a whole board"
+      # Letting a folder's mapping out is a no-op, not an error.
+      assert {:ok, %{inside: false}} = Vaults.set_inside(vault, "/Jobs", false)
+
+      {:error, changeset} =
+        Vaults.add_mapping(vault, user, %{
+          path: "/Other",
+          board: jobs,
+          folder: notes,
+          inside: true
+        })
+
+      assert changeset.errors[:inside] || changeset.errors[:folder_id]
+      assert {:error, :not_found, _} = Vaults.set_inside(vault, "/Nowhere", true)
+    end
+
+    test "mapped inside from the start, and gone with the mapping or the vault", %{
+      user: user,
+      kb: kb,
+      vault: vault
+    } do
+      map!(vault, user, %{path: "/", board: kb, inside: true})
+      assert Map.has_key?(Vaults.inside_boards(user), kb.id)
+
+      {:ok, _} = Vaults.remove_mapping(vault, "/")
+      assert Vaults.inside_boards(user) == %{}
+
+      map!(vault, user, %{path: "/", board: kb, inside: true})
+      {:ok, _} = Vaults.delete_vault(vault)
+      assert Vaults.inside_boards(user) == %{}
+    end
+
+    test "somebody else's vault keeps nothing out of your list", %{
+      user: user,
+      kb: kb,
+      vault: vault
+    } do
+      map!(vault, user, %{path: "/", board: kb, inside: true})
+      other = user_fixture("inside-other@example.com")
+      assert Vaults.inside_boards(other) == %{}
+    end
+
+    test "a new vault with a board to hold its pages", %{user: user} do
+      assert {:ok, vault} = Vaults.create_vault_with_board(user, %{"name" => "Brain"})
+      assert [%{path: "", inside: true, folder_id: nil, board: board}] = vault.mappings
+      assert board.name == "Brain"
+      assert board.owner_id == user.id
+      assert Map.has_key?(Vaults.inside_boards(user), board.id)
+
+      # A name that won't do makes neither.
+      boards = length(Slipdock.Access.list_boards(user))
+      assert {:error, _} = Vaults.create_vault_with_board(user, %{"name" => "brain"})
+      assert length(Slipdock.Access.list_boards(user)) == boards
+    end
+  end
 end

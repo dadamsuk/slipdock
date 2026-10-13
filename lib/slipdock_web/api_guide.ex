@@ -1860,6 +1860,19 @@ defmodule SlipdockWeb.APIGuide do
     `dry_run` reports it first (`unchanged`, `renamed`, `joining`, `move`).
     Shell: `slipdock vault split V /Jobs --board B [--dry-run]`; MCP:
     `manage_vault` `split`.
+    A board that only holds a vault's pages can be kept *inside* it: for
+    the vault's owner it leaves the web app's board list and is named on the
+    vault's tile, while staying the same board everywhere else (its URL,
+    search, cards, rules; anyone it is shared with sees it as usual).
+    `"inside": true` on a mapping of a whole board (never a folder), or
+    `PATCH /api/vaults/:id/mappings` with `path` (or `/mappings/:mapping`)
+    and `inside: true|false` later; each mapping says `inside`, and
+    `GET /api/boards` gives `inside_vault` (the vault's name, or null).
+    `POST /api/vaults` with `with_board: true` makes the vault a board of
+    the same name, mapped at `/` and kept inside. Shell: `slipdock vault
+    map V / --board B --inside`, `slipdock vault inside V / [--off]`,
+    `slipdock vault new NAME --with-board`; MCP: `manage_vault` `inside`,
+    and `inside`/`with_board` on `map`/`create`.
     `mirrors` are the folders the vault is synced to, as far as the server
     knows: each API token that has listed it (`/sync`) or followed its feed,
     by label, with `last_synced_at`. On a shell: `slipdock vault

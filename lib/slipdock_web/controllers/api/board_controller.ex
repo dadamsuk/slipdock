@@ -36,7 +36,18 @@ defmodule SlipdockWeb.API.BoardController do
       )
       |> Boards.sort_boards(sort)
 
-    json(conn, %{boards: Enum.map(boards, &V.board_summary(&1, user))})
+    # A board one of the caller's vaults keeps inside it says so (#757):
+    # the web app names it on the vault's tile rather than among the boards.
+    inside = Slipdock.Vaults.inside_boards(user)
+
+    json(conn, %{
+      boards:
+        Enum.map(boards, fn board ->
+          board
+          |> V.board_summary(user)
+          |> Map.put(:inside_vault, with(%{name: name} <- inside[board.id], do: name))
+        end)
+    })
   end
 
   defp archived_filter(value) when value in ["all", "both"], do: :all

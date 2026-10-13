@@ -55,12 +55,28 @@ defmodule SlipdockWeb.BoardLive.Index do
         %{
           vault: vault,
           boards: vault.mappings |> Enum.map(& &1.board) |> Enum.uniq_by(& &1.id),
+          # The boards it keeps inside it (#757), named here rather than
+          # among the boards, each with its open cards when it has any.
+          inside:
+            for(
+              %{inside: true, folder_id: nil, board: board} <- vault.mappings,
+              do: %{board: board, cards: open_cards(board.id)}
+            ),
           pages: vault |> Slipdock.Vaults.page_counts() |> Map.values() |> Enum.sum(),
           mirrors: Slipdock.Vaults.mirrors(vault)
         }
       end)
 
     assign(socket, vaults: vaults)
+  end
+
+  defp open_cards(board_id) do
+    import Ecto.Query, only: [from: 2]
+
+    Slipdock.Repo.aggregate(
+      from(c in Slipdock.Boards.Card, where: c.board_id == ^board_id and is_nil(c.archived_at)),
+      :count
+    )
   end
 
   # A sprint template asks which boards its sprints are planned from; the
@@ -118,8 +134,16 @@ defmodule SlipdockWeb.BoardLive.Index do
   defp load_boards(socket) do
     %{current_user: user, sort: sort} = socket.assigns
 
+    # A board one of your vaults keeps inside it is on that vault's tile,
+    # not here (#757). Shared with you from somebody's vault, it is here.
+    inside = Slipdock.Vaults.inside_boards(user)
+
     assign(socket,
-      boards: user |> Access.list_boards(activity: true) |> Boards.sort_boards(sort),
+      boards:
+        user
+        |> Access.list_boards(activity: true)
+        |> Enum.reject(&Map.has_key?(inside, &1.id))
+        |> Boards.sort_boards(sort),
       archived:
         user |> Access.list_boards(archived: true, activity: true) |> Boards.sort_boards(sort),
       shared_cards: Access.shared_cards(user)
@@ -158,21 +182,36 @@ defmodule SlipdockWeb.BoardLive.Index do
   def handle_event("cancel_vault", _, socket),
     do: {:noreply, assign(socket, creating_vault: false)}
 
-  def handle_event("create_vault", %{"name" => name}, socket) do
-    case Slipdock.Vaults.create_vault(socket.assigns.current_user, %{"name" => name}) do
+  def handle_event("create_vault", %{"name" => name} = params, socket) do
+    user = socket.assigns.current_user
+
+    result =
+      if params["with_board"] == "true",
+        do: Slipdock.Vaults.create_vault_with_board(user, %{"name" => name}),
+        else: Slipdock.Vaults.create_vault(user, %{"name" => name})
+
+    case result do
       {:ok, vault} ->
         {:noreply,
          socket
          |> assign(creating_vault: false)
          |> put_flash(
            :info,
-           "Made the vault #{vault.name}. Map a board's wiki onto it to fill it."
+           if(params["with_board"] == "true",
+             do:
+               "Made the vault #{vault.name}, with a board of the same name holding its pages, kept inside it.",
+             else: "Made the vault #{vault.name}. Map a board's wiki onto it to fill it."
+           )
          )
+         |> load_boards()
          |> load_vaults()}
 
-      {:error, cs} ->
+      {:error, %Ecto.Changeset{} = cs} ->
         message = cs.errors[:name] |> Kernel.||({"is invalid", []}) |> elem(0)
         {:noreply, put_flash(socket, :error, "Vault name #{message}.")}
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, "That vault couldn't be made: #{inspect(reason)}.")}
     end
   end
 
@@ -550,7 +589,7 @@ defmodule SlipdockWeb.BoardLive.Index do
           </div>
 
           <div
-            :if={@boards == [] and @archived == [] and !@creating}
+            :if={@boards == [] and @archived == [] and @vaults == [] and !@creating}
             class="rounded-2xl border-2 border-dashed border-base-content/15 p-16 text-center"
           >
             <div class="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
@@ -975,7 +1014,7 @@ defmodule SlipdockWeb.BoardLive.Index do
         :if={@creating}
         id="new-vault-form"
         phx-submit="create_vault"
-        class="mb-3 flex max-w-md gap-2"
+        class="mb-3 flex max-w-md flex-wrap gap-2"
       >
         <input
           type="text"
@@ -990,13 +1029,22 @@ defmodule SlipdockWeb.BoardLive.Index do
         />
         <button type="submit" class="btn btn-primary btn-sm">Make vault</button>
         <button type="button" class="btn btn-ghost btn-sm" phx-click="cancel_vault">Cancel</button>
+        <label class="flex basis-full cursor-pointer items-center gap-1.5 text-xs text-base-content/70">
+          <input type="checkbox" name="with_board" value="true" class="checkbox checkbox-xs" />
+          Make a board to hold its pages, kept inside the vault
+        </label>
       </form>
       <ul class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <li :for={%{vault: vault, boards: boards, pages: pages, mirrors: mirrors} <- @vaults}>
+        <li
+          :for={
+            %{vault: vault, boards: boards, pages: pages, mirrors: mirrors, inside: inside} <- @vaults
+          }
+          class="relative h-full rounded-2xl bg-base-100 p-4 shadow-sm ring-1 ring-base-content/10 transition hover:ring-primary/40"
+        >
           <.link
             id={"vault-tile-#{vault.id}"}
             navigate={vault_href(vault)}
-            class="block h-full rounded-2xl bg-base-100 p-4 shadow-sm ring-1 ring-base-content/10 transition hover:ring-primary/40"
+            class="block after:absolute after:inset-0 after:rounded-2xl after:content-['']"
           >
             <div class="flex items-center gap-2">
               <span class="flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -1022,6 +1070,21 @@ defmodule SlipdockWeb.BoardLive.Index do
               <span class="truncate">{m.label || "an unnamed token"}</span>
               <span class="shrink-0">· {SlipdockWeb.SlipdockComponents.relative_time(m.last_synced_at)}</span>
             </p>
+          </.link>
+          <%!-- The boards it keeps inside it (#757): above the tile's own
+                link, so each opens its board. --%>
+          <.link
+            :for={%{board: board, cards: cards} <- inside}
+            id={"vault-inside-#{vault.id}-#{board.id}"}
+            navigate={~p"/boards/#{board}"}
+            class="relative z-10 mt-1 flex w-fit max-w-full items-center gap-1 truncate rounded text-xs text-base-content/50 hover:text-base-content hover:underline"
+            title="The board that stores these pages: their permissions, history and comments"
+          >
+            <.icon name="hero-archive-box" class="size-3.5 shrink-0" />
+            <span class="truncate">pages stored on {board.name}</span>
+            <span :if={cards > 0} class="shrink-0">
+              · {cards} {if cards == 1, do: "card", else: "cards"}
+            </span>
           </.link>
         </li>
       </ul>
