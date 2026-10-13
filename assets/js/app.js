@@ -1223,9 +1223,9 @@ Hooks.ScrollTopOnPage = {
 // "page:7" for inside a page.
 Hooks.WikiTree = {
   mounted() {
-    // Which folders the reader shut, per board, kept in the browser: every
-    // link to another page mounts the wiki afresh, and without this the tree
-    // would spring open on each one.
+    // Which folders the reader shut, per board, kept in the browser: coming
+    // back to the wiki mounts it afresh, and without this the tree would
+    // spring open every time.
     const key = `slipdock:wiki-collapsed:${this.el.dataset.board}`
     let ids = []
     try { ids = JSON.parse(localStorage.getItem(key) || "[]") } catch (_e) {}

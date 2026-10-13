@@ -207,8 +207,21 @@ defmodule SlipdockWeb.WikiLive.Index do
   def handle_params(params, _uri, socket) do
     # `folder` is the index's own state; every other action clears it rather
     # than inheriting the last one looked at.
-    {:noreply, apply_action(assign(socket, folder: nil), socket.assigns.live_action, params)}
+    socket = apply_action(assign(socket, folder: nil), socket.assigns.live_action, params)
+    {:noreply, reveal_shown(socket)}
   end
+
+  # A page is opened in place, so the folders leading to it are opened here as
+  # well as on a fresh visit: one reached by a link in a note may sit in a
+  # folder the reader shut. Only this view's tree: what the browser keeps of
+  # what they shut is theirs to change.
+  defp reveal_shown(%{assigns: %{collapsed: collapsed}} = socket) do
+    if MapSet.size(collapsed) == 0,
+      do: socket,
+      else: assign(socket, collapsed: MapSet.difference(collapsed, shown_folder_ids(socket)))
+  end
+
+  defp reveal_shown(socket), do: socket
 
   # The index does double duty: the whole wiki, or one folder of it with
   # `?folder=`. A query parameter rather than a path of its own, so a folder

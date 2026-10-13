@@ -19,7 +19,13 @@ defmodule SlipdockWeb.WikiBigVaultTest do
 
   # How many queries of the pages table `pid` makes while `fun` runs and
   # `settle` ms after: what one reload of the tree costs, counted.
-  defp page_queries(pid, settle, fun) do
+  defp page_queries(pid, settle, fun), do: queries(pid, settle, fun, fn _ -> true end)
+
+  # Only the tree's own query: the listing is the one that cuts bodies short.
+  defp tree_loads(pid, settle, fun),
+    do: queries(pid, settle, fun, &String.contains?(&1, "substr("))
+
+  defp queries(pid, settle, fun, keep?) do
     test = self()
     id = "wiki-queries-#{System.unique_integer([:positive])}"
 
@@ -27,7 +33,8 @@ defmodule SlipdockWeb.WikiBigVaultTest do
       id,
       [:slipdock, :repo, :query],
       fn _event, _measure, meta, _ ->
-        if self() == pid and meta.source == "pages", do: send(test, {:page_query, id})
+        if self() == pid and meta.source == "pages" and keep?.(meta.query),
+          do: send(test, {:page_query, id})
       end,
       nil
     )
@@ -91,6 +98,34 @@ defmodule SlipdockWeb.WikiBigVaultTest do
       {:ok, _} = Wiki.create_page(board, %{"title" => "Second"}, user: user)
       Process.sleep(500)
       assert render(view) =~ "Second"
+    end
+  end
+
+  describe "opening a page from inside the wiki" do
+    test "happens in place: same view, the tree left as it was", %{conn: conn, board: board} do
+      one = page_fixture(board, %{"title" => "One", "body" => "first page"})
+      two = page_fixture(board, %{"title" => "Two", "body" => "second page"})
+
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki/#{one.slug}")
+      pid = view.pid
+
+      link = "#wiki-tree a[href='/boards/#{board.id}/wiki/#{two.slug}']"
+      assert has_element?(view, link <> "[data-phx-link='patch']")
+
+      refute has_element?(
+               view,
+               "#wiki-tree a[data-phx-link='redirect'][href*='/wiki/#{two.slug}']"
+             )
+
+      assert tree_loads(pid, 50, fn -> view |> element(link) |> render_click() end) == 0
+
+      assert view.pid == pid
+      assert_patch(view, ~p"/boards/#{board}/wiki/#{two.slug}")
+      assert render(view) =~ "second page"
+      assert has_element?(view, "#wiki-main[data-page='show:#{two.id}']")
+
+      # Which is to say the tree query is one a reload does run.
+      assert tree_loads(pid, 500, fn -> send(pid, {:wiki_changed, board.id}) end) == 1
     end
   end
 
