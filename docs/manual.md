@@ -2610,8 +2610,18 @@ its root and a folder of it, say), because the vault is also where a plain
 and leaves every page where it was; deleting a board or a folder takes the
 mappings onto it.
 
-Vaults are made and mapped from the CLI (`slipdock vault`), the API
-(`/api/vaults`) and MCP (`list_vaults`, `manage_vault`).
+**The Vaults screen** (avatar menu › **Vaults**, or the gear beside the
+*This board / <vault>* switch at the top of a wiki's tree) lists your vaults,
+each with its mappings and how many pages each holds, and the folders it is
+synced to: every `slipdock sync` token that has listed the vault or followed
+its feed, by the token's label, with when it last did. Make, rename and
+delete vaults there. Deleting asks first, saying that every page stays on its
+board and naming the synced folders that will stop getting changes.
+
+Vaults are also made and mapped from the CLI (`slipdock vault`; `vault ls`
+shows the same page counts and synced folders), the API (`/api/vaults`,
+whose vaults carry `mirrors` and each mapping its `pages`) and MCP
+(`list_vaults`, `manage_vault`).
 
 **Links across a vault.** On a board in a vault, a plain `[[Note]]` looks
 on its own board first and then on every board of the vault. Every page

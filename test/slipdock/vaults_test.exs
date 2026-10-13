@@ -216,4 +216,48 @@ defmodule Slipdock.VaultsTest do
       assert {:ok, _, "x.md"} = Vaults.locate(sub, "/Only/Here/x.md")
     end
   end
+
+  describe "page counts and mirrors" do
+    test "each live page counts once, under the deepest mapping above it", ctx do
+      %{user: user, kb: kb, jobs: jobs, vault: vault} = ctx
+      {:ok, notes} = Wiki.create_folder(jobs, %{"name" => "Notes"})
+      {:ok, _} = Wiki.create_page(kb, %{"title" => "One"}, user: user)
+      {:ok, gone} = Wiki.create_page(kb, %{"title" => "Gone"}, user: user)
+      {:ok, _} = Wiki.archive_page(gone)
+      {:ok, _} = Wiki.create_page(jobs, %{"title" => "Loose"}, user: user)
+
+      {:ok, _} =
+        Wiki.create_page(jobs, %{"title" => "Filed", "folder_id" => notes.id}, user: user)
+
+      root = map!(vault, user, %{path: "/", board: kb})
+      jobs_root = map!(vault, user, %{path: "/Jobs", board: jobs})
+      filed = map!(vault, user, %{path: "/Filed", board: jobs, folder: notes})
+
+      assert Vaults.page_counts(vault) == %{root.id => 1, jobs_root.id => 1, filed.id => 1}
+    end
+
+    test "an empty vault counts nothing", %{vault: vault} do
+      assert Vaults.page_counts(vault) == %{}
+    end
+
+    test "a sync token is recorded once per vault, with its label and the last time", ctx do
+      %{user: user, vault: vault} = ctx
+      {_raw, token} = Slipdock.Accounts.create_api_token(user, "slipdock CLI on laptop")
+
+      assert Vaults.mirrors(vault) == []
+      assert :ok = Vaults.touch_mirror(vault, token)
+      assert :ok = Vaults.touch_mirror(vault, token)
+
+      assert [%{label: "slipdock CLI on laptop", last_synced_at: %DateTime{}}] =
+               Vaults.mirrors(vault)
+
+      # A browser session has no token and is no mirror.
+      assert :ok = Vaults.touch_mirror(vault, nil)
+      assert length(Vaults.mirrors(vault)) == 1
+
+      # Deleting the vault takes its mirrors with it.
+      {:ok, _} = Vaults.delete_vault(vault)
+      assert Slipdock.Repo.all(Slipdock.Vaults.Mirror) == []
+    end
+  end
 end

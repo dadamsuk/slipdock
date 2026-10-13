@@ -16,6 +16,7 @@ defmodule SlipdockWeb.API.VaultSyncController do
   @doc "Every file in the vault, with its path and hash, and the feed cursor to follow from."
   def index(conn, %{"id" => ref}) do
     with {:ok, vault} <- Vaults.get_vault(user(conn), ref) do
+      Vaults.touch_mirror(vault, conn.assigns[:api_token])
       json(conn, Sync.listing(vault, user(conn), opts(conn)))
     end
   end

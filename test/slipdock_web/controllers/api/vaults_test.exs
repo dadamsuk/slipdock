@@ -173,4 +173,26 @@ defmodule SlipdockWeb.API.VaultsTest do
     assert conn |> get("/api/vaults/Notes/changes?since=x") |> json_response(400)
     assert conn |> get("/api/vaults/Elsewhere/changes") |> json_response(404)
   end
+
+  test "a vault shows each mapping's page count and the tokens that synced it", ctx do
+    %{conn: conn, kb: kb} = ctx
+    {:ok, _} = Wiki.create_page(kb, %{"title" => "Note"})
+    make(conn, "Brain")
+    conn |> post("/api/vaults/Brain/mappings", %{"board" => "kb"}) |> json_response(201)
+
+    shown = conn |> get("/api/vaults/Brain") |> json_response(200) |> Map.fetch!("vault")
+    assert [%{"path" => "/", "pages" => 1}] = shown["mappings"]
+    assert shown["mirrors"] == []
+
+    # Listing it for a sync, or following its feed, marks the token a mirror.
+    conn |> get("/api/vaults/Brain/sync") |> json_response(200)
+    conn |> get("/api/vaults/Brain/changes") |> json_response(200)
+
+    shown = conn |> get("/api/vaults/Brain") |> json_response(200) |> Map.fetch!("vault")
+    assert [%{"label" => "test", "last_synced_at" => _}] = shown["mirrors"]
+
+    # Deleting answers with what it held, counts and all.
+    deleted = conn |> delete("/api/vaults/Brain") |> json_response(200) |> Map.fetch!("deleted")
+    assert [%{"pages" => 1}] = deleted["mappings"]
+  end
 end

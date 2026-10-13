@@ -40,8 +40,10 @@ defmodule SlipdockWeb.API.VaultController do
 
   def delete(conn, %{"id" => ref}) do
     with {:ok, vault} <- Vaults.get_vault(user(conn), ref),
+         # Rendered first, so the reply still counts what it held.
+         deleted = V.vault(vault),
          {:ok, _} <- Vaults.delete_vault(vault) do
-      json(conn, %{deleted: V.vault(vault)})
+      json(conn, %{deleted: deleted})
     end
   end
 
@@ -127,6 +129,8 @@ defmodule SlipdockWeb.API.VaultController do
     with {:ok, vault} <- Vaults.get_vault(user(conn), ref),
          {:ok, since} <- cursor(params["since"]),
          {:ok, limit} <- cursor(params["limit"]) do
+      Vaults.touch_mirror(vault, conn.assigns[:api_token])
+
       json(
         conn,
         Slipdock.Wiki.Changes.since(vault, since, user(conn),

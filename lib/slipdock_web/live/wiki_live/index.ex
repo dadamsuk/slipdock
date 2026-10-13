@@ -2763,10 +2763,25 @@ defmodule SlipdockWeb.WikiLive.Index do
                   @tree_scope == scope && "btn-active"
                 ]}
                 aria-pressed={to_string(@tree_scope == scope)}
-                title={if scope == "vault", do: "Every board in the vault", else: "This board's wiki"}
+                title={
+                  if scope == "vault",
+                    do:
+                      "Vault #{@vault.name}: not a folder, but every board in it laid out as one tree",
+                    else: "This board's wiki"
+                }
               >
                 {label}
               </button>
+              <.link
+                :if={@vault.user_id == @current_user.id}
+                id="manage-vault"
+                navigate={~p"/vaults" <> "#vault-#{@vault.id}"}
+                class="btn btn-xs btn-ghost btn-square join-item"
+                title="Manage vault… what a vault is, and what is mapped where"
+                aria-label="Manage vault"
+              >
+                <.icon name="hero-cog-6-tooth" class="size-3.5" />
+              </.link>
             </div>
             <p
               :if={@organising}
