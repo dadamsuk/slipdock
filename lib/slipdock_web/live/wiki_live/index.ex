@@ -2656,7 +2656,7 @@ defmodule SlipdockWeb.WikiLive.Index do
               )
             ]}
           >
-            <div class="mb-2 flex items-center gap-1">
+            <div id="wiki-tree-head" class="mb-2 flex items-center gap-1">
               <.link
                 patch={wiki_path(@board)}
                 class={[
@@ -2664,8 +2664,38 @@ defmodule SlipdockWeb.WikiLive.Index do
                   @live_action == :index && is_nil(@folder) && "bg-base-200"
                 ]}
               >
-                <.icon name="hero-book-open" class="size-4" /> All pages
+                <.icon name="hero-book-open" class="size-4 shrink-0" />
+                <span class="truncate">All pages</span>
               </.link>
+              <%!-- The tree, or this board's pages last edited first (#738),
+                    on the same line as everything else up here (#739). The
+                    WikiTreeView hook keeps the choice in this browser. --%>
+              <div
+                id="wiki-tree-view"
+                phx-hook="WikiTreeView"
+                class="join shrink-0"
+                role="group"
+                aria-label="How to list the pages"
+              >
+                <button
+                  :for={
+                    {view, icon, label} <- [
+                      {"tree", "hero-folder", "Pages in their folders"},
+                      {"recent", "hero-clock", "The most recently edited pages first"}
+                    ]
+                  }
+                  id={"wiki-tree-view-#{view}"}
+                  type="button"
+                  phx-click="tree_view"
+                  phx-value-view={view}
+                  class={["btn btn-xs btn-square join-item", @tree_view == view && "btn-active"]}
+                  aria-pressed={to_string(@tree_view == view)}
+                  aria-label={if view == "recent", do: "Recent", else: "Tree"}
+                  title={label}
+                >
+                  <.icon name={icon} class="size-4" />
+                </button>
+              </div>
               <%!-- Open or shut every folder at once. Not while filtering or
                     organising: a filter opens what it found itself. The
                     hook keeps its icon and title, so it is left alone here. --%>
@@ -2714,32 +2744,6 @@ defmodule SlipdockWeb.WikiLive.Index do
                 aria-pressed={to_string(@organising)}
               >
                 <.icon name={if @organising, do: "hero-check", else: "hero-pencil"} class="size-4" />
-              </button>
-            </div>
-            <%!-- The tree, or this board's pages last edited first (#738).
-                  The WikiTreeView hook keeps the choice in this browser. --%>
-            <div
-              id="wiki-tree-view"
-              phx-hook="WikiTreeView"
-              class="join mb-2 w-full"
-              role="group"
-              aria-label="How to list the pages"
-            >
-              <button
-                :for={{view, label} <- [{"tree", "Tree"}, {"recent", "Recent"}]}
-                id={"wiki-tree-view-#{view}"}
-                type="button"
-                phx-click="tree_view"
-                phx-value-view={view}
-                class={["btn btn-xs join-item flex-1", @tree_view == view && "btn-active"]}
-                aria-pressed={to_string(@tree_view == view)}
-                title={
-                  if view == "recent",
-                    do: "The most recently edited pages first",
-                    else: "Pages in their folders"
-                }
-              >
-                {label}
               </button>
             </div>
             <%!-- A board in a vault can show its own tree or the vault's:

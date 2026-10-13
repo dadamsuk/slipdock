@@ -32,6 +32,12 @@ defmodule SlipdockWeb.WikiVaultTreeTest do
     {:ok, view, _html} = live(conn, ~p"/boards/#{kb}/wiki")
     assert has_element?(view, "button[data-tree-scope='board'][aria-pressed='true']")
     assert has_element?(view, "button[data-tree-scope='vault']", "Brain")
+    # Two lines at most (#739): the head, with the Tree / Recent switch in
+    # it, and this switch, which needs the room for the vault's name.
+    assert has_element?(view, "#wiki-tree-head #wiki-tree-view")
+
+    assert has_element?(view, "#wiki-tree > [role='group'] [data-tree-scope='vault']")
+    refute has_element?(view, "#wiki-tree > [role='group'] #wiki-tree-view-tree")
 
     lone = board_fixture(%{"name" => "Lone", "code" => "lonevt"}, owner: user)
     {:ok, view, _html} = live(conn, ~p"/boards/#{lone}/wiki")

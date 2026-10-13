@@ -2153,8 +2153,8 @@ edge to make it wider or narrower (180–640px); the edge can be focused with Ta
 and moved with the arrow keys, Home and End, and a double-click or Enter puts
 the width back. Both are remembered in this browser, not on the board.
 
-**Recent.** The *Tree · Recent* switch at the top of the tree turns it into a
-flat list of the board's pages, the most recently edited first (up to 100),
+**Recent.** The *Tree · Recent* switch, the folder and clock icons beside
+*All pages* at the top of the tree, turns it into a flat list of the board's pages, the most recently edited first (up to 100),
 each with the time it was edited (the day, if not today). The filter bar
 narrows it as it narrows the tree, and it keeps itself up to date as pages
 change. The choice is remembered in this browser. The same list from a
