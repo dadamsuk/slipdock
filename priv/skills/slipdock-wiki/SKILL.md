@@ -348,6 +348,10 @@ A board can turn these off for its whole wiki (`slipdock set-board <board>
 The commands still work, but nobody reading the page sees what they write — on
 such a wiki, put a remark in a card about the page, not a comment on it.
 
+A board that is mostly its wiki can open on it: `slipdock set-board <board>
+--default-view wiki` (`default_view` in the board's JSON). Link people to its
+pages, not its lists.
+
 In the web app this is also the foot of every list: a document icon beside
 **Add** and a paperclip. The document icon opens the wiki editor with the list
 already chosen, so the page is placed there when it is saved. All three are

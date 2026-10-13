@@ -288,6 +288,7 @@ slipdock burndown <sprint-id>                             # a sprint's work left
 slipdock velocity <board>                                 # committed / completed per sprint, and the average
 slipdock set-board <board> --sprints | --no-sprints       # make a board a sprint board (each card a sprint)
 slipdock set-board <board> --simple | --no-simple         # plain to-do list: hides % complete, start, health, time, votes, deps
+slipdock set-board <board> --default-view wiki            # what opening the board shows in the web app (board, table, wiki…)
 slipdock set-board <board> --no-page-card-features        # the board's wiki pages hide status, checklist, links, fields, votes, comments
 slipdock fav card <id> | fav list <board> <column> | fav view <board> <view> | fav board <board>
 slipdock unfav <same args>                                # or `fav ... --off`

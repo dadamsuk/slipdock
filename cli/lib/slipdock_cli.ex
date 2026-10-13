@@ -426,6 +426,7 @@ defmodule SlipdockCLI do
     set-board <board> [--name N] [--code C] [--shortcut K] [--desc TEXT] [--color C]
         [--no-add-card] [--no-add-page] [--no-add-document] [--sprints | --no-sprints]
         [--simple | --no-simple] [--page-card-features | --no-page-card-features]
+        [--default-view V]
                                         rename a board, change its code, shortcut key or colour,
                                         say what the foot of each list offers, make it a
                                         sprint board (every card a sprint), or a simple one (a
@@ -433,7 +434,10 @@ defmodule SlipdockCLI do
                                         time, votes, dependencies, Timeline and Prioritise
                                         hidden — not deleted); --no-page-card-features hides
                                         status, checklist, links, fields, votes and comments
-                                        on every page of the board's wiki (not deleted)
+                                        on every page of the board's wiki (not deleted);
+                                        --default-view picks what opening the board shows
+                                        in the web app: board, swimlanes, table, timeline,
+                                        calendar, outline, narrative, prioritise or wiki
     sprint <board> [--name N] [--start DATE] [--days N] [--goal TEXT]
                                         start the next sprint on a sprint board: a dated card
                                         ("Sprint 4", following on from the last, 14 days unless
@@ -594,6 +598,7 @@ defmodule SlipdockCLI do
     add_page: :boolean,
     add_document: :boolean,
     page_card_features: :boolean,
+    default_view: :string,
     sprints: :boolean,
     clear: :boolean,
     simple: :boolean,

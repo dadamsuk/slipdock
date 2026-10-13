@@ -435,6 +435,7 @@ defmodule Slipdock.Portable.Import do
           add_page: bool(doc[:add_page], true),
           add_document: bool(doc[:add_document], true),
           page_card_features: bool(doc[:page_card_features], true),
+          default_view: if(doc[:default_view] in Board.default_views(), do: doc[:default_view]),
           simple: bool(doc[:simple], false),
           kind: if(doc[:kind] in Board.kinds(), do: doc[:kind])
         },

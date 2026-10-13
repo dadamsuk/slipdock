@@ -69,6 +69,8 @@ Briefly, with the detail in [the manual](docs/manual.md):
 - **Simple boards** — [one setting](docs/manual.md#simple-boards) turns a
   board into a plain to-do list, hiding % complete, start dates, health, time
   tracking, votes, dependencies and the timeline and prioritise views.
+- **Default view** — [a board can open on](docs/manual.md#a-boards-default-view)
+  its wiki, table, calendar or any other view instead of the kanban.
 - **Sprints** — [a sprint board](docs/manual.md#sprints) where each card is a
   sprint: **New sprint** dates the next one, and **Add cards…** opens a
   planning view over the boards and lists you plan from — priority, RICE and

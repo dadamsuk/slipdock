@@ -68,7 +68,9 @@ defmodule SlipdockWeb.API.FavouriteController do
   defp name(%{kind: :page, resource: page}), do: page.title
   defp name(%{resource: resource}), do: resource.name
 
-  defp web_url(%{kind: :board, board: board}), do: ~p"/boards/#{board.id}"
+  defp web_url(%{kind: :board, board: board}),
+    do: SlipdockWeb.SwimlaneComponents.board_home_path(board)
+
   defp web_url(%{kind: :column, resource: c, board: b}), do: ~p"/boards/#{b.id}?#{[list: c.id]}"
   defp web_url(%{kind: :card, resource: c, board: b}), do: ~p"/boards/#{b.id}/cards/#{c.id}"
 

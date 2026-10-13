@@ -244,6 +244,7 @@ defmodule Slipdock.Portable.Export do
       add_page: board.add_page,
       add_document: board.add_document,
       page_card_features: board.page_card_features,
+      default_view: board.default_view,
       simple: board.simple,
       kind: board.kind,
       archived: board.archived_at != nil,
