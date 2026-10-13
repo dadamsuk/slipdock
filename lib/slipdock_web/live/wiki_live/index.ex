@@ -1466,6 +1466,111 @@ defmodule SlipdockWeb.WikiLive.Index do
     end
   end
 
+  # "Give it its own board…" (#747): what is in a vault folder moves to a
+  # board of its own and the folder's vault path is mapped onto it. Only the
+  # vault's owner, who alone changes its mappings, is offered it.
+  def handle_event("split_folder", %{"id" => id}, socket) do
+    with %{} = vault <- own_vault(socket),
+         %Folder{} = folder <- tree_item(socket, "folder:#{id}"),
+         path when is_binary(path) <- Slipdock.Vaults.Split.vault_path(vault, folder) do
+      candidates =
+        vault
+        |> Slipdock.Vaults.mapping_candidates(socket.assigns.current_user)
+        |> Enum.map(fn
+          {%{id: board_id} = board, _reason} when board_id == folder.board_id ->
+            {board, "the folder is on it already"}
+
+          other ->
+            other
+        end)
+
+      {:noreply,
+       assign(socket,
+         tree_prompt: %{
+           kind: :split,
+           folder: folder,
+           path: path,
+           candidates: candidates,
+           choice: "",
+           new_name: folder.name,
+           preview: nil,
+           error: nil
+         }
+       )}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "That folder can't be given a board from here.")}
+    end
+  end
+
+  def handle_event("split_draft", params, socket) do
+    with %{kind: :split} = prompt <- socket.assigns.tree_prompt,
+         %{} = vault <- own_vault(socket) do
+      # The name field only exists once "A new board…" is picked; until then
+      # the folder's own name is the suggestion.
+      prompt = %{
+        prompt
+        | choice: params["board"] || "",
+          new_name: Map.get(params, "new_name", prompt.new_name)
+      }
+
+      prompt =
+        case split_target(socket, prompt) do
+          nil ->
+            %{prompt | preview: nil, error: nil}
+
+          target ->
+            case Slipdock.Vaults.Split.preview(
+                   vault,
+                   socket.assigns.current_user,
+                   prompt.path,
+                   target
+                 ) do
+              {:ok, preview} -> %{prompt | preview: preview, error: nil}
+              {:error, _status, message} -> %{prompt | preview: nil, error: message}
+            end
+        end
+
+      {:noreply, assign(socket, tree_prompt: prompt)}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("confirm_split", _params, socket) do
+    with %{kind: :split} = prompt <- socket.assigns.tree_prompt,
+         %{} = vault <- own_vault(socket),
+         target when not is_nil(target) <- split_target(socket, prompt),
+         {:ok, %{board: board} = result} <-
+           Slipdock.Vaults.Split.run(vault, socket.assigns.current_user, prompt.path, target) do
+      socket =
+        socket
+        |> assign(tree_prompt: nil)
+        |> put_flash(
+          :info,
+          "/#{prompt.path} is #{board.name}'s now: #{count(result.move.pages, "page")} moved, " <>
+            "and their files in synced folders are unchanged."
+        )
+        |> load_tree()
+
+      current = socket.assigns.page && Wiki.get_page(socket.assigns.page.id)
+
+      {:noreply,
+       case current do
+         %Page{board_id: id} = page when id == board.id ->
+           push_navigate(socket, to: ~p"/boards/#{board}/wiki/#{page.slug}")
+
+         _ ->
+           assign_current(socket)
+       end}
+    else
+      {:error, _status, message} ->
+        {:noreply, put_flash(socket, :error, "Nothing changed: #{message}")}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
   # "Also file in…": a placement beside the page's home (W-103 R12).
   def handle_event("also_file_in", %{"target" => target}, socket) do
     with %{kind: :also, items: [page]} <- socket.assigns.tree_prompt,
@@ -1965,6 +2070,26 @@ defmodule SlipdockWeb.WikiLive.Index do
     do: ~p"/boards/#{board_id}/wiki?#{[folder: id]}"
 
   defp row_href(_row, _key), do: nil
+
+  # The vault this board is in, when the reader owns it.
+  defp own_vault(%{assigns: %{vault: %{user_id: id} = vault, current_user: %{id: id}}}),
+    do: vault
+
+  defp own_vault(_socket), do: nil
+
+  # The board the split dialog has picked: one of the listed boards that can
+  # be mapped, or a new one by the name typed.
+  defp split_target(_socket, %{choice: "new", new_name: name}),
+    do: if(String.trim(name) == "", do: nil, else: {:new, name})
+
+  defp split_target(_socket, %{choice: choice, candidates: candidates}) do
+    with id when is_integer(id) <- Params.id(choice),
+         {board, nil} <- Enum.find(candidates, fn {b, _} -> b.id == id end) do
+      board
+    else
+      _ -> nil
+    end
+  end
 
   # Where a drop landed, on whichever board the tree shows: "folder:" is the
   # top of this board's wiki, "board:4" the top of that board's (in a vault's
@@ -2721,6 +2846,7 @@ defmodule SlipdockWeb.WikiLive.Index do
             phx-hook="WikiTree"
             data-board={@board.id}
             data-vault={@vault && @vault.id}
+            data-vault-owner={to_string(!!@vault and @vault.user_id == @current_user.id)}
             data-organising={to_string(@organising)}
             data-can-write={to_string(@can_write)}
             data-version={@tree_version}
@@ -3319,6 +3445,86 @@ defmodule SlipdockWeb.WikiLive.Index do
             class="btn btn-primary btn-sm"
           >
             Move
+          </button>
+        </div>
+      </div>
+    </.modal>
+    """
+  end
+
+  # Giving a vault folder its own board (#747): which board, then what a
+  # synced folder would see, before anything changes.
+  defp tree_prompt(%{prompt: %{kind: :split}} = assigns) do
+    ~H"""
+    <.modal id="tree-prompt" on_close={JS.push("close_tree_prompt")} size="sm">
+      <div class="space-y-4 p-6">
+        <h2 class="text-lg font-semibold">Give /{@prompt.path} its own board</h2>
+        <p class="text-sm text-base-content/70">
+          What is in “{@prompt.folder.name}” moves to the board you pick, and /{@prompt.path} is mapped onto that board. The notes keep their vault paths, so synced folders
+          see no change to them.
+        </p>
+        <form id="split-form" phx-change="split_draft" class="space-y-2">
+          <select name="board" class="select select-sm w-full" aria-label="Board">
+            <option value="" selected={@prompt.choice == ""}>Pick a board…</option>
+            <option value="new" selected={@prompt.choice == "new"}>A new board…</option>
+            <option
+              :for={{board, reason} <- @prompt.candidates}
+              value={board.id}
+              disabled={not is_nil(reason)}
+              selected={@prompt.choice == to_string(board.id)}
+            >
+              {board.name}{if reason, do: " — #{reason}"}
+            </option>
+          </select>
+          <input
+            :if={@prompt.choice == "new"}
+            type="text"
+            name="new_name"
+            value={@prompt.new_name}
+            class="input input-sm w-full"
+            aria-label="New board's name"
+            phx-debounce="400"
+          />
+        </form>
+        <p :if={@prompt.error} id="split-error" class="text-sm text-error">{@prompt.error}</p>
+        <div :if={@prompt.preview} id="split-preview" class="space-y-1 text-sm">
+          <% p = @prompt.preview %>
+          <p>
+            {count(p.move.pages, "page")} and {count(p.move.folders, "folder")} move from {p.from} to {if p.new_board,
+              do: "a new board, #{p.into}",
+              else: p.into}.
+          </p>
+          <p>Synced folders: {count(p.unchanged, "file")} unchanged.</p>
+          <p :if={p.joining.count > 0}>
+            {p.into}'s own {count(p.joining.count, "page")} join /{@prompt.path}:
+            <span class="font-mono text-xs">{Enum.join(p.joining.sample, ", ")}</span>
+          </p>
+          <div
+            :if={p.renamed != [] or p.move.title_clashes != [] or p.move.left_behind != []}
+            id="split-clashes"
+            class="rounded-lg bg-warning/10 p-3"
+          >
+            <p :if={p.move.title_clashes != []}>
+              Same title as a page already there: {Enum.join(p.move.title_clashes, ", ")}
+            </p>
+            <p :for={r <- p.renamed} class="font-mono text-xs">{r.from} → {r.to}</p>
+            <p :if={p.move.left_behind != []}>
+              Staying behind: {Enum.join(p.move.left_behind, ", ")}
+            </p>
+          </div>
+        </div>
+        <div class="flex justify-end gap-2">
+          <button type="button" phx-click="close_tree_prompt" class="btn btn-ghost btn-sm">
+            Cancel
+          </button>
+          <button
+            id="split-confirm"
+            type="button"
+            phx-click="confirm_split"
+            class="btn btn-primary btn-sm"
+            disabled={is_nil(@prompt.preview)}
+          >
+            Move and map
           </button>
         </div>
       </div>

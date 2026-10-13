@@ -219,4 +219,35 @@ defmodule SlipdockWeb.MCP.VaultToolsTest do
              })
            ) =~ "on that board already"
   end
+
+  test "split: a dry run, then the folder becomes the board's and its path is mapped", %{
+    conn: conn
+  } do
+    ok!(call(conn, "manage_vault", %{action: "create", name: "Notes"}))
+    ok!(call(conn, "manage_vault", %{action: "map", vault: "Notes", path: "/", board: "jobs"}))
+
+    dry =
+      ok!(
+        call(conn, "manage_vault", %{
+          action: "split",
+          vault: "Notes",
+          path: "/Notes",
+          board: "kb",
+          dry_run: true
+        })
+      )
+
+    assert dry["preview"]["into"] == "KnowledgeBase"
+
+    done =
+      ok!(
+        call(conn, "manage_vault", %{action: "split", vault: "Notes", path: "/Notes", board: "kb"})
+      )
+
+    assert done["board"]["code"] == "kb"
+    assert Enum.map(done["vault"]["mappings"], & &1["path"]) == ["/", "/Notes"]
+
+    assert error!(call(conn, "manage_vault", %{action: "split", vault: "Notes", path: "/Notes"})) =~
+             "say which board"
+  end
 end

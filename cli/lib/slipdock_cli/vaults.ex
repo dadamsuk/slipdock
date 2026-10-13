@@ -63,6 +63,20 @@ defmodule SlipdockCLI.Vaults do
     end
   end
 
+  def run("vault", ["split", ref, path], o) do
+    body =
+      cond do
+        is_binary(o[:new_board]) -> %{"new_board" => o[:new_board]}
+        is_binary(o[:board]) -> %{"board" => o[:board]}
+        true -> fail("say which board: --board B, or --new-board NAME to make one")
+      end
+
+    body = Map.merge(body, compact(%{"path" => path, "dry_run" => o[:dry_run]}))
+
+    HTTP.post("/vaults/#{enc(ref)}/split", body)
+    |> out(o, &print_split/1)
+  end
+
   def run("vault", ["locate", ref, path], o) do
     HTTP.get("/vaults/#{enc(ref)}/locate", path: path)
     |> out(o, fn r ->
@@ -177,7 +191,8 @@ defmodule SlipdockCLI.Vaults do
     do:
       fail(
         "usage: slipdock vault ls | show V | new NAME | rename V NAME | rm V | " <>
-          "map V PATH --board B [--folder F] [--dry-run] | unmap V PATH [--dry-run] | locate V PATH | resolve V LINK | " <>
+          "map V PATH --board B [--folder F] [--dry-run] | unmap V PATH [--dry-run] | " <>
+          "split V PATH --board B|--new-board NAME [--dry-run] | locate V PATH | resolve V LINK | " <>
           "wanted V | changes V [--since N] | import DIR --vault V [--dry-run]"
       )
 
@@ -329,6 +344,46 @@ defmodule SlipdockCLI.Vaults do
       [] -> :ok
       names -> IO.puts(Render.dim("synced folders that follow: " <> Enum.join(names, ", ")))
     end
+  end
+
+  @doc false
+  # A folder given its own board, or what doing so would do.
+  def print_split(%{"preview" => p}) do
+    IO.puts(
+      "#{p["path"]} would move from #{p["from"]} to #{board_label(p)} — nothing is changed yet:"
+    )
+
+    split_lines(p)
+  end
+
+  def print_split(%{"result" => r, "board" => board}) do
+    IO.puts("#{r["path"]} now belongs to #{board["name"]} (#{board["code"]}), mapped in the vault:")
+    split_lines(r)
+  end
+
+  defp board_label(%{"new_board" => true, "into" => name}), do: "a new board, #{name}"
+  defp board_label(%{"into" => name}), do: name
+
+  defp split_lines(r) do
+    move = r["move"] || %{}
+    IO.puts("  #{move["pages"]} page(s) and #{move["folders"]} folder(s) move")
+    IO.puts("  synced folders: #{r["unchanged"]} file(s) unchanged")
+
+    for %{"from" => from, "to" => to} <- r["renamed"] || [],
+        do: IO.puts("    renamed: #{from} → #{to}")
+
+    preview_group("the board's own pages arrive", r["joining"], & &1)
+
+    for {label, key} <- [
+          {"land beside pages of the same title", "title_clashes"},
+          {"stay behind", "left_behind"}
+        ],
+        (items = move[key] || []) != [],
+        do: IO.puts("  #{label}: #{Enum.join(items, ", ")}")
+
+    for {label, key} <- [{"drop tags", "tags"}, {"drop field values", "fields"}],
+        (items = get_in(move, [key, "dropped"]) || []) != [],
+        do: IO.puts("  #{label}: #{Enum.join(items, ", ")}")
   end
 
   defp preview_group(_title, nil, _fun), do: :ok

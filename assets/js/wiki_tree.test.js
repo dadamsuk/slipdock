@@ -592,3 +592,17 @@ test("a tree that was hidden draws itself, at the page, when it is opened as a d
   hook.updated()
   assert.deepEqual(scrolled, [true])
 })
+
+test("a folder offers its own board to the vault's owner only (#747)", () => {
+  const row = folder(4, {href: "/boards/1/wiki?folder=4"})
+  const owner = menuItems(row, {board: 1, canWrite: true, vaultOwner: true, selected: new Set()})
+  const item = owner.find(i => i.label === "Give it its own board…")
+  assert.deepEqual(item && item.payload, {id: "4"})
+  assert.equal(item.event, "split_folder")
+
+  const other = menuItems(row, {board: 1, canWrite: true, vaultOwner: false, selected: new Set()})
+  assert.ok(!labels(other).includes("Give it its own board…"))
+
+  const page7 = menuItems(page(7, {href: "/boards/1/wiki/p7"}), {board: 1, canWrite: true, vaultOwner: true, selected: new Set()})
+  assert.ok(!labels(page7).includes("Give it its own board…"))
+})

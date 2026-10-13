@@ -1853,6 +1853,13 @@ defmodule SlipdockWeb.APIGuide do
     (`/Jobs` onto Job Hunt while KnowledgeBase at `/` still has pages in
     `Jobs`) is a 422 naming the count: move those pages first, or map
     elsewhere. `overlaps` on a vault lists any made before that check.
+    The way out of that refusal, in one step: `POST /api/vaults/:id/split`
+    with `path` (`/Jobs`) and `board` (or `new_board` to make one) moves
+    what is in that folder to the board's top and maps `path` onto it; the
+    notes keep their vault paths, so synced folders see no change to them.
+    `dry_run` reports it first (`unchanged`, `renamed`, `joining`, `move`).
+    Shell: `slipdock vault split V /Jobs --board B [--dry-run]`; MCP:
+    `manage_vault` `split`.
     `mirrors` are the folders the vault is synced to, as far as the server
     knows: each API token that has listed it (`/sync`) or followed its feed,
     by label, with `last_synced_at`. On a shell: `slipdock vault
