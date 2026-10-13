@@ -2197,11 +2197,26 @@ only the paths that hold a match. **Settings** (`/vaults/<vault>/.settings`)
 is where boards are mounted at a path and the vault is renamed or deleted.
 Board wiki addresses keep working.
 
-On a board's wiki, the vault's owner gets **Open in GMinds** beside *This
-board*, opening the same page or folder in the vault view. Somebody else
-reading a board of your vault keeps a switch between this board's tree and
-the vault's (the boards of it they can open). Organising uses this board's
-tree.
+**A board's wiki in a vault** is the vault from where the board is mounted
+down, like a chroot. KnowledgeBase, mounted at `/`, shows the whole of
+GMinds: its own folders, and *Jobs* (Job Hunt's wiki, mounted at `/Jobs`) as
+a folder among them, in the same order as the folders around it — by name
+when the tree is sorted by name. Job Hunt's own wiki shows `/Jobs` and what
+is mounted below it, and nothing above. What is mounted below one of a
+board's folders shows inside that folder. A board with only a folder of it
+mapped shows its whole wiki, as a board in no vault does. There is no switch
+between trees: the board's tree is the right part of the vault already, and
+the vault view is the tree of the board at `/`.
+
+Opening a page of another board from a board's tree keeps that tree and its
+breadcrumbs: Interview Questions opened from KnowledgeBase's tree opens at
+`/boards/<job hunt>/wiki/interview-questions?in=<knowledgebase>`, with a
+quiet *on Job Hunt* beside the breadcrumbs that opens it in Job Hunt's own
+wiki. The filter bar and the tree's search cover what the tree shows, so
+from KnowledgeBase they find Jobs pages, and from Job Hunt they don't find
+KnowledgeBase's. A board of the vault you can't open isn't in your tree.
+Organising works across it on the boards you can write to: a page dragged
+onto *Jobs* moves to Job Hunt, after asking.
 
 **Dragging rows about.** With a mouse, a writer drags a page, a folder or a
 file straight from the tree: press on its row and move. A press that moves
@@ -2687,8 +2702,8 @@ name, the boards mapped into it, how many pages it holds and the folders it
 is synced to, with when each last synced. **New vault** there makes one. With
 no vaults the home page is as it was.
 
-**The Vaults screen** (avatar menu › **Vaults**, or the gear beside the
-*This board / <vault>* switch at the top of a wiki's tree) lists your vaults,
+**The Vaults screen** (avatar menu › **Vaults**, or **Settings** at the top
+of a vault view's tree) lists your vaults,
 each with its mappings and how many pages each holds, and the folders it is
 synced to: every `slipdock sync` token that has listed the vault or followed
 its feed, by the token's label, with when it last did. Make, rename and

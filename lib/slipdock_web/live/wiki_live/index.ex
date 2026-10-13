@@ -56,7 +56,8 @@ defmodule SlipdockWeb.WikiLive.Index do
          vault_view: vault,
          vault_target: target,
          vault_addresses: Slipdock.Vaults.addresses(vault),
-         tree_scope: "vault"
+         tree_scope: "vault",
+         tree_root: "vault"
        )}
     else
       {:error, :empty, vault} ->
@@ -76,7 +77,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     end
   end
 
-  def mount(%{"id" => id}, _session, socket) do
+  def mount(%{"id" => id} = params, _session, socket) do
     board = Boards.get_board!(id)
     perm = Access.board_permission(socket.assigns.current_user, board)
 
@@ -112,6 +113,9 @@ defmodule SlipdockWeb.WikiLive.Index do
          # version it bumps when the tree should be asked for again (a
          # filter, a toggle, a change by anyone), what the filter bar lets
          # through, and whether it is this board's tree or its vault's.
+         # On a board in a vault the tree is the vault's from where the
+         # board is mounted down, its own rows and what is mounted below
+         # them together (#758); `tree_root` is the key of its top.
          tree_version: 0,
          tree_filter: nil,
          # Whether the search box looks inside pages too, not only at names.
@@ -121,6 +125,11 @@ defmodule SlipdockWeb.WikiLive.Index do
          # On a phone the tree is a drawer, shut until asked for (R11.11).
          tree_drawer: false,
          tree_scope: "board",
+         tree_root: "root",
+         # Opened from another board's tree (`?in=`): that board, whose tree
+         # and breadcrumbs are kept, and where its wiki is mounted.
+         tree_context: nil,
+         tree_context_root: nil,
          # The tree, or "recent": this board's pages, last edited first
          # (#738). The browser keeps the choice (WikiTreeView hook).
          tree_view: "tree",
@@ -190,6 +199,7 @@ defmodule SlipdockWeb.WikiLive.Index do
          auto_upload: true,
          progress: &handle_upload/3
        )
+       |> assign_context(params["in"])
        |> load_tree_state()}
     else
       {:ok,
@@ -416,7 +426,9 @@ defmodule SlipdockWeb.WikiLive.Index do
         []
 
       {item, "vault", %{} = vault} ->
-        Tree.vault_path_to(vault, item, vault_boards(socket))
+        Tree.vault_path_to(vault, item, vault_boards(socket),
+          root: socket.assigns.tree_context_root || ""
+        )
 
       {%Page{} = page, _, _} ->
         page |> Tree.path_to(socket.assigns.all_folders) |> Enum.map(&Tree.ref_key/1)
@@ -451,6 +463,42 @@ defmodule SlipdockWeb.WikiLive.Index do
       end
     end)
     |> Map.new()
+  end
+
+  # A page or folder of this board opened from another board's tree, as
+  # `?in=<board>` says (#758): that board's tree is kept, from where its
+  # wiki is mounted down, so a reader walking KnowledgeBase's wiki into
+  # Jobs stays in KnowledgeBase's wiki. Only a board of the same vault the
+  # reader can open, with this board mounted below it; anything else is
+  # this board's own wiki as ever.
+  defp assign_context(socket, ref) do
+    %{board: board, vault: vault} = socket.assigns
+
+    with %{} <- vault,
+         id when is_integer(id) and id != board.id <- Params.id(to_string(ref || "")),
+         boards = vault_boards(socket),
+         {:ok, {context, _opts}} <- Map.fetch(boards, id),
+         root when is_binary(root) <- Tree.vault_root(vault, id, boards),
+         true <- mounted_under?(vault, board.id, root) do
+      assign(socket,
+        tree_context: context,
+        tree_context_root: root,
+        tree_scope: "vault",
+        tree_root: "board:#{id}"
+      )
+    else
+      _ -> socket
+    end
+  end
+
+  defp mounted_under?(vault, board_id, root) do
+    vault
+    |> Slipdock.Repo.preload(:mappings, force: true)
+    |> Map.get(:mappings)
+    |> Enum.any?(fn m ->
+      m.board_id == board_id and
+        (root == "" or m.path == root or String.starts_with?(m.path, root <> "/"))
+    end)
   end
 
   # The index does double duty: the whole wiki, or one folder of it with
@@ -1026,9 +1074,8 @@ defmodule SlipdockWeb.WikiLive.Index do
   # While the filter bar is on, every level holding a match is sent and
   # opened: a hit three folders down is no use behind a shut one.
   def handle_event("tree_load", params, socket) do
-    socket = assign_scope(socket, params["scope"])
     scope = socket.assigns.tree_scope
-    root = if scope == "vault", do: "vault", else: "root"
+    root = socket.assigns.tree_root
     filter = scope_filter(socket, scope)
 
     kept =
@@ -1074,8 +1121,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   end
 
   # The hook saying what is open now, after a folder is opened or shut.
-  def handle_event("tree_open", %{"keys" => keys} = params, socket) when is_list(keys) do
-    socket = assign_scope(socket, params["scope"])
+  def handle_event("tree_open", %{"keys" => keys}, socket) when is_list(keys) do
     TreeStates.put(socket.assigns.current_user, tree_state_scope(socket), keys)
     {:noreply, socket}
   end
@@ -1086,7 +1132,6 @@ defmodule SlipdockWeb.WikiLive.Index do
   # scrolled into view.
   def handle_event("tree_children", %{"key" => key} = params, socket) when is_binary(key) do
     offset = max(Params.id(to_string(params["offset"] || 0)) || 0, 0)
-    socket = assign_scope(socket, params["scope"])
 
     rows =
       case container_rows(socket, socket.assigns.tree_scope, key,
@@ -1976,33 +2021,49 @@ defmodule SlipdockWeb.WikiLive.Index do
   defp tree_page(socket, id), do: tree_item(socket, "page:#{id}")
 
   # A filter in the vault's tree filters every board of it (R11.5), worked out
-  # when asked for; this board's is worked out with the filter bar.
+  # when asked for; this board's is worked out with the filter bar. On a
+  # board in a vault, and in another board's tree, it filters what that tree
+  # shows: the vault from where the board is mounted down (#758).
   defp scope_filter(%{assigns: %{tree_filter: nil}}, _scope), do: nil
 
   defp scope_filter(socket, "vault") do
-    Tree.vault_filter(socket.assigns.vault, vault_boards(socket), socket.assigns.filters,
-      contents: socket.assigns.tree_contents
+    Tree.vault_filter(
+      socket.assigns.vault,
+      vault_boards(socket),
+      socket.assigns.filters,
+      [contents: socket.assigns.tree_contents] ++
+        if(socket.assigns.tree_context, do: [root: socket.assigns.tree_context_root], else: [])
     )
   end
 
-  defp scope_filter(socket, _board), do: socket.assigns.tree_filter
+  defp scope_filter(socket, _board) do
+    case board_vault_root(socket) do
+      nil ->
+        socket.assigns.tree_filter
 
-  # The tree the hook asked for: this board's, or — on a board in a vault —
-  # the vault's. Anything else is this board's. A changed scope changes the
-  # way to the current page too.
-  defp assign_scope(socket, scope) do
-    # The vault view shows the vault's tree, whatever the hook remembers.
-    scope =
-      cond do
-        socket.assigns.vault_view -> "vault"
-        scope == "vault" and socket.assigns.vault -> "vault"
-        true -> "board"
-      end
+      root ->
+        result =
+          Tree.vault_filter(socket.assigns.vault, vault_boards(socket), socket.assigns.filters,
+            contents: socket.assigns.tree_contents,
+            root: root
+          )
 
-    if scope == socket.assigns.tree_scope,
-      do: socket,
-      else: socket |> assign(tree_scope: scope) |> assign_current()
+        # Its top is this tree's root, and this board's own top rows are in
+        # it already.
+        {top, nodes} = Map.pop(result.nodes, result.top)
+        nodes = Map.delete(nodes, "board:#{socket.assigns.board.id}")
+        nodes = if top, do: Map.put(nodes, "root", top), else: nodes
+        %{result | nodes: nodes}
+    end
   end
+
+  # Where this board's wiki is mounted in its vault, when its whole wiki is:
+  # its tree is the vault's from there down. Nil off a vault, or when only a
+  # folder of it is mapped.
+  defp board_vault_root(%{assigns: %{vault: nil}}), do: nil
+
+  defp board_vault_root(socket),
+    do: Tree.vault_root(socket.assigns.vault, socket.assigns.board.id, vault_boards(socket))
 
   # The page the rows of its container must reach, however far down a big
   # folder it is: the one asked for (`through`, when the hook reveals the
@@ -2022,7 +2083,11 @@ defmodule SlipdockWeb.WikiLive.Index do
   defp nodes_map(nodes) when is_map(nodes), do: nodes
   defp nodes_map(nodes), do: Map.new(nodes)
 
-  # Which kept open set this tree is: the board's own, or its vault's.
+  # Which kept open set this tree is: the board's own (also when it is shown
+  # from one of its pages on another board), or its vault's.
+  defp tree_state_scope(%{assigns: %{tree_context: %{id: id}}}),
+    do: TreeStates.scope(:board, id)
+
   defp tree_state_scope(%{assigns: %{tree_scope: "vault", vault: %{id: id}}}),
     do: TreeStates.scope(:vault, id)
 
@@ -2036,10 +2101,27 @@ defmodule SlipdockWeb.WikiLive.Index do
   # out, and the hook stops asking for it.
   defp load_nodes(socket, "vault", keys, through) do
     boards = vault_boards(socket)
+    layout = Tree.vault_prepare(socket.assigns.vault, boards)
 
     for key <- keys,
-        extra = [limit: @tree_page] ++ through_opt(through, key),
+        extra = [layout: layout, limit: @tree_page] ++ through_opt(through, key),
         {:ok, rows} <- [Tree.vault_children(socket.assigns.vault, key, boards, extra)],
+        do: {key, rows}
+  end
+
+  # A board in a vault: its own rows, read with its folders and counts once,
+  # and what is mounted below them, its top being its mapping's.
+  defp load_nodes(%{assigns: %{vault: %{} = vault, board: board}} = socket, _board, keys, through) do
+    boards =
+      Map.update!(vault_boards(socket), board.id, fn {board, opts} ->
+        {board, Tree.prepare(board, opts)}
+      end)
+
+    layout = Tree.vault_prepare(vault, boards)
+
+    for key <- keys,
+        extra = [layout: layout, limit: @tree_page] ++ through_opt(through, key),
+        {:ok, rows} <- [Tree.vault_children(vault, board_key(socket, key), boards, extra)],
         do: {key, rows}
   end
 
@@ -2059,7 +2141,19 @@ defmodule SlipdockWeb.WikiLive.Index do
   defp container_rows(socket, "vault", key, extra),
     do: Tree.vault_children(socket.assigns.vault, key, vault_boards(socket), extra)
 
+  defp container_rows(
+         %{assigns: %{vault: %{} = vault, tree_filter: nil}} = socket,
+         _board,
+         key,
+         extra
+       ),
+       do: Tree.vault_children(vault, board_key(socket, key), vault_boards(socket), extra)
+
   defp container_rows(socket, _board, key, extra), do: tree_rows(socket, key, extra)
+
+  # This board's top, as the vault's tree keys it.
+  defp board_key(socket, "root"), do: "board:#{socket.assigns.board.id}"
+  defp board_key(_socket, key), do: key
 
   # Every container "open all" opens: the folders, and in a vault the
   # vault's own folders and every mapped board's folders too.
@@ -2067,6 +2161,11 @@ defmodule SlipdockWeb.WikiLive.Index do
     boards = vault_boards(socket)
     Tree.vault_folder_keys(socket.assigns.vault, boards)
   end
+
+  defp all_container_keys(%{assigns: %{vault: %{} = vault}} = socket, _board),
+    do:
+      Enum.map(socket.assigns.all_folders, &"folder:#{&1.id}") ++
+        Tree.vault_folder_keys(vault, vault_boards(socket))
 
   defp all_container_keys(socket, _board),
     do: Enum.map(socket.assigns.all_folders, &"folder:#{&1.id}")
@@ -2080,7 +2179,27 @@ defmodule SlipdockWeb.WikiLive.Index do
     rows
     |> Enum.map(&client_row(&1, socket.assigns.board, writable))
     |> in_vault_view(socket.assigns)
+    |> in_context(socket.assigns)
   end
+
+  # A row of another board in this tree opens with `?in=` the board whose
+  # tree it is, which keeps it (#758): this board's, or the one this was
+  # opened from.
+  defp in_context(rows, %{vault_view: nil, vault: %{}} = assigns) do
+    context = (assigns.tree_context || assigns.board).id
+
+    Enum.map(rows, fn
+      %{href: "/boards/" <> _ = href, board_id: id} = row when id not in [nil, context] ->
+        if row.kind == "file",
+          do: row,
+          else: %{row | href: href <> if(href =~ "?", do: "&", else: "?") <> "in=#{context}"}
+
+      row ->
+        row
+    end)
+  end
+
+  defp in_context(rows, _assigns), do: rows
 
   # In the vault view a row opens at its vault address, and as a fresh view:
   # the page may be on another board, whose wiki this then shows.
@@ -2103,7 +2222,7 @@ defmodule SlipdockWeb.WikiLive.Index do
 
   # The boards whose rows the reader can move, rename and archive: this one
   # when they can write to it, and the vault's others they can write to.
-  defp writable_ids(%{assigns: %{tree_scope: "vault", vault: %{} = vault}} = socket) do
+  defp writable_ids(%{assigns: %{vault: %{} = vault}} = socket) do
     vault
     |> Slipdock.Vaults.board_ids()
     |> Enum.filter(&writable_board(socket, &1))
@@ -2254,21 +2373,6 @@ defmodule SlipdockWeb.WikiLive.Index do
   end
 
   defp vault_here(_socket), do: nil
-
-  # Where "Open in <vault>" on a board's wiki goes: the same page or folder
-  # in the vault view.
-  defp open_in_vault(vault, page, folder) do
-    case {page, folder} do
-      {%Page{id: id}, _} ->
-        "/vaults/#{URI.encode(vault.name, &URI.char_unreserved?/1)}?page=#{id}"
-
-      {_, %Folder{id: id}} ->
-        "/vaults/#{URI.encode(vault.name, &URI.char_unreserved?/1)}?folder=#{id}"
-
-      _ ->
-        SlipdockWeb.VaultUrls.url(vault)
-    end
-  end
 
   # The vault view's breadcrumbs: the vault, then each directory down to
   # what is shown, each a link to its place in the view.
@@ -2961,7 +3065,7 @@ defmodule SlipdockWeb.WikiLive.Index do
             <span class={["size-2 rounded-full", Palette.dot(@board.color)]}></span> on {@board.name}
           </.link>
         </nav>
-        <nav :if={!@vault_view} class="flex min-w-0 items-center gap-1 text-sm">
+        <nav :if={!@vault_view && !@tree_context} class="flex min-w-0 items-center gap-1 text-sm">
           <.link
             navigate={~p"/boards/#{@board}"}
             class="flex min-w-0 items-center gap-2 rounded-lg px-2 py-1 hover:bg-base-200"
@@ -2975,6 +3079,36 @@ defmodule SlipdockWeb.WikiLive.Index do
             class="rounded-lg px-2 py-1 font-semibold hover:bg-base-200"
           >
             Wiki
+          </.link>
+        </nav>
+        <%!-- Opened from another board's tree (#758): that board's
+              breadcrumbs, and quietly, the board that holds what is shown. --%>
+        <nav
+          :if={!@vault_view && @tree_context}
+          id="context-crumbs"
+          class="flex min-w-0 items-center gap-1 text-sm"
+        >
+          <.link
+            navigate={~p"/boards/#{@tree_context}"}
+            class="flex min-w-0 items-center gap-2 rounded-lg px-2 py-1 hover:bg-base-200"
+          >
+            <span class={["size-2.5 shrink-0 rounded-full", Palette.dot(@tree_context.color)]}></span>
+            <span class="truncate font-semibold">{@tree_context.name}</span>
+          </.link>
+          <.icon name="hero-chevron-right" class="size-3 shrink-0 text-base-content/40" />
+          <.link
+            navigate={wiki_path(@tree_context)}
+            class="rounded-lg px-2 py-1 font-semibold hover:bg-base-200"
+          >
+            Wiki
+          </.link>
+          <.link
+            id="context-board"
+            navigate={if @page, do: page_path(@board, @page), else: wiki_path(@board)}
+            class="ml-2 hidden shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs text-base-content/50 hover:bg-base-200 sm:flex"
+            title="The board that holds it: open it in that board's own wiki"
+          >
+            <span class={["size-2 rounded-full", Palette.dot(@board.color)]}></span> on {@board.name}
           </.link>
         </nav>
       </:subnav>
@@ -3260,8 +3394,6 @@ defmodule SlipdockWeb.WikiLive.Index do
                 <.icon name={if @organising, do: "hero-check", else: "hero-pencil"} class="size-4" />
               </button>
             </div>
-            <%!-- A board in a vault can show its own tree or the vault's:
-                  every board of it, laid out by the vault's paths. --%>
             <%!-- In the vault view the tree is the vault's, and its settings
                   are a click away. --%>
             <div :if={@vault_view} class="mb-2 flex items-center gap-1">
@@ -3276,71 +3408,6 @@ defmodule SlipdockWeb.WikiLive.Index do
               >
                 <.icon name="hero-cog-6-tooth" class="size-3.5" /> Settings
               </.link>
-            </div>
-            <%!-- The vault's owner opens it in its own view; anyone else
-                  reading a board of somebody's vault can still flip the
-                  tree to the vault's. --%>
-            <div
-              :if={
-                !@vault_view && @vault && @tree_view == "tree" && @vault.user_id == @current_user.id
-              }
-              class="join mb-2 w-full"
-              role="group"
-              aria-label="Which tree"
-            >
-              <button
-                type="button"
-                data-tree-scope="board"
-                class={["btn btn-xs join-item flex-1", @tree_scope == "board" && "btn-active"]}
-                aria-pressed={to_string(@tree_scope == "board")}
-                title="This board's wiki"
-              >
-                This board
-              </button>
-              <.link
-                id="open-in-vault"
-                navigate={open_in_vault(@vault, @page, @folder)}
-                class="btn btn-xs join-item flex-1 truncate"
-                title={"Vault #{@vault.name}: not a folder, but every board in it laid out as one tree"}
-              >
-                Open in {@vault.name}
-              </.link>
-              <.link
-                id="manage-vault"
-                navigate={SlipdockWeb.VaultUrls.settings(@vault)}
-                class="btn btn-xs btn-ghost btn-square join-item"
-                title="Manage vault… what a vault is, and what is mapped where"
-                aria-label="Manage vault"
-              >
-                <.icon name="hero-cog-6-tooth" class="size-3.5" />
-              </.link>
-            </div>
-            <div
-              :if={
-                !@vault_view && @vault && @tree_view == "tree" && @vault.user_id != @current_user.id
-              }
-              class="join mb-2 w-full"
-              role="group"
-              aria-label="Which tree"
-            >
-              <button
-                :for={{scope, label} <- [{"board", "This board"}, {"vault", @vault.name}]}
-                type="button"
-                data-tree-scope={scope}
-                class={[
-                  "btn btn-xs join-item flex-1 truncate",
-                  @tree_scope == scope && "btn-active"
-                ]}
-                aria-pressed={to_string(@tree_scope == scope)}
-                title={
-                  if scope == "vault",
-                    do:
-                      "Vault #{@vault.name}: not a folder, but every board in it laid out as one tree",
-                    else: "This board's wiki"
-                }
-              >
-                {label}
-              </button>
             </div>
             <p
               :if={@organising}

@@ -400,17 +400,6 @@ function menuHtml(items) {
   }).join("")
 }
 
-function storageGet(key, fallback) {
-  try {
-    const value = localStorage.getItem(key)
-    return value === null ? fallback : JSON.parse(value)
-  } catch (_e) { return fallback }
-}
-
-function storageSet(key, value) {
-  try { localStorage.setItem(key, JSON.stringify(value)) } catch (_e) {}
-}
-
 export const WikiTree = {
   mounted() {
     this.model = new TreeModel()
@@ -421,7 +410,9 @@ export const WikiTree = {
     this.menuEl = null
     this.loadingMore = new Set()
     this.version = this.el.dataset.version
-    this.scope = this.el.dataset.vault ? storageGet(this.scopeKey(), "board") : "board"
+    // Which tree this is — the board's, or the vault's — is the server's to
+    // say (#758); it comes back with every load.
+    this.scope = "board"
 
     this.onScroll = () => this.schedule()
     this.el.addEventListener("scroll", this.onScroll, {passive: true})
@@ -451,12 +442,9 @@ export const WikiTree = {
     this.el.addEventListener("click", e => {
       const button = e.target.closest("[data-tree-toggle-all]")
       if (button) { e.preventDefault(); this.toggleAll() }
-      const scope = e.target.closest("[data-tree-scope]")
-      if (scope) { e.preventDefault(); this.setScope(scope.dataset.treeScope) }
       if (e.target.closest("[data-tree-reveal]")) { e.preventDefault(); this.revealAgain() }
     })
 
-    this.handleEvent("wiki-tree:scope", ({scope}) => this.setScope(scope, false))
     this.load({first: true})
   },
 
@@ -485,7 +473,6 @@ export const WikiTree = {
     this.endDrag()
   },
 
-  scopeKey() { return `slipdock:wiki-scope:${this.el.dataset.vault}` },
 
   ctx() {
     return {
@@ -588,13 +575,6 @@ export const WikiTree = {
     } else {
       this.load({all: true})
     }
-  },
-
-  setScope(scope, persist = true) {
-    if (!this.el.dataset.vault || !["board", "vault"].includes(scope)) return
-    this.scope = scope
-    if (persist) storageSet(this.scopeKey(), scope)
-    this.load({})
   },
 
   // The way to the page or folder being looked at opens when it changes,

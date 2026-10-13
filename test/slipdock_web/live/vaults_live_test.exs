@@ -120,7 +120,7 @@ defmodule SlipdockWeb.VaultsLiveTest do
     assert {:ok, %{name: "Theirs"}} = Vaults.get_vault(stranger, theirs.id)
   end
 
-  test "the wiki's tree switch explains a vault and links its owner here", ctx do
+  test "a board's wiki in a vault has no switch out to the vault (#758)", ctx do
     %{conn: conn, user: user, kb: kb} = ctx
     {:ok, _} = Wiki.create_page(kb, %{"title" => "Note"})
     {:ok, vault} = Vaults.create_vault(user, %{"name" => "GMinds"})
@@ -128,9 +128,10 @@ defmodule SlipdockWeb.VaultsLiveTest do
 
     {:ok, view, _html} = live(conn, ~p"/boards/#{kb.id}/wiki")
 
-    assert has_element?(view, "#open-in-vault[title*='not a folder']", "Open in GMinds")
-    assert has_element?(view, "#manage-vault[href='/vaults/GMinds/.settings']")
-    _ = vault
+    # The board's wiki is the vault from where it is mounted: nothing to open.
+    refute has_element?(view, "#open-in-vault")
+    refute has_element?(view, "[data-tree-scope]")
+    refute render(view) =~ "Open in GMinds"
   end
 
   describe "mappings" do

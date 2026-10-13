@@ -101,15 +101,11 @@ defmodule SlipdockWeb.VaultViewLiveTest do
              live(conn, "/vaults/Empty")
   end
 
-  test "a board's wiki opens the same page in the vault view", ctx do
+  test "a page asked for by id settles on its vault address", ctx do
     %{conn: conn, hunt: hunt, questions: questions} = ctx
+    # A board's wiki no longer links out to the vault view (#758).
     {:ok, view, _} = live(conn, ~p"/boards/#{hunt}/wiki/#{questions.slug}")
-
-    assert has_element?(
-             view,
-             "#open-in-vault[href='/vaults/GMinds?page=#{questions.id}']",
-             "Open in GMinds"
-           )
+    refute has_element?(view, "#open-in-vault")
 
     # By id, it settles on the page's own address.
     assert {:error, {:live_redirect, %{to: "/vaults/GMinds/Jobs/Interview%20Questions"}}} =

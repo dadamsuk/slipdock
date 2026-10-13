@@ -56,25 +56,8 @@ defmodule Slipdock.Vaults.Layout do
       )
 
     board_ids = mappings |> Enum.map(& &1.board_id) |> Enum.uniq()
-
-    folders =
-      from(f in Folder, where: f.board_id in ^board_ids, select: {f.id, {f.parent_id, f.name}})
-      |> Repo.all()
-      |> Map.new()
-
-    folder_board =
-      from(f in Folder, where: f.board_id in ^board_ids, select: {f.id, f.board_id})
-      |> Repo.all()
-      |> Map.new()
-
     by_board = Enum.group_by(mappings, & &1.board_id)
-
-    folder_dirs =
-      Map.new(folders, fn {id, _} ->
-        {id, folder_dir(id, folders, Map.get(by_board, folder_board[id], []))}
-      end)
-      |> Enum.reject(fn {_id, dir} -> is_nil(dir) end)
-      |> Map.new()
+    folder_dirs = folder_dirs(mappings)
 
     pages =
       from(p in Page,
@@ -238,6 +221,32 @@ defmodule Slipdock.Vaults.Layout do
       nil -> nil
       m -> m.path
     end
+  end
+
+  @doc """
+  Where every mapped folder of `mappings`' boards sits in the vault, as
+  `%{folder_id => dir}`: the deepest mapping above it, then the folders
+  below that mapping's own. A folder nothing maps is left out. One narrow
+  query of the folders, so the tree can ask without placing every page.
+  """
+  def folder_dirs(mappings) do
+    board_ids = mappings |> Enum.map(& &1.board_id) |> Enum.uniq()
+
+    rows =
+      from(f in Folder,
+        where: f.board_id in ^board_ids,
+        select: {f.id, f.board_id, f.parent_id, f.name}
+      )
+      |> Repo.all()
+
+    folders = Map.new(rows, fn {id, _board, parent, name} -> {id, {parent, name}} end)
+    by_board = Enum.group_by(mappings, & &1.board_id)
+
+    for {id, board_id, _parent, _name} <- rows,
+        dir = folder_dir(id, folders, Map.get(by_board, board_id, [])),
+        dir != nil,
+        into: %{},
+        do: {id, dir}
   end
 
   # A folder's directory: the deepest mapping above it, then the folders

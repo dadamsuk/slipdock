@@ -223,6 +223,21 @@ test("mounting asks for the tree and draws only the rows", () => {
   assert.equal(rowsEl.style.height, `${2 * ROW_HEIGHT}px`)
 })
 
+test("which tree it is is the server's to say, not a switch the browser remembers (#758)", () => {
+  const context = {scope: "vault", root: "board:5", filtering: false, reveal: [], small: false, open: [],
+    nodes: {"board:5": [folder(1), {kind: "folder", key: "board:6", id: "board:6", title: "Jobs", mount: true, count: 1}]}}
+  const {hook, pushed} = mountHook({dataset: {vault: "3"}, replies: [context, {nodes: {"board:6": [page(9)]}}]})
+  globalThis.localStorage.setItem("slipdock:wiki-scope:3", JSON.stringify("vault"))
+  hook.mounted()
+  // Asked for as the board's, whatever was stored; answered as the vault's.
+  assert.deepEqual(pushed[0].payload, {scope: "board", all: false})
+  assert.equal(hook.scope, "vault")
+  assert.equal(hook.model.root, "board:5")
+  assert.deepEqual(hook.model.flatten().map(i => i.row.key), ["folder:1", "board:6"])
+  hook.toggle("board:6")
+  assert.deepEqual(pushed[1].payload, {scope: "vault", keys: ["board:6"], only: true})
+})
+
 test("a first visit to a small wiki opens every folder, and remembers it", () => {
   const all = {...root([folder(1)]), nodes: {root: [folder(1)], "folder:1": [page(2)]}}
   const {hook, pushed} = mountHook({replies: [{...root([folder(1)]), small: true, open: null}, all]})
