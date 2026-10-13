@@ -171,7 +171,7 @@ defmodule Slipdock.Vaults.SyncFilesTest do
     assert html =~ ~s(<img class="wiki-file-embed" src="/wiki-files/#{image.id}/Chart.png")
 
     assert html =~
-             ~r{<a class="wiki-file-link" href="/wiki-files/#{pdf.id}/Spec.pdf"[^>]*>the spec</a>}
+             ~r{<a class="wiki-file-link" href="/files/#{pdf.id}"[^>]*>the spec</a>}
 
     assert html =~ "![[Ghost.png]]"
 

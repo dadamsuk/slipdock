@@ -652,6 +652,26 @@ defmodule SlipdockWeb.WikiFoldersLiveTest do
       refute Map.has_key?(row(reply, "root", "Specs"), :encrypted)
     end
 
+    test "any other file opens in the file viewer, a drawing in its editor",
+         %{conn: conn, board: board} do
+      for name <- ["data.csv", "Flow.excalidraw"] do
+        Slipdock.Repo.insert!(%Slipdock.Wiki.WikiFile{
+          board_id: board.id,
+          name: name,
+          content_type: "application/octet-stream",
+          size: 1,
+          sha256: "x",
+          key: "k/" <> name
+        })
+      end
+
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki")
+      reply = tree_load(view)
+
+      assert row(reply, "root", "data.csv").href =~ ~r|^/files/\d+$|
+      assert row(reply, "root", "Flow.excalidraw").href =~ ~r|^/drawings/file/\d+$|
+    end
+
     test "the page being read is in its folder's rows, however far down", %{
       conn: conn,
       board: board,

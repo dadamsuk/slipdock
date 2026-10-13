@@ -204,6 +204,20 @@ defmodule Slipdock.Wiki.Files do
   @doc "The browser path a file is served from."
   def url(%WikiFile{id: id, name: name}), do: "/wiki-files/#{id}/#{URI.encode(name)}"
 
+  @doc """
+  Where a file opens when somebody clicks it, in the tree or as a
+  `[[link]]`: a whole note Meld encrypted where the browser can decrypt it,
+  a drawing in the Excalidraw editor, anything else in the file viewer
+  (`SlipdockWeb.FileLive`), which offers the download too.
+  """
+  def open_path(%WikiFile{id: id, name: name} = file) do
+    cond do
+      Slipdock.Wiki.Meld.note_file?(name) -> url(file) <> "?view=locked"
+      Slipdock.Wiki.Excalidraw.name?(name) -> "/drawings/file/#{id}"
+      true -> "/files/#{id}"
+    end
+  end
+
   @doc "The sha256 and size of a file on disk, read a megabyte at a time."
   def digest(path) do
     File.stream!(path, 1_048_576)

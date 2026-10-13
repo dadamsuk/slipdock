@@ -30,6 +30,46 @@ defmodule SlipdockWeb.WikiFileControllerTest do
     assert type =~ "application/octet-stream"
   end
 
+  describe "?view=inline, which the file viewer asks for" do
+    setup %{user: user} do
+      board = board_fixture(%{"name" => "Inline"}, owner: user)
+      path = Path.join(System.tmp_dir!(), "wf-#{System.unique_integer([:positive])}")
+      File.write!(path, "%PDF-1.4")
+      {:ok, pdf} = Files.create(board, %{name: "Spec.pdf"}, path)
+      {:ok, txt} = Files.create(board, %{name: "notes.txt"}, path)
+      %{pdf: pdf, txt: txt}
+    end
+
+    test "a PDF is shown inline as a PDF", %{conn: conn, pdf: pdf} do
+      resp = get(conn, Files.url(pdf) <> "?view=inline")
+      assert resp.status == 200
+      assert [type] = get_resp_header(resp, "content-type")
+      assert type =~ "application/pdf"
+      assert [disposition] = get_resp_header(resp, "content-disposition")
+      assert disposition =~ "inline"
+    end
+
+    test "an SVG is shown inline, sandboxed so it can run and fetch nothing",
+         %{conn: conn, svg: svg} do
+      resp = get(conn, Files.url(svg) <> "?view=inline")
+      assert [type] = get_resp_header(resp, "content-type")
+      assert type =~ "image/svg+xml"
+      assert [policy] = get_resp_header(resp, "content-security-policy")
+      assert policy =~ "default-src 'none'"
+      assert policy =~ "sandbox"
+      assert [disposition] = get_resp_header(resp, "content-disposition")
+      assert disposition =~ "inline"
+    end
+
+    test "anything else is still a download", %{conn: conn, txt: txt} do
+      resp = get(conn, Files.url(txt) <> "?view=inline")
+      assert [disposition] = get_resp_header(resp, "content-disposition")
+      assert disposition =~ "attachment"
+      assert [type] = get_resp_header(resp, "content-type")
+      assert type =~ "application/octet-stream"
+    end
+  end
+
   test "somebody who can't read the board, or an archived file, gets a 404",
        %{conn: conn, png: png} do
     stranger = user_fixture("stranger@example.com")

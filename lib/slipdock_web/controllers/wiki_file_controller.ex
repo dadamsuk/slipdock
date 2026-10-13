@@ -9,11 +9,18 @@ defmodule SlipdockWeb.WikiFileController do
   A whole note Meld Encrypt wrote (`.mdenc`) is also shown, with
   `?view=locked`, as a locked page the browser can decrypt (W-103 R6.1):
   the server hands over the ciphertext it has and nothing more.
+
+  The file viewer (`SlipdockWeb.FileLive`) asks for a PDF or an SVG with
+  `?view=inline`, to show it rather than download it: a PDF goes to the
+  browser's own PDF viewer, and an SVG comes with a policy that lets it run
+  nothing and fetch nothing, the same one a drawing's preview has.
   """
   use SlipdockWeb, :controller
 
   alias Slipdock.{Access, Repo}
-  alias Slipdock.Wiki.{Files, Meld, WikiFile}
+  alias Slipdock.Wiki.{Files, Meld, Viewer, WikiFile}
+
+  @svg_policy "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox"
 
   def show(conn, %{"id" => id} = params) do
     with {n, ""} <- Integer.parse(id),
@@ -21,9 +28,11 @@ defmodule SlipdockWeb.WikiFileController do
          file = Repo.preload(file, :board),
          true <- Access.can_read?(Access.board_permission(conn.assigns.current_user, file.board)),
          true <- File.regular?(Files.disk_path(file)) do
-      if params["view"] == "locked" and Meld.note_file?(file.name),
-        do: locked(conn, file),
-        else: send_file(conn, file)
+      cond do
+        params["view"] == "locked" and Meld.note_file?(file.name) -> locked(conn, file)
+        params["view"] == "inline" -> inline(conn, file, Viewer.kind(file))
+        true -> send_file(conn, file)
+      end
     else
       _ ->
         conn
@@ -45,6 +54,27 @@ defmodule SlipdockWeb.WikiFileController do
       json: json,
       download: Files.url(file),
       page_title: file.name
+    )
+  end
+
+  defp inline(conn, file, :pdf), do: send_inline(conn, file, "application/pdf")
+
+  defp inline(conn, file, :svg) do
+    conn
+    |> put_resp_header("content-security-policy", @svg_policy)
+    |> send_inline(file, "image/svg+xml")
+  end
+
+  defp inline(conn, file, _kind), do: send_file(conn, file)
+
+  defp send_inline(conn, file, type) do
+    conn
+    |> put_resp_header("cache-control", "private, max-age=86400")
+    |> put_resp_header("x-content-type-options", "nosniff")
+    |> send_download({:file, Files.disk_path(file)},
+      filename: file.name,
+      content_type: type,
+      disposition: :inline
     )
   end
 

@@ -2266,17 +2266,8 @@ defmodule SlipdockWeb.WikiLive.Index do
 
   defp row_href(%{kind: "page"} = row, _key), do: ~p"/boards/#{row.board_id}/wiki/#{row.slug}"
 
-  defp row_href(%{kind: "file"} = row, _key) do
-    url = Slipdock.Wiki.Files.url(%Slipdock.Wiki.WikiFile{id: row.id, name: row.title})
-
-    cond do
-      # A whole note Meld encrypted opens where the browser can decrypt it.
-      Slipdock.Wiki.Meld.note_file?(row.title) -> url <> "?view=locked"
-      # A drawing opens in the Excalidraw editor.
-      Slipdock.Wiki.Excalidraw.name?(row.title) -> ~p"/drawings/file/#{row.id}"
-      true -> url
-    end
-  end
+  defp row_href(%{kind: "file"} = row, _key),
+    do: Slipdock.Wiki.Files.open_path(%Slipdock.Wiki.WikiFile{id: row.id, name: row.title})
 
   defp row_href(%{kind: "dir"}, _key), do: nil
   defp row_href(%{board_id: board_id}, "board:" <> _), do: ~p"/boards/#{board_id}/wiki"

@@ -2845,6 +2845,19 @@ matter; edit that list and the page is filed accordingly. Images, PDFs,
 `.excalidraw` drawings and other files are kept at the same vault path, up
 to 250 MB each, and `![[photo.png]]` draws them in the web app too.
 
+**Opening a file.** Click a file in the tree, or a `[[Report.pdf]]` link
+in a page, and it opens in the file viewer (`/files/<id>`), with a
+Download button always beside it. Images (PNG, JPEG, GIF, WebP, and SVG,
+which is shown so it can run nothing) are drawn; a PDF opens in the
+browser's own PDF viewer; JSON is a tree whose objects and arrays fold
+(the outer two levels open), JSON Lines an array of its lines, invalid
+JSON the line and column where it went wrong; CSV and TSV are a table
+with the first row as its header, the first 1,000 rows shown; `.txt`,
+`.log`, `.md`, YAML, TOML, INI and XML are shown as text. Text over 2 MB,
+and kinds with no viewer yet (audio, video, archives), offer the download.
+Drawings still open in the Excalidraw editor and whole Meld notes where
+the browser decrypts them.
+
 **What the folder remembers.** `.slipdock/state.json` holds, for each file,
 which page it is and the hash both sides last agreed on — never front
 matter, so your files stay your own. That is what makes a rename the same

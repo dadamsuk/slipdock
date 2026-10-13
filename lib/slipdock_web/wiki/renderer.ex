@@ -455,7 +455,7 @@ defmodule SlipdockWeb.Wiki.Renderer do
 
   # `[[Report.pdf]]`: a file in the wiki, linked.
   defp resolved_html(ref, {:file, file}, _context) do
-    ~s|<a class="wiki-file-link" href="#{escape(Slipdock.Wiki.Files.url(file))}">| <>
+    ~s|<a class="wiki-file-link" href="#{escape(Slipdock.Wiki.Files.open_path(file))}">| <>
       escape(ref.label || file.name) <> "</a>"
   end
 
@@ -863,7 +863,8 @@ defmodule SlipdockWeb.Wiki.Renderer do
 
         if Slipdock.Wiki.WikiFile.image?(file),
           do: ~s|<img class="wiki-file-embed" src="#{url}" alt="#{label}">|,
-          else: ~s|<a class="wiki-file-link" href="#{url}">#{label}</a>|
+          else:
+            ~s|<a class="wiki-file-link" href="#{escape(Slipdock.Wiki.Files.open_path(file))}">#{label}</a>|
     end
   end
 
