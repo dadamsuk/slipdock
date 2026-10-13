@@ -6,7 +6,8 @@ defmodule SlipdockWeb.WikiLive.Index do
   tree and the breadcrumb, and a document is a thing you flip between those
   three states on without losing your place.
 
-  The editor is raw Markdown with a preview beside it — deliberately, and
+  The editor is raw Markdown with a preview beside it (which a writer can
+  turn off) — deliberately, and
   for good: the source has to stay diffable, greppable and identical to what
   an agent reads and writes over the API. A rich-text layer would have to
   round-trip every extension losslessly, which is exactly where editors of
@@ -45,6 +46,9 @@ defmodule SlipdockWeb.WikiLive.Index do
          revision: nil,
          form: nil,
          preview: "",
+         # The editor's preview beside the source; a writer can put it away
+         # for the whole width, and the browser remembers (EditorPrefs).
+         show_preview: true,
          conflict: nil,
          base_hash: nil,
          new_parent: nil,
@@ -789,6 +793,23 @@ defmodule SlipdockWeb.WikiLive.Index do
   end
 
   def handle_event("restore_collapsed", _params, socket), do: {:noreply, socket}
+
+  # The preview beside the editor, on or off. The choice is the writer's,
+  # kept by their browser (the EditorPrefs hook) so every page opens the
+  # same way.
+  def handle_event("toggle_preview", _params, socket) do
+    on = not socket.assigns.show_preview
+
+    {:noreply,
+     socket
+     |> assign(show_preview: on)
+     |> push_event("wiki-editor:preview", %{on: on})}
+  end
+
+  def handle_event("restore_preview", %{"on" => on}, socket) when is_boolean(on),
+    do: {:noreply, assign(socket, show_preview: on)}
+
+  def handle_event("restore_preview", _params, socket), do: {:noreply, socket}
 
   # Organise mode opens every folder: a shut folder is not a place anything
   # can be dropped, and a target you cannot see is not a target.
@@ -1769,7 +1790,12 @@ defmodule SlipdockWeb.WikiLive.Index do
             data-page={"#{@live_action}:#{@page && @page.id}"}
             class="kanban-scroll relative min-w-0 flex-1 overflow-y-auto"
           >
-            <div class="mx-auto max-w-4xl px-4 py-6 sm:px-8 sm:py-8">
+            <%!-- Reading keeps a comfortable measure; writing takes the whole
+                  width, source and preview side by side. --%>
+            <div class={[
+              "mx-auto px-4 py-6 sm:px-8 sm:py-8",
+              if(@live_action in [:new, :edit], do: "max-w-none", else: "max-w-4xl")
+            ]}>
               <%= case @live_action do %>
                 <% :index when not is_nil(@folder) -> %>
                   <.folder_body
@@ -1793,6 +1819,7 @@ defmodule SlipdockWeb.WikiLive.Index do
                     page={@page}
                     board={@board}
                     preview={@preview}
+                    show_preview={@show_preview}
                     conflict={@conflict}
                     base_hash={@base_hash}
                     uploads={@uploads}
@@ -3037,6 +3064,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   attr :page, :any, default: nil
   attr :board, :any, required: true
   attr :preview, :string, default: ""
+  attr :show_preview, :boolean, default: true
   attr :conflict, :any, default: nil
   attr :base_hash, :string, default: nil
   attr :uploads, :any, required: true
@@ -3059,6 +3087,22 @@ defmodule SlipdockWeb.WikiLive.Index do
           </p>
         </div>
         <div class="flex items-center gap-2">
+          <%!-- Only where the preview can show: below lg it never does. --%>
+          <button
+            type="button"
+            id="toggle-preview"
+            phx-hook="EditorPrefs"
+            phx-click="toggle_preview"
+            aria-pressed={to_string(@show_preview)}
+            title={if @show_preview, do: "Hide the preview", else: "Show the preview"}
+            class={[
+              "btn btn-sm hidden lg:inline-flex",
+              if(@show_preview, do: "btn-soft", else: "btn-ghost")
+            ]}
+          >
+            <.icon name={if @show_preview, do: "hero-eye", else: "hero-eye-slash"} class="size-4" />
+            Preview
+          </button>
           <.link
             navigate={if @page, do: page_path(@board, @page), else: wiki_path(@board)}
             class="btn btn-ghost btn-sm"
@@ -3114,7 +3158,7 @@ defmodule SlipdockWeb.WikiLive.Index do
         placeholder="One line, shown in listings and search"
       />
 
-      <div class="grid gap-4 lg:grid-cols-2">
+      <div class={["grid gap-4", @show_preview && "lg:grid-cols-2"]}>
         <div id="page-body-paste" phx-hook="PasteImage" data-upload="page_image">
           <label for="page_body" class="mb-1 block text-sm font-medium">
             Body (Markdown)
@@ -3129,7 +3173,7 @@ defmodule SlipdockWeb.WikiLive.Index do
           ><%= Phoenix.HTML.Form.normalize_value("textarea", @form[:body].value) %></textarea>
           <.live_file_input upload={@uploads.page_image} class="hidden" />
         </div>
-        <div class="hidden lg:block">
+        <div :if={@show_preview} id="page-preview" class="hidden lg:block">
           <p class="mb-1 text-sm font-medium">Preview</p>
           <div class="wiki-prose kanban-scroll max-h-[36rem] overflow-y-auto rounded-xl border border-base-300 bg-base-100 p-4">
             {Phoenix.HTML.raw(@preview)}

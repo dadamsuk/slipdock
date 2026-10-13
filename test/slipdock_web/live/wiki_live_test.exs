@@ -778,4 +778,75 @@ defmodule SlipdockWeb.WikiLiveTest do
       assert has_element?(editor, "#{@pane} form")
     end
   end
+
+  describe "the editor's width and its preview" do
+    test "writing takes the page's whole width; reading keeps its measure", %{
+      conn: conn,
+      board: board
+    } do
+      page = page_fixture(board, %{"title" => "Wide", "body" => "text"})
+
+      {:ok, editor, _} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}/edit")
+      assert has_element?(editor, "#wiki-main > div.max-w-none")
+      refute has_element?(editor, "#wiki-main > div.max-w-4xl")
+
+      {:ok, new, _} = live(conn, ~p"/boards/#{board}/wiki/new")
+      assert has_element?(new, "#wiki-main > div.max-w-none")
+
+      {:ok, reader, _} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}")
+      assert has_element?(reader, "#wiki-main > div.max-w-4xl")
+      refute has_element?(reader, "#wiki-main > div.max-w-none")
+    end
+
+    test "the preview turns off and on, and the browser is told to remember", %{
+      conn: conn,
+      board: board
+    } do
+      page = page_fixture(board, %{"title" => "Toggle", "body" => "## Shown"})
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}/edit")
+      assert has_element?(view, "#page-preview", "Shown")
+      assert has_element?(view, "#toggle-preview[aria-pressed=true]")
+      assert has_element?(view, "#page-form div.lg\\:grid-cols-2")
+
+      view |> element("#toggle-preview") |> render_click()
+      assert_push_event(view, "wiki-editor:preview", %{on: false})
+      refute has_element?(view, "#page-preview")
+      assert has_element?(view, "#toggle-preview[aria-pressed=false]")
+      # The source alone: one column, the whole width.
+      refute has_element?(view, "#page-form div.lg\\:grid-cols-2")
+
+      # Typing with it off still works, and it comes back up to date.
+      view |> form("#page-form") |> render_change(page: %{title: "Toggle", body: "## Newer"})
+      view |> element("#toggle-preview") |> render_click()
+      assert_push_event(view, "wiki-editor:preview", %{on: true})
+      assert has_element?(view, "#page-preview", "Newer")
+    end
+
+    test "a browser that last put the preview away opens the editor without it", %{
+      conn: conn,
+      board: board
+    } do
+      page = page_fixture(board, %{"title" => "Remembered", "body" => "x"})
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}/edit")
+      render_hook(view, "restore_preview", %{"on" => false})
+      refute has_element?(view, "#page-preview")
+
+      render_hook(view, "restore_preview", %{"on" => true})
+      assert has_element?(view, "#page-preview")
+    end
+
+    test "a malformed restore is ignored rather than crashing the editor", %{
+      conn: conn,
+      board: board
+    } do
+      page = page_fixture(board, %{"title" => "Sturdy", "body" => "x"})
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}/edit")
+      render_hook(view, "restore_preview", %{"on" => "off"})
+      render_hook(view, "restore_preview", %{})
+      assert has_element?(view, "#page-preview")
+    end
+  end
 end

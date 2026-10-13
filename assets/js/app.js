@@ -1221,6 +1221,24 @@ Hooks.ScrollTopOnPage = {
 // dropped where a folder belongs. The list a thing lands in says where that
 // is, in `data-into`: "folder:4", "folder:" for the top of the wiki, or
 // "page:7" for inside a page.
+// The wiki editor's preview, on or off, kept by the browser so every page
+// opens the way the writer last left it. Only "off" is stored: on is the
+// default.
+Hooks.EditorPrefs = {
+  mounted() {
+    const key = "slipdock:wiki-preview"
+    try {
+      if (localStorage.getItem(key) === "off") this.pushEvent("restore_preview", {on: false})
+    } catch (_e) {}
+    this.handleEvent("wiki-editor:preview", ({on}) => {
+      try {
+        if (on) localStorage.removeItem(key)
+        else localStorage.setItem(key, "off")
+      } catch (_e) {}
+    })
+  }
+}
+
 Hooks.WikiTree = {
   mounted() {
     // Which folders the reader shut, per board, kept in the browser: coming
