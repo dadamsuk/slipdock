@@ -603,6 +603,9 @@ defmodule SlipdockWeb.API.JSON do
         v
         |> Slipdock.Vaults.mirrors()
         |> Enum.map(&%{label: &1.label, last_synced_at: &1.last_synced_at}),
+      # Pages at a path another mapping owns (`Vaults.overlaps/1`): none,
+      # unless made before mappings were checked for it.
+      overlaps: Slipdock.Vaults.overlaps(v),
       inserted_at: v.inserted_at,
       updated_at: v.updated_at
     }

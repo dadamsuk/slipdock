@@ -54,4 +54,15 @@ defmodule SlipdockCLI.VaultLsTest do
     refute out =~ "pages"
     refute out =~ "synced to"
   end
+
+  test "warns about pages at a path another mapping owns" do
+    out =
+      ls(
+        ~s({"vaults":[{"id":1,"name":"GMinds","mappings":[],"mirrors":[],
+        "overlaps":[{"path":"Jobs/Acme.md","board":"KnowledgeBase","mapping":"/","under":"/Jobs","owner":"Job Hunt"}]}]})
+      )
+
+    assert out =~
+             "warning: 1 page(s) of KnowledgeBase sit under /Jobs, which Job Hunt's mapping owns"
+  end
 end

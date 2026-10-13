@@ -27,6 +27,7 @@ defmodule SlipdockWeb.VaultLive.Index do
           vault: vault,
           counts: Vaults.page_counts(vault),
           mirrors: Vaults.mirrors(vault),
+          overlaps: Vaults.overlaps(vault),
           candidates: Vaults.mapping_candidates(vault, user),
           # What taking each mapping out would do, for its confirmation.
           removals:
@@ -324,7 +325,8 @@ defmodule SlipdockWeb.VaultLive.Index do
                 counts: counts,
                 mirrors: mirrors,
                 candidates: candidates,
-                removals: removals
+                removals: removals,
+                overlaps: overlaps
               } <-
                 @vaults
             }
@@ -397,6 +399,29 @@ defmodule SlipdockWeb.VaultLive.Index do
             <p :if={vault.mappings == []} class="mt-1 px-2 text-xs text-base-content/50">
               Nothing mapped yet, so the vault is empty.
             </p>
+
+            <div
+              :if={overlaps != []}
+              id={"overlaps-#{vault.id}"}
+              class="mt-2 rounded-lg bg-warning/10 px-3 py-2 text-xs text-base-content/80"
+            >
+              <p class="font-semibold">
+                <.icon name="hero-exclamation-triangle" class="size-4 text-warning" />
+                {pages(length(overlaps))} {verb(length(overlaps), "sits", "sit")} at paths another mapping owns
+              </p>
+              <p class="mt-1">
+                Two boards claim the same paths, so a synced edit to one of these files would go to
+                the inner mapping's board. Move the pages to that board, or take a mapping out.
+              </p>
+              <ul class="mt-1 ml-4 list-disc font-mono">
+                <li :for={o <- Enum.take(overlaps, 5)}>
+                  {o.path}
+                  <span class="font-sans text-base-content/60">
+                    — on {o.board}, under {o.under} ({o.owner})
+                  </span>
+                </li>
+              </ul>
+            </div>
 
             <.map_form
               vault={vault}
