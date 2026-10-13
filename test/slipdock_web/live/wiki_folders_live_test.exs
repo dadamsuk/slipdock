@@ -481,6 +481,22 @@ defmodule SlipdockWeb.WikiFoldersLiveTest do
       assert in_tree?(view, board, sketch)
     end
 
+    test "a page opened in place inside a shut folder opens the folders to it", %{
+      conn: conn,
+      board: board,
+      specs: specs,
+      drafts: drafts,
+      sketch: sketch
+    } do
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki")
+      render_hook(view, "restore_collapsed", %{"ids" => [specs.id, drafts.id]})
+      refute in_tree?(view, board, sketch)
+
+      render_patch(view, ~p"/boards/#{board}/wiki/#{sketch.slug}")
+
+      assert in_tree?(view, board, sketch)
+    end
+
     test "the folder being looked at, and those above it, stay open", %{
       conn: conn,
       board: board,
