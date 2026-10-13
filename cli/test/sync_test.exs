@@ -155,6 +155,26 @@ defmodule SlipdockCLI.SyncTest do
     assert out =~ ~s("sent": [])
   end
 
+  test "a folder deleted on the server is removed here, and said so", %{home: home} do
+    url = FakeServer.start([{200, ~s({"cursor":13,"entries":[],"folders":[]})}])
+    dir = Path.join(home, "Brain")
+    File.mkdir_p!(Path.join(dir, "Old"))
+
+    State.save(
+      dir,
+      Map.put(State.new(url, %{"id" => 3, "name" => "Brain"}, "host"), "folders", ["Old"])
+    )
+
+    out = capture_io(fn -> Sync.run("sync", [dir], []) end)
+
+    assert out =~ "✕ Old/"
+    assert out =~ "deleted elsewhere, removed here"
+    assert out =~ "removed 1"
+    refute File.exists?(Path.join(dir, "Old"))
+    {:ok, state} = State.load(dir)
+    assert state["folders"] == []
+  end
+
   test "State.find_root looks upwards, and says when there is no mirror", %{home: home} do
     dir = Path.join(home, "Brain")
     State.save(dir, State.new("http://x", %{"id" => 1, "name" => "B"}, "h"))

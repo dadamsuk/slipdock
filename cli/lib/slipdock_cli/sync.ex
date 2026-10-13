@@ -368,8 +368,14 @@ defmodule SlipdockCLI.Sync do
     for %{path: p} <- report.archived,
         do: IO.puts("✕ #{p} " <> Render.dim("(archived on the server)"))
 
-    for %{path: p} <- report.removed,
-        do: IO.puts("✕ #{p} " <> Render.dim("(archived elsewhere, removed here)"))
+    for r <- report.removed do
+      why =
+        if r[:folder],
+          do: "(deleted elsewhere, removed here)",
+          else: "(archived elsewhere, removed here)"
+
+      IO.puts("✕ #{r.path} " <> Render.dim(why))
+    end
 
     for c <- report.conflicts,
         do: IO.puts("! #{c.path} changed on both sides: yours is now #{c.copy}")

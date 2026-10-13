@@ -52,7 +52,13 @@ defmodule Slipdock.Vaults.Sync do
   Every file of the vault `reader` may open:
 
       %{cursor: 931, entries: [%{kind: "page", id:, board_id:, path:, hash:, code:, title:},
-                               %{kind: "file", id:, board_id:, path:, hash:, size:, name:}]}
+                               %{kind: "file", id:, board_id:, path:, hash:, size:, name:}],
+        folders: ["Jobs", "Jobs/Acme"]}
+
+  `folders` is every folder of the vault as a directory, empty ones too, so
+  a client can make the ones it hasn't got and take away the ones the
+  server no longer has. It is its own key rather than entries of a kind of
+  their own, which a client from before it would take for pages.
 
   `cursor` is the change feed's position taken *before* the listing was
   read, so following the feed from it sees anything that changed while it
@@ -85,7 +91,21 @@ defmodule Slipdock.Vaults.Sync do
 
     entries = Enum.sort_by(entries ++ files, & &1.path)
 
-    %{cursor: cursor, entries: entries}
+    %{cursor: cursor, entries: entries, folders: folders(layout, levels)}
+  end
+
+  # The folders on the boards `levels` lets the reader open, as directories.
+  # A folder mapped at the vault's root is the root itself, so no directory.
+  defp folders(layout, levels) do
+    ids = Map.keys(layout.folders)
+
+    from(f in Folder, where: f.id in ^ids, select: {f.id, f.board_id})
+    |> Repo.all()
+    |> Enum.filter(fn {_id, board_id} -> Access.can_read?(Map.get(levels, board_id, :none)) end)
+    |> Enum.map(fn {id, _board_id} -> layout.folders[id] end)
+    |> Enum.reject(&(&1 in [nil, ""]))
+    |> Enum.uniq()
+    |> Enum.sort()
   end
 
   @doc "One page's file: `{:ok, %{id:, path:, hash:, content:, ...}}`."

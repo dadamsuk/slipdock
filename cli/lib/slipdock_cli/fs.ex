@@ -114,6 +114,20 @@ defmodule SlipdockCLI.FS do
   def exists?(path), do: match?({:ok, _}, stat(path))
   def dir?(path), do: match?({:ok, %File.Stat{type: :directory}}, stat(path))
 
+  @doc "A directory itself, not a link to one."
+  def own_dir?(path) do
+    info =
+      if windows?(),
+        do:
+          with(
+            {:ok, info} <- :file.read_link_info(n(path)),
+            do: {:ok, File.Stat.from_record(info)}
+          ),
+        else: File.lstat(path)
+
+    match?({:ok, %File.Stat{type: :directory}}, info)
+  end
+
   def open(path, modes),
     do: if(windows?(), do: :file.open(n(path), modes), else: File.open(path, modes))
 

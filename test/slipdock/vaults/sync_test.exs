@@ -131,6 +131,39 @@ defmodule Slipdock.Vaults.SyncTest do
     end
   end
 
+  describe "listing folders" do
+    test "every folder as a directory, empty ones too, and none outside the vault",
+         %{vault: vault, user: user, kb: kb, jobs: jobs, notes: notes} do
+      {:ok, design} = Wiki.create_folder(kb, %{"name" => "Design"})
+      {:ok, _} = Wiki.create_folder(kb, %{"name" => "Old", "parent_id" => design.id})
+      {:ok, _} = Wiki.create_folder(jobs, %{"name" => "Acme", "parent_id" => notes.id})
+      # Not under the mapped folder, so in no vault path at all.
+      {:ok, _} = Wiki.create_folder(jobs, %{"name" => "Elsewhere"})
+
+      assert Sync.listing(vault, user).folders == ["Design", "Design/Old", "Jobs", "Jobs/Acme"]
+    end
+
+    test "a deleted folder leaves the listing",
+         %{vault: vault, user: user, kb: kb} do
+      {:ok, design} = Wiki.create_folder(kb, %{"name" => "Design"})
+      assert "Design" in Sync.listing(vault, user).folders
+
+      {:ok, _} = Wiki.Folders.delete(design)
+      refute "Design" in Sync.listing(vault, user).folders
+    end
+
+    test "only the folders of boards the reader may open",
+         %{vault: vault, user: user, kb: kb, jobs: jobs, notes: notes} do
+      {:ok, _} = Wiki.create_folder(kb, %{"name" => "Design"})
+      {:ok, _} = Wiki.create_folder(jobs, %{"name" => "Acme", "parent_id" => notes.id})
+
+      assert Sync.listing(vault, user_fixture("stranger@example.com")).folders == []
+
+      token = %{scope: "write", scope_boards: [jobs.id]}
+      assert Sync.listing(vault, user, token: token).folders == ["Jobs", "Jobs/Acme"]
+    end
+  end
+
   describe "writing" do
     test "a new file is a new page, its folders made, its name its title",
          %{vault: vault, user: user, jobs: jobs, notes: notes} do

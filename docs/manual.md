@@ -2706,7 +2706,10 @@ note and delete the copy; `sync status` lists the ones left.
 **Deletes.** Deleting a file archives its page (restore it from the wiki's
 archive); it is never purged. A page archived on the server is removed from
 the folder, unless you had edited it there, in which case your edit goes
-back up as a new page.
+back up as a new page. A folder made on the server is made in the folder,
+empty or not, and one deleted on the server is removed from it once nothing
+but empty folders is left inside — anything else in it (a dot file, a
+note you have just written there) keeps it.
 
 **What is left alone.** `.obsidian/`, `.trash/`, every other dot folder and
 file, and the temporary and swap files editors write while saving. Add your

@@ -1877,7 +1877,7 @@ defmodule SlipdockWeb.APIGuide do
     `/api/vaults/:id/sync`:
 
     ```sh
-    curl -s -H "$H" B/api/vaults/Notes/sync            # every file: kind, id, path, hash, cursor
+    curl -s -H "$H" B/api/vaults/Notes/sync            # every file: kind, id, path, hash; folders; cursor
     curl -s -H "$H" B/api/vaults/Notes/sync/pages/412  # one note's file: path, hash, content
     curl -s -X PUT -H "$H" -H 'content-type: application/json' \\
          B/api/vaults/Notes/sync/pages/412 -d '{"path": "Jobs/Acme.md", "content": "…", "base": "<hash>"}'
