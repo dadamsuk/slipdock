@@ -460,6 +460,74 @@ defmodule SlipdockWeb.WikiLiveTest do
     end
   end
 
+  describe "the page details under the title (#761)" do
+    test "fold away where it is filed and placed, closed, ahead of the body", %{
+      conn: conn,
+      board: board
+    } do
+      [todo | _] = board.columns
+      page = page_fixture(board, %{"title" => "The spec", "body" => "The prose itself."})
+      {:ok, _} = Wiki.place(page, todo)
+
+      {:ok, view, html} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}")
+
+      details = "details#page-details-#{page.id}"
+      assert has_element?(view, details)
+      refute has_element?(view, "#{details}[open]")
+      assert has_element?(view, "#{details} summary", "Page details")
+      assert has_element?(view, "#{details} #page-folder-picker")
+      assert has_element?(view, "#{details}", "On the board in")
+      assert has_element?(view, "#{details} button[phx-value-column='#{todo.id}']")
+      # The prose is not in the reveal, and the reveal comes before it.
+      refute has_element?(view, "#{details} #wiki-body")
+      assert has_element?(view, "#wiki-body", "The prose itself.")
+      {details_at, _} = :binary.match(html, ~s(data-role="page-details"))
+      {body_at, _} = :binary.match(html, ~s(id="wiki-body"))
+      assert details_at < body_at
+    end
+
+    test "say that a page is archived or a draft outside the reveal", %{
+      conn: conn,
+      board: board
+    } do
+      page = page_fixture(board, %{"title" => "Old notes"})
+      {:ok, _} = Wiki.archive_page(page)
+
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}")
+
+      assert render(view) =~ "This page is archived."
+      refute has_element?(view, "[data-role='page-details']", "This page is archived.")
+    end
+
+    test "are left out for a reader when the page has nothing to show", %{
+      board: board,
+      user: owner
+    } do
+      page = page_fixture(board, %{"title" => "Loose page"})
+      reader = user_fixture("details-reader@example.com")
+      {:ok, _} = Access.grant(board, reader, "read", owner)
+
+      conn = log_in_user(build_conn(), reader)
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}")
+
+      refute has_element?(view, "[data-role='page-details']")
+    end
+
+    test "are there for a reader when the page is on the board", %{board: board, user: owner} do
+      [todo | _] = board.columns
+      page = page_fixture(board, %{"title" => "Placed page"})
+      {:ok, _} = Wiki.place(page, todo)
+      reader = user_fixture("details-placed@example.com")
+      {:ok, _} = Access.grant(board, reader, "read", owner)
+
+      conn = log_in_user(build_conn(), reader)
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}")
+
+      assert has_element?(view, "[data-role='page-details']", "On the board in")
+      refute has_element?(view, "[data-role='page-details'] #page-folder-picker")
+    end
+  end
+
   test "a page can be put on the board and taken off again", %{conn: conn, board: board} do
     page = page_fixture(board, %{"title" => "The spec"})
     [todo | _] = board.columns
