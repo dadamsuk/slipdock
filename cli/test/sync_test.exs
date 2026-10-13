@@ -91,6 +91,18 @@ defmodule SlipdockCLI.SyncTest do
     refute File.exists?(Import.record_path(dir))
   end
 
+  test "init refuses a folder that is already a mirror unless --force is given", %{home: home} do
+    dir = Path.join(home, "Brain")
+    refute Sync.refuse_reinit?(dir, vault: "Brain")
+
+    State.save(dir, State.new("http://x", %{"id" => 3, "name" => "Brain"}, "host"))
+
+    # --force left out entirely is nil: this used to raise on `not nil`.
+    assert Sync.refuse_reinit?(dir, vault: "Brain")
+    assert Sync.refuse_reinit?(dir, vault: "Brain", force: false)
+    refute Sync.refuse_reinit?(dir, vault: "Brain", force: true)
+  end
+
   test "init warns when the folder was imported into another vault", %{home: home} do
     System.put_env(
       "SLIPDOCK_URL",

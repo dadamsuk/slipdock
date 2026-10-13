@@ -29,7 +29,7 @@ defmodule SlipdockCLI.Sync do
     if is_nil(o[:vault]), do: fail("say which vault: slipdock sync init #{dir} --vault V")
     root = Path.expand(dir)
 
-    if FS.exists?(State.path(root)) and not o[:force] do
+    if refuse_reinit?(root, o) do
       {:ok, state} = State.load(root)
 
       fail(
@@ -76,6 +76,11 @@ defmodule SlipdockCLI.Sync do
   end
 
   def run("sync", ["init"], _o), do: fail("usage: slipdock sync init DIR --vault V")
+
+  @doc false
+  # A folder already a mirror is bound afresh only with --force. Left out,
+  # --force is nil, not false, so this asks truthiness: `not nil` raises.
+  def refuse_reinit?(root, o), do: FS.exists?(State.path(root)) and !o[:force]
 
   def run("sync", ["service", action | rest], o) when action in ~w(install uninstall print) do
     root = root!(List.first(rest) || ".")
