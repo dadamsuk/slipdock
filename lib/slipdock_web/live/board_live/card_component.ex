@@ -86,11 +86,11 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
      )
      |> allow_upload(
        :desc_image,
-       [accept: @image_accept, max_entries: 5, max_file_size: 10_000_000] ++ opts
+       [accept: @image_accept, max_entries: 5, max_file_size: Attachment.image_max_size()] ++ opts
      )
      |> allow_upload(
        :comment_image,
-       [accept: @image_accept, max_entries: 5, max_file_size: 10_000_000] ++ opts
+       [accept: @image_accept, max_entries: 5, max_file_size: Attachment.image_max_size()] ++ opts
      )}
   end
 

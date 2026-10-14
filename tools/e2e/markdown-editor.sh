@@ -23,7 +23,7 @@ mix run -e '
   alias Slipdock.{Boards, Repo, Wiki}
   page = Repo.get!(Wiki.Page, '"$PAGE"')
   images = length(String.split(page.body, "/attachments/")) - 1
-  unless page.body =~ "# Plan **now**" and images == 2 and not (page.body =~ "Uploading"),
+  unless page.body =~ "# Plan **now**" and images == 3 and not (page.body =~ "Uploading"),
     do: raise("page not saved: #{inspect(page.body)}")
   card = Boards.get_card!('"$CARD"')
   unless card.description == "**Bold** move", do: raise("description: #{inspect(card.description)}")

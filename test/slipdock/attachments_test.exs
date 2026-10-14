@@ -80,4 +80,12 @@ defmodule Slipdock.AttachmentsTest do
     refute Attachment.image?(%Attachment{content_type: "image/svg+xml"})
     assert Attachment.kind(%Attachment{content_type: "application/pdf"}) == :pdf
   end
+
+  test "an image pasted or dropped in may be up to 50 MB; a card front shows one of 10 MB at most" do
+    assert Attachment.image_max_size() == 50_000_000
+    assert Attachment.thumbnail_max() == 10 * 1024 * 1024
+
+    Slipdock.TestConfig.put(:image_max_size, 1234)
+    assert Attachment.image_max_size() == 1234
+  end
 end

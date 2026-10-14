@@ -20,8 +20,8 @@ way in: what it is, the pictures, and how to get it running.
 - Time tracking: a start/stop timer on each card, time spent and an estimate
   shown in a unit of its own, and a colour-coded bar between them — see
   [Time tracking](#time-tracking)
-- Attachments: files up to 250 MB on any card, and images pasted or dropped into
-  the description or a comment are uploaded and shown inline (stored under
+- Attachments: files up to 250 MB on any card, and images (up to 50 MB) pasted
+  or dropped into the description or a comment are uploaded and shown inline (stored under
   `priv/uploads/`, `SLIPDOCK_UPLOADS_DIR` to move it; served with access checks).
   The API and CLI upload them too — see [Attachments over the API](#attachments-over-the-api).
   A card's first image is a thumbnail on its front — see [Images on the card front](#images-on-the-card-front).
@@ -2135,7 +2135,7 @@ images — until the cursor is on it, and then shows its Markdown to edit.
 Enter carries a list or a quote on to the next line, Tab indents a list item
 (Escape, then Tab, leaves the editor), Ctrl-F finds in the text, and pasting
 or dropping an image attaches it as before (one that can't be taken — over
-10 MB, or not a PNG, JPEG, GIF or WebP — is refused with the reason, and the
+50 MB, or not a PNG, JPEG, GIF or WebP — is refused with the reason, and the
 rest of the text saves as usual). In a card's description, Escape
 finishes editing. What is saved is the Markdown, exactly as typed.
 
