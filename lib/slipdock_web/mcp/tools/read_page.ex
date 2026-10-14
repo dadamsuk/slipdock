@@ -75,6 +75,7 @@ defmodule SlipdockWeb.MCP.Tools.ReadPage do
          :front_matter,
          :note_tags,
          :aliases,
+         :inserted_at,
          :updated_at,
          :comments,
          :checklist

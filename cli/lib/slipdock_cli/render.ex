@@ -913,13 +913,21 @@ defmodule SlipdockCLI.Render do
 
     IO.puts(
       dim(
-        "board #{p["board_id"]} · #{p["status"]}#{if p["archived_at"], do: " · archived"} · updated #{stamp(p["updated_at"])} · hash #{short_hash(p["content_hash"])}"
+        "board #{p["board_id"]} · #{p["status"]}#{if p["archived_at"], do: " · archived"}#{page_stamps(p)} · hash #{short_hash(p["content_hash"])}"
       )
     )
 
     if p["summary"], do: IO.puts(dim(p["summary"]))
     IO.puts("")
     IO.puts(p["body"] || "")
+  end
+
+  # When it was created and last updated (#790), each left out when the
+  # server did not say (an older one sends no created stamp).
+  defp page_stamps(p) do
+    [{"created", p["inserted_at"]}, {"updated", p["updated_at"]}]
+    |> Enum.reject(fn {_label, at} -> is_nil(at) end)
+    |> Enum.map_join(fn {label, at} -> " · #{label} #{stamp(at)}" end)
   end
 
   def revisions([]), do: IO.puts(dim("no history"))

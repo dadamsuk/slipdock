@@ -3,6 +3,7 @@ defmodule SlipdockWeb.WikiLiveTest do
   use SlipdockWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import Ecto.Query
   import SlipdockWeb.WikiTreeHelpers
   import Slipdock.Fixtures
 
@@ -499,10 +500,8 @@ defmodule SlipdockWeb.WikiLiveTest do
       refute has_element?(view, "[data-role='page-details']", "This page is archived.")
     end
 
-    test "are left out for a reader when the page has nothing to show", %{
-      board: board,
-      user: owner
-    } do
+    test "are there for a reader even on a loose page: it was still created and updated (#790)",
+         %{board: board, user: owner} do
       page = page_fixture(board, %{"title" => "Loose page"})
       reader = user_fixture("details-reader@example.com")
       {:ok, _} = Access.grant(board, reader, "read", owner)
@@ -510,7 +509,45 @@ defmodule SlipdockWeb.WikiLiveTest do
       conn = log_in_user(build_conn(), reader)
       {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}")
 
-      refute has_element?(view, "[data-role='page-details']")
+      assert has_element?(view, "[data-role='page-details'] #page-stamps", "Created")
+      refute has_element?(view, "[data-role='page-details'] #page-folder-picker")
+      refute has_element?(view, "[data-role='page-details']", "On the board in")
+    end
+
+    test "show when the page was created and last updated, not in its front matter (#790)", %{
+      conn: conn,
+      board: board,
+      user: user
+    } do
+      page = page_fixture(board, %{"title" => "Dated", "body" => "x"})
+
+      Slipdock.Repo.update_all(
+        from(p in Slipdock.Wiki.Page, where: p.id == ^page.id),
+        set: [inserted_at: ~U[2026-01-02 03:04:05Z], updated_at: ~U[2026-01-02 03:04:05Z]]
+      )
+
+      {:ok, _} =
+        Wiki.update_page(Wiki.get_page!(page.id), %{"body" => "edited"}, user: user)
+
+      updated = Wiki.get_page!(page.id).updated_at
+      assert DateTime.compare(updated, ~U[2026-01-02 03:04:05Z]) == :gt
+
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}")
+
+      stamps = "details#page-details-#{page.id} #page-stamps"
+      assert has_element?(view, stamps, "Created 02 Jan 2026, 03:04")
+      assert has_element?(view, "#{stamps} time[datetime='2026-01-02T03:04:05Z']")
+
+      assert has_element?(
+               view,
+               stamps,
+               "Updated " <> Calendar.strftime(updated, "%d %b %Y, %H:%M")
+             )
+
+      assert has_element?(view, "#{stamps} time[datetime='#{DateTime.to_iso8601(updated)}']")
+      # Neither stamp is a property of the page: it has no front matter at all.
+      refute has_element?(view, "#page-properties")
+      assert Wiki.get_page!(page.id).front_matter == nil
     end
 
     test "are there for a reader when the page is on the board", %{board: board, user: owner} do
