@@ -2292,7 +2292,39 @@ can also:
 - tag a page, archive a page, or delete a folder;
 - sort a folder: as arranged, by name, last changed first, or newest first,
   with its folders always before its pages, or **Same as the top** to have
-  it follow the top's order (a folder does until it is given one of its own).
+  it follow the top's order (a folder does until it is given one of its own);
+- **Organise…** a folder (see below).
+
+**Organising a folder.** A folder's **Organise…** sorts what is filed in it —
+its pages (with any pages under them) and its files — in one of four ways,
+shows where each item would go with a tick box beside it, and files the
+ticked ones when you press **Organise**. Folders that aren't there yet are
+made on the way.
+
+- **By date** puts each item in a dated folder under a parent you choose
+  (the folder itself unless you pick another; empty for the top of the
+  wiki): a note written on 12 October 2026, organised into *Meetings*, goes
+  to *Meetings/2026-10* under the same name. One folder per month, year,
+  year then month (*2026/10*) or day. A note's own `created:` or `date:`
+  front matter is its date when it has one, since a note brought in from a
+  vault was only *added* the day it was imported; choose **When it was
+  added here** to ignore it.
+- **AI suggestions** asks a cheap model (Claude Haiku by default, or the
+  model you picked under Account → AI model) to read the board's folders,
+  with a few example titles from each, and the titles in this folder, and
+  suggest a home for each. It may suggest a new folder inside an existing
+  one, never a new top-level folder; anything else is dropped. Nothing is
+  sent until you press **Suggest destinations**.
+- **By tag** puts a note in a subfolder named after its first tag
+  (`#project/acme` makes *project/acme*); untagged notes stay.
+- **Flatten** brings everything filed in the folder's subfolders, however
+  deep, back up into it. The emptied subfolders stay.
+
+Only the folder's own board is organised; to move things to another board of
+a vault, use **Move…**. A file whose name is already taken where it would go
+is left where it is, and the message says so. From the command line:
+`slipdock folder organise <board> <folder> --by date --parent Meetings
+--dry-run`.
 
 Right-click the tree's background for the same things at the top of the
 wiki, including how the top is sorted. The top is sorted by name until
@@ -3727,7 +3759,10 @@ an instance becomes local-first). `SLIPDOCK_AI_MODEL` picks another model
 (default `google/gemini-2.5-flash-lite`, chosen for price — change it with the
 endpoint, since the ids do not carry over) and `SLIPDOCK_AI_QUICK_MODEL`
 one for the header's quick add alone, where latency matters more than depth
-(it falls back to `SLIPDOCK_AI_MODEL`). `SLIPDOCK_AI_EMBED_MODEL` and
+(it falls back to `SLIPDOCK_AI_MODEL`). `SLIPDOCK_AI_ORGANISE_MODEL` is the
+one a folder's **Organise… → AI suggestions** asks (default
+`anthropic/claude-haiku-5.5`; with `SLIPDOCK_AI_BASE_URL` set and this unset,
+it falls back to the quick model). `SLIPDOCK_AI_EMBED_MODEL` and
 `SLIPDOCK_AI_EMBED_DIMENSIONS` pick the embedding model behind deep search;
 reindex after changing either (`docker compose run --rm slipdock reindex` on a
 release, `mix slipdock.reindex` from a checkout). Restart the server after
@@ -4097,6 +4132,7 @@ slipdock folder ls qvm-v1-rem                  # one board's filing: folders, th
 slipdock folder new qvm-v1-rem "Design/Decisions"   # a path makes every level
 slipdock folder mv qvm-v1-rem Decisions --name Choices --parent Design   # or --root
 slipdock folder rm qvm-v1-rem Choices          # the folder only; nothing filed in it is deleted
+slipdock folder organise qvm-v1-rem Inbox --by date --parent Meetings --dry-run   # or --by ai|tag|flatten; --per year; --root
 slipdock folder rm qvm-v1-rem Choices --purge  # and the pages in it, history and all (owner only)
 slipdock page file W-31 --folder "Design/Decisions"   # where it is kept; --no-folder takes it out
 slipdock page ls qvm-v1-rem --folder decisions       # or --no-folder for the unfiled

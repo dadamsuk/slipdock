@@ -1789,6 +1789,15 @@ defmodule SlipdockWeb.APIGuide do
     curl -s -X DELETE -H "$H" "B/api/boards/1/folders/Choices"   # the folder only
     curl -s -X DELETE -H "$H" "B/api/boards/1/folders/Choices?purge=true"
     # → {"deleted": {...}, "purged": {"pages": 4, "folders": 1}}
+    # Organise what is filed in a folder: mode date|ai|tag|flatten. date takes
+    # parent (a path; the folder itself when absent, "" for the top), granularity
+    # (month, year, year_month, day) and source (auto: created:/date: front matter
+    # first; added). ai: a cheap model suggests homes under existing top-level
+    # folders. dry_run returns the plan; "only": ["page:12"] files just those keys.
+    curl -s -X POST -H "$H" -H 'content-type: application/json' \\
+         B/api/boards/1/organise -d '{"folder": "Inbox", "mode": "date", "parent": "Meetings", "dry_run": true}'
+    # → {"dry_run": true, "plan": [{"key": "page:12", "title": "Standup", "from": "Inbox", "to": "Meetings/2026-10"}]}
+    # without dry_run → {"plan": [...], "moved": 1, "folders_made": 1, "skipped": []}
     ```
 
     **One page, several folders.** `folder_id` is a page's **home**; it can be

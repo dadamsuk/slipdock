@@ -336,6 +336,19 @@ if model = System.get_env("SLIPDOCK_AI_QUICK_MODEL") do
   config :slipdock, :ai, quick_model: model
 end
 
+# The default organise model is an OpenRouter id: an instance pointed at
+# another endpoint falls back to its quick or ordinary model instead.
+cond do
+  model = System.get_env("SLIPDOCK_AI_ORGANISE_MODEL") ->
+    config :slipdock, :ai, organise_model: model
+
+  System.get_env("SLIPDOCK_AI_BASE_URL") ->
+    config :slipdock, :ai, organise_model: nil
+
+  true ->
+    :ok
+end
+
 if model = System.get_env("SLIPDOCK_AI_EMBED_MODEL") do
   config :slipdock, :ai, embed_model: model
 end

@@ -302,6 +302,16 @@ defmodule SlipdockCLI do
                                         delete the folder only: its subfolders move up and
                                         its pages go back to the root. --purge deletes the
                                         pages in it as well, history and all (owner only)
+    folder organise <board> <folder> --by date|ai|tag|flatten [--dry-run]
+                                        sort what is filed in the folder. date: into
+                                        <parent>/2026-10 (--parent F, default the folder;
+                                        --root for the top; --per month|year|year_month|day;
+                                        dated by created:/date: front matter, else when
+                                        added — --added for always when added). ai: a cheap
+                                        model suggests homes under existing top-level
+                                        folders. tag: a subfolder per first tag. flatten:
+                                        everything in its subfolders back up into it.
+                                        Missing folders are made. --dry-run: the plan only
 
   VAULTS  (board wikis laid out as one Obsidian-style vault: each mapping puts a
            vault path onto a board's wiki or one folder of it, the longest prefix
@@ -743,6 +753,9 @@ defmodule SlipdockCLI do
     purge: :boolean,
     force: :boolean,
     dry_run: :boolean,
+    by: :string,
+    per: :string,
+    added: :boolean,
     contents: :boolean,
     new_board: :string,
     inside: :boolean,

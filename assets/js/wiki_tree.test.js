@@ -954,3 +954,16 @@ test("a page row has no browser tooltip; a folder row keeps one", () => {
   assert.doesNotMatch(link("page:7"), /title=/)
   assert.match(link("folder:1"), /title="F1"/)
 })
+
+test("a writer's folder offers Organise…; a page, a selection and a reader don't (#791)", () => {
+  const row = folder(4, {href: "/boards/1/wiki?folder=4"})
+  const item = menuItems(row, {board: 1, canWrite: true, selected: new Set()}).find(i => i.label === "Organise…")
+  assert.equal(item && item.event, "organise_folder")
+  assert.deepEqual(item.payload, {id: "4"})
+
+  const several = menuItems(row, {board: 1, canWrite: true, selected: new Set(["folder:4", "folder:5"])})
+  assert.ok(!labels(several).includes("Organise…"))
+  const reader = menuItems(folder(4, {writable: false, href: "/x"}), {board: 1, canWrite: false, selected: new Set()})
+  assert.ok(!labels(reader).includes("Organise…"))
+  assert.ok(!labels(menuItems(page(7, {href: "/x"}), {board: 1, canWrite: true, selected: new Set()})).includes("Organise…"))
+})

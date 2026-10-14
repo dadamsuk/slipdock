@@ -885,6 +885,28 @@ defmodule SlipdockCLI.Render do
     end)
   end
 
+  @doc "A folder's organise (#791): where each item goes, then what happened."
+  def organise(%{"plan" => plan} = r) do
+    Enum.each(plan, fn e ->
+      IO.puts("#{e["key"]}  #{e["title"]}  /#{e["from"]} → /#{e["to"]}")
+    end)
+
+    cond do
+      r["dry_run"] && plan == [] ->
+        IO.puts("nothing here would move")
+
+      r["dry_run"] ->
+        IO.puts("dry run: #{length(plan)} item(s) would move — nothing was changed")
+
+      true ->
+        IO.puts("moved #{r["moved"]} item(s), made #{r["folders_made"]} folder(s)")
+
+        Enum.each(r["skipped"] || [], fn s ->
+          IO.puts("left where it was: #{s["title"]} (#{s["reason"]})")
+        end)
+    end
+  end
+
   @doc "One folder, after it has been made, renamed or moved."
   def folder(f) do
     IO.puts(bold(f["path"]) <> "  " <> dim("#{f["slug"]} · id #{f["id"]}"))
