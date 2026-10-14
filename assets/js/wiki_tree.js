@@ -633,9 +633,13 @@ export const WikiTree = {
         if (first && kept === null && reply.small) return this.load({all: true})
         if (all) this.save()
       }
+      // Scrolled to the page being read when it is new to the tree; a
+      // reload after something moved leaves the tree where the reader had
+      // it, rather than jumping back to that page.
+      const arrived = this.revealed !== this.el.dataset.current
       this.revealed = this.el.dataset.current
       this.render()
-      this.scrollToCurrent()
+      if (arrived) this.scrollToCurrent()
     })
   },
 
