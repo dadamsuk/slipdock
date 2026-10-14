@@ -37,7 +37,11 @@ defmodule SlipdockWeb.ConfigTranscriptionTest do
     html = render(view)
     refute html =~ "s3cret-token"
     assert has_element?(view, "#transcription-form input[type=password][placeholder=unchanged]")
-    assert has_element?(view, "#transcription-form input[value='https://transcribe.example:8765']")
+
+    assert has_element?(
+             view,
+             "#transcription-form input[value='https://transcribe.example:8765']"
+           )
   end
 
   test "an empty token box keeps the token; Forget clears it", %{conn: conn} do
