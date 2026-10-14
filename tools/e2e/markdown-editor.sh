@@ -22,7 +22,8 @@ node tools/e2e/markdown-editor.mjs "$LINK" "$BASE" "$KB" "$CARD"
 mix run -e '
   alias Slipdock.{Boards, Repo, Wiki}
   page = Repo.get!(Wiki.Page, '"$PAGE"')
-  unless page.body =~ "# Plan **now**" and page.body =~ "/attachments/" and not (page.body =~ "Uploading"),
+  images = length(String.split(page.body, "/attachments/")) - 1
+  unless page.body =~ "# Plan **now**" and images == 2 and not (page.body =~ "Uploading"),
     do: raise("page not saved: #{inspect(page.body)}")
   card = Boards.get_card!('"$CARD"')
   unless card.description == "**Bold** move", do: raise("description: #{inspect(card.description)}")

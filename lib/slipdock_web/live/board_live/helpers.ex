@@ -9,9 +9,10 @@ defmodule SlipdockWeb.BoardLive.Helpers do
 
   alias Slipdock.Boards.Attachment
 
-  # Images pasted into a card's description or a comment: the PasteImage hook
-  # is told when one fails, so it can take its placeholder out again.
-  @image_uploads [:desc_image, :comment_image]
+  # Images pasted or dropped into a card's description, a comment or a wiki
+  # page: the PasteImage hook is told when one fails, so it can take its
+  # placeholder out again.
+  @image_uploads [:desc_image, :comment_image, :page_image]
 
   @doc """
   A flash from one of the board's LiveComponents. A component's own

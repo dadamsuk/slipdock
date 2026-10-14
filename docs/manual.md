@@ -2134,7 +2134,9 @@ line shows formatted — headings, **bold**, links, lists, task boxes, tables,
 images — until the cursor is on it, and then shows its Markdown to edit.
 Enter carries a list or a quote on to the next line, Tab indents a list item
 (Escape, then Tab, leaves the editor), Ctrl-F finds in the text, and pasting
-or dropping an image attaches it as before. In a card's description, Escape
+or dropping an image attaches it as before (one that can't be taken — over
+10 MB, or not a PNG, JPEG, GIF or WebP — is refused with the reason, and the
+rest of the text saves as usual). In a card's description, Escape
 finishes editing. What is saved is the Markdown, exactly as typed.
 
 A page has three names, and they do different jobs. Its **code** — `W-31` —

@@ -23,6 +23,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   alias Slipdock.Boards.Attachment
   alias Slipdock.Palette
   alias Slipdock.Wiki.{AutoOrganise, Folder, Icons, Page, Tree, TreeStates, WikiFile}
+  alias SlipdockWeb.BoardLive.Helpers
   alias SlipdockWeb.Params
   alias SlipdockWeb.Wiki.Renderer
 
@@ -965,6 +966,10 @@ defmodule SlipdockWeb.WikiLive.Index do
 
   @impl true
   def handle_event("validate", %{"page" => params}, socket) do
+    # An image the upload refuses (too big, not an image) would otherwise sit
+    # in the form with its error, and LiveView refuses to submit a form with
+    # an upload error in it: the page could not be saved at all.
+    socket = Helpers.drop_invalid_uploads(socket, :page_image)
     params = Map.update(params, "body", nil, &strip_placeholder/1)
     changeset = Wiki.change_page(socket.assigns.editing, params)
 
@@ -3402,6 +3407,11 @@ defmodule SlipdockWeb.WikiLive.Index do
          socket
      end}
   end
+
+  # From Helpers.drop_invalid_uploads/2, which is shared with the board's
+  # components and so says its flash by message.
+  def handle_info({:put_flash, kind, message}, socket),
+    do: {:noreply, put_flash(socket, kind, message)}
 
   def handle_info(_message, socket), do: {:noreply, socket}
 

@@ -12,7 +12,7 @@ defmodule SlipdockWeb.MarkdownEditorLiveTest do
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
 
-  alias Slipdock.{Access, Boards, Wiki}
+  alias Slipdock.{Access, Boards, Repo, Wiki}
 
   defp card_panel(view), do: with_target(view, "#board-card")
 
@@ -145,6 +145,48 @@ defmodule SlipdockWeb.MarkdownEditorLiveTest do
       |> render_submit()
 
       assert {:ok, %{body: "**Friday** _never_"}} = Wiki.find_page(board, "deploys")
+    end
+
+    # LiveView won't submit a form whose upload holds an error, so an image
+    # left there refused made the page impossible to save.
+    for {kind, file, said} <- [
+          {:too_large, %{name: "holiday photo.png", size: 10_000_001, type: "image/png"},
+           "holiday photo.png is too large"},
+          {:not_accepted, %{name: "notes.txt", size: 2, type: "text/plain"},
+           "notes.txt isn&#39;t an image"}
+        ] do
+      test "an image dropped in and refused (#{kind}) is taken out, and the page still saves",
+           %{conn: conn, board: board, user: user} do
+        Slipdock.TestConfig.own_uploads_dir()
+        page = page_fixture(board, %{"title" => "Notes", "body" => "plain"}, user: user)
+        {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}/edit")
+        file = unquote(Macro.escape(file))
+
+        input =
+          file_input(view, "#page-form", :page_image, [
+            %{name: file.name, content: :binary.copy("x", file.size), type: file.type}
+          ])
+
+        assert {:error, [[_, unquote(kind)]]} = render_upload(input, file.name)
+
+        # In the browser the file input's change event follows straight away.
+        view
+        |> form("#page-form")
+        |> render_change(page: %{title: "Notes", body: "plain ![Uploading image…]()"})
+
+        # The flash comes by message, after the event: render again for it.
+        assert render(view) =~ unquote(said)
+        assert_push_event(view, "image_failed", %{upload: "page_image"})
+        # Nothing is left in the upload for LiveView to hold the form back on.
+        assert has_element?(view, "#page-form input[type=file][data-phx-active-refs='']")
+
+        view
+        |> form("#page-form", page: %{title: "Notes", body: "plain, and more"})
+        |> render_submit()
+
+        assert {:ok, %{body: "plain, and more"}} = Wiki.find_page(board, page.slug)
+        assert Repo.all(Slipdock.Boards.Attachment) == []
+      end
     end
 
     test "editing another page starts another editor", %{conn: conn, board: board} do
