@@ -126,10 +126,11 @@ defmodule Slipdock.Wiki.ViewerTest do
                %{
                  speaker: "Priya Shah",
                  start_ms: 1_000,
+                 end_ms: 6_000,
                  lines: ["Morning, all.", "Shall we start?"]
                },
-               %{speaker: "Tom", start_ms: 6_000, lines: ["Yes & quickly."]},
-               %{speaker: "Priya Shah", start_ms: 63_000, lines: ["Good."]}
+               %{speaker: "Tom", start_ms: 6_000, end_ms: 62_250, lines: ["Yes & quickly."]},
+               %{speaker: "Priya Shah", start_ms: 63_000, end_ms: 3_600_000, lines: ["Good."]}
              ]
 
       assert speakers == ["Priya Shah", "Tom"]

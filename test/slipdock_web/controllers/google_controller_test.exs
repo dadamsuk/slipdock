@@ -45,8 +45,11 @@ defmodule SlipdockWeb.GoogleControllerTest do
     test "a good code connects the account", %{conn: conn, user: user} do
       stub(fn conn ->
         case conn.request_path do
-          "/token" -> Req.Test.json(conn, %{"access_token" => "a", "refresh_token" => "r"})
-          "/drive/v3/about" -> Req.Test.json(conn, %{"user" => %{"emailAddress" => "me@example.com"}})
+          "/token" ->
+            Req.Test.json(conn, %{"access_token" => "a", "refresh_token" => "r"})
+
+          "/drive/v3/about" ->
+            Req.Test.json(conn, %{"user" => %{"emailAddress" => "me@example.com"}})
         end
       end)
 

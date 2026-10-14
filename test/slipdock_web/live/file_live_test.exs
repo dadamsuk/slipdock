@@ -151,6 +151,9 @@ defmodule SlipdockWeb.FileLiveTest do
     assert priya =~ "Morning."
     assert priya =~ "Shall we start?"
     assert priya =~ "border-sky-500"
+    assert priya =~ ~s(data-start-ms="1000")
+    assert priya =~ ~s(data-end-ms="5000")
+    assert has_element?(view, "#file-transcript[data-transcript]")
     tom = view |> element(~s(#file-transcript li[data-speaker="Tom"])) |> render()
     assert tom =~ "1:05"
     assert tom =~ "Yes please."
