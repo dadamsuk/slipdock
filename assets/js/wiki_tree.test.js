@@ -378,6 +378,24 @@ test("organising puts a handle on this board's pages and folders only", () => {
   assert.deepEqual(handles, [true, true, false, false])
 })
 
+test("a row wears the icon and colour the server sends, and the plain one of its kind without (#792)", () => {
+  const {hook, rowsEl} = mountHook({replies: [root([
+    folder(1, {icon: "hero-light-bulb", tint: "text-amber-500 dark:text-amber-300"}),
+    page(2, {icon: "hero-fire"}),
+    page(3, {tint: "text-rose-500"}),
+    folder(4),
+    page(5, {icon: '"><script>'}),
+  ])]})
+  hook.mounted()
+  const rowOf = key => rowsEl.innerHTML.split("data-key=").find(r => r.startsWith(`"${key}"`))
+  assert.match(rowOf("folder:1"), /class="hero-light-bulb size-3\.5 shrink-0 text-amber-500 dark:text-amber-300"/)
+  assert.doesNotMatch(rowOf("folder:1"), /hero-folder /)
+  assert.match(rowOf("page:2"), /class="hero-fire size-3\.5 shrink-0 text-base-content\/50"/)
+  assert.match(rowOf("page:3"), /class="hero-document-text size-3\.5 shrink-0 text-rose-500"/)
+  assert.match(rowOf("folder:4"), /class="hero-folder size-3\.5 shrink-0 text-base-content\/50"/)
+  assert.doesNotMatch(rowOf("page:5"), /<script>/)
+})
+
 test("rows from another board open that board's wiki, files open in place in their viewer", () => {
   const file = {kind: "file", id: 5, key: "file:5", title: "a.png", count: 0, board_id: 1, href: "/files/5"}
   const {hook, rowsEl} = mountHook({replies: [root([page(3, {board_id: 2, nav: "redirect"}), file])]})

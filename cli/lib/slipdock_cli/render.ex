@@ -909,7 +909,9 @@ defmodule SlipdockCLI.Render do
 
   @doc "One folder, after it has been made, renamed or moved."
   def folder(f) do
-    IO.puts(bold(f["path"]) <> "  " <> dim("#{f["slug"]} · id #{f["id"]}"))
+    dress = Enum.reject([f["icon"], f["color"]], &(&1 in [nil, ""]))
+    dress = if dress == [], do: "", else: " · " <> Enum.join(dress, " ")
+    IO.puts(bold(f["path"]) <> "  " <> dim("#{f["slug"]} · id #{f["id"]}#{dress}"))
   end
 
   @doc "Every board's wiki at once: boards as the top level, folders inside."

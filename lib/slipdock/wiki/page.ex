@@ -79,6 +79,9 @@ defmodule Slipdock.Wiki.Page do
     field :completed, :boolean, default: false
     field :percent_complete, :integer
     field :color, :string
+    # The icon it wears in the wiki (#792), one of `Slipdock.Wiki.Icons`;
+    # `color` tints it.
+    field :icon, :string
     field :public_token, :string
     # The answers this page's live queries gave when it was published. An
     # anonymous reader gets those rather than fresh ones (see
@@ -290,6 +293,7 @@ defmodule Slipdock.Wiki.Page do
       :completed,
       :percent_complete,
       :color,
+      :icon,
       :assignee_id,
       :front_matter
     ])
@@ -344,6 +348,7 @@ defmodule Slipdock.Wiki.Page do
       c -> c
     end)
     |> validate_inclusion(:color, [nil | Slipdock.Palette.names()])
+    |> Slipdock.Wiki.Icons.validate()
     |> validate_number(:percent_complete,
       greater_than_or_equal_to: 0,
       less_than_or_equal_to: 100

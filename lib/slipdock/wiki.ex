@@ -310,6 +310,21 @@ defmodule Slipdock.Wiki do
     do: {:error, :unprocessable_entity, "that folder is not on this board"}
 
   @doc """
+  Whether the wiki's tree shows folders' and pages' icons and colours (#792).
+  The board's choice, for everyone reading it; the main page shows them
+  either way.
+  """
+  def set_tree_icons(%Board{} = board, on) when is_boolean(on) do
+    Repo.update_all(from(b in Board, where: b.id == ^board.id), set: [wiki_tree_icons: on])
+    broadcast(board.id)
+    {:ok, %{board | wiki_tree_icons: on}}
+  end
+
+  @doc "Whether a board's tree shows icons and colours as it stands now; nil for no board."
+  def tree_icons?(board_id),
+    do: Repo.one(from(b in Board, where: b.id == ^board_id, select: b.wiki_tree_icons))
+
+  @doc """
   How the tree orders the pages in `folder` (or the top of the board, with
   nil) as it stands: the folder's own sort, or the board's when it has none.
   """

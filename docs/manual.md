@@ -2154,6 +2154,18 @@ and most pages are in no folder at all, which is the root rather than a limbo.
 to a folder — write a page here, make one inside, rename or move it, delete it
 — gathered in one place rather than only on a hover menu.
 
+**Icons and colours.** A folder or a page can wear an icon and a colour, so
+the things you reach for most stand out. A folder's **Edit folder…** (on its
+own page or its tree menu) and a page's editor both offer the icon set and the
+palette, each with a *None*. They show on the wiki's main page — the folder
+cards, a folder's listing, Recently changed and a page's heading — and in the
+tree too, unless a writer turns **Icons and colours** off under the tree's
+*Show in the tree* menu; that choice is the board's, for everyone reading it.
+A page's colour is the same colour it carries on the board. From the command
+line: `slipdock folder new <board> <name> --icon star --color amber`,
+`slipdock folder mv <board> <folder> --icon book-open` (or `--no-icon`,
+`--no-color`) and `slipdock page edit <page> --icon flag --color rose`.
+
 **Opening and shutting the tree.** A folder's chevron opens or shuts it, and
 so does a page's when it has pages under it. The double chevron at the top of
 the sidebar shuts every folder at once, and opens them all again once they
@@ -4131,6 +4143,7 @@ slipdock wiki                                  # every board's wiki at once, fol
 slipdock folder ls qvm-v1-rem                  # one board's filing: folders, then pages
 slipdock folder new qvm-v1-rem "Design/Decisions"   # a path makes every level
 slipdock folder mv qvm-v1-rem Decisions --name Choices --parent Design   # or --root
+slipdock folder mv qvm-v1-rem Choices --icon light-bulb --color amber   # what it wears; --no-icon, --no-color
 slipdock folder rm qvm-v1-rem Choices          # the folder only; nothing filed in it is deleted
 slipdock folder organise qvm-v1-rem Inbox --by date --parent Meetings --dry-run   # or --by ai|tag|flatten; --per year; --root
 slipdock folder rm qvm-v1-rem Choices --purge  # and the pages in it, history and all (owner only)

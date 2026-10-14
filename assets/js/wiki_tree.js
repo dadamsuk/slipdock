@@ -313,7 +313,9 @@ function rowHtml(item, index, ctx) {
   return `<div id="wt-row-${index}" class="${classes}" style="top:${top}px;height:${ctx.rowH}px;padding-left:${pad}rem" role="treeitem" ${active ? `aria-selected="true"` : ""} aria-level="${depth + 1}" ${ctx.model.openable(row) ? `aria-expanded="${open}"` : ""} ${current ? `aria-current="page"` : ""} data-key="${key}" data-index="${index}" ${row.href ? "" : "data-dir"} ${movable ? "data-movable" : ""}>` +
     handle + chevron +
     `<a href="${escapeHtml(row.href || "#")}" ${nav} ${movable ? `draggable="false"` : ""} class="flex min-w-0 flex-1 items-center gap-1.5 py-1.5" ${row.kind === "page" ? "" : `title="${escapeHtml(row.title)}"`}>` +
-    `<span class="${ICONS[row.kind] || ICONS.page} size-3.5 shrink-0 text-base-content/50"></span>` +
+    // A folder's or page's own icon and colour (#792), when the board shows
+    // them in the tree; the server sends both as classes from a fixed set.
+    `<span class="${escapeHtml(row.icon || ICONS[row.kind] || ICONS.page)} size-3.5 shrink-0 ${escapeHtml(row.tint || "text-base-content/50")}"></span>` +
     `<span class="min-w-0 flex-1 truncate ${row.kind === "folder" || row.kind === "dir" ? "font-medium" : ""}">${title}</span>` +
     badges + `</a>` + menu + `</div>`
 }
@@ -404,7 +406,7 @@ export function menuItems(row, ctx) {
     add(writable && !many, {label: "New note here", icon: "hero-document-plus", href: `${base}/new?folder=${id}`, nav, group: "new"})
     add(writable && !many && row.board_id === ctx.board, {label: "New folder inside", icon: "hero-folder-plus", event: "new_folder", payload: {parent: id}, group: "new"})
     add(writable && !many, {label: "New drawing here", icon: "hero-paint-brush", event: "new_drawing", payload: {key: row.key}, group: "new"})
-    add(writable && !many, {label: "Rename…", icon: "hero-pencil", event: "rename_folder", payload: {id}, group: "edit"})
+    add(writable && !many, {label: "Edit folder…", icon: "hero-pencil", event: "rename_folder", payload: {id}, group: "edit"})
     // Sort what is filed in it by date, tag or the AI's suggestions (#791).
     add(writable && !many, {label: "Organise…", icon: "hero-sparkles", event: "organise_folder", payload: {id}, group: "edit"})
     // Its contents to a board of their own, mapped at its vault path (#747):

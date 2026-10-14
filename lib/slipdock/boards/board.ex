@@ -42,6 +42,9 @@ defmodule Slipdock.Boards.Board do
     # `sort` does for the folder (see `Slipdock.Wiki.Folder.sorts/0`). By
     # name unless someone chose otherwise (#789).
     field :wiki_sort, :string, default: "name"
+    # Whether the wiki's tree shows folders' and pages' icons and colours
+    # (#792); the main page always does.
+    field :wiki_tree_icons, :boolean, default: true
 
     # A simple board is a plain to-do list: the project-tracking details
     # (see `technical_facets/0`) are hidden on its cards and its tiles, and

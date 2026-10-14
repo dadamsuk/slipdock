@@ -7,6 +7,7 @@
 @source "../js";
 @source "../../lib/slipdock_web";
 @source "../../lib/slipdock/palette.ex";
+@source "../../lib/slipdock/wiki/icons.ex";
 /* Required for Tailwind to automatically pick up changes in colocated CSS files in dev */
 @source "../../_build/dev/phoenix-colocated/slipdock/*/";
 

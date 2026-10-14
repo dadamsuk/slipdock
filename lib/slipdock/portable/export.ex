@@ -307,7 +307,9 @@ defmodule Slipdock.Portable.Export do
       name: folder.name,
       slug: folder.slug,
       position: folder.position,
-      parent: folder.parent_id && refs.folders[folder.parent_id]
+      parent: folder.parent_id && refs.folders[folder.parent_id],
+      icon: folder.icon,
+      color: folder.color
     }
   end
 
@@ -374,6 +376,7 @@ defmodule Slipdock.Portable.Export do
       completed: page.completed,
       percent_complete: page.percent_complete,
       color: page.color,
+      icon: page.icon,
       archived: page.archived_at != nil,
       created_at: page.inserted_at,
       assignee: Refs.email_of(page.assignee_id, refs),

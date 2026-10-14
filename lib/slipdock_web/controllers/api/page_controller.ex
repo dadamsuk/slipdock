@@ -30,7 +30,7 @@ defmodule SlipdockWeb.API.PageController do
   # `Slipdock.Wiki.Page`), so one PATCH sets either.
   @page_fields ~w(title body summary slug status template parent_id folder_id
                   priority flags start_date due_date date_precision completed
-                  percent_complete color)
+                  percent_complete color icon)
 
   ## Listing and creating -----------------------------------------------------
 
@@ -1198,7 +1198,8 @@ defmodule SlipdockWeb.API.PageController do
 
   defp folder_attrs(board, params) do
     # `sort` is how the tree orders the folder's pages (W-103 R11.9).
-    attrs = Map.take(params, ~w(name slug position sort))
+    # `icon` and `color` are what it wears on the main page and in the tree (#792).
+    attrs = Map.take(params, ~w(name slug position sort icon color))
 
     case params["parent"] do
       nil ->

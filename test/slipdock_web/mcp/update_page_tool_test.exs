@@ -70,6 +70,23 @@ defmodule SlipdockWeb.MCP.UpdatePageToolTest do
     assert tool["inputSchema"]["required"] == ["page"]
   end
 
+  describe "icon and colour (#792)" do
+    test "sets them, says so, and \"\" takes them off", ctx do
+      out = ctx.conn |> call(%{page: ctx.runbook.code, icon: "fire", color: "rose"}) |> ok!()
+
+      assert {out["icon"], out["color"]} == {"fire", "rose"}
+      assert %{icon: "fire", color: "rose", title: "Runbook"} = Wiki.get_page!(ctx.runbook.id)
+
+      ctx.conn |> call(%{page: ctx.runbook.code, icon: ""}) |> ok!()
+      assert %{icon: nil, color: "rose"} = Wiki.get_page!(ctx.runbook.id)
+    end
+
+    test "an icon outside the set is refused and nothing changes", ctx do
+      ctx.conn |> call(%{page: ctx.runbook.code, icon: "dragon"}) |> error!()
+      assert Wiki.get_page!(ctx.runbook.id).icon == nil
+    end
+  end
+
   describe "title and summary" do
     test "renames a page and sets its summary, leaving the body alone", ctx do
       out =

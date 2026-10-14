@@ -22,7 +22,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   alias Slipdock.{Access, Boards, Fields, Votes, Wiki}
   alias Slipdock.Boards.Attachment
   alias Slipdock.Palette
-  alias Slipdock.Wiki.{AutoOrganise, Folder, Page, Tree, TreeStates, WikiFile}
+  alias Slipdock.Wiki.{AutoOrganise, Folder, Icons, Page, Tree, TreeStates, WikiFile}
   alias SlipdockWeb.Params
   alias SlipdockWeb.Wiki.Renderer
 
@@ -1389,11 +1389,19 @@ defmodule SlipdockWeb.WikiLive.Index do
         is_nil(modal.folder) ->
           Wiki.create_folder(socket.assigns.board, %{
             "name" => name,
-            "parent_id" => parent_id || (modal.parent && modal.parent.id)
+            "parent_id" => parent_id || (modal.parent && modal.parent.id),
+            "icon" => params["icon"],
+            "color" => params["color"]
           })
 
         true ->
-          Wiki.update_folder(modal.folder, %{"name" => name, "parent_id" => parent_id})
+          Wiki.update_folder(
+            modal.folder,
+            Map.merge(
+              %{"name" => name, "parent_id" => parent_id},
+              Map.take(params, ["icon", "color"])
+            )
+          )
       end
 
     case result do
@@ -2165,6 +2173,18 @@ defmodule SlipdockWeb.WikiLive.Index do
   def handle_event("clear_filters", _params, socket),
     do: {:noreply, socket |> assign(filters: Slipdock.Filters.empty()) |> load_tree()}
 
+  # Whether the tree wears folders' and pages' icons and colours (#792).
+  def handle_event("toggle_tree_icons", _params, socket) do
+    if socket.assigns.can_write do
+      {:ok, board} =
+        Wiki.set_tree_icons(socket.assigns.board, not socket.assigns.board.wiki_tree_icons)
+
+      {:noreply, socket |> assign(board: board) |> load_tree()}
+    else
+      {:noreply, socket}
+    end
+  end
+
   def handle_event("toggle_show", %{"what" => what}, socket)
       when what in ~w(drafts templates archived) do
     key = String.to_existing_atom(what)
@@ -2532,9 +2552,10 @@ defmodule SlipdockWeb.WikiLive.Index do
   # board's wiki. Only what is drawn goes over the wire.
   defp client_rows(rows, socket) do
     writable = writable_ids(socket)
+    dressed? = socket.assigns.board.wiki_tree_icons != false
 
     rows
-    |> Enum.map(&client_row(&1, writable))
+    |> Enum.map(&(&1 |> client_row(writable) |> dress_row(&1, dressed?)))
     |> in_vault_view(socket.assigns)
     |> in_context(socket.assigns)
   end
@@ -2621,6 +2642,20 @@ defmodule SlipdockWeb.WikiLive.Index do
     )
     |> then(&if(row[:sort], do: Map.put(&1, :sort, row.sort), else: &1))
   end
+
+  # A folder's or page's own icon and colour (#792), as the classes the hook
+  # draws, when the board shows them in the tree. Rows without either go as
+  # they were, and the hook draws the plain icon of their kind.
+  defp dress_row(%{kind: kind} = row, source, true) when kind in ["folder", "page"] do
+    row
+    |> put_present(:icon, Icons.class(source[:icon]))
+    |> put_present(:tint, Icons.tint(source[:color]))
+  end
+
+  defp dress_row(row, _source, _dressed?), do: row
+
+  defp put_present(map, _key, nil), do: map
+  defp put_present(map, key, value), do: Map.put(map, key, value)
 
   defp row_href(%{kind: "page"} = row, _key), do: ~p"/boards/#{row.board_id}/wiki/#{row.slug}"
 
@@ -3321,7 +3356,12 @@ defmodule SlipdockWeb.WikiLive.Index do
 
   def handle_info(:reload_wiki, socket) do
     socket =
-      socket |> assign(reload_booked: false) |> load_tree() |> assign_wanted() |> assign_current()
+      socket
+      |> assign(reload_booked: false)
+      |> refresh_tree_icons()
+      |> load_tree()
+      |> assign_wanted()
+      |> assign_current()
 
     {:noreply,
      case socket.assigns.page do
@@ -3335,6 +3375,14 @@ defmodule SlipdockWeb.WikiLive.Index do
   end
 
   def handle_info(_message, socket), do: {:noreply, socket}
+
+  # Another writer may have turned the tree's icons on or off (#792).
+  defp refresh_tree_icons(%{assigns: %{board: %{id: id} = board}} = socket) do
+    case Wiki.tree_icons?(id) do
+      nil -> socket
+      on -> assign(socket, board: %{board | wiki_tree_icons: on})
+    end
+  end
 
   ## Helpers used by the template ---------------------------------------------
 
@@ -3678,6 +3726,17 @@ defmodule SlipdockWeb.WikiLive.Index do
                   phx-click="toggle_show"
                   phx-value-what="archived"
                 /> Archived pages
+              </label>
+              <%!-- The board's choice, not the reader's (#792): writers set it
+                    for everyone, as they do the tree's order. --%>
+              <label :if={@can_write} class="flex cursor-pointer items-center gap-2 text-sm">
+                <input
+                  id="toggle-tree-icons"
+                  type="checkbox"
+                  class="toggle toggle-sm"
+                  checked={@board.wiki_tree_icons}
+                  phx-click="toggle_tree_icons"
+                /> Icons and colours
               </label>
             </div>
           </div>
@@ -4084,7 +4143,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     <.modal id="folder-modal" on_close={JS.push("close_folder_modal")} size="sm">
       <div class="space-y-5 p-6">
         <h2 class="text-lg font-semibold">
-          {if @modal.folder, do: "Rename or move folder", else: "New folder"}
+          {if @modal.folder, do: "Edit folder", else: "New folder"}
         </h2>
         <form id="folder-form" phx-submit="save_folder" class="space-y-4">
           <label class="block space-y-1.5">
@@ -4116,6 +4175,14 @@ defmodule SlipdockWeb.WikiLive.Index do
               (@modal.folder && @modal.folder.parent_id) || (@modal.parent && @modal.parent.id)
             }
             exclude={@modal.folder && @modal.folder.id}
+          />
+          <.dress_picker
+            id="folder-dress"
+            kind={:folder}
+            icon_name="icon"
+            color_name="color"
+            icon={@modal.folder && @modal.folder.icon}
+            color={@modal.folder && @modal.folder.color}
           />
           <div class="flex justify-end gap-2">
             <button type="button" phx-click="close_folder_modal" class="btn btn-ghost btn-sm">
@@ -4867,6 +4934,94 @@ defmodule SlipdockWeb.WikiLive.Index do
     end
   end
 
+  attr :id, :string, required: true
+  attr :kind, :atom, required: true, values: [:folder, :page]
+  attr :icon_name, :string, required: true, doc: "the form field the icon goes in"
+  attr :color_name, :string, required: true, doc: "the form field the colour goes in"
+  attr :icon, :string, default: nil
+  attr :color, :string, default: nil
+
+  # Choosing what a folder or page wears (#792): an icon from the set and a
+  # colour from the palette, each with a None. Radios, so the form sends the
+  # choice like any other field and the dialog needs no state of its own.
+  defp dress_picker(assigns) do
+    ~H"""
+    <fieldset id={@id} class="space-y-3">
+      <legend class="text-sm font-medium">Icon and colour</legend>
+      <div class="flex flex-wrap gap-1" role="radiogroup" aria-label="Icon">
+        <label
+          class="btn btn-ghost btn-xs btn-square has-[:checked]:bg-primary/15 has-[:checked]:ring-1 has-[:checked]:ring-primary"
+          title="The plain icon"
+        >
+          <input type="radio" name={@icon_name} value="" checked={is_nil(@icon)} class="sr-only" />
+          <.wiki_icon kind={@kind} class="size-4" />
+        </label>
+        <label
+          :for={name <- Icons.names()}
+          class="btn btn-ghost btn-xs btn-square has-[:checked]:bg-primary/15 has-[:checked]:ring-1 has-[:checked]:ring-primary"
+          title={String.replace(name, "-", " ")}
+        >
+          <input
+            type="radio"
+            name={@icon_name}
+            value={name}
+            checked={@icon == name}
+            class="sr-only"
+          />
+          <.wiki_icon kind={@kind} icon={name} color={@color} class="size-4" />
+        </label>
+      </div>
+      <div class="flex flex-wrap items-center gap-1.5" role="radiogroup" aria-label="Colour">
+        <label
+          class="flex size-6 cursor-pointer items-center justify-center rounded-full ring-1 ring-base-300 has-[:checked]:ring-2 has-[:checked]:ring-primary"
+          title="No colour"
+        >
+          <input type="radio" name={@color_name} value="" checked={is_nil(@color)} class="sr-only" />
+          <.icon name="hero-no-symbol" class="size-4 text-base-content/40" />
+        </label>
+        <label
+          :for={{name, label} <- Palette.all()}
+          class="flex size-6 cursor-pointer items-center justify-center rounded-full has-[:checked]:ring-2 has-[:checked]:ring-primary has-[:checked]:ring-offset-1"
+          title={label}
+        >
+          <input
+            type="radio"
+            name={@color_name}
+            value={name}
+            checked={@color == name}
+            class="sr-only"
+          />
+          <span class={["size-4 rounded-full", Palette.dot(name)]}></span>
+        </label>
+      </div>
+    </fieldset>
+    """
+  end
+
+  attr :kind, :atom, required: true, values: [:folder, :page]
+  attr :icon, :string, default: nil
+  attr :color, :string, default: nil
+  attr :class, :string, default: "size-4"
+  attr :plain, :string, default: "text-base-content/50", doc: "the tint when it has no colour"
+
+  # A folder's or page's icon in its colour (#792), or the plain one of its
+  # kind. `data-icon` and `data-color` say which, for whoever reads the page
+  # rather than looks at it.
+  defp wiki_icon(assigns) do
+    ~H"""
+    <span
+      class={[Icons.class(@icon, @kind), "shrink-0", @class, Icons.tint(@color) || @plain]}
+      data-icon={@icon}
+      data-color={@color}
+      aria-hidden="true"
+    ></span>
+    """
+  end
+
+  # Whether a page wears anything of its own: a page row shows no icon at
+  # all unless it does, so a listing of plain pages reads as it always has.
+  defp dressed?(row), do: not is_nil(row[:icon]) or not is_nil(row[:color])
+
   attr :board, :any, required: true
   attr :folder, :any, required: true
   attr :rows, :list, default: [], doc: "what is in it, as `Slipdock.Wiki.Tree` rows"
@@ -4907,7 +5062,13 @@ defmodule SlipdockWeb.WikiLive.Index do
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div class="min-w-0">
         <h1 class="flex items-center gap-2 text-2xl font-bold tracking-tight sm:text-3xl">
-          <.icon name="hero-folder" class="size-6 shrink-0 text-base-content/40" />
+          <.wiki_icon
+            kind={:folder}
+            icon={@folder.icon}
+            color={@folder.color}
+            class="size-6"
+            plain="text-base-content/40"
+          />
           {@folder.name}
         </h1>
         <p class="mt-1 text-sm text-base-content/60">
@@ -4942,7 +5103,7 @@ defmodule SlipdockWeb.WikiLive.Index do
             </li>
             <li>
               <button type="button" phx-click="rename_folder" phx-value-id={@folder.id}>
-                <.icon name="hero-pencil" class="size-4" /> Rename or move…
+                <.icon name="hero-pencil" class="size-4" /> Edit folder…
               </button>
             </li>
             <li>
@@ -4968,7 +5129,7 @@ defmodule SlipdockWeb.WikiLive.Index do
             patch={~p"/boards/#{@board}/wiki?#{[folder: sub.id]}"}
             class="flex items-center gap-2 rounded-xl border border-base-300 bg-base-100 p-3 text-sm hover:border-primary"
           >
-            <.icon name="hero-folder" class="size-4 shrink-0 text-base-content/50" />
+            <.wiki_icon kind={:folder} icon={sub[:icon]} color={sub[:color]} />
             <span class="min-w-0 flex-1 truncate font-medium">{sub.title}</span>
             <span class="shrink-0 text-xs text-base-content/40">
               {count(sub.pages, "page")}
@@ -5005,6 +5166,13 @@ defmodule SlipdockWeb.WikiLive.Index do
             patch={~p"/boards/#{@board}/wiki/#{page.slug}"}
             class="flex items-baseline gap-3 px-4 py-3 hover:bg-base-200"
           >
+            <.wiki_icon
+              :if={dressed?(page)}
+              kind={:page}
+              icon={page[:icon]}
+              color={page[:color]}
+              class="size-4 self-center"
+            />
             <span class="min-w-0 flex-1">
               <span class="font-medium">{page.title}</span>
               <span :if={page.draft} class="chip chip-line ml-2 text-2xs">draft</span>
@@ -5085,7 +5253,12 @@ defmodule SlipdockWeb.WikiLive.Index do
               patch={~p"/boards/#{@board}/wiki?#{[folder: node.folder.id]}"}
               class="flex items-baseline gap-2 hover:text-primary"
             >
-              <.icon name="hero-folder" class="size-4 shrink-0 text-base-content/50" />
+              <.wiki_icon
+                kind={:folder}
+                icon={node.folder[:icon]}
+                color={node.folder[:color]}
+                class="size-4 self-center"
+              />
               <span class="min-w-0 flex-1 truncate font-medium">{node.folder.title}</span>
               <span class="shrink-0 text-xs text-base-content/40">
                 {count(node.folder.pages, "page")}
@@ -5097,11 +5270,27 @@ defmodule SlipdockWeb.WikiLive.Index do
                   patch={~p"/boards/#{@board}/wiki?#{[folder: sub.id]}"}
                   class="flex items-center gap-1.5 text-base-content/60 hover:text-base-content"
                 >
-                  <.icon name="hero-folder" class="size-3 shrink-0" /> {sub.title}
+                  <.wiki_icon
+                    kind={:folder}
+                    icon={sub[:icon]}
+                    color={sub[:color]}
+                    class="size-3"
+                    plain=""
+                  /> {sub.title}
                 </.link>
               </li>
               <li :for={page <- node.pages}>
-                <.link patch={~p"/boards/#{@board}/wiki/#{page.slug}"} class="link link-hover">
+                <.link
+                  patch={~p"/boards/#{@board}/wiki/#{page.slug}"}
+                  class="link link-hover inline-flex items-center gap-1.5"
+                >
+                  <.wiki_icon
+                    :if={dressed?(page)}
+                    kind={:page}
+                    icon={page[:icon]}
+                    color={page[:color]}
+                    class="size-3"
+                  />
                   {page.title}
                 </.link>
               </li>
@@ -5159,6 +5348,13 @@ defmodule SlipdockWeb.WikiLive.Index do
             patch={~p"/boards/#{@board}/wiki/#{page.slug}"}
             class="flex items-baseline gap-3 px-4 py-3 hover:bg-base-200"
           >
+            <.wiki_icon
+              :if={dressed?(page)}
+              kind={:page}
+              icon={page[:icon]}
+              color={page[:color]}
+              class="size-4 self-center"
+            />
             <span class="min-w-0 flex-1">
               <span class="font-medium">{page.title}</span>
               <span
@@ -5231,7 +5427,16 @@ defmodule SlipdockWeb.WikiLive.Index do
 
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div class="min-w-0">
-          <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">{@page.title}</h1>
+          <h1 class="flex items-center gap-2 text-2xl font-bold tracking-tight sm:text-3xl">
+            <.wiki_icon
+              :if={dressed?(Map.from_struct(@page))}
+              kind={:page}
+              icon={@page.icon}
+              color={@page.color}
+              class="size-6"
+            />
+            {@page.title}
+          </h1>
           <p :if={@page.summary} class="mt-1 text-base-content/60">{@page.summary}</p>
         </div>
         <div class="flex shrink-0 items-center gap-1">
@@ -5966,6 +6171,14 @@ defmodule SlipdockWeb.WikiLive.Index do
           name={@form[:folder_id].name}
           selected={@form[:folder_id].value}
           outline={@outline}
+        />
+        <.dress_picker
+          id="page-dress"
+          kind={:page}
+          icon_name={@form[:icon].name}
+          color_name={@form[:color].name}
+          icon={blank_to_nil(@form[:icon].value)}
+          color={blank_to_nil(@form[:color].value)}
         />
       </div>
     </.form>

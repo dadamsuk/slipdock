@@ -499,6 +499,8 @@ defmodule SlipdockWeb.API.JSON do
       completed: p.completed,
       percent_complete: p.percent_complete,
       color: p.color,
+      # What it wears in the wiki, tinted by `color` (#792).
+      icon: p.icon,
       assignee: assignee_ref(p),
       tags: page_tags(p),
       # The tags the note gives itself, on a board in a vault — never the
@@ -586,6 +588,9 @@ defmodule SlipdockWeb.API.JSON do
       position: f.position,
       # Its own order in the tree, or nil to follow the board's (#789).
       sort: f.sort,
+      # What it wears on the main page and in the tree (#792).
+      icon: f.icon,
+      color: f.color,
       inserted_at: f.inserted_at,
       updated_at: f.updated_at
     }
