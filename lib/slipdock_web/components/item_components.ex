@@ -263,17 +263,24 @@ defmodule SlipdockWeb.ItemComponents do
             phx-hook={@mention_people && "Mention"}
             data-people={@mention_people}
           >
-            <textarea
-              name="body"
-              rows="2"
-              placeholder={
-                if @uploads,
-                  do: "Write a comment… (paste an image to attach it)",
-                  else: "Write a comment…"
-              }
-              class="textarea w-full text-sm"
-              required
-            ></textarea>
+            <div
+              id={dom_id("comment-editor-#{@form_key}", @item)}
+              phx-hook="MarkdownEditor"
+              phx-update="ignore"
+              data-editor-class="md-editor-field"
+            >
+              <textarea
+                name="body"
+                rows="2"
+                placeholder={
+                  if @uploads,
+                    do: "Write a comment… (paste an image to attach it)",
+                    else: "Write a comment…"
+                }
+                class="textarea w-full text-sm"
+                required
+              ></textarea>
+            </div>
           </div>
           <.live_file_input :if={@uploads} upload={@uploads.comment_image} class="hidden" />
         </div>
