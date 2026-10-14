@@ -86,6 +86,32 @@ defmodule Slipdock.Recordings do
     end
   end
 
+  ## A page's player ----------------------------------------------------------
+
+  @doc """
+  Whether `page` is a meeting page with a recording to play, decided without
+  asking Drive (rendering a page never does): nil when its front matter
+  names no `gdrive:` recording, `:ok` when its vault has a recordings folder,
+  `{:error, :no_folder}` when it hasn't (or the board is in no vault), and
+  `{:error, :not_configured}` on a server with no Google OAuth client.
+  """
+  def for_page(%{front_matter: header, board_id: board_id}) do
+    case Slipdock.Wiki.FrontMatter.get(Slipdock.Wiki.FrontMatter.yaml(header), "recording") do
+      "gdrive:" <> _ ->
+        cond do
+          not Google.configured?() -> {:error, :not_configured}
+          has_folder?(Slipdock.Vaults.for_board(board_id)) -> :ok
+          true -> {:error, :no_folder}
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp has_folder?(%Vault{recordings_folder: folder}), do: is_binary(folder) and folder != ""
+  defp has_folder?(_), do: false
+
   ## Resolving ----------------------------------------------------------------
 
   @doc """

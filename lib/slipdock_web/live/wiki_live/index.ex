@@ -186,6 +186,7 @@ defmodule SlipdockWeb.WikiLive.Index do
       # take it all with it (see `Slipdock.Wiki.Folders.delete/2`).
       folder_delete: nil,
       html: "",
+      recording: nil,
       columns: [],
       backlinks: [],
       children: [],
@@ -759,8 +760,16 @@ defmodule SlipdockWeb.WikiLive.Index do
   # A page always reaches the view with everything it draws loaded: its
   # assignee, and the card contents it carries (see `Slipdock.Boards.Owned`).
   # An unloaded association here is a crash in a component, not a blank.
-  defp assign_page(socket, %Page{} = page),
-    do: assign(socket, page: Slipdock.Repo.preload(page, Wiki.board_preloads(), force: true))
+  defp recording_problem({:error, reason}), do: reason
+  defp recording_problem(_), do: nil
+
+  defp assign_page(socket, %Page{} = page) do
+    assign(socket,
+      page: Slipdock.Repo.preload(page, Wiki.board_preloads(), force: true),
+      # A meeting page's recording, played beside its transcript (W-1690).
+      recording: Slipdock.Recordings.for_page(page)
+    )
+  end
 
   ## Events: the card contents a page carries ---------------------------------
   #
@@ -3846,6 +3855,7 @@ defmodule SlipdockWeb.WikiLive.Index do
                     fields_board={@fields_board}
                     page={@page}
                     html={@html}
+                    recording={@recording}
                     backlinks={@backlinks}
                     children={@children}
                     cards={@cards}
@@ -4786,6 +4796,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   attr :board, :any, required: true
   attr :page, :any, default: nil
   attr :html, :string, default: ""
+  attr :recording, :any, default: nil
   attr :backlinks, :list, default: []
   attr :children, :list, default: []
   attr :cards, :list, default: []
@@ -5150,13 +5161,23 @@ defmodule SlipdockWeb.WikiLive.Index do
         </details>
       </details>
 
+      <%!-- The player for a transcript and, on a meeting page, its recording
+            (W-1690): it finds both in the body and draws its bar there. One
+            per page, so moving to another page starts a fresh one. --%>
       <div
-        id="wiki-body"
-        phx-hook="WikiSelection"
-        data-button="selection-to-card"
-        class="wiki-prose mt-6"
+        id={"wiki-player-#{@page.id}"}
+        phx-hook="TranscriptPlayer"
+        data-recording-src={@recording && ~p"/wiki-pages/#{@page.id}/recording"}
+        data-recording-problem={recording_problem(@recording)}
       >
-        {Phoenix.HTML.raw(@html)}
+        <div
+          id="wiki-body"
+          phx-hook="WikiSelection"
+          data-button="selection-to-card"
+          class="wiki-prose mt-6"
+        >
+          {Phoenix.HTML.raw(@html)}
+        </div>
       </div>
 
       <%!-- The cards this page is about. The other half of the card panel's
