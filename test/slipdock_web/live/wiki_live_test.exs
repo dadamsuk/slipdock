@@ -13,7 +13,7 @@ defmodule SlipdockWeb.WikiLiveTest do
   defp page_panel(view), do: with_target(view, "#board-page")
 
   setup %{user: user} do
-    board = board_fixture(%{"name" => "Handbook", "code" => "handbook"}, owner: user)
+    board = board_fixture(%{"name" => "Handbook", "code" => "handbook6"}, owner: user)
     %{board: board}
   end
 

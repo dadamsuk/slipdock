@@ -8,7 +8,7 @@ defmodule SlipdockWeb.VaultsLiveTest do
   alias Slipdock.{Accounts, Vaults, Wiki}
 
   setup %{user: user} do
-    kb = board_fixture(%{"name" => "Keystone", "code" => "kb"}, owner: user)
+    kb = board_fixture(%{"name" => "Keystone", "code" => "kb7"}, owner: user)
     %{kb: kb}
   end
 
@@ -267,7 +267,7 @@ defmodule SlipdockWeb.VaultsLiveTest do
     test "somebody else's board is refused, even sent by hand", ctx do
       %{conn: conn, vault: vault} = ctx
       stranger = user_fixture("stranger@example.com")
-      theirs = board_fixture(%{"name" => "Theirs", "code" => "thr"}, owner: stranger)
+      theirs = board_fixture(%{"name" => "Theirs", "code" => "thr2"}, owner: stranger)
 
       {:ok, view, html} = live(conn, ~p"/vaults")
       refute html =~ "Theirs"
@@ -286,7 +286,7 @@ defmodule SlipdockWeb.VaultsLiveTest do
 
   describe "overlaps" do
     setup %{user: user, kb: kb} do
-      hunt = board_fixture(%{"name" => "Journal Desk", "code" => "work"}, owner: user)
+      hunt = board_fixture(%{"name" => "Journal Desk", "code" => "work2"}, owner: user)
       {:ok, jobs} = Wiki.create_folder(kb, %{"name" => "Journal"})
       {:ok, _} = Wiki.create_page(kb, %{"title" => "Acme", "folder_id" => jobs.id})
       {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})

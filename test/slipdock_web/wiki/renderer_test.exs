@@ -13,7 +13,7 @@ defmodule SlipdockWeb.Wiki.RendererTest do
 
   setup do
     user = user_fixture()
-    board = board_fixture(%{"name" => "Handbook", "code" => "handbook"}, owner: user)
+    board = board_fixture(%{"name" => "Handbook", "code" => "handbook7"}, owner: user)
     [backlog, doing | _] = board.columns
 
     open = card_fixture(backlog, %{"title" => "Open | piped", "priority" => "high"})

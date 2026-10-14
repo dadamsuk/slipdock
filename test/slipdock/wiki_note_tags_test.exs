@@ -57,7 +57,7 @@ defmodule Slipdock.WikiNoteTagsTest do
     setup do
       user = user_fixture()
       board = board_fixture(%{"name" => "Brain", "code" => "brain"}, owner: user)
-      outside = board_fixture(%{"name" => "Work", "code" => "work"}, owner: user)
+      outside = board_fixture(%{"name" => "Work", "code" => "work3"}, owner: user)
       {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
       {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: board})
       %{user: user, board: board, outside: outside, vault: vault}

@@ -12,7 +12,7 @@ defmodule SlipdockWeb.MCP.PageHistoryToolTest do
   alias Slipdock.{Accounts, Wiki}
 
   setup %{conn: conn, user: user} do
-    board = board_fixture(%{"name" => "Delivery", "code" => "delivery"}, owner: user)
+    board = board_fixture(%{"name" => "Delivery", "code" => "delivery5"}, owner: user)
     other = user_fixture("editor-#{System.unique_integer([:positive])}@example.com")
 
     # Alternate hands, so no save folds into the one before it.
@@ -105,7 +105,7 @@ defmodule SlipdockWeb.MCP.PageHistoryToolTest do
     end
 
     test "finds the page by title with its board", ctx do
-      out = ctx.conn |> call("page_history", %{page: "Runbook", board: "delivery"}) |> ok!()
+      out = ctx.conn |> call("page_history", %{page: "Runbook", board: "delivery5"}) |> ok!()
       assert length(out["revisions"]) == 3
     end
 

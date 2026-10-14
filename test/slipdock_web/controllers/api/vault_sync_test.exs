@@ -8,7 +8,7 @@ defmodule SlipdockWeb.API.VaultSyncTest do
   alias Slipdock.Wiki.Page
 
   setup %{conn: conn, user: user} do
-    kb = board_fixture(%{"name" => "Keystone", "code" => "kb"}, owner: user)
+    kb = board_fixture(%{"name" => "Keystone", "code" => "kb6"}, owner: user)
     {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain"})
     {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
     %{conn: put_req_header(conn, "accept", "application/json"), kb: kb, vault: vault}

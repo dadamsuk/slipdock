@@ -13,7 +13,7 @@ defmodule SlipdockWeb.MCP.UpdatePageToolTest do
   alias Slipdock.Wiki.Link
 
   setup %{conn: conn, user: user} do
-    board = board_fixture(%{"name" => "Delivery", "code" => "delivery"}, owner: user)
+    board = board_fixture(%{"name" => "Delivery", "code" => "delivery10"}, owner: user)
     guide = page_fixture(board, %{"title" => "Guide", "body" => "the guide"}, user: user)
     runbook = page_fixture(board, %{"title" => "Runbook", "body" => "steps"}, user: user)
     card = card_fixture(hd(board.columns), %{"title" => "Ship it"})
@@ -124,7 +124,7 @@ defmodule SlipdockWeb.MCP.UpdatePageToolTest do
     end
 
     test "finds the page by title with board", ctx do
-      ctx.conn |> call(%{page: "Runbook", board: "delivery", title: "Found"}) |> ok!()
+      ctx.conn |> call(%{page: "Runbook", board: "delivery10", title: "Found"}) |> ok!()
       assert Wiki.get_page!(ctx.runbook.id).title == "Found"
     end
   end

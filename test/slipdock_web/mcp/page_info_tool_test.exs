@@ -11,7 +11,7 @@ defmodule SlipdockWeb.MCP.PageInfoToolTest do
   alias Slipdock.Wiki
 
   setup %{conn: conn, user: user} do
-    board = board_fixture(%{"name" => "Delivery", "code" => "delivery"}, owner: user)
+    board = board_fixture(%{"name" => "Delivery", "code" => "delivery6"}, owner: user)
 
     install = page_fixture(board, %{"title" => "Install"}, user: user)
 
@@ -124,7 +124,7 @@ defmodule SlipdockWeb.MCP.PageInfoToolTest do
     end
 
     test "a page named by title on a board", ctx do
-      result = ctx.conn |> call(%{what: "links", page: "Install", board: "delivery"}) |> ok!()
+      result = ctx.conn |> call(%{what: "links", page: "Install", board: "delivery6"}) |> ok!()
       assert result["page"]["code"] == ctx.install.code
     end
 
@@ -135,7 +135,7 @@ defmodule SlipdockWeb.MCP.PageInfoToolTest do
     test "an unknown page", ctx do
       assert ctx.conn |> call(%{what: "links", page: "W-99999"}) |> error!() =~ "no page"
 
-      assert ctx.conn |> call(%{what: "links", page: "Nope", board: "delivery"}) |> error!() =~
+      assert ctx.conn |> call(%{what: "links", page: "Nope", board: "delivery6"}) |> error!() =~
                "no page"
     end
 
@@ -197,9 +197,9 @@ defmodule SlipdockWeb.MCP.PageInfoToolTest do
 
   describe "wanted" do
     test "pages linked to but never written, and who wants them", ctx do
-      result = ctx.conn |> call(%{what: "wanted", board: "delivery"}) |> ok!()
+      result = ctx.conn |> call(%{what: "wanted", board: "delivery6"}) |> ok!()
 
-      assert result["board"]["code"] == "delivery"
+      assert result["board"]["code"] == "delivery6"
       assert [want] = result["wanted"]
       assert want["title"] == "Rollback plan"
       assert want["count"] == 1
@@ -221,7 +221,7 @@ defmodule SlipdockWeb.MCP.PageInfoToolTest do
 
       titles = fn conn ->
         conn
-        |> call(%{what: "wanted", board: "delivery"})
+        |> call(%{what: "wanted", board: "delivery6"})
         |> ok!()
         |> Map.get("wanted")
         |> Enum.map(& &1["title"])
@@ -237,7 +237,7 @@ defmodule SlipdockWeb.MCP.PageInfoToolTest do
 
     test "another tenant's board reads as not there", ctx do
       other = user_fixture("stranger@example.com")
-      theirs = board_fixture(%{"name" => "Private", "code" => "private"}, owner: other)
+      theirs = board_fixture(%{"name" => "Private", "code" => "private2"}, owner: other)
       page_fixture(theirs, %{"title" => "Theirs", "body" => "[[Their secret]]"}, user: other)
 
       text = ctx.conn |> call(%{what: "wanted", board: theirs.id}) |> error!()
@@ -248,7 +248,7 @@ defmodule SlipdockWeb.MCP.PageInfoToolTest do
 
   describe "resolve" do
     test "a title with a page says so, and how to link it", ctx do
-      result = ctx.conn |> call(%{what: "resolve", board: "delivery", title: "install"}) |> ok!()
+      result = ctx.conn |> call(%{what: "resolve", board: "delivery6", title: "install"}) |> ok!()
 
       assert result["found"] == true
       assert result["page"]["code"] == ctx.install.code
@@ -256,7 +256,7 @@ defmodule SlipdockWeb.MCP.PageInfoToolTest do
     end
 
     test "a title with no page offers what is near", ctx do
-      result = ctx.conn |> call(%{what: "resolve", board: "delivery", title: "Guid"}) |> ok!()
+      result = ctx.conn |> call(%{what: "resolve", board: "delivery6", title: "Guid"}) |> ok!()
 
       assert result["found"] == false
       assert [%{"title" => "Guide"}] = result["near"]
@@ -268,14 +268,14 @@ defmodule SlipdockWeb.MCP.PageInfoToolTest do
       page_fixture(ctx.board, %{"title" => "Plans", "status" => "draft"})
 
       assert ctx.conn
-             |> call(%{what: "resolve", board: "delivery", title: "Plans"})
+             |> call(%{what: "resolve", board: "delivery6", title: "Plans"})
              |> ok!()
              |> Map.get("found")
 
       seen =
         ctx.board
         |> reader()
-        |> call(%{what: "resolve", board: "delivery", title: "Plans"})
+        |> call(%{what: "resolve", board: "delivery6", title: "Plans"})
         |> ok!()
 
       assert seen["found"] == false
@@ -283,7 +283,7 @@ defmodule SlipdockWeb.MCP.PageInfoToolTest do
     end
 
     test "title and board are required", ctx do
-      assert ctx.conn |> call(%{what: "resolve", board: "delivery"}) |> error!() =~
+      assert ctx.conn |> call(%{what: "resolve", board: "delivery6"}) |> error!() =~
                "title is required"
 
       assert ctx.conn |> call(%{what: "resolve", title: "Guide"}) |> error!() =~
@@ -292,7 +292,7 @@ defmodule SlipdockWeb.MCP.PageInfoToolTest do
 
     test "another tenant's board reads as not there", ctx do
       other = user_fixture("stranger@example.com")
-      theirs = board_fixture(%{"name" => "Private", "code" => "private"}, owner: other)
+      theirs = board_fixture(%{"name" => "Private", "code" => "private2"}, owner: other)
       page_fixture(theirs, %{"title" => "Their secret"}, user: other)
 
       text =

@@ -21,7 +21,7 @@ defmodule SlipdockWeb.PortableAPITest do
 
   setup do
     owner = user_fixture("owner@example.com")
-    board = board_fixture(%{"name" => "Delivery", "code" => "del"}, owner: owner)
+    board = board_fixture(%{"name" => "Delivery", "code" => "del2"}, owner: owner)
     [_backlog, todo | _] = board.columns
     _card = card_fixture(todo, %{"title" => "Ship it"})
 
@@ -48,7 +48,7 @@ defmodule SlipdockWeb.PortableAPITest do
     test "takes only the boards named", %{owner: owner} do
       _second = board_fixture(%{"name" => "Second"}, owner: owner)
 
-      body = token_conn(owner) |> get(~p"/api/export?boards=del") |> json_response(200)
+      body = token_conn(owner) |> get(~p"/api/export?boards=del2") |> json_response(200)
       assert [%{"root" => %{"name" => "Delivery"}}] = body["export"]["boards"]
     end
 
@@ -88,7 +88,7 @@ defmodule SlipdockWeb.PortableAPITest do
              |> Enum.any?(&(&1["name"] == "Delivery"))
 
       # … and still cannot take a copy of it off the server.
-      conn = token_conn(other) |> get(~p"/api/export?boards=del")
+      conn = token_conn(other) |> get(~p"/api/export?boards=del2")
       assert json_response(conn, 403)["error"] =~ "own"
     end
 
@@ -179,7 +179,7 @@ defmodule SlipdockWeb.PortableAPITest do
 
       assert body["error"] == "card_limit_reached"
       assert body["message"] =~ "Nothing was imported"
-      assert Boards.find_board("del-2") == {:error, :not_found}
+      assert Boards.find_board("del2-2") == {:error, :not_found}
     end
   end
 end

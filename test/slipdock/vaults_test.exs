@@ -13,8 +13,8 @@ defmodule Slipdock.VaultsTest do
 
   setup do
     user = user_fixture()
-    kb = board_fixture(%{"name" => "Keystone", "code" => "kb"}, owner: user)
-    jobs = board_fixture(%{"name" => "Journal Desk", "code" => "jobs"}, owner: user)
+    kb = board_fixture(%{"name" => "Keystone", "code" => "kb4"}, owner: user)
+    jobs = board_fixture(%{"name" => "Journal Desk", "code" => "jobs3"}, owner: user)
     {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
     %{user: user, kb: kb, jobs: jobs, vault: vault}
   end
@@ -359,7 +359,7 @@ defmodule Slipdock.VaultsTest do
       stranger = user_fixture("lender@example.com")
       read_only = board_fixture(%{"name" => "Read only", "code" => "ro2"}, owner: stranger)
       share_fixture(read_only, user, "read")
-      old = board_fixture(%{"name" => "Old", "code" => "old"}, owner: user)
+      old = board_fixture(%{"name" => "Old", "code" => "old2"}, owner: user)
       {:ok, _} = Boards.archive_board(old)
       {:ok, other} = Vaults.create_vault(user, %{"name" => "Other"})
       map!(other, user, %{path: "/", board: jobs})

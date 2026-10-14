@@ -7,8 +7,8 @@ defmodule SlipdockWeb.API.VaultsTest do
   alias Slipdock.{Accounts, Vaults, Wiki}
 
   setup %{conn: conn, user: user} do
-    kb = board_fixture(%{"name" => "Keystone", "code" => "kb"}, owner: user)
-    jobs = board_fixture(%{"name" => "Journal Desk", "code" => "jobs"}, owner: user)
+    kb = board_fixture(%{"name" => "Keystone", "code" => "kb5"}, owner: user)
+    jobs = board_fixture(%{"name" => "Journal Desk", "code" => "jobs4"}, owner: user)
     {:ok, _} = Wiki.create_folder(jobs, %{"name" => "Notes"})
     %{conn: put_req_header(conn, "accept", "application/json"), kb: kb, jobs: jobs}
   end
@@ -20,20 +20,20 @@ defmodule SlipdockWeb.API.VaultsTest do
   test "the whole road: make, map, show, locate, unmap, rename, delete", %{conn: conn} do
     assert make(conn, "Notes")["mappings"] == []
 
-    conn |> post("/api/vaults/Notes/mappings", %{"board" => "kb"}) |> json_response(201)
+    conn |> post("/api/vaults/Notes/mappings", %{"board" => "kb5"}) |> json_response(201)
 
     vault =
       conn
       |> post("/api/vaults/notes/mappings", %{
         "path" => "/Journal",
-        "board" => "jobs",
+        "board" => "jobs4",
         "folder" => "Notes"
       })
       |> json_response(201)
       |> Map.fetch!("vault")
 
     assert [%{"path" => "/", "folder" => nil}, %{"path" => "/Journal"} = jobs] = vault["mappings"]
-    assert jobs["board"]["code"] == "jobs"
+    assert jobs["board"]["code"] == "jobs4"
     assert jobs["folder"]["path"] == "Notes"
 
     assert [%{"name" => "Notes"}] =
@@ -73,7 +73,7 @@ defmodule SlipdockWeb.API.VaultsTest do
     assert conn |> post("/api/vaults/Notes/mappings", %{"board" => "nope"}) |> json_response(404)
 
     assert conn
-           |> post("/api/vaults/Notes/mappings", %{"board" => "jobs", "folder" => "Missing"})
+           |> post("/api/vaults/Notes/mappings", %{"board" => "jobs4", "folder" => "Missing"})
            |> json_response(404)
 
     assert conn |> get("/api/vaults/Notes/locate?path=/x.md") |> json_response(404)
@@ -85,12 +85,12 @@ defmodule SlipdockWeb.API.VaultsTest do
 
     # A board you can only read cannot go into your vault.
     owner = user_fixture("someone@example.com")
-    theirs = board_fixture(%{"name" => "Theirs", "code" => "theirs"}, owner: owner)
+    theirs = board_fixture(%{"name" => "Theirs", "code" => "theirs3"}, owner: owner)
     share_fixture(theirs, user, "read")
 
     assert %{"error" => forbidden} =
              conn
-             |> post("/api/vaults/Notes/mappings", %{"board" => "theirs"})
+             |> post("/api/vaults/Notes/mappings", %{"board" => "theirs3"})
              |> json_response(403)
 
     assert forbidden =~ "edit"
@@ -126,10 +126,10 @@ defmodule SlipdockWeb.API.VaultsTest do
     jobs: jobs
   } do
     make(conn, "Notes")
-    conn |> post("/api/vaults/Notes/mappings", %{"board" => "kb"}) |> json_response(201)
+    conn |> post("/api/vaults/Notes/mappings", %{"board" => "kb5"}) |> json_response(201)
 
     conn
-    |> post("/api/vaults/Notes/mappings", %{"path" => "/Journal", "board" => "jobs"})
+    |> post("/api/vaults/Notes/mappings", %{"path" => "/Journal", "board" => "jobs4"})
     |> json_response(201)
 
     {:ok, note} = Wiki.create_page(jobs, %{"title" => "Acme"}, user: user)
@@ -154,7 +154,7 @@ defmodule SlipdockWeb.API.VaultsTest do
     kb: kb
   } do
     make(conn, "Notes")
-    conn |> post("/api/vaults/Notes/mappings", %{"board" => "kb"}) |> json_response(201)
+    conn |> post("/api/vaults/Notes/mappings", %{"board" => "kb5"}) |> json_response(201)
 
     %{"changes" => [], "cursor" => start} =
       conn |> get("/api/vaults/Notes/changes") |> json_response(200)
@@ -178,7 +178,7 @@ defmodule SlipdockWeb.API.VaultsTest do
     %{conn: conn, kb: kb} = ctx
     {:ok, _} = Wiki.create_page(kb, %{"title" => "Note"})
     make(conn, "Brain")
-    conn |> post("/api/vaults/Brain/mappings", %{"board" => "kb"}) |> json_response(201)
+    conn |> post("/api/vaults/Brain/mappings", %{"board" => "kb5"}) |> json_response(201)
 
     shown = conn |> get("/api/vaults/Brain") |> json_response(200) |> Map.fetch!("vault")
     assert [%{"path" => "/", "pages" => 1}] = shown["mappings"]
@@ -207,7 +207,7 @@ defmodule SlipdockWeb.API.VaultsTest do
       conn
       |> post("/api/vaults/Brain/mappings", %{
         "path" => "/Journal",
-        "board" => "jobs",
+        "board" => "jobs4",
         "dry_run" => true
       })
       |> json_response(200)
@@ -219,7 +219,7 @@ defmodule SlipdockWeb.API.VaultsTest do
              []
 
     conn
-    |> post("/api/vaults/Brain/mappings", %{"path" => "/Journal", "board" => "jobs"})
+    |> post("/api/vaults/Brain/mappings", %{"path" => "/Journal", "board" => "jobs4"})
     |> json_response(201)
 
     out =
@@ -239,7 +239,7 @@ defmodule SlipdockWeb.API.VaultsTest do
     conn
     |> post("/api/vaults/Brain/mappings", %{
       "path" => "/Journal",
-      "board" => "kb",
+      "board" => "kb5",
       "dry_run" => true
     })
     |> json_response(422)
@@ -250,14 +250,14 @@ defmodule SlipdockWeb.API.VaultsTest do
     {:ok, jobs} = Wiki.create_folder(kb, %{"name" => "Journal"})
     {:ok, _} = Wiki.create_page(kb, %{"title" => "Acme", "folder_id" => jobs.id})
     make(conn, "Brain")
-    conn |> post("/api/vaults/Brain/mappings", %{"board" => "kb"}) |> json_response(201)
+    conn |> post("/api/vaults/Brain/mappings", %{"board" => "kb5"}) |> json_response(201)
 
     for dry_run <- [false, true] do
       error =
         conn
         |> post("/api/vaults/Brain/mappings", %{
           "path" => "/Journal",
-          "board" => "jobs",
+          "board" => "jobs4",
           "dry_run" => dry_run
         })
         |> json_response(422)
@@ -275,7 +275,7 @@ defmodule SlipdockWeb.API.VaultsTest do
       {:ok, folder} = Wiki.create_folder(kb, %{"name" => "Work"})
       {:ok, page} = Wiki.create_page(kb, %{"title" => "Acme", "folder_id" => folder.id})
       make(conn, "Brain")
-      conn |> post("/api/vaults/Brain/mappings", %{"board" => "kb"}) |> json_response(201)
+      conn |> post("/api/vaults/Brain/mappings", %{"board" => "kb5"}) |> json_response(201)
       %{page: page}
     end
 
@@ -286,7 +286,7 @@ defmodule SlipdockWeb.API.VaultsTest do
         conn
         |> post("/api/vaults/Brain/split", %{
           "path" => "/Work",
-          "board" => "jobs",
+          "board" => "jobs4",
           "dry_run" => true
         })
         |> json_response(200)
@@ -296,10 +296,10 @@ defmodule SlipdockWeb.API.VaultsTest do
 
       done =
         conn
-        |> post("/api/vaults/Brain/split", %{"path" => "/Work", "board" => "jobs"})
+        |> post("/api/vaults/Brain/split", %{"path" => "/Work", "board" => "jobs4"})
         |> json_response(200)
 
-      assert done["board"]["code"] == "jobs"
+      assert done["board"]["code"] == "jobs4"
       assert done["result"]["unchanged"] == 1
       assert Enum.map(done["vault"]["mappings"], & &1["path"]) == ["/", "/Work"]
       assert Wiki.get_page!(page.id).board_id == jobs.id
@@ -327,15 +327,15 @@ defmodule SlipdockWeb.API.VaultsTest do
 
       vault =
         conn
-        |> post("/api/vaults/Notes/mappings", %{"board" => "kb", "inside" => true})
+        |> post("/api/vaults/Notes/mappings", %{"board" => "kb5", "inside" => true})
         |> json_response(201)
         |> Map.fetch!("vault")
 
       assert [%{"path" => "/", "inside" => true}] = vault["mappings"]
 
       boards = conn |> get("/api/boards") |> json_response(200) |> Map.fetch!("boards")
-      assert %{"inside_vault" => "Notes"} = Enum.find(boards, &(&1["code"] == "kb"))
-      assert %{"inside_vault" => nil} = Enum.find(boards, &(&1["code"] == "jobs"))
+      assert %{"inside_vault" => "Notes"} = Enum.find(boards, &(&1["code"] == "kb5"))
+      assert %{"inside_vault" => nil} = Enum.find(boards, &(&1["code"] == "jobs4"))
 
       out =
         conn
@@ -359,7 +359,7 @@ defmodule SlipdockWeb.API.VaultsTest do
       conn
       |> post("/api/vaults/Notes/mappings", %{
         "path" => "/Journal",
-        "board" => "jobs",
+        "board" => "jobs4",
         "folder" => "Notes"
       })
       |> json_response(201)

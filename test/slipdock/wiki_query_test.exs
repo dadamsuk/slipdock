@@ -171,7 +171,7 @@ defmodule Slipdock.WikiQueryTest do
       board: board,
       user: user
     } do
-      other = board_fixture(%{"name" => "Private", "code" => "private"}, owner: user)
+      other = board_fixture(%{"name" => "Private", "code" => "private4"}, owner: user)
       card_fixture(hd(other.columns), %{"title" => "Secret"})
 
       reader = user_fixture("query.reader@example.com")
@@ -275,7 +275,7 @@ defmodule Slipdock.WikiQueryTest do
       board: board,
       user: user
     } do
-      other = board_fixture(%{"name" => "Hidden", "code" => "hidden"}, owner: user)
+      other = board_fixture(%{"name" => "Hidden", "code" => "hidden2"}, owner: user)
       card_fixture(hd(other.columns), %{"title" => "Secret"})
 
       reader = user_fixture("query.page.reader@example.com")
@@ -577,7 +577,7 @@ defmodule Slipdock.WikiQueryTest do
       user: user,
       cards: cards
     } do
-      elsewhere = board_fixture(%{"name" => "Elsewhere", "code" => "elsewhere"}, owner: user)
+      elsewhere = board_fixture(%{"name" => "Elsewhere", "code" => "elsewhere6"}, owner: user)
       away = card_fixture(hd(elsewhere.columns), %{"title" => "Away"})
       {:ok, _} = Boards.update_card(away, %{"assignee_id" => user.id})
       {:ok, _} = Boards.update_card(cards.blocked, %{"assignee_id" => user.id})

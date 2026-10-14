@@ -9,13 +9,13 @@ defmodule SlipdockWeb.MCP.SearchToolTest do
   setup %{user: user} do
     Slipdock.AIStub.stub_embeddings()
 
-    board = board_fixture(%{"name" => "Delivery", "code" => "delivery"}, owner: user)
-    other = board_fixture(%{"name" => "Elsewhere", "code" => "elsewhere"}, owner: user)
+    board = board_fixture(%{"name" => "Delivery", "code" => "delivery8"}, owner: user)
+    other = board_fixture(%{"name" => "Elsewhere", "code" => "elsewhere3"}, owner: user)
     card = card_fixture(hd(board.columns), %{"title" => "Invoice rounding is wrong on refunds"})
     twin = card_fixture(hd(other.columns), %{"title" => "Invoice rounding again, on refunds"})
 
     stranger = user_fixture("stranger@example.com")
-    theirs = board_fixture(%{"name" => "Theirs", "code" => "theirs"}, owner: stranger)
+    theirs = board_fixture(%{"name" => "Theirs", "code" => "theirs5"}, owner: stranger)
     secret = card_fixture(hd(theirs.columns), %{"title" => "Invoice rounding secret refunds"})
 
     {:ok, _} = Search.index_cards(Search.load_cards(Search.all_card_ids()))
@@ -66,12 +66,12 @@ defmodule SlipdockWeb.MCP.SearchToolTest do
     refute ctx.secret.id in ids(result)
 
     hit = Enum.find(result["structuredContent"]["results"], &(&1["id"] == ctx.card.id))
-    assert hit["board"] == "delivery"
+    assert hit["board"] == "delivery8"
     assert hit["url"] =~ "/boards/#{ctx.board.id}/cards/#{ctx.card.id}"
   end
 
   test "board narrows to one board", ctx do
-    assert ids(search(ctx.conn, %{q: "invoice rounding refunds", board: "elsewhere"})) == [
+    assert ids(search(ctx.conn, %{q: "invoice rounding refunds", board: "elsewhere3"})) == [
              ctx.twin.id
            ]
   end
@@ -89,7 +89,7 @@ defmodule SlipdockWeb.MCP.SearchToolTest do
   end
 
   test "a stranger's board is not a filter you can use", ctx do
-    result = search(ctx.conn, %{q: "invoice", board: "theirs"})
+    result = search(ctx.conn, %{q: "invoice", board: "theirs5"})
     assert result["isError"] == true
   end
 end

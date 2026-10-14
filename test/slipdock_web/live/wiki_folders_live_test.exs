@@ -12,7 +12,7 @@ defmodule SlipdockWeb.WikiFoldersLiveTest do
   alias Slipdock.Wiki
 
   setup %{user: user} do
-    board = board_fixture(%{"name" => "Handbook", "code" => "handbook"}, owner: user)
+    board = board_fixture(%{"name" => "Handbook", "code" => "handbook5"}, owner: user)
     %{board: board}
   end
 
@@ -612,7 +612,7 @@ defmodule SlipdockWeb.WikiFoldersLiveTest do
       view |> element("button[phx-click='toggle_organise']") |> render_click()
       assert has_element?(view, "#wiki-tree-toggle-all-box.hidden")
 
-      bare = board_fixture(%{"name" => "Bare", "code" => "bare"}, owner: user)
+      bare = board_fixture(%{"name" => "Bare", "code" => "bare2"}, owner: user)
       {:ok, view, _html} = live(conn, ~p"/boards/#{bare}/wiki")
       assert has_element?(view, "#wiki-tree-toggle-all-box.hidden")
     end

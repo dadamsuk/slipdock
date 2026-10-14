@@ -12,12 +12,12 @@ defmodule SlipdockWeb.API.PagesTest do
   alias Slipdock.{Access, Wiki}
 
   setup %{conn: conn, user: user} do
-    board = board_fixture(%{"name" => "API Wiki", "code" => "apiwiki"}, owner: user)
+    board = board_fixture(%{"name" => "API Wiki", "code" => "apiwiki4"}, owner: user)
     %{conn: put_req_header(conn, "accept", "application/json"), board: board}
   end
 
   defp create(conn, body) do
-    conn |> post("/api/boards/apiwiki/pages", body) |> json_response(201)
+    conn |> post("/api/boards/apiwiki4/pages", body) |> json_response(201)
   end
 
   describe "listing and creating" do
@@ -37,13 +37,13 @@ defmodule SlipdockWeb.API.PagesTest do
       create(conn, %{title: "Rollback", parent: parent["code"]})
 
       assert %{"pages" => flat} =
-               conn |> get("/api/boards/apiwiki/pages") |> json_response(200)
+               conn |> get("/api/boards/apiwiki4/pages") |> json_response(200)
 
       assert length(flat) == 2
       refute Map.has_key?(hd(flat), "body")
 
       assert %{"pages" => [top]} =
-               conn |> get("/api/boards/apiwiki/pages?tree=true") |> json_response(200)
+               conn |> get("/api/boards/apiwiki4/pages?tree=true") |> json_response(200)
 
       assert top["title"] == "Deploys"
       assert [%{"title" => "Rollback"}] = top["children"]
@@ -54,13 +54,13 @@ defmodule SlipdockWeb.API.PagesTest do
       create(conn, %{title: "Refunds", body: "money back"})
 
       assert %{"pages" => [found]} =
-               conn |> get("/api/boards/apiwiki/pages?q=money") |> json_response(200)
+               conn |> get("/api/boards/apiwiki4/pages?q=money") |> json_response(200)
 
       assert found["title"] == "Refunds"
 
       assert %{"pages" => []} =
                conn
-               |> get("/api/boards/apiwiki/pages?parent=root&q=nothing")
+               |> get("/api/boards/apiwiki4/pages?parent=root&q=nothing")
                |> json_response(200)
     end
   end
@@ -74,7 +74,7 @@ defmodule SlipdockWeb.API.PagesTest do
     # `board-code/slug` is one path segment, so the slash in it is encoded —
     # which is what `SlipdockCLI.HTTP.seg/1` does for every reference it sends.
     test "is reachable by id, code and board/slug", %{conn: conn, page: page} do
-      for ref <- [page["id"], page["code"], "apiwiki%2Frunbook"] do
+      for ref <- [page["id"], page["code"], "apiwiki4%2Frunbook"] do
         assert %{"page" => found} = conn |> get("/api/pages/#{ref}") |> json_response(200)
         assert found["id"] == page["id"]
       end
@@ -304,7 +304,7 @@ defmodule SlipdockWeb.API.PagesTest do
       other = user_fixture("api.other@example.com")
 
       {:ok, _} =
-        Access.grant(Slipdock.Boards.find_board("apiwiki") |> elem(1), other, "write", user)
+        Access.grant(Slipdock.Boards.find_board("apiwiki4") |> elem(1), other, "write", user)
 
       conn_as(other)
       |> put_req_header("accept", "application/json")
@@ -361,7 +361,7 @@ defmodule SlipdockWeb.API.PagesTest do
       assert reader |> get("/api/pages/#{draft["id"]}") |> json_response(404)
 
       assert %{"pages" => pages} =
-               reader |> get("/api/boards/apiwiki/pages") |> json_response(200)
+               reader |> get("/api/boards/apiwiki4/pages") |> json_response(200)
 
       assert pages == []
 
@@ -382,7 +382,7 @@ defmodule SlipdockWeb.API.PagesTest do
                outsider_conn |> get("/api/pages/#{page["id"]}") |> json_response(200)
 
       assert seen["title"] == "Just this doc"
-      assert outsider_conn |> get("/api/boards/apiwiki/pages") |> json_response(404)
+      assert outsider_conn |> get("/api/boards/apiwiki4/pages") |> json_response(404)
     end
   end
 end

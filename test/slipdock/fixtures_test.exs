@@ -107,4 +107,53 @@ defmodule Slipdock.FixturesTest do
     assert Enum.all?(shortcuts, &(String.length(&1) == 2))
     assert Enum.uniq(shortcuts) == shortcuts
   end
+
+  # A board code written into a test by hand is the one key `board_fixture/2`
+  # can't make unique. Two async modules giving a board the same one queue on
+  # `boards_code_index`, the second until the first's test ends, and on a busy
+  # run that was past the query timeout: setups failed with "canceling
+  # statement due to user request" in whichever test lost (#788). Within one
+  # module tests run one at a time, so a module may reuse its own codes.
+  describe "board codes written into async tests" do
+    test "no two async modules use the same one" do
+      shared =
+        Path.wildcard("test/**/*_test.exs")
+        |> Enum.map(&{&1, File.read!(&1)})
+        |> shared_codes()
+
+      assert shared == %{},
+             "Board codes used in more than one async test module wait on each other " <>
+               "(#788); give each module its own:\n" <>
+               Enum.map_join(shared, "\n", fn {code, files} ->
+                 "  #{code}: #{Enum.join(files, ", ")}"
+               end)
+    end
+
+    test "the check sees both spellings, and leaves sync modules and other modules' uses alone" do
+      async = "use Slipdock.DataCase, async: true\n"
+
+      sources = [
+        {"a_test.exs", async <> ~s|board_fixture(%{"code" => "same"})\n"code" => "same"|},
+        {"b_test.exs", async <> ~s|create_sub_board(card, name, code: "same")|},
+        {"c_test.exs", async <> ~s|board_fixture(%{"code" => "solo"})|},
+        {"d_test.exs", "use Slipdock.DataCase, async: false\n" <> ~s|"code" => "solo"|},
+        {"e_test.exs", async <> ~s|assert %{"code" => -32600} = error|}
+      ]
+
+      assert shared_codes(sources) == %{"same" => ["a_test.exs", "b_test.exs"]}
+    end
+  end
+
+  defp shared_codes(sources) do
+    sources
+    |> Enum.reject(fn {_, source} -> source =~ "async: false" end)
+    |> Enum.flat_map(fn {path, source} ->
+      ~r/(?:"code" =>|code:) "([a-z0-9-]+)"/
+      |> Regex.scan(source, capture: :all_but_first)
+      |> Enum.map(fn [code] -> {code, path} end)
+      |> Enum.uniq()
+    end)
+    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+    |> Map.filter(fn {_, paths} -> length(paths) > 1 end)
+  end
 end

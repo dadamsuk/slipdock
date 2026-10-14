@@ -15,7 +15,7 @@ defmodule Slipdock.WikiTreeTest do
 
   setup do
     user = user_fixture()
-    board = board_fixture(%{"name" => "Handbook", "code" => "handbook"}, owner: user)
+    board = board_fixture(%{"name" => "Handbook", "code" => "handbook10"}, owner: user)
     %{user: user, board: board}
   end
 
@@ -208,7 +208,7 @@ defmodule Slipdock.WikiTreeTest do
     end
 
     test "a folder or page from another board is not found", %{board: board, user: user} do
-      other = board_fixture(%{"name" => "Other", "code" => "other"}, owner: user)
+      other = board_fixture(%{"name" => "Other", "code" => "other3"}, owner: user)
       theirs = folder(other, "Theirs")
       their_page = page(other, user, "Theirs")
 
@@ -812,7 +812,7 @@ defmodule Slipdock.WikiTreeTest do
       acme: acme,
       user: user
     } do
-      stranger = board_fixture(%{"name" => "Elsewhere", "code" => "elsewhere"}, owner: user)
+      stranger = board_fixture(%{"name" => "Elsewhere", "code" => "elsewhere7"}, owner: user)
       theirs = folder(stranger, "Theirs")
 
       assert Tree.vault_children(vault, "folder:#{theirs.id}", boards) == {:error, :not_found}

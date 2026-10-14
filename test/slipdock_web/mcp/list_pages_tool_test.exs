@@ -11,7 +11,7 @@ defmodule SlipdockWeb.MCP.ListPagesToolTest do
   alias Slipdock.{Accounts, Wiki}
 
   setup %{conn: conn, user: user} do
-    board = board_fixture(%{"name" => "Delivery", "code" => "delivery"}, owner: user)
+    board = board_fixture(%{"name" => "Delivery", "code" => "delivery4"}, owner: user)
 
     guide = page_fixture(board, %{"title" => "Guide", "summary" => "start here"}, user: user)
 
@@ -88,11 +88,11 @@ defmodule SlipdockWeb.MCP.ListPagesToolTest do
 
   describe "a flat list" do
     test "every live page, with what each line says about it", ctx do
-      result = ctx.conn |> call(%{board: "delivery"}) |> ok!()
+      result = ctx.conn |> call(%{board: "delivery4"}) |> ok!()
 
       assert result["board"] == %{
                "id" => ctx.board.id,
-               "code" => "delivery",
+               "code" => "delivery4",
                "name" => "Delivery"
              }
 
@@ -126,7 +126,7 @@ defmodule SlipdockWeb.MCP.ListPagesToolTest do
   end
 
   test "tree nests children under their parent", ctx do
-    %{"pages" => roots} = ctx.conn |> call(%{board: "delivery", tree: true}) |> ok!()
+    %{"pages" => roots} = ctx.conn |> call(%{board: "delivery4", tree: true}) |> ok!()
 
     guide = Enum.find(roots, &(&1["title"] == "Guide"))
     assert [%{"title" => "Install", "children" => []}] = guide["children"]
@@ -144,68 +144,68 @@ defmodule SlipdockWeb.MCP.ListPagesToolTest do
       set: [updated_at: ~U[2026-09-01 00:00:00Z]]
     )
 
-    %{"pages" => pages} = ctx.conn |> call(%{board: "delivery", recent: true}) |> ok!()
+    %{"pages" => pages} = ctx.conn |> call(%{board: "delivery4", recent: true}) |> ok!()
     assert hd(pages)["title"] == "Guide"
     # The rest tie on time, so the newer page comes first.
     assert Enum.map(tl(pages), & &1["id"]) == Enum.sort(Enum.map(tl(pages), & &1["id"]), :desc)
 
-    two = ctx.conn |> call(%{board: "delivery", recent: true, limit: 2}) |> ok!()
+    two = ctx.conn |> call(%{board: "delivery4", recent: true, limit: 2}) |> ok!()
     assert length(two["pages"]) == 2 and two["truncated"]
     assert hd(two["pages"])["title"] == "Guide"
 
-    assert ctx.conn |> call(%{board: "delivery", recent: "soon"}) |> error!() =~ "true or false"
+    assert ctx.conn |> call(%{board: "delivery4", recent: "soon"}) |> error!() =~ "true or false"
   end
 
   test "q matches titles and text", ctx do
-    assert ctx.conn |> call(%{board: "delivery", q: "guide"}) |> ok!() |> titles() == ["Guide"]
+    assert ctx.conn |> call(%{board: "delivery4", q: "guide"}) |> ok!() |> titles() == ["Guide"]
 
-    assert ctx.conn |> call(%{board: "delivery", q: "restart the"}) |> ok!() |> titles() ==
+    assert ctx.conn |> call(%{board: "delivery4", q: "restart the"}) |> ok!() |> titles() ==
              ["Runbook"]
 
-    assert ctx.conn |> call(%{board: "delivery", q: "nothing like it"}) |> ok!() |> titles() ==
+    assert ctx.conn |> call(%{board: "delivery4", q: "nothing like it"}) |> ok!() |> titles() ==
              []
   end
 
   describe "filters" do
     test "archived: exclude by default, include, only", ctx do
-      refute "Old notes" in (ctx.conn |> call(%{board: "delivery"}) |> ok!() |> titles())
+      refute "Old notes" in (ctx.conn |> call(%{board: "delivery4"}) |> ok!() |> titles())
 
       assert "Old notes" in (ctx.conn
-                             |> call(%{board: "delivery", archived: "include"})
+                             |> call(%{board: "delivery4", archived: "include"})
                              |> ok!()
                              |> titles())
 
-      only = ctx.conn |> call(%{board: "delivery", archived: "only"}) |> ok!()
+      only = ctx.conn |> call(%{board: "delivery4", archived: "only"}) |> ok!()
       assert [%{"title" => "Old notes", "archived" => true}] = only["pages"]
     end
 
     test "archived must be one of the three", ctx do
-      assert ctx.conn |> call(%{board: "delivery", archived: "yes"}) |> error!() =~
+      assert ctx.conn |> call(%{board: "delivery4", archived: "yes"}) |> error!() =~
                "exclude, include or only"
     end
 
     test "template: only templates, or none", ctx do
-      assert ctx.conn |> call(%{board: "delivery", template: true}) |> ok!() |> titles() ==
+      assert ctx.conn |> call(%{board: "delivery4", template: true}) |> ok!() |> titles() ==
                ["Retro template"]
 
       refute "Retro template" in (ctx.conn
-                                  |> call(%{board: "delivery", template: false})
+                                  |> call(%{board: "delivery4", template: false})
                                   |> ok!()
                                   |> titles())
     end
 
     test "draft: only drafts, or only published", ctx do
-      assert ctx.conn |> call(%{board: "delivery", draft: true}) |> ok!() |> titles() ==
+      assert ctx.conn |> call(%{board: "delivery4", draft: true}) |> ok!() |> titles() ==
                ["Half written"]
 
       refute "Half written" in (ctx.conn
-                                |> call(%{board: "delivery", draft: false})
+                                |> call(%{board: "delivery4", draft: false})
                                 |> ok!()
                                 |> titles())
     end
 
     test "a non-boolean flag is a tool error, not a crash", ctx do
-      assert ctx.conn |> call(%{board: "delivery", tree: "yes"}) |> error!() =~ "true or false"
+      assert ctx.conn |> call(%{board: "delivery4", tree: "yes"}) |> error!() =~ "true or false"
     end
   end
 
@@ -217,26 +217,26 @@ defmodule SlipdockWeb.MCP.ListPagesToolTest do
     end
 
     test "never sees a draft listed", ctx do
-      refute "Half written" in (ctx.reader |> call(%{board: "delivery"}) |> ok!() |> titles())
-      assert ctx.reader |> call(%{board: "delivery", draft: true}) |> ok!() |> titles() == []
+      refute "Half written" in (ctx.reader |> call(%{board: "delivery4"}) |> ok!() |> titles())
+      assert ctx.reader |> call(%{board: "delivery4", draft: true}) |> ok!() |> titles() == []
     end
   end
 
   describe "limit" do
     test "cuts the list short and says so", ctx do
-      result = ctx.conn |> call(%{board: "delivery", limit: 2}) |> ok!()
+      result = ctx.conn |> call(%{board: "delivery4", limit: 2}) |> ok!()
       assert length(result["pages"]) == 2
       assert result["truncated"] == true
     end
 
     test "a limit that covers everything is not truncated", ctx do
-      result = ctx.conn |> call(%{board: "delivery", limit: 5}) |> ok!()
+      result = ctx.conn |> call(%{board: "delivery4", limit: 5}) |> ok!()
       assert length(result["pages"]) == 5
       assert result["truncated"] == false
     end
 
     test "must be a positive whole number", ctx do
-      assert ctx.conn |> call(%{board: "delivery", limit: 0}) |> error!() =~ "positive"
+      assert ctx.conn |> call(%{board: "delivery4", limit: 0}) |> error!() =~ "positive"
     end
   end
 
@@ -264,7 +264,7 @@ defmodule SlipdockWeb.MCP.ListPagesToolTest do
       {token, _} = Accounts.create_api_token(ctx.user, "scoped", scope_boards: [other.id])
       conn = put_req_header(ctx.conn, "authorization", "Bearer " <> token)
 
-      assert conn |> call(%{board: "delivery"}) |> error!()
+      assert conn |> call(%{board: "delivery4"}) |> error!()
       assert conn |> call(%{board: "other"}) |> ok!() |> titles() == []
     end
   end
