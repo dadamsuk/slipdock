@@ -81,6 +81,13 @@ config :slipdock, :ai,
   key_file: Path.expand("../tmp/test_ai_keys.json", __DIR__),
   req_options: [plug: {Req.Test, Slipdock.AI}]
 
+# Google (the Drive connection, `Slipdock.Google`) is a Req.Test stub, and has
+# an OAuth client so the feature is on; a test about it being off overrides it.
+config :slipdock, :google,
+  client_id: "test-client.apps.googleusercontent.com",
+  client_secret: "test-secret",
+  req_options: [plug: {Req.Test, Slipdock.Google}]
+
 # The transcription server (see `Slipdock.Transcription`) is a Req.Test stub;
 # a job runs inline and its retries don't wait, so a test sees the end of it.
 config :slipdock, :transcription,

@@ -161,6 +161,10 @@ defmodule SlipdockWeb.Router do
     get "/account/export.zip", ExportController, :account
     # Board trees as one portable JSON document — the file an import reads.
     get "/account/boards.json", ExportController, :portable
+    # Connecting a Google Drive, for meeting recordings (W-1690).
+    get "/account/google/connect", GoogleController, :connect
+    get "/account/google/callback", GoogleController, :callback
+    delete "/account/google", GoogleController, :disconnect
     # A meeting capture's recording, for replaying a passage (see
     # `SlipdockWeb.CaptureAudioController`).
     get "/captures/:id/audio", CaptureAudioController, :show
