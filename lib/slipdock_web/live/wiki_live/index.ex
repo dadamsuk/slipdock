@@ -91,7 +91,7 @@ defmodule SlipdockWeb.WikiLive.Index do
        |> allow_upload(:page_image,
          accept: ~w(.png .jpg .jpeg .gif .webp image/png image/jpeg image/gif image/webp),
          max_entries: 5,
-         max_file_size: 10_000_000,
+         max_file_size: Attachment.image_max_size(),
          auto_upload: true,
          progress: &handle_upload/3
        )

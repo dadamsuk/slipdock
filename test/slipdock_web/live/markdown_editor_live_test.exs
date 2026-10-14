@@ -67,6 +67,22 @@ defmodule SlipdockWeb.MarkdownEditorLiveTest do
       assert Boards.get_card!(card.id).description == "## Plan\n\n- [ ] **ship** it"
     end
 
+    test "takes a photo over the old 10 MB limit", %{conn: conn, board: board, card: card} do
+      Slipdock.TestConfig.own_uploads_dir()
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/cards/#{card.id}")
+      render_click(card_panel(view), "edit_description", %{})
+
+      input =
+        file_input(view, "#card-form", :desc_image, [
+          %{name: "IMG_1234.jpg", content: :binary.copy("x", 11_000_000), type: "image/jpeg"}
+        ])
+
+      render_upload(input, "IMG_1234.jpg")
+
+      assert_push_event(view, "image_uploaded", %{upload: "desc_image"})
+      assert [%{size: 11_000_000}] = Boards.get_card!(card.id).attachments
+    end
+
     test "is not given an editor for a reader", %{board: board, card: card, user: owner} do
       reader = user_fixture("reader@example.com")
       {:ok, _} = Access.grant(board, reader, "read", owner)
@@ -150,7 +166,7 @@ defmodule SlipdockWeb.MarkdownEditorLiveTest do
     # LiveView won't submit a form whose upload holds an error, so an image
     # left there refused made the page impossible to save.
     for {kind, file, said} <- [
-          {:too_large, %{name: "holiday photo.png", size: 10_000_001, type: "image/png"},
+          {:too_large, %{name: "holiday photo.png", size: 1001, type: "image/png"},
            "holiday photo.png is too large"},
           {:not_accepted, %{name: "notes.txt", size: 2, type: "text/plain"},
            "notes.txt isn&#39;t an image"}
@@ -158,6 +174,8 @@ defmodule SlipdockWeb.MarkdownEditorLiveTest do
       test "an image dropped in and refused (#{kind}) is taken out, and the page still saves",
            %{conn: conn, board: board, user: user} do
         Slipdock.TestConfig.own_uploads_dir()
+        # The real limit is 50 MB; a small one shows the same refusal.
+        Slipdock.TestConfig.put(:image_max_size, 1000)
         page = page_fixture(board, %{"title" => "Notes", "body" => "plain"}, user: user)
         {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}/edit")
         file = unquote(Macro.escape(file))
@@ -187,6 +205,23 @@ defmodule SlipdockWeb.MarkdownEditorLiveTest do
         assert {:ok, %{body: "plain, and more"}} = Wiki.find_page(board, page.slug)
         assert Repo.all(Slipdock.Boards.Attachment) == []
       end
+    end
+
+    test "a photo over the old 10 MB limit is taken", %{conn: conn, board: board, user: user} do
+      Slipdock.TestConfig.own_uploads_dir()
+      page = page_fixture(board, %{"title" => "Trip", "body" => "photos"}, user: user)
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}/edit")
+
+      input =
+        file_input(view, "#page-form", :page_image, [
+          %{name: "IMG_1234.jpg", content: :binary.copy("x", 11_000_000), type: "image/jpeg"}
+        ])
+
+      render_upload(input, "IMG_1234.jpg")
+
+      assert_push_event(view, "image_uploaded", %{upload: "page_image", markdown: markdown})
+      assert markdown =~ "IMG_1234.jpg"
+      assert [%{size: 11_000_000}] = Wiki.attachments(page)
     end
 
     test "editing another page starts another editor", %{conn: conn, board: board} do

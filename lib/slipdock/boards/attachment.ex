@@ -17,6 +17,9 @@ defmodule Slipdock.Boards.Attachment do
   # refused before it gets here by a proxy in front (Cloudflare's own cap is
   # 100 MB on its free and pro plans).
   @max_size 250 * 1024 * 1024
+  # The largest image pasted or dropped into a description, a comment or a
+  # wiki page: room for a photo straight off a phone or camera.
+  @image_max_size 50_000_000
   # An image larger than this is never a card's thumbnail: the front shows
   # the original file, and every reader of the board would download it.
   @thumbnail_max 10 * 1024 * 1024
@@ -47,6 +50,13 @@ defmodule Slipdock.Boards.Attachment do
   """
   def max_size, do: Slipdock.Config.get(:attachment_max_size, @max_size)
   def image_types, do: @image_types
+
+  @doc """
+  The largest image pasted or dropped into a description, a comment or a wiki
+  page: 50 MB. Fixed; the override exists so a test can show the refusal
+  without building a file that size.
+  """
+  def image_max_size, do: Slipdock.Config.get(:image_max_size, @image_max_size)
 
   @doc "Whether the browser can safely show the file inline (raster images only)."
   def image?(%__MODULE__{content_type: type}), do: type in @image_types

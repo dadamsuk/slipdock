@@ -122,11 +122,22 @@ try {
   if (inEditor !== (await page.locator('#page_body').inputValue())) fail('the editor and the textarea disagree after a drop')
   console.log('ok: a dropped image is uploaded and linked in the editor')
 
-  // One the upload refuses (over 10 MB) is taken out again with a reason,
+  // A photo straight off a camera (20 MB, over the old 10 MB limit) goes up.
+  const photo = `${mkdtempSync(`${tmpdir()}/md-drop-`)}/IMG_1234.png`
+  writeFileSync(photo, Buffer.concat([Buffer.from(PNG, 'base64'), Buffer.alloc(20_000_000)]))
+  const upTo = (await page.locator('#page_body').inputValue()).split('/attachments/').length
+  await dropImage(`${body} .cm-content`, photo)
+  await page.waitForFunction((n) => {
+    const v = document.getElementById('page_body').value
+    return v.split('/attachments/').length > n && v.includes('IMG_1234.png') && !v.includes('Uploading')
+  }, upTo, { timeout: 60000 }).catch(() => fail('a 20 MB photo was not uploaded'))
+  console.log('ok: a 20 MB photo is uploaded')
+
+  // One the upload refuses (over 50 MB) is taken out again with a reason,
   // and doesn't stop the page saving — LiveView won't submit a form that
   // still holds an upload error.
   const big = `${mkdtempSync(`${tmpdir()}/md-drop-`)}/holiday photo.png`
-  writeFileSync(big, Buffer.concat([Buffer.from(PNG, 'base64'), Buffer.alloc(11_000_000)]))
+  writeFileSync(big, Buffer.concat([Buffer.from(PNG, 'base64'), Buffer.alloc(51_000_000)]))
   const kept = await page.locator('#page_body').inputValue()
   await dropImage(`${body} .cm-content`, big)
   await page.getByText('holiday photo.png is too large').first()
