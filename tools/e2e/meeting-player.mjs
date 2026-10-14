@@ -106,6 +106,14 @@ try {
   await until('clicking a tag did not seek to it', async () => (await current()) === '8000' && (await seconds()) >= 10, 600)
   if ((await seconds()) > 11) fail('the tag seeked past its moment: ' + (await seconds()))
 
+  // The summary's Tags line links to the same moment (#787).
+  await turn(65000).click()
+  await until('did not seek away first', async () => (await seconds()) >= 65)
+  await page.locator('#wiki-body p.wiki-transcript-tags a', { hasText: '#decision (0:10)' }).click()
+  await until('clicking the summary\'s tag did not seek to it', async () => (await current()) === '8000' && (await seconds()) >= 10, 600)
+  if ((await seconds()) > 11) fail('the summary tag seeked past its moment: ' + (await seconds()))
+  if (new URL(page.url()).hash.startsWith('#tag-')) fail('the tag link navigated instead of seeking: ' + page.url())
+
   // A recording that isn't on Drive says so.
   await page.goto(`${base}/boards/${kb}/wiki/${missing}`, { waitUntil: 'networkidle' })
   await page.waitForSelector('.phx-connected')

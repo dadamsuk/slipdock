@@ -49,7 +49,7 @@ defmodule SlipdockWeb.Wiki.Renderer do
     add_tags: ["input"],
     add_tag_attributes: %{
       "input" => ["type", "checked", "disabled"],
-      "a" => ["title"],
+      "a" => ["title", "data-seek-ms"],
       "span" => ["title", "role", "tabindex", "data-meld-block", "data-tag", "data-seek-ms"],
       # A transcript's turns carry their times for the player (W-1690).
       "article" => ["data-transcript"],
@@ -78,7 +78,10 @@ defmodule SlipdockWeb.Wiki.Renderer do
   def to_html(body, opts \\ [])
 
   def to_html(body, opts) when is_binary(body) do
-    context = Map.put(context(opts), :transcript_tags, Slipdock.Wiki.TranscriptTags.parse(body))
+    context =
+      context(opts)
+      |> Map.put(:transcript_tags, Slipdock.Wiki.TranscriptTags.parse(body))
+      |> Map.put(:transcript?, Regex.match?(~r/^[ \t]*(`{3,}|~{3,})[ \t]*vtt[ \t]*$/m, body))
 
     # Extensions belong on the *parse*, not just the render: a pipe table is
     # only a table if the parser was told tables exist. Each link resolves on
@@ -315,14 +318,14 @@ defmodule SlipdockWeb.Wiki.Renderer do
 
   defp expand_list(nodes, context), do: Enum.flat_map(nodes, &expand_node(&1, context))
 
-  # A paragraph that is nothing but a directive becomes a block of its own:
-  # a table of contents does not belong inside a <p>.
   defp expand_node(%MDEx.Paragraph{nodes: [%MDEx.Text{literal: text}]} = node, context) do
-    case Markup.tokens(String.trim(text)) do
-      [{:ref, %{kind: :directive} = ref}] -> [html_block(directive_html(ref.target, context))]
-      # A paragraph that is only `![[Note]]` becomes the note, as a block.
-      [{:ref, %{embed: true} = ref}] -> [html_block(embed_html(ref, context))]
-      _ -> [%{node | nodes: expand_list(node.nodes, context)}]
+    # A meeting summary's `Tags:` line: each tag a link to its moment in the
+    # transcript (#787), when there is one to go to.
+    with true <- context.transcript_tags != [] and context.transcript?,
+         {:ok, html} <- Slipdock.Wiki.TranscriptTags.line_html(text) do
+      [html_block(html)]
+    else
+      _ -> paragraph(node, text, context)
     end
   end
 
@@ -343,6 +346,17 @@ defmodule SlipdockWeb.Wiki.Renderer do
     do: [html_block(SlipdockWeb.TranscriptView.block_html(source, context.transcript_tags))]
 
   defp expand_node(%MDEx.Text{literal: text}, context), do: text_nodes(text, context)
+
+  # A paragraph that is nothing but a directive becomes a block of its own:
+  # a table of contents does not belong inside a <p>.
+  defp paragraph(node, text, context) do
+    case Markup.tokens(String.trim(text)) do
+      [{:ref, %{kind: :directive} = ref}] -> [html_block(directive_html(ref.target, context))]
+      # A paragraph that is only `![[Note]]` becomes the note, as a block.
+      [{:ref, %{embed: true} = ref}] -> [html_block(embed_html(ref, context))]
+      _ -> [%{node | nodes: expand_list(node.nodes, context)}]
+    end
+  end
 
   defp expand_node(%{nodes: children} = node, context) when is_list(children),
     do: [%{node | nodes: expand_list(children, context)}]

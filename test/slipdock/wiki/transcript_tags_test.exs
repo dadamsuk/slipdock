@@ -77,4 +77,34 @@ defmodule Slipdock.Wiki.TranscriptTagsTest do
       assert TranscriptTags.place([], tags) == %{}
     end
   end
+
+  # #787
+  describe "line_html/1" do
+    test "each timed tag is a link to its chip, the rest of the line is text" do
+      assert {:ok, html} = TranscriptTags.line_html("Tags: #important (0:05) & #action (1:02:03)")
+
+      assert html ==
+               ~s(<p class="wiki-transcript-tags">Tags: ) <>
+                 ~s|<a href="#tag-important-5000" class="wiki-transcript-tag-link" data-seek-ms="5000">#important (0:05)</a>| <>
+                 " &amp; " <>
+                 ~s|<a href="#tag-action-3723000" class="wiki-transcript-tag-link" data-seek-ms="3723000">#action (1:02:03)</a></p>|
+    end
+
+    test "untimed tags and markup stay text" do
+      assert {:ok, html} = TranscriptTags.line_html("Tags: #plain <b>x</b> #ok (0:01)")
+      assert html =~ "Tags: #plain &lt;b&gt;x&lt;/b&gt; <a href=\"#tag-ok-1000\""
+      refute html =~ "<b>"
+    end
+
+    test "anything but a Tags line with a timed tag is left alone" do
+      assert TranscriptTags.line_html("Tags: #untimed #also") == :error
+      assert TranscriptTags.line_html("Some Tags: #x (0:01)") == :error
+      assert TranscriptTags.line_html("Tags: #x (0:01)\nmore") == :error
+    end
+
+    test "a chip's anchor is safe as an id" do
+      assert TranscriptTags.anchor("a/b", 5) == "tag-a-b-5"
+      assert TranscriptTags.anchor("été", 0) == "tag-été-0"
+    end
+  end
 end

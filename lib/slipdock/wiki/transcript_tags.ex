@@ -51,6 +51,47 @@ defmodule Slipdock.Wiki.TranscriptTags do
   end
 
   @doc """
+  A paragraph that is a `Tags:` line, as HTML with each timed tag a link to
+  its chip in the transcript (#787): `{:ok, html}`, or `:error` for any
+  other text. Everything else on the line stays as escaped text.
+  """
+  def line_html(text) when is_binary(text) do
+    line = String.trim(text)
+
+    with true <- Regex.match?(~r/\ATags:/i, line) and not String.contains?(line, "\n"),
+         [_ | _] = found <- Regex.scan(@tag, line, return: :index) do
+      {parts, rest} = Enum.reduce(found, {[], 0}, &link(line, &1, &2))
+      tail = escape(binary_part(line, rest, byte_size(line) - rest))
+      {:ok, ~s(<p class="wiki-transcript-tags">#{Enum.reverse([tail | parts])}</p>)}
+    else
+      _ -> :error
+    end
+  end
+
+  # One `#tag (time)` of the line, and the text before it, onto `parts`.
+  defp link(line, [{at, len}, {t_at, t_len}, {s_at, s_len}], {parts, from}) do
+    tag = binary_part(line, t_at, t_len)
+
+    case ms(binary_part(line, s_at, s_len)) do
+      nil ->
+        {parts, from}
+
+      ms ->
+        a =
+          ~s(<a href="##{anchor(tag, ms)}" class="wiki-transcript-tag-link" data-seek-ms="#{ms}">) <>
+            escape(binary_part(line, at, len)) <> "</a>"
+
+        {[a, escape(binary_part(line, from, at - from)) | parts], at + len}
+    end
+  end
+
+  @doc "The id a tag's chip carries in the transcript, which its link points at."
+  def anchor(tag, ms), do: "tag-#{String.replace(tag, ~r/[^\p{L}\p{N}_-]/u, "-")}-#{ms}"
+
+  defp escape(text),
+    do: text |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()
+
+  @doc """
   Where each tag lands among `turns` (`Slipdock.Wiki.Viewer.transcript/2`'s,
   with their `cues`): `%{{turn_index, line_index} => [{word_index, tag}]}`.
 

@@ -292,8 +292,11 @@ export const TranscriptPlayer = {
     }
 
     // A tag pressed during the recording (#785): to the moment it was pressed.
+    // So is a tag's link in the summary (#787); without a recording it is
+    // just a link to the chip.
     const tag = e.target.closest("[data-seek-ms]")
     if (tag && this.src && this.el.contains(tag)) {
+      e.preventDefault()
       this.seek(Number(tag.dataset.seekMs), true)
       this.follow()
       return this.play()

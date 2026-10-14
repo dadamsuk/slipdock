@@ -3016,7 +3016,8 @@ search box marks the lines that match (Enter steps through them). While
 you're not typing, space plays and pauses, ← and → skip 10 seconds, and
 [ and ] change the speed. Moments tagged while recording, written in the
 summary as `Tags: #important (0:05) #action (12:40)`, show as chips inline
-in the transcript where they were pressed; click one to play from there.
+in the transcript where they were pressed, and the tags in that line become
+links to them; click either to play from there.
 The **▶ Play recording and transcript** link in
 the page jumps to the bar and starts it. Nothing is fetched from Drive
 until you press play.
@@ -3047,7 +3048,7 @@ it plays. Nothing here is specific to one tool.
 1. The summary, written however you like. Moments tagged while recording go
    on one line, `Tags: #important (0:05) #action (12:40)` (each a `#tag` and
    `m:ss`, or `h:mm:ss` from an hour). Each shows as a chip in the
-   transcript where it was pressed.
+   transcript where it was pressed, and as a link to it in this line.
 2. `## Recording`, holding the line `[▶ Play recording and transcript](#recording)`.
    Leave the whole section out when there is no audio.
 3. `## Transcript`, holding the transcript.

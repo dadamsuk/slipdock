@@ -576,6 +576,39 @@ defmodule SlipdockWeb.Wiki.RendererTest do
       assert LazyHTML.text(Enum.at(turns, 1)) =~ ~r/nine\s+#action 0:10\s+ten/
     end
 
+    # #787
+    test "the summary's Tags line links each tag to its chip in the transcript" do
+      html =
+        Renderer.to_html("""
+        Tags: #important (0:05) #untimed
+
+        ```vtt
+        WEBVTT
+
+        00:00:01.000 --> 00:00:09.000
+        <v Me>one two three four five six seven eight
+        ```
+        """)
+
+      doc = LazyHTML.from_fragment(html)
+      [link] = doc |> LazyHTML.query("p.wiki-transcript-tags a") |> Enum.to_list()
+      assert LazyHTML.attribute(link, "href") == ["#tag-important-5000"]
+      assert LazyHTML.attribute(link, "data-seek-ms") == ["5000"]
+      assert LazyHTML.text(link) == "#important (0:05)"
+      assert doc |> LazyHTML.query("p.wiki-transcript-tags") |> LazyHTML.text() =~ "#untimed"
+
+      assert [_] =
+               doc
+               |> LazyHTML.query("span#tag-important-5000[data-seek-ms='5000']")
+               |> Enum.to_list()
+    end
+
+    test "without a transcript the Tags line is an ordinary paragraph" do
+      html = Renderer.to_html("Tags: #important (0:05)\n")
+      refute html =~ "wiki-transcript-tag-link"
+      assert html =~ "<p>Tags: #important (0:05)</p>"
+    end
+
     test "without a Tags line the transcript has no tags, and its lines are as written" do
       html =
         Renderer.to_html("""

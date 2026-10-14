@@ -78,6 +78,7 @@ defmodule SlipdockWeb.TranscriptView do
 
     ~H"""
     <span
+      id={TranscriptTags.anchor(@tag.tag, @tag.ms)}
       class="wiki-transcript-tag badge badge-sm badge-warning cursor-pointer align-middle font-mono"
       data-tag={@tag.tag}
       data-seek-ms={@tag.ms}
