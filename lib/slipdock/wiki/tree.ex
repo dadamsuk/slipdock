@@ -71,6 +71,8 @@ defmodule Slipdock.Wiki.Tree do
     :flags,
     :due_date,
     :completed,
+    :icon,
+    :color,
     :inserted_at,
     :updated_at
   ]
@@ -949,7 +951,9 @@ defmodule Slipdock.Wiki.Tree do
         slug: folder.slug,
         parent_id: folder.parent_id,
         count: length(Map.get(subfolders, folder.id, [])) + length(Map.get(pages_in, key, [])),
-        pages: Map.get(totals, folder.id, 0)
+        pages: Map.get(totals, folder.id, 0),
+        icon: folder.icon,
+        color: folder.color
       }
     end
 
@@ -1140,7 +1144,9 @@ defmodule Slipdock.Wiki.Tree do
           Enum.count(folders, &(&1.parent_id == folder.id)) +
             Map.get(stats.top, folder.id, 0) + Map.get(stats.files, folder.id, 0),
         pages: Map.get(stats.totals, folder.id, 0),
-        sort: folder.sort
+        sort: folder.sort,
+        icon: folder.icon,
+        color: folder.color
       }
     end)
   end
@@ -1170,6 +1176,8 @@ defmodule Slipdock.Wiki.Tree do
       flags: page.flags || [],
       due: page.due_date,
       completed: page.completed,
+      icon: page.icon,
+      color: page.color,
       inserted_at: page.inserted_at,
       updated_at: page.updated_at
     }

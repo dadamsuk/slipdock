@@ -25,7 +25,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdatePage do
   def description,
     do:
       "Changes a page but not its body: title, summary, front_matter, also/not_in folders, parent (\"\" for the top) and " <>
-        "position, folder, archived (false restores), and pinning it as the page for a card. " <>
+        "position, folder, icon and color, archived (false restores), and pinning it as the page for a card. " <>
         "Only what you pass changes. write_page edits the body."
 
   @impl true
@@ -62,6 +62,16 @@ defmodule SlipdockWeb.MCP.Tools.UpdatePage do
             "File it in this folder as well as its home: a folder on its board, or a vault path like /Projects/Notes."
         },
         not_in: %{type: "string", description: "Take it out of a folder it is also filed in."},
+        icon: %{
+          type: "string",
+          enum: ["" | Slipdock.Wiki.Icons.names()],
+          description: "What it wears in the wiki; \"\" for the plain one."
+        },
+        color: %{
+          type: "string",
+          enum: ["" | Slipdock.Palette.names()],
+          description: "Tints its icon; \"\" for none."
+        },
         archived: %{type: "boolean", description: "true puts it away with its children."},
         pin_card: %{type: "integer", description: "Card this is *the* page for."},
         unpin_card: %{type: "integer"},
@@ -114,7 +124,9 @@ defmodule SlipdockWeb.MCP.Tools.UpdatePage do
          :folder_id,
          :position,
          :archived_at,
-         :content_hash
+         :content_hash,
+         :icon,
+         :color
        ])
        |> Map.put(
          :also_in,
@@ -181,7 +193,17 @@ defmodule SlipdockWeb.MCP.Tools.UpdatePage do
          {:ok, summary} <- summary(args) do
       if is_map_key(args, "title") and is_nil(title),
         do: {:error, "title can't be blank"},
-        else: {:ok, drop_unsent(%{"title" => title, "summary" => summary}, args)}
+        else:
+          {:ok,
+           drop_unsent(
+             %{
+               "title" => title,
+               "summary" => summary,
+               "icon" => args["icon"],
+               "color" => args["color"]
+             },
+             args
+           )}
     end
   end
 

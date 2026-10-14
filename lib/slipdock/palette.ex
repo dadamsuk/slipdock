@@ -56,6 +56,23 @@ defmodule Slipdock.Palette do
      "from-rose-200 to-red-300 dark:from-rose-400/60 dark:to-red-500/60"}
   ]
 
+  # Text in the colour: an icon tinted by it (#792). Written out in full,
+  # like the rest, so Tailwind finds every one.
+  @text %{
+    "slate" => "text-slate-500 dark:text-slate-300",
+    "red" => "text-red-500 dark:text-red-300",
+    "orange" => "text-orange-500 dark:text-orange-300",
+    "amber" => "text-amber-500 dark:text-amber-300",
+    "lime" => "text-lime-500 dark:text-lime-300",
+    "emerald" => "text-emerald-500 dark:text-emerald-300",
+    "teal" => "text-teal-500 dark:text-teal-300",
+    "sky" => "text-sky-500 dark:text-sky-300",
+    "indigo" => "text-indigo-500 dark:text-indigo-300",
+    "violet" => "text-violet-500 dark:text-violet-300",
+    "fuchsia" => "text-fuchsia-500 dark:text-fuchsia-300",
+    "rose" => "text-rose-500 dark:text-rose-300"
+  }
+
   def names, do: Enum.map(@colors, &elem(&1, 0))
 
   def all, do: Enum.map(@colors, fn {n, l, _, _, _, _} -> {n, l} end)
@@ -65,6 +82,8 @@ defmodule Slipdock.Palette do
   def chip(name), do: find(name) |> elem(3)
   def border(name), do: find(name) |> elem(4)
   def gradient(name), do: find(name) |> elem(5)
+
+  def text(name), do: Map.get(@text, name, @text["slate"])
 
   defp find(name) do
     Enum.find(@colors, hd(@colors), &(elem(&1, 0) == name))

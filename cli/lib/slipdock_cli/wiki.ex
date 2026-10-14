@@ -47,7 +47,13 @@ defmodule SlipdockCLI.Wiki do
   end
 
   def run("folder", ["new", ref | name_words], o) when name_words != [] do
-    body = compact(%{"name" => Enum.join(name_words, " "), "parent" => o[:parent]})
+    body =
+      compact(%{
+        "name" => Enum.join(name_words, " "),
+        "parent" => o[:parent],
+        "icon" => o[:icon],
+        "color" => o[:color]
+      })
 
     HTTP.post("/boards/#{enc(ref)}/folders", body) |> out(o, &Render.folder(&1["folder"]))
   end
@@ -81,7 +87,7 @@ defmodule SlipdockCLI.Wiki do
   def run("folder", _args, _o),
     do:
       fail(
-        "usage: slipdock folder ls BOARD | open BOARD [F] [--page P] | new BOARD NAME [--parent F] | mv BOARD F --parent G|--root|--name N|--board B [--contents] | rm BOARD F [--purge] | organise BOARD F --by date|ai|tag|flatten [--parent G|--root] [--per month|year|year_month|day] [--added] [--dry-run]"
+        "usage: slipdock folder ls BOARD | open BOARD [F] [--page P] | new BOARD NAME [--parent F] [--icon I] [--color C] | mv BOARD F --parent G|--root|--name N|--icon I|--no-icon|--color C|--no-color|--board B [--contents] | rm BOARD F [--purge] | organise BOARD F --by date|ai|tag|flatten [--parent G|--root] [--per month|year|year_month|day] [--added] [--dry-run]"
       )
 
   # Every board's wiki at once: what the Wiki view on the web shows.
@@ -532,6 +538,7 @@ defmodule SlipdockCLI.Wiki do
         "due_date" => if(o[:no_due], do: nil, else: o[:due]),
         "percent_complete" => if(o[:no_percent], do: nil, else: o[:percent]),
         "color" => if(o[:no_color], do: nil, else: o[:color]),
+        "icon" => if(o[:no_icon], do: nil, else: o[:icon]),
         "assignee" => if(o[:no_assignee], do: "", else: o[:assignee]),
         "completed" => cond_bool(o[:done], o[:undone]),
         "message" => o[:message],
@@ -541,6 +548,7 @@ defmodule SlipdockCLI.Wiki do
       |> then(fn b -> if o[:no_due], do: Map.put(b, "due_date", nil), else: b end)
       |> then(fn b -> if o[:no_percent], do: Map.put(b, "percent_complete", nil), else: b end)
       |> then(fn b -> if o[:no_color], do: Map.put(b, "color", nil), else: b end)
+      |> then(fn b -> if o[:no_icon], do: Map.put(b, "icon", nil), else: b end)
 
     if Map.drop(body, ["message", "base_hash"]) == %{},
       do: fail("nothing to change — pass --title, --body/--file, a facet, --draft or --publish")
@@ -906,19 +914,25 @@ defmodule SlipdockCLI.Wiki do
   end
 
   defp folder_mv(ref, folder, o) do
-    if is_nil(o[:parent]) and o[:root] != true and is_nil(o[:name]) and is_nil(o[:sort]),
-      do:
-        fail(
-          "say what to change: --parent P, --root, --name N, or --sort board|manual|name|modified|created"
-        )
+    if is_nil(o[:parent]) and o[:root] != true and is_nil(o[:name]) and is_nil(o[:sort]) and
+         Enum.all?([:icon, :no_icon, :color, :no_color], &is_nil(o[&1])),
+       do:
+         fail(
+           "say what to change: --parent P, --root, --name N, --sort board|manual|name|modified|created, --icon I, --no-icon, --color C or --no-color"
+         )
 
     body =
       compact(%{
         "name" => o[:name],
         "parent" => if(o[:root], do: "root", else: o[:parent]),
         "position" => o[:position],
-        "sort" => o[:sort]
+        "sort" => o[:sort],
+        "icon" => o[:icon],
+        "color" => o[:color]
       })
+      # Cleared is said as "": nil would be dropped as not sent.
+      |> then(&if(o[:no_icon], do: Map.put(&1, "icon", ""), else: &1))
+      |> then(&if(o[:no_color], do: Map.put(&1, "color", ""), else: &1))
 
     HTTP.patch("/boards/#{enc(ref)}/folders/#{path_enc(folder)}", body)
     |> out(o, &Render.folder(&1["folder"]))

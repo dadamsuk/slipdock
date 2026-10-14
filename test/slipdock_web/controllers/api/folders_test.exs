@@ -170,4 +170,55 @@ defmodule SlipdockWeb.API.FoldersTest do
 
     assert conn |> post("/api/boards/theirs/folders", %{name: "Mine"}) |> json_response(403)
   end
+
+  describe "icon and colour (#792)" do
+    test "a folder is made wearing them, and they show wherever it is read", %{conn: conn} do
+      assert %{"folder" => folder} =
+               conn
+               |> post("/api/boards/apiwiki/folders", %{
+                 name: "Ideas",
+                 icon: "star",
+                 color: "amber"
+               })
+               |> json_response(201)
+
+      assert {folder["icon"], folder["color"]} == {"star", "amber"}
+
+      assert %{"folders" => [%{"name" => "Ideas", "icon" => "star", "color" => "amber"}]} =
+               conn |> get("/api/boards/apiwiki/folders") |> json_response(200)
+    end
+
+    test "PATCH changes or clears them; a name outside the set is refused", %{
+      conn: conn,
+      board: board
+    } do
+      {:ok, folder} = Wiki.create_folder(board, %{"name" => "Ops", "icon" => "key"})
+
+      assert %{"folder" => %{"icon" => "bolt", "color" => "red"}} =
+               conn
+               |> patch("/api/boards/apiwiki/folders/Ops", %{icon: "bolt", color: "red"})
+               |> json_response(200)
+
+      assert %{"folder" => %{"icon" => nil, "color" => "red"}} =
+               conn |> patch("/api/folders/#{folder.id}", %{icon: ""}) |> json_response(200)
+
+      assert conn
+             |> patch("/api/boards/apiwiki/folders/Ops", %{icon: "dragon"})
+             |> json_response(422)
+
+      assert %{icon: nil, color: "red"} = Wiki.get_folder(folder.id)
+    end
+
+    test "a page's icon is set over PATCH and read back with it", %{conn: conn, board: board} do
+      page = page_fixture(board, %{"title" => "Launch"})
+
+      assert %{"page" => %{"icon" => "rocket-launch", "color" => "violet"}} =
+               conn
+               |> patch("/api/pages/#{page.code}", %{icon: "rocket-launch", color: "violet"})
+               |> json_response(200)
+
+      assert conn |> patch("/api/pages/#{page.code}", %{icon: "dragon"}) |> json_response(422)
+      assert Wiki.get_page!(page.id).icon == "rocket-launch"
+    end
+  end
 end

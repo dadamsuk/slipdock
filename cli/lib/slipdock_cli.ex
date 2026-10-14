@@ -201,6 +201,8 @@ defmodule SlipdockCLI do
         --percent N | --no-percent  --color C | --no-color
         --assignee EMAIL | --no-assignee   --done | --undone
         --folder F | --no-folder
+        --icon I | --no-icon        what it wears in the wiki, tinted by --color
+                                    (icons: see `folder new`)
     page file <page> --folder F | --no-folder
                                         file it in a folder, or take it out of one.
                                         Where a page is *kept*; `page mv` is what it is
@@ -287,11 +289,25 @@ defmodule SlipdockCLI do
                                         one level of the tree, as the web's tree loads it:
                                         folders, pages and files with how much is under each,
                                         never a body. No folder: the top of the wiki
-    folder new <board> <name...> [--parent F]
-                                        a name with slashes makes the whole path
+    folder new <board> <name...> [--parent F] [--icon I] [--color C]
+                                        a name with slashes makes the whole path.
+                                        --icon and --color: what it wears on the wiki's
+                                        main page and in its tree. Icons: star heart
+                                        bookmark flag bolt fire light-bulb sparkles
+                                        rocket-launch beaker book-open academic-cap
+                                        briefcase calendar chat-bubble-left-right
+                                        check-circle clipboard-document-list code-bracket
+                                        cog-6-tooth cube currency-dollar document-text
+                                        exclamation-triangle globe-alt home inbox key
+                                        lock-closed map megaphone musical-note photo
+                                        puzzle-piece shield-check tag trophy user-group
+                                        wrench-screwdriver archive-box folder. Colours:
+                                        slate red orange amber lime emerald teal sky
+                                        indigo violet fuchsia rose
     folder mv <board> <folder> [--name N] [--parent F | --root] [--position N]
                                         [--sort board|manual|name|modified|created]  how the
                                         tree orders the pages in it
+                                        [--icon I | --no-icon] [--color C | --no-color]
     folder mv <board> <folder> --board B [--parent F] [--contents] [--dry-run]
                                         to another board you can write to, with its
                                         subfolders, every page in them and their files;
@@ -703,6 +719,8 @@ defmodule SlipdockCLI do
     log: :string,
     color: :string,
     no_color: :boolean,
+    icon: :string,
+    no_icon: :boolean,
     top: :boolean,
     bottom: :boolean,
     index: :integer,

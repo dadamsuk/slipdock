@@ -235,9 +235,18 @@ defmodule Slipdock.Wiki.Folders do
           end
         end)
         |> case do
-          {:ok, id} -> {:ok, get!(id)}
+          {:ok, id} -> dress_last(get!(id), attrs)
           error -> error
         end
+    end
+  end
+
+  # A path's icon and colour are the folder it names, the last one (#792):
+  # the folders made on the way there are only the way there.
+  defp dress_last(folder, attrs) do
+    case Map.take(attrs, ["icon", "color"]) do
+      dress when dress == %{} -> {:ok, folder}
+      dress -> __MODULE__.update(folder, dress)
     end
   end
 
@@ -297,7 +306,7 @@ defmodule Slipdock.Wiki.Folders do
   @doc """
   Renames a folder, moves it under another, or reorders it.
 
-  `attrs` takes `name`, `parent_id` and `position`. A move that would put a
+  `attrs` takes `name`, `parent_id`, `position`, `icon` and `color`. A move that would put a
   folder inside itself is refused rather than quietly dropped.
   """
   def update(%Folder{} = folder, attrs) do

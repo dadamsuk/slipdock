@@ -26,6 +26,10 @@ defmodule Slipdock.Wiki.Folder do
     # How the tree orders the pages in it (W-103 R11.9): see `sorts/0`. nil
     # follows the board's `wiki_sort` (#789).
     field :sort, :string
+    # What it wears on the main page and in the tree (#792): one of
+    # `Slipdock.Wiki.Icons.names/0` and a `Slipdock.Palette` name.
+    field :icon, :string
+    field :color, :string
 
     belongs_to :board, Slipdock.Boards.Board
     belongs_to :parent, __MODULE__
@@ -49,9 +53,10 @@ defmodule Slipdock.Wiki.Folder do
 
   def changeset(folder, attrs) do
     folder
-    |> cast(attrs, [:name, :slug, :position, :parent_id, :sort])
+    |> cast(attrs, [:name, :slug, :position, :parent_id, :sort, :icon, :color])
     |> update_change(:sort, &if(&1 == "board", do: nil, else: &1))
     |> validate_inclusion(:sort, @sorts)
+    |> Slipdock.Wiki.Icons.validate()
     |> update_change(:name, &String.trim/1)
     |> update_change(:slug, &sanitize_slug/1)
     |> validate_required([:name])

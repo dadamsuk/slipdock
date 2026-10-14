@@ -379,6 +379,10 @@ defmodule Slipdock.Portable.Import do
   # take every row after it down too.
   defp known(value, keys), do: if(value in keys, do: value)
 
+  # A folder's or page's icon or colour that this server does not know is
+  # dropped rather than costing the whole row (#792): it is only dress.
+  defp dress(value, known), do: if(value in known, do: value)
+
   defp insert(%module{} = struct, attrs, what) do
     case struct |> module.changeset(attrs) |> Repo.insert(mode: :savepoint) do
       {:ok, row} -> row
@@ -540,7 +544,9 @@ defmodule Slipdock.Portable.Import do
                 name: folder[:name],
                 slug: folder[:slug],
                 position: folder[:position] || 0,
-                parent_id: parent_id
+                parent_id: parent_id,
+                icon: dress(folder[:icon], Slipdock.Wiki.Icons.names()),
+                color: dress(folder[:color], Slipdock.Palette.names())
               },
               named("folder", folder[:name])
             )
@@ -647,6 +653,7 @@ defmodule Slipdock.Portable.Import do
               completed: bool(doc[:completed], false),
               percent_complete: doc[:percent_complete],
               color: doc[:color],
+              icon: dress(doc[:icon], Slipdock.Wiki.Icons.names()),
               assignee_id: Refs.user_id_for(doc[:assignee], user)
             },
             named("page", doc[:title])
