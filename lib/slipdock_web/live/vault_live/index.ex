@@ -13,7 +13,14 @@ defmodule SlipdockWeb.VaultLive.Index do
 
   @impl true
   def mount(params, _session, socket) do
-    socket = assign(socket, page_title: "Vaults", form_key: 0, drafts: %{}, only: nil)
+    socket =
+      assign(socket,
+        page_title: "Vaults",
+        form_key: 0,
+        drafts: %{},
+        only: nil,
+        google: Slipdock.Google.status(socket.assigns.current_user)
+      )
 
     case params["vault"] do
       nil ->
@@ -121,6 +128,25 @@ defmodule SlipdockWeb.VaultLive.Index do
     else
       {:error, %Ecto.Changeset{} = cs} ->
         {:noreply, put_flash(socket, :error, "Vault name #{name_error(cs)}.")}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "That vault isn't there any more.")}
+    end
+  end
+
+  def handle_event("recordings_folder", %{"vault_id" => id, "folder" => folder}, socket) do
+    with {:ok, vault} <- own_vault(socket, id),
+         {:ok, vault} <- Vaults.set_recordings_folder(vault, folder) do
+      message =
+        if vault.recordings_folder,
+          do:
+            "#{vault.name} plays its recordings from #{vault.recordings_folder} on Google Drive.",
+          else: "#{vault.name} has no recordings folder now."
+
+      {:noreply, socket |> put_flash(:info, message) |> load()}
+    else
+      {:error, reason} when is_atom(reason) ->
+        {:noreply, put_flash(socket, :error, folder_error(reason, folder))}
 
       _ ->
         {:noreply, put_flash(socket, :error, "That vault isn't there any more.")}
@@ -259,6 +285,17 @@ defmodule SlipdockWeb.VaultLive.Index do
         :error
     end
   end
+
+  defp folder_error(:not_connected, _),
+    do: "Connect Google Drive on your account's Settings first."
+
+  defp folder_error(:revoked, _),
+    do:
+      "Google no longer accepts your Drive connection. Connect it again on your account's Settings."
+
+  defp folder_error(:invalid, _), do: "That isn't a folder path."
+  defp folder_error(:not_found, folder), do: "There's no folder \"#{folder}\" in your My Drive."
+  defp folder_error(_, _), do: "Google Drive couldn't be asked just now. Try again."
 
   defp name_error(cs), do: cs.errors[:name] |> Kernel.||({"is invalid", []}) |> elem(0)
 
@@ -444,6 +481,8 @@ defmodule SlipdockWeb.VaultLive.Index do
                 <.icon name="hero-trash" class="size-4" />
               </button>
             </div>
+
+            <.recordings_folder :if={@google != :not_configured} vault={vault} google={@google} />
 
             <h2 class="mt-4 text-xs font-semibold uppercase tracking-wide text-base-content/50">
               Mappings
@@ -655,6 +694,45 @@ defmodule SlipdockWeb.VaultLive.Index do
           The synced folders ({Enum.join(p.mirrors, ", ")}) will get these files.
         </p>
       </div>
+    </form>
+    """
+  end
+
+  # Where on the owner's Drive its meeting recordings are (W-1690). Only
+  # settable with a connection, since saving checks the folder is there.
+  attr :vault, :map, required: true
+  attr :google, :any, required: true
+
+  defp recordings_folder(assigns) do
+    ~H"""
+    <form
+      id={"recordings-folder-#{@vault.id}"}
+      phx-submit="recordings_folder"
+      class="mt-4 flex flex-wrap items-center gap-2 text-sm"
+    >
+      <input type="hidden" name="vault_id" value={@vault.id} />
+      <label for={"recordings-folder-input-#{@vault.id}"} class="text-base-content/60">
+        <.icon name="hero-microphone" class="size-4" /> Recordings folder on Google Drive
+      </label>
+      <input
+        type="text"
+        id={"recordings-folder-input-#{@vault.id}"}
+        name="folder"
+        value={@vault.recordings_folder}
+        placeholder="e.g. Manuel2 Recordings"
+        disabled={not match?({:connected, _}, @google)}
+        class="input input-sm flex-1 font-mono text-xs"
+      />
+      <button type="submit" class="btn btn-sm" disabled={not match?({:connected, _}, @google)}>
+        Save
+      </button>
+      <p
+        :if={not match?({:connected, _}, @google)}
+        class="w-full text-xs text-base-content/50"
+      >
+        <.link navigate={~p"/account/settings"} class="link">Connect Google Drive</.link>
+        to play this vault's meeting recordings from it.
+      </p>
     </form>
     """
   end

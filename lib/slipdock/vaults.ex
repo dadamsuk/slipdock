@@ -310,6 +310,36 @@ defmodule Slipdock.Vaults do
   end
 
   @doc """
+  Sets the folder on the owner's Google Drive the vault's meeting recordings
+  are kept in (W-1690), after checking, through the owner's connection, that
+  it is a folder there. A blank path clears it. Changing it forgets every
+  recording found under the old one.
+
+  `{:ok, vault}`, or `{:error, reason}`: `:not_connected`, `:revoked`,
+  `:invalid`, `:not_found`, `:unavailable` (see `Slipdock.Recordings`).
+  """
+  def set_recordings_folder(%Vault{} = vault, path) when path in [nil, ""],
+    do: save_recordings_folder(vault, nil)
+
+  def set_recordings_folder(%Vault{} = vault, path) when is_binary(path) do
+    if String.trim(path) == "" do
+      save_recordings_folder(vault, nil)
+    else
+      with {:ok, folder} <- Slipdock.Recordings.check_folder(vault.user_id, path),
+           do: save_recordings_folder(vault, folder)
+    end
+  end
+
+  defp save_recordings_folder(vault, folder) do
+    Slipdock.Recordings.forget_all(vault)
+
+    vault
+    |> Ecto.Changeset.change(recordings_folder: folder)
+    |> Repo.update()
+    |> preloaded()
+  end
+
+  @doc """
   Deletes a vault and its mappings. The pages are untouched: they were always
   the boards', and the boards simply stop being in a vault.
   """

@@ -15,6 +15,9 @@ defmodule Slipdock.Vaults.Vault do
 
   schema "vaults" do
     field :name, :string
+    # Where on its owner's Google Drive the vault's meeting recordings are
+    # (W-1690): a path from My Drive's root. Only files under it are served.
+    field :recordings_folder, :string
 
     belongs_to :user, Slipdock.Accounts.User
     has_many :mappings, Slipdock.Vaults.Mapping, preload_order: [asc: :path]

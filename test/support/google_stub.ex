@@ -34,4 +34,74 @@ defmodule Slipdock.GoogleStub do
     {:ok, body, _conn} = Plug.Conn.read_body(conn)
     URI.decode_query(body)
   end
+
+  @doc """
+  A small Drive to answer from: `files` is a list of maps with `"id"`,
+  `"name"`, `"mimeType"`, `"parents"` and, for a file, `"size"` and
+  `:content` (its bytes, served with `alt=media`, ranges and all). Each
+  request is sent to the test process as `{:drive, method, path, params}`, so
+  a test can count them.
+  """
+  def drive!(files) do
+    test = self()
+    by_id = Map.new(files, &{&1["id"], &1})
+
+    stub(fn conn ->
+      conn = Plug.Conn.fetch_query_params(conn)
+      send(test, {:drive, conn.method, conn.request_path, conn.query_params})
+
+      case conn.request_path do
+        "/drive/v3/files" ->
+          {name, parent} = parse_q(conn.query_params["q"])
+
+          found =
+            files
+            |> Enum.filter(&(&1["name"] == name and parent in (&1["parents"] || [])))
+            |> Enum.map(&Map.delete(&1, :content))
+
+          Req.Test.json(conn, %{"files" => found})
+
+        "/drive/v3/files/" <> id ->
+          case {by_id[id], conn.query_params["alt"]} do
+            {nil, _} ->
+              conn |> Plug.Conn.put_status(404) |> Req.Test.json(%{"error" => %{"code" => 404}})
+
+            {file, "media"} ->
+              media(conn, file)
+
+            {file, _} ->
+              Req.Test.json(conn, Map.delete(file, :content))
+          end
+      end
+    end)
+  end
+
+  defp parse_q(q) do
+    [_, name, parent] = Regex.run(~r/^name = '((?:[^'\\]|\\.)*)' and '([^']*)' in parents/, q)
+    {String.replace(name, ~r/\\(.)/, "\\1"), parent}
+  end
+
+  defp media(conn, file) do
+    content = file[:content] || ""
+    size = byte_size(content)
+
+    conn = Plug.Conn.put_resp_content_type(conn, file["mimeType"], nil)
+
+    case Plug.Conn.get_req_header(conn, "range") do
+      ["bytes=" <> spec] ->
+        [from, to] = String.split(spec, "-")
+        first = String.to_integer(from)
+        last = if to == "", do: size - 1, else: min(String.to_integer(to), size - 1)
+
+        conn
+        |> Plug.Conn.put_resp_header("content-range", "bytes #{first}-#{last}/#{size}")
+        |> Plug.Conn.put_resp_header("accept-ranges", "bytes")
+        |> Plug.Conn.send_resp(206, binary_part(content, first, last - first + 1))
+
+      _ ->
+        conn
+        |> Plug.Conn.put_resp_header("accept-ranges", "bytes")
+        |> Plug.Conn.send_resp(200, content)
+    end
+  end
 end
