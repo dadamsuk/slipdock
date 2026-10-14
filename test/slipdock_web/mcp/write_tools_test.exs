@@ -11,13 +11,13 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
   alias Slipdock.{Accounts, Boards, Repo, Wiki}
 
   setup %{conn: conn, user: user} do
-    board = board_fixture(%{"name" => "Delivery", "code" => "delivery"}, owner: user)
+    board = board_fixture(%{"name" => "Delivery", "code" => "delivery11"}, owner: user)
     roles = SlipdockWeb.APIGuide.list_roles(board.columns)
     card = card_fixture(roles.ready, %{"title" => "Existing"})
     tag_fixture(board, "ux")
 
     stranger = user_fixture("stranger@example.com")
-    theirs = board_fixture(%{"name" => "Theirs", "code" => "theirs"}, owner: stranger)
+    theirs = board_fixture(%{"name" => "Theirs", "code" => "theirs7"}, owner: stranger)
     secret = card_fixture(hd(theirs.columns), %{"title" => "Their card"})
 
     %{
@@ -100,7 +100,7 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
       made =
         ctx.conn
         |> call("create_card", %{
-          board: "delivery",
+          board: "delivery11",
           title: "New work",
           description: "the brief",
           priority: "high",
@@ -121,7 +121,7 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
       made =
         ctx.conn
         |> call("create_card", %{
-          board: "delivery",
+          board: "delivery11",
           title: "Scheduled",
           start_date: "2026-11-02",
           due_date: "2026-11-09",
@@ -137,7 +137,9 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
 
     test "top puts it first in its list", ctx do
       made =
-        ctx.conn |> call("create_card", %{board: "delivery", title: "Urgent", top: true}) |> ok!()
+        ctx.conn
+        |> call("create_card", %{board: "delivery11", title: "Urgent", top: true})
+        |> ok!()
 
       [first | _] = Boards.list_cards(ctx.board, %{"column" => ctx.roles.ready.name})
       assert first.id == made["id"]
@@ -173,24 +175,24 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
       tag_fixture(ctx.board, "bug")
 
       assert ctx.conn
-             |> call("create_card", %{board: "delivery", title: "x", tags: ["nope"]})
-             |> error!() == ~s(no tag "nope" on board delivery; its tags are: bug, ux)
+             |> call("create_card", %{board: "delivery11", title: "x", tags: ["nope"]})
+             |> error!() == ~s(no tag "nope" on board delivery11; its tags are: bug, ux)
 
       refute Enum.any?(Boards.list_cards(ctx.board, %{}), &(&1.title == "x"))
     end
 
     test "a tag on a board with none says so", ctx do
-      bare = board_fixture(%{"name" => "Bare", "code" => "bare"}, owner: ctx.user)
+      bare = board_fixture(%{"name" => "Bare", "code" => "bare3"}, owner: ctx.user)
 
       assert ctx.conn
-             |> call("create_card", %{board: "bare", title: "x", tags: ["nope"]})
-             |> error!() =~ ~s(no tag "nope" on board bare; it has no tags)
+             |> call("create_card", %{board: "bare3", title: "x", tags: ["nope"]})
+             |> error!() =~ ~s(no tag "nope" on board bare3; it has no tags)
 
       assert Boards.list_cards(bare, %{}) == []
     end
 
     test "never on a stranger's board, nor under their card", ctx do
-      assert ctx.conn |> call("create_card", %{board: "theirs", title: "Sneaky"}) |> error!() =~
+      assert ctx.conn |> call("create_card", %{board: "theirs7", title: "Sneaky"}) |> error!() =~
                "no board"
 
       ctx.conn |> call("create_card", %{parent: ctx.secret.id, title: "Sneaky"}) |> error!()
@@ -201,7 +203,7 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
       text =
         ctx.conn
         |> read_only(ctx.user)
-        |> call("create_card", %{board: "delivery", title: "Nope"})
+        |> call("create_card", %{board: "delivery11", title: "Nope"})
         |> error!()
 
       assert text =~ "read-only"
@@ -272,7 +274,7 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
         })
         |> error!()
 
-      assert text == ~s(no tag "mcp-test" on board delivery; its tags are: ux)
+      assert text == ~s(no tag "mcp-test" on board delivery11; its tags are: ux)
 
       card = Boards.get_card!(ctx.card.id)
       assert card.priority == "none"
@@ -284,7 +286,7 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
     test "remove_tags with an unknown tag is refused the same way", ctx do
       assert ctx.conn
              |> call("update_card", %{card: ctx.card.id, remove_tags: ["gone"]})
-             |> error!() =~ ~s(no tag "gone" on board delivery; its tags are: ux)
+             |> error!() =~ ~s(no tag "gone" on board delivery11; its tags are: ux)
     end
 
     test "tag parameters say the tag must already be on the board", ctx do
@@ -313,7 +315,7 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
       |> ok!()
 
       %{"activity" => activity} =
-        ctx.conn |> call("activity", %{board: "delivery", card: ctx.card.id}) |> ok!()
+        ctx.conn |> call("activity", %{board: "delivery11", card: ctx.card.id}) |> ok!()
 
       assert [
                ~s(changed the checklist on “Existing”: added 1, unticked 1),
@@ -485,12 +487,12 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
     end
 
     test "to another board, at the bottom of the list named", ctx do
-      elsewhere = board_fixture(%{"name" => "Elsewhere", "code" => "elsewhere"}, owner: ctx.user)
+      elsewhere = board_fixture(%{"name" => "Elsewhere", "code" => "elsewhere4"}, owner: ctx.user)
       target = List.last(elsewhere.columns)
 
       moved =
         ctx.conn
-        |> call("move_card", %{card: ctx.card.id, board: "elsewhere", column: target.name})
+        |> call("move_card", %{card: ctx.card.id, board: "elsewhere4", column: target.name})
         |> ok!()
 
       assert moved["board_id"] == elsewhere.id
@@ -500,17 +502,17 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
     end
 
     test "never onto a stranger's board", ctx do
-      assert ctx.conn |> call("move_card", %{card: ctx.card.id, board: "theirs"}) |> error!() =~
+      assert ctx.conn |> call("move_card", %{card: ctx.card.id, board: "theirs7"}) |> error!() =~
                "no board"
 
       assert Boards.get_card!(ctx.card.id).board_id == ctx.board.id
     end
 
     test "an archived card is not moved to another board", ctx do
-      board_fixture(%{"name" => "Elsewhere", "code" => "elsewhere"}, owner: ctx.user)
+      board_fixture(%{"name" => "Elsewhere", "code" => "elsewhere4"}, owner: ctx.user)
       {:ok, _} = Boards.archive_card(ctx.card)
 
-      assert ctx.conn |> call("move_card", %{card: ctx.card.id, board: "elsewhere"}) |> error!() =~
+      assert ctx.conn |> call("move_card", %{card: ctx.card.id, board: "elsewhere4"}) |> error!() =~
                "Restore"
 
       assert Boards.get_card!(ctx.card.id).board_id == ctx.board.id
@@ -671,7 +673,7 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
         ctx.conn
         |> call("write_page", %{
           mode: "create",
-          board: "delivery",
+          board: "delivery11",
           title: "Runbook",
           body: "# Deploy\n\nStep one."
         })
@@ -764,11 +766,11 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
 
     test "not on a stranger's board", ctx do
       ctx.conn
-      |> call("write_page", %{mode: "create", board: "theirs", title: "Sneaky", body: "x"})
+      |> call("write_page", %{mode: "create", board: "theirs7", title: "Sneaky", body: "x"})
       |> error!()
 
       their_page =
-        page_fixture(ctx.theirs, %{"title" => "Theirs", "body" => "theirs"},
+        page_fixture(ctx.theirs, %{"title" => "Theirs", "body" => "theirs7"},
           user: Accounts.get_user!(ctx.theirs.owner_id)
         )
 
@@ -776,14 +778,14 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
       |> call("write_page", %{mode: "append", page: their_page.code, body: "graffiti"})
       |> error!()
 
-      assert Wiki.get_page!(their_page.id).body == "theirs"
+      assert Wiki.get_page!(their_page.id).body == "theirs7"
     end
 
     test "a read-only token cannot write", ctx do
       text =
         ctx.conn
         |> read_only(ctx.user)
-        |> call("write_page", %{mode: "create", board: "delivery", title: "Nope", body: "x"})
+        |> call("write_page", %{mode: "create", board: "delivery11", title: "Nope", body: "x"})
         |> error!()
 
       assert text =~ "read-only"

@@ -9,7 +9,7 @@ defmodule SlipdockWeb.MCP.AskToolTest do
   setup %{user: user} do
     Slipdock.AIStub.stub_embeddings()
 
-    board = board_fixture(%{"name" => "Delivery", "code" => "delivery"}, owner: user)
+    board = board_fixture(%{"name" => "Delivery", "code" => "delivery3"}, owner: user)
     card = card_fixture(hd(board.columns), %{"title" => "Invoice rounding is wrong on refunds"})
     {:ok, _} = Search.index_cards(Search.load_cards(Search.all_card_ids()))
 
@@ -103,8 +103,8 @@ defmodule SlipdockWeb.MCP.AskToolTest do
   test "board keeps the model to that board", ctx do
     Slipdock.AIStub.reply_with("Nothing much.")
 
-    assert ask(ctx.conn, %{question: "What's going on?", board: "delivery"})["isError"] == false
-    assert system_prompt() =~ ~s[about the board "Delivery" (code `delivery`)]
+    assert ask(ctx.conn, %{question: "What's going on?", board: "delivery3"})["isError"] == false
+    assert system_prompt() =~ ~s[about the board "Delivery" (code `delivery3`)]
   end
 
   test "without a board the model is not told about one", ctx do
@@ -116,10 +116,10 @@ defmodule SlipdockWeb.MCP.AskToolTest do
 
   test "a board the caller cannot see is refused before any model call", ctx do
     stranger = user_fixture("stranger@example.com")
-    board_fixture(%{"name" => "Theirs", "code" => "theirs"}, owner: stranger)
+    board_fixture(%{"name" => "Theirs", "code" => "theirs4"}, owner: stranger)
     Slipdock.AIStub.reply_with("should not be asked")
 
-    assert error_text(ask(ctx.conn, %{question: "anything", board: "theirs"})) =~
+    assert error_text(ask(ctx.conn, %{question: "anything", board: "theirs4"})) =~
              "no board you can see"
 
     refute_receive {:ai_request, _}
@@ -136,7 +136,7 @@ defmodule SlipdockWeb.MCP.AskToolTest do
 
     scoped = put_req_header(build_conn(), "authorization", "Bearer " <> token)
 
-    assert error_text(ask(scoped, %{question: "anything", board: "delivery"})) =~
+    assert error_text(ask(scoped, %{question: "anything", board: "delivery3"})) =~
              "confined to some"
 
     refute_receive {:ai_request, _}

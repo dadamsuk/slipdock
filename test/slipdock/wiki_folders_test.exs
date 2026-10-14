@@ -15,7 +15,7 @@ defmodule Slipdock.WikiFoldersTest do
 
   setup do
     user = user_fixture()
-    board = board_fixture(%{"name" => "Handbook", "code" => "handbook"}, owner: user)
+    board = board_fixture(%{"name" => "Handbook", "code" => "handbook8"}, owner: user)
     %{user: user, board: board}
   end
 

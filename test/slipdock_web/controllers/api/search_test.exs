@@ -8,7 +8,7 @@ defmodule SlipdockWeb.API.SearchTest do
   setup %{user: user} do
     Slipdock.AIStub.stub_embeddings()
 
-    board = board_fixture(%{"name" => "Delivery", "code" => "delivery"}, owner: user)
+    board = board_fixture(%{"name" => "Delivery", "code" => "delivery2"}, owner: user)
     card = card_fixture(hd(board.columns), %{"title" => "Invoice rounding is wrong on refunds"})
     {:ok, _} = Boards.add_comment(card, "the staging rollback was blocked on approvals")
     {:ok, _} = Search.index_cards(Search.load_cards(Search.all_card_ids()))
@@ -28,7 +28,7 @@ defmodule SlipdockWeb.API.SearchTest do
 
       assert [%{"card" => card, "score" => score, "matches" => matches}] = body["results"]
       assert card["id"] == ctx.card.id
-      assert card["board"]["code"] == "delivery"
+      assert card["board"]["code"] == "delivery2"
       assert card["url"] == "/boards/#{ctx.board.id}/cards/#{ctx.card.id}"
       assert is_float(score) and score > 0.0
       assert Enum.any?(matches, &(&1["kind"] == "card"))
@@ -74,7 +74,7 @@ defmodule SlipdockWeb.API.SearchTest do
     end
 
     test "a board can be named by code, name or id", ctx do
-      for reference <- ["delivery", "Delivery", to_string(ctx.board.id)] do
+      for reference <- ["delivery2", "Delivery", to_string(ctx.board.id)] do
         assert %{"count" => 1} =
                  ctx.conn
                  |> get(~p"/api/search", %{"q" => "invoice rounding", "board" => reference})
@@ -188,13 +188,13 @@ defmodule SlipdockWeb.API.SearchTest do
 
       assert %{"answer" => "Nothing much."} =
                ctx.conn
-               |> post(~p"/api/ask", %{"q" => "What's going on?", "board" => "delivery"})
+               |> post(~p"/api/ask", %{"q" => "What's going on?", "board" => "delivery2"})
                |> json_response(200)
 
       assert_receive {:ai_request,
                       %{"messages" => [%{"role" => "system", "content" => system} | _]}}
 
-      assert system =~ ~s[about the board "Delivery" (code `delivery`)]
+      assert system =~ ~s[about the board "Delivery" (code `delivery2`)]
     end
 
     test "without a board the assistant is not told about one", ctx do
@@ -209,12 +209,12 @@ defmodule SlipdockWeb.API.SearchTest do
 
     test "a board the caller cannot see is refused before any model call", ctx do
       stranger = user_fixture("stranger@example.com")
-      board_fixture(%{"name" => "Theirs", "code" => "theirs"}, owner: stranger)
+      board_fixture(%{"name" => "Theirs", "code" => "theirs2"}, owner: stranger)
       Slipdock.AIStub.reply_with("should not be asked")
 
       assert %{"error" => _} =
                ctx.conn
-               |> post(~p"/api/ask", %{"q" => "anything", "board" => "theirs"})
+               |> post(~p"/api/ask", %{"q" => "anything", "board" => "theirs2"})
                |> json_response(404)
 
       refute_receive {:ai_request, _}
@@ -232,7 +232,7 @@ defmodule SlipdockWeb.API.SearchTest do
 
   describe "a token confined to some boards" do
     setup ctx do
-      other = board_fixture(%{"name" => "Elsewhere", "code" => "elsewhere"}, owner: ctx.user)
+      other = board_fixture(%{"name" => "Elsewhere", "code" => "elsewhere2"}, owner: ctx.user)
       twin = card_fixture(hd(other.columns), %{"title" => "Invoice rounding on refunds, again"})
       {:ok, _} = Search.index_cards(Search.load_cards(Search.all_card_ids()))
 
@@ -356,12 +356,12 @@ defmodule SlipdockWeb.API.SearchTest do
 
     test "another user's saved query is not yours to delete", ctx do
       stranger = user_fixture("stranger@example.com")
-      {:ok, theirs} = Slipdock.SavedQueries.save(stranger, "search", "theirs")
+      {:ok, theirs} = Slipdock.SavedQueries.save(stranger, "search", "theirs2")
 
       assert %{"saved" => []} =
                ctx.conn |> delete(~p"/api/saved-queries/#{theirs.id}") |> json_response(200)
 
-      assert [%{text: "theirs"}] = Slipdock.SavedQueries.list(stranger, "search")
+      assert [%{text: "theirs2"}] = Slipdock.SavedQueries.list(stranger, "search")
     end
   end
 

@@ -14,7 +14,7 @@ defmodule SlipdockWeb.PageCardFeaturesTest do
   alias Slipdock.Boards.Board
 
   setup %{conn: conn, user: user} do
-    board = board_fixture(%{"name" => "Handbook", "code" => "handbook"}, owner: user)
+    board = board_fixture(%{"name" => "Handbook", "code" => "handbook3"}, owner: user)
 
     page =
       page_fixture(board, %{"title" => "Onboarding", "body" => "Read this first."}, user: user)
@@ -56,7 +56,7 @@ defmodule SlipdockWeb.PageCardFeaturesTest do
     user: user
   } do
     other_page = page_fixture(board, %{"title" => "Leave"}, user: user)
-    elsewhere = board_fixture(%{"name" => "Product", "code" => "product"}, owner: user)
+    elsewhere = board_fixture(%{"name" => "Product", "code" => "product2"}, owner: user)
     elsewhere_page = page_fixture(elsewhere, %{"title" => "Roadmap"}, user: user)
 
     off!(board)

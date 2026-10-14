@@ -13,15 +13,15 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
   alias Slipdock.{Accounts, Boards}
 
   setup %{conn: conn, user: user} do
-    board = board_fixture(%{"name" => "Delivery", "code" => "delivery"}, owner: user)
+    board = board_fixture(%{"name" => "Delivery", "code" => "delivery9"}, owner: user)
     roles = SlipdockWeb.APIGuide.list_roles(board.columns)
     card = card_fixture(roles.ready, %{"title" => "Existing"})
 
     stranger = user_fixture("stranger@example.com")
-    theirs = board_fixture(%{"name" => "Theirs", "code" => "theirs"}, owner: stranger)
+    theirs = board_fixture(%{"name" => "Theirs", "code" => "theirs6"}, owner: stranger)
     secret = card_fixture(hd(theirs.columns), %{"title" => "Their card"})
 
-    shared = board_fixture(%{"name" => "Shared", "code" => "shared"}, owner: stranger)
+    shared = board_fixture(%{"name" => "Shared", "code" => "shared2"}, owner: stranger)
     share_fixture(shared, user, "write")
 
     %{
@@ -154,7 +154,9 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
 
     test "adds a tag to the board, with its colour", ctx do
       result =
-        ctx.conn |> call("create_tag", %{board: "delivery", name: "infra", color: "red"}) |> ok!()
+        ctx.conn
+        |> call("create_tag", %{board: "delivery9", name: "infra", color: "red"})
+        |> ok!()
 
       assert result["created"] == true
       assert %{"name" => "infra", "color" => "red", "id" => id} = result["tag"]
@@ -178,7 +180,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
     test "a name already there, in any case, is returned rather than doubled", ctx do
       {:ok, tag} = Boards.create_tag(ctx.board, %{"name" => "Ops"})
 
-      result = ctx.conn |> call("create_tag", %{board: "delivery", name: " ops "}) |> ok!()
+      result = ctx.conn |> call("create_tag", %{board: "delivery9", name: " ops "}) |> ok!()
 
       assert result["created"] == false
       assert result["tag"]["id"] == tag.id
@@ -189,7 +191,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
       {:ok, other} = Boards.create_tag(ctx.board, %{"name" => "other"})
 
       result =
-        ctx.conn |> call("create_tag", %{board: "delivery", name: to_string(other.id)}) |> ok!()
+        ctx.conn |> call("create_tag", %{board: "delivery9", name: to_string(other.id)}) |> ok!()
 
       assert result["created"] == true
       assert to_string(other.id) in tag_names(ctx.board)
@@ -206,14 +208,14 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
 
     test "an unknown colour, a blank name or one too long is refused", ctx do
       assert ctx.conn
-             |> call("create_tag", %{board: "delivery", name: "x", color: "plaid"})
+             |> call("create_tag", %{board: "delivery9", name: "x", color: "plaid"})
              |> error!() =~ "not saved"
 
-      assert ctx.conn |> call("create_tag", %{board: "delivery", name: " "}) |> error!() =~
+      assert ctx.conn |> call("create_tag", %{board: "delivery9", name: " "}) |> error!() =~
                "name is required"
 
       assert ctx.conn
-             |> call("create_tag", %{board: "delivery", name: String.duplicate("x", 31)})
+             |> call("create_tag", %{board: "delivery9", name: String.duplicate("x", 31)})
              |> error!() =~ "not saved"
 
       assert tag_names(ctx.board) == []
@@ -230,7 +232,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
     test "a read-only token cannot", ctx do
       ctx.conn
       |> with_token(ctx.user, scope: "read")
-      |> call("create_tag", %{board: "delivery", name: "nope"})
+      |> call("create_tag", %{board: "delivery9", name: "nope"})
       |> error!()
 
       assert tag_names(ctx.board) == []
@@ -242,7 +244,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
       result =
         ctx.conn
         |> call("create_list", %{
-          board: "delivery",
+          board: "delivery9",
           name: "Review",
           category: "doing",
           wip_limit: 3
@@ -262,7 +264,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
       taken = hd(before)
 
       assert ctx.conn
-             |> call("create_list", %{board: "delivery", name: String.upcase(taken)})
+             |> call("create_list", %{board: "delivery9", name: String.upcase(taken)})
              |> error!() =~ "already has a list called"
 
       assert list_names(ctx.board) == before
@@ -270,14 +272,14 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
 
     test "an unknown category is refused", ctx do
       assert ctx.conn
-             |> call("create_list", %{board: "delivery", name: "Odd", category: "sideways"})
+             |> call("create_list", %{board: "delivery9", name: "Odd", category: "sideways"})
              |> error!() =~ "not saved"
 
       refute "Odd" in list_names(ctx.board)
     end
 
     test "needs a name", ctx do
-      assert ctx.conn |> call("create_list", %{board: "delivery", name: " "}) |> error!() =~
+      assert ctx.conn |> call("create_list", %{board: "delivery9", name: " "}) |> error!() =~
                "name is required"
     end
 
@@ -294,7 +296,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
     test "a read-only token cannot", ctx do
       ctx.conn
       |> with_token(ctx.user, scope: "read")
-      |> call("create_list", %{board: "delivery", name: "Nope"})
+      |> call("create_list", %{board: "delivery9", name: "Nope"})
       |> error!()
 
       refute "Nope" in list_names(ctx.board)
@@ -308,14 +310,14 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
     end
 
     test "an empty list goes", ctx do
-      result = ctx.conn |> call("delete_list", %{board: "delivery", list: "spare"}) |> ok!()
+      result = ctx.conn |> call("delete_list", %{board: "delivery9", list: "spare"}) |> ok!()
       assert result["deleted"] == true
       assert result["deleted_cards"] == 0
       refute "Spare" in list_names(ctx.board)
     end
 
     test "by id as well as by name", ctx do
-      ctx.conn |> call("delete_list", %{board: "delivery", list: ctx.empty.id}) |> ok!()
+      ctx.conn |> call("delete_list", %{board: "delivery9", list: ctx.empty.id}) |> ok!()
       refute "Spare" in list_names(ctx.board)
     end
 
@@ -325,7 +327,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
 
       text =
         ctx.conn
-        |> call("delete_list", %{board: "delivery", list: ctx.roles.ready.name})
+        |> call("delete_list", %{board: "delivery9", list: ctx.roles.ready.name})
         |> error!()
 
       assert text =~ "list_not_empty"
@@ -338,7 +340,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
     test "with_cards = true deletes the list and its cards", ctx do
       result =
         ctx.conn
-        |> call("delete_list", %{board: "delivery", list: ctx.roles.ready.name, with_cards: true})
+        |> call("delete_list", %{board: "delivery9", list: ctx.roles.ready.name, with_cards: true})
         |> ok!()
 
       assert result["deleted_cards"] == 1
@@ -347,14 +349,14 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
     end
 
     test "an unknown list names the real ones", ctx do
-      text = ctx.conn |> call("delete_list", %{board: "delivery", list: "Nowhere"}) |> error!()
+      text = ctx.conn |> call("delete_list", %{board: "delivery9", list: "Nowhere"}) |> error!()
       assert text =~ "no list called “Nowhere”"
       assert text =~ "Spare"
     end
 
     test "with_cards must be true or false", ctx do
       assert ctx.conn
-             |> call("delete_list", %{board: "delivery", list: "Spare", with_cards: "yes"})
+             |> call("delete_list", %{board: "delivery9", list: "Spare", with_cards: "yes"})
              |> error!() =~ "with_cards must be true or false"
 
       assert "Spare" in list_names(ctx.board)
@@ -374,7 +376,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
     test "a read-only token cannot", ctx do
       ctx.conn
       |> with_token(ctx.user, scope: "read")
-      |> call("delete_list", %{board: "delivery", list: "Spare"})
+      |> call("delete_list", %{board: "delivery9", list: "Spare"})
       |> error!()
 
       assert "Spare" in list_names(ctx.board)
@@ -383,9 +385,9 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
 
   describe "create_board" do
     test "makes a board of the caller's own with the default lists", ctx do
-      result = ctx.conn |> call("create_board", %{name: "Launch", code: "launch"}) |> ok!()
+      result = ctx.conn |> call("create_board", %{name: "Launch", code: "launch2"}) |> ok!()
 
-      assert result["code"] == "launch"
+      assert result["code"] == "launch2"
       assert result["owner"] == "yours"
       assert result["ready"]
       assert result["url"] =~ "/boards/#{result["id"]}"
@@ -442,7 +444,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
     end
 
     test "a code already taken is refused", ctx do
-      assert ctx.conn |> call("create_board", %{name: "Again", code: "delivery"}) |> error!() =~
+      assert ctx.conn |> call("create_board", %{name: "Again", code: "delivery9"}) |> error!() =~
                "not saved"
     end
 
@@ -471,14 +473,14 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
 
   describe "archive_board" do
     test "archives it off the list, and restore brings it back", ctx do
-      result = ctx.conn |> call("archive_board", %{board: "delivery"}) |> ok!()
+      result = ctx.conn |> call("archive_board", %{board: "delivery9"}) |> ok!()
       assert result["archived"] == true
       assert Boards.get_board!(ctx.board.id).archived_at
 
       %{"boards" => boards} = ctx.conn |> call("list_boards", %{}) |> ok!()
       refute Enum.any?(boards, &(&1["id"] == ctx.board.id))
 
-      result = ctx.conn |> call("archive_board", %{board: "delivery", restore: true}) |> ok!()
+      result = ctx.conn |> call("archive_board", %{board: "delivery9", restore: true}) |> ok!()
       assert result["archived"] == false
       assert Boards.get_board!(ctx.board.id).archived_at == nil
     end
@@ -507,7 +509,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
   describe "delete_board" do
     test "with its code as confirm, it is gone with its cards", ctx do
       result =
-        ctx.conn |> call("delete_board", %{board: ctx.board.id, confirm: "Delivery"}) |> ok!()
+        ctx.conn |> call("delete_board", %{board: ctx.board.id, confirm: "Delivery9"}) |> ok!()
 
       assert result["deleted"] == true
       assert Boards.get_board(ctx.board.id) == nil
@@ -516,12 +518,12 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
 
     test "a wrong or missing confirm deletes nothing, and names the code", ctx do
       for args <- [
-            %{board: "delivery"},
-            %{board: "delivery", confirm: "yes"},
-            %{board: "delivery", confirm: true}
+            %{board: "delivery9"},
+            %{board: "delivery9", confirm: "yes"},
+            %{board: "delivery9", confirm: true}
           ] do
         text = ctx.conn |> call("delete_board", args) |> error!()
-        assert text =~ ~s("delivery")
+        assert text =~ ~s("delivery9")
         assert text =~ "archive_board"
       end
 
@@ -530,7 +532,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
 
     test "a board shared for writing is not the caller's to delete", ctx do
       assert ctx.conn
-             |> call("delete_board", %{board: ctx.shared.id, confirm: "shared"})
+             |> call("delete_board", %{board: ctx.shared.id, confirm: "shared2"})
              |> error!() =~ "you don't own this board"
 
       assert Boards.get_board(ctx.shared.id)
@@ -548,14 +550,14 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
     end
 
     test "not a stranger's board", ctx do
-      ctx.conn |> call("delete_board", %{board: ctx.theirs.id, confirm: "theirs"}) |> error!()
+      ctx.conn |> call("delete_board", %{board: ctx.theirs.id, confirm: "theirs6"}) |> error!()
       assert Boards.get_board(ctx.theirs.id)
     end
 
     test "a read-only token cannot", ctx do
       assert ctx.conn
              |> with_token(ctx.user, scope: "read")
-             |> call("delete_board", %{board: "delivery", confirm: "delivery"})
+             |> call("delete_board", %{board: "delivery9", confirm: "delivery9"})
              |> error!() =~ "read-only"
 
       assert Boards.get_board(ctx.board.id)

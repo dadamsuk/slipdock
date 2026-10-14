@@ -14,7 +14,7 @@ defmodule Slipdock.WikiLinksTest do
 
   setup do
     user = user_fixture()
-    board = board_fixture(%{"name" => "Handbook", "code" => "handbook"}, owner: user)
+    board = board_fixture(%{"name" => "Handbook", "code" => "handbook9"}, owner: user)
     %{user: user, board: board, column: hd(board.columns)}
   end
 
@@ -64,7 +64,7 @@ defmodule Slipdock.WikiLinksTest do
   describe "resolving" do
     test "finds pages by title, slug, code and across boards", %{board: board, user: user} do
       {:ok, target} = Wiki.create_page(board, %{"title" => "Retry policy"}, user: user)
-      other = board_fixture(%{"name" => "Elsewhere", "code" => "elsewhere"}, owner: user)
+      other = board_fixture(%{"name" => "Elsewhere", "code" => "elsewhere5"}, owner: user)
       {:ok, far} = Wiki.create_page(other, %{"title" => "Far away"}, user: user)
 
       body = """
@@ -243,7 +243,7 @@ defmodule Slipdock.WikiLinksTest do
       user: user
     } do
       card = card_fixture(column, %{"title" => "Ship it"})
-      shelved = board_fixture(%{"name" => "Old project", "code" => "old"}, owner: user)
+      shelved = board_fixture(%{"name" => "Old project", "code" => "old3"}, owner: user)
 
       {:ok, page} =
         Wiki.create_page(shelved, %{"title" => "Old spec", "body" => "About ##{card.id}"},

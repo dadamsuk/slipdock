@@ -11,7 +11,7 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
   alias Slipdock.{Accounts, Boards}
 
   setup %{conn: conn, user: user} do
-    board = board_fixture(%{"name" => "Delivery", "code" => "delivery"}, owner: user)
+    board = board_fixture(%{"name" => "Delivery", "code" => "delivery7"}, owner: user)
     [first, second | _] = board.columns
 
     top = card_fixture(first, %{"title" => "Top of the list", "description" => "what it is for"})
@@ -22,7 +22,7 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
     {:ok, _} = Boards.add_comment(top, "the real constraint is here")
 
     other = user_fixture("stranger@example.com")
-    theirs = board_fixture(%{"name" => "Private", "code" => "private"}, owner: other)
+    theirs = board_fixture(%{"name" => "Private", "code" => "private3"}, owner: other)
     secret = card_fixture(hd(theirs.columns), %{"title" => "Their secret"})
 
     %{
@@ -93,8 +93,8 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
     test "lists the caller's boards with their lists and roles, not a stranger's", ctx do
       %{"boards" => boards} = ctx.conn |> call("list_boards", %{}) |> ok!()
 
-      assert [delivery] = Enum.filter(boards, &(&1["code"] == "delivery"))
-      refute Enum.any?(boards, &(&1["code"] == "private"))
+      assert [delivery] = Enum.filter(boards, &(&1["code"] == "delivery7"))
+      refute Enum.any?(boards, &(&1["code"] == "private3"))
       assert delivery["owner"] == "yours"
       assert Enum.map(delivery["lists"], & &1["name"]) == Enum.map(ctx.board.columns, & &1.name)
 
@@ -104,11 +104,11 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
     end
 
     test "a token scoped to another board does not list this one", ctx do
-      other = board_fixture(%{"name" => "Other", "code" => "other"}, owner: ctx.user)
+      other = board_fixture(%{"name" => "Other", "code" => "other2"}, owner: ctx.user)
       conn = scoped(ctx.conn, ctx.user, scope_boards: [other.id])
 
       %{"boards" => boards} = conn |> call("list_boards", %{}) |> ok!()
-      assert Enum.map(boards, & &1["code"]) == ["other"]
+      assert Enum.map(boards, & &1["code"]) == ["other2"]
     end
 
     test "archived must be a boolean", ctx do
@@ -118,7 +118,7 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
 
   describe "get_board" do
     test "by code: lists in order with a line per card", ctx do
-      board = ctx.conn |> call("get_board", %{board: "delivery"}) |> ok!()
+      board = ctx.conn |> call("get_board", %{board: "delivery7"}) |> ok!()
 
       assert board["id"] == ctx.board.id
       first = Enum.find(board["lists"], &(&1["name"] == ctx.first.name))
@@ -132,7 +132,7 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
     end
 
     test "each card carries its description, null when it has none", ctx do
-      board = ctx.conn |> call("get_board", %{board: "delivery"}) |> ok!()
+      board = ctx.conn |> call("get_board", %{board: "delivery7"}) |> ok!()
       lines = board["lists"] |> Enum.flat_map(& &1["cards"]) |> Map.new(&{&1["id"], &1})
 
       assert lines[ctx.top.id]["description"] == "what it is for"
@@ -141,7 +141,7 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
     end
 
     test "another tenant's board reads as not there", ctx do
-      text = ctx.conn |> call("get_board", %{board: "private"}) |> error!()
+      text = ctx.conn |> call("get_board", %{board: "private3"}) |> error!()
       assert text =~ "no board you can see"
       refute text =~ "Private"
 
@@ -159,7 +159,7 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
       %{"cards" => cards} =
         ctx.conn
         |> call("list_cards", %{
-          board: "delivery",
+          board: "delivery7",
           column: ctx.first.name,
           open: true,
           deps: "ready"
@@ -173,7 +173,7 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
     end
 
     test "each card carries its description, null when it has none", ctx do
-      %{"cards" => cards} = ctx.conn |> call("list_cards", %{board: "delivery"}) |> ok!()
+      %{"cards" => cards} = ctx.conn |> call("list_cards", %{board: "delivery7"}) |> ok!()
       lines = Map.new(cards, &{&1["id"], &1})
 
       assert lines[ctx.top.id]["description"] == "what it is for"
@@ -183,13 +183,13 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
 
     test "open: false gives the completed ones", ctx do
       %{"cards" => cards} =
-        ctx.conn |> call("list_cards", %{board: "delivery", open: false}) |> ok!()
+        ctx.conn |> call("list_cards", %{board: "delivery7", open: false}) |> ok!()
 
       assert Enum.map(cards, & &1["id"]) == [ctx.done.id]
     end
 
     test "limit truncates and says so", ctx do
-      result = ctx.conn |> call("list_cards", %{board: "delivery", limit: 1}) |> ok!()
+      result = ctx.conn |> call("list_cards", %{board: "delivery7", limit: 1}) |> ok!()
       assert length(result["cards"]) == 1
       assert result["truncated"] == true
       assert result["total"] == 4
@@ -199,12 +199,12 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
       {:ok, _} = Boards.update_card(ctx.top, %{"assignee_id" => ctx.user.id})
 
       %{"cards" => mine} =
-        ctx.conn |> call("list_cards", %{board: "delivery", assignee: "me"}) |> ok!()
+        ctx.conn |> call("list_cards", %{board: "delivery7", assignee: "me"}) |> ok!()
 
       assert Enum.map(mine, & &1["id"]) == [ctx.top.id]
 
       %{"cards" => nobody} =
-        ctx.conn |> call("list_cards", %{board: "delivery", no_assignee: true}) |> ok!()
+        ctx.conn |> call("list_cards", %{board: "delivery7", no_assignee: true}) |> ok!()
 
       refute ctx.top.id in Enum.map(nobody, & &1["id"])
       assert length(nobody) == 3
@@ -214,13 +214,13 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
       {:ok, _} = Boards.archive_card(ctx.done)
       ids = fn args -> ctx.conn |> call("list_cards", args) |> ok!() |> Map.fetch!("cards") end
 
-      default = ids.(%{board: "delivery"})
+      default = ids.(%{board: "delivery7"})
       refute ctx.done.id in Enum.map(default, & &1["id"])
 
-      assert Enum.map(ids.(%{board: "delivery", archived: "exclude"}), & &1["id"]) ==
+      assert Enum.map(ids.(%{board: "delivery7", archived: "exclude"}), & &1["id"]) ==
                Enum.map(default, & &1["id"])
 
-      included = ids.(%{board: "delivery", archived: "include"})
+      included = ids.(%{board: "delivery7", archived: "include"})
       assert length(included) == length(default) + 1
       assert %{"archived" => true} = Enum.find(included, &(&1["id"] == ctx.done.id))
 
@@ -229,27 +229,27 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
                & &1["archived"]
              )
 
-      assert [%{"id" => id}] = ids.(%{board: "delivery", archived: "only"})
+      assert [%{"id" => id}] = ids.(%{board: "delivery7", archived: "only"})
       assert id == ctx.done.id
     end
 
     test "an unknown archived value is an error", ctx do
-      assert ctx.conn |> call("list_cards", %{board: "delivery", archived: "yes"}) |> error!() =~
+      assert ctx.conn |> call("list_cards", %{board: "delivery7", archived: "yes"}) |> error!() =~
                "archived must be one of"
     end
 
     test "an unknown deps bucket is an error, not everything", ctx do
-      text = ctx.conn |> call("list_cards", %{board: "delivery", deps: "soon"}) |> error!()
+      text = ctx.conn |> call("list_cards", %{board: "delivery7", deps: "soon"}) |> error!()
       assert text =~ "deps must be one of"
     end
 
     test "a bad limit is an error", ctx do
-      assert ctx.conn |> call("list_cards", %{board: "delivery", limit: -1}) |> error!() =~
+      assert ctx.conn |> call("list_cards", %{board: "delivery7", limit: -1}) |> error!() =~
                "limit"
     end
 
     test "a stranger's board is not listable", ctx do
-      assert ctx.conn |> call("list_cards", %{board: "private"}) |> error!() =~ "no board"
+      assert ctx.conn |> call("list_cards", %{board: "private3"}) |> error!() =~ "no board"
     end
   end
 
@@ -262,7 +262,7 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
     end
 
     defp full(conn, args),
-      do: conn |> call("list_cards", Map.merge(%{board: "delivery", full: true}, args)) |> ok!()
+      do: conn |> call("list_cards", Map.merge(%{board: "delivery7", full: true}, args)) |> ok!()
 
     test "each card is what get_card returns: comments, checklist, docs, url", ctx do
       %{"cards" => cards} = full(ctx.conn, %{})
@@ -284,7 +284,7 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
     end
 
     test "full false, or left out, is the one-line listing", ctx do
-      for args <- [%{board: "delivery"}, %{board: "delivery", full: false}] do
+      for args <- [%{board: "delivery7"}, %{board: "delivery7", full: false}] do
         %{"cards" => cards} = ctx.conn |> call("list_cards", args) |> ok!()
         top = Enum.find(cards, &(&1["id"] == ctx.top.id))
         refute Map.has_key?(top, "comments")
@@ -323,7 +323,7 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
 
       assert length(
                ctx.conn
-               |> call("list_cards", %{board: "delivery"})
+               |> call("list_cards", %{board: "delivery7"})
                |> ok!()
                |> Map.fetch!("cards")
              ) ==
@@ -366,12 +366,12 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
     end
 
     test "a stranger's board is refused, and so is a board outside the token's scope", ctx do
-      assert ctx.conn |> call("list_cards", %{board: "private", full: true}) |> error!() =~
+      assert ctx.conn |> call("list_cards", %{board: "private3", full: true}) |> error!() =~
                "no board"
 
       other = board_fixture(%{"name" => "Other"}, owner: ctx.user)
       conn = scoped(ctx.conn, ctx.user, scope_boards: [other.id])
-      assert conn |> call("list_cards", %{board: "delivery", full: true}) |> error!() =~ "scope"
+      assert conn |> call("list_cards", %{board: "delivery7", full: true}) |> error!() =~ "scope"
     end
 
     test "a dependency on a card the caller can't read stays hidden", ctx do
@@ -383,16 +383,16 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
     end
 
     test "full must be a boolean", ctx do
-      assert ctx.conn |> call("list_cards", %{board: "delivery", full: "yes"}) |> error!() =~
+      assert ctx.conn |> call("list_cards", %{board: "delivery7", full: "yes"}) |> error!() =~
                "true or false"
     end
   end
 
   describe "activity" do
     test "the board's log, newest first, as the API gives it", ctx do
-      result = ctx.conn |> call("activity", %{board: "delivery"}) |> ok!()
+      result = ctx.conn |> call("activity", %{board: "delivery7"}) |> ok!()
 
-      assert result["board"]["code"] == "delivery"
+      assert result["board"]["code"] == "delivery7"
       messages = Enum.map(result["activity"], & &1["message"])
       assert Enum.any?(messages, &(&1 =~ "Top of the list"))
       assert Enum.any?(messages, &(&1 =~ "Waiting on the blocker"))
@@ -412,7 +412,7 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
 
     test "card narrows it to the entries about that card", ctx do
       %{"activity" => entries} =
-        ctx.conn |> call("activity", %{board: "delivery", card: "##{ctx.top.id}"}) |> ok!()
+        ctx.conn |> call("activity", %{board: "delivery7", card: "##{ctx.top.id}"}) |> ok!()
 
       assert entries != []
       assert Enum.all?(entries, &(&1["card_id"] == ctx.top.id))
@@ -420,32 +420,32 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
 
     test "a card with no entries on this board gives none", ctx do
       assert %{"activity" => []} =
-               ctx.conn |> call("activity", %{board: "delivery", card: ctx.secret.id}) |> ok!()
+               ctx.conn |> call("activity", %{board: "delivery7", card: ctx.secret.id}) |> ok!()
     end
 
     test "an unknown board and a stranger's board read the same", ctx do
       assert ctx.conn |> call("activity", %{board: "nowhere"}) |> error!() =~ "no board"
-      assert ctx.conn |> call("activity", %{board: "private"}) |> error!() =~ "no board"
+      assert ctx.conn |> call("activity", %{board: "private3"}) |> error!() =~ "no board"
     end
 
     test "a board outside the token's scope is refused", ctx do
       other = board_fixture(%{"name" => "Other"}, owner: ctx.user)
       conn = scoped(ctx.conn, ctx.user, scope_boards: [other.id])
-      assert conn |> call("activity", %{board: "delivery"}) |> error!() =~ "scope"
+      assert conn |> call("activity", %{board: "delivery7"}) |> error!() =~ "scope"
     end
 
     test "a read-only token may read it", ctx do
       conn = scoped(ctx.conn, ctx.user, scope: "read")
-      assert %{"activity" => [_ | _]} = conn |> call("activity", %{board: "delivery"}) |> ok!()
+      assert %{"activity" => [_ | _]} = conn |> call("activity", %{board: "delivery7"}) |> ok!()
     end
 
     test "bad arguments are tool errors", ctx do
       assert ctx.conn |> call("activity", %{}) |> error!() =~ "board is required"
 
-      assert ctx.conn |> call("activity", %{board: "delivery", limit: 0}) |> error!() =~
+      assert ctx.conn |> call("activity", %{board: "delivery7", limit: 0}) |> error!() =~
                "positive whole number"
 
-      assert ctx.conn |> call("activity", %{board: "delivery", card: "top"}) |> error!() =~
+      assert ctx.conn |> call("activity", %{board: "delivery7", card: "top"}) |> error!() =~
                "card number"
     end
   end
@@ -511,7 +511,7 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
     end
 
     test "by title on a board", ctx do
-      page = ctx.conn |> call("read_page", %{page: "Runbook", board: "delivery"}) |> ok!()
+      page = ctx.conn |> call("read_page", %{page: "Runbook", board: "delivery7"}) |> ok!()
       assert page["code"] == ctx.page.code
     end
 
@@ -526,7 +526,7 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
 
       assert page["board"] == %{
                "id" => ctx.board.id,
-               "code" => "delivery",
+               "code" => "delivery7",
                "name" => "Delivery",
                "archived" => false
              }
@@ -569,7 +569,7 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
     end
 
     test "a page the token's scope leaves out says it is the token", ctx do
-      other = board_fixture(%{"name" => "Other", "code" => "other"}, owner: ctx.user)
+      other = board_fixture(%{"name" => "Other", "code" => "other2"}, owner: ctx.user)
       conn = scoped(ctx.conn, ctx.user, scope_boards: [other.id])
 
       assert conn |> call("read_page", %{page: ctx.page.code}) |> error!() =~ "scope"
@@ -613,7 +613,7 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
       end
 
       # The reader's own boards are in it, and the rest is named, not included.
-      assert guide =~ "`delivery`"
+      assert guide =~ "`delivery7`"
       assert guide =~ "- `automations` — Automations and alerts"
       assert guide =~ "- `model` — The model"
       refute guide =~ "\n## Automations and alerts\n"

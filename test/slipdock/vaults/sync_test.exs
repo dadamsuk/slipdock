@@ -14,8 +14,8 @@ defmodule Slipdock.Vaults.SyncTest do
 
   setup do
     user = user_fixture()
-    kb = board_fixture(%{"name" => "Keystone", "code" => "kb"}, owner: user)
-    jobs = board_fixture(%{"name" => "Journal Desk", "code" => "jobs"}, owner: user)
+    kb = board_fixture(%{"name" => "Keystone", "code" => "kb3"}, owner: user)
+    jobs = board_fixture(%{"name" => "Journal Desk", "code" => "jobs2"}, owner: user)
     {:ok, notes} = Wiki.create_folder(jobs, %{"name" => "Notes"})
     {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain"})
     {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})

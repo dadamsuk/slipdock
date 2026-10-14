@@ -12,7 +12,7 @@ defmodule SlipdockWeb.WikiCardsLiveTest do
   alias Slipdock.Wiki
 
   setup %{user: user} do
-    board = board_fixture(%{"name" => "Handbook", "code" => "handbook"}, owner: user)
+    board = board_fixture(%{"name" => "Handbook", "code" => "handbook4"}, owner: user)
     card = card_fixture(hd(board.columns), %{"title" => "Ship the billing rewrite"})
     %{board: board, card: card}
   end
