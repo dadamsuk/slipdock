@@ -608,6 +608,8 @@ defmodule SlipdockWeb.API.JSON do
       # Pages at a path another mapping owns (`Vaults.overlaps/1`): none,
       # unless made before mappings were checked for it.
       overlaps: Slipdock.Vaults.overlaps(v),
+      # Where its meeting recordings are on the owner's Google Drive (W-1690).
+      recordings_folder: v.recordings_folder,
       inserted_at: v.inserted_at,
       updated_at: v.updated_at
     }

@@ -12,7 +12,7 @@ defmodule SlipdockCLI.Vaults do
   alias SlipdockCLI.Render
   alias SlipdockCLI.Sync.{Import, Remote, State}
 
-  @commands ~w(vault)
+  @commands ~w(vault drive)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -35,6 +35,27 @@ defmodule SlipdockCLI.Vaults do
     HTTP.patch("/vaults/#{enc(ref)}", %{"name" => Enum.join(words, " ")})
     |> out(o, &vault(&1["vault"], "renamed"))
   end
+
+  # Where on the owner's Google Drive the vault's meeting recordings are
+  # (W-1690); "" clears it. The server checks the folder is there.
+  def run("vault", ["set", ref], o) do
+    if is_nil(o[:recordings_folder]), do: fail("say what to set: --recordings-folder PATH")
+
+    HTTP.patch("/vaults/#{enc(ref)}", %{"recordings_folder" => o[:recordings_folder]})
+    |> out(o, fn r ->
+      v = r["vault"]
+
+      IO.puts(
+        if v["recordings_folder"],
+          do: "#{v["name"]} plays its recordings from #{v["recordings_folder"]} on Google Drive",
+          else: "#{v["name"]} has no recordings folder now"
+      )
+    end)
+  end
+
+  # Your Google Drive connection, and each vault's recordings folder (W-1690).
+  def run("drive", ["status"], o), do: HTTP.get("/me/drive") |> out(o, &drive/1)
+  def run("drive", [], o), do: run("drive", ["status"], o)
 
   def run("vault", ["rm", ref], o) do
     HTTP.delete("/vaults/#{enc(ref)}")
@@ -422,6 +443,31 @@ defmodule SlipdockCLI.Vaults do
   defp vaults([]), do: IO.puts(Render.dim("no vaults — `slipdock vault new NAME` makes one"))
   defp vaults(list), do: Enum.each(list, &vault/1)
 
+  defp drive(%{"drive" => d, "vaults" => vaults}) do
+    IO.puts(
+      case d["status"] do
+        "connected" ->
+          "Google Drive: connected" <> if(d["email"], do: " as #{d["email"]}", else: "")
+
+        "revoked" ->
+          "Google Drive: no longer accepted by Google — connect again (Account → Settings)"
+
+        "not_connected" ->
+          "Google Drive: not connected — connect it on Account → Settings"
+
+        _ ->
+          "Google Drive: not set up on this server"
+      end
+    )
+
+    for v <- vaults do
+      IO.puts(
+        "  #{v["name"]}: " <>
+          (v["recordings_folder"] || Render.dim("no recordings folder"))
+      )
+    end
+  end
+
   defp vault(v, verb \\ nil) do
     head = Render.bold(v["name"]) <> "  " <> Render.dim("id #{v["id"]}")
     IO.puts(if verb, do: "#{verb} " <> head, else: head)
@@ -442,6 +488,9 @@ defmodule SlipdockCLI.Vaults do
             "move them to #{first["owner"]} or take that mapping out"
         )
     end
+
+    if v["recordings_folder"],
+      do: IO.puts("  " <> Render.dim("recordings: #{v["recordings_folder"]} on Google Drive"))
 
     # The folders it is synced to, from servers that record them.
     for m <- v["mirrors"] || [] do

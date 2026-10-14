@@ -3,6 +3,29 @@ defmodule SlipdockWeb.API.MeController do
 
   alias Slipdock.AI
 
+  @doc """
+  Your Google Drive connection (W-1690) and where each of your vaults keeps
+  its meeting recordings: `status` is `not_configured` (this server has no
+  Google client), `not_connected`, `revoked` or `connected`.
+  """
+  def drive(conn, _params) do
+    user = conn.assigns.current_user
+
+    {status, email} =
+      case Slipdock.Google.status(user) do
+        {:connected, email} -> {"connected", email}
+        other -> {Atom.to_string(other), nil}
+      end
+
+    json(conn, %{
+      drive: %{status: status, email: email},
+      vaults:
+        user
+        |> Slipdock.Vaults.list_vaults()
+        |> Enum.map(&%{id: &1.id, name: &1.name, recordings_folder: &1.recordings_folder})
+    })
+  end
+
   def show(conn, _params) do
     user = conn.assigns.current_user
 

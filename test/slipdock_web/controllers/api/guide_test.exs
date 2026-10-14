@@ -103,4 +103,24 @@ defmodule SlipdockWeb.API.GuideTest do
     triggers = Enum.map(body["vocabulary"]["automations"]["triggers"], & &1["type"])
     assert "card_created" in triggers and "card_stale" in triggers
   end
+
+  @tag :anonymous
+  test "the guide describes a meeting page, and the vault sync section points at it", %{
+    conn: conn
+  } do
+    body = conn |> get(~p"/api/guide") |> response(200)
+
+    assert body =~ "### Meeting pages (recordings on Google Drive)"
+    assert body =~ "recording: gdrive:Manuel2 Recordings/"
+    assert body =~ "[▶ Play recording and transcript](#recording)"
+    assert body =~ "```vtt"
+    assert body =~ ~s(PATCH /api/vaults/:id {"recordings_folder":)
+    assert body =~ "GET /api/me/drive"
+    assert body =~ "slipdock drive status"
+
+    assert body =~ "recorded meeting is a page like any other: see *Meeting pages* below"
+
+    # The endpoints are in the generated list too.
+    assert body =~ "GET    /api/me/drive"
+  end
 end
