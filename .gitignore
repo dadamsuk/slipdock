@@ -63,3 +63,6 @@ ai_keys.json.tmp
 # Built escript (CLI)
 cli/slipdock
 .claude/worktrees/
+
+# /brag launch-video output
+/brag-output/

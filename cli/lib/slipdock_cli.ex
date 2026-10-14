@@ -896,3 +896,7 @@ defmodule SlipdockCLI do
   @doc false
   defdelegate await_device_approval(started, interval, sleep \\ &Process.sleep/1), to: Auth
 end
+
+defmodule SlipdockCLI.CIProof798 do
+  def unused(x), do: :ok
+end
