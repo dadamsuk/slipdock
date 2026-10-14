@@ -1,0 +1,25 @@
+# Caddy in front of the app, so a deploy holds requests instead of failing
+# them. See compose.override.yaml next to this for how it is wired in.
+{
+	# Without this Caddy distrusts whatever is in front of it (a tunnel, a
+	# host proxy) and replaces X-Forwarded-For and X-Forwarded-Proto with what
+	# it saw itself: every visitor would arrive as the tunnel's address and
+	# share one sign-in limit. With it, Caddy appends its peer to the header,
+	# and SlipdockWeb.ClientIP skips both private hops to reach the visitor.
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+:80 {
+	reverse_proxy slipdock:4000 {
+		# While the app restarts nothing is listening, so the dial fails
+		# before any of the request is sent; Caddy keeps retrying it, and
+		# the visitor sees a slow response rather than a 502.
+		lb_try_duration 30s
+		lb_try_interval 250ms
+		# Stream as it arrives: runner long-polls and MCP's server-sent
+		# events must not wait in a buffer. Websockets pass through as-is.
+		flush_interval -1
+	}
+}
