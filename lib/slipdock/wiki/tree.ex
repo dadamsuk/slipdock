@@ -998,7 +998,8 @@ defmodule Slipdock.Wiki.Tree do
         DateTime.compare(a, b) == :gt or (a == b and i >= j)
       end)
 
-  defp sort_pages(pages, _manual), do: Enum.sort_by(pages, &{&1.position, &1.title, &1.id})
+  defp sort_pages(pages, _manual),
+    do: Enum.sort_by(pages, &{&1.position, String.downcase(&1.title), &1.id})
 
   defp up_chain(%{parent_id: nil}, _by_id, acc), do: acc
 
@@ -1120,7 +1121,8 @@ defmodule Slipdock.Wiki.Tree do
   defp sort_folders(folders, "name"),
     do: Enum.sort_by(folders, &{String.downcase(&1.name), &1.id})
 
-  defp sort_folders(folders, _sort), do: Enum.sort_by(folders, &{&1.position, &1.name})
+  defp sort_folders(folders, _sort),
+    do: Enum.sort_by(folders, &{&1.position, String.downcase(&1.name), &1.id})
 
   defp folder_rows(folders, parent_id, stats, sort) do
     folders
@@ -1180,7 +1182,7 @@ defmodule Slipdock.Wiki.Tree do
     else
       from(f in WikiFile,
         where: f.board_id == ^board_id and is_nil(f.archived_at),
-        order_by: [asc: f.name, asc: f.id],
+        order_by: [asc: fragment("lower(?)", f.name), asc: f.id],
         select: map(f, [:id, :board_id, :name, :content_type, :folder_id])
       )
       |> in_folder(folder_id)
@@ -1213,7 +1215,7 @@ defmodule Slipdock.Wiki.Tree do
         join: pl in Placement,
         on: pl.page_id == p.id,
         where: pl.folder_id == ^folder_id and p.id not in ^listed,
-        order_by: [asc: pl.position, asc: p.title],
+        order_by: [asc: pl.position, asc: fragment("lower(?)", p.title)],
         select: struct(p, ^@page_fields)
       )
       |> where(^visible(Keyword.drop(opts, [:status, :template]), :page))
@@ -1306,14 +1308,14 @@ defmodule Slipdock.Wiki.Tree do
     do: order_by(query, [page: p], desc: p.inserted_at, desc: p.id)
 
   defp order_pages(query, _manual),
-    do: order_by(query, [page: p], asc: p.position, asc: p.title, asc: p.id)
+    do: order_by(query, [page: p], asc: p.position, asc: fragment("lower(?)", p.title), asc: p.id)
 
   defp child_pages(%Page{} = parent, opts) do
     from(p in Page,
       as: :page,
       where: p.parent_id == ^parent.id,
       where: fragment("? IS NOT DISTINCT FROM ?", p.folder_id, ^parent.folder_id),
-      order_by: [asc: p.position, asc: p.title, asc: p.id],
+      order_by: [asc: p.position, asc: fragment("lower(?)", p.title), asc: p.id],
       select: struct(p, ^@page_fields)
     )
     |> where(^visible(opts, :page))
