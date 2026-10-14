@@ -40,6 +40,28 @@ defmodule SlipdockWeb.ClientIPTest do
     assert resolve({0, 0, 0, 0, 0, 0, 0, 1}, ["2001:db8::1"]) == "2001:db8::1"
   end
 
+  # A dual-stack listener sees an IPv4 peer as ::ffff:a.b.c.d. That is how the
+  # app in Docker sees the proxy in front of it, so a mapped address must be
+  # judged as the IPv4 address it carries.
+  test "an IPv4-mapped IPv6 peer is trusted as its IPv4 address" do
+    caddy = {0, 0, 0, 0, 0, 0xFFFF, 0xAC12, 0x0003}
+
+    assert resolve(caddy, ["198.51.100.7, 172.18.0.1"]) == "198.51.100.7"
+    assert resolve({0, 0, 0, 0, 0, 0xFFFF, 0x7F00, 0x0001}, ["198.51.100.7"]) == "198.51.100.7"
+  end
+
+  test "a mapped address that is not trusted still is not, and comes out as IPv4" do
+    stranger = {0, 0, 0, 0, 0, 0xFFFF, 0xCB00, 0x7109}
+
+    assert resolve(stranger, ["1.2.3.4"]) == "203.0.113.9"
+  end
+
+  test "mapped hops in the header are walked like IPv4 ones" do
+    assert resolve({127, 0, 0, 1}, ["198.51.100.7, ::ffff:172.18.0.1"]) == "198.51.100.7"
+    assert resolve({127, 0, 0, 1}, ["::ffff:198.51.100.7"]) == "198.51.100.7"
+    assert resolve({127, 0, 0, 1}, ["[::ffff:198.51.100.7]:443"]) == "198.51.100.7"
+  end
+
   test "the trusted list is configurable, and can be empty" do
     TestConfig.put(:trusted_proxies, [])
     assert resolve({127, 0, 0, 1}, ["198.51.100.7"]) == "127.0.0.1"
@@ -57,5 +79,14 @@ defmodule SlipdockWeb.ClientIPTest do
 
     assert ClientIP.from_conn(conn) == "203.0.113.9"
     assert ClientIP.from_conn(%{conn | remote_ip: {127, 0, 0, 1}}) == "1.2.3.4"
+  end
+
+  test "from_conn behind Caddy on a dual-stack listener gives the visitor" do
+    conn =
+      Plug.Test.conn(:get, "/")
+      |> Map.put(:remote_ip, {0, 0, 0, 0, 0, 0xFFFF, 0xAC12, 0x0003})
+      |> Plug.Conn.put_req_header("x-forwarded-for", "198.51.100.7, 172.18.0.1")
+
+    assert ClientIP.from_conn(conn) == "198.51.100.7"
   end
 end
