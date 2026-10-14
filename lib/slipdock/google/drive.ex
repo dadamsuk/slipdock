@@ -55,7 +55,7 @@ defmodule Slipdock.Google.Drive do
   def download(user, id, headers, into) when is_binary(id) do
     request(user,
       method: :get,
-      url: @api <> "/files/" <> URI.encode(id, &URI.char_unreserved?/1),
+      url: Google.api_url(@api <> "/files/" <> URI.encode(id, &URI.char_unreserved?/1)),
       params: [alt: "media", supportsAllDrives: true],
       headers: headers,
       into: into,
@@ -66,7 +66,7 @@ defmodule Slipdock.Google.Drive do
   end
 
   defp get(user, path, params) do
-    case request(user, method: :get, url: @api <> path, params: params) do
+    case request(user, method: :get, url: Google.api_url(@api <> path), params: params) do
       {:ok, %{status: 200, body: %{} = body}} -> {:ok, body}
       {:ok, %{status: 404}} -> {:error, :not_found}
       {:ok, %{status: status}} when status >= 500 -> {:error, :unavailable}

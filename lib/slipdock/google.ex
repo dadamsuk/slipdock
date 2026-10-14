@@ -113,7 +113,11 @@ defmodule Slipdock.Google do
   # Who the person connected as, for the account page. Asked of Drive itself,
   # which the read-only scope allows, rather than widening the scope for it.
   defp connected_as(access) do
-    case Req.get(req(), url: @about_url, params: [fields: "user"], auth: {:bearer, access}) do
+    case Req.get(req(),
+           url: api_url(@about_url),
+           params: [fields: "user"],
+           auth: {:bearer, access}
+         ) do
       {:ok, %{status: 200, body: %{"user" => %{"emailAddress" => email}}}} -> email
       _ -> nil
     end
@@ -219,7 +223,7 @@ defmodule Slipdock.Google do
 
       %Connection{} = c ->
         with {:ok, token} <- decrypt(c.refresh_token) do
-          Req.post(req(), url: @revoke_url, form: [token: token])
+          Req.post(req(), url: api_url(@revoke_url), form: [token: token])
         end
 
         Repo.delete!(c)
@@ -237,7 +241,7 @@ defmodule Slipdock.Google do
         "client_secret" => config()[:client_secret]
       })
 
-    case Req.post(req(), url: @token_url, form: form) do
+    case Req.post(req(), url: api_url(@token_url), form: form) do
       {:ok, %{status: 200, body: %{} = body}} ->
         {:ok, body}
 
@@ -279,6 +283,24 @@ defmodule Slipdock.Google do
   defp secret, do: SlipdockWeb.Endpoint.config(:secret_key_base)
 
   ## Plumbing -----------------------------------------------------------------
+
+  @doc """
+  `url` on Google, or on the stand-in named by `config :slipdock, :google,
+  base_url:` (`GOOGLE_API_BASE_URL`), which the browser tests in tools/e2e
+  serve Drive from. Never set on a real server.
+  """
+  def api_url(url) do
+    case config()[:base_url] do
+      base when is_binary(base) and base != "" ->
+        uri = URI.parse(url)
+
+        String.trim_trailing(base, "/") <>
+          uri.path <> if(uri.query, do: "?" <> uri.query, else: "")
+
+      _ ->
+        url
+    end
+  end
 
   @doc false
   def req(opts \\ []) do

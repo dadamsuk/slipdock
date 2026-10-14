@@ -267,10 +267,17 @@ end
 # The Google OAuth client people connect their Drive through (W-1690), made in
 # Google Cloud with the redirect URI <your url>/account/google/callback. Unset,
 # the Drive connection and meeting-recording playback are not offered.
-if System.get_env("GOOGLE_CLIENT_ID") && System.get_env("GOOGLE_CLIENT_SECRET") do
+# Tests bring their own (config/test.exs), whatever the shell has set.
+if (config_env() != :test and System.get_env("GOOGLE_CLIENT_ID")) &&
+     System.get_env("GOOGLE_CLIENT_SECRET") do
   config :slipdock, :google,
     client_id: System.get_env("GOOGLE_CLIENT_ID"),
     client_secret: System.get_env("GOOGLE_CLIENT_SECRET")
+end
+
+# A stand-in for Google's APIs, for the browser tests in tools/e2e only.
+if config_env() != :test and System.get_env("GOOGLE_API_BASE_URL") do
+  config :slipdock, :google, base_url: System.get_env("GOOGLE_API_BASE_URL")
 end
 
 if file = System.get_env("SLIPDOCK_AI_KEY_FILE") do

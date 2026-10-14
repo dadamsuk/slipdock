@@ -44,6 +44,15 @@ defmodule Slipdock.GoogleTest do
     assert query["redirect_uri"] == "http://localhost:4002/account/google/callback"
   end
 
+  test "api_url/1 is Google's own unless a stand-in is configured" do
+    url = "https://www.googleapis.com/drive/v3/files/x?alt=media"
+    assert Google.api_url(url) == url
+
+    Slipdock.TestConfig.merge(:google, base_url: "http://127.0.0.1:9/")
+    assert Google.api_url(url) == "http://127.0.0.1:9/drive/v3/files/x?alt=media"
+    assert Google.api_url("https://oauth2.googleapis.com/token") == "http://127.0.0.1:9/token"
+  end
+
   describe "connect/3" do
     test "trades the code, stores the tokens encrypted and who it is", %{user: user} do
       stub(fn conn ->
