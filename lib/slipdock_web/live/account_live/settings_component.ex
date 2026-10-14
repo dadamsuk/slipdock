@@ -21,7 +21,8 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
         {:ok,
          socket
          |> assign_quick_add(Accounts.change_quick_add(socket.assigns.current_user))
-         |> assign_ai_key()}
+         |> assign_ai_key()
+         |> assign(google_drive: Slipdock.Google.status(socket.assigns.current_user))}
   end
 
   # The key itself is never sent to the browser — only its shape and when it
@@ -499,7 +500,63 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
           <button type="submit" class="btn btn-primary btn-sm">Use this model</button>
         </form>
       </section>
+
+      <.google_drive status={@google_drive} />
     </div>
     """
   end
+
+  # Not drawn at all on a server with no Google OAuth client (W-1690).
+  attr :status, :any, required: true
+
+  defp google_drive(%{status: :not_configured} = assigns), do: ~H""
+
+  defp google_drive(assigns) do
+    ~H"""
+    <section
+      id="google-drive"
+      class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
+    >
+      <h2 class="text-lg font-semibold">Google Drive</h2>
+      <p class="text-sm text-base-content/60">
+        Meeting recordings stay on your Google Drive. Connect it, read-only, and a
+        vault of yours can play them beside their transcripts. Nothing is copied
+        here.
+      </p>
+      <p :if={match?({:connected, _}, @status)} id="google-drive-status" class="mt-4 text-sm">
+        <.icon name="hero-check-circle" class="size-4 text-success" /> Connected{google_as(@status)}.
+      </p>
+      <p :if={@status == :revoked} id="google-drive-status" class="mt-4 text-sm text-warning">
+        <.icon name="hero-exclamation-triangle" class="size-4" />
+        Google no longer accepts this connection. Connect again to mend it.
+      </p>
+      <p :if={@status == :not_connected} id="google-drive-status" class="mt-4 text-sm">
+        Not connected.
+      </p>
+      <div class="mt-4 flex gap-2">
+        <.link
+          :if={@status in [:not_connected, :revoked]}
+          href={~p"/account/google/connect"}
+          id="google-drive-connect"
+          class="btn btn-primary btn-sm"
+        >
+          Connect Google Drive
+        </.link>
+        <.link
+          :if={@status != :not_connected}
+          href={~p"/account/google"}
+          method="delete"
+          id="google-drive-disconnect"
+          data-confirm="Disconnect Google Drive? Recordings in your vaults stop playing until you connect again."
+          class="btn btn-ghost btn-sm"
+        >
+          Disconnect
+        </.link>
+      </div>
+    </section>
+    """
+  end
+
+  defp google_as({:connected, email}) when is_binary(email), do: " as " <> email
+  defp google_as(_), do: ""
 end
