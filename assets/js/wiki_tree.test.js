@@ -322,6 +322,30 @@ test("a new version from the server reloads; anything else only redraws", () => 
   assert.equal(hook.model.kids.get("root").length, 2)
 })
 
+test("a reload after a move stays where the reader scrolled; a new page is scrolled to", () => {
+  const pages = Array.from({length: 60}, (_, i) => page(i + 1))
+  const {hook, el} = mountHook({
+    dataset: {current: "page:50"},
+    replies: [root(pages), root(pages), root(pages)],
+  })
+  hook.mounted()
+  const atCurrent = el.scrollTop
+  assert.ok(atCurrent > 0)
+
+  // Scrolled up to drop something there: the reload that follows keeps it.
+  el.scrollTop = 0
+  el.dataset.version = "2"
+  hook.updated()
+  assert.equal(hook.model.kids.get("root").length, 60)
+  assert.equal(el.scrollTop, 0)
+
+  // A move that came with another page being opened goes to that page.
+  el.dataset.current = "page:55"
+  el.dataset.version = "3"
+  hook.updated()
+  assert.ok(el.scrollTop > atCurrent)
+})
+
 test("a page opened elsewhere opens the folders to it, asking for those not loaded", () => {
   const {hook, el, pushed} = mountHook({replies: [root([folder(1)]), {nodes: {"folder:1": [page(2)]}}]})
   hook.mounted()
