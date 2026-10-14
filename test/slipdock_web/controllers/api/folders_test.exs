@@ -75,6 +75,32 @@ defmodule SlipdockWeb.API.FoldersTest do
     assert renamed["name"] == "Choices"
   end
 
+  test "a folder's sort is its own, or the board's when set to board (#789)", %{
+    conn: conn,
+    board: board
+  } do
+    {:ok, _} = Wiki.create_folder(board, %{"name" => "Design"})
+
+    assert %{"folder" => %{"sort" => nil}} =
+             conn
+             |> patch("/api/boards/apiwiki/folders/Design", %{name: "Design"})
+             |> json_response(200)
+
+    assert %{"folder" => %{"sort" => "manual"}} =
+             conn
+             |> patch("/api/boards/apiwiki/folders/Design", %{sort: "manual"})
+             |> json_response(200)
+
+    assert %{"folder" => %{"sort" => nil}} =
+             conn
+             |> patch("/api/boards/apiwiki/folders/Design", %{sort: "board"})
+             |> json_response(200)
+
+    assert conn
+           |> patch("/api/boards/apiwiki/folders/Design", %{sort: "random"})
+           |> json_response(422)
+  end
+
   test "a folder cannot be moved inside itself", %{conn: conn, board: board} do
     {:ok, _} = Wiki.create_folder(board, %{"name" => "Outer/Inner"})
 

@@ -298,7 +298,8 @@ defmodule Slipdock.Wiki do
         {:ok, folder}
 
       {:error, %Ecto.Changeset{}} ->
-        {:error, :unprocessable_entity, "sort by #{Enum.join(Folder.sorts(), ", ")}"}
+        {:error, :unprocessable_entity,
+         "sort by #{Enum.join(Folder.sorts(), ", ")}, or board to follow the board's"}
 
       error ->
         error
@@ -307,6 +308,14 @@ defmodule Slipdock.Wiki do
 
   def set_tree_sort(_board, _folder, _sort),
     do: {:error, :unprocessable_entity, "that folder is not on this board"}
+
+  @doc """
+  How the tree orders the pages in `folder` (or the top of the board, with
+  nil) as it stands: the folder's own sort, or the board's when it has none.
+  """
+  def tree_sort(%Board{} = board, nil), do: board.wiki_sort || "name"
+  def tree_sort(%Board{} = board, %Folder{sort: nil}), do: tree_sort(board, nil)
+  def tree_sort(_board, %Folder{sort: sort}), do: sort
 
   @doc "The board's folders as a tree, with `pages` filed into them."
   defdelegate folder_tree(board, pages), to: Folders, as: :tree

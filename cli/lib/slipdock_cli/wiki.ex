@@ -891,7 +891,7 @@ defmodule SlipdockCLI.Wiki do
     if is_nil(o[:parent]) and o[:root] != true and is_nil(o[:name]) and is_nil(o[:sort]),
       do:
         fail(
-          "say what to change: --parent P, --root, --name N, or --sort manual|name|modified|created"
+          "say what to change: --parent P, --root, --name N, or --sort board|manual|name|modified|created"
         )
 
     body =

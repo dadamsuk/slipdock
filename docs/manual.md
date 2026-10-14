@@ -2266,9 +2266,12 @@ file (an image, a PDF, a drawing) dropped in a folder is filed there, and
 dropped on anything else goes to the folder that row is in — a file is never
 part of a page, stays on its own board, and is refused where a file of the
 same name already is. Drop on the middle of a row to put something inside
-it, or on its top or bottom edge to put it beside it. Order is what you
-dragged: positions are packed afterwards so a tree arranged by hand stays
-arranged. Rest a drag on a shut folder and it opens, so you can drop deeper
+it, or on its top or bottom edge to put it beside it. In a folder sorted
+*as arranged*, order is what you dragged: positions are packed afterwards so
+a tree arranged by hand stays arranged. A folder sorted by name (the
+default) or by date keeps that order: what is dropped beside a row is filed
+there but takes its a-z place, and the tree says so; choose **Sort: As
+arranged** to order it by hand, and it comes back as last arranged. Rest a drag on a shut folder and it opens, so you can drop deeper
 without opening it first. In a vault, a file moved here moves on disk at the
 next sync.
 
@@ -2288,10 +2291,13 @@ can also:
   *One page, several folders*);
 - tag a page, archive a page, or delete a folder;
 - sort a folder: as arranged, by name, last changed first, or newest first,
-  with its folders always before its pages.
+  with its folders always before its pages, or **Same as the top** to have
+  it follow the top's order (a folder does until it is given one of its own).
 
 Right-click the tree's background for the same things at the top of the
-wiki, including how the top is sorted.
+wiki, including how the top is sorted. The top is sorted by name until
+someone chooses otherwise, so a wiki reads a-z, ignoring case, folders and
+pages alike, including folders a vault's sync adds later.
 
 **Picking several.** Ctrl-click (Cmd-click on a Mac) picks rows one at a time
 and Shift-click picks every row from the last one. A bar above the tree then

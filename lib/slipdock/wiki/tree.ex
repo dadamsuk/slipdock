@@ -1106,13 +1106,13 @@ defmodule Slipdock.Wiki.Tree do
   ## Rows ----------------------------------------------------------------------
 
   # How a container orders its pages: the folder's own choice, or the
-  # board's for its top.
-  defp sort_of(%Board{} = board, _folders, nil), do: Map.get(board, :wiki_sort) || "manual"
+  # board's — for its top, and for a folder that never chose (#789).
+  defp sort_of(%Board{} = board, _folders, nil), do: Map.get(board, :wiki_sort) || "name"
 
-  defp sort_of(_board, folders, folder_id) do
+  defp sort_of(board, folders, folder_id) do
     case Enum.find(folders, &(&1.id == folder_id)) do
       %Folder{sort: sort} when is_binary(sort) -> sort
-      _ -> "manual"
+      _ -> sort_of(board, folders, nil)
     end
   end
 
@@ -1140,7 +1140,7 @@ defmodule Slipdock.Wiki.Tree do
           Enum.count(folders, &(&1.parent_id == folder.id)) +
             Map.get(stats.top, folder.id, 0) + Map.get(stats.files, folder.id, 0),
         pages: Map.get(stats.totals, folder.id, 0),
-        sort: folder.sort || "manual"
+        sort: folder.sort
       }
     end)
   end
