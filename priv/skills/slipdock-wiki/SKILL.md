@@ -222,7 +222,7 @@ vault's recordings folder (`slipdock vault set V --recordings-folder PATH`;
 `slipdock drive status` shows both). Don't upload the audio, and don't write
 a separate `.vtt` file. Moments tagged while recording go in the summary as one
 line, `Tags: #important (0:05) #action (12:40)`, and show inline in the
-transcript where they were pressed. To add `recording_drive_id` later, change only that
+transcript where they were pressed (that line's tags link to them). To add `recording_drive_id` later, change only that
 key. Old notes with `custom://play` links are left as they are. The full
 contract for a recorder or transcription tool is in the manual, *Meeting
 transcripts: what Slipdock expects*.

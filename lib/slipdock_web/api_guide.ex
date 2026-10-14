@@ -1991,8 +1991,8 @@ defmodule SlipdockWeb.APIGuide do
     `GET /wiki-pages/:id/recording` and keeps the transcript in step
     (clicking a line seeks to it). A `Tags:` line of `#tag (m:ss)` entries
     (`h:mm:ss` from an hour) marks moments tagged while recording: each is
-    drawn inline in the transcript where it was pressed, and clicking it
-    plays from that moment. If the transcript itself contains a line
+    drawn inline in the transcript where it was pressed and becomes a link
+    to it in that line, and clicking either plays from that moment. If the transcript itself contains a line
     starting with ```, fence the block with four backticks. Old notes with
     `custom://play` links are left as they are. The whole contract, for
     whatever records and transcribes the meeting (cue timings, speakers,
