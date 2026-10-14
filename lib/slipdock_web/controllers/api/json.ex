@@ -634,7 +634,10 @@ defmodule SlipdockWeb.API.JSON do
       folder: m.folder && %{id: m.folder.id, path: Slipdock.Wiki.folder_path(m.folder)},
       # Kept inside the vault (#757): named on the vault's tile in the web
       # app, not among its owner's boards.
-      inside: m.inside
+      inside: m.inside,
+      # What its row wears in the vault's tree (#797).
+      icon: m.icon,
+      color: m.color
     }
     |> then(&if(pages, do: Map.put(&1, :pages, pages), else: &1))
   end

@@ -87,6 +87,24 @@ defmodule SlipdockCLI.VaultsTest do
     refute out =~ "· kept inside"
   end
 
+  test "dress sends the icon and colour for the path, and ls shows them (#797)" do
+    dressed =
+      ~s({"vault":{"id":3,"name":"Notes","mappings":[
+        {"id":1,"path":"/Jobs","board":{"id":1,"code":"jobs","name":"Job Hunt"},"folder":null,"icon":"briefcase","color":"amber"}]}})
+
+    {"PATCH", path, body, out} =
+      run(["dress", "Notes", "/Jobs"], [icon: "briefcase", color: "amber"], dressed)
+
+    assert path =~ "/vaults/Notes/mappings"
+    assert JSON.decode!(body) == %{"path" => "/Jobs", "icon" => "briefcase", "color" => "amber"}
+    assert out =~ "dressed Notes"
+    assert out =~ "· briefcase amber"
+
+    # Only what is given goes: a colour alone leaves the icon as it is.
+    {"PATCH", _path, body, _out} = run(["dress", "Notes", "/Jobs"], color: "none")
+    assert JSON.decode!(body) == %{"path" => "/Jobs", "color" => "none"}
+  end
+
   test "map sends path, board and folder" do
     {"POST", path, body, out} = run(["map", "Notes", "/Journal"], board: "jobs", folder: "Notes")
     assert path =~ "/api/vaults/Notes/mappings"

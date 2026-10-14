@@ -89,6 +89,17 @@ defmodule SlipdockCLI.Vaults do
     |> out(o, &vault(&1["vault"], if(o[:off], do: "let out", else: "kept inside")))
   end
 
+  # What a mapping's row wears in the vault's tree (#797): an icon and a
+  # colour, as a wiki folder's; "none" takes one off.
+  def run("vault", ["dress", ref, path], o) do
+    body = compact(%{"path" => path, "icon" => o[:icon], "color" => o[:color]})
+
+    if map_size(body) == 1,
+      do: fail("say what it wears: --icon NAME and/or --color NAME (none takes one off)")
+
+    HTTP.patch("/vaults/#{enc(ref)}/mappings", body) |> out(o, &vault(&1["vault"], "dressed"))
+  end
+
   def run("vault", ["unmap", ref, path], o) do
     if o[:dry_run] do
       HTTP.delete("/vaults/#{enc(ref)}/mappings", path: path, dry_run: "true")
@@ -516,8 +527,11 @@ defmodule SlipdockCLI.Vaults do
       end
 
     inside = if m["inside"], do: " · kept inside", else: ""
+    dress = [m["icon"], m["color"]] |> Enum.reject(&is_nil/1) |> Enum.join(" ")
+    dress = if dress == "", do: "", else: " · " <> dress
 
     String.pad_trailing(m["path"], 16) <>
-      " → " <> target <> "  " <> Render.dim((m["board"]["code"] || "") <> pages <> inside)
+      " → " <>
+      target <> "  " <> Render.dim((m["board"]["code"] || "") <> pages <> inside <> dress)
   end
 end

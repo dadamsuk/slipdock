@@ -2,7 +2,7 @@
 // things wiki_tree.js touches, and the server is a pushEvent that answers.
 import {test} from "node:test"
 import assert from "node:assert/strict"
-import {TreeModel, windowRange, dropZone, dropIntent, movableRow, escapeHtml, keyMove, typeAhead, menuItems, WikiTree, ROW_HEIGHT, previewHtml, PREVIEW_MS} from "./wiki_tree.js"
+import {TreeModel, windowRange, dropZone, dropIntent, movableRow, escapeHtml, keyMove, typeAhead, menuItems, hasMenu, WikiTree, ROW_HEIGHT, previewHtml, PREVIEW_MS} from "./wiki_tree.js"
 
 // Rows as the server sends them to a writer on board 1.
 const folder = (id, extra = {}) => ({kind: "folder", id, key: `folder:${id}`, title: `F${id}`, count: 1, board_id: 1, writable: true, ...extra})
@@ -984,4 +984,46 @@ test("a writer's folder offers Organise…; a page, a selection and a reader don
   const reader = menuItems(folder(4, {writable: false, href: "/x"}), {board: 1, canWrite: false, selected: new Set()})
   assert.ok(!labels(reader).includes("Organise…"))
   assert.ok(!labels(menuItems(page(7, {href: "/x"}), {board: 1, canWrite: true, selected: new Set()})).includes("Organise…"))
+})
+
+// A board or folder mounted in a vault (#797): one mapping's mount has a
+// menu, whose owner can dress it; a vault folder several sit below has none.
+const mount = (extra = {}) => ({kind: "folder", key: "board:6", id: "board:6", title: "Jobs", mount: true, count: 1, pages: 4, board_id: 6, mapping: 12, href: "/boards/6/wiki", ...extra})
+
+test("hasMenu: one mapping's mount has a menu, a shared vault folder doesn't (#797)", () => {
+  assert.ok(hasMenu(mount()))
+  assert.ok(hasMenu(mount({kind: "dir", href: undefined})))
+  assert.ok(!hasMenu(mount({mapping: undefined})))
+  assert.ok(!hasMenu({kind: "dir", key: "dir:Work", mount: true, count: 1}))
+  assert.ok(hasMenu(folder(1)) && hasMenu(page(1)))
+})
+
+test("menuItems: the vault's owner can give a mount an icon and a colour (#797)", () => {
+  const owner = menuItems(mount(), {vaultOwner: true, board: 1})
+  assert.deepEqual(owner.map(i => i.label), ["Open", "Open in a new tab", "Icon and colour…", "Copy link"])
+  const dress = owner.find(i => i.event === "dress_mount")
+  assert.deepEqual(dress.payload, {mapping: "12"})
+  // Not the folder's own edits: the mount is the mapping's, not a folder.
+  assert.ok(!owner.some(i => ["rename_folder", "tree_dialog", "ask_delete_folder"].includes(i.event)))
+})
+
+test("menuItems: anyone else reading a mount can open and link it, not dress it (#797)", () => {
+  const reader = menuItems(mount({writable: true}), {vaultOwner: false, board: 1})
+  assert.deepEqual(reader.map(i => i.label), ["Open", "Open in a new tab", "Copy link"])
+  // With nowhere to open, there is nothing for them at all.
+  assert.deepEqual(menuItems(mount({kind: "dir", href: undefined}), {vaultOwner: false}), [])
+})
+
+test("a mount's row has its menu button, and its count sits where a folder's does (#797)", () => {
+  const nodes = {"board:5": [folder(1, {pages: 2}), mount(), {kind: "dir", key: "dir:Work", id: "dir:Work", title: "Work", mount: true, count: 1, pages: 3}]}
+  const context = {scope: "vault", root: "board:5", filtering: false, reveal: [], small: false, open: [], nodes}
+  const {hook, rowsEl} = mountHook({dataset: {vault: "3"}, replies: [context]})
+  hook.mounted()
+  const rows = rowsEl.innerHTML.split(/(?=<div id="wt-row-)/).filter(r => r.startsWith("<div id=\"wt-row-"))
+  assert.equal(rows.length, 3)
+  // Folder and mount: the count, then the menu button last.
+  for (const row of rows.slice(0, 2)) assert.match(row, /text-2xs text-base-content\/40">\d+<\/span><\/a><button type="button" data-menu/)
+  // A vault folder with no menu keeps the button's room, so its count lines up.
+  assert.doesNotMatch(rows[2], /data-menu/)
+  assert.match(rows[2], />3<\/span><\/a><span class="w-6 shrink-0"><\/span><\/div>$/)
 })

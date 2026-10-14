@@ -516,7 +516,14 @@ defmodule Slipdock.Wiki.Tree do
     from(m in Mapping,
       where: m.vault_id == ^vault_id,
       order_by: [asc: m.path],
-      select: %{board_id: m.board_id, folder_id: m.folder_id, path: m.path}
+      select: %{
+        id: m.id,
+        board_id: m.board_id,
+        folder_id: m.folder_id,
+        path: m.path,
+        icon: m.icon,
+        color: m.color
+      }
     )
     |> Repo.all()
     |> Enum.filter(&Map.has_key?(boards, &1.board_id))
@@ -686,20 +693,22 @@ defmodule Slipdock.Wiki.Tree do
   defp mount_row(layout, path, boards, pages \\ nil) do
     key = row_key(layout, path)
 
-    {board_id, count} =
+    {mapping, count} =
       case Enum.filter(layout.mappings, &same_path?(&1.path, path)) do
-        [m] ->
-          {m.board_id, if(pages, do: pages.(m), else: mount_pages(m, boards))}
-
-        _ ->
-          {nil, nil}
+        [m] -> {m, if(pages, do: pages.(m), else: mount_pages(m, boards))}
+        _ -> {nil, nil}
       end
 
+    # What one mapping mounts here wears what the mapping says (#797); a
+    # path several are mounted below is the vault's own and wears nothing.
     %{
       kind: if(String.starts_with?(key, "dir:"), do: "dir", else: "folder"),
       key: key,
       id: key,
-      board_id: board_id,
+      board_id: mapping && mapping.board_id,
+      mapping: mapping && mapping.id,
+      icon: mapping && mapping.icon,
+      color: mapping && mapping.color,
       title: path |> String.split("/") |> List.last(),
       mount: true,
       count: 1,
