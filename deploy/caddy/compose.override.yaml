@@ -1,0 +1,29 @@
+# Optional: Caddy in front of the app, so that `docker compose up -d` after a
+# pull holds requests while the new container starts instead of answering
+# them with 502s. Not part of the default setup; to use it, copy this file and
+# the Caddyfile next to compose.yaml:
+#
+#   cp deploy/caddy/compose.override.yaml deploy/caddy/Caddyfile .
+#   docker compose up -d
+#
+# Compose reads compose.override.yaml by itself. Caddy takes over the port the
+# app published (SLIPDOCK_PUBLISH), and the app is then reached only over the
+# compose network. Deploys stay `docker compose pull && docker compose up -d`:
+# only the app is recreated, and Caddy keeps running across it.
+#
+# Needs Docker Compose 2.24 or later, for `!reset`.
+services:
+  slipdock:
+    ports: !reset []
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "${SLIPDOCK_PUBLISH:-127.0.0.1:4000}:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+
+volumes:
+  caddy-data:

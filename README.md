@@ -348,6 +348,23 @@ says what changed and what, if anything, you have to do.
 `latest` follows the main branch. To pin a version instead, set `SLIPDOCK_TAG`
 in your `.env` to any published tag.
 
+While the new container starts, which takes a few seconds, nothing is
+listening, so a proxy in front answers with a 502. To have those requests wait
+instead, put Caddy in front. It is optional and self-contained:
+
+```sh
+cp deploy/caddy/compose.override.yaml deploy/caddy/Caddyfile .
+docker compose up -d
+```
+
+Compose reads `compose.override.yaml` by itself. Caddy takes over the port in
+`SLIPDOCK_PUBLISH`, and the app is then reached only over the compose network.
+Upgrading is the same two commands as before: only the app is recreated, and
+Caddy keeps retrying each request for up to 30 seconds until the new container
+answers. It trusts the private ranges in front of it, so `X-Forwarded-For`
+and `X-Forwarded-Proto` from a tunnel or host proxy pass through unchanged.
+It needs Docker Compose 2.24 or later.
+
 #### Backing up
 
 There are two volumes. `slipdock-db` is the Postgres database; `slipdock-data`
