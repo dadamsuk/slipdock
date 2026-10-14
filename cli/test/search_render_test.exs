@@ -16,7 +16,8 @@ defmodule SlipdockCLI.SearchRenderTest do
           %{
             "kind" => "transcript",
             "section" => "part 2",
-            "text" => "Transcript of the recording “call.mp3”, part 2 of 3:\nSteve: Friday it is.",
+            "text" =>
+              "Transcript of the recording “call.mp3”, part 2 of 3:\nSteve: Friday it is.",
             "url" => "/boards/3/cards/12?at=transcript-5-part-2"
           }
         ]
