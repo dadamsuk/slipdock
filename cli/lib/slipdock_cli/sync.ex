@@ -77,11 +77,6 @@ defmodule SlipdockCLI.Sync do
 
   def run("sync", ["init"], _o), do: fail("usage: slipdock sync init DIR --vault V")
 
-  @doc false
-  # A folder already a mirror is bound afresh only with --force. Left out,
-  # --force is nil, not false, so this asks truthiness: `not nil` raises.
-  def refuse_reinit?(root, o), do: FS.exists?(State.path(root)) and !o[:force]
-
   def run("sync", ["service", action | rest], o) when action in ~w(install uninstall print) do
     root = root!(List.first(rest) || ".")
 
@@ -400,11 +395,16 @@ defmodule SlipdockCLI.Sync do
 
   defp stringify(map), do: Map.new(map, fn {k, v} -> {to_string(k), v} end)
 
+  @doc false
+  # A folder already a mirror is bound afresh only with --force. Left out,
+  # --force is nil, not false, so this asks truthiness: `not nil` raises.
+  def refuse_reinit?(root, o), do: FS.exists?(State.path(root)) and !o[:force]
+
   ## Running in the background ----------------------------------------------
 
   defp service("print", plan, _o) do
-    if plan.file do
-      IO.puts(Render.dim("# " <> plan.file))
+    if plan.content do
+      IO.puts(Render.dim("# " <> (plan.file || "registered by:")))
       IO.write(plan.content)
     end
 
@@ -419,41 +419,25 @@ defmodule SlipdockCLI.Sync do
       IO.puts("wrote #{plan.file}")
     end
 
-    # `launchctl unload` of an agent not yet loaded fails, and is meant to.
-    [last | earlier] = Enum.reverse(plan.install)
-    Enum.each(Enum.reverse(earlier), &run_cmd(&1, false))
-
-    case run_cmd(last, true) do
+    case Service.install(plan) do
       :ok ->
         IO.puts("started #{plan.name}; it starts again when you log in. Logs: #{plan.logs}")
 
-      {:error, msg} ->
+      {:error, msg} when plan.file != nil ->
         fail(
-          "#{msg}\n  the service file is written; start it by hand with: " <> Enum.join(last, " ")
+          "#{msg}\n  the service file is written; start it by hand with: " <>
+            Enum.join(List.last(plan.install), " ")
         )
+
+      {:error, msg} ->
+        fail("#{msg}\n  `slipdock sync service print` shows what it ran")
     end
   end
 
   defp service("uninstall", plan, _o) do
-    Enum.each(plan.uninstall, &run_cmd(&1, false))
+    Enum.each(plan.uninstall, &Service.run/1)
     if plan.file, do: FS.rm(plan.file)
     IO.puts("stopped and removed #{plan.name}")
-  end
-
-  defp run_cmd([cmd | args], strict?) do
-    case System.find_executable(cmd) do
-      nil ->
-        if strict?, do: {:error, "#{cmd} is not on this machine"}, else: :ok
-
-      exe ->
-        case System.cmd(exe, args, stderr_to_stdout: true) do
-          {_, 0} ->
-            :ok
-
-          {out, code} ->
-            if strict?, do: {:error, "#{cmd} failed (#{code}): #{String.trim(out)}"}, else: :ok
-        end
-    end
   end
 
   defp shell_word(word) do
