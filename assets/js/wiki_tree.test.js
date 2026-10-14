@@ -614,6 +614,23 @@ test("a folder's menu offers making, sorting and deleting, its sort ticked", () 
   assert.deepEqual(items.find(i => i.label === "New drawing here").payload, {key: "folder:4"})
 })
 
+test("a folder with no sort of its own ticks Same as the top, and can go back to it (#789)", () => {
+  const items = menuItems(folder(4, {href: "/boards/1/wiki?folder=4"}), {board: 1, canWrite: true, selected: new Set()})
+  const sorts = items.filter(i => i.group === "sort")
+  assert.deepEqual(sorts.map(i => i.label), ["Sort: Same as the top", "Sort: As arranged", "Sort: By name", "Sort: Last changed first", "Sort: Newest first"])
+  assert.deepEqual(sorts.filter(i => i.icon === "hero-check").map(i => i.label), ["Sort: Same as the top"])
+  assert.deepEqual(sorts[0].payload, {key: "folder:4", sort: "board"})
+  const manual = menuItems(folder(4, {href: "/x", sort: "manual"}), {board: 1, canWrite: true, selected: new Set()})
+  assert.equal(manual.find(i => i.label === "Sort: As arranged").icon, "hero-check")
+})
+
+test("the top of the tree is by name until another sort is chosen (#789)", () => {
+  const root = {kind: "root", key: "root"}
+  const ticked = ctx => menuItems(root, {board: 1, canWrite: true, selected: new Set(), ...ctx}).filter(i => i.icon === "hero-check").map(i => i.label)
+  assert.deepEqual(ticked({}), ["Sort: By name"])
+  assert.deepEqual(ticked({rootSort: "manual"}), ["Sort: As arranged"])
+})
+
 test("a reader only opens and copies; another board's folder makes no folders here", () => {
   const reader = menuItems(page(7, {writable: false, href: "/x"}), {board: 1, canWrite: false, selected: new Set()})
   assert.deepEqual(labels(reader), ["Open", "Open in a new tab", "Copy link"])

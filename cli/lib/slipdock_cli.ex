@@ -290,7 +290,7 @@ defmodule SlipdockCLI do
     folder new <board> <name...> [--parent F]
                                         a name with slashes makes the whole path
     folder mv <board> <folder> [--name N] [--parent F | --root] [--position N]
-                                        [--sort manual|name|modified|created]  how the
+                                        [--sort board|manual|name|modified|created]  how the
                                         tree orders the pages in it
     folder mv <board> <folder> --board B [--parent F] [--contents] [--dry-run]
                                         to another board you can write to, with its

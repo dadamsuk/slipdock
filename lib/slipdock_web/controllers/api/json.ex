@@ -584,6 +584,8 @@ defmodule SlipdockWeb.API.JSON do
       slug: f.slug,
       path: Slipdock.Wiki.folder_path(f),
       position: f.position,
+      # Its own order in the tree, or nil to follow the board's (#789).
+      sort: f.sort,
       inserted_at: f.inserted_at,
       updated_at: f.updated_at
     }

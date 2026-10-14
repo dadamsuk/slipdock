@@ -478,10 +478,12 @@ defmodule Slipdock.WikiTreeTest do
       Enum.map(rows, & &1.title)
     end
 
-    test "manual by default, then by name, modified or created, folders first", %{
-      board: board,
-      inbox: inbox
-    } do
+    test "the board's (by name) by default, then as arranged, by name, modified or created, folders first",
+         %{board: board, inbox: inbox} do
+      assert inbox.sort == nil
+      assert listed(board, inbox) == ["alpha", "Zeta", "Apple", "banana", "cherry"]
+
+      {:ok, inbox} = Wiki.set_tree_sort(board, inbox, "manual")
       assert listed(board, inbox) == ["Zeta", "alpha", "cherry", "Apple", "banana"]
 
       {:ok, inbox} = Wiki.set_tree_sort(board, inbox, "name")
@@ -517,6 +519,66 @@ defmodule Slipdock.WikiTreeTest do
       assert {:error, :unprocessable_entity, _} = Wiki.set_tree_sort(board, inbox, "random")
       other = board_fixture(%{"name" => "O", "code" => "osort"}, owner: user)
       assert {:error, :unprocessable_entity, _} = Wiki.set_tree_sort(other, inbox, "name")
+    end
+  end
+
+  describe "by name unless someone chose otherwise (#789)" do
+    defp root_folders(board) do
+      {:ok, rows} = Tree.children(board, :root)
+      for %{kind: "folder", title: t} <- rows, do: t
+    end
+
+    test "a new board sorts by name, and a folder made later takes its a-z place", %{
+      board: board
+    } do
+      assert board.wiki_sort == "name"
+      assert Slipdock.Boards.get_board!(board.id).wiki_sort == "name"
+
+      for name <- ["Aviation", "Websites"], do: folder(board, name)
+      # Made afterwards, as a vault's sync makes them: later positions.
+      for name <- ["Chats", "Family", "export", "2026", "copilot-chats"], do: folder(board, name)
+
+      assert root_folders(board) ==
+               ["2026", "Aviation", "Chats", "copilot-chats", "export", "Family", "Websites"]
+    end
+
+    test "inside a folder with no sort of its own, folders and pages follow the board", %{
+      board: board,
+      user: user
+    } do
+      home = folder(board, "Home")
+      for name <- ["zulu", "Alpha", "10 things"], do: folder(board, name, home)
+      for t <- ["mango", "Kiwi", "2nd draft"], do: page(board, user, t, folder: home)
+
+      assert Enum.map(elem(Tree.children(board, {:folder, home.id}), 1), & &1.title) ==
+               ["10 things", "Alpha", "zulu", "2nd draft", "Kiwi", "mango"]
+
+      # The board choosing "as arranged" takes the folder with it…
+      {:ok, board} = Wiki.set_tree_sort(board, nil, "manual")
+
+      assert Enum.map(elem(Tree.children(board, {:folder, home.id}), 1), & &1.title) ==
+               ["zulu", "Alpha", "10 things", "2nd draft", "Kiwi", "mango"]
+
+      # …unless the folder chose for itself, and "board" hands it back.
+      {:ok, home} = Wiki.set_tree_sort(board, home, "name")
+      assert Wiki.tree_sort(board, home) == "name"
+      assert hd(elem(Tree.children(board, {:folder, home.id}), 1)).title == "10 things"
+
+      {:ok, home} = Wiki.set_tree_sort(board, home, "board")
+      assert home.sort == nil
+      assert Wiki.tree_sort(board, home) == "manual"
+      assert hd(elem(Tree.children(board, {:folder, home.id}), 1)).title == "zulu"
+    end
+
+    test "a board that chose as arranged keeps the order things were put in", %{board: board} do
+      for name <- ["Websites", "Aviation", "export"], do: folder(board, name)
+      {:ok, board} = Wiki.set_tree_sort(board, nil, "manual")
+      assert Slipdock.Boards.get_board!(board.id).wiki_sort == "manual"
+      assert root_folders(board) == ["Websites", "Aviation", "export"]
+
+      [_, aviation, _] = Wiki.folders(board)
+      {:ok, _} = Wiki.move_folder(aviation, nil)
+      assert root_folders(board) == ["Websites", "export", "Aviation"]
     end
   end
 

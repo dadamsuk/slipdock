@@ -350,6 +350,9 @@ export function previewHtml(p) {
 }
 
 const SORTS = [["manual", "As arranged"], ["name", "By name"], ["modified", "Last changed first"], ["created", "Newest first"]]
+// A folder with no sort of its own follows the top's (#789), and can be
+// set back to that.
+const FOLDER_SORTS = [["board", "Same as the top"], ...SORTS]
 
 // What a row's menu offers (R11.10), for whoever is reading: opening and
 // copying for anyone, the rest for a writer on the row's board. Each item
@@ -371,7 +374,7 @@ export function menuItems(row, ctx) {
     add(ctx.canWrite, {label: "New folder", icon: "hero-folder-plus", event: "new_folder", payload: {}})
     add(ctx.canWrite, {label: "New drawing", icon: "hero-paint-brush", event: "new_drawing", payload: {key: "root"}})
     if (ctx.canWrite) SORTS.forEach(([sort, label]) =>
-      items.push({label: `Sort: ${label}`, icon: (ctx.rootSort || "manual") === sort ? "hero-check" : "hero-arrows-up-down", event: "set_tree_sort", payload: {key: "root", sort}, group: "sort"}))
+      items.push({label: `Sort: ${label}`, icon: (ctx.rootSort || "name") === sort ? "hero-check" : "hero-arrows-up-down", event: "set_tree_sort", payload: {key: "root", sort}, group: "sort"}))
     return items
   }
 
@@ -414,8 +417,8 @@ export function menuItems(row, ctx) {
   add(writable && row.kind === "page" && !many, {label: "Also file in…", icon: "hero-link", event: "tree_dialog", payload: {kind: "also", keys: [row.key]}, group: "edit"})
   add(writable && row.kind === "page" && row.board_id === ctx.board, {label: many ? `Tag ${selection.length}…` : "Tag…", icon: "hero-tag", event: "tree_dialog", payload: {kind: "tag", keys: selection}, group: "edit"})
 
-  if (row.kind === "folder" && writable && !many) SORTS.forEach(([sort, label]) =>
-    items.push({label: `Sort: ${label}`, icon: (row.sort || "manual") === sort ? "hero-check" : "hero-arrows-up-down", event: "set_tree_sort", payload: {key: row.key, sort}, group: "sort"}))
+  if (row.kind === "folder" && writable && !many) FOLDER_SORTS.forEach(([sort, label]) =>
+    items.push({label: `Sort: ${label}`, icon: (row.sort || "board") === sort ? "hero-check" : "hero-arrows-up-down", event: "set_tree_sort", payload: {key: row.key, sort}, group: "sort"}))
 
   add(!many, {label: "Copy link", icon: "hero-link", action: "copy", href: row.href, group: "share"})
 

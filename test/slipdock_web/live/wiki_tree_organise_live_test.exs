@@ -254,6 +254,10 @@ defmodule SlipdockWeb.WikiTreeOrganiseLiveTest do
   test "sorting a folder and the top of the board", %{conn: conn, kb: kb, specs: specs} do
     {:ok, view, _} = live(conn, ~p"/boards/#{kb}/wiki")
 
+    # By name until someone chooses (#789); a folder follows the top.
+    assert tree_load(view).sort == "name"
+    refute Map.has_key?(row(tree_load(view), "root", "Specs"), :sort)
+
     render_hook(view, "set_tree_sort", %{"key" => "folder:#{specs.id}", "sort" => "name"})
     assert Wiki.get_folder(specs.id).sort == "name"
     assert %{sort: "name"} = row(tree_load(view), "root", "Specs")
@@ -262,7 +266,16 @@ defmodule SlipdockWeb.WikiTreeOrganiseLiveTest do
     assert Slipdock.Boards.get_board!(kb.id).wiki_sort == "modified"
     assert tree_load(view).sort == "modified"
 
+    render_hook(view, "set_tree_sort", %{"key" => "folder:#{specs.id}", "sort" => "manual"})
+    assert %{sort: "manual"} = row(tree_load(view), "root", "Specs")
+
+    # Back to following the top.
+    render_hook(view, "set_tree_sort", %{"key" => "folder:#{specs.id}", "sort" => "board"})
+    assert Wiki.get_folder(specs.id).sort == nil
+    refute Map.has_key?(row(tree_load(view), "root", "Specs"), :sort)
+
     assert render_hook(view, "set_tree_sort", %{"key" => "root", "sort" => "random"}) =~ "sort by"
+    assert render_hook(view, "set_tree_sort", %{"key" => "root", "sort" => "board"}) =~ "sort by"
   end
 
   test "New drawing makes an Excalidraw note in the folder and opens it in the editor", %{
@@ -311,7 +324,7 @@ defmodule SlipdockWeb.WikiTreeOrganiseLiveTest do
 
       folder = Wiki.get_folder(their_folder.id)
       assert folder.name == "Private"
-      assert folder.sort == "manual"
+      assert folder.sort == nil
     end
 
     test "a folder cannot be filed inside another board's", %{

@@ -1223,7 +1223,7 @@ defmodule SlipdockWeb.WikiLive.Index do
        nodes: Map.new(nodes, fn {key, rows} -> {key, client_rows(rows, socket)} end),
        reveal: reveal,
        # How the top of this board's tree is sorted, for its menu.
-       sort: socket.assigns.board.wiki_sort || "manual",
+       sort: Wiki.tree_sort(socket.assigns.board, nil),
        # What was kept of this tree's open folders: the hook's open set, or
        # nil the first time, when a small wiki opens whole.
        open: kept && Enum.filter(kept, &Map.has_key?(nodes_map(nodes), &1)),
@@ -1329,7 +1329,12 @@ defmodule SlipdockWeb.WikiLive.Index do
     before = blank_to_nil(params["before"])
 
     if socket.assigns.can_write do
-      {:noreply, socket |> tree_move(kind, id, into, before) |> load_tree() |> assign_current()}
+      {:noreply,
+       socket
+       |> tree_move(kind, id, into, before)
+       |> sorted_drop_note(kind, into, before)
+       |> load_tree()
+       |> assign_current()}
     else
       {:noreply, put_flash(socket, :error, "You can't write on this board.")}
     end
@@ -2496,7 +2501,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     |> then(
       &if(MapSet.member?(writable, row[:board_id]), do: Map.put(&1, :writable, true), else: &1)
     )
-    |> then(&if(row[:sort] && row.sort != "manual", do: Map.put(&1, :sort, row.sort), else: &1))
+    |> then(&if(row[:sort], do: Map.put(&1, :sort, row.sort), else: &1))
   end
 
   defp row_href(%{kind: "page"} = row, _key), do: ~p"/boards/#{row.board_id}/wiki/#{row.slug}"
@@ -2808,6 +2813,33 @@ defmodule SlipdockWeb.WikiLive.Index do
         false
     end
   end
+
+  # Dropped between two rows of a folder that is sorted by name (or by date),
+  # a page or folder is filed there but takes its place in that order, not
+  # the one it was dropped in (#789). Say so, and how to order by hand, rather
+  # than let it jump without a word. An error from the move itself wins.
+  defp sorted_drop_note(socket, kind, into, before)
+       when kind in ["page", "folder"] and not is_nil(before) do
+    with nil <- Phoenix.Flash.get(socket.assigns.flash, :error),
+         {:folder, board, folder} <- drop_target(socket, into),
+         sort when sort != "manual" <- Wiki.tree_sort(board, folder) do
+      put_flash(
+        socket,
+        :info,
+        "#{folder_label(folder)} is sorted #{sort_label(sort)}, so that is where it goes. " <>
+          "Choose Sort: As arranged to put things in your own order."
+      )
+    else
+      _ -> socket
+    end
+  end
+
+  defp sorted_drop_note(socket, _kind, _into, _before), do: socket
+
+  defp sort_label("name"), do: "by name"
+  defp sort_label("modified"), do: "last changed first"
+  defp sort_label("created"), do: "newest first"
+  defp sort_label(other), do: other
 
   defp folder_label(nil), do: "The top of the wiki"
   defp folder_label(%Folder{name: name}), do: name

@@ -400,6 +400,59 @@ defmodule SlipdockWeb.WikiFoldersLiveTest do
       assert Wiki.get_folder(third.id).position < Wiki.get_folder(folder.id).position
     end
 
+    test "dropped among rows sorted by name, it is filed but keeps its a-z place, and says so (#789)",
+         %{conn: conn, board: board, folder: folder} do
+      {:ok, zebra} = Wiki.create_folder(board, %{"name" => "Zebra"})
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki")
+
+      html =
+        render_click(view, "tree_move", %{
+          "kind" => "folder",
+          "id" => to_string(zebra.id),
+          "into" => "folder:",
+          "before" => to_string(folder.id)
+        })
+
+      assert html =~ "The top of the wiki is sorted by name, so that is where it goes."
+      assert html =~ "Choose Sort: As arranged"
+      # Its position is taken all the same, ready for when it is.
+      assert Wiki.get_folder(zebra.id).position < Wiki.get_folder(folder.id).position
+
+      assert titles(tree_load(view), "root") |> Enum.take(2) == ["Specs", "Zebra"]
+
+      # Dropped into a folder rather than between rows: nothing to explain.
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki")
+
+      html =
+        render_click(view, "tree_move", %{
+          "kind" => "folder",
+          "id" => to_string(zebra.id),
+          "into" => "folder:#{folder.id}",
+          "before" => nil
+        })
+
+      refute html =~ "Choose Sort: As arranged"
+      assert Wiki.get_folder(zebra.id).parent_id == folder.id
+    end
+
+    test "once the top is as arranged, a drop between rows stays where it was dropped (#789)",
+         %{conn: conn, board: board, folder: folder} do
+      {:ok, zebra} = Wiki.create_folder(board, %{"name" => "Zebra"})
+      {:ok, _} = Wiki.set_tree_sort(board, nil, "manual")
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki")
+
+      html =
+        render_click(view, "tree_move", %{
+          "kind" => "folder",
+          "id" => to_string(zebra.id),
+          "into" => "folder:",
+          "before" => to_string(folder.id)
+        })
+
+      refute html =~ "Choose Sort: As arranged"
+      assert titles(tree_load(view), "root") |> Enum.take(2) == ["Zebra", "Specs"]
+    end
+
     test "a folder cannot be dropped inside itself", %{conn: conn, board: board, folder: folder} do
       {:ok, inner} = Wiki.create_folder(board, %{"name" => "Specs/Drafts"})
 
@@ -460,7 +513,7 @@ defmodule SlipdockWeb.WikiFoldersLiveTest do
       reply = tree_load(view)
       assert reply.root == "root"
       assert Map.keys(reply.nodes) == ["root"]
-      assert titles(reply, "root") == ["Specs", "Contracts"]
+      assert titles(reply, "root") == ["Contracts", "Specs"]
       # Small enough that a first visit opens everything, as it always did.
       assert reply.small
 
