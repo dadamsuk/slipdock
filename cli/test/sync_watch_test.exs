@@ -160,15 +160,44 @@ defmodule SlipdockCLI.SyncWatchTest do
       encoded |> Base.decode64!() |> :unicode.characters_to_binary({:utf16, :little}, :utf8)
     end
 
+    # The unit goes under XDG_CONFIG_HOME when that is set, as it is on
+    # GitHub's runners, so each test says which it means.
+    defp with_xdg_config_home(value, fun) do
+      saved = System.get_env("XDG_CONFIG_HOME")
+
+      if value,
+        do: System.put_env("XDG_CONFIG_HOME", value),
+        else: System.delete_env("XDG_CONFIG_HOME")
+
+      try do
+        fun.()
+      after
+        if saved,
+          do: System.put_env("XDG_CONFIG_HOME", saved),
+          else: System.delete_env("XDG_CONFIG_HOME")
+      end
+    end
+
+    test "Linux: the unit goes under XDG_CONFIG_HOME when that is set" do
+      plan =
+        with_xdg_config_home("/x/conf", fn ->
+          Service.plan({:unix, :linux}, "/u/me/My Notes", ["/usr/bin/slipdock"], "/u/me", "")
+        end)
+
+      assert plan.file == "/x/conf/systemd/user/#{plan.name}"
+    end
+
     test "Linux: a systemd user unit running sync --watch on the folder" do
       plan =
-        Service.plan(
-          {:unix, :linux},
-          "/u/me/My Notes",
-          ["/usr/bin/slipdock"],
-          "/u/me",
-          "/usr/bin:/bin"
-        )
+        with_xdg_config_home(nil, fn ->
+          Service.plan(
+            {:unix, :linux},
+            "/u/me/My Notes",
+            ["/usr/bin/slipdock"],
+            "/u/me",
+            "/usr/bin:/bin"
+          )
+        end)
 
       assert plan.name =~ ~r/^slipdock-sync-my-notes-[0-9a-f]{6}\.service$/
       assert plan.file == "/u/me/.config/systemd/user/#{plan.name}"
