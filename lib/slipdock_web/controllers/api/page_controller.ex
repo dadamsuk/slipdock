@@ -1026,6 +1026,56 @@ defmodule SlipdockWeb.API.PageController do
   end
 
   @doc """
+  Organises what is filed in a folder (#791): `folder` names it (id, name or
+  path), `mode` is `date`, `ai`, `tag` or `flatten`. For `date`: `parent`
+  (a path; the folder itself when absent, `""` for the top), `granularity`
+  (`month`, `year`, `year_month`, `day`) and `source` (`auto` or `added`).
+
+  `dry_run` returns the plan and changes nothing. Without it the plan is
+  made again and filed, so an AI run asks the model again. `only`, a list of
+  keys from a plan (`"page:12"`, `"file:3"`), files just those.
+  """
+  def organise_folder(conn, %{"board" => board_ref, "folder" => ref, "mode" => mode} = params) do
+    opts =
+      [user: conn.assigns.current_user] ++
+        for(
+          key <- [:parent, :granularity, :source],
+          is_binary(params[to_string(key)]),
+          do: {key, params[to_string(key)]}
+        )
+
+    with {:ok, folder, board} <- fetch_folder(conn, %{"board" => board_ref, "id" => ref}, :write),
+         {:plan, {:ok, plan}} <- {:plan, Wiki.AutoOrganise.plan(folder, mode, opts)} do
+      plan =
+        case params["only"] do
+          keys when is_list(keys) -> Enum.filter(plan, &(&1.key in keys))
+          _ -> plan
+        end
+
+      if truthy?(params["dry_run"]) do
+        json(conn, %{dry_run: true, plan: Enum.map(plan, &organise_entry/1)})
+      else
+        {:ok, result} = Wiki.AutoOrganise.apply_plan(board, plan)
+
+        json(conn, %{
+          plan: Enum.map(plan, &organise_entry/1),
+          moved: result.moved,
+          folders_made: result.folders,
+          skipped: Enum.map(result.skipped, fn {title, why} -> %{title: title, reason: why} end)
+        })
+      end
+    else
+      {:plan, {:error, message}} -> {:error, :unprocessable_entity, message}
+      error -> error
+    end
+  end
+
+  def organise_folder(_conn, _params),
+    do: {:error, :bad_request, "organising needs a folder and a mode (date, ai, tag or flatten)"}
+
+  defp organise_entry(entry), do: Map.take(entry, [:key, :kind, :id, :title, :from, :to])
+
+  @doc """
   Deletes a folder. Its subfolders move up; its pages go back to the root.
 
   `?purge=true` deletes the folders beneath it and every page filed in any of

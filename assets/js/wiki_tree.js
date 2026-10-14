@@ -405,6 +405,8 @@ export function menuItems(row, ctx) {
     add(writable && !many && row.board_id === ctx.board, {label: "New folder inside", icon: "hero-folder-plus", event: "new_folder", payload: {parent: id}, group: "new"})
     add(writable && !many, {label: "New drawing here", icon: "hero-paint-brush", event: "new_drawing", payload: {key: row.key}, group: "new"})
     add(writable && !many, {label: "Rename…", icon: "hero-pencil", event: "rename_folder", payload: {id}, group: "edit"})
+    // Sort what is filed in it by date, tag or the AI's suggestions (#791).
+    add(writable && !many, {label: "Organise…", icon: "hero-sparkles", event: "organise_folder", payload: {id}, group: "edit"})
     // Its contents to a board of their own, mapped at its vault path (#747):
     // for whoever owns the vault, since it changes the vault's mappings.
     add(writable && !many && ctx.vaultOwner, {label: "Give it its own board…", icon: "hero-arrow-up-on-square-stack", event: "split_folder", payload: {id}, group: "edit"})

@@ -45,6 +45,9 @@ config :slipdock, :ai,
   base_url: "https://openrouter.ai/api/v1",
   model: "google/gemini-2.5-flash-lite",
   quick_model: nil,
+  # A folder's "Organise… → AI" reads titles and folder paths only, so the
+  # cheapest Claude does it well (#791). SLIPDOCK_AI_ORGANISE_MODEL overrides.
+  organise_model: "anthropic/claude-haiku-5.5",
   # Semantic search (see Slipdock.Search): the embedding model, and how many
   # dimensions to ask it for. text-embedding-3-* are Matryoshka models, so
   # 768 is the full 1536-dimension vector truncated — half the storage for
@@ -102,6 +105,12 @@ config :slipdock, :automations,
 config :slipdock, SlipdockWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,
+  # How long a stopping server waits for requests still in flight before it
+  # cuts them off. Bandit's default is 15s, and a runner's claim is a 25s long
+  # poll, so there is always one open: `docker stop` gave up after its own 10s
+  # and killed the app, and every deploy was 10s of 502s before the new one
+  # even started. A runner whose claim is cut off just polls again.
+  http: [thousand_island_options: [shutdown_timeout: 3_000]],
   render_errors: [
     formats: [html: SlipdockWeb.ErrorHTML, json: SlipdockWeb.ErrorJSON],
     layout: false

@@ -40,6 +40,8 @@ defmodule Slipdock.AI do
     * `:model` – the default model id (`SLIPDOCK_AI_MODEL`)
     * `:quick_model` – an even cheaper model for the one-line quick add
       (`SLIPDOCK_AI_QUICK_MODEL`); falls back to `:model`
+    * `:organise_model` – the model a folder's AI organise asks
+      (`SLIPDOCK_AI_ORGANISE_MODEL`); falls back to `:quick_model`
     * `:base_url` – the default API root (`SLIPDOCK_AI_BASE_URL`), used by
       anyone who has not pointed at one of their own
     * `:req_options` – extra `Req` options, used by tests to plug in a stub
@@ -97,7 +99,8 @@ defmodule Slipdock.AI do
   Options: `:user` (whose work this is), and `:base_url` / `:api_key` /
   `:model` to override any of the three. `:quick` asks for the cheap model
   (`quick_model/0`) when the person has not picked one of their own, which is
-  what the header's quick add uses.
+  what the header's quick add uses; `:organise` asks for `organise_model/0`
+  the same way.
 
   `custom?` says the endpoint is not the server's default — which is why no
   key is demanded, and why a model id from the config is not imposed on it.
@@ -136,7 +139,7 @@ defmodule Slipdock.AI do
          target: target,
          req_options: req_options,
          api_key: key,
-         model: opts[:model] || settings.model || default_model(opts[:quick], custom?),
+         model: opts[:model] || settings.model || default_model(opts, custom?),
          embed_model: settings.embed_model,
          custom?: custom?,
          guarded?: guarded?
@@ -167,10 +170,11 @@ defmodule Slipdock.AI do
   # config names an OpenRouter model, and sending "google/gemini-2.5-flash" to
   # a box running two local models is a 404 with a baffling message. Nil means
   # "whatever you have loaded", which is what LM Studio and friends do.
-  defp default_model(quick?, custom?) do
+  defp default_model(opts, custom?) do
     cond do
       custom? -> nil
-      quick? -> quick_model()
+      opts[:organise] -> organise_model()
+      opts[:quick] -> quick_model()
       true -> model()
     end
   end
@@ -274,6 +278,13 @@ defmodule Slipdock.AI do
   `:quick_model` when one is configured, otherwise the ordinary model.
   """
   def quick_model, do: config()[:quick_model] || model()
+
+  @doc """
+  The model a folder's AI organise asks (#791): `:organise_model` when one
+  is configured — a cheap Claude Haiku on OpenRouter by default — otherwise
+  the quick model.
+  """
+  def organise_model, do: config()[:organise_model] || quick_model()
 
   @doc """
   Sends `messages` (maps with `"role"`/`:role` and `"content"`/`:content`)

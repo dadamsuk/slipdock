@@ -22,7 +22,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   alias Slipdock.{Access, Boards, Fields, Votes, Wiki}
   alias Slipdock.Boards.Attachment
   alias Slipdock.Palette
-  alias Slipdock.Wiki.{Folder, Page, Tree, TreeStates, WikiFile}
+  alias Slipdock.Wiki.{AutoOrganise, Folder, Page, Tree, TreeStates, WikiFile}
   alias SlipdockWeb.Params
   alias SlipdockWeb.Wiki.Renderer
 
@@ -1774,6 +1774,124 @@ defmodule SlipdockWeb.WikiLive.Index do
   # "Give it its own board…" (#747): what is in a vault folder moves to a
   # board of its own and the folder's vault path is mapped onto it. Only the
   # vault's owner, who alone changes its mappings, is offered it.
+  # A folder's "Organise…" (#791): a way to sort what is filed in it, a
+  # preview of where each item would go with a box to untick it, then the
+  # ticked ones filed. The AI's suggestions are asked for on a button, since
+  # each ask is a call to the reader's model.
+  def handle_event("organise_folder", %{"id" => id}, socket) do
+    with %Folder{} = folder <- tree_item(socket, "folder:#{id}"),
+         %Slipdock.Boards.Board{} = board <- writable_board(socket, folder.board_id) do
+      path = Wiki.folder_path(folder)
+
+      prompt =
+        organise_plan(%{
+          kind: :organise,
+          folder: folder,
+          board: board,
+          mode: "date",
+          parent: path,
+          granularity: "month",
+          source: "auto",
+          plan: nil,
+          excluded: MapSet.new(),
+          error: nil,
+          asking: false,
+          paths: AutoOrganise.folder_paths(board),
+          ai?: Slipdock.AI.configured?(socket.assigns.current_user)
+        })
+
+      {:noreply, assign(socket, tree_prompt: prompt)}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "That folder can't be organised from here.")}
+    end
+  end
+
+  def handle_event("organise_draft", params, socket) do
+    case socket.assigns.tree_prompt do
+      %{kind: :organise} = prompt ->
+        prompt = %{
+          prompt
+          | mode: organise_choice(params["mode"], AutoOrganise.modes(), prompt.mode),
+            parent: Map.get(params, "parent", prompt.parent),
+            granularity:
+              organise_choice(
+                params["granularity"],
+                AutoOrganise.granularities(),
+                prompt.granularity
+              ),
+            source: organise_choice(params["source"], ~w(auto added), prompt.source),
+            excluded: MapSet.new()
+        }
+
+        {:noreply, assign(socket, tree_prompt: organise_plan(prompt))}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("organise_pick", params, socket) do
+    case socket.assigns.tree_prompt do
+      %{kind: :organise, plan: [_ | _] = plan} = prompt ->
+        kept = MapSet.new(List.wrap(params["include"]))
+        excluded = for(e <- plan, e.key not in kept, into: MapSet.new(), do: e.key)
+        {:noreply, assign(socket, tree_prompt: %{prompt | excluded: excluded})}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("organise_ask", _params, socket) do
+    case socket.assigns.tree_prompt do
+      %{kind: :organise, mode: "ai", asking: false, folder: folder} = prompt ->
+        user = socket.assigns.current_user
+
+        {:noreply,
+         socket
+         |> assign(tree_prompt: %{prompt | asking: true, error: nil, plan: nil})
+         |> start_async(:organise_ai, fn -> AutoOrganise.plan(folder, "ai", user: user) end)}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("confirm_organise", _params, socket) do
+    with %{kind: :organise, plan: [_ | _] = plan, board: board, excluded: excluded} <-
+           socket.assigns.tree_prompt,
+         entries when entries != [] <- Enum.reject(plan, &MapSet.member?(excluded, &1.key)),
+         {:ok, result} <- AutoOrganise.apply_plan(board, entries) do
+      made = if result.folders > 0, do: ", making #{count(result.folders, "folder")}", else: ""
+
+      socket =
+        socket
+        |> assign(tree_prompt: nil)
+        |> put_flash(:info, "Organised #{count(result.moved, "item")}#{made}.")
+        |> then(fn socket ->
+          case result.skipped do
+            [] ->
+              socket
+
+            skipped ->
+              put_flash(
+                socket,
+                :error,
+                "Left where they were: " <>
+                  Enum.map_join(skipped, "; ", fn {title, why} -> "“#{title}” (#{why})" end) <>
+                  "."
+              )
+          end
+        end)
+        |> load_tree()
+        |> assign_current()
+
+      {:noreply, socket}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "Nothing was picked to organise.")}
+    end
+  end
+
   def handle_event("split_folder", %{"id" => id}, socket) do
     with %{} = vault <- own_vault(socket),
          %Folder{} = folder <- tree_item(socket, "folder:#{id}"),
@@ -3169,6 +3287,25 @@ defmodule SlipdockWeb.WikiLive.Index do
   end
 
   @impl true
+  # The AI's suggestions for a folder's Organise… (#791).
+  def handle_async(:organise_ai, result, socket) do
+    case socket.assigns.tree_prompt do
+      %{kind: :organise, mode: "ai"} = prompt ->
+        prompt =
+          case result do
+            {:ok, {:ok, plan}} -> %{prompt | plan: plan, error: nil}
+            {:ok, {:error, message}} -> %{prompt | plan: nil, error: message}
+            {:exit, _} -> %{prompt | plan: nil, error: "The model couldn't be asked just now."}
+          end
+
+        {:noreply, assign(socket, tree_prompt: %{prompt | asking: false, excluded: MapSet.new()})}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  @impl true
   # Changes come in bursts — an import or a sync sends one per page, several a
   # second for minutes — and each reload reads the whole wiki. So a change
   # only books a reload a moment off, and those that land before it share it:
@@ -4305,6 +4442,186 @@ defmodule SlipdockWeb.WikiLive.Index do
     """
   end
 
+  # A folder's "Organise…" (#791): how, then where each item would go.
+  defp tree_prompt(%{prompt: %{kind: :organise}} = assigns) do
+    plan = assigns.prompt.plan || []
+
+    assigns =
+      assign(assigns,
+        picked: Enum.count(plan, &(not MapSet.member?(assigns.prompt.excluded, &1.key))),
+        plan: plan
+      )
+
+    ~H"""
+    <.modal id="tree-prompt" on_close={JS.push("close_tree_prompt")} size="lg">
+      <div class="space-y-4 p-6">
+        <h2 class="text-lg font-semibold">Organise “{@prompt.folder.name}”</h2>
+        <form
+          id="organise-form"
+          phx-change="organise_draft"
+          phx-submit="organise_draft"
+          class="space-y-3"
+        >
+          <div class="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="How">
+            <label
+              :for={
+                {mode, title, help} <- [
+                  {"date", "By date", "Into a dated folder: Meetings/2026-10"},
+                  {"ai", "AI suggestions", "A model reads the titles and the folders"},
+                  {"tag", "By tag", "Into a folder named after the first tag"},
+                  {"flatten", "Flatten", "Everything in the subfolders, back up here"}
+                ]
+              }
+              class={[
+                "flex cursor-pointer gap-2 rounded-lg border p-2.5 text-sm transition-colors",
+                if(@prompt.mode == mode,
+                  do: "border-primary bg-primary/5",
+                  else: "border-base-300 hover:bg-base-200"
+                )
+              ]}
+            >
+              <input
+                type="radio"
+                name="mode"
+                value={mode}
+                checked={@prompt.mode == mode}
+                class="radio radio-sm radio-primary mt-0.5"
+              />
+              <span>
+                <span class="block font-medium">{title}</span>
+                <span class="block text-xs text-base-content/60">{help}</span>
+              </span>
+            </label>
+          </div>
+
+          <div :if={@prompt.mode == "date"} id="organise-date" class="grid gap-2 sm:grid-cols-3">
+            <label class="text-xs text-base-content/70 sm:col-span-3">
+              Into folders under
+              <input
+                type="text"
+                name="parent"
+                value={@prompt.parent}
+                list="organise-paths"
+                placeholder="The top of the wiki"
+                autocomplete="off"
+                phx-debounce="300"
+                class="input input-sm input-bordered mt-1 w-full"
+              />
+              <datalist id="organise-paths">
+                <option :for={path <- @prompt.paths} value={path}></option>
+              </datalist>
+            </label>
+            <label class="text-xs text-base-content/70">
+              One folder per
+              <select name="granularity" class="select select-sm mt-1 w-full">
+                <option
+                  :for={
+                    {value, label} <- [
+                      {"month", "Month (2026-10)"},
+                      {"year", "Year (2026)"},
+                      {"year_month", "Year, then month (2026/10)"},
+                      {"day", "Day (2026-10-12)"}
+                    ]
+                  }
+                  value={value}
+                  selected={@prompt.granularity == value}
+                >
+                  {label}
+                </option>
+              </select>
+            </label>
+            <label class="text-xs text-base-content/70 sm:col-span-2">
+              Dated by
+              <select name="source" class="select select-sm mt-1 w-full">
+                <option value="auto" selected={@prompt.source == "auto"}>
+                  Its created: or date: front matter, else when it was added
+                </option>
+                <option value="added" selected={@prompt.source == "added"}>
+                  When it was added here
+                </option>
+              </select>
+            </label>
+          </div>
+        </form>
+
+        <div :if={@prompt.mode == "ai"} id="organise-ai" class="space-y-2 text-sm">
+          <p class="text-base-content/70">
+            The model sees this board's folders and the titles here (the first {AutoOrganise.ai_limit()}). It may suggest new folders inside existing ones, never a new top-level folder.
+          </p>
+          <p :if={not @prompt.ai?} class="text-warning">
+            AI needs a model to talk to: set one up under Account → AI model.
+          </p>
+          <button
+            :if={@prompt.ai?}
+            id="organise-ask"
+            type="button"
+            phx-click="organise_ask"
+            class="btn btn-sm btn-secondary"
+            disabled={@prompt.asking}
+          >
+            <span :if={@prompt.asking} class="loading loading-spinner loading-xs"></span>
+            {cond do
+              @prompt.asking -> "Asking…"
+              @prompt.plan -> "Ask again"
+              true -> "Suggest destinations"
+            end}
+          </button>
+        </div>
+
+        <p :if={@prompt.error} id="organise-error" class="text-sm text-error">{@prompt.error}</p>
+
+        <p
+          :if={@prompt.plan == [] and is_nil(@prompt.error)}
+          id="organise-nothing"
+          class="rounded-lg bg-base-200 px-3 py-4 text-center text-sm text-base-content/60"
+        >
+          Nothing here would move.
+        </p>
+
+        <form :if={@plan != []} id="organise-preview" phx-change="organise_pick">
+          <input type="hidden" name="include[]" value="" />
+          <ul class="max-h-72 divide-y divide-base-200 overflow-y-auto rounded-lg border border-base-300 text-sm">
+            <li :for={entry <- @plan} class="flex items-center gap-2 px-2 py-1.5">
+              <input
+                type="checkbox"
+                name="include[]"
+                value={entry.key}
+                checked={not MapSet.member?(@prompt.excluded, entry.key)}
+                class="checkbox checkbox-xs"
+                aria-label={"Move #{entry.title}"}
+              />
+              <.icon
+                name={if entry.kind == :file, do: "hero-paper-clip", else: "hero-document-text"}
+                class="size-4 shrink-0 text-base-content/50"
+              />
+              <span class="min-w-0 flex-1 truncate">{entry.title}</span>
+              <.icon name="hero-arrow-right" class="size-3 shrink-0 text-base-content/40" />
+              <span class="max-w-[45%] truncate font-mono text-xs text-base-content/70">
+                /{entry.to}
+              </span>
+            </li>
+          </ul>
+        </form>
+
+        <div class="flex justify-end gap-2">
+          <button type="button" phx-click="close_tree_prompt" class="btn btn-ghost btn-sm">
+            Cancel
+          </button>
+          <button
+            id="organise-confirm"
+            type="button"
+            phx-click="confirm_organise"
+            class="btn btn-primary btn-sm"
+            disabled={@picked == 0}
+          >
+            Organise {count(@picked, "item")}
+          </button>
+        </div>
+      </div>
+    </.modal>
+    """
+  end
+
   defp tree_prompt(%{prompt: %{kind: :archive_many}} = assigns) do
     ~H"""
     <.modal id="tree-prompt" on_close={JS.push("close_tree_prompt")} size="sm">
@@ -4517,6 +4834,24 @@ defmodule SlipdockWeb.WikiLive.Index do
     </.modal>
     """
   end
+
+  # The plan for the organise dialog's choices; the AI's waits for its button.
+  defp organise_plan(%{mode: "ai"} = prompt), do: %{prompt | plan: nil, error: nil}
+
+  defp organise_plan(prompt) do
+    opts =
+      if prompt.mode == "date",
+        do: [parent: prompt.parent, granularity: prompt.granularity, source: prompt.source],
+        else: []
+
+    case AutoOrganise.plan(prompt.folder, prompt.mode, opts) do
+      {:ok, plan} -> %{prompt | plan: plan, error: nil}
+      {:error, message} -> %{prompt | plan: nil, error: message}
+    end
+  end
+
+  defp organise_choice(value, allowed, current),
+    do: if(value in allowed, do: value, else: current)
 
   defp count(1, noun), do: "1 #{noun}"
   defp count(n, noun), do: "#{n} #{noun}s"

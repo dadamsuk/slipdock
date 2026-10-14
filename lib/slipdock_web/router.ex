@@ -576,6 +576,9 @@ defmodule SlipdockWeb.Router do
     # of names is what somebody on the command line has.
     patch "/boards/:board/folders/*id", PageController, :update_folder
     delete "/boards/:board/folders/*id", PageController, :delete_folder
+    # A folder's Organise… (#791): by date, tag, flattening or the AI's
+    # suggestions; `dry_run` says where things would go.
+    post "/boards/:board/organise", PageController, :organise_folder
     post "/pages/:id/folder", PageController, :file
     get "/pages/:id", PageController, :show
     patch "/pages/:id", PageController, :update

@@ -60,10 +60,28 @@ defmodule SlipdockCLI.Wiki do
     folder_rm(ref, folder, o)
   end
 
+  # Sort what is filed in a folder (#791): by date, tag, flattening, or the
+  # AI's suggestions. --dry-run prints the plan and moves nothing.
+  def run("folder", ["organise", ref | folder], o) when folder != [] do
+    unless is_binary(o[:by]), do: fail("organise needs --by date|ai|tag|flatten")
+
+    body =
+      compact(%{
+        "folder" => Enum.join(folder, " "),
+        "mode" => o[:by],
+        "parent" => if(o[:root], do: "", else: o[:parent]),
+        "granularity" => o[:per],
+        "source" => if(o[:added], do: "added"),
+        "dry_run" => o[:dry_run]
+      })
+
+    HTTP.post("/boards/#{enc(ref)}/organise", body) |> out(o, &Render.organise/1)
+  end
+
   def run("folder", _args, _o),
     do:
       fail(
-        "usage: slipdock folder ls BOARD | open BOARD [F] [--page P] | new BOARD NAME [--parent F] | mv BOARD F --parent G|--root|--name N|--board B [--contents] | rm BOARD F [--purge]"
+        "usage: slipdock folder ls BOARD | open BOARD [F] [--page P] | new BOARD NAME [--parent F] | mv BOARD F --parent G|--root|--name N|--board B [--contents] | rm BOARD F [--purge] | organise BOARD F --by date|ai|tag|flatten [--parent G|--root] [--per month|year|year_month|day] [--added] [--dry-run]"
       )
 
   # Every board's wiki at once: what the Wiki view on the web shows.
