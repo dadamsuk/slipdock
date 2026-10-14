@@ -2867,7 +2867,10 @@ the browser's own PDF viewer; an HTML file (`.html`, `.htm`) is drawn in a
 sandbox: its scripts don't run, its forms don't send and it fetches
 nothing, so pictures it links to are left out; audio (`.mp3`, `.m4a`,
 `.wav`, `.ogg`, `.opus`, `.aac`, `.flac`) plays in the browser's own
-player, the one a card's recordings have, and can be skipped through; JSON is a tree whose objects and arrays fold
+player, the one a card's recordings have, and can be skipped through; a
+transcript (`.vtt`, and `.srt`) reads as a conversation, each speaker's
+turn under their name in a colour of their own with the time it starts
+(a `<v Name>` tag or a `Name:` prefix names them); JSON is a tree whose objects and arrays fold
 (the outer two levels open), JSON Lines an array of its lines, invalid
 JSON the line and column where it went wrong; CSV and TSV are a table
 with the first row as its header, the first 1,000 rows shown; `.txt`,

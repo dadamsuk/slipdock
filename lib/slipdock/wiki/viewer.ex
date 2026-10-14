@@ -3,14 +3,16 @@ defmodule Slipdock.Wiki.Viewer do
   What the file viewer (`SlipdockWeb.FileLive`) shows a wiki file as, and
   the reading that takes: images and PDFs are the browser's to draw, so
   only their kind is decided here, and HTML too, drawn in a sandbox, and
-  audio, which the browser's own player plays; JSON, CSV and plain text are read on the
-  server and handed over as a tree, a table or the text.
+  audio, which the browser's own player plays; JSON, CSV, transcripts and
+  plain text are read on the server and handed over as a tree, a table,
+  speakers' turns or the text.
 
   Text is read only up to `max_text/0` bytes, so a 200 MB log is a
   "download it" rather than a page that never arrives, and a table or a
   tree is cut short at a count a browser can still draw.
   """
 
+  alias Slipdock.Meetings.Transcript
   alias Slipdock.Wiki.{Files, WikiFile}
 
   @audio ~w(.mp3 .m4a .wav .ogg .oga .opus .aac .flac)
@@ -23,7 +25,7 @@ defmodule Slipdock.Wiki.Viewer do
 
   @doc """
   Which viewer a file gets: `:image`, `:svg`, `:pdf`, `:html`, `:audio`,
-  `:json`, `:csv`, `:tsv`, `:text` or `:none`. Decided by the name, which is what a synced
+  `:json`, `:csv`, `:tsv`, `:transcript`, `:text` or `:none`. Decided by the name, which is what a synced
   vault reliably has.
   """
   def kind(%WikiFile{} = file) do
@@ -42,6 +44,7 @@ defmodule Slipdock.Wiki.Viewer do
       ext when ext in ~w(.json .geojson .jsonl .ndjson) -> :json
       ".csv" -> :csv
       ".tsv" -> :tsv
+      ext when ext in ~w(.vtt .srt) -> :transcript
       ext when ext in ~w(.txt .log .md .yaml .yml .toml .ini .xml) -> :text
       _ -> :none
     end
@@ -219,4 +222,44 @@ defmodule Slipdock.Wiki.Viewer do
 
   # After a closing quote, anything up to the separator is kept as written.
   defp after_quote(rest, sep, rows, row, field), do: parse_field(rest, sep, rows, row, field)
+
+  ## Transcripts --------------------------------------------------------------
+
+  @doc """
+  A WebVTT (or SubRip) transcript as the turns of a conversation:
+  `{:ok, %{turns: turns, speakers: names, duration_ms: ms}}`, or
+  `{:error, message}` when no cue in it has words.
+
+  The cues are read the way a meeting capture reads them
+  (`Slipdock.Meetings.Transcript`): a `<v Name>` voice tag or a `Name:`
+  prefix names the speaker, other markup is dropped. Cues one after
+  another from the same speaker are one turn,
+  `%{speaker: name | nil, start_ms: ms, lines: [text]}`; `speakers` are
+  the names in the order they first speak.
+  """
+  def transcript(text, name \\ "") do
+    format = if String.downcase(Path.extname(to_string(name))) == ".srt", do: "srt", else: "vtt"
+
+    case Transcript.parse(text, format: format) do
+      {:ok, %{lines: lines}} ->
+        {:ok,
+         %{
+           turns: turns(lines),
+           speakers: lines |> Enum.map(& &1.speaker) |> Enum.reject(&is_nil/1) |> Enum.uniq(),
+           duration_ms: lines |> Enum.map(&(&1.end_ms || &1.start_ms || 0)) |> Enum.max()
+         }}
+
+      {:error, _} ->
+        {:error,
+         "This doesn't read as a #{String.upcase(format)} transcript: no cue in it has words."}
+    end
+  end
+
+  defp turns(lines) do
+    lines
+    |> Enum.chunk_by(& &1.speaker)
+    |> Enum.map(fn [first | _] = run ->
+      %{speaker: first.speaker, start_ms: first.start_ms, lines: Enum.map(run, & &1.text)}
+    end)
+  end
 end

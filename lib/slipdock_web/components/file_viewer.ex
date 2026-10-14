@@ -16,6 +16,9 @@ defmodule SlipdockWeb.FileViewer do
     * JSON is a tree whose objects and arrays fold, or pretty-printed text
       when it is too big to fold, or the line where it stopped being JSON;
     * CSV and TSV are a table, the first row its header;
+    * a WebVTT or SubRip transcript (.vtt, .srt) reads as a conversation:
+      each speaker's turn under their name, in a colour of their own, with
+      the time it starts (#774);
     * plain text is itself.
 
   Anything else, and anything too big to read here, says so and offers the
@@ -44,7 +47,7 @@ defmodule SlipdockWeb.FileViewer do
   end
 
   # What the server reads for the viewer: nothing for what the browser draws.
-  defp content(file, kind) when kind in [:json, :csv, :tsv, :text] do
+  defp content(file, kind) when kind in [:json, :csv, :tsv, :transcript, :text] do
     case Viewer.read(file) do
       {:ok, text} ->
         parsed(kind, text, file.name)
@@ -73,6 +76,13 @@ defmodule SlipdockWeb.FileViewer do
   defp parsed(:tsv, text, _name), do: %{table: Viewer.csv(text, ?\t)}
   defp parsed(:text, text, _name), do: %{text: text}
 
+  defp parsed(:transcript, text, name) do
+    case Viewer.transcript(text, name) do
+      {:ok, transcript} -> %{transcript: transcript}
+      {:error, message} -> %{problem: message, text: text}
+    end
+  end
+
   @doc "A file's size, the way the viewer's header gives it."
   def size(bytes) when bytes < 1_000, do: "#{bytes} bytes"
   def size(bytes) when bytes < 1_000_000, do: "#{Float.round(bytes / 1_000, 1)} KB"
@@ -85,6 +95,7 @@ defmodule SlipdockWeb.FileViewer do
   attr :tree, :any, default: nil
   attr :text, :string, default: nil
   attr :table, :map, default: nil
+  attr :transcript, :map, default: nil
   attr :problem, :string, default: nil
 
   def viewer(%{problem: problem} = assigns) when is_binary(problem) do
@@ -182,6 +193,34 @@ defmodule SlipdockWeb.FileViewer do
     """
   end
 
+  def viewer(%{kind: :transcript, transcript: %{}} = assigns) do
+    ~H"""
+    <article id="file-transcript" class="mx-auto max-w-3xl">
+      <p id="file-transcript-summary" class="mb-4 text-xs text-base-content/60">
+        {clock(@transcript.duration_ms)} · {count(length(@transcript.speakers), "speaker")} · {count(
+          length(@transcript.turns),
+          "turn"
+        )}
+      </p>
+      <ol class="space-y-4">
+        <li
+          :for={turn <- @transcript.turns}
+          class="grid grid-cols-[4rem_1fr] gap-x-3"
+          data-speaker={turn.speaker}
+        >
+          <time class="pt-0.5 text-right font-mono text-xs text-base-content/50 tabular-nums">
+            {turn.start_ms && clock(turn.start_ms)}
+          </time>
+          <div class={["border-l-4 pl-3", speaker_colour(turn.speaker, @transcript.speakers)]}>
+            <p :if={turn.speaker} class="text-sm font-semibold">{turn.speaker}</p>
+            <p :for={line <- turn.lines} class="leading-relaxed text-base-content">{line}</p>
+          </div>
+        </li>
+      </ol>
+    </article>
+    """
+  end
+
   def viewer(%{text: text} = assigns) when is_binary(text) do
     ~H"""
     <pre id="file-text" class="text-sm whitespace-pre-wrap break-words">{@text}</pre>
@@ -197,6 +236,37 @@ defmodule SlipdockWeb.FileViewer do
     </div>
     """
   end
+
+  # Written out whole so Tailwind keeps them; a speaker's colour is their place
+  # in the order people first speak, so it stays put down the transcript.
+  # Plain hues rather than the theme's, few of which tell apart; the -500s
+  # read on a light page and a dark one.
+  @speaker_colours [
+    "border-sky-500 text-sky-500",
+    "border-amber-500 text-amber-500",
+    "border-emerald-500 text-emerald-500",
+    "border-rose-500 text-rose-500",
+    "border-violet-500 text-violet-500",
+    "border-teal-500 text-teal-500"
+  ]
+
+  defp speaker_colour(nil, _speakers), do: "border-base-300"
+
+  defp speaker_colour(speaker, speakers) do
+    index = Enum.find_index(speakers, &(&1 == speaker)) || 0
+    Enum.at(@speaker_colours, rem(index, length(@speaker_colours)))
+  end
+
+  @doc "Milliseconds as `m:ss`, or `h:mm:ss` from an hour."
+  def clock(ms) do
+    s = div(ms, 1000)
+    {h, m, s} = {div(s, 3600), div(rem(s, 3600), 60), rem(s, 60)}
+    pad = &String.pad_leading(Integer.to_string(&1), 2, "0")
+    if h > 0, do: "#{h}:#{pad.(m)}:#{pad.(s)}", else: "#{m}:#{pad.(s)}"
+  end
+
+  defp count(1, noun), do: "1 #{noun}"
+  defp count(n, noun), do: "#{n} #{noun}s"
 
   attr :node, :any, required: true
   attr :depth, :integer, required: true

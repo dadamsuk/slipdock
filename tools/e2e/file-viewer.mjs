@@ -73,6 +73,14 @@ try {
   const [download] = await Promise.all([page.waitForEvent('download'), page.locator('#wiki-file-download').click()])
   if (download.suggestedFilename() !== 'Spec.pdf') fail('download name: ' + download.suggestedFilename())
 
+  // A .vtt reads as a conversation: each speaker's turn under their name.
+  await open('standup.vtt')
+  const turns = page.locator('#file-transcript li')
+  if ((await turns.count()) !== 4) fail('vtt turns: ' + (await turns.count()))
+  const first = await turns.first().innerText()
+  if (!first.includes('Priya Shah') || !first.includes('Shall we start')) fail('vtt first turn: ' + first)
+  await page.screenshot({ path: process.env.VTT_SHOT || '/tmp/file-viewer-vtt.png' })
+
   // HTML is drawn, in a frame whose scripts never run.
   await open('Report.html')
   const frame = page.frameLocator('#file-html')
@@ -102,7 +110,7 @@ try {
   await page.waitForSelector('#file-viewer #file-table')
 
   if (dialogs.length) fail('a script ran: ' + dialogs.join(', '))
-  console.log('ok: in the page\'s place — csv table, json tree, png, svg, pdf, download, sandboxed html; a page link; the page of its own')
+  console.log('ok: in the page\'s place — csv table, json tree, png, svg, pdf, download, vtt transcript, sandboxed html; a page link; the page of its own')
 } catch (e) {
   await page.screenshot({ path: '/tmp/file-viewer-fail.png' }).catch(() => {})
   fail(e.message)
