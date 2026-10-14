@@ -195,7 +195,9 @@ defmodule SlipdockWeb.FileViewer do
 
   def viewer(%{kind: :transcript, transcript: %{}} = assigns) do
     ~H"""
-    <SlipdockWeb.TranscriptView.transcript id="file-transcript" transcript={@transcript} />
+    <div id="file-transcript-player" phx-hook="TranscriptPlayer" class="mx-auto max-w-3xl">
+      <SlipdockWeb.TranscriptView.transcript id="file-transcript" transcript={@transcript} class="" />
+    </div>
     """
   end
 
