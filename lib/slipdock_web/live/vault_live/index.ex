@@ -88,14 +88,14 @@ defmodule SlipdockWeb.VaultLive.Index do
         {:noreply,
          socket
          |> update(:form_key, &(&1 + 1))
-         |> put_flash(:info, made.(vault))
+         |> flash(:info, made.(vault))
          |> load()}
 
       {:error, %Ecto.Changeset{} = cs} ->
-        {:noreply, put_flash(socket, :error, "Vault name #{name_error(cs)}.")}
+        {:noreply, flash(socket, :error, "Vault name #{name_error(cs)}.")}
 
       {:error, message} ->
-        {:noreply, put_flash(socket, :error, "That vault couldn't be made: #{inspect(message)}.")}
+        {:noreply, flash(socket, :error, "That vault couldn't be made: #{inspect(message)}.")}
     end
   end
 
@@ -111,13 +111,13 @@ defmodule SlipdockWeb.VaultLive.Index do
             "#{mapping.board.name} is kept inside #{vault.name}: it's on the vault's tile now, not among your boards.",
           else: "#{mapping.board.name} is back among your boards."
 
-      {:noreply, socket |> put_flash(:info, message) |> load()}
+      {:noreply, socket |> flash(:info, message) |> load()}
     else
       {:error, _status, message} when is_binary(message) ->
-        {:noreply, put_flash(socket, :error, String.capitalize(message) <> ".")}
+        {:noreply, flash(socket, :error, String.capitalize(message) <> ".")}
 
       _ ->
-        {:noreply, put_flash(socket, :error, "That mapping isn't there any more.")}
+        {:noreply, flash(socket, :error, "That mapping isn't there any more.")}
     end
   end
 
@@ -127,10 +127,10 @@ defmodule SlipdockWeb.VaultLive.Index do
       {:noreply, load(socket)}
     else
       {:error, %Ecto.Changeset{} = cs} ->
-        {:noreply, put_flash(socket, :error, "Vault name #{name_error(cs)}.")}
+        {:noreply, flash(socket, :error, "Vault name #{name_error(cs)}.")}
 
       _ ->
-        {:noreply, put_flash(socket, :error, "That vault isn't there any more.")}
+        {:noreply, flash(socket, :error, "That vault isn't there any more.")}
     end
   end
 
@@ -143,13 +143,13 @@ defmodule SlipdockWeb.VaultLive.Index do
             "#{vault.name} plays its recordings from #{vault.recordings_folder} on Google Drive.",
           else: "#{vault.name} has no recordings folder now."
 
-      {:noreply, socket |> put_flash(:info, message) |> load()}
+      {:noreply, socket |> flash(:info, message) |> load()}
     else
       {:error, reason} when is_atom(reason) ->
-        {:noreply, put_flash(socket, :error, folder_error(reason, folder))}
+        {:noreply, flash(socket, :error, folder_error(reason, folder))}
 
       _ ->
-        {:noreply, put_flash(socket, :error, "That vault isn't there any more.")}
+        {:noreply, flash(socket, :error, "That vault isn't there any more.")}
     end
   end
 
@@ -160,11 +160,11 @@ defmodule SlipdockWeb.VaultLive.Index do
 
         {:noreply,
          socket
-         |> put_flash(:info, "Deleted #{vault.name}. Its pages are still on their boards.")
+         |> flash(:info, "Deleted #{vault.name}. Its pages are still on their boards.")
          |> load()}
 
       _ ->
-        {:noreply, put_flash(socket, :error, "That vault isn't there any more.")}
+        {:noreply, flash(socket, :error, "That vault isn't there any more.")}
     end
   end
 
@@ -187,17 +187,17 @@ defmodule SlipdockWeb.VaultLive.Index do
       {:noreply,
        socket
        |> update(:drafts, &Map.delete(&1, vault.id))
-       |> put_flash(:info, "Mapped #{Mapping.display_path(mapping)} onto #{attrs.board.name}.")
+       |> flash(:info, "Mapped #{Mapping.display_path(mapping)} onto #{attrs.board.name}.")
        |> load()}
     else
       {:error, _status, message} when is_binary(message) ->
-        {:noreply, put_flash(socket, :error, "Not mapped: #{message}.")}
+        {:noreply, flash(socket, :error, "Not mapped: #{message}.")}
 
       {:error, %Ecto.Changeset{} = cs} ->
-        {:noreply, put_flash(socket, :error, "Not mapped: #{changeset_error(cs)}.")}
+        {:noreply, flash(socket, :error, "Not mapped: #{changeset_error(cs)}.")}
 
       _ ->
-        {:noreply, put_flash(socket, :error, "That vault isn't there any more.")}
+        {:noreply, flash(socket, :error, "That vault isn't there any more.")}
     end
   end
 
@@ -206,10 +206,10 @@ defmodule SlipdockWeb.VaultLive.Index do
          {:ok, mapping} <- Vaults.remove_mapping(vault, mapping_id) do
       {:noreply,
        socket
-       |> put_flash(:info, "Took #{Mapping.display_path(mapping)} out of #{vault.name}.")
+       |> flash(:info, "Took #{Mapping.display_path(mapping)} out of #{vault.name}.")
        |> load()}
     else
-      _ -> {:noreply, put_flash(socket, :error, "That mapping isn't there any more.")}
+      _ -> {:noreply, flash(socket, :error, "That mapping isn't there any more.")}
     end
   end
 
@@ -266,6 +266,14 @@ defmodule SlipdockWeb.VaultLive.Index do
       id -> board |> Slipdock.Wiki.find_folder(id) |> found("folder")
     end
   end
+
+  # One outcome on screen at a time: a save that works clears the error an
+  # earlier one left, and the reverse (#783).
+  defp flash(socket, :info, message),
+    do: socket |> clear_flash(:error) |> put_flash(:info, message)
+
+  defp flash(socket, :error, message),
+    do: socket |> clear_flash(:info) |> put_flash(:error, message)
 
   defp changeset_error(cs) do
     cs.errors |> Enum.map_join(", ", fn {_field, {message, _}} -> message end)
