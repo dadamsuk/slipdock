@@ -74,15 +74,21 @@ function normalise(text) {
 }
 
 // What the server's refusal means, for the person pressing play (see
-// SlipdockWeb.RecordingController).
-export function problemMessage(reason) {
+// SlipdockWeb.RecordingController). `help` is what the page knows about
+// where the setting is: the vault owner gets its url, anybody else the
+// owner's name to ask (#784).
+export function problemMessage(reason, help = {}) {
   switch (reason) {
     case "not_connected":
       return "Google Drive isn't connected for this vault."
     case "revoked":
       return "Drive access was revoked — reconnect on your account page."
     case "no_folder":
-      return "This vault has no recordings folder set — Vault settings."
+      if (help.settingsUrl) return "This vault has no recordings folder set —"
+      if (help.owner) return `Ask ${help.owner} to set this vault's recordings folder.`
+      return "This vault has no recordings folder set."
+    case "no_vault":
+      return "This page isn't in a vault, so its recording can't be played. Recordings play from a vault's recordings folder on Google Drive."
     case "not_configured":
       return "Google Drive isn't set up on this server."
     case "not_found":
@@ -96,6 +102,13 @@ export function problemMessage(reason) {
     default:
       return "The recording couldn't be played."
   }
+}
+
+// The link that follows a problem's words, or null: only ever the setting
+// the page itself named.
+export function problemLink(reason, help = {}) {
+  if (reason === "no_folder" && help.settingsUrl) return {href: help.settingsUrl, label: "Vault settings"}
+  return null
 }
 
 // Keys belong to whatever is being typed in.
@@ -118,6 +131,7 @@ export const TranscriptPlayer = {
   mounted() {
     this.src = this.el.dataset.recordingSrc || null
     this.problem = this.el.dataset.recordingProblem || null
+    this.help = {settingsUrl: this.el.dataset.settingsUrl || null, owner: this.el.dataset.vaultOwner || null}
     this.following = true
     this.current = -1
     this.hits = []
@@ -459,7 +473,15 @@ export const TranscriptPlayer = {
 
   showProblem(reason) {
     const p = this.bar.querySelector("[data-problem]")
-    p.textContent = problemMessage(reason)
+    p.textContent = problemMessage(reason, this.help)
+    const link = problemLink(reason, this.help)
+    if (link) {
+      const a = document.createElement("a")
+      a.className = "link"
+      a.href = link.href
+      a.textContent = link.label
+      p.append(" ", a, ".")
+    }
     p.dataset.reason = reason || ""
     p.hidden = false
   },

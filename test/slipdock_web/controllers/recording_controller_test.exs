@@ -109,8 +109,9 @@ defmodule SlipdockWeb.RecordingControllerTest do
     other = board_fixture(%{"name" => "Loose"}, owner: user)
     page = meeting(other, "recording: gdrive:Rec/m.m4a")
 
+    # Not the same as a vault without a folder (#784).
     assert json_response(get(conn, ~p"/wiki-pages/#{page.id}/recording"), 409) == %{
-             "reason" => "no_folder"
+             "reason" => "no_vault"
            }
   end
 

@@ -187,6 +187,7 @@ defmodule SlipdockWeb.WikiLive.Index do
       folder_delete: nil,
       html: "",
       recording: nil,
+      recording_help: %{settings_url: nil, owner: nil},
       columns: [],
       backlinks: [],
       children: [],
@@ -764,12 +765,34 @@ defmodule SlipdockWeb.WikiLive.Index do
   defp recording_problem(_), do: nil
 
   defp assign_page(socket, %Page{} = page) do
+    recording = Slipdock.Recordings.for_page(page)
+
     assign(socket,
       page: Slipdock.Repo.preload(page, Wiki.board_preloads(), force: true),
       # A meeting page's recording, played beside its transcript (W-1690).
-      recording: Slipdock.Recordings.for_page(page)
+      recording: recording,
+      recording_help: recording_help(recording, page, socket.assigns.current_user)
     )
   end
+
+  # Where a vault with no recordings folder gets one (#784): the setting
+  # itself for the vault's owner, who alone can set it; the owner's name for
+  # anybody else, to ask.
+  defp recording_help({:error, :no_folder}, page, user) do
+    case Slipdock.Vaults.for_board(page.board_id) do
+      %{user_id: owner_id} = vault when not is_nil(user) and owner_id == user.id ->
+        %{settings_url: ~p"/vaults" <> "#recordings-folder-#{vault.id}", owner: nil}
+
+      %{} = vault ->
+        vault = Slipdock.Repo.preload(vault, :user)
+        %{settings_url: nil, owner: Slipdock.Accounts.User.display_name(vault.user)}
+
+      nil ->
+        %{settings_url: nil, owner: nil}
+    end
+  end
+
+  defp recording_help(_recording, _page, _user), do: %{settings_url: nil, owner: nil}
 
   ## Events: the card contents a page carries ---------------------------------
   #
@@ -3856,6 +3879,7 @@ defmodule SlipdockWeb.WikiLive.Index do
                     page={@page}
                     html={@html}
                     recording={@recording}
+                    recording_help={@recording_help}
                     backlinks={@backlinks}
                     children={@children}
                     cards={@cards}
@@ -4797,6 +4821,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   attr :page, :any, default: nil
   attr :html, :string, default: ""
   attr :recording, :any, default: nil
+  attr :recording_help, :map, default: %{settings_url: nil, owner: nil}
   attr :backlinks, :list, default: []
   attr :children, :list, default: []
   attr :cards, :list, default: []
@@ -5169,6 +5194,8 @@ defmodule SlipdockWeb.WikiLive.Index do
         phx-hook="TranscriptPlayer"
         data-recording-src={@recording && ~p"/wiki-pages/#{@page.id}/recording"}
         data-recording-problem={recording_problem(@recording)}
+        data-settings-url={@recording_help.settings_url}
+        data-vault-owner={@recording_help.owner}
       >
         <div
           id="wiki-body"

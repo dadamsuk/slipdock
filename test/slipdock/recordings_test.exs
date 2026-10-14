@@ -209,4 +209,47 @@ defmodule Slipdock.RecordingsTest do
       assert Repo.aggregate(Slipdock.Recordings.File, :count) == 0
     end
   end
+
+  # #784: a vault without a folder and a board in no vault are told apart.
+  describe "for_page/1" do
+    setup %{user: user, vault: vault} do
+      board = board_fixture(%{"name" => "Notes"}, owner: user)
+      {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: board})
+      %{board: board}
+    end
+
+    defp page(board, front_matter) do
+      %{front_matter: "---\n" <> front_matter <> "\n---\n\n", board_id: board.id}
+    end
+
+    test "a vault with a folder plays", %{board: board} do
+      assert Recordings.for_page(page(board, "recording: #{@recording}")) == :ok
+    end
+
+    test "a vault without a folder is :no_folder", %{board: board, vault: vault} do
+      Ecto.Changeset.change(vault, recordings_folder: nil) |> Repo.update!()
+      assert Recordings.for_page(page(board, "recording: #{@recording}")) == {:error, :no_folder}
+    end
+
+    test "a board in no vault is :no_vault", %{user: user} do
+      loose = board_fixture(%{"name" => "Loose"}, owner: user)
+      assert Recordings.for_page(page(loose, "recording: #{@recording}")) == {:error, :no_vault}
+    end
+
+    test "a server without Google is :not_configured either way", %{board: board, user: user} do
+      Slipdock.TestConfig.put(:google, [])
+      loose = board_fixture(%{"name" => "Loose"}, owner: user)
+
+      assert Recordings.for_page(page(board, "recording: #{@recording}")) ==
+               {:error, :not_configured}
+
+      assert Recordings.for_page(page(loose, "recording: #{@recording}")) ==
+               {:error, :not_configured}
+    end
+
+    test "no gdrive: recording is not a player", %{board: board} do
+      assert Recordings.for_page(page(board, "recording: manuel2://play?file=x.m4a")) == nil
+      assert Recordings.for_page(%{front_matter: nil, board_id: board.id}) == nil
+    end
+  end
 end

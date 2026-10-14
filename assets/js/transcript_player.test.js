@@ -1,7 +1,7 @@
 // node --test assets/js — the parts of the transcript player that are not the DOM.
 import {test} from "node:test"
 import assert from "node:assert/strict"
-import {clock, currentTurn, nextSpeed, matches, problemMessage, keyAction, typing, SPEEDS} from "./transcript_player.js"
+import {clock, currentTurn, nextSpeed, matches, problemMessage, problemLink, keyAction, typing, SPEEDS} from "./transcript_player.js"
 
 test("times read as minutes and seconds, and hours when they need them", () => {
   assert.equal(clock(65_000), "1:05")
@@ -42,7 +42,26 @@ test("a refusal from the server reads as words", () => {
   assert.equal(problemMessage("not_connected"), "Google Drive isn't connected for this vault.")
   assert.equal(problemMessage("not_found"), "Recording not found on Drive.")
   assert.equal(problemMessage("revoked"), "Drive access was revoked — reconnect on your account page.")
-  assert.equal(problemMessage("no_folder"), "This vault has no recordings folder set — Vault settings.")
+  assert.equal(problemMessage("no_folder"), "This vault has no recordings folder set.")
+  assert.equal(problemMessage(null), "The recording couldn't be played.")
+})
+
+test("no recordings folder: a link for the owner, a name to ask for anybody else", () => {
+  const owner = {settingsUrl: "/vaults#recordings-folder-7"}
+  assert.equal(problemMessage("no_folder", owner), "This vault has no recordings folder set —")
+  assert.deepEqual(problemLink("no_folder", owner), {href: "/vaults#recordings-folder-7", label: "Vault settings"})
+
+  const reader = {owner: "David <&>"}
+  assert.equal(problemMessage("no_folder", reader), "Ask David <&> to set this vault's recordings folder.")
+  assert.equal(problemLink("no_folder", reader), null)
+  assert.equal(problemLink("no_folder"), null)
+})
+
+test("a page in no vault says so, with no settings link", () => {
+  const help = {settingsUrl: "/vaults#recordings-folder-7"}
+  assert.match(problemMessage("no_vault", help), /^This page isn't in a vault, so its recording can't be played\./)
+  assert.equal(problemLink("no_vault", help), null)
+  assert.equal(problemLink("not_found", help), null)
   assert.equal(problemMessage(null), "The recording couldn't be played.")
 })
 
