@@ -543,6 +543,96 @@ defmodule Slipdock.WikiTreeTest do
     end
   end
 
+  describe "alphabetical ignores case (#789)" do
+    test "folders, pages and files at the root read a-z whatever their case", %{
+      board: board,
+      user: user
+    } do
+      level_folder(board, "beta")
+      level_folder(board, "Alpha")
+      for t <- ["zebra", "Banana", "apple"], do: page(board, user, t)
+      file(board, "b.png")
+      file(board, "A.png")
+
+      assert titles(Tree.children(board, :root)) == [
+               {"folder", "Alpha"},
+               {"folder", "beta"},
+               {"page", "apple"},
+               {"page", "Banana"},
+               {"page", "zebra"},
+               {"file", "A.png"},
+               {"file", "b.png"}
+             ]
+    end
+
+    test "inside a folder, under a page and among pages also filed there", %{
+      board: board,
+      user: user
+    } do
+      home = folder(board, "Home")
+      level_folder(board, "inner", home)
+      level_folder(board, "Index", home)
+      for t <- ["delta", "Charlie"], do: page(board, user, t, folder: home)
+      parent = page(board, user, "Parent")
+      for t <- ["mike", "Lima"], do: page(board, user, t, parent: parent)
+      ideas = folder(board, "Ideas")
+      for t <- ["yankee", "X-ray"], do: page(board, user, t, folder: home) |> place(ideas, user)
+
+      assert titles(Tree.children(board, {:folder, home.id})) == [
+               {"folder", "Index"},
+               {"folder", "inner"},
+               {"page", "Charlie"},
+               {"page", "delta"},
+               {"page", "X-ray"},
+               {"page", "yankee"}
+             ]
+
+      assert titles(Tree.children(board, {:page, parent.id})) == [
+               {"page", "Lima"},
+               {"page", "mike"}
+             ]
+
+      # Placed one after the other, then levelled, so the title decides.
+      Repo.update_all(Slipdock.Wiki.Placement, set: [position: 0])
+
+      assert {:ok, [%{title: "X-ray"}, %{title: "yankee"}]} =
+               Tree.children(board, {:folder, ideas.id}, as: user)
+
+      assert Enum.map(Wiki.children(parent), & &1.title) == ["Lima", "mike"]
+    end
+
+    test "a filtered tree and the drop order of siblings agree", %{board: board, user: user} do
+      level_folder(board, "notes b")
+      level_folder(board, "Notes A")
+      [z, b, a] = for t <- ["notes z", "Notes b", "notes a"], do: page(board, user, t)
+
+      result = Tree.filter(board, Map.merge(Slipdock.Filters.empty(), %{q: "notes"}))
+
+      assert Enum.map(result.nodes["root"], & &1.title) ==
+               ["Notes A", "notes b", "notes a", "Notes b", "notes z"]
+
+      assert Wiki.sibling_ids(board.id, nil) == [a.id, b.id, z.id]
+    end
+  end
+
+  # Folders a person arranged keep their order; at the same position the
+  # name decides.
+  defp level_folder(board, name, parent \\ nil) do
+    {:ok, folder} =
+      Wiki.create_folder(board, %{
+        "name" => name,
+        "parent_id" => parent && parent.id,
+        "position" => 0
+      })
+
+    folder
+  end
+
+  defp place(page, folder, user) do
+    {:ok, _} = Slipdock.Wiki.Placements.add(page, folder, user)
+    page
+  end
+
   describe "the helpers a listing uses" do
     test "recent lists the latest changed, as rows", %{board: board, user: user} do
       old = page(board, user, "Old")

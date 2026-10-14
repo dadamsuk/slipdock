@@ -149,7 +149,7 @@ defmodule Slipdock.Wiki.Placements do
       join: pl in Placement,
       on: pl.page_id == p.id,
       where: pl.folder_id == ^folder_id,
-      order_by: [asc: pl.position, asc: p.title],
+      order_by: [asc: pl.position, asc: fragment("lower(?)", p.title)],
       preload: ^Wiki.board_preloads()
     )
     |> archived(Keyword.get(opts, :archived, false))
@@ -170,7 +170,7 @@ defmodule Slipdock.Wiki.Placements do
       join: pl in Placement,
       on: pl.page_id == p.id,
       where: pl.folder_id in subquery(folder_ids),
-      order_by: [asc: pl.position, asc: p.title],
+      order_by: [asc: pl.position, asc: fragment("lower(?)", p.title)],
       select: {pl.folder_id, p},
       preload: ^Wiki.board_preloads()
     )

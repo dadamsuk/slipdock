@@ -167,7 +167,7 @@ defmodule Slipdock.Wiki do
   defp board_pages(%Board{id: board_id}, opts) do
     from(p in Page,
       where: p.board_id == ^board_id,
-      order_by: [asc: p.position, asc: p.title],
+      order_by: [asc: p.position, asc: fragment("lower(?)", p.title)],
       preload: ^@board_preloads
     )
     |> filter_archived(Keyword.get(opts, :archived, false))
@@ -354,7 +354,7 @@ defmodule Slipdock.Wiki do
   def children(%Page{} = page) do
     from(p in Page,
       where: p.parent_id == ^page.id and is_nil(p.archived_at),
-      order_by: [asc: p.position, asc: p.title]
+      order_by: [asc: p.position, asc: fragment("lower(?)", p.title)]
     )
     |> Repo.all()
   end
@@ -362,7 +362,10 @@ defmodule Slipdock.Wiki do
   @doc "Every page beneath this one, however deep, nearest first."
   def descendants(%Page{} = page) do
     children =
-      from(p in Page, where: p.parent_id == ^page.id, order_by: [asc: p.position, asc: p.title])
+      from(p in Page,
+        where: p.parent_id == ^page.id,
+        order_by: [asc: p.position, asc: fragment("lower(?)", p.title)]
+      )
       |> Repo.all()
 
     children ++ Enum.flat_map(children, &descendants/1)
@@ -766,7 +769,7 @@ defmodule Slipdock.Wiki do
     from(p in Page,
       where: p.board_id == ^board_id,
       where: ^parent_clause(parent_id),
-      order_by: [asc: p.position, asc: p.title],
+      order_by: [asc: p.position, asc: fragment("lower(?)", p.title)],
       select: p.id
     )
     |> then(fn q -> if except, do: where(q, [p], p.id != ^except), else: q end)
@@ -1902,7 +1905,7 @@ defmodule Slipdock.Wiki do
       on: t.page_id == p.id,
       where: p.board_id == ^board.id and t.tag_id == ^tag_id,
       where: is_nil(p.archived_at),
-      order_by: [asc: p.position, asc: p.title]
+      order_by: [asc: p.position, asc: fragment("lower(?)", p.title)]
     )
     |> Repo.all()
   end

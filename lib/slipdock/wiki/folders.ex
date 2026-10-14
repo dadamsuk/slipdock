@@ -25,7 +25,7 @@ defmodule Slipdock.Wiki.Folders do
     Repo.all(
       from(f in Folder,
         where: f.board_id == ^board_id,
-        order_by: [asc: f.position, asc: f.name]
+        order_by: [asc: f.position, asc: fragment("lower(?)", f.name)]
       )
     )
   end
@@ -383,7 +383,7 @@ defmodule Slipdock.Wiki.Folders do
         where: f.board_id == ^folder.board_id,
         where: ^parent_clause(folder.parent_id),
         where: f.id != ^folder.id,
-        order_by: [asc: f.position, asc: f.name],
+        order_by: [asc: f.position, asc: fragment("lower(?)", f.name)],
         select: f.id
       )
       |> Repo.all()
