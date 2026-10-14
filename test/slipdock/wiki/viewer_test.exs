@@ -122,6 +122,14 @@ defmodule Slipdock.Wiki.ViewerTest do
       assert {:ok, %{turns: turns, speakers: speakers, duration_ms: duration}} =
                Viewer.transcript(@vtt, "standup.vtt")
 
+      # Each line keeps its own times, for tags placed inside a turn (#785).
+      assert hd(turns).cues == [
+               %{start_ms: 1_000, end_ms: 4_000, text: "Morning, all."},
+               %{start_ms: 4_500, end_ms: 6_000, text: "Shall we start?"}
+             ]
+
+      turns = Enum.map(turns, &Map.delete(&1, :cues))
+
       assert turns == [
                %{
                  speaker: "Priya Shah",

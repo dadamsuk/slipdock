@@ -1,4 +1,4 @@
-// The browser half of tools/e2e/meeting-player.sh (W-1690, #780, #781).
+// The browser half of tools/e2e/meeting-player.sh (W-1690, #780, #781, #785).
 //
 //   node tools/e2e/meeting-player.mjs <login-url> <base-url> <board-id> <meeting-slug> <missing-slug>
 import { createRequire } from 'node:module'
@@ -97,6 +97,14 @@ try {
   if ((await page.locator('#wiki-body li.is-match').count()) !== 2) fail('search did not mark two turns')
   await bar.locator('[data-search]').press('Enter')
   if ((await bar.locator('[data-hits]').innerText()) !== '2/2') fail('Enter did not step to the next match')
+
+  // A tag pressed during the recording sits in its turn and seeks to its moment (#785).
+  const tag = page.locator('#wiki-body li[data-start-ms="8000"] .wiki-transcript-tag[data-tag="decision"]')
+  if ((await tag.innerText()).trim() !== '#decision 0:10') fail('tag chip said: ' + (await tag.innerText()))
+  await tag.click()
+  // Straight to 0:10, not to the turn's 0:08 and played on from there.
+  await until('clicking a tag did not seek to it', async () => (await current()) === '8000' && (await seconds()) >= 10, 600)
+  if ((await seconds()) > 11) fail('the tag seeked past its moment: ' + (await seconds()))
 
   // A recording that isn't on Drive says so.
   await page.goto(`${base}/boards/${kb}/wiki/${missing}`, { waitUntil: 'networkidle' })

@@ -114,6 +114,7 @@ defmodule SlipdockWeb.API.GuideTest do
     assert body =~ "recording: gdrive:Manuel2 Recordings/"
     assert body =~ "[▶ Play recording and transcript](#recording)"
     assert body =~ "```vtt"
+    assert body =~ "Tags: #important (0:05) #action (12:40)"
     assert body =~ ~s(PATCH /api/vaults/:id {"recordings_folder":)
     assert body =~ "GET /api/me/drive"
     assert body =~ "slipdock drive status"

@@ -11,16 +11,29 @@ defmodule SlipdockWeb.TranscriptView do
   Each turn carries `data-start-ms` and `data-end-ms`, and the list
   `data-transcript`, for the player (`assets/js/transcript_player.js`) to
   highlight, follow and seek by.
+
+  Tags pressed during the recording (`Slipdock.Wiki.TranscriptTags`, #785)
+  sit inline where they were pressed, each a chip with its time and
+  `data-seek-ms` for the player to jump to.
   """
   use Phoenix.Component
 
-  alias Slipdock.Wiki.Viewer
+  alias Slipdock.Wiki.{TranscriptTags, Viewer}
 
   attr :transcript, :map, required: true, doc: "what `Slipdock.Wiki.Viewer.transcript/2` reads"
   attr :id, :string, default: nil
   attr :class, :string, default: "mx-auto max-w-3xl"
+  attr :tags, :list, default: [], doc: "`Slipdock.Wiki.TranscriptTags.parse/1`'s"
 
   def transcript(assigns) do
+    marks = TranscriptTags.place(assigns.transcript.turns, assigns.tags)
+
+    # `block_html/2` calls this by hand, with a plain map.
+    assigns =
+      if Map.has_key?(assigns, :__changed__),
+        do: assign(assigns, :marks, marks),
+        else: Map.put(assigns, :marks, marks)
+
     ~H"""
     <article id={@id} class={["wiki-transcript", @class]} data-transcript>
       <p
@@ -34,7 +47,7 @@ defmodule SlipdockWeb.TranscriptView do
       </p>
       <ol class="space-y-4">
         <li
-          :for={turn <- @transcript.turns}
+          :for={{turn, t} <- Enum.with_index(@transcript.turns)}
           class="wiki-transcript-turn grid grid-cols-[4rem_1fr] gap-x-3 rounded-lg"
           data-speaker={turn.speaker}
           data-start-ms={turn.start_ms}
@@ -45,7 +58,12 @@ defmodule SlipdockWeb.TranscriptView do
           </time>
           <div class={["border-l-4 pl-3", speaker_colour(turn.speaker, @transcript.speakers)]}>
             <p :if={turn.speaker} class="text-sm font-semibold">{turn.speaker}</p>
-            <p :for={line <- turn.lines} class="leading-relaxed text-base-content">{line}</p>
+            <p
+              :for={{line, l} <- Enum.with_index(turn.lines)}
+              class="leading-relaxed text-base-content"
+            >
+              <.segment :for={segment <- segments(line, @marks[{t, l}])} segment={segment} />
+            </p>
           </div>
         </li>
       </ol>
@@ -53,16 +71,54 @@ defmodule SlipdockWeb.TranscriptView do
     """
   end
 
+  attr :segment, :any, required: true
+
+  defp segment(%{segment: {:tag, tag}} = assigns) do
+    assigns = assign(assigns, :tag, tag)
+
+    ~H"""
+    <span
+      class="wiki-transcript-tag badge badge-sm badge-warning cursor-pointer align-middle font-mono"
+      data-tag={@tag.tag}
+      data-seek-ms={@tag.ms}
+      title={"Tagged ##{@tag.tag} at #{clock(@tag.ms)}"}
+    >#{@tag.tag} {clock(@tag.ms)}</span>
+    """
+  end
+
+  defp segment(%{segment: {:text, text}} = assigns) do
+    assigns = assign(assigns, :text, text)
+    ~H"{@text}"
+  end
+
+  # A line as its text, cut where tags were placed in it. Without tags it is
+  # the line exactly as written.
+  defp segments(line, nil), do: [{:text, line}]
+
+  defp segments(line, marks) do
+    words = TranscriptTags.words(line)
+    at = Enum.group_by(marks, &elem(&1, 0), &elem(&1, 1))
+
+    0..length(words)
+    |> Enum.flat_map(fn i ->
+      tags = Enum.map(Map.get(at, i, []), &{:tag, &1})
+      word = if i < length(words), do: [{:text, Enum.at(words, i)}], else: []
+      tags ++ word
+    end)
+    |> Enum.intersperse({:text, " "})
+  end
+
   @doc """
-  A ` ```vtt ` block's text as HTML for a wiki page: the transcript, or a
+  A ` ```vtt ` block's text as HTML for a wiki page, with the page's timed
+  `tags` placed in it: the transcript, or a
   quiet note when there is nothing to show — "No speech detected." for a
   recording nobody spoke in (Manuel2 writes `NOTE No speech detected.`),
   "No transcript." for anything else without a cue that has words.
   """
-  def block_html(text) when is_binary(text) do
+  def block_html(text, tags \\ []) when is_binary(text) do
     case Viewer.transcript(text) do
       {:ok, transcript} ->
-        %{transcript: transcript, id: nil, class: "wiki-transcript-block my-4"}
+        %{transcript: transcript, id: nil, class: "wiki-transcript-block my-4", tags: tags}
         |> transcript()
         |> Phoenix.HTML.Safe.to_iodata()
         |> IO.iodata_to_binary()

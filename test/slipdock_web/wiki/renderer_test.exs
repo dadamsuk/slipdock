@@ -534,5 +534,63 @@ defmodule SlipdockWeb.Wiki.RendererTest do
       assert html =~ "<pre"
       refute html =~ "wiki-transcript"
     end
+
+    # #785
+    test "the page's timed tags sit inline where they were pressed" do
+      html =
+        Renderer.to_html("""
+        Tested the tags.
+
+        Tags: #important (0:05) #action (0:10)
+
+        ```vtt
+        WEBVTT
+
+        1
+        00:00:01.000 --> 00:00:09.000
+        <v Me>one two three four five six seven eight
+
+        2
+        00:00:09.000 --> 00:00:11.000
+        <v Ann>nine ten
+        ```
+        """)
+
+      doc = LazyHTML.from_fragment(html)
+      turns = doc |> LazyHTML.query("li.wiki-transcript-turn") |> Enum.to_list()
+
+      [important] =
+        turns |> Enum.at(0) |> LazyHTML.query("span.wiki-transcript-tag") |> Enum.to_list()
+
+      assert LazyHTML.attribute(important, "data-tag") == ["important"]
+      assert LazyHTML.attribute(important, "data-seek-ms") == ["5000"]
+      assert LazyHTML.text(important) =~ "#important 0:05"
+
+      # Half way through the first cue: after the fourth of its eight words.
+      assert LazyHTML.text(Enum.at(turns, 0)) =~ ~r/four\s+#important 0:05\s+five/
+
+      [action] =
+        turns |> Enum.at(1) |> LazyHTML.query("span.wiki-transcript-tag") |> Enum.to_list()
+
+      assert LazyHTML.attribute(action, "data-seek-ms") == ["10000"]
+      assert LazyHTML.text(Enum.at(turns, 1)) =~ ~r/nine\s+#action 0:10\s+ten/
+    end
+
+    test "without a Tags line the transcript has no tags, and its lines are as written" do
+      html =
+        Renderer.to_html("""
+        Untimed: #important
+
+        ```vtt
+        WEBVTT
+
+        00:00:01.000 --> 00:00:02.000
+        <v Me>Words, as spoken.
+        ```
+        """)
+
+      refute html =~ "wiki-transcript-tag"
+      assert html =~ "Words, as spoken."
+    end
   end
 end
