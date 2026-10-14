@@ -156,6 +156,10 @@ defmodule SlipdockCLI.SyncWatchTest do
   end
 
   describe "the service" do
+    defp decode(encoded) do
+      encoded |> Base.decode64!() |> :unicode.characters_to_binary({:utf16, :little}, :utf8)
+    end
+
     test "Linux: a systemd user unit running sync --watch on the folder" do
       plan =
         Service.plan(
@@ -196,22 +200,154 @@ defmodule SlipdockCLI.SyncWatchTest do
       assert ["launchctl", "load", "-w", plan.file] in plan.install
     end
 
-    test "Windows: a scheduled task at logon, run through escript" do
+    test "Windows: a per-user logon task, registered through PowerShell, not schtasks" do
       plan =
         Service.plan(
           {:win32, :nt},
-          "C:/Users/me/Notes",
+          "C:/Users/O'Brien/My Notes",
           ["escript.exe", "C:/bin/slipdock"],
-          "C:/Users/me",
+          "C:/Users/O'Brien",
           ""
         )
 
       assert plan.file == nil
-      [create, run] = plan.install
-      assert ["schtasks", "/Create", "/F", "/SC", "ONLOGON", "/TN", task, "/TR", tr] = create
-      assert task =~ "Slipdock sync notes-"
-      assert tr == ~s("escript.exe" "C:/bin/slipdock" "sync" "--watch" "C:/Users/me/Notes")
-      assert run == ["schtasks", "/Run", "/TN", task]
+      assert plan.name =~ "Slipdock sync my-notes-"
+      # One step, so nothing can fail unseen before it.
+      assert [["powershell" | args]] = plan.install
+      assert decode(List.last(args)) == plan.content
+      refute plan.content =~ "schtasks"
+
+      # For this user alone (schtasks /SC ONLOGON wants an elevated prompt),
+      # never stopped (schtasks stops a task after 72 hours), restarted, and
+      # replacing a task installed before.
+      assert plan.content =~ "New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME"
+      assert plan.content =~ "-ExecutionTimeLimit ([TimeSpan]::Zero)"
+      assert plan.content =~ "-RestartCount 999"
+      assert plan.content =~ "-TaskName '#{plan.name}'"
+      assert plan.content =~ " -Force "
+      assert plan.content =~ "Start-ScheduledTask -TaskName '#{plan.name}'"
+      assert plan.content =~ "$ErrorActionPreference = 'Stop'"
+      # A quote in the path is doubled inside a PowerShell literal.
+      assert plan.content =~ "'Slipdock sync of C:/Users/O''Brien/My Notes'"
+
+      [["powershell" | un]] = plan.uninstall
+
+      assert decode(List.last(un)) =~
+               "Unregister-ScheduledTask -TaskName '#{plan.name}' -Confirm:$false"
+    end
+
+    test "Windows: the task runs the sync hidden, and exits with its status" do
+      args =
+        Service.win_task_args([
+          "C:/Program Files/escript.exe",
+          "C:/bin/slipdock",
+          "sync",
+          "--watch",
+          "C:/it's here"
+        ])
+
+      assert "-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -EncodedCommand " <>
+               encoded = args
+
+      assert decode(encoded) ==
+               "& 'C:/Program Files/escript.exe' 'C:/bin/slipdock' 'sync' '--watch' 'C:/it''s here'\n" <>
+                 "exit $LASTEXITCODE\n"
+    end
+
+    # Real PowerShell, where there is one: SLIPDOCK_PWSH, or pwsh on the PATH.
+    # Linux has no Task Scheduler, so this runs what the task would run and
+    # parses what install would register.
+    @pwsh System.get_env("SLIPDOCK_PWSH") || System.find_executable("pwsh")
+
+    @tag skip: if(@pwsh, do: false, else: "pwsh is not installed here")
+    test "Windows: PowerShell runs the task's command with every argument intact" do
+      dir = Path.join(System.tmp_dir!(), "svc-#{System.unique_integer([:positive])}")
+      File.mkdir_p!(dir)
+      on_exit(fn -> File.rm_rf!(dir) end)
+
+      # Stands in for escript.exe: writes down what it was given, then fails.
+      fake = Path.join(dir, "fake escript")
+
+      File.write!(
+        fake,
+        ~s(#!/bin/sh\nfor a in "$@"; do echo "[$a]"; done > "#{dir}/argv"\nexit 3\n)
+      )
+
+      File.chmod!(fake, 0o755)
+
+      root = Path.join(dir, "it's my vault")
+      args = Service.win_task_args([fake, "/bin/slipdock", "sync", "--watch", root])
+
+      {_, code} = System.cmd(@pwsh, String.split(args, " ") -- ["-WindowStyle", "Hidden"])
+
+      # The sync's own status, so Task Scheduler sees it fail and restarts it.
+      assert code == 3
+
+      assert File.read!(Path.join(dir, "argv")) ==
+               "[/bin/slipdock]\n[sync]\n[--watch]\n[#{root}]\n"
+    end
+
+    @tag skip: if(@pwsh, do: false, else: "pwsh is not installed here")
+    test "Windows: what install and uninstall run is valid PowerShell" do
+      plan = Service.plan({:win32, :nt}, "C:/a'b/N", ["escript.exe", "C:/s"], "C:/a'b", "")
+
+      for [_ | args] <- plan.install ++ plan.uninstall do
+        script = decode(List.last(args))
+
+        check =
+          "$e = $null; [System.Management.Automation.Language.Parser]::ParseInput(" <>
+            "[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('#{Base.encode64(script)}')), " <>
+            "[ref]$null, [ref]$e) | Out-Null; $e.Count"
+
+        assert {"0\n", 0} = System.cmd(@pwsh, ["-NoProfile", "-Command", check])
+      end
+    end
+
+    test "install stops at the first step that fails, and says what it printed" do
+      dir = Path.join(System.tmp_dir!(), "svc-#{System.unique_integer([:positive])}")
+      File.mkdir_p!(dir)
+      on_exit(fn -> File.rm_rf!(dir) end)
+      later = Path.join(dir, "later")
+
+      plan = %{
+        install: [
+          ["sh", "-c", "echo 'ERROR: Access is denied.'; exit 1"],
+          ["sh", "-c", "touch '#{later}'"]
+        ]
+      }
+
+      assert {:error, msg} = Service.install(plan)
+      assert msg == "sh failed (1): ERROR: Access is denied."
+      refute File.exists?(later)
+    end
+
+    test "install lets a prepare step fail, and runs every install step" do
+      dir = Path.join(System.tmp_dir!(), "svc-#{System.unique_integer([:positive])}")
+      File.mkdir_p!(dir)
+      on_exit(fn -> File.rm_rf!(dir) end)
+
+      plan = %{
+        prepare: [["sh", "-c", "exit 3"]],
+        install: [
+          ["sh", "-c", "touch '#{dir}/one'"],
+          ["sh", "-c", "touch '#{dir}/two'"]
+        ]
+      }
+
+      assert Service.install(plan) == :ok
+      assert File.exists?(Path.join(dir, "one"))
+      assert File.exists?(Path.join(dir, "two"))
+    end
+
+    test "a step whose command is missing is an error, not a pass" do
+      assert {:error, "no-such-command-here is not on this machine"} =
+               Service.install(%{install: [["no-such-command-here"]]})
+    end
+
+    test "macOS: unloading an agent not loaded yet may fail; loading it may not" do
+      plan = Service.plan({:unix, :darwin}, "/Users/me/N", ["/opt/slipdock"], "/Users/me", "")
+      assert plan.prepare == [["launchctl", "unload", plan.file]]
+      assert plan.install == [["launchctl", "load", "-w", plan.file]]
     end
 
     test "two folders with one name get two services" do
