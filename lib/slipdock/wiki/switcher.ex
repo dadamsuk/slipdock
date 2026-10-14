@@ -4,7 +4,7 @@ defmodule Slipdock.Wiki.Switcher do
   of its aliases or its path, and open it. Ctrl/Cmd-O on a wiki.
 
   Matching is fuzzy the way editors' switchers are: the letters typed must
-  come in order, not side by side, so `acmcall` finds `Jobs/Acme/Call`. A
+  come in order, not side by side, so `acmcall` finds `Projects/Acme/Call`. A
   match scores higher for letters that run together, for starting a word, a
   path segment or the whole text, and for a shorter text; the title counts
   for more than an alias, and an alias for more than the path.

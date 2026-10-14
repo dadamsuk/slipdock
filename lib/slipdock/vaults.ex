@@ -10,7 +10,7 @@ defmodule Slipdock.Vaults do
 
   Three rules hold the model together:
 
-    * **Longest prefix wins.** A mapping inside another is allowed — `/Jobs`
+    * **Longest prefix wins.** A mapping inside another is allowed — `/Projects`
       inside `/` — and a vault path belongs to the deepest mapping that
       contains it (`locate/2`).
     * **A target is somewhere you can write.** A vault is for writing into;
@@ -141,7 +141,7 @@ defmodule Slipdock.Vaults do
 
   @doc """
   Where everything of the vault is, as the vault view addresses it (#752):
-  `%{pages: %{id => "Jobs/Interview Questions"}, folders: %{id => "Jobs"}}`
+  `%{pages: %{id => "Projects/Roadmap"}, folders: %{id => "Projects"}}`
   — the paths of its files on disk (`Slipdock.Vaults.Layout`) without the
   `.md`, and a page with pages under it at its own name rather than its
   `index.md`.
@@ -196,7 +196,7 @@ defmodule Slipdock.Vaults do
   @doc """
   Which mapping a vault path falls in, and what is left of the path below it:
   `{:ok, mapping, rest}`. The longest matching prefix wins, matched whole
-  segment by segment, so `/Jobs` does not swallow `/Jobsearch`.
+  segment by segment, so `/Projects` does not swallow `/Projectsearch`.
   `{:error, :not_found, _}` when nothing — not even `/` — is mapped above it.
   """
   def locate(%Vault{} = vault, path) do
@@ -521,8 +521,8 @@ defmodule Slipdock.Vaults do
   What adding a mapping would do, before it is done — refused for the same
   reasons `add_mapping/3` refuses, and otherwise:
 
-      %{path: "/Jobs", arriving: %{count: 12, sample: ["Jobs/Acme.md", ...]},
-        moving: %{count: 3, sample: [%{from: "Jobs/Old.md", to: "Jobs/Old.md"}, ...]},
+      %{path: "/Projects", arriving: %{count: 12, sample: ["Projects/Acme.md", ...]},
+        moving: %{count: 3, sample: [%{from: "Projects/Old.md", to: "Projects/Old.md"}, ...]},
         mirrors: ["slipdock CLI on laptop"]}
 
   `arriving` are the pages of the board (or folder) that join the vault,
@@ -561,7 +561,7 @@ defmodule Slipdock.Vaults do
   the synced folders), and those that fall back to an outer mapping and so
   move to another path. The pages themselves stay on their board.
 
-      %{path: "/Jobs", leaving: %{count:, sample: [...]}, moving: %{count:, sample: [...]},
+      %{path: "/Projects", leaving: %{count:, sample: [...]}, moving: %{count:, sample: [...]},
         mirrors: [...]}
   """
   def preview_unmapping(%Vault{} = vault, ref) do
@@ -634,12 +634,12 @@ defmodule Slipdock.Vaults do
 
   @doc """
   Pages that sit at a vault path another mapping owns: a page of the board
-  mapped at `/` filed in its `Jobs` folder, once `/Jobs` is mapped onto
-  another board. Both boards then claim `/Jobs/...`, and a synced edit to
+  mapped at `/` filed in its `Projects` folder, once `/Projects` is mapped onto
+  another board. Both boards then claim `/Projects/...`, and a synced edit to
   such a file would be sent to the inner mapping's board. `add_mapping/3`
   refuses to make one; this finds any made before it did.
 
-      [%{path: "Jobs/Acme.md", board: "KnowledgeBase", under: "/Jobs"}]
+      [%{path: "Projects/Acme.md", board: "Handbook", under: "/Projects"}]
   """
   def overlaps(%Vault{} = vault) do
     mappings = Index.mappings(vault)

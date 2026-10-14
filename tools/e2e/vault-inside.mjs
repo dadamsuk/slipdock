@@ -23,21 +23,21 @@ try {
 
   await page.goto(`${base}/`, { waitUntil: 'networkidle' })
   await page.waitForSelector('.phx-connected')
-  const inside = page.locator('[id^="vault-inside-"]', { hasText: 'pages stored on KnowledgeBase' })
+  const inside = page.locator('[id^="vault-inside-"]', { hasText: 'pages stored on Keystone' })
   await inside.waitFor()
-  if (await page.locator(`#boards a[href="/boards/${kb}"]`).count()) fail('KnowledgeBase is still among the boards')
-  if (!(await page.locator('#boards').innerText()).includes('Job Hunt')) fail('Job Hunt went missing')
+  if (await page.locator(`#boards a[href="/boards/${kb}"]`).count()) fail('Keystone is still among the boards')
+  if (!(await page.locator('#boards').innerText()).includes('Journal Desk')) fail('Journal Desk went missing')
 
   // The board's own link on the tile opens the board…
   await inside.click()
   await page.waitForURL(new RegExp(`/boards/${kb}(\\?|$|/)`))
-  console.log('ok: the tile names KnowledgeBase and its link opens the board')
+  console.log('ok: the tile names Keystone and its link opens the board')
 
   // …and the rest of the tile opens the vault.
   await page.goto(`${base}/`, { waitUntil: 'networkidle' })
   await page.waitForSelector('.phx-connected')
-  await page.locator('[id^="vault-tile-"]', { hasText: 'GMinds' }).first().click()
-  await page.waitForURL(/\/vaults\/GMinds/)
+  await page.locator('[id^="vault-tile-"]', { hasText: 'Notes' }).first().click()
+  await page.waitForURL(/\/vaults\/Notes/)
   console.log('ok: the tile opens the vault')
 } catch (e) {
   await page.screenshot({ path: '/tmp/vault-inside-failure.png' })

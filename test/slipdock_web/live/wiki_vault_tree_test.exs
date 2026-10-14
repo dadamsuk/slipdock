@@ -14,11 +14,11 @@ defmodule SlipdockWeb.WikiVaultTreeTest do
   alias Slipdock.{Vaults, Wiki}
 
   setup %{user: user} do
-    kb = board_fixture(%{"name" => "KnowledgeBase", "code" => "kbvt"}, owner: user)
-    jobs = board_fixture(%{"name" => "Job Hunt", "code" => "jobsvt"}, owner: user)
+    kb = board_fixture(%{"name" => "Keystone", "code" => "kbvt"}, owner: user)
+    jobs = board_fixture(%{"name" => "Journal Desk", "code" => "jobsvt"}, owner: user)
     {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain"})
     {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Jobs", board: jobs})
+    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: jobs})
     {:ok, _} = Wiki.create_folder(kb, %{"name" => "Archive"})
     {:ok, _} = Wiki.create_folder(kb, %{"name" => "Projects"})
     {:ok, acme} = Wiki.create_folder(jobs, %{"name" => "Acme"})
@@ -42,10 +42,10 @@ defmodule SlipdockWeb.WikiVaultTreeTest do
     reply = tree_load(view)
     assert reply.scope == "board"
     assert reply.root == "root"
-    assert titles(reply, "root") == ["Archive", "Jobs", "Projects", "Home"]
+    assert titles(reply, "root") == ["Archive", "Journal", "Projects", "Home"]
 
-    # Jobs is Job Hunt's wiki, opened in this board's tree.
-    assert %{nav: "patch", mount: true, href: href} = row(reply, "root", "Jobs")
+    # Journal is Journal Desk's wiki, opened in this board's tree.
+    assert %{nav: "patch", mount: true, href: href} = row(reply, "root", "Journal")
     assert href == "/boards/#{jobs.id}/wiki?in=#{kb.id}"
     assert %{nav: "patch", href: home_href} = row(reply, "root", "Home")
     refute home_href =~ "in="
@@ -87,17 +87,17 @@ defmodule SlipdockWeb.WikiVaultTreeTest do
   } do
     {:ok, view, _html} = live(conn, ~p"/boards/#{jobs}/wiki/#{call.slug}?in=#{kb.id}")
 
-    # KnowledgeBase's breadcrumbs, and quietly, the board it is on.
-    assert has_element?(view, "#context-crumbs", "KnowledgeBase")
+    # Keystone's breadcrumbs, and quietly, the board it is on.
+    assert has_element?(view, "#context-crumbs", "Keystone")
     assert has_element?(view, "#context-board[href='/boards/#{jobs.id}/wiki/#{call.slug}']")
-    assert has_element?(view, "#context-board", "on Job Hunt")
+    assert has_element?(view, "#context-board", "on Journal Desk")
 
     reply = tree_load(view)
     assert reply.root == "board:#{kb.id}"
-    assert titles(reply, "board:#{kb.id}") == ["Archive", "Jobs", "Projects", "Home"]
+    assert titles(reply, "board:#{kb.id}") == ["Archive", "Journal", "Projects", "Home"]
     assert reply.reveal == ["board:#{jobs.id}", "folder:#{acme.id}"]
 
-    # Job Hunt's rows stay in this tree; KnowledgeBase's go back to its own.
+    # Journal Desk's rows stay in this tree; Keystone's go back to its own.
     assert %{nav: "patch", href: href} = row(reply, "folder:#{acme.id}", "Call notes")
     assert href == "/boards/#{jobs.id}/wiki/#{call.slug}?in=#{kb.id}"
     assert %{nav: "patch", href: home} = row(reply, "board:#{kb.id}", "Home")
@@ -114,8 +114,8 @@ defmodule SlipdockWeb.WikiVaultTreeTest do
 
     html = render_patch(view, ~p"/boards/#{jobs}/wiki/#{call.slug}?in=#{kb.id}")
     assert html =~ "Call notes"
-    assert has_element?(view, "#context-crumbs", "KnowledgeBase")
-    assert has_element?(view, "#context-board", "on Job Hunt")
+    assert has_element?(view, "#context-crumbs", "Keystone")
+    assert has_element?(view, "#context-board", "on Journal Desk")
     assert has_element?(view, "#wiki-tree[data-board='#{jobs.id}']")
     assert tree_load(view).root == "board:#{kb.id}"
   end
@@ -140,7 +140,7 @@ defmodule SlipdockWeb.WikiVaultTreeTest do
     home: home,
     user: user
   } do
-    # Knowledgebase is not below Job Hunt's mount.
+    # Knowledgebase is not below Journal Desk's mount.
     {:ok, view, _html} = live(conn, ~p"/boards/#{kb}/wiki/#{home.slug}?in=#{jobs.id}")
     refute has_element?(view, "#context-crumbs")
     assert tree_load(view).root == "root"
@@ -167,7 +167,7 @@ defmodule SlipdockWeb.WikiVaultTreeTest do
     assert titles(reply, "root") == ["Archive", "Projects", "Home"]
     refute Map.has_key?(reply.nodes, "board:#{jobs.id}")
 
-    # And Job Hunt's reader can't see KnowledgeBase through it.
+    # And Journal Desk's reader can't see Keystone through it.
     other = user_fixture("jobs.reader@example.com")
     {:ok, _} = Slipdock.Access.grant(jobs, other, "read", owner)
     {:ok, view, _html} = live(conn_as(other), ~p"/boards/#{jobs}/wiki/#{call.slug}?in=#{kb.id}")
@@ -208,11 +208,11 @@ defmodule SlipdockWeb.WikiVaultTreeTest do
 
     reply = tree_load(view)
     assert reply.filtering
-    assert titles(reply, "root") == ["Jobs"]
+    assert titles(reply, "root") == ["Journal"]
     assert titles(reply, "board:#{jobs.id}") == ["Acme"]
     assert titles(reply, "folder:#{acme.id}") == ["Call notes"]
 
-    # From Job Hunt, KnowledgeBase's pages are above it, so out of reach.
+    # From Journal Desk, Keystone's pages are above it, so out of reach.
     {:ok, view, _html} = live(conn, ~p"/boards/#{jobs}/wiki")
     view |> form("#wiki-search") |> render_change(%{"q" => "home"})
     assert tree_load(view).nodes == %{}

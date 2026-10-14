@@ -17,11 +17,11 @@ defmodule Slipdock.Vaults.SyncFilesTest do
 
   setup do
     user = user_fixture()
-    kb = board_fixture(%{"name" => "KnowledgeBase", "code" => "kb"}, owner: user)
-    jobs = board_fixture(%{"name" => "Job Hunt", "code" => "jobs"}, owner: user)
+    kb = board_fixture(%{"name" => "Keystone", "code" => "kb"}, owner: user)
+    jobs = board_fixture(%{"name" => "Journal Desk", "code" => "jobs"}, owner: user)
     {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain"})
     {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Jobs", board: jobs})
+    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: jobs})
     %{user: user, kb: kb, jobs: jobs, vault: vault}
   end
 
@@ -111,7 +111,7 @@ defmodule Slipdock.Vaults.SyncFilesTest do
     assert Repo.get!(WikiFile, entry.id).name == "b.pdf"
 
     {:ok, across} =
-      Sync.move_file(vault, user, entry.id, %{"path" => "Jobs/b.pdf", "base" => entry.hash})
+      Sync.move_file(vault, user, entry.id, %{"path" => "Journal/b.pdf", "base" => entry.hash})
 
     assert across.replaced == entry.id
     assert Repo.get!(WikiFile, across.id).board_id == jobs.id

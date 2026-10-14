@@ -112,7 +112,7 @@ defmodule SlipdockWeb.TranscriptView do
   A ` ```vtt ` block's text as HTML for a wiki page, with the page's timed
   `tags` placed in it: the transcript, or a
   quiet note when there is nothing to show — "No speech detected." for a
-  recording nobody spoke in (Manuel2 writes `NOTE No speech detected.`),
+  recording nobody spoke in (a transcriber writes `NOTE No speech detected.`),
   "No transcript." for anything else without a cue that has words.
   """
   def block_html(text, tags \\ []) when is_binary(text) do

@@ -34,9 +34,9 @@ defmodule SlipdockCLI.PageFileAlsoTest do
   end
 
   test "--also sends the folder (and --board), and lists where it is also filed" do
-    {path, body, out} = run(also: "/Jobs/Notes", board: "jobs")
+    {path, body, out} = run(also: "/Journal/Notes", board: "jobs")
     assert path =~ "/pages/W-31/folder"
-    assert body =~ ~s("also":"/Jobs/Notes")
+    assert body =~ ~s("also":"/Journal/Notes")
     assert body =~ ~s("board":"jobs")
     refute body =~ ~s("folder")
     assert out =~ "filed W-31 Note"

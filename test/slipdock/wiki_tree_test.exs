@@ -587,12 +587,12 @@ defmodule Slipdock.WikiTreeTest do
 
   describe "a vault's tree" do
     setup %{board: kb, user: user} do
-      jobs = board_fixture(%{"name" => "Job Hunt", "code" => "jobhunt"}, owner: user)
+      jobs = board_fixture(%{"name" => "Journal Desk", "code" => "jobhunt"}, owner: user)
       proj = board_fixture(%{"name" => "Project X", "code" => "projx"}, owner: user)
       notes = folder(proj, "Notes")
       {:ok, vault} = Slipdock.Vaults.create_vault(user, %{"name" => "Brain"})
       {:ok, _} = Slipdock.Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-      {:ok, _} = Slipdock.Vaults.add_mapping(vault, user, %{path: "/Jobs", board: jobs})
+      {:ok, _} = Slipdock.Vaults.add_mapping(vault, user, %{path: "/Journal", board: jobs})
 
       {:ok, _} =
         Slipdock.Vaults.add_mapping(vault, user, %{
@@ -628,7 +628,7 @@ defmodule Slipdock.WikiTreeTest do
       {:ok, rows} = Tree.vault_children(vault, "vault", boards)
 
       assert Enum.map(rows, &{&1.kind, &1.title, &1[:key]}) == [
-               {"folder", "Jobs", "board:#{jobs.id}"},
+               {"folder", "Journal", "board:#{jobs.id}"},
                {"dir", "Projects", "dir:Projects"},
                {"page", "Home note", nil}
              ]
@@ -671,7 +671,7 @@ defmodule Slipdock.WikiTreeTest do
       without = Map.delete(boards, jobs.id)
       assert Tree.vault_children(vault, "folder:#{acme.id}", without) == {:error, :not_found}
       {:ok, rows} = Tree.vault_children(vault, "vault", without)
-      refute Enum.any?(rows, &(&1.title == "Jobs"))
+      refute Enum.any?(rows, &(&1.title == "Journal"))
     end
 
     test "the way to a page runs through the vault's folders to the board's", %{
@@ -698,7 +698,7 @@ defmodule Slipdock.WikiTreeTest do
       result = Tree.vault_filter(vault, boards, Map.put(Slipdock.Filters.empty(), :q, "call"))
 
       assert result.shown == 1
-      assert [%{title: "Jobs", key: key, pages: 1}] = result.nodes["vault"]
+      assert [%{title: "Journal", key: key, pages: 1}] = result.nodes["vault"]
       assert key == "board:#{jobs.id}"
       assert [%{title: "Acme"}] = result.nodes["board:#{jobs.id}"]
       assert [%{title: "Call"}] = result.nodes["folder:#{acme.id}"]
@@ -726,7 +726,7 @@ defmodule Slipdock.WikiTreeTest do
 
       assert Enum.map(rows, &{&1.kind, &1.title}) == [
                {"folder", "Archive"},
-               {"folder", "Jobs"},
+               {"folder", "Journal"},
                {"dir", "Projects"},
                {"folder", "Zeta"},
                {"page", "Home note"}
@@ -734,8 +734,8 @@ defmodule Slipdock.WikiTreeTest do
 
       # The board's own top, keyed as its wiki asks for it, is the same.
       {:ok, rows} = Tree.vault_children(vault, "board:#{kb.id}", boards)
-      assert Enum.map(rows, & &1.title) == ["Archive", "Jobs", "Projects", "Zeta", "Home note"]
-      assert %{mount: true, board_id: id} = Enum.find(rows, &(&1.title == "Jobs"))
+      assert Enum.map(rows, & &1.title) == ["Archive", "Journal", "Projects", "Zeta", "Home note"]
+      assert %{mount: true, board_id: id} = Enum.find(rows, &(&1.title == "Journal"))
       assert id == jobs.id
     end
 
@@ -768,7 +768,7 @@ defmodule Slipdock.WikiTreeTest do
       {:ok, rows} = Tree.vault_children(vault, "vault", boards)
 
       assert Enum.map(rows, &{&1.kind, &1.title}) == [
-               {"folder", "Jobs"},
+               {"folder", "Journal"},
                {"folder", "Projects"},
                {"page", "Home note"}
              ]
@@ -826,11 +826,11 @@ defmodule Slipdock.WikiTreeTest do
         Slipdock.Vaults.add_mapping(vault, user, %{path: "/Attic", board: kb, folder: old})
 
       assert Tree.vault_root(vault, kb.id, boards) == ""
-      assert Tree.vault_root(vault, jobs.id, boards) == "Jobs"
+      assert Tree.vault_root(vault, jobs.id, boards) == "Journal"
       assert Tree.vault_root(vault, jobs.id, Map.delete(boards, jobs.id)) == nil
 
-      # The way from Job Hunt's own top leaves out what is above it.
-      assert Tree.vault_path_to(vault, call, boards, root: "Jobs") == ["folder:#{acme.id}"]
+      # The way from Journal Desk's own top leaves out what is above it.
+      assert Tree.vault_path_to(vault, call, boards, root: "Journal") == ["folder:#{acme.id}"]
 
       assert Tree.vault_path_to(vault, call, boards, root: "") == [
                "board:#{jobs.id}",
@@ -846,13 +846,13 @@ defmodule Slipdock.WikiTreeTest do
     } do
       q = fn text -> Map.put(Slipdock.Filters.empty(), :q, text) end
 
-      result = Tree.vault_filter(vault, boards, q.("call"), root: "Jobs")
+      result = Tree.vault_filter(vault, boards, q.("call"), root: "Journal")
       assert result.top == "board:#{jobs.id}"
       assert [%{title: "Acme"}] = result.nodes["board:#{jobs.id}"]
       assert [%{title: "Call"}] = result.nodes["folder:#{acme.id}"]
       refute Map.has_key?(result.nodes, "vault")
 
-      result = Tree.vault_filter(vault, boards, q.("home"), root: "Jobs")
+      result = Tree.vault_filter(vault, boards, q.("home"), root: "Journal")
       assert result.nodes == %{}
       assert result.shown == 0
 

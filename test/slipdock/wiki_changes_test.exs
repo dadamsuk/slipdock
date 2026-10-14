@@ -14,11 +14,11 @@ defmodule Slipdock.WikiChangesTest do
   setup do
     user = user_fixture()
     kb = board_fixture(%{"name" => "KB", "code" => "chkb"}, owner: user)
-    jobs = board_fixture(%{"name" => "Jobs", "code" => "chjobs"}, owner: user)
+    jobs = board_fixture(%{"name" => "Journal", "code" => "chjobs"}, owner: user)
     outside = board_fixture(%{"name" => "Out", "code" => "chout"}, owner: user)
     {:ok, vault} = Vaults.create_vault(user, %{"name" => "V"})
     {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Jobs", board: jobs})
+    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: jobs})
     start = Changes.since(vault, nil, user).cursor
     %{user: user, kb: kb, jobs: jobs, outside: outside, vault: vault, start: start}
   end
@@ -44,7 +44,7 @@ defmodule Slipdock.WikiChangesTest do
     _ = page!(ctx.outside, ctx.user, "Not in the vault")
 
     %{changes: changes, cursor: cursor, more: false} = feed(ctx)
-    assert [%{id: a_id, path: "/A"} = first, %{id: b_id, path: "/Jobs/B"}] = changes
+    assert [%{id: a_id, path: "/A"} = first, %{id: b_id, path: "/Journal/B"}] = changes
     assert {a_id, b_id} == {a.id, b.id}
     assert first.subject == "page"
     assert first.action == "changed"
@@ -93,7 +93,7 @@ defmodule Slipdock.WikiChangesTest do
     changes = Changes.since(ctx.vault, cursor, ctx.user).changes
     assert Enum.any?(changes, &match?(%{subject: "folder", action: "deleted"}, &1))
 
-    assert %{path: "/Jobs/Filed", folder_id: nil} =
+    assert %{path: "/Journal/Filed", folder_id: nil} =
              Enum.find(changes, &(&1.id == page.id and &1.subject == "page"))
   end
 
@@ -141,7 +141,7 @@ defmodule Slipdock.WikiChangesTest do
     {:ok, _} =
       Wiki.create_page(ctx.kb, %{"title" => "Draft", "status" => "draft"}, user: ctx.user)
 
-    page!(ctx.jobs, ctx.user, "Jobs page")
+    page!(ctx.jobs, ctx.user, "Journal page")
 
     reader = user_fixture("reader@example.com")
     share_fixture(ctx.kb, reader, "read")

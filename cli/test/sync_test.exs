@@ -32,7 +32,7 @@ defmodule SlipdockCLI.SyncTest do
     %{home: home}
   end
 
-  @vault ~s({"vault":{"id":3,"name":"Brain","mappings":[{"id":1,"path":"/","board":{"id":1,"code":"kb","name":"KnowledgeBase"},"folder":null}]}})
+  @vault ~s({"vault":{"id":3,"name":"Brain","mappings":[{"id":1,"path":"/","board":{"id":1,"code":"kb","name":"Keystone"},"folder":null}]}})
   @hash :crypto.hash(:sha256, "Back off.\n") |> Base.encode16(case: :lower)
   @listing ~s({"cursor":12,"entries":[{"kind":"page","id":7,"path":"Ops/Retry.md","hash":"#{@hash}"}]})
   @page ~s({"page":{"kind":"page","id":7,"path":"Ops/Retry.md","hash":"#{@hash}","content":"Back off.\\n"}})

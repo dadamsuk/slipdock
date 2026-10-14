@@ -8,7 +8,7 @@ defmodule SlipdockWeb.VaultsLiveTest do
   alias Slipdock.{Accounts, Vaults, Wiki}
 
   setup %{user: user} do
-    kb = board_fixture(%{"name" => "KnowledgeBase", "code" => "kb"}, owner: user)
+    kb = board_fixture(%{"name" => "Keystone", "code" => "kb"}, owner: user)
     %{kb: kb}
   end
 
@@ -23,21 +23,21 @@ defmodule SlipdockWeb.VaultsLiveTest do
 
   test "lists each vault with its mappings, page counts and synced folders", ctx do
     %{conn: conn, user: user, kb: kb} = ctx
-    {:ok, folder} = Wiki.create_folder(kb, %{"name" => "Jobs"})
+    {:ok, folder} = Wiki.create_folder(kb, %{"name" => "Journal"})
     {:ok, _} = Wiki.create_page(kb, %{"title" => "A"})
     {:ok, _} = Wiki.create_page(kb, %{"title" => "B", "folder_id" => folder.id})
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "GMinds"})
+    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
     {:ok, root} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-    {:ok, jobs} = Vaults.add_mapping(vault, user, %{path: "/Jobs", board: kb, folder: folder})
+    {:ok, jobs} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: kb, folder: folder})
     {_raw, token} = Accounts.create_api_token(user, "slipdock CLI on laptop")
     Vaults.touch_mirror(vault, token)
 
     {:ok, view, _html} = live(conn, ~p"/vaults")
 
     refute has_element?(view, "#vaults-empty")
-    assert has_element?(view, "#mapping-#{root.id}", "KnowledgeBase")
+    assert has_element?(view, "#mapping-#{root.id}", "Keystone")
     assert has_element?(view, "#mapping-#{root.id}", "1 page")
-    assert has_element?(view, "#mapping-#{jobs.id}", "folder Jobs")
+    assert has_element?(view, "#mapping-#{jobs.id}", "folder Journal")
     assert has_element?(view, "#mapping-#{jobs.id}", "1 page")
     assert has_element?(view, "#vault-#{vault.id} [id^=mirror-]", "slipdock CLI on laptop")
   end
@@ -61,10 +61,10 @@ defmodule SlipdockWeb.VaultsLiveTest do
     {:ok, view, _html} = live(conn, ~p"/vaults")
 
     view
-    |> form("#vault-#{vault.id} form[phx-submit=rename]", %{"name" => "GMinds"})
+    |> form("#vault-#{vault.id} form[phx-submit=rename]", %{"name" => "Notes"})
     |> render_submit()
 
-    assert {:ok, %{name: "GMinds"}} = Vaults.get_vault(user, vault.id)
+    assert {:ok, %{name: "Notes"}} = Vaults.get_vault(user, vault.id)
 
     html =
       view
@@ -72,7 +72,7 @@ defmodule SlipdockWeb.VaultsLiveTest do
       |> render_submit()
 
     assert html =~ "already have a vault with that name"
-    assert {:ok, %{name: "GMinds"}} = Vaults.get_vault(user, vault.id)
+    assert {:ok, %{name: "Notes"}} = Vaults.get_vault(user, vault.id)
   end
 
   test "deleting confirms that pages stay and names the synced folders, then keeps them", ctx do
@@ -123,7 +123,7 @@ defmodule SlipdockWeb.VaultsLiveTest do
   test "a board's wiki in a vault has no switch out to the vault (#758)", ctx do
     %{conn: conn, user: user, kb: kb} = ctx
     {:ok, _} = Wiki.create_page(kb, %{"title" => "Note"})
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "GMinds"})
+    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
     {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
 
     {:ok, view, _html} = live(conn, ~p"/boards/#{kb.id}/wiki")
@@ -131,15 +131,15 @@ defmodule SlipdockWeb.VaultsLiveTest do
     # The board's wiki is the vault from where it is mounted: nothing to open.
     refute has_element?(view, "#open-in-vault")
     refute has_element?(view, "[data-tree-scope]")
-    refute render(view) =~ "Open in GMinds"
+    refute render(view) =~ "Open in Notes"
   end
 
   test "a board mapped whole is kept inside the vault, and let out (#757)", ctx do
     %{conn: conn, user: user, kb: kb} = ctx
-    {:ok, folder} = Wiki.create_folder(kb, %{"name" => "Jobs"})
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "GMinds"})
+    {:ok, folder} = Wiki.create_folder(kb, %{"name" => "Journal"})
+    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
     {:ok, root} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-    {:ok, jobs} = Vaults.add_mapping(vault, user, %{path: "/Jobs", board: kb, folder: folder})
+    {:ok, jobs} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: kb, folder: folder})
 
     {:ok, view, _html} = live(conn, ~p"/vaults")
     # Only a whole board can be: no toggle on a folder's mapping.
@@ -147,7 +147,7 @@ defmodule SlipdockWeb.VaultsLiveTest do
     assert has_element?(view, "#inside-mapping-#{root.id}[aria-pressed='false']", "Keep inside")
 
     html = view |> element("#inside-mapping-#{root.id}") |> render_click()
-    assert html =~ "KnowledgeBase is kept inside GMinds"
+    assert html =~ "Keystone is kept inside Notes"
     assert has_element?(view, "#inside-mapping-#{root.id}[aria-pressed='true']", "Inside")
     assert Map.has_key?(Vaults.inside_boards(user), kb.id)
 
@@ -171,7 +171,7 @@ defmodule SlipdockWeb.VaultsLiveTest do
 
   describe "mappings" do
     setup %{user: user} do
-      {:ok, vault} = Vaults.create_vault(user, %{"name" => "GMinds"})
+      {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
       %{vault: vault}
     end
 
@@ -189,12 +189,12 @@ defmodule SlipdockWeb.VaultsLiveTest do
 
       assert has_element?(view, "#{form} option[disabled]", "Borrowed — you can't write to it")
       assert has_element?(view, "#{form} option[disabled]", "Taken — is already in another vault")
-      assert has_element?(view, "#{form} option:not([disabled])", "KnowledgeBase")
+      assert has_element?(view, "#{form} option:not([disabled])", "Keystone")
     end
 
     test "previews where things land, then maps, then takes it out again", ctx do
       %{conn: conn, user: user, kb: kb, vault: vault} = ctx
-      {:ok, jobs} = Wiki.create_folder(kb, %{"name" => "Jobs"})
+      {:ok, jobs} = Wiki.create_folder(kb, %{"name" => "Journal"})
       {:ok, _} = Wiki.create_page(kb, %{"title" => "Top"})
       {:ok, _} = Wiki.create_page(kb, %{"title" => "Acme", "folder_id" => jobs.id})
 
@@ -206,8 +206,8 @@ defmodule SlipdockWeb.VaultsLiveTest do
       |> render_change()
 
       assert has_element?(view, "#map-preview-#{vault.id}", "2 pages")
-      assert has_element?(view, "#map-preview-#{vault.id} li", "Jobs/Acme.md")
-      assert has_element?(view, "#{form} select[name=folder_id] option", "Jobs")
+      assert has_element?(view, "#map-preview-#{vault.id} li", "Journal/Acme.md")
+      assert has_element?(view, "#{form} select[name=folder_id] option", "Journal")
 
       view
       |> form(form, %{"vault_id" => vault.id, "path" => "/", "board_id" => kb.id})
@@ -234,7 +234,7 @@ defmodule SlipdockWeb.VaultsLiveTest do
       |> render_change()
 
       assert has_element?(view, "#map-preview-#{vault.id}", "take over")
-      assert has_element?(view, "#map-preview-#{vault.id} li", "Jobs/Acme.md → Work/Acme.md")
+      assert has_element?(view, "#map-preview-#{vault.id} li", "Journal/Acme.md → Work/Acme.md")
 
       # Taking the root out confirms which files leave.
       confirm = view |> element("#remove-mapping-#{root.id}") |> render()
@@ -286,10 +286,10 @@ defmodule SlipdockWeb.VaultsLiveTest do
 
   describe "overlaps" do
     setup %{user: user, kb: kb} do
-      hunt = board_fixture(%{"name" => "Job Hunt", "code" => "hunt"}, owner: user)
-      {:ok, jobs} = Wiki.create_folder(kb, %{"name" => "Jobs"})
+      hunt = board_fixture(%{"name" => "Journal Desk", "code" => "work"}, owner: user)
+      {:ok, jobs} = Wiki.create_folder(kb, %{"name" => "Journal"})
       {:ok, _} = Wiki.create_page(kb, %{"title" => "Acme", "folder_id" => jobs.id})
-      {:ok, vault} = Vaults.create_vault(user, %{"name" => "GMinds"})
+      {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
       {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
       %{hunt: hunt, vault: vault}
     end
@@ -301,13 +301,13 @@ defmodule SlipdockWeb.VaultsLiveTest do
       view
       |> form("#map-form-#{vault.id}", %{
         "vault_id" => vault.id,
-        "path" => "/Jobs",
+        "path" => "/Journal",
         "board_id" => hunt.id
       })
       |> render_change()
 
       assert has_element?(view, "#map-error-#{vault.id}", "would overlap 1 page")
-      assert has_element?(view, "#map-error-#{vault.id}", "move them to Job Hunt first")
+      assert has_element?(view, "#map-error-#{vault.id}", "move them to Journal Desk first")
       assert has_element?(view, "#map-form-#{vault.id} button[type=submit][disabled]")
       refute has_element?(view, "#overlaps-#{vault.id}")
     end
@@ -318,7 +318,7 @@ defmodule SlipdockWeb.VaultsLiveTest do
       Slipdock.Repo.insert!(%Slipdock.Vaults.Mapping{
         vault_id: vault.id,
         board_id: hunt.id,
-        path: "Jobs"
+        path: "Journal"
       })
 
       {:ok, view, _html} = live(conn, ~p"/vaults")
@@ -329,7 +329,7 @@ defmodule SlipdockWeb.VaultsLiveTest do
                "1 page sits at paths another mapping owns"
              )
 
-      assert has_element?(view, "#overlaps-#{vault.id} li", "Jobs/Acme.md")
+      assert has_element?(view, "#overlaps-#{vault.id} li", "Journal/Acme.md")
     end
   end
 end

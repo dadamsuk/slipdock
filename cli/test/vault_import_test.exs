@@ -13,10 +13,10 @@ defmodule SlipdockCLI.VaultImportTest do
   alias SlipdockCLI.Sync.{Import, State}
 
   @mappings [
-    %{"path" => "/", "board" => %{"id" => 1, "code" => "kb", "name" => "KnowledgeBase"}},
+    %{"path" => "/", "board" => %{"id" => 1, "code" => "kb", "name" => "Keystone"}},
     %{
-      "path" => "/Jobs",
-      "board" => %{"id" => 2, "code" => "jobs", "name" => "Job Hunt"},
+      "path" => "/Journal",
+      "board" => %{"id" => 2, "code" => "jobs", "name" => "Journal Desk"},
       "folder" => %{"id" => 9, "path" => "Notes"}
     }
   ]
@@ -50,16 +50,16 @@ defmodule SlipdockCLI.VaultImportTest do
   describe "routing" do
     test "the longest mapped prefix wins, without regard to case" do
       assert Import.route(@mappings, "Note.md")["path"] == "/"
-      assert Import.route(@mappings, "Jobs/Acme/Call.md")["path"] == "/Jobs"
-      assert Import.route(@mappings, "jobs/Call.md")["path"] == "/Jobs"
+      assert Import.route(@mappings, "Journal/Acme/Call.md")["path"] == "/Journal"
+      assert Import.route(@mappings, "journal/Call.md")["path"] == "/Journal"
       # A name that only starts like the mapping is not under it.
-      assert Import.route(@mappings, "Jobsearch.md")["path"] == "/"
+      assert Import.route(@mappings, "Journalsearch.md")["path"] == "/"
     end
 
     test "a path no mapping covers routes nowhere" do
       only_jobs = [Enum.at(@mappings, 1)]
       assert Import.route(only_jobs, "Note.md") == nil
-      assert Import.route(only_jobs, "Jobs/Call.md")["path"] == "/Jobs"
+      assert Import.route(only_jobs, "Journal/Call.md")["path"] == "/Journal"
     end
   end
 
@@ -101,12 +101,12 @@ defmodule SlipdockCLI.VaultImportTest do
 
     test "a path no mapping covers is skipped and listed", ctx do
       write(ctx, "Loose.md", "x")
-      write(ctx, "Jobs/Call.md", "y")
+      write(ctx, "Journal/Call.md", "y")
 
       plan = plan(ctx, %{@vault | "mappings" => [Enum.at(@mappings, 1)]})
 
       assert plan.unmapped == ["Loose.md"]
-      assert [%{path: "Jobs/Call.md", mapping: %{"path" => "/Jobs"}}] = plan.create
+      assert [%{path: "Journal/Call.md", mapping: %{"path" => "/Journal"}}] = plan.create
     end
   end
 
@@ -187,17 +187,17 @@ defmodule SlipdockCLI.VaultImportTest do
       meld = "Secret: %%🔐β ZXhhbXBsZQ== 🔐%%\n"
       front = "---\n# a comment\ntags: [a, b]\nzeta: 1\nalpha: \"two\"\n---\nBody\n"
       write(ctx, "Secret.md", meld)
-      write(ctx, "Jobs/Call.md", front)
+      write(ctx, "Journal/Call.md", front)
       write(ctx, "img/cat.png", <<0, 1, 2, 255>>)
 
       {record, report} = import!(ctx)
 
       assert Enum.map(report.created, & &1.path) |> Enum.sort() ==
-               ["Jobs/Call.md", "Secret.md", "img/cat.png"]
+               ["Journal/Call.md", "Secret.md", "img/cat.png"]
 
       assert report.errors == []
       assert FakeVault.by_path(ctx.vault, "Secret.md").content == meld
-      assert FakeVault.by_path(ctx.vault, "Jobs/Call.md").content == front
+      assert FakeVault.by_path(ctx.vault, "Journal/Call.md").content == front
       assert FakeVault.file_by_path(ctx.vault, "img/cat.png").bytes == <<0, 1, 2, 255>>
 
       entry = record["entries"]["Secret.md"]
@@ -324,7 +324,7 @@ defmodule SlipdockCLI.VaultImportTest do
       %{dir: dir}
     end
 
-    @vault_json ~s({"vault":{"id":3,"name":"Brain","mappings":[{"id":1,"path":"/","board":{"id":1,"code":"kb","name":"KnowledgeBase"},"folder":null}]}})
+    @vault_json ~s({"vault":{"id":3,"name":"Brain","mappings":[{"id":1,"path":"/","board":{"id":1,"code":"kb","name":"Keystone"},"folder":null}]}})
 
     test "a dry run asks, writes nothing, and says what it would do", %{dir: dir} do
       File.write!(Path.join(dir, "Note.md"), "[[Nowhere]]\n```dataview\nLIST\n```\n")
@@ -341,7 +341,7 @@ defmodule SlipdockCLI.VaultImportTest do
       refute_received {:request, _, _, _}
       assert out =~ "dry run"
       assert out =~ "would create: 1 note, 1 file"
-      assert out =~ "/ → KnowledgeBase wiki"
+      assert out =~ "/ → Keystone wiki"
       assert out =~ "never synced: .obsidian/"
       assert out =~ "unresolved links: 1"
       assert out =~ "Note.md → [[Nowhere]]"

@@ -566,7 +566,7 @@ defmodule Slipdock.Runners.SetupTest do
 
   describe "a Windows working directory (#511)" do
     test "is told apart by its drive letter, ~\\ or a share" do
-      for path <- [~S"C:\Users\da\GMinds", "d:/work", ~S"~\GMinds", ~S"\\nas\share"],
+      for path <- [~S"C:\Users\da\Notes", "d:/work", ~S"~\Notes", ~S"\\nas\share"],
           do: assert(Setup.windows_path?(path), path)
 
       for path <- ["/tmp", "~/app", "", "~", "relative\\dir", nil],
@@ -578,7 +578,7 @@ defmodule Slipdock.Runners.SetupTest do
       setup =
         gen(
           board,
-          %{"scenario" => "cloud", "where" => "desktop", "cwd" => ~S"C:\Users\da\GMinds"},
+          %{"scenario" => "cloud", "where" => "desktop", "cwd" => ~S"C:\Users\da\Notes"},
           nil
         )
 
@@ -587,7 +587,7 @@ defmodule Slipdock.Runners.SetupTest do
       assert skills.code == "irm '#{@base}/install.ps1' | iex"
       assert skills.text =~ ~S"%USERPROFILE%\.claude\skills"
       refute Enum.any?(codes(setup), &(&1 =~ "install.sh"))
-      assert Enum.at(setup.steps, 2).text =~ ~S"Folder: C:\Users\da\GMinds"
+      assert Enum.at(setup.steps, 2).text =~ ~S"Folder: C:\Users\da\Notes"
     end
 
     test "a /loop gets PowerShell to start Claude Code there too", %{board: board} do

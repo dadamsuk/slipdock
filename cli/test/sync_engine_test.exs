@@ -51,12 +51,12 @@ defmodule SlipdockCLI.SyncEngineTest do
 
   test "a first pass brings the vault down, folders and all, and a second does nothing", ctx do
     FakeVault.put(ctx.vault, "Note.md", "one")
-    FakeVault.put(ctx.vault, "Jobs/Acme/Call.md", "call")
+    FakeVault.put(ctx.vault, "Journal/Acme/Call.md", "call")
 
     {state, report} = pass(ctx)
 
-    assert files(ctx) == ["Jobs/Acme/Call.md", "Note.md"]
-    assert read(ctx, "Jobs/Acme/Call.md") == "call"
+    assert files(ctx) == ["Journal/Acme/Call.md", "Note.md"]
+    assert read(ctx, "Journal/Acme/Call.md") == "call"
     assert length(report.received) == 2
     assert %{"id" => _, "hash" => hash} = state["entries"]["Note.md"]
     assert hash == FakeVault.hash("one")
@@ -547,16 +547,16 @@ defmodule SlipdockCLI.SyncEngineTest do
     defp dir?(ctx, path), do: File.dir?(Path.join(ctx.root, path))
 
     test "a folder deleted on the server goes from here, once its pages have moved out", ctx do
-      FakeVault.put(ctx.vault, "Jobs/Acme/Call.md", "call")
+      FakeVault.put(ctx.vault, "Journal/Acme/Call.md", "call")
       {state, _} = pass(ctx)
-      assert state["folders"] == ["Jobs", "Jobs/Acme"]
+      assert state["folders"] == ["Journal", "Journal/Acme"]
 
-      FakeVault.delete_folder(ctx.vault, "Jobs")
+      FakeVault.delete_folder(ctx.vault, "Journal")
       {state, report} = pass(ctx, state)
 
       assert files(ctx) == ["Call.md"]
-      refute dir?(ctx, "Jobs")
-      assert %{path: "Jobs/", folder: true} in report.removed
+      refute dir?(ctx, "Journal")
+      assert %{path: "Journal/", folder: true} in report.removed
       assert state["folders"] == []
 
       {_state, report} = pass(ctx, state)
@@ -581,34 +581,34 @@ defmodule SlipdockCLI.SyncEngineTest do
     end
 
     test "a folder emptied here before the server deleted it still goes", ctx do
-      FakeVault.put(ctx.vault, "Jobs/Call.md", "call")
+      FakeVault.put(ctx.vault, "Journal/Call.md", "call")
       {state, _} = pass(ctx)
 
-      File.rm!(Path.join(ctx.root, "Jobs/Call.md"))
+      File.rm!(Path.join(ctx.root, "Journal/Call.md"))
       {state, _} = pass(ctx, state)
       # The page is archived, but its folder is still on the server, and here.
-      FakeVault.add_folder(ctx.vault, "Jobs")
+      FakeVault.add_folder(ctx.vault, "Journal")
       {state, _} = pass(ctx, state)
-      assert dir?(ctx, "Jobs")
+      assert dir?(ctx, "Journal")
 
-      FakeVault.delete_folder(ctx.vault, "Jobs")
+      FakeVault.delete_folder(ctx.vault, "Journal")
       {_state, report} = pass(ctx, state)
-      refute dir?(ctx, "Jobs")
-      assert [%{path: "Jobs/"}] = report.removed
+      refute dir?(ctx, "Journal")
+      assert [%{path: "Journal/"}] = report.removed
     end
 
     test "anything left in a deleted folder keeps it, and nothing in it is lost", ctx do
-      FakeVault.add_folder(ctx.vault, "Jobs/Empty")
+      FakeVault.add_folder(ctx.vault, "Journal/Empty")
       {state, _} = pass(ctx)
-      write(ctx, "Jobs/.private", "not synced")
+      write(ctx, "Journal/.private", "not synced")
 
-      FakeVault.delete_folder(ctx.vault, "Jobs")
+      FakeVault.delete_folder(ctx.vault, "Journal")
       {state, report} = pass(ctx, state)
 
-      assert read(ctx, "Jobs/.private") == "not synced"
+      assert read(ctx, "Journal/.private") == "not synced"
       # The empty folder inside it still went.
-      refute dir?(ctx, "Jobs/Empty")
-      assert [%{path: "Jobs/Empty/"}] = report.removed
+      refute dir?(ctx, "Journal/Empty")
+      assert [%{path: "Journal/Empty/"}] = report.removed
       # Not tried again on the next pass: the server has forgotten it.
       assert state["folders"] == []
       {_state, report} = pass(ctx, state)
@@ -616,27 +616,27 @@ defmodule SlipdockCLI.SyncEngineTest do
     end
 
     test "a file new here in a folder the server deleted goes up, and keeps it", ctx do
-      FakeVault.add_folder(ctx.vault, "Jobs")
+      FakeVault.add_folder(ctx.vault, "Journal")
       {state, _} = pass(ctx)
 
-      FakeVault.delete_folder(ctx.vault, "Jobs")
-      write(ctx, "Jobs/New.md", "fresh")
+      FakeVault.delete_folder(ctx.vault, "Journal")
+      write(ctx, "Journal/New.md", "fresh")
       {_state, report} = pass(ctx, state)
 
-      assert [%{path: "Jobs/New.md"}] = report.sent
-      assert read(ctx, "Jobs/New.md") == "fresh"
+      assert [%{path: "Journal/New.md"}] = report.sent
+      assert read(ctx, "Journal/New.md") == "fresh"
       assert report.removed == []
     end
 
     test "a folder deleted here, but not on the server, is not made again", ctx do
-      FakeVault.add_folder(ctx.vault, "Jobs")
+      FakeVault.add_folder(ctx.vault, "Journal")
       {state, _} = pass(ctx)
-      File.rmdir!(Path.join(ctx.root, "Jobs"))
+      File.rmdir!(Path.join(ctx.root, "Journal"))
 
       {state, report} = pass(ctx, state)
-      refute dir?(ctx, "Jobs")
+      refute dir?(ctx, "Journal")
       assert quiet?(report)
-      assert state["folders"] == ["Jobs"]
+      assert state["folders"] == ["Journal"]
     end
 
     test "a link to a folder elsewhere is not followed into", ctx do
@@ -644,11 +644,11 @@ defmodule SlipdockCLI.SyncEngineTest do
       File.mkdir_p!(Path.join(outside, "Inner"))
       on_exit(fn -> File.rm_rf!(outside) end)
 
-      FakeVault.add_folder(ctx.vault, "Jobs")
+      FakeVault.add_folder(ctx.vault, "Journal")
       {state, _} = pass(ctx)
-      File.ln_s!(outside, Path.join(ctx.root, "Jobs/Link"))
+      File.ln_s!(outside, Path.join(ctx.root, "Journal/Link"))
 
-      FakeVault.delete_folder(ctx.vault, "Jobs")
+      FakeVault.delete_folder(ctx.vault, "Journal")
       {_state, _report} = pass(ctx, state)
 
       assert File.dir?(Path.join(outside, "Inner"))
@@ -672,7 +672,7 @@ defmodule SlipdockCLI.SyncEngineTest do
     test "a server that lists no folders leaves folders here alone", ctx do
       vault = FakeVault.start(folders: false)
       ctx = %{ctx | vault: vault}
-      FakeVault.put(vault, "Jobs/Call.md", "call")
+      FakeVault.put(vault, "Journal/Call.md", "call")
       File.mkdir_p!(Path.join(ctx.root, "Empty"))
 
       {state, _} = pass(ctx, Map.put(ctx.state, "folders", ["Empty"]))

@@ -9,7 +9,7 @@ defmodule SlipdockWeb.API.PagePlacementsTest do
 
   setup %{conn: conn, user: user} do
     board = board_fixture(%{"name" => "Brain", "code" => "plapi"}, owner: user)
-    jobs = board_fixture(%{"name" => "Jobs", "code" => "plajobs"}, owner: user)
+    jobs = board_fixture(%{"name" => "Journal", "code" => "plajobs"}, owner: user)
     {:ok, home} = Wiki.create_folder(board, %{"name" => "Home"})
 
     {:ok, page} =
@@ -75,7 +75,7 @@ defmodule SlipdockWeb.API.PagePlacementsTest do
            |> json_response(422)
 
     assert conn |> file(page, %{"also" => ""}) |> json_response(400)
-    assert conn |> file(page, %{"also" => "/Jobs/Notes"}) |> json_response(422)
+    assert conn |> file(page, %{"also" => "/Journal/Notes"}) |> json_response(422)
   end
 
   test "by vault path, onto another board of the vault", %{
@@ -87,9 +87,9 @@ defmodule SlipdockWeb.API.PagePlacementsTest do
   } do
     {:ok, vault} = Vaults.create_vault(user, %{"name" => "V"})
     {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: board})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Jobs", board: jobs})
+    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: jobs})
 
-    body = conn |> file(page, %{"also" => "/Jobs/Notes"}) |> json_response(200)
+    body = conn |> file(page, %{"also" => "/Journal/Notes"}) |> json_response(200)
     assert [%{"path" => "Notes", "board" => "plajobs"}] = body["page"]["also_in"]
 
     body =

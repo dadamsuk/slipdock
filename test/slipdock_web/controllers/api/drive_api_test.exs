@@ -11,13 +11,13 @@ defmodule SlipdockWeb.API.DriveTest do
 
   @folder %{
     "id" => "fold",
-    "name" => "Manuel2 Recordings",
+    "name" => "Meeting Recordings",
     "mimeType" => "application/vnd.google-apps.folder",
     "parents" => ["root"]
   }
 
   setup %{conn: conn, user: user} do
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "GMinds"})
+    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
     %{conn: put_req_header(conn, "accept", "application/json"), vault: vault}
   end
 
@@ -26,7 +26,7 @@ defmodule SlipdockWeb.API.DriveTest do
       assert json_response(get(conn, "/api/me/drive"), 200) == %{
                "drive" => %{"status" => "not_connected", "email" => nil},
                "vaults" => [
-                 %{"id" => vault.id, "name" => "GMinds", "recordings_folder" => nil}
+                 %{"id" => vault.id, "name" => "Notes", "recordings_folder" => nil}
                ]
              }
     end
@@ -37,7 +37,7 @@ defmodule SlipdockWeb.API.DriveTest do
 
       body = json_response(get(conn, "/api/me/drive"), 200)
       assert body["drive"] == %{"status" => "connected", "email" => "me@example.com"}
-      assert [%{"name" => "GMinds", "recordings_folder" => "Rec"}] = body["vaults"]
+      assert [%{"name" => "Notes", "recordings_folder" => "Rec"}] = body["vaults"]
     end
 
     test "revoked, and a server without Google", %{conn: conn, user: user} do
@@ -56,16 +56,16 @@ defmodule SlipdockWeb.API.DriveTest do
 
       vault =
         conn
-        |> patch("/api/vaults/GMinds", %{"recordings_folder" => "/Manuel2 Recordings/"})
+        |> patch("/api/vaults/Notes", %{"recordings_folder" => "/Meeting Recordings/"})
         |> json_response(200)
         |> Map.fetch!("vault")
 
-      assert vault["recordings_folder"] == "Manuel2 Recordings"
-      assert vault["name"] == "GMinds"
+      assert vault["recordings_folder"] == "Meeting Recordings"
+      assert vault["name"] == "Notes"
 
       cleared =
         conn
-        |> patch("/api/vaults/GMinds", %{"recordings_folder" => ""})
+        |> patch("/api/vaults/Notes", %{"recordings_folder" => ""})
         |> json_response(200)
 
       assert cleared["vault"]["recordings_folder"] == nil
@@ -76,7 +76,7 @@ defmodule SlipdockWeb.API.DriveTest do
       drive!([@folder])
 
       assert json_response(
-               patch(conn, "/api/vaults/GMinds", %{"recordings_folder" => "Nope"}),
+               patch(conn, "/api/vaults/Notes", %{"recordings_folder" => "Nope"}),
                422
              ) ==
                %{"error" => ~s(there is no folder "Nope" in your My Drive)}
@@ -84,7 +84,7 @@ defmodule SlipdockWeb.API.DriveTest do
 
     test "needs a connection", %{conn: conn} do
       assert json_response(
-               patch(conn, "/api/vaults/GMinds", %{"recordings_folder" => "Rec"}),
+               patch(conn, "/api/vaults/Notes", %{"recordings_folder" => "Rec"}),
                409
              )[
                "error"
@@ -94,7 +94,7 @@ defmodule SlipdockWeb.API.DriveTest do
     test "renaming alone leaves the folder be", %{conn: conn, vault: vault} do
       vault |> Ecto.Changeset.change(recordings_folder: "Rec") |> Slipdock.Repo.update!()
 
-      assert json_response(patch(conn, "/api/vaults/GMinds", %{"name" => "Minds"}), 200)["vault"][
+      assert json_response(patch(conn, "/api/vaults/Notes", %{"name" => "Minds"}), 200)["vault"][
                "recordings_folder"
              ] == "Rec"
     end

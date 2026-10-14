@@ -1,8 +1,8 @@
 defmodule Slipdock.Repo.Migrations.AddTranscriptionServer do
   use Ecto.Migration
 
-  # A transcription server the admin names (a Manuel2 server, or anything that
-  # speaks its API), and what it made of each recording attached to a card.
+  # A transcription server the admin names (any server that speaks the
+  # transcription API in the manual), and what it made of each recording attached to a card.
   def change do
     alter table(:settings) do
       add :transcription_server_url, :string

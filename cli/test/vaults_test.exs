@@ -25,8 +25,8 @@ defmodule SlipdockCLI.VaultsTest do
   end
 
   @one ~s({"id":3,"name":"Notes","mappings":[
-    {"id":1,"path":"/","board":{"id":1,"code":"kb","name":"KnowledgeBase"},"folder":null},
-    {"id":2,"path":"/Jobs","board":{"id":2,"code":"jobs","name":"Job Hunt"},"folder":{"id":9,"path":"Notes"}}]})
+    {"id":1,"path":"/","board":{"id":1,"code":"kb","name":"Keystone"},"folder":null},
+    {"id":2,"path":"/Journal","board":{"id":2,"code":"jobs","name":"Journal Desk"},"folder":{"id":9,"path":"Notes"}}]})
   @vault ~s({"vault":#{@one}})
 
   defp run(args, opts \\ [], response \\ @vault) do
@@ -40,8 +40,8 @@ defmodule SlipdockCLI.VaultsTest do
     {"GET", path, _, out} = run(["ls"], [], ~s({"vaults":[#{@one}]}))
     assert path =~ "/api/vaults"
     assert out =~ "Notes"
-    assert out =~ "KnowledgeBase wiki"
-    assert out =~ "Job Hunt wiki, folder Notes"
+    assert out =~ "Keystone wiki"
+    assert out =~ "Journal Desk wiki, folder Notes"
   end
 
   test "ls with none says how to make one" do
@@ -72,7 +72,7 @@ defmodule SlipdockCLI.VaultsTest do
   test "inside keeps a mapped board inside, --off lets it out, and ls says which" do
     inside =
       ~s({"vault":{"id":3,"name":"Notes","mappings":[
-        {"id":1,"path":"/","board":{"id":1,"code":"kb","name":"KnowledgeBase"},"folder":null,"inside":true}]}})
+        {"id":1,"path":"/","board":{"id":1,"code":"kb","name":"Keystone"},"folder":null,"inside":true}]}})
 
     {"PATCH", path, body, out} = run(["inside", "Notes", "/"], [], inside)
     assert path =~ "/api/vaults/Notes/mappings"
@@ -88,26 +88,26 @@ defmodule SlipdockCLI.VaultsTest do
   end
 
   test "map sends path, board and folder" do
-    {"POST", path, body, out} = run(["map", "Notes", "/Jobs"], board: "jobs", folder: "Notes")
+    {"POST", path, body, out} = run(["map", "Notes", "/Journal"], board: "jobs", folder: "Notes")
     assert path =~ "/api/vaults/Notes/mappings"
-    assert body =~ ~s("path":"/Jobs")
+    assert body =~ ~s("path":"/Journal")
     assert body =~ ~s("board":"jobs")
     assert body =~ ~s("folder":"Notes")
     assert out =~ "mapped Notes"
   end
 
   test "unmap names the mapping by path in the query" do
-    {"DELETE", path, _, _} = run(["unmap", "Notes", "/Jobs"])
-    assert path =~ "/api/vaults/Notes/mappings?path=%2FJobs"
+    {"DELETE", path, _, _} = run(["unmap", "Notes", "/Journal"])
+    assert path =~ "/api/vaults/Notes/mappings?path=%2FJournal"
   end
 
   test "locate prints the mapping and what is left of the path" do
     response =
-      ~s({"mapping":{"id":2,"path":"/Jobs","board":{"id":2,"code":"jobs","name":"Job Hunt"},"folder":null},"rest":"Acme/Call.md"})
+      ~s({"mapping":{"id":2,"path":"/Journal","board":{"id":2,"code":"jobs","name":"Journal Desk"},"folder":null},"rest":"Acme/Call.md"})
 
-    {"GET", path, _, out} = run(["locate", "Notes", "/Jobs/Acme/Call.md"], [], response)
+    {"GET", path, _, out} = run(["locate", "Notes", "/Journal/Acme/Call.md"], [], response)
     assert path =~ "/api/vaults/Notes/locate?path="
-    assert out =~ "/Jobs"
+    assert out =~ "/Journal"
     assert out =~ "then Acme/Call.md"
   end
 
@@ -118,11 +118,11 @@ defmodule SlipdockCLI.VaultsTest do
   end
 
   test "resolve sends the link's words and prints the page and its path" do
-    response = ~s({"page":{"code":"W-9","title":"Acme"},"path":"/Jobs/Acme"})
-    {"GET", path, _, out} = run(["resolve", "Notes", "Jobs/Acme"], [], response)
-    assert path =~ "/api/vaults/Notes/resolve?link=Jobs%2FAcme"
+    response = ~s({"page":{"code":"W-9","title":"Acme"},"path":"/Journal/Acme"})
+    {"GET", path, _, out} = run(["resolve", "Notes", "Journal/Acme"], [], response)
+    assert path =~ "/api/vaults/Notes/resolve?link=Journal%2FAcme"
     assert out =~ "W-9 Acme"
-    assert out =~ "/Jobs/Acme"
+    assert out =~ "/Journal/Acme"
   end
 
   test "wanted lists each wanted page with where it is wanted from" do
@@ -138,13 +138,13 @@ defmodule SlipdockCLI.VaultsTest do
 
   test "changes asks for what changed after --since and prints each with the cursor" do
     response =
-      ~s({"changes":[{"cursor":12,"subject":"page","action":"changed","path":"/Jobs/Acme","id":4},{"cursor":13,"subject":"folder","action":"deleted","id":9}],"cursor":13,"more":true})
+      ~s({"changes":[{"cursor":12,"subject":"page","action":"changed","path":"/Journal/Acme","id":4},{"cursor":13,"subject":"folder","action":"deleted","id":9}],"cursor":13,"more":true})
 
     {"GET", path, _, out} = run(["changes", "Notes"], [since: 11, limit: 2], response)
     assert path =~ "/api/vaults/Notes/changes?"
     assert path =~ "since=11"
     assert path =~ "limit=2"
-    assert out =~ "page changed  /Jobs/Acme"
+    assert out =~ "page changed  /Journal/Acme"
     assert out =~ "folder deleted  #9"
     assert out =~ "cursor 13 — more to come"
   end
@@ -164,14 +164,14 @@ defmodule SlipdockCLI.VaultsTest do
   describe "recordings on Google Drive (W-1690)" do
     test "vault set --recordings-folder sends the folder" do
       response =
-        ~s({"vault":{"id":3,"name":"Notes","mappings":[],"recordings_folder":"Manuel2 Recordings"}})
+        ~s({"vault":{"id":3,"name":"Notes","mappings":[],"recordings_folder":"Meeting Recordings"}})
 
       {"PATCH", path, body, out} =
-        run(["set", "Notes"], [recordings_folder: "Manuel2 Recordings"], response)
+        run(["set", "Notes"], [recordings_folder: "Meeting Recordings"], response)
 
       assert path =~ "/api/vaults/Notes"
-      assert body =~ ~s("recordings_folder":"Manuel2 Recordings")
-      assert out =~ "Notes plays its recordings from Manuel2 Recordings on Google Drive"
+      assert body =~ ~s("recordings_folder":"Meeting Recordings")
+      assert out =~ "Notes plays its recordings from Meeting Recordings on Google Drive"
     end
 
     test "vault set with an empty folder clears it" do

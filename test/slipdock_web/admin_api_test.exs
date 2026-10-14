@@ -64,7 +64,7 @@ defmodule SlipdockWeb.AdminAPITest do
       body =
         conn
         |> patch(~p"/api/admin/settings", %{
-          transcription_server_url: "https://manuel.example:8765",
+          transcription_server_url: "https://transcribe.example:8765",
           transcription_server_token: "s3cret"
         })
         |> json_response(200)
@@ -76,7 +76,7 @@ defmodule SlipdockWeb.AdminAPITest do
       refute Jason.encode!(shown) =~ "s3cret"
 
       assert shown["settings"]["transcription_server"] == %{
-               "url" => "https://manuel.example:8765",
+               "url" => "https://transcribe.example:8765",
                "token_set" => true
              }
     end

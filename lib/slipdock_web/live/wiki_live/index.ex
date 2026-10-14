@@ -548,8 +548,8 @@ defmodule SlipdockWeb.WikiLive.Index do
 
   # A page or folder of this board opened from another board's tree, as
   # `?in=<board>` says (#758): that board's tree is kept, from where its
-  # wiki is mounted down, so a reader walking KnowledgeBase's wiki into
-  # Jobs stays in KnowledgeBase's wiki. Only a board of the same vault the
+  # wiki is mounted down, so a reader walking Handbook's wiki into
+  # Projects stays in Handbook's wiki. Only a board of the same vault the
   # reader can open, with this board mounted below it; anything else is
   # this board's own wiki as ever.
   defp assign_context(socket, ref) do

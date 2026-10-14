@@ -15,9 +15,9 @@ defmodule Slipdock.WikiFolderMoveTest do
 
   setup do
     user = user_fixture()
-    kb = board_fixture(%{"name" => "KnowledgeBase", "code" => "kbf"}, owner: user)
-    hunt = board_fixture(%{"name" => "Job Hunt", "code" => "huntf"}, owner: user)
-    {:ok, jobs} = Wiki.create_folder(kb, %{"name" => "Jobs"})
+    kb = board_fixture(%{"name" => "Keystone", "code" => "kbf"}, owner: user)
+    hunt = board_fixture(%{"name" => "Journal Desk", "code" => "huntf"}, owner: user)
+    {:ok, jobs} = Wiki.create_folder(kb, %{"name" => "Journal"})
     {:ok, acme} = Wiki.create_folder(kb, %{"name" => "Acme", "parent_id" => jobs.id})
     {:ok, beta} = Wiki.create_folder(kb, %{"name" => "Beta", "parent_id" => jobs.id})
 
@@ -102,7 +102,7 @@ defmodule Slipdock.WikiFolderMoveTest do
     assert {:ok, %{folder: moved}} = FolderMove.to_board(jobs, hunt, user, parent: archive)
     assert moved.parent_id == archive.id
     assert moved.position == 1
-    assert Wiki.folder_path(moved) == "Archive/Jobs"
+    assert Wiki.folder_path(moved) == "Archive/Journal"
   end
 
   test "contents: what is in it lands at the target's top, and the folder goes", ctx do
@@ -145,15 +145,15 @@ defmodule Slipdock.WikiFolderMoveTest do
       %{user: user, kb: kb, hunt: hunt, jobs: jobs} = ctx
       {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain"})
       {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-      {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Hunt", board: hunt})
+      {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Plans", board: hunt})
       {:ok, other} = Wiki.create_folder(kb, %{"name" => "Other"})
       {:ok, _} = Placements.add(ctx.top, other, user)
       {:ok, _} = Placements.add(ctx.stays, jobs, user)
 
       assert {:ok, %{report: %{filing_dropped: 0}}} = FolderMove.to_board(jobs, hunt, user)
 
-      # The moved page is still also in KnowledgeBase's Other; the page that
-      # stayed is still also in Jobs, now on Job Hunt.
+      # The moved page is still also in Keystone's Other; the page that
+      # stayed is still also in Journal, now on Journal Desk.
       assert Enum.map(Placements.folders(page(ctx.top.id)), & &1.id) == [other.id]
       assert Enum.map(Placements.folders(page(ctx.stays.id)), & &1.id) == [jobs.id]
     end
@@ -197,17 +197,17 @@ defmodule Slipdock.WikiFolderMoveTest do
 
     assert {:ok, report} = FolderMove.preview(jobs, hunt, user, contents: true)
 
-    assert report.into == "Job Hunt"
+    assert report.into == "Journal Desk"
     assert report.folders == 2
     assert report.pages == 3
 
     assert report.per_folder == [
-             %{path: "Jobs", pages: 1},
-             %{path: "Jobs/Acme", pages: 2},
-             %{path: "Jobs/Beta", pages: 0}
+             %{path: "Journal", pages: 1},
+             %{path: "Journal/Acme", pages: 2},
+             %{path: "Journal/Beta", pages: 0}
            ]
 
-    # Landing at Job Hunt's top beside a page of the same title.
+    # Landing at Journal Desk's top beside a page of the same title.
     assert report.title_clashes == ["Search plan"]
     assert page(ctx.top.id).board_id == kb.id
     assert folder(jobs.id).board_id == kb.id
@@ -249,10 +249,10 @@ defmodule Slipdock.WikiFolderMoveTest do
 
     test "when a folder of that name is already where it would land", ctx do
       %{user: user, hunt: hunt, jobs: jobs} = ctx
-      {:ok, _} = Wiki.create_folder(hunt, %{"name" => "jobs"})
+      {:ok, _} = Wiki.create_folder(hunt, %{"name" => "journal"})
 
       assert {:error, :unprocessable_entity, message} = FolderMove.to_board(jobs, hunt, user)
-      assert message =~ "Job Hunt already has a folder named Jobs at its top"
+      assert message =~ "Journal Desk already has a folder named Journal at its top"
 
       # Its contents would land beside Acme and Beta, which is clear.
       assert {:ok, _} = FolderMove.preview(jobs, hunt, user, contents: true)

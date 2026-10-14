@@ -430,8 +430,8 @@ defmodule SlipdockWeb.VaultLive.Index do
           >
             <p class="font-medium text-base-content/80">You have no vaults yet.</p>
             <p class="mt-1">
-              Make one, then map boards onto it — say KnowledgeBase at <code>/</code>
-              and Job Hunt at <code>/Jobs</code>
+              Make one, then map boards onto it — say Handbook at <code>/</code>
+              and Project Work at <code>/Projects</code>
               — and the wiki can show them as one tree, <code>[[links]]</code>
               find pages across them, and <code>slipdock sync</code>
               can keep the whole vault in a folder on your computer.
@@ -639,7 +639,7 @@ defmodule SlipdockWeb.VaultLive.Index do
           type="text"
           name="path"
           value={@draft.path}
-          placeholder="/ or /Jobs"
+          placeholder="/ or /Projects"
           class="input input-sm w-32 font-mono"
           aria-label="Vault path"
           autocomplete="off"
@@ -727,7 +727,7 @@ defmodule SlipdockWeb.VaultLive.Index do
         id={"recordings-folder-input-#{@vault.id}"}
         name="folder"
         value={@vault.recordings_folder}
-        placeholder="e.g. Manuel2 Recordings"
+        placeholder="e.g. Meeting Recordings"
         disabled={not match?({:connected, _}, @google)}
         class="input input-sm flex-1 font-mono text-xs"
       />

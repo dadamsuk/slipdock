@@ -37,7 +37,7 @@ defmodule SlipdockWeb.WikiMeetingPageLiveTest do
 
   setup %{user: user} do
     board = board_fixture(%{"name" => "Notes"}, owner: user)
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "GMinds"})
+    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
     {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: board})
     vault = vault |> Ecto.Changeset.change(recordings_folder: "Rec") |> Repo.update!()
     connect!(user)
@@ -109,7 +109,7 @@ defmodule SlipdockWeb.WikiMeetingPageLiveTest do
   end
 
   test "a recording that isn't on Drive is not a player", %{conn: conn, board: board} do
-    page = meeting(board, "recording: manuel2://play?file=x.m4a", "Old note.")
+    page = meeting(board, "recording: custom://play?file=x.m4a", "Old note.")
     {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}")
     refute has_element?(view, player(page) <> "[data-recording-src]")
   end

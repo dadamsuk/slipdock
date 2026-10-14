@@ -1,6 +1,6 @@
 defmodule Slipdock.TranscriptionTest do
   @moduledoc """
-  `Slipdock.Transcription` against a scripted Manuel2 server: discovery, the
+  `Slipdock.Transcription` against a scripted transcription server: discovery, the
   answers it can give (200, 202 and a job, the retryable refusals and the
   final ones), and the card attachment it writes the result to.
   """
@@ -10,7 +10,7 @@ defmodule Slipdock.TranscriptionTest do
 
   alias Slipdock.{Boards, Settings, Transcription}
 
-  @url "https://manuel.example:8765"
+  @url "https://transcribe.example:8765"
   @status %{
     "version" => "2.4.0",
     "api_version" => "1.0.0",
@@ -27,7 +27,7 @@ defmodule Slipdock.TranscriptionTest do
 
   # Scripts the server: `status` answers GET /v1/status; each POST and each
   # job GET takes the next of `answers` ({status, body} or {status, body,
-  # headers}). Every request is sent to the test as {:manuel, method, path,
+  # headers}). Every request is sent to the test as {:server, method, path,
   # headers, body}.
   defp serve(answers, status \\ @status) do
     test = self()
@@ -35,7 +35,7 @@ defmodule Slipdock.TranscriptionTest do
 
     Req.Test.stub(Transcription, fn conn ->
       {:ok, body, conn} = Plug.Conn.read_body(conn)
-      send(test, {:manuel, conn.method, conn.request_path, conn.req_headers, body})
+      send(test, {:server, conn.method, conn.request_path, conn.req_headers, body})
 
       if conn.request_path == "/v1/status" do
         Req.Test.json(conn, status)
@@ -66,10 +66,10 @@ defmodule Slipdock.TranscriptionTest do
 
       assert {:ok, "Hello there."} = transcribe(path)
 
-      assert_received {:manuel, "GET", "/v1/status", headers, _}
+      assert_received {:server, "GET", "/v1/status", headers, _}
       assert header(headers, "authorization") == ["Bearer k3y"]
 
-      assert_received {:manuel, "POST", "/v1/audio/transcriptions", headers, body}
+      assert_received {:server, "POST", "/v1/audio/transcriptions", headers, body}
       assert header(headers, "authorization") == ["Bearer k3y"]
       assert header(headers, "prefer") == ["wait=60"]
       assert [key] = header(headers, "idempotency-key")
@@ -125,7 +125,7 @@ defmodule Slipdock.TranscriptionTest do
       )
 
       assert {:ok, "Steve: Hi.\nJohn: Hello John.\nSteve: How are you?"} = transcribe(path)
-      assert_received {:manuel, "POST", _, _, body}
+      assert_received {:server, "POST", _, _, body}
       assert body =~ ~s(name="response_format"\r\n\r\ndiarized_json)
     end
 
@@ -133,9 +133,9 @@ defmodule Slipdock.TranscriptionTest do
       for url <- [@url, @url <> "/", @url <> "/v1", @url <> "/api/v1/"] do
         serve([{200, %{"text" => "ok"}}])
         assert {:ok, "ok"} = Transcription.transcribe_file(path, url: url, token: nil)
-        assert_received {:manuel, "GET", "/v1/status", headers, _}
+        assert_received {:server, "GET", "/v1/status", headers, _}
         assert header(headers, "authorization") == []
-        assert_received {:manuel, "POST", "/v1/audio/transcriptions", _, _}
+        assert_received {:server, "POST", "/v1/audio/transcriptions", _, _}
       end
     end
 
@@ -149,10 +149,10 @@ defmodule Slipdock.TranscriptionTest do
       ])
 
       assert {:ok, "Done."} = transcribe(path)
-      assert_received {:manuel, "POST", "/v1/audio/transcriptions", _, _}
+      assert_received {:server, "POST", "/v1/audio/transcriptions", _, _}
 
       for _ <- 1..3,
-          do: assert_received({:manuel, "GET", "/v1/transcriptions/trn_9", _, _})
+          do: assert_received({:server, "GET", "/v1/transcriptions/trn_9", _, _})
     end
 
     test "a job that fails says why", %{path: path} do
@@ -180,7 +180,7 @@ defmodule Slipdock.TranscriptionTest do
 
       keys =
         for _ <- 1..4 do
-          assert_received {:manuel, "POST", _, headers, _}
+          assert_received {:server, "POST", _, headers, _}
           header(headers, "idempotency-key")
         end
 
@@ -194,8 +194,8 @@ defmodule Slipdock.TranscriptionTest do
       ])
 
       assert {:ok, "Collected."} = transcribe(path)
-      assert_received {:manuel, "POST", _, h1, _}
-      assert_received {:manuel, "POST", _, h2, _}
+      assert_received {:server, "POST", _, h1, _}
+      assert_received {:server, "POST", _, h2, _}
       assert header(h1, "idempotency-key") == header(h2, "idempotency-key")
     end
 
@@ -209,7 +209,7 @@ defmodule Slipdock.TranscriptionTest do
       ])
 
       assert {:ok, "Replayed."} = transcribe(path)
-      assert_received {:manuel, "GET", "/v1/transcriptions/trn_5", _, _}
+      assert_received {:server, "GET", "/v1/transcriptions/trn_5", _, _}
     end
 
     test "a server that keeps refusing is given up on", %{path: path} do
@@ -238,8 +238,8 @@ defmodule Slipdock.TranscriptionTest do
           ] do
         serve([{code, %{"error" => error}}, {200, %{"text" => "never"}}])
         assert {:error, ^expected} = transcribe(path)
-        assert_received {:manuel, "POST", _, _, _}
-        refute_received {:manuel, "POST", _, _, _}
+        assert_received {:server, "POST", _, _, _}
+        refute_received {:server, "POST", _, _, _}
       end
     end
 
@@ -251,7 +251,7 @@ defmodule Slipdock.TranscriptionTest do
       assert {:error, "the server speaks API 2.0.0; this Slipdock understands 1.x only"} =
                transcribe(path)
 
-      refute_received {:manuel, "POST", _, _, _}
+      refute_received {:server, "POST", _, _, _}
     end
 
     test "something that isn't a transcription server says so", %{path: path} do
@@ -311,7 +311,7 @@ defmodule Slipdock.TranscriptionTest do
       assert audio.transcript == "Minutes of the call."
       assert audio.transcript_error == nil
 
-      assert_received {:manuel, "POST", _, _, body}
+      assert_received {:server, "POST", _, _, body}
       assert body =~ ~s(filename="call.mp3")
       assert body =~ "content-type: audio/mpeg"
     end
@@ -362,7 +362,7 @@ end
 
 defmodule Slipdock.TranscriptionTest.Server do
   @moduledoc false
-  # Just enough of a Manuel2 server, on a real socket, to receive an upload.
+  # Just enough of a transcription server, on a real socket, to receive an upload.
   import Plug.Conn
 
   def init(test), do: test

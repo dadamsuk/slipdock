@@ -758,8 +758,7 @@ that can seek: the server answers the byte ranges a player asks for.
 
 **Transcribe**, beside the player, sends the recording to the transcription
 server an admin has set up under Configuration → Server → **Transcription
-server**: a [Manuel2](https://github.com/dadamsuk/Manuel2) server, or anything
-that speaks its API. Give its address (`https://host:8765`; `/v1` or
+server**: a server of your own that speaks the small HTTP API below. Give its address (`https://host:8765`; `/v1` or
 `/api/v1` on the end is fine too) and the auth token it issued; **Test
 connection** asks the server for its status before anything is saved. The
 token is kept on the server and never shown again — leave the box empty to
@@ -776,6 +775,35 @@ version first, sends every recording with an idempotency key so a retry
 never transcribes it twice, waits up to a minute for an answer before
 following it as a job, and retries only what the server says is worth
 retrying (a full queue, a model still loading, a timeout).
+
+#### What a transcription server must speak
+
+Any server you run can do the transcribing, if it answers these over HTTPS,
+with the token as `Authorization: Bearer <token>`:
+
+- **`GET /v1/status`** → `200` with JSON `{"api_version": "1.x", "version":
+  "…", "capabilities": [...]}`. Slipdock asks this before every recording and
+  refuses a server whose `api_version` major isn't `1`. List `"diarization"`
+  in `capabilities` if it can tell speakers apart.
+- **`POST /v1/audio/transcriptions`**, multipart with `file` (the audio),
+  `model=default` and `response_format` (`json`, or `diarized_json` when you
+  listed diarization). Headers: `Idempotency-Key` (the same for every retry
+  of one recording: answer a repeat with the same result rather than doing
+  the work twice) and `Prefer: wait=60`. Answer either
+  - `200` with `{"text": "…"}`, or for `diarized_json` with `{"segments":
+    [{"speaker": "Steve", "text": "…"}, …]}`, or
+  - `202` with `{"id": "<job>"}` (and optionally a `Location` header), when
+    it will take longer than the wait.
+- **`GET /v1/transcriptions/<job>`** → `200` with `{"status": "queued" |
+  "running" | "completed" | "failed" | "cancelled"}`. A completed job
+  carries the answer above as `result`, and a failed one `{"error":
+  {"message": "…"}}`. Slipdock polls from 2 seconds, backing off to 30, for
+  up to four hours.
+- **Errors** as `{"error": {"code": "…", "message": "…"}}`. `429` and `503`
+  are retried after `Retry-After`. Other `5xx` are retried with backoff, and
+  `504` (with the job's `id` in the error, if there is one) means "still
+  working: collect it later". `401`, `403`, `413`, `415` and `422` (`code`
+  `audio_too_long` or `audio_undecodable`) are final and shown to the user.
 
 On the API, `POST /api/cards/:id/attachments/:attachment_id/transcribe` starts
 it (202), and each attachment carries `transcript_status` (`running`, `done`,
@@ -1010,7 +1038,7 @@ dialogs leave the page's keys alone.
   and likewise a wiki page's code (`W-31`) for that page. On a wiki it is
   the **note switcher** instead (`Cmd-O` on a Mac): type a few letters of a
   note's title, one of its aliases or its path, in order but not necessarily
-  together (`acmcall` finds `Jobs/Acme/Call`), across every board of the
+  together (`acmcall` finds `Projects/Acme/Call`), across every board of the
   vault the board is in, or the board alone. Nothing typed lists the notes
   changed most lately, and a page's code still goes straight to it. On a
   shell, `slipdock page switch <board> <letters…>`
@@ -2195,9 +2223,9 @@ view of its own, at `/vaults/<vault>`: the vault's tree down the side, every
 board of it laid out by the vault's paths (a mapped path is a folder holding
 that board's wiki, or one folder of it, marked with the board it comes from),
 and pages addressed by their vault paths, the same as the files on disk —
-`/vaults/GMinds/Jobs/Interview Questions`, with `.md` or without, case aside.
+`/vaults/Notes/Projects/Roadmap`, with `.md` or without, case aside.
 A page opens inside the view, under the vault's breadcrumbs, with a quiet
-*on KnowledgeBase* saying which board holds it: its permissions, history and
+*on Handbook* saying which board holds it: its permissions, history and
 comments are that board's, and editing, history and new pages behave as on a
 board's wiki (a new note made in a folder lands on the board mapped there).
 Folder **Move…**, dragging across boards and **Give it its own board…** work in
@@ -2207,10 +2235,10 @@ is where boards are mounted at a path and the vault is renamed or deleted.
 Board wiki addresses keep working.
 
 **A board's wiki in a vault** is the vault from where the board is mounted
-down, like a chroot. KnowledgeBase, mounted at `/`, shows the whole of
-GMinds: its own folders, and *Jobs* (Job Hunt's wiki, mounted at `/Jobs`) as
+down, like a chroot. Handbook, mounted at `/`, shows the whole of
+Notes: its own folders, and *Projects* (Project Work's wiki, mounted at `/Projects`) as
 a folder among them, in the same order as the folders around it — by name
-when the tree is sorted by name. Job Hunt's own wiki shows `/Jobs` and what
+when the tree is sorted by name. Project Work's own wiki shows `/Projects` and what
 is mounted below it, and nothing above. What is mounted below one of a
 board's folders shows inside that folder. A board with only a folder of it
 mapped shows its whole wiki, as a board in no vault does. There is no switch
@@ -2218,14 +2246,14 @@ between trees: the board's tree is the right part of the vault already, and
 the vault view is the tree of the board at `/`.
 
 Opening a page of another board from a board's tree keeps that tree and its
-breadcrumbs: Interview Questions opened from KnowledgeBase's tree opens at
-`/boards/<job hunt>/wiki/interview-questions?in=<knowledgebase>`, with a
-quiet *on Job Hunt* beside the breadcrumbs that opens it in Job Hunt's own
+breadcrumbs: Roadmap opened from Handbook's tree opens at
+`/boards/<project work>/wiki/roadmap?in=<handbook>`, with a
+quiet *on Project Work* beside the breadcrumbs that opens it in Project Work's own
 wiki. The filter bar and the tree's search cover what the tree shows, so
-from KnowledgeBase they find Jobs pages, and from Job Hunt they don't find
-KnowledgeBase's. A board of the vault you can't open isn't in your tree.
+from Handbook they find Projects pages, and from Project Work they don't find
+Handbook's. A board of the vault you can't open isn't in your tree.
 Organising works across it on the boards you can write to: a page dragged
-onto *Jobs* moves to Job Hunt, after asking.
+onto *Projects* moves to Project Work, after asking.
 
 **Dragging rows about.** With a mouse, a writer drags a page, a folder or a
 file straight from the tree: press on its row and move. A press that moves
@@ -2343,7 +2371,7 @@ on the extra ones. Its menu there has **Also file in…** to add one, and the
 extra row's menu has **Take out of this folder**. Only readers who can open
 the page's own board see it in the other folders.
 `slipdock page file <page> --also F` (or `--not-in F`) — F a folder on its
-board, on `--board B`, or a vault path such as `/Jobs/Notes` — and
+board, on `--board B`, or a vault path such as `/Projects/Notes` — and
 `{"also": F}` / `{"not_in": F}` on `POST /api/pages/:id/folder` (MCP:
 `update_page`'s `also` and `not_in`) do it; a page's JSON lists them as
 `also_in`.
@@ -2671,30 +2699,32 @@ The full specification, and the decisions behind it, is in `docs/wiki.md`.
 
 ### Vaults
 
-A **vault** lays several boards' wikis out as one Obsidian-style vault: one
-tree of Markdown files, which `slipdock sync` mirrors to a folder on each
+A **vault** is a folder tree of Markdown (and other) files: notes, images,
+PDFs. The word is borrowed from Obsidian, which keeps notes that way, but
+Slipdock doesn't need Obsidian; any editor that works on a folder of Markdown
+will do. Here a vault lays several boards' wikis out as one such tree, which `slipdock sync` mirrors to a folder on each
 computer (see [Syncing a vault to a folder](#syncing-a-vault-to-a-folder)). A vault is yours alone and holds
 no pages of its own. It is a name and a set of **mappings**, each a vault path
 onto a board's wiki or one folder of it:
 
 ```
-/            → KnowledgeBase wiki (root)
-/Jobs        → Job Hunt wiki (root)
+/            → Handbook wiki (root)
+/Projects    → Project Work wiki (root)
 /Projects/X  → board X wiki, folder "Notes"
 ```
 
 A mapping inside another is allowed, and the **longest matching prefix
-wins**, segment by segment, so `/Jobs/Acme.md` lands in Job Hunt and
-`/Jobsearch.md` in KnowledgeBase. You can only map a board you can write to,
+wins**, segment by segment, so `/Projects/Acme.md` lands in Project Work and
+`/Projectsearch.md` in Handbook. You can only map a board you can write to,
 and **a board belongs to one vault** (it may be mapped there more than once,
 its root and a folder of it, say), because the vault is also where a plain
 `[[link]]` on that board is looked for.
 
 **Mappings don't overlap.** A mapping is refused while it would put pages
-of one mapping at paths another owns: with KnowledgeBase at `/` holding
-notes in its `Jobs` folder, mapping `/Jobs` onto Job Hunt is refused (and so
-is mapping `/` onto KnowledgeBase after `/Jobs`), because both boards would
-claim `/Jobs/...` and a synced edit to one of those notes would land on the
+of one mapping at paths another owns: with Handbook at `/` holding
+notes in its `Projects` folder, mapping `/Projects` onto Project Work is refused (and so
+is mapping `/` onto Handbook after `/Projects`), because both boards would
+claim `/Projects/...` and a synced edit to one of those notes would land on the
 wrong board. The refusal says how many pages and which, and the way out:
 move them to the other board first (see *Giving a vault folder its own
 board*), or map somewhere else. An empty folder, or one holding only
@@ -2714,18 +2744,18 @@ name, mapped at `/` and kept inside it. With no vaults the home page is as it
 was.
 
 **A board kept inside its vault.** Pages live on a board — that is where their
-codes, permissions and history are — so a vault like GMinds has a board such
-as KnowledgeBase holding its pages at `/`. That board need not stand beside
+codes, permissions and history are — so a vault like Notes has a board such
+as Handbook holding its pages at `/`. That board need not stand beside
 the vault as if it were something else: on the Vaults screen, **Keep inside**
 on a whole board's mapping takes it off your home page's board list and names
-it on the vault's tile instead (*pages stored on KnowledgeBase*, with its
+it on the vault's tile instead (*pages stored on Handbook*, with its
 card count when it has cards, linking to it). It is still the same board: its
 address, the board switcher, search and its cards and rules work as before,
-`slipdock boards` marks it *in GMinds*, and anyone it is shared with sees it
+`slipdock boards` marks it *in Notes*, and anyone it is shared with sees it
 as an ordinary board, since the vault is yours. Taking the mapping out, or
 deleting the vault, puts it back on your home page. Only a whole board can be
-kept inside, not one folder of it. On a shell: `slipdock vault map GMinds /
---board kb --inside`, `slipdock vault inside GMinds / [--off]`, `slipdock
+kept inside, not one folder of it. On a shell: `slipdock vault map Notes /
+--board kb --inside`, `slipdock vault inside Notes / [--off]`, `slipdock
 vault new NAME --with-board`.
 
 **The Vaults screen** (avatar menu › **Vaults**, or **Settings** at the top
@@ -2737,7 +2767,7 @@ delete vaults there. Deleting asks first, saying that every page stays on its
 board and naming the synced folders that will stop getting changes.
 
 **Mapping from the screen.** Under each vault, *Map a path* takes a vault
-path (`/`, `/Jobs`), a board and, once a board is picked, optionally one of
+path (`/`, `/Projects`), a board and, once a board is picked, optionally one of
 its folders. Boards you can't map are listed but greyed out, with the reason:
 you can't write to it, it is archived, or it is already in another vault.
 Before you press **Map** it previews where things land: how many of the
@@ -2754,22 +2784,22 @@ shows the same page counts and synced folders), the API (`/api/vaults`,
 whose vaults carry `mirrors` and each mapping its `pages`) and MCP
 (`list_vaults`, `manage_vault`).
 
-**Giving a vault folder its own board.** Say GMinds maps `/` onto
-KnowledgeBase, and KnowledgeBase keeps a `Jobs` folder that should be the
-Job Hunt board's. On that folder in the wiki's tree (yours, since it changes
+**Giving a vault folder its own board.** Say Notes maps `/` onto
+Handbook, and Handbook keeps a `Projects` folder that should be the
+Project Work board's. On that folder in the wiki's tree (yours, since it changes
 your vault), **Give it its own board…** asks which board — or a new one —
 and shows what would happen: how many notes and folders move, how many files
 in synced folders stay exactly as they are, which of the board's own pages
-join `/Jobs`, and any note that lands beside one of the same title. Confirm,
+join `/Projects`, and any note that lands beside one of the same title. Confirm,
 and in one step everything in the folder moves to the top of that board and
-`/Jobs` is mapped onto it. The notes keep their vault paths, so a synced
+`/Projects` is mapped onto it. The notes keep their vault paths, so a synced
 folder sees no change to them; only the board's own pages arrive as new
 files. It all happens or none of it does. On a shell:
 
 ```
-slipdock vault split GMinds /Jobs --board jobhunt --dry-run   # what would happen
-slipdock vault split GMinds /Jobs --board jobhunt             # do it
-slipdock vault split GMinds /Jobs --new-board "Job Hunt"      # a board made for it
+slipdock vault split Notes /Projects --board work --dry-run   # what would happen
+slipdock vault split Notes /Projects --board work             # do it
+slipdock vault split Notes /Projects --new-board "Project Work"      # a board made for it
 ```
 
 The API is `POST /api/vaults/:id/split` (`path`, `board` or `new_board`,
@@ -2971,8 +3001,9 @@ import record is spent and removed.
 
 A recorded meeting can be one page: the summary, a `## Recording`
 section, and the transcript in a ```` ```vtt ```` block under
-`## Transcript` (the format is in the agents guide, *Meeting pages*, and on
-the wiki at W-1690). The recording stays on Google Drive and is never
+`## Transcript` (the format is below, in
+[Meeting transcripts: what Slipdock expects](#meeting-transcripts-what-slipdock-expects)).
+The recording stays on Google Drive and is never
 copied here. The page names it in its front matter, as
 `recording: gdrive:<path from My Drive>`.
 
@@ -2996,15 +3027,131 @@ To make it play:
    section is only there when the server has a Google client (see the
    README).
 2. **Set the vault's recordings folder** on the vaults screen (e.g.
-   `Manuel2 Recordings`), or `slipdock vault set GMinds --recordings-folder
-   "Manuel2 Recordings"`. The recordings are streamed through the vault
+   `Meeting Recordings`), or `slipdock vault set Notes --recordings-folder
+   "Meeting Recordings"`. The recordings are streamed through the vault
    owner's connection, for anyone who can read the page, and only files
    under that folder will play. `slipdock drive status` shows where you
    stand.
 
-If a recording won't play, the bar says why: Drive isn't connected,
-access was revoked, there's no recordings folder, or the file isn't on
-Drive.
+If a recording won't play, the bar says why: see
+[Why it won't play](#why-it-wont-play) below.
+
+#### Meeting transcripts: what Slipdock expects
+
+This is the contract for whatever records and transcribes your meetings: a
+recorder app, a script, a transcription service. Write a page like this and
+it plays. Nothing here is specific to one tool.
+
+**One Markdown page per meeting**, in this order:
+
+1. The summary, written however you like. Moments tagged while recording go
+   on one line, `Tags: #important (0:05) #action (12:40)` (each a `#tag` and
+   `m:ss`, or `h:mm:ss` from an hour). Each shows as a chip in the
+   transcript where it was pressed.
+2. `## Recording`, holding the line `[▶ Play recording and transcript](#recording)`.
+   Leave the whole section out when there is no audio.
+3. `## Transcript`, holding the transcript.
+
+**Front matter:**
+
+````markdown
+---
+title: "Weekly sync: budget"
+date: 2026-09-16T12:08:42+01:00
+type: meeting
+recording: "gdrive:Meeting Recordings/2026-09/2026-09-16 12.08.42 weekly-sync.m4a"
+recording_drive_id: 1AbCdEf…   # optional
+recording_duration: 3725.4     # optional, seconds
+participants: [Me, Alice]      # optional
+tags: [budget]                 # optional
+---
+````
+
+- `title`, `date` (ISO 8601 with its UTC offset) and `type: meeting`.
+- `recording: gdrive:<path>`, the audio's path **from the root of My
+  Drive**. If your uploader's "root" is really a subfolder (an rclone remote
+  with `root_folder_id`, say), put that folder's path in front.
+- `recording_drive_id` (the Drive file id) is only an optimisation: without
+  it Slipdock finds the file by its path. Add it once the upload has landed.
+- Don't write `code`, `slug`, `status` or `updated`: Slipdock owns them.
+- Quote any value that YAML would misread, such as a title with `:` or `#`.
+
+**The transcript** is the whole WebVTT file inside a fenced code block
+whose info string is `vtt`:
+
+````markdown
+## Transcript
+
+```vtt
+WEBVTT
+
+NOTE
+Transcribed automatically
+
+1
+00:00:01.500 --> 00:00:03.250
+<v Alice>Shall we start?
+
+2
+00:00:04.000 --> 00:00:06.000
+<v Bob>Yes.
+```
+````
+
+- Every cue needs its timing line (`start --> end`, `hh:mm:ss.mmm` or
+  `mm:ss.mmm`). The cue numbers are optional.
+- Speakers are `<v Name>` voice tags; a `Name: ` at the start of the text
+  works too. Cues in a row from one speaker read as one turn, and each
+  speaker keeps a colour. Without either, the lines are shown untitled, in
+  time order, and still play and highlight.
+- `NOTE` blocks are skipped. A transcript with no cue that has words shows
+  "No speech detected." when it says `NOTE No speech detected.`, and "No
+  transcript." otherwise.
+- Text in cues is shown as text, never HTML (`&amp;` and the like are
+  decoded).
+- If any line of the VTT starts with three backticks, fence the block with
+  four (or more), so it can't close early.
+
+**The audio** stays on Google Drive and is never uploaded to Slipdock, which
+streams it from Drive when someone presses play. It has to be audio
+(`audio/*`; an `.m4a` that Drive labels `video/mp4` is fine too) and inside
+the vault's recordings folder. Write MP4s with their index at the front
+("faststart", `moov` before `mdat`; `ffmpeg -movflags +faststart`), so
+playback starts and seeks without fetching the end of the file first.
+
+**How the page gets in**, either way:
+
+- **Through the vault's folder.** Write the `.md` file into a local folder
+  that `slipdock sync` keeps level with the vault (see
+  [Syncing a vault to a folder](#syncing-a-vault-to-a-folder)). It arrives
+  like any other note.
+- **Over the API**, with a write token:
+  `PUT /api/vaults/<vault>/sync/pages` with `{"path": "Meetings/2026-09-16
+  weekly-sync.md", "content": "<the whole file>"}`. The answer has the page's
+  `id` and `hash`. To add `recording_drive_id` later, `PUT
+  /api/vaults/<vault>/sync/pages/<id>` with the new content and `"base":
+  "<hash>"`. A `409` means the page changed meanwhile, and carries it as it
+  now stands: add your front-matter key to *that* content and send it again,
+  rather than overwriting it. Keep sends that failed in an outbox and retry
+  them later.
+
+**Old-style notes**, with a separate `.vtt` file or a play link of the
+recorder's own, are left exactly as they are, and don't get the player.
+
+#### Why it won't play
+
+The bar names the problem:
+
+| It says | Fix |
+| --- | --- |
+| Google Drive isn't set up on this server (`not_configured`) | The admin sets `GOOGLE_CLIENT_ID`/`SECRET` (README, *Google Drive*). |
+| Google Drive isn't connected (`not_connected`) | The vault owner connects Drive on **Account → Settings**. |
+| Drive access was revoked (`revoked`) | Connect again on **Account → Settings** (weekly, in Google's Testing mode). |
+| No recordings folder set (`no_folder`) | The vault owner sets it on the vaults screen, or `slipdock vault set V --recordings-folder PATH`. |
+| This page isn't in a vault (`no_vault`) | Map the page's board into a vault. |
+| Not in the vault's recordings folder (`outside_folder`) | Move the file under that folder, or fix the `recording:` path (from the root of My Drive). |
+| That file isn't audio (`not_audio`) | Point `recording:` at the audio, not a video or document. |
+| Recording not found on Drive (`not_found`) | The path or `recording_drive_id` is wrong, or the upload hasn't landed yet. |
 
 ### Encrypted notes
 
@@ -3948,9 +4095,9 @@ slipdock page file W-31 --folder "Design/Decisions"   # where it is kept; --no-f
 slipdock page ls qvm-v1-rem --folder decisions       # or --no-folder for the unfiled
 slipdock page file W-31 --also Ideas [--board B]   # also filed there too (or a /vault/path); --not-in F takes it out
 slipdock vault new Notes | slipdock vault ls      # board wikis laid out as one vault
-slipdock vault map Notes /Jobs --board jobs [--folder Notes]   # a vault path onto a wiki
-slipdock vault locate Notes /Jobs/Acme.md       # which mapping a path lands in (longest prefix)
-slipdock vault unmap Notes /Jobs | slipdock vault rm Notes      # the pages always stay
+slipdock vault map Notes /Projects --board projects [--folder Inbox]   # a vault path onto a wiki
+slipdock vault locate Notes /Projects/Acme.md       # which mapping a path lands in (longest prefix)
+slipdock vault unmap Notes /Projects | slipdock vault rm Notes      # the pages always stay
 slipdock vault resolve Notes X/Dup | slipdock vault wanted Notes   # links across the whole vault
 slipdock vault changes Notes [--since 812]     # what changed after a cursor: what sync polls
 slipdock page tags brain | slipdock page ls brain --note-tag area   # a vault's notes' own #tags

@@ -81,24 +81,29 @@ defmodule SlipdockCLI.PageMoveBoardTest do
 
   test "folder mv --board --contents --dry-run sends to_board and prints the report" do
     report =
-      ~s({"dry_run":true,"board":"hunt","report":{"into":"Job Hunt","folders":2,"pages":201,"files":3,
-        "per_folder":[{"path":"Jobs","pages":180},{"path":"Jobs/Acme","pages":21},{"path":"Jobs/Empty","pages":0}],
+      ~s({"dry_run":true,"board":"work","report":{"into":"Journal Desk","folders":2,"pages":201,"files":3,
+        "per_folder":[{"path":"Journal","pages":180},{"path":"Journal/Acme","pages":21},{"path":"Journal/Empty","pages":0}],
         "tags":{"carried":["ops"],"dropped":["kb"]},"fields":{"carried":[],"dropped":[]},
         "pins":{"carried":[],"dropped":[]},"assignees":{"carried":[],"dropped":["Sam"]},
         "left_behind":["Odd one"],"filing_dropped":2,"title_clashes":["Readme"]}})
 
     {method, path, body, out} =
-      run("folder", ["mv", "kb", "Jobs"], [board: "hunt", contents: true, dry_run: true], report)
+      run(
+        "folder",
+        ["mv", "kb", "Journal"],
+        [board: "work", contents: true, dry_run: true],
+        report
+      )
 
     assert method == "PATCH"
-    assert path =~ "/boards/kb/folders/Jobs"
-    assert body =~ ~s("to_board":"hunt")
+    assert path =~ "/boards/kb/folders/Journal"
+    assert body =~ ~s("to_board":"work")
     assert body =~ ~s("contents":true)
     assert body =~ ~s("dry_run":true)
-    assert out =~ "moving Jobs to hunt would move:"
+    assert out =~ "moving Journal to work would move:"
     assert out =~ "2 folder(s), 201 page(s), 3 file(s)"
-    assert out =~ "Jobs/Acme: 21"
-    refute out =~ "Jobs/Empty"
+    assert out =~ "Journal/Acme: 21"
+    refute out =~ "Journal/Empty"
     assert out =~ "drop tags: kb"
     assert out =~ "let go of assignees: Sam"
     assert out =~ "leave behind (under a page that stays): Odd one"
@@ -110,9 +115,9 @@ defmodule SlipdockCLI.PageMoveBoardTest do
     {method, _path, body, _out} =
       run(
         "folder",
-        ["mv", "kb", "Jobs"],
+        ["mv", "kb", "Journal"],
         [root: true],
-        ~s({"folder":{"id":1,"name":"Jobs","path":"Jobs"}})
+        ~s({"folder":{"id":1,"name":"Journal","path":"Journal"}})
       )
 
     assert method == "PATCH"

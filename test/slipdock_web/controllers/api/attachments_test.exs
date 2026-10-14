@@ -259,7 +259,7 @@ defmodule SlipdockWeb.API.AttachmentsTest do
       {:ok, _} =
         Slipdock.Settings.complete_setup(%{
           "admin_email" => "admin@example.com",
-          "transcription_server_url" => "https://manuel.example"
+          "transcription_server_url" => "https://transcribe.example"
         })
     end
 

@@ -3,7 +3,8 @@ defmodule Slipdock.Wiki.TranscriptTags do
   The moments a meeting's recording was tagged at, shown in its transcript
   (#785).
 
-  Manuel2 writes them into the summary as one line,
+  The tool that recorded the meeting writes them into the summary as one
+  line,
 
       Tags: #important (0:05) #action (0:10)
 

@@ -1,10 +1,10 @@
 defmodule Slipdock.Transcription do
   @moduledoc """
   Turns a recording attached to a card into text, on the transcription server
-  the admin names on the configuration page: a Manuel2 server, or anything
-  that answers its API (`docs/server-client-spec.md` in that project).
+  the admin names on the configuration page: any server that answers the
+  API described in docs/manual.md, *What a transcription server must speak*.
 
-  This is a "Level 1" client in that spec's terms:
+  This is the simplest client that API allows:
 
     * **Discovery first.** `GET /v1/status` before every job: a server on
       another major `api_version` is refused, and the `capabilities` it

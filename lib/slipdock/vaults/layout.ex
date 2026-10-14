@@ -320,7 +320,7 @@ defmodule Slipdock.Vaults.Layout do
   def join(a, b), do: a <> "/" <> b
 
   @doc """
-  Where a file at `path` (vault-relative, `Jobs/Acme/Call.md`) would go:
+  Where a file at `path` (vault-relative, `Projects/Acme/Call.md`) would go:
 
     * `{:parent, page_id}` — beside a page's `index.md`, so a child of it;
     * `{:folder, mapping, segments}` — under a mapping, in the folders named

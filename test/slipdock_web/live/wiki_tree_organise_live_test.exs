@@ -16,10 +16,10 @@ defmodule SlipdockWeb.WikiTreeOrganiseLiveTest do
 
   setup %{user: user} do
     kb = board_fixture(%{"name" => "KB", "code" => "kborg"}, owner: user)
-    jobs = board_fixture(%{"name" => "Job Hunt", "code" => "jobsorg"}, owner: user)
+    jobs = board_fixture(%{"name" => "Journal Desk", "code" => "jobsorg"}, owner: user)
     {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain"})
     {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Jobs", board: jobs})
+    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: jobs})
     {:ok, specs} = Wiki.create_folder(kb, %{"name" => "Specs"})
     {:ok, acme} = Wiki.create_folder(jobs, %{"name" => "Acme"})
     one = page_fixture(kb, %{"title" => "One"})
@@ -75,7 +75,7 @@ defmodule SlipdockWeb.WikiTreeOrganiseLiveTest do
       |> element("#tree-targets button[phx-value-target='folder:#{acme.id}']")
       |> render_click()
 
-    assert html =~ "Move “One” to Job Hunt?"
+    assert html =~ "Move “One” to Journal Desk?"
     assert has_element?(view, "#cross-move-losses", "Only here")
     assert Wiki.get_page!(one.id).board_id == kb.id
 
@@ -110,7 +110,7 @@ defmodule SlipdockWeb.WikiTreeOrganiseLiveTest do
         "before" => nil
       })
 
-    assert html =~ "Move “One” to Job Hunt?"
+    assert html =~ "Move “One” to Journal Desk?"
     view |> element("#cross-move-confirm") |> render_click()
     assert Repo.get!(Page, one.id).board_id == jobs.id
   end
@@ -128,12 +128,12 @@ defmodule SlipdockWeb.WikiTreeOrganiseLiveTest do
         "before" => nil
       })
 
-    assert html =~ "Move the folder “Specs” to Job Hunt?"
+    assert html =~ "Move the folder “Specs” to Journal Desk?"
     assert has_element?(view, "#cross-move-folders", "1 folder, 1 page")
     assert Wiki.get_folder(specs.id).board_id == kb.id
 
     html = view |> element("#cross-move-confirm") |> render_click()
-    assert html =~ "Moved 1 folder to Job Hunt."
+    assert html =~ "Moved 1 folder to Journal Desk."
     assert Wiki.get_folder(specs.id).board_id == jobs.id
     assert %{board_id: jid, folder_id: fid} = Repo.get!(Page, inside.id)
     assert {jid, fid} == {jobs.id, specs.id}
@@ -154,12 +154,12 @@ defmodule SlipdockWeb.WikiTreeOrganiseLiveTest do
       |> element("#tree-targets button[phx-value-target='folder:#{acme.id}']")
       |> render_click()
 
-    assert html =~ "Move 2 items to Job Hunt?"
+    assert html =~ "Move 2 items to Journal Desk?"
     assert has_element?(view, "#cross-move-folders", "1 folder, 2 pages")
     assert has_element?(view, "#cross-move-losses", "Only here")
 
     html = view |> element("#cross-move-confirm") |> render_click()
-    assert html =~ "Moved 1 folder and 1 page to Job Hunt."
+    assert html =~ "Moved 1 folder and 1 page to Journal Desk."
     assert Wiki.get_folder(specs.id).parent_id == acme.id
     assert Repo.get!(Page, two.id).folder_id == specs.id
     assert Repo.get!(Page, one.id).board_id == jobs.id
@@ -178,7 +178,7 @@ defmodule SlipdockWeb.WikiTreeOrganiseLiveTest do
         "before" => nil
       })
 
-    assert html =~ "can&#39;t move to Job Hunt: Job Hunt already has a folder named Specs"
+    assert html =~ "can&#39;t move to Journal Desk: Journal Desk already has a folder named Specs"
     refute has_element?(view, "#cross-move-confirm")
     assert Wiki.get_folder(specs.id).board_id == kb.id
   end

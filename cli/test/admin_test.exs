@@ -71,7 +71,7 @@ defmodule SlipdockCLI.AdminTest do
       String.replace(
         settings("null"),
         ~s("analytics":null),
-        ~s("analytics":null,"transcription_server":{"url":"https://manuel.example","token_set":true})
+        ~s("analytics":null,"transcription_server":{"url":"https://transcribe.example","token_set":true})
       )
 
     serve([{200, with_server}, {200, settings("null")}])
@@ -82,7 +82,7 @@ defmodule SlipdockCLI.AdminTest do
           "admin",
           [
             "set",
-            "transcription_server_url=https://manuel.example",
+            "transcription_server_url=https://transcribe.example",
             "transcription_server_token=k3y"
           ],
           []
@@ -92,11 +92,11 @@ defmodule SlipdockCLI.AdminTest do
     assert_received {:request, "PATCH", "/api/admin/settings", body}
 
     assert :json.decode(body) == %{
-             "transcription_server_url" => "https://manuel.example",
+             "transcription_server_url" => "https://transcribe.example",
              "transcription_server_token" => "k3y"
            }
 
-    assert output =~ "Transcription:    https://manuel.example (with a token)"
+    assert output =~ "Transcription:    https://transcribe.example (with a token)"
     refute output =~ "k3y"
 
     output = capture_io(fn -> Admin.run("admin", ["set", "transcription_server_url="], []) end)

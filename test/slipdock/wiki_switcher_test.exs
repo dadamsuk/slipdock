@@ -13,10 +13,10 @@ defmodule Slipdock.WikiSwitcherTest do
   setup do
     user = user_fixture()
     kb = board_fixture(%{"name" => "KB", "code" => "kbsw"}, owner: user)
-    jobs = board_fixture(%{"name" => "Job Hunt", "code" => "jobsw"}, owner: user)
+    jobs = board_fixture(%{"name" => "Journal Desk", "code" => "jobsw"}, owner: user)
     {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain"})
     {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Jobs", board: jobs})
+    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: jobs})
     {:ok, acme} = Wiki.create_folder(jobs, %{"name" => "Acme"})
     {:ok, call} = Wiki.create_page(jobs, %{"title" => "Call"}, user: user)
     {:ok, call} = Wiki.file_page(call, acme)
@@ -34,7 +34,7 @@ defmodule Slipdock.WikiSwitcherTest do
 
   describe "score/2" do
     test "the letters must come in order, case aside" do
-      assert Switcher.score("acl", "Jobs/Acme/Call")
+      assert Switcher.score("acl", "Journal/Acme/Call")
       assert Switcher.score("ACME", "acme")
       refute Switcher.score("lca", "Call")
       refute Switcher.score("x", "Call")
@@ -63,7 +63,9 @@ defmodule Slipdock.WikiSwitcherTest do
     test "spans the vault's boards, with vault paths", %{user: user, kb: kb, call: call} do
       pool = Switcher.pool(user, kb)
 
-      assert %{path: "Jobs/Acme/Call", board: "Job Hunt"} = Enum.find(pool, &(&1.id == call.id))
+      assert %{path: "Journal/Acme/Call", board: "Journal Desk"} =
+               Enum.find(pool, &(&1.id == call.id))
+
       assert %{path: "Rust ownership"} = Enum.find(pool, &(&1.title == "Rust ownership"))
     end
 
@@ -75,7 +77,7 @@ defmodule Slipdock.WikiSwitcherTest do
       assert [%{title: "Rust ownership", matched: {:alias, "Borrow checker"}}] =
                Switcher.search(pool, "borrow")
 
-      assert [%{title: "Call", matched: :path}] = Switcher.search(pool, "jobsacme")
+      assert [%{title: "Call", matched: :path}] = Switcher.search(pool, "journalacme")
       assert Switcher.search(pool, "zzz") == []
     end
 
@@ -121,7 +123,7 @@ defmodule Slipdock.WikiSwitcherTest do
       pool = Switcher.pool(reader, kb)
 
       refute Enum.any?(pool, &(&1.id == draft.id))
-      # Job Hunt is in the vault, but not theirs to open.
+      # Journal Desk is in the vault, but not theirs to open.
       refute Enum.any?(pool, &(&1.board_id == jobs.id))
     end
   end

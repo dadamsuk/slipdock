@@ -14,11 +14,11 @@ defmodule SlipdockWeb.WikiTreePreviewLiveTest do
   alias Slipdock.{Repo, Vaults, Wiki}
 
   setup %{user: user} do
-    kb = board_fixture(%{"name" => "KnowledgeBase", "code" => "kbpv"}, owner: user)
-    jobs = board_fixture(%{"name" => "Job Hunt", "code" => "jobspv"}, owner: user)
+    kb = board_fixture(%{"name" => "Keystone", "code" => "kbpv"}, owner: user)
+    jobs = board_fixture(%{"name" => "Journal Desk", "code" => "jobspv"}, owner: user)
     {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain"})
     {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Jobs", board: jobs})
+    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: jobs})
 
     body = """
     # Plans
@@ -88,7 +88,7 @@ defmodule SlipdockWeb.WikiTreePreviewLiveTest do
 
     reply = preview(view, "page:#{call.id}")
     assert reply.found
-    assert reply.board == "Job Hunt"
+    assert reply.board == "Journal Desk"
     assert reply.summary == "Acme, Tuesday"
   end
 

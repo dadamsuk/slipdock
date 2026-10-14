@@ -12,7 +12,7 @@ e2e_start
 # A page on the other board, to open from the vault's tree.
 mix run -e '
   hunt = Slipdock.Boards.get_board!('"$HUNT"')
-  {:ok, _} = Slipdock.Wiki.create_page(hunt, %{"title" => "Offer", "body" => "Start in May."})
+  {:ok, _} = Slipdock.Wiki.create_page(hunt, %{"title" => "Launch", "body" => "Start in May."})
 ' > /dev/null
 
 node tools/e2e/vault-view.mjs "$LINK" "$BASE"

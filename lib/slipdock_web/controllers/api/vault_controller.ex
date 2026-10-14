@@ -180,7 +180,7 @@ defmodule SlipdockWeb.API.VaultController do
   defp folder(board, ref), do: Wiki.find_folder(board, ref)
 
   @doc """
-  Takes a mapping out, by its id (`/mappings/12`) or its path (`?path=/Jobs`).
+  Takes a mapping out, by its id (`/mappings/12`) or its path (`?path=/Projects`).
   With `dry_run`, only says which pages would leave the vault and which
   would move to another path.
   """

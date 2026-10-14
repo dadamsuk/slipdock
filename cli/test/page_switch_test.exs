@@ -36,7 +36,7 @@ defmodule SlipdockCLI.PageSwitchTest do
       run(
         ["switch", "brain", "acme", "call"],
         [limit: 5],
-        ~s({"matches":[{"code":"W-7","title":"Call","path":"Jobs/Acme/Call","board":"Job Hunt","matched":"path"},
+        ~s({"matches":[{"code":"W-7","title":"Call","path":"Journal/Acme/Call","board":"Journal Desk","matched":"path"},
           {"code":"W-9","title":"Rust","path":"Rust","board":"KB","matched":"alias:Borrow checker"}]})
       )
 
@@ -44,7 +44,7 @@ defmodule SlipdockCLI.PageSwitchTest do
     assert path =~ "q=acme+call"
     assert path =~ "limit=5"
     assert out =~ "W-7"
-    assert out =~ "Jobs/Acme/Call · Job Hunt"
+    assert out =~ "Journal/Acme/Call · Journal Desk"
     assert out =~ "(alias Borrow checker)"
   end
 

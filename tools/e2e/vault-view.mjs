@@ -25,11 +25,11 @@ try {
   // The home page: the vault stands beside the boards.
   await page.goto(`${base}/`, { waitUntil: 'networkidle' })
   await page.waitForSelector('.phx-connected')
-  const tile = page.locator('#vaults a', { hasText: 'GMinds' }).first()
+  const tile = page.locator('#vaults a', { hasText: 'Notes' }).first()
   await tile.waitFor()
-  if (!(await tile.innerText()).includes('KnowledgeBase · Job Hunt')) fail('tile: ' + await tile.innerText())
+  if (!(await tile.innerText()).includes('Keystone · Journal Desk')) fail('tile: ' + await tile.innerText())
   await tile.click()
-  await page.waitForURL(/\/vaults\/GMinds$/)
+  await page.waitForURL(/\/vaults\/Notes$/)
   await page.waitForSelector('#vault-crumbs')
 
   // The vault's tree: open Specs, then the note in it.
@@ -49,22 +49,22 @@ try {
   const kept = () => page.evaluate(() => document.querySelector('[data-tree-rows]').__kept === true)
   await page.evaluate(() => { document.querySelector('[data-tree-rows]').__kept = true })
   await note.locator('a').click()
-  await page.waitForURL(/\/vaults\/GMinds\/Specs\/Acme%20call$/)
+  await page.waitForURL(/\/vaults\/Notes\/Specs\/Acme%20call$/)
   await page.getByText('Went well.').waitFor()
   if (!(await kept())) fail('the tree was drawn anew opening a page')
   const crumbs = await page.locator('#vault-crumbs').innerText()
-  if (!/GMinds[\s\S]*Specs[\s\S]*Acme call[\s\S]*on KnowledgeBase/.test(crumbs)) fail('crumbs: ' + crumbs)
+  if (!/Notes[\s\S]*Specs[\s\S]*Acme call[\s\S]*on Keystone/.test(crumbs)) fail('crumbs: ' + crumbs)
 
   // A page on the other board, from the same tree: still a patch.
-  const offer = page.locator('.wt-row', { hasText: 'Offer' }).first()
+  const offer = page.locator('.wt-row', { hasText: 'Launch' }).first()
   for (let i = 0; i < 3 && !(await offer.count()); i++) {
-    await page.locator('.wt-row', { hasText: 'Hunt' }).first().locator('[data-toggle]').click()
+    await page.locator('.wt-row', { hasText: 'Plans' }).first().locator('[data-toggle]').click()
     await page.waitForTimeout(700)
   }
   await offer.locator('a').click()
-  await page.waitForURL(/\/vaults\/GMinds\/Hunt\/Offer$/)
+  await page.waitForURL(/\/vaults\/Notes\/Plans\/Launch$/)
   await page.getByText('Start in May.').waitFor()
-  if (!/on Job Hunt/.test(await page.locator('#vault-crumbs').innerText())) fail('not on Job Hunt')
+  if (!/on Journal Desk/.test(await page.locator('#vault-crumbs').innerText())) fail('not on Journal Desk')
   if (!(await kept())) fail('the tree was drawn anew opening a page on another board')
   console.log('ok: pages open from the tree without drawing it anew, across boards too')
 

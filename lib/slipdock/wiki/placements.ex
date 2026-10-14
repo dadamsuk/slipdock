@@ -102,7 +102,7 @@ defmodule Slipdock.Wiki.Placements do
 
   @doc """
   The folder a vault path names, for a page on a board in a vault:
-  `"/Jobs/Notes"` is the folder `Notes` under whatever `/Jobs` is mapped to.
+  `"/Projects/Notes"` is the folder `Notes` under whatever `/Projects` is mapped to.
   With `create: true` the folders along it are made, as filing makes them.
   """
   def folder_at(%Page{} = page, "/" <> _ = path, opts \\ []) do

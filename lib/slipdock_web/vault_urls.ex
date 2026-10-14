@@ -1,6 +1,6 @@
 defmodule SlipdockWeb.VaultUrls do
   @moduledoc """
-  The vault view's addresses (#752): `/vaults/GMinds/Jobs/Interview Questions`,
+  The vault view's addresses (#752): `/vaults/Notes/Projects/Roadmap`,
   a vault's name and then the path of the file on disk without its `.md`
   (see `Slipdock.Vaults.addresses/1`), each segment escaped on its own.
   """

@@ -13,13 +13,13 @@ defmodule SlipdockWeb.HomeVaultsLiveTest do
   end
 
   test "a tile per vault: its boards, pages and synced folders", %{conn: conn, user: user} do
-    kb = board_fixture(%{"name" => "KnowledgeBase", "code" => "kbh"}, owner: user)
-    hunt = board_fixture(%{"name" => "Job Hunt", "code" => "hunth"}, owner: user)
+    kb = board_fixture(%{"name" => "Keystone", "code" => "kbh"}, owner: user)
+    hunt = board_fixture(%{"name" => "Journal Desk", "code" => "hunth"}, owner: user)
     {:ok, _} = Wiki.create_page(kb, %{"title" => "One"})
     {:ok, _} = Wiki.create_page(hunt, %{"title" => "Two"})
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "GMinds"})
+    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
     {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Jobs", board: hunt})
+    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: hunt})
     {_raw, token} = Accounts.create_api_token(user, "slipdock CLI on laptop")
     Vaults.touch_mirror(vault, token)
     {:ok, _empty} = Vaults.create_vault(user, %{"name" => "Empty"})
@@ -27,9 +27,9 @@ defmodule SlipdockWeb.HomeVaultsLiveTest do
     {:ok, view, _} = live(conn, ~p"/")
 
     tile = "#vault-tile-#{vault.id}"
-    assert has_element?(view, tile, "GMinds")
+    assert has_element?(view, tile, "Notes")
     assert has_element?(view, tile, "2 pages")
-    assert has_element?(view, tile, "KnowledgeBase · Job Hunt")
+    assert has_element?(view, tile, "Keystone · Journal Desk")
     assert has_element?(view, tile, "slipdock CLI on laptop")
     assert has_element?(view, "#vaults a", "No boards mapped yet")
   end
@@ -62,9 +62,9 @@ defmodule SlipdockWeb.HomeVaultsLiveTest do
 
   describe "a board kept inside its vault (#757)" do
     setup %{user: user} do
-      kb = board_fixture(%{"name" => "KnowledgeBase", "code" => "kbin"}, owner: user)
+      kb = board_fixture(%{"name" => "Keystone", "code" => "kbin"}, owner: user)
       plain = board_fixture(%{"name" => "Plain Board", "code" => "plainin"}, owner: user)
-      {:ok, vault} = Vaults.create_vault(user, %{"name" => "GMinds"})
+      {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
       {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb, inside: true})
       %{kb: kb, plain: plain, vault: vault}
     end
@@ -83,7 +83,7 @@ defmodule SlipdockWeb.HomeVaultsLiveTest do
       assert has_element?(
                view,
                "#{inside}[href='/boards/#{kb.id}']",
-               "pages stored on KnowledgeBase"
+               "pages stored on Keystone"
              )
 
       assert has_element?(view, inside, "1 card")
@@ -91,7 +91,7 @@ defmodule SlipdockWeb.HomeVaultsLiveTest do
 
     test "still reachable at its address", %{conn: conn, kb: kb} do
       assert {:ok, _view, html} = live(conn, ~p"/boards/#{kb}")
-      assert html =~ "KnowledgeBase"
+      assert html =~ "Keystone"
     end
 
     test "anyone it is shared with sees an ordinary board", %{kb: kb, user: owner} do
@@ -99,7 +99,7 @@ defmodule SlipdockWeb.HomeVaultsLiveTest do
       {:ok, _} = Slipdock.Access.grant(kb, member, "read", owner)
 
       {:ok, view, _} = live(conn_as(member), ~p"/")
-      assert has_element?(view, "#boards", "KnowledgeBase")
+      assert has_element?(view, "#boards", "Keystone")
       refute has_element?(view, "#vaults")
     end
 
@@ -107,12 +107,12 @@ defmodule SlipdockWeb.HomeVaultsLiveTest do
       %{conn: conn, kb: kb, vault: vault, user: user} = ctx
       {:ok, _} = Vaults.remove_mapping(vault, "/")
       {:ok, view, _} = live(conn, ~p"/")
-      assert has_element?(view, "#boards", "KnowledgeBase")
+      assert has_element?(view, "#boards", "Keystone")
 
       {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb, inside: true})
       {:ok, _} = Vaults.delete_vault(vault)
       {:ok, view, _} = live(conn, ~p"/")
-      assert has_element?(view, "#boards", "KnowledgeBase")
+      assert has_element?(view, "#boards", "Keystone")
     end
 
     test "a new vault can come with a board to hold its pages, kept inside", ctx do

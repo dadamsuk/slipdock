@@ -430,7 +430,8 @@ slipdock page file <page> --also F | --not-in F [--board B]   # also filed in mo
 slipdock page new <board> <title...> --folder F   # or file it as you write it
 ```
 
-Vaults lay several boards' wikis out as one Obsidian-style vault (a vault path → a board's wiki
+A vault is a folder tree of Markdown (and other) files (Obsidian's word; Obsidian isn't
+required). Vaults lay several boards' wikis out as one such tree (a vault path → a board's wiki
 or a folder of it, longest prefix winning; one vault per board):
 ```
 slipdock vault ls | slipdock vault show <vault> | slipdock vault new <name...>
@@ -446,11 +447,11 @@ vault with such a board at `/`.
 (each sync token's label and last sync); `--dry-run` on map/unmap previews which pages join,
 move or leave the vault before changing it. A mapping over pages another mapped board already
 has at those paths is refused with the count. The one-step way out:
-`slipdock vault split <vault> /Jobs --board B [--dry-run]` (or `--new-board NAME`) moves what is
-in that folder to B's top and maps `/Jobs` onto B; notes keep their vault paths, so synced
+`slipdock vault split <vault> /Projects --board B [--dry-run]` (or `--new-board NAME`) moves what is
+in that folder to B's top and maps `/Projects` onto B; notes keep their vault paths, so synced
 folders see no change. Dry-run first and show the person the report. People do the same on the web app's Vaults screen
 (`/vaults`, avatar menu › Vaults); each vault also has a view of its own, its pages
-at their vault paths (a vault's `url` in `--json`, e.g. `/vaults/GMinds/Jobs/Interview Questions`).
+at their vault paths (a vault's `url` in `--json`, e.g. `/vaults/Notes/Projects/Roadmap`).
 
 `slipdock sync` mirrors a vault both ways to a local folder that stays a valid Obsidian vault
 (notes as `.md`, other files at the same path; a delete archives; changed on both sides, the

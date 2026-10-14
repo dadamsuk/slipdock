@@ -15,10 +15,10 @@ defmodule Slipdock.WikiMoveTest do
   setup do
     user = user_fixture()
     kb = board_fixture(%{"name" => "KB", "code" => "kbmove"}, owner: user)
-    jobs = board_fixture(%{"name" => "Job Hunt", "code" => "jobsmove"}, owner: user)
+    jobs = board_fixture(%{"name" => "Journal Desk", "code" => "jobsmove"}, owner: user)
     {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain"})
     {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Jobs", board: jobs})
+    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: jobs})
     {:ok, acme} = Wiki.create_folder(jobs, %{"name" => "Acme"})
 
     {:ok, page} =
@@ -87,7 +87,7 @@ defmodule Slipdock.WikiMoveTest do
     [kb_col | _] = Slipdock.Boards.get_board!(kb.id).columns
     [jobs_col | _] = Slipdock.Boards.get_board!(jobs.id).columns
     here = card_fixture(kb_col, %{"title" => "KB card"})
-    there = card_fixture(jobs_col, %{"title" => "Jobs card"})
+    there = card_fixture(jobs_col, %{"title" => "Journal card"})
     Wiki.pin(page, {:card, here})
     Wiki.pin(page, {:card, there})
 
@@ -95,7 +95,7 @@ defmodule Slipdock.WikiMoveTest do
     assert report.pages == 1
     assert report.tags == %{carried: ["Ops"], dropped: ["KB only"]}
     assert report.fields == %{carried: ["Effort"], dropped: ["Mood"]}
-    assert report.pins == %{carried: ["Jobs card"], dropped: ["KB card"]}
+    assert report.pins == %{carried: ["Journal card"], dropped: ["KB card"]}
 
     {:ok, moved} = Move.to_board(page, jobs, nil, user)
 
