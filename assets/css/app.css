@@ -542,6 +542,26 @@ body.tl-tray-dragging { cursor: grabbing; }
    their own, so nothing here can reach out and win an argument with Tailwind. */
 .wiki-prose { line-height: 1.7; color: var(--color-base-content); overflow-wrap: break-word; }
 .wiki-prose > :first-child { margin-top: 0; }
+
+/* A transcript's player (assets/js/transcript_player.js, W-1690): a bar that
+   stays in view above the transcript, and the turn being spoken, the turns a
+   search found and the one it is on. */
+.transcript-player {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; flex-direction: column; gap: 0.4rem;
+  margin: 0.75rem 0; padding: 0.5rem 0.75rem;
+  border-radius: 0.75rem; border: 1px solid var(--color-base-300);
+  background: var(--color-base-100);
+  box-shadow: 0 1px 3px color-mix(in oklab, var(--color-base-content) 10%, transparent);
+  line-height: 1.4;
+}
+.transcript-player-row { display: flex; align-items: center; gap: 0.5rem; }
+.transcript-player-problem { margin: 0; }
+.wiki-transcript-turn { scroll-margin: 6rem 0; transition: background-color 150ms ease; }
+.transcript-seekable .wiki-transcript-turn { cursor: pointer; }
+.wiki-transcript-turn.is-match { background: color-mix(in oklab, var(--color-warning) 12%, transparent); }
+.wiki-transcript-turn.is-hit { outline: 2px solid color-mix(in oklab, var(--color-warning) 60%, transparent); }
+.wiki-transcript-turn.is-current { background: color-mix(in oklab, var(--color-primary) 14%, transparent); }
 .wiki-prose h1, .wiki-prose h2, .wiki-prose h3, .wiki-prose h4 {
   font-weight: 600;
   line-height: 1.25;

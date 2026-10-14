@@ -34,6 +34,7 @@ import {WikiFileOpen, WikiTreeCollapse, WikiTreeResize, WikiTreeView, WikiWidthT
 import {installMeld} from "./meld_view"
 import {MeldEditor} from "./meld_editor"
 import {ExcalidrawEditor} from "./excalidraw_editor"
+import {TranscriptPlayer} from "./transcript_player"
 
 const Hooks = {}
 Hooks.ModalDialog = ModalDialog
@@ -1264,6 +1265,7 @@ Hooks.WikiTreeResize = WikiTreeResize
 Hooks.WikiTreeView = WikiTreeView
 Hooks.WikiWidthToggle = WikiWidthToggle
 Hooks.WikiFileOpen = WikiFileOpen
+Hooks.TranscriptPlayer = TranscriptPlayer
 Hooks.MeldEditor = MeldEditor
 
 // The folder picker (see `SlipdockWeb.FolderPicker`): a tree of folders you can

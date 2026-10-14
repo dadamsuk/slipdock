@@ -154,6 +154,13 @@ defmodule SlipdockWeb.FileLiveTest do
     assert priya =~ ~s(data-start-ms="1000")
     assert priya =~ ~s(data-end-ms="5000")
     assert has_element?(view, "#file-transcript[data-transcript]")
+    # The player's search, with nothing to play (#780).
+    assert has_element?(
+             view,
+             "#file-transcript-player[phx-hook=TranscriptPlayer] #file-transcript"
+           )
+
+    refute has_element?(view, "#file-transcript-player[data-recording-src]")
     tom = view |> element(~s(#file-transcript li[data-speaker="Tom"])) |> render()
     assert tom =~ "1:05"
     assert tom =~ "Yes please."
