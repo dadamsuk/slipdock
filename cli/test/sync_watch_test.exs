@@ -259,6 +259,10 @@ defmodule SlipdockCLI.SyncWatchTest do
     # parses what install would register.
     @pwsh System.get_env("SLIPDOCK_PWSH") || System.find_executable("pwsh")
 
+    # Looked up again at run time: handing System.cmd the attribute itself is a
+    # type warning wherever it is nil, even though those tests are skipped.
+    defp pwsh, do: System.get_env("SLIPDOCK_PWSH") || System.find_executable("pwsh")
+
     @tag skip: if(@pwsh, do: false, else: "pwsh is not installed here")
     test "Windows: PowerShell runs the task's command with every argument intact" do
       dir = Path.join(System.tmp_dir!(), "svc-#{System.unique_integer([:positive])}")
@@ -278,7 +282,7 @@ defmodule SlipdockCLI.SyncWatchTest do
       root = Path.join(dir, "it's my vault")
       args = Service.win_task_args([fake, "/bin/slipdock", "sync", "--watch", root])
 
-      {_, code} = System.cmd(@pwsh, String.split(args, " ") -- ["-WindowStyle", "Hidden"])
+      {_, code} = System.cmd(pwsh(), String.split(args, " ") -- ["-WindowStyle", "Hidden"])
 
       # The sync's own status, so Task Scheduler sees it fail and restarts it.
       assert code == 3
@@ -299,7 +303,7 @@ defmodule SlipdockCLI.SyncWatchTest do
             "[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('#{Base.encode64(script)}')), " <>
             "[ref]$null, [ref]$e) | Out-Null; $e.Count"
 
-        assert {"0\n", 0} = System.cmd(@pwsh, ["-NoProfile", "-Command", check])
+        assert {"0\n", 0} = System.cmd(pwsh(), ["-NoProfile", "-Command", check])
       end
     end
 

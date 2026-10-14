@@ -97,3 +97,49 @@ jobs:
       - name: Test browser scripts
         if: matrix.partition == 1
         run: node --test 'assets/js/**/*.test.js'
+
+  # The CLI (cli/) is its own Mix project with its own suite. The Docker build
+  # only compiles it, so without this job nothing checks its formatting,
+  # warnings or tests (#798).
+  cli:
+    name: cli
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: cli
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        id: beam
+        with:
+          elixir-version: "1.20"
+          otp-version: "27"
+
+      # The CLI has no dependencies, so there is no mix.lock to key on: the
+      # compiled tree is keyed on mix.exs and the OTP/Elixir pair instead.
+      - uses: actions/cache@v4
+        with:
+          path: cli/_build
+          key: ${{ runner.os }}-cli-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('cli/mix.exs') }}
+          restore-keys: |
+            ${{ runner.os }}-cli-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
+
+      - run: mix deps.get
+
+      - name: Check formatting
+        run: mix format --check-formatted
+
+      - name: Compile without warnings
+        run: mix compile --warnings-as-errors
+
+      # The Windows service tests skip themselves without pwsh. ubuntu-latest
+      # ships it; fail here if that ever stops being true, rather than letting
+      # them quietly skip.
+      - name: PowerShell is installed
+        run: pwsh -NoProfile -Command '$PSVersionTable.PSVersion.ToString()'
+
+      - name: Test
+        run: mix test

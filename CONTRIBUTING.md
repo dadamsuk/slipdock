@@ -48,6 +48,11 @@ with the suite split four ways across runners, but it is quicker to find out
 here. The whole suite takes about two minutes locally; `mix test --stale` runs
 just the tests that depend on what you changed.
 
+The CLI (`cli/`) is a Mix project of its own with its own suite, which
+`mix precommit` does not touch: `cd cli && mix format && mix compile
+--warnings-as-errors && mix test`. CI runs those in a separate `cli` job, with
+PowerShell installed so the Windows service tests run rather than skip.
+
 Tests live in `test/slipdock` for the domain and `test/slipdock_web` for anything
 with a browser in it; LiveView tests drive the real page. Calls to a language
 model are answered by a stub (`test/support/ai_stub.ex`), so no test spends
