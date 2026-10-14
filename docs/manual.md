@@ -2855,11 +2855,13 @@ matter; edit that list and the page is filed accordingly. Images, PDFs,
 to 250 MB each, and `![[photo.png]]` draws them in the web app too.
 
 **Opening a file.** Click a file in the tree, or a `[[Report.pdf]]` link
-in a page, and it opens in a panel on the right of the wiki, the tree and
-the page you were reading staying where they were (on a phone it covers
-the page). The panel has Download, an arrow that opens the file on a page
-of its own (`/files/<id>`, also where Ctrl/Cmd-click and "open in a new
-tab" go), and an X; Escape closes it too. Images (PNG, JPEG, GIF, WebP,
+in a page, and it opens in the page's place, filling the wiki beside the
+tree (on a phone it covers the page); the address stays where it was. The
+file has Download, an arrow that opens it on a page of its own
+(`/files/<id>`, also where Ctrl/Cmd-click and "open in a new tab" go), and
+an X; Escape closes it too, and either brings back the page you were
+reading, a half-written edit included. Opening a page from the tree puts
+the file away. Images (PNG, JPEG, GIF, WebP,
 and SVG, which is shown so it can run nothing) are drawn; a PDF opens in
 the browser's own PDF viewer; an HTML file (`.html`, `.htm`) is drawn in a
 sandbox: its scripts don't run, its forms don't send and it fetches

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # End to end in a real browser (#762, #768): a wiki's files open from the
-# tree, or a page's [[link]], in a panel on the right of the wiki — a CSV
+# tree, or a page's [[link]], in the page's place beside the tree (#773) — a CSV
 # as a table, JSON as a folding tree, a PNG and an SVG drawn, a PDF in the
 # browser's PDF viewer, HTML in a sandbox whose scripts never run. LiveView tests can't tell
 # whether an image or a frame actually loads; this does.
