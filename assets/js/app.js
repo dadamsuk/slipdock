@@ -34,12 +34,14 @@ import {WikiFileOpen, WikiTreeCollapse, WikiTreeResize, WikiTreeView, WikiWidthT
 import {installMeld} from "./meld_view"
 import {MeldEditor} from "./meld_editor"
 import {ExcalidrawEditor} from "./excalidraw_editor"
+import {MarkdownEditor} from "./markdown_editor"
 import {TranscriptPlayer} from "./transcript_player"
 
 const Hooks = {}
 Hooks.ModalDialog = ModalDialog
 Hooks.Replay = Replay
 Hooks.ExcalidrawEditor = ExcalidrawEditor
+Hooks.MarkdownEditor = MarkdownEditor
 
 // Keeps the server's idea of the window width up to date, so views that
 // render something different on a phone (the calendar's agenda, the board's
@@ -471,9 +473,11 @@ Hooks.PasteImage = {
     this.textarea = this.el.querySelector("textarea")
     this.upload = this.el.dataset.upload
     this.placeholder = "![Uploading image…]()"
-    this.textarea.addEventListener("paste", e => this.take(e, e.clipboardData))
-    this.textarea.addEventListener("drop", e => this.take(e, e.dataTransfer))
-    this.textarea.addEventListener("dragover", e => {
+    // On the wrapper, and before anything inside it: the Markdown editor
+    // over the textarea would otherwise take a dropped image for text.
+    this.el.addEventListener("paste", e => this.take(e, e.clipboardData), true)
+    this.el.addEventListener("drop", e => this.take(e, e.dataTransfer), true)
+    this.el.addEventListener("dragover", e => {
       if (Array.from(e.dataTransfer?.items || []).some(i => i.kind === "file")) e.preventDefault()
     })
     this.handleEvent("image_uploaded", ({upload, markdown}) => {
@@ -489,6 +493,7 @@ Hooks.PasteImage = {
     const files = Array.from(data?.files || []).filter(f => f.type.startsWith("image/"))
     if (files.length === 0 || this.textarea.disabled) return
     e.preventDefault()
+    e.stopPropagation()
     files.forEach(() => this.insertAtCursor(this.placeholder + "\n"))
     this.uploadFiles(files)
   },
@@ -541,9 +546,11 @@ Hooks.Mention = {
     this.menu.className = "menu menu-sm fixed z-[100] hidden w-64 rounded-box border border-base-300 bg-base-100 p-1 shadow-lg"
     document.body.appendChild(this.menu)
     this.matches = []
+    // Clicks and focus on the wrapper, so they are heard from the Markdown
+    // editor over the textarea too; its edits arrive as the textarea's input.
     this.textarea.addEventListener("input", () => this.refresh())
-    this.textarea.addEventListener("click", () => this.refresh())
-    this.textarea.addEventListener("blur", () => setTimeout(() => this.close(), 150))
+    this.el.addEventListener("click", () => this.refresh())
+    this.el.addEventListener("focusout", () => setTimeout(() => this.close(), 150))
     // On the wrapper, so a key the list uses never reaches the textarea's
     // own bindings (Escape there stops editing the description).
     this.el.addEventListener("keydown", e => this.key(e), true)
@@ -585,8 +592,8 @@ Hooks.Mention = {
       li.appendChild(a)
       return li
     }))
-    const r = this.textarea.getBoundingClientRect()
-    this.menu.style.left = r.left + "px"
+    const r = this.textarea.markdownEditor?.caretRect() || this.textarea.getBoundingClientRect()
+    this.menu.style.left = Math.min(r.left, window.innerWidth - 264) + "px"
     this.menu.style.top = Math.min(r.bottom + 4, window.innerHeight - 280) + "px"
     this.menu.classList.remove("hidden")
   },

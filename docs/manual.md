@@ -2128,6 +2128,15 @@ wiki for them at `/boards/:id/wiki`, reachable from the view menu: Markdown
 pages in a tree of their own, with the board's permissions, the board's API
 and no second system to keep in step.
 
+**Writing.** A page's body, a card's description and the comment box are
+written in a Markdown editor with a live preview, the way Obsidian's is: a
+line shows formatted — headings, **bold**, links, lists, task boxes, tables,
+images — until the cursor is on it, and then shows its Markdown to edit.
+Enter carries a list or a quote on to the next line, Tab indents a list item
+(Escape, then Tab, leaves the editor), Ctrl-F finds in the text, and pasting
+or dropping an image attaches it as before. In a card's description, Escape
+finishes editing. What is saved is the Markdown, exactly as typed.
+
 A page has three names, and they do different jobs. Its **code** — `W-31` —
 is short, globally unique and stable across renames, so it is what belongs in
 a commit message or a link. Its **slug** comes off the title and is what the

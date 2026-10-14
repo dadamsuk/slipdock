@@ -200,19 +200,28 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
             phx-hook="Mention"
             data-people={@mention_people}
           >
-            <textarea
-              phx-target={@target}
-              id="card-description"
-              name={@form[:description].name}
-              phx-debounce="700"
-              phx-hook="AutoGrow"
-              phx-keydown="stop_editing_description"
-              phx-key="Escape"
-              autofocus
-              rows="3"
-              placeholder="Add more detail…"
-              class="textarea w-full resize-none text-sm leading-relaxed"
-            >{@form[:description].value}</textarea>
+            <%!-- The Markdown editor (MarkdownEditor) takes over the
+                  textarea, which stays the form's field; ignored by
+                  LiveView so a patch never resets it under the editor. --%>
+            <div
+              id={"card-description-editor-#{@card.id}"}
+              phx-hook="MarkdownEditor"
+              phx-update="ignore"
+              data-editor-class="md-editor-field"
+            >
+              <textarea
+                phx-target={@target}
+                id="card-description"
+                name={@form[:description].name}
+                phx-debounce="700"
+                phx-keydown="stop_editing_description"
+                phx-key="Escape"
+                autofocus
+                rows="3"
+                placeholder="Add more detail…"
+                class="textarea w-full resize-none text-sm leading-relaxed"
+              >{@form[:description].value}</textarea>
+            </div>
           </div>
           <.live_file_input upload={@uploads.desc_image} class="hidden" />
           <p class="text-2xs text-base-content/60">
