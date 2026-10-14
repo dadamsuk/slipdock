@@ -234,7 +234,7 @@ defmodule Slipdock.Wiki.Viewer do
   (`Slipdock.Meetings.Transcript`): a `<v Name>` voice tag or a `Name:`
   prefix names the speaker, other markup is dropped. Cues one after
   another from the same speaker are one turn,
-  `%{speaker: name | nil, start_ms: ms, lines: [text]}`; `speakers` are
+  `%{speaker: name | nil, start_ms: ms, end_ms: ms | nil, lines: [text]}`; `speakers` are
   the names in the order they first speak.
   """
   def transcript(text, name \\ "") do
@@ -259,7 +259,12 @@ defmodule Slipdock.Wiki.Viewer do
     lines
     |> Enum.chunk_by(& &1.speaker)
     |> Enum.map(fn [first | _] = run ->
-      %{speaker: first.speaker, start_ms: first.start_ms, lines: Enum.map(run, & &1.text)}
+      %{
+        speaker: first.speaker,
+        start_ms: first.start_ms,
+        end_ms: List.last(run).end_ms,
+        lines: Enum.map(run, & &1.text)
+      }
     end)
   end
 end

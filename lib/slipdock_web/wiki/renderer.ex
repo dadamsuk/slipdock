@@ -50,7 +50,10 @@ defmodule SlipdockWeb.Wiki.Renderer do
     add_tag_attributes: %{
       "input" => ["type", "checked", "disabled"],
       "a" => ["title"],
-      "span" => ["title", "role", "tabindex", "data-meld-block"]
+      "span" => ["title", "role", "tabindex", "data-meld-block"],
+      # A transcript's turns carry their times for the player (W-1690).
+      "article" => ["data-transcript"],
+      "li" => ["data-speaker", "data-start-ms", "data-end-ms"]
     },
     add_generic_attributes: ["id", "class"]
   ]
@@ -332,6 +335,11 @@ defmodule SlipdockWeb.Wiki.Renderer do
        when info in ["slipdock", "slipdock-query", "kanban", "kanban-query"] do
     [html_block(query_html(source, context))]
   end
+
+  # A fenced ```vtt block is a transcript (W-1690): a meeting page carries its
+  # WebVTT whole, and it reads as the conversation a .vtt file does.
+  defp expand_node(%MDEx.CodeBlock{info: "vtt", literal: source}, _context),
+    do: [html_block(SlipdockWeb.TranscriptView.block_html(source))]
 
   defp expand_node(%MDEx.Text{literal: text}, context), do: text_nodes(text, context)
 

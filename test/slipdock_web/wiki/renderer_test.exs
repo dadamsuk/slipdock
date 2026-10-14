@@ -451,4 +451,88 @@ defmodule SlipdockWeb.Wiki.RendererTest do
       assert Renderer.preview_paragraphs(nil) == []
     end
   end
+
+  describe "a ```vtt block" do
+    test "reads as the transcript, turns merged and timed for the player" do
+      html =
+        Renderer.to_html("""
+        Summary.
+
+        ```vtt
+        WEBVTT
+
+        NOTE
+        Transcribed by Manuel2
+
+        1
+        00:00:01.500 --> 00:00:03.250
+        <v Alice>Hello.
+
+        2
+        00:00:03.250 --> 00:00:04.000
+        <v Alice>Shall we?
+
+        3
+        00:01:05.000 --> 00:01:09.000
+        <v Bob>Yes.
+        ```
+        """)
+
+      doc = LazyHTML.from_fragment(html)
+
+      assert [_] =
+               doc |> LazyHTML.query("article.wiki-transcript[data-transcript]") |> Enum.to_list()
+
+      turns =
+        doc
+        |> LazyHTML.query("li.wiki-transcript-turn")
+        |> Enum.map(fn li ->
+          {LazyHTML.attribute(li, "data-speaker"), LazyHTML.attribute(li, "data-start-ms"),
+           LazyHTML.attribute(li, "data-end-ms"), LazyHTML.text(li)}
+        end)
+
+      assert [
+               {["Alice"], ["1500"], ["4000"], alice},
+               {["Bob"], ["65000"], ["69000"], bob}
+             ] = turns
+
+      assert alice =~ "Hello." and alice =~ "Shall we?" and alice =~ "0:01"
+      assert bob =~ "Yes." and bob =~ "1:05"
+      assert html =~ "1:09 · 2 speakers · 2 turns"
+      assert html =~ "border-sky-500"
+      refute html =~ "<pre"
+    end
+
+    test "markup in a cue is text, never HTML" do
+      html =
+        Renderer.to_html("""
+        ```vtt
+        WEBVTT
+
+        00:00:01.000 --> 00:00:02.000
+        <v Eve>&lt;script&gt;alert(1)&lt;/script&gt; &lt;img src=x onerror=alert(2)&gt;
+        ```
+        """)
+
+      refute html =~ "<script"
+      refute html =~ "<img"
+      assert html =~ "&lt;script&gt;alert(1)&lt;/script&gt;"
+      assert html =~ "&lt;img src=x onerror=alert(2)&gt;"
+    end
+
+    test "a recording nobody spoke in, and a block with no cues" do
+      assert Renderer.to_html("```vtt\nWEBVTT\n\nNOTE No speech detected.\n```\n") =~
+               ~s(<p class="wiki-transcript-empty text-sm italic text-base-content/50">No speech detected.</p>)
+
+      html = Renderer.to_html("```vtt\nnot a transcript\n```\n")
+      assert html =~ "No transcript."
+      refute html =~ "wiki-transcript-turn"
+    end
+
+    test "any other fenced block is left as code" do
+      html = Renderer.to_html("```text\nWEBVTT\n\n00:00:01.000 --> 00:00:02.000\nHi\n```\n")
+      assert html =~ "<pre"
+      refute html =~ "wiki-transcript"
+    end
+  end
 end
