@@ -22,8 +22,8 @@ defmodule Slipdock.GoogleTest do
     test "says where a person stands", %{user: user} do
       assert Google.configured?()
       assert Google.status(user) == :not_connected
-      connect!(user, email: "me@dsc.net")
-      assert Google.status(user) == {:connected, "me@dsc.net"}
+      connect!(user, email: "me@example.com")
+      assert Google.status(user) == {:connected, "me@example.com"}
     end
 
     test "a revoked connection says so", %{user: user} do
@@ -60,11 +60,11 @@ defmodule Slipdock.GoogleTest do
 
           "/drive/v3/about" ->
             assert Plug.Conn.get_req_header(conn, "authorization") == ["Bearer access-x"]
-            Req.Test.json(conn, %{"user" => %{"emailAddress" => "me@dsc.net"}})
+            Req.Test.json(conn, %{"user" => %{"emailAddress" => "me@example.com"}})
         end
       end)
 
-      assert {:ok, %Connection{email: "me@dsc.net"}} =
+      assert {:ok, %Connection{email: "me@example.com"}} =
                Google.connect(user, "the-code", "http://x")
 
       stored = Repo.get_by!(Connection, user_id: user.id)

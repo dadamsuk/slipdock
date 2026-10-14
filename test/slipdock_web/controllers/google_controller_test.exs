@@ -46,7 +46,7 @@ defmodule SlipdockWeb.GoogleControllerTest do
       stub(fn conn ->
         case conn.request_path do
           "/token" -> Req.Test.json(conn, %{"access_token" => "a", "refresh_token" => "r"})
-          "/drive/v3/about" -> Req.Test.json(conn, %{"user" => %{"emailAddress" => "me@dsc.net"}})
+          "/drive/v3/about" -> Req.Test.json(conn, %{"user" => %{"emailAddress" => "me@example.com"}})
         end
       end)
 
@@ -58,9 +58,9 @@ defmodule SlipdockWeb.GoogleControllerTest do
       assert redirected_to(conn) == "/account/settings#google-drive"
 
       assert Phoenix.Flash.get(conn.assigns.flash, :info) ==
-               "Google Drive connected as me@dsc.net."
+               "Google Drive connected as me@example.com."
 
-      assert Google.status(user) == {:connected, "me@dsc.net"}
+      assert Google.status(user) == {:connected, "me@example.com"}
       assert get_session(conn, "google_oauth_state") == nil
     end
 
@@ -122,9 +122,9 @@ defmodule SlipdockWeb.GoogleControllerTest do
     end
 
     test "shows who is connected, and offers to disconnect", %{conn: conn, user: user} do
-      connect!(user, email: "me@dsc.net")
+      connect!(user, email: "me@example.com")
       {:ok, view, _html} = live(conn, ~p"/account/settings")
-      assert has_element?(view, "#google-drive-status", "Connected as me@dsc.net")
+      assert has_element?(view, "#google-drive-status", "Connected as me@example.com")
       assert has_element?(view, "#google-drive-disconnect")
       refute has_element?(view, "#google-drive-connect")
     end
