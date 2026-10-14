@@ -512,8 +512,10 @@ Hooks.PasteImage = {
     const at = ta.value.indexOf(this.placeholder)
     if (at >= 0) {
       const keep = ta.selectionStart
-      ta.value = ta.value.slice(0, at) + markdown + ta.value.slice(at + this.placeholder.length)
-      const shift = markdown.length - this.placeholder.length
+      // An image that came to nothing takes the line it was given with it.
+      const gone = this.placeholder.length + (!markdown && ta.value[at + this.placeholder.length] === "\n" ? 1 : 0)
+      ta.value = ta.value.slice(0, at) + markdown + ta.value.slice(at + gone)
+      const shift = markdown.length - gone
       ta.selectionStart = ta.selectionEnd = keep > at ? keep + shift : keep
     } else if (markdown) {
       ta.value = ta.value.replace(/\s*$/, "") + (ta.value.trim() ? "\n" : "") + markdown + "\n"

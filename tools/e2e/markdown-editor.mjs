@@ -3,6 +3,8 @@
 //
 //   node tools/e2e/markdown-editor.mjs <login-url> <base-url> <board-id> <card-id>
 import { createRequire } from 'node:module'
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 
 const require = createRequire(import.meta.url)
 const searchPaths = (process.env.NODE_PATH || '').split(':').filter(Boolean)
@@ -42,6 +44,24 @@ async function shot(name) {
     await page.screenshot({ path: `${process.env.SHOTS}/${name}-${theme}.png` })
   }
   await page.evaluate(() => document.documentElement.removeAttribute('data-theme'))
+}
+
+// Dropping an image from the desktop, as the desktop does it: trusted drag
+// events from Chrome itself, carrying a real file (by default a screenshot
+// written here) — a DragEvent made in the page is not the same thing.
+async function dropImage(selector, file) {
+  const box = await page.locator(selector).boundingBox()
+  const x = box.x + 40
+  const y = box.y + 12
+  if (!file) {
+    file = `${mkdtempSync(`${tmpdir()}/md-drop-`)}/Screenshot 2026-10-14 at 19.20.00.png`
+    await page.screenshot({ path: file })
+  }
+  const cdp = await page.context().newCDPSession(page)
+  const data = { items: [], files: [file], dragOperationsMask: 1 }
+  for (const type of ['dragEnter', 'dragOver', 'drop']) {
+    await cdp.send('Input.dispatchDragEvent', { type, x, y, data })
+  }
 }
 
 const lineText = (scope, n) => page.locator(`${scope} .cm-line`).nth(n).innerText()
@@ -89,6 +109,31 @@ try {
   const editorText = await page.evaluate(() => document.getElementById('page_body').markdownEditor.view.state.doc.toString())
   if (!editorText.includes('/attachments/')) fail('the uploaded image never reached the editor')
   console.log('ok: a pasted image is uploaded and linked in the editor')
+
+  // Dropping one does the same.
+  const before = (await page.locator('#page_body').inputValue()).split('/attachments/').length
+  await dropImage(`${body} .cm-content`)
+  await page.waitForFunction((n) => {
+    const v = document.getElementById('page_body').value
+    return v.split('/attachments/').length > n && !v.includes('Uploading')
+  }, before, { timeout: 15000 }).catch(async () =>
+    fail(`a dropped image was not uploaded: ${JSON.stringify(await page.locator('#page_body').inputValue())}`))
+  const inEditor = await page.evaluate(() => document.getElementById('page_body').markdownEditor.view.state.doc.toString())
+  if (inEditor !== (await page.locator('#page_body').inputValue())) fail('the editor and the textarea disagree after a drop')
+  console.log('ok: a dropped image is uploaded and linked in the editor')
+
+  // One the upload refuses (over 10 MB) is taken out again with a reason,
+  // and doesn't stop the page saving — LiveView won't submit a form that
+  // still holds an upload error.
+  const big = `${mkdtempSync(`${tmpdir()}/md-drop-`)}/holiday photo.png`
+  writeFileSync(big, Buffer.concat([Buffer.from(PNG, 'base64'), Buffer.alloc(11_000_000)]))
+  const kept = await page.locator('#page_body').inputValue()
+  await dropImage(`${body} .cm-content`, big)
+  await page.getByText('holiday photo.png is too large').first()
+    .waitFor({ timeout: 10000 }).catch(() => fail('no message for an image that is too large'))
+  await page.waitForFunction((v) => document.getElementById('page_body').value === v, kept, { timeout: 5000 })
+    .catch(async () => fail(`the refused image left its placeholder: ${JSON.stringify(await page.locator('#page_body').inputValue())}`))
+  console.log('ok: a dropped image that is too large is refused with a reason, placeholder and all')
 
   await page.locator('#page-form button[type=submit]', { hasText: 'Save' }).first().click()
   await page.waitForURL(/\/wiki\/acme-call$/)
