@@ -448,7 +448,7 @@ defmodule SlipdockWeb.WikiLive.Index do
 
     socket =
       socket
-      |> assign(live_action: action, folder: nil, tree_drawer: false)
+      |> assign(live_action: action, folder: nil, tree_drawer: false, file_shown: nil)
       |> apply_action(action, Map.merge(%{"id" => to_string(board.id)}, extra))
 
     # Opened by id from a board's wiki: settle on the address itself.
@@ -464,11 +464,11 @@ defmodule SlipdockWeb.WikiLive.Index do
   defp show_params(socket, params) do
     # `folder` is the index's own state; every other action clears it rather
     # than inheriting the last one looked at.
-    # Opening something from the drawer shuts it: the page is what was asked
-    # for.
+    # Opening something from the drawer shuts it, and puts away a file shown
+    # in the page's place (#773): the page is what was asked for.
     socket =
       apply_action(
-        assign(socket, folder: nil, tree_drawer: false),
+        assign(socket, folder: nil, tree_drawer: false, file_shown: nil),
         socket.assigns.live_action,
         params
       )
@@ -1964,8 +1964,8 @@ defmodule SlipdockWeb.WikiLive.Index do
   def handle_event("close_tree_drawer", _params, socket),
     do: {:noreply, assign(socket, tree_drawer: false)}
 
-  # A file clicked in the tree or in a page opens in a panel on the right,
-  # the tree and the page staying where they were (#768). The WikiFileOpen
+  # A file clicked in the tree or in a page opens in the page's place, beside
+  # the tree (#768, #773); X or Escape brings the page back. The WikiFileOpen
   # hook sends it; the link itself still goes to `/files/:id` for a new tab.
   def handle_event("open_file", %{"id" => id}, socket) do
     case SlipdockWeb.FileViewer.load(socket.assigns.current_user, id) do
@@ -3771,11 +3771,17 @@ defmodule SlipdockWeb.WikiLive.Index do
           <%!-- A page is opened in place (a patch), so the tree stays as it was
                 rather than being rebuilt and sent again; ScrollTopOnPage puts
                 this column back at the top when the page changes. --%>
+          <%!-- Hidden rather than taken away while a file is shown in its
+                place (#773), so a half-written edit is still there when
+                the file is put away. --%>
           <main
             id="wiki-main"
             phx-hook="ScrollTopOnPage"
             data-page={"#{@live_action}:#{@page && @page.id}"}
-            class="kanban-scroll relative min-w-0 flex-1 overflow-y-auto"
+            class={[
+              "kanban-scroll relative min-w-0 flex-1 overflow-y-auto",
+              @file_shown && "hidden"
+            ]}
           >
             <%!-- Reading keeps a comfortable measure, unless the reader asked
                   for the full width (#748, `#wiki-column` in app.css);
@@ -3929,9 +3935,10 @@ defmodule SlipdockWeb.WikiLive.Index do
 
   attr :shown, :map, required: true
 
-  # A file beside the page (#768): on a wide screen a pane on the right of
-  # it, on a phone over it. Escape or the X puts it away; the arrow opens it
-  # on a page of its own, which is also where a new tab goes.
+  # A file in the page's place (#768, #773): on a wide screen the whole of
+  # the wiki beside the tree, on a phone over it. Escape or the X puts it
+  # away and the page comes back; the arrow opens it on a page of its own,
+  # which is also where a new tab goes.
   defp file_panel(assigns) do
     ~H"""
     <aside
@@ -3940,7 +3947,7 @@ defmodule SlipdockWeb.WikiLive.Index do
       aria-label={@shown.file.name}
       phx-window-keydown="close_file"
       phx-key="Escape"
-      class="fixed inset-0 z-40 flex min-h-0 flex-col bg-base-100 lg:static lg:z-auto lg:w-[38%] lg:max-w-3xl lg:shrink-0 lg:border-l lg:border-base-300"
+      class="fixed inset-0 z-40 flex min-h-0 flex-col bg-base-100 lg:static lg:z-auto lg:min-w-0 lg:flex-1"
     >
       <div class="flex items-center gap-2 border-b border-base-300 px-3 py-2">
         <.icon name="hero-paper-clip" class="size-4 shrink-0 text-base-content/50" />

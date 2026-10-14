@@ -1,8 +1,9 @@
 defmodule SlipdockWeb.WikiFilePanelLiveTest do
   @moduledoc """
-  #768: a wiki file opened from the tree or a page shows in a panel on the
-  right of the wiki, the tree and the page staying put, rather than taking
-  the whole page. The WikiFileOpen hook sends `open_file`.
+  #768, #773: a wiki file opened from the tree or a page shows in the page's
+  place beside the tree — two columns, not a third beside the page — and
+  putting it away brings the page back. The WikiFileOpen hook sends
+  `open_file`.
   """
   use SlipdockWeb.ConnCase, async: true
 
@@ -27,7 +28,7 @@ defmodule SlipdockWeb.WikiFilePanelLiveTest do
   defp open_file(view, id),
     do: view |> element("#wiki-shell") |> render_hook("open_file", %{"id" => to_string(id)})
 
-  test "a file opens beside the page, which stays where it was",
+  test "a file opens in the page's place, the tree staying beside it",
        %{conn: conn, board: board, page: page} do
     file = stored(board, "sales.csv", "region,total\nNorth,3\n")
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}")
@@ -41,9 +42,42 @@ defmodule SlipdockWeb.WikiFilePanelLiveTest do
     assert has_element?(view, "#wiki-file-panel #file-table")
     assert has_element?(view, ~s(#wiki-file-download[href="#{Files.url(file)}"]))
     assert has_element?(view, ~s(#wiki-file-full[href="/files/#{file.id}"][data-own-page]))
-    # The page and the tree are still there.
-    assert view |> element("#wiki-main") |> render() =~ "See it."
+    # The tree stays; the page is hidden, not thrown away.
     assert has_element?(view, "#wiki-tree")
+    assert has_element?(view, "#wiki-main.hidden")
+    assert view |> element("#wiki-main") |> render() =~ "See it."
+    # It fills the width the page had rather than a slice beside it.
+    assert panel =~ "lg:flex-1"
+    refute panel =~ "lg:w-["
+  end
+
+  test "putting the file away brings the page back", %{conn: conn, board: board, page: page} do
+    file = stored(board, "notes.txt", "x")
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}")
+    refute has_element?(view, "#wiki-main.hidden")
+
+    open_file(view, file.id)
+    view |> element("#wiki-file-close") |> render_click()
+
+    refute has_element?(view, "#wiki-file-panel")
+    refute has_element?(view, "#wiki-main.hidden")
+    assert view |> element("#wiki-main") |> render() =~ "See it."
+  end
+
+  test "a half-written edit survives a file being looked at", %{
+    conn: conn,
+    board: board,
+    page: page
+  } do
+    file = stored(board, "notes.txt", "x")
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}/edit")
+    view |> form("#page-form", page: %{body: "Unsaved words"}) |> render_change()
+
+    open_file(view, file.id)
+    assert has_element?(view, "#wiki-main.hidden")
+    view |> element("#wiki-file-panel") |> render_keydown(%{"key" => "Escape"})
+
+    assert view |> element("#wiki-main") |> render() =~ "Unsaved words"
   end
 
   test "an HTML file shows in a sandboxed frame in the panel", %{conn: conn, board: board} do
@@ -79,16 +113,22 @@ defmodule SlipdockWeb.WikiFilePanelLiveTest do
     refute panel =~ "first"
   end
 
-  test "the panel stays open while another page is read", %{conn: conn, board: board, page: page} do
+  test "opening a page from the tree puts the file away and shows the page",
+       %{conn: conn, board: board, page: page} do
     other = page_fixture(board, %{"title" => "Other", "body" => "Elsewhere."})
     file = stored(board, "notes.txt", "kept")
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}")
+
     open_file(view, file.id)
-
     render_patch(view, ~p"/boards/#{board}/wiki/#{other.slug}")
-
+    refute has_element?(view, "#wiki-file-panel")
+    refute has_element?(view, "#wiki-main.hidden")
     assert view |> element("#wiki-main") |> render() =~ "Elsewhere."
-    assert view |> element("#wiki-file-panel") |> render() =~ "kept"
+
+    # The page that was open is shown again too, not the file left over.
+    open_file(view, file.id)
+    render_patch(view, ~p"/boards/#{board}/wiki/#{other.slug}")
+    refute has_element?(view, "#wiki-file-panel")
   end
 
   test "the X and Escape put it away", %{conn: conn, board: board} do

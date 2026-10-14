@@ -1,5 +1,6 @@
 // The browser half of tools/e2e/file-viewer.sh (#762, #768): open each file
-// from the board's tree and check it shows in the panel beside the page.
+// from the board's tree and check it shows in the page's place, beside the
+// tree: two columns, not a third (#773).
 //
 //   node tools/e2e/file-viewer.mjs <login-url> <base-url> <board-id>
 import { createRequire } from 'node:module'
@@ -19,8 +20,8 @@ const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
 const dialogs = []
 page.on('dialog', (d) => { dialogs.push(d.message()); d.dismiss() })
 
-// From the tree, click a file's row: it opens in the panel on the right,
-// and the wiki (its address, its tree, its page) stays where it was.
+// From the tree, click a file's row: it opens in the page's place, filling
+// the width beside the tree, and the address and the tree stay put.
 async function open(name) {
   await page.goto(`${base}/boards/${kb}/wiki`, { waitUntil: 'networkidle' })
   await page.waitForSelector('.phx-connected')
@@ -30,9 +31,12 @@ async function open(name) {
   await page.locator('#wiki-file-panel h2', { hasText: name }).waitFor()
   if (!page.url().endsWith(`/boards/${kb}/wiki`)) fail('the address moved: ' + page.url())
   if (!(await page.locator('#wiki-tree').isVisible())) fail('the tree went away')
+  if (await page.locator('#wiki-main').isVisible()) fail('the page is still showing beside the file')
   const panel = await page.locator('#wiki-file-panel').boundingBox()
-  const main = await page.locator('#wiki-main').boundingBox()
-  if (!(panel.x >= main.x + main.width - 1)) fail('the panel is not on the right of the page')
+  const tree = await page.locator('#wiki-tree').boundingBox()
+  if (!(panel.x >= tree.x + tree.width - 1)) fail('the file is not beside the tree')
+  const width = page.viewportSize().width
+  if (Math.abs(panel.x + panel.width - width) > 20) fail(`the file does not reach the edge: ${panel.x + panel.width} of ${width}`)
 }
 
 try {
@@ -79,20 +83,26 @@ try {
   await page.keyboard.press('Escape')
   await page.locator('#wiki-file-panel').waitFor({ state: 'detached' })
 
-  // A page's [[link]] to a file opens it beside the page too.
+  // A page's [[link]] to a file opens it in the page's place too; X brings
+  // the page back.
   await page.goto(`${base}/boards/${kb}/wiki/files-home`, { waitUntil: 'networkidle' })
   await page.waitForSelector('.phx-connected')
   await page.locator('#wiki-body a.wiki-file-link', { hasText: 'people.csv' }).click()
   await page.locator('#wiki-file-panel #file-table').waitFor()
-  if (!(await page.locator('#wiki-body').innerText()).includes('The data')) fail('the page went away')
+  if (await page.locator('#wiki-body').isVisible()) fail('the page is still showing beside the file')
   await page.screenshot({ path: process.env.SHOT || '/tmp/file-viewer-panel.png' })
+  await page.locator('#wiki-file-close').click()
+  await page.locator('#wiki-file-panel').waitFor({ state: 'detached' })
+  if (!(await page.locator('#wiki-body').innerText()).includes('The data')) fail('the page did not come back')
+  await page.locator('#wiki-body a.wiki-file-link', { hasText: 'people.csv' }).click()
+  await page.locator('#wiki-file-panel #file-table').waitFor()
 
   // The arrow still opens it on a page of its own.
   await Promise.all([page.waitForURL(/\/files\/\d+$/), page.locator('#wiki-file-full').click()])
   await page.waitForSelector('#file-viewer #file-table')
 
   if (dialogs.length) fail('a script ran: ' + dialogs.join(', '))
-  console.log('ok: beside the page — csv table, json tree, png, svg, pdf, download, sandboxed html; a page link; the page of its own')
+  console.log('ok: in the page\'s place — csv table, json tree, png, svg, pdf, download, sandboxed html; a page link; the page of its own')
 } catch (e) {
   await page.screenshot({ path: '/tmp/file-viewer-fail.png' }).catch(() => {})
   fail(e.message)
