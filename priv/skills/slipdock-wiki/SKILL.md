@@ -210,6 +210,19 @@ nested `#area/sub`) are its own tags, apart from the board's card tags:
 `slipdock page tags <board>` counts them, `slipdock page ls <board> --note-tag
 area` lists the notes under one. `#412` is still a card.
 
+**Meeting pages.** A recorded meeting is one note: the summary, a
+`## Recording` section holding `[▶ Play recording and transcript](#recording)`,
+and the whole WebVTT under `## Transcript` in a ```` ```vtt ```` fence (four
+backticks if the transcript has a line starting with ```` ``` ````). Its front
+matter says where the audio is: `recording: gdrive:<path from My Drive>`, plus
+`recording_drive_id` and `recording_duration` when known, and
+`type: meeting`. The audio stays on Google Drive. The web app plays it in step
+with the transcript once the vault owner has connected Drive and set the
+vault's recordings folder (`slipdock vault set V --recordings-folder PATH`;
+`slipdock drive status` shows both). Don't upload the audio, and don't write
+a separate `.vtt` file. To add `recording_drive_id` later, change only that
+key. Old notes with `manuel2://play` links are left as they are.
+
 **Deleting a folder never deletes writing.** Its subfolders move up to its
 parent and its pages go back to the board's root.
 

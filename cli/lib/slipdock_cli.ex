@@ -313,6 +313,13 @@ defmodule SlipdockCLI do
                                         inside the vault
     vault rename <vault> <name...>
     vault rm <vault>                    its mappings go; every page stays on its board
+    vault set <vault> --recordings-folder PATH
+                                        the folder on your Google Drive its meeting
+                                        recordings are in ("" clears it); a page whose
+                                        front matter says recording: gdrive:<path> plays
+                                        it beside its transcript
+    drive status                        your Google Drive connection, and each vault's
+                                        recordings folder
     vault map <vault> <path> --board B [--folder F] [--inside] [--dry-run]
                                         put a vault path ("/", "/Jobs") onto a board's wiki;
                                         --dry-run lists the pages it brings in and takes over;
@@ -739,6 +746,7 @@ defmodule SlipdockCLI do
     new_board: :string,
     inside: :boolean,
     with_board: :boolean,
+    recordings_folder: :string,
     append: :string,
     card: :string,
     page: :string,

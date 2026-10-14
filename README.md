@@ -98,7 +98,9 @@ Briefly, with the detail in [the manual](docs/manual.md):
   folders, and [`slipdock sync`](docs/manual.md#syncing-a-vault-to-a-folder)
   to mirror it both ways to a folder on each computer, Obsidian included, after
   a one-time [import](docs/manual.md#importing-an-obsidian-vault) of the vault you have,
-  Excalidraw [drawings](docs/manual.md#drawings) drawn in the page, and
+  Excalidraw [drawings](docs/manual.md#drawings) drawn in the page,
+  [meeting pages](docs/manual.md#meeting-recordings-from-google-drive) that play
+  their recording from Google Drive in step with the transcript, and
   [encrypted notes](docs/manual.md#encrypted-notes) in Meld Encrypt's format, encrypted and
   decrypted in your browser or the CLI so the server never sees them. Plus a
   [Narrative view](docs/manual.md#narrative) that tells you what happened to a
@@ -523,6 +525,37 @@ ignored, because it is. Change it in the app instead.
 Two exceptions, which are overrides rather than seeds and win every time:
 `SLIPDOCK_LOGIN_FALLBACK=false`, so a public host can forbid writing sign-in
 codes to a file whatever the settings say, and `SLIPDOCK_AGENTIC_LOGIN`.
+
+### Google Drive, for meeting recordings
+
+A meeting page can play its recording straight from the owner's Google
+Drive, in step with its transcript
+([manual](docs/manual.md#meeting-recordings-from-google-drive)). Nothing is
+copied to the server. Each person connects their own Drive, read-only, through
+an OAuth client you make once:
+
+1. In Google Cloud, create an **OAuth client ID** of type *Web application*,
+   with the redirect URI `https://<your host>/account/google/callback`. Enable
+   the **Google Drive API** for the project. On a Google Workspace, make the
+   consent screen **Internal**: it then needs no Google verification, and its
+   refresh tokens don't expire.
+2. Give the server its id and secret:
+
+   ```sh
+   GOOGLE_CLIENT_ID=1234-abc.apps.googleusercontent.com
+   GOOGLE_CLIENT_SECRET=GOCSPX-…
+   ```
+
+   Unlike the settings above, these are read on every start. Unset, the Drive
+   connection isn't offered at all.
+3. People connect Drive on **Account → Settings**, and set each vault's
+   recordings folder on the vaults screen (or `slipdock vault set V
+   --recordings-folder PATH`).
+
+The scope is `drive.readonly`. Tokens are stored encrypted with a key derived
+from `SECRET_KEY_BASE`, so changing that key means everyone connects again. A
+vault's recordings are served through its owner's connection to anyone who can
+read the page, and only files under its recordings folder are served.
 
 ### From a checkout
 

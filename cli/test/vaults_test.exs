@@ -160,4 +160,65 @@ defmodule SlipdockCLI.VaultsTest do
     assert out =~ "resync"
     assert out =~ "cursor 900"
   end
+
+  describe "recordings on Google Drive (W-1690)" do
+    test "vault set --recordings-folder sends the folder" do
+      response =
+        ~s({"vault":{"id":3,"name":"Notes","mappings":[],"recordings_folder":"Manuel2 Recordings"}})
+
+      {"PATCH", path, body, out} =
+        run(["set", "Notes"], [recordings_folder: "Manuel2 Recordings"], response)
+
+      assert path =~ "/api/vaults/Notes"
+      assert body =~ ~s("recordings_folder":"Manuel2 Recordings")
+      assert out =~ "Notes plays its recordings from Manuel2 Recordings on Google Drive"
+    end
+
+    test "vault set with an empty folder clears it" do
+      response = ~s({"vault":{"id":3,"name":"Notes","mappings":[],"recordings_folder":null}})
+      {"PATCH", _path, body, out} = run(["set", "Notes"], [recordings_folder: ""], response)
+      assert body =~ ~s("recordings_folder":"")
+      assert out =~ "Notes has no recordings folder now"
+    end
+
+    test "show names the recordings folder" do
+      response = ~s({"vault":{"id":3,"name":"Notes","mappings":[],"recordings_folder":"Rec"}})
+      {"GET", _, _, out} = run(["show", "Notes"], [], response)
+      assert out =~ "recordings: Rec on Google Drive"
+    end
+
+    test "drive status, connected" do
+      System.put_env(
+        "SLIPDOCK_URL",
+        FakeServer.start([
+          {200,
+           ~s({"drive":{"status":"connected","email":"me@example.com"},"vaults":[{"id":3,"name":"Notes","recordings_folder":"Rec"},{"id":4,"name":"Other","recordings_folder":null}]})}
+        ])
+      )
+
+      out = capture_io(fn -> Vaults.run("drive", ["status"], []) end)
+      assert_received {:request, "GET", path, _}
+      assert path =~ "/api/me/drive"
+      assert out =~ "Google Drive: connected as me@example.com"
+      assert out =~ "Notes: Rec"
+      assert out =~ "Other: no recordings folder"
+    end
+
+    test "drive status, not connected and not set up" do
+      for {status, words} <- [
+            {"not_connected", "not connected — connect it on Account → Settings"},
+            {"revoked", "no longer accepted by Google"},
+            {"not_configured", "not set up on this server"}
+          ] do
+        System.put_env(
+          "SLIPDOCK_URL",
+          FakeServer.start([{200, ~s({"drive":{"status":"#{status}","email":null},"vaults":[]})}])
+        )
+
+        out = capture_io(fn -> Vaults.run("drive", [], []) end)
+        assert_received {:request, "GET", _, _}
+        assert out =~ words
+      end
+    end
+  end
 end

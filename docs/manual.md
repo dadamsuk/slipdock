@@ -2967,6 +2967,42 @@ adopting: a file deleted since comes back down, and one whose page was
 archived goes up again. Once a pass has come through without an error the
 import record is spent and removed.
 
+### Meeting recordings from Google Drive
+
+A recorded meeting can be one page: the summary, a `## Recording`
+section, and the transcript in a ```` ```vtt ```` block under
+`## Transcript` (the format is in the agents guide, *Meeting pages*, and on
+the wiki at W-1690). The recording stays on Google Drive and is never
+copied here. The page names it in its front matter, as
+`recording: gdrive:<path from My Drive>`.
+
+A ```` ```vtt ```` block reads as the conversation, the same as a `.vtt`
+file. With a recording, a bar sits under **Recording** and stays in view
+as you scroll. It has play, ±10 s, a scrubber and 0.75×–2× speed. The line
+being spoken is highlighted and kept in view; scroll away and it stops
+following until you press **Follow**. Click a line to play from there. The
+search box marks the lines that match (Enter steps through them). While
+you're not typing, space plays and pauses, ← and → skip 10 seconds, and
+[ and ] change the speed. The **▶ Play recording and transcript** link in
+the page jumps to the bar and starts it. Nothing is fetched from Drive
+until you press play.
+
+To make it play:
+
+1. **Connect Google Drive** on **Account → Settings** (read-only). The
+   section is only there when the server has a Google client (see the
+   README).
+2. **Set the vault's recordings folder** on the vaults screen (e.g.
+   `Manuel2 Recordings`), or `slipdock vault set GMinds --recordings-folder
+   "Manuel2 Recordings"`. The recordings are streamed through the vault
+   owner's connection, for anyone who can read the page, and only files
+   under that folder will play. `slipdock drive status` shows where you
+   stand.
+
+If a recording won't play, the bar says why: Drive isn't connected,
+access was revoked, there's no recordings folder, or the file isn't on
+Drive.
+
 ### Encrypted notes
 
 A note can hold an encrypted passage, written in the format of

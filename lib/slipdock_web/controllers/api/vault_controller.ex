@@ -51,10 +51,42 @@ defmodule SlipdockWeb.API.VaultController do
 
   def update(conn, %{"id" => ref} = params) do
     with {:ok, vault} <- Vaults.get_vault(user(conn), ref),
-         {:ok, vault} <- Vaults.update_vault(vault, Map.take(params, ["name"])) do
+         {:ok, vault} <- rename(vault, params),
+         {:ok, vault} <- recordings_folder(vault, params) do
       json(conn, %{vault: V.vault(vault)})
     end
   end
+
+  defp rename(vault, params) when is_map_key(params, "name"),
+    do: Vaults.update_vault(vault, Map.take(params, ["name"]))
+
+  defp rename(vault, _params), do: {:ok, vault}
+
+  # The folder on the owner's Google Drive its meeting recordings are in
+  # (W-1690); "" or null clears it. Saving checks it is a folder there.
+  defp recordings_folder(vault, %{"recordings_folder" => folder}) do
+    case Vaults.set_recordings_folder(vault, folder) do
+      {:ok, vault} ->
+        {:ok, vault}
+
+      {:error, :not_connected} ->
+        {:error, :conflict, "connect Google Drive first (Account → Settings)"}
+
+      {:error, :revoked} ->
+        {:error, :conflict, "Google no longer accepts your Drive connection: connect it again"}
+
+      {:error, :invalid} ->
+        {:error, :unprocessable_entity, "recordings_folder is not a folder path"}
+
+      {:error, :not_found} ->
+        {:error, :unprocessable_entity, "there is no folder #{inspect(folder)} in your My Drive"}
+
+      {:error, _} ->
+        {:error, :conflict, "Google Drive could not be asked just now; try again"}
+    end
+  end
+
+  defp recordings_folder(vault, _params), do: {:ok, vault}
 
   def delete(conn, %{"id" => ref}) do
     with {:ok, vault} <- Vaults.get_vault(user(conn), ref),

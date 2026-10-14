@@ -414,6 +414,7 @@ defmodule SlipdockWeb.Router do
     pipe_through :api
 
     get "/me", MeController, :show
+    get "/me/drive", MeController, :drive
 
     # The caller's own OpenRouter key: what every AI feature spends for them.
     put "/me/ai-key", MeController, :put_ai_key

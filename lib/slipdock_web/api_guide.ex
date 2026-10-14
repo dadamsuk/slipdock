@@ -1935,7 +1935,8 @@ defmodule SlipdockWeb.APIGuide do
     folder yet becomes one. Files that are not notes (images, PDFs,
     `.excalidraw`) are kept at their vault path as wiki files —
     `POST /sync/files[/:id]` multipart, `PATCH /sync/files/:id {path, base}`
-    to move, `DELETE` to archive — and `![[photo.png]]` draws them.
+    to move, `DELETE` to archive — and `![[photo.png]]` draws them. A
+    recorded meeting is a page like any other: see *Meeting pages* below.
 
     **Notes in a vault tag themselves.** On a board in a vault, a page's front
     matter `tags` and its inline `#tags` (nested `#area/sub` too; not in code,
@@ -1944,6 +1945,60 @@ defmodule SlipdockWeb.APIGuide do
     `GET /api/boards/:board/pages?note_tag=area` lists the notes tagged
     `area` or anything under it, and `GET /api/boards/:board/pages/tags`
     counts them. Off a vault, `note_tags` is always empty.
+
+    ### Meeting pages (recordings on Google Drive)
+
+    A recorded meeting is **one page**: the summary, a `## Recording`
+    section, and the whole WebVTT transcript in a ```vtt block under
+    `## Transcript`. The audio stays on the vault owner's Google Drive and
+    is never stored here; the page names it in front matter:
+
+    ````markdown
+    ---
+    title: weekly-sync
+    date: 2026-09-16T12:08:42+01:00
+    type: meeting
+    recording: gdrive:Manuel2 Recordings/2026-09/2026-09-16 12.08.42 weekly-sync.m4a
+    recording_drive_id: 1AbCdEf…      # optional; add it once the upload lands
+    recording_duration: 3725.4        # optional, seconds
+    participants: [Me, Alice]
+    ---
+
+    Summary…
+
+    ## Recording
+
+    [▶ Play recording and transcript](#recording)
+
+    ## Transcript
+
+    ```vtt
+    WEBVTT
+
+    1
+    00:00:01.500 --> 00:00:03.250
+    <v Alice>Shall we start?
+    ```
+    ````
+
+    `recording` is `gdrive:` plus the path from the root of My Drive. A
+    ```vtt block always reads as the conversation (speakers, times); with
+    `recording:` the page also gets a player that streams the audio from
+    `GET /wiki-pages/:id/recording` and keeps the transcript in step
+    (clicking a line seeks to it). If the transcript itself contains a line
+    starting with ```, fence the block with four backticks. Old notes with
+    `manuel2://play` links are left as they are.
+
+    It plays when the vault owner has connected Google Drive (Account →
+    Settings; read-only) and set the vault's recordings folder, and only for
+    files under that folder: `PATCH /api/vaults/:id {"recordings_folder":
+    "Manuel2 Recordings"}` (checked against Drive; `""` clears it), or
+    `slipdock vault set V --recordings-folder PATH`. `GET /api/me/drive`
+    (`slipdock drive status`) says whether you are connected and each vault's
+    folder. Write the page like any other vault note, with
+    `PUT /api/vaults/:id/sync/pages {"path", "content"}`; add
+    `recording_drive_id` later with the `base` hash you got back, and on a
+    409 change only that key in the content you are sent back.
 
     ### Drawings (Excalidraw)
 
