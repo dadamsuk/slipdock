@@ -356,4 +356,75 @@ defmodule SlipdockWeb.RunnerScriptTest do
       assert Path.wildcard(Path.join([ctx.dir, "**", "PWNED"])) == []
     end
   end
+
+  describe "through a deploy" do
+    alias SlipdockWeb.RunnerStubQueue, as: Stub
+
+    # The runner looping, as it does for real, against a stub queue; it
+    # stops at the stub's 401.
+    defp run_against(ctx, answers) do
+      {url, stub, server} = Stub.start(answers)
+      on_exit(fn -> Process.exit(server, :normal) end)
+      {out, 1} = run_loop(ctx, config(%{ctx | url: url}))
+      {out, Stub.claims(stub)}
+    end
+
+    defp run_loop(ctx, config) do
+      System.cmd("sh", [@script, "--config=#{config}"],
+        cd: ctx.dir,
+        env: [{"TMPDIR", ctx.dir}],
+        stderr_to_stdout: true
+      )
+    end
+
+    defp gaps(claims),
+      do: claims |> Enum.chunk_every(2, 1, :discard) |> Enum.map(fn [a, b] -> b - a end)
+
+    test "a claim the proxy lost is asked again a second later, without a word", ctx do
+      {out, claims} = run_against(ctx, [{502, []}, {504, []}])
+
+      assert length(claims) == 3
+      refute out =~ "could not reach the queue"
+      assert out =~ "the server refused this runner (HTTP 401)"
+      assert Enum.all?(gaps(claims), &(&1 in 900..2_500))
+    end
+
+    test "gateway errors that go on are logged after the first three", ctx do
+      {out, claims} = run_against(ctx, List.duplicate({502, []}, 4))
+
+      assert length(claims) == 5
+      assert [_] = Regex.scan(~r/could not reach the queue \(HTTP 502\)/, out)
+    end
+
+    test "other errors are logged at once, as before", ctx do
+      {out, claims} = run_against(ctx, [{500, []}])
+
+      assert length(claims) == 2
+      assert out =~ "could not reach the queue (HTTP 500)"
+    end
+
+    test "a draining server's Retry-After is waited out before asking again", ctx do
+      {out, claims} = run_against(ctx, [{204, [{"retry-after", "2"}]}, {204, []}])
+
+      assert [drained, ordinary] = gaps(claims)
+      assert drained >= 1_900
+      assert ordinary < 900
+      refute out =~ "could not reach the queue"
+    end
+
+    test "a Retry-After that isn't a number of seconds is ignored", ctx do
+      {_out, claims} = run_against(ctx, [{204, [{"retry-after", "soon; rm -rf /"}]}])
+
+      assert [gap] = gaps(claims)
+      assert gap < 900
+    end
+
+    test "under --once a lost claim is still an error", ctx do
+      {url, _stub, server} = Stub.start([{502, []}])
+      on_exit(fn -> Process.exit(server, :normal) end)
+
+      {out, 1} = run_once(ctx, config(%{ctx | url: url}))
+      assert out =~ "could not reach the queue (HTTP 502)"
+    end
+  end
 end

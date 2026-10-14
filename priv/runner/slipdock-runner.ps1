@@ -296,18 +296,34 @@ $poolNote = ''
 if ($Pool) { $poolNote = " (pool $Pool)" }
 Say "taking jobs from $SlipdockUrl$poolNote"
 $backoff = 1
+# Gateway errors in a row that were retried without a word.
+$quiet = 0
 
 try {
   while ($true) {
     $claim = Send-Slipdock "/api/runner/claim?$query" '' ($Wait + 15)
     if ($claim.Status -eq 200) {
       $backoff = 1
+      $quiet = 0
       Invoke-Job $claim
     } elseif ($claim.Status -eq 204) {
       $backoff = 1
+      $quiet = 0
+      # A server stopping for a deploy says how long to wait before asking
+      # again, by when its replacement is there to answer.
+      $pause = 0
+      if ([int]::TryParse((Get-Header $claim 'Retry-After'), [ref]$pause) -and $pause -gt 0 -and -not $Once) {
+        Start-Sleep -Seconds ([Math]::Min($pause, 60))
+      }
     } elseif ($claim.Status -eq 401 -or $claim.Status -eq 403) {
       Say "the server refused this runner (HTTP $($claim.Status)): $($claim.Body)"
       exit 1
+    } elseif (-not $Once -and $claim.Status -in @(0, 502, 503, 504) -and $quiet -lt 3) {
+      # A claim the proxy lost when the app went down for a deploy (502, or
+      # the connection dropped without a proxy) is retried at once, and
+      # quietly: only a few in a row are worth a line in the log.
+      $quiet++
+      Start-Sleep -Seconds 1
     } else {
       Say "could not reach the queue (HTTP $($claim.Status)) - trying again in ${backoff}s"
       if ($Once) { exit 1 }

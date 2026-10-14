@@ -361,7 +361,8 @@ Compose reads `compose.override.yaml` by itself. Caddy takes over the port in
 `SLIPDOCK_PUBLISH`, and the app is then reached only over the compose network.
 Upgrading is the same two commands as before: only the app is recreated, and
 Caddy keeps retrying each request for up to 30 seconds until the new container
-answers. It trusts the private ranges in front of it, so `X-Forwarded-For`
+answers. Runners waiting for a job are answered before the old container
+stops, and ask again a second later. It trusts the private ranges in front of it, so `X-Forwarded-For`
 and `X-Forwarded-Proto` from a tunnel or host proxy pass through unchanged.
 It needs Docker Compose 2.24 or later.
 
