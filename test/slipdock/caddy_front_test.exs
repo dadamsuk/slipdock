@@ -55,11 +55,11 @@ defmodule Slipdock.CaddyFrontTest do
   test "the address chain Caddy passes on behind a tunnel resolves to the visitor" do
     # What the app saw in the rehearsal: the tunnel's X-Forwarded-For with
     # Caddy's peer (the docker gateway) appended, arriving from Caddy itself.
-    resolved = ClientIP.resolve({10, 0, 19, 2}, ["198.51.100.7, 10.0.19.1"])
+    resolved = ClientIP.resolve({172, 18, 0, 3}, ["198.51.100.7, 172.18.0.1"])
     assert resolved |> :inet.ntoa() |> to_string() == "198.51.100.7"
 
     # And a visitor who writes the header themselves still can't choose.
-    resolved = ClientIP.resolve({10, 0, 19, 2}, ["1.2.3.4, 198.51.100.7, 10.0.19.1"])
+    resolved = ClientIP.resolve({172, 18, 0, 3}, ["1.2.3.4, 198.51.100.7, 172.18.0.1"])
     assert resolved |> :inet.ntoa() |> to_string() == "198.51.100.7"
   end
 end
