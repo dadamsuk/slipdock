@@ -121,14 +121,51 @@ defmodule SlipdockWeb.WikiMeetingPageLiveTest do
 
     {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}")
     assert has_element?(view, player(page) <> "[data-recording-problem='no_folder']")
+
+    # #784: the owner is given the setting itself, and no name to ask.
+    assert has_element?(
+             view,
+             player(page) <> "[data-settings-url='/vaults#recordings-folder-#{vault.id}']"
+           )
+
+    refute has_element?(view, player(page) <> "[data-vault-owner]")
   end
 
-  test "a board in no vault is the same as no folder", %{conn: conn, user: user} do
+  test "somebody else reading it is told whom to ask, with no link", ctx do
+    %{board: board, vault: vault, user: owner} = ctx
+    vault |> Ecto.Changeset.change(recordings_folder: nil) |> Repo.update!()
+    page = meeting(board, "recording: gdrive:Rec/m.m4a", @recording_section)
+    reader = user_fixture("reader@example.com")
+    share_fixture(board, reader, "read")
+
+    {:ok, view, _html} =
+      live(log_in_user(build_conn(), reader), ~p"/boards/#{board}/wiki/#{page.slug}")
+
+    assert has_element?(view, player(page) <> "[data-recording-problem='no_folder']")
+    refute has_element?(view, player(page) <> "[data-settings-url]")
+
+    assert has_element?(
+             view,
+             player(page) <>
+               "[data-vault-owner='#{Slipdock.Accounts.User.display_name(owner)}']"
+           )
+  end
+
+  test "a board in no vault says so, with no settings link", %{conn: conn, user: user} do
     loose = board_fixture(%{"name" => "Loose"}, owner: user)
     page = meeting(loose, "recording: gdrive:Rec/m.m4a", @recording_section)
 
     {:ok, view, _html} = live(conn, ~p"/boards/#{loose}/wiki/#{page.slug}")
-    assert has_element?(view, player(page) <> "[data-recording-problem='no_folder']")
+    assert has_element?(view, player(page) <> "[data-recording-problem='no_vault']")
+    refute has_element?(view, player(page) <> "[data-settings-url]")
+    refute has_element?(view, player(page) <> "[data-vault-owner]")
+  end
+
+  test "a page with a folder to play from brings no settings help", %{conn: conn, board: board} do
+    page = meeting(board, "recording: gdrive:Rec/m.m4a", @recording_section)
+    {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}")
+    refute has_element?(view, player(page) <> "[data-recording-problem]")
+    refute has_element?(view, player(page) <> "[data-settings-url]")
   end
 
   test "a server without Google says so", %{conn: conn, board: board} do

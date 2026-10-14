@@ -15,7 +15,7 @@ defmodule SlipdockWeb.RecordingController do
   `Content-Range`), so the player can seek.
 
   A failure is a status and a JSON `reason` the player puts in words:
-  409 `not_connected` / `revoked` / `no_folder`, 403 `outside_folder` /
+  409 `not_connected` / `revoked` / `no_folder` / `no_vault`, 403 `outside_folder` /
   `not_audio`, 404 `not_found` / `no_recording`, 502 `unavailable`.
   """
   use SlipdockWeb, :controller
@@ -38,7 +38,7 @@ defmodule SlipdockWeb.RecordingController do
 
       case {recording, Vaults.for_board(page.board_id)} do
         {nil, _} -> refuse(conn, 404, :no_recording)
-        {_, nil} -> refuse(conn, 409, :no_folder)
+        {_, nil} -> refuse(conn, 409, :no_vault)
         {recording, vault} -> play(conn, vault, recording, drive_id)
       end
     else
@@ -136,7 +136,7 @@ defmodule SlipdockWeb.RecordingController do
     |> json(%{reason: reason})
   end
 
-  defp status(reason) when reason in [:not_connected, :revoked, :no_folder], do: 409
+  defp status(reason) when reason in [:not_connected, :revoked, :no_folder, :no_vault], do: 409
   defp status(reason) when reason in [:outside_folder, :not_audio, :invalid], do: 403
   defp status(:not_found), do: 404
   defp status(_), do: 502
