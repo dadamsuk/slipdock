@@ -1966,6 +1966,8 @@ defmodule SlipdockWeb.APIGuide do
 
     Summary…
 
+    Tags: #important (0:05) #action (12:40)
+
     ## Recording
 
     [▶ Play recording and transcript](#recording)
@@ -1985,7 +1987,10 @@ defmodule SlipdockWeb.APIGuide do
     ```vtt block always reads as the conversation (speakers, times); with
     `recording:` the page also gets a player that streams the audio from
     `GET /wiki-pages/:id/recording` and keeps the transcript in step
-    (clicking a line seeks to it). If the transcript itself contains a line
+    (clicking a line seeks to it). A `Tags:` line of `#tag (m:ss)` entries
+    (`h:mm:ss` from an hour) marks moments tagged while recording: each is
+    drawn inline in the transcript where it was pressed, and clicking it
+    plays from that moment. If the transcript itself contains a line
     starting with ```, fence the block with four backticks. Old notes with
     `manuel2://play` links are left as they are.
 

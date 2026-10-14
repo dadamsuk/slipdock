@@ -2983,7 +2983,10 @@ being spoken is highlighted and kept in view; scroll away and it stops
 following until you press **Follow**. Click a line to play from there. The
 search box marks the lines that match (Enter steps through them). While
 you're not typing, space plays and pauses, ← and → skip 10 seconds, and
-[ and ] change the speed. The **▶ Play recording and transcript** link in
+[ and ] change the speed. Moments tagged while recording, written in the
+summary as `Tags: #important (0:05) #action (12:40)`, show as chips inline
+in the transcript where they were pressed; click one to play from there.
+The **▶ Play recording and transcript** link in
 the page jumps to the bar and starts it. Nothing is fetched from Drive
 until you press play.
 

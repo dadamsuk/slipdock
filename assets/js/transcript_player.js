@@ -291,6 +291,14 @@ export const TranscriptPlayer = {
       return this.play()
     }
 
+    // A tag pressed during the recording (#785): to the moment it was pressed.
+    const tag = e.target.closest("[data-seek-ms]")
+    if (tag && this.src && this.el.contains(tag)) {
+      this.seek(Number(tag.dataset.seekMs), true)
+      this.follow()
+      return this.play()
+    }
+
     const turn = e.target.closest("li[data-start-ms]")
     if (turn && this.src && this.turns().includes(turn)) {
       // Selecting words to copy is not a request to jump.

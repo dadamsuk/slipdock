@@ -263,7 +263,9 @@ defmodule Slipdock.Wiki.Viewer do
         speaker: first.speaker,
         start_ms: first.start_ms,
         end_ms: List.last(run).end_ms,
-        lines: Enum.map(run, & &1.text)
+        lines: Enum.map(run, & &1.text),
+        # Each line's own times, for what is placed inside a turn (#785).
+        cues: Enum.map(run, &Map.take(&1, [:start_ms, :end_ms, :text]))
       }
     end)
   end

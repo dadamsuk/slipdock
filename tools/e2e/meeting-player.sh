@@ -2,7 +2,8 @@
 # End to end in a real browser (W-1690, #780, #781): a meeting page plays its
 # recording, streamed from "Google Drive" through the server, in time with
 # its transcript — the highlight follows playback, a click on a turn seeks
-# there, scrolling by hand stops following, search finds turns, and a
+# there, so does a tag pressed during it (#785), scrolling by hand stops
+# following, search finds turns, and a
 # recording that isn't there says so. Drive is tools/e2e/fake-drive.mjs.
 #
 #   tools/e2e/meeting-player.sh
@@ -36,7 +37,7 @@ PAGES=$(mix run -e '
      :io_lib.format("~2..0B:~2..0B:~6.3.0f", [h, m, s]) |> IO.iodata_to_binary() end
   vtt = "WEBVTT\n\n" <> Enum.map_join(Enum.with_index(cues, 1), "\n", fn {{ms, who, text}, i} ->
     "#{i}\n#{ts.(ms)} --> #{ts.(ms + 3000)}\n<v #{who}>#{text}\n" end)
-  body = "Summary of the meeting.\n\n## Recording\n\n[▶ Play recording and transcript](#recording)\n\n## Transcript\n\n```vtt\n" <> vtt <> "```\n"
+  body = "Summary of the meeting.\n\nTags: #decision (0:10)\n\n## Recording\n\n[▶ Play recording and transcript](#recording)\n\n## Transcript\n\n```vtt\n" <> vtt <> "```\n"
   {:ok, p} = Wiki.create_page(kb, %{"title" => "Weekly sync", "front_matter" => "---\ntype: meeting\nrecording: gdrive:Rec/meeting.wav\n---\n\n", "body" => body}, user: user)
   {:ok, gone} = Wiki.create_page(kb, %{"title" => "Lost one", "front_matter" => "---\nrecording: gdrive:Rec/missing.wav\n---\n\n", "body" => "## Recording\n\n[▶ Play recording and transcript](#recording)\n"}, user: user)
   IO.puts("PAGES #{p.slug} #{gone.slug}")

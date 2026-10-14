@@ -50,7 +50,7 @@ defmodule SlipdockWeb.Wiki.Renderer do
     add_tag_attributes: %{
       "input" => ["type", "checked", "disabled"],
       "a" => ["title"],
-      "span" => ["title", "role", "tabindex", "data-meld-block"],
+      "span" => ["title", "role", "tabindex", "data-meld-block", "data-tag", "data-seek-ms"],
       # A transcript's turns carry their times for the player (W-1690).
       "article" => ["data-transcript"],
       "li" => ["data-speaker", "data-start-ms", "data-end-ms"]
@@ -78,7 +78,7 @@ defmodule SlipdockWeb.Wiki.Renderer do
   def to_html(body, opts \\ [])
 
   def to_html(body, opts) when is_binary(body) do
-    context = context(opts)
+    context = Map.put(context(opts), :transcript_tags, Slipdock.Wiki.TranscriptTags.parse(body))
 
     # Extensions belong on the *parse*, not just the render: a pipe table is
     # only a table if the parser was told tables exist. Each link resolves on
@@ -338,8 +338,9 @@ defmodule SlipdockWeb.Wiki.Renderer do
 
   # A fenced ```vtt block is a transcript (W-1690): a meeting page carries its
   # WebVTT whole, and it reads as the conversation a .vtt file does.
-  defp expand_node(%MDEx.CodeBlock{info: "vtt", literal: source}, _context),
-    do: [html_block(SlipdockWeb.TranscriptView.block_html(source))]
+  # The page's timed tags (#785) are drawn in it where they were pressed.
+  defp expand_node(%MDEx.CodeBlock{info: "vtt", literal: source}, context),
+    do: [html_block(SlipdockWeb.TranscriptView.block_html(source, context.transcript_tags))]
 
   defp expand_node(%MDEx.Text{literal: text}, context), do: text_nodes(text, context)
 
