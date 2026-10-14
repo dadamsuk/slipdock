@@ -32,25 +32,23 @@ defmodule SlipdockCLI.VaultLsTest do
   test "prints each mapping's pages and every synced folder" do
     out =
       ls(
-        ~s({"vaults":[{"id":1,"name":"GMinds","mappings":[
-        {"id":3,"path":"/","board":{"id":5,"code":"kb","name":"KnowledgeBase"},"folder":null,"pages":201},
-        {"id":4,"path":"/Jobs","board":{"id":6,"code":"jobs","name":"Job Hunt"},"folder":null,"pages":1}],
+        ~s({"vaults":[{"id":1,"name":"Notes","mappings":[
+        {"id":3,"path":"/","board":{"id":5,"code":"kb","name":"Keystone"},"folder":null,"pages":201},
+        {"id":4,"path":"/Journal","board":{"id":6,"code":"jobs","name":"Journal Desk"},"folder":null,"pages":1}],
         "mirrors":[{"label":"slipdock CLI on laptop","last_synced_at":"2026-10-13T10:00:00Z"}]}]})
       )
 
-    assert out =~ ~r{/\s+→ KnowledgeBase wiki.*kb · 201 pages}
-    assert out =~ ~r{/Jobs\s+→ Job Hunt wiki.*jobs · 1 page$}m
+    assert out =~ ~r{/\s+→ Keystone wiki.*kb · 201 pages}
+    assert out =~ ~r{/Journal\s+→ Journal Desk wiki.*jobs · 1 page$}m
     assert out =~ "synced to slipdock CLI on laptop, last 2026-10-13T10:00:00Z"
   end
 
   test "an older server's reply, without counts or mirrors, still prints" do
     out =
-      ls(
-        ~s({"vaults":[{"id":1,"name":"GMinds","mappings":[
-        {"id":3,"path":"/","board":{"id":5,"code":"kb","name":"KnowledgeBase"},"folder":null}]}]})
-      )
+      ls(~s({"vaults":[{"id":1,"name":"Notes","mappings":[
+        {"id":3,"path":"/","board":{"id":5,"code":"kb","name":"Keystone"},"folder":null}]}]}))
 
-    assert out =~ "KnowledgeBase wiki"
+    assert out =~ "Keystone wiki"
     refute out =~ "pages"
     refute out =~ "synced to"
   end
@@ -58,11 +56,11 @@ defmodule SlipdockCLI.VaultLsTest do
   test "warns about pages at a path another mapping owns" do
     out =
       ls(
-        ~s({"vaults":[{"id":1,"name":"GMinds","mappings":[],"mirrors":[],
-        "overlaps":[{"path":"Jobs/Acme.md","board":"KnowledgeBase","mapping":"/","under":"/Jobs","owner":"Job Hunt"}]}]})
+        ~s({"vaults":[{"id":1,"name":"Notes","mappings":[],"mirrors":[],
+        "overlaps":[{"path":"Journal/Acme.md","board":"Keystone","mapping":"/","under":"/Journal","owner":"Journal Desk"}]}]})
       )
 
     assert out =~
-             "warning: 1 page(s) of KnowledgeBase sit under /Jobs, which Job Hunt's mapping owns"
+             "warning: 1 page(s) of Keystone sit under /Journal, which Journal Desk's mapping owns"
   end
 end

@@ -7,8 +7,8 @@ defmodule SlipdockWeb.API.VaultsTest do
   alias Slipdock.{Accounts, Vaults, Wiki}
 
   setup %{conn: conn, user: user} do
-    kb = board_fixture(%{"name" => "KnowledgeBase", "code" => "kb"}, owner: user)
-    jobs = board_fixture(%{"name" => "Job Hunt", "code" => "jobs"}, owner: user)
+    kb = board_fixture(%{"name" => "Keystone", "code" => "kb"}, owner: user)
+    jobs = board_fixture(%{"name" => "Journal Desk", "code" => "jobs"}, owner: user)
     {:ok, _} = Wiki.create_folder(jobs, %{"name" => "Notes"})
     %{conn: put_req_header(conn, "accept", "application/json"), kb: kb, jobs: jobs}
   end
@@ -25,14 +25,14 @@ defmodule SlipdockWeb.API.VaultsTest do
     vault =
       conn
       |> post("/api/vaults/notes/mappings", %{
-        "path" => "/Jobs",
+        "path" => "/Journal",
         "board" => "jobs",
         "folder" => "Notes"
       })
       |> json_response(201)
       |> Map.fetch!("vault")
 
-    assert [%{"path" => "/", "folder" => nil}, %{"path" => "/Jobs"} = jobs] = vault["mappings"]
+    assert [%{"path" => "/", "folder" => nil}, %{"path" => "/Journal"} = jobs] = vault["mappings"]
     assert jobs["board"]["code"] == "jobs"
     assert jobs["folder"]["path"] == "Notes"
 
@@ -42,14 +42,14 @@ defmodule SlipdockWeb.API.VaultsTest do
     assert %{"vault" => %{"id" => id}} = conn |> get("/api/vaults/Notes") |> json_response(200)
 
     located =
-      conn |> get("/api/vaults/#{id}/locate?path=/Jobs/Acme/Call.md") |> json_response(200)
+      conn |> get("/api/vaults/#{id}/locate?path=/Journal/Acme/Call.md") |> json_response(200)
 
-    assert located["mapping"]["path"] == "/Jobs"
+    assert located["mapping"]["path"] == "/Journal"
     assert located["rest"] == "Acme/Call.md"
 
     after_unmap =
       conn
-      |> delete("/api/vaults/Notes/mappings?path=/Jobs")
+      |> delete("/api/vaults/Notes/mappings?path=/Journal")
       |> json_response(200)
       |> Map.fetch!("vault")
 
@@ -129,7 +129,7 @@ defmodule SlipdockWeb.API.VaultsTest do
     conn |> post("/api/vaults/Notes/mappings", %{"board" => "kb"}) |> json_response(201)
 
     conn
-    |> post("/api/vaults/Notes/mappings", %{"path" => "/Jobs", "board" => "jobs"})
+    |> post("/api/vaults/Notes/mappings", %{"path" => "/Journal", "board" => "jobs"})
     |> json_response(201)
 
     {:ok, note} = Wiki.create_page(jobs, %{"title" => "Acme"}, user: user)
@@ -137,9 +137,9 @@ defmodule SlipdockWeb.API.VaultsTest do
     {:ok, _} =
       Wiki.create_page(kb, %{"title" => "Linker", "body" => "[[Acme]] [[Ghost]]"}, user: user)
 
-    found = conn |> get("/api/vaults/Notes/resolve?link=Jobs/Acme") |> json_response(200)
+    found = conn |> get("/api/vaults/Notes/resolve?link=Journal/Acme") |> json_response(200)
     assert found["page"]["code"] == note.code
-    assert found["path"] == "/Jobs/Acme"
+    assert found["path"] == "/Journal/Acme"
 
     assert conn |> get("/api/vaults/Notes/resolve?link=Nope") |> json_response(404)
     assert conn |> get("/api/vaults/Notes/resolve") |> json_response(400)
@@ -206,28 +206,28 @@ defmodule SlipdockWeb.API.VaultsTest do
     preview =
       conn
       |> post("/api/vaults/Brain/mappings", %{
-        "path" => "/Jobs",
+        "path" => "/Journal",
         "board" => "jobs",
         "dry_run" => true
       })
       |> json_response(200)
 
     assert preview["dry_run"]
-    assert preview["preview"]["arriving"] == %{"count" => 1, "sample" => ["Jobs/Acme.md"]}
+    assert preview["preview"]["arriving"] == %{"count" => 1, "sample" => ["Journal/Acme.md"]}
 
     assert conn |> get("/api/vaults/Brain") |> json_response(200) |> get_in(["vault", "mappings"]) ==
              []
 
     conn
-    |> post("/api/vaults/Brain/mappings", %{"path" => "/Jobs", "board" => "jobs"})
+    |> post("/api/vaults/Brain/mappings", %{"path" => "/Journal", "board" => "jobs"})
     |> json_response(201)
 
     out =
       conn
-      |> delete("/api/vaults/Brain/mappings?path=/Jobs&dry_run=true")
+      |> delete("/api/vaults/Brain/mappings?path=/Journal&dry_run=true")
       |> json_response(200)
 
-    assert out["preview"]["leaving"]["sample"] == ["Jobs/Acme.md"]
+    assert out["preview"]["leaving"]["sample"] == ["Journal/Acme.md"]
 
     assert [_] =
              conn
@@ -237,13 +237,17 @@ defmodule SlipdockWeb.API.VaultsTest do
 
     # A refusal is the same refusal as the real thing.
     conn
-    |> post("/api/vaults/Brain/mappings", %{"path" => "/Jobs", "board" => "kb", "dry_run" => true})
+    |> post("/api/vaults/Brain/mappings", %{
+      "path" => "/Journal",
+      "board" => "kb",
+      "dry_run" => true
+    })
     |> json_response(422)
   end
 
   test "a mapping over pages another board has there is a 422 with the count", ctx do
     %{conn: conn, kb: kb} = ctx
-    {:ok, jobs} = Wiki.create_folder(kb, %{"name" => "Jobs"})
+    {:ok, jobs} = Wiki.create_folder(kb, %{"name" => "Journal"})
     {:ok, _} = Wiki.create_page(kb, %{"title" => "Acme", "folder_id" => jobs.id})
     make(conn, "Brain")
     conn |> post("/api/vaults/Brain/mappings", %{"board" => "kb"}) |> json_response(201)
@@ -252,14 +256,14 @@ defmodule SlipdockWeb.API.VaultsTest do
       error =
         conn
         |> post("/api/vaults/Brain/mappings", %{
-          "path" => "/Jobs",
+          "path" => "/Journal",
           "board" => "jobs",
           "dry_run" => dry_run
         })
         |> json_response(422)
         |> inspect()
 
-      assert error =~ "would overlap 1 page KnowledgeBase already has under /Jobs"
+      assert error =~ "would overlap 1 page Keystone already has under /Journal"
     end
 
     assert conn |> get("/api/vaults/Brain") |> json_response(200) |> get_in(["vault", "overlaps"]) ==
@@ -287,7 +291,7 @@ defmodule SlipdockWeb.API.VaultsTest do
         })
         |> json_response(200)
 
-      assert %{"path" => "/Work", "into" => "Job Hunt", "unchanged" => 1} = dry["preview"]
+      assert %{"path" => "/Work", "into" => "Journal Desk", "unchanged" => 1} = dry["preview"]
       assert Wiki.get_page!(page.id).board_id != jobs.id
 
       done =
@@ -319,23 +323,23 @@ defmodule SlipdockWeb.API.VaultsTest do
 
   describe "a board kept inside its vault (#757)" do
     test "map with inside, change it, and the board list says so", %{conn: conn} do
-      make(conn, "GMinds")
+      make(conn, "Notes")
 
       vault =
         conn
-        |> post("/api/vaults/GMinds/mappings", %{"board" => "kb", "inside" => true})
+        |> post("/api/vaults/Notes/mappings", %{"board" => "kb", "inside" => true})
         |> json_response(201)
         |> Map.fetch!("vault")
 
       assert [%{"path" => "/", "inside" => true}] = vault["mappings"]
 
       boards = conn |> get("/api/boards") |> json_response(200) |> Map.fetch!("boards")
-      assert %{"inside_vault" => "GMinds"} = Enum.find(boards, &(&1["code"] == "kb"))
+      assert %{"inside_vault" => "Notes"} = Enum.find(boards, &(&1["code"] == "kb"))
       assert %{"inside_vault" => nil} = Enum.find(boards, &(&1["code"] == "jobs"))
 
       out =
         conn
-        |> patch("/api/vaults/GMinds/mappings", %{"path" => "/", "inside" => false})
+        |> patch("/api/vaults/Notes/mappings", %{"path" => "/", "inside" => false})
         |> json_response(200)
 
       assert [%{"inside" => false}] = out["vault"]["mappings"]
@@ -343,33 +347,33 @@ defmodule SlipdockWeb.API.VaultsTest do
 
       back =
         conn
-        |> patch("/api/vaults/GMinds/mappings/#{id}", %{"inside" => "true"})
+        |> patch("/api/vaults/Notes/mappings/#{id}", %{"inside" => "true"})
         |> json_response(200)
 
       assert [%{"inside" => true}] = back["vault"]["mappings"]
     end
 
     test "refusals: a folder's mapping, nothing said, no such mapping", %{conn: conn} do
-      make(conn, "GMinds")
+      make(conn, "Notes")
 
       conn
-      |> post("/api/vaults/GMinds/mappings", %{
-        "path" => "/Jobs",
+      |> post("/api/vaults/Notes/mappings", %{
+        "path" => "/Journal",
         "board" => "jobs",
         "folder" => "Notes"
       })
       |> json_response(201)
 
       assert conn
-             |> patch("/api/vaults/GMinds/mappings", %{"path" => "/Jobs", "inside" => true})
+             |> patch("/api/vaults/Notes/mappings", %{"path" => "/Journal", "inside" => true})
              |> json_response(422)
              |> inspect() =~ "only a whole board"
 
-      conn |> patch("/api/vaults/GMinds/mappings", %{"path" => "/Jobs"}) |> json_response(400)
-      conn |> patch("/api/vaults/GMinds/mappings", %{"inside" => true}) |> json_response(400)
+      conn |> patch("/api/vaults/Notes/mappings", %{"path" => "/Journal"}) |> json_response(400)
+      conn |> patch("/api/vaults/Notes/mappings", %{"inside" => true}) |> json_response(400)
 
       conn
-      |> patch("/api/vaults/GMinds/mappings", %{"path" => "/Nope", "inside" => true})
+      |> patch("/api/vaults/Notes/mappings", %{"path" => "/Nope", "inside" => true})
       |> json_response(404)
     end
 

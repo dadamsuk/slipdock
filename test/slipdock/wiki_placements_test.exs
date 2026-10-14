@@ -89,7 +89,7 @@ defmodule Slipdock.WikiPlacementsTest do
 
   describe "across boards" do
     setup ctx do
-      jobs = board_fixture(%{"name" => "Jobs", "code" => "placejobs"}, owner: ctx.user)
+      jobs = board_fixture(%{"name" => "Journal", "code" => "placejobs"}, owner: ctx.user)
       {:ok, there} = Wiki.create_folder(jobs, %{"name" => "Notes"})
       %{jobs: jobs, there: there}
     end
@@ -100,7 +100,7 @@ defmodule Slipdock.WikiPlacementsTest do
 
       {:ok, vault} = Vaults.create_vault(ctx.user, %{"name" => "V"})
       {:ok, _} = Vaults.add_mapping(vault, ctx.user, %{path: "/", board: ctx.board})
-      {:ok, _} = Vaults.add_mapping(vault, ctx.user, %{path: "/Jobs", board: ctx.jobs})
+      {:ok, _} = Vaults.add_mapping(vault, ctx.user, %{path: "/Journal", board: ctx.jobs})
 
       assert {:ok, [_]} = Placements.add(ctx.page, ctx.there, ctx.user)
       assert [%{id: id, also: true}] = Wiki.list_pages(ctx.jobs, folder: ctx.there, as: ctx.user)
@@ -110,7 +110,7 @@ defmodule Slipdock.WikiPlacementsTest do
     test "needs write on both boards; a reader of only the folder's board does not see it", ctx do
       {:ok, vault} = Vaults.create_vault(ctx.user, %{"name" => "V"})
       {:ok, _} = Vaults.add_mapping(vault, ctx.user, %{path: "/", board: ctx.board})
-      {:ok, _} = Vaults.add_mapping(vault, ctx.user, %{path: "/Jobs", board: ctx.jobs})
+      {:ok, _} = Vaults.add_mapping(vault, ctx.user, %{path: "/Journal", board: ctx.jobs})
 
       helper = user_fixture("helper@example.com")
       share_fixture(ctx.jobs, helper, "write")
@@ -124,18 +124,22 @@ defmodule Slipdock.WikiPlacementsTest do
     end
 
     test "a vault path names a folder on whichever board it is mapped to", ctx do
-      assert {:error, :unprocessable_entity, _} = Placements.folder_at(ctx.page, "/Jobs/Notes")
+      assert {:error, :unprocessable_entity, _} = Placements.folder_at(ctx.page, "/Journal/Notes")
 
       {:ok, vault} = Vaults.create_vault(ctx.user, %{"name" => "V"})
       {:ok, _} = Vaults.add_mapping(vault, ctx.user, %{path: "/", board: ctx.board})
 
       {:ok, _} =
-        Vaults.add_mapping(vault, ctx.user, %{path: "/Jobs", board: ctx.jobs, folder: ctx.there})
+        Vaults.add_mapping(vault, ctx.user, %{
+          path: "/Journal",
+          board: ctx.jobs,
+          folder: ctx.there
+        })
 
-      assert {:ok, %{id: id}} = Placements.folder_at(ctx.page, "/Jobs")
+      assert {:ok, %{id: id}} = Placements.folder_at(ctx.page, "/Journal")
       assert id == ctx.there.id
-      assert {:error, :not_found, _} = Placements.folder_at(ctx.page, "/Jobs/Acme")
-      assert {:ok, acme} = Placements.folder_at(ctx.page, "/Jobs/Acme", create: true)
+      assert {:error, :not_found, _} = Placements.folder_at(ctx.page, "/Journal/Acme")
+      assert {:ok, acme} = Placements.folder_at(ctx.page, "/Journal/Acme", create: true)
       assert acme.board_id == ctx.jobs.id
       assert Wiki.folder_path(acme) == "Notes/Acme"
       assert {:error, :unprocessable_entity, _} = Placements.folder_at(ctx.page, "/")

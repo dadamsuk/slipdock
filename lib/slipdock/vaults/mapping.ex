@@ -3,13 +3,13 @@ defmodule Slipdock.Vaults.Mapping do
   One mapping of a vault: a vault-relative `path` → a board's wiki, or one
   folder within it.
 
-      ""            → KnowledgeBase wiki (root)
-      "Jobs"        → Job Hunt wiki (root)
+      ""            → Handbook wiki (root)
+      "Projects"    → Project Work wiki (root)
       "Projects/X"  → board X wiki, folder "Notes"
 
   `path` is stored without a leading or trailing slash, so the vault's root
-  is `""`; it is shown as `/`, `/Jobs`. A mapping inside another is allowed
-  (`Jobs` inside `""`): the longest matching prefix wins (see
+  is `""`; it is shown as `/`, `/Projects`. A mapping inside another is allowed
+  (`Projects` inside `""`): the longest matching prefix wins (see
   `Slipdock.Vaults.locate/2`).
 
   `inside`: a board mapped whole can be kept inside the vault (#757): for
@@ -56,7 +56,7 @@ defmodule Slipdock.Vaults.Mapping do
       else: changeset
   end
 
-  @doc "The path as people write it: `/`, `/Jobs`, `/Projects/X`."
+  @doc "The path as people write it: `/`, `/Projects`, `/Projects/X`."
   def display_path(%__MODULE__{path: path}), do: display_path(path)
   def display_path(path) when is_binary(path), do: "/" <> path
 end

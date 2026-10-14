@@ -40,7 +40,7 @@ slipdock wiki                              # every board's wiki at once, folders
 slipdock folder ls <board>                 # one board's filing: folders, then pages
 slipdock folder open <board> [<folder>]    # one level only, with counts: cheap on a big wiki
 slipdock page switch <board> acme call     # fuzzy: title, alias or vault path, across the vault
-slipdock page mv W-31 --board jobs --folder Acme --dry-run   # to another board of the vault; drop --dry-run to move
+slipdock page mv W-31 --board projects --folder Acme --dry-run   # to another board of the vault; drop --dry-run to move
 slipdock page tree <board>                 # the shape of the wiki, nesting by indent
 slipdock page ls <board> --q retry         # substring of title or body
 slipdock page ls <board> --all             # archived pages too (--archived for those alone)
@@ -140,14 +140,14 @@ slipdock page new <board> Why SQLite --folder "Design/Decisions" --body -
 slipdock page ls <board> --folder decisions        # what is in one
 slipdock page ls <board> --no-folder               # what is filed nowhere
 slipdock folder mv <board> Decisions --name Choices --parent Design
-slipdock folder mv kb Jobs --board jobs --dry-run    # to another board: subfolders, pages (codes kept), files
+slipdock folder mv kb Projects --board projects --dry-run    # to another board: subfolders, pages (codes kept), files
 slipdock folder rm <board> Choices                 # the folder only
 ```
 
 **One page, several folders.** A page lives in one home folder and can be
 *also filed in* others — the same page, not a copy:
 `slipdock page file <page> --also "Design/Decisions"` (`--not-in` to undo;
-`--board B`, or a vault path like `/Jobs/Notes`, for another board in the
+`--board B`, or a vault path like `/Projects/Notes`, for another board in the
 same vault). File it twice rather than writing it twice.
 
 **File it, don't nest it.** The mistake folders exist to stop is a parent page
@@ -164,21 +164,21 @@ Its `aliases` are other names `[[links]]` find the page by.
 
 A **vault** is the user's own, and holds no pages: it maps vault paths onto
 board wikis, or onto one folder of a wiki, so the wikis read as one tree of
-Markdown files (`/` → KnowledgeBase, `/Jobs` → Job Hunt). The longest matching
+Markdown files (`/` → Handbook, `/Projects` → Project Work). The longest matching
 prefix wins; a board can be in one vault only, and only a board the user can
 write to. Deleting a vault removes its mappings and never a page. In the web
 app a board's wiki shows the vault from where the board is mounted down
-(KnowledgeBase at `/` shows Jobs among its folders; Job Hunt shows only
-`/Jobs`), so to point someone at a note, the board it is on is enough.
+(Handbook at `/` shows Projects among its folders; Project Work shows only
+`/Projects`), so to point someone at a note, the board it is on is enough.
 
 ```sh
 slipdock vault ls                                  # the vaults, with their mappings
 slipdock vault new Notes
 slipdock vault map Notes / --board kb              # the vault's root
-slipdock vault map Notes /Jobs --board jobs --folder Notes
+slipdock vault map Notes /Projects --board projects --folder Inbox
 slipdock vault inside Notes /                      # keep the board at / inside the vault (--off: let it out)
-slipdock vault locate Notes /Jobs/Acme/Call.md     # which mapping, and the rest of the path
-slipdock vault unmap Notes /Jobs
+slipdock vault locate Notes /Projects/Acme/Call.md     # which mapping, and the rest of the path
+slipdock vault unmap Notes /Projects
 ```
 
 On a board in a vault, `[[Note]]` looks on its own board, then across the
@@ -220,8 +220,12 @@ matter says where the audio is: `recording: gdrive:<path from My Drive>`, plus
 with the transcript once the vault owner has connected Drive and set the
 vault's recordings folder (`slipdock vault set V --recordings-folder PATH`;
 `slipdock drive status` shows both). Don't upload the audio, and don't write
-a separate `.vtt` file. To add `recording_drive_id` later, change only that
-key. Old notes with `manuel2://play` links are left as they are.
+a separate `.vtt` file. Moments tagged while recording go in the summary as one
+line, `Tags: #important (0:05) #action (12:40)`, and show inline in the
+transcript where they were pressed. To add `recording_drive_id` later, change only that
+key. Old notes with `custom://play` links are left as they are. The full
+contract for a recorder or transcription tool is in the manual, *Meeting
+transcripts: what Slipdock expects*.
 
 **Deleting a folder never deletes writing.** Its subfolders move up to its
 parent and its pages go back to the board's root.

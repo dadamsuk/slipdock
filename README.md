@@ -56,8 +56,8 @@ Briefly, with the detail in [the manual](docs/manual.md):
   dates, tags, checklists, comments with `@mentions` that email the person
   named, attachments (uploaded in the browser, or over the API and CLI —
   `slipdock attach 12 shot.png`), image thumbnails on card fronts, recordings that
-  play in place and transcribe on your own [Manuel2](https://github.com/dadamsuk/Manuel2)
-  server (Configuration → Server → Transcription server), cover colours, archive and restore, and a [select mode](docs/manual.md#changing-several-cards-at-once) that tags, flags, moves, archives or deletes many cards at once. Each board has a short code (`qvm-v1-rem`) that addresses it
+  play in place and transcribe on a transcription server of your own
+  (Configuration → Server → Transcription server; [what it must speak](docs/manual.md#what-a-transcription-server-must-speak)), cover colours, archive and restore, and a [select mode](docs/manual.md#changing-several-cards-at-once) that tags, flags, moves, archives or deletes many cards at once. Each board has a short code (`qvm-v1-rem`) that addresses it
   everywhere.
 - **Time tracking** — [a timer on each card, time spent and an estimate](docs/manual.md#time-tracking)
   in minutes, hours, days, weeks or months, and a bar that turns amber near the
@@ -93,7 +93,8 @@ Briefly, with the detail in [the manual](docs/manual.md):
   that stays quick with thousands of notes (loaded a folder at a time, only the rows
   on screen drawn), `[[links]]`, live card chips, live query blocks, backlinks, revisions,
   templates, export and public links. Several boards' wikis can be laid out as
-  one Obsidian-style [vault](docs/manual.md#vaults): links, `#tags`, aliases,
+  one [vault](docs/manual.md#vaults), a folder tree of Markdown (and other)
+  files, the way Obsidian keeps notes (Obsidian itself isn't needed): links, `#tags`, aliases,
   embeds and front matter as Obsidian reads them, a page filed in several
   folders, and [`slipdock sync`](docs/manual.md#syncing-a-vault-to-a-folder)
   to mirror it both ways to a folder on each computer, Obsidian included, after
@@ -535,10 +536,21 @@ copied to the server. Each person connects their own Drive, read-only, through
 an OAuth client you make once:
 
 1. In Google Cloud, create an **OAuth client ID** of type *Web application*,
-   with the redirect URI `https://<your host>/account/google/callback`. Enable
-   the **Google Drive API** for the project. On a Google Workspace, make the
-   consent screen **Internal**: it then needs no Google verification, and its
-   refresh tokens don't expire.
+   with the redirect URI `https://<your host>/account/google/callback`. It
+   must match exactly, scheme and host included: `http://` vs `https://`, a
+   port, or `www.` all count, and Google refuses the sign-in otherwise. Enable
+   the **Google Drive API** for the project, then set up the consent screen:
+   - **On a Google Workspace**, make it **Internal**: it then needs no Google
+     verification, and its refresh tokens don't expire.
+   - **On a personal Google account** (gmail.com) the consent screen can only
+     be **External**. Add the `.../auth/drive.readonly` scope to it, leave it
+     in **Testing**, and add yourself (and anyone else who will connect) as a
+     **test user**. In Testing, Google expires refresh tokens after **7
+     days**, so each person has to connect Drive again weekly; Slipdock says
+     so when it happens. `drive.readonly` is a *restricted* scope, so
+     publishing the app to everyone needs Google's verification (a security
+     assessment). For a single-user or small install, staying in Testing is
+     the practical choice.
 2. Give the server its id and secret:
 
    ```sh
@@ -556,6 +568,10 @@ The scope is `drive.readonly`. Tokens are stored encrypted with a key derived
 from `SECRET_KEY_BASE`, so changing that key means everyone connects again. A
 vault's recordings are served through its owner's connection to anyone who can
 read the page, and only files under its recordings folder are served.
+
+What a meeting page has to look like to play, for whatever records and
+transcribes your meetings, is in the manual:
+[Meeting transcripts: what Slipdock expects](docs/manual.md#meeting-transcripts-what-slipdock-expects).
 
 ### From a checkout
 

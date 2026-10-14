@@ -14,10 +14,10 @@ defmodule Slipdock.Vaults.OverlapTest do
 
   setup do
     user = user_fixture()
-    kb = board_fixture(%{"name" => "KnowledgeBase", "code" => "kb"}, owner: user)
-    hunt = board_fixture(%{"name" => "Job Hunt", "code" => "hunt"}, owner: user)
-    {:ok, jobs} = Wiki.create_folder(kb, %{"name" => "Jobs"})
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "GMinds"})
+    kb = board_fixture(%{"name" => "Keystone", "code" => "kb"}, owner: user)
+    hunt = board_fixture(%{"name" => "Journal Desk", "code" => "work"}, owner: user)
+    {:ok, jobs} = Wiki.create_folder(kb, %{"name" => "Journal"})
+    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
     %{user: user, kb: kb, hunt: hunt, jobs: jobs, vault: vault}
   end
 
@@ -34,15 +34,15 @@ defmodule Slipdock.Vaults.OverlapTest do
     {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
 
     assert {:error, :unprocessable_entity, message} =
-             Vaults.add_mapping(vault, user, %{path: "/Jobs", board: hunt})
+             Vaults.add_mapping(vault, user, %{path: "/Journal", board: hunt})
 
-    assert message =~ "/Jobs would overlap 2 pages KnowledgeBase already has under /Jobs"
-    assert message =~ "Jobs/Acme.md"
-    assert message =~ "move them to Job Hunt first, or map somewhere else"
+    assert message =~ "/Journal would overlap 2 pages Keystone already has under /Journal"
+    assert message =~ "Journal/Acme.md"
+    assert message =~ "move them to Journal Desk first, or map somewhere else"
 
     # The preview says the same before anything is saved.
     assert {:error, :unprocessable_entity, ^message} =
-             Vaults.preview_mapping(vault, user, %{path: "/Jobs", board: hunt})
+             Vaults.preview_mapping(vault, user, %{path: "/Journal", board: hunt})
 
     assert Repo.aggregate(Mapping, :count) == 1
   end
@@ -50,12 +50,12 @@ defmodule Slipdock.Vaults.OverlapTest do
   test "an outer mapping over an inner mapping's path is refused too", ctx do
     %{user: user, kb: kb, hunt: hunt, jobs: jobs, vault: vault} = ctx
     file!(kb, "Acme", jobs)
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Jobs", board: hunt})
+    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: hunt})
 
     assert {:error, :unprocessable_entity, message} =
              Vaults.add_mapping(vault, user, %{path: "/", board: kb})
 
-    assert message =~ "would overlap 1 page KnowledgeBase already has under /Jobs"
+    assert message =~ "would overlap 1 page Keystone already has under /Journal"
   end
 
   test "allowed when the outer folder is empty, or its pages have gone", ctx do
@@ -64,17 +64,17 @@ defmodule Slipdock.Vaults.OverlapTest do
     {:ok, _} = Wiki.archive_page(gone)
     {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
 
-    assert {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Jobs", board: hunt})
+    assert {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: hunt})
     assert Vaults.overlaps(vault) == []
   end
 
   test "a path that only starts the same is not an overlap", ctx do
     %{user: user, kb: kb, hunt: hunt, vault: vault} = ctx
-    {:ok, search} = Wiki.create_folder(kb, %{"name" => "Jobsearch"})
+    {:ok, search} = Wiki.create_folder(kb, %{"name" => "Journalsearch"})
     file!(kb, "Notes", search)
     {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
 
-    assert {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Jobs", board: hunt})
+    assert {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: hunt})
   end
 
   describe "a vault that already has one" do
@@ -85,7 +85,7 @@ defmodule Slipdock.Vaults.OverlapTest do
       {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
 
       # Made the way it was before mappings were checked.
-      Repo.insert!(%Mapping{vault_id: vault.id, board_id: hunt.id, path: "Jobs"})
+      Repo.insert!(%Mapping{vault_id: vault.id, board_id: hunt.id, path: "Journal"})
       :ok
     end
 
@@ -93,11 +93,11 @@ defmodule Slipdock.Vaults.OverlapTest do
       assert [overlap] = Vaults.overlaps(vault)
 
       assert overlap == %{
-               path: "Jobs/Acme.md",
-               board: "KnowledgeBase",
+               path: "Journal/Acme.md",
+               board: "Keystone",
                mapping: "/",
-               under: "/Jobs",
-               owner: "Job Hunt"
+               under: "/Journal",
+               owner: "Journal Desk"
              }
     end
 
@@ -110,7 +110,7 @@ defmodule Slipdock.Vaults.OverlapTest do
       paths = vault |> Layout.build() |> Map.fetch!(:pages) |> Map.values() |> Enum.map(& &1.path)
       assert length(paths) == 2
       assert length(Enum.uniq_by(paths, &String.downcase/1)) == 2
-      assert "Jobs/Acme.md" in paths
+      assert "Journal/Acme.md" in paths
 
       listing = Sync.listing(vault, user)
       listed = listing.entries |> Enum.map(& &1.path)

@@ -33,17 +33,17 @@ defmodule SlipdockCLI.VaultMapPreviewTest do
 
   test "map --dry-run sends dry_run and prints what arrives and what is taken over" do
     {method, path, body, out} =
-      run(["map", "GMinds", "/Jobs"], [board: "jobs", dry_run: true], ~s({"dry_run":true,
-        "preview":{"path":"/Jobs","arriving":{"count":12,"sample":["Jobs/Acme.md"]},
-        "moving":{"count":1,"sample":[{"from":"Jobs/Old.md","to":"Jobs/Old.md"}]},
+      run(["map", "Notes", "/Journal"], [board: "jobs", dry_run: true], ~s({"dry_run":true,
+        "preview":{"path":"/Journal","arriving":{"count":12,"sample":["Journal/Acme.md"]},
+        "moving":{"count":1,"sample":[{"from":"Journal/Old.md","to":"Journal/Old.md"}]},
         "mirrors":["slipdock CLI on laptop"]}}))
 
     assert method == "POST"
-    assert path =~ "/vaults/GMinds/mappings"
+    assert path =~ "/vaults/Notes/mappings"
     assert body =~ ~s("dry_run":true)
-    assert out =~ "mapping /Jobs would — nothing is changed yet"
+    assert out =~ "mapping /Journal would — nothing is changed yet"
     assert out =~ "bring into the vault: 12"
-    assert out =~ "Jobs/Acme.md"
+    assert out =~ "Journal/Acme.md"
     assert out =~ "… 11 more"
     assert out =~ "take over from another mapping: 1"
     assert out =~ "slipdock CLI on laptop"
@@ -51,8 +51,8 @@ defmodule SlipdockCLI.VaultMapPreviewTest do
 
   test "unmap --dry-run asks with dry_run and lists what leaves" do
     {method, path, _body, out} =
-      run(["unmap", "GMinds", "/Jobs"], [dry_run: true], ~s({"dry_run":true,
-        "preview":{"path":"/Jobs","leaving":{"count":1,"sample":["Jobs/Acme.md"]},
+      run(["unmap", "Notes", "/Journal"], [dry_run: true], ~s({"dry_run":true,
+        "preview":{"path":"/Journal","leaving":{"count":1,"sample":["Journal/Acme.md"]},
         "moving":{"count":0,"sample":[]},"mirrors":[]}}))
 
     assert method == "DELETE"
@@ -64,21 +64,21 @@ defmodule SlipdockCLI.VaultMapPreviewTest do
 
   test "split --dry-run says what moves and that synced files stay put" do
     {method, path, body, out} =
-      run(["split", "GMinds", "/Jobs"], [board: "hunt", dry_run: true], ~s({"dry_run":true,
-        "preview":{"path":"/Jobs","from":"KnowledgeBase","into":"Job Hunt","new_board":false,
-        "unchanged":201,"renamed":[{"from":"Jobs/Plan.md","to":"Jobs/Plan-W-9.md"}],
-        "joining":{"count":1,"sample":["Jobs/Old.md"]},
+      run(["split", "Notes", "/Journal"], [board: "work", dry_run: true], ~s({"dry_run":true,
+        "preview":{"path":"/Journal","from":"Keystone","into":"Journal Desk","new_board":false,
+        "unchanged":201,"renamed":[{"from":"Journal/Plan.md","to":"Journal/Plan-W-9.md"}],
+        "joining":{"count":1,"sample":["Journal/Old.md"]},
         "move":{"pages":201,"folders":3,"title_clashes":["Plan"],"left_behind":[],
           "tags":{"carried":[],"dropped":["kb"]},"fields":{"carried":[],"dropped":[]}}}}))
 
     assert method == "POST"
-    assert path =~ "/vaults/GMinds/split"
-    assert body =~ ~s("board":"hunt")
+    assert path =~ "/vaults/Notes/split"
+    assert body =~ ~s("board":"work")
     assert body =~ ~s("dry_run":true)
-    assert out =~ "/Jobs would move from KnowledgeBase to Job Hunt — nothing is changed yet"
+    assert out =~ "/Journal would move from Keystone to Journal Desk — nothing is changed yet"
     assert out =~ "201 page(s) and 3 folder(s) move"
     assert out =~ "201 file(s) unchanged"
-    assert out =~ "renamed: Jobs/Plan.md → Jobs/Plan-W-9.md"
+    assert out =~ "renamed: Journal/Plan.md → Journal/Plan-W-9.md"
     assert out =~ "the board's own pages arrive: 1"
     assert out =~ "land beside pages of the same title: Plan"
     assert out =~ "drop tags: kb"
@@ -86,11 +86,11 @@ defmodule SlipdockCLI.VaultMapPreviewTest do
 
   test "split --new-board sends new_board and reports the board made" do
     {_method, _path, body, out} =
-      run(["split", "GMinds", "/Jobs"], [new_board: "Careers"], ~s({"result":{"path":"/Jobs",
+      run(["split", "Notes", "/Journal"], [new_board: "Careers"], ~s({"result":{"path":"/Journal",
         "unchanged":2,"renamed":[],"joining":{"count":0,"sample":[]},"move":{"pages":2,"folders":0}},
         "board":{"id":9,"code":"car","name":"Careers"},"vault":{}}))
 
     assert body =~ ~s("new_board":"Careers")
-    assert out =~ "/Jobs now belongs to Careers (car), mapped in the vault"
+    assert out =~ "/Journal now belongs to Careers (car), mapped in the vault"
   end
 end

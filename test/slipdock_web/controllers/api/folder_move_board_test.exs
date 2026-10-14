@@ -8,9 +8,9 @@ defmodule SlipdockWeb.API.FolderMoveBoardTest do
   alias Slipdock.Wiki.{Folder, Page}
 
   setup %{conn: conn, user: user} do
-    kb = board_fixture(%{"name" => "KnowledgeBase", "code" => "kbapi"}, owner: user)
-    hunt = board_fixture(%{"name" => "Job Hunt", "code" => "huntapi"}, owner: user)
-    {:ok, jobs} = Wiki.create_folder(kb, %{"name" => "Jobs"})
+    kb = board_fixture(%{"name" => "Keystone", "code" => "kbapi"}, owner: user)
+    hunt = board_fixture(%{"name" => "Journal Desk", "code" => "huntapi"}, owner: user)
+    {:ok, jobs} = Wiki.create_folder(kb, %{"name" => "Journal"})
     {:ok, page} = Wiki.create_page(kb, %{"title" => "Acme", "folder_id" => jobs.id})
 
     %{
@@ -27,19 +27,19 @@ defmodule SlipdockWeb.API.FolderMoveBoardTest do
 
     dry =
       conn
-      |> patch("/api/boards/kbapi/folders/Jobs", %{"to_board" => "huntapi", "dry_run" => true})
+      |> patch("/api/boards/kbapi/folders/Journal", %{"to_board" => "huntapi", "dry_run" => true})
       |> json_response(200)
 
     assert dry["dry_run"] and dry["board"] == "huntapi"
 
-    assert %{"pages" => 1, "folders" => 1, "per_folder" => [%{"path" => "Jobs", "pages" => 1}]} =
+    assert %{"pages" => 1, "folders" => 1, "per_folder" => [%{"path" => "Journal", "pages" => 1}]} =
              dry["report"]
 
     assert Repo.get!(Folder, jobs.id).board_id == kb.id
 
     moved =
       conn
-      |> patch("/api/boards/kbapi/folders/Jobs", %{"to_board" => "huntapi"})
+      |> patch("/api/boards/kbapi/folders/Journal", %{"to_board" => "huntapi"})
       |> json_response(200)
 
     assert moved["folder"]["board_id"] == hunt.id
@@ -66,16 +66,16 @@ defmodule SlipdockWeb.API.FolderMoveBoardTest do
     share_fixture(ro, user, "read")
 
     conn
-    |> patch("/api/boards/kbapi/folders/Jobs", %{"to_board" => "borapi"})
+    |> patch("/api/boards/kbapi/folders/Journal", %{"to_board" => "borapi"})
     |> json_response(403)
 
-    {:ok, _} = Wiki.create_folder(hunt, %{"name" => "Jobs"})
+    {:ok, _} = Wiki.create_folder(hunt, %{"name" => "Journal"})
 
     body =
       conn
-      |> patch("/api/boards/kbapi/folders/Jobs", %{"to_board" => "huntapi"})
+      |> patch("/api/boards/kbapi/folders/Journal", %{"to_board" => "huntapi"})
       |> json_response(422)
 
-    assert inspect(body) =~ "already has a folder named Jobs"
+    assert inspect(body) =~ "already has a folder named Journal"
   end
 end

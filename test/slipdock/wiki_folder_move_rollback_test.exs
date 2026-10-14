@@ -12,9 +12,9 @@ defmodule Slipdock.WikiFolderMoveRollbackTest do
 
   setup do
     user = user_fixture()
-    kb = board_fixture(%{"name" => "KnowledgeBase", "code" => "kbr"}, owner: user)
-    hunt = board_fixture(%{"name" => "Job Hunt", "code" => "huntr"}, owner: user)
-    {:ok, jobs} = Wiki.create_folder(kb, %{"name" => "Jobs"})
+    kb = board_fixture(%{"name" => "Keystone", "code" => "kbr"}, owner: user)
+    hunt = board_fixture(%{"name" => "Journal Desk", "code" => "huntr"}, owner: user)
+    {:ok, jobs} = Wiki.create_folder(kb, %{"name" => "Journal"})
     {:ok, acme} = Wiki.create_folder(kb, %{"name" => "Acme", "parent_id" => jobs.id})
     {:ok, top} = Wiki.create_page(kb, %{"title" => "Plan", "folder_id" => jobs.id}, user: user)
     %{user: user, kb: kb, hunt: hunt, jobs: jobs, acme: acme, top: top}

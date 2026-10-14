@@ -30,7 +30,7 @@ defmodule SlipdockWeb.MCP.Tools.ListVaults do
       type: "object",
       properties: %{
         vault: %{type: "string", description: "Vault id or name; leave out to list them all."},
-        path: %{type: "string", description: "A vault path to locate, e.g. /Jobs/Acme.md."},
+        path: %{type: "string", description: "A vault path to locate, e.g. /Projects/Acme.md."},
         link: %{
           type: "string",
           description: "A link's words to resolve, e.g. Note or Folder/Note."

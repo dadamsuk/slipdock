@@ -1054,7 +1054,7 @@ defmodule SlipdockWeb.API.PageController do
   And in several folders (W-103 R12): `also` files it in one more, `not_in`
   takes it out of one it was also filed in. Either names a folder on the
   page's board, on `board` when one is given, or by vault path
-  (`"/Jobs/Notes"`) on a board in the same vault. `folder` may come too.
+  (`"/Projects/Notes"`) on a board in the same vault. `folder` may come too.
   """
   def file(conn, %{"id" => id} = params)
       when is_map_key(params, "also") or is_map_key(params, "not_in") do

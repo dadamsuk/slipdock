@@ -47,11 +47,11 @@ defmodule Slipdock.Wiki.FolderMove do
   What moving `folder` to `target` would do, for `user`:
 
       %{folders: 3, pages: 201, files: 4,
-        per_folder: [%{path: "Jobs", pages: 180}, %{path: "Jobs/Acme", pages: 21}],
+        per_folder: [%{path: "Projects", pages: 180}, %{path: "Projects/Acme", pages: 21}],
         tags:, fields:, pins:  (carried / dropped names, as a page move reports),
         assignees: %{carried: [...], dropped: [...]},
         left_behind: ["Child filed here under a page that stays"],
-        filing_dropped: 2, title_clashes: ["Readme"], into: "Job Hunt"}
+        filing_dropped: 2, title_clashes: ["Readme"], into: "Project Work"}
 
   `opts`: `parent` (a folder on `target`, default its top) and `contents`.
   """

@@ -9,11 +9,11 @@ defmodule SlipdockWeb.WikiSplitLiveTest do
   alias Slipdock.Wiki.{Folder, Page}
 
   setup %{user: user} do
-    kb = board_fixture(%{"name" => "KnowledgeBase", "code" => "kbsl"}, owner: user)
-    hunt = board_fixture(%{"name" => "Job Hunt", "code" => "huntsl"}, owner: user)
-    {:ok, jobs} = Wiki.create_folder(kb, %{"name" => "Jobs"})
+    kb = board_fixture(%{"name" => "Keystone", "code" => "kbsl"}, owner: user)
+    hunt = board_fixture(%{"name" => "Journal Desk", "code" => "huntsl"}, owner: user)
+    {:ok, jobs} = Wiki.create_folder(kb, %{"name" => "Journal"})
     {:ok, note} = Wiki.create_page(kb, %{"title" => "Acme", "folder_id" => jobs.id})
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "GMinds"})
+    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
     {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
     %{kb: kb, hunt: hunt, jobs: jobs, note: note, vault: vault}
   end
@@ -29,13 +29,13 @@ defmodule SlipdockWeb.WikiSplitLiveTest do
     {:ok, view, _} = live(conn, ~p"/boards/#{kb}/wiki")
 
     html = render_click(view, "split_folder", %{"id" => to_string(jobs.id)})
-    assert html =~ "Give /Jobs its own board"
+    assert html =~ "Give /Journal its own board"
     assert has_element?(view, "#split-confirm[disabled]")
     # The folder's own board can't be picked.
     assert has_element?(
              view,
              "#split-form option[disabled]",
-             "KnowledgeBase — the folder is on it already"
+             "Keystone — the folder is on it already"
            )
 
     view |> form("#split-form", %{"board" => to_string(hunt.id)}) |> render_change()
@@ -43,20 +43,20 @@ defmodule SlipdockWeb.WikiSplitLiveTest do
     assert has_element?(
              view,
              "#split-preview",
-             "1 page and 0 folders move from KnowledgeBase to Job Hunt"
+             "1 page and 0 folders move from Keystone to Journal Desk"
            )
 
     assert has_element?(view, "#split-preview", "Synced folders: 1 file unchanged")
-    assert has_element?(view, "#split-preview", "Jobs/Already here.md")
+    assert has_element?(view, "#split-preview", "Journal/Already here.md")
     # A preview changes nothing.
     assert Repo.get!(Page, note.id).board_id == kb.id
 
     html = view |> element("#split-confirm") |> render_click()
-    assert html =~ "/Jobs is Job Hunt&#39;s now"
+    assert html =~ "/Journal is Journal Desk&#39;s now"
     assert Repo.get!(Page, note.id).board_id == hunt.id
     refute Repo.get(Folder, jobs.id)
     {:ok, vault} = Vaults.get_vault(user, vault.id)
-    assert Enum.map(vault.mappings, & &1.path) == ["", "Jobs"]
+    assert Enum.map(vault.mappings, & &1.path) == ["", "Journal"]
   end
 
   test "a new board, by name", ctx do
@@ -65,7 +65,7 @@ defmodule SlipdockWeb.WikiSplitLiveTest do
     render_click(view, "split_folder", %{"id" => to_string(jobs.id)})
 
     view |> form("#split-form", %{"board" => "new"}) |> render_change()
-    assert has_element?(view, "#split-form input[name=new_name][value=Jobs]")
+    assert has_element?(view, "#split-form input[name=new_name][value=Journal]")
 
     view |> form("#split-form", %{"board" => "new", "new_name" => "Careers"}) |> render_change()
     assert has_element?(view, "#split-preview", "to a new board, Careers")
@@ -87,7 +87,7 @@ defmodule SlipdockWeb.WikiSplitLiveTest do
     assert has_element?(
              view,
              "#split-form option[disabled]",
-             "Job Hunt — is already in another vault"
+             "Journal Desk — is already in another vault"
            )
 
     # Sent by hand anyway, it is not a pick.

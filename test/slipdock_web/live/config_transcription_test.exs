@@ -28,16 +28,16 @@ defmodule SlipdockWeb.ConfigTranscriptionTest do
     {:ok, view, html} = live(conn, ~p"/config")
     assert html =~ "Transcription server"
 
-    submit(view, %{url: "https://manuel.example:8765", token: "s3cret-token"})
+    submit(view, %{url: "https://transcribe.example:8765", token: "s3cret-token"})
 
     settings = Settings.get()
-    assert settings.transcription_server_url == "https://manuel.example:8765"
+    assert settings.transcription_server_url == "https://transcribe.example:8765"
     assert settings.transcription_server_token == "s3cret-token"
 
     html = render(view)
     refute html =~ "s3cret-token"
     assert has_element?(view, "#transcription-form input[type=password][placeholder=unchanged]")
-    assert has_element?(view, "#transcription-form input[value='https://manuel.example:8765']")
+    assert has_element?(view, "#transcription-form input[value='https://transcribe.example:8765']")
   end
 
   test "an empty token box keeps the token; Forget clears it", %{conn: conn} do
@@ -61,7 +61,7 @@ defmodule SlipdockWeb.ConfigTranscriptionTest do
   test "an address that isn't http(s) is refused and nothing is saved", %{conn: conn} do
     {:ok, view, _} = live(conn, ~p"/config")
 
-    html = submit(view, %{url: "ftp://manuel.example", token: "t"})
+    html = submit(view, %{url: "ftp://transcribe.example", token: "t"})
     assert html =~ "must be an http:// or https:// address"
     assert Settings.get().transcription_server_url == nil
     assert Settings.get().transcription_server_token == nil

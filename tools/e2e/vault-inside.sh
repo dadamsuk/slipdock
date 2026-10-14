@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End to end in a real browser (#757): KnowledgeBase kept inside GMinds is
+# End to end in a real browser (#757): Keystone kept inside Notes is
 # named on the vault's tile, not among the boards; its link on the tile opens
 # the board, and the rest of the tile opens the vault.
 #
@@ -12,7 +12,7 @@ e2e_start
 mix run -e '
   alias Slipdock.{Accounts, Vaults}
   {:ok, user} = Accounts.get_or_create_user_by_email("e2e@example.com")
-  {:ok, vault} = Vaults.get_vault(user, "GMinds")
+  {:ok, vault} = Vaults.get_vault(user, "Notes")
   {:ok, _} = Vaults.set_inside(vault, "/", true)
 ' > /dev/null
 

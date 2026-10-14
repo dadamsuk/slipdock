@@ -4,7 +4,7 @@ defmodule Slipdock.Vaults.Sync do
   files, read and written one file at a time.
 
   **Files, not pages.** Everything here speaks in vault paths
-  (`Jobs/Acme/Call.md`) and in the exact bytes a sync writes for a page
+  (`Projects/Acme/Call.md`) and in the exact bytes a sync writes for a page
   (`Slipdock.Wiki.Archive.sync_file/2`). A file's **hash** is the sha256 of
   those bytes, so it moves when anything in the file moves — the body, the
   title it carries, its front matter — and never when nothing in the file
@@ -53,7 +53,7 @@ defmodule Slipdock.Vaults.Sync do
 
       %{cursor: 931, entries: [%{kind: "page", id:, board_id:, path:, hash:, code:, title:},
                                %{kind: "file", id:, board_id:, path:, hash:, size:, name:}],
-        folders: ["Jobs", "Jobs/Acme"]}
+        folders: ["Projects", "Projects/Acme"]}
 
   `folders` is every folder of the vault as a directory, empty ones too, so
   a client can make the ones it hasn't got and take away the ones the

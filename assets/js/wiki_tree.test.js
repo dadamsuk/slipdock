@@ -107,7 +107,7 @@ test("nothing is dropped on itself, inside itself, or from a vault's own rows", 
   assert.equal(dropIntent(flat, 0, 1, "inside"), null) // F1 into F2, inside F1
   assert.equal(dropIntent(flat, 3, 4, "inside"), null) // P4 onto its own child
   const vault = new TreeModel("vault")
-  vault.set("vault", [{kind: "dir", key: "dir:Jobs", id: "dir:Jobs", title: "Jobs", count: 1}, page(9)])
+  vault.set("vault", [{kind: "dir", key: "dir:Journal", id: "dir:Journal", title: "Journal", count: 1}, page(9)])
   assert.equal(dropIntent(vault.flatten(), 1, 0, "inside"), null)
 })
 
@@ -147,7 +147,7 @@ test("a file dropped where it already is, or on a vault's own rows, asks for not
   assert.equal(dropIntent(flat, 6, 5, "after"), null) // A7 beside P6, both at the top
   assert.equal(dropIntent(flat, 6, 6, "inside"), null)
   const vault = new TreeModel("vault")
-  vault.set("vault", [{kind: "dir", key: "dir:Jobs", id: "dir:Jobs", title: "Jobs", count: 1}, file(9)])
+  vault.set("vault", [{kind: "dir", key: "dir:Journal", id: "dir:Journal", title: "Journal", count: 1}, file(9)])
   assert.equal(dropIntent(vault.flatten(), 1, 0, "inside"), null)
 })
 
@@ -159,7 +159,7 @@ test("movableRow: a writer's pages, folders and files, never a mount, a placemen
   assert.ok(!movableRow(file(1, {writable: undefined})))
   assert.ok(!movableRow(folder(1, {mount: true})))
   assert.ok(!movableRow(page(1, {also: true})))
-  assert.ok(!movableRow({kind: "dir", key: "dir:Jobs", writable: true}))
+  assert.ok(!movableRow({kind: "dir", key: "dir:Journal", writable: true}))
   assert.ok(!movableRow(null))
 })
 
@@ -225,7 +225,7 @@ test("mounting asks for the tree and draws only the rows", () => {
 
 test("which tree it is is the server's to say, not a switch the browser remembers (#758)", () => {
   const context = {scope: "vault", root: "board:5", filtering: false, reveal: [], small: false, open: [],
-    nodes: {"board:5": [folder(1), {kind: "folder", key: "board:6", id: "board:6", title: "Jobs", mount: true, count: 1}]}}
+    nodes: {"board:5": [folder(1), {kind: "folder", key: "board:6", id: "board:6", title: "Journal", mount: true, count: 1}]}}
   const {hook, pushed} = mountHook({dataset: {vault: "3"}, replies: [context, {nodes: {"board:6": [page(9)]}}]})
   globalThis.localStorage.setItem("slipdock:wiki-scope:3", JSON.stringify("vault"))
   hook.mounted()
@@ -797,13 +797,13 @@ test("a folder offers its own board to the vault's owner only (#747)", () => {
 const preview = (extra = {}) => ({found: true, key: "page:7", title: "Plans", paragraphs: ["First.", "Second."], tags: [], children: 0, ...extra})
 
 test("a preview shows the title, the start of the body, tags and who changed it", () => {
-  const html = previewHtml(preview({summary: "In short", tags: ["work"], code: "W-7", updated: "2h ago", updated_by: "Ann", children: 2, board: "Jobs", draft: true}))
+  const html = previewHtml(preview({summary: "In short", tags: ["work"], code: "W-7", updated: "2h ago", updated_by: "Ann", children: 2, board: "Journal", draft: true}))
   assert.match(html, /Plans/)
   assert.match(html, /In short/)
   assert.match(html, /<p class="mb-1.5 last:mb-0">First.<\/p><p class="mb-1.5 last:mb-0">Second.<\/p>/)
   assert.match(html, /#work/)
   assert.match(html, /W-7 · Changed 2h ago by Ann · 2 pages inside/)
-  assert.match(html, /Jobs/)
+  assert.match(html, /Journal/)
   assert.match(html, />draft</)
 })
 

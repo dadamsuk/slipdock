@@ -9,13 +9,13 @@ defmodule SlipdockWeb.VaultRecordingsLiveTest do
 
   @folder %{
     "id" => "fold",
-    "name" => "Manuel2 Recordings",
+    "name" => "Meeting Recordings",
     "mimeType" => "application/vnd.google-apps.folder",
     "parents" => ["root"]
   }
 
   setup %{user: user} do
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "GMinds"})
+    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
     %{vault: vault}
   end
 
@@ -32,13 +32,13 @@ defmodule SlipdockWeb.VaultRecordingsLiveTest do
 
     html =
       view
-      |> form("#recordings-folder-#{vault.id}", %{"folder" => "Manuel2 Recordings"})
+      |> form("#recordings-folder-#{vault.id}", %{"folder" => "Meeting Recordings"})
       |> render_submit()
 
-    assert html =~ "plays its recordings from Manuel2 Recordings"
+    assert html =~ "plays its recordings from Meeting Recordings"
 
     assert Vaults.get_vault(user, vault.id) |> elem(1) |> Map.get(:recordings_folder) ==
-             "Manuel2 Recordings"
+             "Meeting Recordings"
   end
 
   test "refuses a folder that isn't there", %{conn: conn, user: user, vault: vault} do
@@ -77,14 +77,14 @@ defmodule SlipdockWeb.VaultRecordingsLiveTest do
       {:ok, view, _html} = live(conn, ~p"/vaults")
       assert save(view, vault, "Elsewhere") =~ "no folder &quot;Elsewhere&quot;"
 
-      html = save(view, vault, "Manuel2 Recordings")
-      assert html =~ "plays its recordings from Manuel2 Recordings"
+      html = save(view, vault, "Meeting Recordings")
+      assert html =~ "plays its recordings from Meeting Recordings"
       refute html =~ "no folder &quot;Elsewhere&quot;"
     end
 
     test "a missing folder after a good one clears the success", %{conn: conn, vault: vault} do
       {:ok, view, _html} = live(conn, ~p"/vaults")
-      assert save(view, vault, "Manuel2 Recordings") =~ "plays its recordings from"
+      assert save(view, vault, "Meeting Recordings") =~ "plays its recordings from"
 
       html = save(view, vault, "Elsewhere")
       assert html =~ "no folder &quot;Elsewhere&quot;"
@@ -97,7 +97,7 @@ defmodule SlipdockWeb.VaultRecordingsLiveTest do
       assert save(view, vault, "Elsewhere") =~ "no folder"
 
       html = save(view, vault, "")
-      assert html =~ "GMinds has no recordings folder now."
+      assert html =~ "Notes has no recordings folder now."
       refute html =~ "no folder &quot;Elsewhere&quot;"
       assert Vaults.get_vault(user, vault.id) |> elem(1) |> Map.get(:recordings_folder) == nil
     end
@@ -107,7 +107,7 @@ defmodule SlipdockWeb.VaultRecordingsLiveTest do
       assert save(view, vault, "Elsewhere") =~ "no folder"
 
       html = render_click(view, "delete", %{"id" => vault.id})
-      assert html =~ "Deleted GMinds."
+      assert html =~ "Deleted Notes."
       refute html =~ "no folder &quot;Elsewhere&quot;"
     end
   end

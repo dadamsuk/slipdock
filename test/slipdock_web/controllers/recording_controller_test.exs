@@ -29,7 +29,7 @@ defmodule SlipdockWeb.RecordingControllerTest do
 
   setup %{user: user} do
     board = board_fixture(%{"name" => "Notes"}, owner: user)
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "GMinds"})
+    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
     {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: board})
     vault = vault |> Ecto.Changeset.change(recordings_folder: "Rec") |> Repo.update!()
     connect!(user)

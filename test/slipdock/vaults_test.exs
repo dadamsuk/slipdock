@@ -13,8 +13,8 @@ defmodule Slipdock.VaultsTest do
 
   setup do
     user = user_fixture()
-    kb = board_fixture(%{"name" => "KnowledgeBase", "code" => "kb"}, owner: user)
-    jobs = board_fixture(%{"name" => "Job Hunt", "code" => "jobs"}, owner: user)
+    kb = board_fixture(%{"name" => "Keystone", "code" => "kb"}, owner: user)
+    jobs = board_fixture(%{"name" => "Journal Desk", "code" => "jobs"}, owner: user)
     {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
     %{user: user, kb: kb, jobs: jobs, vault: vault}
   end
@@ -70,13 +70,13 @@ defmodule Slipdock.VaultsTest do
       {:ok, folder} = Wiki.create_folder(jobs, %{"name" => "Notes"})
 
       root = map!(vault, user, %{path: "/", board: kb})
-      sub = map!(vault, user, %{path: "/Jobs/", board: jobs, folder: folder})
+      sub = map!(vault, user, %{path: "/Journal/", board: jobs, folder: folder})
 
       assert root.path == ""
-      assert sub.path == "Jobs"
+      assert sub.path == "Journal"
       assert sub.folder_id == folder.id
 
-      assert {:ok, %Vault{mappings: [%{path: ""}, %{path: "Jobs"}]}} =
+      assert {:ok, %Vault{mappings: [%{path: ""}, %{path: "Journal"}]}} =
                Vaults.get_vault(user, "Notes")
 
       assert Vaults.for_board(jobs).id == vault.id
@@ -89,8 +89,8 @@ defmodule Slipdock.VaultsTest do
       jobs: jobs,
       vault: vault
     } do
-      map!(vault, user, %{path: "/Jobs", board: kb})
-      assert {:error, cs} = Vaults.add_mapping(vault, user, %{path: "Jobs", board: jobs})
+      map!(vault, user, %{path: "/Journal", board: kb})
+      assert {:error, cs} = Vaults.add_mapping(vault, user, %{path: "Journal", board: jobs})
       assert "is already mapped in this vault" in errors_on(cs).path
     end
 
@@ -162,11 +162,11 @@ defmodule Slipdock.VaultsTest do
 
     test "removed by id or by path", %{user: user, kb: kb, jobs: jobs, vault: vault} do
       root = map!(vault, user, %{path: "/", board: kb})
-      map!(vault, user, %{path: "/Jobs", board: jobs})
+      map!(vault, user, %{path: "/Journal", board: jobs})
 
-      assert {:ok, _} = Vaults.remove_mapping(vault, "/Jobs")
+      assert {:ok, _} = Vaults.remove_mapping(vault, "/Journal")
       assert {:ok, _} = Vaults.remove_mapping(vault, root.id)
-      assert {:error, :not_found, _} = Vaults.remove_mapping(vault, "/Jobs")
+      assert {:error, :not_found, _} = Vaults.remove_mapping(vault, "/Journal")
       assert {:error, :not_found, _} = Vaults.remove_mapping(vault, "/../x")
       assert Vaults.for_board(kb) == nil
     end
@@ -175,7 +175,7 @@ defmodule Slipdock.VaultsTest do
       %{user: user, kb: kb, jobs: jobs, vault: vault} = ctx
       {:ok, folder} = Wiki.create_folder(jobs, %{"name" => "Notes"})
       map!(vault, user, %{path: "/", board: kb})
-      map!(vault, user, %{path: "/Jobs", board: jobs, folder: folder})
+      map!(vault, user, %{path: "/Journal", board: jobs, folder: folder})
 
       {:ok, _} = Wiki.delete_folder(folder)
       {:ok, _} = Boards.delete_board(kb)
@@ -187,20 +187,27 @@ defmodule Slipdock.VaultsTest do
   describe "locate/2" do
     setup %{user: user, kb: kb, jobs: jobs, vault: vault} do
       map!(vault, user, %{path: "/", board: kb})
-      map!(vault, user, %{path: "/Jobs", board: jobs})
+      map!(vault, user, %{path: "/Journal", board: jobs})
       :ok
     end
 
     test "the longest matching prefix wins", %{vault: vault, kb: kb, jobs: jobs} do
-      assert {:ok, %{board_id: id}, "Acme/Call.md"} = Vaults.locate(vault, "/Jobs/Acme/Call.md")
+      assert {:ok, %{board_id: id}, "Acme/Call.md"} =
+               Vaults.locate(vault, "/Journal/Acme/Call.md")
+
       assert id == jobs.id
-      assert {:ok, %{board_id: ^id}, ""} = Vaults.locate(vault, "Jobs")
+      assert {:ok, %{board_id: ^id}, ""} = Vaults.locate(vault, "Journal")
       assert {:ok, %{board_id: kb_id}, "Ideas.md"} = Vaults.locate(vault, "/Ideas.md")
       assert kb_id == kb.id
     end
 
-    test "matches whole segments, so /Jobs does not swallow /Jobsearch", %{vault: vault, kb: kb} do
-      assert {:ok, %{board_id: id}, "Jobsearch/x.md"} = Vaults.locate(vault, "/Jobsearch/x.md")
+    test "matches whole segments, so /Journal does not swallow /Journalsearch", %{
+      vault: vault,
+      kb: kb
+    } do
+      assert {:ok, %{board_id: id}, "Journalsearch/x.md"} =
+               Vaults.locate(vault, "/Journalsearch/x.md")
+
       assert id == kb.id
     end
 
@@ -230,7 +237,7 @@ defmodule Slipdock.VaultsTest do
         Wiki.create_page(jobs, %{"title" => "Filed", "folder_id" => notes.id}, user: user)
 
       root = map!(vault, user, %{path: "/", board: kb})
-      jobs_root = map!(vault, user, %{path: "/Jobs", board: jobs})
+      jobs_root = map!(vault, user, %{path: "/Journal", board: jobs})
       filed = map!(vault, user, %{path: "/Filed", board: jobs, folder: notes})
 
       assert Vaults.page_counts(vault) == %{root.id => 1, jobs_root.id => 1, filed.id => 1}
@@ -268,9 +275,11 @@ defmodule Slipdock.VaultsTest do
       {:ok, _} = Wiki.create_page(jobs, %{"title" => "Acme"}, user: user)
       {:ok, _} = Wiki.create_page(jobs, %{"title" => "Beta"}, user: user)
 
-      assert {:ok, preview} = Vaults.preview_mapping(vault, user, %{path: "/Jobs", board: jobs})
-      assert preview.path == "/Jobs"
-      assert preview.arriving == %{count: 2, sample: ["Jobs/Acme.md", "Jobs/Beta.md"]}
+      assert {:ok, preview} =
+               Vaults.preview_mapping(vault, user, %{path: "/Journal", board: jobs})
+
+      assert preview.path == "/Journal"
+      assert preview.arriving == %{count: 2, sample: ["Journal/Acme.md", "Journal/Beta.md"]}
       assert preview.moving.count == 0
       # Nothing is written.
       assert length(Slipdock.Repo.preload(vault, :mappings, force: true).mappings) == 1
@@ -313,12 +322,12 @@ defmodule Slipdock.VaultsTest do
       assert {:error, :unprocessable_entity, "/ is already mapped in this vault"} =
                Vaults.preview_mapping(vault, user, %{path: "/", board: jobs})
 
-      assert {:error, :unprocessable_entity, "KnowledgeBase is already mapped into a vault"} =
+      assert {:error, :unprocessable_entity, "Keystone is already mapped into a vault"} =
                Vaults.preview_mapping(vault, user, %{path: "/Again", board: kb})
 
       {:ok, other} = Vaults.create_vault(user, %{"name" => "Other"})
 
-      assert {:error, :unprocessable_entity, "KnowledgeBase is already in another vault"} =
+      assert {:error, :unprocessable_entity, "Keystone is already in another vault"} =
                Vaults.preview_mapping(other, user, %{path: "/", board: kb})
 
       assert {:error, :unprocessable_entity, _} =
@@ -332,10 +341,10 @@ defmodule Slipdock.VaultsTest do
       {:ok, _} = Wiki.create_page(jobs, %{"title" => "Acme"}, user: user)
       map!(vault, user, %{path: "/", board: kb})
       inner = map!(vault, user, %{path: "/Filed", board: kb, folder: notes})
-      map!(vault, user, %{path: "/Jobs", board: jobs})
+      map!(vault, user, %{path: "/Journal", board: jobs})
 
-      assert {:ok, gone} = Vaults.preview_unmapping(vault, "/Jobs")
-      assert gone.leaving == %{count: 1, sample: ["Jobs/Acme.md"]}
+      assert {:ok, gone} = Vaults.preview_unmapping(vault, "/Journal")
+      assert gone.leaving == %{count: 1, sample: ["Journal/Acme.md"]}
       assert gone.moving.count == 0
 
       assert {:ok, back} = Vaults.preview_unmapping(vault, inner.id)
@@ -359,8 +368,8 @@ defmodule Slipdock.VaultsTest do
       reasons = vault |> Vaults.mapping_candidates(user) |> Map.new(fn {b, r} -> {b.name, r} end)
 
       # Mapping the same board twice in one vault is allowed.
-      assert reasons["KnowledgeBase"] == nil
-      assert reasons["Job Hunt"] == "is already in another vault"
+      assert reasons["Keystone"] == nil
+      assert reasons["Journal Desk"] == "is already in another vault"
       assert reasons["Read only"] == "you can't write to it"
       assert reasons["Old"] == "is archived"
     end
@@ -380,19 +389,19 @@ defmodule Slipdock.VaultsTest do
         Wiki.create_page(jobs, %{"title" => "Call", "parent_id" => parent.id}, user: user)
 
       map!(vault, user, %{path: "/", board: kb})
-      jobs_map = map!(vault, user, %{path: "/Jobs", board: jobs})
+      jobs_map = map!(vault, user, %{path: "/Journal", board: jobs})
 
       addresses = Vaults.addresses(vault)
       assert addresses.pages[idea.id] == "Big Ideas/Plain text"
       # A page with pages under it is addressed by its own name, not its index.md.
-      assert addresses.pages[parent.id] == "Jobs/Acme"
-      assert addresses.pages[child.id] == "Jobs/Acme/Call"
+      assert addresses.pages[parent.id] == "Journal/Acme"
+      assert addresses.pages[child.id] == "Journal/Acme/Call"
       assert addresses.folders[notes.id] == "Big Ideas"
 
       assert Vaults.resolve_address(vault, "big ideas/plain text.md") == {:page, idea.id}
-      assert Vaults.resolve_address(vault, "/Jobs/Acme/") == {:page, parent.id}
+      assert Vaults.resolve_address(vault, "/Journal/Acme/") == {:page, parent.id}
       assert Vaults.resolve_address(vault, "Big Ideas") == {:folder, notes.id}
-      assert {:mapping, %{id: id}} = Vaults.resolve_address(vault, "jobs")
+      assert {:mapping, %{id: id}} = Vaults.resolve_address(vault, "journal")
       assert id == jobs_map.id
       assert Vaults.resolve_address(vault, "Nope") == :error
     end
@@ -418,12 +427,12 @@ defmodule Slipdock.VaultsTest do
 
     test "only a whole board: never one folder of it", %{user: user, jobs: jobs, vault: vault} do
       {:ok, notes} = Wiki.create_folder(jobs, %{"name" => "Notes"})
-      map!(vault, user, %{path: "/Jobs", board: jobs, folder: notes})
+      map!(vault, user, %{path: "/Journal", board: jobs, folder: notes})
 
-      assert {:error, :unprocessable_entity, message} = Vaults.set_inside(vault, "/Jobs", true)
+      assert {:error, :unprocessable_entity, message} = Vaults.set_inside(vault, "/Journal", true)
       assert message =~ "only a whole board"
       # Letting a folder's mapping out is a no-op, not an error.
-      assert {:ok, %{inside: false}} = Vaults.set_inside(vault, "/Jobs", false)
+      assert {:ok, %{inside: false}} = Vaults.set_inside(vault, "/Journal", false)
 
       {:error, changeset} =
         Vaults.add_mapping(vault, user, %{

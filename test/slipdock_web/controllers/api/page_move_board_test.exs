@@ -11,10 +11,10 @@ defmodule SlipdockWeb.API.PageMoveBoardTest do
 
   setup %{conn: conn, user: user} do
     kb = board_fixture(%{"name" => "KB", "code" => "kbapimv"}, owner: user)
-    jobs = board_fixture(%{"name" => "Job Hunt", "code" => "jobsapimv"}, owner: user)
+    jobs = board_fixture(%{"name" => "Journal Desk", "code" => "jobsapimv"}, owner: user)
     {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain"})
     {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Jobs", board: jobs})
+    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: jobs})
     {:ok, _} = Wiki.create_folder(jobs, %{"name" => "Acme"})
     page = page_fixture(kb, %{"title" => "Call notes"})
     {:ok, _} = Wiki.set_tags(page, [tag_fixture(kb, "KB only")])

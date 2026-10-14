@@ -17,15 +17,15 @@ defmodule Slipdock.VaultLinksTest do
 
   setup do
     user = user_fixture()
-    kb = board_fixture(%{"name" => "KnowledgeBase", "code" => "vlkb"}, owner: user)
-    jobs = board_fixture(%{"name" => "Job Hunt", "code" => "vljobs"}, owner: user)
+    kb = board_fixture(%{"name" => "Keystone", "code" => "vlkb"}, owner: user)
+    jobs = board_fixture(%{"name" => "Journal Desk", "code" => "vljobs"}, owner: user)
     projx = board_fixture(%{"name" => "Project X", "code" => "vlprojx"}, owner: user)
     outside = board_fixture(%{"name" => "Elsewhere", "code" => "vlout"}, owner: user)
     {:ok, notes} = Wiki.create_folder(projx, %{"name" => "Notes"})
 
     {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain"})
     {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Jobs", board: jobs})
+    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: jobs})
 
     {:ok, _} =
       Vaults.add_mapping(vault, user, %{path: "/Projects/X", board: projx, folder: notes})
@@ -63,7 +63,7 @@ defmodule Slipdock.VaultLinksTest do
     assert links_to(ctx.kb, ctx.user, "[[Dup]]") == [shorter.id]
     assert links_to(ctx.kb, ctx.user, "[[X/Dup]]") == [longer.id]
     assert links_to(ctx.kb, ctx.user, "[[Projects/X/Dup]]") == [longer.id]
-    assert links_to(ctx.kb, ctx.user, "[[Jobs/Dup]]") == [shorter.id]
+    assert links_to(ctx.kb, ctx.user, "[[Journal/Dup]]") == [shorter.id]
   end
 
   test "folders and parent pages are part of the path", ctx do
@@ -77,8 +77,8 @@ defmodule Slipdock.VaultLinksTest do
     assert links_to(ctx.kb, ctx.user, "[[Other/Call]]") == [nil]
 
     paths = ctx.vault |> Index.build() |> Map.new(&{&1.id, &1.path})
-    assert paths[call.id] == "Jobs/Acme/Call"
-    assert paths[kid.id] == "Jobs/Parent/Kid"
+    assert paths[call.id] == "Journal/Acme/Call"
+    assert paths[kid.id] == "Journal/Parent/Kid"
   end
 
   test "aliases and titles needing a safe file name match too", ctx do
@@ -117,7 +117,7 @@ defmodule Slipdock.VaultLinksTest do
   end
 
   test "a page written later brings links on other boards of the vault to life", ctx do
-    linker = page!(ctx.kb, ctx.user, "Waiting", %{"body" => "[[Later]] and [[Jobs/Later2]]"})
+    linker = page!(ctx.kb, ctx.user, "Waiting", %{"body" => "[[Later]] and [[Journal/Later2]]"})
     assert Enum.all?(Wiki.outgoing_links(linker), &(not &1.resolved))
 
     later = page!(ctx.jobs, ctx.user, "Later")

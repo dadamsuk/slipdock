@@ -1,5 +1,5 @@
-// The browser half of tools/e2e/vault-chroot.sh (#758): KnowledgeBase's
-// wiki → Hunt → a Job Hunt page, in KnowledgeBase's tree; then Job Hunt's
+// The browser half of tools/e2e/vault-chroot.sh (#758): Keystone's
+// wiki → Plans → a Journal Desk page, in Keystone's tree; then Journal Desk's
 // own wiki, which is only its part of the vault.
 //
 //   node tools/e2e/vault-chroot.mjs <login-url> <base-url> <kb-id> <hunt-id>
@@ -37,35 +37,35 @@ try {
   const confirm = page.locator('form[method=post] button[type=submit]').first()
   if (await confirm.count()) await Promise.all([page.waitForNavigation(), confirm.click()])
 
-  // KnowledgeBase, mounted at the vault's root: Hunt among its folders.
+  // Keystone, mounted at the vault's root: Plans among its folders.
   await page.goto(`${base}/boards/${kb}/wiki`, { waitUntil: 'networkidle' })
   await page.waitForSelector('.phx-connected')
-  await page.locator('.wt-row', { hasText: 'Hunt' }).first().waitFor()
+  await page.locator('.wt-row', { hasText: 'Plans' }).first().waitFor()
   if (await page.locator('#open-in-vault, [data-tree-scope]').count()) fail('the vault switch is still there')
   const top = await topRows()
-  const folders = top.filter(t => ['Archive', 'Hunt', 'Specs'].includes(t))
-  if (folders.join(',') !== 'Archive,Hunt,Specs') fail('top rows: ' + top.join(' | '))
+  const folders = top.filter(t => ['Archive', 'Plans', 'Specs'].includes(t))
+  if (folders.join(',') !== 'Archive,Plans,Specs') fail('top rows: ' + top.join(' | '))
 
-  // Into Hunt, and a Job Hunt page, still in KnowledgeBase's tree.
-  await open('Hunt', 'Prep')
-  await open('Prep', 'Interview Questions')
-  await page.locator('.wt-row', { hasText: 'Interview Questions' }).first().locator('a').click()
+  // Into Plans, and a Journal Desk page, still in Keystone's tree.
+  await open('Plans', 'Prep')
+  await open('Prep', 'Intake Questions')
+  await page.locator('.wt-row', { hasText: 'Intake Questions' }).first().locator('a').click()
   await page.waitForURL(new RegExp(`/boards/${hunt}/wiki/[^?]+\\?in=${kb}$`))
   await page.getByText('Why us?').waitFor()
   const crumbs = await page.locator('#context-crumbs').innerText()
-  if (!/KnowledgeBase[\s\S]*Wiki[\s\S]*on Job Hunt/.test(crumbs)) fail('crumbs: ' + crumbs)
+  if (!/Keystone[\s\S]*Wiki[\s\S]*on Journal Desk/.test(crumbs)) fail('crumbs: ' + crumbs)
   await page.locator('.wt-row', { hasText: 'Archive' }).first().waitFor()
-  await page.locator('.wt-row[aria-current="page"]', { hasText: 'Interview Questions' }).first().waitFor({ timeout: 5000 })
-  console.log('ok: KnowledgeBase → Hunt → a Job Hunt page, in KnowledgeBase\'s tree')
+  await page.locator('.wt-row[aria-current="page"]', { hasText: 'Intake Questions' }).first().waitFor({ timeout: 5000 })
+  console.log('ok: Keystone → Plans → a Journal Desk page, in Keystone\'s tree')
 
-  // Job Hunt's own wiki: its part of the vault, and nothing above it.
+  // Journal Desk's own wiki: its part of the vault, and nothing above it.
   await page.goto(`${base}/boards/${hunt}/wiki`, { waitUntil: 'networkidle' })
   await page.waitForSelector('.phx-connected')
   await page.locator('.wt-row', { hasText: 'Prep' }).first().waitFor()
   await page.waitForLoadState('networkidle')
   const own = await topRows()
-  if (own.some(t => ['Archive', 'Specs', 'Hunt'].includes(t))) fail('Job Hunt shows above its mount: ' + own.join(' | '))
-  console.log('ok: Job Hunt\'s wiki is only /Hunt')
+  if (own.some(t => ['Archive', 'Specs', 'Plans'].includes(t))) fail('Journal Desk shows above its mount: ' + own.join(' | '))
+  console.log('ok: Journal Desk\'s wiki is only /Plans')
 } catch (e) {
   await page.screenshot({ path: '/tmp/vault-chroot-failure.png' })
   fail(e.message + ' (screenshot: /tmp/vault-chroot-failure.png)')

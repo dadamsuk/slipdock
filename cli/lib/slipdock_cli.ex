@@ -101,8 +101,9 @@ defmodule SlipdockCLI do
                                       meetings_diarisation_url=, meetings_dialogue_inference=false,
                                       meetings_voiceprints=true, meetings_voiceprint_url=,
                                       meetings_relisten_model=<audio-capable model> (empty: off)
-                                      transcription_server_url=https://host:8765 (a Manuel2
-                                      server: Transcribe on a card's recording; empty: off),
+                                      transcription_server_url=https://host:8765 (your own
+                                      transcription server: Transcribe on a card's recording;
+                                      empty: off),
                                       transcription_server_token=<key> (empty: none)
   admin meetings-usage                meeting capture this month: totals, heaviest users
   admin allow <entry>                 let an address or a whole domain register
@@ -208,7 +209,7 @@ defmodule SlipdockCLI do
                                         file it in one more folder as well as its home
                                         (one page, several places), or take it out of
                                         one. F is a folder on its board, on --board B,
-                                        or a vault path ("/Jobs/Notes") in its vault
+                                        or a vault path ("/Projects/Notes") in its vault
     page mv <page> [--parent P | --root] [--position N|top|bottom]
     page mv <page> --board B [--folder F] [--dry-run]
                                         to another board of its vault: it keeps its code,
@@ -321,7 +322,7 @@ defmodule SlipdockCLI do
     drive status                        your Google Drive connection, and each vault's
                                         recordings folder
     vault map <vault> <path> --board B [--folder F] [--inside] [--dry-run]
-                                        put a vault path ("/", "/Jobs") onto a board's wiki;
+                                        put a vault path ("/", "/Projects") onto a board's wiki;
                                         --dry-run lists the pages it brings in and takes over;
                                         --inside keeps the board inside the vault
     vault inside <vault> <path> [--off] keep the board mapped whole at <path> inside the

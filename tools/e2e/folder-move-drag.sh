@@ -11,11 +11,11 @@ e2e_start
 
 node tools/e2e/folder-move-drag.mjs "$LINK" "$BASE" "$KB" "$HUNT"
 
-# The folder and its page are on Job Hunt now, in the database itself.
+# The folder and its page are on Journal Desk now, in the database itself.
 mix run -e '
   folder = Slipdock.Repo.get!(Slipdock.Wiki.Folder, '"$SPECS"')
   page = Slipdock.Repo.get!(Slipdock.Wiki.Page, '"$PAGE"')
   unless folder.board_id == '"$HUNT"' and page.board_id == '"$HUNT"' and page.folder_id == folder.id,
     do: raise("not moved: #{inspect({folder.board_id, page.board_id, page.folder_id})}")
-  IO.puts("ok: the folder and its page are on Job Hunt")
+  IO.puts("ok: the folder and its page are on Journal Desk")
 '

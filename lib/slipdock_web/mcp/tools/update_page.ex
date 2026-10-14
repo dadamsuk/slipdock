@@ -59,7 +59,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdatePage do
         also: %{
           type: "string",
           description:
-            "File it in this folder as well as its home: a folder on its board, or a vault path like /Jobs/Notes."
+            "File it in this folder as well as its home: a folder on its board, or a vault path like /Projects/Notes."
         },
         not_in: %{type: "string", description: "Take it out of a folder it is also filed in."},
         archived: %{type: "boolean", description: "true puts it away with its children."},

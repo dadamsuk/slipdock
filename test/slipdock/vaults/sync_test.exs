@@ -14,12 +14,12 @@ defmodule Slipdock.Vaults.SyncTest do
 
   setup do
     user = user_fixture()
-    kb = board_fixture(%{"name" => "KnowledgeBase", "code" => "kb"}, owner: user)
-    jobs = board_fixture(%{"name" => "Job Hunt", "code" => "jobs"}, owner: user)
+    kb = board_fixture(%{"name" => "Keystone", "code" => "kb"}, owner: user)
+    jobs = board_fixture(%{"name" => "Journal Desk", "code" => "jobs"}, owner: user)
     {:ok, notes} = Wiki.create_folder(jobs, %{"name" => "Notes"})
     {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain"})
     {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Jobs", board: jobs, folder: notes})
+    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: jobs, folder: notes})
     %{user: user, kb: kb, jobs: jobs, notes: notes, vault: vault}
   end
 
@@ -45,7 +45,7 @@ defmodule Slipdock.Vaults.SyncTest do
       page!(kb, %{"title" => "Rollback", "parent_id" => deploys.id})
       page!(jobs, %{"title" => "Call", "folder_id" => notes.id})
       {:ok, acme} = Wiki.create_folder(jobs, %{"name" => "Acme", "parent_id" => notes.id})
-      page!(jobs, %{"title" => "Offer", "folder_id" => acme.id})
+      page!(jobs, %{"title" => "Launch", "folder_id" => acme.id})
       # Not under the mapped folder, so in no vault path at all.
       page!(jobs, %{"title" => "Elsewhere"})
 
@@ -53,8 +53,8 @@ defmodule Slipdock.Vaults.SyncTest do
                [
                  "Deploys/Rollback.md",
                  "Deploys/index.md",
-                 "Jobs/Acme/Offer.md",
-                 "Jobs/Call.md",
+                 "Journal/Acme/Launch.md",
+                 "Journal/Call.md",
                  "Retry- why.md"
                ]
     end
@@ -70,11 +70,11 @@ defmodule Slipdock.Vaults.SyncTest do
     end
 
     test "a page with children does not take a mapping's directory", %{vault: vault, kb: kb} do
-      jobs_page = page!(kb, %{"title" => "Jobs"})
+      jobs_page = page!(kb, %{"title" => "Journal"})
       page!(kb, %{"title" => "Child", "parent_id" => jobs_page.id})
       layout = Layout.build(vault)
 
-      assert layout.pages[jobs_page.id].path == "Jobs-#{jobs_page.code}/index.md"
+      assert layout.pages[jobs_page.id].path == "Journal-#{jobs_page.code}/index.md"
     end
 
     test "a path's place: beside a page's index, in a mapping's folders, or nowhere",
@@ -86,7 +86,10 @@ defmodule Slipdock.Vaults.SyncTest do
       assert {:parent, id} = Layout.place(layout, "Deploys/New.md")
       assert id == deploys.id
       assert {:error, _} = Layout.place(layout, "Deploys/Sub/New.md")
-      assert {:folder, %{board_id: board_id}, ["Acme"]} = Layout.place(layout, "jobs/Acme/x.md")
+
+      assert {:folder, %{board_id: board_id}, ["Acme"]} =
+               Layout.place(layout, "journal/Acme/x.md")
+
       assert board_id == jobs.id
       assert {:folder, %{path: ""}, ["Other"]} = Layout.place(layout, "Other/x.md")
 
@@ -140,7 +143,12 @@ defmodule Slipdock.Vaults.SyncTest do
       # Not under the mapped folder, so in no vault path at all.
       {:ok, _} = Wiki.create_folder(jobs, %{"name" => "Elsewhere"})
 
-      assert Sync.listing(vault, user).folders == ["Design", "Design/Old", "Jobs", "Jobs/Acme"]
+      assert Sync.listing(vault, user).folders == [
+               "Design",
+               "Design/Old",
+               "Journal",
+               "Journal/Acme"
+             ]
     end
 
     test "a deleted folder leaves the listing",
@@ -160,7 +168,7 @@ defmodule Slipdock.Vaults.SyncTest do
       assert Sync.listing(vault, user_fixture("stranger@example.com")).folders == []
 
       token = %{scope: "write", scope_boards: [jobs.id]}
-      assert Sync.listing(vault, user, token: token).folders == ["Jobs", "Jobs/Acme"]
+      assert Sync.listing(vault, user, token: token).folders == ["Journal", "Journal/Acme"]
     end
   end
 
@@ -170,7 +178,10 @@ defmodule Slipdock.Vaults.SyncTest do
       content = "---\nrating: 5 # out of five\n---\n\nIt went well.\n"
 
       assert {:ok, entry} =
-               Sync.write_page(vault, user, %{"path" => "Jobs/Acme/Call.md", "content" => content})
+               Sync.write_page(vault, user, %{
+                 "path" => "Journal/Acme/Call.md",
+                 "content" => content
+               })
 
       page = Repo.get!(Page, entry.id)
       assert page.title == "Call"
@@ -178,7 +189,7 @@ defmodule Slipdock.Vaults.SyncTest do
       assert Wiki.folder_path(Slipdock.Wiki.Folders.get!(page.folder_id)) == "Notes/Acme"
       assert Slipdock.Wiki.Folders.get!(page.folder_id).parent_id == notes.id
       assert page.body == "It went well.\n"
-      assert entry.path == "Jobs/Acme/Call.md"
+      assert entry.path == "Journal/Acme/Call.md"
       # Nothing to patch, so the server writes back exactly what was sent.
       assert entry.content == content
       assert entry.hash == Sync.hash(content)
@@ -189,11 +200,11 @@ defmodule Slipdock.Vaults.SyncTest do
 
     test "a second file in the same new directory finds the folder rather than making another",
          %{vault: vault, user: user, jobs: jobs} do
-      {:ok, a} = Sync.write_page(vault, user, %{"path" => "Jobs/Acme/A.md", "content" => "a"})
-      {:ok, b} = Sync.write_page(vault, user, %{"path" => "Jobs/acme/B.md", "content" => "b"})
+      {:ok, a} = Sync.write_page(vault, user, %{"path" => "Journal/Acme/A.md", "content" => "a"})
+      {:ok, b} = Sync.write_page(vault, user, %{"path" => "Journal/acme/B.md", "content" => "b"})
 
       assert Repo.get!(Page, a.id).folder_id == Repo.get!(Page, b.id).folder_id
-      assert b.path == "Jobs/Acme/B.md"
+      assert b.path == "Journal/Acme/B.md"
       assert length(Wiki.folders(jobs)) == 2
     end
 
@@ -346,7 +357,7 @@ defmodule Slipdock.Vaults.SyncTest do
       {:ok, entry} =
         Sync.write_page(vault, user, %{
           "id" => page.id,
-          "path" => "Jobs/Note.md",
+          "path" => "Journal/Note.md",
           "content" => content,
           "base" => base
         })
@@ -365,7 +376,7 @@ defmodule Slipdock.Vaults.SyncTest do
       assert {:error, :unprocessable_entity, msg} =
                Sync.write_page(vault, user, %{
                  "id" => deploys.id,
-                 "path" => "Jobs/Deploys/index.md",
+                 "path" => "Journal/Deploys/index.md",
                  "content" => content,
                  "base" => base
                })
@@ -429,7 +440,7 @@ defmodule Slipdock.Vaults.SyncTest do
       {:ok, _} = Placements.add(page, outside, user)
 
       {:ok, %{content: content, hash: hash}} = Sync.read_page(vault, user, page.id)
-      assert content == "---\nalso-in: [Ideas, Jobs]\n---\n\nb"
+      assert content == "---\nalso-in: [Ideas, Journal]\n---\n\nb"
       # Filing it elsewhere changed its file, so a sync brings it down again.
       refute hash == before
       assert [%{hash: ^hash}] = Sync.listing(vault, user).entries
@@ -444,7 +455,7 @@ defmodule Slipdock.Vaults.SyncTest do
       {:ok, _} = Placements.add(page, outside, user)
       {:ok, %{hash: base}} = Sync.read_page(vault, user, page.id)
 
-      sent = "---\nalso-in: [Jobs/Acme, Later]\n---\n\nb"
+      sent = "---\nalso-in: [Journal/Acme, Later]\n---\n\nb"
 
       {:ok, entry} =
         Sync.write_page(vault, user, %{
@@ -460,7 +471,7 @@ defmodule Slipdock.Vaults.SyncTest do
         |> Enum.map(&{&1.board_id, Wiki.folder_path(&1)})
         |> Enum.sort()
 
-      # Ideas is gone; Acme (under Notes, which /Jobs maps) and Later (on kb)
+      # Ideas is gone; Acme (under Notes, which /Journal maps) and Later (on kb)
       # are new; the folder outside the vault's paths was not the file's to touch.
       assert paths ==
                Enum.sort([{jobs.id, "Elsewhere"}, {jobs.id, "Notes/Acme"}, {kb.id, "Later"}])
@@ -559,7 +570,7 @@ defmodule Slipdock.Vaults.SyncTest do
 
     test "a note in a mapped folder lands on that board", %{vault: vault, user: user, jobs: jobs} do
       {:ok, written} =
-        Sync.write_page(vault, user, %{"path" => "Jobs/Acme/Offer.md", "content" => "offer"})
+        Sync.write_page(vault, user, %{"path" => "Journal/Acme/Launch.md", "content" => "offer"})
 
       assert written.board_id == jobs.id
       assert written.content == "offer"

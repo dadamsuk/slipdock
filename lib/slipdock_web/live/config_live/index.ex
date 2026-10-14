@@ -1209,8 +1209,8 @@ defmodule SlipdockWeb.ConfigLive.Index do
     >
       <h2 class="text-lg font-semibold">Transcription server</h2>
       <p class="mt-1 text-sm text-base-content/60">
-        Where a recording attached to a card goes when somebody presses Transcribe: a Manuel2
-        server, or anything that speaks its API. The text comes back onto the card, under the
+        Where a recording attached to a card goes when somebody presses Transcribe: a server of
+        your own that speaks the transcription API in the manual. The text comes back onto the card, under the
         recording. Blank, there is no Transcribe button.
       </p>
 
@@ -1224,7 +1224,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
           field={@transcription_form[:url]}
           type="url"
           label="Server address"
-          placeholder="https://manuel.example.ts.net:8765"
+          placeholder="https://transcribe.example.ts.net:8765"
         />
         <.input
           field={@transcription_form[:token]}

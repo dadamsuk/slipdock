@@ -8,7 +8,7 @@ defmodule Slipdock.RecordingsTest do
 
   @folder %{
     "id" => "fold",
-    "name" => "Manuel2 Recordings",
+    "name" => "Meeting Recordings",
     "mimeType" => "application/vnd.google-apps.folder",
     "parents" => ["root"]
   }
@@ -53,14 +53,14 @@ defmodule Slipdock.RecordingsTest do
   }
   @drive [@folder, @month, @audio, @video_m4a, @video, @pdf, @elsewhere_dir, @elsewhere]
 
-  @recording "gdrive:Manuel2 Recordings/2026-09/meeting.m4a"
+  @recording "gdrive:Meeting Recordings/2026-09/meeting.m4a"
 
   setup do
     user = user_fixture()
-    {:ok, vault} = Vaults.create_vault(user, %{"name" => "GMinds"})
+    {:ok, vault} = Vaults.create_vault(user, %{"name" => "Notes"})
 
     vault =
-      Ecto.Changeset.change(vault, recordings_folder: "Manuel2 Recordings") |> Repo.update!()
+      Ecto.Changeset.change(vault, recordings_folder: "Meeting Recordings") |> Repo.update!()
 
     %{user: user, vault: vault}
   end
@@ -79,7 +79,7 @@ defmodule Slipdock.RecordingsTest do
     end
 
     test "refuses anything else" do
-      assert Recordings.parse("manuel2://play?x") == {:error, :invalid}
+      assert Recordings.parse("custom://play?x") == {:error, :invalid}
       assert Recordings.parse("gdrive:") == {:error, :invalid}
       assert Recordings.parse("gdrive:a/../b") == {:error, :invalid}
       assert Recordings.parse("gdrive:a/./b") == {:error, :invalid}
@@ -119,40 +119,40 @@ defmodule Slipdock.RecordingsTest do
 
     test "a path outside the folder is refused without asking Drive", %{vault: vault} do
       assert Recordings.resolve(vault, "gdrive:Private/secret.m4a") == {:error, :outside_folder}
-      assert Recordings.resolve(vault, "gdrive:Manuel2 Recordings") == {:error, :outside_folder}
+      assert Recordings.resolve(vault, "gdrive:Meeting Recordings") == {:error, :outside_folder}
 
-      assert Recordings.resolve(vault, "gdrive:Manuel2 Recordings2/x.m4a") ==
+      assert Recordings.resolve(vault, "gdrive:Meeting Recordings2/x.m4a") ==
                {:error, :outside_folder}
 
       assert drive_calls() == 0
     end
 
     test "a .. in the path is refused", %{vault: vault} do
-      assert Recordings.resolve(vault, "gdrive:Manuel2 Recordings/../Private/secret.m4a") ==
+      assert Recordings.resolve(vault, "gdrive:Meeting Recordings/../Private/secret.m4a") ==
                {:error, :invalid}
     end
 
     test "a missing segment is not found", %{vault: vault} do
-      assert Recordings.resolve(vault, "gdrive:Manuel2 Recordings/2026-10/meeting.m4a") ==
+      assert Recordings.resolve(vault, "gdrive:Meeting Recordings/2026-10/meeting.m4a") ==
                {:error, :not_found}
 
-      assert Recordings.resolve(vault, "gdrive:Manuel2 Recordings/2026-09/gone.m4a") ==
+      assert Recordings.resolve(vault, "gdrive:Meeting Recordings/2026-09/gone.m4a") ==
                {:error, :not_found}
 
       assert Recordings.resolve(vault, @recording, "nope") == {:error, :not_found}
     end
 
     test "a file that is not audio is refused", %{vault: vault} do
-      assert Recordings.resolve(vault, "gdrive:Manuel2 Recordings/2026-09/notes.pdf") ==
+      assert Recordings.resolve(vault, "gdrive:Meeting Recordings/2026-09/notes.pdf") ==
                {:error, :not_audio}
 
-      assert Recordings.resolve(vault, "gdrive:Manuel2 Recordings/2026-09/film.mp4") ==
+      assert Recordings.resolve(vault, "gdrive:Meeting Recordings/2026-09/film.mp4") ==
                {:error, :not_audio}
     end
 
     test "an .m4a Drive calls video/mp4 is audio", %{vault: vault} do
       assert {:ok, %{id: "vm4a"}} =
-               Recordings.resolve(vault, "gdrive:Manuel2 Recordings/2026-09/tagged.m4a")
+               Recordings.resolve(vault, "gdrive:Meeting Recordings/2026-09/tagged.m4a")
     end
 
     test "forget/2 drops the cached path", %{vault: vault} do
@@ -183,19 +183,19 @@ defmodule Slipdock.RecordingsTest do
 
   describe "Vaults.set_recordings_folder/2" do
     test "needs a connection", %{vault: vault} do
-      assert Vaults.set_recordings_folder(vault, "Manuel2 Recordings") == {:error, :not_connected}
+      assert Vaults.set_recordings_folder(vault, "Meeting Recordings") == {:error, :not_connected}
     end
 
     test "checks the folder is there, and keeps it normalised", %{vault: vault, user: user} do
       connect!(user)
       drive!(@drive)
 
-      assert {:ok, %{recordings_folder: "Manuel2 Recordings/2026-09"}} =
-               Vaults.set_recordings_folder(vault, "/Manuel2 Recordings/2026-09/")
+      assert {:ok, %{recordings_folder: "Meeting Recordings/2026-09"}} =
+               Vaults.set_recordings_folder(vault, "/Meeting Recordings/2026-09/")
 
       assert Vaults.set_recordings_folder(vault, "Nope") == {:error, :not_found}
       # A file is not a folder.
-      assert Vaults.set_recordings_folder(vault, "Manuel2 Recordings/2026-09/meeting.m4a") ==
+      assert Vaults.set_recordings_folder(vault, "Meeting Recordings/2026-09/meeting.m4a") ==
                {:error, :not_found}
     end
 
@@ -248,7 +248,7 @@ defmodule Slipdock.RecordingsTest do
     end
 
     test "no gdrive: recording is not a player", %{board: board} do
-      assert Recordings.for_page(page(board, "recording: manuel2://play?file=x.m4a")) == nil
+      assert Recordings.for_page(page(board, "recording: custom://play?file=x.m4a")) == nil
       assert Recordings.for_page(%{front_matter: nil, board_id: board.id}) == nil
     end
   end

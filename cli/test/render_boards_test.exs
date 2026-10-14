@@ -22,11 +22,11 @@ defmodule SlipdockCLI.RenderBoardsTest do
   test "a board kept inside a vault is marked in it" do
     out =
       capture_io(fn ->
-        Render.boards([board(1, "kb", %{"inside_vault" => "GMinds"}), board(2, "jobs")])
+        Render.boards([board(1, "kb", %{"inside_vault" => "Notes"}), board(2, "jobs")])
       end)
 
     assert out =~ "VAULT"
-    assert out =~ "in GMinds"
+    assert out =~ "in Notes"
   end
 
   test "with none, there is no VAULT column" do

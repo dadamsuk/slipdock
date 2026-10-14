@@ -1760,13 +1760,13 @@ defmodule SlipdockWeb.APIGuide do
     curl -s -H "$H" "B/api/boards/1/pages/switch?q=acme+call"   # the quick switcher: fuzzy title, alias, path
     # to another board of the page's vault, keeping its code; dry_run says what would stay behind
     curl -s -X POST -H "$H" -H 'content-type: application/json' \\
-         B/api/pages/W-31/move -d '{"board": "jobs", "folder": "Acme", "dry_run": true}'
+         B/api/pages/W-31/move -d '{"board": "projects", "folder": "Acme", "dry_run": true}'
     curl -s -X PATCH -H "$H" -H 'content-type: application/json' \\
          "B/api/boards/1/folders/Design" -d '{"sort": "name"}'   # manual, name, modified, created
     # a whole folder to another board you can write to: subfolders, pages (codes and history kept)
     # and files; "parent" a folder there, "contents": true moves only what is in it, dry_run reports
     curl -s -X PATCH -H "$H" -H 'content-type: application/json' \\
-         "B/api/boards/1/folders/Jobs" -d '{"to_board": "jobs", "dry_run": true}'
+         "B/api/boards/1/folders/Projects" -d '{"to_board": "projects", "dry_run": true}'
 
     curl -s -X POST -H "$H" -H 'content-type: application/json' \\
          B/api/boards/1/folders -d '{"name": "Design/Decisions"}'   # makes both
@@ -1795,7 +1795,7 @@ defmodule SlipdockWeb.APIGuide do
     **also filed in** other folders, as a symbolic link would be — one body,
     one history. `POST /api/pages/W-31/folder {"also": "Ideas"}` adds one
     (made if new), `{"not_in": "Ideas"}` takes it away, `board` names another
-    board's folder, and a vault path (`"/Jobs/Notes"`) reaches any board of
+    board's folder, and a vault path (`"/Projects/Notes"`) reaches any board of
     the page's vault. A page's JSON lists them as `also_in`; a folder's
     listing (`?folder=`, `/folders`) includes them marked `"also": true`, each
     page once. Archiving keeps them; deleting a folder drops its own.
@@ -1825,10 +1825,12 @@ defmodule SlipdockWeb.APIGuide do
 
     ### Vaults: board wikis as one Obsidian-style vault
 
-    A **vault** is yours alone and holds no pages: it is a set of
+    A vault is a folder tree of Markdown (and other) files; the word is
+    Obsidian's, but nothing here needs Obsidian. A Slipdock **vault** is
+    yours alone and holds no pages: it is a set of
     **mappings**, each a vault path → a board's wiki or one folder of it, so
-    several boards' wikis read as one tree of files (`/` → KnowledgeBase,
-    `/Jobs` → Job Hunt). A mapping inside another is fine; the longest
+    several boards' wikis read as one tree of files (`/` → Handbook,
+    `/Projects` → Project Work). A mapping inside another is fine; the longest
     matching prefix wins. You can only map a board you can write to, and a
     board belongs to one vault — that vault is where a plain `[[link]]` on it
     is looked for.
@@ -1838,27 +1840,27 @@ defmodule SlipdockWeb.APIGuide do
     curl -s -X POST -H "$H" -H 'content-type: application/json' \\
          B/api/vaults -d '{"name": "Notes"}'
     curl -s -X POST -H "$H" -H 'content-type: application/json' \\
-         B/api/vaults/Notes/mappings -d '{"path": "/Jobs", "board": "jobs", "folder": "Notes"}'
-    curl -s -H "$H" "B/api/vaults/Notes/locate?path=/Jobs/Acme/Call.md"
-    # → {"mapping": {"path": "/Jobs", "board": {...}, ...}, "rest": "Acme/Call.md"}
+         B/api/vaults/Notes/mappings -d '{"path": "/Projects", "board": "projects", "folder": "Inbox"}'
+    curl -s -H "$H" "B/api/vaults/Notes/locate?path=/Projects/Acme/Call.md"
+    # → {"mapping": {"path": "/Projects", "board": {...}, ...}, "rest": "Acme/Call.md"}
     # "dry_run": true on a mapping (or &dry_run=true on its removal) previews it, changing nothing:
     # `arriving`/`leaving` pages with their vault paths, `moving` ones and the `mirrors` affected
-    curl -s -X DELETE -H "$H" "B/api/vaults/Notes/mappings?path=/Jobs"
+    curl -s -X DELETE -H "$H" "B/api/vaults/Notes/mappings?path=/Projects"
     curl -s -X PATCH -H "$H" -H 'content-type: application/json' \\
          B/api/vaults/Notes -d '{"name": "Brain"}'
     curl -s -X DELETE -H "$H" B/api/vaults/Brain   # its mappings go; the pages stay
     ```
 
     A mapping that would put one mapping's pages at paths another owns
-    (`/Jobs` onto Job Hunt while KnowledgeBase at `/` still has pages in
-    `Jobs`) is a 422 naming the count: move those pages first, or map
+    (`/Projects` onto Project Work while Handbook at `/` still has pages in
+    `Projects`) is a 422 naming the count: move those pages first, or map
     elsewhere. `overlaps` on a vault lists any made before that check.
     The way out of that refusal, in one step: `POST /api/vaults/:id/split`
-    with `path` (`/Jobs`) and `board` (or `new_board` to make one) moves
+    with `path` (`/Projects`) and `board` (or `new_board` to make one) moves
     what is in that folder to the board's top and maps `path` onto it; the
     notes keep their vault paths, so synced folders see no change to them.
     `dry_run` reports it first (`unchanged`, `renamed`, `joining`, `move`).
-    Shell: `slipdock vault split V /Jobs --board B [--dry-run]`; MCP:
+    Shell: `slipdock vault split V /Projects --board B [--dry-run]`; MCP:
     `manage_vault` `split`.
     A board that only holds a vault's pages can be kept *inside* it: for
     the vault's owner it leaves the web app's board list and is named on the
@@ -1879,7 +1881,7 @@ defmodule SlipdockWeb.APIGuide do
     ls|show|new|rename|rm|map|unmap|locate`; over MCP, `list_vaults` and
     `manage_vault`; in the web app, the Vaults screen (`/vaults`). A vault's
     `url` is its own view in the web app, where a page's address is its vault
-    path (`/vaults/GMinds/Jobs/Interview Questions`): give the person that
+    path (`/vaults/Notes/Projects/Roadmap`): give the person that
     link rather than a board's when the page is in their vault.
 
     **Links reach across the vault.** On a board in a vault, a plain
@@ -1916,7 +1918,7 @@ defmodule SlipdockWeb.APIGuide do
     curl -s -H "$H" B/api/vaults/Notes/sync            # every file: kind, id, path, hash; folders; cursor
     curl -s -H "$H" B/api/vaults/Notes/sync/pages/412  # one note's file: path, hash, content
     curl -s -X PUT -H "$H" -H 'content-type: application/json' \\
-         B/api/vaults/Notes/sync/pages/412 -d '{"path": "Jobs/Acme.md", "content": "…", "base": "<hash>"}'
+         B/api/vaults/Notes/sync/pages/412 -d '{"path": "Projects/Acme.md", "content": "…", "base": "<hash>"}'
     curl -s -X PUT -H "$H" -H 'content-type: application/json' \\
          B/api/vaults/Notes/sync/pages -d '{"path": "Ideas/New.md", "content": "…"}'
     curl -s -X DELETE -H "$H" "B/api/vaults/Notes/sync/pages/412?base=<hash>"   # archives
@@ -1958,7 +1960,7 @@ defmodule SlipdockWeb.APIGuide do
     title: weekly-sync
     date: 2026-09-16T12:08:42+01:00
     type: meeting
-    recording: gdrive:Manuel2 Recordings/2026-09/2026-09-16 12.08.42 weekly-sync.m4a
+    recording: gdrive:Meeting Recordings/2026-09/2026-09-16 12.08.42 weekly-sync.m4a
     recording_drive_id: 1AbCdEf…      # optional; add it once the upload lands
     recording_duration: 3725.4        # optional, seconds
     participants: [Me, Alice]
@@ -1992,12 +1994,15 @@ defmodule SlipdockWeb.APIGuide do
     drawn inline in the transcript where it was pressed, and clicking it
     plays from that moment. If the transcript itself contains a line
     starting with ```, fence the block with four backticks. Old notes with
-    `manuel2://play` links are left as they are.
+    `custom://play` links are left as they are. The whole contract, for
+    whatever records and transcribes the meeting (cue timings, speakers,
+    audio types, getting the page in, why it won't play), is in the manual:
+    docs/manual.md, *Meeting transcripts: what Slipdock expects*.
 
     It plays when the vault owner has connected Google Drive (Account →
     Settings; read-only) and set the vault's recordings folder, and only for
     files under that folder: `PATCH /api/vaults/:id {"recordings_folder":
-    "Manuel2 Recordings"}` (checked against Drive; `""` clears it), or
+    "Meeting Recordings"}` (checked against Drive; `""` clears it), or
     `slipdock vault set V --recordings-folder PATH`. `GET /api/me/drive`
     (`slipdock drive status`) says whether you are connected and each vault's
     folder. Write the page like any other vault note, with

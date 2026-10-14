@@ -27,7 +27,7 @@ defmodule SlipdockWeb.AudioAttachmentTest do
     %{board: reload(board), card: card, audio: audio, pdf: pdf}
   end
 
-  defp manuel(answer) do
+  defp transcriber(answer) do
     Req.Test.stub(Slipdock.Transcription, fn conn ->
       if conn.request_path == "/v1/status" do
         Req.Test.json(conn, %{"api_version" => "1.0.0", "capabilities" => []})
@@ -42,7 +42,7 @@ defmodule SlipdockWeb.AudioAttachmentTest do
     {:ok, _} =
       Settings.complete_setup(%{
         "admin_email" => "admin@example.com",
-        "transcription_server_url" => "https://manuel.example"
+        "transcription_server_url" => "https://transcribe.example"
       })
   end
 
@@ -86,7 +86,7 @@ defmodule SlipdockWeb.AudioAttachmentTest do
     audio: audio
   } do
     set_up_server()
-    manuel({200, %{"text" => "We agreed to ship on Friday."}})
+    transcriber({200, %{"text" => "We agreed to ship on Friday."}})
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/cards/#{card.id}")
 
     view |> element("#transcribe-#{audio.id}") |> render_click()
@@ -107,7 +107,7 @@ defmodule SlipdockWeb.AudioAttachmentTest do
     audio: audio
   } do
     set_up_server()
-    manuel({200, %{"text" => ""}})
+    transcriber({200, %{"text" => ""}})
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/cards/#{card.id}")
 
     view |> element("#transcribe-#{audio.id}") |> render_click()
@@ -121,7 +121,7 @@ defmodule SlipdockWeb.AudioAttachmentTest do
     audio: audio
   } do
     set_up_server()
-    manuel({401, %{"error" => %{"code" => "invalid_api_key", "message" => "bad key"}}})
+    transcriber({401, %{"error" => %{"code" => "invalid_api_key", "message" => "bad key"}}})
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/cards/#{card.id}")
 
     view |> element("#transcribe-#{audio.id}") |> render_click()

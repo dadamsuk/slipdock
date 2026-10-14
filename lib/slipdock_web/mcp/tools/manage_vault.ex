@@ -46,7 +46,7 @@ defmodule SlipdockWeb.MCP.Tools.ManageVault do
         action: %{type: "string", enum: @actions},
         vault: %{type: "string", description: "Vault id or name."},
         name: %{type: "string", description: "The vault's (new) name."},
-        path: %{type: "string", description: "Vault path, e.g. / or /Jobs."},
+        path: %{type: "string", description: "Vault path, e.g. / or /Projects."},
         board: %{
           type: "string",
           description: "Board id, code or name (map; move_folder: the folder's board)."

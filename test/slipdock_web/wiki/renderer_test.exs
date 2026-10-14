@@ -462,7 +462,7 @@ defmodule SlipdockWeb.Wiki.RendererTest do
         WEBVTT
 
         NOTE
-        Transcribed by Manuel2
+        Transcribed automatically
 
         1
         00:00:01.500 --> 00:00:03.250

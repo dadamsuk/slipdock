@@ -23,7 +23,7 @@ try {
   const confirm = page.locator('form[method=post] button[type=submit]').first()
   if (await confirm.count()) await Promise.all([page.waitForNavigation(), confirm.click()])
   // The vault's own view, whose tree is the vault's (#752), organising.
-  await page.goto(`${base}/vaults/GMinds`, { waitUntil: 'networkidle' })
+  await page.goto(`${base}/vaults/Notes`, { waitUntil: 'networkidle' })
   await page.waitForSelector('.phx-connected')
   await page.waitForSelector('[data-key="board:' + hunt + '"]')
   await page.click("button[phx-click='toggle_organise']")
@@ -46,12 +46,12 @@ try {
   await page.mouse.up()
 
   const dialog = page.locator('#tree-prompt')
-  await dialog.getByText('Move the folder “Specs” to Job Hunt?').waitFor({ timeout: 5000 })
+  await dialog.getByText('Move the folder “Specs” to Journal Desk?').waitFor({ timeout: 5000 })
   const summary = await page.locator('#cross-move-folders').innerText()
   if (!/1 folder, 1 page/.test(summary)) fail('the confirmation said: ' + summary)
 
   await page.click('#cross-move-confirm')
-  await page.getByText('Moved 1 folder to Job Hunt.').waitFor({ timeout: 5000 })
+  await page.getByText('Moved 1 folder to Journal Desk.').waitFor({ timeout: 5000 })
   console.log('ok: dragged, confirmed, moved')
 } catch (e) {
   await page.screenshot({ path: '/tmp/folder-move-drag-failure.png' })

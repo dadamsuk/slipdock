@@ -111,7 +111,7 @@ defmodule SlipdockWeb.API.GuideTest do
     body = conn |> get(~p"/api/guide") |> response(200)
 
     assert body =~ "### Meeting pages (recordings on Google Drive)"
-    assert body =~ "recording: gdrive:Manuel2 Recordings/"
+    assert body =~ "recording: gdrive:Meeting Recordings/"
     assert body =~ "[▶ Play recording and transcript](#recording)"
     assert body =~ "```vtt"
     assert body =~ "Tags: #important (0:05) #action (12:40)"

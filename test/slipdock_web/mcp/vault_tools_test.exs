@@ -7,8 +7,8 @@ defmodule SlipdockWeb.MCP.VaultToolsTest do
   alias Slipdock.{Accounts, Vaults}
 
   setup %{user: user} do
-    board_fixture(%{"name" => "KnowledgeBase", "code" => "kb"}, owner: user)
-    jobs = board_fixture(%{"name" => "Job Hunt", "code" => "jobs"}, owner: user)
+    board_fixture(%{"name" => "Keystone", "code" => "kb"}, owner: user)
+    jobs = board_fixture(%{"name" => "Journal Desk", "code" => "jobs"}, owner: user)
     {:ok, _} = Slipdock.Wiki.create_folder(jobs, %{"name" => "Notes"})
     :ok
   end
@@ -54,22 +54,24 @@ defmodule SlipdockWeb.MCP.VaultToolsTest do
         call(conn, "manage_vault", %{
           action: "map",
           vault: "Notes",
-          path: "/Jobs",
+          path: "/Journal",
           board: "jobs",
           folder: "Notes"
         })
       )
 
-    assert Enum.map(mapped["vault"]["mappings"], & &1["path"]) == ["/", "/Jobs"]
+    assert Enum.map(mapped["vault"]["mappings"], & &1["path"]) == ["/", "/Journal"]
 
     assert [%{"name" => "Notes"}] = ok!(call(conn, "list_vaults", %{}))["vaults"]
     assert ok!(call(conn, "list_vaults", %{vault: "notes"}))["vault"]["name"] == "Notes"
 
-    located = ok!(call(conn, "list_vaults", %{vault: "Notes", path: "/Jobs/a.md"}))
-    assert located["mapping"]["path"] == "/Jobs"
+    located = ok!(call(conn, "list_vaults", %{vault: "Notes", path: "/Journal/a.md"}))
+    assert located["mapping"]["path"] == "/Journal"
     assert located["rest"] == "a.md"
 
-    unmapped = ok!(call(conn, "manage_vault", %{action: "unmap", vault: "Notes", path: "/Jobs"}))
+    unmapped =
+      ok!(call(conn, "manage_vault", %{action: "unmap", vault: "Notes", path: "/Journal"}))
+
     assert Enum.map(unmapped["vault"]["mappings"], & &1["path"]) == ["/"]
 
     ok!(call(conn, "manage_vault", %{action: "rename", vault: "Notes", name: "Brain"}))
@@ -100,13 +102,15 @@ defmodule SlipdockWeb.MCP.VaultToolsTest do
       call(conn, "manage_vault", %{
         action: "map",
         vault: "Notes",
-        path: "/Jobs",
+        path: "/Journal",
         board: "jobs",
         folder: "Notes"
       })
     )
 
-    assert error!(call(conn, "manage_vault", %{action: "inside", vault: "Notes", path: "/Jobs"})) =~
+    assert error!(
+             call(conn, "manage_vault", %{action: "inside", vault: "Notes", path: "/Journal"})
+           ) =~
              "only a whole board"
 
     made = ok!(call(conn, "manage_vault", %{action: "create", name: "Brain", with_board: true}))
@@ -150,13 +154,13 @@ defmodule SlipdockWeb.MCP.VaultToolsTest do
     {:ok, kb} = Slipdock.Access.find_board(user, "kb")
     {:ok, jobs} = Slipdock.Access.find_board(user, "jobs")
     {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Jobs", board: jobs})
+    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: jobs})
     {:ok, note} = Slipdock.Wiki.create_page(jobs, %{"title" => "Acme"}, user: user)
     {:ok, _} = Slipdock.Wiki.create_page(kb, %{"title" => "L", "body" => "[[Ghost]]"}, user: user)
 
     found = ok!(call(conn, "list_vaults", %{vault: "Notes", link: "Acme"}))
     assert found["page"]["code"] == note.code
-    assert found["path"] == "/Jobs/Acme"
+    assert found["path"] == "/Journal/Acme"
     assert error!(call(conn, "list_vaults", %{link: "Acme"})) =~ "which vault"
 
     wanted = ok!(call(conn, "page_info", %{what: "wanted", vault: "Notes"}))
@@ -273,7 +277,7 @@ defmodule SlipdockWeb.MCP.VaultToolsTest do
         })
       )
 
-    assert dry["preview"]["into"] == "KnowledgeBase"
+    assert dry["preview"]["into"] == "Keystone"
 
     done =
       ok!(

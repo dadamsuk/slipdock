@@ -5,7 +5,7 @@ defmodule Slipdock.Wiki.TranscriptTagsTest do
   alias Slipdock.Wiki.TranscriptTags
 
   describe "parse/1" do
-    test "reads Manuel2's Tags line" do
+    test "reads a recorder's Tags line" do
       assert TranscriptTags.parse("Summary.\n\nTags: #important (0:05) #action (0:10)\n") == [
                %{tag: "important", ms: 5_000},
                %{tag: "action", ms: 10_000}

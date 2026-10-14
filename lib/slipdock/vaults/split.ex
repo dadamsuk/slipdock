@@ -2,13 +2,13 @@ defmodule Slipdock.Vaults.Split do
   @moduledoc """
   Giving a vault folder its own board, in one step (#747).
 
-  GMinds maps `/` onto KnowledgeBase, and KnowledgeBase keeps a `Jobs`
-  folder; making Job Hunt the home of `/Jobs` means moving what is in that
-  folder to Job Hunt's top (`Slipdock.Wiki.FolderMove`, `contents: true`)
-  and mapping `/Jobs` onto Job Hunt (`Slipdock.Vaults.add_mapping/3`), which
+  Notes maps `/` onto Handbook, and Handbook keeps a `Projects`
+  folder; making Project Work the home of `/Projects` means moving what is in that
+  folder to Project Work's top (`Slipdock.Wiki.FolderMove`, `contents: true`)
+  and mapping `/Projects` onto Project Work (`Slipdock.Vaults.add_mapping/3`), which
   passes the overlap check because the pages have moved first. The notes
-  keep their vault paths, so a synced folder sees no change to them; Job
-  Hunt's own pages arrive under `/Jobs` as new files.
+  keep their vault paths, so a synced folder sees no change to them; Project
+  Work's own pages arrive under `/Projects` as new files.
 
   Both steps run in one transaction: either the folder has its own board and
   the vault maps onto it, or nothing changed. A preview runs the very same
@@ -31,9 +31,9 @@ defmodule Slipdock.Vaults.Split do
   What giving the folder at vault `path` its own board would do. `target`
   is a `%Board{}`, or `{:new, name}` for a board made for it.
 
-      %{path: "/Jobs", from: "KnowledgeBase", into: "Job Hunt", new_board: false,
+      %{path: "/Projects", from: "Handbook", into: "Project Work", new_board: false,
         unchanged: 201, renamed: [%{from:, to:}],
-        joining: %{count: 3, sample: ["Jobs/Old note.md", ...]},
+        joining: %{count: 3, sample: ["Projects/Old note.md", ...]},
         move: <FolderMove's report>}
   """
   def preview(%Vault{} = vault, %User{} = user, path, target),

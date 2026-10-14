@@ -12,10 +12,10 @@ defmodule SlipdockWeb.WikiSwitcherLiveTest do
 
   setup %{user: user} do
     kb = board_fixture(%{"name" => "KB", "code" => "kbswl"}, owner: user)
-    jobs = board_fixture(%{"name" => "Job Hunt", "code" => "jobswl"}, owner: user)
+    jobs = board_fixture(%{"name" => "Journal Desk", "code" => "jobswl"}, owner: user)
     {:ok, vault} = Vaults.create_vault(user, %{"name" => "Brain"})
     {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/", board: kb})
-    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Jobs", board: jobs})
+    {:ok, _} = Vaults.add_mapping(vault, user, %{path: "/Journal", board: jobs})
     {:ok, acme} = Wiki.create_folder(jobs, %{"name" => "Acme"})
     {:ok, call} = Wiki.create_page(jobs, %{"title" => "Call"}, user: user)
     {:ok, call} = Wiki.file_page(call, acme)
@@ -39,7 +39,7 @@ defmodule SlipdockWeb.WikiSwitcherLiveTest do
 
     render_hook(view, "palette_filter", %{"q" => "acmcal"})
     assert has_element?(view, ~s{#palette-rows a[href="/boards/#{jobs.id}/wiki/#{call.slug}"]})
-    assert render(view) =~ "Jobs/Acme/Call"
+    assert render(view) =~ "Journal/Acme/Call"
     refute has_element?(view, "#palette-rows a", "Home")
 
     assert render_hook(view, "palette_filter", %{"q" => "qqqq"}) =~
