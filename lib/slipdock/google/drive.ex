@@ -59,7 +59,9 @@ defmodule Slipdock.Google.Drive do
       params: [alt: "media", supportsAllDrives: true],
       headers: headers,
       into: into,
-      decode_body: false
+      decode_body: false,
+      # The bytes as Drive keeps them: a player wants audio, not gzip.
+      compressed: false
     )
   end
 
