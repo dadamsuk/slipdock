@@ -67,6 +67,8 @@ defmodule SlipdockWeb.ClientIP do
   """
   @spec resolve(:inet.ip_address(), [String.t()]) :: :inet.ip_address()
   def resolve(peer, forwarded) do
+    peer = unmap(peer)
+
     if trusted?(peer) do
       forwarded
       |> Enum.flat_map(&String.split(&1, ","))
@@ -100,11 +102,22 @@ defmodule SlipdockWeb.ClientIP do
 
     Enum.find_value(candidates, :error, fn text ->
       case :inet.parse_strict_address(String.to_charlist(text)) do
-        {:ok, address} -> {:ok, address}
+        {:ok, address} -> {:ok, unmap(address)}
         _ -> nil
       end
     end)
   end
+
+  # A dual-stack listener reports an IPv4 peer as ::ffff:a.b.c.d, which is
+  # how the app in Docker sees the proxy in front of it. Judged as IPv6 it
+  # matches none of the IPv4 ranges, so the proxy went untrusted and every
+  # visitor was counted as the proxy.
+  defp unmap({0, 0, 0, 0, 0, 0xFFFF, high, low}),
+    do:
+      {Bitwise.bsr(high, 8), Bitwise.band(high, 0xFF), Bitwise.bsr(low, 8),
+       Bitwise.band(low, 0xFF)}
+
+  defp unmap(address), do: address
 
   @doc "Whether `address` (a tuple) is a proxy whose forwarded header is believed."
   @spec trusted?(:inet.ip_address()) :: boolean()
