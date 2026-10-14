@@ -2166,6 +2166,14 @@ line: `slipdock folder new <board> <name> --icon star --color amber`,
 `slipdock folder mv <board> <folder> --icon book-open` (or `--no-icon`,
 `--no-color`) and `slipdock page edit <page> --icon flag --color rose`.
 
+A board (or one folder of it) mounted in a vault shows in the vault's tree as
+a folder too, and wears an icon and a colour the same way: its tree menu has
+**Icon and colour…** for the vault's owner. What it wears there is the
+vault's, set on the mapping rather than on the board, so it is the same
+wherever the vault's tree is read. From the command line:
+`slipdock vault dress <vault> /Jobs --icon briefcase --color amber`
+(`none` takes either off).
+
 **Opening and shutting the tree.** A folder's chevron opens or shuts it, and
 so does a page's when it has pages under it. The double chevron at the top of
 the sidebar shuts every folder at once, and opens them all again once they

@@ -15,6 +15,9 @@ defmodule Slipdock.Vaults.Mapping do
   `inside`: a board mapped whole can be kept inside the vault (#757): for
   the vault's owner it is named on the vault's tile rather than listed
   among their boards. Only a whole board, never one folder of it.
+
+  `icon` and `color`: what the mounted row wears in the vault's tree (#797),
+  from the same set a wiki folder's come from (`Slipdock.Wiki.Icons`).
   """
   use Ecto.Schema
   import Ecto.Changeset
@@ -22,6 +25,8 @@ defmodule Slipdock.Vaults.Mapping do
   schema "vault_mappings" do
     field :path, :string, default: ""
     field :inside, :boolean, default: false
+    field :icon, :string
+    field :color, :string
 
     belongs_to :vault, Slipdock.Vaults.Vault
     belongs_to :board, Slipdock.Boards.Board
@@ -32,9 +37,10 @@ defmodule Slipdock.Vaults.Mapping do
 
   def changeset(mapping, attrs) do
     mapping
-    |> cast(attrs, [:path, :board_id, :folder_id, :inside])
+    |> cast(attrs, [:path, :board_id, :folder_id, :inside, :icon, :color])
     |> validate_required([:board_id])
     |> validate_inside()
+    |> Slipdock.Wiki.Icons.validate()
     |> validate_length(:path, max: 500)
     |> unique_constraint(:path,
       name: :vault_mappings_vault_id_path_index,

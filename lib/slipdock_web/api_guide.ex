@@ -1890,6 +1890,10 @@ defmodule SlipdockWeb.APIGuide do
     map V / --board B --inside`, `slipdock vault inside V / [--off]`,
     `slipdock vault new NAME --with-board`; MCP: `manage_vault` `inside`,
     and `inside`/`with_board` on `map`/`create`.
+    What a mapping's row wears in the vault's tree: `icon` and `color` on
+    the same `PATCH` (a wiki icon name and a palette colour, blank or
+    `none` for none; only what is given changes); each mapping says them.
+    Shell: `slipdock vault dress V /Jobs --icon briefcase --color amber`.
     `mirrors` are the folders the vault is synced to, as far as the server
     knows: each API token that has listed it (`/sync`) or followed its feed,
     by label, with `last_synced_at`. On a shell: `slipdock vault

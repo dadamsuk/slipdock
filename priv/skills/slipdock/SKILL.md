@@ -437,6 +437,7 @@ or a folder of it, longest prefix winning; one vault per board):
 slipdock vault ls | slipdock vault show <vault> | slipdock vault new <name...>
 slipdock vault map <vault> <path> --board B [--folder F] [--inside] [--dry-run] | slipdock vault unmap <vault> <path> [--dry-run]
 slipdock vault inside <vault> <path> [--off] | slipdock vault new <name...> --with-board
+slipdock vault dress <vault> <path> [--icon NAME] [--color NAME]   # what the mount wears in the vault's tree
 slipdock vault locate <vault> <path> | slipdock vault rename <vault> <name...> | slipdock vault rm <vault>
 ```
 A board that only holds a vault's pages can be kept inside it (`--inside`, `vault inside`): the

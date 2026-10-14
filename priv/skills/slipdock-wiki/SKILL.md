@@ -178,6 +178,7 @@ slipdock vault new Notes
 slipdock vault map Notes / --board kb              # the vault's root
 slipdock vault map Notes /Projects --board projects --folder Inbox
 slipdock vault inside Notes /                      # keep the board at / inside the vault (--off: let it out)
+slipdock vault dress Notes /Jobs --icon briefcase --color amber   # what a mount wears in the tree (none: take off)
 slipdock vault locate Notes /Projects/Acme/Call.md     # which mapping, and the rest of the path
 slipdock vault unmap Notes /Projects
 ```

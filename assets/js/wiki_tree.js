@@ -295,9 +295,11 @@ function rowHtml(item, index, ctx) {
     ? `<span data-drag class="shrink-0 cursor-grab touch-none py-1.5 text-base-content/30 hover:text-base-content/60" title="Drag to move this ${row.kind}"><span class="hero-bars-2 size-3.5"></span></span>`
     : ""
 
-  const menu = ["page", "folder", "file"].includes(row.kind) && !row.mount
+  // A row with no menu keeps its place, so a folder's count lines up with
+  // its neighbours' rather than sliding over to where the menu would be.
+  const menu = hasMenu(row)
     ? `<button type="button" data-menu class="btn btn-ghost btn-xs btn-square shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 [@media(hover:none)]:opacity-100" title="More (or right-click)"><span class="hero-ellipsis-horizontal size-3.5"></span></button>`
-    : ""
+    : `<span class="w-6 shrink-0"></span>`
 
   const classes = [
     "wt-row group absolute inset-x-0 flex items-center gap-1 rounded-lg pr-1 text-sm hover:bg-base-200",
@@ -318,6 +320,13 @@ function rowHtml(item, index, ctx) {
     `<span class="${escapeHtml(row.icon || ICONS[row.kind] || ICONS.page)} size-3.5 shrink-0 ${escapeHtml(row.tint || "text-base-content/50")}"></span>` +
     `<span class="min-w-0 flex-1 truncate ${row.kind === "folder" || row.kind === "dir" ? "font-medium" : ""}">${title}</span>` +
     badges + `</a>` + menu + `</div>`
+}
+
+// Whether a row has a menu: pages, folders and files, and what one mapping
+// mounts in a vault (#797); not a vault folder several are mounted below.
+export function hasMenu(row) {
+  if (row.mount) return !!row.mapping
+  return ["page", "folder", "file"].includes(row.kind)
 }
 
 // The card a page row's preview draws (#760), from what `tree_preview`
@@ -377,6 +386,16 @@ export function menuItems(row, ctx) {
     add(ctx.canWrite, {label: "New drawing", icon: "hero-paint-brush", event: "new_drawing", payload: {key: "root"}})
     if (ctx.canWrite) SORTS.forEach(([sort, label]) =>
       items.push({label: `Sort: ${label}`, icon: (ctx.rootSort || "name") === sort ? "hero-check" : "hero-arrows-up-down", event: "set_tree_sort", payload: {key: "root", sort}, group: "sort"}))
+    return items
+  }
+
+  // A board or folder mounted in the vault: opened, linked, and dressed
+  // by the vault's owner, since what it wears there is the mapping's (#797).
+  if (row.mount && row.mapping) {
+    add(!!row.href, {label: "Open", icon: "hero-folder-open", href: row.href, nav})
+    add(!!row.href, {label: "Open in a new tab", icon: "hero-arrow-top-right-on-square", action: "newTab", href: row.href})
+    add(ctx.vaultOwner, {label: "Icon and colour…", icon: "hero-swatch", event: "dress_mount", payload: {mapping: String(row.mapping)}, group: "edit"})
+    add(!!row.href, {label: "Copy link", icon: "hero-link", action: "copy", href: row.href, group: "share"})
     return items
   }
 
@@ -983,7 +1002,8 @@ export const WikiTree = {
     if (!item) return
     if (this.selected.size && !this.selected.has(item.row.key)) this.selected = new Set()
     const top = Number(rowEl.dataset.index) * this.rowH + this.rowH
-    this.showMenu(menuItems(item.row, this.ctx()), at || {y: top})
+    const items = menuItems(item.row, this.ctx())
+    if (items.length) this.showMenu(items, at || {y: top})
   },
 
   showMenu(items, at) {

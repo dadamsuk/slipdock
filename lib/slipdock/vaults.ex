@@ -513,6 +513,26 @@ defmodule Slipdock.Vaults do
     end
   end
 
+  @doc """
+  Sets what a mapping's row wears in the vault's tree (#797): `icon` and
+  `color` (string keys or atoms), each a name from `Slipdock.Wiki.Icons` or
+  `Slipdock.Palette`, or blank for none. Only what is given changes. `ref`
+  is the mapping's id or path.
+  """
+  def dress_mapping(%Vault{} = vault, ref, attrs) do
+    attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end) |> Map.take(["icon", "color"])
+
+    with {:ok, mapping} <- find_mapping(vault, ref) do
+      mapping
+      |> Mapping.changeset(attrs)
+      |> Repo.update()
+      |> case do
+        {:ok, m} -> {:ok, Repo.preload(m, [:board, :folder], force: true)}
+        error -> error
+      end
+    end
+  end
+
   ## Previews -------------------------------------------------------------------
 
   @sample 10

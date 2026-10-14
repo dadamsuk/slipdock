@@ -354,6 +354,10 @@ defmodule SlipdockCLI do
     vault inside <vault> <path> [--off] keep the board mapped whole at <path> inside the
                                         vault: the web app names it on the vault's tile, not
                                         among your boards (`boards` marks it). --off lets it out
+    vault dress <vault> <path> [--icon NAME] [--color NAME]
+                                        what the board or folder mounted at <path> wears in
+                                        the vault's tree (the wiki's icon set and palette;
+                                        none takes one off)
     vault unmap <vault> <path> [--dry-run]
                                         take a mapping out (--dry-run: which pages leave)
     vault split <vault> <path> --board B | --new-board NAME [--dry-run]

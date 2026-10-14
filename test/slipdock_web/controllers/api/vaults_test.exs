@@ -377,6 +377,55 @@ defmodule SlipdockWeb.API.VaultsTest do
       |> json_response(404)
     end
 
+    test "a mapping's icon and colour (#797): set, shown, taken off, refused", %{conn: conn} do
+      make(conn, "Notes")
+
+      conn
+      |> post("/api/vaults/Notes/mappings", %{"path" => "/Jobs", "board" => "jobs4"})
+      |> json_response(201)
+
+      out =
+        conn
+        |> patch("/api/vaults/Notes/mappings", %{
+          "path" => "/Jobs",
+          "icon" => "briefcase",
+          "color" => "amber"
+        })
+        |> json_response(200)
+
+      assert [%{"icon" => "briefcase", "color" => "amber", "inside" => false}] =
+               out["vault"]["mappings"]
+
+      # Only what is given changes; "none" takes one off.
+      out =
+        conn
+        |> patch("/api/vaults/Notes/mappings", %{"path" => "/Jobs", "color" => "none"})
+        |> json_response(200)
+
+      assert [%{"icon" => "briefcase", "color" => nil}] = out["vault"]["mappings"]
+
+      assert conn
+             |> patch("/api/vaults/Notes/mappings", %{"path" => "/Jobs", "icon" => "skull"})
+             |> json_response(422)
+             |> inspect() =~ "icons"
+
+      # A refused dress changes nothing else asked for with it.
+      conn
+      |> patch("/api/vaults/Notes/mappings", %{
+        "path" => "/Jobs",
+        "icon" => "skull",
+        "inside" => true
+      })
+      |> json_response(422)
+
+      out = conn |> get("/api/vaults/Notes") |> json_response(200)
+      assert [%{"icon" => "briefcase", "inside" => false}] = out["vault"]["mappings"]
+
+      conn
+      |> patch("/api/vaults/Notes/mappings", %{"path" => "/Nope", "icon" => "star"})
+      |> json_response(404)
+    end
+
     test "with_board makes the vault a board to hold its pages", %{conn: conn} do
       vault =
         conn

@@ -203,25 +203,36 @@ defmodule SlipdockWeb.API.VaultController do
   @doc """
   Changes a mapping, by its id (`/mappings/12`) or its path (`?path=/`):
   `inside` keeps a board mapped whole inside the vault, named on its tile
-  rather than among the owner's boards, or (false) lets it out (#757).
+  rather than among the owner's boards, or (false) lets it out (#757);
+  `icon` and `color` are what its row wears in the vault's tree, blank or
+  `none` for none (#797).
   """
   def update_mapping(conn, %{"id" => ref} = params) do
     mapping = params["mapping"] || params["path"]
+    dress = Map.take(params, ["icon", "color"])
 
     with {:ok, vault} <- Vaults.get_vault(user(conn), ref),
          :ok <- present(mapping),
-         :ok <- given(params, "inside"),
-         {:ok, _} <- Vaults.set_inside(vault, mapping, truthy?(params["inside"])),
+         :ok <- given(params),
+         {:ok, _} <- Vaults.find_mapping(vault, mapping),
+         {:ok, _} <- maybe(dress != %{}, fn -> Vaults.dress_mapping(vault, mapping, dress) end),
+         {:ok, _} <-
+           maybe(Map.has_key?(params, "inside"), fn ->
+             Vaults.set_inside(vault, mapping, truthy?(params["inside"]))
+           end),
          {:ok, vault} <- Vaults.get_vault(user(conn), vault.id) do
       json(conn, %{vault: V.vault(vault)})
     end
   end
 
-  defp given(params, key) do
-    if Map.has_key?(params, key),
+  defp given(params) do
+    if Enum.any?(["inside", "icon", "color"], &Map.has_key?(params, &1)),
       do: :ok,
-      else: {:error, :bad_request, "say what to change: inside (true or false)"}
+      else: {:error, :bad_request, "say what to change: inside (true or false), icon or color"}
   end
+
+  defp maybe(true, fun), do: fun.()
+  defp maybe(false, _fun), do: {:ok, nil}
 
   defp truthy?(value), do: value in [true, "true", "1", "yes"]
 

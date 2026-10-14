@@ -180,6 +180,7 @@ defmodule SlipdockWeb.WikiLive.Index do
       # change, in the one place a reader is trying to read.
       organising: false,
       folder_modal: nil,
+      mount_modal: nil,
       # The folder being looked *at*, when the index is scoped to one.
       folder: nil,
       # A folder whose deletion is being decided: keep what is in it, or
@@ -1369,6 +1370,34 @@ defmodule SlipdockWeb.WikiLive.Index do
 
   def handle_event("close_folder_modal", _params, socket),
     do: {:noreply, assign(socket, folder_modal: nil)}
+
+  # A board or folder mounted in the vault wears what its mapping says
+  # (#797). The mapping is the vault's, so only the vault's owner dresses it.
+  def handle_event("dress_mount", %{"mapping" => ref}, socket) do
+    with %{} = vault <- own_vault(socket),
+         {:ok, mapping} <- Slipdock.Vaults.find_mapping(vault, ref) do
+      {:noreply, assign(socket, mount_modal: mapping)}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("close_mount_modal", _params, socket),
+    do: {:noreply, assign(socket, mount_modal: nil)}
+
+  def handle_event("save_mount", params, socket) do
+    with %{} = mapping <- socket.assigns.mount_modal,
+         %{} = vault <- own_vault(socket),
+         {:ok, mapping} <- Slipdock.Vaults.dress_mapping(vault, mapping.id, params) do
+      {:noreply,
+       socket
+       |> assign(mount_modal: nil)
+       |> put_flash(:info, "#{Slipdock.Vaults.Mapping.display_path(mapping)} saved.")
+       |> load_tree()}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "That couldn't be saved.")}
+    end
+  end
 
   def handle_event("save_folder", %{"name" => name} = params, socket) do
     modal = socket.assigns.folder_modal
@@ -2619,7 +2648,7 @@ defmodule SlipdockWeb.WikiLive.Index do
 
     base =
       row
-      |> Map.take([:kind, :id, :board_id, :title, :count, :pages, :code, :placed_in])
+      |> Map.take([:kind, :id, :board_id, :title, :count, :pages, :code, :placed_in, :mapping])
       |> Map.merge(%{
         key: key,
         href: row_href(row, key),
@@ -2646,7 +2675,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   # A folder's or page's own icon and colour (#792), as the classes the hook
   # draws, when the board shows them in the tree. Rows without either go as
   # they were, and the hook draws the plain icon of their kind.
-  defp dress_row(%{kind: kind} = row, source, true) when kind in ["folder", "page"] do
+  defp dress_row(%{kind: kind} = row, source, true) when kind in ["folder", "page", "dir"] do
     row
     |> put_present(:icon, Icons.class(source[:icon]))
     |> put_present(:tint, Icons.tint(source[:color]))
@@ -4125,6 +4154,7 @@ defmodule SlipdockWeb.WikiLive.Index do
       </div>
 
       <.folder_modal :if={@folder_modal} modal={@folder_modal} outline={@folder_outline} />
+      <.mount_modal :if={@mount_modal} mapping={@mount_modal} />
       <.folder_delete_modal :if={@folder_delete} folder={@folder_delete} owner={@can_manage} />
       <.tree_prompt :if={@tree_prompt} prompt={@tree_prompt} />
     </Layouts.app>
@@ -4191,6 +4221,40 @@ defmodule SlipdockWeb.WikiLive.Index do
             <button type="submit" class="btn btn-primary btn-sm">
               {if @modal.folder, do: "Save", else: "Make folder"}
             </button>
+          </div>
+        </form>
+      </div>
+    </.modal>
+    """
+  end
+
+  attr :mapping, :any, required: true
+
+  # What a board or folder mounted in the vault wears in its tree (#797).
+  defp mount_modal(assigns) do
+    ~H"""
+    <.modal id="mount-modal" on_close={JS.push("close_mount_modal")} size="sm">
+      <div class="space-y-5 p-6">
+        <h2 class="text-lg font-semibold">
+          {Slipdock.Vaults.Mapping.display_path(@mapping)}
+        </h2>
+        <p class="text-sm text-base-content/60">
+          Mounted from {@mapping.board.name}. What it wears here is the vault's.
+        </p>
+        <form id="mount-form" phx-submit="save_mount" class="space-y-4">
+          <.dress_picker
+            id="mount-dress"
+            kind={:folder}
+            icon_name="icon"
+            color_name="color"
+            icon={@mapping.icon}
+            color={@mapping.color}
+          />
+          <div class="flex justify-end gap-2">
+            <button type="button" phx-click="close_mount_modal" class="btn btn-ghost btn-sm">
+              Cancel
+            </button>
+            <button type="submit" class="btn btn-primary btn-sm">Save</button>
           </div>
         </form>
       </div>
