@@ -125,6 +125,51 @@ defmodule SlipdockWeb.FileLiveTest do
     assert view |> element("#file-problem") |> render() =~ "too big to show here"
   end
 
+  test "a .vtt transcript reads as speakers' turns with their times; a broken one shows its text",
+       %{conn: conn, board: board} do
+    vtt = """
+    WEBVTT
+
+    00:00:01.000 --> 00:00:03.000
+    <v Priya>Morning.
+
+    00:00:03.000 --> 00:00:05.000
+    <v Priya>Shall we start?
+
+    00:01:05.000 --> 00:01:09.000
+    <v Tom>Yes <i>please</i>.
+    """
+
+    file = stored(board, "standup.vtt", vtt)
+    {:ok, view, _} = live(conn, ~p"/files/#{file.id}")
+
+    assert view |> element("#file-transcript-summary") |> render() =~
+             "1:09 · 2 speakers · 2 turns"
+
+    priya = view |> element(~s(#file-transcript li[data-speaker="Priya"])) |> render()
+    assert priya =~ "0:01"
+    assert priya =~ "Morning."
+    assert priya =~ "Shall we start?"
+    assert priya =~ "border-sky-500"
+    tom = view |> element(~s(#file-transcript li[data-speaker="Tom"])) |> render()
+    assert tom =~ "1:05"
+    assert tom =~ "Yes please."
+    assert tom =~ "border-amber-500"
+    refute has_element?(view, "#file-text")
+
+    broken = stored(board, "empty.vtt", "WEBVTT\n\nNOTE no cues\n")
+    {:ok, view, _} = live(conn, ~p"/files/#{broken.id}")
+    assert view |> element("#file-problem") |> render() =~ "read as a VTT transcript"
+    assert view |> element("#file-text") |> render() =~ "NOTE no cues"
+  end
+
+  test "a transcript's times are m:ss, and h:mm:ss from an hour" do
+    assert SlipdockWeb.FileViewer.clock(0) == "0:00"
+    assert SlipdockWeb.FileViewer.clock(65_999) == "1:05"
+    assert SlipdockWeb.FileViewer.clock(3_599_000) == "59:59"
+    assert SlipdockWeb.FileViewer.clock(3_723_000) == "1:02:03"
+  end
+
   test "a kind with no viewer offers the download", %{conn: conn, board: board} do
     file = stored(board, "clip.mp4", "ID3")
     {:ok, view, _} = live(conn, ~p"/files/#{file.id}")

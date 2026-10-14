@@ -3990,7 +3990,7 @@ defmodule SlipdockWeb.WikiLive.Index do
         <SlipdockWeb.FileViewer.viewer
           kind={@shown.kind}
           file={@shown.file}
-          {Map.take(@shown, [:tree, :text, :table, :problem])}
+          {Map.take(@shown, [:tree, :text, :table, :transcript, :problem])}
         />
       </div>
     </aside>

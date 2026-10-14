@@ -28,6 +28,7 @@ mix run -e '
     {"dot.png", png},
     {"logo.svg", ~S|<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="red"/><script>alert(1)</script></svg>|},
     {"Spec.pdf", pdf},
+    {"standup.vtt", "WEBVTT\n\n00:00:01.000 --> 00:00:04.000\n<v Priya Shah>Morning, all. The release went out last night and nothing has caught fire yet.\n\n00:00:04.000 --> 00:00:07.000\n<v Priya Shah>Shall we start with the bug list?\n\n00:00:07.500 --> 00:00:12.000\n<v Tom>Yes. Two new ones, both in the wiki tree.\n\n00:00:12.000 --> 00:00:15.000\n<v Ada>I can take the drag one.\n\n00:01:15.000 --> 00:01:20.000\n<v Priya Shah>Good, thanks.\n"},
     {"Report.html", ~S|<h1 id="t">Quarterly</h1><script>alert(1)</script><img src="x" onerror="alert(2)">|}
   ]
   for {name, bytes} <- files do

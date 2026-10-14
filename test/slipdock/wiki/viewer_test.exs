@@ -1,5 +1,5 @@
 defmodule Slipdock.Wiki.ViewerTest do
-  @moduledoc "Which viewer a wiki file gets, and the JSON and CSV it is read as."
+  @moduledoc "Which viewer a wiki file gets, and the JSON, CSV and transcripts it is read as."
   use ExUnit.Case, async: true
 
   alias Slipdock.Wiki.{Viewer, WikiFile}
@@ -21,6 +21,8 @@ defmodule Slipdock.Wiki.ViewerTest do
     assert Viewer.kind(file("song.mp3")) == :audio
     assert Viewer.kind(file("Memo.M4A")) == :audio
     assert Viewer.kind(file("take.wav")) == :audio
+    assert Viewer.kind(file("standup.vtt")) == :transcript
+    assert Viewer.kind(file("Film.SRT")) == :transcript
     assert Viewer.kind(file("clip.mp4")) == :none
     assert Viewer.kind(file("README")) == :none
   end
@@ -90,6 +92,73 @@ defmodule Slipdock.Wiki.ViewerTest do
       assert length(table.rows) == Viewer.max_rows()
       assert table.total == Viewer.max_rows() + 5
       assert hd(table.rows) == ["r1"]
+    end
+  end
+
+  describe "transcript" do
+    @vtt """
+    WEBVTT
+
+    NOTE recorded on Tuesday
+
+    1
+    00:00:01.000 --> 00:00:04.000
+    <v Priya Shah>Morning, <b>all</b>.</v>
+
+    2
+    00:00:04.500 --> 00:00:06.000
+    <v Priya Shah>Shall we start?
+
+    3
+    00:00:06.000 --> 00:01:02.250 align:start
+    <v Tom>Yes &amp; quickly.
+
+    4
+    00:01:03.000 --> 01:00:00.000
+    <v Priya Shah>Good.
+    """
+
+    test "cues from the same speaker in a row are one turn; speakers in the order they speak" do
+      assert {:ok, %{turns: turns, speakers: speakers, duration_ms: duration}} =
+               Viewer.transcript(@vtt, "standup.vtt")
+
+      assert turns == [
+               %{
+                 speaker: "Priya Shah",
+                 start_ms: 1_000,
+                 lines: ["Morning, all.", "Shall we start?"]
+               },
+               %{speaker: "Tom", start_ms: 6_000, lines: ["Yes & quickly."]},
+               %{speaker: "Priya Shah", start_ms: 63_000, lines: ["Good."]}
+             ]
+
+      assert speakers == ["Priya Shah", "Tom"]
+      assert duration == 3_600_000
+    end
+
+    test "a Name: prefix names the speaker; cues with no name are turns with none" do
+      text =
+        "WEBVTT\n\n00:01.000 --> 00:02.000\nAda: Hello\n\n00:02.000 --> 00:03.000\njust words\n"
+
+      assert {:ok,
+              %{
+                turns: [%{speaker: "Ada"}, %{speaker: nil, lines: ["just words"]}],
+                speakers: ["Ada"]
+              }} =
+               Viewer.transcript(text, "a.vtt")
+    end
+
+    test "an .srt is read as SubRip" do
+      srt = "1\n00:00:01,000 --> 00:00:02,000\nBob: Hi there\n"
+
+      assert {:ok, %{turns: [%{speaker: "Bob", lines: ["Hi there"]}]}} =
+               Viewer.transcript(srt, "x.srt")
+    end
+
+    test "a file with no cues, or nothing in it, says it isn't a transcript" do
+      assert {:error, message} = Viewer.transcript("WEBVTT\n\nNOTE nothing here\n", "a.vtt")
+      assert message =~ "doesn't read as a VTT transcript"
+      assert {:error, _} = Viewer.transcript("", "a.vtt")
     end
   end
 end

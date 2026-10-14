@@ -58,7 +58,7 @@ defmodule SlipdockWeb.FileLive do
           <FileViewer.viewer
             kind={@kind}
             file={@file}
-            {Map.take(assigns, [:tree, :text, :table, :problem])}
+            {Map.take(assigns, [:tree, :text, :table, :transcript, :problem])}
           />
         </div>
       </div>

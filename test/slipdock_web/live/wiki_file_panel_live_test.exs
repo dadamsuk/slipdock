@@ -51,6 +51,22 @@ defmodule SlipdockWeb.WikiFilePanelLiveTest do
     refute panel =~ "lg:w-["
   end
 
+  test "a .vtt file opened from the tree reads as a transcript in the panel (#774)",
+       %{conn: conn, board: board, page: page} do
+    file =
+      stored(board, "call.vtt", "WEBVTT\n\n00:00:02.000 --> 00:00:04.000\n<v Ada>Hello there.\n")
+
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}")
+
+    open_file(view, file.id)
+
+    turn =
+      view |> element(~s(#wiki-file-panel #file-transcript li[data-speaker="Ada"])) |> render()
+
+    assert turn =~ "Hello there."
+    assert turn =~ "0:02"
+  end
+
   test "putting the file away brings the page back", %{conn: conn, board: board, page: page} do
     file = stored(board, "notes.txt", "x")
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}")
