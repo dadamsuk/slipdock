@@ -44,6 +44,47 @@ defmodule SlipdockCLI.SearchRenderTest do
     assert out =~ "1 card"
   end
 
+  @pages %{
+    "results" =>
+      for code <- ["W-1", "W-2"] do
+        %{
+          "kind" => "page",
+          "score" => 0.7,
+          "page" => %{
+            "code" => code,
+            "title" => "Deploy runbook #{code}",
+            "summary" => nil,
+            "board" => %{"name" => "Ops"}
+          },
+          "matches" => [
+            %{"kind" => "page", "section" => "Deploy", "text" => "cd ~/server", "url" => nil},
+            %{"kind" => "page", "section" => "", "text" => "docker compose up -d"}
+          ]
+        }
+      end
+  }
+
+  # `search --kind pages` without --full printed the first page, then crashed on
+  # its second match with a BadBooleanError (#799, an escript built before #667).
+  test "page results with several matches render every page without --full" do
+    out = capture_io(fn -> Render.search_results(@pages, full: nil) end)
+    assert out =~ "W-1 Deploy runbook W-1"
+    assert out =~ "W-2 Deploy runbook W-2"
+    assert out =~ "Ops › wiki"
+    refute out =~ "Ops › wiki ·"
+    assert out =~ "[Deploy] cd ~/server"
+    assert out =~ "docker compose up -d"
+    assert out =~ "2 pages"
+    refute out =~ "card"
+  end
+
+  test "--full on a page match with no url prints the text and no link line" do
+    out = capture_io(fn -> Render.search_results(@pages, full: true) end)
+    assert out =~ "docker compose up -d"
+    refute out =~ "/boards/"
+    assert out =~ "2 pages"
+  end
+
   test "full: false renders the short form" do
     out = capture_io(fn -> Render.search_results(@results, full: false) end)
     refute out =~ "?at="
