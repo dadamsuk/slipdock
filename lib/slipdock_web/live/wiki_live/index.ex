@@ -3188,14 +3188,6 @@ defmodule SlipdockWeb.WikiLive.Index do
   end
 
   # What a page says about where it stands, for the places that only show it.
-  # Whether the page has anything to show in its folded details: a writer
-  # always does (the folder picker and the list menu are there to use).
-  defp page_details?(page, can_write) do
-    can_write or not is_nil(page.folder_id) or not is_nil(page.column_id) or
-      not is_nil(page.public_token) or facets(page) != [] or page.note_tags != [] or
-      not is_nil(page.front_matter)
-  end
-
   defp facets(page) do
     [
       page.priority != "none" && {page.priority, "Priority"},
@@ -3235,6 +3227,9 @@ defmodule SlipdockWeb.WikiLive.Index do
          put_flash(socket, :error, "No such version to compare with; showing the one before.")}
     end
   end
+
+  defp iso(nil), do: nil
+  defp iso(%DateTime{} = at), do: DateTime.to_iso8601(at)
 
   defp stamp(nil), do: ""
   defp stamp(%DateTime{} = at), do: Calendar.strftime(at, "%d %b %Y, %H:%M")
@@ -5020,7 +5015,6 @@ defmodule SlipdockWeb.WikiLive.Index do
             `ignore_attributes` keeps it open across this page's own updates
             (filing it, placing it). --%>
       <details
-        :if={page_details?(@page, @can_write)}
         id={"page-details-#{@page.id}"}
         data-role="page-details"
         phx-mounted={JS.ignore_attributes("open")}
@@ -5030,6 +5024,22 @@ defmodule SlipdockWeb.WikiLive.Index do
           <.icon name="hero-chevron-right" class="size-3 transition-transform group-open:rotate-90" />
           Page details
         </summary>
+        <%!-- When it was written and last changed. Kept by Slipdock, not in
+              the page's front matter, so a synced file is never rewritten
+              just to move a timestamp (#790). --%>
+        <div
+          id="page-stamps"
+          class="mt-4 flex flex-wrap items-center gap-2 text-sm text-base-content/60"
+        >
+          <.icon name="hero-clock" class="size-4 shrink-0" />
+          <span>
+            Created <time datetime={iso(@page.inserted_at)}>{stamp(@page.inserted_at)}</time>
+          </span>
+          <span aria-hidden="true">·</span>
+          <span>
+            Updated <time datetime={iso(@page.updated_at)}>{stamp(@page.updated_at)}</time>
+          </span>
+        </div>
         <%!-- Where it is filed. A page starts at the root, which is a place
               rather than a limbo; a folder is filing and nothing else. --%>
         <div

@@ -505,6 +505,9 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
       assert page["body"] =~ "Do the thing."
       assert page["content_hash"]
       assert page["truncated"] == false
+      # When it was created and last updated (#790).
+      assert page["inserted_at"] == DateTime.to_iso8601(ctx.page.inserted_at)
+      assert page["updated_at"] == DateTime.to_iso8601(ctx.page.updated_at)
     end
 
     test "by title on a board", ctx do
