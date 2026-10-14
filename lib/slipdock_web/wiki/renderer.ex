@@ -347,6 +347,11 @@ defmodule SlipdockWeb.Wiki.Renderer do
 
   defp expand_node(%MDEx.Text{literal: text}, context), do: text_nodes(text, context)
 
+  defp expand_node(%{nodes: children} = node, context) when is_list(children),
+    do: [%{node | nodes: expand_list(children, context)}]
+
+  defp expand_node(node, _context), do: [node]
+
   # A paragraph that is nothing but a directive becomes a block of its own:
   # a table of contents does not belong inside a <p>.
   defp paragraph(node, text, context) do
@@ -357,11 +362,6 @@ defmodule SlipdockWeb.Wiki.Renderer do
       _ -> [%{node | nodes: expand_list(node.nodes, context)}]
     end
   end
-
-  defp expand_node(%{nodes: children} = node, context) when is_list(children),
-    do: [%{node | nodes: expand_list(children, context)}]
-
-  defp expand_node(node, _context), do: [node]
 
   defp text_nodes(text, context) do
     {text, block} = block_id(text)
