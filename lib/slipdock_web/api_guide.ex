@@ -1658,6 +1658,12 @@ defmodule SlipdockWeb.APIGuide do
     POST /api/runner/jobs/:id/finish?exit=N&status=S   body = last output → ok
     ```
 
+    A server stopping for a deploy answers every open claim at once with a
+    204 and `Retry-After: 1`: wait that many seconds, then claim again, and
+    the new server answers. A 502, 503 or 504 on a claim is a deploy too
+    (the proxy lost it): claim again a second later. Both runners do this
+    and log it only when it goes on.
+
     The shell runner that speaks it, `slipdock-runner` (`sh` and `curl`
     only), installs with `curl -fsSL B/runner/install.sh | sh -s -- --url B
     --token sdr_… --pool default`; on Windows, `slipdock-runner.ps1` from

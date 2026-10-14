@@ -26,7 +26,7 @@ defmodule Slipdock.Runners do
   alias Slipdock.{Boards, Repo}
   alias Slipdock.Accounts.UserToken
   alias Slipdock.Boards.{Board, Card}
-  alias Slipdock.Runners.{Job, Recovery, Runner}
+  alias Slipdock.Runners.{ClaimDrain, Job, Recovery, Runner}
 
   @pubsub Slipdock.PubSub
 
@@ -461,20 +461,33 @@ defmodule Slipdock.Runners do
     deadline = System.monotonic_time(:millisecond) + max(wait_ms, 0)
     topic = pool_topic(runner.board_id, runner.pool)
 
-    case try_claim(runner) do
+    # A node on its way down hands out nothing: an answer the endpoint drops
+    # would leave the job leased to nobody until the lease runs out.
+    first = if ClaimDrain.draining?(), do: :draining, else: try_claim(runner)
+
+    case first do
       nil when wait_ms > 0 ->
         Phoenix.PubSub.subscribe(@pubsub, topic)
+        ClaimDrain.subscribe()
 
         try do
-          wait_for_job(runner, deadline)
+          # Looked at after subscribing, so a drain in between isn't missed.
+          if not ClaimDrain.draining?(), do: wait_for_job(runner, deadline)
         after
           Phoenix.PubSub.unsubscribe(@pubsub, topic)
+          ClaimDrain.unsubscribe()
         end
+
+      :draining ->
+        nil
 
       result ->
         result
     end
   end
+
+  @doc "True when this node is stopping, and so answering claims with nothing at once."
+  defdelegate draining?, to: ClaimDrain
 
   defp wait_for_job(runner, deadline) do
     left = deadline - System.monotonic_time(:millisecond)
@@ -490,6 +503,9 @@ defmodule Slipdock.Runners do
             nil -> wait_for_job(runner, deadline)
             job -> job
           end
+
+        :draining ->
+          nil
       after
         left -> try_claim(runner)
       end

@@ -34,7 +34,10 @@ defmodule Slipdock.Application do
       # Sends the server's errors to PostHog, when a project key is set.
       Slipdock.Posthog.ErrorTracking,
       # Start to serve requests, typically the last entry
-      SlipdockWeb.Endpoint
+      SlipdockWeb.Endpoint,
+      # After the endpoint, so it stops first: answers the runners' open
+      # claims while the endpoint can still send the answer.
+      Slipdock.Runners.ClaimDrain
     ]
 
     # See https://elixir.hexdocs.pm/Supervisor.html

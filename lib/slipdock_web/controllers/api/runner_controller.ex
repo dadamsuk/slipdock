@@ -11,6 +11,9 @@ defmodule SlipdockWeb.API.RunnerController do
       POST /api/runner/jobs/:id/heartbeat     body = log tail → "ok" or "cancel"
       POST /api/runner/jobs/:id/finish?exit=N&status=S   body = last output → "ok"
 
+  A server on its way down (see `Slipdock.Runners.ClaimDrain`) answers
+  claims with a 204 and `Retry-After: 1`.
+
   Authenticated with a runner token (`Authorization: Bearer sdr_…`), never
   an API token: a runner can take and report on its own pool's jobs and do
   nothing else.
@@ -35,7 +38,7 @@ defmodule SlipdockWeb.API.RunnerController do
     else
       case Runners.claim(runner, wait(params["wait"]) * 1000) do
         nil ->
-          send_resp(conn, 204, "")
+          conn |> draining() |> send_resp(204, "")
 
         job ->
           conn
@@ -86,6 +89,18 @@ defmodule SlipdockWeb.API.RunnerController do
 
       runner ->
         assign(conn, :runner, runner)
+    end
+  end
+
+  # Stopping for a deploy: ask the runner to wait a moment before asking
+  # again, on a new connection, which reaches the app that replaces this one.
+  defp draining(conn) do
+    if Runners.draining?() do
+      conn
+      |> put_resp_header("retry-after", "1")
+      |> put_resp_header("connection", "close")
+    else
+      conn
     end
   end
 

@@ -50,6 +50,7 @@ defmodule SlipdockWeb.API.GuideTest do
     assert body =~ "The server never decides what runs"
     assert body =~ "/api/boards/1/jobs/claim"
     assert body =~ "POST /api/runner/claim?wait=25"
+    assert body =~ "`Retry-After: 1`"
     assert body =~ "/api/jobs/:id/cancel"
     assert body =~ "`claim_job`, `job_progress` and"
   end

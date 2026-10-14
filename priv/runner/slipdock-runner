@@ -288,6 +288,8 @@ $JOB_INSTRUCTIONS"
 }
 
 backoff=1
+# Gateway errors in a row that were retried without a word.
+quiet=0
 query="wait=$WAIT"
 [ -n "$POOL" ] && query="$query&pool=$POOL"
 say "taking jobs from $SLIPDOCK_URL${POOL:+ (pool $POOL)}"
@@ -298,19 +300,38 @@ while :; do
   case "$CODE" in
     200)
       backoff=1
+      quiet=0
       run_job
       ;;
-    204) backoff=1 ;;
+    204)
+      backoff=1
+      quiet=0
+      # A server stopping for a deploy says how long to wait before asking
+      # again, by when its replacement is there to answer.
+      pause=$(header retry-after)
+      case "$pause" in '' | *[!0-9]*) pause=0 ;; esac
+      [ "$pause" -gt 60 ] && pause=60
+      [ -z "$ONCE" ] && [ "$pause" -gt 0 ] && sleep "$pause"
+      ;;
     401 | 403)
       say "the server refused this runner (HTTP $CODE): $(cat "$WORK/resp" 2>/dev/null)"
       exit 1
       ;;
     *)
-      say "could not reach the queue (HTTP $CODE) — trying again in ${backoff}s"
-      [ -n "$ONCE" ] && exit 1
-      sleep "$backoff"
-      backoff=$((backoff * 2))
-      [ "$backoff" -gt 60 ] && backoff=60
+      # A claim the proxy lost when the app went down for a deploy (502, or
+      # the connection dropped without a proxy) is retried at once, and
+      # quietly: only a few in a row are worth a line in the log.
+      case "$CODE" in 000 | 502 | 503 | 504) gateway=1 ;; *) gateway= ;; esac
+      if [ -z "$ONCE" ] && [ -n "$gateway" ] && [ "$quiet" -lt 3 ]; then
+        quiet=$((quiet + 1))
+        sleep 1
+      else
+        say "could not reach the queue (HTTP $CODE) — trying again in ${backoff}s"
+        [ -n "$ONCE" ] && exit 1
+        sleep "$backoff"
+        backoff=$((backoff * 2))
+        [ "$backoff" -gt 60 ] && backoff=60
+      fi
       ;;
   esac
 
