@@ -172,4 +172,112 @@ defmodule Slipdock.Wiki.Sharing do
   defp write_in?(user, folder_id), do: write?(Access.folder_grant_level(user, folder_id))
 
   defp write?(level), do: Access.can_write?(level)
+
+  ## Handing out shares ----------------------------------------------------------
+  #
+  # The API, the MCP `share` tool and the views share a page or folder
+  # through these, which decide who may: a writer on its board. Somebody it
+  # was shared with may not pass it on (`shared_no_reshare`), whatever their
+  # level; anybody else who can read it is refused plainly, and somebody who
+  # can't see it at all is told it isn't there.
+
+  @doc "Whether `user` may see and change who `item` is shared with."
+  @spec may_share(User.t(), Page.t() | Folder.t()) ::
+          :ok | {:error, :shared, String.t(), String.t()} | {:error, atom, String.t()}
+  def may_share(%User{} = user, item) do
+    cond do
+      board_writer?(user, item.board_id) ->
+        :ok
+
+      Access.share_permission(user, item) != :none ->
+        refuse("shared_no_reshare")
+
+      Access.can_read?(item_permission(user, item)) ->
+        {:error, :forbidden, "you don't edit its board"}
+
+      true ->
+        {:error, :not_found, what(item)}
+    end
+  end
+
+  @doc "Who `item` is shared with, if `user` may manage that."
+  def grants(user, item) do
+    with :ok <- may_share(user, item), do: {:ok, Access.list_grants(item)}
+  end
+
+  @doc """
+  Shares `item` with a person or group at `level` ("read" or "write"):
+  `who` is `%{"email" => …}` or `%{"group" => id or name}`, a group of
+  `user`'s. An address nobody uses goes through the invite flow. Sharing
+  again changes the level.
+  """
+  def share(user, item, who, level) do
+    with :ok <- may_share(user, item),
+         :ok <- level_ok(level),
+         {:ok, subject} <- subject(user, who),
+         {:ok, grant} <- Access.grant(item, subject, level, user) do
+      {:ok, grant}
+    else
+      {:error, message} when is_binary(message) -> {:error, :unprocessable_entity, message}
+      other -> other
+    end
+  end
+
+  @doc "Takes back what `who` was given on `item`."
+  def unshare(user, item, who) do
+    with :ok <- may_share(user, item),
+         {:ok, subject} <- existing_subject(user, who) do
+      case Enum.find(Access.list_grants(item), &holds?(&1, subject)) do
+        nil -> {:error, :not_found, "a share of it with #{describe(subject)}"}
+        grant -> Access.revoke(grant)
+      end
+    end
+  end
+
+  defp level_ok(level) when level in ["read", "write"], do: :ok
+  defp level_ok(_), do: {:error, :bad_request, "level is read or write"}
+
+  defp subject(user, %{"group" => ref}) when ref not in [nil, ""], do: group(user, ref)
+
+  defp subject(_user, %{"email" => email}) when is_binary(email) and email != "",
+    do: {:ok, String.trim(email)}
+
+  defp subject(_user, _who), do: {:error, :bad_request, "say who: an email or a group"}
+
+  # Taking back is of somebody already there: no invitation for a stranger.
+  defp existing_subject(user, %{"group" => ref}) when ref not in [nil, ""], do: group(user, ref)
+
+  defp existing_subject(_user, %{"email" => email}) when is_binary(email) and email != "" do
+    case Slipdock.Accounts.get_user_by_email(String.trim(email)) do
+      %User{} = found -> {:ok, found}
+      nil -> {:error, :not_found, "a share of it with #{email}"}
+    end
+  end
+
+  defp existing_subject(_user, _who), do: {:error, :bad_request, "say who: an email or a group"}
+
+  defp group(user, ref) do
+    groups = Slipdock.Accounts.list_groups(user)
+    ref = to_string(ref)
+
+    case Enum.find(
+           groups,
+           &(to_string(&1.id) == ref or String.downcase(&1.name) == String.downcase(ref))
+         ) do
+      nil -> {:error, :not_found, "group #{ref}"}
+      group -> {:ok, group}
+    end
+  end
+
+  defp holds?(grant, %User{id: id}), do: grant.user_id == id
+  defp holds?(grant, %Slipdock.Accounts.Group{id: id}), do: grant.group_id == id
+
+  defp describe(%User{email: email}), do: email
+  defp describe(%Slipdock.Accounts.Group{name: name}), do: "the group #{name}"
+
+  defp item_permission(user, %Page{} = page), do: Access.page_permission(user, page)
+  defp item_permission(user, %Folder{} = folder), do: Access.folder_permission(user, folder)
+
+  defp what(%Page{id: id}), do: "page #{id}"
+  defp what(%Folder{id: id}), do: "folder #{id}"
 end

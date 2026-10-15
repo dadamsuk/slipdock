@@ -188,7 +188,10 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
           connects gets a small set of tools: reading boards, cards, pages and the guide,
           searching, adding, updating, moving, commenting on, completing, archiving and deleting
           cards (dependencies and checklists too), adding and deleting lists, making, archiving
-          and deleting boards, and writing pages. Deleting has to be confirmed in the call.
+          and deleting boards, writing pages, and sharing a page or folder with somebody
+          (<code>share</code>; <code>list_pages</code>
+          with <code>shared</code>
+          lists what is shared with you). Deleting has to be confirmed in the call.
         </p>
         <p class="mt-3 text-sm text-base-content/60">
           <strong>From claude.ai or the Claude apps:</strong>

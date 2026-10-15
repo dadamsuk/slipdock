@@ -47,7 +47,7 @@ defmodule SlipdockWeb.MCP.DocsTest do
     section = section |> String.split(~r/\n## /, parts: 2) |> hd()
 
     mentioned =
-      Regex.scan(~r/`([a-z]+_[a-z_]+|whoami|search|ask|comment|activity)`/, section,
+      Regex.scan(~r/`([a-z]+_[a-z_]+|whoami|search|ask|comment|activity|share)`/, section,
         capture: :all_but_first
       )
       |> List.flatten()

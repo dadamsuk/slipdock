@@ -42,6 +42,7 @@ defmodule SlipdockWeb.MCP.Tools do
     Tools.WritePage,
     Tools.UpdatePage,
     Tools.FileFolder,
+    Tools.Share,
     Tools.RevertPage,
     Tools.ManageVault,
     Tools.ClaimJob,

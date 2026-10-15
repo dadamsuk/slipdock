@@ -10,7 +10,7 @@ defmodule SlipdockCLI.Wiki do
   alias SlipdockCLI.Meld
   alias SlipdockCLI.Render
 
-  @commands ~w(folder wiki page export import writeup)
+  @commands ~w(folder wiki page export import writeup shared)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -106,11 +106,25 @@ defmodule SlipdockCLI.Wiki do
     HTTP.post("/boards/#{enc(ref)}/organise", body) |> out(o, &Render.organise/1)
   end
 
+  # Sharing a folder shares everything in it (#820). With no one named,
+  # who has it.
+  def run("folder", ["share", ref, folder | who], o) when length(who) <= 1 do
+    case HTTP.get("/boards/#{enc(ref)}/folders/#{path_enc(folder)}") do
+      {:ok, %{"folder" => %{"id" => id}}} -> share("/folders/#{id}/grants", who, o)
+      error -> out(error, o, fn _ -> :ok end)
+    end
+  end
+
   def run("folder", _args, _o),
     do:
       fail(
-        "usage: slipdock folder ls BOARD | show BOARD F | file BOARD F --also G|--not-in G [--board B] | open BOARD [F] [--page P] | new BOARD NAME [--parent F] [--icon I] [--color C] | mv BOARD F --parent G|--root|--name N|--icon I|--no-icon|--color C|--no-color|--board B [--contents] | rm BOARD F [--purge] | organise BOARD F --by date|ai|tag|flatten [--parent G|--root] [--per month|year|year_month|day] [--added] [--dry-run]"
+        "usage: slipdock folder ls BOARD | share BOARD F [EMAIL|GROUP --read|--write [--off]] | show BOARD F | file BOARD F --also G|--not-in G [--board B] | open BOARD [F] [--page P] | new BOARD NAME [--parent F] [--icon I] [--color C] | mv BOARD F --parent G|--root|--name N|--icon I|--no-icon|--color C|--no-color|--board B [--contents] | rm BOARD F [--purge] | organise BOARD F --by date|ai|tag|flatten [--parent G|--root] [--per month|year|year_month|day] [--added] [--dry-run]"
       )
+
+  # What other people have shared with you, by owner (#820). `page read`
+  # and `page edit` take the codes it prints like any page's.
+  def run("shared", [], o), do: HTTP.get("/shared") |> out(o, &Render.shared(&1["shared"]))
+  def run("shared", _args, _o), do: fail("usage: slipdock shared")
 
   # Every board's wiki at once: what the Wiki view on the web shows.
   def run("wiki", [], o),
@@ -175,6 +189,11 @@ defmodule SlipdockCLI.Wiki do
     HTTP.get("/boards/#{enc(ref)}/pages", tree: "true", archived: archived_param(o))
     |> out(o, &Render.page_tree(&1["pages"]))
   end
+
+  # Sharing a page with a person (an email) or a group of yours (#820).
+  # With no one named, who has it; --off takes a share back.
+  def run("page", ["share", ref | who], o) when length(who) <= 1,
+    do: share("/pages/#{enc(ref)}/grants", who, o)
 
   def run("page", ["read", ref], o),
     do: HTTP.get("/pages/#{enc(ref)}") |> out(o, &Render.page(&1["page"]))
@@ -987,5 +1006,24 @@ defmodule SlipdockCLI.Wiki do
       r ->
         IO.puts("deleted the folder #{r["deleted"]["path"]} — nothing in it was deleted")
     end)
+  end
+
+  ## Sharing -------------------------------------------------------------------
+
+  defp share(path, [], o), do: HTTP.get(path) |> out(o, &Render.grants(&1["grants"]))
+
+  defp share(path, [who], o) do
+    if o[:read] && o[:write], do: fail("say one: --read or --write")
+    subject = if String.contains?(who, "@"), do: %{"email" => who}, else: %{"group" => who}
+
+    if o[:off] do
+      HTTP.delete(path, Map.to_list(subject))
+      |> out(o, fn _ -> IO.puts("no longer shared with #{who}") end)
+    else
+      level = if o[:write], do: "write", else: "read"
+
+      HTTP.post(path, Map.put(subject, "level", level))
+      |> out(o, fn %{"grant" => g} -> IO.puts("shared with #{who}: " <> Render.grant_level(g)) end)
+    end
   end
 end

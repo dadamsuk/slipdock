@@ -1827,6 +1827,41 @@ defmodule SlipdockWeb.APIGuide do
     pages under folders placed there, marked `"also": true`. Sync writes a
     folder once, at home. MCP: `file_folder`.
 
+    **Sharing a page or a folder** (#813) hands it to somebody who need not
+    see the board: a person by email (a stranger is invited) or a group of
+    yours, `read` or `write`. A folder share covers everything whose *home*
+    is in its subtree (pages, files, drawings, subfolders), never what is only
+    also filed there. Only the board's writers share.
+
+    ```bash
+    curl -s -X POST -H "$H" -H 'content-type: application/json' \\
+         B/api/pages/W-31/grants -d '{"email": "sam@example.com", "level": "write"}'
+    # → 201 {"grant": {"id": 9, "level": "write", "user": {"email": "sam@example.com"}, "group": null}}
+    curl -s -H "$H" B/api/folders/4/grants            # who has it
+    curl -s -X DELETE -H "$H" "B/api/folders/4/grants?group=Ops"   # take it back
+    curl -s -H "$H" B/api/shared                      # what is shared with you, by owner
+    ```
+
+    What is shared with you reads and edits by its code like any page
+    (`GET`/`PATCH /api/pages/W-31`); make things inside a shared folder with
+    `POST /api/folders/:id/pages` and `/api/folders/:id/folders`, and read one
+    with `GET /api/folders/:id`. **A sharee's limits:** with write they edit,
+    rename, make pages, files, drawings and subfolders inside the share, and
+    move things within it; new things are the owner's, on the owner's board
+    and quota. They never delete, archive or restore, move anything out (to
+    the top, another folder, another board), move the shared folder itself,
+    organise, re-share or publish, or encrypt; a page shared on its own is
+    edited and renamed, not moved. Each refusal is a **403 with a code**:
+    `shared_read_only`, `shared_no_delete`, `shared_no_move`,
+    `shared_no_move_out`, `shared_no_create`, `shared_no_reshare`,
+    `shared_no_encrypt`, `shared_no_organise` — stop, and tell the person; a
+    retry won't help. A sharee can also file a shared item in a folder of
+    their own (`also`); a vault sync then gets **stubs** — one line, a link —
+    never the content. MCP: `share` (`off: true` to take it back; neither
+    `with` nor `group` to list), `list_pages {"shared": true}`.
+    CLI: `slipdock page share <page> <email|group> [--write] [--off]`,
+    `slipdock folder share <board> <folder> …`, `slipdock shared`.
+
     **File it, don't nest it.** Making a parent page called "Design" that
     exists only to hold other pages is the mistake folders are for: the page
     is about nothing, and it has to be read to be got past. A folder is a

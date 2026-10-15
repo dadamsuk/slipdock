@@ -577,6 +577,14 @@ defmodule SlipdockWeb.Router do
     get "/boards/:board/tree", PageController, :tree
     post "/boards/:board/folders", PageController, :create_folder
     get "/folders/:id", PageController, :show_folder
+    # Sharing a page or folder, and what has been shared with you (#820).
+    get "/pages/:page_id/grants", GrantController, :index
+    post "/pages/:page_id/grants", GrantController, :create
+    delete "/pages/:page_id/grants", GrantController, :delete
+    get "/folders/:folder_id/grants", GrantController, :index
+    post "/folders/:folder_id/grants", GrantController, :create
+    delete "/folders/:folder_id/grants", GrantController, :delete
+    get "/shared", GrantController, :shared
     patch "/folders/:id", PageController, :update_folder
     # Inside a folder by its id: how somebody it was shared with adds to it.
     post "/folders/:id/pages", PageController, :create_in_folder

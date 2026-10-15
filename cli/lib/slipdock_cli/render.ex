@@ -923,6 +923,54 @@ defmodule SlipdockCLI.Render do
 
   defp also_in(_folder), do: ""
 
+  @doc "Who a page or folder is shared with (#820)."
+  def grants([]), do: IO.puts(dim("not shared with anyone"))
+
+  def grants(grants) do
+    Enum.each(grants, fn g ->
+      who =
+        cond do
+          g["group"] -> "group " <> g["group"]["name"]
+          g["user"] -> g["user"]["email"]
+          true -> "?"
+        end
+
+      IO.puts(String.pad_trailing(grant_level(g), 10) <> who)
+    end)
+  end
+
+  def grant_level(%{"level" => "write"}), do: "can edit"
+  def grant_level(_), do: "read only"
+
+  @doc "What other people have shared with you, by owner (#820)."
+  def shared([]), do: IO.puts(dim("nothing is shared with you"))
+
+  def shared(groups) do
+    Enum.each(groups, fn %{"owner" => owner, "items" => items} ->
+      IO.puts(bold("from " <> (owner["name"] || owner["email"])))
+      Enum.each(items, &shared_item(&1, 1))
+    end)
+  end
+
+  defp shared_item(%{"kind" => "folder"} = f, depth) do
+    IO.puts(share_indent(depth) <> f["name"] <> "/  " <> dim(level(f)))
+    Enum.each(f["folders"] || [], &shared_item(&1, depth + 1))
+    Enum.each(f["pages"] || [], &shared_item(&1, depth + 1))
+    Enum.each(f["files"] || [], &IO.puts(share_indent(depth + 1) <> &1["name"]))
+  end
+
+  defp shared_item(%{"kind" => "page"} = p, depth),
+    do:
+      IO.puts(
+        share_indent(depth) <>
+          String.pad_trailing(p["code"] || "", 9) <> p["title"] <> "  " <> dim(level(p))
+      )
+
+  defp level(%{"level" => "write"}), do: "can edit"
+  defp level(_), do: "read only"
+
+  defp share_indent(depth), do: String.duplicate("  ", depth)
+
   @doc "Every board's wiki at once: boards as the top level, folders inside."
   def wiki([]), do: IO.puts(dim("no boards"))
 
