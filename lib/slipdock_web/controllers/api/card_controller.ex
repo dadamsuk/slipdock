@@ -108,7 +108,12 @@ defmodule SlipdockWeb.API.CardController do
          :ok <- Authorize.card(conn, card, :read),
          {:ok, count} <- integer(params["count"]),
          {:ok, card} <-
-           Slipdock.Votes.set(card, conn.assigns.current_user, count, params["comment"]) do
+           Slipdock.Votes.set(
+             card,
+             conn.assigns.current_user,
+             count,
+             vote_comment(conn, card, params)
+           ) do
       json(conn, %{
         card: V.card(Authorize.visible(conn, card)),
         my_votes: Slipdock.Votes.mine(card, conn.assigns.current_user)
@@ -117,6 +122,12 @@ defmodule SlipdockWeb.API.CardController do
       {:error, message} when is_binary(message) -> {:error, :unprocessable_entity, message}
       other -> other
     end
+  end
+
+  # Anyone who can read a card can vote on it, but a vote's comment is text
+  # left on the card, so only someone who can write to it may leave one.
+  defp vote_comment(conn, card, params) do
+    if Authorize.card(conn, card, :write) == :ok, do: params["comment"]
   end
 
   def add_link(conn, %{"id" => id, "to" => to, "kind" => kind}) do

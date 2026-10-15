@@ -327,6 +327,37 @@ defmodule SlipdockWeb.API.CardControllerTest do
       assert %{"my_votes" => 2} =
                conn |> post("/api/cards/#{card.id}/vote", %{count: "2"}) |> json_response(200)
     end
+
+    test "a reader's vote counts but its comment is dropped; a writer's comment is kept", %{
+      card: card,
+      board: board
+    } do
+      import Ecto.Query
+
+      reader = user_fixture("votes.reader@example.com")
+      writer = user_fixture("votes.writer@example.com")
+      share_fixture(board, reader, "read")
+      share_fixture(board, writer, "write")
+
+      for user <- [reader, writer] do
+        assert %{"my_votes" => 1} =
+                 conn_as(user)
+                 |> put_req_header("accept", "application/json")
+                 |> post("/api/cards/#{card.id}/vote", %{count: 1, comment: "graffiti"})
+                 |> json_response(200)
+      end
+
+      comments =
+        Slipdock.Repo.all(
+          from(v in Slipdock.Boards.Vote,
+            where: v.card_id == ^card.id,
+            select: {v.user_id, v.count, v.comment}
+          )
+        )
+
+      assert Enum.sort(comments) ==
+               Enum.sort([{reader.id, 1, nil}, {writer.id, 1, "graffiti"}])
+    end
   end
 
   defp conn_user(_conn), do: user_fixture()
