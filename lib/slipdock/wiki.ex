@@ -121,9 +121,12 @@ defmodule Slipdock.Wiki do
 
     case folder_for_also(board, Keyword.get(opts, :folder)) do
       %Folder{} = folder ->
+        archived = Keyword.get(opts, :archived, false)
+
+        # And the pages under the folders also filed here (#808), the same way.
         also =
-          folder
-          |> Placements.pages_in(opts[:as], archived: Keyword.get(opts, :archived, false))
+          (Placements.pages_in(folder, opts[:as], archived: archived) ++
+             Slipdock.Wiki.FolderPlacements.pages_in(folder, opts[:as], archived: archived))
           |> filter_also(opts)
 
         Enum.uniq_by(home ++ also, & &1.id)
