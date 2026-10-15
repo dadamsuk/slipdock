@@ -1,7 +1,7 @@
 defmodule Slipdock.Fixtures do
   @moduledoc "Helpers for building boards, cards and tags in tests."
 
-  alias Slipdock.{Accounts, Boards}
+  alias Slipdock.{Accounts, BoardKeyClaims, Boards}
 
   @doc """
   The default test user (the one ConnCase signs in), created on first use.
@@ -102,49 +102,24 @@ defmodule Slipdock.Fixtures do
   """
   def unique_code, do: unique_code(System.unique_integer([:positive]))
 
-  @shortcuts __MODULE__.Shortcuts
-
-  @doc """
-  Creates the table `board_fixture/2` hands shortcuts out from. Called once,
-  from `test/test_helper.exs`, so it lives as long as the run.
-  """
-  def start_shortcuts do
-    :ets.new(@shortcuts, [:set, :public, :named_table])
-    :ok
-  end
-
   # Two characters, so never one a name-derived single-letter shortcut takes.
   # That is only 1,296 of them and a run makes far more boards, so they go
   # round in turn, skipping any still held by a test that is running: drawing
   # one of those would wait on that test's uncommitted board until it ended.
   # A test that sets a two-character shortcut by hand takes it from here too
-  # (#732), for the same reason.
+  # (#732), for the same reason. They are held in `Slipdock.BoardKeyClaims`,
+  # which shortcuts derived from a name step around as well (#830).
   @doc """
   A two-character board shortcut held for the calling test, so no
   `board_fixture/2` running alongside is handed the same one.
   """
   def unique_shortcut do
-    Stream.repeatedly(fn -> :ets.update_counter(@shortcuts, :next, 1, {:next, -1}) end)
+    Stream.repeatedly(fn -> BoardKeyClaims.next(:shortcut) end)
     |> Enum.find_value(fn i ->
       i = rem(i, 36 * 36)
       shortcut = Enum.at(@shortcut_chars, div(i, 36)) <> Enum.at(@shortcut_chars, rem(i, 36))
-      if claim_shortcut(shortcut, self()), do: shortcut
+      if BoardKeyClaims.claim_new(:shortcut, shortcut), do: shortcut
     end)
-  end
-
-  defp claim_shortcut(shortcut, me) do
-    :ets.insert_new(@shortcuts, {shortcut, me}) or
-      case :ets.lookup(@shortcuts, shortcut) do
-        [{_, ^me}] ->
-          false
-
-        [{_, pid}] ->
-          not Process.alive?(pid) and
-            :ets.select_replace(@shortcuts, [{{shortcut, pid}, [], [{{shortcut, me}}]}]) == 1
-
-        [] ->
-          claim_shortcut(shortcut, me)
-      end
   end
 
   @doc """

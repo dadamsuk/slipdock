@@ -39,6 +39,10 @@ config :slipdock, Slipdock.Mailer, adapter: Swoosh.Adapters.Test
 # would otherwise post mail to the internet.
 config :slipdock, :mailer_from_settings, false
 
+# Board codes and shortcuts derived from a name step around the ones other
+# running tests hold, rather than waiting on their uncommitted boards (#830).
+config :slipdock, :board_key_claims, Slipdock.BoardKeyClaims
+
 # Automations: no background clock, and deliveries run inline so tests can
 # assert on them (and stay inside the SQL sandbox). Callbacks go to a
 # `Req.Test` stub rather than out of the machine.

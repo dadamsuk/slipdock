@@ -15,7 +15,7 @@ defmodule SlipdockWeb.Meetings.CommitLiveTest do
 
   setup %{user: user} do
     meetings_on()
-    board = board_fixture(%{"name" => "Pricing", "code" => "PL"}, owner: user)
+    board = board_fixture(%{"name" => "Pricing", "code" => "PLCOMLIVE"}, owner: user)
 
     card =
       card_fixture(Enum.find(board.columns, &(&1.name == "To Do")), %{

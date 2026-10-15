@@ -38,6 +38,9 @@ defmodule Slipdock.DataCase do
   def setup_sandbox(tags) do
     pid = Ecto.Adapters.SQL.Sandbox.start_owner!(Slipdock.Repo, shared: not tags[:async])
 
+    # Board keys this test derives are held for as long as its transaction is.
+    Slipdock.BoardKeyClaims.register_test(self(), pid)
+
     # `Slipdock.Search.Indexer` holds one queue for the whole node, and a
     # test's rows disappear when its transaction rolls back. Starting each
     # test with an empty queue is what stops one test's leftovers from being

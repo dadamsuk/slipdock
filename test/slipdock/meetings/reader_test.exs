@@ -22,7 +22,7 @@ defmodule Slipdock.Meetings.ReaderTest do
       do: {:ok, _} = Settings.update(%{"meetings_second_reading" => "same"})
 
     owner = user_fixture("owner@example.com")
-    board = board_fixture(%{"name" => "Pricing", "code" => "PL"}, owner: owner)
+    board = board_fixture(%{"name" => "Pricing", "code" => "PLREAD"}, owner: owner)
     %{owner: owner, board: board, capture: capture_fixture(board, owner)}
   end
 

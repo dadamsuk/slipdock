@@ -970,7 +970,7 @@ defmodule Slipdock.Boards do
   defp code_taken?(code, except) do
     query = from(b in Board, where: b.code == ^code)
     query = if except, do: from(b in query, where: b.id != ^except), else: query
-    Repo.exists?(query)
+    Repo.exists?(query) or claimed_elsewhere?(:code, code)
   end
 
   @doc """
@@ -985,7 +985,19 @@ defmodule Slipdock.Boards do
   defp shortcut_taken?(shortcut, except) do
     query = from(b in Board, where: b.shortcut == ^shortcut)
     query = if except, do: from(b in query, where: b.id != ^except), else: query
-    Repo.exists?(query)
+    Repo.exists?(query) or claimed_elsewhere?(:shortcut, shortcut)
+  end
+
+  # Async tests each make their boards in a transaction the others can't see,
+  # so a key derived in one can be a key another has just used, and the insert
+  # would then wait for that test to end. The test config names a module that
+  # knows which keys running tests hold (`Slipdock.BoardKeyClaims`, #830);
+  # nothing else sets it.
+  defp claimed_elsewhere?(kind, value) do
+    case Application.get_env(:slipdock, :board_key_claims) do
+      nil -> false
+      claims -> not claims.claim(kind, value)
+    end
   end
 
   # Top-level boards always have a shortcut, on the same terms as the code: one

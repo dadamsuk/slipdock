@@ -1,5 +1,7 @@
 defmodule SlipdockWeb.ShortcutsLiveTest do
-  use SlipdockWeb.ConnCase, async: true
+  # Asserts the shortcuts derived from names, which step around ones that
+  # tests running alongside hold, so it runs on its own (#830).
+  use SlipdockWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures

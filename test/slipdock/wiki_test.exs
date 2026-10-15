@@ -49,19 +49,25 @@ defmodule Slipdock.WikiTest do
 
       other =
         spawn(fn ->
-          # Its own connection and its own transaction, left open.
-          Ecto.Adapters.SQL.Sandbox.start_owner!(Slipdock.Repo)
+          # Its own connection and its own transaction, left open until
+          # released. The sandbox owner is not linked to this process, so it
+          # has to be stopped by hand: left running, its transaction would
+          # hold its board's shortcut for the rest of the run, and the next
+          # board_fixture handed that shortcut waited on it until the query
+          # timed out (#830).
+          sandbox = Ecto.Adapters.SQL.Sandbox.start_owner!(Slipdock.Repo)
+          Slipdock.BoardKeyClaims.register_test(self(), sandbox)
           owner = user_fixture()
           {:ok, page} = Wiki.create_page(board_fixture(%{}, owner: owner), %{"title" => "Held"})
-          send(test, {:held, page.code})
+          send(test, {:held, page.code, sandbox})
 
           receive do
-            :release -> :ok
+            :release -> Ecto.Adapters.SQL.Sandbox.stop_owner(sandbox)
           end
         end)
 
       on_exit(fn -> send(other, :release) end)
-      assert_receive {:held, held_code}, 5_000
+      assert_receive {:held, held_code, sandbox}, 5_000
 
       # Waiting on the other transaction's row would be a lock wait; make it
       # fail fast rather than sit there.
@@ -69,7 +75,11 @@ defmodule Slipdock.WikiTest do
       {:ok, page} = Wiki.create_page(board, %{"title" => "Next"}, user: user)
 
       refute page.code == held_code
+
+      # Released, its transaction ends rather than outliving the test.
+      ref = Process.monitor(sandbox)
       send(other, :release)
+      assert_receive {:DOWN, ^ref, :process, ^sandbox, _}, 5_000
     end
 
     test "codes keep counting up, never handing one out twice" do

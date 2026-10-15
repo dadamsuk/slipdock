@@ -15,7 +15,7 @@ defmodule Slipdock.Meetings.CapturesTest do
 
   setup do
     owner = user_fixture("owner@example.com")
-    board = board_fixture(%{"name" => "Pricing", "code" => "PL"}, owner: owner)
+    board = board_fixture(%{"name" => "Pricing", "code" => "PLCAP"}, owner: owner)
     %{owner: owner, board: board}
   end
 
@@ -302,7 +302,7 @@ defmodule Slipdock.Meetings.CapturesTest do
       [{name, json}] =
         Enum.filter(files, fn {name, _} -> String.starts_with?(name, "captures/") end)
 
-      assert name =~ ~r{^captures/pl-\d+\.json$}
+      assert name =~ ~r{^captures/plcap-\d+\.json$}
       capture = Jason.decode!(json)
 
       assert capture["title"] == "Pricing sync"

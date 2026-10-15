@@ -15,7 +15,7 @@ defmodule Slipdock.Meetings.VerifyTest do
 
   setup do
     owner = user_fixture("owner@example.com")
-    board = board_fixture(%{"name" => "Pricing", "code" => "PL"}, owner: owner)
+    board = board_fixture(%{"name" => "Pricing", "code" => "PLVERIFY"}, owner: owner)
     sam = user_fixture("sam@example.com")
     {:ok, sam} = Slipdock.Accounts.update_profile(sam, %{"name" => "Sam Smith"})
     share_fixture(board, [sam], "write")
@@ -345,7 +345,7 @@ defmodule Slipdock.Meetings.VerifyTest do
       change = %{
         "kind" => "card_change",
         "title" => "Pricing page due Friday",
-        "card" => "PL-#{ctx.card.id}",
+        "card" => "PLVERIFY-#{ctx.card.id}",
         "change" => %{"field" => "due_date", "to" => "2026-10-09"},
         "evidence" => [%{"line" => "L3", "quote" => "update PL-14 by Friday"}]
       }

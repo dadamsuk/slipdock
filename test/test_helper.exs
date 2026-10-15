@@ -6,7 +6,7 @@
 # in a LiveView can take longer than that to come back.
 ExUnit.start(capture_log: true, assert_receive_timeout: 1_000)
 Slipdock.Config.start_overrides()
-Slipdock.Fixtures.start_shortcuts()
+Slipdock.BoardKeyClaims.start()
 Ecto.Adapters.SQL.Sandbox.mode(Slipdock.Repo, :manual)
 
 # Two runs at once against one database wait on each other's rows (#830).
