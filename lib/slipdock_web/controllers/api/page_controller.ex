@@ -20,6 +20,7 @@ defmodule SlipdockWeb.API.PageController do
   alias Slipdock.{Boards, Wiki}
   alias Slipdock.Wiki.{Archive, FolderPlacements, FrontMatter, Page, Placements, Query}
   alias SlipdockWeb.API.Authorize
+  alias Slipdock.Wiki.Sharing
   alias SlipdockWeb.API.Uploads
   alias SlipdockWeb.API.JSON, as: V
   alias SlipdockWeb.Wiki.Renderer
@@ -176,7 +177,8 @@ defmodule SlipdockWeb.API.PageController do
   its history for good, and only the board's owner may do that.
   """
   def delete(conn, %{"id" => id} = params) do
-    with {:ok, page} <- fetch_page(conn, id, :write) do
+    with {:ok, page} <- fetch_page(conn, id, :write),
+         :ok <- Sharing.check(conn.assigns.current_user, :delete, page) do
       if truthy?(params["purge"]) do
         with :ok <- Authorize.board(conn, Wiki.board_of(page), :owner),
              {:ok, _} <- Wiki.delete_page(page) do
@@ -192,6 +194,7 @@ defmodule SlipdockWeb.API.PageController do
 
   def restore(conn, %{"id" => id}) do
     with {:ok, page} <- fetch_page(conn, id, :write),
+         :ok <- Sharing.check(conn.assigns.current_user, :delete, page),
          {:ok, page} <- Wiki.unarchive_page(page) do
       json(conn, %{page: V.page(with_users(page))})
     end
@@ -489,7 +492,9 @@ defmodule SlipdockWeb.API.PageController do
   again refreshes them.
   """
   def publish(conn, %{"id" => id} = params) do
-    with {:ok, page} <- fetch_page(conn, id, :write) do
+    # A public link hands the page to anyone: passing a share on (#816).
+    with {:ok, page} <- fetch_page(conn, id, :write),
+         :ok <- Sharing.check(conn.assigns.current_user, :share, page) do
       if params["published"] == false do
         with {:ok, page} <- Wiki.unpublish(page) do
           json(conn, %{page: V.page(with_users(page)), published: false})
@@ -794,7 +799,8 @@ defmodule SlipdockWeb.API.PageController do
   only, never the newest revision, logged. `{"ids": [..]}`.
   """
   def purge_revisions(conn, %{"id" => id} = params) do
-    with {:ok, page} <- fetch_page(conn, id, :write) do
+    with {:ok, page} <- fetch_page(conn, id, :write),
+         :ok <- Sharing.check(conn.assigns.current_user, :delete, page) do
       case Wiki.purge_revisions(page, List.wrap(params["ids"]), user: conn.assigns.current_user) do
         {:ok, count} ->
           json(conn, %{purged: count})
@@ -1032,7 +1038,7 @@ defmodule SlipdockWeb.API.PageController do
     rest = Map.drop(params, ["also", "not_in", "in_board"])
 
     with {:ok, folder, board} <- fetch_folder(conn, params, :write),
-         {:ok, folder} <- maybe_update_folder(folder, board, rest),
+         {:ok, folder} <- maybe_update_folder(folder, board, rest, user),
          {:ok, _} <-
            folder_placement(conn, folder, params, "also", &FolderPlacements.add(folder, &1, user)),
          {:ok, _} <-
@@ -1050,16 +1056,17 @@ defmodule SlipdockWeb.API.PageController do
   def update_folder(conn, %{"id" => _id} = params) do
     with {:ok, folder, board} <- fetch_folder(conn, params, :write),
          {:ok, attrs} <- folder_attrs(board, params),
-         {:ok, folder} <- Wiki.update_folder(folder, attrs) do
+         {:ok, folder} <- Wiki.update_folder(folder, attrs, user: conn.assigns.current_user) do
       json(conn, %{folder: V.folder(folder)})
     end
   end
 
   @folder_fields ~w(name slug parent position sort icon color)
 
-  defp maybe_update_folder(folder, board, params) do
+  defp maybe_update_folder(folder, board, params, user) do
     if Enum.any?(@folder_fields, &Map.has_key?(params, &1)) do
-      with {:ok, attrs} <- folder_attrs(board, params), do: Wiki.update_folder(folder, attrs)
+      with {:ok, attrs} <- folder_attrs(board, params),
+           do: Wiki.update_folder(folder, attrs, user: user)
     else
       {:ok, folder}
     end
@@ -1156,7 +1163,8 @@ defmodule SlipdockWeb.API.PageController do
   them, history and all — the board's owner only, as purging a page is.
   """
   def delete_folder(conn, %{"id" => _id} = params) do
-    with {:ok, folder, board} <- fetch_folder(conn, params, :write) do
+    with {:ok, folder, board} <- fetch_folder(conn, params, :write),
+         :ok <- Sharing.check(conn.assigns.current_user, :delete, folder) do
       if truthy?(params["purge"]) do
         counts = Wiki.folder_contents_count(folder)
 
@@ -1195,7 +1203,7 @@ defmodule SlipdockWeb.API.PageController do
   def file(conn, %{"id" => id} = params) do
     with {:ok, page} <- fetch_page(conn, id, :write),
          board <- Wiki.board_of(page),
-         {:ok, attrs} <- resolve_folder(board, %{}, Map.put_new(params, "folder", nil)),
+         {:ok, attrs} <- resolve_folder(board, %{}, Map.put_new(params, "folder", nil), conn),
          {:ok, page} <- Wiki.update_page(page, attrs, write_opts(conn, params)) do
       json(conn, %{page: V.page(with_users(page))})
     end
@@ -1204,7 +1212,7 @@ defmodule SlipdockWeb.API.PageController do
   defp maybe_home(conn, page, params) when is_map_key(params, "folder") do
     board = Wiki.board_of(page)
 
-    with {:ok, attrs} <- resolve_folder(board, %{}, params),
+    with {:ok, attrs} <- resolve_folder(board, %{}, params, conn),
          do: Wiki.update_page(page, attrs, write_opts(conn, params))
   end
 
@@ -1223,8 +1231,13 @@ defmodule SlipdockWeb.API.PageController do
   defp placement_folder(_conn, _page, ref, _board, _create?) when ref in [nil, ""],
     do: {:error, :bad_request, "say which folder"}
 
-  defp placement_folder(_conn, page, "/" <> _ = path, _board, create?),
-    do: Placements.folder_at(page, path, create: create?)
+  # Only a writer on the page's board makes the folders a path names: never
+  # somebody the page was shared with (#816).
+  defp placement_folder(conn, page, "/" <> _ = path, _board, create?),
+    do:
+      Placements.folder_at(page, path,
+        create: create? and Sharing.board_writer?(conn.assigns.current_user, page.board_id)
+      )
 
   defp placement_folder(conn, page, ref, board_ref, create?) do
     board_result =
@@ -1234,9 +1247,14 @@ defmodule SlipdockWeb.API.PageController do
 
     with {:ok, board} <- board_result do
       case Wiki.find_folder(board, ref) do
-        {:ok, folder} -> {:ok, folder}
-        _ when create? and is_binary(ref) -> Wiki.create_folder(board, %{"name" => ref})
-        error -> error
+        {:ok, folder} ->
+          {:ok, folder}
+
+        _ when create? and is_binary(ref) ->
+          Wiki.create_folder(board, %{"name" => ref}, user: conn.assigns.current_user)
+
+        error ->
+          error
       end
     end
   end
@@ -1304,11 +1322,14 @@ defmodule SlipdockWeb.API.PageController do
     end
   end
 
+  # By id, a folder answers to its own permission: somebody it was shared
+  # with reaches it without its board (#815).
   defp fetch_folder(conn, %{"id" => id}, need) do
     with {id, ""} <- Integer.parse(to_string(id)),
          %{} = folder <- Wiki.get_folder(id),
          board <- Boards.get_board!(folder.board_id),
-         :ok <- Authorize.board(conn, board, need) do
+         :ok <- folder_visible(conn, folder),
+         :ok <- Authorize.folder(conn, folder, need) do
       {:ok, folder, board}
     else
       {:error, _, _} = error -> error
@@ -1316,6 +1337,47 @@ defmodule SlipdockWeb.API.PageController do
       _ -> {:error, :not_found, "folder #{inspect(id)}"}
     end
   end
+
+  # Not readable at all is "not found", as for a page: a folder's existence
+  # is itself what is withheld.
+  defp folder_visible(conn, folder) do
+    if Slipdock.Access.can_read?(
+         Slipdock.Access.folder_permission(conn.assigns.current_user, folder)
+       ),
+       do: :ok,
+       else: {:error, :not_found, "folder #{folder.id}"}
+  end
+
+  @doc """
+  Makes a page inside a folder, by the folder's id (#816): how somebody a
+  folder was shared with to edit adds to it, without reaching its board.
+  Takes what `create/2` does; the page is the board owner's, made by the
+  caller, and counts against the owner's account.
+  """
+  def create_in_folder(conn, %{"id" => _} = params) do
+    user = conn.assigns.current_user
+
+    with {:ok, folder, board} <- fetch_folder(conn, Map.take(params, ["id"]), :write),
+         attrs = params |> Map.take(@page_fields) |> Map.put("folder_id", folder.id),
+         {:ok, page} <- Wiki.create_page(board, attrs, write_opts(conn, params) ++ [user: user]) do
+      conn
+      |> put_status(:created)
+      |> json(%{page: V.page(with_users(Wiki.get_page!(page.id)))})
+    end
+  end
+
+  @doc "Makes a folder inside a folder, by the outer folder's id (#816)."
+  def create_folder_in(conn, %{"id" => _, "name" => name} = params) when is_binary(name) do
+    with {:ok, parent, board} <- fetch_folder(conn, Map.take(params, ["id"]), :write),
+         {:ok, folder} <-
+           Wiki.create_folder(board, %{"name" => name, "parent_id" => parent.id},
+             user: conn.assigns.current_user
+           ) do
+      conn |> put_status(:created) |> json(%{folder: V.folder(folder)})
+    end
+  end
+
+  def create_folder_in(_conn, _params), do: {:error, :bad_request, "name is required"}
 
   ## The card contents a page carries ----------------------------------------
   #
@@ -1483,7 +1545,7 @@ defmodule SlipdockWeb.API.PageController do
 
     with {:ok, attrs} <- resolve_assignee(board, attrs, params, conn.assigns.current_user),
          {:ok, attrs} <- resolve_flags(attrs, params),
-         {:ok, attrs} <- resolve_folder(board, attrs, params) do
+         {:ok, attrs} <- resolve_folder(board, attrs, params, conn) do
       case resolve_parent(board, params["parent"]) do
         {:ok, nil} -> {:ok, attrs}
         {:ok, parent} -> {:ok, Map.put(attrs, "parent_id", parent.id)}
@@ -1509,19 +1571,21 @@ defmodule SlipdockWeb.API.PageController do
   # like "Design/Decisions", which is made if it does not exist yet — an
   # agent writing a document should not have to make the filing cabinet in a
   # separate call. "" or null takes the page out of its folder.
-  defp resolve_folder(_board, attrs, params) when not is_map_key(params, "folder"),
+  defp resolve_folder(_board, attrs, params, _conn) when not is_map_key(params, "folder"),
     do: {:ok, attrs}
 
-  defp resolve_folder(_board, attrs, %{"folder" => ref}) when ref in [nil, "", "none", "root"],
-    do: {:ok, Map.put(attrs, "folder_id", nil)}
+  defp resolve_folder(_board, attrs, %{"folder" => ref}, _conn)
+       when ref in [nil, "", "none", "root"],
+       do: {:ok, Map.put(attrs, "folder_id", nil)}
 
-  defp resolve_folder(board, attrs, %{"folder" => ref}) do
+  defp resolve_folder(board, attrs, %{"folder" => ref}, conn) do
     case Wiki.find_folder(board, ref) do
       {:ok, folder} ->
         {:ok, Map.put(attrs, "folder_id", folder.id)}
 
       _ when is_binary(ref) ->
-        with {:ok, folder} <- Wiki.create_folder(board, %{"name" => ref}) do
+        with {:ok, folder} <-
+               Wiki.create_folder(board, %{"name" => ref}, user: conn.assigns.current_user) do
           {:ok, Map.put(attrs, "folder_id", folder.id)}
         end
 

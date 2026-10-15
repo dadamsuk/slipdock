@@ -334,4 +334,36 @@ defmodule SlipdockWeb.MCP.UpdatePageToolTest do
       assert Wiki.get_page!(page.id).title == "Secret"
     end
   end
+
+  describe "somebody a folder was shared with (#816)" do
+    setup %{board: board, user: owner, guide: guide} do
+      {:ok, shared} = Wiki.create_folder(board, %{"name" => "Shared"})
+      {:ok, private} = Wiki.create_folder(board, %{"name" => "Private"})
+      {:ok, guide} = Wiki.update_page(guide, %{"folder_id" => shared.id})
+      sharee = Slipdock.Fixtures.user_fixture("mcp.sharee@example.com")
+      {:ok, _} = Slipdock.Access.grant(shared, sharee, "write", owner)
+      %{sharee_conn: conn_as(sharee), guide: guide, private: private}
+    end
+
+    test "renames the page", ctx do
+      assert %{"title" => "Guide 2"} =
+               ctx.sharee_conn |> call(%{page: ctx.guide.code, title: "Guide 2"}) |> ok!()
+    end
+
+    test "cannot archive it, move it out, or make a folder on the owner's board", ctx do
+      assert ctx.sharee_conn |> call(%{page: ctx.guide.code, archived: true}) |> error!() =~
+               "shared_no_delete"
+
+      assert ctx.sharee_conn |> call(%{page: ctx.guide.code, folder: ctx.private.id}) |> error!() =~
+               "shared_no_move_out"
+
+      folders = length(Wiki.folders(ctx.board))
+
+      assert ctx.sharee_conn |> call(%{page: ctx.guide.code, folder: "Brand new"}) |> error!() =~
+               "shared_no_create"
+
+      assert length(Wiki.folders(ctx.board)) == folders
+      refute Wiki.get_page!(ctx.guide.id).archived_at
+    end
+  end
 end

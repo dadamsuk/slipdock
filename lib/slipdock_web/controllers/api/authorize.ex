@@ -42,6 +42,12 @@ defmodule SlipdockWeb.API.Authorize do
     |> check(need, "page")
   end
 
+  def folder(conn, folder, need) do
+    conn
+    |> level(Access.folder_permission(conn.assigns.current_user, folder), folder.board_id)
+    |> check(need, "folder")
+  end
+
   @doc """
   `subject` (a card, a list of cards, or a board) with the cards at the far
   end of its dependencies that this request can't read hidden — see

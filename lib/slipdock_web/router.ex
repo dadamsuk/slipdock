@@ -570,7 +570,11 @@ defmodule SlipdockWeb.Router do
     # One level of the tree at a time, never a body (W-103 R11.1).
     get "/boards/:board/tree", PageController, :tree
     post "/boards/:board/folders", PageController, :create_folder
+    get "/folders/:id", PageController, :show_folder
     patch "/folders/:id", PageController, :update_folder
+    # Inside a folder by its id: how somebody it was shared with adds to it.
+    post "/folders/:id/pages", PageController, :create_in_folder
+    post "/folders/:id/folders", PageController, :create_folder_in
     delete "/folders/:id", PageController, :delete_folder
     # The same two by any handle, with the board to read it against: a path
     # of names is what somebody on the command line has.

@@ -16,7 +16,7 @@ defmodule Slipdock.Wiki.Files do
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.Board
   alias Slipdock.Wiki
-  alias Slipdock.Wiki.{Changes, WikiFile}
+  alias Slipdock.Wiki.{Changes, Sharing, WikiFile}
 
   def get(id), do: Repo.get(WikiFile, id)
 
@@ -35,6 +35,15 @@ defmodule Slipdock.Wiki.Files do
   absent).
   """
   def create(%Board{} = board, attrs, source, user \\ nil) do
+    folder_id = attrs[:folder_id] || attrs["folder_id"]
+
+    # Somebody a folder was shared with adds files inside it, and only there
+    # (#816); they count against the board owner's quota like any other.
+    with :ok <- Sharing.check(user, {:create, folder_id}, board),
+         do: insert(board, attrs, source, user)
+  end
+
+  defp insert(board, attrs, source, user) do
     name = attrs[:name] || attrs["name"]
     {sha, size} = digest(source)
     key = key(board, name)
@@ -94,8 +103,9 @@ defmodule Slipdock.Wiki.Files do
   end
 
   @doc "Renames a file or files it elsewhere: `name`, `folder_id`."
-  def move(%WikiFile{} = file, attrs) do
-    with {:ok, moved} <-
+  def move(%WikiFile{} = file, attrs, opts \\ []) do
+    with :ok <- check_shared_move(file, attrs, opts[:user]),
+         {:ok, moved} <-
            file
            |> WikiFile.changeset(%{
              name: attrs[:name] || file.name,
@@ -106,6 +116,13 @@ defmodule Slipdock.Wiki.Files do
       {:ok, moved}
     end
   end
+
+  # A sharee files a file only within the folder shared with them (#816).
+  defp check_shared_move(%WikiFile{folder_id: from} = file, %{folder_id: to}, user)
+       when to != from,
+       do: Sharing.check(user, {:move, to}, file)
+
+  defp check_shared_move(_file, _attrs, _user), do: :ok
 
   @doc """
   Whether another live file on `board_id` already has `name` in the folder

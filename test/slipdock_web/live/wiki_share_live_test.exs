@@ -180,5 +180,35 @@ defmodule SlipdockWeb.WikiShareLiveTest do
     end
   end
 
+  describe "a board reader with a folder shared to them to edit (#816)" do
+    setup %{board: board, user: owner} do
+      {:ok, shared} = Slipdock.Wiki.create_folder(board, %{"name" => "Shared"})
+      {:ok, private} = Slipdock.Wiki.create_folder(board, %{"name" => "Private"})
+      page = page_fixture(board, %{"title" => "Inside", "folder_id" => shared.id})
+      sharee = user_fixture("folder.sharee@example.com")
+      {:ok, _} = Access.grant(board, sharee, "read", owner)
+      {:ok, _} = Access.grant(shared, sharee, "write", owner)
+      %{conn: log_in_user(build_conn(), sharee), inside: page, private: private}
+    end
+
+    test "is refused archiving, deleting or moving when sending the events directly", c do
+      {:ok, view, _html} = live(c.conn, ~p"/boards/#{c.board}/wiki/#{c.inside.slug}")
+
+      render_click(view, "archive", %{})
+      render_click(view, "delete_page", %{})
+      render_click(view, "file_page", %{"folder" => to_string(c.private.id)})
+
+      render_hook(view, "tree_move", %{
+        "kind" => "page",
+        "id" => to_string(c.inside.id),
+        "into" => "folder:#{c.private.id}"
+      })
+
+      page = Slipdock.Wiki.get_page!(c.inside.id)
+      refute page.archived_at
+      assert page.folder_id == c.inside.folder_id
+    end
+  end
+
   defp board_owner(board), do: Slipdock.Repo.get!(Accounts.User, board.owner_id)
 end
