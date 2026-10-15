@@ -4,21 +4,21 @@ defmodule SlipdockWeb.DrawingLive do
   MIT-licensed React component, loaded by the `ExcalidrawEditor` hook only
   on this page (assets/js/excalidraw_editor.js, the bundle built by
   assets/excalidraw/build.sh). Readers get it to look round; writers can
-  change it and save.
+  change it, and so can several of them at once (#821, W-1730).
 
-  The browser asks for the scene once it has the editor (`load`), and sends
-  the whole scene back as JSON to save (`save`). The server writes it in the
-  shape it was read in — a `.excalidraw.md` page keeps its encoding and its
-  prose, a `.excalidraw` file stays JSON — so Obsidian's plugin goes on
-  editing it (`Slipdock.Wiki.Excalidraw`). A page is saved against the hash
-  it was loaded at, so a change made meanwhile (a sync, another tab) is
-  reported rather than overwritten.
+  Once connected the view joins the drawing's `Slipdock.Wiki.DrawingSession`,
+  which holds the live scene and saves it by itself, in the shape it was read
+  in — a `.excalidraw.md` page keeps its encoding and its prose, a
+  `.excalidraw` file stays JSON — so Obsidian's plugin goes on editing it.
+  The browser asks for the scene once it has the editor (`load`), sends the
+  elements it changed (`delta`), and the whole scene after a reconnect
+  (`resync`); what the others draw comes to it as `drawing:remote`.
   """
   use SlipdockWeb, :live_view
 
-  alias Slipdock.{Access, Repo, Wiki}
+  alias Slipdock.{Access, Repo}
   alias Slipdock.Boards.Board
-  alias Slipdock.Wiki.{Drawings, Excalidraw, Files, Page, WikiFile}
+  alias Slipdock.Wiki.{Drawings, DrawingSession, Excalidraw, Page, WikiFile}
   alias SlipdockWeb.Wiki.Renderer
 
   @impl true
@@ -30,14 +30,17 @@ defmodule SlipdockWeb.DrawingLive do
          true <- Drawings.readable?(drawing, user) do
       board = Repo.get!(Board, drawing.board_id)
 
-      {:ok,
-       assign(socket,
-         drawing: drawing,
-         board: board,
-         can_write: writable?(drawing, user),
-         page_title: title(drawing),
-         back: back(drawing, user)
-       )}
+      socket =
+        assign(socket,
+          drawing: drawing,
+          board: board,
+          can_write: Drawings.writable?(drawing, user),
+          page_title: title(drawing),
+          back: back(drawing, user),
+          session: nil
+        )
+
+      {:ok, if(connected?(socket), do: join_session(socket), else: socket)}
     else
       _ ->
         {:ok,
@@ -63,11 +66,6 @@ defmodule SlipdockWeb.DrawingLive do
 
   defp fetch(_kind, _id), do: nil
 
-  defp writable?(%Page{} = page, user), do: Access.can_write?(Access.page_permission(user, page))
-
-  defp writable?(%WikiFile{} = file, user),
-    do: Access.can_write?(Access.file_permission(user, file))
-
   defp title(%Page{title: title}), do: title
   defp title(%WikiFile{name: name}), do: name
 
@@ -86,46 +84,120 @@ defmodule SlipdockWeb.DrawingLive do
   defp shared_back(%WikiFile{folder_id: nil}), do: ~p"/shared"
   defp shared_back(%WikiFile{folder_id: id}), do: ~p"/shared/folders/#{id}"
 
+  ## The session ------------------------------------------------------------
+
+  # Once connected, the view is one of the drawing's editors: it joins the
+  # session (starting it if nobody else has the drawing open), hears what the
+  # others draw, and passes it to the browser.
+  defp join_session(socket) do
+    case DrawingSession.join(key(socket.assigns.drawing), socket.assigns.current_user) do
+      {:ok, pid, %{can_write: can_write}} ->
+        Process.monitor(pid)
+        assign(socket, session: pid, can_write: can_write)
+
+      {:error, _} ->
+        assign(socket, session: nil)
+    end
+  end
+
+  defp key(%Page{id: id}), do: {:page, id}
+  defp key(%WikiFile{id: id}), do: {:file, id}
+
+  @impl true
+  def handle_info({:drawing_session, :elements, elements, files}, socket),
+    do: {:noreply, push_event(socket, "drawing:remote", %{elements: elements, files: files})}
+
+  def handle_info({:drawing_session, :saved, _base}, socket),
+    do: {:noreply, push_event(socket, "drawing:saved", %{})}
+
+  def handle_info({:drawing_session, level, text}, socket) when level in [:warning, :error],
+    do: {:noreply, push_event(socket, "drawing:notice", %{level: level, text: text})}
+
+  # The session went (it crashed, or stopped as this view was joining):
+  # start again from the last save, and have the browser send what it has.
+  def handle_info({:DOWN, _ref, :process, pid, _}, %{assigns: %{session: pid}} = socket) do
+    socket = join_session(socket)
+
+    if socket.assigns.session,
+      do: {:noreply, push_event(socket, "drawing:resync", %{})},
+      else: {:noreply, push_navigate(socket, to: socket.assigns.back)}
+  end
+
+  def handle_info({:DOWN, _ref, :process, _pid, _}, socket), do: {:noreply, socket}
+
   ## Events -------------------------------------------------------------------
 
   @impl true
+  def handle_event(_event, _params, %{assigns: %{session: nil}} = socket),
+    do: {:reply, %{error: "This drawing can't be opened just now."}, socket}
+
   def handle_event("load", _params, socket) do
     drawing = reload(socket.assigns.drawing)
+    scene = DrawingSession.scene(socket.assigns.session)
 
-    case load(drawing, socket.assigns.current_user) do
-      {:ok, reply} ->
-        {:reply, Map.put(reply, :view_only, not socket.assigns.can_write),
-         assign(socket, drawing: drawing)}
+    case images(drawing, socket.assigns.current_user) do
+      {:ok, linked, files} ->
+        {:reply,
+         %{
+           json: Jason.encode!(scene),
+           files: files,
+           linked: linked,
+           view_only: not socket.assigns.can_write
+         }, assign(socket, drawing: drawing)}
 
       :error ->
         {:reply, %{error: "This drawing can't be read: its scene is missing or damaged."}, socket}
     end
   end
 
-  def handle_event("save", %{"json" => json} = params, socket) when is_binary(json) do
-    if socket.assigns.can_write do
-      case save(socket.assigns.drawing, json, params["base"], socket.assigns.current_user) do
-        {:ok, saved} ->
-          {:reply, %{ok: true, base: base(saved)}, assign(socket, drawing: saved)}
+  def handle_event("delta", %{"elements" => elements} = params, socket) when is_list(elements) do
+    case DrawingSession.push(socket.assigns.session, elements, files(params)) do
+      {:ok, stale} ->
+        if params["flush"], do: DrawingSession.flush(socket.assigns.session)
+        {:reply, %{stale: stale}, socket}
 
-        {:error, message} ->
-          {:reply, %{error: message}, socket}
-      end
-    else
-      {:reply, %{error: "You can look at this drawing but not change it."}, socket}
+      {:error, reason} ->
+        {:reply, %{error: refusal(reason)}, socket}
     end
   end
 
-  def handle_event("save", _params, socket),
-    do: {:reply, %{error: "Nothing was sent to save."}, socket}
+  def handle_event("resync", %{"elements" => elements} = params, socket) when is_list(elements) do
+    pushed =
+      if elements == [] and files(params) == %{},
+        do: {:ok, []},
+        else: DrawingSession.push(socket.assigns.session, elements, files(params))
+
+    case pushed do
+      {:ok, _} ->
+        scene = DrawingSession.scene(socket.assigns.session)
+        {:reply, %{elements: scene["elements"], files: scene["files"] || %{}}, socket}
+
+      {:error, reason} ->
+        {:reply, %{error: refusal(reason)}, socket}
+    end
+  end
+
+  def handle_event("flush", _params, socket) do
+    DrawingSession.flush(socket.assigns.session)
+    {:reply, %{ok: true}, socket}
+  end
+
+  def handle_event(event, _params, socket) when event in ["delta", "resync"],
+    do: {:reply, %{error: "Nothing was sent."}, socket}
+
+  defp files(%{"files" => files}) when is_map(files), do: files
+  defp files(_params), do: %{}
+
+  defp refusal(:read_only), do: "You can look at this drawing but not change it."
+  defp refusal(:not_joined), do: "This drawing can't be changed from here just now. Reload it."
 
   defp reload(%Page{id: id}), do: Repo.get!(Page, id)
   defp reload(%WikiFile{id: id}), do: Repo.get!(WikiFile, id)
 
-  # The scene as the file holds it (not re-encoded, so nothing is reordered),
-  # the images a note links rather than carries, and what to save against.
-  defp load(%Page{} = page, user) do
-    with {:ok, %{json: json, links: links}} <- Excalidraw.parse_markdown(page.body),
+  # The images a note links rather than carries, as `reader` may see them:
+  # given to the editor to show, and never sent back.
+  defp images(%Page{} = page, user) do
+    with {:ok, %{links: links}} <- Excalidraw.parse_markdown(page.body),
          {:ok, _scene, images} <- Drawings.scene(page, user) do
       files =
         for {id, url} <- images, into: %{} do
@@ -133,73 +205,11 @@ defmodule SlipdockWeb.DrawingLive do
           {id, %{id: id, dataURL: url, mimeType: mime, created: 0}}
         end
 
-      {:ok, %{json: json, files: files, linked: Map.keys(links), base: base(page)}}
+      {:ok, Map.keys(links), files}
     end
   end
 
-  defp load(%WikiFile{} = file, _user) do
-    with {:ok, json} <- File.read(Files.disk_path(file)),
-         {:ok, _scene} <- Excalidraw.parse_json(json) do
-      {:ok, %{json: json, files: %{}, linked: [], base: base(file)}}
-    else
-      _ -> :error
-    end
-  end
-
-  defp base(%Page{content_hash: hash}), do: hash
-  defp base(%WikiFile{sha256: hash}), do: hash
-
-  defp save(%Page{} = page, json, base, user) do
-    current = Repo.get!(Page, page.id)
-
-    with {:ok, body} <- written(Excalidraw.write_markdown(current.body, json)),
-         {:ok, saved} <-
-           Wiki.update_page(current, %{"body" => body}, user: user, via: "web", base_hash: base) do
-      {:ok, saved}
-    else
-      {:error, :conflict, _} ->
-        {:error,
-         "This drawing was changed somewhere else since you opened it. Reload to see that version; your changes here are not saved."}
-
-      {:error, _status, message} when is_binary(message) ->
-        {:error, message}
-
-      {:error, message} when is_binary(message) ->
-        {:error, message}
-
-      {:error, _} ->
-        {:error, "The drawing couldn't be saved."}
-    end
-  end
-
-  defp save(%WikiFile{} = file, json, base, _user) do
-    current = Repo.get!(WikiFile, file.id)
-
-    cond do
-      base not in [nil, ""] and base != current.sha256 ->
-        {:error,
-         "This drawing was changed somewhere else since you opened it. Reload to see that version; your changes here are not saved."}
-
-      Excalidraw.write_json(json) == :error ->
-        {:error, "That isn't an Excalidraw scene, so it wasn't saved."}
-
-      true ->
-        path = Path.join(System.tmp_dir!(), "drawing-#{System.unique_integer([:positive])}")
-        File.write!(path, json)
-
-        try do
-          case Files.replace(current, %{}, path) do
-            {:ok, saved} -> {:ok, saved}
-            {:error, _} -> {:error, "The drawing couldn't be saved."}
-          end
-        after
-          File.rm(path)
-        end
-    end
-  end
-
-  defp written({:ok, body}), do: {:ok, body}
-  defp written(:error), do: {:error, "That isn't an Excalidraw scene, so it wasn't saved."}
+  defp images(%WikiFile{}, _user), do: {:ok, [], %{}}
 
   ## Render -------------------------------------------------------------------
 
@@ -232,16 +242,6 @@ defmodule SlipdockWeb.DrawingLive do
           <span data-drawing-status class="text-xs text-base-content/60" aria-live="polite">
             Loading the editor…
           </span>
-          <button
-            :if={@can_write}
-            type="button"
-            data-drawing-save
-            class="btn btn-primary btn-sm"
-            disabled
-            id="drawing-save"
-          >
-            Save
-          </button>
         </div>
         <div id="drawing-canvas" phx-update="ignore" class="min-h-[28rem] flex-1"></div>
       </div>

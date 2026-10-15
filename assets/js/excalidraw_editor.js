@@ -4,30 +4,62 @@
 // (assets/excalidraw/build.sh) and imported here only when a drawing is
 // opened. Fonts come from the same place, never from a CDN.
 //
-// The server hands over the scene as the file holds it; saving sends the
-// whole scene back as JSON, and the server writes it in the file's own
-// format. Images a .excalidraw.md note links (its `## Embedded Files`) are
-// given to the editor to show, and taken out again before saving, so the
-// note keeps linking them rather than swallowing them as data.
+// Several people can have the same drawing open (#821, W-1730). The server
+// holds the scene (Slipdock.Wiki.DrawingSession) and saves it by itself.
+// This hook sends only the elements whose version moved since it last sent
+// them, a few times a second at most, and takes in what other people drew
+// with Excalidraw's own merge (`reconcileElements`). What it took in is
+// remembered as sent, so it never goes back as a change of this editor's.
+// Images go once each. Images a .excalidraw.md note links (its `## Embedded
+// Files`) are given to the editor to show and never sent, so the note keeps
+// linking them rather than swallowing them as data. After a reconnect, or
+// when the server's session had to start again, the whole scene is sent and
+// the server's handed back, which the merge makes harmless both ways.
 
-// The scene JSON with the linked files' data left out.
-export function withoutLinked(json, linked) {
-  if (!linked || linked.length === 0) return json
-  const scene = JSON.parse(json)
-  if (scene.files) for (const id of linked) delete scene.files[id]
-  return JSON.stringify(scene, null, 2)
+// How often changes go to the server at most, and pointers (#825).
+export const SEND_MS = 150
+
+// The elements whose version differs from what was last sent (or taken in)
+// for them: new ones, edited ones and deleted ones.
+export function changed(elements, sent) {
+  return (elements || []).filter(el => sent.get(el.id) !== el.version)
 }
 
-// What changes when the drawing does, and not when it is only looked at:
-// Excalidraw calls onChange for every scroll and selection as well.
-// Deleted elements are left out: the editor keeps them, a saved file need not.
-export function signature(elements) {
-  const live = (elements || []).filter(el => !el.isDeleted)
-  const sum = live.reduce((total, el) => total + (el.version || 0), 0)
-  return `${live.length}:${sum}`
+// Notes `elements` as sent, or as already known to the server.
+export function remember(sent, elements) {
+  for (const el of elements || []) sent.set(el.id, el.version)
+  return sent
 }
 
-const LEAVE = "This drawing has changes that aren't saved. Leave anyway?"
+// The images the server hasn't had from here yet, bar the ones the note
+// only links.
+export function unsentFiles(files, sentFiles, linked) {
+  const out = {}
+  for (const [id, file] of Object.entries(files || {})) {
+    if (sentFiles.has(id) || (linked && linked.includes(id))) continue
+    if (file && typeof file.dataURL === "string") out[id] = file
+  }
+  return out
+}
+
+// Which of `remote` made it into the merged scene: those the merge kept
+// rather than the local copy.
+export function taken(scene, remote) {
+  const now = new Map((scene || []).map(el => [el.id, el]))
+  return (remote || []).filter(el => {
+    const got = now.get(el.id)
+    return got && got.version === el.version && got.versionNonce === el.versionNonce
+  })
+}
+
+// What the status line says.
+export function statusText({ready, viewOnly, connected, unsaved, error}) {
+  if (!ready) return "Loading the editor…"
+  if (!connected) return "Reconnecting…"
+  if (error) return error
+  if (viewOnly) return "View only"
+  return unsaved ? "Saving…" : "Saved"
+}
 
 function loadCss(href) {
   if (document.querySelector(`link[data-excalidraw-css]`)) return
@@ -41,30 +73,32 @@ function loadCss(href) {
 export const ExcalidrawEditor = {
   mounted() {
     const vendor = this.el.dataset.vendor
-    this.status = this.el.querySelector("[data-drawing-status]")
-    this.saveButton = this.el.querySelector("[data-drawing-save]")
+    this.statusEl = this.el.querySelector("[data-drawing-status]")
     this.canvas = this.el.querySelector("#drawing-canvas")
-    this.saved = null
-    this.dirty = false
+    this.sent = new Map()
+    this.sentFiles = new Set()
+    this.waiting = [] // remote changes that came before the editor did
+    this.state = {ready: false, viewOnly: false, connected: true, unsaved: false, error: null}
 
     window.EXCALIDRAW_ASSET_PATH = vendor
     loadCss(vendor + "excalidraw.css")
 
+    // Ctrl+S: there is nothing to press, but it saves now rather than in a
+    // moment, and the browser's own "save page" is kept out of the way.
     this.onKey = e => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "s" && this.saveButton) {
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
         e.preventDefault()
-        this.save()
+        this.send(true)
       }
     }
-    this.onLeave = e => {
-      if (this.dirty) {
-        e.preventDefault()
-        e.returnValue = LEAVE
-      }
-    }
+    this.onLeave = () => this.send(true)
     window.addEventListener("keydown", this.onKey)
     window.addEventListener("beforeunload", this.onLeave)
-    this.saveButton?.addEventListener("click", () => this.save())
+
+    this.handleEvent("drawing:remote", ({elements, files}) => this.take(elements, files))
+    this.handleEvent("drawing:saved", () => this.set({unsaved: !!this.timer, error: null}))
+    this.handleEvent("drawing:notice", ({text}) => this.set({error: text}))
+    this.handleEvent("drawing:resync", () => this.resync())
 
     this.pushEvent("load", {}, reply => this.open(vendor, reply))
   },
@@ -78,52 +112,105 @@ export const ExcalidrawEditor = {
       return this.say("The drawing editor couldn't be loaded.")
     }
     const scene = JSON.parse(reply.json)
-    this.base = reply.base
     this.linked = reply.linked || []
-    this.saved = signature(scene.elements)
+    remember(this.sent, scene.elements)
+    for (const id of Object.keys(scene.files || {})) this.sentFiles.add(id)
+    for (const id of this.linked) this.sentFiles.add(id)
     this.editor = mod.mount(this.canvas, {
       scene,
       files: reply.files || {},
       viewOnly: !!reply.view_only,
       theme: document.documentElement.dataset.theme === "dark" ? "dark" : "light",
-      onChange: elements => this.changed(elements),
+      onChange: () => this.schedule(),
+      onPointer: update => this.pointer && this.pointer(update),
     })
-    this.say(reply.view_only ? "View only" : "")
+    this.set({ready: true, viewOnly: !!reply.view_only})
+    this.el.dataset.shapes = (scene.elements || []).filter(e => !e.isDeleted).length
+    const waiting = this.waiting
+    this.waiting = []
+    for (const {elements, files} of waiting) this.take(elements, files)
   },
 
-  changed(elements) {
-    const dirty = signature(elements) !== this.saved
-    if (dirty === this.dirty) return
-    this.dirty = dirty
-    if (this.saveButton) this.saveButton.disabled = !dirty
-    this.say(dirty ? "Unsaved changes" : "")
+  // Excalidraw calls onChange for every scroll and selection too; what
+  // changed is worked out when the throttle fires, and nothing goes if
+  // nothing did.
+  schedule() {
+    if (this.state.viewOnly || this.timer) return
+    this.timer = setTimeout(() => this.send(), SEND_MS)
   },
 
-  save() {
-    if (!this.editor || !this.editor.ready() || this.saving) return
-    this.saving = true
-    const json = withoutLinked(this.editor.serialize(), this.linked)
-    const sig = signature(JSON.parse(json).elements)
-    this.say("Saving…")
-    this.pushEvent("save", {json, base: this.base}, reply => {
-      this.saving = false
-      if (reply.ok) {
-        this.base = reply.base
-        this.saved = sig
-        this.dirty = false
-        if (this.saveButton) this.saveButton.disabled = true
-        this.say("Saved")
-      } else {
-        this.say(reply.error || "The drawing couldn't be saved.")
-      }
+  send(now = false) {
+    clearTimeout(this.timer)
+    this.timer = null
+    if (!this.editor || !this.editor.ready() || this.state.viewOnly) return
+    const elements = changed(this.editor.elements(), this.sent)
+    const files = unsentFiles(this.editor.files(), this.sentFiles, this.linked)
+    if (elements.length === 0 && Object.keys(files).length === 0) {
+      if (now) this.pushEvent("flush", {})
+      return
+    }
+    remember(this.sent, elements)
+    for (const id of Object.keys(files)) this.sentFiles.add(id)
+    this.count()
+    this.set({unsaved: true})
+    this.pushEvent("delta", {elements, files, flush: now}, reply => {
+      if (reply.error) return this.set({error: reply.error})
+      if (reply.stale && reply.stale.length) this.take(reply.stale, {})
     })
+  },
+
+  // Somebody else's elements, or the server's newer copy of ours.
+  take(elements, files) {
+    if (!this.editor || !this.editor.ready()) return this.waiting.push({elements, files})
+    const scene = this.editor.apply(elements || [], files || {})
+    remember(this.sent, taken(scene, elements))
+    for (const id of Object.keys(files || {})) this.sentFiles.add(id)
+    this.count()
+  },
+
+  // Everything this editor has goes up, and everything the server has
+  // comes back: after a reconnect, or a session that started again.
+  resync() {
+    if (!this.editor || !this.editor.ready()) return
+    clearTimeout(this.timer)
+    this.timer = null
+    const elements = this.state.viewOnly ? [] : this.editor.elements()
+    const files = this.state.viewOnly ? {} : unsentFiles(this.editor.files(), new Set(), this.linked)
+    this.pushEvent("resync", {elements, files}, reply => {
+      if (reply.error) return this.set({error: reply.error})
+      remember(this.sent, elements)
+      for (const id of Object.keys(files)) this.sentFiles.add(id)
+      this.take(reply.elements, reply.files)
+    })
+  },
+
+  disconnected() {
+    this.set({connected: false})
+  },
+
+  reconnected() {
+    this.set({connected: true})
+    this.resync()
+  },
+
+  // How many shapes the drawing has, on the element: what the browser tests
+  // (tools/e2e/drawing-live.sh) read to see the other person's drawing arrive.
+  count() {
+    if (this.editor && this.editor.ready())
+      this.el.dataset.shapes = this.editor.elements().filter(e => !e.isDeleted).length
+  },
+
+  set(changes) {
+    Object.assign(this.state, changes)
+    this.say(statusText(this.state))
   },
 
   say(text) {
-    if (this.status) this.status.textContent = text
+    if (this.statusEl) this.statusEl.textContent = text
   },
 
   destroyed() {
+    clearTimeout(this.timer)
     window.removeEventListener("keydown", this.onKey)
     window.removeEventListener("beforeunload", this.onLeave)
     this.editor?.unmount()
