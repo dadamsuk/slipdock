@@ -133,8 +133,24 @@ defmodule SlipdockWeb.API.PageController do
 
   def show(conn, %{"id" => id}) do
     with {:ok, page} <- fetch_page(conn, id, :read) do
-      json(conn, %{page: V.page(with_users(page))})
+      json(conn, %{page: page |> with_users() |> V.page() |> for_reader(conn)})
     end
+  end
+
+  # Read through a share (#817), a page says nothing of the board's other
+  # folders: the places it is also filed are kept only where the reader can go.
+  defp for_reader(%{also_in: also} = json, conn) do
+    user = conn.assigns.current_user
+
+    readable =
+      Enum.filter(also, fn %{folder_id: id} ->
+        case Wiki.get_folder(id) do
+          nil -> false
+          folder -> Slipdock.Access.can_read?(Slipdock.Access.folder_permission(user, folder))
+        end
+      end)
+
+    %{json | also_in: readable}
   end
 
   def update(conn, %{"id" => id} = params) do
