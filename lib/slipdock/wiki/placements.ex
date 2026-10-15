@@ -101,15 +101,17 @@ defmodule Slipdock.Wiki.Placements do
   end
 
   @doc """
-  The folder a vault path names, for a page on a board in a vault:
+  The folder a vault path names, for a page (or a folder) on a board in a vault:
   `"/Projects/Notes"` is the folder `Notes` under whatever `/Projects` is mapped to.
   With `create: true` the folders along it are made, as filing makes them.
   """
-  def folder_at(%Page{} = page, "/" <> _ = path, opts \\ []) do
+  def folder_at(item, path, opts \\ [])
+
+  def folder_at(%{board_id: board_id} = item, "/" <> _ = path, opts) do
     with %Vaults.Vault{} = vault <-
-           Vaults.for_board(page.board_id) ||
+           Vaults.for_board(board_id) ||
              {:error, :unprocessable_entity,
-              "#{page.code} is not on a board in a vault, so it has no vault paths"},
+              "#{label(item)} is not on a board in a vault, so it has no vault paths"},
          {:ok, mapping, rest} <- Vaults.locate(vault, path) do
       mapping = Repo.preload(mapping, [:board, :folder])
       base = if mapping.folder, do: Wiki.folder_path(mapping.folder), else: nil
@@ -127,6 +129,9 @@ defmodule Slipdock.Wiki.Placements do
       end
     end
   end
+
+  defp label(%Page{code: code}), do: code
+  defp label(%Folder{name: name}), do: "“#{name}”"
 
   @doc "Drops the placement in a folder that has just become the page's home."
   def drop_home(%Page{folder_id: nil}), do: :ok

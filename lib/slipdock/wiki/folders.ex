@@ -326,6 +326,8 @@ defmodule Slipdock.Wiki.Folders do
         end
 
       with {:ok, folder} <- folder |> Folder.changeset(attrs) |> Repo.update() do
+        # Home now, so no longer "also" filed there.
+        Slipdock.Wiki.FolderPlacements.drop_home(folder)
         # A position asked for by name — over the API or from the CLI — is
         # packed the same way a dragged one is, so the two never disagree.
         if attrs["position"], do: repack(folder, {:index, folder.position})
@@ -349,6 +351,11 @@ defmodule Slipdock.Wiki.Folders do
 
       parent_id in Enum.map(descendants(folder), & &1.id) ->
         {:error, :unprocessable_entity, "a folder cannot be moved inside itself"}
+
+      # Under a folder that is itself filed somewhere inside this one (#808).
+      parent_id in Slipdock.Wiki.FolderPlacements.below_ids(folder) ->
+        {:error, :unprocessable_entity,
+         "a folder cannot be moved inside itself: that folder is filed inside it"}
 
       true ->
         :ok
@@ -376,6 +383,7 @@ defmodule Slipdock.Wiki.Folders do
 
     with :ok <- check_cycle(folder, %{"parent_id" => parent_id}),
          {:ok, moved} <- folder |> Folder.changeset(%{"parent_id" => parent_id}) |> Repo.update() do
+      Slipdock.Wiki.FolderPlacements.drop_home(moved)
       repack(moved, {:before, before})
       Changes.record(moved.board_id, "folder", moved.id)
       broadcast(moved.board_id)
@@ -454,6 +462,7 @@ defmodule Slipdock.Wiki.Folders do
   def delete(%Folder{} = folder, :keep) do
     # Its pages go back to the root, and a sync has to move their files.
     refiled = Repo.all(from(p in Page, where: p.folder_id == ^folder.id, select: p.id))
+    children = Repo.all(from(f in Folder, where: f.parent_id == ^folder.id, select: f.id))
 
     Repo.transaction(fn ->
       Repo.update_all(
@@ -466,6 +475,9 @@ defmodule Slipdock.Wiki.Folders do
     end)
     |> case do
       {:ok, folder} ->
+        # A subfolder moved up into a folder it was also filed in is at home there now.
+        Enum.each(children, &Slipdock.Wiki.FolderPlacements.drop_home(get!(&1)))
+
         Changes.record(folder.board_id, "folder", folder.id, "deleted")
         Changes.record_pages(folder.board_id, refiled, "changed")
         broadcast(folder.board_id)

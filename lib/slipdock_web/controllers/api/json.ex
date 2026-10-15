@@ -576,8 +576,13 @@ defmodule SlipdockWeb.API.JSON do
       path: Slipdock.Wiki.folder_path(f)
     }
 
-  @doc "One wiki folder — filing, not writing (see `Slipdock.Wiki.Folder`)."
-  def folder(%Slipdock.Wiki.Folder{} = f) do
+  @doc """
+  One wiki folder — filing, not writing (see `Slipdock.Wiki.Folder`).
+  `also_in` is where else it is filed (#808): given, or looked up.
+  """
+  def folder(%Slipdock.Wiki.Folder{} = f, also_in \\ nil) do
+    also_in = also_in || Slipdock.Wiki.FolderPlacements.folders(f)
+
     %{
       id: f.id,
       board_id: f.board_id,
@@ -591,6 +596,8 @@ defmodule SlipdockWeb.API.JSON do
       # What it wears on the main page and in the tree (#792).
       icon: f.icon,
       color: f.color,
+      # The folders it is also filed in, beside its home (#808).
+      also_in: Enum.map(also_in, &placement_folder/1),
       inserted_at: f.inserted_at,
       updated_at: f.updated_at
     }
@@ -647,6 +654,11 @@ defmodule SlipdockWeb.API.JSON do
   nodes, as `Slipdock.Wiki.Folders.tree/2` builds them.
   """
   def folder_tree(nodes, also \\ %{}) when is_list(nodes) do
+    also_in = nodes |> tree_folder_ids() |> Slipdock.Wiki.FolderPlacements.by_folder()
+    folder_tree(nodes, also, also_in)
+  end
+
+  defp folder_tree(nodes, also, also_in) do
     Enum.map(nodes, fn %{folder: f, children: children, pages: pages} ->
       # The pages also filed here follow the ones at home, marked `also`,
       # each page once (W-103 R12.6, R12.7).
@@ -659,10 +671,16 @@ defmodule SlipdockWeb.API.JSON do
         |> Enum.map(&(&1 |> page_summary() |> Map.put(:children, [])))
 
       f
-      |> folder()
-      |> Map.merge(%{folders: folder_tree(children, also), pages: page_tree(pages) ++ placed})
+      |> folder(Map.get(also_in, f.id, []))
+      |> Map.merge(%{
+        folders: folder_tree(children, also, also_in),
+        pages: page_tree(pages) ++ placed
+      })
     end)
   end
+
+  defp tree_folder_ids(nodes),
+    do: Enum.flat_map(nodes, &[&1.folder.id | tree_folder_ids(&1.children)])
 
   def revision(%Revision{} = r) do
     %{
