@@ -199,4 +199,80 @@ defmodule SlipdockWeb.API.FolderPlacementsTest do
                result["structuredContent"]["pages"]
     end
   end
+
+  describe "GET a folder (#812)" do
+    test "by path on its board, with also_in; a missing one is a 404", ctx do
+      {:ok, _} = FolderPlacements.add(ctx.folder, ctx.other, ctx.user)
+
+      body = ctx.conn |> get("/api/boards/fpapi/folders/Home/Topic") |> json_response(200)
+      assert %{"path" => "Home/Topic", "also_in" => [%{"path" => "Other"}]} = body["folder"]
+
+      assert ctx.conn |> get("/api/boards/fpapi/folders/Nowhere") |> json_response(404)
+    end
+  end
+
+  describe "MCP file_folder (#812)" do
+    defp mcp(conn, args) do
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post(
+        "/mcp",
+        Jason.encode!(%{
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/call",
+          params: %{name: "file_folder", arguments: args}
+        })
+      )
+      |> json_response(200)
+      |> Map.fetch!("result")
+    end
+
+    test "also and not_in, by path, and the answer lists where it is filed", ctx do
+      result = mcp(ctx.conn, %{board: "fpapi", folder: "Home/Topic", also: "Other"})
+
+      assert %{"path" => "Home/Topic", "also_in" => [%{"path" => "Other", "board" => "fpapi"}]} =
+               result["structuredContent"]
+
+      result = mcp(ctx.conn, %{board: "fpapi", folder: "Topic", not_in: "Other"})
+      assert result["structuredContent"]["also_in"] == []
+      assert Wiki.get_folder(ctx.folder.id).parent_id == ctx.home.id
+    end
+
+    test "on another board of the vault, by in_board or by vault path", ctx do
+      {:ok, vault} = Vaults.create_vault(ctx.user, %{"name" => "V"})
+      {:ok, _} = Vaults.add_mapping(vault, ctx.user, %{path: "/", board: ctx.board})
+      {:ok, _} = Vaults.add_mapping(vault, ctx.user, %{path: "/Journal", board: ctx.jobs})
+      {:ok, _} = Wiki.create_folder(ctx.jobs, %{"name" => "Notes"})
+      {:ok, _} = Wiki.create_folder(ctx.jobs, %{"name" => "Desk"})
+
+      result = mcp(ctx.conn, %{board: "fpapi", folder: "Topic", also: "/Journal/Notes"})
+
+      assert [%{"board" => "fpapijobs", "path" => "Notes"}] =
+               result["structuredContent"]["also_in"]
+
+      result =
+        mcp(ctx.conn, %{board: "fpapi", folder: "Topic", also: "Desk", in_board: "fpapijobs"})
+
+      assert length(result["structuredContent"]["also_in"]) == 2
+    end
+
+    test "refusals come back as tool errors with the reason", ctx do
+      for {args, why} <- [
+            {%{also: "Home"}, "home"},
+            {%{also: "Home/Topic/Inner"}, "inside"},
+            {%{}, "say where"},
+            {%{not_in: "Other"}, "no placement"}
+          ] do
+        if why == "inside",
+          do: Wiki.create_folder(ctx.board, %{"name" => "Inner", "parent_id" => ctx.folder.id})
+
+        result = mcp(ctx.conn, Map.merge(%{board: "fpapi", folder: "Home/Topic"}, args))
+        assert result["isError"] == true, inspect(args)
+        assert hd(result["content"])["text"] =~ why
+      end
+
+      assert FolderPlacements.folders(ctx.folder) == []
+    end
+  end
 end

@@ -828,7 +828,7 @@ defmodule SlipdockCLI.Render do
     Enum.each(nodes, fn f ->
       IO.puts(
         String.duplicate("  ", depth) <>
-          bold(f["name"]) <> "/  " <> dim(f["slug"])
+          bold(f["name"]) <> "/  " <> dim(f["slug"]) <> also_in(f)
       )
 
       folder_nodes(f["folders"] || [], depth + 1)
@@ -907,12 +907,21 @@ defmodule SlipdockCLI.Render do
     end
   end
 
-  @doc "One folder, after it has been made, renamed or moved."
+  @doc "One folder, after it has been made, renamed or moved, and where else it is filed."
   def folder(f) do
     dress = Enum.reject([f["icon"], f["color"]], &(&1 in [nil, ""]))
     dress = if dress == [], do: "", else: " · " <> Enum.join(dress, " ")
     IO.puts(bold(f["path"]) <> "  " <> dim("#{f["slug"]} · id #{f["id"]}#{dress}"))
+
+    for place <- f["also_in"] || [],
+        do: IO.puts("  also in " <> place["path"] <> "  " <> dim(place["board"] || ""))
   end
+
+  # A folder also filed elsewhere (#808), on its line in a listing.
+  defp also_in(%{"also_in" => [_ | _] = places}),
+    do: dim("  ↪ also in " <> Enum.map_join(places, ", ", & &1["path"]))
+
+  defp also_in(_folder), do: ""
 
   @doc "Every board's wiki at once: boards as the top level, folders inside."
   def wiki([]), do: IO.puts(dim("no boards"))

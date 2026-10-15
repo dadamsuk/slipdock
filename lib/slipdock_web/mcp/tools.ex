@@ -41,6 +41,7 @@ defmodule SlipdockWeb.MCP.Tools do
     Tools.DeleteBoard,
     Tools.WritePage,
     Tools.UpdatePage,
+    Tools.FileFolder,
     Tools.RevertPage,
     Tools.ManageVault,
     Tools.ClaimJob,
