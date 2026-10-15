@@ -16,6 +16,8 @@ defmodule Slipdock.Application do
        repos: Application.fetch_env!(:slipdock, :ecto_repos), skip: skip_migrations?()},
       {DNSCluster, query: Application.get_env(:slipdock, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Slipdock.PubSub},
+      # Who has a drawing open, and where (see `SlipdockWeb.Presence`).
+      SlipdockWeb.Presence,
       # Counters behind the sign-in form's rate limit.
       Slipdock.RateLimit,
       # Emails and webhooks sent by automation rules, off the caller's back —

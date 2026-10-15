@@ -17,8 +17,10 @@ defmodule SlipdockWeb.DrawingLive do
   use SlipdockWeb, :live_view
 
   alias Slipdock.{Access, Repo}
+  alias Slipdock.Accounts.User
   alias Slipdock.Boards.Board
   alias Slipdock.Wiki.{Drawings, DrawingSession, Excalidraw, Page, WikiFile}
+  alias SlipdockWeb.Presence
   alias SlipdockWeb.Wiki.Renderer
 
   @impl true
@@ -37,10 +39,12 @@ defmodule SlipdockWeb.DrawingLive do
           can_write: Drawings.writable?(drawing, user),
           page_title: title(drawing),
           back: back(drawing, user),
-          session: nil
+          session: nil,
+          people: [],
+          pointer_at: nil
         )
 
-      {:ok, if(connected?(socket), do: join_session(socket), else: socket)}
+      {:ok, if(connected?(socket), do: socket |> join_session() |> arrive(), else: socket)}
     else
       _ ->
         {:ok,
@@ -100,6 +104,96 @@ defmodule SlipdockWeb.DrawingLive do
     end
   end
 
+  ## Who else is here ------------------------------------------------------
+
+  # Each open tab is one presence on the drawing's topic, with what the others
+  # need to draw it: a name, initials, a colour, and whether it may only look.
+  # Pointers go over the same topic straight to the other tabs, never through
+  # the session, so nothing of them is ever saved.
+  defp arrive(%{assigns: %{session: nil}} = socket), do: socket
+
+  defp arrive(socket) do
+    user = socket.assigns.current_user
+    topic = topic(socket.assigns.drawing)
+    Phoenix.PubSub.subscribe(Slipdock.PubSub, topic)
+
+    {:ok, _} =
+      Presence.track(self(), topic, socket.id || inspect(self()), %{
+        user_id: user.id,
+        name: User.display_name(user),
+        initials: User.initials(user),
+        colour: Presence.colour(user.id),
+        viewing: not socket.assigns.can_write
+      })
+
+    people(socket)
+  end
+
+  defp topic(drawing) do
+    {kind, id} = key(drawing)
+    "drawing:#{kind}:#{id}"
+  end
+
+  # Everybody present: for the header, one avatar a person, and for the
+  # editor, one collaborator a tab — bar this one.
+  defp people(socket) do
+    me = socket.id || inspect(self())
+    present = Presence.list(topic(socket.assigns.drawing))
+
+    tabs =
+      for {id, %{metas: [meta | _]}} <- present, id != me do
+        %{id: id, name: meta.name, colour: meta.colour, viewing: meta.viewing}
+      end
+
+    people =
+      present
+      |> Enum.map(fn {_id, %{metas: [meta | _]}} -> meta end)
+      |> Enum.group_by(& &1.user_id)
+      |> Enum.map(fn {_, metas} ->
+        # Somebody with one tab drawing and another looking is drawing.
+        %{hd(metas) | viewing: Enum.all?(metas, & &1.viewing)}
+      end)
+      |> Enum.sort_by(&{&1.user_id != socket.assigns.current_user.id, &1.name})
+
+    socket
+    |> assign(people: people)
+    |> push_event("drawing:people", %{people: tabs})
+  end
+
+  # About twenty a second from each tab at most, whatever the browser sends.
+  @pointer_ms 40
+
+  defp pointer(socket, params) do
+    now = System.monotonic_time(:millisecond)
+
+    if socket.assigns.pointer_at && now - socket.assigns.pointer_at < @pointer_ms do
+      socket
+    else
+      Phoenix.PubSub.broadcast_from(
+        Slipdock.PubSub,
+        self(),
+        topic(socket.assigns.drawing),
+        {:drawing_pointer, socket.id || inspect(self()), pointer_payload(params)}
+      )
+
+      assign(socket, pointer_at: now)
+    end
+  end
+
+  # Only what a cursor needs, of the right types, so nothing else rides along.
+  defp pointer_payload(params) do
+    %{
+      x: number(params["x"]),
+      y: number(params["y"]),
+      tool: if(params["tool"] == "laser", do: "laser", else: "pointer"),
+      button: if(params["button"] == "down", do: "down", else: "up"),
+      selected: for(id <- List.wrap(params["selected"]), is_binary(id), do: id) |> Enum.take(500)
+    }
+  end
+
+  defp number(n) when is_number(n), do: n
+  defp number(_), do: 0
+
   defp key(%Page{id: id}), do: {:page, id}
   defp key(%WikiFile{id: id}), do: {:file, id}
 
@@ -125,9 +219,18 @@ defmodule SlipdockWeb.DrawingLive do
 
   def handle_info({:DOWN, _ref, :process, _pid, _}, socket), do: {:noreply, socket}
 
+  def handle_info(%Phoenix.Socket.Broadcast{event: "presence_diff"}, socket),
+    do: {:noreply, people(socket)}
+
+  def handle_info({:drawing_pointer, id, pointer}, socket),
+    do: {:noreply, push_event(socket, "drawing:pointer", Map.put(pointer, :id, id))}
+
   ## Events -------------------------------------------------------------------
 
   @impl true
+  def handle_event("pointer", params, socket) when is_map(params),
+    do: {:noreply, pointer(socket, params)}
+
   def handle_event(_event, _params, %{assigns: %{session: nil}} = socket),
     do: {:reply, %{error: "This drawing can't be opened just now."}, socket}
 
@@ -239,6 +342,20 @@ defmodule SlipdockWeb.DrawingLive do
             <.icon name="hero-arrow-left" class="size-4" /> Back
           </.link>
           <h1 class="min-w-0 flex-1 truncate text-sm font-semibold">{@page_title}</h1>
+          <div id="drawing-people" class="flex -space-x-1">
+            <span
+              :for={person <- @people}
+              data-person={person.user_id}
+              title={if person.viewing, do: "#{person.name} (viewing)", else: person.name}
+              class={[
+                "inline-flex size-7 items-center justify-center rounded-full text-2xs font-semibold text-white ring-2 ring-base-100",
+                person.viewing && "opacity-60"
+              ]}
+              style={"background-color: #{person.colour}"}
+            >
+              {person.initials}
+            </span>
+          </div>
           <span data-drawing-status class="text-xs text-base-content/60" aria-live="polite">
             Loading the editor…
           </span>

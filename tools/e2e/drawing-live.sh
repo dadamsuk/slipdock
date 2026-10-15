@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# End to end in two real browsers (#824): two people with the same drawing
-# open, one its owner and one with write access to the board, each draw a
+# End to end in two real browsers (#824, #825): two people with the same
+# drawing open, one its owner and one with write access to the board, see
+# each other in the header and the friend's cursor on the canvas; each draw a
 # rectangle; each sees the other's arrive without reloading, the drawing saves
 # itself (there is no Save button), and both shapes are there after a reload
 # and in the saved note.

@@ -56,7 +56,7 @@ defmodule Slipdock.Wiki.DrawingSession do
   @spec join(key, User.t()) ::
           {:ok, pid, %{scene: map, base: String.t() | nil, can_write: boolean}}
           | {:error, :not_found | :forbidden | :unreadable}
-  def join(key, %User{} = user), do: join(key, user, 3)
+  def join(key, %User{} = user), do: join(key, user, 5)
 
   defp join(key, user, tries) do
     with {:ok, pid} <- ensure_started(key) do
@@ -66,8 +66,11 @@ defmodule Slipdock.Wiki.DrawingSession do
           {:error, _} = error -> error
         end
       catch
-        # Caught while it was saving on its way out: start a new one.
-        :exit, _ when tries > 1 -> join(key, user, tries - 1)
+        # Caught on its way out (saving as the last editor left, or just
+        # gone and not yet out of the registry): a moment, then a new one.
+        :exit, _ when tries > 1 ->
+          Process.sleep(10 * (6 - tries))
+          join(key, user, tries - 1)
       end
     end
   end
