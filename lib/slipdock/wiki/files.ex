@@ -16,7 +16,7 @@ defmodule Slipdock.Wiki.Files do
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.Board
   alias Slipdock.Wiki
-  alias Slipdock.Wiki.{Changes, Sharing, WikiFile}
+  alias Slipdock.Wiki.{Changes, DrawingSession, Excalidraw, Sharing, WikiFile}
 
   def get(id), do: Repo.get(WikiFile, id)
 
@@ -79,7 +79,7 @@ defmodule Slipdock.Wiki.Files do
   `opts`: `drawing_session: true` when the write is a live drawing's own
   save (`Slipdock.Wiki.DrawingSession`).
   """
-  def replace(%WikiFile{} = file, attrs, source, _opts \\ []) do
+  def replace(%WikiFile{} = file, attrs, source, opts \\ []) do
     {sha, size} = digest(source)
     name = attrs[:name] || file.name
     key = key(%Board{id: file.board_id}, name)
@@ -101,6 +101,11 @@ defmodule Slipdock.Wiki.Files do
          {:ok, updated} <- Repo.update(changeset) do
       Boards.remove_files([file.key])
       touched(updated)
+
+      # Somebody drawing in it hears of it and merges it in (#826).
+      if !opts[:drawing_session] and Excalidraw.name?(updated.name),
+        do: DrawingSession.outside_write({:file, updated.id})
+
       {:ok, updated}
     end
   end

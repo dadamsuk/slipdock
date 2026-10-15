@@ -156,4 +156,13 @@ defmodule SlipdockWeb.API.GuideTest do
       assert body =~ "`#{code}`", "the guide does not name #{code}"
     end
   end
+
+  test "the guide says a drawing may be live and how a write to one lands (#826)", %{conn: conn} do
+    body = conn |> get(~p"/api/guide") |> response(200)
+
+    assert body =~ "A drawing may be **live**"
+    assert body =~ "wins only if you bumped its `version`"
+    assert body =~ "set `isDeleted: true` and bump `version` to delete"
+    assert body =~ "Their next autosave holds both sides"
+  end
 end

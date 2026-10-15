@@ -23,7 +23,8 @@ defmodule Slipdock.Wiki.Excalidraw.Reconcile do
 
   @doc """
   Merges `incoming` into `held`. Returns the merged list, and the incoming
-  elements that won — what has to be passed on to everybody else.
+  elements that won and differ from what was held — what has to be passed
+  on to everybody else.
   """
   @spec merge([element], [element]) :: {[element], [element]}
   def merge(held, incoming) when is_list(held) and is_list(incoming) do
@@ -39,6 +40,10 @@ defmodule Slipdock.Wiki.Excalidraw.Reconcile do
 
           keep_held?(held_by_id[id], element) ->
             {[held_by_id[id] | merged], winners, MapSet.put(seen, id)}
+
+          # The same element again changes nothing, so it is nobody's news.
+          held_by_id[id] == element ->
+            {[element | merged], winners, MapSet.put(seen, id)}
 
           true ->
             {[element | merged], [element | winners], MapSet.put(seen, id)}
