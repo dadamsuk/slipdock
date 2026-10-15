@@ -9,6 +9,11 @@ defmodule Slipdock.Boards.Template do
   `%{"title" =>, "body" =>, "summary" =>, "template" =>}` maps, so a new
   board arrives with somewhere to write rather than an empty wiki. Bodies may
   use the `{{board.name}}` and `{{today}}` placeholders.
+
+  A template is either built in (`system`) — nobody's, and read-only to
+  everybody, admins included — or one person's own (`owner_id`), seen and
+  changed by them alone. Neither is ever taken from params: `Slipdock.Boards`
+  sets them when the struct is built.
   """
   use Ecto.Schema
   import Ecto.Changeset
@@ -21,6 +26,8 @@ defmodule Slipdock.Boards.Template do
     # The kind of board this template makes (see `Slipdock.Boards.Board`'s
     # `kind`): "Sprint planning" makes sprint boards. nil for most.
     field :kind, :string
+    field :system, :boolean, default: false
+    belongs_to :owner, Slipdock.Accounts.User
     timestamps(type: :utc_datetime)
   end
 
@@ -48,7 +55,14 @@ defmodule Slipdock.Boards.Template do
     |> validate_required([:name, :columns])
     |> validate_length(:name, min: 1, max: 60)
     |> validate_columns()
-    |> unique_constraint(:name, message: "already exists")
+    |> unique_constraint(:name,
+      name: :board_templates_owner_id_name_index,
+      message: "already exists"
+    )
+    |> unique_constraint(:name,
+      name: :board_templates_system_name_index,
+      message: "already exists"
+    )
   end
 
   @doc "The pages a board made from this template starts with, cleaned up."

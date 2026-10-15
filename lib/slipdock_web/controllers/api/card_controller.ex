@@ -242,7 +242,7 @@ defmodule SlipdockWeb.API.CardController do
   def create_sub_board(conn, %{"id" => id} = params) do
     with {:ok, card} <- fetch_card(id),
          :ok <- Authorize.card(conn, card, :write),
-         {:ok, template} <- fetch_template(params["template"]),
+         {:ok, template} <- fetch_template(conn, params["template"]),
          {:ok, board} <- dependency_result(Boards.create_sub_board(card, template)) do
       conn
       |> put_status(:created)
@@ -261,11 +261,11 @@ defmodule SlipdockWeb.API.CardController do
     end
   end
 
-  defp fetch_template(nil),
+  defp fetch_template(_conn, nil),
     do: {:error, :bad_request, "pass template (id or name); see GET /api/templates"}
 
-  defp fetch_template(ref) do
-    case Boards.find_template(ref) do
+  defp fetch_template(conn, ref) do
+    case Boards.find_template(conn.assigns.current_user, ref) do
       {:ok, t} -> {:ok, t}
       _ -> {:error, :not_found, "template"}
     end

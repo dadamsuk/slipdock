@@ -70,7 +70,7 @@ defmodule SlipdockWeb.API.MoveBoardTest do
   end
 
   test "moving into the card's own subcards is refused", %{conn: conn, card: card} do
-    {:ok, sub} = Boards.create_sub_board(card, hd(Boards.list_templates()))
+    {:ok, sub} = Boards.create_sub_board(card, hd(Boards.list_templates(nil)))
     sub = Boards.get_board!(sub.id)
 
     assert %{"error" => message} =

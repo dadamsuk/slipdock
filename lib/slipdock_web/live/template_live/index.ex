@@ -1,5 +1,11 @@
 defmodule SlipdockWeb.TemplateLive.Index do
-  @moduledoc "Manage board templates: named lists of columns for new boards and sub-boards."
+  @moduledoc """
+  Manage board templates: named lists of columns for new boards and sub-boards.
+
+  Everybody sees the built-in templates and their own; only their own can be
+  edited or deleted. `Slipdock.Boards` enforces that — this page just doesn't
+  offer what it would refuse.
+  """
   use SlipdockWeb, :live_view
 
   alias Slipdock.Boards
@@ -14,7 +20,8 @@ defmodule SlipdockWeb.TemplateLive.Index do
     {:ok, socket |> assign(page_title: "Templates", editing: nil) |> load()}
   end
 
-  defp load(socket), do: assign(socket, templates: Boards.list_templates())
+  defp load(socket),
+    do: assign(socket, templates: Boards.list_templates(socket.assigns.current_user))
 
   @impl true
   def handle_info({:templates_changed}, socket), do: {:noreply, load(socket)}
@@ -28,8 +35,14 @@ defmodule SlipdockWeb.TemplateLive.Index do
   end
 
   def handle_event("edit", %{"id" => id}, socket) do
-    template = Boards.get_template!(id)
-    {:noreply, start_editing(socket, template, Enum.map(template.columns, &stringify/1))}
+    user = socket.assigns.current_user
+
+    with {:ok, template} <- Boards.find_template(user, id),
+         :ok <- Boards.authorize_template(user, template, :write) do
+      {:noreply, start_editing(socket, template, Enum.map(template.columns, &stringify/1))}
+    else
+      refused -> {:noreply, refuse(socket, refused)}
+    end
   end
 
   def handle_event("cancel", _, socket), do: {:noreply, assign(socket, editing: nil)}
@@ -77,25 +90,43 @@ defmodule SlipdockWeb.TemplateLive.Index do
       "columns" => editing.columns
     }
 
+    user = socket.assigns.current_user
+
     result =
       if editing.template.id,
-        do: Boards.update_template(editing.template, attrs),
-        else: Boards.create_template(attrs)
+        do: Boards.update_template(user, editing.template, attrs),
+        else: Boards.create_template(user, attrs)
 
     case result do
       {:ok, template} ->
         {:noreply,
          socket |> assign(editing: nil) |> put_flash(:info, "Saved template “#{template.name}”.")}
 
-      {:error, cs} ->
+      {:error, %Ecto.Changeset{} = cs} ->
         {:noreply, assign(socket, editing: %{editing | errors: errors(cs)})}
+
+      refused ->
+        {:noreply, refuse(socket, refused)}
     end
   end
 
   def handle_event("delete", %{"id" => id}, socket) do
-    {:ok, _} = Boards.delete_template(Boards.get_template!(id))
-    {:noreply, assign(socket, editing: nil)}
+    user = socket.assigns.current_user
+
+    with {:ok, template} <- Boards.find_template(user, id),
+         {:ok, _} <- Boards.delete_template(user, template) do
+      {:noreply, assign(socket, editing: nil)}
+    else
+      refused -> {:noreply, refuse(socket, refused)}
+    end
   end
+
+  defp refuse(socket, {:error, :forbidden}),
+    do:
+      socket |> assign(editing: nil) |> put_flash(:error, "Built-in templates can't be changed.")
+
+  defp refuse(socket, {:error, :not_found}),
+    do: socket |> assign(editing: nil) |> put_flash(:error, "That template has gone.")
 
   defp start_editing(socket, template, columns) do
     assign(socket,
@@ -175,6 +206,8 @@ defmodule SlipdockWeb.TemplateLive.Index do
               <p class="mt-1 max-w-xl text-sm text-base-content/60">
                 A template is a set of lists. Use one when creating a board, or when turning a card
                 into a board of subcards. Any board can save its lists as a template from its settings.
+                The built-in templates are the same for everyone and can't be changed; yours are
+                yours alone.
               </p>
             </div>
             <button :if={!@editing} class="btn btn-primary" phx-click="new">
@@ -323,10 +356,16 @@ defmodule SlipdockWeb.TemplateLive.Index do
             >
               <div class="flex items-start justify-between gap-2">
                 <div class="min-w-0">
-                  <h2 class="truncate font-semibold">{t.name}</h2>
+                  <h2 class="truncate font-semibold">
+                    {t.name}
+                    <span :if={t.system} class="badge badge-ghost badge-sm ml-1 align-middle">
+                      Built-in
+                    </span>
+                  </h2>
                   <p :if={t.description} class="text-sm text-base-content/60">{t.description}</p>
                 </div>
                 <button
+                  :if={Boards.template_editable?(@current_user, t)}
                   type="button"
                   class="btn btn-ghost btn-xs"
                   phx-click="edit"

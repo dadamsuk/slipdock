@@ -8,11 +8,12 @@ defmodule Slipdock.SubBoardsTest do
   alias Slipdock.Boards.{Board, Card, Template}
 
   test "default templates exist and templates validate" do
-    names = Boards.list_templates() |> Enum.map(& &1.name)
+    user = user_fixture()
+    names = Boards.list_templates(nil) |> Enum.map(& &1.name)
     assert "Slipdock" in names and "Bug triage" in names and "Roadmap" in names
 
     assert {:ok, t} =
-             Boards.create_template(%{
+             Boards.create_template(user, %{
                "name" => "Sprint",
                "columns" => [%{"name" => "Todo", "wip_limit" => "2", "color" => "sky"}, "Done"]
              })
@@ -22,11 +23,11 @@ defmodule Slipdock.SubBoardsTest do
              %{"name" => "Done", "wip_limit" => nil, "color" => nil, "category" => nil}
            ]
 
-    assert {:ok, ^t} = Boards.find_template("sprint")
+    assert {:ok, ^t} = Boards.find_template(user, "sprint")
 
-    assert {:error, cs} = Boards.create_template(%{"name" => "Empty", "columns" => []})
+    assert {:error, cs} = Boards.create_template(user, %{"name" => "Empty", "columns" => []})
     assert {"must have at least one list", _} = cs.errors[:columns]
-    assert {:error, cs} = Boards.create_template(%{"name" => "Sprint", "columns" => ["A"]})
+    assert {:error, cs} = Boards.create_template(user, %{"name" => "Sprint", "columns" => ["A"]})
     assert {"already exists", _} = cs.errors[:name]
 
     # Form-style params keyed by index are accepted too.
@@ -41,7 +42,7 @@ defmodule Slipdock.SubBoardsTest do
   end
 
   test "boards can be created from a template and saved back as one" do
-    {:ok, t} = Boards.find_template("Checklist")
+    {:ok, t} = Boards.find_template(nil, "Checklist")
 
     {:ok, board} =
       Boards.create_board(%{"name" => "From template"}, template: t, owner_id: user_fixture().id)
@@ -63,7 +64,7 @@ defmodule Slipdock.SubBoardsTest do
     tag = tag_fixture(board, "shared")
     [backlog | _] = board.columns
     card = card_fixture(backlog, %{"title" => "Epic"})
-    {:ok, t} = Boards.find_template("Simple")
+    {:ok, t} = Boards.find_template(nil, "Simple")
 
     assert {:ok, sub} = Boards.create_sub_board(card, t)
     assert sub.parent_card_id == card.id and sub.root_id == board.id and sub.name == "Epic"
@@ -117,7 +118,7 @@ defmodule Slipdock.SubBoardsTest do
   test "a card's subcards come back in board order, not the order they were made" do
     board = board_fixture(%{"name" => "Root"})
     card = card_fixture(hd(board.columns), %{"title" => "Epic"})
-    {:ok, t} = Boards.find_template("Simple")
+    {:ok, t} = Boards.find_template(nil, "Simple")
     {:ok, sub} = Boards.create_sub_board(card, t)
     [todo, doing, _done] = Boards.get_board!(sub.id).columns
 

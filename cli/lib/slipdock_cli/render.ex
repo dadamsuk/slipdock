@@ -79,10 +79,19 @@ defmodule SlipdockCLI.Render do
             c["name"] <> if(c["wip_limit"], do: "/#{c["wip_limit"]}", else: "")
           end)
 
-        [to_string(t["id"]), t["name"], lists, t["description"] || ""]
+        # Built in: the same for everyone, and read-only. The rest are yours.
+        # A server older than template owners doesn't say either way.
+        whose =
+          case t["system"] do
+            true -> "built-in"
+            false -> "you"
+            nil -> ""
+          end
+
+        [to_string(t["id"]), t["name"], whose, lists, t["description"] || ""]
       end)
 
-    table(["ID", "NAME", "LISTS", "DESCRIPTION"], rows)
+    table(["ID", "NAME", "OWNER", "LISTS", "DESCRIPTION"], rows)
   end
 
   def board(b) do

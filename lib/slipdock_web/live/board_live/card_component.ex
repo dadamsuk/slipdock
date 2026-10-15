@@ -631,9 +631,13 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     {:noreply, update(socket, :picking_template, &(!&1))}
   end
 
+  # Only a template the reader can see: the built-ins and their own.
   defp event("create_sub_board", %{"template" => id}, socket) do
-    case Boards.create_sub_board(socket.assigns.card, Boards.get_template!(id)) do
-      {:ok, _} -> {:noreply, assign(socket, picking_template: false)}
+    with {:ok, template} <- Boards.find_template(socket.assigns.current_user, id),
+         {:ok, _} <- Boards.create_sub_board(socket.assigns.card, template) do
+      {:noreply, assign(socket, picking_template: false)}
+    else
+      {:error, :not_found} -> {:noreply, flash(socket, :error, "That template has gone.")}
       {:error, message} -> {:noreply, flash(socket, :error, message)}
     end
   end

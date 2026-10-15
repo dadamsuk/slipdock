@@ -462,7 +462,7 @@ defmodule Slipdock.QuotaLimitsTest do
 
   defp template_fixture do
     {:ok, template} =
-      Boards.create_template(%{
+      Boards.create_system_template(%{
         "name" => "Simple #{System.unique_integer([:positive])}",
         "columns" => [%{"name" => "To Do"}, %{"name" => "Done"}]
       })

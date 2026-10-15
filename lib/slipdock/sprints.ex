@@ -151,7 +151,7 @@ defmodule Slipdock.Sprints do
   end
 
   defp sprint_template do
-    case Boards.find_template(@sprint_template) do
+    case Boards.find_template(nil, @sprint_template) do
       {:ok, template} -> template
       _ -> %Template{name: "Sprint", columns: @fallback_columns}
     end

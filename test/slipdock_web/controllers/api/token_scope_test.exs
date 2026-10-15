@@ -104,7 +104,7 @@ defmodule SlipdockWeb.API.TokenScopeTest do
 
     test "reaches a sub-board of a board it names", ctx do
       {:ok, template} =
-        Boards.create_template(%{
+        Boards.create_template(ctx.user, %{
           "name" => "Breakdown #{System.unique_integer([:positive])}",
           "columns" => [%{"name" => "To Do"}, %{"name" => "Done"}]
         })

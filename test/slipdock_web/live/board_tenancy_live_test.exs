@@ -156,7 +156,7 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
     end
 
     test "a subcard can't be added to a stranger's list", ctx do
-      {:ok, t} = Boards.find_template("Simple")
+      {:ok, t} = Boards.find_template(nil, "Simple")
       {:ok, _} = Boards.create_sub_board(ctx.my_card, t)
       view = card_view(ctx.conn, ctx.mine, ctx.my_card)
 
@@ -443,7 +443,7 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
 
   describe "sprints" do
     test "a sprint on a board you can only read can't be filled", ctx do
-      {:ok, template} = Boards.find_template("Sprint planning")
+      {:ok, template} = Boards.find_template(nil, "Sprint planning")
       sprints = board_fixture(%{"name" => "Their sprints"}, template: template, owner: ctx.victim)
       {:ok, sprint} = Sprints.create_sprint(sprints)
       {:ok, _} = Access.grant(sprints, ctx.user, "read", ctx.victim)
@@ -514,7 +514,7 @@ defmodule SlipdockWeb.BoardTenancyLiveTest do
     end
 
     test "a guest shown one card can't open the sprint charts", ctx do
-      {:ok, template} = Boards.find_template("Sprint planning")
+      {:ok, template} = Boards.find_template(nil, "Sprint planning")
       sprints = board_fixture(%{"name" => "Sprints"}, template: template, owner: ctx.victim)
       {:ok, sprint} = Sprints.create_sprint(sprints)
       {:ok, _} = Access.grant(Boards.get_card!(sprint.id), ctx.user, "read", ctx.victim)

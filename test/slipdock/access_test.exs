@@ -105,7 +105,7 @@ defmodule Slipdock.AccessTest do
     assert Access.card_permission(ctx.other, ctx.card) == :write
 
     # A sub-board inside a granted card inherits the card's permission.
-    {:ok, t} = Boards.find_template("Simple")
+    {:ok, t} = Boards.find_template(nil, "Simple")
     {:ok, sub} = sub_board(ctx.card, t)
     assert Access.board_permission(ctx.other, sub) == :write
   end

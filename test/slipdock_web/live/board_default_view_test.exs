@@ -138,7 +138,7 @@ defmodule SlipdockWeb.BoardDefaultViewTest do
 
   test "a sub-board has no default view to set", %{conn: conn, board: board} do
     card = card_fixture(hd(board.columns), %{"title" => "Epic"})
-    {:ok, t} = Boards.find_template("Simple")
+    {:ok, t} = Boards.find_template(nil, "Simple")
     {:ok, _} = sub_board(card, t)
     sub = Boards.get_card!(card.id).sub_board
 

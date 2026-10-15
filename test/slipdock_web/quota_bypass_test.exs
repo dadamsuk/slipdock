@@ -123,7 +123,7 @@ defmodule SlipdockWeb.QuotaBypassTest do
       card_fixture(their_column, %{"title" => "Two"})
 
       epic = card_fixture(column, %{"title" => "Epic"})
-      {:ok, template} = Boards.find_template("Simple")
+      {:ok, template} = Boards.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, template)
       [sub_column | _] = Boards.get_board!(sub.id).columns
       card_fixture(sub_column, %{"title" => "Sub one"})

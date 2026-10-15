@@ -52,7 +52,7 @@ defmodule Slipdock.RunnersTest do
     end
 
     test "a runner made on a sub-board belongs to the whole tree", %{board: board, card: card} do
-      {:ok, template} = Boards.find_template("Simple")
+      {:ok, template} = Boards.find_template(nil, "Simple")
       {:ok, sub} = sub_board(card, template)
       {:ok, runner, _} = Runners.create_runner(sub, %{"name" => "r", "pool" => "dev"})
       assert runner.board_id == board.id
@@ -300,7 +300,7 @@ defmodule Slipdock.RunnersTest do
     end
 
     test "a subcard's job goes to the runners of the tree it is in", ctx do
-      {:ok, template} = Boards.find_template("Simple")
+      {:ok, template} = Boards.find_template(nil, "Simple")
       {:ok, sub} = sub_board(ctx.card, template)
       sub = Boards.get_board!(sub.id)
       subcard = card_fixture(hd(sub.columns), %{"title" => "Subtask"})

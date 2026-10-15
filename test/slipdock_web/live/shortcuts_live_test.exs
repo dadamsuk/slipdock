@@ -25,7 +25,7 @@ defmodule SlipdockWeb.ShortcutsLiveTest do
       board = board_fixture(%{"name" => "Roadmap"}, derive_keys: true)
       [column | _] = board.columns
       card = card_fixture(column, %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template("Simple")
+      {:ok, t} = Boards.find_template(nil, "Simple")
       {:ok, sub} = Boards.create_sub_board(card, t)
 
       assert sub.shortcut == nil

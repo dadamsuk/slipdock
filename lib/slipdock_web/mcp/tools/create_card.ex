@@ -88,7 +88,7 @@ defmodule SlipdockWeb.MCP.Tools.CreateCard do
          :ok <- Args.refusal(Authorize.card(auth, card, :write)) do
       case card.sub_board do
         %Boards.Board{} = sub -> {:ok, sub}
-        _ -> make_sub_board(card, args["subcard_template"] || "Simple")
+        _ -> make_sub_board(auth.assigns.current_user, card, args["subcard_template"] || "Simple")
       end
     end
   end
@@ -104,20 +104,20 @@ defmodule SlipdockWeb.MCP.Tools.CreateCard do
 
   defp board_or_parent(other), do: other
 
-  defp make_sub_board(card, template_ref) do
-    with {:ok, template} <- template(template_ref),
+  defp make_sub_board(user, card, template_ref) do
+    with {:ok, template} <- template(user, template_ref),
          {:ok, board} <- Args.refusal(Boards.create_sub_board(card, template)) do
       {:ok, board}
     end
   end
 
-  defp template(ref) do
-    case Boards.find_template(ref) do
+  defp template(user, ref) do
+    case Boards.find_template(user, ref) do
       {:ok, t} ->
         {:ok, t}
 
       _ ->
-        names = Enum.map_join(Boards.list_templates(), ", ", & &1.name)
+        names = Enum.map_join(Boards.list_templates(user), ", ", & &1.name)
         {:error, "no template called #{inspect(ref)}; there are: #{names}"}
     end
   end

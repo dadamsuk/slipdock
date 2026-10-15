@@ -192,7 +192,7 @@ defmodule Slipdock.ResearcherTest do
   end
 
   test "list_cards counts subcards when asked for depth, and says so when it isn't", ctx do
-    {:ok, template} = Boards.find_template("Simple")
+    {:ok, template} = Boards.find_template(nil, "Simple")
     {:ok, sub} = Boards.create_sub_board(ctx.card, template)
     sub = Boards.get_board!(sub.id)
     card_fixture(hd(sub.columns), %{"title" => "Check the rounding maths"})
@@ -292,7 +292,7 @@ defmodule Slipdock.ResearcherTest do
     jess = user_fixture("jess@example.com")
     {:ok, jess} = Slipdock.Accounts.update_profile(jess, %{"name" => "Jess Smith"})
     share_fixture(ctx.board, jess)
-    {:ok, template} = Boards.find_template("Simple")
+    {:ok, template} = Boards.find_template(nil, "Simple")
     {:ok, sub} = Boards.create_sub_board(ctx.card, template)
     sub = Boards.get_board!(sub.id)
 

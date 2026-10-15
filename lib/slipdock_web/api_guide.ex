@@ -773,7 +773,8 @@ defmodule SlipdockWeb.APIGuide do
     board's) keeps the lists as a new template in the same request.
 
     `GET /api/templates` lists the named sets of lists a new sub-board can be
-    built from; the response to `POST …/subboard` includes the new board, whose
+    built from: the built-ins (`"system": true`, read-only to all: 403) and
+    your own. The response to `POST …/subboard` includes the new board, whose
     `id` is what you add cards to. `DELETE /api/cards/42/subboard` removes the
     sub-board **and every card on it**, so treat it as a delete.
 

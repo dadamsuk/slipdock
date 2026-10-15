@@ -104,7 +104,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
     end
 
     test "takes its subcards with it", ctx do
-      {:ok, t} = Boards.find_template("Simple")
+      {:ok, t} = Boards.find_template(nil, "Simple")
       {:ok, sub} = Boards.create_sub_board(ctx.card, t)
       child = card_fixture(hd(Boards.get_board!(sub.id).columns), %{"title" => "Child"})
 
@@ -198,7 +198,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
     end
 
     test "made on a sub-board, it lands on the root and is shared by the tree", ctx do
-      {:ok, t} = Boards.find_template("Simple")
+      {:ok, t} = Boards.find_template(nil, "Simple")
       {:ok, sub} = sub_board(ctx.card, t)
 
       ctx.conn |> call("create_tag", %{board: sub.id, name: "deep"}) |> ok!()
@@ -400,7 +400,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
 
     test "with a template's lists", ctx do
       result = ctx.conn |> call("create_board", %{name: "Light", template: "Simple"}) |> ok!()
-      {:ok, t} = Boards.find_template("Simple")
+      {:ok, t} = Boards.find_template(nil, "Simple")
       assert Enum.map(result["lists"], & &1["name"]) == Enum.map(t.columns, & &1["name"])
     end
 
@@ -417,7 +417,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
         |> ok!()
 
       assert Enum.map(result["lists"], & &1["name"]) == ["Ideas", "In Progress", "Done"]
-      assert {:ok, t} = Boards.find_template(name)
+      assert {:ok, t} = Boards.find_template(ctx.user, name)
       assert Boards.get_board!(result["id"]).template_id == t.id
     end
 
@@ -493,7 +493,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
     end
 
     test "a sub-board goes with its card", ctx do
-      {:ok, t} = Boards.find_template("Simple")
+      {:ok, t} = Boards.find_template(nil, "Simple")
       {:ok, sub} = Boards.create_sub_board(ctx.card, t)
 
       assert ctx.conn |> call("archive_board", %{board: sub.id}) |> error!() =~
@@ -539,7 +539,7 @@ defmodule SlipdockWeb.MCP.StructureToolsTest do
     end
 
     test "a sub-board goes with its card", ctx do
-      {:ok, t} = Boards.find_template("Simple")
+      {:ok, t} = Boards.find_template(nil, "Simple")
       {:ok, sub} = Boards.create_sub_board(ctx.card, t)
       sub = Boards.get_board!(sub.id)
 

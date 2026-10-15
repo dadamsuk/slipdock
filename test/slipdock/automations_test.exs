@@ -799,7 +799,7 @@ defmodule Slipdock.AutomationsTest do
         %{"scope" => "tree"}
       )
 
-      {:ok, template} = Boards.find_template("Simple")
+      {:ok, template} = Boards.find_template(nil, "Simple")
       epic = card_fixture(backlog)
       {:ok, sub} = sub_board(epic, template)
       sub = Boards.get_board!(sub.id)
@@ -952,7 +952,7 @@ defmodule Slipdock.AutomationsTest do
     test "a tree-scoped rule reaches into sub-boards" do
       board = board_fixture(%{"name" => "Root"})
       [backlog | _] = board.columns
-      {:ok, template} = Boards.find_template("Simple")
+      {:ok, template} = Boards.find_template(nil, "Simple")
 
       epic = card_fixture(backlog, %{"title" => "Epic"})
       {:ok, sub} = sub_board(epic, template)

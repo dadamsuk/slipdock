@@ -122,7 +122,7 @@ defmodule Slipdock.BoardKeyClaimsTest do
       other = other_test(code: code)
 
       [column | _] = board_fixture().columns
-      {:ok, t} = Boards.find_template("Simple")
+      {:ok, t} = Boards.find_template(nil, "Simple")
       {:ok, sub} = Boards.create_sub_board(card_fixture(column, %{"title" => title}), t)
       refute sub.code == code
 

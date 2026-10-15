@@ -152,7 +152,7 @@ defmodule Slipdock.WikiCardsTest do
   describe "board templates" do
     test "a board made from one arrives with its pages", %{user: user} do
       {:ok, template} =
-        Boards.create_template(%{
+        Boards.create_template(user, %{
           "name" => "Project #{System.unique_integer([:positive])}",
           "columns" => ["To Do", "Done"],
           "pages" => [

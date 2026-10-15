@@ -84,12 +84,12 @@ defmodule SlipdockWeb.NewBoardListsLiveTest do
     )
     |> render_submit()
 
-    assert {:ok, t} = Boards.find_template(name)
+    assert {:ok, t} = Boards.find_template(user, name)
     assert Enum.map(t.columns, & &1["name"]) == ["Seeds", "Done"]
     assert only_board(user).template_id == t.id
   end
 
-  test "a blank template name uses the board's", %{conn: conn} do
+  test "a blank template name uses the board's", %{conn: conn, user: user} do
     name = "Orchard #{System.unique_integer([:positive])}"
     view = open_form(conn)
     view |> form("#new-board", board: %{"name" => name}, template: "custom") |> render_change()
@@ -108,13 +108,13 @@ defmodule SlipdockWeb.NewBoardListsLiveTest do
     )
     |> render_submit()
 
-    assert {:ok, _} = Boards.find_template(name)
+    assert {:ok, _} = Boards.find_template(user, name)
   end
 
   test "a taken template name is said on the form, which keeps what was typed",
        %{conn: conn, user: user} do
     name = "Taken #{System.unique_integer([:positive])}"
-    {:ok, _} = Boards.create_template(%{"name" => name, "columns" => ["X"]})
+    {:ok, _} = Boards.create_template(user, %{"name" => name, "columns" => ["X"]})
     view = open_form(conn)
     view |> form("#new-board", board: %{"name" => "Clash"}, template: "custom") |> render_change()
 
@@ -152,7 +152,7 @@ defmodule SlipdockWeb.NewBoardListsLiveTest do
   end
 
   test "picking a template still ignores the lists box", %{conn: conn, user: user} do
-    {:ok, t} = Boards.find_template("Checklist")
+    {:ok, t} = Boards.find_template(nil, "Checklist")
     view = open_form(conn)
 
     view

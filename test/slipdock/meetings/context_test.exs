@@ -156,7 +156,7 @@ defmodule Slipdock.Meetings.ContextTest do
 
   test "the parent board is read only when asked", ctx do
     parent_card = card_fixture(ctx.column, %{"title" => "Launch epic"})
-    {:ok, template} = Boards.find_template("Simple")
+    {:ok, template} = Boards.find_template(nil, "Simple")
     {:ok, sub} = sub_board(parent_card, template)
     up_there = card_fixture(ctx.column, %{"title" => "Partner announcement draft"})
 

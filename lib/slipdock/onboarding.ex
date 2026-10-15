@@ -597,13 +597,13 @@ defmodule Slipdock.Onboarding do
   # The same lists the demo workspace uses, by the same name, so a server with
   # both does not end up with two templates that say the same thing.
   defp subcard_template do
-    case Boards.find_template("Task breakdown") do
+    case Boards.find_template(nil, "Task breakdown") do
       {:ok, template} ->
         template
 
       {:error, :not_found} ->
         {:ok, template} =
-          Boards.create_template(%{
+          Boards.create_system_template(%{
             "name" => "Task breakdown",
             "description" => "Lists for the subcards of one epic.",
             "columns" => [

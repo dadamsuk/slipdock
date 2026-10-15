@@ -462,8 +462,8 @@ defmodule Slipdock.Boards do
   `columns:` to set them out here (names, or maps shaped like a template's
   lists; one with no category gets one guessed from its name); otherwise the
   default four lists are created. `save_template: name` keeps the board's
-  lists as a new template of that name as well, in the same transaction, so
-  a template name that is taken refuses the board too rather than leaving
+  lists as a new template of that name as well, owned by the board's owner,
+  in the same transaction, so a template name that is taken refuses the board too rather than leaving
   half of what was asked for. `owner_id:` says whose it is, and a root board
   must have one — an `"owner_id"` in `attrs` is ignored, since attributes
   are what forms send.
@@ -543,12 +543,13 @@ defmodule Slipdock.Boards do
   defp save_board_template(repo, board, attrs, name, columns) do
     name = if name == true, do: board.name, else: to_string(name)
 
-    %Template{}
+    %Template{owner_id: board.owner_id, system: false}
     |> Template.changeset(%{
       "name" => name,
       "description" => board.description,
       "columns" => columns
     })
+    |> reserve_built_in_names(repo)
     |> repo.insert()
     |> case do
       {:ok, template} ->
@@ -679,47 +680,122 @@ defmodule Slipdock.Boards do
   end
 
   ## Templates
+  #
+  # A template is built in (`system`: nobody's, read-only to everyone, admins
+  # included) or one person's own. A person sees the built-ins and their own,
+  # changes only their own, and never learns that anybody else's exists.
 
-  def list_templates, do: Repo.all(from(t in Template, order_by: [asc: t.name]))
+  @doc """
+  The templates `user` can use: the built-ins and their own. `nil` means
+  nobody in particular (the server's own work), and gets the built-ins only.
+  """
+  def list_templates(user),
+    do: Repo.all(from(t in visible_templates(user), order_by: [asc: t.name]))
 
-  def get_template!(id), do: Repo.get!(Template, id)
+  defp visible_templates(nil), do: from(t in Template, where: t.system)
 
-  @doc "Finds a template by id or (case-insensitive) name."
-  def find_template(ref) do
+  defp visible_templates(%{id: user_id}),
+    do: from(t in Template, where: t.system or t.owner_id == ^user_id)
+
+  @doc "The template `id`, if `user` can see it (see `list_templates/1`); raises otherwise."
+  def get_template!(user, id), do: Repo.get!(visible_templates(user), id)
+
+  @doc """
+  Finds a template `user` can see by id or (case-insensitive) name. Their
+  own names never match a built-in's (`create_template/2` refuses them), so
+  a name finds one template at most.
+  """
+  def find_template(user, ref) do
     ref = to_string(ref)
 
     query =
       case Integer.parse(ref) do
         {id, ""} ->
-          from(t in Template, where: t.id == ^id)
+          from(t in visible_templates(user), where: t.id == ^id)
 
         _ ->
           name = String.downcase(String.trim(ref))
-          from(t in Template, where: fragment("lower(?)", t.name) == ^name)
+          from(t in visible_templates(user), where: fragment("lower(?)", t.name) == ^name)
       end
 
-    case Repo.one(from(q in query, limit: 1)) do
+    case Repo.one(from(q in query, order_by: q.id, limit: 1)) do
       nil -> {:error, :not_found}
       template -> {:ok, template}
     end
   end
 
-  def create_template(attrs) do
-    %Template{}
+  @doc """
+  Whether `user` may `:read` or `:write` (edit or delete) `template`: `:ok`,
+  `{:error, :forbidden}` for a built-in they would change (nobody may), or
+  `{:error, :not_found}` for somebody else's, which is not theirs to know of.
+  """
+  def authorize_template(user, %Template{} = template, need) when need in [:read, :write] do
+    cond do
+      template.system and need == :read -> :ok
+      template.system -> {:error, :forbidden}
+      user && template.owner_id == user.id -> :ok
+      true -> {:error, :not_found}
+    end
+  end
+
+  @doc "A built-in template is read-only to everyone."
+  def template_editable?(user, %Template{} = template),
+    do: authorize_template(user, template, :write) == :ok
+
+  @doc "Makes a template owned by `user`; `attrs` can't make it anybody else's, or built in."
+  def create_template(%{id: user_id}, attrs) do
+    %Template{owner_id: user_id, system: false}
+    |> Template.changeset(attrs)
+    |> reserve_built_in_names(Repo)
+    |> Repo.insert()
+    |> tap_ok(fn _ -> broadcast_templates() end)
+  end
+
+  @doc """
+  Makes a built-in template: the server's own (the demo and onboarding make
+  one they need when it is missing). Never reached from a request.
+  """
+  def create_system_template(attrs) do
+    %Template{system: true}
     |> Template.changeset(attrs)
     |> Repo.insert()
     |> tap_ok(fn _ -> broadcast_templates() end)
   end
 
-  def update_template(%Template{} = template, attrs) do
-    template
-    |> Template.changeset(attrs)
-    |> Repo.update()
-    |> tap_ok(fn _ -> broadcast_templates() end)
+  @doc "Changes `user`'s own template; see `authorize_template/3` for the refusals."
+  def update_template(user, %Template{} = template, attrs) do
+    with :ok <- authorize_template(user, template, :write) do
+      template
+      |> Template.changeset(attrs)
+      |> reserve_built_in_names(Repo)
+      |> Repo.update()
+      |> tap_ok(fn _ -> broadcast_templates() end)
+    end
   end
 
-  def delete_template(%Template{} = template) do
-    Repo.delete(template) |> tap_ok(fn _ -> broadcast_templates() end)
+  @doc "Deletes `user`'s own template; see `authorize_template/3` for the refusals."
+  def delete_template(user, %Template{} = template) do
+    with :ok <- authorize_template(user, template, :write) do
+      Repo.delete(template) |> tap_ok(fn _ -> broadcast_templates() end)
+    end
+  end
+
+  # A person's template may not take a built-in's name (in any case), or
+  # finding a template by name would have two answers.
+  defp reserve_built_in_names(changeset, repo) do
+    case Ecto.Changeset.get_change(changeset, :name) do
+      nil ->
+        changeset
+
+      name ->
+        lower = String.downcase(name)
+
+        if repo.exists?(
+             from(t in Template, where: t.system and fragment("lower(?)", t.name) == ^lower)
+           ),
+           do: Ecto.Changeset.add_error(changeset, :name, "already exists"),
+           else: changeset
+    end
   end
 
   def change_template(%Template{} = template, attrs \\ %{}),

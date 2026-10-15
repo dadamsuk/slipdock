@@ -49,7 +49,7 @@ defmodule Slipdock.FixturesTest do
   test "sub_board/2 gives the sub-board a code of its own, not the card's title" do
     board = board_fixture(%{"name" => "Root"})
     card = card_fixture(hd(board.columns), %{"title" => "Epic"})
-    {:ok, t} = Boards.find_template("Simple")
+    {:ok, t} = Boards.find_template(nil, "Simple")
 
     {:ok, sub} = sub_board(card, t)
 
@@ -61,7 +61,7 @@ defmodule Slipdock.FixturesTest do
   test "create_sub_board/3 takes a code, and still derives one without" do
     board = board_fixture(%{"name" => "Root"})
     [col | _] = board.columns
-    {:ok, t} = Boards.find_template("Simple")
+    {:ok, t} = Boards.find_template(nil, "Simple")
     code = unique_code()
 
     {:ok, given} =

@@ -48,7 +48,15 @@ defmodule SlipdockWeb.API.JSON do
   end
 
   def template(%Template{} = t) do
-    %{id: t.id, name: t.name, description: t.description, columns: t.columns, kind: t.kind}
+    %{
+      id: t.id,
+      name: t.name,
+      description: t.description,
+      columns: t.columns,
+      kind: t.kind,
+      # Built in: read-only to everyone. Otherwise it is the caller's own.
+      system: t.system
+    }
   end
 
   def board(%Board{} = b) do

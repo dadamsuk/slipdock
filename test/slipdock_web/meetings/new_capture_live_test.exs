@@ -105,7 +105,7 @@ defmodule SlipdockWeb.Meetings.NewCaptureLiveTest do
     {:ok, view, _html} = live(conn, ~p"/boards/#{board}/meetings/new")
     refute view |> element("#capture-scope") |> render() =~ "Its parent board"
 
-    {:ok, template} = Slipdock.Boards.find_template("Simple")
+    {:ok, template} = Slipdock.Boards.find_template(nil, "Simple")
     {:ok, sub} = sub_board(card_fixture(hd(board.columns), %{"title" => "Epic"}), template)
     {:ok, view, _html} = live(conn, ~p"/boards/#{sub}/meetings/new")
     assert view |> element("#capture-scope") |> render() =~ "Its parent board"

@@ -59,13 +59,13 @@ defmodule Slipdock.Demo do
   # A template for the subcards of an epic, so `create_sub_board/2` has lists
   # to take and the sub-board arrives with a page to write on.
   defp breakdown_template do
-    case Boards.find_template("Task breakdown") do
+    case Boards.find_template(nil, "Task breakdown") do
       {:ok, template} ->
         template
 
       {:error, :not_found} ->
         {:ok, template} =
-          Boards.create_template(%{
+          Boards.create_system_template(%{
             "name" => "Task breakdown",
             "description" => "Lists for the subcards of one epic.",
             "columns" => [

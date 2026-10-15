@@ -788,7 +788,7 @@ defmodule Slipdock.AITest do
     end
 
     test "a card on a sub-board gets the new tag on the root, shared by the tree", ctx do
-      {:ok, t} = Boards.find_template("Simple")
+      {:ok, t} = Boards.find_template(nil, "Simple")
       {:ok, sub} = sub_board(ctx.card, t)
       sub = Boards.get_board!(sub.id)
 

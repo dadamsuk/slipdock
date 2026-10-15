@@ -57,7 +57,7 @@ defmodule SlipdockWeb.MCP.Tools.CreateBoard do
          {:ok, lists} <- Args.strings(args, "lists"),
          {:ok, save_as} <- Args.optional(args, "save_template"),
          :ok <- unscoped(token),
-         {:ok, template} <- template(template_ref),
+         {:ok, template} <- template(user, template_ref),
          attrs = args |> Map.take(~w(code description)) |> Map.put("name", name),
          {:ok, board} <-
            Args.refusal(
@@ -89,15 +89,15 @@ defmodule SlipdockWeb.MCP.Tools.CreateBoard do
     end
   end
 
-  defp template(nil), do: {:ok, nil}
+  defp template(_user, nil), do: {:ok, nil}
 
-  defp template(ref) do
-    case Boards.find_template(ref) do
+  defp template(user, ref) do
+    case Boards.find_template(user, ref) do
       {:ok, t} ->
         {:ok, t}
 
       _ ->
-        names = Enum.map_join(Boards.list_templates(), ", ", & &1.name)
+        names = Enum.map_join(Boards.list_templates(user), ", ", & &1.name)
         {:error, "no template called #{inspect(ref)}; there are: #{names}"}
     end
   end
