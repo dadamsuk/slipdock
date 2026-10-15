@@ -29,6 +29,7 @@ defmodule Slipdock.Wiki do
   alias Slipdock.Boards
   alias Slipdock.Boards.{Activity, Attachment, Board, Card, Column, Tag}
   alias Slipdock.Quota
+  alias Slipdock.Wiki.Meld
   alias Slipdock.Search.Indexer
 
   alias Slipdock.Wiki.{
@@ -44,7 +45,8 @@ defmodule Slipdock.Wiki do
     Placements,
     Query,
     Revision,
-    Section
+    Section,
+    Sharing
   }
 
   @pubsub Slipdock.PubSub
@@ -351,10 +353,10 @@ defmodule Slipdock.Wiki do
   defdelegate get_folder(id), to: Folders, as: :get
 
   @doc "Makes a folder (a name with slashes makes the whole path)."
-  defdelegate create_folder(board, attrs), to: Folders, as: :create
+  defdelegate create_folder(board, attrs, opts \\ []), to: Folders, as: :create
 
   @doc "Renames, moves or reorders a folder."
-  defdelegate update_folder(folder, attrs), to: Folders, as: :update
+  defdelegate update_folder(folder, attrs, opts \\ []), to: Folders, as: :update
 
   @doc "Moves a folder under another and places it before `before` (nil: last)."
   defdelegate move_folder(folder, parent, before \\ nil), to: Folders, as: :move
@@ -571,6 +573,44 @@ defmodule Slipdock.Wiki do
   """
   def create_page(%Board{} = board, attrs, opts \\ []) do
     attrs = stringify(attrs)
+
+    with :ok <- check_shared_create(board, attrs, opts[:user]) do
+      insert_page(board, attrs, opts)
+    end
+  end
+
+  # Somebody a folder was shared with makes pages inside it, and only there,
+  # and never an encrypted one (#816, `Slipdock.Wiki.Sharing`). A page made
+  # with no folder is left to the caller, which has already checked the
+  # board: a card's writer writes one up from the card, for one.
+  defp check_shared_create(_board, _attrs, nil), do: :ok
+
+  defp check_shared_create(board, attrs, user) do
+    case shared_folder_ref(attrs["folder_id"]) do
+      nil ->
+        :ok
+
+      folder_id ->
+        with :ok <- Sharing.check(user, {:create, folder_id}, board) do
+          if Meld.encrypted?(attrs["body"]) and not Sharing.board_writer?(user, board.id),
+            do: Sharing.refuse("shared_no_encrypt"),
+            else: :ok
+        end
+    end
+  end
+
+  defp shared_folder_ref(id) when is_integer(id), do: id
+
+  defp shared_folder_ref(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {n, ""} -> n
+      _ -> nil
+    end
+  end
+
+  defp shared_folder_ref(_), do: nil
+
+  defp insert_page(board, attrs, opts) do
     user = opts[:user]
 
     result =
@@ -673,7 +713,8 @@ defmodule Slipdock.Wiki do
     # being quietly rolled back to what this caller last saw.
     page = Repo.get!(Page, page.id)
 
-    with :ok <- check_base_hash(page, opts[:base_hash]) do
+    with :ok <- check_base_hash(page, opts[:base_hash]),
+         :ok <- check_shared_change(page, Page.changeset(page, attrs).changes, user) do
       result =
         Repo.transaction(fn ->
           changeset =
@@ -712,6 +753,24 @@ defmodule Slipdock.Wiki do
       end
     end
   end
+
+  # What a sharee may not change about a page shared with them (#816): where
+  # it lives, beyond the shared folder, and whether it is encrypted.
+  defp check_shared_change(_page, _changes, nil), do: :ok
+
+  defp check_shared_change(page, changes, user) do
+    with :ok <- shared_move(page, changes, user) do
+      if changes[:encrypted] == true, do: Sharing.check(user, :encrypt, page), else: :ok
+    end
+  end
+
+  defp shared_move(page, %{folder_id: folder_id}, user),
+    do: Sharing.check(user, {:move, folder_id}, page)
+
+  defp shared_move(page, %{parent_id: _}, user),
+    do: Sharing.check(user, {:move, page.folder_id}, page)
+
+  defp shared_move(_page, _changes, _user), do: :ok
 
   defp check_base_hash(_page, nil), do: :ok
   defp check_base_hash(_page, ""), do: :ok

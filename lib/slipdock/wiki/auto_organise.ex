@@ -81,7 +81,18 @@ defmodule Slipdock.Wiki.AutoOrganise do
   @spec plan(Folder.t(), String.t(), keyword()) :: {:ok, [entry()]} | {:error, String.t()}
   def plan(folder, mode, opts \\ [])
 
-  def plan(%Folder{} = folder, "date", opts) do
+  # Organising rewrites the owner's filing, folders made and all: somebody
+  # the folder was only shared with is refused, by message (#816).
+  def plan(%Folder{} = folder, mode, opts) do
+    case Slipdock.Wiki.Sharing.check(opts[:user], :organise, folder) do
+      :ok -> plan_checked(folder, mode, opts)
+      {:error, :shared, _code, message} -> {:error, message}
+    end
+  end
+
+  def plan(_folder, _mode, _opts), do: {:error, "That isn't a way to organise a folder."}
+
+  defp plan_checked(%Folder{} = folder, "date", opts) do
     here = Folders.path(folder)
     granularity = opts[:granularity] || "month"
 
@@ -99,7 +110,7 @@ defmodule Slipdock.Wiki.AutoOrganise do
     end
   end
 
-  def plan(%Folder{} = folder, "tag", _opts) do
+  defp plan_checked(%Folder{} = folder, "tag", _opts) do
     here = Folders.path(folder)
 
     {:ok,
@@ -118,7 +129,7 @@ defmodule Slipdock.Wiki.AutoOrganise do
      |> moving()}
   end
 
-  def plan(%Folder{} = folder, "flatten", _opts) do
+  defp plan_checked(%Folder{} = folder, "flatten", _opts) do
     here = Folders.path(folder)
 
     {:ok,
@@ -131,7 +142,7 @@ defmodule Slipdock.Wiki.AutoOrganise do
      |> moving()}
   end
 
-  def plan(%Folder{} = folder, "ai", opts) do
+  defp plan_checked(%Folder{} = folder, "ai", opts) do
     here = Folders.path(folder)
     board = Repo.get!(Board, folder.board_id)
     folders = Folders.list(board)
@@ -179,7 +190,8 @@ defmodule Slipdock.Wiki.AutoOrganise do
     end
   end
 
-  def plan(%Folder{}, _mode, _opts), do: {:error, "That isn't a way to organise a folder."}
+  defp plan_checked(%Folder{}, _mode, _opts),
+    do: {:error, "That isn't a way to organise a folder."}
 
   # What is filed in a folder and can be moved: its live pages that are not
   # under another of its pages, and its live files.

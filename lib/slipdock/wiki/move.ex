@@ -137,6 +137,12 @@ defmodule Slipdock.Wiki.Move do
     source = Repo.get!(Board, page.board_id)
     vault = Vaults.for_board(source)
 
+    # Somebody it was only shared with never takes it to another board (#816).
+    with :ok <- Slipdock.Wiki.Sharing.check(user, {:move, {:board, target.id}}, page),
+         do: check_vault(page, target, user, source, vault)
+  end
+
+  defp check_vault(_page, target, user, source, vault) do
     cond do
       is_nil(vault) or vault_id(Vaults.for_board(target)) != vault.id ->
         {:error, :unprocessable_entity, "a page moves only between boards in the same vault"}

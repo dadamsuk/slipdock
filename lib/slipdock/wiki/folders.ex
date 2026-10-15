@@ -14,7 +14,7 @@ defmodule Slipdock.Wiki.Folders do
 
   alias Slipdock.Repo
   alias Slipdock.Boards.Board
-  alias Slipdock.Wiki.{Changes, Folder, Page}
+  alias Slipdock.Wiki.{Changes, Folder, Page, Sharing}
 
   ## Reading ------------------------------------------------------------------
 
@@ -217,9 +217,15 @@ defmodule Slipdock.Wiki.Folders do
   A name given as a path — `"Design/Decisions"` — makes every folder along
   it that does not exist yet, which is what somebody typing a path means.
   """
-  def create(%Board{} = board, attrs) do
+  def create(%Board{} = board, attrs, opts \\ []) do
     attrs = stringify(attrs)
 
+    # Made by somebody a folder was shared with: only inside it (#816).
+    with :ok <- Sharing.check(opts[:user], {:create, parent_of(attrs)}, board),
+         do: create_checked(board, attrs)
+  end
+
+  defp create_checked(board, attrs) do
     case String.split(to_string(attrs["name"] || ""), "/", trim: true) do
       [] ->
         {:error, Folder.changeset(%Folder{board_id: board.id}, attrs)}
@@ -309,10 +315,11 @@ defmodule Slipdock.Wiki.Folders do
   `attrs` takes `name`, `parent_id`, `position`, `icon` and `color`. A move that would put a
   folder inside itself is refused rather than quietly dropped.
   """
-  def update(%Folder{} = folder, attrs) do
+  def update(%Folder{} = folder, attrs, opts \\ []) do
     attrs = stringify(attrs)
 
-    with :ok <- check_cycle(folder, attrs) do
+    with :ok <- check_shared_move(folder, attrs, opts[:user]),
+         :ok <- check_cycle(folder, attrs) do
       attrs =
         if attrs["name"] && Folder.sanitize_slug(attrs["name"]) != folder.slug do
           Map.put_new_lazy(attrs, "slug", fn ->
@@ -363,6 +370,17 @@ defmodule Slipdock.Wiki.Folders do
   end
 
   defp check_cycle(_folder, _attrs), do: :ok
+
+  # A sharee moves a folder only within the folder shared with them (#816).
+  defp check_shared_move(folder, attrs, user) when is_map_key(attrs, "parent_id") do
+    parent_id = parent_of(attrs)
+
+    if parent_id == folder.parent_id,
+      do: :ok,
+      else: Sharing.check(user, {:move, parent_id}, folder)
+  end
+
+  defp check_shared_move(_folder, _attrs, _user), do: :ok
 
   @doc """
   Moves a folder under `parent` — a folder, an id, or nil for the top — and

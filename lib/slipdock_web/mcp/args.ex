@@ -153,6 +153,10 @@ defmodule SlipdockWeb.MCP.Args do
   def refusal({:error, :payment_required, code, message}),
     do: {:error, "#{code}: #{message} Don't retry: the account is at its limit. Tell the person."}
 
+  # Something shared with the caller that its rules don't let them do (#816):
+  # the code first, so an agent can match on it and stop.
+  def refusal({:error, :shared, code, message}), do: {:error, "#{code}: #{message}"}
+
   def refusal({:error, :not_found, what}), do: {:error, "no #{what} you can see matches that"}
   def refusal({:error, _status, message}) when is_binary(message), do: {:error, message}
   def refusal({:error, message}) when is_binary(message), do: {:error, message}

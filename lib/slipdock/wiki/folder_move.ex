@@ -94,7 +94,9 @@ defmodule Slipdock.Wiki.FolderMove do
     contents? = opts[:contents] == true
     source = Repo.get!(Board, folder.board_id)
 
-    with :ok <- check_boards(source, target, user),
+    # Somebody it was only shared with never takes it to another board (#816).
+    with :ok <- Slipdock.Wiki.Sharing.check(user, {:move, {:board, target.id}}, folder),
+         :ok <- check_boards(source, target, user),
          :ok <- check_parent(parent, target),
          subtree = [folder | Wiki.Folders.descendants(folder)],
          subtree_ids = Enum.map(subtree, & &1.id),

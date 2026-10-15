@@ -30,6 +30,12 @@ defmodule SlipdockWeb.API.FallbackController do
     |> json(%{error: code, message: message, retryable: false})
   end
 
+  # A sharee doing what a share doesn't let them (#816): a 403 with a code
+  # to match on (`shared_no_delete`, …) and the reason.
+  def call(conn, {:error, :shared, code, message}) do
+    conn |> put_status(:forbidden) |> json(%{error: code, message: message})
+  end
+
   def call(conn, {:error, :not_found}) do
     conn |> put_status(:not_found) |> json(%{error: "not found"})
   end

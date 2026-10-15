@@ -96,11 +96,12 @@ defmodule SlipdockWeb.MCP.Tools.UpdatePage do
          board <- Wiki.board_of(page),
          {:ok, archived} <- Args.boolean(args, "archived"),
          {:ok, attrs} <- attrs(args),
-         {:ok, attrs} <- folder(board, attrs, args),
+         {:ok, attrs} <- folder(board, attrs, args, context.user),
          {:ok, attrs} <- front_matter(page, attrs, args),
          {:ok, move} <- move(board, page, args),
          {:ok, pin} <- pin_target(auth, args, "pin_card"),
          {:ok, unpin} <- pin_target(auth, args, "unpin_card"),
+         :ok <- may_archive(page, archived, context.user),
          {:ok, page} <- restore(page, archived),
          {:ok, page} <- save(page, attrs, opts(args, context)),
          :ok <- placement(page, args, "also", context),
@@ -144,7 +145,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdatePage do
 
   defp placement(page, args, key, context) do
     with {:ok, ref} <- Args.required(args, key),
-         {:ok, folder} <- placement_folder(page, ref, key == "also"),
+         {:ok, folder} <- placement_folder(page, ref, key == "also", context.user),
          {:ok, _} <- Args.refusal(act(key, page, folder, context.user)),
          do: :ok
   end
@@ -152,15 +153,21 @@ defmodule SlipdockWeb.MCP.Tools.UpdatePage do
   defp act("also", page, folder, user), do: Slipdock.Wiki.Placements.add(page, folder, user)
   defp act("not_in", page, folder, user), do: Slipdock.Wiki.Placements.remove(page, folder, user)
 
-  defp placement_folder(page, "/" <> _ = path, create?),
-    do: Args.refusal(Slipdock.Wiki.Placements.folder_at(page, path, create: create?))
+  # Only a writer on the page's board makes the folders a path names (#816).
+  defp placement_folder(page, "/" <> _ = path, create?, user),
+    do:
+      Args.refusal(
+        Slipdock.Wiki.Placements.folder_at(page, path,
+          create: create? and Slipdock.Wiki.Sharing.board_writer?(user, page.board_id)
+        )
+      )
 
-  defp placement_folder(page, ref, create?) do
+  defp placement_folder(page, ref, create?, user) do
     board = Wiki.board_of(page)
 
     case Wiki.find_folder(board, ref) do
       {:ok, folder} -> {:ok, folder}
-      _ when create? -> Args.refusal(Wiki.create_folder(board, %{"name" => ref}))
+      _ when create? -> Args.refusal(Wiki.create_folder(board, %{"name" => ref}, user: user))
       error -> Args.refusal(error)
     end
   end
@@ -225,9 +232,9 @@ defmodule SlipdockWeb.MCP.Tools.UpdatePage do
 
   # The folder by id, slug, name or path, made when it is not there yet, as
   # the API files a page; "" takes it out of the one it is in.
-  defp folder(_board, attrs, args) when not is_map_key(args, "folder"), do: {:ok, attrs}
+  defp folder(_board, attrs, args, _user) when not is_map_key(args, "folder"), do: {:ok, attrs}
 
-  defp folder(board, attrs, args) do
+  defp folder(board, attrs, args, user) do
     with {:ok, ref} <- Args.optional(args, "folder") do
       if ref in [nil, "none", "root"] do
         {:ok, Map.put(attrs, "folder_id", nil)}
@@ -237,7 +244,8 @@ defmodule SlipdockWeb.MCP.Tools.UpdatePage do
             {:ok, Map.put(attrs, "folder_id", folder.id)}
 
           _ ->
-            with {:ok, folder} <- Args.refusal(Wiki.create_folder(board, %{"name" => ref})),
+            with {:ok, folder} <-
+                   Args.refusal(Wiki.create_folder(board, %{"name" => ref}, user: user)),
                  do: {:ok, Map.put(attrs, "folder_id", folder.id)}
         end
       end
@@ -306,6 +314,13 @@ defmodule SlipdockWeb.MCP.Tools.UpdatePage do
       {:ok, nil}
     end
   end
+
+  # Archiving and restoring are for the board's writers, never somebody the
+  # page was only shared with (#816).
+  defp may_archive(_page, nil, _user), do: :ok
+
+  defp may_archive(page, _archived, user),
+    do: Args.refusal(Slipdock.Wiki.Sharing.check(user, :delete, page))
 
   defp restore(page, false), do: Args.refusal(Wiki.unarchive_page(page))
   defp restore(page, _), do: {:ok, page}
