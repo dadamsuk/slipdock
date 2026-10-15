@@ -9,14 +9,14 @@ defmodule SlipdockWeb.WikiDrawingController do
   use SlipdockWeb, :controller
 
   alias Slipdock.Repo
-  alias Slipdock.Wiki.{Drawings, Page, WikiFile}
+  alias Slipdock.Wiki.{Drawings, Embeds, Page, WikiFile}
 
   @policy "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox"
 
-  def show(conn, %{"kind" => kind, "id" => id}) do
+  def show(conn, %{"kind" => kind, "id" => id} = params) do
     with {n, ""} <- Integer.parse(id),
          drawing when not is_nil(drawing) <- fetch(kind, n),
-         true <- Drawings.readable?(drawing, conn.assigns.current_user),
+         true <- readable?(drawing, conn.assigns.current_user, params),
          {:ok, svg} <- Drawings.svg(drawing, conn.assigns.current_user) do
       conn
       |> put_resp_content_type("image/svg+xml")
@@ -31,6 +31,13 @@ defmodule SlipdockWeb.WikiDrawingController do
         |> put_view(SlipdockWeb.ErrorHTML)
         |> render(:"404")
     end
+  end
+
+  # The reader's own, or a `.excalidraw` file embedded in a page they can
+  # read, named by `?page=` (#832, `Slipdock.Wiki.Embeds`).
+  defp readable?(drawing, user, params) do
+    Drawings.readable?(drawing, user) or
+      (match?(%WikiFile{}, drawing) and Embeds.reaches?(user, Embeds.page_param(params), drawing))
   end
 
   defp fetch("page", id), do: Repo.get(Page, id)

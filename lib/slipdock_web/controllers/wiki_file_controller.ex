@@ -23,7 +23,7 @@ defmodule SlipdockWeb.WikiFileController do
   use SlipdockWeb, :controller
 
   alias Slipdock.{Access, Repo}
-  alias Slipdock.Wiki.{Files, Meld, Viewer, WikiFile}
+  alias Slipdock.Wiki.{Embeds, Files, Meld, Viewer, WikiFile}
   alias SlipdockWeb.ByteRange
 
   @svg_policy "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox"
@@ -33,7 +33,7 @@ defmodule SlipdockWeb.WikiFileController do
     with {n, ""} <- Integer.parse(id),
          %WikiFile{archived_at: nil} = file <- Files.get(n),
          file = Repo.preload(file, :board),
-         true <- Access.can_read?(Access.file_permission(conn.assigns.current_user, file)),
+         true <- readable?(conn.assigns.current_user, file, params),
          true <- File.regular?(Files.disk_path(file)) do
       cond do
         params["view"] == "locked" and Meld.note_file?(file.name) -> locked(conn, file)
@@ -47,6 +47,13 @@ defmodule SlipdockWeb.WikiFileController do
         |> put_view(SlipdockWeb.ErrorHTML)
         |> render(:"404")
     end
+  end
+
+  # Their own permission on the file, or a page they can read that embeds
+  # it, named by `?page=` (#832, `Slipdock.Wiki.Embeds`).
+  defp readable?(user, file, params) do
+    Access.can_read?(Access.file_permission(user, file)) or
+      Embeds.reaches?(user, Embeds.page_param(params), file)
   end
 
   defp locked(conn, file) do

@@ -138,8 +138,8 @@ Briefly, with the detail in [the manual](docs/manual.md):
   view](docs/manual.md#accounts-and-sharing). A wiki page or a whole folder
   can be [shared on its own](docs/manual.md#sharing-pages-and-folders), to a
   person or a group: it shows under their **Shared with me** without the rest
-  of the board, a share to edit can't delete, move out or pass anything on,
-  and a synced vault gets link stubs rather than the content. A board somebody shared with you
+  of the board along with the images and files the page embeds, a share to
+  edit can't delete, move out or pass anything on, and a synced vault gets link stubs rather than the content. A board somebody shared with you
   says whose it is on your board list, so a list of boards is never a list of
   boards of unknown provenance, and its *…* menu has a **Shared** page saying
   who handed it over with a **Discard** button that gives the access back —
