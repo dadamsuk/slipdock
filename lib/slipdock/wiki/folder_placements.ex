@@ -190,6 +190,39 @@ defmodule Slipdock.Wiki.FolderPlacements do
     |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
   end
 
+  @doc """
+  The pages anywhere under the folders also filed in `in_folder`, marked
+  `also: true`, that `reader` may open (with no reader, only those on its
+  own board): what a listing of `in_folder` adds for them. Archived pages
+  only with `archived: true` or `:all`.
+  """
+  def pages_in(%Folder{board_id: board_id} = in_folder, reader \\ nil, opts \\ []) do
+    ids =
+      in_folder
+      |> placed_in(reader)
+      |> Enum.flat_map(&[&1.id | Enum.map(Wiki.Folders.descendants(&1), fn f -> f.id end)])
+      |> Enum.uniq()
+
+    from(p in Wiki.Page,
+      where: p.folder_id in ^ids,
+      order_by: [asc: p.position, asc: fragment("lower(?)", p.title)],
+      preload: ^Wiki.board_preloads()
+    )
+    |> archived(Keyword.get(opts, :archived, false))
+    |> Repo.all()
+    |> Enum.filter(&readable_page?(&1, reader, board_id))
+    |> Enum.map(&%{&1 | also: true})
+  end
+
+  defp archived(query, :all), do: query
+  defp archived(query, true), do: where(query, [p], not is_nil(p.archived_at))
+  defp archived(query, _), do: where(query, [p], is_nil(p.archived_at))
+
+  defp readable_page?(page, nil, board_id), do: page.board_id == board_id
+
+  defp readable_page?(page, reader, _board_id),
+    do: Wiki.visible?(page, Access.page_permission(reader, page))
+
   defp readable_boards(_ids, nil), do: []
 
   defp readable_boards(ids, reader) do

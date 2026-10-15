@@ -153,4 +153,50 @@ defmodule SlipdockWeb.API.FolderPlacementsTest do
 
     assert body["folder"]["also_in"] == []
   end
+
+  describe "listing a folder (#811)" do
+    setup ctx do
+      page_fixture(ctx.board, %{"title" => "Inside", "folder_id" => ctx.folder.id})
+      {:ok, _} = FolderPlacements.add(ctx.folder, ctx.other, ctx.user)
+      :ok
+    end
+
+    test "the API's page list has the placed folder's pages, marked also", ctx do
+      listed =
+        ctx.conn
+        |> get("/api/boards/fpapi/pages?folder=Other")
+        |> json_response(200)
+        |> Map.fetch!("pages")
+
+      assert [%{"title" => "Inside", "also" => true}] = listed
+
+      home =
+        ctx.conn
+        |> get("/api/boards/fpapi/pages?folder=Home/Topic")
+        |> json_response(200)
+        |> Map.fetch!("pages")
+
+      assert [%{"title" => "Inside", "also" => false}] = home
+    end
+
+    test "MCP list_pages with a folder has them too", ctx do
+      result =
+        ctx.conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/mcp",
+          Jason.encode!(%{
+            jsonrpc: "2.0",
+            id: 1,
+            method: "tools/call",
+            params: %{name: "list_pages", arguments: %{board: "fpapi", folder: "Other"}}
+          })
+        )
+        |> json_response(200)
+        |> Map.fetch!("result")
+
+      assert [%{"title" => "Inside", "also" => true, "folder" => "Home/Topic"}] =
+               result["structuredContent"]["pages"]
+    end
+  end
 end
