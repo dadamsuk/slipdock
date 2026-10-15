@@ -6,7 +6,8 @@ defmodule Slipdock.Wiki.TreeStates do
   machine they read it on.
 
   Only keys the tree itself uses are kept (`folder:12`, `page:7`, `board:4`,
-  `dir:Projects/X`), and at most 300 of them: an open set is a
+  `dir:Projects/X`, and `at:5|folder:12` for one seen through a placed
+  folder, #808, so each place opens on its own), and at most 300 of them: an open set is a
   convenience, and a runaway one would make every visit slow.
   """
 
@@ -16,7 +17,7 @@ defmodule Slipdock.Wiki.TreeStates do
   alias Slipdock.Accounts.User
 
   @max 300
-  @key ~r/\A(?:(?:folder|page|board):\d+|dir:[^\n]{1,500})\z/
+  @key ~r/\A(?:(?:at:\d+(?:\.\d+){0,15}\|)?(?:folder|page):\d+|board:\d+|dir:[^\n]{1,500})\z/
 
   defmodule State do
     @moduledoc false

@@ -126,6 +126,11 @@ defmodule Slipdock.Wiki.Tree do
               ),
             else: []
 
+        folder_rows =
+          if Keyword.get(opts, :offset, 0) == 0,
+            do: folder_rows ++ placed_folder_rows(board, folder_id, folders, opts),
+            else: folder_rows
+
         files = if more, do: [], else: file_rows(board, folder_id, opts)
         also = if more, do: [], else: also_rows(board, folder_id, Enum.map(pages, & &1.id), opts)
         {:ok, folder_rows ++ page_rows(pages, opts) ++ also ++ files ++ more_row(more)}
@@ -1219,6 +1224,100 @@ defmodule Slipdock.Wiki.Tree do
     end
   end
 
+  # The folders also filed in a folder (#808): after the ones at home there,
+  # each marked `also`, with the folder it is placed in, and keyed by that
+  # place (`via_key/2`) so it opens and shuts there on its own, and so does
+  # everything under it. Only folders on a board the reader can open.
+  defp placed_folder_rows(_board, nil, _folders, _opts), do: []
+
+  defp placed_folder_rows(%Board{id: board_id} = board, folder_id, folders, opts) do
+    if opts[:only] do
+      []
+    else
+      [folder_id]
+      |> Slipdock.Wiki.FolderPlacements.placed_by_folder(board_id, opts[:as])
+      |> Map.get(folder_id, [])
+      |> Enum.map(fn placed ->
+        {board_folders, board_stats} =
+          if placed.board_id == board_id,
+            do: {folders, Keyword.get_lazy(opts, :stats, fn -> stats(board, folders, opts) end)},
+            else: other_board_stats(placed.board_id, opts)
+
+        [row] = folder_rows([placed], placed.parent_id, board_stats, "name")
+
+        row
+        |> Map.put(:count, row_count(board_folders, board_stats, placed.id))
+        |> Map.merge(%{
+          also: true,
+          placed_in: folder_id,
+          key: via_key([folder_id], "folder:#{placed.id}")
+        })
+      end)
+    end
+  end
+
+  defp row_count(folders, stats, id),
+    do:
+      Enum.count(folders, &(&1.parent_id == id)) + Map.get(stats.top, id, 0) +
+        Map.get(stats.files, id, 0)
+
+  defp other_board_stats(board_id, opts) do
+    board = Repo.get!(Board, board_id)
+    folders = Folders.list(board)
+    {folders, stats(board, folders, Keyword.drop(opts, [:only, :folders, :stats]))}
+  end
+
+  @max_via 16
+
+  @doc """
+  A row's key as seen through placed folders (#808): `"at:5.12|folder:30"`
+  is folder 30 reached through the folder placed in 5 and then the one
+  placed in 12. `chain` is the ids of the folders the placements are in,
+  outermost first; a key already seen through some is lengthened.
+  """
+  def via_key(chain, "at:" <> _ = key) do
+    {:ok, inner_chain, inner} = split_via(key)
+    via_key(chain ++ inner_chain, inner)
+  end
+
+  def via_key(chain, key), do: "at:" <> Enum.map_join(chain, ".", &to_string/1) <> "|" <> key
+
+  @doc """
+  A key read back: `{:ok, chain, inner_key}` for a key seen through placed
+  folders, `:none` for any other, `:error` for one that is malformed or
+  deeper than any real tree goes.
+  """
+  def split_via("at:" <> rest) do
+    with [chain, inner] <- String.split(rest, "|", parts: 2),
+         ids = String.split(chain, "."),
+         true <- length(ids) in 1..@max_via,
+         ids = Enum.map(ids, &Integer.parse/1),
+         true <- Enum.all?(ids, &match?({n, ""} when n > 0, &1)),
+         {:ok, _} <- parse_ref(inner),
+         false <- inner in ["root", ""] do
+      {:ok, Enum.map(ids, &elem(&1, 0)), inner}
+    else
+      _ -> :error
+    end
+  end
+
+  def split_via(_key), do: :none
+
+  @doc """
+  Rows read for a container seen through placed folders, keyed for that
+  place and marked `via`: they are the folder's own, shown somewhere else,
+  so nothing is dragged about there.
+  """
+  def through_placement(rows, chain) do
+    Enum.map(rows, fn
+      %{kind: "more"} = row ->
+        row
+
+      row ->
+        Map.merge(row, %{key: via_key(chain, row[:key] || "#{row.kind}:#{row.id}"), via: true})
+    end)
+  end
+
   # The pages also filed in a folder (W-103 R12.2): after the ones at home
   # there, each marked `also` and with the folder it is placed in, never
   # one that is already listed. The page's home board decides who sees it:
@@ -1410,7 +1509,27 @@ defmodule Slipdock.Wiki.Tree do
         |> Map.new()
       end
 
-    files = Map.merge(files, also, fn _k, a, b -> a + b end)
+    # And folders also filed there (#808), the same way.
+    placed =
+      if opts[:only] do
+        %{}
+      else
+        folder_ids = Enum.map(folders, & &1.id)
+
+        from(pl in Slipdock.Wiki.FolderPlacement,
+          where: pl.in_folder_id in ^folder_ids,
+          group_by: pl.in_folder_id,
+          select: {pl.in_folder_id, count(pl.id)}
+        )
+        |> Repo.all()
+        |> Map.new()
+      end
+
+    files =
+      files
+      |> Map.merge(also, fn _k, a, b -> a + b end)
+      |> Map.merge(placed, fn _k, a, b -> a + b end)
+
     %{top: top, files: files, totals: roll_up(folders, direct)}
   end
 
