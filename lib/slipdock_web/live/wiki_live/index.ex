@@ -83,7 +83,10 @@ defmodule SlipdockWeb.WikiLive.Index do
     perm = Access.board_permission(socket.assigns.current_user, board)
 
     if Access.can_read?(perm) do
-      if connected?(socket), do: Wiki.subscribe(board.id)
+      if connected?(socket) do
+        Wiki.subscribe(board.id)
+        Access.subscribe_shares(socket.assigns.current_user.id)
+      end
 
       {:ok,
        socket
@@ -223,7 +226,9 @@ defmodule SlipdockWeb.WikiLive.Index do
       hidden: 0,
       # What the tree lists at all, as opposed to what the filters narrow.
       show: %{drafts: true, templates: true, archived: false},
-      marks: Slipdock.Favourites.marks(socket.assigns.current_user)
+      marks: Slipdock.Favourites.marks(socket.assigns.current_user),
+      # Shared with me (#817): what other people have shared with the reader.
+      shared_tree: Slipdock.Wiki.SharedTree.for_user(socket.assigns.current_user)
     ]
   end
 
@@ -232,7 +237,15 @@ defmodule SlipdockWeb.WikiLive.Index do
   # drawn again from nothing on every click. The board this is a view of
   # changes here as well as at mount, keeping what the reader chose about
   # the view itself.
-  @kept_on_switch [:tree_version, :tree_view, :show, :show_preview, :tree_contents, :marks]
+  @kept_on_switch [
+    :tree_version,
+    :tree_view,
+    :show,
+    :show_preview,
+    :tree_contents,
+    :marks,
+    :shared_tree
+  ]
 
   defp switch_board(%{assigns: %{board: %{id: id}}} = socket, id, _params), do: {:ok, socket}
   defp switch_board(socket, nil, _params), do: {:ok, socket}
@@ -3597,6 +3610,11 @@ defmodule SlipdockWeb.WikiLive.Index do
 
   # From Helpers.drop_invalid_uploads/2, which is shared with the board's
   # components and so says its flash by message.
+  def handle_info({:shares_changed}, socket),
+    do:
+      {:noreply,
+       assign(socket, shared_tree: Slipdock.Wiki.SharedTree.for_user(socket.assigns.current_user))}
+
   def handle_info({:put_flash, kind, message}, socket),
     do: {:noreply, put_flash(socket, kind, message)}
 
@@ -4216,6 +4234,11 @@ defmodule SlipdockWeb.WikiLive.Index do
             >
               <.icon name="hero-folder-plus" class="size-4" /> New folder
             </button>
+            <%!-- What other people have shared with this reader (#817), under
+                  every one of their trees: hidden when there is nothing. --%>
+            <div :if={@shared_tree != []} class="mt-4 border-t border-base-300 pt-3">
+              <SlipdockWeb.SharedComponents.shared_tree groups={@shared_tree} id="wiki-shared-tree" />
+            </div>
           </aside>
 
           <%!-- Drag to make the tree wider or narrower; the arrow keys too,

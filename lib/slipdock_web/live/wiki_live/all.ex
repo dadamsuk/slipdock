@@ -21,9 +21,14 @@ defmodule SlipdockWeb.WikiLive.All do
 
   @impl true
   def mount(_params, _session, socket) do
+    user = socket.assigns.current_user
+    if connected?(socket), do: Slipdock.Access.subscribe_shares(user.id)
+
     {:ok,
      socket
      |> assign(
+       # Shared with me (#817), below everybody's own boards.
+       shared_tree: Slipdock.Wiki.SharedTree.for_user(user),
        page_title: "Wiki",
        q: "",
        # Shut boards and folders. Collapsing is a reader's convenience, so it
@@ -116,6 +121,14 @@ defmodule SlipdockWeb.WikiLive.All do
   # no use to anyone behind a closed folder.
   defp shut?(_collapsed, _key, true), do: false
   defp shut?(collapsed, key, _searching), do: MapSet.member?(collapsed, key)
+
+  @impl true
+  def handle_info({:shares_changed}, socket),
+    do:
+      {:noreply,
+       assign(socket, shared_tree: Slipdock.Wiki.SharedTree.for_user(socket.assigns.current_user))}
+
+  def handle_info(_message, socket), do: {:noreply, socket}
 
   @impl true
   def render(assigns) do
@@ -243,6 +256,13 @@ defmodule SlipdockWeb.WikiLive.All do
             No boards yet. <.link navigate={~p"/"} class="link">Make one</.link>
             and its wiki starts here.
           </p>
+
+          <section
+            :if={@shared_tree != []}
+            class="mt-6 rounded-2xl border border-base-300 bg-base-100 p-4"
+          >
+            <SlipdockWeb.SharedComponents.shared_tree groups={@shared_tree} id="wiki-all-shared" />
+          </section>
         </div>
       </div>
     </Layouts.app>

@@ -71,6 +71,9 @@ defmodule SlipdockWeb.Wiki.Renderer do
       open degrades to plain text rather than telling them it exists.
     * `:static` — true to render links as plain text (published pages, where
       there is nobody to have permissions)
+    * `:shared` — true for a page read through a share (#817): pages link to
+      the share's own view, and a link to anything the reader can't open
+      reads "a page you can't see" rather than naming it or its board
 
   A body that cannot be parsed comes back as escaped plain text rather than
   an error page: a document is worth more half-rendered than not at all.
@@ -289,6 +292,7 @@ defmodule SlipdockWeb.Wiki.Renderer do
       reader: Keyword.get(opts, :as),
       today: Keyword.get(opts, :today, Date.utc_today()),
       static: Keyword.get(opts, :static, false),
+      shared: Keyword.get(opts, :shared, false),
       # The pages being embedded on the way here, so an embed cannot embed
       # its way round in a circle (see `embed_html/3`).
       embedding: Keyword.get(opts, :embedding, []),
@@ -471,8 +475,8 @@ defmodule SlipdockWeb.Wiki.Renderer do
   defp resolved_html(ref, _target, %{static: true}),
     do: ~s|<span class="wiki-static">#{escape(ref.label || strip_brackets(ref.raw))}</span>|
 
-  defp resolved_html(ref, {:page, page}, _context) do
-    ~s|<a href="#{page_path(page)}#{fragment(ref)}" class="wiki-link" title="#{escape(page.code)}">| <>
+  defp resolved_html(ref, {:page, page}, context) do
+    ~s|<a href="#{page_href(page, context)}#{fragment(ref)}" class="wiki-link" title="#{escape(page.code)}">| <>
       escape(ref.label || link_text(page, ref)) <> "</a>"
   end
 
@@ -514,6 +518,11 @@ defmodule SlipdockWeb.Wiki.Renderer do
   defp unresolved_node(%{kind: :page} = ref, %{static: true}),
     do: %MDEx.Text{literal: ref.label || strip_brackets(ref.raw)}
 
+  # Read through a share, a link the reader can't follow names nothing: not
+  # the page, not whether it exists, not the board it would be on (#817).
+  defp unresolved_node(%{kind: kind}, %{shared: true}) when kind in [:page, :card, :board, :view],
+    do: %MDEx.HtmlInline{literal: ~s|<span class="wiki-hidden-link">#{hidden_label(kind)}</span>|}
+
   defp unresolved_node(%{kind: :page} = ref, context) do
     if String.starts_with?(ref.raw, "[[") and context.board do
       title = ref.label || ref.target
@@ -530,6 +539,13 @@ defmodule SlipdockWeb.Wiki.Renderer do
   end
 
   defp unresolved_node(ref, _context), do: %MDEx.Text{literal: ref.raw}
+
+  defp hidden_label(:card), do: "a card you can't see"
+  defp hidden_label(_), do: "a page you can't see"
+
+  # Where a page link goes: its board's wiki, or the share's view of it.
+  defp page_href(%Page{id: id}, %{shared: true}), do: "/shared/pages/#{id}"
+  defp page_href(page, _context), do: page_path(page)
 
   ## Directives ---------------------------------------------------------------
 
@@ -549,8 +565,8 @@ defmodule SlipdockWeb.Wiki.Renderer do
     end
   end
 
-  defp directive_html("children", %{page: %Page{} = page}) do
-    case Wiki.children(page) do
+  defp directive_html("children", %{page: %Page{} = page} = context) do
+    case page |> Wiki.children() |> readable_children(context.reader) do
       [] ->
         ~s|<p class="wiki-empty">No pages under this one yet.</p>|
 
@@ -564,14 +580,14 @@ defmodule SlipdockWeb.Wiki.Renderer do
                 text -> ~s| <span class="wiki-list-summary">#{escape(text)}</span>|
               end
 
-            ~s|<li><a href="#{page_path(child)}" class="wiki-link">#{escape(child.title)}</a>#{summary}</li>|
+            ~s|<li><a href="#{page_href(child, context)}" class="wiki-link">#{escape(child.title)}</a>#{summary}</li>|
           end)
 
         ~s|<ul class="wiki-children">#{items}</ul>|
     end
   end
 
-  defp directive_html("backlinks", %{page: %Page{} = page, reader: reader}) do
+  defp directive_html("backlinks", %{page: %Page{} = page, reader: reader} = context) do
     case Links.backlinks(page, reader) do
       [] ->
         ~s|<p class="wiki-empty">Nothing links here yet.</p>|
@@ -580,6 +596,7 @@ defmodule SlipdockWeb.Wiki.Renderer do
         items =
           Enum.map_join(links, "", fn link ->
             {path, title} = backlink_source(link)
+            path = if context.shared, do: shared_backlink(link, path), else: path
             ~s|<li><a href="#{path}" class="wiki-link">#{escape(title)}</a></li>|
           end)
 
@@ -589,15 +606,25 @@ defmodule SlipdockWeb.Wiki.Renderer do
 
   defp directive_html(_name, _context), do: ""
 
+  # A child can be filed somewhere its parent's reader can't go.
+  defp readable_children(children, nil), do: children
+
+  defp readable_children(children, reader),
+    do: Enum.filter(children, &Wiki.visible?(&1, Slipdock.Access.page_permission(reader, &1)))
+
+  defp shared_backlink(%{page: %Page{id: id}}, _path), do: "/shared/pages/#{id}"
+  defp shared_backlink(_link, path), do: path
+
   defp directive_markdown("toc", %{page: %Page{} = page}) do
     page.body
     |> Section.headings()
     |> Enum.map_join("\n", &(String.duplicate("  ", &1.level - 1) <> "- " <> &1.title))
   end
 
-  defp directive_markdown("children", %{page: %Page{} = page}) do
+  defp directive_markdown("children", %{page: %Page{} = page} = context) do
     page
     |> Wiki.children()
+    |> readable_children(context.reader)
     |> Enum.map_join("\n", fn child ->
       "- [#{child.title}](#{page_path(child)})#{if child.summary, do: " — #{child.summary}"}"
     end)

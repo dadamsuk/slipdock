@@ -36,7 +36,7 @@ defmodule SlipdockWeb.DrawingLive do
          board: board,
          can_write: writable?(drawing, user),
          page_title: title(drawing),
-         back: back(drawing)
+         back: back(drawing, user)
        )}
     else
       _ ->
@@ -71,8 +71,20 @@ defmodule SlipdockWeb.DrawingLive do
   defp title(%Page{title: title}), do: title
   defp title(%WikiFile{name: name}), do: name
 
+  # Somebody it was shared with goes back to their Shared view (#817): the
+  # board's wiki is not theirs to open.
+  defp back(drawing, user) do
+    if Access.can_read?(Access.board_permission(user, Repo.get!(Board, drawing.board_id))),
+      do: back(drawing),
+      else: shared_back(drawing)
+  end
+
   defp back(%Page{} = page), do: Renderer.page_path(page)
   defp back(%WikiFile{board_id: board_id}), do: ~p"/boards/#{board_id}/wiki"
+
+  defp shared_back(%Page{id: id}), do: ~p"/shared/pages/#{id}"
+  defp shared_back(%WikiFile{folder_id: nil}), do: ~p"/shared"
+  defp shared_back(%WikiFile{folder_id: id}), do: ~p"/shared/folders/#{id}"
 
   ## Events -------------------------------------------------------------------
 

@@ -250,6 +250,12 @@ defmodule SlipdockWeb.Router do
       # Any other wiki file that is not a page, in a viewer: an image, a PDF,
       # JSON, CSV, text (see `SlipdockWeb.FileLive`).
       live "/files/:id", FileLive, :show
+      # Shared with me (#817): pages and folders other people shared, with
+      # nothing of the boards they are on.
+      live "/shared", SharedLive, :index
+      live "/shared/pages/:id", SharedLive, :page
+      live "/shared/pages/:id/edit", SharedLive, :edit
+      live "/shared/folders/:id", SharedLive, :folder
       live "/boards/:id/wiki/:slug/history", WikiLive.Index, :history
       live "/boards/:id/wiki/:slug/history/:rev", WikiLive.Index, :revision
       # A board's meetings (see `Slipdock.Meetings`): only while an admin has

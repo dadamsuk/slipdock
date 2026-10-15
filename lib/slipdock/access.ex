@@ -893,6 +893,7 @@ defmodule Slipdock.Access do
         broadcast_resource(resource)
         # They are not listening on this tree yet.
         Boards.notify_users_boards_changed(subject_user_ids(subject))
+        notify_shares(resource, subject_user_ids(subject))
         {:ok, Repo.preload(grant, [:user, :group, :granted_by])}
       end
     end
@@ -912,6 +913,7 @@ defmodule Slipdock.Access do
     |> tap(fn _ ->
       broadcast_resource(resource)
       Boards.notify_users_boards_changed(subject_user_ids(grant))
+      notify_shares(resource, subject_user_ids(grant))
     end)
   end
 
@@ -1139,6 +1141,20 @@ defmodule Slipdock.Access do
     Phoenix.PubSub.broadcast(@pubsub, "board:#{board_id}", {:board_changed, board_id})
     Boards.notify_boards_changed(Boards.root_of_board(board_id))
   end
+
+  @doc """
+  Listens for what is shared with `user_id` changing: a page or folder grant
+  given or taken back. The message is `{:shares_changed}` (#817).
+  """
+  def subscribe_shares(user_id), do: Phoenix.PubSub.subscribe(@pubsub, shares_topic(user_id))
+
+  defp shares_topic(user_id), do: "shares:user:#{user_id}"
+
+  defp notify_shares(%resource{}, user_ids) when resource in [Page, Folder] do
+    Enum.each(user_ids, &Phoenix.PubSub.broadcast(@pubsub, shares_topic(&1), {:shares_changed}))
+  end
+
+  defp notify_shares(_resource, _user_ids), do: :ok
 
   # The people a grant reaches: its user, or everybody in its group.
   defp subject_user_ids(%User{id: id}), do: [id]

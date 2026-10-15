@@ -14,7 +14,13 @@ defmodule SlipdockWeb.FileLive do
   def mount(%{"id" => id}, _session, socket) do
     case FileViewer.load(socket.assigns.current_user, id) do
       {:ok, shown} ->
-        {:ok, socket |> assign(shown) |> assign(page_title: shown.file.name)}
+        # Reached through a share (#817): no board to go back to, or to name.
+        member =
+          Slipdock.Access.can_read?(
+            Slipdock.Access.board_permission(socket.assigns.current_user, shown.file.board)
+          )
+
+        {:ok, socket |> assign(shown) |> assign(page_title: shown.file.name, member: member)}
 
       :error ->
         {:ok,
@@ -28,6 +34,9 @@ defmodule SlipdockWeb.FileLive do
 
   defp back(%WikiFile{board_id: board_id, folder_id: folder_id}),
     do: ~p"/boards/#{board_id}/wiki?#{[folder: folder_id]}"
+
+  defp shared_back(%WikiFile{folder_id: nil}), do: ~p"/shared"
+  defp shared_back(%WikiFile{folder_id: id}), do: ~p"/shared/folders/#{id}"
 
   @impl true
   def render(assigns) do
@@ -45,8 +54,16 @@ defmodule SlipdockWeb.FileLive do
     >
       <div id="file-viewer" data-kind={@kind} class="flex h-full min-h-0 flex-col">
         <div class="flex items-center gap-3 border-b border-base-300 px-4 py-2">
-          <.link navigate={back(@file)} class="btn btn-ghost btn-sm" id="file-back">
+          <.link :if={@member} navigate={back(@file)} class="btn btn-ghost btn-sm" id="file-back">
             <.icon name="hero-arrow-left" class="size-4" /> {@file.board.name}
+          </.link>
+          <.link
+            :if={not @member}
+            navigate={shared_back(@file)}
+            class="btn btn-ghost btn-sm"
+            id="file-back"
+          >
+            <.icon name="hero-arrow-left" class="size-4" /> Shared with me
           </.link>
           <h1 class="min-w-0 flex-1 truncate text-sm font-semibold">{@file.name}</h1>
           <span class="text-xs text-base-content/60">{FileViewer.size(@file.size)}</span>
