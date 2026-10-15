@@ -131,7 +131,8 @@ Briefly, with the detail in [the manual](docs/manual.md):
   epic, subcards, a working automation and three wiki pages, so nobody meets a
   blank page and the explanation of flags is a card with flags on it. Archive
   it when you are done; `slipdock welcome` brings it back.
-- **Accounts and sharing** — [passwordless sign-in, groups, and read-only or
+- **Accounts and sharing** — [passwordless sign-in (an emailed link or code, or
+  a passkey), groups, and read-only or
   editable grants on a board, a single card, a wiki page or a saved
   view](docs/manual.md#accounts-and-sharing). A wiki page or a whole folder
   can be [shared on its own](docs/manual.md#sharing-pages-and-folders), to a

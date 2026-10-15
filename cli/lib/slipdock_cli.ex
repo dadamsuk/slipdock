@@ -55,6 +55,9 @@ defmodule SlipdockCLI do
       --scope read|write   what to ask for (default: write)
   auth <token>                        save an API token directly (create one at /account/tokens)
     whoami                              show who you are signed in as
+    passkeys                            your passkeys: name, when added, when last used
+    passkeys remove <id>                remove one (a lost phone) — it can't sign in after.
+                                        Adding one needs the device, so is in a browser only
     ai-key [<key>]                      show your stored API key (masked), or set one;
                                         `ai-key --remove` deletes it
     ai                                  which model your AI requests go to: endpoint, key, model

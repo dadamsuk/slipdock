@@ -221,10 +221,16 @@ defmodule SlipdockWeb.AccountLive.ProfileComponent do
         </ul>
       </section>
 
+      <.live_component
+        module={SlipdockWeb.AccountLive.PasskeysComponent}
+        id="account-passkeys"
+        current_user={@current_user}
+      />
+
       <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
         <h2 class="text-lg font-semibold">Session</h2>
         <p class="text-sm text-base-content/60">
-          Sign-in links keep you signed in for 30 days on this browser.
+          Signing in, by link or passkey, keeps you signed in for 30 days on this browser.
         </p>
         <.link href={~p"/logout"} method="delete" class="btn btn-outline btn-sm mt-4">
           <.icon name="hero-arrow-right-start-on-rectangle" class="size-4" /> Sign out

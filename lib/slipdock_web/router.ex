@@ -64,6 +64,10 @@ defmodule SlipdockWeb.Router do
     # The link in the email only shows a button; signing in is the POST it
     # makes. A GET that signed in would let a mail scanner prefetching links
     # use the token up, and a page elsewhere sign a victim into its account.
+    # Signing in with a passkey (#828). Before `/login/:token`, which would
+    # read `passkey` as a token.
+    post "/login/passkey/options", SessionController, :passkey_options
+    post "/login/passkey", SessionController, :passkey
     get "/login/:token", SessionController, :confirm
     post "/login/:token", SessionController, :create
     delete "/logout", SessionController, :delete
@@ -168,6 +172,9 @@ defmodule SlipdockWeb.Router do
     get "/account/google/connect", GoogleController, :connect
     get "/account/google/callback", GoogleController, :callback
     delete "/account/google", GoogleController, :disconnect
+    # Adding a passkey (#828): a challenge, then the authenticator's answer.
+    post "/account/passkeys/options", PasskeyController, :options
+    post "/account/passkeys", PasskeyController, :create
     # A meeting capture's recording, for replaying a passage (see
     # `SlipdockWeb.CaptureAudioController`).
     get "/captures/:id/audio", CaptureAudioController, :show
@@ -442,6 +449,11 @@ defmodule SlipdockWeb.Router do
     post "/saved-queries", SearchController, :save
     delete "/saved-queries/:id", SearchController, :unsave
     delete "/saved-queries", SearchController, :unsave
+
+    # The caller's own passkeys (#828): listed and removed here, added only in
+    # a browser, where the authenticator is.
+    get "/me/passkeys", PasskeyController, :index
+    delete "/me/passkeys/:id", PasskeyController, :delete
 
     # The signed-in user's own favourites (see `Slipdock.Favourites`).
     get "/favourites", FavouriteController, :index

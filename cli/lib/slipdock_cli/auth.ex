@@ -10,7 +10,7 @@ defmodule SlipdockCLI.Auth do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(auth whoami ai-key ai ai-endpoint ai-models ai-model url logout)
+  @commands ~w(auth whoami passkeys ai-key ai ai-endpoint ai-models ai-model url logout)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -154,6 +154,19 @@ defmodule SlipdockCLI.Auth do
       do: IO.puts(Render.dim("no token for this server yet — run `slipdock auth`"))
   end
 
+  # Your passkeys (#828): which there are, and removing one — for a lost
+  # phone. Adding one needs the authenticator, so that is only in a browser.
+  def run("passkeys", [], o),
+    do: HTTP.get("/me/passkeys") |> out(o, &render_passkeys(&1["passkeys"]))
+
+  def run("passkeys", [verb, id], o) when verb in ~w(remove rm) do
+    HTTP.delete("/me/passkeys/#{enc(id)}")
+    |> out(o, fn r ->
+      IO.puts("removed passkey #{id}; it can't sign in any more")
+      render_passkeys(r["passkeys"])
+    end)
+  end
+
   def run("logout", [], _o) do
     HTTP.forget_token()
     IO.puts("token forgotten")
@@ -162,6 +175,22 @@ defmodule SlipdockCLI.Auth do
   def run(cmd, _args, _o), do: bad_usage(cmd)
 
   ## Helpers ------------------------------------------------------------------
+
+  defp render_passkeys([]),
+    do: IO.puts(Render.dim("no passkeys — add one in a browser, on your account page (/account)"))
+
+  defp render_passkeys(passkeys) do
+    passkeys
+    |> Enum.map(fn p ->
+      [
+        to_string(p["id"]),
+        Render.scrub(p["name"]),
+        String.slice(p["created_at"] || "", 0, 10),
+        if(p["last_used_at"], do: String.slice(p["last_used_at"], 0, 10), else: "never")
+      ]
+    end)
+    |> then(&Render.table(["ID", "NAME", "ADDED", "LAST USED"], &1))
+  end
 
   defp standing_lines(%{} = limits) do
     [

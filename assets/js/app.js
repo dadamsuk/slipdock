@@ -37,12 +37,15 @@ import {MeldEditor} from "./meld_editor"
 import {ExcalidrawEditor} from "./excalidraw_editor"
 import {MarkdownEditor} from "./markdown_editor"
 import {TranscriptPlayer} from "./transcript_player"
+import {PasskeyLogin, PasskeyRegister} from "./passkey"
 
 const Hooks = {}
 Hooks.ModalDialog = ModalDialog
 Hooks.Replay = Replay
 Hooks.ExcalidrawEditor = ExcalidrawEditor
 Hooks.MarkdownEditor = MarkdownEditor
+Hooks.PasskeyLogin = PasskeyLogin
+Hooks.PasskeyRegister = PasskeyRegister
 
 // Keeps the server's idea of the window width up to date, so views that
 // render something different on a phone (the calendar's agenda, the board's
