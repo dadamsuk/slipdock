@@ -414,7 +414,8 @@ defmodule Slipdock.Wiki.DrawingSession do
   # elements: what it changed reaches the editors, and what the session holds
   # that it lacks goes into the next save. A write that is no scene is left as
   # it is (it is a revision now), the editors are warned, and the next save
-  # draws the scene back into the last note that held one.
+  # — the next change anybody makes — draws the scene back into the last
+  # note that held one.
   defp absorb(state) do
     case load(state.key) do
       {:ok, drawing, loaded} ->
@@ -431,8 +432,10 @@ defmodule Slipdock.Wiki.DrawingSession do
         if winners != [] or files != %{},
           do: tell_all(state, {:drawing_session, :elements, winners, files})
 
-        # Anything only the session holds still has to be written.
-        if behind?(merged, incoming), do: changed_by(state, last_hand(state)), else: state
+        # Anything only the session holds still has to be written, by
+        # somebody who may.
+        hand = last_hand(state)
+        if hand && behind?(merged, incoming), do: changed_by(state, hand), else: state
 
       {:error, :unreadable} ->
         drawing = refresh(state.drawing)
@@ -440,11 +443,12 @@ defmodule Slipdock.Wiki.DrawingSession do
         tell_all(
           state,
           {:drawing_session, :warning,
-           "This drawing was overwritten elsewhere with something that isn't a drawing. That version is kept in its history; your drawing will be saved over it."}
+           "This drawing was overwritten elsewhere with something that isn't a drawing. That version is kept in its history; the next change here saves the drawing over it."}
         )
 
-        state = %{state | drawing: drawing || state.drawing, base: base(drawing) || state.base}
-        changed_by(state, last_hand(state))
+        # Left as it is until somebody draws (or had drawn and not yet saved):
+        # then the scene goes back into the last note that held one.
+        %{state | drawing: drawing || state.drawing, base: base(drawing) || state.base}
 
       {:error, :not_found} ->
         tell_all(state, {:drawing_session, :error, "This drawing has been deleted."})

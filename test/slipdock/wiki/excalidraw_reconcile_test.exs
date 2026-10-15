@@ -58,6 +58,11 @@ defmodule Slipdock.Wiki.ExcalidrawReconcileTest do
     assert Enum.map(Reconcile.order(loose), & &1["id"]) == ["y", "z"]
   end
 
+  test "an element identical to the one held is kept but is nobody's news" do
+    same = el("a", 3, 5, %{"x" => 1})
+    assert Reconcile.merge([same], [same]) == {[same], []}
+  end
+
   test "an element sent twice counts once; one without an id or a version is handled" do
     {merged, winners} = Reconcile.merge([], [el("a", 2, 1), el("a", 9, 1), %{"x" => 1}])
     assert [%{"version" => 2}] = merged

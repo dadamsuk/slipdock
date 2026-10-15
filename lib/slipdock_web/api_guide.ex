@@ -2087,10 +2087,23 @@ defmodule SlipdockWeb.APIGuide do
     `.excalidraw.md`) is drawn as a preview, served as SVG from
     `/wiki-drawings/page/:id` or `/wiki-drawings/file/:id` to readers of the
     board. People edit drawings in the Excalidraw editor at
-    `/drawings/page/:id` or `/drawings/file/:id`, which saves in the format
-    the drawing came in. Edit a drawing page's body through the API only if
-    you mean to rewrite the plugin's Markdown; the scene is lz-string
-    compressed, and a body that no longer holds one shows as Markdown. To
+    `/drawings/page/:id` or `/drawings/file/:id`, which saves by itself (a
+    couple of seconds after they stop) in the format the drawing came in.
+    A drawing may be **live**: several people drawing in it at once, their
+    changes merged element by element the way Excalidraw's own collaboration
+    merges them (each element's `version`, then `versionNonce`; a deleted
+    element is kept with `isDeleted: true`). A write you make while it is
+    open — `PATCH /api/pages/:id`, `write_page`, a vault sync, a `.excalidraw`
+    file replaced — lands as usual and is then merged into what they are
+    drawing: an element you changed wins only if you bumped its `version`
+    past theirs, an element you added stays, and an element you simply left
+    out is not deleted (set `isDeleted: true` and bump `version` to delete
+    one). Their next autosave holds both sides, and your write stays in the
+    page's history. Edit a drawing page's body through the API only if you
+    mean to rewrite the plugin's Markdown; the scene is lz-string
+    compressed, and a body that no longer holds one shows as Markdown —
+    though if the drawing is open, the next change anybody makes there
+    saves the drawing back over it. To
     read a drawing, `GET /api/pages/:id/render` gives its words (prose above
     the drawing, then each text element) rather than the scene, and search
     finds a drawing page by those same words.

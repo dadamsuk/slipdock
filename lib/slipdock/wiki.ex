@@ -34,6 +34,8 @@ defmodule Slipdock.Wiki do
 
   alias Slipdock.Wiki.{
     Changes,
+    DrawingSession,
+    Excalidraw,
     Folder,
     Folders,
     Link,
@@ -749,9 +751,18 @@ defmodule Slipdock.Wiki do
           do: resolve_wanted(updated)
 
         broadcast(updated.board_id)
+        tell_drawing(updated, opts)
         {:ok, updated}
       end
     end
+  end
+
+  # A drawing somebody has open merges a write made some other way (a sync,
+  # the API, an agent) into what they are drawing, rather than saving over it
+  # (#826). Its own saves say so, and are not news to it.
+  defp tell_drawing(%Page{} = page, opts) do
+    if !opts[:drawing_session] and Excalidraw.page?(page),
+      do: DrawingSession.outside_write({:page, page.id})
   end
 
   # What a sharee may not change about a page shared with them (#816): where

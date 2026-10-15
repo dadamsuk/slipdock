@@ -3377,7 +3377,11 @@ is kept with the wiki's other files.
   drew is lost. A burst of drawing is one entry in the page's history, put
   down to whoever drew last and naming everybody who drew in it. If the
   connection drops, the editor says so, and sends everything it has when it
-  is back.
+  is back. A change that arrives another way while the drawing is open — a
+  vault sync from Obsidian, an agent or the API — is merged in the same way
+  and shows up in the editor; if it isn't a drawing at all, the editor warns
+  you, the change is kept in the page's history, and your next stroke saves
+  the drawing back.
 - **Search.** A drawing note is found by the words in it: its text, and any
   prose written above the drawing. Its listing shows them too. (A plain
   `.excalidraw` file is not searched; files in the wiki aren't yet.)
