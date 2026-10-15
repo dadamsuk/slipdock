@@ -193,9 +193,10 @@ function nextSibling(flat, index, kind) {
 // Whether a writer can drag the row about: a page, folder or file of a board
 // they can write to. A vault's mapped folders are where another board's
 // wiki is shown, not folders of this one, and an extra placement is the
-// page seen from another folder (it is moved from its home row).
+// page or folder seen from another folder (it is moved from its home row),
+// as is everything seen inside a placed folder (`via`).
 export function movableRow(row) {
-  return !!row && ["page", "folder", "file"].includes(row.kind) && !row.mount && !row.also && !!row.writable
+  return !!row && ["page", "folder", "file"].includes(row.kind) && !row.mount && !row.also && !row.via && !!row.writable
 }
 
 // What dropping row `from` on row `to` (in `zone`) asks the server for:
@@ -411,9 +412,9 @@ export function menuItems(row, ctx) {
   }
 
   if (row.also) {
-    add(true, {label: "Open", icon: "hero-document-text", href: row.href, nav})
+    add(true, {label: "Open", icon: row.kind === "folder" ? "hero-folder-open" : "hero-document-text", href: row.href, nav})
     add(true, {label: "Open in a new tab", icon: "hero-arrow-top-right-on-square", action: "newTab", href: row.href})
-    add(writable && row.placed_in, {label: "Take out of this folder", icon: "hero-folder-minus", event: "remove_placement", payload: {id, folder: String(row.placed_in)}, group: "edit"})
+    add(writable && row.placed_in, {label: "Take out of this folder", icon: "hero-folder-minus", event: "remove_placement", payload: {kind: row.kind, id, folder: String(row.placed_in)}, group: "edit"})
     add(true, {label: "Copy link", icon: "hero-link", action: "copy", href: row.href, group: "share"})
     return items
   }
@@ -437,7 +438,7 @@ export function menuItems(row, ctx) {
   }
 
   add(writable, {label: many ? `Move ${selection.length}…` : "Move…", icon: "hero-arrow-right-circle", event: "tree_dialog", payload: {kind: "move", keys: selection}, group: "edit"})
-  add(writable && row.kind === "page" && !many, {label: "Also file in…", icon: "hero-link", event: "tree_dialog", payload: {kind: "also", keys: [row.key]}, group: "edit"})
+  add(writable && ["page", "folder"].includes(row.kind) && !many, {label: "Also file in…", icon: "hero-link", event: "tree_dialog", payload: {kind: "also", keys: [row.key]}, group: "edit"})
   add(writable && row.kind === "page" && row.board_id === ctx.board, {label: many ? `Tag ${selection.length}…` : "Tag…", icon: "hero-tag", event: "tree_dialog", payload: {kind: "tag", keys: selection}, group: "edit"})
 
   if (row.kind === "folder" && writable && !many) FOLDER_SORTS.forEach(([sort, label]) =>

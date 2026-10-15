@@ -1213,12 +1213,14 @@ defmodule SlipdockWeb.WikiLive.Index do
             true -> [root | keys_param(params["keys"] || kept) ++ reveal]
           end
 
-        {load_nodes(
-           socket,
-           scope,
-           keys |> Enum.uniq() |> Enum.take(@tree_max_keys),
-           through(socket, params, root)
-         ), reveal}
+        {via, plain} =
+          keys
+          |> Enum.uniq()
+          |> Enum.take(@tree_max_keys)
+          |> Enum.split_with(&match?({:ok, _, _}, Tree.split_via(&1)))
+
+        {load_nodes(socket, scope, plain, through(socket, params, root)) ++
+           via_nodes(socket, via), reveal}
       end
 
     {:reply,
@@ -1672,6 +1674,19 @@ defmodule SlipdockWeb.WikiLive.Index do
             q: ""
           }
 
+        # A folder (#808): anywhere but itself, its home, and its own subtree.
+        "also" when items != [] ->
+          folder = hd(items)
+          barred = [folder.id, folder.parent_id | Wiki.FolderPlacements.below_ids(folder)]
+          barred = MapSet.new(barred, &"folder:#{&1}")
+
+          %{
+            kind: :also,
+            items: [folder],
+            targets: Enum.reject(move_targets(socket, false), &MapSet.member?(barred, &1.key)),
+            q: ""
+          }
+
         "archive" when pages != [] ->
           %{kind: :archive_many, items: pages}
 
@@ -2036,19 +2051,20 @@ defmodule SlipdockWeb.WikiLive.Index do
     end
   end
 
-  # "Also file in…": a placement beside the page's home (W-103 R12).
+  # "Also file in…": a placement beside the page's home (W-103 R12), or
+  # the folder's (#808).
   def handle_event("also_file_in", %{"target" => target}, socket) do
-    with %{kind: :also, items: [page]} <- socket.assigns.tree_prompt,
+    with %{kind: :also, items: [item]} <- socket.assigns.tree_prompt,
          {:folder, _board, %Folder{} = folder} <- drop_target(socket, target),
-         {:ok, _} <- Slipdock.Wiki.Placements.add(page, folder, socket.assigns.current_user) do
+         {:ok, _} <- also_file(item, folder, socket.assigns.current_user) do
       {:noreply,
        socket
        |> assign(tree_prompt: nil)
-       |> put_flash(:info, "“#{page.title}” is also filed in #{Wiki.folder_path(folder)}.")
+       |> put_flash(:info, "“#{item_name(item)}” is also filed in #{Wiki.folder_path(folder)}.")
        |> load_tree()}
     else
       {:error, _status, message} -> {:noreply, put_flash(socket, :error, message)}
-      _ -> {:noreply, put_flash(socket, :error, "That page couldn't be filed there.")}
+      _ -> {:noreply, put_flash(socket, :error, "That couldn't be filed there.")}
     end
   end
 
@@ -2096,6 +2112,27 @@ defmodule SlipdockWeb.WikiLive.Index do
       {:noreply, socket |> assign(tree_prompt: nil) |> put_flash(:info, note) |> load_tree()}
     else
       _ -> {:noreply, socket}
+    end
+  end
+
+  # "Take out of this folder", on a folder's extra placement (#808): the
+  # folder and all in it stay where they are.
+  def handle_event(
+        "remove_placement",
+        %{"kind" => "folder", "id" => id, "folder" => folder_id},
+        socket
+      ) do
+    with %Folder{} = placed <- tree_item(socket, "folder:#{id}"),
+         {:folder, _board, %Folder{} = folder} <- drop_target(socket, "folder:#{folder_id}"),
+         {:ok, _} <-
+           Wiki.FolderPlacements.remove(placed, folder, socket.assigns.current_user) do
+      {:noreply,
+       socket
+       |> put_flash(:info, "“#{placed.name}” is no longer filed in #{folder.name}.")
+       |> load_tree()}
+    else
+      {:error, _status, message} -> {:noreply, put_flash(socket, :error, message)}
+      _ -> {:noreply, put_flash(socket, :error, "That folder couldn't be taken out.")}
     end
   end
 
@@ -2549,6 +2586,32 @@ defmodule SlipdockWeb.WikiLive.Index do
   defp through_opt({key, id}, key), do: [through: id]
   defp through_opt(_through, _key), do: []
 
+  # A container seen through a placed folder (#808): read on the board it
+  # is on, if the reader may, and keyed for where it is seen.
+  defp via_nodes(socket, keys) do
+    for key <- keys,
+        {:ok, rows} <- [via_rows(socket, key, limit: @tree_page)],
+        do: {key, rows}
+  end
+
+  defp via_rows(socket, key, extra) do
+    with {:ok, chain, inner} <- Tree.split_via(key),
+         {:ok, ref} <- Tree.parse_ref(inner),
+         board_id when is_integer(board_id) <- via_board_id(ref),
+         {board, opts} <- preview_board(socket, board_id),
+         {:ok, rows} <- Tree.children(board, ref, extra ++ opts) do
+      {:ok, Tree.through_placement(rows, chain)}
+    else
+      _ -> :error
+    end
+  end
+
+  defp via_board_id({:folder, id}), do: with(%Folder{board_id: b} <- Wiki.get_folder(id), do: b)
+  defp via_board_id({:page, id}), do: with(%Page{board_id: b} <- Wiki.get_page(id), do: b)
+
+  defp container_rows(socket, scope, "at:" <> _ = key, extra) when is_binary(scope),
+    do: via_rows(socket, key, extra)
+
   defp container_rows(socket, "vault", key, extra),
     do: Tree.vault_children(socket.assigns.vault, key, vault_boards(socket), extra)
 
@@ -2663,7 +2726,7 @@ defmodule SlipdockWeb.WikiLive.Index do
 
     base =
       Enum.reduce(
-        [:draft, :template, :archived, :encrypted, :context, :also, :mount],
+        [:draft, :template, :archived, :encrypted, :context, :also, :mount, :via],
         base,
         fn flag, acc ->
           if row[flag], do: Map.put(acc, flag, true), else: acc
@@ -2888,7 +2951,20 @@ defmodule SlipdockWeb.WikiLive.Index do
          else: (_ -> nil)
   end
 
+  # A row seen through a placed folder (#808) is the row itself.
+  defp tree_item(socket, "at:" <> _ = key) do
+    case Tree.split_via(key) do
+      {:ok, _chain, inner} -> tree_item(socket, inner)
+      _ -> nil
+    end
+  end
+
   defp tree_item(_socket, _key), do: nil
+
+  defp also_file(%Page{} = page, folder, user), do: Wiki.Placements.add(page, folder, user)
+
+  defp also_file(%Folder{} = placed, folder, user),
+    do: Wiki.FolderPlacements.add(placed, folder, user)
 
   defp tree_items(socket, keys) when is_list(keys) do
     keys
@@ -4372,7 +4448,7 @@ defmodule SlipdockWeb.WikiLive.Index do
         event: if(kind == :move, do: "move_to", else: "also_file_in"),
         heading:
           case {kind, assigns.prompt.items} do
-            {:also, [page]} -> "Also file “#{page.title}” in…"
+            {:also, [item]} -> "Also file “#{item_name(item)}” in…"
             {:move, [item]} -> "Move “#{item_name(item)}” to…"
             {:move, items} -> "Move #{length(items)} items to…"
           end
@@ -5111,6 +5187,8 @@ defmodule SlipdockWeb.WikiLive.Index do
     assigns =
       assign(assigns,
         children: Enum.filter(assigns.rows, &(&1.kind == "folder")),
+        # Where else it is filed (#808): its home is the path above.
+        also_in: Wiki.FolderPlacements.folders(assigns.folder),
         pages: Enum.filter(assigns.rows, &(&1.kind == "page")),
         total:
           Enum.sum(for(%{kind: "folder", pages: n} <- assigns.rows, do: n)) +
@@ -5148,6 +5226,20 @@ defmodule SlipdockWeb.WikiLive.Index do
         <p class="mt-1 text-sm text-base-content/60">
           {count(@total, "page")}<span :if={@children != []}>
             in {count(length(@children), "folder")}</span>. Filed at <span class="font-mono text-xs">{Wiki.folder_path(@folder)}</span>.
+        </p>
+        <p :if={@also_in != []} id="folder-also-in" class="mt-1 text-sm text-base-content/60">
+          <.icon name="hero-link" class="size-3.5 text-base-content/40" /> Also filed in
+          <span :for={{place, i} <- Enum.with_index(@also_in)}>
+            <span :if={i > 0}>, </span>
+            <.link
+              patch={~p"/boards/#{place.board_id}/wiki?#{[folder: place.id]}"}
+              class="link link-hover font-mono text-xs"
+            >
+              {if place.board_id != @board.id,
+                do: "#{place.board.name} / #{Wiki.folder_path(place)}",
+                else: Wiki.folder_path(place)}
+            </.link>
+          </span>
         </p>
       </div>
       <div :if={@can_write} class="flex shrink-0 items-center gap-1">
@@ -5200,11 +5292,16 @@ defmodule SlipdockWeb.WikiLive.Index do
       <ul class="mt-3 grid gap-2 sm:grid-cols-2">
         <li :for={sub <- @children}>
           <.link
-            patch={~p"/boards/#{@board}/wiki?#{[folder: sub.id]}"}
+            patch={~p"/boards/#{sub.board_id}/wiki?#{[folder: sub.id]}"}
             class="flex items-center gap-2 rounded-xl border border-base-300 bg-base-100 p-3 text-sm hover:border-primary"
           >
             <.wiki_icon kind={:folder} icon={sub[:icon]} color={sub[:color]} />
             <span class="min-w-0 flex-1 truncate font-medium">{sub.title}</span>
+            <span
+              :if={sub[:also]}
+              class="hero-link size-3 shrink-0 text-base-content/40"
+              title="Also filed here; its home is another folder"
+            ></span>
             <span class="shrink-0 text-xs text-base-content/40">
               {count(sub.pages, "page")}
             </span>

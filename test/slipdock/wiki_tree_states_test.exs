@@ -30,6 +30,12 @@ defmodule Slipdock.WikiTreeStatesTest do
     assert TreeStates.get(nil, "board:1") == nil
   end
 
+  test "a container seen through a placed folder is kept by its place (#808)" do
+    user = user_fixture()
+    keys = ["at:5|folder:9", "at:5.12|page:3", "at:5|board:2", "at:|folder:9", "at:x|folder:9"]
+    assert {:ok, ["at:5|folder:9", "at:5.12|page:3"]} = TreeStates.put(user, "board:9", keys)
+  end
+
   test "only the tree's own keys are kept, each once, and at most 300" do
     user = user_fixture()
     junk = ["folder:x", "card:3", 7, nil, "folder:1", "folder:1", "dir:", "root"]

@@ -772,8 +772,38 @@ test("a page also filed in a folder is marked, cannot be dragged, and can be tak
   assert.doesNotMatch(rowsEl.innerHTML, /data-drag/)
   const items = menuItems(also, {board: 1, canWrite: true, selected: new Set()})
   assert.deepEqual(labels(items), ["Open", "Open in a new tab", "Take out of this folder", "Copy link"])
-  assert.deepEqual(items[2].payload, {id: "7", folder: "4"})
+  assert.deepEqual(items[2].payload, {kind: "page", id: "7", folder: "4"})
   assert.deepEqual(labels(menuItems({...also, writable: false}, {board: 1, canWrite: false})), ["Open", "Open in a new tab", "Copy link"])
+})
+
+test("a folder also filed in another (#808): marked, not draggable, cut-down menu, own open state", () => {
+  const placed = folder(9, {also: true, placed_in: 4, key: "at:4|folder:9", href: "/boards/1/wiki/folders/9"})
+  const env = mountHook({dataset: {organising: "true"}, replies: [root([folder(4), placed])]})
+  env.hook.mounted()
+  assert.match(env.rowsEl.innerHTML, /hero-link size-3/)
+  assert.ok(!movableRow(placed))
+  // What is seen inside a placed folder is not dragged about there either.
+  assert.ok(!movableRow(page(3, {via: true, key: "at:4|page:3"})))
+  const items = menuItems(placed, {board: 1, canWrite: true, selected: new Set()})
+  assert.deepEqual(labels(items), ["Open", "Open in a new tab", "Take out of this folder", "Copy link"])
+  assert.equal(items[0].icon, "hero-folder-open")
+  assert.deepEqual(items[2].payload, {kind: "folder", id: "9", folder: "4"})
+
+  // The same folder at home and placed: two keys, opened one at a time.
+  const model = new TreeModel("root")
+  model.set("root", [folder(4), folder(9), placed])
+  model.set("folder:9", [page(3)])
+  model.set("at:4|folder:9", [page(3, {key: "at:4|page:3", via: true})])
+  model.open = new Set(["folder:9"])
+  const shown = model.flatten().map(i => i.row.key)
+  assert.deepEqual(shown, ["folder:4", "folder:9", "page:3", "at:4|folder:9"])
+})
+
+test("a folder's menu offers Also file in…", () => {
+  const items = menuItems(folder(4, {href: "/f"}), {board: 1, canWrite: true, selected: new Set()})
+  const also = items.find(i => i.label === "Also file in…")
+  assert.deepEqual(also.payload, {kind: "also", keys: ["folder:4"]})
+  assert.ok(!menuItems(folder(4, {writable: false}), {board: 1, canWrite: false, selected: new Set()}).some(i => i.label === "Also file in…"))
 })
 
 test("on a touch screen the rows are taller", () => {
