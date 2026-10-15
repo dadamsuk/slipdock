@@ -27,6 +27,10 @@ defmodule Slipdock.Application do
       # Which meeting captures this node is reading (see
       # `Slipdock.Meetings.Pipeline`): one runner per capture.
       {Registry, keys: :unique, name: Slipdock.Meetings.Registry},
+      # The drawings somebody has open: one `Slipdock.Wiki.DrawingSession`
+      # each, holding the live scene and saving it.
+      {Registry, keys: :unique, name: Slipdock.Wiki.DrawingRegistry},
+      {DynamicSupervisor, name: Slipdock.Wiki.DrawingSupervisor, strategy: :one_for_one},
       # The clock behind the time-based automation triggers.
       Slipdock.Automations.Scheduler,
       # Embeds changed cards for semantic search, off the saver's back.

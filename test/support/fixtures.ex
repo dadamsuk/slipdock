@@ -282,4 +282,24 @@ defmodule Slipdock.Fixtures do
       loose: loose
     }
   end
+
+  @doc """
+  Lets the live drawings `keys` finish before the test's sandbox closes. A
+  session saves when its last editor goes, and the test process (or the
+  LiveView it mounted) going is that; without the wait, the save would land
+  after the sandbox had gone and fail noisily.
+  """
+  def settle_drawing_sessions(keys) do
+    ExUnit.Callbacks.on_exit(fn ->
+      for key <- keys, pid = Slipdock.Wiki.DrawingSession.whereis(key), is_pid(pid) do
+        ref = Process.monitor(pid)
+
+        receive do
+          {:DOWN, ^ref, :process, ^pid, _} -> :ok
+        after
+          2_000 -> Process.exit(pid, :kill)
+        end
+      end
+    end)
+  end
 end

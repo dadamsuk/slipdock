@@ -75,8 +75,11 @@ defmodule Slipdock.Wiki.Files do
   @doc """
   New bytes for a file, and optionally a new `name` and `folder_id`. The old
   bytes go once the new ones are in.
+
+  `opts`: `drawing_session: true` when the write is a live drawing's own
+  save (`Slipdock.Wiki.DrawingSession`).
   """
-  def replace(%WikiFile{} = file, attrs, source) do
+  def replace(%WikiFile{} = file, attrs, source, _opts \\ []) do
     {sha, size} = digest(source)
     name = attrs[:name] || file.name
     key = key(%Board{id: file.board_id}, name)
