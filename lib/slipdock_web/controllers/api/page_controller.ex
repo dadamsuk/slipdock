@@ -18,7 +18,7 @@ defmodule SlipdockWeb.API.PageController do
   use SlipdockWeb, :controller
 
   alias Slipdock.{Boards, Wiki}
-  alias Slipdock.Wiki.{Archive, FrontMatter, Page, Placements, Query}
+  alias Slipdock.Wiki.{Archive, FolderPlacements, FrontMatter, Page, Placements, Query}
   alias SlipdockWeb.API.Authorize
   alias SlipdockWeb.API.Uploads
   alias SlipdockWeb.API.JSON, as: V
@@ -1017,12 +1017,80 @@ defmodule SlipdockWeb.API.PageController do
     end
   end
 
+  # Filing a folder in several folders (#808): `also` files it in one more,
+  # `not_in` takes it out of one, each by name or path on its board (or on
+  # `in_board`), by id, or by vault path. Other changes may come with them.
+  def update_folder(conn, %{"id" => _id} = params)
+      when is_map_key(params, "also") or is_map_key(params, "not_in") do
+    user = conn.assigns.current_user
+    rest = Map.drop(params, ["also", "not_in", "in_board"])
+
+    with {:ok, folder, board} <- fetch_folder(conn, params, :write),
+         {:ok, folder} <- maybe_update_folder(folder, board, rest),
+         {:ok, _} <-
+           folder_placement(conn, folder, params, "also", &FolderPlacements.add(folder, &1, user)),
+         {:ok, _} <-
+           folder_placement(
+             conn,
+             folder,
+             params,
+             "not_in",
+             &FolderPlacements.remove(folder, &1, user)
+           ) do
+      json(conn, %{folder: V.folder(Wiki.get_folder(folder.id))})
+    end
+  end
+
   def update_folder(conn, %{"id" => _id} = params) do
     with {:ok, folder, board} <- fetch_folder(conn, params, :write),
          {:ok, attrs} <- folder_attrs(board, params),
          {:ok, folder} <- Wiki.update_folder(folder, attrs) do
       json(conn, %{folder: V.folder(folder)})
     end
+  end
+
+  @folder_fields ~w(name slug parent position sort icon color)
+
+  defp maybe_update_folder(folder, board, params) do
+    if Enum.any?(@folder_fields, &Map.has_key?(params, &1)) do
+      with {:ok, attrs} <- folder_attrs(board, params), do: Wiki.update_folder(folder, attrs)
+    else
+      {:ok, folder}
+    end
+  end
+
+  defp folder_placement(_conn, _folder, params, key, _act) when not is_map_key(params, key),
+    do: {:ok, nil}
+
+  defp folder_placement(conn, folder, params, key, act) do
+    with {:ok, target} <- placement_target(conn, folder, params[key], params["in_board"]),
+         do: act.(target)
+  end
+
+  defp placement_target(_conn, _folder, ref, _board) when ref in [nil, ""],
+    do: {:error, :bad_request, "say which folder"}
+
+  defp placement_target(_conn, folder, "/" <> _ = path, _board),
+    do: Placements.folder_at(folder, path)
+
+  # An id names the folder wherever it is; `add` checks the board is in reach.
+  defp placement_target(conn, _folder, ref, board_ref)
+       when is_integer(ref) and board_ref in [nil, ""] do
+    with %{} = target <- Wiki.get_folder(ref),
+         :ok <- Authorize.board(conn, Boards.get_board!(target.board_id), :read) do
+      {:ok, target}
+    else
+      _ -> {:error, :not_found, "folder #{ref}"}
+    end
+  end
+
+  defp placement_target(conn, folder, ref, board_ref) do
+    board_result =
+      if board_ref in [nil, ""],
+        do: {:ok, Boards.get_board!(folder.board_id)},
+        else: Authorize.fetch_board(conn, board_ref, :write)
+
+    with {:ok, board} <- board_result, do: Wiki.find_folder(board, ref)
   end
 
   @doc """

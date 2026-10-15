@@ -20,9 +20,10 @@ defmodule Slipdock.Wiki.FolderMove do
 
     * a page filed in one of the folders under a parent page that is *not*
       moving stays with its parent, taken out of the folder;
-    * filing in other folders (W-103 R12) survives when both ends are on the
-      target board or in one vault with it, and is taken away otherwise —
-      only the moving folder's own filing moves with it.
+    * filing in other folders (W-103 R12), of pages and of folders (#808),
+      survives when both ends are on the target board or in one vault with
+      it, and is taken away otherwise — the report names the folder
+      placements that went.
 
   Refused, with nothing changed: the target is the folder's own board, the
   user can't write to both, the target parent is not on the target, a moving
@@ -102,6 +103,7 @@ defmodule Slipdock.Wiki.FolderMove do
          # emptied into the target parent.
          moving_folders = if(contents?, do: tl(subtree), else: subtree),
          landing = if(contents?, do: children(folder, subtree), else: [folder]),
+         moving_folder_ids = Enum.map(moving_folders, & &1.id),
          :ok <- check_names(landing, target, parent) do
       pages = from(p in Page, where: p.board_id == ^source.id) |> Repo.all()
       by_id = Map.new(pages, &{&1.id, &1})
@@ -138,6 +140,7 @@ defmodule Slipdock.Wiki.FolderMove do
          left_behind: left_behind,
          files: files,
          filing: filing_plan(moving, subtree_ids, target),
+         folder_filing: Wiki.FolderPlacements.stranded_by_move(moving_folder_ids, target.id),
          user: user,
          via: opts[:via]
        }}
@@ -282,6 +285,8 @@ defmodule Slipdock.Wiki.FolderMove do
       assignees: assignees(plan.moving, plan.target),
       left_behind: Enum.map(plan.left_behind, & &1.title),
       filing_dropped: length(plan.filing),
+      # Folders filed elsewhere (#808) that can't stay filed across the move.
+      folder_filing_dropped: Enum.map(plan.folder_filing, &Map.take(&1, [:folder, :in])),
       title_clashes: title_clashes(plan)
     }
   end
@@ -409,6 +414,7 @@ defmodule Slipdock.Wiki.FolderMove do
       do: Repo.update_all(from(p in Page, where: p.id in ^left_ids), set: [folder_id: nil])
 
     if plan.filing != [], do: Repo.delete_all(from(pl in Placement, where: pl.id in ^plan.filing))
+    Wiki.FolderPlacements.delete_ids(Enum.map(plan.folder_filing, & &1.id))
 
     # Files: with their folder, or into the target parent from the emptied one.
     Enum.each(plan.files, fn file ->
@@ -417,6 +423,9 @@ defmodule Slipdock.Wiki.FolderMove do
 
       file |> Ecto.Changeset.change(board_id: target.id, folder_id: folder_id) |> Repo.update!()
     end)
+
+    # A folder that lands in a parent it was also filed in is at home there.
+    for f <- plan.landing, do: Wiki.FolderPlacements.drop_home(Repo.get!(Folder, f.id))
 
     if plan.contents? do
       # Filing other pages had in the emptied folder can't follow it anywhere.
