@@ -1,4 +1,4 @@
-// The browser half of tools/e2e/drawing-live.sh (#824): two people, one drawing.
+// The browser half of tools/e2e/drawing-live.sh (#824, #825): two people, one drawing.
 //
 //   node tools/e2e/drawing-live.mjs <owner-login> <friend-login> <base-url> <page-id>
 import { createRequire } from 'node:module'
@@ -63,6 +63,24 @@ try {
 
   if (await owner.locator('#drawing-save').count()) fail('there is still a Save button')
   console.log('ok: both have the drawing open, and there is no Save button')
+
+  // Who is here: both avatars in each header, and the friend's cursor on the
+  // owner's canvas once the friend moves.
+  for (const [page, who] of [[owner, 'the owner'], [friend, 'the friend']]) {
+    await page.waitForFunction(() => document.querySelectorAll('#drawing-people [data-person]').length === 2, null, { timeout: 5000 })
+      .catch(() => fail(`${who} does not see two people in the header`))
+  }
+  console.log('ok: each header shows both people')
+
+  const fbox = await friend.locator('canvas.interactive').boundingBox()
+  for (let i = 0; i < 5; i++) {
+    await friend.mouse.move(fbox.x + 600 + i * 10, fbox.y + 400)
+    await friend.waitForTimeout(60)
+  }
+  await owner.waitForSelector('#drawing-editor[data-pointers="1"]', { timeout: 5000 })
+    .catch(() => fail("the friend's cursor did not reach the owner"))
+  if (process.env.SHOTS) await owner.screenshot({ path: `${process.env.SHOTS}/owner-cursor.png` })
+  console.log("ok: the friend's cursor shows on the owner's canvas")
 
   await rectangle(owner, 450, 250)
   if (process.env.SHOTS) await owner.screenshot({ path: `${process.env.SHOTS}/owner-1.png` })

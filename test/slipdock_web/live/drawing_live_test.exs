@@ -62,6 +62,15 @@ defmodule SlipdockWeb.DrawingLiveTest do
 
   defp scene_element(scene, id), do: Enum.find(scene["elements"], &(&1["id"] == id))
 
+  # Presence news arrives in its own time: look again for up to a second.
+  defp eventually(fun, tries \\ 50) do
+    cond do
+      fun.() -> true
+      tries == 0 -> false
+      true -> Process.sleep(20) && eventually(fun, tries - 1)
+    end
+  end
+
   defp session(view), do: :sys.get_state(view.pid).socket.assigns.session
 
   describe "opening" do
@@ -228,6 +237,108 @@ defmodule SlipdockWeb.DrawingLiveTest do
       assert saved.sha256 != file.sha256
       assert scene_element(saved_scene(file), "box1")["x"] == 77
       assert saved.name == "Flow.excalidraw"
+    end
+  end
+
+  describe "who else is here" do
+    setup %{board: board, user: owner} do
+      reader = user_fixture("reader-#{System.unique_integer([:positive])}@example.com")
+      reader = reader |> Ecto.Changeset.change(name: "Rowan Reed") |> Repo.update!()
+      {:ok, _} = Access.grant(board, reader, "read", owner)
+      %{reader: reader}
+    end
+
+    test "people show in the header with a colour each; readers as viewing; they go when they leave",
+         %{conn: conn, reader: reader, user: owner, drawing: drawing} do
+      {:ok, one, _} = live(conn, ~p"/drawings/page/#{drawing.id}")
+      assert_push_event(one, "drawing:people", %{people: []})
+
+      {:ok, two, _} =
+        build_conn() |> log_in_user(reader) |> live(~p"/drawings/page/#{drawing.id}")
+
+      assert_push_event(
+        one,
+        "drawing:people",
+        %{people: [%{name: "Rowan Reed", viewing: true} = them]},
+        1_000
+      )
+
+      assert them.colour == SlipdockWeb.Presence.colour(reader.id)
+      assert_push_event(two, "drawing:people", %{people: [%{viewing: false}]}, 1_000)
+
+      html = render(one)
+      assert html =~ ~s(data-person="#{owner.id}")
+      assert html =~ ~s(data-person="#{reader.id}")
+      assert html =~ "Rowan Reed (viewing)"
+      assert html =~ "RR"
+
+      ref = Process.monitor(two.pid)
+      GenServer.stop(two.pid, :normal)
+      assert_receive {:DOWN, ^ref, _, _, _}
+      assert eventually(fn -> not (render(one) =~ ~s(data-person="#{reader.id}")) end)
+      assert render(one) =~ ~s(data-person="#{owner.id}")
+    end
+
+    test "the same person in two tabs is one avatar and two cursors",
+         %{conn: conn, user: owner, drawing: drawing} do
+      {:ok, one, _} = live(conn, ~p"/drawings/page/#{drawing.id}")
+      {:ok, _two, _} = live(conn, ~p"/drawings/page/#{drawing.id}")
+      assert_push_event(one, "drawing:people", %{people: [%{viewing: false}]}, 1_000)
+
+      html = render(one)
+      assert length(String.split(html, ~s(data-person="#{owner.id}"))) == 2
+    end
+
+    test "pointers reach the others, no more than about twenty a second",
+         %{conn: conn, reader: reader, drawing: drawing} do
+      {:ok, one, _} = live(conn, ~p"/drawings/page/#{drawing.id}")
+
+      {:ok, two, _} =
+        build_conn() |> log_in_user(reader) |> live(~p"/drawings/page/#{drawing.id}")
+
+      render_hook(two, "pointer", %{
+        "x" => 10,
+        "y" => 20,
+        "button" => "down",
+        "selected" => ["box1"]
+      })
+
+      render_hook(two, "pointer", %{"x" => 11, "y" => 21})
+
+      assert_push_event(one, "drawing:pointer", %{
+        x: 10,
+        y: 20,
+        button: "down",
+        selected: ["box1"],
+        id: id
+      })
+
+      assert is_binary(id)
+      refute_push_event(one, "drawing:pointer", %{x: 11}, 20)
+      refute_push_event(two, "drawing:pointer", _, 20)
+
+      Process.sleep(50)
+      render_hook(two, "pointer", %{"x" => 12, "y" => 22, "tool" => "laser", "evil" => "x"})
+      assert_push_event(one, "drawing:pointer", %{x: 12, tool: "laser"} = pointer)
+      refute Map.has_key?(pointer, :evil)
+    end
+
+    test "pointers are never saved", %{conn: conn, drawing: drawing} do
+      {:ok, one, _} = live(conn, ~p"/drawings/page/#{drawing.id}")
+      {:ok, two, _} = live(conn, ~p"/drawings/page/#{drawing.id}")
+
+      render_hook(two, "pointer", %{"x" => 4242, "y" => 4343, "selected" => ["box1"]})
+      assert_push_event(one, "drawing:pointer", %{x: 4242})
+      render_hook(one, "flush", %{})
+      assert Repo.get!(Page, drawing.id).body == @sketch
+
+      render_hook(one, "delta", %{"elements" => [el("box1", 2)], "flush" => true})
+      saved = Repo.get!(Page, drawing.id)
+      refute saved.body == @sketch
+      {:ok, %{json: json}} = Excalidraw.parse_markdown(saved.body)
+      refute json =~ "4242"
+      refute json =~ "collaborators"
+      refute DrawingSession.scene(session(one)) |> Jason.encode!() =~ "4242"
     end
   end
 

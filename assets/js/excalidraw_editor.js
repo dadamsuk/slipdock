@@ -16,8 +16,10 @@
 // when the server's session had to start again, the whole scene is sent and
 // the server's handed back, which the merge makes harmless both ways.
 
-// How often changes go to the server at most, and pointers (#825).
+// How often changes go to the server at most, and pointers (#825): about
+// twenty a second, which the server holds them to as well.
 export const SEND_MS = 150
+export const POINTER_MS = 50
 
 // The elements whose version differs from what was last sent (or taken in)
 // for them: new ones, edited ones and deleted ones.
@@ -52,6 +54,41 @@ export function taken(scene, remote) {
   })
 }
 
+// Excalidraw's collaborators map, from the other tabs in the drawing
+// (`people`: id, name, colour, viewing) and the last pointer each sent.
+export function collaborators(people, pointers) {
+  const map = new Map()
+  for (const p of people || []) {
+    const at = pointers.get(p.id)
+    const entry = {
+      id: p.id,
+      socketId: p.id,
+      username: p.viewing ? `${p.name} (viewing)` : p.name,
+      color: {background: p.colour, stroke: p.colour},
+      isCurrentUser: false,
+    }
+    if (at) {
+      entry.pointer = {x: at.x, y: at.y, tool: at.tool}
+      entry.button = at.button
+      entry.selectedElementIds = Object.fromEntries((at.selected || []).map(id => [id, true]))
+    }
+    map.set(p.id, entry)
+  }
+  return map
+}
+
+// What a pointer update from Excalidraw goes to the server as.
+export function pointerPayload(update, selectedElementIds) {
+  const pointer = (update && update.pointer) || {}
+  return {
+    x: pointer.x || 0,
+    y: pointer.y || 0,
+    tool: pointer.tool === "laser" ? "laser" : "pointer",
+    button: update && update.button === "down" ? "down" : "up",
+    selected: Object.keys(selectedElementIds || {}).filter(id => selectedElementIds[id]),
+  }
+}
+
 // What the status line says.
 export function statusText({ready, viewOnly, connected, unsaved, error}) {
   if (!ready) return "Loading the editor…"
@@ -78,6 +115,9 @@ export const ExcalidrawEditor = {
     this.sent = new Map()
     this.sentFiles = new Set()
     this.waiting = [] // remote changes that came before the editor did
+    this.people = []
+    this.pointers = new Map()
+    this.selected = {}
     this.state = {ready: false, viewOnly: false, connected: true, unsaved: false, error: null}
 
     window.EXCALIDRAW_ASSET_PATH = vendor
@@ -99,6 +139,8 @@ export const ExcalidrawEditor = {
     this.handleEvent("drawing:saved", () => this.set({unsaved: !!this.timer, error: null}))
     this.handleEvent("drawing:notice", ({text}) => this.set({error: text}))
     this.handleEvent("drawing:resync", () => this.resync())
+    this.handleEvent("drawing:people", ({people}) => this.arrived(people))
+    this.handleEvent("drawing:pointer", pointer => this.pointed(pointer))
 
     this.pushEvent("load", {}, reply => this.open(vendor, reply))
   },
@@ -121,14 +163,18 @@ export const ExcalidrawEditor = {
       files: reply.files || {},
       viewOnly: !!reply.view_only,
       theme: document.documentElement.dataset.theme === "dark" ? "dark" : "light",
-      onChange: () => this.schedule(),
-      onPointer: update => this.pointer && this.pointer(update),
+      onChange: (_elements, appState) => {
+        this.selected = (appState && appState.selectedElementIds) || {}
+        this.schedule()
+      },
+      onPointer: update => this.pointer(update),
     })
     this.set({ready: true, viewOnly: !!reply.view_only})
     this.el.dataset.shapes = (scene.elements || []).filter(e => !e.isDeleted).length
     const waiting = this.waiting
     this.waiting = []
     for (const {elements, files} of waiting) this.take(elements, files)
+    this.showPeople()
   },
 
   // Excalidraw calls onChange for every scroll and selection too; what
@@ -142,7 +188,9 @@ export const ExcalidrawEditor = {
   send(now = false) {
     clearTimeout(this.timer)
     this.timer = null
-    if (!this.editor || !this.editor.ready() || this.state.viewOnly) return
+    // While the socket is down nothing is sent, or noted as sent: the
+    // resync on reconnecting sends it all.
+    if (!this.editor || !this.editor.ready() || this.state.viewOnly || !this.state.connected) return
     const elements = changed(this.editor.elements(), this.sent)
     const files = unsentFiles(this.editor.files(), this.sentFiles, this.linked)
     if (elements.length === 0 && Object.keys(files).length === 0) {
@@ -184,6 +232,43 @@ export const ExcalidrawEditor = {
     })
   },
 
+  // Who else has the drawing open: those who left take their cursors along.
+  arrived(people) {
+    this.people = people || []
+    const here = new Set(this.people.map(p => p.id))
+    for (const id of [...this.pointers.keys()]) if (!here.has(id)) this.pointers.delete(id)
+    this.showPeople()
+  },
+
+  pointed({id, ...at}) {
+    if (!this.people.some(p => p.id === id)) return
+    this.pointers.set(id, at)
+    this.showPeople()
+  },
+
+  showPeople() {
+    if (!this.editor || !this.editor.ready()) return
+    this.editor.collaborators(collaborators(this.people, this.pointers))
+    this.el.dataset.pointers = this.pointers.size
+  },
+
+  // This pointer, to the others: at once, then at most every POINTER_MS,
+  // the latest position winning. Never saved anywhere.
+  pointer(update) {
+    this.lastPointer = pointerPayload(update, this.selected)
+    if (this.pointerTimer) this.pointerPending = true
+    else this.sendPointer()
+  },
+
+  sendPointer() {
+    this.pointerPending = false
+    if (this.state.connected) this.pushEvent("pointer", this.lastPointer)
+    this.pointerTimer = setTimeout(() => {
+      this.pointerTimer = null
+      if (this.pointerPending) this.sendPointer()
+    }, POINTER_MS)
+  },
+
   disconnected() {
     this.set({connected: false})
   },
@@ -211,6 +296,7 @@ export const ExcalidrawEditor = {
 
   destroyed() {
     clearTimeout(this.timer)
+    clearTimeout(this.pointerTimer)
     window.removeEventListener("keydown", this.onKey)
     window.removeEventListener("beforeunload", this.onLeave)
     this.editor?.unmount()

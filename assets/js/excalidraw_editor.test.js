@@ -4,9 +4,11 @@
 // what is tested. The merge itself is Excalidraw's `reconcileElements`; a
 // stand-in with the same rule (Slipdock.Wiki.Excalidraw.Reconcile) plays it
 // here, and the hook is driven against a fake editor and a fake socket.
-import {test} from "node:test"
+import {test, mock} from "node:test"
 import assert from "node:assert/strict"
-import {changed, remember, unsentFiles, taken, statusText, ExcalidrawEditor} from "./excalidraw_editor.js"
+import {
+  changed, remember, unsentFiles, taken, statusText, collaborators, pointerPayload, POINTER_MS, ExcalidrawEditor,
+} from "./excalidraw_editor.js"
 
 const el = (id, version, extra = {}) => ({id, version, versionNonce: 7, ...extra})
 
@@ -27,6 +29,7 @@ function fakeEditor(elements, files = {}) {
     scene: elements,
     sceneFiles: files,
     ready: () => true,
+    collaborators: map => (editor.shown = map),
     elements: () => editor.scene,
     files: () => editor.sceneFiles,
     apply(remote, remoteFiles) {
@@ -49,6 +52,9 @@ function hook(elements, {files = {}, linked = [], viewOnly = false} = {}) {
   h.sentFiles = new Set(Object.keys(files))
   h.linked = linked
   h.waiting = []
+  h.people = []
+  h.pointers = new Map()
+  h.selected = {}
   h.state = {ready: true, viewOnly, connected: true, unsaved: false, error: null}
   h.editor = fakeEditor(elements, {...files})
   return h
@@ -177,4 +183,72 @@ test("the shape count follows what is drawn here and what arrives", () => {
   assert.equal(h.el.dataset.shapes, 2)
   h.take([el("a", 2, {isDeleted: true}), el("c", 1)], {})
   assert.equal(h.el.dataset.shapes, 2)
+})
+
+test("collaborators: a name, a colour, viewers marked, and the last pointer with its selection", () => {
+  const people = [
+    {id: "t1", name: "Wren", colour: "#e03131", viewing: false},
+    {id: "t2", name: "Ash", colour: "#1971c2", viewing: true},
+  ]
+  const pointers = new Map([["t1", {x: 10, y: 20, tool: "pointer", button: "down", selected: ["a"]}]])
+  const map = collaborators(people, pointers)
+  const wren = map.get("t1")
+  assert.equal(wren.username, "Wren")
+  assert.deepEqual(wren.color, {background: "#e03131", stroke: "#e03131"})
+  assert.deepEqual(wren.pointer, {x: 10, y: 20, tool: "pointer"})
+  assert.equal(wren.button, "down")
+  assert.deepEqual(wren.selectedElementIds, {a: true})
+  assert.equal(map.get("t2").username, "Ash (viewing)")
+  assert.equal(map.get("t2").pointer, undefined)
+})
+
+test("pointerPayload sends a cursor's worth and nothing else", () => {
+  const out = pointerPayload({pointer: {x: 1.5, y: 2, tool: "laser"}, button: "down", pointersMap: {big: 1}}, {a: true, b: false})
+  assert.deepEqual(out, {x: 1.5, y: 2, tool: "laser", button: "down", selected: ["a"]})
+  assert.deepEqual(pointerPayload(null, null), {x: 0, y: 0, tool: "pointer", button: "up", selected: []})
+})
+
+test("people arrive and leave, and their cursors go with them; strangers' pointers are ignored", () => {
+  const h = hook([])
+  h.arrived([{id: "t1", name: "Wren", colour: "#000", viewing: false}])
+  h.pointed({id: "t1", x: 5, y: 6, tool: "pointer", button: "up", selected: []})
+  h.pointed({id: "ghost", x: 1, y: 1})
+  assert.equal(h.editor.shown.get("t1").pointer.x, 5)
+  assert.equal(h.editor.shown.size, 1)
+  assert.equal(h.el.dataset.pointers, 1)
+
+  h.arrived([])
+  assert.equal(h.editor.shown.size, 0)
+  assert.equal(h.pointers.size, 0)
+})
+
+test("pointers go at once, then at most every POINTER_MS, the latest position winning", () => {
+  mock.timers.enable({apis: ["setTimeout"]})
+  try {
+    const h = hook([])
+    h.pointer({pointer: {x: 1, y: 1}})
+    h.pointer({pointer: {x: 2, y: 2}})
+    h.pointer({pointer: {x: 3, y: 3}})
+    assert.deepEqual(h.pushed.map(p => p.payload.x), [1])
+    mock.timers.tick(POINTER_MS)
+    assert.deepEqual(h.pushed.map(p => p.payload.x), [1, 3])
+    mock.timers.tick(POINTER_MS)
+    assert.equal(h.pushed.length, 2, "nothing new, nothing sent")
+  } finally {
+    mock.timers.reset()
+  }
+})
+
+test("while disconnected nothing is sent or noted as sent; reconnecting sends it all", () => {
+  const h = hook([el("a", 1)])
+  h.disconnected()
+  h.editor.scene = [el("a", 2)]
+  h.send()
+  h.pointer({pointer: {x: 1, y: 1}})
+  assert.equal(h.pushed.length, 0)
+  assert.equal(h.sent.get("a"), 1)
+
+  h.reconnected()
+  assert.equal(h.pushed[0].event, "resync")
+  assert.deepEqual(h.pushed[0].payload.elements, [el("a", 2)])
 })

@@ -3371,7 +3371,10 @@ is kept with the wiki's other files.
   note by hand.
 - **Drawing together.** When two people (or two of your tabs) have the same
   drawing open, each sees what the other draws as it is drawn — whether they
-  reached it through the board or through a share. Each shape is merged the
+  reached it through the board or through a share. The header shows who is
+  there, each in a colour of their own (faded, and marked *viewing*, for
+  someone who can only look), and their pointers and selections move on the
+  canvas, named, in that colour. Pointers are never saved. Each shape is merged the
   way Excalidraw's own collaboration merges it: if two people change the same
   shape at once, the later change to it wins; nothing else either of them
   drew is lost. A burst of drawing is one entry in the page's history, put
