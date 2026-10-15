@@ -251,6 +251,20 @@ A folder named by a path is made on the way past when it is new, so
 `--folder "Design/Decisions"` is one call whether or not it exists. Making the
 same path twice is making it once.
 
+## Drawings
+
+An Excalidraw drawing is an `.excalidraw.md` page (the Obsidian plugin's
+Markdown, scene lz-string compressed under `## Drawing`) or an `.excalidraw`
+file of JSON. People draw in them in the browser, and **several can be drawing
+in one at once** — so a write of yours may land in a drawing someone has open.
+It is merged into theirs element by element, the way Excalidraw's own
+collaboration merges: an element you changed wins only if you bumped its
+`version` past theirs; an element you added stays; an element you **left out
+is not deleted** — to delete one, keep it with `isDeleted: true` and a bumped
+`version`. Your write stays in the page's history either way. Don't rewrite a
+drawing page's body unless you mean to rewrite the plugin's Markdown; a body
+with no scene left in it shows as plain Markdown, not a drawing.
+
 ## Linking
 
 ```sh

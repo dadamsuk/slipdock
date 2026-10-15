@@ -100,7 +100,8 @@ Briefly, with the detail in [the manual](docs/manual.md):
   folders, and [`slipdock sync`](docs/manual.md#syncing-a-vault-to-a-folder)
   to mirror it both ways to a folder on each computer, Obsidian included, after
   a one-time [import](docs/manual.md#importing-an-obsidian-vault) of the vault you have,
-  Excalidraw [drawings](docs/manual.md#drawings) drawn in the page,
+  Excalidraw [drawings](docs/manual.md#drawings) drawn in the page and drawn
+  in together live, with everyone's pointers on the canvas,
   [meeting pages](docs/manual.md#meeting-recordings-from-google-drive) that play
   their recording from Google Drive in step with the transcript, and
   [encrypted notes](docs/manual.md#encrypted-notes) in Meld Encrypt's format, encrypted and
