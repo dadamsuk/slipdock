@@ -27,6 +27,7 @@ defmodule SlipdockCLI.FakeVault do
           normalise: opts[:normalise],
           folders: if(opts[:folders] == false, do: false, else: MapSet.new()),
           fail: nil,
+          stubs: %{},
           calls: []
         }
       end)
@@ -37,6 +38,17 @@ defmodule SlipdockCLI.FakeVault do
   def hash(content), do: :crypto.hash(:sha256, content) |> Base.encode16(case: :lower)
 
   ## The server side, as a test edits it ------------------------------------
+
+  @doc "A stub of something shared (#819): listed with its content, never written."
+  def put_stub(vault, id, path, content),
+    do:
+      Agent.update(
+        vault,
+        &bump(%{&1 | stubs: Map.put(&1.stubs, id, %{path: path, content: content})})
+      )
+
+  def drop_stub(vault, id),
+    do: Agent.update(vault, &bump(%{&1 | stubs: Map.delete(&1.stubs, id)}))
 
   def put(vault, path, content) do
     Agent.get_and_update(vault, fn s ->
@@ -221,7 +233,18 @@ defmodule SlipdockCLI.FakeVault do
             do: %{"kind" => "page", "id" => id, "path" => p.path, "hash" => hash(p.content)}
 
       files = for {id, f} <- s.files, do: file_entry(id, f)
-      listing = %{"cursor" => s.cursor, "entries" => entries ++ files}
+
+      stubs =
+        for {id, st} <- s.stubs,
+            do: %{
+              "kind" => "stub",
+              "id" => id,
+              "path" => st.path,
+              "hash" => hash(st.content),
+              "content" => st.content
+            }
+
+      listing = %{"cursor" => s.cursor, "entries" => entries ++ files ++ stubs}
 
       if s.folders,
         do: {:ok, Map.put(listing, "folders", folders(s, entries ++ files))},

@@ -47,16 +47,28 @@ defmodule SlipdockCLI.Sync.Engine do
       local = Scan.scan(root, opts[:cache] || %{})
       patterns = Scan.ignores(root)
 
+      # Stubs of what is shared with you and filed here (#819) are the
+      # server's alone: written, put back, removed, never sent. They are
+      # set apart from everything else before it is compared.
+      {stubs, listed} =
+        listing["entries"]
+        |> List.wrap()
+        |> Enum.reject(&Scan.ignored?(&1["path"], patterns))
+        |> Enum.split_with(&(&1["kind"] == "stub"))
+
+      {old_stubs, kept} =
+        (state["entries"] || %{}) |> Enum.split_with(fn {_path, e} -> e["kind"] == "stub" end)
+
+      stub_paths = MapSet.new(Enum.map(stubs, & &1["path"]) ++ Enum.map(old_stubs, &elem(&1, 0)))
+      all_local = local
+      local = Map.reject(local, fn {path, _f} -> MapSet.member?(stub_paths, path) end)
+
       # What .slipdockignore names is neither sent nor fetched, and what the
       # state knew there is left as it was.
-      server =
-        for e <- listing["entries"] || [],
-            not Scan.ignored?(e["path"], patterns),
-            into: %{},
-            do: {{kind(e), e["id"]}, e}
+      server = for e <- listed, into: %{}, do: {{kind(e), e["id"]}, e}
 
       {set_aside, old} =
-        (state["entries"] || %{})
+        kept
         |> Enum.split_with(fn {path, e} ->
           Scan.ignored?(path, patterns) and not Map.has_key?(server, {kind(e), e["id"]})
         end)
@@ -79,6 +91,7 @@ defmodule SlipdockCLI.Sync.Engine do
           archived: [],
           removed: [],
           conflicts: [],
+          stubs: [],
           errors: []
         }
       }
@@ -89,6 +102,7 @@ defmodule SlipdockCLI.Sync.Engine do
         |> fresh(local)
         |> send_queued()
         |> unseen()
+        |> stubs(stubs, Map.new(old_stubs), all_local)
 
       {acc, folders} = folders(acc, listing["folders"], state, patterns)
 
@@ -339,6 +353,75 @@ defmodule SlipdockCLI.Sync.Engine do
     |> Enum.reject(fn {key, _s} -> MapSet.member?(acc.done, key) end)
     |> Enum.sort_by(fn {_key, s} -> order(s["path"]) end)
     |> Enum.reduce(acc, fn {key, s}, acc -> download(acc, key, s, nil, nil) end)
+  end
+
+  ## Stubs ------------------------------------------------------------------
+
+  # Each stub the server lists is written where it says, holding what it
+  # says. One edited here goes back as it was — its edits are never sent,
+  # since it is only a link to something somebody else keeps — and the
+  # report says so. One no longer listed (the share taken back, the
+  # placement taken out) is removed, edited or not: there is nothing of
+  # yours in it.
+  defp stubs(acc, listed, old, local) do
+    listed_ids = MapSet.new(listed, & &1["id"])
+
+    acc =
+      Enum.reduce(old, acc, fn {path, e}, acc ->
+        moved = Enum.find(listed, &(&1["id"] == e["id"] and &1["path"] != path))
+
+        if MapSet.member?(listed_ids, e["id"]) and is_nil(moved) do
+          acc
+        else
+          drop_stub(acc, path)
+        end
+      end)
+
+    Enum.reduce(listed, acc, fn s, acc ->
+      path = s["path"]
+      there = local[path] && local[path].sha
+      known = Enum.find_value(old, fn {p, e} -> if e["id"] == s["id"], do: {p, e["hash"]} end)
+
+      acc =
+        cond do
+          there == s["hash"] ->
+            acc
+
+          # New, gone from here, or changed only on the server: as listed.
+          is_nil(there) or (known && elem(known, 1) == there) ->
+            acc |> write_stub(path, s["content"]) |> report(:received, %{path: path})
+
+          true ->
+            acc
+            |> write_stub(path, s["content"])
+            |> report(:stubs, %{path: path, why: "a link to something shared with you"})
+        end
+
+      %{
+        acc
+        | entries:
+            Map.put(acc.entries, path, %{"id" => s["id"], "kind" => "stub", "hash" => s["hash"]})
+      }
+    end)
+  end
+
+  defp write_stub(acc, path, content) do
+    full = Path.join(acc.root, path)
+    FS.mkdir_p!(Path.dirname(full))
+    FS.write!(full, content)
+    acc
+  end
+
+  defp drop_stub(acc, path) do
+    full = Path.join(acc.root, path)
+
+    if FS.exists?(full) do
+      FS.rm!(full)
+      prune(acc.root, Path.dirname(path))
+      report(acc, :removed, %{path: path})
+    else
+      acc
+    end
   end
 
   ## Folders ----------------------------------------------------------------

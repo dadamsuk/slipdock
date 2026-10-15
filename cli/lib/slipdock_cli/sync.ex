@@ -375,6 +375,13 @@ defmodule SlipdockCLI.Sync do
     for c <- report.conflicts,
         do: IO.puts("! #{c.path} changed on both sides: yours is now #{c.copy}")
 
+    for st <- Map.get(report, :stubs, []),
+        do:
+          IO.puts(
+            "↺ #{st.path} " <>
+              Render.dim("(#{st.why}: your edits to it aren't sent; put back as it was)")
+          )
+
     for e <- report.errors, do: IO.puts(:stderr, "error: #{e.path}: #{e.error}")
 
     counts =

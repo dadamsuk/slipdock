@@ -17,7 +17,18 @@ defmodule SlipdockWeb.API.VaultSyncController do
   def index(conn, %{"id" => ref}) do
     with {:ok, vault} <- Vaults.get_vault(user(conn), ref) do
       Vaults.touch_mirror(vault, conn.assigns[:api_token])
-      json(conn, Sync.listing(vault, user(conn), opts(conn)))
+      # `stubs=1`: a client that writes stubs of what is shared with the
+      # reader (#819). One from before them would take them for pages.
+      stubs = conn.params["stubs"] in ["1", "true"]
+
+      listing =
+        Sync.listing(
+          vault,
+          user(conn),
+          opts(conn) ++ [stubs: stubs, base_url: SlipdockWeb.BaseURL.from_conn(conn)]
+        )
+
+      json(conn, listing)
     end
   end
 

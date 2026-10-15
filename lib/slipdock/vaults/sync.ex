@@ -49,7 +49,10 @@ defmodule Slipdock.Vaults.Sync do
   ## Reading ------------------------------------------------------------------
 
   @doc """
-  Every file of the vault `reader` may open:
+  Every file of the vault `reader` may open — and with `stubs: true`, a
+  stub for each thing shared with them and filed here (`Slipdock.Vaults.Stubs`,
+  `%{kind: "stub", id:, path:, hash:, content:}`), with its directories in
+  `folders`. `base_url` is what a stub's link starts with.
 
       %{cursor: 931, entries: [%{kind: "page", id:, board_id:, path:, hash:, code:, title:},
                                %{kind: "file", id:, board_id:, path:, hash:, size:, name:}],
@@ -89,9 +92,17 @@ defmodule Slipdock.Vaults.Sync do
       |> Enum.filter(&Access.can_read?(Map.get(levels, &1.board_id, :none)))
       |> Enum.map(&file_entry(layout, &1))
 
-    entries = Enum.sort_by(entries ++ files, & &1.path)
+    # What is shared with the reader and filed here, as stubs (#819), for
+    # a client that knows what they are.
+    {stubs, stub_dirs} =
+      if opts[:stubs],
+        do: Slipdock.Vaults.Stubs.build(vault, layout, reader, opts[:base_url] || ""),
+        else: {[], []}
 
-    %{cursor: cursor, entries: entries, folders: folders(layout, levels)}
+    entries = Enum.sort_by(entries ++ files ++ stubs, & &1.path)
+    folders = Enum.sort(Enum.uniq(folders(layout, levels) ++ stub_dirs))
+
+    %{cursor: cursor, entries: entries, folders: folders}
   end
 
   # The folders on the boards `levels` lets the reader open, as directories.
