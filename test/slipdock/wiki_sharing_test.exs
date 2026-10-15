@@ -174,12 +174,8 @@ defmodule Slipdock.WikiSharingTest do
                "shared_no_encrypt"
              )
 
-      assert refused?(
-               Wiki.create_page(
-                 c.board,
-                 %{"title" => "E", "body" => meld, "folder_id" => c.inner.id}, user: c.sharee),
-               "shared_no_encrypt"
-             )
+      attrs = %{"title" => "E", "body" => meld, "folder_id" => c.inner.id}
+      assert refused?(Wiki.create_page(c.board, attrs, user: c.sharee), "shared_no_encrypt")
     end
 
     test "change or pass on the share, or reorganise the folders", c do

@@ -199,13 +199,13 @@ defmodule SlipdockWeb.SharedLiveTest do
   test "[[!children]] lists only the children the reader can read", c do
     {:ok, _} = Access.grant(c.page, c.sharee, "read", c.owner)
 
-    page_fixture(
-      c.board,
-      %{
-        "title" => "Child elsewhere",
-        "parent_id" => c.page.id,
-        "folder_id" => c.sibling.folder_id
-      }, user: c.owner)
+    attrs = %{
+      "title" => "Child elsewhere",
+      "parent_id" => c.page.id,
+      "folder_id" => c.sibling.folder_id
+    }
+
+    page_fixture(c.board, attrs, user: c.owner)
 
     html =
       SlipdockWeb.Wiki.Renderer.to_html("[[!children]]", page: c.page, as: c.sharee, shared: true)
