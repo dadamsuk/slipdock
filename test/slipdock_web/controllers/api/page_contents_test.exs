@@ -111,6 +111,40 @@ defmodule SlipdockWeb.API.PageContentsTest do
              conn |> post("/api/pages/#{page["id"]}/vote", %{count: 0}) |> json_response(200)
   end
 
+  test "a reader's vote on a page counts but its comment is dropped; a writer's is kept", %{
+    conn: conn,
+    user: user,
+    board: board,
+    page: page
+  } do
+    import Ecto.Query
+
+    reader = user_fixture("contents.reader@example.com")
+    share_fixture(board, reader, "read")
+
+    assert %{"my_votes" => 1, "page" => %{"votes" => 1}} =
+             conn_as(reader)
+             |> put_req_header("accept", "application/json")
+             |> post("/api/pages/#{page["id"]}/vote", %{count: 1, comment: "graffiti"})
+             |> json_response(200)
+
+    assert %{"my_votes" => 2, "page" => %{"votes" => 3}} =
+             conn
+             |> post("/api/pages/#{page["id"]}/vote", %{count: 2, comment: "write this first"})
+             |> json_response(200)
+
+    comments =
+      Slipdock.Repo.all(
+        from(v in Slipdock.Boards.Vote,
+          where: v.page_id == ^page["id"],
+          select: {v.user_id, v.count, v.comment}
+        )
+      )
+
+    assert Enum.sort(comments) ==
+             Enum.sort([{reader.id, 1, nil}, {user.id, 2, "write this first"}])
+  end
+
   test "custom fields are set on a page the way they are on a card", %{
     conn: conn,
     board: board,

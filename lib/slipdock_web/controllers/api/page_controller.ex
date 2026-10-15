@@ -1515,7 +1515,12 @@ defmodule SlipdockWeb.API.PageController do
     with {:ok, page} <- fetch_page(conn, id, :read),
          {:ok, count} <- vote_count(params["count"]),
          {:ok, page} <-
-           Slipdock.Votes.set(page, conn.assigns.current_user, count, params["comment"]) do
+           Slipdock.Votes.set(
+             page,
+             conn.assigns.current_user,
+             count,
+             vote_comment(conn, page, params)
+           ) do
       json(conn, %{
         page: V.page(with_users(page)),
         my_votes:
@@ -1525,6 +1530,12 @@ defmodule SlipdockWeb.API.PageController do
       {:error, message} when is_binary(message) -> {:error, :unprocessable_entity, message}
       other -> other
     end
+  end
+
+  # Anyone who can read a page can vote on it, but a vote's comment is text
+  # left on the page, so only someone who can write to it may leave one.
+  defp vote_comment(conn, page, params) do
+    if Authorize.page(conn, page, :write) == :ok, do: params["comment"]
   end
 
   defp vote_count(n) when is_integer(n), do: {:ok, n}
