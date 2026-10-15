@@ -114,6 +114,9 @@ defmodule Slipdock.Wiki.DrawingSession do
   def push(pid, elements, files \\ %{}) when is_list(elements) and is_map(files),
     do: GenServer.call(pid, {:push, self(), elements, files})
 
+  @doc "The scene as the session now holds it."
+  def scene(pid), do: GenServer.call(pid, :scene)
+
   @doc "Leaves the drawing. The last to leave has it saved and the session stopped."
   def leave(pid), do: GenServer.call(pid, {:leave, self()})
 
@@ -214,6 +217,7 @@ defmodule Slipdock.Wiki.DrawingSession do
   end
 
   def handle_call(:flush, _from, state), do: {:reply, :ok, save(state)}
+  def handle_call(:scene, _from, state), do: {:reply, state.scene, state}
 
   @impl true
   def handle_cast(:outside_write, state), do: {:noreply, absorb(state)}

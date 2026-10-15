@@ -3361,14 +3361,23 @@ is kept with the wiki's other files.
   dark-theme drawing is shown dark. Images the drawing holds are drawn too.
 - **Editing.** *Edit drawing* on a drawing's page (or selecting a `.excalidraw`
   file in the tree) opens it in Excalidraw itself, the same editor as the
-  plugin's. Draw, then *Save* or Ctrl+S; leaving with changes unsaved asks
-  first. The drawing is saved in the format it came in — a compressed note
-  stays compressed, its text list is brought up to date, and anything else in
-  the note is kept — so the plugin goes on opening it. If the drawing changed
-  somewhere else since you opened it (a sync, another tab), the save is
-  refused and says so rather than overwriting it. People who can only read
-  the board can open a drawing to look round, but not save. *Edit Markdown*
-  is still there for fixing the note by hand.
+  plugin's. There is no Save button: the drawing saves itself a couple of
+  seconds after you stop, and the corner says *Saving…*, *Saved* or
+  *Reconnecting…*. Ctrl+S saves at once. The drawing is saved in the format
+  it came in — a compressed note stays compressed, its text list is brought
+  up to date, and anything else in the note is kept — so the plugin goes on
+  opening it. People who can only read the board can open a drawing to look
+  round, but not change it. *Edit Markdown* is still there for fixing the
+  note by hand.
+- **Drawing together.** When two people (or two of your tabs) have the same
+  drawing open, each sees what the other draws as it is drawn — whether they
+  reached it through the board or through a share. Each shape is merged the
+  way Excalidraw's own collaboration merges it: if two people change the same
+  shape at once, the later change to it wins; nothing else either of them
+  drew is lost. A burst of drawing is one entry in the page's history, put
+  down to whoever drew last and naming everybody who drew in it. If the
+  connection drops, the editor says so, and sends everything it has when it
+  is back.
 - **Search.** A drawing note is found by the words in it: its text, and any
   prose written above the drawing. Its listing shows them too. (A plain
   `.excalidraw` file is not searched; files in the wiki aren't yet.)

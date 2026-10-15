@@ -2,18 +2,18 @@ defmodule SlipdockWeb.DrawingLiveTest do
   @moduledoc """
   A drawing in the Excalidraw editor (W-103 R5.2, R5.3), from the server's
   side: who may open it and who may change it, what the browser is handed,
-  and saving back in the format the drawing was read in — a compressed
-  `.excalidraw.md` stays compressed, a `.excalidraw` file stays JSON — with
-  a change made meanwhile refused rather than overwritten. The browser's
-  half is in assets/js/excalidraw_editor.test.js.
+  and two editors drawing together (#824): changes passed between them and
+  saved in the format the drawing was read in — a compressed
+  `.excalidraw.md` stays compressed, a `.excalidraw` file stays JSON. The
+  browser's half is in assets/js/excalidraw_editor.test.js.
   """
   use SlipdockWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
 
-  alias Slipdock.{Access, Repo, Wiki}
-  alias Slipdock.Wiki.{Excalidraw, Files, Page, WikiFile}
+  alias Slipdock.{Access, Repo}
+  alias Slipdock.Wiki.{DrawingSession, Excalidraw, Files, Page, WikiFile}
 
   @sketch File.read!("test/support/fixtures/excalidraw/Sketch.excalidraw.md")
   @sketch_json File.read!("test/support/fixtures/excalidraw/sketch.json")
@@ -39,23 +39,33 @@ defmodule SlipdockWeb.DrawingLiveTest do
     File.write!(path, @sketch_json)
     {:ok, file} = Files.create(board, %{name: "Flow.excalidraw"}, path)
 
+    settle_drawing_sessions([{:page, drawing.id}, {:file, file.id}])
     %{board: board, drawing: drawing, json_file: file}
   end
 
-  defp edited(json, text) do
-    json
-    |> Jason.decode!()
-    |> update_in(["elements"], fn elements ->
-      Enum.map(elements, fn
-        %{"id" => "txtA1b2c"} = el -> %{el | "text" => text, "originalText" => text}
-        el -> el
-      end)
-    end)
-    |> Jason.encode!()
+  defp el(id, version, extra \\ %{}),
+    do:
+      Map.merge(
+        %{"id" => id, "type" => "rectangle", "version" => version, "versionNonce" => 7},
+        extra
+      )
+
+  defp saved_scene(%Page{id: id}) do
+    {:ok, %{scene: scene}} = Excalidraw.parse_markdown(Repo.get!(Page, id).body)
+    scene
   end
 
+  defp saved_scene(%WikiFile{id: id}) do
+    {:ok, scene} = Excalidraw.parse_json(File.read!(Files.disk_path(Repo.get!(WikiFile, id))))
+    scene
+  end
+
+  defp scene_element(scene, id), do: Enum.find(scene["elements"], &(&1["id"] == id))
+
+  defp session(view), do: :sys.get_state(view.pid).socket.assigns.session
+
   describe "opening" do
-    test "a writer gets the editor, the scene as the note holds it, and its linked images",
+    test "a writer gets the editor, the scene, and the note's linked images; no Save button",
          %{conn: conn, drawing: drawing} do
       {:ok, view, html} = live(conn, ~p"/drawings/page/#{drawing.id}")
       doc = LazyHTML.from_document(html)
@@ -64,44 +74,40 @@ defmodule SlipdockWeb.DrawingLiveTest do
              |> LazyHTML.query("#drawing-editor[phx-hook=ExcalidrawEditor]")
              |> LazyHTML.attribute("data-vendor") == ["/vendor/excalidraw/"]
 
-      assert doc |> LazyHTML.query("#drawing-save") |> Enum.count() == 1
+      assert doc |> LazyHTML.query("#drawing-save") |> Enum.count() == 0
 
       assert doc |> LazyHTML.query("#drawing-back") |> LazyHTML.attribute("href") == [
                "/boards/#{drawing.board_id}/wiki/#{drawing.slug}"
              ]
 
       render_hook(view, "load", %{})
-      {:ok, %{json: json}} = Excalidraw.parse_markdown(@sketch)
+      {:ok, %{scene: scene}} = Excalidraw.parse_markdown(@sketch)
       png = "data:image/png;base64," <> Base.encode64("PNGBYTES")
 
       assert_reply(view, %{
-        json: ^json,
+        json: json,
         linked: ["f00d"],
         files: %{"f00d" => %{dataURL: ^png, mimeType: "image/png"}},
-        view_only: false,
-        base: base
+        view_only: false
       })
 
-      assert base == drawing.content_hash
+      assert Jason.decode!(json) == scene
+      assert is_pid(session(view))
     end
 
-    test "a reader may look but not save", %{board: board, user: owner, drawing: drawing} do
+    test "a reader may look but not change anything",
+         %{board: board, user: owner, drawing: drawing} do
       reader = user_fixture("reader-#{System.unique_integer([:positive])}@example.com")
       {:ok, _} = Access.grant(board, reader, "read", owner)
       conn = build_conn() |> log_in_user(reader)
 
-      {:ok, view, html} = live(conn, ~p"/drawings/page/#{drawing.id}")
-      refute html =~ ~s(id="drawing-save")
-
+      {:ok, view, _html} = live(conn, ~p"/drawings/page/#{drawing.id}")
       render_hook(view, "load", %{})
       assert_reply(view, %{view_only: true})
 
-      render_hook(view, "save", %{
-        "json" => edited(@sketch_json, "Hacked"),
-        "base" => drawing.content_hash
-      })
-
+      render_hook(view, "delta", %{"elements" => [el("box1", 9)]})
       assert_reply(view, %{error: "You can look at this drawing but not change it."})
+      :ok = DrawingSession.flush(session(view))
       assert Repo.get!(Page, drawing.id).body == @sketch
     end
 
@@ -134,85 +140,94 @@ defmodule SlipdockWeb.DrawingLiveTest do
 
       {:ok, view, _} = live(conn, ~p"/drawings/page/#{broken.id}")
       render_hook(view, "load", %{})
-      assert_reply(view, %{error: "This drawing can't be read: its scene is missing or damaged."})
+      assert_reply(view, %{error: "This drawing can't be opened just now."})
     end
   end
 
-  describe "saving a page drawing" do
-    test "writes it back compressed, with its text section and prose kept in step",
+  describe "drawing together" do
+    test "what one editor draws reaches the other, and is saved in the note's own format",
          %{conn: conn, drawing: drawing} do
-      {:ok, view, _} = live(conn, ~p"/drawings/page/#{drawing.id}")
-      json = edited(@sketch_json, "Shipped")
+      {:ok, one, _} = live(conn, ~p"/drawings/page/#{drawing.id}")
+      {:ok, two, _} = live(conn, ~p"/drawings/page/#{drawing.id}")
+      assert session(one) == session(two)
 
-      render_hook(view, "save", %{"json" => json, "base" => drawing.content_hash})
+      text =
+        el("txtA1b2c", 2, %{"type" => "text", "text" => "Shipped", "originalText" => "Shipped"})
+
+      png = %{"id" => "p1", "dataURL" => "data:image/png;base64,AAAA", "mimeType" => "image/png"}
+      render_hook(one, "delta", %{"elements" => [text], "files" => %{"p1" => png}})
+      assert_reply(one, %{stale: []})
+
+      assert_push_event(two, "drawing:remote", %{elements: [^text], files: %{"p1" => ^png}})
+      refute_push_event(one, "drawing:remote", _, 50)
+
+      # Ctrl+S: saved now, and everybody is told.
+      render_hook(one, "flush", %{})
+      assert_push_event(one, "drawing:saved", %{})
+      assert_push_event(two, "drawing:saved", %{})
+
       saved = Repo.get!(Page, drawing.id)
-      assert_reply(view, %{ok: true, base: base})
-      assert base == saved.content_hash
-      refute base == drawing.content_hash
-
-      assert {:ok, %{format: :compressed, json: ^json}} = Excalidraw.parse_markdown(saved.body)
+      assert {:ok, %{format: :compressed}} = Excalidraw.parse_markdown(saved.body)
       assert saved.body =~ "Shipped ^txtA1b2c"
       assert saved.body =~ "## Embedded Files\nf00d: [[cat.png]]"
       assert saved.front_matter == drawing.front_matter
-      assert saved.file_name == "Plan.excalidraw"
-
-      # Saved again against the hash it was given back: no conflict.
-      render_hook(view, "save", %{"json" => edited(@sketch_json, "Again"), "base" => base})
-      assert_reply(view, %{ok: true})
     end
 
-    test "a change made meanwhile is reported, not overwritten", %{
-      conn: conn,
-      user: user,
-      drawing: drawing
-    } do
+    test "an older copy is answered with the newer one", %{conn: conn, drawing: drawing} do
+      {:ok, one, _} = live(conn, ~p"/drawings/page/#{drawing.id}")
+      {:ok, two, _} = live(conn, ~p"/drawings/page/#{drawing.id}")
+
+      render_hook(one, "delta", %{"elements" => [el("box1", 5, %{"x" => 9})], "flush" => true})
+      assert_reply(one, %{stale: []})
+      render_hook(two, "delta", %{"elements" => [el("box1", 3)]})
+      assert_reply(two, %{stale: [%{"version" => 5, "x" => 9}]})
+      assert scene_element(saved_scene(drawing), "box1")["x"] == 9
+    end
+
+    test "a resync sends everything and gets everything back", %{conn: conn, drawing: drawing} do
+      {:ok, one, _} = live(conn, ~p"/drawings/page/#{drawing.id}")
+      {:ok, two, _} = live(conn, ~p"/drawings/page/#{drawing.id}")
+      render_hook(one, "delta", %{"elements" => [el("new1", 1)]})
+
+      render_hook(two, "resync", %{"elements" => [el("box1", 2), el("mine", 1)]})
+      assert_reply(two, %{elements: elements, files: %{}})
+      ids = Enum.map(elements, & &1["id"])
+      assert "new1" in ids and "mine" in ids and "oval1" in ids
+
+      render_hook(two, "delta", %{})
+      assert_reply(two, %{error: "Nothing was sent."})
+      render_hook(two, "resync", %{"elements" => [], "files" => %{}})
+      assert_reply(two, %{elements: [_ | _]})
+    end
+
+    test "a session that dies is started again from the last save and the browser asked to resync",
+         %{conn: conn, drawing: drawing} do
       {:ok, view, _} = live(conn, ~p"/drawings/page/#{drawing.id}")
+      old = session(view)
+      Process.exit(old, :kill)
 
-      {:ok, theirs} =
-        Wiki.update_page(drawing, %{"body" => @sketch <> "\n"}, user: user, via: "api")
-
-      render_hook(view, "save", %{
-        "json" => edited(@sketch_json, "Mine"),
-        "base" => drawing.content_hash
-      })
-
-      assert_reply(view, %{error: "This drawing was changed somewhere else" <> _})
-      assert Repo.get!(Page, drawing.id).content_hash == theirs.content_hash
+      assert_push_event(view, "drawing:resync", %{})
+      assert is_pid(session(view)) and session(view) != old
     end
 
-    test "what is not a scene is refused", %{conn: conn, drawing: drawing} do
+    test "warnings and errors from the session reach the browser", %{conn: conn, drawing: drawing} do
       {:ok, view, _} = live(conn, ~p"/drawings/page/#{drawing.id}")
-
-      render_hook(view, "save", %{"json" => "{\"no\": 1}", "base" => drawing.content_hash})
-      assert_reply(view, %{error: "That isn't an Excalidraw scene, so it wasn't saved."})
-
-      render_hook(view, "save", %{})
-      assert_reply(view, %{error: "Nothing was sent to save."})
-      assert Repo.get!(Page, drawing.id).body == @sketch
+      send(view.pid, {:drawing_session, :warning, "Careful"})
+      assert_push_event(view, "drawing:notice", %{level: :warning, text: "Careful"})
     end
-  end
 
-  describe "saving a .excalidraw file" do
-    test "replaces its bytes with the scene as JSON", %{conn: conn, json_file: file} do
+    test "a .excalidraw file is saved as JSON", %{conn: conn, json_file: file} do
       {:ok, view, _} = live(conn, ~p"/drawings/file/#{file.id}")
       render_hook(view, "load", %{})
-      assert_reply(view, %{json: @sketch_json, linked: [], base: sha})
-      assert sha == file.sha256
+      assert_reply(view, %{json: json, linked: [], files: %{}})
+      assert Jason.decode!(json) == Jason.decode!(@sketch_json)
 
-      json = edited(@sketch_json, "Shipped")
-      render_hook(view, "save", %{"json" => json, "base" => sha})
+      render_hook(view, "delta", %{"elements" => [el("box1", 4, %{"x" => 77})], "flush" => true})
+      assert_reply(view, %{stale: []})
       saved = Repo.get!(WikiFile, file.id)
-      assert_reply(view, %{ok: true, base: new_sha})
-      assert new_sha == saved.sha256
-      assert File.read!(Files.disk_path(saved)) == json
+      assert saved.sha256 != file.sha256
+      assert scene_element(saved_scene(file), "box1")["x"] == 77
       assert saved.name == "Flow.excalidraw"
-
-      render_hook(view, "save", %{"json" => json, "base" => sha})
-      assert_reply(view, %{error: "This drawing was changed somewhere else" <> _})
-
-      render_hook(view, "save", %{"json" => "[]", "base" => new_sha})
-      assert_reply(view, %{error: "That isn't an Excalidraw scene, so it wasn't saved."})
-      assert File.read!(Files.disk_path(Repo.get!(WikiFile, file.id))) == json
     end
   end
 
