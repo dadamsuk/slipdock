@@ -116,6 +116,7 @@ defmodule SlipdockWeb.WikiLive.Index do
       can_manage: perm == :owner,
       meetings: Slipdock.Meetings.presence(socket.assigns.current_user, board),
       page: nil,
+      page_shares: 0,
       revision: nil,
       form: nil,
       preview: "",
@@ -182,6 +183,9 @@ defmodule SlipdockWeb.WikiLive.Index do
       organising: false,
       folder_modal: nil,
       mount_modal: nil,
+      # The Share dialog (#813): what is being shared, who has it, and the
+      # groups the reader may pick from.
+      share_modal: nil,
       # The folder being looked *at*, when the index is scoped to one.
       folder: nil,
       # A folder whose deletion is being decided: keep what is in it, or
@@ -771,6 +775,8 @@ defmodule SlipdockWeb.WikiLive.Index do
 
     assign(socket,
       page: Slipdock.Repo.preload(page, Wiki.board_preloads(), force: true),
+      # How many people and groups it has been shared with (#813).
+      page_shares: length(Access.list_grants(page)),
       # A meeting page's recording, played beside its transcript (W-1690).
       recording: recording,
       recording_help: recording_help(recording, page, socket.assigns.current_user)
@@ -1377,6 +1383,55 @@ defmodule SlipdockWeb.WikiLive.Index do
 
   def handle_event("close_folder_modal", _params, socket),
     do: {:noreply, assign(socket, folder_modal: nil)}
+
+  ## Events: sharing a page (#813) ---------------------------------------------
+  #
+  # Only a writer on the item's board shares it. Somebody whose access is a
+  # grant on the page itself reads, or edits, what they were given, and does
+  # not hand it on: the menus leave Share… out for them, and every event
+  # checks again rather than trusting that.
+
+  def handle_event("share_item", %{"kind" => kind, "id" => id}, socket) do
+    case share_item(socket, kind, id) do
+      {:ok, item} ->
+        groups = Slipdock.Accounts.list_groups(socket.assigns.current_user)
+        {:noreply, assign(socket, share_modal: share_state(kind, item, groups, 0))}
+
+      :error ->
+        {:noreply, put_flash(socket, :error, "You can't share that.")}
+    end
+  end
+
+  def handle_event("share", %{"resource" => kind, "level" => _} = params, socket) do
+    with %{kind: ^kind, item: item, groups: groups, key: key} <- socket.assigns.share_modal,
+         {:ok, item} <- share_item(socket, kind, item.id),
+         {:ok, _} <-
+           SlipdockWeb.BoardLive.Sharing.share(item, params, groups, socket.assigns.current_user) do
+      {:noreply,
+       socket
+       |> assign(share_modal: share_state(kind, item, groups, key + 1))
+       |> after_share()}
+    else
+      {:error, message} when is_binary(message) -> {:noreply, put_flash(socket, :error, message)}
+      _ -> {:noreply, put_flash(socket, :error, "You can't share that.")}
+    end
+  end
+
+  def handle_event("revoke_grant", %{"id" => id, "resource" => kind}, socket) do
+    with %{kind: ^kind, item: item, groups: groups, key: key} <- socket.assigns.share_modal,
+         {:ok, item} <- share_item(socket, kind, item.id),
+         {:ok, _} <- SlipdockWeb.BoardLive.Sharing.revoke(id, item) do
+      {:noreply,
+       socket
+       |> assign(share_modal: share_state(kind, item, groups, key))
+       |> after_share()}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "Couldn't remove that access.")}
+    end
+  end
+
+  def handle_event("close_share", _params, socket),
+    do: {:noreply, assign(socket, share_modal: nil)}
 
   # A board or folder mounted in the vault wears what its mapping says
   # (#797). The mapping is the vault's, so only the vault's owner dresses it.
@@ -2650,9 +2705,11 @@ defmodule SlipdockWeb.WikiLive.Index do
   defp client_rows(rows, socket) do
     writable = writable_ids(socket)
     dressed? = socket.assigns.board.wiki_tree_icons != false
+    shared = shared_keys(rows)
 
     rows
     |> Enum.map(&(&1 |> client_row(writable) |> dress_row(&1, dressed?)))
+    |> Enum.map(&mark_shared(&1, shared))
     |> in_vault_view(socket.assigns)
     |> in_context(socket.assigns)
   end
@@ -2739,6 +2796,24 @@ defmodule SlipdockWeb.WikiLive.Index do
     )
     |> then(&if(row[:sort], do: Map.put(&1, :sort, row.sort), else: &1))
   end
+
+  # Which rows have been shared with somebody (#813), as "page:<id>" keys:
+  # their owner and the board's members see a mark beside them. Writers on
+  # the row's board may share it, so its menu offers Share… to them.
+  defp shared_keys(rows) do
+    pages = for %{kind: "page", id: id} when is_integer(id) <- rows, do: id
+    pages |> Access.shared_page_ids() |> MapSet.new(&"page:#{&1}")
+  end
+
+  defp mark_shared(%{kind: kind, id: id} = row, shared) do
+    row = if MapSet.member?(shared, "#{kind}:#{id}"), do: Map.put(row, :shared, true), else: row
+
+    if row[:writable] && kind == "page" && !row[:also],
+      do: Map.put(row, :shareable, true),
+      else: row
+  end
+
+  defp mark_shared(row, _shared), do: row
 
   # A folder's or page's own icon and colour (#792), as the classes the hook
   # draws, when the board shows them in the tree. Rows without either go as
@@ -2919,6 +2994,28 @@ defmodule SlipdockWeb.WikiLive.Index do
 
   # The board `board_id` as one the reader can write to from here: this one,
   # or another board of its vault.
+  # What the Share dialog is about, if this reader may share it: a writer
+  # on its board, never someone it was only shared with.
+  defp share_item(socket, "page", id) do
+    with %Page{} = page <- Params.id(to_string(id)) && Wiki.get_page(id),
+         %{} <- writable_board(socket, page.board_id) do
+      {:ok, page}
+    else
+      _ -> :error
+    end
+  end
+
+  defp share_item(_socket, _kind, _id), do: :error
+
+  defp share_state(kind, item, groups, key),
+    do: %{kind: kind, item: item, grants: Access.list_grants(item), groups: groups, key: key}
+
+  # The tree's "shared" marks and the page's own line follow a change.
+  defp after_share(%{assigns: %{page: %Page{} = page}} = socket),
+    do: socket |> assign_page(Wiki.get_page!(page.id)) |> load_tree_state()
+
+  defp after_share(socket), do: load_tree_state(socket)
+
   defp writable_board(%{assigns: %{board: %{id: id} = board, can_write: true}}, id), do: board
   defp writable_board(%{assigns: %{board: %{id: id}}}, id), do: nil
   defp writable_board(%{assigns: %{vault: nil}}, _id), do: nil
@@ -4230,6 +4327,7 @@ defmodule SlipdockWeb.WikiLive.Index do
                     can_manage={@can_manage}
                     current_user={@current_user}
                     form_key={@form_key}
+                    shares={@page_shares}
                   />
               <% end %>
             </div>
@@ -4243,9 +4341,47 @@ defmodule SlipdockWeb.WikiLive.Index do
       <.mount_modal :if={@mount_modal} mapping={@mount_modal} />
       <.folder_delete_modal :if={@folder_delete} folder={@folder_delete} owner={@can_manage} />
       <.tree_prompt :if={@tree_prompt} prompt={@tree_prompt} />
+      <.share_modal :if={@share_modal} modal={@share_modal} />
     </Layouts.app>
     """
   end
+
+  attr :modal, :map, required: true
+
+  # Who a page (or folder) is shared with, and a form to share it with
+  # somebody else: the board views' own panel, aimed at this view.
+  defp share_modal(assigns) do
+    ~H"""
+    <.modal id="share-modal" on_close={JS.push("close_share")} size="md">
+      <div class="space-y-4 p-6">
+        <h2 class="text-lg font-semibold">Share “{share_title(@modal.item)}”</h2>
+        <p class="text-sm text-base-content/60">
+          {share_help(@modal.kind)}
+        </p>
+        <SlipdockWeb.ShareComponents.share_panel
+          resource={@modal.kind}
+          grants={@modal.grants}
+          groups={@modal.groups}
+          can_manage={true}
+          form_key={@modal.key}
+        />
+      </div>
+    </.modal>
+    """
+  end
+
+  defp share_title(%Page{title: title}), do: title
+  defp share_title(%Folder{name: name}), do: name
+
+  defp share_help("page"),
+    do:
+      "People you share this page with see it under Shared with me. " <>
+        "They don't see the board, its cards or its other pages, and they can't pass it on."
+
+  defp share_help("folder"),
+    do:
+      "Sharing a folder shares everything in it, subfolders and all. " <>
+        "People you share it with don't see the rest of the board, and they can't pass it on."
 
   attr :modal, :map, required: true
   attr :outline, :list, required: true
@@ -5564,6 +5700,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   attr :fields_board, :any, default: nil
   attr :current_user, :any, default: nil
   attr :form_key, :integer, default: 0
+  attr :shares, :integer, default: 0
 
   defp page_body(assigns) do
     ~H"""
@@ -5667,6 +5804,17 @@ defmodule SlipdockWeb.WikiLive.Index do
               <li :if={not is_nil(@page.public_token)}>
                 <button type="button" phx-click="unpublish">
                   <.icon name="hero-globe-alt" class="size-4" /> Withdraw the public link
+                </button>
+              </li>
+              <li>
+                <button
+                  id="share-page"
+                  type="button"
+                  phx-click="share_item"
+                  phx-value-kind="page"
+                  phx-value-id={@page.id}
+                >
+                  <.icon name="hero-user-plus" class="size-4" /> Share…
                 </button>
               </li>
               <li>
@@ -5782,6 +5930,28 @@ defmodule SlipdockWeb.WikiLive.Index do
           <span>
             Updated <time datetime={iso(@page.updated_at)}>{stamp(@page.updated_at)}</time>
           </span>
+        </div>
+        <%!-- Who else it is shared with (#813): a page shared on its own
+              is easy to forget about otherwise. --%>
+        <div
+          :if={@shares > 0}
+          id="page-shared"
+          class="mt-4 flex flex-wrap items-center gap-2 text-sm text-base-content/60"
+        >
+          <.icon name="hero-users" class="size-4 shrink-0" />
+          <span>
+            Shared with {@shares} {if @shares == 1, do: "person or group", else: "people or groups"}.
+          </span>
+          <button
+            :if={@can_write}
+            type="button"
+            class="link"
+            phx-click="share_item"
+            phx-value-kind="page"
+            phx-value-id={@page.id}
+          >
+            Manage
+          </button>
         </div>
         <%!-- Where it is filed. A page starts at the root, which is a place
               rather than a limbo; a folder is filing and nothing else. --%>

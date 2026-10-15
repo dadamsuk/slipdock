@@ -864,6 +864,20 @@ defmodule Slipdock.Access do
 
   def shared_pages(_), do: []
 
+  @doc """
+  Which of these pages have been shared with anybody: the ones in `ids` that
+  carry a page grant. Their owner's tree marks them, so a share is never
+  forgotten about.
+  """
+  @spec shared_page_ids([integer]) :: MapSet.t()
+  def shared_page_ids([]), do: MapSet.new()
+
+  def shared_page_ids(ids) do
+    from(g in Grant, where: g.page_id in ^ids, distinct: true, select: g.page_id)
+    |> Repo.all()
+    |> MapSet.new()
+  end
+
   defp resolve_subject(%User{} = u, _by, _resource), do: {:ok, u}
   defp resolve_subject(%Group{} = g, _by, _resource), do: {:ok, g}
 

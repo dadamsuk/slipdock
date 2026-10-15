@@ -2,7 +2,7 @@
 // things wiki_tree.js touches, and the server is a pushEvent that answers.
 import {test} from "node:test"
 import assert from "node:assert/strict"
-import {TreeModel, windowRange, dropZone, dropIntent, movableRow, escapeHtml, keyMove, typeAhead, menuItems, hasMenu, WikiTree, ROW_HEIGHT, previewHtml, PREVIEW_MS} from "./wiki_tree.js"
+import {TreeModel, windowRange, dropZone, dropIntent, movableRow, escapeHtml, keyMove, typeAhead, menuItems, hasMenu, rowHtml, WikiTree, ROW_HEIGHT, previewHtml, PREVIEW_MS} from "./wiki_tree.js"
 
 // Rows as the server sends them to a writer on board 1.
 const folder = (id, extra = {}) => ({kind: "folder", id, key: `folder:${id}`, title: `F${id}`, count: 1, board_id: 1, writable: true, ...extra})
@@ -643,6 +643,29 @@ test("a page's menu, for a writer", () => {
   assert.deepEqual(items.find(i => i.label === "Move…").payload, {kind: "move", keys: ["page:7"]})
   assert.equal(items.find(i => i.label === "New note inside").href, "/boards/1/wiki/new?parent=7")
   assert.ok(items.find(i => i.label === "Archive…").danger)
+})
+
+test("Share… is offered only on a row the server marks shareable (#813)", () => {
+  const ctx = {board: 1, canWrite: true, selected: new Set()}
+  const plain = menuItems(page(7, {href: "/x"}), ctx)
+  assert.ok(!labels(plain).includes("Share…"))
+
+  const items = menuItems(page(7, {href: "/x", shareable: true}), ctx)
+  assert.deepEqual(items.find(i => i.label === "Share…").payload, {kind: "page", id: "7"})
+  assert.equal(labels(items).indexOf("Share…") + 1, labels(items).indexOf("Copy link"))
+
+  // Never for a selection of several.
+  const many = menuItems(page(7, {href: "/x", shareable: true}), {...ctx, selected: new Set(["page:7", "page:8"])})
+  assert.ok(!labels(many).includes("Share…"))
+})
+
+test("a shared row wears the shared mark (#813)", () => {
+  const model = new TreeModel("root")
+  model.set("root", [page(1, {shared: true}), page(2)])
+  const flat = model.flatten()
+  const ctx = {model, rowH: ROW_HEIGHT, selected: new Set()}
+  assert.match(rowHtml(flat[0], 0, ctx), /data-shared/)
+  assert.doesNotMatch(rowHtml(flat[1], 1, ctx), /data-shared/)
 })
 
 test("a folder's menu offers making, sorting and deleting, its sort ticked", () => {

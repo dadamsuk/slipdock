@@ -1,7 +1,8 @@
 defmodule SlipdockWeb.BoardLive.Sharing do
   @moduledoc """
   Handing out and taking back access from the board's panels: the board from
-  its settings, a card from its panel, a saved view from the toolbar. Each
+  its settings, a card from its panel, a saved view from the toolbar, and a
+  wiki page or folder from the wiki's menus. Each
   caller decides first whether the reader may share the thing at all; this
   only does the granting, and checks a grant being revoked is the thing's own.
   """
@@ -9,6 +10,7 @@ defmodule SlipdockWeb.BoardLive.Sharing do
   alias Slipdock.Access
   alias Slipdock.Access.Grant
   alias Slipdock.Boards.{Board, Card, SavedView}
+  alias Slipdock.Wiki.Page
 
   @doc """
   Shares `target` with the email or group the share form posted, at its
@@ -46,4 +48,5 @@ defmodule SlipdockWeb.BoardLive.Sharing do
   defp belongs?(%Grant{} = grant, %Board{id: id}), do: grant.board_id == id
   defp belongs?(%Grant{} = grant, %Card{id: id}), do: grant.card_id == id
   defp belongs?(%Grant{} = grant, %SavedView{id: id}), do: grant.saved_view_id == id
+  defp belongs?(%Grant{} = grant, %Page{id: id}), do: grant.page_id == id
 end

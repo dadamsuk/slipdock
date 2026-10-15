@@ -253,7 +253,7 @@ const ICONS = {
   dir: "hero-folder",
 }
 
-function rowHtml(item, index, ctx) {
+export function rowHtml(item, index, ctx) {
   const {row, depth, open} = item
   const top = index * ctx.rowH
   const pad = 0.25 + depth * 0.75
@@ -279,6 +279,7 @@ function rowHtml(item, index, ctx) {
 
   const badges = [
     row.also ? `<span class="hero-link size-3 shrink-0 text-base-content/40" title="Also filed here; its home is another folder"></span>` : "",
+    row.shared ? `<span class="hero-users size-3 shrink-0 text-base-content/40" title="Shared with other people" data-shared></span>` : "",
     row.draft ? `<span class="shrink-0 rounded bg-amber-500/15 px-1 text-2xs font-medium text-amber-700">draft</span>` : "",
     row.template ? `<span class="shrink-0 rounded bg-base-content/10 px-1 text-2xs text-base-content/60">template</span>` : "",
     row.encrypted ? `<span class="hero-lock-closed size-3 shrink-0 text-base-content/40" title="Holds encrypted text"></span>` : "",
@@ -444,6 +445,7 @@ export function menuItems(row, ctx) {
   if (row.kind === "folder" && writable && !many) FOLDER_SORTS.forEach(([sort, label]) =>
     items.push({label: `Sort: ${label}`, icon: (row.sort || "board") === sort ? "hero-check" : "hero-arrows-up-down", event: "set_tree_sort", payload: {key: row.key, sort}, group: "sort"}))
 
+  add(!many && !!row.shareable, {label: "Share…", icon: "hero-user-plus", event: "share_item", payload: {kind: row.kind, id}, group: "share"})
   add(!many, {label: "Copy link", icon: "hero-link", action: "copy", href: row.href, group: "share"})
 
   if (writable) {
