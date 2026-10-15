@@ -10,7 +10,7 @@ defmodule SlipdockWeb.BoardLive.Sharing do
   alias Slipdock.Access
   alias Slipdock.Access.Grant
   alias Slipdock.Boards.{Board, Card, SavedView}
-  alias Slipdock.Wiki.Page
+  alias Slipdock.Wiki.{Folder, Page}
 
   @doc """
   Shares `target` with the email or group the share form posted, at its
@@ -49,4 +49,5 @@ defmodule SlipdockWeb.BoardLive.Sharing do
   defp belongs?(%Grant{} = grant, %Card{id: id}), do: grant.card_id == id
   defp belongs?(%Grant{} = grant, %SavedView{id: id}), do: grant.saved_view_id == id
   defp belongs?(%Grant{} = grant, %Page{id: id}), do: grant.page_id == id
+  defp belongs?(%Grant{} = grant, %Folder{id: id}), do: grant.folder_id == id
 end

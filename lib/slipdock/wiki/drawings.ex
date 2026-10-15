@@ -90,10 +90,8 @@ defmodule Slipdock.Wiki.Drawings do
   def readable?(%Page{archived_at: nil} = page, %User{} = reader),
     do: Wiki.visible?(page, Access.page_permission(reader, page))
 
-  def readable?(%WikiFile{archived_at: nil} = file, %User{} = reader) do
-    file = Repo.preload(file, :board)
-    Access.can_read?(Access.board_permission(reader, file.board))
-  end
+  def readable?(%WikiFile{archived_at: nil} = file, %User{} = reader),
+    do: Access.can_read?(Access.file_permission(reader, file))
 
   def readable?(_drawing, _reader), do: false
 
