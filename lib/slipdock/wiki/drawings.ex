@@ -95,6 +95,17 @@ defmodule Slipdock.Wiki.Drawings do
 
   def readable?(_drawing, _reader), do: false
 
+  @doc "Whether `user` may change the drawing (nil is the system)."
+  def writable?(_drawing, nil), do: true
+
+  def writable?(%Page{archived_at: nil} = page, %User{} = user),
+    do: Access.can_write?(Access.page_permission(user, page))
+
+  def writable?(%WikiFile{archived_at: nil} = file, %User{} = user),
+    do: Access.can_write?(Access.file_permission(user, file))
+
+  def writable?(_drawing, _user), do: false
+
   @doc """
   The scene in a drawing, and the images it links rather than carries, as
   `fileId => data URL`, for `reader`.

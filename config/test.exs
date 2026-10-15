@@ -64,6 +64,10 @@ config :slipdock, :login_fallback_path, Path.expand("../tmp/test_sign_in_links.l
 # `Slipdock.Search.Indexer.flush/0` when they want the index brought up to date.
 config :slipdock, :search, interval: :manual
 
+# A live drawing saves when a test says so (`DrawingSession.flush/1`) or
+# leaves, not on a clock; the tests about the clock set their own.
+config :slipdock, :drawing_sessions, idle_ms: 60_000, max_ms: 600_000
+
 # Nothing leaves the machine in tests, so names resolve to a documentation
 # address that counts as public; `Slipdock.EgressTest` swaps in its own.
 config :slipdock, :egress, resolver: &Slipdock.EgressStub.resolve/1
