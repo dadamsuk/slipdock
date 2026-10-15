@@ -77,7 +77,9 @@ defmodule Slipdock.MixProject do
       {:swoosh, "~> 1.16"},
       {:gen_smtp, "~> 1.2"},
       {:dns_cluster, "~> 0.2.0"},
-      {:bandit, "~> 1.5"}
+      {:bandit, "~> 1.5"},
+      # WebAuthn: checking passkey registrations and sign-ins (see `Slipdock.Accounts.Passkeys`).
+      {:wax_, "~> 0.7.0"}
     ]
   end
 

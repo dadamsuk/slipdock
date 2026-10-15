@@ -34,6 +34,10 @@ defmodule SlipdockWeb.LoginLive.Index do
        code_error: nil,
        agentic_file: nil,
        agentic: Accounts.agentic_login_enabled?(),
+       # Whether this browser can sign in with a passkey (#828). The
+       # `PasskeyLogin` hook says so on mounting; until then, and in a browser
+       # that cannot, there is no passkey button.
+       passkeys?: false,
        # Nil on a server with no terms, and then the page says nothing about them.
        terms: if(Slipdock.Settings.terms?(), do: Slipdock.Settings.get()),
        dev_mailbox: Slipdock.Config.get(:dev_routes, false)
@@ -105,6 +109,14 @@ defmodule SlipdockWeb.LoginLive.Index do
         end
     end
   end
+
+  def handle_event("passkey_support", %{"supported" => supported}, socket),
+    do: {:noreply, assign(socket, passkeys?: supported == true)}
+
+  # The browser refused before anything reached the server: no passkey for
+  # this site, a timeout, an insecure address. Cancelling sends nothing.
+  def handle_event("passkey_failed", %{"message" => message}, socket),
+    do: {:noreply, put_flash(socket, :error, String.slice(to_string(message), 0, 200))}
 
   def handle_event("again", _, socket),
     do: {:noreply, assign(socket, sent_to: nil, agentic_file: nil, code_error: nil)}
@@ -342,6 +354,32 @@ defmodule SlipdockWeb.LoginLive.Index do
               <.icon name="hero-cpu-chip" class="size-4" /> Agentic Login
             </button>
           </.form>
+
+          <%!-- Signing in with a passkey (#828). Always rendered, so the hook
+               can say whether the browser can; the button only once it has.
+               The form is posted by the hook with the authenticator's answer:
+               a LiveView cannot set the session cookie, a form post can. --%>
+          <div id="passkey-login" phx-hook="PasskeyLogin">
+            <div :if={@passkeys? && !@sent_to && !@agentic_file} class="mt-4 space-y-4">
+              <div class="divider my-0 text-xs text-base-content/50">or</div>
+              <button
+                type="button"
+                id="passkey-login-button"
+                data-passkey-start
+                class="btn btn-outline w-full"
+              >
+                <.icon name="hero-finger-print" class="size-4" /> Sign in with a passkey
+              </button>
+            </div>
+            <form id="passkey-login-form" action={~p"/login/passkey"} method="post" hidden>
+              <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+              <input
+                :for={field <- ~w(id authenticatorData signature clientDataJSON userHandle)}
+                type="hidden"
+                name={"passkey[#{field}]"}
+              />
+            </form>
+          </div>
 
           <p :if={@terms} id="login-terms" class="mt-4 text-center text-xs text-base-content/60">
             By signing in you agree to these

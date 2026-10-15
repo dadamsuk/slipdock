@@ -181,6 +181,7 @@ slipdock swimlanes <board> [view options]   # grid of cards grouped on two axes 
 slipdock table <board> [view options] [--group A] [--fields id,title,column,priority,flags,tags,start,due,completed,percent,time,checklist,comments,deps,subcards,created,updated]
 slipdock views <board>                      # saved swimlane views
 slipdock favourites                         # what this person keeps going back to, with a URL each
+slipdock passkeys                           # your own passkeys; `passkeys remove <id>` revokes one (only when asked)
 slipdock search <words...> [--board B] [--limit N] [--archived] [--full]
 slipdock ask <question...> [--board B]      # the assistant searches for itself, then answers
 slipdock search-status                      # is the index built, is anything queued

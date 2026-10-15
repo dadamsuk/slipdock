@@ -3504,6 +3504,25 @@ within 15 minutes; using one signs you in for 30 days on that browser. The code
 exists for the times the link cannot be clicked — read out of a log, typed from
 a phone.
 
+**Passkeys.** Once signed in, add a passkey under **Account → Passkeys**: name
+it, press **Add a passkey**, and unlock the device the browser asks for (a
+fingerprint, a face, a PIN, a security key). From then on the login page has a
+**Sign in with a passkey** button that needs no email: the device offers the
+accounts it holds for this server and signing in takes a touch. The email link
+and code keep working; a passkey is another way in, not a replacement.
+
+- A passkey belongs to the address the browser was on when it was made. One
+  made at `https://slipdock.example.com` does not work at a tailnet IP, and
+  browsers only offer passkeys over https (or on `localhost`).
+- The device has to verify you (not just be present), so a passkey stands in
+  for the email *and* the code.
+- Up to 20 per account. Each lists when it was added and last used; **Remove**
+  stops it signing in at once. A lost phone can also be removed from a
+  terminal: `slipdock passkeys`, then `slipdock passkeys remove <id>`, or
+  `GET` / `DELETE /api/me/passkeys[/:id]`.
+- A disabled account cannot sign in with a passkey either. A security key
+  whose signature counter goes backwards (a copied key) is refused.
+
 Every board has an owner, fixed when it is made: the board settings form and
 `PATCH /api/boards/:board` cannot change it, and a board somehow left with no
 owner is open to nobody rather than to everybody. Ownership moves only when an
@@ -3515,7 +3534,7 @@ board importer on it and nothing told you which was which:
 
 - **Account** (`/account`) — your display name, how many cards you have used
   against the limit if there is one, every time an admin has been let into
-  your boards and why, signing out, and the licence.
+  your boards and why, your passkeys, signing out, and the licence.
 - **Settings** (`/account/settings`) — the dials: where quick add puts a card,
   whether the line is read by a model, and your OpenRouter key.
 - **API tokens** (`/account/tokens`) — make, inspect and revoke the tokens the
