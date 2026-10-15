@@ -37,6 +37,8 @@ defmodule SlipdockWeb.SharedLive do
        html: "",
        form: nil,
        base_hash: nil,
+       # "Also file in…" (#818): folders of the reader's own to file it in.
+       also_targets: nil,
        page_title: "Shared with me"
      )}
   end
@@ -185,6 +187,49 @@ defmodule SlipdockWeb.SharedLive do
     end
   end
 
+  def handle_event("also_open", _params, socket),
+    do: {:noreply, assign(socket, also_targets: also_targets(socket))}
+
+  def handle_event("also_close", _params, socket),
+    do: {:noreply, assign(socket, also_targets: nil)}
+
+  def handle_event("also_file", %{"folder" => ref}, socket) do
+    user = socket.assigns.current_user
+
+    with %Folder{} = target <- Wiki.get_folder(ref),
+         item when not is_nil(item) <- socket.assigns.page || socket.assigns.folder,
+         {:ok, _} <- also_file(item, target, user) do
+      {:noreply,
+       socket
+       |> assign(also_targets: nil)
+       |> put_flash(:info, "Also filed in #{Wiki.folder_path(target)}.")}
+    else
+      {:error, _status, message} -> {:noreply, put_flash(socket, :error, message)}
+      _ -> {:noreply, put_flash(socket, :error, "Couldn't file it there.")}
+    end
+  end
+
+  defp also_file(%Page{} = page, target, user), do: Wiki.Placements.add(page, target, user)
+
+  defp also_file(%Folder{} = folder, target, user),
+    do: Wiki.FolderPlacements.add(folder, target, user)
+
+  # Folders on boards the reader writes to, other than the owner's: where a
+  # share of somebody else's can be filed (#818). With the board's name —
+  # these are the reader's own boards.
+  defp also_targets(socket) do
+    %{current_user: user} = socket.assigns
+    item = socket.assigns.page || socket.assigns.folder
+
+    user
+    |> Access.list_boards()
+    |> Enum.filter(&Access.can_write?(Access.board_permission(user, &1)))
+    |> Enum.filter(&Slipdock.Wiki.SharedPlacements.cross_owner?(&1.id, item.board_id))
+    |> Enum.flat_map(fn board ->
+      board |> Wiki.folders() |> Enum.map(&{"#{board.name} · #{Wiki.folder_path(&1)}", &1.id})
+    end)
+  end
+
   defp board_of(%Folder{board_id: id}), do: Boards.get_board!(id)
 
   defp refusal({:error, :shared, _code, message}), do: message
@@ -254,9 +299,15 @@ defmodule SlipdockWeb.SharedLive do
             page={@page}
             html={@html}
             can_write={@can_write}
+            also_targets={@also_targets}
           />
           <.page_edit :if={@live_action == :edit and @form} page={@page} form={@form} />
-          <.folder_view :if={@live_action == :folder and @node} node={@node} can_write={@can_write} />
+          <.folder_view
+            :if={@live_action == :folder and @node}
+            node={@node}
+            can_write={@can_write}
+            also_targets={@also_targets}
+          />
         </main>
       </div>
     </Layouts.app>
@@ -287,6 +338,7 @@ defmodule SlipdockWeb.SharedLive do
   attr :page, :any, required: true
   attr :html, :string, required: true
   attr :can_write, :boolean, required: true
+  attr :also_targets, :any, default: nil
 
   defp page_view(assigns) do
     ~H"""
@@ -309,8 +361,17 @@ defmodule SlipdockWeb.SharedLive do
           >
             <.icon name="hero-pencil-square" class="size-4" /> Edit
           </.link>
+          <button
+            id="shared-also"
+            type="button"
+            phx-click="also_open"
+            class="btn btn-ghost btn-sm gap-1.5"
+          >
+            <.icon name="hero-link" class="size-4" /> Also file in…
+          </button>
         </div>
       </div>
+      <.also_form targets={@also_targets} />
       <p :if={@page.summary} class="mt-1 text-base-content/60">{@page.summary}</p>
       <p class="mt-2 text-xs text-base-content/50">
         {if @can_write, do: "Shared with you to edit.", else: "Shared with you to read."}
@@ -342,15 +403,51 @@ defmodule SlipdockWeb.SharedLive do
     """
   end
 
+  attr :targets, :any, required: true
+
+  # Where to also file it: a folder of one of the reader's own boards. The
+  # placement shows only to people who can read what was shared.
+  defp also_form(assigns) do
+    ~H"""
+    <form
+      :if={@targets}
+      id="shared-also-form"
+      phx-submit="also_file"
+      class="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-base-300 p-3 text-sm"
+    >
+      <span :if={@targets == []} class="text-base-content/60">
+        You have no folders of your own to file it in yet.
+      </span>
+      <select :if={@targets != []} name="folder" class="select select-sm">
+        <option :for={{label, id} <- @targets} value={id}>{label}</option>
+      </select>
+      <button :if={@targets != []} type="submit" class="btn btn-sm btn-primary">File it there</button>
+      <button type="button" phx-click="also_close" class="btn btn-ghost btn-sm">Cancel</button>
+    </form>
+    """
+  end
+
   attr :node, :map, required: true
   attr :can_write, :boolean, required: true
+  attr :also_targets, :any, default: nil
 
   defp folder_view(assigns) do
     ~H"""
     <div id="shared-folder" class="mx-auto max-w-3xl space-y-4">
-      <h1 class="flex items-center gap-2 text-2xl font-bold tracking-tight">
-        <.icon name="hero-folder" class="size-6" /> {@node.folder.name}
-      </h1>
+      <div class="flex items-center justify-between gap-3">
+        <h1 class="flex items-center gap-2 text-2xl font-bold tracking-tight">
+          <.icon name="hero-folder" class="size-6" /> {@node.folder.name}
+        </h1>
+        <button
+          id="shared-also"
+          type="button"
+          phx-click="also_open"
+          class="btn btn-ghost btn-sm gap-1.5"
+        >
+          <.icon name="hero-link" class="size-4" /> Also file in…
+        </button>
+      </div>
+      <.also_form targets={@also_targets} />
       <ul class="space-y-1">
         <li :for={inner <- @node.folders}>
           <.link

@@ -2190,7 +2190,9 @@ defmodule SlipdockWeb.WikiLive.Index do
         %{"kind" => "folder", "id" => id, "folder" => folder_id},
         socket
       ) do
-    with %Folder{} = placed <- tree_item(socket, "folder:#{id}"),
+    # Another owner's folder, shared with the reader and filed here, comes
+    # out too: the placement's rules decide (#818).
+    with %Folder{} = placed <- tree_item(socket, "folder:#{id}") || Wiki.get_folder(id),
          {:folder, _board, %Folder{} = folder} <- drop_target(socket, "folder:#{folder_id}"),
          {:ok, _} <-
            Wiki.FolderPlacements.remove(placed, folder, socket.assigns.current_user) do
@@ -2207,7 +2209,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   # "Take out of this folder", on a page's extra placement (R12.4: the page
   # itself stays where it is).
   def handle_event("remove_placement", %{"id" => id, "folder" => folder_id}, socket) do
-    with %Page{} = page <- tree_item(socket, "page:#{id}"),
+    with %Page{} = page <- tree_item(socket, "page:#{id}") || Wiki.get_page(id),
          {:folder, _board, %Folder{} = folder} <- drop_target(socket, "folder:#{folder_id}"),
          {:ok, _} <- Slipdock.Wiki.Placements.remove(page, folder, socket.assigns.current_user) do
       {:noreply,
@@ -2666,13 +2668,29 @@ defmodule SlipdockWeb.WikiLive.Index do
     with {:ok, chain, inner} <- Tree.split_via(key),
          {:ok, ref} <- Tree.parse_ref(inner),
          board_id when is_integer(board_id) <- via_board_id(ref),
-         {board, opts} <- preview_board(socket, board_id),
+         {board, opts} <- preview_board(socket, board_id) || shared_board(socket, ref),
          {:ok, rows} <- Tree.children(board, ref, extra ++ opts) do
       {:ok, Tree.through_placement(rows, chain)}
     else
       _ -> :error
     end
   end
+
+  # A folder shared with the reader and filed in one of theirs (#818) opens
+  # there to what the share reaches: its board is read for it alone.
+  defp shared_board(socket, {:folder, id}) do
+    user = socket.assigns.current_user
+
+    with %Folder{} = folder <- Wiki.get_folder(id),
+         level when level != :none <- Access.share_permission(user, folder) do
+      opts = list_opts(Access.can_write?(level), socket.assigns.show) ++ [as: user]
+      {Boards.get_board!(folder.board_id), opts}
+    else
+      _ -> nil
+    end
+  end
+
+  defp shared_board(_socket, _ref), do: nil
 
   defp via_board_id({:folder, id}), do: with(%Folder{board_id: b} <- Wiki.get_folder(id), do: b)
   defp via_board_id({:page, id}), do: with(%Page{board_id: b} <- Wiki.get_page(id), do: b)
@@ -2720,9 +2738,12 @@ defmodule SlipdockWeb.WikiLive.Index do
     dressed? = socket.assigns.board.wiki_tree_icons != false
     shared = shared_keys(rows)
 
+    readable = readable_ids(socket)
+
     rows
     |> Enum.map(&(&1 |> client_row(writable) |> dress_row(&1, dressed?)))
     |> Enum.map(&mark_shared(&1, shared))
+    |> Enum.map(&through_share(&1, readable, writable, socket.assigns.board.id))
     |> in_vault_view(socket.assigns)
     |> in_context(socket.assigns)
   end
@@ -2809,6 +2830,40 @@ defmodule SlipdockWeb.WikiLive.Index do
     )
     |> then(&if(row[:sort], do: Map.put(&1, :sort, row.sort), else: &1))
   end
+
+  # The boards whose rows open in their own wiki for this reader.
+  defp readable_ids(%{assigns: %{vault: %{}}} = socket),
+    do:
+      socket
+      |> vault_boards()
+      |> Map.keys()
+      |> MapSet.new()
+      |> MapSet.put(socket.assigns.board.id)
+
+  defp readable_ids(socket), do: MapSet.new([socket.assigns.board.id])
+
+  # A row of somebody else's, shared with the reader and filed in a folder
+  # of theirs (#818): it opens in the Shared view, since its board is not
+  # theirs to open, and whoever writes the folder may take it out again.
+  defp through_share(%{board_id: id} = row, readable, writable, board_id)
+       when is_integer(id) and row.kind in ["page", "folder"] do
+    if MapSet.member?(readable, id) do
+      row
+    else
+      href =
+        if row.kind == "page",
+          do: ~p"/shared/pages/#{row.id}",
+          else: ~p"/shared/folders/#{row.id}"
+
+      row = %{row | href: href, nav: "redirect"}
+
+      if row[:placed_in] && MapSet.member?(writable, board_id),
+        do: Map.put(row, :writable, true),
+        else: row
+    end
+  end
+
+  defp through_share(row, _readable, _writable, _board_id), do: row
 
   # Which rows have been shared with somebody (#813), as "page:<id>" keys:
   # their owner and the board's members see a mark beside them. Writers on

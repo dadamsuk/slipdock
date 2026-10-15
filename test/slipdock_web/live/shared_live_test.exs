@@ -215,4 +215,44 @@ defmodule SlipdockWeb.SharedLiveTest do
     owner_html = SlipdockWeb.Wiki.Renderer.to_html("[[!children]]", page: c.page, as: c.owner)
     assert owner_html =~ "Child elsewhere"
   end
+
+  describe "Also file in… (#818)" do
+    setup c do
+      mine = board_fixture(%{"name" => "Sharee board"}, owner: c.sharee)
+      {:ok, inbox} = Wiki.create_folder(mine, %{"name" => "Inbox"})
+      {:ok, _} = Access.grant(c.page, c.sharee, "read", c.owner)
+      %{mine: mine, inbox: inbox}
+    end
+
+    test "files a shared page in a folder of the sharee's own", c do
+      {:ok, view, _html} = live(c.sharee_conn, ~p"/shared/pages/#{c.page.id}")
+      view |> element("#shared-also") |> render_click()
+      assert has_element?(view, "#shared-also-form option", "Sharee board · Inbox")
+
+      view |> form("#shared-also-form", %{folder: c.inbox.id}) |> render_submit()
+      assert [%{id: id}] = Slipdock.Wiki.Placements.folders(c.page)
+      assert id == c.inbox.id
+    end
+
+    test "the also-row shows in the sharee's own tree, opens in the Shared view, and can come out",
+         c do
+      {:ok, _} = Slipdock.Wiki.Placements.add(c.page, c.inbox, c.sharee)
+      {:ok, view, _html} = live(c.sharee_conn, ~p"/boards/#{c.mine}/wiki")
+
+      reply = SlipdockWeb.WikiTreeHelpers.tree_load(view, %{"keys" => ["folder:#{c.inbox.id}"]})
+      row = SlipdockWeb.WikiTreeHelpers.row(reply, "folder:#{c.inbox.id}", "Shared plan")
+      assert row.also
+      assert row.href == "/shared/pages/#{c.page.id}"
+      assert row.writable
+
+      render_click(view, "remove_placement", %{
+        "kind" => "page",
+        "id" => to_string(c.page.id),
+        "folder" => to_string(c.inbox.id)
+      })
+
+      assert Slipdock.Wiki.Placements.folders(c.page) == []
+      assert Access.page_permission(c.sharee, c.page) == :read
+    end
+  end
 end

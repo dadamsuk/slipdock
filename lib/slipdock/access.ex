@@ -911,6 +911,8 @@ defmodule Slipdock.Access do
 
     Repo.delete(grant)
     |> tap(fn _ ->
+      # What the share let somebody file in their own folders goes too (#818).
+      Slipdock.Wiki.SharedPlacements.cleanup(grant)
       broadcast_resource(resource)
       Boards.notify_users_boards_changed(subject_user_ids(grant))
       notify_shares(resource, subject_user_ids(grant))
