@@ -2490,6 +2490,16 @@ shared folder from elsewhere is **not** shared by that: it shows only to people
 who can already read it, so filing a page into a shared folder never quietly
 shares it.
 
+**A shared page brings what it embeds.** An image, a file or a drawing the page
+embeds with `![[diagram.png]]` shows for whoever the page is shared with, even
+when it lives in a folder that isn't shared (#832) — it is served to them
+through the page, and to nobody else. Only embeds count: a file the page merely
+links (`[[Report.pdf]]`) stays as readable as it was. And only embeds written by
+somebody who could see the file themselves: somebody the page was shared with
+to edit can't write `![[secret.png]]` into it to read the owner's other files.
+Images pasted into a page are the page's own, and always go with it. A published
+page (`/w/…`) still shows no embeds.
+
 **Shared with me.** Whatever has been shared with you appears under **Shared
 with me**, below every one of your wiki and vault trees and on the Wiki page,
 grouped by whose it is; a shared folder opens to its whole subtree, and the

@@ -28,7 +28,7 @@ defmodule SlipdockWeb.Wiki.Renderer do
 
   alias Slipdock.Boards.{Card, Column}
   alias Slipdock.Wiki
-  alias Slipdock.Wiki.{Drawings, Excalidraw, Links, Markup, Meld, Page, Query, Section}
+  alias Slipdock.Wiki.{Drawings, Embeds, Excalidraw, Links, Markup, Meld, Page, Query, Section}
 
   @extension [
     table: true,
@@ -888,6 +888,8 @@ defmodule SlipdockWeb.Wiki.Renderer do
       ~s|<a class="wiki-drawing" href="#{escape(drawing_href(found))}" title="#{label}">| <>
         ~s|<img class="wiki-drawing-preview" src="#{escape(Drawings.preview_url(drawing))}" alt="#{label}"></a>|
     else
+      # A drawing, but not one the reader has: maybe through the page.
+      nil -> drawing_through_page(ref, context)
       _ -> nil
     end
   end
@@ -905,20 +907,65 @@ defmodule SlipdockWeb.Wiki.Renderer do
   defp file_inline(ref, %{board: %Slipdock.Boards.Board{} = board} = context) do
     case Slipdock.Wiki.Files.resolve(board, ref.target, context.reader) do
       nil ->
-        escape(ref.raw)
+        through_page(ref, context) || escape(ref.raw)
 
       file ->
-        url = escape(Slipdock.Wiki.Files.url(file))
-        label = escape(ref.label || file.name)
-
-        if Slipdock.Wiki.WikiFile.image?(file),
-          do: ~s|<img class="wiki-file-embed" src="#{url}" alt="#{label}">|,
-          else:
-            ~s|<a class="wiki-file-link" href="#{escape(Slipdock.Wiki.Files.open_path(file))}">#{label}</a>|
+        file_tag(ref, file, Slipdock.Wiki.Files.url(file), Slipdock.Wiki.Files.open_path(file))
     end
   end
 
   defp file_inline(ref, _context), do: escape(ref.raw)
+
+  defp file_tag(ref, file, url, href) do
+    label = escape(ref.label || file.name)
+
+    if Slipdock.Wiki.WikiFile.image?(file),
+      do: ~s|<img class="wiki-file-embed" src="#{escape(url)}" alt="#{label}">|,
+      else: ~s|<a class="wiki-file-link" href="#{escape(href)}">#{label}</a>|
+  end
+
+  # A file the reader can't see on their own, embedded in a page they can
+  # read — a page shared with them (#832). Sharing the page shares what it
+  # embeds, served through the page (`Slipdock.Wiki.Embeds`): an image or a
+  # drawing's preview in place, anything else as a download.
+  defp through_page(ref, context) do
+    case embedded_file(ref, context) do
+      {file, page} ->
+        url = Embeds.url(file, page)
+        file_tag(ref, file, url, url)
+
+      nil ->
+        nil
+    end
+  end
+
+  # A `.excalidraw` file drawing the same way: its preview, not linked, since
+  # the editor is the board's.
+  defp drawing_through_page(ref, context) do
+    case embedded_file(ref, context) do
+      {file, page} ->
+        label = escape(ref.label || ref.target)
+        src = escape(Drawings.preview_url(file) <> "&page=#{page.id}")
+
+        ~s|<span class="wiki-drawing" title="#{label}">| <>
+          ~s|<img class="wiki-drawing-preview" src="#{src}" alt="#{label}"></span>|
+
+      nil ->
+        nil
+    end
+  end
+
+  defp embedded_file(ref, %{page: %Page{} = page, reader: %Slipdock.Accounts.User{}} = context) do
+    with %Slipdock.Wiki.WikiFile{} = file <-
+           Slipdock.Wiki.Files.find(context.board, ref.target, nil),
+         true <- Embeds.vouched?(page, file) do
+      {file, page}
+    else
+      _ -> nil
+    end
+  end
+
+  defp embedded_file(_ref, _context), do: nil
 
   defp html_of_nodes(nodes) do
     paragraph = %MDEx.Document{nodes: [%MDEx.Paragraph{nodes: nodes}]}
@@ -931,10 +978,7 @@ defmodule SlipdockWeb.Wiki.Renderer do
 
   # `![[diagram.png]]` names a file, not a page: anything with an extension
   # other than `.md`.
-  defp file_embed?(%{target: target}) do
-    ext = target |> Path.extname() |> String.downcase()
-    ext not in ["", ".md"] and Regex.match?(~r/\A\.[a-z0-9]{1,8}\z/, ext)
-  end
+  defp file_embed?(%{target: target}), do: Embeds.file_target?(target)
 
   defp embed_source(page, nil), do: {:ok, page.body || ""}
 
