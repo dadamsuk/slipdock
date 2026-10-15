@@ -49,6 +49,16 @@ defmodule Slipdock.Wiki.Placements do
       folder.id == page.folder_id ->
         {:error, :unprocessable_entity, "that is the page's home folder already"}
 
+      # The one exception to same board, same vault (#818): a page shared
+      # with you, filed in a folder of your own. Reading it is enough, as
+      # long as you write where it goes.
+      shared_into_own?(page, folder, user) ->
+        insert(page, folder)
+
+      Slipdock.Wiki.SharedPlacements.cross_owner?(page.board_id, folder.board_id) and
+          Access.can_read?(Access.share_permission(user, page)) ->
+        {:error, :forbidden, "you can only file it in a folder you can edit"}
+
       not reachable?(page, folder) ->
         {:error, :unprocessable_entity,
          "a page can only be filed in folders on its own board, or on boards in the same vault"}
@@ -57,33 +67,46 @@ defmodule Slipdock.Wiki.Placements do
         {:error, :forbidden, "you need to be able to edit both the page's board and the folder's"}
 
       true ->
-        position =
-          Repo.one(
-            from(pl in Placement, where: pl.folder_id == ^folder.id, select: max(pl.position))
-          )
-
-        %Placement{}
-        |> Placement.changeset(%{
-          page_id: page.id,
-          folder_id: folder.id,
-          position: (position || -1) + 1
-        })
-        |> Repo.insert(on_conflict: :nothing, conflict_target: [:page_id, :folder_id])
-        |> case do
-          {:ok, _} ->
-            touched(page, folder)
-            {:ok, folders(page)}
-
-          error ->
-            error
-        end
+        insert(page, folder)
     end
+  end
+
+  defp insert(page, folder) do
+    position =
+      Repo.one(from(pl in Placement, where: pl.folder_id == ^folder.id, select: max(pl.position)))
+
+    %Placement{}
+    |> Placement.changeset(%{
+      page_id: page.id,
+      folder_id: folder.id,
+      position: (position || -1) + 1
+    })
+    |> Repo.insert(on_conflict: :nothing, conflict_target: [:page_id, :folder_id])
+    |> case do
+      {:ok, _} ->
+        touched(page, folder)
+        {:ok, folders(page)}
+
+      error ->
+        error
+    end
+  end
+
+  # Somebody else's page, shared with `user`, into a folder on a board of a
+  # different owner that `user` writes to.
+  defp shared_into_own?(page, folder, user) do
+    Slipdock.Wiki.SharedPlacements.cross_owner?(page.board_id, folder.board_id) and
+      Access.can_read?(Access.share_permission(user, page)) and writer?(user, folder.board_id)
   end
 
   @doc "Takes `page` out of a folder it was also filed in. The page itself is untouched."
   def remove(%Page{} = page, %Folder{} = folder, %User{} = user) do
     cond do
-      not writer?(user, page.board_id) ->
+      # Whoever writes the folder may take a shared page back out of it: the
+      # share and the page are untouched (#818).
+      not (writer?(user, page.board_id) or
+               (Slipdock.Wiki.SharedPlacements.cross_owner?(page.board_id, folder.board_id) and
+                  writer?(user, folder.board_id))) ->
         {:error, :forbidden, "you don't edit this page"}
 
       true ->

@@ -1372,11 +1372,23 @@ defmodule Slipdock.Wiki.Tree do
       end)
 
     Enum.filter(pages, fn page ->
-      {read, write} = levels[page.board_id]
+      {read, write} = shared_level(levels[page.board_id], page, reader)
 
       read && (page.status != "draft" or write) &&
         (Keyword.get(opts, :template) != false or not page.template)
     end)
+  end
+
+  # A page on a board the reader can't open still shows where they filed it,
+  # if it was shared with them (#818).
+  defp shared_level({read, _write} = level, _page, _reader) when read in [true], do: level
+  defp shared_level(level, _page, nil), do: level
+
+  defp shared_level(level, page, reader) do
+    case Slipdock.Access.share_permission(reader, page) do
+      :none -> level
+      share -> {true, Slipdock.Access.can_write?(share)}
+    end
   end
 
   defp in_folder(query, nil), do: where(query, [x], is_nil(x.folder_id))

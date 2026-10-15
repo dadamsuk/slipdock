@@ -63,6 +63,17 @@ defmodule Slipdock.Wiki.FolderPlacements do
       target.id == folder.parent_id ->
         {:error, :unprocessable_entity, "that is the folder's home already"}
 
+      # A folder shared with `user`, filed in a folder of their own (#818):
+      # reading it through the share is enough, if they write where it goes.
+      Slipdock.Wiki.SharedPlacements.cross_owner?(folder.board_id, target.board_id) and
+        Access.can_read?(Access.share_permission(user, folder)) and
+          writer?(user, target.board_id) ->
+        insert(folder, target)
+
+      Slipdock.Wiki.SharedPlacements.cross_owner?(folder.board_id, target.board_id) and
+          Access.can_read?(Access.share_permission(user, folder)) ->
+        {:error, :forbidden, "you can only file it in a folder you can edit"}
+
       not reachable?(folder, target) ->
         {:error, :unprocessable_entity,
          "a folder can only be filed in folders on its own board, or on boards in the same vault"}
@@ -81,29 +92,33 @@ defmodule Slipdock.Wiki.FolderPlacements do
          "“#{folder.name}” cannot be filed in #{Wiki.folder_path(target)}: #{how}"}
 
       true ->
-        position =
-          Repo.one(
-            from(pl in FolderPlacement,
-              where: pl.in_folder_id == ^target.id,
-              select: max(pl.position)
-            )
-          )
+        insert(folder, target)
+    end
+  end
 
-        %FolderPlacement{}
-        |> FolderPlacement.changeset(%{
-          folder_id: folder.id,
-          in_folder_id: target.id,
-          position: (position || -1) + 1
-        })
-        |> Repo.insert(on_conflict: :nothing, conflict_target: [:folder_id, :in_folder_id])
-        |> case do
-          {:ok, _} ->
-            touched(folder, target)
-            {:ok, folders(folder)}
+  defp insert(folder, target) do
+    position =
+      Repo.one(
+        from(pl in FolderPlacement,
+          where: pl.in_folder_id == ^target.id,
+          select: max(pl.position)
+        )
+      )
 
-          error ->
-            error
-        end
+    %FolderPlacement{}
+    |> FolderPlacement.changeset(%{
+      folder_id: folder.id,
+      in_folder_id: target.id,
+      position: (position || -1) + 1
+    })
+    |> Repo.insert(on_conflict: :nothing, conflict_target: [:folder_id, :in_folder_id])
+    |> case do
+      {:ok, _} ->
+        touched(folder, target)
+        {:ok, folders(folder)}
+
+      error ->
+        error
     end
   end
 
@@ -186,7 +201,9 @@ defmodule Slipdock.Wiki.FolderPlacements do
     readable = readable_boards(rows |> Enum.map(&elem(&1, 1).board_id) |> Enum.uniq(), reader)
 
     rows
-    |> Enum.filter(fn {_in, f} -> f.board_id == board_id or f.board_id in readable end)
+    |> Enum.filter(fn {_in, f} ->
+      f.board_id == board_id or f.board_id in readable or shared_with?(f, reader)
+    end)
     |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
   end
 
@@ -222,6 +239,12 @@ defmodule Slipdock.Wiki.FolderPlacements do
 
   defp readable_page?(page, reader, _board_id),
     do: Wiki.visible?(page, Access.page_permission(reader, page))
+
+  # A folder shared with the reader shows wherever they filed it (#818).
+  defp shared_with?(_folder, nil), do: false
+
+  defp shared_with?(folder, reader),
+    do: Access.can_read?(Access.share_permission(reader, folder))
 
   defp readable_boards(_ids, nil), do: []
 
