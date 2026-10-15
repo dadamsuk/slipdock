@@ -185,6 +185,12 @@ defmodule SlipdockWeb.AgentSetupTest do
   end
 
   describe "the Set up an agent page" do
+    test "names the share tool among what MCP offers (#820)", %{conn: conn} do
+      {:ok, _view, html} = live(conn, ~p"/account/agent")
+      assert html =~ "sharing a page or folder with somebody"
+      assert html =~ "<code>share</code>"
+    end
+
     # Reached by the name this server knows itself by, so the page should quote
     # the configured address back — which is what a hosted install looks like.
     setup %{conn: conn} do

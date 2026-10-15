@@ -137,4 +137,23 @@ defmodule SlipdockWeb.API.GuideTest do
     assert body =~ "MCP: `file_folder`"
     assert body =~ "GET    /api/boards/:board/folders/*id"
   end
+
+  test "the guide explains sharing pages and folders, and every refusal code (#820)", %{
+    conn: conn
+  } do
+    body = conn |> get("/api/guide") |> response(200)
+
+    assert body =~ "**Sharing a page or a folder**"
+
+    assert body =~
+             "POST -H \"$H\" -H 'content-type: application/json' \\\n     B/api/pages/W-31/grants"
+
+    assert body =~ "B/api/shared"
+    assert body =~ "slipdock page share <page> <email|group> [--write] [--off]"
+    assert body =~ "`list_pages {\"shared\": true}`"
+
+    for code <- Map.keys(Slipdock.Wiki.Sharing.codes()) do
+      assert body =~ "`#{code}`", "the guide does not name #{code}"
+    end
+  end
 end

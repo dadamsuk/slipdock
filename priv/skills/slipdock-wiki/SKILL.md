@@ -155,6 +155,17 @@ A folder can be filed in more places the same way, with everything in it:
 repeat). It is never filed inside itself, and `folder show` / `folder ls` say
 where else each folder is. Sync writes it once, at its home.
 
+**Sharing a page or a folder** with someone who shouldn't see the rest of the
+board: `slipdock page share <page> sam@example.com --write` (a group by name
+works too; read only is the default; `--off` takes it back), `slipdock folder
+share <board> <folder> …` for a folder and everything at home in it. Only the
+board's writers can share. What others shared with you: `slipdock shared`,
+then `page read` / `page edit` by code as usual. A sharee with write edits,
+renames, adds inside a shared folder and moves within it, but never deletes,
+archives, moves anything out, organises, re-shares, publishes or encrypts —
+each is a 403 with a code like `shared_no_delete` or `shared_no_reshare`.
+That is final: say so to the person rather than trying another way round.
+
 **File it, don't nest it.** The mistake folders exist to stop is a parent page
 called "Design" that is about nothing and only holds other pages — a document
 you have to read past. A folder is a place, and a place costs nothing.

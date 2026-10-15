@@ -162,7 +162,7 @@ way in: what it is, the pictures, and how to get it running.
 - Accounts: passwordless sign-in by emailed magic link, sessions that last
   30 days, API tokens for the CLI
 - **An MCP server** at `/mcp`: claude.ai, the Claude apps, Claude Code and
-  other MCP clients get the boards and the wiki as 40 tools (four of them only
+  other MCP clients get the boards and the wiki as 41 tools (four of them only
   while meeting mode is on), signing in
   through the browser or with an API token (see [MCP server](#mcp-server))
 - Groups of users; boards, single cards and saved views can be shared with
@@ -2471,6 +2471,67 @@ path), `{"also": F}` / `{"not_in": F}` (with `in_board`) on
 tool `file_folder` do it. A folder's JSON lists them as `also_in`;
 `slipdock folder show <board> <folder>` and `folder ls` print them.
 
+### Sharing pages and folders
+
+A page or a folder can be shared on its own with somebody who has no reason to
+see the rest of the board (#813): **Share…** on the page's ⋯ menu, or on a
+page's or folder's menu in the tree, adds a person by email (a stranger is
+invited, as for boards) or one of your groups, **read only** or **can edit**,
+and lists and takes back what is there. Only the board's owner and writers can
+share; somebody a thing was shared with cannot pass it on. A shared page or
+folder wears a small people mark in its owner's tree, and Page details says how
+many people and groups have it.
+
+**Sharing a folder shares everything at home in it** — its pages, files of every
+kind, drawings and subfolders, to any depth. What is only *also filed* in a
+shared folder from elsewhere is **not** shared by that: it shows only to people
+who can already read it, so filing a page into a shared folder never quietly
+shares it.
+
+**Shared with me.** Whatever has been shared with you appears under **Shared
+with me**, below every one of your wiki and vault trees and on the Wiki page,
+grouped by whose it is; a shared folder opens to its whole subtree, and the
+section is hidden when nothing is shared. It follows the shares live: one given
+appears, one taken back goes, and a page open when its share is taken back sends
+you back with a word. A page opens in the Shared view (`/shared/pages/:id`),
+which never shows the board it is on, its cards or its other pages — a link in
+it to anything you can't open reads "a page you can't see". Files and drawings
+open in their own viewers as ever, and go back to Shared with me.
+
+**What a share to edit lets you do.** Somebody with **can edit** on a shared
+folder edits and renames what is in it, makes pages, files, drawings and
+subfolders inside it, and moves things about within it. New things are the
+owner's: on the owner's board and counted against the owner's limits, with you
+as their creator. They cannot delete, archive or restore anything; move
+anything out of the share, to the top of the wiki or to another board; move the
+shared folder itself or organise its folders; share it on or publish it at a
+public link; or encrypt it. A page shared on its own is edited and renamed, not
+moved. These rules hold in the API, the CLI and MCP as well as in the browser:
+each refusal is a `403` with a code (`shared_no_delete`, `shared_no_move_out`,
+`shared_no_reshare`, …) and says why. Writers on the board keep everything they
+always had.
+
+**Filing a shared item in your own tree.** **Also file in…** on a page or
+folder in the Shared view files it in a folder of one of your own boards — the
+one time something is filed outside its own board or vault. You need to read it
+through the share and write the folder. It shows there only to people who can
+read it (others on your board see nothing), opens in the Shared view, and comes
+out again with **Take out of this folder**, which never touches the share.
+Taking the share back takes the placement away too; sharing again doesn't bring
+it back.
+
+**In a synced vault** a shared item filed there syncs as **stubs**, never its
+content: `Title.md` holding one line, a link to it in Slipdock (`name.png.md`
+for a file), and a shared folder as a directory of stubs mirroring its subtree.
+They follow renames and moves inside the share, and go when the share or the
+placement does. An edit to a stub is not sent: the next sync puts it back and
+says so (`↺`). The owner's own sync is unchanged.
+
+`slipdock page share <page> <email|group> [--write] [--off]`, `slipdock folder
+share <board> <folder> …` (nobody named lists who has it), `slipdock shared`;
+`POST`/`GET`/`DELETE /api/pages/:id/grants` and `/api/folders/:id/grants`,
+`GET /api/shared`; the MCP tool `share` and `list_pages` with `shared: true`.
+
 **Filing never destroys writing — unless you say so.** Deleting a folder
 deletes the folder: its subfolders move up to its parent and its pages go back
 to the board's root. Deleting one that holds something asks which you meant,
@@ -4229,6 +4290,9 @@ slipdock page place W-31 "In Progress"         # put the doc in a list, beside t
 slipdock page place W-31 Backlog --before 42   # before card #42 (or --before page-7)
 slipdock page unplace W-31                     # off the board; it stays in the wiki
 slipdock page publish W-31                     # read-only at a public link; --off withdraws it
+slipdock page share W-31 sam@example.com --write   # share it to edit (a group by name too); --off takes it back
+slipdock folder share kb Specs Ops                 # a folder and all in it, with a group, read only
+slipdock shared                                    # what other people have shared with you
 slipdock page export qvm-v1-rem --dir ~/wiki   # out as .md files, front matter and all
 slipdock page import qvm-v1-rem --dir ~/wiki   # and back in; --overwrite replaces rather than skips
 slipdock export --out boards.json              # every tree you own as one portable document
@@ -4343,7 +4407,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `search` | Cards, comments and wiki pages by meaning, across every board you can read or one. |
 | `ask` | A `question` in prose, answered from the boards as `POST /api/ask` answers it, with the cards and pages it read (`id`, `title`, `kind`). `board` keeps it to one board. A model call on your own AI key and provider, so it can take a while; a token confined to some boards is refused, as it is by `/api/ask`. |
 | `read_page` | A wiki page's Markdown and its `content_hash`, by code (`W-31`) or by board and slug or title. `board` says whose page it is (`id`, `code`, `name`) and whether that board is `archived` — a code reaches pages on your archived boards, which `list_boards` leaves out unless asked. A page on a board you cannot see is not found. |
-| `list_pages` | A board's wiki pages in order — code, title, summary, folder, parent and pinned cards — filtered by `q`, `archived` (`exclude`, `include` or `only`), `template` and `draft`; `tree: true` nests children under their parents. |
+| `list_pages` | A board's wiki pages in order — code, title, summary, folder, parent and pinned cards — filtered by `q`, `archived` (`exclude`, `include` or `only`), `template` and `draft`; `tree: true` nests children under their parents. `shared: true` (no board) lists what other people have shared with you, by owner. |
 | `page_info` | Finding the way round a wiki, by `what`: `links` (a page's outgoing, unresolved and incoming links), `sections` (its heading paths, as `write_page`'s section modes take them), `wanted` (a board's linked-to pages nobody has written) and `resolve` (is there a page for this `title`, and the `[[link]]` to write). Drafts stay out of sight of readers who cannot edit them. |
 | `page_history` | A page's revisions, newest first (`limit`, default 20): who saved each, how (`web`, `cli`, `mcp`…), the message and when. With `rev`, that revision's body and the diff it made against the one before, or with `against` (another revision id) the diff from that version instead; `diff: true` alone gives the latest save's diff. Long unchanged stretches come back as `skip` with a count, so a one-line edit does not return the whole page. |
 | `list_vaults` | Your [vaults](#vaults) and their mappings; with `vault`, one of them; with `vault` and `path`, which mapping that vault path lands in (the longest matching prefix) and what is left of the path below it. |
@@ -4365,6 +4429,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `write_page` | The wiki: `create` a page, `append` or `append_section` to one, or `replace_section` and `replace`, which need the `content_hash` from `read_page` so nobody's edit is overwritten. |
 | `update_page` | Everything about a page but its body: `title`, `summary`, `parent` (`""` for the top) and `position` among its siblings, `folder` (made if new; `""` unfiles), `also` / `not_in` (other folders it is also filed in), `archived` (`false` restores it, children too), and `pin_card` / `unpin_card` to mark it *the* page for a card you can read. Only what is passed changes. Purging a page for good stays on the CLI. |
 | `file_folder` | Files a wiki folder in one more folder as well as its home (`also`), or takes it out of one (`not_in`): a folder on its board, on `in_board`, or a vault path. Same board or same vault, write on both, never inside itself. Answers with where it is filed now (`also_in`). |
+| `share` | Shares a wiki page (`page`, a code) or folder (`folder`, with `board`) with a person (`with`, an email) or a group of yours (`group`), `level` read or write; a folder shares everything at home in it. `off: true` takes it back; neither `with` nor `group` lists who has it. Only the board's writers share; somebody it was shared with gets `shared_no_reshare`. |
 | `revert_page` | Puts a page back to a revision from `page_history`. The revert is a new revision, so nothing leaves the history and it can itself be undone; it needs `base_hash`, the page's current `content_hash`, so a newer edit is not lost to it unseen. |
 | `manage_vault` | Changes a [vault](#vaults), by `action`: `create` (`name`), `rename` (`vault`, `name`), `delete` (`vault`, `confirm: true`; the pages stay on their boards), `map` (`vault`, `path`, `board` and optionally `folder`) and `unmap` (`vault`, `path`), either with `dry_run` to preview which pages join, move or leave; `move_folder` (`board`, `folder`, `to_board`, optionally `parent`, `contents`, `dry_run`), a folder with everything in it to another board; and `split` (`vault`, `path`, `board` or `new_board`, `dry_run`), giving a vault folder its own board and mapping its path onto it. |
 | `claim_job` | Takes the oldest [runner job](#runners) queued for a pool on a board, with a lease: the card, its link, the job's kind and prompt. Answers `nothing queued` when there is none, so an idle check costs little. The session shows in the board's runner list. |

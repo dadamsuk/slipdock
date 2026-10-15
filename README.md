@@ -133,7 +133,11 @@ Briefly, with the detail in [the manual](docs/manual.md):
   it when you are done; `slipdock welcome` brings it back.
 - **Accounts and sharing** — [passwordless sign-in, groups, and read-only or
   editable grants on a board, a single card, a wiki page or a saved
-  view](docs/manual.md#accounts-and-sharing). A board somebody shared with you
+  view](docs/manual.md#accounts-and-sharing). A wiki page or a whole folder
+  can be [shared on its own](docs/manual.md#sharing-pages-and-folders), to a
+  person or a group: it shows under their **Shared with me** without the rest
+  of the board, a share to edit can't delete, move out or pass anything on,
+  and a synced vault gets link stubs rather than the content. A board somebody shared with you
   says whose it is on your board list, so a list of boards is never a list of
   boards of unknown provenance, and its *…* menu has a **Shared** page saying
   who handed it over with a **Discard** button that gives the access back —
@@ -692,7 +696,7 @@ claude mcp add --transport http slipdock https://your-server/mcp \
   --header "Authorization: Bearer <token>"
 ```
 
-The client gets 40 tools — `whoami`, `get_guide` (a short guide that names
+The client gets 41 tools — `whoami`, `get_guide` (a short guide that names
 the rest of its sections, one call each with `section`), `list_boards`, `get_board`,
 `list_cards` (with `full: true`, every card as `get_card` gives it), `get_card`,
 `search`, `ask` (a question in prose, answered from the boards with what it read — a model call on your AI key, so slower), `read_page`, `list_pages` (a board's wiki, flat or as a tree), `page_info` (a page's links or heading paths,
@@ -703,7 +707,8 @@ the diff one save made, or between any two), `list_vaults` (your vaults, or wher
 `delete_card`, `create_list`, `create_tag`, `delete_list`, `create_board`, `archive_board`,
 `delete_board`, `write_page`, `update_page` (rename, summary, move, file, archive or
 restore, pin to a card), `file_folder` (file a wiki folder in other folders as well as
-its home), `revert_page` (put a page back to a revision) and `manage_vault` (make a vault, map vault paths onto board wikis, move a folder to another board, give a vault folder its own board) to write, and
+its home), `share` (share a wiki page or folder with a person or group, or take it
+back; `list_pages` with `shared` lists what is shared with you), `revert_page` (put a page back to a revision) and `manage_vault` (make a vault, map vault paths onto board wikis, move a folder to another board, give a vault folder its own board) to write, and
 `claim_job`, `job_progress` and `finish_job` to take [runner jobs](#run-an-agent-against-a-board)
 from a board's queue, and — only while an admin has meeting mode on — `capture_meeting`,
 `get_capture`, `resolve_capture_question` and `commit_capture` for meeting capture

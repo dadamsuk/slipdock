@@ -22,7 +22,8 @@ defmodule SlipdockWeb.MCP.Tools.ListPages do
   def description,
     do:
       "A board's wiki pages in order: code, title, summary, folder, parent, pinned cards. " <>
-        "tree = children nested under parents. q matches title or text. read_page reads one."
+        "tree = children nested under parents. q matches title or text. read_page reads one. " <>
+        "shared = true (no board) lists what other people shared with you, by owner."
 
   @impl true
   def input_schema do
@@ -30,6 +31,11 @@ defmodule SlipdockWeb.MCP.Tools.ListPages do
       type: "object",
       properties: %{
         board: %{type: "string", description: "Board id, code or name."},
+        shared: %{
+          type: "boolean",
+          description:
+            "Pages and folders shared with you instead of a board's (board not needed)."
+        },
         q: %{type: "string", description: "Only pages whose title or text contains this."},
         folder: %{
           type: "string",
@@ -54,7 +60,6 @@ defmodule SlipdockWeb.MCP.Tools.ListPages do
         },
         limit: %{type: "integer", description: "At most this many (default 100, max #{@max})."}
       },
-      required: ["board"],
       additionalProperties: false
     }
   end
@@ -63,6 +68,13 @@ defmodule SlipdockWeb.MCP.Tools.ListPages do
   def read_only?, do: true
 
   @impl true
+  # What other people shared with you (#820): read_page and update_page
+  # take their codes like any page's.
+  def call(%{"shared" => true}, context) do
+    groups = Slipdock.Wiki.SharedTree.for_user(context.user)
+    {:ok, %{shared: SlipdockWeb.API.SharedJSON.tree(groups)}}
+  end
+
   def call(args, context) do
     auth = Args.auth(context)
 
