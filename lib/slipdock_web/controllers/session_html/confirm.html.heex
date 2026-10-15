@@ -12,6 +12,23 @@
       </button>
     </form>
 
+    <%!-- A nudge towards passkeys (#831): the same sign-in, then straight to adding one. --%>
+    <form
+      id="confirm-sign-in-passkey"
+      action={~p"/login/#{@token}"}
+      method="post"
+      class="mt-6 rounded-box border border-base-content/10 p-4"
+    >
+      <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+      <input type="hidden" name="then" value="passkey" />
+      <p class="text-sm text-base-content/70">
+        Configure a passkey for faster and more secure sign in.
+      </p>
+      <button type="submit" class="btn btn-outline btn-sm mt-3">
+        <.icon name="hero-finger-print" class="size-4" /> Sign in and set up a passkey
+      </button>
+    </form>
+
     <p class="mt-6 text-xs text-base-content/50">
       If you didn't ask to sign in, close this page — nothing happens until the button is pressed.
     </p>

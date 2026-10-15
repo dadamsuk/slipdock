@@ -20,11 +20,15 @@ defmodule SlipdockWeb.SessionController do
     end
   end
 
-  @doc "The confirm page's button posts here."
-  def create(conn, %{"token" => token}) do
-    case Accounts.verify_magic_link(token) do
-      {:ok, user} -> signed_in(conn, user)
-      :error -> expired(conn)
+  @doc """
+  The confirm page's buttons post here. The second one (#831) sends
+  `then=passkey`: sign in the same way, then go straight to adding a passkey.
+  """
+  def create(conn, %{"token" => token} = params) do
+    case {Accounts.verify_magic_link(token), params["then"]} do
+      {{:ok, user}, "passkey"} -> signed_in_to_add_passkey(conn, user)
+      {{:ok, user}, _} -> signed_in(conn, user)
+      {:error, _} -> expired(conn)
     end
   end
 
@@ -91,6 +95,20 @@ defmodule SlipdockWeb.SessionController do
     conn
     |> put_flash(:info, welcome(user, tour))
     |> UserAuth.log_in_user(user, to: landing(tour))
+  end
+
+  # Asked for by name, so it wins over wherever the browser was heading and
+  # over a first sign-in's tour (which is still built, and waits on the
+  # boards page).
+  defp signed_in_to_add_passkey(conn, user) do
+    Onboarding.ensure_for(user)
+
+    if Accounts.terms_outstanding?(user), do: {:ok, _} = Accounts.accept_terms(user)
+
+    conn
+    |> delete_session(:user_return_to)
+    |> put_flash(:info, "Signed in. Add a passkey below, and next time sign in with it.")
+    |> UserAuth.log_in_user(user, to: ~p"/account#passkeys")
   end
 
   defp expired(conn) do
