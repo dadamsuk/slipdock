@@ -8,3 +8,6 @@ ExUnit.start(capture_log: true, assert_receive_timeout: 1_000)
 Slipdock.Config.start_overrides()
 Slipdock.Fixtures.start_shortcuts()
 Ecto.Adapters.SQL.Sandbox.mode(Slipdock.Repo, :manual)
+
+# Two runs at once against one database wait on each other's rows (#830).
+{:ok, _} = Slipdock.TestRunLock.hold()
