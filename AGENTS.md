@@ -89,6 +89,7 @@ custom classes must fully style the input
 
 - Read the docs and options before using tasks (by using `mix help task_name`)
 - To debug test failures, run tests in a specific file with `mix test test/my_test.exs` or run all previously failed tests with `mix test --failed`
+- Only one `mix test` run uses a test database at a time: a second run waits, saying so on stderr. To run alongside another session instead, give yours its own database with `MIX_TEST_PARTITION=2 mix test` (any number)
 - `mix deps.clean --all` is **almost never needed**. **Avoid** using it unless you have good reason
 
 ## Test guidelines
