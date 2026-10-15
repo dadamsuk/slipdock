@@ -3504,7 +3504,9 @@ within 15 minutes; using one signs you in for 30 days on that browser. The code
 exists for the times the link cannot be clicked — read out of a log, typed from
 a phone.
 
-**Passkeys.** Once signed in, add a passkey under **Account → Passkeys**: name
+**Passkeys.** Once signed in, add a passkey under **Account → Passkeys** (or, when
+finishing an email sign-in, press **Sign in and set up a passkey** under the
+**Sign in** button to land straight there): name
 it, press **Add a passkey**, and unlock the device the browser asks for (a
 fingerprint, a face, a PIN, a security key). From then on the login page has a
 **Sign in with a passkey** button that needs no email: the device offers the
