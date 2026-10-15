@@ -106,6 +106,29 @@ defmodule SlipdockWeb.WikiShareLiveTest do
     assert other
   end
 
+  test "a folder is shared from the tree's folder menu, and wears the mark (#815)", %{
+    conn: conn,
+    board: board
+  } do
+    {:ok, folder} = Slipdock.Wiki.create_folder(board, %{"name" => "Specs"})
+    inside = page_fixture(board, %{"title" => "Inside", "folder_id" => folder.id})
+    friend = user_fixture("friend@example.com")
+
+    {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki")
+    assert row(tree_load(view), "root", "Specs")[:shareable]
+    refute row(tree_load(view), "root", "Specs")[:shared]
+
+    render_click(view, "share_item", %{"kind" => "folder", "id" => to_string(folder.id)})
+    assert has_element?(view, "#share-modal", "Share “Specs”")
+    assert render(view) =~ "Sharing a folder shares everything in it"
+    share(view, %{"email" => friend.email, "level" => "write"})
+
+    assert [%{folder_id: id, level: "write"}] = Access.list_grants(folder)
+    assert id == folder.id
+    assert Access.page_permission(friend, inside) == :write
+    assert row(tree_load(view), "root", "Specs")[:shared]
+  end
+
   describe "somebody the page was shared with" do
     setup %{board: board, page: page, user: owner} do
       sharee = user_fixture("sharee@example.com")

@@ -277,6 +277,37 @@ defmodule Slipdock.WikiSearchTest do
       assert id == page.id
     end
 
+    test "a shared folder's pages reach their reader, and nothing outside it does (#815)", %{
+      board: board,
+      user: user,
+      page: page
+    } do
+      {:ok, shared} = Wiki.create_folder(board, %{"name" => "Shared"})
+      {:ok, inner} = Wiki.create_folder(board, %{"name" => "Inner", "parent_id" => shared.id})
+
+      {:ok, deep} =
+        Wiki.create_page(
+          board,
+          %{
+            "title" => "Refund rounding notes",
+            "body" => "Refund rounding, deep in.",
+            "folder_id" => inner.id
+          },
+          user: user
+        )
+
+      index(deep)
+      outsider = user_fixture("search.folder@example.com")
+      {:ok, _} = Access.grant(shared, outsider, "read", user)
+
+      {:ok, results} = Search.search(outsider, "refund rounding")
+      ids = for %{kind: "page", page: %{id: id}} <- results, do: id
+      assert deep.id in ids
+      # The board's other page, outside the folder, stays out.
+      refute page.id in ids
+      refute Enum.any?(results, &(&1.kind == "card"))
+    end
+
     test "a page made a draft after it was indexed is filtered on the way out", %{
       user: user,
       page: page

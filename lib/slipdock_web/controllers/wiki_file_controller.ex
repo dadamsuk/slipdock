@@ -33,7 +33,7 @@ defmodule SlipdockWeb.WikiFileController do
     with {n, ""} <- Integer.parse(id),
          %WikiFile{archived_at: nil} = file <- Files.get(n),
          file = Repo.preload(file, :board),
-         true <- Access.can_read?(Access.board_permission(conn.assigns.current_user, file.board)),
+         true <- Access.can_read?(Access.file_permission(conn.assigns.current_user, file)),
          true <- File.regular?(Files.disk_path(file)) do
       cond do
         params["view"] == "locked" and Meld.note_file?(file.name) -> locked(conn, file)

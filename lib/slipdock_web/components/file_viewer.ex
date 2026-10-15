@@ -38,7 +38,7 @@ defmodule SlipdockWeb.FileViewer do
     with n when is_integer(n) <- SlipdockWeb.Params.id(id),
          %WikiFile{archived_at: nil} = file <- Files.get(n),
          file = Repo.preload(file, [:board, :folder]),
-         true <- Access.can_read?(Access.board_permission(user, file.board)) do
+         true <- Access.can_read?(Access.file_permission(user, file)) do
       kind = Viewer.kind(file)
       {:ok, Map.merge(%{file: file, kind: kind}, content(file, kind))}
     else

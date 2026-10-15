@@ -3,9 +3,10 @@ defmodule Slipdock.Wiki.Folder do
   A folder on a board's wiki: a name, a place in a tree of folders, and the
   pages filed in it.
 
-  Folders are filing, and filing only. They carry no prose, no permissions of
-  their own and no history — a folder is where something is kept, and the
-  thing kept is the page. That is what keeps them different from a page with
+  Folders are filing. They carry no prose and no history — a folder is where
+  something is kept, and the thing kept is the page. The one thing a folder
+  does carry is who it is shared with (#815): a grant on it shares what is
+  at home beneath it (see `Slipdock.Access`). That is what keeps them different from a page with
   children, which says the child is *part of* the parent (see
   `Slipdock.Wiki.Page`).
 

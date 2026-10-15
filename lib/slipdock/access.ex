@@ -13,6 +13,11 @@ defmodule Slipdock.Access do
       the view grant is "write".
     * A page grant gives access to just that page, so "share this doc" never
       has to be answered with "move it to another board".
+    * A folder grant gives access to everything whose *home* is in that
+      folder's subtree: its pages, files and drawings, and the folders
+      beneath it, to any depth (#815). Something only *also filed* there
+      (a placement) is not shared by it — filing a page into a shared folder
+      must never quietly share the page.
 
   Permission levels, from most to least: `:owner`, `:write`, `:read`, `:view`
   (board reachable only through granted views), `:none`.
@@ -26,7 +31,7 @@ defmodule Slipdock.Access do
   alias Slipdock.Boards.{Board, Card, SavedView}
   alias Slipdock.Swimlanes
   alias Slipdock.Swimlanes.Config
-  alias Slipdock.Wiki.Page
+  alias Slipdock.Wiki.{Folder, Page, WikiFile}
 
   @pubsub Slipdock.PubSub
 
@@ -227,11 +232,119 @@ defmodule Slipdock.Access do
   def page_permission(nil, _page), do: :none
 
   def page_permission(%User{} = user, %Page{} = page) do
-    board = Repo.get!(Board, page.board_id)
-    from_board = board_permission(user, board)
-    from_board = if from_board == :view, do: :none, else: from_board
-    direct = grant_level(user, page_id: page.id)
-    Enum.max_by([from_board, direct], &@rank[&1])
+    Enum.max_by(
+      [wiki_board_level(user, page.board_id), share_permission(user, page)],
+      &@rank[&1]
+    )
+  end
+
+  @doc """
+  The user's permission on a wiki folder: the board's, raised by a grant on
+  it or on any folder above it (#815). As for pages, `:view` on the board
+  reaches no folder.
+  """
+  @spec folder_permission(User.t() | nil, Folder.t()) :: level
+  def folder_permission(nil, _folder), do: :none
+
+  def folder_permission(%User{} = user, %Folder{} = folder) do
+    Enum.max_by(
+      [wiki_board_level(user, folder.board_id), share_permission(user, folder)],
+      &@rank[&1]
+    )
+  end
+
+  @doc """
+  The user's permission on a wiki file (an image, a PDF, a drawing): the
+  board's, raised by a grant on a folder its home is in.
+  """
+  @spec file_permission(User.t() | nil, WikiFile.t()) :: level
+  def file_permission(nil, _file), do: :none
+
+  def file_permission(%User{} = user, %WikiFile{} = file) do
+    Enum.max_by(
+      [wiki_board_level(user, file.board_id), share_permission(user, file)],
+      &@rank[&1]
+    )
+  end
+
+  @doc """
+  What sharing alone gives the user on a page, folder or file: its own page
+  grant and the grants on the folders of its home ancestry, never the board.
+  `Slipdock.Wiki.Sharing` reads it to tell a writer on the board from
+  somebody a thing was shared with, whose writes are narrower.
+  """
+  @spec share_permission(User.t() | nil, Page.t() | Folder.t() | WikiFile.t()) :: level
+  def share_permission(nil, _item), do: :none
+
+  def share_permission(%User{} = user, %Page{} = page) do
+    Enum.max_by(
+      [grant_level(user, page_id: page.id), folder_grant_level(user, page.folder_id)],
+      &@rank[&1]
+    )
+  end
+
+  def share_permission(%User{} = user, %Folder{id: id}), do: folder_grant_level(user, id)
+
+  def share_permission(%User{} = user, %WikiFile{folder_id: id}),
+    do: folder_grant_level(user, id)
+
+  # A board's permission as far as its wiki is concerned: a reader through a
+  # saved view reaches no page of it.
+  defp wiki_board_level(user, board_id) do
+    case board_permission(user, Repo.get!(Board, board_id)) do
+      :view -> :none
+      level -> level
+    end
+  end
+
+  @doc """
+  The highest level a grant on folder `folder_id`, or on any folder above it
+  in its home ancestry, gives `user` — directly or through a group. One
+  query whatever the depth: the ancestry is a recursive CTE, joined to the
+  grants. `nil` (the wiki's top) is in no folder, so nothing.
+  """
+  @spec folder_grant_level(User.t(), integer | nil) :: :write | :read | :none
+  def folder_grant_level(_user, nil), do: :none
+
+  def folder_grant_level(%User{id: user_id}, folder_id) when is_integer(folder_id) do
+    from(g in Grant,
+      join: a in "folder_ancestry",
+      on: g.folder_id == a.id,
+      where:
+        g.user_id == ^user_id or
+          g.group_id in subquery(
+            from(m in "group_members", where: m.user_id == ^user_id, select: m.group_id)
+          ),
+      select: g.level
+    )
+    |> recursive_ctes(true)
+    |> with_cte("folder_ancestry", as: ^ancestry_cte(folder_id))
+    |> Repo.all()
+    |> best_level()
+  end
+
+  # A folder and every folder above it, by `parent_id` (its home, never a
+  # placement). Folders are a tree, so the walk ends at the top.
+  defp ancestry_cte(folder_id) do
+    start =
+      from(f in Folder, where: f.id == ^folder_id, select: %{id: f.id, parent_id: f.parent_id})
+
+    up =
+      from(f in Folder,
+        join: a in "folder_ancestry",
+        on: f.id == a.parent_id,
+        select: %{id: f.id, parent_id: f.parent_id}
+      )
+
+    union_all(start, ^up)
+  end
+
+  defp best_level(levels) do
+    cond do
+      "write" in levels -> :write
+      "read" in levels -> :read
+      true -> :none
+    end
   end
 
   @doc "The user's permission on a saved view: board write/owner, or a direct view grant."
@@ -316,11 +429,7 @@ defmodule Slipdock.Access do
       )
       |> Repo.all()
 
-    cond do
-      "write" in levels -> :write
-      "read" in levels -> :read
-      true -> :none
-    end
+    best_level(levels)
   end
 
   # grant_level/2 for many ids of one kind at once: %{id => :write | :read}.
@@ -435,7 +544,17 @@ defmodule Slipdock.Access do
         select: coalesce(b.root_id, b.id)
       )
 
-    user |> reachable_roots() |> union(^pages) |> Repo.all()
+    folders =
+      from(g in Grant,
+        join: f in Folder,
+        on: f.id == g.folder_id,
+        join: b in Board,
+        on: b.id == f.board_id,
+        where: g.user_id == ^user.id or g.group_id in ^group_ids,
+        select: coalesce(b.root_id, b.id)
+      )
+
+    user |> reachable_roots() |> union(^pages) |> union(^folders) |> Repo.all()
   end
 
   ## Listing what a user can see -----------------------------------------------
@@ -615,11 +734,13 @@ defmodule Slipdock.Access do
           on: c.id == g.card_id,
           left_join: p in Page,
           on: p.id == g.page_id,
+          left_join: f in Folder,
+          on: f.id == g.folder_id,
           left_join: v in SavedView,
           on: v.id == g.saved_view_id,
           where:
             g.board_id in ^board_ids or c.board_id in ^board_ids or p.board_id in ^board_ids or
-              v.board_id in ^board_ids,
+              f.board_id in ^board_ids or v.board_id in ^board_ids,
           select: g.user_id
         )
       ),
@@ -645,12 +766,15 @@ defmodule Slipdock.Access do
           on: c.id == g.card_id,
           left_join: p in Page,
           on: p.id == g.page_id,
+          left_join: f in Folder,
+          on: f.id == g.folder_id,
           left_join: v in SavedView,
           on: v.id == g.saved_view_id,
           where:
             not is_nil(g.group_id) and
               (g.board_id in ^board_ids or c.board_id in ^board_ids or
-                 p.board_id in ^board_ids or v.board_id in ^board_ids),
+                 p.board_id in ^board_ids or f.board_id in ^board_ids or
+                 v.board_id in ^board_ids),
           select: g.group_id
         )
       )
@@ -780,6 +904,7 @@ defmodule Slipdock.Access do
         :board -> Repo.get!(Board, grant.board_id)
         :card -> Repo.get!(Card, grant.card_id)
         :page -> Repo.get!(Page, grant.page_id)
+        :folder -> Repo.get!(Folder, grant.folder_id)
         :view -> Repo.get!(SavedView, grant.saved_view_id)
       end
 
@@ -857,12 +982,92 @@ defmodule Slipdock.Access do
       )
       |> Repo.all()
 
-    from(p in Page, where: p.id in ^page_ids and is_nil(p.archived_at), order_by: [asc: p.title])
+    folder_ids = shared_folder_subtree_ids(user)
+
+    from(p in Page,
+      where: p.id in ^page_ids or p.folder_id in ^folder_ids,
+      where: is_nil(p.archived_at),
+      order_by: [asc: p.title]
+    )
     |> Repo.all()
     |> Repo.preload(:board)
   end
 
   def shared_pages(_), do: []
+
+  @doc """
+  Folders shared with the user directly (or with one of their groups): the
+  tops of the shares, each with its board. What is beneath them comes with
+  them (`shared_folder_subtree_ids/1`).
+  """
+  def shared_folders(%User{} = user) do
+    group_ids = Accounts.group_ids_for(user)
+
+    from(f in Folder,
+      join: g in Grant,
+      on: g.folder_id == f.id,
+      where: g.user_id == ^user.id or g.group_id in ^group_ids,
+      distinct: true,
+      order_by: [asc: f.name, asc: f.id]
+    )
+    |> Repo.all()
+    |> Repo.preload(:board)
+  end
+
+  def shared_folders(_), do: []
+
+  @doc """
+  The ids of every folder shared with the user: the ones granted and every
+  folder at home beneath them, to any depth. One query.
+  """
+  @spec shared_folder_subtree_ids(User.t() | nil) :: [integer]
+  def shared_folder_subtree_ids(%User{id: user_id}) do
+    start =
+      from(f in Folder,
+        join: g in Grant,
+        on: g.folder_id == f.id,
+        where:
+          g.user_id == ^user_id or
+            g.group_id in subquery(
+              from(m in "group_members", where: m.user_id == ^user_id, select: m.group_id)
+            ),
+        select: %{id: f.id}
+      )
+
+    down =
+      from(f in Folder, join: s in "shared_subtree", on: f.parent_id == s.id, select: %{id: f.id})
+
+    from(s in "shared_subtree", distinct: true, select: s.id)
+    |> recursive_ctes(true)
+    |> with_cte("shared_subtree", as: ^union(start, ^down))
+    |> Repo.all()
+  end
+
+  def shared_folder_subtree_ids(_), do: []
+
+  @doc "Wiki files at home in a folder shared with the user, with their boards."
+  def shared_files(%User{} = user) do
+    folder_ids = shared_folder_subtree_ids(user)
+
+    from(f in WikiFile,
+      where: f.folder_id in ^folder_ids and is_nil(f.archived_at),
+      order_by: [asc: f.name]
+    )
+    |> Repo.all()
+    |> Repo.preload(:board)
+  end
+
+  def shared_files(_), do: []
+
+  @doc "Which of these folders carry a grant of their own: their tree marks them."
+  @spec shared_folder_ids([integer]) :: MapSet.t()
+  def shared_folder_ids([]), do: MapSet.new()
+
+  def shared_folder_ids(ids) do
+    from(g in Grant, where: g.folder_id in ^ids, distinct: true, select: g.folder_id)
+    |> Repo.all()
+    |> MapSet.new()
+  end
 
   @doc """
   Which of these pages have been shared with anybody: the ones in `ids` that
@@ -904,6 +1109,7 @@ defmodule Slipdock.Access do
   defp describe_resource(%Board{name: name}), do: "the board “#{name}”"
   defp describe_resource(%Card{title: title}), do: "the card “#{title}”"
   defp describe_resource(%Page{title: title}), do: "the page “#{title}”"
+  defp describe_resource(%Folder{name: name}), do: "the folder “#{name}”"
   defp describe_resource(%SavedView{name: name}), do: "the view “#{name}”"
   defp describe_resource(_), do: nil
 
@@ -916,15 +1122,18 @@ defmodule Slipdock.Access do
   defp resource_attrs(%Card{id: id}), do: %{card_id: id}
   defp resource_attrs(%SavedView{id: id}), do: %{saved_view_id: id}
   defp resource_attrs(%Page{id: id}), do: %{page_id: id}
+  defp resource_attrs(%Folder{id: id}), do: %{folder_id: id}
   defp resource_clause(%Board{id: id}), do: dynamic([g], g.board_id == ^id)
   defp resource_clause(%Card{id: id}), do: dynamic([g], g.card_id == ^id)
   defp resource_clause(%SavedView{id: id}), do: dynamic([g], g.saved_view_id == ^id)
   defp resource_clause(%Page{id: id}), do: dynamic([g], g.page_id == ^id)
+  defp resource_clause(%Folder{id: id}), do: dynamic([g], g.folder_id == ^id)
 
   defp broadcast_resource(%Board{id: id}), do: broadcast(id)
   defp broadcast_resource(%Card{board_id: id}), do: broadcast(id)
   defp broadcast_resource(%SavedView{board_id: id}), do: broadcast(id)
   defp broadcast_resource(%Page{board_id: id}), do: broadcast(id)
+  defp broadcast_resource(%Folder{board_id: id}), do: broadcast(id)
 
   defp broadcast(board_id) do
     Phoenix.PubSub.broadcast(@pubsub, "board:#{board_id}", {:board_changed, board_id})

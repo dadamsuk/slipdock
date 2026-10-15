@@ -2802,13 +2802,18 @@ defmodule SlipdockWeb.WikiLive.Index do
   # the row's board may share it, so its menu offers Share… to them.
   defp shared_keys(rows) do
     pages = for %{kind: "page", id: id} when is_integer(id) <- rows, do: id
-    pages |> Access.shared_page_ids() |> MapSet.new(&"page:#{&1}")
+    folders = for %{kind: "folder", id: id} when is_integer(id) <- rows, do: id
+
+    MapSet.union(
+      pages |> Access.shared_page_ids() |> MapSet.new(&"page:#{&1}"),
+      folders |> Access.shared_folder_ids() |> MapSet.new(&"folder:#{&1}")
+    )
   end
 
   defp mark_shared(%{kind: kind, id: id} = row, shared) do
     row = if MapSet.member?(shared, "#{kind}:#{id}"), do: Map.put(row, :shared, true), else: row
 
-    if row[:writable] && kind == "page" && !row[:also],
+    if row[:writable] && kind in ["page", "folder"] && !row[:also] && !row[:via],
       do: Map.put(row, :shareable, true),
       else: row
   end
@@ -3000,6 +3005,15 @@ defmodule SlipdockWeb.WikiLive.Index do
     with %Page{} = page <- Params.id(to_string(id)) && Wiki.get_page(id),
          %{} <- writable_board(socket, page.board_id) do
       {:ok, page}
+    else
+      _ -> :error
+    end
+  end
+
+  defp share_item(socket, "folder", id) do
+    with %Folder{} = folder <- Params.id(to_string(id)) && Wiki.get_folder(id),
+         %{} <- writable_board(socket, folder.board_id) do
+      {:ok, folder}
     else
       _ -> :error
     end

@@ -66,7 +66,7 @@ defmodule SlipdockWeb.DrawingLive do
   defp writable?(%Page{} = page, user), do: Access.can_write?(Access.page_permission(user, page))
 
   defp writable?(%WikiFile{} = file, user),
-    do: Access.can_write?(Access.board_permission(user, Repo.get!(Board, file.board_id)))
+    do: Access.can_write?(Access.file_permission(user, file))
 
   defp title(%Page{title: title}), do: title
   defp title(%WikiFile{name: name}), do: name
