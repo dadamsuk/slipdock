@@ -380,6 +380,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
       <div
         id="board-scroll"
         phx-hook="ScrollEnd"
+        data-drop-area
         class={[
           "kanban-scroll min-h-0 flex-1 overflow-x-auto overflow-y-hidden",
           @narrow? && "snap-x snap-mandatory"
@@ -550,6 +551,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
               data-disabled={to_string(!@can_write)}
               data-draggable=".kanban-card"
               data-sort={to_string(!ListOrder.sorted?(column))}
+              data-column-drop=".kanban-column"
               class={[
                 "kanban-scroll min-h-[2.5rem] flex-1 space-y-2 overflow-y-auto py-1",
                 if(@narrow?, do: "px-3", else: "px-2")

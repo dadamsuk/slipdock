@@ -227,6 +227,11 @@ body {
   outline-offset: -2px;
 }
 .sortable-chosen { cursor: grabbing !important; }
+/* The list a card would go to the bottom of, dropped outside its cards. */
+.drop-column {
+  outline: 2px dashed var(--color-primary);
+  outline-offset: -2px;
+}
 .sortable-drag {
   transform: rotate(2deg);
   box-shadow: 0 20px 40px -10px rgb(0 0 0 / 0.35);

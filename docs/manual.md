@@ -12,7 +12,9 @@ way in: what it is, the pictures, and how to get it running.
 - Lists (columns) with drag-and-drop reordering, inline rename, colour and WIP limits,
   and an order of their own: sorted by date or priority, grouped by flag, tag or
   date — see [A list's order and groups](#a-lists-order-and-groups)
-- Cards with drag-and-drop between and within lists, description, priority
+- Cards with drag-and-drop between and within lists (let go anywhere in a
+  list's column — its header, its footer, the board below it — and the card
+  goes to the bottom of that list), description, priority
   (low → critical), five flags (flagged, blocked, needs review, waiting, starred),
   due dates with overdue/soon states, completion toggle, cover colours, tags,
   checklists, comments, archive/restore and delete — one at a time, or several
