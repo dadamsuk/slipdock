@@ -62,6 +62,28 @@ defmodule SlipdockCLI.Wiki do
     if is_binary(o[:board]), do: folder_to_board(ref, folder, o), else: folder_mv(ref, folder, o)
   end
 
+  # One folder: its path, and the folders it is also filed in (#808).
+  def run("folder", ["show", ref | folder], o) when folder != [] do
+    HTTP.get("/boards/#{enc(ref)}/folders/#{path_enc(Enum.join(folder, " "))}")
+    |> out(o, &Render.folder(&1["folder"]))
+  end
+
+  # Also filed in (#808): a folder has one home (its parent) and may be
+  # filed in other folders as well, like a symbolic link — one folder, with
+  # everything in it, in several places. --also and --not-in repeat.
+  def run("folder", ["file", ref | folder], o) when folder != [] do
+    also = Keyword.get_values(o, :also)
+    not_in = Keyword.get_values(o, :not_in)
+
+    if also == [] and not_in == [],
+      do:
+        fail("say where: --also PATH to file it in one more folder, --not-in PATH to take it out")
+
+    "/boards/#{enc(ref)}/folders/#{path_enc(Enum.join(folder, " "))}"
+    |> file_folder(Enum.map(also, &{"also", &1}) ++ Enum.map(not_in, &{"not_in", &1}), o[:board])
+    |> out(o, &Render.folder(&1["folder"]))
+  end
+
   def run("folder", ["rm", ref, folder], o) do
     folder_rm(ref, folder, o)
   end
@@ -87,7 +109,7 @@ defmodule SlipdockCLI.Wiki do
   def run("folder", _args, _o),
     do:
       fail(
-        "usage: slipdock folder ls BOARD | open BOARD [F] [--page P] | new BOARD NAME [--parent F] [--icon I] [--color C] | mv BOARD F --parent G|--root|--name N|--icon I|--no-icon|--color C|--no-color|--board B [--contents] | rm BOARD F [--purge] | organise BOARD F --by date|ai|tag|flatten [--parent G|--root] [--per month|year|year_month|day] [--added] [--dry-run]"
+        "usage: slipdock folder ls BOARD | show BOARD F | file BOARD F --also G|--not-in G [--board B] | open BOARD [F] [--page P] | new BOARD NAME [--parent F] [--icon I] [--color C] | mv BOARD F --parent G|--root|--name N|--icon I|--no-icon|--color C|--no-color|--board B [--contents] | rm BOARD F [--purge] | organise BOARD F --by date|ai|tag|flatten [--parent G|--root] [--per month|year|year_month|day] [--added] [--dry-run]"
       )
 
   # Every board's wiki at once: what the Wiki view on the web shows.
@@ -936,6 +958,19 @@ defmodule SlipdockCLI.Wiki do
 
     HTTP.patch("/boards/#{enc(ref)}/folders/#{path_enc(folder)}", body)
     |> out(o, &Render.folder(&1["folder"]))
+  end
+
+  @doc """
+  Each `{"also" | "not_in", place}` change to the folder at `path`, in turn,
+  stopping at the first refusal: the last answer, for `out/3`.
+  """
+  def file_folder(path, steps, board) do
+    Enum.reduce_while(steps, nil, fn {key, place}, _last ->
+      case HTTP.patch(path, compact(%{key => place, "in_board" => board})) do
+        {:ok, _} = ok -> {:cont, ok}
+        refused -> {:halt, refused}
+      end
+    end)
   end
 
   defp folder_rm(ref, folder, o) do

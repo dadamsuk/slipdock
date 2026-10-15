@@ -427,6 +427,8 @@ slipdock folder mv <board> <folder> --board B [--parent F] [--contents] [--dry-r
 slipdock folder rm <board> <folder>           # the folder only: nothing filed in it is deleted
 slipdock page file <page> --folder F | --no-folder
 slipdock page file <page> --also F | --not-in F [--board B]   # also filed in more folders
+slipdock folder file <board> <folder> --also F | --not-in F [--board B]   # a folder too, all in it (repeatable)
+slipdock folder show <board> <folder>         # its path, and where else it is filed
 slipdock page new <board> <title...> --folder F   # or file it as you write it
 ```
 

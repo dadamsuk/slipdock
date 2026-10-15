@@ -125,4 +125,16 @@ defmodule SlipdockWeb.API.GuideTest do
     # The endpoints are in the generated list too.
     assert body =~ "GET    /api/me/drive"
   end
+
+  @tag :anonymous
+  test "the wiki section says a folder can be filed in several places (#808)", %{conn: conn} do
+    body = conn |> get(~p"/api/guide") |> response(200)
+
+    assert body =~ "**One folder, several places.**"
+    assert body =~ ~s(PATCH /api/folders/4 {"also": "Ideas"})
+    assert body =~ "never inside its own subtree (through placements too)"
+    assert body =~ "slipdock folder file <board> <folder> --also F | --not-in F"
+    assert body =~ "MCP: `file_folder`"
+    assert body =~ "GET    /api/boards/:board/folders/*id"
+  end
 end

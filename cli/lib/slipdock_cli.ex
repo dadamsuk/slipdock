@@ -314,6 +314,14 @@ defmodule SlipdockCLI do
                                         pages keep codes and history. --contents moves
                                         only what is in it (the folder itself goes).
                                         --dry-run: what would move and what can't
+    folder show <board> <folder>        one folder: its path, and where else it is filed
+    folder file <board> <folder> --also F | --not-in F [--board B]
+                                        file it in one more folder as well as its home
+                                        (one folder and all in it, several places), or
+                                        take it out of one; both repeat. F is a folder on
+                                        its board, on --board B, an id, or a vault path
+                                        ("/Projects/Notes") in its vault. Never inside
+                                        itself, by any route
     folder rm <board> <folder> [--purge]
                                         delete the folder only: its subfolders move up and
                                         its pages go back to the root. --purge deletes the
@@ -755,8 +763,8 @@ defmodule SlipdockCLI do
     no_folder: :boolean,
     recent: :boolean,
     note_tag: :string,
-    also: :string,
-    not_in: :string,
+    also: :keep,
+    not_in: :keep,
     summary: :string,
     message: :string,
     base_hash: :string,

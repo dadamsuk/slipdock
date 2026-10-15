@@ -574,6 +574,7 @@ defmodule SlipdockWeb.Router do
     delete "/folders/:id", PageController, :delete_folder
     # The same two by any handle, with the board to read it against: a path
     # of names is what somebody on the command line has.
+    get "/boards/:board/folders/*id", PageController, :show_folder
     patch "/boards/:board/folders/*id", PageController, :update_folder
     delete "/boards/:board/folders/*id", PageController, :delete_folder
     # A folder's Organise… (#791): by date, tag, flattening or the AI's

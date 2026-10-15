@@ -162,7 +162,7 @@ way in: what it is, the pictures, and how to get it running.
 - Accounts: passwordless sign-in by emailed magic link, sessions that last
   30 days, API tokens for the CLI
 - **An MCP server** at `/mcp`: claude.ai, the Claude apps, Claude Code and
-  other MCP clients get the boards and the wiki as 39 tools (four of them only
+  other MCP clients get the boards and the wiki as 40 tools (four of them only
   while meeting mode is on), signing in
   through the browser or with an API token (see [MCP server](#mcp-server))
 - Groups of users; boards, single cards and saved views can be shared with
@@ -2445,6 +2445,32 @@ board, on `--board B`, or a vault path such as `/Projects/Notes` — and
 `update_page`'s `also` and `not_in`) do it; a page's JSON lists them as
 `also_in`.
 
+**One folder, several places.** A folder can be also filed in other folders
+the same way (#808): it appears there with its whole subtree — pages, files,
+drawings and subfolders — and there is still one folder with one set of
+contents, at home under its parent. The rules are the pages': the other
+folder is on its board or on a board of the same vault, you need write on
+both, and it is never its home parent. Nor is it ever inside its own subtree,
+whether the way down runs through home parents or through other placements;
+moving a folder home under one filed inside it is refused the same way. In
+the tree the placed folder follows the folders at home there, with the link
+marker; it opens and shuts there on its own (each place keeps its own open
+state), shows only what the reader may open, and is not dragged about — nor
+is anything inside it, there. Its menu has **Open**, **Open in a new tab**,
+**Take out of this folder** and **Copy link**; any folder's menu has **Also
+file in…**. The folder's page says where else it is filed. Listing a folder
+(`page ls --folder`, `list_pages`' `folder`) includes the pages anywhere
+under the folders placed there, marked `also`. A synced vault writes the
+folder once, at home. Moving it to another board drops the placements the
+move leaves outside one board or vault, and says which
+(`folder_filing_dropped`); deleting either folder takes its placements.
+`slipdock folder file <board> <folder> --also F` (or `--not-in F`; both
+repeat; `--board B` for a folder on another board of the vault, or a vault
+path), `{"also": F}` / `{"not_in": F}` (with `in_board`) on
+`PATCH /api/folders/:id` or `/api/boards/:board/folders/<path>`, and the MCP
+tool `file_folder` do it. A folder's JSON lists them as `also_in`;
+`slipdock folder show <board> <folder>` and `folder ls` print them.
+
 **Filing never destroys writing — unless you say so.** Deleting a folder
 deletes the folder: its subfolders move up to its parent and its pages go back
 to the board's root. Deleting one that holds something asks which you meant,
@@ -4169,6 +4195,8 @@ slipdock folder rm qvm-v1-rem Choices --purge  # and the pages in it, history an
 slipdock page file W-31 --folder "Design/Decisions"   # where it is kept; --no-folder takes it out
 slipdock page ls qvm-v1-rem --folder decisions       # or --no-folder for the unfiled
 slipdock page file W-31 --also Ideas [--board B]   # also filed there too (or a /vault/path); --not-in F takes it out
+slipdock folder file qvm-v1-rem Design --also Ideas --also /Projects/Notes   # a folder too, all in it; --not-in F
+slipdock folder show qvm-v1-rem Design          # its path, and where else it is filed
 slipdock vault new Notes | slipdock vault ls      # board wikis laid out as one vault
 slipdock vault map Notes /Projects --board projects [--folder Inbox]   # a vault path onto a wiki
 slipdock vault locate Notes /Projects/Acme.md       # which mapping a path lands in (longest prefix)
@@ -4335,7 +4363,8 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `archive_board` | Archives a board you own, or with `restore: true` brings it back. |
 | `delete_board` | Deletes a board you own and everything on it. `confirm` must repeat the board's code. |
 | `write_page` | The wiki: `create` a page, `append` or `append_section` to one, or `replace_section` and `replace`, which need the `content_hash` from `read_page` so nobody's edit is overwritten. |
-| `update_page` | Everything about a page but its body: `title`, `summary`, `parent` (`""` for the top) and `position` among its siblings, `folder` (made if new; `""` unfiles), `archived` (`false` restores it, children too), and `pin_card` / `unpin_card` to mark it *the* page for a card you can read. Only what is passed changes. Purging a page for good stays on the CLI. |
+| `update_page` | Everything about a page but its body: `title`, `summary`, `parent` (`""` for the top) and `position` among its siblings, `folder` (made if new; `""` unfiles), `also` / `not_in` (other folders it is also filed in), `archived` (`false` restores it, children too), and `pin_card` / `unpin_card` to mark it *the* page for a card you can read. Only what is passed changes. Purging a page for good stays on the CLI. |
+| `file_folder` | Files a wiki folder in one more folder as well as its home (`also`), or takes it out of one (`not_in`): a folder on its board, on `in_board`, or a vault path. Same board or same vault, write on both, never inside itself. Answers with where it is filed now (`also_in`). |
 | `revert_page` | Puts a page back to a revision from `page_history`. The revert is a new revision, so nothing leaves the history and it can itself be undone; it needs `base_hash`, the page's current `content_hash`, so a newer edit is not lost to it unseen. |
 | `manage_vault` | Changes a [vault](#vaults), by `action`: `create` (`name`), `rename` (`vault`, `name`), `delete` (`vault`, `confirm: true`; the pages stay on their boards), `map` (`vault`, `path`, `board` and optionally `folder`) and `unmap` (`vault`, `path`), either with `dry_run` to preview which pages join, move or leave; `move_folder` (`board`, `folder`, `to_board`, optionally `parent`, `contents`, `dry_run`), a folder with everything in it to another board; and `split` (`vault`, `path`, `board` or `new_board`, `dry_run`), giving a vault folder its own board and mapping its path onto it. |
 | `claim_job` | Takes the oldest [runner job](#runners) queued for a pool on a board, with a lease: the card, its link, the job's kind and prompt. Answers `nothing queued` when there is none, so an idle check costs little. The session shows in the board's runner list. |

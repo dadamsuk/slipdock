@@ -978,6 +978,12 @@ defmodule SlipdockWeb.API.PageController do
     ]
   end
 
+  @doc "One folder, by id, name or path: where it is, and where else it is filed (#808)."
+  def show_folder(conn, params) do
+    with {:ok, folder, _board} <- fetch_folder(conn, params, :read),
+         do: json(conn, %{folder: V.folder(folder)})
+  end
+
   @doc ~S'Makes a folder. `name` may be a path — "Design/Decisions" makes both.'
   def create_folder(conn, %{"board" => ref} = params) do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, :write),

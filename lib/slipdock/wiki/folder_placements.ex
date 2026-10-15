@@ -116,7 +116,7 @@ defmodule Slipdock.Wiki.FolderPlacements do
              )
            ) do
         {0, _} ->
-          {:error, :not_found, "a placement of “#{folder.name}” in #{Wiki.folder_path(target)}"}
+          {:error, :not_found, "placement of “#{folder.name}” in #{Wiki.folder_path(target)}"}
 
         _ ->
           touched(folder, target)

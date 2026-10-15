@@ -1815,12 +1815,25 @@ defmodule SlipdockWeb.APIGuide do
     listing (`?folder=`, `/folders`) includes them marked `"also": true`, each
     page once. Archiving keeps them; deleting a folder drops its own.
 
+    **One folder, several places.** A folder can be also filed in other
+    folders too (#808), and shows there with everything in it; its `parent_id`
+    stays its home. `PATCH /api/folders/4 {"also": "Ideas"}` (or
+    `/api/boards/1/folders/<path>`) adds one, `{"not_in": "Ideas"}` takes it
+    away; the other folder is named by path, by id, on `in_board`, or by vault
+    path. Same rules as pages: same board or vault, write on both, never its
+    home parent, and never inside its own subtree (through placements too) —
+    each refusal is a 422 saying why. A folder's JSON lists them as `also_in`;
+    `GET /api/boards/1/folders/<path>` reads one; listing a folder adds the
+    pages under folders placed there, marked `"also": true`. Sync writes a
+    folder once, at home. MCP: `file_folder`.
+
     **File it, don't nest it.** Making a parent page called "Design" that
     exists only to hold other pages is the mistake folders are for: the page
     is about nothing, and it has to be read to be got past. A folder is a
     place, and a place costs nothing.
 
-    On a shell: `slipdock wiki`, `slipdock folder ls|new|mv|rm [--purge]`, and
+    On a shell: `slipdock wiki`, `slipdock folder ls|show|new|mv|rm [--purge]`,
+    `slipdock folder file <board> <folder> --also F | --not-in F`, and
     `slipdock page file <page> --folder F | --no-folder`.
 
     In the app a folder is a place you can be: `/boards/1/wiki?folder=4` shows
