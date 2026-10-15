@@ -74,7 +74,7 @@ defmodule SlipdockWeb.BoardRefsTest do
     end
 
     test "a sub-board resolves through its root's grant", ctx do
-      {:ok, t} = Boards.find_template("Simple")
+      {:ok, t} = Boards.find_template(nil, "Simple")
       epic = card_fixture(hd(ctx.alices.columns), %{"title" => "Epic"})
       {:ok, sub} = Boards.create_sub_board(epic, t)
 
@@ -87,7 +87,7 @@ defmodule SlipdockWeb.BoardRefsTest do
 
   describe "exporting a sub-board whose root has another owner" do
     setup ctx do
-      {:ok, t} = Boards.find_template("Simple")
+      {:ok, t} = Boards.find_template(nil, "Simple")
       epic = card_fixture(hd(ctx.alices.columns), %{"title" => "Epic"})
       {:ok, sub} = Boards.create_sub_board(epic, t)
       # What `Accounts.hand_over_shared_boards` can leave behind: a sub-board

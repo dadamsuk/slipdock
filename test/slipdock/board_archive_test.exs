@@ -64,7 +64,7 @@ defmodule Slipdock.BoardArchiveTest do
     test "a sub-board cannot be archived on its own" do
       board = board_fixture()
       card = card_fixture(hd(board.columns))
-      {:ok, template} = Boards.find_template("Simple")
+      {:ok, template} = Boards.find_template(nil, "Simple")
       {:ok, sub} = sub_board(card, template)
 
       assert {:error, :sub_board} = Boards.archive_board(sub)

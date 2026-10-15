@@ -170,7 +170,7 @@ defmodule SlipdockWeb.BoardLive.Show do
       prioritise: nil,
       cal_expanded: MapSet.new(),
       ancestry: Boards.ancestry(board),
-      templates: Boards.list_templates(),
+      templates: Boards.list_templates(socket.assigns.current_user),
       users: Access.visible_users(socket.assigns.current_user),
       # Who the card and page pickers offer: only people who could be put on
       # one (see `Boards.resolve_assignees/3`), not everybody in the directory.
@@ -576,7 +576,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   def handle_info(:reload_board, socket), do: {:noreply, reload_board(socket)}
 
   def handle_info({:templates_changed}, socket) do
-    {:noreply, assign(socket, templates: Boards.list_templates())}
+    {:noreply, assign(socket, templates: Boards.list_templates(socket.assigns.current_user))}
   end
 
   def handle_info(_, socket), do: {:noreply, socket}

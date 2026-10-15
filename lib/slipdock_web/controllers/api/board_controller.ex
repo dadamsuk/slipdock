@@ -131,7 +131,7 @@ defmodule SlipdockWeb.API.BoardController do
       params
       |> Map.take(~w(name code shortcut description color kind simple))
 
-    with {:ok, template} <- optional_template(params["template"]),
+    with {:ok, template} <- optional_template(conn, params["template"]),
          {:ok, board} <-
            Boards.create_board(attrs,
              template: template,
@@ -464,11 +464,11 @@ defmodule SlipdockWeb.API.BoardController do
     end
   end
 
-  defp optional_template(nil), do: {:ok, nil}
-  defp optional_template(""), do: {:ok, nil}
+  defp optional_template(_conn, nil), do: {:ok, nil}
+  defp optional_template(_conn, ""), do: {:ok, nil}
 
-  defp optional_template(ref) do
-    case Boards.find_template(ref) do
+  defp optional_template(conn, ref) do
+    case Boards.find_template(conn.assigns.current_user, ref) do
       {:ok, t} -> {:ok, t}
       _ -> {:error, :not_found, "template"}
     end

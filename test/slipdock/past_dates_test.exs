@@ -18,7 +18,7 @@ defmodule Slipdock.PastDatesTest do
     board = Boards.get_board!(board.id)
 
     {:ok, template} =
-      Boards.create_template(%{
+      Boards.create_template(owner, %{
         "name" => "T#{System.unique_integer([:positive])}",
         "columns" => [%{"name" => "Open"}, %{"name" => "Done", "category" => "done"}]
       })

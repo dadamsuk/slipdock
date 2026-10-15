@@ -558,7 +558,7 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
     end
 
     test "a page on a sub-board of an archived board says archived too", ctx do
-      {:ok, t} = Boards.find_template("Simple")
+      {:ok, t} = Boards.find_template(nil, "Simple")
       {:ok, sub} = Boards.create_sub_board(ctx.top, t)
       page = page_fixture(sub, %{"title" => "Notes", "body" => "x"})
       {:ok, _} = Boards.archive_board(ctx.board)

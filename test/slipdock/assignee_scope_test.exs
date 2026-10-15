@@ -107,7 +107,7 @@ defmodule Slipdock.AssigneeScopeTest do
   describe "mentions" do
     setup ctx do
       # A grant on one sub-board reaches that sub-board and nothing above it.
-      {:ok, template} = Boards.find_template("Simple")
+      {:ok, template} = Boards.find_template(nil, "Simple")
       {:ok, sub} = sub_board(ctx.card, template)
       {:ok, _} = Access.grant(Boards.get_board!(sub.id), ctx.stranger, "write", ctx.owner)
       %{sub: Boards.get_board!(sub.id)}

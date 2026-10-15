@@ -38,7 +38,7 @@ defmodule SlipdockWeb.BoardLive.Index do
      |> assign(custom_lists: @default_lists, save_template: false, template_name: "")
      |> assign(board_layout: user.board_layout || "grid", sort: user.board_sort || "manual")
      |> assign(show_archived: false)
-     |> assign(templates: Boards.list_templates())
+     |> assign(templates: Boards.list_templates(user))
      |> assign(:form, to_form(Boards.change_board(%Board{})))
      |> assign(creating_vault: false)
      |> load_boards()
@@ -158,7 +158,7 @@ defmodule SlipdockWeb.BoardLive.Index do
   end
 
   def handle_info({:templates_changed}, socket),
-    do: {:noreply, assign(socket, templates: Boards.list_templates())}
+    do: {:noreply, assign(socket, templates: Boards.list_templates(socket.assigns.current_user))}
 
   def handle_info(_, socket), do: {:noreply, socket}
 

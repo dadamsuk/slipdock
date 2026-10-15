@@ -183,7 +183,7 @@ defmodule Slipdock.WikiQueryTest do
 
     test "a sub-board's cards come in with `board: tree`", %{board: board, user: user} do
       card = card_fixture(hd(board.columns), %{"title" => "Epic"})
-      {:ok, template} = Boards.find_template("Simple")
+      {:ok, template} = Boards.find_template(nil, "Simple")
       {:ok, sub} = Boards.create_sub_board(card, template)
       card_fixture(hd(Boards.get_board!(sub.id).columns), %{"title" => "Subtask"})
 
@@ -196,7 +196,7 @@ defmodule Slipdock.WikiQueryTest do
   describe "one card's tree, and one person's work" do
     test "progress rolls a card's subcards up", %{board: board, user: user} do
       card = card_fixture(hd(board.columns), %{"title" => "Epic"})
-      {:ok, template} = Boards.find_template("Simple")
+      {:ok, template} = Boards.find_template(nil, "Simple")
       {:ok, sub} = Boards.create_sub_board(card, template)
       column = hd(Boards.get_board!(sub.id).columns)
       card_fixture(column, %{"title" => "One", "completed" => true})

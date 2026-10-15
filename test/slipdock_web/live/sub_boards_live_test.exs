@@ -19,7 +19,7 @@ defmodule SlipdockWeb.SubBoardsLiveTest do
   } do
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/cards/#{card.id}")
     view |> element("button", "Add subcards") |> render_click()
-    {:ok, t} = Boards.find_template("Simple")
+    {:ok, t} = Boards.find_template(nil, "Simple")
 
     view
     |> element("button[phx-click=create_sub_board][phx-value-template='#{t.id}']")
@@ -106,7 +106,7 @@ defmodule SlipdockWeb.SubBoardsLiveTest do
     refute has_element?(view, "#card-open-board")
     refute has_element?(view, "#card-#{card.id} button[title*='open them as a board']")
 
-    {:ok, t} = Boards.find_template("Simple")
+    {:ok, t} = Boards.find_template(nil, "Simple")
     {:ok, sub} = sub_board(card, t)
     [todo | _] = Boards.get_board!(sub.id).columns
     card_fixture(todo, %{"title" => "Sub one"})
@@ -134,7 +134,7 @@ defmodule SlipdockWeb.SubBoardsLiveTest do
     assert to == "/boards/#{sub.id}"
   end
 
-  test "templates page creates and edits a template", %{conn: conn} do
+  test "templates page creates and edits a template", %{conn: conn, user: user} do
     {:ok, view, _} = live(conn, ~p"/templates")
     assert render(view) =~ "Bug triage"
 
@@ -155,7 +155,7 @@ defmodule SlipdockWeb.SubBoardsLiveTest do
     })
     |> render_submit()
 
-    {:ok, t} = Boards.find_template("Sprint")
+    {:ok, t} = Boards.find_template(user, "Sprint")
     assert Enum.map(t.columns, & &1["name"]) == ["Todo", "Doing", "Done"]
     assert Enum.at(t.columns, 1)["wip_limit"] == 2
     assert render(view) =~ "Saved template"
@@ -163,13 +163,18 @@ defmodule SlipdockWeb.SubBoardsLiveTest do
     view |> element("#template-#{t.id} button", "Edit") |> render_click()
     view |> element("#tcol-0 button[phx-value-dir=down]") |> render_click()
     view |> form("#template-form") |> render_submit()
-    assert Enum.map(Boards.get_template!(t.id).columns, & &1["name"]) == ["Doing", "Todo", "Done"]
+
+    assert Enum.map(Boards.get_template!(user, t.id).columns, & &1["name"]) == [
+             "Doing",
+             "Todo",
+             "Done"
+           ]
   end
 
   test "the board index can create a board from a template", %{conn: conn} do
     {:ok, view, _} = live(conn, ~p"/")
     view |> element("button", "New board") |> render_click()
-    {:ok, t} = Boards.find_template("Checklist")
+    {:ok, t} = Boards.find_template(nil, "Checklist")
 
     assert {:error, {:live_redirect, %{to: to}}} =
              view
@@ -186,7 +191,7 @@ defmodule SlipdockWeb.SubBoardsLiveTest do
   test "a card with a title longer than a board name can still have subcards", %{card: card} do
     long = String.duplicate("word ", 30) |> String.trim()
     {:ok, card} = Boards.update_card(card, %{"title" => long})
-    {:ok, t} = Boards.find_template("Simple")
+    {:ok, t} = Boards.find_template(nil, "Simple")
 
     assert {:ok, sub} = sub_board(card, t)
     assert String.length(sub.name) == 80 and String.ends_with?(sub.name, "…")

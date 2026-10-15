@@ -743,12 +743,12 @@ defmodule Slipdock.AI.Actions do
   end
 
   defp default_template do
-    case Boards.find_template("Simple") do
+    case Boards.find_template(nil, "Simple") do
       {:ok, template} ->
         {:ok, template}
 
       _ ->
-        case Boards.list_templates() do
+        case Boards.list_templates(nil) do
           [template | _] -> {:ok, template}
           [] -> {:error, "no template to build the sub-board from"}
         end

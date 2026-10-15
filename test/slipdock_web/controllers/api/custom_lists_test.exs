@@ -29,7 +29,7 @@ defmodule SlipdockWeb.API.CustomListsTest do
     assert board.template_id == nil
   end
 
-  test "save_template keeps them as a template", %{conn: conn, name: name} do
+  test "save_template keeps them as a template", %{conn: conn, user: user, name: name} do
     body =
       conn
       |> post(~p"/api/boards", %{
@@ -39,17 +39,18 @@ defmodule SlipdockWeb.API.CustomListsTest do
       })
       |> json_response(201)
 
-    assert {:ok, t} = Boards.find_template(name)
+    assert {:ok, t} = Boards.find_template(user, name)
     assert Enum.map(t.columns, & &1["name"]) == ["A", "B"]
     assert Boards.get_board!(body["board"]["id"]).template_id == t.id
   end
 
-  test "save_template true uses the board's name; false saves nothing", %{conn: conn, name: name} do
+  test "save_template true uses the board's name; false saves nothing",
+       %{conn: conn, user: user, name: name} do
     conn
     |> post(~p"/api/boards", %{"name" => name, "columns" => ["A"], "save_template" => true})
     |> json_response(201)
 
-    assert {:ok, _} = Boards.find_template(name)
+    assert {:ok, _} = Boards.find_template(user, name)
 
     other = name <> " b"
 
@@ -57,7 +58,7 @@ defmodule SlipdockWeb.API.CustomListsTest do
     |> post(~p"/api/boards", %{"name" => other, "columns" => ["A"], "save_template" => "false"})
     |> json_response(201)
 
-    assert {:error, :not_found} = Boards.find_template(other)
+    assert {:error, :not_found} = Boards.find_template(user, other)
   end
 
   test "an empty list of lists is a 422 naming columns", %{conn: conn} do
@@ -70,7 +71,7 @@ defmodule SlipdockWeb.API.CustomListsTest do
   end
 
   test "a taken template name is a 422 and makes no board", %{conn: conn, user: user, name: name} do
-    {:ok, _} = Boards.create_template(%{"name" => name, "columns" => ["X"]})
+    {:ok, _} = Boards.create_template(user, %{"name" => name, "columns" => ["X"]})
 
     body =
       conn

@@ -64,7 +64,7 @@ defmodule Slipdock.KindsTest do
     end
 
     test "a file with work hanging beneath it is a card, not a document", ctx do
-      {:ok, template} = Boards.find_template("Simple")
+      {:ok, template} = Boards.find_template(nil, "Simple")
       {:ok, sub} = Boards.create_sub_board(ctx.document, template)
       assert Kinds.kind_of(Boards.get_card!(ctx.document.id)) == "document"
 

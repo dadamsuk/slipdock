@@ -39,7 +39,7 @@ defmodule Slipdock.PortableExportTest do
     {:ok, _} = Boards.add_dependency(epic, other)
     {:ok, _} = Boards.add_link(epic, other, "relates")
 
-    template = Boards.list_templates() |> Enum.find(&(&1.name == "Simple"))
+    template = Boards.list_templates(nil) |> Enum.find(&(&1.name == "Simple"))
     {:ok, sub} = Boards.create_sub_board(epic, template)
     [sub_todo | _] = Boards.get_board!(sub.id).columns
     subcard = card_fixture(sub_todo, %{"title" => "One sitting of it"})

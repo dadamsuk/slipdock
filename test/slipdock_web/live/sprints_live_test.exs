@@ -7,7 +7,7 @@ defmodule SlipdockWeb.SprintsLiveTest do
   alias Slipdock.{Boards, Sprints}
 
   setup do
-    {:ok, template} = Boards.find_template("Sprint planning")
+    {:ok, template} = Boards.find_template(nil, "Sprint planning")
     sprints = board_fixture(%{"name" => "Sprints"}, template: template)
     work = board_fixture(%{"name" => "Work"})
     [_backlog, todo | _] = work.columns
@@ -67,7 +67,7 @@ defmodule SlipdockWeb.SprintsLiveTest do
     {:ok, sprint} = Sprints.create_sprint(sprints)
     _other = board_fixture(%{"name" => "Home"})
     epic = card_fixture(todo, %{"title" => "Epic"})
-    {:ok, simple} = Boards.find_template("Simple")
+    {:ok, simple} = Boards.find_template(nil, "Simple")
     {:ok, epic_board} = Boards.create_sub_board(epic, simple)
     epic_board = Boards.get_board!(epic_board.id)
     task = card_fixture(hd(epic_board.columns), %{"title" => "A task in the epic"})
@@ -128,7 +128,7 @@ defmodule SlipdockWeb.SprintsLiveTest do
       a = card_fixture(todo, %{"title" => "Work task", "time_estimate" => 2})
       b = card_fixture(home_todo, %{"title" => "Home task", "time_estimate" => 3})
       epic = card_fixture(todo, %{"title" => "Epic"})
-      {:ok, simple} = Boards.find_template("Simple")
+      {:ok, simple} = Boards.find_template(nil, "Simple")
       {:ok, epic_board} = Boards.create_sub_board(epic, simple)
       task = card_fixture(hd(Boards.get_board!(epic_board.id).columns), %{"title" => "Inside"})
 
@@ -235,7 +235,7 @@ defmodule SlipdockWeb.SprintsLiveTest do
       conn: conn,
       work: work
     } do
-      {:ok, template} = Boards.find_template("Sprint planning")
+      {:ok, template} = Boards.find_template(nil, "Sprint planning")
       {:ok, view, _} = live(conn, ~p"/")
       render_click(view, "start_create", %{})
 
@@ -319,7 +319,7 @@ defmodule SlipdockWeb.SprintsLiveTest do
       todo: todo,
       work: work
     } do
-      {:ok, template} = Boards.find_template("Sprint planning")
+      {:ok, template} = Boards.find_template(nil, "Sprint planning")
       other = user_fixture("elsewhere@example.com")
       theirs = board_fixture(%{"name" => "Their sprints"}, template: template, owner: other)
       {:ok, sprint} = Sprints.create_sprint(theirs)

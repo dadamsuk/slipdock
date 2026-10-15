@@ -277,8 +277,8 @@ slipdock set-column <board> <column> --sort due_date [--descending] --group flag
 slipdock new-tag <board> <name> [--color C]
 slipdock new-board <name> [--code C] [--shortcut K] [--desc TEXT] [--color C] [--template T]
 slipdock new-board <name> --list "Name[:wip[:color]]"... [--save-template NAME]   # its own lists; --save-template keeps them as a template too
-slipdock templates                                        # sets of lists for new boards / subcards
-slipdock new-template <name> [--desc TEXT] --list "Name[:wip[:color]]"... | slipdock delete-template <t>
+slipdock templates                                        # sets of lists for new boards / subcards: the built-ins (read-only to all) and your own
+slipdock new-template <name> [--desc TEXT] --list "Name[:wip[:color]]"... | slipdock delete-template <t>   # yours only; built-ins refuse (403)
 slipdock subboard <card-id> --template T                  # card becomes a board of subcards (prints its id)
 slipdock subboard <card-id> --off                         # remove the subcards
 slipdock sprint <board> [--name N] [--start DATE] [--days N] [--goal TEXT]   # next sprint on a sprint board

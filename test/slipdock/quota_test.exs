@@ -73,7 +73,7 @@ defmodule Slipdock.QuotaTest do
       column: column
     } do
       {:ok, card} = Boards.create_card(column, %{"title" => "Epic"})
-      template = hd(Boards.list_templates())
+      template = hd(Boards.list_templates(nil))
       {:ok, sub} = sub_board(card, template)
       {:ok, _} = Boards.create_card(hd(Boards.get_board!(sub.id).columns), %{"title" => "Task"})
 

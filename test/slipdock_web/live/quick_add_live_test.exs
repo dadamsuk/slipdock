@@ -107,7 +107,7 @@ defmodule SlipdockWeb.QuickAddLiveTest do
   test "the outline adds top-level cards and subcards", %{conn: conn, board: board} do
     [backlog | _] = board.columns
     epic = card_fixture(backlog, %{"title" => "Epic"})
-    {:ok, t} = Boards.find_template("Simple")
+    {:ok, t} = Boards.find_template(nil, "Simple")
     {:ok, _sub} = sub_board(epic, t)
 
     {:ok, view, _} = live(conn, ~p"/boards/#{board}/outline")

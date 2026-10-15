@@ -134,7 +134,7 @@ defmodule Slipdock.SupportAccessTest do
     board: board
   } do
     card = card_fixture(hd(board.columns), %{"title" => "Epic"})
-    {:ok, sub} = sub_board(card, hd(Slipdock.Boards.list_templates()))
+    {:ok, sub} = sub_board(card, hd(Slipdock.Boards.list_templates(nil)))
 
     {:ok, _} = Accounts.open_support_session(admin, customer, "a lost card")
 

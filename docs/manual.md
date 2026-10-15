@@ -449,6 +449,14 @@ Roadmap — Now · Next · Later · Done, for the top of a tree — and Sprint
 planning, below); manage them at `/templates`, pick one when creating a
 board, or save any board's current lists as a template from its settings.
 
+The ones that ship are **built in**: everybody sees them and nobody, an
+admin included, can change or delete them. A template you make — at
+`/templates`, from a board's settings, or by saving a new board's lists —
+is **yours**: only you see it in a picker, and only you can edit or delete
+it. Its name has to be new among your own templates and the built-in ones;
+somebody else may have one called the same. Deleting an account deletes
+that person's templates (boards already made from them keep their lists).
+
 Or set the lists out when you create the board: pick **Custom lists…** in
 the **Lists** menu and type them one per line. A list named like To Do, In
 Progress or Done is given that role (the rest can be set in the board's

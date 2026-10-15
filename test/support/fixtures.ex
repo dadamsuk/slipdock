@@ -207,7 +207,7 @@ defmodule Slipdock.Fixtures do
   def tree_fixture do
     board = board_fixture(%{"name" => "Root"})
     [backlog | _] = board.columns
-    {:ok, t} = Boards.find_template("Simple")
+    {:ok, t} = Boards.find_template(nil, "Simple")
 
     epic = card_fixture(backlog, %{"title" => "Epic", "due_date" => "2030-01-15"})
 

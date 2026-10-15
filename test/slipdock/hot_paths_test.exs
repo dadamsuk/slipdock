@@ -45,7 +45,7 @@ defmodule Slipdock.HotPathsTest do
       board = board_fixture(%{}, owner: alice)
       card = card_fixture(hd(board.columns))
       card_fixture(hd(board.columns))
-      template = Boards.list_templates() |> Enum.find(&(&1.name == "Simple"))
+      template = Boards.list_templates(nil) |> Enum.find(&(&1.name == "Simple"))
       {:ok, sub} = Boards.create_sub_board(card, template)
       card_fixture(hd(Boards.get_board!(sub.id).columns))
       Wiki.create_page(board, %{"title" => "Notes"}, user: alice)

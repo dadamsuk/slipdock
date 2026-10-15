@@ -18,7 +18,7 @@ defmodule Slipdock.FileCleanupTest do
     on_exit(fn -> File.rm(src) end)
 
     board = board_fixture(%{"name" => "Cleanup"})
-    {:ok, template} = Boards.find_template("Simple")
+    {:ok, template} = Boards.find_template(nil, "Simple")
     %{board: board, column: hd(board.columns), src: src, template: template}
   end
 

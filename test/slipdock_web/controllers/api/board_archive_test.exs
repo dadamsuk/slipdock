@@ -60,7 +60,7 @@ defmodule SlipdockWeb.API.BoardArchiveTest do
 
   test "a sub-board cannot be archived", %{conn: conn, a: a} do
     card = card_fixture(hd(a.columns))
-    {:ok, template} = Boards.find_template("Simple")
+    {:ok, template} = Boards.find_template(nil, "Simple")
     {:ok, sub} = Boards.create_sub_board(card, template)
 
     assert conn |> post(~p"/api/boards/#{sub.id}/archive") |> json_response(422)

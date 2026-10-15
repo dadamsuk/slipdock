@@ -46,7 +46,7 @@ defmodule Slipdock.CustomListsTest do
   end
 
   test "custom lists win over a template given as well", %{user: user} do
-    {:ok, t} = Boards.find_template("Checklist")
+    {:ok, t} = Boards.find_template(nil, "Checklist")
 
     {:ok, board} =
       Boards.create_board(%{"name" => "Both"}, owner_id: user.id, template: t, columns: ["Mine"])
@@ -83,7 +83,7 @@ defmodule Slipdock.CustomListsTest do
         save_template: name
       )
 
-    assert {:ok, %Template{} = t} = Boards.find_template(name)
+    assert {:ok, %Template{} = t} = Boards.find_template(user, name)
     assert board.template_id == t.id
     assert t.description == "Candidates"
 
@@ -103,12 +103,12 @@ defmodule Slipdock.CustomListsTest do
         save_template: true
       )
 
-    assert {:ok, t} = Boards.find_template(name)
+    assert {:ok, t} = Boards.find_template(user, name)
     assert board.template_id == t.id
   end
 
   test "a template name already taken refuses the board too", %{user: user, name: name} do
-    {:ok, _} = Boards.create_template(%{"name" => name, "columns" => ["X"]})
+    {:ok, _} = Boards.create_template(user, %{"name" => name, "columns" => ["X"]})
 
     assert {:error, cs} =
              Boards.create_board(%{"name" => "Clash"},
@@ -142,6 +142,6 @@ defmodule Slipdock.CustomListsTest do
              )
 
     assert cs.errors[:name]
-    assert {:error, :not_found} = Boards.find_template(name)
+    assert {:error, :not_found} = Boards.find_template(user, name)
   end
 end

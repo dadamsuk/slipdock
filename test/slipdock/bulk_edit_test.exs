@@ -158,7 +158,7 @@ defmodule Slipdock.BulkEditTest do
 
     test "one card refusing doesn't stop the rest", %{owner: o, board: bd} = ctx do
       # Into A's own subcards: A can't go there, B can.
-      {:ok, t} = Boards.find_template("Simple")
+      {:ok, t} = Boards.find_template(nil, "Simple")
 
       {:ok, sub} =
         Boards.create_sub_board(ctx.a, t, code: "bk#{System.unique_integer([:positive])}")

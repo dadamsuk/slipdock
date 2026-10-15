@@ -102,7 +102,10 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   defp event("save_as_template", _, socket) do
     board = socket.assigns.board
 
-    case Boards.create_template(Boards.template_attrs_from_board(board)) do
+    case Boards.create_template(
+           socket.assigns.current_user,
+           Boards.template_attrs_from_board(board)
+         ) do
       {:ok, template} ->
         {:noreply,
          flash(

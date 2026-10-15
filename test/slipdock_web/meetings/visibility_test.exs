@@ -20,7 +20,7 @@ defmodule SlipdockWeb.Meetings.VisibilityTest do
     todo = Enum.find(parent.columns, &(&1.name == "To Do"))
     secret = card_fixture(todo, %{"title" => "Secret acquisition plan"})
     epic = card_fixture(todo, %{"title" => "Pricing epic"})
-    {:ok, template} = Boards.find_template("Simple")
+    {:ok, template} = Boards.find_template(nil, "Simple")
     {:ok, sub} = sub_board(epic, template)
     sub = Boards.get_board!(sub.id)
 

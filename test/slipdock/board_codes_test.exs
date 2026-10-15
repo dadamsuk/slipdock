@@ -81,7 +81,7 @@ defmodule Slipdock.BoardCodesTest do
     test "sub-boards get a code of their own" do
       board = board_fixture(%{"name" => "Parent"}, derive_keys: true)
       card = card_fixture(hd(board.columns), %{"title" => "Query parser work"})
-      template = hd(Boards.list_templates())
+      template = hd(Boards.list_templates(nil))
 
       {:ok, sub} = Boards.create_sub_board(card, template)
       assert sub.code == "query-pars"

@@ -7,7 +7,7 @@ defmodule Slipdock.SprintsTest do
   alias Slipdock.Boards.{Board, Card}
 
   setup do
-    {:ok, template} = Boards.find_template("Sprint planning")
+    {:ok, template} = Boards.find_template(nil, "Sprint planning")
     sprints = board_fixture(%{"name" => "Sprints"}, template: template)
     work = board_fixture(%{"name" => "Work"})
     %{sprints: sprints, work: work, template: template}
@@ -132,7 +132,7 @@ defmodule Slipdock.SprintsTest do
     {:ok, sprint} = Sprints.create_sprint(sprints)
     [backlog, todo | _] = work.columns
     epic = card_fixture(backlog, %{"title" => "Epic"})
-    {:ok, epic_board} = sub_board(epic, elem(Boards.find_template("Simple"), 1))
+    {:ok, epic_board} = sub_board(epic, elem(Boards.find_template(nil, "Simple"), 1))
     _done = card_fixture(todo, %{"title" => "Finished", "completed" => true})
     open = card_fixture(todo, %{"title" => "Open"})
 
@@ -259,7 +259,7 @@ defmodule Slipdock.SprintsTest do
       # An epic with no estimate of its own takes its open subcards'. Estimates
       # are written in hours and kept in minutes.
       epic = card_fixture(todo, %{"title" => "Epic"})
-      {:ok, simple} = Boards.find_template("Simple")
+      {:ok, simple} = Boards.find_template(nil, "Simple")
       {:ok, epic_board} = sub_board(epic, simple)
       [epic_todo | _] = Boards.get_board!(epic_board.id).columns
       task = card_fixture(epic_todo, %{"title" => "Task", "time_estimate" => 2})

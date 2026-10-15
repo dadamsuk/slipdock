@@ -153,7 +153,7 @@ defmodule Slipdock.AccountExportDeletionTest do
       {:ok, _} = Access.grant(board, colleague, "write", user)
 
       epic = card_fixture(hd(board.columns), %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template("Simple")
+      {:ok, t} = Boards.find_template(nil, "Simple")
       {:ok, sub} = sub_board(epic, t)
       sub = Boards.get_board!(sub.id)
       task = card_fixture(hd(sub.columns), %{"title" => "Task"})
@@ -173,7 +173,7 @@ defmodule Slipdock.AccountExportDeletionTest do
 
     test "the preview names root boards only", %{user: user, board: board} do
       epic = card_fixture(hd(board.columns), %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template("Simple")
+      {:ok, t} = Boards.find_template(nil, "Simple")
       {:ok, _} = sub_board(epic, t)
 
       assert Accounts.deletion_preview(user).boards_deleted == ["Their work"]

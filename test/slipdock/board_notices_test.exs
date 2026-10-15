@@ -32,7 +32,7 @@ defmodule Slipdock.BoardNoticesTest do
 
     test "inside a sub-board reaches whoever listens on the root", ctx do
       card = card_fixture(hd(ctx.board.columns), %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template("Simple")
+      {:ok, t} = Boards.find_template(nil, "Simple")
       {:ok, sub} = sub_board(card, t)
       sub = Boards.get_board!(sub.id)
 
@@ -53,7 +53,7 @@ defmodule Slipdock.BoardNoticesTest do
 
     test "as a sub-board reaches the tree it was in", ctx do
       card = card_fixture(hd(ctx.board.columns), %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template("Simple")
+      {:ok, t} = Boards.find_template(nil, "Simple")
       {:ok, sub} = sub_board(card, t)
 
       listen(ctx.owner)
@@ -131,7 +131,7 @@ defmodule Slipdock.BoardNoticesTest do
   describe "Access.notice_root_ids/1" do
     test "takes in owned, archived, card-shared and page-shared trees, as roots", ctx do
       card = card_fixture(hd(ctx.board.columns), %{"title" => "Epic"})
-      {:ok, t} = Boards.find_template("Simple")
+      {:ok, t} = Boards.find_template(nil, "Simple")
       {:ok, sub} = sub_board(card, t)
       {:ok, _} = Boards.archive_board(ctx.board)
       assert Access.notice_root_ids(ctx.owner) == [ctx.board.id]
