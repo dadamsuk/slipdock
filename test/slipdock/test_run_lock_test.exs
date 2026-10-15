@@ -25,6 +25,28 @@ defmodule Slipdock.TestRunLockTest do
     free?
   end
 
+  # Returns once somebody is queued for the lock, as Postgres sees it.
+  defp await_waiter(key) do
+    {:ok, conn} =
+      Slipdock.Repo.config()
+      |> Keyword.take([:hostname, :port, :username, :password, :database])
+      |> Postgrex.start_link()
+
+    waiting? = fn ->
+      %{rows: [[n]]} =
+        Postgrex.query!(
+          conn,
+          "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND classid = 7401 AND objid = $1 AND NOT granted",
+          [key]
+        )
+
+      n > 0
+    end
+
+    Stream.repeatedly(waiting?) |> Enum.find(& &1)
+    GenServer.stop(conn)
+  end
+
   test "this run holds the suite's lock, so a second run would wait" do
     refute free?(0)
   end
@@ -51,7 +73,8 @@ defmodule Slipdock.TestRunLockTest do
 
     database = Slipdock.Repo.config()[:database]
     assert_receive {:waited, ^database}
-    assert Task.yield(second, 200) == nil
+    await_waiter(key)
+    assert Task.yield(second, 0) == nil
 
     GenServer.stop(first)
     assert {:ok, conn} = Task.await(second)
@@ -75,7 +98,7 @@ defmodule Slipdock.TestRunLockTest do
     output =
       ExUnit.CaptureIO.capture_io(:stderr, fn ->
         second = Task.async(fn -> TestRunLock.hold(key: key) end)
-        Process.sleep(200)
+        await_waiter(key)
         GenServer.stop(first)
         {:ok, conn} = Task.await(second)
         GenServer.stop(conn)

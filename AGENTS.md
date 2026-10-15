@@ -102,6 +102,8 @@ custom classes must fully style the input
       assert_receive {:DOWN, ^ref, :process, ^pid, :normal}
 
    - Instead of sleeping to synchronize before the next call, **always** use `_ = :sys.get_state/1` to ensure the process has handled prior messages
+- A process that calls `Ecto.Adapters.SQL.Sandbox.start_owner!/2` itself must `stop_owner/1` it: the owner isn't linked to it, and a forgotten one keeps its transaction (and its board's code and shortcut) open for the rest of the run, so a later test that is handed the same key waits on it until the query times out
+- In an async test, don't assert a board code or shortcut derived from a name: derivation steps around keys other running tests hold (`Slipdock.BoardKeyClaims`), so the value depends on what else is running. Set the code by hand (one no other async module uses) or make the module sync
 <!-- phoenix:elixir-end -->
 
 <!-- phoenix:phoenix-start -->

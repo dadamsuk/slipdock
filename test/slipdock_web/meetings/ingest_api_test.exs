@@ -17,7 +17,7 @@ defmodule SlipdockWeb.Meetings.IngestAPITest do
 
   setup %{user: user} do
     meetings_on()
-    board = board_fixture(%{"name" => "Pricing", "code" => "PL"}, owner: user)
+    board = board_fixture(%{"name" => "Pricing", "code" => "PLINGEST"}, owner: user)
     %{board: board}
   end
 

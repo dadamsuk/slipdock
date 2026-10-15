@@ -16,7 +16,7 @@ defmodule SlipdockWeb.Meetings.AgentsTest do
 
   setup %{user: user} do
     meetings_on()
-    board = board_fixture(%{"name" => "Pricing", "code" => "PL"}, owner: user)
+    board = board_fixture(%{"name" => "Pricing", "code" => "PLAGENTS"}, owner: user)
     sam = user_fixture("sam@example.com")
     {:ok, sam} = Slipdock.Accounts.update_profile(sam, %{"name" => "Sam Smith"})
     share_fixture(board, [sam], "write")
@@ -161,7 +161,7 @@ defmodule SlipdockWeb.Meetings.AgentsTest do
       result =
         ok!(
           call(ctx.conn, "capture_meeting", %{
-            board: "PL",
+            board: "PLAGENTS",
             transcript: "Priya: Ship it Friday.\nSam: Agreed, Friday.",
             title: "Release",
             findings: %{
@@ -185,7 +185,7 @@ defmodule SlipdockWeb.Meetings.AgentsTest do
       again =
         ok!(
           call(ctx.conn, "capture_meeting", %{
-            board: "PL",
+            board: "PLAGENTS",
             transcript: "Priya: Ship it Friday.\nSam: Agreed, Friday."
           })
         )
@@ -196,7 +196,7 @@ defmodule SlipdockWeb.Meetings.AgentsTest do
     test "capture_meeting says what is wrong with a transcript", ctx do
       assert error!(
                call(ctx.conn, "capture_meeting", %{
-                 board: "PL",
+                 board: "PLAGENTS",
                  transcript: "{\"sentences\": [",
                  format: "fireflies"
                })

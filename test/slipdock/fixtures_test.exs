@@ -129,7 +129,7 @@ defmodule Slipdock.FixturesTest do
                end)
     end
 
-    test "the check sees both spellings, and leaves sync modules and other modules' uses alone" do
+    test "the check sees both spellings in either case, and leaves sync modules and other modules' uses alone" do
       async = "use Slipdock.DataCase, async: true\n"
 
       sources = [
@@ -137,10 +137,15 @@ defmodule Slipdock.FixturesTest do
         {"b_test.exs", async <> ~s|create_sub_board(card, name, code: "same")|},
         {"c_test.exs", async <> ~s|board_fixture(%{"code" => "solo"})|},
         {"d_test.exs", "use Slipdock.DataCase, async: false\n" <> ~s|"code" => "solo"|},
-        {"e_test.exs", async <> ~s|assert %{"code" => -32600} = error|}
+        {"e_test.exs", async <> ~s|assert %{"code" => -32600} = error|},
+        {"f_test.exs", async <> ~s|board_fixture(%{"code" => "PL"})|},
+        {"g_test.exs", async <> ~s|board_fixture(%{"code" => "pl"})|}
       ]
 
-      assert shared_codes(sources) == %{"same" => ["a_test.exs", "b_test.exs"]}
+      assert shared_codes(sources) == %{
+               "same" => ["a_test.exs", "b_test.exs"],
+               "pl" => ["f_test.exs", "g_test.exs"]
+             }
     end
   end
 
@@ -148,9 +153,10 @@ defmodule Slipdock.FixturesTest do
     sources
     |> Enum.reject(fn {_, source} -> source =~ "async: false" end)
     |> Enum.flat_map(fn {path, source} ->
-      ~r/(?:"code" =>|code:) "([a-z0-9-]+)"/
+      ~r/(?:"code" =>|code:) "([A-Za-z0-9-]+)"/
       |> Regex.scan(source, capture: :all_but_first)
-      |> Enum.map(fn [code] -> {code, path} end)
+      # A board's code is kept in lower case, so "PL" and "pl" are one code.
+      |> Enum.map(fn [code] -> {String.downcase(code), path} end)
       |> Enum.uniq()
     end)
     |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))

@@ -17,7 +17,7 @@ defmodule Slipdock.Meetings.CommitTest do
 
   setup do
     owner = user_fixture("owner@example.com")
-    board = board_fixture(%{"name" => "Pricing", "code" => "PL"}, owner: owner)
+    board = board_fixture(%{"name" => "Pricing", "code" => "PLCOMMIT"}, owner: owner)
     sam = user_fixture("sam@example.com")
     {:ok, sam} = Slipdock.Accounts.update_profile(sam, %{"name" => "Sam Smith"})
     share_fixture(board, [sam], "write")
