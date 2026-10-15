@@ -26,6 +26,7 @@ import {hooks as colocatedHooks} from "phoenix-colocated/slipdock"
 import topbar from "../vendor/topbar"
 import Sortable from "../vendor/sortable"
 import {installConfirm} from "./confirm"
+import {columnDrop, dropZones, pointOf, zoneAt} from "./card_drop"
 import {ModalDialog} from "./modal_dialog"
 import {installPosthog} from "./posthog"
 import {Replay} from "./replay"
@@ -189,13 +190,23 @@ Hooks.Sortable = {
       ghostClass: "sortable-ghost",
       chosenClass: "sortable-chosen",
       dragClass: "sortable-drag",
+      onStart() {
+        if (hook.el.dataset.columnDrop) hook.trackColumns()
+      },
       onEnd(evt) {
-        const {item, from, to, oldIndex, newIndex} = evt
-        if (from === to && oldIndex === newIndex) return
+        const {item, from, oldIndex, newIndex} = evt
+        let {to} = evt
+        const override = hook.untrackColumns(from, to)
+        if (!override && from === to && oldIndex === newIndex) return
         const next = item.nextElementSibling
-        const before = next && next.dataset.id ? next.dataset.id : null
-        to.removeChild(item)
+        let before = next && next.dataset.id ? next.dataset.id : null
+        if (item.parentNode) item.parentNode.removeChild(item)
         from.insertBefore(item, from.children[oldIndex] || null)
+        if (override && override.cancel) return
+        if (override) {
+          to = override.to
+          before = null
+        }
         hook.pushEvent(hook.el.dataset.event || "move_card", {
           id: item.dataset.id,
           from: from.dataset.id,
@@ -222,7 +233,37 @@ Hooks.Sortable = {
     }
   },
   destroyed() {
+    this.untrackColumns()
     this.sortable && this.sortable.destroy()
+  },
+  // While a card is dragged from a list that takes column drops (see
+  // card_drop.js), follow the pointer and light up the column it would land in.
+  trackColumns() {
+    const group = this.el.dataset.group || "cards"
+    this.drop = {group, x: null, y: null, lit: null}
+    this.onPointer = e => {
+      const d = this.drop
+      if (!d) return
+      ;({x: d.x, y: d.y} = pointOf(e))
+      // Measured on every move: the board scrolls under a long drag.
+      const zone = zoneAt(dropZones(document, d.group), d.x, d.y)
+      const col = zone && zone.list !== this.el ? zone.column : null
+      if (col === d.lit) return
+      d.lit && d.lit.classList.remove("drop-column")
+      col && col.classList.add("drop-column")
+      d.lit = col
+    }
+    document.addEventListener("pointermove", this.onPointer, true)
+    document.addEventListener("touchmove", this.onPointer, true)
+  },
+  untrackColumns(from, to) {
+    const d = this.drop
+    if (!d) return null
+    this.drop = null
+    document.removeEventListener("pointermove", this.onPointer, true)
+    document.removeEventListener("touchmove", this.onPointer, true)
+    d.lit && d.lit.classList.remove("drop-column")
+    return from ? columnDrop({zones: dropZones(document, d.group), x: d.x, y: d.y, from, to}) : null
   },
 }
 
