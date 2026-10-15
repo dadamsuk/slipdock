@@ -696,4 +696,72 @@ defmodule SlipdockCLI.SyncEngineTest do
       assert dir?(ctx, "New")
     end
   end
+
+  describe "stubs of what is shared with you (#819)" do
+    @stub "[Plan](https://slipdock.example.com/shared/pages/12)\n"
+
+    test "are written where the server lists them, and a second pass leaves them be", ctx do
+      FakeVault.put_stub(ctx.vault, "page:12@3", "Inbox/Plan.md", @stub)
+      FakeVault.put(ctx.vault, "Note.md", "mine")
+
+      {state, report} = pass(ctx)
+      assert read(ctx, "Inbox/Plan.md") == @stub
+      assert %{path: "Inbox/Plan.md"} in report.received
+      assert state["entries"]["Inbox/Plan.md"]["kind"] == "stub"
+
+      {_state, report} = pass(ctx, state)
+      assert quiet?(report)
+    end
+
+    test "a local edit is put back, said so, and never sent up", ctx do
+      FakeVault.put_stub(ctx.vault, "page:12@3", "Inbox/Plan.md", @stub)
+      {state, _} = pass(ctx)
+
+      write(ctx, "Inbox/Plan.md", "my own words")
+      {state, report} = pass(ctx, state)
+
+      assert read(ctx, "Inbox/Plan.md") == @stub
+      assert [%{path: "Inbox/Plan.md"}] = report.stubs
+      assert report.sent == []
+      refute Enum.any?(FakeVault.calls(ctx.vault), &match?({:write, _, _}, &1))
+
+      {_state, report} = pass(ctx, state)
+      assert quiet?(report)
+    end
+
+    test "a stub the server no longer lists goes, edited or not", ctx do
+      FakeVault.put_stub(ctx.vault, "page:12@3", "Inbox/Plan.md", @stub)
+      FakeVault.put_stub(ctx.vault, "page:13@3", "Inbox/Other.md", @stub)
+      {state, _} = pass(ctx)
+      write(ctx, "Inbox/Other.md", "edited")
+
+      FakeVault.drop_stub(ctx.vault, "page:12@3")
+      FakeVault.drop_stub(ctx.vault, "page:13@3")
+      {state, report} = pass(ctx, state)
+
+      refute exists?(ctx, "Inbox/Plan.md")
+      refute exists?(ctx, "Inbox/Other.md")
+      assert length(report.removed) >= 2
+      refute Map.has_key?(state["entries"], "Inbox/Plan.md")
+      # Nothing archived on the server for a stub going.
+      assert report.archived == []
+    end
+
+    test "renamed on the server, the stub moves with it", ctx do
+      FakeVault.put_stub(ctx.vault, "page:12@3", "Inbox/Plan.md", @stub)
+      {state, _} = pass(ctx)
+
+      FakeVault.put_stub(
+        ctx.vault,
+        "page:12@3",
+        "Inbox/Plan B.md",
+        "[Plan B](https://x/shared/pages/12)\n"
+      )
+
+      {_state, _report} = pass(ctx, state)
+
+      refute exists?(ctx, "Inbox/Plan.md")
+      assert read(ctx, "Inbox/Plan B.md") =~ "Plan B"
+    end
+  end
 end

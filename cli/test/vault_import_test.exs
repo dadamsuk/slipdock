@@ -337,7 +337,7 @@ defmodule SlipdockCLI.VaultImportTest do
         capture_io(fn -> Vaults.run("vault", ["import", dir], vault: "Brain", dry_run: true) end)
 
       assert_received {:request, "GET", "/api/vaults/Brain", _}
-      assert_received {:request, "GET", "/api/vaults/3/sync", _}
+      assert_received {:request, "GET", "/api/vaults/3/sync?stubs=1", _}
       refute_received {:request, _, _, _}
       assert out =~ "dry run"
       assert out =~ "would create: 1 note, 1 file"

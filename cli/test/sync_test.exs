@@ -45,7 +45,7 @@ defmodule SlipdockCLI.SyncTest do
     out = capture_io(fn -> Sync.run("sync", ["init", dir], vault: "Brain") end)
 
     assert_received {:request, "GET", "/api/vaults/Brain", _}
-    assert_received {:request, "GET", "/api/vaults/3/sync", _}
+    assert_received {:request, "GET", "/api/vaults/3/sync?stubs=1", _}
     assert_received {:request, "GET", "/api/vaults/3/sync/pages/7", _}
 
     assert out =~ "bound #{dir} to the vault"
@@ -84,7 +84,7 @@ defmodule SlipdockCLI.SyncTest do
     assert out =~ "sent 0, received 0"
     # Only the vault and its listing were asked for: nothing sent, nothing fetched.
     assert_received {:request, "GET", "/api/vaults/Brain", _}
-    assert_received {:request, "GET", "/api/vaults/3/sync", _}
+    assert_received {:request, "GET", "/api/vaults/3/sync?stubs=1", _}
     refute_received {:request, _, _, _}
     {:ok, state} = State.load(dir)
     assert state["entries"]["Ops/Retry.md"]["id"] == 7
@@ -149,7 +149,7 @@ defmodule SlipdockCLI.SyncTest do
 
     out = capture_io(fn -> Sync.run("sync", [Path.join(dir, "Ops")], json: true) end)
 
-    assert_received {:request, "GET", "/api/vaults/3/sync", _}
+    assert_received {:request, "GET", "/api/vaults/3/sync?stubs=1", _}
     assert System.get_env("SLIPDOCK_URL") == url
     assert out =~ ~s("cursor": 12)
     assert out =~ ~s("sent": [])

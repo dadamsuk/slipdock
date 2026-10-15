@@ -27,7 +27,8 @@ defmodule SlipdockCLI.Sync.Remote do
   @behaviour __MODULE__
 
   @impl true
-  def list(vault), do: HTTP.get("/vaults/#{vault}/sync") |> norm(nil)
+  # `stubs`: this client writes stubs of what is shared with you (#819).
+  def list(vault), do: HTTP.get("/vaults/#{vault}/sync", stubs: 1) |> norm(nil)
 
   @impl true
   def read(vault, id), do: HTTP.get("/vaults/#{vault}/sync/pages/#{id}") |> norm("page")

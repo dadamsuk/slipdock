@@ -123,7 +123,7 @@ defmodule SlipdockCLI.SyncStatusTest do
 
       err = capture_io(:stderr, fn -> capture_io(fn -> Sync.run("sync", [root], []) end) end)
       assert err =~ "Obsidian Sync seems to be syncing this folder too"
-      assert_received {:request, "GET", "/api/vaults/3/sync", _}
+      assert_received {:request, "GET", "/api/vaults/3/sync?stubs=1", _}
     end
   end
 
