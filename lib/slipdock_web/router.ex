@@ -442,6 +442,12 @@ defmodule SlipdockWeb.Router do
     pipe_through :api
 
     get "/me", MeController, :show
+
+    # Tools (#958): packages of docs, files, a board blueprint and skills.
+    get "/tools", ToolController, :index
+    post "/tools", ToolController, :create
+    get "/tools/:slug", ToolController, :show
+    post "/tools/:slug/install", ToolController, :install
     get "/me/drive", MeController, :drive
 
     # The caller's own OpenRouter key: what every AI feature spends for them.

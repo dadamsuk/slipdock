@@ -6,7 +6,7 @@ defmodule SlipdockWeb.API.TemplateController do
 
   action_fallback SlipdockWeb.API.FallbackController
 
-  @fields ~w(name description columns kind)
+  @fields ~w(name description columns kind pages folders tags automations)
 
   # A person sees the built-in templates and their own, and changes only
   # their own: a built-in is read-only to everyone, admins included (403),

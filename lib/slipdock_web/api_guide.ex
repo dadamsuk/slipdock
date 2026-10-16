@@ -509,10 +509,10 @@ defmodule SlipdockWeb.APIGuide do
     title, summary, parent, position and folder, archiving and restoring it,
     and pinning it to a card) and `revert_page` (a page
     back to a revision, as a new one, against `base_hash`),
-    `manage_automation` (owner only), and `claim_job`,
+    `manage_automation` (owner only), `install_tool`, and `claim_job`,
     `job_progress` and `finish_job` to take runner jobs from a board's
-    queue (see "Runners" below). Archiving is the undoable way
-    to put something away; the deletes are not undoable, so `delete_card`
+    queue (see "Runners" below). Archiving can be undone; the
+    deletes can't, so `delete_card`
     needs `confirm: true`, `delete_board` needs `confirm` set to the board's
     code, and `delete_list` refuses a list holding cards unless
     `with_cards: true`. A read-only
