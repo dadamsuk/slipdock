@@ -156,11 +156,32 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
       refute Enum.any?(Boards.list_cards(ctx.board, %{}), &(&1.id == made["id"]))
     end
 
-    test "archived is left off: a live card", ctx do
+    test "archived is left off: a live card, and the answer says so", ctx do
       made = ctx.conn |> call("create_card", %{board: "delivery11", title: "Live"}) |> ok!()
 
-      refute Map.has_key?(made, "archived")
+      assert made["archived"] == false
       refute Boards.get_card!(made["id"]).archived_at
+    end
+
+    test "a misspelt argument is refused by name, and nothing is made", ctx do
+      text =
+        ctx.conn
+        |> call("create_card", %{board: "delivery11", title: "Typo", archved: true})
+        |> error!()
+
+      assert text =~ ~s(create_card has no argument "archved")
+      assert text =~ "archived"
+      refute Repo.get_by(Boards.Card, title: "Typo")
+    end
+
+    test "several unknown arguments are all named", ctx do
+      text =
+        ctx.conn
+        |> call("create_card", %{board: "delivery11", title: "Two", colour: "red", owner: "me"})
+        |> error!()
+
+      assert text =~ ~s(has no arguments "colour", "owner")
+      refute Repo.get_by(Boards.Card, title: "Two")
     end
 
     test "archived that is not a boolean is refused, and nothing is made", ctx do
@@ -238,6 +259,19 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
   end
 
   describe "update_card" do
+    test "an unknown argument is refused and the card is unchanged", ctx do
+      assert ctx.conn
+             |> call("update_card", %{card: ctx.card.id, title: "Renamed", archive: true})
+             |> error!() =~ ~s(update_card has no argument "archive")
+
+      assert Boards.get_card!(ctx.card.id).title == "Existing"
+    end
+
+    test "the answer says the card is not archived", ctx do
+      made = ctx.conn |> call("update_card", %{card: ctx.card.id, title: "Renamed"}) |> ok!()
+      assert made["archived"] == false
+    end
+
     test "fields, flags, tags and assignees", ctx do
       ctx.conn
       |> call("update_card", %{
@@ -663,7 +697,7 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
       refute Enum.any?(Boards.list_cards(ctx.board, %{}), &(&1.id == ctx.card.id))
 
       result = ctx.conn |> call("archive_card", %{card: ctx.card.id, restore: true}) |> ok!()
-      refute Map.has_key?(result, "archived")
+      assert result["archived"] == false
       assert api_card(ctx.conn, ctx.card.id)["archived_at"] == nil
       assert Enum.any?(Boards.list_cards(ctx.board, %{}), &(&1.id == ctx.card.id))
     end
