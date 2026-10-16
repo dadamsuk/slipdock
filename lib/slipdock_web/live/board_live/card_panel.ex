@@ -233,12 +233,12 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           phx-target={@target}
           id="card-description-view"
           class={[
-            "rounded-lg px-1 py-1 text-sm leading-relaxed whitespace-pre-wrap break-words",
+            "card-prose rounded-lg px-1 py-1 text-sm leading-relaxed break-words",
             @can_write && "cursor-text hover:bg-base-200/60"
           ]}
           phx-click={@can_write && "edit_description"}
           phx-no-format
-        >{RichText.render(@card.description, board: @board, as: @current_user)}</div>
+        >{RichText.markdown(@card.description, board: @board, as: @current_user)}</div>
         <button
           :if={not @editing_description and (@card.description || "") == "" and @can_write}
           phx-target={@target}

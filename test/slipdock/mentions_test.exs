@@ -109,6 +109,13 @@ defmodule Slipdock.MentionsTest do
       refute html =~ "<span"
     end
 
+    test "a Markdown description draws mentions too, but not inside code", %{board: board} do
+      {:safe, html} = RichText.markdown("**hi** @priya, see `@priya`", board: board)
+      assert html =~ "<strong>hi</strong>"
+      assert html =~ ~s|title="Priya Shah">@priya</span>,|
+      assert html =~ "<code>@priya</code>"
+    end
+
     test "without a board, mentions are plain text" do
       assert RichText.render("@priya") == {:safe, "@priya"}
     end
