@@ -41,6 +41,26 @@ defmodule Slipdock.WikiSharedTreeTest do
     assert hd(b_items).level == :read
   end
 
+  test "a comment share shows at comment level, and a write share beside it wins", c do
+    board = board_fixture(%{"name" => "Alice's"}, owner: c.alice)
+    {:ok, folder} = Wiki.create_folder(board, %{"name" => "Notes"})
+    page = page_fixture(board, %{"title" => "Plan"}, user: c.alice)
+    {:ok, _} = Access.grant(folder, c.me, "comment", c.alice)
+    {:ok, _} = Access.grant(page, c.me, "comment", c.alice)
+
+    assert [%{items: [%{kind: :folder, level: :comment}, %{kind: :page, level: :comment}]}] =
+             SharedTree.for_user(c.me)
+
+    {:ok, group} = Slipdock.Accounts.create_group(c.alice, %{"name" => "Crew"})
+    {:ok, _} = Slipdock.Accounts.add_group_member(group, c.me.email)
+    {:ok, _} = Access.grant(folder, group, "write", c.alice)
+
+    assert [%{items: [%{kind: :folder, level: :write}, %{kind: :page, level: :comment}]}] =
+             SharedTree.for_user(c.me)
+
+    assert Access.folder_grant_level(c.me, folder.id) == :write
+  end
+
   test "a shared folder opens to its whole subtree: folders, pages and files", c do
     board = board_fixture(%{"name" => "Handbook"}, owner: c.alice)
     {:ok, top} = Wiki.create_folder(board, %{"name" => "Top"})

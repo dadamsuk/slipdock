@@ -1,8 +1,8 @@
 defmodule Slipdock.Access do
   @moduledoc """
   Authorization. Boards belong to a user. Other users, and groups of users,
-  can be granted read or write access to a board, to a single card, to a
-  saved view of a board, or to a single wiki page.
+  can be granted read, comment or write access to a board, to a single card,
+  to a saved view of a board, or to a single wiki page.
 
     * Board access covers every card on it (and the sub-boards inside them),
       and every page of its wiki.
@@ -19,8 +19,13 @@ defmodule Slipdock.Access do
       (a placement) is not shared by it — filing a page into a shared folder
       must never quietly share the page.
 
-  Permission levels, from most to least: `:owner`, `:write`, `:read`, `:view`
-  (board reachable only through granted views), `:none`.
+  Permission levels, from most to least: `:owner`, `:write`, `:comment`,
+  `:read`, `:view` (board reachable only through granted views), `:none`.
+
+  `:comment` (#863) is a reader who may also join the discussion — comment,
+  report a status, leave a vote's comment, take back their own comment — but
+  changes nothing about the card or page itself: not its title, dates,
+  assignees, flags, list, checklist or anything else a writer edits.
   """
   import Ecto.Query, warn: false
   alias Slipdock.Repo
@@ -35,9 +40,12 @@ defmodule Slipdock.Access do
 
   @pubsub Slipdock.PubSub
 
-  @type level :: :owner | :write | :read | :view | :none
+  @type level :: :owner | :write | :comment | :read | :view | :none
 
-  @rank %{none: 0, view: 1, read: 2, write: 3, owner: 4}
+  @rank %{none: 0, view: 1, read: 2, comment: 3, write: 4, owner: 5}
+
+  # What a grant row may carry, lowest first.
+  @grant_levels Grant.levels()
 
   ## Permissions --------------------------------------------------------------
 
@@ -303,7 +311,7 @@ defmodule Slipdock.Access do
   query whatever the depth: the ancestry is a recursive CTE, joined to the
   grants. `nil` (the wiki's top) is in no folder, so nothing.
   """
-  @spec folder_grant_level(User.t(), integer | nil) :: :write | :read | :none
+  @spec folder_grant_level(User.t(), integer | nil) :: :write | :comment | :read | :none
   def folder_grant_level(_user, nil), do: :none
 
   def folder_grant_level(%User{id: user_id}, folder_id) when is_integer(folder_id) do
@@ -339,12 +347,21 @@ defmodule Slipdock.Access do
     union_all(start, ^up)
   end
 
-  defp best_level(levels) do
-    cond do
-      "write" in levels -> :write
-      "read" in levels -> :read
-      true -> :none
-    end
+  # The highest of some grant rows' levels, `:none` for no rows.
+  defp best_level(levels),
+    do: levels |> Enum.map(&grant_level_atom/1) |> Enum.reduce(:none, &higher/2)
+
+  @doc "A grant row's level as a permission level: `\"comment\"` → `:comment`."
+  @spec grant_level_atom(String.t()) :: level
+  def grant_level_atom(level) when level in @grant_levels, do: String.to_existing_atom(level)
+  def grant_level_atom(_), do: :none
+
+  @doc "The higher of two permission levels (`nil` counts as `:none`)."
+  @spec higher(level | nil, level | nil) :: level
+  def higher(a, b) do
+    a = a || :none
+    b = b || :none
+    if @rank[a] >= @rank[b], do: a, else: b
   end
 
   @doc "The user's permission on a saved view: board write/owner, or a direct view grant."
@@ -371,6 +388,7 @@ defmodule Slipdock.Access do
   end
 
   def can_read?(level), do: @rank[level] >= @rank[:read]
+  def can_comment?(level), do: @rank[level] >= @rank[:comment]
   def can_write?(level), do: @rank[level] >= @rank[:write]
   def owner?(level), do: level == :owner
 
@@ -432,7 +450,8 @@ defmodule Slipdock.Access do
     best_level(levels)
   end
 
-  # grant_level/2 for many ids of one kind at once: %{id => :write | :read}.
+  # grant_level/2 for many ids of one kind at once: %{id => level}, the
+  # highest grant on each winning.
   defp grant_levels(%User{} = user, field, ids) do
     group_ids = Accounts.group_ids_for(user)
 
@@ -442,10 +461,8 @@ defmodule Slipdock.Access do
       select: {field(g, ^field), g.level}
     )
     |> Repo.all()
-    |> Enum.reduce(%{}, fn
-      {id, "write"}, acc -> Map.put(acc, id, :write)
-      {id, "read"}, acc -> Map.put_new(acc, id, :read)
-      _, acc -> acc
+    |> Enum.reduce(%{}, fn {id, level}, acc ->
+      Map.update(acc, id, grant_level_atom(level), &higher(&1, grant_level_atom(level)))
     end)
   end
 
@@ -873,7 +890,7 @@ defmodule Slipdock.Access do
   Grants `level` on `resource` to `subject` (a `%User{}`, a `%Group{}`, or an
   email address, which creates the user if needed). Re-granting updates the level.
   """
-  def grant(resource, subject, level, %User{} = granted_by) when level in ["read", "write"] do
+  def grant(resource, subject, level, %User{} = granted_by) when level in @grant_levels do
     with {:ok, subject} <- resolve_subject(subject, granted_by, resource) do
       subject_clause = subject_clause(subject)
       attrs = Map.merge(resource_attrs(resource), subject_attrs(subject))

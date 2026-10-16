@@ -206,9 +206,9 @@ defmodule Slipdock.Wiki.Sharing do
   end
 
   @doc """
-  Shares `item` with a person or group at `level` ("read" or "write"):
-  `who` is `%{"email" => …}` or `%{"group" => id or name}`, a group of
-  `user`'s. An address nobody uses goes through the invite flow. Sharing
+  Shares `item` with a person or group at `level` ("read", "comment" or
+  "write"): `who` is `%{"email" => …}` or `%{"group" => id or name}`, a
+  group of `user`'s. An address nobody uses goes through the invite flow. Sharing
   again changes the level.
   """
   def share(user, item, who, level) do
@@ -234,8 +234,8 @@ defmodule Slipdock.Wiki.Sharing do
     end
   end
 
-  defp level_ok(level) when level in ["read", "write"], do: :ok
-  defp level_ok(_), do: {:error, :bad_request, "level is read or write"}
+  defp level_ok(level) when level in ["read", "comment", "write"], do: :ok
+  defp level_ok(_), do: {:error, :bad_request, "level is read, comment or write"}
 
   defp subject(user, %{"group" => ref}) when ref not in [nil, ""], do: group(user, ref)
 
