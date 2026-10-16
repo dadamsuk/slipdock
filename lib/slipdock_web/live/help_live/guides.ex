@@ -69,6 +69,7 @@ defmodule SlipdockWeb.HelpLive.Guides do
         {"automations-presets", "Ready-made rules"},
         {"automations-words", "Rules in your own words"},
         {"automations-parts", "Triggers, conditions and actions"},
+        {"automations-agents", "From an agent"},
         {"automations-alerts", "Alerts"},
         {"automations-limits", "Safety rails"}
       ]
@@ -477,6 +478,15 @@ defmodule SlipdockWeb.HelpLive.Guides do
       <p>
         Text in an action can include details of the card, such as <code>{"{{card.title}}"}</code>
         or <code>{"{{card.url}}"}</code>.
+      </p>
+    </.part>
+
+    <.part title="From an agent" id="automations-agents">
+      <p>
+        The board's owner can also have an AI agent list, add, change, switch off and delete
+        rules, over <.link patch={~p"/help/agents/mcp"} class="link">MCP</.link>
+        or with the <.link patch={~p"/help/agents/cli"} class="link">CLI</.link>. An agent can
+        write a rule exactly, start from a ready-made one, or describe it in a sentence as you would.
       </p>
     </.part>
 

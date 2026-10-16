@@ -52,6 +52,12 @@ defmodule SlipdockWeb.HelpLiveTest do
 
       assert has_element?(view, ~s{#help-hub-agents a[href="/help/agents"]})
 
+      assert has_element?(
+               view,
+               ~s{#help-hub-agents-summary[href="/help/agents"]},
+               "Summary: every way in, side by side"
+             )
+
       for slug <- @topics,
           do: assert(has_element?(view, ~s{#help-hub-agents a[href="/help/agents/#{slug}"]}))
     end
@@ -188,6 +194,23 @@ defmodule SlipdockWeb.HelpLiveTest do
     end
 
     @tag :anonymous
+    test "the table says MCP attaches files and manages automations", %{conn: conn} do
+      {:ok, _view, html} = live(conn, ~p"/help/agents")
+      mcp = Enum.find_index(@topics, &(&1 == "mcp"))
+
+      for label <- ["Attach and download files", "List and change a board's automations"] do
+        row =
+          doc(html)
+          |> LazyHTML.query("#help-compare-table tbody tr")
+          |> Enum.find(&(LazyHTML.text(LazyHTML.query(&1, "th")) =~ label))
+
+        assert row, "no row #{label}"
+        cell = row |> LazyHTML.query("td") |> Enum.at(mcp)
+        assert LazyHTML.attribute(LazyHTML.query(cell, "[data-mark]"), "data-mark") == ["yes"]
+      end
+    end
+
+    @tag :anonymous
     test "the table's marks are said in words for screen readers", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/help/agents")
 
@@ -304,6 +327,31 @@ defmodule SlipdockWeb.HelpLiveTest do
       for button <- LazyHTML.query(page, "button[phx-hook=CopyText]") do
         [target] = LazyHTML.attribute(button, "data-target")
         assert count(page, "code##{target}") == 1, "#{path}: no code##{target}"
+      end
+    end
+  end
+
+  @tag :anonymous
+  test "every link in the content is styled as a link", %{conn: conn} do
+    paths =
+      ["/help", "/help/agents"] ++
+        Enum.map(@sections, &"/help/#{&1}") ++ Enum.map(@topics, &"/help/agents/#{&1}")
+
+    for path <- paths do
+      {:ok, _view, html} = live(conn, path)
+
+      # The tab rows are tabs, and look like them; everything else is prose.
+      links =
+        doc(html)
+        |> LazyHTML.query("#help a:not(#help-sections-nav a):not(#help-topics a)")
+
+      assert Enum.count(links) > 0
+
+      for link <- links do
+        [href] = LazyHTML.attribute(link, "href")
+        classes = link |> LazyHTML.attribute("class") |> Enum.join(" ") |> String.split()
+        assert "link" in classes, "#{path}: #{href} doesn't look like a link"
+        refute "link-hover" in classes, "#{path}: #{href} is only underlined on hover"
       end
     end
   end
