@@ -16,6 +16,7 @@ defmodule SlipdockCLI.Tools do
 
   @usage "usage: slipdock tools | tools show <name> [--version V] | tools publish <dir> | " <>
            "tools install <name> [--dir D] | tools check [<name>...] | " <>
+           "tools request-listing <name> [--version V] | " <>
            "tools install-board <name> [--version V] [--name N]"
 
   def run("tools", [], o) do
@@ -136,6 +137,17 @@ defmodule SlipdockCLI.Tools do
       else: Render.table(["TOOL", "SKILL", "SERVER", "LOCAL COPY"], Render.scrub(rows))
   end
 
+  # Listed for everyone once an admin approves this version.
+  def run("tools", ["request-listing", name], o) do
+    HTTP.post("/tools/#{enc(name)}/listing", put_opt(%{}, "version", o[:version]))
+    |> out(o, fn %{"tool" => t} ->
+      IO.puts(
+        "asked for #{t["name"]} #{t["version"]} to be listed for everyone; an admin approves it " <>
+          "before it shows (#{t["listing"]["this_version"]})"
+      )
+    end)
+  end
+
   def run("tools", _args, _o), do: fail(@usage)
 
   def run(cmd, _args, _o), do: bad_usage(cmd)
@@ -197,14 +209,15 @@ defmodule SlipdockCLI.Tools do
   defp render_list(tools) do
     rows =
       Enum.map(tools, fn t ->
-        [t["name"], t["version"] || "-", kind(t), t["summary"] || ""]
+        board = (t["installed"] || %{})["board"] || "-"
+        [t["name"], t["version"] || "-", kind(t), board, t["summary"] || ""]
       end)
 
-    Render.table(["TOOL", "VERSION", "", "SUMMARY"], rows)
+    Render.table(["TOOL", "VERSION", "KIND", "BOARD", "SUMMARY"], rows)
   end
 
-  defp kind(%{"mine" => true}), do: "mine"
   defp kind(%{"kind" => kind}) when is_binary(kind), do: kind
+  defp kind(%{"mine" => true}), do: "mine"
   defp kind(_), do: ""
 
   defp render_tool(t) do

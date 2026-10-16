@@ -175,4 +175,29 @@ defmodule SlipdockCLI.ToolsTest do
     out = capture_io(fn -> Tools.run("tools", ["check", "demo"], dir: dir) end)
     assert out =~ "not installed"
   end
+
+  test "the list shows each Tool's kind and the board its install made" do
+    reply =
+      ~s({"tools":[{"name":"a","version":"1.0.0","kind":"listed","summary":"S","installed":{"board":"abc"}},) <>
+        ~s({"name":"b","version":"2.0.0","kind":"mine","summary":"T","installed":null}]})
+
+    System.put_env("SLIPDOCK_URL", FakeServer.start([{200, reply}]))
+    out = capture_io(fn -> Tools.run("tools", [], []) end)
+
+    assert out =~ ~r/a\s+1\.0\.0\s+listed\s+abc/
+    assert out =~ ~r/b\s+2\.0\.0\s+mine\s+-/
+  end
+
+  test "request-listing asks for the version and says an admin decides" do
+    reply =
+      ~s({"tool":{"name":"demo","version":"1.2.0","listing":{"this_version":"waiting for an admin"}}})
+
+    System.put_env("SLIPDOCK_URL", FakeServer.start([{200, reply}]))
+
+    out = capture_io(fn -> Tools.run("tools", ["request-listing", "demo"], version: "1.2.0") end)
+
+    assert_received {:request, "POST", "/api/tools/demo/listing", body}
+    assert :json.decode(body) == %{"version" => "1.2.0"}
+    assert out =~ "an admin approves it before it shows (waiting for an admin)"
+  end
 end

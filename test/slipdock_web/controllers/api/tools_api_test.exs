@@ -169,4 +169,24 @@ defmodule SlipdockWeb.API.ToolsAPITest do
              |> json_response(403)
     end
   end
+
+  describe "POST /api/tools/:name/listing" do
+    test "the owner asks; anybody else is refused", %{user: user} do
+      name = unique_name()
+      {:ok, _} = Slipdock.Tools.publish(user, package(name))
+
+      body = user |> with_token() |> post("/api/tools/#{name}/listing", %{}) |> json_response(200)
+      assert body["tool"]["listing"]["this_version"] == "waiting for an admin"
+
+      friend = user_fixture("api-listing-friend@example.com")
+
+      {:ok, _} =
+        Slipdock.Tools.share(user, Slipdock.Repo.get_by!(Slipdock.Tools.Tool, slug: name), friend)
+
+      assert friend
+             |> with_token()
+             |> post("/api/tools/#{name}/listing", %{})
+             |> json_response(403)
+    end
+  end
 end

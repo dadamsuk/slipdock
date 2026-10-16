@@ -15,10 +15,16 @@ defmodule SlipdockWeb.ToolLive.Index do
   defp load(socket) do
     user = socket.assigns.current_user
 
+    own = Tools.list_own(user)
+    shared = Tools.list_shared(user)
+    seen = MapSet.new(own ++ shared, & &1.id)
+
     assign(socket,
       sections: [
-        {"yours", "Yours", Tools.list_own(user)},
-        {"shared", "Shared with you", Tools.list_shared(user)}
+        {"yours", "Yours", own},
+        {"shared", "Shared with you", shared},
+        {"listed", "On this server",
+         Enum.reject(Tools.list_listed(), &MapSet.member?(seen, &1.id))}
       ],
       installs: user |> Tools.installs() |> Map.new(&{&1.tool_id, &1})
     )

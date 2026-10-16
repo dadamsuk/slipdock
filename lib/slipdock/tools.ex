@@ -153,9 +153,110 @@ defmodule Slipdock.Tools do
   def get_version(%Tool{id: id}, number),
     do: Repo.get_by(ToolVersion, tool_id: id, version: to_string(number))
 
-  @doc "The Tools `user` can see, by name: their own, then the ones shared with them."
-  def list_for(%User{} = user), do: list_own(user) ++ list_shared(user)
+  @doc """
+  The Tools `user` can see, by name: their own, then the ones shared with
+  them, then the ones listed for everyone.
+  """
+  def list_for(%User{} = user) do
+    own = list_own(user)
+    shared = list_shared(user)
+    seen = MapSet.new(own ++ shared, & &1.id)
+    own ++ shared ++ Enum.reject(list_listed(), &MapSet.member?(seen, &1.id))
+  end
+
   def list_for(_), do: []
+
+  @doc "Every Tool listed for everyone on the server, by name."
+  def list_listed,
+    do: Repo.all(from(t in Tool, where: not is_nil(t.listed_version_id), order_by: [asc: t.slug]))
+
+  ## Listing for everyone -----------------------------------------------------------
+
+  @doc """
+  The owner asks for `version` to be listed for everyone on the server. It
+  shows as listed only once an admin approves it (`approve_listing/2`);
+  until then the version listed before, if any, stays listed.
+  """
+  def request_listing(%User{} = user, %ToolVersion{} = version) do
+    tool = Repo.get!(Tool, version.tool_id)
+
+    cond do
+      not owner?(user, tool) ->
+        {:error, "only the Tool's owner can ask for it to be listed"}
+
+      version.approved_at ->
+        {:error, "#{tool.slug} #{version.version} is already approved"}
+
+      true ->
+        version
+        |> Ecto.Changeset.change(
+          listing_requested_at: now(),
+          declined_at: nil,
+          declined_reason: nil
+        )
+        |> Repo.update()
+    end
+  end
+
+  @doc "Versions waiting for an admin to decide on listing them, oldest request first."
+  def listing_queue do
+    from(v in ToolVersion,
+      where:
+        not is_nil(v.listing_requested_at) and is_nil(v.approved_at) and is_nil(v.declined_at),
+      order_by: [asc: v.listing_requested_at],
+      preload: [tool: :owner]
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  An admin approves `version` for listing: from now on everybody on the
+  server can see and install that version. A newer version needs approving
+  in its turn; until it is, this one stays the listed one.
+  """
+  def approve_listing(%User{admin: true} = admin, %ToolVersion{} = version) do
+    Repo.transaction(fn ->
+      {:ok, version} =
+        version
+        |> Ecto.Changeset.change(approved_at: now(), approved_by_id: admin.id, declined_at: nil)
+        |> Repo.update()
+
+      tool = Repo.get!(Tool, version.tool_id)
+      current = tool.listed_version_id && Repo.get(ToolVersion, tool.listed_version_id)
+
+      # Approving an old request never takes a newer listed version back.
+      if is_nil(current) or Version.compare(version.version, current.version) != :lt do
+        tool |> Ecto.Changeset.change(listed_version_id: version.id) |> Repo.update!()
+      end
+
+      version
+    end)
+  end
+
+  def approve_listing(_user, _version), do: {:error, "only an admin can approve a listing"}
+
+  @doc "An admin declines listing `version`, with a reason the owner sees."
+  def decline_listing(%User{admin: true}, %ToolVersion{} = version, reason) do
+    version
+    |> Ecto.Changeset.change(declined_at: now(), declined_reason: blank_to_nil(reason))
+    |> Repo.update()
+  end
+
+  def decline_listing(_user, _version, _reason),
+    do: {:error, "only an admin can decline a listing"}
+
+  @doc "The owner (or an admin) takes the Tool off the listing; shares are kept."
+  def unlist(%User{} = user, %Tool{} = tool) do
+    if owner?(user, tool) or user.admin,
+      do: tool |> Ecto.Changeset.change(listed_version_id: nil) |> Repo.update(),
+      else: {:error, "only the Tool's owner can unlist it"}
+  end
+
+  @doc "The version listed for everyone, or nil."
+  def listed_version(%Tool{listed_version_id: nil}), do: nil
+  def listed_version(%Tool{listed_version_id: id}), do: Repo.get(ToolVersion, id)
+
+  defp now, do: DateTime.utc_now() |> DateTime.truncate(:second)
 
   @doc "The Tools shared with `user`, directly or through a group, by name."
   def list_shared(%User{id: user_id} = user) do
@@ -227,10 +328,26 @@ defmodule Slipdock.Tools do
 
   def fetch(_user, _slug), do: {:error, :not_found}
 
-  @doc "Whether `user` may see `tool` at all: their own, or shared with them."
-  def visible?(%User{id: id}, %Tool{owner_id: id}), do: true
-  def visible?(%User{} = user, %Tool{} = tool), do: shared_with?(user, tool)
-  def visible?(_user, _tool), do: false
+  @doc "Whether `user` may see `tool` at all: their own, shared with them, or listed."
+  def visible?(user, tool), do: access(user, tool) != :none
+
+  @doc """
+  How `user` reaches `tool`: `:owner`, `:shared` (granted to them or a group
+  of theirs), `:listed` (an admin approved a version for everyone), or
+  `:none`. Owners and grantees see every version; somebody who sees it only
+  because it is listed sees the listed version and nothing newer.
+  """
+  def access(%User{id: id}, %Tool{owner_id: id}), do: :owner
+
+  def access(%User{} = user, %Tool{} = tool) do
+    cond do
+      shared_with?(user, tool) -> :shared
+      tool.listed_version_id -> :listed
+      true -> :none
+    end
+  end
+
+  def access(_user, _tool), do: :none
 
   @doc "Whether `user` owns `tool`."
   def owner?(%User{id: id}, %Tool{owner_id: id}), do: true
@@ -241,10 +358,16 @@ defmodule Slipdock.Tools do
   the latest. nil when there is none.
   """
   def visible_version(user, %Tool{} = tool, number \\ nil) do
-    cond do
-      not visible?(user, tool) -> nil
-      number in [nil, ""] -> latest_version(tool)
-      true -> get_version(tool, number)
+    case access(user, tool) do
+      :none ->
+        nil
+
+      :listed ->
+        listed = Repo.get(ToolVersion, tool.listed_version_id)
+        if number in [nil, ""] or (listed && listed.version == to_string(number)), do: listed
+
+      _ ->
+        if number in [nil, ""], do: latest_version(tool), else: get_version(tool, number)
     end
   end
 

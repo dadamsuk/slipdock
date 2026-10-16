@@ -63,6 +63,7 @@ defmodule SlipdockWeb.ToolLive.Show do
           board_files: board_files(version, files),
           install: Tools.current_install(user, tool),
           owner?: Tools.owner?(user, tool),
+          listed: Tools.listed_version(tool),
           grants: if(Tools.owner?(user, tool), do: Tools.grants(tool), else: [])
         )
     end
@@ -98,6 +99,37 @@ defmodule SlipdockWeb.ToolLive.Show do
 
       {:error, :not_found} ->
         {:noreply, put_flash(socket, :error, "That version is no longer there.")}
+
+      {:error, message} ->
+        {:noreply, put_flash(socket, :error, message)}
+    end
+  end
+
+  def handle_event("request_listing", _params, socket) do
+    %{current_user: user, version: version} = socket.assigns
+
+    case Tools.request_listing(user, version) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Asked an admin to list #{version.version}.")
+         |> load(version.version)}
+
+      {:error, message} ->
+        {:noreply, put_flash(socket, :error, message)}
+    end
+  end
+
+  def handle_event("unlist", _params, socket) do
+    %{current_user: user, tool: tool} = socket.assigns
+
+    case Tools.unlist(user, tool) do
+      {:ok, tool} ->
+        {:noreply,
+         socket
+         |> assign(tool: tool)
+         |> put_flash(:info, "No longer listed.")
+         |> load(socket.assigns.version.version)}
 
       {:error, message} ->
         {:noreply, put_flash(socket, :error, message)}
@@ -468,8 +500,37 @@ defmodule SlipdockWeb.ToolLive.Show do
           >
             <h2 class="text-lg font-semibold">Who can see it</h2>
             <p class="mt-1 text-sm text-base-content/60">
-              Only you, and the people you share it with here. They can read it and install it.
+              You, the people you share it with here, and — once an admin approves a version for
+              listing — everybody on this server. They can read it and install it.
             </p>
+            <div id="tool-listing" class="mt-3 rounded-xl bg-base-200/60 p-3 text-sm">
+              <p :if={@listed}>
+                Listed for everyone: version <b>{@listed.version}</b>.
+                <button class="btn btn-ghost btn-xs" phx-click="unlist">Unlist</button>
+              </p>
+              <p :if={!@listed}>Not listed for everyone.</p>
+              <%= cond do %>
+                <% @version.approved_at -> %>
+                  <p :if={@listed && @listed.id != @version.id}>
+                    Version {@version.version} was approved earlier.
+                  </p>
+                <% @version.declined_at -> %>
+                  <p class="text-warning">
+                    An admin declined listing {@version.version}<span :if={@version.declined_reason}>: “{@version.declined_reason}”</span>.
+                  </p>
+                  <button class="btn btn-sm mt-2" phx-click="request_listing">Ask again</button>
+                <% @version.listing_requested_at -> %>
+                  <p>Version {@version.version} is waiting for an admin to approve it.</p>
+                <% true -> %>
+                  <button
+                    id="tool-request-listing"
+                    class="btn btn-sm mt-2"
+                    phx-click="request_listing"
+                  >
+                    Ask an admin to list {@version.version} for everyone
+                  </button>
+              <% end %>
+            </div>
             <ul class="mt-3 space-y-1 text-sm">
               <li :for={g <- @grants} id={"tool-grant-#{g.id}"} class="flex items-center gap-2">
                 {subject_name(g)}

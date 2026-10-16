@@ -189,7 +189,7 @@ that connects gets a small set of tools rather than the whole API:
 
 | Reading | Writing |
 |---|---|
-| `whoami`, `get_guide`, `list_boards`, `get_board`, `list_cards`, `get_card`, `search`, `ask`, `read_page`, `list_pages`, `page_info`, `page_history`, `list_vaults`, `activity`, `download_file`, `list_automations` | `create_card`, `update_card`, `move_card`, `comment`, `upload_file`, `complete_card`, `status_update`, `archive_card`, `delete_card`, `create_list`, `create_tag`, `delete_list`, `create_board`, `archive_board`, `delete_board`, `write_page`, `update_page`, `file_folder`, `share`, `revert_page`, `manage_vault`, `manage_automation`, `install_tool`, `claim_job`, `job_progress`, `finish_job` |
+| `whoami`, `get_guide`, `list_boards`, `get_board`, `list_cards`, `get_card`, `search`, `ask`, `read_page`, `list_pages`, `page_info`, `page_history`, `list_vaults`, `activity`, `download_file`, `list_automations`, `list_tools` | `create_card`, `update_card`, `move_card`, `comment`, `upload_file`, `complete_card`, `status_update`, `archive_card`, `delete_card`, `create_list`, `create_tag`, `delete_list`, `create_board`, `archive_board`, `delete_board`, `write_page`, `update_page`, `file_folder`, `share`, `revert_page`, `manage_vault`, `manage_automation`, `install_tool`, `claim_job`, `job_progress`, `finish_job` |
 
 While an admin has meeting mode on, four more: `get_capture` to read, and
 `capture_meeting`, `resolve_capture_question` and `commit_capture` to write.
