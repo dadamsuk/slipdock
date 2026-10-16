@@ -2486,8 +2486,8 @@ tool `file_folder` do it. A folder's JSON lists them as `also_in`;
 A page or a folder can be shared on its own with somebody who has no reason to
 see the rest of the board (#813): **Share…** on the page's ⋯ menu, or on a
 page's or folder's menu in the tree, adds a person by email (a stranger is
-invited, as for boards) or one of your groups, **read only** or **can edit**,
-and lists and takes back what is there. Only the board's owner and writers can
+invited, as for boards) or one of your groups, **read only**, **can comment**
+or **can edit**, and lists and takes back what is there. Only the board's owner and writers can
 share; somebody a thing was shared with cannot pass it on. A shared page or
 folder wears a small people mark in its owner's tree, and Page details says how
 many people and groups have it.
@@ -3736,12 +3736,17 @@ files, so only enable it on machines used for automated testing.
 Members are added by email; the group's creator manages it.
 
 **Sharing** — a board belongs to the user who created it. From the board's
-settings the owner can grant *read only* or *can edit* access to a person or
-a group; board access covers every card on it and the sub-boards inside
-them. A single card can be shared the same way from its modal (by the owner
+settings the owner can grant *read only*, *can comment* or *can edit* access
+to a person or a group; board access covers every card on it and the
+sub-boards inside them. **Can comment** (#863) is a reader who may also join
+the discussion: comment, post a status update and vote, and take back their
+own comments — but not change the card's title, dates, assignees, flags, list,
+checklist or anything else. A commenter's card modal keeps the comment box,
+status updates and votes live and the rest disabled. A single card can be shared the same way from its modal (by the owner
 or anyone who can edit it): the recipient sees that card, listed under
 "Cards shared with you" on the home page, and nothing else on the board. A
-card grant can also raise a board reader to an editor on that one card. A
+card grant can also raise a board reader to a commenter or an editor on that
+one card. A
 saved view can be shared from the Views menu: the recipient opens the board
 only through that view, sees just the cards it selects, and can edit them
 only if the view grant is "can edit". Readers get a disabled card modal, no
@@ -4348,6 +4353,7 @@ slipdock page place W-31 Backlog --before 42   # before card #42 (or --before pa
 slipdock page unplace W-31                     # off the board; it stays in the wiki
 slipdock page publish W-31                     # read-only at a public link; --off withdraws it
 slipdock page share W-31 sam@example.com --write   # share it to edit (a group by name too); --off takes it back
+slipdock page share W-31 lee@example.com --comment # read, comment, report and vote; no edits
 slipdock folder share kb Specs Ops                 # a folder and all in it, with a group, read only
 slipdock shared                                    # what other people have shared with you
 slipdock page export qvm-v1-rem --dir ~/wiki   # out as .md files, front matter and all
@@ -4486,7 +4492,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `write_page` | The wiki: `create` a page, `append` or `append_section` to one, or `replace_section` and `replace`, which need the `content_hash` from `read_page` so nobody's edit is overwritten. |
 | `update_page` | Everything about a page but its body: `title`, `summary`, `parent` (`""` for the top) and `position` among its siblings, `folder` (made if new; `""` unfiles), `also` / `not_in` (other folders it is also filed in), `archived` (`false` restores it, children too), and `pin_card` / `unpin_card` to mark it *the* page for a card you can read. Only what is passed changes. Purging a page for good stays on the CLI. |
 | `file_folder` | Files a wiki folder in one more folder as well as its home (`also`), or takes it out of one (`not_in`): a folder on its board, on `in_board`, or a vault path. Same board or same vault, write on both, never inside itself. Answers with where it is filed now (`also_in`). |
-| `share` | Shares a wiki page (`page`, a code) or folder (`folder`, with `board`) with a person (`with`, an email) or a group of yours (`group`), `level` read or write; a folder shares everything at home in it. `off: true` takes it back; neither `with` nor `group` lists who has it. Only the board's writers share; somebody it was shared with gets `shared_no_reshare`. |
+| `share` | Shares a wiki page (`page`, a code) or folder (`folder`, with `board`) with a person (`with`, an email) or a group of yours (`group`), `level` read, comment or write; a folder shares everything at home in it. `off: true` takes it back; neither `with` nor `group` lists who has it. Only the board's writers share; somebody it was shared with gets `shared_no_reshare`. |
 | `revert_page` | Puts a page back to a revision from `page_history`. The revert is a new revision, so nothing leaves the history and it can itself be undone; it needs `base_hash`, the page's current `content_hash`, so a newer edit is not lost to it unseen. |
 | `manage_vault` | Changes a [vault](#vaults), by `action`: `create` (`name`), `rename` (`vault`, `name`), `delete` (`vault`, `confirm: true`; the pages stay on their boards), `map` (`vault`, `path`, `board` and optionally `folder`) and `unmap` (`vault`, `path`), either with `dry_run` to preview which pages join, move or leave; `move_folder` (`board`, `folder`, `to_board`, optionally `parent`, `contents`, `dry_run`), a folder with everything in it to another board; and `split` (`vault`, `path`, `board` or `new_board`, `dry_run`), giving a vault folder its own board and mapping its path onto it. |
 | `claim_job` | Takes the oldest [runner job](#runners) queued for a pool on a board, with a lease: the card, its link, the job's kind and prompt. Answers `nothing queued` when there is none, so an idle check costs little. The session shows in the board's runner list. |
