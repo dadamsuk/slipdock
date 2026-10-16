@@ -4084,6 +4084,7 @@ GET    /api/boards/:board/cards            POST   /api/boards/:board/cards
        ?column= &tag= &priority= &flag= &q= &completed= &archived=true|all
        &due=overdue|today|week|month|has|none  &deps=blocked|ready|blocking|violated|free
        &assignee=EMAIL|NAME|me|none            (the board views' own filters; a bad bucket is a 400)
+       POST takes "archived": true to make the card straight into the archive
 GET    /api/boards/:board/columns          POST   /api/boards/:board/columns
 PATCH  /api/boards/:board/columns/:id      DELETE /api/boards/:board/columns/:id
 GET    /api/boards/:board/tags             POST   /api/boards/:board/tags

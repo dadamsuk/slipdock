@@ -19,23 +19,33 @@ defmodule SlipdockWeb.API.CardWrites do
 
   @doc """
   A new card on `board`, which the caller has already been checked to write.
-  `params` are the API's: `column`, `tags`, `assignee`/`assignees`, and the
-  plain fields.
+  `params` are the API's: `column`, `tags`, `assignee`/`assignees`, the
+  plain fields, and `archived` to file it away as soon as it is made (a
+  record of something already finished with, say).
   """
   def create(auth, board, params) do
     user = auth.assigns.current_user
 
-    with {:ok, column} <- resolve_column(board, params["column"]),
+    with {:ok, archived} <- archived?(params["archived"]),
+         {:ok, column} <- resolve_column(board, params["column"]),
          {:ok, tags} <- resolve_tags(board, params["tags"]),
          {:ok, assignee} <- resolve_assignees(board, params, user),
          {:ok, card} <-
            Boards.create_card(column, params |> Map.take(@card_fields) |> Map.merge(assignee),
              by: user
            ),
-         {:ok, _} <- maybe_set_tags(card, tags) do
+         {:ok, _} <- maybe_set_tags(card, tags),
+         {:ok, _} <- maybe_archive(card, archived) do
       {:ok, Boards.get_card!(card.id)}
     end
   end
+
+  defp archived?(value) when value in [true, "true"], do: {:ok, true}
+  defp archived?(value) when value in [nil, false, "false"], do: {:ok, false}
+  defp archived?(_), do: {:error, :unprocessable_entity, "archived must be true or false"}
+
+  defp maybe_archive(card, true), do: Boards.archive_card(card)
+  defp maybe_archive(card, false), do: {:ok, card}
 
   @doc """
   Changes `card`, which the caller has already been checked to write: the

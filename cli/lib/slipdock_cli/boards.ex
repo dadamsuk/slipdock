@@ -180,7 +180,8 @@ defmodule SlipdockCLI.Boards do
         "time_spent" => o[:spent],
         "time_estimate" => o[:estimate],
         "time_unit" => o[:unit],
-        "color" => o[:color]
+        "color" => o[:color],
+        "archived" => if(o[:archived], do: true)
       }
       |> Map.merge(assignees(o))
       |> compact()
