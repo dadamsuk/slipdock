@@ -53,6 +53,10 @@ defmodule SlipdockWeb.API.JSON do
       name: t.name,
       description: t.description,
       columns: t.columns,
+      pages: t.pages,
+      folders: t.folders,
+      tags: t.tags,
+      automations: t.automations,
       kind: t.kind,
       # Built in: read-only to everyone. Otherwise it is the caller's own.
       system: t.system

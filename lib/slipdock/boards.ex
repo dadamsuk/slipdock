@@ -524,10 +524,11 @@ defmodule Slipdock.Boards do
     case result do
       {:ok, %{saved: board}} ->
         if board.template_id && !template, do: broadcast_templates()
-        # A template may carry a documentation skeleton as well as lists, so
-        # a new board can arrive with somewhere to write rather than an empty
-        # wiki (see `Slipdock.Wiki.install_template_pages/3`).
-        if template, do: Slipdock.Wiki.install_template_pages(board, template, opts[:owner_id])
+        # A template may carry a documentation skeleton, folders, tags and
+        # rules as well as lists, so a new board arrives with somewhere to
+        # write rather than an empty wiki. The same applier builds a Tool's
+        # board (see `Slipdock.Blueprint`).
+        if template, do: apply_template_extras(board, template, opts[:owner_id])
         broadcast(board.id)
         # Nobody is subscribed to a new tree yet, its owner included.
         if is_nil(board.parent_card_id), do: notify_users_boards_changed([board.owner_id])
@@ -535,6 +536,29 @@ defmodule Slipdock.Boards do
 
       {:error, step, changeset, _} when step in [:board, :saved] ->
         {:error, changeset}
+    end
+  end
+
+  defp apply_template_extras(board, template, owner_id) do
+    user = owner_id && Repo.get(Slipdock.Accounts.User, owner_id)
+
+    # The lists are already made — the template's, or the custom ones given
+    # instead of them — so only the rest of the blueprint is applied.
+    extras = template |> Slipdock.Blueprint.from_template() |> Map.put("lists", [])
+
+    case Slipdock.Blueprint.apply(board, extras,
+           user: user,
+           message: "from the #{template.name} template"
+         ) do
+      {:ok, _report} ->
+        :ok
+
+      # The board stands with its lists; what the template could not add is
+      # logged rather than taking the board down with it.
+      {:error, message} ->
+        require Logger
+        Logger.warning("template #{template.id} on board #{board.id}: #{message}")
+        :ok
     end
   end
 

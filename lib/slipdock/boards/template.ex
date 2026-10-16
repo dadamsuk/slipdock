@@ -23,6 +23,12 @@ defmodule Slipdock.Boards.Template do
     field :description, :string
     field :columns, {:array, :map}, default: []
     field :pages, {:array, :map}, default: []
+    # The rest of a board blueprint (see `Slipdock.Blueprint`): wiki folder
+    # paths, tags (`%{"name", "color"}`) and automation recipes
+    # (`%{"preset", "params", "name"}`). A page above may name a `folder`.
+    field :folders, {:array, :string}, default: []
+    field :tags, {:array, :map}, default: []
+    field :automations, {:array, :map}, default: []
     # The kind of board this template makes (see `Slipdock.Boards.Board`'s
     # `kind`): "Sprint planning" makes sprint boards. nil for most.
     field :kind, :string
@@ -47,14 +53,23 @@ defmodule Slipdock.Boards.Template do
         _ -> attrs
       end
 
+    # A tag may be written as its bare name.
+    attrs =
+      case attrs do
+        %{"tags" => tags} when is_list(tags) -> Map.put(attrs, "tags", Enum.map(tags, &tag_map/1))
+        %{tags: tags} when is_list(tags) -> Map.put(attrs, :tags, Enum.map(tags, &tag_map/1))
+        _ -> attrs
+      end
+
     template
-    |> cast(attrs, [:name, :description, :columns, :pages, :kind])
+    |> cast(attrs, [:name, :description, :columns, :pages, :kind, :folders, :tags, :automations])
     |> update_change(:kind, &if(&1 == "", do: nil, else: &1))
     |> validate_inclusion(:kind, Slipdock.Boards.Board.kinds())
     |> update_change(:name, &String.trim/1)
     |> validate_required([:name, :columns])
     |> validate_length(:name, min: 1, max: 60)
     |> validate_columns()
+    |> validate_blueprint()
     |> unique_constraint(:name,
       name: :board_templates_owner_id_name_index,
       message: "already exists"
@@ -64,6 +79,9 @@ defmodule Slipdock.Boards.Template do
       message: "already exists"
     )
   end
+
+  defp tag_map(name) when is_binary(name), do: %{"name" => name}
+  defp tag_map(tag), do: tag
 
   @doc "The pages a board made from this template starts with, cleaned up."
   def normalize_pages(pages) when is_list(pages) do
@@ -75,7 +93,8 @@ defmodule Slipdock.Boards.Template do
         "title" => page["title"] |> to_string() |> String.trim(),
         "body" => to_string(page["body"] || ""),
         "summary" => nonblank(page["summary"]),
-        "template" => page["template"] == true
+        "template" => page["template"] == true,
+        "folder" => nonblank(page["folder"])
       }
     end)
     |> Enum.reject(&(&1["title"] == ""))
@@ -86,6 +105,35 @@ defmodule Slipdock.Boards.Template do
   defp nonblank(nil), do: nil
   defp nonblank(""), do: nil
   defp nonblank(text), do: to_string(text)
+
+  # The folders, tags, rules and page folders are checked the way a Tool's
+  # board.json is, by the one validator both go through. Lists are left to
+  # `validate_columns/1`, which has its own messages for the form.
+  defp validate_blueprint(changeset) do
+    extras = ~w(folders tags automations pages)a
+
+    if Enum.any?(extras, &Ecto.Changeset.changed?(changeset, &1)) do
+      blueprint = %{
+        "folders" => get_field(changeset, :folders) || [],
+        "tags" => get_field(changeset, :tags) || [],
+        "pages" => get_field(changeset, :pages) || [],
+        "automations" => get_field(changeset, :automations) || []
+      }
+
+      case Slipdock.Blueprint.validate(blueprint, lists: :optional) do
+        {:ok, clean} ->
+          changeset
+          |> put_change(:tags, clean["tags"])
+          |> put_change(:automations, clean["automations"])
+          |> put_change(:folders, clean["folders"])
+
+        {:error, message} ->
+          add_error(changeset, :blueprint, message)
+      end
+    else
+      changeset
+    end
+  end
 
   # Accepts a list of maps (atom or string keys) or a params map keyed by
   # index (as submitted by a form) and returns clean string-keyed maps.
