@@ -46,7 +46,7 @@ defmodule SlipdockWeb.HelpLive.Agents do
           "reads better in a transcript than raw curl, and does a few things nothing else does.",
       when:
         "The agent works in a terminal on your machine, or you want what only the " <>
-          "CLI has: syncing a vault to a folder, attachments, imports and exports."
+          "CLI has: syncing a vault to a folder, files over 10 MB, imports and exports."
     },
     %{
       slug: "skills",
@@ -139,22 +139,31 @@ defmodule SlipdockWeb.HelpLive.Agents do
        {:some, "through the CLI or MCP"},
        {:no, ""}
      ]},
-    {"Attachments and recordings",
+    {"Attach and download files",
      [
        {:yes, ""},
-       {:some, "up to 10 MB"},
-       {:yes, ""},
-       {:some, "through the CLI"},
+       {:yes, "up to 10 MB each"},
+       {:yes, "up to 250 MB, recordings too"},
+       {:yes, "through the CLI or MCP"},
        {:no, ""},
        {:no, ""}
      ]},
-    {"Set up automations and runners",
+    {"List and change a board's automations",
+     [
+       {:yes, ""},
+       {:yes, "the board's owner"},
+       {:yes, ""},
+       {:yes, "through the CLI or MCP"},
+       {:no, ""},
+       {:no, ""}
+     ]},
+    {"Connect runners",
      [
        {:yes, ""},
        {:no, ""},
        {:yes, ""},
        {:some, "through the CLI"},
-       {:no, ""},
+       {:some, "from the board"},
        {:no, ""}
      ]},
     {"Mirror a vault to a local folder",
@@ -276,7 +285,7 @@ defmodule SlipdockWeb.HelpLive.Agents do
             <tr>
               <th class="w-48"></th>
               <th :for={t <- @topics} scope="col" class="align-bottom">
-                <.link patch={~p"/help/agents/#{t.slug}"} class="link link-hover">{t.short}</.link>
+                <.link patch={~p"/help/agents/#{t.slug}"} class="link">{t.short}</.link>
               </th>
             </tr>
           </thead>
@@ -543,7 +552,9 @@ defmodule SlipdockWeb.HelpLive.Agents do
       <p>
         <code>slipdock</code>
         is a command-line client for everything the API does: boards, cards, comments,
-        the wiki, search, automations, runners and meeting capture. It saves the server's
+        the wiki, files (<code>slipdock attach</code>
+        and <code>slipdock download</code>), search,
+        automations, runners and meeting capture. It saves the server's
         address and your token, so neither you nor the agent has to repeat them, and its
         output is easier to read in a transcript than raw JSON.
       </p>
@@ -577,7 +588,10 @@ defmodule SlipdockWeb.HelpLive.Agents do
           mirrors a vault to a local folder and keeps the two in step, so you can edit pages
           in Obsidian or any other editor.
         </li>
-        <li><code>slipdock attach</code> uploads files up to 250 MB, recordings included.</li>
+        <li>
+          <code>slipdock attach</code>
+          uploads files up to 250 MB, recordings included, where MCP takes up to 10 MB.
+        </li>
         <li>Importing and exporting boards and pages, including from Trello.</li>
         <li>
           <code>slipdock skills install</code>

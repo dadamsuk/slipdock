@@ -92,7 +92,7 @@ defmodule SlipdockWeb.HelpLive.Index do
               <p class="mt-2 text-sm text-base-content/70">{@section.intro}</p>
               <ul class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
                 <li :for={{id, title} <- @section.parts}>
-                  <a href={"##{id}"} class="link link-hover">{title}</a>
+                  <a href={"##{id}"} class="link">{title}</a>
                 </li>
               </ul>
             </header>
@@ -143,12 +143,12 @@ defmodule SlipdockWeb.HelpLive.Index do
       >
         <h2 class="flex items-center gap-2 font-semibold">
           <.icon name={s.icon} class="size-5 text-primary" />
-          <.link patch={~p"/help/#{s.slug}"} class="link-hover">{s.title}</.link>
+          <.link patch={~p"/help/#{s.slug}"} class="link">{s.title}</.link>
         </h2>
         <p class="mt-2 text-sm text-base-content/70">{s.intro}</p>
         <ul class="mt-3 space-y-0.5 text-sm">
           <li :for={{id, title} <- s.parts}>
-            <.link patch={"/help/#{s.slug}##{id}"} class="link link-hover">{title}</.link>
+            <.link patch={"/help/#{s.slug}##{id}"} class="link">{title}</.link>
           </li>
         </ul>
       </article>
@@ -159,15 +159,20 @@ defmodule SlipdockWeb.HelpLive.Index do
       >
         <h2 class="flex items-center gap-2 font-semibold">
           <.icon name="hero-cpu-chip" class="size-5 text-primary" />
-          <.link patch={~p"/help/agents"} class="link-hover">Agents</.link>
+          <.link patch={~p"/help/agents"} class="link">Agents</.link>
         </h2>
         <p class="mt-2 text-sm text-base-content/70">
           Let Claude, ChatGPT or an agent of your own read and work your boards. Covers each way
           of connecting, a table comparing them, and how to set each one up.
         </p>
         <ul class="mt-3 space-y-0.5 text-sm">
+          <li>
+            <.link patch={~p"/help/agents"} id="help-hub-agents-summary" class="link font-medium">
+              Summary: every way in, side by side
+            </.link>
+          </li>
           <li :for={t <- Agents.topics()}>
-            <.link patch={~p"/help/agents/#{t.slug}"} class="link link-hover">{t.title}</.link>
+            <.link patch={~p"/help/agents/#{t.slug}"} class="link">{t.title}</.link>
           </li>
         </ul>
       </article>
