@@ -112,6 +112,11 @@ defmodule SlipdockCLI do
   admin allow <entry>                 let an address or a whole domain register
   admin disallow <entry>
   admin users                         who is here, what they use, when last seen
+  admin overview [--sort S]           usage at a glance: accounts, active and joined in
+                                      7/30 days, and per person signed up, last active,
+                                      boards, lists, cards, pages, files, storage (S:
+                                      storage|cards|boards|lists|pages|files|last_active|
+                                      signed_up|email)
   admin promote|demote <email>        admin rights (never the last admin)
   admin disable|enable <email>        reversible; ends their sessions at once
   admin limit <email> <n|none>        an item limit of their own

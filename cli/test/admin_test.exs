@@ -212,4 +212,51 @@ defmodule SlipdockCLI.AdminTest do
       assert output =~ expected
     end
   end
+
+  describe "admin overview" do
+    @overview ~s({"totals":{"users":2,"admins":1,"disabled":0,"never_seen":1,) <>
+                ~s("active_7d":1,"active_30d":1,"joined_7d":2,"joined_30d":2,) <>
+                ~s("boards":3,"lists":12,"cards":40,"pages":5,"files":2,"storage":3145728},) <>
+                ~s("people":[{"email":"sam@example.com","admin":true,"disabled":false,) <>
+                ~s("signed_up_at":"2026-10-01T09:00:00Z","last_active_at":"2026-10-15T10:00:00Z",) <>
+                ~s("boards":3,"lists":12,"cards":40,"pages":5,"files":2,"storage":3145728},) <>
+                ~s({"email":"kim@example.com","admin":false,"disabled":false,) <>
+                ~s("signed_up_at":"2026-10-14T09:00:00Z","last_active_at":null,) <>
+                ~s("boards":0,"lists":0,"cards":0,"pages":0,"files":0,"storage":0}]})
+
+    test "shows the totals, then a line per person" do
+      serve([{200, @overview}])
+
+      output = capture_io(fn -> Admin.run("admin", ["overview"], []) end)
+
+      assert_received {:request, "GET", "/api/admin/overview", _}
+      assert output =~ "Accounts  2 (1 admin, 0 disabled, 1 never seen)"
+      assert output =~ "Made      3 boards, 12 lists, 40 cards, 5 pages, 2 files"
+      assert output =~ "Storage   3.0 MB"
+
+      assert output =~
+               "sam@example.com  joined 2026-10-01  active 2026-10-15  3 boards · 12 lists · " <>
+                 "40 cards · 5 pages · 2 files · 3.0 MB  [admin]"
+
+      assert output =~ "kim@example.com  joined 2026-10-14  active never  0 boards"
+      assert output =~ "0 files · 0 B\n"
+    end
+
+    test "--sort is passed through" do
+      serve([{200, @overview}])
+
+      capture_io(fn -> Admin.run("admin", ["overview"], sort: "last_active") end)
+
+      assert_received {:request, "GET", "/api/admin/overview?sort=last_active", _}
+    end
+
+    test "--json prints what the server said" do
+      serve([{200, @overview}])
+
+      output = capture_io(fn -> Admin.run("admin", ["overview"], json: true) end)
+
+      assert output =~ ~s("never_seen")
+      refute output =~ "Accounts  "
+    end
+  end
 end

@@ -259,4 +259,46 @@ defmodule SlipdockWeb.AdminAPITest do
       refute Accounts.get_user_by_email("hopeful@example.com")
     end
   end
+
+  describe "the overview" do
+    test "every account with what it owns, and the totals", %{admin: admin, ordinary: ordinary} do
+      board = board_fixture(%{}, owner: ordinary)
+      card_fixture(hd(board.columns))
+
+      body = get(token_conn(admin, "admin"), ~p"/api/admin/overview") |> json_response(200)
+
+      assert body["totals"]["users"] == length(body["people"])
+      assert body["totals"]["admins"] == 1
+      assert body["totals"]["cards"] == 1
+      assert body["totals"]["lists"] == length(board.columns)
+
+      them = Enum.find(body["people"], &(&1["email"] == ordinary.email))
+      assert them["id"] == ordinary.id
+      assert them["boards"] == 1
+      assert them["cards"] == 1
+      assert them["signed_up_at"]
+      refute them["admin"]
+      refute them["disabled"]
+      assert Map.has_key?(them, "last_active_at")
+      refute Map.has_key?(them, "user")
+    end
+
+    test "sorts as asked", %{admin: admin, ordinary: ordinary} do
+      board_fixture(%{}, owner: ordinary)
+
+      emails =
+        get(token_conn(admin, "admin"), ~p"/api/admin/overview?sort=boards")
+        |> json_response(200)
+        |> Map.get("people")
+        |> Enum.map(& &1["email"])
+
+      assert hd(emails) == ordinary.email
+      assert admin.email in emails
+    end
+
+    test "is for admin-scoped tokens only", %{admin: admin, ordinary: ordinary} do
+      assert get(token_conn(admin, "write"), ~p"/api/admin/overview") |> json_response(403)
+      assert get(token_conn(ordinary, "admin"), ~p"/api/admin/overview") |> json_response(403)
+    end
+  end
 end

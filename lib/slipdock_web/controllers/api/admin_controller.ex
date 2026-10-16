@@ -12,7 +12,7 @@ defmodule SlipdockWeb.API.AdminController do
   """
   use SlipdockWeb, :controller
 
-  alias Slipdock.{Accounts, Build, Quota, Settings}
+  alias Slipdock.{Accounts, Build, Overview, Quota, Settings}
 
   action_fallback SlipdockWeb.API.FallbackController
 
@@ -169,6 +169,29 @@ defmodule SlipdockWeb.API.AdminController do
     users = Accounts.list_users()
     usage = Quota.usage(Enum.map(users, & &1.id))
     json(conn, %{users: Enum.map(users, &user_json(&1, usage[&1.id]))})
+  end
+
+  # What the server is being used for: every account, when it arrived and was
+  # last seen, and what it owns — see `Slipdock.Overview`. `sort` is one of
+  # its orders (storage by default).
+  def overview(conn, params) do
+    %{people: people, totals: totals} = Overview.overview(sort: params["sort"])
+
+    json(conn, %{
+      totals: totals,
+      people:
+        Enum.map(people, fn person ->
+          person
+          |> Map.drop([:user])
+          |> Map.merge(%{
+            id: person.user.id,
+            email: person.user.email,
+            name: person.user.name,
+            admin: person.user.admin,
+            disabled: person.user.disabled_at != nil
+          })
+        end)
+    })
   end
 
   def update_user(conn, %{"id" => id} = params) do

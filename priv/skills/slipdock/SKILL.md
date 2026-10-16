@@ -629,6 +629,11 @@ slipdock admin set signup_mode=closed       also free_card_limit, user_directory
 slipdock admin allow example.com            let an address or a whole domain register
 slipdock admin disallow example.com
 slipdock admin users                        who is here, what they use, when last seen
+slipdock admin overview [--sort S]          usage: accounts, active/joined in 7 and 30
+                                            days, and per person signed up, last active,
+                                            boards, lists, cards, pages, files, storage
+                                            (S: storage|cards|boards|lists|pages|files|
+                                            last_active|signed_up|email)
 slipdock admin promote|demote <email>       admin rights (never the last admin)
 slipdock admin disable|enable <email>       reversible; ends their sessions at once
 slipdock admin limit <email> <n|none>       an item limit of their own
