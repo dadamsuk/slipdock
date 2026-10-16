@@ -148,6 +148,45 @@ defmodule Slipdock.BoardKeyClaimsTest do
     end
   end
 
+  describe "a code given by hand" do
+    test "is claimed, so another test deriving the same code steps around it" do
+      code = unique_code()
+      board_fixture(%{"name" => "Given", "code" => code})
+      refute BoardKeyClaims.claim_new(:code, code)
+
+      # Another running test, deriving from a name whose code is this one.
+      other =
+        Task.async(fn ->
+          BoardKeyClaims.register_test(self(), self())
+          BoardKeyClaims.claim(:code, code)
+        end)
+
+      refute Task.await(other)
+    end
+
+    test "is claimed in the form the board stores it" do
+      code = unique_code()
+      board_fixture(%{"name" => "Given", "code" => String.upcase(code)})
+      refute BoardKeyClaims.claim_new(:code, code)
+    end
+
+    test "on an update is claimed as well" do
+      code = unique_code()
+      {:ok, board} = Boards.update_board(board_fixture(), %{"code" => code})
+      assert board.code == code
+      refute BoardKeyClaims.claim_new(:code, code)
+    end
+
+    test "is kept even when another running test holds it" do
+      code = unique_code()
+      other = other_test(code: code)
+
+      assert board_fixture(%{"name" => "Given", "code" => code}).code == code
+
+      stop(other)
+    end
+  end
+
   test "board_fixture's shortcuts are claimed, so a derived shortcut can't be one" do
     shortcut = board_fixture().shortcut
     refute BoardKeyClaims.claim_new(:shortcut, shortcut)

@@ -60,6 +60,23 @@ defmodule Slipdock.NothingPersonalTest do
            "Something personal is tracked in this repository:\n\n" <> Enum.join(offences, "\n")
   end
 
+  test "a file of bytes is skipped, and a text file still reports its lines" do
+    dir = Path.join(System.tmp_dir!(), "nothing-personal-#{System.unique_integer([:positive])}")
+    File.mkdir_p!(dir)
+    on_exit(fn -> File.rm_rf!(dir) end)
+    {_, pattern, _} = hd(@forbidden)
+
+    bytes = Path.join(dir, "clip.mp4")
+    File.write!(bytes, <<0xFF, 0xFE, "someone@real-domain.io", 0xC3>>)
+    assert lines_matching(bytes, pattern) == []
+
+    text = Path.join(dir, "notes.md")
+    File.write!(text, "fine\nmail someone@real-domain.io\n")
+    assert lines_matching(text, pattern) == [{2, "mail someone@real-domain.io"}]
+
+    assert lines_matching(Path.join(dir, "missing.txt"), pattern) == []
+  end
+
   # Tracked files *and* new ones not yet added, because the point is to catch
   # something before it is committed. Checking only `git ls-files` meant a new
   # file was invisible until the commit that introduced it — so the test passed
@@ -77,20 +94,27 @@ defmodule Slipdock.NothingPersonalTest do
     )
   end
 
-  defp matches(path, pattern) do
-    full = Path.join(root(), path)
+  defp matches(path, pattern), do: lines_matching(Path.join(root(), path), pattern)
 
+  # A file that isn't UTF-8 is bytes, not prose (a video, an archive): its
+  # "lines" match by coincidence, and printing one crashed ExUnit's formatter
+  # and lost the whole run's summary (#833).
+  defp lines_matching(full, pattern) do
     case File.read(full) do
-      {:ok, body} ->
-        body
-        |> String.split("\n")
-        |> Enum.with_index(1)
-        |> Enum.filter(fn {line, _} -> Regex.match?(pattern, line) end)
-        |> Enum.map(fn {line, number} -> {number, line} end)
+      {:ok, body} when is_binary(body) ->
+        if String.valid?(body), do: lines_in(body, pattern), else: []
 
       _ ->
         []
     end
+  end
+
+  defp lines_in(body, pattern) do
+    body
+    |> String.split("\n")
+    |> Enum.with_index(1)
+    |> Enum.filter(fn {line, _} -> Regex.match?(pattern, line) end)
+    |> Enum.map(fn {line, number} -> {number, line} end)
   end
 
   defp root, do: Path.expand("../..", __DIR__)
