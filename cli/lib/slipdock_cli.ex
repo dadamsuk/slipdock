@@ -521,6 +521,9 @@ defmodule SlipdockCLI do
     card-front <id> <attachment-id>... [--off]
                                         let an image be the card's thumbnail (--off: keep it off)
     attachments <id>                    list a card's or page's files
+    download <attachment-id> [--out F] [--force]
+                                        save a file's bytes, under its own name here, or as F
+                                        (--out - writes it to stdout)
     detach <id> <attachment-id>...      delete attached files
     blocked-by <id> <card-id>... [--off] mark <id> as waiting on other cards, on any board you
                                         can read (or remove)

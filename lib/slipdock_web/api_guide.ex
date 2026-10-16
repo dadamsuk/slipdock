@@ -669,7 +669,10 @@ defmodule SlipdockWeb.APIGuide do
       for an image, a plain link otherwise — to put in the description or a
       comment, where an image shows inline. `GET /api/cards/:id/attachments`
       lists them; `DELETE /api/cards/:id/attachments/:attachment_id` removes
-      one. A screenshot of what you changed is worth attaching. Pages take the
+      one. `GET /api/attachments/:attachment_id` is one file's details (with
+      the `card` or `page` it is on), and `GET /api/attachments/:attachment_id/file`
+      its bytes, with a token — the `url` is the web app's, which needs a
+      browser session. A screenshot of what you changed is worth attaching. Pages take the
       same three at `/api/pages/:id/attachments`. A card's first image is the
       thumbnail on its front; `hide_on_card: true` (on the upload, or
       `PATCH /api/cards/:id/attachments/:attachment_id`) keeps one off it — do

@@ -1,6 +1,6 @@
 defmodule SlipdockCLI.AttachmentsTest do
   @moduledoc """
-  `slipdock attach`, `attachments` and `detach`: which path each asks (a
+  `slipdock attach`, `attachments`, `download` and `detach`: which path each asks (a
   number is a card, anything else a page), what the upload carries, and what
   is printed. The refusals end in `System.halt/1`, so they are covered on the
   server's side, in `SlipdockWeb.API.AttachmentsTest`.
@@ -271,5 +271,71 @@ defmodule SlipdockCLI.AttachmentsTest do
     assert line.(12) =~ "12 B"
     assert line.(4096) =~ "4 KB"
     assert line.(3 * 1_048_576) =~ "3.0 MB"
+  end
+
+  describe "download" do
+    setup %{home: home} do
+      here = File.cwd!()
+      File.cd!(home)
+      on_exit(fn -> File.cd!(here) end)
+      :ok
+    end
+
+    defp details(id, name),
+      do: ~s({"attachment":{"id":#{id},"filename":"#{name}","size":4,"card":12}})
+
+    test "with no --out, saves it under its own name here", %{home: home} do
+      serve([{200, details(5, "shot.png")}, {200, "PNG!"}])
+
+      out = capture_io(fn -> Boards.run("download", ["5"], []) end)
+
+      assert_received {:request, "GET", "/api/attachments/5", _}
+      assert_received {:request, "GET", "/api/attachments/5/file", _}
+      assert File.read!(Path.join(home, "shot.png")) == "PNG!"
+      refute File.exists?(Path.join(home, "shot.png.part"))
+      assert out =~ "saved attachment #5 to shot.png (4 bytes)"
+    end
+
+    test "--out names the file, and asks for no details first", %{home: home} do
+      serve([{200, "bytes"}])
+      dest = Path.join(home, "renamed.bin")
+
+      out = capture_io(fn -> Boards.run("download", ["7"], out: dest) end)
+
+      assert_received {:request, "GET", "/api/attachments/7/file", _}
+      refute_received {:request, "GET", "/api/attachments/7", _}
+      assert File.read!(dest) == "bytes"
+      assert out =~ "saved attachment #7 to #{dest} (5 bytes)"
+    end
+
+    test "--out - writes the bytes to stdout and nothing else" do
+      serve([{200, <<0, 1, 2, 255>>}])
+
+      out = capture_io(fn -> Boards.run("download", ["7"], out: "-") end)
+
+      assert out == <<0, 1, 2, 255>>
+    end
+
+    test "--json reports where it went", %{home: home} do
+      serve([{200, "abc"}])
+      dest = Path.join(home, "a.txt")
+
+      out = capture_io(fn -> Boards.run("download", ["7"], out: dest, json: true) end)
+
+      assert JSON.decode!(out) == %{"attachment" => "7", "path" => dest, "size" => 3}
+    end
+
+    test "the name is only ever a name, and a file already here is kept", %{home: home} do
+      assert Boards.download_dest("../../etc/passwd", 5, []) == {:ok, "passwd"}
+      assert Boards.download_dest("..", 5, []) == {:ok, "attachment-5"}
+      assert Boards.download_dest("", 5, []) == {:ok, "attachment-5"}
+
+      File.write!(Path.join(home, "shot.png"), "mine")
+
+      assert {:error, "shot.png is already here: --force" <> _} =
+               Boards.download_dest("shot.png", 5, [])
+
+      assert Boards.download_dest("shot.png", 5, force: true) == {:ok, "shot.png"}
+    end
   end
 end

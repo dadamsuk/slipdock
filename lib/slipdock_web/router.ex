@@ -682,6 +682,10 @@ defmodule SlipdockWeb.Router do
     post "/cards/:id/urls", CardController, :add_url
     delete "/cards/:id/urls/:url_id", CardController, :remove_url
     # Files, sent as the multipart field `file` (see `SlipdockWeb.API.Uploads`).
+    # One file by its attachment id, whatever it hangs off (#920): its
+    # details, and its bytes for `slipdock download`.
+    get "/attachments/:id", AttachmentController, :show
+    get "/attachments/:id/file", AttachmentController, :file
     get "/cards/:id/attachments", CardController, :attachments
     post "/cards/:id/attachments", CardController, :add_attachment
     patch "/cards/:id/attachments/:attachment_id", CardController, :update_attachment
