@@ -170,6 +170,9 @@ defmodule SlipdockWeb.Router do
     pipe_through [:browser, :require_authenticated_user]
 
     get "/attachments/:id/:filename", AttachmentController, :show
+    # A Tool's skill as claude.ai's or ChatGPT's upload takes it (#963).
+    get "/tools/:slug/download/:skill/claude.zip", ToolDownloadController, :claude
+    get "/tools/:slug/download/:skill/chatgpt.zip", ToolDownloadController, :chatgpt
     # A file in a wiki that is not a page: a synced vault's images and PDFs.
     get "/wiki-files/:id/:name", WikiFileController, :show
     # A meeting page's recording, streamed from its vault owner's Google
@@ -248,6 +251,9 @@ defmodule SlipdockWeb.Router do
       live "/account/voiceprint", AccountLive.Index, :voiceprint
       live "/groups", GroupLive.Index, :index
       live "/templates", TemplateLive.Index, :index
+      # Tools (#958): packaged docs, a board and skills people share here.
+      live "/tools", ToolLive.Index, :index
+      live "/tools/:slug", ToolLive.Show, :show
       live "/favourites", FavouriteLive.Index, :index
       # Vaults: which boards' wikis lay out as one Obsidian-style tree (W-103).
       live "/vaults", VaultLive.Index, :index

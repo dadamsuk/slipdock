@@ -454,6 +454,9 @@ defmodule SlipdockWeb.Layouts do
       <.link navigate={~p"/templates"}><.icon name="hero-squares-plus" class="size-4" /> Templates</.link>
     </li>
     <li>
+      <.link navigate={~p"/tools"}><.icon name="hero-wrench-screwdriver" class="size-4" /> Tools</.link>
+    </li>
+    <li>
       <.link navigate={~p"/account"}><.icon name="hero-user-circle" class="size-4" /> Account</.link>
     </li>
     <li>

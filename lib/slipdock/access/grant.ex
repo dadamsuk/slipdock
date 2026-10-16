@@ -2,7 +2,8 @@ defmodule Slipdock.Access.Grant do
   @moduledoc """
   One access grant: a subject (a user or a group) gets `level` ("read",
   "comment" or "write") on a resource (a board, a card, a saved view, a wiki page or a
-  wiki folder, which shares everything at home beneath it).
+  wiki folder, which shares everything at home beneath it) — or a Tool
+  (`Slipdock.Tools`), which a grant lets somebody see and install.
   """
   use Ecto.Schema
   import Ecto.Changeset
@@ -19,6 +20,7 @@ defmodule Slipdock.Access.Grant do
     belongs_to :saved_view, Slipdock.Boards.SavedView
     belongs_to :page, Slipdock.Wiki.Page
     belongs_to :folder, Slipdock.Wiki.Folder
+    belongs_to :tool, Slipdock.Tools.Tool
     belongs_to :granted_by, Slipdock.Accounts.User
     timestamps(type: :utc_datetime)
   end
@@ -36,12 +38,16 @@ defmodule Slipdock.Access.Grant do
       :saved_view_id,
       :page_id,
       :folder_id,
+      :tool_id,
       :granted_by_id
     ])
     |> validate_required([:level])
     |> validate_inclusion(:level, @levels)
     |> validate_one_of([:user_id, :group_id], "subject")
-    |> validate_one_of([:board_id, :card_id, :saved_view_id, :page_id, :folder_id], "resource")
+    |> validate_one_of(
+      [:board_id, :card_id, :saved_view_id, :page_id, :folder_id, :tool_id],
+      "resource"
+    )
   end
 
   defp validate_one_of(changeset, fields, what) do
@@ -59,5 +65,6 @@ defmodule Slipdock.Access.Grant do
   def resource_type(%__MODULE__{card_id: id}) when not is_nil(id), do: :card
   def resource_type(%__MODULE__{page_id: id}) when not is_nil(id), do: :page
   def resource_type(%__MODULE__{folder_id: id}) when not is_nil(id), do: :folder
+  def resource_type(%__MODULE__{tool_id: id}) when not is_nil(id), do: :tool
   def resource_type(%__MODULE__{}), do: :view
 end
