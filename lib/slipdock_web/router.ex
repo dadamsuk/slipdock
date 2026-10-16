@@ -100,7 +100,7 @@ defmodule SlipdockWeb.Router do
       live "/login", LoginLive.Index, :index
     end
 
-    # Help: how to connect an agent. Readable signed out — the question comes
+    # Help: the app's guides, and connecting an agent. Readable signed out — the question comes
     # before the account — and signed in alike, so it has no redirect.
     live_session :help,
       on_mount: [
@@ -108,7 +108,9 @@ defmodule SlipdockWeb.Router do
         {SlipdockWeb.ViewportHook, :default}
       ] do
       live "/help", HelpLive.Index, :index
-      live "/help/:topic", HelpLive.Index, :topic
+      live "/help/agents", HelpLive.Index, :agents
+      live "/help/agents/:topic", HelpLive.Index, :agent_topic
+      live "/help/:section", HelpLive.Index, :section
     end
 
     # Published saved views: readable by anyone with the link.

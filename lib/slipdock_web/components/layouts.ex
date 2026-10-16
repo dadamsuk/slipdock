@@ -479,8 +479,7 @@ defmodule SlipdockWeb.Layouts do
       Set up an agent</.link>
     </li>
     <li>
-      <.link href={~p"/help"}><.icon name="hero-question-mark-circle" class="size-4" />
-      Help with agents</.link>
+      <.link href={~p"/help"}><.icon name="hero-question-mark-circle" class="size-4" /> Help</.link>
     </li>
     <li :if={Slipdock.Accounts.admin?(@current_user)}>
       <.link navigate={~p"/overview"}>
