@@ -74,8 +74,7 @@ defmodule SlipdockWeb.MCP.Tools.CreateCard do
          params = params(args, title, column, tags, assignees) |> Map.put("archived", archived),
          {:ok, card} <- Args.refusal(CardWrites.create(auth, board, params)),
          :ok <- if(top, do: Boards.move_card_to_index(card, card.column, :top), else: :ok) do
-      written = Tools.card_written(Boards.get_card!(card.id), context.base_url)
-      {:ok, if(archived, do: Map.put(written, :archived, true), else: written)}
+      {:ok, Tools.card_written(Boards.get_card!(card.id), context.base_url)}
     end
   end
 

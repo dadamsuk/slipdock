@@ -4537,6 +4537,12 @@ limits exactly as they do through the API, and a refusal comes back as the
 tool's error — `card_limit_reached`, `trial_expired`, a read-only token —
 rather than as a failed connection.
 
+Every tool's schema lists the arguments it takes and allows no others, and
+the server holds it to that: an argument the tool doesn't name (`archved`
+for `archived`) is refused before anything is written, with the tool's
+real arguments listed. A tool that writes a card answers with the card,
+always saying whether it is `archived`.
+
 ### Signing in
 
 Two ways, and the server takes either on any request:

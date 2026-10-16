@@ -750,6 +750,18 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
     def call(_args, _context), do: {:ok, %{wrote: true}}
   end
 
+  defmodule Strict do
+    @behaviour SlipdockWeb.MCP.Tool
+    def name, do: "strict"
+    def title, do: "Strict"
+    def description, do: "Takes only what it names."
+    def read_only?, do: true
+    def call(args, _context), do: {:ok, args}
+
+    def input_schema,
+      do: %{type: "object", properties: %{size: %{type: "integer"}}, additionalProperties: false}
+  end
+
   describe "SlipdockWeb.MCP.Tools.call/3" do
     @describetag capture_log: true
 
@@ -769,6 +781,30 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
       assert message =~ "read-only"
       assert message =~ "Don't retry"
       assert {:ok, %{wrote: true}} = SlipdockWeb.MCP.Tools.call(Writes, %{}, write)
+    end
+
+    test "additionalProperties: false refuses an argument the schema doesn't name", ctx do
+      context = %{user: ctx.user, token: %{scope: "write"}, base_url: ""}
+
+      assert {:ok, %{"size" => 2}} = SlipdockWeb.MCP.Tools.call(Strict, %{"size" => 2}, context)
+      assert {:ok, %{}} = SlipdockWeb.MCP.Tools.call(Strict, %{}, context)
+
+      assert {:error, message} =
+               SlipdockWeb.MCP.Tools.call(Strict, %{"size" => 2, "sise" => 3}, context)
+
+      assert message == ~s(strict has no argument "sise". It takes: size.)
+    end
+
+    test "a schema without additionalProperties: false lets extra arguments through", ctx do
+      context = %{user: ctx.user, token: %{scope: "write"}, base_url: ""}
+      assert {:ok, %{wrote: true}} = SlipdockWeb.MCP.Tools.call(Writes, %{"x" => 1}, context)
+    end
+
+    test "every tool's schema closes its arguments, so a typo is always an error" do
+      for tool <- SlipdockWeb.MCP.Tools.every() do
+        assert %{additionalProperties: false, properties: %{}} = tool.input_schema(),
+               "#{tool.name()} doesn't say additionalProperties: false"
+      end
     end
   end
 end

@@ -116,13 +116,18 @@ defmodule SlipdockWeb.MCP.Tools do
   to the model as a failed call rather than taking the request down with it.
   """
   def call(tool, args, %{token: token} = context) when is_map(args) do
-    if not tool.read_only?() and read_only_token?(token) do
-      {:error,
-       "this API token is read-only, so it can't #{tool.name()}. " <>
-         "Don't retry: connect again with write access, or use a write token " <>
-         "(Account → API tokens)."}
-    else
-      tool.call(args, context)
+    cond do
+      not tool.read_only?() and read_only_token?(token) ->
+        {:error,
+         "this API token is read-only, so it can't #{tool.name()}. " <>
+           "Don't retry: connect again with write access, or use a write token " <>
+           "(Account → API tokens)."}
+
+      unknown = unknown_arguments(tool, args) ->
+        {:error, unknown}
+
+      true ->
+        tool.call(args, context)
     end
   rescue
     e ->
@@ -136,6 +141,31 @@ defmodule SlipdockWeb.MCP.Tools do
   end
 
   def call(_tool, _args, _context), do: {:error, "arguments must be an object"}
+
+  # A schema that says additionalProperties: false means it: an argument it
+  # doesn't name is refused before the tool runs, so a typo (archved for
+  # archived) is an error rather than a call that quietly ignores it.
+  defp unknown_arguments(tool, args) do
+    case tool.input_schema() do
+      %{additionalProperties: false, properties: properties} ->
+        known = properties |> Map.keys() |> Enum.map(&to_string/1)
+
+        case args |> Map.keys() |> Enum.map(&to_string/1) |> Enum.reject(&(&1 in known)) do
+          [] ->
+            nil
+
+          unknown ->
+            "#{tool.name()} has no #{plural(unknown)} #{Enum.map_join(unknown, ", ", &inspect/1)}. " <>
+              "It takes: #{known |> Enum.sort() |> Enum.join(", ")}."
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp plural([_]), do: "argument"
+  defp plural(_), do: "arguments"
 
   @doc """
   A card in a listing: enough to choose one, not to work it — `get_card` has
@@ -172,10 +202,15 @@ defmodule SlipdockWeb.MCP.Tools do
     |> then(&if(full.archived_at, do: Map.put(&1, :archived, true), else: &1))
   end
 
-  @doc "A card written by a tool, as the tool answers it: the card in brief and where it is."
+  @doc """
+  A card written by a tool, as the tool answers it: the card in brief and where
+  it is. Unlike a listing it always says whether the card is archived, so a
+  write that was meant to archive and didn't is visible in the answer.
+  """
   def card_written(card, base_url) do
     card
     |> card_line()
+    |> Map.put_new(:archived, false)
     |> Map.merge(%{
       board_id: card.board_id,
       url: base_url <> "/boards/#{card.board_id}/cards/#{card.id}"
