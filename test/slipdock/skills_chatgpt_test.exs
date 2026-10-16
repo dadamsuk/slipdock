@@ -72,4 +72,16 @@ defmodule Slipdock.Skills.ChatGPTTest do
     assert {:ok, files["slipdock-wiki/references/markup.md"]} ==
              Skills.read("slipdock-wiki", "references/markup.md")
   end
+
+  test "the Tools commands are in the skill and mapped onto their connector tools (#967)" do
+    {:ok, skill} = Skills.read("slipdock")
+    assert skill =~ "slipdock tools install-board"
+    assert skill =~ "slipdock tools publish"
+    assert skill =~ "`list_tools`"
+
+    assert "list_tools" in ChatGPT.tool_names()
+    assert "install_tool" in ChatGPT.tool_names()
+    {:ok, md} = ChatGPT.skill_md("slipdock", @base)
+    assert md =~ "| `tools install-board <name>` | `install_tool` |"
+  end
 end

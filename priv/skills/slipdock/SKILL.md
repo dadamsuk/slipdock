@@ -41,7 +41,9 @@ compare two versions, or `diff: true` for the latest save), and `revert_page` is
 `download_file` reads an attached file by its id (`get_card` and `read_page` list them).
 `list_automations` is `automations`/`automation` (`vocabulary: true` adds what `automation-help`
 and `automation-presets` give), and `manage_automation` is `new-automation` (`action: create`),
-`set-automation` (`update`) and `delete-automation` (`delete`, with `confirm: true`). Anything
+`set-automation` (`update`) and `delete-automation` (`delete`, with `confirm: true`).
+`list_tools` is `tools`/`tools show` (each Tool's kind and `installed.board`, the board your
+install made), and `install_tool` is `tools install-board`. Anything
 the tools don't cover (running a rule now, callbacks and alerts, sprints, files over 10 MB,
 fields) is still the CLI or the API.
 
@@ -349,6 +351,18 @@ slipdock cancel-job <id>                      # queued: at once; running: on the
 slipdock claim-job <board> --pool P           # take the next job as this session ("nothing queued")
 slipdock job-progress <id> [--message NOTE]   # renew the lease (20 min for a session); note → card
 slipdock finish-job <id> --status done|failed|cancelled|timeout [--summary S]
+
+# Tools: a board blueprint + skills + files that people on this server publish and install.
+# The server builds a Tool's board; never build one by hand from its README.
+slipdock tools                                # yours, shared with you, listed: kind, board you installed
+slipdock tools show <name> [--version V]      # its board, skills (with shas), files, versions
+slipdock tools install-board <name> [--name N] [--version V]
+                                              # the server builds the board; again = the same board,
+                                              # a newer version adds only what is missing
+slipdock tools install <name> [--dir D]       # its skills (and local files) into ~/.claude/skills
+slipdock tools check [<name>...]              # installed Tool skills current or behind, by sha
+slipdock tools publish <dir>                  # tool.json, README.md, board.json, skills/, files/
+slipdock tools request-listing <name> [--version V]   # an admin approves before everyone sees it
 
 # Meeting capture, where the admin has turned meeting mode on (`slipdock meetings`).
 # The whole workflow, and its two rules, are the slipdock-capture skill.

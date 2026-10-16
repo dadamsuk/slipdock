@@ -1,7 +1,7 @@
 defmodule SlipdockWeb.HelpLive.Guides do
   @moduledoc """
-  Help's guides to the app itself: boards, the wiki, sharing, automations and
-  the AI features. Each is one page of short parts; the hub lists the parts so
+  Help's guides to the app itself: boards, the wiki, sharing, automations,
+  Tools and the AI features. Each is one page of short parts; the hub lists the parts so
   a reader can jump straight to one. The part ids here are those anchors, so
   a part's `id` in its page and in `@sections` have to agree (the tests check).
   """
@@ -72,6 +72,23 @@ defmodule SlipdockWeb.HelpLive.Guides do
         {"automations-agents", "From an agent"},
         {"automations-alerts", "Alerts"},
         {"automations-limits", "Safety rails"}
+      ]
+    },
+    %{
+      slug: "tools",
+      title: "Tools",
+      icon: "hero-puzzle-piece",
+      intro:
+        "Ready-made ways of working that people on this server share: a board Slipdock " <>
+          "builds for you, and the skills that teach your assistant to use it.",
+      parts: [
+        {"tools-what", "What a Tool is"},
+        {"tools-install", "Installing one"},
+        {"tools-safety", "Before you install"},
+        {"tools-upgrade", "New versions"},
+        {"tools-publish", "Publishing your own"},
+        {"tools-format", "The package"},
+        {"tools-listing", "Sharing and listing"}
       ]
     },
     %{
@@ -511,6 +528,130 @@ defmodule SlipdockWeb.HelpLive.Guides do
         </li>
         <li>Recent callbacks lists what each call to a URL got back.</li>
       </ul>
+    </.part>
+    """
+  end
+
+  # ── Tools ─────────────────────────────────────────────────────────────────
+
+  def guide(%{slug: "tools"} = assigns) do
+    ~H"""
+    <.part title="What a Tool is" id="tools-what">
+      <p>
+        A Tool is a ready-made way of working that somebody on this server has packaged up:
+        a board with its lists, folders, tags, wiki pages and rules already in place, the
+        skills that tell your AI assistant how to use that board, and the docs that explain
+        it. Job Scan, an automated job search, is one.
+      </p>
+      <p>
+        You'll find the Tools you can use under
+        <.link navigate={~p"/tools"} class="link">Tools</.link>
+        in the menu: your own, the ones shared with you, and the ones listed for everyone here.
+      </p>
+    </.part>
+
+    <.part title="Installing one" id="tools-install">
+      <p>
+        Open a Tool and pick the assistant you use — Claude on the website or app, Claude
+        Code, or ChatGPT — and follow its steps. They come to the same thing: connect your
+        assistant to Slipdock, add the Tool's skills to it, and then start a chat and say
+        <strong>“Set up …&nbsp;for me.”</strong>
+      </p>
+      <p>
+        The assistant then asks Slipdock to build the Tool's board, which it does the same
+        way for everybody, and talks you through filling it in. You can also build the board
+        yourself with <strong>Make the board</strong> on the Tool's page. Either way you get
+        one board per Tool: asking again finds the board you already have.
+      </p>
+    </.part>
+
+    <.part title="Before you install" id="tools-safety">
+      <p>
+        A Tool's skills are instructions your assistant follows with your access to your
+        boards. So the Tool's page shows everything before you install it: the board it will
+        build, the files it adds, and every skill file in full. Read them as you would
+        anything you let act for you.
+      </p>
+      <ul class="list-disc space-y-1 pl-5">
+        <li>Installing touches only the new board it makes, never your other boards.</li>
+        <li>A published version never changes. A new version has a new number.</li>
+        <li>
+          A Tool listed for everyone has had that version approved by an admin; a newer
+          version isn't shown to you until it has been approved too.
+        </li>
+      </ul>
+    </.part>
+
+    <.part title="New versions" id="tools-upgrade">
+      <p>
+        When a Tool you've installed has a newer version, its page offers <strong>Upgrade the board</strong>. Upgrading adds what your board is missing — new
+        lists, folders, tags, pages, rules and files — and leaves everything you've changed
+        exactly as it is. A page you've edited is never overwritten. Update the skills the
+        same way you added them.
+      </p>
+    </.part>
+
+    <.part title="Publishing your own" id="tools-publish">
+      <p>
+        Put the Tool in a folder (see the next part) and publish it with the <.link
+          patch={~p"/help/agents/cli"}
+          class="link"
+        >CLI</.link>:
+      </p>
+      <.snippet id="help-tools-publish" text="slipdock tools publish ./my-tool" />
+      <p>
+        Its page then appears under Tools for you alone. Publish again with a higher
+        <code>version</code>
+        for each change; the same version twice is refused.
+      </p>
+    </.part>
+
+    <.part title="The package" id="tools-format">
+      <ul class="list-disc space-y-1 pl-5">
+        <li>
+          <code>tool.json</code>: <code>name</code>
+          (lowercase, unique on this server), <code>version</code>
+          (like 1.0.0), <code>summary</code>, and optionally <code>title</code>, <code>author</code>,
+          <code>requires</code>
+          and <code>files</code>.
+        </li>
+        <li><code>README.md</code>: the docs, shown as the Tool's page.</li>
+        <li>
+          <code>board.json</code>: the board — <code>lists</code>
+          (each with a <code>role</code>:
+          ready, backlog, doing, done or dropped), <code>folders</code>, <code>tags</code>,
+          <code>pages</code>
+          (skeletons, which may use <code>{"{{board.name}}"}</code>
+          and <code>{"{{today}}"}</code>) and <code>automations</code>
+          (ready-made rules by
+          preset name).
+        </li>
+        <li>
+          <code>skills/&lt;name&gt;/SKILL.md</code>, with front matter naming the skill and saying
+          when to use it, and anything else the skill needs beside it.
+        </li>
+        <li>
+          <code>files/</code>: each listed in <code>tool.json</code>
+          as going on the <code>board</code>
+          (into a Tool folder in its wiki) or <code>local</code>
+          (beside
+          a skill, on the installer's machine).
+        </li>
+      </ul>
+      <p>
+        Slipdock checks all of it when you publish and says exactly what is wrong — a list
+        meant to be the ready list that wouldn't be read as one, a rule on a list that
+        doesn't exist, a file not listed in <code>tool.json</code>.
+      </p>
+    </.part>
+
+    <.part title="Sharing and listing" id="tools-listing">
+      <p>
+        On your Tool's page, share it with people by email; they can read it and install it.
+        To offer it to everyone on this server, ask an admin to list it. Admins approve one
+        version at a time, under <strong>Tool listings</strong>, so each new version is
+        approved before it reaches anyone you haven't shared it with.
+      </p>
     </.part>
     """
   end
