@@ -1,100 +1,195 @@
 defmodule SlipdockWeb.HelpLiveTest do
   @moduledoc """
-  The Help pages about connecting an agent. What matters: they open signed
-  out as well as in, the overview introduces and compares every way in and
-  links to each one's page, those pages carry this server's own address, and
-  a name that isn't a topic goes back to the overview rather than crashing.
+  Help: a hub at /help, a guide per part of the app at /help/:section, and
+  connecting an agent at /help/agents and /help/agents/:topic. What matters:
+  every page opens signed out as well as in, the hub reaches every section
+  and every part of one, the agent pages carry this server's own address, the
+  agent topics' first addresses (/help/mcp) still land, and a name that isn't
+  a page goes somewhere sensible rather than crashing.
   """
   use SlipdockWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
 
-  alias SlipdockWeb.HelpLive.Index
+  alias SlipdockWeb.HelpLive.{Agents, Guides}
 
-  @slugs ~w(guide mcp cli skills runners webhooks)
+  @sections ~w(boards wiki sharing automations ai)
+  @topics ~w(guide mcp cli skills runners webhooks)
 
-  describe "signed out" do
+  defp doc(html), do: LazyHTML.from_document(html)
+  defp count(doc, selector), do: doc |> LazyHTML.query(selector) |> Enum.count()
+
+  describe "the hub" do
     @tag :anonymous
-    test "the overview opens, with a way to sign in", %{conn: conn} do
+    test "opens signed out, with a way to sign in", %{conn: conn} do
       {:ok, view, html} = live(conn, ~p"/help")
 
-      assert html =~ "Working with an AI agent"
+      assert html =~ "kanban board with a wiki"
       assert has_element?(view, ~s{a[href="/login"]}, "Sign in")
-      # Nothing that only works signed in is offered as a link.
-      refute has_element?(view, ~s{a[href="/account/agent"]})
+    end
+
+    test "opens signed in, without offering to sign in", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/help")
+
+      assert has_element?(view, "#help-sections")
+      refute has_element?(view, ~s{a[href="/login"]})
     end
 
     @tag :anonymous
-    test "every topic page opens", %{conn: conn} do
-      for slug <- @slugs do
+    test "has a card for every section and Agents, linking to each part", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/help")
+
+      for section <- Guides.sections() do
+        assert has_element?(view, ~s{#help-hub-#{section.slug} a[href="/help/#{section.slug}"]})
+
+        for {id, _title} <- section.parts do
+          assert has_element?(
+                   view,
+                   ~s{#help-hub-#{section.slug} a[href="/help/#{section.slug}##{id}"]}
+                 )
+        end
+      end
+
+      assert has_element?(view, ~s{#help-hub-agents a[href="/help/agents"]})
+
+      for slug <- @topics,
+          do: assert(has_element?(view, ~s{#help-hub-agents a[href="/help/agents/#{slug}"]}))
+    end
+
+    @tag :anonymous
+    test "following a section's link patches to it", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/help")
+
+      view |> element(~s{#help-hub-wiki h2 a}) |> render_click()
+
+      assert_patch(view, ~p"/help/wiki")
+      assert has_element?(view, "#help-section-wiki")
+      refute has_element?(view, "#help-sections")
+    end
+  end
+
+  describe "a section" do
+    @tag :anonymous
+    test "every section opens, marked current in the nav", %{conn: conn} do
+      for slug <- @sections do
         {:ok, view, _html} = live(conn, ~p"/help/#{slug}")
-        assert has_element?(view, "#help-topic-#{slug}")
-        assert has_element?(view, ~s{#help-topics a[aria-current="page"]})
+
+        assert has_element?(view, "#help-section-#{slug}")
+
+        assert has_element?(
+                 view,
+                 ~s{#help-sections-nav a[aria-current="page"][href="/help/#{slug}"]}
+               )
+
+        assert has_element?(view, ~s{#help-sections-nav a[href="/help"]})
       end
     end
 
     @tag :anonymous
-    test "account pages are named but not linked", %{conn: conn} do
-      {:ok, view, html} = live(conn, ~p"/help/guide")
+    test "every part the hub links to is on its page, once", %{conn: conn} do
+      for section <- Guides.sections() do
+        {:ok, view, html} = live(conn, ~p"/help/#{section.slug}")
 
-      assert html =~ "Account → API tokens"
-      refute has_element?(view, ~s{a[href="/account/tokens"]})
+        for {id, title} <- section.parts do
+          assert count(doc(html), "##{id}") == 1, "#{section.slug} has no part ##{id}"
+          assert has_element?(view, "##{id} h2", title)
+          assert has_element?(view, ~s{#help-section-#{section.slug} header a[href="##{id}"]})
+        end
+      end
     end
 
     @tag :anonymous
-    test "the sign-in page links to help", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/login")
-      assert has_element?(view, ~s{#login-help[href="/help"]})
+    test "the AI section covers the three ways to ask", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/help/ai")
+
+      assert has_element?(view, "#ai-board h2", "Ask about this board")
+      assert has_element?(view, "#ai-search h2", "Search anywhere")
+      assert has_element?(view, "#ai-ask h2", "Ask about anywhere")
+      assert has_element?(view, "#ai-which table tbody tr", "Ask about anywhere")
+    end
+
+    @tag :anonymous
+    test "signed out, places in the app are named but not linked", %{conn: conn} do
+      {:ok, view, html} = live(conn, ~p"/help/ai")
+
+      assert html =~ "Account → Settings → AI model"
+      refute has_element?(view, ~s{a[href="/account/settings"]})
+      refute has_element?(view, ~s{a[href="/search"]})
+      refute has_element?(view, ~s{a[href="/ask"]})
+    end
+
+    test "signed in, places in the app are links", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/help/ai")
+
+      assert has_element?(view, ~s{#ai-model a[href="/account/settings"]})
+      assert has_element?(view, ~s{#ai-search a[href="/search"]}, "Search")
+      assert has_element?(view, ~s{#ai-ask a[href="/ask"]}, "Ask")
+    end
+
+    @tag :anonymous
+    test "an unknown section goes back to the hub with a message", %{conn: conn} do
+      assert {:error, {:live_redirect, %{to: "/help"}}} = result = live(conn, ~p"/help/nope")
+      {:ok, view, html} = follow_redirect(result, conn)
+
+      assert html =~ "There is no help page by that name."
+      assert has_element?(view, "#help-sections")
+    end
+
+    test "the sections and parts have unique slugs and ids" do
+      slugs = Guides.slugs()
+      ids = for s <- Guides.sections(), {id, _} <- s.parts, do: id
+
+      assert slugs == @sections
+      assert Enum.uniq(ids) == ids
+      # A section must never shadow /help/agents, nor an old agent address.
+      assert Enum.empty?(slugs -- (slugs -- ["agents" | Agents.slugs()]))
     end
   end
 
-  describe "signed in" do
-    test "the overview opens, offering setup instead of sign in", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/help")
+  describe "agents" do
+    @tag :anonymous
+    test "the overview opens signed out, under the Agents tab", %{conn: conn} do
+      {:ok, view, html} = live(conn, ~p"/help/agents")
 
+      assert html =~ "Working with an AI agent"
+
+      assert has_element?(
+               view,
+               ~s{#help-sections-nav a[aria-current="page"][href="/help/agents"]}
+             )
+
+      # Nothing that only works signed in is offered as a link.
+      refute has_element?(view, ~s{a[href="/account/agent"]})
+    end
+
+    test "signed in, the overview offers setup", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/help/agents")
       assert has_element?(view, ~s{a[href="/account/agent"]})
-      refute has_element?(view, ~s{a[href="/login"]})
     end
 
-    test "account pages are links", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/help/guide")
-      assert has_element?(view, ~s{a[href="/account/tokens"]})
-    end
-
-    test "the avatar menu and the agent tab link to help", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/account/agent")
-      assert has_element?(view, ~s{a[href="/help"]}, "Help with agents")
-      assert has_element?(view, ~s{a[href="/help"]}, "Compare them in Help")
-    end
-  end
-
-  describe "the overview" do
     @tag :anonymous
     test "introduces each way in and links to its page", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/help")
+      {:ok, view, _html} = live(conn, ~p"/help/agents")
 
-      for slug <- @slugs do
-        assert has_element?(view, "#help-way-#{slug}")
-        assert has_element?(view, ~s{#help-way-#{slug} a[href="/help/#{slug}"]})
-        assert has_element?(view, ~s{#help-compare-table thead a[href="/help/#{slug}"]})
+      for slug <- @topics do
+        assert has_element?(view, ~s{#help-way-#{slug} a[href="/help/agents/#{slug}"]})
+        assert has_element?(view, ~s{#help-compare-table thead a[href="/help/agents/#{slug}"]})
       end
     end
 
     @tag :anonymous
     test "the table has a cell for every way in on every row", %{conn: conn} do
-      {:ok, _view, html} = live(conn, ~p"/help")
-      rows = html |> LazyHTML.from_document() |> LazyHTML.query("#help-compare-table tbody tr")
+      {:ok, _view, html} = live(conn, ~p"/help/agents")
+      rows = LazyHTML.query(doc(html), "#help-compare-table tbody tr")
 
       assert Enum.count(rows) > 5
 
-      for row <- rows do
-        assert row |> LazyHTML.query("td") |> Enum.count() == length(@slugs)
-      end
+      for row <- rows, do: assert(count(row, "td") == length(@topics))
     end
 
     @tag :anonymous
     test "the table's marks are said in words for screen readers", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/help")
+      {:ok, view, _html} = live(conn, ~p"/help/agents")
 
       assert has_element?(view, ~s{#help-compare-table [data-mark="yes"] .sr-only}, "Yes")
       assert has_element?(view, ~s{#help-compare-table [data-mark="some"] .sr-only}, "Partly")
@@ -102,37 +197,86 @@ defmodule SlipdockWeb.HelpLiveTest do
     end
 
     @tag :anonymous
-    test "following a card's link patches to its page", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/help")
+    test "every topic page opens, marked current", %{conn: conn} do
+      for slug <- @topics do
+        {:ok, view, _html} = live(conn, ~p"/help/agents/#{slug}")
+
+        assert has_element?(view, "#help-topic-#{slug}")
+
+        assert has_element?(
+                 view,
+                 ~s{#help-topics a[aria-current="page"][href="/help/agents/#{slug}"]}
+               )
+
+        assert has_element?(view, ~s{#help-topics a[href="/help/agents"]})
+      end
+    end
+
+    @tag :anonymous
+    test "a way in's link patches to its page", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/help/agents")
 
       view |> element("#help-way-mcp a", "More about MCP") |> render_click()
 
-      assert_patch(view, ~p"/help/mcp")
+      assert_patch(view, ~p"/help/agents/mcp")
       assert has_element?(view, "#help-topic-mcp")
       refute has_element?(view, "#help-compare")
     end
-  end
 
-  describe "a topic page" do
     @tag :anonymous
-    test "carries the address it was reached on", %{conn: conn} do
+    test "the first addresses of the topics still land on them", %{conn: conn} do
+      for slug <- @topics do
+        assert {:error, {:live_redirect, %{to: to}}} = result = live(conn, ~p"/help/#{slug}")
+        assert to == ~p"/help/agents/#{slug}"
+
+        {:ok, view, _html} = follow_redirect(result, conn)
+        assert has_element?(view, "#help-topic-#{slug}")
+      end
+    end
+
+    @tag :anonymous
+    test "an unknown topic goes back to the agents overview with a message", %{conn: conn} do
+      assert {:error, {:live_redirect, %{to: "/help/agents"}}} =
+               result = live(conn, ~p"/help/agents/nope")
+
+      {:ok, view, html} = follow_redirect(result, conn)
+
+      assert html =~ "There is no help page by that name."
+      assert has_element?(view, "#help-compare")
+    end
+
+    @tag :anonymous
+    test "the pages carry the address they were reached on", %{conn: conn} do
       # The test request's host, not the endpoint's configured localhost:4000:
       # what's copied from here has to work against the server that drew it.
       base = "http://www.example.com"
 
-      {:ok, view, _html} = live(conn, ~p"/help/mcp")
+      {:ok, view, _html} = live(conn, ~p"/help/agents/mcp")
       assert has_element?(view, "#help-mcp-url", "#{base}/mcp")
 
-      {:ok, view, _html} = live(conn, ~p"/help/guide")
+      {:ok, view, _html} = live(conn, ~p"/help/agents/guide")
       assert has_element?(view, "#help-guide-prompt", "#{base}/api/guide")
 
-      {:ok, view, _html} = live(conn, ~p"/help/skills")
+      {:ok, view, _html} = live(conn, ~p"/help/agents/skills")
       assert has_element?(view, "#help-skills-sh", "#{base}/install.sh")
     end
 
     @tag :anonymous
+    test "account pages are named but not linked signed out", %{conn: conn} do
+      {:ok, view, html} = live(conn, ~p"/help/agents/guide")
+
+      assert html =~ "Account → API tokens"
+      refute has_element?(view, ~s{a[href="/account/tokens"]})
+    end
+
+    test "account pages are links signed in", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/help/agents/guide")
+      assert has_element?(view, ~s{a[href="/account/tokens"]})
+    end
+
+    @tag :anonymous
     test "the skills page offers each ChatGPT zip", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/help/skills")
+      {:ok, view, _html} = live(conn, ~p"/help/agents/skills")
 
       skills = Slipdock.Skills.ChatGPT.list()
       assert skills != []
@@ -144,30 +288,40 @@ defmodule SlipdockWeb.HelpLiveTest do
       refute has_element?(view, ~s{a[href="/api/skills/slipdock-loop/chatgpt.zip"]})
     end
 
-    @tag :anonymous
-    test "every snippet has a copy button pointing at it", %{conn: conn} do
-      for slug <- @slugs do
-        {:ok, _view, html} = live(conn, ~p"/help/#{slug}")
-        doc = LazyHTML.from_document(html)
-
-        for button <- LazyHTML.query(doc, "button[phx-hook=CopyText]") do
-          [target] = LazyHTML.attribute(button, "data-target")
-          assert doc |> LazyHTML.query("code##{target}") |> Enum.count() == 1
-        end
-      end
-    end
-
-    @tag :anonymous
-    test "an unknown topic goes back to the overview with a message", %{conn: conn} do
-      assert {:error, {:live_redirect, %{to: "/help"}}} = result = live(conn, ~p"/help/nope")
-      {:ok, view, html} = follow_redirect(result, conn)
-
-      assert html =~ "There is no help page by that name."
-      assert has_element?(view, "#help-compare")
+    test "topics are listed in the order the page presents them" do
+      assert Agents.slugs() == @topics
     end
   end
 
-  test "topics are listed in the order the page presents them" do
-    assert Enum.map(Index.topics(), & &1.slug) == @slugs
+  @tag :anonymous
+  test "every snippet on every page has a copy button pointing at it", %{conn: conn} do
+    paths = Enum.map(@sections, &"/help/#{&1}") ++ Enum.map(@topics, &"/help/agents/#{&1}")
+
+    for path <- paths do
+      {:ok, _view, html} = live(conn, path)
+      page = doc(html)
+
+      for button <- LazyHTML.query(page, "button[phx-hook=CopyText]") do
+        [target] = LazyHTML.attribute(button, "data-target")
+        assert count(page, "code##{target}") == 1, "#{path}: no code##{target}"
+      end
+    end
+  end
+
+  describe "the ways to Help" do
+    @tag :anonymous
+    test "the sign-in page links to help and to agents", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/login")
+
+      assert has_element?(view, ~s{#login-help[href="/help"]})
+      assert has_element?(view, ~s{#login-help-agents[href="/help/agents"]})
+    end
+
+    test "the avatar menu links to help, the agent tab to agents", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/account/agent")
+
+      assert has_element?(view, ~s{a[href="/help"]}, "Help")
+      assert has_element?(view, ~s{a[href="/help/agents"]}, "Compare them in Help")
+    end
   end
 end

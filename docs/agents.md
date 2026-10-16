@@ -24,7 +24,7 @@ So an agent needs three things, and only the first two are required:
 
 In the app, **Set up an agent** (in the avatar menu, or under Account) has all
 of this with your own server's address already filled in, ready to copy.
-**Help** (`/help`, open to anyone, signed in or not) is the short version for
+**Help → Agents** (`/help/agents`, open to anyone, signed in or not) is the short version for
 somebody choosing: each way in — the guide and API, MCP, the CLI, the skills,
 runners and webhooks — with when to use it, a table of what each supports, and
 a page per way in.

@@ -69,7 +69,7 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
           install first.
         </p>
         <p class="mt-3 text-sm">
-          <.link href={~p"/help"} class="link font-medium">
+          <.link href={~p"/help/agents"} class="link font-medium">
             Which way should I connect? Compare them in Help →
           </.link>
         </p>

@@ -55,7 +55,7 @@ Briefly, with the detail in [the manual](docs/manual.md):
 - **Boards, lists and cards** — drag and drop, priorities, five flags, due
   dates, tags, checklists, comments with `@mentions` that email the person
   named, attachments (uploaded in the browser, or over the API and CLI —
-  `slipdock attach 12 shot.png`), image thumbnails on card fronts, recordings that
+  `slipdock attach 12 shot.png`, and back with `slipdock download 5`), image thumbnails on card fronts, recordings that
   play in place and transcribe on a transcription server of your own
   (Configuration → Server → Transcription server; [what it must speak](docs/manual.md#what-a-transcription-server-must-speak)), cover colours, archive and restore, and a [select mode](docs/manual.md#changing-several-cards-at-once) that tags, flags, moves, archives or deletes many cards at once. Each board has a short code (`qvm-v1-rem`) that addresses it
   everywhere.
@@ -179,9 +179,12 @@ Briefly, with the detail in [the manual](docs/manual.md):
   [setting one up](docs/agents.md) needs no software and no access to the
   server: give it the address, approve it once in the browser, and it reads the
   server's own guide for the rest. The app has the same thing with your address
-  filled in, under **Set up an agent**, and a **Help** page (`/help`, readable
-  signed out) that compares the ways in — the guide and API, MCP, the CLI,
+  filled in, under **Set up an agent**, and **Help → Agents** (`/help/agents`,
+  readable signed out) compares the ways in — the guide and API, MCP, the CLI,
   skills, runners and webhooks — and says when to reach for each.
+- **Help inside the app** — `/help`, readable without an account: short guides
+  to boards, the wiki, sharing, automations and the AI features (asking about a
+  board, searching and asking across every board), and to connecting agents.
 
 ## Running it
 
