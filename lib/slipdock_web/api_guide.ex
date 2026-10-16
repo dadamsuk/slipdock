@@ -426,6 +426,14 @@ defmodule SlipdockWeb.APIGuide do
     - `this API token is read-only` — granted read access only.
     - `this API token's scope doesn't allow it` — confined to certain boards.
 
+    **Comment access** (#863) sits between read and write: a board, card,
+    page or folder can be shared at `comment`. A commenter reads, and may
+    comment (`POST …/comments`), report a status (`POST …/status`), vote with
+    a comment, and delete their own comments — nothing else. Every change to
+    the card or page itself (fields, list, checklist, links, attachments,
+    dependencies, sub-board, archive, delete) is a `403 you don't edit this
+    card`; a reader commenting gets `403 you don't comment on this card`.
+
     `402` is a limit, and always carries `"retryable": false` because it is not
     a fault in your request: fixing the title and trying again will fail
     identically, forever. Tell the person and stop. `GET /api/me` says where
@@ -1836,7 +1844,7 @@ defmodule SlipdockWeb.APIGuide do
 
     **Sharing a page or a folder** (#813) hands it to somebody who need not
     see the board: a person by email (a stranger is invited) or a group of
-    yours, `read` or `write`. A folder share covers everything whose *home*
+    yours, `read`, `comment` or `write`. A folder share covers everything whose *home*
     is in its subtree (pages, files, drawings, subfolders), never what is only
     also filed there. Only the board's writers share.
 

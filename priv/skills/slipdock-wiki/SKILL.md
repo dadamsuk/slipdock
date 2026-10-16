@@ -157,7 +157,8 @@ where else each folder is. Sync writes it once, at its home.
 
 **Sharing a page or a folder** with someone who shouldn't see the rest of the
 board: `slipdock page share <page> sam@example.com --write` (a group by name
-works too; read only is the default; `--off` takes it back), `slipdock folder
+works too; read only is the default; `--comment` lets them comment, report
+a status and vote without editing; `--off` takes it back), `slipdock folder
 share <board> <folder> …` for a folder and everything at home in it. Only the
 board's writers can share. What others shared with you: `slipdock shared`,
 then `page read` / `page edit` by code as usual. A sharee with write edits,
