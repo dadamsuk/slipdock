@@ -95,6 +95,26 @@ defmodule SlipdockWeb.API.ToolController do
     |> send_resp(200, bytes)
   end
 
+  @doc """
+  The owner asks for a version (the latest, or `version`) to be listed for
+  everyone on the server. An admin approves it before it shows.
+  """
+  def request_listing(conn, %{"slug" => slug} = params) do
+    user = conn.assigns.current_user
+
+    with {:ok, version} <- version(conn, slug, params) do
+      case Tools.request_listing(user, version) do
+        {:ok, version} ->
+          json(conn, %{
+            tool: ToolJSON.show(Tools.Tool |> Slipdock.Repo.get!(version.tool_id), version, user)
+          })
+
+        {:error, message} ->
+          {:error, :forbidden, message}
+      end
+    end
+  end
+
   defp unscoped(%{scope_boards: [_ | _]}),
     do: {:error, :forbidden, "this token is confined to some boards, so it can't make one"}
 

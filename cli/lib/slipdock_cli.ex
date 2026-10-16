@@ -455,6 +455,8 @@ defmodule SlipdockCLI do
                                         put its skills, and the files that go beside them,
                                         in ~/.claude/skills (or D)
     tools check [<name>...]             say whether the installed Tool skills are behind
+    tools request-listing <name> [--version V]
+                                        ask an admin to list a version for everyone here
     tools install-board <name> [--version V] [--name N]
                                         have the server build the Tool's board for you
                                         (again: answers with the board you already have)

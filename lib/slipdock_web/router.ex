@@ -217,6 +217,8 @@ defmodule SlipdockWeb.Router do
       live "/config", ConfigLive.Index, :index
       live "/config/mail", ConfigLive.Index, :mail
       live "/config/meetings", ConfigLive.Index, :meetings
+      # Tools waiting for an admin to list them for everyone (#964).
+      live "/admin/tools", ToolLive.Review, :index
     end
 
     live_session :authenticated,
@@ -454,6 +456,7 @@ defmodule SlipdockWeb.Router do
     post "/tools", ToolController, :create
     get "/tools/:slug", ToolController, :show
     post "/tools/:slug/install", ToolController, :install
+    post "/tools/:slug/listing", ToolController, :request_listing
     # A Tool's skills: all of them as one tar for a skills directory, or one
     # as the zip claude.ai or ChatGPT takes (#962).
     get "/tools/:slug/skills.tar.gz", ToolController, :skills_archive

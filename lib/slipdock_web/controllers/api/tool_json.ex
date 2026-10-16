@@ -13,10 +13,13 @@ defmodule SlipdockWeb.API.ToolJSON do
       summary: tool.summary,
       version: version && version.version,
       mine: Tools.owner?(user, tool),
-      kind: if(Tools.owner?(user, tool), do: "mine", else: "shared"),
+      kind: tool |> then(&Tools.access(user, &1)) |> kind(),
       installed: installed(Tools.current_install(user, tool))
     }
   end
+
+  defp kind(:owner), do: "mine"
+  defp kind(other), do: Atom.to_string(other)
 
   @doc "One Tool at one version, with what it would install."
   def show(%Tools.Tool{} = tool, %Tools.Version{} = version, user) do
@@ -44,7 +47,8 @@ defmodule SlipdockWeb.API.ToolJSON do
         end),
       skills_archive: "/api/tools/#{tool.slug}/skills.tar.gz?version=#{version.version}",
       files: Enum.map(manifest["files"] || [], &Map.take(&1, ["path", "install", "skill"])),
-      size: version.size
+      size: version.size,
+      listing: listing(tool, version, user)
     })
   end
 
@@ -72,4 +76,24 @@ defmodule SlipdockWeb.API.ToolJSON do
 
   def installed(%Tools.Install{board: board} = i),
     do: %{version: i.version, board: board.code, board_id: board.id, board_name: board.name}
+
+  # What the owner sees of listing: which version is listed for everyone, and
+  # where this one stands. Nobody else is told about requests.
+  defp listing(tool, version, user) do
+    if Tools.owner?(user, tool) do
+      listed = Tools.listed_version(tool)
+
+      %{
+        listed_version: listed && listed.version,
+        this_version:
+          cond do
+            version.approved_at -> "approved"
+            version.declined_at -> "declined"
+            version.listing_requested_at -> "waiting for an admin"
+            true -> "not requested"
+          end,
+        declined_reason: version.declined_reason
+      }
+    end
+  end
 end

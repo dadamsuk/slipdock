@@ -18,6 +18,13 @@ defmodule Slipdock.Tools.Version do
     field :readme, :string, default: ""
     field :board, :map
     field :size, :integer, default: 0
+    # Listing for everyone on the server (#964): asked for by the owner,
+    # then approved or declined by an admin. Not part of what the sha covers.
+    field :listing_requested_at, :utc_datetime
+    field :approved_at, :utc_datetime
+    field :declined_at, :utc_datetime
+    field :declined_reason, :string
+    belongs_to :approved_by, Slipdock.Accounts.User
     belongs_to :tool, Slipdock.Tools.Tool
     belongs_to :published_by, Slipdock.Accounts.User
     has_many :files, Slipdock.Tools.File, preload_order: [asc: :path]

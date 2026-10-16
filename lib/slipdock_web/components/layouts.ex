@@ -454,7 +454,7 @@ defmodule SlipdockWeb.Layouts do
       <.link navigate={~p"/templates"}><.icon name="hero-squares-plus" class="size-4" /> Templates</.link>
     </li>
     <li>
-      <.link navigate={~p"/tools"}><.icon name="hero-wrench-screwdriver" class="size-4" /> Tools</.link>
+      <.link navigate={~p"/tools"}><.icon name="hero-puzzle-piece" class="size-4" /> Tools</.link>
     </li>
     <li>
       <.link navigate={~p"/account"}><.icon name="hero-user-circle" class="size-4" /> Account</.link>
@@ -494,6 +494,14 @@ defmodule SlipdockWeb.Layouts do
         <.icon name="hero-users" class="size-4" /> Users
         <span :if={waiting_signups() > 0} class="badge badge-sm badge-warning">
           {waiting_signups()}
+        </span>
+      </.link>
+    </li>
+    <li :if={Slipdock.Accounts.admin?(@current_user)}>
+      <.link navigate={~p"/admin/tools"}>
+        <.icon name="hero-puzzle-piece" class="size-4" /> Tool listings
+        <span :if={waiting_listings() > 0} class="badge badge-sm badge-warning">
+          {waiting_listings()}
         </span>
       </.link>
     </li>
@@ -1448,4 +1456,6 @@ defmodule SlipdockWeb.Layouts do
       do: Slipdock.Accounts.count_pending_signups(),
       else: 0
   end
+
+  defp waiting_listings, do: length(Slipdock.Tools.listing_queue())
 end

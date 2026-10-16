@@ -180,4 +180,64 @@ defmodule SlipdockWeb.ToolLiveTest do
       refute has_element?(view, "#tools-yours #tool-card-#{name}")
     end
   end
+
+  describe "listing for everyone" do
+    setup %{user: user, name: name} do
+      admin =
+        "tool-admin@example.com"
+        |> user_fixture()
+        |> Ecto.Changeset.change(admin: true)
+        |> Slipdock.Repo.update!()
+
+      %{admin: admin, admin_conn: log_in_user(build_conn(), admin), owner: user, name: name}
+    end
+
+    test "the owner asks, an admin approves in the queue, and everybody then sees it", %{
+      conn: conn,
+      admin_conn: admin_conn,
+      name: name
+    } do
+      {:ok, view, _} = live(conn, ~p"/tools/#{name}")
+      view |> element("#tool-request-listing") |> render_click()
+      assert has_element?(view, "#tool-listing", "waiting for an admin")
+
+      {:ok, queue, _} = live(admin_conn, ~p"/admin/tools")
+      [version] = Enum.filter(Tools.listing_queue(), &(&1.tool.slug == name))
+      assert has_element?(queue, "#listing-#{version.id}", "Demo Tool 1.0.0")
+      queue |> element("#listing-#{version.id} button", "Approve") |> render_click()
+      refute has_element?(queue, "#listing-#{version.id}")
+      assert has_element?(queue, "#listing-listed", "Demo Tool")
+
+      stranger = log_in_user(build_conn(), user_fixture("gallery-stranger@example.com"))
+      {:ok, gallery, _} = live(stranger, ~p"/tools")
+      assert has_element?(gallery, "#tools-listed #tool-card-#{name}")
+      assert {:ok, _page, _} = live(stranger, ~p"/tools/#{name}")
+
+      {:ok, view, _} = live(conn, ~p"/tools/#{name}")
+      assert has_element?(view, "#tool-listing", "Listed for everyone: version 1.0.0")
+    end
+
+    test "an admin declines with a reason the owner sees", %{
+      conn: conn,
+      admin_conn: admin_conn,
+      name: name
+    } do
+      {:ok, view, _} = live(conn, ~p"/tools/#{name}")
+      view |> element("#tool-request-listing") |> render_click()
+      [version] = Enum.filter(Tools.listing_queue(), &(&1.tool.slug == name))
+
+      {:ok, queue, _} = live(admin_conn, ~p"/admin/tools")
+
+      queue
+      |> form("#decline-#{version.id}", %{"reason" => "too broad"})
+      |> render_submit()
+
+      {:ok, view, _} = live(conn, ~p"/tools/#{name}")
+      assert has_element?(view, "#tool-listing", "too broad")
+    end
+
+    test "the queue is for admins only", %{conn: conn} do
+      assert {:error, {:redirect, _}} = live(conn, ~p"/admin/tools")
+    end
+  end
 end

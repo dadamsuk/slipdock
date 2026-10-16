@@ -27,6 +27,7 @@ defmodule SlipdockWeb.MCP.Tools do
     Tools.Activity,
     Tools.DownloadFile,
     Tools.ListAutomations,
+    Tools.ListTools,
     Tools.CreateCard,
     Tools.UpdateCard,
     Tools.MoveCard,

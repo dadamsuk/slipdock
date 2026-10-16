@@ -14,6 +14,10 @@ defmodule Slipdock.Tools.Tool do
     field :name, :string
     field :summary, :string
     belongs_to :owner, Slipdock.Accounts.User
+    # The version an admin approved for everyone on the server to see (#964),
+    # or nil while the Tool is private to its owner and the people it is
+    # shared with.
+    belongs_to :listed_version, Slipdock.Tools.Version
     has_many :versions, Slipdock.Tools.Version
     timestamps(type: :utc_datetime)
   end

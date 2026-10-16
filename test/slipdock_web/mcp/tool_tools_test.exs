@@ -100,4 +100,40 @@ defmodule SlipdockWeb.MCP.ToolToolsTest do
                "confined to some boards"
     end
   end
+
+  describe "list_tools" do
+    test "gives each kind, and the board an install made", %{user: user, name: name, tool: tool} do
+      friend = user_fixture("mcp-list-friend@example.com")
+      {:ok, _} = Tools.share(user, tool, friend)
+
+      mine = user |> token_conn() |> call("list_tools", %{}) |> ok!()
+
+      assert %{"kind" => "mine", "installed" => nil} =
+               Enum.find(mine["tools"], &(&1["name"] == name))
+
+      {:ok, %{board: board}} = Tools.install_board(friend, tool)
+      theirs = friend |> token_conn(scope: "read") |> call("list_tools", %{}) |> ok!()
+      entry = Enum.find(theirs["tools"], &(&1["name"] == name))
+      assert entry["kind"] == "shared"
+      assert entry["installed"]["board"] == board.code
+    end
+
+    test "with tool, gives the blueprint and skills; a hidden one is an error", %{
+      user: user,
+      name: name
+    } do
+      full = user |> token_conn() |> call("list_tools", %{"tool" => name}) |> ok!()
+      assert full["tool"]["board"]["folders"] == ["Config"]
+      assert length(full["tool"]["skills"]) == 2
+      assert full["tool"]["listing"]["this_version"] == "not requested"
+
+      stranger = user_fixture("mcp-list-stranger@example.com")
+
+      assert stranger |> token_conn() |> call("list_tools", %{"tool" => name}) |> error!() =~
+               "no Tool"
+
+      listed = stranger |> token_conn() |> call("list_tools", %{}) |> ok!()
+      refute Enum.any?(listed["tools"], &(&1["name"] == name))
+    end
+  end
 end
