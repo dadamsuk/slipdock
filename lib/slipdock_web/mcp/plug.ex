@@ -34,8 +34,9 @@ defmodule SlipdockWeb.MCP.Plug do
   @latest hd(@versions)
   # What a client that sends no version header is taken to speak.
   @assumed "2025-03-26"
-  # One JSON-RPC message. Nothing a tool accepts is anywhere near this.
-  @max_body 1_000_000
+  # One JSON-RPC message. The largest is an `upload_file` carrying its file
+  # as base64, which is a third bigger than the file (#919).
+  @max_body 16_000_000
 
   @parse_error -32700
   @invalid_request -32600
@@ -44,6 +45,9 @@ defmodule SlipdockWeb.MCP.Plug do
 
   @doc "The protocol revisions this server speaks, newest first."
   def versions, do: @versions
+
+  @doc "The largest request body read, in bytes: anything bigger is a 413."
+  def max_body, do: @max_body
 
   @impl Plug
   def init(opts), do: opts
@@ -246,6 +250,12 @@ defmodule SlipdockWeb.MCP.Plug do
   defp tool_result({:ok, data}) do
     %{content: [%{type: "text", text: Jason.encode!(data, pretty: true)}], isError: false}
     |> put_structured(data)
+  end
+
+  # A tool that hands back a file (`download_file`) adds content blocks of
+  # its own — an image, a resource — after the JSON that describes it.
+  defp tool_result({:ok, data, content}) when is_list(content) do
+    {:ok, data} |> tool_result() |> Map.update!(:content, &(&1 ++ content))
   end
 
   defp tool_result({:error, message}) do

@@ -6,7 +6,8 @@ defmodule SlipdockWeb.MCP.Tool do
   `call/2` gets the arguments as the client sent them (string keys) and a
   context — the token's `user`, the `token` row itself and the `base_url` the
   client reached us on. It answers `{:ok, data}`, which becomes the tool's
-  result, or `{:error, message}`, which becomes a result with `isError: true`.
+  result, `{:ok, data, content}` when the tool adds MCP content blocks of its
+  own after the JSON (a file's bytes, `download_file`), or `{:error, message}`, which becomes a result with `isError: true`.
   A tool's failure is something for the model to read and act on, never a
   JSON-RPC error (see W-21).
 
@@ -25,5 +26,6 @@ defmodule SlipdockWeb.MCP.Tool do
   @doc "`true` for a write that can overwrite what is there. Left out, false."
   @callback destructive?() :: boolean()
   @optional_callbacks destructive?: 0
-  @callback call(args :: map(), context()) :: {:ok, term()} | {:error, String.t()}
+  @callback call(args :: map(), context()) ::
+              {:ok, term()} | {:ok, map(), [map()]} | {:error, String.t()}
 end

@@ -192,7 +192,7 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
           This server is also an MCP server, at <code>{@base_url}/mcp</code>. A client that
           connects gets a small set of tools: reading boards, cards, pages and the guide,
           searching, adding, updating, moving, commenting on, completing, archiving and deleting
-          cards (dependencies and checklists too), adding and deleting lists, making, archiving
+          cards (dependencies and checklists too), uploading and downloading their files, adding and deleting lists, making, archiving
           and deleting boards, writing pages, and sharing a page or folder with somebody
           (<code>share</code>; <code>list_pages</code>
           with <code>shared</code>

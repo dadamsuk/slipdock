@@ -164,7 +164,7 @@ way in: what it is, the pictures, and how to get it running.
 - Accounts: passwordless sign-in by emailed magic link, sessions that last
   30 days, API tokens for the CLI
 - **An MCP server** at `/mcp`: claude.ai, the Claude apps, Claude Code and
-  other MCP clients get the boards and the wiki as 41 tools (four of them only
+  other MCP clients get the boards and the wiki as 43 tools (four of them only
   while meeting mode is on), signing in
   through the browser or with an API token (see [MCP server](#mcp-server))
 - Groups of users; boards, single cards and saved views can be shared with
@@ -4490,10 +4490,12 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `page_history` | A page's revisions, newest first (`limit`, default 20): who saved each, how (`web`, `cli`, `mcp`…), the message and when. With `rev`, that revision's body and the diff it made against the one before, or with `against` (another revision id) the diff from that version instead; `diff: true` alone gives the latest save's diff. Long unchanged stretches come back as `skip` with a count, so a one-line edit does not return the whole page. |
 | `list_vaults` | Your [vaults](#vaults) and their mappings; with `vault`, one of them; with `vault` and `path`, which mapping that vault path lands in (the longest matching prefix) and what is left of the path below it. |
 | `activity` | A board's activity log, newest first; `card` narrows it to one card's entries. |
+| `download_file` | A file attached to a card or a page, by its `attachment` id (`get_card` and `read_page` list them, `read_page` under `attachments`). The attachment's details come first; then a text file's contents as `text` (cut at 100,000 characters, with `truncated`), an image as an MCP image block, or anything else up to 5 MB as an embedded resource in base64. A bigger file is refused with its link in the web app. Checked as reading the card or page is: a file the token can't reach is not found. |
 | `create_card` | A card on a board, or with `parent` a subcard (making the sub-board if needed). |
 | `update_card` | Title, description, priority (or clearing it), start and due dates, percent, flags, tags, assignees, what blocks it, and its checklist — add, tick and untick items. Only what is passed changes. |
 | `move_card` | To another list on its board, or with `board` to another board, subcards and all. |
 | `comment` | A Markdown comment on a card; `@name` mentions notify. |
+| `upload_file` | Attaches a file to a `card`, or to a `page` (a code, or a slug with `board`): `filename`, and the bytes as `content_base64` or a text file's contents as `text`; `content_type` (else the name decides) and `hide_on_card` are optional. Up to 10 MB — the CLI's `slipdock attach` and the API take bigger files. Answers with the attachment and the `markdown` that embeds or links it, as `POST /api/cards/:id/attachments` does, and counts towards the owner's limits the same way. |
 | `complete_card` | Marks a card completed and moves it to the done list, with an optional closing comment. |
 | `status_update` | Posts a status update on a card, as `POST /api/cards/:id/status` does: its `health` (`on_track`, `at_risk`, `off_track`) and an optional `body`. The latest is the card's stated health. |
 | `archive_card` | Puts a card away, or with `restore: true` brings it back. |
