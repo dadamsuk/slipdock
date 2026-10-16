@@ -36,7 +36,7 @@ defmodule SlipdockWeb.Layouts do
   attr :nav_active, :atom,
     default: nil,
     doc:
-      "which place in the navigation this page is: :boards, :wiki, :work, :favourites, :search or :ask"
+      "which place in the navigation this page is: :boards, :wiki, :work, :favourites, :search, :ask, or an admin page (:overview, :users, :config)"
 
   slot :inner_block, required: true
   slot :nav, doc: "content rendered in the header next to the brand"
@@ -477,6 +477,11 @@ defmodule SlipdockWeb.Layouts do
     <li>
       <.link navigate={~p"/account/agent"}><.icon name="hero-cpu-chip" class="size-4" />
       Set up an agent</.link>
+    </li>
+    <li :if={Slipdock.Accounts.admin?(@current_user)}>
+      <.link navigate={~p"/overview"}>
+        <.icon name="hero-chart-bar" class="size-4" /> Overview
+      </.link>
     </li>
     <li :if={Slipdock.Accounts.admin?(@current_user)}>
       <.link navigate={~p"/users"}>

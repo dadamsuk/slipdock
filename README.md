@@ -462,6 +462,12 @@ all under **Configuration → Server**, with the people themselves under
   an account can have no item limit at all and still run out of trial, or have
   both and hit whichever comes first. Nothing is deleted and nobody is locked
   out: an expired account reads and edits everything it has.
+- **What it is being used for**, under **Overview** (admins only, in the
+  account menu; `slipdock admin overview` from a terminal): how many accounts,
+  how many joined or were active in the last 7 and 30 days, and for each
+  person when they signed up, when they were last active (signing in or using
+  an API token), and how many boards, lists, cards, wiki pages and files they
+  own and the storage behind them. Sort the table by any column.
 - **Who has paid**, per person under **Users**: a paid-up date takes somebody
   off the free allowance and off the trial clock. There is no billing in
   Slipdock; whoever takes the money sets the date.

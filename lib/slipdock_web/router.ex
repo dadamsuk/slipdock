@@ -197,6 +197,7 @@ defmodule SlipdockWeb.Router do
       ] do
       live "/users", UsersLive.Index, :index
       live "/users/signups", UsersLive.Index, :signups
+      live "/overview", OverviewLive.Index, :index
       live "/config", ConfigLive.Index, :index
       live "/config/mail", ConfigLive.Index, :mail
       live "/config/meetings", ConfigLive.Index, :meetings
@@ -374,6 +375,7 @@ defmodule SlipdockWeb.Router do
     get "/meetings/usage", AdminController, :meetings_usage
     post "/allowlist", AdminController, :allow
     delete "/allowlist", AdminController, :disallow
+    get "/overview", AdminController, :overview
     get "/users", AdminController, :users
     patch "/users/:id", AdminController, :update_user
     get "/signups", AdminController, :signups

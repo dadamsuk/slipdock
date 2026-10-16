@@ -41,6 +41,12 @@ defmodule SlipdockCLI.Admin do
 
   def run("admin", ["users"], o), do: HTTP.get("/admin/users") |> out(o, &render_admin_users/1)
 
+  # What the server is being used for: totals, then a line per person.
+  def run("admin", ["overview"], o) do
+    path = if o[:sort], do: "/admin/overview?sort=#{enc(o[:sort])}", else: "/admin/overview"
+    HTTP.get(path) |> out(o, &render_overview/1)
+  end
+
   def run("admin", ["meetings-usage"], o),
     do: HTTP.get("/admin/meetings/usage") |> out(o, &render_meetings_usage/1)
 
@@ -86,6 +92,9 @@ defmodule SlipdockCLI.Admin do
                                         meetings_accept_transcripts|audio|findings
     admin allow <entry> | disallow <entry>
     admin users                         who is here
+    admin overview [--sort S]           usage: accounts, activity, and what each person owns
+                                        (S: storage|cards|boards|lists|pages|files|
+                                        last_active|signed_up|email)
     admin meetings-usage                meeting capture this month: totals, heaviest users
     admin promote|demote|disable|enable <email>
     admin limit <email> <n|none>        their own card limit
@@ -269,6 +278,37 @@ defmodule SlipdockCLI.Admin do
     do: " (#{if list == [], do: "nobody listed", else: Enum.join(list, ", ")})"
 
   defp allowlist_note(_), do: ""
+
+  defp render_overview(%{"totals" => t, "people" => people}) do
+    IO.puts("""
+    Accounts  #{t["users"]} (#{t["admins"]} admin, #{t["disabled"]} disabled, #{t["never_seen"]} never seen)
+    Active    #{t["active_7d"]} in 7 days, #{t["active_30d"]} in 30
+    Joined    #{t["joined_7d"]} in 7 days, #{t["joined_30d"]} in 30
+    Made      #{t["boards"]} boards, #{t["lists"]} lists, #{t["cards"]} cards, #{t["pages"]} pages, #{t["files"]} files
+    Storage   #{bytes(t["storage"])}
+    """)
+
+    for p <- people do
+      flags = [p["admin"] && "admin", p["disabled"] && "disabled"] |> Enum.filter(& &1)
+
+      IO.puts(
+        "#{p["email"]}  joined #{day(p["signed_up_at"])}  active #{day(p["last_active_at"]) || "never"}  " <>
+          "#{p["boards"]} boards · #{p["lists"]} lists · #{p["cards"]} cards · #{p["pages"]} pages · " <>
+          "#{p["files"]} files · #{bytes(p["storage"])}" <>
+          if(flags == [], do: "", else: "  [" <> Enum.join(flags, " ") <> "]")
+      )
+    end
+  end
+
+  defp day(nil), do: nil
+  defp day(at), do: String.slice(at, 0, 10)
+
+  defp bytes(n) when is_integer(n) and n >= 1_073_741_824,
+    do: "#{Float.round(n / 1_073_741_824, 1)} GB"
+
+  defp bytes(n) when is_integer(n) and n >= 1_048_576, do: "#{Float.round(n / 1_048_576, 1)} MB"
+  defp bytes(n) when is_integer(n) and n >= 1024, do: "#{div(n, 1024)} KB"
+  defp bytes(n), do: "#{n || 0} B"
 
   defp render_admin_users(%{"users" => users}) do
     for u <- users do

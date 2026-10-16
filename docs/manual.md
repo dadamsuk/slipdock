@@ -3616,6 +3616,21 @@ it **unlimited** (Users → *Make unlimited*, or `slipdock admin unlimited <emai
 which does the same for a named person with no date to invent: no free allowance,
 no trial. The ceilings above still apply to them, as they do to admins.
 
+**What it is being used for.** **Overview**, in an admin's account menu, puts
+the whole server on one page: how many accounts (admins, disabled, never seen),
+how many joined and how many were active in the last 7 and 30 days, and the
+boards, lists, cards, wiki pages, files and storage across all of them. Below
+that is a row per person — when they signed up, when they were last active, and
+what they own — sortable by any column (`?sort=storage`, `cards`, `last_active`,
+`signed_up`, `email` and the rest). Things are counted against the **owner** of
+the board they are on, sub-boards included, exactly as the limits count them,
+so a guest working on your board adds nothing to their own row. *Last active*
+is the later of the last browser sign-in and the last use of one of their API
+tokens, so an account worked only by an agent still shows as active. It is
+read-only; changing anybody's standing is on Users. From a terminal:
+`slipdock admin overview [--sort cards]`, or `GET /api/admin/overview` with an
+admin-scoped token.
+
 **Admins.** One role, and the oldest account has it after an upgrade. Admins
 change all of the above, see everybody, grant and remove admin rights, disable
 accounts, set per-person item limits and record who has paid. Three things are
