@@ -68,6 +68,11 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
           not need access to the machine this is running on, and there is nothing to
           install first.
         </p>
+        <p class="mt-3 text-sm">
+          <.link href={~p"/help"} class="link font-medium">
+            Which way should I connect? Compare them in Help →
+          </.link>
+        </p>
       </section>
 
       <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
