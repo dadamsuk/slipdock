@@ -63,6 +63,7 @@ defmodule SlipdockWeb.API.ToolJSON do
       board_name: board.name,
       url: base_url <> "/boards/#{board.id}",
       created: created,
+      upgraded: Map.get(result, :upgraded, false),
       version: version.version,
       installed_version: install.version,
       added: result.report && result.report.added,

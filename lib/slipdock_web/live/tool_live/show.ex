@@ -87,9 +87,11 @@ defmodule SlipdockWeb.ToolLive.Show do
     case Tools.install_board(user, tool, version: version.version) do
       {:ok, result} ->
         message =
-          if result.created,
-            do: "Made the board “#{result.board.name}”.",
-            else: "You already have this Tool's board, “#{result.board.name}”."
+          cond do
+            result.created -> "Made the board “#{result.board.name}”."
+            result.upgraded -> upgrade_message(result)
+            true -> "You already have this Tool's board, “#{result.board.name}”."
+          end
 
         {:noreply,
          socket
@@ -169,6 +171,18 @@ defmodule SlipdockWeb.ToolLive.Show do
   end
 
   ## Helpers ----------------------------------------------------------------------
+
+  defp upgrade_message(%{board: board, version: version, report: report}) do
+    added = report.added |> Enum.flat_map(fn {_, names} -> names end)
+    kept = report.skipped["pages"] || []
+
+    "Upgraded “#{board.name}” to #{version.version}. " <>
+      if(added == [], do: "Nothing new to add.", else: "Added: #{Enum.join(added, ", ")}.") <>
+      if(kept == [], do: "", else: " Pages left as they were: #{Enum.join(kept, ", ")}.")
+  end
+
+  defp newer?(%{version: installed}, %{version: shown}),
+    do: Version.compare(shown, installed) == :gt
 
   defp preset_title(key), do: (Presets.get(key) || %{title: key}).title
 
@@ -283,6 +297,21 @@ defmodule SlipdockWeb.ToolLive.Show do
                 </.link>
                 (version {@install.version}).
               </p>
+              <div :if={newer?(@install, @version)} id="tool-upgrade" class="mt-3 text-sm">
+                <p class="text-base-content/70">
+                  Version {@version.version} is here. Upgrading adds what your board is missing —
+                  lists, folders, tags, pages, rules and files — and leaves anything you have
+                  changed exactly as it is.
+                </p>
+                <button
+                  id="tool-upgrade-board"
+                  class="btn btn-primary btn-sm mt-2"
+                  phx-click="install"
+                  phx-disable-with="Upgrading…"
+                >
+                  Upgrade the board to {@version.version}
+                </button>
+              </div>
             <% else %>
               <p id="tool-not-installed" class="text-sm text-base-content/70">
                 You haven't installed this Tool yet.

@@ -61,7 +61,15 @@ defmodule SlipdockWeb.MCP.ToolToolsTest do
 
       again = user |> token_conn() |> call("install_tool", %{"tool" => name}) |> ok!()
       assert again["created"] == false
+      assert again["upgraded"] == false
       assert again["board"] == first["board"]
+
+      {:ok, _} = Tools.publish(user, package(name, "1.1.0"))
+      upgraded = user |> token_conn() |> call("install_tool", %{"tool" => name}) |> ok!()
+      assert upgraded["upgraded"] == true
+      assert upgraded["installed_version"] == "1.1.0"
+      assert upgraded["board"] == first["board"]
+      assert "Found" in upgraded["skipped"]["lists"]
     end
 
     test "a Tool the caller can't see reads as one that doesn't exist", %{name: name} do

@@ -21,7 +21,8 @@ defmodule SlipdockWeb.MCP.Tools.InstallTool do
   def description,
     do:
       "Builds the board a Tool (see list_tools) comes with — lists, folders, tags, page " <>
-        "skeletons, rules — and returns its code. Already installed: returns that board."
+        "skeletons, rules — and returns its code. Already installed: returns that board, " <>
+        "adding what a newer version brings without touching edited pages."
 
   @impl true
   def input_schema do
