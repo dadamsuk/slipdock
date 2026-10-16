@@ -160,6 +160,83 @@ defmodule Slipdock.AccessTest do
     refute Access.view_shows_card?(ctx.owner, hidden)
   end
 
+  describe "comment level (#863)" do
+    test "ranks between read and write" do
+      for level <- [:comment, :write, :owner], do: assert(Access.can_comment?(level))
+      for level <- [:read, :view, :none], do: refute(Access.can_comment?(level))
+      assert Access.can_read?(:comment)
+      refute Access.can_write?(:comment)
+      refute Access.owner?(:comment)
+    end
+
+    test "higher/2 orders the levels, nil as none" do
+      assert Access.higher(:read, :comment) == :comment
+      assert Access.higher(:comment, :write) == :write
+      assert Access.higher(nil, :comment) == :comment
+      assert Access.higher(nil, nil) == :none
+      assert Access.grant_level_atom("comment") == :comment
+      assert Access.grant_level_atom("owner") == :none
+    end
+
+    test "a card grant raises a board reader to commenter on that card only", ctx do
+      other_card = card_fixture(hd(ctx.board.columns), %{"title" => "Other"})
+      {:ok, _} = Access.grant(ctx.board, ctx.other, "read", ctx.owner)
+      {:ok, _} = Access.grant(ctx.card, ctx.other, "comment", ctx.owner)
+
+      assert Access.board_permission(ctx.other, ctx.board) == :read
+      assert Access.card_permission(ctx.other, ctx.card) == :comment
+      assert Access.card_permission(ctx.other, other_card) == :read
+
+      # A write grant still beats it, and a comment grant never lowers a writer.
+      {:ok, _} = Access.grant(ctx.board, ctx.other, "write", ctx.owner)
+      assert Access.card_permission(ctx.other, ctx.card) == :write
+    end
+
+    test "a board grant makes a commenter across the board, sub-boards included", ctx do
+      {:ok, _} = Access.grant(ctx.board, ctx.other, "comment", ctx.owner)
+      assert Access.board_permission(ctx.other, ctx.board) == :comment
+      assert Access.card_permission(ctx.other, ctx.card) == :comment
+      assert Access.filter_readable_cards(ctx.other, [ctx.card]) == [ctx.card]
+
+      {:ok, t} = Boards.find_template(nil, "Simple")
+      {:ok, sub} = sub_board(ctx.card, t)
+      assert Access.board_permission(ctx.other, sub) == :comment
+    end
+
+    test "a group's comment grant and a person's read grant: the higher wins", ctx do
+      {:ok, group} = Accounts.create_group(ctx.owner, %{"name" => "Crew"})
+      {:ok, _} = Accounts.add_group_member(group, ctx.other.email)
+      {:ok, _} = Access.grant(ctx.card, ctx.other, "read", ctx.owner)
+      {:ok, _} = Access.grant(ctx.card, group, "comment", ctx.owner)
+      assert Access.card_permission(ctx.other, ctx.card) == :comment
+    end
+
+    test "a read-scoped token caps a commenter at read; a write token leaves it", ctx do
+      read_token = %{scope: "read", scope_boards: []}
+      write_token = %{scope: "write", scope_boards: []}
+      assert Access.narrow(:comment, read_token, ctx.board.id) == {:read, :scope}
+      assert Access.narrow(:write, read_token, ctx.board.id) == {:read, :scope}
+      assert Access.narrow(:read, read_token, ctx.board.id) == {:read, nil}
+      assert Access.narrow(:comment, write_token, ctx.board.id) == {:comment, nil}
+      assert Access.narrow(:comment, nil, ctx.board.id) == {:comment, nil}
+    end
+
+    test "grants accept comment and nothing past write", ctx do
+      {:ok, grant} = Access.grant(ctx.board, ctx.other, "comment", ctx.owner)
+      assert grant.level == "comment"
+
+      assert_raise FunctionClauseError, fn ->
+        Access.grant(ctx.board, ctx.other, "owner", ctx.owner)
+      end
+
+      refute Slipdock.Access.Grant.changeset(%Slipdock.Access.Grant{}, %{
+               level: "admin",
+               user_id: ctx.other.id,
+               board_id: ctx.board.id
+             }).valid?
+    end
+  end
+
   test "grant validation", ctx do
     assert {:error, msg} = Access.grant(ctx.board, "not an email", "read", ctx.owner)
     assert msg =~ "email"

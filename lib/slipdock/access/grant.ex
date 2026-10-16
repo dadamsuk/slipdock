@@ -1,13 +1,14 @@
 defmodule Slipdock.Access.Grant do
   @moduledoc """
-  One access grant: a subject (a user or a group) gets `level` ("read" or
-  "write") on a resource (a board, a card, a saved view, a wiki page or a
+  One access grant: a subject (a user or a group) gets `level` ("read",
+  "comment" or "write") on a resource (a board, a card, a saved view, a wiki page or a
   wiki folder, which shares everything at home beneath it).
   """
   use Ecto.Schema
   import Ecto.Changeset
 
-  @levels ~w(read write)
+  # Lowest first. "comment" reads and joins the discussion, nothing more (#863).
+  @levels ~w(read comment write)
 
   schema "access_grants" do
     field :level, :string, default: "read"

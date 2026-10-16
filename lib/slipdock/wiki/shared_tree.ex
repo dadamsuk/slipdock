@@ -8,9 +8,9 @@ defmodule Slipdock.Wiki.SharedTree do
 
   where a node is
 
-      %{kind: :folder, folder: %Folder{}, level: :read | :write,
+      %{kind: :folder, folder: %Folder{}, level: :read | :comment | :write,
         folders: [node], pages: [%Page{}], files: [%WikiFile{}]}
-      %{kind: :page, page: %Page{}, level: :read | :write}
+      %{kind: :page, page: %Page{}, level: :read | :comment | :write}
 
   Only what the share reaches is in it: what has its home in a shared
   folder's subtree, and pages granted directly. Nothing is said about the
@@ -94,7 +94,7 @@ defmodule Slipdock.Wiki.SharedTree do
   def any?(user), do: for_user(user) != []
 
   # The grants naming the reader, or a group of theirs, on one kind of thing:
-  # `%{id => :read | :write}`, the higher of two winning.
+  # `%{id => :read | :comment | :write}`, the higher of two winning.
   defp direct_levels(%User{} = user, field) do
     group_ids = Accounts.group_ids_for(user)
 
@@ -104,9 +104,9 @@ defmodule Slipdock.Wiki.SharedTree do
       select: {field(g, ^field), g.level}
     )
     |> Repo.all()
-    |> Enum.reduce(%{}, fn
-      {id, "write"}, acc -> Map.put(acc, id, :write)
-      {id, "read"}, acc -> Map.put_new(acc, id, :read)
+    |> Enum.reduce(%{}, fn {id, level}, acc ->
+      level = Access.grant_level_atom(level)
+      Map.update(acc, id, level, &best(&1, level))
     end)
   end
 
@@ -166,8 +166,5 @@ defmodule Slipdock.Wiki.SharedTree do
 
   defp own?(%{board: %Board{} = board}, %User{id: id}), do: Board.root_owner_id(board) == id
 
-  defp best(a, b) do
-    rank = %{nil: 0, none: 0, read: 1, write: 2}
-    if rank[a] >= rank[b], do: a || :none, else: b
-  end
+  defp best(a, b), do: Access.higher(a, b)
 end
