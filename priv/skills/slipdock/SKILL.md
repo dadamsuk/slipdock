@@ -263,6 +263,7 @@ slipdock unweblink <id> <url-id>...          # ids from `slipdock card`
 slipdock attach <id> <file>... [--name N]    # upload files (a screenshot, a log); prints the Markdown
                                              # that embeds each — paste it into a comment to show it
 slipdock attachments <id>                    # list files; slipdock detach <id> <attachment-id>... removes them
+slipdock download <attachment-id> [--out F]  # save a file's bytes (its own name here; --out - to stdout)
 slipdock card-front <id> <attachment-id> --off   # keep an image off the card's thumbnail (--hide-on-card on attach)
 slipdock transcribe <id> <attachment-id> --wait  # a card's recording to text (needs the admin's transcription server)
 slipdock blocked-by <id> <card-id>... [--off]   # <id> waits for those cards (dependency; any board you can read)

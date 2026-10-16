@@ -863,6 +863,8 @@ From the CLI, a number is a card and anything else (`W-31`) a page:
 slipdock attach 12 shot.png               # prints the Markdown that embeds it
 slipdock attach W-31 /tmp/x.png --name diagram.png
 slipdock attachments 12                   # ids, sizes and URLs
+slipdock download 5                       # attachment #5's bytes, saved under its own name
+slipdock download 5 --out - | less        # or --out F; --force overwrites a file already there
 slipdock detach 12 5                      # attachment #5
 ```
 
@@ -3813,7 +3815,8 @@ CLI: `slipdock fields <board>`, `new-field`, `delete-field`, `preset <board>
 rice|ice|value_effort`, `set <id> key=value…`, `vote <id> <n>`, `status <id>
 on_track|at_risk|off_track [note]`, `link <id> <kind> <card-id>…`, `unlink`,
 `weblink <id> <url> [--label TEXT]`, `unweblink <id> <url-id>…`,
-`attach <id> <file>… [--name N]`, `attachments <id>`, `detach <id> <attachment-id>…`,
+`attach <id> <file>… [--name N]`, `attachments <id>`, `download <attachment-id> [--out F]`,
+`detach <id> <attachment-id>…`,
 `milestones <board>`, `milestone <board> <name> --date D`,
 `delete-milestone`. Sorting accepts `votes` and `f:<field id>`.
 

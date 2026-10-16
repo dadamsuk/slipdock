@@ -10,7 +10,7 @@ defmodule SlipdockCLI.Boards do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(guide search ask search-status saved save unsave boards board columns tags activity cards card swimlanes views favourites fav unfav table fields milestones templates add edit set vote status new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
+  @commands ~w(guide search ask search-status saved save unsave boards board columns tags activity cards card swimlanes views favourites fav unfav table fields milestones templates add edit set vote status new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -437,6 +437,38 @@ defmodule SlipdockCLI.Boards do
       %{"attachments" => list} ->
         Enum.each(list, &IO.puts(Render.attachment_line(&1)))
     end)
+  end
+
+  # One file's bytes, by its attachment id (#920). Saved under its own name
+  # here unless --out names somewhere else, and an existing file is left alone
+  # without --force; --out - writes it to stdout, for a pipe. It lands in a
+  # .part file first, so a failed download never leaves half a file behind
+  # or eats the one that was there.
+  def run("download", [aid], o) do
+    case o[:out] do
+      "-" ->
+        tmp =
+          Path.join(System.tmp_dir!(), "slipdock-download-#{System.unique_integer([:positive])}")
+
+        fetch_file(aid, tmp, o)
+        # Raw bytes: a unicode stdout would re-encode every byte over 127.
+        [encoding: was] = :io.getopts(:standard_io) |> Keyword.take([:encoding])
+        :io.setopts(:standard_io, encoding: :latin1)
+        File.stream!(tmp, 65_536) |> Enum.each(&IO.binwrite(:stdio, &1))
+        :io.setopts(:standard_io, encoding: was)
+        File.rm(tmp)
+
+      nil ->
+        a = HTTP.get("/attachments/#{enc(aid)}") |> out([], & &1) |> Map.fetch!("attachment")
+
+        case download_dest(a["filename"], aid, o) do
+          {:ok, dest} -> save_download(aid, dest, o)
+          {:error, why} -> fail(why)
+        end
+
+      dest ->
+        save_download(aid, dest, o)
+    end
   end
 
   # Whether an image may be the thumbnail on its card's front; --off keeps it
@@ -1092,6 +1124,44 @@ defmodule SlipdockCLI.Boards do
       {_, ""} -> "/cards/#{enc(ref)}#{suffix}"
       _ -> "/pages/#{enc(ref)}#{suffix}"
     end
+  end
+
+  defp save_download(aid, dest, o) do
+    part = dest <> ".part"
+    fetch_file(aid, part, o)
+    File.rename!(part, dest)
+    size = File.stat!(dest).size
+
+    if o[:json],
+      do: Render.json(%{"attachment" => aid, "path" => dest, "size" => size}),
+      else: IO.puts("saved attachment ##{aid} to #{dest} (#{size} bytes)")
+  end
+
+  defp fetch_file(aid, dest, o) do
+    case HTTP.download("/attachments/#{enc(aid)}/file", dest) do
+      :ok ->
+        :ok
+
+      error ->
+        File.rm(dest)
+        out(error, o, & &1)
+    end
+  end
+
+  # Where a download with no --out goes: only the file's name, whatever the
+  # server sent, so it never writes outside the directory it was run in, and
+  # never over a file that is already there unless --force says so.
+  @doc false
+  def download_dest(filename, aid, o) do
+    dest =
+      case Path.basename(to_string(filename)) do
+        name when name in ["", ".", ".."] -> "attachment-#{aid}"
+        name -> name
+      end
+
+    if File.exists?(dest) and !o[:force],
+      do: {:error, "#{dest} is already here: --force overwrites it, --out saves it elsewhere"},
+      else: {:ok, dest}
   end
 
   defp item_name(ref) do
