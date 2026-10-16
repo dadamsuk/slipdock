@@ -36,7 +36,10 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
       type: "object",
       properties: %{
         board: %{type: "string", description: "Board id, code or name."},
-        column: %{type: "string", description: "Only this list (name or id)."},
+        column: %{
+          type: "string",
+          description: "Only this list (name or id). A list not on the board is an error."
+        },
         open: %{
           type: "boolean",
           description: "true: only cards not completed; false: only completed."
@@ -84,7 +87,8 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
          {:ok, filters} <- filters(args, context.user),
          {:ok, full} <- Args.boolean(args, "full", false),
          {:ok, limit} <- Args.limit(args, "limit", if(full, do: @full_default, else: 50), @max),
-         {:ok, board} <- Args.refusal(Authorize.fetch_board(auth, ref, :read)) do
+         {:ok, board} <- Args.refusal(Authorize.fetch_board(auth, ref, :read)),
+         :ok <- Boards.check_column(board, filters["column"]) do
       cards = Authorize.visible(auth, Boards.list_cards(board, filters))
       page = Enum.take(cards, limit)
 

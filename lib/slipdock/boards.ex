@@ -275,6 +275,34 @@ defmodule Slipdock.Boards do
     end
   end
 
+  @doc """
+  `:ok` when `ref` names a column on `board` (or is nil), otherwise an error
+  naming the board's columns. For listings: `list_cards/2` answers an unknown
+  column with no cards, which reads exactly like an empty list (#1005).
+  """
+  def check_column(_board, nil), do: :ok
+
+  def check_column(%Board{id: board_id} = board, ref) do
+    case find_column(board, ref) do
+      {:ok, _} ->
+        :ok
+
+      {:error, :not_found} ->
+        names =
+          Repo.all(
+            from(c in Column,
+              where: c.board_id == ^board_id,
+              order_by: c.position,
+              select: c.name
+            )
+          )
+
+        {:error,
+         "no list \"#{ref}\" on this board; its lists are: #{Enum.join(names, ", ")} " <>
+           "(a name or an id of one of them)"}
+    end
+  end
+
   @doc "Finds a tag on `board` by id or name (case-insensitive)."
   def find_tag(%Board{} = board, ref) do
     board_id = Board.root_id(board)

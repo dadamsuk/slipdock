@@ -17,7 +17,8 @@ defmodule SlipdockWeb.API.CardController do
     with {:ok, board} <- Authorize.fetch_board(conn, ref, :read),
          {:ok, params} <- check_bucket(params, "due", Config.dues()),
          {:ok, params} <- check_bucket(params, "deps", Config.deps()),
-         {:ok, params} <- check_bucket(params, "kind", Slipdock.Kinds.card_kinds()) do
+         {:ok, params} <- check_bucket(params, "kind", Slipdock.Kinds.card_kinds()),
+         {:ok, params} <- check_column(board, params) do
       params = resolve_me(params, conn.assigns.current_user)
 
       json(conn, %{
@@ -40,6 +41,15 @@ defmodule SlipdockWeb.API.CardController do
         if value in keys,
           do: {:ok, params},
           else: {:error, :bad_request, "#{key} must be one of: #{Enum.join(keys, ", ")}"}
+    end
+  end
+
+  defp check_column(board, params) do
+    params = if params["column"] == "", do: Map.delete(params, "column"), else: params
+
+    case Boards.check_column(board, params["column"]) do
+      :ok -> {:ok, params}
+      {:error, message} -> {:error, :bad_request, message}
     end
   end
 

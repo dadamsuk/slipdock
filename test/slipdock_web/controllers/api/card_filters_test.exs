@@ -46,6 +46,32 @@ defmodule SlipdockWeb.API.CardFiltersTest do
     assert message =~ "deps must be one of:"
   end
 
+  test "a column that is not on the board is a 400 naming its lists (#1005)", %{
+    conn: conn,
+    board: board
+  } do
+    [backlog | _] = board.columns
+
+    assert titles(conn, "column=" <> URI.encode_www_form(backlog.name)) |> Enum.sort() ==
+             ["Late", "Undated"]
+
+    assert titles(conn, "column=#{backlog.id}") |> Enum.sort() == ["Late", "Undated"]
+    assert titles(conn, "column=") |> Enum.sort() == ["Late", "Undated"]
+
+    assert %{"error" => message} =
+             conn |> get("/api/boards/apifilt/cards?column=Doing") |> json_response(400)
+
+    assert message =~ ~s(no list "Doing" on this board)
+    assert message =~ backlog.name
+
+    other = board_fixture(%{"name" => "Elsewhere", "code" => "apielse"})
+
+    assert %{"error" => _} =
+             conn
+             |> get("/api/boards/apifilt/cards?column=#{hd(other.columns).id}")
+             |> json_response(400)
+  end
+
   test "kind tells a card from a document, and a page is not a card", %{
     conn: conn,
     board: board

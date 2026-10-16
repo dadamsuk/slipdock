@@ -251,6 +251,53 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
     test "a stranger's board is not listable", ctx do
       assert ctx.conn |> call("list_cards", %{board: "private3"}) |> error!() =~ "no board"
     end
+
+    # #1005: an unknown column used to answer zero cards, which reads exactly
+    # like an empty list.
+    test "column and full together give the list's cards, by name or id", ctx do
+      for column <- [ctx.first.name, String.upcase(ctx.first.name), ctx.first.id] do
+        %{"cards" => cards, "total" => total} =
+          ctx.conn
+          |> call("list_cards", %{board: "delivery7", column: column, full: true})
+          |> ok!()
+
+        assert total == 3
+        assert Enum.all?(cards, &(&1["column"] == ctx.first.name))
+        assert ctx.top.id in Enum.map(cards, & &1["id"])
+      end
+    end
+
+    test "a column that is not on the board is an error naming its lists", ctx do
+      for full <- [true, false] do
+        text =
+          ctx.conn
+          |> call("list_cards", %{board: "delivery7", column: "Doing", full: full})
+          |> error!()
+
+        assert text =~ ~s(no list "Doing" on this board)
+        assert text =~ ctx.first.name
+        assert text =~ ctx.second.name
+      end
+    end
+
+    test "another board's list id is not this board's list", ctx do
+      text =
+        ctx.conn
+        |> call("list_cards", %{board: "delivery7", column: hd(ctx.theirs.columns).id})
+        |> error!()
+
+      assert text =~ "no list"
+      refute text =~ "Their secret"
+    end
+
+    test "an empty list that exists is still an empty answer, not an error", ctx do
+      [_, _, third | _] = ctx.board.columns
+
+      assert %{"cards" => [], "total" => 0} =
+               ctx.conn
+               |> call("list_cards", %{board: "delivery7", column: third.name, full: true})
+               |> ok!()
+    end
   end
 
   describe "list_cards full" do
