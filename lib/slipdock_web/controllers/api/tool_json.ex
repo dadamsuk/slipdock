@@ -13,6 +13,7 @@ defmodule SlipdockWeb.API.ToolJSON do
       summary: tool.summary,
       version: version && version.version,
       mine: Tools.owner?(user, tool),
+      kind: if(Tools.owner?(user, tool), do: "mine", else: "shared"),
       installed: installed(Tools.current_install(user, tool))
     }
   end

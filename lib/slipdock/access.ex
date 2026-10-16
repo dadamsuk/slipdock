@@ -924,6 +924,7 @@ defmodule Slipdock.Access do
         :page -> Repo.get!(Page, grant.page_id)
         :folder -> Repo.get!(Folder, grant.folder_id)
         :view -> Repo.get!(SavedView, grant.saved_view_id)
+        :tool -> Repo.get!(Slipdock.Tools.Tool, grant.tool_id)
       end
 
     Repo.delete(grant)
@@ -1132,6 +1133,7 @@ defmodule Slipdock.Access do
   defp describe_resource(%Page{title: title}), do: "the page “#{title}”"
   defp describe_resource(%Folder{name: name}), do: "the folder “#{name}”"
   defp describe_resource(%SavedView{name: name}), do: "the view “#{name}”"
+  defp describe_resource(%Slipdock.Tools.Tool{name: name}), do: "the Tool “#{name}”"
   defp describe_resource(_), do: nil
 
   defp subject_attrs(%User{id: id}), do: %{user_id: id}
@@ -1144,17 +1146,21 @@ defmodule Slipdock.Access do
   defp resource_attrs(%SavedView{id: id}), do: %{saved_view_id: id}
   defp resource_attrs(%Page{id: id}), do: %{page_id: id}
   defp resource_attrs(%Folder{id: id}), do: %{folder_id: id}
+  defp resource_attrs(%Slipdock.Tools.Tool{id: id}), do: %{tool_id: id}
   defp resource_clause(%Board{id: id}), do: dynamic([g], g.board_id == ^id)
   defp resource_clause(%Card{id: id}), do: dynamic([g], g.card_id == ^id)
   defp resource_clause(%SavedView{id: id}), do: dynamic([g], g.saved_view_id == ^id)
   defp resource_clause(%Page{id: id}), do: dynamic([g], g.page_id == ^id)
   defp resource_clause(%Folder{id: id}), do: dynamic([g], g.folder_id == ^id)
+  defp resource_clause(%Slipdock.Tools.Tool{id: id}), do: dynamic([g], g.tool_id == ^id)
 
   defp broadcast_resource(%Board{id: id}), do: broadcast(id)
   defp broadcast_resource(%Card{board_id: id}), do: broadcast(id)
   defp broadcast_resource(%SavedView{board_id: id}), do: broadcast(id)
   defp broadcast_resource(%Page{board_id: id}), do: broadcast(id)
   defp broadcast_resource(%Folder{board_id: id}), do: broadcast(id)
+  # A Tool is on no board; its page reloads as the share changes.
+  defp broadcast_resource(%Slipdock.Tools.Tool{}), do: :ok
 
   defp broadcast(board_id) do
     Phoenix.PubSub.broadcast(@pubsub, "board:#{board_id}", {:board_changed, board_id})

@@ -153,9 +153,61 @@ defmodule Slipdock.Tools do
   def get_version(%Tool{id: id}, number),
     do: Repo.get_by(ToolVersion, tool_id: id, version: to_string(number))
 
-  @doc "The Tools `user` can see, by name."
-  def list_for(%User{} = user), do: list_own(user)
+  @doc "The Tools `user` can see, by name: their own, then the ones shared with them."
+  def list_for(%User{} = user), do: list_own(user) ++ list_shared(user)
   def list_for(_), do: []
+
+  @doc "The Tools shared with `user`, directly or through a group, by name."
+  def list_shared(%User{id: user_id} = user) do
+    group_ids = Slipdock.Accounts.group_ids_for(user)
+
+    from(t in Tool,
+      join: g in Slipdock.Access.Grant,
+      on: g.tool_id == t.id,
+      where: g.user_id == ^user_id or g.group_id in ^group_ids,
+      where: t.owner_id != ^user_id,
+      distinct: true,
+      order_by: [asc: t.slug]
+    )
+    |> Repo.all()
+  end
+
+  @doc "Whether `tool` is shared with `user`, directly or through a group."
+  def shared_with?(%User{id: user_id} = user, %Tool{id: tool_id}) do
+    group_ids = Slipdock.Accounts.group_ids_for(user)
+
+    Repo.exists?(
+      from(g in Slipdock.Access.Grant,
+        where: g.tool_id == ^tool_id,
+        where: g.user_id == ^user_id or g.group_id in ^group_ids
+      )
+    )
+  end
+
+  def shared_with?(_, _), do: false
+
+  @doc """
+  Shares `tool` with `subject` (a user, a group, or an email address) so
+  they can see and install it. Only its owner can share it.
+  """
+  def share(%User{} = owner, %Tool{} = tool, subject) do
+    if owner?(owner, tool),
+      do: Slipdock.Access.grant(tool, subject, "read", owner),
+      else: {:error, "only the Tool's owner can share it"}
+  end
+
+  @doc "Takes back the share `grant_id` on `tool`. Owner only."
+  def unshare(%User{} = owner, %Tool{} = tool, grant_id) do
+    with true <- owner?(owner, tool) || {:error, "only the Tool's owner can share it"},
+         %Slipdock.Access.Grant{} = grant <-
+           Repo.get_by(Slipdock.Access.Grant, id: grant_id, tool_id: tool.id) ||
+             {:error, "that share is not on this Tool"} do
+      Slipdock.Access.revoke(grant)
+    end
+  end
+
+  @doc "Who `tool` is shared with."
+  def grants(%Tool{} = tool), do: Slipdock.Access.list_grants(tool)
 
   @doc "The Tools `user` owns, by name."
   def list_own(%User{id: id}),
@@ -175,8 +227,9 @@ defmodule Slipdock.Tools do
 
   def fetch(_user, _slug), do: {:error, :not_found}
 
-  @doc "Whether `user` may see `tool` at all."
+  @doc "Whether `user` may see `tool` at all: their own, or shared with them."
   def visible?(%User{id: id}, %Tool{owner_id: id}), do: true
+  def visible?(%User{} = user, %Tool{} = tool), do: shared_with?(user, tool)
   def visible?(_user, _tool), do: false
 
   @doc "Whether `user` owns `tool`."
