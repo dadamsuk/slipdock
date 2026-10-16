@@ -38,7 +38,7 @@ defmodule SlipdockWeb.MCP.Tools.Comment do
     with {:ok, id} <- Args.id(args, "card"),
          {:ok, body} <- Args.required(args, "body"),
          {:ok, card} <- Args.refusal(CardWrites.fetch_card(id)),
-         :ok <- Args.refusal(Authorize.card(auth, card, :write)),
+         :ok <- Args.refusal(Authorize.card(auth, card, :comment)),
          {:ok, comment} <- Args.refusal(Boards.add_comment(card, body, by: context.user)) do
       {:ok, %{card: card.id, comment: SlipdockWeb.API.JSON.comment(comment)}}
     end
