@@ -200,4 +200,19 @@ defmodule SlipdockCLI.ToolsTest do
     assert :json.decode(body) == %{"version" => "1.2.0"}
     assert out =~ "an admin approves it before it shows (waiting for an admin)"
   end
+
+  test "install-board on an upgrade says what was added and what was left alone" do
+    reply =
+      ~s({"install":{"board":"demo","board_name":"Demo","created":false,"upgraded":true,) <>
+        ~s("installed_version":"2.0.0","url":"http://x/boards/9",) <>
+        ~s("added":{"tags":["cold"]},"skipped":{"pages":["Config"],"lists":[]}}})
+
+    System.put_env("SLIPDOCK_URL", FakeServer.start([{200, reply}]))
+    out = capture_io(fn -> Tools.run("tools", ["install-board", "demo"], []) end)
+
+    assert out =~ "upgraded board demo (Demo), demo 2.0.0"
+    assert out =~ "added tags: cold"
+    assert out =~ "left alone pages: Config"
+    refute out =~ "left alone lists"
+  end
 end

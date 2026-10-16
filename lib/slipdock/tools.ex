@@ -503,10 +503,15 @@ defmodule Slipdock.Tools do
   left out) and `name:` (the board's name; the Tool's title otherwise).
 
   Installing again when `user` already has the board returns that board,
-  with `created: false`, and makes nothing new. Nothing outside the board
-  it makes is touched.
+  with `created: false`, and makes nothing new. Installing a newer version
+  over it upgrades it (#965): only what the board is missing is added —
+  lists, folders, tags, pages, rules, files — and a page is replaced only
+  while it is still exactly the skeleton the installed version made, so
+  nothing the person wrote is overwritten. The install's version moves on
+  and `upgraded: true` comes back with the report. Nothing outside the
+  board is touched.
 
-  Returns `{:ok, %{install:, board:, created:, version:, report:}}`, or
+  Returns `{:ok, %{install:, board:, created:, upgraded:, version:, report:}}`, or
   `{:error, :not_found}` for a Tool or version `user` can't see, or
   `{:error, message}`.
   """
@@ -515,7 +520,9 @@ defmodule Slipdock.Tools do
            visible_version(user, tool, opts[:version]) || {:error, :not_found} do
       case current_install(user, tool) do
         %Install{board: %Boards.Board{} = board} = install ->
-          {:ok, %{install: install, board: board, created: false, version: version, report: nil}}
+          if Version.compare(version.version, install.version) == :gt,
+            do: upgrade(user, tool, version, install),
+            else: {:ok, unchanged(install, board, version)}
 
         install ->
           build(user, tool, version, install, opts)
@@ -537,6 +544,52 @@ defmodule Slipdock.Tools do
     from(i in Install, where: i.user_id == ^user_id, order_by: [asc: i.inserted_at])
     |> Repo.all()
     |> Repo.preload([:tool, :board])
+  end
+
+  defp unchanged(install, board, version),
+    do: %{
+      install: install,
+      board: board,
+      created: false,
+      upgraded: false,
+      version: version,
+      report: nil
+    }
+
+  defp upgrade(user, tool, version, install) do
+    old = get_version(tool, install.version)
+    board = Boards.get_board!(install.board_id)
+    message = "upgraded by the #{tool.name} Tool to #{version.version}"
+
+    # The old version's skeletons, by title: what an unedited page still says.
+    refresh =
+      for %{"title" => title} = page <- (old && old.board && old.board["pages"]) || [],
+          into: %{},
+          do: {title, page}
+
+    Repo.transaction(fn ->
+      with {:ok, report} <-
+             Blueprint.apply(board, version.board || Blueprint.empty(),
+               user: user,
+               message: message,
+               refresh_pages: refresh
+             ),
+           {:ok, files} <- put_board_files(board, version, user),
+           {:ok, install} <-
+             install |> Ecto.Changeset.change(version: version.version) |> Repo.update() do
+        %{
+          install: install,
+          board: Boards.get_board!(board.id),
+          created: false,
+          upgraded: true,
+          version: version,
+          report: put_in(report, [:added, "files"], files)
+        }
+      else
+        {:error, %Ecto.Changeset{} = cs} -> Repo.rollback(changeset_message(cs))
+        {:error, message} -> Repo.rollback(message)
+      end
+    end)
   end
 
   defp build(_user, _tool, %ToolVersion{board: nil}, _install, _opts),
@@ -571,6 +624,7 @@ defmodule Slipdock.Tools do
           install: install,
           board: Boards.get_board!(board.id),
           created: true,
+          upgraded: false,
           version: version,
           report: report
         }

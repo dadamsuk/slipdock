@@ -51,7 +51,12 @@ defmodule SlipdockCLI.Tools do
 
     HTTP.post("/tools/#{enc(name)}/install", body)
     |> out(o, fn %{"install" => i} ->
-      verb = if i["created"], do: "made", else: "already have"
+      verb =
+        cond do
+          i["created"] -> "made"
+          i["upgraded"] -> "upgraded"
+          true -> "already have"
+        end
 
       IO.puts(
         "#{verb} board #{i["board"]} (#{i["board_name"]}), #{name} #{i["installed_version"]}"
@@ -61,6 +66,13 @@ defmodule SlipdockCLI.Tools do
 
       for {part, names} <- i["added"] || %{}, names != [] do
         IO.puts("  added #{part}: " <> Enum.join(names, ", "))
+      end
+
+      # On an upgrade, what was there already (or edited) and left alone.
+      if i["upgraded"] do
+        for {part, names} <- i["skipped"] || %{}, names != [] do
+          IO.puts(Render.dim("  left alone #{part}: " <> Enum.join(names, ", ")))
+        end
       end
     end)
   end

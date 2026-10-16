@@ -240,4 +240,27 @@ defmodule SlipdockWeb.ToolLiveTest do
       assert {:error, {:redirect, _}} = live(conn, ~p"/admin/tools")
     end
   end
+
+  test "a newer version offers an upgrade that keeps edits and says what it did", %{
+    conn: conn,
+    user: user,
+    tool: tool,
+    name: name
+  } do
+    {:ok, _} = Tools.install_board(user, tool)
+    board = Jason.decode!(files(name)["board.json"])
+    board = Map.update!(board, "tags", &(&1 ++ ["fresh"]))
+
+    {:ok, _} =
+      Tools.publish(user, package(name, "1.1.0", %{"board.json" => Jason.encode!(board)}))
+
+    {:ok, view, _} = live(conn, ~p"/tools/#{name}")
+    assert has_element?(view, "#tool-upgrade", "1.1.0")
+
+    html = view |> element("#tool-upgrade-board") |> render_click()
+    assert html =~ "Upgraded"
+    assert html =~ "fresh"
+    assert Tools.current_install(user, tool).version == "1.1.0"
+    refute has_element?(view, "#tool-upgrade")
+  end
 end
