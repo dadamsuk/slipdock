@@ -15,6 +15,10 @@ defmodule SlipdockWeb.RichText do
 
   With a board, `@someone` who can see it is drawn as a mention too (see
   `Slipdock.Mentions`); anybody else stays as typed.
+
+  `markdown/2` is what the card panel shows (#868): the same text read as
+  Markdown — paragraphs, lists, headings, emphasis, code, quotes, tables and
+  task lists — with each run of plain text still going through `render/2`.
   """
 
   @pattern ~r{!\[([^\]]*)\]\(([^)\s]+)\)|\[([^\]]+)\]\(([^)\s]+)\)|https?://[^\s<]+}
@@ -40,6 +44,142 @@ defmodule SlipdockWeb.RichText do
     {:safe,
      linked |> wiki_links(opts[:board], opts[:as]) |> mentions(opts[:board], opts[:members])}
   end
+
+  @extension [table: true, tasklist: true, strikethrough: true]
+
+  # A single newline is a line break: that is how these texts were always
+  # shown, and a list of steps one per line should not run together.
+  @render [unsafe: true, hardbreaks: true]
+
+  # Every tag in the output is either comrak's or one this module wrote, since
+  # raw HTML in the text is turned back into text first; the sanitiser is the
+  # second lock. It forces every link's onclick, so a click on one does not
+  # also start editing the description it sits in.
+  @sanitize [
+    add_tags: ["input"],
+    add_tag_attributes: %{
+      "a" => ["target"],
+      "img" => ["loading"],
+      "input" => ["type", "checked", "disabled"]
+    },
+    add_generic_attributes: ["class", "title"],
+    link_rel: "noopener",
+    set_tag_attribute_values: %{"a" => %{"onclick" => "event.stopPropagation()"}}
+  ]
+
+  @doc """
+  The text read as Markdown, as safe HTML in block elements (so no
+  `whitespace-pre-wrap`: single newlines become line breaks). Takes the same
+  options as `render/2`.
+
+  Raw HTML is shown as written, not obeyed, and a link or image to anything
+  but a same-site path or an http(s) URL is left as its text. A text that
+  cannot be parsed falls back to `render/2`.
+  """
+  @spec markdown(String.t() | nil, keyword) :: Phoenix.HTML.safe()
+  def markdown(text, opts \\ [])
+
+  def markdown(nil, _opts), do: {:safe, ""}
+
+  def markdown(text, opts) when is_binary(text) do
+    # Looked up once for the whole text, not once per run of it.
+    opts =
+      if opts[:board] && !opts[:members] && String.contains?(text, "@"),
+        do: Keyword.put(opts, :members, Slipdock.Wiki.Links.members(opts[:board])),
+        else: opts
+
+    with {:ok, doc} <- MDEx.parse_document(text, extension: @extension),
+         {:ok, html} <-
+           %{doc | nodes: expand(doc.nodes, opts)}
+           |> MDEx.to_html(extension: @extension, render: @render, sanitize: @sanitize) do
+      {:safe, html}
+    else
+      _ -> render(text, opts)
+    end
+  end
+
+  defp expand(nodes, opts) do
+    nodes
+    |> Enum.map(&literal_html/1)
+    |> merge_text()
+    |> Enum.flat_map(&expand_node(&1, opts))
+  end
+
+  # Somebody's <b> or <script> is something they typed, so it reads as typed.
+  defp literal_html(%MDEx.HtmlInline{literal: literal}), do: %MDEx.Text{literal: literal}
+
+  defp literal_html(%MDEx.HtmlBlock{literal: literal}) do
+    lines = literal |> String.trim_trailing() |> String.split("\n")
+
+    %MDEx.Paragraph{
+      nodes: lines |> Enum.map(&%MDEx.Text{literal: &1}) |> Enum.intersperse(%MDEx.LineBreak{})
+    }
+  end
+
+  defp literal_html(node), do: node
+
+  defp literal_tree(nodes) do
+    nodes
+    |> Enum.map(fn node ->
+      case literal_html(node) do
+        %{nodes: [_ | _] = children} = node -> %{node | nodes: literal_tree(children)}
+        node -> node
+      end
+    end)
+    |> merge_text()
+  end
+
+  defp merge_text(nodes) do
+    nodes
+    |> Enum.chunk_while(
+      nil,
+      fn
+        %MDEx.Text{literal: b}, %MDEx.Text{literal: a} -> {:cont, %MDEx.Text{literal: a <> b}}
+        node, nil -> {:cont, node}
+        node, prev -> {:cont, prev, node}
+      end,
+      fn
+        nil -> {:cont, nil}
+        prev -> {:cont, prev, nil}
+      end
+    )
+  end
+
+  defp expand_node(%MDEx.Text{literal: text}, opts),
+    do: [%MDEx.HtmlInline{literal: text |> render(opts) |> Phoenix.HTML.safe_to_string()}]
+
+  defp expand_node(%MDEx.Link{url: url, nodes: children}, _opts) do
+    url = escape(url)
+    # The link's own text is not linked again, mentioned or looked up.
+    children = literal_tree(children)
+
+    if safe_url?(url) do
+      [%MDEx.HtmlInline{literal: link_open(url)}] ++
+        children ++ [%MDEx.HtmlInline{literal: "</a>"}]
+    else
+      children
+    end
+  end
+
+  defp expand_node(%MDEx.Image{url: url, nodes: children}, _opts) do
+    url = escape(url)
+    alt = children |> Enum.map_join(&plain_text/1) |> escape()
+
+    if safe_url?(url),
+      do: [%MDEx.HtmlInline{literal: image(url, alt)}],
+      else: [%MDEx.Text{literal: plain_text(%{nodes: children})}]
+  end
+
+  defp expand_node(%{nodes: children} = node, opts) when is_list(children),
+    do: [%{node | nodes: expand(children, opts)}]
+
+  defp expand_node(node, _opts), do: [node]
+
+  defp plain_text(%{literal: literal}) when is_binary(literal), do: literal
+  defp plain_text(%{nodes: nodes}) when is_list(nodes), do: Enum.map_join(nodes, &plain_text/1)
+  defp plain_text(_), do: ""
+
+  defp escape(text), do: text |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()
 
   # Only page references, and only when a board is in hand. A comment is not
   # a document: a table of contents or a live card chip would be noise in a
@@ -134,11 +274,7 @@ defmodule SlipdockWeb.RichText do
 
   # Image: ![alt](url)
   defp replace(whole, alt, url, "", "") when url != "" do
-    if safe_url?(url) do
-      ~s|<a href="#{url}" target="_blank" rel="noopener" class="inline-block" onclick="event.stopPropagation()"><img src="#{url}" alt="#{alt}" loading="lazy" class="my-1 max-h-96 max-w-full rounded-lg border border-base-content/10" /></a>|
-    else
-      whole
-    end
+    if safe_url?(url), do: image(url, alt), else: whole
   end
 
   # Link: [text](url)
@@ -154,9 +290,15 @@ defmodule SlipdockWeb.RichText do
 
   defp replace(whole, _, _, _, _), do: whole
 
-  defp link(url, text),
+  defp link(url, text), do: link_open(url) <> text <> "</a>"
+
+  defp link_open(url),
     do:
-      ~s|<a href="#{url}" target="_blank" rel="noopener" class="link link-primary break-all" onclick="event.stopPropagation()">#{text}</a>|
+      ~s|<a href="#{url}" target="_blank" rel="noopener" class="link link-primary break-all" onclick="event.stopPropagation()">|
+
+  defp image(url, alt),
+    do:
+      ~s|<a href="#{url}" target="_blank" rel="noopener" class="inline-block" onclick="event.stopPropagation()"><img src="#{url}" alt="#{alt}" loading="lazy" class="my-1 max-h-96 max-w-full rounded-lg border border-base-content/10" /></a>|
 
   defp split_trailing(url) do
     trimmed = Regex.replace(~r/(?:[.,;:!?)]|&quot;|&#39;)+$/, url, "")

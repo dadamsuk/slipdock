@@ -322,7 +322,7 @@ defmodule SlipdockWeb.ItemComponents do
                 <.icon name="hero-trash" class="size-3.5" />
               </button>
             </div>
-            <div class="whitespace-pre-wrap break-words text-sm" phx-no-format>{RichText.render(comment.body, board: @board, as: @current_user, members: @members)}</div>
+            <div class="card-prose break-words text-sm" phx-no-format>{RichText.markdown(comment.body, board: @board, as: @current_user, members: @members)}</div>
           </div>
         </li>
       </ul>
