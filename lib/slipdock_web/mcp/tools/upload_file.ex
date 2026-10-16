@@ -31,7 +31,9 @@ defmodule SlipdockWeb.MCP.Tools.UploadFile do
     do:
       "Attaches a file (up to 10 MB) to a card, or to a wiki page. Send the bytes as " <>
         "content_base64, or a text file's contents as text. Returns the attachment and " <>
-        "markdown that embeds it, to put in a description, comment or page body."
+        "markdown that embeds it, to put in a description, comment or page body. Send sha256 " <>
+        "(the SHA-256 of the file's bytes, before base64) and a file that changed on the way " <>
+        "is refused with sha256_mismatch and not stored."
 
   @impl true
   def input_schema do
@@ -47,6 +49,12 @@ defmodule SlipdockWeb.MCP.Tools.UploadFile do
         filename: %{type: "string", description: "The name to store it under, e.g. shot.png."},
         content_base64: %{type: "string", description: "The file's bytes, base64."},
         text: %{type: "string", description: "Or a text file's contents, as they are."},
+        sha256: %{
+          type: "string",
+          description:
+            "The SHA-256 of the file's bytes, hex, before base64. Sent, a file that doesn't " <>
+              "match is refused and not stored."
+        },
         content_type: %{type: "string", description: "Its MIME type. Left out, the name decides."},
         hide_on_card: %{type: "boolean", description: "Keep an image off the card's front."}
       },
@@ -64,6 +72,7 @@ defmodule SlipdockWeb.MCP.Tools.UploadFile do
 
     with {:ok, filename} <- Args.required(args, "filename"),
          {:ok, bytes} <- bytes(args),
+         :ok <- Args.refusal(Uploads.check_sha256(bytes, args["sha256"])),
          {:ok, type} <- Args.optional(args, "content_type"),
          {:ok, hide?} <- Args.boolean(args, "hide_on_card", false),
          {:ok, owner} <- owner(args, auth) do

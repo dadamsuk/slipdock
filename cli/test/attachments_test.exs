@@ -53,6 +53,9 @@ defmodule SlipdockCLI.AttachmentsTest do
     assert body =~ ~s(name="file"; filename="shot.png")
     assert body =~ "content-type: application/octet-stream"
     assert body =~ "PNG!"
+    # Its hash goes with it, for the server to check what arrived against (#1014).
+    sha256 = :crypto.hash(:sha256, "PNG!") |> Base.encode16(case: :lower)
+    assert body =~ ~s(name="sha256"\r\n\r\n#{sha256}\r\n)
 
     assert out =~ "attached shot.png to card #12 [attachment #5]"
     assert out =~ "![shot.png](/attachments/5/shot.png)"
@@ -67,9 +70,13 @@ defmodule SlipdockCLI.AttachmentsTest do
     capture_io(fn -> Boards.run("attach", ["12", big], []) end)
 
     assert_received {:request, "POST", "/api/cards/12/attachments", body}
-    [_head, rest] = :binary.split(body, "\r\n\r\n")
+    [_fields, file_part] = :binary.split(body, ~s(name="file"))
+    [_head, rest] = :binary.split(file_part, "\r\n\r\n")
     [boundary_line | _] = String.split(body, "\r\n", parts: 2)
     assert rest == bytes <> "\r\n" <> boundary_line <> "--\r\n"
+    # Hashed a chunk at a time, it is still the hash of the whole file.
+    sha256 = :crypto.hash(:sha256, bytes) |> Base.encode16(case: :lower)
+    assert body =~ ~s(name="sha256"\r\n\r\n#{sha256}\r\n)
   end
 
   test "a page code goes to the page, and --name renames the file", %{home: home} do

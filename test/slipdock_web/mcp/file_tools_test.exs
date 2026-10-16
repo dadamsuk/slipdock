@@ -158,6 +158,66 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
       assert card_files(ctx.card) == []
     end
 
+    test "a sha256 that matches the decoded bytes stores them (#1014)", ctx do
+      hash = :crypto.hash(:sha256, @png) |> Base.encode16(case: :lower)
+
+      %{"attachment" => a} =
+        upload!(ctx.conn, %{
+          card: ctx.card.id,
+          filename: "shot.png",
+          content_base64: Base.encode64(@png),
+          sha256: hash
+        })
+
+      assert a["size"] == byte_size(@png)
+
+      upload!(ctx.conn, %{
+        page: ctx.page.code,
+        filename: "notes.md",
+        text: "ñ ✓",
+        sha256: :crypto.hash(:sha256, "ñ ✓") |> Base.encode16()
+      })
+
+      [stored] = card_files(ctx.card)
+      assert File.read!(Boards.attachment_path(stored)) == @png
+      assert [_] = Slipdock.Wiki.attachments(ctx.page)
+    end
+
+    test "bytes that changed on the way are refused against their sha256, and not stored",
+         ctx do
+      hash = :crypto.hash(:sha256, @png) |> Base.encode16(case: :lower)
+      # The same length with one bit flipped, as the base64 came out of a model.
+      <<head::binary-size(40), byte, rest::binary>> = @png
+      flipped = head <> <<Bitwise.bxor(byte, 2)>> <> rest
+      flipped_hash = :crypto.hash(:sha256, flipped) |> Base.encode16(case: :lower)
+
+      text =
+        ctx.conn
+        |> call("upload_file", %{
+          card: ctx.card.id,
+          filename: "shot.png",
+          content_base64: Base.encode64(flipped),
+          sha256: hash
+        })
+        |> error!()
+
+      assert text =~ "sha256_mismatch"
+      assert text =~ "#{byte_size(@png)} bytes with sha256 #{flipped_hash}"
+      assert text =~ "nothing was stored"
+
+      assert ctx.conn
+             |> call("upload_file", %{
+               page: ctx.page.code,
+               filename: "a.txt",
+               text: "x",
+               sha256: "not-a-hash"
+             })
+             |> error!() =~ "64 hex characters"
+
+      assert card_files(ctx.card) == []
+      assert Slipdock.Wiki.attachments(ctx.page) == []
+    end
+
     test "a file over the limit is refused before it is stored", ctx do
       big = String.duplicate("x", UploadFile.max_bytes() + 1)
 

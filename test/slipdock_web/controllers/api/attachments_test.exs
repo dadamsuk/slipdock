@@ -470,6 +470,84 @@ defmodule SlipdockWeb.API.AttachmentsTest do
     end
   end
 
+  describe "a sha256 sent with the file (#1014)" do
+    defp sha(bytes), do: :crypto.hash(:sha256, bytes) |> Base.encode16(case: :lower)
+
+    test "that matches stores it, in either case", %{conn: conn, card: card} do
+      for hash <- [sha(@png), String.upcase(sha(@png))] do
+        assert %{"attachment" => %{"size" => 12}} =
+                 conn
+                 |> post("/api/cards/#{card.id}/attachments", %{
+                   file: upload("shot.png", @png),
+                   sha256: hash
+                 })
+                 |> json_response(201)
+      end
+
+      assert length(Boards.get_card!(card.id).attachments) == 2
+    end
+
+    test "that doesn't match is a 422 that says what arrived, and stores nothing", %{
+      conn: conn,
+      card: card
+    } do
+      # One bit flipped, the size unchanged: the damage only a hash shows.
+      <<head::binary-size(5), byte, rest::binary>> = @png
+      flipped = head <> <<Bitwise.bxor(byte, 2)>> <> rest
+
+      assert %{"error" => error} =
+               conn
+               |> post("/api/cards/#{card.id}/attachments", %{
+                 file: upload("shot.png", flipped),
+                 sha256: sha(@png)
+               })
+               |> json_response(422)
+
+      assert error =~ "sha256_mismatch"
+      assert error =~ "12 bytes with sha256 #{sha(flipped)}"
+      assert error =~ "not the #{sha(@png)} you sent"
+      assert error =~ "nothing was stored"
+      assert Boards.get_card!(card.id).attachments == []
+    end
+
+    test "that isn't a SHA-256 at all is a 422, and stores nothing", %{conn: conn, card: card} do
+      for bad <- ["abc", String.duplicate("g", 64), sha(@png) <> "00"] do
+        assert %{"error" => error} =
+                 conn
+                 |> post("/api/cards/#{card.id}/attachments", %{
+                   file: upload("shot.png", @png),
+                   sha256: bad
+                 })
+                 |> json_response(422)
+
+        assert error =~ "64 hex characters"
+      end
+
+      assert Boards.get_card!(card.id).attachments == []
+    end
+
+    test "is checked on a page's upload too", %{conn: conn, page: page} do
+      assert conn
+             |> post("/api/pages/#{page.code}/attachments", %{
+               file: upload("diagram.png", @png),
+               sha256: sha("something else")
+             })
+             |> json_response(422)
+             |> Map.fetch!("error") =~ "sha256_mismatch"
+
+      assert Wiki.attachments(page) == []
+
+      assert conn
+             |> post("/api/pages/#{page.code}/attachments", %{
+               file: upload("diagram.png", @png),
+               sha256: sha(@png)
+             })
+             |> json_response(201)
+
+      assert [_] = Wiki.attachments(page)
+    end
+  end
+
   describe "a page" do
     test "takes an image and hands back the Markdown for its body", %{
       conn: conn,
