@@ -34,6 +34,17 @@ defmodule SlipdockWeb.API.GrantsTest do
       assert email == c.friend.email
       assert Access.page_permission(c.friend, c.page) == :read
 
+      # Comment (#863): reads, and joins the discussion.
+      assert %{"grant" => %{"level" => "comment"}} =
+               c.conn
+               |> post("/api/pages/#{c.page.id}/grants", %{
+                 email: c.friend.email,
+                 level: "comment"
+               })
+               |> json_response(201)
+
+      assert Access.page_permission(c.friend, c.page) == :comment
+
       c.conn
       |> post("/api/pages/#{c.page.id}/grants", %{email: c.friend.email, level: "write"})
       |> json_response(201)
@@ -70,7 +81,7 @@ defmodule SlipdockWeb.API.GrantsTest do
                |> post("/api/pages/#{c.page.id}/grants", %{level: "read"})
                |> json_response(400)
 
-      assert %{"error" => "level is read or write"} =
+      assert %{"error" => "level is read, comment or write"} =
                c.conn
                |> post("/api/pages/#{c.page.id}/grants", %{email: c.friend.email, level: "admin"})
                |> json_response(400)
