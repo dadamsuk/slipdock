@@ -43,6 +43,10 @@ defmodule SlipdockWeb.MCP.Tools.CreateCard do
         },
         start_date: %{type: "string", description: "YYYY-MM-DD."},
         due_date: %{type: "string", description: "YYYY-MM-DD."},
+        archived: %{
+          type: "boolean",
+          description: "File it away as soon as it is made, e.g. a record of finished work."
+        },
         subcard_template: %{
           type: "string",
           description: "Lists for a new sub-board (default \"Simple\")."
@@ -62,14 +66,16 @@ defmodule SlipdockWeb.MCP.Tools.CreateCard do
 
     with {:ok, title} <- Args.required(args, "title"),
          {:ok, top} <- Args.boolean(args, "top", false),
+         {:ok, archived} <- Args.boolean(args, "archived", false),
          {:ok, tags} <- Args.strings(args, "tags"),
          {:ok, assignees} <- Args.strings(args, "assignees"),
          {:ok, board} <- target(args, auth),
          {:ok, column} <- column(args, board),
-         params = params(args, title, column, tags, assignees),
+         params = params(args, title, column, tags, assignees) |> Map.put("archived", archived),
          {:ok, card} <- Args.refusal(CardWrites.create(auth, board, params)),
          :ok <- if(top, do: Boards.move_card_to_index(card, card.column, :top), else: :ok) do
-      {:ok, Tools.card_written(Boards.get_card!(card.id), context.base_url)}
+      written = Tools.card_written(Boards.get_card!(card.id), context.base_url)
+      {:ok, if(archived, do: Map.put(written, :archived, true), else: written)}
     end
   end
 

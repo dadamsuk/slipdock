@@ -106,6 +106,49 @@ defmodule SlipdockWeb.API.CardControllerTest do
     end
   end
 
+  describe "creating an archived card" do
+    test "archived: true files it away at once, and the reply says so", %{
+      conn: conn,
+      board: board
+    } do
+      card =
+        conn
+        |> post("/api/boards/cardsapi/cards", %{title: "Old notes", archived: true})
+        |> json_response(201)
+        |> Map.fetch!("card")
+
+      assert card["archived_at"]
+      refute Enum.any?(Boards.list_cards(board), &(&1.id == card["id"]))
+      assert Enum.any?(Boards.list_cards(board, %{"archived" => "true"}), &(&1.id == card["id"]))
+    end
+
+    test "the string \"true\" counts, and \"false\" or leaving it off makes a live card", %{
+      conn: conn
+    } do
+      archived =
+        conn
+        |> post("/api/boards/cardsapi/cards", %{title: "A", archived: "true"})
+        |> json_response(201)
+
+      assert archived["card"]["archived_at"]
+
+      for body <- [%{title: "B", archived: "false"}, %{title: "C"}] do
+        live = conn |> post("/api/boards/cardsapi/cards", body) |> json_response(201)
+        refute live["card"]["archived_at"]
+      end
+    end
+
+    test "anything else is a 422, and no card is made", %{conn: conn} do
+      assert %{"error" => error} =
+               conn
+               |> post("/api/boards/cardsapi/cards", %{title: "Odd", archived: "soon"})
+               |> json_response(422)
+
+      assert error =~ "archived"
+      refute Slipdock.Repo.get_by(Boards.Card, title: "Odd")
+    end
+  end
+
   describe "editing" do
     test "tags: set by one name, added, removed, and an unknown one refused", %{
       conn: conn,

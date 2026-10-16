@@ -243,7 +243,8 @@ A saved view's URL (`/boards/1/swimlanes?view=ID`) opens the same grid in the we
 
 Write:
 ```
-slipdock add <board> <title words...> [--column C] [--desc TEXT] [--priority P] [--flag F]... [--tag T]... [--start YYYY-MM-DD] [--due YYYY-MM-DD] [--color C] [--percent N] [--assignee EMAIL|me]...
+slipdock add <board> <title words...> [--column C] [--desc TEXT] [--priority P] [--flag F]... [--tag T]... [--start YYYY-MM-DD] [--due YYYY-MM-DD] [--color C] [--percent N] [--assignee EMAIL|me]... [--archived]
+                                       # --archived: made straight into the archive (a record of finished work)
 slipdock edit <id> [--title T] [--desc TEXT] [--priority P] [--start DATE|--no-start] [--due DATE|--no-due] [--percent N|--no-percent] [--color C|--no-color] [--column C]
                    [--assignee EMAIL|me]... | --no-assignee   # replaces who is on it; the first is the lead
                    [--add-assignee EMAIL|me]... [--remove-assignee EMAIL|me]...   # others stay on it

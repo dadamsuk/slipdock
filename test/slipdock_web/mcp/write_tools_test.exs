@@ -145,6 +145,32 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
       assert first.id == made["id"]
     end
 
+    test "archived: true makes it straight into the archive", ctx do
+      made =
+        ctx.conn
+        |> call("create_card", %{board: "delivery11", title: "Old notes", archived: true})
+        |> ok!()
+
+      assert made["archived"] == true
+      assert Boards.get_card!(made["id"]).archived_at
+      refute Enum.any?(Boards.list_cards(ctx.board, %{}), &(&1.id == made["id"]))
+    end
+
+    test "archived is left off: a live card", ctx do
+      made = ctx.conn |> call("create_card", %{board: "delivery11", title: "Live"}) |> ok!()
+
+      refute Map.has_key?(made, "archived")
+      refute Boards.get_card!(made["id"]).archived_at
+    end
+
+    test "archived that is not a boolean is refused, and nothing is made", ctx do
+      assert ctx.conn
+             |> call("create_card", %{board: "delivery11", title: "Odd", archived: "soon"})
+             |> error!() =~ "archived"
+
+      refute Repo.get_by(Boards.Card, title: "Odd")
+    end
+
     test "with parent: makes the sub-board, then adds to it", ctx do
       first = ctx.conn |> call("create_card", %{parent: ctx.card.id, title: "Step one"}) |> ok!()
       parent = Boards.get_card!(ctx.card.id)

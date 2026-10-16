@@ -1195,6 +1195,10 @@ defmodule SlipdockWeb.APIGuide do
     curl -s -H "$H" -H 'content-type: application/json' B/api/boards/9/cards \\
          -d '{"title": "Query parser", "column": "To Do", "due_date": "2026-10-03"}'
 
+    # record something already finished with: "archived": true files it away at once
+    curl -s -H "$H" -H 'content-type: application/json' B/api/boards/1/cards \\
+         -d '{"title": "Old release notes", "archived": true}'
+
     # claim, comment, tick, finish
     curl -s -H "$H" -H 'content-type: application/json' B/api/cards/57/move \\
          -d '{"column": "In Progress"}'
