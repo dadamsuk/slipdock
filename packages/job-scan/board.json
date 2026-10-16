@@ -1,0 +1,88 @@
+{
+  "lists": [
+    {
+      "name": "Found",
+      "role": "ready"
+    },
+    {
+      "name": "Interested",
+      "role": "doing"
+    },
+    {
+      "name": "Generate",
+      "category": "doing"
+    },
+    {
+      "name": "Ready",
+      "category": "doing"
+    },
+    {
+      "name": "Applied",
+      "category": "doing"
+    },
+    {
+      "name": "In conversation",
+      "category": "doing"
+    },
+    {
+      "name": "Closed",
+      "role": "done"
+    }
+  ],
+  "folders": [
+    "Config",
+    "Runs",
+    "Roles"
+  ],
+  "tags": [],
+  "pages": [
+    {
+      "title": "Job Scan Config",
+      "folder": "Config",
+      "summary": "Where the scan reports, when it runs, and which runner builds documents.",
+      "body": "# Job Scan Config\n\nThe settings for this job search. The pages it reads are listed below; everything on\nthem is yours to change.\n\n## Board\n- Board: {{board.name}}\n- Set up: {{today}}\n\n## Reporting\n- Email a short note when a role is found: not set\n- Address: not set\n\n## Schedule\n- Daily scan time: not set\n\n## Documents\n- Runner pool: default\n\n## The other pages\n- [[Job Scan Search Profile]] \u2014 where to look\n- [[Job Scan Decision Rules]] \u2014 what counts as a match\n- [[Job Scan About Me]] \u2014 your career record\n- [[Job Scan CV Baseline]] \u2014 your CV, as content\n- [[Job Scan Document Rules]] \u2014 how documents are written\n"
+    },
+    {
+      "title": "Job Scan Search Profile",
+      "folder": "Config",
+      "summary": "Which sources to search, and the exact searches.",
+      "body": "# Job Scan Search Profile\n\n## Sources\nnot set\n\n## Searches\nnot set\n\n## Locations\nnot set\n"
+    },
+    {
+      "title": "Job Scan Decision Rules",
+      "folder": "Config",
+      "summary": "Gates, exclusions, the scoring rubric, the target test and the threshold.",
+      "body": "# Job Scan Decision Rules\n\n## What I'm looking for\n- Titles and level: not set\n- Permanent, interim or contract: not set\n\n## Where\n- Base: not set\n- Places I would travel to: not set\n- Remote: not set\n- Relocation: not set\n\n## Absolute noes\nThese are applied before anything is scored.\nnot set\n\n## Money\n- Floor, permanent: not set\n- Floor, day rate: not set\n- When nothing is posted: not set\n\n## Scoring\nEvery role starts in the middle of the scale.\n- Signals that raise a score: not set\n- Red flags that lower it: not set\n\n## Target test\nnot set\n\n## Threshold\nnot set\n\n## Flags to raise in the report\nnot set\n"
+    },
+    {
+      "title": "Job Scan About Me",
+      "folder": "Config",
+      "summary": "The career record the coverage analysis is read against. Not a CV.",
+      "body": "# Job Scan About Me\n\n## The record\nnot set\n\n## Framing rules\nnot set\n\n## Known gaps\nnot set\n\n## Approved phrasings\nnot set\n\n## Open questions\nnot set\n"
+    },
+    {
+      "title": "Job Scan CV Baseline",
+      "folder": "Config",
+      "summary": "Your CV as structured content: the source of truth every document is built from.",
+      "body": "# Job Scan CV Baseline\n\n## Profile\nnot set\n\n## Experience\nnot set\n\n## Competencies\nnot set\n\n## Education and other\nnot set\n"
+    },
+    {
+      "title": "Job Scan Document Rules",
+      "folder": "Config",
+      "summary": "How documents are written: voice, what tailoring may change, what it may not.",
+      "body": "# Job Scan Document Rules\n\n## Voice\nnot set\n\n## What tailoring may change\nnot set\n\n## What it may not change\nnot set\n\n## Banned constructions\nnot set\n\n## File naming\nnot set\n"
+    }
+  ],
+  "automations": [
+    {
+      "preset": "send_to_runner",
+      "name": "Build documents for cards in Generate",
+      "params": {
+        "column": "Generate",
+        "pool": "default",
+        "kind": "claude",
+        "wait": "no"
+      }
+    }
+  ]
+}

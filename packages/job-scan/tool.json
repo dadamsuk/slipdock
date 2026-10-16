@@ -1,0 +1,13 @@
+{
+  "name": "job-scan",
+  "title": "Job Scan",
+  "version": "1.0.0",
+  "summary": "An automated job search on a Slipdock board: a daily scan scores roles against your own rules, and documents are built when you ask.",
+  "author": "Slipdock",
+  "requires": {
+    "connector": "the Slipdock connector (MCP) or the slipdock CLI",
+    "for_scanning": "a browser the agent can drive, signed in to the job sites you search",
+    "for_documents": "a runner on pool default, or a scheduled task that claims its jobs"
+  },
+  "files": []
+}
