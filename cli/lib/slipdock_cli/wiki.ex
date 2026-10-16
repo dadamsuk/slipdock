@@ -118,7 +118,7 @@ defmodule SlipdockCLI.Wiki do
   def run("folder", _args, _o),
     do:
       fail(
-        "usage: slipdock folder ls BOARD | share BOARD F [EMAIL|GROUP --read|--write [--off]] | show BOARD F | file BOARD F --also G|--not-in G [--board B] | open BOARD [F] [--page P] | new BOARD NAME [--parent F] [--icon I] [--color C] | mv BOARD F --parent G|--root|--name N|--icon I|--no-icon|--color C|--no-color|--board B [--contents] | rm BOARD F [--purge] | organise BOARD F --by date|ai|tag|flatten [--parent G|--root] [--per month|year|year_month|day] [--added] [--dry-run]"
+        "usage: slipdock folder ls BOARD | share BOARD F [EMAIL|GROUP --read|--comment|--write [--off]] | show BOARD F | file BOARD F --also G|--not-in G [--board B] | open BOARD [F] [--page P] | new BOARD NAME [--parent F] [--icon I] [--color C] | mv BOARD F --parent G|--root|--name N|--icon I|--no-icon|--color C|--no-color|--board B [--contents] | rm BOARD F [--purge] | organise BOARD F --by date|ai|tag|flatten [--parent G|--root] [--per month|year|year_month|day] [--added] [--dry-run]"
       )
 
   # What other people have shared with you, by owner (#820). `page read`
@@ -1013,14 +1013,21 @@ defmodule SlipdockCLI.Wiki do
   defp share(path, [], o), do: HTTP.get(path) |> out(o, &Render.grants(&1["grants"]))
 
   defp share(path, [who], o) do
-    if o[:read] && o[:write], do: fail("say one: --read or --write")
+    if Enum.count([:read, :comment, :write], &o[&1]) > 1,
+      do: fail("say one: --read, --comment or --write")
+
     subject = if String.contains?(who, "@"), do: %{"email" => who}, else: %{"group" => who}
 
     if o[:off] do
       HTTP.delete(path, Map.to_list(subject))
       |> out(o, fn _ -> IO.puts("no longer shared with #{who}") end)
     else
-      level = if o[:write], do: "write", else: "read"
+      level =
+        cond do
+          o[:write] -> "write"
+          o[:comment] -> "comment"
+          true -> "read"
+        end
 
       HTTP.post(path, Map.put(subject, "level", level))
       |> out(o, fn %{"grant" => g} -> IO.puts("shared with #{who}: " <> Render.grant_level(g)) end)

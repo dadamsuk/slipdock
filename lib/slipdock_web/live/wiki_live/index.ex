@@ -116,6 +116,9 @@ defmodule SlipdockWeb.WikiLive.Index do
       board: board,
       perm: perm,
       can_write: Access.can_write?(perm),
+      # Joining an open page's discussion (#863); `assign_page/2` asks again
+      # of each page, since a page grant can raise it.
+      can_comment: Access.can_comment?(perm),
       can_manage: perm == :owner,
       meetings: Slipdock.Meetings.presence(socket.assigns.current_user, board),
       page: nil,
@@ -788,6 +791,7 @@ defmodule SlipdockWeb.WikiLive.Index do
 
     assign(socket,
       page: Slipdock.Repo.preload(page, Wiki.board_preloads(), force: true),
+      can_comment: Access.can_comment?(Access.page_permission(socket.assigns.current_user, page)),
       # How many people and groups it has been shared with (#813).
       page_shares: length(Access.list_grants(page)),
       # A meeting page's recording, played beside its transcript (W-1690).
@@ -825,6 +829,17 @@ defmodule SlipdockWeb.WikiLive.Index do
 
   defp contents_event(socket, fun) do
     if socket.assigns.can_write and socket.assigns.page do
+      fun.(socket.assigns.page)
+      {:noreply, socket |> update(:form_key, &(&1 + 1)) |> reload_page()}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  # The discussion under a page — comments and status updates — wants only
+  # comment access (#863); everything else on it, `contents_event/2`'s write.
+  defp discussion_event(socket, fun) do
+    if socket.assigns.can_comment and socket.assigns.page do
       fun.(socket.assigns.page)
       {:noreply, socket |> update(:form_key, &(&1 + 1)) |> reload_page()}
     else
@@ -2355,7 +2370,7 @@ defmodule SlipdockWeb.WikiLive.Index do
     if String.trim(body) == "",
       do: {:noreply, socket},
       else:
-        contents_event(
+        discussion_event(
           socket,
           &Boards.add_comment(&1, String.trim(body), by: socket.assigns.current_user)
         )
@@ -2365,17 +2380,23 @@ defmodule SlipdockWeb.WikiLive.Index do
   # the change event the shared form sends has nothing to do here.
   def handle_event("comment_change", _params, socket), do: {:noreply, socket}
 
+  # A writer takes back any comment; a commenter only their own (#863).
   def handle_event("delete_comment", %{"id" => id}, socket) do
-    contents_event(socket, fn page ->
-      if Enum.any?(page.comments, &(to_string(&1.id) == id)),
-        do: Boards.delete_comment(Params.id(id))
+    %{can_write: can_write, current_user: user} = socket.assigns
+
+    discussion_event(socket, fn page ->
+      if Enum.any?(
+           page.comments,
+           &(to_string(&1.id) == id and (can_write or &1.user_id == user.id))
+         ),
+         do: Boards.delete_comment(Params.id(id))
     end)
   end
 
   def handle_event("add_status_update", %{"health" => health} = params, socket) do
     user = socket.assigns.current_user
 
-    contents_event(socket, fn page ->
+    discussion_event(socket, fn page ->
       Boards.add_status_update(page, user, %{"health" => health, "body" => params["body"]})
     end)
   end
@@ -4416,6 +4437,7 @@ defmodule SlipdockWeb.WikiLive.Index do
                     tags={@tags}
                     columns={@columns}
                     can_write={@can_write}
+                    can_comment={@can_comment}
                     can_manage={@can_manage}
                     current_user={@current_user}
                     form_key={@form_key}
@@ -5788,6 +5810,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   attr :tags, :list, default: []
   attr :columns, :list, default: []
   attr :can_write, :boolean, required: true
+  attr :can_comment, :boolean, default: false, doc: "may join the page's discussion (#863)"
   attr :can_manage, :boolean, default: false
   attr :fields_board, :any, default: nil
   attr :current_user, :any, default: nil
@@ -6375,7 +6398,12 @@ defmodule SlipdockWeb.WikiLive.Index do
               far below everything else on the page. --%>
         <div class="grid items-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <div class="min-w-0 rounded-xl bg-base-100 p-4 ring-1 ring-base-content/5">
-            <.status_section item={@page} can_write={@can_write} form_key={@form_key} />
+            <.status_section
+              item={@page}
+              can_write={@can_write}
+              can_comment={@can_comment}
+              form_key={@form_key}
+            />
           </div>
           <div class="min-w-0 rounded-xl bg-base-100 p-4 ring-1 ring-base-content/5">
             <.checklist_section item={@page} can_write={@can_write} form_key={@form_key} />
@@ -6395,6 +6423,7 @@ defmodule SlipdockWeb.WikiLive.Index do
               board={@board}
               current_user={@current_user}
               can_write={@can_write}
+              can_comment={@can_comment}
             />
           </div>
         </div>
@@ -6404,6 +6433,7 @@ defmodule SlipdockWeb.WikiLive.Index do
           board={@board}
           current_user={@current_user}
           can_write={@can_write}
+          can_comment={@can_comment}
           form_key={@form_key}
         />
       </section>

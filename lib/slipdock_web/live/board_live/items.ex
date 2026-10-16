@@ -46,19 +46,21 @@ defmodule SlipdockWeb.BoardLive.Items do
   end
 
   @doc """
-  Whether `user` may read and write `card`, as `{readable, writable}`. With
-  view-only access to the board (`view_only`), only cards the saved view
-  `view` shows are there at all, and the view's own grant says whether they
-  can be changed; `config` is that view's configuration as on screen.
+  Whether `user` may read `card`, and what they may do with it, as
+  `{readable, level}` — `Access.can_write?/1` and `Access.can_comment?/1`
+  answer the rest. With view-only access to the board (`view_only`), only
+  cards the saved view `view` shows are there at all, and the view's own
+  grant says what may be done with them; `config` is that view's
+  configuration as on screen.
   """
   def card_access(card, user, view_only, config, view) do
     if view_only do
       matches = Swimlanes.matches?(card, config)
-      level = if view, do: Access.view_permission(user, view), else: :none
-      {matches, matches and Access.can_write?(level)}
+      level = if view && matches, do: Access.view_permission(user, view), else: :none
+      {matches, level}
     else
       perm = Access.card_permission(user, card)
-      {Access.can_read?(perm), Access.can_write?(perm)}
+      {Access.can_read?(perm), perm}
     end
   end
 end

@@ -41,6 +41,10 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   # What a reader who can't change the card may still do: nothing stored
   # changes, only what the panel is showing.
   @read_events ~w(stop_editing_description dep_direction dep_search link_search pick_template)
+  # What a commenter (#863) may do besides: join the discussion, and nothing
+  # that changes the card itself. Deleting a comment is only their own
+  # (`ItemEvents`).
+  @comment_events ~w(add_comment delete_comment add_status_update vote comment_change)
   # Sharing has a rule of its own: the board's owner, or anybody who can edit
   # the card.
   @share_events ~w(share revoke_grant)
@@ -141,10 +145,12 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     same = match?(%Card{id: id} when id == given.id, current)
     perm = Access.board_permission(user, board)
 
-    {readable, writable} =
+    {readable, level} =
       if given.board_id == board.id,
         do: card_access(given, user, perm == :view, config, view),
-        else: {false, false}
+        else: {false, :none}
+
+    writable = Access.can_write?(level)
 
     socket =
       if same,
@@ -170,11 +176,19 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         card: Access.hide_unreadable_dependencies(user, given),
         card_form: to_form(Boards.change_card(given)),
         can_write: writable,
+        can_comment: Access.can_comment?(level),
         can_share: perm == :owner or writable
       )
       |> assign_pages()
     else
-      assign(socket, given: given, card: nil, card_form: nil, can_write: false, can_share: false)
+      assign(socket,
+        given: given,
+        card: nil,
+        card_form: nil,
+        can_write: false,
+        can_comment: false,
+        can_share: false
+      )
     end
   end
 
@@ -254,15 +268,26 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
       when event in @share_events,
       do: {:noreply, flash(socket, :error, "You can't share that.")}
 
+  def handle_event(event, params, %{assigns: %{can_comment: true}} = socket)
+      when event in @comment_events,
+      do: dispatch(event, params, socket)
+
   def handle_event(event, _params, %{assigns: %{can_write: false}} = socket)
       when event not in @read_events and event not in @share_events,
-      do: {:noreply, flash(socket, :error, "You have read-only access to this card.")}
+      do: {:noreply, flash(socket, :error, read_only_message(socket))}
 
-  def handle_event(event, params, socket) do
+  def handle_event(event, params, socket), do: dispatch(event, params, socket)
+
+  defp dispatch(event, params, socket) do
     if event in @own_events,
       do: event(event, params, socket),
       else: ItemEvents.handle(event, params, with_item(socket), &reload/1)
   end
+
+  defp read_only_message(%{assigns: %{can_comment: true}}),
+    do: "You can comment on this card, but not change it."
+
+  defp read_only_message(_socket), do: "You have read-only access to this card."
 
   # Put a fresh copy of the card in front of the reader.
   defp reload(socket), do: assign(socket, card: fresh(socket, socket.assigns.card.id))
@@ -711,6 +736,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         picking_template={@picking_template}
         close_navigate={@close_navigate}
         can_write={@can_write}
+        can_comment={@can_comment}
         can_share={@can_share}
         grants={@card_grants}
         pages={@card_pages}
@@ -839,6 +865,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   attr :picking_template, :boolean, required: true
   attr :mention_people, :string, default: nil
   attr :can_write, :boolean, required: true
+  attr :can_comment, :boolean, default: false, doc: "may join the discussion (#863)"
   attr :can_share, :boolean, required: true
   attr :grants, :list, required: true
   attr :pages, :list, default: [], doc: "the wiki pages that talk about this card"
@@ -872,7 +899,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
       size="wide"
       keys
     >
-      <%!-- Outside the fieldset below, which is disabled for a read-only
+      <%!-- Outside the fieldsets below, which are disabled for a read-only
             card: a favourite is the reader's own, not a change to the card.
             The heart's weight is in its top half, so in the same box as the
             close x it reads high: a pixel down lines the two up by eye. --%>
@@ -893,9 +920,13 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
       </div>
       <p
         :if={!@can_write}
+        id="card-access-note"
         class="flex items-center gap-2 bg-base-200 px-6 py-1.5 text-xs text-base-content/60"
       >
-        <.icon name="hero-lock-closed" class="size-3.5" /> You have read-only access to this card.
+        <.icon name="hero-lock-closed" class="size-3.5" />
+        {if @can_comment,
+          do: "You can comment on this card, but not change it.",
+          else: "You have read-only access to this card."}
       </p>
       <div
         :if={@parent}
@@ -942,9 +973,11 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
           Open board <.icon name="hero-arrow-right" class="size-3.5" />
         </.link>
       </div>
-      <fieldset disabled={!@can_write} class="contents">
-        <div class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_260px]">
-          <div class="min-w-0 space-y-7 p-6">
+      <%!-- Two kinds of control, two fieldsets: the card's own fields need
+            write, the discussion (comments, status, votes) only comment. --%>
+      <div class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_260px]">
+        <div class="min-w-0 space-y-7 p-6">
+          <fieldset disabled={!@can_write} class="min-w-0 space-y-7">
             <.card_header_form
               board={@board}
               can_write={@can_write}
@@ -1026,32 +1059,37 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
               form_key={@form_key}
               section_key="w"
             />
+          </fieldset>
 
+          <fieldset disabled={!@can_comment} class="min-w-0">
+            <%!-- Pasting an image attaches it to the card, so that is a writer's. --%>
             <.comments_section
               target={@target}
               item={@card}
               board={@board}
               current_user={@current_user}
               can_write={@can_write}
+              can_comment={@can_comment}
               form_key={@form_key}
-              uploads={@uploads}
+              uploads={@can_write && @uploads}
               mention_people={@mention_people}
               section_key="c"
             />
-          </div>
-
-          <.card_sidebar
-            board={@board}
-            can_write={@can_write}
-            card={@card}
-            current_user={@current_user}
-            form={@form}
-            form_key={@form_key}
-            target={@target}
-            users={@users}
-          />
+          </fieldset>
         </div>
-      </fieldset>
+
+        <.card_sidebar
+          board={@board}
+          can_write={@can_write}
+          can_comment={@can_comment}
+          card={@card}
+          current_user={@current_user}
+          form={@form}
+          form_key={@form_key}
+          target={@target}
+          users={@users}
+        />
+      </div>
       <div :if={@can_share} class="border-t border-base-content/10 px-6 py-4">
         <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-base-content/60">
           Sharing this card

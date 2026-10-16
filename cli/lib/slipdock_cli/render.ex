@@ -944,11 +944,12 @@ defmodule SlipdockCLI.Render do
           true -> "?"
         end
 
-      IO.puts(String.pad_trailing(grant_level(g), 10) <> who)
+      IO.puts(String.pad_trailing(grant_level(g), 12) <> who)
     end)
   end
 
   def grant_level(%{"level" => "write"}), do: "can edit"
+  def grant_level(%{"level" => "comment"}), do: "can comment"
   def grant_level(_), do: "read only"
 
   @doc "What other people have shared with you, by owner (#820)."
@@ -975,8 +976,7 @@ defmodule SlipdockCLI.Render do
           String.pad_trailing(p["code"] || "", 9) <> p["title"] <> "  " <> dim(level(p))
       )
 
-  defp level(%{"level" => "write"}), do: "can edit"
-  defp level(_), do: "read only"
+  defp level(item), do: grant_level(item)
 
   defp share_indent(depth), do: String.duplicate("  ", depth)
 

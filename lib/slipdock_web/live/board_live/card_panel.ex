@@ -491,6 +491,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
 
   attr :board, :any, required: true
   attr :can_write, :boolean, required: true
+  attr :can_comment, :boolean, default: false, doc: "may report a status and vote (#863)"
   attr :card, Card, required: true
   attr :current_user, :any, default: nil
   attr :form, :any, required: true
@@ -502,304 +503,315 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   def card_sidebar(assigns) do
     ~H"""
     <aside class="min-w-0 space-y-5 rounded-b-2xl bg-base-200/60 p-5 md:rounded-r-2xl md:rounded-bl-none">
-      <.form
-        phx-target={@target}
-        for={@form}
-        id="card-meta-form"
-        phx-change="card_change"
-        class="space-y-4"
-      >
-        <label class="block space-y-1">
-          <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">List</span>
-          <select name="card[column_id]" class="select select-sm w-full">
-            <option
-              :for={{name, id} <- column_options(@board)}
-              value={id}
-              selected={id == @card.column_id}
-            >
-              {name}
-            </option>
-          </select>
-        </label>
-        <div class="space-y-1" id="card-assignees">
-          <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
-            Assignees
-          </span>
-          <ul :if={Card.assignees(@card) != []} class="flex flex-wrap gap-1">
-            <li
-              :for={u <- Card.assignees(@card)}
-              id={"card-assignee-#{u.id}"}
-              class="inline-flex items-center gap-1 rounded-full bg-base-200 py-0.5 pr-1 pl-0.5"
-            >
-              <.assignee_chip user={u} size="xs" with_name />
-              <button
-                phx-target={@target}
-                type="button"
-                phx-click="remove_assignee"
-                phx-value-id={u.id}
-                class="rounded-full p-0.5 text-base-content/50 transition hover:bg-base-300 hover:text-base-content"
-                title={"Unassign #{Slipdock.Accounts.User.display_name(u)}"}
+      <%!-- The card's own fields need write; status updates and votes are
+            the discussion, which a commenter joins (#863). --%>
+      <fieldset disabled={!@can_write} class="min-w-0 space-y-5">
+        <.form
+          phx-target={@target}
+          for={@form}
+          id="card-meta-form"
+          phx-change="card_change"
+          class="space-y-4"
+        >
+          <label class="block space-y-1">
+            <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">List</span>
+            <select name="card[column_id]" class="select select-sm w-full">
+              <option
+                :for={{name, id} <- column_options(@board)}
+                value={id}
+                selected={id == @card.column_id}
               >
-                <.icon name="hero-x-mark" class="size-3" />
-              </button>
-            </li>
-          </ul>
-          <%!-- Keyed on who is already on the card, so the picker comes back
+                {name}
+              </option>
+            </select>
+          </label>
+          <div class="space-y-1" id="card-assignees">
+            <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
+              Assignees
+            </span>
+            <ul :if={Card.assignees(@card) != []} class="flex flex-wrap gap-1">
+              <li
+                :for={u <- Card.assignees(@card)}
+                id={"card-assignee-#{u.id}"}
+                class="inline-flex items-center gap-1 rounded-full bg-base-200 py-0.5 pr-1 pl-0.5"
+              >
+                <.assignee_chip user={u} size="xs" with_name />
+                <button
+                  phx-target={@target}
+                  type="button"
+                  phx-click="remove_assignee"
+                  phx-value-id={u.id}
+                  class="rounded-full p-0.5 text-base-content/50 transition hover:bg-base-300 hover:text-base-content"
+                  title={"Unassign #{Slipdock.Accounts.User.display_name(u)}"}
+                >
+                  <.icon name="hero-x-mark" class="size-3" />
+                </button>
+              </li>
+            </ul>
+            <%!-- Keyed on who is already on the card, so the picker comes back
                empty after each pick instead of re-sending the last one. --%>
-          <select
-            name="card[add_assignee_id]"
-            class="select select-sm w-full"
-            id={"card-assignee-add-" <> Enum.map_join(Card.assignees(@card), "-", & &1.id)}
-          >
-            <option value="" selected>
-              {if Card.assignees(@card) == [],
-                do: "Unassigned — add someone…",
-                else: "Add someone…"}
-            </option>
-            <option
-              :for={u <- @users}
-              :if={not Card.assigned_to?(@card, u.id)}
-              value={u.id}
+            <select
+              name="card[add_assignee_id]"
+              class="select select-sm w-full"
+              id={"card-assignee-add-" <> Enum.map_join(Card.assignees(@card), "-", & &1.id)}
             >
-              {Slipdock.Accounts.User.display_name(u)}
-            </option>
-          </select>
-        </div>
-        <label class="block space-y-1">
-          <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Priority</span>
-          <select name="card[priority]" class="select select-sm w-full">
-            <option
-              :for={{label, value} <- priority_options()}
-              value={value}
-              selected={value == @card.priority}
-            >
-              {label}
-            </option>
-          </select>
-        </label>
-        <%!-- A simple board is a to-do list: what follows down to Health,
+              <option value="" selected>
+                {if Card.assignees(@card) == [],
+                  do: "Unassigned — add someone…",
+                  else: "Add someone…"}
+              </option>
+              <option
+                :for={u <- @users}
+                :if={not Card.assigned_to?(@card, u.id)}
+                value={u.id}
+              >
+                {Slipdock.Accounts.User.display_name(u)}
+              </option>
+            </select>
+          </div>
+          <label class="block space-y-1">
+            <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Priority</span>
+            <select name="card[priority]" class="select select-sm w-full">
+              <option
+                :for={{label, value} <- priority_options()}
+                value={value}
+                selected={value == @card.priority}
+              >
+                {label}
+              </option>
+            </select>
+          </label>
+          <%!-- A simple board is a to-do list: what follows down to Health,
               bar the due date and Completed, is project tracking, and
               stays out of its way (`Board.simple?/1`). --%>
-        <label :if={not @board.simple} class="block space-y-1">
-          <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">% complete</span>
-          <div class="flex items-center gap-2">
+          <label :if={not @board.simple} class="block space-y-1">
+            <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">% complete</span>
+            <div class="flex items-center gap-2">
+              <input
+                type="number"
+                name="card[percent_complete]"
+                id="card-percent-complete"
+                value={@card.percent_complete}
+                min="0"
+                max="100"
+                step="5"
+                placeholder="—"
+                phx-debounce="400"
+                class="input input-sm w-20"
+              />
+              <progress
+                :if={@card.percent_complete}
+                class={[
+                  "progress h-1.5 flex-1",
+                  if(@card.percent_complete == 100,
+                    do: "progress-success",
+                    else: "progress-primary"
+                  )
+                ]}
+                value={@card.percent_complete}
+                max="100"
+              ></progress>
+            </div>
+            <p :if={@form[:percent_complete].errors != []} class="text-xs text-error">
+              Use a whole number from 0 to 100.
+            </p>
+          </label>
+          <label :if={not @board.simple} class="block space-y-1">
+            <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Start date</span>
             <input
-              type="number"
-              name="card[percent_complete]"
-              id="card-percent-complete"
-              value={@card.percent_complete}
-              min="0"
-              max="100"
-              step="5"
-              placeholder="—"
-              phx-debounce="400"
-              class="input input-sm w-20"
+              type="date"
+              name="card[start_date]"
+              value={@card.start_date}
+              max={@card.due_date}
+              class="input input-sm w-full"
             />
-            <progress
-              :if={@card.percent_complete}
-              class={[
-                "progress h-1.5 flex-1",
-                if(@card.percent_complete == 100,
-                  do: "progress-success",
-                  else: "progress-primary"
-                )
-              ]}
-              value={@card.percent_complete}
-              max="100"
-            ></progress>
-          </div>
-          <p :if={@form[:percent_complete].errors != []} class="text-xs text-error">
-            Use a whole number from 0 to 100.
-          </p>
-        </label>
-        <label :if={not @board.simple} class="block space-y-1">
-          <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Start date</span>
-          <input
-            type="date"
-            name="card[start_date]"
-            value={@card.start_date}
-            max={@card.due_date}
-            class="input input-sm w-full"
-          />
-        </label>
-        <label class="block space-y-1">
-          <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Due date</span>
-          <input
-            type="date"
-            name="card[due_date]"
-            value={@card.due_date}
-            min={@card.start_date}
-            class="input input-sm w-full"
-          />
-          <.due_badge date={@card.due_date} completed={@card.completed} />
-          <p :if={@form[:start_date].errors != []} class="text-xs text-error">
-            Start must be on or before the due date.
-          </p>
-        </label>
-        <label :if={not @board.simple} class="block space-y-1">
-          <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Precision</span>
-          <select
-            name="card[date_precision]"
-            class="select select-sm w-full"
-            id="card-precision"
-          >
-            <option
-              :for={{key, label} <- Dates.precisions()}
-              value={key}
-              selected={key == (@card.date_precision || "day")}
+          </label>
+          <label class="block space-y-1">
+            <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Due date</span>
+            <input
+              type="date"
+              name="card[due_date]"
+              value={@card.due_date}
+              min={@card.start_date}
+              class="input input-sm w-full"
+            />
+            <.due_badge date={@card.due_date} completed={@card.completed} />
+            <p :if={@form[:start_date].errors != []} class="text-xs text-error">
+              Start must be on or before the due date.
+            </p>
+          </label>
+          <label :if={not @board.simple} class="block space-y-1">
+            <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Precision</span>
+            <select
+              name="card[date_precision]"
+              class="select select-sm w-full"
+              id="card-precision"
             >
-              {label}
-            </option>
-          </select>
-          <p :if={Card.fuzzy?(@card) and @card.due_date} class="text-xs text-base-content/60">
-            Scheduled for {Dates.range_label(
-              @card.start_date || @card.due_date,
-              @card.due_date,
-              @card.date_precision
-            )}
-          </p>
-        </label>
-        <div
-          :if={
-            (not @board.simple and @card.rollup) && @card.rollup.children > 0 &&
-              @card.rollup.derived_due
-          }
-          class="space-y-1 rounded-lg bg-base-200/60 p-2 text-xs"
-          id="card-rollup-dates"
-        >
-          <p class="flex items-center gap-1 font-semibold uppercase tracking-wide text-base-content/60">
-            <.icon name="hero-arrow-up-on-square-stack" class="size-3.5" /> From subcards
-          </p>
-          <p class="text-base-content/80">
-            {fmt_date(@card.rollup.derived_start)} → {fmt_date(@card.rollup.derived_due)}
-          </p>
-          <p
-            :if={@card.rollup.start_slip > 0}
-            class="flex items-center gap-1 text-warning-content dark:text-warning"
+              <option
+                :for={{key, label} <- Dates.precisions()}
+                value={key}
+                selected={key == (@card.date_precision || "day")}
+              >
+                {label}
+              </option>
+            </select>
+            <p :if={Card.fuzzy?(@card) and @card.due_date} class="text-xs text-base-content/60">
+              Scheduled for {Dates.range_label(
+                @card.start_date || @card.due_date,
+                @card.due_date,
+                @card.date_precision
+              )}
+            </p>
+          </label>
+          <div
+            :if={
+              (not @board.simple and @card.rollup) && @card.rollup.children > 0 &&
+                @card.rollup.derived_due
+            }
+            class="space-y-1 rounded-lg bg-base-200/60 p-2 text-xs"
+            id="card-rollup-dates"
           >
-            <.icon name="hero-arrow-trending-up" class="size-3.5" />
-            {past_date_label(:start, @card.rollup.start_slip)}
-            <span class="text-base-content/50">(yours: {fmt_date(@card.start_date)})</span>
-          </p>
+            <p class="flex items-center gap-1 font-semibold uppercase tracking-wide text-base-content/60">
+              <.icon name="hero-arrow-up-on-square-stack" class="size-3.5" /> From subcards
+            </p>
+            <p class="text-base-content/80">
+              {fmt_date(@card.rollup.derived_start)} → {fmt_date(@card.rollup.derived_due)}
+            </p>
+            <p
+              :if={@card.rollup.start_slip > 0}
+              class="flex items-center gap-1 text-warning-content dark:text-warning"
+            >
+              <.icon name="hero-arrow-trending-up" class="size-3.5" />
+              {past_date_label(:start, @card.rollup.start_slip)}
+              <span class="text-base-content/50">(yours: {fmt_date(@card.start_date)})</span>
+            </p>
+            <p
+              :if={@card.rollup.due_slip > 0}
+              class="flex items-center gap-1 text-warning-content dark:text-warning"
+            >
+              <.icon name="hero-arrow-trending-up" class="size-3.5" />
+              {past_date_label(:due, @card.rollup.due_slip)}
+              <span class="text-base-content/50">(yours: {fmt_date(@card.due_date)})</span>
+            </p>
+            <p :if={is_nil(@card.due_date)} class="text-base-content/50">
+              No due date of its own, so the subcards set it.
+            </p>
+          </div>
           <p
-            :if={@card.rollup.due_slip > 0}
-            class="flex items-center gap-1 text-warning-content dark:text-warning"
+            :if={Card.days_past_due(@card) > 0}
+            class="flex items-center gap-1 rounded-lg bg-error/10 p-2 text-xs text-error"
+            id="card-past-due"
           >
-            <.icon name="hero-arrow-trending-up" class="size-3.5" />
-            {past_date_label(:due, @card.rollup.due_slip)}
-            <span class="text-base-content/50">(yours: {fmt_date(@card.due_date)})</span>
+            <.icon name="hero-exclamation-triangle" class="size-3.5" />
+            This card is {past_date_label(:due, Card.days_past_due(@card))}
           </p>
-          <p :if={is_nil(@card.due_date)} class="text-base-content/50">
-            No due date of its own, so the subcards set it.
-          </p>
-        </div>
-        <p
-          :if={Card.days_past_due(@card) > 0}
-          class="flex items-center gap-1 rounded-lg bg-error/10 p-2 text-xs text-error"
-          id="card-past-due"
-        >
-          <.icon name="hero-exclamation-triangle" class="size-3.5" />
-          This card is {past_date_label(:due, Card.days_past_due(@card))}
-        </p>
-        <label class="flex cursor-pointer items-center justify-between">
-          <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Completed</span>
-          <input type="hidden" name="card[completed]" value="false" />
-          <input
-            type="checkbox"
-            name="card[completed]"
-            value="true"
-            class="toggle toggle-success toggle-sm"
-            checked={@card.completed}
-          />
-        </label>
-        <div :if={not @board.simple} class="space-y-1.5" id="card-status">
-          <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Health</span>
-          <div class="flex flex-wrap items-center gap-1.5">
-            <.health_pill health={Card.health(@card)} />
-            <.stated_pill
-              :if={Card.stated_health(@card)}
-              health={Card.stated_health(@card)}
-              title="Reported by the card's owner"
+          <label class="flex cursor-pointer items-center justify-between">
+            <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Completed</span>
+            <input type="hidden" name="card[completed]" value="false" />
+            <input
+              type="checkbox"
+              name="card[completed]"
+              value="true"
+              class="toggle toggle-success toggle-sm"
+              checked={@card.completed}
+            />
+          </label>
+          <div :if={not @board.simple} class="space-y-1.5" id="card-status">
+            <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Health</span>
+            <div class="flex flex-wrap items-center gap-1.5">
+              <.health_pill health={Card.health(@card)} />
+              <.stated_pill
+                :if={Card.stated_health(@card)}
+                health={Card.stated_health(@card)}
+                title="Reported by the card's owner"
+              />
+            </div>
+            <p class="text-xs text-base-content/50">
+              The first pill is computed from dates, blockers and subcards; the second is
+              what was last reported.
+            </p>
+          </div>
+        </.form>
+        <.time_section
+          :if={not @board.simple}
+          target={@target}
+          card={@card}
+          can_write={@can_write}
+          form_key={@form_key}
+        />
+      </fieldset>
+      <fieldset :if={not @board.simple} disabled={!@can_comment} class="min-w-0">
+        <.status_section
+          target={@target}
+          item={@card}
+          can_write={@can_write}
+          can_comment={@can_comment}
+          form_key={@form_key}
+          stated={Card.stated_health(@card)}
+        />
+      </fieldset>
+      <fieldset :if={@board.fields != []} disabled={!@can_write} class="min-w-0">
+        <.fields_section target={@target} item={@card} board={@board} can_write={@can_write} />
+      </fieldset>
+      <fieldset :if={not @board.simple} disabled={!@can_comment} class="min-w-0">
+        <.vote_box
+          target={@target}
+          item={@card}
+          board={@board}
+          current_user={@current_user}
+          can_write={@can_write}
+          can_comment={@can_comment}
+        />
+      </fieldset>
+      <fieldset disabled={!@can_write} class="min-w-0 space-y-5">
+        <div class="space-y-1.5">
+          <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Cover</span>
+          <div class="flex flex-wrap gap-1.5">
+            <button
+              phx-target={@target}
+              type="button"
+              class={[
+                "flex size-6 items-center justify-center rounded-full ring-1 ring-base-content/20 ring-offset-2 ring-offset-base-100",
+                is_nil(@card.color) && "ring-2 ring-base-content"
+              ]}
+              phx-click="set_cover"
+              phx-value-color=""
+              title="No cover"
+            >
+              <.icon name="hero-no-symbol" class="size-3.5 opacity-50" />
+            </button>
+            <.color_swatch
+              :for={{name, _} <- Palette.all()}
+              phx-target={@target}
+              color={name}
+              selected={@card.color == name}
+              phx-click="set_cover"
+              phx-value-color={name}
             />
           </div>
-          <p class="text-xs text-base-content/50">
-            The first pill is computed from dates, blockers and subcards; the second is
-            what was last reported.
-          </p>
         </div>
-      </.form>
-      <.time_section
-        :if={not @board.simple}
-        target={@target}
-        card={@card}
-        can_write={@can_write}
-        form_key={@form_key}
-      />
-      <.status_section
-        :if={not @board.simple}
-        target={@target}
-        item={@card}
-        can_write={@can_write}
-        form_key={@form_key}
-        stated={Card.stated_health(@card)}
-      />
-      <.fields_section target={@target} item={@card} board={@board} can_write={@can_write} />
-      <.vote_box
-        :if={not @board.simple}
-        target={@target}
-        item={@card}
-        board={@board}
-        current_user={@current_user}
-        can_write={@can_write}
-      />
 
-      <div class="space-y-1.5">
-        <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Cover</span>
-        <div class="flex flex-wrap gap-1.5">
+        <div class="space-y-1.5 border-t border-base-content/10 pt-4">
+          <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Actions</span>
           <button
             phx-target={@target}
             type="button"
-            class={[
-              "flex size-6 items-center justify-center rounded-full ring-1 ring-base-content/20 ring-offset-2 ring-offset-base-100",
-              is_nil(@card.color) && "ring-2 ring-base-content"
-            ]}
-            phx-click="set_cover"
-            phx-value-color=""
-            title="No cover"
+            class="btn btn-sm w-full justify-start"
+            phx-click="archive_card"
           >
-            <.icon name="hero-no-symbol" class="size-3.5 opacity-50" />
+            <.icon name="hero-archive-box" class="size-4" /> Archive
           </button>
-          <.color_swatch
-            :for={{name, _} <- Palette.all()}
+          <button
             phx-target={@target}
-            color={name}
-            selected={@card.color == name}
-            phx-click="set_cover"
-            phx-value-color={name}
-          />
+            type="button"
+            class="btn btn-ghost btn-sm w-full justify-start text-error"
+            phx-click="delete_card"
+            data-confirm="Delete this card permanently?"
+          >
+            <.icon name="hero-trash" class="size-4" /> Delete
+          </button>
         </div>
-      </div>
-
-      <div class="space-y-1.5 border-t border-base-content/10 pt-4">
-        <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Actions</span>
-        <button
-          phx-target={@target}
-          type="button"
-          class="btn btn-sm w-full justify-start"
-          phx-click="archive_card"
-        >
-          <.icon name="hero-archive-box" class="size-4" /> Archive
-        </button>
-        <button
-          phx-target={@target}
-          type="button"
-          class="btn btn-ghost btn-sm w-full justify-start text-error"
-          phx-click="delete_card"
-          data-confirm="Delete this card permanently?"
-        >
-          <.icon name="hero-trash" class="size-4" /> Delete
-        </button>
-      </div>
+      </fieldset>
     </aside>
     """
   end

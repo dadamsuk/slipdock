@@ -16,6 +16,7 @@ defmodule SlipdockWeb.BoardLive.Shared do
   use SlipdockWeb, :live_view
 
   import SlipdockWeb.SlipdockComponents, only: [relative_time: 1]
+  import SlipdockWeb.ShareComponents, only: [level_badge: 1, level_label: 1]
 
   alias Slipdock.{Access, Boards}
   alias Slipdock.Access.Grant
@@ -144,11 +145,8 @@ defmodule SlipdockWeb.BoardLive.Shared do
                   {shared_by(g)}{if g.inserted_at, do: ", #{relative_time(g.inserted_at)}"}
                 </p>
               </div>
-              <span class={[
-                "badge badge-sm shrink-0",
-                if(g.level == "write", do: "badge-primary", else: "badge-ghost")
-              ]}>
-                {if g.level == "write", do: "can edit", else: "read only"}
+              <span class={["badge badge-sm shrink-0", level_badge(g.level)]}>
+                {level_label(g.level)}
               </span>
             </div>
             <p :if={@grants == []} class="p-4 text-sm text-base-content/60">

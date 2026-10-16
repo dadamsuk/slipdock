@@ -28,6 +28,8 @@ defmodule SlipdockWeb.BoardLive.PageComponent do
   # What a reader may do: close the panel. (Typing into a comment box they
   # can't post from changes nothing either.)
   @read_events ~w(close_page comment_change)
+  # A commenter (#863) joins the discussion as well, and changes nothing else.
+  @comment_events ~w(add_comment delete_comment add_status_update vote)
 
   @doc false
   # For the test that every `handle_event/3` clause is in the list.
@@ -59,15 +61,24 @@ defmodule SlipdockWeb.BoardLive.PageComponent do
 
     case load_placed_page(board, page_id) do
       {:ok, page} ->
+        level = Access.page_permission(user, page)
+
         assign(socket,
           item: page,
           form: to_form(Wiki.change_page(page, %{})),
           can_read: true,
-          can_write: Access.can_write?(Access.page_permission(user, page))
+          can_write: Access.can_write?(level),
+          can_comment: Access.can_comment?(level)
         )
 
       _ ->
-        assign(socket, item: nil, form: nil, can_read: false, can_write: false)
+        assign(socket,
+          item: nil,
+          form: nil,
+          can_read: false,
+          can_write: false,
+          can_comment: false
+        )
     end
   end
 
@@ -84,11 +95,17 @@ defmodule SlipdockWeb.BoardLive.PageComponent do
   def handle_event(event, _params, %{assigns: %{item: nil}} = socket) when event != "close_page",
     do: {:noreply, socket}
 
+  def handle_event(event, params, %{assigns: %{can_comment: true}} = socket)
+      when event in @comment_events,
+      do: dispatch(event, params, socket)
+
   def handle_event(event, _params, %{assigns: %{can_write: false}} = socket)
       when event not in @read_events,
       do: {:noreply, flash(socket, :error, "You have read-only access to that page.")}
 
-  def handle_event(event, params, socket) do
+  def handle_event(event, params, socket), do: dispatch(event, params, socket)
+
+  defp dispatch(event, params, socket) do
     if event in @own_events,
       do: event(event, params, socket),
       else: ItemEvents.handle(event, params, socket, &load/1)
@@ -202,6 +219,7 @@ defmodule SlipdockWeb.BoardLive.PageComponent do
         board={@board}
         users={@users}
         can_write={@can_write}
+        can_comment={@can_comment}
         current_user={@current_user}
         form_key={@form_key}
         target={@myself}
@@ -215,6 +233,7 @@ defmodule SlipdockWeb.BoardLive.PageComponent do
   attr :board, :any, required: true
   attr :users, :list, required: true
   attr :can_write, :boolean, required: true
+  attr :can_comment, :boolean, default: false
   attr :current_user, :any, default: nil
   attr :form_key, :integer, default: 0
   attr :target, :any, required: true
@@ -369,7 +388,13 @@ defmodule SlipdockWeb.BoardLive.PageComponent do
           id="page-panel-card-features"
           class="space-y-5 border-t border-base-300 pt-4"
         >
-          <.status_section target={@target} item={@page} can_write={@can_write} form_key={@form_key} />
+          <.status_section
+            target={@target}
+            item={@page}
+            can_write={@can_write}
+            can_comment={@can_comment}
+            form_key={@form_key}
+          />
           <.checklist_section
             target={@target}
             item={@page}
@@ -384,6 +409,7 @@ defmodule SlipdockWeb.BoardLive.PageComponent do
             board={@board}
             current_user={@current_user}
             can_write={@can_write}
+            can_comment={@can_comment}
           />
           <.comments_section
             target={@target}
@@ -391,6 +417,7 @@ defmodule SlipdockWeb.BoardLive.PageComponent do
             board={@board}
             current_user={@current_user}
             can_write={@can_write}
+            can_comment={@can_comment}
             form_key={@form_key}
           />
         </div>
