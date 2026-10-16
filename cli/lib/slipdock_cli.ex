@@ -259,11 +259,13 @@ defmodule SlipdockCLI do
     page publish <page> [--off]         read-only at a public link; its live queries are
                                         answered once, when you publish (publish again to
                                         refresh them). --off withdraws the link
-    page share <page> [EMAIL|GROUP] [--read|--write] [--off]
+    page share <page> [EMAIL|GROUP] [--read|--comment|--write] [--off]
                                         share it with a person (an email; a stranger is
-                                        invited) or a group of yours, read only (default) or
-                                        --write; --off takes it back; nobody named lists
-                                        who has it. Only its board's writers can share
+                                        invited) or a group of yours, read only (default),
+                                        --comment (read, comment, report a status, vote;
+                                        no edits) or --write; --off takes it back; nobody
+                                        named lists who has it. Only its board's writers
+                                        can share
     shared                              what other people have shared with you, by owner;
                                         `page read` and `page edit` take the codes it lists
     export [<board>...] [--out FILE]    whole board trees as one JSON document: lists, cards,
@@ -325,7 +327,7 @@ defmodule SlipdockCLI do
                                         only what is in it (the folder itself goes).
                                         --dry-run: what would move and what can't
     folder show <board> <folder>        one folder: its path, and where else it is filed
-    folder share <board> <folder> [EMAIL|GROUP] [--read|--write] [--off]
+    folder share <board> <folder> [EMAIL|GROUP] [--read|--comment|--write] [--off]
                                         share a folder and everything in it, subfolders and
                                         all, as `page share` does a page
     folder file <board> <folder> --also F | --not-in F [--board B]
@@ -751,6 +753,7 @@ defmodule SlipdockCLI do
     index: :integer,
     off: :boolean,
     read: :boolean,
+    comment: :boolean,
     write: :boolean,
     wip: :integer,
     category: :string,

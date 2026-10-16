@@ -5,7 +5,8 @@ defmodule SlipdockWeb.BoardLive.ItemEvents do
   links, custom field values and votes.
 
   `BoardLive.CardComponent` and `BoardLive.PageComponent` hand these over
-  once they have decided the reader may write to what they show. The socket
+  once they have decided the reader may write to what they show — or, for
+  the discussion (comments, status updates, votes), comment on it (#863). The socket
   is the component's, with the card or page in `item`, the board in `board`
   and the reader in `current_user`; `reload` puts a fresh copy of the item
   back. Anything named by id is looked up through the item, so it is only
@@ -78,8 +79,14 @@ defmodule SlipdockWeb.BoardLive.ItemEvents do
     {:noreply, socket |> update(:form_key, &(&1 + 1)) |> reload.()}
   end
 
+  # A writer takes back any comment; a commenter only their own (#863).
   def handle("delete_comment", %{"id" => id}, socket, _reload) do
-    if comment = Boards.get_comment(socket.assigns.item, id), do: Boards.delete_comment(comment)
+    %{item: item, current_user: user} = socket.assigns
+    comment = Boards.get_comment(item, id)
+
+    if comment && (socket.assigns[:can_write] || comment.user_id == user.id),
+      do: Boards.delete_comment(comment)
+
     {:noreply, socket}
   end
 

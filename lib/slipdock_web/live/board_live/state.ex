@@ -64,7 +64,7 @@ defmodule SlipdockWeb.BoardLive.State do
   # closes. What they may do with it is `BoardLive.CardComponent`'s to decide.
   def assign_card_access(%{assigns: %{card: %Card{} = card}} = socket) do
     %{current_user: user, view_only: view_only, swim: config, swim_view: view} = socket.assigns
-    {readable, _writable} = card_access(card, user, view_only, config, view)
+    {readable, _level} = card_access(card, user, view_only, config, view)
 
     if readable do
       socket

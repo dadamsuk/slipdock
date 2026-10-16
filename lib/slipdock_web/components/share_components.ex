@@ -36,12 +36,7 @@ defmodule SlipdockWeb.ShareComponents do
             {if Grant.subject_type(g) == :group, do: g.group.name, else: User.display_name(g.user)}
             <span :if={Grant.subject_type(g) == :user and g.user.name} class="text-base-content/50">· {g.user.email}</span>
           </span>
-          <span class={[
-            "badge badge-xs",
-            if(g.level == "write", do: "badge-primary", else: "badge-ghost")
-          ]}>
-            {if g.level == "write", do: "can edit", else: "read only"}
-          </span>
+          <span class={["badge badge-xs", level_badge(g.level)]}>{level_label(g.level)}</span>
           <button
             :if={@can_manage}
             phx-target={@target}
@@ -79,8 +74,13 @@ defmodule SlipdockWeb.ShareComponents do
           class="input input-xs w-44"
           autocomplete="off"
         />
-        <select name="level" class="select select-xs w-28">
+        <select
+          name="level"
+          class="select select-xs w-28"
+          title="Read only: look. Can comment: look, comment, report a status and vote. Can edit: change it."
+        >
           <option value="read">read only</option>
+          <option value="comment">can comment</option>
           <option value="write">can edit</option>
         </select>
         <button type="submit" class="btn btn-xs btn-primary">Share</button>
@@ -88,4 +88,14 @@ defmodule SlipdockWeb.ShareComponents do
     </div>
     """
   end
+
+  @doc "What a grant's level lets its holder do, in the words the share panel uses."
+  def level_label("write"), do: "can edit"
+  def level_label("comment"), do: "can comment"
+  def level_label(_), do: "read only"
+
+  @doc "The badge colour for a grant's level."
+  def level_badge("write"), do: "badge-primary"
+  def level_badge("comment"), do: "badge-secondary"
+  def level_badge(_), do: "badge-ghost"
 end

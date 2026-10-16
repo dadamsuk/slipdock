@@ -217,6 +217,11 @@ defmodule SlipdockWeb.ItemComponents do
   attr :board, :any, required: true
   attr :current_user, :any, default: nil
   attr :can_write, :boolean, required: true
+
+  attr :can_comment, :boolean,
+    default: nil,
+    doc: "may comment and take back their own comments (#863); defaults to `can_write`"
+
   attr :form_key, :integer, default: 0
   attr :section_key, :string, default: nil
   attr :uploads, :any, default: nil, doc: "when given, images can be pasted into a comment"
@@ -229,13 +234,14 @@ defmodule SlipdockWeb.ItemComponents do
   def comments_section(assigns) do
     # Looked up once for the list, not once per comment that mentions someone.
     assigns =
-      assign(
-        assigns,
+      assigns
+      |> assign(
         :members,
         if(Enum.any?(assigns.item.comments, &RichText.mentions?(&1.body)),
           do: Slipdock.Wiki.Links.members(assigns.board)
         )
       )
+      |> default_can_comment()
 
     ~H"""
     <section class="space-y-3 px-1" data-section-key={@section_key}>
@@ -246,7 +252,7 @@ defmodule SlipdockWeb.ItemComponents do
         <span :if={@item.comments != []} class="font-normal">({length(@item.comments)})</span>
       </h3>
       <form
-        :if={@can_write}
+        :if={@can_comment}
         phx-target={@target}
         id={dom_id("add-comment-#{@form_key}", @item)}
         phx-submit="add_comment"
@@ -305,7 +311,7 @@ defmodule SlipdockWeb.ItemComponents do
                 {relative_time(comment.inserted_at)}
               </span>
               <button
-                :if={@can_write}
+                :if={@can_write or (@can_comment and own?(comment, @current_user))}
                 phx-target={@target}
                 type="button"
                 class="btn btn-ghost btn-xs btn-square opacity-0 group-hover:opacity-100 no-hover:opacity-100"
@@ -330,18 +336,22 @@ defmodule SlipdockWeb.ItemComponents do
   attr :target, :any, default: nil, doc: "the LiveComponent the events go to"
   attr :item, :any, required: true
   attr :can_write, :boolean, required: true
+  attr :can_comment, :boolean, default: nil, doc: "may post an update; defaults to `can_write`"
   attr :form_key, :integer, default: 0
   attr :stated, :any, default: nil, doc: "the latest reported health, when already to hand"
 
   @doc "Reported health, and the last few updates."
   def status_section(assigns) do
-    assigns = assign_new(assigns, :stated, fn -> Boards.Card.stated_health(assigns.item) end)
+    assigns =
+      assigns
+      |> assign_new(:stated, fn -> Boards.Card.stated_health(assigns.item) end)
+      |> default_can_comment()
 
     ~H"""
     <div class="space-y-1.5" id={dom_id("card-status-updates", @item)}>
       <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Status updates</span>
       <form
-        :if={@can_write}
+        :if={@can_comment}
         phx-target={@target}
         id={dom_id("status-form-#{@form_key}", @item)}
         phx-submit="add_status_update"
@@ -508,6 +518,7 @@ defmodule SlipdockWeb.ItemComponents do
   attr :board, :any, required: true
   attr :current_user, :any, default: nil
   attr :can_write, :boolean, required: true
+  attr :can_comment, :boolean, default: nil, doc: "may vote; defaults to `can_write`"
 
   @doc """
   Budget voting on a card or a page. Both come out of the one budget, so the
@@ -519,6 +530,7 @@ defmodule SlipdockWeb.ItemComponents do
     root_id = Boards.root_of_board(assigns.board.id)
     spent = if user, do: Votes.spent(user, root_id), else: 0
     mine = if user, do: Votes.mine(assigns.item, user), else: 0
+    assigns = default_can_comment(assigns)
 
     assigns =
       assign(assigns,
@@ -527,7 +539,7 @@ defmodule SlipdockWeb.ItemComponents do
         mine: mine,
         left: max(budget - spent, 0),
         total: Boards.Card.vote_total(assigns.item),
-        can_add: mine < per_card and spent < budget and assigns.can_write
+        can_add: mine < per_card and spent < budget and assigns.can_comment
       )
 
     ~H"""
@@ -544,7 +556,7 @@ defmodule SlipdockWeb.ItemComponents do
             class="btn btn-xs join-item"
             phx-click="vote"
             phx-value-count={@mine - 1}
-            disabled={@mine == 0 or not @can_write}
+            disabled={@mine == 0 or not @can_comment}
             aria-label="One vote fewer"
           >
             −
@@ -569,6 +581,16 @@ defmodule SlipdockWeb.ItemComponents do
     </div>
     """
   end
+
+  # Whoever may write may also join the discussion; a section given only
+  # `can_write` takes that as its answer.
+  defp default_can_comment(%{can_comment: nil, can_write: can_write} = assigns),
+    do: assign(assigns, :can_comment, can_write)
+
+  defp default_can_comment(assigns), do: assigns
+
+  defp own?(%{user_id: id}, %Slipdock.Accounts.User{id: id}) when not is_nil(id), do: true
+  defp own?(_comment, _user), do: false
 
   # Who wrote a comment: nil for one from before authors were kept, or one
   # the system wrote (see `Slipdock.Boards.Comment`).

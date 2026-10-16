@@ -46,6 +46,17 @@ defmodule SlipdockCLI.ShareTest do
     assert JSON.decode!(body) == %{"group" => "Ops", "level" => "read"}
   end
 
+  test "--comment shares it to read and comment, not to edit (#863)" do
+    grant =
+      ~s({"grant":{"id":2,"level":"comment","user":{"email":"friend@example.com"},"group":null}})
+
+    out = run("page", ["share", "W-31", "friend@example.com"], [comment: true], [{201, grant}])
+
+    assert_received {:request, "POST", "/api/pages/W-31/grants", body}
+    assert JSON.decode!(body) == %{"email" => "friend@example.com", "level" => "comment"}
+    assert out =~ "shared with friend@example.com: can comment"
+  end
+
   test "--off takes the share back" do
     out =
       run("page", ["share", "W-31", "friend@example.com"], [off: true], [
@@ -60,12 +71,13 @@ defmodule SlipdockCLI.ShareTest do
 
   test "with nobody named, lists who has it" do
     grants =
-      ~s({"grants":[{"level":"read","user":{"email":"a@example.com"},"group":null},{"level":"write","user":null,"group":{"name":"Ops"}}]})
+      ~s({"grants":[{"level":"read","user":{"email":"a@example.com"},"group":null},{"level":"write","user":null,"group":{"name":"Ops"}},{"level":"comment","user":{"email":"c@example.com"},"group":null}]})
 
     out = run("page", ["share", "W-31"], [], [{200, grants}])
     assert_received {:request, "GET", "/api/pages/W-31/grants", _}
-    assert out =~ "read only a@example.com"
-    assert out =~ "can edit  group Ops"
+    assert out =~ "read only   a@example.com"
+    assert out =~ "can edit    group Ops"
+    assert out =~ "can comment c@example.com"
   end
 
   test "folder share finds the folder on its board, then shares it" do
@@ -83,7 +95,7 @@ defmodule SlipdockCLI.ShareTest do
 
   test "shared lists what is shared with you, by owner, with codes" do
     shared =
-      ~s({"shared":[{"owner":{"name":"Alice","email":"alice@example.com"},"items":[{"kind":"folder","name":"Specs","level":"read","folders":[],"pages":[{"kind":"page","code":"W-9","title":"Plan","level":"read"}],"files":[{"name":"chart.png"}]},{"kind":"page","code":"W-31","title":"Loose","level":"write"}]}]})
+      ~s({"shared":[{"owner":{"name":"Alice","email":"alice@example.com"},"items":[{"kind":"folder","name":"Specs","level":"read","folders":[],"pages":[{"kind":"page","code":"W-9","title":"Plan","level":"read"}],"files":[{"name":"chart.png"}]},{"kind":"page","code":"W-31","title":"Loose","level":"write"},{"kind":"page","code":"W-40","title":"Talk","level":"comment"}]}]})
 
     out = run("shared", [], [], [{200, shared}])
     assert_received {:request, "GET", "/api/shared", _}
@@ -93,6 +105,7 @@ defmodule SlipdockCLI.ShareTest do
     assert out =~ "chart.png"
     assert out =~ "Loose"
     assert out =~ "can edit"
+    assert out =~ ~r/Talk\s+can comment/
 
     assert run("shared", [], [], [{200, ~s({"shared":[]})}]) =~ "nothing is shared with you"
   end
