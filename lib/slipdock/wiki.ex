@@ -1636,28 +1636,19 @@ defmodule Slipdock.Wiki do
   defp render_template(nil, _bindings), do: nil
   defp render_template(text, bindings), do: Slipdock.Automations.Runner.render(text, bindings)
 
-  @doc false
-  # Called when a board is made from a template that carries pages.
-  def install_template_pages(%Board{} = board, %Slipdock.Boards.Template{} = template, owner_id) do
-    user = owner_id && Repo.get(User, owner_id)
+  @doc """
+  A page skeleton (a template's or a blueprint's: `title`, `body`, `summary`)
+  with its `{{board.name}}` and `{{today}}` placeholders filled in for
+  `board`. See `Slipdock.Blueprint.apply/3`, which makes the pages.
+  """
+  def render_skeleton(%Board{} = board, page) do
     bindings = bindings(board, nil, %{})
 
-    for page <- Slipdock.Boards.Template.normalize_pages(template.pages || []) do
-      create_page(
-        board,
-        %{
-          "title" => render_template(page["title"], bindings),
-          "body" => render_template(page["body"], bindings),
-          "summary" => render_template(page["summary"], bindings),
-          "template" => page["template"]
-        },
-        user: user,
-        via: "web",
-        message: "from the #{template.name} template"
-      )
-    end
-
-    :ok
+    %{
+      "title" => render_template(page["title"], bindings),
+      "body" => render_template(page["body"], bindings),
+      "summary" => render_template(page["summary"], bindings)
+    }
   end
 
   ## From a page to the work --------------------------------------------------
