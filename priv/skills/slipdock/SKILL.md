@@ -38,8 +38,11 @@ compare two versions, or `diff: true` for the latest save), and `revert_page` is
 `content_hash` as `base_hash`. `update_page` is `page edit --title/--summary`, `page mv`, `page file`,
 `page rm`/`page restore` (`archived`) and `page pin --card` (`pin_card`/`unpin_card`).
 `upload_file` is `attach` for a file of up to 10 MB (`content_base64`, or `text`), and
-`download_file` reads an attached file by its id (`get_card` and `read_page` list them). Anything
-the tools don't cover (automations, sprints, files over 10 MB,
+`download_file` reads an attached file by its id (`get_card` and `read_page` list them).
+`list_automations` is `automations`/`automation` (`vocabulary: true` adds what `automation-help`
+and `automation-presets` give), and `manage_automation` is `new-automation` (`action: create`),
+`set-automation` (`update`) and `delete-automation` (`delete`, with `confirm: true`). Anything
+the tools don't cover (running a rule now, callbacks and alerts, sprints, files over 10 MB,
 fields) is still the CLI or the API.
 
 ## If the CLI is not installed here

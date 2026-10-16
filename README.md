@@ -709,19 +709,19 @@ claude mcp add --transport http slipdock https://your-server/mcp \
   --header "Authorization: Bearer <token>"
 ```
 
-The client gets 43 tools — `whoami`, `get_guide` (a short guide that names
+The client gets 45 tools — `whoami`, `get_guide` (a short guide that names
 the rest of its sections, one call each with `section`), `list_boards`, `get_board`,
 `list_cards` (with `full: true`, every card as `get_card` gives it), `get_card`,
 `search`, `ask` (a question in prose, answered from the boards with what it read — a model call on your AI key, so slower), `read_page`, `list_pages` (a board's wiki, flat or as a tree), `page_info` (a page's links or heading paths,
 a board's wanted pages, or whether a title has a page), `page_history` (a page's revisions,
 the diff one save made, or between any two), `list_vaults` (your vaults, or where a vault path lands), `activity`
-(a board's log, or one card's) and `download_file` (a card's or page's attached file: text as text, an image as an image) to read; `create_card`,
+(a board's log, or one card's), `download_file` (a card's or page's attached file: text as text, an image as an image) and `list_automations` (a board's rules, owner only, with the spec grammar on request) to read; `create_card`,
 `update_card`, `move_card`, `comment`, `upload_file` (attach a file of up to 10 MB to a card or page), `complete_card`, `status_update` (a card's stated health, with a note), `archive_card`,
 `delete_card`, `create_list`, `create_tag`, `delete_list`, `create_board`, `archive_board`,
 `delete_board`, `write_page`, `update_page` (rename, summary, move, file, archive or
 restore, pin to a card), `file_folder` (file a wiki folder in other folders as well as
 its home), `share` (share a wiki page or folder with a person or group, or take it
-back; `list_pages` with `shared` lists what is shared with you), `revert_page` (put a page back to a revision) and `manage_vault` (make a vault, map vault paths onto board wikis, move a folder to another board, give a vault folder its own board) to write, and
+back; `list_pages` with `shared` lists what is shared with you), `revert_page` (put a page back to a revision) and `manage_vault` (make a vault, map vault paths onto board wikis, move a folder to another board, give a vault folder its own board) and `manage_automation` (add, change or delete a board's automation rule, from a spec, a preset or a sentence) to write, and
 `claim_job`, `job_progress` and `finish_job` to take [runner jobs](#run-an-agent-against-a-board)
 from a board's queue, and — only while an admin has meeting mode on — `capture_meeting`,
 `get_capture`, `resolve_capture_question` and `commit_capture` for meeting capture
