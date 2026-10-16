@@ -65,14 +65,16 @@ defmodule Slipdock.NothingPersonalTest do
     File.mkdir_p!(dir)
     on_exit(fn -> File.rm_rf!(dir) end)
     {_, pattern, _} = hd(@forbidden)
+    # Put together here, so this file doesn't carry the address it tests for.
+    address = Enum.join(["someone", "real-domain.io"], "@")
 
     bytes = Path.join(dir, "clip.mp4")
-    File.write!(bytes, <<0xFF, 0xFE, "someone@real-domain.io", 0xC3>>)
+    File.write!(bytes, <<0xFF, 0xFE, address::binary, 0xC3>>)
     assert lines_matching(bytes, pattern) == []
 
     text = Path.join(dir, "notes.md")
-    File.write!(text, "fine\nmail someone@real-domain.io\n")
-    assert lines_matching(text, pattern) == [{2, "mail someone@real-domain.io"}]
+    File.write!(text, "fine\nmail #{address}\n")
+    assert lines_matching(text, pattern) == [{2, "mail #{address}"}]
 
     assert lines_matching(Path.join(dir, "missing.txt"), pattern) == []
   end
