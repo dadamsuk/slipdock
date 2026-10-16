@@ -94,26 +94,62 @@ defmodule Slipdock.Skills.ChatGPT do
   def zip(name, base_url) do
     with {:ok, skill_md} <- skill_md(name, base_url),
          %{files: files} <- Skills.get(name) do
-      entries =
-        for file <- files do
-          text =
-            if file == "SKILL.md" do
-              skill_md
-            else
-              {:ok, text} = Skills.read(name, file)
-              text
-            end
+      files
+      |> Enum.map(fn
+        "SKILL.md" ->
+          {"SKILL.md", skill_md}
 
-          {String.to_charlist(Path.join(name, file)), text}
-        end
-
-      case :zip.create(~c"#{name}.zip", entries, [:memory]) do
-        {:ok, {_, bytes}} -> {:ok, bytes}
-        _ -> {:error, :unavailable}
-      end
+        file ->
+          {:ok, text} = Skills.read(name, file)
+          {file, text}
+      end)
+      |> then(&zip_files(name, &1))
     else
       _ -> {:error, :not_found}
     end
+  end
+
+  @doc """
+  A skill that is not one of this server's own — one a Tool carries (see
+  `Slipdock.Tools`) — as ChatGPT's upload takes it: `files` as `{path,
+  contents}` within the skill's folder. Its `SKILL.md` gets a short note on
+  reaching the board through the connector, since a Tool's skill may talk in
+  CLI commands or in tool names.
+  """
+  def zip_skill(name, files, base_url) do
+    files
+    |> Enum.map(fn
+      {"SKILL.md", text} ->
+        {front, body} = split_front_matter(text)
+        {"SKILL.md", front <> connector_note(base_url) <> body}
+
+      other ->
+        other
+    end)
+    |> then(&zip_files(name, &1))
+  end
+
+  @doc "`files` (`{path, contents}`) as a `.zip` with them under `<name>/`."
+  def zip_files(name, files) do
+    entries = for {file, text} <- files, do: {String.to_charlist(Path.join(name, file)), text}
+
+    case :zip.create(~c"#{name}.zip", entries, [:memory]) do
+      {:ok, {_, bytes}} -> {:ok, bytes}
+      _ -> {:error, :unavailable}
+    end
+  end
+
+  defp connector_note(base_url) do
+    """
+
+    ## Using this in ChatGPT
+
+    Everything this skill does on the board goes through the **Slipdock
+    connector**, at `#{base_url}/mcp`. If its tools aren't available, ask the
+    person to add it (Settings → Apps & Connectors, with that address) and
+    sign in when Slipdock asks. Read any `slipdock …` command below as the
+    connector tool that does the same thing; `get_guide` lists them.
+    """
   end
 
   # The front matter stays first, because that's where ChatGPT reads the name

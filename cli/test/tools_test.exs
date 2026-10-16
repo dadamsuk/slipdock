@@ -107,4 +107,72 @@ defmodule SlipdockCLI.ToolsTest do
     assert_received {:request, "POST", "/api/tools/demo/install", "{}"}
     assert out =~ "already have board demo"
   end
+
+  defp sha(files) do
+    files
+    |> Enum.reduce(:crypto.hash_init(:sha256), fn {f, t}, acc ->
+      :crypto.hash_update(acc, f <> "\0" <> t)
+    end)
+    |> :crypto.hash_final()
+    |> Base.encode16(case: :lower)
+    |> String.slice(0, 16)
+  end
+
+  defp skills_tar(entries) do
+    path = Path.join(System.tmp_dir!(), "t-#{System.unique_integer([:positive])}.tar.gz")
+
+    :ok =
+      :erl_tar.create(
+        String.to_charlist(path),
+        Enum.map(entries, fn {p, c} -> {String.to_charlist(p), c} end),
+        [:compressed, :write]
+      )
+
+    bytes = File.read!(path)
+    File.rm!(path)
+    bytes
+  end
+
+  defp tool_json(sha) do
+    ~s({"tool":{"name":"demo","title":"Demo","version":"1.0.0","board":{"lists":[]},"installed":null,) <>
+      ~s("skills":[{"name":"demo","sha":"#{sha}","files":["SKILL.md","run.sh"]}]}})
+  end
+
+  test "install unpacks the skills into --dir and points at the board", %{home: home} do
+    files = [{"SKILL.md", "skill"}, {"run.sh", "echo"}]
+    tar = skills_tar([{"demo/SKILL.md", "skill"}, {"demo/run.sh", "echo"}])
+    System.put_env("SLIPDOCK_URL", FakeServer.start([{200, tool_json(sha(files))}, {200, tar}]))
+    dir = Path.join(home, "skills")
+
+    out = capture_io(fn -> Tools.run("tools", ["install", "demo"], dir: dir) end)
+
+    assert_received {:request, "GET", "/api/tools/demo", _}
+    assert_received {:request, "GET", "/api/tools/demo/skills.tar.gz?version=1.0.0", _}
+    assert File.read!(Path.join(dir, "demo/SKILL.md")) == "skill"
+    assert File.read!(Path.join(dir, "demo/run.sh")) == "echo"
+    assert out =~ "installed demo 1.0.0: 1 skill(s), 2 file(s)"
+    assert out =~ "ask your agent to set up Demo"
+  end
+
+  test "check says current, then behind once a file changes", %{home: home} do
+    dir = Path.join(home, "skills")
+    File.mkdir_p!(Path.join(dir, "demo"))
+    File.write!(Path.join(dir, "demo/SKILL.md"), "skill")
+    File.write!(Path.join(dir, "demo/run.sh"), "echo")
+    good = sha([{"SKILL.md", "skill"}, {"run.sh", "echo"}])
+
+    System.put_env("SLIPDOCK_URL", FakeServer.start([{200, tool_json(good)}]))
+    out = capture_io(fn -> Tools.run("tools", ["check", "demo"], dir: dir) end)
+    assert out =~ "current"
+
+    File.write!(Path.join(dir, "demo/run.sh"), "echo changed")
+    System.put_env("SLIPDOCK_URL", FakeServer.start([{200, tool_json(good)}]))
+    out = capture_io(fn -> Tools.run("tools", ["check", "demo"], dir: dir) end)
+    assert out =~ "behind"
+
+    File.rm_rf!(Path.join(dir, "demo"))
+    System.put_env("SLIPDOCK_URL", FakeServer.start([{200, tool_json(good)}]))
+    out = capture_io(fn -> Tools.run("tools", ["check", "demo"], dir: dir) end)
+    assert out =~ "not installed"
+  end
 end

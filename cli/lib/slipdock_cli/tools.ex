@@ -15,6 +15,7 @@ defmodule SlipdockCLI.Tools do
   def commands, do: @commands
 
   @usage "usage: slipdock tools | tools show <name> [--version V] | tools publish <dir> | " <>
+           "tools install <name> [--dir D] | tools check [<name>...] | " <>
            "tools install-board <name> [--version V] [--name N]"
 
   def run("tools", [], o) do
@@ -63,6 +64,78 @@ defmodule SlipdockCLI.Tools do
     end)
   end
 
+  # The skills and their local files, unpacked into ~/.claude/skills (or
+  # --dir). Every path is checked to stay inside it before anything is
+  # written: a package is somebody else's.
+  def run("tools", ["install", name], o) do
+    dir = skills_dir(o)
+    {:ok, %{"tool" => tool}} = checked(HTTP.get("/tools/#{enc(name)}", version_query(o)))
+    query = [version: tool["version"]]
+
+    bytes =
+      case HTTP.get("/tools/#{enc(name)}/skills.tar.gz", query) do
+        {:ok, %{"raw" => bytes}} -> bytes
+        other -> checked(other)
+      end
+
+    {:ok, entries} = :erl_tar.extract({:binary, bytes}, [:compressed, :memory])
+
+    targets =
+      Enum.map(entries, fn {path, content} -> {contained!(dir, to_string(path)), content} end)
+
+    Enum.each(targets, fn {path, content} ->
+      File.mkdir_p!(Path.dirname(path))
+      File.write!(path, content)
+    end)
+
+    if o[:json] do
+      Render.json(%{"installed" => Enum.map(targets, &elem(&1, 0)), "dir" => dir, "tool" => tool})
+    else
+      IO.puts(
+        "installed #{tool["name"]} #{tool["version"]}: #{length(tool["skills"])} skill(s), " <>
+          "#{length(targets)} file(s), into #{dir}"
+      )
+
+      Enum.each(tool["skills"], fn s -> IO.puts("  #{s["name"]}  " <> Render.dim(s["sha"])) end)
+
+      if tool["board"] && is_nil(tool["installed"]) do
+        IO.puts(
+          "It comes with a board: ask your agent to set up #{tool["title"]}, or run " <>
+            "`slipdock tools install-board #{tool["name"]}`."
+        )
+      end
+    end
+  end
+
+  def run("tools", ["check" | names], o) do
+    dir = skills_dir(o)
+
+    tools =
+      case names do
+        [] -> HTTP.get("/tools") |> checked() |> elem(1) |> Map.fetch!("tools")
+        names -> Enum.map(names, &%{"name" => &1})
+      end
+
+    rows =
+      for %{"name" => name} <- tools,
+          {:ok, %{"tool" => tool}} = checked(HTTP.get("/tools/#{enc(name)}")),
+          skill <- tool["skills"] || [],
+          names != [] or File.exists?(Path.join([dir, skill["name"], "SKILL.md"])) do
+        state =
+          cond do
+            not File.exists?(Path.join([dir, skill["name"], "SKILL.md"])) -> "not installed"
+            skill_current?(dir, skill) -> "current"
+            true -> "behind — run `slipdock tools install #{name}`"
+          end
+
+        [name, skill["name"], tool["version"], state]
+      end
+
+    if o[:json],
+      do: Render.json(%{"skills" => rows, "dir" => dir}),
+      else: Render.table(["TOOL", "SKILL", "SERVER", "LOCAL COPY"], Render.scrub(rows))
+  end
+
   def run("tools", _args, _o), do: fail(@usage)
 
   def run(cmd, _args, _o), do: bad_usage(cmd)
@@ -90,6 +163,28 @@ defmodule SlipdockCLI.Tools do
     after
       File.rm(path)
     end
+  end
+
+  defp skills_dir(o), do: o[:dir] || Path.join([HTTP.home(), ".claude", "skills"])
+
+  # A request's answer, or the CLI's usual error for it (which exits).
+  defp checked({:ok, _} = ok), do: ok
+  defp checked(error), do: out(error, [], fn _ -> :ok end)
+
+  # The same sha the server computes (`Slipdock.Skills.digest/1`): over each
+  # file of the skill, in the order the server lists them.
+  defp skill_current?(dir, skill) do
+    skill["files"]
+    |> Enum.reduce(:crypto.hash_init(:sha256), fn file, acc ->
+      case File.read(Path.join([dir, skill["name"], file])) do
+        {:ok, text} -> :crypto.hash_update(acc, file <> "\0" <> text)
+        _ -> acc
+      end
+    end)
+    |> :crypto.hash_final()
+    |> Base.encode16(case: :lower)
+    |> String.slice(0, 16)
+    |> Kernel.==(skill["sha"])
   end
 
   defp put_opt(map, _key, nil), do: map
