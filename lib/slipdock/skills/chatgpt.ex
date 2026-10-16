@@ -41,6 +41,8 @@ defmodule Slipdock.Skills.ChatGPT do
     {"new-tag <board> <name>", "create_tag"},
     {"new-board", "create_board"},
     {"archive-board / restore-board", "archive_board"},
+    {"automations / automation / automation-help / automation-presets", "list_automations"},
+    {"new-automation / set-automation / delete-automation", "manage_automation"},
     {"activity", "activity"},
     {"search <query>", "search"},
     {"page ls / page tree / wiki", "list_pages"},
@@ -157,7 +159,7 @@ defmodule Slipdock.Skills.ChatGPT do
     The `capture` tools are there only while the server's admin has meeting
     mode on.
 
-    A few things the skill mentions have no tool: automations, runners and
+    A few things the skill mentions have no tool: running an automation now, its callbacks and alerts, runners and
     their setup, views, swimlanes, files over 10 MB (meeting recordings,
     mostly — send a transcript instead) and transcribing them, folders, tags on a board, `slipdock
     auth` and anything under `slipdock admin`. For those, say

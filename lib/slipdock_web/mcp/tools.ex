@@ -26,6 +26,7 @@ defmodule SlipdockWeb.MCP.Tools do
     Tools.ListVaults,
     Tools.Activity,
     Tools.DownloadFile,
+    Tools.ListAutomations,
     Tools.CreateCard,
     Tools.UpdateCard,
     Tools.MoveCard,
@@ -47,6 +48,7 @@ defmodule SlipdockWeb.MCP.Tools do
     Tools.Share,
     Tools.RevertPage,
     Tools.ManageVault,
+    Tools.ManageAutomation,
     Tools.ClaimJob,
     Tools.JobProgress,
     Tools.FinishJob

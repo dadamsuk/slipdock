@@ -193,7 +193,7 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
           connects gets a small set of tools: reading boards, cards, pages and the guide,
           searching, adding, updating, moving, commenting on, completing, archiving and deleting
           cards (dependencies and checklists too), uploading and downloading their files, adding and deleting lists, making, archiving
-          and deleting boards, writing pages, and sharing a page or folder with somebody
+          and deleting boards, writing pages, managing a board's automations, and sharing a page or folder with somebody
           (<code>share</code>; <code>list_pages</code>
           with <code>shared</code>
           lists what is shared with you). Deleting has to be confirmed in the call.

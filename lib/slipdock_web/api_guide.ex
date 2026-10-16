@@ -496,7 +496,7 @@ defmodule SlipdockWeb.APIGuide do
     `diff` the change one save made, and with `against` the
     change between any two), `activity` (the
     board's log, or with `card` one card's), `download_file` (a file, by
-    attachment id), and for
+    attachment id), `list_automations`, and for
     writing `create_card`, `update_card` (fields, flags, tags, assignees,
     dependencies and the checklist), `move_card` (to another board too),
     `comment`, `upload_file` (up to 10 MB, onto a
@@ -508,7 +508,8 @@ defmodule SlipdockWeb.APIGuide do
     restore), `delete_board`, `write_page`, `update_page` (a page's
     title, summary, parent, position and folder, archiving and restoring it,
     and pinning it to a card) and `revert_page` (a page
-    back to a revision, as a new one, against `base_hash`), and `claim_job`,
+    back to a revision, as a new one, against `base_hash`),
+    `manage_automation` (owner only), and `claim_job`,
     `job_progress` and `finish_job` to take runner jobs from a board's
     queue (see "Runners" below). Archiving is the undoable way
     to put something away; the deletes are not undoable, so `delete_card`

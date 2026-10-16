@@ -465,7 +465,8 @@ defmodule SlipdockWeb.HelpLive.Agents do
         cards, the guide and wiki pages; searching and asking; creating, updating, moving,
         commenting on, completing, archiving and deleting cards; uploading and downloading the
         files on cards and pages; lists, tags and boards;
-        writing, sharing and reverting pages; and taking runner jobs. The tools go through the same
+        writing, sharing and reverting pages; listing, adding, changing and deleting a board's
+        automations, for its owner; and taking runner jobs. The tools go through the same
         permission checks as the API, so a connection can't do anything its token couldn't.
       </p>
       <p>
@@ -526,7 +527,10 @@ defmodule SlipdockWeb.HelpLive.Agents do
           <.link patch={~p"/help/agents/cli"} class="link">CLI</.link>
           or the API.
         </li>
-        <li>Set up automations or runners. Do that on the board, or with the CLI.</li>
+        <li>
+          Set up runners, or run an automation now and read its callbacks. Do that on the
+          board, or with the CLI.
+        </li>
         <li>Mirror a vault to a folder on disk. Only the CLI does that.</li>
       </ul>
     </.part>
