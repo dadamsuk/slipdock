@@ -218,6 +218,59 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
       assert Slipdock.Wiki.attachments(ctx.page) == []
     end
 
+    test "base64 with a run repeated mid-string decodes as sent: longer, and only a sha256 tells (#1018)",
+         ctx do
+      # The second file damaged on 2026-10-16: 8 bytes longer, wrong from
+      # offset ~4085 to the end. Eleven base64 characters said twice by the
+      # model do exactly that, and the server decodes what it was given.
+      bytes = :crypto.strong_rand_bytes(9_834)
+      b64 = Base.encode64(bytes)
+      at = div(4_085, 3) * 4
+      repeated = binary_part(b64, 0, at + 11) <> binary_part(b64, at, byte_size(b64) - at)
+      hash = :crypto.hash(:sha256, bytes) |> Base.encode16(case: :lower)
+
+      assert ctx.conn
+             |> call("upload_file", %{
+               card: ctx.card.id,
+               filename: "long.bin",
+               content_base64: repeated,
+               sha256: hash
+             })
+             |> error!() =~ "sha256_mismatch: the file arrived as 9842 bytes"
+
+      assert card_files(ctx.card) == []
+
+      %{"attachment" => a} =
+        upload!(ctx.conn, %{card: ctx.card.id, filename: "long.bin", content_base64: repeated})
+
+      assert a["size"] == 9_842
+      [stored] = card_files(ctx.card)
+      got = File.read!(Boards.attachment_path(stored))
+      assert binary_part(got, 0, 4_080) == binary_part(bytes, 0, 4_080)
+      refute binary_part(got, 4_096, 5_738) == binary_part(bytes, 4_096, 5_738)
+    end
+
+    test "base64 made outside a model comes back byte for byte, wrapped or not (#1018)", ctx do
+      # The control experiment, as run against production: no model, so no damage.
+      bytes = :crypto.strong_rand_bytes(1_048_576)
+      b64 = Base.encode64(bytes)
+
+      for {name, b64} <- [
+            {"flat.bin", b64},
+            {"wrapped.bin", ~r/.{1,76}/ |> Regex.scan(b64) |> Enum.join("\n")}
+          ] do
+        %{"attachment" => a} =
+          upload!(ctx.conn, %{card: ctx.card.id, filename: name, content_base64: b64})
+
+        assert a["size"] == byte_size(bytes)
+
+        %{"content" => [_, %{"type" => "resource", "resource" => %{"blob" => blob}}]} =
+          call(ctx.conn, "download_file", %{attachment: a["id"]})
+
+        assert Base.decode64!(blob) == bytes
+      end
+    end
+
     test "a file over the limit is refused before it is stored", ctx do
       big = String.duplicate("x", UploadFile.max_bytes() + 1)
 
