@@ -1122,6 +1122,10 @@ defmodule Slipdock.Boards do
         put_attr(attrs, key || attr_key(attrs, "code"), suggest_code(name, board && board.id))
 
       true ->
+        # A code given by hand is held too, so a code derived from a name in
+        # another running test steps around it rather than waiting on this
+        # board (#833). The given code is kept either way.
+        _ = claimed_elsewhere?(:code, Board.sanitize_code(given))
         attrs
     end
   end
