@@ -156,11 +156,24 @@ defmodule Slipdock.Skills do
 
   defp sha(root, files) do
     files
-    |> Enum.reduce(:crypto.hash_init(:sha256), fn file, acc ->
+    |> Enum.flat_map(fn file ->
       case File.read(Path.join(root, file)) do
-        {:ok, text} -> :crypto.hash_update(acc, file <> "\0" <> text)
-        _ -> acc
+        {:ok, text} -> [{file, text}]
+        _ -> []
       end
+    end)
+    |> digest()
+  end
+
+  @doc """
+  The sha of a skill: over each `{path, contents}` in order, as
+  `slipdock skills check` (and `slipdock tools check`) recompute it from the
+  files on disk. Skills a Tool carries (`Slipdock.Tools`) use it too.
+  """
+  def digest(files) do
+    files
+    |> Enum.reduce(:crypto.hash_init(:sha256), fn {file, text}, acc ->
+      :crypto.hash_update(acc, file <> "\0" <> text)
     end)
     |> :crypto.hash_final()
     |> Base.encode16(case: :lower)

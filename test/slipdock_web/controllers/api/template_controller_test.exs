@@ -177,5 +177,40 @@ defmodule SlipdockWeb.API.TemplateControllerTest do
     end
   end
 
+  describe "blueprint extras (#959)" do
+    test "a template takes folders, tags, pages and rules, and refuses a bad recipe", %{
+      conn: conn
+    } do
+      body =
+        conn
+        |> json_conn()
+        |> post("/api/templates", %{
+          "name" => uniq("Extras"),
+          "columns" => ["To Do", "Done"],
+          "folders" => ["Notes"],
+          "tags" => ["bug"],
+          "pages" => [%{"title" => "Read me", "folder" => "Notes"}],
+          "automations" => [%{"preset" => "follow_list", "params" => %{"column" => "Done"}}]
+        })
+        |> json_response(201)
+
+      assert %{"folders" => ["Notes"], "tags" => [%{"name" => "bug"}]} = body["template"]
+      assert [%{"title" => "Read me", "folder" => "Notes"}] = body["template"]["pages"]
+      assert [%{"preset" => "follow_list"}] = body["template"]["automations"]
+
+      bad =
+        conn
+        |> json_conn()
+        |> post("/api/templates", %{
+          "name" => uniq("Bad"),
+          "columns" => ["A"],
+          "automations" => [%{"preset" => "nope"}]
+        })
+        |> json_response(422)
+
+      assert inspect(bad["details"]) =~ "unknown preset"
+    end
+  end
+
   defp names(%{"templates" => templates}), do: Enum.map(templates, & &1["name"])
 end

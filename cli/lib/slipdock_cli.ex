@@ -12,6 +12,7 @@ defmodule SlipdockCLI do
     Runners,
     Skills,
     Sync,
+    Tools,
     Util,
     Vaults,
     Wiki
@@ -445,6 +446,15 @@ defmodule SlipdockCLI do
     skills check                        say whether the local copies are behind
     skills chatgpt [--dir D]            save ChatGPT's versions, one zip per skill, here (or D)
 
+  TOOLS  (packages of docs, files, a board and skills that people on this server share)
+    tools                               the Tools you can see: yours, shared with you, listed
+    tools show <name> [--version V]     what one holds: its board, skills, files and versions
+    tools publish <dir>                 pack the folder (tool.json, README.md, board.json,
+                                        skills/, files/) and publish it as a new version
+    tools install-board <name> [--version V] [--name N]
+                                        have the server build the Tool's board for you
+                                        (again: answers with the board you already have)
+
   MEETINGS  (meeting capture: off unless this server's admin turns it on, and
              every command here says "meeting mode is off on this server" until then)
     meetings                            whether meeting mode is on, and where it shows
@@ -822,6 +832,8 @@ defmodule SlipdockCLI do
     card: :string,
     page: :string,
     dir: :string,
+    # `slipdock tools show|install|install-board`: a version other than the latest.
+    version: :string,
     out: :string,
     overwrite: :boolean,
     before: :string,
@@ -914,7 +926,7 @@ defmodule SlipdockCLI do
 
   # Each area module lists the command names it answers to; the first that
   # claims a name gets every clause of it, so a name must live in one place.
-  @areas [Auth, Admin, Boards, Automations, Runners, Wiki, Vaults, Sync, Skills, Meetings]
+  @areas [Auth, Admin, Boards, Automations, Runners, Wiki, Vaults, Sync, Skills, Tools, Meetings]
 
   defp run(cmd, args, o) do
     case Enum.find(@areas, &(cmd in &1.commands())) do

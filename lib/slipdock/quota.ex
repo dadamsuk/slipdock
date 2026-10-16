@@ -181,7 +181,8 @@ defmodule Slipdock.Quota do
   def used(user_id, :storage) when is_integer(user_id) do
     (Repo.aggregate(owned_attachments(user_id), :sum, :size) || 0) +
       (Repo.one(from(f in owned_wiki_files(user_id), select: type(sum(f.size), :integer))) || 0) +
-      (Repo.one(from(c in owned_audio(user_id), select: type(sum(c.audio_size), :integer))) || 0)
+      (Repo.one(from(c in owned_audio(user_id), select: type(sum(c.audio_size), :integer))) || 0) +
+      Slipdock.Tools.storage_used(user_id)
   end
 
   def used(user_id, :boards) when is_integer(user_id) do

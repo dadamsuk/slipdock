@@ -49,6 +49,7 @@ defmodule SlipdockWeb.MCP.Tools do
     Tools.RevertPage,
     Tools.ManageVault,
     Tools.ManageAutomation,
+    Tools.InstallTool,
     Tools.ClaimJob,
     Tools.JobProgress,
     Tools.FinishJob
