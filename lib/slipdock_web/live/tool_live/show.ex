@@ -379,7 +379,6 @@ defmodule SlipdockWeb.ToolLive.Show do
                     >
                       {skill.name}.zip
                     </.link>
-                    <span class="text-base-content/50">— {skill.description}</span>
                   </li>
                 </ul>
               </li>
