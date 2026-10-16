@@ -31,6 +31,8 @@ defmodule Slipdock.Skills.ChatGPT do
     {"edit / flag / tag / blocked-by / check / tick", "update_card"},
     {"move <id> <list>", "move_card"},
     {"comment <id> <text>", "comment"},
+    {"attach <id> <file> (up to 10 MB)", "upload_file"},
+    {"attachments <id>, then one of the files", "download_file"},
     {"done <id>", "complete_card"},
     {"status <id> <health> [note]", "status_update"},
     {"archive <id>", "archive_card"},
@@ -156,8 +158,8 @@ defmodule Slipdock.Skills.ChatGPT do
     mode on.
 
     A few things the skill mentions have no tool: automations, runners and
-    their setup, views, swimlanes, attachments and files (meeting recordings
-    included — send a transcript instead), folders, tags on a board, `slipdock
+    their setup, views, swimlanes, files over 10 MB (meeting recordings,
+    mostly — send a transcript instead) and transcribing them, folders, tags on a board, `slipdock
     auth` and anything under `slipdock admin`. For those, say
     what you would have done and point the person to the board in the web app,
     at #{base_url}. Don't pretend a write landed when there was no tool to make

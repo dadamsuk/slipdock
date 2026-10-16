@@ -193,7 +193,7 @@ defmodule SlipdockWeb.MCP.TransportTest do
           jsonrpc: "2.0",
           id: 1,
           method: "ping",
-          params: %{pad: String.duplicate("x", 1_100_000)}
+          params: %{pad: String.duplicate("x", SlipdockWeb.MCP.Plug.max_body() + 1)}
         })
 
       assert conn |> raw(big) |> response(413)

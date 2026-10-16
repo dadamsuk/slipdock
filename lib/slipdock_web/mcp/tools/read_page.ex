@@ -50,9 +50,7 @@ defmodule SlipdockWeb.MCP.Tools.ReadPage do
     with {:ok, ref} <- Args.required(args, "page"),
          {:ok, board_ref} <- Args.optional(args, "board"),
          {:ok, page} <- find(ref, board_ref, auth),
-         :ok <- readable(page, context.user),
-         :ok <- Args.refusal(Authorize.page(auth, page, :read)),
-         :ok <- visible(page, context.user) do
+         :ok <- check(page, auth, :read) do
       page =
         Repo.preload(
           page,
@@ -81,6 +79,7 @@ defmodule SlipdockWeb.MCP.Tools.ReadPage do
          :checklist
        ])
        |> Map.merge(%{
+         attachments: page |> Wiki.attachments() |> Enum.map(&SlipdockWeb.API.Uploads.json/1),
          board: board(page.board_id),
          body: String.slice(body, 0, @max_body),
          truncated: String.length(body) > @max_body,
@@ -89,9 +88,24 @@ defmodule SlipdockWeb.MCP.Tools.ReadPage do
     end
   end
 
-  defp find(ref, nil, auth), do: lookup(Wiki.find_page(ref, as: auth.assigns.current_user))
+  @doc """
+  Whether `need` (`:read` or `:write`) is allowed on `page` through these
+  credentials. A page the reader can't see at all, or a draft that isn't
+  theirs, answers as if it were not there. Shared with the file tools.
+  """
+  def check(page, auth, need) do
+    user = auth.assigns.current_user
 
-  defp find(ref, board_ref, auth) do
+    with :ok <- readable(page, user),
+         :ok <- Args.refusal(Authorize.page(auth, page, need)) do
+      visible(page, user)
+    end
+  end
+
+  @doc "The page a tool's `page` (and `board`) argument names, or the refusal."
+  def find(ref, nil, auth), do: lookup(Wiki.find_page(ref, as: auth.assigns.current_user))
+
+  def find(ref, board_ref, auth) do
     with {:ok, board} <- Args.refusal(Authorize.fetch_board(auth, board_ref, :read)) do
       lookup(Wiki.find_page(board, ref))
     end

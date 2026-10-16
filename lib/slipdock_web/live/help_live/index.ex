@@ -599,7 +599,8 @@ defmodule SlipdockWeb.HelpLive.Index do
         This server is also an MCP server at <code>{@base_url}/mcp</code>. A client that
         connects gets a small set of tools that each do a whole step of the work: reading boards,
         cards, the guide and wiki pages; searching and asking; creating, updating, moving,
-        commenting on, completing, archiving and deleting cards; lists, tags and boards;
+        commenting on, completing, archiving and deleting cards; uploading and downloading the
+        files on cards and pages; lists, tags and boards;
         writing, sharing and reverting pages; and taking runner jobs. The tools go through the same
         permission checks as the API, so a connection can't do anything its token couldn't.
       </p>
@@ -657,7 +658,7 @@ defmodule SlipdockWeb.HelpLive.Index do
     <.part title="What it can't do">
       <ul class="list-disc space-y-1 pl-5">
         <li>
-          Upload attachments or recordings. Use the
+          Upload a file over 10 MB, such as most recordings, or transcribe one. Use the
           <.link patch={~p"/help/cli"} class="link">CLI</.link>
           or the API.
         </li>

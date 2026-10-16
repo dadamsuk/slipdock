@@ -36,8 +36,10 @@ does), and `read_page` reads one. `page_info` answers what `page links`, `page s
 rather than guessing the heading path. `page_history` is `page history` and `page diff` (`rev`, `rev` + `against` to
 compare two versions, or `diff: true` for the latest save), and `revert_page` is `page revert`: it needs the page's current
 `content_hash` as `base_hash`. `update_page` is `page edit --title/--summary`, `page mv`, `page file`,
-`page rm`/`page restore` (`archived`) and `page pin --card` (`pin_card`/`unpin_card`). Anything
-the tools don't cover (automations, sprints, attachments,
+`page rm`/`page restore` (`archived`) and `page pin --card` (`pin_card`/`unpin_card`).
+`upload_file` is `attach` for a file of up to 10 MB (`content_base64`, or `text`), and
+`download_file` reads an attached file by its id (`get_card` and `read_page` list them). Anything
+the tools don't cover (automations, sprints, files over 10 MB,
 fields) is still the CLI or the API.
 
 ## If the CLI is not installed here
