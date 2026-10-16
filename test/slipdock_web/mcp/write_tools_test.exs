@@ -551,6 +551,30 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
       ctx.conn |> call("comment", %{card: ctx.secret.id, body: "hi"}) |> error!()
       assert Repo.preload(Boards.get_card!(ctx.secret.id), :comments).comments == []
     end
+
+    test "a commenter may comment and report a status; a reader may not (#863)", ctx do
+      commenter = user_fixture("mcp.commenter@example.com")
+      reader = user_fixture("mcp.reader@example.com")
+      {:ok, _} = Slipdock.Access.grant(ctx.card, commenter, "comment", ctx.user)
+      {:ok, _} = Slipdock.Access.grant(ctx.card, reader, "read", ctx.user)
+
+      conn_as(commenter) |> call("comment", %{card: ctx.card.id, body: "Two cents"}) |> ok!()
+
+      conn_as(commenter)
+      |> call("status_update", %{card: ctx.card.id, health: "at_risk"})
+      |> ok!()
+
+      assert conn_as(commenter)
+             |> call("update_card", %{card: ctx.card.id, title: "Mine now"})
+             |> error!() =~ "edit"
+
+      assert conn_as(reader) |> call("comment", %{card: ctx.card.id, body: "Me too"}) |> error!() =~
+               "comment on this card"
+
+      card = Boards.get_card!(ctx.card.id)
+      assert card.title == "Existing"
+      assert Enum.map(card.comments, & &1.body) == ["Two cents"]
+    end
   end
 
   describe "status_update" do

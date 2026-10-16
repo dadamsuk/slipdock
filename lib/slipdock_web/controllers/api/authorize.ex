@@ -68,6 +68,10 @@ defmodule SlipdockWeb.API.Authorize do
   defp check({level, why}, :read, what),
     do: if(Access.can_read?(level), do: :ok, else: forbidden(what, "read", why))
 
+  # A commenter (#863) joins the discussion without editing the thing itself.
+  defp check({level, why}, :comment, what),
+    do: if(Access.can_comment?(level), do: :ok, else: forbidden(what, "comment on", why))
+
   defp check({level, why}, :write, what),
     do: if(Access.can_write?(level), do: :ok, else: forbidden(what, "edit", why))
 

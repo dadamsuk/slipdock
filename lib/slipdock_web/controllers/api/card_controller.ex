@@ -1,7 +1,8 @@
 defmodule SlipdockWeb.API.CardController do
   use SlipdockWeb, :controller
 
-  alias Slipdock.Boards
+  alias Slipdock.{Boards, Repo}
+  alias Slipdock.Boards.Comment
   alias Slipdock.Swimlanes.Config
   alias SlipdockWeb.API.Authorize
   alias SlipdockWeb.API.Uploads
@@ -125,9 +126,9 @@ defmodule SlipdockWeb.API.CardController do
   end
 
   # Anyone who can read a card can vote on it, but a vote's comment is text
-  # left on the card, so only someone who can write to it may leave one.
+  # left on the card, so only someone who may comment on it may leave one.
   defp vote_comment(conn, card, params) do
-    if Authorize.card(conn, card, :write) == :ok, do: params["comment"]
+    if Authorize.card(conn, card, :comment) == :ok, do: params["comment"]
   end
 
   def add_link(conn, %{"id" => id, "to" => to, "kind" => kind}) do
@@ -165,7 +166,7 @@ defmodule SlipdockWeb.API.CardController do
 
   def add_status_update(conn, %{"id" => id} = params) do
     with {:ok, card} <- fetch_card(id),
-         :ok <- Authorize.card(conn, card, :write),
+         :ok <- Authorize.card(conn, card, :comment),
          {:ok, _} <-
            Boards.add_status_update(
              card,
@@ -356,7 +357,7 @@ defmodule SlipdockWeb.API.CardController do
 
   def add_comment(conn, %{"id" => id, "body" => body}) do
     with {:ok, card} <- fetch_card(id),
-         :ok <- Authorize.card(conn, card, :write),
+         :ok <- Authorize.card(conn, card, :comment),
          {:ok, comment} <- Boards.add_comment(card, body, by: conn.assigns.current_user) do
       conn |> put_status(:created) |> json(%{comment: V.comment(comment)})
     end
@@ -489,9 +490,21 @@ defmodule SlipdockWeb.API.CardController do
     end
   end
 
+  # A writer deletes any comment; a commenter only their own (#863).
   def delete_comment(conn, %{"comment_id" => comment_id}) do
-    with :ok <- authorize_item(conn, Slipdock.Boards.Comment, comment_id),
+    with :ok <- authorize_comment_delete(conn, comment_id),
          do: do_delete_comment(conn, comment_id)
+  end
+
+  defp authorize_comment_delete(conn, comment_id) do
+    with {:error, :forbidden, _} = refused <- authorize_item(conn, Comment, comment_id) do
+      own? =
+        Repo.get(Comment, String.to_integer(comment_id)).user_id == conn.assigns.current_user.id
+
+      if own? and authorize_item(conn, Comment, comment_id, :comment) == :ok,
+        do: :ok,
+        else: refused
+    end
   end
 
   defp do_delete_comment(conn, comment_id) do
@@ -507,16 +520,16 @@ defmodule SlipdockWeb.API.CardController do
   # A checklist item or a comment hangs off a card *or* a wiki page (see
   # `Slipdock.Boards.Owned`), so the delete routes they share authorise
   # against whichever it is.
-  defp authorize_item(conn, schema, id) do
+  defp authorize_item(conn, schema, id, need \\ :write) do
     with {int, ""} <- Integer.parse(to_string(id)),
          %{} = row <- Slipdock.Repo.get(schema, int) do
       case Slipdock.Boards.Owned.owner_ref(row) do
         {:card, card_id} ->
-          with {:ok, card} <- fetch_card(card_id), do: Authorize.card(conn, card, :write)
+          with {:ok, card} <- fetch_card(card_id), do: Authorize.card(conn, card, need)
 
         {:page, page_id} ->
           with %Slipdock.Wiki.Page{} = page <- Slipdock.Wiki.get_page(page_id),
-               do: Authorize.page(conn, page, :write),
+               do: Authorize.page(conn, page, need),
                else: (_ -> {:error, :not_found, "item"})
       end
     else

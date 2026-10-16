@@ -49,7 +49,7 @@ defmodule SlipdockWeb.MCP.Tools.StatusUpdate do
          {:ok, health} <- Args.required(args, "health"),
          {:ok, body} <- Args.optional(args, "body"),
          {:ok, card} <- Args.refusal(CardWrites.fetch_card(id)),
-         :ok <- Args.refusal(Authorize.card(auth, card, :write)),
+         :ok <- Args.refusal(Authorize.card(auth, card, :comment)),
          {:ok, update} <-
            Args.refusal(
              Boards.add_status_update(card, context.user, %{"health" => health, "body" => body})

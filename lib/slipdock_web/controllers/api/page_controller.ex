@@ -1405,7 +1405,7 @@ defmodule SlipdockWeb.API.PageController do
 
   @doc "Comments on a page."
   def add_comment(conn, %{"id" => id, "body" => body}) do
-    with {:ok, page} <- fetch_page(conn, id, :write),
+    with {:ok, page} <- fetch_page(conn, id, :comment),
          {:ok, comment} <- Boards.add_comment(page, body, by: conn.assigns.current_user) do
       conn |> put_status(:created) |> json(%{comment: V.comment(comment)})
     end
@@ -1421,7 +1421,7 @@ defmodule SlipdockWeb.API.PageController do
 
   @doc "Reports what somebody believes about the page: on track, at risk, off track."
   def add_status_update(conn, %{"id" => id} = params) do
-    with {:ok, page} <- fetch_page(conn, id, :write),
+    with {:ok, page} <- fetch_page(conn, id, :comment),
          {:ok, _} <-
            Boards.add_status_update(
              page,
@@ -1533,9 +1533,9 @@ defmodule SlipdockWeb.API.PageController do
   end
 
   # Anyone who can read a page can vote on it, but a vote's comment is text
-  # left on the page, so only someone who can write to it may leave one.
+  # left on the page, so only someone who may comment on it may leave one.
   defp vote_comment(conn, page, params) do
-    if Authorize.page(conn, page, :write) == :ok, do: params["comment"]
+    if Authorize.page(conn, page, :comment) == :ok, do: params["comment"]
   end
 
   defp vote_count(n) when is_integer(n), do: {:ok, n}
