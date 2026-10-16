@@ -32,7 +32,16 @@ defmodule SlipdockWeb.API.ToolJSON do
       versions: tool |> Tools.versions() |> Enum.map(& &1.version),
       readme: version.readme,
       board: version.board,
-      skills: Tools.skills(version),
+      skills:
+        Enum.map(Tools.skills(version), fn skill ->
+          base = "/api/tools/#{tool.slug}/skills/#{skill.name}"
+
+          Map.merge(skill, %{
+            claude_zip: base <> "/claude.zip?version=#{version.version}",
+            chatgpt_zip: base <> "/chatgpt.zip?version=#{version.version}"
+          })
+        end),
+      skills_archive: "/api/tools/#{tool.slug}/skills.tar.gz?version=#{version.version}",
       files: Enum.map(manifest["files"] || [], &Map.take(&1, ["path", "install", "skill"])),
       size: version.size
     })

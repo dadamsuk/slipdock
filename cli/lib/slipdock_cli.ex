@@ -451,6 +451,10 @@ defmodule SlipdockCLI do
     tools show <name> [--version V]     what one holds: its board, skills, files and versions
     tools publish <dir>                 pack the folder (tool.json, README.md, board.json,
                                         skills/, files/) and publish it as a new version
+    tools install <name> [--version V] [--dir D]
+                                        put its skills, and the files that go beside them,
+                                        in ~/.claude/skills (or D)
+    tools check [<name>...]             say whether the installed Tool skills are behind
     tools install-board <name> [--version V] [--name N]
                                         have the server build the Tool's board for you
                                         (again: answers with the board you already have)

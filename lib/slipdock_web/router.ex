@@ -448,6 +448,11 @@ defmodule SlipdockWeb.Router do
     post "/tools", ToolController, :create
     get "/tools/:slug", ToolController, :show
     post "/tools/:slug/install", ToolController, :install
+    # A Tool's skills: all of them as one tar for a skills directory, or one
+    # as the zip claude.ai or ChatGPT takes (#962).
+    get "/tools/:slug/skills.tar.gz", ToolController, :skills_archive
+    get "/tools/:slug/skills/:skill/claude.zip", ToolController, :claude_zip
+    get "/tools/:slug/skills/:skill/chatgpt.zip", ToolController, :chatgpt_zip
     get "/me/drive", MeController, :drive
 
     # The caller's own OpenRouter key: what every AI feature spends for them.

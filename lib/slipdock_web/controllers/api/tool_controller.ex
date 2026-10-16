@@ -48,6 +48,53 @@ defmodule SlipdockWeb.API.ToolController do
     end
   end
 
+  @doc "Every skill of the Tool as one `.tar.gz`, laid out for a skills directory."
+  def skills_archive(conn, %{"slug" => slug} = params) do
+    with {:ok, version} <- version(conn, slug, params),
+         {:ok, bytes} <- Tools.skills_tarball(version) do
+      send_file_bytes(conn, "application/gzip", "#{slug}-skills.tar.gz", bytes)
+    end
+  end
+
+  @doc "One skill as the zip claude.ai's skill upload takes."
+  def claude_zip(conn, %{"slug" => slug, "skill" => skill} = params) do
+    with {:ok, version} <- version(conn, slug, params),
+         {:ok, bytes} <- skill_or_404(Tools.claude_zip(version, skill), skill) do
+      send_file_bytes(conn, "application/zip", "#{skill}.zip", bytes)
+    end
+  end
+
+  @doc "One skill as the zip ChatGPT's skill upload takes."
+  def chatgpt_zip(conn, %{"slug" => slug, "skill" => skill} = params) do
+    base_url = SlipdockWeb.BaseURL.from_conn(conn)
+
+    with {:ok, version} <- version(conn, slug, params),
+         {:ok, bytes} <- skill_or_404(Tools.chatgpt_zip(version, skill, base_url), skill) do
+      send_file_bytes(conn, "application/zip", "#{skill}.zip", bytes)
+    end
+  end
+
+  defp version(conn, slug, params) do
+    user = conn.assigns.current_user
+
+    with {:ok, tool} <- fetch(user, slug) do
+      case Tools.visible_version(user, tool, params["version"]) do
+        nil -> not_found(slug)
+        version -> {:ok, version}
+      end
+    end
+  end
+
+  defp skill_or_404({:ok, bytes}, _skill), do: {:ok, bytes}
+  defp skill_or_404(_, skill), do: {:error, :not_found, "skill #{inspect(skill)}"}
+
+  defp send_file_bytes(conn, type, filename, bytes) do
+    conn
+    |> put_resp_content_type(type)
+    |> put_resp_header("content-disposition", ~s(attachment; filename="#{filename}"))
+    |> send_resp(200, bytes)
+  end
+
   defp unscoped(%{scope_boards: [_ | _]}),
     do: {:error, :forbidden, "this token is confined to some boards, so it can't make one"}
 

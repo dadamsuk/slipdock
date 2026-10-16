@@ -243,6 +243,56 @@ defmodule Slipdock.Tools do
     end)
   end
 
+  @doc "One skill of `version` as `{:ok, [{path, bytes}]}`, or `{:error, :not_found}`."
+  def skill_files(%ToolVersion{} = version, name) do
+    case List.keyfind(skill_trees(version), name, 0) do
+      {^name, files} -> {:ok, files}
+      nil -> {:error, :not_found}
+    end
+  end
+
+  @doc """
+  Every skill of `version` as one gzipped tar, laid out the way a skills
+  directory is: `<skill>/SKILL.md`, `<skill>/references/…`, and the
+  package's `local` files beside the skill they belong to. What
+  `slipdock tools install` unpacks into `~/.claude/skills`.
+  """
+  def skills_tarball(%ToolVersion{} = version) do
+    entries =
+      for {name, files} <- skill_trees(version), {path, bytes} <- files do
+        {String.to_charlist(Path.join(name, path)), bytes}
+      end
+
+    path =
+      Path.join(System.tmp_dir!(), "tool-skills-#{System.unique_integer([:positive])}.tar.gz")
+
+    try do
+      with :ok <- :erl_tar.create(String.to_charlist(path), entries, [:compressed, :write]),
+           {:ok, bytes} <- File.read(path) do
+        {:ok, bytes}
+      else
+        _ -> {:error, :unavailable}
+      end
+    after
+      File.rm(path)
+    end
+  end
+
+  @doc """
+  One skill as the `.zip` claude.ai's skill upload takes (Settings →
+  Capabilities): `<skill>/SKILL.md` and the rest of its folder.
+  """
+  def claude_zip(%ToolVersion{} = version, name) do
+    with {:ok, files} <- skill_files(version, name),
+         do: Slipdock.Skills.ChatGPT.zip_files(name, files)
+  end
+
+  @doc "One skill as ChatGPT's skill upload takes it, with a note on the connector."
+  def chatgpt_zip(%ToolVersion{} = version, name, base_url) do
+    with {:ok, files} <- skill_files(version, name),
+         do: Slipdock.Skills.ChatGPT.zip_skill(name, files, base_url)
+  end
+
   defp skill_order({"SKILL.md", _}), do: ""
   defp skill_order({path, _}), do: path
 
