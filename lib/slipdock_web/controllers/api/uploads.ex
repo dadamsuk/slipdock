@@ -18,7 +18,8 @@ defmodule SlipdockWeb.API.Uploads do
   def take(%{"file" => %Plug.Upload{path: path, filename: name} = upload} = params) do
     filename = present(params["filename"]) || name
 
-    with {:ok, hide?} <- hide_on_card(params, false) do
+    with {:ok, hide?} <- hide_on_card(params, false),
+         :ok <- check_sha256({:path, path}, params["sha256"]) do
       {:ok,
        %{
          filename: filename,
@@ -49,6 +50,56 @@ defmodule SlipdockWeb.API.Uploads do
       _ -> {:error, :unprocessable_entity, "hide_on_card must be true or false"}
     end
   end
+
+  @doc """
+  The file, as bytes or `{:path, path}`, against the `sha256` the client sent
+  of it (#1014): `:ok` when they match or none was sent, else the 422 that
+  stores nothing. A file that
+  changed on the way, as base64 passed through a model's output can, keeps
+  its size often enough that only a hash tells.
+  """
+  def check_sha256(_file, nil), do: :ok
+
+  def check_sha256(file, given) when is_binary(given) do
+    expected = given |> String.trim() |> String.downcase()
+    {actual, size} = sha256(file)
+
+    cond do
+      not Regex.match?(~r/\A[0-9a-f]{64}\z/, expected) ->
+        {:error, :unprocessable_entity,
+         "sha256 must be 64 hex characters, the SHA-256 of the file"}
+
+      expected == actual ->
+        :ok
+
+      true ->
+        {:error, :unprocessable_entity,
+         "sha256_mismatch: the file arrived as #{size} bytes with sha256 #{actual}, " <>
+           "not the #{expected} you sent, so it changed on the way and nothing was stored. " <>
+           "Encode it again from the source file and resend."}
+    end
+  end
+
+  def check_sha256(_file, _given),
+    do:
+      {:error, :unprocessable_entity, "sha256 must be 64 hex characters, the SHA-256 of the file"}
+
+  # A multipart upload is on disk and can be big, so it is read a chunk at a time.
+  defp sha256({:path, path}) do
+    {ctx, size} =
+      path
+      |> File.stream!(1_048_576)
+      |> Enum.reduce({:crypto.hash_init(:sha256), 0}, fn chunk, {ctx, size} ->
+        {:crypto.hash_update(ctx, chunk), size + byte_size(chunk)}
+      end)
+
+    {hex(:crypto.hash_final(ctx)), size}
+  end
+
+  defp sha256(bytes) when is_binary(bytes),
+    do: {hex(:crypto.hash(:sha256, bytes)), byte_size(bytes)}
+
+  defp hex(digest), do: Base.encode16(digest, case: :lower)
 
   @doc "The attachment as the API shows it, with the Markdown that embeds or links it."
   def json(%Attachment{} = a) do

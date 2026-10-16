@@ -37,7 +37,9 @@ rather than guessing the heading path. `page_history` is `page history` and `pag
 compare two versions, or `diff: true` for the latest save), and `revert_page` is `page revert`: it needs the page's current
 `content_hash` as `base_hash`. `update_page` is `page edit --title/--summary`, `page mv`, `page file`,
 `page rm`/`page restore` (`archived`) and `page pin --card` (`pin_card`/`unpin_card`).
-`upload_file` is `attach` for a file of up to 10 MB (`content_base64`, or `text`), and
+`upload_file` is `attach` for a file of up to 10 MB (`content_base64`, or `text`). Always send
+`sha256` (hex, of the bytes before base64): base64 written out by a model can come out a bit
+wrong at the same size, and a `sha256_mismatch` refusal means re-encode and resend. And
 `download_file` reads an attached file by its id (`get_card` and `read_page` list them).
 `list_automations` is `automations`/`automation` (`vocabulary: true` adds what `automation-help`
 and `automation-presets` give), and `manage_automation` is `new-automation` (`action: create`),

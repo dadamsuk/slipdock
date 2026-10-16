@@ -417,7 +417,10 @@ defmodule SlipdockCLI.Boards do
 
       name = o[:name] || Path.basename(file)
 
-      fields = if o[:hide_on_card], do: [{"hide_on_card", "true"}], else: []
+      # The server checks what arrived against it (#1014) and stores nothing
+      # if they differ, so a file damaged on the way fails loudly.
+      fields = [{"sha256", sha256(file)}]
+      fields = if o[:hide_on_card], do: fields ++ [{"hide_on_card", "true"}], else: fields
 
       HTTP.post_multipart(item_path(id, "/attachments"), fields, [
         {"file", name, "application/octet-stream", {:path, file}}
@@ -912,6 +915,14 @@ defmodule SlipdockCLI.Boards do
   def run(cmd, _args, _o), do: bad_usage(cmd)
 
   ## Helpers ------------------------------------------------------------------
+
+  defp sha256(file) do
+    file
+    |> File.stream!(1_048_576)
+    |> Enum.reduce(:crypto.hash_init(:sha256), &:crypto.hash_update(&2, &1))
+    |> :crypto.hash_final()
+    |> Base.encode16(case: :lower)
+  end
 
   defp dependencies(id, others, key, o) do
     Enum.each(others, fn other ->

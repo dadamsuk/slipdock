@@ -500,7 +500,7 @@ defmodule SlipdockWeb.APIGuide do
     writing `create_card`, `update_card` (fields, flags, tags, assignees,
     dependencies and the checklist), `move_card` (to another board too),
     `comment`, `upload_file` (up to 10 MB, onto a
-    card or page), `complete_card`, `status_update` (a card's stated health —
+    card or page; send its `sha256`), `complete_card`, `status_update` (a card's stated health —
     `on_track`, `at_risk` or `off_track` — with a note, as
     `POST /api/cards/:id/status` takes it: the progress report on an epic),
     `archive_card` (and restore), `delete_card`,
@@ -665,7 +665,9 @@ defmodule SlipdockWeb.APIGuide do
       never reaches Slipdock — a person can still upload it in the browser,
       which sends it in chunks). Upload one as the multipart field `file`:
       `curl -H "$H" -F file=@shot.png B/api/cards/:id/attachments` (an optional
-      `filename` field renames it). The 201 carries the `attachment` with its
+      `filename` field renames it, and an optional `sha256` field, the hex
+      SHA-256 of the file, makes a file that arrives different a 422
+      `sha256_mismatch` with nothing stored; `slipdock attach` always sends it). The 201 carries the `attachment` with its
       `url` and a ready-made `markdown` — `![shot.png](/attachments/5/shot.png)`
       for an image, a plain link otherwise — to put in the description or a
       comment, where an image shows inline. `GET /api/cards/:id/attachments`
