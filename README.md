@@ -693,6 +693,34 @@ same, `slipdock runner ls|show|setup|token|rm` manage them, and `slipdock jobs
 <board>` shows what they're doing. The details are in
 [the manual](docs/manual.md#runners).
 
+## Tools
+
+A **Tool** is a ready-made way of working that somebody publishes on a server
+for the other people on it: a board blueprint (lists with their roles, wiki
+folders, tags, page skeletons and automation rules), the agent skills that
+use that board, files, and a README. The first is
+[`packages/job-scan`](packages/job-scan), an automated job search.
+
+- **The server builds the board.** Installing a Tool — `install_tool` over
+  MCP, `slipdock tools install-board`, or **Make the board** on its page — has
+  Slipdock build the board from the blueprint, the same way every time, and
+  answers with its code. A Tool's setup skill calls it first and then
+  interviews the person to fill the pages in. Installing again finds the same
+  board; installing a newer version adds what is missing and never
+  overwrites a page somebody edited.
+- **Every client.** A Tool's page at `/tools/<name>` walks through installing
+  it from claude.ai (a skill zip to upload), Claude Code
+  (`slipdock tools install <name>`) and ChatGPT (a zip that names the
+  connector's tools), each ending with "Set up … for me."
+- **Read before you run.** A Tool is instructions that run in someone else's
+  agent with their access, so its page shows every skill file in full before
+  anything is installed; versions are immutable and identified by a sha;
+  a Tool is private to its owner until shared by grant, and listing it for
+  everyone on the server takes an admin's approval of each version.
+
+`slipdock tools publish <folder>` publishes one. The package format is in
+[the manual](docs/manual.md#tools).
+
 ## Connecting an MCP client
 
 Every install is an MCP server at `https://your-server/mcp` (stateless

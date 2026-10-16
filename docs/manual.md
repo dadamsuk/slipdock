@@ -4383,10 +4383,113 @@ slipdock import boards.json                    # build the trees in it; always n
 slipdock import trello.json                    # a Trello board's JSON export works too
 slipdock skills | slipdock skills install | slipdock skills check   # the agent instructions this server ships
 slipdock skills chatgpt --dir ~/Downloads     # the same skills as zips for ChatGPT, which can't run this
+slipdock tools                                # the Tools you can see: yours, shared, listed
+slipdock tools show job-scan                  # its board, skills, files and versions
+slipdock tools publish ./my-tool              # pack a folder and publish it as a new version
+slipdock tools install job-scan               # its skills into ~/.claude/skills (--dir D)
+slipdock tools check                          # are the installed Tool skills behind?
+slipdock tools install-board job-scan         # have the server build its board (--name, --version)
+slipdock tools request-listing my-tool        # ask an admin to list a version for everyone
 slipdock favourites                            # what you keep going back to, with the URL of each
 slipdock fav list qvm-v1-rem "In Progress"     # also: fav card 42 | fav view <board> <view> | fav board <board>
 slipdock unfav list qvm-v1-rem "In Progress"   # or `fav ... --off`
 ```
+## Tools
+
+A Tool packages a way of working so other people on the same server can
+install it: a board blueprint, agent skills, files and docs (#958). Tools
+live at `/tools`; each has a page at `/tools/<name>`.
+
+### Installing
+
+The Tool's page renders its README, shows everything it would install — the
+board's lists (with their roles), folders, tags, pages and rules, its board
+files, and **every skill file in full** — and walks through installing it
+from claude.ai, Claude Code or ChatGPT. Every route ends with the person
+asking their agent to set the Tool up.
+
+The board is built by the server, never by an agent. `install_tool` (MCP),
+`POST /api/tools/<name>/install` (`version`, `name`), `slipdock tools
+install-board <name> [--version V] [--name N]` and **Make the board** on the
+page all call the same code: the lists are made with the categories their
+roles need, then the rest of the blueprint is applied
+(`Slipdock.Blueprint`), board files go into a wiki folder called `Tool`, and
+a `tool_installs` row records who installed which version onto which board.
+The answer is the board's code (`201` when made, `200` when it already
+existed). Installing again returns the same board. A Tool's skills find
+their board through that record: `list_tools` gives each Tool with
+`installed.board`.
+
+**Upgrading.** Installing a newer version over an install adds only what the
+board is missing — lists, folders, tags, pages, rules and files — and
+replaces a page only while its body is still exactly the installed version's
+skeleton, so an edited page is never touched. The answer has `upgraded: true`
+and says what was `added` and `skipped`. The same or an older version
+changes nothing.
+
+**Skills.** `GET /api/tools/<name>/skills.tar.gz` is every skill laid out
+for a skills directory (`local` files beside their skill), which `slipdock
+tools install <name> [--dir D]` unpacks; `slipdock tools check` compares the
+local copies by sha. Each skill is also `…/skills/<skill>/claude.zip` (for
+claude.ai's skill upload) and `…/skills/<skill>/chatgpt.zip` (with a note on
+the connector), and the page offers both through the browser session.
+
+### Publishing
+
+`slipdock tools publish <folder>` packs the folder and sends it to
+`POST /api/tools` (multipart field `package`, or an `application/gzip`
+body). A package is:
+
+```
+my-tool/
+  tool.json     name, version, summary; optionally title, author, requires, files
+  README.md     the docs, rendered as the Tool's page
+  board.json    optional: the board blueprint
+  skills/<name>/SKILL.md, and anything else under skills/<name>/
+  files/        optional: each listed in tool.json's files
+```
+
+- **`tool.json`**: `name` is lowercase letters, digits and dashes, and is
+  the Tool's address; the first person to publish a name owns it.
+  `version` is a version number and must be newer than the latest published;
+  a version never changes once published, and is identified by a sha over
+  every file. `summary` is one line (200 characters at most). `files` lists
+  each file under `files/` as `{"path", "install": "board"}` (into the
+  board's `Tool` folder) or `{"path", "install": "local", "skill"}` (beside
+  that skill's `SKILL.md`, on the installer's machine).
+- **`board.json`**: `lists` (a name, or `{"name", "role", "category",
+  "color", "wip_limit"}`; `role` is `ready`, `backlog`, `doing`, `done` or
+  `dropped`, sets the category, and is checked against how the server will
+  actually read the lists), `folders` (paths like `Config/Archive`), `tags`
+  (names or `{"name", "color"}`), `pages` (`{"title", "body", "summary",
+  "folder"}`; bodies may use `{{board.name}}` and `{{today}}`) and
+  `automations` (`{"preset", "params", "name"}`, from the ready-made rules:
+  `slipdock automation-presets` lists them). A rule may only name lists the
+  blueprint makes.
+- **Skills**: each `SKILL.md` starts with front matter whose `name` is its
+  folder's and which has a `description`.
+
+The server refuses a package with anything else at the top, a symlink or any
+non-regular file, a path that is absolute or climbs out, more than 300
+entries, more than 10 MB compressed, 25 MB unpacked or 10 MB in one file,
+and says why. A version counts against its owner's storage.
+
+Templates use the same blueprint: a template can carry `folders`, `tags` and
+`automations` as well as its lists and pages, and a board made from it gets
+them through the same applier.
+
+### Sharing and listing
+
+A Tool is private to its owner until shared. The owner shares it by email
+on its page (an access grant, `read`: see and install). To offer it to
+everyone on the server, the owner asks for a version to be listed (on the
+page, `POST /api/tools/<name>/listing`, or `slipdock tools request-listing
+<name> [--version V]`); an admin approves or declines it under **Tool
+listings** (`/admin/tools`). Somebody who sees a Tool only because it is
+listed sees the approved version and no newer one until that is approved
+too. `list_tools` and `slipdock tools` give each Tool's `kind`: `mine`,
+`shared` or `listed`.
+
 ## Skills
 
 > Setting an agent up — the address, the approval, the skills — is

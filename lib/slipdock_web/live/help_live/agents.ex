@@ -475,7 +475,9 @@ defmodule SlipdockWeb.HelpLive.Agents do
         commenting on, completing, archiving and deleting cards; uploading and downloading the
         files on cards and pages; lists, tags and boards;
         writing, sharing and reverting pages; listing, adding, changing and deleting a board's
-        automations, for its owner; and taking runner jobs. The tools go through the same
+        automations, for its owner; finding and installing
+        <.link navigate={~p"/help/tools"} class="link">Tools</.link>
+        (<code>list_tools</code>, <code>install_tool</code>); and taking runner jobs. The tools go through the same
         permission checks as the API, so a connection can't do anything its token couldn't.
       </p>
       <p>
@@ -596,7 +598,12 @@ defmodule SlipdockWeb.HelpLive.Agents do
         <li>
           <code>slipdock skills install</code>
           and <code>slipdock skills check</code>
-          keep the skills up to date.
+          keep the skills up to date, and <code>slipdock tools install</code>
+          and <code>slipdock tools check</code>
+          do the same for a Tool's skills.
+        </li>
+        <li>
+          <code>slipdock tools publish</code> packs a folder and publishes it as a Tool.
         </li>
       </ul>
     </.part>
@@ -692,6 +699,28 @@ defmodule SlipdockWeb.HelpLive.Agents do
       <p>
         There's no <code>slipdock-loop</code> zip, because that skill commits, pushes and
         watches builds, and a chat can't do any of those.
+      </p>
+    </.part>
+
+    <.part title="Skills that come with a Tool" id="help-skills-tools">
+      <p>
+        A <.link navigate={~p"/help/tools"} class="link">Tool</.link>
+        brings skills of its own, alongside a board. Its page has them for each client: one
+        command for Claude Code (<code>slipdock tools install &lt;name&gt;</code>), and a zip
+        per skill for claude.ai's and ChatGPT's skill upload. A Tool's setup skill calls
+        <code>install_tool</code>
+        over MCP, which has the server build the board — lists, folders, tags, page skeletons
+        and rules — and answers with its code; the skill then fills the pages in with you.
+        <code>list_tools</code>
+        says which Tools you can install and which board each install made, which is how a
+        Tool's skills find their board.
+      </p>
+      <p>
+        A Tool is a folder with <code>tool.json</code>, <code>README.md</code>, an optional <code>board.json</code>,
+        <code>skills/&lt;name&gt;/SKILL.md</code>
+        and an optional <code>files/</code>, published with <code>slipdock tools publish</code>.
+        <.link navigate={~p"/help/tools#tools-format"} class="link">The package</.link>
+        has the details.
       </p>
     </.part>
     """

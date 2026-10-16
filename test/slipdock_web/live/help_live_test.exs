@@ -13,7 +13,7 @@ defmodule SlipdockWeb.HelpLiveTest do
 
   alias SlipdockWeb.HelpLive.{Agents, Guides}
 
-  @sections ~w(boards wiki sharing automations ai)
+  @sections ~w(boards wiki sharing automations tools ai)
   @topics ~w(guide mcp cli skills runners webhooks)
 
   defp doc(html), do: LazyHTML.from_document(html)
@@ -370,6 +370,31 @@ defmodule SlipdockWeb.HelpLiveTest do
 
       assert has_element?(view, ~s{a[href="/help"]}, "Help")
       assert has_element?(view, ~s{a[href="/help/agents"]}, "Compare them in Help")
+    end
+  end
+
+  describe "Tools (#967)" do
+    test "the guide covers installing, safety, upgrades, publishing and the package", %{
+      conn: conn
+    } do
+      {:ok, view, _} = live(conn, ~p"/help/tools")
+
+      assert has_element?(view, "#tools-install", "Make the board")
+      assert has_element?(view, "#tools-safety", "every skill file in full")
+      assert has_element?(view, "#tools-upgrade", "never overwritten")
+      assert has_element?(view, "#tools-publish", "slipdock tools publish")
+      assert has_element?(view, "#tools-format", "board.json")
+      assert has_element?(view, "#tools-listing", "admin")
+    end
+
+    test "the agents pages name install_tool, list_tools and the package", %{conn: conn} do
+      {:ok, view, _} = live(conn, ~p"/help/agents/skills")
+      assert has_element?(view, "#help-skills-tools", "install_tool")
+      assert has_element?(view, "#help-skills-tools", "list_tools")
+      assert has_element?(view, "#help-skills-tools", "tool.json")
+
+      {:ok, _view, html} = live(conn, ~p"/help/agents/mcp")
+      assert html =~ "install_tool"
     end
   end
 end
