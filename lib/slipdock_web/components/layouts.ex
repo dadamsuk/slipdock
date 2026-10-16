@@ -478,6 +478,10 @@ defmodule SlipdockWeb.Layouts do
       <.link navigate={~p"/account/agent"}><.icon name="hero-cpu-chip" class="size-4" />
       Set up an agent</.link>
     </li>
+    <li>
+      <.link href={~p"/help"}><.icon name="hero-question-mark-circle" class="size-4" />
+      Help with agents</.link>
+    </li>
     <li :if={Slipdock.Accounts.admin?(@current_user)}>
       <.link navigate={~p"/overview"}>
         <.icon name="hero-chart-bar" class="size-4" /> Overview

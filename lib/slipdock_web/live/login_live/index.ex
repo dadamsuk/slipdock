@@ -395,6 +395,12 @@ defmodule SlipdockWeb.LoginLive.Index do
             form={@request_form}
             requested={@requested}
           />
+
+          <p class="mt-6 text-center text-xs text-base-content/60">
+            <.link href={~p"/help"} id="login-help" class="link">
+              Using Claude, ChatGPT or another AI agent? See how to connect it.
+            </.link>
+          </p>
         </div>
       </div>
     </Layouts.app>

@@ -179,7 +179,9 @@ Briefly, with the detail in [the manual](docs/manual.md):
   [setting one up](docs/agents.md) needs no software and no access to the
   server: give it the address, approve it once in the browser, and it reads the
   server's own guide for the rest. The app has the same thing with your address
-  filled in, under **Set up an agent**.
+  filled in, under **Set up an agent**, and a **Help** page (`/help`, readable
+  signed out) that compares the ways in — the guide and API, MCP, the CLI,
+  skills, runners and webhooks — and says when to reach for each.
 
 ## Running it
 
