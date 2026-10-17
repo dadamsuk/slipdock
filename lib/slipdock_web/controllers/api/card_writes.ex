@@ -17,6 +17,27 @@ defmodule SlipdockWeb.API.CardWrites do
   @doc "The card fields a create or update takes as they are."
   def card_fields, do: @card_fields
 
+  @create_keys @card_fields ++ ~w(column tags assignee assignees archived)
+
+  @doc """
+  `:ok`, or a 422 naming the keys of a create's `params` that it doesn't
+  take, so a typo (`archved` for `archived`) is refused rather than quietly
+  dropped from a card that is made anyway. `ignore` are keys the caller
+  put there itself, such as the path's `board`.
+  """
+  def check_create_keys(params, ignore \\ []) do
+    case params |> Map.keys() |> Enum.reject(&(&1 in @create_keys or &1 in ignore)) do
+      [] ->
+        :ok
+
+      unknown ->
+        {:error, :unprocessable_entity,
+         "a new card has no #{if match?([_], unknown), do: "field", else: "fields"} " <>
+           "#{unknown |> Enum.sort() |> Enum.map_join(", ", &inspect/1)}. " <>
+           "It takes: #{@create_keys |> Enum.sort() |> Enum.join(", ")}."}
+    end
+  end
+
   @doc """
   A new card on `board`, which the caller has already been checked to write.
   `params` are the API's: `column`, `tags`, `assignee`/`assignees`, the

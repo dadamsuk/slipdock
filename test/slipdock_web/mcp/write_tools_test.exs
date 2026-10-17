@@ -163,6 +163,33 @@ defmodule SlipdockWeb.MCP.WriteToolsTest do
       refute Boards.get_card!(made["id"]).archived_at
     end
 
+    test "archived as the string \"true\" or \"false\" counts, as a CLI sends it", ctx do
+      archived =
+        ctx.conn
+        |> call("create_card", %{board: "delivery11", title: "Str on", archived: "true"})
+        |> ok!()
+
+      live =
+        ctx.conn
+        |> call("create_card", %{board: "delivery11", title: "Str off", archived: "false"})
+        |> ok!()
+
+      assert archived["archived"] == true
+      assert Boards.get_card!(archived["id"]).archived_at
+      assert live["archived"] == false
+      refute Boards.get_card!(live["id"]).archived_at
+    end
+
+    test "top as the string \"true\" puts it at the top", ctx do
+      made =
+        ctx.conn
+        |> call("create_card", %{board: "delivery11", title: "Str top", top: "true"})
+        |> ok!()
+
+      [first | _] = Boards.list_cards(ctx.board, %{"column" => ctx.roles.ready.name})
+      assert first.id == made["id"]
+    end
+
     test "a misspelt argument is refused by name, and nothing is made", ctx do
       text =
         ctx.conn

@@ -1205,7 +1205,9 @@ defmodule SlipdockWeb.APIGuide do
     curl -s -H "$H" -H 'content-type: application/json' B/api/boards/9/cards \\
          -d '{"title": "Query parser", "column": "To Do", "due_date": "2026-10-03"}'
 
-    # record something already finished with: "archived": true files it away at once
+    # record something already finished with: "archived": true (or "true") files it
+    # away at once. A field a new card doesn't take, a typo like "archved", is a 422
+    # naming it, and no card is made
     curl -s -H "$H" -H 'content-type: application/json' B/api/boards/1/cards \\
          -d '{"title": "Old release notes", "archived": true}'
 

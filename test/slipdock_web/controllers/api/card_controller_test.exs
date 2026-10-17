@@ -149,6 +149,56 @@ defmodule SlipdockWeb.API.CardControllerTest do
     end
   end
 
+  describe "creating with a field it doesn't take" do
+    test "a misspelt field is a 422 naming it and what is taken, and no card is made", %{
+      conn: conn
+    } do
+      assert %{"error" => error} =
+               conn
+               |> post("/api/boards/cardsapi/cards", %{title: "Typo", archved: true})
+               |> json_response(422)
+
+      assert error =~ ~s(a new card has no field "archved")
+      assert error =~ "archived"
+      refute Slipdock.Repo.get_by(Boards.Card, title: "Typo")
+    end
+
+    test "several unknown fields are all named", %{conn: conn} do
+      assert %{"error" => error} =
+               conn
+               |> post("/api/boards/cardsapi/cards", %{title: "Two", colour: "red", owner: "me"})
+               |> json_response(422)
+
+      assert error =~ ~s(has no fields "colour", "owner")
+      refute Slipdock.Repo.get_by(Boards.Card, title: "Two")
+    end
+
+    test "the fields the CLI sends are all taken", %{conn: conn, board: board} do
+      tag_fixture(board, "bug")
+
+      body = %{
+        title: "Everything",
+        column: "To Do",
+        description: "brief",
+        priority: "high",
+        flags: ["review"],
+        tags: ["bug"],
+        start_date: "2026-10-01",
+        due_date: "2026-10-30",
+        percent_complete: 10,
+        time_spent: "1h",
+        time_estimate: "2h",
+        time_unit: "hours",
+        color: "red",
+        assignees: ["me"],
+        archived: false
+      }
+
+      card = conn |> post("/api/boards/cardsapi/cards", body) |> json_response(201)
+      assert card["card"]["title"] == "Everything"
+    end
+  end
+
   describe "editing" do
     test "tags: set by one name, added, removed, and an unknown one refused", %{
       conn: conn,
