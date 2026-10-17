@@ -49,11 +49,16 @@ defmodule SlipdockWeb.MCP.Args do
     end
   end
 
-  @doc "An optional boolean argument."
+  @doc """
+  An optional boolean argument. The strings `"true"` and `"false"` count too:
+  a client that builds its arguments from a command line sends those.
+  """
   def boolean(args, key, default \\ nil) do
     case args[key] do
       nil -> {:ok, default}
       value when is_boolean(value) -> {:ok, value}
+      "true" -> {:ok, true}
+      "false" -> {:ok, false}
       _ -> {:error, "#{key} must be true or false"}
     end
   end

@@ -82,7 +82,8 @@ defmodule SlipdockWeb.API.CardController do
   end
 
   def create(conn, %{"board" => ref} = params) do
-    with {:ok, board} <- Authorize.fetch_board(conn, ref, :write),
+    with :ok <- CardWrites.check_create_keys(params, ["board"]),
+         {:ok, board} <- Authorize.fetch_board(conn, ref, :write),
          {:ok, card} <- CardWrites.create(conn, board, params) do
       conn
       |> put_status(:created)
