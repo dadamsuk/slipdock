@@ -1444,12 +1444,14 @@ defmodule SlipdockWeb.API.PageController do
   @doc """
   Attaches a file to a page: the multipart field `file`, and an optional
   `filename`. The `markdown` that comes back is what to put in the body.
+  `replace=true` deletes the page's older files of that name (#1017).
   """
   def add_attachment(conn, %{"id" => id} = params) do
     with {:ok, page} <- fetch_page(conn, id, :write),
          {:ok, meta, path} <- Uploads.take(params),
+         {:ok, replace?} <- Uploads.replace(params),
          {:ok, attachment} <- Wiki.add_attachment(page, meta, path) do
-      conn |> put_status(:created) |> json(%{attachment: Uploads.json(attachment)})
+      conn |> put_status(:created) |> json(Uploads.stored(attachment, replace?))
     end
   end
 

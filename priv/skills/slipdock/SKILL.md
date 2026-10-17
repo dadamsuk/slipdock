@@ -46,8 +46,12 @@ in chunks of about 4 KB (#1016), since the longer the base64 the likelier it is 
 with `append: true`, `card`/`page`, `filename` and that chunk's `sha256` returns an `upload_id`;
 each next one sends `upload_id`, `append: true`, `offset` (the last answer's `received`) and its
 own `sha256`, and a refused chunk is resent on its own; then `upload_id`, `finish: true` and the
-whole file's `sha256` makes the attachment. Nothing shows on the card before that. And
-`download_file` reads an attached file by its id (`get_card` and `read_page` list them).
+whole file's `sha256` makes the attachment. Nothing shows on the card before that. A rebuild
+of a file already on the card sends `replace: true` (on the single call, the first chunk or
+`finish`): older files of that filename go once the new one is stored, so one current copy is
+left. `delete_attachment` (`detach`; `attachment` id and `confirm: true`) removes one outright,
+such as a file you uploaded wrong. And `download_file` reads an attached file by its id
+(`get_card` and `read_page` list them).
 `list_automations` is `automations`/`automation` (`vocabulary: true` adds what `automation-help`
 and `automation-presets` give), and `manage_automation` is `new-automation` (`action: create`),
 `set-automation` (`update`) and `delete-automation` (`delete`, with `confirm: true`).
@@ -277,6 +281,7 @@ slipdock weblink <id> <url> [--label TEXT]   # link a card to a web page, shared
 slipdock unweblink <id> <url-id>...          # ids from `slipdock card`
 slipdock attach <id> <file>... [--name N]    # upload files (a screenshot, a log); prints the Markdown
                                              # that embeds each — paste it into a comment to show it
+slipdock attach <id> <file> --replace        # a rebuild: deletes older files of the same name once it is in
 slipdock attachments <id>                    # list files; slipdock detach <id> <attachment-id>... removes them
 slipdock download <attachment-id> [--out F]  # save a file's bytes (its own name here; --out - to stdout)
 slipdock card-front <id> <attachment-id> --off   # keep an image off the card's thumbnail (--hide-on-card on attach)

@@ -167,7 +167,7 @@ way in: what it is, the pictures, and how to get it running.
 - Accounts: passwordless sign-in by emailed magic link, sessions that last
   30 days, API tokens for the CLI
 - **An MCP server** at `/mcp`: claude.ai, the Claude apps, Claude Code and
-  other MCP clients get the boards and the wiki as 47 tools (four of them only
+  other MCP clients get the boards and the wiki as 48 tools (four of them only
   while meeting mode is on), signing in
   through the browser or with an API token (see [MCP server](#mcp-server))
 - Groups of users; boards, single cards and saved views can be shared with
@@ -848,7 +848,11 @@ for an image, a plain link for anything else. Put that in a description, a
 comment or a page body and the image appears inline, exactly as a pasted one
 does. An optional `filename` field stores the file under another name; a
 type the client leaves as `application/octet-stream` (curl's answer for
-anything it does not know) is worked out from the name.
+anything it does not know) is worked out from the name. `replace=true` (#1017)
+deletes the card's or page's older files of the same name once the new one is
+stored, and the answer lists their ids as `replaced`: a rebuild uploaded that
+way leaves one current copy, and an upload that is refused leaves the old one
+where it was.
 
 `GET …/attachments` lists a card's or a page's files and
 `DELETE …/attachments/:attachment_id` removes one, bytes and all. A card's
@@ -870,6 +874,7 @@ From the CLI, a number is a card and anything else (`W-31`) a page:
 ```sh
 slipdock attach 12 shot.png               # prints the Markdown that embeds it
 slipdock attach W-31 /tmp/x.png --name diagram.png
+slipdock attach 12 out/report.docx --replace   # and deletes the older report.docx files
 slipdock attachments 12                   # ids, sizes and URLs
 slipdock download 5                       # attachment #5's bytes, saved under its own name
 slipdock download 5 --out - | less        # or --out F; --force overwrites a file already there
@@ -4616,7 +4621,8 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `update_card` | Title, description, priority (or clearing it), start and due dates, percent, flags, tags, assignees, what blocks it, and its checklist — add, tick and untick items. Only what is passed changes. |
 | `move_card` | To another list on its board, or with `board` to another board, subcards and all. |
 | `comment` | A Markdown comment on a card; `@name` mentions notify. |
-| `upload_file` | Attaches a file to a `card`, or to a `page` (a code, or a slug with `board`): `filename`, and the bytes as `content_base64` or a text file's contents as `text`; `content_type` (else the name decides), `hide_on_card` and `sha256` are optional. `sha256` is the hex SHA-256 of the file's bytes before base64: given, bytes that arrive different (one flipped bit leaves the size as it was) are refused with `sha256_mismatch`, saying what arrived, and nothing is stored. Up to 10 MB — the CLI's `slipdock attach` and the API take bigger files. Answers with the attachment, its `sha256` the hash of the bytes as stored (compare it with the source's to verify in one call), and the `markdown` that embeds or links it, as `POST /api/cards/:id/attachments` does, and counts towards the owner's limits the same way. **In chunks** (#1016), for anything over a few KB, since base64 written out by a model is damaged more often the longer it is: the first chunk with `append: true` (plus `card` or `page`, `filename`) and that chunk's own `sha256` answers with an `upload_id` and `received`; each next chunk sends `upload_id`, `append: true`, `offset` (the last `received`) and its own `sha256`. A chunk that doesn't match is refused with `sha256_mismatch` and the rest is kept, so only it is resent; a resend of a chunk that already landed at that `offset` isn't added twice, and a wrong `offset` is `offset_mismatch`. Then `upload_id`, `finish: true` and the whole file's `sha256` (no content) checks the assembled file and attaches it, with the same access and limit checks as a single call; until then nothing is on the card. A whole file that differs discards the upload. Unfinished uploads expire after a day, and one person may have 10 open. |
+| `upload_file` | Attaches a file to a `card`, or to a `page` (a code, or a slug with `board`): `filename`, and the bytes as `content_base64` or a text file's contents as `text`; `content_type` (else the name decides), `hide_on_card` and `sha256` are optional. `sha256` is the hex SHA-256 of the file's bytes before base64: given, bytes that arrive different (one flipped bit leaves the size as it was) are refused with `sha256_mismatch`, saying what arrived, and nothing is stored. Up to 10 MB — the CLI's `slipdock attach` and the API take bigger files. Answers with the attachment, its `sha256` the hash of the bytes as stored (compare it with the source's to verify in one call), and the `markdown` that embeds or links it, as `POST /api/cards/:id/attachments` does, and counts towards the owner's limits the same way. **In chunks** (#1016), for anything over a few KB, since base64 written out by a model is damaged more often the longer it is: the first chunk with `append: true` (plus `card` or `page`, `filename`) and that chunk's own `sha256` answers with an `upload_id` and `received`; each next chunk sends `upload_id`, `append: true`, `offset` (the last `received`) and its own `sha256`. A chunk that doesn't match is refused with `sha256_mismatch` and the rest is kept, so only it is resent; a resend of a chunk that already landed at that `offset` isn't added twice, and a wrong `offset` is `offset_mismatch`. Then `upload_id`, `finish: true` and the whole file's `sha256` (no content) checks the assembled file and attaches it, with the same access and limit checks as a single call; until then nothing is on the card. A whole file that differs discards the upload. Unfinished uploads expire after a day, and one person may have 10 open. `replace: true` (on a single call, or on the first chunk or `finish`) deletes the card's or page's older files of the same `filename` once the new one is stored, so a rebuild leaves one current copy; their ids come back as `replaced`. The old files go only after the new one is in, so a refused upload keeps them. |
+| `delete_attachment` | Deletes a file from a card or a page by its `attachment` id (`upload_file`, `get_card` and `read_page` give it), as `DELETE /api/cards/:id/attachments/:attachment_id` does. Needs `confirm: true`. Checked as editing the card or page is; a file the token can't read is not found. |
 | `complete_card` | Marks a card completed and moves it to the done list, with an optional closing comment. |
 | `status_update` | Posts a status update on a card, as `POST /api/cards/:id/status` does: its `health` (`on_track`, `at_risk`, `off_track`) and an optional `body`. The latest is the card's stated health. |
 | `archive_card` | Puts a card away, or with `restore: true` brings it back. |

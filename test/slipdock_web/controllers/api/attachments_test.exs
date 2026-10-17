@@ -9,7 +9,7 @@ defmodule SlipdockWeb.API.AttachmentsTest do
 
   import Slipdock.Fixtures
 
-  alias Slipdock.{Accounts, Boards, Wiki}
+  alias Slipdock.{Accounts, Boards, Repo, Wiki}
 
   @png <<137, 80, 78, 71, 13, 10, 26, 10, 0, 1, 2, 3>>
 
@@ -575,6 +575,60 @@ defmodule SlipdockWeb.API.AttachmentsTest do
                sha256: sha(@png)
              })
              |> json_response(201)
+
+      assert [_] = Wiki.attachments(page)
+    end
+  end
+
+  describe "replace (#1017)" do
+    test "a card's upload with replace=true deletes its older files of that name", %{
+      conn: conn,
+      card: card
+    } do
+      post_file = fn params ->
+        conn |> post("/api/cards/#{card.id}/attachments", params) |> json_response(201)
+      end
+
+      %{"attachment" => %{"id" => first}} = post_file.(%{file: upload("out.docx", "one")})
+      %{"attachment" => %{"id" => _}} = post_file.(%{file: upload("keep.txt", "k")})
+      second = post_file.(%{file: upload("out.docx", "two")})
+      refute Map.has_key?(second, "replaced")
+
+      third = post_file.(%{file: upload("out.docx", "three"), replace: "true"})
+      assert third["replaced"] == [first, second["attachment"]["id"]]
+
+      names =
+        Repo.preload(Boards.get_card!(card.id), :attachments, force: true).attachments
+        |> Enum.map(& &1.filename)
+        |> Enum.sort()
+
+      assert names == ["keep.txt", "out.docx"]
+    end
+
+    test "a page's upload replaces too, and a bad value is a 422 that stores nothing", %{
+      conn: conn,
+      page: page
+    } do
+      %{"attachment" => %{"id" => old}} =
+        conn
+        |> post("/api/pages/#{page.id}/attachments", %{file: upload("d.png", @png)})
+        |> json_response(201)
+
+      assert conn
+             |> post("/api/pages/#{page.id}/attachments", %{
+               file: upload("d.png", @png),
+               replace: "maybe"
+             })
+             |> json_response(422)
+             |> inspect() =~ "replace must be true or false"
+
+      assert %{"replaced" => [^old]} =
+               conn
+               |> post("/api/pages/#{page.id}/attachments", %{
+                 file: upload("d.png", @png),
+                 replace: "true"
+               })
+               |> json_response(201)
 
       assert [_] = Wiki.attachments(page)
     end

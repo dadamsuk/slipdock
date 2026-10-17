@@ -749,4 +749,197 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
       assert ctx.conn |> call("download_file", %{attachment: "x"}) |> error!() =~ "like 42"
     end
   end
+
+  describe "delete_attachment (#1017)" do
+    defp delete_file(conn, id),
+      do: call(conn, "delete_attachment", %{attachment: id, confirm: true})
+
+    test "deletes a file just uploaded to a card, by its id, bytes and all", ctx do
+      %{"attachment" => %{"id" => id}} =
+        upload!(ctx.conn, %{card: ctx.card.id, filename: "bad.docx", text: "corrupt"})
+
+      [stored] = card_files(ctx.card)
+      path = Boards.attachment_path(stored)
+      assert File.exists?(path)
+
+      assert %{"deleted" => true, "attachment" => ^id, "filename" => "bad.docx", "card" => card} =
+               ctx.conn |> delete_file(id) |> ok!()
+
+      assert card == ctx.card.id
+      assert card_files(ctx.card) == []
+      refute File.exists?(path)
+      assert ctx.conn |> delete_file(id) |> error!() =~ "no attachment you can see"
+    end
+
+    test "deletes a page's file", ctx do
+      %{"attachment" => %{"id" => id}} =
+        upload!(ctx.conn, %{page: ctx.page.code, filename: "a.txt", text: "one"})
+
+      assert %{"page" => code} = ctx.conn |> delete_file(id) |> ok!()
+      assert code == ctx.page.code
+      assert Slipdock.Wiki.attachments(ctx.page) == []
+    end
+
+    test "wants confirm: true, and a real id", ctx do
+      a = attach(ctx.card, "k.txt", "keep", "text/plain")
+
+      assert ctx.conn |> call("delete_attachment", %{attachment: a.id}) |> error!() =~ "confirm"
+
+      assert ctx.conn
+             |> call("delete_attachment", %{attachment: a.id, confirm: false})
+             |> error!() =~ "confirm"
+
+      assert ctx.conn |> call("delete_attachment", %{confirm: true}) |> error!() =~
+               "attachment is required"
+
+      assert ctx.conn |> delete_file("x") |> error!() =~ "like 42"
+      assert ctx.conn |> delete_file(999_999) |> error!() =~ "no attachment you can see"
+      assert [_] = card_files(ctx.card)
+    end
+
+    test "a stranger's file is not there, and a reader may not delete", ctx do
+      theirs = attach(ctx.secret, "s.txt", "secret", "text/plain")
+      assert ctx.conn |> delete_file(theirs.id) |> error!() =~ "no attachment you can see"
+      assert [_] = card_files(ctx.secret)
+
+      mine = attach(ctx.card, "m.txt", "mine", "text/plain")
+      reader = user_fixture("reader@example.com")
+      share_fixture(ctx.board, reader, "read")
+      text = conn_as(reader) |> delete_file(mine.id) |> error!()
+      refute text =~ "no attachment"
+      assert [_] = card_files(ctx.card)
+    end
+
+    test "a read-only token is refused", ctx do
+      a = attach(ctx.card, "k.txt", "keep", "text/plain")
+
+      assert ctx.conn
+             |> with_token(ctx.user, scope: "read")
+             |> delete_file(a.id)
+             |> error!() =~ "read-only"
+
+      assert [_] = card_files(ctx.card)
+    end
+
+    test "is listed as destructive" do
+      tool = SlipdockWeb.MCP.Tools.find("delete_attachment")
+      assert SlipdockWeb.MCP.Tools.describe(tool).annotations.destructiveHint == true
+    end
+  end
+
+  describe "upload_file replace: true (#1017)" do
+    test "a rebuild under the same name leaves exactly one current file", ctx do
+      %{"attachment" => %{"id" => first}} =
+        upload!(ctx.conn, %{card: ctx.card.id, filename: "out.docx", text: "build 1"})
+
+      %{"attachment" => %{"id" => second}} =
+        upload!(ctx.conn, %{card: ctx.card.id, filename: "out.docx", text: "build 2"})
+
+      other = attach(ctx.card, "other.txt", "stays", "text/plain")
+
+      # Without replace, the old way: a second copy, and no replaced key.
+      assert length(card_files(ctx.card)) == 3
+
+      %{"attachment" => %{"id" => third}} =
+        answer =
+        upload!(ctx.conn, %{
+          card: ctx.card.id,
+          filename: "out.docx",
+          text: "build 3",
+          replace: true
+        })
+
+      assert answer["replaced"] == [first, second]
+      assert answer["card"] == ctx.card.id
+      files = card_files(ctx.card)
+      assert files |> Enum.map(& &1.id) |> Enum.sort() == Enum.sort([other.id, third])
+      current = Enum.find(files, &(&1.id == third))
+      assert File.read!(Boards.attachment_path(current)) == "build 3"
+    end
+
+    test "with nothing to replace, replaced is empty", ctx do
+      assert %{"replaced" => []} =
+               upload!(ctx.conn, %{
+                 card: ctx.card.id,
+                 filename: "new.txt",
+                 text: "x",
+                 replace: true
+               })
+
+      refute Map.has_key?(
+               upload!(ctx.conn, %{card: ctx.card.id, filename: "n2.txt", text: "x"}),
+               "replaced"
+             )
+    end
+
+    test "only touches the same card or page", ctx do
+      other_card = card_fixture(hd(ctx.board.columns), %{"title" => "Other"})
+      elsewhere = attach(other_card, "out.txt", "elsewhere", "text/plain")
+      on_page = upload!(ctx.conn, %{page: ctx.page.code, filename: "out.txt", text: "page"})
+
+      %{"replaced" => []} =
+        upload!(ctx.conn, %{card: ctx.card.id, filename: "out.txt", text: "x", replace: true})
+
+      assert [%{id: id}] = card_files(other_card)
+      assert id == elsewhere.id
+
+      %{"replaced" => replaced} =
+        upload!(ctx.conn, %{page: ctx.page.code, filename: "out.txt", text: "y", replace: true})
+
+      assert replaced == [on_page["attachment"]["id"]]
+      assert [%{filename: "out.txt"}] = Slipdock.Wiki.attachments(ctx.page)
+    end
+
+    test "a refused upload keeps the old file", ctx do
+      old = attach(ctx.card, "out.txt", "good", "text/plain")
+
+      assert ctx.conn
+             |> call("upload_file", %{
+               card: ctx.card.id,
+               filename: "out.txt",
+               text: "bad",
+               sha256: sha256("other"),
+               replace: true
+             })
+             |> error!() =~ "sha256_mismatch"
+
+      assert ctx.conn
+             |> call("upload_file", %{
+               card: ctx.card.id,
+               filename: "out.txt",
+               text: "x",
+               replace: "yes"
+             })
+             |> error!() =~ "replace must be true or false"
+
+      assert [%{id: id}] = card_files(ctx.card)
+      assert id == old.id
+    end
+
+    test "said on the first chunk or on finish, a chunked upload replaces too", ctx do
+      for {start_args, finish_args} <- [{%{replace: true}, %{}}, {%{}, %{replace: true}}] do
+        attach(ctx.card, "big.bin", "old", "application/octet-stream")
+        before = ctx.card |> card_files() |> Enum.map(& &1.id) |> Enum.sort()
+        bytes = :crypto.strong_rand_bytes(5_000)
+
+        %{"upload_id" => uid} =
+          chunk!(
+            ctx.conn,
+            Map.merge(
+              %{card: ctx.card.id, filename: "big.bin"},
+              Map.merge(chunk_args(bytes), start_args)
+            )
+          )
+
+        %{"attachment" => %{"id" => new_id}, "replaced" => replaced} =
+          upload!(
+            ctx.conn,
+            Map.merge(%{upload_id: uid, finish: true, sha256: sha256(bytes)}, finish_args)
+          )
+
+        assert replaced == before
+        assert [%{id: ^new_id}] = card_files(ctx.card)
+      end
+    end
+  end
 end

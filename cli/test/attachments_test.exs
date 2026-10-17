@@ -182,6 +182,30 @@ defmodule SlipdockCLI.AttachmentsTest do
     refute body =~ "hide_on_card"
   end
 
+  test "attach --replace sends the field and says which older files went (#1017)", %{
+    home: home
+  } do
+    replaced =
+      ~s|{"attachment":{"id":9,"filename":"out.docx","content_type":"x","size":1,"markdown":"[out.docx](/attachments/9/out.docx)"},"replaced":[3,4]}|
+
+    serve([
+      {201, replaced},
+      {201, attached(10, "b.png", "![b.png](/attachments/10/b.png)")}
+    ])
+
+    a = file(home, "out.docx", "D")
+    out = capture_io(fn -> Boards.run("attach", ["12", a], replace: true) end)
+    assert_received {:request, "POST", "/api/cards/12/attachments", body}
+    assert body =~ ~s(name="replace"\r\n\r\ntrue)
+    assert out =~ "attached out.docx to card #12 [attachment #9]"
+    assert out =~ "replaced attachment #3, attachment #4"
+
+    out = capture_io(fn -> Boards.run("attach", ["12", a], []) end)
+    assert_received {:request, "POST", "/api/cards/12/attachments", body}
+    refute body =~ ~s(name="replace")
+    refute out =~ "replaced"
+  end
+
   test "card-front lets an image be the thumbnail, and --off keeps it off" do
     patched = fn hide ->
       ~s({"attachment":{"id":5,"filename":"shot.png","hide_on_card":#{hide}}})

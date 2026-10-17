@@ -667,13 +667,15 @@ defmodule SlipdockWeb.APIGuide do
       `curl -H "$H" -F file=@shot.png B/api/cards/:id/attachments` (an optional
       `filename` field renames it, and an optional `sha256` field, the hex
       SHA-256 of the file, makes a file that arrives different a 422
-      `sha256_mismatch` with nothing stored; `slipdock attach` always sends it). The 201 carries the `attachment` with its
+      `sha256_mismatch` with nothing stored; `slipdock attach` always sends it;
+      `replace=true` deletes the card's older files of the same name once it
+      is stored, their ids in `replaced`, so a rebuild leaves one copy). The 201 carries the `attachment` with its
       `url`, its `size` and `sha256` as stored (every attachment listing has
       them, so checking a file needs no download) and a ready-made `markdown` — `![shot.png](/attachments/5/shot.png)`
       for an image, a plain link otherwise — to put in the description or a
       comment, where an image shows inline. `GET /api/cards/:id/attachments`
       lists them; `DELETE /api/cards/:id/attachments/:attachment_id` removes
-      one. `GET /api/attachments/:attachment_id` is one file's details (with
+      one (over MCP, `delete_attachment`). `GET /api/attachments/:attachment_id` is one file's details (with
       the `card` or `page` it is on), and `GET /api/attachments/:attachment_id/file`
       its bytes, with a token — the `url` is the web app's, which needs a
       browser session. A screenshot of what you changed is worth attaching. Pages take the

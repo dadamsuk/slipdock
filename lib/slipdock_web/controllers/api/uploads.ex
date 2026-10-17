@@ -42,13 +42,30 @@ defmodule SlipdockWeb.API.Uploads do
   `hide_on_card` from the params — a JSON boolean, or "true"/"false" as a
   form sends it — else `default`.
   """
-  def hide_on_card(params, default) do
-    case params["hide_on_card"] do
+  def hide_on_card(params, default), do: flag(params, "hide_on_card", default)
+
+  @doc """
+  `replace` from the params (#1017): true deletes the files of the same name
+  once the new one is stored. Left out, false, and a second copy is kept.
+  """
+  def replace(params), do: flag(params, "replace", false)
+
+  defp flag(params, key, default) do
+    case params[key] do
       nil -> {:ok, default}
       v when v in [true, "true"] -> {:ok, true}
       v when v in [false, "false"] -> {:ok, false}
-      _ -> {:error, :unprocessable_entity, "hide_on_card must be true or false"}
+      _ -> {:error, :unprocessable_entity, "#{key} must be true or false"}
     end
+  end
+
+  @doc """
+  The answer to a stored upload: the attachment and, when `replace?`, the ids
+  of the older files of its name it deleted (`replaced`, empty if none).
+  """
+  def stored(%Attachment{} = attachment, replace?) do
+    answer = %{attachment: json(attachment)}
+    if replace?, do: Map.put(answer, :replaced, Boards.delete_namesakes(attachment)), else: answer
   end
 
   @doc """
