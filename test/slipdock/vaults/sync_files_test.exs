@@ -60,6 +60,29 @@ defmodule Slipdock.Vaults.SyncFilesTest do
     assert {:ok, %WikiFile{}, %{hash: ^hash}} = Sync.read_file(vault, user, file.id)
   end
 
+  test "read_file_at finds a file by its vault path, case aside, and only one that is there (#1040)",
+       %{vault: vault, user: user, jobs: jobs} do
+    entry = put!(vault, user, "Journal/Docs/CV.docx", "docx bytes")
+
+    assert {:ok, %WikiFile{id: id, board_id: board_id}, %{path: "Journal/Docs/CV.docx"}} =
+             Sync.read_file_at(vault, user, "/journal/docs/cv.docx")
+
+    assert id == entry.id
+    assert board_id == jobs.id
+
+    assert {:error, :not_found, "file at Journal/Docs/Other.docx in this vault"} =
+             Sync.read_file_at(vault, user, "Journal/Docs/Other.docx")
+
+    assert {:error, :unprocessable_entity, _} = Sync.read_file_at(vault, user, "../CV.docx")
+    assert {:error, :unprocessable_entity, _} = Sync.read_file_at(vault, user, "Journal.md")
+
+    # Someone the vault isn't theirs to read finds nothing there.
+    stranger = user_fixture("stranger1040@example.com")
+
+    assert {:error, :not_found, _} =
+             Sync.read_file_at(vault, stranger, "Journal/Docs/CV.docx")
+  end
+
   test "new bytes against the right base replace the old, whose bytes go; a stale base conflicts",
        %{vault: vault, user: user} do
     entry = put!(vault, user, "a.pdf", "one")
