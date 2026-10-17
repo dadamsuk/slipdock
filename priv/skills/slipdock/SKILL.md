@@ -41,7 +41,12 @@ compare two versions, or `diff: true` for the latest save), and `revert_page` is
 `sha256` (hex, of the bytes before base64): base64 written out by a model can come out a bit
 wrong at the same size, and a `sha256_mismatch` refusal means re-encode and resend. The answer's
 `sha256` is of the bytes as stored, and `get_card`/`read_page` list it for every file: compare that
-with the source's hash to verify a file, rather than downloading it. And
+with the source's hash to verify a file, rather than downloading it. Anything over a few KB goes
+in chunks of about 4 KB (#1016), since the longer the base64 the likelier it is damaged: the first
+with `append: true`, `card`/`page`, `filename` and that chunk's `sha256` returns an `upload_id`;
+each next one sends `upload_id`, `append: true`, `offset` (the last answer's `received`) and its
+own `sha256`, and a refused chunk is resent on its own; then `upload_id`, `finish: true` and the
+whole file's `sha256` makes the attachment. Nothing shows on the card before that. And
 `download_file` reads an attached file by its id (`get_card` and `read_page` list them).
 `list_automations` is `automations`/`automation` (`vocabulary: true` adds what `automation-help`
 and `automation-presets` give), and `manage_automation` is `new-automation` (`action: create`),

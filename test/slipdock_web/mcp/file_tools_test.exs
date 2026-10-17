@@ -406,6 +406,226 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
     end
   end
 
+  describe "upload_file in chunks (#1016)" do
+    defp chunk!(conn, args),
+      do: conn |> call("upload_file", Map.put(args, :append, true)) |> ok!()
+
+    defp chunk_args(bytes),
+      do: %{content_base64: Base.encode64(bytes), sha256: sha256(bytes)}
+
+    test "a 100 KB file arrives in verified chunks; a corrupted one is refused and resent alone",
+         ctx do
+      file = :crypto.strong_rand_bytes(100_000)
+      [first | rest] = for <<c::binary-size(4096) <- file>>, do: c
+      tail = binary_part(file, 24 * 4096, 100_000 - 24 * 4096)
+      rest = rest ++ [tail]
+
+      %{"upload_id" => id, "received" => 4096} =
+        chunk!(
+          ctx.conn,
+          Map.merge(chunk_args(first), %{card: ctx.card.id, filename: "report.docx"})
+        )
+
+      Enum.with_index(rest, 1)
+      |> Enum.each(fn {piece, i} ->
+        offset = i * 4096
+
+        if i == 10 do
+          # The bytes changed on the way; the hash is of what was meant.
+          <<b, more::binary>> = piece
+          damaged = <<Bitwise.bxor(b, 1)>> <> more
+
+          text =
+            ctx.conn
+            |> call("upload_file", %{
+              upload_id: id,
+              append: true,
+              offset: offset,
+              content_base64: Base.encode64(damaged),
+              sha256: sha256(piece)
+            })
+            |> error!()
+
+          assert text =~ "sha256_mismatch: this chunk arrived"
+          assert text =~ "resend just this chunk"
+        end
+
+        %{"received" => received} =
+          chunk!(ctx.conn, Map.merge(chunk_args(piece), %{upload_id: id, offset: offset}))
+
+        assert received == offset + byte_size(piece)
+      end)
+
+      # Every chunk is in, and still nothing shows on the card.
+      assert card_files(ctx.card) == []
+
+      %{"card" => card_id, "attachment" => a} =
+        upload!(ctx.conn, %{upload_id: id, finish: true, sha256: sha256(file)})
+
+      assert card_id == ctx.card.id
+      assert a["filename"] == "report.docx"
+      assert a["size"] == 100_000
+      assert a["sha256"] == sha256(file)
+      [stored] = card_files(ctx.card)
+      assert File.read!(Boards.attachment_path(stored)) == file
+
+      # The upload is gone once it is an attachment.
+      assert ctx.conn
+             |> call("upload_file", %{upload_id: id, finish: true, sha256: sha256(file)})
+             |> error!() =~ "unknown_upload"
+    end
+
+    test "a resent chunk that already landed isn't added twice; a gap is refused", ctx do
+      %{"upload_id" => id} =
+        chunk!(ctx.conn, Map.merge(chunk_args("abc"), %{card: ctx.card.id, filename: "a.txt"}))
+
+      second = Map.merge(chunk_args("def"), %{upload_id: id, offset: 3})
+      assert %{"received" => 6} = chunk!(ctx.conn, second)
+      # The answer was lost, say, and the same chunk comes again.
+      assert %{"received" => 6} = chunk!(ctx.conn, second)
+
+      text =
+        ctx.conn
+        |> call(
+          "upload_file",
+          Map.merge(chunk_args("xyz"), %{upload_id: id, append: true, offset: 3})
+        )
+        |> error!()
+
+      assert text =~ "offset_mismatch"
+      assert text =~ "has 6 bytes"
+
+      assert ctx.conn
+             |> call(
+               "upload_file",
+               Map.merge(chunk_args("ghi"), %{upload_id: id, append: true, offset: 9})
+             )
+             |> error!() =~ "offset 6, not 9"
+
+      %{"attachment" => a} =
+        upload!(ctx.conn, %{upload_id: id, finish: true, sha256: sha256("abcdef")})
+
+      assert a["size"] == 6
+    end
+
+    test "a whole file that doesn't match is refused, and nothing is attached", ctx do
+      %{"upload_id" => id} =
+        chunk!(ctx.conn, Map.merge(chunk_args("abc"), %{card: ctx.card.id, filename: "a.txt"}))
+
+      # Without offsets, a chunk sent twice goes in twice.
+      chunk!(ctx.conn, Map.merge(chunk_args("def"), %{upload_id: id}))
+      chunk!(ctx.conn, Map.merge(chunk_args("def"), %{upload_id: id}))
+
+      text =
+        ctx.conn
+        |> call("upload_file", %{upload_id: id, finish: true, sha256: sha256("abcdef")})
+        |> error!()
+
+      assert text =~ "sha256_mismatch"
+      assert text =~ "9 bytes"
+      assert text =~ "missing or was sent twice"
+      assert card_files(ctx.card) == []
+
+      assert ctx.conn
+             |> call("upload_file", %{upload_id: id, finish: true, sha256: sha256("abcdefdef")})
+             |> error!() =~ "unknown_upload"
+    end
+
+    test "goes onto a page too", ctx do
+      %{"upload_id" => id} =
+        chunk!(ctx.conn, Map.merge(chunk_args("one "), %{page: ctx.page.code, filename: "p.txt"}))
+
+      chunk!(ctx.conn, Map.merge(chunk_args("two"), %{upload_id: id, offset: 4}))
+      assert Slipdock.Wiki.attachments(ctx.page) == []
+
+      %{"page" => code, "attachment" => a} =
+        upload!(ctx.conn, %{upload_id: id, finish: true, sha256: sha256("one two")})
+
+      assert code == ctx.page.code
+      assert a["sha256"] == sha256("one two")
+      assert [%{filename: "p.txt"}] = Slipdock.Wiki.attachments(ctx.page)
+    end
+
+    test "says what is wrong with the arguments", ctx do
+      first = Map.merge(chunk_args("abc"), %{card: ctx.card.id, filename: "a.txt", append: true})
+      %{"upload_id" => id} = ctx.conn |> call("upload_file", first) |> ok!()
+
+      bad = [
+        {Map.delete(first, :sha256), "each chunk needs its sha256"},
+        {Map.put(first, :sha256, "nope"), "64 hex characters"},
+        {Map.put(first, :offset, 5), "first chunk starts at offset 0"},
+        {Map.put(first, :offset, -1), "offset must be a whole number"},
+        {Map.put(first, :finish, true), "not both"},
+        {Map.delete(first, :filename), "filename is required"},
+        {%{upload_id: id, filename: "a.txt", text: "x"}, "append: true or finish: true"},
+        {%{upload_id: id, finish: true}, "finish needs sha256"},
+        {%{upload_id: id, finish: true, sha256: sha256("abc"), text: "x"},
+         "finish takes no content"},
+        {%{finish: true, sha256: sha256("abc")}, "upload_id is required"},
+        {Map.merge(chunk_args("x"), %{upload_id: Ecto.UUID.generate(), append: true}),
+         "unknown_upload"},
+        {Map.merge(chunk_args("x"), %{upload_id: "../../etc/passwd", append: true}),
+         "unknown_upload"}
+      ]
+
+      for {args, message} <- bad do
+        assert ctx.conn |> call("upload_file", args) |> error!() =~ message, inspect(args)
+      end
+
+      assert card_files(ctx.card) == []
+      # None of that touched the upload.
+      assert %{"attachment" => _} =
+               upload!(ctx.conn, %{upload_id: id, finish: true, sha256: sha256("abc")})
+    end
+
+    test "never starts on a card the token can't write to", ctx do
+      assert ctx.conn
+             |> call(
+               "upload_file",
+               Map.merge(chunk_args("x"), %{card: ctx.secret.id, filename: "a.txt", append: true})
+             )
+             |> error!() =~ "you don't edit this card"
+    end
+
+    test "someone else can't add to or finish an upload", ctx do
+      %{"upload_id" => id} =
+        chunk!(ctx.conn, Map.merge(chunk_args("abc"), %{card: ctx.card.id, filename: "a.txt"}))
+
+      other = conn_as(ctx.stranger)
+
+      assert other
+             |> call("upload_file", Map.merge(chunk_args("x"), %{upload_id: id, append: true}))
+             |> error!() =~ "unknown_upload"
+
+      assert other
+             |> call("upload_file", %{upload_id: id, finish: true, sha256: sha256("abc")})
+             |> error!() =~ "unknown_upload"
+
+      assert card_files(ctx.card) == []
+    end
+
+    test "finish checks access again: a writer who lost the board can't attach", ctx do
+      writer = user_fixture("writer@example.com")
+      share_fixture(ctx.board, writer, "write")
+      conn = conn_as(writer)
+
+      %{"upload_id" => id} =
+        chunk!(conn, Map.merge(chunk_args("abc"), %{card: ctx.card.id, filename: "a.txt"}))
+
+      Slipdock.Access.Grant
+      |> Repo.get_by!(user_id: writer.id, board_id: ctx.board.id)
+      |> Slipdock.Access.revoke()
+
+      text =
+        conn
+        |> call("upload_file", %{upload_id: id, finish: true, sha256: sha256("abc")})
+        |> error!()
+
+      refute text =~ "unknown_upload"
+      assert card_files(ctx.card) == []
+    end
+  end
+
   describe "download_file" do
     defp attach(card, name, bytes, type) do
       path = Path.join(System.tmp_dir!(), "mcp-dl-#{System.unique_integer([:positive])}")
