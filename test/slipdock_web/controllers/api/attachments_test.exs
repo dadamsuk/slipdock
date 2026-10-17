@@ -487,6 +487,38 @@ defmodule SlipdockWeb.API.AttachmentsTest do
       assert length(Boards.get_card!(card.id).attachments) == 2
     end
 
+    test "the response and the listing carry the stored file's sha256 (#1015)", %{
+      conn: conn,
+      card: card
+    } do
+      # Sent with a hash or without one, what comes back is the hash of what
+      # was kept, so the caller can verify without downloading it.
+      for params <- [%{}, %{sha256: sha(@png)}] do
+        assert %{"attachment" => %{"sha256" => hash, "size" => 12}} =
+                 conn
+                 |> post(
+                   "/api/cards/#{card.id}/attachments",
+                   Map.put(params, :file, upload("shot.png", @png))
+                 )
+                 |> json_response(201)
+
+        assert hash == sha(@png)
+      end
+
+      listed =
+        conn
+        |> get("/api/cards/#{card.id}/attachments")
+        |> json_response(200)
+        |> Map.fetch!("attachments")
+
+      assert Enum.map(listed, & &1["sha256"]) == [sha(@png), sha(@png)]
+
+      assert %{"card" => %{"attachments" => from_card}} =
+               conn |> get("/api/cards/#{card.id}") |> json_response(200)
+
+      assert Enum.all?(from_card, &(&1["sha256"] == sha(@png)))
+    end
+
     test "that doesn't match is a 422 that says what arrived, and stores nothing", %{
       conn: conn,
       card: card

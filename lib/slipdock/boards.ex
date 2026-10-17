@@ -3366,9 +3366,12 @@ defmodule Slipdock.Boards do
       |> Quota.enforce(scope, :items)
       |> Quota.enforce(scope, :storage, want: size)
 
+    # The hash is of the copy as it landed on disk, not of what was sent, so
+    # it vouches for what a download will return (#1015).
     with {:ok, _} <- Ecto.Changeset.apply_action(changeset, :insert),
          :ok <- store_file(source, key),
-         {:ok, attachment} <- Repo.insert(changeset) do
+         {sha256, _size} = Attachment.file_sha256(Path.join(uploads_dir(), key)),
+         {:ok, attachment} <- Repo.insert(Ecto.Changeset.put_change(changeset, :sha256, sha256)) do
       {:ok, attachment}
     else
       {:error, %Ecto.Changeset{} = cs} ->
@@ -3378,6 +3381,33 @@ defmodule Slipdock.Boards do
         {:error,
          Ecto.Changeset.add_error(changeset, :key, "could not be stored: #{inspect(reason)}")}
     end
+  end
+
+  @doc """
+  Hashes the stored file of every attachment that has no `sha256` yet — rows
+  from before it was kept (#1015) — and records it. A file missing from disk
+  is left as it is, nil, rather than given a hash of nothing. Returns how
+  many were filled in. Run on boot, so it is safe to run again.
+  """
+  def backfill_attachment_hashes do
+    from(a in Attachment, where: is_nil(a.sha256), select: %{id: a.id, key: a.key})
+    |> Repo.all()
+    |> Enum.count(fn %{id: id, key: key} ->
+      path = Path.join(uploads_dir(), key)
+
+      if File.regular?(path) do
+        {sha256, _size} = Attachment.file_sha256(path)
+
+        {n, _} =
+          Repo.update_all(from(a in Attachment, where: a.id == ^id and is_nil(a.sha256)),
+            set: [sha256: sha256]
+          )
+
+        n == 1
+      else
+        false
+      end
+    end)
   end
 
   # Which board's owner pays for this file: the card's, or the page's.

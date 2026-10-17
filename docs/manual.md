@@ -842,7 +842,8 @@ file that arrives different is a 422 `sha256_mismatch` with nothing stored;
 `slipdock attach` sends it for every file.
 
 The answer is the stored file — `id`, `filename`, `content_type`, `size`,
-`url` — and the `markdown` that shows it: `![shot.png](/attachments/5/shot.png)`
+`sha256` (of the bytes as stored, so comparing it with `sha256sum` of your
+copy verifies the upload without downloading it), `url` — and the `markdown` that shows it: `![shot.png](/attachments/5/shot.png)`
 for an image, a plain link for anything else. Put that in a description, a
 comment or a page body and the image appears inline, exactly as a pasted one
 does. An optional `filename` field stores the file under another name; a
@@ -4615,7 +4616,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `update_card` | Title, description, priority (or clearing it), start and due dates, percent, flags, tags, assignees, what blocks it, and its checklist — add, tick and untick items. Only what is passed changes. |
 | `move_card` | To another list on its board, or with `board` to another board, subcards and all. |
 | `comment` | A Markdown comment on a card; `@name` mentions notify. |
-| `upload_file` | Attaches a file to a `card`, or to a `page` (a code, or a slug with `board`): `filename`, and the bytes as `content_base64` or a text file's contents as `text`; `content_type` (else the name decides), `hide_on_card` and `sha256` are optional. `sha256` is the hex SHA-256 of the file's bytes before base64: given, bytes that arrive different (one flipped bit leaves the size as it was) are refused with `sha256_mismatch`, saying what arrived, and nothing is stored. Up to 10 MB — the CLI's `slipdock attach` and the API take bigger files. Answers with the attachment and the `markdown` that embeds or links it, as `POST /api/cards/:id/attachments` does, and counts towards the owner's limits the same way. |
+| `upload_file` | Attaches a file to a `card`, or to a `page` (a code, or a slug with `board`): `filename`, and the bytes as `content_base64` or a text file's contents as `text`; `content_type` (else the name decides), `hide_on_card` and `sha256` are optional. `sha256` is the hex SHA-256 of the file's bytes before base64: given, bytes that arrive different (one flipped bit leaves the size as it was) are refused with `sha256_mismatch`, saying what arrived, and nothing is stored. Up to 10 MB — the CLI's `slipdock attach` and the API take bigger files. Answers with the attachment, its `sha256` the hash of the bytes as stored (compare it with the source's to verify in one call), and the `markdown` that embeds or links it, as `POST /api/cards/:id/attachments` does, and counts towards the owner's limits the same way. |
 | `complete_card` | Marks a card completed and moves it to the done list, with an optional closing comment. |
 | `status_update` | Posts a status update on a card, as `POST /api/cards/:id/status` does: its `health` (`on_track`, `at_risk`, `off_track`) and an optional `body`. The latest is the card's stated health. |
 | `archive_card` | Puts a card away, or with `restore: true` brings it back. |

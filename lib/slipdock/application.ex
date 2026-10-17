@@ -52,9 +52,30 @@ defmodule Slipdock.Application do
 
     with {:ok, pid} <- Supervisor.start_link(children, opts) do
       prepare_settings()
+      backfill_attachment_hashes()
       attach_error_tracking()
       {:ok, pid}
     end
+  end
+
+  # Files stored before attachments kept their SHA-256 (#1015) get one, in
+  # the background so a big uploads directory never holds up the boot. The
+  # test environment opts out, for the same sandbox reason as the settings.
+  defp backfill_attachment_hashes do
+    if Application.get_env(:slipdock, :backfill_attachment_hashes, true) do
+      Task.Supervisor.start_child(Slipdock.TaskSupervisor, fn ->
+        require Logger
+
+        try do
+          n = Slipdock.Boards.backfill_attachment_hashes()
+          if n > 0, do: Logger.info("Hashed #{n} attachment(s) stored before sha256 was kept.")
+        rescue
+          e -> Logger.warning("Attachment hash backfill failed: #{Exception.message(e)}")
+        end
+      end)
+    end
+
+    :ok
   end
 
   # The settings row, once, from the environment — and on a server nobody has

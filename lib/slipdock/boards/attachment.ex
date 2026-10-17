@@ -29,6 +29,10 @@ defmodule Slipdock.Boards.Attachment do
     field :content_type, :string
     field :size, :integer
     field :key, :string
+    # The SHA-256 of the bytes as stored, lowercase hex (#1015): what a caller
+    # checks an upload against without downloading it. Nil only for a row from
+    # before it was kept whose file has not been hashed yet, or is missing.
+    field :sha256, :string
     # An image shows as a thumbnail on the front of its card unless this is
     # set (see `front_image/1`). Meaningless for anything else.
     field :hide_on_card, :boolean, default: false
@@ -81,6 +85,21 @@ defmodule Slipdock.Boards.Attachment do
     |> validate_length(:filename, min: 1, max: 255)
     |> validate_number(:size, greater_than: 0, less_than_or_equal_to: max_size())
     |> unique_constraint(:key)
+  end
+
+  @doc """
+  The SHA-256 of the file at `path` as lowercase hex, and its size in bytes,
+  read a chunk at a time so a big file is never held in memory.
+  """
+  def file_sha256(path) do
+    {ctx, size} =
+      path
+      |> File.stream!(1_048_576)
+      |> Enum.reduce({:crypto.hash_init(:sha256), 0}, fn chunk, {ctx, size} ->
+        {:crypto.hash_update(ctx, chunk), size + byte_size(chunk)}
+      end)
+
+    {Base.encode16(:crypto.hash_final(ctx), case: :lower), size}
   end
 
   @doc "Whether the file may be shown on the front of its card."

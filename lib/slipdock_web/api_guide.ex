@@ -668,7 +668,8 @@ defmodule SlipdockWeb.APIGuide do
       `filename` field renames it, and an optional `sha256` field, the hex
       SHA-256 of the file, makes a file that arrives different a 422
       `sha256_mismatch` with nothing stored; `slipdock attach` always sends it). The 201 carries the `attachment` with its
-      `url` and a ready-made `markdown` — `![shot.png](/attachments/5/shot.png)`
+      `url`, its `size` and `sha256` as stored (every attachment listing has
+      them, so checking a file needs no download) and a ready-made `markdown` — `![shot.png](/attachments/5/shot.png)`
       for an image, a plain link otherwise — to put in the description or a
       comment, where an image shows inline. `GET /api/cards/:id/attachments`
       lists them; `DELETE /api/cards/:id/attachments/:attachment_id` removes
