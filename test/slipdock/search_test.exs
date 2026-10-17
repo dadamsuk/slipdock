@@ -282,6 +282,19 @@ defmodule Slipdock.SearchTest do
       refute message =~ "OPENROUTER_API_KEY"
     end
 
+    test "with no AI at all, a card's id or link is still looked up", ctx do
+      key_file =
+        Path.join(System.tmp_dir!(), "ai_keys_#{System.unique_integer([:positive])}.json")
+
+      Slipdock.TestConfig.merge(:ai, key_file: key_file, api_key: nil, system_user: nil)
+      on_exit(fn -> File.rm(key_file) end)
+
+      assert {:ok, [%{card: %{id: id}}]} = Search.search(ctx.owner, "#{ctx.deploy.id}")
+      assert id == ctx.deploy.id
+      # A number that names no card is a query, and that needs the AI.
+      assert {:error, _} = Search.search(ctx.owner, "999999999")
+    end
+
     test "an empty query searches for nothing", ctx do
       assert {:ok, []} = Search.search(ctx.owner, "   ")
     end
@@ -304,6 +317,46 @@ defmodule Slipdock.SearchTest do
 
       assert {:ok, results} = Search.search(ctx.owner, "invoice rounding refunds", archived: true)
       assert Enum.any?(results, &(&1.card.id == ctx.billing.id))
+    end
+
+    test "a card's id or link finds that card first, even archived", ctx do
+      {:ok, _} = Boards.archive_card(ctx.billing)
+      index(ctx.billing)
+
+      link = "https://app.slipdock.us/boards/#{ctx.board.id}/cards/#{ctx.billing.id}"
+
+      # A link is nothing but the card.
+      assert {:ok, [result]} = Search.search(ctx.owner, link)
+      assert result.card.id == ctx.billing.id
+      assert result.card.archived_at
+      assert [%{kind: "card", score: 1.0}] = result.matches
+
+      # A bare id puts the card first and still searches, without it twice.
+      assert {:ok, [first | rest]} = Search.search(ctx.owner, "##{ctx.billing.id}")
+      assert first.card.id == ctx.billing.id
+      refute Enum.any?(rest, &(&1.card && &1.card.id == ctx.billing.id))
+      assert {:ok, [_]} = Search.search(ctx.owner, "#{ctx.billing.id}", limit: 1)
+    end
+
+    test "a named card still has to be readable, on the board and of the kind asked", ctx do
+      stranger = user_fixture("stranger@example.com")
+      other = board_fixture(%{"name" => "Elsewhere"}, owner: ctx.owner)
+      link = "/boards/#{ctx.board.id}/cards/#{ctx.billing.id}"
+
+      assert {:ok, []} = Search.search(stranger, link)
+      assert {:ok, []} = Search.search(ctx.owner, link, board_id: other.id)
+      assert {:ok, []} = Search.search(ctx.owner, link, kind: :page)
+      assert {:ok, []} = Search.search(ctx.owner, link, token: %{scope_boards: [other.id]})
+      assert {:ok, [_]} = Search.search(ctx.owner, link, board_id: ctx.board.id)
+
+      {:ok, _} = Access.grant(ctx.billing, stranger, "read", ctx.owner)
+      assert {:ok, [%{card: %{id: id}}]} = Search.search(stranger, link)
+      assert id == ctx.billing.id
+    end
+
+    test "a link to a card that isn't there searches as words", ctx do
+      assert {:ok, results} = Search.search(ctx.owner, "/boards/#{ctx.board.id}/cards/999999999")
+      refute Enum.any?(results, &(&1.card && &1.card.id == 999_999_999))
     end
 
     test "a board filter narrows to that board's tree", ctx do

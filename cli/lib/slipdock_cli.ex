@@ -35,7 +35,8 @@ defmodule SlipdockCLI do
         --board B     only that board and its sub-boards
         --kind cards|pages|all   cards and their comments, wiki pages, or both (default)
         --limit N     how many results (default 20, max 50)
-        --archived    include archived cards
+        --archived    include archived cards (a card's #id or link
+                      as the query finds it, archived or not)
         --full        print the whole matching text, not a snippet
     ask <question...>                   ask the assistant, which searches for itself and
                                         answers in prose, naming the cards it read

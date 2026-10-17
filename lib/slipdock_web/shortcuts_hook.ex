@@ -135,7 +135,8 @@ defmodule SlipdockWeb.ShortcutsHook do
   end
 
   # A page's code (`W-31`) finds that page, and a card's id (`123`, `#123`)
-  # that card, first, ahead of any card whose title happens to contain it.
+  # or link that card, first, ahead of any card whose title happens to
+  # contain it. Naming a card finds it even archived; titles match live cards.
   defp search(%{panel: :find, query: q, pool: board_ids} = shortcuts, user) do
     results =
       case String.trim(q) do
@@ -144,7 +145,7 @@ defmodule SlipdockWeb.ShortcutsHook do
 
         q ->
           page = Wiki.page_by_code_for(user, q)
-          card = Boards.card_by_ref_across(board_ids, q)
+          card = Boards.card_by_ref_across(board_ids, q, archived: true)
           except = if card, do: [card.id], else: []
 
           List.wrap(page) ++

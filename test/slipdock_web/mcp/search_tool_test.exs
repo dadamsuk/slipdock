@@ -70,6 +70,34 @@ defmodule SlipdockWeb.MCP.SearchToolTest do
     assert hit["url"] =~ "/boards/#{ctx.board.id}/cards/#{ctx.card.id}"
   end
 
+  test "archived cards come back only with archived: true, and say so", ctx do
+    {:ok, _} = Slipdock.Boards.archive_card(ctx.card)
+    {:ok, _} = Search.index_card(ctx.card.id)
+
+    refute ctx.card.id in ids(search(ctx.conn, %{q: "invoice rounding refunds"}))
+
+    result = search(ctx.conn, %{q: "invoice rounding refunds", archived: true})
+    hit = Enum.find(result["structuredContent"]["results"], &(&1["id"] == ctx.card.id))
+    assert hit["archived"] == true
+
+    assert Enum.find(result["structuredContent"]["results"], &(&1["id"] == ctx.twin.id))[
+             "archived"
+           ] == false
+  end
+
+  test "a card's link finds that card, archived or not; a stranger's finds nothing", ctx do
+    {:ok, _} = Slipdock.Boards.archive_card(ctx.card)
+
+    assert ids(
+             search(ctx.conn, %{
+               q: "https://app.slipdock.us/boards/#{ctx.board.id}/cards/#{ctx.card.id}"
+             })
+           ) ==
+             [ctx.card.id]
+
+    assert ids(search(ctx.conn, %{q: "/boards/#{ctx.board.id}/cards/#{ctx.secret.id}"})) == []
+  end
+
   test "board narrows to one board", ctx do
     assert ids(search(ctx.conn, %{q: "invoice rounding refunds", board: "elsewhere3"})) == [
              ctx.twin.id

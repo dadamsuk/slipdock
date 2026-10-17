@@ -747,10 +747,16 @@ defmodule SlipdockWeb.Layouts do
     """
   end
 
+  # A card, or — found by its id or link — an archived one, which opens in
+  # its board's archive where it can be restored.
   defp palette_row(%{panel: :find} = assigns) do
     ~H"""
     <.link
-      navigate={~p"/boards/#{@row.board_id}/cards/#{@row.id}"}
+      navigate={
+        if @row.archived_at,
+          do: ~p"/boards/#{@row.board_id}/archive?#{[card: @row.id]}",
+          else: ~p"/boards/#{@row.board_id}/cards/#{@row.id}"
+      }
       data-row
       data-on={@on && ""}
       class={[
@@ -765,6 +771,7 @@ defmodule SlipdockWeb.Layouts do
       <span class={["min-w-0 flex-1 truncate", @row.completed && "text-base-content/50 line-through"]}>
         {@row.title}
       </span>
+      <span :if={@row.archived_at} class="shrink-0 text-2xs text-warning">archived</span>
       <span class="shrink-0 text-2xs text-base-content/50">{@row.board.name}</span>
     </.link>
     """
@@ -843,7 +850,7 @@ defmodule SlipdockWeb.Layouts do
   defp group_of(_), do: nil
 
   defp empty_palette(%{panel: :find, query: ""}),
-    do: "Type to find a card on any board, its id, or a page's code to open it."
+    do: "Type to find a card on any board, its id or link, or a page's code to open it."
 
   defp empty_palette(%{panel: :find}), do: "No cards match."
   defp empty_palette(%{panel: :notes, query: ""}), do: "No notes yet."

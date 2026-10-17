@@ -18,7 +18,10 @@ way in: what it is, the pictures, and how to get it running.
   (low → critical), five flags (flagged, blocked, needs review, waiting, starred),
   due dates with overdue/soon states, completion toggle, cover colours, tags,
   checklists, comments, archive/restore and delete — one at a time, or several
-  at once from the board's select mode (see [Changing several cards at once](#changing-several-cards-at-once))
+  at once from the board's select mode (see [Changing several cards at once](#changing-several-cards-at-once)).
+  The board's **Archived cards** panel has a search box: a piece of a title,
+  or a card's id (`#123`) or link, finds the archived card to restore. An
+  archived card's own link opens that panel on it rather than a dead end.
 - Time tracking: a start/stop timer on each card, time spent and an estimate
   shown in a unit of its own, and a colour-coded bar between them — see
   [Time tracking](#time-tracking)
@@ -1050,8 +1053,10 @@ dialogs leave the page's keys alone.
   the exact to the vague, so `bs` finds *Board settings*. The arrows walk the
   answer, `Enter` follows the row you are on, `Esc` closes it.
 - `Ctrl-O` — **open a card**: type a title and jump to it, on any board you
-  can open. Type a card's id (`123` or `#123`) and that card comes first,
-  and likewise a wiki page's code (`W-31`) for that page. On a wiki it is
+  can open. Type a card's id (`123` or `#123`) or paste its link and that
+  card comes first — even an archived one, marked *archived*, which opens in
+  its board's archive to be restored — and likewise a wiki page's code
+  (`W-31`) for that page. Titles find live cards only. On a wiki it is
   the **note switcher** instead (`Cmd-O` on a Mac): type a few letters of a
   note's title, one of its aliases or its path, in order but not necessarily
   together (`acmcall` finds `Projects/Acme/Call`), across every board of the
@@ -1302,7 +1307,9 @@ part, shaded. A page section's link goes to its heading. The links are
 `…/cards/<id>?at=comment-7`, `?at=status-update-7`, `?at=provenance-7` and
 `?at=transcript-5-part-2`, so they can be shared; the API gives each match
 its `url`, and `slipdock search --full` prints it. Filter to one board or
-include archived cards.
+include archived cards. A card's id (`#123`) or link as the query finds that
+card first, archived or not and with no AI needed; a link is nothing but the
+card, while a bare id goes on to search for the number as well.
 
 Either mode's box has a **star**: press it and the query is saved. In Ask the
 box empties when you send, so each question in the conversation carries a star
@@ -4593,7 +4600,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `get_board` | A board's lists in order, with a summary of each card and its description. |
 | `list_cards` | Cards in list order, filtered by `column`, `open`, `deps: "ready"`, `no_assignee` and `archived` (`exclude`, `include` or `only`). `full: true` gives each card as `get_card` does (comments, checklist, docs), 20 at a time unless `limit` says otherwise. |
 | `get_card` | A card in full: description, checklist with item ids, comments, dependencies, subcards and the wiki pages about it. |
-| `search` | Cards, comments and wiki pages by meaning, across every board you can read or one. |
+| `search` | Cards, comments and wiki pages by meaning, across every board you can read or one. `archived: true` includes archived cards; a card's id or link as `q` finds that card, archived or not. |
 | `ask` | A `question` in prose, answered from the boards as `POST /api/ask` answers it, with the cards and pages it read (`id`, `title`, `kind`). `board` keeps it to one board. A model call on your own AI key and provider, so it can take a while; a token confined to some boards is refused, as it is by `/api/ask`. |
 | `read_page` | A wiki page's Markdown and its `content_hash`, by code (`W-31`) or by board and slug or title. `board` says whose page it is (`id`, `code`, `name`) and whether that board is `archived` — a code reaches pages on your archived boards, which `list_boards` leaves out unless asked. A page on a board you cannot see is not found. |
 | `list_pages` | A board's wiki pages in order — code, title, summary, folder, parent and pinned cards — filtered by `q`, `archived` (`exclude`, `include` or `only`), `template` and `draft`; `tree: true` nests children under their parents. `shared: true` (no board) lists what other people have shared with you, by owner. |

@@ -1122,6 +1122,11 @@ defmodule SlipdockWeb.APIGuide do
     person the match's `url` when you point them at it. Then
     `GET /api/cards/<id>` for the whole thing before acting on it.
 
+    Archived cards are left out unless you pass `archived=true` (each card
+    result says `archived`). A card's id (`#123`) or its link as `q` finds that
+    one card first, archived or not, if you can read it — a link returns only
+    the card, and works even where semantic search isn't set up.
+
     ```sh
     curl -sH "$H" --get --data-urlencode 'q=what did we decide about refunds' \
       #{base}/search
