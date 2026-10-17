@@ -66,6 +66,58 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
   defp card_files(card),
     do: Repo.preload(Boards.get_card!(card.id), :attachments, force: true).attachments
 
+  defp sha256(bytes), do: :crypto.hash(:sha256, bytes) |> Base.encode16(case: :lower)
+
+  describe "the stored file's sha256 (#1015)" do
+    test "upload_file returns it, so one call verifies the upload", ctx do
+      %{"attachment" => a} =
+        upload!(ctx.conn, %{
+          card: ctx.card.id,
+          filename: "shot.png",
+          content_base64: Base.encode64(@png)
+        })
+
+      assert a["sha256"] == sha256(@png)
+      assert a["size"] == byte_size(@png)
+      [stored] = card_files(ctx.card)
+      assert a["sha256"] == sha256(File.read!(Boards.attachment_path(stored)))
+    end
+
+    test "is the hash of what was stored, so a damaged upload shows as a different one", ctx do
+      # A one-bit flip on the way keeps the size: the response's hash is
+      # what the caller compares with the source to see it.
+      <<head::binary-size(5), byte, rest::binary>> = @png
+      flipped = head <> <<Bitwise.bxor(byte, 2)>> <> rest
+
+      %{"attachment" => a} =
+        upload!(ctx.conn, %{
+          card: ctx.card.id,
+          filename: "shot.png",
+          content_base64: Base.encode64(flipped)
+        })
+
+      assert a["size"] == byte_size(@png)
+      assert a["sha256"] == sha256(flipped)
+      refute a["sha256"] == sha256(@png)
+    end
+
+    test "get_card lists it with the card's files", ctx do
+      %{"attachment" => %{"id" => id}} =
+        upload!(ctx.conn, %{card: ctx.card.id, filename: "n.txt", text: "card file"})
+
+      %{"attachments" => [listed]} = ctx.conn |> call("get_card", %{card: ctx.card.id}) |> ok!()
+      assert listed["id"] == id
+      assert listed["sha256"] == sha256("card file")
+    end
+
+    test "upload_file to a page returns it too", ctx do
+      %{"attachment" => a} =
+        upload!(ctx.conn, %{page: ctx.page.code, filename: "a.txt", text: "one"})
+
+      assert a["sha256"] == sha256("one")
+    end
+  end
+
   describe "upload_file" do
     test "attaches base64 bytes to a card, as the HTTP API then lists them", ctx do
       %{"card" => card_id, "attachment" => a} =
@@ -419,6 +471,7 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
 
       assert listed["id"] == id
       assert listed["markdown"] == "[p.txt](/attachments/#{id}/p.txt)"
+      assert listed["sha256"] == sha256("on the page")
 
       info = ctx.conn |> call("download_file", %{attachment: id}) |> ok!()
       assert info["page"] == ctx.page.code

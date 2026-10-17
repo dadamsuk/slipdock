@@ -39,7 +39,9 @@ compare two versions, or `diff: true` for the latest save), and `revert_page` is
 `page rm`/`page restore` (`archived`) and `page pin --card` (`pin_card`/`unpin_card`).
 `upload_file` is `attach` for a file of up to 10 MB (`content_base64`, or `text`). Always send
 `sha256` (hex, of the bytes before base64): base64 written out by a model can come out a bit
-wrong at the same size, and a `sha256_mismatch` refusal means re-encode and resend. And
+wrong at the same size, and a `sha256_mismatch` refusal means re-encode and resend. The answer's
+`sha256` is of the bytes as stored, and `get_card`/`read_page` list it for every file: compare that
+with the source's hash to verify a file, rather than downloading it. And
 `download_file` reads an attached file by its id (`get_card` and `read_page` list them).
 `list_automations` is `automations`/`automation` (`vocabulary: true` adds what `automation-help`
 and `automation-presets` give), and `manage_automation` is `new-automation` (`action: create`),

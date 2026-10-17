@@ -30,8 +30,8 @@ defmodule SlipdockWeb.MCP.Tools.UploadFile do
   def description,
     do:
       "Attaches a file (up to 10 MB) to a card, or to a wiki page. Send the bytes as " <>
-        "content_base64, or a text file's contents as text. Returns the attachment and " <>
-        "markdown that embeds it, to put in a description, comment or page body. Send sha256 " <>
+        "content_base64, or a text file's contents as text. Returns the attachment, with the " <>
+        "sha256 of the bytes as stored, and markdown that embeds it, to put in a description, comment or page body. Send sha256 " <>
         "(the SHA-256 of the file's bytes, before base64) and a file that changed on the way " <>
         "is refused with sha256_mismatch and not stored."
 

@@ -85,21 +85,10 @@ defmodule SlipdockWeb.API.Uploads do
       {:error, :unprocessable_entity, "sha256 must be 64 hex characters, the SHA-256 of the file"}
 
   # A multipart upload is on disk and can be big, so it is read a chunk at a time.
-  defp sha256({:path, path}) do
-    {ctx, size} =
-      path
-      |> File.stream!(1_048_576)
-      |> Enum.reduce({:crypto.hash_init(:sha256), 0}, fn chunk, {ctx, size} ->
-        {:crypto.hash_update(ctx, chunk), size + byte_size(chunk)}
-      end)
-
-    {hex(:crypto.hash_final(ctx)), size}
-  end
+  defp sha256({:path, path}), do: Attachment.file_sha256(path)
 
   defp sha256(bytes) when is_binary(bytes),
-    do: {hex(:crypto.hash(:sha256, bytes)), byte_size(bytes)}
-
-  defp hex(digest), do: Base.encode16(digest, case: :lower)
+    do: {Base.encode16(:crypto.hash(:sha256, bytes), case: :lower), byte_size(bytes)}
 
   @doc "The attachment as the API shows it, with the Markdown that embeds or links it."
   def json(%Attachment{} = a) do

@@ -31,6 +31,71 @@ defmodule Slipdock.AttachmentsTest do
     assert [%{kind: "attachment"} | _] = Boards.list_activities(card.board_id)
   end
 
+  describe "sha256 (#1015)" do
+    defp sha(bytes), do: :crypto.hash(:sha256, bytes) |> Base.encode16(case: :lower)
+
+    defp forget_hash(a) do
+      Repo.update_all(from(x in Attachment, where: x.id == ^a.id), set: [sha256: nil])
+      Repo.get!(Attachment, a.id)
+    end
+
+    test "is recorded from the file as stored", %{card: card, src: src} do
+      {:ok, a} =
+        Boards.add_attachment(card, %{filename: "n.txt", content_type: "text/plain"}, src)
+
+      assert a.sha256 == sha("hello attachment")
+      assert Repo.get!(Attachment, a.id).sha256 == sha(File.read!(Boards.attachment_path(a)))
+    end
+
+    test "a wiki page's file gets one too", %{board: board} do
+      page = page_fixture(board, %{"title" => "Hashed"})
+      src = Path.join(System.tmp_dir!(), "kanban-page-#{System.unique_integer([:positive])}")
+      File.write!(src, "page bytes")
+      on_exit(fn -> File.rm(src) end)
+
+      {:ok, a} =
+        Slipdock.Wiki.add_attachment(page, %{filename: "p.txt", content_type: "text/plain"}, src)
+
+      assert a.sha256 == sha("page bytes")
+    end
+
+    test "file_sha256 reads a file bigger than one chunk", %{src: src} do
+      big = :binary.copy("x", 1_048_576 * 2 + 7)
+      File.write!(src, big)
+      assert Attachment.file_sha256(src) == {sha(big), byte_size(big)}
+    end
+
+    test "the backfill hashes old rows, skips missing files and keeps existing hashes", %{
+      card: card,
+      src: src
+    } do
+      {:ok, old} =
+        Boards.add_attachment(card, %{filename: "o.txt", content_type: "text/plain"}, src)
+
+      {:ok, gone} =
+        Boards.add_attachment(card, %{filename: "g.txt", content_type: "text/plain"}, src)
+
+      {:ok, kept} =
+        Boards.add_attachment(card, %{filename: "k.txt", content_type: "text/plain"}, src)
+
+      old = forget_hash(old)
+      gone = forget_hash(gone)
+      File.rm!(Boards.attachment_path(gone))
+      # A stored hash is never rewritten, even if it no longer matches the
+      # disk: the backfill only fills gaps.
+      Repo.update_all(from(x in Attachment, where: x.id == ^kept.id), set: [sha256: "keep"])
+
+      assert old.sha256 == nil
+      assert Boards.backfill_attachment_hashes() == 1
+      assert Repo.get!(Attachment, old.id).sha256 == sha("hello attachment")
+      assert Repo.get!(Attachment, gone.id).sha256 == nil
+      assert Repo.get!(Attachment, kept.id).sha256 == "keep"
+
+      # Safe to run again: nothing left it can fill.
+      assert Boards.backfill_attachment_hashes() == 0
+    end
+  end
+
   test "rejects an empty file and an oversized one", %{card: card} do
     empty = Path.join(System.tmp_dir!(), "kanban-empty-#{System.unique_integer([:positive])}")
     File.write!(empty, "")
