@@ -37,9 +37,12 @@ rather than guessing the heading path. `page_history` is `page history` and `pag
 compare two versions, or `diff: true` for the latest save), and `revert_page` is `page revert`: it needs the page's current
 `content_hash` as `base_hash`. `update_page` is `page edit --title/--summary`, `page mv`, `page file`,
 `page rm`/`page restore` (`archived`) and `page pin --card` (`pin_card`/`unpin_card`).
-`upload_file` is `attach` for a file of up to 10 MB (`content_base64`, or `text`). Always send
-`sha256` (hex, of the bytes before base64): base64 written out by a model can come out a bit
-wrong at the same size, and a `sha256_mismatch` refusal means re-encode and resend. The answer's
+`upload_file` is `attach` for a file of up to 10 MB (`content_base64`, or `text`). Base64 a model
+writes out goes wrong above about 1 KB (#1040), so with a shell where the file is, don't use it:
+`slipdock attach`, or `curl -F file=@FILE -F sha256=<hex>` to `/api/cards/<id>/attachments`, keeps
+the bytes out of the model. A file already in a synced vault is copied by the server with `vault`
+and `vault_file` (its vault path or id; no content). `content_base64` must carry `sha256` (hex, of
+the bytes before base64), and a `sha256_mismatch` refusal means re-encode and resend. The answer's
 `sha256` is of the bytes as stored, and `get_card`/`read_page` list it for every file: compare that
 with the source's hash to verify a file, rather than downloading it. Anything over a few KB goes
 in chunks of about 4 KB (#1016), since the longer the base64 the likelier it is damaged: the first

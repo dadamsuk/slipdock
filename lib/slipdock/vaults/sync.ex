@@ -319,6 +319,27 @@ defmodule Slipdock.Vaults.Sync do
   end
 
   @doc """
+  `read_file/4` by the file's vault path (`Img/photo.png`) rather than its
+  id, for a caller that knows where it wrote the file (#1040). Case is
+  ignored, as the layout ignores it.
+  """
+  def read_file_at(%Vault{} = vault, %User{} = reader, path, opts \\ []) do
+    layout = Layout.build(vault)
+
+    with {:ok, clean} <- clean_path(path, :file),
+         {:ok, id} <- file_at(layout, clean),
+         {:ok, file} <- vault_file(layout, id, reader, :read, opts),
+         do: {:ok, file, file_entry(layout, file)}
+  end
+
+  defp file_at(layout, path) do
+    case layout.file_paths[String.downcase(path)] do
+      nil -> {:error, :not_found, "file at #{path} in this vault"}
+      id -> {:ok, id}
+    end
+  end
+
+  @doc """
   Stores the bytes at `source` as the file at `params["path"]`: a new file
   without an `id`, new bytes (and perhaps a new place) for one with. As
   `write_page/4`: a stale `base`, or a path another file has, is a conflict.

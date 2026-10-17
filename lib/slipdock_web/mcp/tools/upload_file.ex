@@ -12,13 +12,21 @@ defmodule SlipdockWeb.MCP.Tools.UploadFile do
   checks the whole file's `sha256` and only then makes it an attachment.
   The pieces wait in `Slipdock.ChunkedUploads`, never on the card.
 
+  Base64 a model writes out goes wrong above about 1 KB (#1040), so a whole
+  `content_base64` upload must carry its `sha256`, and `vault` with
+  `vault_file` copies a file the vault already holds, by sync, without its
+  bytes passing through the caller at all.
+
   `replace: true` (#1017) deletes the card's or page's older files of the
   same name once the new one is stored, so a rebuild leaves one current
   copy; `delete_attachment` removes one by id.
   """
   @behaviour SlipdockWeb.MCP.Tool
 
-  alias Slipdock.{Boards, ChunkedUploads, Wiki}
+  alias Slipdock.{Boards, ChunkedUploads, Vaults, Wiki}
+  alias Slipdock.Boards.Attachment
+  alias Slipdock.Vaults.Sync
+  alias Slipdock.Wiki.Files
   alias SlipdockWeb.API.{Authorize, CardWrites, Uploads}
   alias SlipdockWeb.MCP.Args
   alias SlipdockWeb.MCP.Tools.ReadPage
@@ -39,18 +47,22 @@ defmodule SlipdockWeb.MCP.Tools.UploadFile do
   @impl true
   def description,
     do:
-      "Attaches a file (up to 10 MB) to a card, or to a wiki page. Send the bytes as " <>
-        "content_base64, or a text file's contents as text. Returns the attachment, with the " <>
-        "sha256 of the bytes as stored, and markdown that embeds it, to put in a description, comment or page body. Send sha256 " <>
-        "(the SHA-256 of the file's bytes, before base64) and a file that changed on the way " <>
-        "is refused with sha256_mismatch and not stored. Base64 you write out yourself goes " <>
-        "wrong more often the longer it is, so send anything over a few KB in chunks: the " <>
-        "first with append: true (plus card or page, filename) and its own sha256 returns an " <>
-        "upload_id; each next chunk with upload_id, append: true, offset and its sha256 (a " <>
-        "refused chunk is resent on its own, nothing else restarts); then upload_id, " <>
-        "finish: true and the whole file's sha256, which makes the attachment. Nothing shows " <>
-        "on the card before that. replace: true deletes older files of the same name once " <>
-        "this one is stored."
+      "Attaches a file (up to 10 MB) to a card, or to a wiki page. Bytes you write out " <>
+        "yourself as base64 go wrong above about 1 KB, so pick the path where they don't " <>
+        "pass through you. With a shell where the file is, skip this tool: POST it as " <>
+        "multipart to /api/cards/<id>/attachments (or /api/pages/<code>/attachments) on this " <>
+        "server, e.g. curl -H \"Authorization: Bearer $TOKEN\" -F file=@a.docx -F " <>
+        "sha256=<hex> .../api/cards/129/attachments. A file in a synced vault: vault and " <>
+        "vault_file (its path in the vault, or its id), and the server copies it. Otherwise " <>
+        "text for a text file's contents, or content_base64 with sha256 (required: the hex " <>
+        "SHA-256 of the bytes before base64; a file that changed on the way is refused with " <>
+        "sha256_mismatch and not stored), anything over 1 KB in chunks: the first with " <>
+        "append: true (plus card or page, filename) and its own sha256 returns an upload_id; " <>
+        "each next chunk with upload_id, append: true, offset and its sha256 (a refused " <>
+        "chunk is resent on its own); then upload_id, finish: true and the whole file's " <>
+        "sha256, which makes the attachment. Returns the attachment, with the sha256 of the " <>
+        "bytes as stored, and markdown that embeds it. replace: true deletes older files of " <>
+        "the same name once this one is stored."
 
   @impl true
   def input_schema do
@@ -63,14 +75,29 @@ defmodule SlipdockWeb.MCP.Tools.UploadFile do
           description: "Or the page: its code like W-31, or a slug with board."
         },
         board: %{type: "string", description: "The board, when page is a slug or title."},
-        filename: %{type: "string", description: "The name to store it under, e.g. shot.png."},
-        content_base64: %{type: "string", description: "The file's bytes, base64."},
+        filename: %{
+          type: "string",
+          description:
+            "The name to store it under, e.g. shot.png. Left out with vault_file, the file's own."
+        },
+        content_base64: %{
+          type: "string",
+          description: "The file's bytes, base64, with sha256. Over 1 KB, in chunks (append)."
+        },
         text: %{type: "string", description: "Or a text file's contents, as they are."},
+        vault: %{type: "string", description: "With vault_file: the vault's name or id."},
+        vault_file: %{
+          type: "string",
+          description:
+            "Or copy a file the vault already holds: its path in the vault (e.g. " <>
+              "Jobs/cv.docx) or its id. No content in the call; sha256, if sent, is checked " <>
+              "against the vault's copy."
+        },
         sha256: %{
           type: "string",
           description:
             "The SHA-256 of the file's bytes, hex, before base64. Sent, a file that doesn't " <>
-              "match is refused and not stored."
+              "match is refused and not stored. Required with content_base64."
         },
         append: %{
           type: "boolean",
@@ -103,7 +130,6 @@ defmodule SlipdockWeb.MCP.Tools.UploadFile do
               "so a rebuild leaves one copy. Their ids come back as replaced."
         }
       },
-      required: ["filename"],
       additionalProperties: false
     }
   end
@@ -120,11 +146,17 @@ defmodule SlipdockWeb.MCP.Tools.UploadFile do
       {true, _} ->
         finish(args, context)
 
+      {_, true} when is_map_key(args, "vault_file") ->
+        {:error, "a vault_file is copied whole: leave out append"}
+
       {_, true} ->
         chunk(args, context)
 
       _ when is_map_key(args, "upload_id") ->
         {:error, "with upload_id, say append: true or finish: true"}
+
+      _ when is_map_key(args, "vault_file") ->
+        from_vault(args, context)
 
       _ ->
         whole(args, context)
@@ -136,6 +168,7 @@ defmodule SlipdockWeb.MCP.Tools.UploadFile do
 
     with {:ok, filename} <- Args.required(args, "filename"),
          {:ok, bytes} <- bytes(args),
+         :ok <- base64_sha256(args),
          :ok <- Args.refusal(Uploads.check_sha256(bytes, args["sha256"])),
          {:ok, type} <- Args.optional(args, "content_type"),
          {:ok, hide?} <- Args.boolean(args, "hide_on_card", false),
@@ -149,6 +182,82 @@ defmodule SlipdockWeb.MCP.Tools.UploadFile do
       }
 
       with_file(bytes, fn path -> attach(owner, meta, path, replace?) end)
+    end
+  end
+
+  # Base64 a model wrote out comes back wrong often enough (#1040) that an
+  # unchecked one is a silent corruption waiting to happen; text is sent as is.
+  defp base64_sha256(%{"content_base64" => _} = args) when not is_map_key(args, "sha256"),
+    do:
+      {:error,
+       "content_base64 needs sha256: the hex SHA-256 of the file's bytes before base64, so " <>
+         "a file that changed on the way is refused rather than stored damaged"}
+
+  defp base64_sha256(_args), do: :ok
+
+  # A file the vault already holds, copied on the server (#1040): the bytes
+  # came in by sync, so none of them pass through the caller.
+  defp from_vault(args, context) do
+    auth = Args.auth(context)
+
+    with :ok <- no_vault_content(args),
+         {:ok, vault_ref} <- Args.required(args, "vault"),
+         {:ok, ref} <- Args.required(args, "vault_file"),
+         {:ok, vault} <- Args.refusal(Vaults.get_vault(context.user, vault_ref)),
+         {:ok, file, entry} <- vault_file(vault, ref, context),
+         path = Files.disk_path(file),
+         :ok <- vault_sha256(path, entry, args["sha256"]),
+         {:ok, filename} <- Args.optional(args, "filename"),
+         {:ok, type} <- Args.optional(args, "content_type"),
+         {:ok, hide?} <- Args.boolean(args, "hide_on_card", false),
+         {:ok, replace?} <- Args.boolean(args, "replace", false),
+         {:ok, owner} <- owner(args, auth) do
+      name = filename || file.name
+
+      meta = %{
+        filename: name,
+        content_type: type || MIME.from_path(name),
+        size: entry.size,
+        hide_on_card: hide?
+      }
+
+      attach(owner, meta, path, replace?)
+    end
+  end
+
+  defp no_vault_content(args) do
+    if Map.has_key?(args, "content_base64") or Map.has_key?(args, "text"),
+      do: {:error, "send vault_file or the content, not both"},
+      else: :ok
+  end
+
+  # An id, or a path in the vault.
+  defp vault_file(vault, ref, context) do
+    opts = [token: context[:token]]
+
+    result =
+      case Integer.parse(ref) do
+        {id, ""} -> Sync.read_file(vault, context.user, id, opts)
+        _ -> Sync.read_file_at(vault, context.user, ref, opts)
+      end
+
+    Args.refusal(result)
+  end
+
+  defp vault_sha256(_path, _entry, nil), do: :ok
+
+  defp vault_sha256(path, entry, given) do
+    case Uploads.check_sha256({:path, path}, given) do
+      {:error, _status, "sha256_mismatch" <> _} ->
+        {actual, _size} = Attachment.file_sha256(path)
+
+        {:error,
+         "sha256_mismatch: #{entry.path} in the vault has sha256 #{actual}, not the one you " <>
+           "sent, so the vault holds another version of it (has the sync caught up?). Nothing " <>
+           "was stored."}
+
+      result ->
+        Args.refusal(result)
     end
   end
 

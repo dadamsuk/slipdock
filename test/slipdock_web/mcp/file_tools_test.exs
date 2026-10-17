@@ -74,7 +74,8 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
         upload!(ctx.conn, %{
           card: ctx.card.id,
           filename: "shot.png",
-          content_base64: Base.encode64(@png)
+          content_base64: Base.encode64(@png),
+          sha256: sha256(@png)
         })
 
       assert a["sha256"] == sha256(@png)
@@ -83,22 +84,23 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
       assert a["sha256"] == sha256(File.read!(Boards.attachment_path(stored)))
     end
 
-    test "is the hash of what was stored, so a damaged upload shows as a different one", ctx do
-      # A one-bit flip on the way keeps the size: the response's hash is
-      # what the caller compares with the source to see it.
-      <<head::binary-size(5), byte, rest::binary>> = @png
-      flipped = head <> <<Bitwise.bxor(byte, 2)>> <> rest
-
-      %{"attachment" => a} =
-        upload!(ctx.conn, %{
+    test "content_base64 without a sha256 is refused, so damage can't be stored silently (#1040)",
+         ctx do
+      text =
+        ctx.conn
+        |> call("upload_file", %{
           card: ctx.card.id,
           filename: "shot.png",
-          content_base64: Base.encode64(flipped)
+          content_base64: Base.encode64(@png)
         })
+        |> error!()
 
-      assert a["size"] == byte_size(@png)
-      assert a["sha256"] == sha256(flipped)
-      refute a["sha256"] == sha256(@png)
+      assert text =~ "content_base64 needs sha256"
+      assert card_files(ctx.card) == []
+
+      # Text isn't base64, so it still needn't say.
+      upload!(ctx.conn, %{card: ctx.card.id, filename: "n.txt", text: "plain"})
+      assert [_] = card_files(ctx.card)
     end
 
     test "get_card lists it with the card's files", ctx do
@@ -124,7 +126,8 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
         upload!(ctx.conn, %{
           card: ctx.card.id,
           filename: "shot.png",
-          content_base64: Base.encode64(@png)
+          content_base64: Base.encode64(@png),
+          sha256: sha256(@png)
         })
 
       assert card_id == ctx.card.id
@@ -170,6 +173,7 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
           card: ctx.card.id,
           filename: "pixel",
           content_base64: wrapped,
+          sha256: sha256(@png),
           content_type: "image/png"
         })
 
@@ -195,7 +199,8 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
         {%{card: ctx.card.id, text: "x"}, "filename is required"},
         {%{card: ctx.card.id, filename: "a.txt"}, "content_base64 (any file) or text"},
         {%{card: ctx.card.id, filename: "a.txt", text: "x", content_base64: "eA=="}, "not both"},
-        {%{card: ctx.card.id, filename: "a.bin", content_base64: "%%%"}, "not valid base64"},
+        {%{card: ctx.card.id, filename: "a.bin", content_base64: "%%%", sha256: sha256("")},
+         "not valid base64"},
         {%{card: ctx.card.id, filename: "a.txt", text: ""}, "empty"},
         {%{card: ctx.card.id, filename: "a.txt", text: 5}, "text must be a string"},
         {%{filename: "a.txt", text: "x"}, "card, or page"},
@@ -270,7 +275,7 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
       assert Slipdock.Wiki.attachments(ctx.page) == []
     end
 
-    test "base64 with a run repeated mid-string decodes as sent: longer, and only a sha256 tells (#1018)",
+    test "base64 with a run repeated mid-string decodes longer, and the sha256 refuses it (#1018)",
          ctx do
       # The second file damaged on 2026-10-16: 8 bytes longer, wrong from
       # offset ~4085 to the end. Eleven base64 characters said twice by the
@@ -291,15 +296,6 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
              |> error!() =~ "sha256_mismatch: the file arrived as 9842 bytes"
 
       assert card_files(ctx.card) == []
-
-      %{"attachment" => a} =
-        upload!(ctx.conn, %{card: ctx.card.id, filename: "long.bin", content_base64: repeated})
-
-      assert a["size"] == 9_842
-      [stored] = card_files(ctx.card)
-      got = File.read!(Boards.attachment_path(stored))
-      assert binary_part(got, 0, 4_080) == binary_part(bytes, 0, 4_080)
-      refute binary_part(got, 4_096, 5_738) == binary_part(bytes, 4_096, 5_738)
     end
 
     test "base64 made outside a model comes back byte for byte, wrapped or not (#1018)", ctx do
@@ -312,7 +308,12 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
             {"wrapped.bin", ~r/.{1,76}/ |> Regex.scan(b64) |> Enum.join("\n")}
           ] do
         %{"attachment" => a} =
-          upload!(ctx.conn, %{card: ctx.card.id, filename: name, content_base64: b64})
+          upload!(ctx.conn, %{
+            card: ctx.card.id,
+            filename: name,
+            content_base64: b64,
+            sha256: sha256(bytes)
+          })
 
         assert a["size"] == byte_size(bytes)
 
@@ -397,12 +398,131 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
         upload!(ctx.conn, %{
           card: ctx.card.id,
           filename: "blob.bin",
-          content_base64: Base.encode64(bytes)
+          content_base64: Base.encode64(bytes),
+          sha256: sha256(bytes)
         })
 
       assert a["size"] == 2_000_000
       assert a["content_type"] == "application/octet-stream"
       assert SlipdockWeb.MCP.Plug.max_body() > ceil(UploadFile.max_bytes() * 4 / 3) + 1000
+    end
+  end
+
+  describe "upload_file from a vault file (#1040)" do
+    setup ctx do
+      {:ok, vault} = Slipdock.Vaults.create_vault(ctx.user, %{"name" => "Brain1040"})
+      {:ok, _} = Slipdock.Vaults.add_mapping(vault, ctx.user, %{path: "/", board: ctx.board})
+      bytes = :crypto.strong_rand_bytes(50_000)
+      source = Path.join(System.tmp_dir!(), "vault-1040-#{System.unique_integer([:positive])}")
+      File.write!(source, bytes)
+      on_exit(fn -> File.rm(source) end)
+
+      {:ok, entry} =
+        Slipdock.Vaults.Sync.write_file(vault, ctx.user, %{"path" => "Jobs/CV.docx"}, source)
+
+      %{vault: vault, bytes: bytes, entry: entry}
+    end
+
+    test "copies it onto a card by its path, byte for byte, under its own name", ctx do
+      %{"card" => card_id, "attachment" => a} =
+        upload!(ctx.conn, %{card: ctx.card.id, vault: "brain1040", vault_file: "jobs/cv.docx"})
+
+      assert card_id == ctx.card.id
+      assert a["filename"] == "CV.docx"
+      assert a["size"] == 50_000
+      assert a["sha256"] == sha256(ctx.bytes)
+
+      assert a["content_type"] ==
+               "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+      [stored] = card_files(ctx.card)
+      assert File.read!(Boards.attachment_path(stored)) == ctx.bytes
+      # A copy: the vault keeps its file.
+      assert {:ok, _, _} =
+               Slipdock.Vaults.Sync.read_file(ctx.vault, ctx.user, ctx.entry.id)
+    end
+
+    test "or by its id, onto a page, under a name given, with a matching sha256", ctx do
+      %{"page" => code, "attachment" => a} =
+        upload!(ctx.conn, %{
+          page: ctx.page.code,
+          vault: "#{ctx.vault.id}",
+          vault_file: "#{ctx.entry.id}",
+          filename: "David CV.docx",
+          sha256: String.upcase(sha256(ctx.bytes))
+        })
+
+      assert code == ctx.page.code
+      assert a["filename"] == "David CV.docx"
+      assert a["sha256"] == sha256(ctx.bytes)
+    end
+
+    test "a sha256 the vault's copy doesn't have is refused, and nothing is stored", ctx do
+      text =
+        ctx.conn
+        |> call("upload_file", %{
+          card: ctx.card.id,
+          vault: "Brain1040",
+          vault_file: "Jobs/CV.docx",
+          sha256: sha256("another version")
+        })
+        |> error!()
+
+      assert text =~ "sha256_mismatch: Jobs/CV.docx in the vault has sha256 #{sha256(ctx.bytes)}"
+      assert text =~ "Nothing was stored"
+      assert card_files(ctx.card) == []
+    end
+
+    test "says what is wrong with the arguments, and stores nothing", ctx do
+      base = %{card: ctx.card.id, vault: "Brain1040", vault_file: "Jobs/CV.docx"}
+
+      bad = [
+        {Map.delete(base, :vault), "vault is required"},
+        {%{base | vault: "Nope"}, "no vault \"Nope\""},
+        {%{base | vault_file: "Jobs/Missing.docx"}, "file at Jobs/Missing.docx"},
+        {%{base | vault_file: "999999999"}, "file 999999999"},
+        {%{base | vault_file: "../etc/passwd"}, "hidden files"},
+        {Map.put(base, :text, "x"), "vault_file or the content, not both"},
+        {Map.put(base, :content_base64, "eA=="), "vault_file or the content, not both"},
+        {Map.put(base, :append, true), "copied whole"},
+        {Map.delete(base, :card), "card, or page"}
+      ]
+
+      for {args, message} <- bad do
+        assert ctx.conn |> call("upload_file", args) |> error!() =~ message
+      end
+
+      assert card_files(ctx.card) == []
+    end
+
+    test "only the caller's own vaults, and only with a token that writes", ctx do
+      assert ctx.conn
+             |> with_token(ctx.stranger, [])
+             |> call("upload_file", %{
+               card: ctx.secret.id,
+               vault: "Brain1040",
+               vault_file: "Jobs/CV.docx"
+             })
+             |> error!() =~ "no vault"
+
+      assert ctx.conn
+             |> with_token(ctx.user, scope: "read")
+             |> call("upload_file", %{
+               card: ctx.card.id,
+               vault: "Brain1040",
+               vault_file: "Jobs/CV.docx"
+             })
+             |> error!() =~ "read-only"
+
+      assert card_files(ctx.card) == []
+      assert card_files(ctx.secret) == []
+    end
+
+    test "the description sends a caller with a shell to the multipart endpoint" do
+      text = UploadFile.description()
+      assert text =~ "/api/cards/<id>/attachments"
+      assert text =~ "vault_file"
+      assert text =~ "sha256 (required"
     end
   end
 
