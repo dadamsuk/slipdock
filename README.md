@@ -57,7 +57,7 @@ Briefly, with the detail in [the manual](docs/manual.md):
   named, attachments (uploaded in the browser, or over the API and CLI —
   `slipdock attach 12 shot.png`, and back with `slipdock download 5`), image thumbnails on card fronts, recordings that
   play in place and transcribe on a transcription server of your own
-  (Configuration → Server → Transcription server; [what it must speak](docs/manual.md#what-a-transcription-server-must-speak)), cover colours, archive and restore, and a [select mode](docs/manual.md#changing-several-cards-at-once) that tags, flags, moves, archives or deletes many cards at once. Each board has a short code (`qvm-v1-rem`) that addresses it
+  (Configuration → Server → Transcription server; [what it must speak](docs/manual.md#what-a-transcription-server-must-speak)), cover colours, archive and restore (the archive searchable by title, `#id` or a card's link), and a [select mode](docs/manual.md#changing-several-cards-at-once) that tags, flags, moves, archives or deletes many cards at once. Each board has a short code (`qvm-v1-rem`) that addresses it
   everywhere.
 - **Time tracking** — [a timer on each card, time spent and an estimate](docs/manual.md#time-tracking)
   in minutes, hours, days, weeks or months, and a bar that turns amber near the

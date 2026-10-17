@@ -1,8 +1,12 @@
 defmodule SlipdockWeb.BoardLive.ArchiveComponent do
   @moduledoc """
-  The board's archived cards: restore one, or delete it for good.
+  The board's archived cards: find one, restore it, or delete it for good.
 
-  Anyone who can read the board can look; restoring and deleting need write
+  The search box matches a piece of a title, or names one card by its id
+  (`#123`) or its link — which is how an archived card's own link lands here
+  (`?card=123`, see `SlipdockWeb.BoardLive.Show`).
+
+  Anyone who can read the board can look and search; restoring and deleting need write
   access, which the component works out for itself from the board it is
   given. A card named by id is only ever an archived card of that board.
   """
@@ -13,7 +17,7 @@ defmodule SlipdockWeb.BoardLive.ArchiveComponent do
 
   alias Slipdock.{Access, Boards}
 
-  @events ~w(restore_card delete_archived)
+  @events ~w(filter_archived restore_card delete_archived)
 
   @doc false
   # For the test that every `handle_event/3` clause is in the list.
@@ -21,22 +25,40 @@ defmodule SlipdockWeb.BoardLive.ArchiveComponent do
 
   # Sent by the board when something on it changed.
   @impl true
-  def update(%{refresh: true}, socket),
-    do: {:ok, assign(socket, archived: Boards.list_archived_cards(socket.assigns.board.id))}
+  def update(%{refresh: true}, socket), do: {:ok, list_archived(socket)}
 
   def update(%{board: board, current_user: user} = assigns, socket) do
+    # The query a link arrived with is taken once, when the panel opens;
+    # after that the box is the reader's.
+    query =
+      if socket.assigns[:board] && socket.assigns.board.id == board.id,
+        do: socket.assigns.query,
+        else: assigns[:query] || ""
+
     {:ok,
-     assign(socket,
+     socket
+     |> assign(
        board: board,
        close_path: assigns.close_path,
        can_write: Access.can_write?(Access.board_permission(user, board)),
-       archived: Boards.list_archived_cards(board.id)
-     )}
+       query: query
+     )
+     |> list_archived()}
   end
+
+  defp list_archived(socket),
+    do:
+      assign(socket,
+        archived: Boards.list_archived_cards(socket.assigns.board.id, socket.assigns.query)
+      )
 
   @impl true
   def handle_event(event, _params, socket) when event not in @events,
     do: {:noreply, flash(socket, :error, "That isn't something this page can do.")}
+
+  # Looking is reading, so searching is open to read-only access too.
+  def handle_event("filter_archived", %{"q" => q}, socket),
+    do: {:noreply, socket |> assign(query: q) |> list_archived()}
 
   def handle_event(_event, _params, %{assigns: %{can_write: false}} = socket),
     do: {:noreply, flash(socket, :error, "You have read-only access to this board.")}
@@ -73,6 +95,7 @@ defmodule SlipdockWeb.BoardLive.ArchiveComponent do
       <.archive_modal
         board={@board}
         archived={@archived}
+        query={@query}
         close_path={@close_path}
         target={@myself}
       />
@@ -82,6 +105,7 @@ defmodule SlipdockWeb.BoardLive.ArchiveComponent do
 
   attr :board, :any, required: true
   attr :archived, :list, required: true
+  attr :query, :string, required: true
   attr :close_path, :string, required: true
   attr :target, :any, required: true
 
@@ -92,7 +116,28 @@ defmodule SlipdockWeb.BoardLive.ArchiveComponent do
         <h2 class="flex items-center gap-2 text-lg font-semibold">
           <.icon name="hero-archive-box" class="size-5" /> Archived cards
         </h2>
-        <p :if={@archived == []} class="text-sm text-base-content/60">No archived cards.</p>
+        <form
+          id="archive-search"
+          phx-change="filter_archived"
+          phx-submit="filter_archived"
+          phx-target={@target}
+        >
+          <label class="input input-sm w-full">
+            <.icon name="hero-magnifying-glass" class="size-4 opacity-50" />
+            <input
+              type="search"
+              name="q"
+              value={@query}
+              placeholder="Search by title, #id or card link"
+              phx-debounce="200"
+              autocomplete="off"
+              aria-label="Search archived cards"
+            />
+          </label>
+        </form>
+        <p :if={@archived == []} class="text-sm text-base-content/60">
+          {if String.trim(@query) == "", do: "No archived cards.", else: "No archived cards match."}
+        </p>
         <ul class="max-h-[60vh] space-y-2 overflow-y-auto kanban-scroll pr-1">
           <li
             :for={card <- @archived}
@@ -102,7 +147,7 @@ defmodule SlipdockWeb.BoardLive.ArchiveComponent do
             <div class="min-w-0 flex-1">
               <p class="truncate text-sm font-medium">{card.title}</p>
               <p class="text-xs text-base-content/50">
-                from {card.column.name} · archived {relative_time(card.archived_at)}
+                #{card.id} · from {card.column.name} · archived {relative_time(card.archived_at)}
               </p>
               <div :if={card.tags != []} class="mt-1 flex flex-wrap gap-1">
                 <.tag_chip :for={tag <- card.tags} tag={tag} size="xs" />

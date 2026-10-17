@@ -16,7 +16,8 @@ defmodule SlipdockWeb.MCP.Tools.Search do
   def description,
     do:
       "Search cards, comments and wiki pages by meaning, across every board you can read " <>
-        "or one board. Use it before writing anything new, to find what already exists."
+        "or one board. Use it before writing anything new, to find what already exists. " <>
+        "A card's id (#123) or link as q finds that card, archived or not."
 
   @impl true
   def input_schema do
@@ -26,6 +27,7 @@ defmodule SlipdockWeb.MCP.Tools.Search do
         q: %{type: "string", description: "What to look for, in words."},
         board: %{type: "string", description: "Only this board (id, code or name)."},
         kind: %{type: "string", enum: ["all", "card", "page"]},
+        archived: %{type: "boolean", description: "Include archived cards. Default false."},
         limit: %{type: "integer", description: "Default 10, max #{@max}."}
       },
       required: ["q"],
@@ -45,6 +47,7 @@ defmodule SlipdockWeb.MCP.Tools.Search do
          {:ok, results} <-
            Slipdock.Search.search(user, q,
              limit: limit,
+             archived: args["archived"] == true,
              board_id: board_id,
              kind: kind,
              token: token
@@ -80,6 +83,7 @@ defmodule SlipdockWeb.MCP.Tools.Search do
       board: card.board.code,
       column: card.column && card.column.name,
       completed: card.completed,
+      archived: not is_nil(card.archived_at),
       score: Float.round(r.score, 3),
       excerpt: excerpt(r),
       url: base <> "/boards/#{card.board_id}/cards/#{card.id}"

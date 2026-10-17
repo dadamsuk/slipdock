@@ -158,7 +158,7 @@ defmodule SlipdockWeb.ShortcutsLiveTest do
 
       html = render_hook(view, "shortcut_panel", %{"panel" => "find"})
       assert html =~ "Find a card"
-      assert html =~ "Type to find a card on any board, its id, or a page"
+      assert html =~ "Type to find a card on any board, its id or link, or a page"
 
       render_hook(view, "palette_filter", %{"q" => "query"})
       assert has_element?(view, ~s{#palette-rows a[href="/boards/#{board.id}/cards/#{card.id}"]})
@@ -206,19 +206,44 @@ defmodule SlipdockWeb.ShortcutsLiveTest do
       refute has_element?(view, ~s{#palette-rows a[href="/boards/#{other.id}/cards/#{far.id}"]})
     end
 
-    test "Ctrl-O finds no card by id when it is archived or not yours", %{
-      view: view,
-      board: board
-    } do
+    test "Ctrl-O finds no card by id when it is not yours", %{view: view} do
       stranger = user_fixture("stranger@example.com")
       theirs = board_fixture(%{"name" => "Theirs"}, owner: stranger, derive_keys: true)
       secret = card_fixture(hd(theirs.columns), %{"title" => "Secret"})
-      gone = card_fixture(hd(board.columns), %{"title" => "Gone"})
-      {:ok, _} = Boards.archive_card(gone)
 
       render_hook(view, "shortcut_panel", %{"panel" => "find"})
       assert render_hook(view, "palette_filter", %{"q" => "#{secret.id}"}) =~ "No cards match."
-      assert render_hook(view, "palette_filter", %{"q" => "##{gone.id}"}) =~ "No cards match."
+
+      link = "https://app.slipdock.us/boards/#{theirs.id}/cards/#{secret.id}"
+      assert render_hook(view, "palette_filter", %{"q" => link}) =~ "No cards match."
+    end
+
+    test "Ctrl-O finds an archived card by its id or link, into the archive", %{
+      view: view,
+      board: board
+    } do
+      gone = card_fixture(hd(board.columns), %{"title" => "Gone parser"})
+      {:ok, _} = Boards.archive_card(gone)
+      archive = ~p"/boards/#{board}/archive?#{[card: gone.id]}"
+
+      render_hook(view, "shortcut_panel", %{"panel" => "find"})
+
+      for q <- ["##{gone.id}", "https://app.slipdock.us/boards/#{board.id}/cards/#{gone.id}"] do
+        render_hook(view, "palette_filter", %{"q" => q})
+        assert has_element?(view, ~s{#palette-rows a[data-on][href="#{archive}"]}, "archived")
+      end
+
+      # Its title alone doesn't bring it back: titles find live cards.
+      assert render_hook(view, "palette_filter", %{"q" => "gone parser"}) =~ "No cards match."
+    end
+
+    test "Ctrl-O opens a live card by its link", %{view: view, board: board} do
+      card = card_fixture(hd(board.columns), %{"title" => "Linked"})
+
+      render_hook(view, "shortcut_panel", %{"panel" => "find"})
+      render_hook(view, "palette_filter", %{"q" => "/boards/#{board.id}/table/cards/#{card.id}"})
+      assert on_row(view, ~p"/boards/#{board}/cards/#{card.id}")
+      refute has_element?(view, "#palette-rows a", "archived")
     end
 
     test "h goes home", %{view: view} do

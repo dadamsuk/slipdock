@@ -153,6 +153,7 @@ defmodule SlipdockWeb.BoardLive.Show do
       card: nil,
       mode: :board,
       panel: nil,
+      archive_query: "",
       paths: %{},
       swim: %Config{},
       swim_base: %Config{},
@@ -366,19 +367,47 @@ defmodule SlipdockWeb.BoardLive.Show do
         socket |> assign(card: card) |> assign_card_access()
 
       :error ->
-        socket
-        |> put_flash(:error, "That card no longer exists.")
-        |> push_patch(to: socket.assigns.paths.close)
+        missing_card(socket, card_id)
     end
   end
 
-  defp apply_panel(socket, panel, _) when panel in [:activity, :archive], do: socket
+  defp apply_panel(socket, :activity, _), do: socket
+
+  # `?card=123` is where an archived card's own link lands: the archive,
+  # searched for that card.
+  defp apply_panel(socket, :archive, params) do
+    query =
+      case Boards.card_ref(to_string(params["card"])) do
+        nil -> ""
+        id -> "##{id}"
+      end
+
+    assign(socket, archive_query: query)
+  end
 
   defp apply_panel(socket, :tags, _), do: socket
 
   defp apply_panel(socket, :automations, _), do: socket
 
   defp apply_panel(socket, :settings, _), do: socket
+
+  # A card that isn't live on this board: an archived one is shown where it
+  # can be restored, to a reader of the board; anything else has gone.
+  defp missing_card(socket, card_id) do
+    %{board: board, card_only: card_only, paths: paths} = socket.assigns
+
+    case !card_only && Boards.get_archived_card(board.id, card_id) do
+      %Card{id: id} ->
+        socket
+        |> put_flash(:info, "That card is archived.")
+        |> push_patch(to: append_query(paths.archive, card: id))
+
+      _ ->
+        socket
+        |> put_flash(:error, "That card no longer exists.")
+        |> push_patch(to: paths.close)
+    end
+  end
 
   # Opening a stand-in opens the card it stands for, on that card's own board
   # — for a reader who may see it there. One who may not still has the
@@ -1303,6 +1332,7 @@ defmodule SlipdockWeb.BoardLive.Show do
         module={SlipdockWeb.BoardLive.ArchiveComponent}
         id="archive"
         board={@board}
+        query={@archive_query}
         current_user={@current_user}
         close_path={@paths.close}
       />

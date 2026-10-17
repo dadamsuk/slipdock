@@ -131,9 +131,16 @@ defmodule Slipdock.Search do
   def search(%User{} = user, query, opts) do
     query = String.trim(to_string(query))
 
+    named = named_card(user, query, opts)
+
     cond do
       query == "" ->
         {:ok, []}
+
+      # Looking a card up by its id or link needs no AI, and a link is
+      # nothing but the card.
+      named && (not Embeddings.configured?() or not String.match?(query, ~r/^#?\s*\d+$/)) ->
+        {:ok, [named]}
 
       not Embeddings.configured?() ->
         {:error,
@@ -143,9 +150,49 @@ defmodule Slipdock.Search do
 
       true ->
         with {:ok, vector} <- Embeddings.embed(query) do
-          {:ok, run(user, query, Vector.pack(vector), opts)}
+          {:ok, with_named(named, run(user, query, Vector.pack(vector), opts), opts)}
         end
     end
+  end
+
+  # A card named by its id (`123`, `#123`) or its link goes first, archived
+  # or not — naming it is asking for it — as long as the reader may open it
+  # and it is inside the board and kind asked for.
+  defp named_card(user, query, opts) do
+    with id when is_integer(id) <- Slipdock.Boards.card_ref(query),
+         false <- opts[:kind] in [:page, "page"],
+         %Card{} = card <- Repo.get(Card, id),
+         nil <- card.stand_in_for_id,
+         true <- readable_card?(user, card, opts[:token]),
+         true <- within_board?(card, opts[:board_id]) do
+      card = Repo.preload(card, [:board, :column, :tags, :assignee, :assignees])
+      match = %{kind: "card", source_id: card.id, section: "", body: card.title, score: 1.0}
+      result("card", card, card, nil, [match])
+    else
+      _ -> nil
+    end
+  end
+
+  defp readable_card?(user, card, token) do
+    %{board_ids: board_ids, card_ids: card_ids} = Slipdock.Access.readable_scope(user)
+
+    (card.board_id in board_ids or card.id in card_ids) and
+      (is_nil(token) or
+         Slipdock.Access.can_read?(elem(Slipdock.Access.narrow(:read, token, card.board_id), 0)))
+  end
+
+  defp within_board?(_card, nil), do: true
+
+  defp within_board?(card, board_id) do
+    card.board_id == board_id or
+      Repo.exists?(from(b in Board, where: b.id == ^card.board_id and b.root_id == ^board_id))
+  end
+
+  defp with_named(nil, results, _opts), do: results
+
+  defp with_named(named, results, opts) do
+    rest = Enum.reject(results, &(&1.card && &1.card.id == named.card.id))
+    Enum.take([named | rest], opts[:limit] || @default_limit)
   end
 
   defp run(user, query, packed, opts) do

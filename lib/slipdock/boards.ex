@@ -1969,13 +1969,32 @@ defmodule Slipdock.Boards do
     end)
   end
 
-  def list_archived_cards(board_id) do
+  def list_archived_cards(board_id, q \\ "") do
     from(c in Card,
       where: c.board_id == ^board_id and not is_nil(c.archived_at),
       order_by: [desc: c.archived_at]
     )
+    |> archived_matching(q)
     |> Repo.all()
     |> Repo.preload([:tags, :column])
+  end
+
+  # The archive panel's search: a card's id or link names that card, and
+  # anything else is a piece of a title.
+  defp archived_matching(query, q) do
+    q = String.trim(to_string(q))
+
+    cond do
+      q == "" ->
+        query
+
+      id = card_ref(q) ->
+        where(query, [c], c.id == ^id)
+
+      true ->
+        like = "%" <> String.replace(q, ["\\", "%", "_"], &"\\#{&1}") <> "%"
+        where(query, [c], ilike(c.title, ^like))
+    end
   end
 
   @doc """
@@ -2780,27 +2799,48 @@ defmodule Slipdock.Boards do
     |> Repo.all()
   end
 
+  @card_link ~r"^(?:https?://[^/\s]+)?/boards/\d+/(?:[a-z]+/)?cards/(\d{1,18})(?:[/?#]\S*)?$"
+
   @doc """
-  The card a typed id names (`123`, `#123`), if it is an active card on one
+  The card id a typed reference names, or nil: an id (`123`, `#123`) or a
+  card's link, whole or just its path, in any of the board's views
+  (`https://…/boards/3/cards/123`, `/boards/3/table/cards/123?at=…`).
+  """
+  def card_ref(q) when is_binary(q) do
+    q = String.trim(q)
+
+    case Regex.run(~r/^#?\s*(\d{1,18})$/, q) ||
+           Regex.run(@card_link, q) do
+      [_, digits] -> String.to_integer(digits)
+      _ -> nil
+    end
+  end
+
+  def card_ref(_q), do: nil
+
+  @doc """
+  The card a typed reference names (see `card_ref/1`), if it is a card on one
   of the board trees rooted at `root_ids` — what the card finder (`Ctrl-O`)
-  offers ahead of title matches. Anything else typed, an archived card, a
+  offers ahead of title matches. Naming a card is asking for it, so an
+  archived card is found too with `archived: true`. Anything else typed, a
   stand-in and a card outside those boards all give `nil`.
   """
-  def card_by_ref_across(root_ids, q) when is_list(root_ids) and is_binary(q) do
-    case Regex.run(~r/^#?\s*(\d{1,18})$/, String.trim(q)) do
-      [_, digits] ->
+  def card_by_ref_across(root_ids, q, opts \\ []) when is_list(root_ids) and is_binary(q) do
+    case card_ref(q) do
+      nil ->
+        nil
+
+      id ->
         from(c in Card,
           join: b in Board,
           on: b.id == c.board_id,
-          where: c.id == ^String.to_integer(digits),
-          where: (b.id in ^root_ids or b.root_id in ^root_ids) and is_nil(c.archived_at),
+          where: c.id == ^id,
+          where: b.id in ^root_ids or b.root_id in ^root_ids,
           where: is_nil(c.stand_in_for_id),
           preload: [board: b]
         )
+        |> then(&if(opts[:archived], do: &1, else: where(&1, [c], is_nil(c.archived_at))))
         |> Repo.one()
-
-      _ ->
-        nil
     end
   end
 
