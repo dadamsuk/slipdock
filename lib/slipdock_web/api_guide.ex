@@ -2691,6 +2691,10 @@ defmodule SlipdockWeb.APIGuide do
     `description`, `priority`, `flags`, `tags`, `add_flags`, `remove_flags`,
     `add_tags`, `remove_tags`, `start_date`, `due_date`, `date_precision`,
     `completed`, `percent_complete`, `color`, `column`, `assignee` and `fields`.
+    Create also takes `archived` (`true` or `"true"`) to file the new card away at
+    once, a record of something already finished with; update does not, so an
+    existing card is put away with `POST /api/cards/:id/archive` and brought back
+    with `POST /api/cards/:id/restore`.
     """
   end
 

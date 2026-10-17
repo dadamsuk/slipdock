@@ -618,6 +618,44 @@ defmodule SlipdockWeb.API.CardControllerTest do
       assert Boards.get_card!(card.id).sub_board == nil
     end
   end
+
+  describe "archived, as the guide documents it (#1020)" do
+    setup do
+      [_, section] = String.split(SlipdockWeb.APIGuide.markdown(), "\n## Every endpoint\n")
+      [section | _] = String.split(section, "\n## ", parts: 2)
+      %{section: section}
+    end
+
+    test "the endpoints section names archived as a create field and how to archive later", %{
+      section: section
+    } do
+      assert section =~ "Create also takes `archived`"
+      assert section =~ "update does not"
+      assert section =~ "POST /api/cards/:id/archive"
+      assert section =~ "POST /api/cards/:id/restore"
+    end
+
+    test "update leaves archived alone, as the guide says", %{conn: conn, card: card} do
+      conn
+      |> patch("/api/cards/#{card.id}", %{archived: true, title: "Renamed"})
+      |> json_response(200)
+
+      reloaded = Boards.get_card!(card.id)
+      assert reloaded.title == "Renamed"
+      refute reloaded.archived_at
+    end
+
+    test "the archive and restore endpoints the guide names put a card away and back", %{
+      conn: conn,
+      card: card
+    } do
+      conn |> post("/api/cards/#{card.id}/archive") |> json_response(200)
+      assert Boards.get_card!(card.id).archived_at
+
+      conn |> post("/api/cards/#{card.id}/restore") |> json_response(200)
+      refute Boards.get_card!(card.id).archived_at
+    end
+  end
 end
 
 defmodule SlipdockWeb.API.CardControllerLimitTest do
