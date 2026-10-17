@@ -3474,6 +3474,33 @@ defmodule Slipdock.Boards do
     end)
   end
 
+  @doc """
+  Deletes the files on `kept`'s card or page that share its filename, so a
+  rebuild uploaded with `replace` leaves one current copy (#1017). Runs after
+  the new file is stored, so a refused upload never costs the old one.
+  Answers the ids it deleted, oldest first.
+  """
+  def delete_namesakes(%Attachment{} = kept) do
+    owner =
+      case kept do
+        %Attachment{card_id: id} when not is_nil(id) -> dynamic([a], a.card_id == ^id)
+        %Attachment{page_id: id} -> dynamic([a], a.page_id == ^id)
+      end
+
+    from(a in Attachment,
+      where: a.filename == ^kept.filename and a.id != ^kept.id,
+      order_by: [asc: a.id]
+    )
+    |> where(^owner)
+    |> Repo.all()
+    |> Enum.flat_map(fn a ->
+      case delete_attachment(a) do
+        {:ok, _} -> [a.id]
+        _ -> []
+      end
+    end)
+  end
+
   ## External links ----------------------------------------------------------
 
   @doc """

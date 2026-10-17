@@ -421,13 +421,22 @@ defmodule SlipdockCLI.Boards do
       # if they differ, so a file damaged on the way fails loudly.
       fields = [{"sha256", sha256(file)}]
       fields = if o[:hide_on_card], do: fields ++ [{"hide_on_card", "true"}], else: fields
+      fields = if o[:replace], do: fields ++ [{"replace", "true"}], else: fields
 
       HTTP.post_multipart(item_path(id, "/attachments"), fields, [
         {"file", name, "application/octet-stream", {:path, file}}
       ])
-      |> out(o, fn %{"attachment" => a} ->
+      |> out(o, fn %{"attachment" => a} = reply ->
         IO.puts("attached #{a["filename"]} to #{item_name(id)} [attachment ##{a["id"]}]")
         IO.puts("  " <> a["markdown"])
+
+        case reply do
+          %{"replaced" => [_ | _] = ids} ->
+            IO.puts("  replaced " <> Enum.map_join(ids, ", ", &"attachment ##{&1}"))
+
+          _ ->
+            :ok
+        end
       end)
     end)
   end

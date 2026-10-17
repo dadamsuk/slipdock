@@ -421,13 +421,16 @@ defmodule SlipdockWeb.API.CardController do
   @doc """
   Attaches a file to the card: the multipart field `file`, and an optional
   `filename` to store it under instead of the one it was sent with.
+  `replace=true` deletes the card's older files of that name once it is
+  stored, and `replaced` lists their ids (#1017).
   """
   def add_attachment(conn, %{"id" => id} = params) do
     with {:ok, card} <- fetch_card(id),
          :ok <- Authorize.card(conn, card, :write),
          {:ok, meta, path} <- Uploads.take(params),
+         {:ok, replace?} <- Uploads.replace(params),
          {:ok, attachment} <- Boards.add_attachment(card, meta, path) do
-      conn |> put_status(:created) |> json(%{attachment: Uploads.json(attachment)})
+      conn |> put_status(:created) |> json(Uploads.stored(attachment, replace?))
     end
   end
 

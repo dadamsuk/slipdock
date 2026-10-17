@@ -11,6 +11,10 @@ defmodule SlipdockWeb.MCP.Tools.UploadFile do
   piece that changed on the way is refused and resent alone; `finish: true`
   checks the whole file's `sha256` and only then makes it an attachment.
   The pieces wait in `Slipdock.ChunkedUploads`, never on the card.
+
+  `replace: true` (#1017) deletes the card's or page's older files of the
+  same name once the new one is stored, so a rebuild leaves one current
+  copy; `delete_attachment` removes one by id.
   """
   @behaviour SlipdockWeb.MCP.Tool
 
@@ -45,7 +49,8 @@ defmodule SlipdockWeb.MCP.Tools.UploadFile do
         "upload_id; each next chunk with upload_id, append: true, offset and its sha256 (a " <>
         "refused chunk is resent on its own, nothing else restarts); then upload_id, " <>
         "finish: true and the whole file's sha256, which makes the attachment. Nothing shows " <>
-        "on the card before that."
+        "on the card before that. replace: true deletes older files of the same name once " <>
+        "this one is stored."
 
   @impl true
   def input_schema do
@@ -90,7 +95,13 @@ defmodule SlipdockWeb.MCP.Tools.UploadFile do
               "it. No content in this call."
         },
         content_type: %{type: "string", description: "Its MIME type. Left out, the name decides."},
-        hide_on_card: %{type: "boolean", description: "Keep an image off the card's front."}
+        hide_on_card: %{type: "boolean", description: "Keep an image off the card's front."},
+        replace: %{
+          type: "boolean",
+          description:
+            "Delete the card's or page's older files of this filename once this one is stored, " <>
+              "so a rebuild leaves one copy. Their ids come back as replaced."
+        }
       },
       required: ["filename"],
       additionalProperties: false
@@ -128,6 +139,7 @@ defmodule SlipdockWeb.MCP.Tools.UploadFile do
          :ok <- Args.refusal(Uploads.check_sha256(bytes, args["sha256"])),
          {:ok, type} <- Args.optional(args, "content_type"),
          {:ok, hide?} <- Args.boolean(args, "hide_on_card", false),
+         {:ok, replace?} <- Args.boolean(args, "replace", false),
          {:ok, owner} <- owner(args, auth) do
       meta = %{
         filename: filename,
@@ -136,7 +148,7 @@ defmodule SlipdockWeb.MCP.Tools.UploadFile do
         hide_on_card: hide?
       }
 
-      with_file(bytes, fn path -> attach(owner, meta, path) end)
+      with_file(bytes, fn path -> attach(owner, meta, path, replace?) end)
     end
   end
 
@@ -163,9 +175,11 @@ defmodule SlipdockWeb.MCP.Tools.UploadFile do
     with {:ok, filename} <- Args.required(args, "filename"),
          {:ok, type} <- Args.optional(args, "content_type"),
          {:ok, hide?} <- Args.boolean(args, "hide_on_card", false),
+         {:ok, replace?} <- Args.boolean(args, "replace", false),
          {:ok, owner} <- owner(args, auth) do
       meta = %{
         "owner" => owner_ref(owner),
+        "replace" => replace?,
         "filename" => filename,
         "content_type" => type || MIME.from_path(filename),
         "hide_on_card" => hide?
@@ -231,6 +245,7 @@ defmodule SlipdockWeb.MCP.Tools.UploadFile do
     with {:ok, upload_id} <- Args.required(args, "upload_id"),
          :ok <- no_content(args),
          {:ok, given} <- whole_sha256(args),
+         {:ok, replace?} <- Args.boolean(args, "replace", false),
          {:ok, meta, path, size} <- ChunkedUploads.fetch(user_id, upload_id),
          :ok <- assembled_sha256(upload_id, path, given),
          {:ok, owner} <- stored_owner(meta["owner"], auth) do
@@ -241,7 +256,8 @@ defmodule SlipdockWeb.MCP.Tools.UploadFile do
         hide_on_card: meta["hide_on_card"]
       }
 
-      result = attach(owner, attachment_meta, path)
+      # Said on the first chunk or on finish, either counts.
+      result = attach(owner, attachment_meta, path, replace? or meta["replace"] == true)
       ChunkedUploads.discard(upload_id)
       result
     end
@@ -336,15 +352,15 @@ defmodule SlipdockWeb.MCP.Tools.UploadFile do
 
   defp owner(_args, _auth), do: {:error, "say where it goes: card, or page"}
 
-  defp attach({:card, card}, meta, path) do
+  defp attach({:card, card}, meta, path, replace?) do
     with {:ok, a} <- Args.refusal(Boards.add_attachment(card, meta, path)) do
-      {:ok, %{card: card.id, attachment: Uploads.json(a)}}
+      {:ok, Map.put(Uploads.stored(a, replace?), :card, card.id)}
     end
   end
 
-  defp attach({:page, page}, meta, path) do
+  defp attach({:page, page}, meta, path, replace?) do
     with {:ok, a} <- Args.refusal(Wiki.add_attachment(page, meta, path)) do
-      {:ok, %{page: page.code, attachment: Uploads.json(a)}}
+      {:ok, Map.put(Uploads.stored(a, replace?), :page, page.code)}
     end
   end
 

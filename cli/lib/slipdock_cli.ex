@@ -528,11 +528,12 @@ defmodule SlipdockCLI do
     unlink <id> <link-id>...            remove links (ids shown by `card`)
     weblink <id> <url> [--label TEXT]   link a card to a web page, drive or file (datestamped)
     unweblink <id> <url-id>...          remove web links (ids shown by `card`)
-    attach <id> <file>... [--name N] [--hide-on-card]
+    attach <id> <file>... [--name N] [--hide-on-card] [--replace]
                                         upload files to a card or page; prints the Markdown that
                                         embeds each (an image shows inline, anything else links).
                                         A card's first image is the thumbnail on its front unless
-                                        --hide-on-card keeps it off
+                                        --hide-on-card keeps it off. --replace deletes older files
+                                        of the same name once the new one is in
     transcribe <id> <attachment-id> [--wait]
                                         send a card's recording to the transcription server;
                                         --wait prints the transcript once it is done
@@ -786,6 +787,7 @@ defmodule SlipdockCLI do
     kind: :keep,
     label: :string,
     hide_on_card: :boolean,
+    replace: :boolean,
     wait: :boolean,
     options: :string,
     formula: :string,
