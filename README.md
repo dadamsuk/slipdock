@@ -744,7 +744,7 @@ the rest of its sections, one call each with `section`), `list_boards`, `get_boa
 a board's wanted pages, or whether a title has a page), `page_history` (a page's revisions,
 the diff one save made, or between any two), `list_vaults` (your vaults, or where a vault path lands), `activity`
 (a board's log, or one card's), `download_file` (a card's or page's attached file: text as text, an image as an image) `list_automations` (a board's rules, owner only, with the spec grammar on request) and `list_tools` (the [Tools](#tools) you can install, and the board each install made) to read; `create_card`,
-`update_card`, `move_card`, `comment`, `upload_file` (attach a file of up to 10 MB to a card or page; an optional `sha256` refuses bytes that changed on the way, and the answer carries the stored file's `sha256`, as `get_card` and `read_page` listings do), `complete_card`, `status_update` (a card's stated health, with a note), `archive_card`,
+`update_card`, `move_card`, `comment`, `upload_file` (attach a file of up to 10 MB to a card or page; an optional `sha256` refuses bytes that changed on the way, and the answer carries the stored file's `sha256`, as `get_card` and `read_page` listings do; a bigger file goes in verified chunks — `append: true` with each chunk's `sha256`, then `finish: true` with the whole file's — and only the finished file becomes an attachment), `complete_card`, `status_update` (a card's stated health, with a note), `archive_card`,
 `delete_card`, `create_list`, `create_tag`, `delete_list`, `create_board`, `archive_board`,
 `delete_board`, `write_page`, `update_page` (rename, summary, move, file, archive or
 restore, pin to a card), `file_folder` (file a wiki folder in other folders as well as
