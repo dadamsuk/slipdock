@@ -1210,6 +1210,39 @@ defmodule SlipdockWeb.Layouts do
   def flash_group(assigns) do
     ~H"""
     <div id={@id} aria-live="polite">
+      <%!-- The tab is older than the server (`SlipdockWeb.StaleAssetsHook`).
+            It is running the old stylesheet, so only classes that stylesheet
+            already had, and an inline style for the one it lacked. --%>
+      <div
+        :if={msg = Phoenix.Flash.get(@flash, :stale_assets)}
+        id="stale-assets"
+        role="status"
+        class="pointer-events-none fixed inset-x-0 top-3 z-50 flex justify-center px-4"
+      >
+        <div
+          class="kanban-toast-in flex w-fit max-w-full items-center gap-3 rounded-box bg-base-100 p-3.5 text-sm text-base-content shadow-xl ring-1 ring-base-content/10"
+          style="pointer-events: auto"
+        >
+          <.icon name="hero-arrow-path" class="size-5 shrink-0 text-primary" />
+          <p class="min-w-0 flex-1">{msg}</p>
+          <%!-- A plain link to this same address: a full page load, which
+                fetches the new assets. --%>
+          <a href="" id="stale-assets-reload" class="btn btn-primary btn-sm">
+            {gettext("Reload")}
+          </a>
+          <button
+            type="button"
+            class="group -m-1 shrink-0 cursor-pointer rounded-md p-1 hover:bg-base-200"
+            aria-label={gettext("close")}
+            phx-click={
+              JS.push("lv:clear-flash", value: %{key: :stale_assets}) |> hide("#stale-assets")
+            }
+          >
+            <.icon name="hero-x-mark" class="size-4 opacity-50 group-hover:opacity-100" />
+          </button>
+        </div>
+      </div>
+
       <.flash kind={:info} flash={@flash} auto_dismiss />
       <.flash kind={:error} flash={@flash} />
 

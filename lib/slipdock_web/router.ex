@@ -91,7 +91,8 @@ defmodule SlipdockWeb.Router do
       live_session :setup,
         on_mount: [
           {SlipdockWeb.SetupLive.Index, :ensure_unclaimed},
-          {SlipdockWeb.ViewportHook, :default}
+          {SlipdockWeb.ViewportHook, :default},
+          {SlipdockWeb.StaleAssetsHook, :default}
         ] do
         live "/", SetupLive.Index, :index
       end
@@ -100,7 +101,8 @@ defmodule SlipdockWeb.Router do
     live_session :public,
       on_mount: [
         {SlipdockWeb.UserAuth, :redirect_if_user_is_authenticated},
-        {SlipdockWeb.ViewportHook, :default}
+        {SlipdockWeb.ViewportHook, :default},
+        {SlipdockWeb.StaleAssetsHook, :default}
       ] do
       live "/login", LoginLive.Index, :index
     end
@@ -110,7 +112,8 @@ defmodule SlipdockWeb.Router do
     live_session :help,
       on_mount: [
         {SlipdockWeb.UserAuth, :mount_current_user},
-        {SlipdockWeb.ViewportHook, :default}
+        {SlipdockWeb.ViewportHook, :default},
+        {SlipdockWeb.StaleAssetsHook, :default}
       ] do
       live "/help", HelpLive.Index, :index
       live "/help/agents", HelpLive.Index, :agents
@@ -122,7 +125,8 @@ defmodule SlipdockWeb.Router do
     live_session :published,
       on_mount: [
         {SlipdockWeb.UserAuth, :mount_current_user},
-        {SlipdockWeb.ViewportHook, :default}
+        {SlipdockWeb.ViewportHook, :default},
+        {SlipdockWeb.StaleAssetsHook, :default}
       ] do
       live "/p/:token", PublicLive.Show, :show
       # A published wiki page: the prose is current, the answers are a
@@ -212,6 +216,7 @@ defmodule SlipdockWeb.Router do
         {SlipdockWeb.UserAuth, :ensure_authenticated},
         {SlipdockWeb.UserAuth, :ensure_admin},
         {SlipdockWeb.ViewportHook, :default},
+        {SlipdockWeb.StaleAssetsHook, :default},
         {SlipdockWeb.AlertsHook, :default},
         {SlipdockWeb.QuickAddHook, :default},
         {SlipdockWeb.ShortcutsHook, :default}
@@ -230,6 +235,7 @@ defmodule SlipdockWeb.Router do
       on_mount: [
         {SlipdockWeb.UserAuth, :ensure_authenticated},
         {SlipdockWeb.ViewportHook, :default},
+        {SlipdockWeb.StaleAssetsHook, :default},
         {SlipdockWeb.AlertsHook, :default},
         {SlipdockWeb.QuickAddHook, :default},
         {SlipdockWeb.ShortcutsHook, :default}
