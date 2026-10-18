@@ -207,6 +207,14 @@ is made). An agent sets one only when the person asked for repeating work:
 "every mon"`, or `PUT /api/cards/:id/recurrence`. See
 [the manual](manual.md#recurring-cards).
 
+A snoozed card is hidden until a day: `list_cards`, `--deps ready` and the
+board's lists leave it out until it wakes, so an agent never picks one up.
+When the person says something can wait until a date, or what a card waits
+for has one, snooze it rather than flag it `waiting`: `update_card` with
+`snoozed_until: "2026-11-02"` (and `snooze_note`), `slipdock snooze <id>
+<date> --note "…"`, or `POST /api/cards/:id/snooze`. See
+[the manual](manual.md#snoozing-cards).
+
 `get_guide` gives the short guide — how to work a board, the reader's own
 boards and lists — and ends by naming the other sections, each one call
 away with `section` (`automations`, `wiki`, `endpoints`…, or `all`). The

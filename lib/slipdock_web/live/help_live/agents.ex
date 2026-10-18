@@ -148,6 +148,15 @@ defmodule SlipdockWeb.HelpLive.Agents do
        {:yes, "through the CLI or MCP"},
        {:no, "one way only"}
      ]},
+    {"Snooze a card until a day, or wake it",
+     [
+       {:yes, "POST /api/cards/:id/snooze"},
+       {:yes, "update_card's snoozed_until"},
+       {:yes, "slipdock snooze, slipdock wake"},
+       {:yes, "through the CLI or MCP"},
+       {:yes, "through the CLI or MCP"},
+       {:no, "one way only"}
+     ]},
     {"Read and write wiki pages",
      [
        {:yes, ""},
@@ -491,7 +500,8 @@ defmodule SlipdockWeb.HelpLive.Agents do
         connects gets a small set of tools that each do a whole step of the work: reading boards,
         cards, the guide and wiki pages; searching and asking; creating, updating, moving,
         commenting on, completing, archiving and deleting cards; making a card repeat
-        (<code>update_card</code>'s <code>recurrence</code>); leaving a card's handoff
+        (<code>update_card</code>'s <code>recurrence</code>) or sleep until a day
+        (its <code>snoozed_until</code>); leaving a card's handoff
         (<code>leave_handoff</code>: where it was left, which <code>get_card</code>
         shows first); uploading and downloading the
         files on cards and pages; lists, tags and boards;

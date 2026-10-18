@@ -230,7 +230,9 @@ for the whole thing before acting.
 **`--due`, `--deps` and `--assignee` are how you ask about state rather than words.**
 `--due overdue` is the outstanding work (a completed card is in none of the date buckets),
 `--due week` the next seven days, `--deps blocked` what is waiting on an unfinished card,
-`--assignee me` your own (a card with several people on it is each of theirs). They mean the same thing here, in the swimlane views and in the API,
+`--assignee me` your own (a card with several people on it is each of theirs).
+Snoozed cards (💤 and the day they wake) are left out of `slipdock cards` unless you pass
+`--snoozed include` or `--snoozed only`; the guide's list counts say "snoozed N". They mean the same thing here, in the swimlane views and in the API,
 and an unrecognised value is an error rather than a silent list of everything.
 
 `slipdock ask` is the same search with a model in front of it, plus tools of its own: it can
@@ -286,6 +288,12 @@ slipdock repeat <id> "every mon" [--at 07:00] [--lead 2] [--ends DATE | --count 
 slipdock repeat <id>                     # how it repeats and the next three dates
 slipdock repeat <id> --skip | --pause | --resume | --off
 slipdock recurring <board>               # every card on the board that repeats, soonest first
+slipdock snooze <id>... <when> [--note T] [--notify]
+                                       # hide cards until a day (2026-11-02, tomorrow, mon, next week,
+                                       # in 3 days; midnight in the user's timezone). They leave the lists,
+                                       # My work and --deps ready, then wake at the top of their list
+                                       # (sooner if someone else comments or assigns them)
+slipdock wake <id>...                    # bring snoozed cards back now
 slipdock flag <id> <flag>... [--off]     # flags: flagged blocked review waiting starred
 slipdock tag <id> <tag>... [--off]       # tag must already exist on the board (see new-tag)
 slipdock check <id> <text...>            # add checklist item
@@ -580,6 +588,10 @@ teal sky indigo violet fuchsia rose`. Multi-word titles, column names and text n
   if not, add it first (`slipdock add ops Review invoices --column "To Do"`) and repeat the new id.
   A card still open when the next is due has its due date moved on (`--on-missed bump`) rather than
   a second made — say so if they'd rather have one per week (`--on-missed stack`).
+- "#12 can wait until after the audit on 2 Nov" / "park this till next week" → `slipdock snooze 12
+  2026-11-02 --note "after the audit"` (or `next week`). Snooze when the wait has a date; flag it
+  `waiting` when it doesn't. Never pick a snoozed card to work on — it isn't ready until it wakes.
+- "What's snoozed?" → `slipdock cards 1 --snoozed only`; `slipdock wake 12` brings one back.
 - "Break #12 into steps" → `slipdock templates`, `slipdock subboard 12 --template Simple`, then
   `slipdock add <sub-board-id> First step`
 - "What's overdue?" → `slipdock cards 1 --open --json` and compare `due_date` with today.

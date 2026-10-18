@@ -212,6 +212,15 @@ defmodule SlipdockWeb.HelpLive.Guides do
           makes the same copy by hand.
         </li>
         <li>
+          <strong>Snooze</strong>: <em>Snooze…</em>
+          on a card, or <kbd>z</kbd>
+          over it on the board (<kbd>z</kbd> <kbd>z</kbd>
+          is tomorrow), hides a card that isn't actionable yet until a day, then brings it back
+          at the top of its list. Each list's foot counts what is snoozed in it and shows them,
+          faded, on a click. <code>snooze: mon</code>
+          in quick add does it as you add the card.
+        </li>
+        <li>
           <strong>Status updates</strong>: on track, at risk or off track, with a note, shown
           beside the health the board works out for itself.
         </li>

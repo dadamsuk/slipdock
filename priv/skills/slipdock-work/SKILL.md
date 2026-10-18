@@ -63,15 +63,18 @@ whole card before touching it.
 - **Picking.** Finish what is already in progress; then the ready list (*To
   Do*), and the backlog only when nothing there is eligible. Highest priority
   first, position in the list breaking ties. Skip anything completed, archived,
-  blocked, waiting, or assigned to someone else — `--open --deps ready
-  --no-assignee` does most of that skipping for you — and any stand-in
+  blocked, waiting, snoozed, or assigned to someone else — `--open --deps ready
+  --no-assignee` does most of that skipping for you (snoozed cards are left out
+  of `slipdock cards` already) — and any stand-in
   (`↪stand-in-for:#N`): it only marks where a card went into a sprint. When the card you land on has
   subcards, descend into it and work those to done before coming back up for the
   next top-level card.
 - **Updating as you go.** Move the card to in progress and assign it to yourself
   when you start; comment at every decision, surprise or dead end; flag it
   (`blocked`, `waiting`, `review`) with a comment saying what you are waiting
-  for; on finishing, set `completed: true` **and** move it to the done list.
+  for — or, when what it waits for has a date, snooze it instead (`slipdock
+  snooze <id> <date> --note "…"`): it leaves the lists and comes back on the
+  day, at the top of its list; on finishing, set `completed: true` **and** move it to the done list.
   Complete an epic only when its rollup shows every subcard done.
 - **Read the handoff first, leave one when you stop short.** A card's handoff
   (`Left off:` at the top of `slipdock card <id>`; `handoff` in its JSON) is
