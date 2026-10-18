@@ -2169,7 +2169,8 @@ defmodule SlipdockWeb.APIGuide do
 
     **Sync: the vault as a folder of files.** `slipdock sync init DIR --vault V`
     binds a local folder and `slipdock sync` (or `--watch`, or `slipdock sync
-    service install`) keeps it level with the vault both ways; the folder
+    service install`) keeps it level with the vault both ways (`slipdock sync
+    from-server` or `to-server` for a pass one way only); the folder
     stays a valid Obsidian vault. `slipdock sync status` says what is waiting
     on each side and which conflict copies are left. An existing Obsidian
     vault comes in once with `slipdock vault import DIR --vault V` (try

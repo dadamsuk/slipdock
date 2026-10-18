@@ -530,6 +530,7 @@ at their vault paths (a vault's `url` in `--json`, e.g. `/vaults/Notes/Projects/
 local copy is saved as `Name (conflict DATE host).md`):
 ```
 slipdock sync init <dir> --vault V | slipdock sync [<dir>] [--watch] | slipdock sync status [<dir>]
+slipdock sync from-server [<dir>] | slipdock sync to-server [<dir>]   # one way only: what it skips waits, listed as held
 slipdock sync service install|uninstall|print [<dir>]   # keep --watch running in the background
 slipdock vault import <dir> --vault V [--dry-run]       # an existing Obsidian vault, in once
 ```

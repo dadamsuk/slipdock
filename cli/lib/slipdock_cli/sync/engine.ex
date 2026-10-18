@@ -34,6 +34,11 @@ defmodule SlipdockCLI.Sync.Engine do
   # overwrite. Every write to disk checks the file still holds what this
   # pass thinks it holds, so a change made locally while the pass ran is
   # moved aside rather than overwritten.
+  #
+  # A pass can be one-way (`direction: :down` for `sync from-server`, `:up`
+  # for `sync to-server`). Whatever it may not do is left in the state as
+  # both sides last agreed it, so the next pass still finds it waiting and
+  # nothing is taken as level that isn't; the report lists it as held.
 
   alias SlipdockCLI.Sync.{Scan, State}
 
@@ -78,6 +83,7 @@ defmodule SlipdockCLI.Sync.Engine do
         remote: remote,
         host: opts[:host] || state["host"] || hostname(),
         today: opts[:today] || Date.utc_today(),
+        direction: opts[:direction] || :both,
         old: adopt(Map.new(old), opts[:imported], server, local),
         server: server,
         entries: %{},
@@ -92,6 +98,7 @@ defmodule SlipdockCLI.Sync.Engine do
           removed: [],
           conflicts: [],
           stubs: [],
+          held: [],
           errors: []
         }
       }
@@ -245,6 +252,12 @@ defmodule SlipdockCLI.Sync.Engine do
 
   defp reconcile(acc, {:deleted, :gone}, _f), do: acc
 
+  defp reconcile(%{direction: :up} = acc, {l, :gone}, f) when l in [:same, :renamed] do
+    acc
+    |> keep(f.path, f.key, f.base)
+    |> hold(f.lpath, "archived on the server, not removed here")
+  end
+
   # Archived (or moved out of reach) on the server, untouched here: remove it.
   defp reconcile(acc, {l, :gone}, f) when l in [:same, :renamed] do
     case remove_file(acc, f.lpath, f.lsha) do
@@ -258,6 +271,10 @@ defmodule SlipdockCLI.Sync.Engine do
   defp reconcile(acc, {:changed, :gone}, f), do: queue(acc, f.lpath)
 
   # Deleted here: archive (R2.5), unless the server changed it meanwhile.
+  defp reconcile(%{direction: :down} = acc, {:deleted, :same}, f) do
+    acc |> keep(f.path, f.key, f.base) |> hold(f.path, "deleted here, not archived")
+  end
+
   defp reconcile(acc, {:deleted, :same}, f) do
     case archive(acc, f.key, f.base) do
       {:ok, _} ->
@@ -290,15 +307,8 @@ defmodule SlipdockCLI.Sync.Engine do
     do: download(acc, f.key, f.s, f.lpath, f.lsha)
 
   # Both sides changed. The same change made twice is no conflict.
-  defp reconcile(acc, {:changed, :changed}, f) do
-    if f.lsha == f.s["hash"] do
-      if f.s["path"] == f.lpath,
-        do: keep(acc, f.lpath, f.key, f.lsha),
-        else: move_local(acc, f.lpath, f.s["path"], f.key, f.lsha)
-    else
-      conflict(acc, f.lpath, f.lsha, f.key, f.s)
-    end
-  end
+  defp reconcile(acc, {:changed, :changed}, f),
+    do: conflict(acc, f.lpath, f.lsha, f.key, f.s, {f.path, f.key, f.base})
 
   ## New here ---------------------------------------------------------------
 
@@ -328,7 +338,7 @@ defmodule SlipdockCLI.Sync.Engine do
             else: move_local(acc, path, s["path"], key, hash)
 
         {key, s} ->
-          acc |> done(key) |> conflict(path, f.sha, key, s)
+          acc |> done(key) |> conflict(path, f.sha, key, s, nil)
       end
     end)
   end
@@ -336,6 +346,12 @@ defmodule SlipdockCLI.Sync.Engine do
   # Conflict copies, and files edited here whose page went away: each sent
   # up as a new one once everything else has settled.
   defp send_queued(%{queued: []} = acc), do: acc
+
+  defp send_queued(%{direction: :down} = acc) do
+    acc.queued
+    |> Enum.reverse()
+    |> Enum.reduce(%{acc | queued: []}, &hold(&2, &1, "not sent"))
+  end
 
   defp send_queued(acc) do
     queued = Enum.reverse(acc.queued)
@@ -363,6 +379,9 @@ defmodule SlipdockCLI.Sync.Engine do
   # report says so. One no longer listed (the share taken back, the
   # placement taken out) is removed, edited or not: there is nothing of
   # yours in it.
+  defp stubs(%{direction: :up} = acc, _listed, old, _local),
+    do: %{acc | entries: Map.merge(acc.entries, old)}
+
   defp stubs(acc, listed, old, local) do
     listed_ids = MapSet.new(listed, & &1["id"])
 
@@ -433,6 +452,7 @@ defmodule SlipdockCLI.Sync.Engine do
   # done here. A mirror made before folders were remembered makes none the
   # first time, since it can't tell a folder new on the server from one
   # deleted here.
+  defp folders(%{direction: :up} = acc, _listed, state, _patterns), do: {acc, state["folders"]}
   defp folders(acc, nil, state, _patterns), do: {acc, state["folders"]}
 
   defp folders(acc, listed, state, patterns) do
@@ -490,6 +510,11 @@ defmodule SlipdockCLI.Sync.Engine do
   # old entry when the write fails, so the next pass tries again; `why` is
   # :renamed when only its path moved, which for a file other than a note
   # is a move on the server with no bytes sent.
+  defp upload(%{direction: :down} = acc, key, lpath, base, from, _why) do
+    acc = if from, do: keep(acc, from, key, base), else: acc
+    hold(acc, lpath, "not sent")
+  end
+
   defp upload(acc, {kind, id} = key, lpath, base, from, why) do
     full = Path.join(acc.root, lpath)
 
@@ -528,7 +553,8 @@ defmodule SlipdockCLI.Sync.Engine do
 
           {:conflict, current} ->
             current_key = {kind(current), current["id"]}
-            acc |> done(current_key) |> conflict(lpath, sha, current_key, current)
+            held_as = from && {from, key, base}
+            acc |> done(current_key) |> conflict(lpath, sha, current_key, current, held_as)
 
           {:error, msg} ->
             acc = if from, do: keep(acc, from, key, base), else: acc
@@ -539,7 +565,17 @@ defmodule SlipdockCLI.Sync.Engine do
 
   # After a write: the file goes where the server put it, and holds what the
   # server now writes for it (a title key patched, say) — but only if nobody
-  # has touched it since it was read.
+  # has touched it since it was read. A pass that only sends leaves the file
+  # as it is, its base its own hash, so the next pass brings the server's
+  # version down.
+  defp settle(%{direction: :up} = acc, lpath, sha, key, written) do
+    acc = keep(acc, lpath, key, sha)
+
+    if written["path"] != lpath or written["hash"] != sha,
+      do: hold(acc, lpath, "the server's version of it not fetched"),
+      else: acc
+  end
+
   defp settle(acc, lpath, sha, key, written) do
     acc =
       if written["path"] != lpath do
@@ -563,6 +599,12 @@ defmodule SlipdockCLI.Sync.Engine do
   # Brings the server's version down, from `from` (where it was here,
   # holding `expect`) to wherever the server has it now. `s` is what the
   # listing (or a conflict) said of it.
+  defp download(%{direction: :up} = acc, key, s, from, expect) do
+    acc = done(acc, key)
+    acc = if from, do: keep(acc, from, key, expect), else: acc
+    hold(acc, from || s["path"], "changed on the server, not fetched")
+  end
+
   defp download(acc, key, s, from, expect) do
     case fetch(acc, key, s) do
       {:ok, got} ->
@@ -620,35 +662,55 @@ defmodule SlipdockCLI.Sync.Engine do
   end
 
   # Both changed: the server's version keeps the path, the local one moves
-  # beside it and goes up as one of its own.
-  defp conflict(acc, lpath, lsha, key, current) do
-    if current["hash"] == lsha do
-      if current["path"] == lpath,
-        do: keep(acc, lpath, key, lsha),
-        else: move_local(acc, lpath, current["path"], key, lsha)
-    else
-      case fetch(acc, key, current) do
-        {:ok, got} ->
-          copy = conflict_name(acc, lpath)
+  # beside it and goes up as one of its own. A pass that only sends does
+  # neither: the file keeps what the state had for it, `held_as`
+  # ({path, key, base}, nil for one it never knew), for the next pass.
+  defp conflict(acc, lpath, lsha, key, current, held_as) do
+    cond do
+      current["hash"] == lsha ->
+        if current["path"] == lpath,
+          do: keep(acc, lpath, key, lsha),
+          else: move_local(acc, lpath, current["path"], key, lsha)
 
-          acc =
-            case move_file(acc, lpath, copy, lsha) do
-              {:ok, acc} -> queue(acc, copy)
-              {:changed, acc} -> acc
-            end
+      acc.direction == :up ->
+        acc =
+          case held_as do
+            {path, key, base} -> keep(acc, path, key, base)
+            nil -> acc
+          end
 
-          {_, acc} = put_file(acc, got.path, got.data, nil)
+        hold(acc, lpath, "changed on both sides, left for a pass both ways")
 
-          acc
-          |> keep(got.path, key, got.hash)
-          |> claim_path(got.path)
-          |> report(:conflicts, %{path: got.path, copy: copy})
-
-        {:error, msg} ->
-          error(acc, lpath, msg)
-      end
+      true ->
+        conflict_both(acc, lpath, lsha, key, current)
     end
   end
+
+  defp conflict_both(acc, lpath, lsha, key, current) do
+    case fetch(acc, key, current) do
+      {:ok, got} ->
+        copy = conflict_name(acc, lpath)
+
+        acc =
+          case move_file(acc, lpath, copy, lsha) do
+            {:ok, acc} -> queue(acc, copy)
+            {:changed, acc} -> acc
+          end
+
+        {_, acc} = put_file(acc, got.path, got.data, nil)
+
+        acc
+        |> keep(got.path, key, got.hash)
+        |> claim_path(got.path)
+        |> report(:conflicts, %{path: got.path, copy: copy})
+
+      {:error, msg} ->
+        error(acc, lpath, msg)
+    end
+  end
+
+  defp move_local(%{direction: :up} = acc, from, to, key, hash),
+    do: acc |> keep(from, key, hash) |> hold(from, "moved to #{to} on the server, not here")
 
   defp move_local(acc, from, to, key, hash) do
     case move_file(acc, from, to, hash) do
@@ -790,6 +852,8 @@ defmodule SlipdockCLI.Sync.Engine do
   defp claim_path(acc, path), do: %{acc | done_paths: MapSet.put(acc.done_paths, path)}
 
   defp queue(acc, path), do: %{acc | queued: [path | acc.queued]}
+
+  defp hold(acc, path, why), do: report(acc, :held, %{path: path, why: why})
 
   defp report(acc, kind, item), do: %{acc | report: Map.update!(acc.report, kind, &[item | &1])}
 

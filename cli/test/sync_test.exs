@@ -155,6 +155,58 @@ defmodule SlipdockCLI.SyncTest do
     assert out =~ ~s("sent": [])
   end
 
+  describe "one way (#1100)" do
+    setup %{home: home} do
+      hash = :crypto.hash(:sha256, "fresh") |> Base.encode16(case: :lower)
+
+      url =
+        FakeServer.start([
+          {200, ~s({"cursor":13,"entries":[],"folders":[]})},
+          {200, ~s({"page":{"kind":"page","id":8,"path":"New.md","hash":"#{hash}"}})},
+          {200, ~s({"cursor":14,"changes":[]})}
+        ])
+
+      dir = Path.join(home, "Brain")
+      File.mkdir_p!(dir)
+      File.write!(Path.join(dir, "New.md"), "fresh")
+      State.save(dir, State.new(url, %{"id" => 3, "name" => "Brain"}, "host"))
+      %{dir: dir}
+    end
+
+    test "from-server lists what it didn't send, and sends nothing", %{dir: dir} do
+      out = capture_io(fn -> Sync.run("sync", ["from-server", dir], []) end)
+
+      assert out =~ "· New.md"
+      assert out =~ "(not sent)"
+      assert out =~ "Brain (from the server only): sent 0"
+      assert out =~ "held 1"
+      assert_received {:request, "GET", "/api/vaults/3/sync?stubs=1", _}
+      refute_received {:request, _, _, _}
+      {:ok, state} = State.load(dir)
+      assert state["last_result"]["held"] == 1
+      refute Map.has_key?(state["entries"], "New.md")
+    end
+
+    test "to-server, from inside the folder, says which way in its JSON", %{dir: dir} do
+      File.cd!(dir, fn ->
+        System.put_env("SLIPDOCK_URL", State.load(dir) |> elem(1) |> Map.fetch!("url"))
+        out = capture_io(fn -> Sync.run("sync", ["to-server"], json: true) end)
+        assert out =~ ~s("direction": "to-server")
+      end)
+
+      assert_received {:request, "PUT", "/api/vaults/3/sync/pages", _}
+      {:ok, state} = State.load(dir)
+      assert state["entries"]["New.md"]["id"] == 8
+      assert state["cursor"] == 14
+    end
+
+    test "a pass both ways says so in its JSON", %{dir: dir} do
+      out = capture_io(fn -> Sync.run("sync", [dir], json: true) end)
+      assert out =~ ~s("direction": "both")
+      assert_received {:request, "PUT", "/api/vaults/3/sync/pages", _}
+    end
+  end
+
   test "a folder deleted on the server is removed here, and said so", %{home: home} do
     url = FakeServer.start([{200, ~s({"cursor":13,"entries":[],"folders":[]})}])
     dir = Path.join(home, "Brain")

@@ -435,6 +435,13 @@ defmodule SlipdockCLI do
         --watch       keep running: a pass once the folder has been still for 2 s, and
                       whenever the server's change feed has news
         --interval S  how often --watch asks the server (default 10)
+    sync from-server [<dir>]            one pass that only brings changes down: nothing is
+                                        sent, archived or moved on the server
+    sync to-server [<dir>]              one pass that only sends changes up: nothing in the
+                                        folder is written, moved or removed. Either way what
+                                        it skips is listed as held (·) and stays waiting for
+                                        the next pass; a conflict waits for a pass both ways.
+                                        --watch and --json work as for sync
     sync status [<dir>]                 the last sync, what is waiting on each side, conflicts
                                         left to resolve, and a warning if Obsidian Sync,
                                         Dropbox, iCloud, OneDrive or Syncthing is syncing the
