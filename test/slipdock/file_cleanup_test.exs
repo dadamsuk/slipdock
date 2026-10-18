@@ -116,4 +116,42 @@ defmodule Slipdock.FileCleanupTest do
   test "card_file_keys/1 of no cards is nothing" do
     assert Boards.card_file_keys([]) == []
   end
+
+  test "storing a file survives another removal emptying the folder it goes in", %{src: src} do
+    # Recordings share one folder, and removing the last one in it removes the
+    # folder too; one stored at that moment must still land (#1102).
+    failures =
+      1..8
+      |> Enum.map(fn n ->
+        Task.async(fn ->
+          for i <- 1..150, key = "captures/race-#{n}-#{i}.wav", reduce: [] do
+            acc ->
+              case Boards.put_file(src, key) do
+                :ok ->
+                  stored? = File.regular?(Path.join(Boards.uploads_dir(), key))
+                  Boards.remove_files([key])
+                  if stored?, do: acc, else: [{key, :missing} | acc]
+
+                error ->
+                  [{key, error} | acc]
+              end
+          end
+        end)
+      end)
+      |> Enum.flat_map(&Task.await(&1, 30_000))
+
+    assert failures == []
+  end
+
+  test "storing a file that isn't there is still an error, not retried into success" do
+    missing = Path.join(System.tmp_dir!(), "missing-#{System.unique_integer([:positive])}")
+    assert Boards.put_file(missing, "captures/never.wav") == {:error, :enoent}
+    refute File.exists?(Path.join(Boards.uploads_dir(), "captures/never.wav"))
+  end
+
+  test "storing over a folder that is a file fails with the reason", %{src: src} do
+    File.mkdir_p!(Boards.uploads_dir())
+    File.write!(Path.join(Boards.uploads_dir(), "captures"), "not a folder")
+    assert Boards.put_file(src, "captures/x.wav") == {:error, :enotdir}
+  end
 end

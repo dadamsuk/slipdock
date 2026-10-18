@@ -363,12 +363,10 @@ defmodule Slipdock.Meetings do
   defp store_audio(_changeset, nil), do: :ok
 
   defp store_audio(changeset, %{path: source}) do
-    dest = Path.join(Boards.uploads_dir(), Ecto.Changeset.get_field(changeset, :audio_key))
+    case Boards.put_file(source, Ecto.Changeset.get_field(changeset, :audio_key)) do
+      :ok ->
+        :ok
 
-    with :ok <- File.mkdir_p(Path.dirname(dest)),
-         {:ok, _} <- File.copy(source, dest) do
-      :ok
-    else
       {:error, reason} ->
         {:error,
          Ecto.Changeset.add_error(
