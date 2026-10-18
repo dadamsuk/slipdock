@@ -5058,6 +5058,39 @@ for `archived`) is refused before anything is written, with the tool's
 real arguments listed. A tool that writes a card answers with the card,
 always saying whether it is `archived`.
 
+### The prompts
+
+Besides tools the server offers **prompts** (`prompts/list`, `prompts/get`):
+ready-made workflows a client lists in its own menu — the **+** menu in
+Claude Desktop and claude.ai, slash commands such as
+`/mcp__slipdock__plan-my-day` in Claude Code — so nobody has to know what to
+ask. ChatGPT's connectors use tools only, so they don't show there.
+
+A prompt is not canned text. It is rendered with the caller's token, with
+live board data already in it — the board's lists and counts, the cards
+that matter — so the model starts from the facts instead of spending its
+first calls finding them. Every rendered prompt starts with the boards'
+conventions, ends by naming the tools to use, and is held to about 6,000
+tokens: a long list ends with "…and N more, use list_cards".
+
+| Prompt | Arguments | What it starts |
+|---|---|---|
+| `plan-my-day` | `board` (optional) | My work: overdue, due today, in progress and snoozed cards waking today, and the top of each ready list. Proposes a short ordered plan and asks before moving anything. |
+| `weekly-review` | `board` (optional) | The last 7 days as a narrative — finished cards and the activity — then what slipped (open, past due) and what is stale (in progress, untouched for a week). Changes nothing. |
+| `triage` | `board` | The board's intake list (its Backlog or Inbox) card by card: keep, move to the ready list, tag, date or archive, as you decide each. |
+| `resume` | `card` | The card's [handoff](#where-it-was-left-handoffs), blockers, open subcards and latest comments; says where it stands and the next step. |
+| `leave-handoff` | `card` | Writes the card's handoff from this conversation with `leave_handoff`, showing you the note first. |
+| `capture-this-chat` | `board` | Sends this conversation through [chat capture](#capturing-a-conversation) and walks the preview; commits only when you say. Listed only while chat capture is on. |
+| `tidy-board` | `board` | Looks the board over with the [gardener](#tidying-up) and walks its suggestions one at a time with `garden_decide`. With a read-only token it lists the suggestions as they stand. |
+
+A prompt that writes is still listed for a read-only token; its text then
+says so, and the workflow reports what it would do instead. A board-scoped
+token's prompts see only its boards. While you type a `board` argument the
+client is offered the codes of your boards, and a `card` argument offers
+`#id title` (`completion/complete`), on the board already chosen if there is
+one. A connector caches the list, so after an upgrade that adds a prompt,
+disconnect and connect it again (or restart Claude Code).
+
 ### Signing in
 
 Two ways, and the server takes either on any request:

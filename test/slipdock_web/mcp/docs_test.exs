@@ -1,13 +1,13 @@
 defmodule SlipdockWeb.MCP.DocsTest do
   @moduledoc """
   The MCP server as the docs describe it: README.md, docs/manual.md and
-  docs/agents.md name every tool `/mcp` offers and none it does not, and the
-  counts they quote are the real one. A tool added or removed without the
-  docs following fails here.
+  docs/agents.md name every tool and prompt `/mcp` offers and no tool it
+  does not, and the counts they quote are the real one. A tool or prompt
+  added or removed without the docs following fails here.
   """
   use ExUnit.Case, async: true
 
-  alias SlipdockWeb.MCP.Tools
+  alias SlipdockWeb.MCP.{Prompts, Tools}
 
   @root Path.expand("../../..", __DIR__)
 
@@ -20,6 +20,16 @@ defmodule SlipdockWeb.MCP.DocsTest do
     rest |> String.split(~r/\n## /, parts: 2) |> hd()
   end
 
+  # The section's tools part, before its prompts.
+  defp manual_tools, do: manual_section() |> String.split("\n### The prompts\n") |> hd()
+
+  defp manual_prompts do
+    [_, rest] = String.split(manual_section(), "\n### The prompts\n", parts: 2)
+    rest |> String.split(~r/\n### /, parts: 2) |> hd()
+  end
+
+  defp prompt_names, do: Enum.map(Prompts.every(), & &1.name())
+
   # The tool names in the first column of the section's table.
   defp table_tools(section) do
     Regex.scan(~r/^\| `([a-z_]+)` \|/m, section, capture: :all_but_first)
@@ -27,7 +37,7 @@ defmodule SlipdockWeb.MCP.DocsTest do
   end
 
   test "the manual's tool table has one row per tool, in the order tools/list gives them" do
-    assert table_tools(manual_section()) == names()
+    assert table_tools(manual_tools()) == names()
   end
 
   test "the table parser would catch a row for a tool that does not exist" do
@@ -66,5 +76,38 @@ defmodule SlipdockWeb.MCP.DocsTest do
     assert read("docs/manual.md") =~ ~r/^## MCP server$/m
     assert read("README.md") =~ "docs/manual.md#mcp-server"
     assert read("docs/agents.md") =~ ~r/^## Over MCP$/m
+  end
+
+  test "the manual's prompt table has one row per prompt, in the order prompts/list gives them" do
+    rows =
+      Regex.scan(~r/^\| `([a-z-]+)` \|/m, manual_prompts(), capture: :all_but_first)
+      |> List.flatten()
+
+    assert rows == prompt_names()
+  end
+
+  test "README, docs/agents.md, the guide and /help/agents name every prompt" do
+    help = File.read!(Path.join(@root, "lib/slipdock_web/live/help_live/agents.ex"))
+    guide = File.read!(Path.join(@root, "lib/slipdock_web/api_guide.ex"))
+
+    for {doc, text} <- [
+          {"README.md", read("README.md")},
+          {"docs/agents.md", read("docs/agents.md")},
+          {"the guide", guide},
+          {"/help/agents", help}
+        ],
+        name <- prompt_names() do
+      assert text =~ "`#{name}`" or text =~ "<code>#{name}</code>",
+             "#{doc} does not mention the MCP prompt `#{name}`"
+    end
+  end
+
+  test "the prompt count the README quotes is the real one" do
+    assert read("README.md") =~ "#{length(prompt_names())} prompts"
+  end
+
+  test "links to the manual's prompts land on a heading that exists" do
+    assert read("docs/manual.md") =~ ~r/^### The prompts$/m
+    assert read("docs/agents.md") =~ "manual.md#the-prompts"
   end
 end

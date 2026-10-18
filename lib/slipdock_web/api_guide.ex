@@ -483,15 +483,11 @@ defmodule SlipdockWeb.APIGuide do
     (OAuth 2.1 with dynamic client registration and PKCE — the way claude.ai
     and the Claude apps connect; discovery starts from the `401` that `/mcp`
     answers without a token). It offers a small set of tools rather
-    than the whole API: `whoami`, `get_guide` (this text: a short
-    form by default, ending with the names of the other sections, and one of
-    them with `section`), `list_boards`,
+    than the whole API: `whoami`, `get_guide` (this text, short; `section` for the
+    rest), `list_boards`,
     `get_board`, `list_cards` (`full: true`: every card as `get_card`
-    gives it, so a whole board reads in one call), `get_card`, `search`, `ask` (`POST /api/ask`: a
-    model call, so slower), `read_page`, `list_pages` (a
-    board's wiki, flat or with `tree` nested), `page_info` (a page's
-    `links` or `sections`, a board's `wanted` pages, or `resolve` a
-    title), `page_history`, `activity` (a
+    gives it, so a whole board reads in one call), `get_card`, `search`, `ask` (a
+    model call, so slower), `read_page`, `list_pages`, `page_info`, `page_history`, `activity` (a
     board's log, or one card's), `download_file` (a file, by
     attachment id), `list_automations`, and for
     writing `create_card`, `update_card` (fields, flags, tags, assignees,
@@ -515,7 +511,9 @@ defmodule SlipdockWeb.APIGuide do
     `with_cards: true`. A read-only
     token, or a connection the person approved read-only, can call the read
     tools, and a write tool answers it with an error saying so. The conventions in this guide apply the same way through
-    either door.
+    either door. It also offers prompts, workflows a client lists in its menu:
+    `plan-my-day`, `weekly-review`, `triage`, `resume`, `leave-handoff`,
+    `capture-this-chat` and `tidy-board`.
 
     ### The AI key, and which model answers
 

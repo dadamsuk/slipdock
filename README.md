@@ -763,9 +763,9 @@ use that board, files, and a README. The first is
 Every install is an MCP server at `https://your-server/mcp` (stateless
 Streamable HTTP). In claude.ai or the Claude apps: **Settings → Connectors →
 Add custom connector**, give it that address, press **Connect** and approve it
-in the browser. A connector keeps the tool list it had when it was added, so
-after an upgrade that adds tools (the job tools, say), disconnect and connect
-it again. In Claude Code:
+in the browser. A connector keeps the tool and prompt lists it had when it was added, so
+after an upgrade that adds tools or prompts (the job tools, say), disconnect and
+connect it again (in Claude Code, restart it). In Claude Code:
 
 ```sh
 claude mcp add --transport http slipdock https://your-server/mcp   # then /mcp to sign in
@@ -798,6 +798,19 @@ Anthropic's servers, so for it the server must be reachable from the internet
 over https; Claude Code only needs to reach it from where it runs. The
 details are in [the manual](docs/manual.md#mcp-server), and setting up a
 particular client in [docs/agents.md](docs/agents.md#over-mcp).
+
+It also offers 7 prompts, ready-made workflows the client lists in its own
+menu (the **+** menu in the Claude apps, `/mcp__slipdock__plan-my-day` and the
+like in Claude Code), each started with live board data already in it:
+`plan-my-day` (my overdue, due-today and in-progress cards and the top of the
+ready lists, and a plan for today), `weekly-review` (the last 7 days, what
+slipped and what is stale; changes nothing), `triage` (a board's Backlog or
+Inbox, card by card), `resume` (a card's handoff, open subcards and latest
+comments, and the next step), `leave-handoff` (write the card's handoff from
+this conversation), `capture-this-chat` (send this conversation through chat
+capture, while it is on) and `tidy-board` (walk the gardener's suggestions).
+Board and card arguments complete as you type. ChatGPT's connectors use tools
+only, so prompts don't show there.
 
 ## Security notes
 
