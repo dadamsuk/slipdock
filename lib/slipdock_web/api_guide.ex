@@ -486,24 +486,18 @@ defmodule SlipdockWeb.APIGuide do
     them with `section`), `list_boards`,
     `get_board`, `list_cards` (`full: true` gives every card as `get_card`
     does, comments, checklist and docs included, so a whole board reads in
-    one call), `get_card`, `search`, `ask` (`POST /api/ask` as a
-    tool: a question answered in prose, with what it read; a model call, so
-    slower), `read_page`, `list_pages` (a
-    board's wiki, flat or with `tree` nested), `page_info` (by
-    `what`: a page's `links` or `sections` — the heading paths
-    `write_page` takes — a board's `wanted` pages, or `resolve` a
-    title), `page_history` (a page's revisions, or with `rev` or
-    `diff` the change one save made, and with `against` the
-    change between any two), `activity` (the
+    one call), `get_card`, `search`, `ask` (`POST /api/ask`: a
+    model call, so slower), `read_page`, `list_pages` (a
+    board's wiki, flat or with `tree` nested), `page_info` (a page's
+    `links` or `sections`, a board's `wanted` pages, or `resolve` a
+    title), `page_history`, `activity` (the
     board's log, or with `card` one card's), `download_file` (a file, by
     attachment id), `list_automations`, and for
     writing `create_card`, `update_card` (fields, flags, tags, assignees,
     dependencies and the checklist), `move_card` (to another board too),
-    `comment`, `leave_handoff` (where you left the card: the one next step
-    and a note, for whoever picks it up next), `upload_file` (onto a card or page;
-    over 1 KB, see its description), `complete_card`, `status_update` (a card's stated health —
-    `on_track`, `at_risk` or `off_track` — with a note, as
-    `POST /api/cards/:id/status` takes it: the progress report on an epic),
+    `comment`, `leave_handoff`, `upload_file` (onto a card or page;
+    over 1 KB, see its description), `complete_card`, `status_update` (a card's stated health, with
+    a note: the progress report on an epic),
     `archive_card` (and restore), `delete_card`,
     `create_list`, `create_tag`, `delete_list`, `create_board`, `archive_board` (and
     restore), `delete_board`, `write_page`, `update_page` (a page's
