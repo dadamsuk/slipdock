@@ -191,6 +191,25 @@ defmodule Slipdock.Automations.Presets do
       ]
     },
     %{
+      key: "weekly_tidy",
+      group: "Tidy",
+      title: "Weekly tidy-up",
+      description:
+        "Once a week, look the board over for rot — epics done but still open, cards stuck in " <>
+          "progress, duplicates, orphaned pages — and raise an alert saying how many tidy-up " <>
+          "suggestions are waiting. Nothing is changed until you apply one.",
+      fields: [
+        %{
+          name: "weekday",
+          label: "Day (1 = Monday)",
+          type: "number",
+          required: true,
+          default: 1
+        },
+        %{name: "at", label: "At (HH:MM)", type: "text", required: true, default: "09:00"}
+      ]
+    },
+    %{
       key: "tag_priority",
       group: "Tidy",
       title: "Tag sets priority",
@@ -532,6 +551,20 @@ defmodule Slipdock.Automations.Presets do
       {:ok, "Archive what has sat in #{column} for #{days} days",
        %{"type" => "card_stale", "days" => days, "column" => column}, [],
        [%{"type" => "archive_card"}]}
+    end
+  end
+
+  @weekdays ~w(Monday Tuesday Wednesday Thursday Friday Saturday Sunday)
+
+  defp spec("weekly_tidy", p, _opts) do
+    with {:ok, day} <- positive(p["weekday"], "Day"),
+         true <- day in 1..7 || {:error, "Day must be 1 (Monday) to 7 (Sunday)"},
+         at = to_string(p["at"]),
+         true <-
+           String.match?(at, ~r/\A([01]\d|2[0-3]):[0-5]\d\z/) ||
+             {:error, "At must be a time like 09:00"} do
+      {:ok, "Weekly tidy-up, #{Enum.at(@weekdays, day - 1)}s at #{at}",
+       %{"type" => "schedule", "weekday" => day, "at" => at}, [], [%{"type" => "garden"}]}
     end
   end
 

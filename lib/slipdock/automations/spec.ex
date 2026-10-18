@@ -109,6 +109,10 @@ defmodule Slipdock.Automations.Spec do
        "method: post (the default), put or patch send JSON; get puts the same fields in the " <>
        "query string. The URL may itself use placeholders"},
     {"log", ["message"], [], "write a line into the board's activity log"},
+    {"garden", [], ["severity"],
+     "look the board (and every board beneath it) over with the gardener and raise one " <>
+       "header alert saying how many tidy-up suggestions are open, linking to Tidy up; " <>
+       "applies nothing (severity: info, warning, urgent; default info)"},
     {"runner", ["pool"], ["kind", "prompt", "wait_while_doing", "requeue_stuck"],
      "send the card to a coding agent on one of the user's own machines: queue a job for the " <>
        "runners of that pool, which run the kind of job named (claude by default) with the " <>
@@ -652,6 +656,9 @@ defmodule Slipdock.Automations.Spec do
 
       "log" ->
         "note it in the activity log"
+
+      "garden" ->
+        "look the board over for tidy-ups and raise an alert"
 
       "runner" ->
         "send it to the #{a["pool"]} runners (#{a["kind"] || "claude"})" <>
