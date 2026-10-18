@@ -139,7 +139,8 @@ defmodule SlipdockWeb.MCP.PromptWorkflowsTest do
       assert text =~ "Here"
       refute text =~ "There"
 
-      assert %{"error" => %{"code" => -32602}} = prompt(conn, "plan-my-day", %{board: "theirs1pw"})
+      assert %{"error" => %{"code" => -32602}} =
+               prompt(conn, "plan-my-day", %{board: "theirs1pw"})
     end
 
     test "a board-scoped token's context leaves out its other boards", ctx do
