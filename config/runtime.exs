@@ -81,8 +81,17 @@ end
 #
 # Never in `test`: this block reads a .env, and a developer's .env names a real
 # relay, so without the guard a test run would post mail to the internet.
+#
+# Set but blank means off. That is how a throwaway server says so
+# (tools/e2e/lib.sh): an empty value still counts as set, so neither the .env
+# nor an old KANBAN_SMTP_HOST fills it back in.
 smtp_host =
-  if config_env() == :test, do: nil, else: System.get_env("SLIPDOCK_SMTP_HOST")
+  if config_env() != :test do
+    case System.get_env("SLIPDOCK_SMTP_HOST") do
+      nil -> nil
+      host -> if String.trim(host) == "", do: nil, else: host
+    end
+  end
 
 # The relay's certificate is verified unless this says not to — which a relay
 # with a self-signed certificate needs. Applies to mail configured in the admin

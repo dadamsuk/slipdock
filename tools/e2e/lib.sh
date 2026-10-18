@@ -15,6 +15,10 @@ export SLIPDOCK_BIND_IP=127.0.0.1
 export PORT
 export SLIPDOCK_AGENTIC_LOGIN=true
 export MIX_ENV=dev
+# No real mail: the developer's .env names a live relay, and every mention of
+# e2e@example.com would go out and bounce. Blank, not unset, so the .env
+# cannot fill it back in (config/runtime.exs); mail stays in /dev/mailbox.
+export SLIPDOCK_SMTP_HOST=""
 
 e2e_start() {
   mix ecto.create --quiet
