@@ -65,7 +65,7 @@ defmodule SlipdockWeb.MCP.Tools do
   # committing a capture needs meeting mode or chat capture (#1075), each
   # capture still checked for its own kind.
   @meeting_only [Tools.CaptureMeeting]
-  @chat_only []
+  @chat_only [Tools.CaptureChat]
   @review_tools [Tools.GetCapture, Tools.ResolveCaptureQuestion, Tools.CommitCapture]
   @meeting_tools @meeting_only ++ @chat_only ++ @review_tools
 

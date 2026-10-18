@@ -9,7 +9,7 @@ defmodule SlipdockCLI.Meetings do
 
   alias SlipdockCLI.HTTP
 
-  @commands ~w(meetings capture voiceprint)
+  @commands ~w(meetings capture capture-chat voiceprint)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -42,6 +42,26 @@ defmodule SlipdockCLI.Meetings do
       end
 
     out(request, o, &render_sent/1)
+  end
+
+  # A conversation with an AI assistant (#1076): chat capture, which has its
+  # own switch, on by default.
+  def run("capture-chat", [board, file], o) do
+    body =
+      [{"kind", "chat"}, {"conversation", o[:conversation]} | fields(o)]
+      |> Enum.reject(fn {_, v} -> is_nil(v) end)
+      |> Map.new()
+      |> Map.put("transcript", read(file))
+      |> put_if("findings", o[:findings] && read(o[:findings]))
+
+    HTTP.post("/boards/#{enc(board)}/captures", body) |> out(o, &render_sent/1)
+  end
+
+  def run("capture-chat", _args, _o) do
+    fail(
+      "usage: slipdock capture-chat <board> <file> [--format chat|claude-export|chatgpt-export] " <>
+        "[--conversation ID|TITLE] [--title T] [--findings F]"
+    )
   end
 
   def run("capture", ["ls", board], o),
@@ -225,7 +245,8 @@ defmodule SlipdockCLI.Meetings do
       end
 
     IO.puts("""
-    Meeting mode: on
+    Meeting mode: #{if m["enabled"] == false, do: "off", else: "on"}
+    Chat capture: #{if m["chat_enabled"] == false, do: "off", else: "on"}
     Shown:        #{where}
     Hideable:     #{if m["hideable"], do: "yes#{if m["hidden"], do: " (you have hidden it)"}", else: "no"}
     Voiceprints:  #{if m["voiceprints"], do: "on, by each person's consent (slipdock voiceprint)", else: "off"}\

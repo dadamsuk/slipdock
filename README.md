@@ -760,7 +760,7 @@ claude mcp add --transport http slipdock https://your-server/mcp \
   --header "Authorization: Bearer <token>"
 ```
 
-The client gets 49 tools — `whoami`, `get_guide` (a short guide that names
+The client gets 50 tools — `whoami`, `get_guide` (a short guide that names
 the rest of its sections, one call each with `section`), `list_boards`, `get_board`,
 `list_cards` (with `full: true`, every card as `get_card` gives it), `get_card`,
 `search`, `ask` (a question in prose, answered from the boards with what it read — a model call on your AI key, so slower), `read_page`, `list_pages` (a board's wiki, flat or as a tree), `page_info` (a page's links or heading paths,
@@ -774,8 +774,9 @@ restore, pin to a card), `file_folder` (file a wiki folder in other folders as w
 its home), `share` (share a wiki page or folder with a person or group, or take it
 back; `list_pages` with `shared` lists what is shared with you), `revert_page` (put a page back to a revision) and `manage_vault` (make a vault, map vault paths onto board wikis, move a folder to another board, give a vault folder its own board) `manage_automation` (add, change or delete a board's automation rule, from a spec, a preset or a sentence) and `install_tool` (have the server build a [Tool](#tools)'s board for you, or find the one it built) to write, and
 `claim_job`, `job_progress` and `finish_job` to take [runner jobs](#run-an-agent-against-a-board)
-from a board's queue, and — only while an admin has meeting mode on — `capture_meeting`,
-`get_capture`, `resolve_capture_question` and `commit_capture` for meeting capture
+from a board's queue, and for capture — `capture_meeting` while an admin has meeting mode on,
+`capture_chat` (send this conversation) while chat capture is on (the default), and `get_capture`,
+`resolve_capture_question` and `commit_capture` while either is
 — each checked exactly as the API
 checks the same token, so a read-only or board-scoped token stays that way.
 The deletes need an explicit confirmation. claude.ai connects from

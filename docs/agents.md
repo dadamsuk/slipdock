@@ -191,8 +191,10 @@ that connects gets a small set of tools rather than the whole API:
 |---|---|
 | `whoami`, `get_guide`, `list_boards`, `get_board`, `list_cards`, `get_card`, `search`, `ask`, `read_page`, `list_pages`, `page_info`, `page_history`, `list_vaults`, `activity`, `download_file`, `list_automations`, `list_tools` | `create_card`, `update_card`, `move_card`, `comment`, `leave_handoff`, `upload_file`, `delete_attachment`, `complete_card`, `status_update`, `archive_card`, `delete_card`, `create_list`, `create_tag`, `delete_list`, `create_board`, `archive_board`, `delete_board`, `write_page`, `update_page`, `file_folder`, `share`, `revert_page`, `manage_vault`, `manage_automation`, `install_tool`, `claim_job`, `job_progress`, `finish_job` |
 
-While an admin has meeting mode on, four more: `get_capture` to read, and
-`capture_meeting`, `resolve_capture_question` and `commit_capture` to write.
+While an admin has meeting mode on, `capture_meeting` sends a meeting; while
+chat capture is on (the default), `capture_chat` sends the conversation you are
+in. With either on: `get_capture` to read, `resolve_capture_question` and
+`commit_capture` to write.
 An agent answers a capture's questions only with the person's own answers,
 and commits only when asked; see [the manual](manual.md#meeting-capture).
 

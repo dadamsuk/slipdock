@@ -1689,7 +1689,9 @@ defmodule SlipdockWeb.APIGuide do
       Send one with `kind: chat` and the conversation as `transcript`
       (`Name: text` turns, or a Claude or ChatGPT export: format `chat`,
       `claude-export`, `chatgpt-export`; `conversation` picks one from an
-      export of several). Then the same review as a meeting: over MCP
+      export of several). Over MCP, `capture_chat` sends the conversation
+      you are in, with your own findings if you read it yourself (no server
+      model needed; quotes still checked). Then the same review as a meeting:
       `get_capture`, `resolve_capture_question`, `commit_capture`.
       **Commit only when the person asks**, with the preview's digest.
       """
