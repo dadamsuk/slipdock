@@ -3755,12 +3755,30 @@ defmodule Slipdock.Boards do
   @doc "The public path an attachment is served from."
   def attachment_url(%Attachment{} = a), do: "/attachments/#{a.id}/#{URI.encode(a.filename)}"
 
-  defp store_file(source, key) do
+  defp store_file(source, key), do: put_file(source, key)
+
+  @doc """
+  Copies `source` into the uploads directory under `key`, making the folders
+  it needs. Returns `:ok` or `{:error, reason}`.
+
+  Folders are shared — every recording is in `captures/` — and
+  `remove_files/1` takes a folder away once it is empty, so one can vanish
+  between making it and copying into it (`:enoent`, or `:enotdir` from
+  `File.mkdir_p/1`). That is retried, a few times, rather than failing the
+  upload (#1102).
+  """
+  def put_file(source, key, attempts \\ 5) do
     dest = Path.join(uploads_dir(), key)
 
     with :ok <- File.mkdir_p(Path.dirname(dest)),
          {:ok, _} <- File.copy(source, dest) do
       :ok
+    else
+      {:error, reason} when reason in [:enoent, :enotdir] and attempts > 1 ->
+        if File.exists?(source), do: put_file(source, key, attempts - 1), else: {:error, reason}
+
+      error ->
+        error
     end
   end
 

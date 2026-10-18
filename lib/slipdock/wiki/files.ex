@@ -273,12 +273,10 @@ defmodule Slipdock.Wiki.Files do
   end
 
   defp copy(source, key) do
-    dest = Path.join(Boards.uploads_dir(), key)
+    case Boards.put_file(source, key) do
+      :ok ->
+        :ok
 
-    with :ok <- File.mkdir_p(Path.dirname(dest)),
-         {:ok, _} <- File.copy(source, dest) do
-      :ok
-    else
       {:error, reason} ->
         {:error, :unprocessable_entity, "could not store the file: #{inspect(reason)}"}
     end
