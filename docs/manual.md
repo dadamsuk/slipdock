@@ -4111,12 +4111,19 @@ admin-scoped token.
 
 **Admins.** One role, and the oldest account has it after an upgrade. Admins
 change all of the above, see everybody, grant and remove admin rights, disable
-accounts, set per-person item limits and record who has paid. Three things are
-deliberately refused: mail settings will not save without a test message that
-arrived, the last admin cannot be demoted or disabled, and the admin address
-only changes once the new address confirms a code. There is no delete —
-disabling is reversible and immediate, and deleting somebody would take their
-cards, comments and page history with them.
+accounts, set per-person item limits and record who has paid. On Users they can
+also **add somebody** by address (they are emailed an invitation when there is
+mail, whatever *invites create accounts* says), **change the address** somebody
+signs in with (the pencil beside it; the old address is told, and a sign-in link
+already sent there stops working), and **close an account** for good, after it
+has said what it will take with it and the address has been typed to confirm.
+Disable first: it is reversible and immediate, and closing takes their cards and
+the boards only they used with it. From a terminal: `slipdock admin add <email>`,
+`slipdock admin email <email> <new-email>`, `slipdock admin close <email> --force`
+(`POST`, `PATCH` and `DELETE /api/admin/users`, the last with `?confirm=<email>`).
+Three things are deliberately refused: mail settings will not save without a
+test message that arrived, the last admin cannot be demoted, disabled or closed,
+and the admin address only changes once the new address confirms a code.
 
 **When there is no mail server**, sign-in codes are written to a file on the
 server (`SLIPDOCK_LOGIN_FALLBACK_PATH`, mode `0600`) and to the log, so a fresh

@@ -225,6 +225,94 @@ defmodule SlipdockWeb.AdminAPITest do
     end
   end
 
+  describe "adding, readdressing and closing accounts" do
+    setup %{admin: admin}, do: %{conn: token_conn(admin, "admin")}
+
+    test "POST makes an account and says how they were told", %{conn: conn} do
+      email = fixture_email("newcomer@example.com")
+
+      body = post(conn, ~p"/api/admin/users", %{"email" => email}) |> json_response(201)
+
+      assert body["user"]["email"] == email
+      assert body["user"]["invited"]
+      assert is_binary(body["delivery"])
+      assert Accounts.get_user_by_email(email)
+    end
+
+    test "POST refuses an address already here, a bad one, and none", %{
+      conn: conn,
+      ordinary: ordinary
+    } do
+      assert post(conn, ~p"/api/admin/users", %{"email" => ordinary.email})
+             |> json_response(409)
+             |> Map.get("error") =~ "already uses"
+
+      assert post(conn, ~p"/api/admin/users", %{"email" => "nope"}) |> json_response(422)
+      assert post(conn, ~p"/api/admin/users", %{}) |> json_response(400)
+    end
+
+    test "PATCH email changes it, and refuses one in use", %{
+      conn: conn,
+      admin: admin,
+      ordinary: ordinary
+    } do
+      new_email = fixture_email("renamed@example.com")
+
+      body =
+        patch(conn, ~p"/api/admin/users/#{ordinary.id}", %{"email" => new_email})
+        |> json_response(200)
+
+      assert body["user"]["email"] == new_email
+
+      assert patch(conn, ~p"/api/admin/users/#{ordinary.id}", %{"email" => admin.email})
+             |> json_response(422)
+
+      assert Slipdock.Repo.reload(ordinary).email == new_email
+    end
+
+    test "DELETE wants their address as confirm, and then closes it", %{
+      conn: conn,
+      ordinary: ordinary
+    } do
+      assert delete(conn, ~p"/api/admin/users/#{ordinary.id}") |> json_response(400)
+
+      assert delete(conn, ~p"/api/admin/users/#{ordinary.id}?confirm=wrong@example.com")
+             |> json_response(400)
+
+      assert Accounts.get_user(ordinary.id)
+
+      body =
+        delete(conn, ~p"/api/admin/users/#{ordinary.id}?#{[confirm: ordinary.email]}")
+        |> json_response(200)
+
+      assert body["deleted"] == ordinary.email
+      refute Accounts.get_user(ordinary.id)
+    end
+
+    test "DELETE will not close your own account, or somebody who isn't there", %{
+      conn: conn,
+      admin: admin
+    } do
+      assert delete(conn, ~p"/api/admin/users/#{admin.id}?#{[confirm: admin.email]}")
+             |> json_response(422)
+
+      assert Accounts.get_user(admin.id)
+      assert delete(conn, ~p"/api/admin/users/0?confirm=x@example.com") |> json_response(404)
+    end
+
+    test "an ordinary write token may do none of it", %{admin: admin, ordinary: ordinary} do
+      conn = token_conn(admin, "write")
+      assert post(conn, ~p"/api/admin/users", %{"email" => "x@example.com"}).status in [401, 403]
+
+      assert delete(conn, ~p"/api/admin/users/#{ordinary.id}?#{[confirm: ordinary.email]}").status in [
+               401,
+               403
+             ]
+
+      assert Accounts.get_user(ordinary.id)
+    end
+  end
+
   describe "signups" do
     setup %{admin: admin} do
       {:ok, _} =

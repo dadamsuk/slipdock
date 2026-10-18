@@ -404,7 +404,9 @@ defmodule SlipdockWeb.Router do
     delete "/allowlist", AdminController, :disallow
     get "/overview", AdminController, :overview
     get "/users", AdminController, :users
+    post "/users", AdminController, :create_user
     patch "/users/:id", AdminController, :update_user
+    delete "/users/:id", AdminController, :delete_user
     get "/signups", AdminController, :signups
     post "/signups/:id/:decision", AdminController, :decide_signup
   end

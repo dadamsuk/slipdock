@@ -156,21 +156,44 @@ defmodule Slipdock.Accounts.Signups do
   end
 
   defp create_invited_user(email, inviter, opts) do
-    attrs = %{"email" => email}
-
-    changeset =
-      %User{}
-      |> User.email_changeset(attrs)
-      |> Ecto.Changeset.put_change(:invited_by_id, inviter.id)
-      |> Ecto.Changeset.put_change(
-        :invited_at,
-        DateTime.utc_now() |> DateTime.truncate(:second)
-      )
-
-    with {:ok, user} <- Repo.insert(changeset) do
+    with {:ok, user} <- insert_invited(email, inviter) do
       deliver_invitation(user, inviter, opts[:to])
       {:ok, user}
     end
+  end
+
+  @doc """
+  An admin adding somebody by hand, from the Users page or `admin add`.
+
+  Unlike `invite_user/3` this is not gated on `invites_create_accounts` (an
+  admin has already decided) and an address that is already here is an error
+  rather than a quiet success, because the admin asked for a new account.
+
+  Returns `{:ok, user, delivery}`, where `delivery` is what
+  `deliver_invitation/3` said, so the page can say whether they were told.
+  """
+  @spec add_user(String.t(), User.t()) ::
+          {:ok, User.t(), term()} | {:error, :exists | Ecto.Changeset.t()}
+  def add_user(email, %User{} = admin) when is_binary(email) do
+    email = Slipdock.Email.normalize(email)
+
+    case Accounts.get_user_by_email(email) do
+      %User{} ->
+        {:error, :exists}
+
+      nil ->
+        with {:ok, user} <- insert_invited(email, admin) do
+          {:ok, user, deliver_invitation(user, admin)}
+        end
+    end
+  end
+
+  defp insert_invited(email, inviter) do
+    %User{}
+    |> User.email_changeset(%{"email" => email})
+    |> Ecto.Changeset.put_change(:invited_by_id, inviter.id)
+    |> Ecto.Changeset.put_change(:invited_at, DateTime.utc_now() |> DateTime.truncate(:second))
+    |> Repo.insert()
   end
 
   @doc """

@@ -196,6 +196,29 @@ defmodule Slipdock.Accounts do
     end
   end
 
+  @doc """
+  An admin changing somebody's address. They sign in with the new one from now
+  on; a sign-in link already sent to the old one stops working, since a link
+  is only good for the address on the account. Sessions and tokens carry on:
+  the person is the same.
+
+  The old address is told, when there is mail, so an address quietly pointed
+  somewhere else is visible to whoever used to receive it.
+  """
+  @spec change_email(User.t(), String.t(), User.t()) ::
+          {:ok, User.t()} | {:error, Ecto.Changeset.t()}
+  def change_email(%User{} = user, email, %User{} = by) when is_binary(email) do
+    old = user.email
+
+    with {:ok, updated} <- user |> User.email_changeset(%{"email" => email}) |> Repo.update() do
+      if updated.email != old and Settings.smtp_configured?() do
+        UserNotifier.deliver_email_changed(old, updated, by)
+      end
+
+      {:ok, updated}
+    end
+  end
+
   @doc "Makes somebody an admin."
   def promote(%User{} = user), do: update_standing(user, %{"admin" => true})
 
@@ -408,6 +431,7 @@ defmodule Slipdock.Accounts do
   defdelegate signup_stance(), to: Signups
   defdelegate signups_open?(), to: Signups
   defdelegate invite_user(email, inviter, opts \\ []), to: Signups
+  defdelegate add_user(email, admin), to: Signups
   defdelegate deliver_invitation(user, inviter, to \\ nil), to: Signups
   defdelegate request_signup(email, opts \\ []), to: Signups
   defdelegate list_signup_requests(status \\ "pending"), to: Signups

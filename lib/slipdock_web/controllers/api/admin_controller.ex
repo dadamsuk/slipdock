@@ -198,7 +198,7 @@ defmodule SlipdockWeb.API.AdminController do
 
   def update_user(conn, %{"id" => id} = params) do
     with {:ok, user} <- fetch_user(id) do
-      case apply_user_change(user, params) do
+      case change_user(user, params, conn.assigns.current_user) do
         {:ok, user} ->
           json(conn, %{user: user_json(user)})
 
@@ -213,6 +213,48 @@ defmodule SlipdockWeb.API.AdminController do
 
         other ->
           other
+      end
+    end
+  end
+
+  # An admin adding somebody by hand. They are sent an invitation when there is
+  # mail; `delivery` says whether they were, since nobody else will.
+  def create_user(conn, %{"email" => email}) when is_binary(email) do
+    case Accounts.add_user(email, conn.assigns.current_user) do
+      {:ok, user, delivery} ->
+        conn
+        |> put_status(:created)
+        |> json(%{user: user_json(user), delivery: delivery(delivery)})
+
+      {:error, :exists} ->
+        {:error, :conflict, "somebody here already uses #{email}"}
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  def create_user(_conn, _params), do: {:error, :bad_request, "pass email"}
+
+  # Closing an account, for good. `confirm` has to be their address, as the
+  # Users page makes you type it: an id alone is too easy to get wrong.
+  def delete_user(conn, %{"id" => id} = params) do
+    with {:ok, user} <- fetch_user(id) do
+      cond do
+        params["confirm"] != user.email ->
+          {:error, :bad_request, "pass confirm=<their email> to close this account"}
+
+        user.id == conn.assigns.current_user.id ->
+          {:error, :unprocessable_entity, "you cannot close your own account here"}
+
+        true ->
+          case Accounts.delete_user(user) do
+            {:ok, %{email: email, handed_over: handed}} ->
+              json(conn, %{deleted: email, handed_over: length(handed)})
+
+            {:error, :last_admin} ->
+              {:error, :conflict, Accounts.last_admin_message(user)}
+          end
       end
     end
   end
@@ -248,6 +290,16 @@ defmodule SlipdockWeb.API.AdminController do
 
   ## Internals
 
+  defp change_user(user, %{"email" => email}, by) when is_binary(email),
+    do: Accounts.change_email(user, email, by)
+
+  defp change_user(user, params, _by), do: apply_user_change(user, params)
+
+  defp delivery({:ok, :emailed}), do: "emailed"
+  defp delivery({:ok, {:written, path}}), do: "written to #{path}"
+  defp delivery({:ok, :logged}), do: "logged"
+  defp delivery(_), do: "not delivered"
+
   defp apply_user_change(user, %{"admin" => true}), do: Accounts.promote(user)
   defp apply_user_change(user, %{"admin" => false}), do: Accounts.demote(user)
   defp apply_user_change(user, %{"disabled" => true}), do: Accounts.disable(user)
@@ -267,7 +319,7 @@ defmodule SlipdockWeb.API.AdminController do
     do: Accounts.update_standing(user, %{"unlimited" => unlimited})
 
   defp apply_user_change(_user, _params),
-    do: {:error, :bad_request, "pass admin, disabled, card_limit, paid_until or unlimited"}
+    do: {:error, :bad_request, "pass email, admin, disabled, card_limit, paid_until or unlimited"}
 
   defp blank_to_nil(value) when value in ["", "none", "-", nil], do: nil
   defp blank_to_nil(value), do: value
