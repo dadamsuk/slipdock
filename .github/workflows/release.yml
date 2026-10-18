@@ -2,9 +2,13 @@
 # so that running Slipdock does not require cloning it and waiting for an Elixir
 # build.
 #
-#   ghcr.io/dadamsuk/slipdock:latest    the tip of main
-#   ghcr.io/dadamsuk/slipdock:v1.2.3    a tagged release
-#   ghcr.io/dadamsuk/slipdock:sha-abc123
+#   ghcr.io/dadamsuk/slipdock:latest       the tip of main (also :main)
+#   ghcr.io/dadamsuk/slipdock:1.2.3        a tag v1.2.3 (also :1.2)
+#   ghcr.io/dadamsuk/slipdock:sha-abc1234  every build, by commit
+#
+# After a push to main or a v* tag, the deploy job puts that exact image on the
+# production server (see the job for how, and deploy/deploy.sh for the server
+# side).
 #
 # amd64 and arm64 are built on their own native runners rather than one of them
 # under QEMU: an Elixir compile emulated is tens of minutes, and GitHub's arm64
@@ -112,6 +116,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      deploy-tag: ${{ steps.pin.outputs.tag }}
 
     steps:
       - uses: actions/download-artifact@v4
@@ -156,3 +162,98 @@ jobs:
         run: |
           docker buildx imagetools inspect \
             "$REGISTRY/$IMAGE_NAME:${{ steps.meta.outputs.version }}"
+
+      # The one tag the deploy job pins to: the release version for a v* tag,
+      # otherwise this commit's sha- tag. Never `latest`, which moves, so a
+      # deploy can be repeated and a rollback is a deploy of the previous one.
+      - name: Pick the tag to deploy
+        id: pin
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            tag="$VERSION"
+          else
+            tag=$(jq -r '.tags[] | select(test(":sha-[0-9a-f]+$")) | sub(".*:"; "")' <<< "$DOCKER_METADATA_OUTPUT_JSON")
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "deploy tag: $tag"
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+
+  # Puts the image just published on the production server, which is reached
+  # only over Tailscale: this runner joins the tailnet as an ephemeral tag:ci
+  # node (workload identity federation, so there is no Tailscale secret to
+  # leak), runs deploy/deploy.sh over Tailscale SSH (no SSH key either), and
+  # then waits for the server to say it is healthy on the new commit.
+  #
+  # Pushes to main and v* tags only — never a pull request, whose code must not
+  # get near production credentials — and always through the `production`
+  # environment, whose branch and tag rules are a second gate and whose
+  # secrets nothing else can read.
+  #
+  # Needs, on the production environment: secrets TS_OAUTH_CLIENT_ID,
+  # TS_AUDIENCE, DEPLOY_HOST (the server's tailnet name) and DEPLOY_HEALTH_URL
+  # (https://…/healthz), and the variable DEPLOY_USER.
+  deploy:
+    needs: [test, merge]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      id-token: write
+      contents: read
+    # One deploy at a time. A newer one waits rather than cancelling one that
+    # may be mid-restart; GitHub keeps only the newest waiting, so a burst of
+    # merges deploys the first and the last.
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+    timeout-minutes: 20
+
+    steps:
+      - uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          audience: ${{ secrets.TS_AUDIENCE }}
+          tags: tag:ci
+          # Waits for the server to be reachable: a new node takes a moment to
+          # be accepted by its peers.
+          ping: ${{ secrets.DEPLOY_HOST }}
+
+      # Tailscale SSH: the tailnet authenticates this node as tag:ci and the
+      # policy's ssh rule lets it in as the deploy user only, so there is no
+      # SSH key to keep, and `tailscale ssh` takes the server's host key from
+      # the tailnet rather than trusting whatever answers. sudo because
+      # tailscaled runs as root here. The deploy user can run nothing as root
+      # but deploy.sh (one sudoers line on the server). The tag goes through
+      # the remote shell, so it is checked here first as well as by deploy.sh.
+      - name: Deploy
+        run: |
+          grep -Eqx 'sha-[0-9a-f]{7,40}|[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?' <<< "$TAG" ||
+            { echo "::error::refusing to deploy unpinned tag '$TAG'"; exit 1; }
+          sudo tailscale ssh "$DEPLOY_USER@$DEPLOY_HOST" sudo -n /opt/deploy/deploy.sh "$TAG"
+        env:
+          DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          TAG: ${{ needs.merge.outputs.deploy-tag }}
+
+      # Healthy means answering, reaching Postgres, and built from this commit:
+      # a container that never came up (a migration that fails on boot
+      # crash-loops it) leaves the old answer or none, and either fails here.
+      - name: Wait for the server to be healthy on this commit
+        run: |
+          deadline=$(( $(date +%s) + 300 ))
+          while :; do
+            # No -S: a curl error names the host, and the log is public.
+            body=$(curl -s --max-time 5 "$HEALTH_URL") || true
+            if [ "$(jq -r 'select(.status == "ok") | .sha' <<< "$body" 2>/dev/null)" = "$GITHUB_SHA" ]; then
+              echo "healthy on $GITHUB_SHA"
+              exit 0
+            fi
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              echo "::error::not healthy on $GITHUB_SHA after 5 minutes; last answer: $body"
+              exit 1
+            fi
+            sleep 5
+          done
+        env:
+          HEALTH_URL: ${{ secrets.DEPLOY_HEALTH_URL }}
