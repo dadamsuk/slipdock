@@ -453,6 +453,9 @@ export function menuItems(row, ctx) {
     if (row.kind === "page") items.push(many
       ? {label: `Archive ${selection.length}…`, icon: "hero-archive-box", event: "tree_dialog", payload: {kind: "archive", keys: selection}, danger: true, group: "danger"}
       : {label: "Archive…", icon: "hero-archive-box", event: "ask_archive_page", payload: {id}, danger: true, group: "danger"})
+    // Gone for good, as a file can be (#1098): the server asks, and says
+    // that only the board's owner may.
+    if (row.kind === "page" && !many) items.push({label: "Delete…", icon: "hero-trash", event: "ask_delete_page", payload: {id}, danger: true, group: "danger"})
   }
   return items
 }

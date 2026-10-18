@@ -1628,6 +1628,50 @@ defmodule SlipdockWeb.WikiLive.Index do
     end
   end
 
+  # Delete… on a page in the tree (#1098): gone for good, history and all,
+  # so asked first, with the warning the page's own menu gives. Only the
+  # board's owner may; the prompt says so rather than the menu hiding it.
+  def handle_event("ask_delete_page", %{"id" => id}, socket) do
+    case tree_page(socket, id) do
+      %Page{} = page ->
+        {:noreply,
+         assign(socket,
+           tree_prompt: %{
+             kind: :delete_page,
+             page: page,
+             children: Wiki.children(page),
+             owner: board_owner?(socket, page.board_id)
+           }
+         )}
+
+      nil ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("delete_from_tree", _params, socket) do
+    with %{kind: :delete_page, page: page} <- socket.assigns.tree_prompt,
+         %Page{} = page <- tree_page(socket, page.id),
+         true <- board_owner?(socket, page.board_id),
+         {:ok, _} <- Wiki.delete_page(page) do
+      socket =
+        socket
+        |> assign(tree_prompt: nil)
+        |> put_flash(:info, "Deleted “#{page.title}” for good.")
+        |> load_tree()
+
+      # The page being read was the one deleted: there is nothing left to show.
+      {:noreply,
+       if(match?(%Page{id: id} when id == page.id, socket.assigns.page),
+         do: push_patch(socket, to: wiki_path(socket.assigns.board)),
+         else: socket
+       )}
+    else
+      false -> {:noreply, put_flash(socket, :error, "Only the board's owner can delete a page.")}
+      _ -> {:noreply, put_flash(socket, :error, "That page couldn't be deleted.")}
+    end
+  end
+
   # A file in the tree is archived or deleted for good (#769), each asked
   # first. Deleting gives the storage back, and like a page's, only the
   # board's owner may do it; the prompt says so rather than the menu hiding it.
@@ -3267,7 +3311,11 @@ defmodule SlipdockWeb.WikiLive.Index do
          else: (_ -> nil)
   end
 
-  defp file_owner?(socket, %WikiFile{board_id: board_id}) do
+  defp file_owner?(socket, %WikiFile{board_id: board_id}), do: board_owner?(socket, board_id)
+
+  # Whether the reader owns the board a tree row lives on, which may not be
+  # this one in a vault: only the owner purges (#733).
+  defp board_owner?(socket, board_id) do
     case Boards.get_board(board_id) do
       %Slipdock.Boards.Board{} = board ->
         Access.board_permission(socket.assigns.current_user, board) == :owner
@@ -5199,6 +5247,36 @@ defmodule SlipdockWeb.WikiLive.Index do
             phx-click="delete_file"
             class="btn btn-error btn-sm"
             autofocus
+          >
+            <.icon name="hero-trash" class="size-4" /> Delete for good
+          </button>
+        </div>
+      </div>
+    </.modal>
+    """
+  end
+
+  defp tree_prompt(%{prompt: %{kind: :delete_page}} = assigns) do
+    ~H"""
+    <.modal id="tree-prompt" on_close={JS.push("close_tree_prompt")} size="sm">
+      <div class="space-y-4 p-6">
+        <h2 class="text-lg font-semibold">Delete “{@prompt.page.title}”?</h2>
+        <p id="tree-delete-page-warning" class="text-sm text-base-content/60">
+          {delete_warning(@prompt.page, @prompt.children)}
+        </p>
+        <p :if={not @prompt.owner} id="tree-delete-page-owner-only" class="text-sm text-warning">
+          Only the board's owner can delete a page for good. Archive puts it away instead.
+        </p>
+        <div class="flex justify-end gap-2">
+          <button type="button" phx-click="close_tree_prompt" class="btn btn-ghost btn-sm">
+            Cancel
+          </button>
+          <button
+            :if={@prompt.owner}
+            id="tree-delete-page-confirm"
+            type="button"
+            phx-click="delete_from_tree"
+            class="btn btn-error btn-sm"
           >
             <.icon name="hero-trash" class="size-4" /> Delete for good
           </button>

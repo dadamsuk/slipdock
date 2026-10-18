@@ -638,11 +638,13 @@ const labels = items => items.map(i => i.label)
 test("a page's menu, for a writer", () => {
   const items = menuItems(page(7, {href: "/boards/1/wiki/p7"}), {board: 1, canWrite: true, selected: new Set()})
   assert.deepEqual(labels(items), [
-    "Open", "Open in a new tab", "New note inside", "Rename…", "Move…", "Also file in…", "Tag…", "Copy link", "Archive…",
+    "Open", "Open in a new tab", "New note inside", "Rename…", "Move…", "Also file in…", "Tag…", "Copy link", "Archive…", "Delete…",
   ])
   assert.deepEqual(items.find(i => i.label === "Move…").payload, {kind: "move", keys: ["page:7"]})
   assert.equal(items.find(i => i.label === "New note inside").href, "/boards/1/wiki/new?parent=7")
   assert.ok(items.find(i => i.label === "Archive…").danger)
+  // Delete… asks the server, which says whether this reader may (#1098).
+  assert.deepEqual(items.find(i => i.label === "Delete…"), {label: "Delete…", icon: "hero-trash", event: "ask_delete_page", payload: {id: "7"}, danger: true, group: "danger"})
 })
 
 test("Share… is offered only on a row the server marks shareable (#813)", () => {
