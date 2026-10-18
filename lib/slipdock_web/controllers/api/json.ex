@@ -188,6 +188,46 @@ defmodule SlipdockWeb.API.JSON do
     }
   end
 
+  defp current_recurrence(%Card{recurrence: %Slipdock.Recurrence.Series{} = s}), do: recurrence(s)
+  defp current_recurrence(_), do: nil
+
+  @doc """
+  A recurring card's series: the rule (stored form and in words), when and
+  where instances are made, what a missed one does, when it ends, and the
+  next one.
+  """
+  def recurrence(%Slipdock.Recurrence.Series{} = s) do
+    rule = Slipdock.Recurrence.Series.rule(s)
+
+    %{
+      id: s.id,
+      card_id: s.card_id,
+      kind: s.kind,
+      rule: s.rule,
+      summary: Slipdock.Recurrence.Series.summary(s),
+      starts_on: s.starts_on,
+      at: Calendar.strftime(s.create_at, "%H:%M"),
+      timezone: s.timezone,
+      lead_days: s.lead_days,
+      column_id: s.column_id,
+      on_missed: s.on_missed,
+      ends: s.ends,
+      ends_on: s.ends_on,
+      count: s.count,
+      made: s.made,
+      next_on: s.next_on,
+      next_at: s.next_at,
+      upcoming:
+        if(s.next_on && Slipdock.Recurrence.Series.active?(s),
+          do: [s.next_on | Slipdock.Recurrence.Rule.upcoming(rule, s.next_on, 2)],
+          else: []
+        ),
+      paused: s.paused,
+      ended_at: s.ended_at,
+      last_created_card_id: s.last_created_card_id
+    }
+  end
+
   def tag(%Tag{} = t), do: %{id: t.id, name: t.name, color: t.color}
 
   # A wiki page placed in a list stands beside the cards in every view, so it
@@ -213,6 +253,10 @@ defmodule SlipdockWeb.API.JSON do
       kind: Slipdock.Kinds.kind_of(c),
       # Where the card was left: read this before the comments (W-1804).
       handoff: current_handoff(c),
+      # The series this card is the current instance of, when it repeats
+      # (W-1802); `series_id` marks any instance a series made.
+      recurrence: current_recurrence(c),
+      series_id: c.series_id,
       description: c.description,
       priority: c.priority,
       flags: c.flags,

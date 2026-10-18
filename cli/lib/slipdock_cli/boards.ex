@@ -10,7 +10,7 @@ defmodule SlipdockCLI.Boards do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(guide search ask search-status saved save unsave boards board columns tags activity cards card swimlanes views favourites fav unfav table fields milestones templates add copy edit set vote status handoff new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
+  @commands ~w(guide search ask search-status saved save unsave boards board columns tags activity cards card swimlanes views favourites fav unfav table fields milestones templates add copy repeat recurring edit set vote status handoff new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -556,6 +556,45 @@ defmodule SlipdockCLI.Boards do
 
   def run("blocks", [id | others], o) when others != [],
     do: dependencies(id, others, "blocks", o)
+
+  # A recurring card (W-1802): with a rule (or any option) it sets or changes
+  # the series, --off stops it, --skip lets the next go, and alone it shows it.
+  def run("repeat", [id | words], o) do
+    rule = if words == [], do: nil, else: Enum.join(words, " ")
+
+    attrs =
+      compact(%{
+        "rule" => rule,
+        "at" => o[:at],
+        "lead_days" => o[:lead],
+        "timezone" => o[:tz],
+        "on_missed" => o[:on_missed],
+        "column" => o[:column],
+        "paused" => if(o[:pause], do: true, else: if(o[:resume], do: false))
+      })
+      |> Map.merge(repeat_ends(o))
+
+    cond do
+      o[:off] ->
+        HTTP.delete("/cards/#{enc(id)}/recurrence")
+        |> out(o, fn _ -> IO.puts("##{id} no longer repeats") end)
+
+      o[:skip] ->
+        HTTP.post("/cards/#{enc(id)}/recurrence/skip")
+        |> out(o, fn r ->
+          IO.puts("skipped one: ##{id} is next due #{r["recurrence"]["next_on"]}")
+        end)
+
+      attrs == %{} ->
+        HTTP.get("/cards/#{enc(id)}/recurrence") |> out(o, &Render.recurrence/1)
+
+      true ->
+        HTTP.put("/cards/#{enc(id)}/recurrence", attrs) |> out(o, &Render.recurrence/1)
+    end
+  end
+
+  def run("recurring", [ref], o),
+    do: HTTP.get("/boards/#{enc(ref)}/recurring") |> out(o, &Render.recurring/1)
 
   # A copy as the card is now (`POST /api/cards/:id/copy`): straight after
   # the original by default, or at the top or bottom of the list it goes to.
@@ -1282,6 +1321,16 @@ defmodule SlipdockCLI.Boards do
       [name] -> %{"name" => name}
       [name, wip] -> %{"name" => name, "wip_limit" => wip}
       [name, wip, color | _] -> %{"name" => name, "wip_limit" => wip, "color" => color}
+    end
+  end
+
+  # --ends is a date or "never"; --count N ends it after N in all.
+  defp repeat_ends(o) do
+    cond do
+      o[:count] -> %{"ends" => "after", "count" => o[:count]}
+      o[:ends] in ["never", "none"] -> %{"ends" => "never"}
+      o[:ends] -> %{"ends" => "on", "ends_on" => o[:ends]}
+      true -> %{}
     end
   end
 

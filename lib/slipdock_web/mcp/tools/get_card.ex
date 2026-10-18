@@ -18,7 +18,7 @@ defmodule SlipdockWeb.MCP.Tools.GetCard do
     do:
       "A card in full: its handoff (where it was left: read it first, before the comments), " <>
         "description (the brief), checklist, comments (often where the real constraint is), " <>
-        "dependencies, subcards (sub_board) and the wiki pages about it."
+        "dependencies, subcards, wiki pages about it, and recurrence if it repeats."
 
   @impl true
   def input_schema do
