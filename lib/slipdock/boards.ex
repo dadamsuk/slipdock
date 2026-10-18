@@ -356,7 +356,33 @@ defmodule Slipdock.Boards do
     |> put_rollup(Rollup.build(Board.root_id(board)))
     |> put_computed()
     |> put_placed_pages()
+    |> put_snoozed()
   end
+
+  # Snoozed cards (W-1803) leave the lists for the list's `snoozed`, after
+  # they have been decorated like the rest so the footer can show them as
+  # they are. A sprint keeps them in place: it is a deliberate commitment,
+  # and a sprint's work hidden from it would be a sprint nobody can read.
+  defp put_snoozed(%Board{} = board) do
+    if sprint_tree?(board) do
+      board
+    else
+      now = DateTime.utc_now()
+
+      columns =
+        Enum.map(board.columns, fn col ->
+          {asleep, awake} = Enum.split_with(col.cards, &Card.snoozed?(&1, now))
+          %{col | cards: awake, snoozed: asleep}
+        end)
+
+      %{board | columns: columns}
+    end
+  end
+
+  defp sprint_tree?(%Board{root_id: nil} = board), do: Board.sprints?(board)
+
+  defp sprint_tree?(%Board{root_id: root_id}),
+    do: Repo.exists?(from(b in Board, where: b.id == ^root_id and b.kind == "sprints"))
 
   # Wiki pages placed in this board's lists. Loaded with the board rather than
   # per list, and left unfiltered by reader — drafts are dropped by whoever
@@ -1342,6 +1368,7 @@ defmodule Slipdock.Boards do
           ),
         order_by: [asc_nulls_last: c.due_date, asc: c.title]
       )
+      |> Slipdock.Snooze.not_snoozed()
       |> Repo.all()
       |> Repo.preload([:board, :column, :tags, :assignee, :assignees])
 
@@ -1429,6 +1456,9 @@ defmodule Slipdock.Boards do
 
   Archived cards are left out unless `"archived"` says otherwise: `"true"`
   for the archived ones alone, `"all"` (or `"include"`) for both.
+
+  Snoozed cards (W-1803) are left out too, unless `"snoozed"` is
+  `"include"` (both) or `"only"` (see `Slipdock.Snooze.filter/3`).
   """
   def list_cards(%Board{} = board, filters \\ %{}) do
     query =
@@ -1445,6 +1475,8 @@ defmodule Slipdock.Boards do
         filters["archived"] in ["all", "include"] -> query
         true -> where(query, [c], is_nil(c.archived_at))
       end
+
+    query = Slipdock.Snooze.filter(query, filters["snoozed"])
 
     query =
       case filters["column"] do
@@ -1965,7 +1997,8 @@ defmodule Slipdock.Boards do
 
   def archive_card(%Card{} = card) do
     card
-    |> Ecto.Changeset.change(archived_at: DateTime.utc_now(:second))
+    # Archiving puts a card away for good, so any snooze goes with it.
+    |> Ecto.Changeset.change(archived_at: DateTime.utc_now(:second), snoozed_until: nil)
     |> Repo.update()
     |> tap_ok(fn c ->
       log(Repo, c.board_id, c.id, "card", "archived “#{c.title}”")
