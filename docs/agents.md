@@ -226,6 +226,15 @@ approve; never dismiss one on your own judgment, since a dismissal is
 remembered. The CLI is `slipdock garden <board> [--run]` and `slipdock garden
 apply|dismiss|undo <id>`. See [the manual](manual.md#tidying-up).
 
+It also offers prompts, ready-made workflows the client lists in its own menu
+(the **+** menu in the Claude apps, `/mcp__slipdock__<name>` in Claude Code),
+each rendered with live board data: `plan-my-day`, `weekly-review`, `triage`,
+`resume`, `leave-handoff`, `capture-this-chat` (while chat capture is on) and
+`tidy-board`. A `board` or `card` argument completes as the person types. A
+connector caches the list: after an upgrade that adds one, disconnect and
+connect again. ChatGPT's connectors don't show prompts. See
+[the manual](manual.md#the-prompts).
+
 `get_guide` gives the short guide — how to work a board, the reader's own
 boards and lists — and ends by naming the other sections, each one call
 away with `section` (`automations`, `wiki`, `endpoints`…, or `all`). The

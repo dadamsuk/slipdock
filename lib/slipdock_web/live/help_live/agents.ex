@@ -563,6 +563,35 @@ defmodule SlipdockWeb.HelpLive.Agents do
       </p>
     </.part>
 
+    <.part title="Ready-made workflows" id="help-mcp-prompts">
+      <p>
+        The server also offers prompts: workflows your client lists in its own menu, already
+        holding the live board data they need. In Claude Desktop and claude.ai they are under
+        the <strong>+</strong>
+        menu; in Claude Code they are slash commands such as <code>/mcp__slipdock__plan-my-day</code>.
+      </p>
+      <ul class="list-disc space-y-1 pl-5">
+        <li>
+          <code>plan-my-day</code>: my overdue, due-today and in-progress cards, and a plan for today.
+        </li>
+        <li><code>weekly-review</code>: the last 7 days, what slipped and what is stale.</li>
+        <li><code>triage</code>: a board's Backlog or Inbox, card by card.</li>
+        <li>
+          <code>resume</code>
+          and <code>leave-handoff</code>: pick a card up where it was left, or leave it for the next person.
+        </li>
+        <li :if={Slipdock.Meetings.chat_enabled?()}>
+          <code>capture-this-chat</code>: send this conversation to a board.
+        </li>
+        <li><code>tidy-board</code>: walk the gardener's tidy-up suggestions.</li>
+      </ul>
+      <p>
+        A connector remembers the list it was given, so after an upgrade that adds one,
+        disconnect and connect it again. ChatGPT's connectors use tools only, so prompts
+        don't show there.
+      </p>
+    </.part>
+
     <.part title="From ChatGPT and other clients">
       <p>
         Any client that supports MCP's OAuth sign-in connects with just the address. Clients

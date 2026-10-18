@@ -396,5 +396,20 @@ defmodule SlipdockWeb.HelpLiveTest do
       {:ok, _view, html} = live(conn, ~p"/help/agents/mcp")
       assert html =~ "install_tool"
     end
+
+    test "the MCP page names the prompts; capture-this-chat only while chat capture is on",
+         %{conn: conn} do
+      # Without a finished setup, a settings row sends every page to /setup.
+      {:ok, _} = Slipdock.Settings.complete_setup(%{"admin_email" => "admin@example.com"})
+      {:ok, view, _} = live(conn, ~p"/help/agents/mcp")
+      assert has_element?(view, "#help-mcp-prompts", "plan-my-day")
+      assert has_element?(view, "#help-mcp-prompts", "tidy-board")
+      assert has_element?(view, "#help-mcp-prompts", "capture-this-chat")
+
+      {:ok, _} = Slipdock.Settings.update(%{"chat_capture_enabled" => false})
+      {:ok, view, _} = live(conn, ~p"/help/agents/mcp")
+      assert has_element?(view, "#help-mcp-prompts", "resume")
+      refute has_element?(view, "#help-mcp-prompts", "capture-this-chat")
+    end
   end
 end
