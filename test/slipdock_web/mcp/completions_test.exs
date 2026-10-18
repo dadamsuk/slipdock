@@ -137,6 +137,16 @@ defmodule SlipdockWeb.MCP.CompletionsTest do
                ["##{ctx.other.id} Fix on beta"]
     end
 
+    test "over /mcp, resume's card argument completes", ctx do
+      body =
+        complete(ctx.conn, %{
+          ref: %{type: "ref/prompt", name: "resume"},
+          argument: %{name: "card", value: "feed"}
+        })
+
+      assert body["result"]["completion"]["values"] == ["##{ctx.feed.id} Feed the cat"]
+    end
+
     test "a % or _ typed is matched literally", ctx do
       assert Completions.suggest("card", "%", %{}, context(ctx.user)) == []
     end
