@@ -309,7 +309,7 @@ defmodule Slipdock.Meetings.Verify do
     differences = differences(f.group)
     link = link(raw, f.evidence, candidates)
     heard = heard(capture, lines)
-    owner = raw |> owner(members) |> in_meeting(heard)
+    owner = raw |> owner(members) |> in_meeting(heard) |> chat_owner(raw, members, capture)
     unfound = unfound_card?(raw, link, candidates)
     unsure = Enum.any?(f.evidence, & &1.line.voice_unsure)
     answered = raw["kind"] == "open_question" && wiki_answer(f.evidence, candidates)
@@ -329,7 +329,7 @@ defmodule Slipdock.Meetings.Verify do
       which_reading(differences) ++
         who_is_meant(owner, members, heard) ++
         existing_or_new(raw, link, f.evidence, candidates) ++
-        who_said_it(raw, unsure, f.evidence, capture)
+        who_said_it(raw, unsure and not Capture.chat?(capture), f.evidence, capture)
 
     effect = raw |> effect(link, owner, capture) |> voice_dependency(raw, f.evidence)
 
@@ -464,6 +464,31 @@ defmodule Slipdock.Meetings.Verify do
   end
 
   defp in_meeting(owner, _heard), do: owner
+
+  # In a chat (#1074) there is one person: an action nobody was named for is
+  # theirs, and so is one owned by "User", "me" or the like.
+  defp chat_owner(owner, raw, members, %Capture{kind: "chat"} = capture) do
+    person = fn ->
+      user =
+        Enum.find(members, &(&1.id == capture.owner_id)) ||
+          Repo.get!(User, capture.owner_id)
+
+      {:known, user.name || user.email, user}
+    end
+
+    action? = raw["kind"] == "action"
+
+    case owner do
+      nil when action? -> person.()
+      {:unknown, name} -> if person_word?(name), do: person.(), else: owner
+      owner -> owner
+    end
+  end
+
+  defp chat_owner(owner, _raw, _members, _capture), do: owner
+
+  defp person_word?(name),
+    do: String.downcase(String.trim(name)) in ~w(user human you me i the\ person)
 
   defp label?(name), do: not Slipdock.Meetings.Speakers.person_label?(name)
 

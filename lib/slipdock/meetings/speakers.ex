@@ -172,6 +172,105 @@ defmodule Slipdock.Meetings.Speakers do
 
   defp label(speaker), do: "Voice #{speaker}"
 
+  ## A chat's two sides --------------------------------------------------------
+
+  @person_labels ~w(user human you me)
+  @assistant_labels ~w(assistant ai claude chatgpt gpt model bot)
+
+  @doc """
+  The speakers of a chat (#1074), fixed rather than worked out: the person
+  who sent it — its owner — and the assistant. A label reads as the person
+  when it is how chat apps name the human ("User", "Human", "You") or the
+  owner's own name; as the assistant when it is how they name the model
+  ("Assistant", "Claude", "ChatGPT"); and with only two labels, whichever is
+  not the assistant is the person. Any other label keeps its own name. Lines
+  with no label belong to nobody.
+  """
+  def chat(%Capture{} = capture) do
+    owner = Repo.get!(User, capture.owner_id)
+    lines = lines(capture)
+    labels = lines |> Enum.map(& &1.speaker) |> Enum.reject(&is_nil/1) |> Enum.uniq()
+    sides = chat_sides(labels, owner)
+
+    Repo.transaction(fn ->
+      Repo.update_all(from(u in Utterance, where: u.capture_id == ^capture.id),
+        set: [voice_id: nil, voice_unsure: false]
+      )
+
+      Repo.delete_all(from(v in Voice, where: v.capture_id == ^capture.id))
+
+      voices =
+        Map.new(labels, fn label ->
+          attrs =
+            case sides[label] do
+              :person ->
+                %{
+                  name: owner.name || handle(owner.email),
+                  user_id: owner.id,
+                  confidence: "sure",
+                  evidence: [chat_evidence(label, "the person in the conversation")]
+                }
+
+              :assistant ->
+                %{
+                  name: label,
+                  confidence: "sure",
+                  evidence: [chat_evidence(label, "the AI assistant in the conversation")]
+                }
+
+              nil ->
+                %{name: label}
+            end
+
+          {label, Repo.insert!(struct(%Voice{capture_id: capture.id, label: label}, attrs))}
+        end)
+
+      for line <- lines, line.speaker do
+        Repo.update_all(from(u in Utterance, where: u.id == ^line.id),
+          set: [voice_id: voices[line.speaker].id]
+        )
+      end
+    end)
+
+    {:ok, capture}
+  end
+
+  defp chat_evidence(label, who) do
+    %{"kind" => "chat", "strength" => "strong", "detail" => "“#{label}” is #{who}"}
+  end
+
+  @doc false
+  # Which label is which side: `%{label => :person | :assistant}`.
+  def chat_sides(labels, %User{} = owner) do
+    mine =
+      [owner.name, owner.name && first(owner.name), handle(owner.email)]
+      |> Enum.reject(&is_nil/1)
+      |> Enum.map(&String.downcase/1)
+
+    side = fn label ->
+      l = String.downcase(label)
+
+      cond do
+        l in @person_labels or l in mine -> :person
+        l in @assistant_labels -> :assistant
+        true -> nil
+      end
+    end
+
+    known = Map.new(labels, &{&1, side.(&1)})
+
+    case {labels, Enum.filter(labels, &is_nil(known[&1]))} do
+      {[_, _], [other]} ->
+        if Enum.any?(known, fn {_, s} -> s == :assistant end),
+          do: Map.put(known, other, :person),
+          else: Map.put(known, other, :assistant)
+
+      _ ->
+        known
+    end
+    |> Map.reject(fn {_, s} -> is_nil(s) end)
+  end
+
   ## Step 4: who each voice is ------------------------------------------------
 
   @doc "Attributes each voice to a person (step 4)."

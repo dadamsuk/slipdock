@@ -52,9 +52,9 @@ defmodule SlipdockWeb.MeetingLive.Index do
   end
 
   # Where a capture is, in a few words: the step it is on while reading.
-  defp status_words(%{state: "reading", step: step}) do
-    next = Slipdock.Meetings.Pipeline.next_step(step) || "ready"
-    "reading — " <> String.downcase(Slipdock.Meetings.Pipeline.step_label(next))
+  defp status_words(%{state: "reading", step: step, kind: kind}) do
+    next = Slipdock.Meetings.Pipeline.next_step(step, kind) || "ready"
+    "reading — " <> String.downcase(Slipdock.Meetings.Pipeline.step_label(next, kind))
   end
 
   defp status_words(capture), do: state_label(capture)

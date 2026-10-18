@@ -25,6 +25,12 @@ defmodule Slipdock.Meetings.Ingest do
     * `:retention` — how long the recording is kept (`until_committed`,
       `30_days`, `90_days`)
     * `:source` — `upload`, `agent` or `connector`
+    * `:kind` — `"meeting"` (the default) or `"chat"`: a conversation with an
+      AI assistant (#1074). A chat takes a transcript and no recording; its
+      person is the sender, who is its one attendee; the meeting settings for
+      what is accepted do not apply to it.
+    * `:conversation` — for an export holding several conversations, the id
+      or title of the one to read
   """
 
   alias Slipdock.Accounts.User
@@ -47,11 +53,13 @@ defmodule Slipdock.Meetings.Ingest do
     transcript = content(params[:transcript])
     findings = content(params[:findings])
     audio = params[:audio]
+    chat? = params[:kind] in ["chat", :chat]
 
     with :ok <- something_sent(transcript, audio),
-         :ok <- accepted(transcript, audio, findings),
+         :ok <- if(chat?, do: chat_sent(transcript, audio), else: :ok),
+         :ok <- if(chat?, do: :ok, else: accepted(transcript, audio, findings)),
          :ok <- within_limits(transcript, audio, findings),
-         {:ok, parsed} <- parse_transcript(transcript, params),
+         {:ok, parsed} <- parse_transcript(transcript, params, user),
          {:ok, invite} <- parse_invite(params[:ics]),
          {:ok, findings_json} <- parse_findings(findings),
          :ok <- not_too_long(parsed),
@@ -63,9 +71,16 @@ defmodule Slipdock.Meetings.Ingest do
       fingerprint = Meetings.fingerprint(transcript: text, audio: audio && audio.path)
 
       attrs = %{
-        title: title(params[:title], invite, transcript, audio),
+        kind: if(chat?, do: "chat", else: "meeting"),
+        title: title(params[:title], invite, transcript, audio, chat?),
         started_at: started_at,
-        attendees: attendees(board, params[:attendees], invite),
+        attendees:
+          if(chat?,
+            do: [
+              %{"name" => user.name || user.email, "email" => user.email, "user_id" => user.id}
+            ],
+            else: attendees(board, params[:attendees], invite)
+          ),
         fingerprint: fingerprint,
         source: params[:source] || "upload",
         sources: sources(transcript, parsed, audio, findings_json, params),
@@ -86,8 +101,13 @@ defmodule Slipdock.Meetings.Ingest do
            ) do
         # Received: the reading starts (in the background, unless config
         # says otherwise — see `Slipdock.Meetings.Pipeline`).
-        {:ok, capture} -> {:ok, Slipdock.Meetings.Pipeline.start(capture)}
-        other -> other
+        {:ok, capture} ->
+          # A chat's two sides are known now, not worked out later (#1074).
+          if chat?, do: {:ok, _} = Slipdock.Meetings.Speakers.chat(capture)
+          {:ok, Slipdock.Meetings.Pipeline.start(capture)}
+
+        other ->
+          other
       end
     end
   end
@@ -103,6 +123,12 @@ defmodule Slipdock.Meetings.Ingest do
     do: invalid("send a recording, a transcript, or both — a capture needs one or the other")
 
   defp something_sent(_, _), do: :ok
+
+  defp chat_sent(_transcript, %{} = _audio),
+    do: invalid("a conversation is captured from its transcript, not a recording")
+
+  defp chat_sent(nil, _audio), do: invalid("send the conversation's transcript")
+  defp chat_sent(_transcript, nil), do: :ok
 
   defp accepted(transcript, audio, findings) do
     settings = Settings.get()
@@ -153,10 +179,15 @@ defmodule Slipdock.Meetings.Ingest do
   defp audio_size(%{size: size}) when is_integer(size), do: size
   defp audio_size(%{path: path}), do: File.stat!(path).size
 
-  defp parse_transcript(nil, _params), do: {:ok, nil}
+  defp parse_transcript(nil, _params, _user), do: {:ok, nil}
 
-  defp parse_transcript(%{content: content} = file, params) do
-    case Transcript.parse(content, format: params[:format], filename: file[:filename]) do
+  defp parse_transcript(%{content: content} = file, params, user) do
+    case Transcript.parse(content,
+           format: blank_nil(params[:format]),
+           filename: file[:filename],
+           conversation: blank_nil(params[:conversation]),
+           person: user.name || hd(String.split(user.email, "@"))
+         ) do
       {:ok, parsed} -> {:ok, parsed}
       {:error, message} -> invalid(message)
     end
@@ -249,7 +280,7 @@ defmodule Slipdock.Meetings.Ingest do
 
   defp started_at(_, _), do: invalid("the meeting's start should be a date and time")
 
-  defp title(title, invite, transcript, audio) do
+  defp title(title, invite, transcript, audio, chat?) do
     case title && String.trim(title) do
       t when is_binary(t) and t != "" ->
         t
@@ -258,9 +289,12 @@ defmodule Slipdock.Meetings.Ingest do
         (invite && invite.title) ||
           filename_title(transcript && transcript[:filename]) ||
           filename_title(audio && audio[:filename]) ||
-          "Meeting on #{Date.utc_today()}"
+          "#{if chat?, do: "Conversation", else: "Meeting"} on #{Date.utc_today()}"
     end
   end
+
+  defp blank_nil(""), do: nil
+  defp blank_nil(value), do: value
 
   defp filename_title(nil), do: nil
 
