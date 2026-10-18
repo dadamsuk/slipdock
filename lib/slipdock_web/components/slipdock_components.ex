@@ -953,6 +953,7 @@ defmodule SlipdockWeb.SlipdockComponents do
     total = length(card.checklist_items)
     cover = if assigns.cover == :auto, do: card.color, else: assigns.cover
     image = if on.("images"), do: Slipdock.Boards.Attachment.front_image(loaded_attachments(card))
+    handoff = Slipdock.Boards.Card.open_handoff(card)
 
     facets = %{
       cover: on.("cover") and not is_nil(cover),
@@ -972,7 +973,10 @@ defmodule SlipdockWeb.SlipdockComponents do
       checklist: on.("checklist") and total > 0,
       description: on.("description") and (card.description || "") != "",
       comments: on.("comments") and card.comments != [],
-      attachments: on.("attachments") and loaded_attachments(card) != []
+      attachments: on.("attachments") and loaded_attachments(card) != [],
+      # Where it was left (W-1804): always shown while the card is open, since
+      # it is what the next person needs before anything else on it.
+      handoff: not is_nil(handoff)
     }
 
     meta? = facets |> Map.drop([:cover, :image, :status, :tags]) |> Map.values() |> Enum.any?()
@@ -987,6 +991,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         image: image,
         page?: page?,
         favourite?: favourite_mark?(assigns.marks, card),
+        handoff: handoff,
         # A wiki page is `page-7` where a card is `12`, so the drag-and-drop
         # and the click handlers can tell the two apart.
         item_id: item_id(card),
@@ -1099,6 +1104,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         <.schedule_badges :if={@f.due_date} card={@card} />
         <.percent_badge :if={@f.percent} percent={@card.percent_complete} />
         <.time_badge :if={@f.time} card={@card} />
+        <.handoff_mark :if={@f.handoff} handoff={@handoff} class="size-3" />
         <span :if={@actions != []} class="-mr-1 shrink-0">{render_slot(@actions)}</span>
       </div>
       <div :if={!@compact} class="space-y-2 p-3">
@@ -1172,6 +1178,7 @@ defmodule SlipdockWeb.SlipdockComponents do
           >
             <.icon name="hero-bars-3-bottom-left" class="size-3.5" />
           </span>
+          <.handoff_mark :if={@f.handoff} handoff={@handoff} />
           <span :if={@f.comments} class="chip chip-line text-base-content/70" title="Comments">
             <.icon name="hero-chat-bubble-left" class="size-3.5" /> {length(@card.comments)}
           </span>
@@ -1185,6 +1192,22 @@ defmodule SlipdockWeb.SlipdockComponents do
         </div>
       </div>
     </div>
+    """
+  end
+
+  attr :handoff, :any, required: true
+  attr :class, :string, default: "size-3.5"
+
+  # A card someone stopped short on: the next step is the tooltip.
+  defp handoff_mark(assigns) do
+    ~H"""
+    <span
+      class="chip chip-icon chip-line text-info"
+      data-role="handoff-mark"
+      title={"Left off — next: " <> @handoff.next_step}
+    >
+      <.icon name="hero-arrow-uturn-left" class={@class} />
+    </span>
     """
   end
 

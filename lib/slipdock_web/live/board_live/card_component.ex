@@ -36,7 +36,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     quick_add_subcard toggle_subcard edit_description stop_editing_description
     validate_attachments cancel_upload delete_attachment hide_on_card transcribe add_link remove_link write_up
     toggle_pin_doc doc_search attach_doc detach_doc card_timer log_time dep_direction
-    dep_search link_search pick_template comment_change share revoke_grant cancel_job)
+    dep_search link_search pick_template comment_change share revoke_grant cancel_job
+    edit_handoff cancel_handoff leave_handoff clear_handoff)
   @events @own_events ++ ItemEvents.events()
   # What a reader who can't change the card may still do: nothing stored
   # changes, only what the panel is showing.
@@ -44,7 +45,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   # What a commenter (#863) may do besides: join the discussion, and nothing
   # that changes the card itself. Deleting a comment is only their own
   # (`ItemEvents`).
-  @comment_events ~w(add_comment delete_comment add_status_update vote comment_change)
+  @comment_events ~w(add_comment delete_comment add_status_update vote comment_change
+    edit_handoff cancel_handoff leave_handoff clear_handoff)
   # Sharing has a rule of its own: the board's owner, or anybody who can edit
   # the card.
   @share_events ~w(share revoke_grant)
@@ -82,7 +84,10 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
        link_query: "",
        link_results: [],
        picking_template: false,
-       editing_description: false
+       editing_description: false,
+       handoff_history: [],
+       editing_handoff: false,
+       handoff_form: nil
      )
      |> allow_upload(
        :attachment,
@@ -166,7 +171,9 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
             doc_query: "",
             doc_results: [],
             picking_template: false,
-            editing_description: false
+            editing_description: false,
+            editing_handoff: false,
+            handoff_form: nil
           )
 
     if readable do
@@ -197,7 +204,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   defp assign_pages(%{assigns: %{card: %Card{} = card}} = socket) do
     assign(socket,
       card_pages: Wiki.pages_for_card(card, socket.assigns.current_user),
-      card_grants: if(socket.assigns.can_share, do: Access.list_grants(card), else: [])
+      card_grants: if(socket.assigns.can_share, do: Access.list_grants(card), else: []),
+      handoff_history: Boards.handoff_history(card)
     )
     |> assign_jobs()
   end
@@ -512,6 +520,48 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   defp event("comment_change", _, socket),
     do: {:noreply, drop_invalid_uploads(socket, :comment_image)}
 
+  # Where it was left (W-1804): anybody who may comment may write it.
+  defp event("edit_handoff", _, socket) do
+    current = current_handoff(socket.assigns.card)
+
+    form =
+      to_form(
+        %{"next_step" => current && current.next_step, "body" => current && current.body},
+        as: :handoff
+      )
+
+    {:noreply, assign(socket, editing_handoff: true, handoff_form: form)}
+  end
+
+  defp event("cancel_handoff", _, socket),
+    do: {:noreply, assign(socket, editing_handoff: false, handoff_form: nil)}
+
+  defp event("leave_handoff", %{"handoff" => params}, socket) do
+    %{card: card, current_user: user} = socket.assigns
+    attrs = %{next_step: params["next_step"], body: params["body"], via: "ui"}
+
+    case Boards.leave_handoff(card, user, attrs) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> assign(editing_handoff: false, handoff_form: nil)
+         |> reload()
+         |> assign_pages()}
+
+      {:error, changeset} ->
+        {:noreply,
+         assign(socket, handoff_form: to_form(changeset, as: :handoff, action: :insert))}
+    end
+  end
+
+  defp event("clear_handoff", _, socket) do
+    %{card: card, current_user: user} = socket.assigns
+    {:ok, _} = Boards.clear_handoff(card, user, %{via: "ui"})
+
+    {:noreply,
+     socket |> assign(editing_handoff: false, handoff_form: nil) |> reload() |> assign_pages()}
+  end
+
   defp event("edit_description", _, socket),
     do: {:noreply, assign(socket, editing_description: true)}
 
@@ -748,6 +798,9 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         share_key={@share_key}
         uploads={@uploads}
         editing_description={@editing_description}
+        handoff_history={@handoff_history}
+        editing_handoff={@editing_handoff}
+        handoff_form={@handoff_form}
         parent={@parent}
         favourites={@favourites}
         target={@myself}
@@ -877,6 +930,9 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   attr :share_key, :integer, required: true
   attr :uploads, :map, required: true
   attr :editing_description, :boolean, required: true
+  attr :handoff_history, :list, default: [], doc: "every handoff written, newest first"
+  attr :editing_handoff, :boolean, default: false
+  attr :handoff_form, :any, default: nil
   attr :close_navigate, :boolean, default: false
   attr :parent, :any, default: nil
   attr :ai?, :boolean, default: false, doc: "offer the AI assistant on the card"
@@ -977,6 +1033,23 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
             write, the discussion (comments, status, votes) only comment. --%>
       <div class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_260px]">
         <div class="min-w-0 space-y-7 p-6">
+          <%!-- First, above the title and description: what the next person
+                needs before anything else. Its own fieldset, since a
+                commenter may write it (W-1804). --%>
+          <fieldset
+            :if={current_handoff(@card) || @can_comment || @handoff_history != []}
+            disabled={!@can_comment}
+            class="min-w-0"
+          >
+            <.handoff_panel
+              card={@card}
+              history={@handoff_history}
+              editing={@editing_handoff}
+              form={@handoff_form}
+              can_comment={@can_comment}
+              target={@target}
+            />
+          </fieldset>
           <fieldset disabled={!@can_write} class="min-w-0 space-y-7">
             <.card_header_form
               board={@board}
@@ -1117,5 +1190,126 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
       />
     </.modal>
     """
+  end
+
+  # The card's handoff: nil if none was written or the newest is a clear.
+  defp current_handoff(%Card{handoff: %Slipdock.Boards.Handoff{} = h}),
+    do: if(Slipdock.Boards.Handoff.cleared?(h), do: nil, else: h)
+
+  defp current_handoff(_), do: nil
+
+  attr :card, :any, required: true
+  attr :history, :list, required: true
+  attr :editing, :boolean, required: true
+  attr :form, :any, default: nil
+  attr :can_comment, :boolean, required: true
+  attr :target, :any, required: true
+
+  # "Where it was left": the next step in bold, the note, who, when and how,
+  # the history behind a disclosure, and the form to write a new one.
+  defp handoff_panel(assigns) do
+    assigns = assign(assigns, current: current_handoff(assigns.card))
+
+    ~H"""
+    <section id="card-handoff" class="space-y-2 rounded-xl bg-info/5 p-3 ring-1 ring-info/20">
+      <div class="flex items-center gap-2">
+        <.icon name="hero-arrow-uturn-left" class="size-4 text-info" />
+        <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
+          Where it was left
+        </span>
+        <button
+          :if={@can_comment and not @editing}
+          id="handoff-edit"
+          type="button"
+          class="btn btn-ghost btn-xs ml-auto"
+          phx-click="edit_handoff"
+          phx-target={@target}
+        >
+          {if @current, do: "Update handoff", else: "Leave a handoff"}
+        </button>
+      </div>
+
+      <div :if={@current && !@editing} id="handoff-current" class="space-y-1">
+        <p class="text-sm font-semibold" id="handoff-next">{@current.next_step}</p>
+        <p :if={@current.body} class="whitespace-pre-wrap font-mono text-xs text-base-content/80">
+          {@current.body}
+        </p>
+        <p class="text-2xs text-base-content/50">
+          {handoff_byline(@current)}
+        </p>
+      </div>
+
+      <p :if={!@current && !@editing} class="text-xs text-base-content/50">
+        No handoff. Leave one when you stop with this card unfinished, so whoever picks it up
+        next reads that first.
+      </p>
+
+      <.form
+        :if={@editing && @form}
+        for={@form}
+        id="handoff-form"
+        phx-submit="leave_handoff"
+        phx-target={@target}
+        class="space-y-2"
+      >
+        <.input
+          field={@form[:next_step]}
+          label="Next step"
+          placeholder="The one next step"
+          maxlength="280"
+          required
+        />
+        <.input
+          field={@form[:body]}
+          type="textarea"
+          label="Note"
+          rows="5"
+          class="textarea textarea-sm w-full font-mono text-xs"
+          placeholder={Slipdock.Boards.Handoff.body_template()}
+        />
+        <div class="flex items-center gap-2">
+          <button type="submit" class="btn btn-primary btn-xs">Save handoff</button>
+          <button
+            type="button"
+            class="btn btn-ghost btn-xs"
+            phx-click="cancel_handoff"
+            phx-target={@target}
+          >
+            Cancel
+          </button>
+          <button
+            :if={@current}
+            id="handoff-clear"
+            type="button"
+            class="btn btn-ghost btn-xs ml-auto"
+            phx-click="clear_handoff"
+            phx-target={@target}
+            data-confirm="Clear the handoff? The history keeps it."
+          >
+            Clear
+          </button>
+        </div>
+      </.form>
+
+      <details :if={@history != []} id="handoff-history" class="text-xs">
+        <summary class="cursor-pointer text-base-content/50">History ({length(@history)})</summary>
+        <ul class="mt-1 space-y-1">
+          <li :for={h <- @history} id={"handoff-#{h.id}"} class="rounded bg-base-200/60 p-1.5">
+            <span :if={!Slipdock.Boards.Handoff.cleared?(h)} class="font-medium">{h.next_step}</span>
+            <span :if={Slipdock.Boards.Handoff.cleared?(h)} class="italic text-base-content/50">
+              cleared
+            </span>
+            <span class="text-base-content/50">· {handoff_byline(h)}</span>
+          </li>
+        </ul>
+      </details>
+    </section>
+    """
+  end
+
+  defp handoff_byline(h) do
+    who = if h.user, do: Slipdock.Accounts.User.display_name(h.user), else: "someone"
+    job = if h.job_id, do: " · job ##{h.job_id}", else: ""
+    "#{who} · #{relative_time(h.inserted_at)} · #{h.via}#{job}"
   end
 end
