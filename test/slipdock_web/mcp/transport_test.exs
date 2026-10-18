@@ -31,7 +31,12 @@ defmodule SlipdockWeb.MCP.TransportTest do
 
       assert %{"jsonrpc" => "2.0", "id" => 1, "result" => result} = body
       assert result["protocolVersion"] == "2025-06-18"
-      assert result["capabilities"] == %{"tools" => %{"listChanged" => false}}
+
+      assert result["capabilities"] == %{
+               "tools" => %{"listChanged" => false},
+               "prompts" => %{"listChanged" => false}
+             }
+
       assert result["serverInfo"]["name"] == "slipdock"
       assert result["instructions"] =~ "get_guide"
       assert result["instructions"] =~ "/api/guide"
