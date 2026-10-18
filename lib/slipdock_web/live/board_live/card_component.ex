@@ -1308,7 +1308,13 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   end
 
   defp handoff_byline(h) do
-    who = if h.user, do: Slipdock.Accounts.User.display_name(h.user), else: "someone"
+    who =
+      cond do
+        h.user -> Slipdock.Accounts.User.display_name(h.user)
+        h.via == "runner" -> "a runner"
+        true -> "someone"
+      end
+
     job = if h.job_id, do: " · job ##{h.job_id}", else: ""
     "#{who} · #{relative_time(h.inserted_at)} · #{h.via}#{job}"
   end

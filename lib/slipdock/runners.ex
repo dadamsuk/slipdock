@@ -652,11 +652,54 @@ defmodule Slipdock.Runners do
           "#{runner.name} finished job ##{job.id}: #{status}#{exit_text(exit_code)}"
         )
 
+        leave_handoff(job, runner, status)
         job = changed(job)
         refill(job)
         {:ok, job}
       end
     end
+  end
+
+  # A job that ends with its card still open leaves its summary as the
+  # card's handoff (W-1804), unless the agent wrote one itself during the
+  # job: that one knows more, and is not to be overwritten.
+  defp leave_handoff(%Job{} = job, runner, status) do
+    since = job.claimed_at || job.inserted_at
+
+    case Repo.get(Slipdock.Boards.Card, job.card_id) do
+      %{completed: false} = card ->
+        unless Boards.handoff_written_since?(card.id, since) do
+          Boards.leave_handoff(card, nil, handoff_attrs(job, runner, status))
+        end
+
+      _ ->
+        :ok
+    end
+  end
+
+  @doc false
+  # The handoff a job's summary makes: its first line is the next step.
+  def handoff_attrs(%Job{} = job, runner, status) do
+    summary = String.trim(job.output || "")
+    ended = "Job ##{job.id} on #{runner.name} ended #{status}#{exit_text(job.exit_code)}."
+
+    next_step =
+      case String.split(summary, ~r/\R/, parts: 2) do
+        [first | _] when first != "" -> first |> String.trim() |> ellipsize(280)
+        _ -> "Pick up where job ##{job.id} stopped (#{status}): see its log"
+      end
+
+    %{
+      next_step: next_step,
+      body:
+        String.slice(Enum.join(Enum.reject([summary, ended], &(&1 == "")), "\n\n"), -8000, 8000),
+      via: "runner",
+      job_id: job.id
+    }
+  end
+
+  defp ellipsize(text, max) do
+    if String.length(text) > max, do: String.slice(text, 0, max - 1) <> "…", else: text
   end
 
   defp exit_text(nil), do: ""

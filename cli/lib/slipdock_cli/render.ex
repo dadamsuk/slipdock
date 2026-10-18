@@ -300,7 +300,13 @@ defmodule SlipdockCLI.Render do
   end
 
   defp handoff_by(h) do
-    who = if b = h["by"], do: b["name"] || b["email"], else: "someone"
+    who =
+      cond do
+        b = h["by"] -> b["name"] || b["email"]
+        h["via"] == "runner" -> "a runner"
+        true -> "someone"
+      end
+
     job = if h["job_id"], do: " · job ##{h["job_id"]}", else: ""
     "#{who} · #{String.slice(to_string(h["at"]), 0, 16)} · #{h["via"]}#{job}"
   end

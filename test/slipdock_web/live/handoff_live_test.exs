@@ -114,6 +114,22 @@ defmodule SlipdockWeb.HandoffLiveTest do
     end
   end
 
+  test "a runner's note says it came from a runner and which job", ctx do
+    {:ok, _, _} = Slipdock.Runners.create_runner(ctx.board, %{"name" => "box", "pool" => "dev"})
+    {:ok, job} = Slipdock.Runners.queue(ctx.card, %{pool: "dev", kind: "claude", prompt: "p"})
+
+    {:ok, _} =
+      Boards.leave_handoff(ctx.card, nil, %{
+        next_step: "From the job",
+        via: "runner",
+        job_id: job.id
+      })
+
+    {:ok, view, _} = open(ctx.conn, ctx)
+    assert has_element?(view, "#handoff-current", "a runner")
+    assert has_element?(view, "#handoff-current", "· runner · job ##{job.id}")
+  end
+
   describe "who may write it" do
     test "a commenter may", ctx do
       commenter = user_fixture("live.handoff.commenter@example.com")
