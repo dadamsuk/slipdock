@@ -2,7 +2,8 @@ defmodule SlipdockWeb.API.MeetingController do
   @moduledoc """
   Meeting capture over the JSON API (see `Slipdock.Meetings`). Every route is
   behind the `:meetings` pipeline, so none of them exists while meeting mode
-  is off.
+  and chat capture are both off; with only one on, a capture of the other
+  kind is not there (#1075).
   """
   use SlipdockWeb, :controller
 
@@ -28,7 +29,10 @@ defmodule SlipdockWeb.API.MeetingController do
   board already has a capture of the same meeting.
   """
   def create(conn, %{"board" => ref} = params) do
-    with {:ok, board} <- Authorize.fetch_board(conn, ref, :write) do
+    kind = if params["kind"] == "chat", do: "chat", else: "meeting"
+
+    with :ok <- kind_on(kind),
+         {:ok, board} <- Authorize.fetch_board(conn, ref, :write) do
       result =
         Ingest.ingest(board, conn.assigns.current_user, %{
           transcript: file(params["transcript"]),
@@ -39,6 +43,8 @@ defmodule SlipdockWeb.API.MeetingController do
           started_at: params["when"] || params["started_at"],
           attendees: params["attendees"],
           format: blank(params["format"]),
+          kind: kind,
+          conversation: blank(params["conversation"]),
           context: %{parent: params["parent"]},
           retention: blank(params["retention"]),
           source:
@@ -64,6 +70,12 @@ defmodule SlipdockWeb.API.MeetingController do
         {:error, other} ->
           {:error, other}
       end
+    else
+      {:off, code, message} ->
+        conn |> put_status(:not_found) |> json(%{error: message, code: code})
+
+      other ->
+        other
     end
   end
 
@@ -279,7 +291,11 @@ defmodule SlipdockWeb.API.MeetingController do
       base = SlipdockWeb.BaseURL.from_conn(conn)
 
       json(conn, %{
-        captures: Enum.map(Meetings.list_captures(board), &MeetingJSON.summary(&1, base))
+        captures:
+          board
+          |> Meetings.list_captures()
+          |> Enum.filter(&Meetings.kind_enabled?/1)
+          |> Enum.map(&MeetingJSON.summary(&1, base))
       })
     end
   end
@@ -289,6 +305,7 @@ defmodule SlipdockWeb.API.MeetingController do
   # board; one they cannot read is a 404, the same as one that is not there.
   def fetch(conn, id, need) do
     with %Meetings.Capture{} = capture <- id |> SlipdockWeb.Params.id() |> get(),
+         true <- Meetings.kind_enabled?(capture) || nil,
          board = Slipdock.Boards.get_board!(capture.board_id),
          :ok <- readable(conn, board),
          :ok <- Authorize.board(conn, board, need) do
@@ -297,6 +314,15 @@ defmodule SlipdockWeb.API.MeetingController do
       nil -> {:error, :not_found, "capture"}
       {:error, :not_found, _} -> {:error, :not_found, "capture"}
       other -> other
+    end
+  end
+
+  # Sending a meeting needs meeting mode; sending a chat, chat capture.
+  defp kind_on(kind) do
+    cond do
+      Meetings.kind_enabled?(kind) -> :ok
+      kind == "chat" -> {:off, "chat_capture_off", Meetings.chat_off_message()}
+      true -> {:off, "meetings_off", Meetings.off_message()}
     end
   end
 

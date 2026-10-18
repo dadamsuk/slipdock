@@ -83,6 +83,10 @@ defmodule Slipdock.Settings.Instance do
     # (`:used_only`, with one entry in the board's menu everywhere else) or
     # on every board. `meetings_hideable` lets each person put it out of sight.
     field :meetings_enabled, :boolean, default: false
+    # Chat capture (#1075): a conversation with an AI assistant read the same
+    # way, behind its own switch, on by default — nothing about it involves a
+    # recording, a voiceprint or attendees' consent.
+    field :chat_capture_enabled, :boolean, default: true
     field :meetings_visibility, Ecto.Enum, values: @meeting_visibilities, default: :used_only
     field :meetings_hideable, :boolean, default: true
     # What a capture may be sent, each switched on or off for the server.
@@ -184,7 +188,7 @@ defmodule Slipdock.Settings.Instance do
                     login_fallback_enabled board_limit board_limit_enabled item_limit
                     item_limit_enabled storage_limit_mb storage_limit_enabled
                     trial_days trial_enabled posthog_key posthog_host
-                    posthog_respect_dnt ai_system_user_id meetings_enabled
+                    posthog_respect_dnt ai_system_user_id meetings_enabled chat_capture_enabled
                     meetings_visibility meetings_hideable meetings_accept_transcripts
                     meetings_accept_audio meetings_accept_findings meetings_reading_model
                     meetings_second_reading meetings_second_model

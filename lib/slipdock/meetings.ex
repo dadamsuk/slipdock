@@ -42,9 +42,32 @@ defmodule Slipdock.Meetings do
   @doc "What every refusal says while meeting mode is off."
   def off_message, do: @off_message
 
+  @doc "What a refusal says while chat capture is off."
+  def chat_off_message, do: "chat capture is off on this server"
+
   @doc "Whether an admin has turned meeting mode on."
   @spec enabled?() :: boolean()
   def enabled?, do: Settings.get().meetings_enabled == true
+
+  @doc """
+  Whether chat capture is on (#1075): its own switch, on unless an admin
+  turned it off, and independent of meeting mode.
+  """
+  @spec chat_enabled?() :: boolean()
+  def chat_enabled?, do: Settings.get().chat_capture_enabled != false
+
+  @doc "Whether either kind of capture is on: what the review pages and tools need."
+  @spec capture_enabled?() :: boolean()
+  def capture_enabled?, do: enabled?() or chat_enabled?()
+
+  @doc """
+  Whether a capture of this kind is on: a meeting needs meeting mode, a chat
+  needs chat capture. One that is off is not there, as though it never was.
+  """
+  @spec kind_enabled?(Capture.t() | String.t()) :: boolean()
+  def kind_enabled?(%Capture{kind: kind}), do: kind_enabled?(kind)
+  def kind_enabled?("chat"), do: chat_enabled?()
+  def kind_enabled?(_meeting), do: enabled?()
 
   @doc "`:used_only` or `:every_board`: where the Meetings tab shows."
   @spec visibility() :: :used_only | :every_board
@@ -94,6 +117,7 @@ defmodule Slipdock.Meetings do
 
     %{
       enabled: settings.meetings_enabled == true,
+      chat_enabled: settings.chat_capture_enabled != false,
       visibility: settings.meetings_visibility,
       hideable: settings.meetings_hideable != false,
       hidden: hidden_by?(user),

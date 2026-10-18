@@ -137,7 +137,7 @@ defmodule SlipdockWeb.ConfigLive.Index do
                       board_limit board_limit_enabled item_limit item_limit_enabled
                       storage_limit_mb storage_limit_enabled trial_days trial_enabled
                       terms_url privacy_url terms_version posthog_key posthog_host
-                      posthog_respect_dnt ai_system_user_id meetings_enabled
+                      posthog_respect_dnt ai_system_user_id meetings_enabled chat_capture_enabled
                       meetings_visibility meetings_hideable meetings_accept_transcripts
                       meetings_accept_audio meetings_accept_findings meetings_reading_model
                       meetings_second_reading meetings_second_model
@@ -541,6 +541,26 @@ defmodule SlipdockWeb.ConfigLive.Index do
             <span class="block text-xs text-base-content/60">
               Captures are read with each person's AI settings, so their key or endpoint is
               what a meeting is sent to.
+            </span>
+          </span>
+        </label>
+
+        <label class="flex cursor-pointer items-start gap-3 text-sm">
+          <input type="hidden" name="settings[chat_capture_enabled]" value="false" />
+          <input
+            type="checkbox"
+            id="chat-capture-enabled"
+            name="settings[chat_capture_enabled]"
+            value="true"
+            checked={@settings.chat_capture_enabled}
+            class="toggle toggle-sm mt-0.5"
+          />
+          <span>
+            <span class="block font-medium">Chat capture is on</span>
+            <span class="block text-xs text-base-content/60">
+              A conversation with Claude or ChatGPT is read the same way: its decisions and
+              to-dos proposed, each quoted, committed only when the person says so. It has no
+              recordings or voices, so it does not need meeting mode.
             </span>
           </span>
         </label>

@@ -20,7 +20,7 @@ defmodule SlipdockWeb.MeetingLive.Show do
   alias Slipdock.Meetings.Review
   alias SlipdockWeb.MeetingLive.Access
 
-  on_mount {SlipdockWeb.MeetingsHook, :require_enabled}
+  on_mount {SlipdockWeb.MeetingsHook, :require_capture}
 
   @impl true
   def mount(%{"id" => id, "capture_id" => capture_id}, _session, socket) do

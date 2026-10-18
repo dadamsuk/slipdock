@@ -15,6 +15,7 @@ defmodule SlipdockWeb.API.MeetingJSON do
       id: c.id,
       board_id: c.board_id,
       title: c.title,
+      kind: c.kind,
       state: c.state,
       state_reason: c.state_reason,
       step: c.step,

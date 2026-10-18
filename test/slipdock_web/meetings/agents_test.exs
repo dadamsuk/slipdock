@@ -144,7 +144,7 @@ defmodule SlipdockWeb.Meetings.AgentsTest do
       assert ~w(capture_meeting get_capture resolve_capture_question commit_capture) -- names.() ==
                []
 
-      {:ok, _} = Settings.update(%{"meetings_enabled" => false})
+      {:ok, _} = Settings.update(%{"meetings_enabled" => false, "chat_capture_enabled" => false})
 
       assert Enum.all?(
                ~w(capture_meeting get_capture resolve_capture_question commit_capture),

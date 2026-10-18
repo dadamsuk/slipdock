@@ -41,9 +41,14 @@ defmodule SlipdockWeb.Router do
   end
 
   # Meeting capture (see `Slipdock.Meetings`): the API's routes, which are not
-  # there at all while an admin has meeting mode off.
+  # there at all while an admin has meeting mode and chat capture both off.
   pipeline :meetings do
     plug SlipdockWeb.MeetingsHook
+  end
+
+  # Voiceprints are meeting mode's alone: chat capture has no voices.
+  pipeline :meeting_mode do
+    plug SlipdockWeb.MeetingsHook, :meetings_only
   end
 
   # The agent guide: readable without a token, richer with one.
@@ -438,6 +443,10 @@ defmodule SlipdockWeb.Router do
     post "/captures/:id/discard", MeetingController, :discard
     post "/captures/:id/resolve", MeetingController, :resolve
     post "/captures/:id/findings/:fid", MeetingController, :finding
+  end
+
+  scope "/api", SlipdockWeb.API do
+    pipe_through [:api, :meeting_mode]
 
     # The caller's own voiceprint, and only theirs: no route takes a person
     # (see `Slipdock.Meetings.Voiceprints`).

@@ -63,6 +63,8 @@ defmodule SlipdockWeb.API.AdminController do
         # `using` what is actually in effect — see `Slipdock.AI.Keys.system_source/0`.
         ai: ai_json(settings),
         # Meeting capture: off unless turned on, and where it shows when on.
+        # Chat capture's own switch (#1075), on by default.
+        chat_capture: %{enabled: settings.chat_capture_enabled},
         meetings: %{
           enabled: settings.meetings_enabled,
           visibility: settings.meetings_visibility,

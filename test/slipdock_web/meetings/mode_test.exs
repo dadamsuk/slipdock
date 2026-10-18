@@ -23,6 +23,13 @@ defmodule SlipdockWeb.Meetings.ModeTest do
     do: {:ok, _} = Settings.update(Map.merge(%{"meetings_enabled" => true}, attrs))
 
   describe "off" do
+    # Chat capture is on by default and keeps the review routes and tools
+    # (#1075): off here means both off.
+    setup do
+      {:ok, _} = Settings.update(%{"chat_capture_enabled" => false})
+      :ok
+    end
+
     test "the API says meeting mode is off, as a 404", %{conn: conn} do
       body = conn |> get(~p"/api/meetings") |> json_response(404)
       assert body == %{"error" => "meeting mode is off on this server", "code" => "meetings_off"}
@@ -156,7 +163,7 @@ defmodule SlipdockWeb.Meetings.ModeTest do
     test "turning it back off takes it all away again", %{conn: conn, board: board} do
       turn_on()
       Meetings.mark_used(board)
-      {:ok, _} = Settings.update(%{"meetings_enabled" => false})
+      {:ok, _} = Settings.update(%{"meetings_enabled" => false, "chat_capture_enabled" => false})
 
       assert conn |> get(~p"/api/meetings") |> json_response(404)
       {:ok, view, _html} = live(conn, ~p"/boards/#{board}")
