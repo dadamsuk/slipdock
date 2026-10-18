@@ -22,10 +22,10 @@ try {
   const confirm = page.locator('form[method=post] button[type=submit]').first()
   if (await confirm.count()) await Promise.all([page.waitForNavigation(), confirm.click()])
 
-  // The home page: the vault stands beside the boards.
+  // The home page: the vault is a card among the boards.
   await page.goto(`${base}/`, { waitUntil: 'networkidle' })
   await page.waitForSelector('.phx-connected')
-  const tile = page.locator('#vaults a', { hasText: 'Notes' }).first()
+  const tile = page.locator('[id^="vault-tile-"]', { hasText: 'Notes' }).first()
   await tile.waitFor()
   if (!(await tile.innerText()).includes('Keystone · Journal Desk')) fail('tile: ' + await tile.innerText())
   await tile.click()

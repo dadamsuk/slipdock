@@ -18,6 +18,15 @@ defmodule Slipdock.Vaults.Vault do
     # Where on its owner's Google Drive the vault's meeting recordings are
     # (W-1690): a path from My Drive's root. Only files under it are served.
     field :recordings_folder, :string
+    # Where its owner has put it among their boards on the home page, in the
+    # same numbering as their board orders (see `Slipdock.Boards.reorder_boards/2`);
+    # nil until it has been placed.
+    field :position, :integer
+    # Filled in for the home page, so `Slipdock.Boards.sort_boards/2` can
+    # sort vaults among the boards: the last thing that happened on the
+    # boards it keeps inside it or the last sync, and those boards' cards.
+    field :last_activity_at, :utc_datetime, virtual: true
+    field :card_count, :integer, virtual: true, default: 0
 
     belongs_to :user, Slipdock.Accounts.User
     has_many :mappings, Slipdock.Vaults.Mapping, preload_order: [asc: :path]

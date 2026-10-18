@@ -12,6 +12,7 @@ defmodule Slipdock.Boards do
   alias Slipdock.Repo
   alias Slipdock.Rollup
 
+  alias Slipdock.Vaults.Vault
   alias Slipdock.Boards.{BoardOrder, CardLink, CardUrl, FieldDefinition, FieldValue, Milestone}
   alias Slipdock.Boards.StatusUpdate
   alias Slipdock.Boards.Handoff
@@ -1001,37 +1002,82 @@ defmodule Slipdock.Boards do
   moves — and a board left out of `ids` loses its place and falls back to the
   end, where a board nobody has placed sits.
 
-  Ids of boards the user cannot see are ignored.
+  Their vaults are listed among their boards on the home page, so `ids` may
+  name them too — as `%Vault{}`s, `{:vault, id}` or `"vault-<id>"` — and each
+  takes its place among the boards; a vault left out loses its place. An
+  order naming no vault at all (one set from the command line, say) leaves
+  each placed vault behind as many boards as it was behind before.
+
+  Ids of boards the user cannot see, and vaults that are not theirs, are
+  ignored.
   """
   def reorder_boards(%User{} = user, ids) do
-    ids = Enum.map(ids, &to_id/1)
+    keys = Enum.map(ids, &order_key/1)
+    keys = if Enum.any?(keys, &match?({:vault, _}, &1)), do: keys, else: keep_vaults(user, keys)
+
+    board_ids = for {:board, id} <- keys, do: id
 
     visible =
-      from(b in Board, where: b.id in ^ids, select: b.id)
+      from(b in Board, where: b.id in ^board_ids, select: b.id)
       |> Repo.all()
       |> MapSet.new()
 
-    rows =
-      ids
-      |> Enum.uniq()
-      |> Enum.filter(&MapSet.member?(visible, &1))
-      |> Enum.with_index()
-      |> Enum.map(fn {id, i} ->
-        %{
-          user_id: user.id,
-          board_id: id,
-          position: i,
-          inserted_at: DateTime.utc_now(:second),
-          updated_at: DateTime.utc_now(:second)
-        }
-      end)
+    own_vaults =
+      from(v in Vault, where: v.user_id == ^user.id, select: v.id)
+      |> Repo.all()
+      |> MapSet.new()
 
-    Repo.delete_all(from(o in BoardOrder, where: o.user_id == ^user.id))
-    Repo.insert_all(BoardOrder, rows)
+    placed =
+      keys
+      |> Enum.uniq()
+      |> Enum.filter(fn
+        {:board, id} -> MapSet.member?(visible, id)
+        {:vault, id} -> MapSet.member?(own_vaults, id)
+      end)
+      |> Enum.with_index()
+
+    now = DateTime.utc_now(:second)
+
+    rows =
+      for {{:board, id}, i} <- placed,
+          do: %{user_id: user.id, board_id: id, position: i, inserted_at: now, updated_at: now}
+
+    Repo.transaction(fn ->
+      Repo.delete_all(from(o in BoardOrder, where: o.user_id == ^user.id))
+      Repo.insert_all(BoardOrder, rows)
+      Repo.update_all(from(v in Vault, where: v.user_id == ^user.id), set: [position: nil])
+
+      for {{:vault, id}, i} <- placed,
+          do: Repo.update_all(from(v in Vault, where: v.id == ^id), set: [position: i])
+    end)
 
     # The order is this person's alone.
     notify_users_boards_changed([user.id])
     :ok
+  end
+
+  # Boards and vaults share the one order, told apart by a tag.
+  defp order_key(%Vault{id: id}), do: {:vault, id}
+  defp order_key({:vault, id}), do: {:vault, to_id(id)}
+  defp order_key({:board, id}), do: {:board, to_id(id)}
+  defp order_key("vault-" <> id), do: {:vault, to_id(id)}
+  defp order_key(board), do: {:board, to_id(board)}
+
+  # An order that names only boards: each placed vault goes back behind as
+  # many boards as were in front of it before.
+  defp keep_vaults(user, keys) do
+    before = user |> board_order() |> Map.values()
+
+    from(v in Vault,
+      where: v.user_id == ^user.id and not is_nil(v.position),
+      select: {v.position, v.id}
+    )
+    |> Repo.all()
+    |> Enum.sort()
+    |> Enum.with_index()
+    |> Enum.reduce(keys, fn {{pos, id}, placed}, keys ->
+      List.insert_at(keys, Enum.count(before, &(&1 < pos)) + placed, {:vault, id})
+    end)
   end
 
   defp to_id(%Board{id: id}), do: id
@@ -1047,19 +1093,21 @@ defmodule Slipdock.Boards do
   defp to_id(_), do: nil
 
   @doc """
-  Moves one board a place up or down `among` the boards it is listed with,
-  for `user` alone. `direction` is `:up` or `:down`; a board already at the
-  end it is asked to move towards stays where it is.
+  Moves one board — or one of the user's vaults, listed among them — a place
+  up or down `among` the boards it is listed with, for `user` alone.
+  `direction` is `:up` or `:down`; a board already at the end it is asked to
+  move towards stays where it is.
   """
-  def nudge_board(%User{} = user, %Board{} = board, direction, among) do
-    ids = Enum.map(among, & &1.id)
-    index = Enum.find_index(ids, &(&1 == board.id))
+  def nudge_board(%User{} = user, item, direction, among) do
+    keys = Enum.map(among, &order_key/1)
+    key = order_key(item)
+    index = Enum.find_index(keys, &(&1 == key))
     target = if direction == :up, do: index && index - 1, else: index && index + 1
 
-    if (index && target >= 0) and target < length(ids) do
-      ids
+    if (index && target >= 0) and target < length(keys) do
+      keys
       |> List.delete_at(index)
-      |> List.insert_at(target, board.id)
+      |> List.insert_at(target, key)
       |> then(&reorder_boards(user, &1))
     else
       :ok
@@ -1067,15 +1115,17 @@ defmodule Slipdock.Boards do
   end
 
   @doc """
-  Puts `board` where `before_id` is, for `user` alone — the move a drag makes.
-  `among` is the boards as they are listed now, and `before_id` the board the
-  dragged one was dropped in front of, or nil for the end of the list.
+  Puts `item` (a board, or a vault listed among them) where `before` is, for
+  `user` alone — the move a drag makes. `among` is the boards as they are
+  listed now, and `before` the board the dragged one was dropped in front of
+  (a board id, or `"vault-<id>"`), or nil for the end of the list.
   """
-  def place_board(%User{} = user, %Board{} = board, before_id, among) do
-    before_id = to_id(before_id)
-    ids = among |> Enum.map(& &1.id) |> List.delete(board.id)
-    at = Enum.find_index(ids, &(&1 == before_id)) || length(ids)
-    reorder_boards(user, List.insert_at(ids, at, board.id))
+  def place_board(%User{} = user, item, before, among) do
+    key = order_key(item)
+    before = order_key(before)
+    keys = among |> Enum.map(&order_key/1) |> List.delete(key)
+    at = Enum.find_index(keys, &(&1 == before)) || length(keys)
+    reorder_boards(user, List.insert_at(keys, at, key))
   end
 
   @doc """
@@ -1110,6 +1160,10 @@ defmodule Slipdock.Boards do
 
   The manual order is the tie-break for every other one, so boards that look
   the same to a sort keep a place that doesn't move about.
+
+  Vaults go in among the boards on the home page, so `boards` may hold
+  `%Vault{}`s too: they sort by their own name, age and place, and by the
+  activity and cards of the boards they keep inside them.
   """
   def sort_boards(boards, sort) do
     # The manual order first: every sort below is stable, so boards a sort
@@ -1121,7 +1175,7 @@ defmodule Slipdock.Boards do
       "newest" -> Enum.sort_by(boards, &made_key/1, :desc)
       "oldest" -> Enum.sort_by(boards, &made_key/1, :asc)
       "active" -> Enum.sort_by(boards, &touched_at/1, {:desc, DateTime})
-      "cards" -> Enum.sort_by(boards, &length(&1.cards), :desc)
+      "cards" -> Enum.sort_by(boards, &card_count/1, :desc)
       _manual -> boards
     end
   end
@@ -1129,14 +1183,19 @@ defmodule Slipdock.Boards do
   # Placed boards first, in the order they were placed; the rest behind them,
   # oldest first. The timestamp goes in as a number: `DateTime`s compared as
   # plain terms sort by day before month before year, which is not a date.
-  defp manual_key(%Board{position: nil} = b), do: {1, 0, made_key(b)}
-  defp manual_key(%Board{position: pos} = b), do: {0, pos, made_key(b)}
+  defp manual_key(%{position: nil} = b), do: {1, 0, made_key(b)}
+  defp manual_key(%{position: pos} = b), do: {0, pos, made_key(b)}
 
-  defp touched_at(%Board{} = board), do: board.last_activity_at || board.inserted_at
+  defp touched_at(item), do: item.last_activity_at || item.inserted_at
+
+  defp card_count(%Vault{card_count: count}), do: count
+  defp card_count(%Board{cards: cards}), do: length(cards)
 
   # Timestamps are only accurate to the second, so boards made in the same one
-  # fall back on the order they were made in rather than on a coin toss.
-  defp made_key(%Board{} = board), do: {DateTime.to_unix(board.inserted_at), board.id}
+  # fall back on the order they were made in rather than on a coin toss — and
+  # a board and a vault, whose ids count apart, on the board first.
+  defp made_key(%Vault{} = vault), do: {DateTime.to_unix(vault.inserted_at), 1, vault.id}
+  defp made_key(board), do: {DateTime.to_unix(board.inserted_at), 0, board.id}
 
   @doc """
   A board code that is free to use: `name`'s code, or a variation of it when
