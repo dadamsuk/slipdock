@@ -156,6 +156,18 @@ defmodule Slipdock.Boards.Card do
   def stated_health(%{rollup: %{stated: h}}), do: h
   def stated_health(_), do: nil
 
+  @doc """
+  The card's handoff, when it is loaded, has not been cleared and the card is
+  still open: what its front marks and its panel leads with. A completed card
+  keeps its note, but nobody needs telling where to pick it up.
+  """
+  def open_handoff(%{completed: true}), do: nil
+
+  def open_handoff(%{handoff: %Slipdock.Boards.Handoff{} = h}),
+    do: if(Slipdock.Boards.Handoff.cleared?(h), do: nil, else: h)
+
+  def open_handoff(_), do: nil
+
   @doc "The goal cards this card contributes to (link stubs), when links are loaded."
   def goals(%{links_out: links}) when is_list(links),
     do: for(%{kind: "contributes", to: %__MODULE__{} = goal} <- links, do: goal)
