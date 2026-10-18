@@ -294,6 +294,7 @@ defmodule SlipdockWeb.Router do
       live "/boards/:id/wiki/:slug/history/:rev", WikiLive.Index, :revision
       # A board's meetings (see `Slipdock.Meetings`): only while an admin has
       # meeting mode on, which each page checks for itself as it mounts.
+      live "/boards/:id/tidy", GardenLive.Index, :index
       live "/boards/:id/meetings", MeetingLive.Index, :index
       live "/boards/:id/meetings/new", MeetingLive.New, :new
       live "/boards/:id/meetings/:capture_id", MeetingLive.Show, :show

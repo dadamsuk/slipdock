@@ -40,7 +40,11 @@ defmodule Slipdock.Gardener.Settings do
           do: Map.delete(board.gardening || %{}, check.key()),
           else: Map.put(board.gardening || %{}, check.key(), merged)
 
-      board |> Ecto.Changeset.change(gardening: gardening) |> Repo.update()
+      with {:ok, saved} <- board |> Ecto.Changeset.change(gardening: gardening) |> Repo.update() do
+        # Whoever has the board open (its settings panel) reads it again.
+        Slipdock.Boards.broadcast_tree(Board.root_id(saved))
+        {:ok, saved}
+      end
     end
   end
 

@@ -15,13 +15,13 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   import SlipdockWeb.SprintPlanComponents, only: [sources_fields: 1, parse_sources: 2, chosen: 1]
   import SlipdockWeb.BoardLive.Helpers
 
-  alias Slipdock.{Access, Boards, Fields, Palette, Sprints}
+  alias Slipdock.{Access, Boards, Fields, Gardener, Palette, Sprints}
   alias Slipdock.Boards.{Board, FieldDefinition}
   alias SlipdockWeb.BoardLive.Sharing
 
   @events ~w(validate_board save_board set_board_color add_field delete_field toggle_field_sum
     install_preset add_milestone delete_milestone delete_board archive_board unarchive_board
-    save_as_template share revoke_grant set_sprint_sources)
+    save_as_template share revoke_grant set_sprint_sources set_gardening)
 
   @doc false
   # For the test that every `handle_event/3` clause is in the list.
@@ -123,6 +123,31 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
          )}
     end
   end
+
+  # Gardening (W-1807): each check on or off, and its thresholds. A change
+  # to one check is saved as it is made.
+  defp event("set_gardening", %{"gardening" => params}, socket) do
+    result =
+      Enum.reduce_while(params, {:ok, socket.assigns.board}, fn {key, attrs}, {:ok, board} ->
+        case Gardener.check(key) do
+          nil ->
+            {:cont, {:ok, board}}
+
+          check ->
+            case Gardener.Settings.put(board, check, attrs) do
+              {:ok, saved} -> {:cont, {:ok, %{board | gardening: saved.gardening}}}
+              {:error, message} -> {:halt, {:error, "#{check.label()}: #{message}"}}
+            end
+        end
+      end)
+
+    case result do
+      {:ok, board} -> {:noreply, assign(socket, board: board)}
+      {:error, message} -> {:noreply, flash(socket, :error, message)}
+    end
+  end
+
+  defp event("set_gardening", _params, socket), do: {:noreply, socket}
 
   defp event("validate_board", %{"board" => params}, socket) do
     board = socket.assigns.board
@@ -254,6 +279,26 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
         {:noreply, flash(socket, :error, Slipdock.Quota.refusal_message(refused))}
     end
   end
+
+  # Each check with what it runs with on this board.
+  defp gardening(board) do
+    for check <- Gardener.checks() do
+      settings = Gardener.Settings.for(board, check)
+
+      %{
+        key: check.key(),
+        label: check.label(),
+        enabled: settings["enabled"],
+        thresholds: settings |> Map.delete("enabled") |> Enum.sort()
+      }
+    end
+  end
+
+  defp threshold_label("days"), do: "days"
+  defp threshold_label("similarity"), do: "similarity"
+  defp threshold_label("max_cards"), do: "up to"
+  defp threshold_label("max_distance"), do: "edits"
+  defp threshold_label(other), do: other
 
   @impl true
   def render(assigns) do
@@ -663,6 +708,50 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
             <button type="submit" class="btn btn-primary btn-sm">Add</button>
           </form>
         </div>
+        <form
+          phx-target={@target}
+          id="gardening-form"
+          phx-change="set_gardening"
+          class="space-y-2 border-t border-base-content/10 pt-4"
+        >
+          <span class="text-sm font-medium">Gardening</span>
+          <p class="text-xs text-base-content/50">
+            What <.link navigate={~p"/boards/#{@board}/tidy"} class="link">Tidy up…</.link>
+            looks for on this board and every board beneath it, and how long before something counts.
+          </p>
+          <div
+            :for={c <- gardening(@board)}
+            id={"gardening-#{c.key}"}
+            class="flex items-center gap-2 text-sm"
+          >
+            <input type="hidden" name={"gardening[#{c.key}][enabled]"} value="false" />
+            <input
+              type="checkbox"
+              class="checkbox checkbox-xs"
+              id={"gardening-#{c.key}-enabled"}
+              name={"gardening[#{c.key}][enabled]"}
+              value="true"
+              checked={c.enabled}
+            />
+            <label for={"gardening-#{c.key}-enabled"} class="min-w-0 flex-1 truncate">{c.label}</label>
+            <label
+              :for={{k, v} <- c.thresholds}
+              class="flex items-center gap-1 text-xs text-base-content/60"
+            >
+              {threshold_label(k)}
+              <input
+                type="number"
+                name={"gardening[#{c.key}][#{k}]"}
+                value={v}
+                min={if is_float(v), do: "0.5", else: "1"}
+                max={if is_float(v), do: "1"}
+                step={if is_float(v), do: "0.01", else: "1"}
+                class="input input-xs w-20"
+                phx-debounce="500"
+              />
+            </label>
+          </div>
+        </form>
         <div class="space-y-1.5 border-t border-base-content/10 pt-4">
           <span class="text-sm font-medium">Sharing</span>
           <p class="text-xs text-base-content/50">

@@ -263,6 +263,11 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         <.icon name="hero-archive-box" class="size-4" /> Archived cards
       </.link>
     </li>
+    <li>
+      <.link navigate={@paths.tidy} id={@share_id <> "-tidy"}>
+        <.icon name="hero-sparkles" class="size-4" /> Tidy up…
+      </.link>
+    </li>
     <li :if={@can_manage}>
       <.link patch={@paths.automations}>
         <.icon name="hero-cpu-chip" class="size-4" /> Automations
