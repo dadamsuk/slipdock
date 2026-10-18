@@ -275,6 +275,17 @@ slipdock move <id> <column> --board B    # to another board, with the card's sub
                                        # by name, custom fields only where that board has them;
                                        # the command prints anything that was created or dropped
 slipdock done <id>... | slipdock undone <id>...
+slipdock copy <id> [--board B] [--column C] [--title T] [--top|--bottom]
+                                       # a copy as it is now (checklist unticked, subcards reopened;
+                                       # no comments, dates or files), straight after it by default
+slipdock repeat <id> "every mon" [--at 07:00] [--lead 2] [--ends DATE | --count N] [--on-missed bump|skip|stack] [--column C] [--tz Z]
+                                       # make it recurring: the next is a copy of it, made in the board's
+                                       # ready list in the setter's timezone. Rules: day, weekday, mon,thu,
+                                       # 2w mon, month 1, month last fri, month first mon, year, 3d after
+                                       # (after the last is done), or FREQ=WEEKLY;BYDAY=MO. Only when asked
+slipdock repeat <id>                     # how it repeats and the next three dates
+slipdock repeat <id> --skip | --pause | --resume | --off
+slipdock recurring <board>               # every card on the board that repeats, soonest first
 slipdock flag <id> <flag>... [--off]     # flags: flagged blocked review waiting starred
 slipdock tag <id> <tag>... [--off]       # tag must already exist on the board (see new-tag)
 slipdock check <id> <text...>            # add checklist item
@@ -565,6 +576,10 @@ teal sky indigo violet fuchsia rose`. Multi-word titles, column names and text n
 - "What's blocked?" → `slipdock cards 1 --open` and look for `🔒blocked-by:` (a real dependency on an
   open card), or `slipdock cards 1 --flag blocked` for the manual "blocked" flag.
 - "#12 can't start until #7 is done" → `slipdock blocked-by 12 7`
+- "Remind me to review invoices every Monday" → if the card exists, `slipdock repeat 12 "every mon"`;
+  if not, add it first (`slipdock add ops Review invoices --column "To Do"`) and repeat the new id.
+  A card still open when the next is due has its due date moved on (`--on-missed bump`) rather than
+  a second made — say so if they'd rather have one per week (`--on-missed stack`).
 - "Break #12 into steps" → `slipdock templates`, `slipdock subboard 12 --template Simple`, then
   `slipdock add <sub-board-id> First step`
 - "What's overdue?" → `slipdock cards 1 --open --json` and compare `due_date` with today.

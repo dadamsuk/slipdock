@@ -25,6 +25,9 @@ way in: what it is, the pictures, and how to get it running.
 - Handoffs: one short note on a card saying where it was left — the next
   step, the state, the gotchas — read first by whoever picks it up next. See
   [Where it was left](#where-it-was-left-handoffs)
+- Recurring cards: a series on the card that copies the current instance when
+  the next is due, in your timezone, without stacking up missed ones —
+  [Recurring cards](#recurring-cards)
 - Time tracking: a start/stop timer on each card, time spent and an estimate
   shown in a unit of its own, and a colour-coded bar between them — see
   [Time tracking](#time-tracking)
@@ -462,6 +465,108 @@ Over the API, `POST /api/cards/:id/handoff` with `next_step` and `body` (or
 `{"clear": true}`) writes one and `GET` reads it with its history; a card's JSON
 carries it as `handoff`. Over MCP it is the `leave_handoff` tool. Exports
 between servers carry every handoff, signed by whoever imports them.
+
+## Recurring cards
+
+Repeating work — "every Monday: review invoices", "first of the month: renew
+the certificate", "water the plants three days after I last did" — lives on
+the card it repeats. The card is the series' current instance; when the next
+one comes due, the server makes it by **copying the current instance as it is
+then**, so a checklist or description you improve carries forward.
+
+**Setting it.** On the card, under **Repeat**, press **Repeat…**. Pick a
+preset, worded for the card's date — daily, every weekday, weekly on its day,
+monthly on its date, monthly on (say) the second Tuesday, yearly, or a week
+after the last one is done — or **Custom…** and write a rule of your own.
+Then the time each one is made (07:00 unless you say), how many days early to
+make it, what happens if the last one is still open, and when it ends (never,
+on a date, or after a number of times). The form shows the rule in words —
+*Every 2 weeks on Mon and Thu, 07:00 Europe/London* — and the next three
+dates before you save. Afterwards the same place shows what is next, with
+**Skip next**, **Pause**/**Resume**, **Change…** and **Stop**, and the card's
+front carries a **↻**, the rule as its tooltip.
+
+A card with no due date becomes the series' first occurrence: it is given the
+first date the rule falls on from today.
+
+**Rules.** The phrases quick add, the CLI and the API take:
+
+| Phrase | Means |
+| --- | --- |
+| `day`, `3d` | every day, every 3 days |
+| `weekday` | Monday to Friday |
+| `mon`, `mon,thu`, `2w mon thu` | weekly on those days, every 2 weeks |
+| `week`, `2w`, `fortnight` | on the first instance's weekday |
+| `month`, `month 1`, `month 15th`, `month last` | monthly on the first instance's date, the 1st, the 15th, the last day |
+| `month first mon`, `month last fri`, `3m 1` | the first Monday, the last Friday; every 3 months on the 1st |
+| `year` | yearly on the first instance's date |
+| `3d after`, `2w after`, `month after` | that long after the last one is **done** |
+
+Or an RRULE subset: `FREQ=DAILY|WEEKLY|MONTHLY|YEARLY` with `INTERVAL`,
+`BYDAY` (`MO`, or `1MO`/`-1FR` in a monthly or yearly rule) and `BYMONTHDAY`
+(`-1` is the last day). A day past the end of a short month — the 31st in
+April, 29 February in 2027 — falls on that month's last day rather than
+being skipped.
+
+**When the next one is made.** Each instance is made at its time, in the
+series' timezone, on the day it is due (or the days early you set), copied to
+the top of the board's ready list (or the list you named):
+
+- title, description, priority, cover, tags, assignees, the estimate and flags
+  come along, except *blocked* and *waiting*, which were about the last one;
+- the checklist comes along unticked, and subcards are copied into a new
+  sub-board, every one reopened in its ready list;
+- comments, dates other than the new due date, time spent, attachments, links
+  and dependencies don't.
+
+**Not stacking up.** If the last one is still open when the next is due, the
+default (*Move its due date on*, `bump`) moves its due date to the new
+occurrence and comments "Missed occurrence of …", so a forgotten weekly chore
+is one card, not six. *Skip this one* (`skip`) leaves it alone and lets the
+occurrence go; *Make another anyway* (`stack`) makes the new one regardless —
+right for timesheets. A server that was down catches up once, to the latest
+occurrence, never one per missed date.
+
+**After done.** An after-done series makes nothing until its current instance
+is completed; then the next is due that long after the day it was done (in
+the series' timezone), and it waits again.
+
+**Timezones.** Times are in the timezone of whoever set the series, kept on
+the series, so it doesn't move if they travel. Yours is taken from your
+browser the first time you sign in and can be changed under **Account →
+Profile**. The older *schedule* automation trigger still runs in UTC.
+
+**What else touches it.** Archiving the current instance pauses the series
+(the card says so); deleting it stops the series. Moving the card to another
+board takes the series with it. Exports between servers carry the series and
+carry on from where it had got to. If the board's owner is out of cards, the
+series pauses and the card says why, rather than trying every minute.
+
+From a terminal and over the API:
+
+```sh
+slipdock repeat 12 "every mon" --at 08:00          # or --lead 2, --ends 2027-06-30, --count 10
+slipdock repeat 12 "month last fri" --on-missed stack
+slipdock repeat 12                                 # how it repeats, and the next three dates
+slipdock repeat 12 --skip | --pause | --resume | --off
+slipdock recurring ops                             # every card on the board that repeats
+```
+
+```
+PUT    /api/cards/:id/recurrence       {"rule": "every mon", "at": "08:00", …}
+GET    /api/cards/:id/recurrence
+DELETE /api/cards/:id/recurrence
+POST   /api/cards/:id/recurrence/skip
+GET    /api/boards/:board/recurring
+```
+
+A card's JSON carries `recurrence` (and `series_id` on every instance); over
+MCP, `get_card` shows it and `update_card` takes `recurrence` (an object, or
+`null` to stop it).
+
+**Duplicate.** The same copy, made by hand: **Duplicate** in the card's
+Actions puts a copy straight after it and opens it (`slipdock copy 12`,
+`POST /api/cards/:id/copy`, with `board`, `column`, `title` or `at: top`).
 
 ## Dependencies
 
@@ -1298,6 +1403,9 @@ line are recognised as you type and shown as chips:
 - `#high` (a priority), `#blocked` (a flag), `#todo` or `#in-progress`
   (a list), `#docs` (a tag) — matched loosely, in that order
 - `@dan` (an assignee, by name or email prefix)
+- `every: mon`, `every: weekday`, `every: 2w`, `every: month 1`,
+  `every: month last fri`, `every: 3d after` — makes the card
+  [recurring](#recurring-cards). Here and in the header's quick add
 - `; seen on Safari only` — everything after the first semicolon becomes
   the card's first comment, as written (commands in it are not read). This
   works in a list's own "Add a card" box and in the header's quick add too
@@ -4673,7 +4781,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `list_automations` | A board's [automation rules](#automations-and-alerts), as `GET /api/boards/:board/automations` gives them: each one's name, trigger, `spec`, `scope`, whether it is `enabled`, and how often it has run; `rule` (an id or name) gives one. `vocabulary: true` adds every trigger, condition and action a spec may use and the ready-made presets, so a client can write one without guessing. Only the board's owner, on a write token, may read them, as over HTTP. |
 | `list_tools` | The [Tools](#tools) the caller can install — their own, the ones shared with them, the ones listed for everyone — each with its `kind` and the board their install made (`installed.board`), which is how a Tool's skill finds its board. With `tool` (and optionally `version`), that Tool in full: its README, board blueprint, skills with shas and download links, files, and, for its owner, where listing stands. Read-only. |
 | `create_card` | A card on a board, or with `parent` a subcard (making the sub-board if needed). |
-| `update_card` | Title, description, priority (or clearing it), start and due dates, percent, flags, tags, assignees, what blocks it, and its checklist — add, tick and untick items. Only what is passed changes. |
+| `update_card` | Title, description, priority (or clearing it), start and due dates, percent, flags, tags, assignees, what blocks it, its checklist — add, tick and untick items — and whether it repeats (`recurrence`, or `null` to stop it). Only what is passed changes. |
 | `move_card` | To another list on its board, or with `board` to another board, subcards and all. |
 | `comment` | A Markdown comment on a card; `@name` mentions notify. |
 | `leave_handoff` | Leaves the card's handoff, as `POST /api/cards/:id/handoff` does: `next_step` (one line) and a `body` note, or `clear: true`. Write one whenever you stop with the card unfinished; `get_card` shows it first. |
