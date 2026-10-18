@@ -9,12 +9,13 @@ defmodule Slipdock.Wiki.Revision do
   for the editor, `"api"` or `"cli"` for a token (with the token's name in
   `agent`), `"mcp"` for an MCP client (likewise), `"assistant"` for the
   in-app model, `"automation"` for a rule, `"meeting"` for a meeting
-  capture committed (see `Slipdock.Meetings.Commit`).
+  capture committed (see `Slipdock.Meetings.Commit`), `"gardener"` for a
+  tidy-up suggestion applied (see `Slipdock.Gardener.Steps`).
   """
   use Ecto.Schema
   import Ecto.Changeset
 
-  @vias ~w(web api cli assistant automation mcp meeting sync)
+  @vias ~w(web api cli assistant automation mcp meeting sync gardener)
 
   schema "page_revisions" do
     field :title, :string
