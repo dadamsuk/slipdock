@@ -5,6 +5,13 @@ defmodule Slipdock.Meetings.Pipeline do
 
       ingest → transcribe → diarise → attribute → context → read → verify → relisten → ready
 
+  A chat (`kind: "chat"`, #1074) has no recording and two fixed speakers, so
+  it skips the audio steps and the working out of who spoke:
+
+      ingest → context → read → verify → ready
+
+  Its two sides are named as it is received (`Slipdock.Meetings.Speakers.chat/1`).
+
   Each step's output is stored before the next starts (the transcript lines,
   the context, the readings, the findings), and `capture.step` names the last
   one finished. So a server that restarts halfway resumes **after** that step
@@ -36,10 +43,13 @@ defmodule Slipdock.Meetings.Pipeline do
   alias Slipdock.Meetings.Capture
 
   @steps ~w(ingest transcribe diarise attribute context read verify relisten ready)
+  @chat_steps ~w(ingest context read verify ready)
   @stale_seconds 90
 
-  @doc "The steps, in order."
-  def steps, do: @steps
+  @doc "The steps a capture of `kind` goes through, in order."
+  def steps(kind \\ "meeting")
+  def steps("chat"), do: @chat_steps
+  def steps(_kind), do: @steps
 
   @doc "How a step reads on the Analysing screen."
   def step_label("ingest"), do: "Received"
@@ -52,6 +62,11 @@ defmodule Slipdock.Meetings.Pipeline do
   def step_label("relisten"), do: "Re-listening to unclear words"
   def step_label("ready"), do: "Ready for review"
 
+  @doc "How a step reads for a capture of `kind`."
+  def step_label("read", "chat"), do: "Reading the conversation"
+  def step_label("ingest", "chat"), do: "Received, with its two speakers"
+  def step_label(step, _kind), do: step_label(step)
+
   @doc """
   Starts reading a capture that has just been received. Returns the capture
   as it stands when this returns (still `reading` when the work runs in the
@@ -60,7 +75,10 @@ defmodule Slipdock.Meetings.Pipeline do
   def start(%Capture{state: "receiving"} = capture, opts \\ []) do
     {:ok, capture} =
       Meetings.transition(capture, "reading",
-        changes: %{step: capture.step || "ingest", progress: progress(capture.step || "ingest")}
+        changes: %{
+          step: capture.step || "ingest",
+          progress: progress(capture.step || "ingest", capture.kind)
+        }
       )
 
     launch(capture, opts)
@@ -74,7 +92,8 @@ defmodule Slipdock.Meetings.Pipeline do
       Meetings.transition(capture, "reading",
         user: user,
         via: opts[:via],
-        message: "Retrying from #{step_label(next_step(capture.step))}."
+        message:
+          "Retrying from #{step_label(next_step(capture.step, capture.kind), capture.kind)}."
       )
 
     launch(capture, opts)
@@ -100,7 +119,7 @@ defmodule Slipdock.Meetings.Pipeline do
       Meetings.record(
         capture,
         "resumed",
-        "Resumed after a restart, from #{step_label(next_step(capture.step))}."
+        "Resumed after a restart, from #{step_label(next_step(capture.step, capture.kind), capture.kind)}."
       )
 
       launch(capture, [])
@@ -147,7 +166,7 @@ defmodule Slipdock.Meetings.Pipeline do
 
             fail(
               capture,
-              "something went wrong while #{String.downcase(step_label(next_step(capture.step)))}"
+              "something went wrong while #{String.downcase(step_label(next_step(capture.step, capture.kind), capture.kind))}"
             )
         after
           Registry.unregister(Slipdock.Meetings.Registry, capture.id)
@@ -164,7 +183,8 @@ defmodule Slipdock.Meetings.Pipeline do
   process between steps); `:ai` — passed to the model calls.
   """
   def run(%Capture{} = capture, opts \\ []) do
-    remaining = Enum.drop_while(@steps, &(&1 != next_step(capture.step)))
+    next = next_step(capture.step, capture.kind)
+    remaining = Enum.drop_while(steps(capture.kind), &(&1 != next))
 
     Enum.reduce_while(remaining, capture, fn step, capture ->
       # Somebody discarded it while it was being read: stop here, rather
@@ -187,11 +207,12 @@ defmodule Slipdock.Meetings.Pipeline do
     end
   end
 
-  @doc "The step after `step` (nil is before the first)."
-  def next_step(nil), do: "ingest"
+  @doc "The step after `step` (nil is before the first) for a capture of `kind`."
+  def next_step(step, kind \\ "meeting")
+  def next_step(nil, _kind), do: "ingest"
 
-  def next_step(step) do
-    case Enum.drop_while(@steps, &(&1 != step)) do
+  def next_step(step, kind) do
+    case Enum.drop_while(steps(kind), &(&1 != step)) do
       [_, next | _] -> next
       _ -> nil
     end
@@ -266,16 +287,16 @@ defmodule Slipdock.Meetings.Pipeline do
 
     capture =
       if capture.state == "reading",
-        do: update(capture, step: step, progress: progress(step)),
+        do: update(capture, step: step, progress: progress(step, capture.kind)),
         else: update(capture, step: step)
 
     Meetings.broadcast(capture)
     capture
   end
 
-  defp progress(step) do
-    done = Enum.take_while(@steps, &(&1 != step)) ++ [step]
-    %{"done" => done, "current" => next_step(step)}
+  defp progress(step, kind) do
+    done = Enum.take_while(steps(kind), &(&1 != step)) ++ [step]
+    %{"done" => done, "current" => next_step(step, kind)}
   end
 
   defp fail(capture, reason) do

@@ -332,10 +332,10 @@ defmodule SlipdockWeb.MeetingLive.Show do
 
   # Where each step stands: done, running now, failed, or still to come.
   defp step_states(capture) do
-    done = (capture.progress || %{})["done"] || done_through(capture.step)
-    current = Slipdock.Meetings.Pipeline.next_step(capture.step)
+    done = (capture.progress || %{})["done"] || done_through(capture)
+    current = Slipdock.Meetings.Pipeline.next_step(capture.step, capture.kind)
 
-    for step <- Slipdock.Meetings.Pipeline.steps() do
+    for step <- Slipdock.Meetings.Pipeline.steps(capture.kind) do
       state =
         cond do
           step in done -> :done
@@ -349,10 +349,10 @@ defmodule SlipdockWeb.MeetingLive.Show do
     end
   end
 
-  defp done_through(nil), do: []
+  defp done_through(%{step: nil}), do: []
 
-  defp done_through(step) do
-    steps = Slipdock.Meetings.Pipeline.steps()
+  defp done_through(%{step: step, kind: kind}) do
+    steps = Slipdock.Meetings.Pipeline.steps(kind)
     Enum.take(steps, Enum.find_index(steps, &(&1 == step)) + 1)
   end
 
@@ -440,7 +440,7 @@ defmodule SlipdockWeb.MeetingLive.Show do
                     class="inline-block size-4 rounded-full border border-base-content/20"
                   ></span>
                   <span class={[state == :pending && "text-base-content/50"]}>
-                    {Slipdock.Meetings.Pipeline.step_label(step)}
+                    {Slipdock.Meetings.Pipeline.step_label(step, @capture.kind)}
                   </span>
                 </li>
               </ol>

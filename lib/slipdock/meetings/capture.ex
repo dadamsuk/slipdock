@@ -21,6 +21,13 @@ defmodule Slipdock.Meetings.Capture do
 
   `transition/3` is the only way the state moves, and refuses anything not
   drawn above.
+
+  ## Kinds
+
+  `kind` is `"meeting"`, or `"chat"`: a conversation between a person and an
+  AI assistant (#1074). A chat has no recording, so the pipeline skips the
+  audio steps, and its two speakers are fixed — the person who sent it and
+  the assistant — rather than worked out.
   """
   use Ecto.Schema
   import Ecto.Changeset
@@ -28,6 +35,7 @@ defmodule Slipdock.Meetings.Capture do
   @states ~w(receiving reading needs_review ready committed discarded failed)
   @sources ~w(upload agent connector)
   @retentions ~w(until_committed 30_days 90_days)
+  @kinds ~w(meeting chat)
 
   # Where each state may go next.
   @moves %{
@@ -44,6 +52,7 @@ defmodule Slipdock.Meetings.Capture do
     belongs_to :board, Slipdock.Boards.Board
     belongs_to :owner, Slipdock.Accounts.User
     field :title, :string
+    field :kind, :string, default: "meeting"
     field :started_at, :utc_datetime
     field :attendees, {:array, :map}, default: []
     field :state, :string, default: "receiving"
@@ -86,6 +95,11 @@ defmodule Slipdock.Meetings.Capture do
   def states, do: @states
   def sources, do: @sources
   def retentions, do: @retentions
+  def kinds, do: @kinds
+
+  @doc "Whether it is a conversation rather than a meeting."
+  def chat?(%__MODULE__{kind: "chat"}), do: true
+  def chat?(_), do: false
 
   @doc "The states a capture in `state` may move to."
   def moves(state), do: Map.get(@moves, state, [])
@@ -101,6 +115,7 @@ defmodule Slipdock.Meetings.Capture do
     capture
     |> cast(attrs, [
       :title,
+      :kind,
       :started_at,
       :attendees,
       :fingerprint,
@@ -115,6 +130,7 @@ defmodule Slipdock.Meetings.Capture do
     |> validate_required([:title, :fingerprint])
     |> validate_length(:title, max: 200)
     |> validate_inclusion(:source, @sources)
+    |> validate_inclusion(:kind, @kinds)
     |> validate_inclusion(:retention, @retentions)
     |> unique_constraint([:board_id, :fingerprint])
   end
