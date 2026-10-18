@@ -10,6 +10,8 @@ defmodule SlipdockCLI.Sync do
   #
   #   sync init DIR --vault V    bind a folder to a vault, then run once
   #   sync [DIR]                 one pass, both ways
+  #   sync from-server [DIR]     one pass that only brings changes down
+  #   sync to-server [DIR]       one pass that only sends changes up
   #
   # The folder's memory is `DIR/.slipdock/state.json` (`SlipdockCLI.Sync.State`);
   # the pass itself is `SlipdockCLI.Sync.Engine`.
@@ -21,6 +23,9 @@ defmodule SlipdockCLI.Sync do
   alias SlipdockCLI.Sync.{Engine, Import, Remote, Service, State, Status, Watch}
 
   @commands ~w(sync)
+
+  # The one-way passes, by the word that asks for them.
+  @directions %{"from-server" => :down, "to-server" => :up}
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -101,22 +106,28 @@ defmodule SlipdockCLI.Sync do
     status(root, state, o)
   end
 
-  def run("sync", [], o), do: run("sync", ["."], o)
+  def run("sync", [word | rest], o) when is_map_key(@directions, word) and length(rest) <= 1,
+    do: mirror(List.first(rest) || ".", Keyword.put(o, :direction, @directions[word]))
 
-  def run("sync", [dir], o) do
+  def run("sync", [], o), do: mirror(".", o)
+
+  def run("sync", [dir], o), do: mirror(dir, o)
+
+  def run("sync", _args, _o),
+    do:
+      fail(
+        "usage: slipdock sync init DIR --vault V | " <>
+          "sync [from-server|to-server] [DIR] [--watch [--interval S]] | " <>
+          "sync status [DIR] | sync service install|uninstall|print [DIR]"
+      )
+
+  defp mirror(dir, o) do
     root = root!(dir)
     load!(root)
     warn_other_tools(root)
 
     if o[:watch], do: watch(root, o), else: pass(root, o)
   end
-
-  def run("sync", _args, _o),
-    do:
-      fail(
-        "usage: slipdock sync init DIR --vault V | sync [DIR] [--watch [--interval S]] | " <>
-          "sync status [DIR] | sync service install|uninstall|print [DIR]"
-      )
 
   ## A pass -------------------------------------------------------------------
 
@@ -139,12 +150,19 @@ defmodule SlipdockCLI.Sync do
       # Its record is spent once a pass has come through without an error.
       imported = root |> Import.load_record() |> Import.entries_for(state["vault"]["id"])
 
-      case Engine.run(root, state, {Remote, state["vault"]["id"]}, imported: imported) do
+      case Engine.run(root, state, {Remote, state["vault"]["id"]},
+             imported: imported,
+             direction: o[:direction]
+           ) do
         {:ok, state, report} ->
           state = settle_cursor(state, report)
           State.save(root, state)
           Import.spent(root, imported, report.errors)
-          if o[:json], do: Render.json(json(report, state)), else: print(report, state, o)
+
+          if o[:json],
+            do: Render.json(json(report, state, o[:direction])),
+            else: print(report, state, o)
+
           {:ok, state, report.errors}
 
         {:error, :unauthorized} ->
@@ -382,19 +400,38 @@ defmodule SlipdockCLI.Sync do
               Render.dim("(#{st.why}: your edits to it aren't sent; put back as it was)")
           )
 
+    for h <- Map.get(report, :held, []), do: IO.puts("· #{h.path} " <> Render.dim("(#{h.why})"))
+
     for e <- report.errors, do: IO.puts(:stderr, "error: #{e.path}: #{e.error}")
+
+    held = Map.get(report, :held, [])
 
     counts =
       [:sent, :received, :moved, :archived, :removed, :conflicts]
       |> Enum.map_join(", ", &"#{&1} #{length(Map.fetch!(report, &1))}")
+      |> Kernel.<>(if held == [], do: "", else: ", held #{length(held)}")
 
     when_ = if o[:stamp], do: stamp() <> " ", else: ""
-    IO.puts(Render.dim("#{when_}#{state["vault"]["name"]}: #{counts}"))
+
+    only =
+      case o[:direction] do
+        :down -> " (from the server only)"
+        :up -> " (to the server only)"
+        _ -> ""
+      end
+
+    IO.puts(Render.dim("#{when_}#{state["vault"]["name"]}#{only}: #{counts}"))
   end
 
-  defp json(report, state) do
+  defp json(report, state, direction) do
     %{
       "vault" => state["vault"],
+      "direction" =>
+        case direction do
+          :down -> "from-server"
+          :up -> "to-server"
+          _ -> "both"
+        end,
       "cursor" => state["cursor"],
       "report" => Map.new(report, fn {k, v} -> {to_string(k), Enum.map(v, &stringify/1)} end)
     }

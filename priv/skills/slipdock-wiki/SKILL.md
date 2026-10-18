@@ -213,6 +213,8 @@ cursor N (without `--since`, the cursor to start from) — the feed a sync polls
 `Title.md` (`Title/index.md` with children), renaming the file renames the page,
 a delete archives it, and a note changed on both sides keeps the server's
 version and saves the local one beside it as `Name (conflict DATE host).md`.
+`slipdock sync from-server` only brings changes down and `slipdock sync to-server`
+only sends them up; what either skips stays waiting for the next pass.
 `slipdock sync status` lists what is waiting and the conflicts left. When the
 user keeps notes in a synced folder, editing the file and letting sync carry it
 is as good as `page edit` — but don't do both to one note at once.

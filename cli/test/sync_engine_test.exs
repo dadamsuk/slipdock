@@ -18,11 +18,12 @@ defmodule SlipdockCLI.SyncEngineTest do
     %{root: root, vault: vault, state: state}
   end
 
-  defp pass(ctx, state \\ nil) do
+  defp pass(ctx, state \\ nil, direction \\ nil) do
     {:ok, state, report} =
       Engine.run(ctx.root, state || ctx.state, {FakeVault, ctx.vault},
         host: "testhost",
-        today: ~D[2026-10-12]
+        today: ~D[2026-10-12],
+        direction: direction
       )
 
     {state, report}
@@ -762,6 +763,241 @@ defmodule SlipdockCLI.SyncEngineTest do
 
       refute exists?(ctx, "Inbox/Plan.md")
       assert read(ctx, "Inbox/Plan B.md") =~ "Plan B"
+    end
+  end
+
+  describe "one-way passes (#1100)" do
+    # Everything on disk, path => content, to show a pass wrote nothing.
+    defp snapshot(ctx), do: Map.new(files(ctx), &{&1, read(ctx, &1)})
+
+    defp server_writes(ctx),
+      do:
+        Enum.filter(
+          FakeVault.calls(ctx.vault),
+          &(elem(&1, 0) in [:write, :archive, :write_file, :move_file, :archive_file])
+        )
+
+    defp held(report), do: report.held |> Enum.map(& &1.path) |> Enum.sort()
+
+    test "from-server brings changes down and sends nothing; a pass both ways sends what waited",
+         ctx do
+      edited = FakeVault.put(ctx.vault, "Edited.md", "one")
+      deleted = FakeVault.put(ctx.vault, "Deleted.md", "d")
+      renamed = FakeVault.put(ctx.vault, "Old.md", "r")
+      FakeVault.put(ctx.vault, "Theirs.md", "t1")
+      {state, _} = pass(ctx)
+
+      write(ctx, "Edited.md", "two, here")
+      write(ctx, "New.md", "fresh")
+      write(ctx, "pic.png", "png")
+      File.rm!(Path.join(ctx.root, "Deleted.md"))
+      File.rename!(Path.join(ctx.root, "Old.md"), Path.join(ctx.root, "Renamed.md"))
+      FakeVault.put(ctx.vault, "Theirs.md", "t2")
+      FakeVault.put(ctx.vault, "Arrived.md", "a")
+
+      {state, report} = pass(ctx, state, :down)
+
+      assert server_writes(ctx) == []
+      assert read(ctx, "Theirs.md") == "t2"
+      assert read(ctx, "Arrived.md") == "a"
+      assert held(report) == ["Deleted.md", "Edited.md", "New.md", "Renamed.md", "pic.png"]
+      assert report.sent == [] and report.archived == []
+      assert FakeVault.pages(ctx.vault)[edited].content == "one"
+      assert FakeVault.pages(ctx.vault)[renamed].path == "Old.md"
+      # What waited is still waiting: the state has each as last agreed.
+      assert state["entries"]["Edited.md"]["hash"] == FakeVault.hash("one")
+      assert state["entries"]["Deleted.md"]["id"] == deleted
+      assert state["entries"]["Old.md"]["id"] == renamed
+      refute Map.has_key?(state["entries"], "New.md")
+      assert state["last_result"]["held"] == 5
+
+      # Again from the server: still nothing sent, still held.
+      {state, report} = pass(ctx, state, :down)
+      assert server_writes(ctx) == []
+      assert length(report.held) == 5
+
+      {state, report} = pass(ctx, state)
+      assert report.held == []
+
+      assert Enum.sort(Enum.map(report.sent, & &1.path)) == [
+               "Edited.md",
+               "New.md",
+               "Renamed.md",
+               "pic.png"
+             ]
+
+      assert [%{path: "Deleted.md"}] = report.archived
+      assert FakeVault.pages(ctx.vault)[edited].content == "two, here"
+      assert FakeVault.pages(ctx.vault)[renamed].path == "Renamed.md"
+      refute Map.has_key?(FakeVault.pages(ctx.vault), deleted)
+
+      {_state, report} = pass(ctx, state)
+      assert quiet?(report)
+    end
+
+    test "from-server on a conflict keeps both versions here and sends the copy later", ctx do
+      FakeVault.put(ctx.vault, "Plan.md", "base")
+      {state, _} = pass(ctx)
+
+      write(ctx, "Plan.md", "mine")
+      FakeVault.put(ctx.vault, "Plan.md", "theirs")
+      {state, report} = pass(ctx, state, :down)
+
+      copy = "Plan (conflict 2026-10-12 testhost).md"
+      assert [%{path: "Plan.md", copy: ^copy}] = report.conflicts
+      assert read(ctx, "Plan.md") == "theirs"
+      assert read(ctx, copy) == "mine"
+      assert [%{path: ^copy, why: "not sent"}] = report.held
+      assert server_writes(ctx) == []
+
+      {_state, report} = pass(ctx, state)
+      assert [%{path: ^copy}] = report.sent
+      assert %{content: "mine"} = FakeVault.by_path(ctx.vault, copy)
+    end
+
+    test "from-server leaves a file edited here whose page went away, to go up later", ctx do
+      id = FakeVault.put(ctx.vault, "Keep.md", "old")
+      {state, _} = pass(ctx)
+
+      write(ctx, "Keep.md", "edited")
+      FakeVault.archive(ctx.vault, id)
+      {state, report} = pass(ctx, state, :down)
+
+      assert read(ctx, "Keep.md") == "edited"
+      assert [%{path: "Keep.md"}] = report.held
+      assert server_writes(ctx) == []
+
+      {_state, report} = pass(ctx, state)
+      assert [%{path: "Keep.md"}] = report.sent
+    end
+
+    test "to-server sends changes up and writes nothing here; a pass both ways brings the rest",
+         ctx do
+      edited = FakeVault.put(ctx.vault, "Edited.md", "one")
+      gone_here = FakeVault.put(ctx.vault, "GoneHere.md", "g")
+      FakeVault.put(ctx.vault, "Theirs.md", "t1")
+      archived = FakeVault.put(ctx.vault, "Archived.md", "x")
+      moved = FakeVault.put(ctx.vault, "Inbox/Moved.md", "m")
+      {state, _} = pass(ctx)
+
+      write(ctx, "Edited.md", "two, here")
+      write(ctx, "New.md", "fresh")
+      File.rm!(Path.join(ctx.root, "GoneHere.md"))
+      FakeVault.put(ctx.vault, "Theirs.md", "t2")
+      FakeVault.put(ctx.vault, "Arrived.md", "a")
+      FakeVault.archive(ctx.vault, archived)
+      FakeVault.move(ctx.vault, moved, "Done/Moved.md")
+      FakeVault.add_folder(ctx.vault, "Empty")
+      disk = snapshot(ctx)
+
+      {state, report} = pass(ctx, state, :up)
+
+      assert snapshot(ctx) == disk
+      refute File.dir?(Path.join(ctx.root, "Empty"))
+      assert FakeVault.pages(ctx.vault)[edited].content == "two, here"
+      assert %{content: "fresh"} = FakeVault.by_path(ctx.vault, "New.md")
+      refute Map.has_key?(FakeVault.pages(ctx.vault), gone_here)
+      assert report.received == [] and report.removed == [] and report.moved == []
+
+      assert held(report) == ["Archived.md", "Arrived.md", "Inbox/Moved.md", "Theirs.md"]
+      # Left as last agreed, so the next pass still fetches them.
+      assert state["entries"]["Theirs.md"]["hash"] == FakeVault.hash("t1")
+      assert state["entries"]["Archived.md"]["id"] == archived
+      assert state["entries"]["Inbox/Moved.md"]["id"] == moved
+      refute "Empty" in state["folders"]
+
+      {state, report} = pass(ctx, state)
+      assert report.held == []
+      assert read(ctx, "Theirs.md") == "t2"
+      assert read(ctx, "Arrived.md") == "a"
+      assert read(ctx, "Done/Moved.md") == "m"
+      refute exists?(ctx, "Archived.md")
+      assert File.dir?(Path.join(ctx.root, "Empty"))
+      assert report.sent == [] and report.archived == []
+
+      {_state, report} = pass(ctx, state)
+      assert quiet?(report)
+    end
+
+    test "to-server on a conflict writes nothing and leaves it for a pass both ways", ctx do
+      id = FakeVault.put(ctx.vault, "Plan.md", "base")
+      FakeVault.put(ctx.vault, "Differs.md", "server")
+      {state, _} = pass(ctx)
+      write(ctx, "Plan.md", "mine")
+      FakeVault.put(ctx.vault, "Plan.md", "theirs")
+      # New to the state on both sides, and different: a conflict too.
+      state = update_in(state["entries"], &Map.delete(&1, "Differs.md"))
+      write(ctx, "Differs.md", "local")
+      disk = snapshot(ctx)
+
+      {state, report} = pass(ctx, state, :up)
+
+      assert snapshot(ctx) == disk
+      assert report.conflicts == [] and report.sent == []
+      assert held(report) == ["Differs.md", "Plan.md"]
+      assert FakeVault.pages(ctx.vault)[id].content == "theirs"
+      assert state["entries"]["Plan.md"]["hash"] == FakeVault.hash("base")
+
+      {_state, report} = pass(ctx, state)
+      assert ["Differs.md", "Plan.md"] == report.conflicts |> Enum.map(& &1.path) |> Enum.sort()
+      assert read(ctx, "Plan (conflict 2026-10-12 testhost).md") == "mine"
+    end
+
+    test "to-server: a rename onto a path the server has taken moves nothing here", ctx do
+      FakeVault.put(ctx.vault, "Old.md", "mine")
+      FakeVault.put(ctx.vault, "Taken.md", "theirs")
+      {state, _} = pass(ctx)
+      state = update_in(state["entries"], &Map.delete(&1, "Taken.md"))
+      File.rm!(Path.join(ctx.root, "Taken.md"))
+      File.rename!(Path.join(ctx.root, "Old.md"), Path.join(ctx.root, "Taken.md"))
+      disk = snapshot(ctx)
+
+      {state, report} = pass(ctx, state, :up)
+
+      assert snapshot(ctx) == disk
+      assert [%{path: "Taken.md"}] = report.held
+      assert Map.keys(state["entries"]) == ["Old.md"]
+    end
+
+    test "to-server leaves what the server writes back on the server, until a pass both ways",
+         ctx do
+      vault =
+        FakeVault.start(normalise: fn _path, content -> "---\ntitle: T\n---\n" <> content end)
+
+      ctx = %{ctx | vault: vault}
+      write(ctx, "Note.md", "body")
+
+      {state, report} = pass(ctx, nil, :up)
+
+      assert read(ctx, "Note.md") == "body"
+      assert [%{path: "Note.md"}] = report.sent
+      assert [%{path: "Note.md"}] = report.held
+      assert state["entries"]["Note.md"]["hash"] == FakeVault.hash("body")
+
+      {state, report} = pass(ctx, state)
+      assert [%{path: "Note.md"}] = report.received
+      assert read(ctx, "Note.md") == "---\ntitle: T\n---\nbody"
+
+      {_state, report} = pass(ctx, state)
+      assert quiet?(report)
+    end
+
+    test "to-server writes no stubs and keeps the ones it knew, so they are never sent", ctx do
+      stub = "[Plan](https://slipdock.example.com/shared/pages/12)\n"
+      FakeVault.put_stub(ctx.vault, "page:12@3", "Inbox/Plan.md", stub)
+      {state, _} = pass(ctx)
+      FakeVault.put_stub(ctx.vault, "page:13@3", "Inbox/Other.md", stub)
+
+      {state, report} = pass(ctx, state, :up)
+      {state, _} = pass(ctx, state, :up)
+
+      refute exists?(ctx, "Inbox/Other.md")
+      assert state["entries"]["Inbox/Plan.md"]["kind"] == "stub"
+      assert report.sent == []
+      assert server_writes(ctx) == []
+
+      {_state, report} = pass(ctx, state)
+      assert %{path: "Inbox/Other.md"} in report.received
     end
   end
 end

@@ -692,7 +692,9 @@ defmodule SlipdockWeb.HelpLive.Agents do
         <li>
           <code>slipdock sync</code>
           mirrors a vault to a local folder and keeps the two in step, so you can edit pages
-          in Obsidian or any other editor.
+          in Obsidian or any other editor; <code>slipdock sync from-server</code>
+          and <code>slipdock sync to-server</code>
+          run a pass one way only.
         </li>
         <li>
           <code>slipdock attach</code>

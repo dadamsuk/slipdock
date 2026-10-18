@@ -129,7 +129,8 @@ Briefly, with the detail in [the manual](docs/manual.md):
   files, the way Obsidian keeps notes (Obsidian itself isn't needed): links, `#tags`, aliases,
   embeds and front matter as Obsidian reads them, a page or a whole folder filed in several
   folders, and [`slipdock sync`](docs/manual.md#syncing-a-vault-to-a-folder)
-  to mirror it both ways to a folder on each computer, Obsidian included, after
+  to mirror it both ways to a folder on each computer, Obsidian included (or one way,
+  `sync from-server` / `sync to-server`), after
   a one-time [import](docs/manual.md#importing-an-obsidian-vault) of the vault you have,
   Excalidraw [drawings](docs/manual.md#drawings) drawn in the page and drawn
   in together live, with everyone's pointers on the canvas,

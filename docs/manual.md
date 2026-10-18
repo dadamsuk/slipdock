@@ -3460,6 +3460,8 @@ becomes a page.
 slipdock sync init ~/Notes --vault Brain    # bind the folder, then bring the vault down
 slipdock sync ~/Notes                        # one pass, both ways
 slipdock sync ~/Notes --watch                # keep at it
+slipdock sync from-server ~/Notes            # one pass, only bringing changes down
+slipdock sync to-server ~/Notes              # one pass, only sending changes up
 slipdock sync service install ~/Notes        # …in the background, starting at login
 slipdock sync status ~/Notes                 # what is waiting, and what is in conflict
 ```
@@ -3515,6 +3517,16 @@ board's owner can delete a file, and a synced vault takes its copy away too.
 which page it is and the hash both sides last agreed on — never front
 matter, so your files stay your own. That is what makes a rename the same
 page rather than a delete and a new one.
+
+**One way.** `slipdock sync from-server` brings the server's changes down
+and sends nothing: no page written, archived or moved there. `slipdock sync
+to-server` is the other half: it sends what changed here and writes nothing
+in the folder. Either lists what it left (`· Name.md (not sent)`) as held,
+and the folder keeps the version both sides last agreed for each, so the
+next pass — one way or both — still finds it waiting. A note changed on
+both sides is still a conflict copy under `from-server`, the copy left
+unsent; `to-server` touches neither and leaves it for a pass both ways.
+Both take `--watch` and `--json`.
 
 **Conflicts.** Every write to the server says which version it was made
 against. If a note changed on both sides, the server's version keeps the
