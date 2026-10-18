@@ -49,6 +49,7 @@ defmodule Slipdock.Automations.Scheduler do
     sweep_runner_jobs()
     prune_wiki_changes()
     resume_captures()
+    make_recurring_cards()
     tick()
   rescue
     exception ->
@@ -68,6 +69,13 @@ defmodule Slipdock.Automations.Scheduler do
     Slipdock.Wiki.Changes.prune_hourly()
   rescue
     exception -> Logger.error("Wiki change log prune failed: #{Exception.message(exception)}")
+  end
+
+  # Recurring cards whose next instance is due (see `Slipdock.Recurrence`).
+  defp make_recurring_cards do
+    Slipdock.Recurrence.tick()
+  rescue
+    exception -> Logger.error("Recurring cards failed: #{Exception.message(exception)}")
   end
 
   # Meeting captures a restart or a crash left half-read (see
