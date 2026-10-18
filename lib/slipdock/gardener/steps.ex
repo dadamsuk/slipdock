@@ -19,7 +19,8 @@ defmodule Slipdock.Gardener.Steps do
 
   A card id may be `"pick"`, with the candidates in `"from"`: the person
   chooses which when applying (`:keep` names the one that stays, so `"pick"`
-  is the other) — how a duplicate's loser is chosen.
+  is the other, and an `"other"` of `"keep"` is the one kept) — how a
+  duplicate's loser is chosen.
 
   Every step goes through the ordinary `Slipdock.Boards`, `Slipdock.Wiki`
   and `Slipdock.Snooze` functions, so activity, automations and permissions
@@ -56,7 +57,14 @@ defmodule Slipdock.Gardener.Steps do
 
           if keep in from do
             [other] = from -- [keep]
-            {:cont, {:ok, [Map.put(step, "card", other) |> Map.delete("from") | acc]}}
+
+            step =
+              step
+              |> Map.put("card", other)
+              |> then(&if(&1["other"] == "keep", do: Map.put(&1, "other", keep), else: &1))
+              |> Map.delete("from")
+
+            {:cont, {:ok, [step | acc]}}
           else
             {:halt,
              {:error, "say which card to keep: one of #{Enum.map_join(from, ", ", &"##{&1}")}"}}
