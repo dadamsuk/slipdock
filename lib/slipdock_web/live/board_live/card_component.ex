@@ -37,7 +37,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     validate_attachments cancel_upload delete_attachment hide_on_card transcribe add_link remove_link write_up
     toggle_pin_doc doc_search attach_doc detach_doc card_timer log_time dep_direction
     dep_search link_search pick_template comment_change share revoke_grant cancel_job
-    edit_handoff cancel_handoff leave_handoff clear_handoff
+    edit_handoff cancel_handoff leave_handoff clear_handoff draft_handoff
     edit_repeat repeat_change save_repeat cancel_repeat skip_repeat pause_repeat stop_repeat)
   @events @own_events ++ ItemEvents.events()
   # What a reader who can't change the card may still do: nothing stored
@@ -47,7 +47,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   # that changes the card itself. Deleting a comment is only their own
   # (`ItemEvents`).
   @comment_events ~w(add_comment delete_comment add_status_update vote comment_change
-    edit_handoff cancel_handoff leave_handoff clear_handoff)
+    edit_handoff cancel_handoff leave_handoff clear_handoff draft_handoff)
   # Sharing has a rule of its own: the board's owner, or anybody who can edit
   # the card.
   @share_events ~w(share revoke_grant)
@@ -89,6 +89,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
        handoff_history: [],
        editing_handoff: false,
        handoff_form: nil,
+       handoff_draft: nil,
        repeat: nil
      )
      |> allow_upload(
@@ -176,6 +177,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
             editing_description: false,
             editing_handoff: false,
             handoff_form: nil,
+            handoff_draft: nil,
             repeat: nil
           )
 
@@ -288,6 +290,31 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
       do: {:noreply, flash(socket, :error, read_only_message(socket))}
 
   def handle_event(event, params, socket), do: dispatch(event, params, socket)
+
+  # Auto generate's draft (#1099), into the form if it is still open.
+  @impl true
+  def handle_async(:handoff_draft, {:ok, {:ok, draft}}, socket) do
+    if socket.assigns.editing_handoff do
+      form =
+        to_form(%{"next_step" => draft.next_step, "body" => draft.body}, as: :handoff)
+
+      {:noreply, assign(socket, handoff_form: form, handoff_draft: :done)}
+    else
+      {:noreply, assign(socket, handoff_draft: nil)}
+    end
+  end
+
+  def handle_async(:handoff_draft, {:ok, {:error, message}}, socket),
+    do: {:noreply, assign(socket, handoff_draft: {:error, message})}
+
+  # Cancel while it ran: the form is gone, and so is the question.
+  def handle_async(:handoff_draft, {:exit, {:shutdown, :cancel}}, socket),
+    do: {:noreply, assign(socket, handoff_draft: nil)}
+
+  def handle_async(:handoff_draft, {:exit, _reason}, socket),
+    do:
+      {:noreply,
+       assign(socket, handoff_draft: {:error, "The draft couldn't be made. Try again."})}
 
   defp dispatch(event, params, socket) do
     if event in @own_events,
@@ -550,11 +577,42 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         as: :handoff
       )
 
-    {:noreply, assign(socket, editing_handoff: true, handoff_form: form)}
+    {:noreply, assign(socket, editing_handoff: true, handoff_form: form, handoff_draft: nil)}
   end
 
   defp event("cancel_handoff", _, socket),
-    do: {:noreply, assign(socket, editing_handoff: false, handoff_form: nil)}
+    do:
+      {:noreply,
+       socket
+       |> cancel_async(:handoff_draft)
+       |> assign(editing_handoff: false, handoff_form: nil, handoff_draft: nil)}
+
+  # Auto generate (#1099): the person's model drafts the note from what has
+  # happened on the card lately, into the form. Nothing is written until they
+  # save it.
+  defp event("draft_handoff", _, socket) do
+    %{card: card, board: board, current_user: user} = socket.assigns
+
+    cond do
+      not socket.assigns.editing_handoff ->
+        {:noreply, socket}
+
+      not Slipdock.AI.configured?(user) ->
+        {:noreply,
+         assign(socket,
+           handoff_draft:
+             {:error, "Auto generate needs an AI model: set one under Account → AI model."}
+         )}
+
+      true ->
+        {:noreply,
+         socket
+         |> assign(handoff_draft: :running)
+         |> start_async(:handoff_draft, fn ->
+           Slipdock.AI.HandoffDrafter.draft(card, board, user: user)
+         end)}
+    end
+  end
 
   defp event("leave_handoff", %{"handoff" => params}, socket) do
     %{card: card, current_user: user} = socket.assigns
@@ -564,7 +622,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
       {:ok, _} ->
         {:noreply,
          socket
-         |> assign(editing_handoff: false, handoff_form: nil)
+         |> assign(editing_handoff: false, handoff_form: nil, handoff_draft: nil)
          |> reload()
          |> assign_pages()}
 
@@ -896,6 +954,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         handoff_history={@handoff_history}
         editing_handoff={@editing_handoff}
         handoff_form={@handoff_form}
+        handoff_draft={@handoff_draft}
         repeat={@repeat}
         parent={@parent}
         favourites={@favourites}
@@ -1029,6 +1088,11 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   attr :handoff_history, :list, default: [], doc: "every handoff written, newest first"
   attr :editing_handoff, :boolean, default: false
   attr :handoff_form, :any, default: nil
+
+  attr :handoff_draft, :any,
+    default: nil,
+    doc: "Auto generate: nil, :running, :done or {:error, why}"
+
   attr :repeat, :map, default: nil, doc: "the Repeat… form while it is open (W-1802)"
   attr :close_navigate, :boolean, default: false
   attr :parent, :any, default: nil
@@ -1157,6 +1221,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
                 history={@handoff_history}
                 editing={@editing_handoff}
                 form={@handoff_form}
+                draft={@handoff_draft}
+                ai?={@ai?}
                 can_comment={@can_comment}
                 target={@target}
               />
@@ -1365,6 +1431,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   attr :history, :list, required: true
   attr :editing, :boolean, required: true
   attr :form, :any, default: nil
+  attr :draft, :any, default: nil, doc: "Auto generate: nil, :running, :done or {:error, why}"
+  attr :ai?, :boolean, default: false, doc: "the reader has a model, so Auto generate is offered"
   attr :can_comment, :boolean, required: true
   attr :target, :any, required: true
 
@@ -1417,6 +1485,35 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         phx-target={@target}
         class="space-y-2"
       >
+        <%!-- Auto generate (#1099): a draft from the card's recent history,
+              put in the fields below for the person to check and save. --%>
+        <div :if={@ai?} class="flex flex-wrap items-center gap-2">
+          <button
+            id="handoff-draft"
+            type="button"
+            class="btn btn-ghost btn-xs gap-1"
+            phx-click="draft_handoff"
+            phx-target={@target}
+            disabled={@draft == :running}
+            title="Draft the next step and note from what has happened on this card lately"
+          >
+            <.icon
+              name={if @draft == :running, do: "hero-arrow-path", else: "hero-sparkles"}
+              class={["size-3.5", @draft == :running && "animate-spin"]}
+            />
+            {if @draft == :running, do: "Generating…", else: "Auto generate"}
+          </button>
+          <span :if={@draft == :done} id="handoff-draft-note" class="text-2xs text-base-content/50">
+            Drafted from the card's recent history. Check it, then save.
+          </span>
+          <span
+            :if={match?({:error, _}, @draft)}
+            id="handoff-draft-error"
+            class="text-2xs text-error"
+          >
+            {elem(@draft, 1)}
+          </span>
+        </div>
         <.input
           field={@form[:next_step]}
           label="Next step"

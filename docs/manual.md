@@ -446,7 +446,15 @@ and the next step, the note, who left it, when and how (the web app, the API,
 MCP, the CLI or a runner), and, once there has been more than one, a
 **History** of every earlier one. **Update** writes a new one; nothing is
 edited in place, so the history is the whole story. **Clear** writes an empty
-one, and the history keeps that too; the card goes back to the link. While the card is open its front carries a ↩ mark with the next step as
+one, and the history keeps that too; the card goes back to the link.
+
+**Auto generate**, in the handoff's form when you have an [AI model](#ai-assistant)
+set up, drafts the next step and the note for you from what has happened on
+the card lately: the last fortnight of its activity, its comments, checklist
+and status updates, with the rest of the card and the handoff before this one
+behind them. The draft goes into the form's fields, replacing what was there;
+nothing is written until you change what needs changing and press **Save
+handoff**. While the card is open its front carries a ↩ mark with the next step as
 its tooltip; a completed card keeps its note but loses the mark.
 
 Anyone who can comment on a card can leave its handoff, since it is a kind of

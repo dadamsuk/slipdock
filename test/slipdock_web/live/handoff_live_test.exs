@@ -136,6 +136,91 @@ defmodule SlipdockWeb.HandoffLiveTest do
     end
   end
 
+  describe "Auto generate (#1099)" do
+    test "fills the form from the model's draft and writes nothing until saved", ctx do
+      Slipdock.AIStub.reply_with(%{
+        "next_step" => "Fix the flaky upload test",
+        "body" => "State: API done\nGotchas: seed 42"
+      })
+
+      {:ok, view, _} = open(ctx.conn, ctx)
+      view |> element("#handoff-edit") |> render_click()
+      view |> element("#handoff-draft", "Auto generate") |> render_click()
+
+      html = render_async(view)
+      assert html =~ "Drafted from the card"
+      assert has_element?(view, "#handoff-form input[value='Fix the flaky upload test']")
+      assert has_element?(view, "#handoff-form textarea", "Gotchas: seed 42")
+      assert Boards.handoff_history(ctx.card) == []
+
+      # What the model was told is about this card.
+      assert_received {:ai_request, %{"messages" => [_, %{"content" => content}]}}
+      assert content =~ "“Half done”"
+
+      view
+      |> form("#handoff-form",
+        handoff: %{next_step: "Fix the flaky upload test", body: "State: API done"}
+      )
+      |> render_submit()
+
+      assert %{next_step: "Fix the flaky upload test", via: "ui"} =
+               Boards.current_handoff(ctx.card)
+    end
+
+    test "says why when the model gives no next step, and the form keeps what it had", ctx do
+      leave(ctx, "Keep me")
+      Slipdock.AIStub.reply_with(%{"body" => "nothing useful"})
+
+      {:ok, view, _} = open(ctx.conn, ctx)
+      view |> element("#handoff-edit") |> render_click()
+      view |> element("#handoff-draft") |> render_click()
+      render_async(view)
+
+      assert has_element?(view, "#handoff-draft-error", "didn't suggest a next step")
+      assert has_element?(view, "#handoff-form input[value='Keep me']")
+    end
+
+    test "is not offered without an AI model, and the event asks no model", ctx do
+      Slipdock.TestConfig.merge(:ai, api_key: nil)
+
+      {:ok, view, _} = open(ctx.conn, ctx)
+      view |> element("#handoff-edit") |> render_click()
+      refute has_element?(view, "#handoff-draft")
+
+      # Sent anyway (a page loaded before the key went), no model is asked.
+      view |> with_target("#board-card") |> render_click("draft_handoff", %{})
+      refute_received {:ai_request, _}
+      refute render(view) =~ "Generating…"
+    end
+
+    test "a commenter may use it; a reader may not", ctx do
+      Slipdock.AIStub.reply_with(%{"next_step" => "From the model", "body" => ""})
+      commenter = user_fixture("live.handoff.drafter@example.com")
+      {:ok, _} = Access.grant(ctx.board, commenter, "read", ctx.owner)
+      {:ok, _} = Access.grant(ctx.card, commenter, "comment", ctx.owner)
+
+      {:ok, view, _} = open(conn_as(commenter), ctx)
+      view |> element("#handoff-edit") |> render_click()
+      view |> element("#handoff-draft") |> render_click()
+      render_async(view)
+      assert has_element?(view, "#handoff-form input[value='From the model']")
+
+      reader = user_fixture("live.handoff.drafter.reader@example.com")
+      {:ok, _} = Access.grant(ctx.board, reader, "read", ctx.owner)
+      {:ok, rview, _} = open(conn_as(reader), ctx)
+      rview |> with_target("#board-card") |> render_click("draft_handoff", %{})
+      refute has_element?(rview, "#handoff-form")
+      refute has_element?(rview, "#handoff-draft-error")
+    end
+
+    test "only while the form is open", ctx do
+      {:ok, view, _} = open(ctx.conn, ctx)
+      view |> with_target("#board-card") |> render_click("draft_handoff", %{})
+      refute has_element?(view, "#handoff-form")
+      refute_received {:ai_request, _}
+    end
+  end
+
   test "a runner's note says it came from a runner and which job", ctx do
     {:ok, _, _} = Slipdock.Runners.create_runner(ctx.board, %{"name" => "box", "pool" => "dev"})
     {:ok, job} = Slipdock.Runners.queue(ctx.card, %{pool: "dev", kind: "claude", prompt: "p"})
