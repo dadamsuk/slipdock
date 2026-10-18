@@ -26,7 +26,15 @@ defmodule Slipdock.Gardener do
   alias Slipdock.Gardener.{Context, Run, Settings, Steps, Suggestion}
   alias Slipdock.Repo
 
-  @checks []
+  @checks [
+    Slipdock.Gardener.Checks.EpicDone,
+    Slipdock.Gardener.Checks.DoneNotCompleted,
+    Slipdock.Gardener.Checks.CompletedNotDone,
+    Slipdock.Gardener.Checks.StaleInProgress,
+    Slipdock.Gardener.Checks.NoNextAction,
+    Slipdock.Gardener.Checks.LongOverdue,
+    Slipdock.Gardener.Checks.AbandonedBacklog
+  ]
 
   @doc "Every check, in the order the Tidy-up page shows them."
   def checks, do: @checks
