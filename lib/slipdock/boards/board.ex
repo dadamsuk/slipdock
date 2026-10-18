@@ -62,6 +62,11 @@ defmodule Slipdock.Boards.Board do
     # checks them) rather than the settings changeset.
     field :sprint_sources, {:array, :map}, default: []
 
+    # The gardener's per-check switches and thresholds (W-1807): `%{check
+    # key => %{"enabled" => bool, …}}`, written through
+    # `Slipdock.Gardener.Settings.put/3`. A check not named takes its defaults.
+    field :gardening, :map, default: %{}
+
     # Put away rather than deleted: an archived board drops off the index, the
     # switcher and quick add, but keeps everything on it. Only root boards are
     # archived — a sub-board goes away with the card it hangs off.
