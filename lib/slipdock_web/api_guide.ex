@@ -511,9 +511,9 @@ defmodule SlipdockWeb.APIGuide do
     `with_cards: true`. A read-only
     token, or a connection the person approved read-only, can call the read
     tools, and a write tool answers it with an error saying so. The conventions in this guide apply the same way through
-    either door. It also offers prompts, workflows a client lists in its menu:
-    `plan-my-day`, `weekly-review`, `triage`, `resume`, `leave-handoff`,
-    `capture-this-chat` and `tidy-board`.
+    either door. Prompts: `plan-my-day`, `weekly-review`, `triage`, `resume`,
+    `leave-handoff`, `capture-this-chat`, `tidy-board`. Resources, which the
+    person attaches: `slipdock://card/42`, `board/`, `page/`, `view/`, `work`.
 
     ### The AI key, and which model answers
 

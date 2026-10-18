@@ -175,6 +175,15 @@ defmodule SlipdockWeb.HelpLive.Agents do
        {:some, "through the CLI or MCP"},
        {:no, ""}
      ]},
+    {"Attach a board, card or page to a chat yourself",
+     [
+       {:no, "the agent fetches it"},
+       {:yes, "as a resource, from the + menu"},
+       {:no, ""},
+       {:no, ""},
+       {:no, ""},
+       {:no, ""}
+     ]},
     {"Attach and download files",
      [
        {:yes, ""},
@@ -589,6 +598,17 @@ defmodule SlipdockWeb.HelpLive.Agents do
         A connector remembers the list it was given, so after an upgrade that adds one,
         disconnect and connect it again. ChatGPT's connectors use tools only, so prompts
         don't show there.
+      </p>
+    </.part>
+
+    <.part title="Attach a board, card or page" id="help-mcp-resources">
+      <p>
+        You can also attach something to a conversation yourself, so the model starts with it:
+        a board, a card, a wiki page, a saved view or My work. In Claude Desktop and claude.ai
+        they are under the <strong>+</strong>
+        menu; in Claude Code mention one, as in <code>@slipdock:slipdock://card/42</code>.
+        The menu lists My work, your favourites and the pages pinned to your favourite boards,
+        so favourite whatever you want to attach.
       </p>
     </.part>
 

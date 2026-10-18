@@ -235,6 +235,15 @@ connector caches the list: after an upgrade that adds one, disconnect and
 connect again. ChatGPT's connectors don't show prompts. See
 [the manual](manual.md#the-prompts).
 
+And it offers resources, which the *person* attaches rather than the model
+fetching: `slipdock://board/{code}`, `slipdock://card/{id}`,
+`slipdock://page/{code}`, `slipdock://view/{board}/{view}` and
+`slipdock://work`, each as Markdown. The list (`resources/list`) is My work,
+the person's favourites and the pages pinned to their favourite boards. A
+resource is read with the same access checks as the tools; one the token
+can't read is "resource not found", the same as one that isn't there. See
+[the manual](manual.md#the-resources).
+
 `get_guide` gives the short guide — how to work a board, the reader's own
 boards and lists — and ends by naming the other sections, each one call
 away with `section` (`automations`, `wiki`, `endpoints`…, or `all`). The

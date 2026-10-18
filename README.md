@@ -812,6 +812,14 @@ capture, while it is on) and `tidy-board` (walk the gardener's suggestions).
 Board and card arguments complete as you type. ChatGPT's connectors use tools
 only, so prompts don't show there.
 
+And it offers resources: a board, card, wiki page or saved view you attach to
+a conversation yourself, from the same **+** menu (or `@slipdock:slipdock://card/42`
+in Claude Code), so the model starts with it in front of it. The list holds My
+work, your favourites and the pages pinned to your favourite boards; anything
+else is one URI away: `slipdock://board/{code}`, `slipdock://card/{id}`,
+`slipdock://page/{code}`, `slipdock://view/{board}/{view}` and `slipdock://work`.
+See [the manual](docs/manual.md#the-resources).
+
 ## Security notes
 
 This is a self-hosted app that holds everything you are working on, and some of

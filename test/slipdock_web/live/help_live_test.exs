@@ -411,5 +411,22 @@ defmodule SlipdockWeb.HelpLiveTest do
       assert has_element?(view, "#help-mcp-prompts", "resume")
       refute has_element?(view, "#help-mcp-prompts", "capture-this-chat")
     end
+
+    test "the MCP page says how to attach a board, card or page", %{conn: conn} do
+      {:ok, _} = Slipdock.Settings.complete_setup(%{"admin_email" => "admin@example.com"})
+      {:ok, view, _} = live(conn, ~p"/help/agents/mcp")
+      assert has_element?(view, "#help-mcp-resources", "slipdock://card/42")
+      assert has_element?(view, "#help-mcp-resources", "favourites")
+    end
+
+    test "the comparison has a row for attaching to a chat, yes only over MCP" do
+      {_label, cells} =
+        Enum.find(SlipdockWeb.HelpLive.Agents.features(), fn {label, _} ->
+          label =~ "Attach a board, card or page"
+        end)
+
+      assert length(cells) == length(SlipdockWeb.HelpLive.Agents.topics())
+      assert Enum.map(cells, &elem(&1, 0)) == [:no, :yes, :no, :no, :no, :no]
+    end
   end
 end
