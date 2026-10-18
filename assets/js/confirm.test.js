@@ -2,7 +2,7 @@
 // methods confirm.js actually touches, and nothing more.
 import {test} from "node:test"
 import assert from "node:assert/strict"
-import {confirmLabel, confirmTone, ask, proceed, installConfirm} from "./confirm.js"
+import {confirmLabel, confirmTone, ask, proceed, installConfirm, contain} from "./confirm.js"
 
 function element({attrs = {}, text = "", connected = true, onClick} = {}) {
   const a = {...attrs}
@@ -40,7 +40,11 @@ function dialog() {
     focused,
     parts,
     querySelector: sel => parts[sel],
-    addEventListener: (type, fn) => { listeners[type] = fn },
+    listeners,
+    addEventListener: (type, fn) => {
+      if (type === "close") listeners.close = fn
+      else (listeners[type] ||= []).push(fn)
+    },
     showModal() { this.open = true },
     // What the browser does when a method=dialog button is pressed, or Escape.
     close(value) {
@@ -224,4 +228,27 @@ test("a browser without <dialog> support is left to window.confirm too", () => {
   const e = clickEvent(element({attrs: {"data-confirm": "Delete?"}}))
   win.handlers[0].fn(e)
   assert.ok(!e.prevented)
+})
+
+test("clicks and keys in the box stop there, so a modal behind it stays open", () => {
+  const dlg = dialog()
+  ask(dlg, "Clear the handoff?", "Clear", "normal")
+
+  for (const type of ["click", "keydown"]) {
+    assert.equal(dlg.listeners[type].length, 1, `one ${type} listener`)
+    let stopped = false, prevented = false
+    dlg.listeners[type][0]({stopPropagation: () => { stopped = true }, preventDefault: () => { prevented = true }})
+    assert.ok(stopped, `${type} must not reach the modal's click-away or window Escape`)
+    assert.ok(!prevented, `${type} keeps its default: the buttons and Escape still work`)
+  }
+})
+
+test("asking again, or containing twice, adds no second listener", () => {
+  const dlg = dialog()
+  ask(dlg, "One?", "OK", "normal")
+  dlg.close("cancel")
+  ask(dlg, "Two?", "OK", "normal")
+  contain(dlg)
+  assert.equal(dlg.listeners.click.length, 1)
+  assert.equal(dlg.listeners.keydown.length, 1)
 })

@@ -35,9 +35,25 @@ export function confirmTone(message, label) {
   return DANGER.test(label || "") || DANGER.test(message || "") ? "danger" : "normal"
 }
 
+// The box is outside every modal, so to a modal a click in it is a click
+// outside (`phx-click-away`) and its Escape is the window's: either closed
+// the card under the question — Clear on a card's handoff, say, dropped you
+// back on the board. Clicks and keys in the box stop at the box; what the
+// browser does with them (the buttons, Escape cancelling) is untouched.
+const contained = new WeakSet()
+
+export function contain(dialog) {
+  if (contained.has(dialog)) return
+  contained.add(dialog)
+  const stop = e => e.stopPropagation()
+  dialog.addEventListener("click", stop)
+  dialog.addEventListener("keydown", stop)
+}
+
 // Shows the dialog and resolves to true only when the confirm button closed
 // it. Escape, the backdrop and Cancel all leave returnValue as something else.
 export function ask(dialog, message, label, tone) {
+  contain(dialog)
   const text = dialog.querySelector("#confirm-dialog-message")
   const ok = dialog.querySelector("[data-confirm-ok]")
   const cancel = dialog.querySelector("[data-confirm-cancel]")

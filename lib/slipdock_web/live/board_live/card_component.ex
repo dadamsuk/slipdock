@@ -1130,106 +1130,121 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
             write, the discussion (comments, status, votes) only comment. --%>
       <div class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_260px]">
         <div class="min-w-0 space-y-7 p-6">
-          <%!-- First, above the title and description: what the next person
-                needs before anything else. Its own fieldset, since a
-                commenter may write it (W-1804). --%>
-          <fieldset
-            :if={current_handoff(@card) || @can_comment || @handoff_history != []}
-            disabled={!@can_comment}
-            class="min-w-0"
-          >
-            <.handoff_panel
-              card={@card}
-              history={@handoff_history}
-              editing={@editing_handoff}
-              form={@handoff_form}
-              can_comment={@can_comment}
-              target={@target}
-            />
-          </fieldset>
-          <fieldset disabled={!@can_write} class="min-w-0 space-y-7">
-            <.card_header_form
-              board={@board}
-              can_write={@can_write}
-              card={@card}
-              current_user={@current_user}
-              editing_description={@editing_description}
-              form={@form}
-              mention_people={@mention_people}
-              tags_path={@tags_path}
-              target={@target}
-              uploads={@uploads}
-            />
+          <div class="space-y-3">
+            <fieldset disabled={!@can_write} class="min-w-0">
+              <.card_title_form
+                board={@board}
+                can_write={@can_write}
+                card={@card}
+                form={@form}
+                handoff_link={
+                  @can_comment and is_nil(current_handoff(@card)) and not @editing_handoff
+                }
+                target={@target}
+              />
+            </fieldset>
+            <%!-- Where it was left (W-1804), just beneath the title, only once
+                there is one or it is being written: most cards never get one,
+                so until then it is a link on the meta line. Its own fieldset,
+                since a commenter may write it. --%>
+            <fieldset
+              :if={current_handoff(@card) || @editing_handoff}
+              disabled={!@can_comment}
+              class="min-w-0"
+            >
+              <.handoff_panel
+                card={@card}
+                history={@handoff_history}
+                editing={@editing_handoff}
+                form={@handoff_form}
+                can_comment={@can_comment}
+                target={@target}
+              />
+            </fieldset>
+            <fieldset disabled={!@can_write} class="min-w-0 space-y-7">
+              <.card_header_form
+                board={@board}
+                can_write={@can_write}
+                card={@card}
+                current_user={@current_user}
+                editing_description={@editing_description}
+                form={@form}
+                mention_people={@mention_people}
+                tags_path={@tags_path}
+                target={@target}
+                uploads={@uploads}
+              />
 
-            <.attachments_section
-              at={@at}
-              can_write={@can_write}
-              transcribe={Slipdock.Transcription.configured?()}
-              card={@card}
-              target={@target}
-              uploads={@uploads}
-            />
+              <.attachments_section
+                at={@at}
+                can_write={@can_write}
+                transcribe={Slipdock.Transcription.configured?()}
+                card={@card}
+                target={@target}
+                uploads={@uploads}
+              />
 
-            <.checklist_section
-              target={@target}
-              item={@card}
-              can_write={@can_write}
-              form_key={@form_key}
-              section_key="e"
-            />
-            <.subcards_section
-              board={@board}
-              can_write={@can_write}
-              card={@card}
-              form_key={@form_key}
-              picking_template={@picking_template}
-              target={@target}
-              templates={@templates}
-            />
+              <.checklist_section
+                target={@target}
+                item={@card}
+                can_write={@can_write}
+                form_key={@form_key}
+                section_key="e"
+              />
+              <.subcards_section
+                board={@board}
+                can_write={@can_write}
+                card={@card}
+                form_key={@form_key}
+                picking_template={@picking_template}
+                target={@target}
+                templates={@templates}
+              />
 
-            <.dependencies_section
-              board={@board}
-              card={@card}
-              card_link={@card_link}
-              dep_direction={@dep_direction}
-              dep_query={@dep_query}
-              dep_results={@dep_results}
-              form_key={@form_key}
-              target={@target}
-            />
+              <.dependencies_section
+                board={@board}
+                card={@card}
+                card_link={@card_link}
+                dep_direction={@dep_direction}
+                dep_query={@dep_query}
+                dep_results={@dep_results}
+                form_key={@form_key}
+                target={@target}
+              />
 
-            <.docs_section
-              board={@board}
-              can_write={@can_write}
-              doc_query={@doc_query}
-              doc_results={@doc_results}
-              pages={@pages}
-              target={@target}
-            />
+              <.docs_section
+                board={@board}
+                can_write={@can_write}
+                doc_query={@doc_query}
+                doc_results={@doc_results}
+                pages={@pages}
+                target={@target}
+              />
 
-            <.provenance_section :if={@provenance != []} provenance={@provenance} />
+              <.provenance_section :if={@provenance != []} provenance={@provenance} />
 
-            <.jobs_section :if={@jobs != []} can_write={@can_write} jobs={@jobs} target={@target} />
+              <.jobs_section :if={@jobs != []} can_write={@can_write} jobs={@jobs} target={@target} />
 
-            <.links_section
-              board={@board}
-              can_write={@can_write}
-              card={@card}
-              form_key={@form_key}
-              link_kind={@link_kind}
-              link_query={@link_query}
-              link_results={@link_results}
-              target={@target}
-            />
+              <.links_section
+                board={@board}
+                can_write={@can_write}
+                card={@card}
+                form_key={@form_key}
+                link_kind={@link_kind}
+                link_query={@link_query}
+                link_results={@link_results}
+                target={@target}
+              />
 
-            <.urls_section
-              target={@target}
-              item={@card}
-              can_write={@can_write}
-              form_key={@form_key}
-              section_key="w"
-            />
-          </fieldset>
+              <.urls_section
+                target={@target}
+                item={@card}
+                can_write={@can_write}
+                form_key={@form_key}
+                section_key="w"
+              />
+            </fieldset>
+          </div>
 
           <fieldset disabled={!@can_comment} class="min-w-0">
             <%!-- Pasting an image attaches it to the card, so that is a writer's. --%>
@@ -1353,44 +1368,46 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   attr :can_comment, :boolean, required: true
   attr :target, :any, required: true
 
-  # "Where it was left": the next step in bold, the note, who, when and how,
-  # the history behind a disclosure, and the form to write a new one.
+  # "Where it was left", beneath the title: the next step, the note, who,
+  # when and how, with Update and the history on the byline; or, while it is
+  # being written, the form, with the history under it. Shown only once there
+  # is one or it is being written: the meta line's link opens the form.
   defp handoff_panel(assigns) do
     assigns = assign(assigns, current: current_handoff(assigns.card))
 
     ~H"""
-    <section id="card-handoff" class="space-y-2 rounded-xl bg-info/5 p-3 ring-1 ring-info/20">
-      <div class="flex items-center gap-2">
-        <.icon name="hero-arrow-uturn-left" class="size-4 text-info" />
-        <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
-          Where it was left
-        </span>
-        <button
-          :if={@can_comment and not @editing}
-          id="handoff-edit"
-          type="button"
-          class="btn btn-ghost btn-xs ml-auto"
-          phx-click="edit_handoff"
-          phx-target={@target}
-        >
-          {if @current, do: "Update handoff", else: "Leave a handoff"}
-        </button>
-      </div>
-
+    <section id="card-handoff" class="ml-1 space-y-1.5 border-l-2 border-info/40 pl-3">
       <div :if={@current && !@editing} id="handoff-current" class="space-y-1">
-        <p class="text-sm font-semibold" id="handoff-next">{@current.next_step}</p>
-        <p :if={@current.body} class="whitespace-pre-wrap font-mono text-xs text-base-content/80">
-          {@current.body}
+        <p class="flex items-start gap-1.5 text-sm">
+          <.icon name="hero-arrow-uturn-left" class="mt-0.5 size-3.5 shrink-0 text-info" />
+          <span>
+            <span class="text-base-content/60">Left off — next:</span>
+            <span class="font-medium" id="handoff-next">{@current.next_step}</span>
+          </span>
         </p>
-        <p class="text-2xs text-base-content/50">
-          {handoff_byline(@current)}
-        </p>
+        <%!-- Hugging the text: pre-wrap would show the template's indent. --%>
+        <p
+          :if={@current.body}
+          id="handoff-body"
+          class="whitespace-pre-wrap font-mono text-xs text-base-content/70"
+          phx-no-format
+        >{@current.body}</p>
+        <div class="flex flex-wrap items-center gap-x-1.5 text-2xs text-base-content/50">
+          <span>{handoff_byline(@current)}</span>
+          <span :if={@can_comment}>·</span>
+          <button
+            :if={@can_comment}
+            id="handoff-edit"
+            type="button"
+            class="link link-hover hover:text-primary"
+            phx-click="edit_handoff"
+            phx-target={@target}
+          >
+            Update
+          </button>
+        </div>
+        <.handoff_history :if={length(@history) > 1} history={@history} />
       </div>
-
-      <p :if={!@current && !@editing} class="text-xs text-base-content/50">
-        No handoff. Leave one when you stop with this card unfinished, so whoever picks it up
-        next reads that first.
-      </p>
 
       <.form
         :if={@editing && @form}
@@ -1439,19 +1456,27 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         </div>
       </.form>
 
-      <details :if={@history != []} id="handoff-history" class="text-xs">
-        <summary class="cursor-pointer text-base-content/50">History ({length(@history)})</summary>
-        <ul class="mt-1 space-y-1">
-          <li :for={h <- @history} id={"handoff-#{h.id}"} class="rounded bg-base-200/60 p-1.5">
-            <span :if={!Slipdock.Boards.Handoff.cleared?(h)} class="font-medium">{h.next_step}</span>
-            <span :if={Slipdock.Boards.Handoff.cleared?(h)} class="italic text-base-content/50">
-              cleared
-            </span>
-            <span class="text-base-content/50">· {handoff_byline(h)}</span>
-          </li>
-        </ul>
-      </details>
+      <.handoff_history :if={@editing && @history != []} history={@history} />
     </section>
+    """
+  end
+
+  attr :history, :list, required: true
+
+  defp handoff_history(assigns) do
+    ~H"""
+    <details id="handoff-history" class="text-xs">
+      <summary class="cursor-pointer text-base-content/50">History ({length(@history)})</summary>
+      <ul class="mt-1 space-y-1">
+        <li :for={h <- @history} id={"handoff-#{h.id}"} class="rounded bg-base-200/60 p-1.5">
+          <span :if={!Slipdock.Boards.Handoff.cleared?(h)} class="font-medium">{h.next_step}</span>
+          <span :if={Slipdock.Boards.Handoff.cleared?(h)} class="italic text-base-content/50">
+            cleared
+          </span>
+          <span class="text-base-content/50">· {handoff_byline(h)}</span>
+        </li>
+      </ul>
+    </details>
     """
   end
 

@@ -18,21 +18,21 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   attr :board, :any, required: true
   attr :can_write, :boolean, required: true
   attr :card, Card, required: true
-  attr :current_user, :any, default: nil
-  attr :editing_description, :boolean, required: true
   attr :form, :any, required: true
-  attr :mention_people, :string, default: nil
-  attr :tags_path, :string, required: true
+  attr :handoff_link, :boolean, default: false, doc: "offer \"Leave a handoff\" on the meta line"
   attr :target, :any, required: true
-  attr :uploads, :map, required: true
 
-  @doc "The top of the panel: the title, its list, flags, tags and the description."
-  def card_header_form(assigns) do
+  @doc """
+  The very top of the panel: the title and the meta line under it (the
+  card's link, its list, when it was made). A form of its own, so that the
+  handoff can sit straight beneath it, outside every form.
+  """
+  def card_title_form(assigns) do
     ~H"""
     <.form
       phx-target={@target}
       for={@form}
-      id="card-form"
+      id="card-title-form"
       phx-change="card_change"
       phx-submit="card_change"
       class="space-y-3"
@@ -123,8 +123,49 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           another board…
         </button>
         <span>· created {relative_time(@card.inserted_at)}</span>
+        <%!-- Most cards never get a handoff, so until one is written it is
+              this and no more (W-1804). A link, not a button, like the copy
+              link: this fieldset is disabled for a commenter, who may
+              write one. --%>
+        <span :if={@handoff_link}>·</span>
+        <a
+          :if={@handoff_link}
+          id="handoff-edit"
+          href="#"
+          phx-click="edit_handoff"
+          phx-target={@target}
+          class="link link-hover text-base-content/60 hover:text-primary"
+          title="Say where you left this card, so whoever picks it up next reads that first"
+        >
+          Leave a handoff
+        </a>
       </div>
+    </.form>
+    """
+  end
 
+  attr :board, :any, required: true
+  attr :can_write, :boolean, required: true
+  attr :card, Card, required: true
+  attr :current_user, :any, default: nil
+  attr :editing_description, :boolean, required: true
+  attr :form, :any, required: true
+  attr :mention_people, :string, default: nil
+  attr :tags_path, :string, required: true
+  attr :target, :any, required: true
+  attr :uploads, :map, required: true
+
+  @doc "The rest of the panel's top, under the title: flags, tags and the description."
+  def card_header_form(assigns) do
+    ~H"""
+    <.form
+      phx-target={@target}
+      for={@form}
+      id="card-form"
+      phx-change="card_change"
+      phx-submit="card_change"
+      class="space-y-3"
+    >
       <div class="space-y-1.5 px-1 pt-2" data-section-key="f">
         <p class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
           <.keyed_label key="f" label="Flags" />

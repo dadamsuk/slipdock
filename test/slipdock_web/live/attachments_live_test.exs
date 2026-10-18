@@ -109,7 +109,6 @@ defmodule SlipdockWeb.AttachmentsLiveTest do
     view
     |> form("#card-form", %{
       "card" => %{
-        "title" => "Spec card",
         "description" => "Look:\n![Uploading image…]()\n#{markdown}\n"
       }
     })
@@ -188,7 +187,7 @@ defmodule SlipdockWeb.AttachmentsLiveTest do
     view |> element("button", "Edit") |> render_click()
 
     view
-    |> form("#card-form", %{"card" => %{"title" => "Spec card", "description" => "changed"}})
+    |> form("#card-form", %{"card" => %{"description" => "changed"}})
     |> render_change()
 
     assert %{description: "changed", due_date: ~D[2030-01-15]} = Boards.get_card!(card.id)
