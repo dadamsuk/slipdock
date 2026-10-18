@@ -32,6 +32,7 @@ defmodule SlipdockWeb.MCP.Tools do
     Tools.UpdateCard,
     Tools.MoveCard,
     Tools.Comment,
+    Tools.LeaveHandoff,
     Tools.UploadFile,
     Tools.DeleteAttachment,
     Tools.CompleteCard,

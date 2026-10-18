@@ -76,6 +76,25 @@ defmodule Slipdock.AccountExportDeletionTest do
 
       assert card_id == card.id
     end
+
+    test "includes the handoffs they left on other people's boards", %{user: user} do
+      other = user_fixture("other@example.com")
+      their_board = board_fixture(%{"name" => "Theirs"}, owner: other)
+      card = card_fixture(hd(their_board.columns))
+      {:ok, _} = Boards.leave_handoff(card, user, %{next_step: "Ship the fix", via: "mcp"})
+      {:ok, _} = Boards.leave_handoff(card, other, %{next_step: "Not mine", via: "ui"})
+
+      {_name, binary} = AccountExport.zip(user)
+      {:ok, entries} = :zip.unzip(binary, [:memory])
+
+      {_, json} =
+        Enum.find(entries, fn {p, _} -> to_string(p) == "elsewhere/written-by-you.json" end)
+
+      assert [%{"next_step" => "Ship the fix", "via" => "mcp", "card_id" => id}] =
+               Jason.decode!(json)["handoffs"]
+
+      assert id == card.id
+    end
   end
 
   describe "deletion" do

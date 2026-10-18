@@ -19,7 +19,7 @@ defmodule Slipdock.AccountExport do
 
   alias Slipdock.Accounts.User
   alias Slipdock.Boards
-  alias Slipdock.Boards.{Board, Card, Comment, StatusUpdate}
+  alias Slipdock.Boards.{Board, Card, Comment, Handoff, StatusUpdate}
   alias Slipdock.Wiki.{Page, Revision}
   alias Slipdock.Repo
   alias Slipdock.Wiki.Archive
@@ -152,6 +152,21 @@ defmodule Slipdock.AccountExport do
         )
       )
 
+    handoffs =
+      Repo.all(
+        from(h in Handoff,
+          where: h.user_id == ^user.id,
+          order_by: [asc: h.id],
+          select: %{
+            card_id: h.card_id,
+            next_step: h.next_step,
+            body: h.body,
+            via: h.via,
+            written: h.inserted_at
+          }
+        )
+      )
+
     revisions =
       Repo.all(
         from(r in Revision,
@@ -163,15 +178,20 @@ defmodule Slipdock.AccountExport do
         )
       )
 
-    case {comments, updates, revisions} do
-      {[], [], []} ->
+    case {comments, updates, handoffs, revisions} do
+      {[], [], [], []} ->
         []
 
       _ ->
         [
           {"elsewhere/written-by-you.json",
            Jason.encode_to_iodata!(
-             %{comments: comments, status_updates: updates, wiki_revisions: revisions},
+             %{
+               comments: comments,
+               status_updates: updates,
+               handoffs: handoffs,
+               wiki_revisions: revisions
+             },
              pretty: true
            )}
         ]

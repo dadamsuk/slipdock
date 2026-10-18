@@ -133,6 +133,23 @@ defmodule Slipdock.PortableExportTest do
                epic.status_updates
     end
 
+    test "the handoffs, oldest first, a clear kept as one" do
+      %{owner: owner, epic: epic} = tree()
+      {:ok, _} = Boards.leave_handoff(epic, owner, %{next_step: "First", via: "ui"})
+      {:ok, _} = Boards.clear_handoff(epic, owner, %{via: "cli"})
+
+      {:ok, _} =
+        Boards.leave_handoff(epic, owner, %{next_step: "Then", body: "State: half", via: "mcp"})
+
+      assert [
+               %{next_step: "First", via: "ui", author: "owner@example.com"},
+               %{next_step: nil, via: "cli"},
+               %{next_step: "Then", body: "State: half", via: "mcp", written_at: %DateTime{}}
+             ] = only_tree(owner) |> card("Ship it") |> Map.fetch!(:handoffs)
+
+      assert card(only_tree(owner), "Groundwork").handoffs == []
+    end
+
     test "custom fields, and the values cards hold in them" do
       %{owner: owner} = tree()
       t = only_tree(owner)

@@ -204,6 +204,49 @@ defmodule Slipdock.PortableImportTest do
       assert [%{url: "https://example.com", title: "Spec"}] = epic.urls
     end
 
+    test "the handoff and its history, signed by the importer", %{
+      owner: owner,
+      receiver: receiver
+    } do
+      [epic] = owner |> owned() |> Enum.map(&card(Boards.get_board!(&1.id), "Ship it"))
+      {:ok, _} = Boards.leave_handoff(epic, owner, %{next_step: "Old", via: "ui"})
+      {:ok, _} = Boards.clear_handoff(epic, owner, %{via: "ui"})
+
+      {:ok, _} =
+        Boards.leave_handoff(epic, owner, %{next_step: "Run it", body: "Gotchas: x", via: "mcp"})
+
+      {_report, board} = round_trip(owner, receiver)
+      epic = card(board, "Ship it")
+
+      assert %{next_step: "Run it", body: "*owner@example.com*\n\nGotchas: x", via: "mcp"} =
+               current = Boards.current_handoff(epic)
+
+      assert current.user_id == receiver.id
+
+      assert [%{next_step: "Run it"}, %{next_step: nil}, %{next_step: "Old"}] =
+               Boards.handoff_history(epic)
+    end
+
+    test "a handoff the document gets wrong is left out and said so", %{receiver: receiver} do
+      owner = user_fixture("solo@example.com")
+      board = board_fixture(%{"name" => "Solo", "code" => unique_code()}, owner: owner)
+      card = card_fixture(hd(board.columns), %{"title" => "Lone"})
+      {:ok, _} = Boards.leave_handoff(card, owner, %{next_step: "Fine", via: "ui"})
+
+      document =
+        owner
+        |> Portable.export(boards: [board])
+        |> update_in([:boards, Access.at(0), :cards, Access.at(0), :handoffs], fn [h] ->
+          [h, %{h | via: "carrier pigeon"}]
+        end)
+        |> Jason.encode!()
+
+      {:ok, report} = Portable.import(receiver, document)
+      [imported] = Boards.list_cards(Boards.get_board!(hd(report.boards).id), %{})
+      assert [%{next_step: "Fine"}] = Boards.handoff_history(imported)
+      assert Enum.any?(report.skipped, &(&1 =~ "A handoff on “Lone” was left out"))
+    end
+
     test "the custom field, and the value the card held in it", %{
       owner: owner,
       receiver: receiver

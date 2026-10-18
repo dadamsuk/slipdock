@@ -1,5 +1,5 @@
 defmodule SlipdockWeb.MCP.Tools.GetCard do
-  @moduledoc "One card in full: description, checklist, comments, dependencies and docs."
+  @moduledoc "One card in full: handoff, description, checklist, comments, dependencies and docs."
   @behaviour SlipdockWeb.MCP.Tool
 
   alias Slipdock.Boards
@@ -16,8 +16,9 @@ defmodule SlipdockWeb.MCP.Tools.GetCard do
   @impl true
   def description,
     do:
-      "A card in full: description (the brief), checklist, comments (often where the real " <>
-        "constraint is), dependencies, subcards (sub_board) and the wiki pages about it."
+      "A card in full: its handoff (where it was left: read it first, before the comments), " <>
+        "description (the brief), checklist, comments (often where the real constraint is), " <>
+        "dependencies, subcards (sub_board) and the wiki pages about it."
 
   @impl true
   def input_schema do

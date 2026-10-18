@@ -135,6 +135,23 @@ defmodule SlipdockWeb.API.CardWrites do
       else: attrs
   end
 
+  @doc """
+  Writes the card's handoff from a request's params, as the API and MCP both
+  take them: `next_step` and `body`, or `clear` true to clear it. `via` says
+  which way it came in.
+  """
+  def write_handoff(card, user, params, via) do
+    if params["clear"] in [true, "true"] do
+      Boards.clear_handoff(card, user, %{via: via})
+    else
+      Boards.leave_handoff(card, user, %{
+        next_step: params["next_step"],
+        body: params["body"],
+        via: via
+      })
+    end
+  end
+
   @doc "The card with this id, whoever may read it — check that next."
   def fetch_card(id) do
     with {int, ""} <- Integer.parse(to_string(id)),

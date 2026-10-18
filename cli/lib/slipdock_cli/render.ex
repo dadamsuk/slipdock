@@ -293,6 +293,35 @@ defmodule SlipdockCLI.Render do
 
   defp time_text(_, _), do: nil
 
+  # A card's handoff, first of its fields: read before anything else.
+  defp handoff_fields(h) do
+    field("Left off", bold(h["next_step"]) <> "  " <> dim(handoff_by(h)))
+    if h["body"], do: IO.puts(indent(h["body"], "              "))
+  end
+
+  defp handoff_by(h) do
+    who = if b = h["by"], do: b["name"] || b["email"], else: "someone"
+    job = if h["job_id"], do: " · job ##{h["job_id"]}", else: ""
+    "#{who} · #{String.slice(to_string(h["at"]), 0, 16)} · #{h["via"]}#{job}"
+  end
+
+  @doc "`slipdock handoff <id>`: the current handoff, then every write before it."
+  def handoff_history(%{"card" => id, "handoff" => current, "history" => history}) do
+    case current do
+      nil -> IO.puts("##{id} has no handoff.")
+      h -> IO.puts(bold("##{id} left off: #{h["next_step"]}") <> "\n" <> (h["body"] || ""))
+    end
+
+    if history != [] do
+      IO.puts("\nHistory")
+
+      Enum.each(history, fn h ->
+        what = if h["cleared"], do: dim("(cleared)"), else: h["next_step"]
+        IO.puts("  #{what}  #{dim(handoff_by(h))}")
+      end)
+    end
+  end
+
   def card(c) do
     IO.puts(
       bold("##{c["id"]} #{c["title"]}") <> if(c["completed"], do: "  ✓ completed", else: "")
@@ -302,6 +331,8 @@ defmodule SlipdockCLI.Render do
       "Board/column",
       "board ##{c["board_id"]} · #{c["column"]} (column ##{c["column_id"]}, position #{c["position"]})"
     )
+
+    if h = c["handoff"], do: handoff_fields(h)
 
     field("Priority", c["priority"])
     field("Flags", if(c["flags"] == [], do: "-", else: Enum.join(c["flags"], ", ")))

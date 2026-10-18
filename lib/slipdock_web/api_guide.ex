@@ -499,7 +499,8 @@ defmodule SlipdockWeb.APIGuide do
     attachment id), `list_automations`, and for
     writing `create_card`, `update_card` (fields, flags, tags, assignees,
     dependencies and the checklist), `move_card` (to another board too),
-    `comment`, `upload_file` (onto a card or page;
+    `comment`, `leave_handoff` (where you left the card: the one next step
+    and a note, for whoever picks it up next), `upload_file` (onto a card or page;
     over 1 KB, see its description), `complete_card`, `status_update` (a card's stated health —
     `on_track`, `at_risk` or `off_track` — with a note, as
     `POST /api/cards/:id/status` takes it: the progress report on an epic),
