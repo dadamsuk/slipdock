@@ -21,14 +21,15 @@ defmodule SlipdockWeb.MCP.Plug do
       is how a client learns it has to sign in.
 
   This module is the transport and the JSON-RPC; the tools are in
-  `SlipdockWeb.MCP.Tools` and the prompts in `SlipdockWeb.MCP.Prompts`.
+  `SlipdockWeb.MCP.Tools`, the prompts in `SlipdockWeb.MCP.Prompts` and the
+  resources in `SlipdockWeb.MCP.Resources`.
   """
   @behaviour Plug
 
   import Plug.Conn
 
   alias Slipdock.Accounts
-  alias SlipdockWeb.MCP.{Completions, Prompts, Tools}
+  alias SlipdockWeb.MCP.{Completions, Prompts, Resources, Tools}
 
   @versions ["2025-11-25", "2025-06-18", "2025-03-26"]
   @latest hd(@versions)
@@ -43,6 +44,8 @@ defmodule SlipdockWeb.MCP.Plug do
   @method_not_found -32601
   @invalid_params -32602
   @internal_error -32603
+  # MCP's own: a resource that isn't there, or that this token can't read.
+  @resource_not_found -32002
 
   @doc "The protocol revisions this server speaks, newest first."
   def versions, do: @versions
@@ -184,6 +187,7 @@ defmodule SlipdockWeb.MCP.Plug do
     case dispatch(conn, method, Map.get(msg, "params") || %{}) do
       {:ok, result} -> send_json(conn, 200, %{jsonrpc: "2.0", id: id, result: result})
       {:error, code, message} -> send_json(conn, 200, error_body(id, code, message))
+      {:error, code, message, data} -> send_json(conn, 200, error_body(id, code, message, data))
     end
   end
 
@@ -211,6 +215,7 @@ defmodule SlipdockWeb.MCP.Plug do
        capabilities: %{
          tools: %{listChanged: false},
          prompts: %{listChanged: false},
+         resources: %{subscribe: false, listChanged: false},
          completions: %{}
        },
        serverInfo: %{
@@ -249,6 +254,26 @@ defmodule SlipdockWeb.MCP.Plug do
 
   defp dispatch(_conn, "prompts/get", _params),
     do: {:error, @invalid_params, "prompts/get needs a prompt name"}
+
+  defp dispatch(conn, "resources/list", params) do
+    case Resources.list(tool_context(conn), params["cursor"]) do
+      {:ok, result} -> {:ok, result}
+      {:error, message} -> {:error, @invalid_params, message}
+    end
+  end
+
+  defp dispatch(_conn, "resources/templates/list", _params),
+    do: {:ok, %{resourceTemplates: Resources.templates()}}
+
+  defp dispatch(conn, "resources/read", %{"uri" => uri}) when is_binary(uri) do
+    case Resources.read(uri, tool_context(conn)) do
+      {:ok, result} -> {:ok, result}
+      :not_found -> {:error, @resource_not_found, "resource not found", %{uri: uri}}
+    end
+  end
+
+  defp dispatch(_conn, "resources/read", _params),
+    do: {:error, @invalid_params, "resources/read needs a uri"}
 
   defp dispatch(conn, "completion/complete", params) do
     case Completions.complete(params, tool_context(conn)) do
