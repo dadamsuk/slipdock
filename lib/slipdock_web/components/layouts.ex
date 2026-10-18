@@ -36,7 +36,7 @@ defmodule SlipdockWeb.Layouts do
   attr :nav_active, :atom,
     default: nil,
     doc:
-      "which place in the navigation this page is: :boards, :wiki, :work, :favourites, :search, :ask, or an admin page (:overview, :users, :config)"
+      "which place in the navigation this page is, marked in the avatar menu: :boards, :work, :favourites, :wiki, :vaults, :search, :ask, :templates, :groups, :tools, :agent, :account, or an admin page (:overview, :users, :tool_listings, :config)"
 
   slot :inner_block, required: true
   slot :nav, doc: "content rendered in the header next to the brand"
@@ -87,8 +87,18 @@ defmodule SlipdockWeb.Layouts do
           ]}>
             {render_slot(@nav)}
           </div>
+          <%!-- The app's own buttons, the same on every page and in the same
+                order: make, find, ask, come back to, what needs you, you. A
+                page's own buttons come first, ruled off from these on a
+                laptop where the board's sit on the same row. --%>
           <div class="order-5 flex shrink-0 items-center gap-1">
-            {render_slot(@actions)}
+            <div
+              :if={@actions != []}
+              class="flex items-center gap-1 sm:border-r sm:border-base-300 sm:pr-2"
+            >
+              {render_slot(@actions)}
+            </div>
+            <.quick_add_bar :if={@quick_add} quick_add={@quick_add} />
             <%!-- Ctrl-O and Ctrl-P on a desktop; on a phone there is no Ctrl, and
                 the card finder is the fastest way to a card on a screen that
                 shows one list at a time. Same two panels, same two events. --%>
@@ -150,7 +160,7 @@ defmodule SlipdockWeb.Layouts do
             <%!-- The phone keeps Favourites in its floating navigation; on a desktop the
                 heart sits here, so the handful of things you go back to all day
                 are one click rather than a hunt through the avatar menu, which
-                keeps its own entry for the times the header is not on screen. --%>
+                leaves it out, as it does Search and Ask. --%>
             <.link
               :if={@current_user}
               id="favourites-link"
@@ -165,7 +175,6 @@ defmodule SlipdockWeb.Layouts do
             >
               <.icon name="hero-heart" class="size-4" />
             </.link>
-            <.quick_add_bar :if={@quick_add} quick_add={@quick_add} />
             <.alerts_bar :if={@alerts} alerts={@alerts} open={@alerts_open} />
             <.theme_toggle :if={!@current_user} />
             <div
@@ -183,12 +192,12 @@ defmodule SlipdockWeb.Layouts do
               </div>
               <ul
                 tabindex="0"
-                class="menu dropdown-content z-40 mt-2 w-60 rounded-box bg-base-100 p-1 text-sm shadow-lg ring-1 ring-base-content/10"
+                class="menu dropdown-content z-40 mt-2 max-h-[calc(100dvh-4rem)] w-64 flex-nowrap overflow-y-auto rounded-box bg-base-100 p-1 text-sm shadow-lg ring-1 ring-base-content/10"
               >
                 <li class="menu-title truncate">
                   {Slipdock.Accounts.User.display_name(@current_user)}
                 </li>
-                <.account_menu_items current_user={@current_user} />
+                <.account_menu_items current_user={@current_user} active={@nav_active} />
               </ul>
             </div>
           </div>
@@ -206,7 +215,7 @@ defmodule SlipdockWeb.Layouts do
           <div class="order-3 flex min-w-0 flex-1 items-center gap-2">
             {render_slot(@subnav)}
           </div>
-          <div class="order-4 flex shrink-0 items-center gap-1">
+          <div class="order-4 flex shrink-0 items-center gap-1 lg:border-r lg:border-base-300 lg:pr-2">
             {render_slot(@subactions)}
           </div>
         </div>
@@ -333,7 +342,7 @@ defmodule SlipdockWeb.Layouts do
             ]}>
               {Slipdock.Accounts.User.display_name(@current_user)}
             </li>
-            <.account_menu_items current_user={@current_user} />
+            <.account_menu_items current_user={@current_user} active={@active} phone />
           </ul>
         </div>
         <.mobile_tab navigate={~p"/work"} icon="hero-user" label="My work" on={@active == :work} />
@@ -418,107 +427,143 @@ defmodule SlipdockWeb.Layouts do
   end
 
   attr :current_user, :any, required: true
+  attr :active, :atom, default: nil, doc: "the page's place in the navigation, ticked in the menu"
+
+  attr :phone, :boolean,
+    default: false,
+    doc: "drawn in the phone's Menu, which also carries what a desktop header has as buttons"
 
   # The avatar menu's entries: the header's dropdown on a desktop, the bottom
-  # row's Menu on a phone.
+  # row's Menu on a phone. Four sections, read top to bottom as where you go,
+  # what you set up, yourself, and the server: the account's own pages are
+  # one entry because the Account page has a tab for each, and the admin's
+  # pages fold into one group nobody else sees. A desktop leaves out Search
+  # and Ask, which are buttons beside the avatar; Favourites is one of those
+  # and a tab in the phone's row too, so it is in neither menu.
   defp account_menu_items(assigns) do
+    admin? = Slipdock.Accounts.admin?(assigns.current_user)
+
+    assigns =
+      assign(assigns,
+        admin?: admin?,
+        admin_page?: assigns.active in [:overview, :users, :tool_listings, :config],
+        signups: if(admin?, do: waiting_signups(), else: 0),
+        listings: if(admin?, do: waiting_listings(), else: 0)
+      )
+
     ~H"""
-    <li>
-      <.link navigate={~p"/"}><.icon name="hero-view-columns" class="size-4" /> Boards</.link>
-    </li>
-    <li>
-      <.link navigate={~p"/work"}><.icon name="hero-user" class="size-4" /> My work</.link>
-    </li>
-    <li>
-      <.link navigate={~p"/wiki"}><.icon name="hero-book-open" class="size-4" /> Wiki</.link>
-    </li>
-    <li>
-      <.link navigate={~p"/vaults"}><.icon name="hero-rectangle-stack" class="size-4" /> Vaults</.link>
-    </li>
-    <li>
-      <.link navigate={~p"/search"}><.icon
-        name="hero-magnifying-glass-circle"
-        class="size-4"
-      /> Search everything</.link>
-    </li>
-    <li>
-      <.link navigate={~p"/ask"}><.icon name="hero-sparkles" class="size-4" /> Ask</.link>
-    </li>
-    <li>
-      <.link navigate={~p"/groups"}><.icon name="hero-user-group" class="size-4" /> Groups</.link>
-    </li>
-    <li>
-      <.link navigate={~p"/favourites"}><.icon name="hero-heart" class="size-4" /> Favourites</.link>
-    </li>
-    <li>
-      <.link navigate={~p"/templates"}><.icon name="hero-squares-plus" class="size-4" /> Templates</.link>
-    </li>
-    <li>
-      <.link navigate={~p"/tools"}><.icon name="hero-puzzle-piece" class="size-4" /> Tools</.link>
-    </li>
-    <li>
-      <.link navigate={~p"/account"}><.icon name="hero-user-circle" class="size-4" /> Account</.link>
-    </li>
-    <li>
-      <.link navigate={~p"/account/settings"}><.icon
-        name="hero-adjustments-horizontal"
-        class="size-4"
-      /> Settings</.link>
-    </li>
-    <li>
-      <.link navigate={~p"/account/tokens"}><.icon name="hero-key" class="size-4" /> API tokens</.link>
-    </li>
-    <li>
-      <.link navigate={~p"/account/data"}><.icon
-        name="hero-arrows-right-left"
-        class="size-4"
-      /> Import &amp; export</.link>
-    </li>
+    <.menu_link navigate={~p"/"} icon="hero-view-columns" on={@active == :boards}>Boards</.menu_link>
+    <.menu_link navigate={~p"/work"} icon="hero-user" on={@active == :work}>My work</.menu_link>
+    <.menu_link navigate={~p"/wiki"} icon="hero-book-open" on={@active == :wiki}>Wiki</.menu_link>
+    <.menu_link navigate={~p"/vaults"} icon="hero-rectangle-stack" on={@active == :vaults}>
+      Vaults
+    </.menu_link>
+    <.menu_link
+      :if={@phone}
+      navigate={~p"/search"}
+      icon="hero-magnifying-glass-circle"
+      on={@active == :search}
+    >
+      Search everything
+    </.menu_link>
+    <.menu_link :if={@phone} navigate={~p"/ask"} icon="hero-sparkles" on={@active == :ask}>
+      Ask
+    </.menu_link>
+
+    <li class="menu-title mt-1 border-t border-base-300/60 pt-2">Set up</li>
+    <.menu_link navigate={~p"/templates"} icon="hero-squares-plus" on={@active == :templates}>
+      Templates
+    </.menu_link>
+    <.menu_link navigate={~p"/groups"} icon="hero-user-group" on={@active == :groups}>
+      Groups
+    </.menu_link>
+    <.menu_link navigate={~p"/tools"} icon="hero-puzzle-piece" on={@active == :tools}>
+      Tools
+    </.menu_link>
     <%!-- Reachable from the menu rather than buried in the account
         tabs: somebody who has heard their board can be worked by an
         agent has no reason to look under Account for it. --%>
-    <li>
-      <.link navigate={~p"/account/agent"}><.icon name="hero-cpu-chip" class="size-4" />
-      Set up an agent</.link>
-    </li>
+    <.menu_link navigate={~p"/account/agent"} icon="hero-cpu-chip" on={@active == :agent}>
+      Set up an agent
+    </.menu_link>
+
+    <li class="menu-title mt-1 border-t border-base-300/60 pt-2">You</li>
+    <%!-- Settings, API tokens, Import & export and the rest are the Account
+          page's tabs, one click on from here. --%>
+    <.menu_link navigate={~p"/account"} icon="hero-user-circle" on={@active == :account}>
+      Account &amp; settings
+    </.menu_link>
     <li>
       <.link href={~p"/help"}><.icon name="hero-question-mark-circle" class="size-4" /> Help</.link>
     </li>
-    <li :if={Slipdock.Accounts.admin?(@current_user)}>
-      <.link navigate={~p"/overview"}>
-        <.icon name="hero-chart-bar" class="size-4" /> Overview
-      </.link>
-    </li>
-    <li :if={Slipdock.Accounts.admin?(@current_user)}>
-      <.link navigate={~p"/users"}>
-        <.icon name="hero-users" class="size-4" /> Users
-        <span :if={waiting_signups() > 0} class="badge badge-sm badge-warning">
-          {waiting_signups()}
+    <li id={if @phone, do: "theme-row-menu", else: "theme-row"}>
+      <div class="flex cursor-default items-center justify-between gap-2 hover:bg-transparent active:bg-transparent">
+        <span class="flex items-center gap-2">
+          <.icon name="hero-swatch" class="size-4" /> Theme
         </span>
-      </.link>
+        <.theme_toggle />
+      </div>
     </li>
-    <li :if={Slipdock.Accounts.admin?(@current_user)}>
-      <.link navigate={~p"/admin/tools"}>
-        <.icon name="hero-puzzle-piece" class="size-4" /> Tool listings
-        <span :if={waiting_listings() > 0} class="badge badge-sm badge-warning">
-          {waiting_listings()}
-        </span>
-      </.link>
+
+    <li :if={@admin?} class="mt-1 border-t border-base-300/60 pt-1">
+      <details id={if @phone, do: "admin-menu-phone", else: "admin-menu"} open={@admin_page?}>
+        <summary>
+          <.icon name="hero-shield-check" class="size-4" /> Admin
+          <span :if={@signups + @listings > 0} class="badge badge-sm badge-warning">
+            {@signups + @listings}
+          </span>
+        </summary>
+        <ul>
+          <.menu_link navigate={~p"/overview"} icon="hero-chart-bar" on={@active == :overview}>
+            Overview
+          </.menu_link>
+          <.menu_link navigate={~p"/users"} icon="hero-users" on={@active == :users}>
+            Users <span :if={@signups > 0} class="badge badge-sm badge-warning">{@signups}</span>
+          </.menu_link>
+          <.menu_link
+            navigate={~p"/admin/tools"}
+            icon="hero-puzzle-piece"
+            on={@active == :tool_listings}
+          >
+            Tool listings
+            <span :if={@listings > 0} class="badge badge-sm badge-warning">{@listings}</span>
+          </.menu_link>
+          <.menu_link
+            navigate={~p"/config"}
+            icon="hero-wrench-screwdriver"
+            on={@active == :config}
+          >
+            Configuration
+          </.menu_link>
+        </ul>
+      </details>
     </li>
-    <li :if={Slipdock.Accounts.admin?(@current_user)}>
-      <.link navigate={~p"/config"}>
-        <.icon name="hero-wrench-screwdriver" class="size-4" /> Configuration
-      </.link>
-    </li>
-    <li class="menu-title mt-1">Theme</li>
-    <li><.theme_item theme="system" icon="hero-computer-desktop" label="System" /></li>
-    <li><.theme_item theme="light" icon="hero-sun" label="Light" /></li>
-    <li><.theme_item theme="dark" icon="hero-moon" label="Dark" /></li>
+
     <li class="mt-1 border-t border-base-300/60 pt-1">
       <.link href={~p"/logout"} method="delete"><.icon
         name="hero-arrow-right-start-on-rectangle"
         class="size-4"
       /> Sign out</.link>
+    </li>
+    """
+  end
+
+  attr :navigate, :string, required: true
+  attr :icon, :string, required: true
+  attr :on, :boolean, default: false
+  slot :inner_block, required: true
+
+  # One entry in the avatar menu, marked when it is the page you are on.
+  defp menu_link(assigns) do
+    ~H"""
+    <li>
+      <.link
+        navigate={@navigate}
+        aria-current={@on && "page"}
+        class={@on && "bg-primary/10 font-medium text-primary"}
+      >
+        <.icon name={@icon} class="size-4" /> {render_slot(@inner_block)}
+      </.link>
     </li>
     """
   end
@@ -1068,15 +1113,19 @@ defmodule SlipdockWeb.Layouts do
         }
       >
         <.icon name="hero-bell" class="size-4" />
-        <%!-- The count rides on the bell rather than beside it, greyed at
-              nought so that only something to read catches the eye. --%>
-        <span class={[
-          "absolute -right-0.5 -top-0.5 min-w-4 rounded-full px-1 text-[0.625rem] font-semibold leading-4 tabular-nums",
-          @count == 0 && "bg-base-300 text-base-content/50",
-          @count > 0 && @worst == "urgent" && "bg-error text-error-content motion-safe:animate-pulse",
-          @count > 0 && @worst == "warning" && "bg-warning text-warning-content",
-          @count > 0 && is_nil(@worst) && "bg-info text-info-content"
-        ]}>
+        <%!-- The count rides on the bell rather than beside it, and only
+              when there is something to read: a nought was one more mark in
+              a row of icons, saying nothing. --%>
+        <span
+          :if={@count > 0}
+          id="alerts-count"
+          class={[
+            "absolute -right-0.5 -top-0.5 min-w-4 rounded-full px-1 text-[0.625rem] font-semibold leading-4 tabular-nums",
+            @worst == "urgent" && "bg-error text-error-content motion-safe:animate-pulse",
+            @worst == "warning" && "bg-warning text-warning-content",
+            is_nil(@worst) && "bg-info text-info-content"
+          ]}
+        >
           {@count}
         </span>
       </button>
@@ -1252,28 +1301,6 @@ defmodule SlipdockWeb.Layouts do
     </span>
     """
   end
-
-  attr :theme, :string, required: true, values: ~w(system light dark)
-  attr :icon, :string, required: true
-  attr :label, :string, required: true
-
-  # A theme choice inside the account menu, ticked when it is the current one.
-  defp theme_item(assigns) do
-    ~H"""
-    <button type="button" phx-click={JS.dispatch("phx:set-theme")} data-phx-theme={@theme}>
-      <.icon name={@icon} class="size-4" /> {@label}
-      <.icon name="hero-check" class={["ml-auto size-4 text-primary", theme_check(@theme)]} />
-    </button>
-    """
-  end
-
-  defp theme_check("system"), do: "hidden [[data-theme-source=system]_&]:inline"
-
-  defp theme_check("light"),
-    do: "hidden [[data-theme=light][data-theme-source=user]_&]:inline"
-
-  defp theme_check("dark"),
-    do: "hidden [[data-theme=dark][data-theme-source=user]_&]:inline"
 
   @doc """
   Provides dark vs light theme toggle based on themes defined in app.css.

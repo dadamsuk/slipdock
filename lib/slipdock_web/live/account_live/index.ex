@@ -86,7 +86,7 @@ defmodule SlipdockWeb.AccountLive.Index do
       quick_add={@quick_add}
       shortcuts={@shortcuts}
       viewport={@viewport}
-      nav_active={:account}
+      nav_active={if @live_action == :agent, do: :agent, else: :account}
     >
       <:nav><span class="font-semibold">{tab_title(@live_action)}</span></:nav>
       <div class="kanban-scroll h-full overflow-y-auto">

@@ -221,6 +221,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   """
   def board_menu(assigns) do
     ~H"""
+    <li class="menu-title">This board</li>
     <li :if={@ai? and !@card_only}>
       <button type="button" id="board-chat-menu" phx-click="toggle" phx-target="#page-ai">
         <.icon name="hero-chat-bubble-left-ellipsis" class="size-4" /> Chat about this page with AI
@@ -244,7 +245,8 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :meetings_path, :string, default: nil
 
   # The board's own menu, wherever it is drawn: the header's `…` or the
-  # phone's Menu, each with its own id on the share link.
+  # phone's Menu, each with its own id on the share link. Three groups:
+  # what you do with the board, how it is set up, and what it has done.
   defp board_menu_items(assigns) do
     ~H"""
     <li :if={@can_manage}>
@@ -252,21 +254,21 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         <.icon name="hero-user-plus" class="size-4" /> Share this board
       </.link>
     </li>
-    <li>
-      <.link patch={@paths.tags}><.icon name="hero-tag" class="size-4" /> Tags</.link>
-    </li>
-    <li>
-      <.link patch={@paths.activity}><.icon name="hero-bolt" class="size-4" /> Activity</.link>
-    </li>
-    <li>
-      <.link patch={@paths.archive}>
-        <.icon name="hero-archive-box" class="size-4" /> Archived cards
+    <%!-- Meeting mode on, but this board has had no capture yet: one way in,
+          rather than a tab with nothing behind it (see `Slipdock.Meetings`). --%>
+    <li :if={@meetings_path}>
+      <.link navigate={@meetings_path} id={@share_id <> "-capture-meeting"}>
+        <.icon name="hero-microphone" class="size-4" /> Capture a meeting
       </.link>
     </li>
     <li>
       <.link navigate={@paths.tidy} id={@share_id <> "-tidy"}>
         <.icon name="hero-sparkles" class="size-4" /> Tidy up…
       </.link>
+    </li>
+
+    <li class="mt-1 border-t border-base-300/60 pt-1">
+      <.link patch={@paths.tags}><.icon name="hero-tag" class="size-4" /> Tags</.link>
     </li>
     <li :if={@can_manage}>
       <.link patch={@paths.automations}>
@@ -279,11 +281,13 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         <.icon name="hero-cog-6-tooth" class="size-4" /> Board settings
       </.link>
     </li>
-    <%!-- Meeting mode on, but this board has had no capture yet: one way in,
-          rather than a tab with nothing behind it (see `Slipdock.Meetings`). --%>
-    <li :if={@meetings_path}>
-      <.link navigate={@meetings_path} id={@share_id <> "-capture-meeting"}>
-        <.icon name="hero-microphone" class="size-4" /> Capture a meeting
+
+    <li class="mt-1 border-t border-base-300/60 pt-1">
+      <.link patch={@paths.activity}><.icon name="hero-bolt" class="size-4" /> Activity</.link>
+    </li>
+    <li>
+      <.link patch={@paths.archive}>
+        <.icon name="hero-archive-box" class="size-4" /> Archived cards
       </.link>
     </li>
     """

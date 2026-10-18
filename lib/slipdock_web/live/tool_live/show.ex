@@ -246,6 +246,7 @@ defmodule SlipdockWeb.ToolLive.Show do
       quick_add={@quick_add}
       shortcuts={@shortcuts}
       viewport={@viewport}
+      nav_active={:tools}
     >
       <:nav>
         <.link navigate={~p"/tools"} class="text-base-content/60 hover:text-base-content">Tools</.link>
