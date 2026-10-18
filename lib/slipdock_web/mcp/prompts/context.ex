@@ -189,4 +189,62 @@ defmodule SlipdockWeb.MCP.Prompts.Context do
 
   @doc "`path` from My work, as one string."
   def path_line(%{path: path}), do: Enum.join(path, " › ")
+
+  @doc """
+  The card `ref` names — `129`, `#129`, or `#129 Fix the retry` as
+  completion offers it — loaded in full, if the token may read it.
+  """
+  def card(context, ref) do
+    auth = Args.auth(context)
+
+    with {:ok, id} <- card_id(ref),
+         %Card{} = card <- Boards.get_card(id) || {:error, "no card you can see matches #{ref}"},
+         :ok <- Args.refusal(Authorize.card(auth, card, :read)) do
+      {:ok, Authorize.visible(auth, card.id |> Boards.get_card!() |> Repo.preload(:board))}
+    end
+  end
+
+  defp card_id(ref) do
+    case Integer.parse(ref |> String.trim() |> String.trim_leading("#")) do
+      {n, rest} when n > 0 and (rest == "" or binary_part(rest, 0, 1) == " ") -> {:ok, n}
+      _ -> {:error, "card must be a card number, like 129 or #129"}
+    end
+  end
+
+  @doc "A card's open subcards, `- ` lines by list, at most `max`: `nil` when it has none."
+  def open_subcards(context, %Card{sub_board: %Board{id: id}}, max) do
+    auth = Args.auth(context)
+    board = Authorize.visible(auth, Boards.get_board!(id))
+
+    board.columns
+    |> Enum.flat_map(fn col ->
+      col.cards |> Enum.reject(& &1.completed) |> Enum.map(&"#{card_line(&1)} — #{col.name}")
+    end)
+    |> list(max, "list_cards with board #{board.code || board.id}")
+  end
+
+  def open_subcards(_context, _card, _max), do: nil
+
+  @doc "A card's handoff, as it reads at the top of the card: nil when there is none."
+  def handoff_text(%Card{} = card) do
+    case Boards.current_handoff(card) do
+      nil ->
+        nil
+
+      h ->
+        who = if match?(%{name: _}, h.user), do: " by #{h.user.name || h.user.email}", else: ""
+
+        "Left off: #{h.next_step || "(no next step given)"}\n" <>
+          "(#{Calendar.strftime(h.inserted_at, "%Y-%m-%d %H:%M")} UTC#{who})" <>
+          if(h.body && String.trim(h.body) != "", do: "\n\n" <> String.trim(h.body), else: "")
+    end
+  end
+
+  @doc "`text` cut to `max` characters, with an ellipsis when it was cut."
+  def clip(nil, _max), do: ""
+
+  def clip(text, max) do
+    text = String.trim(text)
+    if String.length(text) <= max, do: text, else: String.slice(text, 0, max) <> "…"
+  end
 end

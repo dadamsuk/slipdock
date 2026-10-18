@@ -12,7 +12,13 @@ defmodule SlipdockWeb.MCP.Prompts do
 
   alias SlipdockWeb.MCP.Prompts
 
-  @prompts [Prompts.PlanMyDay, Prompts.WeeklyReview, Prompts.Triage]
+  @prompts [
+    Prompts.PlanMyDay,
+    Prompts.WeeklyReview,
+    Prompts.Triage,
+    Prompts.Resume,
+    Prompts.LeaveHandoff
+  ]
 
   # About 6k tokens, at the usual four characters to one.
   @max_chars 24_000
