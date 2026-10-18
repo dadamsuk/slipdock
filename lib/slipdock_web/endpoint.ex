@@ -59,6 +59,10 @@ defmodule SlipdockWeb.Endpoint do
     plug Phoenix.Ecto.CheckRepoStatus, otp_app: :slipdock
   end
 
+  # The deploy's health probe; before the request log and the session, so
+  # polling it is cheap and quiet (see `SlipdockWeb.Health`).
+  plug SlipdockWeb.Health
+
   plug Plug.RequestId
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
 

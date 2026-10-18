@@ -420,6 +420,16 @@ stops, and ask again a second later. It trusts the private ranges in front of it
 and `X-Forwarded-Proto` from a tunnel or host proxy pass through unchanged.
 It needs Docker Compose 2.24 or later.
 
+`deploy/deploy.sh <tag>` is the same upgrade pinned to one image
+(`sha-<commit>` or a release version like `1.2.3`): it pulls and recreates the
+app alone, leaves Postgres running, records the tag it replaced, and prints the
+running digest, so `deploy.sh <previous-tag>` is the rollback. The release
+workflow's `deploy` job runs it on the project's own server over Tailscale SSH
+after each push to main or a `v*` tag, then waits for `GET /healthz` to report
+`ok` on that commit. `/healthz` answers `{"status":"ok","sha":…}`, or 503 when
+the database does not answer. Rolling back the image does not roll back the
+schema: migrations only go forward.
+
 #### Backing up
 
 There are two volumes. `slipdock-db` is the Postgres database; `slipdock-data`
