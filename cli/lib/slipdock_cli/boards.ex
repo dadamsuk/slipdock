@@ -10,7 +10,7 @@ defmodule SlipdockCLI.Boards do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(guide search ask search-status saved save unsave boards board columns tags activity cards card swimlanes views favourites fav unfav table fields milestones templates add copy repeat recurring edit set vote status handoff new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
+  @commands ~w(guide search ask search-status saved save unsave boards board columns tags activity cards card swimlanes views favourites fav unfav table fields milestones templates add copy repeat recurring snooze wake edit set vote status handoff new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -114,7 +114,8 @@ defmodule SlipdockCLI.Boards do
           o[:all] -> "all"
           o[:archived] -> "true"
           true -> nil
-        end
+        end,
+      snoozed: o[:snoozed]
     )
     |> out(o, &Render.cards(&1["cards"]))
   end
@@ -591,6 +592,36 @@ defmodule SlipdockCLI.Boards do
       true ->
         HTTP.put("/cards/#{enc(id)}/recurrence", attrs) |> out(o, &Render.recurrence/1)
     end
+  end
+
+  # Snooze (W-1803): `snooze <id>... <when>` hides the cards until then
+  # (a date, a datetime, or tomorrow / mon / next week / in 3 days);
+  # `wake <id>...` brings them back now.
+  def run("snooze", args, o) do
+    {ids, until} =
+      case snooze_args(args) do
+        {:ok, ids, until} -> {ids, until}
+        {:error, message} -> fail(message)
+      end
+
+    body =
+      compact(%{
+        "until" => until,
+        "note" => o[:note],
+        "notify" => if(o[:notify], do: true)
+      })
+
+    each_card(ids, fn id ->
+      HTTP.post("/cards/#{enc(id)}/snooze", body)
+      |> out(o, fn r -> IO.puts("snoozed #{Render.card_line(r["card"], true)}") end)
+    end)
+  end
+
+  def run("wake", ids, o) when ids != [] do
+    each_card(ids, fn id ->
+      HTTP.delete("/cards/#{enc(id)}/snooze")
+      |> out(o, fn r -> IO.puts("woke #{Render.card_line(r["card"], true)}") end)
+    end)
   end
 
   def run("recurring", [ref], o),
@@ -1323,6 +1354,25 @@ defmodule SlipdockCLI.Boards do
       [name, wip, color | _] -> %{"name" => name, "wip_limit" => wip, "color" => color}
     end
   end
+
+  @doc false
+  # The card ids first, then the moment, which may be several words.
+  def snooze_args(args) do
+    case Enum.split_while(args, &card_id?/1) do
+      {[], _} ->
+        {:error, "usage: slipdock snooze <id>... <when> [--note T] [--notify]"}
+
+      {_ids, []} ->
+        {:error, "snooze until when? A date (2026-11-02), tomorrow, mon, next week, in 3 days"}
+
+      {ids, words} ->
+        {:ok, Enum.map(ids, &String.trim_leading(&1, "#")), Enum.join(words, " ")}
+    end
+  end
+
+  defp card_id?(arg), do: String.match?(arg, ~r/^#?\d+$/)
+
+  defp each_card(ids, fun), do: Enum.each(ids, &fun.(String.trim_leading(&1, "#")))
 
   # --ends is a date or "never"; --count N ends it after N in all.
   defp repeat_ends(o) do

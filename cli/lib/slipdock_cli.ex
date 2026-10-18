@@ -142,6 +142,7 @@ defmodule SlipdockCLI do
         --deps blocked|ready|blocking|violated|free
         --assignee NAME|EMAIL|me | --no-assignee
         --open | --done   --archived (archived alone) | --all (archived too)
+        --snoozed include|only                    (snoozed cards are left out otherwise)
     card <id>                           show one card in full (checklist, comments)
     activity <board> [--limit N] [--card ID]  recent activity on a board (or one card)
     swimlanes <board> [view opts]       cards as a grid, grouped on two axes
@@ -523,6 +524,12 @@ defmodule SlipdockCLI do
     repeat <id> --skip | --pause | --resume | --off
                                         let the next one go / hold it / carry on / stop it
     recurring <board>                   every card on the board that repeats, soonest first
+    snooze <id>... <when> [--note T] [--notify]
+                                        hide cards until a date (2026-11-02, tomorrow, mon,
+                                        next week, in 3 days; midnight where you are). They
+                                        wake at the top of their list, or sooner when someone
+                                        else comments or assigns them. --notify alerts then
+    wake <id>...                        bring snoozed cards back now
     copy <id> [--board B] [--column C] [--title T] [--top|--bottom]
                                         a copy of the card as it is now: checklist unticked,
                                         subcards reopened; no comments, dates or attachments.
@@ -801,6 +808,10 @@ defmodule SlipdockCLI do
     bottom: :boolean,
     index: :integer,
     off: :boolean,
+    # `slipdock snooze <id> mon --note T --notify`, `slipdock cards B --snoozed only`.
+    note: :string,
+    notify: :boolean,
+    snoozed: :string,
     # `slipdock repeat <id> "every mon" --at 07:00 --lead 2 --ends DATE|--count N`.
     at: :string,
     lead: :integer,

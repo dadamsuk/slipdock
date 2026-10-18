@@ -188,6 +188,22 @@ defmodule SlipdockWeb.API.JSON do
     }
   end
 
+  @doc "A card's snooze, while it is snoozed: until when, why, who and how it wakes."
+  def snooze(%Card{} = c) do
+    if Card.snoozed?(c) do
+      %{
+        until: c.snoozed_until,
+        note: c.snooze_note,
+        by_id: c.snoozed_by_id,
+        at: c.snoozed_at,
+        notify: c.snooze_notify,
+        wake_on_activity: c.snooze_wake_on_activity
+      }
+    end
+  end
+
+  def snooze(_), do: nil
+
   defp current_recurrence(%Card{recurrence: %Slipdock.Recurrence.Series{} = s}), do: recurrence(s)
   defp current_recurrence(_), do: nil
 
@@ -257,6 +273,9 @@ defmodule SlipdockWeb.API.JSON do
       # (W-1802); `series_id` marks any instance a series made.
       recurrence: current_recurrence(c),
       series_id: c.series_id,
+      # Hidden until a moment (W-1803): nil when it isn't snoozed.
+      snoozed_until: if(Card.snoozed?(c), do: c.snoozed_until),
+      snooze: snooze(c),
       description: c.description,
       priority: c.priority,
       flags: c.flags,

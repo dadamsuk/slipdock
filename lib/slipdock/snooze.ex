@@ -138,6 +138,22 @@ defmodule Slipdock.Snooze do
 
   def resolve_until(_value, _user, _now), do: {:error, :bad_date}
 
+  @doc "What a refusal from `snooze/4` or `wake/2` means, in a sentence."
+  def error_message(:past), do: "the snooze must end in the future"
+  def error_message(:completed), do: "a completed card can't be snoozed"
+  def error_message(:archived), do: "an archived card can't be snoozed"
+
+  def error_message(:stand_in),
+    do: "a stand-in can't be snoozed — snooze the card it stands for"
+
+  def error_message(:bad_date),
+    do:
+      "until must be a date (YYYY-MM-DD), a datetime (ISO 8601) or a phrase such as " <>
+        "tomorrow, mon, next week, in 3 days"
+
+  def error_message(:note_too_long), do: "the note can be at most #{@note_max} characters"
+  def error_message(:not_snoozed), do: "the card isn't snoozed"
+
   ## Waking -------------------------------------------------------------------
 
   @doc """

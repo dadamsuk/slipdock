@@ -699,6 +699,8 @@ defmodule SlipdockWeb.Router do
     put "/cards/:id/recurrence", RecurrenceController, :update
     delete "/cards/:id/recurrence", RecurrenceController, :delete
     post "/cards/:id/recurrence/skip", RecurrenceController, :skip
+    post "/cards/:id/snooze", SnoozeController, :create
+    delete "/cards/:id/snooze", SnoozeController, :delete
     post "/cards/:id/checklist", CardController, :add_checklist_item
     post "/cards/:id/comments", CardController, :add_comment
     get "/cards/:id/handoff", CardController, :handoff

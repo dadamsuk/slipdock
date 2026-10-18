@@ -353,6 +353,8 @@ defmodule Slipdock.Portable.Export do
       # The series this card is the current instance of, if it repeats
       # (W-1802): the rule and where it had got to, so an import carries on.
       recurrence: recurrence_json(refs.loaded.recurrences[card.id], refs),
+      # Hidden until a moment (W-1803), while it still is.
+      snooze: snooze_json(card, refs),
       urls: owned(refs, :urls, {:card, card.id}),
       fields: field_value_json({:card, card.id}, refs)
     }
@@ -516,6 +518,7 @@ defmodule Slipdock.Portable.Export do
 
     user_ids =
       Enum.map(cards, & &1.assignee_id) ++
+        Enum.map(cards, & &1.snoozed_by_id) ++
         Enum.map(pages, & &1.assignee_id) ++
         Enum.concat(Map.values(assignees)) ++
         ((Map.values(statuses) ++ Map.values(handoffs))
@@ -607,6 +610,19 @@ defmodule Slipdock.Portable.Export do
   defp owner_key(%{page_id: id}), do: {:page, id}
 
   defp owned(refs, kind, key), do: Map.get(refs.loaded[kind], key, [])
+
+  defp snooze_json(%Card{} = card, refs) do
+    if Card.snoozed?(card) do
+      %{
+        until: card.snoozed_until,
+        note: card.snooze_note,
+        by: card.snoozed_by_id && Refs.email_of(card.snoozed_by_id, refs),
+        at: card.snoozed_at,
+        notify: card.snooze_notify,
+        wake_on_activity: card.snooze_wake_on_activity
+      }
+    end
+  end
 
   defp recurrence_json(nil, _refs), do: nil
 
