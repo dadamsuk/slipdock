@@ -13,6 +13,7 @@ defmodule Slipdock.Gardener.Steps do
     * `flag` `%{"card", "flag"}` – set a flag
     * `comment` `%{"card", "body"}` – comment, as the person applying it
     * `snooze` `%{"card", "until"}` – snooze it (a date, or a phrase quick add reads)
+    * `redate` `%{"card", "due"}` – give it a new due date (ISO 8601, or nil)
     * `rewrite_link` `%{"page", "from", "to"}` – point `[[from]]` at `[[to]]`
     * `file_page` `%{"page", "folder"}` – into that folder (nil: out of any)
 
@@ -37,7 +38,7 @@ defmodule Slipdock.Gardener.Steps do
   alias Slipdock.Wiki
   alias Slipdock.Wiki.Page
 
-  @ops ~w(complete move archive link_duplicate flag comment snooze rewrite_link file_page)
+  @ops ~w(complete move archive link_duplicate flag comment snooze redate rewrite_link file_page)
 
   @doc "The ops a proposal may use."
   def ops, do: @ops
@@ -280,6 +281,21 @@ defmodule Slipdock.Gardener.Steps do
     end
   end
 
+  defp apply_step(%{"op" => "redate", "card" => id, "due" => due}, user) do
+    with {:ok, card} <- card(id) do
+      from = card.due_date && Date.to_iso8601(card.due_date)
+
+      case Boards.update_card(card, %{"due_date" => due}, by: user) do
+        {:ok, updated} ->
+          to = updated.due_date && Date.to_iso8601(updated.due_date)
+          {:ok, [%{"op" => "redate", "card" => id, "due" => from, "expect" => to}]}
+
+        {:error, cs} ->
+          {:error, describe_error(cs)}
+      end
+    end
+  end
+
   defp apply_step(%{"op" => "rewrite_link", "page" => id, "from" => from, "to" => to}, user) do
     with {:ok, page} <- page(id) do
       body = rewrite(page.body, from, to)
@@ -363,6 +379,14 @@ defmodule Slipdock.Gardener.Steps do
       if card.column_id == column_id,
         do: :ok,
         else: changed(card, "has been moved to another list since")
+    end
+  end
+
+  defp expect(%{"op" => "redate", "card" => id, "expect" => due}) do
+    with {:ok, card} <- card(id) do
+      if (card.due_date && Date.to_iso8601(card.due_date)) == due,
+        do: :ok,
+        else: changed(card, "has been given another due date since")
     end
   end
 

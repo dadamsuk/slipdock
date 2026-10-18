@@ -70,6 +70,17 @@ defmodule Slipdock.Gardener.Context do
     end
   end
 
+  @doc """
+  The list of `board_id` playing `role` — `:ready`, `:backlog`, `:doing` or
+  `:done` — as the agent guide reads a board's lists, or nil.
+  """
+  def role_column(%__MODULE__{} = ctx, board_id, role) do
+    case board_columns(ctx, board_id) do
+      [] -> nil
+      columns -> Map.get(SlipdockWeb.APIGuide.list_roles(columns), role)
+    end
+  end
+
   @doc "The first list of `board_id` with that category, or nil."
   def first_column(%__MODULE__{} = ctx, board_id, category) do
     ctx |> board_columns(board_id) |> Enum.find(&(&1.category == category))
