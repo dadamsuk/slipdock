@@ -199,6 +199,13 @@ defmodule Slipdock.Gardener.StepsTest do
       refute Steps.needs_pick?([step])
     end
 
+    test "an other of keep is the card kept" do
+      steps = [%{"op" => "link_duplicate", "card" => "pick", "other" => "keep", "from" => [1, 2]}]
+
+      assert {:ok, [%{"op" => "link_duplicate", "card" => 1, "other" => 2}]} =
+               Steps.resolve_picks(steps, 2)
+    end
+
     test "without a keep, or a keep that isn't a candidate, is refused" do
       steps = [%{"op" => "archive", "card" => "pick", "from" => [1, 2]}]
       assert {:error, "say which card to keep: one of #1, #2"} = Steps.resolve_picks(steps, nil)
