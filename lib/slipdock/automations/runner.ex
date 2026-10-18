@@ -284,7 +284,10 @@ defmodule Slipdock.Automations.Runner do
   # nobody watching, and an agent that stops to ask waits for ever.
   @unattended "You are running unattended: nobody will answer questions. Choose any inputs " <>
                 "from the card, say what you chose in a comment, and carry on. If something " <>
-                "is missing that you can't infer, comment, flag the card waiting and stop."
+                "is missing that you can't infer, comment, flag the card waiting and stop. " <>
+                "Whenever you stop with the card unfinished, leave a handoff first " <>
+                "(leave_handoff, or slipdock handoff <id> --next): the one next step and a " <>
+                "short note, so whoever picks the card up next reads that before anything else."
 
   @doc "The paragraph that ends every runner job's prompt."
   def unattended, do: @unattended

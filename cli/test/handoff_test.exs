@@ -144,6 +144,22 @@ defmodule SlipdockCLI.HandoffTest do
       assert out =~ "Gotchas: seed 42"
     end
 
+    test "a runner's note, with nobody behind it, is from a runner" do
+      out =
+        capture_io(fn ->
+          Render.card(
+            card(%{
+              "next_step" => "Go",
+              "via" => "runner",
+              "job_id" => 3,
+              "at" => "2026-10-18T00:30:00Z"
+            })
+          )
+        end)
+
+      assert out =~ "a runner · 2026-10-18T00:30 · runner · job #3"
+    end
+
     test "says nothing of it when there is none" do
       out = capture_io(fn -> Render.card(card(nil)) end)
       refute out =~ "Left off"
