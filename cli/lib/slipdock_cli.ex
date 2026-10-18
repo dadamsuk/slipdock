@@ -8,6 +8,7 @@ defmodule SlipdockCLI do
     Auth,
     Automations,
     Boards,
+    Garden,
     Meetings,
     Runners,
     Skills,
@@ -538,6 +539,15 @@ defmodule SlipdockCLI do
                                         wake at the top of their list, or sooner when someone
                                         else comments or assigns them. --notify alerts then
     wake <id>...                        bring snoozed cards back now
+    garden <board> [--run] [--check K]  tidy-up suggestions: epics done but open, cards stuck in
+                                        progress, overdue, duplicates, orphaned pages, mistyped
+                                        [[links]]. --run looks the board over first
+    garden apply <id>... [--keep CARD] [--choice NAME]
+                                        apply suggestions you approve (--keep: the duplicate
+                                        that stays; --choice: one of its alternatives)
+    garden dismiss|undo <id>...         dismiss (it stays dismissed) or undo an applied one
+    garden settings <board> [<check> key=value...]
+                                        show the checks, or change one (enabled=false, days=30)
     copy <id> [--board B] [--column C] [--title T] [--top|--bottom]
                                         a copy of the card as it is now: checklist unticked,
                                         subcards reopened; no comments, dates or attachments.
@@ -777,6 +787,11 @@ defmodule SlipdockCLI do
     next: :string,
     simple: :boolean,
     days: :integer,
+    # `slipdock garden <board> --run --check K`, `garden apply <id> --keep N --choice C`.
+    run: :boolean,
+    check: :string,
+    keep: :string,
+    choice: :string,
     goal: :string,
     template: :string,
     save_template: :string,
@@ -988,7 +1003,20 @@ defmodule SlipdockCLI do
 
   # Each area module lists the command names it answers to; the first that
   # claims a name gets every clause of it, so a name must live in one place.
-  @areas [Auth, Admin, Boards, Automations, Runners, Wiki, Vaults, Sync, Skills, Tools, Meetings]
+  @areas [
+    Auth,
+    Admin,
+    Boards,
+    Garden,
+    Automations,
+    Runners,
+    Wiki,
+    Vaults,
+    Sync,
+    Skills,
+    Tools,
+    Meetings
+  ]
 
   defp run(cmd, args, o) do
     case Enum.find(@areas, &(cmd in &1.commands())) do

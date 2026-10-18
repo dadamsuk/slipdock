@@ -708,6 +708,12 @@ defmodule SlipdockWeb.Router do
     put "/cards/:id/recurrence", RecurrenceController, :update
     delete "/cards/:id/recurrence", RecurrenceController, :delete
     post "/cards/:id/recurrence/skip", RecurrenceController, :skip
+    get "/boards/:board/garden", GardenController, :index
+    post "/boards/:board/garden", GardenController, :create
+    patch "/boards/:board/garden/settings", GardenController, :settings
+    post "/garden/suggestions/:id/apply", GardenController, :apply
+    post "/garden/suggestions/:id/dismiss", GardenController, :dismiss
+    post "/garden/suggestions/:id/undo", GardenController, :undo
     post "/cards/:id/snooze", SnoozeController, :create
     delete "/cards/:id/snooze", SnoozeController, :delete
     post "/cards/:id/checklist", CardController, :add_checklist_item
