@@ -794,6 +794,16 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         <div class="space-y-1.5 border-t border-base-content/10 pt-4">
           <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Actions</span>
           <button
+            id="duplicate-card"
+            phx-target={@target}
+            type="button"
+            class="btn btn-sm w-full justify-start"
+            phx-click="duplicate_card"
+            title="A copy as it is now: checklist unticked, subcards reopened; no comments, dates or files"
+          >
+            <.icon name="hero-document-duplicate" class="size-4" /> Duplicate
+          </button>
+          <button
             phx-target={@target}
             type="button"
             class="btn btn-sm w-full justify-start"

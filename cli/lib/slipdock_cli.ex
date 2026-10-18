@@ -512,6 +512,10 @@ defmodule SlipdockCLI do
     timer <id> start|stop               run a card's timer; stopping adds what it ran to the
                                         time spent
     log <id> <time>                     add time spent by hand (same as edit --log)
+    copy <id> [--board B] [--column C] [--title T] [--top|--bottom]
+                                        a copy of the card as it is now: checklist unticked,
+                                        subcards reopened; no comments, dates or attachments.
+                                        Lands straight after the original unless told otherwise
     move <id> <column> [--top|--bottom|--index N]
     move <id> <column> --board B         move the card to a list on another board, with its
                                          subcards; tags travel by name, custom fields only

@@ -1590,6 +1590,12 @@ defmodule Slipdock.Boards do
   end
 
   @doc """
+  A copy of `card` as it is now, into `column` (nil: its own list). See
+  `Slipdock.Boards.Copy` for what is and isn't carried over, and the options.
+  """
+  defdelegate copy_card(card, column \\ nil, opts \\ []), to: Slipdock.Boards.Copy
+
+  @doc """
   Adds a card to `column`. `opts[:by]` is the person writing it, when known:
   it is who anybody `@mentioned` in the description is told mentioned them
   (see `Slipdock.Mentions`).
