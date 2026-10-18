@@ -350,7 +350,10 @@ defmodule SlipdockWeb.TimelineComponents do
         end %>
       <li
         id={"tl-row-#{SlipdockWeb.SlipdockComponents.item_id(bar.card)}"}
-        class={["px-3 py-2", bar.card.completed && "opacity-60"]}
+        class={[
+          "px-3 py-2",
+          (bar.card.completed or Slipdock.Boards.Card.snoozed?(bar.card)) && "opacity-60"
+        ]}
         style={bar.level > 0 && "padding-left: #{0.75 + bar.level * 1}rem"}
       >
         <div class="flex items-center gap-1.5">
@@ -476,7 +479,10 @@ defmodule SlipdockWeb.TimelineComponents do
         end %>
       <div
         id={"tl-#{@group_key}-#{SlipdockWeb.SlipdockComponents.item_id(bar.card)}"}
-        class={["tl-row tl-card-row group/row", bar.card.completed && "opacity-70"]}
+        class={[
+          "tl-row tl-card-row group/row",
+          (bar.card.completed or Slipdock.Boards.Card.snoozed?(bar.card)) && "opacity-70"
+        ]}
         data-level={bar.level}
       >
         <div

@@ -90,10 +90,12 @@ defmodule Slipdock.QuickAdd.Capture do
         {line, comment} = QuickAdd.split_comment(text)
         # Nor is `every:`: the rule is read here, whichever way the rest is.
         {line, recurrence} = QuickAdd.take_every(line)
+        # And `snooze:` (W-1803), relative to the person's own today.
+        {line, snooze} = QuickAdd.take_snooze(line, catalogue.today)
         {plan, notes} = read(user, String.trim(line), catalogue, opts)
 
         create(
-          Map.merge(plan, %{comment: comment, user: user, recurrence: recurrence}),
+          Map.merge(plan, %{comment: comment, user: user, recurrence: recurrence, snooze: snooze}),
           notes,
           catalogue
         )
@@ -328,6 +330,14 @@ defmodule Slipdock.QuickAdd.Capture do
             _ -> []
           end
 
+        snooze =
+          with %Date{} = date <- plan[:snooze],
+               {:ok, _} <- Slipdock.Snooze.snooze(card, plan.user, date) do
+            [{:snooze, "💤 " <> Calendar.strftime(date, "%a %-d %b")}]
+          else
+            _ -> []
+          end
+
         if plan.board.parent_card_id,
           do: Boards.broadcast_tree(Boards.root_of_board(plan.board.id))
 
@@ -336,7 +346,9 @@ defmodule Slipdock.QuickAdd.Capture do
            card: card,
            board: plan.board,
            column: plan.column,
-           chips: plan.chips ++ repeat ++ if(plan.comment, do: [{:comment, "Comment"}], else: []),
+           chips:
+             plan.chips ++
+               repeat ++ snooze ++ if(plan.comment, do: [{:comment, "Comment"}], else: []),
            notes: notes
          }}
 

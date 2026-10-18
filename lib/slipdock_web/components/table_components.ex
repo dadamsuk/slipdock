@@ -137,7 +137,10 @@ defmodule SlipdockWeb.TableComponents do
             <tr
               :for={card <- if(MapSet.member?(@collapsed, group.key), do: [], else: group.cards)}
               id={"row-#{group.key}-#{SlipdockWeb.SlipdockComponents.item_id(card)}"}
-              class={["hover:bg-base-200/40", card.completed && "opacity-60"]}
+              class={[
+                "hover:bg-base-200/40",
+                (card.completed or Slipdock.Boards.Card.snoozed?(card)) && "opacity-60"
+              ]}
             >
               <td :for={{key, _label, _} <- @fields} class="align-middle">
                 <.cell field={key} card={card} board={@board} />
@@ -253,7 +256,10 @@ defmodule SlipdockWeb.TableComponents do
               <li
                 :for={card <- group.cards}
                 id={"row-#{group.key}-#{SlipdockWeb.SlipdockComponents.item_id(card)}"}
-                class={["space-y-1.5 px-3 py-2.5", card.completed && "opacity-60"]}
+                class={[
+                  "space-y-1.5 px-3 py-2.5",
+                  (card.completed or Slipdock.Boards.Card.snoozed?(card)) && "opacity-60"
+                ]}
               >
                 <div class="flex items-start gap-2">
                   <span :if={@done_field} class="pt-0.5">

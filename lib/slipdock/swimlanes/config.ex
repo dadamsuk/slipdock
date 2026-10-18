@@ -143,7 +143,7 @@ defmodule Slipdock.Swimlanes.Config do
   @default_tell @tell_keys -- ["summary"]
 
   @modes ~w(board swimlanes table timeline calendar outline narrative prioritise)
-  @scalar_fields ~w(mode rows cols unit depth sort dir q due done deps empty density width date place color_by span from to)a
+  @scalar_fields ~w(mode rows cols unit depth sort dir q due done deps empty snoozed density width date place color_by span from to)a
   # Per-visit state that a saved view must not pin: the timeline/calendar
   # anchor date, and a narrative's explicit range (its span is kept, so a
   # saved narrative stays relative to today).
@@ -168,6 +168,8 @@ defmodule Slipdock.Swimlanes.Config do
             done: "all",
             deps: nil,
             empty: "hide",
+            # Snoozed cards (W-1803), left out unless this says "show".
+            snoozed: "hide",
             density: "normal",
             width: "normal",
             date: nil,
@@ -452,6 +454,7 @@ defmodule Slipdock.Swimlanes.Config do
   defp cast(:dir, v, d), do: pick(v, @dirs, d)
   defp cast(:done, v, d), do: pick(v, Enum.map(@dones, &elem(&1, 0)), d)
   defp cast(:empty, v, d), do: pick(v, @empties, d)
+  defp cast(:snoozed, v, d), do: pick(v, @empties, d)
   defp cast(:density, v, d), do: pick(v, Enum.map(@densities, &elem(&1, 0)), d)
   defp cast(:width, v, d), do: pick(v, Enum.map(@widths, &elem(&1, 0)), d)
   defp cast(:place, v, d), do: pick(v, Enum.map(@places, &elem(&1, 0)), d)

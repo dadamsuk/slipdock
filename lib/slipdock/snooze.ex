@@ -53,6 +53,40 @@ defmodule Slipdock.Snooze do
   def filter(query, mode, now) when mode in ["only", :only], do: only_snoozed(query, now)
   def filter(query, _exclude, now), do: not_snoozed(query, now)
 
+  @doc """
+  `board` with its snoozed cards back in their lists, in list order, for the
+  views that show them on request (the "Show snoozed" toggle) and the ones
+  that always do (calendar and timeline, faded).
+  """
+  def with_snoozed(%{columns: columns} = board) when is_list(columns) do
+    columns =
+      Enum.map(columns, fn
+        %{snoozed: [_ | _] = asleep} = col ->
+          %{col | cards: Enum.sort_by(col.cards ++ asleep, &{&1.position, &1.id}), snoozed: []}
+
+        col ->
+          col
+      end)
+
+    %{board | columns: columns}
+  end
+
+  @doc """
+  The picker's presets for someone whose today is `today`, as
+  `{key, label, date}`: tomorrow, next Monday, a week today and the first
+  of next month. Each date means midnight where they are.
+  """
+  def presets(%Date{} = today) do
+    days_to_monday = 8 - Date.day_of_week(today)
+
+    [
+      {"tomorrow", "Tomorrow", Date.add(today, 1)},
+      {"monday", "Next Monday", Date.add(today, days_to_monday)},
+      {"week", "In a week", Date.add(today, 7)},
+      {"month", "Next month", today |> Date.shift(month: 1) |> Date.beginning_of_month()}
+    ]
+  end
+
   @doc "The longest a snooze note may be."
   def note_max, do: @note_max
 

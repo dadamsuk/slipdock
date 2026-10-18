@@ -139,17 +139,25 @@ defmodule SlipdockWeb.BoardLive.State do
     Enum.find(board.saved_views, &(to_string(&1.id) == to_string(id)))
   end
 
+  # Snoozed cards (W-1803): the calendar and the timeline draw them by their
+  # own dates, faded; the grid views only when "Show snoozed" is on.
+  defp view_board(board, mode, _config) when mode in [:calendar, :timeline],
+    do: Slipdock.Snooze.with_snoozed(board)
+
+  defp view_board(board, _mode, %{snoozed: "show"}), do: Slipdock.Snooze.with_snoozed(board)
+  defp view_board(board, _mode, _config), do: board
+
   def assign_grid(%{assigns: %{mode: :swimlanes, board: board, swim: config}} = socket) do
-    assign(socket, grid: Swimlanes.grid(board, config))
+    assign(socket, grid: Swimlanes.grid(view_board(board, :swimlanes, config), config))
   end
 
   def assign_grid(%{assigns: %{mode: :table, board: board, swim: config}} = socket) do
-    rows = Table.rows(board, config)
+    rows = Table.rows(view_board(board, :table, config), config)
     assign(socket, table_rows: rows, grid: %{shown: rows.shown, hidden: rows.hidden})
   end
 
   def assign_grid(%{assigns: %{mode: :timeline, board: board, swim: config}} = socket) do
-    timeline = Timeline.build(board, config)
+    timeline = Timeline.build(view_board(board, :timeline, config), config)
 
     assign(socket,
       timeline: timeline,
@@ -158,12 +166,12 @@ defmodule SlipdockWeb.BoardLive.State do
   end
 
   def assign_grid(%{assigns: %{mode: :calendar, board: board, swim: config}} = socket) do
-    calendar = Slipdock.Calendar.build(board, config)
+    calendar = Slipdock.Calendar.build(view_board(board, :calendar, config), config)
     assign(socket, calendar: calendar, grid: %{shown: calendar.shown, hidden: calendar.hidden})
   end
 
   def assign_grid(%{assigns: %{mode: :outline, board: board, swim: config}} = socket) do
-    outline = Outline.build(board, board.rollup, config)
+    outline = Outline.build(view_board(board, :outline, config), board.rollup, config)
 
     assign(socket,
       outline: outline,
@@ -370,6 +378,8 @@ defmodule SlipdockWeb.BoardLive.State do
           pages: pages,
           items: items,
           groups: groups,
+          # Snoozed (W-1803): counted in the list's footer, which shows them.
+          snoozed: Enum.filter(col.snoozed, &Slipdock.Filters.matches?(&1, filters)),
           hidden: length(col.cards) - length(visible) + (length(readable) - length(pages))
         }
       end)

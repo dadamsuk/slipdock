@@ -369,7 +369,7 @@ defmodule SlipdockWeb.CalendarComponents do
         "cal-chip group/chip flex min-w-0 items-center gap-1.5 rounded-md border-l-[3px] bg-base-100 pl-1.5 pr-1 shadow-sm ring-1 ring-base-content/5 transition hover:ring-primary/40",
         if(@compact, do: "py-0.5 text-2xs", else: "py-1 text-xs"),
         @can_write && "cursor-grab active:cursor-grabbing",
-        @card.completed && "opacity-60",
+        (@card.completed or Slipdock.Boards.Card.snoozed?(@card)) && "opacity-60",
         @overdue? && "ring-error/40",
         chip_border(if @on.("cover"), do: @card, else: %{color: nil})
       ]}

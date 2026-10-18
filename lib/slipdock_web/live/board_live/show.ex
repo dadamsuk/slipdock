@@ -34,7 +34,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   }
 
   alias SlipdockWeb.Params
-  alias SlipdockWeb.BoardLive.{Keyboard, Sharing, ViewEvents}
+  alias SlipdockWeb.BoardLive.{Keyboard, Sharing, SnoozeEvents, ViewEvents}
   alias Slipdock.Swimlanes.Config
 
   @empty_filters Slipdock.Filters.empty()
@@ -54,7 +54,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   # Events that change the board; refused with read-only access.
   @board_write_events ~w(add_column rename_column move_column quick_add_card move_card place_page focus_move
     focus_hold focus_add swim_move swim_quick_add cal_quick_add swim_save_view
-    swim_update_view swim_rename_view swim_delete_view bulk_apply)
+    swim_update_view swim_rename_view swim_delete_view bulk_apply) ++ SnoozeEvents.write_events()
   # Events whose handler checks the permission itself, because what it acts
   # on is not the open board or the open card: a card named by id, a page,
   # another board, a sprint picked from several boards.
@@ -67,7 +67,8 @@ defmodule SlipdockWeb.BoardLive.Show do
     start_rename_column cancel_rename_column start_add_card aim_document cancel_add_card
     quick_add_change open_card open_page focus_column focus_card focus_open focus_end
     validate_document swim_config swim_set swim_clear_filters table_sort cal_toggle_day
-    swim_toggle_row swim_start_add swim_cancel_add toggle_select_mode clear_selection)
+    swim_toggle_row swim_start_add swim_cancel_add toggle_select_mode clear_selection) ++
+                 SnoozeEvents.read_events()
 
   # Events only the board owner may perform.
   @owner_events ~w(swim_publish_view swim_unpublish_view)
@@ -78,6 +79,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   # guards have let them through.
   @view_events ViewEvents.events()
   @keyboard_events Keyboard.events()
+  @snooze_events SnoozeEvents.events()
 
   @doc false
   # For the test that every `handle_event/3` clause is in one of the lists.
@@ -126,6 +128,7 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   defp mount_assigns(socket, board) do
     socket
+    |> assign(SnoozeEvents.mount_assigns())
     |> assign(
       board: Access.hide_unreadable_dependencies(socket.assigns.current_user, board),
       # Read from the board row and the cached settings: no query of its own.
@@ -146,6 +149,8 @@ defmodule SlipdockWeb.BoardLive.Show do
       # it, and `bulk_bar/1` changes every card picked out at once.
       select_mode: false,
       selected: MapSet.new(),
+      # The reader's timezone: a snoozed card's day is theirs (W-1803).
+      zone: Slipdock.Timezones.of(socket.assigns.current_user),
       bulk_destinations: [],
       page_jumps: [],
       renaming_column: nil,
@@ -437,7 +442,8 @@ defmodule SlipdockWeb.BoardLive.Show do
   defp quick_parse(socket, title, target) do
     Slipdock.QuickAdd.parse(title, socket.assigns.board,
       users: socket.assigns.users,
-      columns: target.columns
+      columns: target.columns,
+      today: Slipdock.Timezones.today(socket.assigns.zone)
     )
   end
 
@@ -637,6 +643,9 @@ defmodule SlipdockWeb.BoardLive.Show do
   def handle_event(event, params, socket) when event in @keyboard_events,
     do: Keyboard.handle_event(event, params, socket)
 
+  def handle_event(event, params, socket) when event in @snooze_events,
+    do: SnoozeEvents.handle_event(event, params, socket)
+
   ## Events: sharing -------------------------------------------------------------
 
   def handle_event("share", %{"resource" => resource, "level" => _} = params, socket) do
@@ -811,6 +820,10 @@ defmodule SlipdockWeb.BoardLive.Show do
                     %{"rule" => parsed.recurrence},
                     socket.assigns.current_user
                   )
+
+              # `snooze: mon` (W-1803): added, and asleep until then.
+              if parsed[:snooze],
+                do: Slipdock.Snooze.snooze(card, socket.assigns.current_user, parsed.snooze)
 
               if parent, do: Boards.broadcast_tree(Boards.root_of_board(board.id))
 
@@ -1192,6 +1205,7 @@ defmodule SlipdockWeb.BoardLive.Show do
             form_key={@form_key}
             can_write={@can_write}
             favourites={@favourites}
+            zone={@zone}
           />
         </div>
       </div>
@@ -1229,8 +1243,12 @@ defmodule SlipdockWeb.BoardLive.Show do
         adding_column={@adding_column}
         uploads={@uploads}
         select_mode={@select_mode}
+        zone={@zone}
+        revealed_snoozed={@revealed_snoozed}
         selected={@selected}
       />
+
+      <SnoozeEvents.snooze_picker :if={@snoozing} snoozing={@snoozing} />
 
       <.bulk_bar
         :if={@select_mode and @mode == :board and !@card_only}
@@ -1264,7 +1282,8 @@ defmodule SlipdockWeb.BoardLive.Show do
       <%!-- The move picker stands in for the card while it is open: two
             full-screen modals on a phone is one too many, and the card's own
             click-away would fire on every tap inside the picker. Closing the
-            picker brings the card back, because the panel never changed. --%>
+            picker brings the card back, because the panel never changed. The
+            Snooze… picker (W-1803) stands in for it the same way. --%>
       <%!-- A placed wiki page's panel: everything a card's sidebar sets, for
             a document. Opened by clicking the tile's body; the document
             itself is one click on the tile's icon. --%>
@@ -1279,7 +1298,10 @@ defmodule SlipdockWeb.BoardLive.Show do
         close_path={@paths.close}
       />
       <.live_component
-        :if={@panel == :card and not is_nil(@card) and not @moving_board and not @sprint_picking}
+        :if={
+          @panel == :card and not is_nil(@card) and not @moving_board and not @sprint_picking and
+            is_nil(@snoozing)
+        }
         module={SlipdockWeb.BoardLive.CardComponent}
         id="card-panel"
         card={@card}
