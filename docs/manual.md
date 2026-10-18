@@ -2738,6 +2738,10 @@ can also:
 - rename it, move it, or file a page in another folder as well (see
   *One page, several folders*);
 - tag a page, archive a page, or delete a folder;
+- **Delete…** a page for good, history and all. It asks first, saying how
+  many pages under it are kept (they move to the top of the tree), and only
+  the board's owner can confirm; anyone else is told so and can archive it
+  instead. Deleting the page you are reading takes you back to the wiki;
 - sort a folder: as arranged, by name, last changed first, or newest first,
   with its folders always before its pages, or **Same as the top** to have
   it follow the top's order (a folder does until it is given one of its own);
