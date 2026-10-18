@@ -1097,11 +1097,40 @@ Hooks.Keys = {
   },
 }
 
+// The Snooze… picker (W-1803): each preset row carries a key of its own, so
+// "z" then "z" again is tomorrow. Letters typed into its date or note are
+// left alone. The picker marks itself as a filtered palette, so the page's
+// and the board's own letters stand down while it is up.
+Hooks.SnoozeKeys = {
+  // On the window, capturing, so it hears a key before the page's palette
+  // hook and the board's do — they would take Escape and the letters first.
+  mounted() {
+    window.addEventListener("keydown", (this.onKey = e => {
+      if (e.key === "Escape") {
+        e.preventDefault()
+        e.stopPropagation()
+        return this.pushEvent("cancel_snooze", {})
+      }
+      if (e.metaKey || e.ctrlKey || e.altKey || typing()) return
+      const row = this.el.querySelector(`[data-snooze-key="${CSS.escape(e.key.toLowerCase())}"]`)
+      if (!row) return
+      e.preventDefault()
+      e.stopPropagation()
+      row.click()
+    }), true)
+  },
+
+  destroyed() {
+    window.removeEventListener("keydown", this.onKey, true)
+  },
+}
+
 // What each set of labels is painted on, and what picking one does.
 const HINT_TARGETS = {
   open: {selector: ".kanban-card[data-id]", event: "open_card", params: id => ({id})},
   select: {selector: ".kanban-card[data-id]", event: "focus_card", params: id => ({id, hold: true})},
   column: {selector: ".kanban-column[data-id]", event: "focus_column", params: id => ({id})},
+  snooze: {selector: ".kanban-card[data-id]", event: "open_snooze", params: id => ({id})},
 }
 
 // The shortcuts that need a board: "j" opens a card by its label, "J" picks
@@ -1117,6 +1146,10 @@ Hooks.BoardKeys = {
     this.mode = null
     this.typed = ""
     document.addEventListener("keydown", (this.onKey = e => this.key(e)), true)
+    // The card under the pointer, for "z" with nothing focused (W-1803).
+    document.addEventListener("mouseover", (this.onOver = e => {
+      this.hovered = e.target.closest?.(".kanban-card[data-id]") || null
+    }))
     window.addEventListener("resize", (this.onBail = () => this.hide()))
     document.addEventListener("scroll", this.onBail, true)
   },
@@ -1128,6 +1161,7 @@ Hooks.BoardKeys = {
 
   destroyed() {
     document.removeEventListener("keydown", this.onKey, true)
+    document.removeEventListener("mouseover", this.onOver)
     window.removeEventListener("resize", this.onBail)
     document.removeEventListener("scroll", this.onBail, true)
     this.hide()
@@ -1163,6 +1197,16 @@ Hooks.BoardKeys = {
     }
 
     if (!this.can("board")) return
+    // "z" snoozes (W-1803): the card the keyboard is on, else the one under
+    // the pointer, else labels to pick one. The picker answers a second "z"
+    // with tomorrow.
+    if (e.key === "z" && this.can("move")) {
+      const card =
+        document.querySelector(".kanban-card[data-focus][data-id]") ||
+        (this.hovered?.isConnected ? this.hovered : null)
+      if (card) return this.send(e, "open_snooze", {id: card.dataset.id})
+      return this.start(e, "snooze")
+    }
     if (pickUpKey(e)) return this.can("move") && this.start(e, "select")
     if (e.key === "j") return this.start(e, "open")
     if (e.key === "c") return this.start(e, "column")

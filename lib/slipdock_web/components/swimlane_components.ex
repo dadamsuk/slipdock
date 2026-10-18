@@ -818,6 +818,24 @@ defmodule SlipdockWeb.SwimlaneComponents do
             <span class="block text-xs text-base-content/50">Also fills gaps between dates</span>
           </span>
         </label>
+        <label
+          :if={Enum.member?([:swimlanes, :table, :outline], @mode)}
+          id="display-snoozed"
+          class="flex cursor-pointer items-center gap-2"
+        >
+          <input type="hidden" name="snoozed" value="hide" />
+          <input
+            type="checkbox"
+            name="snoozed"
+            value="show"
+            checked={@config.snoozed == "show"}
+            class="toggle toggle-sm"
+          />
+          <span>
+            Show snoozed
+            <span class="block text-xs text-base-content/50">Cards hidden until a later day, faded</span>
+          </span>
+        </label>
       </div>
     </div>
     """
@@ -1092,6 +1110,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
   attr :form_key, :integer, required: true
   attr :can_write, :boolean, default: true
   attr :narrow, :boolean, default: false, doc: "stack the grid instead of laying it out"
+  attr :zone, :string, default: "Etc/UTC", doc: "the reader's timezone, for a snoozed card's day"
 
   attr :favourites, :any,
     default: nil,
@@ -1205,6 +1224,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
                 show={@show}
                 cover={Slipdock.Coloring.color(card, @config.color_by, @board)}
                 marks={@favourites}
+                zone={@zone}
               />
               <form
                 :if={@adding == "#{ri}:#{ci}"}
@@ -1360,6 +1380,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
                     show={@show}
                     cover={Slipdock.Coloring.color(card, @config.color_by, @board)}
                     marks={@favourites}
+                    zone={@zone}
                   />
                 </div>
 

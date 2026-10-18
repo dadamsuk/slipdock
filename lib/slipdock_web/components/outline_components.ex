@@ -108,7 +108,7 @@ defmodule SlipdockWeb.OutlineComponents do
         id={"ol-#{node.card.id}"}
         class={[
           "ol-row group/row border-b border-base-300/60 hover:bg-base-200/40",
-          node.card.completed && "opacity-60",
+          (node.card.completed or Slipdock.Boards.Card.snoozed?(node.card)) && "opacity-60",
           !node.match && "opacity-50"
         ]}
         data-level={node.level}

@@ -30,7 +30,8 @@ defmodule SlipdockWeb.Shortcuts do
        {"a", "Chat about this page with AI"},
        {"j", "Label every card on screen; type a label to open that card"},
        {"J", "Label every card; type a label to pick it up and move it"},
-       {"c", "Label every list; type a label to step through it"}
+       {"c", "Label every list; type a label to step through it"},
+       {"z", "Snooze the card under the pointer (or label them to pick one); z again is tomorrow"}
      ]},
     {"On an open card",
      [
@@ -58,6 +59,7 @@ defmodule SlipdockWeb.Shortcuts do
        {"Enter", "Open the card"},
        {"J", "Pick the card up"},
        {"c", "Add a card to this list"},
+       {"z", "Snooze the card; z z is tomorrow"},
        {"Esc", "Stop"}
      ]},
     {"In a wiki's tree (click a row first)",

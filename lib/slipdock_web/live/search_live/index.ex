@@ -557,6 +557,7 @@ defmodule SlipdockWeb.SearchLive.Index do
             archived={@archived}
             offer={@offer}
             mode={@mode}
+            zone={Slipdock.Timezones.of(@current_user)}
           />
 
           <.conversation
@@ -674,6 +675,7 @@ defmodule SlipdockWeb.SearchLive.Index do
   attr :archived, :boolean, required: true
   attr :offer, :any, required: true
   attr :mode, :atom, required: true
+  attr :zone, :string, default: "Etc/UTC", doc: "the reader's timezone, for a snoozed card's day"
 
   defp search_results(assigns) do
     ~H"""
@@ -720,6 +722,14 @@ defmodule SlipdockWeb.SearchLive.Index do
                 <span :if={result.card && result.card.column}>› {result.card.column.name}</span>
                 <span :if={result.card && result.card.archived_at} class="text-warning">
                   · archived
+                </span>
+                <span
+                  :if={result.card && Slipdock.Boards.Card.snoozed?(result.card)}
+                  data-role="snoozed"
+                >
+                  · 💤 until {result.card.snoozed_until
+                  |> Slipdock.Timezones.to_local(@zone)
+                  |> Calendar.strftime("%a %-d %b")}
                 </span>
                 <span :if={result.card && result.card.due_date}>· due {result.card.due_date}</span>
                 <span :if={result.page && result.page.summary}>· {result.page.summary}</span>

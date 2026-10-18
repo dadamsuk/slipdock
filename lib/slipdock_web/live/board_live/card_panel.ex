@@ -794,6 +794,8 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
 
         <.repeat_section card={@card} repeat={@repeat} target={@target} />
 
+        <.snooze_section card={@card} can_write={@can_write} current_user={@current_user} />
+
         <div class="space-y-1.5 border-t border-base-content/10 pt-4">
           <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Actions</span>
           <button
@@ -826,6 +828,64 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         </div>
       </fieldset>
     </aside>
+    """
+  end
+
+  attr :card, Card, required: true
+  attr :can_write, :boolean, required: true
+  attr :current_user, :any, default: nil
+
+  # Snooze (W-1803): until when, and why; Snooze… opens the board's picker
+  # and Wake now brings it back. Both are the board view's events, so they
+  # carry no target.
+  defp snooze_section(assigns) do
+    assigns =
+      assign(assigns,
+        snoozed: Card.snoozed?(assigns.card),
+        zone: Slipdock.Timezones.of(assigns.current_user)
+      )
+
+    ~H"""
+    <div
+      :if={@snoozed or (@can_write and !@card.completed and !Card.stand_in?(@card))}
+      id="card-snooze"
+      class="space-y-2 border-t border-base-content/10 pt-4"
+    >
+      <div class="flex items-center gap-2">
+        <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Snooze</span>
+        <button
+          :if={@can_write and !@card.completed}
+          id="snooze-open"
+          type="button"
+          class="btn btn-ghost btn-xs ml-auto"
+          phx-click="open_snooze"
+          phx-value-id={@card.id}
+          title="Hide it until a day (z on the board)"
+        >
+          {if @snoozed, do: "Change…", else: "Snooze…"}
+        </button>
+      </div>
+      <div :if={@snoozed} id="snooze-current" class="space-y-1 text-sm">
+        <p class="font-medium">
+          💤 Until {@card.snoozed_until
+          |> Slipdock.Timezones.to_local(@zone)
+          |> Calendar.strftime("%a %-d %b %Y")}
+        </p>
+        <p :if={@card.snooze_note} class="text-xs text-base-content/60" id="snooze-note">
+          {@card.snooze_note}
+        </p>
+        <button
+          :if={@can_write}
+          id="snooze-wake"
+          type="button"
+          class="btn btn-ghost btn-xs"
+          phx-click="wake_card"
+          phx-value-id={@card.id}
+        >
+          Wake now
+        </button>
+      </div>
+    </div>
     """
   end
 

@@ -15,6 +15,8 @@ defmodule Slipdock.QuickAdd do
     * `every: <how often>` – makes the card recurring (W-1802): `every: mon`,
       `every: weekday`, `every: 2w`, `every: month 1`, `every: month last fri`,
       `every: 3d after` (see `Slipdock.Recurrence.Rule.parse_phrase/2`)
+    * `snooze: <date>` – hides the new card until then (W-1803), in the same
+      date grammar as `due:`: `snooze: mon`, `snooze: next week`
     * `; <text>` – everything after the first semicolon is a comment on the
       new card, taken as written (commands in it are not read)
 
@@ -32,6 +34,7 @@ defmodule Slipdock.QuickAdd do
           assignee: User.t() | nil,
           comment: String.t() | nil,
           recurrence: String.t() | nil,
+          snooze: Date.t() | nil,
           unknown: [String.t()],
           chips: [{atom, String.t()}]
         }
@@ -51,6 +54,12 @@ defmodule Slipdock.QuickAdd do
   |\+\d+\s*(?:d|w|m)?
   |eow|eom|none|clear
   """
+
+  @snooze_regex Regex.compile!(
+                  "(?<![\\w#@])snooze\\s*:\\s*(" <>
+                    String.replace(@date_phrase, ~r/\s*\n\s*/, "") <> ")(?![\\w-])",
+                  "i"
+                )
 
   @date_regex Regex.compile!(
                 "(?<![\\w#@])(due|start|by|from)\\s*:?\\s*(" <>
@@ -78,11 +87,13 @@ defmodule Slipdock.QuickAdd do
       assignee: nil,
       comment: comment,
       recurrence: nil,
+      snooze: nil,
       unknown: [],
       chips: []
     }
 
     {text, acc} = take_every(text, acc)
+    {text, acc} = take_snooze(text, acc, today)
     {text, acc} = take_dates(text, acc, today)
     {text, acc} = take_mentions(text, acc, users)
     {text, acc} = take_hashes(text, acc, columns, tags)
@@ -95,7 +106,8 @@ defmodule Slipdock.QuickAdd do
   def commands?(%{attrs: attrs, column: col, tags: tags, assignee: a, unknown: u} = parsed),
     do:
       attrs != %{} or not is_nil(col) or tags != [] or not is_nil(a) or u != [] or
-        not is_nil(parsed[:comment]) or not is_nil(parsed[:recurrence])
+        not is_nil(parsed[:comment]) or not is_nil(parsed[:recurrence]) or
+        not is_nil(parsed[:snooze])
 
   @doc """
   Splits a line at its first semicolon: `{title, comment}`, the comment nil
@@ -165,6 +177,32 @@ defmodule Slipdock.QuickAdd do
 
       _ ->
         {text, acc}
+    end
+  end
+
+  ## Snoozing ---------------------------------------------------------------
+
+  @doc """
+  Takes a `snooze: <date>` out of `text`, relative to `today`:
+  `{text_without_it, date}`, the date nil when there is none or it doesn't
+  read (then it is left in the text).
+  """
+  @spec take_snooze(String.t(), Date.t()) :: {String.t(), Date.t() | nil}
+  def take_snooze(text, today) do
+    {text, acc} = take_snooze(text, %{snooze: nil, chips: []}, today)
+    {text, acc.snooze}
+  end
+
+  defp take_snooze(text, acc, today) do
+    with [whole, phrase] <- Regex.run(@snooze_regex, text),
+         {:ok, %Date{} = date} <- parse_date(phrase, today),
+         true <- Date.compare(date, today) == :gt do
+      {String.replace(text, whole, " ", global: false),
+       acc
+       |> Map.put(:snooze, date)
+       |> chip(:snooze, "💤 " <> Calendar.strftime(date, "%a %-d %b"))}
+    else
+      _ -> {text, acc}
     end
   end
 

@@ -308,6 +308,11 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :adding_column, :boolean, required: true
   attr :uploads, :map, required: true
   attr :select_mode, :boolean, default: false
+  attr :zone, :string, default: "Etc/UTC", doc: "the reader's timezone"
+
+  attr :revealed_snoozed, :any,
+    default: MapSet.new(),
+    doc: "the lists whose snoozed cards are shown, faded (W-1803)"
 
   attr :selected, :any,
     default: MapSet.new(),
@@ -400,7 +405,10 @@ defmodule SlipdockWeb.BoardLive.BoardView do
                 margin round it, no well behind it, and the cards sit straight
                 on the background, edge to edge bar a little breathing room. --%>
           <div
-            :for={%{column: column, cards: cards, groups: groups, hidden: hidden} <- @columns}
+            :for={
+              %{column: column, cards: cards, groups: groups, hidden: hidden, snoozed: snoozed} <-
+                @columns
+            }
             id={"column-#{column.id}"}
             data-id={column.id}
             class={[
@@ -584,6 +592,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
                   dismiss={@can_write}
                   selected={@select_mode && card_selected?(@selected, item)}
                   marks={@favourites}
+                  zone={@zone}
                 >
                   <:actions :if={@can_write and length(@board.columns) > 1}>
                     <.move_menu card={item} board={@board} />
@@ -593,6 +602,33 @@ defmodule SlipdockWeb.BoardLive.BoardView do
               <p :if={hidden > 0} class="px-1 py-1 text-center text-2xs text-base-content/60">
                 {hidden} hidden by filters
               </p>
+            </div>
+
+            <%!-- Snoozed cards (W-1803): counted here, and shown in place,
+                  faded, on request. Outside the sortable list, so they are
+                  not dragged about while asleep. --%>
+            <div :if={snoozed != []} class={["space-y-2", if(@narrow?, do: "px-3", else: "px-2")]}>
+              <div
+                :if={MapSet.member?(@revealed_snoozed, column.id)}
+                id={"snoozed-cards-#{column.id}"}
+                class="space-y-2"
+              >
+                <.card
+                  :for={item <- snoozed}
+                  card={item}
+                  id={"snoozed-card-#{item.id}"}
+                  compact={@swim.density == "compact"}
+                  show={Config.shown(@swim)}
+                  selected={@select_mode && card_selected?(@selected, item)}
+                  marks={@favourites}
+                  zone={@zone}
+                />
+              </div>
+              <SlipdockWeb.BoardLive.SnoozeEvents.snoozed_footer
+                column={column}
+                snoozed={snoozed}
+                revealed={MapSet.member?(@revealed_snoozed, column.id)}
+              />
             </div>
 
             <div :if={@can_write} class="p-2">
@@ -832,6 +868,14 @@ defmodule SlipdockWeb.BoardLive.BoardView do
             </optgroup>
           </select>
         </form>
+        <button
+          type="button"
+          id="bulk-snooze"
+          class="btn btn-ghost btn-xs gap-1"
+          phx-click="open_snooze"
+        >
+          <span aria-hidden="true">💤</span> Snooze…
+        </button>
         <button type="button" id="bulk-clear" class="btn btn-ghost btn-xs" phx-click="clear_selection">
           Clear
         </button>

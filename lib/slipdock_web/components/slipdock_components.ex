@@ -927,6 +927,8 @@ defmodule SlipdockWeb.SlipdockComponents do
     not (`false`); nil outside select mode
     """
 
+  attr :zone, :string, default: "Etc/UTC", doc: "the reader's timezone, for a snoozed card's day"
+
   attr :marks, :any,
     default: nil,
     doc: """
@@ -955,6 +957,7 @@ defmodule SlipdockWeb.SlipdockComponents do
     image = if on.("images"), do: Slipdock.Boards.Attachment.front_image(loaded_attachments(card))
     handoff = Slipdock.Boards.Card.open_handoff(card)
     recurrence = Slipdock.Boards.Card.recurrence(card)
+    snoozed = Slipdock.Boards.Card.snoozed?(card)
 
     facets = %{
       cover: on.("cover") and not is_nil(cover),
@@ -979,7 +982,10 @@ defmodule SlipdockWeb.SlipdockComponents do
       # it is what the next person needs before anything else on it.
       handoff: not is_nil(handoff),
       # A recurring card (W-1802): always marked, like the handoff.
-      recurrence: not is_nil(recurrence)
+      recurrence: not is_nil(recurrence),
+      # Snoozed (W-1803): only seen where snoozed cards are shown, and then
+      # always marked, with the day it wakes.
+      snoozed: snoozed
     }
 
     meta? = facets |> Map.drop([:cover, :image, :status, :tags]) |> Map.values() |> Enum.any?()
@@ -996,6 +1002,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         favourite?: favourite_mark?(assigns.marks, card),
         handoff: handoff,
         recurrence: recurrence,
+        snoozed: snoozed,
         # A wiki page is `page-7` where a card is `12`, so the drag-and-drop
         # and the click handlers can tell the two apart.
         item_id: item_id(card),
@@ -1012,7 +1019,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         "outline-none transition hover:shadow-md hover:ring-primary/40 active:cursor-grabbing",
         "focus-visible:ring-2 focus-visible:ring-primary/50",
         @page? && "kanban-page",
-        @card.completed && "opacity-60",
+        (@card.completed or @snoozed) && "opacity-60",
         @focus == :cursor && "z-10 ring-2 ring-secondary",
         @focus == :held && "z-10 scale-[1.02] shadow-lg ring-2 ring-primary",
         @selected && "z-10 bg-primary/5 ring-2 ring-primary"
@@ -1110,6 +1117,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         <.time_badge :if={@f.time} card={@card} />
         <.handoff_mark :if={@f.handoff} handoff={@handoff} class="size-3" />
         <.recurrence_mark :if={@f.recurrence} recurrence={@recurrence} class="size-3" />
+        <.snooze_mark :if={@f.snoozed} card={@card} zone={@zone} />
         <span :if={@actions != []} class="-mr-1 shrink-0">{render_slot(@actions)}</span>
       </div>
       <div :if={!@compact} class="space-y-2 p-3">
@@ -1185,6 +1193,7 @@ defmodule SlipdockWeb.SlipdockComponents do
           </span>
           <.handoff_mark :if={@f.handoff} handoff={@handoff} />
           <.recurrence_mark :if={@f.recurrence} recurrence={@recurrence} />
+          <.snooze_mark :if={@f.snoozed} card={@card} zone={@zone} />
           <span :if={@f.comments} class="chip chip-line text-base-content/70" title="Comments">
             <.icon name="hero-chat-bubble-left" class="size-3.5" /> {length(@card.comments)}
           </span>
@@ -1215,6 +1224,30 @@ defmodule SlipdockWeb.SlipdockComponents do
       <.icon name="hero-arrow-uturn-left" class={@class} />
     </span>
     """
+  end
+
+  attr :card, :any, required: true
+  attr :zone, :string, default: "Etc/UTC"
+
+  @doc "💤 and the day a snoozed card wakes (W-1803), the note as its tooltip."
+  def snooze_mark(assigns) do
+    ~H"""
+    <span
+      class="chip chip-line shrink-0 text-base-content/70"
+      data-role="snooze-mark"
+      title={snooze_title(@card, @zone)}
+    >
+      <span aria-hidden="true" class="leading-none">💤</span>
+      {@card.snoozed_until |> Slipdock.Timezones.to_local(@zone) |> Calendar.strftime("%-d %b")}
+      <span class="sr-only">Snoozed</span>
+    </span>
+    """
+  end
+
+  defp snooze_title(card, zone) do
+    local = Slipdock.Timezones.to_local(card.snoozed_until, zone)
+    until = "Snoozed until " <> Calendar.strftime(local, "%a %-d %b %Y %H:%M")
+    if card.snooze_note, do: until <> " — " <> card.snooze_note, else: until
   end
 
   attr :recurrence, :any, required: true
