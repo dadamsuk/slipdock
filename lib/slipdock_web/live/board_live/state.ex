@@ -86,6 +86,8 @@ defmodule SlipdockWeb.BoardLive.State do
         {panel, panel_path(assigns, panel)}
       end)
 
+    # The Tidy-up page is a page of its own, whatever the view (W-1807).
+    paths = Map.put(paths, :tidy, ~p"/boards/#{assigns.board}/tidy")
     paths = if assigns[:card_only], do: %{paths | close: ~p"/"}, else: paths
     assign(socket, paths: paths)
   end
