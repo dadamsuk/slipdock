@@ -16,6 +16,7 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
 
   # What `Boards.list_cards/2` takes for each.
   @archived %{"exclude" => nil, "include" => "all", "only" => "true"}
+  @snoozed ~w(exclude include only)
 
   @impl true
   def name, do: "list_cards"
@@ -55,6 +56,12 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
           type: "string",
           enum: Map.keys(@archived),
           description: "Archived cards: left out (exclude, the default), as well, or alone."
+        },
+        snoozed: %{
+          type: "string",
+          enum: @snoozed,
+          description:
+            "Snoozed cards (hidden until a date): left out (exclude, the default), as well, or alone."
         },
         due: %{type: "string", enum: keys(Config.dues())},
         tag: %{type: "string"},
@@ -127,7 +134,8 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
          {:ok, nobody} <- Args.boolean(args, "no_assignee", false),
          {:ok, tag} <- Args.optional(args, "tag"),
          {:ok, q} <- Args.optional(args, "q"),
-         {:ok, archived} <- archived(args) do
+         {:ok, archived} <- archived(args),
+         {:ok, snoozed} <- snoozed(args) do
       assignee =
         cond do
           nobody -> "none"
@@ -144,7 +152,8 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
           "assignee" => assignee,
           "tag" => tag,
           "q" => q,
-          "archived" => archived
+          "archived" => archived,
+          "snoozed" => snoozed
         }
         |> Enum.reject(fn {_, v} -> is_nil(v) end)
         |> Map.new()
@@ -159,6 +168,14 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
         {:ok, filter} -> {:ok, filter}
         :error -> {:error, "archived must be one of: exclude, include, only"}
       end
+    end
+  end
+
+  defp snoozed(args) do
+    with {:ok, value} <- Args.optional(args, "snoozed") do
+      if value in [nil | @snoozed],
+        do: {:ok, value},
+        else: {:error, "snoozed must be one of: exclude, include, only"}
     end
   end
 

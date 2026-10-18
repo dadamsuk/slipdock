@@ -608,6 +608,7 @@ defmodule Slipdock.Portable.Import do
       insert_attached!(user, [card_id: card.id], doc, ids)
       insert_handoffs!(user, card, doc)
       insert_recurrence!(user, card, doc, ids)
+      insert_snooze!(user, card, doc)
     end
 
     card
@@ -764,6 +765,39 @@ defmodule Slipdock.Portable.Import do
   # next occurrence is made at its time on this server's clock. One that
   # doesn't read (a rule this server can't parse, say) is left out, and the
   # card is imported as a card that doesn't repeat.
+  # A snooze that is still ahead comes back as it was; one that has run out
+  # by now would only wake at once, so the card arrives awake instead.
+  defp insert_snooze!(user, card, doc) do
+    with %{} = snooze <- doc[:snooze],
+         %DateTime{} = until <- datetime(snooze[:until]),
+         true <- DateTime.compare(until, DateTime.utc_now()) == :gt,
+         false <- card.completed do
+      Repo.update_all(from(c in Card, where: c.id == ^card.id),
+        set: [
+          snoozed_until: DateTime.truncate(until, :second),
+          snoozed_at: (datetime(snooze[:at]) || now()) |> DateTime.truncate(:second),
+          snoozed_by_id: Refs.user_id_for(snooze[:by], user),
+          snooze_note: snooze[:note] && String.slice(to_string(snooze[:note]), 0, 280),
+          snooze_notify: bool(snooze[:notify], false),
+          snooze_wake_on_activity: bool(snooze[:wake_on_activity], true)
+        ]
+      )
+    end
+
+    :ok
+  end
+
+  defp datetime(%DateTime{} = dt), do: dt
+
+  defp datetime(value) when is_binary(value) do
+    case DateTime.from_iso8601(value) do
+      {:ok, dt, _} -> dt
+      _ -> nil
+    end
+  end
+
+  defp datetime(_), do: nil
+
   defp insert_recurrence!(user, card, doc, ids) do
     case doc[:recurrence] do
       %{} = r ->

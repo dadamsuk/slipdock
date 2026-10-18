@@ -26,7 +26,8 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
       "Changes a card: title, description, priority, dates, percent_complete, flags " <>
         "(blocked, waiting, review), tags, assignees, the cards blocking it and its " <>
         "checklist (item ids from get_card), and whether it repeats: recurrence " <>
-        "{rule: \"every mon\"} makes it a recurring card (null stops it). Only what you " <>
+        "{rule: \"every mon\"} makes it a recurring card (null stops it), and whether it " <>
+        "is snoozed: snoozed_until hides it until then (null wakes it). Only what you " <>
         "pass changes."
 
   @impl true
@@ -62,6 +63,18 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
         add_checklist: Map.put(list, :description, "New checklist items, in order."),
         check_items: Map.put(ids, :description, "Checklist item ids to tick."),
         uncheck_items: ids,
+        snoozed_until: %{
+          type: ["string", "null"],
+          description:
+            "Snooze (W-1803): hide the card from the lists, My work and runners until then " <>
+              "— YYYY-MM-DD (midnight where you are), an ISO datetime, or tomorrow, mon, " <>
+              "next week, in 3 days. It wakes to the top of its list. null wakes it now. " <>
+              "Use it rather than flagging waiting when the wait has a date."
+        },
+        snooze_note: %{
+          type: "string",
+          description: "Why it is snoozed (≤ 280 characters), with snoozed_until."
+        },
         recurrence: %{
           type: ["object", "null"],
           description:
@@ -129,8 +142,18 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
          {:ok, to_check} <- items(card, params["check_items"]),
          {:ok, to_uncheck} <- items(card, params["uncheck_items"]),
          {:ok, recurrence} <- recurrence_arg(args),
+         {:ok, snooze} <- snooze_arg(args),
          {:ok, card} <-
-           write(auth, card, params, blockers, unblockers, to_check, to_uncheck, recurrence) do
+           write(
+             auth,
+             card,
+             params,
+             blockers,
+             unblockers,
+             to_check,
+             to_uncheck,
+             {recurrence, snooze}
+           ) do
       written = Tools.card_written(card, context.base_url)
 
       {:ok,
@@ -147,6 +170,55 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
       {:ok, nil} -> {:ok, :stop}
       {:ok, %{} = attrs} -> {:ok, attrs}
       {:ok, _} -> {:error, "recurrence is an object ({rule: \"every mon\"}) or null"}
+    end
+  end
+
+  defp snooze_arg(args) do
+    note = Map.get(args, "snooze_note")
+
+    case Map.fetch(args, "snoozed_until") do
+      :error when is_nil(note) -> {:ok, :untouched}
+      :error -> {:ok, {:note, note}}
+      {:ok, nil} -> {:ok, :wake}
+      {:ok, until} when is_binary(until) -> {:ok, {:until, until, note}}
+      {:ok, _} -> {:error, "snoozed_until is a date or datetime string, or null"}
+    end
+  end
+
+  defp write_snooze(_auth, _card, :untouched), do: :ok
+
+  # Waking a card that is already awake is what was asked for.
+  defp write_snooze(auth, card, :wake) do
+    case Slipdock.Snooze.wake(Repo.reload!(card), by: auth.assigns.current_user) do
+      {:ok, _} -> :ok
+      {:error, :not_snoozed} -> :ok
+    end
+  end
+
+  # A note alone changes the note on the snooze the card already has.
+  defp write_snooze(auth, card, {:note, note}) do
+    card = Repo.reload!(card)
+
+    if Slipdock.Boards.Card.snoozed?(card),
+      do: snooze(auth, card, card.snoozed_until, note, card),
+      else: {:error, "card ##{card.id} isn't snoozed: pass snoozed_until with the note"}
+  end
+
+  defp write_snooze(auth, card, {:until, until, note}) do
+    card = Repo.reload!(card)
+    snooze(auth, card, until, note, card)
+  end
+
+  defp snooze(auth, card, until, note, current) do
+    opts = [
+      note: note,
+      notify: current.snooze_notify,
+      wake_on_activity: current.snooze_wake_on_activity
+    ]
+
+    case Slipdock.Snooze.snooze(card, auth.assigns.current_user, until, opts) do
+      {:ok, _} -> :ok
+      {:error, reason} -> {:error, "snooze: " <> Slipdock.Snooze.error_message(reason)}
     end
   end
 
@@ -192,11 +264,12 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
 
   # Everything is checked before anything is written; what can still fail
   # (a dependency that would make a loop, say) rolls the rest back with it.
-  defp write(auth, card, params, blockers, unblockers, to_check, to_uncheck, recurrence) do
+  defp write(auth, card, params, blockers, unblockers, to_check, to_uncheck, {recurrence, snooze}) do
     Repo.transaction(fn ->
       with {:ok, card} <-
              update_fields(auth, card, Map.drop(params, @id_lists ++ ["add_checklist"])),
            :ok <- write_recurrence(auth, card, recurrence),
+           :ok <- write_snooze(auth, card, snooze),
            :ok <- each(blockers, &add_blocker(card, &1)),
            :ok <- each(unblockers, &Boards.remove_dependency(card, &1)),
            added = params["add_checklist"] || [],
@@ -280,9 +353,10 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
     with {:ok, params} <- collect(@lists, &Args.strings/2, args, Map.take(args, @fields)),
          {:ok, params} <- collect(~w(add_checklist), &Args.strings/2, args, params),
          {:ok, params} <- collect(@id_lists, &Args.ids/2, args, params) do
-      if map_size(params) == 0 and not Map.has_key?(args, "recurrence"),
-        do: {:error, "nothing to change: pass at least one field"},
-        else: {:ok, params}
+      if map_size(params) == 0 and
+           not Enum.any?(~w(recurrence snoozed_until snooze_note), &Map.has_key?(args, &1)),
+         do: {:error, "nothing to change: pass at least one field"},
+         else: {:ok, params}
     end
   end
 

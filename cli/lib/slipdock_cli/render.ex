@@ -232,6 +232,7 @@ defmodule SlipdockCLI.Render do
         ),
         if(c["comments"] != [], do: "💬#{length(c["comments"])}"),
         if(c["recurrence"], do: "↻"),
+        if(c["snoozed_until"], do: "💤" <> String.slice(to_string(c["snoozed_until"]), 0, 10)),
         if(c["archived_at"], do: "(archived)")
       ]
       |> Enum.reject(&is_nil/1)
@@ -456,6 +457,11 @@ defmodule SlipdockCLI.Render do
 
     if s = c["stand_in_for"] do
       field("Stand-in", "for ##{s["id"]}" <> stand_in_where(s) <> " · #{s["status"]}")
+    end
+
+    if z = c["snooze"] do
+      note = if z["note"], do: " — #{z["note"]}", else: ""
+      field("Snoozed", "until #{local_at(z["until"])}#{note}")
     end
 
     cond do
