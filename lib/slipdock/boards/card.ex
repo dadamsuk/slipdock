@@ -174,6 +174,14 @@ defmodule Slipdock.Boards.Card do
 
   def open_handoff(_), do: nil
 
+  @doc """
+  The series this card is the current instance of, when it is loaded: what
+  the ↻ on its front marks (W-1802). Older instances of a series don't carry
+  the mark; the series has moved on from them.
+  """
+  def recurrence(%{recurrence: %Slipdock.Recurrence.Series{} = s}), do: s
+  def recurrence(_), do: nil
+
   @doc "The goal cards this card contributes to (link stubs), when links are loaded."
   def goals(%{links_out: links}) when is_list(links),
     do: for(%{kind: "contributes", to: %__MODULE__{} = goal} <- links, do: goal)

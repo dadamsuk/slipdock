@@ -262,6 +262,43 @@ defmodule Slipdock.RecurrenceTest do
       assert Recurrence.tick(~U[2027-01-25 07:00:00Z]) == 1
     end
 
+    test "pausing, resuming or changing the ending keeps a skip", ctx do
+      {:ok, _} = Recurrence.skip(ctx.card)
+      {:ok, _} = Recurrence.set(ctx.card, %{"paused" => true}, ctx.owner)
+      {:ok, series} = Recurrence.set(ctx.card, %{"paused" => false}, ctx.owner)
+      assert series.next_on == ~D[2027-01-25]
+
+      {:ok, series} =
+        Recurrence.set(
+          ctx.card,
+          %{"on_missed" => "stack", "ends" => "on", "ends_on" => "2027-12-31"},
+          ctx.owner
+        )
+
+      assert series.next_on == ~D[2027-01-25]
+    end
+
+    test "a new time keeps the next date and moves when it is made", ctx do
+      {:ok, _} = Recurrence.skip(ctx.card)
+      {:ok, series} = Recurrence.set(ctx.card, %{"at" => "09:15", "lead_days" => 1}, ctx.owner)
+      assert series.next_on == ~D[2027-01-25]
+      assert series.next_at == ~U[2027-01-24 09:15:00Z]
+    end
+
+    test "a new rule starts again from the card", ctx do
+      {:ok, _} = Recurrence.skip(ctx.card)
+      {:ok, series} = Recurrence.set(ctx.card, %{"rule" => "wed"}, ctx.owner)
+      assert series.next_on == ~D[2027-01-13]
+    end
+
+    test "an ending moved before the next one ends it", ctx do
+      {:ok, series} =
+        Recurrence.set(ctx.card, %{"ends" => "on", "ends_on" => "2027-01-12"}, ctx.owner)
+
+      assert series.ended_at
+      assert series.next_at == nil
+    end
+
     test "an occurrence already acted on is stepped over, not made twice", ctx do
       complete(ctx.card)
       Recurrence.tick(~U[2027-01-18 07:00:00Z])

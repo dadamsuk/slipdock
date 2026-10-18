@@ -37,7 +37,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     validate_attachments cancel_upload delete_attachment hide_on_card transcribe add_link remove_link write_up
     toggle_pin_doc doc_search attach_doc detach_doc card_timer log_time dep_direction
     dep_search link_search pick_template comment_change share revoke_grant cancel_job
-    edit_handoff cancel_handoff leave_handoff clear_handoff)
+    edit_handoff cancel_handoff leave_handoff clear_handoff
+    edit_repeat repeat_change save_repeat cancel_repeat skip_repeat pause_repeat stop_repeat)
   @events @own_events ++ ItemEvents.events()
   # What a reader who can't change the card may still do: nothing stored
   # changes, only what the panel is showing.
@@ -87,7 +88,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
        editing_description: false,
        handoff_history: [],
        editing_handoff: false,
-       handoff_form: nil
+       handoff_form: nil,
+       repeat: nil
      )
      |> allow_upload(
        :attachment,
@@ -173,7 +175,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
             picking_template: false,
             editing_description: false,
             editing_handoff: false,
-            handoff_form: nil
+            handoff_form: nil,
+            repeat: nil
           )
 
     if readable do
@@ -571,6 +574,81 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     end
   end
 
+  # Repeat… (W-1802): a series on the card, set from presets or a rule of
+  # one's own, with what it would do shown before it is saved.
+  defp event("edit_repeat", _, socket) do
+    %{card: card, current_user: user} = socket.assigns
+    series = card.recurrence
+    zone = (series && series.timezone) || Slipdock.Timezones.of(user)
+    ref = card.due_date || Slipdock.Timezones.today(zone)
+    presets = Slipdock.Recurrence.presets(ref)
+    preset_rules = Enum.map(presets, &elem(&1, 0))
+
+    params =
+      case series do
+        nil ->
+          %{"preset" => elem(Enum.at(presets, 2), 0), "custom" => "", "at" => "07:00"}
+
+        s ->
+          %{
+            "preset" => if(s.rule in preset_rules, do: s.rule, else: "custom"),
+            "custom" => if(s.rule in preset_rules, do: "", else: s.rule),
+            "at" => Calendar.strftime(s.create_at, "%H:%M"),
+            "lead_days" => to_string(s.lead_days),
+            "on_missed" => s.on_missed,
+            "ends" => s.ends,
+            "ends_on" => s.ends_on && Date.to_iso8601(s.ends_on),
+            "count" => s.count && to_string(s.count)
+          }
+      end
+
+    {:noreply, assign(socket, repeat: repeat_state(params, presets, zone, ref))}
+  end
+
+  defp event("repeat_change", %{"repeat" => params}, %{assigns: %{repeat: %{} = r}} = socket),
+    do: {:noreply, assign(socket, repeat: repeat_state(params, r.presets, r.zone, r.ref))}
+
+  defp event("repeat_change", _, socket), do: {:noreply, socket}
+
+  defp event("cancel_repeat", _, socket), do: {:noreply, assign(socket, repeat: nil)}
+
+  defp event("save_repeat", %{"repeat" => params}, %{assigns: %{repeat: %{} = r}} = socket) do
+    %{card: card, current_user: user} = socket.assigns
+
+    case Slipdock.Recurrence.set(card, repeat_attrs(params, r.zone), user) do
+      {:ok, _} ->
+        {:noreply, socket |> assign(repeat: nil) |> reload()}
+
+      {:error, message} ->
+        state = repeat_state(params, r.presets, r.zone, r.ref)
+        {:noreply, assign(socket, repeat: %{state | error: repeat_error(message)})}
+    end
+  end
+
+  defp event("save_repeat", _, socket), do: {:noreply, socket}
+
+  defp event("skip_repeat", _, socket) do
+    case Slipdock.Recurrence.skip(socket.assigns.card) do
+      {:ok, _} -> {:noreply, reload(socket)}
+      {:error, message} when is_binary(message) -> {:noreply, flash(socket, :error, message)}
+      _ -> {:noreply, socket}
+    end
+  end
+
+  defp event("pause_repeat", _, socket) do
+    %{card: card, current_user: user} = socket.assigns
+
+    if series = card.recurrence,
+      do: Slipdock.Recurrence.set(card, %{"paused" => not series.paused}, user)
+
+    {:noreply, reload(socket)}
+  end
+
+  defp event("stop_repeat", _, socket) do
+    Slipdock.Recurrence.stop(socket.assigns.card)
+    {:noreply, socket |> assign(repeat: nil) |> reload()}
+  end
+
   defp event("clear_handoff", _, socket) do
     %{card: card, current_user: user} = socket.assigns
     {:ok, _} = Boards.clear_handoff(card, user, %{via: "ui"})
@@ -818,6 +896,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         handoff_history={@handoff_history}
         editing_handoff={@editing_handoff}
         handoff_form={@handoff_form}
+        repeat={@repeat}
         parent={@parent}
         favourites={@favourites}
         target={@myself}
@@ -950,6 +1029,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   attr :handoff_history, :list, default: [], doc: "every handoff written, newest first"
   attr :editing_handoff, :boolean, default: false
   attr :handoff_form, :any, default: nil
+  attr :repeat, :map, default: nil, doc: "the Repeat… form while it is open (W-1802)"
   attr :close_navigate, :boolean, default: false
   attr :parent, :any, default: nil
   attr :ai?, :boolean, default: false, doc: "offer the AI assistant on the card"
@@ -1169,6 +1249,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         </div>
 
         <.card_sidebar
+          repeat={@repeat}
           board={@board}
           can_write={@can_write}
           can_comment={@can_comment}
@@ -1207,6 +1288,56 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
       />
     </.modal>
     """
+  end
+
+  # The Repeat… form's state: what was typed, and what it would do.
+  defp repeat_state(params, presets, zone, ref) do
+    rule = repeat_rule(params)
+
+    {preview, error} =
+      case Slipdock.Recurrence.describe(rule, params["at"], zone, ref) do
+        {:ok, preview} -> {preview, nil}
+        {:error, message} -> {nil, repeat_error(message)}
+      end
+
+    %{
+      form: to_form(params, as: :repeat),
+      presets: presets,
+      zone: zone,
+      ref: ref,
+      preview: preview,
+      error: error
+    }
+  end
+
+  defp repeat_rule(%{"preset" => "custom"} = params), do: params["custom"]
+  defp repeat_rule(params), do: params["preset"]
+
+  defp repeat_attrs(params, zone) do
+    ends = params["ends"] || "never"
+
+    %{
+      "rule" => repeat_rule(params),
+      "at" => params["at"],
+      "timezone" => zone,
+      "lead_days" => blank_nil(params["lead_days"]) || 0,
+      "on_missed" => params["on_missed"] || "bump",
+      "ends" => ends,
+      "ends_on" => if(ends == "on", do: blank_nil(params["ends_on"])),
+      "count" => if(ends == "after", do: blank_nil(params["count"]))
+    }
+  end
+
+  defp blank_nil(""), do: nil
+  defp blank_nil(v), do: v
+
+  defp repeat_error(message) when is_binary(message), do: message
+
+  defp repeat_error(%Ecto.Changeset{} = cs) do
+    Ecto.Changeset.traverse_errors(cs, fn {msg, opts} ->
+      Enum.reduce(opts, msg, fn {k, v}, acc -> String.replace(acc, "%{#{k}}", to_string(v)) end)
+    end)
+    |> Enum.map_join("; ", fn {field, msgs} -> "#{field} #{Enum.join(msgs, ", ")}" end)
   end
 
   # The card's handoff: nil if none was written or the newest is a clear.

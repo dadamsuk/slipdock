@@ -498,6 +498,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   attr :form_key, :integer, required: true
   attr :target, :any, required: true
   attr :users, :list, required: true
+  attr :repeat, :map, default: nil, doc: "the Repeat… form while it is open (W-1802)"
 
   @doc "The panel's sidebar: list, assignees, priority, dates, health, time, fields, votes, cover and the card's actions."
   def card_sidebar(assigns) do
@@ -791,6 +792,8 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           </div>
         </div>
 
+        <.repeat_section card={@card} repeat={@repeat} target={@target} />
+
         <div class="space-y-1.5 border-t border-base-content/10 pt-4">
           <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Actions</span>
           <button
@@ -824,5 +827,185 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
       </fieldset>
     </aside>
     """
+  end
+
+  attr :card, Card, required: true
+  attr :repeat, :map, default: nil
+  attr :target, :any, required: true
+
+  # Repeat (W-1802): how the card recurs and what is next, or the Repeat…
+  # form — presets for the card's date, a rule of one's own, the time, how
+  # early, what a missed one does and when it ends — with what it would do
+  # (in words, and the next three dates) before it is saved.
+  defp repeat_section(assigns) do
+    assigns = assign(assigns, series: Card.recurrence(assigns.card))
+
+    ~H"""
+    <div id="card-repeat" class="space-y-2 border-t border-base-content/10 pt-4">
+      <div class="flex items-center gap-2">
+        <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">Repeat</span>
+        <button
+          :if={!@repeat}
+          id="repeat-edit"
+          type="button"
+          class="btn btn-ghost btn-xs ml-auto"
+          phx-click="edit_repeat"
+          phx-target={@target}
+        >
+          {if @series, do: "Change…", else: "Repeat…"}
+        </button>
+      </div>
+
+      <div :if={@series && !@repeat} id="repeat-current" class="space-y-1 text-sm">
+        <p class="font-medium">↻ {Slipdock.Recurrence.Series.summary(@series)}</p>
+        <p class="text-xs text-base-content/60" id="repeat-state">{repeat_state_line(@series)}</p>
+        <div class="flex flex-wrap gap-1 pt-1">
+          <button
+            :if={@series.next_on && !@series.ended_at}
+            id="repeat-skip"
+            type="button"
+            class="btn btn-ghost btn-xs"
+            phx-click="skip_repeat"
+            phx-target={@target}
+          >
+            Skip next
+          </button>
+          <button
+            :if={!@series.ended_at}
+            id="repeat-pause"
+            type="button"
+            class="btn btn-ghost btn-xs"
+            phx-click="pause_repeat"
+            phx-target={@target}
+          >
+            {if @series.paused, do: "Resume", else: "Pause"}
+          </button>
+          <button
+            id="repeat-stop"
+            type="button"
+            class="btn btn-ghost btn-xs text-error"
+            phx-click="stop_repeat"
+            phx-target={@target}
+            data-confirm="Stop this card repeating? The ones made so far stay."
+          >
+            Stop
+          </button>
+        </div>
+      </div>
+
+      <p :if={!@series && !@repeat && @card.series_id} class="text-xs text-base-content/50">
+        An earlier instance of a recurring card: the series has moved on to a newer one.
+      </p>
+
+      <.form
+        :if={@repeat}
+        for={@repeat.form}
+        id="repeat-form"
+        phx-change="repeat_change"
+        phx-submit="save_repeat"
+        phx-target={@target}
+        class="space-y-2"
+      >
+        <.input
+          field={@repeat.form[:preset]}
+          type="select"
+          label="How often"
+          options={
+            Enum.map(@repeat.presets, fn {rule, label} -> {label, rule} end) ++
+              [{"Custom…", "custom"}]
+          }
+        />
+        <.input
+          :if={@repeat.form[:preset].value == "custom"}
+          field={@repeat.form[:custom]}
+          label="Rule"
+          placeholder="every 2w mon thu · month last fri · 3d after"
+        />
+        <div class="grid grid-cols-2 gap-2">
+          <.input field={@repeat.form[:at]} type="time" label="At" />
+          <.input
+            field={@repeat.form[:lead_days]}
+            type="number"
+            min="0"
+            max="365"
+            label="Days early"
+            placeholder="0"
+          />
+        </div>
+        <.input
+          field={@repeat.form[:on_missed]}
+          type="select"
+          label="If the last one is still open"
+          options={[
+            {"Move its due date on", "bump"},
+            {"Skip this one", "skip"},
+            {"Make another anyway", "stack"}
+          ]}
+        />
+        <.input
+          field={@repeat.form[:ends]}
+          type="select"
+          label="Ends"
+          options={[{"Never", "never"}, {"On a date", "on"}, {"After a number of times", "after"}]}
+        />
+        <.input
+          :if={@repeat.form[:ends].value == "on"}
+          field={@repeat.form[:ends_on]}
+          type="date"
+          label="On"
+        />
+        <.input
+          :if={@repeat.form[:ends].value == "after"}
+          field={@repeat.form[:count]}
+          type="number"
+          min="1"
+          label="Times in all"
+        />
+
+        <div :if={@repeat.preview} id="repeat-preview" class="rounded-lg bg-base-100 p-2 text-xs">
+          <p class="font-medium" id="repeat-summary">{@repeat.preview.summary}</p>
+          <p :if={@repeat.preview.dates != []} class="text-base-content/60" id="repeat-dates">
+            Next: {Enum.map_join(@repeat.preview.dates, ", ", &Calendar.strftime(&1, "%a %-d %b %Y"))}
+          </p>
+          <p :if={@repeat.preview.kind == :after_done} class="text-base-content/60">
+            Counted from the day each one is done.
+          </p>
+        </div>
+        <p :if={@repeat.error} id="repeat-error" class="text-xs text-error">{@repeat.error}</p>
+
+        <div class="flex items-center gap-2">
+          <button type="submit" class="btn btn-primary btn-xs">Save</button>
+          <button
+            type="button"
+            class="btn btn-ghost btn-xs"
+            phx-click="cancel_repeat"
+            phx-target={@target}
+          >
+            Cancel
+          </button>
+        </div>
+      </.form>
+    </div>
+    """
+  end
+
+  defp repeat_state_line(series) do
+    cond do
+      series.ended_at ->
+        "Ended."
+
+      series.paused ->
+        "Paused."
+
+      series.next_on ->
+        "Next due #{Calendar.strftime(series.next_on, "%a %-d %b")}" <>
+          ", made #{Calendar.strftime(Slipdock.Timezones.to_local(series.next_at, series.timezone), "%a %-d %b %H:%M")}."
+
+      series.kind == "after_done" ->
+        "The next is counted from when this one is done."
+
+      true ->
+        ""
+    end
   end
 end

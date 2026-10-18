@@ -77,6 +77,63 @@ defmodule Slipdock.Recurrence do
   """
   def preview(%Rule{} = rule, %Date{} = from, n \\ 3), do: Rule.upcoming(rule, from, n)
 
+  @weekday_codes ~w(MO TU WE TH FR SA SU)
+  @weekday_names ~w(Monday Tuesday Wednesday Thursday Friday Saturday Sunday)
+
+  @doc """
+  The Repeat… dialog's presets, worded for `date` (the card's due date, or
+  today): `[{rule, label}]`. "Monthly on the second Tuesday" is the last
+  Tuesday instead when `date` is in the month's last week of that day.
+  """
+  def presets(%Date{} = date) do
+    dow = Date.day_of_week(date)
+    code = Enum.at(@weekday_codes, dow - 1)
+    name = Enum.at(@weekday_names, dow - 1)
+    nth = div(date.day - 1, 7) + 1
+    last? = date.day + 7 > Date.days_in_month(date)
+
+    {ord, ord_word} =
+      if last? and nth >= 4, do: {-1, "last"}, else: {nth, ordinal_word(nth)}
+
+    [
+      {"FREQ=DAILY", "Daily"},
+      {"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR", "Every weekday (Monday to Friday)"},
+      {"FREQ=WEEKLY;BYDAY=#{code}", "Weekly on #{name}"},
+      {"FREQ=MONTHLY;BYMONTHDAY=#{date.day}", "Monthly on the #{day_ordinal(date.day)}"},
+      {"FREQ=MONTHLY;BYDAY=#{ord}#{code}", "Monthly on the #{ord_word} #{name}"},
+      {"FREQ=YEARLY", "Yearly on #{Calendar.strftime(date, "%-d %B")}"},
+      {"AFTER=1W", "A week after the last one is done"}
+    ]
+  end
+
+  defp ordinal_word(n), do: Enum.at(~w(first second third fourth fifth), n - 1)
+
+  defp day_ordinal(n) when n in [11, 12, 13], do: "#{n}th"
+  defp day_ordinal(n) when rem(n, 10) == 1, do: "#{n}st"
+  defp day_ordinal(n) when rem(n, 10) == 2, do: "#{n}nd"
+  defp day_ordinal(n) when rem(n, 10) == 3, do: "#{n}rd"
+  defp day_ordinal(n), do: "#{n}th"
+
+  @doc """
+  What a rule as typed would do, for the dialog to show before it is saved:
+  `{:ok, %{rule: stored, summary: "Every Mon, 07:00 Europe/London", dates:
+  [the next three on or after from]}}`, or `{:error, message}`. An after-done
+  rule has no dates until the card is done.
+  """
+  def describe(rule_text, at_text, zone, %Date{} = from) do
+    with {:ok, rule} <- Rule.parse_phrase(rule_text || "", from),
+         {:ok, at} <- read_time(if(at_text in [nil, ""], do: "07:00", else: at_text)),
+         true <- Timezones.valid?(zone) || {:error, "timezone: #{inspect(zone)} isn't one"} do
+      {:ok,
+       %{
+         rule: Rule.to_string(rule),
+         kind: rule.kind,
+         summary: Rule.summary(rule, at, zone),
+         dates: Rule.upcoming(rule, Date.add(from, -1), 3)
+       }}
+    end
+  end
+
   ## Setting it
 
   @doc """
@@ -104,15 +161,19 @@ defmodule Slipdock.Recurrence do
          series = existing || %Series{card_id: card.id, created_by_id: by.id},
          changeset = Series.changeset(series, attrs),
          {:ok, series} <- save(changeset),
-         {:ok, series} <- schedule(series, card, DateTime.utc_now(:second)) do
+         {:ok, series} <- reschedule_after(series, card, existing, changeset) do
       if is_nil(card.series_id), do: put_series_id(card, series)
 
       Boards.log_activity_for(
         card,
         "card",
-        "made “#{card.title}” recurring: #{Series.summary(series)}"
+        if(existing,
+          do: "changed how “#{card.title}” repeats: #{Series.summary(series)}",
+          else: "made “#{card.title}” recurring: #{Series.summary(series)}"
+        )
       )
 
+      Boards.card_changed(card)
       {:ok, series}
     end
   end
@@ -214,6 +275,25 @@ defmodule Slipdock.Recurrence do
     from(c in Card, where: c.id == ^card.id) |> Repo.update_all(set: [series_id: series.id])
   end
 
+  # Only what a change touches is worked out again: a new rule (or a new
+  # series) starts from the card; a new time, zone or lead keeps the next
+  # date and moves when it is made; anything else (paused, ends, on_missed,
+  # the list) leaves the next one where it was — a skip stays skipped.
+  defp reschedule_after(series, card, existing, changeset) do
+    changed = Map.keys(changeset.changes)
+
+    cond do
+      is_nil(existing) or :rule in changed ->
+        schedule(series, card, DateTime.utc_now(:second))
+
+      Enum.any?([:create_at, :timezone, :lead_days], &(&1 in changed)) ->
+        series |> reschedule() |> end_if_over() |> Repo.update()
+
+      true ->
+        series |> Ecto.Changeset.change() |> end_if_over() |> Repo.update()
+    end
+  end
+
   # Works out the next occurrence from the series' current instance, and
   # when to make it.
   defp schedule(%Series{kind: "after_done"} = series, card, _now) do
@@ -276,6 +356,7 @@ defmodule Slipdock.Recurrence do
       series ->
         Repo.delete(series)
         Boards.log_activity_for(card, "card", "stopped “#{card.title}” recurring")
+        Boards.card_changed(card)
         {:ok, series}
     end
   end
@@ -305,6 +386,8 @@ defmodule Slipdock.Recurrence do
             "card",
             "skipped the occurrence of #{next_on} of “#{card.title}”"
           )
+
+          Boards.card_changed(card)
 
         _ ->
           :ok
@@ -343,6 +426,7 @@ defmodule Slipdock.Recurrence do
     case for_card(card) do
       %Series{paused: false} = series ->
         {:ok, _} = series |> Ecto.Changeset.change(paused: true) |> Repo.update()
+        Boards.card_changed(card)
 
         Boards.add_comment(
           card,
@@ -405,6 +489,12 @@ defmodule Slipdock.Recurrence do
     case result do
       {:ok, :fired} ->
         Slipdock.Deferred.run(effects)
+        # Anyone watching the board hears of the new instance once it is
+        # really there: the copy's own notice went out inside the transaction.
+        with %Series{card_id: card_id} <- Repo.get(Series, id),
+             %Card{} = card <- Repo.get(Card, card_id),
+             do: Boards.card_changed(card)
+
         :fired
 
       {:ok, other} ->

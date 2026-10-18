@@ -506,6 +506,7 @@ defmodule SlipdockWeb.CoreComponents do
   defp quick_chip_class(:column), do: "chip-tint text-secondary"
   defp quick_chip_class(:board), do: "chip-tint text-secondary"
   defp quick_chip_class(:tag), do: "chip-tint text-info"
+  defp quick_chip_class(:repeat), do: "chip-tint text-accent"
   defp quick_chip_class(_), do: "chip-line"
 
   ## JS Commands

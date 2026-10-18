@@ -803,6 +803,15 @@ defmodule SlipdockWeb.BoardLive.Show do
               if parsed.comment,
                 do: Boards.add_comment(card, parsed.comment, by: socket.assigns.current_user)
 
+              # `every: mon` (W-1802). A rule that parsed is one the series takes.
+              if parsed.recurrence,
+                do:
+                  Slipdock.Recurrence.set(
+                    card,
+                    %{"rule" => parsed.recurrence},
+                    socket.assigns.current_user
+                  )
+
               if parent, do: Boards.broadcast_tree(Boards.root_of_board(board.id))
 
               {:noreply,
