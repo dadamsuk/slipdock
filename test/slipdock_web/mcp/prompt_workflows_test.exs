@@ -17,7 +17,7 @@ defmodule SlipdockWeb.MCP.PromptWorkflowsTest do
     cols = Map.new(board.columns, &{&1.name, &1})
     other = board_fixture(%{"name" => "Elsewhere", "code" => "else1"}, owner: user)
     stranger = user_fixture("stranger@example.com")
-    theirs = board_fixture(%{"name" => "Theirs", "code" => "theirs1"}, owner: stranger)
+    theirs = board_fixture(%{"name" => "Theirs", "code" => "theirs1pw"}, owner: stranger)
     %{board: board, cols: cols, other: other, stranger: stranger, theirs: theirs}
   end
 
@@ -139,7 +139,7 @@ defmodule SlipdockWeb.MCP.PromptWorkflowsTest do
       assert text =~ "Here"
       refute text =~ "There"
 
-      assert %{"error" => %{"code" => -32602}} = prompt(conn, "plan-my-day", %{board: "theirs1"})
+      assert %{"error" => %{"code" => -32602}} = prompt(conn, "plan-my-day", %{board: "theirs1pw"})
     end
 
     test "a board-scoped token's context leaves out its other boards", ctx do
@@ -294,7 +294,7 @@ defmodule SlipdockWeb.MCP.PromptWorkflowsTest do
       assert %{"error" => %{"code" => -32602, "message" => msg}} = prompt(ctx.conn, "triage")
       assert msg =~ "triage needs the board argument"
 
-      assert %{"error" => %{"code" => -32602}} = prompt(ctx.conn, "triage", %{board: "theirs1"})
+      assert %{"error" => %{"code" => -32602}} = prompt(ctx.conn, "triage", %{board: "theirs1pw"})
 
       flat = board_fixture(%{"name" => "Flat", "code" => "flat1"}, owner: ctx.user)
       {:ok, _} = flat.columns |> Enum.find(&(&1.name == "Backlog")) |> Boards.delete_column()
