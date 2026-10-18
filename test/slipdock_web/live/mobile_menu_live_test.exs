@@ -104,7 +104,7 @@ defmodule SlipdockWeb.MobileMenuLiveTest do
       {account, _} = :binary.match(menu, ~s(href="/account"))
       assert settings < account
       # A rule under the board's entries, separating them from the account's.
-      assert has_element?(view, "#mobile-menu li.menu-title.border-t")
+      assert has_element?(view, "#mobile-menu li.menu-title.truncate.border-t")
     end
 
     test "opens the board's AI chat when AI is set up", %{conn: conn, board: board} do
@@ -143,7 +143,7 @@ defmodule SlipdockWeb.MobileMenuLiveTest do
 
       assert has_element?(view, "#mobile-menu a[href='/']", "Boards")
       refute has_element?(view, "#mobile-menu a", "Board settings")
-      refute has_element?(view, "#mobile-menu li.menu-title.border-t")
+      refute has_element?(view, "#mobile-menu li.menu-title.truncate.border-t")
     end
   end
 end

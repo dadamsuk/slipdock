@@ -41,6 +41,7 @@ defmodule SlipdockWeb.ToolLive.Index do
       quick_add={@quick_add}
       shortcuts={@shortcuts}
       viewport={@viewport}
+      nav_active={:tools}
     >
       <:nav>
         <span class="font-semibold">Tools</span>

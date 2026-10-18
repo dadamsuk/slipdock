@@ -1298,6 +1298,34 @@ slipdock archive-board errands                 # and restore-board to undo
 slipdock order-boards qvm-v1-rem errands 3     # your own order
 ```
 
+## The header and the avatar menu
+
+The right-hand end of the header is in the same order on every page. A
+page's own buttons come first — on a board, its sprint buttons, the AI chat
+and the board's `…` menu — ruled off from the app's, which follow: **quick
+add** (`+`), **Search everything**, **Ask**, **Favourites** (the heart), the
+**alerts** bell, and your avatar. The bell carries a count only when an alert
+is waiting.
+
+The **avatar menu** is in sections, and marks the page you are on:
+
+- **Places**: Boards, My work, Wiki, Vaults. Search, Ask and Favourites are
+  not repeated here: they are buttons beside it.
+- **Set up**: Templates, Groups, Tools, Set up an agent.
+- **You**: **Account & settings** (one entry: Settings, API tokens, Import &
+  export and the rest are tabs on the Account page), Help, and the theme as a
+  row of three buttons — system, light, dark.
+- **Admin**, for admins only: Overview, Users, Tool listings and
+  Configuration, folded into one group that opens by itself on its own pages.
+  While it is folded it carries the count of signups and tool listings
+  waiting.
+- **Sign out**.
+
+A board's **`…` menu** is in three groups: what you do with the board (Share
+this board, Capture a meeting when meeting mode is on, Tidy up…), how it is
+set up (Tags, Automations, Board settings), and what it has done (Activity,
+Archived cards).
+
 ## Favourites
 
 A board holds more than anyone works on at once. The board you live in is one
@@ -1307,8 +1335,7 @@ every time, and the last one a hunt.
 
 Press the heart on a **saved view** (in the Views menu), a **list header**, or
 an open **card** (beside the close button) and it lands on `/favourites` — the
-heart in the header bar on a desktop, the fifth tab on a phone, and an entry in
-the avatar menu either way. So anything you go back to often is two taps from
+heart in the header bar on a desktop, the fifth tab on a phone. So anything you go back to often is two taps from
 anywhere: the heart, then the thing.
 
 - A favourited **list** opens its board scrolled to that list, which on a
@@ -1346,10 +1373,9 @@ views that cannot survive being narrowed render something else instead.
   template is something you reach for when making a board, which is rare, and
   a favourite is something you reach for all day.
 - **Menu**, first in that row, is the header's menus in one: on a
-  board, its own entries first (chat about the page with AI, share, tags,
-  activity, archived cards, automations, board settings), then everything the
-  avatar menu holds — Boards, Wiki, Search, Ask, Templates, Account, the
-  theme and Sign out. The avatar and the board's `…` and chat buttons are not
+  board, its own entries first under **This board** (chat about the page with
+  AI, then the `…` menu's groups), then everything the avatar menu holds, plus
+  Search and Ask, which a desktop has as header buttons instead. The avatar and the board's `…` and chat buttons are not
   in a phone's header at all.
 - **The header is one row**: the mark (which goes to your boards), the
   board's name, and a magnifier and a `>_`, because a phone has no Ctrl: they
@@ -4000,7 +4026,7 @@ Every board has an owner, fixed when it is made: the board settings form and
 owner is open to nobody rather than to everybody. Ownership moves only when an
 account is deleted and its boards are handed over.
 
-**Your own four pages**, under the avatar menu and tabbed across the top of
+**Your own four pages**, under the avatar menu's **Account & settings** and tabbed across the top of
 each other, because one long scroll had the display name, the AI key and a
 board importer on it and nothing told you which was which:
 
@@ -4068,7 +4094,7 @@ it **unlimited** (Users → *Make unlimited*, or `slipdock admin unlimited <emai
 which does the same for a named person with no date to invent: no free allowance,
 no trial. The ceilings above still apply to them, as they do to admins.
 
-**What it is being used for.** **Overview**, in an admin's account menu, puts
+**What it is being used for.** **Overview**, in the avatar menu's **Admin** group, puts
 the whole server on one page: how many accounts (admins, disabled, never seen),
 how many joined and how many were active in the last 7 and 30 days, and the
 boards, lists, cards, wiki pages, files and storage across all of them. Below
