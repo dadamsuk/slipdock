@@ -30,7 +30,13 @@ defmodule SlipdockWeb.API.MeController do
     user = conn.assigns.current_user
 
     json(conn, %{
-      user: %{id: user.id, email: user.email, name: user.name},
+      # `timezone` is what recurring cards and snooze use for this person.
+      user: %{
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        timezone: Slipdock.Timezones.of(user)
+      },
       ai_key: ai_key(user),
       # Endpoint, model and embedding model, so an agent can see what it is
       # about to spend and on whose hardware.

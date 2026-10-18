@@ -1494,7 +1494,13 @@ const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   // A function, so a reconnect after the phone is turned carries the new width.
-  params: () => ({_csrf_token: csrfToken, viewport_width: window.innerWidth}),
+  // The timezone is adopted as the person's own the first time they sign in
+  // (SlipdockWeb.UserAuth); after that only Account changes it.
+  params: () => ({
+    _csrf_token: csrfToken,
+    viewport_width: window.innerWidth,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  }),
   hooks: {...colocatedHooks, ...Hooks},
 })
 
