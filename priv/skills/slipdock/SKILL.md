@@ -1,6 +1,6 @@
 ---
 name: slipdock
-description: Read and write cards on the user's self-hosted Slipdock boards with the `slipdock` CLI. Use whenever the user mentions their kanban or Slipdock board, cards, lists/columns, tags, flags, or asks to add, move, complete, flag, tag, check off, comment on, archive, or look up tasks/cards. Also use to summarise what is on a board, what is overdue, blocked, or in progress, to set up or inspect board automations (rules that email, move, flag or alert by themselves) and the alerts they raise, to connect runners (coding agents on the user's own machines that the board sends cards to) and follow or cancel their jobs, to send a meeting's recording or transcript, or a conversation with an AI assistant, for capture, and to read or write the wiki pages, docs, runbooks, specs and decision notes kept on a board.
+description: Read and write cards on the user's self-hosted Slipdock boards with the `slipdock` CLI. Use whenever the user mentions their kanban or Slipdock board, cards, lists/columns, tags, flags, or asks to add, move, complete, flag, tag, check off, comment on, archive, or look up tasks/cards. Also use to summarise what is on a board, what is overdue, blocked, or in progress, to set up or inspect board automations (rules that email, move, flag or alert by themselves) and the alerts they raise, to connect runners (coding agents on the user's own machines that the board sends cards to) and follow or cancel their jobs, to send a meeting's recording or transcript, or a conversation with an AI assistant, for capture, to tidy a board up (the gardener's suggestions: epics done but open, stale or duplicate cards, orphaned pages), and to read or write the wiki pages, docs, runbooks, specs and decision notes kept on a board.
 ---
 
 # Slipdock CLI
@@ -294,6 +294,11 @@ slipdock snooze <id>... <when> [--note T] [--notify]
                                        # My work and --deps ready, then wake at the top of their list
                                        # (sooner if someone else comments or assigns them)
 slipdock wake <id>...                    # bring snoozed cards back now
+slipdock garden <board> [--run] [--check K]   # tidy-up suggestions, grouped, with their fixes;
+                                       # --run looks the board (and its sub-boards) over first
+slipdock garden apply <id>... [--keep CARD] [--choice NAME]   # apply only what the user approved
+slipdock garden dismiss|undo <id>...     # a dismissal is remembered until its subject changes
+slipdock garden settings <board> [<check> key=value...]   # checks on/off, thresholds (days=30)
 slipdock flag <id> <flag>... [--off]     # flags: flagged blocked review waiting starred
 slipdock tag <id> <tag>... [--off]       # tag must already exist on the board (see new-tag)
 slipdock check <id> <text...>            # add checklist item
@@ -595,6 +600,10 @@ teal sky indigo violet fuchsia rose`. Multi-word titles, column names and text n
   2026-11-02 --note "after the audit"` (or `next week`). Snooze when the wait has a date; flag it
   `waiting` when it doesn't. Never pick a snoozed card to work on — it isn't ready until it wakes.
 - "What's snoozed?" → `slipdock cards 1 --snoozed only`; `slipdock wake 12` brings one back.
+- "Tidy this board up" / "what's rotting?" → `slipdock garden ops --run`, then show the user the
+  suggestions and apply only the ones they say yes to (`slipdock garden apply 41 42`; a duplicate
+  needs `--keep <the card that stays>`; `--choice snooze` takes an alternative). Dismiss only when
+  they say no — a dismissal is remembered. `slipdock garden undo 41` puts an applied one back.
 - "Break #12 into steps" → `slipdock templates`, `slipdock subboard 12 --template Simple`, then
   `slipdock add <sub-board-id> First step`
 - "What's overdue?" → `slipdock cards 1 --open --json` and compare `due_date` with today.

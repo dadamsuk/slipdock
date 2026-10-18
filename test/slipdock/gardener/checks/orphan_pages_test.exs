@@ -72,6 +72,13 @@ defmodule Slipdock.Gardener.Checks.OrphanPagesTest do
     assert found(board) == []
   end
 
+  test "a page filed in a folder is found from it, not an orphan", %{board: board, owner: owner} do
+    {:ok, folder} = Wiki.create_folder(board, %{"name" => "Loop logs"})
+    page(board, owner, %{"title" => "Pass log #1", "folder_id" => folder.id})
+    lonely = page(board, owner, %{"title" => "Loose"})
+    assert found(board) == [lonely.id]
+  end
+
   test "folder indexes and pages with pages beneath are excluded", %{board: board, owner: owner} do
     {:ok, folder} = Wiki.create_folder(board, %{"name" => "Ops"})
     page(board, owner, %{"title" => "Ops", "folder_id" => folder.id})

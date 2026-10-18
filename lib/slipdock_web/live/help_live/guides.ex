@@ -221,6 +221,16 @@ defmodule SlipdockWeb.HelpLive.Guides do
           in quick add does it as you add the card.
         </li>
         <li>
+          <strong>Tidy up…</strong>
+          in the board's menu looks the board, and every board beneath it, over for rot: epics
+          whose work is all done but still open, cards in Done never ticked off, cards stuck in
+          progress, epics with no next step, long-overdue cards, likely duplicates, wiki pages
+          nothing links to and links with a typo. Each comes with the evidence and a proposed fix
+          to apply or dismiss; a dismissal is remembered, and an applied fix can be undone. Board
+          settings → <em>Gardening</em>
+          picks the checks and how long before something counts.
+        </li>
+        <li>
           <strong>Status updates</strong>: on track, at risk or off track, with a note, shown
           beside the health the board works out for itself.
         </li>
@@ -466,7 +476,10 @@ defmodule SlipdockWeb.HelpLive.Guides do
         </li>
         <li><strong>Remind</strong>: due soon, overdue, or untouched for a number of days.</li>
         <li>
-          <strong>Tidy</strong>: complete cards that reach Done, archive old ones, let a tag set the priority.
+          <strong>Tidy</strong>: complete cards that reach Done, archive old ones, let a tag set the
+          priority, and a <em>Weekly tidy-up</em>
+          that looks the board over and alerts you to what <em>Tidy up…</em>
+          found, changing nothing.
         </li>
         <li>
           <strong>Connect</strong>: call a URL on every change (a <.link

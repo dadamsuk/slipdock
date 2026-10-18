@@ -217,6 +217,15 @@ for has one, snooze it rather than flag it `waiting`: `update_card` with
 <date> --note "…"`, or `POST /api/cards/:id/snooze`. See
 [the manual](manual.md#snoozing-cards).
 
+The board gardener finds rot — epics done but open, cards stuck in progress,
+duplicates, orphaned pages, mistyped links — and proposes fixes that a person
+approves. `garden` lists a board's open suggestions (`run: true` looks it over
+first), and `garden_decide` applies, dismisses or undoes one with
+`confirm: true`. Show the person the suggestions and apply only what they
+approve; never dismiss one on your own judgment, since a dismissal is
+remembered. The CLI is `slipdock garden <board> [--run]` and `slipdock garden
+apply|dismiss|undo <id>`. See [the manual](manual.md#tidying-up).
+
 `get_guide` gives the short guide — how to work a board, the reader's own
 boards and lists — and ends by naming the other sections, each one call
 away with `section` (`automations`, `wiki`, `endpoints`…, or `all`). The

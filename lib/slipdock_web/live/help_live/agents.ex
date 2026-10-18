@@ -157,6 +157,15 @@ defmodule SlipdockWeb.HelpLive.Agents do
        {:yes, "through the CLI or MCP"},
        {:no, "one way only"}
      ]},
+    {"Tidy a board up: see what the gardener found, apply or dismiss",
+     [
+       {:yes, "GET/POST /api/boards/:board/garden"},
+       {:yes, "garden, garden_decide"},
+       {:yes, "slipdock garden"},
+       {:yes, "through the CLI or MCP"},
+       {:yes, "through the CLI or MCP"},
+       {:no, "one way only"}
+     ]},
     {"Read and write wiki pages",
      [
        {:yes, ""},
@@ -508,7 +517,9 @@ defmodule SlipdockWeb.HelpLive.Agents do
         writing, sharing and reverting pages; listing, adding, changing and deleting a board's
         automations, for its owner; finding and installing
         <.link navigate={~p"/help/tools"} class="link">Tools</.link>
-        (<code>list_tools</code>, <code>install_tool</code>); and taking runner jobs. The tools go through the same
+        (<code>list_tools</code>, <code>install_tool</code>); the board's tidy-up suggestions
+        (<code>garden</code>, and <code>garden_decide</code>
+        for the ones the person approves); and taking runner jobs. The tools go through the same
         permission checks as the API, so a connection can't do anything its token couldn't.
       </p>
       <p>
