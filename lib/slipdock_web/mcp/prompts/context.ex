@@ -9,7 +9,10 @@ defmodule SlipdockWeb.MCP.Prompts.Context do
   finds them.
   """
 
-  alias Slipdock.{Access, Boards}
+  import Ecto.Query
+
+  alias Slipdock.{Access, Boards, Repo, Timezones, Work}
+  alias Slipdock.Boards.{Activity, Board, Card}
   alias SlipdockWeb.API.Authorize
   alias SlipdockWeb.MCP.Args
 
@@ -91,4 +94,99 @@ defmodule SlipdockWeb.MCP.Prompts.Context do
         if rest == [], do: lines, else: lines <> "\n- …and #{length(rest)} more, use #{hint}"
     end
   end
+
+  @doc "Today, in the person's own timezone."
+  def today(%{user: user}), do: Timezones.today(Timezones.of(user))
+
+  @doc """
+  The board an optional `board` argument names: `{:ok, nil}` when there is
+  none, else as `board/2`.
+  """
+  def maybe_board(_context, nil), do: {:ok, nil}
+  def maybe_board(context, ref), do: board(context, ref)
+
+  @doc """
+  The ids of the root boards in play: the one board given, else every board
+  the token sees.
+  """
+  def root_ids(_context, %Board{} = board), do: [Board.root_id(board)]
+  def root_ids(context, nil), do: context |> boards() |> Enum.map(& &1.id)
+
+  @doc """
+  My work (`Slipdock.Work.assigned/3`): the cards assigned to the person,
+  every level, narrowed to the token's boards and, given one, to that board's
+  tree. Snoozed cards are not in it.
+  """
+  def my_work(%{user: user} = context, board) do
+    roots = root_ids(context, board)
+
+    user
+    |> Work.assigned(nil, today: today(context), board_id: board && board.id)
+    |> Enum.filter(&(Board.root_id(&1.card.board) in roots))
+  end
+
+  @doc "Whether a card sits on a list that is in progress."
+  def doing?(%Card{column: %{} = column}),
+    do: SlipdockWeb.APIGuide.role([column], column) == "doing"
+
+  def doing?(_card), do: false
+
+  @doc """
+  Cards assigned to the person that are snoozed and wake before the end of
+  today, in the roots given, readable by them.
+  """
+  def waking_today(%{user: user} = context, roots) do
+    zone = Timezones.of(user)
+    end_of_day = Timezones.to_utc(Date.add(today(context), 1), ~T[00:00:00], zone)
+
+    from(c in Card,
+      join: b in Board,
+      on: b.id == c.board_id,
+      where: is_nil(c.archived_at) and not c.completed,
+      where: coalesce(b.root_id, b.id) in ^roots,
+      where:
+        c.id in subquery(
+          from(a in "card_assignees", where: a.user_id == ^user.id, select: a.card_id)
+        ),
+      where: c.snoozed_until < ^end_of_day,
+      order_by: [asc: c.snoozed_until]
+    )
+    |> Slipdock.Snooze.only_snoozed()
+    |> Repo.all()
+    |> Repo.preload([:board, :column])
+    |> then(&Access.filter_readable_cards(user, &1))
+  end
+
+  @doc """
+  Every card that isn't archived in the trees of `roots`, sub-boards
+  included, with its board and list, that the person may read.
+  """
+  def tree_cards(%{user: user}, roots) do
+    from(c in Card,
+      join: b in Board,
+      on: b.id == c.board_id,
+      where: is_nil(c.archived_at),
+      where: coalesce(b.root_id, b.id) in ^roots,
+      order_by: [asc: c.board_id, asc: c.position]
+    )
+    |> Repo.all()
+    |> Repo.preload([:board, :column, :assignees])
+    |> then(&Access.filter_readable_cards(user, &1))
+  end
+
+  @doc "The activity on the trees of `roots` since `since`, newest first, at most `limit`."
+  def activity_since(roots, %DateTime{} = since, limit) do
+    from(a in Activity,
+      join: b in Board,
+      on: b.id == a.board_id,
+      where: coalesce(b.root_id, b.id) in ^roots and a.inserted_at >= ^since,
+      order_by: [desc: a.inserted_at, desc: a.id],
+      limit: ^limit,
+      preload: [board: b]
+    )
+    |> Repo.all()
+  end
+
+  @doc "`path` from My work, as one string."
+  def path_line(%{path: path}), do: Enum.join(path, " › ")
 end
