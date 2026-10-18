@@ -78,7 +78,9 @@ defmodule Slipdock.Gardener.Checks.BrokenLinksTest do
 
     page_fixture(
       board,
-      %{"title" => "Notes", "body" => "[[Runbook]] and [[Something else entirely]]"}, user: owner)
+      %{"title" => "Notes", "body" => "[[Runbook]] and [[Something else entirely]]"},
+      user: owner
+    )
 
     assert find(BrokenLinks, board) == []
   end
