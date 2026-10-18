@@ -40,6 +40,7 @@ defmodule Slipdock.Boards.Card do
     # until `snoozed_until`, then woken to the top of its list by the
     # scheduler (see `Slipdock.Snooze`). Only `Slipdock.Snooze` writes these.
     field :snoozed_until, :utc_datetime
+    field :snoozed_at, :utc_datetime
     field :snooze_note, :string
     field :snooze_notify, :boolean, default: false
     field :snooze_wake_on_activity, :boolean, default: true

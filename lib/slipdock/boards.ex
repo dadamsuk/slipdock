@@ -1717,6 +1717,10 @@ defmodule Slipdock.Boards do
       if Map.has_key?(changeset.changes, :completed),
         do: Slipdock.Recurrence.completion_changed(updated)
 
+      # Someone new on a snoozed card wakes it (W-1803).
+      if assignees && Enum.any?(assignees, &(&1 not in before)),
+        do: Slipdock.Snooze.activity(updated, opts[:by], :assigned)
+
       automate_card_changes(card, updated, changeset, {before, assignees || before})
     end)
   end
@@ -3440,6 +3444,7 @@ defmodule Slipdock.Boards do
       notify_owned(owner)
       # Automations are about work, so a comment on a page does not run them.
       if match?(%Card{}, owner) do
+        Slipdock.Snooze.activity(owner, opts[:by], :comment)
         Slipdock.Mentions.comment_added(owner, comment.body, opts[:by])
         automate(%{type: "comment_added", card: owner, comment: comment.body})
       end
