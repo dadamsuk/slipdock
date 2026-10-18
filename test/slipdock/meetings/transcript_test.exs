@@ -129,6 +129,204 @@ defmodule Slipdock.Meetings.TranscriptTest do
     assert Transcript.timestamp_ms("2:03") == 123_000
   end
 
+  describe "chats (#1073)" do
+    test "a turn runs on to the next label, and a leading preamble is nobody's" do
+      text = """
+      Exported from my notes.
+
+      User: Should we ship the pricing page on Friday?
+      I think so, but check with Sam.
+      Assistant: Two things first:
+      1. the copy
+      2. the 20% annual discount
+      User: Agreed. Let's ship it Friday.
+      """
+
+      assert {:ok, %{format: "chat", lines: lines}} = Transcript.parse(text)
+
+      assert Enum.map(lines, &{&1.speaker, &1.text}) == [
+               {nil, "Exported from my notes."},
+               {"User",
+                "Should we ship the pricing page on Friday? I think so, but check with Sam."},
+               {"Assistant", "Two things first: 1. the copy 2. the 20% annual discount"},
+               {"User", "Agreed. Let's ship it Friday."}
+             ]
+
+      assert Enum.all?(lines, &(&1.start_ms == nil and &1.end_ms == nil))
+    end
+
+    test "a label inside a code fence, or a lone Note:, is part of the turn" do
+      text = """
+      **David:** How do I log it?
+      Claude: Like this:
+      ```
+      User: not a turn
+      ```
+      Note: it goes to stderr.
+      David: Thanks, done.
+      """
+
+      assert {:ok, %{format: "chat", lines: lines}} = Transcript.parse(text)
+      assert Enum.map(lines, & &1.speaker) == ["David", "Claude", "David"]
+      [_, answer, _] = lines
+      assert answer.text == "Like this: ``` User: not a turn ``` Note: it goes to stderr."
+    end
+
+    test "a label alone on its line takes the words below it" do
+      assert {:ok, %{lines: [line]}} =
+               Transcript.parse("Claude:\nShip it.\nThen tell people.", format: "chat")
+
+      assert line == %{
+               speaker: "Claude",
+               start_ms: nil,
+               end_ms: nil,
+               text: "Ship it. Then tell people."
+             }
+    end
+
+    test "meetings are still meetings: timestamps or no chat labels read as text" do
+      assert {:ok, %{format: "text"}} = Transcript.parse(fixture("pricing.txt"))
+      assert {:ok, %{format: "text"}} = Transcript.parse("Priya: hello\nSam: hi")
+      assert Transcript.detect("User: hi\nAssistant: hello") == "chat"
+      assert Transcript.detect("Priya: see\n```\ncode\n```") == "chat"
+    end
+  end
+
+  describe "Claude exports (#1073)" do
+    @claude_one %{
+      "uuid" => "c-1",
+      "name" => "Pricing",
+      "chat_messages" => [
+        %{"sender" => "human", "text" => "Ship Friday?"},
+        %{
+          "sender" => "assistant",
+          "text" => "",
+          "content" => [
+            %{"type" => "text", "text" => "Yes, if the copy is done."},
+            %{"type" => "tool_use", "name" => "x"}
+          ]
+        }
+      ]
+    }
+
+    test "one conversation, with the person named" do
+      json = Jason.encode!(@claude_one)
+      assert Transcript.detect(json) == "claude-export"
+
+      assert {:ok, %{format: "claude-export", lines: lines}} =
+               Transcript.parse(json, person: "David")
+
+      assert Enum.map(lines, &{&1.speaker, &1.text}) == [
+               {"David", "Ship Friday?"},
+               {"Claude", "Yes, if the copy is done."}
+             ]
+    end
+
+    test "conversations.json: the only one, or one chosen by id or title" do
+      other = %{
+        "uuid" => "c-2",
+        "name" => "Hiring",
+        "chat_messages" => [%{"sender" => "human", "text" => "Hire?"}]
+      }
+
+      assert {:ok, %{lines: [%{speaker: "User", text: "Ship Friday?"} | _]}} =
+               Transcript.parse(Jason.encode!([@claude_one]))
+
+      json = Jason.encode!([@claude_one, other])
+      assert Transcript.detect(json, "conversations.json") == "claude-export"
+
+      assert {:error,
+              "the export holds 2 conversations; choose one by id or title (\"Pricing\", \"Hiring\")"} =
+               Transcript.parse(json)
+
+      assert {:ok, %{lines: [%{text: "Hire?"}]}} = Transcript.parse(json, conversation: "c-2")
+
+      assert {:ok, %{lines: [%{text: "Ship Friday?"} | _]}} =
+               Transcript.parse(json, conversation: "Pricing")
+
+      assert {:error, ~s(no conversation in the export has the id or title "Nope")} =
+               Transcript.parse(json, conversation: "Nope")
+    end
+
+    test "broken or wrong JSON names the format" do
+      assert {:error, "the JSON is not valid (at byte " <> rest} =
+               Transcript.parse("{\"chat_messages\": [", format: "claude-export")
+
+      assert rest =~ "expected a Claude export"
+
+      assert {:error, "the JSON has no `chat_messages` to read (expected a Claude export)"} =
+               Transcript.parse(~s({"a": 1}), format: "claude-export")
+    end
+  end
+
+  describe "ChatGPT exports (#1073)" do
+    defp node(id, parent, children, role, text) do
+      message =
+        role &&
+          %{
+            "author" => %{"role" => role},
+            "content" => %{"content_type" => "text", "parts" => [text]}
+          }
+
+      {id, %{"id" => id, "parent" => parent, "children" => children, "message" => message}}
+    end
+
+    defp chatgpt(current) do
+      %{
+        "title" => "Pricing",
+        "id" => "g-1",
+        "current_node" => current,
+        "mapping" =>
+          Map.new([
+            node("root", nil, ["sys"], nil, nil),
+            node("sys", "root", ["u1"], "system", "You are ChatGPT"),
+            node("u1", "sys", ["a1"], "user", "Ship Friday?"),
+            node("a1", "u1", ["u2", "u2b"], "assistant", "Yes."),
+            node("u2", "a1", ["a2"], "user", "Old edit: ship Monday."),
+            node("a2", "u2", [], "assistant", "Monday then."),
+            node("u2b", "a1", ["a2b"], "user", "Agreed, Friday."),
+            node("a2b", "u2b", [], "assistant", "Friday it is.")
+          ])
+      }
+    end
+
+    test "only the branch the conversation was left on, system messages dropped" do
+      json = Jason.encode!(chatgpt("a2b"))
+      assert Transcript.detect(json) == "chatgpt-export"
+
+      assert {:ok, %{format: "chatgpt-export", lines: lines}} = Transcript.parse(json)
+
+      assert Enum.map(lines, &{&1.speaker, &1.text}) == [
+               {"User", "Ship Friday?"},
+               {"ChatGPT", "Yes."},
+               {"User", "Agreed, Friday."},
+               {"ChatGPT", "Friday it is."}
+             ]
+
+      assert {:ok, %{lines: old}} = Transcript.parse(Jason.encode!(chatgpt("a2")))
+      assert List.last(old).text == "Monday then."
+    end
+
+    test "with no current node, down from the root along the latest child" do
+      convo = chatgpt(nil) |> Map.delete("current_node")
+      assert {:ok, %{lines: lines}} = Transcript.parse(Jason.encode!([convo]), person: "David")
+      assert List.last(lines).text == "Friday it is."
+      assert hd(lines).speaker == "David"
+    end
+
+    test "chosen from several by title; broken JSON names the format" do
+      json = Jason.encode!([chatgpt("a2b"), Map.put(chatgpt("a2"), "title", "Old")])
+      assert {:ok, %{lines: lines}} = Transcript.parse(json, conversation: "Old")
+      assert List.last(lines).text == "Monday then."
+
+      assert {:error, msg} = Transcript.parse("[{\"mapping\":", format: "chatgpt-export")
+      assert msg =~ "expected a ChatGPT export"
+
+      assert {:error, "the JSON has no `mapping` to read (expected a ChatGPT export)"} =
+               Transcript.parse("[]", format: "chatgpt-export")
+    end
+  end
+
   describe "invites" do
     test "attendees, start and title, unfolding long lines and unquoting names" do
       assert {:ok, invite} = Calendar.parse(fixture("pricing.ics"))
