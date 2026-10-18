@@ -59,25 +59,31 @@ defmodule SlipdockWeb.MCP.Tools do
   ]
 
   # Meeting capture's tools (see `Slipdock.Meetings`): listed, and callable,
-  # only while an admin has meeting mode on. Off, a client is not shown them
-  # and calling one by name is an unknown tool, the same as any other name
-  # this server has never heard of.
-  @meeting_tools [
-    Tools.CaptureMeeting,
-    Tools.GetCapture,
-    Tools.ResolveCaptureQuestion,
-    Tools.CommitCapture
-  ]
+  # only while they are on. Off, a client is not shown them and calling one
+  # by name is an unknown tool, the same as any other name this server has
+  # never heard of. Sending a meeting needs meeting mode; reviewing and
+  # committing a capture needs meeting mode or chat capture (#1075), each
+  # capture still checked for its own kind.
+  @meeting_only [Tools.CaptureMeeting]
+  @chat_only []
+  @review_tools [Tools.GetCapture, Tools.ResolveCaptureQuestion, Tools.CommitCapture]
+  @meeting_tools @meeting_only ++ @chat_only ++ @review_tools
 
   @doc "Every tool module offered right now, in the order `tools/list` gives them."
   def all do
-    if Slipdock.Meetings.enabled?(), do: @tools ++ @meeting_tools, else: @tools
+    meetings? = Slipdock.Meetings.enabled?()
+    chat? = Slipdock.Meetings.chat_enabled?()
+
+    @tools ++
+      if(meetings?, do: @meeting_only, else: []) ++
+      if(chat?, do: @chat_only, else: []) ++
+      if(meetings? or chat?, do: @review_tools, else: [])
   end
 
   @doc "Every tool this server has, meeting mode or not: what the docs must describe."
   def every, do: @tools ++ @meeting_tools
 
-  @doc "Meeting capture's tools, which only exist while meeting mode is on."
+  @doc "Capture's tools, which only exist while meeting mode or chat capture is on."
   def meeting_tools, do: @meeting_tools
 
   @doc "The tool called `name`, or nil — nil too for a tool not offered right now."

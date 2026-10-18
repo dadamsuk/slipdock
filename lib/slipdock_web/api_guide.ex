@@ -36,6 +36,7 @@ defmodule SlipdockWeb.APIGuide do
       automations(),
       runners(),
       meetings(),
+      chat_capture(),
       wiki(),
       portable(),
       vocabulary_section(),
@@ -187,6 +188,7 @@ defmodule SlipdockWeb.APIGuide do
     "Automations and alerts" => "automations",
     "Runners" => "runners",
     "Meeting capture" => "meetings",
+    "Chat capture" => "chats",
     "The wiki: writing things down" => "wiki",
     "Skills" => "skills",
     "Moving boards between servers" => "moving",
@@ -261,9 +263,9 @@ defmodule SlipdockWeb.APIGuide do
 
       ## The rest of the guide
 
-      This is the short guide. Each section below is one `get_guide` call
-      away, with `section` set to its name (`section: "all"` gives the whole
-      guide, as `GET /api/guide` does):
+      Each section below is one `get_guide` call away, with `section` set to
+      its name (`section: "all"` gives the whole guide, as `GET /api/guide`
+      does):
 
       #{others}
       """
@@ -1670,6 +1672,44 @@ defmodule SlipdockWeb.APIGuide do
     end
   end
 
+  # Chat capture (#1075): its own switch, on by default. The pipeline and the
+  # review are meeting capture's, so with meeting mode on the routes are
+  # already listed above.
+  defp chat_capture do
+    if Slipdock.Meetings.chat_enabled?() do
+      """
+
+      ## Chat capture
+
+      A conversation with an AI assistant (Claude, ChatGPT) can be captured
+      like a meeting: its decisions and to-dos proposed, each quoted word for
+      word from the conversation, committed only when the person says so. An
+      assistant's suggestion counts only where the person agreed to it.
+      #{if Slipdock.Meetings.enabled?(), do: "", else: chat_routes()}
+      Send one with `kind: chat` and the conversation as `transcript`
+      (`Name: text` turns, or a Claude or ChatGPT export: format `chat`,
+      `claude-export`, `chatgpt-export`; `conversation` picks one from an
+      export of several). Then the same review as a meeting: over MCP
+      `get_capture`, `resolve_capture_question`, `commit_capture`.
+      **Commit only when the person asks**, with the preview's digest.
+      """
+    else
+      ""
+    end
+  end
+
+  defp chat_routes do
+    """
+
+        POST /api/boards/:board/captures           {kind: "chat", transcript, format?, findings?}
+        GET  /api/captures/:id                     state, lines, findings, questions, record
+        POST /api/captures/:id/resolve             {question, answer}
+        GET  /api/captures/:id/preview             exactly what committing writes, and its digest
+        POST /api/captures/:id/commit              {preview: digest}
+        POST /api/captures/:id/undo | /discard
+    """
+  end
+
   # Voiceprints are a person's own decision: the guide names the routes so an
   # agent can tell its user where to go, and says it isn't the agent's to do.
   defp voiceprints do
@@ -2977,13 +3017,13 @@ defmodule SlipdockWeb.APIGuide do
   ## The endpoint list, from the router itself ---------------------------------
 
   defp endpoints do
-    meetings? = Slipdock.Meetings.enabled?()
+    meetings? = Slipdock.Meetings.capture_enabled?()
 
     SlipdockWeb.Router
     |> Phoenix.Router.routes()
     |> Enum.filter(&String.starts_with?(&1.path, "/api"))
-    # Meeting capture's routes answer 404 while it is off, so they are not
-    # offered either.
+    # Capture's routes answer 404 while meeting mode and chat capture are
+    # both off, so they are not offered either.
     |> Enum.reject(&(not meetings? and &1.plug == SlipdockWeb.API.MeetingController))
     |> Enum.map(fn route -> {route.verb |> Atom.to_string() |> String.upcase(), route.path} end)
   end

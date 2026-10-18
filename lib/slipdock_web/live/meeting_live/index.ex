@@ -29,7 +29,9 @@ defmodule SlipdockWeb.MeetingLive.Index do
   end
 
   defp load(socket) do
-    captures = Meetings.list_captures(socket.assigns.board)
+    captures =
+      socket.assigns.board |> Meetings.list_captures() |> Enum.filter(&Meetings.kind_enabled?/1)
+
     assign(socket, captures: captures, counts: Meetings.counts(captures))
   end
 
