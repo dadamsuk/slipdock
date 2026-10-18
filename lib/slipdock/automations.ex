@@ -602,6 +602,7 @@ defmodule Slipdock.Automations do
             is_nil(c.stand_in_for_id),
         order_by: [asc: c.position, asc: c.id]
       )
+      |> Slipdock.Snooze.not_snoozed(now)
       |> Repo.all()
       |> Repo.preload([:column, :tags, :assignee, :assignees, :status_updates, :blocked_by])
       |> Enum.find(fn card ->
@@ -716,7 +717,7 @@ defmodule Slipdock.Automations do
     today = DateTime.to_date(now)
 
     rule
-    |> watched_cards()
+    |> watched_cards(now)
     |> Enum.filter(&due_card?(trigger, &1, now, today))
     |> Enum.filter(&Runner.conditions_match?(Spec.conditions(rule.spec), &1))
     |> Enum.filter(&claim(rule, &1, occasion(trigger, &1, today)))
@@ -727,7 +728,7 @@ defmodule Slipdock.Automations do
     |> Enum.sum()
   end
 
-  defp watched_cards(%Rule{scope: "tree", board_id: board_id}) do
+  defp watched_cards(%Rule{scope: "tree", board_id: board_id}, now) do
     root_id = Slipdock.Boards.root_of_board(board_id)
 
     active_cards(
@@ -735,16 +736,20 @@ defmodule Slipdock.Automations do
         join: b in Board,
         on: b.id == c.board_id,
         where: b.id == ^root_id or b.root_id == ^root_id
-      )
+      ),
+      now
     )
   end
 
-  defp watched_cards(%Rule{board_id: board_id}),
-    do: active_cards(from(c in Card, where: c.board_id == ^board_id))
+  defp watched_cards(%Rule{board_id: board_id}, now),
+    do: active_cards(from(c in Card, where: c.board_id == ^board_id), now)
 
-  defp active_cards(query) do
+  # A snoozed card is left alone by the clock's triggers: overdue and asleep
+  # is somebody's deliberate choice, not news (W-1803).
+  defp active_cards(query, now) do
     query
     |> where([c], is_nil(c.archived_at))
+    |> Slipdock.Snooze.not_snoozed(now)
     |> Repo.all()
     |> Repo.preload([:column, :tags, :assignee, :assignees, :status_updates, :blocked_by])
   end

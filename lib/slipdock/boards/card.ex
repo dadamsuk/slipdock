@@ -36,6 +36,13 @@ defmodule Slipdock.Boards.Card do
     field :timer_started_at, :utc_datetime
     field :color, :string
     field :archived_at, :utc_datetime
+    # Snoozed (W-1803): left out of the lists, My work and the runner's pick
+    # until `snoozed_until`, then woken to the top of its list by the
+    # scheduler (see `Slipdock.Snooze`). Only `Slipdock.Snooze` writes these.
+    field :snoozed_until, :utc_datetime
+    field :snooze_note, :string
+    field :snooze_notify, :boolean, default: false
+    field :snooze_wake_on_activity, :boolean, default: true
 
     # Set by Slipdock.Rollup when the card is loaded through Slipdock.Boards:
     # progress, effective dates and health rolled up from its subcards.
@@ -60,6 +67,7 @@ defmodule Slipdock.Boards.Card do
     # `assignee` the lead — the first — kept in step by Slipdock.Boards so the
     # views that colour or sort by one person still have one.
     belongs_to :assignee, Slipdock.Accounts.User
+    belongs_to :snoozed_by, Slipdock.Accounts.User
 
     many_to_many :assignees, Slipdock.Accounts.User,
       join_through: "card_assignees",
@@ -156,6 +164,14 @@ defmodule Slipdock.Boards.Card do
   end
 
   def flags, do: @flags
+
+  @doc "Whether the card is snoozed at `now`: `snoozed_until` is still ahead."
+  def snoozed?(item, now \\ DateTime.utc_now())
+
+  def snoozed?(%{snoozed_until: %DateTime{} = until}, now),
+    do: DateTime.compare(until, now) == :gt
+
+  def snoozed?(_, _), do: false
 
   @doc "The latest stated health (\"on_track\", \"at_risk\", \"off_track\") or nil."
   def stated_health(%{status_updates: [%{health: h} | _]}), do: h

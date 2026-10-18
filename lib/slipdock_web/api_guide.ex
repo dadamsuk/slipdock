@@ -2829,7 +2829,9 @@ defmodule SlipdockWeb.APIGuide do
     lists =
       Enum.map_join(full.columns, " · ", fn col ->
         open = Enum.count(col.cards, &(not &1.completed))
-        "#{col.name} (#{role_note(full.columns, col)}, #{open} open of #{length(col.cards)})"
+        snoozed = if col.snoozed == [], do: "", else: ", snoozed #{length(col.snoozed)}"
+
+        "#{col.name} (#{role_note(full.columns, col)}, #{open} open of #{length(col.cards)}#{snoozed})"
       end)
 
     epics =

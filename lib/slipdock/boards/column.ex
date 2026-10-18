@@ -37,6 +37,10 @@ defmodule Slipdock.Boards.Column do
     # board is loaded through `Slipdock.Boards.get_board!/1`. They share the
     # cards' position sequence, so the two interleave.
     field :pages, {:array, :map}, virtual: true, default: []
+    # Its snoozed cards (W-1803), kept out of `cards` by
+    # `Slipdock.Boards.get_board!/1` and set here, in list order, for the
+    # list's "N snoozed" footer to reveal.
+    field :snoozed, {:array, :map}, virtual: true, default: []
 
     timestamps(type: :utc_datetime)
   end
