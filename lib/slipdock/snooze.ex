@@ -12,11 +12,20 @@ defmodule Slipdock.Snooze do
   search, read by `get_card` and drawn on the calendar.
 
   A date means midnight where the snoozer is (`Slipdock.Timezones`).
+
+  **Waking.** The scheduler's tick (`tick/1`) wakes every card whose time
+  has come; `wake/2` wakes one now, by hand; and `activity/3` wakes one when
+  somebody other than the snoozer comments on it or assigns it to someone
+  new, unless the snooze said not to. Waking clears the snooze, moves the
+  card to the top of its list, says so in the activity log, raises an alert
+  on the board when the snooze asked for one, and runs the `card_woken`
+  automations. Each snooze wakes once, however many ticks race for it.
   """
 
   import Ecto.Query
 
   alias Slipdock.{Boards, QuickAdd, Repo, Timezones}
+  alias Slipdock.Accounts.User
   alias Slipdock.Boards.Card
 
   @note_max 280
@@ -76,6 +85,7 @@ defmodule Slipdock.Snooze do
       card
       |> Ecto.Changeset.change(
         snoozed_until: DateTime.truncate(until, :second),
+        snoozed_at: DateTime.truncate(now, :second),
         snoozed_by_id: by && by.id,
         snooze_note: if(note == "", do: nil, else: note),
         snooze_notify: opts[:notify] == true,
@@ -128,16 +138,133 @@ defmodule Slipdock.Snooze do
 
   def resolve_until(_value, _user, _now), do: {:error, :bad_date}
 
+  ## Waking -------------------------------------------------------------------
+
+  @doc """
+  Wakes every card whose snooze has run out at `now`. Returns how many woke.
+  """
+  def tick(now \\ DateTime.utc_now()) do
+    from(c in Card,
+      where: not is_nil(c.snoozed_until) and c.snoozed_until <= ^now and is_nil(c.archived_at),
+      order_by: [asc: c.snoozed_until, asc: c.id],
+      select: c.id
+    )
+    |> Repo.all()
+    |> Enum.count(fn id -> match?({:ok, _}, wake(Repo.get(Card, id), reason: :time)) end)
+  end
+
+  @doc """
+  Wakes `card`. Options: `:by` (who woke it; nil for the clock), `:reason`
+  (`:hand`, the default, `:time` or `:activity`). `{:ok, card}`, or
+  `{:error, :not_snoozed}` when there is nothing to wake — including when
+  another tick got there first.
+  """
+  def wake(card, opts \\ [])
+
+  def wake(%Card{snoozed_until: nil}, _opts), do: {:error, :not_snoozed}
+
+  def wake(%Card{} = card, opts) do
+    by = opts[:by]
+    reason = opts[:reason] || :hand
+    until = card.snoozed_until
+
+    # Compare and set: of two ticks reading the same card, one clears it.
+    {count, _} =
+      from(c in Card, where: c.id == ^card.id and c.snoozed_until == ^until)
+      |> Repo.update_all(
+        set: [
+          snoozed_until: nil,
+          snoozed_at: nil,
+          snoozed_by_id: nil,
+          snooze_note: nil,
+          snooze_notify: false,
+          snooze_wake_on_activity: true,
+          updated_at: DateTime.utc_now(:second)
+        ]
+      )
+
+    if count == 1, do: {:ok, woke(card, by, reason)}, else: {:error, :not_snoozed}
+  end
+
+  def wake(_card, _opts), do: {:error, :not_snoozed}
+
+  defp woke(%Card{} = card, by, reason) do
+    snoozer = card.snoozed_by_id && Repo.get(User, card.snoozed_by_id)
+    awake = Repo.get!(Card, card.id)
+
+    if not awake.completed and is_nil(awake.archived_at) do
+      column = Repo.get!(Slipdock.Boards.Column, awake.column_id)
+      Boards.move_card_to_index(awake, column, :top)
+    end
+
+    line = "woke up “#{card.title}” (#{snoozed_line(card, snoozer)})#{woken_by(reason, by)}"
+    Boards.log_activity_for(awake, "card", line)
+
+    # The snoozer waking it themselves needs no telling.
+    if card.snooze_notify and not same_person?(by, snoozer) do
+      Slipdock.Automations.raise_alert(%{
+        "title" => String.slice("Awake: #{card.title}", 0, 200),
+        "body" => line,
+        "severity" => "info",
+        "board_id" => card.board_id,
+        "card_id" => card.id
+      })
+    end
+
+    awake = Repo.get!(Card, card.id)
+    Boards.card_changed(awake)
+    Slipdock.Automations.dispatch(%{type: "card_woken", card: awake, by: by, reason: reason})
+    awake
+  end
+
+  defp snoozed_line(card, snoozer) do
+    who = if snoozer, do: "snoozed by #{User.display_name(snoozer)}", else: "snoozed"
+    on = if card.snoozed_at, do: " on #{day(card.snoozed_at, snoozer)}", else: ""
+    note = if card.snooze_note, do: ": #{card.snooze_note}", else: ""
+    who <> on <> note
+  end
+
+  defp woken_by(:time, _by), do: ""
+  defp woken_by(:activity, %User{} = by), do: ", by #{User.display_name(by)}'s activity"
+  defp woken_by(:activity, _by), do: ", by activity on it"
+  defp woken_by(_hand, %User{} = by), do: ", woken by #{User.display_name(by)}"
+  defp woken_by(_hand, _by), do: ", woken by hand"
+
+  defp same_person?(%User{id: id}, %User{id: id}), do: true
+  defp same_person?(_, _), do: false
+
+  @doc """
+  Somebody did something to `card` that a snooze should notice: `:comment`
+  or `:assigned` (someone new was put on it), by `by`. Wakes the card when
+  it is snoozed, its snooze wakes on activity, and `by` is not the snoozer —
+  a write with nobody behind it (an automation, an import) counts as
+  somebody else. Returns what `wake/2` does, or `:ignored`.
+  """
+  def activity(%Card{} = card, by, _kind) do
+    fresh = Repo.get(Card, card.id)
+
+    cond do
+      is_nil(fresh) or not Card.snoozed?(fresh) -> :ignored
+      not fresh.snooze_wake_on_activity -> :ignored
+      match?(%User{}, by) and by.id == fresh.snoozed_by_id -> :ignored
+      true -> wake(fresh, by: by, reason: :activity)
+    end
+  end
+
+  def activity(_owner, _by, _kind), do: :ignored
+
   # "Tue 3 Nov" in the snoozer's timezone, with the note when there is one.
   defp describe(%Card{snoozed_until: until, snooze_note: note}, by) do
-    local = Timezones.to_local(until, Timezones.of(by))
-
-    day =
-      if Time.compare(DateTime.to_time(local), ~T[00:00:00]) == :eq,
-        do: Calendar.strftime(local, "%a %-d %b"),
-        else: Calendar.strftime(local, "%a %-d %b %H:%M")
-
+    day = day(until, by)
     if note, do: "#{day}: #{note}", else: day
+  end
+
+  defp day(utc, user) do
+    local = Timezones.to_local(utc, Timezones.of(user))
+
+    if Time.compare(DateTime.to_time(local), ~T[00:00:00]) == :eq,
+      do: Calendar.strftime(local, "%a %-d %b"),
+      else: Calendar.strftime(local, "%a %-d %b %H:%M")
   end
 
   defp tap_ok({:ok, value} = result, fun) do

@@ -46,7 +46,10 @@ defmodule Slipdock.Automations.Runner do
         (event[:fields] || []) != []
 
       type ->
-        Enum.member?(~w(card_created card_moved comment_added tag_added card_archived), type)
+        Enum.member?(
+          ~w(card_created card_moved comment_added tag_added card_archived card_woken),
+          type
+        )
     end
   end
 
