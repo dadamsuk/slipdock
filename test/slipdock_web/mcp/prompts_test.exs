@@ -153,14 +153,14 @@ defmodule SlipdockWeb.MCP.PromptsTest do
       mine = board_fixture(%{"name" => "Mine", "code" => "mine1"}, owner: user)
       other = board_fixture(%{"name" => "Other", "code" => "other1"}, owner: user)
       stranger = user_fixture("stranger@example.com")
-      theirs = board_fixture(%{"name" => "Theirs", "code" => "theirs1"}, owner: stranger)
+      theirs = board_fixture(%{"name" => "Theirs", "code" => "theirs1pr"}, owner: stranger)
       %{mine: mine, other: other, theirs: theirs}
     end
 
     test "boards/1 is what the token sees: a scoped token only its boards", ctx do
       codes = ctx.user |> context() |> Context.boards() |> Enum.map(& &1.code)
       assert "mine1" in codes and "other1" in codes
-      refute "theirs1" in codes
+      refute "theirs1pr" in codes
 
       {_, token} = Accounts.create_api_token(ctx.user, "scoped", scope_boards: [ctx.mine.id])
       scoped = %{user: ctx.user, token: token, base_url: ""}
@@ -171,7 +171,7 @@ defmodule SlipdockWeb.MCP.PromptsTest do
       assert {:ok, board} = Context.board(context(ctx.user), "mine1")
       assert board.id == ctx.mine.id and is_list(hd(board.columns).cards)
 
-      assert {:error, _} = Context.board(context(ctx.user), "theirs1")
+      assert {:error, _} = Context.board(context(ctx.user), "theirs1pr")
 
       {_, token} = Accounts.create_api_token(ctx.user, "scoped", scope_boards: [ctx.mine.id])
       assert {:error, msg} = Context.board(%{user: ctx.user, token: token}, "other1")
