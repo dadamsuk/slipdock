@@ -954,6 +954,7 @@ defmodule SlipdockWeb.SlipdockComponents do
     cover = if assigns.cover == :auto, do: card.color, else: assigns.cover
     image = if on.("images"), do: Slipdock.Boards.Attachment.front_image(loaded_attachments(card))
     handoff = Slipdock.Boards.Card.open_handoff(card)
+    recurrence = Slipdock.Boards.Card.recurrence(card)
 
     facets = %{
       cover: on.("cover") and not is_nil(cover),
@@ -976,7 +977,9 @@ defmodule SlipdockWeb.SlipdockComponents do
       attachments: on.("attachments") and loaded_attachments(card) != [],
       # Where it was left (W-1804): always shown while the card is open, since
       # it is what the next person needs before anything else on it.
-      handoff: not is_nil(handoff)
+      handoff: not is_nil(handoff),
+      # A recurring card (W-1802): always marked, like the handoff.
+      recurrence: not is_nil(recurrence)
     }
 
     meta? = facets |> Map.drop([:cover, :image, :status, :tags]) |> Map.values() |> Enum.any?()
@@ -992,6 +995,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         page?: page?,
         favourite?: favourite_mark?(assigns.marks, card),
         handoff: handoff,
+        recurrence: recurrence,
         # A wiki page is `page-7` where a card is `12`, so the drag-and-drop
         # and the click handlers can tell the two apart.
         item_id: item_id(card),
@@ -1105,6 +1109,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         <.percent_badge :if={@f.percent} percent={@card.percent_complete} />
         <.time_badge :if={@f.time} card={@card} />
         <.handoff_mark :if={@f.handoff} handoff={@handoff} class="size-3" />
+        <.recurrence_mark :if={@f.recurrence} recurrence={@recurrence} class="size-3" />
         <span :if={@actions != []} class="-mr-1 shrink-0">{render_slot(@actions)}</span>
       </div>
       <div :if={!@compact} class="space-y-2 p-3">
@@ -1179,6 +1184,7 @@ defmodule SlipdockWeb.SlipdockComponents do
             <.icon name="hero-bars-3-bottom-left" class="size-3.5" />
           </span>
           <.handoff_mark :if={@f.handoff} handoff={@handoff} />
+          <.recurrence_mark :if={@f.recurrence} recurrence={@recurrence} />
           <span :if={@f.comments} class="chip chip-line text-base-content/70" title="Comments">
             <.icon name="hero-chat-bubble-left" class="size-3.5" /> {length(@card.comments)}
           </span>
@@ -1209,6 +1215,34 @@ defmodule SlipdockWeb.SlipdockComponents do
       <.icon name="hero-arrow-uturn-left" class={@class} />
     </span>
     """
+  end
+
+  attr :recurrence, :any, required: true
+  attr :class, :string, default: "size-3.5"
+
+  defp recurrence_mark(assigns) do
+    ~H"""
+    <span
+      class="chip chip-icon chip-line text-accent"
+      data-role="recurrence-mark"
+      title={recurrence_title(@recurrence)}
+    >
+      <span aria-hidden="true" class="leading-none">↻</span>
+      <span class="sr-only">Repeats</span>
+    </span>
+    """
+  end
+
+  defp recurrence_title(series) do
+    state =
+      cond do
+        series.ended_at -> " — ended"
+        series.paused -> " — paused"
+        series.next_on -> " — next due #{Calendar.strftime(series.next_on, "%a %-d %b")}"
+        true -> ""
+      end
+
+    "Repeats: " <> Slipdock.Recurrence.Series.summary(series) <> state
   end
 
   # A card or a placed page the reader has favourited. Only a mark, not the

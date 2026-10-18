@@ -12,6 +12,9 @@ defmodule Slipdock.QuickAdd do
       blocked, review, waiting, starred), a list on the board (`#todo` is
       "To Do", `#in-progress` is "In Progress") or a tag, in that order
     * `@name` – an assignee, by name or email prefix
+    * `every: <how often>` – makes the card recurring (W-1802): `every: mon`,
+      `every: weekday`, `every: 2w`, `every: month 1`, `every: month last fri`,
+      `every: 3d after` (see `Slipdock.Recurrence.Rule.parse_phrase/2`)
     * `; <text>` – everything after the first semicolon is a comment on the
       new card, taken as written (commands in it are not read)
 
@@ -28,6 +31,7 @@ defmodule Slipdock.QuickAdd do
           tags: [Tag.t()],
           assignee: User.t() | nil,
           comment: String.t() | nil,
+          recurrence: String.t() | nil,
           unknown: [String.t()],
           chips: [{atom, String.t()}]
         }
@@ -73,10 +77,12 @@ defmodule Slipdock.QuickAdd do
       tags: [],
       assignee: nil,
       comment: comment,
+      recurrence: nil,
       unknown: [],
       chips: []
     }
 
+    {text, acc} = take_every(text, acc)
     {text, acc} = take_dates(text, acc, today)
     {text, acc} = take_mentions(text, acc, users)
     {text, acc} = take_hashes(text, acc, columns, tags)
@@ -89,7 +95,7 @@ defmodule Slipdock.QuickAdd do
   def commands?(%{attrs: attrs, column: col, tags: tags, assignee: a, unknown: u} = parsed),
     do:
       attrs != %{} or not is_nil(col) or tags != [] or not is_nil(a) or u != [] or
-        not is_nil(parsed[:comment])
+        not is_nil(parsed[:comment]) or not is_nil(parsed[:recurrence])
 
   @doc """
   Splits a line at its first semicolon: `{title, comment}`, the comment nil
@@ -106,6 +112,59 @@ defmodule Slipdock.QuickAdd do
 
       [title] ->
         {title, nil}
+    end
+  end
+
+  ## Repeating ----------------------------------------------------------------
+
+  # The words a rule is written in; the phrase runs as long as they do, so
+  # "every: mon review invoices" stops before "review".
+  @every_word ~S"""
+  (?:\d+\s*(?:d|w|m|y|days?|weeks?|months?|years?)?|\d{1,2}(?:st|nd|rd|th)
+  |(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*|weekdays?|day|daily|week|weekly|fortnight
+  |month|monthly|year|yearly|annually|first|second|third|fourth|fifth|last|after|done)
+  """
+
+  @every_regex Regex.compile!(
+                 "(?<![\\w#@])every\\s*:\\s*((?:" <>
+                   String.replace(@every_word, ~r/\s*\n\s*/, "") <>
+                   "(?:[\\s,]+(?=\\S)|(?![\\w-])))+)",
+                 "i"
+               )
+
+  @doc """
+  Takes an `every: <how often>` out of `text`: `{text_without_it, rule}`,
+  the rule in stored form (`FREQ=WEEKLY;BYDAY=MO`), or nil when there is
+  none or it doesn't read (then it is left in the text).
+  """
+  @spec take_every(String.t()) :: {String.t(), String.t() | nil}
+  def take_every(text) do
+    {text, acc} = take_every(text, %{recurrence: nil, chips: []})
+    {text, acc.recurrence}
+  end
+
+  defp take_every(text, acc) do
+    case Regex.run(@every_regex, text, return: :index) do
+      [{at, len}, {p_at, p_len}] ->
+        phrase = text |> binary_part(p_at, p_len) |> String.trim() |> String.trim(",")
+
+        case Slipdock.Recurrence.Rule.parse_phrase(phrase) do
+          {:ok, rule} ->
+            rest =
+              binary_part(text, 0, at) <>
+                " " <> binary_part(text, at + len, byte_size(text) - at - len)
+
+            {rest,
+             acc
+             |> Map.put(:recurrence, Slipdock.Recurrence.Rule.to_string(rule))
+             |> chip(:repeat, "↻ " <> Slipdock.Recurrence.Rule.summary(rule))}
+
+          {:error, _} ->
+            {text, acc}
+        end
+
+      _ ->
+        {text, acc}
     end
   end
 

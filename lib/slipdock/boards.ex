@@ -136,6 +136,13 @@ defmodule Slipdock.Boards do
     :ok
   end
 
+  @doc """
+  Tells everyone looking at `card`'s board (and the boards above it) that the
+  card changed, for a change kept outside the card's own row — a recurring
+  card's series (see `Slipdock.Recurrence`).
+  """
+  def card_changed(%{board_id: board_id}), do: broadcast(board_id)
+
   # Tags are shared by a whole board tree, so tag changes notify every board in it.
   @doc false
   def broadcast_tree(root_id), do: do_broadcast_tree(root_id)
