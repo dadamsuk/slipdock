@@ -565,7 +565,8 @@ defmodule SlipdockWeb.BoardLive.CardSections do
   attr :provenance, :list, required: true
 
   @doc """
-  *From a meeting* (G11): the meeting a card, or a change to it, came from —
+  *From a meeting* (G11) — *From a conversation* for a chat (#1077): the
+  meeting or conversation a card, or a change to it, came from, linked —
   when in it, who said what, how it was read and who committed it. Kept on
   the card, so it reads the same after the capture is gone.
   """
@@ -573,7 +574,14 @@ defmodule SlipdockWeb.BoardLive.CardSections do
     ~H"""
     <section class="space-y-2 px-1" id="card-provenance">
       <h3 class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-base-content/50">
-        <.icon name="hero-microphone" class="size-3.5" /> From a meeting
+        <.icon
+          name={
+            if provenance_heading(@provenance) == "From a conversation",
+              do: "hero-chat-bubble-left-right",
+              else: "hero-microphone"
+          }
+          class="size-3.5"
+        /> {provenance_heading(@provenance)}
       </h3>
       <div
         :for={p <- @provenance}
@@ -594,9 +602,26 @@ defmodule SlipdockWeb.BoardLive.CardSections do
           Read as: {p.read}
         </p>
         <p :if={p.committed_by} class="text-xs text-base-content/60">Committed by {p.committed_by}</p>
+        <.link
+          :if={match?(%Slipdock.Meetings.Capture{}, p.capture)}
+          navigate={~p"/boards/#{p.capture.board_id}/meetings/#{p.capture_id}"}
+          id={"provenance-#{p.id}-capture"}
+          class="text-xs link link-hover"
+        >
+          {if p.source == "chat", do: "Open the conversation", else: "Open the capture"}
+        </.link>
       </div>
     </section>
     """
+  end
+
+  # A chat's trail is from a conversation (#1077); a card with both says so.
+  defp provenance_heading(provenance) do
+    case provenance |> Enum.map(& &1.source) |> Enum.uniq() do
+      ["chat"] -> "From a conversation"
+      [_] -> "From a meeting"
+      _ -> "From meetings and conversations"
+    end
   end
 
   defp provenance_clock(ms) do

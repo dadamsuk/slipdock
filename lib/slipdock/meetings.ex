@@ -490,7 +490,7 @@ defmodule Slipdock.Meetings do
       )
 
     with {:ok, updated} <- capture |> Capture.transition(to, extra) |> Repo.update() do
-      record(updated, "state", opts[:message] || state_message(to, opts[:reason]),
+      record(updated, "state", opts[:message] || state_message(to, opts[:reason], updated.kind),
         user: opts[:user],
         via: opts[:via],
         data: %{"from" => capture.state, "to" => to}
@@ -500,6 +500,9 @@ defmodule Slipdock.Meetings do
       {:ok, updated}
     end
   end
+
+  defp state_message("reading", _, "chat"), do: "Reading the conversation."
+  defp state_message(to, reason, _kind), do: state_message(to, reason)
 
   defp state_message("reading", _), do: "Reading the meeting."
   defp state_message("needs_review", _), do: "Read. Some things need a person to settle."

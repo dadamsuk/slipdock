@@ -1723,9 +1723,20 @@ defmodule SlipdockWeb.SlipdockComponents do
     # still has to name itself when it is what you are looking at.
     {_, _, label, icon, _, _} =
       case assigns.mode do
-        :wiki -> {:wiki, "/wiki", "Wiki", "hero-book-open", "Wiki", nil}
-        :meetings -> {:meetings, "/meetings", "Meetings", "hero-microphone", "Meetings", nil}
-        mode -> Enum.find(tabs, hd(tabs), fn {m, _, _, _, _, _} -> m == mode end)
+        :wiki ->
+          {:wiki, "/wiki", "Wiki", "hero-book-open", "Wiki", nil}
+
+        :meetings ->
+          # A conversation's page with meeting mode off (#1077) is no
+          # Meetings tab.
+          if Slipdock.Meetings.enabled?(),
+            do: {:meetings, "/meetings", "Meetings", "hero-microphone", "Meetings", nil},
+            else:
+              {:meetings, "/meetings", "Conversation", "hero-chat-bubble-left-right",
+               "Conversation", nil}
+
+        mode ->
+          Enum.find(tabs, hd(tabs), fn {m, _, _, _, _, _} -> m == mode end)
       end
 
     marks = assigns.marks || MapSet.new()
@@ -1785,7 +1796,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         </li>
         <%!-- Meeting capture, the other thing a board keeps beside its cards,
               while meeting mode shows here (see `Slipdock.Meetings`). --%>
-        <li :if={@meetings == :tab or @mode == :meetings}>
+        <li :if={@meetings == :tab or (@mode == :meetings and Slipdock.Meetings.enabled?())}>
           <.link
             id="view-menu-meetings"
             navigate={~p"/boards/#{@board.id}/meetings"}

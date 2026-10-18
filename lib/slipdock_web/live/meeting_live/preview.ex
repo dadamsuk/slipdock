@@ -89,6 +89,18 @@ defmodule SlipdockWeb.MeetingLive.Preview do
     end
   end
 
+  # Whether the transcript outlives the commit (#1077): the person's call
+  # until it is committed.
+  def handle_event("keep-transcript", params, socket) do
+    %{capture: capture} = socket.assigns
+    keep = params["keep_transcript"] == "true"
+
+    case capture |> Slipdock.Meetings.Capture.keep_changeset(keep) |> Slipdock.Repo.update() do
+      {:ok, capture} -> {:noreply, assign(socket, capture: capture)}
+      {:error, _} -> {:noreply, socket}
+    end
+  end
+
   defp by_op(set, op), do: Enum.filter(set["changes"], &(&1["op"] == op))
 
   defp value(nil), do: "—"
@@ -242,7 +254,9 @@ defmodule SlipdockWeb.MeetingLive.Preview do
             id="preview-wiki"
             class="rounded-xl bg-base-100 p-4 ring-1 ring-base-content/10"
           >
-            <h2 class="text-sm font-medium">The meeting's page</h2>
+            <h2 class="text-sm font-medium">
+              {if @capture.kind == "chat", do: "The conversation's page", else: "The meeting's page"}
+            </h2>
             <div
               :for={c <- by_op(@set, "decision_entry")}
               id={"change-#{c["id"]}"}
@@ -295,6 +309,32 @@ defmodule SlipdockWeb.MeetingLive.Preview do
               <li :for={l <- @set["left_out"]}>{l["title"]} — {l["why"]}</li>
             </ul>
           </section>
+
+          <form
+            :if={@capture.state == "ready"}
+            id="keep-transcript-form"
+            phx-change="keep-transcript"
+            class="flex justify-end"
+          >
+            <label class="flex cursor-pointer items-center gap-2 text-sm">
+              <input type="hidden" name="keep_transcript" value="false" />
+              <input
+                type="checkbox"
+                id="keep-transcript"
+                name="keep_transcript"
+                value="true"
+                checked={@capture.keep_transcript}
+                class="checkbox checkbox-sm"
+              />
+              <span>
+                Keep the {if @capture.kind == "chat", do: "conversation", else: "transcript"} after
+                committing
+                <span class="block text-xs text-base-content/60">
+                  Unticked, its lines are deleted once committed; only the quoted words stay.
+                </span>
+              </span>
+            </label>
+          </form>
 
           <form
             :if={@capture.state == "ready"}

@@ -138,6 +138,16 @@ defmodule SlipdockWeb.Meetings.CaptureChatTest do
     assert nope["result"]["isError"] == true
   end
 
+  test "keep_transcript: false is kept on the capture (#1077)", %{conn: conn} do
+    summary =
+      conn |> call(%{board: "PLCHAT", transcript: @chat, keep_transcript: false}) |> ok!()
+
+    refute Meetings.get_capture!(summary["id"]).keep_transcript
+
+    other = conn |> call(%{board: "PLCHAT", transcript: @chat <> "User: and more\n"}) |> ok!()
+    assert Meetings.get_capture!(other["id"]).keep_transcript
+  end
+
   test "off when chat capture is off", %{conn: conn} do
     {:ok, _} = Settings.update(%{"chat_capture_enabled" => false})
     names = rpc(conn, "tools/list", %{})["result"]["tools"] |> Enum.map(& &1["name"])

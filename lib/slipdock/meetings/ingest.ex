@@ -31,6 +31,8 @@ defmodule Slipdock.Meetings.Ingest do
       what is accepted do not apply to it.
     * `:conversation` — for an export holding several conversations, the id
       or title of the one to read
+    * `:keep_transcript` — false drops the transcript's lines once the
+      capture is committed, keeping only the quoted evidence (#1077)
   """
 
   alias Slipdock.Accounts.User
@@ -88,7 +90,8 @@ defmodule Slipdock.Meetings.Ingest do
         retention:
           params[:retention] || Slipdock.Settings.get().meetings_audio_retention || "30_days",
         transcript: text,
-        transcript_format: parsed && parsed.format
+        transcript_format: parsed && parsed.format,
+        keep_transcript: not falsy?(params[:keep_transcript])
       }
 
       case Meetings.create_capture(board, user, attrs,
@@ -408,6 +411,7 @@ defmodule Slipdock.Meetings.Ingest do
   end
 
   defp truthy?(v), do: v in [true, "true", "1", "on", 1]
+  defp falsy?(v), do: v in [false, "false", "0", "off", 0]
 
   defp invalid(message), do: {:error, {:invalid, message}}
 

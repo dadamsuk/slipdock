@@ -391,6 +391,7 @@ defmodule Slipdock.Meetings.Commit do
 
     %{
       "capture_id" => capture.id,
+      "source" => capture.kind,
       "meeting" => capture.title,
       "met_at" => capture.started_at && DateTime.to_iso8601(capture.started_at),
       "quote" => e && e.quote,
@@ -1137,6 +1138,8 @@ defmodule Slipdock.Meetings.Commit do
         |> Repo.update()
       end
 
+    capture = drop_transcript_after_commit(capture, now)
+
     Meetings.record(
       capture,
       "committed",
@@ -1148,6 +1151,41 @@ defmodule Slipdock.Meetings.Commit do
 
     capture
   end
+
+  # Asked not to keep the transcript (#1077): its lines go once committed,
+  # inside the commit's transaction, and only the quoted evidence stays —
+  # each quote carries its speaker and time, so the trail still reads true.
+  # An open "who said it" keeps the lines until it is answered and what
+  # waited on it is written: answering needs them. (A chat never asks.)
+  defp drop_transcript_after_commit(%Capture{keep_transcript: false} = capture, now) do
+    waiting? =
+      Repo.exists?(
+        from(q in Slipdock.Meetings.Question,
+          where: q.capture_id == ^capture.id and q.kind == "who_said_it" and q.status == "open"
+        )
+      )
+
+    if capture.transcript_dropped_at || waiting? do
+      capture
+    else
+      Repo.delete_all(from(u in Slipdock.Meetings.Utterance, where: u.capture_id == ^capture.id))
+
+      capture =
+        capture
+        |> Ecto.Changeset.change(transcript: nil, transcript_dropped_at: now)
+        |> Repo.update!()
+
+      Meetings.record(
+        capture,
+        "transcript_dropped",
+        "Dropped the transcript, as asked: only the quoted evidence is kept."
+      )
+
+      capture
+    end
+  end
+
+  defp drop_transcript_after_commit(capture, _now), do: capture
 
   defp target(%{"op" => "decision_entry", "page_id" => id}), do: {:page, id}
   defp target(%{"card_id" => id}), do: {:card, id}

@@ -282,6 +282,7 @@ defmodule SlipdockCLI.MeetingsTest do
       assert body["title"] == "Pricing chat"
       refute Map.has_key?(body, "conversation")
       refute Map.has_key?(body, "findings")
+      refute Map.has_key?(body, "keep_transcript")
       assert out =~ "sent: capture #12"
 
       export = file("conversations.json", ~s([{"uuid":"a","chat_messages":[]}]))
@@ -291,7 +292,8 @@ defmodule SlipdockCLI.MeetingsTest do
         Meetings.run("capture-chat", ["PL", export],
           format: "claude-export",
           conversation: "a",
-          findings: findings
+          findings: findings,
+          drop_transcript: true
         )
       end)
 
@@ -301,6 +303,7 @@ defmodule SlipdockCLI.MeetingsTest do
       assert body["conversation"] == "a"
       assert body["findings"] == ~s({"findings":[]})
       assert body["kind"] == "chat"
+      assert body["keep_transcript"] == "false"
     end
 
     test "schema prints the findings format" do

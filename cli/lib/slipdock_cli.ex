@@ -491,6 +491,7 @@ defmodule SlipdockCLI do
                                         Claude or ChatGPT export (- for stdin)
         --format chat|claude-export|chatgpt-export  --conversation ID|TITLE (one of several)
         --title T  --findings F (your own, quoting the conversation exactly)
+        --drop-transcript  once committed, keep only the quoted words
     voiceprint                          your own voiceprint, if you have one (only while the
                                         admin has voiceprints on), and meetings to enrol from
     voiceprint enrol --audio F --consent       from a recording of your own voice;
@@ -912,6 +913,7 @@ defmodule SlipdockCLI do
     consent: :boolean,
     from_capture: :string,
     conversation: :string,
+    drop_transcript: :boolean,
     set: :keep,
     q: :string,
     pool: :string,

@@ -25,7 +25,8 @@ defmodule SlipdockWeb.API.MeetingController do
   Sends a meeting to a board: multipart with any of `audio`, `transcript`,
   `findings` and `ics` as files, or JSON with `transcript`, `findings` and
   `ics` as text; plus `title`, `when`, `attendees`, `format`, `parent`,
-  `retention`. 201 with the capture, or 200 and `existing: true` when this
+  `retention`, and for a conversation `kind: "chat"`, `conversation` and
+  `keep_transcript` (false: drop the lines once committed). 201 with the capture, or 200 and `existing: true` when this
   board already has a capture of the same meeting.
   """
   def create(conn, %{"board" => ref} = params) do
@@ -45,6 +46,7 @@ defmodule SlipdockWeb.API.MeetingController do
           format: blank(params["format"]),
           kind: kind,
           conversation: blank(params["conversation"]),
+          keep_transcript: params["keep_transcript"],
           context: %{parent: params["parent"]},
           retention: blank(params["retention"]),
           source:

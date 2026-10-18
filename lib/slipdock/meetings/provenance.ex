@@ -1,6 +1,7 @@
 defmodule Slipdock.Meetings.Provenance do
   @moduledoc """
-  A card's *From a meeting* block (G11): which meeting, when in it, the words
+  A card's *From a meeting* — or, for a chat (#1077), *From a conversation* —
+  block (G11): which meeting, when in it, the words
   that justified the card or the change to it, who said them, how they were
   read (quoted word for word, both readings agreed, the audio was unclear…)
   and who committed it.
@@ -21,6 +22,8 @@ defmodule Slipdock.Meetings.Provenance do
     belongs_to :card, Slipdock.Boards.Card
     belongs_to :capture, Slipdock.Meetings.Capture
     field :kind, :string, default: "created"
+    # "meeting" or "chat" (#1077): what the trail is headed.
+    field :source, :string, default: "meeting"
     field :meeting, :string
     field :met_at, :utc_datetime
     field :quote, :string
@@ -41,7 +44,9 @@ defmodule Slipdock.Meetings.Provenance do
       card_id: card_id,
       capture_id: prov["capture_id"],
       kind: kind,
-      meeting: prov["meeting"] || "a meeting",
+      source: if(prov["source"] == "chat", do: "chat", else: "meeting"),
+      meeting:
+        prov["meeting"] || if(prov["source"] == "chat", do: "a conversation", else: "a meeting"),
       met_at: parse(prov["met_at"]),
       quote: prov["quote"],
       speaker: prov["speaker"],
@@ -55,7 +60,13 @@ defmodule Slipdock.Meetings.Provenance do
 
   @doc "A card's provenance, oldest first."
   def for_card(card_id) do
-    Repo.all(from(p in __MODULE__, where: p.card_id == ^card_id, order_by: [asc: p.id]))
+    Repo.all(
+      from(p in __MODULE__,
+        where: p.card_id == ^card_id,
+        order_by: [asc: p.id],
+        preload: [:capture]
+      )
+    )
   end
 
   @doc "Takes back what one capture wrote on a card (when the capture is undone)."
