@@ -397,6 +397,11 @@ says what changed and what, if anything, you have to do.
 `latest` follows the main branch. To pin a version instead, set `SLIPDOCK_TAG`
 in your `.env` to any published tag.
 
+Tabs left open across an upgrade reconnect by themselves, but they are still
+running the old stylesheet and scripts. Each one shows a "Slipdock has been
+updated" bar at the top with a Reload link; until it is reloaded, new features
+can look broken there.
+
 While the new container starts, which takes a few seconds, nothing is
 listening, so a proxy in front answers with a 502. To have those requests wait
 instead, put Caddy in front. It is optional and self-contained:
