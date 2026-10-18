@@ -693,6 +693,7 @@ defmodule SlipdockWeb.Router do
     post "/cards/:id/move", CardController, :move
     post "/cards/:id/archive", CardController, :archive
     post "/cards/:id/restore", CardController, :restore
+    post "/cards/:id/copy", CardController, :copy
     post "/cards/:id/checklist", CardController, :add_checklist_item
     post "/cards/:id/comments", CardController, :add_comment
     get "/cards/:id/handoff", CardController, :handoff

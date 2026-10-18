@@ -10,7 +10,7 @@ defmodule SlipdockCLI.Boards do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(guide search ask search-status saved save unsave boards board columns tags activity cards card swimlanes views favourites fav unfav table fields milestones templates add edit set vote status handoff new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
+  @commands ~w(guide search ask search-status saved save unsave boards board columns tags activity cards card swimlanes views favourites fav unfav table fields milestones templates add copy edit set vote status handoff new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -556,6 +556,22 @@ defmodule SlipdockCLI.Boards do
 
   def run("blocks", [id | others], o) when others != [],
     do: dependencies(id, others, "blocks", o)
+
+  # A copy as the card is now (`POST /api/cards/:id/copy`): straight after
+  # the original by default, or at the top or bottom of the list it goes to.
+  def run("copy", [id], o) do
+    at =
+      cond do
+        o[:top] -> "top"
+        o[:bottom] -> "bottom"
+        true -> nil
+      end
+
+    body =
+      compact(%{"board" => o[:board], "column" => o[:column], "title" => o[:title], "at" => at})
+
+    HTTP.post("/cards/#{enc(id)}/copy", body) |> out(o, &card_ok("copied ##{id} to", &1))
+  end
 
   def run("archive", ids, o) when ids != [],
     do: each(ids, o, &HTTP.post("/cards/#{enc(&1)}/archive"), "archived")

@@ -31,7 +31,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   alias SlipdockWeb.Params
   alias SlipdockWeb.BoardLive.{ItemEvents, Paths, Sharing}
 
-  @own_events ~w(card_change toggle_flag toggle_tag set_cover archive_card delete_card
+  @own_events ~w(card_change toggle_flag toggle_tag set_cover duplicate_card archive_card delete_card
     add_dependency remove_dependency create_sub_board remove_assignee delete_sub_board
     quick_add_subcard toggle_subcard edit_description stop_editing_description
     validate_attachments cancel_upload delete_attachment hide_on_card transcribe add_link remove_link write_up
@@ -505,6 +505,23 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   defp event("set_cover", %{"color" => color}, socket) do
     {:ok, _} = Boards.update_card(socket.assigns.card, %{"color" => color})
     {:noreply, socket}
+  end
+
+  # A copy as the card is now, straight after it, and opened (W-1802).
+  defp event("duplicate_card", _, socket) do
+    %{card: card, current_user: user} = socket.assigns
+
+    case Boards.copy_card(card, nil, at: :after, by: user) do
+      {:ok, copy} ->
+        {:noreply,
+         socket
+         |> flash(:info, "Duplicated as ##{copy.id}.")
+         |> push_patch(to: Paths.card_path(socket.assigns, copy.id))}
+
+      {:error, refused} ->
+        message = Slipdock.Quota.refusal_message(refused) || "Couldn't duplicate the card."
+        {:noreply, flash(socket, :error, message)}
+    end
   end
 
   defp event("archive_card", _, socket) do

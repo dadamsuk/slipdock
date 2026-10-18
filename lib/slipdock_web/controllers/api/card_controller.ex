@@ -261,6 +261,43 @@ defmodule SlipdockWeb.API.CardController do
     end
   end
 
+  @doc """
+  `POST /api/cards/:id/copy` — a copy of the card as it is now (see
+  `Slipdock.Boards.Copy`): checklist unticked, subcards reopened, no
+  attachments, comments or dates. Optional `board` and `column` say where
+  (default: straight after the original, in its list), `title` renames the
+  copy, and `at` is `top`, `bottom` or `after`. Reading the card is enough to
+  copy it; the list it lands in must be one you can write to.
+  """
+  def copy(conn, %{"id" => id} = params) do
+    with {:ok, card} <- fetch_card(id),
+         :ok <- Authorize.card(conn, card, :read),
+         {:ok, board} <- Authorize.fetch_board(conn, params["board"] || card.board_id, :write),
+         {:ok, column} <- copy_column(board, card, params["column"]),
+         {:ok, at} <- copy_at(params["at"]),
+         {:ok, copy} <-
+           Boards.copy_card(card, column,
+             by: conn.assigns.current_user,
+             at: at,
+             attrs: Map.take(params, ["title"])
+           ) do
+      conn
+      |> put_status(:created)
+      |> json(%{card: V.card(Authorize.visible(conn, copy)), copied_from: card.id})
+    end
+  end
+
+  defp copy_column(%{id: board_id}, %{board_id: board_id, column_id: column_id}, ref)
+       when ref in [nil, ""],
+       do: {:ok, Repo.get!(Slipdock.Boards.Column, column_id)}
+
+  defp copy_column(board, _card, ref),
+    do: resolve_column(board, if(ref == "", do: nil, else: ref))
+
+  defp copy_at(nil), do: {:ok, :after}
+  defp copy_at(at) when at in ~w(top bottom after), do: {:ok, String.to_existing_atom(at)}
+  defp copy_at(_), do: {:error, :bad_request, "at must be one of: top, bottom, after"}
+
   # Body: {"template": id-or-name}. Gives the card a sub-board for subcards.
   def create_sub_board(conn, %{"id" => id} = params) do
     with {:ok, card} <- fetch_card(id),
