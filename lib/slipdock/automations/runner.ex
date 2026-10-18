@@ -594,6 +594,34 @@ defmodule Slipdock.Automations.Runner do
     {:ok, "logged"}
   end
 
+  # The gardener (W-1807): look the rule's board over and say how much
+  # there is to tidy. It applies nothing — that is for a person, on the
+  # Tidy-up page — and raises nothing when there is nothing to tidy.
+  defp do_perform("garden", action, ctx) do
+    {:ok, run} = Slipdock.Gardener.run(ctx.board, trigger: "schedule")
+
+    case run.counts["total"] do
+      0 ->
+        {:ok, "looked the board over: nothing to tidy"}
+
+      n ->
+        attrs = %{
+          "title" =>
+            "Slipdock: #{n} tidy-up #{if n == 1, do: "suggestion", else: "suggestions"} on #{ctx.board.name}",
+          "body" => garden_body(run.counts, ctx.board),
+          "severity" => action["severity"] || "info",
+          "board_id" => ctx.board.id,
+          "card_id" => nil,
+          "rule_id" => ctx.rule.id
+        }
+
+        case Slipdock.Automations.raise_alert(attrs) do
+          {:ok, _} -> {:ok, "looked the board over: #{n} to tidy, alerted"}
+          {:error, changeset} -> {:error, "alert failed: #{errors(changeset)}"}
+        end
+    end
+  end
+
   # Queues the card for a pool of runners. Only data goes in the job: what
   # the kind means is the runner's own business (see `Slipdock.Runners`).
   defp do_perform("runner", action, ctx) do
@@ -680,6 +708,17 @@ defmodule Slipdock.Automations.Runner do
 
   defp need_card(%{card: %Card{} = card}), do: {:ok, card}
   defp need_card(_), do: {:error, "there is no card to act on"}
+
+  # What there is, by check, and where to see it.
+  defp garden_body(counts, board) do
+    lines =
+      for check <- Slipdock.Gardener.checks(),
+          n = counts[check.key()],
+          is_integer(n) and n > 0,
+          do: "#{check.label()}: #{n}"
+
+    Enum.join(lines, "\n") <> "\n\nReview them: #{base_url()}/boards/#{board.id}/tidy"
+  end
 
   defp board_id(%{card: %Card{board_id: id}}), do: id
   defp board_id(%{board: board}), do: board.id
