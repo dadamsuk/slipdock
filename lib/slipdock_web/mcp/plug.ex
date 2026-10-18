@@ -21,14 +21,14 @@ defmodule SlipdockWeb.MCP.Plug do
       is how a client learns it has to sign in.
 
   This module is the transport and the JSON-RPC; the tools are in
-  `SlipdockWeb.MCP.Tools`.
+  `SlipdockWeb.MCP.Tools` and the prompts in `SlipdockWeb.MCP.Prompts`.
   """
   @behaviour Plug
 
   import Plug.Conn
 
   alias Slipdock.Accounts
-  alias SlipdockWeb.MCP.Tools
+  alias SlipdockWeb.MCP.{Prompts, Tools}
 
   @versions ["2025-11-25", "2025-06-18", "2025-03-26"]
   @latest hd(@versions)
@@ -42,6 +42,7 @@ defmodule SlipdockWeb.MCP.Plug do
   @invalid_request -32600
   @method_not_found -32601
   @invalid_params -32602
+  @internal_error -32603
 
   @doc "The protocol revisions this server speaks, newest first."
   def versions, do: @versions
@@ -207,7 +208,7 @@ defmodule SlipdockWeb.MCP.Plug do
     {:ok,
      %{
        protocolVersion: if(requested in @versions, do: requested, else: @latest),
-       capabilities: %{tools: %{listChanged: false}},
+       capabilities: %{tools: %{listChanged: false}, prompts: %{listChanged: false}},
        serverInfo: %{
          name: "slipdock",
          title: "Slipdock",
@@ -228,15 +229,22 @@ defmodule SlipdockWeb.MCP.Plug do
         {:error, @invalid_params, "unknown tool: #{name}"}
 
       tool ->
-        context = %{
-          user: conn.assigns.current_user,
-          token: conn.assigns.api_token,
-          base_url: SlipdockWeb.BaseURL.from_conn(conn)
-        }
-
-        {:ok, tool_result(Tools.call(tool, params["arguments"] || %{}, context))}
+        {:ok, tool_result(Tools.call(tool, params["arguments"] || %{}, tool_context(conn)))}
     end
   end
+
+  defp dispatch(_conn, "prompts/list", _params),
+    do: {:ok, %{prompts: Enum.map(Prompts.all(), &Prompts.describe/1)}}
+
+  defp dispatch(conn, "prompts/get", %{"name" => name} = params) when is_binary(name) do
+    case Prompts.find(name) do
+      nil -> {:error, @invalid_params, "unknown prompt: #{name}"}
+      prompt -> get_prompt(prompt, params["arguments"] || %{}, tool_context(conn))
+    end
+  end
+
+  defp dispatch(_conn, "prompts/get", _params),
+    do: {:error, @invalid_params, "prompts/get needs a prompt name"}
 
   defp dispatch(_conn, "tools/call", _params),
     do: {:error, @invalid_params, "tools/call needs a tool name"}
@@ -246,6 +254,32 @@ defmodule SlipdockWeb.MCP.Plug do
 
   defp dispatch(_conn, method, _params),
     do: {:error, @method_not_found, "method not found: #{method}"}
+
+  defp tool_context(conn) do
+    %{
+      user: conn.assigns.current_user,
+      token: conn.assigns.api_token,
+      base_url: SlipdockWeb.BaseURL.from_conn(conn)
+    }
+  end
+
+  # Unlike a tool, a prompt that can't be rendered is a JSON-RPC error: the
+  # person picked it from a menu, and the client shows them the message.
+  defp get_prompt(prompt, args, context) do
+    case Prompts.get(prompt, args, context) do
+      {:ok, result} -> {:ok, result}
+      {:error, message} -> {:error, @invalid_params, message}
+    end
+  rescue
+    e ->
+      require Logger
+
+      Logger.error(
+        "MCP prompt #{prompt.name()} crashed: " <> Exception.format(:error, e, __STACKTRACE__)
+      )
+
+      {:error, @internal_error, "#{prompt.name()} failed on the server"}
+  end
 
   defp tool_result({:ok, data}) do
     %{content: [%{type: "text", text: Jason.encode!(data, pretty: true)}], isError: false}
