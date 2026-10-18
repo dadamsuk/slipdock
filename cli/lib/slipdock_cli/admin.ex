@@ -89,7 +89,8 @@ defmodule SlipdockCLI.Admin do
                                         ai_system_user=<admin email> (empty to clear),
                                         meetings_enabled, meetings_visibility
                                         (used_only|every_board), meetings_hideable,
-                                        meetings_accept_transcripts|audio|findings
+                                        meetings_accept_transcripts|audio|findings,
+                                        chat_capture_enabled (on by default)
     admin allow <entry> | disallow <entry>
     admin users                         who is here
     admin overview [--sort S]           usage: accounts, activity, and what each person owns
@@ -165,6 +166,7 @@ defmodule SlipdockCLI.Admin do
               "storage_limit_enabled",
               "trial_enabled",
               "meetings_enabled",
+              "chat_capture_enabled",
               "meetings_hideable",
               "meetings_accept_transcripts",
               "meetings_accept_audio",

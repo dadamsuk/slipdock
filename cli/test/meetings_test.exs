@@ -38,6 +38,22 @@ defmodule SlipdockCLI.MeetingsTest do
     assert out =~ "on boards that have had a capture"
     assert out =~ "yes (you have hidden it)"
     assert out =~ "Voiceprints:  off"
+    assert out =~ "Chat capture: on"
+  end
+
+  test "meetings says when meeting mode is off and chat capture is on, or off" do
+    serve([
+      {200, ~s({"meetings":{"enabled":false,"chat_enabled":true,"visibility":"used_only"}})},
+      {200, ~s({"meetings":{"enabled":true,"chat_enabled":false,"visibility":"used_only"}})}
+    ])
+
+    out = capture_io(fn -> Meetings.run("meetings", [], []) end)
+    assert out =~ "Meeting mode: off"
+    assert out =~ "Chat capture: on"
+
+    out = capture_io(fn -> Meetings.run("meetings", [], []) end)
+    assert out =~ "Meeting mode: on"
+    assert out =~ "Chat capture: off"
   end
 
   test "meetings on every board, with --json passing the answer through" do
@@ -66,7 +82,8 @@ defmodule SlipdockCLI.MeetingsTest do
             "set",
             "meetings_enabled=on",
             "meetings_visibility=every_board",
-            "meetings_hideable=no"
+            "meetings_hideable=no",
+            "chat_capture_enabled=off"
           ],
           []
         )
@@ -77,7 +94,8 @@ defmodule SlipdockCLI.MeetingsTest do
     assert JSON.decode!(body) == %{
              "meetings_enabled" => true,
              "meetings_visibility" => "every_board",
-             "meetings_hideable" => false
+             "meetings_hideable" => false,
+             "chat_capture_enabled" => false
            }
 
     assert out =~ "Meeting mode:     on, every board"
@@ -249,6 +267,40 @@ defmodule SlipdockCLI.MeetingsTest do
                "nothing from it was written"
 
       assert_received {:request, "POST", "/api/captures/12/discard", _}
+    end
+
+    test "capture-chat sends the conversation as a chat, with the format and conversation" do
+      serve([{201, @capture}, {201, @capture}])
+      t = file("chat.txt", "User: ship Friday?\nClaude: yes\nUser: agreed")
+
+      out = capture_io(fn -> Meetings.run("capture-chat", ["PL", t], title: "Pricing chat") end)
+
+      assert_received {:request, "POST", "/api/boards/PL/captures", body}
+      body = JSON.decode!(body)
+      assert body["kind"] == "chat"
+      assert body["transcript"] == "User: ship Friday?\nClaude: yes\nUser: agreed"
+      assert body["title"] == "Pricing chat"
+      refute Map.has_key?(body, "conversation")
+      refute Map.has_key?(body, "findings")
+      assert out =~ "sent: capture #12"
+
+      export = file("conversations.json", ~s([{"uuid":"a","chat_messages":[]}]))
+      findings = file("f.json", ~s({"findings":[]}))
+
+      capture_io(fn ->
+        Meetings.run("capture-chat", ["PL", export],
+          format: "claude-export",
+          conversation: "a",
+          findings: findings
+        )
+      end)
+
+      assert_received {:request, "POST", "/api/boards/PL/captures", body}
+      body = JSON.decode!(body)
+      assert body["format"] == "claude-export"
+      assert body["conversation"] == "a"
+      assert body["findings"] == ~s({"findings":[]})
+      assert body["kind"] == "chat"
     end
 
     test "schema prints the findings format" do

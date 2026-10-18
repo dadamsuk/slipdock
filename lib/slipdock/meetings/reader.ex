@@ -79,7 +79,33 @@ defmodule Slipdock.Meetings.Reader do
 
   Options: `:ai` — options passed to every `Slipdock.AI` call (tests use it).
   """
-  def read(%Capture{} = capture, opts \\ []) do
+  def read(capture, opts \\ [])
+
+  # A chat whose model sent its own findings (#1076) is not read again on
+  # the server: no model call, no AI key needed. Verify still checks every
+  # quote against the transcript, so the findings cannot invent agreement.
+  def read(%Capture{kind: "chat", sources: %{"findings" => %{"document" => _}}} = capture, _opts) do
+    with {:ok, agent} <- agent_findings(capture) do
+      date = meeting_date(capture)
+
+      {:ok,
+       %{
+         "1" => [],
+         "2" => nil,
+         "agent" => resolve_dates(agent, date),
+         "notes" => agent_notes(capture) || %{"summary" => nil, "topics" => []},
+         "meta" => %{
+           "first_model" => nil,
+           "second" => "off",
+           "agent_only" => true,
+           "stretches" => 0,
+           "meeting_date" => Date.to_iso8601(date)
+         }
+       }}
+    end
+  end
+
+  def read(%Capture{} = capture, opts) do
     owner = Repo.get!(User, capture.owner_id)
     lines = lines(capture)
     settings = Settings.get()

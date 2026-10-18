@@ -68,6 +68,7 @@ defmodule SlipdockWeb.MCP.Tools.GetCapture do
     %{
       id: capture.id,
       title: capture.title,
+      kind: capture.kind,
       state: capture.state,
       reason: capture.state_reason,
       url: MeetingJSON.url(context.base_url, capture),

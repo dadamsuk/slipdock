@@ -88,6 +88,7 @@ defmodule SlipdockCLI do
                                       search and scheduled automations use (an admin's);
                                       ai_system_user= clears it
                                       meetings_enabled=true turns meeting capture on;
+                                      chat_capture_enabled=false turns chat capture off;
                                       meetings_visibility=used_only|every_board,
                                       meetings_hideable=false, and what may be sent:
                                       meetings_accept_transcripts|audio|findings=false,
@@ -484,6 +485,12 @@ defmodule SlipdockCLI do
     capture retry <id>                  carry a failed capture on
     capture discard <id>                decide against it; nothing is written
     capture schema                      the findings format, as JSON Schema
+    capture-chat <board> <file> [opts]  send a conversation with an AI assistant (chat
+                                        capture: on unless the admin turned it off; needs no
+                                        meeting mode). The file: Name: text turns, or a
+                                        Claude or ChatGPT export (- for stdin)
+        --format chat|claude-export|chatgpt-export  --conversation ID|TITLE (one of several)
+        --title T  --findings F (your own, quoting the conversation exactly)
     voiceprint                          your own voiceprint, if you have one (only while the
                                         admin has voiceprints on), and meetings to enrol from
     voiceprint enrol --audio F --consent       from a recording of your own voice;
@@ -904,6 +911,7 @@ defmodule SlipdockCLI do
     rest: :boolean,
     consent: :boolean,
     from_capture: :string,
+    conversation: :string,
     set: :keep,
     q: :string,
     pool: :string,

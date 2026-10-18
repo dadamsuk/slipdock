@@ -175,8 +175,8 @@ way in: what it is, the pictures, and how to get it running.
 - Accounts: passwordless sign-in by emailed magic link, sessions that last
   30 days, API tokens for the CLI
 - **An MCP server** at `/mcp`: claude.ai, the Claude apps, Claude Code and
-  other MCP clients get the boards and the wiki as 49 tools (four of them only
-  while meeting mode is on), signing in
+  other MCP clients get the boards and the wiki as 50 tools (five of them only
+  while meeting mode or chat capture is on), signing in
   through the browser or with an API token (see [MCP server](#mcp-server))
 - Groups of users; boards, single cards and saved views can be shared with
   people or groups as read-only or editable
@@ -4885,6 +4885,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `job_progress` | Renews a claimed job's lease; `note`, if given, is also a comment on the card. Answers `ok`, or `cancel` when somebody has stopped the job. |
 | `finish_job` | Ends a claimed job: `outcome` done, failed, cancelled or timeout, and a `summary` kept on the job. Only the token that claimed it may. |
 | `capture_meeting` | Sends a meeting's transcript (WebVTT, SRT, `Name:` lines, a Fireflies or Otter export) to a board for [meeting capture](#meeting-capture), with `title`, `when`, `attendees`, and optionally the agent's own `findings` in the published schema. Nothing is written to the board by it. Recordings go through the CLI or the API. |
+| `capture_chat` | Sends the conversation the model is in (`Name: text` turns, or a Claude or ChatGPT export with `format` and `conversation`) to a board for [chat capture](#meeting-capture), optionally with the model's own `findings`: then no server model or AI key is needed, and every quote is still checked against the conversation. Only while chat capture is on (the default). Nothing is written to the board by it. |
 | `get_capture` | A capture: its state, what it found and what each finding becomes, the open questions with numbered answers, and — once it is ready — the `preview` digest to commit with. |
 | `resolve_capture_question` | Answers one question with the answer the person gave in the conversation (never the model's own); recorded as theirs, *via agent*. |
 | `commit_capture` | Writes a ready capture to the board in one go, when the person asks; pass `preview` so exactly what they saw is written. Refused, naming the card, if something it changes was edited since. |
