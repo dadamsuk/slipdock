@@ -486,14 +486,13 @@ defmodule SlipdockWeb.APIGuide do
     than the whole API: `whoami`, `get_guide` (this text: a short
     form by default, ending with the names of the other sections, and one of
     them with `section`), `list_boards`,
-    `get_board`, `list_cards` (`full: true` gives every card as `get_card`
-    does, comments, checklist and docs included, so a whole board reads in
-    one call), `get_card`, `search`, `ask` (`POST /api/ask`: a
+    `get_board`, `list_cards` (`full: true`: every card as `get_card`
+    gives it, so a whole board reads in one call), `get_card`, `search`, `ask` (`POST /api/ask`: a
     model call, so slower), `read_page`, `list_pages` (a
     board's wiki, flat or with `tree` nested), `page_info` (a page's
     `links` or `sections`, a board's `wanted` pages, or `resolve` a
-    title), `page_history`, `activity` (the
-    board's log, or with `card` one card's), `download_file` (a file, by
+    title), `page_history`, `activity` (a
+    board's log, or one card's), `download_file` (a file, by
     attachment id), `list_automations`, and for
     writing `create_card`, `update_card` (fields, flags, tags, assignees,
     dependencies, the checklist, recurrence, snooze), `move_card` (to another board too),
@@ -506,7 +505,8 @@ defmodule SlipdockWeb.APIGuide do
     title, summary, parent, position and folder, archiving and restoring it,
     and pinning it to a card) and `revert_page` (a page
     back to a revision, as a new one, against `base_hash`),
-    `manage_automation` (owner only), `list_tools`, `install_tool`, and `claim_job`,
+    `manage_automation` (owner only), `list_tools`, `install_tool`, `garden` and
+    `garden_decide` (tidy-up suggestions), and `claim_job`,
     `job_progress` and `finish_job` to take runner jobs from a board's
     queue (see "Runners" below). Archiving can be undone; the
     deletes can't, so `delete_card`
