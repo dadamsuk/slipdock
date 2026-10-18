@@ -59,6 +59,13 @@ Briefly, with the detail in [the manual](docs/manual.md):
   play in place and transcribe on a transcription server of your own
   (Configuration → Server → Transcription server; [what it must speak](docs/manual.md#what-a-transcription-server-must-speak)), cover colours, archive and restore (the archive searchable by title, `#id` or a card's link), and a [select mode](docs/manual.md#changing-several-cards-at-once) that tags, flags, moves, archives or deletes many cards at once. Each board has a short code (`qvm-v1-rem`) that addresses it
   everywhere.
+- **Where it was left** — [a handoff on every card](docs/manual.md#where-it-was-left-handoffs):
+  the one next step and a short note (state, gotchas, open questions,
+  pointers), shown first on the card and marked on its front, so whoever picks
+  it up next — you, a colleague, an agent or a runner — reads that instead of
+  the comments. Written from the card, `slipdock handoff 12 --next "…"`,
+  `POST /api/cards/:id/handoff` or the MCP `leave_handoff` tool; a runner job
+  that stops short leaves its summary as one.
 - **Time tracking** — [a timer on each card, time spent and an estimate](docs/manual.md#time-tracking)
   in minutes, hours, days, weeks or months, and a bar that turns amber near the
   estimate and red past it.
@@ -674,7 +681,8 @@ hooks for every job — and a prompt that has Claude Code on the machine write
 those hooks for you (your notifier, what to keep from each pass), from a
 worked example. A Claude runner may use the Slipdock MCP tools without
 asking (on by default) and every job is told nobody will answer questions, since
-nobody is watching. A runner costs nothing while it waits; the Claude and
+nobody is watching, and to leave a handoff if it stops with the card unfinished
+(a job that ends with its card open leaves its summary as one). A runner costs nothing while it waits; the Claude and
 ChatGPT options need no install but use a turn per check. In every scenario a job
 does nothing to its card or repository unless you tick it: move it to In
 Progress, assign it, git commit, git push (with commit; commits only ever in a

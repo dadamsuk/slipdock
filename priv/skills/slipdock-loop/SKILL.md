@@ -145,7 +145,7 @@ slipdock cards <sub-board-id> --column "In Progress" --assignee me --open
 
 Anything there that is **not** flagged `blocked`, `waiting` or `review` is this
 pass's card — read it (`slipdock card <id>`, comments and all) and carry on from
-where the comments say it got to. Only an empty result means pick something new.
+where its handoff (`Left off:`, at the top) and the comments say it got to. Only an empty result means pick something new.
 This is what stops a loop starting four cards and finishing none.
 
 If the resumed card's last comment is `Build started` (see step 7), the pass died
@@ -253,6 +253,9 @@ card went into a sprint, and the work is that card, not the stand-in.
 Read the whole card before touching it: `slipdock card <id>` for the description,
 checklist, comments, dependencies, links and whether it has subcards. The
 description is the brief; the comments are often where the real constraint is.
+A **handoff** (`Left off:`, first under the title) is where whoever had it last
+left it — the one next step and their note: read it first and start there.
+`slipdock handoff <id>` shows it with the ones before it.
 
 ## 4. Claim it, and say so
 
@@ -465,6 +468,20 @@ next pass:
   this pass, or hand the parent back with its new shape and let the next pass
   start clean.
 
+Whichever the case, **leave a handoff** before letting go, so the next pass or
+person starts from where this one stopped rather than from the comments:
+
+```sh
+slipdock handoff <id> --next "<the one next step>" --body "State: …
+Gotchas: …
+Open: …
+Pointers: <branch, commit, files, W-…>"
+```
+
+The same goes for any pass that ends with its card unfinished — the token dying
+(over MCP, `leave_handoff`), a build still red after two fixes, a job cancelled.
+A finished card needs none.
+
 Flagging and handing back is a result, not a failure — a pass that reports "card
 #128 needs a decision, asked on the card" has done its job. Guessing is the
 failure mode.
@@ -474,6 +491,7 @@ failure mode.
 - **One card claimed at a time.** Claim at the start, release or close at the
   end. Resume before you pick.
 - **Never leave a card in the doing list without a comment newer than the move.**
+- **Never stop short on a card without leaving its handoff.**
 - **The board is the only state.** No scratch lists, no "I'll remember".
 - **Never pull from the backlog** when the ready list is empty — that is the
   user's queue to fill. Say it is empty and stop.

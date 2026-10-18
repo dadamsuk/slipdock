@@ -57,12 +57,12 @@ defmodule SlipdockWeb.APIGuideResponsesTest do
 
   defp assert_shape(_scalar, _real, _path), do: :ok
 
-  test "there is a sample for each of the six responses", %{samples: samples} do
-    assert length(samples) == 6
+  test "there is a sample for each of the seven responses", %{samples: samples} do
+    assert length(samples) == 7
   end
 
   test "every sample's fields are in the real response", ctx do
-    [board_s, card_s, status_s, invalid_s, search_s, ask_s] = ctx.samples
+    [board_s, card_s, status_s, invalid_s, handoff_s, search_s, ask_s] = ctx.samples
     conn = ctx.conn
 
     status =
@@ -83,6 +83,17 @@ defmodule SlipdockWeb.APIGuideResponsesTest do
       conn |> post(~p"/api/cards/#{ctx.card.id}/status", %{health: "meh"}) |> json_response(422)
 
     assert invalid == invalid_s
+
+    handoff =
+      conn
+      |> post(~p"/api/cards/#{ctx.card.id}/handoff", %{
+        next_step: "Write the rounding test",
+        body: "State: fix is in, untested"
+      })
+      |> json_response(201)
+
+    assert_shape(handoff_s, handoff)
+    assert handoff["handoff"]["via"] == "api"
 
     search =
       conn
@@ -125,6 +136,10 @@ defmodule SlipdockWeb.APIGuideResponsesTest do
     # Status: the body and its values.
     assert text =~
              "takes `health` — `on_track`, `at_risk` or `off_track` — and an optional `body`"
+
+    # Handoff: what it takes, and where the current one is.
+    assert text =~ "takes `next_step` (one line, at most 280, required)"
+    assert text =~ "`GET` gives it with every earlier one as `history`"
 
     # Search: where the title is.
     assert text =~ "Read the title from `subject`"

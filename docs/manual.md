@@ -22,6 +22,9 @@ way in: what it is, the pictures, and how to get it running.
   The board's **Archived cards** panel has a search box: a piece of a title,
   or a card's id (`#123`) or link, finds the archived card to restore. An
   archived card's own link opens that panel on it rather than a dead end.
+- Handoffs: one short note on a card saying where it was left — the next
+  step, the state, the gotchas — read first by whoever picks it up next. See
+  [Where it was left](#where-it-was-left-handoffs)
 - Time tracking: a start/stop timer on each card, time spent and an estimate
   shown in a unit of its own, and a colour-coded bar between them — see
   [Time tracking](#time-tracking)
@@ -409,6 +412,56 @@ slipdock timer 12 start                         # ... later:
 slipdock timer 12 stop                          # adds the minutes it ran
 slipdock card 12                                # Time: 1.25d spent of 2d estimated (63%)
 ```
+
+## Where it was left (handoffs)
+
+Work on a card spans sittings, people and tools: a Claude Code session, a
+runner pass, you at a browser. A **handoff** is the one short note on a card
+that says where it was left, so whoever picks it up next, person or agent,
+reads that first instead of piecing the state together from the comments.
+
+It is a **next step** (one line, at most 280 characters, required) and a
+**note** (Markdown, at most 8000), usually in this shape:
+
+```
+State:     what is done and what is half-done
+Next:      the one next step
+Gotchas:   what bit me / what not to try again
+Open:      questions waiting on someone
+Pointers:  branch, files, commits, pages (W-…)
+```
+
+A card opens on a **Where it was left** panel above the title and description:
+the next step in bold, the note, who left it, when and how (the web app, the
+API, MCP, the CLI or a runner), and a **History** of every earlier one.
+**Update handoff** writes a new one; nothing is edited in place, so the history
+is the whole story. **Clear** writes an empty one, and the history keeps that
+too. While the card is open its front carries a ↩ mark with the next step as
+its tooltip; a completed card keeps its note but loses the mark.
+
+Anyone who can comment on a card can leave its handoff, since it is a kind of
+comment; a reader sees it but can't write one. Each one is a line in the
+board's activity.
+
+Comments stay the running log and status updates the stated health; the
+handoff is the *now*. Write one whenever you stop with a card unfinished.
+Agents are told the same: the guide says to read a card's handoff before
+starting it and to leave one when stopping, `get_card` puts it first, and the
+`slipdock-work` and `slipdock-loop` skills do both. A [runner](#runners) job
+that ends with its card still open leaves its summary as the handoff (its first
+line is the next step), unless the agent left one itself during the job.
+
+```sh
+slipdock handoff 12 --next "Write the rounding test" --body "State: fix is in, untested"
+slipdock handoff 12 --next "Ship it" --file note.md      # or --body - to read stdin
+slipdock handoff 12                                      # the handoff and its history
+slipdock handoff 12 --clear
+```
+
+Over the API, `POST /api/cards/:id/handoff` with `next_step` and `body` (or
+`{"clear": true}`) writes one and `GET` reads it with its history; a card's JSON
+carries it as `handoff`. Over MCP it is the `leave_handoff` tool. Exports
+between servers carry every handoff, signed by whoever imports them.
 
 ## Dependencies
 
@@ -4120,6 +4173,7 @@ POST   /api/cards/:id/archive              POST   /api/cards/:id/restore
 POST   /api/cards/:id/timer {action: start|stop}   stopping adds the minutes it ran to time spent
 POST   /api/cards/:id/checklist {text}     POST   /api/checklist/:item_id/toggle   DELETE /api/checklist/:item_id
 POST   /api/cards/:id/comments {body}      DELETE /api/comments/:comment_id
+GET    /api/cards/:id/handoff              POST   /api/cards/:id/handoff {next_step, body} | {clear: true}
 POST   /api/cards/:id/dependencies {blocked_by: id} | {blocks: id}
 POST   /api/cards/:id/subboard {template}  DELETE /api/cards/:id/subboard
 GET    /api/boards/:board/sprints/next     (what New sprint would fill in: name, start, days)
@@ -4384,6 +4438,7 @@ slipdock page edit W-31 --percent 40 --color amber --done   # the card facets, o
 slipdock comment W-31 "needs a worked example"  # comment, check, status, vote, weblink and
 slipdock check W-31 "worked example"           # unweblink all take a page code as readily
 slipdock status W-31 at_risk "stalled on SRE"  # as a card number
+slipdock handoff 12 --next "Write the test" --body "State: …"   # where a card was left
 slipdock page place W-31 "In Progress"         # put the doc in a list, beside the work
 slipdock page place W-31 Backlog --before 42   # before card #42 (or --before page-7)
 slipdock page unplace W-31                     # off the board; it stays in the wiki
