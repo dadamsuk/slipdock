@@ -5091,6 +5091,37 @@ client is offered the codes of your boards, and a `card` argument offers
 one. A connector caches the list, so after an upgrade that adds a prompt,
 disconnect and connect it again (or restart Claude Code).
 
+### The resources
+
+A **resource** is something you attach to a conversation yourself, the way you
+would attach a file: "the Q4 plan page", "the Payments board". The model then
+starts with it in front of it instead of searching for it. Tools are the
+model's choice; resources are yours. In Claude Desktop and claude.ai they are
+under the **+** menu; in Claude Code you mention one, as in
+`@slipdock:slipdock://card/42`. ChatGPT's connectors don't use them.
+
+| Resource | What it reads |
+|---|---|
+| `slipdock://board/{code}` | The board: each list in order with its open cards (number, title, priority, due date, flags, assignees) and how many are done. |
+| `slipdock://card/{id}` | The card in full, as `get_card` gives it: handoff, description, checklist, open subcards, the latest 10 comments and the wiki pages about it. An archived card still reads by its number. |
+| `slipdock://page/{code}` | A wiki page's Markdown source, front matter included. An encrypted note comes back as its ciphertext, with a line saying so. |
+| `slipdock://view/{board}/{view}` | A [saved view](#swimlanes)'s rows. The view is its id or its name. |
+| `slipdock://work` | [My work](#roll-ups-the-outline-and-my-work): the cards assigned to you, by when they are due. |
+
+The list a client shows (`resources/list`) is not everything you can read: a
+picker of every page in a big vault is no use. It is My work, your
+[favourites](#favourites) (boards, cards, views and pages, in the order you
+marked them) and the pages pinned to your favourite boards. To put something
+in the menu, make it a favourite. Anything else is reached by its URI.
+
+Every read goes through the same access checks as the tools, with your
+token's scope: a board-scoped token reads only its boards, and a read-only
+token reads everything you can. A URI that names nothing you can read is
+"resource not found" (`-32002`), word for word what a URI naming nothing at
+all gets. Each resource is capped (about 40,000 characters, 100,000 for a
+page); a cut one ends with the tool that reads the rest. There are no
+subscriptions: a client reads a resource again when it wants it fresh.
+
 ### Signing in
 
 Two ways, and the server takes either on any request:
