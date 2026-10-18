@@ -650,6 +650,33 @@ defmodule Slipdock.Access do
   defp with_activity(boards, _), do: boards
 
   @doc """
+  Where an admin's support sessions let them in: one entry per session they
+  hold, with the person's own boards (top level, not archived, by name).
+
+  `list_boards/2` leaves these out on purpose — they are somebody else's, for
+  a few hours — so without this the access is granted and nowhere to be found.
+  """
+  @spec supported_boards(User.t() | nil) :: [
+          %{session: Accounts.SupportSession.t(), subject: User.t(), boards: [Board.t()]}
+        ]
+  def supported_boards(%User{} = admin) do
+    admin
+    |> Accounts.held_support_sessions()
+    |> Enum.map(&%{session: &1, subject: &1.subject, boards: support_boards(&1.subject_id)})
+  end
+
+  def supported_boards(_), do: []
+
+  defp support_boards(owner_id) do
+    from(b in Board,
+      where: b.owner_id == ^owner_id and is_nil(b.parent_card_id),
+      order_by: [asc: b.name, asc: b.id]
+    )
+    |> Boards.filter_archived(false)
+    |> Repo.all()
+  end
+
+  @doc """
   The ids of every board the user can read, sub-boards included. Used where
   something board-scoped has to be filtered for one reader, such as the
   alerts in the header bar.

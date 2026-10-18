@@ -166,6 +166,9 @@ defmodule SlipdockWeb.BoardLive.Index do
       archived:
         user |> Access.list_boards(archived: true, activity: true) |> Boards.sort_boards(sort),
       shared_cards: Access.shared_cards(user),
+      # An admin's support sessions, each with the boards it opens: nothing
+      # else lists somebody else's boards, so this is the way in.
+      supported: Access.supported_boards(user),
       # The reader's own Ctrl+Shift digits, by board id.
       hotkeys: Map.new(Slipdock.Hotkeys.list(user), fn {digit, board} -> {board.id, digit} end)
     )
@@ -296,6 +299,20 @@ defmodule SlipdockWeb.BoardLive.Index do
 
   def handle_event("set_sort", %{"sort" => sort}, socket) do
     {:noreply, socket |> save_view(%{"board_sort" => sort}) |> load_boards()}
+  end
+
+  # Only the admin holding it may end it from here; the Users page ends anybody's.
+  def handle_event("end_support", %{"id" => id}, socket) do
+    user = socket.assigns.current_user
+
+    case Accounts.get_support_session(SlipdockWeb.Params.id(id)) do
+      %{admin_id: admin_id} = session when admin_id == user.id ->
+        {:ok, _} = Accounts.end_support_session(session)
+        {:noreply, socket |> put_flash(:info, "Support access ended.") |> load_boards()}
+
+      _ ->
+        {:noreply, load_boards(socket)}
+    end
   end
 
   def handle_event("toggle_archived", _, socket) do
@@ -452,6 +469,38 @@ defmodule SlipdockWeb.BoardLive.Index do
     >
       <div class="kanban-scroll h-full overflow-y-auto">
         <div class="mx-auto max-w-6xl px-4 py-6 sm:py-10 sm:px-6">
+          <%!-- Above your own boards because it is for now, not for keeps:
+                the support sessions you hold, and what each lets you read. --%>
+          <section
+            :for={%{session: session, subject: subject, boards: boards} <- @supported}
+            id={"supporting-#{session.id}"}
+            class="mb-6 rounded-2xl bg-warning/10 p-4 ring-1 ring-warning/30"
+          >
+            <div class="flex flex-wrap items-start justify-between gap-2">
+              <div class="min-w-0">
+                <h2 class="flex items-center gap-2 text-sm font-semibold">
+                  <.icon name="hero-lifebuoy" class="size-4 text-warning" />
+                  Supporting {User.display_name(subject)}
+                </h2>
+                <p class="mt-0.5 text-xs text-base-content/60">
+                  Read only, for another {support_time_left(session.expires_at)} — “{session.reason}”.
+                  They have been told.
+                </p>
+              </div>
+              <button
+                type="button"
+                class="btn btn-ghost btn-xs"
+                phx-click="end_support"
+                phx-value-id={session.id}
+              >
+                End now
+              </button>
+            </div>
+            <div class="mt-3">
+              <.support_board_links id={"supporting-boards-#{session.id}"} boards={boards} />
+            </div>
+          </section>
+
           <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
             <div>
               <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">Your boards</h1>

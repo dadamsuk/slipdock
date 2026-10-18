@@ -4094,6 +4094,15 @@ it **unlimited** (Users → *Make unlimited*, or `slipdock admin unlimited <emai
 which does the same for a named person with no date to invent: no free allowance,
 no trial. The ceilings above still apply to them, as they do to admins.
 
+**Looking at somebody's boards to help them.** Being an admin does not let you
+read other people's boards. **Support**, on a person's row under Users, does —
+read only, for four hours, and only with a reason, which they are emailed and
+which stays on their Account page for good. Their boards are not added to your
+own list; while the session lasts they are listed, as links, under **Support
+access in force** on Users and in a **Supporting** *name* panel at the top of
+your Boards page, where **End now** finishes it early. Sub-boards open from
+their parent cards as usual. Demoting or disabling the admin ends it too.
+
 **What it is being used for.** **Overview**, in the avatar menu's **Admin** group, puts
 the whole server on one page: how many accounts (admins, disabled, never seen),
 how many joined and how many were active in the last 7 and 30 days, and the

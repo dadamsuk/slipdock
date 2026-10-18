@@ -1996,4 +1996,45 @@ defmodule SlipdockWeb.SlipdockComponents do
     </div>
     """
   end
+
+  ## Support access --------------------------------------------------------
+
+  attr :id, :string, required: true
+  attr :boards, :list, required: true
+
+  @doc """
+  The boards a support session opens, as links: the way in to what the
+  session grants, which no board list shows (see `Slipdock.Access.supported_boards/1`).
+  """
+  def support_board_links(assigns) do
+    ~H"""
+    <p :if={@boards == []} id={@id} class="text-xs text-base-content/60">
+      They have no boards of their own.
+    </p>
+    <ul :if={@boards != []} id={@id} class="flex flex-wrap gap-1.5">
+      <li :for={board <- @boards}>
+        <.link
+          navigate={~p"/boards/#{board}"}
+          id={"#{@id}-#{board.id}"}
+          class="flex items-center gap-1.5 rounded-lg bg-base-100 px-2 py-1 text-xs font-medium ring-1 ring-base-content/10 hover:ring-primary/40"
+        >
+          <span class={["size-2 shrink-0 rounded-full", Palette.dot(board.color)]}></span>
+          {board.name}
+          <span :if={board.code} class="font-mono text-2xs text-base-content/50">{board.code}</span>
+        </.link>
+      </li>
+    </ul>
+    """
+  end
+
+  @doc "How long a support session has left, as \"3h 52m\"."
+  def support_time_left(%DateTime{} = expires_at, now \\ DateTime.utc_now()) do
+    minutes = max(DateTime.diff(expires_at, now, :minute), 0)
+
+    case {div(minutes, 60), rem(minutes, 60)} do
+      {0, m} -> "#{m}m"
+      {h, 0} -> "#{h}h"
+      {h, m} -> "#{h}h #{m}m"
+    end
+  end
 end
