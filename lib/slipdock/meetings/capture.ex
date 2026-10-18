@@ -69,6 +69,10 @@ defmodule Slipdock.Meetings.Capture do
     field :readings, :map
     field :transcript, :string
     field :transcript_format, :string
+    # Whether the transcript outlives the commit (#1077): false drops its
+    # lines once committed, keeping only the quoted evidence.
+    field :keep_transcript, :boolean, default: true
+    field :transcript_dropped_at, :utc_datetime
     field :audio_key, :string
     field :audio_filename, :string
     field :audio_content_type, :string
@@ -124,7 +128,8 @@ defmodule Slipdock.Meetings.Capture do
       :context_scope,
       :retention,
       :transcript,
-      :transcript_format
+      :transcript_format,
+      :keep_transcript
     ])
     |> update_change(:title, &String.trim/1)
     |> validate_required([:title, :fingerprint])
@@ -133,6 +138,17 @@ defmodule Slipdock.Meetings.Capture do
     |> validate_inclusion(:kind, @kinds)
     |> validate_inclusion(:retention, @retentions)
     |> unique_constraint([:board_id, :fingerprint])
+  end
+
+  @doc "Whether the transcript is kept after the commit: the person's to change until then."
+  def keep_changeset(capture, keep) do
+    capture
+    |> change(keep_transcript: keep)
+    |> then(fn cs ->
+      if capture.state in ~w(committed discarded),
+        do: add_error(cs, :keep_transcript, "can't change once the capture is #{capture.state}"),
+        else: cs
+    end)
   end
 
   @doc "What a reviewer may change about the meeting itself."

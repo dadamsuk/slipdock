@@ -48,7 +48,12 @@ defmodule SlipdockCLI.Meetings do
   # own switch, on by default.
   def run("capture-chat", [board, file], o) do
     body =
-      [{"kind", "chat"}, {"conversation", o[:conversation]} | fields(o)]
+      [
+        {"kind", "chat"},
+        {"conversation", o[:conversation]},
+        {"keep_transcript", if(o[:drop_transcript], do: "false")}
+        | fields(o)
+      ]
       |> Enum.reject(fn {_, v} -> is_nil(v) end)
       |> Map.new()
       |> Map.put("transcript", read(file))
@@ -60,7 +65,7 @@ defmodule SlipdockCLI.Meetings do
   def run("capture-chat", _args, _o) do
     fail(
       "usage: slipdock capture-chat <board> <file> [--format chat|claude-export|chatgpt-export] " <>
-        "[--conversation ID|TITLE] [--title T] [--findings F]"
+        "[--conversation ID|TITLE] [--title T] [--findings F] [--drop-transcript]"
     )
   end
 

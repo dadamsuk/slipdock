@@ -334,7 +334,7 @@ defmodule Slipdock.Meetings.Pipeline do
 
     Slipdock.Automations.Notifier.deliver(
       [capture.owner.email],
-      "Meeting ready for review: #{capture.title}",
+      "#{if capture.kind == "chat", do: "Conversation", else: "Meeting"} ready for review: #{capture.title}",
       body
     )
 

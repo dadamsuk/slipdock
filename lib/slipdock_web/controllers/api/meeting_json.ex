@@ -50,6 +50,8 @@ defmodule SlipdockWeb.API.MeetingJSON do
     |> summary(base)
     |> Map.merge(%{
       notes: Slipdock.Meetings.notes(c),
+      keep_transcript: c.keep_transcript,
+      transcript_dropped_at: c.transcript_dropped_at,
       counts: %{
         lines: length(loaded(c.utterances)),
         findings: Enum.count(findings, &(&1.status == "kept")),

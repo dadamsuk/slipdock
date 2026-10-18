@@ -24,7 +24,16 @@ defmodule SlipdockWeb.MeetingLive.Components do
         <span class="truncate font-semibold">{@board.name}</span>
       </.link>
       <.icon name="hero-chevron-right" class="size-3 shrink-0 text-base-content/40" />
+      <%!-- A conversation (#1077) is reached by its link; the Meetings
+           list is meeting mode's. --%>
+      <span
+        :if={chat_only?(@capture)}
+        class="px-2 py-1 font-semibold"
+      >
+        Conversation
+      </span>
       <.link
+        :if={not chat_only?(@capture)}
         navigate={~p"/boards/#{@board}/meetings"}
         class="rounded-lg px-2 py-1 font-semibold hover:bg-base-200"
       >
@@ -37,6 +46,10 @@ defmodule SlipdockWeb.MeetingLive.Components do
     </nav>
     """
   end
+
+  # A conversation's page while meeting mode is off: no Meetings list to go to.
+  defp chat_only?(%{kind: "chat"}), do: not Slipdock.Meetings.enabled?()
+  defp chat_only?(_capture), do: false
 
   attr :board, :any, required: true
   attr :marks, :any, default: nil

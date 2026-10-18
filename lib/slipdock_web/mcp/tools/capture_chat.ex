@@ -52,6 +52,11 @@ defmodule SlipdockWeb.MCP.Tools.CaptureChat do
         findings: %{
           type: "object",
           description: "Your own findings: {\"findings\": [...], \"summary\"?, \"topics\"?}."
+        },
+        keep_transcript: %{
+          type: "boolean",
+          description:
+            "false: once committed, the conversation's lines are deleted and only the quoted words kept."
         }
       },
       required: ["board", "transcript"],
@@ -87,6 +92,7 @@ defmodule SlipdockWeb.MCP.Tools.CaptureChat do
           title: title,
           format: format,
           conversation: conversation,
+          keep_transcript: args["keep_transcript"],
           source: "agent",
           via: "mcp"
         })

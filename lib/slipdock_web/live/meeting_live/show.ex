@@ -398,6 +398,9 @@ defmodule SlipdockWeb.MeetingLive.Show do
                 <span :if={@capture.started_at}>
                   · met {Calendar.strftime(@capture.started_at, "%d %b %Y, %H:%M")}
                 </span>
+                <span :if={@capture.transcript_dropped_at} id="transcript-dropped">
+                  · transcript dropped after commit, as asked: only the quoted words are kept
+                </span>
                 <span :if={@capture.audio_key} id="recording-kept">
                   · recording kept {retention_words(@capture.retention)}
                 </span>
@@ -416,7 +419,11 @@ defmodule SlipdockWeb.MeetingLive.Show do
               class="rounded-xl bg-base-100 p-4 ring-1 ring-base-content/10"
             >
               <h2 class="text-sm font-medium">
-                {if @capture.state == "failed", do: "Stopped", else: "Reading the meeting"}
+                {cond do
+                  @capture.state == "failed" -> "Stopped"
+                  @capture.kind == "chat" -> "Reading the conversation"
+                  true -> "Reading the meeting"
+                end}
               </h2>
               <p :if={@capture.state != "failed"} class="mt-1 text-xs text-base-content/60">
                 You can leave this page: {(@capture.owner && @capture.owner.email) ||
