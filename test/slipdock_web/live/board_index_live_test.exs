@@ -204,6 +204,25 @@ defmodule SlipdockWeb.BoardIndexLiveTest do
       assert has_element?(view, "#board-#{a.id} kbd", "qz")
     end
 
+    test "shows the reader's own Ctrl+Shift digit, and nobody else's", ctx do
+      %{conn: conn, user: user, a: a, b: b} = ctx
+      {:ok, _} = Slipdock.Hotkeys.put(user, a, 3)
+      other = user_fixture("hotkey-other@example.com")
+      {:ok, _} = Access.grant(b, other, "read", user)
+      {:ok, _} = Slipdock.Hotkeys.put(other, b, 7)
+
+      {:ok, view, _} = live(conn, ~p"/")
+      assert has_element?(view, "#board-#{a.id} #board-hotkey-#{a.id}", "Ctrl+Shift+3")
+      refute has_element?(view, "#board-hotkey-#{b.id}")
+
+      view |> element("button[phx-value-layout=compact]") |> render_click()
+      assert has_element?(view, "#board-#{a.id} #board-hotkey-#{a.id}", "Ctrl+Shift+3")
+
+      {:ok, view, _} = live(conn_as(other), ~p"/")
+      assert has_element?(view, "#board-hotkey-#{b.id}", "Ctrl+Shift+7")
+      refute has_element?(view, "#board-hotkey-#{a.id}")
+    end
+
     test "the heading counts boards, with no slogan", %{conn: conn} do
       {:ok, _view, html} = live(conn, ~p"/")
       assert html =~ "3 boards"

@@ -1263,8 +1263,8 @@ a card each, in the same order (see [Vaults](#vaults) for what a vault's card
 shows).
 
 **Layout.** The cards are the default — a colour band, the code, the
-switcher key when the board has one, the lists and cards on it and how much
-is done. The compact layout is the same boards as a
+switcher key when the board has one and your Ctrl+Shift digit when you have
+given it one, the lists and cards on it and how much is done. The compact layout is the same boards as a
 table, a row each, with the board's colour, code, switcher key, description,
 lists, cards, how far along it is and when anything last happened anywhere in
 its tree. Worth switching to once there are more boards than fit on a screen.

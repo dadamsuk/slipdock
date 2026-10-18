@@ -165,7 +165,9 @@ defmodule SlipdockWeb.BoardLive.Index do
       tiles: Boards.sort_boards(boards ++ Enum.map(Map.values(vaults), & &1.vault), sort),
       archived:
         user |> Access.list_boards(archived: true, activity: true) |> Boards.sort_boards(sort),
-      shared_cards: Access.shared_cards(user)
+      shared_cards: Access.shared_cards(user),
+      # The reader's own Ctrl+Shift digits, by board id.
+      hotkeys: Map.new(Slipdock.Hotkeys.list(user), fn {digit, board} -> {board.id, digit} end)
     )
   end
 
@@ -665,6 +667,7 @@ defmodule SlipdockWeb.BoardLive.Index do
             id="boards"
             boards={@tiles}
             vaults={@vaults}
+            hotkeys={@hotkeys}
             current_user={@current_user}
             sort={@sort}
             add_tile={!@creating}
@@ -675,6 +678,7 @@ defmodule SlipdockWeb.BoardLive.Index do
             id="boards"
             boards={@tiles}
             vaults={@vaults}
+            hotkeys={@hotkeys}
             current_user={@current_user}
             sort={@sort}
           />
@@ -701,6 +705,7 @@ defmodule SlipdockWeb.BoardLive.Index do
               :if={@show_archived and @board_layout == "grid"}
               id="archived-boards"
               boards={@archived}
+              hotkeys={@hotkeys}
               current_user={@current_user}
               sort={@sort}
               archived
@@ -709,6 +714,7 @@ defmodule SlipdockWeb.BoardLive.Index do
               :if={@show_archived and @board_layout == "compact"}
               id="archived-boards"
               boards={@archived}
+              hotkeys={@hotkeys}
               current_user={@current_user}
               sort={@sort}
               archived
@@ -753,6 +759,7 @@ defmodule SlipdockWeb.BoardLive.Index do
   attr :boards, :list, required: true
   # What each vault's card shows, by vault id (see `vault_entries/1`).
   attr :vaults, :map, default: %{}
+  attr :hotkeys, :map, default: %{}
   attr :current_user, :map, required: true
   attr :sort, :string, required: true
   attr :archived, :boolean, default: false
@@ -783,6 +790,7 @@ defmodule SlipdockWeb.BoardLive.Index do
         <.board_card
           :if={match?(%Board{}, tile)}
           board={tile}
+          hotkey={@hotkeys[tile.id]}
           boards={@boards}
           current_user={@current_user}
           sort={@sort}
@@ -818,6 +826,7 @@ defmodule SlipdockWeb.BoardLive.Index do
   @tile_class "group relative overflow-hidden rounded-2xl bg-base-100 shadow-sm ring-1 ring-base-content/10 transition hover:-translate-y-0.5 hover:shadow-lg"
 
   attr :board, :map, required: true
+  attr :hotkey, :integer, default: nil
   attr :boards, :list, required: true
   attr :current_user, :map, required: true
   attr :sort, :string, required: true
@@ -847,13 +856,7 @@ defmodule SlipdockWeb.BoardLive.Index do
             >
               {@board.code}
             </span>
-            <kbd
-              :if={@board.shortcut}
-              class="kbd kbd-xs shrink-0 font-normal"
-              title="Press b then this key to jump here"
-            >
-              {@board.shortcut}
-            </kbd>
+            <.board_keys board={@board} hotkey={@hotkey} />
             <span
               :if={@board.owner_id != @current_user.id}
               class="badge badge-ghost badge-xs max-w-40 shrink-0"
@@ -911,6 +914,7 @@ defmodule SlipdockWeb.BoardLive.Index do
   attr :id, :string, required: true
   attr :boards, :list, required: true
   attr :vaults, :map, default: %{}
+  attr :hotkeys, :map, default: %{}
   attr :current_user, :map, required: true
   attr :sort, :string, required: true
   attr :archived, :boolean, default: false
@@ -972,12 +976,8 @@ defmodule SlipdockWeb.BoardLive.Index do
                   >
                     {board.code}
                   </span>
-                  <span
-                    :if={board.shortcut}
-                    class="hidden shrink-0 lg:inline"
-                    title="Press b then this key to jump here"
-                  >
-                    <kbd class="kbd kbd-xs">{board.shortcut}</kbd>
+                  <span class="hidden shrink-0 items-center gap-1 lg:inline-flex">
+                    <.board_keys board={board} hotkey={@hotkeys[board.id]} />
                   </span>
                   <span
                     :if={board.owner_id != @current_user.id}
@@ -1026,6 +1026,31 @@ defmodule SlipdockWeb.BoardLive.Index do
         </tbody>
       </table>
     </div>
+    """
+  end
+
+  attr :board, :map, required: true
+  attr :hotkey, :integer, default: nil
+
+  # The keys that reach a board: its switcher shortcut (b, then it), and the
+  # reader's own Ctrl+Shift digit when they have given it one.
+  defp board_keys(assigns) do
+    ~H"""
+    <kbd
+      :if={@board.shortcut}
+      class="kbd kbd-xs shrink-0 font-normal"
+      title="Press b then this key to jump here"
+    >
+      {@board.shortcut}
+    </kbd>
+    <kbd
+      :if={@hotkey}
+      id={"board-hotkey-#{@board.id}"}
+      class="kbd kbd-xs shrink-0 font-normal"
+      title={"Ctrl+Shift+#{@hotkey} opens this board from any page"}
+    >
+      Ctrl+Shift+{@hotkey}
+    </kbd>
     """
   end
 
