@@ -35,6 +35,7 @@ defmodule SlipdockWeb.MCP.TransportTest do
       assert result["capabilities"] == %{
                "tools" => %{"listChanged" => false},
                "prompts" => %{"listChanged" => false},
+               "resources" => %{"subscribe" => false, "listChanged" => false},
                "completions" => %{}
              }
 
@@ -64,10 +65,10 @@ defmodule SlipdockWeb.MCP.TransportTest do
 
   describe "JSON-RPC errors" do
     test "an unknown method is -32601", %{conn: conn} do
-      body = conn |> rpc("resources/list") |> json_response(200)
+      body = conn |> rpc("resources/subscribe") |> json_response(200)
       assert body["id"] == 1
       assert body["error"]["code"] == -32601
-      assert body["error"]["message"] =~ "resources/list"
+      assert body["error"]["message"] =~ "resources/subscribe"
     end
 
     test "a body that is not JSON is a -32700 parse error", %{conn: conn} do
