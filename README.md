@@ -155,7 +155,7 @@ Briefly, with the detail in [the manual](docs/manual.md):
   network at all. Neither one, no AI features; nothing is sent anywhere
   without one.
 - **Built for the keyboard and the phone** — [a command palette, a key for
-  every board, card labels you can jump to](docs/manual.md#keyboard), and
+  every board, Ctrl-Shift-digit hotkeys, card labels you can jump to](docs/manual.md#keyboard), and
   [a layout below 640px that is a pager rather than a sideways
   scroll](docs/manual.md#on-a-phone).
 - **A tour that is made of the thing it describes** — the first time somebody

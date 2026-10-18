@@ -504,6 +504,9 @@ defmodule SlipdockWeb.Router do
     get "/favourites", FavouriteController, :index
     post "/favourites", FavouriteController, :create
     delete "/favourites/:kind/:id", FavouriteController, :delete
+    # The caller's own board hotkeys, Ctrl+Shift+a digit (see `Slipdock.Hotkeys`).
+    get "/hotkeys", HotkeyController, :index
+    put "/boards/:board/hotkey", HotkeyController, :update
     get "/templates", TemplateController, :index
     post "/templates", TemplateController, :create
     get "/templates/:id", TemplateController, :show

@@ -112,7 +112,7 @@ way in: what it is, the pictures, and how to get it running.
 - Command palette (`Ctrl-P`) for everywhere you can go and everything you can
   set off, and a card finder (`Ctrl-O`) that opens any card by title or id
 - Keyboard throughout: `?` for the sheet, `b` to switch board (each has its own
-  key), `v` to switch view, `q` to add, `/` to search; on a board `j` labels
+  key), `Ctrl-Shift` and a digit straight to a board you gave it, `v` to switch view, `q` to add, `/` to search; on a board `j` labels
   every card so a keystroke opens it, `J` picks one up for the arrows to move,
   and `c` steps through a list; an open card scrolls with the arrows and jumps
   to a section by the letter underlined in its heading (see below)
@@ -1409,6 +1409,8 @@ dialogs leave the page's keys alone.
   vault the board is in, or the board alone. Nothing typed lists the notes
   changed most lately, and a page's code still goes straight to it. On a
   shell, `slipdock page switch <board> <letters…>`
+- `Ctrl-Shift-1` … `9`, `0` — **open a board** you gave that digit (see
+  [A board's hotkey](#a-boards-hotkey))
 - `h` — all boards (the board takes this one while the keyboard is on it)
 - `b` — **switch board**: every board you can open, each with its own key;
   press that key to go there
@@ -1501,6 +1503,18 @@ up. Change it under *Shortcut key* in board settings, or with
 name. It is in the `shortcut` field of the API and the KEY column of
 `slipdock boards`, and it addresses nothing — the board **code** is what names a
 board in a URL or on the command line.
+
+### A board's hotkey
+
+`Ctrl-Shift` and a digit (`Cmd-Shift` on a Mac; the number pad counts too)
+opens a board straight from any page, even mid-sentence in a field. Pick the
+digit under *Hotkey* in board settings, or with
+`slipdock hotkey <board> <0-9|none>`; `slipdock hotkeys` lists yours. The digits
+are yours alone — ten to go round, so they are not the board's: somebody you
+share a board with keeps their own, and a board shared with you can take one of
+yours from the shell (`PUT /api/boards/<board>/hotkey`). Giving a digit to one
+board takes it off whichever had it. A digit with no board, or on a board you
+can no longer open or have archived, says so rather than going anywhere.
 
 ## At the foot of every list
 
@@ -4823,6 +4837,7 @@ slipdock tools install-board job-scan         # have the server build its board 
 slipdock tools request-listing my-tool        # ask an admin to list a version for everyone
 slipdock favourites                            # what you keep going back to, with the URL of each
 slipdock fav list qvm-v1-rem "In Progress"     # also: fav card 42 | fav view <board> <view> | fav board <board>
+slipdock hotkey slipdock 1                     # Ctrl+Shift+1 opens it in the web app; `slipdock hotkeys` lists yours
 slipdock unfav list qvm-v1-rem "In Progress"   # or `fav ... --off`
 ```
 ## Tools

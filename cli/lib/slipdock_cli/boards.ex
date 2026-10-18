@@ -10,7 +10,7 @@ defmodule SlipdockCLI.Boards do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(guide search ask search-status saved save unsave boards board columns tags activity cards card swimlanes views favourites fav unfav table fields milestones templates add copy repeat recurring snooze wake edit set vote status handoff new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
+  @commands ~w(guide search ask search-status saved save unsave boards board columns tags activity cards card swimlanes views favourites fav unfav hotkeys hotkey table fields milestones templates add copy repeat recurring snooze wake edit set vote status handoff new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -140,6 +140,27 @@ defmodule SlipdockCLI.Boards do
 
   def run("fav", args, o), do: favourite(args, o, if(o[:off], do: :off, else: :on))
   def run("unfav", args, o), do: favourite(args, o, :off)
+
+  ## Hotkeys -----------------------------------------------------------------
+  #
+  # Ctrl+Shift+a digit opens a board in the web app (#1101). Like favourites,
+  # the digits are the token holder's own.
+
+  def run("hotkeys", [], o),
+    do: HTTP.get("/hotkeys") |> out(o, &Render.hotkeys(&1["hotkeys"]))
+
+  def run("hotkey", [ref, digit], o) do
+    HTTP.put("/boards/#{enc(ref)}/hotkey", %{"digit" => digit})
+    |> out(o, fn r ->
+      case r["digit"] do
+        nil -> IO.puts("board #{ref} has no hotkey now")
+        d -> IO.puts("Ctrl+Shift+#{d} now opens board #{ref}")
+      end
+    end)
+  end
+
+  def run("hotkey", _args, _o),
+    do: fail("usage: slipdock hotkey <board> <0-9|none>")
 
   def run("table", [ref], o) do
     query = view_query(o) |> Keyword.put(:cols, "none")
