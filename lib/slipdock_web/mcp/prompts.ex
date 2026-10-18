@@ -18,7 +18,8 @@ defmodule SlipdockWeb.MCP.Prompts do
     Prompts.Triage,
     Prompts.Resume,
     Prompts.LeaveHandoff,
-    Prompts.CaptureThisChat
+    Prompts.CaptureThisChat,
+    Prompts.TidyBoard
   ]
 
   # About 6k tokens, at the usual four characters to one.
