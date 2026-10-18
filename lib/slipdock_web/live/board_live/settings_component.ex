@@ -15,7 +15,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   import SlipdockWeb.SprintPlanComponents, only: [sources_fields: 1, parse_sources: 2, chosen: 1]
   import SlipdockWeb.BoardLive.Helpers
 
-  alias Slipdock.{Access, Boards, Fields, Gardener, Palette, Sprints}
+  alias Slipdock.{Access, Boards, Fields, Gardener, Hotkeys, Palette, Sprints}
   alias Slipdock.Boards.{Board, FieldDefinition}
   alias SlipdockWeb.BoardLive.Sharing
 
@@ -28,7 +28,9 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   def events, do: @events
 
   @impl true
-  def mount(socket), do: {:ok, assign(socket, board_form: nil, form_key: 0, share_key: 0)}
+  def mount(socket),
+    do:
+      {:ok, assign(socket, board_form: nil, form_key: 0, share_key: 0, hotkey: nil, hotkeys: [])}
 
   @impl true
   def update(%{board: board, current_user: user} = assigns, socket) do
@@ -55,7 +57,12 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
     socket =
       if socket.assigns.board_form,
         do: socket,
-        else: assign(socket, board_form: to_form(Boards.change_board(board)))
+        else:
+          assign(socket,
+            board_form: to_form(Boards.change_board(board)),
+            hotkey: Hotkeys.get(user, board),
+            hotkeys: Hotkeys.list(user)
+          )
 
     {:ok, socket}
   end
@@ -153,13 +160,21 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
     board = socket.assigns.board
     params = suggest_board_code(params, board)
     cs = board |> Boards.change_board(params) |> Map.put(:action, :validate)
-    {:noreply, assign(socket, board_form: to_form(cs))}
+    {:noreply, assign(socket, board_form: to_form(cs)) |> keep_hotkey(params)}
   end
 
-  defp event("save_board", %{"board" => params}, socket) do
-    case Boards.update_board(socket.assigns.board, params) do
-      {:ok, _} -> {:noreply, push_patch(socket, to: socket.assigns.close_path)}
-      {:error, cs} -> {:noreply, assign(socket, board_form: to_form(cs))}
+  # The hotkey rides in the same form but is the owner's own, not the board's
+  # (see Slipdock.Hotkeys), so it is saved alongside rather than through the
+  # board's changeset.
+  defp event("save_board", %{"board" => params} = all, socket) do
+    %{board: board, current_user: user} = socket.assigns
+
+    with {:ok, _} <- Boards.update_board(board, params),
+         {:ok, _} <- put_hotkey(user, board, all) do
+      {:noreply, push_patch(socket, to: socket.assigns.close_path)}
+    else
+      {:error, %Ecto.Changeset{} = cs} -> {:noreply, assign(socket, board_form: to_form(cs))}
+      {:error, message} -> {:noreply, flash(socket, :error, "Hotkey #{message}.")}
     end
   end
 
@@ -313,10 +328,44 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
         groups={@groups}
         share_key={@share_key}
         source_choices={@source_choices}
+        hotkey={@hotkey}
+        hotkeys={@hotkeys}
         target={@myself}
       />
     </div>
     """
+  end
+
+  defp put_hotkey(user, board, %{"hotkey" => value}) when is_nil(board.parent_card_id),
+    do: Hotkeys.put(user, board, value)
+
+  defp put_hotkey(_user, _board, _params), do: {:ok, nil}
+
+  # What was picked, kept across the form's re-renders.
+  defp keep_hotkey(socket, %{"hotkey" => value}) do
+    case Hotkeys.parse(value) do
+      {:ok, digit} -> assign(socket, hotkey: digit)
+      _ -> socket
+    end
+  end
+
+  defp keep_hotkey(socket, _params), do: socket
+
+  # The digits, 1–9 then 0 as on the keyboard, each saying which of the
+  # owner's other boards already has it — choosing it moves it here.
+  defp hotkey_options(board, hotkeys) do
+    taken = Map.new(hotkeys, fn {digit, b} -> {digit, b} end)
+
+    [{"None", ""}] ++
+      for digit <- Enum.to_list(1..9) ++ [0] do
+        case taken[digit] do
+          %{id: id, name: name} when id != board.id ->
+            {"Ctrl+Shift+#{digit} (now #{name})", to_string(digit)}
+
+          _ ->
+            {"Ctrl+Shift+#{digit}", to_string(digit)}
+        end
+      end
   end
 
   # Emptying the code field asks for a fresh one off the name.
@@ -344,6 +393,8 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
 
   attr :form_key, :integer, default: 0
   attr :source_choices, :list, default: []
+  attr :hotkey, :integer, default: nil
+  attr :hotkeys, :list, default: []
   attr :target, :any, required: true
 
   # The views a board can open on, less the ones it hides (a simple board's
@@ -390,6 +441,22 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
               What jumps to this board from the switcher: press <kbd class="kbd kbd-xs">b</kbd>
               anywhere, then this. One or two letters or digits, unique across your boards.
               Clear it to take a fresh one from the name.
+            </p>
+          </div>
+          <div :if={is_nil(@board.parent_card_id)}>
+            <.input
+              name="hotkey"
+              id="board-hotkey"
+              type="select"
+              label="Hotkey"
+              value={if @hotkey, do: to_string(@hotkey), else: ""}
+              options={hotkey_options(@board, @hotkeys)}
+            />
+            <p class="-mt-1 text-xs text-base-content/50">
+              Opens this board from any page: <kbd class="kbd kbd-xs">Ctrl</kbd>
+              + <kbd class="kbd kbd-xs">Shift</kbd>
+              + the digit. The digit is yours alone,
+              and picking one another board has moves it here.
             </p>
           </div>
           <.input field={@form[:description]} type="textarea" label="Description" />

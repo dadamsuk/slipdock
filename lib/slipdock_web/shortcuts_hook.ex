@@ -5,7 +5,8 @@ defmodule SlipdockWeb.ShortcutsHook do
   Mounted into the `:authenticated` live session, this assigns `:shortcuts`
   and handles the palettes the `Keys` hook opens — the help sheet (`?`), the
   board switcher (`b`), the view switcher (`v`), the command palette
-  (`Ctrl-P`) and the card finder (`Ctrl-O`) — before the LiveView sees them,
+  (`Ctrl-P`) and the card finder (`Ctrl-O`), and follows a board's hotkey
+  (`Ctrl-Shift-` a digit) — before the LiveView sees them,
   except that on a wiki `Ctrl-O` is the note switcher (`:notes`, see
   `Slipdock.Wiki.Switcher`),
   the same arrangement `SlipdockWeb.AlertsHook` uses. Pages that have somewhere
@@ -26,6 +27,7 @@ defmodule SlipdockWeb.ShortcutsHook do
 
   alias Slipdock.Access
   alias Slipdock.Boards
+  alias Slipdock.Hotkeys
   alias Slipdock.Wiki
   alias SlipdockWeb.Commands
 
@@ -101,6 +103,25 @@ defmodule SlipdockWeb.ShortcutsHook do
 
   defp handle_event("go_home", _params, socket),
     do: {:halt, socket |> assign(shortcuts: @closed) |> push_navigate(to: "/")}
+
+  # Ctrl+Shift+a digit: the board the user gave that digit in its settings
+  # (see `Slipdock.Hotkeys`).
+  defp handle_event("board_hotkey", %{"digit" => digit}, socket) do
+    socket = assign(socket, shortcuts: @closed)
+
+    case Hotkeys.target(socket.assigns[:current_user], digit) do
+      nil ->
+        {:halt,
+         put_flash(
+           socket,
+           :info,
+           "No board on Ctrl+Shift+#{digit} — give one that digit in its board settings."
+         )}
+
+      board ->
+        {:halt, push_navigate(socket, to: SlipdockWeb.SwimlaneComponents.board_home_path(board))}
+    end
+  end
 
   defp handle_event(_event, _params, socket), do: {:cont, socket}
 

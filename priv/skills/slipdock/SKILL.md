@@ -343,11 +343,13 @@ slipdock set-board <board> --default-view wiki            # what opening the boa
 slipdock set-board <board> --no-page-card-features        # the board's wiki pages hide status, checklist, links, fields, votes, comments
 slipdock fav card <id> | fav list <board> <column> | fav view <board> <view> | fav board <board>
 slipdock unfav <same args>                                # or `fav ... --off`
+slipdock hotkeys | slipdock hotkey <board> <0-9|none>     # Ctrl+Shift+digit opens that board in the web app
 ```
 
 Favourites are **personal** — the token holder's own, never anyone else's, and favouriting
 something changes nothing about it (read access is enough). **Don't favourite on the user's
-behalf unless they asked**; it is their shortlist, not a place to file your working set.
+behalf unless they asked**; it is their shortlist, not a place to file your working set. Hotkeys
+are personal the same way: set one only when asked.
 
 Automations — rules the server runs by itself, long after you have gone:
 ```

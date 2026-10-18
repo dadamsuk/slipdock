@@ -705,6 +705,12 @@ defmodule SlipdockWeb.APIGuide do
       `DELETE /api/favourites/:kind/:id`. Favouriting changes nothing about the
       thing itself, so read access is enough — and never favourite on someone's
       behalf unless they asked.
+    - **Hotkeys** — `Ctrl+Shift` and a digit opens a board in the web app.
+      The digits are the token holder's own, like favourites:
+      `GET /api/hotkeys` lists them, and
+      `PUT /api/boards/:board/hotkey {"digit": 1}` gives a board one (taking
+      it off any other board) or `{"digit": null}` takes it away. Read access
+      is enough. Set one only when the person asks.
     - **Passkeys** — `GET /api/me/passkeys` lists the token holder's own
       passkeys (`id`, `name`, `created_at`, `last_used_at`; never the key), and
       `DELETE /api/me/passkeys/:id` removes one so it can no longer sign in.

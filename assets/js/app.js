@@ -28,6 +28,7 @@ import Sortable from "../vendor/sortable"
 import {installConfirm} from "./confirm"
 import {columnDrop, dropZones, pointOf, zoneAt} from "./card_drop"
 import {ModalDialog} from "./modal_dialog"
+import {boardHotkey} from "./board_hotkey"
 import {installPosthog} from "./posthog"
 import {Replay} from "./replay"
 import {WikiTree} from "./wiki_tree"
@@ -994,6 +995,12 @@ Hooks.Keys = {
       const panel = {p: "command", o: "find"}[e.key.toLowerCase()]
       if (panel) return this.send(e, "shortcut_panel", {panel})
     }
+
+    // Ctrl-Shift and a digit opens the board given that digit in its
+    // settings, from anywhere, as Ctrl-P does. The digit is read from the key
+    // itself (e.code), since Shift turns the character into "!" or "@".
+    const digit = boardHotkey(e)
+    if (digit !== null) return this.send(e, "board_hotkey", {digit})
 
     if (e.metaKey || e.ctrlKey || e.altKey) return
 

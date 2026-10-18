@@ -630,6 +630,26 @@ defmodule SlipdockCLI.Render do
     table(["KIND", "NAME", "BOARD", "ID", "URL"], rows)
   end
 
+  def hotkeys([]),
+    do:
+      IO.puts(
+        dim("no hotkeys — try: slipdock hotkey <board> 1, then Ctrl+Shift+1 in the web app")
+      )
+
+  def hotkeys(hotkeys) do
+    rows =
+      Enum.map(hotkeys, fn h ->
+        [
+          "Ctrl+Shift+#{h["digit"]}",
+          h["board"]["name"],
+          h["board"]["code"] || "",
+          to_string(h["board"]["id"])
+        ]
+      end)
+
+    table(["KEY", "BOARD", "CODE", "ID"], rows)
+  end
+
   def automations([]), do: IO.puts(dim("no automations"))
 
   def automations(rules) do
