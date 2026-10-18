@@ -142,7 +142,13 @@ defmodule SlipdockWeb.TableComponents do
                 (card.completed or Slipdock.Boards.Card.snoozed?(card)) && "opacity-60"
               ]}
             >
-              <td :for={{key, _label, _} <- @fields} class="align-middle">
+              <%!-- max-w-0 stops a long title's nowrap text from widening
+                    the column past its 40%: the cell takes its share and
+                    the title truncates (full title on hover). --%>
+              <td
+                :for={{key, _label, _} <- @fields}
+                class={["align-middle", key == "title" && "max-w-0"]}
+              >
                 <.cell field={key} card={card} board={@board} />
               </td>
             </tr>
@@ -311,7 +317,7 @@ defmodule SlipdockWeb.TableComponents do
 
   defp cell(%{field: "title"} = assigns) do
     ~H"""
-    <div class="flex items-center gap-2">
+    <div class="flex min-w-0 items-center gap-2">
       <span :if={@card.color} class={["size-2 shrink-0 rounded-full", Palette.dot(@card.color)]}></span>
       <%!-- A placed wiki page's icon opens the document; its title opens the
             panel, exactly as it does on the board. --%>
