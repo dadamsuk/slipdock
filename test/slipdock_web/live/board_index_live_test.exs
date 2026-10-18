@@ -7,6 +7,7 @@ defmodule SlipdockWeb.BoardIndexLiveTest do
 
   import Phoenix.LiveViewTest
   import Slipdock.Fixtures
+  import Ecto.Query, only: [where: 2]
 
   alias Slipdock.{Access, Accounts, Boards}
 
@@ -183,6 +184,30 @@ defmodule SlipdockWeb.BoardIndexLiveTest do
       {:ok, _} = Boards.archive_board(b)
       {:ok, _view, html} = live(conn, ~p"/work")
       refute html =~ "Bravo"
+    end
+  end
+
+  describe "a board's card" do
+    test "shows its shortcut when it has one, in both layouts", %{conn: conn, a: a, b: b} do
+      {:ok, _} = Boards.update_board(a, %{"shortcut" => "qz"})
+      # Boards are handed a shortcut when made; take b's away.
+      Slipdock.Repo.update_all(where(Slipdock.Boards.Board, id: ^b.id),
+        set: [shortcut: nil]
+      )
+
+      {:ok, view, _} = live(conn, ~p"/")
+
+      assert has_element?(view, "#board-#{a.id} kbd", "qz")
+      refute has_element?(view, "#board-#{b.id} kbd")
+
+      view |> element("button[phx-value-layout=compact]") |> render_click()
+      assert has_element?(view, "#board-#{a.id} kbd", "qz")
+    end
+
+    test "the heading counts boards, with no slogan", %{conn: conn} do
+      {:ok, _view, html} = live(conn, ~p"/")
+      assert html =~ "3 boards"
+      refute html =~ "get things done"
     end
   end
 

@@ -10,6 +10,7 @@ defmodule SlipdockWeb.BoardLive.Index do
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.Board
   alias Slipdock.Palette
+  alias Slipdock.Vaults.Vault
 
   # What the sort control offers, in the order it offers it.
   @sorts [
@@ -41,33 +42,45 @@ defmodule SlipdockWeb.BoardLive.Index do
      |> assign(templates: Boards.list_templates(user))
      |> assign(:form, to_form(Boards.change_board(%Board{})))
      |> assign(creating_vault: false)
-     |> load_boards()
-     |> load_vaults()}
+     |> load_boards()}
   end
 
-  # Your vaults, beside the boards rather than inside one (#751): each with
-  # the boards mapped into it, its pages and where it is synced.
-  defp load_vaults(socket) do
-    vaults =
-      socket.assigns.current_user
-      |> Slipdock.Vaults.list_vaults()
-      |> Enum.map(fn vault ->
-        %{
-          vault: vault,
-          boards: vault.mappings |> Enum.map(& &1.board) |> Enum.uniq_by(& &1.id),
-          # The boards it keeps inside it (#757), named here rather than
-          # among the boards, each with its open cards when it has any.
-          inside:
-            for(
-              %{inside: true, folder_id: nil, board: board} <- vault.mappings,
-              do: %{board: board, cards: open_cards(board.id)}
-            ),
-          pages: vault |> Slipdock.Vaults.page_counts() |> Map.values() |> Enum.sum(),
-          mirrors: Slipdock.Vaults.mirrors(vault)
-        }
-      end)
+  # Your vaults, listed among the boards (#751): each with the boards mapped
+  # into it, its pages and where it is synced, keyed by the vault's id. The
+  # vault itself carries what the sort reads: its activity and its cards.
+  defp vault_entries(user) do
+    for vault <- Slipdock.Vaults.list_vaults(user), into: %{} do
+      # The boards it keeps inside it (#757), named on its card rather than
+      # among the boards, each with its open cards when it has any.
+      inside =
+        for %{inside: true, folder_id: nil, board: board} <- vault.mappings,
+            do: %{board: board, cards: open_cards(board.id)}
 
-    assign(socket, vaults: vaults)
+      mirrors = Slipdock.Vaults.mirrors(vault)
+      activity = inside |> Enum.map(& &1.board) |> Boards.last_activity_at() |> Map.values()
+
+      vault = %{
+        vault
+        | last_activity_at: latest(activity ++ Enum.map(mirrors, & &1.last_synced_at)),
+          card_count: inside |> Enum.map(& &1.cards) |> Enum.sum()
+      }
+
+      {vault.id,
+       %{
+         vault: vault,
+         boards: vault.mappings |> Enum.map(& &1.board) |> Enum.uniq_by(& &1.id),
+         inside: inside,
+         pages: vault |> Slipdock.Vaults.page_counts() |> Map.values() |> Enum.sum(),
+         mirrors: mirrors
+       }}
+    end
+  end
+
+  defp latest(times) do
+    case Enum.reject(times, &is_nil/1) do
+      [] -> nil
+      times -> Enum.max(times, DateTime)
+    end
   end
 
   defp open_cards(board_id) do
@@ -138,12 +151,18 @@ defmodule SlipdockWeb.BoardLive.Index do
     # not here (#757). Shared with you from somebody's vault, it is here.
     inside = Slipdock.Vaults.inside_boards(user)
 
+    boards =
+      user
+      |> Access.list_boards(activity: true)
+      |> Enum.reject(&Map.has_key?(inside, &1.id))
+
+    vaults = vault_entries(user)
+
     assign(socket,
-      boards:
-        user
-        |> Access.list_boards(activity: true)
-        |> Enum.reject(&Map.has_key?(inside, &1.id))
-        |> Boards.sort_boards(sort),
+      boards: boards,
+      vaults: vaults,
+      # Boards and vaults in the one sequence, in the reader's order.
+      tiles: Boards.sort_boards(boards ++ Enum.map(Map.values(vaults), & &1.vault), sort),
       archived:
         user |> Access.list_boards(archived: true, activity: true) |> Boards.sort_boards(sort),
       shared_cards: Access.shared_cards(user)
@@ -154,7 +173,7 @@ defmodule SlipdockWeb.BoardLive.Index do
   def handle_info({:boards_changed}, socket) do
     Boards.drain_boards_changed()
     socket = SlipdockWeb.BoardNotices.resubscribe(socket)
-    {:noreply, socket |> load_boards() |> load_vaults()}
+    {:noreply, load_boards(socket)}
   end
 
   def handle_info({:templates_changed}, socket),
@@ -167,6 +186,7 @@ defmodule SlipdockWeb.BoardLive.Index do
     {:noreply,
      assign(socket,
        creating: true,
+       creating_vault: false,
        auto_code: "",
        custom_lists: @default_lists,
        save_template: false,
@@ -177,7 +197,8 @@ defmodule SlipdockWeb.BoardLive.Index do
 
   def handle_event("cancel_create", _, socket), do: {:noreply, assign(socket, creating: false)}
 
-  def handle_event("start_vault", _, socket), do: {:noreply, assign(socket, creating_vault: true)}
+  def handle_event("start_vault", _, socket),
+    do: {:noreply, assign(socket, creating_vault: true, creating: false)}
 
   def handle_event("cancel_vault", _, socket),
     do: {:noreply, assign(socket, creating_vault: false)}
@@ -203,8 +224,7 @@ defmodule SlipdockWeb.BoardLive.Index do
              else: "Made the vault #{vault.name}. Map a board's wiki onto it to fill it."
            )
          )
-         |> load_boards()
-         |> load_vaults()}
+         |> load_boards()}
 
       {:error, %Ecto.Changeset{} = cs} ->
         message = cs.errors[:name] |> Kernel.||({"is invalid", []}) |> elem(0)
@@ -311,12 +331,12 @@ defmodule SlipdockWeb.BoardLive.Index do
   # A drag in the compact list: the board lands in front of `before`, or at the
   # end when it was dropped last.
   def handle_event("reorder", %{"id" => id, "before" => before}, socket) do
-    case find_board(socket, id) do
+    case find_tile(socket, id) do
       nil ->
         {:noreply, socket}
 
-      board ->
-        Boards.place_board(socket.assigns.current_user, board, before, socket.assigns.boards)
+      tile ->
+        Boards.place_board(socket.assigns.current_user, tile, before, socket.assigns.tiles)
         {:noreply, load_boards(socket)}
     end
   end
@@ -325,12 +345,12 @@ defmodule SlipdockWeb.BoardLive.Index do
   def handle_event("nudge", %{"id" => id, "dir" => dir}, socket) do
     direction = if dir == "up", do: :up, else: :down
 
-    case find_board(socket, id) do
+    case find_tile(socket, id) do
       nil ->
         {:noreply, socket}
 
-      board ->
-        Boards.nudge_board(socket.assigns.current_user, board, direction, socket.assigns.boards)
+      tile ->
+        Boards.nudge_board(socket.assigns.current_user, tile, direction, socket.assigns.tiles)
         {:noreply, load_boards(socket)}
     end
   end
@@ -357,6 +377,18 @@ defmodule SlipdockWeb.BoardLive.Index do
       &(to_string(&1.id) == to_string(id))
     )
   end
+
+  # A board, or a vault listed among them as "vault-<id>": what a drag or a
+  # nudge moves.
+  defp find_tile(socket, "vault-" <> id),
+    do: Enum.find(Map.values(socket.assigns.vaults), &(to_string(&1.vault.id) == id))[:vault]
+
+  defp find_tile(socket, id), do: find_board(socket, id)
+
+  # How a board or a vault is told apart from the rest of the list, in the
+  # page and in what a drag sends back.
+  defp tile_key(%Vault{id: id}), do: "vault-#{id}"
+  defp tile_key(%Board{id: id}), do: to_string(id)
 
   # Archiving and deleting are the owner's alone, the way board settings are.
   defp with_owned_board(socket, id, fun) do
@@ -422,7 +454,9 @@ defmodule SlipdockWeb.BoardLive.Index do
             <div>
               <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">Your boards</h1>
               <p class="mt-1 text-sm text-base-content/60">
-                {length(@boards)} {if length(@boards) == 1, do: "board", else: "boards"} · drag cards, flag them, tag them, get things done.
+                {length(@boards)} {if length(@boards) == 1, do: "board", else: "boards"}<span :if={
+                  @vaults != %{}
+                }> · {map_size(@vaults)} {if map_size(@vaults) == 1, do: "vault", else: "vaults"}</span>
               </p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
@@ -468,6 +502,14 @@ defmodule SlipdockWeb.BoardLive.Index do
               </.link>
               <button :if={!@creating} class="btn btn-primary btn-sm" phx-click="start_create">
                 <.icon name="hero-plus" class="size-4" /> New board
+              </button>
+              <button
+                :if={!@creating_vault}
+                id="new-vault"
+                class="btn btn-primary btn-sm"
+                phx-click="start_vault"
+              >
+                <.icon name="hero-plus" class="size-4" /> New vault
               </button>
             </div>
           </div>
@@ -588,41 +630,51 @@ defmodule SlipdockWeb.BoardLive.Index do
             </.form>
           </div>
 
+          <.vault_form :if={@creating_vault} />
+
           <div
-            :if={@boards == [] and @archived == [] and @vaults == [] and !@creating}
+            :if={@tiles == [] and @archived == [] and !@creating and !@creating_vault}
             class="rounded-2xl border-2 border-dashed border-base-content/15 p-16 text-center"
           >
             <div class="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
               <.icon name="hero-view-columns" class="size-7" />
             </div>
             <h2 class="text-lg font-semibold">No boards yet</h2>
-            <p class="mt-1 text-sm text-base-content/60">Create your first board to get started.</p>
-            <button class="btn btn-primary mt-6" phx-click="start_create">
-              <.icon name="hero-plus" class="size-4" /> New board
-            </button>
+            <p class="mt-1 text-sm text-base-content/60">
+              Create your first board, or a vault for your notes, to get started.
+            </p>
+            <div class="mt-6 flex justify-center gap-2">
+              <button class="btn btn-primary" phx-click="start_create">
+                <.icon name="hero-plus" class="size-4" /> New board
+              </button>
+              <button class="btn btn-primary" phx-click="start_vault">
+                <.icon name="hero-plus" class="size-4" /> New vault
+              </button>
+            </div>
           </div>
 
           <p
-            :if={@boards == [] and @archived != []}
+            :if={@tiles == [] and @archived != []}
             class="rounded-2xl border-2 border-dashed border-base-content/15 p-10 text-center text-sm text-base-content/60"
           >
             Every board you can see is archived. Open Archived below to bring one back.
           </p>
 
-          <.vault_tiles :if={@vaults != []} vaults={@vaults} creating={@creating_vault} />
-
           <.board_grid
-            :if={@board_layout == "grid" and @boards != []}
+            :if={@board_layout == "grid" and @tiles != []}
             id="boards"
-            boards={@boards}
+            boards={@tiles}
+            vaults={@vaults}
             current_user={@current_user}
             sort={@sort}
             add_tile={!@creating}
+            add_vault_tile={!@creating_vault}
           />
           <.board_table
-            :if={@board_layout == "compact" and @boards != []}
+            :if={@board_layout == "compact" and @tiles != []}
             id="boards"
-            boards={@boards}
+            boards={@tiles}
+            vaults={@vaults}
             current_user={@current_user}
             sort={@sort}
           />
@@ -697,13 +749,17 @@ defmodule SlipdockWeb.BoardLive.Index do
   ## The two layouts -----------------------------------------------------------
 
   attr :id, :string, required: true
+  # Boards, and on the main list the vaults among them (see `tiles`).
   attr :boards, :list, required: true
+  # What each vault's card shows, by vault id (see `vault_entries/1`).
+  attr :vaults, :map, default: %{}
   attr :current_user, :map, required: true
   attr :sort, :string, required: true
   attr :archived, :boolean, default: false
-  # A board-sized "+ Add a new board" tile after the last board, which opens
-  # the same form as the New board button.
+  # Board-sized "+ Add a new board" and "+ Add a new vault" tiles after the
+  # last one, which open the same forms as the New board and New vault buttons.
   attr :add_tile, :boolean, default: false
+  attr :add_vault_tile, :boolean, default: false
 
   defp board_grid(assigns) do
     ~H"""
@@ -717,93 +773,144 @@ defmodule SlipdockWeb.BoardLive.Index do
       data-disabled={to_string(@archived or @sort != "manual")}
       class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
     >
-      <div
-        :for={board <- @boards}
-        id={"board-#{board.id}"}
-        data-id={board.id}
-        class={[
-          "group relative overflow-hidden rounded-2xl bg-base-100 shadow-sm ring-1 ring-base-content/10 transition hover:-translate-y-0.5 hover:shadow-lg",
-          @archived && "opacity-70"
-        ]}
-      >
-        <.link navigate={SlipdockWeb.SwimlaneComponents.board_home_path(board)} class="block">
-          <div class={["h-2 bg-gradient-to-br sm:h-20", Palette.gradient(board.color)]}></div>
-          <div class="p-3.5 sm:p-4">
-            <h2 class="flex items-center gap-2 truncate text-base font-semibold">
-              <span class="truncate">{board.name}</span>
-              <span
-                :if={board.code}
-                class="chip chip-line shrink-0 font-mono text-2xs font-normal"
-                title="Board code"
-              >
-                {board.code}
-              </span>
-              <span
-                :if={board.owner_id != @current_user.id}
-                class="badge badge-ghost badge-xs max-w-40 shrink-0"
-                title={"Owned by #{owner_name(board)}"}
-              >
-                <span class="truncate">shared by {owner_name(board)}</span>
-              </span>
-            </h2>
-            <p class="mt-0.5 line-clamp-2 text-sm text-base-content/60 sm:min-h-[1.25rem]">
-              {board.description}
-            </p>
-            <% total = length(board.cards) %>
-            <div class="mt-2.5 flex items-center gap-3 text-xs text-base-content/60 sm:mt-4">
-              <span class="inline-flex items-center gap-1">
-                <.icon name="hero-view-columns" class="size-3.5" /> {length(board.columns)} lists
-              </span>
-              <span class="inline-flex items-center gap-1">
-                <.icon name="hero-rectangle-stack" class="size-3.5" /> {total} cards
-              </span>
-              <span :if={total > 0} class="ml-auto font-medium">
-                {percent_done(board)}%
-              </span>
-            </div>
-            <progress
-              :if={total > 0}
-              class="progress progress-success mt-2 h-1.5 w-full"
-              value={done_count(board)}
-              max={total}
-            ></progress>
-          </div>
-        </.link>
-        <div class="absolute left-2 top-2 flex items-center gap-1">
-          <span
-            :if={!@archived and @sort == "manual"}
-            class="board-handle btn btn-circle btn-ghost btn-sm cursor-grab bg-base-100/70 opacity-0 backdrop-blur transition group-hover:opacity-100 no-hover:opacity-100"
-            title="Drag to reorder"
-          >
-            <.icon name="hero-bars-2" class="size-4" />
-          </span>
-          <span :if={@archived} class="badge badge-warning badge-sm">archived</span>
-        </div>
-        <.board_menu
-          board={board}
+      <%= for tile <- @boards do %>
+        <.vault_card
+          :if={match?(%Vault{}, tile)}
+          entry={@vaults[tile.id]}
+          sort={@sort}
+          tiles={@boards}
+        />
+        <.board_card
+          :if={match?(%Board{}, tile)}
+          board={tile}
+          boards={@boards}
           current_user={@current_user}
           sort={@sort}
-          boards={@boards}
           archived={@archived}
-          class="dropdown dropdown-end absolute right-2 top-2 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100 no-hover:opacity-100"
-          button_class="btn btn-circle btn-ghost btn-sm bg-base-100/70 backdrop-blur"
         />
-      </div>
+      <% end %>
       <button
         :if={@add_tile}
         id="new-board-tile"
         type="button"
         phx-click="start_create"
-        class="flex min-h-24 items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-base-content/15 text-base-content/60 transition hover:border-primary/50 hover:text-primary sm:min-h-40"
+        class={add_tile_class()}
       >
         <.icon name="hero-plus" class="size-5" /> Add a new board
       </button>
+      <button
+        :if={@add_vault_tile}
+        id="new-vault-tile"
+        type="button"
+        phx-click="start_vault"
+        class={add_tile_class()}
+      >
+        <.icon name="hero-plus" class="size-5" /> Add a new vault
+      </button>
+    </div>
+    """
+  end
+
+  defp add_tile_class,
+    do:
+      "flex min-h-24 items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-base-content/15 text-base-content/60 transition hover:border-primary/50 hover:text-primary sm:min-h-40"
+
+  @tile_class "group relative overflow-hidden rounded-2xl bg-base-100 shadow-sm ring-1 ring-base-content/10 transition hover:-translate-y-0.5 hover:shadow-lg"
+
+  attr :board, :map, required: true
+  attr :boards, :list, required: true
+  attr :current_user, :map, required: true
+  attr :sort, :string, required: true
+  attr :archived, :boolean, required: true
+
+  defp board_card(assigns) do
+    assigns = assign(assigns, :tile_class, @tile_class)
+
+    ~H"""
+    <div
+      id={"board-#{@board.id}"}
+      data-id={@board.id}
+      class={[
+        @tile_class,
+        @archived && "opacity-70"
+      ]}
+    >
+      <.link navigate={SlipdockWeb.SwimlaneComponents.board_home_path(@board)} class="block">
+        <div class={["h-2 bg-gradient-to-br sm:h-20", Palette.gradient(@board.color)]}></div>
+        <div class="p-3.5 sm:p-4">
+          <h2 class="flex items-center gap-2 truncate text-base font-semibold">
+            <span class="truncate">{@board.name}</span>
+            <span
+              :if={@board.code}
+              class="chip chip-line shrink-0 font-mono text-2xs font-normal"
+              title="Board code"
+            >
+              {@board.code}
+            </span>
+            <kbd
+              :if={@board.shortcut}
+              class="kbd kbd-xs shrink-0 font-normal"
+              title="Press b then this key to jump here"
+            >
+              {@board.shortcut}
+            </kbd>
+            <span
+              :if={@board.owner_id != @current_user.id}
+              class="badge badge-ghost badge-xs max-w-40 shrink-0"
+              title={"Owned by #{owner_name(@board)}"}
+            >
+              <span class="truncate">shared by {owner_name(@board)}</span>
+            </span>
+          </h2>
+          <p class="mt-0.5 line-clamp-2 text-sm text-base-content/60 sm:min-h-[1.25rem]">
+            {@board.description}
+          </p>
+          <% total = length(@board.cards) %>
+          <div class="mt-2.5 flex items-center gap-3 text-xs text-base-content/60 sm:mt-4">
+            <span class="inline-flex items-center gap-1">
+              <.icon name="hero-view-columns" class="size-3.5" /> {length(@board.columns)} lists
+            </span>
+            <span class="inline-flex items-center gap-1">
+              <.icon name="hero-rectangle-stack" class="size-3.5" /> {total} cards
+            </span>
+            <span :if={total > 0} class="ml-auto font-medium">
+              {percent_done(@board)}%
+            </span>
+          </div>
+          <progress
+            :if={total > 0}
+            class="progress progress-success mt-2 h-1.5 w-full"
+            value={done_count(@board)}
+            max={total}
+          ></progress>
+        </div>
+      </.link>
+      <div class="absolute left-2 top-2 flex items-center gap-1">
+        <span
+          :if={!@archived and @sort == "manual"}
+          class="board-handle btn btn-circle btn-ghost btn-sm cursor-grab bg-base-100/70 opacity-0 backdrop-blur transition group-hover:opacity-100 no-hover:opacity-100"
+          title="Drag to reorder"
+        >
+          <.icon name="hero-bars-2" class="size-4" />
+        </span>
+        <span :if={@archived} class="badge badge-warning badge-sm">archived</span>
+      </div>
+      <.board_menu
+        board={@board}
+        current_user={@current_user}
+        sort={@sort}
+        boards={@boards}
+        archived={@archived}
+        class="dropdown dropdown-end absolute right-2 top-2 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100 no-hover:opacity-100"
+        button_class="btn btn-circle btn-ghost btn-sm bg-base-100/70 backdrop-blur"
+      />
     </div>
     """
   end
 
   attr :id, :string, required: true
   attr :boards, :list, required: true
+  attr :vaults, :map, default: %{}
   attr :current_user, :map, required: true
   attr :sort, :string, required: true
   attr :archived, :boolean, default: false
@@ -832,82 +939,90 @@ defmodule SlipdockWeb.BoardLive.Index do
           data-handle=".board-handle"
           data-disabled={to_string(@archived or @sort != "manual")}
         >
-          <tr
-            :for={board <- @boards}
-            id={"board-#{board.id}"}
-            data-id={board.id}
-            class={["group hover:bg-base-200/60", @archived && "opacity-70"]}
-          >
-            <td :if={!@archived and @sort == "manual"} class="board-handle cursor-grab align-middle">
-              <.icon
-                name="hero-bars-2"
-                class="size-4 text-base-content/30 group-hover:text-base-content/60"
-              />
-            </td>
-            <td class="align-middle">
-              <.link
-                navigate={SlipdockWeb.SwimlaneComponents.board_home_path(board)}
-                class="flex items-center gap-2"
-              >
-                <span class={["size-2.5 shrink-0 rounded-full", Palette.dot(board.color)]}></span>
-                <span class="max-w-56 truncate font-medium">{board.name}</span>
-                <span
-                  :if={board.code}
-                  class="chip chip-line shrink-0 font-mono text-2xs font-normal"
-                  title="Board code"
+          <%= for board <- @boards do %>
+            <.vault_row
+              :if={match?(%Vault{}, board)}
+              entry={@vaults[board.id]}
+              sort={@sort}
+              tiles={@boards}
+            />
+            <tr
+              :if={match?(%Board{}, board)}
+              id={"board-#{board.id}"}
+              data-id={board.id}
+              class={["group hover:bg-base-200/60", @archived && "opacity-70"]}
+            >
+              <td :if={!@archived and @sort == "manual"} class="board-handle cursor-grab align-middle">
+                <.icon
+                  name="hero-bars-2"
+                  class="size-4 text-base-content/30 group-hover:text-base-content/60"
+                />
+              </td>
+              <td class="align-middle">
+                <.link
+                  navigate={SlipdockWeb.SwimlaneComponents.board_home_path(board)}
+                  class="flex items-center gap-2"
                 >
-                  {board.code}
-                </span>
-                <span
-                  :if={board.shortcut}
-                  class="hidden shrink-0 lg:inline"
-                  title="Press b then this key to jump here"
-                >
-                  <kbd class="kbd kbd-xs">{board.shortcut}</kbd>
-                </span>
-                <span
-                  :if={board.owner_id != @current_user.id}
-                  class="badge badge-ghost badge-xs max-w-40 shrink-0"
-                  title={"Owned by #{owner_name(board)}"}
-                >
-                  <span class="truncate">shared by {owner_name(board)}</span>
-                </span>
-                <span :if={@archived} class="badge badge-warning badge-xs shrink-0">archived</span>
-              </.link>
-            </td>
-            <td class="hidden max-w-xs truncate text-base-content/60 md:table-cell">
-              {board.description}
-            </td>
-            <td class="text-right tabular-nums text-base-content/60">{length(board.columns)}</td>
-            <td class="text-right tabular-nums text-base-content/60">{length(board.cards)}</td>
-            <td>
-              <div :if={percent_done(board)} class="flex items-center gap-2">
-                <progress
-                  class="progress progress-success h-1.5 w-16"
-                  value={done_count(board)}
-                  max={length(board.cards)}
-                ></progress>
-                <span class="text-xs tabular-nums text-base-content/60">
-                  {percent_done(board)}%
-                </span>
-              </div>
-              <span :if={is_nil(percent_done(board))} class="text-xs text-base-content/40">—</span>
-            </td>
-            <td class="hidden whitespace-nowrap text-xs text-base-content/50 sm:table-cell">
-              {board.last_activity_at && relative_time(board.last_activity_at)}
-            </td>
-            <td>
-              <.board_menu
-                board={board}
-                current_user={@current_user}
-                sort={@sort}
-                boards={@boards}
-                archived={@archived}
-                class="dropdown dropdown-end"
-                button_class="btn btn-ghost btn-xs btn-square"
-              />
-            </td>
-          </tr>
+                  <span class={["size-2.5 shrink-0 rounded-full", Palette.dot(board.color)]}></span>
+                  <span class="max-w-56 truncate font-medium">{board.name}</span>
+                  <span
+                    :if={board.code}
+                    class="chip chip-line shrink-0 font-mono text-2xs font-normal"
+                    title="Board code"
+                  >
+                    {board.code}
+                  </span>
+                  <span
+                    :if={board.shortcut}
+                    class="hidden shrink-0 lg:inline"
+                    title="Press b then this key to jump here"
+                  >
+                    <kbd class="kbd kbd-xs">{board.shortcut}</kbd>
+                  </span>
+                  <span
+                    :if={board.owner_id != @current_user.id}
+                    class="badge badge-ghost badge-xs max-w-40 shrink-0"
+                    title={"Owned by #{owner_name(board)}"}
+                  >
+                    <span class="truncate">shared by {owner_name(board)}</span>
+                  </span>
+                  <span :if={@archived} class="badge badge-warning badge-xs shrink-0">archived</span>
+                </.link>
+              </td>
+              <td class="hidden max-w-xs truncate text-base-content/60 md:table-cell">
+                {board.description}
+              </td>
+              <td class="text-right tabular-nums text-base-content/60">{length(board.columns)}</td>
+              <td class="text-right tabular-nums text-base-content/60">{length(board.cards)}</td>
+              <td>
+                <div :if={percent_done(board)} class="flex items-center gap-2">
+                  <progress
+                    class="progress progress-success h-1.5 w-16"
+                    value={done_count(board)}
+                    max={length(board.cards)}
+                  ></progress>
+                  <span class="text-xs tabular-nums text-base-content/60">
+                    {percent_done(board)}%
+                  </span>
+                </div>
+                <span :if={is_nil(percent_done(board))} class="text-xs text-base-content/40">—</span>
+              </td>
+              <td class="hidden whitespace-nowrap text-xs text-base-content/50 sm:table-cell">
+                {board.last_activity_at && relative_time(board.last_activity_at)}
+              </td>
+              <td>
+                <.board_menu
+                  board={board}
+                  current_user={@current_user}
+                  sort={@sort}
+                  boards={@boards}
+                  archived={@archived}
+                  class="dropdown dropdown-end"
+                  button_class="btn btn-ghost btn-xs btn-square"
+                />
+              </td>
+            </tr>
+          <% end %>
         </tbody>
       </table>
     </div>
@@ -931,8 +1046,8 @@ defmodule SlipdockWeb.BoardLive.Index do
         shared?:
           not is_nil(assigns.board.owner_id) and
             assigns.board.owner_id != assigns.current_user.id,
-        first?: List.first(assigns.boards).id == assigns.board.id,
-        last?: List.last(assigns.boards).id == assigns.board.id
+        first?: tile_key(List.first(assigns.boards)) == tile_key(assigns.board),
+        last?: tile_key(List.last(assigns.boards)) == tile_key(assigns.board)
       )
 
     ~H"""
@@ -988,107 +1103,217 @@ defmodule SlipdockWeb.BoardLive.Index do
     """
   end
 
-  attr :vaults, :list, required: true
-  attr :creating, :boolean, default: false
+  attr :entry, :map, required: true
+  attr :sort, :string, required: true
+  attr :tiles, :list, required: true
 
-  # A vault is yours and owns no pages, so it stands beside the boards: a
-  # tile each, opening the vault's own view.
-  defp vault_tiles(assigns) do
+  # A vault's card, among the boards': it owns no pages, so it shows the
+  # boards mapped into it, how many pages they hold, where it is synced, and
+  # the boards it keeps inside it (#757).
+  defp vault_card(assigns) do
+    assigns = assign(assigns, tile_class: @tile_class, vault: assigns.entry.vault)
+
     ~H"""
-    <section id="vaults" class="mb-8">
-      <div class="mb-3 flex items-center justify-between gap-2">
-        <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/50">
-          Your vaults
-        </h2>
-        <button
-          :if={!@creating}
-          id="new-vault"
-          type="button"
-          class="btn btn-ghost btn-xs"
-          phx-click="start_vault"
-        >
-          <.icon name="hero-plus" class="size-3.5" /> New vault
-        </button>
-      </div>
-      <form
-        :if={@creating}
-        id="new-vault-form"
-        phx-submit="create_vault"
-        class="mb-3 flex max-w-md flex-wrap gap-2"
-      >
-        <input
-          type="text"
-          name="name"
-          placeholder="Vault name"
-          class="input input-sm flex-1"
-          maxlength={Slipdock.Vaults.Vault.name_length()}
-          autocomplete="off"
-          phx-hook="Focus"
-          id="new-vault-name"
-          required
-        />
-        <button type="submit" class="btn btn-primary btn-sm">Make vault</button>
-        <button type="button" class="btn btn-ghost btn-sm" phx-click="cancel_vault">Cancel</button>
-        <label class="flex basis-full cursor-pointer items-center gap-1.5 text-xs text-base-content/70">
-          <input type="checkbox" name="with_board" value="true" class="checkbox checkbox-xs" />
-          Make a board to hold its pages, kept inside the vault
-        </label>
-      </form>
-      <ul class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <li
-          :for={
-            %{vault: vault, boards: boards, pages: pages, mirrors: mirrors, inside: inside} <- @vaults
-          }
-          class="relative h-full rounded-2xl bg-base-100 p-4 shadow-sm ring-1 ring-base-content/10 transition hover:ring-primary/40"
-        >
-          <.link
-            id={"vault-tile-#{vault.id}"}
-            navigate={vault_href(vault)}
-            class="block after:absolute after:inset-0 after:rounded-2xl after:content-['']"
-          >
-            <div class="flex items-center gap-2">
-              <span class="flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                <.icon name="hero-rectangle-stack" class="size-4" />
-              </span>
-              <span class="min-w-0 flex-1 truncate font-semibold">{vault.name}</span>
-              <span class="shrink-0 text-xs text-base-content/50">
-                {pages} {if pages == 1, do: "page", else: "pages"}
-              </span>
-            </div>
-            <p class="mt-2 truncate text-xs text-base-content/60">
-              <%= if boards == [] do %>
-                No boards mapped yet
-              <% else %>
-                {Enum.map_join(boards, " · ", & &1.name)}
-              <% end %>
-            </p>
-            <p
-              :for={m <- Enum.take(mirrors, 2)}
-              class="mt-1 flex items-center gap-1 truncate text-xs text-base-content/50"
-            >
-              <.icon name="hero-computer-desktop" class="size-3.5 shrink-0" />
-              <span class="truncate">{m.label || "an unnamed token"}</span>
-              <span class="shrink-0">· {SlipdockWeb.SlipdockComponents.relative_time(m.last_synced_at)}</span>
-            </p>
-          </.link>
-          <%!-- The boards it keeps inside it (#757): above the tile's own
-                link, so each opens its board. --%>
-          <.link
-            :for={%{board: board, cards: cards} <- inside}
-            id={"vault-inside-#{vault.id}-#{board.id}"}
-            navigate={~p"/boards/#{board}"}
-            class="relative z-10 mt-1 flex w-fit max-w-full items-center gap-1 truncate rounded text-xs text-base-content/50 hover:text-base-content hover:underline"
-            title="The board that stores these pages: their permissions, history and comments"
-          >
-            <.icon name="hero-archive-box" class="size-3.5 shrink-0" />
-            <span class="truncate">pages stored on {board.name}</span>
-            <span :if={cards > 0} class="shrink-0">
-              · {cards} {if cards == 1, do: "card", else: "cards"}
+    <div id={"vault-#{@vault.id}"} data-id={tile_key(@vault)} class={@tile_class}>
+      <.link id={"vault-tile-#{@vault.id}"} navigate={vault_href(@vault)} class="block">
+        <div class={["h-2 bg-gradient-to-br sm:h-20", Palette.gradient(vault_color(@entry))]}></div>
+        <div class="p-3.5 sm:p-4">
+          <h2 class="flex items-center gap-2 truncate text-base font-semibold">
+            <.icon name="hero-archive-box" class="size-4 shrink-0 text-base-content/50" />
+            <span class="truncate">{@vault.name}</span>
+            <span class="chip chip-line shrink-0 text-2xs font-normal">vault</span>
+          </h2>
+          <p class="mt-0.5 line-clamp-2 text-sm text-base-content/60 sm:min-h-[1.25rem]">
+            <%= if @entry.boards == [] do %>
+              No boards mapped yet
+            <% else %>
+              {Enum.map_join(@entry.boards, " · ", & &1.name)}
+            <% end %>
+          </p>
+          <div class="mt-2.5 flex items-center gap-3 text-xs text-base-content/60 sm:mt-4">
+            <span class="inline-flex items-center gap-1">
+              <.icon name="hero-document-text" class="size-3.5" />
+              {@entry.pages} {if @entry.pages == 1, do: "page", else: "pages"}
             </span>
-          </.link>
+            <span class="inline-flex items-center gap-1">
+              <.icon name="hero-view-columns" class="size-3.5" />
+              {length(@entry.boards)} {if length(@entry.boards) == 1, do: "board", else: "boards"}
+            </span>
+          </div>
+          <p
+            :for={m <- Enum.take(@entry.mirrors, 2)}
+            class="mt-1.5 flex items-center gap-1 truncate text-xs text-base-content/50"
+          >
+            <.icon name="hero-computer-desktop" class="size-3.5 shrink-0" />
+            <span class="truncate">{m.label || "an unnamed token"}</span>
+            <span class="shrink-0">· {relative_time(m.last_synced_at)}</span>
+          </p>
+        </div>
+      </.link>
+      <%!-- The boards it keeps inside it (#757): outside the card's own
+            link, so each opens its board. --%>
+      <div :if={@entry.inside != []} class="-mt-2 px-3.5 pb-3.5 sm:px-4 sm:pb-4">
+        <.link
+          :for={%{board: board, cards: cards} <- @entry.inside}
+          id={"vault-inside-#{@vault.id}-#{board.id}"}
+          navigate={~p"/boards/#{board}"}
+          class="flex w-fit max-w-full items-center gap-1 truncate rounded text-xs text-base-content/50 hover:text-base-content hover:underline"
+          title="The board that stores these pages: their permissions, history and comments"
+        >
+          <.icon name="hero-rectangle-stack" class="size-3.5 shrink-0" />
+          <span class="truncate">pages stored on {board.name}</span>
+          <span :if={cards > 0} class="shrink-0">
+            · {cards} {if cards == 1, do: "card", else: "cards"}
+          </span>
+        </.link>
+      </div>
+      <div class="absolute left-2 top-2 flex items-center gap-1">
+        <span
+          :if={@sort == "manual"}
+          class="board-handle btn btn-circle btn-ghost btn-sm cursor-grab bg-base-100/70 opacity-0 backdrop-blur transition group-hover:opacity-100 no-hover:opacity-100"
+          title="Drag to reorder"
+        >
+          <.icon name="hero-bars-2" class="size-4" />
+        </span>
+      </div>
+      <.vault_menu
+        vault={@vault}
+        sort={@sort}
+        tiles={@tiles}
+        class="dropdown dropdown-end absolute right-2 top-2 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100 no-hover:opacity-100"
+        button_class="btn btn-circle btn-ghost btn-sm bg-base-100/70 backdrop-blur"
+      />
+    </div>
+    """
+  end
+
+  attr :entry, :map, required: true
+  attr :sort, :string, required: true
+  attr :tiles, :list, required: true
+
+  # The same vault as a row of the compact list.
+  defp vault_row(assigns) do
+    assigns = assign(assigns, vault: assigns.entry.vault)
+
+    ~H"""
+    <tr id={"vault-#{@vault.id}"} data-id={tile_key(@vault)} class="group hover:bg-base-200/60">
+      <td :if={@sort == "manual"} class="board-handle cursor-grab align-middle">
+        <.icon
+          name="hero-bars-2"
+          class="size-4 text-base-content/30 group-hover:text-base-content/60"
+        />
+      </td>
+      <td class="align-middle">
+        <.link
+          id={"vault-tile-#{@vault.id}"}
+          navigate={vault_href(@vault)}
+          class="flex items-center gap-2"
+        >
+          <span class={["size-2.5 shrink-0 rounded-full", Palette.dot(vault_color(@entry))]}></span>
+          <span class="max-w-56 truncate font-medium">{@vault.name}</span>
+          <span class="chip chip-line shrink-0 text-2xs font-normal">vault</span>
+        </.link>
+      </td>
+      <td class="hidden max-w-xs truncate text-base-content/60 md:table-cell">
+        {@entry.pages} {if @entry.pages == 1, do: "page", else: "pages"}<span :if={
+          @entry.boards != []
+        }> · {Enum.map_join(@entry.boards, " · ", & &1.name)}</span>
+      </td>
+      <td class="text-right text-base-content/40">—</td>
+      <td class="text-right tabular-nums text-base-content/60">{@vault.card_count}</td>
+      <td><span class="text-xs text-base-content/40">—</span></td>
+      <td class="hidden whitespace-nowrap text-xs text-base-content/50 sm:table-cell">
+        {@vault.last_activity_at && relative_time(@vault.last_activity_at)}
+      </td>
+      <td>
+        <.vault_menu
+          vault={@vault}
+          sort={@sort}
+          tiles={@tiles}
+          class="dropdown dropdown-end"
+          button_class="btn btn-ghost btn-xs btn-square"
+        />
+      </td>
+    </tr>
+    """
+  end
+
+  attr :vault, :map, required: true
+  attr :sort, :string, required: true
+  attr :tiles, :list, required: true
+  attr :class, :string, required: true
+  attr :button_class, :string, required: true
+
+  # A vault's own menu: moving it among the boards, in your own order.
+  defp vault_menu(assigns) do
+    key = tile_key(assigns.vault)
+
+    assigns =
+      assign(assigns,
+        key: key,
+        first?: tile_key(List.first(assigns.tiles)) == key,
+        last?: tile_key(List.last(assigns.tiles)) == key
+      )
+
+    ~H"""
+    <div :if={@sort == "manual" and not (@first? and @last?)} class={@class}>
+      <div tabindex="0" role="button" class={@button_class} title="More">
+        <.icon name="hero-ellipsis-horizontal" class="size-4" />
+      </div>
+      <ul
+        tabindex="0"
+        class="menu dropdown-content z-10 w-44 rounded-xl bg-base-100 p-1 text-sm shadow-lg ring-1 ring-base-content/10"
+      >
+        <li :if={@sort == "manual" and not @first?}>
+          <button phx-click="nudge" phx-value-id={@key} phx-value-dir="up">
+            <.icon name="hero-arrow-up" class="size-4" /> Move up
+          </button>
+        </li>
+        <li :if={@sort == "manual" and not @last?}>
+          <button phx-click="nudge" phx-value-id={@key} phx-value-dir="down">
+            <.icon name="hero-arrow-down" class="size-4" /> Move down
+          </button>
         </li>
       </ul>
-    </section>
+    </div>
+    """
+  end
+
+  # A vault has no colour of its own: it takes the one of the board it keeps
+  # its pages on, or of the first board mapped into it.
+  defp vault_color(%{inside: [%{board: board} | _]}), do: board.color
+  defp vault_color(%{boards: [board | _]}), do: board.color
+  defp vault_color(_), do: "slate"
+
+  # The new-vault form, in the same kind of panel as the new-board one.
+  defp vault_form(assigns) do
+    ~H"""
+    <div class="kanban-pop mb-8 rounded-2xl bg-base-100 p-5 shadow-sm ring-1 ring-base-content/10">
+      <form id="new-vault-form" phx-submit="create_vault" class="space-y-4">
+        <label class="block max-w-md">
+          <span class="mb-1 block text-sm font-medium">Vault name</span>
+          <input
+            type="text"
+            name="name"
+            placeholder="e.g. Notes"
+            class="input w-full"
+            maxlength={Vault.name_length()}
+            autocomplete="off"
+            phx-hook="Focus"
+            id="new-vault-name"
+            required
+          />
+        </label>
+        <label class="flex cursor-pointer items-center gap-2 text-sm">
+          <input type="checkbox" name="with_board" value="true" class="checkbox checkbox-sm" />
+          Make a board to hold its pages, kept inside the vault
+        </label>
+        <div class="flex justify-end gap-2">
+          <button type="button" class="btn btn-ghost" phx-click="cancel_vault">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create vault</button>
+        </div>
+      </form>
+    </div>
     """
   end
 

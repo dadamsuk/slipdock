@@ -1257,18 +1257,23 @@ by default; the usual filters, search and saved views apply.
 ## Your boards
 
 The index at `/` is where the boards themselves are looked after, and how it
-reads is yours: two controls sit beside **New board**, and both are
-remembered between visits.
+reads is yours: two controls sit beside **New board** and **New vault**, and
+both are remembered between visits. Your vaults are listed among your boards,
+a card each, in the same order (see [Vaults](#vaults) for what a vault's card
+shows).
 
-**Layout.** The cards are the default — a colour band, the code, the lists and
-cards on it and how much is done. The compact layout is the same boards as a
+**Layout.** The cards are the default — a colour band, the code, the
+switcher key when the board has one, the lists and cards on it and how much
+is done. The compact layout is the same boards as a
 table, a row each, with the board's colour, code, switcher key, description,
 lists, cards, how far along it is and when anything last happened anywhere in
 its tree. Worth switching to once there are more boards than fit on a screen.
 
 **Order.** *My order* is the default, and it starts as the order the boards
-were made in. Drag the handle on a card or a row to move a board, or use
-**Move up** / **Move down** in its menu for the same thing without a mouse.
+were made in. Drag the handle on a card or a row to move a board or a vault,
+or use **Move up** / **Move down** in its menu for the same thing without a
+mouse. Setting the order from the command line, which names boards only,
+leaves each vault behind the same number of boards as before.
 The other orders — name, recently active, newest, oldest, most cards — sort
 without disturbing yours: switch back to *My order* and every board is where
 you left it. **The order is yours alone.** A board shared with four people
@@ -3345,12 +3350,13 @@ Deleting a vault takes its mappings
 and leaves every page where it was; deleting a board or a folder takes the
 mappings onto it.
 
-**On the home page** your vaults stand beside your boards, a tile each: its
-name, the boards mapped into it, how many pages it holds and the folders it
-is synced to, with when each last synced. **New vault** there makes one;
-tick *Make a board to hold its pages* and it comes with a board of the same
-name, mapped at `/` and kept inside it. With no vaults the home page is as it
-was.
+**On the home page** your vaults are listed among your boards, a card each,
+in your order like any board (drag it, or **Move up** / **Move down**), and
+sorted with them by name, age, activity or cards: its name, the boards mapped
+into it, how many pages it holds and the folders it is synced to, with when
+each last synced. **New vault**, beside **New board**, makes one; tick *Make
+a board to hold its pages* and it comes with a board of the same name, mapped
+at `/` and kept inside it.
 
 **A board kept inside its vault.** Pages live on a board — that is where their
 codes, permissions and history are — so a vault like Notes has a board such
