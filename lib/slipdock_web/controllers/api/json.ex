@@ -166,6 +166,28 @@ defmodule SlipdockWeb.API.JSON do
     }
   end
 
+  # The card's handoff if it has one: nil when none was written, when the
+  # newest row is a clear, or when the handoff wasn't loaded.
+  defp current_handoff(%Card{handoff: %Slipdock.Boards.Handoff{} = h}) do
+    if Slipdock.Boards.Handoff.cleared?(h), do: nil, else: handoff(h)
+  end
+
+  defp current_handoff(_), do: nil
+
+  @doc "A handoff note: the one next step, the note, and who left it, when and how."
+  def handoff(%Slipdock.Boards.Handoff{} = h) do
+    %{
+      id: h.id,
+      next_step: h.next_step,
+      body: h.body,
+      cleared: Slipdock.Boards.Handoff.cleared?(h),
+      by: if(match?(%Slipdock.Accounts.User{}, h.user), do: person_ref(h.user)),
+      via: h.via,
+      job_id: h.job_id,
+      at: h.inserted_at
+    }
+  end
+
   def tag(%Tag{} = t), do: %{id: t.id, name: t.name, color: t.color}
 
   # A wiki page placed in a list stands beside the cards in every view, so it
@@ -189,6 +211,8 @@ defmodule SlipdockWeb.API.JSON do
       # "card" or "document" — a card whose whole content is the file on it
       # (see `Slipdock.Kinds`), which is what `cards?kind=` filters by.
       kind: Slipdock.Kinds.kind_of(c),
+      # Where the card was left: read this before the comments (W-1804).
+      handoff: current_handoff(c),
       description: c.description,
       priority: c.priority,
       flags: c.flags,

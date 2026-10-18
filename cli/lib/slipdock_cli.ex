@@ -609,6 +609,11 @@ defmodule SlipdockCLI do
     set <id> <key>=<value>...           set custom fields on a card ("" clears; choice by label or key)
     vote <id> <n>                       put n of your votes on a card or page (0 removes them)
     status <id> <on_track|at_risk|off_track> [note...]  report a card's or page's health
+    handoff <id>                        where the card was left: its handoff and the history
+    handoff <id> --next "the one next step" [--body TEXT | --file F | --body -]
+                                        leave a handoff for whoever picks the card up next
+                                        (write one whenever you stop with it unfinished)
+    handoff <id> --clear                clear it (the history keeps that it was cleared)
     new-field <board> <name> --kind K   add a custom field (K: number rating select date text formula)
         [--options "Small=1, Large=3"] [--formula "{value} / {effort}"] [--sum]
     delete-field <board> <field>
@@ -738,6 +743,8 @@ defmodule SlipdockCLI do
     default_view: :string,
     sprints: :boolean,
     clear: :boolean,
+    # `slipdock handoff <id> --next …`.
+    next: :string,
     simple: :boolean,
     days: :integer,
     goal: :string,

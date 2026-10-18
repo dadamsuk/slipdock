@@ -445,6 +445,21 @@ defmodule Slipdock.Boards do
     ]
   end
 
+  # Each card's newest handoff row, for a preload: one per card.
+  defp newest_handoff_query do
+    from(h in Handoff,
+      as: :handoff,
+      where:
+        h.id ==
+          subquery(
+            from(n in Handoff,
+              where: n.card_id == parent_as(:handoff).card_id,
+              select: max(n.id)
+            )
+          )
+    )
+  end
+
   defp card_preloads do
     [
       :tags,
@@ -456,6 +471,7 @@ defmodule Slipdock.Boards do
       :urls,
       :status_updates,
       :votes,
+      handoff: {newest_handoff_query(), :user},
       field_values: [:field],
       links_out: {link_query(), to: {link_stub_query(), [board: board_stub_query()]}},
       links_in: {link_query(), from: {link_stub_query(), [board: board_stub_query()]}},

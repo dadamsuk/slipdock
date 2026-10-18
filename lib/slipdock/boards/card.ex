@@ -109,6 +109,12 @@ defmodule Slipdock.Boards.Card do
     has_many :status_updates, Slipdock.Boards.StatusUpdate,
       preload_order: [desc: :inserted_at, desc: :id]
 
+    # Where it was left (W-1804): every note written, and the newest alone,
+    # which `Slipdock.Boards` preloads as `handoff` (nil until one is written;
+    # a cleared one is a row with no next step).
+    has_many :handoffs, Slipdock.Boards.Handoff, preload_order: [desc: :id]
+    has_one :handoff, Slipdock.Boards.Handoff
+
     has_many :field_values, Slipdock.Boards.FieldValue
     has_many :votes, Slipdock.Boards.Vote
     # Typed links (see Slipdock.Boards.CardLink), both directions.

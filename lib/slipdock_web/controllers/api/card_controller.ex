@@ -366,6 +366,44 @@ defmodule SlipdockWeb.API.CardController do
     Ecto.NoResultsError -> {:error, :not_found, "checklist item"}
   end
 
+  @doc """
+  The card's handoff and its history, newest first (W-1804). `handoff` is
+  nil when there is none or it was cleared.
+  """
+  def handoff(conn, %{"id" => id}) do
+    with {:ok, card} <- fetch_card(id),
+         :ok <- Authorize.card(conn, card, :read) do
+      history = Boards.handoff_history(card)
+
+      json(conn, %{
+        card: card.id,
+        handoff: current(history),
+        history: Enum.map(history, &V.handoff/1)
+      })
+    end
+  end
+
+  defp current([newest | _]),
+    do: unless(Slipdock.Boards.Handoff.cleared?(newest), do: V.handoff(newest))
+
+  defp current([]), do: nil
+
+  @doc """
+  Leaves a handoff on the card: `next_step` (one line, required) and `body`,
+  or `clear: true`. Anyone who may comment on the card may write one. `via`
+  is `cli` from the command line and `api` otherwise.
+  """
+  def leave_handoff(conn, %{"id" => id} = params) do
+    via = if params["via"] == "cli", do: "cli", else: "api"
+
+    with {:ok, card} <- fetch_card(id),
+         :ok <- Authorize.card(conn, card, :comment),
+         {:ok, handoff} <-
+           CardWrites.write_handoff(card, conn.assigns.current_user, params, via) do
+      conn |> put_status(:created) |> json(%{card: card.id, handoff: V.handoff(handoff)})
+    end
+  end
+
   def add_comment(conn, %{"id" => id, "body" => body}) do
     with {:ok, card} <- fetch_card(id),
          :ok <- Authorize.card(conn, card, :comment),

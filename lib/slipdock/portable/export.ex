@@ -21,6 +21,7 @@ defmodule Slipdock.Portable.Export do
     Comment,
     FieldDefinition,
     FieldValue,
+    Handoff,
     Milestone,
     SavedView,
     StatusUpdate,
@@ -346,6 +347,9 @@ defmodule Slipdock.Portable.Export do
       checklist: owned(refs, :checklist, {:card, card.id}),
       comments: owned(refs, :comments, {:card, card.id}),
       status_updates: status_json({:card, card.id}, refs),
+      # Where it was left, and every note before it, oldest first: the last
+      # is the card's handoff (W-1804). One with no next_step is a clear.
+      handoffs: status_json({:card, card.id}, refs, :handoffs),
       urls: owned(refs, :urls, {:card, card.id}),
       fields: field_value_json({:card, card.id}, refs)
     }
@@ -491,11 +495,29 @@ defmodule Slipdock.Portable.Export do
         )
       )
 
+    handoffs =
+      from(h in Handoff,
+        where: h.card_id in ^card_ids,
+        order_by: [asc: h.id],
+        select: %{
+          card_id: h.card_id,
+          next_step: h.next_step,
+          body: h.body,
+          via: h.via,
+          written_at: h.inserted_at,
+          author_id: h.user_id
+        }
+      )
+      |> Repo.all()
+      |> Enum.group_by(&{:card, &1.card_id}, &Map.delete(&1, :card_id))
+
     user_ids =
       Enum.map(cards, & &1.assignee_id) ++
         Enum.map(pages, & &1.assignee_id) ++
         Enum.concat(Map.values(assignees)) ++
-        (statuses |> Map.values() |> Enum.concat() |> Enum.map(& &1.author_id))
+        ((Map.values(statuses) ++ Map.values(handoffs))
+         |> Enum.concat()
+         |> Enum.map(& &1.author_id))
 
     user_ids = user_ids |> Enum.reject(&is_nil/1) |> Enum.uniq()
 
@@ -556,6 +578,7 @@ defmodule Slipdock.Portable.Export do
           )
         ),
       statuses: statuses,
+      handoffs: handoffs,
       urls:
         owned.(
           from(u in CardUrl,
@@ -578,9 +601,10 @@ defmodule Slipdock.Portable.Export do
 
   defp owned(refs, kind, key), do: Map.get(refs.loaded[kind], key, [])
 
-  defp status_json(key, refs) do
+  # Status updates and handoffs: signed rows, the author by address.
+  defp status_json(key, refs, kind \\ :statuses) do
     refs
-    |> owned(:statuses, key)
+    |> owned(kind, key)
     |> Enum.map(fn update ->
       update |> Map.put(:author, Refs.email_of(update.author_id, refs)) |> Map.delete(:author_id)
     end)

@@ -10,7 +10,7 @@ defmodule SlipdockCLI.Boards do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(guide search ask search-status saved save unsave boards board columns tags activity cards card swimlanes views favourites fav unfav table fields milestones templates add edit set vote status new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
+  @commands ~w(guide search ask search-status saved save unsave boards board columns tags activity cards card swimlanes views favourites fav unfav table fields milestones templates add edit set vote status handoff new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -248,6 +248,28 @@ defmodule SlipdockCLI.Boards do
   def run("status", [id, health | words], o) do
     HTTP.post(item_path(id, "/status"), %{"health" => health, "body" => Enum.join(words, " ")})
     |> out(o, &card_ok("reported #{health} on", &1))
+  end
+
+  # Where a card was left (W-1804): with --next (or --clear) it writes the
+  # handoff, without it shows the current one and its history.
+  def run("handoff", [id], o) do
+    cond do
+      o[:clear] ->
+        HTTP.post("/cards/#{enc(id)}/handoff", %{"clear" => true, "via" => "cli"})
+        |> out(o, fn _ -> IO.puts("cleared the handoff on ##{id}") end)
+
+      o[:next] ->
+        body = compact(%{"next_step" => o[:next], "body" => handoff_body(o), "via" => "cli"})
+
+        HTTP.post("/cards/#{enc(id)}/handoff", body)
+        |> out(o, fn r -> IO.puts("left a handoff on ##{id}: #{r["handoff"]["next_step"]}") end)
+
+      o[:body] || o[:file] ->
+        fail("a handoff needs --next \"the one next step\"")
+
+      true ->
+        HTTP.get("/cards/#{enc(id)}/handoff") |> out(o, &Render.handoff_history/1)
+    end
   end
 
   def run("new-field", [ref | words], o) when words != [] do
@@ -1244,6 +1266,23 @@ defmodule SlipdockCLI.Boards do
       [name] -> %{"name" => name}
       [name, wip] -> %{"name" => name, "wip_limit" => wip}
       [name, wip, color | _] -> %{"name" => name, "wip_limit" => wip, "color" => color}
+    end
+  end
+
+  # The note given outright, read from a file, or piped in (`--body -`).
+  defp handoff_body(o) do
+    cond do
+      o[:file] == "-" or o[:body] == "-" -> read_stdin()
+      o[:file] -> File.read!(o[:file])
+      true -> o[:body]
+    end
+  end
+
+  defp read_stdin do
+    case IO.read(:stdio, :eof) do
+      text when is_binary(text) -> text
+      :eof -> ""
+      _ -> fail("could not read the note from stdin")
     end
   end
 end

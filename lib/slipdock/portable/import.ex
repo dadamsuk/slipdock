@@ -23,6 +23,7 @@ defmodule Slipdock.Portable.Import do
     Comment,
     FieldDefinition,
     FieldValue,
+    Handoff,
     Milestone,
     SavedView,
     StatusUpdate,
@@ -162,7 +163,7 @@ defmodule Slipdock.Portable.Import do
   # string or a number where a card should be is not an export, and is turned
   # away here rather than crashing halfway through building it.
   @tree_rows ~w(boards cards pages tags fields folders milestones saved_views)a
-  @owned_rows ~w(checklist comments status_updates urls fields links)a
+  @owned_rows ~w(checklist comments status_updates handoffs urls fields links)a
 
   defp rows_are_maps?(tree) do
     boards = [tree.root | rows(tree, :boards)]
@@ -200,6 +201,7 @@ defmodule Slipdock.Portable.Import do
       checklist: sum_rows(owners, :checklist),
       comments: sum_rows(owners, :comments),
       status_updates: sum_rows(owners, :status_updates),
+      handoffs: sum_rows(owners, :handoffs),
       urls: sum_rows(owners, :urls),
       field_values: sum_rows(owners, :fields),
       dependencies: sum_rows(owners, :blocked_by),
@@ -604,6 +606,7 @@ defmodule Slipdock.Portable.Import do
       Repo.insert_all("card_tags", Enum.map(Enum.uniq(tag_ids), &[card_id: card.id, tag_id: &1]))
 
       insert_attached!(user, [card_id: card.id], doc, ids)
+      insert_handoffs!(user, card, doc)
     end
 
     card
@@ -729,6 +732,31 @@ defmodule Slipdock.Portable.Import do
     end
 
     :ok
+  end
+
+  # A card's handoffs in the order written, so the last is its handoff. Signed
+  # by the importer, as a status update is, with the author in the note; a
+  # row with no next step is a clear and stays one.
+  defp insert_handoffs!(user, card, doc) do
+    for handoff <- rows(doc, :handoffs) do
+      attrs = %{
+        next_step: handoff[:next_step],
+        body: Refs.signed(handoff[:body], handoff[:author], user),
+        via: handoff[:via]
+      }
+
+      row = %Handoff{card_id: card.id, user_id: user.id}
+
+      changeset =
+        if handoff[:next_step] in [nil, ""],
+          do: Handoff.clear_changeset(row, attrs),
+          else: Handoff.changeset(row, attrs)
+
+      case Repo.insert(changeset, mode: :savepoint) do
+        {:ok, _} -> :ok
+        {:error, cs} -> skip("A handoff on “#{doc[:title]}” was left out: #{errors(cs)}.")
+      end
+    end
   end
 
   # Dependencies and links point at other cards, so they wait until every card
