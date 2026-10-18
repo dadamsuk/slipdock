@@ -28,7 +28,7 @@ defmodule SlipdockWeb.MCP.Plug do
   import Plug.Conn
 
   alias Slipdock.Accounts
-  alias SlipdockWeb.MCP.{Prompts, Tools}
+  alias SlipdockWeb.MCP.{Completions, Prompts, Tools}
 
   @versions ["2025-11-25", "2025-06-18", "2025-03-26"]
   @latest hd(@versions)
@@ -208,7 +208,11 @@ defmodule SlipdockWeb.MCP.Plug do
     {:ok,
      %{
        protocolVersion: if(requested in @versions, do: requested, else: @latest),
-       capabilities: %{tools: %{listChanged: false}, prompts: %{listChanged: false}},
+       capabilities: %{
+         tools: %{listChanged: false},
+         prompts: %{listChanged: false},
+         completions: %{}
+       },
        serverInfo: %{
          name: "slipdock",
          title: "Slipdock",
@@ -245,6 +249,13 @@ defmodule SlipdockWeb.MCP.Plug do
 
   defp dispatch(_conn, "prompts/get", _params),
     do: {:error, @invalid_params, "prompts/get needs a prompt name"}
+
+  defp dispatch(conn, "completion/complete", params) do
+    case Completions.complete(params, tool_context(conn)) do
+      {:ok, result} -> {:ok, result}
+      {:error, message} -> {:error, @invalid_params, message}
+    end
+  end
 
   defp dispatch(_conn, "tools/call", _params),
     do: {:error, @invalid_params, "tools/call needs a tool name"}

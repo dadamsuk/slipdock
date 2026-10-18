@@ -34,7 +34,8 @@ defmodule SlipdockWeb.MCP.TransportTest do
 
       assert result["capabilities"] == %{
                "tools" => %{"listChanged" => false},
-               "prompts" => %{"listChanged" => false}
+               "prompts" => %{"listChanged" => false},
+               "completions" => %{}
              }
 
       assert result["serverInfo"]["name"] == "slipdock"
