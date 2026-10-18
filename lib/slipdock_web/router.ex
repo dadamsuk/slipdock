@@ -518,6 +518,7 @@ defmodule SlipdockWeb.Router do
     post "/boards/:board/archive", BoardController, :archive
     post "/boards/:board/restore", BoardController, :restore
     get "/boards/:board/activity", BoardController, :activity
+    get "/boards/:board/recurring", RecurrenceController, :index
     get "/boards/:board/swimlanes", BoardController, :swimlanes
     get "/boards/:board/views", BoardController, :views
     post "/boards/:board/views", BoardController, :create_view
@@ -694,6 +695,10 @@ defmodule SlipdockWeb.Router do
     post "/cards/:id/archive", CardController, :archive
     post "/cards/:id/restore", CardController, :restore
     post "/cards/:id/copy", CardController, :copy
+    get "/cards/:id/recurrence", RecurrenceController, :show
+    put "/cards/:id/recurrence", RecurrenceController, :update
+    delete "/cards/:id/recurrence", RecurrenceController, :delete
+    post "/cards/:id/recurrence/skip", RecurrenceController, :skip
     post "/cards/:id/checklist", CardController, :add_checklist_item
     post "/cards/:id/comments", CardController, :add_comment
     get "/cards/:id/handoff", CardController, :handoff

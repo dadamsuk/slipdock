@@ -607,6 +607,7 @@ defmodule Slipdock.Portable.Import do
 
       insert_attached!(user, [card_id: card.id], doc, ids)
       insert_handoffs!(user, card, doc)
+      insert_recurrence!(user, card, doc, ids)
     end
 
     card
@@ -758,6 +759,61 @@ defmodule Slipdock.Portable.Import do
       end
     end
   end
+
+  # A recurring card's series, carrying on from where the export left it: the
+  # next occurrence is made at its time on this server's clock. One that
+  # doesn't read (a rule this server can't parse, say) is left out, and the
+  # card is imported as a card that doesn't repeat.
+  defp insert_recurrence!(user, card, doc, ids) do
+    case doc[:recurrence] do
+      %{} = r ->
+        attrs = %{
+          rule: r[:rule],
+          starts_on: r[:starts_on],
+          create_at: import_time(r[:at]),
+          timezone: r[:timezone],
+          lead_days: r[:lead_days] || 0,
+          column_id: r[:list] && ids.columns[r[:list]],
+          on_missed: r[:on_missed] || "bump",
+          ends: r[:ends] || "never",
+          ends_on: r[:ends_on],
+          count: r[:count],
+          paused: r[:paused] == true
+        }
+
+        changeset =
+          %Slipdock.Recurrence.Series{card_id: card.id, created_by_id: user.id}
+          |> Slipdock.Recurrence.Series.changeset(attrs)
+          |> Ecto.Changeset.cast(%{made: r[:made], next_on: r[:next_on]}, [:made, :next_on])
+          |> then(fn cs ->
+            if r[:ended] == true,
+              do: Ecto.Changeset.put_change(cs, :ended_at, DateTime.utc_now(:second)),
+              else: cs
+          end)
+
+        with {:ok, series} <- Repo.insert(changeset, mode: :savepoint) do
+          series |> Slipdock.Recurrence.reschedule() |> Repo.update!()
+
+          from(c in Card, where: c.id == ^card.id)
+          |> Repo.update_all(set: [series_id: series.id])
+        else
+          {:error, cs} ->
+            skip("“#{doc[:title]}” was imported without repeating: #{errors(cs)}.")
+        end
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp import_time(text) when is_binary(text) do
+    case Time.from_iso8601(if String.length(text) == 5, do: text <> ":00", else: text) do
+      {:ok, t} -> t
+      _ -> ~T[07:00:00]
+    end
+  end
+
+  defp import_time(_), do: ~T[07:00:00]
 
   # Dependencies and links point at other cards, so they wait until every card
   # in the tree exists. A dependency gets the same checks as one made by

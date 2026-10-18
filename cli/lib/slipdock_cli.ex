@@ -512,6 +512,17 @@ defmodule SlipdockCLI do
     timer <id> start|stop               run a card's timer; stopping adds what it ran to the
                                         time spent
     log <id> <time>                     add time spent by hand (same as edit --log)
+    repeat <id> "every mon" [--at 07:00] [--lead 2] [--ends DATE | --count N]
+        [--on-missed bump|skip|stack] [--column C] [--tz Europe/London]
+                                        make a card recurring, or change how: the next one is
+                                        a copy of it, made in the board's ready list. Rules:
+                                        day, weekday, mon, mon,thu, 2w mon, month 1, month
+                                        last fri, month first mon, year, 3d after (after the
+                                        last is done), or FREQ=WEEKLY;BYDAY=MO
+    repeat <id>                         how it repeats, and the next three dates
+    repeat <id> --skip | --pause | --resume | --off
+                                        let the next one go / hold it / carry on / stop it
+    recurring <board>                   every card on the board that repeats, soonest first
     copy <id> [--board B] [--column C] [--title T] [--top|--bottom]
                                         a copy of the card as it is now: checklist unticked,
                                         subcards reopened; no comments, dates or attachments.
@@ -790,6 +801,16 @@ defmodule SlipdockCLI do
     bottom: :boolean,
     index: :integer,
     off: :boolean,
+    # `slipdock repeat <id> "every mon" --at 07:00 --lead 2 --ends DATE|--count N`.
+    at: :string,
+    lead: :integer,
+    tz: :string,
+    on_missed: :string,
+    ends: :string,
+    count: :integer,
+    skip: :boolean,
+    pause: :boolean,
+    resume: :boolean,
     read: :boolean,
     comment: :boolean,
     write: :boolean,

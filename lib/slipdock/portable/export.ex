@@ -350,6 +350,9 @@ defmodule Slipdock.Portable.Export do
       # Where it was left, and every note before it, oldest first: the last
       # is the card's handoff (W-1804). One with no next_step is a clear.
       handoffs: status_json({:card, card.id}, refs, :handoffs),
+      # The series this card is the current instance of, if it repeats
+      # (W-1802): the rule and where it had got to, so an import carries on.
+      recurrence: recurrence_json(refs.loaded.recurrences[card.id], refs),
       urls: owned(refs, :urls, {:card, card.id}),
       fields: field_value_json({:card, card.id}, refs)
     }
@@ -579,6 +582,10 @@ defmodule Slipdock.Portable.Export do
         ),
       statuses: statuses,
       handoffs: handoffs,
+      recurrences:
+        from(r in Slipdock.Recurrence.Series, where: r.card_id in ^card_ids)
+        |> Repo.all()
+        |> Map.new(&{&1.card_id, &1}),
       urls:
         owned.(
           from(u in CardUrl,
@@ -600,6 +607,27 @@ defmodule Slipdock.Portable.Export do
   defp owner_key(%{page_id: id}), do: {:page, id}
 
   defp owned(refs, kind, key), do: Map.get(refs.loaded[kind], key, [])
+
+  defp recurrence_json(nil, _refs), do: nil
+
+  defp recurrence_json(series, refs) do
+    %{
+      rule: series.rule,
+      starts_on: series.starts_on,
+      at: Calendar.strftime(series.create_at, "%H:%M"),
+      timezone: series.timezone,
+      lead_days: series.lead_days,
+      list: series.column_id && refs.columns[series.column_id],
+      on_missed: series.on_missed,
+      ends: series.ends,
+      ends_on: series.ends_on,
+      count: series.count,
+      made: series.made,
+      next_on: series.next_on,
+      paused: series.paused,
+      ended: series.ended_at != nil
+    }
+  end
 
   # Status updates and handoffs: signed rows, the author by address.
   defp status_json(key, refs, kind \\ :statuses) do

@@ -231,6 +231,7 @@ defmodule SlipdockCLI.Render do
           do: "☑#{c["checklist"]["done"]}/#{c["checklist"]["total"]}"
         ),
         if(c["comments"] != [], do: "💬#{length(c["comments"])}"),
+        if(c["recurrence"], do: "↻"),
         if(c["archived_at"], do: "(archived)")
       ]
       |> Enum.reject(&is_nil/1)
@@ -292,6 +293,62 @@ defmodule SlipdockCLI.Render do
   end
 
   defp time_text(_, _), do: nil
+
+  # A recurring card's series in a line: the rule in words and what is next.
+  defp recurrence_text(r) do
+    state =
+      cond do
+        r["ended_at"] -> "ended"
+        r["paused"] -> "paused"
+        r["next_on"] -> "next due #{r["next_on"]}, made #{local_at(r["next_at"])}"
+        r["kind"] == "after_done" -> "next counted from when this one is done"
+        true -> "nothing more to come"
+      end
+
+    "#{r["summary"]} · #{state} · on_missed #{r["on_missed"]}#{ends_text(r)}"
+  end
+
+  defp local_at(nil), do: "-"
+
+  defp local_at(at),
+    do: at |> to_string() |> String.slice(0, 16) |> String.replace("T", " ") |> Kernel.<>(" UTC")
+
+  defp ends_text(%{"ends" => "on", "ends_on" => d}), do: " · ends #{d}"
+  defp ends_text(%{"ends" => "after", "count" => n, "made" => made}), do: " · #{made} of #{n}"
+  defp ends_text(_), do: ""
+
+  @doc "`slipdock repeat <id>`: the card's series, or that it has none."
+  def recurrence(%{"card" => id, "recurrence" => nil}), do: IO.puts("##{id} doesn't repeat.")
+
+  def recurrence(%{"card" => id, "recurrence" => r} = body) do
+    whose =
+      if body["current"] == false,
+        do: dim(" (an earlier instance; the series is on ##{r["card_id"]} now)"),
+        else: ""
+
+    IO.puts(bold("##{id} repeats: ") <> recurrence_text(r) <> whose)
+    IO.puts("  rule      #{r["rule"]}  (from #{r["starts_on"]})")
+    IO.puts("  made at   #{r["at"]} #{r["timezone"]}" <> lead_text(r["lead_days"]))
+
+    if (r["upcoming"] || []) != [],
+      do: IO.puts("  coming    " <> Enum.join(r["upcoming"], ", "))
+  end
+
+  defp lead_text(n) when is_integer(n) and n > 0, do: ", #{n} day(s) before it is due"
+  defp lead_text(_), do: ""
+
+  @doc "`slipdock recurring <board>`: every series on the board, soonest first."
+  def recurring(%{"recurring" => []}), do: IO.puts(dim("nothing on this board repeats"))
+
+  def recurring(%{"recurring" => list}) do
+    Enum.each(list, fn r ->
+      IO.puts(
+        "#" <>
+          String.pad_trailing(to_string(r["card"]["id"]), 5) <>
+          "↻ " <> r["card"]["title"] <> "  " <> dim(recurrence_text(r))
+      )
+    end)
+  end
 
   # A card's handoff, first of its fields: read before anything else.
   defp handoff_fields(h) do
@@ -399,6 +456,12 @@ defmodule SlipdockCLI.Render do
 
     if s = c["stand_in_for"] do
       field("Stand-in", "for ##{s["id"]}" <> stand_in_where(s) <> " · #{s["status"]}")
+    end
+
+    cond do
+      rec = c["recurrence"] -> field("Repeats", recurrence_text(rec))
+      c["series_id"] -> field("Repeats", "an earlier instance of series ##{c["series_id"]}")
+      true -> :ok
     end
 
     if sb = c["sub_board"] do
