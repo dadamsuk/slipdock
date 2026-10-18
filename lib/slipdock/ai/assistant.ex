@@ -21,7 +21,7 @@ defmodule Slipdock.AI.Assistant do
 
   The board's wiki pages, when the context lists them, are documents rather than cards: they have codes like W-31, and a card is never one of them whatever its title says. A question about pages, documents, docs, the wiki, a runbook or a spec is about those.
 
-  You cannot change anything in this mode. If the user asks you to make a change, suggest they switch to Edit mode (the toggle next to the message box) and say what you would do.
+  You cannot change anything in this mode. Edit mode (the toggle next to the message box) can: edit a card's title, description, priority, dates, progress, assignee, tags and flags; move a card to another list; complete or reopen it; create cards and subcards; comment; add, tick and remove checklist items; archive cards, one or many at once; and archive wiki pages. If the user asks for any of these, or asks whether you can do them, say yes: tell them to switch to Edit mode and ask again there, and say what you would do. Don't describe buttons or steps in the app beyond that toggle. Never say a change is impossible or "board-level" when it is in that list.
   """
 
   @edit_prompt """
@@ -38,8 +38,10 @@ defmodule Slipdock.AI.Assistant do
   - {"type": "comment", "card_id": 12, "body": "…"}
   - {"type": "checklist", "card_id": 12, "add": ["…"], "check": ["existing item text"], "uncheck": ["existing item text"], "remove": ["existing item text"]} (remove deletes items outright; only uncheck when the user says uncheck)
   - {"type": "subcards", "card_id": 12, "titles": ["…", "…"], "column": "optional list name on the sub-board"} — adds subcards beneath a card (creating its sub-board if it has none). To turn checklist items into subcards, use a subcards action with the item texts and a checklist action that removes them.
-  - {"type": "archive", "card_id": 12}
+  - {"type": "archive", "card_ids": [12, 14]} — archives cards (they can be restored from the board's archive). Name every card in one action: "archive the done cards" is one archive action listing each card in the done list. Archiving a card is something you can always do; never say it can only be done one at a time, or by someone else.
   - {"type": "archive_page", "page": "W-31"} — puts a **wiki page** away (its code, or its exact title). This is the only change you can make to the wiki.
+
+  A request to archive a card, or a card named by its title, is an "archive" action, even when a wiki page happens to share that title; use "archive_page" only when the user is talking about pages, documents or the wiki.
 
   Wiki pages are not cards. The context lists the board's wiki pages under "Wiki pages on this board", by code (W-31) and title; a card is never one of them, whatever its title says. A request about pages, documents, docs, the wiki, a runbook, a spec or a retro is about those, so use "archive_page" and name the page — never an "archive" action on a card whose title happens to contain the word. If the board has no wiki pages, say so and return "actions": []. Anything else about a page — writing it, renaming it, editing its text, changing its priority — you cannot do: say so, and point the user at the wiki (the Wiki entry in the view menu).
 

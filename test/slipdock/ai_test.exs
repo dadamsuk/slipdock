@@ -979,6 +979,53 @@ defmodule Slipdock.AITest do
       assert Enum.map(Boards.get_card!(ctx.card.id).tags, & &1.name) == ["ux"]
     end
 
+    test "one archive action names several cards, a step each, refusals beside", ctx do
+      beta = card_fixture(ctx.backlog, %{"title" => "Beta"}) |> then(&Boards.get_card!(&1.id))
+      gamma = card_fixture(ctx.backlog, %{"title" => "Gamma"}) |> then(&Boards.get_card!(&1.id))
+
+      steps =
+        Actions.prepare(
+          [
+            %{
+              "type" => "archive",
+              "card_ids" => [ctx.card.id, "##{beta.id}", ctx.card.id, 999_999]
+            }
+          ],
+          %{scope_for(ctx) | cards: [ctx.card, beta, gamma]}
+        )
+
+      # The repeated id is one step; the unknown one is refused on its own.
+      assert [
+               %{label: "Archive “Alpha”", error: nil},
+               %{label: "Archive “Beta”", error: nil},
+               %{label: "Archive card 999999", error: "card #999999 isn't on this page"}
+             ] = steps
+
+      applied = Actions.apply(steps)
+
+      assert Enum.map(applied, & &1.result) == [
+               :ok,
+               :ok,
+               {:error, "card #999999 isn't on this page"}
+             ]
+
+      assert Boards.get_card!(ctx.card.id).archived_at
+      assert Boards.get_card!(beta.id).archived_at
+      refute Boards.get_card!(gamma.id).archived_at
+    end
+
+    test "an archive action without cards is refused, and a single card_id still works", ctx do
+      assert [%{label: "Archive cards", error: "no cards given"}] =
+               Actions.prepare([%{"type" => "archive", "card_ids" => []}], scope_for(ctx))
+
+      assert [%{label: "Archive cards", error: "no cards given"}] =
+               Actions.prepare([%{"type" => "archive"}], scope_for(ctx))
+
+      [step] = Actions.prepare([%{"type" => "archive", "cards" => [ctx.card.id]}], scope_for(ctx))
+      run!([step])
+      assert Boards.get_card!(ctx.card.id).archived_at
+    end
+
     test "a tag step is idempotent if the card changed in between", ctx do
       [add] = propose_change(ctx, %{"add_tags" => ["ops"]})
       # Someone else tags it first; the step must not toggle it back off.
@@ -1272,6 +1319,17 @@ defmodule Slipdock.AITest do
       assert system =~ "\"type\": \"update\""
       # Tagging several cards is one action, not an update per card.
       assert system =~ "\"type\": \"tag\", \"card_ids\""
+      # So is archiving them, and a card's title beats a page's twin.
+      assert system =~ "\"type\": \"archive\", \"card_ids\""
+      assert system =~ "even when a wiki page happens to share that title"
+    end
+
+    test "chat mode knows edit mode archives cards, rather than calling it impossible" do
+      Slipdock.AIStub.reply_with("Switch to Edit mode.")
+      assert {:ok, _} = Assistant.chat("ctx", [], "can you archive cards?")
+      assert_receive {:ai_request, %{"messages" => [%{"content" => system} | _]}}
+      assert system =~ "archive cards, one or many at once"
+      assert system =~ "Never say a change is impossible"
     end
 
     test "chat/3 carries the recent history" do

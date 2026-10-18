@@ -1806,7 +1806,8 @@ is ever sent to a model unless you ask.
   write) turns a request into a list of concrete changes: set or clear
   dates, priority, assignee, flags and tags, rename, rewrite a
   description, move between lists, complete or reopen, create cards,
-  comment, add or tick checklist items, archive. Ask for a tag the board
+  comment, add or tick checklist items, archive cards (one or many:
+  *archive the done cards* is a step per card). Ask for a tag the board
   doesn't have yet and it makes it: the step reads *Create tag “x” and add
   it to …*, and the tag (in the default colour, on the top board so its
   sub-boards share it) is only made when you apply. Ask for a tag on several
