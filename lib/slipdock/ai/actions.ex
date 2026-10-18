@@ -23,7 +23,7 @@ defmodule Slipdock.AI.Actions do
     * `subcards` – `card_id` and `titles` (plus an optional `column` on the
       sub-board); the sub-board is created from the default template if the
       card has none
-    * `archive` – `card_id`
+    * `archive` – `card_ids` (or a single `card_id`): one step per card
     * `archive_page` – `page`, a wiki page's code ("W-31") or its exact
       title. Archiving a page puts the document away and takes it off the
       board; it is the only change this can make to the wiki, because a
@@ -320,19 +320,18 @@ defmodule Slipdock.AI.Actions do
     end
   end
 
+  # One card or several: "archive the done cards" is one action naming them
+  # all, and each becomes a step of its own so one refusal stops only itself.
   defp prepare_one(%{"type" => "archive"} = action, scope) do
-    with {:ok, card} <- find_card(action["card_id"], scope),
-         :ok <- authorize(card, scope) do
-      [
-        step("Archive “#{card.title}”", fn ->
-          with {:ok, fresh} <- fresh(card, scope) do
-            normalize_result(Boards.archive_card(fresh))
-          end
-        end)
-      ]
-    else
-      {:error, msg} -> [failed("Archive card #{action["card_id"]}", msg)]
-    end
+    ids =
+      case action["card_ids"] || action["cards"] || action["card_id"] do
+        ids when is_list(ids) or is_binary(ids) or is_nil(ids) -> list(ids)
+        id -> [id]
+      end
+
+    if ids == [],
+      do: [failed("Archive cards", "no cards given")],
+      else: ids |> Enum.uniq_by(&to_int/1) |> Enum.map(&archive_step(&1, scope))
   end
 
   # A wiki page, which is not a card. The model is shown the board's pages by
@@ -359,6 +358,19 @@ defmodule Slipdock.AI.Actions do
 
   defp prepare_one(%{"type" => type}, _scope), do: [failed("#{type}", "unknown action")]
   defp prepare_one(_, _scope), do: [failed("(malformed action)", "no type given")]
+
+  defp archive_step(id, scope) do
+    with {:ok, card} <- find_card(id, scope),
+         :ok <- authorize(card, scope) do
+      step("Archive “#{card.title}”", fn ->
+        with {:ok, fresh} <- fresh(card, scope) do
+          normalize_result(Boards.archive_card(fresh))
+        end
+      end)
+    else
+      {:error, msg} -> failed("Archive card #{id}", msg)
+    end
+  end
 
   ## Update steps, one per changed thing --------------------------------------
 
