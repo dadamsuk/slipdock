@@ -578,6 +578,7 @@ defmodule Slipdock.Accounts do
   defdelegate support_access?(admin, subject_id), to: Support
   defdelegate support_sessions_for(subject), to: Support
   defdelegate live_support_sessions(), to: Support
+  defdelegate held_support_sessions(admin), to: Support
   defdelegate get_support_session!(id), to: Support
   defdelegate get_support_session(id), to: Support
 

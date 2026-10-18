@@ -31,6 +31,12 @@ defmodule SlipdockWeb.UsersLive.Index do
       users: users,
       usage: Quota.usage(Enum.map(users, & &1.id)),
       support: Accounts.live_support_sessions(),
+      # The boards behind the sessions this admin holds, by session id: the
+      # way in to what Support grants.
+      support_boards:
+        Map.new(Slipdock.Access.supported_boards(socket.assigns.current_user), fn entry ->
+          {entry.session.id, entry.boards}
+        end),
       deleting: nil,
       deleting_preview: nil,
       editing_email: nil,
@@ -246,7 +252,9 @@ defmodule SlipdockWeb.UsersLive.Index do
          socket
          |> put_flash(
            :info,
-           "You can read #{subject.email}'s boards until #{session.expires_at}. They have " <>
+           "You can read #{subject.email}'s boards for the next " <>
+             "#{SlipdockWeb.SlipdockComponents.support_time_left(session.expires_at)}: they " <>
+             "are listed under Support access in force, and on your Boards page. They have " <>
              "been told, with the reason you gave."
          )
          |> load()}
@@ -357,15 +365,25 @@ defmodule SlipdockWeb.UsersLive.Index do
       <div :if={@support != []} class="mt-4 rounded-xl bg-warning/10 p-4">
         <h3 class="text-sm font-medium">Support access in force</h3>
         <ul class="mt-2 space-y-1 text-sm">
-          <li :for={session <- @support} class="flex items-center justify-between gap-3">
-            <span>
-              {Accounts.User.display_name(session.admin)} can read {Accounts.User.display_name(
-                session.subject
-              )}&#39;s boards until {session.expires_at} — “{session.reason}”
-            </span>
-            <button phx-click="end-support" phx-value-id={session.id} class="btn btn-ghost btn-xs">
-              End now
-            </button>
+          <li :for={session <- @support} id={"support-#{session.id}"} class="space-y-1.5">
+            <div class="flex items-center justify-between gap-3">
+              <span>
+                {Accounts.User.display_name(session.admin)} can read {Accounts.User.display_name(
+                  session.subject
+                )}&#39;s boards for another {SlipdockWeb.SlipdockComponents.support_time_left(
+                  session.expires_at
+                )} — “{session.reason}”
+              </span>
+              <button phx-click="end-support" phx-value-id={session.id} class="btn btn-ghost btn-xs">
+                End now
+              </button>
+            </div>
+            <%!-- Yours: their boards, since no board list shows them. --%>
+            <SlipdockWeb.SlipdockComponents.support_board_links
+              :if={Map.has_key?(@support_boards, session.id)}
+              id={"support-boards-#{session.id}"}
+              boards={@support_boards[session.id]}
+            />
           </li>
         </ul>
       </div>

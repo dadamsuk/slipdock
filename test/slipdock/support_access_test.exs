@@ -140,4 +140,65 @@ defmodule Slipdock.SupportAccessTest do
 
     assert Access.board_permission(admin, Slipdock.Boards.get_board!(sub.id)) == :read
   end
+
+  describe "supported_boards/1, the way in" do
+    test "lists each session's person and their own top-level boards, by name", %{
+      admin: admin,
+      customer: customer,
+      board: board
+    } do
+      assert Access.supported_boards(admin) == []
+
+      other = board_fixture(%{"name" => "Another of theirs"}, owner: customer)
+      archived = board_fixture(%{"name" => "Put away"}, owner: customer)
+      {:ok, _} = Slipdock.Boards.archive_board(archived)
+      card = card_fixture(hd(board.columns), %{"title" => "Epic"})
+      {:ok, _} = sub_board(card, hd(Slipdock.Boards.list_templates(nil)))
+      _not_theirs = board_fixture(%{"name" => "Somebody else's"}, owner: user_fixture())
+
+      {:ok, session} = Accounts.open_support_session(admin, customer, "a lost card")
+
+      assert [%{session: %{id: id}, subject: subject, boards: boards}] =
+               Access.supported_boards(admin)
+
+      assert id == session.id
+      assert subject.id == customer.id
+      # Sub-boards are reached from their parent card; archived ones are put away.
+      assert Enum.map(boards, & &1.id) == [other.id, board.id]
+
+      # Every board it lists is one the session lets them read.
+      assert Enum.all?(boards, &(Access.board_permission(admin, &1) == :read))
+
+      # Still not among their own: the index is theirs alone.
+      refute Enum.any?(Access.list_boards(admin), &(&1.owner_id == customer.id))
+    end
+
+    test "drops a session once it ends, expires, or its admin is demoted", %{
+      admin: admin,
+      customer: customer
+    } do
+      {:ok, session} = Accounts.open_support_session(admin, customer, "a lost card")
+      {:ok, _} = Accounts.end_support_session(session)
+      assert Access.supported_boards(admin) == []
+
+      past = DateTime.utc_now() |> DateTime.add(-1, :hour) |> DateTime.truncate(:second)
+      {:ok, _} = Accounts.open_support_session(admin, customer, "again", expires_at: past)
+      assert Access.supported_boards(admin) == []
+
+      {:ok, _} = Accounts.promote(user_fixture("third@example.com"))
+      {:ok, _} = Accounts.open_support_session(admin, customer, "once more")
+      assert [_] = Access.supported_boards(admin)
+      {:ok, admin} = Accounts.demote(admin)
+      assert Access.supported_boards(admin) == []
+    end
+
+    test "is only the sessions this admin holds", %{admin: admin, customer: customer} do
+      {:ok, second} = Accounts.promote(user_fixture("second@example.com"))
+      {:ok, _} = Accounts.open_support_session(second, customer, "theirs, not mine")
+
+      assert Access.supported_boards(admin) == []
+      assert [_] = Access.supported_boards(second)
+      assert Access.supported_boards(nil) == []
+    end
+  end
 end

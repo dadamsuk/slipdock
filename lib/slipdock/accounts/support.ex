@@ -109,6 +109,25 @@ defmodule Slipdock.Accounts.Support do
     |> Repo.all()
   end
 
+  @doc """
+  The sessions `admin` holds right now, with the person each is about. Empty
+  for anybody who is no longer an admin, as `support_access?/2` is.
+  """
+  def held_support_sessions(%User{} = admin) do
+    now = DateTime.utc_now()
+
+    from(s in SupportSession,
+      join: a in User,
+      on: a.id == s.admin_id and a.admin == true and is_nil(a.disabled_at),
+      where: s.admin_id == ^admin.id and is_nil(s.ended_at) and s.expires_at > ^now,
+      order_by: [desc: s.inserted_at],
+      preload: [:subject]
+    )
+    |> Repo.all()
+  end
+
+  def held_support_sessions(_), do: []
+
   def get_support_session!(id), do: Repo.get!(SupportSession, id)
   def get_support_session(nil), do: nil
   def get_support_session(id), do: Repo.get(SupportSession, id)
