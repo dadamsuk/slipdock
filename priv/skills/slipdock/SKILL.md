@@ -1,6 +1,6 @@
 ---
 name: slipdock
-description: Read and write cards on the user's self-hosted Slipdock boards with the `slipdock` CLI. Use whenever the user mentions their kanban or Slipdock board, cards, lists/columns, tags, flags, or asks to add, move, complete, flag, tag, check off, comment on, archive, or look up tasks/cards. Also use to summarise what is on a board, what is overdue, blocked, or in progress, to set up or inspect board automations (rules that email, move, flag or alert by themselves) and the alerts they raise, to connect runners (coding agents on the user's own machines that the board sends cards to) and follow or cancel their jobs, to send a meeting's recording or transcript for meeting capture, and to read or write the wiki pages, docs, runbooks, specs and decision notes kept on a board.
+description: Read and write cards on the user's self-hosted Slipdock boards with the `slipdock` CLI. Use whenever the user mentions their kanban or Slipdock board, cards, lists/columns, tags, flags, or asks to add, move, complete, flag, tag, check off, comment on, archive, or look up tasks/cards. Also use to summarise what is on a board, what is overdue, blocked, or in progress, to set up or inspect board automations (rules that email, move, flag or alert by themselves) and the alerts they raise, to connect runners (coding agents on the user's own machines that the board sends cards to) and follow or cancel their jobs, to send a meeting's recording or transcript, or a conversation with an AI assistant, for capture, and to read or write the wiki pages, docs, runbooks, specs and decision notes kept on a board.
 ---
 
 # Slipdock CLI
@@ -406,6 +406,9 @@ slipdock capture new <board> --transcript F [--audio F] [--title T] [--attendees
 slipdock capture show <id>                    # what it found, and the questions — ask the USER
 slipdock capture resolve <id> <q> <answer>    # only with the user's own answer
 slipdock capture preview <id> | commit <id> --preview D | undo <id>
+# Chat capture (on by default; no meeting mode needed): a conversation with
+# Claude or ChatGPT, as Name: text turns or an export, into the same review.
+slipdock capture-chat <board> chat.txt [--format chat|claude-export|chatgpt-export] [--conversation C] [--drop-transcript]
 ```
 
 **Run `slipdock automation-help` before writing a `--spec`** — it prints the exact vocabulary

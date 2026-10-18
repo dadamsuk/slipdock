@@ -2379,11 +2379,56 @@ slipdock capture retry <id> | discard <id>
 
 The API is under `/api/meetings`, `/api/boards/:board/captures` and
 `/api/captures/:id` (see [JSON API](#json-api)); an agent's own findings use
-the format at `GET /api/meetings/findings-schema`. Over MCP, `capture_meeting`,
+the format at `GET /api/meetings/findings-schema`. Over MCP, `capture_meeting`
+(or `capture_chat`, [for a conversation](#capturing-a-conversation)),
 `get_capture`, `resolve_capture_question` and `commit_capture`. An agent
 answers a capture's questions **only with the person's own answers**, and
 commits only when asked; its answers are recorded as the person's, *via
 agent*. The `slipdock-capture` skill says all of this to an agent.
+
+### Capturing a conversation
+
+A conversation with Claude, ChatGPT or another assistant makes decisions and
+to-dos too, and then scrolls away. **Chat capture** puts it through the same
+pipeline and the same promises: every proposal quoted word for word from the
+conversation, anything uncertain asked, nothing written until the person
+commits it, undoable as a whole.
+
+- **Its own switch, on by default.** Configuration › Meetings › *Chat capture
+  is on* (`chat_capture_enabled`). It doesn't need meeting mode: there are no
+  recordings, voiceprints or attendees to consent. With only chat capture on,
+  the review pages, the capture API and the review MCP tools are there, and a
+  meeting capture is not; with only meeting mode on, a chat capture is not.
+- **Two ways in.** The model in the chat sends it, over MCP with
+  `capture_chat`, as `Name: text` turns, optionally with its own findings —
+  then no server model or AI key is needed, and the quotes are still checked
+  against the conversation, so a model can't invent agreement. Or a person
+  sends a paste or an export: `POST /api/boards/:board/captures` with
+  `kind: "chat"`, or `slipdock capture-chat`.
+- **Formats.** `chat` (`Name: text` turns; a turn runs on, line after line, to
+  the next label; a label inside a ``` code fence is part of the turn; words
+  before the first label belong to nobody), `claude-export` (claude.ai's
+  `conversations.json`, or one conversation) and `chatgpt-export` (a
+  conversation's `mapping`, read along the branch it was left on, so abandoned
+  edits are not read). An export holding several conversations needs
+  `conversation`: one's id or title. All three are detected.
+- **Read as a conversation.** No transcribing, no voices to separate, no
+  working out who spoke: the speakers are the person who sent it and the
+  assistant. The reading treats the assistant's suggestions as suggestions —
+  a decision or action needs the person's agreement in the conversation, and
+  that agreement is the quote. An action with nobody named is the person's.
+- **Reviewed and committed the same way.** The trail on a card it touches
+  reads *From a conversation*, with the quote, and links back to the capture.
+- **Keep the transcript, or not.** The conversation is stored, as a meeting's
+  transcript is, and private to its sender and the board's writers. Untick
+  *Keep the conversation after committing* on the commit preview (or send
+  `keep_transcript: false`, `--drop-transcript`) and its lines are deleted
+  once committed, leaving only the quoted evidence.
+
+```sh
+slipdock capture-chat <board> chat.txt [--format chat|claude-export|chatgpt-export]
+                      [--conversation ID|TITLE] [--title T] [--findings F] [--drop-transcript]
+```
 
 ## Wiki
 
