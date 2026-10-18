@@ -19,6 +19,9 @@ defmodule Slipdock.Accounts.User do
     # lets people choose (see `Slipdock.Meetings.visible?/2`). A display
     # preference: the API and the CLI answer the same either way.
     field :hide_meetings, :boolean, default: false
+    # This person's IANA timezone, for recurring cards and snooze. Nil until
+    # the browser first says; read through `Slipdock.Timezones.of/1`.
+    field :timezone, :string
     # Standing on this server. `admin` is the only role there is; `disabled_at`
     # is the reversible alternative to deleting somebody, which would orphan
     # their cards and comments; `card_limit_override` beats the instance's free
@@ -57,9 +60,26 @@ defmodule Slipdock.Accounts.User do
 
   def profile_changeset(user, attrs) do
     user
-    |> cast(attrs, [:name])
+    |> cast(attrs, [:name, :timezone])
     |> update_change(:name, &String.trim/1)
     |> validate_length(:name, max: 80)
+    |> validate_timezone()
+  end
+
+  @doc "Just the timezone: what the browser sets on the first signed-in page."
+  def timezone_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:timezone])
+    |> validate_required([:timezone])
+    |> validate_timezone()
+  end
+
+  defp validate_timezone(changeset) do
+    validate_change(changeset, :timezone, fn :timezone, tz ->
+      if Slipdock.Timezones.valid?(tz),
+        do: [],
+        else: [timezone: "isn't a timezone this server knows (an IANA name, like Europe/London)"]
+    end)
   end
 
   @doc """

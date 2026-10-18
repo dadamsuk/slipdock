@@ -79,7 +79,10 @@ defmodule Slipdock.MixProject do
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
       # WebAuthn: checking passkey registrations and sign-ins (see `Slipdock.Accounts.Passkeys`).
-      {:wax_, "~> 0.7.0"}
+      {:wax_, "~> 0.7.0"},
+      # The IANA time zone database, for people's own timezones (recurring
+      # cards, snooze). Compiled in; no downloads at runtime.
+      {:tz, "~> 0.28.4"}
     ]
   end
 

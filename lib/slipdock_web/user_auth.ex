@@ -192,7 +192,7 @@ defmodule SlipdockWeb.UserAuth do
     socket = mount_current_user(socket, session)
 
     if socket.assigns.current_user do
-      {:cont, socket}
+      {:cont, adopt_browser_timezone(socket)}
     else
       {:halt,
        socket
@@ -242,6 +242,20 @@ defmodule SlipdockWeb.UserAuth do
       if token = session["user_token"], do: Accounts.get_user_by_session_token(token)
     end)
   end
+
+  # The first connected page somebody signs in to tells us their timezone
+  # (the socket's connect params carry the browser's); see
+  # `Accounts.adopt_browser_timezone/2`.
+  defp adopt_browser_timezone(%{assigns: %{current_user: %{timezone: nil} = user}} = socket) do
+    with true <- Phoenix.LiveView.connected?(socket),
+         %{"timezone" => tz} when is_binary(tz) <- Phoenix.LiveView.get_connect_params(socket) do
+      Phoenix.Component.assign(socket, :current_user, Accounts.adopt_browser_timezone(user, tz))
+    else
+      _ -> socket
+    end
+  end
+
+  defp adopt_browser_timezone(socket), do: socket
 
   defp put_token_in_session(conn, token) do
     conn

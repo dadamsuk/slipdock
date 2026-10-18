@@ -11,6 +11,10 @@ config :slipdock,
   ecto_repos: [Slipdock.Repo],
   generators: [timestamp_type: :utc_datetime]
 
+# People's own timezones (recurring cards, snooze) need the IANA database;
+# Elixir only ships UTC.
+config :elixir, :time_zone_database, Tz.TimeZoneDatabase
+
 # Where files attached to cards are stored. Overridden in test.exs; set
 # SLIPDOCK_UPLOADS_DIR at runtime to move it (see runtime.exs).
 config :slipdock, :uploads_dir, Path.expand("../priv/uploads", __DIR__)

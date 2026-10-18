@@ -124,6 +124,15 @@ defmodule SlipdockWeb.AccountLive.ProfileComponent do
           <div class="flex-1">
             <.input field={@profile_form[:name]} label="Display name" placeholder="Your name" />
           </div>
+          <div class="flex-1">
+            <.input
+              field={@profile_form[:timezone]}
+              type="select"
+              label="Timezone"
+              options={Slipdock.Timezones.options(Slipdock.Timezones.of(@current_user))}
+              value={Slipdock.Timezones.of(@current_user)}
+            />
+          </div>
           <button type="submit" class="btn btn-primary">Save</button>
         </.form>
       </section>

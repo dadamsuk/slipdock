@@ -64,6 +64,21 @@ defmodule Slipdock.Accounts do
   end
 
   @doc """
+  Adopts the browser's timezone for somebody who has none yet. Once they have
+  one — the browser's earlier guess, or one they chose under Account — it is
+  left alone, so travelling doesn't quietly move their recurring cards.
+  Anything the database doesn't know is ignored.
+  """
+  def adopt_browser_timezone(%User{timezone: nil} = user, tz) when is_binary(tz) do
+    case user |> User.timezone_changeset(%{timezone: tz}) |> Repo.update() do
+      {:ok, user} -> user
+      {:error, _} -> user
+    end
+  end
+
+  def adopt_browser_timezone(%User{} = user, _tz), do: user
+
+  @doc """
   Saves the quick add defaults (see `Slipdock.QuickAdd`). A list that isn't on
   the chosen board is dropped rather than saved as a mismatch.
   """
