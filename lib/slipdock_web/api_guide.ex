@@ -494,7 +494,7 @@ defmodule SlipdockWeb.APIGuide do
     board's log, or with `card` one card's), `download_file` (a file, by
     attachment id), `list_automations`, and for
     writing `create_card`, `update_card` (fields, flags, tags, assignees,
-    dependencies, the checklist, recurrence), `move_card` (to another board too),
+    dependencies, the checklist, recurrence, snooze), `move_card` (to another board too),
     `comment`, `leave_handoff`, `upload_file` (onto a card or page;
     over 1 KB, see its description), `complete_card`, `status_update` (a card's stated health, with
     a note: the progress report on an epic),
@@ -720,6 +720,14 @@ defmodule SlipdockWeb.APIGuide do
       on rather than a second made. Set it with
       `PUT /api/cards/:id/recurrence` (Recipes, below) or `update_card`'s
       `recurrence`, and never on a card the person didn't ask to repeat.
+    - **Snoozed cards** — a card can be hidden until a day (W-1803). Until
+      `snoozed_until` it is left out of the board's lists, `list_cards`,
+      My work and the runners' picks; then it wakes at the top of its list,
+      or sooner when someone else comments on it or assigns it. `snooze`
+      says until when and why (`null` when it isn't snoozed). `GET
+      /api/cards/:id` and search still find it, an epic still counts it as
+      open, and `?snoozed=include` (or `only`) lists them. Snooze rather than
+      flag `waiting` when the wait has a date (Recipes, below).
     - **Copying a card** — `POST /api/cards/:id/copy` makes a copy as it is
       now (checklist unticked, subcards reopened; no comments, dates or
       files), straight after it unless `board`, `column` or `at` say otherwise.
@@ -736,7 +744,7 @@ defmodule SlipdockWeb.APIGuide do
       "title": "Query parser", "description": "…",
       "handoff": {"next_step": "Wire the parser into search", "body": "State: …",
                   "via": "mcp", "by": {"id": 1, "name": "You"}, "at": "…"},
-      "recurrence": null, "series_id": null,
+      "recurrence": null, "series_id": null, "snoozed_until": null, "snooze": null,
       "priority": "high", "flags": ["review"], "tags": ["api"],
       "start_date": null, "due_date": "2026-10-03", "completed": false,
       "percent_complete": 40,
@@ -885,7 +893,8 @@ defmodule SlipdockWeb.APIGuide do
 
     **2. Read it whole.** `GET /api/boards/<id>` returns every list, in order,
     with its `category` and its cards in list order — one call, everything you
-    need to choose.
+    need to choose. Snoozed cards are not in it: they are not ready until the
+    day they wake.
 
     **3. Pick the list to draw from,** in this order:
 
@@ -1365,6 +1374,24 @@ defmodule SlipdockWeb.APIGuide do
       "at": "08:00", "timezone": "Europe/London", "lead_days": 0, "on_missed": "bump",
       "ends": "never", "made": 1, "next_on": "2026-10-26", "next_at": "2026-10-26T08:00:00Z",
       "upcoming": ["2026-10-26", "2026-11-02", "2026-11-09"], "paused": false}}
+    ```
+
+    **Snoozing a card.** `POST /api/cards/:id/snooze` hides it until
+    `until`: a date (`2026-11-02`, midnight in the token holder's timezone),
+    a datetime, or a phrase (`tomorrow`, `mon`, `next week`, `in 3 days`).
+    With it `note` (why, at most 280 characters), `notify` (alert the board
+    when it wakes) and `wake_on_activity` (default `true`: someone else's
+    comment or assignment wakes it). The past, a completed card and unknown
+    fields are refused. `DELETE` wakes it now. Both answer the card, with
+    `snoozed_until` and `snooze`. `GET /api/boards/:board/cards?snoozed=only`
+    lists what is asleep. Over MCP it is `update_card`'s `snoozed_until`
+    (`null` wakes it) and `snooze_note`, and `list_cards`' `snoozed`.
+    Snooze when the person says a card can wait until a day, or when what
+    it waits for has a date; flag it `waiting` when it doesn't.
+
+    ```sh
+    curl -s -X POST -H "$H" -H 'content-type: application/json' B/api/cards/57/snooze \\
+         -d '{"until": "next week", "note": "waiting for the quote"}'
     ```
 
     **Search.** `GET /api/search` takes `q`, and optionally `board` (id,

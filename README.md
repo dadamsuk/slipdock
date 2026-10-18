@@ -74,6 +74,13 @@ Briefly, with the detail in [the manual](docs/manual.md):
   on the card, `every: mon` in quick add, `slipdock repeat 12 "every mon"`,
   `PUT /api/cards/:id/recurrence` or MCP `update_card`. **Duplicate** makes the
   same copy by hand.
+- **Snooze** — [hide a card until a day](docs/manual.md#snoozing-cards) and have
+  it come back at the top of its list: one keystroke (`z`, `z z` for tomorrow)
+  takes a card that isn't actionable yet out of the lists, My work and the
+  runners' pick. Each list's foot counts its sleepers and shows them faded on a
+  click; search, the calendar and roll-ups still see them, and someone else's
+  comment wakes one early. `snooze: mon` in quick add, `slipdock snooze 12 next
+  week`, `POST /api/cards/:id/snooze` or MCP `update_card`'s `snoozed_until`.
 - **Time tracking** — [a timer on each card, time spent and an estimate](docs/manual.md#time-tracking)
   in minutes, hours, days, weeks or months, and a bar that turns amber near the
   estimate and red past it.
