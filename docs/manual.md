@@ -439,12 +439,14 @@ Open:      questions waiting on someone
 Pointers:  branch, files, commits, pages (W-…)
 ```
 
-A card opens on a **Where it was left** panel above the title and description:
-the next step in bold, the note, who left it, when and how (the web app, the
-API, MCP, the CLI or a runner), and a **History** of every earlier one.
-**Update handoff** writes a new one; nothing is edited in place, so the history
-is the whole story. **Clear** writes an empty one, and the history keeps that
-too. While the card is open its front carries a ↩ mark with the next step as
+Most cards never need one, so until one is written it is just a **Leave a
+handoff** link on the line under the card's title (beside its `#id`, list and
+age). Once there is one it sits straight beneath the title: *Left off — next:*
+and the next step, the note, who left it, when and how (the web app, the API,
+MCP, the CLI or a runner), and, once there has been more than one, a
+**History** of every earlier one. **Update** writes a new one; nothing is
+edited in place, so the history is the whole story. **Clear** writes an empty
+one, and the history keeps that too; the card goes back to the link. While the card is open its front carries a ↩ mark with the next step as
 its tooltip; a completed card keeps its note but loses the mark.
 
 Anyone who can comment on a card can leave its handoff, since it is a kind of

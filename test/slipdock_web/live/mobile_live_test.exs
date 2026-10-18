@@ -197,10 +197,10 @@ defmodule SlipdockWeb.MobileLiveTest do
 
       # Not buried in the sidebar under everything else: in the line that
       # says where the card is, right beneath its title.
-      assert has_element?(view, ~s(#card-form select[name="card[column_id]"]))
+      assert has_element?(view, ~s(#card-title-form select[name="card[column_id]"]))
 
       view
-      |> form("#card-form", %{"card" => %{"column_id" => todo.id}})
+      |> form("#card-title-form", %{"card" => %{"column_id" => todo.id}})
       |> render_change()
 
       assert Slipdock.Boards.get_card!(card.id).column_id == todo.id
@@ -231,7 +231,7 @@ defmodule SlipdockWeb.MobileLiveTest do
       refute has_element?(view, "#move-#{card.id}")
 
       {:ok, view, _} = live(phone(conn), ~p"/boards/#{board}/cards/#{card.id}")
-      refute has_element?(view, ~s(#card-form select[name="card[column_id]"]))
+      refute has_element?(view, ~s(#card-title-form select[name="card[column_id]"]))
     end
   end
 

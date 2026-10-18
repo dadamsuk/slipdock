@@ -1,8 +1,9 @@
 defmodule SlipdockWeb.HandoffLiveTest do
   @moduledoc """
-  A card's handoff in the browser (W-1804): the "Where it was left" panel
-  above the description, its update form and history, who may write it, and
-  the ↩ marker on the card's front while the card is open.
+  A card's handoff in the browser (W-1804): a "Leave a handoff" link on the
+  meta line until one is written, then the note just beneath the title, its
+  update form and history, who may write it, and the ↩ marker on the card's
+  front while the card is open.
   """
   use SlipdockWeb.ConnCase, async: true
 
@@ -33,29 +34,44 @@ defmodule SlipdockWeb.HandoffLiveTest do
 
       assert has_element?(view, "#card-handoff #handoff-next", "Wire up the API")
       assert has_element?(view, "#card-handoff #handoff-current", "State: schema done")
+      # Shown as written: no template indent before it in a pre-wrap block.
+      assert view |> element("#handoff-body") |> render() =~ ~r/>State: schema done</
       assert has_element?(view, "#card-handoff #handoff-current", "· api")
       assert has_element?(view, "#handoff-history summary", "History (2)")
       assert has_element?(view, "#handoff-history", "Write the migration")
-      assert has_element?(view, "#handoff-edit", "Update handoff")
+      assert has_element?(view, "#card-handoff #handoff-edit", "Update")
+      # No link on the meta line once there is one: Update is on the note.
+      refute has_element?(view, "#card-title-form #handoff-edit")
     end
 
-    test "comes before the title and description", ctx do
+    test "sits just beneath the title and its meta line, before flags and description", ctx do
       leave(ctx, "First thing")
       {:ok, _view, html} = open(ctx.conn, ctx)
 
-      {panel, _} = :binary.match(html, "card-handoff")
-      {meta, _} = :binary.match(html, "card-meta-form")
-      assert panel < meta
+      {title, _} = :binary.match(html, ~s(id="card-title-form"))
+      {panel, _} = :binary.match(html, ~s(id="card-handoff"))
+      {rest, _} = :binary.match(html, ~s(id="card-form"))
+      assert title < panel and panel < rest
     end
 
-    test "with none, offers to leave one with the note's shape as a placeholder", ctx do
+    test "a single note shows no history (the first test shows two do)", ctx do
+      leave(ctx, "Only one")
+      {:ok, view, _} = open(ctx.conn, ctx)
+      refute has_element?(view, "#handoff-history")
+    end
+
+    test "with none, there is no panel, only a link on the meta line", ctx do
       {:ok, view, _} = open(ctx.conn, ctx)
 
-      assert has_element?(view, "#card-handoff", "No handoff.")
+      refute has_element?(view, "#card-handoff")
       refute has_element?(view, "#handoff-history")
+      assert has_element?(view, "#card-title-form a#handoff-edit", "Leave a handoff")
 
       view |> element("#handoff-edit", "Leave a handoff") |> render_click()
-      assert has_element?(view, "#handoff-form textarea[placeholder*='Gotchas:']")
+      # The form opens beneath the title, with the note's shape as a placeholder,
+      # and the link goes while it is open.
+      assert has_element?(view, "#card-handoff #handoff-form textarea[placeholder*='Gotchas:']")
+      refute has_element?(view, "#card-title-form #handoff-edit")
     end
 
     test "the form writes a new handoff, as from the UI", ctx do
@@ -97,7 +113,8 @@ defmodule SlipdockWeb.HandoffLiveTest do
       {:ok, view, _} = open(ctx.conn, ctx)
       view |> element("#handoff-edit") |> render_click()
       view |> element("#handoff-form button", "Cancel") |> render_click()
-      refute has_element?(view, "#handoff-form")
+      refute has_element?(view, "#card-handoff")
+      assert has_element?(view, "#card-title-form #handoff-edit", "Leave a handoff")
       assert Boards.handoff_history(ctx.card) == []
     end
 
@@ -109,8 +126,13 @@ defmodule SlipdockWeb.HandoffLiveTest do
       view |> element("#handoff-clear") |> render_click()
 
       assert Boards.current_handoff(ctx.card) == nil
-      assert has_element?(view, "#card-handoff", "No handoff.")
+      refute has_element?(view, "#card-handoff")
+
+      # Back to the link; writing a new one shows the history, clear and all.
+      view |> element("#card-title-form #handoff-edit") |> render_click()
+      assert has_element?(view, "#handoff-form")
       assert has_element?(view, "#handoff-history", "cleared")
+      assert has_element?(view, "#handoff-history", "Going away")
     end
   end
 
@@ -138,8 +160,11 @@ defmodule SlipdockWeb.HandoffLiveTest do
 
       {:ok, view, _} = open(conn_as(commenter), ctx)
 
-      assert has_element?(view, "#card-modal fieldset:not([disabled]) #card-handoff")
+      # The link sits in the title's fieldset, disabled for a commenter, so it
+      # is a link, not a button; the form it opens is in a fieldset of its own.
+      assert has_element?(view, "#card-modal fieldset[disabled] #card-title-form a#handoff-edit")
       view |> element("#handoff-edit") |> render_click()
+      assert has_element?(view, "#card-modal fieldset:not([disabled]) #handoff-form")
       view |> form("#handoff-form", handoff: %{next_step: "From a commenter"}) |> render_submit()
 
       assert %{next_step: "From a commenter"} = Boards.current_handoff(ctx.card)
@@ -170,6 +195,7 @@ defmodule SlipdockWeb.HandoffLiveTest do
 
       {:ok, view, _} = open(conn_as(reader), ctx)
       refute has_element?(view, "#card-handoff")
+      refute has_element?(view, "#handoff-edit")
     end
   end
 

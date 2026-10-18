@@ -61,7 +61,7 @@ Briefly, with the detail in [the manual](docs/manual.md):
   everywhere.
 - **Where it was left** — [a handoff on every card](docs/manual.md#where-it-was-left-handoffs):
   the one next step and a short note (state, gotchas, open questions,
-  pointers), shown first on the card and marked on its front, so whoever picks
+  pointers), shown just beneath the card's title and marked on its front, so whoever picks
   it up next — you, a colleague, an agent or a runner — reads that instead of
   the comments. Written from the card, `slipdock handoff 12 --next "…"`,
   `POST /api/cards/:id/handoff` or the MCP `leave_handoff` tool; a runner job
