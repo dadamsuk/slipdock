@@ -201,6 +201,12 @@ first, and an agent reads it before starting and leaves one (`leave_handoff`,
 `slipdock handoff <id> --next "…"`) whenever it stops short. See
 [the manual](manual.md#where-it-was-left-handoffs).
 
+A card that repeats carries `recurrence` (its rule in words and when the next
+is made). An agent sets one only when the person asked for repeating work:
+`update_card` with `recurrence: {rule: "every mon"}`, `slipdock repeat <id>
+"every mon"`, or `PUT /api/cards/:id/recurrence`. See
+[the manual](manual.md#recurring-cards).
+
 `get_guide` gives the short guide — how to work a board, the reader's own
 boards and lists — and ends by naming the other sections, each one call
 away with `section` (`automations`, `wiki`, `endpoints`…, or `all`). The

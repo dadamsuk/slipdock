@@ -139,6 +139,15 @@ defmodule SlipdockWeb.HelpLive.Agents do
        {:yes, "its summary, when it stops short"},
        {:no, ""}
      ]},
+    {"Make a card recurring, skip or stop one",
+     [
+       {:yes, "PUT /api/cards/:id/recurrence"},
+       {:yes, "update_card's recurrence"},
+       {:yes, "slipdock repeat"},
+       {:yes, "through the CLI or MCP"},
+       {:yes, "through the CLI or MCP"},
+       {:no, "one way only"}
+     ]},
     {"Read and write wiki pages",
      [
        {:yes, ""},
@@ -481,7 +490,8 @@ defmodule SlipdockWeb.HelpLive.Agents do
         This server is also an MCP server at <code>{@base_url}/mcp</code>. A client that
         connects gets a small set of tools that each do a whole step of the work: reading boards,
         cards, the guide and wiki pages; searching and asking; creating, updating, moving,
-        commenting on, completing, archiving and deleting cards; leaving a card's handoff
+        commenting on, completing, archiving and deleting cards; making a card repeat
+        (<code>update_card</code>'s <code>recurrence</code>); leaving a card's handoff
         (<code>leave_handoff</code>: where it was left, which <code>get_card</code>
         shows first); uploading and downloading the
         files on cards and pages; lists, tags and boards;

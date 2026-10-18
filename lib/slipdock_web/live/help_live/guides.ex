@@ -203,6 +203,15 @@ defmodule SlipdockWeb.HelpLive.Guides do
           health, assignee or tag.
         </li>
         <li>
+          <strong>Recurring cards</strong>: <em>Repeat…</em>
+          on a card (or <code>every: mon</code>
+          in quick add) makes it repeat: daily, weekdays, weekly, monthly on a date or the
+          last Friday, yearly, or some days after the last one is done. The next one is a copy
+          of the current one, made in your timezone, and one still open has its due date moved
+          on rather than another piling up. <em>Duplicate</em>
+          makes the same copy by hand.
+        </li>
+        <li>
           <strong>Status updates</strong>: on track, at risk or off track, with a note, shown
           beside the health the board works out for itself.
         </li>

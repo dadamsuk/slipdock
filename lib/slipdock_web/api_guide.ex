@@ -494,7 +494,7 @@ defmodule SlipdockWeb.APIGuide do
     board's log, or with `card` one card's), `download_file` (a file, by
     attachment id), `list_automations`, and for
     writing `create_card`, `update_card` (fields, flags, tags, assignees,
-    dependencies and the checklist), `move_card` (to another board too),
+    dependencies, the checklist, recurrence), `move_card` (to another board too),
     `comment`, `leave_handoff`, `upload_file` (onto a card or page;
     over 1 KB, see its description), `complete_card`, `status_update` (a card's stated health, with
     a note: the progress report on an epic),
@@ -711,6 +711,18 @@ defmodule SlipdockWeb.APIGuide do
       Adding one needs the person's device, so it happens only in a browser,
       on their account page. Remove one only when the person asks: it is a way
       into their account, not clutter.
+    - **Recurring cards** — a card can repeat ("every Monday: review
+      invoices"). Its `recurrence` says how (`rule`, `summary`, `next_on`,
+      `next_at`, the next three in `upcoming`); `null` when it doesn't.
+      `series_id` marks every instance a series made. The next instance is a
+      copy of the current one made on the server's clock, in the board's
+      ready list; one still open when the next is due has its due date moved
+      on rather than a second made. Set it with
+      `PUT /api/cards/:id/recurrence` (Recipes, below) or `update_card`'s
+      `recurrence`, and never on a card the person didn't ask to repeat.
+    - **Copying a card** — `POST /api/cards/:id/copy` makes a copy as it is
+      now (checklist unticked, subcards reopened; no comments, dates or
+      files), straight after it unless `board`, `column` or `at` say otherwise.
     - Also on a card, and safe to ignore until you need them: `status_updates`
       (a stated `on_track` / `at_risk` / `off_track` with a note), custom
       `fields` and formula `scores`, `votes`, `attachments`, `milestones` on the
@@ -724,6 +736,7 @@ defmodule SlipdockWeb.APIGuide do
       "title": "Query parser", "description": "…",
       "handoff": {"next_step": "Wire the parser into search", "body": "State: …",
                   "via": "mcp", "by": {"id": 1, "name": "You"}, "at": "…"},
+      "recurrence": null, "series_id": null,
       "priority": "high", "flags": ["review"], "tags": ["api"],
       "start_date": null, "due_date": "2026-10-03", "completed": false,
       "percent_complete": 40,
@@ -1323,6 +1336,35 @@ defmodule SlipdockWeb.APIGuide do
       "body": "State: fix is in, untested", "cleared": false, "via": "api",
       "job_id": null, "by": {"id": 2, "name": "Ada", "email": "ada@example.com"},
       "at": "2026-10-18T09:12:00Z"}}
+    ```
+
+    **A recurring card.** `PUT /api/cards/:id/recurrence` makes the card
+    repeat, or changes how: `rule` is a phrase (`every mon`, `weekday`,
+    `2w mon thu`, `month 1`, `month last fri`, `year`, `3d after` — three
+    days after the last one is done) or an RRULE subset
+    (`FREQ=WEEKLY;BYDAY=MO`); with it `at` (`"07:00"`, the time each one is
+    made), `timezone` (the token holder's by default), `lead_days` (make it
+    that many days before it is due), `on_missed` (`bump`, the default: an
+    instance still open has its due date moved on; `skip`; or `stack`),
+    `ends` (`never`, `on` with `ends_on`, `after` with `count`), `column`
+    and `paused`. Only `rule` is needed to start one; a card with no due
+    date becomes the first occurrence. `GET` reads it (from an older
+    instance too, with `current: false`), `DELETE` stops it, and
+    `POST …/recurrence/skip` lets the next one go.
+    `GET /api/boards/:board/recurring` lists a board's. Over MCP it is
+    `update_card`'s `recurrence` (`null` stops it, `skip: true` skips one).
+
+    ```sh
+    curl -s -X PUT -H "$H" -H 'content-type: application/json' B/api/cards/57/recurrence \\
+         -d '{"rule": "every mon", "at": "08:00"}'
+    ```
+
+    ```json
+    {"card": 57, "recurrence": {"id": 4, "card_id": 57, "kind": "fixed",
+      "rule": "FREQ=WEEKLY;BYDAY=MO", "summary": "Every week on Mon, 08:00 Europe/London",
+      "at": "08:00", "timezone": "Europe/London", "lead_days": 0, "on_missed": "bump",
+      "ends": "never", "made": 1, "next_on": "2026-10-26", "next_at": "2026-10-26T08:00:00Z",
+      "upcoming": ["2026-10-26", "2026-11-02", "2026-11-09"], "paused": false}}
     ```
 
     **Search.** `GET /api/search` takes `q`, and optionally `board` (id,
