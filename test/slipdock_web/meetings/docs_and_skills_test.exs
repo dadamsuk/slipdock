@@ -79,7 +79,7 @@ defmodule SlipdockWeb.Meetings.DocsAndSkillsTest do
     assert manual =~ "POST   /api/captures/:id/commit"
 
     readme = File.read!(Path.join(@root, "README.md"))
-    assert readme =~ "**Meeting capture**, when an admin turns on meeting mode"
+    assert readme =~ "**Meeting and chat capture**, when an admin turns on meeting mode"
     assert readme =~ "docs/manual.md#meeting-capture"
   end
 end

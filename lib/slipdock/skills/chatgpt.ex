@@ -60,6 +60,7 @@ defmodule Slipdock.Skills.ChatGPT do
     {"job-progress", "job_progress"},
     {"finish-job", "finish_job"},
     {"capture new <board> --transcript", "capture_meeting"},
+    {"capture-chat <board> <file>", "capture_chat"},
     {"capture show / capture preview", "get_capture"},
     {"capture resolve", "resolve_capture_question"},
     {"capture commit", "commit_capture"}
@@ -195,7 +196,10 @@ defmodule Slipdock.Skills.ChatGPT do
     #{rows}
 
     The `capture` tools are there only while the server's admin has meeting
-    mode on.
+    mode on — except `capture_chat` and the review tools, which chat capture
+    (on unless the admin turned it off) offers too. In ChatGPT, `capture_chat`
+    is how *this* conversation gets onto the board: pass it as `Name: text`
+    turns, copied word for word.
 
     A few things the skill mentions have no tool: running an automation now, its callbacks and alerts, runners and
     their setup, views, swimlanes, files over 10 MB (meeting recordings,

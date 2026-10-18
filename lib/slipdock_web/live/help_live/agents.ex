@@ -562,6 +562,19 @@ defmodule SlipdockWeb.HelpLive.Agents do
       </p>
     </.part>
 
+    <.part
+      :if={Slipdock.Meetings.chat_enabled?()}
+      title="Capture this conversation"
+      id="help-mcp-capture-chat"
+    >
+      <p>
+        Decided something in a chat? Ask the assistant to <em>capture this conversation</em>
+        to a board. It sends the chat with <code>capture_chat</code>, quoting it word for word;
+        Slipdock proposes the decisions and to-dos you agreed to, each with your words beside
+        it, and nothing is written until you say yes. A Claude or ChatGPT export works too, with <code>slipdock capture-chat</code>.
+      </p>
+    </.part>
+
     <.part title="What it can't do">
       <ul class="list-disc space-y-1 pl-5">
         <li>
@@ -687,8 +700,8 @@ defmodule SlipdockWeb.HelpLive.Agents do
           or a schedule. It watches the build after each push and never closes a card while the build is red.
         </li>
         <li>
-          <code>slipdock-capture</code>: sending a meeting for capture where it's switched on,
-          answering only with your answers.
+          <code>slipdock-capture</code>: sending a meeting, or a conversation with an assistant,
+          for capture where it's switched on, answering only with your answers.
         </li>
       </ul>
     </.part>

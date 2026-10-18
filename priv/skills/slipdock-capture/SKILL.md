@@ -1,6 +1,6 @@
 ---
 name: slipdock-capture
-description: Turn a meeting into decisions, actions and card changes on the user's self-hosted Slipdock board with the `slipdock` CLI — send a recording or transcript, settle the questions with the user, preview and commit. Use when the user has a meeting recording, a transcript (WebVTT, SRT, a Fireflies or Otter export, "Name: words" notes) or meeting notes and wants what was decided and agreed on their board, or asks what a captured meeting found. Only where the server's admin has turned meeting mode on.
+description: Turn a meeting, or a conversation with Claude or ChatGPT, into decisions, actions and card changes on the user's self-hosted Slipdock board with the `slipdock` CLI — send a recording, transcript or chat, settle the questions with the user, preview and commit. Use when the user has a meeting recording, a transcript (WebVTT, SRT, a Fireflies or Otter export, "Name: words" notes) or meeting notes, or says "capture this conversation", "put what we decided on the board", or has a Claude or ChatGPT export, and wants what was decided and agreed on their board; or asks what a capture found. Meetings only where the server's admin has turned meeting mode on; chats wherever chat capture is on (the default).
 ---
 
 # Meeting capture
@@ -56,6 +56,41 @@ cat notes.txt | slipdock capture new <board> --transcript -           # "Name: w
 It answers with the capture's id and link. Reading takes a little while
 (the pipeline reads the meeting twice and checks every quote); the person who
 sent it is emailed when it is ready.
+
+## Capture a conversation (chat capture)
+
+A conversation with an AI assistant goes through the same review: decisions
+and to-dos proposed, each quoted word for word, written only when the user
+says so. It has its own switch, on unless the admin turned it off, and needs
+no meeting mode (`slipdock meetings` prints both).
+
+```sh
+slipdock capture-chat <board> chat.txt --title "Pricing chat"           # Name: text turns
+slipdock capture-chat <board> conversations.json --conversation "Pricing"  # a Claude or ChatGPT export
+slipdock capture-chat <board> chat.txt --findings mine.json --drop-transcript
+```
+
+- The file: `Name: text` turns (a turn runs on to the next label; labels
+  inside ``` fences don't count), a claude.ai export (`conversations.json`,
+  or one conversation), or a ChatGPT export (read along the branch the
+  conversation was left on). `--format chat|claude-export|chatgpt-export` when
+  detection guesses wrong; `--conversation` picks one from an export of several.
+- **Capturing the conversation you are in**: write it out as `Name: text`
+  turns — the user's under their name, yours under `Assistant` — copied word
+  for word, not summarised: the quotes are checked against it.
+- `--findings` is your own reading, in the `capture schema` format. Then the
+  server asks no model of its own (no AI key needed), and still drops any
+  quote that is not in the conversation. Propose only what **the user agreed
+  to**: your suggestions are not decisions until they said yes, and the
+  quote is their agreement, not your suggestion.
+- An action with no owner is the user's. There are no *who said it*
+  questions in a chat.
+- `--drop-transcript`: once committed, the conversation's lines are deleted
+  and only the quoted words kept (also a tick on the commit preview).
+- Cards it makes carry *From a conversation*, linking to the capture.
+
+Over MCP it is `capture_chat` (`board`, `transcript`, `title`, `format`,
+`conversation`, `findings`, `keep_transcript`), then the same review tools.
 
 ## Settle the questions, with the user
 
@@ -115,8 +150,9 @@ curl -s -H "Authorization: Bearer $SLIPDOCK_TOKEN" -H 'content-type: application
   -d '{"question": 9, "answer": "1"}' "$B/api/captures/<id>/resolve"
 ```
 
-Over MCP: `capture_meeting`, `get_capture`, `resolve_capture_question`,
-`commit_capture` — with the same two rules.
+Over MCP: `capture_meeting` (or `capture_chat` for a conversation),
+`get_capture`, `resolve_capture_question`, `commit_capture` — with the same
+two rules.
 
 ## Voiceprints are not yours to make
 

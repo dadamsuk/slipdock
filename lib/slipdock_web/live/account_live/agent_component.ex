@@ -256,6 +256,21 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
       </section>
 
       <section
+        :if={Slipdock.Meetings.chat_enabled?()}
+        id="agent-chat-capture"
+        class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
+      >
+        <h2 class="text-lg font-semibold">Hand it a conversation</h2>
+        <p class="mt-1 text-sm text-base-content/60">
+          Chat capture is on here. Ask Claude or ChatGPT to <em>capture this conversation</em>
+          and it sends the chat to a board with <code>capture_chat</code>
+          (or <code>slipdock capture-chat &lt;board&gt; chat.txt</code>
+          for an export). The decisions and to-dos you agreed to are proposed, each quoted,
+          and it commits only when you ask.
+        </p>
+      </section>
+
+      <section
         :if={Slipdock.Meetings.enabled?()}
         id="agent-meetings"
         class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
