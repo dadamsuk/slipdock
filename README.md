@@ -81,6 +81,15 @@ Briefly, with the detail in [the manual](docs/manual.md):
   click; search, the calendar and roll-ups still see them, and someone else's
   comment wakes one early. `snooze: mon` in quick add, `slipdock snooze 12 next
   week`, `POST /api/cards/:id/snooze` or MCP `update_card`'s `snoozed_until`.
+- **Tidy up** — [the board finds its own rot and proposes the fix](docs/manual.md#tidying-up):
+  epics done but still open, Done cards never completed (or completed ones
+  outside Done), cards stuck in progress, epics with no next step, long-overdue
+  and abandoned cards, likely duplicates (from the stored search vectors, no
+  model call), pages nothing links to and `[[links]]` with a typo. You apply or
+  dismiss each suggestion, a dismissal stays dismissed until its subject
+  changes, and an applied one can be undone. A *Weekly tidy-up* rule raises an
+  alert with the count and applies nothing. `slipdock garden <board> --run`,
+  `POST /api/boards/:board/garden` or MCP `garden` / `garden_decide`.
 - **Time tracking** — [a timer on each card, time spent and an estimate](docs/manual.md#time-tracking)
   in minutes, hours, days, weeks or months, and a bar that turns amber near the
   estimate and red past it.

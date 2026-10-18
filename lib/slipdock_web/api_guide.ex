@@ -1396,6 +1396,31 @@ defmodule SlipdockWeb.APIGuide do
          -d '{"until": "next week", "note": "waiting for the quote"}'
     ```
 
+    **Tidying up a board.** The gardener (W-1807) looks a board and every
+    board beneath it over for rot — epics done but open, Done cards never
+    completed, completed cards outside Done, cards stuck in progress, epics
+    with no next step, long-overdue and abandoned cards, likely duplicates,
+    pages nothing links to, `[[links]]` that nearly match a page — and keeps
+    a suggestion for each. `POST /api/boards/:board/garden` (optionally
+    `check`) looks it over now; `GET` lists the open suggestions, the last
+    run and every check's settings. A suggestion has `check`, `explanation`,
+    `cards`, `pages`, `proposal` (its steps), `alternatives` and
+    `needs_keep`. `POST /api/garden/suggestions/:id/apply` (`choice`: an
+    alternative by name; `keep`: the card that stays, for a duplicate),
+    `…/dismiss` and `…/undo` decide one; `PATCH
+    /api/boards/:board/garden/settings` sets a check's `enabled` and
+    thresholds. Over MCP it is `garden` and `garden_decide` (`confirm: true`).
+    Show the person the suggestions and apply only what they approve; never
+    dismiss one on your own, since a dismissal is remembered until its
+    subject changes. A suggestion applied can be undone, unless something has
+    moved on since.
+
+    ```sh
+    curl -s -X POST -H "$H" B/api/boards/ops/garden
+    curl -s -X POST -H "$H" -H 'content-type: application/json' \\
+         B/api/garden/suggestions/41/apply -d '{"choice": "snooze"}'
+    ```
+
     **Search.** `GET /api/search` takes `q`, and optionally `board` (id,
     code or name), `kind` (`cards`, `pages` or `all`), `limit` (default 20,
     at most 50) and `archived=true`. A result is either a card or a page:

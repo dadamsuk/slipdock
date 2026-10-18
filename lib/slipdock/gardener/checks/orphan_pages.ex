@@ -1,13 +1,19 @@
 defmodule Slipdock.Gardener.Checks.OrphanPages do
   @moduledoc """
   Wiki pages nothing leads to (W-1807): no live backlink, not pinned to
-  anything, and older than `days` (default 30). Templates, drafts, pages
-  placed on a list, pages with pages beneath them and folder indexes (a page
-  named like its folder, or index/README) are never orphans. A page that
-  links to a card isn't either: it shows in that card's Docs.
+  anything, in no folder, and older than `days` (default 30). Templates,
+  drafts, pages placed on a list, pages with pages beneath them and folder
+  indexes (a page named like its folder, or index/README) are never
+  orphans. A page that links to a card isn't either: it shows in that
+  card's Docs.
 
-  The fix archives it (it can be restored); when it is in no folder, filing
-  it into one of the board's folders is on offer instead.
+  A page filed in a folder is found from the folder, which is why filing
+  is one of the fixes. Tuned on a copy of the real board (#1086): 92 of its
+  95 unlinked pages were runner logs filed in a "Loop logs" folder, each one
+  noise as a suggestion.
+
+  The fix archives it (it can be restored), or files it into one of the
+  board's top folders.
   """
   @behaviour Slipdock.Gardener.Check
 
@@ -35,6 +41,7 @@ defmodule Slipdock.Gardener.Checks.OrphanPages do
       from(p in Page,
         where: p.board_id in ^ctx.board_ids and is_nil(p.archived_at),
         where: p.template == false and p.status != "draft" and is_nil(p.column_id),
+        where: is_nil(p.folder_id),
         where: p.inserted_at <= ^cutoff,
         select:
           struct(p, [:id, :title, :board_id, :folder_id, :parent_id, :inserted_at, :updated_at])
@@ -115,7 +122,7 @@ defmodule Slipdock.Gardener.Checks.OrphanPages do
       Enum.any?(folders, &(&1.id == page.folder_id and String.downcase(&1.name) == title))
   end
 
-  defp filing(%{folder_id: nil} = page, folders) do
+  defp filing(page, folders) do
     folders
     |> Enum.filter(&(&1.board_id == page.board_id and is_nil(&1.parent_id)))
     |> Enum.take(@max_folders)
@@ -123,6 +130,4 @@ defmodule Slipdock.Gardener.Checks.OrphanPages do
       &{"file into #{&1.name}", [%{"op" => "file_page", "page" => page.id, "folder" => &1.id}]}
     )
   end
-
-  defp filing(_page, _folders), do: %{}
 end

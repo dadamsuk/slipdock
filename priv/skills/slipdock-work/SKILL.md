@@ -84,6 +84,12 @@ whole card before touching it.
   `slipdock handoff <id> --next "<the one next step>" --body "State: … Gotchas:
   … Open: … Pointers: …"` (over MCP, `leave_handoff`). It replaces the last one;
   the history is kept. Comments stay the running log; the handoff is the now.
+- **Tidy-up suggestions are the person's to decide.** `slipdock garden <board>`
+  (over MCP, `garden`) lists what the board's gardener found: epics done but
+  open, cards stuck in progress, duplicates, orphaned pages. Show them when
+  asked to tidy up, and apply (`slipdock garden apply <id>`, `garden_decide`)
+  only what the person approves; working unattended, never apply or dismiss
+  one — a dismissal is remembered.
 - **Long-running work gets interim updates.** If the task will take more than a
   short sitting, comment at each milestone while it is still running — what has
   landed, what is left, anything that changed the plan — and move
