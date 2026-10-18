@@ -196,6 +196,11 @@ While an admin has meeting mode on, four more: `get_capture` to read, and
 An agent answers a capture's questions only with the person's own answers,
 and commits only when asked; see [the manual](manual.md#meeting-capture).
 
+Whatever the door, a card's `handoff` is where it was left: `get_card` puts it
+first, and an agent reads it before starting and leaves one (`leave_handoff`,
+`slipdock handoff <id> --next "…"`) whenever it stops short. See
+[the manual](manual.md#where-it-was-left-handoffs).
+
 `get_guide` gives the short guide — how to work a board, the reader's own
 boards and lists — and ends by naming the other sections, each one call
 away with `section` (`automations`, `wiki`, `endpoints`…, or `all`). The
@@ -303,7 +308,10 @@ connector, and `slipdock`, one added with `claude mcp add`, by default):
 without that it can't read the card or write anything back. Untick **Let it
 use the Slipdock tools** and it has no access to the board. And every job's
 prompt ends by saying nobody will answer questions: choose inputs from the
-card, say what was chosen, or comment, flag the card `waiting` and stop. Give
+card, say what was chosen, or comment, flag the card `waiting` and stop; and
+to leave a handoff (`leave_handoff`) whenever it stops with the card
+unfinished. A job that ends with its card still open, and no handoff written
+during it, leaves its summary as the card's handoff. Give
 the runner a **working directory** — the project's folder: Claude Code loads
 a project's own commands, skills and `.claude/settings.json` only from the
 directory it starts in, and the wizard warns while it's blank or still the

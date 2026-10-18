@@ -722,6 +722,8 @@ defmodule SlipdockWeb.APIGuide do
     {
       "id": 42, "board_id": 1, "column_id": 4, "column": "To Do", "position": 0,
       "title": "Query parser", "description": "…",
+      "handoff": {"next_step": "Wire the parser into search", "body": "State: …",
+                  "via": "mcp", "by": {"id": 1, "name": "You"}, "at": "…"},
       "priority": "high", "flags": ["review"], "tags": ["api"],
       "start_date": null, "due_date": "2026-10-03", "completed": false,
       "percent_complete": 40,
@@ -740,7 +742,8 @@ defmodule SlipdockWeb.APIGuide do
     ```
 
     `sub_board` and `rollup` are `null` on a leaf card — that is how you tell a
-    task from an epic.
+    task from an epic. `handoff` is where the card was left (`null` if
+    nobody left one): read it before the comments.
     """
   end
 
@@ -941,6 +944,8 @@ defmodule SlipdockWeb.APIGuide do
 
     ### Claim it, before the first edit anywhere else
 
+    Read the card's `handoff` first: where it was left, and the next step.
+
         POST  /api/cards/57/move        {"column": "In Progress"}
         PATCH /api/cards/57             {"assignee": "you@example.com"}
         POST  /api/cards/57/comments    {"body": "Starting. Plan: …"}
@@ -1035,8 +1040,12 @@ defmodule SlipdockWeb.APIGuide do
 
     ### Ending a session mid-card
 
-    Comment where you got to, what you would do next, and anything you learned
-    that is not in the code; set `at_risk` if it is at risk. Then either leave
+    Leave a handoff whenever you stop with the card unfinished: the one next
+    step and a short note (State, Gotchas, Open, Pointers).
+
+        POST  /api/cards/57/handoff  {"next_step": "…", "body": "State: …"}
+
+    Set `at_risk` if it is at risk. Then either leave
     it in `doing` because you are coming straight back, or move it back to the
     ready list. Never leave a card in `doing` with no comment newer than the
     move — nobody can tell whether it is alive.
@@ -1292,6 +1301,28 @@ defmodule SlipdockWeb.APIGuide do
 
     ```json
     {"error": "validation failed", "details": {"health": ["is invalid"]}}
+    ```
+
+    **A handoff.** Where the card was left, for whoever picks it up next.
+    `POST /api/cards/:id/handoff` takes `next_step` (one line, at most 280,
+    required) and an optional `body` of up to 8000, or `{"clear": true}`;
+    anyone who may comment on the card may write one. Each write is a new
+    row: the newest is the card's `handoff` (`null` when there is none or it
+    was cleared), and `GET` gives it with every earlier one as `history`,
+    newest first. A runner job that ends with its card open writes its
+    summary as one (`via: "runner"`) unless the agent wrote one during the
+    job. Over MCP it is the `leave_handoff` tool.
+
+    ```sh
+    curl -s -H "$H" -H 'content-type: application/json' B/api/cards/57/handoff \\
+         -d '{"next_step": "Write the rounding test", "body": "State: fix is in, untested"}'
+    ```
+
+    ```json
+    {"card": 57, "handoff": {"id": 3, "next_step": "Write the rounding test",
+      "body": "State: fix is in, untested", "cleared": false, "via": "api",
+      "job_id": null, "by": {"id": 2, "name": "Ada", "email": "ada@example.com"},
+      "at": "2026-10-18T09:12:00Z"}}
     ```
 
     **Search.** `GET /api/search` takes `q`, and optionally `board` (id,

@@ -73,6 +73,14 @@ whole card before touching it.
   (`blocked`, `waiting`, `review`) with a comment saying what you are waiting
   for; on finishing, set `completed: true` **and** move it to the done list.
   Complete an epic only when its rollup shows every subcard done.
+- **Read the handoff first, leave one when you stop short.** A card's handoff
+  (`Left off:` at the top of `slipdock card <id>`; `handoff` in its JSON) is
+  where whoever had it last left it: the one next step and a short note. Read
+  it before the comments when you pick a card up. Whenever you stop with a card
+  unfinished — end of a session, handed back, blocked, out of time — leave one:
+  `slipdock handoff <id> --next "<the one next step>" --body "State: … Gotchas:
+  … Open: … Pointers: …"` (over MCP, `leave_handoff`). It replaces the last one;
+  the history is kept. Comments stay the running log; the handoff is the now.
 - **Long-running work gets interim updates.** If the task will take more than a
   short sitting, comment at each milestone while it is still running — what has
   landed, what is left, anything that changed the plan — and move

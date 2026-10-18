@@ -130,6 +130,15 @@ defmodule SlipdockWeb.HelpLive.Agents do
        {:yes, "reports back on its card"},
        {:no, "one way only"}
      ]},
+    {"Leave and read a card's handoff (where it was left)",
+     [
+       {:yes, ""},
+       {:yes, "get_card shows it first"},
+       {:yes, ""},
+       {:yes, "read on claim, written on stopping"},
+       {:yes, "its summary, when it stops short"},
+       {:no, ""}
+     ]},
     {"Read and write wiki pages",
      [
        {:yes, ""},
@@ -472,7 +481,9 @@ defmodule SlipdockWeb.HelpLive.Agents do
         This server is also an MCP server at <code>{@base_url}/mcp</code>. A client that
         connects gets a small set of tools that each do a whole step of the work: reading boards,
         cards, the guide and wiki pages; searching and asking; creating, updating, moving,
-        commenting on, completing, archiving and deleting cards; uploading and downloading the
+        commenting on, completing, archiving and deleting cards; leaving a card's handoff
+        (<code>leave_handoff</code>: where it was left, which <code>get_card</code>
+        shows first); uploading and downloading the
         files on cards and pages; lists, tags and boards;
         writing, sharing and reverting pages; listing, adding, changing and deleting a board's
         automations, for its owner; finding and installing
@@ -817,6 +828,10 @@ defmodule SlipdockWeb.HelpLive.Agents do
         <li>
           Jobs run with nobody watching. Every prompt says so, and tells the agent to choose
           from what's on the card, or to comment, flag the card <em>waiting</em> and stop.
+        </li>
+        <li>
+          A job that ends with its card still open leaves its summary as the card's <strong>handoff</strong>, the note the next person or agent reads first, unless the agent
+          left one itself with <code>leave_handoff</code> or <code>slipdock handoff</code>.
         </li>
         <li>
           Give the runner the project's folder as its working directory. Claude Code only loads
