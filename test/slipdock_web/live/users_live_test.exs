@@ -231,6 +231,113 @@ defmodule SlipdockWeb.UsersLiveTest do
     end
   end
 
+  describe "the page" do
+    test "uses the full width rather than a narrow column", %{conn: conn} do
+      {:ok, _view, html} = live(conn, ~p"/users")
+      refute html =~ "max-w-3xl"
+    end
+  end
+
+  describe "adding somebody" do
+    test "makes the account and says they could not be emailed without mail", %{conn: conn} do
+      email = fixture_email("newcomer@example.com")
+      {:ok, view, _} = live(conn, ~p"/users")
+
+      html = view |> form("#add-user", %{"email" => String.upcase(email)}) |> render_submit()
+
+      user = Accounts.get_user_by_email(email)
+      assert user.email == email
+      assert user.invited_at
+      assert html =~ "Added #{email}."
+      refute html =~ "have been emailed"
+      # They appear in the list straight away.
+      assert render(view) =~ email
+    end
+
+    test "with mail, they are emailed an invitation", %{conn: conn} do
+      {:ok, _} = Settings.update(mail())
+      email = fixture_email("mailed@example.com")
+      {:ok, view, _} = live(conn, ~p"/users")
+
+      html = view |> form("#add-user", %{"email" => email}) |> render_submit()
+
+      assert html =~ "They have been emailed an invitation."
+      assert Accounts.get_user_by_email(email)
+    end
+
+    test "refuses an address already here, and one that isn't an address", %{
+      conn: conn,
+      ordinary: ordinary
+    } do
+      count = length(Accounts.list_users())
+      {:ok, view, _} = live(conn, ~p"/users")
+
+      html = view |> form("#add-user", %{"email" => ordinary.email}) |> render_submit()
+      assert html =~ "already uses that address"
+
+      html = view |> form("#add-user", %{"email" => "not an address"}) |> render_submit()
+      assert html =~ "doesn&#39;t look like an email address"
+
+      assert length(Accounts.list_users()) == count
+    end
+  end
+
+  describe "changing somebody's address" do
+    test "edits in place, and they sign in with the new one", %{conn: conn, ordinary: ordinary} do
+      new_email = fixture_email("renamed@example.com")
+      {:ok, view, html} = live(conn, ~p"/users")
+      refute html =~ ~s(id="email-#{ordinary.id}")
+
+      view
+      |> element("button[phx-click='edit-email'][phx-value-user_id='#{ordinary.id}']")
+      |> render_click()
+
+      html =
+        view
+        |> form("#email-#{ordinary.id}", %{"email" => new_email})
+        |> render_submit()
+
+      assert html =~ "#{new_email} signs in with that address now."
+      refute html =~ ~s(id="email-#{ordinary.id}")
+      assert Slipdock.Repo.reload(ordinary).email == new_email
+    end
+
+    test "cancel leaves it as it was", %{conn: conn, ordinary: ordinary} do
+      {:ok, view, _} = live(conn, ~p"/users")
+
+      view
+      |> element("button[phx-click='edit-email'][phx-value-user_id='#{ordinary.id}']")
+      |> render_click()
+
+      html = view |> element("#email-#{ordinary.id} button", "Cancel") |> render_click()
+
+      refute html =~ ~s(id="email-#{ordinary.id}")
+      assert Slipdock.Repo.reload(ordinary).email == ordinary.email
+    end
+
+    test "refuses somebody else's address, and nonsense", %{
+      conn: conn,
+      admin: admin,
+      ordinary: ordinary
+    } do
+      {:ok, view, _} = live(conn, ~p"/users")
+
+      view
+      |> element("button[phx-click='edit-email'][phx-value-user_id='#{ordinary.id}']")
+      |> render_click()
+
+      html =
+        view |> form("#email-#{ordinary.id}", %{"email" => admin.email}) |> render_submit()
+
+      assert html =~ "already uses that address"
+
+      html = view |> form("#email-#{ordinary.id}", %{"email" => "nope"}) |> render_submit()
+      assert html =~ "doesn&#39;t look like an email address"
+
+      assert Slipdock.Repo.reload(ordinary).email == ordinary.email
+    end
+  end
+
   describe "signup requests" do
     setup do
       {:ok, _} = Settings.update(Map.put(mail(), "signup_mode", :approval))

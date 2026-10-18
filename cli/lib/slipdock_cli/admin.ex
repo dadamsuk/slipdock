@@ -55,6 +55,35 @@ defmodule SlipdockCLI.Admin do
   def run("admin", ["disable", email], o), do: admin_user(email, %{disabled: true}, o)
   def run("admin", ["enable", email], o), do: admin_user(email, %{disabled: false}, o)
 
+  def run("admin", ["add", email], o) do
+    HTTP.post("/admin/users", %{email: email})
+    |> out(o, fn %{"user" => u, "delivery" => delivery} ->
+      IO.puts("added #{u["email"]} (invitation #{delivery})")
+    end)
+  end
+
+  def run("admin", ["email", email, new_email], o),
+    do: admin_user(email, %{email: new_email}, o)
+
+  # Closing an account cannot be undone, so it wants --force; the server wants
+  # the address again as `confirm`, which the CLI already has.
+  def run("admin", ["close", email], o) do
+    unless o[:force],
+      do: fail("closing #{email} deletes them and their work for good: add --force")
+
+    with {:ok, %{"users" => users}} <- HTTP.get("/admin/users"),
+         %{"id" => id, "email" => found} <-
+           Enum.find(users, &(&1["email"] == String.downcase(email))) do
+      HTTP.delete("/admin/users/#{enc(id)}", confirm: found)
+      |> out(o, fn r ->
+        IO.puts("closed #{r["deleted"]} (#{r["handed_over"]} shared board(s) handed on)")
+      end)
+    else
+      nil -> fail("no account here uses #{email}")
+      other -> out(other, o, fn _ -> :ok end)
+    end
+  end
+
   def run("admin", ["limit", email, limit], o) do
     value = if limit in ["", "none", "-"], do: nil, else: limit
     admin_user(email, %{card_limit: value}, o)
@@ -97,6 +126,9 @@ defmodule SlipdockCLI.Admin do
                                         (S: storage|cards|boards|lists|pages|files|
                                         last_active|signed_up|email)
     admin meetings-usage                meeting capture this month: totals, heaviest users
+    admin add <email>                   a new account; they are invited by email
+    admin email <email> <new-email>     change the address somebody signs in with
+    admin close <email> --force         delete them and their work for good
     admin promote|demote|disable|enable <email>
     admin limit <email> <n|none>        their own card limit
     admin paid <email> <date|none>      paid up to a date

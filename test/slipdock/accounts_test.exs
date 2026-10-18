@@ -94,4 +94,51 @@ defmodule Slipdock.AccountsTest do
     assert group.members == []
     assert Accounts.list_groups(member) == []
   end
+
+  describe "change_email/3" do
+    test "the old address is told, and a link sent to it stops working" do
+      {:ok, _} =
+        Slipdock.Settings.update(%{
+          "smtp_host" => "smtp.example.com",
+          "smtp_from_email" => Slipdock.Fixtures.fixture_email("mail@example.com")
+        })
+
+      admin = Slipdock.Fixtures.user_fixture("boss@example.com")
+      user = Slipdock.Fixtures.user_fixture("moving@example.com")
+      old = user.email
+      token = Accounts.create_sign_in_token(user)
+      new = Slipdock.Fixtures.fixture_email("moved@example.com")
+
+      assert {:ok, %User{email: ^new}} =
+               Accounts.change_email(user, " " <> String.upcase(new), admin)
+
+      assert_email_sent(fn email ->
+        assert email.to == [{"", old}]
+        assert email.subject == "Your Slipdock address has been changed"
+        assert email.text_body =~ new
+      end)
+
+      assert :error = Accounts.verify_magic_link(token)
+    end
+
+    test "an unchanged address sends nothing" do
+      admin = Slipdock.Fixtures.user_fixture("boss2@example.com")
+      user = Slipdock.Fixtures.user_fixture("staying@example.com")
+
+      assert {:ok, _} = Accounts.change_email(user, user.email, admin)
+      refute_email_sent()
+    end
+  end
+
+  describe "add_user/2" do
+    test "is not gated on invites_create_accounts, and refuses an existing address" do
+      {:ok, _} = Slipdock.Settings.update(%{"invites_create_accounts" => false})
+      admin = Slipdock.Fixtures.user_fixture("boss3@example.com")
+      email = Slipdock.Fixtures.fixture_email("added@example.com")
+
+      assert {:ok, %User{invited_by_id: invited_by}, _delivery} = Accounts.add_user(email, admin)
+      assert invited_by == admin.id
+      assert {:error, :exists} = Accounts.add_user(String.upcase(email), admin)
+    end
+  end
 end

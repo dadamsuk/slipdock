@@ -58,6 +58,44 @@ defmodule SlipdockCLI.AdminTest do
     refute output =~ "unlimited"
   end
 
+  describe "adding, readdressing and closing accounts" do
+    test "add posts the address and says how they were told" do
+      serve([{201, ~s({"user":{"id":8,"email":"kim@example.com"},"delivery":"emailed"})}])
+
+      output = capture_io(fn -> Admin.run("admin", ["add", "kim@example.com"], []) end)
+
+      assert_received {:request, "POST", "/api/admin/users", body}
+      assert body == ~s({"email":"kim@example.com"})
+      assert output =~ "added kim@example.com (invitation emailed)"
+    end
+
+    test "email patches that person's address" do
+      serve([
+        {200, @users},
+        {200, ~s({"user":{"id":7,"email":"sam.new@example.com","cards":{"used":0}}})}
+      ])
+
+      output =
+        capture_io(fn ->
+          Admin.run("admin", ["email", "sam@example.com", "sam.new@example.com"], [])
+        end)
+
+      assert_received {:request, "PATCH", "/api/admin/users/7", body}
+      assert body == ~s({"email":"sam.new@example.com"})
+      assert output =~ "sam.new@example.com"
+    end
+
+    test "close --force deletes, confirming with their address" do
+      serve([{200, @users}, {200, ~s({"deleted":"sam@example.com","handed_over":1})}])
+
+      output = capture_io(fn -> Admin.run("admin", ["close", "sam@example.com"], force: true) end)
+
+      assert_received {:request, "DELETE", path, _}
+      assert path == "/api/admin/users/7?confirm=sam%40example.com"
+      assert output =~ "closed sam@example.com (1 shared board(s) handed on)"
+    end
+  end
+
   # analytics is the JSON object's text, so null stays null.
   defp settings(analytics),
     do:

@@ -714,6 +714,10 @@ slipdock admin overview [--sort S]          usage: accounts, active/joined in 7 
                                             boards, lists, cards, pages, files, storage
                                             (S: storage|cards|boards|lists|pages|files|
                                             last_active|signed_up|email)
+slipdock admin add <email>                  a new account; invited by email when there is mail
+slipdock admin email <email> <new-email>    change the address they sign in with (the old
+                                            one is told)
+slipdock admin close <email> --force        delete them and their work for good; prefer disable
 slipdock admin promote|demote <email>       admin rights (never the last admin)
 slipdock admin disable|enable <email>       reversible; ends their sessions at once
 slipdock admin limit <email> <n|none>       an item limit of their own

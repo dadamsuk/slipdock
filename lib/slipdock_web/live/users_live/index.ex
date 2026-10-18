@@ -33,6 +33,7 @@ defmodule SlipdockWeb.UsersLive.Index do
       support: Accounts.live_support_sessions(),
       deleting: nil,
       deleting_preview: nil,
+      editing_email: nil,
       requests: Accounts.list_signup_requests()
     )
   end
@@ -80,6 +81,43 @@ defmodule SlipdockWeb.UsersLive.Index do
     with_user(socket, id, fn user ->
       {:ok, _} = Accounts.update_standing(user, %{"unlimited" => !user.unlimited})
       {:noreply, socket |> put_flash(:info, "Saved.") |> load()}
+    end)
+  end
+
+  ## Adding somebody, and their address
+
+  def handle_event("add-user", %{"email" => email}, socket) do
+    case Accounts.add_user(email, socket.assigns.current_user) do
+      {:ok, user, delivery} ->
+        {:noreply, socket |> put_flash(:info, added_message(user, delivery)) |> load()}
+
+      {:error, :exists} ->
+        {:noreply, put_flash(socket, :error, "Somebody here already uses that address.")}
+
+      {:error, %Ecto.Changeset{}} ->
+        {:noreply, put_flash(socket, :error, "That doesn't look like an email address.")}
+    end
+  end
+
+  def handle_event("edit-email", %{"user_id" => id}, socket) do
+    with_user(socket, id, fn user -> {:noreply, assign(socket, editing_email: user.id)} end)
+  end
+
+  def handle_event("cancel-email", _params, socket),
+    do: {:noreply, assign(socket, editing_email: nil)}
+
+  def handle_event("set-email", %{"user_id" => id, "email" => email}, socket) do
+    with_user(socket, id, fn user ->
+      case Accounts.change_email(user, email, socket.assigns.current_user) do
+        {:ok, updated} ->
+          {:noreply,
+           socket
+           |> put_flash(:info, "#{updated.email} signs in with that address now.")
+           |> load()}
+
+        {:error, changeset} ->
+          {:noreply, put_flash(socket, :error, email_error(changeset))}
+      end
     end)
   end
 
@@ -149,6 +187,25 @@ defmodule SlipdockWeb.UsersLive.Index do
       nil -> gone(socket)
       user -> fun.(user)
     end
+  end
+
+  # Saying how they will hear about it matters: an account made in silence,
+  # with no mail to tell them, is somebody who never finds out.
+  defp added_message(user, {:ok, :emailed}),
+    do: "Added #{user.email}. They have been emailed an invitation."
+
+  defp added_message(user, {:ok, {:written, path}}),
+    do: "Added #{user.email}. There is no mail server: their sign-in link is in #{path}."
+
+  defp added_message(user, _),
+    do:
+      "Added #{user.email}. There is no mail server to tell them, so let them know " <>
+        "they can sign in with that address."
+
+  defp email_error(changeset) do
+    if match?({_, [constraint: :unique] ++ _}, changeset.errors[:email]),
+      do: "Somebody here already uses that address.",
+      else: "That doesn't look like an email address."
   end
 
   defp gone(socket),
@@ -246,7 +303,7 @@ defmodule SlipdockWeb.UsersLive.Index do
       <:nav><span class="font-semibold">Users</span></:nav>
 
       <div class="kanban-scroll h-full overflow-y-auto">
-        <div class="mx-auto max-w-3xl space-y-6 p-6">
+        <div class="w-full space-y-6 p-6">
           <div :if={@settings.signup_mode == :approval} role="tablist" class="tabs tabs-box">
             <.link patch={~p"/users"} role="tab" class={["tab", @tab == :index && "tab-active"]}>
               People
@@ -282,6 +339,20 @@ defmodule SlipdockWeb.UsersLive.Index do
         somebody paying for a service is entitled to ask for it; it says exactly what it will
         take with it before it does anything.
       </p>
+
+      <form id="add-user" phx-submit="add-user" class="mt-4 flex items-end gap-2">
+        <div class="max-w-sm flex-1">
+          <.input
+            name="email"
+            value=""
+            type="email"
+            label="Add somebody"
+            placeholder="their@address"
+            autocomplete="off"
+          />
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm mb-1">Add</button>
+      </form>
 
       <div :if={@support != []} class="mt-4 rounded-xl bg-warning/10 p-4">
         <h3 class="text-sm font-medium">Support access in force</h3>
@@ -360,7 +431,38 @@ defmodule SlipdockWeb.UsersLive.Index do
             <tr :for={user <- @users} class={user.disabled_at && "opacity-50"}>
               <td>
                 <div class="font-medium">{Accounts.User.display_name(user)}</div>
-                <div class="text-xs text-base-content/50">{user.email}</div>
+                <form
+                  :if={@editing_email == user.id}
+                  id={"email-#{user.id}"}
+                  phx-submit="set-email"
+                  class="mt-1 flex items-center gap-1"
+                >
+                  <input type="hidden" name="user_id" value={user.id} />
+                  <input
+                    type="email"
+                    name="email"
+                    value={user.email}
+                    class="input input-xs w-56"
+                    autocomplete="off"
+                    phx-mounted={JS.focus()}
+                  />
+                  <button type="submit" class="btn btn-primary btn-xs">Save</button>
+                  <button type="button" phx-click="cancel-email" class="btn btn-ghost btn-xs">
+                    Cancel
+                  </button>
+                </form>
+                <div :if={@editing_email != user.id} class="flex items-center gap-1">
+                  <span class="text-xs text-base-content/50">{user.email}</span>
+                  <button
+                    phx-click="edit-email"
+                    phx-value-user_id={user.id}
+                    class="btn btn-ghost btn-xs px-1"
+                    title="Change the address they sign in with"
+                    aria-label={"Change #{user.email}"}
+                  >
+                    <.icon name="hero-pencil-square" class="size-3.5" />
+                  </button>
+                </div>
                 <div class="mt-1 flex gap-1">
                   <span :if={user.admin} class="badge badge-xs badge-primary">admin</span>
                   <span :if={user.disabled_at} class="badge badge-xs">disabled</span>

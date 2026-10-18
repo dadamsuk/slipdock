@@ -149,6 +149,26 @@ defmodule Slipdock.Accounts.UserNotifier do
   end
 
   @doc """
+  Tells the address an account used to have that an admin moved it elsewhere.
+  """
+  def deliver_email_changed(old_address, user, by) do
+    email =
+      new()
+      |> to(old_address)
+      |> from(Mailer.from())
+      |> subject("Your Slipdock address has been changed")
+      |> text_body("""
+      #{Slipdock.Accounts.User.display_name(by)} (#{by.email}), an admin of this
+      Slipdock server, has changed the address on your account from this one to
+      #{user.email}. Sign-in links now go there.
+
+      If you did not ask for this, reply to whoever runs the server.
+      """)
+
+    with {:ok, _} <- Mailer.deliver_configured(email), do: {:ok, email}
+  end
+
+  @doc """
   Tells somebody that an admin has been given access to their boards.
 
   Sent when it is opened, not afterwards. Support access that the person finds
