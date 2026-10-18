@@ -472,6 +472,8 @@ defmodule Slipdock.Boards do
       :status_updates,
       :votes,
       handoff: {newest_handoff_query(), :user},
+      # The series it is the current instance of, if it repeats (W-1802).
+      recurrence: [],
       field_values: [:field],
       links_out: {link_query(), to: {link_stub_query(), [board: board_stub_query()]}},
       links_in: {link_query(), from: {link_stub_query(), [board: board_stub_query()]}},
@@ -1673,6 +1675,9 @@ defmodule Slipdock.Boards do
             opts[:by]
           )
 
+      if Map.has_key?(changeset.changes, :completed),
+        do: Slipdock.Recurrence.completion_changed(updated)
+
       automate_card_changes(card, updated, changeset, {before, assignees || before})
     end)
   end
@@ -1957,6 +1962,7 @@ defmodule Slipdock.Boards do
     |> Repo.update()
     |> tap_ok(fn c ->
       log(Repo, c.board_id, c.id, "card", "archived “#{c.title}”")
+      Slipdock.Recurrence.card_archived(c)
       broadcast(c.board_id)
       Indexer.enqueue(c)
       automate(%{type: "card_archived", card: c})

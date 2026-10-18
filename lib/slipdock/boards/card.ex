@@ -94,6 +94,12 @@ defmodule Slipdock.Boards.Card do
     # foreign key behind it.
     belongs_to :stand_in_for, __MODULE__
 
+    # A recurring card (W-1802): the series this card is an instance of, and
+    # the series it is the current instance of (the one the next is copied
+    # from). See `Slipdock.Recurrence`.
+    belongs_to :series, Slipdock.Recurrence.Series
+    has_one :recurrence, Slipdock.Recurrence.Series, foreign_key: :card_id
+
     # Subcards live on a board owned by this card.
     has_one :sub_board, Slipdock.Boards.Board, foreign_key: :parent_card_id
 

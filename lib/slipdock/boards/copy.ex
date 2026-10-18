@@ -53,7 +53,9 @@ defmodule Slipdock.Boards.Copy do
 
     case result do
       {:ok, copy} ->
-        Slipdock.Deferred.run(effects)
+        # Let go now — or, inside a caller's own transaction that is holding
+        # effects back (a recurring series' tick), handed on to it.
+        Enum.each(effects, &Slipdock.Deferred.defer/1)
         place(copy, card, column, opts[:at] || :bottom)
         {:ok, Boards.get_card!(copy.id)}
 
