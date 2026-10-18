@@ -290,6 +290,26 @@ defmodule SlipdockWeb.TableViewLiveTest do
       assert has_element?(view, "#row-all-#{card.id} [title=Votes]", "2")
     end
 
+    test "a long title truncates inside its column instead of widening it",
+         %{conn: conn, todo: todo} = ctx do
+      long = String.duplicate("a very long card title ", 8) |> String.trim()
+      card = card_fixture(todo, %{"title" => long})
+      {:ok, view, _} = live(conn, everything(ctx))
+      row = "#row-all-#{card.id}"
+
+      # Only the title cell gives up its content width; the full title is on
+      # hover, and the column keeps its 40% share of the header.
+      assert has_element?(
+               view,
+               "#{row} td.max-w-0 [phx-click=open_card].truncate[title='#{long}']"
+             )
+
+      assert has_element?(view, "#{row} td.max-w-0 div.min-w-0")
+      refute has_element?(view, "#{row} td.max-w-0 input")
+      refute has_element?(view, "#{row} td.max-w-0 select")
+      assert has_element?(view, "#card-table thead th.w-\\[40\\%\\]", "Title")
+    end
+
     test "a card with nothing set leaves its cells empty", %{conn: conn, plain: plain} = ctx do
       {:ok, view, _} = live(conn, everything(ctx))
       row = "#row-all-#{plain.id}"
