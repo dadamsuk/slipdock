@@ -73,6 +73,7 @@ defmodule Slipdock.CardStateTest do
 
       state = state_of(ctx, card)
       assert state.line == "Running · runner-2 · 7m"
+      assert state.kind == "running"
       assert state.driver == "agent"
     end
 
@@ -82,7 +83,9 @@ defmodule Slipdock.CardStateTest do
       job = Runners.claim(ctx.runner)
       set_job(job, claimed_at: ago(90))
 
-      assert state_of(ctx, card).line == "Claimed · runner-2 · 1m"
+      state = state_of(ctx, card)
+      assert state.line == "Claimed · runner-2 · 1m"
+      assert state.kind == "claimed"
     end
 
     test "a queued job held by a pause shows the held line", ctx do
@@ -93,6 +96,7 @@ defmodule Slipdock.CardStateTest do
       state = state_of(ctx, card)
       assert state.line == "Held · paused by David: bad deploy"
       assert state.held == "paused by David: bad deploy"
+      assert state.kind == "held"
       # Nobody holds a queued card yet.
       assert state.driver == nil
     end
@@ -106,7 +110,9 @@ defmodule Slipdock.CardStateTest do
       card = card_fixture(ctx.todo)
       {:ok, _} = queue(card)
 
-      assert state_of(ctx, card).line =~ ~r/^Queued · dev · /
+      state = state_of(ctx, card)
+      assert state.line =~ ~r/^Queued · dev · /
+      assert state.kind == "queued"
     end
 
     test "an open wait: who it waits on and for how long, and never amber", ctx do
@@ -128,6 +134,7 @@ defmodule Slipdock.CardStateTest do
       [card] = CardState.put([Boards.get_card!(card.id)], ctx.board, usual: usual)
 
       assert card.state.line == "Waiting on Dana · 41m"
+      assert card.state.kind == "waiting"
       assert card.state.over_usual == nil
       refute card.state.stuck
     end
@@ -147,6 +154,7 @@ defmodule Slipdock.CardStateTest do
       for card <- [handed, flagged] do
         state = state_of(ctx, card)
         assert state.line == nil
+        assert state.kind == nil
 
         json =
           SlipdockWeb.API.JSON.card(Enum.find(Boards.list_cards(ctx.board), &(&1.id == card.id)))
@@ -163,7 +171,21 @@ defmodule Slipdock.CardStateTest do
       set_job(job, finished_at: ago(2 * 3600 + 60))
       {:ok, _} = Boards.leave_handoff(card, ctx.owner, %{next_step: "Fix the test", via: "ui"})
 
-      assert state_of(ctx, card).line == "Failed · runner-2 · 2h ago · Next: Fix the test"
+      state = state_of(ctx, card)
+      # The handoff's next step doesn't change what kind of line it is.
+      assert state.line == "Failed · runner-2 · 2h ago · Next: Fix the test"
+      assert state.kind == "failed"
+    end
+
+    test "a timed-out job says Timed out, its kind timeout", ctx do
+      card = card_fixture(ctx.doing)
+      {:ok, _} = queue(card)
+      job = Runners.claim(ctx.runner)
+      set_job(job, status: "timeout", finished_at: ago(3 * 60))
+
+      state = state_of(ctx, card)
+      assert state.line == "Timed out · runner-2 · 3m ago"
+      assert state.kind == "timeout"
     end
 
     test "a failed job on a completed card says nothing", ctx do
@@ -173,7 +195,9 @@ defmodule Slipdock.CardStateTest do
       {:ok, _} = Runners.finish(ctx.runner, job.id, %{status: "failed"})
       {:ok, _} = Boards.toggle_completed(Repo.get!(Card, card.id))
 
-      assert state_of(ctx, card).line == nil
+      state = state_of(ctx, card)
+      assert state.line == nil
+      assert state.kind == nil
     end
 
     test "a finished job says nothing", ctx do

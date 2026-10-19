@@ -65,6 +65,37 @@ defmodule SlipdockWeb.CardStateLiveTest do
     assert has_element?(view, "#card-#{card.id} [data-role=driver-mark][data-driver=agent]")
   end
 
+  test "#1132: each state's line is coloured by its kind; running pulses green", ctx do
+    run = card_fixture(ctx.doing, %{"title" => "Build"})
+    running(ctx, run)
+    waiting = card_fixture(ctx.doing)
+    {:ok, _} = Boards.open_wait(waiting, Actor.web(ctx.user), %{"needs" => "Region?"})
+    failed = card_fixture(ctx.doing)
+    {:ok, _} = Runners.queue(failed, %{pool: "dev", kind: "claude", prompt: "go"})
+    job = Runners.claim(ctx.runner)
+    {:ok, _} = Runners.finish(ctx.runner, job.id, %{status: "failed"})
+
+    {:ok, _view, html} = live(ctx.conn, ~p"/boards/#{ctx.board}")
+    doc = LazyHTML.from_fragment(html)
+
+    line = fn card, kind ->
+      found = LazyHTML.query(doc, "#card-#{card.id} [data-role=state-line][data-kind=#{kind}]")
+      assert Enum.count(found) == 1, "card #{card.id} has no #{kind} line"
+      found
+    end
+
+    run_line = line.(run, "running")
+    assert hd(LazyHTML.attribute(run_line, "class")) =~ "text-success"
+    assert Enum.count(LazyHTML.query(run_line, ".bg-success.animate-pulse")) == 1
+
+    wait_line = line.(waiting, "waiting")
+    assert hd(LazyHTML.attribute(wait_line, "class")) =~ "text-amber-700"
+    # Only a running job's dot pulses.
+    assert Enum.empty?(LazyHTML.query(wait_line, ".animate-pulse"))
+
+    assert hd(LazyHTML.attribute(line.(failed, "failed"), "class")) =~ "text-error"
+  end
+
   test "a plain board: age chips, but no line, no mark and no Driver filter", ctx do
     card = card_fixture(ctx.todo)
 
