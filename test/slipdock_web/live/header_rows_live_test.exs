@@ -8,7 +8,7 @@ defmodule SlipdockWeb.HeaderRowsLiveTest do
     %{board: board_fixture(%{"name" => "Product Launch for the Autumn Campaign"})}
   end
 
-  test "a board's name and buttons sit in a row of their own, not the app's", %{
+  test "a board's name sits in a row of its own, not the app's", %{
     conn: conn,
     board: board
   } do
@@ -17,14 +17,52 @@ defmodule SlipdockWeb.HeaderRowsLiveTest do
     assert has_element?(view, "#subheader", board.name)
     refute has_element?(view, "#topbar", board.name)
 
-    # Sharing is in the board's ... menu, not a button of its own.
-    assert has_element?(view, "#subheader .dropdown #board-share", "Share this board")
-    refute has_element?(view, "#subheader > div > a[title='Share this board']")
-
     # What is the same on every page stays on the top row.
     assert has_element?(view, "header #search-link")
     assert has_element?(view, "header #quick-add-open")
     assert has_element?(view, "header #alerts-bar")
+  end
+
+  describe "the board's own buttons (#1133)" do
+    test "sit in its toolbar, right of Views, and nowhere in the header", %{
+      conn: conn,
+      board: board
+    } do
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}")
+
+      assert has_element?(view, "main #board-actions #board-chat")
+      # Sharing is in the board's ... menu, not a button of its own.
+      assert has_element?(view, "main #board-actions .dropdown #board-share", "Share this board")
+      refute has_element?(view, "header #board-actions")
+      refute has_element?(view, "header #board-chat")
+      refute has_element?(view, "header #board-share")
+
+      assert_right_of_views(view)
+    end
+
+    test "follow the toolbar into the other views", %{conn: conn, board: board} do
+      for mode <- ~w(table swimlanes calendar timeline outline) do
+        {:ok, view, _html} = live(conn, "/boards/#{board.id}/#{mode}")
+
+        assert has_element?(view, "main #board-actions #board-chat"), mode
+        refute has_element?(view, "header #board-actions"), mode
+        assert_right_of_views(view)
+      end
+    end
+
+    test "leave no empty, ruled-off box behind in the header", %{conn: conn, board: board} do
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}")
+
+      refute has_element?(view, "#subheader > div.order-4")
+    end
+  end
+
+  # The board's buttons come after the Views dropdown in the toolbar's markup.
+  defp assert_right_of_views(view) do
+    html = render(view)
+    views = :binary.match(html, ~s(title="Saved views")) |> elem(0)
+    actions = :binary.match(html, ~s(id="board-actions")) |> elem(0)
+    assert views < actions
   end
 
   test "the wiki puts its board and its New page button on the second row", %{

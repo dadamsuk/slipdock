@@ -36,6 +36,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
     doc: "the reader's favourites, from `Slipdock.Favourites.marks/1`"
 
   slot :leading, doc: "rendered first, before the view's own controls: the view switcher"
+  slot :trailing, doc: "rendered last, right of Views: the board's own buttons (chat, its menu)"
 
   def swim_toolbar(assigns) do
     assigns = assign(assigns, section_title: @section_title)
@@ -533,6 +534,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
           form_key={@form_key}
           favourites={@favourites}
         />
+        {render_slot(@trailing)}
       </div>
     </div>
     """

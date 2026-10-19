@@ -1397,12 +1397,15 @@ slipdock order-boards qvm-v1-rem errands 3     # your own order
 
 ## The header and the avatar menu
 
-The right-hand end of the header is in the same order on every page. A
-page's own buttons come first — on a board, its sprint buttons, the AI chat
-and the board's `…` menu — ruled off from the app's, which follow: **quick
-add** (`+`), **Search everything**, **Ask**, **Favourites** (the heart), the
-**alerts** bell, and your avatar. The bell carries a count only when an alert
-is waiting.
+The right-hand end of the header is in the same order on every page, and is
+about the app as a whole: **quick add** (`+`), **Search everything**, **Ask**,
+**Favourites** (the heart), the **alerts** bell, and your avatar. The bell
+carries a count only when an alert is waiting. A page's own buttons, where it
+has any, come first, ruled off from the app's.
+
+What belongs to the board you are on is on the board's own toolbar, the row
+below: its sprint buttons, the AI chat about the board and the board's `…`
+menu sit at the right-hand end, after **Views**, in every view of the board.
 
 The **avatar menu** is in sections, and marks the page you are on:
 
@@ -1472,8 +1475,8 @@ views that cannot survive being narrowed render something else instead.
 - **Menu**, first in that row, is the header's menus in one: on a
   board, its own entries first under **This board** (chat about the page with
   AI, then the `…` menu's groups), then everything the avatar menu holds, plus
-  Search and Ask, which a desktop has as header buttons instead. The avatar and the board's `…` and chat buttons are not
-  in a phone's header at all.
+  Search and Ask, which a desktop has as header buttons instead. The avatar is not
+  in a phone's header, nor the board's `…` and chat buttons in its toolbar.
 - **The header is one row**: the mark (which goes to your boards), the
   board's name, and a magnifier and a `>_`, because a phone has no Ctrl: they
   open the card finder and the command palette — the same two panels

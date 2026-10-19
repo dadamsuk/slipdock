@@ -1126,20 +1126,6 @@ defmodule SlipdockWeb.BoardLive.Show do
           can_write={@can_write}
         />
       </:subnav>
-      <:subactions>
-        <.board_actions
-          board={@board}
-          paths={@paths}
-          can_manage={@can_manage}
-          can_write={@can_write}
-          card_only={@card_only}
-          view_only={@view_only}
-          sprint_of={@sprint_of}
-          ai?={@ai?}
-          rules={@rules}
-          meetings_path={meetings_path(assigns)}
-        />
-      </:subactions>
       <:menu :if={!@card_only and (@ai? or !@view_only)}>
         <.board_menu
           paths={@paths}
@@ -1183,6 +1169,22 @@ defmodule SlipdockWeb.BoardLive.Show do
               marks={@favourites}
             />
           </:leading>
+          <%!-- This board's own buttons sit at the end of its toolbar, right
+                of Views (#1133): the header's top row is the app's alone. --%>
+          <:trailing>
+            <.board_actions
+              board={@board}
+              paths={@paths}
+              can_manage={@can_manage}
+              can_write={@can_write}
+              card_only={@card_only}
+              view_only={@view_only}
+              sprint_of={@sprint_of}
+              ai?={@ai?}
+              rules={@rules}
+              meetings_path={meetings_path(assigns)}
+            />
+          </:trailing>
         </.swim_toolbar>
         <.pause_banner pauses={@pauses} can_manage={@can_manage} />
         <div class="min-h-0 flex-1">
@@ -1303,7 +1305,22 @@ defmodule SlipdockWeb.BoardLive.Show do
         zone={@zone}
         revealed_snoozed={@revealed_snoozed}
         selected={@selected}
-      />
+      >
+        <:toolbar_actions>
+          <.board_actions
+            board={@board}
+            paths={@paths}
+            can_manage={@can_manage}
+            can_write={@can_write}
+            card_only={@card_only}
+            view_only={@view_only}
+            sprint_of={@sprint_of}
+            ai?={@ai?}
+            rules={@rules}
+            meetings_path={meetings_path(assigns)}
+          />
+        </:toolbar_actions>
+      </.kanban>
 
       <SnoozeEvents.snooze_picker :if={@snoozing} snoozing={@snoozing} />
 
