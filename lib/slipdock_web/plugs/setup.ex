@@ -81,7 +81,7 @@ defmodule SlipdockWeb.Plugs.Setup do
 
     token = Settings.ensure_setup_token()
 
-    case token && RateLimit.hit("setup:token-banner", 1, :timer.minutes(1)) do
+    case token && RateLimit.cooldown("setup:token-banner", :timer.minutes(1)) do
       :ok ->
         Logger.info("""
         Setup token for this server: #{token}
