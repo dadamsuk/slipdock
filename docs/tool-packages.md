@@ -353,8 +353,9 @@ person's data once they are made.
 
 ## Files and skills at run time
 
-Every endpoint here needs a token. A **read** token is enough for these
-GETs. Each one answers with the latest version the caller can see:
+Every endpoint here needs a token, except the single-use links MCP hands
+out (below). A **read** token is enough for these GETs. Each one answers
+with the latest version the caller can see:
 
 - the owner, and the people a Tool is shared with, get the newest version;
 - someone who sees it only through its listing gets the approved version.
@@ -399,8 +400,12 @@ never shown inline. Reading needs read access to the board, and a token
 confined to other boards gets `403`.
 
 Only Slipdock's **own** skills (`/api/skills/...`) and the agent guide
-(`/api/guide`) can be read without a token. A Tool's skills and files always
-need one.
+(`/api/guide`) can be read without a token. A Tool's skills and files need
+one, except through a single-use link from MCP `list_tools` with
+`link: true`. That link is an `/api/download/<secret>` URL that works once,
+within 10 minutes. When it is used, the version must still be one the
+person can see. This is how a shell that has only the MCP connector, and no
+API token, fetches a Tool's files.
 
 ### A stub skill
 
