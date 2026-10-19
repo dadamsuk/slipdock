@@ -563,6 +563,10 @@ defmodule Slipdock.Portable.Import do
     end)
   end
 
+  # The person importing, with no door named: an import arrives from the web
+  # and the API alike, and its rows say who rather than guess how.
+  defp imported_by(user), do: %{Slipdock.Actor.unknown() | user_id: user && user.id}
+
   defp insert_card!(user, board, doc, ids) do
     assignee_ids = Refs.assignee_ids_for(doc, user)
 
@@ -605,6 +609,9 @@ defmodule Slipdock.Portable.Import do
       tag_ids = doc |> rows(:tags) |> Enum.map(&ids.tags[&1]) |> Enum.reject(&is_nil/1)
 
       Repo.insert_all("card_tags", Enum.map(Enum.uniq(tag_ids), &[card_id: card.id, tag_id: &1]))
+
+      if column = card.column_id && Repo.get(Column, card.column_id),
+        do: Slipdock.Boards.record_move(card, "created", nil, column, imported_by(user))
 
       insert_attached!(user, [card_id: card.id], doc, ids)
       insert_handoffs!(user, card, doc)

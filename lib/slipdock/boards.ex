@@ -16,6 +16,7 @@ defmodule Slipdock.Boards do
   alias Slipdock.Boards.{BoardOrder, CardLink, CardUrl, FieldDefinition, FieldValue, Milestone}
   alias Slipdock.Boards.StatusUpdate
   alias Slipdock.Boards.Handoff
+  alias Slipdock.Boards.CardMove
   alias Slipdock.Boards.Owned
 
   alias Slipdock.Boards.{
@@ -1716,6 +1717,7 @@ defmodule Slipdock.Boards do
     |> save_with_assignees(&Repo.insert/1, assignees)
     |> tap_ok(fn card ->
       log(Repo, card.board_id, card.id, "card", "added “#{card.title}” to #{column.name}")
+      record_move(card, "created", nil, column, creator(opts))
       broadcast(card.board_id)
       Indexer.enqueue(card)
       Slipdock.Mentions.description_changed(card, nil, card.description, opts[:by])
@@ -2054,13 +2056,17 @@ defmodule Slipdock.Boards do
     update_card(card, %{"completed" => !card.completed})
   end
 
-  def archive_card(%Card{} = card) do
+  def archive_card(%Card{} = card, opts \\ []) do
     card
     # Archiving puts a card away for good, so any snooze goes with it.
     |> Ecto.Changeset.change(archived_at: DateTime.utc_now(:second), snoozed_until: nil)
     |> Repo.update()
     |> tap_ok(fn c ->
       log(Repo, c.board_id, c.id, "card", "archived “#{c.title}”")
+
+      if is_nil(card.archived_at),
+        do: record_move(c, "archived", Repo.get(Column, c.column_id), nil, actor(opts))
+
       Slipdock.Recurrence.card_archived(c)
       broadcast(c.board_id)
       Indexer.enqueue(c)
@@ -2071,7 +2077,7 @@ defmodule Slipdock.Boards do
   # An archived card does not count against its owner's allowance, so bringing
   # one back is asking for one more — otherwise "archive, add, restore" would
   # go on for ever, trial or no trial.
-  def unarchive_card(%Card{} = card) do
+  def unarchive_card(%Card{} = card, opts \\ []) do
     position = next_position(from(c in Card, where: c.column_id == ^card.column_id))
 
     card
@@ -2080,6 +2086,10 @@ defmodule Slipdock.Boards do
     |> Repo.update()
     |> tap_ok(fn c ->
       log(Repo, c.board_id, c.id, "card", "restored “#{c.title}”")
+
+      if card.archived_at,
+        do: record_move(c, "restored", nil, Repo.get(Column, c.column_id), actor(opts))
+
       broadcast(c.board_id)
       Indexer.enqueue(c)
     end)
@@ -2174,6 +2184,9 @@ defmodule Slipdock.Boards do
     unless same_column? do
       log(Repo, card.board_id, card.id, "card", "moved “#{card.title}” to #{to_column.name}")
       from_column = Repo.get!(Column, card.column_id)
+      # Before anything the move sets off (a done list completing the card
+      # can fire a rule that moves it on), so the ledger keeps their order.
+      record_move(card, "moved", from_column, to_column, actor)
       apply_column_semantics(Repo.get!(Card, card.id), from_column, to_column)
       follow_stand_ins(card, from_column, to_column)
       moved(card, from_column, to_column, actor)
@@ -2447,6 +2460,10 @@ defmodule Slipdock.Boards do
           )
           |> Repo.update!()
 
+        # One row for the card, carrying both boards; its subcards ride
+        # along without changing list, so they get none.
+        record_move(moved, "moved", from_column, to_column, actor)
+
         if board_ids != [] and from_root != to_root do
           from(b in Board, where: b.id in ^board_ids)
           # The owner too: a sub-board's own `owner_id` is what makes somebody
@@ -2520,6 +2537,92 @@ defmodule Slipdock.Boards do
       to_column_id: to.id,
       actor: actor
     })
+  end
+
+  @doc """
+  Writes one row of the movement ledger (`Slipdock.Boards.CardMove`): `kind`
+  happened to `card`, from list `from` to list `to` (either nil where it does
+  not apply), by `actor` (a `Slipdock.Actor`). Called from this module's
+  move, create, archive and restore paths, and by the portable import, which
+  inserts cards itself. A stand-in never gets a row.
+  """
+  def record_move(%Card{stand_in_for_id: id}, _kind, _from, _to, _actor) when not is_nil(id),
+    do: :ok
+
+  def record_move(%Card{} = card, kind, from, to, actor)
+      when kind in ~w(created moved archived restored) do
+    actor = actor || Slipdock.Actor.unknown()
+
+    Repo.insert!(%CardMove{
+      card_id: card.id,
+      kind: kind,
+      board_id: (to || from || card).board_id,
+      from_board_id: from && from.board_id,
+      from_column_id: from && from.id,
+      from_column_name: from && from.name,
+      from_category: from && from.category,
+      to_column_id: to && to.id,
+      to_column_name: to && to.name,
+      to_category: to && to.category,
+      actor_kind: actor[:kind],
+      via: actor[:via],
+      user_id: actor[:user_id],
+      agent: actor[:agent],
+      job_id: known_job(actor[:job_id])
+    })
+
+    :ok
+  end
+
+  # A job id can come from a request header, so it is only kept when it
+  # names a job, rather than failing the move on the foreign key.
+  defp known_job(nil), do: nil
+
+  defp known_job(id) do
+    if Repo.exists?(from(j in Slipdock.Runners.Job, where: j.id == ^id)), do: id
+  end
+
+  # Whoever the opts name, as for a move; failing that, the person `:by`.
+  defp creator(opts) do
+    case {Slipdock.Actor.resolve(opts), opts[:by]} do
+      {%{user_id: nil} = actor, by} when not is_nil(by) ->
+        %{actor | user_id: if(is_integer(by), do: by, else: by.id)}
+
+      {actor, _} ->
+        actor
+    end
+  end
+
+  defp actor(opts), do: Slipdock.Actor.resolve(opts)
+
+  @doc """
+  When each open card on `board` (a board or its id) came into the list it is
+  in: card id => the time of its latest ledger row putting it in a list
+  (created, moved or restored). A card whose latest such row is not into its
+  current list — a move the backfill couldn't read — is left out: its time
+  there is unknown. One query for the whole board.
+  """
+  def list_entered_at(%Board{id: id}), do: list_entered_at(id)
+
+  def list_entered_at(board_id) when is_integer(board_id) do
+    latest =
+      from(m in CardMove,
+        join: c in Card,
+        on: c.id == m.card_id,
+        where: c.board_id == ^board_id and m.kind in ^CardMove.entry_kinds(),
+        distinct: m.card_id,
+        order_by: [asc: m.card_id, desc: m.inserted_at, desc: m.id],
+        select: %{card_id: m.card_id, to_column_id: m.to_column_id, at: m.inserted_at}
+      )
+
+    from(c in Card,
+      join: m in subquery(latest),
+      on: m.card_id == c.id and m.to_column_id == c.column_id,
+      where: c.board_id == ^board_id and is_nil(c.archived_at),
+      select: {c.id, m.at}
+    )
+    |> Repo.all()
+    |> Map.new()
   end
 
   defp empty_move_summary(card),
