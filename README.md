@@ -66,6 +66,23 @@ Briefly, with the detail in [the manual](docs/manual.md):
   the comments. Written from the card, `slipdock handoff 12 --next "…"`,
   `POST /api/cards/:id/handoff` or the MCP `leave_handoff` tool; a runner job
   that stops short leaves its summary as one.
+- **Waiting on a person** — [a wait on a card](docs/manual.md#waiting-on-a-person-waits):
+  what it needs, from whom (or anyone), since when, and optional answer
+  choices. It flags the card `waiting`; answering it on the card, in My work,
+  with `slipdock answer 12 --choice 1`, `POST /api/cards/:id/wait/answer` or
+  MCP `update_card`'s `answer_wait` posts the answer as a comment and gets the
+  work going again. Opened with `slipdock wait 12 "Which region?" --choice eu
+  --choice us`, `POST /api/cards/:id/wait` or `update_card`'s `wait` — the way
+  agents are told to ask. **Waiting on you** opens My work with everything that
+  needs you, oldest first (waits, `review` and `waiting` flags on your cards,
+  runner trouble, cards in progress with nobody on them), and the header counts
+  it on every page; `slipdock work` and `GET /api/work` list the same.
+- **A board's pulse** — [flow numbers from every move](docs/manual.md#flow-the-pulse-a-cards-state-and-its-age):
+  each card move is recorded with who made it (a person, an agent or an
+  automation), and the board works out what is in progress, what waits on a
+  person, what got done this week, typical time to done and each list's usual
+  stay. `slipdock pulse <board>`, `GET /api/boards/:id/pulse` or `get_board`
+  with `pulse: true`; a plain-words strip over the lists if the owner turns it on.
 - **Recurring cards** — [repeating work kept on the card](docs/manual.md#recurring-cards)
   ("every Monday: review invoices", "the last Friday of the month", "three days
   after I last did it"): the next one is a copy of the current one, checklist
@@ -714,6 +731,12 @@ with the tail of the log — and a Cancel button.
   takes jobs from the same queue through the MCP tools `claim_job`,
   `job_progress` and `finish_job`, or `slipdock claim-job`, so it never
   races a runner for the same card.
+- **A question parks the job.** An agent that needs something only a person
+  can give opens a wait and stops; the job ends `parked`, its card goes back
+  on top of the list flagged waiting so the next card runs, and answering the
+  wait sends the card to the same rule again with the answer at the top of
+  the prompt (`slipdock finish-job <job> --status waiting --needs "…"` asks and
+  parks in one step).
 - **A brake with a reason.** The board's owner can pause the whole tree, or
   one pool, from the Runners panel, `slipdock pause <board> [--pool P]
   --reason "…"`, `POST /api/boards/:board/pause` or MCP `manage_automation`
@@ -746,7 +769,8 @@ hooks for every job — and a prompt that has Claude Code on the machine write
 those hooks for you (your notifier, what to keep from each pass), from a
 worked example. A Claude runner may use the Slipdock MCP tools without
 asking (on by default) and every job is told nobody will answer questions, since
-nobody is watching, and to leave a handoff if it stops with the card unfinished
+nobody is watching — to open a wait and stop if it needs a person, and to take
+nothing more once the board is paused — and to leave a handoff if it stops with the card unfinished
 (a job that ends with its card open leaves its summary as one). A runner costs nothing while it waits; the Claude and
 ChatGPT options need no install but use a turn per check. In every scenario a job
 does nothing to its card or repository unless you tick it: move it to In

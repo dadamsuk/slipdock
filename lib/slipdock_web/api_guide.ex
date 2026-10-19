@@ -900,7 +900,7 @@ defmodule SlipdockWeb.APIGuide do
     **2. Read it whole.** `GET /api/boards/<id>` returns every list, in order,
     with its `category` and its cards in list order — one call, everything you
     need to choose. Snoozed cards are not in it: they are not ready until the
-    day they wake.
+    day they wake. If `paused` is set, take nothing and stop.
 
     **3. Pick the list to draw from,** in this order:
 
@@ -983,9 +983,7 @@ defmodule SlipdockWeb.APIGuide do
     without taking it off them, send `{"add_assignees": ["me"]}`, and
     `remove_assignees` to step off. `"me"` is whoever the token belongs to.
     Only somebody who can open the card can be put on it: share the board
-    with them first. Anybody else — no account, or an account you have no
-    board in common with — is the same `404 user …`, so the answer says
-    nothing about who has an account here.
+    with them first. Anybody else is the same `404 user …`, account or not.
 
     Move the epic above it into its own `doing` list too, so the top of the
     board reads true while you are inside the tree. `move` takes an optional
@@ -1022,8 +1020,9 @@ defmodule SlipdockWeb.APIGuide do
       Leave it in the `doing` list only if you are coming back to it this
       session; otherwise move it back to the ready list so it is not pretending
       to be in flight.
-    - **Stuck on a person** — a decision, a credential, an approval:
-      `{"add_flags": ["waiting"]}`, plus a comment naming exactly what you need.
+    - **Stuck on a person** — a decision, a credential, an approval: open a
+      wait, `POST /api/cards/57/wait {"needs": "…"}` (MCP `update_card`
+      `wait`), naming exactly what you need, and stop. The answer comes back.
     - **Needs a human eye before it counts as done:** `{"add_flags": ["review"]}`
       and leave it in `doing`.
     - **The task turns out to be several:** give it a sub-board and split it
@@ -1106,8 +1105,7 @@ defmodule SlipdockWeb.APIGuide do
       "drag this card to Done", "open a card and look down the side". Doing
       them teaches nobody anything and finishing them is a lie about what you
       did. If you were pointed at it by mistake, say so and ask which board was
-      meant. `POST /api/boards/welcome` builds a fresh one for the token's
-      owner, if they want the tour back after archiving it.
+      meant. `POST /api/boards/welcome` builds a fresh one.
     """
   end
 
@@ -1259,6 +1257,20 @@ defmodule SlipdockWeb.APIGuide do
     # moves forward and back, each list's in/out (MCP: get_board pulse: true)
     curl -s -H "$H" B/api/boards/1/pulse
 
+    # cards past their list's usual stay, and who holds them (driver=all|agent|human)
+    curl -s -H "$H" "B/api/boards/1/cards?stuck=true&driver=agent"
+
+    # waiting on a person: open a wait, answer it (text, a choice from 1, or both),
+    # withdraw it (MCP: update_card wait / answer_wait; CLI: slipdock wait, answer)
+    curl -s -H "$H" -H 'content-type: application/json' B/api/cards/57/wait \
+         -d '{"needs": "Which region?", "on": "dana@example.com", "choices": ["eu", "us"]}'
+    curl -s -H "$H" -H 'content-type: application/json' B/api/cards/57/wait/answer \
+         -d '{"choice": 1, "answer": "eu, for the data rules"}'
+    curl -s -X DELETE -H "$H" B/api/cards/57/wait
+
+    # what is waiting on you, oldest first, then your cards by due (?board=1, ?done=true)
+    curl -s -H "$H" B/api/work
+
     # the boards themselves (owner only; ask before doing either)
     curl -s -X POST -H "$H" B/api/boards/1/archive    # put a board away, keeping everything on it
     curl -s -X POST -H "$H" B/api/boards/1/restore    # and bring it back
@@ -1266,6 +1278,42 @@ defmodule SlipdockWeb.APIGuide do
     curl -s -X POST -H "$H" -H 'content-type: application/json' B/api/boards/order \
          -d '{"boards": ["roadmap", "qvm-v1-rem", 3]}'   # your own order for the index
     ```
+
+    ### Waits, pauses and a card's state
+
+    **A wait** is a card waiting on a person: what it `needs`, who it is
+    `on` (a person, or `null` for anyone), optional `choices`, and when and by
+    whom it was opened. A card has at most one open one, shown as its `wait`.
+    Opening one flags the card `waiting` and comments the question; removing
+    that flag by hand withdraws it; answering posts the answer as a comment
+    from whoever answered and clears the flag if the wait set it. An agent
+    cannot answer a wait it opened itself. Completing or archiving the card
+    closes it. A wait opened from a runner job parks the job, and the answer
+    sends the card to its rule again (see Runners). Prefer a wait to a bare
+    `waiting` flag: the flag has no clock, no owner and no way back.
+
+    **Waiting on you.** `GET /api/work` (MCP: the `plan-my-day` prompt;
+    CLI: `slipdock work`) answers `waiting`, oldest
+    first, each with its reason and how long it has waited — open waits on
+    you or on anyone on your cards, your cards flagged `review` or
+    `waiting`, cards the runner gave up on or whose newest job failed on
+    boards you own, and cards in a doing list for over an hour with nobody
+    on them — then `sections`, your cards by when they are due. `GET
+    /api/me` and `whoami` carry the count as `waiting_on_you`.
+
+    **A pause.** While a board tree or one of its runner pools is paused,
+    `GET` of the board and its cards, `get_board` and `list_cards` carry
+    `paused`: a list of `{scope, reason, by, line, paused_at}`. If it is
+    set, take nothing and stop; resuming is a person's (see Runners).
+
+    **A card's state**, worked out from what is already recorded and left
+    out when there is nothing to say: `state` (one line: "Waiting on Dana ·
+    41m", "Held · paused by David: bad deploy", "Running · runner-2 · 7m"),
+    `held` (why its queued job waits), `driver` (`agent` while a runner job
+    holds it, else who last moved it — runner boards only), `in_list_since`
+    and `age` (seconds in its list), `usual_stay` (the list's 85th-percentile
+    stay), `over_usual` and `stuck` (past it). The `stuck` and `driver`
+    filters read the same values.
 
     ### What comes back
 

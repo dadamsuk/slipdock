@@ -292,6 +292,7 @@ defmodule Slipdock.Automations.Runner do
                 "on. If you need something only a person can give, open a wait (`slipdock " <>
                 "wait <card> …` or update_card `wait`), say what you need, and stop: the " <>
                 "answer starts a fresh job. " <>
+                "If the board answers `paused`, finish this card and take no other. " <>
                 "Whenever you stop with the card unfinished, leave a handoff first " <>
                 "(leave_handoff, or slipdock handoff <id> --next): the one next step and a " <>
                 "short note, so whoever picks the card up next reads that before anything else."

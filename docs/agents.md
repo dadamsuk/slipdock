@@ -203,6 +203,26 @@ first, and an agent reads it before starting and leaves one (`leave_handoff`,
 `slipdock handoff <id> --next "…"`) whenever it stops short. See
 [the manual](manual.md#where-it-was-left-handoffs).
 
+When an agent needs something only a person can give, it **opens a wait**
+and stops, rather than flagging the card and hoping: `update_card` with
+`wait` (`{"needs": "…", "on": "email", "choices": […]}`), `POST
+/api/cards/:id/wait` or `slipdock wait <id> "…" [--on EMAIL] [--choice X]`.
+The wait flags the card `waiting` and asks on it; somebody answers on the
+card, in My work's **Waiting on you**, with `slipdock answer <id>` or
+`answer_wait`, and the answer is a comment on the card. An agent can't
+answer a wait it opened. `slipdock work` (`GET /api/work`) lists what is
+waiting on you, and `whoami` counts it (`waiting_on_you`). See
+[the manual](manual.md#waiting-on-a-person-waits).
+
+A board whose runner work a person has **paused** says so: `get_board`,
+`list_cards`, `slipdock board` and `slipdock cards` carry `paused` (a
+`PAUSED` line in the CLI). An agent seeing it takes nothing and stops.
+Every card also carries its `state` line, `driver`, `age` in its list and
+`stuck` (past the list's usual stay), and `list_cards` / `slipdock cards`
+filter on `stuck` and `driver`; `slipdock pulse <board>` (`get_board` with
+`pulse: true`) gives the board's flow numbers. See
+[the manual](manual.md#flow-the-pulse-a-cards-state-and-its-age).
+
 A card that repeats carries `recurrence` (its rule in words and when the next
 is made). An agent sets one only when the person asked for repeating work:
 `update_card` with `recurrence: {rule: "every mon"}`, `slipdock repeat <id>
@@ -336,7 +356,13 @@ default for that rule), then is flagged blocked and left there, so an agent
 pass never has to recover its own card. A rule with the trigger
 `job_finished` (`outcome`: done, failed, cancelled, timeout, requeued,
 gave_up) hears each job end once, with `{{job.*}}` placeholders, so alerts
-on a stalled loop come from the board rather than a hook. It takes standing instructions
+on a stalled loop come from the board rather than a hook. The board's owner
+can **pause** the tree or one pool with a reason (`slipdock pause <board>
+[--pool P] --reason "…"`; agents may pause, only a person resumes with
+`slipdock resume`), and with **WIP limits hold automated work** on
+(`slipdock set-board --automation-wip`) a full first in-progress list holds
+jobs too. A held job names one reason: paused, WIP full, a card in
+progress, or no runner online. It takes standing instructions
 and before/after hooks, written into the config or prompt it generates; for the
 site-specific part of a hook (which notifier, what to keep from a pass) it gives
 a prompt to paste into Claude Code on that machine (*Have Claude write this
@@ -351,7 +377,11 @@ connector, and `slipdock`, one added with `claude mcp add`, by default):
 without that it can't read the card or write anything back. Untick **Let it
 use the Slipdock tools** and it has no access to the board. And every job's
 prompt ends by saying nobody will answer questions: choose inputs from the
-card, say what was chosen, or comment, flag the card `waiting` and stop; and
+card, say what was chosen, or open a wait saying what it needs and stop
+(the job is **parked**, its card goes back on top of the list so the next
+one runs, and the answer sends the card to the rule again with the answer
+on top of the prompt); if the board is paused, finish the card and take no
+other; and
 to leave a handoff (`leave_handoff`) whenever it stops with the card
 unfinished. A job that ends with its card still open, and no handoff written
 during it, leaves its summary as the card's handoff. Give

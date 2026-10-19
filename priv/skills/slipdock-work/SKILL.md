@@ -66,13 +66,18 @@ whole card before touching it.
   blocked, waiting, snoozed, or assigned to someone else — `--open --deps ready
   --no-assignee` does most of that skipping for you (snoozed cards are left out
   of `slipdock cards` already) — and any stand-in
-  (`↪stand-in-for:#N`): it only marks where a card went into a sprint. When the card you land on has
+  (`↪stand-in-for:#N`): it only marks where a card went into a sprint. If the
+  board answers `PAUSED` (`paused` in the JSON), a person has held runner work
+  on it: take nothing and stop. When the card you land on has
   subcards, descend into it and work those to done before coming back up for the
   next top-level card.
 - **Updating as you go.** Move the card to in progress and assign it to yourself
   when you start; comment at every decision, surprise or dead end; flag it
-  (`blocked`, `waiting`, `review`) with a comment saying what you are waiting
-  for — or, when what it waits for has a date, snooze it instead (`slipdock
+  (`blocked`, `review`) with a comment saying what you are waiting for; when
+  only a person can give what you need, open a wait and stop (`slipdock wait
+  <id> "what you need" [--on EMAIL] [--choice X]...`, or `update_card` `wait`):
+  it flags the card `waiting`, and answering it (`slipdock answer`) gets the work
+  going again — or, when what it waits for has a date, snooze it instead (`slipdock
   snooze <id> <date> --note "…"`): it leaves the lists and comes back on the
   day, at the top of its list; on finishing, set `completed: true` **and** move it to the done list.
   Complete an epic only when its rollup shows every subcard done.
@@ -155,7 +160,13 @@ whole card before touching it.
   job-progress <job> --message "…"` (the note is a comment on the card too,
   and it renews the job's lease — never leave 20 minutes between them), stop
   if it answers `cancel`, and end with `slipdock finish-job <job> --status
-  done|failed --summary "…"` once the card is closed or handed back.
+  done|failed --summary "…"` once the card is closed or handed back. Need a
+  person? Open a wait (`slipdock wait <card> "…"`) and stop: the job is parked,
+  and the answer starts a fresh one.
+- "What is waiting on me?", "what needs me?" → `slipdock work`: waits on you,
+  review and waiting flags on your cards, runner trouble, cards in progress
+  with nobody on them, oldest first. Answer one with `slipdock answer <id>
+  "…"` (or `--choice N`) — only with the user's own answer.
 - The work produced an answer someone will want again — a decision, a runbook, a
   gotcha, the shape of a design → a wiki page on that board, named in the
   card's closing comment.

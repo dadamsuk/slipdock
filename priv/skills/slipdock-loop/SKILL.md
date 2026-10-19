@@ -225,6 +225,10 @@ slipdock claim-job <board> --pool <pool>     # or the MCP tool claim_job
   and say the Slipdock connector needs reconnecting (claude.ai → Settings →
   Connectors: a connector keeps the tool list it had when it was added) or the
   `slipdock` CLI installing.
+- **`nothing queued to take: paused by …`** — a person has paused runner work
+  on the board (or this pool), and said why. Take nothing, not even from the
+  ready list whatever the invocation says about falling back: report the
+  pause line and stop. Only a person resumes it.
 - **`unknown command`, or a 404 from the server** (one older than runners):
   say so once in the pass report and carry on as though no pool had been
   named.
@@ -240,12 +244,17 @@ with this token — note that on the card and carry on without the job.
 slipdock cards <board> --column "To Do" --open --deps ready --no-assignee --json
 ```
 
+If the answer starts with a `PAUSED` line (`paused` in the JSON), runner work
+on the board is held by a person: take nothing, report the pause line and
+stop. The same goes for a pass that fell back here from an empty job queue.
+
 **Top first, then downwards** — the order the list is in, which is the `position`
 field, not priority. The person stacked that list on purpose; priority is a
 tie-breaker at most, and only between cards sharing a position. The filters do
 the skipping for you: `--open` drops completed cards, `--deps ready` drops
 anything waiting on an unfinished card, `--no-assignee` drops other people's
-work. Also skip anything already flagged `blocked` or `waiting`, anything a
+work. Also skip anything already flagged `blocked` or `waiting` (an open wait
+on a person sets `waiting` itself), anything a
 previous pass in this session flagged `review` and handed back, and every
 stand-in (`↪stand-in-for:#N`, `stand_in_for` in the JSON): it marks where a
 card went into a sprint, and the work is that card, not the stand-in.
@@ -459,9 +468,12 @@ next pass:
   `slipdock move <id> "To Do" --bottom` and `slipdock edit <id> --no-assignee`.
 - **Needs a decision only the user can make** — ambiguous scope, a choice
   between two reasonable readings, anything that would be expensive to get
-  wrong: `slipdock flag <id> review`, a comment asking the question *specifically*
-  (the question is the deliverable; "unclear" is not), and back to the bottom of
-  the ready list, unassigned.
+  wrong: open a wait and stop. `slipdock wait <id> "the question" [--on EMAIL]
+  [--choice A --choice B]` asks it *specifically* (the question is the
+  deliverable; "unclear" is not), flags the card `waiting` and starts the
+  clock; then back to the bottom of the ready list, unassigned. In a runner
+  job the wait parks the job, and the answer sends the card again with the
+  answer on top of the prompt. Over MCP it is `update_card` `wait`.
 - **Bigger than a card.** Break it up where it stands: `slipdock check` for steps
   inside one sitting's work, subcards under it for anything larger (`slipdock
   subboard <id> --template T`, then `slipdock add N ...`). Then work the first one

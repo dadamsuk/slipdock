@@ -157,6 +157,33 @@ defmodule SlipdockWeb.HelpLive.Agents do
        {:yes, "through the CLI or MCP"},
        {:no, "one way only"}
      ]},
+    {"Wait on a person, and answer a wait",
+     [
+       {:yes, "POST /api/cards/:id/wait"},
+       {:yes, "update_card's wait, answer_wait"},
+       {:yes, "slipdock wait, slipdock answer"},
+       {:yes, "open a wait and stop"},
+       {:yes, "parks the job; the answer sends it again"},
+       {:no, "one way only"}
+     ]},
+    {"See what is waiting on you, and a board's pulse",
+     [
+       {:yes, "GET /api/work, /api/boards/:id/pulse"},
+       {:yes, "whoami, get_board's pulse"},
+       {:yes, "slipdock work, slipdock pulse"},
+       {:yes, "through the CLI or MCP"},
+       {:yes, "through the CLI or MCP"},
+       {:no, "one way only"}
+     ]},
+    {"Pause runner work, and see that it is paused",
+     [
+       {:yes, "POST /api/boards/:id/pause"},
+       {:yes, "manage_automation's pause"},
+       {:yes, "slipdock pause, slipdock resume"},
+       {:yes, "stop when paused"},
+       {:yes, "nothing is claimed while paused"},
+       {:no, "one way only"}
+     ]},
     {"Tidy a board up: see what the gardener found, apply or dismiss",
      [
        {:yes, "GET/POST /api/boards/:board/garden"},
@@ -521,14 +548,17 @@ defmodule SlipdockWeb.HelpLive.Agents do
         (<code>update_card</code>'s <code>recurrence</code>) or sleep until a day
         (its <code>snoozed_until</code>); leaving a card's handoff
         (<code>leave_handoff</code>: where it was left, which <code>get_card</code>
-        shows first); uploading and downloading the
+        shows first); opening and answering a wait on a person (<code>update_card</code>'s
+        <code>wait</code>
+        and <code>answer_wait</code>); uploading and downloading the
         files on cards and pages; lists, tags and boards;
         writing, sharing and reverting pages; listing, adding, changing and deleting a board's
         automations, for its owner; finding and installing
         <.link navigate={~p"/help/tools"} class="link">Tools</.link>
         (<code>list_tools</code>, <code>install_tool</code>); the board's tidy-up suggestions
         (<code>garden</code>, and <code>garden_decide</code>
-        for the ones the person approves); and taking runner jobs. The tools go through the same
+        for the ones the person approves); a board's pulse and whether it is paused
+        (<code>get_board</code>); and taking runner jobs. The tools go through the same
         permission checks as the API, so a connection can't do anything its token couldn't.
       </p>
       <p>
@@ -723,6 +753,15 @@ defmodule SlipdockWeb.HelpLive.Agents do
           another server.
         </li>
         <li><code>slipdock guide</code> prints the agent guide.</li>
+        <li>
+          <code>slipdock work</code>
+          lists what is waiting on you; <code>slipdock wait</code>
+          and <code>slipdock answer</code>
+          open and answer a wait on a person; <code>slipdock pulse</code>
+          gives a board's flow numbers; <code>slipdock pause</code>
+          and <code>slipdock resume</code>
+          hold and release its runner work.
+        </li>
         <li>
           The <.link patch={~p"/help/agents/skills"} class="link">skills</.link>
           use the CLI where it's installed and fall back to <code>curl</code>
@@ -922,7 +961,10 @@ defmodule SlipdockWeb.HelpLive.Agents do
       <ul class="list-disc space-y-1 pl-5">
         <li>
           Jobs run with nobody watching. Every prompt says so, and tells the agent to choose
-          from what's on the card, or to comment, flag the card <em>waiting</em> and stop.
+          from what's on the card, or to open a <strong>wait</strong>
+          saying what it needs and stop. The job is <strong>parked</strong>, the card goes back on top of its list
+          so the next one runs, and answering the wait (on the card, in My work's <strong>Waiting on you</strong>, or <code>slipdock answer</code>) sends the card to the rule again
+          with the answer at the top of the prompt.
         </li>
         <li>
           A job that ends with its card still open leaves its summary as the card's <strong>handoff</strong>, the note the next person or agent reads first, unless the agent
@@ -933,11 +975,14 @@ defmodule SlipdockWeb.HelpLive.Agents do
           a project's own commands and settings from the folder it starts in.
         </li>
         <li>
-          <strong>Pause</strong> in the Runners panel holds the whole board tree, or one pool,
+          <strong>Pause</strong>
+          in the Runners panel holds the whole board tree, or one pool,
           with a reason: nothing is taken and no list sends a card until you resume it. Agents
           can pause (<code>manage_automation</code>, <code>slipdock pause</code>) but only a
-          person can resume. Held jobs say why: paused, WIP full, waiting on a card in
-          progress, or no runner online.
+          person can resume, and an agent that sees <code>paused</code>
+          takes nothing and stops.
+          Held jobs say why: paused, WIP full (with <strong>WIP limits hold automated work</strong>
+          on in the board's settings), waiting on a card in progress, or no runner online.
         </li>
         <li>
           <strong>State line and age.</strong>

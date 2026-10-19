@@ -202,6 +202,7 @@ slipdock cards <board> [--column C] [--tag T] [--priority P] [--flag F] [--searc
 slipdock card <id>                      # full detail incl. checklist item ids and comments
 slipdock columns <board> | slipdock tags <board> | slipdock activity <board> [--limit N]
 slipdock pulse <board>                  # flow numbers: in progress, waiting, done this week, time to done, list in/out
+slipdock work [--board B] [--done]      # what is waiting on you (waits, review/waiting flags, runner trouble), then your cards
 slipdock swimlanes <board> [view options]   # grid of cards grouped on two axes (see below)
 slipdock table <board> [view options] [--group A] [--fields id,title,column,priority,flags,tags,start,due,completed,percent,time,checklist,comments,deps,subcards,created,updated]
 slipdock views <board>                      # saved swimlane views
@@ -302,6 +303,10 @@ slipdock garden apply <id>... [--keep CARD] [--choice NAME]   # apply only what 
 slipdock garden dismiss|undo <id>...     # a dismissal is remembered until its subject changes
 slipdock garden settings <board> [<check> key=value...]   # checks on/off, thresholds (days=30)
 slipdock flag <id> <flag>... [--off]     # flags: flagged blocked review waiting starred
+slipdock wait <id> "what you need" [--on EMAIL] [--choice X]...   # wait on a person: flags it waiting,
+                                       # asks on the card; in a runner job it parks the job
+slipdock wait <id> --withdraw            # withdraw the open wait (or take the waiting flag off)
+slipdock answer <id> ["text"] [--choice N]   # answer it: a comment from you; a parked job's card is sent again
 slipdock tag <id> <tag>... [--off]       # tag must already exist on the board (see new-tag)
 slipdock check <id> <text...>            # add checklist item
 slipdock tick <item-id>                  # toggle checklist item (ids from `slipdock card`)
@@ -398,6 +403,7 @@ slipdock pause <board> [--pool P] --reason "…"   # owner: hold runner work (tr
 slipdock resume <board> [--pool P]            # let exactly that pause off (refused under an agent)
 slipdock job-progress <id> [--message NOTE]   # renew the lease (20 min for a session); note → card
 slipdock finish-job <id> --status done|failed|cancelled|timeout [--summary S]
+slipdock finish-job <id> --status waiting --needs "Q" [--choice X]... [--on EMAIL]   # ask and park in one step
 
 # Tools: a board blueprint + skills + files that people on this server publish and install.
 # The server builds a Tool's board; never build one by hand from its README.
@@ -450,6 +456,12 @@ in-progress list on the board; `slipdock jobs` shows `queued (waiting: #N is in 
 To set the whole thing up, `slipdock runner new` (or **Automations →
 Connect a runner** in the UI) is better than writing the rule by hand. A job's token is shown
 once: never paste it into a card, comment or page.
+
+A board whose runner work is paused shows `PAUSED by …: reason` over `slipdock board` and
+`slipdock cards` (`paused` in the JSON), and `claim-job` answers `nothing queued to take:
+paused by …`: take nothing and stop. A held job says why in one reason (paused, `WIP full:
+In Progress 3/3` when the owner turned on `set-board --automation-wip`, `#N is in
+progress`, no runner online).
 
 Every runner job's prompt ends by saying it runs unattended (nobody answers questions). A
 Claude runner may use the Slipdock MCP tools without asking, for the servers named with
@@ -604,8 +616,9 @@ teal sky indigo violet fuchsia rose`. Multi-word titles, column names and text n
   A card still open when the next is due has its due date moved on (`--on-missed bump`) rather than
   a second made — say so if they'd rather have one per week (`--on-missed stack`).
 - "#12 can wait until after the audit on 2 Nov" / "park this till next week" → `slipdock snooze 12
-  2026-11-02 --note "after the audit"` (or `next week`). Snooze when the wait has a date; flag it
-  `waiting` when it doesn't. Never pick a snoozed card to work on — it isn't ready until it wakes.
+  2026-11-02 --note "after the audit"` (or `next week`). Snooze when the wait has a date; when
+  it waits on a person instead, open a wait (`slipdock wait 12 "…" --on EMAIL`), which flags it
+  `waiting` and says what is needed. Never pick a snoozed card to work on — it isn't ready until it wakes.
 - "What's snoozed?" → `slipdock cards 1 --snoozed only`; `slipdock wake 12` brings one back.
 - "Tidy this board up" / "what's rotting?" → `slipdock garden ops --run`, then show the user the
   suggestions and apply only the ones they say yes to (`slipdock garden apply 41 42`; a duplicate
