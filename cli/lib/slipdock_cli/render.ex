@@ -94,6 +94,16 @@ defmodule SlipdockCLI.Render do
     table(["ID", "NAME", "OWNER", "LISTS", "DESCRIPTION"], rows)
   end
 
+  @doc """
+  The brake, first, when the board's runner work is held (#1116): one line
+  per pause, so a session working without a pool sees it and stops.
+  """
+  def paused(pauses) when is_list(pauses) and pauses != [] do
+    Enum.each(pauses, fn p -> IO.puts(bold("PAUSED") <> " #{p["scope"]}: #{p["line"]}") end)
+  end
+
+  def paused(_), do: :ok
+
   def board(b) do
     IO.puts(
       bold("#{b["name"]}") <>

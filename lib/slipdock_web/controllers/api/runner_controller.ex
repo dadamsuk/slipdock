@@ -17,6 +17,9 @@ defmodule SlipdockWeb.API.RunnerController do
   handoff; both are in the prompt already, so a runner that only reads the
   body loses nothing.
 
+  An empty claim says why work is held, when it is, in `X-Held`
+  ("paused by David: bad deploy", "WIP full: In Progress 3/3").
+
   A server on its way down (see `Slipdock.Runners.ClaimDrain`) answers
   claims with a 204 and `Retry-After: 1`.
 
@@ -44,7 +47,7 @@ defmodule SlipdockWeb.API.RunnerController do
     else
       case Runners.claim(runner, wait(params["wait"]) * 1000) do
         nil ->
-          conn |> draining() |> send_resp(204, "")
+          conn |> draining() |> held(runner) |> send_resp(204, "")
 
         job ->
           conn
@@ -120,6 +123,22 @@ defmodule SlipdockWeb.API.RunnerController do
     else
       conn
     end
+  end
+
+  # Why nothing was handed out, when something holds work (#1116). Header
+  # values are one line of ASCII-safe text; a reason is a person's words.
+  defp held(conn, runner) do
+    with %Slipdock.Boards.Board{} = board <-
+           Slipdock.Repo.get(Slipdock.Boards.Board, runner.board_id),
+         %{reason: reason} <- Runners.held(board, runner.pool) do
+      put_resp_header(conn, "x-held", header_text(reason))
+    else
+      _ -> conn
+    end
+  end
+
+  defp header_text(text) do
+    text |> String.replace(~r/[\r\n]+/, " ") |> String.slice(0, 300)
   end
 
   defp wait(nil), do: @default_wait

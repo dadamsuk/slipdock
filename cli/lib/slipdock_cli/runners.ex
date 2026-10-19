@@ -10,7 +10,7 @@ defmodule SlipdockCLI.Runners do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(runner runners jobs job cancel-job claim-job job-progress finish-job)
+  @commands ~w(runner runners jobs job cancel-job claim-job job-progress finish-job pause resume)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -179,6 +179,9 @@ defmodule SlipdockCLI.Runners do
       %{"job" => nil, "waiting" => %{"job" => id, "reason" => reason}} ->
         IO.puts("nothing queued to take: job ##{id} waits while #{reason}")
 
+      %{"job" => nil, "held" => reason} ->
+        IO.puts("nothing queued to take: #{reason}")
+
       %{"job" => nil} ->
         IO.puts("nothing queued")
 
@@ -196,6 +199,21 @@ defmodule SlipdockCLI.Runners do
 
         IO.puts("\n" <> (j["prompt"] || ""))
     end)
+  end
+
+  # The brake (#1116): hold the board's tree, or one pool on it, with a
+  # reason. The owner's; resuming is a person's, so the server refuses it
+  # from a CLI running under an agent (the agent header, see HTTP).
+  def run("pause", [ref], o) do
+    reason = o[:reason] || fail("pass --reason \"…\": say why it is paused")
+
+    HTTP.post("/boards/#{enc(ref)}/pause", compact(%{"pool" => o[:pool], "reason" => reason}))
+    |> out(o, fn %{"pause" => p} -> IO.puts("#{p["scope"]} #{p["line"]}") end)
+  end
+
+  def run("resume", [ref], o) do
+    HTTP.delete("/boards/#{enc(ref)}/pause", Enum.reject([pool: o[:pool]], &is_nil(elem(&1, 1))))
+    |> out(o, fn %{"pause" => p} -> IO.puts("resumed #{p["scope"]}") end)
   end
 
   def run("job-progress", [id], o) do

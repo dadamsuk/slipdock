@@ -77,7 +77,12 @@ defmodule SlipdockCLI.Boards do
   end
 
   def run("board", [ref], o),
-    do: HTTP.get("/boards/#{enc(ref)}") |> out(o, &Render.board(&1["board"]))
+    do:
+      HTTP.get("/boards/#{enc(ref)}")
+      |> out(o, fn r ->
+        Render.paused(r["paused"])
+        Render.board(r["board"])
+      end)
 
   def run("columns", [ref], o),
     do: HTTP.get("/boards/#{enc(ref)}/columns") |> out(o, &Render.columns(&1["columns"]))
@@ -122,7 +127,10 @@ defmodule SlipdockCLI.Boards do
         end,
       snoozed: o[:snoozed]
     )
-    |> out(o, &Render.cards(&1["cards"]))
+    |> out(o, fn r ->
+      Render.paused(r["paused"])
+      Render.cards(r["cards"])
+    end)
   end
 
   def run("card", [id], o), do: HTTP.get("/cards/#{enc(id)}") |> out(o, &Render.card(&1["card"]))
@@ -817,6 +825,8 @@ defmodule SlipdockCLI.Boards do
         "simple" => o[:simple],
         # The pulse strip over the board's lists in the web app.
         "show_pulse" => o[:show_pulse],
+        # WIP limits holding runner jobs and list_top sends (#1116).
+        "automation_wip" => o[:automation_wip],
         # What opening the board shows in the web app: wiki, table, board…
         "default_view" => o[:default_view],
         "kind" =>

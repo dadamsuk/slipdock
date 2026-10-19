@@ -122,7 +122,11 @@ defmodule SlipdockWeb.API.BoardController do
 
   def show(conn, %{"board" => ref}) do
     with {:ok, board} <- fetch_board(conn, ref, :read) do
-      json(conn, %{board: V.board(Authorize.visible(conn, Boards.get_board!(board.id)))})
+      json(
+        conn,
+        %{board: V.board(Authorize.visible(conn, Boards.get_board!(board.id)))}
+        |> Map.merge(V.paused(board))
+      )
     end
   end
 
@@ -194,7 +198,7 @@ defmodule SlipdockWeb.API.BoardController do
                params,
                ~w(name code shortcut description color vote_budget vote_max
                   add_card add_page add_document page_card_features simple kind
-                  default_view show_pulse)
+                  default_view show_pulse automation_wip)
              )
            ) do
       json(conn, %{board: V.board_summary(board, conn.assigns.current_user)})

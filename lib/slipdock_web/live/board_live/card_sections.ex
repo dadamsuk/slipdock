@@ -533,6 +533,14 @@ defmodule SlipdockWeb.BoardLive.CardSections do
               stopping…
             </span>
           </div>
+          <%!-- Why a queued job isn't being taken (#1116, KTD12). --%>
+          <p
+            :if={held = Slipdock.Runners.held_reason(job)}
+            id={"card-job-held-#{job.id}"}
+            class="mt-1 text-warning"
+          >
+            Held: {held}
+          </p>
           <p :if={job.error} class="mt-1 text-error">{job.error}</p>
           <pre
             :if={tail = job_log(job)}

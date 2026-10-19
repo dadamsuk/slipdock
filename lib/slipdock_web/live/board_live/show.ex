@@ -71,7 +71,7 @@ defmodule SlipdockWeb.BoardLive.Show do
                  SnoozeEvents.read_events()
 
   # Events only the board owner may perform.
-  @owner_events ~w(swim_publish_view swim_unpublish_view)
+  @owner_events ~w(swim_publish_view swim_unpublish_view resume_pause)
 
   @known_events @owner_events ++ @board_write_events ++ @self_checked_events ++ @read_events
 
@@ -136,6 +136,8 @@ defmodule SlipdockWeb.BoardLive.Show do
       page_title: board.name,
       # The flow numbers over the lists, when the owner has turned them on.
       pulse: board_pulse(board),
+      # The tree's open runner pauses, for the banner (#1116).
+      pauses: board_pauses(board),
       # Who `@` offers in a description or a comment: the board's members.
       mention_people: SlipdockWeb.Mention.people(board),
       filters: @empty_filters,
@@ -650,6 +652,23 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   ## Events: sharing -------------------------------------------------------------
 
+  # The banner's Resume (#1116): exactly the pause it names, the whole
+  # tree's when it names no pool.
+  def handle_event("resume_pause", params, socket) do
+    %{board: board, current_user: user} = socket.assigns
+
+    case Slipdock.Runners.resume(board, params["pool"], user, Slipdock.Actor.web(user)) do
+      {:ok, pause} ->
+        {:noreply,
+         socket
+         |> assign(pauses: board_pauses(board))
+         |> put_flash(:info, "Resumed #{Slipdock.Runners.Pause.scope(pause)}.")}
+
+      {:error, message} ->
+        {:noreply, socket |> assign(pauses: board_pauses(board)) |> put_flash(:error, message)}
+    end
+  end
+
   def handle_event("share", %{"resource" => resource, "level" => _} = params, socket) do
     %{current_user: user, groups: groups} = socket.assigns
 
@@ -1135,6 +1154,7 @@ defmodule SlipdockWeb.BoardLive.Show do
             />
           </:leading>
         </.swim_toolbar>
+        <.pause_banner pauses={@pauses} can_manage={@can_manage} />
         <div class="min-h-0 flex-1">
           <.table_view
             :if={@mode == :table}
@@ -1226,6 +1246,7 @@ defmodule SlipdockWeb.BoardLive.Show do
         :if={@mode == :board and !@card_only}
         board={@board}
         pulse={@pulse}
+        pauses={@pauses}
         meetings={@meetings}
         columns={@columns}
         filters={@filters}

@@ -24,7 +24,11 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
     %{
       type: "object",
       properties: %{
-        board: %{type: "string", description: "Board id, code or name."},
+        board: %{
+          type: "string",
+          description:
+            "Board id, code or name. The answer has paused while runner work on it is held: stop."
+        },
         pulse: %{
           type: "boolean",
           description:
@@ -55,7 +59,8 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
              code: board.code,
              name: board.name,
              pulse: Slipdock.Pulse.for_board(board)
-           }},
+           }
+           |> Map.merge(SlipdockWeb.API.JSON.paused(board))},
         else: lists(auth, board)
     end
   end
@@ -83,7 +88,8 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
              cards: Enum.map(col.cards, &Tools.card_line/1)
            }
          end)
-     }}
+     }
+     |> Map.merge(SlipdockWeb.API.JSON.paused(board))}
   end
 
   defp role_of(roles, col) do

@@ -57,6 +57,12 @@ defmodule Slipdock.Boards.Board do
     # on; the numbers reach the API, MCP and the CLI either way.
     field :show_pulse, :boolean, default: false
 
+    # Whether WIP limits hold automated work (#1116, KTD11): with it on, a
+    # runner job or a list_top send whose card isn't already in progress
+    # waits while the board's first doing list is at its limit. People's
+    # drags only ever see the badge.
+    field :automation_wip, :boolean, default: false
+
     # What sort of board this is, when it is more than a board: "sprints"
     # makes every card a sprint and its subcards the sprint's work, and gives
     # the board New sprint and Add cards… (see `Slipdock.Sprints`). nil for an
@@ -343,6 +349,7 @@ defmodule Slipdock.Boards.Board do
       :page_card_features,
       :simple,
       :show_pulse,
+      :automation_wip,
       :kind,
       :default_view
     ])

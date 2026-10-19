@@ -714,6 +714,18 @@ with the tail of the log — and a Cancel button.
   takes jobs from the same queue through the MCP tools `claim_job`,
   `job_progress` and `finish_job`, or `slipdock claim-job`, so it never
   races a runner for the same card.
+- **A brake with a reason.** The board's owner can pause the whole tree, or
+  one pool, from the Runners panel, `slipdock pause <board> [--pool P]
+  --reason "…"`, `POST /api/boards/:board/pause` or MCP `manage_automation`
+  `pause`. Nothing is claimed and no list sends a card until a person
+  resumes it (agents can pause but not resume); every board in the tree
+  shows a banner, and `get_board`/`list_cards` carry `paused`.
+- **Held work says why.** A queued job, an empty claim and the card's jobs
+  name one reason: paused (by whom, why), WIP full, waiting on a card in
+  progress, or no runner online for its pool. With *WIP limits hold
+  automated work* on in the board's settings (`automation_wip`), a full
+  first in-progress list holds jobs and list sends for cards not already in
+  progress; people can still drag cards in.
 
 Set one up on the board under **Automations → Connect a runner**: pick a
 Linux or macOS machine (a POSIX `sh` + `curl` runner, as a systemd or launchd

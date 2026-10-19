@@ -37,6 +37,7 @@ defmodule SlipdockWeb.API.JSON do
       simple: b.simple,
       page_card_features: b.page_card_features,
       show_pulse: b.show_pulse,
+      automation_wip: b.automation_wip,
       default_view: Board.home_view(b),
       owner: owner_ref(b),
       shared: shared?(b, viewer),
@@ -104,6 +105,7 @@ defmodule SlipdockWeb.API.JSON do
       # Whether the board page shows its pulse strip; `GET .../pulse` has
       # the numbers on any board.
       show_pulse: b.show_pulse,
+      automation_wip: b.automation_wip,
       columns:
         Enum.map(b.columns, fn col ->
           col
@@ -1026,6 +1028,34 @@ defmodule SlipdockWeb.API.JSON do
     }
   end
 
+  @doc """
+  `%{paused: [pause, ...]}` while `board`'s tree or a pool on it is paused
+  (#1116), else `%{}`: merged into get_board, list_cards and the board and
+  cards answers, so an agent with no pool still sees the brake.
+  """
+  def paused(%Board{} = board) do
+    case Slipdock.Runners.pauses(board) do
+      [] -> %{}
+      pauses -> %{paused: Enum.map(pauses, &pause/1)}
+    end
+  end
+
+  def pause(nil), do: nil
+
+  def pause(%Slipdock.Runners.Pause{} = p) do
+    %{
+      id: p.id,
+      board_id: p.root_board_id,
+      pool: p.pool,
+      scope: Slipdock.Runners.Pause.scope(p),
+      reason: p.reason,
+      by: Slipdock.Runners.Pause.who(p),
+      line: Slipdock.Runners.Pause.line(p),
+      paused_at: p.inserted_at,
+      resumed_at: p.resumed_at
+    }
+  end
+
   def job(%Slipdock.Runners.Job{} = j) do
     %{
       id: j.id,
@@ -1043,7 +1073,9 @@ defmodule SlipdockWeb.API.JSON do
       attempts: j.attempts,
       wait_while_doing: j.wait_while_doing,
       recovery: j.recovery,
-      waiting_on: Slipdock.Runners.waiting_reason(j),
+      # Why a queued job isn't being taken (#1116): paused, WIP full,
+      # waiting on a card in progress, or no runner online for its pool.
+      waiting_on: Slipdock.Runners.held_reason(j),
       cancel_requested: not is_nil(j.cancel_requested_at),
       exit_code: j.exit_code,
       error: j.error,

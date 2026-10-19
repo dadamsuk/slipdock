@@ -23,9 +23,11 @@ defmodule SlipdockWeb.API.CardController do
          {:ok, params} <- check_column(board, params) do
       params = resolve_me(params, conn.assigns.current_user)
 
-      json(conn, %{
-        cards: Enum.map(Authorize.visible(conn, Boards.list_cards(board, params)), &V.card/1)
-      })
+      json(
+        conn,
+        %{cards: Enum.map(Authorize.visible(conn, Boards.list_cards(board, params)), &V.card/1)}
+        |> Map.merge(V.paused(board))
+      )
     end
   end
 

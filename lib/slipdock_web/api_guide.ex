@@ -1835,6 +1835,30 @@ defmodule SlipdockWeb.APIGuide do
     /api/jobs/:id/cancel`. A queued job is cancelled at once; a running one
     is asked to stop, and its runner hears so on its next heartbeat.
 
+    **Pausing.** The board's owner can hold its tree's runner work, or one
+    pool's, with a reason: `POST /api/boards/:board/pause` with `reason`
+    (required) and `pool` (none: the whole tree), MCP `manage_automation`
+    `pause`, `slipdock pause <board> [--pool P] --reason "…"`. It is kept on
+    the root, so it holds every board in the tree. While paused no job is
+    claimed and no list_top rule sends a card; jobs still queue, and running
+    ones finish. `get_board`, `list_cards` and `GET` of the board and its
+    cards carry `paused` while it lasts: an agent seeing it stops. Resuming
+    (`DELETE /api/boards/:board/pause[?pool=P]`, `slipdock resume`) is a
+    person's, in the app or the CLI outside an agent; over MCP or with the
+    agent header it is refused. It lets off exactly that scope and wakes
+    every waiting runner and rule at once.
+
+    **Held work says why.** An empty claim answers with `held` (the
+    runner protocol: an `X-Held` header), and a queued job's `waiting_on`
+    says the same, one reason in this order: `paused by David: bad deploy`,
+    `WIP full: In Progress 3/3`, `#123 is in progress`, `No runner online
+    for pool dev` (none seen in three leases; never told to a runner that
+    is asking). WIP full applies when the owner turns on `automation_wip`
+    (settings, `PATCH /api/boards/:board`, `slipdock set-board
+    --automation-wip`): while the first in-progress list is at its WIP
+    limit, jobs and list_top sends for cards not already in progress wait.
+    People can still drag cards in.
+
     **Connecting one** is easiest with the wizard, which the board's
     Automations panel shows as *Connect a runner*: `POST
     /api/boards/:board/runners/setup` with `scenario` (`server`, `windows`,
@@ -1899,8 +1923,9 @@ defmodule SlipdockWeb.APIGuide do
     replace it, unless given `--replace`.
 
     `slipdock runner ls|new|rm`, `slipdock jobs`, `slipdock job`,
-    `slipdock cancel-job`, `slipdock claim-job`, `slipdock job-progress` and
-    `slipdock finish-job` are the same on a shell.
+    `slipdock cancel-job`, `slipdock claim-job`, `slipdock job-progress`,
+    `slipdock finish-job`, `slipdock pause` and `slipdock resume` are the
+    same on a shell.
     """
   end
 

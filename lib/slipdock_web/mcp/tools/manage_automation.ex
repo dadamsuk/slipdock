@@ -13,7 +13,7 @@ defmodule SlipdockWeb.MCP.Tools.ManageAutomation do
   alias SlipdockWeb.API.JSON, as: V
   alias SlipdockWeb.MCP.Args
 
-  @actions ~w(create update delete)
+  @actions ~w(create update delete pause resume)
 
   @impl true
   def name, do: "manage_automation"
@@ -29,7 +29,7 @@ defmodule SlipdockWeb.MCP.Tools.ManageAutomation do
         "(a sentence the server's model turns into a spec; needs an AI key); name and scope " <>
         "optional. update a rule (rule: id or name) with any of name, scope, enabled, spec, or " <>
         "text to rewrite it. delete one (rule, confirm: true); update enabled: false turns " <>
-        "it off instead."
+        "it off instead. pause holds runner work with a reason (a pool, or the whole tree)."
 
   @impl true
   def input_schema do
@@ -53,7 +53,16 @@ defmodule SlipdockWeb.MCP.Tools.ManageAutomation do
           description: "board: its own cards (default); tree: sub-boards' cards too."
         },
         enabled: %{type: "boolean"},
-        confirm: %{type: "boolean", description: "Must be true to delete a rule."}
+        confirm: %{type: "boolean", description: "Must be true to delete a rule."},
+        pool: %{
+          type: "string",
+          description:
+            "pause: hold one runner pool's jobs and list_top sends; without it, the whole tree."
+        },
+        reason: %{
+          type: "string",
+          description: "pause: why (required). Only a person can resume, in the app or the CLI."
+        }
       },
       required: ["action", "board"],
       additionalProperties: false
@@ -72,9 +81,36 @@ defmodule SlipdockWeb.MCP.Tools.ManageAutomation do
          :ok <- known(action),
          {:ok, ref} <- Args.required(args, "board"),
          {:ok, board} <- owned_board(ref, context) do
-      act(action, board, args, user)
+      act(action, board, args, user, context)
     end
   end
+
+  defp act("pause", board, args, user, context) do
+    with {:ok, pool} <- Args.optional(args, "pool"),
+         {:ok, reason} <- Args.required(args, "reason"),
+         {:ok, pause} <-
+           Args.refusal(
+             Slipdock.Runners.pause(
+               board,
+               %{"pool" => pool, "reason" => reason},
+               user,
+               Slipdock.Actor.mcp(context)
+             )
+           ) do
+      {:ok, %{pause: V.pause(pause)}}
+    end
+  end
+
+  # Refused: an agent may pull the brake but not let it off (#1116).
+  defp act("resume", board, args, user, context) do
+    with {:ok, pool} <- Args.optional(args, "pool"),
+         {:ok, pause} <-
+           Args.refusal(Slipdock.Runners.resume(board, pool, user, Slipdock.Actor.mcp(context))) do
+      {:ok, %{pause: V.pause(pause)}}
+    end
+  end
+
+  defp act(action, board, args, user, _context), do: act(action, board, args, user)
 
   defp known(action) when action in @actions, do: :ok
   defp known(_), do: {:error, "action must be one of #{Enum.join(@actions, ", ")}"}
