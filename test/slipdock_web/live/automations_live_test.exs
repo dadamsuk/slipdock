@@ -45,7 +45,9 @@ defmodule SlipdockWeb.AutomationsLiveTest do
     test "opens from the board menu and describes what rules are for", %{conn: conn, board: board} do
       {:ok, view, _html} = live(conn, ~p"/boards/#{board}")
 
-      assert view |> element("header a[href*='/automations']") |> render_click() =~ "Automations"
+      assert view |> element("#board-actions a[href*='/automations']") |> render_click() =~
+               "Automations"
+
       assert has_element?(view, "#automations-modal", "describe what should happen")
       assert has_element?(view, "#automations-modal", "No rules yet.")
     end

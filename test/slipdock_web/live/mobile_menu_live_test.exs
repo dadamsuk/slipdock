@@ -57,8 +57,8 @@ defmodule SlipdockWeb.MobileMenuLiveTest do
       {:ok, view, _} = live(phone(conn), ~p"/boards/#{board}")
 
       assert has_element?(view, "header #account-menu.hidden.sm\\:block")
-      assert has_element?(view, "header #board-chat.hidden.sm\\:inline-flex")
-      assert has_element?(view, "#subheader .dropdown.hidden.sm\\:block #board-share")
+      assert has_element?(view, "#board-actions #board-chat.hidden.sm\\:inline-flex")
+      assert has_element?(view, "#board-actions .dropdown.hidden.sm\\:block #board-share")
     end
   end
 

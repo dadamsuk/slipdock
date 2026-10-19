@@ -50,11 +50,11 @@ defmodule SlipdockWeb.AccountMenuLiveTest do
       refute has_element?(view, "#topbar > div.order-5 > div.sm\\:border-r")
     end
 
-    test "a board's buttons are ruled off from the app's on one row", %{conn: conn} do
+    test "a board page's own buttons are ruled off from the app's on one row", %{conn: conn} do
       board = board_fixture(%{"name" => "Ruled off"})
-      {:ok, view, _} = live(conn, ~p"/boards/#{board}")
+      {:ok, view, _} = live(conn, ~p"/boards/#{board}/wiki")
 
-      assert has_element?(view, "#subheader > div.order-4.lg\\:border-r")
+      assert has_element?(view, "#subheader > div.order-4.lg\\:border-r", "New page")
     end
 
     test "the bell carries no count until there is something to read", %{
@@ -236,7 +236,7 @@ defmodule SlipdockWeb.AccountMenuLiveTest do
       board: board
     } do
       {:ok, view, _} = live(conn, ~p"/boards/#{board}")
-      html = view |> element("#subheader .dropdown ul") |> render()
+      html = view |> element("#board-actions .dropdown ul") |> render()
 
       order =
         Enum.map(
@@ -254,8 +254,8 @@ defmodule SlipdockWeb.AccountMenuLiveTest do
 
       assert order == Enum.sort(order)
       # A rule above Tags and above Activity: three groups.
-      assert view |> element("#subheader .dropdown li.border-t", "Tags") |> has_element?()
-      assert view |> element("#subheader .dropdown li.border-t", "Activity") |> has_element?()
+      assert view |> element("#board-actions .dropdown li.border-t", "Tags") |> has_element?()
+      assert view |> element("#board-actions .dropdown li.border-t", "Activity") |> has_element?()
       assert length(Regex.scan(~r/class="mt-1 border-t/, html)) == 2
     end
 

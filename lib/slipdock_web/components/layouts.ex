@@ -247,7 +247,10 @@ defmodule SlipdockWeb.Layouts do
           <div class="order-3 flex min-w-0 flex-1 items-center gap-2">
             {render_slot(@subnav)}
           </div>
-          <div class="order-4 flex shrink-0 items-center gap-1 lg:border-r lg:border-base-300 lg:pr-2">
+          <div
+            :if={@subactions != []}
+            class="order-4 flex shrink-0 items-center gap-1 lg:border-r lg:border-base-300 lg:pr-2"
+          >
             {render_slot(@subactions)}
           </div>
         </div>

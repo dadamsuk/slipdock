@@ -1,6 +1,6 @@
 defmodule SlipdockWeb.BoardLive.BoardView do
   @moduledoc """
-  The board LiveView's own markup: the board's header row (breadcrumb and actions), the
+  The board LiveView's own markup: the board's header row (its breadcrumb) and buttons, the
   board view itself (its lists, their cards, adding to them), its toolbar,
   and the strip that says where the keyboard is. The other views have
   components of their own; the panels over them are LiveComponents.
@@ -129,80 +129,84 @@ defmodule SlipdockWeb.BoardLive.BoardView do
     default: nil,
     doc: "where the menu's Capture a meeting goes, if anywhere"
 
-  @doc "The board's header buttons: sprints, the chat and the board's menu, sharing among it."
+  @doc "The board's own buttons, at the end of its toolbar: sprints, the chat and the board's menu, sharing among it."
   def board_actions(assigns) do
     ~H"""
-    <button
-      :if={@can_write and !@card_only and Board.sprints?(@board)}
-      id="new-sprint"
-      type="button"
-      class="btn btn-primary btn-sm gap-1.5"
-      phx-click="open_new_sprint"
-      phx-target="#board-sprints"
-      title="Start the next sprint: a dated card with a board of its own"
-    >
-      <.icon name="hero-rocket-launch" class="size-4" />
-      <span class="hidden sm:inline">New sprint</span>
-    </button>
-    <button
-      :if={!@card_only and (Board.sprints?(@board) or @sprint_of)}
-      id="sprint-charts"
-      type="button"
-      class="btn btn-ghost btn-sm gap-1.5"
-      phx-click="open_sprint_charts"
-      phx-target="#board-sprints"
-      title={
-        if Board.sprints?(@board),
-          do: "Velocity across the sprints, and a sprint's burndown",
-          else: "This sprint's burndown"
-      }
-    >
-      <.icon name="hero-chart-bar" class="size-4" />
-      <span class="hidden lg:inline">Charts</span>
-    </button>
-    <button
-      :if={@can_write and !@card_only and @sprint_of}
-      id="sprint-add-cards"
-      type="button"
-      class="btn btn-primary btn-sm gap-1.5"
-      phx-click="open_sprint_picker"
-      phx-target="#board-sprints"
-      phx-value-id={@sprint_of.id}
-      title={"Pick cards from your boards to add to #{@sprint_of.title}"}
-    >
-      <.icon name="hero-queue-list" class="size-4" />
-      <span class="hidden sm:inline">Add cards…</span>
-    </button>
-    <button
-      :if={@ai? and !@card_only}
-      type="button"
-      id="board-chat"
-      class="btn btn-ghost btn-sm btn-square hidden sm:inline-flex"
-      title="Chat about this page with AI"
-      aria-label="Chat about this page with AI"
-      phx-click="toggle"
-      phx-target="#page-ai"
-    >
-      <.icon name="hero-chat-bubble-left-ellipsis" class="size-4" />
-    </button>
-    <%!-- On a phone this and the chat are the floating navigation's Menu
-          (board_menu/1), leaving the header the room for the board's name. --%>
-    <div :if={!@view_only and !@card_only} class="dropdown dropdown-end hidden sm:block">
-      <div tabindex="0" role="button" class="btn btn-ghost btn-sm btn-square" title="More">
-        <.icon name="hero-ellipsis-horizontal" class="size-4" />
-      </div>
-      <ul
-        tabindex="0"
-        class="menu dropdown-content z-40 mt-2 w-52 rounded-box bg-base-100 p-1 text-sm shadow-lg ring-1 ring-base-content/10"
+    <%!-- A box of its own that gives way to the toolbar's row, so tests and
+          the phone's rules can find the board's buttons wherever they sit. --%>
+    <div id="board-actions" class="contents">
+      <button
+        :if={@can_write and !@card_only and Board.sprints?(@board)}
+        id="new-sprint"
+        type="button"
+        class="btn btn-primary btn-sm gap-1.5"
+        phx-click="open_new_sprint"
+        phx-target="#board-sprints"
+        title="Start the next sprint: a dated card with a board of its own"
       >
-        <.board_menu_items
-          share_id="board-share"
-          paths={@paths}
-          can_manage={@can_manage}
-          rules={@rules}
-          meetings_path={@meetings_path}
-        />
-      </ul>
+        <.icon name="hero-rocket-launch" class="size-4" />
+        <span class="hidden sm:inline">New sprint</span>
+      </button>
+      <button
+        :if={!@card_only and (Board.sprints?(@board) or @sprint_of)}
+        id="sprint-charts"
+        type="button"
+        class="btn btn-ghost btn-sm gap-1.5"
+        phx-click="open_sprint_charts"
+        phx-target="#board-sprints"
+        title={
+          if Board.sprints?(@board),
+            do: "Velocity across the sprints, and a sprint's burndown",
+            else: "This sprint's burndown"
+        }
+      >
+        <.icon name="hero-chart-bar" class="size-4" />
+        <span class="hidden lg:inline">Charts</span>
+      </button>
+      <button
+        :if={@can_write and !@card_only and @sprint_of}
+        id="sprint-add-cards"
+        type="button"
+        class="btn btn-primary btn-sm gap-1.5"
+        phx-click="open_sprint_picker"
+        phx-target="#board-sprints"
+        phx-value-id={@sprint_of.id}
+        title={"Pick cards from your boards to add to #{@sprint_of.title}"}
+      >
+        <.icon name="hero-queue-list" class="size-4" />
+        <span class="hidden sm:inline">Add cards…</span>
+      </button>
+      <button
+        :if={@ai? and !@card_only}
+        type="button"
+        id="board-chat"
+        class="btn btn-ghost btn-sm btn-square hidden sm:inline-flex"
+        title="Chat about this page with AI"
+        aria-label="Chat about this page with AI"
+        phx-click="toggle"
+        phx-target="#page-ai"
+      >
+        <.icon name="hero-chat-bubble-left-ellipsis" class="size-4" />
+      </button>
+      <%!-- On a phone this and the chat are the floating navigation's Menu
+            (board_menu/1), leaving the toolbar the room for the view's own. --%>
+      <div :if={!@view_only and !@card_only} class="dropdown dropdown-end hidden sm:block">
+        <div tabindex="0" role="button" class="btn btn-ghost btn-sm btn-square" title="More">
+          <.icon name="hero-ellipsis-horizontal" class="size-4" />
+        </div>
+        <ul
+          tabindex="0"
+          class="menu dropdown-content z-40 mt-2 w-52 rounded-box bg-base-100 p-1 text-sm shadow-lg ring-1 ring-base-content/10"
+        >
+          <.board_menu_items
+            share_id="board-share"
+            paths={@paths}
+            can_manage={@can_manage}
+            rules={@rules}
+            meetings_path={@meetings_path}
+          />
+        </ul>
+      </div>
     </div>
     """
   end
@@ -244,7 +248,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :rules, :list, required: true
   attr :meetings_path, :string, default: nil
 
-  # The board's own menu, wherever it is drawn: the header's `…` or the
+  # The board's own menu, wherever it is drawn: the toolbar's `…` or the
   # phone's Menu, each with its own id on the share link. Three groups:
   # what you do with the board, how it is set up, and what it has done.
   defp board_menu_items(assigns) do
@@ -329,6 +333,8 @@ defmodule SlipdockWeb.BoardLive.BoardView do
     default: MapSet.new(),
     doc: "the ids of the cards picked out in select mode"
 
+  slot :toolbar_actions, doc: "the board's own buttons, at the toolbar's end right of Views"
+
   @doc "The board view: its toolbar, then the lists side by side."
   def kanban(assigns) do
     ~H"""
@@ -351,7 +357,9 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         share_key={@share_key}
         marks={@favourites}
         select_mode={@select_mode}
-      />
+      >
+        {render_slot(@toolbar_actions)}
+      </.board_toolbar>
       <.pause_banner pauses={@pauses} can_manage={@can_manage} />
       <%!-- The board's pulse in plain words (#1113): only when the owner
             turned it on in settings (`show_pulse`). --%>
@@ -1132,6 +1140,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :marks, :any, default: nil, doc: "the reader's favourites (`Slipdock.Favourites.marks/1`)"
   attr :meetings, :atom, default: :none
   attr :select_mode, :boolean, default: false
+  slot :inner_block, doc: "the board's own buttons, last, right of Views"
 
   # Board view's toolbar: the view switcher, search, filters, display options,
   # saved views and the count, laid out like `swim_toolbar/1` so nothing
@@ -1212,6 +1221,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
           form_key={@form_key}
           favourites={@marks}
         />
+        {render_slot(@inner_block)}
       </div>
     </div>
     """
