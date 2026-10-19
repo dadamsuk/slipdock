@@ -17,7 +17,7 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
     do:
       "A board's lists in order with a summary of each card, description included. " <>
         "Board is an id, code or name. Use get_card for a card's comments and checklist. " <>
-        "pulse: true gives the board's flow numbers instead of its lists."
+        "pulse: true gives its flow numbers instead; dora: true its delivery (DORA) numbers."
 
   @impl true
   def input_schema do
@@ -35,7 +35,20 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
             "The flow numbers instead of the lists: in progress, waiting, done in 7 days " <>
               "and today, P50/P85 seconds to done, moves in 24h forward and back, each " <>
               "list's in/out over 7 days and usual stay."
-        }
+        },
+        dora: %{
+          type: "boolean",
+          description:
+            "The DORA numbers instead of the lists, from the board's recorded deploys: " <>
+              "deployment frequency, lead time P50/P85, change failure rate, time to restore " <>
+              "P50/P85, rework rate and idea to production, each with its band and the window " <>
+              "before. Says so when the board's delivery metrics are off."
+        },
+        environment: %{
+          type: "string",
+          description: "With dora: the environment (production unless given)."
+        },
+        days: %{type: "integer", description: "With dora: the window in days (30 unless given)."}
       },
       required: ["board"],
       additionalProperties: false
@@ -51,8 +64,14 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
 
     with {:ok, ref} <- Args.required(args, "board"),
          {:ok, board} <- Args.refusal(Authorize.fetch_board(auth, ref, :read)) do
-      if args["pulse"] in [true, "true"],
-        do:
+      cond do
+        args["dora"] in [true, "true"] ->
+          {:ok,
+           board
+           |> SlipdockWeb.API.JSON.dora(args["environment"], args["days"])
+           |> Map.merge(%{name: board.name})}
+
+        args["pulse"] in [true, "true"] ->
           {:ok,
            %{
              id: board.id,
@@ -60,8 +79,11 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
              name: board.name,
              pulse: Slipdock.Pulse.for_board(board)
            }
-           |> Map.merge(SlipdockWeb.API.JSON.paused(board))},
-        else: lists(auth, board)
+           |> Map.merge(SlipdockWeb.API.JSON.paused(board))}
+
+        true ->
+          lists(auth, board)
+      end
     end
   end
 

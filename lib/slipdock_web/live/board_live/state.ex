@@ -268,6 +268,11 @@ defmodule SlipdockWeb.BoardLive.State do
     |> assign(board: board, page_title: board.name, ancestry: Boards.ancestry(board))
     |> assign(meetings: Slipdock.Meetings.presence(socket.assigns.current_user, board))
     |> assign(pulse: board_pulse(board), pauses: board_pauses(board))
+    # Deploys move the delivery strip themselves; a reload only follows
+    # the switch.
+    |> assign(
+      dora: (board.delivery_metrics && (socket.assigns[:dora] || board_dora(board))) || nil
+    )
     |> assign_columns()
     |> assign_access()
   end
@@ -294,6 +299,16 @@ defmodule SlipdockWeb.BoardLive.State do
   @doc "The board's pulse for its strip (#1113), worked out only when the strip is on."
   def board_pulse(%{show_pulse: true} = board), do: Slipdock.Pulse.for_board(board)
   def board_pulse(_board), do: nil
+
+  @doc "The board's delivery numbers for its strip (#1134), only while its delivery metrics are on."
+  def board_dora(%{delivery_metrics: true} = board) do
+    case Slipdock.Dora.for_board(board) do
+      {:ok, report} -> report
+      {:error, :off} -> nil
+    end
+  end
+
+  def board_dora(_board), do: nil
 
   # Whatever the drag or the menu named: a card, or a wiki page placed on the
   # board. `page-7` is a page; a bare number is a card.

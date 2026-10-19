@@ -206,6 +206,15 @@ defmodule SlipdockWeb.API.BoardController do
     end
   end
 
+  # The board's delivery performance (#1134, `Slipdock.Dora`) for one
+  # environment over `days`. While the board's delivery metrics are off it
+  # says so, with how to turn them on, rather than showing empty numbers.
+  def dora(conn, %{"board" => ref} = params) do
+    with {:ok, board} <- fetch_board(conn, ref, :read) do
+      json(conn, V.dora(board, params["environment"], params["days"]))
+    end
+  end
+
   # The board's deploy token (#1134): issued (or replaced) and shown this
   # once, or revoked. The owner's alone, like the board's settings.
   def deploy_token(conn, %{"board" => ref}) do
