@@ -1,7 +1,7 @@
 {
   "name": "job-search",
   "title": "Job Search",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "summary": "A job search on a Slipdock board: a daily scan scores postings against your own criteria and analyses the gaps, and documents are built when you ask.",
   "author": "Slipdock",
   "requires": {

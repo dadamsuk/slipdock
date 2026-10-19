@@ -176,7 +176,14 @@ defmodule Slipdock.JobSearchPackageTest do
     assert scan =~ "**Not asking questions.**"
     assert generate =~ "open **one** wait"
     assert generate =~ "`finish_job` with outcome `waiting`"
+    assert generate =~ "Keep `needs` under\n**1,000 characters**"
     assert generate =~ "claim_job` with the board and pool `generate`"
+
+    # Ledger rows are added by rewriting the section: append_section puts a blank
+    # line before what it adds, which cuts a table row off from its table.
+    assert scan =~ "in `replace_section` mode, section `Postings`"
+    refute scan =~ ~r/Append rows with `write_page` in `append_section`/
+    assert generate =~ "`write_page` in `append` mode with a body\nthat starts `## Talking points"
 
     # Files move by single-use link, never as base64 through the conversation.
     assert generate =~ "`download_file` with `link: true`"
