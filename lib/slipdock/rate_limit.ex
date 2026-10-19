@@ -51,6 +51,40 @@ defmodule Slipdock.RateLimit do
   end
 
   @doc """
+  Allows one use of `key`, then refuses until `gap_ms` have passed since it:
+  `:ok`, or `{:error, seconds}` with how long is left.
+
+  For "at most once a minute" where `hit/3` won't do: a fixed window lets two
+  uses through milliseconds apart, either side of the window's edge. `now` is
+  there for tests.
+  """
+  @spec cooldown(String.t(), pos_integer(), integer()) :: :ok | {:error, pos_integer()}
+  def cooldown(key, gap_ms, now \\ System.system_time(:millisecond)) do
+    if enabled?() do
+      k = {key, :cooldown}
+      # Same row shape as `hit/3`'s, so the sweep drops it once the gap is over.
+      row = {k, 1, now + gap_ms}
+
+      case :ets.lookup(@table, k) do
+        [] ->
+          if :ets.insert_new(@table, row), do: :ok, else: cooldown(key, gap_ms, now)
+
+        [{_, _, until}] when until <= now ->
+          # Only the caller that swaps out this exact row gets the use.
+          case :ets.select_replace(@table, [{{k, :_, until}, [], [{:const, row}]}]) do
+            1 -> :ok
+            0 -> cooldown(key, gap_ms, now)
+          end
+
+        [{_, _, until}] ->
+          {:error, div(until - now + 999, 1000)}
+      end
+    else
+      :ok
+    end
+  end
+
+  @doc """
   How many uses of `key` are left in the current window, without recording
   one. For telling someone where they stand, not for deciding.
   """
