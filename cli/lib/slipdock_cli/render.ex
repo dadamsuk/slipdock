@@ -408,6 +408,42 @@ defmodule SlipdockCLI.Render do
     "#{who} · #{String.slice(to_string(h["at"]), 0, 16)} · #{h["via"]}#{job}"
   end
 
+  @doc "A wait in a line: on whom, what it needs, and the choices."
+  def wait_line(w) do
+    choices =
+      case w["choices"] || [] do
+        [] ->
+          ""
+
+        list ->
+          "  " <>
+            dim(list |> Enum.with_index(1) |> Enum.map_join("  ", fn {c, n} -> "#{n}. #{c}" end))
+      end
+
+    "waits on #{person(w["on"]) || "anyone"}: #{w["needs"]}" <> choices
+  end
+
+  @doc "What a wait was answered with: the choice's text, then the words."
+  def wait_answer(w) do
+    [w["choice_text"], w["answer"]] |> Enum.reject(&is_nil/1) |> Enum.join(" — ")
+  end
+
+  defp person(nil), do: nil
+  defp person(p), do: p["name"] || p["email"]
+
+  # A card's open wait, beside its handoff: what it is held on.
+  defp wait_fields(w) do
+    by = person(w["opened_by"]) || "someone"
+    kind = if w["kind"] == "agent", do: " (agent)", else: ""
+    job = if w["job_id"], do: " · job ##{w["job_id"]}", else: ""
+
+    field(
+      "Waiting",
+      bold(wait_line(w)) <>
+        "  " <> dim("#{by}#{kind} · #{String.slice(to_string(w["opened_at"]), 0, 16)}#{job}")
+    )
+  end
+
   @doc "`slipdock handoff <id>`: the current handoff, then every write before it."
   def handoff_history(%{"card" => id, "handoff" => current, "history" => history}) do
     case current do
@@ -436,6 +472,7 @@ defmodule SlipdockCLI.Render do
     )
 
     if h = c["handoff"], do: handoff_fields(h)
+    if w = c["wait"], do: wait_fields(w)
 
     field("Priority", c["priority"])
     field("Flags", if(c["flags"] == [], do: "-", else: Enum.join(c["flags"], ", ")))

@@ -18,7 +18,7 @@ defmodule SlipdockWeb.MCP.Tools.GetCard do
     do:
       "A card in full: its handoff (where it was left: read it first, before the comments), " <>
         "description (the brief), checklist, comments (often where the real constraint is), " <>
-        "dependencies, subcards, wiki pages about it, and recurrence if it repeats."
+        "dependencies, subcards, wiki pages, recurrence and wait (on a person)."
 
   @impl true
   def input_schema do
@@ -47,6 +47,8 @@ defmodule SlipdockWeb.MCP.Tools.GetCard do
        |> Authorize.visible(card)
        |> V.card()
        |> Map.put(:docs, docs)
+       |> Map.put(:wait, V.wait(Boards.current_wait(card)))
+       |> Map.put(:last_wait, V.wait(Boards.last_wait(card)))
        |> Map.put(:url, url(card, context.base_url))}
     end
   end

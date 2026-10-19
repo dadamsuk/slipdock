@@ -76,6 +76,7 @@ defmodule SlipdockCLI.Util do
 
   def compact(map), do: map |> Enum.reject(fn {_, v} -> is_nil(v) end) |> Map.new()
   def nonempty([]), do: nil
+  def nonempty(""), do: nil
   def nonempty(list), do: list
 
   def fail(msg) do

@@ -79,7 +79,15 @@ defmodule SlipdockWeb.API.CardController do
           }
         )
 
-      json(conn, %{card: Map.put(V.card(Authorize.visible(conn, card)), :docs, docs)})
+      json(conn, %{
+        card:
+          conn
+          |> Authorize.visible(card)
+          |> V.card()
+          |> Map.put(:docs, docs)
+          |> Map.put(:wait, V.wait(Boards.current_wait(card)))
+          |> Map.put(:last_wait, V.wait(Boards.last_wait(card)))
+      })
     end
   end
 
@@ -443,6 +451,33 @@ defmodule SlipdockWeb.API.CardController do
          {:ok, handoff} <-
            CardWrites.write_handoff(card, conn.assigns.current_user, params, via) do
       conn |> put_status(:created) |> json(%{card: card.id, handoff: V.handoff(handoff)})
+    end
+  end
+
+  @doc """
+  Opens a wait on the card (#1114): `needs` (required), `on` (a person, or
+  nothing for anyone), `choices` and `job_id`. Needs write on the card.
+  """
+  def open_wait(conn, %{"id" => id} = params) do
+    with {:ok, card} <- fetch_card(id),
+         {:ok, wait} <- CardWrites.open_wait(conn, card, params) do
+      conn |> put_status(:created) |> json(%{card: card.id, wait: V.wait(wait)})
+    end
+  end
+
+  @doc "Answers the card's open wait: `answer`, `choice` (from 1), or both."
+  def answer_wait(conn, %{"id" => id} = params) do
+    with {:ok, card} <- fetch_card(id),
+         {:ok, wait} <- CardWrites.answer_wait(conn, card, params) do
+      json(conn, %{card: card.id, wait: V.wait(wait)})
+    end
+  end
+
+  @doc "Withdraws the card's open wait."
+  def withdraw_wait(conn, %{"id" => id}) do
+    with {:ok, card} <- fetch_card(id),
+         {:ok, wait} <- CardWrites.withdraw_wait(conn, card) do
+      json(conn, %{card: card.id, wait: V.wait(wait)})
     end
   end
 

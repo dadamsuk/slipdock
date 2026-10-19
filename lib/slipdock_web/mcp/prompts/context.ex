@@ -240,6 +240,27 @@ defmodule SlipdockWeb.MCP.Prompts.Context do
     end
   end
 
+  @doc """
+  A card's open wait, as an agent should read it before working the card:
+  what it needs, from whom, since when, and the choices. nil when none.
+  """
+  def wait_text(%Card{} = card) do
+    case Boards.current_wait(card) do
+      nil ->
+        nil
+
+      w ->
+        choices =
+          w.choices
+          |> Enum.with_index(1)
+          |> Enum.map_join("", fn {text, n} -> "\n#{n}. #{text}" end)
+
+        "Waiting on #{Slipdock.Boards.Wait.on_name(w)}: #{w.needs}#{choices}\n" <>
+          "(since #{Calendar.strftime(w.inserted_at, "%Y-%m-%d %H:%M")} UTC: don't work " <>
+          "around it; the answer comes as a comment)"
+    end
+  end
+
   @doc "`text` cut to `max` characters, with an ellipsis when it was cut."
   def clip(nil, _max), do: ""
 

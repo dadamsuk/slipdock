@@ -57,6 +57,7 @@ defmodule SlipdockWeb.MCP.Resources.Render do
         if(card.archived_at, do: " · archived", else: ""),
       facts(json),
       section("Handoff", Context.handoff_text(card)),
+      section("Waiting", Context.wait_text(card)),
       section("Description", blank_or(card.description)),
       section("Checklist", checklist(json.checklist)),
       section("Subcards", Context.open_subcards(context, card, 30)),

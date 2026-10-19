@@ -27,7 +27,8 @@ defmodule Slipdock.Portable.Import do
     Milestone,
     SavedView,
     StatusUpdate,
-    Tag
+    Tag,
+    Wait
   }
 
   alias Slipdock.{Quota, Repo}
@@ -163,7 +164,7 @@ defmodule Slipdock.Portable.Import do
   # string or a number where a card should be is not an export, and is turned
   # away here rather than crashing halfway through building it.
   @tree_rows ~w(boards cards pages tags fields folders milestones saved_views)a
-  @owned_rows ~w(checklist comments status_updates handoffs urls fields links)a
+  @owned_rows ~w(checklist comments status_updates handoffs waits urls fields links)a
 
   defp rows_are_maps?(tree) do
     boards = [tree.root | rows(tree, :boards)]
@@ -202,6 +203,7 @@ defmodule Slipdock.Portable.Import do
       comments: sum_rows(owners, :comments),
       status_updates: sum_rows(owners, :status_updates),
       handoffs: sum_rows(owners, :handoffs),
+      waits: sum_rows(owners, :waits),
       urls: sum_rows(owners, :urls),
       field_values: sum_rows(owners, :fields),
       dependencies: sum_rows(owners, :blocked_by),
@@ -616,6 +618,7 @@ defmodule Slipdock.Portable.Import do
 
       insert_attached!(user, [card_id: card.id], doc, ids)
       insert_handoffs!(user, card, doc)
+      insert_waits!(user, card, doc)
       insert_recurrence!(user, card, doc, ids)
       insert_snooze!(user, card, doc)
     end
@@ -770,6 +773,44 @@ defmodule Slipdock.Portable.Import do
     end
   end
 
+  # A card's waits, open and closed (#1114). Nobody's job is running here,
+  # so none comes with a job (KTD4); the people are as for an assignee —
+  # the importer, or nobody. An open wait whose card already has one is
+  # left out, which the one-open index decides.
+  defp insert_waits!(user, card, doc) do
+    for w <- rows(doc, :waits) do
+      reason = if w[:close_reason] in Wait.close_reasons(), do: w[:close_reason]
+      closed_at = second(datetime(w[:closed_at])) || if(reason, do: now())
+
+      row = %Wait{
+        card_id: card.id,
+        opened_by_id: Refs.user_id_for(w[:opened_by], user),
+        kind: w[:kind],
+        via: w[:via],
+        agent: w[:agent],
+        set_flag: bool(w[:set_flag], false),
+        inserted_at: second(datetime(w[:opened_at])) || now(),
+        closed_at: closed_at,
+        closed_by_id: Refs.user_id_for(w[:closed_by], user),
+        close_reason: if(closed_at, do: reason || "withdrawn"),
+        answer: w[:answer],
+        choice: if(is_integer(w[:choice]), do: w[:choice])
+      }
+
+      changeset =
+        Wait.changeset(row, %{
+          needs: w[:needs],
+          choices: if(is_list(w[:choices]), do: Enum.map(w[:choices], &to_string/1), else: []),
+          on_user_id: Refs.user_id_for(w[:on], user)
+        })
+
+      case Repo.insert(changeset, mode: :savepoint) do
+        {:ok, _} -> :ok
+        {:error, cs} -> skip("A wait on “#{doc[:title]}” was left out: #{errors(cs)}.")
+      end
+    end
+  end
+
   # A recurring card's series, carrying on from where the export left it: the
   # next occurrence is made at its time on this server's clock. One that
   # doesn't read (a rule this server can't parse, say) is left out, and the
@@ -806,6 +847,9 @@ defmodule Slipdock.Portable.Import do
   end
 
   defp datetime(_), do: nil
+
+  defp second(nil), do: nil
+  defp second(%DateTime{} = dt), do: DateTime.truncate(dt, :second)
 
   defp insert_recurrence!(user, card, doc, ids) do
     case doc[:recurrence] do

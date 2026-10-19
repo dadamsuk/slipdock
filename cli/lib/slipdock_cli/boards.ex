@@ -10,7 +10,7 @@ defmodule SlipdockCLI.Boards do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(guide search ask search-status saved save unsave boards board columns tags activity pulse cards card swimlanes views favourites fav unfav hotkeys hotkey table fields milestones templates add copy repeat recurring snooze wake edit set vote status handoff new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
+  @commands ~w(guide search ask search-status saved save unsave boards board columns tags activity pulse cards card swimlanes views favourites fav unfav hotkeys hotkey table fields milestones templates add copy repeat recurring snooze wake edit set vote status handoff wait answer new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -618,6 +618,50 @@ defmodule SlipdockCLI.Boards do
       true ->
         HTTP.put("/cards/#{enc(id)}/recurrence", attrs) |> out(o, &Render.recurrence/1)
     end
+  end
+
+  # Waiting on a person (#1114): `wait <id> "what you need"` opens one (on
+  # anyone, or `--on` a person, with a `--choice` per answer to pick from),
+  # asked from the runner job in `$SLIPDOCK_JOB_ID` unless `--job` names
+  # one; `wait <id> --withdraw` withdraws it.
+  def run("wait", [id], o) do
+    if o[:withdraw],
+      do:
+        HTTP.delete("/cards/#{enc(id)}/wait")
+        |> out(o, fn r -> IO.puts("withdrew the wait on ##{id}: #{r["wait"]["needs"]}") end),
+      else: fail(~s(say what the card needs: slipdock wait #{id} "Which region?"))
+  end
+
+  def run("wait", [id | words], o) when words != [] do
+    if o[:withdraw], do: fail("--withdraw takes no question")
+
+    body =
+      compact(%{
+        "needs" => Enum.join(words, " "),
+        "on" => o[:wait_on],
+        "choices" => nonempty(Keyword.get_values(o, :choice)),
+        "job_id" => o[:job] || job_from_env()
+      })
+
+    HTTP.post("/cards/#{enc(id)}/wait", body)
+    |> out(o, fn r -> IO.puts("##{id} " <> Render.wait_line(r["wait"])) end)
+  end
+
+  # `answer <id> "text"`, `answer <id> --choice N`, or both.
+  def run("answer", [id | words], o) do
+    choice =
+      case o[:choice] && Integer.parse(o[:choice]) do
+        nil -> nil
+        {n, ""} when n > 0 -> n
+        _ -> fail("--choice takes the number of a choice, from 1")
+      end
+
+    body = compact(%{"answer" => nonempty(Enum.join(words, " ")), "choice" => choice})
+
+    if body == %{}, do: fail(~s(answer in words, --choice N, or both: slipdock answer #{id} "eu"))
+
+    HTTP.post("/cards/#{enc(id)}/wait/answer", body)
+    |> out(o, fn r -> IO.puts("answered ##{id}: " <> Render.wait_answer(r["wait"])) end)
   end
 
   # Snooze (W-1803): `snooze <id>... <when>` hides the cards until then
@@ -1413,6 +1457,14 @@ defmodule SlipdockCLI.Boards do
   end
 
   # The note given outright, read from a file, or piped in (`--body -`).
+  # The runner job this agent runs under, if it does: what its wait parks.
+  defp job_from_env do
+    case String.trim(System.get_env("SLIPDOCK_JOB_ID") || "") do
+      "" -> nil
+      job -> job
+    end
+  end
+
   defp handoff_body(o) do
     cond do
       o[:file] == "-" or o[:body] == "-" -> read_stdin()

@@ -956,6 +956,7 @@ defmodule SlipdockWeb.SlipdockComponents do
     cover = if assigns.cover == :auto, do: card.color, else: assigns.cover
     image = if on.("images"), do: Slipdock.Boards.Attachment.front_image(loaded_attachments(card))
     handoff = Slipdock.Boards.Card.open_handoff(card)
+    wait = Slipdock.Boards.Card.open_wait(card)
     recurrence = Slipdock.Boards.Card.recurrence(card)
     snoozed = Slipdock.Boards.Card.snoozed?(card)
 
@@ -981,6 +982,8 @@ defmodule SlipdockWeb.SlipdockComponents do
       # Where it was left (W-1804): always shown while the card is open, since
       # it is what the next person needs before anything else on it.
       handoff: not is_nil(handoff),
+      # Waiting on a person (#1114): always shown, with what it needs.
+      wait: not is_nil(wait),
       # A recurring card (W-1802): always marked, like the handoff.
       recurrence: not is_nil(recurrence),
       # Snoozed (W-1803): only seen where snoozed cards are shown, and then
@@ -1001,6 +1004,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         page?: page?,
         favourite?: favourite_mark?(assigns.marks, card),
         handoff: handoff,
+        wait: wait,
         recurrence: recurrence,
         snoozed: snoozed,
         # A wiki page is `page-7` where a card is `12`, so the drag-and-drop
@@ -1116,6 +1120,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         <.percent_badge :if={@f.percent} percent={@card.percent_complete} />
         <.time_badge :if={@f.time} card={@card} />
         <.handoff_mark :if={@f.handoff} handoff={@handoff} class="size-3" />
+        <.wait_mark :if={@f.wait} wait={@wait} class="size-3" compact />
         <.recurrence_mark :if={@f.recurrence} recurrence={@recurrence} class="size-3" />
         <.snooze_mark :if={@f.snoozed} card={@card} zone={@zone} />
         <span :if={@actions != []} class="-mr-1 shrink-0">{render_slot(@actions)}</span>
@@ -1192,6 +1197,7 @@ defmodule SlipdockWeb.SlipdockComponents do
             <.icon name="hero-bars-3-bottom-left" class="size-3.5" />
           </span>
           <.handoff_mark :if={@f.handoff} handoff={@handoff} />
+          <.wait_mark :if={@f.wait} wait={@wait} />
           <.recurrence_mark :if={@f.recurrence} recurrence={@recurrence} />
           <.snooze_mark :if={@f.snoozed} card={@card} zone={@zone} />
           <span :if={@f.comments} class="chip chip-line text-base-content/70" title="Comments">
@@ -1222,6 +1228,24 @@ defmodule SlipdockWeb.SlipdockComponents do
       title={"Left off — next: " <> @handoff.next_step}
     >
       <.icon name="hero-arrow-uturn-left" class={@class} />
+    </span>
+    """
+  end
+
+  attr :wait, :any, required: true
+  attr :class, :string, default: "size-3.5"
+  attr :compact, :boolean, default: false
+
+  # A card waiting on a person (#1114): what it needs, and from whom.
+  defp wait_mark(assigns) do
+    ~H"""
+    <span
+      class="chip chip-line max-w-full gap-1 text-warning"
+      data-role="wait-mark"
+      title={"Waiting on " <> Slipdock.Boards.Wait.on_name(@wait) <> ": " <> @wait.needs}
+    >
+      <.icon name="hero-hand-raised" class={@class} />
+      <span :if={!@compact} class="truncate">{@wait.needs}</span>
     </span>
     """
   end

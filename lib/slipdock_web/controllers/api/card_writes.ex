@@ -82,7 +82,10 @@ defmodule SlipdockWeb.API.CardWrites do
          {:ok, remove} <- resolve_tags(board, params["remove_tags"]),
          {:ok, assignee} <- resolve_assignees(card, params, user),
          {:ok, card} <-
-           Boards.update_card(card, Map.merge(card_attrs(card, params), assignee), by: user),
+           Boards.update_card(card, Map.merge(card_attrs(card, params), assignee),
+             by: user,
+             actor: Slipdock.Actor.from_conn(auth)
+           ),
          {:ok, _} <- maybe_set_tags(card, tags),
          {:ok, _} <- maybe_adjust_tags(card, add, remove),
          {:ok, _} <- maybe_move(board, card, params["column"], Slipdock.Actor.from_conn(auth)),
@@ -150,6 +153,107 @@ defmodule SlipdockWeb.API.CardWrites do
         via: via
       })
     end
+  end
+
+  @doc """
+  Opens a wait on `card` from a request's params, as the API and MCP both
+  take them (#1114): `needs`, `on` (a person — id, email or "me" — or
+  nothing for anyone), `choices` and `job_id`. Needs write on the card.
+
+  With no `job_id`, a wait opened on the token of a session runner that is
+  working on this card now is asked from that job (KTD4).
+  """
+  def open_wait(auth, card, params) do
+    user = auth.assigns.current_user
+
+    with :ok <- SlipdockWeb.API.Authorize.card(auth, card, :write),
+         {:ok, on} <- wait_on(card, user, params["on"]),
+         {:ok, choices} <- wait_choices(params["choices"]) do
+      job_id =
+        case params["job_id"] do
+          blank when blank in [nil, ""] ->
+            Slipdock.Runners.session_job_on_card(auth.assigns[:api_token], card.id)
+
+          id ->
+            id
+        end
+
+      Boards.open_wait(card, Slipdock.Actor.from_conn(auth), %{
+        "needs" => params["needs"],
+        "choices" => choices,
+        "on_user_id" => on,
+        "job_id" => job_id
+      })
+      |> wait_result()
+    end
+  end
+
+  defp wait_on(_card, _user, blank) when blank in [nil, "", "anyone"], do: {:ok, nil}
+
+  defp wait_on(card, user, ref) do
+    case Boards.resolve_assignees(card, user, [ref]) do
+      {:ok, [id]} ->
+        {:ok, id}
+
+      _ ->
+        {:error, :unprocessable_entity,
+         "on: nobody who can open card ##{card.id} matches #{inspect(to_string(ref))}"}
+    end
+  end
+
+  defp wait_choices(nil), do: {:ok, []}
+  defp wait_choices(choice) when is_binary(choice), do: {:ok, [choice]}
+
+  defp wait_choices(choices) when is_list(choices) do
+    if Enum.all?(choices, &is_binary/1),
+      do: {:ok, choices},
+      else: {:error, :unprocessable_entity, "choices must be a list of strings"}
+  end
+
+  defp wait_choices(_), do: {:error, :unprocessable_entity, "choices must be a list of strings"}
+
+  @doc """
+  Answers `card`'s open wait from a request's params: `answer` (text),
+  `choice` (its number, from 1), or both. Needs write on the card.
+  """
+  def answer_wait(auth, card, params) do
+    with :ok <- SlipdockWeb.API.Authorize.card(auth, card, :write) do
+      card
+      |> Boards.answer_wait(Slipdock.Actor.from_conn(auth), %{
+        "answer" => params["answer"],
+        "choice" => params["choice"]
+      })
+      |> wait_result()
+    end
+  end
+
+  @doc """
+  Withdraws `card`'s open wait: whoever may change the card may, and so may
+  whoever opened it.
+  """
+  def withdraw_wait(auth, card) do
+    user = auth.assigns.current_user
+    wait = Boards.current_wait(card)
+    opener? = wait != nil and user != nil and wait.opened_by_id == user.id
+
+    with :ok <-
+           SlipdockWeb.API.Authorize.card(auth, card, if(opener?, do: :read, else: :write)) do
+      card |> Boards.withdraw_wait(Slipdock.Actor.from_conn(auth)) |> wait_result()
+    end
+  end
+
+  # A wait that is already open, or already closed, is a conflict with the
+  # card's state; anything else wrong with the request is a 422.
+  defp wait_result({:ok, wait}), do: {:ok, wait}
+  defp wait_result({:error, %Ecto.Changeset{}} = error), do: error
+
+  defp wait_result({:error, message}) when is_binary(message) do
+    status =
+      if message =~ ~r/already (has an open wait|answered|withdrawn|closed)/,
+        do: :conflict,
+        else: :unprocessable_entity
+
+    {:error, status, message}
   end
 
   @doc "The card with this id, whoever may read it — check that next."

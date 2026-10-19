@@ -75,6 +75,34 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
           type: "string",
           description: "Why it is snoozed (≤ 280 characters), with snoozed_until."
         },
+        wait: %{
+          type: ["object", "null"],
+          description:
+            "Opens a wait: the card needs something only a person can give. It flags the " <>
+              "card waiting and comments the question; answering it clears the flag. null " <>
+              "withdraws the open wait. A runner job's session links its job by itself.",
+          properties: %{
+            needs: %{type: "string", description: "What you need, as a question."},
+            on: %{
+              type: "string",
+              description: "Who it waits on: email or \"me\"; omit for anyone."
+            },
+            choices: Map.put(list, :description, "Answers to pick from, if it is a choice."),
+            job_id: %{type: "integer", description: "Your runner job on this card, if any."}
+          },
+          required: ["needs"],
+          additionalProperties: false
+        },
+        answer_wait: %{
+          type: "object",
+          description:
+            "Answers the card's open wait, as a comment from you. Not one you opened yourself.",
+          properties: %{
+            answer: %{type: "string"},
+            choice: %{type: "integer", minimum: 1, description: "A choice's number, from 1."}
+          },
+          additionalProperties: false
+        },
         recurrence: %{
           type: ["object", "null"],
           description:
@@ -143,6 +171,7 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
          {:ok, to_uncheck} <- items(card, params["uncheck_items"]),
          {:ok, recurrence} <- recurrence_arg(args),
          {:ok, snooze} <- snooze_arg(args),
+         {:ok, wait_op} <- wait_arg(args),
          {:ok, card} <-
            write(
              auth,
@@ -153,16 +182,44 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
              to_check,
              to_uncheck,
              {recurrence, snooze}
-           ) do
+           ),
+         {:ok, wait} <- write_wait(auth, card, wait_op) do
+      card = if wait_op == :untouched, do: card, else: Boards.get_card!(card.id)
       written = Tools.card_written(card, context.base_url)
 
-      {:ok,
-       if(recurrence == :untouched,
-         do: written,
-         else: Map.put(written, :recurrence, card.recurrence && V.recurrence(card.recurrence))
-       )}
+      written =
+        if(recurrence == :untouched,
+          do: written,
+          else: Map.put(written, :recurrence, card.recurrence && V.recurrence(card.recurrence))
+        )
+
+      {:ok, if(wait_op == :untouched, do: written, else: Map.put(written, :wait, V.wait(wait)))}
     end
   end
+
+  # Waiting on a person (#1114): open one, withdraw it (null), or answer it.
+  defp wait_arg(args) do
+    case {Map.fetch(args, "wait"), Map.fetch(args, "answer_wait")} do
+      {{:ok, _}, {:ok, _}} -> {:error, "pass wait or answer_wait, not both"}
+      {{:ok, nil}, :error} -> {:ok, :withdraw}
+      {{:ok, %{} = wait}, :error} -> {:ok, {:open, wait}}
+      {{:ok, _}, :error} -> {:error, "wait is an object ({needs: \"…\"}) or null"}
+      {:error, {:ok, %{} = answer}} -> {:ok, {:answer, answer}}
+      {:error, {:ok, _}} -> {:error, "answer_wait is an object ({answer: \"…\"} or {choice: 1})"}
+      {:error, :error} -> {:ok, :untouched}
+    end
+  end
+
+  defp write_wait(_auth, _card, :untouched), do: {:ok, nil}
+
+  defp write_wait(auth, card, :withdraw),
+    do: Args.refusal(CardWrites.withdraw_wait(auth, card))
+
+  defp write_wait(auth, card, {:open, wait}),
+    do: Args.refusal(CardWrites.open_wait(auth, card, wait))
+
+  defp write_wait(auth, card, {:answer, answer}),
+    do: Args.refusal(CardWrites.answer_wait(auth, card, answer))
 
   defp recurrence_arg(args) do
     case Map.fetch(args, "recurrence") do
@@ -354,7 +411,10 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
          {:ok, params} <- collect(~w(add_checklist), &Args.strings/2, args, params),
          {:ok, params} <- collect(@id_lists, &Args.ids/2, args, params) do
       if map_size(params) == 0 and
-           not Enum.any?(~w(recurrence snoozed_until snooze_note), &Map.has_key?(args, &1)),
+           not Enum.any?(
+             ~w(recurrence snoozed_until snooze_note wait answer_wait),
+             &Map.has_key?(args, &1)
+           ),
          do: {:error, "nothing to change: pass at least one field"},
          else: {:ok, params}
     end
