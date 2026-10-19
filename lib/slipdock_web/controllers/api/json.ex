@@ -325,6 +325,9 @@ defmodule SlipdockWeb.API.JSON do
       updated_at: c.updated_at
     }
     |> put_open_wait(c)
+    # What is happening to it and how long it has sat in its list (#1117):
+    # only the keys there is something to say for.
+    |> Map.merge(Slipdock.CardState.to_map(c.state))
   end
 
   # Waiting on a person (#1114): only on a card that is, so a board with no

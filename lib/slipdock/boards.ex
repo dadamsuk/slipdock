@@ -11,6 +11,7 @@ defmodule Slipdock.Boards do
   alias Slipdock.Quota
   alias Slipdock.Repo
   alias Slipdock.Rollup
+  alias Slipdock.CardState
 
   alias Slipdock.Vaults.Vault
   alias Slipdock.Boards.{BoardOrder, CardLink, CardUrl, FieldDefinition, FieldValue, Milestone}
@@ -361,11 +362,46 @@ defmodule Slipdock.Boards do
     |> put_placed_pages()
     |> put_snoozed()
     |> put_usual_stays()
+    |> put_states()
   end
 
   # One aggregate over the movement ledger for every list at once (#1113).
   defp put_usual_stays(%Board{} = board),
     do: %{board | usual_stays: Slipdock.Pulse.usual_stays(board)}
+
+  @doc """
+  Every card on a loaded `board`, the snoozed ones too, with its state
+  worked out again (`Slipdock.CardState`): a handful of queries for the
+  whole board. What the board page runs when a runner moves a job along.
+  """
+  def put_states(%Board{columns: columns} = board) do
+    cards = Enum.flat_map(columns, &(&1.cards ++ &1.snoozed))
+    runner_tree = CardState.runner_tree?(Board.root_id(board))
+
+    by_id =
+      cards
+      |> CardState.put(board,
+        usual: board.usual_stays,
+        columns: columns,
+        runner_tree: runner_tree
+      )
+      |> Map.new(&{&1.id, &1})
+
+    restate = fn list -> Enum.map(list, &Map.get(by_id, &1.id, &1)) end
+
+    %{
+      board
+      | runner_tree: runner_tree,
+        columns:
+          Enum.map(columns, &%{&1 | cards: restate.(&1.cards), snoozed: restate.(&1.snoozed)})
+    }
+  end
+
+  @doc "One card with its state worked out (`Slipdock.CardState`), for a card read on its own."
+  def with_state(%Card{} = card) do
+    [card] = CardState.put([card], Repo.get!(Board, card.board_id))
+    card
+  end
 
   # Snoozed cards (W-1803) leave the lists for the list's `snoozed`, after
   # they have been decorated like the rest so the footer can show them as
@@ -1530,6 +1566,11 @@ defmodule Slipdock.Boards do
 
   Snoozed cards (W-1803) are left out too, unless `"snoozed"` is
   `"include"` (both) or `"only"` (see `Slipdock.Snooze.filter/3`).
+
+  Every card comes back with its `state` (`Slipdock.CardState`), and two
+  filters read it (#1117): `"stuck"` (`true`) for the cards past their
+  list's usual stay, and `"driver"` (`"agent"` or `"human"`; `"all"` is no
+  filter) for who is driving the card.
   """
   def list_cards(%Board{} = board, filters \\ %{}) do
     query =
@@ -1589,9 +1630,10 @@ defmodule Slipdock.Boards do
           )
       end
 
-    cards = query |> Repo.all() |> Repo.preload(card_preloads())
+    cards = query |> Repo.all() |> Repo.preload(card_preloads()) |> CardState.put(board)
 
     cards
+    |> Enum.filter(&CardState.matches?(&1, filters["stuck"] in [true, "true"], filters["driver"]))
     |> then(fn cards ->
       case filters["flag"] do
         nil -> cards

@@ -282,13 +282,34 @@ defmodule SlipdockCLI.Render do
         if(c["comments"] != [], do: "💬#{length(c["comments"])}"),
         if(c["recurrence"], do: "↻"),
         if(c["snoozed_until"], do: "💤" <> String.slice(to_string(c["snoozed_until"]), 0, 10)),
+        driver_text(c["driver"]),
+        age_text(c),
         if(c["archived_at"], do: "(archived)")
       ]
       |> Enum.reject(&is_nil/1)
       |> Enum.join(" ")
 
-    "#" <> String.pad_trailing(to_string(c["id"]), 4) <> done <> title <> "  " <> dim(meta)
+    state = if s = c["state"], do: "  ▸ " <> s, else: ""
+
+    "#" <>
+      String.pad_trailing(to_string(c["id"]), 4) <> done <> title <> "  " <> dim(meta) <> state
   end
+
+  # Who is driving the card (#1117): only on a tree where agents work.
+  defp driver_text("agent"), do: "🤖agent"
+  defp driver_text("human"), do: "👤human"
+  defp driver_text(_), do: nil
+
+  # How long the card has sat in its list, and how far past the usual (#1117).
+  @doc false
+  def age_text(%{"age" => age} = c) when is_integer(age) do
+    case c["over_usual"] do
+      over when is_integer(over) -> "⏳#{span(age)} (#{span(over)} over usual, stuck)"
+      _ -> "⏳#{span(age)}"
+    end
+  end
+
+  def age_text(_), do: nil
 
   # A stand-in sprint planning left where a card used to be: which card it
   # stands for, and how that card is doing.
@@ -483,6 +504,9 @@ defmodule SlipdockCLI.Render do
 
     if h = c["handoff"], do: handoff_fields(h)
     if w = c["wait"], do: wait_fields(w)
+    if s = c["state"], do: field("State", s)
+    if d = c["driver"], do: field("Driver", d)
+    if a = age_text(c), do: field("In list", a)
 
     field("Priority", c["priority"])
     field("Flags", if(c["flags"] == [], do: "-", else: Enum.join(c["flags"], ", ")))

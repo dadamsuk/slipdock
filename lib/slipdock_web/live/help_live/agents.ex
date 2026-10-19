@@ -940,6 +940,19 @@ defmodule SlipdockWeb.HelpLive.Agents do
           progress, or no runner online.
         </li>
         <li>
+          <strong>State line and age.</strong>
+          A card with a job or a wait on it says so in one
+          line (<code>state</code>
+          in REST, <code>list_cards</code>
+          and <code>slipdock cards</code>), with <code>driver</code>
+          (agent or human) on trees with
+          runner rules and its <code>age</code>
+          in the list. <code>stuck</code>
+          marks a card past
+          its list's usual stay; filter on it with <code>stuck: true</code>
+          or <code>--stuck</code>, and on <code>driver</code>.
+        </li>
+        <li>
           With <strong>Work a list with a runner</strong>, a card its job leaves in progress
           goes back to the top of the list for another try, then gets flagged as blocked.
         </li>

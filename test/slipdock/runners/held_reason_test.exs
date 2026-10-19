@@ -81,4 +81,39 @@ defmodule Slipdock.Runners.HeldReasonTest do
     # Never seen at all: no runner online.
     assert Runners.held_reason(job) == "No runner online for pool dev"
   end
+
+  test "held_reasons/1 gives every queued job the line held_reason/1 gives it", ctx do
+    Repo.update_all(from(b in Board, where: b.id == ^ctx.board.id), set: [automation_wip: true])
+    ctx.doing |> Ecto.Changeset.change(wip_limit: 1) |> Repo.update!()
+    busy = card_fixture(ctx.doing, %{"title" => "Busy"})
+    {:ok, waiting} = queue(card_fixture(ctx.todo), true)
+    {:ok, in_doing} = queue(card_fixture(ctx.doing), true)
+    {:ok, claimed} = queue(busy)
+    jobs = [waiting, in_doing, claimed]
+
+    agree = fn ->
+      expected =
+        for j <- jobs, line = Runners.held_reason(j), into: %{}, do: {j.id, line}
+
+      assert Runners.held_reasons(jobs) == expected
+      expected
+    end
+
+    {:ok, _} = Runners.pause(ctx.board, %{"pool" => "dev", "reason" => "bad deploy"}, ctx.owner)
+    assert agree.()[waiting.id] == "paused by David: bad deploy"
+
+    {:ok, _} = Runners.resume(ctx.board, "dev", ctx.owner, Slipdock.Actor.web(ctx.owner))
+    lines = agree.()
+    assert lines[waiting.id] =~ "WIP full"
+    # Its card is in progress already: WIP doesn't hold it, the busy card does.
+    assert lines[in_doing.id] == "##{busy.id} is in progress"
+
+    Repo.update_all(from(b in Board, where: b.id == ^ctx.board.id), set: [automation_wip: false])
+    assert agree.()[waiting.id] == "##{busy.id} is in progress"
+
+    seen(ctx.runner, 0)
+    {:ok, _} = Slipdock.Boards.toggle_completed(busy)
+    {:ok, _} = Slipdock.Boards.toggle_completed(Repo.get!(Slipdock.Boards.Card, in_doing.card_id))
+    assert agree.() == %{}
+  end
 end

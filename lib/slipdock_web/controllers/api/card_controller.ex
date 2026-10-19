@@ -20,6 +20,8 @@ defmodule SlipdockWeb.API.CardController do
          {:ok, params} <- check_bucket(params, "kind", Slipdock.Kinds.card_kinds()),
          {:ok, params} <-
            check_bucket(params, "snoozed", [{"exclude", ""}, {"include", ""}, {"only", ""}]),
+         {:ok, params} <- check_bucket(params, "driver", Config.drivers()),
+         {:ok, params} <- check_bucket(params, "stuck", [{"true", ""}, {"false", ""}]),
          {:ok, params} <- check_column(board, params) do
       params = resolve_me(params, conn.assigns.current_user)
 
@@ -84,7 +86,7 @@ defmodule SlipdockWeb.API.CardController do
       json(conn, %{
         card:
           conn
-          |> Authorize.visible(card)
+          |> Authorize.visible(Boards.with_state(card))
           |> V.card()
           |> Map.put(:docs, docs)
           |> Map.put(:wait, V.wait(Boards.current_wait(card)))

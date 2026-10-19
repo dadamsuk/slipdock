@@ -197,7 +197,8 @@ slipdock boards [--archived|--all] [--sort manual|name|active|newest|oldest|card
 slipdock board <board>                  # full board: every column and card
 slipdock cards <board> [--column C] [--tag T] [--priority P] [--flag F] [--search Q] [--open|--done] [--archived]
                      [--due overdue|today|week|month|has|none] [--deps blocked|ready|blocking|violated|free]
-                     [--assignee NAME|EMAIL|me | --no-assignee]
+                     [--assignee NAME|EMAIL|me | --no-assignee] [--stuck] [--driver all|agent|human]
+                     # each line ends with its state (▸ Running · runner-2 · 7m) and ⏳age in its list
 slipdock card <id>                      # full detail incl. checklist item ids and comments
 slipdock columns <board> | slipdock tags <board> | slipdock activity <board> [--limit N]
 slipdock pulse <board>                  # flow numbers: in progress, waiting, done this week, time to done, list in/out

@@ -215,6 +215,8 @@ defmodule SlipdockWeb.MCP.Tools do
     |> then(
       &if(full.snoozed_until, do: Map.put(&1, :snoozed_until, full.snoozed_until), else: &1)
     )
+    # The state line, driver and age (#1117), as the card's tile shows them.
+    |> Map.merge(Map.take(full, [:state, :held, :driver, :age, :usual_stay, :over_usual, :stuck]))
   end
 
   @doc """

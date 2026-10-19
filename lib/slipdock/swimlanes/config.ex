@@ -66,6 +66,13 @@ defmodule Slipdock.Swimlanes.Config do
     {"violated", "Dates conflict"},
     {"free", "No dependencies"}
   ]
+  # Who is driving a card (#1117, `Slipdock.CardState`): the board's filter,
+  # `cards?driver=`, MCP and the CLI take the same three.
+  @drivers [
+    {"all", "All"},
+    {"agent", "Agent"},
+    {"human", "Human"}
+  ]
   # What colours a card's bar or cover strip.
   @colorings [
     {"cover", "Cover colour"},
@@ -234,6 +241,7 @@ defmodule Slipdock.Swimlanes.Config do
   def dues, do: @dues
   def dones, do: @dones
   def deps, do: @deps
+  def drivers, do: @drivers
   def densities, do: @densities
   def widths, do: @widths
   def places, do: @places
