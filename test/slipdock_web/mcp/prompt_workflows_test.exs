@@ -156,6 +156,57 @@ defmodule SlipdockWeb.MCP.PromptWorkflowsTest do
       refute text =~ "Elsewhere"
     end
 
+    test "opens with what is waiting on me, oldest first, before anything else (#1118)", ctx do
+      %{conn: conn, user: user, cols: cols} = ctx
+      dana = user_fixture("dana@example.com")
+      {:ok, _} = Slipdock.Access.grant(ctx.board, dana, "write", user)
+      asker = %{Slipdock.Actor.unknown() | kind: "agent", via: "mcp", user_id: dana.id}
+
+      older = card_fixture(cols["To Do"], %{"title" => "Region question"})
+
+      {:ok, wait} =
+        Boards.open_wait(older, asker, %{"needs" => "Which region?", "on_user_id" => user.id})
+
+      from(w in Slipdock.Boards.Wait, where: w.id == ^wait.id)
+      |> Repo.update_all(set: [inserted_at: DateTime.add(DateTime.utc_now(), -7200, :second)])
+
+      review = mine(cols["To Do"], user, %{"title" => "Please review"})
+      {:ok, _} = Boards.update_card(review, %{"flags" => ["review"]})
+      # Waiting on Dana, not on me.
+      hers = card_fixture(cols["To Do"], %{"title" => "Dana's question"})
+      {:ok, _} = Boards.open_wait(hers, asker, %{"needs" => "Hers", "on_user_id" => dana.id})
+
+      text = conn |> prompt("plan-my-day") |> text!()
+
+      [before, rest] = String.split(text, "## Waiting on you", parts: 2)
+      refute before =~ "##"
+      [waiting, _] = String.split(rest, "## Overdue", parts: 2)
+
+      assert waiting =~
+               ~r/- ##{older.id} Region question — Waiting on you: Which region\? \(2h\) — Delivery\n- ##{review.id} Please review — Flagged review/
+
+      refute waiting =~ "Dana's question"
+      assert text =~ "answer_wait"
+    end
+
+    test "nothing waiting reads none", ctx do
+      text = ctx.conn |> prompt("plan-my-day") |> text!()
+      [_, rest] = String.split(text, "## Waiting on you\n", parts: 2)
+      assert String.starts_with?(rest, "- none\n")
+    end
+
+    test "a board-scoped token's waiting section keeps to its boards", ctx do
+      %{conn: conn, user: user} = ctx
+      asker = %{Slipdock.Actor.unknown() | kind: "agent", via: "mcp", user_id: user.id}
+      out = card_fixture(hd(ctx.other.columns), %{"title" => "Out there"})
+      {:ok, _} = Boards.open_wait(out, asker, %{"needs" => "Elsewhere?", "on_user_id" => user.id})
+
+      text =
+        conn |> scoped(user, scope_boards: [ctx.board.id]) |> prompt("plan-my-day") |> text!()
+
+      refute text =~ "Out there"
+    end
+
     test "a read-only token is told it will only report", ctx do
       text = ctx.conn |> scoped(ctx.user, scope: "read") |> prompt("plan-my-day") |> text!()
       assert text =~ "read-only"

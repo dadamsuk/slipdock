@@ -125,6 +125,21 @@ defmodule SlipdockWeb.MCP.Prompts.Context do
     |> Enum.filter(&(Board.root_id(&1.card.board) in roots))
   end
 
+  @doc """
+  Waiting on you (`Slipdock.Work.waiting_on_me/2`): everything that needs
+  the person, oldest first, narrowed to the token's boards and, given one,
+  to that board's tree.
+  """
+  def waiting_on_me(%{user: user} = context, board) do
+    Work.waiting_on_me(user, board_id: board && board.id, roots: root_ids(context, board))
+  end
+
+  @doc "One waiting item as a line: the card, why it needs you and for how long, and where."
+  def waiting_line(item, now \\ DateTime.utc_now()) do
+    age = Slipdock.Pulse.duration(max(DateTime.diff(now, item.since), 0))
+    "##{item.card.id} #{item.card.title} — #{item.text} (#{age}) — #{path_line(item)}"
+  end
+
   @doc "Whether a card sits on a list that is in progress."
   def doing?(%Card{column: %{} = column}),
     do: SlipdockWeb.APIGuide.role([column], column) == "doing"

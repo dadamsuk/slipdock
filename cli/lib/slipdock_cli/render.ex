@@ -204,6 +204,57 @@ defmodule SlipdockCLI.Render do
   end
 
   # `slipdock pulse`: the board's flow numbers, then each list's traffic.
+  @doc """
+  `slipdock work`: "Waiting on you" first, in the server's order (oldest
+  first), each with why and for how long, a wait's choices numbered for
+  `slipdock answer --choice N`; then the assigned cards by section.
+  """
+  def work(%{"waiting" => waiting, "sections" => sections}) do
+    if waiting != [] do
+      IO.puts(bold("Waiting on you (#{length(waiting)})"))
+
+      Enum.each(waiting, fn i ->
+        c = i["card"]
+        IO.puts("  ##{c["id"]} #{c["title"]}  " <> dim(since(i["since"])))
+        IO.puts("      #{i["text"]}" <> choices(i["wait"]))
+        IO.puts(dim("      #{Enum.join(i["path"] || [], " › ")} · #{c["column"]}"))
+      end)
+    end
+
+    Enum.each(sections, fn s ->
+      IO.puts(bold("#{s["label"]} (#{length(s["cards"])})"))
+
+      Enum.each(s["cards"], fn c ->
+        due = if c["due_date"], do: dim("  due #{c["due_date"]}"), else: ""
+
+        IO.puts(
+          "  ##{c["id"]} #{c["title"]}#{due}  " <>
+            dim("#{Enum.join(c["path"] || [], " › ")} · #{c["column"]}")
+        )
+      end)
+    end)
+
+    if waiting == [] and sections == [],
+      do: IO.puts(dim("nothing waiting on you, nothing assigned"))
+  end
+
+  defp choices(%{"choices" => [_ | _] = choices}) do
+    numbered =
+      choices |> Enum.with_index(1) |> Enum.map_join("  ", fn {c, n} -> "[#{n}] #{c}" end)
+
+    "  " <> dim(numbered)
+  end
+
+  defp choices(_), do: ""
+
+  # How long ago an ISO time was, in the one unit that reads best.
+  defp since(iso) do
+    case DateTime.from_iso8601(iso || "") do
+      {:ok, at, _} -> span(max(DateTime.diff(DateTime.utc_now(), at), 0))
+      _ -> ""
+    end
+  end
+
   def pulse(p) do
     t = p["time_to_done"]
     m = p["moves_24h"]

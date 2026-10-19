@@ -468,6 +468,8 @@ defmodule SlipdockWeb.Router do
     pipe_through :api
 
     get "/me", MeController, :show
+    # The caller's own work: waiting on them, then assigned by due (#1118).
+    get "/work", WorkController, :index
 
     # Tools (#958): packages of docs, files, a board blueprint and skills.
     get "/tools", ToolController, :index

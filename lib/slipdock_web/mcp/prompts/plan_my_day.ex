@@ -1,7 +1,7 @@
 defmodule SlipdockWeb.MCP.Prompts.PlanMyDay do
   @moduledoc """
-  `plan-my-day`: my work across boards — overdue, due today, in progress, the
-  top of the ready lists and what wakes from a snooze today — and a short
+  `plan-my-day`: my work across boards — what is waiting on me first (#1118),
+  then overdue, due today, in progress, the top of the ready lists and what wakes from a snooze today — and a short
   ordered plan for the day, agreed before anything moves.
   """
   @behaviour SlipdockWeb.MCP.Prompt
@@ -22,7 +22,8 @@ defmodule SlipdockWeb.MCP.Prompts.PlanMyDay do
   @impl true
   def description,
     do:
-      "My work right now — overdue, due today, in progress, the top of the ready lists — " <>
+      "My work right now — waiting on me, overdue, due today, in progress, the top of " <>
+        "the ready lists — " <>
         "and a short plan for today. Asks before moving anything."
 
   @impl true
@@ -53,6 +54,9 @@ defmodule SlipdockWeb.MCP.Prompts.PlanMyDay do
        """
        Help me plan my day. Today is #{Date.to_iso8601(today)} (#{Calendar.strftime(today, "%A")}). #{scope(board)}
 
+       ## Waiting on you
+       #{context |> Context.waiting_on_me(board) |> Enum.map(&Context.waiting_line/1) |> Context.list(@per_section, "slipdock work")}
+
        ## Overdue
        #{section(work, &(&1.section == :overdue), line)}
 
@@ -69,7 +73,8 @@ defmodule SlipdockWeb.MCP.Prompts.PlanMyDay do
        #{ready(context, board)}
 
        Propose a short ordered plan for today: at most five items, the most pressing first, \
-       with one line each on why. Say what you would move to the doing list or reschedule, \
+       with one line each on why. What is waiting on me comes first: a question I can answer \
+       now (update_card answer_wait) unblocks someone else's work. Say what you would move to the doing list or reschedule, \
        then ask me before moving, assigning or editing anything, and do only what I agree to.
        """}
     end

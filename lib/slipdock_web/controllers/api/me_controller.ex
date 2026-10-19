@@ -47,9 +47,14 @@ defmodule SlipdockWeb.API.MeController do
       # its name because callers match on it; `limits` has every dimension,
       # with the item count broken down.
       cards: Slipdock.Quota.status(user),
-      limits: Slipdock.Quota.report(user)
+      limits: Slipdock.Quota.report(user),
+      # How many things wait on them (#1118); `GET /api/work` lists them.
+      waiting_on_you: Slipdock.Work.waiting_count(user, roots: roots(conn.assigns[:api_token]))
     })
   end
+
+  defp roots(%{scope_boards: [_ | _] = ids}), do: ids
+  defp roots(_), do: nil
 
   @doc """
   Stores the caller's own API key, the one every AI feature spends on their

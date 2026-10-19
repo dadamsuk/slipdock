@@ -6,20 +6,33 @@ defmodule SlipdockWeb.AlertsHook do
   `:alerts_open`, keeps them up to date over PubSub, and answers the header
   bar's own events (`toggle_alerts`, `dismiss_alert`, `dismiss_all_alerts`)
   before the LiveView sees them — so no page has to know alerts exist.
+
+  It also assigns `:waiting_count`, the number of things waiting on the
+  signed-in person (`Slipdock.Work.waiting_count/2`, #1118), which the
+  header shows beside My work. It is worked out on mount, again every
+  minute (KTD14: there is no per-person push topic), and whenever a page
+  calls `refresh_waiting/1` after the person acted on a wait themselves.
   """
 
   import Phoenix.Component
   import Phoenix.LiveView
 
-  alias Slipdock.Automations
+  alias Slipdock.{Automations, Work}
+
+  # How often the waiting count is worked out again.
+  @waiting_every 60_000
 
   def on_mount(:default, _params, _session, socket) do
-    if connected?(socket) and socket.assigns[:current_user], do: Automations.subscribe_alerts()
+    if connected?(socket) and socket.assigns[:current_user] do
+      Automations.subscribe_alerts()
+      schedule_waiting()
+    end
 
     socket =
       socket
       |> assign(alerts_open: false)
       |> assign_alerts()
+      |> refresh_waiting()
       |> attach_hook(:alerts_events, :handle_event, &handle_event/3)
       |> attach_hook(:alerts_messages, :handle_info, &handle_info/2)
 
@@ -45,6 +58,12 @@ defmodule SlipdockWeb.AlertsHook do
   defp handle_event(_event, _params, socket), do: {:cont, socket}
 
   defp handle_info({:alerts_changed}, socket), do: {:halt, assign_alerts(socket)}
+
+  defp handle_info(:refresh_waiting, socket) do
+    schedule_waiting()
+    {:halt, refresh_waiting(socket)}
+  end
+
   defp handle_info(_message, socket), do: {:cont, socket}
 
   defp assign_alerts(socket) do
@@ -53,4 +72,14 @@ defmodule SlipdockWeb.AlertsHook do
       user -> assign(socket, alerts: Automations.list_alerts(user))
     end
   end
+
+  @doc "Works out the signed-in person's waiting count again (`:waiting_count`)."
+  def refresh_waiting(socket) do
+    case socket.assigns[:current_user] do
+      nil -> assign(socket, waiting_count: 0)
+      user -> assign(socket, waiting_count: Work.waiting_count(user))
+    end
+  end
+
+  defp schedule_waiting, do: Process.send_after(self(), :refresh_waiting, @waiting_every)
 end
