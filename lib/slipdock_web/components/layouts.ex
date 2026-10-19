@@ -17,6 +17,11 @@ defmodule SlipdockWeb.Layouts do
 
   attr :alerts_open, :boolean, default: false, doc: "whether the alerts section is expanded"
 
+  attr :waiting_count, :integer,
+    default: 0,
+    doc:
+      "how many things wait on the signed-in person (see SlipdockWeb.AlertsHook); shown beside My work when not 0"
+
   attr :quick_add, :map,
     default: nil,
     doc: "the quick add box's state (see SlipdockWeb.QuickAddHook); nil hides it"
@@ -184,6 +189,24 @@ defmodule SlipdockWeb.Layouts do
             >
               <.icon name="hero-heart" class="size-4" />
             </.link>
+            <%!-- What is waiting on you (#1118): only there when something is,
+                so a person with nothing to answer sees the header as it was. --%>
+            <.link
+              :if={@current_user && @waiting_count > 0}
+              id="waiting-link"
+              navigate={~p"/work"}
+              class="btn btn-ghost btn-sm hidden gap-1 px-2 sm:inline-flex"
+              aria-label={"#{@waiting_count} waiting on you"}
+              title={"#{@waiting_count} waiting on you"}
+            >
+              <.icon name="hero-hand-raised" class="size-4" />
+              <span
+                id="waiting-count"
+                class="min-w-5 rounded-full bg-warning px-1.5 text-xs font-semibold leading-5 text-warning-content"
+              >
+                {@waiting_count}
+              </span>
+            </.link>
             <.alerts_bar :if={@alerts} alerts={@alerts} open={@alerts_open} />
             <.theme_toggle :if={!@current_user} />
             <div
@@ -241,6 +264,7 @@ defmodule SlipdockWeb.Layouts do
         quick_add={@quick_add}
         alerts={@alerts}
         alerts_open={@alerts_open}
+        waiting_count={@waiting_count}
       >
         <:menu :if={@menu != []}>{render_slot(@menu)}</:menu>
       </.mobile_bar>
@@ -271,6 +295,7 @@ defmodule SlipdockWeb.Layouts do
   attr :quick_add, :map, default: nil
   attr :alerts, :list, default: nil
   attr :alerts_open, :boolean, default: false
+  attr :waiting_count, :integer, default: 0
   slot :menu, doc: "the page's own menu entries, above the app's"
 
   @doc """
@@ -354,7 +379,13 @@ defmodule SlipdockWeb.Layouts do
             <.account_menu_items current_user={@current_user} active={@active} phone />
           </ul>
         </div>
-        <.mobile_tab navigate={~p"/work"} icon="hero-user" label="My work" on={@active == :work} />
+        <.mobile_tab
+          navigate={~p"/work"}
+          icon="hero-user"
+          label="My work"
+          on={@active == :work}
+          count={@waiting_count}
+        />
 
         <button
           :if={@quick_add}
@@ -581,6 +612,7 @@ defmodule SlipdockWeb.Layouts do
   attr :icon, :string, required: true
   attr :label, :string, required: true
   attr :on, :boolean, default: false
+  attr :count, :integer, default: 0
 
   defp mobile_tab(assigns) do
     ~H"""
@@ -592,7 +624,15 @@ defmodule SlipdockWeb.Layouts do
         if(@on, do: "text-primary", else: "text-base-content/60")
       ]}
     >
-      <.icon name={@icon} class="size-5" />
+      <span class="relative flex">
+        <.icon name={@icon} class="size-5" />
+        <span
+          :if={@count > 0}
+          class="absolute -right-2 -top-1 min-w-4 rounded-full bg-warning px-1 text-[0.625rem] font-semibold leading-4 text-warning-content"
+        >
+          {@count}
+        </span>
+      </span>
       <span class="text-[0.625rem] font-medium leading-none">{@label}</span>
     </.link>
     """

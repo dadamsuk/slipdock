@@ -63,6 +63,11 @@ defmodule SlipdockCLI.Auth do
       # Where this account stands, so a batch can be sized before it starts
       # rather than hitting a 402 halfway through.
       for line <- standing_lines(r["limits"]), do: IO.puts("  " <> line)
+
+      case r["waiting_on_you"] do
+        n when is_integer(n) and n > 0 -> IO.puts("  waiting on you: #{n} (slipdock work)")
+        _ -> :ok
+      end
     end)
   end
 

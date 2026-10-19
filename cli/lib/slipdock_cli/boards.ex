@@ -10,13 +10,20 @@ defmodule SlipdockCLI.Boards do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(guide search ask search-status saved save unsave boards board columns tags activity pulse cards card swimlanes views favourites fav unfav hotkeys hotkey table fields milestones templates add copy repeat recurring snooze wake edit set vote status handoff wait answer new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
+  @commands ~w(guide work search ask search-status saved save unsave boards board columns tags activity pulse cards card swimlanes views favourites fav unfav hotkeys hotkey table fields milestones templates add copy repeat recurring snooze wake edit set vote status handoff wait answer new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
 
   # The server's own instructions for agents; needs no token, but says more with one.
   def run("guide", [], o), do: HTTP.get("/guide") |> out(o, &IO.puts(&1["guide"]))
+
+  # My work (#1118): what is waiting on you, oldest first, then the cards
+  # assigned to you by when they are due — what the web page shows.
+  def run("work", [], o) do
+    HTTP.get("/work", board: o[:board], done: if(o[:done], do: "true"))
+    |> out(o, &Render.work/1)
+  end
 
   # Semantic search. Everything after the command is the query, so it needs no
   # quoting: `slipdock search what did we decide about refunds`.

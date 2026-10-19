@@ -137,6 +137,7 @@ defmodule SlipdockWeb.WikiLive.All do
       flash={@flash}
       current_user={@current_user}
       alerts={@alerts}
+      waiting_count={@waiting_count}
       alerts_open={@alerts_open}
       quick_add={@quick_add}
       shortcuts={@shortcuts}

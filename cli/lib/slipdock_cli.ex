@@ -57,7 +57,11 @@ defmodule SlipdockCLI do
       --label TEXT  what the approval screen calls this client (default: this host)
       --scope read|write   what to ask for (default: write)
   auth <token>                        save an API token directly (create one at /account/tokens)
-    whoami                              show who you are signed in as
+    whoami                              show who you are signed in as (and how many things
+                                        are waiting on you)
+    work [--board B] [--done]           my work: what is waiting on you (waits, review and
+                                        waiting flags, runner trouble, cards in progress with
+                                        nobody on them), oldest first, then my cards by due date
     passkeys                            your passkeys: name, when added, when last used
     passkeys remove <id>                remove one (a lost phone) — it can't sign in after.
                                         Adding one needs the device, so is in a browser only

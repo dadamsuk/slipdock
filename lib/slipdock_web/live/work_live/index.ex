@@ -2,11 +2,15 @@ defmodule SlipdockWeb.WorkLive.Index do
   @moduledoc """
   My work: every card assigned to the signed-in user, across all boards and
   levels, grouped by when it is due, each with the path of cards above it.
+
+  It opens with "Waiting on you" (#1118): everything that needs this person,
+  oldest first (`Slipdock.Work.waiting_on_me/2`), with a wait's answers
+  right there. The header's count is the length of that section.
   """
   use SlipdockWeb, :live_view
 
   import SlipdockWeb.SlipdockComponents
-  alias Slipdock.{Access, Boards, Work}
+  alias Slipdock.{Access, Actor, Boards, Pulse, Work}
   alias SlipdockWeb.BoardNotices
 
   @impl true
@@ -27,7 +31,13 @@ defmodule SlipdockWeb.WorkLive.Index do
     cards = Work.assigned(user)
     open = Enum.reject(cards, &(&1.section == :done))
 
+    waiting = Work.waiting_on_me(user)
+
     assign(socket,
+      waiting: waiting,
+      # The header's number is this section's length, never a second count.
+      waiting_count: length(waiting),
+      now: DateTime.utc_now(),
       sections: Work.group(cards, socket.assigns.show_done),
       open_count: length(open),
       done_count: length(cards) - length(open)
@@ -60,6 +70,29 @@ defmodule SlipdockWeb.WorkLive.Index do
     end
   end
 
+  # A wait answered from here: by choice button or in words.
+  def handle_event("answer_wait", %{"card" => id} = params, socket) do
+    user = socket.assigns.current_user
+    card = Boards.get_card!(id)
+
+    attrs = %{
+      "choice" => params["choice"],
+      "answer" => get_in(params, ["wait", "answer"]) || params["answer"]
+    }
+
+    with true <- Access.can_write?(Access.card_permission(user, card)),
+         {:ok, _} <- Boards.answer_wait(card, Actor.web(user), attrs) do
+      # `load/1` counts the header's number again, from the same section.
+      {:noreply, load(socket)}
+    else
+      false -> {:noreply, put_flash(socket, :error, "You have read-only access to that card.")}
+      {:error, message} when is_binary(message) -> {:noreply, put_flash(socket, :error, message)}
+      {:error, _} -> {:noreply, put_flash(socket, :error, "That answer couldn't be saved.")}
+    end
+  end
+
+  defp since(item, now), do: Pulse.duration(max(DateTime.diff(now, item.since), 0))
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -67,6 +100,7 @@ defmodule SlipdockWeb.WorkLive.Index do
       flash={@flash}
       current_user={@current_user}
       alerts={@alerts}
+      waiting_count={@waiting_count}
       alerts_open={@alerts_open}
       quick_add={@quick_add}
       shortcuts={@shortcuts}
@@ -117,6 +151,70 @@ defmodule SlipdockWeb.WorkLive.Index do
               </span>
             </label>
           </div>
+
+          <section :if={@waiting != []} id="work-waiting" class="mb-8">
+            <h2 class="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-warning">
+              Waiting on you
+              <span class="badge badge-ghost badge-sm font-mono">{length(@waiting)}</span>
+            </h2>
+            <ul class="divide-y divide-base-300/60 overflow-hidden rounded-2xl bg-base-100 shadow-sm ring-1 ring-base-content/10">
+              <li
+                :for={item <- @waiting}
+                id={"waiting-card-#{item.card.id}"}
+                class="px-4 py-2.5 hover:bg-base-200/40"
+              >
+                <div class="flex items-center gap-3">
+                  <.icon name="hero-hand-raised" class="size-5 shrink-0 text-warning" />
+                  <div class="min-w-0 flex-1">
+                    <.link
+                      navigate={~p"/boards/#{item.card.board_id}/cards/#{item.card.id}"}
+                      class="block truncate font-medium hover:underline"
+                    >
+                      {item.card.title}
+                    </.link>
+                    <p
+                      class="truncate text-xs text-base-content/50"
+                      title={Enum.join(item.path, " › ")}
+                    >
+                      {Enum.join(item.path, " › ")} · {item.card.column.name}
+                    </p>
+                  </div>
+                  <span class="shrink-0 font-mono text-xs text-base-content/60">
+                    {since(item, @now)}
+                  </span>
+                </div>
+                <p class="mt-1 pl-8 text-sm text-base-content/80">{item.text}</p>
+                <div :if={item.wait} class="mt-2 flex flex-wrap items-center gap-2 pl-8">
+                  <button
+                    :for={{choice, n} <- Enum.with_index(item.wait.choices, 1)}
+                    type="button"
+                    class="btn btn-outline btn-xs"
+                    phx-click="answer_wait"
+                    phx-value-card={item.card.id}
+                    phx-value-choice={n}
+                  >
+                    {choice}
+                  </button>
+                  <form
+                    id={"waiting-answer-#{item.card.id}"}
+                    phx-submit="answer_wait"
+                    class="flex min-w-0 flex-1 items-center gap-2"
+                  >
+                    <input type="hidden" name="card" value={item.card.id} />
+                    <input
+                      type="text"
+                      name="wait[answer]"
+                      placeholder="Answer…"
+                      class="input input-bordered input-xs min-w-0 flex-1"
+                      maxlength="4000"
+                      required
+                    />
+                    <button type="submit" class="btn btn-primary btn-xs">Answer</button>
+                  </form>
+                </div>
+              </li>
+            </ul>
+          </section>
 
           <div
             :if={@sections == []}
