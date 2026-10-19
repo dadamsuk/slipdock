@@ -42,8 +42,8 @@ defmodule Slipdock.Runners.WaitTest do
       assert job.status == "queued"
       assert job.attempts == 0
       assert Runners.waiting_on(job).id == busy.id
-      assert Runners.waiting_reason(job) == "##{busy.id} is in progress"
-      assert Runners.first_waiting(ctx.board, "loop").id == job.id
+      assert Runners.held_reason(job) == "##{busy.id} is in progress"
+      assert Runners.held(ctx.board, "loop").job.id == job.id
     end
 
     test "once that card leaves the list, the next claim gets the job", ctx do
@@ -54,7 +54,7 @@ defmodule Slipdock.Runners.WaitTest do
       :ok = Boards.move_card_to_index(busy, ctx.done, :top)
       assert %Job{id: id, status: "claimed"} = Runners.claim(ctx.runner)
       assert id == job.id
-      assert Runners.first_waiting(ctx.board, "loop") == nil
+      assert Runners.held(ctx.board, "loop") == nil
     end
 
     test "the job's own card in progress doesn't hold it back", ctx do
@@ -121,7 +121,7 @@ defmodule Slipdock.Runners.WaitTest do
       {:ok, job} = queue(ctx.card)
       Runners.claim(ctx.runner)
       card_fixture(ctx.doing)
-      assert Runners.waiting_reason(Repo.reload!(job)) == nil
+      assert Runners.held_reason(Repo.reload!(job), claimant: true) == nil
     end
   end
 

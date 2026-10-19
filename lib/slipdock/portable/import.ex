@@ -446,6 +446,7 @@ defmodule Slipdock.Portable.Import do
           default_view: if(doc[:default_view] in Board.default_views(), do: doc[:default_view]),
           simple: bool(doc[:simple], false),
           show_pulse: bool(doc[:show_pulse], false),
+          automation_wip: bool(doc[:automation_wip], false),
           kind: if(doc[:kind] in Board.kinds(), do: doc[:kind])
         },
         named("board", doc[:name]) <> if(root_id, do: ", and everything on it,", else: "")

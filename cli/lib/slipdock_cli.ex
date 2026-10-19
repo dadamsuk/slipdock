@@ -612,7 +612,8 @@ defmodule SlipdockCLI do
     set-board <board> [--name N] [--code C] [--shortcut K] [--desc TEXT] [--color C]
         [--no-add-card] [--no-add-page] [--no-add-document] [--sprints | --no-sprints]
         [--simple | --no-simple] [--page-card-features | --no-page-card-features]
-        [--show-pulse | --no-show-pulse] [--default-view V]
+        [--show-pulse | --no-show-pulse] [--automation-wip | --no-automation-wip]
+        [--default-view V]
                                         rename a board, change its code, shortcut key or colour,
                                         say what the foot of each list offers, make it a
                                         sprint board (every card a sprint), or a simple one (a
@@ -622,6 +623,8 @@ defmodule SlipdockCLI do
                                         status, checklist, links, fields, votes and comments
                                         on every page of the board's wiki (not deleted);
                                         --show-pulse puts the board's pulse over its lists;
+                                        --automation-wip makes the first in-progress list's
+                                        WIP limit hold runner jobs and list sends;
                                         --default-view picks what opening the board shows
                                         in the web app: board, swimlanes, table, timeline,
                                         calendar, outline, narrative, prioritise or wiki
@@ -736,7 +739,14 @@ defmodule SlipdockCLI do
     cancel-job <id>                                stop a job: a queued one at once, a running one
                                                    on the runner's next heartbeat
     claim-job <board> --pool P                     take the next queued job as this session (prints
-                                                   "nothing queued" when there is none)
+                                                   "nothing queued" when there is none, or why
+                                                   work is held: paused, WIP full…)
+    pause <board> [--pool P] --reason "…"          hold the board tree's runner work (or one
+                                                   pool's): nothing is claimed and no list_top
+                                                   rule sends a card; running jobs finish.
+                                                   The board owner's
+    resume <board> [--pool P]                      let exactly that pause off again (a person's:
+                                                   refused when run under an agent)
     job-progress <id> [--message NOTE]             renew the job's lease (a session holds it 20 min); the
                                                    note is also a comment on the card. Prints ok or cancel
     finish-job <id> --status done|failed|cancelled|timeout [--summary S]
@@ -803,6 +813,7 @@ defmodule SlipdockCLI do
     add_document: :boolean,
     page_card_features: :boolean,
     show_pulse: :boolean,
+    automation_wip: :boolean,
     default_view: :string,
     sprints: :boolean,
     clear: :boolean,
@@ -908,6 +919,8 @@ defmodule SlipdockCLI do
     also: :keep,
     not_in: :keep,
     summary: :string,
+    # `slipdock pause <board> --reason "…"`.
+    reason: :string,
     message: :string,
     base_hash: :string,
     section: :string,

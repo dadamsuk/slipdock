@@ -511,7 +511,9 @@ defmodule Slipdock.Automations do
   Called whenever the answer could have changed — a card event on the
   rule's board, a job ending, the rule being saved — and by the clock as a
   backstop. A card whose question was answered while the rule had a job open
-  goes first (`Slipdock.Runners.Requeue.drain/1`). Answers `{:ok, card}` when it sent one, else `{:idle, reason}`.
+  goes first (`Slipdock.Runners.Requeue.drain/1`). Answers `{:ok, card}` when it sent one, else `{:idle, reason}`:
+  `:paused` while its pool or tree is, `:wip_full` while its board holds
+  automated work at the WIP limit (`Slipdock.Runners.wip_full/1`).
   `force: true` (Run now) ignores the cool-down on a card that just had a job.
   """
   def feed(rule, opts \\ [])
@@ -530,6 +532,10 @@ defmodule Slipdock.Automations do
       # come back here before its job exists.
       Process.get({:feeding, rule.id}) ->
         {:idle, :busy}
+
+      # Its pool or its tree is paused (#1116): resuming feeds it again.
+      Slipdock.Runners.paused?(Slipdock.Boards.root_of_board(rule.board_id), feed_pools(rule)) ->
+        {:idle, :paused}
 
       true ->
         Process.put({:feeding, rule.id}, true)
@@ -558,12 +564,16 @@ defmodule Slipdock.Automations do
             {:ok, Repo.get(Card, job.card_id)}
 
           card = next_card(rule, opts) ->
-            event = %{type: "list_top", card: card, board_id: rule.board_id}
-            results = fire(rule, event, Process.get(:automation_depth, 0))
+            if wip_held?(card) do
+              {:idle, :wip_full}
+            else
+              event = %{type: "list_top", card: card, board_id: rule.board_id}
+              results = fire(rule, event, Process.get(:automation_depth, 0))
 
-            if Enum.any?(results, &match?({:ok, _}, &1)),
-              do: {:ok, card},
-              else: {:idle, :failed}
+              if Enum.any?(results, &match?({:ok, _}, &1)),
+                do: {:ok, card},
+                else: {:idle, :failed}
+            end
 
           true ->
             {:idle, :empty}
@@ -574,6 +584,20 @@ defmodule Slipdock.Automations do
       {:ok, result} -> result
       {:error, reason} -> {:idle, reason}
     end
+  end
+
+  # The pools a list_top rule's runner actions send to.
+  defp feed_pools(rule) do
+    rule.spec
+    |> Spec.actions()
+    |> Enum.filter(&(&1["type"] == "runner"))
+    |> Enum.map(&(&1["pool"] |> to_string() |> String.downcase()))
+  end
+
+  # The board holds automated work at its WIP limit (#1116, KTD11) and the
+  # card isn't in progress already.
+  defp wip_held?(%Card{} = card) do
+    card.column.category != "doing" and not is_nil(Slipdock.Runners.wip_full(card.board_id))
   end
 
   defp feed_job_open?(rule) do

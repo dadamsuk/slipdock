@@ -319,6 +319,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :select_mode, :boolean, default: false
   attr :zone, :string, default: "Etc/UTC", doc: "the reader's timezone"
   attr :pulse, :map, default: nil, doc: "`Slipdock.Pulse.for_board/2`, when the strip is on"
+  attr :pauses, :list, default: [], doc: "`State.board_pauses/1`: the tree's runner pauses"
 
   attr :revealed_snoozed, :any,
     default: MapSet.new(),
@@ -351,6 +352,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         marks={@favourites}
         select_mode={@select_mode}
       />
+      <.pause_banner pauses={@pauses} can_manage={@can_manage} />
       <%!-- The board's pulse in plain words (#1113): only when the owner
             turned it on in settings (`show_pulse`). --%>
       <p
@@ -793,6 +795,44 @@ defmodule SlipdockWeb.BoardLive.BoardView do
           </div>
         </div>
       </div>
+    </div>
+    """
+  end
+
+  attr :pauses, :list, required: true
+  attr :can_manage, :boolean, required: true
+
+  @doc """
+  The brake, on every board of the paused tree (#1116): who paused what on
+  which board, and why, with Resume for the owner. Each Resume lets off
+  exactly its own pause.
+  """
+  def pause_banner(assigns) do
+    ~H"""
+    <div
+      :for={%{pause: p, root: root} <- @pauses}
+      id={"pause-banner-#{p.id}"}
+      role="status"
+      class="flex flex-wrap items-center gap-2 border-b border-warning/40 bg-warning/15 px-4 py-1.5 text-sm"
+    >
+      <.icon name="hero-pause-circle" class="size-4 shrink-0 text-warning" />
+      <span class="min-w-0 flex-1">
+        Paused on {root.name}<span :if={p.pool}> · pool {p.pool}</span>
+        by {Slipdock.Runners.Pause.who(p)}: {p.reason}
+        <span class="text-xs text-base-content/60">
+          · no runner job is taken and no list sends a card until it is resumed
+        </span>
+      </span>
+      <button
+        :if={@can_manage}
+        type="button"
+        id={"resume-pause-#{p.id}"}
+        class="btn btn-xs"
+        phx-click="resume_pause"
+        phx-value-pool={p.pool}
+      >
+        Resume
+      </button>
     </div>
     """
   end

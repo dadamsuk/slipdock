@@ -267,9 +267,28 @@ defmodule SlipdockWeb.BoardLive.State do
     socket
     |> assign(board: board, page_title: board.name, ancestry: Boards.ancestry(board))
     |> assign(meetings: Slipdock.Meetings.presence(socket.assigns.current_user, board))
-    |> assign(pulse: board_pulse(board))
+    |> assign(pulse: board_pulse(board), pauses: board_pauses(board))
     |> assign_columns()
     |> assign_access()
+  end
+
+  @doc """
+  The open runner pauses on the board's tree (#1116), each with the root
+  board it is kept on, for the banner every board in the tree shows.
+  """
+  def board_pauses(board) do
+    case Slipdock.Runners.pauses(board) do
+      [] ->
+        []
+
+      pauses ->
+        root =
+          if board.root_id,
+            do: Slipdock.Repo.get(Slipdock.Boards.Board, board.root_id),
+            else: board
+
+        Enum.map(pauses, &%{pause: &1, root: root})
+    end
   end
 
   @doc "The board's pulse for its strip (#1113), worked out only when the strip is on."

@@ -393,6 +393,8 @@ slipdock jobs --card ID                       # one card's jobs
 slipdock job <id>                             # status, runner, prompt, the tail of its log
 slipdock cancel-job <id>                      # queued: at once; running: on the next heartbeat
 slipdock claim-job <board> --pool P           # take the next job as this session ("nothing queued")
+slipdock pause <board> [--pool P] --reason "…"   # owner: hold runner work (tree or pool); a person resumes
+slipdock resume <board> [--pool P]            # let exactly that pause off (refused under an agent)
 slipdock job-progress <id> [--message NOTE]   # renew the lease (20 min for a session); note → card
 slipdock finish-job <id> --status done|failed|cancelled|timeout [--summary S]
 

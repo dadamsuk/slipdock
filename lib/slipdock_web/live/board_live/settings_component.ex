@@ -546,6 +546,29 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
               </span>
             </label>
           </div>
+          <%!-- WIP limits holding automated work (#1116, KTD11). Off by
+                default: people's drags only ever see the badge. --%>
+          <div class="space-y-1">
+            <input type="hidden" name={@form[:automation_wip].name} value="false" />
+            <label class="flex cursor-pointer items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                id="board-automation-wip"
+                name={@form[:automation_wip].name}
+                value="true"
+                checked={Phoenix.HTML.Form.normalize_value("checkbox", @form[:automation_wip].value)}
+                class="checkbox checkbox-sm mt-0.5"
+              />
+              <span>
+                <span class="font-medium">WIP limits hold automated work</span>
+                <span class="block text-xs text-base-content/50">
+                  While the first in-progress list is at its WIP limit, runner jobs and lists
+                  that send cards wait, unless the card is in progress already. People can
+                  still drag cards in.
+                </span>
+              </span>
+            </label>
+          </div>
           <%!-- Every board has a wiki: this is the whole wiki's switch for
                 the card contents under a page's prose. Hidden, not removed. --%>
           <div class="space-y-1">

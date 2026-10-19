@@ -933,6 +933,13 @@ defmodule SlipdockWeb.HelpLive.Agents do
           a project's own commands and settings from the folder it starts in.
         </li>
         <li>
+          <strong>Pause</strong> in the Runners panel holds the whole board tree, or one pool,
+          with a reason: nothing is taken and no list sends a card until you resume it. Agents
+          can pause (<code>manage_automation</code>, <code>slipdock pause</code>) but only a
+          person can resume. Held jobs say why: paused, WIP full, waiting on a card in
+          progress, or no runner online.
+        </li>
+        <li>
           With <strong>Work a list with a runner</strong>, a card its job leaves in progress
           goes back to the top of the list for another try, then gets flagged as blocked.
         </li>

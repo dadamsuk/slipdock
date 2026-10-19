@@ -106,7 +106,8 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
          truncated: length(cards) > limit,
          cards:
            if(full, do: in_full(board, page, context), else: Enum.map(page, &Tools.card_line/1))
-       }}
+       }
+       |> Map.merge(V.paused(board))}
     end
   end
 

@@ -220,6 +220,48 @@ defmodule SlipdockWeb.API.JobController do
     end
   end
 
+  ## Pausing ----------------------------------------------------------------
+  #
+  # The brake (#1116, `Slipdock.Runners.Pause`): the board's owner holds its
+  # tree, or one pool on it, with a reason. Anyone owning the board can
+  # pull it, agents included; letting it off is a person's (`Runners.resume`).
+
+  @doc "The open pauses on the board's tree: `{\"pauses\": [...]}`."
+  def pauses(conn, %{"board" => ref}) do
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :read) do
+      json(conn, %{pauses: Enum.map(Runners.pauses(board), &V.pause/1)})
+    end
+  end
+
+  @doc "Pauses the tree, or `pool` on it, with a required `reason`."
+  def pause(conn, %{"board" => ref} = params) do
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :owner) do
+      case Runners.pause(board, params, conn.assigns.current_user, Slipdock.Actor.from_conn(conn)) do
+        {:ok, pause} -> conn |> put_status(:created) |> json(%{pause: V.pause(pause)})
+        {:error, %Ecto.Changeset{}} = error -> error
+        {:error, message} -> {:error, :conflict, message}
+      end
+    end
+  end
+
+  @doc "Resumes the pause with exactly this `pool` (none: the whole-tree one)."
+  def resume(conn, %{"board" => ref} = params) do
+    with {:ok, board} <- Authorize.fetch_board(conn, ref, :owner) do
+      user = conn.assigns.current_user
+
+      case Runners.resume(board, params["pool"], user, Slipdock.Actor.from_conn(conn)) do
+        {:ok, pause} ->
+          json(conn, %{pause: V.pause(Slipdock.Repo.preload(pause, :paused_by))})
+
+        {:error, "only a person" <> _ = message} ->
+          {:error, :forbidden, message}
+
+        {:error, message} ->
+          {:error, :unprocessable_entity, message}
+      end
+    end
+  end
+
   ## A session taking jobs ---------------------------------------------------
   #
   # A Claude session (`/loop`, a scheduled task) takes jobs with the API token
@@ -228,8 +270,9 @@ defmodule SlipdockWeb.API.JobController do
 
   @doc """
   Takes the oldest queued job of `pool` on the board's tree, or answers
-  `{"job": null}` — with `waiting` (`job`, `card_id`, `reason`) when a job
-  is held back while something is in progress. `wait` (seconds, at most 20)
+  `{"job": null}` — with `held`, the reason, when work is held: `paused`
+  when the pool or tree is, else `waiting` (`job`, `card_id`, `reason`)
+  for the oldest job something holds back. `wait` (seconds, at most 20)
   waits for one to arrive.
   """
   def claim(conn, %{"board" => ref} = params) do
@@ -256,12 +299,18 @@ defmodule SlipdockWeb.API.JobController do
     %{wait: V.wait(wait), handoff: handoff && V.handoff(handoff)}
   end
 
-  # No job to take, but one waiting while something is in progress: say
-  # which, so an empty answer isn't read as an empty queue.
+  # No job to take, but work held (paused, WIP full, waiting on a card in
+  # progress): say why, so an empty answer isn't read as an empty queue.
   defp waiting(board, pool) do
-    case Runners.first_waiting(board, pool |> to_string() |> String.downcase()) do
-      nil -> %{}
-      job -> %{waiting: %{job: job.id, card_id: job.card_id, reason: Runners.waiting_reason(job)}}
+    case Runners.held(board, pool) do
+      nil ->
+        %{}
+
+      %{job: nil, pause: pause, reason: reason} ->
+        %{held: reason, paused: V.pause(pause)}
+
+      %{job: job, reason: reason} ->
+        %{held: reason, waiting: %{job: job.id, card_id: job.card_id, reason: reason}}
     end
   end
 

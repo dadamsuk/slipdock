@@ -22,7 +22,7 @@ defmodule SlipdockWeb.MCP.Tools.ClaimJob do
     do:
       "Takes the oldest job queued for a runner pool on a board, with a lease. Work the " <>
         "card it names, report with job_progress between steps (the lease is 20 min; stop if it says " <>
-        "cancel), end with finish_job. Answers \"nothing queued\" when there is none. A job " <>
+        "cancel), end with finish_job. Answers \"nothing queued\" when there is none, or why work is held. A job " <>
         "sent again after a question was answered carries wait and handoff."
 
   @impl true
@@ -53,14 +53,15 @@ defmodule SlipdockWeb.MCP.Tools.ClaimJob do
       case Runners.claim(runner) do
         # Every idle poll is a model call: the empty answer is kept tiny.
         nil ->
-          case Runners.first_waiting(board, runner.pool) do
+          case Runners.held(board, runner.pool) do
             nil ->
               {:ok, "nothing queued"}
 
-            job ->
-              {:ok,
-               "nothing queued to take: job ##{job.id} waits while " <>
-                 "#{Runners.waiting_reason(job)}"}
+            %{job: nil, reason: reason} ->
+              {:ok, "nothing queued to take: #{reason}"}
+
+            %{job: job, reason: reason} ->
+              {:ok, "nothing queued to take: job ##{job.id} waits while #{reason}"}
           end
 
         job ->

@@ -26,7 +26,7 @@ defmodule Slipdock.Runners do
   alias Slipdock.{Boards, Repo}
   alias Slipdock.Accounts.UserToken
   alias Slipdock.Boards.{Board, Card}
-  alias Slipdock.Runners.{ClaimDrain, Job, Recovery, Requeue, Runner}
+  alias Slipdock.Runners.{ClaimDrain, Job, Pause, Recovery, Requeue, Runner}
 
   @pubsub Slipdock.PubSub
 
@@ -446,31 +446,312 @@ defmodule Slipdock.Runners do
 
   def waiting_on(_job), do: nil
 
-  @doc "What `waiting_on/1` says, as a line: `\"#123 is in progress\"`, or nil."
-  def waiting_reason(job) do
-    case waiting_on(job) do
-      nil -> nil
-      card -> "##{card.id} is in progress"
+  @doc """
+  Why a queued job is not being handed out, as one line, or nil when nothing
+  holds it (KTD12). In order, the first that applies:
+
+    * `"paused by David: bad deploy"` — its pool or its tree is paused;
+    * `"WIP full: In Progress 3/3"` — its board holds automated work at the
+      WIP limit (`automation_wip`) and its card isn't in progress already;
+    * `"#123 is in progress"` — it waits while anything is (`wait_while_doing`);
+    * `"No runner online for pool dev"` — no runner of its pool has been seen
+      for three leases. Left out with `claimant: true`: the runner asking is
+      online, whatever its last poll says.
+  """
+  def held_reason(job, opts \\ [])
+
+  def held_reason(%Job{status: "queued"} = job, opts) do
+    cond do
+      pause = pause_for(job.root_board_id, job.pool) ->
+        Pause.line(pause)
+
+      line = wip_held(job) ->
+        line
+
+      card = waiting_on(job) ->
+        "##{card.id} is in progress"
+
+      !opts[:claimant] and not runner_online?(job.root_board_id, job.pool) ->
+        "No runner online for pool #{job.pool}"
+
+      true ->
+        nil
+    end
+  end
+
+  def held_reason(_job, _opts), do: nil
+
+  # The WIP line for a job whose board holds automated work at its limit,
+  # unless its card is in progress already (it is the work, not more of it).
+  defp wip_held(%Job{} = job) do
+    with {column, count} <- wip_full(job.board_id),
+         false <- in_doing?(job.card_id) do
+      wip_line(column, count)
+    else
+      _ -> nil
+    end
+  end
+
+  defp in_doing?(card_id) do
+    Repo.exists?(
+      from(c in Card,
+        join: col in assoc(c, :column),
+        where: c.id == ^card_id and col.category == "doing"
+      )
+    )
+  end
+
+  @doc ~S'The WIP held line: `"WIP full: In Progress 3/3"`.'
+  def wip_line(column, count), do: "WIP full: #{column.name} #{count}/#{column.wip_limit}"
+
+  @doc """
+  `{column, count}` when `board_id` holds automated work at its WIP limit
+  (KTD11): `automation_wip` is on and its first doing list by position has
+  a `wip_limit` that its open cards (stand-ins left out, as on the badge)
+  reach. Else nil.
+  """
+  def wip_full(board_id) do
+    from(b in Board,
+      join: col in assoc(b, :columns),
+      where: b.id == ^board_id and b.automation_wip and col.category == "doing",
+      order_by: [asc: col.position, asc: col.id],
+      limit: 1,
+      select: col
+    )
+    |> Repo.one()
+    |> case do
+      %{wip_limit: limit} = column when is_integer(limit) ->
+        count = wip_count(column.id)
+        if count >= limit, do: {column, count}
+
+      _ ->
+        nil
+    end
+  end
+
+  defp wip_count(column_id) do
+    Repo.aggregate(
+      from(c in Card,
+        where:
+          c.column_id == ^column_id and is_nil(c.archived_at) and c.completed == false and
+            is_nil(c.stand_in_for_id)
+      ),
+      :count
+    )
+  end
+
+  # The boards of a tree holding automated work at their limit: the claim
+  # passes over their jobs whose cards aren't in progress.
+  defp wip_full_boards(root_id) do
+    from(b in Board,
+      where: (b.id == ^root_id or b.root_id == ^root_id) and b.automation_wip,
+      select: b.id
+    )
+    |> Repo.all()
+    |> Enum.filter(&wip_full/1)
+  end
+
+  # The job's own card is in a doing list.
+  defp own_card_doing do
+    from(c in Card,
+      join: col in assoc(c, :column),
+      where: c.id == parent_as(:job).card_id and col.category == "doing",
+      select: 1
+    )
+  end
+
+  # Online: seen within three of its leases.
+  defp runner_online?(root_id, pool) do
+    now = DateTime.utc_now()
+
+    from(r in Runner,
+      where: r.board_id == ^root_id and r.pool == ^pool and not is_nil(r.last_seen_at)
+    )
+    |> Repo.all()
+    |> Enum.any?(&(DateTime.diff(now, &1.last_seen_at) <= 3 * lease_for(&1)))
+  end
+
+  @doc """
+  What a runner of `pool` that got no job is held by, for the claim
+  answers: `%{reason: line, pause: pause}` when the pool or tree is paused,
+  `%{reason: line, job: job}` for the oldest queued job something holds, or
+  nil. Never "no runner online": the one asking is.
+  """
+  def held(%Board{} = board, pool) do
+    root_id = Board.root_id(board)
+    pool = pool |> to_string() |> String.downcase()
+
+    case pause_for(root_id, pool) do
+      %Pause{} = pause ->
+        %{reason: Pause.line(pause), pause: pause, job: nil}
+
+      nil ->
+        from(j in Job,
+          where: j.root_board_id == ^root_id and j.pool == ^pool and j.status == "queued",
+          order_by: [asc: j.id],
+          limit: 20
+        )
+        |> Repo.all()
+        |> Enum.find_value(fn job ->
+          if reason = held_reason(job, claimant: true),
+            do: %{reason: reason, job: job, pause: nil}
+        end)
+    end
+  end
+
+  ## Pausing ------------------------------------------------------------------
+
+  @doc """
+  Pauses `board`'s tree, or one `pool` on it, with a `reason` (both in
+  `attrs`, string keys). Kept on the root (see `Slipdock.Runners.Pause`).
+  `actor` is a `Slipdock.Actor`: an agent's token label is kept and shown.
+  The caller has checked that `user` owns the board. Returns `{:ok, pause}`
+  or `{:error, changeset | message}`.
+  """
+  def pause(%Board{} = board, attrs, user, actor \\ Slipdock.Actor.unknown()) do
+    root_id = Board.root_id(board)
+    pool = blank(attrs["pool"])
+
+    case pause_exactly(root_id, pool && String.downcase(String.trim(pool))) do
+      %Pause{} = open ->
+        {:error, "#{Pause.scope(open)} is already #{Pause.line(open)}"}
+
+      nil ->
+        %Pause{
+          root_board_id: root_id,
+          paused_by_id: user && user.id,
+          agent: if(actor[:kind] == "agent", do: actor[:agent])
+        }
+        |> Pause.changeset(%{"pool" => pool, "reason" => attrs["reason"] || ""})
+        |> Repo.insert()
+        |> case do
+          {:ok, pause} ->
+            pause = Repo.preload(pause, :paused_by)
+
+            Boards.log_activity(
+              root_id,
+              nil,
+              "runner",
+              "#{Pause.who(pause)} paused #{Pause.scope(pause)}: #{pause.reason}"
+            )
+
+            Boards.broadcast_tree(root_id)
+            {:ok, pause}
+
+          error ->
+            error
+        end
     end
   end
 
   @doc """
-  The oldest queued job of `pool` on `board`'s tree that is waiting while
-  something is in progress, or nil: what a runner that got no work is
-  waiting for.
+  Resumes the pause of `board`'s tree with exactly this `pool` (nil: the
+  whole-tree pause; a pool's own pause stays). A person's to do (`actor`
+  kind human): an agent can pull the brake but not let it off. Feeds every
+  board in the tree and wakes every waiting runner, so held work goes at
+  once. Returns `{:ok, pause}` or `{:error, message}`.
   """
-  def first_waiting(%Board{} = board, pool) do
-    from(j in Job,
-      as: :job,
-      where:
-        j.root_board_id == ^Board.root_id(board) and j.pool == ^to_string(pool) and
-          j.status == "queued" and j.wait_while_doing,
-      where: exists(busy_cards()),
-      order_by: [asc: j.id],
-      limit: 1
+  def resume(%Board{} = board, pool, user, actor \\ Slipdock.Actor.unknown()) do
+    root_id = Board.root_id(board)
+    pool = pool |> blank() |> then(&(&1 && String.downcase(String.trim(&1))))
+
+    with :ok <- person(actor),
+         %Pause{} = pause <- pause_exactly(root_id, pool) do
+      {:ok, pause} =
+        pause
+        |> Ecto.Changeset.change(resumed_at: now(), resumed_by_id: user && user.id)
+        |> Repo.update()
+
+      Boards.log_activity(
+        root_id,
+        nil,
+        "runner",
+        "#{user_name(user)} resumed #{Pause.scope(pause)}"
+      )
+
+      Boards.broadcast_tree(root_id)
+      release(root_id)
+      {:ok, pause}
+    else
+      nil -> {:error, "#{if pool, do: "pool #{pool}", else: "the whole tree"} is not paused"}
+      error -> error
+    end
+  end
+
+  defp person(%{kind: "human"}), do: :ok
+
+  defp person(_actor),
+    do:
+      {:error,
+       "only a person can resume: on the board's Runners panel, or with the CLI outside an agent"}
+
+  # Everything a pause held: every list_top rule on the tree looks again,
+  # and every runner waiting on one of the tree's pools is woken.
+  defp release(root_id) do
+    board_ids =
+      Repo.all(from(b in Board, where: b.id == ^root_id or b.root_id == ^root_id, select: b.id))
+
+    Enum.each(board_ids, &Slipdock.Automations.feed_board/1)
+
+    pools =
+      Repo.all(from(r in Runner, where: r.board_id == ^root_id, distinct: true, select: r.pool)) ++
+        Repo.all(
+          from(j in Job,
+            where: j.root_board_id == ^root_id and j.status == "queued",
+            distinct: true,
+            select: j.pool
+          )
+        )
+
+    pools
+    |> Enum.uniq()
+    |> Enum.each(&Phoenix.PubSub.broadcast(@pubsub, pool_topic(root_id, &1), :job_queued))
+  end
+
+  @doc "The open pauses on `board`'s tree, the whole-tree one first, then by pool."
+  def pauses(%Board{} = board), do: open_pauses(Board.root_id(board))
+
+  def open_pauses(root_id) do
+    from(p in Pause,
+      where: p.root_board_id == ^root_id and is_nil(p.resumed_at),
+      order_by: [asc_nulls_first: p.pool],
+      preload: [:paused_by]
     )
+    |> Repo.all()
+  end
+
+  @doc """
+  The open pause holding `pool` on the tree rooted at `root_id`: the pool's
+  own, else the whole tree's, else nil. `pool` nil asks about the tree.
+  """
+  def pause_for(root_id, pool) do
+    pauses = open_pauses(root_id)
+
+    Enum.find(pauses, &(pool && &1.pool == pool)) || Enum.find(pauses, &is_nil(&1.pool))
+  end
+
+  defp pause_exactly(root_id, pool) do
+    from(p in Pause, where: p.root_board_id == ^root_id and is_nil(p.resumed_at))
+    |> then(&if(pool, do: where(&1, [p], p.pool == ^pool), else: where(&1, [p], is_nil(p.pool))))
+    |> preload(:paused_by)
     |> Repo.one()
   end
+
+  @doc """
+  Whether `pools` (a list_top rule's) are held on the tree: the whole tree
+  is paused, or any of them is.
+  """
+  def paused?(root_id, pools) do
+    Enum.any?(open_pauses(root_id), &(is_nil(&1.pool) or &1.pool in pools))
+  end
+
+  defp blank(value) when value in [nil, ""], do: nil
+  defp blank(value) when is_binary(value), do: if(String.trim(value) == "", do: nil, else: value)
+  defp blank(value), do: to_string(value)
+
+  defp user_name(%{name: name}) when is_binary(name) and name != "", do: name
+  defp user_name(%{email: email}) when is_binary(email), do: email
+  defp user_name(_), do: "someone"
 
   @doc """
   Hands `runner` the oldest queued job of its pool and tree, with a lease, or
@@ -538,7 +819,13 @@ defmodule Slipdock.Runners do
   # for it. (An `UPDATE … WHERE id IN (SELECT … LIMIT 1 SKIP LOCKED)` looks
   # the same but may run the subquery again per row and claim two.)
   defp try_claim(runner) do
+    # A paused pool or tree hands out nothing (#1116); its jobs wait.
+    if pause_for(runner.board_id, runner.pool), do: nil, else: claim_next(runner)
+  end
+
+  defp claim_next(runner) do
     now = now()
+    wip_full = wip_full_boards(runner.board_id)
 
     candidate =
       from(j in Job,
@@ -547,6 +834,7 @@ defmodule Slipdock.Runners do
           j.root_board_id == ^runner.board_id and j.pool == ^runner.pool and
             j.status == "queued",
         where: not j.wait_while_doing or not exists(busy_cards()),
+        where: j.board_id not in ^wip_full or exists(own_card_doing()),
         order_by: [asc: j.id],
         limit: 1,
         lock: "FOR UPDATE SKIP LOCKED",

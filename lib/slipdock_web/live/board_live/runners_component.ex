@@ -18,7 +18,8 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
   alias Slipdock.Runners.{HookPrompt, Runner, Setup}
 
   @events ~w(open_wizard close_wizard wizard_change connect regenerate rotate_token
-    revoke_runner close_setup edit_answers close_dialog reveal show_runner)
+    revoke_runner close_setup edit_answers close_dialog reveal show_runner
+    open_pause pause_change pause cancel_pause resume)
 
   # What the setup steps keep behind a link until it's clicked.
   @reveals ~w(script config verify)
@@ -40,7 +41,11 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
        editing: nil,
        revealed: MapSet.new(),
        shown: nil,
-       details: nil
+       details: nil,
+       # The pause form (#1116): nil, :tree, or the pool it would hold.
+       pausing: nil,
+       pause_reason: "",
+       pauses: []
      )}
   end
 
@@ -59,10 +64,14 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
      |> assign_runners()}
   end
 
-  defp assign_runners(%{assigns: %{can_manage: true, board: board}} = socket),
-    do: socket |> assign(runners: Runners.list_runners(board)) |> assign_details()
+  defp assign_runners(%{assigns: %{can_manage: true, board: board}} = socket) do
+    socket
+    |> assign(runners: Runners.list_runners(board), pauses: Runners.pauses(board))
+    |> assign_details()
+  end
 
-  defp assign_runners(socket), do: assign(socket, runners: [], shown: nil, details: nil)
+  defp assign_runners(socket),
+    do: assign(socket, runners: [], shown: nil, details: nil, pauses: [])
 
   # The runner whose details are open, read again whenever the list is: a
   # revoked one closes them.
@@ -228,6 +237,64 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
 
   # Clicking a runner opens what is known about it under its row; clicking it
   # again closes it.
+  # Pausing (#1116): a reason first, always; the button waits for one.
+  def handle_event("open_pause", params, socket) do
+    pausing = if params["pool"] in [nil, ""], do: :tree, else: params["pool"]
+    {:noreply, assign(socket, pausing: pausing, pause_reason: "")}
+  end
+
+  def handle_event("pause_change", %{"reason" => reason}, socket),
+    do: {:noreply, assign(socket, pause_reason: reason)}
+
+  def handle_event("cancel_pause", _params, socket),
+    do: {:noreply, assign(socket, pausing: nil, pause_reason: "")}
+
+  def handle_event("pause", %{"reason" => reason}, %{assigns: %{pausing: pausing}} = socket)
+      when not is_nil(pausing) do
+    %{board: board, current_user: user} = socket.assigns
+    pool = if pausing == :tree, do: nil, else: pausing
+
+    case Runners.pause(
+           board,
+           %{"pool" => pool, "reason" => reason},
+           user,
+           Slipdock.Actor.web(user)
+         ) do
+      {:ok, pause} ->
+        send(self(), :reload_board)
+
+        {:noreply,
+         socket
+         |> assign(pausing: nil, pause_reason: "", pauses: Runners.pauses(board))
+         |> flash(:info, "Paused #{Runners.Pause.scope(pause)}.")}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        {:noreply, flash(socket, :error, "Not paused: #{inspect_errors(changeset)}")}
+
+      {:error, message} ->
+        {:noreply, flash(socket, :error, message)}
+    end
+  end
+
+  def handle_event("pause", _params, socket), do: {:noreply, socket}
+
+  def handle_event("resume", params, socket) do
+    %{board: board, current_user: user} = socket.assigns
+
+    case Runners.resume(board, params["pool"], user, Slipdock.Actor.web(user)) do
+      {:ok, pause} ->
+        send(self(), :reload_board)
+
+        {:noreply,
+         socket
+         |> assign(pauses: Runners.pauses(board))
+         |> flash(:info, "Resumed #{Runners.Pause.scope(pause)}.")}
+
+      {:error, message} ->
+        {:noreply, socket |> assign(pauses: Runners.pauses(board)) |> flash(:error, message)}
+    end
+  end
+
   def handle_event("show_runner", %{"id" => id}, socket) do
     case Runners.find_runner(socket.assigns.board, id) do
       {:ok, %Runner{id: id}} when id == socket.assigns.shown ->
@@ -345,6 +412,8 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
       assign(assigns,
         runner_rules: runner_rules,
         waiting_pools: waiting_pools(runner_rules, assigns.runners, assigns.can_manage),
+        pools: pools(runner_rules, assigns.runners),
+        tree_pause: Enum.find(assigns.pauses, &is_nil(&1.pool)),
         preview: preview(assigns)
       )
 
@@ -357,17 +426,89 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
             Send cards to a coding agent or LLM on your own machine, to Claude on a schedule, or to ChatGPT
           </p>
         </div>
-        <button
-          :if={@can_manage and is_nil(@wizard)}
-          phx-target={@myself}
-          type="button"
-          class="btn btn-primary btn-sm"
-          phx-click="open_wizard"
-          id="connect-runner"
-        >
-          <.icon name="hero-plus" class="size-4" /> Connect a runner
-        </button>
+        <div class="flex shrink-0 items-center gap-1">
+          <%!-- The whole tree's brake (#1116); a pool's is on its row. --%>
+          <button
+            :if={@can_manage and is_nil(@tree_pause)}
+            phx-target={@myself}
+            type="button"
+            class="btn btn-ghost btn-sm"
+            phx-click="open_pause"
+            id="pause-tree"
+            title="Hold every runner job and list send on this board tree"
+          >
+            <.icon name="hero-pause" class="size-4" /> Pause
+          </button>
+          <button
+            :if={@can_manage and @tree_pause}
+            phx-target={@myself}
+            type="button"
+            class="btn btn-warning btn-sm"
+            phx-click="resume"
+            id="resume-tree"
+          >
+            <.icon name="hero-play" class="size-4" /> Resume
+          </button>
+          <button
+            :if={@can_manage and is_nil(@wizard)}
+            phx-target={@myself}
+            type="button"
+            class="btn btn-primary btn-sm"
+            phx-click="open_wizard"
+            id="connect-runner"
+          >
+            <.icon name="hero-plus" class="size-4" /> Connect a runner
+          </button>
+        </div>
       </div>
+
+      <p :if={@tree_pause} id="runners-tree-paused" class="text-xs text-warning">
+        The whole tree is {Runners.Pause.line(@tree_pause)}
+      </p>
+
+      <.pause_form
+        :if={@pausing}
+        pausing={@pausing}
+        reason={@pause_reason}
+        target={@myself}
+      />
+
+      <ul :if={@can_manage and @pools != []} id="runner-pools" class="space-y-1">
+        <li
+          :for={pool <- @pools}
+          id={"runner-pool-#{pool}"}
+          class="flex items-center gap-2 rounded-lg px-2 py-1 text-sm odd:bg-base-200/40"
+        >
+          <% paused = Enum.find(@pauses, &(&1.pool == pool)) %>
+          <.icon name="hero-queue-list" class="size-4 shrink-0 text-base-content/50" />
+          <span class="min-w-0 flex-1 truncate">
+            pool {pool}
+            <span :if={paused} class="text-xs text-warning">· {Runners.Pause.line(paused)}</span>
+          </span>
+          <button
+            :if={is_nil(paused)}
+            phx-target={@myself}
+            type="button"
+            class="btn btn-ghost btn-xs"
+            phx-click="open_pause"
+            phx-value-pool={pool}
+            id={"pause-pool-#{pool}"}
+          >
+            Pause
+          </button>
+          <button
+            :if={paused}
+            phx-target={@myself}
+            type="button"
+            class="btn btn-warning btn-xs"
+            phx-click="resume"
+            phx-value-pool={pool}
+            id={"resume-pool-#{pool}"}
+          >
+            Resume
+          </button>
+        </li>
+      </ul>
 
       <ul :if={@runners != [] or @waiting_pools != []} id="runner-list" class="space-y-1">
         <%= for runner <- @runners do %>
@@ -486,6 +627,81 @@ defmodule SlipdockWeb.BoardLive.RunnersComponent do
       </dialog>
     </div>
     """
+  end
+
+  attr :pausing, :any, required: true
+  attr :reason, :string, required: true
+  attr :target, :any, required: true
+
+  # The reason is required: Pause stays disabled until there is one.
+  defp pause_form(assigns) do
+    ~H"""
+    <.form
+      for={%{}}
+      as={:pause}
+      id="pause-form"
+      phx-target={@target}
+      phx-change="pause_change"
+      phx-submit="pause"
+      class="space-y-2 rounded-lg border border-base-content/10 p-3"
+    >
+      <p class="text-sm font-medium">
+        Pause {if @pausing == :tree, do: "the whole tree", else: "pool #{@pausing}"}
+      </p>
+      <p class="text-xs text-base-content/60">
+        No job is taken and no list sends a card until you resume. Jobs already running finish.
+      </p>
+      <input
+        type="text"
+        name="reason"
+        id="pause-reason"
+        value={@reason}
+        required
+        maxlength="500"
+        placeholder="Why? (shown to everyone, and to the agents)"
+        class="input input-sm w-full"
+        phx-debounce="100"
+      />
+      <div class="flex justify-end gap-2">
+        <button
+          type="button"
+          class="btn btn-ghost btn-sm"
+          phx-click="cancel_pause"
+          phx-target={@target}
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          id="pause-submit"
+          class="btn btn-warning btn-sm"
+          disabled={String.trim(@reason) == ""}
+        >
+          Pause
+        </button>
+      </div>
+    </.form>
+    """
+  end
+
+  defp inspect_errors(changeset) do
+    changeset
+    |> SlipdockWeb.API.JSON.errors()
+    |> Enum.map_join("; ", fn {field, messages} -> "#{field} #{Enum.join(messages, ", ")}" end)
+  end
+
+  # Every pool the tree's runners take from or its rules send to.
+  defp pools(rules, runners) do
+    rule_pools =
+      rules
+      |> Enum.flat_map(&Spec.actions(&1.spec))
+      |> Enum.filter(&(&1["type"] == "runner"))
+      |> Enum.map(&(&1["pool"] |> to_string() |> String.downcase()))
+
+    (Enum.map(runners, & &1.pool) ++ rule_pools)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq()
+    |> Enum.sort()
   end
 
   defp preview(%{wizard: %{preview: {:ok, answers}}} = assigns),
