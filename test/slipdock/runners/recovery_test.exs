@@ -60,7 +60,14 @@ defmodule Slipdock.Runners.RecoveryTest do
   defp card(card), do: Boards.get_card!(card.id)
 
   defp comments(card),
-    do: Repo.all(from(c in Boards.Comment, where: c.card_id == ^card.id, select: c.body))
+    do:
+      Repo.all(
+        from(c in Boards.Comment,
+          where: c.card_id == ^card.id,
+          order_by: [asc: c.id],
+          select: c.body
+        )
+      )
 
   describe "a job that ends with its card in progress" do
     for status <- ~w(done failed cancelled timeout) do
