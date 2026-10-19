@@ -57,7 +57,9 @@ defmodule SlipdockWeb.TranscriptView do
             {turn.start_ms && clock(turn.start_ms)}
           </time>
           <div class={["border-l-4 pl-3", speaker_colour(turn.speaker, @transcript.speakers)]}>
-            <p :if={turn.speaker} class="text-sm font-semibold">{turn.speaker}</p>
+            <p :if={turn.speaker} class="wiki-transcript-speaker text-sm font-semibold">
+              {turn.speaker}
+            </p>
             <p
               :for={{line, l} <- Enum.with_index(turn.lines)}
               class="leading-relaxed text-base-content"

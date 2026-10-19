@@ -1,7 +1,7 @@
 // node --test assets/js — the parts of the transcript player that are not the DOM.
 import {test} from "node:test"
 import assert from "node:assert/strict"
-import {clock, currentTurn, nextSpeed, matches, problemMessage, problemLink, keyAction, typing, SPEEDS} from "./transcript_player.js"
+import {clock, currentTurn, nextSpeed, matches, problemMessage, problemLink, keyAction, typing, speakerRename, SPEEDS} from "./transcript_player.js"
 
 test("times read as minutes and seconds, and hours when they need them", () => {
   assert.equal(clock(65_000), "1:05")
@@ -78,4 +78,12 @@ test("keys act on the player, but not while typing or with a modifier", () => {
   assert.equal(keyAction({key: "ArrowLeft", metaKey: true, target: body}), null)
   assert.equal(typing(null), false)
   assert.equal(typing({tagName: "TEXTAREA"}), true)
+})
+
+test("naming a voice asks for a change only when there is one", () => {
+  assert.deepEqual(speakerRename("Speaker 1", "  Priya Shah "), {from: "Speaker 1", to: "Priya Shah"})
+  assert.equal(speakerRename("Speaker 1", "Speaker 1 "), null)
+  assert.equal(speakerRename("Speaker 1", "   "), null)
+  assert.equal(speakerRename("", "Priya"), null)
+  assert.equal(speakerRename("Speaker 1", undefined), null)
 })

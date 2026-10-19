@@ -786,6 +786,15 @@ defmodule SlipdockWeb.WikiLive.Index do
   defp recording_problem({:error, reason}), do: reason
   defp recording_problem(_), do: nil
 
+  defp speaker_refusal(:blank), do: "A voice needs a name."
+
+  defp speaker_refusal(:invalid),
+    do: "A name can be up to 60 characters, without <, > or a colon."
+
+  defp speaker_refusal(:unchanged), do: "That is already its name."
+  defp speaker_refusal(:not_found), do: "Nobody by that name speaks in this page's transcript."
+  defp speaker_refusal(_), do: "That voice couldn't be renamed."
+
   defp assign_page(socket, %Page{} = page) do
     recording = Slipdock.Recordings.for_page(page)
 
@@ -1728,6 +1737,29 @@ defmodule SlipdockWeb.WikiLive.Index do
 
       _ ->
         {:noreply, put_flash(socket, :error, "That file couldn't be deleted.")}
+    end
+  end
+
+  # A name put on a voice in the page's transcript, from the player (#1157).
+  def handle_event("rename_speaker", %{"from" => from, "to" => to}, socket)
+      when is_binary(from) and is_binary(to) do
+    with true <- socket.assigns.can_write,
+         %Page{} = page <- socket.assigns.page,
+         {:ok, saved} <-
+           Wiki.rename_speaker(page, from, to, user: socket.assigns.current_user, via: "web") do
+      {:noreply,
+       socket
+       |> reload(saved)
+       |> put_flash(
+         :info,
+         "“#{String.trim(from)}” is now “#{String.trim(to)}” in the transcript."
+       )}
+    else
+      {:error, reason} when is_atom(reason) ->
+        {:noreply, put_flash(socket, :error, speaker_refusal(reason))}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "That voice couldn't be renamed.")}
     end
   end
 
@@ -6314,6 +6346,7 @@ defmodule SlipdockWeb.WikiLive.Index do
         data-recording-problem={recording_problem(@recording)}
         data-settings-url={@recording_help.settings_url}
         data-vault-owner={@recording_help.owner}
+        data-can-name-speakers={@can_write && "true"}
       >
         <div
           id="wiki-body"

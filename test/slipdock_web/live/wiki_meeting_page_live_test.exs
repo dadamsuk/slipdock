@@ -194,4 +194,55 @@ defmodule SlipdockWeb.WikiMeetingPageLiveTest do
     refute has_element?(view, player(host) <> "[data-recording-src]")
     assert meeting.id
   end
+
+  describe "naming a voice (#1157)" do
+    test "an editor can rename a speaker, saved as a revision", %{conn: conn, board: board} do
+      page = meeting(board, "type: meeting", @transcript)
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}")
+
+      assert has_element?(view, player(page) <> "[data-can-name-speakers='true']")
+      assert has_element?(view, "#wiki-body .wiki-transcript-speaker", "Alice")
+
+      html = render_hook(view, "rename_speaker", %{"from" => "Alice", "to" => " Priya Shah "})
+
+      assert html =~ "“Alice” is now “Priya Shah” in the transcript."
+      assert has_element?(view, "#wiki-body li[data-speaker='Priya Shah']")
+      refute has_element?(view, "#wiki-body li[data-speaker='Alice']")
+      assert has_element?(view, "#wiki-body li[data-speaker='Bob']")
+
+      saved = Slipdock.Wiki.get_page!(page.id)
+      assert saved.body =~ "<v Priya Shah>Shall we start?"
+      assert [latest | _] = Slipdock.Wiki.list_revisions(saved)
+      assert latest.summary == "named the voice “Alice” “Priya Shah”"
+    end
+
+    test "a name that won't do is refused and nothing is saved", %{conn: conn, board: board} do
+      page = meeting(board, nil, @transcript)
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}")
+
+      assert render_hook(view, "rename_speaker", %{"from" => "Alice", "to" => "a:b"}) =~
+               "without &lt;, &gt; or a colon"
+
+      assert render_hook(view, "rename_speaker", %{"from" => "Carol", "to" => "Cat"}) =~
+               "Nobody by that name speaks"
+
+      assert render_hook(view, "rename_speaker", %{"from" => "Alice", "to" => ""}) =~
+               "A voice needs a name."
+
+      assert Slipdock.Wiki.get_page!(page.id).body == page.body
+    end
+
+    test "a reader can't rename a voice", %{board: board} do
+      page = meeting(board, nil, @transcript)
+      reader = user_fixture("reader@example.com")
+      share_fixture(board, reader, "read")
+
+      {:ok, view, _html} =
+        live(log_in_user(build_conn(), reader), ~p"/boards/#{board}/wiki/#{page.slug}")
+
+      refute has_element?(view, player(page) <> "[data-can-name-speakers]")
+      render_hook(view, "rename_speaker", %{"from" => "Alice", "to" => "Eve"})
+      assert Slipdock.Wiki.get_page!(page.id).body == page.body
+    end
+  end
 end

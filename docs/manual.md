@@ -3886,6 +3886,17 @@ The **▶ Play recording and transcript** link in
 the page jumps to the bar and starts it. Nothing is fetched from Drive
 until you press play.
 
+**Naming a voice.** When a transcriber couldn't tell who was speaking and
+wrote `Speaker 1`, `Speaker 2`, anyone who can edit the page can click a
+speaker's name in the transcript, type who it was and press Enter (Escape
+leaves it as it was). The name changes in every line that voice speaks, in
+every ```` ```vtt ```` block on the page, and the change is saved as a page
+revision, so History shows it and can undo it. Giving a voice the name of
+someone already there makes them one speaker, for when the transcriber split
+one person in two. A name is up to 60 characters, without `<`, `>` or a
+colon. Agents and the CLI do the same by editing the `<v Name>` tags in the
+page's body.
+
 To make it play:
 
 1. **Connect Google Drive** on **Account → Settings** (read-only). The

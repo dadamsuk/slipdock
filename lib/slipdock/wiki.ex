@@ -48,7 +48,8 @@ defmodule Slipdock.Wiki do
     Query,
     Revision,
     Section,
-    Sharing
+    Sharing,
+    TranscriptSpeakers
   }
 
   @pubsub Slipdock.PubSub
@@ -1089,6 +1090,27 @@ defmodule Slipdock.Wiki do
   end
 
   defp format_stamp(%DateTime{} = at), do: Calendar.strftime(at, "%d %b %Y %H:%M")
+
+  @doc """
+  Names a voice in the page's transcript (#1157): the speaker `from` is
+  called `to` in every ` ```vtt ` block of the page as it now stands
+  (`Slipdock.Wiki.TranscriptSpeakers.rename/3`), saved as an edit with a
+  revision of its own. `{:ok, page}`, or the refusal `rename/3` gives.
+  Options are `update_page/3`'s.
+  """
+  def rename_speaker(%Page{} = page, from, to, opts \\ []) do
+    current = Repo.get!(Page, page.id)
+
+    with {:ok, body, _cues} <- TranscriptSpeakers.rename(current.body || "", from, to) do
+      message = opts[:message] || "named the voice “#{String.trim(from)}” “#{String.trim(to)}”"
+
+      update_page(
+        current,
+        %{"body" => body},
+        opts |> Keyword.put(:message, message) |> Keyword.put(:new_revision, true)
+      )
+    end
+  end
 
   @doc """
   A line-by-line diff between two bodies, as
