@@ -55,11 +55,23 @@ jobs:
           SLIPDOCK_DEPLOY_TOKEN: ${{ secrets.SLIPDOCK_DEPLOY_TOKEN }}
           TAG: sha-${{ github.sha }}
 
-  # When the deploy is more than one command (it waits for a health check
-  # afterwards, say), record it in two steps instead:
+  # When the deploy is more than one command — Slipdock's own restarts the
+  # very server it is recorded on, so it is finished once that server is
+  # healthy again — record it in two steps instead. In place of the Deploy
+  # step above:
   #
-  #   - id: start
-  #     run: echo "id=$(slipdock deploy start --env production --tag "$TAG")" >> "$GITHUB_OUTPUT"
-  #   - run: ./deploy.sh "$TAG" && ./wait-for-healthy.sh
-  #   - if: always() && steps.start.outputs.id != ''
-  #     run: slipdock deploy finish --id "${{ steps.start.outputs.id }}" --status "${{ job.status == 'success' && 'succeeded' || 'failed' }}"
+  #     - name: Record the deploy started
+  #       id: record
+  #       continue-on-error: true
+  #       run: echo "id=$(slipdock deploy start --env production --tag "$TAG")" >> "$GITHUB_OUTPUT"
+  #       env: { SLIPDOCK_URL: ..., SLIPDOCK_DEPLOY_TOKEN: ..., TAG: ... }
+  #     - run: ./deploy.sh "$TAG" && ./wait-for-healthy.sh
+  #     - name: Record how the deploy ended
+  #       if: always() && steps.record.outputs.id != ''
+  #       continue-on-error: true
+  #       run: slipdock deploy finish --id "$ID" --status "$STATUS"
+  #       env:
+  #         SLIPDOCK_URL: ${{ vars.SLIPDOCK_URL }}
+  #         SLIPDOCK_DEPLOY_TOKEN: ${{ secrets.SLIPDOCK_DEPLOY_TOKEN }}
+  #         ID: ${{ steps.record.outputs.id }}
+  #         STATUS: ${{ job.status == 'success' && 'succeeded' || 'failed' }}

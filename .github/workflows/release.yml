@@ -210,6 +210,44 @@ jobs:
     timeout-minutes: 20
 
     steps:
+      # Recording the deploy on the slipdock board (#1134): the whole history,
+      # so the commits since the last deploy can be read; Erlang for the CLI;
+      # and the CLI itself, from the server about to be replaced. Every step of
+      # the record is allowed to fail — a deploy matters more than its record.
+      # Needs, on the production environment: the secret SLIPDOCK_DEPLOY_TOKEN
+      # (`slipdock deploy token slipdock`) and the variable SLIPDOCK_URL. This
+      # job is the GitHub Actions worked example's source
+      # (priv/deploy/examples/github-actions.yml): keep the two in step.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: erlef/setup-beam@v1
+        continue-on-error: true
+        with:
+          otp-version: "27"
+
+      - name: Install the slipdock CLI
+        continue-on-error: true
+        run: |
+          curl -fsSL "$SLIPDOCK_URL/cli/slipdock.escript" -o "$RUNNER_TEMP/slipdock"
+          chmod +x "$RUNNER_TEMP/slipdock"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+        env:
+          SLIPDOCK_URL: ${{ vars.SLIPDOCK_URL }}
+
+      # Two steps rather than `slipdock deploy run`: this deploy restarts the
+      # server it is recorded on, so it is finished once that server is
+      # healthy again, below.
+      - name: Record the deploy started
+        id: record
+        continue-on-error: true
+        run: echo "id=$(slipdock deploy start --env production --tag "$TAG")" >> "$GITHUB_OUTPUT"
+        env:
+          SLIPDOCK_URL: ${{ vars.SLIPDOCK_URL }}
+          SLIPDOCK_DEPLOY_TOKEN: ${{ secrets.SLIPDOCK_DEPLOY_TOKEN }}
+          TAG: ${{ needs.merge.outputs.deploy-tag }}
+
       - uses: tailscale/github-action@v4
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
@@ -257,3 +295,20 @@ jobs:
           done
         env:
           HEALTH_URL: ${{ secrets.DEPLOY_HEALTH_URL }}
+
+      # Succeeded or failed, from how the job went; a server still coming up
+      # after a failed deploy gets a few tries.
+      - name: Record how the deploy ended
+        if: always() && steps.record.outputs.id != ''
+        continue-on-error: true
+        run: |
+          for try in 1 2 3; do
+            slipdock deploy finish --id "$ID" --status "$STATUS" && exit 0
+            sleep 10
+          done
+          exit 1
+        env:
+          SLIPDOCK_URL: ${{ vars.SLIPDOCK_URL }}
+          SLIPDOCK_DEPLOY_TOKEN: ${{ secrets.SLIPDOCK_DEPLOY_TOKEN }}
+          ID: ${{ steps.record.outputs.id }}
+          STATUS: ${{ job.status == 'success' && 'succeeded' || 'failed' }}
