@@ -636,6 +636,33 @@ defmodule SlipdockWeb.RunnersLiveTest do
       view |> element("#runner-#{runner.id} button[title=Revoke]") |> render_click()
       refute has_element?(view, "#rule-preset-send_to_runner")
     end
+
+    test "the runner preset takes a prompt in a text area, and the rule carries it (#1156)", %{
+      conn: conn,
+      board: board
+    } do
+      view = open(conn, board)
+      submit(view, %{"pool" => "dev"})
+
+      view |> element("#rule-preset-send_to_runner") |> render_click()
+      assert has_element?(view, "#rule-preset-form textarea[name='preset[prompt]']")
+
+      view
+      |> form("#rule-preset-form", %{
+        "preset" => %{
+          "column" => "To Do",
+          "pool" => "dev",
+          "prompt" => "Triage {{card.title}} and say what it needs."
+        }
+      })
+      |> render_submit()
+
+      rule =
+        board.id |> Slipdock.Automations.list_rules() |> Enum.find(&(&1.name =~ "Send To Do"))
+
+      assert [%{"type" => "runner", "prompt" => "Triage {{card.title}} and say what it needs."}] =
+               rule.spec["actions"]
+    end
   end
 
   describe "a Claude scenario's runner before its first job (#511)" do

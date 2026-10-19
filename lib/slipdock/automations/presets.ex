@@ -10,7 +10,7 @@ defmodule Slipdock.Automations.Presets do
   A preset is described by data (`all/0`) so the web form, the API and the
   CLI all draw the same fields: each one has a `name`, a `label`, a `type`
   (`column`, `tag`, `flag`, `field`, `priority`, `person`, `notify`, `email`,
-  `number`, `url`, `card`, `text`) and whether it is `required`. `build/3` turns the
+  `number`, `url`, `card`, `text`, `longtext`) and whether it is `required`. `build/3` turns the
   values into rule attributes, or says which one is wrong.
   """
 
@@ -51,6 +51,18 @@ defmodule Slipdock.Automations.Presets do
     type: "yesno",
     required: true,
     default: "yes"
+  }
+
+  # What a runner job is told. Left out, the runner action's own default (the
+  # card's title, link and description) stands, so a rule only carries a
+  # prompt somebody wrote (#1156).
+  @prompt %{
+    name: "prompt",
+    label: "Prompt",
+    type: "longtext",
+    required: false,
+    hint:
+      "the card's title, link and description when blank; may use {{card.title}}, {{card.url}}…"
   }
 
   @presets [
@@ -244,7 +256,8 @@ defmodule Slipdock.Automations.Presets do
         %{name: "column", label: "List", type: "column", required: true},
         %{name: "pool", label: "Runner pool", type: "text", required: true, default: "default"},
         %{name: "kind", label: "Kind of job", type: "text", required: false, default: "claude"},
-        Map.put(@wait, :default, "no")
+        Map.put(@wait, :default, "no"),
+        @prompt
       ]
     },
     %{
@@ -267,7 +280,8 @@ defmodule Slipdock.Automations.Presets do
           required: false,
           default: 1,
           hint: "then flag it blocked; 0 leaves it to you"
-        }
+        },
+        @prompt
       ]
     },
     %{
@@ -598,7 +612,7 @@ defmodule Slipdock.Automations.Presets do
 
     {:ok, "Send #{column} to the #{pool} runners",
      %{"type" => "card_entered", "column" => column}, [],
-     [runner_action(pool, kind, p["wait"], "no")]}
+     [pool |> runner_action(kind, p["wait"], "no") |> put_present("prompt", p["prompt"])]}
   end
 
   defp spec("runner_trouble", p, opts) do
@@ -630,6 +644,7 @@ defmodule Slipdock.Automations.Presets do
        pool
        |> runner_action(kind, p["wait"], "yes")
        |> Map.put("requeue_stuck", requeue(p["requeue"]))
+       |> put_present("prompt", p["prompt"])
      ]}
   end
 

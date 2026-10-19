@@ -67,6 +67,49 @@ defmodule SlipdockCLI.Util do
   def path_enc(s),
     do: s |> to_string() |> String.split("/", trim: true) |> Enum.map_join("/", &enc/1)
 
+  @doc """
+  A GET's bytes saved at `dest`, through a `.part` file so a failed one
+  leaves nothing half-written; says where it went.
+  """
+  def download_to(url, dest, o) do
+    part = dest <> ".part"
+
+    case HTTP.download(url, part) do
+      :ok ->
+        File.rename!(part, dest)
+        size = File.stat!(dest).size
+
+        if o[:json],
+          do: Render.json(%{"path" => dest, "size" => size}),
+          else: IO.puts("saved #{dest} (#{size} bytes)")
+
+      error ->
+        File.rm(part)
+        out(error, o, & &1)
+    end
+  end
+
+  @doc "A GET's bytes on stdout, as they are."
+  def download_to_stdout(url, o) do
+    tmp = Path.join(System.tmp_dir!(), "slipdock-get-#{System.unique_integer([:positive])}")
+
+    try do
+      case HTTP.download(url, tmp) do
+        :ok ->
+          # Raw bytes: a unicode stdout would re-encode every byte over 127.
+          [encoding: was] = :io.getopts(:standard_io) |> Keyword.take([:encoding])
+          :io.setopts(:standard_io, encoding: :latin1)
+          File.stream!(tmp, 65_536) |> Enum.each(&IO.binwrite(:stdio, &1))
+          :io.setopts(:standard_io, encoding: was)
+
+        error ->
+          out(error, o, & &1)
+      end
+    after
+      File.rm(tmp)
+    end
+  end
+
   def cond_bool(true, _), do: true
   def cond_bool(_, true), do: false
   def cond_bool(_, _), do: nil

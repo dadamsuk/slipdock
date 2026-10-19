@@ -835,7 +835,16 @@ use that board, files, and a README. The first is
   a Tool is private to its owner until shared by grant, and listing it for
   everyone on the server takes an admin's approval of each version.
 
-`slipdock tools publish <folder>` publishes one. The package format is in
+- **Files at run time.** Any file of a Tool is one request away, by its path
+  in the package (`GET /api/tools/<name>/files/skills/<skill>/SKILL.md`, or
+  `list_tools` with `file`), and from the latest version unless asked. So a
+  small stub skill can fetch its procedure as it runs, and a new version
+  reaches everyone without a reinstall. A Tool's board files are read from
+  the board's `Tool` folder with `GET /api/boards/<board>/files/<path>`.
+
+`slipdock tools publish <folder>` publishes one. The package format, every
+endpoint and a worked example are in
+[Tool packages: the reference](docs/tool-packages.md); the overview is in
 [the manual](docs/manual.md#tools).
 
 ## Connecting an MCP client
@@ -860,7 +869,7 @@ the rest of its sections, one call each with `section`), `list_boards`, `get_boa
 `search`, `ask` (a question in prose, answered from the boards with what it read — a model call on your AI key, so slower), `read_page`, `list_pages` (a board's wiki, flat or as a tree), `page_info` (a page's links or heading paths,
 a board's wanted pages, or whether a title has a page), `page_history` (a page's revisions,
 the diff one save made, or between any two), `list_vaults` (your vaults, or where a vault path lands), `activity`
-(a board's log, or one card's), `download_file` (a card's or page's attached file: text as text, an image as an image; `link: true` gives a single-use, ten-minute URL to curl it from a shell instead) `list_automations` (a board's rules, owner only, with the spec grammar on request) `list_tools` (the [Tools](#tools) you can install, and the board each install made) and `garden` (a board's open [tidy-up suggestions](docs/manual.md#tidying-up); `run: true` looks the board over first) to read; `create_card`,
+(a board's log, or one card's), `download_file` (a card's or page's attached file: text as text, an image as an image; `link: true` gives a single-use, ten-minute URL to curl it from a shell instead) `list_automations` (a board's rules, owner only, with the spec grammar on request) `list_tools` (the [Tools](#tools) you can install, the board each install made, and with `file` one file of a Tool) and `garden` (a board's open [tidy-up suggestions](docs/manual.md#tidying-up); `run: true` looks the board over first) to read; `create_card`,
 `update_card`, `move_card`, `comment`, `leave_handoff` (where you left a card: the one next step and a short note, which `get_card` shows first), `garden_decide` (apply, dismiss or undo one tidy-up suggestion the person approved, with `confirm: true`), `upload_file` (attach a file of up to 10 MB to a card or page; `sha256` refuses bytes that changed on the way and is required with `content_base64`, since base64 a model writes out goes wrong above about 1 KB — a caller with a shell asks for `link: true` instead, and gets a single-use upload URL, good for ten minutes and needing no token, to `curl -F file=@… -F sha256=…` the file to (it takes and answers what `/api/cards/:id/attachments` does, so neither the bytes nor a long-lived token pass through the model), and naming a vault and a file's path in it copies a file the synced vault already holds without its bytes passing through the model; and the answer carries the stored file's `sha256`, as `get_card` and `read_page` listings do; a bigger file goes in verified chunks — `append: true` with each chunk's `sha256`, then `finish: true` with the whole file's — and only the finished file becomes an attachment; `replace: true` deletes older files of the same name once it is stored, so a rebuild leaves one copy), `delete_attachment` (a file off a card or page by its id, with `confirm: true`), `complete_card`, `status_update` (a card's stated health, with a note), `archive_card`,
 `delete_card`, `create_list`, `create_tag`, `delete_list`, `create_board`, `archive_board`,
 `delete_board`, `write_page`, `update_page` (rename, summary, move, file, archive or

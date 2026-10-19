@@ -504,6 +504,9 @@ defmodule SlipdockWeb.Router do
     get "/tools/:slug/skills.tar.gz", ToolController, :skills_archive
     get "/tools/:slug/skills/:skill/claude.zip", ToolController, :claude_zip
     get "/tools/:slug/skills/:skill/chatgpt.zip", ToolController, :chatgpt_zip
+    # One file of a Tool by its path in the package (#1156): what a stub skill
+    # fetches its procedure from at run time, the latest version unless asked.
+    get "/tools/:slug/files/*path", ToolController, :file
     get "/me/drive", MeController, :drive
 
     # The caller's own OpenRouter key: what every AI feature spends for them.
@@ -675,6 +678,10 @@ defmodule SlipdockWeb.Router do
     # board the reader can open, folders and all — the Wiki view's own call.
     get "/wiki", PageController, :wiki
     get "/boards/:board/folders", PageController, :folders
+    # The wiki's files that are not pages (#1156): a list, and one by its
+    # path, such as the `Tool/…` files a Tool's install puts there.
+    get "/boards/:board/files", WikiFileController, :index
+    get "/boards/:board/files/*path", WikiFileController, :show
     # One level of the tree at a time, never a body (W-103 R11.1).
     get "/boards/:board/tree", PageController, :tree
     post "/boards/:board/folders", PageController, :create_folder

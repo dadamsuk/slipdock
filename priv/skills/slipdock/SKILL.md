@@ -61,7 +61,7 @@ such as a file you uploaded wrong. And `download_file` reads an attached file by
 and `automation-presets` give), and `manage_automation` is `new-automation` (`action: create`),
 `set-automation` (`update`) and `delete-automation` (`delete`, with `confirm: true`).
 `list_tools` is `tools`/`tools show` (each Tool's kind and `installed.board`, the board your
-install made), and `install_tool` is `tools install-board`. Anything
+install made; with `file`, `tools file`), and `install_tool` is `tools install-board`. Anything
 the tools don't cover (running a rule now, callbacks and alerts, sprints, files over 10 MB,
 fields) is still the CLI or the API.
 
@@ -423,6 +423,9 @@ slipdock tools install <name> [--dir D]       # its skills (and local files) int
 slipdock tools check [<name>...]              # installed Tool skills current or behind, by sha
 slipdock tools publish <dir>                  # tool.json, README.md, board.json, skills/, files/
 slipdock tools request-listing <name> [--version V]   # an admin approves before everyone sees it
+slipdock tools file <name> <path> [--version V] [--out F]   # one file by its package path (skills/<s>/SKILL.md), latest version
+slipdock wiki files <board> [--folder F]      # the wiki's files that are not pages (a Tool's board files are in Tool/)
+slipdock wiki get <board> <path> [--out F|-]  # one of them by path (Tool/cv.docx): saved here, as F, or to stdout
 
 # Meeting capture, where the admin has turned meeting mode on (`slipdock meetings`).
 # The whole workflow, and its two rules, are the slipdock-capture skill.

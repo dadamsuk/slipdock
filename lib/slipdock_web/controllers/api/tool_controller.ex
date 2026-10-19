@@ -74,6 +74,40 @@ defmodule SlipdockWeb.API.ToolController do
     end
   end
 
+  @doc """
+  One file of the Tool by its path in the package (`skills/<skill>/SKILL.md`,
+  `files/build.py`, `README.md`), from the latest version the caller can
+  see unless `version` names one. Text comes back as `text/plain`, anything
+  else as a download; either way the headers say which version and sha it
+  is, so a skill fetching its procedure at run time knows what it ran.
+  """
+  def file(conn, %{"slug" => slug, "path" => parts} = params) do
+    path = Enum.join(parts, "/")
+
+    with {:ok, version} <- version(conn, slug, params),
+         %Tools.File{} = file <-
+           Tools.file(version, path) ||
+             {:error, :not_found, "#{path} in #{slug} #{version.version}"} do
+      conn
+      |> put_resp_header("x-tool-version", version.version)
+      |> put_resp_header("etag", ~s("#{file.sha256}"))
+      |> put_resp_header("x-content-type-options", "nosniff")
+      |> send_tool_file(file)
+    end
+  end
+
+  # Text is shown as text whatever it is (Markdown, Python, JSON), so it can
+  # never run as a page; anything else is a download.
+  defp send_tool_file(conn, file) do
+    if String.valid?(file.content) do
+      conn
+      |> put_resp_content_type("text/plain")
+      |> send_resp(200, file.content)
+    else
+      send_file_bytes(conn, "application/octet-stream", Path.basename(file.path), file.content)
+    end
+  end
+
   defp version(conn, slug, params) do
     user = conn.assigns.current_user
 

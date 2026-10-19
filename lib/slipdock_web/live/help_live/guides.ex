@@ -655,7 +655,8 @@ defmodule SlipdockWeb.HelpLive.Guides do
           (skeletons, which may use <code>{"{{board.name}}"}</code>
           and <code>{"{{today}}"}</code>) and <code>automations</code>
           (ready-made rules by
-          preset name).
+          preset name; a rule that sends cards to a runner can carry the <code>prompt</code>
+          its jobs are given).
         </li>
         <li>
           <code>skills/&lt;name&gt;/SKILL.md</code>, with front matter naming the skill and saying
@@ -673,6 +674,14 @@ defmodule SlipdockWeb.HelpLive.Guides do
         Slipdock checks all of it when you publish and says exactly what is wrong — a list
         meant to be the ready list that wouldn't be read as one, a rule on a list that
         doesn't exist, a file not listed in <code>tool.json</code>.
+      </p>
+      <p id="tools-files-at-run-time">
+        A skill can fetch any file of its Tool while it runs, by its path in the package
+        (<code>/api/tools/&lt;name&gt;/files/skills/&lt;skill&gt;/SKILL.md</code>, or
+        <code>list_tools</code>
+        with <code>file</code>), from the newest version you can see. So a short skill can
+        read its steps from the server and follow a new version without being installed
+        again. A Tool's board files are read from the board's Tool folder with <code>/api/boards/&lt;board&gt;/files/Tool/…</code>.
       </p>
     </.part>
 

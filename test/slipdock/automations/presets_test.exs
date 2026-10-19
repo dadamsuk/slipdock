@@ -109,6 +109,45 @@ defmodule Slipdock.Automations.PresetsTest do
       assert msg =~ "List"
     end
 
+    test "both runner presets carry a prompt when one is given, and only then (#1156)" do
+      for {key, column} <- [{"send_to_runner", "Doing"}, {"feed_runner", "To Do"}] do
+        params = %{"column" => column, "pool" => "gen"}
+
+        assert {:ok, %{"spec" => %{"actions" => [action]}}} =
+                 Presets.build(key, Map.put(params, "prompt", "  Write {{card.title}} up.  "))
+
+        assert action["prompt"] == "Write {{card.title}} up."
+
+        # Blank or left out, the runner's own default stands: no prompt key.
+        for blank <- [%{}, %{"prompt" => ""}, %{"prompt" => "   "}] do
+          assert {:ok, %{"spec" => %{"actions" => [action]}}} =
+                   Presets.build(key, Map.merge(params, blank))
+
+          refute Map.has_key?(action, "prompt"), "#{key} with #{inspect(blank)}"
+        end
+      end
+    end
+
+    test "a runner prompt over the runner's limit is refused" do
+      too_long = String.duplicate("x", Slipdock.Runners.limits().max_prompt + 1)
+
+      assert {:error, msg} =
+               Presets.build("send_to_runner", %{
+                 "column" => "Doing",
+                 "pool" => "gen",
+                 "prompt" => too_long
+               })
+
+      assert msg =~ "prompt"
+    end
+
+    test "the prompt is a long-text field, not required, on both runner presets" do
+      for key <- ~w(send_to_runner feed_runner) do
+        field = Enum.find(Presets.get(key).fields, &(&1.name == "prompt"))
+        assert %{type: "longtext", required: false} = field
+      end
+    end
+
     test "email goes to the person adding the rule unless told otherwise", %{owner: owner} do
       assert {:ok, %{"spec" => %{"actions" => [%{"type" => "email", "to" => to}]}}} =
                Presets.build("follow_board", %{"notify" => "email"}, user: owner)
