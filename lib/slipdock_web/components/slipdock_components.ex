@@ -1233,21 +1233,42 @@ defmodule SlipdockWeb.SlipdockComponents do
   attr :compact, :boolean, default: false
 
   # What is happening to the card (#1117): the same words `card_line` and
-  # the API give as `state`.
+  # the API give as `state`, coloured by what it is (#1132) so a running or
+  # failed card stands out from the board around it.
   defp state_line(assigns) do
+    {text, dot} = state_colours(assigns.state.kind)
+    assigns = assign(assigns, text: text, dot: dot)
+
     ~H"""
     <p
       class={[
-        "truncate text-base-content/70",
+        "flex min-w-0 items-center gap-1 font-medium",
+        @text,
         if(@compact, do: "max-w-40 shrink text-2xs", else: "text-2xs leading-snug")
       ]}
       data-role="state-line"
+      data-kind={@state.kind}
       title={@state.line}
     >
-      {@state.line}
+      <span
+        class={["size-1.5 shrink-0 rounded-full", @dot, @state.kind == "running" && "animate-pulse"]}
+        aria-hidden="true"
+      ></span>
+      <span class="truncate">{@state.line}</span>
     </p>
     """
   end
+
+  # The line's text and dot colours for each kind of state.
+  defp state_colours("running"), do: {"text-success", "bg-success"}
+  defp state_colours("claimed"), do: {"text-info", "bg-info"}
+  defp state_colours("queued"), do: {"text-sky-700 dark:text-sky-300", "bg-sky-500"}
+
+  defp state_colours(kind) when kind in ~w(waiting held),
+    do: {"text-amber-700 dark:text-amber-300", "bg-amber-500"}
+
+  defp state_colours(kind) when kind in ~w(failed timeout), do: {"text-error", "bg-error"}
+  defp state_colours(_kind), do: {"text-base-content/70", "bg-base-content/40"}
 
   attr :state, :any, required: true
   attr :class, :string, default: "size-3.5"

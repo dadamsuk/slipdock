@@ -11,6 +11,9 @@ defmodule Slipdock.CardState do
       runner-2 · 2h ago"). With an open handoff, its next step follows
       (" · Next: …"). A card with no job and no wait has no line, so a board
       that never uses either looks as it always has;
+    * `kind` — which of those the line is, for the tile's colour:
+      "waiting", "held", "queued", "claimed", "running", "failed" or
+      "timeout" (#1132); nil with no line;
     * `held` — the held reason of a queued job (`Slipdock.Runners.held_reason/1`);
     * `driver` — "agent" while a runner's job holds the card, else the kind
       of whoever last put it in a list ("agent" or "human"), else nil. Only
@@ -38,6 +41,7 @@ defmodule Slipdock.CardState do
   alias Slipdock.{Pulse, Repo, Runners}
 
   defstruct line: nil,
+            kind: nil,
             held: nil,
             driver: nil,
             in_list_since: nil,
@@ -153,8 +157,11 @@ defmodule Slipdock.CardState do
            age > usual,
          do: age - usual
 
+    {kind, line} = line(card, wait, job, held, ctx.now)
+
     %__MODULE__{
-      line: line(card, wait, job, held, ctx.now),
+      line: line,
+      kind: kind,
       held: held,
       driver: if(ctx.runner_tree or job, do: driver(job, entry)),
       in_list_since: since,
@@ -176,42 +183,48 @@ defmodule Slipdock.CardState do
   defp driver(_job, %{actor_kind: kind}) when kind in ~w(agent human), do: kind
   defp driver(_job, _entry), do: nil
 
+  # `{kind, line}`, or `{nil, nil}` when there is nothing to say.
   defp line(card, wait, job, held, now) do
     case base(card, wait, job, held, now) do
       nil ->
-        nil
+        {nil, nil}
 
-      line ->
+      {kind, line} ->
         case Card.open_handoff(card) do
-          nil -> line
-          handoff -> line <> " · Next: " <> handoff.next_step
+          nil -> {kind, line}
+          handoff -> {kind, line <> " · Next: " <> handoff.next_step}
         end
     end
   end
 
   defp base(_card, %Wait{} = wait, _job, _held, now),
-    do: "Waiting on #{Wait.on_name(wait)} · #{since(wait.inserted_at, now)}"
+    do: {"waiting", "Waiting on #{Wait.on_name(wait)} · #{since(wait.inserted_at, now)}"}
 
   defp base(_card, nil, %Job{status: "queued"}, held, _now) when is_binary(held),
-    do: "Held · " <> held
+    do: {"held", "Held · " <> held}
 
   defp base(_card, nil, %Job{status: "queued"} = job, nil, now),
-    do: join(["Queued", job.pool, since(job.inserted_at, now)])
+    do: {"queued", join(["Queued", job.pool, since(job.inserted_at, now)])}
 
   defp base(_card, nil, %Job{status: "claimed"} = job, _held, now),
-    do: join(["Claimed", job.runner_name, since(job.claimed_at || job.updated_at, now)])
+    do:
+      {"claimed",
+       join(["Claimed", job.runner_name, since(job.claimed_at || job.updated_at, now)])}
 
   defp base(_card, nil, %Job{status: "running"} = job, _held, now),
-    do: join(["Running", job.runner_name, since(job.started_at || job.claimed_at, now)])
+    do:
+      {"running",
+       join(["Running", job.runner_name, since(job.started_at || job.claimed_at, now)])}
 
   defp base(%Card{completed: false}, nil, %Job{status: status} = job, _held, now)
        when status in ~w(failed timeout),
        do:
-         join([
-           if(status == "failed", do: "Failed", else: "Timed out"),
-           job.runner_name,
-           since(job.finished_at || job.updated_at, now) <> " ago"
-         ])
+         {status,
+          join([
+            if(status == "failed", do: "Failed", else: "Timed out"),
+            job.runner_name,
+            since(job.finished_at || job.updated_at, now) <> " ago"
+          ])}
 
   defp base(_card, _wait, _job, _held, _now), do: nil
 
