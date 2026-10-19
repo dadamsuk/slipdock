@@ -48,6 +48,8 @@ defmodule Slipdock.DeployExampleInStepTest do
     snippet = Slipdock.Deployments.Setup.snippet("github", "production")
     assert snippet =~ "fetch-depth: 0"
     assert snippet =~ "erlef/setup-beam@v1"
-    assert snippet =~ ~s(curl -fsSL "$SLIPDOCK_URL/cli/slipdock.escript" -o "$RUNNER_TEMP/slipdock")
+
+    assert snippet =~
+             ~s(curl -fsSL "$SLIPDOCK_URL/cli/slipdock.escript" -o "$RUNNER_TEMP/slipdock")
   end
 end
