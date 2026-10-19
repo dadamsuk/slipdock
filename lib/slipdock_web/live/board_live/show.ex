@@ -134,6 +134,8 @@ defmodule SlipdockWeb.BoardLive.Show do
       # Read from the board row and the cached settings: no query of its own.
       meetings: Slipdock.Meetings.presence(socket.assigns.current_user, board),
       page_title: board.name,
+      # The flow numbers over the lists, when the owner has turned them on.
+      pulse: board_pulse(board),
       # Who `@` offers in a description or a comment: the board's members.
       mention_people: SlipdockWeb.Mention.people(board),
       filters: @empty_filters,
@@ -1222,6 +1224,7 @@ defmodule SlipdockWeb.BoardLive.Show do
       <.kanban
         :if={@mode == :board and !@card_only}
         board={@board}
+        pulse={@pulse}
         meetings={@meetings}
         columns={@columns}
         filters={@filters}

@@ -524,6 +524,28 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
               </span>
             </label>
           </div>
+          <%!-- The board's flow numbers as a strip over the lists (#1113).
+                Off by default; the API, MCP and CLI have them either way. --%>
+          <div class="space-y-1">
+            <input type="hidden" name={@form[:show_pulse].name} value="false" />
+            <label class="flex cursor-pointer items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                id="board-show-pulse"
+                name={@form[:show_pulse].name}
+                value="true"
+                checked={Phoenix.HTML.Form.normalize_value("checkbox", @form[:show_pulse].value)}
+                class="checkbox checkbox-sm mt-0.5"
+              />
+              <span>
+                <span class="font-medium">Show the board's pulse</span>
+                <span class="block text-xs text-base-content/50">
+                  A line over the lists: how many cards are in progress and waiting, how many
+                  were done this week, and how long work usually takes to get done.
+                </span>
+              </span>
+            </label>
+          </div>
           <%!-- Every board has a wiki: this is the whole wiki's switch for
                 the card contents under a page's prose. Hidden, not removed. --%>
           <div class="space-y-1">

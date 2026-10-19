@@ -267,9 +267,14 @@ defmodule SlipdockWeb.BoardLive.State do
     socket
     |> assign(board: board, page_title: board.name, ancestry: Boards.ancestry(board))
     |> assign(meetings: Slipdock.Meetings.presence(socket.assigns.current_user, board))
+    |> assign(pulse: board_pulse(board))
     |> assign_columns()
     |> assign_access()
   end
+
+  @doc "The board's pulse for its strip (#1113), worked out only when the strip is on."
+  def board_pulse(%{show_pulse: true} = board), do: Slipdock.Pulse.for_board(board)
+  def board_pulse(_board), do: nil
 
   # Whatever the drag or the menu named: a card, or a wiki page placed on the
   # board. `page-7` is a page; a bare number is a card.

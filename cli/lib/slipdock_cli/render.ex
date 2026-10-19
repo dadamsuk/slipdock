@@ -193,6 +193,45 @@ defmodule SlipdockCLI.Render do
     end)
   end
 
+  # `slipdock pulse`: the board's flow numbers, then each list's traffic.
+  def pulse(p) do
+    t = p["time_to_done"]
+    m = p["moves_24h"]
+
+    IO.puts(
+      "#{p["in_progress"]} in progress · #{p["waiting"]} waiting#{oldest_wait(p["oldest_wait_at"])}"
+    )
+
+    IO.puts("#{p["done_7d"]} done in 7 days, #{p["done_today"]} today")
+
+    IO.puts(
+      "time to done: P50 #{span(t["p50"])} · P85 #{span(t["p85"])} over #{t["cards"]} cards" <>
+        if(t["lead_time"] > 0, do: dim(" (#{t["lead_time"]} from when made)"), else: "")
+    )
+
+    IO.puts("moves in 24h: #{m["forward"]} forward · #{m["back"]} back · #{m["total"]} in all")
+
+    Enum.each(p["lists"], fn l ->
+      IO.puts(
+        "  #{l["name"]}  in #{l["in_7d"]} · out #{l["out_7d"]}" <>
+          dim(if l["usual_stay"], do: "  usually #{span(l["usual_stay"])}", else: "")
+      )
+    end)
+  end
+
+  defp oldest_wait(nil), do: ""
+
+  defp oldest_wait(at),
+    do: " (oldest since #{String.slice(at, 0, 16) |> String.replace("T", " ")})"
+
+  # Seconds as the one unit that reads best, as the web app's strip has it.
+  @doc false
+  def span(nil), do: "-"
+  def span(s) when s < 60, do: "<1m"
+  def span(s) when s < 3600, do: "#{div(s, 60)}m"
+  def span(s) when s < 86_400, do: "#{div(s, 3600)}h"
+  def span(s), do: "#{div(s, 86_400)}d"
+
   def cards(cards) do
     if cards == [],
       do: IO.puts(dim("no cards")),

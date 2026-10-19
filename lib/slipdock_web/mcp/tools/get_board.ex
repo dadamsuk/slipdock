@@ -16,13 +16,23 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
   def description,
     do:
       "A board's lists in order with a summary of each card, description included. " <>
-        "Board is an id, code or name. Use get_card for a card's comments and checklist."
+        "Board is an id, code or name. Use get_card for a card's comments and checklist. " <>
+        "pulse: true gives the board's flow numbers instead of its lists."
 
   @impl true
   def input_schema do
     %{
       type: "object",
-      properties: %{board: %{type: "string", description: "Board id, code or name."}},
+      properties: %{
+        board: %{type: "string", description: "Board id, code or name."},
+        pulse: %{
+          type: "boolean",
+          description:
+            "The flow numbers instead of the lists: in progress, waiting, done in 7 days " <>
+              "and today, P50/P85 seconds to done, moves in 24h forward and back, each " <>
+              "list's in/out over 7 days and usual stay."
+        }
+      },
       required: ["board"],
       additionalProperties: false
     }
@@ -37,30 +47,43 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
 
     with {:ok, ref} <- Args.required(args, "board"),
          {:ok, board} <- Args.refusal(Authorize.fetch_board(auth, ref, :read)) do
-      board = Authorize.visible(auth, Boards.get_board!(board.id))
-      roles = SlipdockWeb.APIGuide.list_roles(board.columns)
-
-      {:ok,
-       %{
-         id: board.id,
-         code: board.code,
-         name: board.name,
-         description: board.description,
-         simple: board.simple,
-         parent_card:
-           board.parent_card && %{id: board.parent_card.id, title: board.parent_card.title},
-         tags: Enum.map(board.tags, & &1.name),
-         lists:
-           Enum.map(board.columns, fn col ->
-             %{
-               name: col.name,
-               role: role_of(roles, col),
-               wip_limit: col.wip_limit,
-               cards: Enum.map(col.cards, &Tools.card_line/1)
-             }
-           end)
-       }}
+      if args["pulse"] in [true, "true"],
+        do:
+          {:ok,
+           %{
+             id: board.id,
+             code: board.code,
+             name: board.name,
+             pulse: Slipdock.Pulse.for_board(board)
+           }},
+        else: lists(auth, board)
     end
+  end
+
+  defp lists(auth, board) do
+    board = Authorize.visible(auth, Boards.get_board!(board.id))
+    roles = SlipdockWeb.APIGuide.list_roles(board.columns)
+
+    {:ok,
+     %{
+       id: board.id,
+       code: board.code,
+       name: board.name,
+       description: board.description,
+       simple: board.simple,
+       parent_card:
+         board.parent_card && %{id: board.parent_card.id, title: board.parent_card.title},
+       tags: Enum.map(board.tags, & &1.name),
+       lists:
+         Enum.map(board.columns, fn col ->
+           %{
+             name: col.name,
+             role: role_of(roles, col),
+             wip_limit: col.wip_limit,
+             cards: Enum.map(col.cards, &Tools.card_line/1)
+           }
+         end)
+     }}
   end
 
   defp role_of(roles, col) do

@@ -36,6 +36,7 @@ defmodule SlipdockWeb.API.JSON do
       kind: b.kind,
       simple: b.simple,
       page_card_features: b.page_card_features,
+      show_pulse: b.show_pulse,
       default_view: Board.home_view(b),
       owner: owner_ref(b),
       shared: shared?(b, viewer),
@@ -100,6 +101,9 @@ defmodule SlipdockWeb.API.JSON do
       # (`hidden_facets`) and the Timeline and Prioritise views.
       simple: b.simple,
       hidden_facets: Board.hidden_facets(b),
+      # Whether the board page shows its pulse strip; `GET .../pulse` has
+      # the numbers on any board.
+      show_pulse: b.show_pulse,
       columns:
         Enum.map(b.columns, fn col ->
           col

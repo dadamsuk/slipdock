@@ -147,6 +147,9 @@ defmodule SlipdockCLI do
         --snoozed include|only                    (snoozed cards are left out otherwise)
     card <id>                           show one card in full (checklist, comments)
     activity <board> [--limit N] [--card ID]  recent activity on a board (or one card)
+    pulse <board>                       the board's flow numbers: in progress, waiting, done in
+                                        7 days and today, P50/P85 time to done, moves in 24h
+                                        forward and back, and each list's in/out and usual stay
     swimlanes <board> [view opts]       cards as a grid, grouped on two axes
     table <board> [view opts] [--fields F]  cards as a table (F: comma list of
         id title column priority assignee flags tags start due completed percent time checklist comments deps subcards
@@ -609,7 +612,7 @@ defmodule SlipdockCLI do
     set-board <board> [--name N] [--code C] [--shortcut K] [--desc TEXT] [--color C]
         [--no-add-card] [--no-add-page] [--no-add-document] [--sprints | --no-sprints]
         [--simple | --no-simple] [--page-card-features | --no-page-card-features]
-        [--default-view V]
+        [--show-pulse | --no-show-pulse] [--default-view V]
                                         rename a board, change its code, shortcut key or colour,
                                         say what the foot of each list offers, make it a
                                         sprint board (every card a sprint), or a simple one (a
@@ -618,6 +621,7 @@ defmodule SlipdockCLI do
                                         hidden — not deleted); --no-page-card-features hides
                                         status, checklist, links, fields, votes and comments
                                         on every page of the board's wiki (not deleted);
+                                        --show-pulse puts the board's pulse over its lists;
                                         --default-view picks what opening the board shows
                                         in the web app: board, swimlanes, table, timeline,
                                         calendar, outline, narrative, prioritise or wiki
@@ -789,6 +793,7 @@ defmodule SlipdockCLI do
     add_page: :boolean,
     add_document: :boolean,
     page_card_features: :boolean,
+    show_pulse: :boolean,
     default_view: :string,
     sprints: :boolean,
     clear: :boolean,
