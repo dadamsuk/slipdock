@@ -79,6 +79,33 @@ defmodule SlipdockCLI.Deploy do
     end
   end
 
+  # Day-one history: each release tag recorded as a succeeded deploy at the
+  # tag's date. Running it twice records nothing twice.
+  def run("deploy", ["backfill"], o) do
+    if !o[:from_tags], do: fail("pass --from-tags: each tag is recorded as a deploy at its date")
+
+    case backfill(o) do
+      {:ok, %{tags: []}} ->
+        IO.puts("no tags match #{inspect(pattern(o))}: nothing to record")
+
+      {:ok, %{dry_run: true, tags: tags}} ->
+        Enum.each(
+          tags,
+          &IO.puts("#{&1.name}  #{short(&1.sha)}  #{&1.date}  #{&1.commits} commits")
+        )
+
+        IO.puts("dry run: would record #{length(tags)} deploys to #{env(o)}; recorded nothing")
+
+      {:ok, %{recorded: n, existing: m}} ->
+        IO.puts(
+          "recorded #{n} deploys to #{env(o)} from tags#{if m > 0, do: " (#{m} already there)", else: ""}"
+        )
+
+      {:error, message} ->
+        fail(message)
+    end
+  end
+
   def run("deploy", ["last"], o) do
     case with_deploy_token(fn -> HTTP.get("/deployments/last", environment: env(o)) end) do
       {:ok, %{"sha" => nil}} = r ->
@@ -371,6 +398,110 @@ defmodule SlipdockCLI.Deploy do
       127
     end
   end
+
+  @doc """
+  `deploy backfill --from-tags`: the tags matching `--pattern` (all of them
+  unless given), oldest first, each with the commits since the one before
+  (its own commit alone for the first), recorded as succeeded deploys at
+  the tag's date with `source: backfill`. With `--dry-run`, checks the token
+  and says what it would record. `{:ok, %{tags, recorded, existing,
+  dry_run}}` or `{:error, message}`.
+  """
+  def backfill(o) do
+    with {:ok, token} <- deploy_token(),
+         {:ok, tags} <- tags(o),
+         {:ok, planned} <- plan_tags(o, tags),
+         {:ok, _last} <- if(planned == [], do: {:ok, nil}, else: server_last(token, env(o))) do
+      summary = Enum.map(planned, &Map.put(&1, :commits, length(&1.log)))
+
+      cond do
+        planned == [] ->
+          {:ok, %{tags: [], recorded: 0, existing: 0, dry_run: !!o[:dry_run]}}
+
+        o[:dry_run] ->
+          {:ok, %{tags: summary, recorded: 0, existing: 0, dry_run: true}}
+
+        true ->
+          record_tags(token, o, planned, summary)
+      end
+    end
+  end
+
+  defp record_tags(token, o, planned, summary) do
+    Enum.reduce_while(
+      planned,
+      {:ok, %{tags: summary, recorded: 0, existing: 0, dry_run: false}},
+      fn t, {:ok, acc} ->
+        body = %{
+          "environment" => env(o),
+          "sha" => t.sha,
+          "tag" => t.name,
+          "previous_sha" => t.previous,
+          "commits" => t.log,
+          "status" => "succeeded",
+          "started_at" => t.date,
+          "finished_at" => t.date,
+          "source" => "backfill"
+        }
+
+        case HTTP.with_token(token, fn -> HTTP.post("/deployments", compact(body)) end) do
+          {:ok, %{"existing" => true}} -> {:cont, {:ok, %{acc | existing: acc.existing + 1}}}
+          {:ok, _} -> {:cont, {:ok, %{acc | recorded: acc.recorded + 1}}}
+          error -> {:halt, {:error, "#{t.name}: #{error_text(error)}"}}
+        end
+      end
+    )
+  end
+
+  @doc "The checkout's tags matching `--pattern`, oldest first: `[%{name, sha, date}]`."
+  def tags(o) do
+    format = "%(refname:short)%1f%(objectname)%1f%(*objectname)%1f%(creatordate:iso-strict)"
+
+    case git(o, [
+           "for-each-ref",
+           "--sort=creatordate",
+           "--format=" <> format,
+           "refs/tags/" <> pattern(o)
+         ]) do
+      {out, 0} ->
+        {:ok,
+         out
+         |> String.split("\n", trim: true)
+         |> Enum.flat_map(fn line ->
+           case String.split(line, "\x1f") do
+             [name, obj, peeled, date] ->
+               [%{name: name, sha: if(peeled == "", do: obj, else: peeled), date: date}]
+
+             _ ->
+               []
+           end
+         end)}
+
+      {out, _} ->
+        {:error, "couldn't list tags: #{out}"}
+    end
+  end
+
+  defp plan_tags(o, tags) do
+    tags
+    |> Enum.reduce_while({:ok, [], nil}, fn t, {:ok, acc, prev} ->
+      range = if prev, do: ["#{prev}..#{t.sha}"], else: [t.sha, "-1"]
+
+      case log(o, range) do
+        {:ok, commits} ->
+          {:cont, {:ok, [Map.merge(t, %{log: commits, previous: prev}) | acc], t.sha}}
+
+        {:error, m} ->
+          {:halt, {:error, "#{t.name}: #{m}"}}
+      end
+    end)
+    |> case do
+      {:ok, acc, _} -> {:ok, Enum.reverse(acc)}
+      error -> error
+    end
+  end
+
+  defp pattern(o), do: o[:pattern] || "*"
 
   # -- Git ----------------------------------------------------------------------
 

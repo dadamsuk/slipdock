@@ -320,4 +320,58 @@ defmodule SlipdockWeb.DeploymentAPITest do
              |> json_response(422)
     end
   end
+
+  describe "backfill" do
+    defp backfill(token, sha, at) do
+      start(token, %{
+        "sha" => sha,
+        "tag" => "v-" <> sha,
+        "status" => "succeeded",
+        "started_at" => at,
+        "finished_at" => at,
+        "source" => "backfill"
+      })
+    end
+
+    test "recorded at the tag's date, and twice is once", %{token: token} do
+      body = token |> backfill(@sha, "2026-03-01T10:00:00+01:00") |> json_response(201)
+      d = body["deployment"]
+      assert d["status"] == "succeeded"
+      assert d["source"] == "backfill"
+      assert d["started_at"] =~ "2026-03-01T09:00:00"
+      refute body["existing"]
+
+      again = token |> backfill(@sha, "2026-03-01T10:00:00+01:00") |> json_response(200)
+      assert again["existing"] == true
+      assert again["deployment"]["id"] == d["id"]
+      assert Repo.aggregate(Deployment, :count) == 1
+    end
+
+    test "a sha CI already recorded isn't backfilled again", %{token: token} do
+      id = token |> start(%{"sha" => @sha}) |> json_response(201) |> get_in(["deployment", "id"])
+
+      assert token
+             |> backfill(@sha, "2026-03-01T10:00:00Z")
+             |> json_response(200)
+             |> get_in(["deployment", "id"]) == id
+    end
+
+    test "the key is per environment, and an ordinary deploy is never deduplicated", %{
+      token: token
+    } do
+      token |> backfill(@sha, "2026-03-01T10:00:00Z") |> json_response(201)
+
+      assert token
+             |> start(%{
+               "environment" => "staging",
+               "sha" => @sha,
+               "status" => "succeeded",
+               "source" => "backfill"
+             })
+             |> json_response(201)
+
+      assert token |> start(%{"sha" => @sha}) |> json_response(201)
+      assert Repo.aggregate(Deployment, :count) == 3
+    end
+  end
 end

@@ -34,30 +34,50 @@ defmodule Slipdock.Deployments do
   `attrs` are `environment`, `sha` and optionally `tag`, `previous_sha`,
   `commits` (see `prepare_commits/2`: the cards are found here), `rollback`, `source`, `started_at` and — for a deploy
   recorded after the fact, such as a backfill — `status` and `finished_at`.
-  `previous_sha` defaults to the environment's last succeeded deploy.
+  `previous_sha` defaults to the environment's last succeeded deploy. A
+  backfill (`source: "backfill"`) of a sha the environment already has
+  answers `{:existing, deployment}` rather than recording it again.
   """
   def start(%Board{} = board, attrs) do
-    if enabled?(board) do
-      attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
-      now = DateTime.utc_now()
+    attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
 
-      {commits, card_ids} = prepare_commits(board, attrs["commits"] || [])
-
-      attrs =
-        attrs
-        |> Map.put("commits", commits)
-        |> Map.put("card_ids", card_ids)
-        |> Map.put_new("started_at", now)
-        |> Map.put_new_lazy("previous_sha", fn -> last_sha(board, attrs["environment"]) end)
-        |> Map.put_new("status", "started")
-
-      %Deployment{board_id: board.id}
-      |> Deployment.start_changeset(attrs)
-      |> Repo.insert()
-      |> tap(&broadcast(board, &1))
-    else
-      {:error, :off}
+    cond do
+      not enabled?(board) -> {:error, :off}
+      existing = backfilled_already(board, attrs) -> {:existing, existing}
+      true -> insert(board, attrs)
     end
+  end
+
+  # A backfill run twice records nothing twice: keyed on board, environment
+  # and sha, whatever recorded the first.
+  defp backfilled_already(board, %{"source" => "backfill", "environment" => env, "sha" => sha})
+       when is_binary(env) and is_binary(sha) do
+    Repo.one(
+      from d in Deployment,
+        where:
+          d.board_id == ^board.id and d.environment == ^env and d.sha == ^String.downcase(sha),
+        order_by: [asc: d.id],
+        limit: 1
+    )
+  end
+
+  defp backfilled_already(_board, _attrs), do: nil
+
+  defp insert(board, attrs) do
+    {commits, card_ids} = prepare_commits(board, attrs["commits"] || [])
+
+    attrs =
+      attrs
+      |> Map.put("commits", commits)
+      |> Map.put("card_ids", card_ids)
+      |> Map.put_new("started_at", DateTime.utc_now())
+      |> Map.put_new_lazy("previous_sha", fn -> last_sha(board, attrs["environment"]) end)
+      |> Map.put_new("status", "started")
+
+    %Deployment{board_id: board.id}
+    |> Deployment.start_changeset(attrs)
+    |> Repo.insert()
+    |> tap(&broadcast(board, &1))
   end
 
   @doc """

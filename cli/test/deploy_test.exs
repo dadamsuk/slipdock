@@ -353,4 +353,115 @@ defmodule SlipdockCLI.DeployTest do
     assert_received {:request, "GET", "/api/boards/ship/deployments/setup", _}
     refute_received {:request, "POST", _, _}
   end
+
+  describe "backfill --from-tags" do
+    defp dated_commit!(repo, message, date) do
+      File.write!(Path.join(repo, "f.txt"), message <> "\n", [:append])
+      git!(repo, ["add", "."])
+
+      {_, 0} =
+        System.cmd(
+          "git",
+          [
+            "-C",
+            repo,
+            "-c",
+            "user.name=T",
+            "-c",
+            "user.email=t@example.com",
+            "commit",
+            "-q",
+            "-m",
+            message
+          ],
+          env: [{"GIT_COMMITTER_DATE", date}, {"GIT_AUTHOR_DATE", date}]
+        )
+
+      git!(repo, ["rev-parse", "HEAD"])
+    end
+
+    defp posted do
+      receive do
+        {:request, "POST", "/api/deployments", body} -> [JSON.decode!(body) | posted()]
+      after
+        0 -> []
+      end
+    end
+
+    test "each tag in date order, with the commits since the one before", %{repo: repo} do
+      a = dated_commit!(repo, "one (#1)", "2026-01-01T10:00:00Z")
+      git!(repo, ["tag", "v1.0.0"])
+      b = dated_commit!(repo, "two (#2)", "2026-02-01T10:00:00Z")
+      c = dated_commit!(repo, "three", "2026-03-01T10:00:00Z")
+      git!(repo, ["tag", "v1.1.0"])
+      dated_commit!(repo, "four", "2026-04-01T10:00:00Z")
+      git!(repo, ["tag", "other-1"])
+
+      serve([last(nil), created(1), created(2)])
+
+      assert {:ok, %{recorded: 2, existing: 0}} =
+               Deploy.backfill(dir: repo, from_tags: true, pattern: "v*")
+
+      [first, second] = posted()
+      assert first["tag"] == "v1.0.0"
+      assert first["sha"] == a
+      assert first["source"] == "backfill"
+      assert first["status"] == "succeeded"
+      assert first["started_at"] =~ "2026-01-01T10:00:00"
+      assert Enum.map(first["commits"], & &1["sha"]) == [a]
+
+      assert second["tag"] == "v1.1.0"
+      assert second["previous_sha"] == a
+      assert Enum.map(second["commits"], & &1["sha"]) == [c, b]
+    end
+
+    test "without a pattern every tag, and a second run is counted as already there", %{
+      repo: repo
+    } do
+      dated_commit!(repo, "one", "2026-01-01T10:00:00Z")
+      git!(repo, ["tag", "a"])
+      dated_commit!(repo, "two", "2026-01-02T10:00:00Z")
+      git!(repo, ["tag", "b"])
+
+      existing = {200, JSON.encode!(%{"deployment" => %{"id" => 1}, "existing" => true})}
+      serve([last(nil), existing, existing])
+      assert {:ok, %{recorded: 0, existing: 2}} = Deploy.backfill(dir: repo, from_tags: true)
+
+      out =
+        capture_io(fn ->
+          serve([last(nil), existing, created()])
+          Deploy.run("deploy", ["backfill"], dir: repo, from_tags: true)
+        end)
+
+      assert out =~ "recorded 1 deploys to production from tags (1 already there)"
+    end
+
+    test "a dry run lists the tags and records nothing", %{repo: repo} do
+      dated_commit!(repo, "one", "2026-01-01T10:00:00Z")
+      git!(repo, ["tag", "v1"])
+      serve([last(nil)])
+
+      out =
+        capture_io(fn ->
+          Deploy.run("deploy", ["backfill"], dir: repo, from_tags: true, dry_run: true)
+        end)
+
+      assert out =~ "v1  "
+      assert out =~ "1 commits"
+      assert out =~ "would record 1 deploys"
+      assert_received {:request, "GET", "/api/deployments/last" <> _, _}
+      refute_received {:request, "POST", _, _}
+    end
+
+    test "a repo with no tags sends nothing", %{repo: repo} do
+      commit!(repo, "untagged")
+      serve([])
+      assert {:ok, %{tags: []}} = Deploy.backfill(dir: repo, from_tags: true)
+
+      assert capture_io(fn -> Deploy.run("deploy", ["backfill"], dir: repo, from_tags: true) end) =~
+               ~s(no tags match "*": nothing to record)
+
+      refute_received {:request, _, _, _}
+    end
+  end
 end

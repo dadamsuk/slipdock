@@ -734,6 +734,11 @@ defmodule SlipdockCLI do
                                                    …and records how it ended (id from --id or
                                                    $SLIPDOCK_DEPLOY_ID)
     deploy last [--env E]                          the environment's last succeeded deploy
+    deploy backfill --from-tags [--env E] [--pattern 'v*'] [--dir D] [--dry-run]
+                                                   record past releases: each tag (oldest first) as
+                                                   a succeeded deploy at its date, with the commits
+                                                   since the tag before. Running it again records
+                                                   nothing twice
     deploy setup <board> [--ci github|gitlab|shell] [--env production,staging]
                  [--card-ref-pattern RE] [--prompt]
                                                    track a board's deploys: turns its delivery
