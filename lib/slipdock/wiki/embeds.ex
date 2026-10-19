@@ -92,6 +92,29 @@ defmodule Slipdock.Wiki.Embeds do
 
   def page_param(_params), do: nil
 
+  @doc """
+  Whether `file` is shown on `page` as published (#1166): the page is
+  published, the file is an image, and the page embeds it (`vouched?/2`).
+  Anything else on a published page stays a name: an anonymous reader has
+  no permissions, and an image is the one kind of file that is plainly
+  part of the page.
+  """
+  @spec published?(Page.t() | nil, WikiFile.t()) :: boolean
+  def published?(
+        %Page{public_token: token, archived_at: nil} = page,
+        %WikiFile{archived_at: nil} = file
+      )
+      when is_binary(token) do
+    not Page.draft?(page) and WikiFile.image?(file) and file.board_id == page.board_id and
+      vouched?(page, file)
+  end
+
+  def published?(_page, _file), do: false
+
+  @doc "Where `file` is served to anybody reading `page` through its published link."
+  def published_url(%WikiFile{id: id, name: name}, %Page{public_token: token}),
+    do: "/w/#{token}/files/#{id}/#{URI.encode(name)}"
+
   @doc "Where `file` is served to somebody reading it through `page`."
   def url(%WikiFile{} = file, %Page{id: id}), do: Files.url(file) <> "?page=#{id}"
 

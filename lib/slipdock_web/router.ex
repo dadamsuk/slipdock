@@ -133,6 +133,10 @@ defmodule SlipdockWeb.Router do
       # snapshot, and nothing is followable (see `SlipdockWeb.PublicLive.Page`).
       live "/w/:token", PublicLive.Page, :show
     end
+
+    # An image a published page embeds (#1166), to anyone with the page's
+    # link, for as long as it is published (`Slipdock.Wiki.Embeds.published?/2`).
+    get "/w/:token/files/:id/:name", PublishedFileController, :show
   end
 
   if Application.compile_env(:slipdock, :dev_routes) do

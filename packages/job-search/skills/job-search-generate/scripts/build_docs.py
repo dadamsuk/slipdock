@@ -41,6 +41,16 @@ posting is not a defect. The report is printed as text, and as JSON with
 
 Needs: pandoc, and for PDFs LibreOffice (soffice) and pdftotext/pdfinfo
 (poppler). Nothing outside the Python standard library.
+
+With `engine: html` in the build block, `build --kind cv|letter` makes a designed
+PDF instead, with no .docx and no template: the markdown is laid out as HTML (for
+the CV, a coloured sidebar on every page holding the sections the `sidebar` line
+names) and printed to a tagged PDF by Chromium through Playwright. Its settings,
+all optional: `font` and `font version` (an @fontsource package, fetched with npm
+and cached), `colour primary`, `colour accent`, `colour accent light`, `sidebar`,
+`numbers section`, `status section`, `cv pages`, `letter pages`. It also needs
+Python Playwright with Chromium and poppler's pdffonts, and adds two checks: no
+Type 3 fonts, and the entries readable from the PDF's text in order.
 """
 
 import argparse
@@ -557,6 +567,374 @@ def make_template(out, opts):
 
 
 # ---------------------------------------------------------------------------
+# The designed PDF: `engine: html` in the build block. The same markdown is laid
+# out as HTML (a coloured sidebar on every page for the CV, a plain page for the
+# letter) and printed to a tagged PDF by Chromium through Playwright. No .docx.
+
+
+def md_inline(s):
+    """Escape, then **bold**. Nothing else in the CV markdown carries inline markup."""
+    s = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+    return re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", s)
+
+
+DIV_OPEN = re.compile(r'^:::\s*\{custom-style="([^"]+)"\}\s*$')
+
+
+def parse_cv_markdown(text):
+    """The CV markdown the template build reads, as structure: the name, the divs under
+    it, and sections of paragraphs, bullets, `**Label:** text` lines and entries."""
+    doc = {"name": "", "divs": {}, "sections": []}
+    section = entry = None
+    lines = text.splitlines()
+    i = 0
+    while i < len(lines):
+        raw = lines[i]
+        line = raw.strip()
+        m = DIV_OPEN.match(line)
+        if m:
+            body = []
+            i += 1
+            while i < len(lines) and lines[i].strip() != ":::":
+                if lines[i].strip():
+                    body.append(lines[i].strip())
+                i += 1
+            value = " ".join(body)
+            if entry is not None and m.group(1) == "Strapline":
+                entry["strap"] = value
+            elif section is None:
+                doc["divs"][m.group(1)] = value
+            else:
+                section["blocks"].append({"type": "div", "style": m.group(1), "text": value})
+        elif line.startswith("# ") and not doc["name"]:
+            doc["name"] = line[2:].strip()
+        elif line.startswith("## "):
+            section = {"title": line[3:].strip(), "blocks": []}
+            doc["sections"].append(section)
+            entry = None
+        elif line.startswith("### ") and section is not None:
+            entry = {"type": "entry", "line": line[4:].strip(), "parts": [p.strip() for p in line[4:].split("|")], "strap": "", "bullets": [], "paras": []}
+            section["blocks"].append(entry)
+        elif line.startswith("- ") and section is not None:
+            if entry is not None:
+                entry["bullets"].append(line[2:].strip())
+            elif section["blocks"] and section["blocks"][-1]["type"] == "bullets":
+                section["blocks"][-1]["items"].append(line[2:].strip())
+            else:
+                section["blocks"].append({"type": "bullets", "items": [line[2:].strip()]})
+        elif line and section is not None:
+            lab = re.match(r"^\*\*(.+?):\*\*\s*(.*)$", line)
+            target = entry["paras"] if entry is not None else None
+            if lab and target is None:
+                section["blocks"].append({"type": "label", "label": lab.group(1), "text": lab.group(2)})
+            elif target is not None:
+                target.append(line)
+            else:
+                section["blocks"].append({"type": "para", "text": line})
+        elif line and section is None and not line.startswith("#"):
+            doc["divs"].setdefault("Body", "")
+            doc["divs"]["Body"] += (" " if doc["divs"]["Body"] else "") + line
+        i += 1
+    return doc
+
+
+def parse_letter_markdown(text):
+    """The letter: the name, its divs, then every other non-empty line is a paragraph."""
+    doc = {"name": "", "divs": {}, "paras": []}
+    lines = text.splitlines()
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        m = DIV_OPEN.match(line)
+        if m:
+            body = []
+            i += 1
+            while i < len(lines) and lines[i].strip() != ":::":
+                if lines[i].strip():
+                    body.append(lines[i].strip())
+                i += 1
+            doc["divs"][m.group(1)] = " ".join(body)
+        elif line.startswith("# ") and not doc["name"]:
+            doc["name"] = line[2:].strip()
+        elif line:
+            doc["paras"].append(line)
+        i += 1
+    return doc
+
+
+def design_settings(settings):
+    def split(key, default):
+        raw = settings.get(key)
+        return [s.strip().upper() for s in raw.split(",") if s.strip()] if raw else default
+
+    return {
+        "font": settings.get("font", "Inter"),
+        "font_version": settings.get("font version", "5.0.18"),
+        "primary": "#" + settings.get("colour primary", "1F3864").lstrip("#"),
+        "accent": "#" + settings.get("colour accent", "1A7F8E").lstrip("#"),
+        "accent_light": "#" + settings.get("colour accent light", "9FD3DA").lstrip("#"),
+        "sidebar": split("sidebar", ["KEY NUMBERS", "CORE COMPETENCIES", "VENTURES", "GOVERNANCE", "SELECTED CLIENTS", "EDUCATION", "STATUS"]),
+        "numbers": split("numbers section", ["KEY NUMBERS"]),
+        "status": split("status section", ["STATUS"]),
+    }
+
+
+FONT_WEIGHTS = (400, 500, 600, 700, 800)
+
+
+def fontsource(font, version):
+    """The font's TrueType-outline webfonts from the @fontsource package on npm, cached.
+    TrueType outlines matter: Chromium embeds a CFF (.otf) font as Type 3, whose text
+    some CV parsers cannot extract."""
+    import tarfile
+
+    slug = font.lower().replace(" ", "-")
+    cache = os.path.join(os.path.expanduser("~"), ".cache", "job-search", "fonts", f"{slug}-{version}")
+    files = os.path.join(cache, "package", "files")
+    if not os.path.isdir(files):
+        os.makedirs(cache, exist_ok=True)
+        npm = shutil.which("npm")
+        if not npm:
+            raise BuildError(f"npm is not installed, so the {font} webfonts (@fontsource/{slug}) cannot be fetched")
+        out = run([npm, "pack", f"@fontsource/{slug}@{version}", "--silent"], cwd=cache, timeout=180).strip().splitlines()[-1]
+        with tarfile.open(os.path.join(cache, out)) as t:
+            try:
+                t.extractall(cache, filter="data")
+            except TypeError:  # Python before 3.12
+                t.extractall(cache)
+    found = {}
+    for w in FONT_WEIGHTS:
+        p = os.path.join(files, f"{slug}-latin-{w}-normal.woff2")
+        if os.path.exists(p):
+            found[w] = p
+    if 400 not in found:
+        raise BuildError(f"@fontsource/{slug}@{version} has no latin 400 webfont")
+    return found
+
+
+def font_faces(font, version):
+    import base64
+
+    faces = []
+    for w, path in fontsource(font, version).items():
+        with open(path, "rb") as f:
+            data = base64.b64encode(f.read()).decode()
+        faces.append(f"@font-face {{ font-family:'DocFont'; font-weight:{w}; font-style:normal; src:url(data:font/woff2;base64,{data}) format('woff2'); }}")
+    return "\n".join(faces)
+
+
+BASE_CSS = """
+@page { size: A4; margin: 0; }
+* { box-sizing:border-box; margin:0; padding:0; }
+html, body { width:210mm; }
+body { font-family:'DocFont', sans-serif; font-size:9.6pt; line-height:1.42; color:var(--ink);
+       -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+ul { list-style:none; }
+li { position:relative; padding-left:12px; margin-bottom:5px; break-inside:avoid; }
+li::before { content:""; position:absolute; left:1px; top:0.5em; width:4.5px; height:4.5px; border-radius:50%; background:var(--accent); }
+"""
+
+CV_CSS = """
+.strip { position:fixed; top:0; left:0; bottom:0; width:var(--side); background:var(--primary); z-index:-1; }
+.wrap { display:grid; grid-template-columns: var(--side) 1fr; }
+.side, .main { box-decoration-break:clone; -webkit-box-decoration-break:clone; }
+.side { color:#fff; padding:13mm 7mm 11mm 9mm; }
+.main { padding:12mm 12mm 11mm 9mm; }
+.side h1 { font-size:21pt; line-height:1.05; letter-spacing:.5px; font-weight:800; }
+.side .head { color:var(--accent-light); font-weight:600; font-size:10.5pt; margin-top:4px; }
+.side .contact { margin-top:10px; font-size:8.3pt; color:#dfe6f0; line-height:1.6; }
+.side h2 { font-size:7.8pt; letter-spacing:1.4px; text-transform:uppercase; color:var(--accent-light); margin:16px 0 6px;
+           border-bottom:1px solid rgba(255,255,255,.25); padding-bottom:3px; break-after:avoid; }
+.num { margin-bottom:11px; break-inside:avoid; }
+.num .big { font-size:14pt; font-weight:800; line-height:1.1; margin-bottom:2.5px; }
+.num .small { font-size:7.6pt; color:#c9d3e2; line-height:1.3; }
+.comp { font-size:7.9pt; color:#e6ecf4; margin-bottom:7px; line-height:1.38; break-inside:avoid; }
+.comp .lab { font-weight:700; color:#fff; font-size:8.1pt; }
+.sp { font-size:7.9pt; color:#e6ecf4; margin-bottom:6px; line-height:1.38; break-inside:avoid; }
+.side li { font-size:7.9pt; color:#e6ecf4; margin-bottom:4px; line-height:1.38; padding-left:9px; }
+.side li::before { background:var(--accent-light); width:3.5px; height:3.5px; }
+.status { margin-top:18px; padding-top:8px; border-top:1px solid rgba(255,255,255,.25); font-size:8.6pt; font-weight:600;
+          color:#fff; line-height:1.5; break-inside:avoid; }
+.main h2 { font-size:8.6pt; letter-spacing:1.4px; text-transform:uppercase; color:var(--primary); font-weight:800;
+           border-bottom:1.5px solid var(--accent); padding-bottom:2px; margin:0 0 6px; break-after:avoid; }
+.main p { margin-bottom:6px; }
+.main .summary { font-size:9.8pt; line-height:1.48; margin-bottom:12px; }
+.entry { margin-bottom:16px; }
+.eline { font-weight:700; font-size:10pt; break-after:avoid; }
+.eline .t { color:var(--primary); } .eline .c { color:var(--accent); } .eline .d { color:var(--grey); font-weight:500; }
+.eline .sep { color:#b5bcc8; font-weight:400; }
+.strap { font-style:italic; color:var(--grey); font-size:9.6pt; margin:2px 0 6px; break-after:avoid; }
+"""
+
+LETTER_CSS = """
+.page { padding:18mm 20mm 16mm 20mm; }
+h1 { font-size:21pt; line-height:1.05; letter-spacing:.5px; font-weight:800; color:var(--primary); }
+.head { color:var(--accent); font-weight:600; font-size:10.5pt; margin-top:4px; }
+.contact { margin-top:6px; font-size:8.6pt; color:var(--grey); }
+.contact .sep { color:#b5bcc8; }
+.rule { border-bottom:1.5px solid var(--accent); margin:10px 0 16px; }
+p { font-size:10pt; line-height:1.55; margin-bottom:9px; }
+"""
+
+
+def root_css(d):
+    return (
+        f":root {{ --primary:{d['primary']}; --accent:{d['accent']}; --accent-light:{d['accent_light']}; "
+        "--grey:#5A6270; --ink:#1d2330; --side:64mm; }"
+    )
+
+
+def html_cv(doc, d):
+    sidebar = {t for t in d["sidebar"]}
+    name = "<br>".join(md_inline(w) for w in doc["name"].split())
+    contact = "<br>".join(md_inline(c.strip()) for c in doc["divs"].get("Contact", "").split("|") if c.strip())
+    head = md_inline(doc["divs"].get("Headline", ""))
+
+    def side_section(s):
+        title = s["title"].upper()
+        if title in d["status"]:
+            texts = [b["text"] for b in s["blocks"] if b["type"] == "para"]
+            return '<div class="status">' + "".join(f"<p>{md_inline(t)}</p>" for t in texts) + "</div>"
+        out = [f"<h2>{md_inline(s['title'].title() if s['title'].isupper() else s['title'])}</h2>"]
+        for b in s["blocks"]:
+            if b["type"] == "label" and title in d["numbers"]:
+                out.append(f'<div class="num"><div class="big">{md_inline(b["label"])}</div><div class="small">{md_inline(b["text"])}</div></div>')
+            elif b["type"] == "label":
+                out.append(f'<div class="comp"><div class="lab">{md_inline(b["label"])}</div><div>{md_inline(b["text"])}</div></div>')
+            elif b["type"] == "bullets":
+                out.extend(f'<p class="sp">{md_inline(x)}</p>' for x in b["items"])
+            elif b["type"] in ("para", "div"):
+                out.append(f'<p class="sp">{md_inline(b["text"])}</p>')
+        return "".join(out)
+
+    def main_section(s):
+        out = [f"<h2>{md_inline(s['title'])}</h2>"]
+        has_entries = any(b["type"] == "entry" for b in s["blocks"])
+        for b in s["blocks"]:
+            if b["type"] == "entry":
+                parts = b["parts"] + [""] * (3 - len(b["parts"]))
+                sep = '<span class="sep"> | </span>'
+                eline = (
+                    f'<h3 class="eline"><span class="t">{md_inline(parts[0])}</span>{sep}<span class="c">{md_inline(parts[1])}</span>'
+                    f'{sep}<span class="d">{md_inline(" | ".join(parts[2:]).strip(" |"))}</span></h3>'
+                )
+                strap = f'<p class="strap">{md_inline(b["strap"])}</p>' if b["strap"] else ""
+                paras = "".join(f"<p>{md_inline(p)}</p>" for p in b["paras"])
+                items = "".join(f"<li>{md_inline(x)}</li>" for x in b["bullets"])
+                out.append(f'<section class="entry">{eline}{strap}{paras}<ul>{items}</ul></section>')
+            elif b["type"] == "bullets":
+                out.append("<ul>" + "".join(f"<li>{md_inline(x)}</li>" for x in b["items"]) + "</ul>")
+            elif b["type"] == "label":
+                out.append(f'<p><strong>{md_inline(b["label"])}:</strong> {md_inline(b["text"])}</p>')
+            else:
+                cls = "" if has_entries else ' class="summary"'
+                out.append(f"<p{cls}>{md_inline(b['text'])}</p>")
+        return "".join(out)
+
+    by_title = {s["title"].upper(): s for s in doc["sections"]}
+    side_html = "".join(side_section(by_title[t]) for t in d["sidebar"] if t in by_title)
+    main_html = "".join(main_section(s) for s in doc["sections"] if s["title"].upper() not in sidebar)
+    return (
+        f'<div class="strip"></div><div class="wrap"><aside class="side"><h1>{name}</h1>'
+        f'<div class="head">{head}</div><div class="contact">{contact}</div>{side_html}</aside>'
+        f'<main class="main">{main_html}</main></div>'
+    )
+
+
+def html_letter(doc, d):
+    sep = '<span class="sep"> | </span>'
+    contact = sep.join(md_inline(c.strip()) for c in doc["divs"].get("Contact", "").split("|") if c.strip())
+    head = doc["divs"].get("Headline")
+    head = f'<div class="head">{md_inline(head)}</div>' if head else ""
+    paras = "".join(f"<p>{md_inline(p)}</p>" for p in doc["paras"])
+    return f'<div class="page"><h1>{md_inline(doc["name"])}</h1>{head}<div class="contact">{contact}</div><div class="rule"></div>{paras}</div>'
+
+
+def render_html_pdf(html_doc, pdf):
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        raise BuildError("Playwright for Python is not installed (pip install playwright), so the designed PDF cannot be printed")
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content(html_doc, wait_until="load")
+        page.emulate_media(media="print")
+        kw = dict(path=pdf, prefer_css_page_size=True, print_background=True)
+        try:
+            page.pdf(tagged=True, **kw)
+        except TypeError:
+            page.pdf(**kw)
+        browser.close()
+
+
+def pdf_raw_text(path):
+    return run([need("pdftotext"), "-raw", path, "-"])
+
+
+def pdf_font_types(path):
+    if not shutil.which("pdffonts"):
+        return None
+    lines = run(["pdffonts", path]).splitlines()[2:]
+    return [l for l in lines if "Type 3" in l]
+
+
+def reading_order(text, wanted):
+    """Each wanted line found in the extracted text, in order. Returns the first one
+    out of place, or None."""
+    flat = re.sub(r"\s+", " ", text)
+    pos = 0
+    for w in wanted:
+        target = re.sub(r"\s+", " ", w).strip()
+        at = flat.find(target, pos)
+        if at < 0:
+            return target
+        pos = at + len(target)
+    return None
+
+
+def build_html(a, settings, checks):
+    d = design_settings(settings)
+    with open(a.content, encoding="utf-8") as f:
+        text = f.read()
+    css = font_faces(d["font"], d["font_version"]) + root_css(d) + BASE_CSS
+    if a.kind == "cv":
+        doc = parse_cv_markdown(text)
+        body, css = html_cv(doc, d), css + CV_CSS
+        in_side = set(d["sidebar"])
+        order = [b["line"] for s in doc["sections"] if s["title"].upper() not in in_side for b in s["blocks"] if b["type"] == "entry"]
+    else:
+        doc = parse_letter_markdown(text)
+        body, css = html_letter(doc, d), css + LETTER_CSS
+        order = [p for p in doc["paras"]][:1] + [p for p in doc["paras"]][-1:]
+    html_doc = f'<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>{md_inline(doc["name"].title())}</title><style>{css}</style></head><body>{body}</body></html>'
+    os.makedirs(a.out, exist_ok=True)
+    pdf = os.path.join(a.out, a.name + ".pdf")
+    render_html_pdf(html_doc, pdf)
+
+    result = {"pdf": pdf, "engine": "html", "notes": []}
+    result["pages"] = pdf_pages(pdf)
+    wanted = a.pages
+    if wanted is None:
+        raw = settings.get(f"{a.kind} pages")
+        wanted = int(raw) if raw and raw.isdigit() else None
+    result["pages_wanted"] = wanted
+    extracted = pdf_raw_text(pdf)
+    checks_run = run_checks(checks, a.kind, [("pdf", extracted)])
+    type3 = pdf_font_types(pdf)
+    if type3 is None:
+        result["notes"].append("pdffonts is not installed, so the embedded font types were not checked")
+    else:
+        checks_run.append({"label": "fonts extractable (no Type 3)", "rule": "forbid", "pattern": "Type 3", "count": len(type3), "ok": not type3, "hits": {"pdf": [{"line": 0, "count": 1, "text": l.strip()} for l in type3]} if type3 else {}})
+    missing = reading_order(extracted, order)
+    checks_run.append({"label": "reading order", "rule": "require", "pattern": "entries in order", "count": 0 if missing else len(order), "ok": missing is None, "hits": {"pdf": [{"line": 0, "count": 1, "text": f"not found in order: {missing}"}]} if missing else {}})
+    result["checks"] = checks_run
+    pages_ok = wanted is None or result["pages"] == wanted
+    result["ok"] = pages_ok and all(c["ok"] for c in checks_run)
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Commands
 
 
@@ -608,6 +986,10 @@ def cmd_check(a):
 
 def cmd_build(a):
     settings, checks = read_rules(a.rules)
+    if settings.get("engine", "docx").lower() == "html" and a.kind in ("cv", "letter") and not a.no_pdf:
+        return build_html(a, settings, checks)
+    if not a.template:
+        raise BuildError("--template is required unless the build block says engine: html")
     os.makedirs(a.out, exist_ok=True)
     docx = os.path.join(a.out, a.name + ".docx")
     run([need("pandoc"), a.content, "-f", "markdown-smart", "-o", docx, f"--reference-doc={a.template}"])
@@ -700,7 +1082,7 @@ def main(argv=None):
     b = sub.add_parser("build", help="markdown + template -> .docx and .pdf, then the checks")
     b.add_argument("content")
     b.add_argument("--kind", choices=KINDS, required=True)
-    b.add_argument("--template", required=True)
+    b.add_argument("--template", help="the .docx style template; not needed with engine: html")
     b.add_argument("--rules", help="the Writing Rules page, saved as markdown")
     b.add_argument("--out", required=True)
     b.add_argument("--name", required=True, help="file name without extension")
