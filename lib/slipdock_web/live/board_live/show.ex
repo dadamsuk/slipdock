@@ -104,6 +104,8 @@ defmodule SlipdockWeb.BoardLive.Show do
         Boards.subscribe_templates()
         Automations.subscribe_callbacks(board.id)
         Slipdock.Runners.subscribe_board(board.id)
+        # A deploy arriving moves the delivery strip (#1134).
+        Phoenix.PubSub.subscribe(Slipdock.PubSub, Slipdock.Deployments.topic(board))
       end
 
       {:ok,
@@ -136,6 +138,8 @@ defmodule SlipdockWeb.BoardLive.Show do
       page_title: board.name,
       # The flow numbers over the lists, when the owner has turned them on.
       pulse: board_pulse(board),
+      # The delivery numbers (#1134), when the board's delivery metrics are on.
+      dora: board_dora(board),
       # The tree's open runner pauses, for the banner (#1116).
       pauses: board_pauses(board),
       # Who `@` offers in a description or a comment: the board's members.
@@ -568,6 +572,9 @@ defmodule SlipdockWeb.BoardLive.Show do
     {:noreply,
      socket |> assign(board: Boards.put_states(socket.assigns.board)) |> assign_columns()}
   end
+
+  def handle_info({:deployment, _deployment}, socket),
+    do: {:noreply, assign(socket, dora: board_dora(socket.assigns.board))}
 
   def handle_info({:board_changed, _id}, socket) do
     # A burst of writes (an import, an automation, a bulk move) queues one of
@@ -1278,6 +1285,7 @@ defmodule SlipdockWeb.BoardLive.Show do
         :if={@mode == :board and !@card_only}
         board={@board}
         pulse={@pulse}
+        dora={@dora}
         pauses={@pauses}
         meetings={@meetings}
         columns={@columns}

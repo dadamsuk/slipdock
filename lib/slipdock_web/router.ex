@@ -552,6 +552,7 @@ defmodule SlipdockWeb.Router do
     post "/boards/:board/restore", BoardController, :restore
     get "/boards/:board/activity", BoardController, :activity
     get "/boards/:board/pulse", BoardController, :pulse
+    get "/boards/:board/dora", BoardController, :dora
     post "/boards/:board/deploy-token", BoardController, :deploy_token
     delete "/boards/:board/deploy-token", BoardController, :revoke_deploy_token
     get "/boards/:board/recurring", RecurrenceController, :index

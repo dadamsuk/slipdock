@@ -324,6 +324,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :zone, :string, default: "Etc/UTC", doc: "the reader's timezone"
   attr :pulse, :map, default: nil, doc: "`Slipdock.Pulse.for_board/2`, when the strip is on"
   attr :pauses, :list, default: [], doc: "`State.board_pauses/1`: the tree's runner pauses"
+  attr :dora, :map, default: nil, doc: "`Slipdock.Dora.for_board/2`, when delivery metrics are on"
 
   attr :revealed_snoozed, :any,
     default: MapSet.new(),
@@ -370,6 +371,21 @@ defmodule SlipdockWeb.BoardLive.BoardView do
       >
         <.icon name="hero-chart-bar" class="size-3.5 shrink-0" />
         <span>{Slipdock.Pulse.sentence(@pulse)}</span>
+      </p>
+      <%!-- Delivery performance (#1134): only while the board's delivery
+            metrics are on; a nudge to wire CI until the first deploy. --%>
+      <p
+        :if={@dora}
+        id="board-dora"
+        class="flex items-center gap-2 border-b border-base-300 bg-base-100/60 px-4 py-1.5 text-xs text-base-content/70"
+      >
+        <.icon name="hero-rocket-launch" class="size-3.5 shrink-0" />
+        <span :if={@dora.last_deploy}>{Slipdock.Dora.sentence(@dora)}</span>
+        <span :if={!@dora.last_deploy}>
+          Delivery metrics are on: no deploys recorded yet. Wrap your deploy step in CI with
+          <code>slipdock deploy run</code>
+          (board settings → Delivery metrics shows how).
+        </span>
       </p>
       <div
         :if={@filtering}

@@ -154,6 +154,11 @@ defmodule SlipdockCLI do
         --driver all|agent|human                  (who holds or last moved it; runner boards)
     card <id>                           show one card in full (checklist, comments)
     activity <board> [--limit N] [--card ID]  recent activity on a board (or one card)
+    dora <board> [--env E] [--days N]   the board's delivery performance from its recorded
+                                        deploys: deployment frequency, lead time, change
+                                        failure rate, time to restore, rework rate and idea
+                                        to production, each with its DORA band and the trend
+                                        (needs the board's delivery metrics on; see `deploy`)
     pulse <board>                       the board's flow numbers: in progress, waiting, done in
                                         7 days and today, P50/P85 time to done, moves in 24h
                                         forward and back, and each list's in/out and usual stay

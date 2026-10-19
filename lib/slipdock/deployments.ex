@@ -105,6 +105,16 @@ defmodule Slipdock.Deployments do
 
   def last_succeeded(_board, _environment), do: nil
 
+  @doc "The environment's latest deploy on `board`, however it went, or nil."
+  def latest(%Board{id: board_id}, environment) do
+    Repo.one(
+      from d in Deployment,
+        where: d.board_id == ^board_id and d.environment == ^environment,
+        order_by: [desc: d.started_at, desc: d.id],
+        limit: 1
+    )
+  end
+
   @doc "The sha the environment last succeeded with on `board`: what the next deploy diffs from."
   def last_sha(board, environment) do
     case last_succeeded(board, environment) do

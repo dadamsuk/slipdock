@@ -23,7 +23,7 @@ defmodule SlipdockCLI.Deploy do
 
   alias SlipdockCLI.HTTP
 
-  @commands ~w(deploy incident-of)
+  @commands ~w(deploy incident-of dora)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -118,7 +118,117 @@ defmodule SlipdockCLI.Deploy do
     |> out(o, fn r -> IO.puts("card ##{r["card"]} caused by deploy ##{r["incident_of"]}") end)
   end
 
+  # The board's delivery performance, with the API token like any read.
+  def run("dora", [ref], o) do
+    query = compact(%{environment: o[:env], days: o[:days]}) |> Enum.to_list()
+    HTTP.get("/boards/#{enc(ref)}/dora", query) |> out(o, &render_dora/1)
+  end
+
   def run(cmd, _args, _o), do: bad_usage(cmd)
+
+  @doc false
+  def render_dora(%{"enabled" => false, "message" => message}), do: IO.puts(message)
+
+  def render_dora(%{"dora" => r}) do
+    p = r["previous"]
+    f = r["deployment_frequency"]
+    lt = r["lead_time"]
+    cfr = r["change_failure_rate"]
+    ttr = r["time_to_restore"]
+    rw = r["rework_rate"]
+    idea = r["idea_to_production"]
+
+    IO.puts(
+      "#{r["environment"]} · last #{r["days"]} days" <> envs(r["environments"], r["environment"])
+    )
+
+    if last = r["last_deploy"],
+      do:
+        IO.puts(
+          "last deploy: #{short(last["sha"])}#{tag_text(last["tag"])} #{last["status"]} #{last["at"]}"
+        ),
+      else: IO.puts("no deploys recorded yet")
+
+    line(
+      "deployment frequency",
+      "#{f["deploys"]} deploys · #{f["per_week"]}/week",
+      f["band"],
+      f["deploys"],
+      p["deployment_frequency"]["deploys"],
+      &to_string/1
+    )
+
+    line(
+      "lead time for changes",
+      p50_85(lt) <> " over #{lt["commits"]} commits",
+      lt["band"],
+      lt["p50"],
+      p["lead_time"]["p50"],
+      &SlipdockCLI.Render.span/1
+    )
+
+    line(
+      "change failure rate",
+      "#{pct(cfr["rate"])} (#{cfr["failed"]} of #{cfr["deploys"]})",
+      cfr["band"],
+      cfr["rate"],
+      p["change_failure_rate"]["rate"],
+      &pct/1
+    )
+
+    line(
+      "time to restore",
+      p50_85(ttr) <> " over #{ttr["restores"]} restores",
+      ttr["band"],
+      ttr["p50"],
+      p["time_to_restore"]["p50"],
+      &SlipdockCLI.Render.span/1
+    )
+
+    line(
+      "rework rate",
+      "#{pct(rw["rate"])} (#{rw["rework"]} of #{rw["deploys"]})",
+      nil,
+      rw["rate"],
+      p["rework_rate"]["rate"],
+      &pct/1
+    )
+
+    line(
+      "idea to production",
+      p50_85(idea) <> " over #{idea["cards"]} cards",
+      nil,
+      idea["p50"],
+      p["idea_to_production"]["p50"],
+      &SlipdockCLI.Render.span/1
+    )
+  end
+
+  defp line(label, text, band, now, before, fmt) do
+    IO.puts(
+      "  #{String.pad_trailing(label, 22)} #{text}" <>
+        if(band, do: " · #{band}", else: "") <> SlipdockCLI.Render.dim(trend(now, before, fmt))
+    )
+  end
+
+  defp trend(nil, _, _), do: ""
+  defp trend(_, nil, _), do: ""
+  defp trend(same, same, _), do: ""
+  defp trend(now, before, fmt) when now > before, do: "  ↑ from #{fmt.(before)}"
+  defp trend(_now, before, fmt), do: "  ↓ from #{fmt.(before)}"
+
+  defp p50_85(%{"p50" => nil}), do: "-"
+
+  defp p50_85(m),
+    do: "P50 #{SlipdockCLI.Render.span(m["p50"])} · P85 #{SlipdockCLI.Render.span(m["p85"])}"
+
+  defp pct(nil), do: "-"
+  defp pct(r), do: "#{round(r * 100)}%"
+
+  defp envs(list, current) when is_list(list) and length(list) > 1,
+    do: SlipdockCLI.Render.dim("  (also: #{Enum.join(list -- [current], ", ")} — --env)")
+
+  defp envs(_, _), do: ""
 
   # -- The work ---------------------------------------------------------------
 

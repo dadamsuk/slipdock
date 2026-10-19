@@ -17,6 +17,30 @@ defmodule SlipdockWeb.API.JSON do
   alias Slipdock.Swimlanes.Config
   alias Slipdock.Wiki.{Link, Page, Revision}
 
+  @doc """
+  A board's DORA report (#1134) as the API and MCP give it: the numbers, or
+  — while the board's delivery metrics are off — that they are, and how to
+  turn them on.
+  """
+  def dora(%Board{} = board, environment, days) do
+    head = %{board: %{id: board.id, code: board.code}}
+
+    case Slipdock.Dora.for_board(board, environment: blank_param(environment), days: days) do
+      {:ok, report} ->
+        Map.merge(head, %{enabled: true, dora: report})
+
+      {:error, :off} ->
+        Map.merge(head, %{
+          enabled: false,
+          dora: nil,
+          message: Slipdock.Deployments.off_message(board)
+        })
+    end
+  end
+
+  defp blank_param(v) when v in [nil, ""], do: nil
+  defp blank_param(v), do: v
+
   @doc "A deploy from the ledger (#1134), its commits included."
   def deployment(%Slipdock.Deployments.Deployment{} = d) do
     %{
