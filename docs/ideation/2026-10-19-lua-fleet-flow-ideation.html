@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fleet-flow Ideas</title>
+<style>
+:root{--bg:#fbfaf7;--fg:#1d1f23;--muted:#5d6370;--line:#e2dfd8;--card:#ffffff;--accent:#2f5bd3;--accent-soft:#e8eefc;--accent-text:#1f3f99;--warn-soft:#fdf1df;--warn-text:#7a4a05;--ok-soft:#e5f4ea;--ok-text:#1d5c33;--svg-bg:#ffffff;--svg-line:#8a8f99}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15171b;--fg:#e7e8ea;--muted:#a3a8b2;--line:#2c3038;--card:#1c1f25;--accent:#7fa2ff;--accent-soft:#1e2a4a;--accent-text:#b9cbff;--warn-soft:#3a2a10;--warn-text:#f3cf8f;--ok-soft:#173022;--ok-text:#9fdcb3;--svg-bg:#1c1f25;--svg-line:#7b818c}}
+:root[data-theme="dark"]{--bg:#15171b;--fg:#e7e8ea;--muted:#a3a8b2;--line:#2c3038;--card:#1c1f25;--accent:#7fa2ff;--accent-soft:#1e2a4a;--accent-text:#b9cbff;--warn-soft:#3a2a10;--warn-text:#f3cf8f;--ok-soft:#173022;--ok-text:#9fdcb3;--svg-bg:#1c1f25;--svg-line:#7b818c}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15.5px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:920px;margin-inline:auto;padding:2.5rem 1.25rem 4rem}
+p,li,dd{max-width:72ch}
+h1{font-size:1.75rem;line-height:1.25;margin:.2rem 0 .6rem}
+h2{font-size:1.3rem;margin:2.6rem 0 .8rem;padding-bottom:.35rem;border-bottom:1px solid var(--line)}
+h3{font-size:1.1rem;margin:0 0 .5rem}
+.eyebrow{font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.meta{display:flex;flex-wrap:wrap;gap:.4rem 1.4rem;color:var(--muted);font-size:.9rem;margin:.4rem 0 1.2rem}
+.meta b{color:var(--fg);font-weight:600}
+code{font:.86em ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--accent-soft);color:var(--accent-text);padding:.05em .35em;border-radius:4px}
+strong{color:inherit}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.6rem;margin:1rem 0 .5rem}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:.7rem .9rem}
+.stat .n{font-size:1.4rem;font-weight:700}
+.stat .l{font-size:.8rem;color:var(--muted)}
+nav.jump ol{columns:2;column-gap:2rem;padding-left:1.2rem;margin:.4rem 0 1.4rem}
+nav.jump a{color:var(--accent-text);text-decoration:none}
+nav.jump a:hover{text-decoration:underline}
+article.idea{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:1.2rem 1.3rem;margin:0 0 1.2rem}
+.chips{display:flex;flex-wrap:wrap;gap:.4rem;margin:.1rem 0 .8rem}
+.chip{font-size:.76rem;font-weight:600;padding:.15rem .6rem;border-radius:999px;border:1px solid transparent}
+.chip.id{background:var(--accent-soft);color:var(--accent-text)}
+.chip.axis{background:var(--ok-soft);color:var(--ok-text)}
+.chip.conf,.chip.cx{background:var(--warn-soft);color:var(--warn-text)}
+dl.fields{margin:0;display:grid;grid-template-columns:8.5rem 1fr;gap:.55rem 1rem}
+dl.fields dt{font-size:.74rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:700;padding-top:.2rem}
+dl.fields dd{margin:0}
+@media (max-width:640px){dl.fields{grid-template-columns:1fr}nav.jump ol{columns:1}}
+figure{margin:1rem 0 .2rem}
+figure svg{width:100%;height:auto;display:block;background:var(--svg-bg);border:1px solid var(--line);border-radius:10px}
+figcaption{font-size:.82rem;color:var(--muted);margin-top:.35rem}
+svg text{fill:var(--fg);font:13px ui-sans-serif,system-ui,sans-serif}
+svg .box{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.2}
+svg .box2{fill:var(--ok-soft);stroke:var(--ok-text);stroke-width:1.2}
+svg .arrow{stroke:var(--svg-line);stroke-width:1.5;fill:none;marker-end:url(#ah)}
+svg .small{font-size:11.5px;fill:var(--muted)}
+table{width:100%;border-collapse:collapse;font-size:.92rem}
+th,td{text-align:left;padding:.5rem .6rem;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.ground ul{padding-left:1.2rem}
+.ground li{margin:.25rem 0}
+footer.composition-signal{margin-top:3rem;padding-top:1rem;border-top:1px solid var(--line);color:var(--muted);font-size:.82rem}
+</style>
+</head>
+<body>
+<main>
+<header>
+<div class="eyebrow">Ideation</div>
+<h1>Ideation: What Slipdock can take from Lua's fleet-flow board</h1>
+<div class="meta">
+<span><b>Date</b> <time datetime="2026-10-19">2026-10-19</time></span>
+<span><b>Topic</b> lua-fleet-flow</span>
+<span><b>Focus</b> Ideas from a screenshot of Lua's "fleet-flow" Engineering Manager board, made generic enough for any Slipdock board and strong for agent-run work</span>
+<span><b>Mode</b> repo-grounded</span>
+</div>
+<div class="stats">
+<div class="stat"><div class="n">7</div><div class="l">ranked ideas</div></div>
+<div class="stat"><div class="n">~38</div><div class="l">raw ideas from 5 agents</div></div>
+<div class="stat"><div class="n">19</div><div class="l">after dedupe, plus 3 combinations</div></div>
+<div class="stat"><div class="n">5 / 5</div><div class="l">topic axes covered</div></div>
+</div>
+</header>
+
+<section id="grounding">
+<h2>Grounding Context</h2>
+<div class="ground">
+<p><strong>What the screenshot shows.</strong> A board with tabs for Board, Velocity, Attention (with a badge), In work and Fleet health. The header has a "Fleet healthy · updated just now" pill and a pause button. Filters: All / Agent / Human, plus "Stuck only" and "Needs owner". A stats strip shows: in flight 61 (57 agent · 4 human), waiting on a human 4 (oldest 41m), done in 7 days 1,288, cycle time P50 47m / P85 3h, and moves in 24h 926 (898 forward · 6 back). Column headers carry WIP limits (10/20) and in/out counts. The 311-card backlog is collapsed to a tile ("oldest 2d · Show cards"). There is a dedicated "Waiting on human" column. Each card shows its ID, priority, a robot or person icon, time in its current stage, a status chip, a PR number and a reason line such as "waiting on a reviewer". A "Fleet stages / Linear states" toggle suggests Lua sits on top of Linear.</p>
+<p><strong>Codebase Context (checked against the repo).</strong></p>
+<ul>
+<li><strong>No movement history.</strong> A move is logged only as free text, <code>moved “title” to &lt;list&gt;</code>. The source list and the actor are not recorded (<code>lib/slipdock/boards.ex:2175</code>, <code>lib/slipdock/boards/activity.ex</code>). No card has a column-entered time. The only time-based numbers are sprint burndown and velocity (<code>lib/slipdock/sprints.ex</code>). The narrative view and the <code>completed_at</code> backfill both parse message wording.</li>
+<li><strong>Waiting on a person is a bare flag.</strong> <code>@flags ~w(flagged blocked review waiting starred)</code> (<code>lib/slipdock/boards/card.ex:6</code>) records no set time, no reason and nobody it waits on. The unattended job prompt says: "comment, flag the card waiting and stop". The code comment beside it reads: "an agent that stops to ask waits for ever" (<code>lib/slipdock/automations/runner.ex:287-290</code>).</li>
+<li><strong>Nothing gathers what needs a person.</strong> My work is grouped only by due date (<code>lib/slipdock/work.ex</code>). Alerts appear in the header bell ("Nothing needs your attention."). There is no per-person queue. After repeated requeues, recovery flags a card blocked without telling anyone.</li>
+<li><strong>Fleet control.</strong> The only off-switch is <code>enabled</code> on each rule; runners, pools and boards cannot be paused. Runner status reads "job N", "seen X ago" or "never seen". WIP limits are display-only, because <code>move_card</code> never checks them. <code>wait_while_doing</code> is the one form of back-pressure that already exists.</li>
+<li><strong>Card face.</strong> A runner job's state shows only in the card modal (<code>card_sections.ex:490-501</code>), never on the tile. There is no time-in-list display, no human-readable card code and no PR handling. Card colour is a strip along the top.</li>
+<li><strong>Scale.</strong> Each column loads all of its cards, with no cap. Swimlane collapse is held in memory and lost on reload (<code>show.ex:168</code>). A lane header shows only a count. Column categories (todo/doing/done/dropped) already exist and drive completion.</li>
+<li><strong>Product boundary.</strong> Slipdock must stay generic. Agent features should sit on the same card model and be invisible on boards without agents. CLAUDE.md expects each feature to reach the CLI, the agents page, the skills and the README, with tests.</li>
+</ul>
+<p><strong>External context.</strong> No product or repo called "Lua" or "fleet-flow" turned up in a search, so the screenshot is the only evidence. Agent boards (Vibe Kanban, Cline Kanban, KanBots, GitHub Agent HQ, Linear agents) are converging on board + worktree + PR + a human review gate. What sets them apart is moving to supervision: what needs a human and what is stuck. Vendor dashboards report adoption (code generated) rather than flow. Flow-metrics practice uses P50/P85 cycle time and treats a card as aging once it passes the P85.</p>
+</div>
+</section>
+
+<section id="axes">
+<h2>Topic Axes</h2>
+<ol>
+<li>Flow numbers: board stats, cycle time, throughput and time-in-list history</li>
+<li>Waiting on a human: questions, approvals, stuck cards, cards with no owner</li>
+<li>The card face: what a tile tells you at a glance</li>
+<li>Agent fleet control: runners, pausing, WIP and capacity</li>
+<li>Board shape at scale: collapsing, lane summaries, views</li>
+</ol>
+</section>
+
+<section id="ranked-ideas">
+<h2>Ranked Ideas</h2>
+<nav class="jump" aria-label="Ranked ideas">
+<ol>
+<li><a href="#i1">Ask a human, and the answer restarts the work</a></li>
+<li><a href="#i2">A movement ledger, and a board pulse built on it</a></li>
+<li><a href="#i3">"Waiting on me" in My work</a></li>
+<li><a href="#i4">Stuck means past this list's usual</a></li>
+<li><a href="#i5">Pause, with a reason, and say why work is held</a></li>
+<li><a href="#i6">Show the runner job on the tile, through one state line</a></li>
+<li><a href="#i7">Summary tiles for big and quiet lists</a></li>
+</ol>
+</nav>
+
+<article class="idea" id="i1">
+<h3>1. Ask a human, and the answer restarts the work</h3>
+<div class="chips"><span class="chip id">I1</span><span class="chip axis">Waiting on a human</span><span class="chip conf">Confidence 75%</span><span class="chip cx">Complexity High</span></div>
+<dl class="fields">
+<dt>Description</dt>
+<dd>Replace "flag it waiting and stop" with an actual question. An agent (or a person) opens a <em>wait</em> on a card. The wait records what is needed, who it is waiting on (a named person or "anyone"), when it was opened, and optionally a short list of answer choices. The tile shows "waiting on Dana · 41m" as its reason line. Someone answers from the card, from My work, from the CLI or by email. The answer is posted as a comment, closes the wait, and re-queues a job for the same runner pool with the answer and the handoff at the top of the prompt. The <code>waiting</code> flag stays as the filter everyone already uses, but it is now derived from whether a wait is open. An optional later step: if nobody answers within a board-set response time, the wait raises an alert, and accepting the wait stops the clock (the andon idea).</dd>
+<dt>Basis</dt>
+<dd>direct: <code>automations/runner.ex:287</code> "an agent that stops to ask waits for ever" and <code>:290</code> "comment, flag the card waiting and stop". direct: <code>card.ex:6</code> flags have no set time and no owner. <code>api_guide.ex:1025-1027</code> has two human-wait flags, <code>waiting</code> and <code>review</code>, and neither names who is being waited on. direct: <code>snooze.ex:103</code> <code>wake_on_activity</code> already wakes a card when someone else comments, so the trigger exists. external: the call-centre "virtual hold" callback, where the caller is called back instead of holding on the line.</dd>
+<dt>Rationale</dt>
+<dd>Lua counts "waiting on a human: 4, oldest 41m", and its count ends there. Slipdock's own job prompt guarantees that an unattended agent hits a dead end whenever it needs anything. Closing the loop turns that dead end into a pause, and it is the strongest thing on this list that Lua's screenshot doesn't show. It is generic too: "waiting on the supplier for a quote" on an ops board uses the same record and has no agent in it at all.</dd>
+<dt>Downsides</dt>
+<dd>This is a new record, a new job state or re-queue path, and changes to the API, MCP, CLI and skills. The resume needs care with leases and with the existing <code>requeue_stuck</code> cap. The escalation clock is extra weight and should wait until the loop has proved itself.</dd>
+</dl>
+<figure>
+<svg viewBox="0 0 820 170" role="img" aria-label="Agent opens a wait, the card shows the reason and age, a person answers, the answer is posted and the job is re-queued">
+<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8a8f99"/></marker></defs>
+<rect class="box" x="15" y="45" width="160" height="66" rx="10"/><text x="95" y="73" text-anchor="middle">Agent needs input</text><text class="small" x="95" y="93" text-anchor="middle">opens a wait</text>
+<rect class="box" x="220" y="45" width="170" height="66" rx="10"/><text x="305" y="73" text-anchor="middle">Card: "waiting on</text><text x="305" y="92" text-anchor="middle">Dana · 41m"</text>
+<rect class="box" x="435" y="45" width="160" height="66" rx="10"/><text x="515" y="73" text-anchor="middle">Dana answers</text><text class="small" x="515" y="93" text-anchor="middle">card · My work · CLI · email</text>
+<rect class="box2" x="640" y="45" width="165" height="66" rx="10"/><text x="722" y="73" text-anchor="middle">Job re-queued</text><text class="small" x="722" y="93" text-anchor="middle">answer at top of prompt</text>
+<path class="arrow" d="M175,78 L216,78"/><path class="arrow" d="M390,78 L431,78"/><path class="arrow" d="M595,78 L636,78"/>
+<path class="arrow" d="M722,111 C722,150 95,150 95,115"/>
+<text class="small" x="410" y="162" text-anchor="middle">today the loop stops at the second box</text>
+</svg>
+<figcaption>The loop the job prompt is missing. Today an agent stops at "flag waiting" and nothing brings it back.</figcaption>
+</figure>
+</article>
+
+<article class="idea" id="i2">
+<h3>2. A movement ledger, and a board pulse built on it</h3>
+<div class="chips"><span class="chip id">I2</span><span class="chip axis">Flow numbers</span><span class="chip conf">Confidence 85%</span><span class="chip cx">Complexity Medium</span></div>
+<dl class="fields">
+<dt>Description</dt>
+<dd>Record every move between lists as a structured row: card, from list, to list, both categories, who moved it (person, agent token or automation) and when. Backfill it once from the existing activity text. On top of the ledger, add one <em>pulse</em> query: in progress, waiting, done this week, typical time to finish (P50/P85), moves in the last 24 hours forward and back, and per-list in/out counts. Serve the pulse first as a CLI command and an MCP tool. Then render it as an opt-in strip that reads in plain words on any board, for example "6 on the go · 2 waiting on Dad since Tuesday · 23 done this week · usually takes a day".</dd>
+<dt>Basis</dt>
+<dd>direct: <code>boards.ex:2175</code> logs <code>moved “title” to &lt;name&gt;</code> without the source list, even though <code>do_move_card</code> already holds <code>from_column</code>. Automations receive <code>from</code>/<code>to</code> in <code>card_moved</code> events, but nothing persists them. direct: a grep for <code>moved_at|entered_at|column_entered</code> in lib/ and migrations finds nothing. direct: <code>narrative.ex:270-278</code> and the <code>completed_at</code> backfill both depend on message wording. direct: <code>docs/roadmapping-features.md:165</code> already lists "Time in column / cycle time" as a small item. external: P50/P85 cycle time is the standard service-level measure.</dd>
+<dt>Rationale</dt>
+<dd>Every number in Lua's stats strip, its column in/out counts, "6 back" and the per-card stage times all depend on this one missing record. It is the foundation for ideas 4 and 7. Adding actor kind is the cheap way to get "57 agent · 4 human" without inventing an agent user type. Shipping the pulse to the API first means agents can act on it, for example by not starting new work while the waiting pile is deep. Lua's strip is display only.</dd>
+<dt>Downsides</dt>
+<dd>A new table that grows quickly on agent-speed boards, so it needs indexing and possibly retention. The backfill from text is best-effort. Percentiles on small boards are noisy and need a minimum sample before they are shown.</dd>
+</dl>
+<figure>
+<svg viewBox="0 0 820 190" role="img" aria-label="The movement ledger feeds the board pulse, time in list on the tile, stuck detection, summary tiles and agent decisions">
+<defs><marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8a8f99"/></marker></defs>
+<rect class="box2" x="20" y="65" width="200" height="60" rx="10"/><text x="120" y="91" text-anchor="middle">Movement ledger</text><text class="small" x="120" y="110" text-anchor="middle">from · to · actor · at</text>
+<g style="marker-end:url(#ah2)">
+<path class="arrow" style="marker-end:url(#ah2)" d="M220,95 L470,30"/><path class="arrow" style="marker-end:url(#ah2)" d="M220,95 L470,72"/><path class="arrow" style="marker-end:url(#ah2)" d="M220,95 L470,114"/><path class="arrow" style="marker-end:url(#ah2)" d="M220,95 L470,156"/>
+</g>
+<rect class="box" x="475" y="12" width="320" height="34" rx="8"/><text x="635" y="34" text-anchor="middle">Board pulse: CLI, MCP, plain-words strip</text>
+<rect class="box" x="475" y="54" width="320" height="34" rx="8"/><text x="635" y="76" text-anchor="middle">"In Review 3h" on the tile (idea 4)</text>
+<rect class="box" x="475" y="96" width="320" height="34" rx="8"/><text x="635" y="118" text-anchor="middle">Stuck = past this list's P85 (idea 4)</text>
+<rect class="box" x="475" y="138" width="320" height="34" rx="8"/><text x="635" y="160" text-anchor="middle">Summary tiles and lane lines (idea 7)</text>
+</svg>
+<figcaption>One record that's missing today, and four features that read from it.</figcaption>
+</figure>
+</article>
+
+<article class="idea" id="i3">
+<h3>3. "Waiting on me" in My work</h3>
+<div class="chips"><span class="chip id">I3</span><span class="chip axis">Waiting on a human</span><span class="chip conf">Confidence 75%</span><span class="chip cx">Complexity Low–Medium</span></div>
+<dl class="fields">
+<dt>Description</dt>
+<dd>This is Lua's Attention tab, built into the surface Slipdock already has rather than as a new dashboard. Add a top section to My work, "Waiting on you", with a count in the header. Cards appear there oldest first, with the reason, when one of these is true: someone flagged them <code>review</code> or <code>waiting</code> and they are assigned to you; recovery parked them as blocked; a runner job failed on them; or they sit in a doing list with nobody on them, which is Lua's "Needs owner". Add the same section to <code>slipdock work</code> and to the plan-my-day MCP prompt, so an agent can say "three things are waiting on you". Once idea 1 exists, open waits addressed to you feed this section directly.</dd>
+<dt>Basis</dt>
+<dd>direct: <code>work.ex</code> sections are overdue / today / week / later / none / done, with no grouping for waiting or review. direct: the only attention surface is the alert bell ("Nothing needs your attention", <code>layouts.ex:1166</code>). direct: <code>recovery.ex:151-156</code> flags a card blocked and "left where it is", with nobody notified. direct: <code>layouts.ex:1524-1533</code> "a queue with no badge is a queue discovered a month late."</dd>
+<dt>Rationale</dt>
+<dd>The signals already exist but are scattered across flags, recovery, alerts and assignees. A section built from those signals adds no new data and works on every board, because "things waiting on you" means the same thing on a chores board as on a coding board. The verifier pushed this down from a separate inbox to a My work section, which is cheaper and avoids a second home page.</dd>
+<dt>Downsides</dt>
+<dd>"Needs owner" needs a rule for which lists count as doing, which the categories supply. Unless it is filtered, review flags on other people's cards could add noise.</dd>
+</dl>
+</article>
+
+<article class="idea" id="i4">
+<h3>4. Stuck means past this list's usual</h3>
+<div class="chips"><span class="chip id">I4</span><span class="chip axis">The card face</span><span class="chip conf">Confidence 70%</span><span class="chip cx">Complexity Medium</span></div>
+<dl class="fields">
+<dt>Description</dt>
+<dd>When a card enters a list, compute the usual stay from the 85th percentile of that list's own history, taken from the idea 2 ledger. The tile carries a single age chip: "In Review 3h" in neutral colours, turning amber once the card has stayed longer than usual ("1h over usual"). That gives Lua's "Stuck only" toggle a definition that needs no tuning, as a filter and a search operator. The chip picks the clock that suits the card: time in list for fast lists, days since the last update for slow ones, and slip past the due date for dated cards. Below a minimum amount of history it falls back to a number set per list, or shows plain age.</dd>
+<dt>Basis</dt>
+<dd>direct: the gardener calls a card stale after a fixed 14 days (<code>stale_in_progress.ex:2-14</code>), and the automation preset uses 7 days (<code>automations.ex:68</code>). Both are blind to a three-minute agent card that has been hanging for two hours. direct: <code>api_guide.ex:1010-1012</code> "A card sitting in doing for hours ... looks abandoned" is a convention, not data. external: aging WIP measured against P85, and hospital "expected discharge" boards.</dd>
+<dt>Rationale</dt>
+<dd>Time-in-stage is the most useful thing on Lua's card face. A threshold that adjusts itself is the only one that works on both a quarterly roadmap board and a fleet of agents. It also replaces two hard-coded staleness rules with one measure.</dd>
+<dt>Downsides</dt>
+<dd>It depends on idea 2. Percentiles on boards with little history can mislead, and an amber chip that fires too often becomes noise.</dd>
+</dl>
+</article>
+
+<article class="idea" id="i5">
+<h3>5. Pause, with a reason, and say why work is held</h3>
+<div class="chips"><span class="chip id">I5</span><span class="chip axis">Agent fleet control</span><span class="chip conf">Confidence 70%</span><span class="chip cx">Complexity Low–Medium</span></div>
+<dl class="fields">
+<dt>Description</dt>
+<dd>One brake, scoped to a board or a runner pool, with a required reason: "bad deploy, hold everything". While paused, nobody can claim a job or send the top card. Jobs already running finish, and the drain on shutdown already handles this. A banner names who paused it and why. A held job or card gets a single "held because" line: "paused by David: bad deploy", "Review is full (10/10)" or "no runner online for pool dev". The second of those makes WIP limits act as opt-in back-pressure on automated claims, while people moving cards still only see the warning badge. A circuit breaker that pauses the pool after N failures in a row is a later option.</dd>
+<dt>Basis</dt>
+<dd>direct: a grep for pause across the runner and automation code finds no field; the only off-switch is a per-rule <code>enabled</code> (<code>runners.ex:141-146</code>). direct: <code>move_card</code> never checks <code>wip_limit</code> (<code>boards.ex:2169</code>); the badge alone shows it (<code>board_view.ex:497-509</code>). direct: <code>job.ex:35</code> <code>wait_while_doing</code> is back-pressure that already exists, tied to "anything in doing". direct: <code>claim_drain.ex</code> already answers "nothing queued" while a deploy is draining. external: the Toyota andon cord, and a restaurant expo station that stops firing tickets once the pass is full.</dd>
+<dt>Rationale</dt>
+<dd>Lua's pause button is the one control someone supervising a fleet reaches for in an incident. In Slipdock today, stopping a runaway means disabling rules one at a time. The "held because" line shows any reader, including an agent reading <code>list_cards</code>, that the board stopped its work on purpose, which is better than a silent queue.</dd>
+<dt>Downsides</dt>
+<dd>Users need to understand how a pause scope (pool, board) interacts with the existing rule switches. WIP gating is contested for people, so keep it to automated claims and make it opt-in. The fleet health pill is useful only on boards that have runners, so hide it everywhere else.</dd>
+</dl>
+</article>
+
+<article class="idea" id="i6">
+<h3>6. Show the runner job on the tile, through one state line</h3>
+<div class="chips"><span class="chip id">I6</span><span class="chip axis">The card face</span><span class="chip conf">Confidence 75%</span><span class="chip cx">Complexity Low</span></div>
+<dl class="fields">
+<dt>Description</dt>
+<dd>Write one function that derives a card's current state line from its open job, wait, flags, handoff and assignee, for example "Running · runner-2 · 7m", "Queued · no runner online", "Failed 3× · needs owner" or "Waiting on reviewer · 41m". Render it on the tile, with a small robot or person mark when a job holds the card. Return the same line in <code>list_cards</code>, the CLI and MCP output. The All / Agent / Human filter comes from the same derivation, so cards on boards without agents never show it.</dd>
+<dt>Basis</dt>
+<dd>direct: runner jobs appear only in the card modal (<code>card_sections.ex:490-501</code>); the tile code in <code>slipdock_components.ex</code> has no job reference. direct: the agent's name is already on its API token (<code>accounts.ex:944-946</code> "whose label names the agent holding it"), and on the job as <code>runner_name</code>. direct: the footer badge order (<code>slipdock_components.ex:1072-1085</code>) leaves a natural slot.</dd>
+<dt>Rationale</dt>
+<dd>The question a supervisor asks most is "is anyone actually on this?", and today the only way to answer it is to open each card. Because one function feeds every surface, each later signal (idea 1's waits, idea 4's age, idea 5's holds) shows up on the tile, the CLI and MCP without extra work for each.</dd>
+<dt>Downsides</dt>
+<dd>It needs a density decision, since the compact tile is already crowded. The verifier rejected the larger "one holder per card" framing, because a card can legitimately have both a job and an assignee. This version only shows state; it doesn't enforce a lock.</dd>
+</dl>
+</article>
+
+<article class="idea" id="i7">
+<h3>7. Summary tiles for big and quiet lists</h3>
+<div class="chips"><span class="chip id">I7</span><span class="chip axis">Board shape at scale</span><span class="chip conf">Confidence 70%</span><span class="chip cx">Complexity Medium</span></div>
+<dl class="fields">
+<dt>Description</dt>
+<dd>A list in the todo or done category, or any list over a size threshold, can collapse to a single summary tile: count, oldest card, a small age bar and "Show cards". Done can read as a counter ("+23 this week") rather than a pile. Swimlane headers get the same one-line summary ("6 in progress · 23 done this week · oldest 4d") instead of a bare count. Collapse state is saved in the saved view, which the URL already addresses, instead of resetting on reload. A collapsed list doesn't load its cards, which also caps board load.</dd>
+<dt>Basis</dt>
+<dd>direct: <code>show.ex:168</code> <code>swim_collapsed: MapSet.new()</code> keeps collapse in memory only. direct: lane headers show a count badge only (<code>swimlane_components.ex:1202-1203</code>). direct: <code>column.ex:34</code> preloads every card in the column with no limit. direct: categories exist (<code>column.ex:8</code>), which decides which lists collapse by default. direct: <code>state.ex:95-97</code> "The URL is the source of truth: ?view=ID loads a saved view".</dd>
+<dt>Rationale</dt>
+<dd>Lua's "311 · oldest 2d" tile is the screenshot's answer to scale. A board that agents fill quickly becomes unusable to scan, and slow to load, without something like it. The same tile serves a human team's 300-card backlog.</dd>
+<dt>Downsides</dt>
+<dd>The age and in/out parts of the summary are much richer once idea 2 exists; without it, the tile can show only count and oldest by creation date. Drag-and-drop into a collapsed list needs a design.</dd>
+</dl>
+</article>
+</section>
+
+<section id="rejection-summary">
+<h2>Rejection Summary</h2>
+<table>
+<thead><tr><th>#</th><th>Idea</th><th>Reason Rejected</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Andon response clock (escalating waits) on its own</td><td>Too heavy alone. The verifier failed it on the meeting test, so it is kept only as an optional later step of idea 1.</td></tr>
+<tr><td>2</td><td>One holder per card (railway-token lock of runner or person)</td><td>The invariant is invented: a card legitimately has both a job and an assignee. Cut down to showing state only (idea 6).</td></tr>
+<tr><td>3</td><td>Ball-in-court chip replacing the Agent/Human filter</td><td>Overlaps heavily with the wait record (idea 1) and the waiting-on-me section (idea 3).</td></tr>
+<tr><td>4</td><td>A single derived state line as an idea on its own</td><td>An enabler, not a feature. Folded into idea 6.</td></tr>
+<tr><td>5</td><td>Actor kind (human, agent, automation) on every record</td><td>Sound, but folded into the ledger (idea 2), where it pays off.</td></tr>
+<tr><td>6</td><td>Humans as a runner pool (approvals as claimable jobs)</td><td>Clever but speculative. It complicates the job model for little gain over idea 1.</td></tr>
+<tr><td>7</td><td>Category view mapping stages to another tracker's states (Lua's "Linear states")</td><td>Slipdock has no external tracker to map to, so it solves a problem Slipdock does not have. The existing categories already do the cross-board join.</td></tr>
+<tr><td>8</td><td>Live status adapters on card links (PR, CI, parcel, invoice)</td><td>An integration platform, and the PR/CI case that motivates it is developer-only. Revisit if GitHub integration becomes a goal.</td></tr>
+<tr><td>9</td><td>Column header "starved / blocked / flowing" state</td><td>A small nicety that depends on ideas 2 and 5. The existing WIP badge covers part of it. Better as a follow-on.</td></tr>
+<tr><td>10</td><td>Runner dispatch states (available, en route, on scene, lost, out of service) as a standalone</td><td>Developer-only on its own. Its sharp part, "no runner online for pool", is folded into the "held because" line of idea 5.</td></tr>
+<tr><td>11</td><td>WIP limits that block moves (standalone)</td><td>Blocking people's moves is contested. Folded into idea 5 as opt-in back-pressure on automated claims only.</td></tr>
+<tr><td>12</td><td>A separate Attention inbox as a new home surface</td><td>Overlaps with My work and the alert bell. Narrowed to a My work section (idea 3).</td></tr>
+<tr><td>13</td><td>Lua-style top tabs (Velocity / Attention / In work / Fleet health)</td><td>The view row is already crowded (<code>docs/visual-design-review.md:10</code>). The substance is delivered by ideas 2, 3 and 5 without adding tabs.</td></tr>
+</tbody>
+</table>
+</section>
+
+<footer class="composition-signal">Composed 2026-10-19 by ce-ideate from a user-supplied screenshot of Lua's "fleet-flow" board and a scan of <code>github.com/dadamsuk/slipdock</code> at <code>5f0d3ee</code>.</footer>
+</main>
+</body>
+</html>
