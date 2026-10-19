@@ -13,6 +13,9 @@
 //   * clicking a turn plays from there;
 //   * a search box marks the turns that match, and steps through them;
 //   * space, ← →, [ ] while nothing is being typed;
+//   * for anybody who can edit the page (`data-can-name-speakers`), a
+//     speaker's name opens a box to name that voice: "Speaker 1" becomes
+//     the person, everywhere in the page's transcript (#1157);
 //   * a recording that won't play says why, in words.
 //
 // Without a recording (a .vtt file, a page with a transcript but no
@@ -124,18 +127,29 @@ export function keyAction(e) {
   return {" ": "toggle", ArrowLeft: "back", ArrowRight: "forward", "[": "slower", "]": "faster"}[e.key] || null
 }
 
+// What a speaker-name box asks the server for: `{from, to}`, or null when
+// there is nothing to change. The server says whether the name will do.
+export function speakerRename(from, typed) {
+  const to = String(typed || "").trim()
+  const was = String(from || "").trim()
+  if (to === "" || was === "" || to === was) return null
+  return {from: was, to}
+}
+
 const ICON_PLAY = "▶"
 const ICON_PAUSE = "❚❚"
 
 export const TranscriptPlayer = {
   mounted() {
     this.src = this.el.dataset.recordingSrc || null
+    this.canName = this.el.dataset.canNameSpeakers === "true"
     this.problem = this.el.dataset.recordingProblem || null
     this.help = {settingsUrl: this.el.dataset.settingsUrl || null, owner: this.el.dataset.vaultOwner || null}
     this.following = true
     this.current = -1
     this.hits = []
     this.hit = -1
+    this.naming = null
     this.audio = null
     this.bar = null
     this.ensure()
@@ -161,6 +175,7 @@ export const TranscriptPlayer = {
   updated() {
     // The server redrew the transcript: put the bar and the marks back.
     if (!this.ensure()) return
+    this.restoreNaming()
     this.mark(this.current, false)
     this.search(this.query.value, false)
   },
@@ -176,6 +191,12 @@ export const TranscriptPlayer = {
     this.attach()
     const transcript = this.transcript()
     if (transcript && this.src) transcript.classList.add("transcript-seekable")
+    if (transcript && this.canName) {
+      transcript.classList.add("transcript-nameable")
+      transcript.querySelectorAll(".wiki-transcript-speaker").forEach(name => {
+        name.title = "Name this voice"
+      })
+    }
     return true
   },
 
@@ -280,6 +301,14 @@ export const TranscriptPlayer = {
       e.preventDefault()
       return this.act(action.dataset.action)
     }
+
+    // A speaker's name, to put a name on that voice (#1157).
+    const name = this.canName && e.target.closest(".wiki-transcript-speaker")
+    if (name && this.transcript() && this.transcript().contains(name)) {
+      e.preventDefault()
+      return this.nameSpeaker(name)
+    }
+    if (e.target.closest("[data-speaker-input]")) return
 
     // The page's own "▶ Play recording and transcript" link: a click is a
     // gesture, so it may start the sound.
@@ -470,6 +499,70 @@ export const TranscriptPlayer = {
         turn.scrollIntoView({behavior: "smooth", block: "center"})
       }
     }
+  },
+
+  // A box in place of the name; Enter asks the server to rename the voice
+  // throughout, which redraws the transcript. Escape, or leaving the box,
+  // puts the name back. A redraw while it is open (somebody saved the page)
+  // takes the box out of the page: `updated` puts it back.
+  nameSpeaker(name) {
+    if (this.naming) this.naming.close()
+    const from = name.textContent.trim()
+    const input = document.createElement("input")
+    input.type = "text"
+    input.className = "input input-xs w-48"
+    input.value = from
+    input.maxLength = 60
+    input.setAttribute("data-speaker-input", "")
+    input.setAttribute("aria-label", `Name for ${from}`)
+
+    const naming = {from, input}
+    naming.close = () => {
+      if (this.naming !== naming) return
+      this.naming = null
+      input.remove()
+      this.speakerName(from)?.removeAttribute("hidden")
+    }
+
+    input.addEventListener("keydown", e => {
+      if (e.key === "Escape") {
+        e.preventDefault()
+        naming.close()
+      } else if (e.key === "Enter") {
+        e.preventDefault()
+        const rename = speakerRename(from, input.value)
+        if (rename) this.pushEvent("rename_speaker", rename)
+        naming.close()
+      }
+    })
+    // Taken out by a redraw is not leaving it.
+    input.addEventListener("blur", () => setTimeout(() => {
+      if (input.isConnected && document.activeElement !== input) naming.close()
+    }, 0))
+
+    this.naming = naming
+    this.placeNaming(name)
+    input.select()
+  },
+
+  placeNaming(name) {
+    name.hidden = true
+    name.insertAdjacentElement("afterend", this.naming.input)
+    this.naming.input.focus()
+  },
+
+  // After a redraw: the box back beside the name it is for, or gone if that
+  // voice is no longer in the transcript.
+  restoreNaming() {
+    if (!this.naming || this.naming.input.isConnected) return
+    const name = this.speakerName(this.naming.from)
+    if (name) this.placeNaming(name)
+    else this.naming = null
+  },
+
+  speakerName(who) {
+    const t = this.transcript()
+    return t && [...t.querySelectorAll(".wiki-transcript-speaker")].find(n => n.textContent.trim() === who)
   },
 
   // The <audio> only says that it failed; the server says why.

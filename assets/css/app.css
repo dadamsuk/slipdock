@@ -590,6 +590,7 @@ body.tl-tray-dragging { cursor: grabbing; }
 .transcript-player-problem { margin: 0; }
 .wiki-transcript-turn { scroll-margin: 6rem 0; transition: background-color 150ms ease; }
 .transcript-seekable .wiki-transcript-turn { cursor: pointer; }
+.transcript-nameable .wiki-transcript-speaker { cursor: text; text-decoration: underline dotted; text-underline-offset: 3px; }
 .wiki-transcript-turn.is-match { background: color-mix(in oklab, var(--color-warning) 12%, transparent); }
 .wiki-transcript-turn.is-hit { outline: 2px solid color-mix(in oklab, var(--color-warning) 60%, transparent); }
 .wiki-transcript-turn.is-current { background: color-mix(in oklab, var(--color-primary) 14%, transparent); }

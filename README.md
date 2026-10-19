@@ -166,7 +166,8 @@ Briefly, with the detail in [the manual](docs/manual.md):
   Excalidraw [drawings](docs/manual.md#drawings) drawn in the page and drawn
   in together live, with everyone's pointers on the canvas,
   [meeting pages](docs/manual.md#meeting-recordings-from-google-drive) that play
-  their recording from Google Drive in step with the transcript, and
+  their recording from Google Drive in step with the transcript (whose voices
+  you can name in place), and
   [encrypted notes](docs/manual.md#encrypted-notes) in Meld Encrypt's format, encrypted and
   decrypted in your browser or the CLI so the server never sees them. Plus a
   [Narrative view](docs/manual.md#narrative) that tells you what happened to a
