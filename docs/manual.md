@@ -481,6 +481,90 @@ Over the API, `POST /api/cards/:id/handoff` with `next_step` and `body` (or
 carries it as `handoff`. Over MCP it is the `leave_handoff` tool. Exports
 between servers carry every handoff, signed by whoever imports them.
 
+## Waiting on a person (waits)
+
+A card that can't go on until somebody answers something — a decision, a
+credential, an approval — gets a **wait**: what it needs, who it waits on (a
+named person, or anyone), when it was opened and, optionally, a short list of
+answer choices. A card has at most one open wait. It flags the card
+`waiting` and comments the question, so the board and every filter that
+skips waiting cards already know; unlike the bare flag, it has a clock, an
+owner and a way back.
+
+While one is open it sits beneath the card's title — *Waiting on Dana:* and
+the question, who asked it and how long ago — with a button for each choice,
+a box for an answer in words, **Answer** and **Withdraw**. The answer is
+posted on the card as a comment from whoever answered and clears the
+`waiting` flag if the wait set it. Taking the `waiting` flag off by hand
+withdraws the wait, with a comment naming who did. Completing or archiving
+the card closes its wait with that reason. Anyone who can change the card
+can answer, from the card, [My work](#roll-ups-the-outline-and-my-work), the
+CLI, the API or MCP; an agent can't answer a wait it opened itself, and a
+person can always answer or withdraw their own.
+
+```sh
+slipdock wait 12 "Which region?" --on dana@example.com --choice eu --choice us
+slipdock wait 12 --withdraw
+slipdock answer 12 --choice 1                  # or: slipdock answer 12 "eu, for the data rules"
+slipdock work                                  # what is waiting on you, oldest first
+```
+
+Over the API, `POST /api/cards/:id/wait` (`needs`, `on`, `choices`) opens
+one, `POST /api/cards/:id/wait/answer` (`answer`, `choice` counted from 1)
+answers it and `DELETE /api/cards/:id/wait` withdraws it; a card's JSON
+carries the open one as `wait`. Over MCP it is `update_card` with `wait`
+(`null` withdraws) or `answer_wait`.
+
+Agents are told to open a wait, say what they need and stop, rather than
+flag the card and hope. A wait opened from a [runner](#runners) job
+**parks** the job, and answering it sends the card to the same rule again
+with the question and the answer on top of the prompt.
+
+**Waiting on you.** My work opens with everything that needs you, oldest
+first, each with why and for how long: open waits on you, and on anyone on
+cards you own or are assigned; your cards flagged `review` or `waiting`;
+cards the runner gave up on, or whose newest job failed, on boards you own;
+and, for a board's owner, cards in an in-progress list for over an hour with
+nobody on them. A wait's choices and answer box are right there. The header
+shows how many on every page (refreshed within a minute), `slipdock whoami`
+and `GET /api/me` carry it as `waiting_on_you`, and `slipdock work`, `GET
+/api/work` and the `plan-my-day` prompt list them.
+
+## Flow: the pulse, a card's state and its age
+
+Every card move is recorded with where it came from, where it went, when,
+and who made it — a person, an agent or an automation — and the board works
+its flow numbers out from that record.
+
+**The pulse.** Cards in progress, cards waiting on a person (and the oldest
+wait), cards done in the last 7 days (and today), the typical (P50) and slow
+(P85) time to done, moves in the last 24 hours forward and back, and each
+list's in and out over 7 days with its usual stay. `slipdock pulse <board>`,
+`GET /api/boards/:id/pulse` and MCP `get_board` with `pulse: true` answer it
+on every board; **Show the board's pulse** in the board's settings
+(`slipdock set-board <board> --show-pulse`) puts it in plain words over the
+lists. Off by default.
+
+**A card's state.** A card with a job or a wait on it shows one line on its
+front — *Running · runner-2 · 7m*, *Queued · dev · 3m*, *Held · paused by
+David: bad deploy*, *Waiting on Dana · 41m*, *Failed · runner-2 · 2h ago* —
+with its handoff's next step after it when there is one. A card with
+neither shows nothing. On a board tree with runner rules, a small mark says
+whether an agent or a person holds it.
+
+**Its age.** A chip says how long the card has been in its list, and turns
+amber, with how far over, once that is past the list's usual stay (the time
+85 in 100 cards spent there). Never on a done or dropped list, a card with an
+open wait (the person is the hold-up), or where there is too little history.
+
+The board's **Filter** menu has *Time in list* (only cards past their list's
+usual stay) and, on runner boards, *Driver*: All, Agent or Human. The API, MCP and CLI carry the same
+`state`, `held`, `driver`, `in_list_since`, `age`, `usual_stay`,
+`over_usual` and `stuck` on each card, and filter on them:
+`slipdock cards <board> --stuck --driver agent`,
+`GET /api/boards/:id/cards?stuck=true&driver=agent`, MCP `list_cards` with
+`stuck` and `driver`.
+
 ## Recurring cards
 
 Repeating work — "every Monday: review invoices", "first of the month: renew
@@ -981,7 +1065,8 @@ Cards can be **assigned** to a user from the card modal, or by dragging on an
 *Assignee* swimlane axis. **My work** (`/work`, in the account menu) lists
 every card assigned to you on any board at any depth, grouped by due date
 (overdue, today, next 7 days, later, no date), each with its path — root
-board › parent cards — and a link straight to it.
+board › parent cards — and a link straight to it. Above them, **Waiting on
+you** lists what needs you, oldest first ([waits](#waiting-on-a-person-waits)).
 
 ## Roadmapping
 
@@ -2006,7 +2091,9 @@ the agent, and reports how it went.
 The prompt may use the same `{{card.*}}` placeholders as any action. Every
 job's prompt, a rule's own included, ends with a paragraph saying it runs
 unattended: nobody will answer questions, so choose inputs from the card and
-say what was chosen, or comment, flag the card `waiting` and stop. The
+say what was chosen, or open a [wait](#waiting-on-a-person-waits) saying what is
+needed and stop (the answer starts a fresh job); if the board is paused, finish
+the card and take no other. The
 **Send cards to a runner** preset is the usual rule (it is offered once the
 board has a runner): when a card
 arrives in a list, send it to a pool.
@@ -2105,6 +2192,41 @@ a comment. A rule never has more than one open job for a card, so a card
 moved in and out of a list does not pile up work. The card's **Runner jobs**
 section shows each job, which runner took it, when, and the tail of its log;
 **Cancel** stops a queued job at once and asks a running one to stop.
+
+**Parked on a question.** A job whose agent needs something only a person
+can give opens a [wait](#waiting-on-a-person-waits) and stops (`slipdock
+wait <card> "…"` inside the job, `update_card` `wait` from a session, or
+`slipdock finish-job <job> --status waiting --needs "…"` to ask and park in
+one step). The job ends `parked`, and never comes back by itself. A
+`list_top` rule puts the card back on top of its list, flagged waiting, so
+the next card goes meanwhile; one question never holds up the list. When
+somebody answers, the card is sent to the same rule again — one fresh job,
+with the question, the answer, who answered and the handoff at the top of
+its prompt. If that can't happen (the rule is off or gone, the card was
+completed or moved to another tree, the queue refused), the card says so in a
+comment and the wait records why.
+
+**Pausing.** **Pause** in the Runners panel holds the whole board tree, or
+one pool, with a reason you have to give. While it is paused no job is
+claimed and no list sends a card; queued jobs stay queued and running ones
+finish. Every board in the tree shows a banner with who paused it, when and
+why; `slipdock board`, `slipdock cards`, `get_board` and `list_cards` carry
+it too, so an agent working without a pool sees it and stops. **Resume**
+wakes the runners and rules at once. Agents can pause (`slipdock pause
+<board> [--pool P] --reason "…"`, `POST /api/boards/:id/pause`, MCP
+`manage_automation` `pause`), but only a person resumes (`slipdock resume`,
+outside an agent).
+
+**WIP limits that hold automated work.** WIP limits only warn people. Turn
+on **WIP limits hold automated work** in the board's settings (`slipdock
+set-board <board> --automation-wip`) and, while the first in-progress list
+is at its limit, runner jobs and list sends for cards not already in
+progress wait. People can still drag cards in.
+
+**Held work says why.** A queued job that isn't being handed out says one
+reason, the same in the card's jobs, `slipdock jobs`, an empty claim and the
+card's state line: *paused by David: bad deploy*, *WIP full: In Progress
+3/3*, *#123 is in progress*, or *No runner online for pool dev*.
 
 **Connect a runner**, in the board's Automations panel, is the way in: it
 opens a dialog of its own. Pick
