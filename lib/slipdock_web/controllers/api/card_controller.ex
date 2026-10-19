@@ -91,6 +91,7 @@ defmodule SlipdockWeb.API.CardController do
           |> Map.put(:docs, docs)
           |> Map.put(:wait, V.wait(Boards.current_wait(card)))
           |> Map.put(:last_wait, V.wait(Boards.last_wait(card)))
+          |> V.put_delivery(card)
       })
     end
   end

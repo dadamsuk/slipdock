@@ -295,6 +295,69 @@ defmodule Slipdock.Deployments do
     )
   end
 
+  # -- Shipped lines -----------------------------------------------------------
+
+  @doc """
+  Where `card` has shipped (#1134): for each environment, the latest
+  succeeded deploy whose commits name it, latest first, as `%{environment,
+  deployment_id, sha, tag, at, rolled_back}`. `rolled_back` is set when a
+  later rollback in that environment went back to a sha deployed before it.
+  Only deploys on boards whose delivery metrics are on count, so a board
+  with them off shows nothing.
+  """
+  def shipped(%{id: card_id}) do
+    shipping =
+      Repo.all(
+        from d in Deployment,
+          join: b in Board,
+          on: b.id == d.board_id,
+          where:
+            b.delivery_metrics and d.status == "succeeded" and
+              fragment("? @> ?", d.card_ids, type(^[card_id], {:array, :integer})),
+          distinct: [d.board_id, d.environment],
+          order_by: [d.board_id, d.environment, desc: d.started_at, desc: d.id]
+      )
+
+    shipping
+    |> Enum.map(fn d ->
+      %{
+        environment: d.environment,
+        deployment_id: d.id,
+        sha: d.sha,
+        tag: d.tag,
+        at: d.finished_at || d.started_at,
+        rolled_back: rolled_back?(d)
+      }
+    end)
+    |> Enum.sort_by(& &1.at, {:desc, DateTime})
+  end
+
+  # A later rollback in the environment to a sha deployed before `d`.
+  defp rolled_back?(%Deployment{} = d) do
+    earlier =
+      from e in Deployment,
+        where:
+          e.board_id == ^d.board_id and e.environment == ^d.environment and
+            e.started_at < ^d.started_at,
+        select: e.sha
+
+    Repo.exists?(
+      from r in Deployment,
+        where:
+          r.board_id == ^d.board_id and r.environment == ^d.environment and r.rollback and
+            r.status == "succeeded" and r.started_at > ^d.started_at and
+            r.sha in subquery(earlier)
+    )
+  end
+
+  @doc "A shipped line in words: `Shipped to production · 1a2b3c4 · 19 Oct`, and a rollback past it."
+  def shipped_text(%{} = s) do
+    "Shipped to #{s.environment} · #{String.slice(s.sha, 0, 7)}" <>
+      if(s.tag, do: " (#{s.tag})", else: "") <>
+      " · #{Calendar.strftime(s.at, "%-d %b")}" <>
+      if(s.rolled_back, do: " · rolled back since", else: "")
+  end
+
   @doc "Where a board's deploys are announced (the setup wizard waits on it)."
   def topic(%Board{id: id}), do: "deployments:board:#{id}"
 
