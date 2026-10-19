@@ -18,6 +18,9 @@ import tempfile
 import unittest
 import zipfile
 
+# No __pycache__ beside the script: the package folder is published as it stands.
+sys.dont_write_bytecode = True
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPT = os.path.join(
     HERE, "..", "..", "..", "packages", "job-search", "skills", "job-search-generate", "scripts", "build_docs.py"
@@ -229,6 +232,29 @@ class Inspect(unittest.TestCase):
         make_docx(path, body, styles)
         sizes = dict(bd.inspect_docx(path)["sizes_pt"])
         self.assertEqual(sizes, {11.0: 44, 20.0: 3})
+
+    def test_bold_and_colour_come_through_styles_and_a_theme_font_is_unknown(self):
+        styles = (
+            '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" /></w:rPr></w:style>'
+            '<w:style w:type="paragraph" w:styleId="Heading2"><w:basedOn w:val="Normal" />'
+            '<w:rPr><w:b /><w:color w:val="336699" /><w:sz w:val="28" /></w:rPr></w:style>'
+        )
+        body = (
+            '<w:p><w:r><w:rPr><w:sz w:val="36" /></w:rPr><w:t>JANE DOE</w:t></w:r></w:p>'
+            '<w:p><w:pPr><w:pStyle w:val="Heading2" /></w:pPr><w:r><w:t>SECTION</w:t></w:r></w:p>'
+            + '<w:p><w:r><w:t>plain body text, long enough to be the body size</w:t></w:r></w:p>' * 3
+        )
+        path = os.path.join(self.tmp, "themed.docx")
+        make_docx(path, body, styles)
+        info = bd.inspect_docx(path)
+        self.assertEqual(info["fonts"], [], "a theme font has no name to suggest")
+        self.assertIsNone(info["suggested"]["font"])
+        self.assertEqual(info["suggested"]["heading_size"], 14.0)
+        self.assertEqual(info["suggested"]["heading_colour"], "336699")
+        self.assertEqual(info["suggested"]["name_size"], 18.0)
+        code, out, _ = run_main("template", "--from", path, "--out", os.path.join(self.tmp, "t.docx")) if shutil.which("pandoc") else (0, '{"settings": {"font": "Arial"}}', "")
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(out)["settings"]["font"], "Arial", "falls back rather than naming a font '(theme)'")
 
     def test_not_a_docx_is_an_error(self):
         path = os.path.join(self.tmp, "x.docx")

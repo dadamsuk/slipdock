@@ -6,7 +6,12 @@ defmodule Slipdock.JobSearchPackageTest do
   board they run against, and all of it to containing nothing about any one
   person.
   """
-  use ExUnit.Case, async: true
+  use Slipdock.DataCase, async: true
+
+  import Slipdock.Fixtures
+
+  alias Slipdock.{Automations, Repo, Tools, Wiki}
+  alias Slipdock.Tools.Package
 
   @dir Path.expand("../../packages/job-search", __DIR__)
   @skills ~w(job-search-generate job-search-scan job-search-setup)
@@ -23,6 +28,31 @@ defmodule Slipdock.JobSearchPackageTest do
       [k, v] = String.split(line, ": ", parts: 2)
       {k, v}
     end)
+  end
+
+  defp entries do
+    @dir
+    |> Path.join("**")
+    |> Path.wildcard(match_dot: true)
+    |> Enum.filter(&File.regular?/1)
+    |> Enum.map(&{Path.relative_to(&1, @dir), File.read!(&1)})
+  end
+
+  defp tarball do
+    path = Path.join(System.tmp_dir!(), "job-search-#{System.unique_integer([:positive])}.tar.gz")
+    tar = Enum.map(entries(), fn {p, c} -> {String.to_charlist(p), c} end)
+    :ok = :erl_tar.create(String.to_charlist(path), tar, [:compressed, :write])
+    bytes = File.read!(path)
+    File.rm!(path)
+    bytes
+  end
+
+  defp installed do
+    user = user_fixture()
+    {:ok, version} = Tools.publish(user, tarball())
+    Slipdock.TestConfig.own_uploads_dir()
+    {:ok, %{board: board}} = Tools.install_board(user, version.tool)
+    board
   end
 
   defp procedures, do: Enum.map(@skills, &read("skills/#{&1}/references/procedure.md"))
@@ -50,6 +80,63 @@ defmodule Slipdock.JobSearchPackageTest do
       # The stub carries no procedure of its own beyond the fetch.
       assert byte_size(stub) < 3_000
     end
+  end
+
+  test "the package reads, with its three skills, and ships the build script beside generate" do
+    assert {:ok, package} = Package.read(tarball())
+    assert package.manifest["name"] == "job-search"
+    assert Enum.map(package.skills, & &1.name) == @skills
+
+    generate = Enum.find(package.skills, &(&1.name == "job-search-generate"))
+    assert "scripts/build_docs.py" in generate.files
+  end
+
+  test "its board has the lists W-1850 sets, with Found as the ready list and Closed as done" do
+    board = installed()
+
+    assert Enum.map(board.columns, & &1.name) ==
+             ["Found", "Generate", "Ready", "Applied", "In conversation", "Closed"]
+
+    roles = SlipdockWeb.APIGuide.list_roles(board.columns)
+    assert roles.ready.name == "Found"
+    assert roles.doing.name == "Generate"
+    assert roles.done.name == "Closed"
+
+    categories = Map.new(board.columns, &{&1.name, &1.category})
+    assert categories["Ready"] == "doing"
+    assert categories["Applied"] == nil
+    assert categories["In conversation"] == nil
+  end
+
+  test "the five page skeletons sit in Config, and the build blocks parse" do
+    board = installed()
+    pages = board |> Wiki.list_pages() |> Repo.preload(:folder)
+
+    assert pages |> Enum.map(&{&1.title, &1.folder.name}) |> Enum.sort() ==
+             Enum.sort(Enum.map(@pages, &{&1, "Config"}))
+
+    rules = Enum.find(pages, &(&1.title == "Writing Rules"))
+    rules = Wiki.get_page!(rules.id)
+    assert rules.body =~ "```build\nbullet: -\ncv pages: 2\n```"
+    assert rules.body =~ "```checks\n```"
+
+    criteria = Wiki.get_page!(Enum.find(pages, &(&1.title == "Criteria")).id)
+    assert criteria.body =~ "- A posting becomes a card in Found at a score of: 6"
+    refute criteria.body =~ "{{"
+  end
+
+  test "a card entering Generate queues a job for the generate pool, told to run generate" do
+    board = installed()
+
+    assert [rule] = Automations.list_rules(board.id)
+    assert rule.spec["trigger"] == %{"type" => "card_entered", "column" => "Generate"}
+
+    assert [%{"type" => "runner", "pool" => "generate", "prompt" => prompt} | _] =
+             rule.spec["actions"]
+
+    assert prompt =~ "job-search-generate skill"
+    assert prompt =~ "{{card.id}}"
+    assert prompt =~ "finish_job"
   end
 
   test "every package file a procedure or stub names exists" do

@@ -357,6 +357,7 @@ def style_table(styles):
             "sz": get(r'<w:sz w:val="(\d+)"'),
             "font": get(r'<w:rFonts [^>]*w:ascii="([^"]+)"'),
             "colour": get(r'<w:color w:val="([0-9A-Fa-f]{6})"'),
+            "bold": "1" if re.search(r'<w:rPr>.*?<w:b(?:\s*/>|\s+w:val="(?:1|true|on)")', block, re.S) else None,
             "default": 'w:default="1"' in block and 'w:type="paragraph"' in block,
         }
     return table
@@ -415,17 +416,20 @@ def inspect_docx(path):
             rpr = re.search(r"<w:rPr>.*?</w:rPr>", r, re.S)
             rpr = rpr.group(0) if rpr else ""
             f = re.search(r'<w:rFonts [^>]*w:ascii="([^"]+)"', rpr)
-            font = f.group(1) if f else (style_value(table, pstyle, "font") or (d_font.group(1) if d_font else "(theme)"))
+            # A font taken from the theme has no name here: it counts as unknown.
+            font = f.group(1) if f else (style_value(table, pstyle, "font") or (d_font.group(1) if d_font else None))
             sz = re.search(r'<w:sz w:val="(\d+)"', rpr)
             half = int(sz.group(1)) if sz else int(style_value(table, pstyle, "sz") or (d_sz.group(1) if d_sz else WORD_DEFAULT_HALF_POINTS))
             size = half / 2
-            fonts[font] += n
+            if font:
+                fonts[font] += n
             sizes[size] += n
-            if re.search(r'<w:b(?:\s*/>|\s+w:val="(?:1|true|on)")', rpr):
+            if re.search(r'<w:b(?:\s*/>|\s+w:val="(?:1|true|on)")', rpr) or style_value(table, pstyle, "bold"):
                 bold_sizes[size] += n
             c = re.search(r'<w:color w:val="([0-9A-Fa-f]{6})"', rpr)
-            if c and c.group(1).upper() != "000000":
-                colours[c.group(1).upper()] += n
+            colour = c.group(1) if c else style_value(table, pstyle, "colour")
+            if colour and colour.upper() != "000000":
+                colours[colour.upper()] += n
             if first is None:
                 first = {"size": size, "centred": '<w:jc w:val="center"' in ppr}
 
