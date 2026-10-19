@@ -1814,6 +1814,21 @@ defmodule SlipdockWeb.APIGuide do
     comment; finishing the job does not close the card, so close it as usual.
     The session shows in the board's runner list as `<token label> (session)`.
 
+    **Parking on a question.** A job whose agent needs something only a
+    person can give asks it as a wait (`update_card` `wait`, `POST
+    /api/cards/:id/wait`, `slipdock wait <card> … --job <id>`) and stops:
+    the job ends `parked` whatever it reports. `finish` with `{"outcome":
+    "waiting", "wait": {"needs": "…", "choices": […]}}` asks and parks in one
+    step, both or neither. A list_top rule puts the parked card back on top
+    of its list, flagged waiting, without spending a `requeue_stuck` retry, so
+    the next card goes. Answering sends the card to the same rule again — at
+    once, or once the rule's open job has closed — with the question, the
+    answer, who answered and the handoff on top of the prompt; the claim
+    answer carries them as `wait` and `handoff` too (a runner's: `X-Wait-Id`,
+    `X-Handoff-Id`). The wait's `requeue_state` says what happened:
+    `queued`, `pending`, `skipped` (the rule is off or gone, the card closed
+    or moved tree) or `failed` (the queue refused), with a comment on the card.
+
     **Seeing and stopping jobs** needs read access to the card, and
     cancelling one write: `GET /api/cards/:id/jobs`, `GET
     /api/boards/:board/jobs?status=open`, `GET /api/jobs/:id`, `POST

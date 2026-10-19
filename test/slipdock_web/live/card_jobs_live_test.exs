@@ -82,4 +82,22 @@ defmodule SlipdockWeb.CardJobsLiveTest do
     render_click(with_target(view, "#board-card"), "cancel_job", %{"job" => to_string(job.id)})
     assert Repo.get!(Job, job.id).status == "queued"
   end
+
+  test "a parked job shows as parked, marked as waiting rather than failed (#1115)", ctx do
+    {:ok, job} = queue(ctx.card)
+    Runners.claim(ctx.runner)
+
+    {:ok, _} =
+      Slipdock.Boards.open_wait(
+        Slipdock.Boards.get_card!(ctx.card.id),
+        Slipdock.Actor.runner(ctx.user, job.id),
+        %{"needs" => "Which region?", "job_id" => job.id}
+      )
+
+    {:ok, %Job{status: "parked"}} = Runners.finish(ctx.runner, job.id, %{exit: "0"})
+
+    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card}")
+    assert has_element?(view, "#card-job-#{job.id} .badge-warning", "parked")
+    refute has_element?(view, "#card-job-#{job.id} button", "Cancel")
+  end
 end

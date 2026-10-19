@@ -26,7 +26,7 @@ defmodule Slipdock.Runners do
   alias Slipdock.{Boards, Repo}
   alias Slipdock.Accounts.UserToken
   alias Slipdock.Boards.{Board, Card}
-  alias Slipdock.Runners.{ClaimDrain, Job, Recovery, Runner}
+  alias Slipdock.Runners.{ClaimDrain, Job, Recovery, Requeue, Runner}
 
   @pubsub Slipdock.PubSub
 
@@ -630,55 +630,140 @@ defmodule Slipdock.Runners do
   A runner saying `job_id` has ended. `status` is one of done, failed,
   cancelled or timeout; without one, exit 0 is done and anything else
   failed. A job somebody asked to cancel ends cancelled whatever it says.
+
+  A job with an open wait asked from it ends `parked`, whatever it says
+  (KTD5): its agent asked a person something and stopped. `status: parked`
+  from a job with no such wait is refused, as `{:error, message}`.
   """
   def finish(%Runner{} = runner, job_id, attrs) do
     with {:ok, job} <- runner_job(runner, job_id) do
       if job.status in Job.finished_statuses() do
         {:ok, job}
       else
-        exit_code = to_int(attrs[:exit])
-
-        status =
-          cond do
-            job.cancel_requested_at -> "cancelled"
-            attrs[:status] in Job.finished_statuses() -> attrs[:status]
-            exit_code == 0 -> "done"
-            true -> "failed"
-          end
-
-        now = now()
-
-        {:ok, job} =
-          job
-          |> Ecto.Changeset.change(%{
-            status: status,
-            exit_code: exit_code,
-            output: if(attrs[:output] in [nil, ""], do: job.output, else: tail(attrs[:output])),
-            finished_at: now,
-            lease_expires_at: nil,
-            error:
-              if(exit_code == 127 and status == "failed", do: "the runner has no such job kind")
-          })
-          |> Repo.update()
-
-        Repo.update_all(
-          from(r in Runner, where: r.id == ^runner.id and r.current_job_id == ^job.id),
-          set: [current_job_id: nil]
-        )
-
-        Boards.log_activity(
-          job.board_id,
-          job.card_id,
-          "runner",
-          "#{runner.name} finished job ##{job.id}: #{status}#{exit_text(exit_code)}"
-        )
-
-        leave_handoff(job, runner, status)
-        job = changed(job)
-        refill(job)
-        {:ok, job}
+        with {:ok, status} <- end_status(job, attrs) do
+          job = end_job(runner, job, status, attrs)
+          {:ok, after_end(runner, job, status)}
+        end
       end
     end
+  end
+
+  @doc """
+  A runner parking `job_id` on a question in one step (`finish_job
+  outcome: "waiting"`): `open_wait` is called with the job and opens the
+  wait (`{:ok, wait}` or `{:error, message}`), and the job ends parked. Both
+  or neither: if the runner no longer holds a claimed or running job, or the
+  wait is refused, nothing changes. Answers `{:ok, job, wait}`,
+  `{:error, :not_found}` or `{:error, message}`.
+  """
+  def finish_waiting(%Runner{} = runner, job_id, open_wait, attrs \\ %{})
+      when is_function(open_wait, 1) do
+    {result, effects} =
+      Slipdock.Deferred.collect(fn ->
+        Repo.transaction(fn ->
+          with {:ok, job} <- runner_job(runner, job_id),
+               %Job{} = job <-
+                 Repo.one(from(j in Job, where: j.id == ^job.id, lock: "FOR UPDATE")),
+               :ok <- can_park(job),
+               {:ok, wait} <- open_wait.(job) do
+            {end_job(runner, job, "parked", attrs), wait}
+          else
+            {:error, reason} -> Repo.rollback(reason)
+            _ -> Repo.rollback(:not_found)
+          end
+        end)
+      end)
+
+    case result do
+      {:ok, {job, wait}} ->
+        Slipdock.Deferred.run(effects)
+        {:ok, after_end(runner, job, "parked"), wait}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp can_park(%Job{status: status} = job) when status in ~w(claimed running) do
+    if job.cancel_requested_at,
+      do: {:error, "job ##{job.id} was cancelled: finish it cancelled instead"},
+      else: :ok
+  end
+
+  defp can_park(job), do: {:error, "job ##{job.id} has already ended (#{job.status})"}
+
+  defp end_status(job, attrs) do
+    exit_code = to_int(attrs[:exit])
+
+    cond do
+      job.cancel_requested_at -> {:ok, "cancelled"}
+      open_linked_wait(job) -> {:ok, "parked"}
+      attrs[:status] == "parked" -> {:error, not_parkable(job)}
+      attrs[:status] in Job.finished_statuses() -> {:ok, attrs[:status]}
+      exit_code == 0 -> {:ok, "done"}
+      true -> {:ok, "failed"}
+    end
+  end
+
+  defp not_parkable(job),
+    do:
+      "job ##{job.id} has no open wait to park on: open one first (slipdock wait " <>
+        "#{job.card_id} \"…\" --job #{job.id}, or update_card wait), or finish it done or failed"
+
+  @doc "The open wait asked from `job`, or nil."
+  def open_linked_wait(%Job{id: id}) do
+    Repo.one(
+      from(w in Slipdock.Boards.Wait, where: w.job_id == ^id and is_nil(w.closed_at), limit: 1)
+    )
+  end
+
+  # The answered wait asked from `job`, or nil: an answer that came while it
+  # was still running.
+  defp answered_linked_wait(%Job{id: id}) do
+    Repo.one(
+      from(w in Slipdock.Boards.Wait,
+        where: w.job_id == ^id and w.close_reason == "answered",
+        order_by: [desc: w.id],
+        limit: 1
+      )
+    )
+  end
+
+  defp end_job(runner, job, status, attrs) do
+    exit_code = to_int(attrs[:exit])
+
+    {:ok, job} =
+      job
+      |> Ecto.Changeset.change(%{
+        status: status,
+        exit_code: exit_code,
+        output: if(attrs[:output] in [nil, ""], do: job.output, else: tail(attrs[:output])),
+        finished_at: now(),
+        lease_expires_at: nil,
+        error: if(exit_code == 127 and status == "failed", do: "the runner has no such job kind")
+      })
+      |> Repo.update()
+
+    Repo.update_all(
+      from(r in Runner, where: r.id == ^runner.id and r.current_job_id == ^job.id),
+      set: [current_job_id: nil]
+    )
+
+    job
+  end
+
+  defp after_end(runner, job, status) do
+    Boards.log_activity(
+      job.board_id,
+      job.card_id,
+      "runner",
+      "#{runner.name} finished job ##{job.id}: #{status}#{exit_text(job.exit_code)}"
+    )
+
+    leave_handoff(job, runner, status)
+    job = changed(job)
+    refill(job)
+    job
   end
 
   # A job that ends with its card still open leaves its summary as the
@@ -777,10 +862,22 @@ defmodule Slipdock.Runners do
   # A job from a rule that keeps a pool fed from a list (`list_top`) has
   # ended, so the rule may send the next card — after putting back the card
   # the job left in progress, if the rule says to, so that it can be the one.
+  #
+  # Answers waiting for the rule's open job to close go first (KTD7): a
+  # list_top rule drains them inside its feed, ahead of the next card; any
+  # other rule here.
   defp refill(%Job{rule_id: rule_id} = job) do
     Recovery.recover(job)
     announce(job)
-    Slipdock.Automations.feed_rule(rule_id)
+
+    case rule_id && Repo.get(Slipdock.Automations.Rule, rule_id) do
+      nil ->
+        :ok
+
+      rule ->
+        unless Slipdock.Automations.Spec.feed?(rule.spec), do: Requeue.drain(rule)
+        Slipdock.Automations.feed_rule(rule)
+    end
   end
 
   # Rules watching for jobs ending (`job_finished`) hear about it once, with
@@ -818,11 +915,35 @@ defmodule Slipdock.Runners do
     length(expired)
   end
 
+  # A job whose agent asked a person something never goes back in the
+  # queue with its old prompt (KTD5): with the question still open it is
+  # parked; answered while it ran, it fails, pointing at the fresh job the
+  # answer queues once this one has closed.
   defp expire(job, now) do
     cond do
       job.cancel_requested_at ->
         if settle(job, %{status: "cancelled", finished_at: now, lease_expires_at: nil}),
           do: refill(job)
+
+      open_linked_wait(job) ->
+        if settle(job, %{status: "parked", finished_at: now, lease_expires_at: nil}) do
+          Boards.log_activity(
+            job.board_id,
+            job.card_id,
+            "runner",
+            "job ##{job.id} parked: its lease ran out while it waited on a person"
+          )
+
+          refill(job)
+        end
+
+      wait = answered_linked_wait(job) ->
+        error = "its question was answered while it ran: a fresh job with the answer takes over"
+
+        if settle(job, %{status: "failed", finished_at: now, lease_expires_at: nil, error: error}) do
+          refill(job)
+          point_to_fresh_job(job, wait, error)
+        end
 
       job.attempts >= max_attempts() ->
         settle(job, %{
@@ -872,6 +993,20 @@ defmodule Slipdock.Runners do
     end
   end
 
+  defp point_to_fresh_job(job, wait, error) do
+    case Repo.get(Slipdock.Boards.Wait, wait.id) do
+      %{requeue_job_id: fresh} when is_integer(fresh) ->
+        Repo.update_all(from(j in Job, where: j.id == ^job.id),
+          set: [error: String.replace(error, "a fresh job", "job ##{fresh}")]
+        )
+
+        changed(job)
+
+      _ ->
+        :ok
+    end
+  end
+
   defp flag_card(job) do
     case Repo.get(Card, job.card_id) do
       nil ->
@@ -896,6 +1031,26 @@ defmodule Slipdock.Runners do
       {id, ""} -> Repo.get(Job, id)
       _ -> nil
     end
+  end
+
+  @doc """
+  What a claim answers beside the prompt (#1115), for runners that read
+  more than the prompt: the wait the job carries on from — the answered
+  question that queued it, else the card's open one — and the card's open
+  handoff. Either is nil when there is none.
+  """
+  def claim_context(%Job{} = job) do
+    wait =
+      Repo.one(
+        from(w in Slipdock.Boards.Wait,
+          where: w.requeue_job_id == ^job.id,
+          order_by: [desc: w.id],
+          limit: 1,
+          preload: [:on_user, :opened_by, :closed_by]
+        )
+      ) || Boards.current_wait(job.card_id)
+
+    %{wait: wait, handoff: Boards.current_handoff(job.card_id)}
   end
 
   @doc "A card's jobs, newest first."

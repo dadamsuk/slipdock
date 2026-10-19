@@ -90,7 +90,8 @@ defmodule Slipdock.Automations.RunnerActionTest do
       # Nobody is there to answer: it says so, last.
       assert String.ends_with?(job.prompt, "It 500s\n\n" <> Runner.unattended())
       assert Runner.unattended() =~ "nobody will answer questions"
-      assert Runner.unattended() =~ "flag the card waiting and stop"
+      assert Runner.unattended() =~ "open a wait (`slipdock wait <card> …` or update_card `wait`)"
+      refute Runner.unattended() =~ "flag the card waiting and stop"
     end
 
     test "fills placeholders in a prompt the rule writes", ctx do

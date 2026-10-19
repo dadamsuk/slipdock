@@ -191,6 +191,9 @@ defmodule SlipdockCLI.Runners do
           "report with `slipdock job-progress #{j["id"]}` between steps (lease #{r["lease_seconds"]}s); end with `slipdock finish-job #{j["id"]} --status done`"
         )
 
+        if w = r["wait"], do: IO.puts("answered: " <> Render.wait_answer(w))
+        if h = r["handoff"], do: IO.puts("left off: " <> (h["next_step"] || ""))
+
         IO.puts("\n" <> (j["prompt"] || ""))
     end)
   end
@@ -201,10 +204,21 @@ defmodule SlipdockCLI.Runners do
   end
 
   def run("finish-job", [id], o) do
-    body = compact(%{"outcome" => o[:status] || "done", "summary" => o[:summary]})
+    body =
+      compact(%{
+        "outcome" => o[:status] || "done",
+        "summary" => o[:summary],
+        "wait" => finish_wait(o)
+      })
 
     HTTP.post("/jobs/#{enc(id)}/finish", body)
-    |> out(o, fn %{"job" => j} -> IO.puts("job ##{j["id"]} #{j["status"]}") end)
+    |> out(o, fn
+      %{"job" => j, "wait" => %{} = w} ->
+        IO.puts("job ##{j["id"]} #{j["status"]}: ##{j["card_id"]} " <> Render.wait_line(w))
+
+      %{"job" => j} ->
+        IO.puts("job ##{j["id"]} #{j["status"]}")
+    end)
   end
 
   def run(cmd, _args, _o), do: bad_usage(cmd)
@@ -237,5 +251,26 @@ defmodule SlipdockCLI.Runners do
       "mcp_servers" => o[:mcp_servers],
       "install_name" => o[:install_name]
     })
+  end
+
+  # `--status waiting` asks a person: what is needed, from whom, the choices.
+  defp finish_wait(o) do
+    case {o[:status], o[:needs]} do
+      {"waiting", nil} ->
+        fail(~s(--status waiting needs the question: --needs "Which region?"))
+
+      {"waiting", needs} ->
+        compact(%{
+          "needs" => needs,
+          "on" => o[:wait_on],
+          "choices" => nonempty(Keyword.get_values(o, :choice))
+        })
+
+      {_, nil} ->
+        nil
+
+      {_, _} ->
+        fail("--needs goes with --status waiting")
+    end
   end
 end

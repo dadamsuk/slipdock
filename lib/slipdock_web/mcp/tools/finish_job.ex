@@ -4,9 +4,10 @@ defmodule SlipdockWeb.MCP.Tools.FinishJob do
 
   alias Slipdock.Runners
   alias SlipdockWeb.API.{Authorize, CardWrites}
+  alias SlipdockWeb.API.JSON, as: V
   alias SlipdockWeb.MCP.Args
 
-  @outcomes ~w(done failed cancelled timeout)
+  @outcomes ~w(done failed cancelled timeout waiting)
 
   @impl true
   def name, do: "finish_job"
@@ -26,8 +27,24 @@ defmodule SlipdockWeb.MCP.Tools.FinishJob do
       type: "object",
       properties: %{
         job: %{type: "integer"},
-        outcome: %{type: "string", enum: @outcomes},
-        summary: %{type: "string"}
+        outcome: %{
+          type: "string",
+          enum: @outcomes,
+          description:
+            "waiting, with wait, asks a person and parks the job; the answer starts a fresh one."
+        },
+        summary: %{type: "string"},
+        wait: %{
+          type: "object",
+          description: "With outcome waiting: the question, as update_card's wait.",
+          properties: %{
+            needs: %{type: "string"},
+            on: %{type: "string"},
+            choices: %{type: "array", items: %{type: "string"}}
+          },
+          required: ["needs"],
+          additionalProperties: false
+        }
       },
       required: ["job", "outcome"],
       additionalProperties: false
@@ -39,11 +56,44 @@ defmodule SlipdockWeb.MCP.Tools.FinishJob do
 
   @impl true
   def call(args, context) do
-    with {:ok, job, _card, runner} <- session_job(args, context),
+    with {:ok, job, card, runner} <- session_job(args, context),
          {:ok, outcome} <- Args.required(args, "outcome"),
          :ok <- outcome(outcome),
-         {:ok, summary} <- Args.optional(args, "summary"),
-         {:ok, job} <-
+         {:ok, summary} <- Args.optional(args, "summary") do
+      if outcome == "waiting",
+        do: park(job, card, runner, args, summary, context),
+        else: finish(job, runner, outcome, summary)
+    end
+  end
+
+  # Asks and parks in one step: both, or neither (KTD5).
+  defp park(job, card, runner, args, summary, context) do
+    with %{} = wait <- args["wait"] || {:error, "outcome waiting needs wait: {needs: \"…\"}"},
+         {:ok, job, wait} <-
+           Args.refusal(
+             Runners.finish_waiting(
+               runner,
+               job.id,
+               fn job ->
+                 Args.auth(context)
+                 |> CardWrites.open_wait(card, Map.put(wait, "job_id", job.id))
+                 |> Args.refusal()
+               end,
+               %{output: summary}
+             )
+             |> lapsed(job)
+           ) do
+      {:ok, %{job: job.id, status: job.status, wait: V.wait(wait)}}
+    end
+  end
+
+  defp lapsed({:error, :not_found}, job),
+    do: {:error, "job ##{job.id} wasn't claimed with this token: its lease may have run out"}
+
+  defp lapsed(result, _job), do: result
+
+  defp finish(job, runner, outcome, summary) do
+    with {:ok, job} <-
            Args.refusal(
              Runners.finish(runner, job.id, %{
                status: outcome,

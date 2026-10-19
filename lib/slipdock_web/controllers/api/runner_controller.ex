@@ -11,6 +11,12 @@ defmodule SlipdockWeb.API.RunnerController do
       POST /api/runner/jobs/:id/heartbeat     body = log tail → "ok" or "cancel"
       POST /api/runner/jobs/:id/finish?exit=N&status=S   body = last output → "ok"
 
+  A job that asked a person something (a wait opened with its id) finishes
+  `ok parked`, whatever its exit code. A job sent again after its question
+  was answered says so in `X-Wait-Id`, and `X-Handoff-Id` names the card's
+  handoff; both are in the prompt already, so a runner that only reads the
+  body loses nothing.
+
   A server on its way down (see `Slipdock.Runners.ClaimDrain`) answers
   claims with a 204 and `Retry-After: 1`.
 
@@ -49,6 +55,7 @@ defmodule SlipdockWeb.API.RunnerController do
           |> put_resp_header("x-card-url", card_url(job))
           |> put_resp_header("x-board-id", to_string(job.board_id))
           |> put_resp_header("x-lease-seconds", to_string(Runners.lease_for(conn.assigns.runner)))
+          |> context_headers(job)
           |> text_reply(200, job.prompt, newline: false)
       end
     end
@@ -71,7 +78,18 @@ defmodule SlipdockWeb.API.RunnerController do
     case Runners.finish(conn.assigns.runner, id, attrs) do
       {:ok, job} -> text_reply(conn, 200, "ok #{job.status}")
       {:error, :not_found} -> text_reply(conn, 404, "no such job for this runner")
+      {:error, message} -> text_reply(conn, 422, message)
     end
+  end
+
+  defp context_headers(conn, job) do
+    %{wait: wait, handoff: handoff} = Runners.claim_context(job)
+
+    conn
+    |> then(&if(wait, do: put_resp_header(&1, "x-wait-id", to_string(wait.id)), else: &1))
+    |> then(
+      &if(handoff, do: put_resp_header(&1, "x-handoff-id", to_string(handoff.id)), else: &1)
+    )
   end
 
   defp fetch_runner(conn, _opts) do

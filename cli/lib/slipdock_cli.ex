@@ -741,6 +741,9 @@ defmodule SlipdockCLI do
                                                    note is also a comment on the card. Prints ok or cancel
     finish-job <id> --status done|failed|cancelled|timeout [--summary S]
                                                    end a job this session claimed
+    finish-job <id> --status waiting --needs "Q" [--choice X]... [--on EMAIL]
+                                                   ask a person and park the job in one step;
+                                                   the answer sends the card again
     save-view <board> <name> [view opts]            save a swimlane configuration
     update-view <board> <view> [view opts] [--name N] change a saved view
     delete-view <board> <view>
@@ -818,6 +821,7 @@ defmodule SlipdockCLI do
     withdraw: :boolean,
     job: :string,
     wait_on: :string,
+    needs: :string,
     goal: :string,
     template: :string,
     save_template: :string,
@@ -1031,8 +1035,8 @@ defmodule SlipdockCLI do
   # with no value (`automation <id> --on`), so for `wait` it is read as
   # `--wait-on`, which takes one.
   @doc false
-  def wait_on(["wait" | rest]),
-    do: ["wait" | Enum.map(rest, &if(&1 == "--on", do: "--wait-on", else: &1))]
+  def wait_on([cmd | rest]) when cmd in ["wait", "finish-job"],
+    do: [cmd | Enum.map(rest, &if(&1 == "--on", do: "--wait-on", else: &1))]
 
   def wait_on(argv), do: argv
 

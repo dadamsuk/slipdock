@@ -16,6 +16,14 @@ defmodule Slipdock.Runners.Recovery do
   card). The count is per rule and card: the jobs from that rule on that
   card that put it back since the card was last completed. What happened is
   recorded on the job (`recovery`: `"requeued"` or `"gave_up"`).
+
+  A job that ended **parked** — its agent asked a person something (#1115,
+  KTD6) — has its card put back on top of its `list_top` rule's list,
+  flagged waiting, whatever the rule's `requeue_stuck`: the next card, which
+  `next_card` reaches past the waiting one, can go while the question is
+  open. That spends no retry (`recovery: "parked"`), and the answer, not the
+  feed, sends the card again (see `Slipdock.Runners.Requeue`). An
+  event-triggered rule feeds no list, so its parked card stays where it is.
   """
 
   import Ecto.Query
@@ -53,22 +61,38 @@ defmodule Slipdock.Runners.Recovery do
     with %Job{rule_id: rule_id, attempts: attempts, recovery: nil} = job when attempts > 0 <-
            Repo.get(Job, id),
          true <- job.status in Job.finished_statuses(),
-         %Rule{} = rule <- rule_id && Repo.get(Rule, rule_id),
-         limit when limit > 0 <- requeue_limit(rule),
-         %Card{} = card <- stuck_card(job) do
+         %Rule{} = rule <- rule_id && Repo.get(Rule, rule_id) do
       # The changes below come back as events that would feed the rule before
       # the card is where it belongs; whoever called this feeds it after.
-      quietly(rule, fn ->
-        if requeued(job, card) < limit,
-          do: requeue(job, rule, card, limit),
-          else: give_up(job, card, limit)
-      end)
+      cond do
+        job.status == "parked" ->
+          if Spec.feed?(rule.spec), do: quietly(rule, fn -> park(job, rule) end), else: :ok
+
+        (limit = requeue_limit(rule)) > 0 ->
+          case stuck_card(job) do
+            %Card{} = card ->
+              quietly(rule, fn ->
+                if requeued(job, card) < limit,
+                  do: requeue(job, rule, card, limit),
+                  else: give_up(job, card, limit)
+              end)
+
+            nil ->
+              :ok
+          end
+
+        true ->
+          :ok
+      end
     else
       _ -> :ok
     end
   end
 
-  defp quietly(rule, fun) do
+  @doc false
+  # Runs `fun` with `rule`'s feed held off in this process: the events its
+  # changes dispatch would otherwise feed the rule before they are done.
+  def quietly(rule, fun) do
     previous = Process.get({:feeding, rule.id})
     Process.put({:feeding, rule.id}, true)
 
@@ -76,6 +100,48 @@ defmodule Slipdock.Runners.Recovery do
       fun.()
     after
       if previous, do: :ok, else: Process.delete({:feeding, rule.id})
+    end
+  end
+
+  # A parked job's card goes back on top of its rule's list, flagged
+  # waiting, if it is still open on the rule's board.
+  defp park(job, rule) do
+    with %Card{archived_at: nil, completed: false} = card <- Repo.get(Card, job.card_id),
+         true <- card.board_id == rule.board_id,
+         {:ok, board} <- fetch_board(rule.board_id),
+         {:ok, column} <- Boards.find_column(board, to_string(rule.spec["trigger"]["column"])),
+         true <- mark(job, "parked") do
+      wait = Boards.current_wait(card)
+      unassign = rule.spec["trigger"]["unassigned"] == true and assigned?(card)
+
+      if wait && "waiting" not in card.flags,
+        do: Boards.update_card(card, %{"flags" => card.flags ++ ["waiting"]}, wait_hook: false)
+
+      if unassign, do: Boards.update_card(Repo.get!(Card, card.id), %{"assignee_ids" => []})
+
+      Boards.move_card_to_index(Repo.get!(Card, card.id), column, :top,
+        actor: Slipdock.Actor.automation()
+      )
+
+      question = if wait, do: ": “#{wait.needs}”", else: ""
+
+      Boards.add_comment(
+        Repo.get!(Card, card.id),
+        "Runner job ##{job.id} parked on a question#{question}. Moved back to the top of " <>
+          "#{column.name}#{if unassign, do: ", unassigned,"} and left waiting, so the next " <>
+          "card can go; answering the question sends this one to the runners again."
+      )
+
+      Boards.log_activity(
+        card.board_id,
+        card.id,
+        "runner",
+        "put ##{card.id} back on #{column.name} after job ##{job.id} parked"
+      )
+
+      :parked
+    else
+      _ -> :ok
     end
   end
 

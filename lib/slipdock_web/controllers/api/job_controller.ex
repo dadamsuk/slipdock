@@ -237,10 +237,23 @@ defmodule SlipdockWeb.API.JobController do
          {:ok, pool} <- need(params["pool"], "pool"),
          {:ok, runner} <- session(board, pool, conn) do
       case Runners.claim(runner, min(limit(params["wait"], 0), 20) * 1000) do
-        nil -> json(conn, Map.merge(%{job: nil}, waiting(board, pool)))
-        job -> json(conn, %{job: V.job(job), lease_seconds: Runners.lease_for(runner)})
+        nil ->
+          json(conn, Map.merge(%{job: nil}, waiting(board, pool)))
+
+        job ->
+          json(
+            conn,
+            Map.merge(%{job: V.job(job), lease_seconds: Runners.lease_for(runner)}, context(job))
+          )
       end
     end
+  end
+
+  # The answered question a job carries on from, and the card's handoff,
+  # beside the prompt that already says them (#1115).
+  defp context(job) do
+    %{wait: wait, handoff: handoff} = Runners.claim_context(job)
+    %{wait: V.wait(wait), handoff: handoff && V.handoff(handoff)}
   end
 
   # No job to take, but one waiting while something is in progress: say
@@ -268,7 +281,39 @@ defmodule SlipdockWeb.API.JobController do
     end
   end
 
-  @doc "A session saying the job has ended: `outcome` (done, failed, cancelled, timeout) and a `summary`."
+  @doc """
+  A session saying the job has ended: `outcome` (done, failed, cancelled,
+  timeout) and a `summary`. `outcome: "waiting"` with a `wait` object
+  (`needs`, `on`, `choices`) asks a person and parks the job, both or
+  neither: the answer starts a fresh job.
+  """
+  def finish(conn, %{"id" => id, "outcome" => "waiting"} = params) do
+    with {:ok, job, card} <- fetch_job(conn, id, :write),
+         {:ok, runner} <- session_job(job, conn),
+         {:ok, wait} <- wait_param(params["wait"]) do
+      open = fn job ->
+        case CardWrites.open_wait(conn, card, Map.put(wait, "job_id", job.id)) do
+          {:error, _status, message} -> {:error, message}
+          other -> other
+        end
+      end
+
+      case Runners.finish_waiting(runner, job.id, open, %{output: params["summary"]}) do
+        {:ok, job, wait} ->
+          json(conn, %{job: V.job(job), wait: V.wait(wait)})
+
+        {:error, :not_found} ->
+          {:error, :forbidden, "this job wasn't claimed with this token"}
+
+        {:error, %Ecto.Changeset{}} = error ->
+          error
+
+        {:error, message} ->
+          {:error, :unprocessable_entity, message}
+      end
+    end
+  end
+
   def finish(conn, %{"id" => id} = params) do
     outcome = params["outcome"] || "done"
 
@@ -305,7 +350,12 @@ defmodule SlipdockWeb.API.JobController do
   defp outcome(other),
     do:
       {:error, :unprocessable_entity,
-       "outcome “#{other}” must be done, failed, cancelled or timeout"}
+       "outcome “#{other}” must be done, failed, cancelled, timeout or waiting (with wait)"}
+
+  defp wait_param(%{} = wait), do: {:ok, wait}
+
+  defp wait_param(_),
+    do: {:error, :unprocessable_entity, "outcome waiting needs wait: {\"needs\": \"…\"}"}
 
   defp need(value, key) do
     case blank(value) do

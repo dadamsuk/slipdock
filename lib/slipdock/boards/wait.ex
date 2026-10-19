@@ -41,6 +41,8 @@ defmodule Slipdock.Boards.Wait do
     belongs_to :opened_by, Slipdock.Accounts.User
     belongs_to :closed_by, Slipdock.Accounts.User
     belongs_to :job, Slipdock.Runners.Job
+    # The fresh job the answer started (#1115).
+    belongs_to :requeue_job, Slipdock.Runners.Job
 
     timestamps(type: :utc_datetime, updated_at: false)
   end
