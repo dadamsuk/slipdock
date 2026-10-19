@@ -70,8 +70,45 @@ defmodule SlipdockWeb.MobileMenuLiveTest do
       {:ok, view, _} = live(phone(conn), ~p"/boards/#{board}")
 
       assert has_element?(view, "#mobile-bar > div > #mobile-menu:first-child [aria-label=Menu]")
-      assert has_element?(view, "#mobile-menu [role=button] .hero-bars-3")
+      assert has_element?(view, "#mobile-menu button#mobile-menu-button .hero-bars-3")
       refute has_element?(view, "#mobile-bar > div > a[href='/']")
+    end
+
+    # #1130: a focus dropdown never opened, or shut under the finger, in
+    # Safari on a phone. The button opens and shuts the list itself.
+    test "opens on a tap, not on focus", %{conn: conn, board: board} do
+      {:ok, view, _} = live(phone(conn), ~p"/boards/#{board}")
+
+      assert has_element?(
+               view,
+               "#mobile-menu-button[type=button][aria-expanded=false][aria-controls=mobile-menu-list]"
+             )
+
+      assert has_element?(view, "#mobile-menu > ul#mobile-menu-list.hidden.absolute.bottom-full")
+      # Nothing left of the CSS dropdown that opened it on focus.
+      refute has_element?(view, "#mobile-menu.dropdown")
+      refute has_element?(view, "#mobile-menu [tabindex]")
+      refute has_element?(view, "#mobile-menu-list.dropdown-content")
+
+      [toggle] = js_ops(view, "#mobile-menu-button", "phx-click")
+      assert [["toggle", toggle_args], ["toggle_attr", attr_args]] = toggle
+      assert toggle_args["to"] == "#mobile-menu-list"
+      assert attr_args["to"] == "#mobile-menu-button"
+      assert attr_args["attr"] == ["aria-expanded", "true", "false"]
+    end
+
+    test "folds with the row, by its button or by a tap elsewhere", %{conn: conn, board: board} do
+      {:ok, view, _} = live(phone(conn), ~p"/boards/#{board}")
+
+      for {selector, attr} <- [{"#mobile-fab", "phx-click"}, {"#mobile-bar", "phx-click-away"}] do
+        [ops] = js_ops(view, selector, attr)
+        assert ["hide", %{"to" => "#mobile-menu-list"}] in ops
+
+        assert [
+                 "set_attr",
+                 %{"to" => "#mobile-menu-button", "attr" => ["aria-expanded", "false"]}
+               ] in ops
+      end
     end
 
     test "carries the avatar menu, Boards first", %{conn: conn, board: board, user: user} do
@@ -145,5 +182,15 @@ defmodule SlipdockWeb.MobileMenuLiveTest do
       refute has_element?(view, "#mobile-menu a", "Board settings")
       refute has_element?(view, "#mobile-menu li.menu-title.truncate.border-t")
     end
+  end
+
+  defp js_ops(view, selector, attr) do
+    view
+    |> element(selector)
+    |> render()
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.attribute(attr)
+    |> Enum.take(1)
+    |> Enum.map(&Jason.decode!/1)
   end
 end
