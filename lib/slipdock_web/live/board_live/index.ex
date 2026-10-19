@@ -503,7 +503,11 @@ defmodule SlipdockWeb.BoardLive.Index do
 
           <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
             <div>
-              <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">Your boards</h1>
+              <%!-- The name as its artwork, not set in the UI font: the alt
+                   text keeps "Slipdock" as the heading a screen reader reads. --%>
+              <h1>
+                <Layouts.brand_wordmark class="h-7 sm:h-9" />
+              </h1>
               <p class="mt-1 text-sm text-base-content/60">
                 {length(@boards)} {if length(@boards) == 1, do: "board", else: "boards"}<span :if={
                   @vaults != %{}

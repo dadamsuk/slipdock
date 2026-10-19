@@ -22,6 +22,19 @@ defmodule SlipdockWeb.BoardIndexLiveTest do
     Regex.scan(~r/id="board-(\d+)"/, html) |> Enum.map(fn [_, id] -> String.to_integer(id) end)
   end
 
+  test "the heading is the Slipdock wordmark, not the words Your boards", %{conn: conn} do
+    {:ok, view, html} = live(conn, ~p"/")
+
+    assert has_element?(view, ~s(h1 img[src^="/images/brand/wordmark.svg"][alt="Slipdock"]))
+
+    assert has_element?(
+             view,
+             ~s(h1 img[src^="/images/brand/wordmark-reversed.svg"][alt="Slipdock"])
+           )
+
+    refute html =~ "Your boards"
+  end
+
   describe "the compact layout" do
     test "swaps the cards for a table, and is remembered", %{conn: conn, user: user} do
       {:ok, view, html} = live(conn, ~p"/")

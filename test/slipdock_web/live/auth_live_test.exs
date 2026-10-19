@@ -37,7 +37,7 @@ defmodule SlipdockWeb.AuthLiveTest do
 
       # Signed in now.
       {:ok, _, html} = live(conn, ~p"/")
-      assert html =~ "Your boards"
+      assert html =~ ~s(id="board-sort")
 
       # Used links no longer work.
       assert conn |> recycle() |> get(~p"/login/#{token}") |> redirected_to() == "/login"
