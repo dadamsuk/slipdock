@@ -1585,6 +1585,7 @@ defmodule SlipdockCLI.Render do
   defp job_status(%{"status" => "queued", "waiting_on" => reason}) when is_binary(reason),
     do: "queued (waiting: #{reason})"
 
+  defp job_status(%{"status" => "parked"}), do: "parked (waiting on a person)"
   defp job_status(%{"status" => s}), do: s
 
   def alerts([]), do: IO.puts(dim("no alerts"))

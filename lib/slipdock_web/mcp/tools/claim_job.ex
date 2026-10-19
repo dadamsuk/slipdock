@@ -8,6 +8,7 @@ defmodule SlipdockWeb.MCP.Tools.ClaimJob do
 
   alias Slipdock.Runners
   alias SlipdockWeb.API.Authorize
+  alias SlipdockWeb.API.JSON, as: V
   alias SlipdockWeb.MCP.Args
 
   @impl true
@@ -21,7 +22,8 @@ defmodule SlipdockWeb.MCP.Tools.ClaimJob do
     do:
       "Takes the oldest job queued for a runner pool on a board, with a lease. Work the " <>
         "card it names, report with job_progress between steps (the lease is 20 min; stop if it says " <>
-        "cancel), end with finish_job. Answers \"nothing queued\" when there is none."
+        "cancel), end with finish_job. Answers \"nothing queued\" when there is none. A job " <>
+        "sent again after a question was answered carries wait and handoff."
 
   @impl true
   def input_schema do
@@ -62,6 +64,10 @@ defmodule SlipdockWeb.MCP.Tools.ClaimJob do
           end
 
         job ->
+          # The answered question it carries on from, and the handoff, as
+          # data beside the prompt that already says them (#1115).
+          %{wait: wait, handoff: handoff} = Runners.claim_context(job)
+
           {:ok,
            %{
              job: job.id,
@@ -69,7 +75,9 @@ defmodule SlipdockWeb.MCP.Tools.ClaimJob do
              card: job.card_id,
              card_url: context.base_url <> "/boards/#{job.board_id}/cards/#{job.card_id}",
              lease_seconds: Runners.lease_for(runner),
-             prompt: job.prompt
+             prompt: job.prompt,
+             wait: V.wait(wait),
+             handoff: handoff && V.handoff(handoff)
            }}
       end
     end

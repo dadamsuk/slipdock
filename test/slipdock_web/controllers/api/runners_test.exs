@@ -601,4 +601,117 @@ defmodule SlipdockWeb.API.RunnersTest do
     assert steps =~ "Don't move the card to the doing list"
     assert steps =~ "Don't comment on the card at all"
   end
+
+  describe "parked jobs over HTTP (#1115)" do
+    defp ask(ctx, job) do
+      {:ok, wait} =
+        Slipdock.Boards.open_wait(
+          Slipdock.Boards.get_card!(ctx.card.id),
+          Slipdock.Actor.runner(ctx.user, job.id),
+          %{"needs" => "Which region?", "choices" => ["eu", "us"], "job_id" => job.id}
+        )
+
+      wait
+    end
+
+    defp feed_rule(ctx) do
+      rule_fixture(ctx.board, %{
+        "trigger" => %{"type" => "list_top", "column" => hd(ctx.board.columns).name},
+        "actions" => [%{"type" => "runner", "pool" => "dev"}]
+      })
+    end
+
+    test "a shell runner's job whose agent opened a wait finishes ok parked on exit 0", ctx do
+      {:ok, job} = queue(ctx.card)
+      assert post(runner_conn(ctx.token), "/api/runner/claim?wait=0").status == 200
+      ask(ctx, job)
+
+      conn = post(runner_conn(ctx.token), "/api/runner/jobs/#{job.id}/finish?exit=0", "asked")
+      assert text_response(conn, 200) == "ok parked\n"
+      assert Repo.get!(Job, job.id).status == "parked"
+    end
+
+    test "a bare status=parked with no wait is refused, and the job keeps running", ctx do
+      {:ok, job} = queue(ctx.card)
+      post(runner_conn(ctx.token), "/api/runner/claim?wait=0")
+
+      conn = post(runner_conn(ctx.token), "/api/runner/jobs/#{job.id}/finish?status=parked", "")
+      assert text_response(conn, 422) =~ "no open wait to park on"
+      assert Repo.get!(Job, job.id).status == "claimed"
+    end
+
+    test "a shell runner's claim of a job sent again: the prompt as ever, the ids in headers",
+         ctx do
+      feed_rule(ctx)
+      first = post(runner_conn(ctx.token), "/api/runner/claim?wait=0")
+      assert get_resp_header(first, "x-wait-id") == []
+      job = Runners.get_job(hd(get_resp_header(first, "x-job-id")))
+      wait = ask(ctx, job)
+
+      post(
+        runner_conn(ctx.token),
+        "/api/runner/jobs/#{job.id}/finish?exit=0",
+        "Asked which region"
+      )
+
+      {:ok, _} =
+        Slipdock.Boards.answer_wait(
+          Slipdock.Boards.get_card!(ctx.card.id),
+          Slipdock.Actor.web(ctx.user),
+          %{"choice" => 2}
+        )
+
+      again = post(runner_conn(ctx.token), "/api/runner/claim?wait=0")
+      prompt = text_response(again, 200)
+
+      # An old runner reads only the body, and gets the whole story there.
+      assert prompt =~ "Question on card ##{ctx.card.id}: Which region?"
+      assert prompt =~ "Answer: us"
+      assert prompt =~ "Work on Slipdock card ##{ctx.card.id}"
+      assert get_resp_header(again, "x-card-id") == [to_string(ctx.card.id)]
+      assert get_resp_header(again, "x-wait-id") == [to_string(wait.id)]
+      handoff = Slipdock.Boards.current_handoff(ctx.card.id)
+      assert get_resp_header(again, "x-handoff-id") == [to_string(handoff.id)]
+    end
+
+    test "a session's claim carries wait and handoff, null on a plain job", ctx do
+      {:ok, _} = queue(ctx.card)
+
+      body =
+        ctx.conn
+        |> post(~p"/api/boards/#{ctx.board.id}/jobs/claim", %{"pool" => "dev"})
+        |> json_response(200)
+
+      assert Map.has_key?(body, "wait") and body["wait"] == nil
+      assert Map.has_key?(body, "handoff") and body["handoff"] == nil
+    end
+
+    test "a session's finish with outcome waiting asks and parks; without wait it's refused",
+         ctx do
+      feed_rule(ctx)
+
+      %{"job" => %{"id" => id}} =
+        ctx.conn
+        |> post(~p"/api/boards/#{ctx.board.id}/jobs/claim", %{"pool" => "dev"})
+        |> json_response(200)
+
+      assert ctx.conn
+             |> post(~p"/api/jobs/#{id}/finish", %{"outcome" => "waiting"})
+             |> json_response(422)
+             |> inspect() =~ "needs wait"
+
+      body =
+        ctx.conn
+        |> post(~p"/api/jobs/#{id}/finish", %{
+          "outcome" => "waiting",
+          "summary" => "Need the region",
+          "wait" => %{"needs" => "Which region?", "choices" => ["eu", "us"]}
+        })
+        |> json_response(200)
+
+      assert body["job"]["status"] == "parked"
+      assert body["wait"]["job_id"] == id
+      assert Slipdock.Boards.current_wait(ctx.card).job_id == id
+    end
+  end
 end

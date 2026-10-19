@@ -285,9 +285,13 @@ defmodule Slipdock.Automations.Runner do
 
   # After every runner job's prompt, the rule's own included: a job runs with
   # nobody watching, and an agent that stops to ask waits for ever.
-  @unattended "You are running unattended: nobody will answer questions. Choose any inputs " <>
-                "from the card, say what you chose in a comment, and carry on. If something " <>
-                "is missing that you can't infer, comment, flag the card waiting and stop. " <>
+  # A question goes in a wait (#1115): the job parks, and the answer starts a
+  # fresh one.
+  @unattended "You are running unattended: nobody will answer questions while you work. " <>
+                "Choose any inputs from the card, say what you chose in a comment, and carry " <>
+                "on. If you need something only a person can give, open a wait (`slipdock " <>
+                "wait <card> …` or update_card `wait`), say what you need, and stop: the " <>
+                "answer starts a fresh job. " <>
                 "Whenever you stop with the card unfinished, leave a handoff first " <>
                 "(leave_handoff, or slipdock handoff <id> --next): the one next step and a " <>
                 "short note, so whoever picks the card up next reads that before anything else."
@@ -626,19 +630,7 @@ defmodule Slipdock.Automations.Runner do
   # the kind means is the runner's own business (see `Slipdock.Runners`).
   defp do_perform("runner", action, ctx) do
     with {:ok, card} <- need_card(ctx) do
-      prompt =
-        String.trim_trailing(text(action["prompt"], ctx, render(@runner_prompt, ctx.bindings))) <>
-          "\n\n" <> @unattended
-
-      attrs = %{
-        pool: action["pool"],
-        kind: action["kind"] || "claude",
-        prompt: prompt,
-        rule: ctx.rule,
-        wait_while_doing: action["wait_while_doing"] == true
-      }
-
-      case Slipdock.Runners.queue(card, attrs) do
+      case Slipdock.Runners.queue(card, runner_attrs(action, ctx)) do
         {:ok, :already_open, job} -> {:ok, "job ##{job.id} is already #{job.status}"}
         {:ok, job} -> {:ok, "queued job ##{job.id} for the #{job.pool} runners"}
         {:error, reason} -> {:error, "runner: #{reason}"}
@@ -649,6 +641,42 @@ defmodule Slipdock.Automations.Runner do
   defp do_perform(type, _action, _ctx), do: {:error, "unknown action “#{type}”"}
 
   ## Action helpers -----------------------------------------------------------
+
+  defp runner_attrs(action, ctx) do
+    prompt =
+      String.trim_trailing(text(action["prompt"], ctx, render(@runner_prompt, ctx.bindings))) <>
+        "\n\n" <> @unattended
+
+    %{
+      pool: action["pool"],
+      kind: action["kind"] || "claude",
+      prompt: prompt,
+      rule: ctx.rule,
+      wait_while_doing: action["wait_while_doing"] == true
+    }
+  end
+
+  @doc """
+  What `rule`'s runner action would queue for `card` now, for
+  `Slipdock.Runners.queue/2`: `{:ok, attrs}`, or `{:error, reason}` when the
+  rule no longer sends cards to runners. Used to send a card again once
+  the question it parked on is answered (#1115).
+  """
+  def runner_job(rule, %Card{} = card) do
+    case Enum.find(Spec.actions(rule.spec), &(&1["type"] == "runner")) do
+      nil ->
+        {:error, "the rule no longer sends cards to runners"}
+
+      action ->
+        board = Slipdock.Boards.Board |> Repo.get!(rule.board_id) |> Repo.preload(:columns)
+        event = %{type: "wait_answered", card: card, board_id: card.board_id}
+
+        ctx =
+          with_card(%{rule: rule, board: board, event: event, opts: []}, decorate(card))
+
+        {:ok, runner_attrs(action, ctx)}
+    end
+  end
 
   defp set_fields(ctx, attrs, label) do
     with {:ok, card} <- need_card(ctx) do

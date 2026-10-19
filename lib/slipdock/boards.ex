@@ -3560,7 +3560,8 @@ defmodule Slipdock.Boards do
   `answer` (free text) and `choice` (the number of one of its choices,
   counted from 1), at least one of them. The answer is posted on the card
   as a comment from whoever answered, and the `waiting` flag comes off if
-  the wait put it there.
+  the wait put it there. A wait asked from a runner job then sends the card
+  to that job's rule again, with the answer (`Slipdock.Runners.Requeue`).
 
   An agent can't answer a wait it opened itself (KTD8): both classified as
   an agent and sharing a token or a job. A person always can, even on the
@@ -3582,13 +3583,18 @@ defmodule Slipdock.Boards do
     with :ok <- not_self_answer(wait, actor),
          {:ok, choice} <- wait_choice(wait, wait_attr(attrs, :choice)),
          :ok <- some_answer(answer, choice),
-         :ok <- answer_length(answer),
-         {:ok, closed} <-
-           close_wait(wait, actor, "answered", answer: answer, choice: choice) do
-      card = Repo.get!(Card, wait.card_id)
-      {:ok, _} = add_comment(card, answered_text(closed), by: actor_user(actor))
-      requeue_after_answer(closed)
-      {:ok, closed}
+         :ok <- answer_length(answer) do
+      # The flag coming off must not feed the asking job's rule the card with
+      # its plain prompt before the answer is sent (KTD7).
+      Slipdock.Runners.Requeue.quietly(wait, fn ->
+        with {:ok, closed} <-
+               close_wait(wait, actor, "answered", answer: answer, choice: choice) do
+          card = Repo.get!(Card, wait.card_id)
+          {:ok, _} = add_comment(card, answered_text(closed), by: actor_user(actor))
+          Slipdock.Runners.Requeue.after_answer(closed)
+          {:ok, Wait |> Repo.get!(closed.id) |> Repo.preload(wait_preloads())}
+        end
+      end)
     end
   end
 
@@ -3647,10 +3653,6 @@ defmodule Slipdock.Boards do
 
     "Answered “#{wait.needs}”: #{said}"
   end
-
-  # Where an answer would set the asking job's rule going again. Nothing yet:
-  # parked jobs and re-queueing on an answer come with U5 (#1115).
-  defp requeue_after_answer(_wait), do: :ok
 
   @doc """
   Withdraws `card`'s open wait for `actor`: nobody needs the answer any

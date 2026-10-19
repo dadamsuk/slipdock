@@ -510,7 +510,8 @@ defmodule Slipdock.Automations do
 
   Called whenever the answer could have changed — a card event on the
   rule's board, a job ending, the rule being saved — and by the clock as a
-  backstop. Answers `{:ok, card}` when it sent one, else `{:idle, reason}`.
+  backstop. A card whose question was answered while the rule had a job open
+  goes first (`Slipdock.Runners.Requeue.drain/1`). Answers `{:ok, card}` when it sent one, else `{:idle, reason}`.
   `force: true` (Run now) ignores the cool-down on a card that just had a job.
   """
   def feed(rule, opts \\ [])
@@ -551,6 +552,10 @@ defmodule Slipdock.Automations do
         cond do
           feed_job_open?(rule) ->
             {:idle, :job_open}
+
+          # An answered question goes before the next card (#1115, KTD7).
+          job = Slipdock.Runners.Requeue.drain(rule) ->
+            {:ok, Repo.get(Card, job.card_id)}
 
           card = next_card(rule, opts) ->
             event = %{type: "list_top", card: card, board_id: rule.board_id}

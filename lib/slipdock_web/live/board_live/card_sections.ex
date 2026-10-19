@@ -547,6 +547,8 @@ defmodule SlipdockWeb.BoardLive.CardSections do
   defp job_badge("done"), do: "badge-success"
   defp job_badge(status) when status in ~w(failed timeout), do: "badge-error"
   defp job_badge(status) when status in ~w(claimed running), do: "badge-info"
+  # Asked a person something; the answer sends the card again.
+  defp job_badge("parked"), do: "badge-warning"
   defp job_badge(_), do: "badge-ghost"
 
   defp job_time(job) do

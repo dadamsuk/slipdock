@@ -246,4 +246,116 @@ defmodule SlipdockWeb.MCP.JobToolsTest do
       assert ctx.conn |> call("job_progress", %{job: ctx.job.id}) |> error!() =~ "wasn't claimed"
     end
   end
+
+  describe "parking on a question (#1115)" do
+    setup ctx do
+      {:ok, job} = queue(ctx.card)
+      claim!(ctx)
+      %{job: job}
+    end
+
+    test "finish_job outcome waiting opens the wait and parks the job together", ctx do
+      out =
+        ctx.conn
+        |> call("finish_job", %{
+          job: ctx.job.id,
+          outcome: "waiting",
+          summary: "Need the region",
+          wait: %{needs: "Which region?", choices: ["eu", "us"]}
+        })
+        |> ok!()
+
+      assert out["status"] == "parked"
+      assert out["wait"]["needs"] == "Which region?"
+      assert out["wait"]["job_id"] == ctx.job.id
+      assert %Job{status: "parked", output: "Need the region"} = Repo.get!(Job, ctx.job.id)
+      wait = Slipdock.Boards.current_wait(ctx.card)
+      assert wait.job_id == ctx.job.id
+      assert "waiting" in Slipdock.Boards.get_card!(ctx.card.id).flags
+    end
+
+    test "outcome waiting with no wait is refused, and the job keeps running", ctx do
+      assert ctx.conn |> call("finish_job", %{job: ctx.job.id, outcome: "waiting"}) |> error!() =~
+               "needs wait"
+
+      assert Repo.get!(Job, ctx.job.id).status == "claimed"
+    end
+
+    test "after the lease has lapsed, it errors and opens no wait", ctx do
+      past = DateTime.utc_now() |> DateTime.add(-5) |> DateTime.truncate(:second)
+      Repo.update_all(from(j in Job, where: j.id == ^ctx.job.id), set: [lease_expires_at: past])
+      Runners.sweep()
+
+      assert ctx.conn
+             |> call("finish_job", %{
+               job: ctx.job.id,
+               outcome: "waiting",
+               wait: %{needs: "Which region?"}
+             })
+             |> error!() =~ "wasn't claimed"
+
+      assert Slipdock.Boards.current_wait(ctx.card) == nil
+      assert Repo.get!(Job, ctx.job.id).status == "queued"
+    end
+
+    test "update_card wait and then a plain done ends the job parked", ctx do
+      ctx.conn
+      |> call("update_card", %{card: ctx.card.id, wait: %{needs: "Which region?"}})
+      |> ok!()
+
+      out = ctx.conn |> call("finish_job", %{job: ctx.job.id, outcome: "done"}) |> ok!()
+      assert out["status"] == "parked"
+    end
+  end
+
+  describe "claim_job's wait and handoff (#1115)" do
+    test "are null on a plain job", ctx do
+      {:ok, _} = queue(ctx.card)
+      out = claim!(ctx)
+      assert out["prompt"] == "Work on it"
+      assert Map.has_key?(out, "wait") and out["wait"] == nil
+      assert Map.has_key?(out, "handoff") and out["handoff"] == nil
+    end
+
+    test "carry the answered question and the handoff of a job sent again", ctx do
+      todo = Enum.at(ctx.board.columns, 1)
+      card = card_fixture(todo, %{"title" => "Region"})
+
+      rule_fixture(ctx.board, %{
+        "trigger" => %{"type" => "list_top", "column" => todo.name},
+        "actions" => [%{"type" => "runner", "pool" => "default"}]
+      })
+
+      first = claim!(ctx)
+      assert first["card"] == card.id
+
+      ctx.conn
+      |> call("finish_job", %{
+        job: first["job"],
+        outcome: "waiting",
+        summary: "Asked which region",
+        wait: %{needs: "Which region?", choices: ["eu", "us"]}
+      })
+      |> ok!()
+
+      dana = user_fixture("dana#{System.unique_integer([:positive])}@example.com")
+      {:ok, _} = Slipdock.Access.grant(ctx.board, dana, "write", ctx.user)
+
+      {:ok, _} =
+        Slipdock.Boards.answer_wait(
+          Slipdock.Boards.get_card!(card.id),
+          Slipdock.Actor.web(dana),
+          %{"choice" => 1}
+        )
+
+      again = claim!(ctx)
+      assert again["card"] == card.id
+      assert again["job"] != first["job"]
+      assert again["prompt"] =~ "Question on card ##{card.id}: Which region?"
+      assert again["wait"]["needs"] == "Which region?"
+      assert again["wait"]["choice_text"] == "eu"
+      assert again["wait"]["requeue_state"] == "queued"
+      assert again["handoff"]["next_step"] == "Asked which region"
+    end
+  end
 end

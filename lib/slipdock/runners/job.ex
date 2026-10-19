@@ -4,7 +4,12 @@ defmodule Slipdock.Runners.Job do
   looks up in its own config) and the text to give it (`prompt`, rendered
   when the job was queued). The server never says *how* a kind is run.
 
-      queued → claimed → running → done | failed | cancelled | timeout
+      queued → claimed → running → done | failed | cancelled | timeout | parked
+
+  A job whose agent asked a person something — a wait opened from the job
+  (`Slipdock.Boards.open_wait/3` with its `job_id`) and still open when it
+  ends — ends `parked`, whatever its exit code, and never comes back by
+  itself: answering the wait queues a fresh one (`Slipdock.Runners.Requeue`).
 
   A job with `wait_while_doing` stays queued, and is not handed out, while
   any other open card is in a doing list on its board (see
@@ -20,9 +25,9 @@ defmodule Slipdock.Runners.Job do
   """
   use Ecto.Schema
 
-  @statuses ~w(queued claimed running done failed cancelled timeout)
+  @statuses ~w(queued claimed running done failed cancelled timeout parked)
   @open ~w(queued claimed running)
-  @finished ~w(done failed cancelled timeout)
+  @finished ~w(done failed cancelled timeout parked)
 
   schema "runner_jobs" do
     field :pool, :string
@@ -35,7 +40,8 @@ defmodule Slipdock.Runners.Job do
     field :wait_while_doing, :boolean, default: false
     # Set when the job ended with its card still in progress and its rule
     # puts such cards back: "requeued" or "gave_up" ("requeued_before_done"
-    # once the card has been completed since; see `Slipdock.Runners.Recovery`).
+    # once the card has been completed since; see `Slipdock.Runners.Recovery`),
+    # or "parked" when a parked job's card was put back on its rule's list.
     field :recovery, :string
     field :runner_name, :string
     field :lease_expires_at, :utc_datetime

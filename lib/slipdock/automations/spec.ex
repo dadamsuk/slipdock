@@ -39,13 +39,14 @@ defmodule Slipdock.Automations.Spec do
      "anything happens to a card — added, moved, changed, commented on, tagged or archived; once per change"},
     {"job_finished", [], ["outcome", "pool"],
      "a runner job sent for a card ends, once per job (outcome: any of done, failed, " <>
-       "cancelled, timeout — how it ended — and requeued or gave_up — a list_top rule " <>
-       "with requeue_stuck put its card back, or gave up on it; default any; pool: only " <>
+       "cancelled, timeout, parked — how it ended, parked meaning on a question for a " <>
+       "person — and requeued or gave_up — a list_top rule with requeue_stuck put its " <>
+       "card back, or gave up on it; default any; pool: only " <>
        "that pool's jobs). Placeholders {{job.id}}, {{job.status}}, {{job.outcome}}, " <>
        "{{job.pool}}, {{job.runner}}, {{job.exit_code}}, {{job.error}}"}
   ]
 
-  @job_outcomes ~w(done failed cancelled timeout requeued gave_up)
+  @job_outcomes ~w(done failed cancelled timeout parked requeued gave_up)
 
   @scheduled_triggers [
     {"card_stale", ["days"], ["column"], "a card has not been touched for N days"},
@@ -529,6 +530,7 @@ defmodule Slipdock.Automations.Spec do
       "failed" => "failed",
       "cancelled" => "cancelled",
       "timeout" => "timed out",
+      "parked" => "parked on a question",
       "requeued" => "its card put back",
       "gave_up" => "its card given up on"
     }
