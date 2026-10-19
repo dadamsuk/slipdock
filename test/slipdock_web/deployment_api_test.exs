@@ -256,4 +256,68 @@ defmodule SlipdockWeb.DeploymentAPITest do
     owner |> patch(~p"/api/boards/#{board.code}", %{"card_ref_pattern" => ""})
     assert Boards.get_board!(board.id).card_ref_pattern == nil
   end
+
+  describe "incident-of" do
+    setup %{token: token} do
+      id = token |> start(%{"sha" => @sha}) |> json_response(201) |> get_in(["deployment", "id"])
+      %{deployment_id: id}
+    end
+
+    test "links a card to the deploy that caused it, and unlinks it", %{
+      owner: owner,
+      card: card,
+      deployment_id: id
+    } do
+      body =
+        owner
+        |> post(~p"/api/cards/#{card.id}/incident-of", %{"deployment" => id})
+        |> json_response(200)
+
+      assert body == %{"card" => card.id, "incident_of" => id}
+      assert Repo.get!(Slipdock.Boards.Card, card.id).caused_by_deployment_id == id
+
+      assert owner |> delete(~p"/api/cards/#{card.id}/incident-of") |> json_response(200) ==
+               %{"card" => card.id, "incident_of" => nil}
+    end
+
+    test "no deployment is a 400, an unknown one a 404", %{owner: owner, card: card} do
+      assert owner |> post(~p"/api/cards/#{card.id}/incident-of", %{}) |> json_response(400)
+
+      assert owner
+             |> post(~p"/api/cards/#{card.id}/incident-of", %{"deployment" => 999_999})
+             |> json_response(404)
+    end
+
+    test "someone who can't write the card can't link it", %{card: card, deployment_id: id} do
+      stranger = user_fixture("incident-stranger@example.com")
+
+      assert conn_as(stranger)
+             |> put_req_header("accept", "application/json")
+             |> post(~p"/api/cards/#{card.id}/incident-of", %{"deployment" => id})
+             |> json_response(403)
+
+      assert Repo.get!(Slipdock.Boards.Card, card.id).caused_by_deployment_id == nil
+    end
+
+    test "the board's incident settings are read and set", %{owner: owner, board: board} do
+      body = owner |> get(~p"/api/boards/#{board.code}") |> json_response(200)
+      assert body["board"]["incident_tag"] == "incident"
+      assert body["board"]["hotfix_window_hours"] == 24
+
+      body =
+        owner
+        |> patch(~p"/api/boards/#{board.code}", %{
+          "incident_tag" => "sev",
+          "hotfix_window_hours" => 6
+        })
+        |> json_response(200)
+
+      assert body["board"]["incident_tag"] == "sev"
+      assert body["board"]["hotfix_window_hours"] == 6
+
+      assert owner
+             |> patch(~p"/api/boards/#{board.code}", %{"hotfix_window_hours" => 100_000})
+             |> json_response(422)
+    end
+  end
 end

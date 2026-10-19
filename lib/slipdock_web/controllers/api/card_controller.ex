@@ -435,6 +435,31 @@ defmodule SlipdockWeb.API.CardController do
   The card's handoff and its history, newest first (W-1804). `handoff` is
   nil when there is none or it was cleared.
   """
+  # An incident card's link to the deploy that caused it (#1134): makes that
+  # deploy a failed change. `deployment` names it; DELETE unlinks.
+  def incident_of(conn, %{"id" => id} = params) do
+    deployment = if conn.method == "DELETE", do: nil, else: params["deployment"]
+
+    with {:ok, card} <- fetch_card(id),
+         :ok <- Authorize.card(conn, card, :write),
+         :ok <- deployment_given(conn.method, deployment),
+         {:ok, card} <- incident_link(card, deployment) do
+      json(conn, %{card: card.id, incident_of: card.caused_by_deployment_id})
+    end
+  end
+
+  defp deployment_given("POST", blank) when blank in [nil, ""],
+    do: {:error, :bad_request, "pass deployment: the id of the deploy that caused it"}
+
+  defp deployment_given(_method, _deployment), do: :ok
+
+  defp incident_link(card, deployment) do
+    case Slipdock.Deployments.Incidents.link(card, deployment) do
+      {:error, :not_found} -> {:error, :not_found, "deployment on this card's board"}
+      result -> result
+    end
+  end
+
   def handoff(conn, %{"id" => id}) do
     with {:ok, card} <- fetch_card(id),
          :ok <- Authorize.card(conn, card, :read) do

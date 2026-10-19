@@ -23,7 +23,7 @@ defmodule SlipdockCLI.Deploy do
 
   alias SlipdockCLI.HTTP
 
-  @commands ~w(deploy)
+  @commands ~w(deploy incident-of)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -100,6 +100,22 @@ defmodule SlipdockCLI.Deploy do
     if command == [], do: fail("nothing to run: slipdock deploy run --env E -- <command…>")
     {code, _} = deploy_run(o, command)
     System.halt(code)
+  end
+
+  # An incident card's link to the deploy that caused it: that deploy is a
+  # failed change. With the API token, like any card write.
+  def run("incident-of", [card], o) do
+    if o[:clear] do
+      HTTP.delete("/cards/#{enc(card)}/incident-of")
+      |> out(o, fn _ -> IO.puts("card ##{card} no longer names a deploy that caused it") end)
+    else
+      fail("pass the deploy: slipdock incident-of <card> <deploy-id>, or --clear")
+    end
+  end
+
+  def run("incident-of", [card, deployment], o) do
+    HTTP.post("/cards/#{enc(card)}/incident-of", %{"deployment" => deployment})
+    |> out(o, fn r -> IO.puts("card ##{r["card"]} caused by deploy ##{r["incident_of"]}") end)
   end
 
   def run(cmd, _args, _o), do: bad_usage(cmd)
