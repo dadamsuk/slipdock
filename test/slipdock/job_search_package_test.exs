@@ -190,6 +190,43 @@ defmodule Slipdock.JobSearchPackageTest do
     assert generate =~ "`upload_file` with `card`, `link: true`"
   end
 
+  test "a card the person adds to Found with a link is adopted by the scan, never doubled (#1162)" do
+    [_generate, scan, setup] = procedures()
+    readme = read("README.md")
+    stub = front_matter(read("skills/job-search-scan/SKILL.md"))
+
+    # Every run, either kind, starts with them, ahead of the once-a-day stop.
+    assert scan =~ "## Cards the person added"
+    assert scan =~ "**Every run, of either kind, starts with the cards the person added**"
+
+    [before_stop, _] =
+      String.split(scan, "**If a daily or fallback run is\nalready logged for today**")
+
+    assert before_stop =~ "starts with the cards the person added"
+
+    # Found: a link and no `Posting id:` line yet; the scan's own review cards are not jobs.
+    assert scan =~ "`list_cards` on the board's\n`Found` list"
+    assert scan =~ "**no analysis yet** (no `Posting id:` line in its\ndescription)"
+    assert scan =~ "other than the scan's own `Sources review` cards"
+    assert scan =~ "**Every outcome writes a `Posting id:` line**"
+
+    # The single-URL path adopts the person's card instead of making one, and keeps their link.
+    assert scan =~ "**If the person already made the card, adopt it.**"
+    assert scan =~ "Only a URL with no card creates a card."
+    assert scan =~ "`- Added by hand: <their link>`"
+    assert scan =~ "**Keep it whatever it scores**"
+    assert scan =~ "**Exclusions apply in full.**"
+
+    # The cloud cannot read LinkedIn, so a fallback run leaves those cards for the desktop.
+    assert scan =~ "on a fallback run a LinkedIn card waits for the desktop scan"
+
+    # The person is told how to do it: README, setup's closing summary, the skill's trigger.
+    assert readme =~ "## Adding a job yourself"
+    assert readme =~ "Add a card to **Found** with the posting's link on it"
+    assert setup =~ "add a card to `Found` with the posting's link on it"
+    assert stub["description"] =~ "a card the person added to Found with only a link on it"
+  end
+
   test "the LinkedIn reference decodes only text that carries an entity" do
     linkedin = read("skills/job-search-scan/references/linkedin.md")
 

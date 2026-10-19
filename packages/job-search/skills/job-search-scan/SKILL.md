@@ -1,6 +1,6 @@
 ---
 name: job-search-scan
-description: Run one pass of the job-search Tool's search on Slipdock: reads every source on the person's Sources page, skips postings already in the Seen ledger, scores new ones against their own Criteria, logs every posting, and puts each one at or above their threshold on the board in Found with the posting stored verbatim and a full gap analysis against their Candidate Facts. Use for the daily scheduled scan, the cloud fallback scan, when asked to look for new jobs or run the job scan, or to put one job posting URL through the same assessment. It never applies to anything and never builds documents.
+description: Run one pass of the job-search Tool's search on Slipdock: reads every source on the person's Sources page, skips postings already in the Seen ledger, scores new ones against their own Criteria, logs every posting, and puts each one at or above their threshold on the board in Found with the posting stored verbatim and a full gap analysis against their Candidate Facts. Use for the daily scheduled scan, the cloud fallback scan, when asked to look for new jobs or run the job scan, or to put one job posting URL, or a card the person added to Found with only a link on it, through the same assessment. It never applies to anything and never builds documents.
 ---
 
 # Job search: scan
