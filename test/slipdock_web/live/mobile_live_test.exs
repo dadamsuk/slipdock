@@ -309,14 +309,15 @@ defmodule SlipdockWeb.MobileLiveTest do
       {:ok, view, _} = live(phone(conn), ~p"/boards/#{board}")
 
       [toggle] = view |> element("#mobile-fab") |> render() |> js_ops("phx-click")
-      assert [["toggle", toggle_args], ["toggle_attr", attr_args]] = toggle
+      # Then the Menu's own close (#1130), checked in MobileMenuLiveTest.
+      assert [["toggle", toggle_args], ["toggle_attr", attr_args] | _] = toggle
       assert toggle_args["to"] == "#mobile-dock"
       assert toggle_args["display"] == "flex"
       assert attr_args["to"] == "#mobile-fab"
       assert attr_args["attr"] == ["aria-expanded", "true", "false"]
 
       [away] = view |> element("#mobile-bar") |> render() |> js_ops("phx-click-away")
-      assert [["hide", hide_args], ["set_attr", set_args]] = away
+      assert [["hide", hide_args], ["set_attr", set_args] | _] = away
       assert hide_args["to"] == "#mobile-dock"
       assert set_args["to"] == "#mobile-fab"
       assert set_args["attr"] == ["aria-expanded", "false"]

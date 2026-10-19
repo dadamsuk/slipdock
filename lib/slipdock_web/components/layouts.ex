@@ -355,19 +355,27 @@ defmodule SlipdockWeb.Layouts do
         id="mobile-dock"
         class="hidden h-14 items-stretch rounded-full bg-base-100 px-1 shadow-lg ring-1 ring-base-content/10"
       >
-        <div id="mobile-menu" class="dropdown dropdown-top flex w-14 shrink-0">
-          <div
-            tabindex="0"
-            role="button"
+        <%!-- Opened by a tap, not by focus (#1130): a CSS dropdown opens on a
+              focused trigger and stays open while focus is inside it, but
+              Safari on a phone neither reliably focuses a tapped div nor
+              focuses a tapped link, so the menu would not open, or would
+              close under the finger before its entry took the tap. --%>
+        <div id="mobile-menu" class="relative flex w-14 shrink-0">
+          <button
+            type="button"
+            id="mobile-menu-button"
+            phx-click={toggle_mobile_menu()}
+            aria-expanded="false"
+            aria-controls="mobile-menu-list"
             aria-label="Menu"
-            class="flex w-full cursor-pointer flex-col items-center justify-center gap-1 text-base-content/60"
+            class="flex w-full cursor-pointer flex-col items-center justify-center gap-1 text-base-content/60 aria-expanded:text-primary"
           >
             <.icon name="hero-bars-3" class="size-5" />
             <span class="text-[0.625rem] font-medium leading-none">Menu</span>
-          </div>
+          </button>
           <ul
-            tabindex="0"
-            class="menu dropdown-content z-40 mb-2 max-h-[70vh] w-64 flex-nowrap overflow-y-auto rounded-box bg-base-100 p-1 text-sm shadow-lg ring-1 ring-base-content/10"
+            id="mobile-menu-list"
+            class="menu absolute bottom-full left-0 z-40 mb-2 hidden max-h-[calc(100dvh-7rem)] w-64 flex-nowrap overflow-y-auto overscroll-contain rounded-box bg-base-100 p-1 text-sm shadow-lg ring-1 ring-base-content/10"
           >
             {render_slot(@menu)}
             <li class={[
@@ -456,14 +464,28 @@ defmodule SlipdockWeb.Layouts do
 
   # Open and close in the browser: JS commands survive LiveView's patches, so
   # an update to the page underneath does not fold the row back up.
+  # Folding the row folds its Menu too, so it does not open again already open.
   defp toggle_mobile_dock do
     JS.toggle(to: "#mobile-dock", display: "flex", in: @dock_in, out: @dock_out)
     |> JS.toggle_attribute({"aria-expanded", "true", "false"}, to: "#mobile-fab")
+    |> close_mobile_menu()
   end
 
   defp close_mobile_dock do
     JS.hide(to: "#mobile-dock", transition: @dock_out)
     |> JS.set_attribute({"aria-expanded", "false"}, to: "#mobile-fab")
+    |> close_mobile_menu()
+  end
+
+  defp toggle_mobile_menu do
+    JS.toggle(to: "#mobile-menu-list")
+    |> JS.toggle_attribute({"aria-expanded", "true", "false"}, to: "#mobile-menu-button")
+  end
+
+  defp close_mobile_menu(js) do
+    js
+    |> JS.hide(to: "#mobile-menu-list")
+    |> JS.set_attribute({"aria-expanded", "false"}, to: "#mobile-menu-button")
   end
 
   attr :current_user, :any, required: true
