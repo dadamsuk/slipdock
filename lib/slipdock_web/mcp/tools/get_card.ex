@@ -56,6 +56,7 @@ defmodule SlipdockWeb.MCP.Tools.GetCard do
        |> Map.put(:wait, V.wait(Boards.current_wait(card)))
        |> Map.put(:last_wait, V.wait(Boards.last_wait(card)))
        |> Map.put(:url, url(card, context.base_url))
+       |> V.put_delivery(card)
        |> put_timeline(card, args["timeline"] == true)}
     end
   end

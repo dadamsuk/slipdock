@@ -41,6 +41,35 @@ defmodule SlipdockWeb.API.JSON do
   defp blank_param(v) when v in [nil, ""], do: nil
   defp blank_param(v), do: v
 
+  @doc """
+  A card's delivery lines (#1134), for a card read on its own: `shipped`
+  (`Slipdock.Deployments.shipped/1`) and `incident_of`, the deploy it says
+  caused it. Each only when there is one, so a board with delivery metrics
+  off answers as it always did.
+  """
+  def put_delivery(map, card) do
+    map
+    |> then(fn m ->
+      case Slipdock.Deployments.shipped(card) do
+        [] ->
+          m
+
+        lines ->
+          Map.put(
+            m,
+            :shipped,
+            Enum.map(lines, &Map.put(&1, :text, Slipdock.Deployments.shipped_text(&1)))
+          )
+      end
+    end)
+    |> then(fn m ->
+      case card do
+        %{caused_by_deployment_id: id} when is_integer(id) -> Map.put(m, :incident_of, id)
+        _ -> m
+      end
+    end)
+  end
+
   @doc "A deploy from the ledger (#1134), its commits included."
   def deployment(%Slipdock.Deployments.Deployment{} = d) do
     %{

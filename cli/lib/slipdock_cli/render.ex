@@ -602,6 +602,13 @@ defmodule SlipdockCLI.Render do
     if s = c["state"], do: field("State", s)
     if d = c["driver"], do: field("Driver", d)
     if a = age_text(c), do: field("In list", a)
+    # Where it has shipped, and the deploy it says caused it (#1134).
+    Enum.each(
+      c["shipped"] || [],
+      &field("Shipped", String.replace_prefix(&1["text"], "Shipped ", ""))
+    )
+
+    if i = c["incident_of"], do: field("Incident of", "deploy ##{i}")
 
     field("Priority", c["priority"])
     field("Flags", if(c["flags"] == [], do: "-", else: Enum.join(c["flags"], ", ")))

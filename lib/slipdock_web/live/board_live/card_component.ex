@@ -214,6 +214,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
       card_pages: Wiki.pages_for_card(card, socket.assigns.current_user),
       card_grants: if(socket.assigns.can_share, do: Access.list_grants(card), else: []),
       handoff_history: Boards.handoff_history(card),
+      # Where it has shipped (#1134); empty unless delivery metrics are on.
+      card_shipped: Slipdock.Deployments.shipped(card),
       # How many questions the card has asked, shown on its open wait (#1114).
       wait_count: if(Card.open_wait(card), do: Boards.wait_count(card), else: 0)
     )
@@ -987,6 +989,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         uploads={@uploads}
         editing_description={@editing_description}
         handoff_history={@handoff_history}
+        shipped={assigns[:card_shipped] || []}
         wait_count={@wait_count}
         editing_handoff={@editing_handoff}
         handoff_form={@handoff_form}
@@ -1123,6 +1126,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   attr :uploads, :map, required: true
   attr :editing_description, :boolean, required: true
   attr :handoff_history, :list, default: [], doc: "every handoff written, newest first"
+  attr :shipped, :list, default: [], doc: "`Slipdock.Deployments.shipped/1`: where it has shipped"
   attr :wait_count, :integer, default: 0, doc: "how many waits the card has had (#1114)"
   attr :editing_handoff, :boolean, default: false
   attr :handoff_form, :any, default: nil
@@ -1265,6 +1269,23 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
                 target={@target}
               />
             </fieldset>
+            <%!-- Where the card has shipped (#1134): one line per
+                  environment, latest first. Only with delivery metrics on. --%>
+            <ul :if={@shipped != []} id="card-shipped" class="ml-1 space-y-0.5 text-xs">
+              <li
+                :for={s <- @shipped}
+                class={[
+                  "flex items-center gap-1.5",
+                  if(s.rolled_back, do: "text-warning", else: "text-success")
+                ]}
+              >
+                <.icon
+                  name={if s.rolled_back, do: "hero-arrow-uturn-left", else: "hero-rocket-launch"}
+                  class="size-3.5 shrink-0"
+                />
+                <span>{Slipdock.Deployments.shipped_text(s)}</span>
+              </li>
+            </ul>
             <%!-- Waiting on a person (#1114): only while it is. --%>
             <fieldset :if={Card.open_wait(@card)} disabled={!@can_write} class="min-w-0">
               <.wait_panel
