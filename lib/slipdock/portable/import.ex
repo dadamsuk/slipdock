@@ -568,10 +568,11 @@ defmodule Slipdock.Portable.Import do
 
     card =
       insert(
-        %Card{archived_at: if(doc[:archived], do: now())},
+        # The list on the struct: `Card.changeset/2` doesn't cast it, so that
+        # nothing but a move changes it.
+        %Card{archived_at: if(doc[:archived], do: now()), column_id: ids.columns[doc[:list]]},
         %{
           board_id: board.id,
-          column_id: ids.columns[doc[:list]],
           title: doc[:title] || "Untitled",
           description: doc[:description],
           position: doc[:position] || 0,

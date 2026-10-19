@@ -340,7 +340,8 @@ defmodule Slipdock.Boards.Card do
       :time_unit,
       :color,
       :board_id,
-      :column_id,
+      # Not `:column_id`: a card changes list only through `Boards.move_card/4`
+      # and `move_card_to_board/3`, which record who moved it.
       :assignee_id
     ])
     |> validate_required([:title, :board_id, :column_id])

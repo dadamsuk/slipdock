@@ -334,10 +334,13 @@ defmodule SlipdockWeb.BoardLive.State do
     end
   end
 
-  def move_in_list(%Slipdock.Wiki.Page{} = page, column_id, before),
+  def move_in_list(item, column_id, before, user)
+
+  def move_in_list(%Slipdock.Wiki.Page{} = page, column_id, before, _user),
     do: Wiki.place(page, column_id, before)
 
-  def move_in_list(card, column_id, before), do: Boards.move_card(card.id, column_id, before)
+  def move_in_list(card, column_id, before, user),
+    do: Boards.move_card(card.id, column_id, before, actor: Slipdock.Actor.web(user))
 
   # A page has one assignee: given a set, it takes the first.
   def update_item(%Slipdock.Wiki.Page{} = page, %{"assignee_ids" => ids} = attrs),

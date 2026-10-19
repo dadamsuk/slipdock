@@ -59,18 +59,22 @@ defmodule SlipdockWeb.UserAuth do
     with ["Bearer " <> token] <- get_req_header(conn, "authorization"),
          {%Accounts.User{} = user, api_token} <-
            Accounts.get_api_token(String.trim(token), ip: SlipdockWeb.ClientIP.from_conn(conn)) do
-      conn |> assign(:current_user, user) |> assign(:api_token, api_token)
+      conn |> assign(:current_user, user) |> assign(:api_token, api_token) |> assign_actor()
     else
       _ -> conn |> assign(:current_user, nil) |> assign(:api_token, nil)
     end
   end
+
+  # Who a request's writes are recorded as (see `Slipdock.Actor`), worked out
+  # once from the token and the client's headers.
+  defp assign_actor(conn), do: assign(conn, :actor, Slipdock.Actor.from_conn(conn))
 
   @doc "Plug: loads the current user from an `Authorization: Bearer` API token, else 401."
   def fetch_api_user(conn, _opts) do
     with ["Bearer " <> token] <- get_req_header(conn, "authorization"),
          {%Accounts.User{} = user, api_token} <-
            Accounts.get_api_token(String.trim(token), ip: SlipdockWeb.ClientIP.from_conn(conn)) do
-      conn |> assign(:current_user, user) |> assign(:api_token, api_token)
+      conn |> assign(:current_user, user) |> assign(:api_token, api_token) |> assign_actor()
     else
       _ ->
         conn

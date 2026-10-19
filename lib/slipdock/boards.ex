@@ -1671,9 +1671,9 @@ defmodule Slipdock.Boards do
 
   @doc """
   Moves a card into a column at a 0-based `index` (`:top`, `:bottom`, or an
-  integer). Convenience wrapper over `move_card/3`.
+  integer). Convenience wrapper over `move_card/4`, whose `opts` it takes.
   """
-  def move_card_to_index(%Card{} = card, %Column{} = column, index) do
+  def move_card_to_index(%Card{} = card, %Column{} = column, index, opts \\ []) do
     # The index counts everything in the list, wiki pages included: "second
     # from the top" means what a reader sees, not what the cards table says.
     items = active_items(column.id) |> List.delete({:card, card.id})
@@ -1686,7 +1686,7 @@ defmodule Slipdock.Boards do
         _ -> nil
       end
 
-    move_card(card.id, column.id, before_ref)
+    move_card(card.id, column.id, before_ref, opts)
   end
 
   @doc """
@@ -1707,11 +1707,7 @@ defmodule Slipdock.Boards do
     attrs = Slipdock.TimeTracking.normalize_attrs(card, attrs)
 
     card
-    |> Card.changeset(
-      attrs
-      |> Map.put("board_id", column.board_id)
-      |> Map.put("column_id", column.id)
-    )
+    |> Card.changeset(Map.put(attrs, "board_id", column.board_id))
     # The free tier's limit, enforced here rather than in the board UI: the
     # same card can be made from quick add, the CLI, the JSON API, an
     # automation rule and the model, and all of them come through this
@@ -2153,8 +2149,12 @@ defmodule Slipdock.Boards do
   Moves a card into `to_column_id`, placing it directly before the card
   `before_id` (or at the end when nil), re-packing positions in both the
   source and destination columns.
+
+  `opts` say who moved it (see `Slipdock.Actor`): `:actor`, or `:by` (the
+  user), `:via`, `:agent` (a token's label) and `:job_id`. Without them a
+  move made while a rule runs is automation's, and any other is unknown.
   """
-  def move_card(card_id, to_column_id, before_id \\ nil) do
+  def move_card(card_id, to_column_id, before_id \\ nil, opts \\ []) do
     card = Repo.get!(Card, card_id)
     to_column = Repo.get!(Column, to_column_id)
 
@@ -2162,11 +2162,11 @@ defmodule Slipdock.Boards do
     # any of what `move_card_to_board/2` carries across — and, from a client
     # that sent somebody else's card, onto the sender's board.
     if to_column.board_id == card.board_id,
-      do: do_move_card(card, to_column, before_id),
+      do: do_move_card(card, to_column, before_id, Slipdock.Actor.resolve(opts)),
       else: {:error, :wrong_board}
   end
 
-  defp do_move_card(%Card{} = card, %Column{} = to_column, before_id) do
+  defp do_move_card(%Card{} = card, %Column{} = to_column, before_id, actor) do
     same_column? = to_column.id == card.column_id
 
     reorder({:card, card.id}, card.column_id, to_column.id, before_id)
@@ -2176,13 +2176,15 @@ defmodule Slipdock.Boards do
       from_column = Repo.get!(Column, card.column_id)
       apply_column_semantics(Repo.get!(Card, card.id), from_column, to_column)
       follow_stand_ins(card, from_column, to_column)
+      moved(card, from_column, to_column, actor)
 
       automate(%{
         type: "card_moved",
         card: Repo.get!(Card, card.id),
         from: from_column,
         to: to_column,
-        column: to_column
+        column: to_column,
+        actor: actor
       })
     end
 
@@ -2349,7 +2351,7 @@ defmodule Slipdock.Boards do
   Returns `{:ok, summary}` — the moved card and what it cost on the way — or
   `{:error, message}`.
   """
-  def move_card_to_board(%Card{} = card, %Column{} = to_column) do
+  def move_card_to_board(%Card{} = card, %Column{} = to_column, opts \\ []) do
     cond do
       not is_nil(card.archived_at) ->
         {:error, "Restore the card before moving it."}
@@ -2358,14 +2360,15 @@ defmodule Slipdock.Boards do
         {:error, "A stand-in stays on its own board — move the card it stands for instead."}
 
       to_column.board_id == card.board_id ->
-        move_card(card.id, to_column.id)
+        move_card(card.id, to_column.id, nil, opts)
         {:ok, empty_move_summary(Repo.get!(Card, card.id))}
 
       to_column.board_id in subtree_board_ids(card.id) ->
         {:error, "A card can't be moved into its own subcards."}
 
       true ->
-        with :ok <- room_for_move(card, to_column), do: do_move_card_to_board(card, to_column)
+        with :ok <- room_for_move(card, to_column),
+             do: do_move_card_to_board(card, to_column, Slipdock.Actor.resolve(opts))
     end
   end
 
@@ -2411,7 +2414,7 @@ defmodule Slipdock.Boards do
     end
   end
 
-  defp do_move_card_to_board(%Card{} = card, %Column{} = to_column) do
+  defp do_move_card_to_board(%Card{} = card, %Column{} = to_column, actor) do
     # Back to a board that kept a stand-in for it: the card takes the
     # stand-in's slot, and the stand-in goes.
     slot = stand_in_on(card.id, to_column.board_id)
@@ -2486,6 +2489,7 @@ defmodule Slipdock.Boards do
 
     apply_column_semantics(moved, from_column, to_column)
     follow_stand_ins(moved, from_column, to_column)
+    moved(moved, from_column, to_column, actor)
 
     # The board a chunk records is what decides who may search it up, so the
     # moved card and everything beneath it are corrected inline rather than
@@ -2498,12 +2502,24 @@ defmodule Slipdock.Boards do
       card: Repo.get!(Card, moved.id),
       from: from_column,
       to: to_column,
-      column: to_column
+      column: to_column,
+      actor: actor
     })
 
     broadcast(from_board.id)
     broadcast(to_board.id)
     {:ok, %{summary | card: Repo.get!(Card, moved.id)}}
+  end
+
+  # Every change of a card's list passes here, once, with who made it — before
+  # the rules it sets off, so a rule's own move comes after it.
+  defp moved(%Card{} = card, %Column{} = from, %Column{} = to, actor) do
+    :telemetry.execute([:slipdock, :card, :moved], %{count: 1}, %{
+      card_id: card.id,
+      from_column_id: from.id,
+      to_column_id: to.id,
+      actor: actor
+    })
   end
 
   defp empty_move_summary(card),

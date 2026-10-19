@@ -208,6 +208,30 @@ defmodule SlipdockCLI.HTTP do
     end
   end
 
+  @doc """
+  Which client this is, sent on every request. The server records it against
+  wiki edits and card moves, so a history can tell a shell session from a web
+  one. Run by an agent — under Claude Code (`CLAUDECODE`) or a runner job
+  (`SLIPDOCK_JOB_ID`) — it says so too, with the job when there is one, so
+  the agent's moves aren't filed as the person's whose token it borrows.
+  """
+  def client_headers do
+    job = env("SLIPDOCK_JOB_ID")
+    agent? = env("CLAUDECODE") != nil or job != nil
+
+    [{~c"x-slipdock-client", ~c"cli"}] ++
+      if(agent?, do: [{~c"x-slipdock-agent", ~c"1"}], else: []) ++
+      if(job, do: [{~c"x-slipdock-job", String.to_charlist(job)}], else: [])
+  end
+
+  # Set and not blank, or nil.
+  defp env(name) do
+    case System.get_env(name) do
+      nil -> nil
+      value -> if String.trim(value) == "", do: nil, else: String.trim(value)
+    end
+  end
+
   def get(path, query \\ []), do: request(:get, path <> encode_query(query), nil)
   def post(path, body \\ %{}), do: request(:post, path, body)
   def patch(path, body), do: request(:patch, path, body)
@@ -263,14 +287,8 @@ defmodule SlipdockCLI.HTTP do
 
     headers =
       case token() do
-        nil ->
-          [{~c"x-slipdock-client", ~c"cli"}]
-
-        t ->
-          [
-            {~c"authorization", String.to_charlist("Bearer " <> t)},
-            {~c"x-slipdock-client", ~c"cli"}
-          ]
+        nil -> client_headers()
+        t -> [{~c"authorization", String.to_charlist("Bearer " <> t)} | client_headers()]
       end
 
     case :httpc.request(:get, {url, headers}, [{:timeout, 600_000}],
@@ -342,9 +360,7 @@ defmodule SlipdockCLI.HTTP do
     Application.ensure_all_started(:inets)
     Application.ensure_all_started(:ssl)
     url = String.to_charlist(base_url() <> "/api" <> path)
-    # Say which client this is. The server records it against wiki edits, so a
-    # page's history can tell a shell session from a web one.
-    headers = [{~c"accept", ~c"application/json"}, {~c"x-slipdock-client", ~c"cli"}]
+    headers = [{~c"accept", ~c"application/json"} | client_headers()]
 
     headers =
       case token() do

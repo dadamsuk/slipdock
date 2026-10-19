@@ -85,7 +85,7 @@ defmodule SlipdockWeb.API.CardWrites do
            Boards.update_card(card, Map.merge(card_attrs(card, params), assignee), by: user),
          {:ok, _} <- maybe_set_tags(card, tags),
          {:ok, _} <- maybe_adjust_tags(card, add, remove),
-         {:ok, _} <- maybe_move(board, card, params["column"]),
+         {:ok, _} <- maybe_move(board, card, params["column"], Slipdock.Actor.from_conn(auth)),
          :ok <- maybe_set_fields(board, card, params["fields"]) do
       {:ok, Boards.get_card!(card.id)}
     end
@@ -214,13 +214,15 @@ defmodule SlipdockWeb.API.CardWrites do
     Boards.set_card_tags(card, kept ++ added)
   end
 
-  def maybe_move(_board, _card, nil), do: {:ok, nil}
+  def maybe_move(board, card, ref, actor \\ Slipdock.Actor.unknown())
 
-  def maybe_move(board, card, ref) do
+  def maybe_move(_board, _card, nil, _actor), do: {:ok, nil}
+
+  def maybe_move(board, card, ref, actor) do
     with {:ok, column} <- resolve_column(board, ref) do
       if column.id == card.column_id,
         do: {:ok, nil},
-        else: {Boards.move_card_to_index(card, column, :bottom), nil}
+        else: {Boards.move_card_to_index(card, column, :bottom, actor: actor), nil}
     end
   end
 

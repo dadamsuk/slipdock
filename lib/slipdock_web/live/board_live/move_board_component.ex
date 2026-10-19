@@ -112,7 +112,7 @@ defmodule SlipdockWeb.BoardLive.MoveBoardComponent do
         {:noreply, flash(socket, :error, "You have read-only access to that board.")}
 
       true ->
-        case Boards.move_card_to_board(card, column) do
+        case Boards.move_card_to_board(card, column, actor: Slipdock.Actor.web(user)) do
           {:ok, summary} ->
             {:noreply,
              socket

@@ -2,7 +2,9 @@ defmodule SlipdockCLI.FakeServer do
   @moduledoc """
   Just enough of an HTTP server to answer the CLI: each request gets the
   next canned `{status, body}` in turn, and is reported to the test process
-  as `{:request, method, path, body}` so the test can see what was sent.
+  as `{:request, method, path, body}` so the test can see what was sent —
+  and as `{:headers, method, path, %{name => value}}`, names lowercased, for
+  a test that wants to see how it was sent.
   """
 
   def start(responses) do
@@ -20,8 +22,9 @@ defmodule SlipdockCLI.FakeServer do
 
   defp serve(listen, [{status, body} | rest], test) do
     {:ok, socket} = :gen_tcp.accept(listen)
-    {method, path, request_body} = read_request(socket)
+    {method, path, request_body, headers} = read_request(socket)
     send(test, {:request, method, path, request_body})
+    send(test, {:headers, method, path, headers})
 
     :gen_tcp.send(socket, [
       "HTTP/1.1 #{status} X\r\ncontent-type: application/json\r\n",
@@ -53,10 +56,16 @@ defmodule SlipdockCLI.FakeServer do
             end
           end)
 
-        {method, path, read_body(socket, body, length)}
+        {method, path, read_body(socket, body, length), header_map(headers)}
 
       [_] ->
         read_request(socket, acc)
+    end
+  end
+
+  defp header_map(lines) do
+    for line <- lines, [k, v] = String.split(line, ":", parts: 2), into: %{} do
+      {String.downcase(k), String.trim(v)}
     end
   end
 

@@ -214,8 +214,8 @@ defmodule Slipdock.BulkEdit do
       {:ok,
        fn card ->
          if column.board_id == card.board_id,
-           do: Boards.move_card(card.id, column.id),
-           else: Boards.move_card_to_board(card, column)
+           do: Boards.move_card(card.id, column.id, nil, actor: Slipdock.Actor.web(user)),
+           else: Boards.move_card_to_board(card, column, actor: Slipdock.Actor.web(user))
        end}
     else
       _ -> {:error, "You can't move cards to that list."}

@@ -523,7 +523,9 @@ defmodule Slipdock.AI.Actions do
         [
           step("Move “#{card.title}” to #{column.name}", fn ->
             with {:ok, fresh} <- fresh(card, scope) do
-              Boards.move_card(fresh.id, column.id, nil)
+              Boards.move_card(fresh.id, column.id, nil,
+                actor: Slipdock.Actor.assistant(scope[:user])
+              )
             end
           end)
         ]

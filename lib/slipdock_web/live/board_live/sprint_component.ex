@@ -228,7 +228,7 @@ defmodule SlipdockWeb.BoardLive.SprintComponent do
       |> Enum.reject(&is_nil/1)
       |> Enum.filter(&Access.can_write?(Access.card_permission(user, &1)))
 
-    case Sprints.add_cards(p.sprint, cards) do
+    case Sprints.add_cards(p.sprint, cards, actor: Slipdock.Actor.web(user)) do
       {:ok, %{added: added, skipped: skipped}} ->
         {:noreply,
          socket

@@ -119,7 +119,7 @@ defmodule SlipdockWeb.BoardLive.SnoozeEvents do
       for card <- board_cards(socket, s.ids) do
         with {:ok, card} <- Snooze.snooze(card, user, date, opts) do
           if back? and card.column_id in s.doing_ids,
-            do: Boards.move_card_to_index(card, s.ready, :top)
+            do: Boards.move_card_to_index(card, s.ready, :top, actor: Slipdock.Actor.web(user))
 
           {:ok, card}
         end
