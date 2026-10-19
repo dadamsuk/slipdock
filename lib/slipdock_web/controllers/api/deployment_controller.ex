@@ -48,8 +48,16 @@ defmodule SlipdockWeb.API.DeploymentController do
       )
       |> Map.update("source", "api", &(&1 || "api"))
 
-    with {:ok, deployment} <- Deployments.start(conn.assigns.board, attrs) do
-      conn |> put_status(:created) |> json(%{deployment: V.deployment(deployment)})
+    case Deployments.start(conn.assigns.board, attrs) do
+      {:ok, deployment} ->
+        conn |> put_status(:created) |> json(%{deployment: V.deployment(deployment)})
+
+      # A backfill of a sha this environment already has: nothing recorded.
+      {:existing, deployment} ->
+        json(conn, %{deployment: V.deployment(deployment), existing: true})
+
+      error ->
+        error
     end
   end
 
