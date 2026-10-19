@@ -33,6 +33,8 @@ defmodule SlipdockWeb.API.DeploymentController do
     json(conn, %{
       board: %{id: board.id, code: board.code},
       environment: environment,
+      # So `slipdock deploy --dry-run` names the cards the way the board will.
+      card_ref_pattern: board.card_ref_pattern,
       sha: last && last.sha,
       deployment: last && V.deployment(last)
     })
