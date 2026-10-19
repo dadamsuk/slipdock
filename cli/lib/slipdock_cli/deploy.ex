@@ -56,6 +56,29 @@ defmodule SlipdockCLI.Deploy do
     end
   end
 
+  # "Track deployments": turn the board's delivery metrics on, issue its
+  # token and print what to paste — the same text as the settings wizard.
+  # --prompt prints only the paste-into-Claude-Code prompt and issues nothing.
+  def run("deploy", ["setup", ref], o) do
+    answers =
+      compact(%{
+        "ci" => o[:ci],
+        "environments" => o[:env],
+        "card_ref_pattern" => o[:card_ref_pattern]
+      })
+
+    if o[:prompt] do
+      HTTP.get("/boards/#{enc(ref)}/deployments/setup", Enum.to_list(answers))
+      |> out(o, &IO.puts(&1["prompt"]))
+    else
+      HTTP.post("/boards/#{enc(ref)}/deployments/setup", answers)
+      |> out(o, fn r ->
+        IO.puts(r["text"])
+        IO.puts(:stderr, "for an agent to do it: slipdock deploy setup #{ref} --prompt")
+      end)
+    end
+  end
+
   def run("deploy", ["last"], o) do
     case with_deploy_token(fn -> HTTP.get("/deployments/last", environment: env(o)) end) do
       {:ok, %{"sha" => nil}} = r ->

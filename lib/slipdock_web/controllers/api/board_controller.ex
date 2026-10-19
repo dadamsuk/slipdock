@@ -215,6 +215,46 @@ defmodule SlipdockWeb.API.BoardController do
     end
   end
 
+  # "Track deployments" (#1134, `Slipdock.Deployments.Setup`): the same text
+  # the settings wizard shows. GET only writes it, with a placeholder for
+  # the token; POST turns the board's delivery metrics on and issues a new
+  # token, shown in it this once. The owner's alone.
+  def deploy_setup(conn, %{"board" => ref} = params) do
+    alias Slipdock.Deployments.Setup
+    base_url = SlipdockWeb.BaseURL.from_conn(conn)
+
+    with {:ok, board} <- fetch_board(conn, ref, :owner) do
+      result =
+        if conn.method == "POST" do
+          Setup.connect(board, params, base_url)
+        else
+          with {:ok, a} <- Setup.normalise(params),
+               do:
+                 {:ok, board, Setup.generate(a, %{board: board, base_url: base_url, token: nil})}
+        end
+
+      case result do
+        {:ok, board, generated} ->
+          json(
+            conn,
+            Map.merge(
+              %{
+                board: %{id: board.id, code: board.code},
+                delivery_metrics: board.delivery_metrics
+              },
+              generated
+            )
+          )
+
+        {:error, message} when is_binary(message) ->
+          {:error, :unprocessable_entity, message}
+
+        error ->
+          error
+      end
+    end
+  end
+
   # The board's deploy token (#1134): issued (or replaced) and shown this
   # once, or revoked. The owner's alone, like the board's settings.
   def deploy_token(conn, %{"board" => ref}) do

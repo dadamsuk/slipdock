@@ -1,0 +1,26 @@
+# Recording deploys on a Slipdock board from GitLab CI — a worked example.
+#
+# What it needs:
+#   - the board's delivery metrics on, and its deploy token (board settings →
+#     Delivery metrics → Set up, or `slipdock deploy token <board>`)
+#   - that token as the masked CI/CD variable SLIPDOCK_DEPLOY_TOKEN
+#   - the server's address as the CI/CD variable SLIPDOCK_URL
+#
+# Full history (GIT_DEPTH: 0) so the commits since the last deploy can be
+# read, an image with Erlang (the slipdock CLI runs on it), curl and git, and
+# the deploy command wrapped in `slipdock deploy run`.
+
+deploy:
+  stage: deploy
+  image: erlang:27
+  variables:
+    GIT_DEPTH: "0"
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  resource_group: production
+  environment: production
+  script:
+    - curl -fsSL "$SLIPDOCK_URL/cli/slipdock.escript" -o /usr/local/bin/slipdock
+    - chmod +x /usr/local/bin/slipdock
+    # Your deploy command, as it was, after the `--`.
+    - slipdock deploy run --env production --tag "$CI_COMMIT_SHORT_SHA" -- ./deploy.sh "$CI_COMMIT_SHORT_SHA"
