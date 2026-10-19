@@ -130,6 +130,11 @@ defmodule Slipdock.Boards.Card do
     has_many :handoffs, Slipdock.Boards.Handoff, preload_order: [desc: :id]
     has_one :handoff, Slipdock.Boards.Handoff
 
+    # Waiting on a person (#1114): every question asked on it, and the open
+    # one alone, which `Slipdock.Boards` preloads as `wait` (nil when none).
+    has_many :waits, Slipdock.Boards.Wait, preload_order: [desc: :id]
+    has_one :wait, Slipdock.Boards.Wait
+
     has_many :field_values, Slipdock.Boards.FieldValue
     has_many :votes, Slipdock.Boards.Vote
     # Typed links (see Slipdock.Boards.CardLink), both directions.
@@ -190,6 +195,10 @@ defmodule Slipdock.Boards.Card do
     do: if(Slipdock.Boards.Handoff.cleared?(h), do: nil, else: h)
 
   def open_handoff(_), do: nil
+
+  @doc "The card's open wait, when it is loaded: what its front shows (#1114)."
+  def open_wait(%{wait: %Slipdock.Boards.Wait{closed_at: nil} = w}), do: w
+  def open_wait(_), do: nil
 
   @doc """
   The series this card is the current instance of, when it is loaded: what

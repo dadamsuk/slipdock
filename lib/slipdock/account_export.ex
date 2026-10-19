@@ -19,7 +19,7 @@ defmodule Slipdock.AccountExport do
 
   alias Slipdock.Accounts.User
   alias Slipdock.Boards
-  alias Slipdock.Boards.{Board, Card, Comment, Handoff, StatusUpdate}
+  alias Slipdock.Boards.{Board, Card, Comment, Handoff, StatusUpdate, Wait}
   alias Slipdock.Wiki.{Page, Revision}
   alias Slipdock.Repo
   alias Slipdock.Wiki.Archive
@@ -167,6 +167,29 @@ defmodule Slipdock.AccountExport do
         )
       )
 
+    # Questions they asked on a card and answers they gave (#1114).
+    waits =
+      Repo.all(
+        from(w in Wait,
+          where:
+            w.opened_by_id == ^user.id or
+              (w.closed_by_id == ^user.id and w.close_reason == "answered"),
+          order_by: [asc: w.id],
+          select: %{
+            card_id: w.card_id,
+            needs: w.needs,
+            choices: w.choices,
+            asked_by_you: w.opened_by_id == ^user.id,
+            opened: w.inserted_at,
+            answer: w.answer,
+            choice: w.choice,
+            answered_by_you: w.closed_by_id == ^user.id and w.close_reason == "answered",
+            closed: w.closed_at,
+            close_reason: w.close_reason
+          }
+        )
+      )
+
     revisions =
       Repo.all(
         from(r in Revision,
@@ -178,8 +201,8 @@ defmodule Slipdock.AccountExport do
         )
       )
 
-    case {comments, updates, handoffs, revisions} do
-      {[], [], [], []} ->
+    case {comments, updates, handoffs, waits, revisions} do
+      {[], [], [], [], []} ->
         []
 
       _ ->
@@ -190,6 +213,7 @@ defmodule Slipdock.AccountExport do
                comments: comments,
                status_updates: updates,
                handoffs: handoffs,
+               waits: waits,
                wiki_revisions: revisions
              },
              pretty: true

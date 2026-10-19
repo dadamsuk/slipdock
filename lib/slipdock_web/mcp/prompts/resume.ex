@@ -47,8 +47,7 @@ defmodule SlipdockWeb.MCP.Prompts.Resume do
        Blocked by: #{blocked_by(card)}
 
        ## Handoff (where it was left)
-       #{Context.handoff_text(card) || "No handoff note: work it out from the comments below."}
-
+       #{Context.handoff_text(card) || "No handoff note: work it out from the comments below."}#{waiting(card)}
        ## Description
        #{case Context.clip(card.description, @description) do
          "" -> "(none)"
@@ -90,5 +89,13 @@ defmodule SlipdockWeb.MCP.Prompts.Resume do
     who = if match?(%{name: _}, c.user), do: c.user.name || c.user.email, else: "someone"
 
     "#{Calendar.strftime(c.inserted_at, "%Y-%m-%d")} #{who}: #{Context.clip(c.body, @comment_chars)}"
+  end
+
+  # The open wait, when there is one: the card is held on a person (#1114).
+  defp waiting(card) do
+    case Context.wait_text(card) do
+      nil -> ""
+      text -> "\n\n## Waiting on a person\n#{text}"
+    end
   end
 end

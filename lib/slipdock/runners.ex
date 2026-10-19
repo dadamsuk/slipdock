@@ -294,6 +294,27 @@ defmodule Slipdock.Runners do
 
   def session_job_runner(_job_id, _token), do: {:error, :not_found}
 
+  @doc """
+  The job a session runner on `api_token` is working on `card_id` now
+  (claimed or running), or nil: what a wait opened through that token is
+  asked from, without the session having to name it (#1114, KTD4).
+  """
+  def session_job_on_card(%UserToken{id: token_id}, card_id) do
+    from(j in Job,
+      join: r in Runner,
+      on: r.id == j.runner_id,
+      where:
+        r.api_token_id == ^token_id and j.card_id == ^card_id and
+          j.status in ["claimed", "running"],
+      order_by: [desc: j.id],
+      limit: 1,
+      select: j.id
+    )
+    |> Repo.one()
+  end
+
+  def session_job_on_card(_token, _card_id), do: nil
+
   ## Queueing -----------------------------------------------------------------
 
   @doc """

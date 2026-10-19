@@ -928,7 +928,8 @@ defmodule SlipdockWeb.BoardLive.Show do
 
   def handle_event("toggle_complete", %{"id" => id}, socket) do
     with {:ok, card} <- writable_card(socket, id) do
-      Boards.toggle_completed(card)
+      user = socket.assigns.current_user
+      Boards.toggle_completed(card, by: user, actor: Slipdock.Actor.web(user))
       {:noreply, socket}
     else
       _ -> {:noreply, put_flash(socket, :error, "You have read-only access to that card.")}

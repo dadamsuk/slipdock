@@ -667,6 +667,12 @@ defmodule SlipdockCLI do
                                         leave a handoff for whoever picks the card up next
                                         (write one whenever you stop with it unfinished)
     handoff <id> --clear                clear it (the history keeps that it was cleared)
+    wait <id> "what you need" [--on EMAIL] [--choice X]... [--job ID]
+                                        wait on a person: flags the card waiting and asks on
+                                        it (on anyone without --on); the job is
+                                        $SLIPDOCK_JOB_ID unless --job names one
+    wait <id> --withdraw                withdraw the card's open wait
+    answer <id> ["text"] [--choice N]   answer the card's open wait, in words or by choice
     new-field <board> <name> --kind K   add a custom field (K: number rating select date text formula)
         [--options "Small=1, Large=3"] [--formula "{value} / {effort}"] [--sum]
     delete-field <board> <field>
@@ -805,7 +811,13 @@ defmodule SlipdockCLI do
     run: :boolean,
     check: :string,
     keep: :string,
-    choice: :string,
+    # `garden apply <id> --choice C`; `wait <id> … --choice X --choice Y`.
+    choice: :keep,
+    # `slipdock wait <id> --withdraw`, `--job ID`, and `--on EMAIL` (read
+    # as `--wait-on`, since `--on` is a switch elsewhere: see `main/1`).
+    withdraw: :boolean,
+    job: :string,
+    wait_on: :string,
     goal: :string,
     template: :string,
     save_template: :string,
@@ -988,7 +1000,7 @@ defmodule SlipdockCLI do
 
   def main(argv) do
     {opts, args, invalid} =
-      OptionParser.parse(argv, strict: @switches, aliases: [h: :help, j: :json])
+      OptionParser.parse(wait_on(argv), strict: @switches, aliases: [h: :help, j: :json])
 
     if invalid != [] do
       fail("unknown option(s): " <> Enum.map_join(invalid, ", ", &elem(&1, 0)))
@@ -1014,6 +1026,15 @@ defmodule SlipdockCLI do
           else: reraise(error, __STACKTRACE__)
     end
   end
+
+  # `slipdock wait <id> "…" --on EMAIL`: everywhere else `--on` is a switch
+  # with no value (`automation <id> --on`), so for `wait` it is read as
+  # `--wait-on`, which takes one.
+  @doc false
+  def wait_on(["wait" | rest]),
+    do: ["wait" | Enum.map(rest, &if(&1 == "--on", do: "--wait-on", else: &1))]
+
+  def wait_on(argv), do: argv
 
   # Each area module lists the command names it answers to; the first that
   # claims a name gets every clause of it, so a name must live in one place.

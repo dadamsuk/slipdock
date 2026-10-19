@@ -16,6 +16,7 @@ defmodule Slipdock.Boards do
   alias Slipdock.Boards.{BoardOrder, CardLink, CardUrl, FieldDefinition, FieldValue, Milestone}
   alias Slipdock.Boards.StatusUpdate
   alias Slipdock.Boards.Handoff
+  alias Slipdock.Boards.Wait
   alias Slipdock.Boards.CardMove
   alias Slipdock.Boards.Owned
 
@@ -500,6 +501,9 @@ defmodule Slipdock.Boards do
     )
   end
 
+  defp open_wait_query, do: from(w in Wait, where: is_nil(w.closed_at))
+  defp wait_preloads, do: [:on_user, :opened_by, :closed_by]
+
   defp card_preloads do
     [
       :tags,
@@ -512,6 +516,8 @@ defmodule Slipdock.Boards do
       :status_updates,
       :votes,
       handoff: {newest_handoff_query(), :user},
+      # Waiting on a person (#1114): the open wait, if there is one.
+      wait: {open_wait_query(), wait_preloads()},
       # The series it is the current instance of, if it repeats (W-1802).
       recurrence: [],
       field_values: [:field],
@@ -1784,6 +1790,7 @@ defmodule Slipdock.Boards do
         do: Slipdock.Snooze.activity(updated, opts[:by], :assigned)
 
       automate_card_changes(card, updated, changeset, {before, assignees || before})
+      wait_hooks(card, updated, changeset, opts)
     end)
   end
 
@@ -2050,15 +2057,16 @@ defmodule Slipdock.Boards do
   defp flags_text([]), do: "none"
   defp flags_text(flags), do: Enum.join(flags, ", ")
 
-  def toggle_flag(%Card{} = card, flag) when is_binary(flag) do
+  @doc "Turns `flag` on or off. `opts` as for `update_card/3`: who did it."
+  def toggle_flag(%Card{} = card, flag, opts \\ []) when is_binary(flag) do
     flags =
       if flag in card.flags, do: List.delete(card.flags, flag), else: card.flags ++ [flag]
 
-    update_card(card, %{"flags" => flags})
+    update_card(card, %{"flags" => flags}, opts)
   end
 
-  def toggle_completed(%Card{} = card) do
-    update_card(card, %{"completed" => !card.completed})
+  def toggle_completed(%Card{} = card, opts \\ []) do
+    update_card(card, %{"completed" => !card.completed}, opts)
   end
 
   def archive_card(%Card{} = card, opts \\ []) do
@@ -2073,6 +2081,10 @@ defmodule Slipdock.Boards do
         do: record_move(c, "archived", Repo.get(Column, c.column_id), nil, actor(opts))
 
       Slipdock.Recurrence.card_archived(c)
+
+      if is_nil(card.archived_at),
+        do: auto_close_wait(c, "archived", "the card was archived", opts)
+
       broadcast(c.board_id)
       Indexer.enqueue(c)
       automate(%{type: "card_archived", card: c})
@@ -3430,6 +3442,395 @@ defmodule Slipdock.Boards do
   """
   def handoff_written_since?(card_id, %DateTime{} = since) do
     Repo.exists?(from(h in Handoff, where: h.card_id == ^card_id and h.inserted_at >= ^since))
+  end
+
+  ## Waits
+
+  @doc """
+  Opens a wait on `card`: it needs `needs` from a person (#1114). `actor` is
+  who asks (`Slipdock.Actor`). `attrs` takes `needs` (required), `choices`
+  (a short list of answers to pick from), `on_user_id` (nil waits on anyone)
+  and `job_id`, the runner job asking, which must be claimed or running on
+  this card.
+
+  The card is flagged `waiting` through `update_card/3`, so rules on the
+  flag fire, and the wait remembers whether it set the flag. A card has one
+  open wait at most: a second is refused, naming the first.
+
+  Who may open one is the caller's to check: anyone who may change the card.
+  """
+  def open_wait(%Card{} = card, actor, attrs) do
+    card = Repo.get!(Card, card.id)
+    user = actor_user(actor)
+
+    with :ok <- no_open_wait(card),
+         :ok <- check_wait_job(card, attrs[:job_id] || attrs["job_id"]),
+         {:ok, wait} <-
+           %Wait{
+             card_id: card.id,
+             opened_by_id: user && user.id,
+             kind: actor[:kind],
+             via: actor[:via],
+             agent: actor[:agent],
+             set_flag: "waiting" not in card.flags
+           }
+           |> Wait.changeset(attrs)
+           |> Repo.insert()
+           |> refuse_second_open(card) do
+      wait = Repo.preload(wait, wait_preloads())
+
+      if wait.set_flag,
+        do:
+          {:ok, _} =
+            update_card(card, %{"flags" => card.flags ++ ["waiting"]},
+              by: user,
+              actor: actor,
+              wait_hook: false
+            )
+
+      log(Repo, card.board_id, card.id, "wait", "waits on #{Wait.on_name(wait)}: #{wait.needs}")
+      {:ok, _} = add_comment(card, opened_text(wait), by: user)
+      broadcast(card.board_id)
+      {:ok, wait}
+    end
+  end
+
+  defp no_open_wait(card) do
+    case current_wait(card) do
+      nil -> :ok
+      wait -> {:error, already_open(card, wait)}
+    end
+  end
+
+  # Two opens racing past the check: the index has the last word.
+  defp refuse_second_open({:error, %Ecto.Changeset{errors: errors}} = error, card) do
+    if Keyword.has_key?(errors, :card_id),
+      do: {:error, already_open(card, current_wait(card))},
+      else: error
+  end
+
+  defp refuse_second_open(result, _card), do: result
+
+  defp already_open(card, nil), do: "card ##{card.id} already has an open wait"
+
+  defp already_open(card, wait) do
+    "card ##{card.id} already has an open wait: “#{wait.needs}” " <>
+      "(on #{Wait.on_name(wait)}, opened by #{person_name(wait.opened_by)} " <>
+      "at #{stamp(wait.inserted_at)}). Answer or withdraw it first."
+  end
+
+  # A job may be named only while it is working on this very card, so no
+  # caller can park somebody else's job, or one that has finished.
+  defp check_wait_job(_card, nil), do: :ok
+  defp check_wait_job(_card, ""), do: :ok
+
+  defp check_wait_job(card, job_id) do
+    job =
+      case Integer.parse(to_string(job_id)) do
+        {id, ""} -> Repo.get(Slipdock.Runners.Job, id)
+        _ -> nil
+      end
+
+    cond do
+      is_nil(job) ->
+        {:error, "no job ##{job_id}"}
+
+      job.card_id != card.id ->
+        {:error, "job ##{job.id} is working on another card, not ##{card.id}"}
+
+      job.status not in ~w(claimed running) ->
+        {:error, "job ##{job.id} is #{job.status}: only a claimed or running job can wait"}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp opened_text(wait) do
+    choices =
+      wait.choices
+      |> Enum.with_index(1)
+      |> Enum.map_join("", fn {text, n} -> "\n#{n}. #{text}" end)
+
+    "Waiting on #{Wait.on_name(wait)}: #{wait.needs}" <> choices
+  end
+
+  @doc """
+  Answers `card`'s open wait (or `wait` itself) for `actor`: `attrs` takes
+  `answer` (free text) and `choice` (the number of one of its choices,
+  counted from 1), at least one of them. The answer is posted on the card
+  as a comment from whoever answered, and the `waiting` flag comes off if
+  the wait put it there.
+
+  An agent can't answer a wait it opened itself (KTD8): both classified as
+  an agent and sharing a token or a job. A person always can, even on the
+  agent's token. Of two answers racing, the second is told who answered
+  first and when. Who may answer at all is the caller's to check: anyone
+  who may change the card.
+  """
+  def answer_wait(%Card{} = card, actor, attrs) do
+    case current_wait(card) do
+      nil -> {:error, no_open_wait_text(card)}
+      wait -> answer_wait(wait, actor, attrs)
+    end
+  end
+
+  def answer_wait(%Wait{} = wait, actor, attrs) do
+    wait = Repo.preload(wait, wait_preloads())
+    answer = attrs |> wait_attr(:answer) |> blank_to_nil()
+
+    with :ok <- not_self_answer(wait, actor),
+         {:ok, choice} <- wait_choice(wait, wait_attr(attrs, :choice)),
+         :ok <- some_answer(answer, choice),
+         :ok <- answer_length(answer),
+         {:ok, closed} <-
+           close_wait(wait, actor, "answered", answer: answer, choice: choice) do
+      card = Repo.get!(Card, wait.card_id)
+      {:ok, _} = add_comment(card, answered_text(closed), by: actor_user(actor))
+      requeue_after_answer(closed)
+      {:ok, closed}
+    end
+  end
+
+  defp wait_attr(attrs, key), do: attrs[key] || attrs[Atom.to_string(key)]
+
+  defp no_open_wait_text(card) do
+    case last_wait(card) do
+      %Wait{close_reason: "answered"} = w -> already_closed(w)
+      _ -> "card ##{card.id} has no open wait"
+    end
+  end
+
+  defp not_self_answer(%Wait{kind: "agent"} = wait, %{kind: "agent"} = actor) do
+    same_job = wait.job_id != nil and wait.job_id == actor[:job_id]
+    same_token = wait.opened_by_id == actor[:user_id] and wait.agent == actor[:agent]
+
+    if same_job or same_token,
+      do: {:error, "an agent can't answer the wait it opened itself: a person has to answer it"},
+      else: :ok
+  end
+
+  defp not_self_answer(_wait, _actor), do: :ok
+
+  defp wait_choice(_wait, nil), do: {:ok, nil}
+  defp wait_choice(_wait, ""), do: {:ok, nil}
+
+  defp wait_choice(%Wait{choices: choices} = wait, choice) do
+    n =
+      case choice do
+        n when is_integer(n) -> n
+        text -> with {n, ""} <- Integer.parse(to_string(text)), do: n, else: (_ -> nil)
+      end
+
+    cond do
+      choices == [] -> {:error, "the wait “#{wait.needs}” has no choices: answer in words"}
+      n in 1..length(choices)//1 -> {:ok, n}
+      true -> {:error, "choice must be a number from 1 to #{length(choices)}"}
+    end
+  end
+
+  defp some_answer(nil, nil), do: {:error, "an answer needs text or a choice"}
+  defp some_answer(_, _), do: :ok
+
+  defp answer_length(answer) when is_binary(answer) and byte_size(answer) > 8000,
+    do: {:error, "the answer is too long: at most 8000 characters"}
+
+  defp answer_length(_), do: :ok
+
+  defp answered_text(wait) do
+    picked = Wait.choice_text(wait, wait.choice)
+
+    said =
+      [picked, wait.answer]
+      |> Enum.reject(&is_nil/1)
+      |> Enum.join(" — ")
+
+    "Answered “#{wait.needs}”: #{said}"
+  end
+
+  # Where an answer would set the asking job's rule going again. Nothing yet:
+  # parked jobs and re-queueing on an answer come with U5 (#1115).
+  defp requeue_after_answer(_wait), do: :ok
+
+  @doc """
+  Withdraws `card`'s open wait for `actor`: nobody needs the answer any
+  more. The `waiting` flag comes off if the wait put it there. Who may is
+  the caller's to check: anyone who may change the card, or who opened it.
+  """
+  def withdraw_wait(%Card{} = card, actor, opts \\ []) do
+    case current_wait(card) do
+      nil ->
+        {:error, "card ##{card.id} has no open wait"}
+
+      wait ->
+        with {:ok, closed} <- close_wait(wait, actor, "withdrawn", opts) do
+          {:ok, _} =
+            add_comment(
+              Repo.get!(Card, card.id),
+              opts[:note] || "#{actor_name(actor)} withdrew the wait “#{closed.needs}”",
+              by: actor_user(actor)
+            )
+
+          {:ok, closed}
+        end
+    end
+  end
+
+  # Closing is one conditional update, so of two racing the second finds the
+  # wait closed and is told by whom. The flag comes off afterwards if the
+  # wait set it, unless the flag going is what closed it (`flag: false`).
+  defp close_wait(%Wait{} = wait, actor, reason, opts) do
+    now = DateTime.utc_now(:second)
+    user = actor_user(actor)
+
+    {count, _} =
+      from(w in Wait, where: w.id == ^wait.id and is_nil(w.closed_at))
+      |> Repo.update_all(
+        set: [
+          closed_at: now,
+          closed_by_id: user && user.id,
+          close_reason: reason,
+          answer: opts[:answer],
+          choice: opts[:choice]
+        ]
+      )
+
+    closed = Wait |> Repo.get!(wait.id) |> Repo.preload(wait_preloads())
+
+    if count == 0 do
+      {:error, already_closed(closed)}
+    else
+      card = Repo.get!(Card, closed.card_id)
+
+      if closed.set_flag and opts[:flag] != false and "waiting" in card.flags,
+        do:
+          {:ok, _} =
+            update_card(card, %{"flags" => List.delete(card.flags, "waiting")},
+              by: user,
+              actor: actor,
+              wait_hook: false
+            )
+
+      log(Repo, card.board_id, card.id, "wait", "wait #{reason}: #{closed.needs}")
+      broadcast(card.board_id)
+      {:ok, closed}
+    end
+  end
+
+  defp already_closed(%Wait{} = w) do
+    what =
+      case w.close_reason do
+        "answered" -> "already answered"
+        "withdrawn" -> "already withdrawn"
+        "card_completed" -> "already closed when the card was completed"
+        "archived" -> "already closed when the card was archived"
+        _ -> "already closed"
+      end
+
+    by = if w.closed_by, do: " by #{person_name(w.closed_by)}", else: ""
+    "the wait “#{w.needs}” was #{what}#{by} at #{stamp(w.closed_at)}"
+  end
+
+  # What a change to a card does to its open wait: completing the card
+  # closes it, and taking the `waiting` flag off by hand withdraws it (R7,
+  # R13). A wait's own flag changes pass `wait_hook: false`.
+  defp wait_hooks(before, card, changeset, opts) do
+    cond do
+      opts[:wait_hook] == false ->
+        :ok
+
+      changeset.changes[:completed] == true ->
+        auto_close_wait(card, "card_completed", "the card was completed", opts)
+
+      "waiting" in before.flags and "waiting" not in card.flags ->
+        if wait = current_wait(card) do
+          actor = creator(opts)
+
+          close_wait(wait, actor, "withdrawn", flag: false)
+          |> tap_ok(fn closed ->
+            add_comment(
+              card,
+              "#{actor_name(actor)} took the waiting flag off, which withdrew the wait " <>
+                "“#{closed.needs}”",
+              by: actor_user(actor)
+            )
+          end)
+        end
+
+      true ->
+        :ok
+    end
+  end
+
+  defp auto_close_wait(card, reason, why, opts) do
+    if wait = current_wait(card) do
+      close_wait(wait, creator(opts), reason, [])
+      |> tap_ok(fn closed ->
+        add_comment(Repo.get!(Card, card.id), "Wait “#{closed.needs}” closed: #{why}.")
+      end)
+    end
+  end
+
+  @doc "The card's open wait, with who it is on and who opened it, or nil."
+  def current_wait(%Card{id: id}), do: current_wait(id)
+
+  def current_wait(card_id) when is_integer(card_id),
+    do: Map.get(current_waits([card_id]), card_id)
+
+  @doc "The open wait of each of `card_ids` that has one, by card id."
+  def current_waits([]), do: %{}
+
+  def current_waits(card_ids) when is_list(card_ids) do
+    from(w in Wait, where: w.card_id in ^card_ids and is_nil(w.closed_at))
+    |> Repo.all()
+    |> Repo.preload(wait_preloads())
+    |> Map.new(&{&1.card_id, &1})
+  end
+
+  @doc "The card's most recently closed wait, or nil."
+  def last_wait(%Card{id: id}), do: Map.get(last_waits([id]), id)
+
+  @doc "The most recently closed wait of each of `card_ids` that has had one."
+  def last_waits([]), do: %{}
+
+  def last_waits(card_ids) when is_list(card_ids) do
+    from(w in Wait,
+      where: w.card_id in ^card_ids and not is_nil(w.closed_at),
+      distinct: w.card_id,
+      order_by: [asc: w.card_id, desc: w.closed_at, desc: w.id]
+    )
+    |> Repo.all()
+    |> Repo.preload(wait_preloads())
+    |> Map.new(&{&1.card_id, &1})
+  end
+
+  @doc "How many waits have been opened on the card: the questions it has asked."
+  def wait_count(%Card{id: id}),
+    do: Repo.aggregate(from(w in Wait, where: w.card_id == ^id), :count)
+
+  defp actor_user(%{user_id: id}) when is_integer(id), do: Repo.get(User, id)
+  defp actor_user(_), do: nil
+
+  defp actor_name(actor) do
+    case actor_user(actor) do
+      nil -> if actor[:kind] == "automation", do: "An automation", else: "Someone"
+      user -> person_name(user)
+    end
+  end
+
+  defp person_name(%User{} = u), do: User.display_name(u)
+  defp person_name(_), do: "someone"
+
+  defp stamp(%DateTime{} = at), do: Calendar.strftime(at, "%Y-%m-%d %H:%M UTC")
+  defp stamp(_), do: "an unknown time"
+
+  defp blank_to_nil(nil), do: nil
+
+  defp blank_to_nil(text) do
+    case String.trim(to_string(text)) do
+      "" -> nil
+      trimmed -> trimmed
+    end
   end
 
   @doc "The root board id of the tree `board_id` belongs to."

@@ -322,7 +322,52 @@ defmodule SlipdockWeb.API.JSON do
       inserted_at: c.inserted_at,
       updated_at: c.updated_at
     }
+    |> put_open_wait(c)
   end
+
+  # Waiting on a person (#1114): only on a card that is, so a board with no
+  # waits reads as it always has.
+  defp put_open_wait(map, %Card{} = c) do
+    case Card.open_wait(c) do
+      nil -> map
+      w -> Map.put(map, :wait, wait(w))
+    end
+  end
+
+  @doc """
+  A wait (#1114): what is needed, from whom, the choices, who opened it (as
+  `Slipdock.Actor` classified them), and how it ended once it has.
+  """
+  def wait(nil), do: nil
+
+  def wait(%Slipdock.Boards.Wait{} = w) do
+    %{
+      id: w.id,
+      card_id: w.card_id,
+      needs: w.needs,
+      on: wait_person(w.on_user),
+      choices: w.choices,
+      opened_by: wait_person(w.opened_by),
+      kind: w.kind,
+      via: w.via,
+      agent: w.agent,
+      job_id: w.job_id,
+      set_flag: w.set_flag,
+      opened_at: w.inserted_at,
+      open: is_nil(w.closed_at),
+      closed_at: w.closed_at,
+      closed_by: wait_person(w.closed_by),
+      close_reason: w.close_reason,
+      answer: w.answer,
+      choice: w.choice,
+      choice_text: Slipdock.Boards.Wait.choice_text(w, w.choice),
+      requeue_state: w.requeue_state,
+      requeue_note: w.requeue_note
+    }
+  end
+
+  defp wait_person(%Slipdock.Accounts.User{} = u), do: person_ref(u)
+  defp wait_person(_), do: nil
 
   # Time tracking, in the card's own unit with the raw minutes beside it so
   # nothing has to know what a "day" is to add them up. `spent` includes a

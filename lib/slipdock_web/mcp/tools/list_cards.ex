@@ -114,6 +114,9 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
   # rather than once a card.
   defp in_full(board, cards, context) do
     docs = Slipdock.Wiki.pages_for_cards(cards, context.user)
+    ids = Enum.map(cards, & &1.id)
+    waits = Boards.current_waits(ids)
+    last_waits = Boards.last_waits(ids)
 
     board
     |> Boards.with_details(cards)
@@ -121,6 +124,8 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
       card
       |> V.card()
       |> Map.put(:docs, docs |> Map.get(card.id, []) |> Enum.map(&GetCard.doc/1))
+      |> Map.put(:wait, V.wait(waits[card.id]))
+      |> Map.put(:last_wait, V.wait(last_waits[card.id]))
       |> Map.put(:url, GetCard.url(card, context.base_url))
     end)
   end

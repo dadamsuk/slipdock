@@ -351,6 +351,9 @@ defmodule Slipdock.Portable.Export do
       # Where it was left, and every note before it, oldest first: the last
       # is the card's handoff (W-1804). One with no next_step is a clear.
       handoffs: status_json({:card, card.id}, refs, :handoffs),
+      # What it was waiting on people for, open and closed, oldest first
+      # (#1114). The runner job a wait was asked from stays behind.
+      waits: wait_json(card.id, refs),
       # The series this card is the current instance of, if it repeats
       # (W-1802): the rule and where it had got to, so an import carries on.
       recurrence: recurrence_json(refs.loaded.recurrences[card.id], refs),
@@ -517,6 +520,17 @@ defmodule Slipdock.Portable.Export do
       |> Repo.all()
       |> Enum.group_by(&{:card, &1.card_id}, &Map.delete(&1, :card_id))
 
+    waits =
+      from(w in Slipdock.Boards.Wait, where: w.card_id in ^card_ids, order_by: [asc: w.id])
+      |> Repo.all()
+      |> Enum.group_by(& &1.card_id)
+
+    wait_user_ids =
+      waits
+      |> Map.values()
+      |> Enum.concat()
+      |> Enum.flat_map(&[&1.on_user_id, &1.opened_by_id, &1.closed_by_id])
+
     user_ids =
       Enum.map(cards, & &1.assignee_id) ++
         Enum.map(cards, & &1.snoozed_by_id) ++
@@ -524,7 +538,8 @@ defmodule Slipdock.Portable.Export do
         Enum.concat(Map.values(assignees)) ++
         ((Map.values(statuses) ++ Map.values(handoffs))
          |> Enum.concat()
-         |> Enum.map(& &1.author_id))
+         |> Enum.map(& &1.author_id)) ++
+        wait_user_ids
 
     user_ids = user_ids |> Enum.reject(&is_nil/1) |> Enum.uniq()
 
@@ -586,6 +601,7 @@ defmodule Slipdock.Portable.Export do
         ),
       statuses: statuses,
       handoffs: handoffs,
+      waits: waits,
       recurrences:
         from(r in Slipdock.Recurrence.Series, where: r.card_id in ^card_ids)
         |> Repo.all()
@@ -644,6 +660,29 @@ defmodule Slipdock.Portable.Export do
       paused: series.paused,
       ended: series.ended_at != nil
     }
+  end
+
+  defp wait_json(card_id, refs) do
+    refs.loaded.waits
+    |> Map.get(card_id, [])
+    |> Enum.map(fn w ->
+      %{
+        needs: w.needs,
+        on: Refs.email_of(w.on_user_id, refs),
+        choices: w.choices,
+        opened_by: Refs.email_of(w.opened_by_id, refs),
+        kind: w.kind,
+        via: w.via,
+        agent: w.agent,
+        set_flag: w.set_flag,
+        opened_at: w.inserted_at,
+        closed_at: w.closed_at,
+        closed_by: Refs.email_of(w.closed_by_id, refs),
+        close_reason: w.close_reason,
+        answer: w.answer,
+        choice: w.choice
+      }
+    end)
   end
 
   # Status updates and handoffs: signed rows, the author by address.

@@ -38,7 +38,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     toggle_pin_doc doc_search attach_doc detach_doc card_timer log_time dep_direction
     dep_search link_search pick_template comment_change share revoke_grant cancel_job
     edit_handoff cancel_handoff leave_handoff clear_handoff draft_handoff
-    edit_repeat repeat_change save_repeat cancel_repeat skip_repeat pause_repeat stop_repeat)
+    edit_repeat repeat_change save_repeat cancel_repeat skip_repeat pause_repeat stop_repeat
+    answer_wait withdraw_wait)
   @events @own_events ++ ItemEvents.events()
   # What a reader who can't change the card may still do: nothing stored
   # changes, only what the panel is showing.
@@ -90,6 +91,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
        editing_handoff: false,
        handoff_form: nil,
        handoff_draft: nil,
+       wait_count: 0,
        repeat: nil
      )
      |> allow_upload(
@@ -210,7 +212,9 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     assign(socket,
       card_pages: Wiki.pages_for_card(card, socket.assigns.current_user),
       card_grants: if(socket.assigns.can_share, do: Access.list_grants(card), else: []),
-      handoff_history: Boards.handoff_history(card)
+      handoff_history: Boards.handoff_history(card),
+      # How many questions the card has asked, shown on its open wait (#1114).
+      wait_count: if(Card.open_wait(card), do: Boards.wait_count(card), else: 0)
     )
     |> assign_jobs()
   end
@@ -328,6 +332,10 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   defp read_only_message(_socket), do: "You have read-only access to this card."
 
   # Put a fresh copy of the card in front of the reader.
+  # The person at the page, as a change's `Slipdock.Actor`.
+  defp me(socket), do: Slipdock.Actor.web(socket.assigns.current_user)
+  defp by_me(socket), do: [by: socket.assigns.current_user, actor: me(socket)]
+
   defp reload(socket), do: assign(socket, card: fresh(socket, socket.assigns.card.id))
 
   # The card as this reader may see it: dependencies on boards they can't
@@ -523,7 +531,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   end
 
   defp event("toggle_flag", %{"flag" => flag}, socket) do
-    {:ok, _} = Boards.toggle_flag(socket.assigns.card, flag)
+    {:ok, _} = Boards.toggle_flag(socket.assigns.card, flag, by_me(socket))
     {:noreply, socket}
   end
 
@@ -557,13 +565,34 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   end
 
   defp event("archive_card", _, socket) do
-    {:ok, _} = Boards.archive_card(socket.assigns.card)
+    {:ok, _} = Boards.archive_card(socket.assigns.card, by_me(socket))
     {:noreply, push_patch(socket, to: socket.assigns.close_path)}
   end
 
   defp event("delete_card", _, socket) do
     {:ok, _} = Boards.delete_card(socket.assigns.card)
     {:noreply, push_patch(socket, to: socket.assigns.close_path)}
+  end
+
+  # Waiting on a person (#1114): answered by a choice's button or in words,
+  # or withdrawn. Both need write, as over the API.
+  defp event("answer_wait", params, socket) do
+    attrs = %{
+      "choice" => params["choice"],
+      "answer" => get_in(params, ["wait", "answer"]) || params["answer"]
+    }
+
+    case Boards.answer_wait(socket.assigns.card, me(socket), attrs) do
+      {:ok, _} -> {:noreply, socket |> reload() |> assign_pages()}
+      {:error, message} -> {:noreply, flash(socket, :error, message)}
+    end
+  end
+
+  defp event("withdraw_wait", _, socket) do
+    case Boards.withdraw_wait(socket.assigns.card, me(socket)) do
+      {:ok, _} -> {:noreply, socket |> reload() |> assign_pages()}
+      {:error, message} -> {:noreply, flash(socket, :error, message)}
+    end
   end
 
   defp event("comment_change", _, socket),
@@ -954,6 +983,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         uploads={@uploads}
         editing_description={@editing_description}
         handoff_history={@handoff_history}
+        wait_count={@wait_count}
         editing_handoff={@editing_handoff}
         handoff_form={@handoff_form}
         handoff_draft={@handoff_draft}
@@ -1088,6 +1118,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   attr :uploads, :map, required: true
   attr :editing_description, :boolean, required: true
   attr :handoff_history, :list, default: [], doc: "every handoff written, newest first"
+  attr :wait_count, :integer, default: 0, doc: "how many waits the card has had (#1114)"
   attr :editing_handoff, :boolean, default: false
   attr :handoff_form, :any, default: nil
 
@@ -1226,6 +1257,15 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
                 draft={@handoff_draft}
                 ai?={@ai?}
                 can_comment={@can_comment}
+                target={@target}
+              />
+            </fieldset>
+            <%!-- Waiting on a person (#1114): only while it is. --%>
+            <fieldset :if={Card.open_wait(@card)} disabled={!@can_write} class="min-w-0">
+              <.wait_panel
+                wait={Card.open_wait(@card)}
+                count={@wait_count}
+                can_write={@can_write}
                 target={@target}
               />
             </fieldset>
@@ -1428,6 +1468,87 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     do: if(Slipdock.Boards.Handoff.cleared?(h), do: nil, else: h)
 
   defp current_handoff(_), do: nil
+
+  attr :wait, :any, required: true
+  attr :count, :integer, required: true
+  attr :can_write, :boolean, required: true
+  attr :target, :any, required: true
+
+  # The card's open wait, beneath the title: what it needs and from whom,
+  # since when, a button for each choice, a box for an answer in words, and
+  # how many questions the card has asked.
+  defp wait_panel(assigns) do
+    ~H"""
+    <section id="card-wait" class="ml-1 space-y-2 border-l-2 border-warning/60 pl-3">
+      <p class="flex items-start gap-1.5 text-sm">
+        <.icon name="hero-hand-raised" class="mt-0.5 size-3.5 shrink-0 text-warning" />
+        <span>
+          <span class="text-base-content/60">Waiting on {Slipdock.Boards.Wait.on_name(@wait)}:</span>
+          <span class="font-medium" id="wait-needs">{@wait.needs}</span>
+        </span>
+      </p>
+      <p class="text-2xs text-base-content/50" id="wait-byline">
+        {wait_byline(@wait)} · {relative_time(@wait.inserted_at)}
+        <span :if={@count > 1}>
+          · question {@count} on this card
+        </span>
+      </p>
+      <div :if={@can_write and @wait.choices != []} class="flex flex-wrap gap-1.5">
+        <button
+          :for={{text, n} <- Enum.with_index(@wait.choices, 1)}
+          id={"wait-choice-#{n}"}
+          type="button"
+          class="btn btn-outline btn-xs"
+          phx-click="answer_wait"
+          phx-value-choice={n}
+          phx-target={@target}
+        >
+          {text}
+        </button>
+      </div>
+      <form
+        :if={@can_write}
+        id="wait-answer-form"
+        phx-submit="answer_wait"
+        phx-target={@target}
+        class="flex items-center gap-2"
+      >
+        <input
+          type="text"
+          name="wait[answer]"
+          class="input input-bordered input-xs w-full"
+          placeholder={if @wait.choices == [], do: "Your answer", else: "Or answer in words"}
+          maxlength="8000"
+        />
+        <button type="submit" class="btn btn-primary btn-xs">Answer</button>
+        <button
+          id="wait-withdraw"
+          type="button"
+          class="btn btn-ghost btn-xs"
+          phx-click="withdraw_wait"
+          phx-target={@target}
+          data-confirm="Withdraw the question? Nobody will be asked any more."
+        >
+          Withdraw
+        </button>
+      </form>
+    </section>
+    """
+  end
+
+  defp wait_byline(wait) do
+    who =
+      case wait.opened_by do
+        %Slipdock.Accounts.User{} = u -> Slipdock.Accounts.User.display_name(u)
+        _ -> "someone"
+      end
+
+    agent =
+      if wait.kind == "agent", do: " (agent#{if wait.agent, do: ": " <> wait.agent})", else: ""
+
+    job = if wait.job_id, do: " · job ##{wait.job_id}", else: ""
+    "Asked by #{who}#{agent}#{job}"
+  end
 
   attr :card, :any, required: true
   attr :history, :list, required: true
