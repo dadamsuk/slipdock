@@ -38,6 +38,11 @@ defmodule SlipdockWeb.Layouts do
     doc:
       "which place in the navigation this page is, marked in the avatar menu: :boards, :work, :favourites, :wiki, :vaults, :search, :ask, :templates, :groups, :tools, :agent, :account, or an admin page (:overview, :users, :tool_listings, :config)"
 
+  attr :wordmark, :boolean,
+    default: false,
+    doc:
+      "show the Slipdock name beside the mark while signed in, on a page with no board name to make room for"
+
   slot :inner_block, required: true
   slot :nav, doc: "content rendered in the header next to the brand"
   slot :actions, doc: "content rendered on the right side of the header"
@@ -75,8 +80,12 @@ defmodule SlipdockWeb.Layouts do
           >
             <.brand_mark />
             <%!-- Signed in, the mark is enough: the wordmark took the room the
-                board's own name needed. --%>
-            <.brand_wordmark :if={!@current_user} class="hidden h-4 sm:inline-flex" />
+                board's own name needed. A page without one (the home page)
+                asks for the name back. --%>
+            <.brand_wordmark
+              :if={!@current_user || @wordmark}
+              class="hidden h-4 sm:inline-flex"
+            />
           </.link>
           <%!-- With nothing of its own and a board below, this is only the
                 spacer that pushes the tablet's first row apart; on one row
