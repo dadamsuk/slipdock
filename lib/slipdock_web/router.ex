@@ -734,6 +734,8 @@ defmodule SlipdockWeb.Router do
     post "/cards/:id/archive", CardController, :archive
     post "/cards/:id/restore", CardController, :restore
     post "/cards/:id/copy", CardController, :copy
+    post "/cards/:id/incident-of", CardController, :incident_of
+    delete "/cards/:id/incident-of", CardController, :incident_of
     get "/cards/:id/recurrence", RecurrenceController, :show
     put "/cards/:id/recurrence", RecurrenceController, :update
     delete "/cards/:id/recurrence", RecurrenceController, :delete

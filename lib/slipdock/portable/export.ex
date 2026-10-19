@@ -250,6 +250,8 @@ defmodule Slipdock.Portable.Export do
       show_pulse: board.show_pulse,
       delivery_metrics: board.delivery_metrics,
       card_ref_pattern: board.card_ref_pattern,
+      incident_tag: board.incident_tag,
+      hotfix_window_hours: board.hotfix_window_hours,
       automation_wip: board.automation_wip,
       kind: board.kind,
       archived: board.archived_at != nil,

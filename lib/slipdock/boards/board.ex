@@ -68,6 +68,11 @@ defmodule Slipdock.Boards.Board do
     # A regex finding card ids in commit messages, its first group the id;
     # nil is `#NNN` (`Slipdock.Deployments.card_refs/2`).
     field :card_ref_pattern, :string
+    # The tag that marks the board's incident cards; nil is "incident". And
+    # how many hours after a deploy a fix naming an incident makes that
+    # deploy a failed change (`Slipdock.Deployments.Incidents`).
+    field :incident_tag, :string
+    field :hotfix_window_hours, :integer, default: 24
 
     # Whether WIP limits hold automated work (#1116, KTD11): with it on, a
     # runner job or a list_top send whose card isn't already in progress
@@ -367,6 +372,8 @@ defmodule Slipdock.Boards.Board do
       :show_pulse,
       :delivery_metrics,
       :card_ref_pattern,
+      :incident_tag,
+      :hotfix_window_hours,
       :automation_wip,
       :kind,
       :default_view
@@ -393,6 +400,12 @@ defmodule Slipdock.Boards.Board do
     |> validate_length(:name, min: 1, max: @name_length)
     |> validate_inclusion(:color, Slipdock.Palette.names())
     |> update_change(:card_ref_pattern, &blank_to_nil/1)
+    |> update_change(:incident_tag, &(&1 |> blank_to_nil() |> incident_tag_to_nil()))
+    |> validate_length(:incident_tag, max: 50)
+    |> validate_number(:hotfix_window_hours,
+      greater_than_or_equal_to: 0,
+      less_than_or_equal_to: 24 * 30
+    )
     |> validate_change(:card_ref_pattern, &validate_card_ref_pattern/2)
   end
 
@@ -412,6 +425,12 @@ defmodule Slipdock.Boards.Board do
         []
     end
   end
+
+  # The default is stored as nil, so a later change of default reaches it.
+  defp incident_tag_to_nil(nil), do: nil
+
+  defp incident_tag_to_nil(tag),
+    do: if(String.downcase(String.trim(tag)) == "incident", do: nil, else: String.trim(tag))
 
   # An unescaped `(` that doesn't start a non-capturing or other `(?…)` group.
   defp capturing_group?(pattern), do: Regex.match?(~r/(?<!\\)\((?!\?)/, pattern)

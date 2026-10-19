@@ -448,6 +448,9 @@ defmodule Slipdock.Portable.Import do
           show_pulse: bool(doc[:show_pulse], false),
           delivery_metrics: bool(doc[:delivery_metrics], false),
           card_ref_pattern: if(is_binary(doc[:card_ref_pattern]), do: doc[:card_ref_pattern]),
+          incident_tag: if(is_binary(doc[:incident_tag]), do: doc[:incident_tag]),
+          hotfix_window_hours:
+            if(is_integer(doc[:hotfix_window_hours]), do: doc[:hotfix_window_hours], else: 24),
           automation_wip: bool(doc[:automation_wip], false),
           kind: if(doc[:kind] in Board.kinds(), do: doc[:kind])
         },

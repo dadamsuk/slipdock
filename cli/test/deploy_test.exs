@@ -278,4 +278,53 @@ defmodule SlipdockCLI.DeployTest do
     assert opts[:env] == "prod"
     assert args == ["deploy", "run", "./d.sh", "--force"]
   end
+
+  test "incident-of links a card to a deploy, and --clear unlinks" do
+    System.put_env("SLIPDOCK_TOKEN", "api-token")
+
+    serve([
+      {200, JSON.encode!(%{"card" => 5, "incident_of" => 9})},
+      {200, JSON.encode!(%{"card" => 5, "incident_of" => nil})}
+    ])
+
+    assert capture_io(fn -> Deploy.run("incident-of", ["5", "9"], []) end) =~
+             "card #5 caused by deploy #9"
+
+    assert_received {:request, "POST", "/api/cards/5/incident-of", body}
+    assert JSON.decode!(body) == %{"deployment" => "9"}
+
+    assert capture_io(fn -> Deploy.run("incident-of", ["5"], clear: true) end) =~
+             "no longer names a deploy"
+
+    assert_received {:request, "DELETE", "/api/cards/5/incident-of", _}
+  end
+
+  test "set-board sends the incident settings" do
+    System.put_env("SLIPDOCK_TOKEN", "api-token")
+    serve([{200, ~s({"board":{"id":3,"name":"Docs"}})}])
+
+    {opts, _, []} =
+      OptionParser.parse(
+        [
+          "set-board",
+          "x",
+          "--incident-tag",
+          "sev",
+          "--hotfix-hours",
+          "6",
+          "--card-ref-pattern",
+          "J-(\\d+)"
+        ],
+        strict: SlipdockCLI.switches()
+      )
+
+    capture_io(fn -> SlipdockCLI.Boards.run("set-board", ["docs"], opts) end)
+    assert_received {:request, "PATCH", "/api/boards/docs", body}
+
+    assert JSON.decode!(body) == %{
+             "incident_tag" => "sev",
+             "hotfix_window_hours" => 6,
+             "card_ref_pattern" => "J-(\\d+)"
+           }
+  end
 end

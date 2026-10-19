@@ -620,7 +620,8 @@ defmodule SlipdockCLI do
         [--no-add-card] [--no-add-page] [--no-add-document] [--sprints | --no-sprints]
         [--simple | --no-simple] [--page-card-features | --no-page-card-features]
         [--show-pulse | --no-show-pulse] [--automation-wip | --no-automation-wip]
-        [--delivery-metrics | --no-delivery-metrics] [--default-view V]
+        [--delivery-metrics | --no-delivery-metrics] [--incident-tag T] [--hotfix-hours N]
+        [--card-ref-pattern RE] [--default-view V]
                                         rename a board, change its code, shortcut key or colour,
                                         say what the foot of each list offers, make it a
                                         sprint board (every card a sprint), or a simple one (a
@@ -634,6 +635,11 @@ defmodule SlipdockCLI do
                                         WIP limit hold runner jobs and list sends;
                                         --delivery-metrics lets the board record deploys
                                         and shows its DORA numbers (see `deploy`, `dora`);
+                                        --incident-tag names the tag on incident cards
+                                        (incident); --hotfix-hours how soon a fix naming one
+                                        makes the deploy before it a failed change (24);
+                                        --card-ref-pattern the regex finding card ids in
+                                        commit messages, id in its first group (#(\\d+))
                                         --default-view picks what opening the board shows
                                         in the web app: board, swimlanes, table, timeline,
                                         calendar, outline, narrative, prioritise or wiki
@@ -726,6 +732,8 @@ defmodule SlipdockCLI do
     deploy token <board> [--revoke]                issue (or replace) the board's deploy token,
                                                    shown once — it records deploys and nothing
                                                    else; --revoke ends it. Owner only, API token
+    incident-of <card> <deploy-id> | --clear       say which deploy an incident card was caused
+                                                   by (that deploy counts as a failed change)
     runner new <board> [name] --pool P [--scenario server|windows|loop|cloud|chatgpt]
                [--agent claude|codex|custom] [--command CMD] [--kind K] [--cwd DIR]
                [--permission-mode M] [--timeout SECONDS] [--service auto|systemd|launchd|none]
@@ -848,6 +856,9 @@ defmodule SlipdockCLI do
     sha: :string,
     revoke: :boolean,
     from_tags: :boolean,
+    incident_tag: :string,
+    hotfix_hours: :integer,
+    card_ref_pattern: :string,
     pattern: :string,
     delivery_metrics: :boolean,
     automation_wip: :boolean,

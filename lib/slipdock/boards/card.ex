@@ -105,6 +105,9 @@ defmodule Slipdock.Boards.Card do
     # nil when the real card has since been deleted, which is why there is no
     # foreign key behind it.
     belongs_to :stand_in_for, __MODULE__
+    # The deploy this incident card says caused it (#1134), set with
+    # `Slipdock.Deployments.Incidents.link/2`, never through the changeset.
+    belongs_to :caused_by_deployment, Slipdock.Deployments.Deployment
 
     # A recurring card (W-1802): the series this card is an instance of, and
     # the series it is the current instance of (the one the next is copied

@@ -570,6 +570,27 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
                 </span>
               </span>
             </label>
+            <div :if={@board.delivery_metrics} class="grid grid-cols-1 gap-2 pl-6 sm:grid-cols-3">
+              <.input
+                field={@form[:incident_tag]}
+                id="board-incident-tag"
+                label="Incident tag"
+                placeholder="incident"
+              />
+              <.input
+                field={@form[:hotfix_window_hours]}
+                id="board-hotfix-hours"
+                type="number"
+                min="0"
+                label="Hotfix window (hours)"
+              />
+              <.input
+                field={@form[:card_ref_pattern]}
+                id="board-card-ref-pattern"
+                label="Card ids in commits"
+                placeholder="#(\d+)"
+              />
+            </div>
           </div>
           <%!-- WIP limits holding automated work (#1116, KTD11). Off by
                 default: people's drags only ever see the badge. --%>

@@ -58,6 +58,8 @@ defmodule SlipdockWeb.API.JSON do
       show_pulse: b.show_pulse,
       delivery_metrics: b.delivery_metrics,
       card_ref_pattern: b.card_ref_pattern,
+      incident_tag: b.incident_tag || "incident",
+      hotfix_window_hours: b.hotfix_window_hours,
       deploy_token: Slipdock.Deployments.token?(b),
       automation_wip: b.automation_wip,
       default_view: Board.home_view(b),
@@ -129,6 +131,8 @@ defmodule SlipdockWeb.API.JSON do
       show_pulse: b.show_pulse,
       delivery_metrics: b.delivery_metrics,
       card_ref_pattern: b.card_ref_pattern,
+      incident_tag: b.incident_tag || "incident",
+      hotfix_window_hours: b.hotfix_window_hours,
       deploy_token: Slipdock.Deployments.token?(b),
       automation_wip: b.automation_wip,
       columns:
