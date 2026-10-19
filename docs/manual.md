@@ -96,7 +96,7 @@ way in: what it is, the pictures, and how to get it running.
   them between lists — tags travel by name, custom fields where the other
   board has them (see below)
 - Favourites (`/favourites`): the handful of things you keep going back to —
-  a saved view, a list on a board, a card, a whole board — kept per person and
+  a saved view, a list on a board, a card, a whole board, a wiki page — kept per person and
   two taps from anywhere: the heart in the header, the phone's fifth tab
   (see below)
 - Archivable boards: a whole board can be put away without deleting anything
@@ -1496,7 +1496,8 @@ card you report against every day is one of hundreds — three or four taps
 every time, and the last one a hunt.
 
 Press the heart on a **saved view** (in the Views menu), a **list header**, or
-an open **card** (beside the close button) and it lands on `/favourites` — the
+an open **card** (beside the close button), or a **wiki page** (beside its
+code, at the top of the page) and it lands on `/favourites` — the
 heart in the header bar on a desktop, the fifth tab on a phone. So anything you go back to often is two taps from
 anywhere: the heart, then the thing.
 
@@ -1505,6 +1506,8 @@ anywhere: the heart, then the thing.
   arriving and swiping to find it.
 - A favourited **view** opens in the mode it was saved in, as the view
   switcher's favourites always have.
+- A favourited **wiki page** opens the page; a draft only stays on the list
+  while you could still edit it. From the CLI: `slipdock fav page W-31`.
 - Favourites are **yours**. Two people on the same board keep different ones,
   and sharing a board never hands your shortcuts to anybody else. Marking one
   changes nothing about the thing itself, so read access is enough.
@@ -4806,7 +4809,7 @@ GET    /api/boards/:board/swimlanes         ?view= &rows= &cols= &unit= &sort= &
                                             &tags= &priorities= &flags= &columns= &colors=   (lists are comma-joined)
 GET    /api/boards/:board/views            POST   /api/boards/:board/views   {name, ...config params}
 GET    /api/boards/:board/views/:id        PATCH  /api/boards/:board/views/:id   DELETE /api/boards/:board/views/:id
-GET    /api/favourites                     POST   /api/favourites   {kind: board|column|card|view, id}
+GET    /api/favourites                     POST   /api/favourites   {kind: board|column|card|view|page, id}
 DELETE /api/favourites/:kind/:id           (yours alone; both writes are idempotent)
 GET    /api/cards/:id                      PATCH  /api/cards/:id       DELETE /api/cards/:id
 POST   /api/cards/:id/move   {column, index: "top"|"bottom"|N}
@@ -5110,7 +5113,7 @@ slipdock tools file job-scan skills/job-scan/SKILL.md   # one file of the packag
 slipdock wiki files job-scan --folder Tool    # a board's wiki files that are not pages
 slipdock wiki get job-scan Tool/cv.docx       # one of them, saved here (--out F, or - for stdout)
 slipdock favourites                            # what you keep going back to, with the URL of each
-slipdock fav list qvm-v1-rem "In Progress"     # also: fav card 42 | fav view <board> <view> | fav board <board>
+slipdock fav list qvm-v1-rem "In Progress"     # also: fav card 42 | fav view <board> <view> | fav board <board> | fav page W-31
 slipdock hotkey slipdock 1                     # Ctrl+Shift+1 opens it in the web app; `slipdock hotkeys` lists yours
 slipdock unfav list qvm-v1-rem "In Progress"   # or `fav ... --off`
 ```

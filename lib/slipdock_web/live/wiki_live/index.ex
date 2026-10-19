@@ -17,7 +17,9 @@ defmodule SlipdockWeb.WikiLive.Index do
 
   import SlipdockWeb.ItemComponents
   import SlipdockWeb.FolderPicker
-  import SlipdockWeb.SlipdockComponents, only: [view_tabs: 1, filter_menu: 1, modal: 1]
+
+  import SlipdockWeb.SlipdockComponents,
+    only: [view_tabs: 1, filter_menu: 1, modal: 1, favourite_toggle: 1]
 
   alias Slipdock.{Access, Boards, Fields, Votes, Wiki}
   alias Slipdock.Boards.Attachment
@@ -1189,6 +1191,20 @@ defmodule SlipdockWeb.WikiLive.Index do
        |> reload(page)}
     else
       _ -> {:noreply, put_flash(socket, :error, "That card couldn't be attached.")}
+    end
+  end
+
+  # Favouriting the open page (#1165). Personal, so reading it is enough, and
+  # `Favourites.toggle/3` re-checks that; the page itself is not touched.
+  def handle_event("toggle_favourite", %{"kind" => kind, "id" => id}, socket) do
+    user = socket.assigns.current_user
+
+    with {:ok, kind} <- Slipdock.Favourites.kind(kind),
+         id when is_integer(id) <- Params.id(id),
+         {:ok, _} <- Slipdock.Favourites.toggle(user, kind, id) do
+      {:noreply, assign(socket, marks: Slipdock.Favourites.marks(user))}
+    else
+      _ -> {:noreply, socket}
     end
   end
 
@@ -4524,6 +4540,7 @@ defmodule SlipdockWeb.WikiLive.Index do
                     current_user={@current_user}
                     form_key={@form_key}
                     shares={@page_shares}
+                    marks={@marks}
                   />
               <% end %>
             </div>
@@ -5928,6 +5945,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   attr :current_user, :any, default: nil
   attr :form_key, :integer, default: 0
   attr :shares, :integer, default: 0
+  attr :marks, :any, default: nil, doc: "the reader's favourites, for the page's heart"
 
   defp page_body(assigns) do
     ~H"""
@@ -5975,6 +5993,16 @@ defmodule SlipdockWeb.WikiLive.Index do
           <p :if={@page.summary} class="mt-1 text-base-content/60">{@page.summary}</p>
         </div>
         <div class="flex shrink-0 items-center gap-1">
+          <%!-- Anyone who can read the page may favourite it: it is their
+                own shortcut on /favourites, not a change to the page. --%>
+          <.favourite_toggle
+            :if={@current_user}
+            id={@page.id}
+            kind="page"
+            name={@page.title}
+            marks={@marks}
+            class="btn btn-ghost btn-sm btn-square"
+          />
           <span class="chip chip-line font-mono text-2xs" title="Page code">{@page.code}</span>
           <%!-- A drawing opens in the Excalidraw editor (W-103 R5.2); its
                 Markdown is still there under Edit, for the rare fix by hand. --%>

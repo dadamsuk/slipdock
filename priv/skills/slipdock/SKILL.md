@@ -357,6 +357,7 @@ slipdock set-board <board> --simple | --no-simple         # plain to-do list: hi
 slipdock set-board <board> --default-view wiki            # what opening the board shows in the web app (board, table, wiki…)
 slipdock set-board <board> --no-page-card-features        # the board's wiki pages hide status, checklist, links, fields, votes, comments
 slipdock fav card <id> | fav list <board> <column> | fav view <board> <view> | fav board <board>
+slipdock fav page <page>                                  # a wiki page, by code (W-31), slug or board/slug
 slipdock unfav <same args>                                # or `fav ... --off`
 slipdock hotkeys | slipdock hotkey <board> <0-9|none>     # Ctrl+Shift+digit opens that board in the web app
 ```

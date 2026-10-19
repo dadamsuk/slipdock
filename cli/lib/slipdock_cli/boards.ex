@@ -1203,9 +1203,15 @@ defmodule SlipdockCLI.Boards do
     set_favourite("view", pick(views, Enum.join(name, " "), "view", ref), o, dir)
   end
 
+  # A page answers to its code (W-31), its slug or board/slug, like every
+  # other page command; the favourite is kept against its id.
+  defp favourite(["page", ref], o, dir) do
+    set_favourite("page", fetch!("/pages/#{enc(ref)}")["page"]["id"], o, dir)
+  end
+
   defp favourite(_, _, _) do
     fail(
-      "usage: slipdock fav card <id> | list <board> <column> | view <board> <view> | board <board>"
+      "usage: slipdock fav card <id> | list <board> <column> | view <board> <view> | board <board> | page <page>"
     )
   end
 

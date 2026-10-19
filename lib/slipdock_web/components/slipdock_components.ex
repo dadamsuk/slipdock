@@ -1723,7 +1723,7 @@ defmodule SlipdockWeb.SlipdockComponents do
 
   attr :kind, :string,
     required: true,
-    doc: ~s(what is being favourited: "board", "column", "card" or "view")
+    doc: ~s(what is being favourited: "board", "column", "card", "view" or "page")
 
   attr :id, :any, required: true, doc: "the thing's id"
   attr :name, :string, required: true, doc: "its name, for the label a screen reader reads"
