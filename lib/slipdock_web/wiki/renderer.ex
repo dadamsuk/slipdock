@@ -445,10 +445,17 @@ defmodule SlipdockWeb.Wiki.Renderer do
   # `![[photo.png]]` in the middle of a sentence: the file, inline.
   defp ref_node(%{embed: true} = ref, context) do
     cond do
-      context.static -> ref_node(Map.delete(ref, :embed), context)
-      drawing = drawing_html(ref, context) -> %MDEx.HtmlInline{literal: drawing}
-      file_embed?(ref) -> %MDEx.HtmlInline{literal: file_inline(ref, context)}
-      true -> ref_node(Map.delete(ref, :embed), context)
+      context.static ->
+        published_inline(ref, context) || ref_node(Map.delete(ref, :embed), context)
+
+      drawing = drawing_html(ref, context) ->
+        %MDEx.HtmlInline{literal: drawing}
+
+      file_embed?(ref) ->
+        %MDEx.HtmlInline{literal: file_inline(ref, context)}
+
+      true ->
+        ref_node(Map.delete(ref, :embed), context)
     end
   end
 
@@ -832,12 +839,20 @@ defmodule SlipdockWeb.Wiki.Renderer do
   # section under that heading, or the block, drawn in place for this reader.
   # One level deep and never round in a circle — past that, and for anything
   # that is not a page, it is a link. A published page names what it embeds
-  # rather than showing it: nobody is behind it to have permissions.
+  # rather than showing it: nobody is behind it to have permissions. The
+  # one exception is an image the page embeds (#1166), which is part of the
+  # page and is served through its link (`Embeds.published_url/2`).
   @max_embed_depth 2
 
-  defp embed_html(ref, %{static: true}),
-    do:
-      ~s|<p><span class="wiki-static">#{escape(ref.label || strip_brackets(ref.raw))}</span></p>|
+  defp embed_html(ref, %{static: true} = context) do
+    case published_inline(ref, context) do
+      nil ->
+        ~s|<p><span class="wiki-static">#{escape(ref.label || strip_brackets(ref.raw))}</span></p>|
+
+      img ->
+        "<p>" <> img <> "</p>"
+    end
+  end
 
   defp embed_html(ref, context) do
     seen = Enum.reject([context.page && context.page.id | context.embedding], &is_nil/1)
@@ -850,6 +865,27 @@ defmodule SlipdockWeb.Wiki.Renderer do
       true -> page_embed_html(ref, context, seen)
     end
   end
+
+  # `![[photo.png]]` on a published page: the image, through the page's
+  # link, when the page vouches for it (`Embeds.published?/2`). Nil for
+  # anything else, which stays a name.
+  defp published_inline(ref, %{
+         page: %Page{public_token: token} = page,
+         board: %Slipdock.Boards.Board{} = board
+       })
+       when is_binary(token) do
+    with true <- file_embed?(ref),
+         %Slipdock.Wiki.WikiFile{} = file <- Slipdock.Wiki.Files.find(board, ref.target, nil),
+         true <- Embeds.published?(page, file) do
+      label = escape(ref.label || file.name)
+
+      ~s|<img class="wiki-file-embed" src="#{escape(Embeds.published_url(file, page))}" alt="#{label}">|
+    else
+      _ -> nil
+    end
+  end
+
+  defp published_inline(_ref, _context), do: nil
 
   defp page_embed_html(ref, context, seen) do
     case resolve_one(ref, context) do

@@ -6,8 +6,8 @@ send:
 
 | Output | Form | Where it goes |
 |---|---|---|
-| CV | .docx and PDF | Attached to the card |
-| Covering letter | .docx and PDF | Attached to the card |
+| CV | .docx and PDF, or a designed PDF alone (`engine: html`, see step 6) | Attached to the card |
+| Covering letter | .docx and PDF, or a designed PDF alone | Attached to the card |
 | Recruiter LinkedIn message | Text, 300 characters or fewer | A comment on the card |
 | Recruiter email | Text, with a subject line | The same comment |
 | Talking points | Text | Appended to the role page |
@@ -188,6 +188,15 @@ attach the files.
 
 ## 6. Check the content, then build the files
 
+### Which build
+
+Read the ` ```build ` block on `Writing Rules`. **`engine: html`** means the designed build: the
+CV and the letter are laid out as HTML and printed to a tagged PDF, with no .docx and no template.
+The markdown is the same, and any `##` section the block's `sidebar` line names goes in the CV's
+sidebar, in that order (a `**Label:** text` line in the `numbers section` is set as a large number
+over its explanation; the `status section` sits last, with no heading). Without `engine: html`, the
+template build below runs as before.
+
 ### Get the tools
 
 Into one working folder:
@@ -205,7 +214,9 @@ Into one working folder:
 - **The rules:** `Writing Rules` saved as `rules.md`, exactly as `read_page` returned it.
 
 Check the toolchain before starting: `pandoc`, `soffice` (LibreOffice) and `pdftotext`
-and `pdfinfo` (poppler). If one is missing, see step 10.
+and `pdfinfo` (poppler). With `engine: html` the template is not needed, and the toolchain is
+instead Python Playwright with Chromium, npm (the font is fetched once from @fontsource and
+cached) and poppler including `pdffonts`. If one is missing, see step 10.
 
 ### Build
 
@@ -216,7 +227,11 @@ python3 build_docs.py build letter.md --kind letter --template cv-template.docx 
   --rules rules.md --out out --name "<file name from Writing Rules>"
 ```
 
-Each makes the .docx and its PDF (rendered from that .docx, so they cannot disagree),
+With `engine: html`, drop `--template`: each makes a PDF alone. It also checks that no font is
+embedded as Type 3 (some CV parsers cannot read such text) and that the entries come out of the
+PDF's text in order.
+
+Otherwise each makes the .docx and its PDF (rendered from that .docx, so they cannot disagree),
 reports the page count against the `cv pages` setting in the ` ```build ` block, and
 runs every check in the ` ```checks ` block on the .docx text and the PDF text. Exit 0
 is clean, 1 is a failed check or a wrong page count (the report lists each hit with its
@@ -238,8 +253,8 @@ hit has been read and is legitimate.
 
 ## 7. Put each output where it belongs
 
-**The four files go on the card**, uploaded so the bytes never pass through the
-conversation:
+**The files go on the card** (four with the template build, two PDFs with `engine: html`),
+uploaded so the bytes never pass through the conversation:
 
 1. `upload_file` with `card`, `link: true` → a single-use `upload_url` (ten minutes, no
    token needed).
