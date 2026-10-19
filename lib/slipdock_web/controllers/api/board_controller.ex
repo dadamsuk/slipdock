@@ -198,10 +198,33 @@ defmodule SlipdockWeb.API.BoardController do
                params,
                ~w(name code shortcut description color vote_budget vote_max
                   add_card add_page add_document page_card_features simple kind
-                  default_view show_pulse delivery_metrics automation_wip)
+                  default_view show_pulse delivery_metrics card_ref_pattern automation_wip)
              )
            ) do
       json(conn, %{board: V.board_summary(board, conn.assigns.current_user)})
+    end
+  end
+
+  # The board's deploy token (#1134): issued (or replaced) and shown this
+  # once, or revoked. The owner's alone, like the board's settings.
+  def deploy_token(conn, %{"board" => ref}) do
+    with {:ok, board} <- fetch_board(conn, ref, :owner),
+         {:ok, token, board} <- Slipdock.Deployments.issue_token(board) do
+      json(conn, %{
+        board: %{id: board.id, code: board.code},
+        token: token,
+        delivery_metrics: board.delivery_metrics,
+        note:
+          "shown once: keep it as the CI secret SLIPDOCK_DEPLOY_TOKEN. It records deploys " <>
+            "for this board and can do nothing else."
+      })
+    end
+  end
+
+  def revoke_deploy_token(conn, %{"board" => ref}) do
+    with {:ok, board} <- fetch_board(conn, ref, :owner),
+         {:ok, board} <- Slipdock.Deployments.revoke_token(board) do
+      json(conn, %{board: %{id: board.id, code: board.code}, token: nil})
     end
   end
 

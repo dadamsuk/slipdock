@@ -17,6 +17,25 @@ defmodule SlipdockWeb.API.JSON do
   alias Slipdock.Swimlanes.Config
   alias Slipdock.Wiki.{Link, Page, Revision}
 
+  @doc "A deploy from the ledger (#1134), its commits included."
+  def deployment(%Slipdock.Deployments.Deployment{} = d) do
+    %{
+      id: d.id,
+      board_id: d.board_id,
+      environment: d.environment,
+      sha: d.sha,
+      tag: d.tag,
+      previous_sha: d.previous_sha,
+      status: d.status,
+      started_at: d.started_at,
+      finished_at: d.finished_at,
+      source: d.source,
+      rollback: d.rollback,
+      cards: d.card_ids,
+      commits: d.commits
+    }
+  end
+
   @doc """
   A board in a listing. `viewer` is who is reading, and is what decides
   `shared`: a board whose owner is somebody else. The owner is named either
@@ -38,6 +57,8 @@ defmodule SlipdockWeb.API.JSON do
       page_card_features: b.page_card_features,
       show_pulse: b.show_pulse,
       delivery_metrics: b.delivery_metrics,
+      card_ref_pattern: b.card_ref_pattern,
+      deploy_token: Slipdock.Deployments.token?(b),
       automation_wip: b.automation_wip,
       default_view: Board.home_view(b),
       owner: owner_ref(b),
@@ -107,6 +128,8 @@ defmodule SlipdockWeb.API.JSON do
       # the numbers on any board.
       show_pulse: b.show_pulse,
       delivery_metrics: b.delivery_metrics,
+      card_ref_pattern: b.card_ref_pattern,
+      deploy_token: Slipdock.Deployments.token?(b),
       automation_wip: b.automation_wip,
       columns:
         Enum.map(b.columns, fn col ->
