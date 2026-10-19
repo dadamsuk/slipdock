@@ -101,9 +101,12 @@ posting already seen. Create it on the first run of a month (`write_page` create
   the reason gives the posted figure), `dead` (posting closed or gone), `seen`
   (already in the ledger; only when it is worth a line, such as a re-advertisement).
 - **Reason** is one phrase, with the words from the posting that decided it.
-- Append rows with `write_page` in `append_section` mode, section `Postings` (or
-  `Runs`), passing the page's `content_hash` as you read it. A save refused because the
-  page changed means someone edited it: read it again and append again.
+- Add rows with `write_page` in `replace_section` mode, section `Postings` (or `Runs`):
+  the section exactly as you read it with the new rows added at the end of its table,
+  and the page's `content_hash` as `base_hash`. **Not `append_section`:** it puts a
+  blank line before what it adds, and a row after a blank line is no longer part of the
+  table. A save refused because the page changed means someone edited it: read it
+  again and redo it.
 
 Read the current month's page and the two before it. Postings recur, and a
 re-advertised role comes back under a fresh id.
@@ -293,7 +296,7 @@ searching for it.
 
 ## 9. Log the run
 
-Append one row to the ledger's `Runs` section: the date, `daily` or `fallback`, the
+Add one row to the end of the ledger's `Runs` table (as in step 3, never `append_section`): the date, `daily` or `fallback`, the
 sources read, postings seen, how many were new, how many became cards, and notes:
 anything that went wrong, a source signed out, a search that came back empty or
 promoted-only, a rule that looked wrong on a real posting, pages that disagreed.

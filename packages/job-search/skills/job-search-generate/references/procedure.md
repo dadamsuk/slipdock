@@ -114,7 +114,9 @@ one per question:
 - **Without a job:** `update_card` with `wait` the same way, and stop.
 
 Say in the wait what each answer changes ("3. Yes → the CV can claim the budget
-ownership the posting requires"), and that "skip" is a fine answer. Then stop: do not
+ownership the posting requires"), and that "skip" is a fine answer. Keep `needs` under
+**1,000 characters**: a longer one is refused and the job is not parked. Only a person
+can answer a wait an agent opened, so never answer it yourself. Then stop: do not
 build half the documents while waiting.
 
 ## 5. Write the content first, as text
@@ -265,9 +267,10 @@ Subject: <subject>
 <the body>
 ```
 
-**The talking points go on the role page**, `write_page` `append_section` under
-`## Talking points (YYYY-MM-DD)`, next to the probe list and do-not-claim list they
-draw on. No role page: create one in `Roles` and pin it to the card.
+**The talking points go on the role page**, `write_page` in `append` mode with a body
+that starts `## Talking points (YYYY-MM-DD)`, so they sit after the probe list and
+do-not-claim list they draw on. (`append_section` adds to a section that already
+exists, and this one does not yet.) No role page: create one in `Roles` and pin it to the card.
 
 ## 8. Move the card to `Ready`
 
