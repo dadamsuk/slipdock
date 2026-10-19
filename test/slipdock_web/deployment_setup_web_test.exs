@@ -100,6 +100,10 @@ defmodule SlipdockWeb.DeploymentSetupWebTest do
         sha: "abcdef1234"
       })
 
+    # The board page forwards the deploy to the panel with send_update, a
+    # second message to itself: let it handle both before looking.
+    _ = :sys.get_state(view.pid)
+    _ = :sys.get_state(view.pid)
     assert render(view) =~ "First deploy arrived: abcdef1 to production"
     refute has_element?(view, "#deploy-waiting")
   end
