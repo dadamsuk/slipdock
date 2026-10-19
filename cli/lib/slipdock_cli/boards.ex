@@ -10,7 +10,7 @@ defmodule SlipdockCLI.Boards do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(guide search ask search-status saved save unsave boards board columns tags activity cards card swimlanes views favourites fav unfav hotkeys hotkey table fields milestones templates add copy repeat recurring snooze wake edit set vote status handoff new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
+  @commands ~w(guide search ask search-status saved save unsave boards board columns tags activity pulse cards card swimlanes views favourites fav unfav hotkeys hotkey table fields milestones templates add copy repeat recurring snooze wake edit set vote status handoff new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -89,6 +89,11 @@ defmodule SlipdockCLI.Boards do
     HTTP.get("/boards/#{enc(ref)}/activity", limit: o[:limit], card: o[:card])
     |> out(o, &Render.activity(&1["activity"]))
   end
+
+  # The board's flow numbers (#1113): what is in progress and waiting, done
+  # this week, how long work takes to get done, and each list's traffic.
+  def run("pulse", [ref], o),
+    do: HTTP.get("/boards/#{enc(ref)}/pulse") |> out(o, &Render.pulse(&1["pulse"]))
 
   def run("cards", [ref], o) do
     completed =
@@ -766,6 +771,8 @@ defmodule SlipdockCLI.Boards do
         # The card contents under every wiki page: --no-page-card-features.
         "page_card_features" => o[:page_card_features],
         "simple" => o[:simple],
+        # The pulse strip over the board's lists in the web app.
+        "show_pulse" => o[:show_pulse],
         # What opening the board shows in the web app: wiki, table, board…
         "default_view" => o[:default_view],
         "kind" =>
@@ -780,7 +787,7 @@ defmodule SlipdockCLI.Boards do
       do:
         fail(
           "nothing to change — pass --name, --code, --shortcut, --desc, --color, " <>
-            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features or --default-view"
+            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse or --default-view"
         )
 
     HTTP.patch("/boards/#{enc(ref)}", body)

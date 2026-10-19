@@ -359,7 +359,12 @@ defmodule Slipdock.Boards do
     |> put_computed()
     |> put_placed_pages()
     |> put_snoozed()
+    |> put_usual_stays()
   end
+
+  # One aggregate over the movement ledger for every list at once (#1113).
+  defp put_usual_stays(%Board{} = board),
+    do: %{board | usual_stays: Slipdock.Pulse.usual_stays(board)}
 
   # Snoozed cards (W-1803) leave the lists for the list's `snoozed`, after
   # they have been decorated like the rest so the footer can show them as

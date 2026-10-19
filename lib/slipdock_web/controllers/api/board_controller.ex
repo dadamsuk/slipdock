@@ -194,10 +194,21 @@ defmodule SlipdockWeb.API.BoardController do
                params,
                ~w(name code shortcut description color vote_budget vote_max
                   add_card add_page add_document page_card_features simple kind
-                  default_view)
+                  default_view show_pulse)
              )
            ) do
       json(conn, %{board: V.board_summary(board, conn.assigns.current_user)})
+    end
+  end
+
+  # The board's flow numbers (#1113, `Slipdock.Pulse`), whether or not its
+  # page shows them.
+  def pulse(conn, %{"board" => ref}) do
+    with {:ok, board} <- fetch_board(conn, ref, :read) do
+      json(conn, %{
+        board: %{id: board.id, code: board.code},
+        pulse: Slipdock.Pulse.for_board(board)
+      })
     end
   end
 

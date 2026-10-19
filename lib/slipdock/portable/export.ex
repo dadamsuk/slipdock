@@ -247,6 +247,7 @@ defmodule Slipdock.Portable.Export do
       page_card_features: board.page_card_features,
       default_view: board.default_view,
       simple: board.simple,
+      show_pulse: board.show_pulse,
       kind: board.kind,
       archived: board.archived_at != nil,
       # A sub-board hangs off a card; a root board hangs off nothing.

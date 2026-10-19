@@ -1255,6 +1255,10 @@ defmodule SlipdockWeb.APIGuide do
     # what happened on this board lately
     curl -s -H "$H" "B/api/boards/1/activity?limit=20"
 
+    # its flow numbers: in progress, waiting, done this week, time to done,
+    # moves forward and back, each list's in/out (MCP: get_board pulse: true)
+    curl -s -H "$H" B/api/boards/1/pulse
+
     # the boards themselves (owner only; ask before doing either)
     curl -s -X POST -H "$H" B/api/boards/1/archive    # put a board away, keeping everything on it
     curl -s -X POST -H "$H" B/api/boards/1/restore    # and bring it back

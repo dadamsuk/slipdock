@@ -52,6 +52,11 @@ defmodule Slipdock.Boards.Board do
     # stays, so turning it off brings everything back.
     field :simple, :boolean, default: false
 
+    # Whether the board page shows its pulse (#1113, `Slipdock.Pulse`) as a
+    # strip of plain words above the lists. Off unless the owner turns it
+    # on; the numbers reach the API, MCP and the CLI either way.
+    field :show_pulse, :boolean, default: false
+
     # What sort of board this is, when it is more than a board: "sprints"
     # makes every card a sprint and its subcards the sprint's work, and gives
     # the board New sprint and Add cards… (see `Slipdock.Sprints`). nil for an
@@ -95,6 +100,9 @@ defmodule Slipdock.Boards.Board do
     # When anything last happened anywhere in this board's tree, set by
     # `Slipdock.Access.list_boards/2` so the index can sort and show it.
     field :last_activity_at, :utc_datetime, virtual: true
+    # Each list's usual stay in seconds, keyed by list id (see
+    # `Slipdock.Pulse.usual_stays/1`), set when loaded through Slipdock.Boards.
+    field :usual_stays, :map, virtual: true, default: %{}
 
     has_many :columns, Slipdock.Boards.Column, preload_order: [asc: :position]
     has_many :cards, Slipdock.Boards.Card
@@ -334,6 +342,7 @@ defmodule Slipdock.Boards.Board do
       :add_document,
       :page_card_features,
       :simple,
+      :show_pulse,
       :kind,
       :default_view
     ])

@@ -200,6 +200,7 @@ slipdock cards <board> [--column C] [--tag T] [--priority P] [--flag F] [--searc
                      [--assignee NAME|EMAIL|me | --no-assignee]
 slipdock card <id>                      # full detail incl. checklist item ids and comments
 slipdock columns <board> | slipdock tags <board> | slipdock activity <board> [--limit N]
+slipdock pulse <board>                  # flow numbers: in progress, waiting, done this week, time to done, list in/out
 slipdock swimlanes <board> [view options]   # grid of cards grouped on two axes (see below)
 slipdock table <board> [view options] [--group A] [--fields id,title,column,priority,flags,tags,start,due,completed,percent,time,checklist,comments,deps,subcards,created,updated]
 slipdock views <board>                      # saved swimlane views

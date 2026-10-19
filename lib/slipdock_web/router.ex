@@ -539,6 +539,7 @@ defmodule SlipdockWeb.Router do
     post "/boards/:board/archive", BoardController, :archive
     post "/boards/:board/restore", BoardController, :restore
     get "/boards/:board/activity", BoardController, :activity
+    get "/boards/:board/pulse", BoardController, :pulse
     get "/boards/:board/recurring", RecurrenceController, :index
     get "/boards/:board/swimlanes", BoardController, :swimlanes
     get "/boards/:board/views", BoardController, :views
