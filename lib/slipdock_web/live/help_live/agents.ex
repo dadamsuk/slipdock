@@ -560,7 +560,12 @@ defmodule SlipdockWeb.HelpLive.Agents do
         shows first); opening and answering a wait on a person (<code>update_card</code>'s
         <code>wait</code>
         and <code>answer_wait</code>); uploading and downloading the
-        files on cards and pages; lists, tags and boards;
+        files on cards and pages (with a shell, <code>link: true</code>
+        on <code>upload_file</code>
+        or <code>download_file</code>
+        gives a single-use URL, good for
+        ten minutes, to curl, so neither the bytes nor a long-lived token pass through the
+        model); lists, tags and boards;
         writing, sharing and reverting pages; listing, adding, changing and deleting a board's
         automations, for its owner; finding and installing
         <.link navigate={~p"/help/tools"} class="link">Tools</.link>
