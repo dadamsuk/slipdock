@@ -21,7 +21,8 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
 
   @events ~w(validate_board save_board set_board_color add_field delete_field toggle_field_sum
     install_preset add_milestone delete_milestone delete_board archive_board unarchive_board
-    save_as_template share revoke_grant set_sprint_sources set_gardening)
+    save_as_template share revoke_grant set_sprint_sources set_gardening deploy_setup
+    deploy_prompt)
 
   @doc false
   # For the test that every `handle_event/3` clause is in the list.
@@ -30,9 +31,26 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   @impl true
   def mount(socket),
     do:
-      {:ok, assign(socket, board_form: nil, form_key: 0, share_key: 0, hotkey: nil, hotkeys: [])}
+      {:ok,
+       assign(socket,
+         board_form: nil,
+         form_key: 0,
+         share_key: 0,
+         hotkey: nil,
+         hotkeys: [],
+         # "Track deployments" (#1134): what was generated (the token shown
+         # this once), the prompt asked for, and the first deploy arriving.
+         deploy_setup: nil,
+         deploy_prompt: nil,
+         deploy_arrived: nil
+       )}
 
+  # A deploy arrived on this board while the panel is open (the board page
+  # forwards it): the wizard turns green.
   @impl true
+  def update(%{deployment_arrived: deployment}, socket),
+    do: {:ok, assign(socket, deploy_arrived: deployment)}
+
   def update(%{board: board, current_user: user} = assigns, socket) do
     can_manage = Access.board_permission(user, board) == :owner
 
@@ -155,6 +173,52 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   end
 
   defp event("set_gardening", _params, socket), do: {:noreply, socket}
+
+  # Turns delivery metrics on, issues the deploy token and shows what to
+  # paste (`Slipdock.Deployments.Setup`), then waits for the first deploy.
+  defp event("deploy_setup", %{"do" => "prompt"} = params, socket),
+    do: event("deploy_prompt", params, socket)
+
+  defp event("deploy_setup", %{"deploy" => answers}, socket) do
+    base_url = Slipdock.Automations.Runner.base_url()
+
+    case Slipdock.Deployments.Setup.connect(socket.assigns.board, answers, base_url) do
+      {:ok, board, generated} ->
+        {:noreply,
+         assign(socket,
+           board: board,
+           deploy_setup: generated,
+           deploy_prompt: nil,
+           deploy_arrived: nil,
+           board_form: to_form(Boards.change_board(board))
+         )}
+
+      {:error, message} when is_binary(message) ->
+        {:noreply, flash(socket, :error, message)}
+
+      {:error, _} ->
+        {:noreply, flash(socket, :error, "Couldn't set deploys up.")}
+    end
+  end
+
+  # The paste-into-Claude-Code prompt, which changes nothing.
+  defp event("deploy_prompt", %{"deploy" => answers}, socket) do
+    alias Slipdock.Deployments.Setup
+
+    case Setup.normalise(answers) do
+      {:ok, a} ->
+        prompt =
+          Setup.prompt(a, %{
+            board: socket.assigns.board,
+            base_url: Slipdock.Automations.Runner.base_url()
+          })
+
+        {:noreply, assign(socket, deploy_prompt: prompt)}
+
+      {:error, message} ->
+        {:noreply, flash(socket, :error, message)}
+    end
+  end
 
   defp event("validate_board", %{"board" => params}, socket) do
     board = socket.assigns.board
@@ -330,6 +394,9 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
         source_choices={@source_choices}
         hotkey={@hotkey}
         hotkeys={@hotkeys}
+        deploy_setup={@deploy_setup}
+        deploy_prompt={@deploy_prompt}
+        deploy_arrived={@deploy_arrived}
         target={@myself}
       />
     </div>
@@ -396,6 +463,9 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
   attr :hotkey, :integer, default: nil
   attr :hotkeys, :list, default: []
   attr :target, :any, required: true
+  attr :deploy_setup, :map, default: nil, doc: "what Track deployments generated, token and all"
+  attr :deploy_prompt, :string, default: nil, doc: "the paste-into-Claude-Code prompt, when asked"
+  attr :deploy_arrived, :any, default: nil, doc: "the first deploy, once it has arrived"
 
   # The views a board can open on, less the ones it hides (a simple board's
   # Timeline and Prioritise). "board" first, as it is what nil means.
@@ -695,6 +765,99 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
             <button type="submit" class="btn btn-primary btn-sm">Save</button>
           </div>
         </.form>
+        <%!-- Track deployments (#1134): one generator behind this, the API and
+              `slipdock deploy setup` (Slipdock.Deployments.Setup). --%>
+        <div id="deploy-setup" class="space-y-2 border-t border-base-content/10 pt-4">
+          <span class="text-sm font-medium">Track deployments</span>
+          <p class="text-xs text-base-content/50">
+            Record this project's deploys from CI, for its delivery metrics and a
+            “Shipped” line on the cards each deploy names. Setting up turns Delivery metrics on
+            and issues a deploy token that can record deploys and nothing else.
+          </p>
+          <form
+            id="deploy-setup-form"
+            phx-target={@target}
+            phx-submit="deploy_setup"
+            class="grid grid-cols-1 gap-2 sm:grid-cols-3"
+          >
+            <label class="text-xs">
+              <span class="block text-base-content/60">CI</span>
+              <select name="deploy[ci]" class="select select-sm w-full">
+                <option :for={ci <- Slipdock.Deployments.Setup.cis()} value={ci}>
+                  {Slipdock.Deployments.Setup.label(ci)}
+                </option>
+              </select>
+            </label>
+            <label class="text-xs">
+              <span class="block text-base-content/60">Environments</span>
+              <input
+                name="deploy[environments]"
+                value="production"
+                class="input input-sm w-full"
+              />
+            </label>
+            <label class="text-xs">
+              <span class="block text-base-content/60">Card ids in commits</span>
+              <input
+                name="deploy[card_ref_pattern]"
+                value={@board.card_ref_pattern}
+                placeholder="#(\d+)"
+                class="input input-sm w-full font-mono"
+              />
+            </label>
+            <div class="flex flex-wrap gap-2 sm:col-span-3">
+              <button
+                type="submit"
+                name="do"
+                value="setup"
+                id="deploy-setup-button"
+                class="btn btn-sm btn-primary"
+                data-confirm={
+                  Slipdock.Deployments.token?(@board) &&
+                    "This issues a new deploy token; the one CI has now stops working."
+                }
+              >
+                <.icon name="hero-rocket-launch" class="size-4" />
+                {if Slipdock.Deployments.token?(@board), do: "Set up again", else: "Set up"}
+              </button>
+              <button
+                type="submit"
+                class="btn btn-sm btn-ghost"
+                name="do"
+                value="prompt"
+                id="deploy-prompt-button"
+              >
+                <.icon name="hero-sparkles" class="size-4" />
+                Set this up for me (prompt for Claude Code)
+              </button>
+            </div>
+          </form>
+          <div :if={@deploy_setup} id="deploy-setup-result" class="space-y-2">
+            <pre class="max-h-96 overflow-auto whitespace-pre-wrap rounded bg-base-200 p-3 text-xs">{@deploy_setup.text}</pre>
+            <p
+              :if={!@deploy_arrived}
+              id="deploy-waiting"
+              class="flex items-center gap-2 text-xs text-base-content/60"
+            >
+              <span class="loading loading-dots loading-xs"></span> Waiting for the first deploy…
+            </p>
+          </div>
+          <p
+            :if={@deploy_arrived}
+            id="deploy-arrived"
+            class="flex items-center gap-2 text-sm text-success"
+          >
+            <.icon name="hero-check-circle" class="size-4" />
+            First deploy arrived: {String.slice(@deploy_arrived.sha, 0, 7)} to {@deploy_arrived.environment}.
+          </p>
+          <div :if={@deploy_prompt} id="deploy-prompt" class="space-y-1">
+            <p class="text-xs text-base-content/60">
+              Paste this into Claude Code in the repository. It names the secret to add; the token
+              is issued by Set up above, or <code>slipdock deploy token {@board.code}</code>.
+            </p>
+            <pre class="max-h-96 overflow-auto whitespace-pre-wrap rounded bg-base-200 p-3 text-xs">{@deploy_prompt}</pre>
+          </div>
+        </div>
         <%!-- What Add cards… on a sprint shows side by side (Sprints.sources/2). --%>
         <form
           :if={Board.sprints?(@board) and is_nil(@board.parent_card_id)}

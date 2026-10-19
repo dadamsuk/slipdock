@@ -35,6 +35,7 @@ defmodule SlipdockWeb.APIGuide do
       recipes(base),
       automations(),
       runners(),
+      deployments(base),
       meetings(),
       chat_capture(),
       wiki(),
@@ -187,6 +188,7 @@ defmodule SlipdockWeb.APIGuide do
     "Recipes" => "recipes",
     "Automations and alerts" => "automations",
     "Runners" => "runners",
+    "Deployments" => "deployments",
     "Meeting capture" => "meetings",
     "Chat capture" => "chats",
     "The wiki: writing things down" => "wiki",
@@ -1814,6 +1816,50 @@ defmodule SlipdockWeb.APIGuide do
     else
       ""
     end
+  end
+
+  # Deploys and DORA metrics (#1134). The setup prompt is the wizard's own,
+  # so an agent with the tools can wire a repository up itself.
+  defp deployments(base) do
+    {:ok, defaults} = Slipdock.Deployments.Setup.normalise(%{})
+
+    """
+
+    ## Deployments
+
+    A board can record its project's deploys and report how it delivers — the
+    DORA numbers: deployment frequency, lead time for changes, change failure
+    rate, time to restore and rework rate, and idea to production (a card first
+    in progress → the first deploy whose commits name it). Off on every board
+    until its owner turns **Delivery metrics** on (settings, PATCH
+    `delivery_metrics`, `slipdock set-board B --delivery-metrics`); while off,
+    deploys are refused and the report says so.
+
+    Deploys are a ledger, not cards. CI records them with the board's **deploy
+    token** (`sdd_…`, which records deploys and can do nothing else), usually by
+    wrapping the deploy command: `slipdock deploy run --env production --
+    ./deploy.sh`. The token goes to `GET /api/deployments/last?environment=E`,
+    `POST /api/deployments` and `PATCH /api/deployments/:id` only. Commits name
+    cards as `#123` (or the board's `card_ref_pattern`); a card a succeeded
+    deploy names gets a **Shipped to production** line (`shipped` on
+    `get_card`).
+
+    Incidents are ordinary cards tagged `incident` (the board's `incident_tag`),
+    optionally linked to the deploy that caused them: `POST
+    /api/cards/:id/incident-of {"deployment": N}`, `slipdock incident-of`. A
+    deploy is a failed change when it failed, was rolled back, has an incident
+    linked, or was followed within the hotfix window (24h) by a deploy naming an
+    incident card.
+
+    Read the numbers with `get_board` `dora: true` (`environment`, `days`),
+    `GET /api/boards/:board/dora` or `slipdock dora B`. Set a board up with
+    `POST /api/boards/:board/deployments/setup {"ci": "github"}` (owner; turns
+    the switch on and returns a new token once, with the step to paste) or
+    `slipdock deploy setup B`. To wire a repository up yourself, this is the
+    brief:
+
+    #{Slipdock.Deployments.Setup.prompt(defaults, %{base_url: base})}
+    """
   end
 
   defp runners do

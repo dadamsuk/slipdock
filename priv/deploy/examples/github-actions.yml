@@ -1,0 +1,65 @@
+# Recording deploys on a Slipdock board from GitHub Actions — a worked example,
+# from Slipdock's own release workflow (.github/workflows/release.yml).
+#
+# What it needs:
+#   - the board's delivery metrics on, and its deploy token (board settings →
+#     Delivery metrics → Set up, or `slipdock deploy token <board>`)
+#   - that token as the repository (or environment) secret SLIPDOCK_DEPLOY_TOKEN
+#   - the server's address as the variable SLIPDOCK_URL
+#
+# The three things that matter: full history (fetch-depth: 0) so the commits
+# since the last deploy can be read; Erlang, which the slipdock CLI runs on;
+# and the deploy command wrapped in `slipdock deploy run`, which records the
+# deploy started, runs it, and records succeeded or failed from its exit code.
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The whole history: the board names the commits since the last
+          # deploy, and a shallow clone doesn't have them.
+          fetch-depth: 0
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27"
+
+      - name: Install the slipdock CLI
+        run: |
+          curl -fsSL "$SLIPDOCK_URL/cli/slipdock.escript" -o "$RUNNER_TEMP/slipdock"
+          chmod +x "$RUNNER_TEMP/slipdock"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+        env:
+          SLIPDOCK_URL: ${{ vars.SLIPDOCK_URL }}
+
+      # Your deploy step, as it was, inside `slipdock deploy run … --`.
+      # The deploy runs even if the board can't be reached; only its record
+      # is lost, with a warning in the log.
+      - name: Deploy
+        run: slipdock deploy run --env production --tag "$TAG" -- ./deploy.sh "$TAG"
+        env:
+          SLIPDOCK_URL: ${{ vars.SLIPDOCK_URL }}
+          SLIPDOCK_DEPLOY_TOKEN: ${{ secrets.SLIPDOCK_DEPLOY_TOKEN }}
+          TAG: sha-${{ github.sha }}
+
+  # When the deploy is more than one command (it waits for a health check
+  # afterwards, say), record it in two steps instead:
+  #
+  #   - id: start
+  #     run: echo "id=$(slipdock deploy start --env production --tag "$TAG")" >> "$GITHUB_OUTPUT"
+  #   - run: ./deploy.sh "$TAG" && ./wait-for-healthy.sh
+  #   - if: always() && steps.start.outputs.id != ''
+  #     run: slipdock deploy finish --id "${{ steps.start.outputs.id }}" --status "${{ job.status == 'success' && 'succeeded' || 'failed' }}"

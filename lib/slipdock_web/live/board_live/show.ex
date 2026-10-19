@@ -573,8 +573,17 @@ defmodule SlipdockWeb.BoardLive.Show do
      socket |> assign(board: Boards.put_states(socket.assigns.board)) |> assign_columns()}
   end
 
-  def handle_info({:deployment, _deployment}, socket),
-    do: {:noreply, assign(socket, dora: board_dora(socket.assigns.board))}
+  def handle_info({:deployment, deployment}, socket) do
+    # The settings wizard waits for the first deploy (#1134).
+    if socket.assigns[:panel] == :settings,
+      do:
+        send_update(SlipdockWeb.BoardLive.SettingsComponent,
+          id: "settings",
+          deployment_arrived: deployment
+        )
+
+    {:noreply, assign(socket, dora: board_dora(socket.assigns.board))}
+  end
 
   def handle_info({:board_changed, _id}, socket) do
     # A burst of writes (an import, an automation, a bulk move) queues one of

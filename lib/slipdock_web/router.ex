@@ -159,6 +159,8 @@ defmodule SlipdockWeb.Router do
     get "/runner/install.ps1", RunnerInstallController, :install_ps1
     get "/runner/slipdock-runner.ps1", RunnerInstallController, :runner_ps1
     get "/runner/examples/:name", RunnerInstallController, :example
+    # Recording deploys from CI: worked examples (see `SlipdockWeb.DeployExamplesController`).
+    get "/deploy/examples/:name", DeployExamplesController, :show
   end
 
   # The runner protocol (see `SlipdockWeb.API.RunnerController`): plain text,
@@ -554,6 +556,8 @@ defmodule SlipdockWeb.Router do
     get "/boards/:board/pulse", BoardController, :pulse
     get "/boards/:board/dora", BoardController, :dora
     post "/boards/:board/deploy-token", BoardController, :deploy_token
+    get "/boards/:board/deployments/setup", BoardController, :deploy_setup
+    post "/boards/:board/deployments/setup", BoardController, :deploy_setup
     delete "/boards/:board/deploy-token", BoardController, :revoke_deploy_token
     get "/boards/:board/recurring", RecurrenceController, :index
     get "/boards/:board/swimlanes", BoardController, :swimlanes

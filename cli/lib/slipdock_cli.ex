@@ -734,6 +734,13 @@ defmodule SlipdockCLI do
                                                    …and records how it ended (id from --id or
                                                    $SLIPDOCK_DEPLOY_ID)
     deploy last [--env E]                          the environment's last succeeded deploy
+    deploy setup <board> [--ci github|gitlab|shell] [--env production,staging]
+                 [--card-ref-pattern RE] [--prompt]
+                                                   track a board's deploys: turns its delivery
+                                                   metrics on, issues its deploy token (shown once)
+                                                   and prints the CI step to paste; --prompt prints
+                                                   a prompt for Claude Code in the repo instead and
+                                                   changes nothing
     deploy token <board> [--revoke]                issue (or replace) the board's deploy token,
                                                    shown once — it records deploys and nothing
                                                    else; --revoke ends it. Owner only, API token
@@ -861,6 +868,8 @@ defmodule SlipdockCLI do
     sha: :string,
     revoke: :boolean,
     from_tags: :boolean,
+    ci: :string,
+    prompt: :boolean,
     incident_tag: :string,
     hotfix_hours: :integer,
     card_ref_pattern: :string,

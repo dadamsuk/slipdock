@@ -327,4 +327,30 @@ defmodule SlipdockCLI.DeployTest do
              "card_ref_pattern" => "J-(\\d+)"
            }
   end
+
+  test "deploy setup posts the answers and prints the text; --prompt only asks" do
+    System.put_env("SLIPDOCK_TOKEN", "api-token")
+
+    serve([
+      {200, JSON.encode!(%{"text" => "Track deployments … sdd_abc", "prompt" => "P"})},
+      {200, JSON.encode!(%{"text" => "T", "prompt" => "Make this repository record its deploys"})}
+    ])
+
+    {out, err} =
+      with_io(:stderr, fn ->
+        capture_io(fn ->
+          Deploy.run("deploy", ["setup", "ship"], ci: "gitlab", env: "prod,staging")
+        end)
+      end)
+
+    assert out =~ "Track deployments … sdd_abc"
+    assert err =~ "--prompt"
+    assert_received {:request, "POST", "/api/boards/ship/deployments/setup", body}
+    assert JSON.decode!(body) == %{"ci" => "gitlab", "environments" => "prod,staging"}
+
+    out = capture_io(fn -> Deploy.run("deploy", ["setup", "ship"], prompt: true) end)
+    assert out =~ "Make this repository record its deploys"
+    assert_received {:request, "GET", "/api/boards/ship/deployments/setup", _}
+    refute_received {:request, "POST", _, _}
+  end
 end
