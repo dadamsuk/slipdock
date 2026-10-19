@@ -491,11 +491,11 @@ defmodule SlipdockWeb.APIGuide do
     gives it, so a whole board reads in one call), `get_card`, `search`, `ask` (a
     model call, so slower), `read_page`, `list_pages`, `page_info`, `page_history`, `activity` (a
     board's log, or one card's), `download_file` (a file, by
-    attachment id), `list_automations`, and for
+    attachment id; `link: true`, a URL to curl), `list_automations`, and for
     writing `create_card`, `update_card` (fields, flags, tags, assignees,
     dependencies, the checklist, recurrence, snooze), `move_card` (to another board too),
     `comment`, `leave_handoff`, `upload_file` (onto a card or page;
-    over 1 KB, see its description), `complete_card`, `status_update` (a card's stated health, with
+    a shell: `link: true`), `complete_card`, `status_update` (a card's stated health, with
     a note: the progress report on an epic),
     `archive_card` (and restore), `delete_card`,
     `create_list`, `create_tag`, `delete_list`, `create_board`, `archive_board` (and
@@ -676,7 +676,10 @@ defmodule SlipdockWeb.APIGuide do
       the `card` or `page` it is on), and `GET /api/attachments/:attachment_id/file`
       its bytes, with a token — the `url` is the web app's, which needs a
       browser session. A screenshot of what you changed is worth attaching. Pages take the
-      same three at `/api/pages/:id/attachments`. A card's first image is the
+      same three at `/api/pages/:id/attachments`. With MCP but no token to hand,
+      `upload_file` or `download_file` with `link: true` gives a single-use,
+      ten-minute `/api/upload/:secret` or `/api/download/:secret` URL that
+      needs none (#1147). A card's first image is the
       thumbnail on its front; `hide_on_card: true` (on the upload, or
       `PATCH /api/cards/:id/attachments/:attachment_id`) keeps one off it — do
       that for a log or a diagram nobody needs to see at a glance. A recording

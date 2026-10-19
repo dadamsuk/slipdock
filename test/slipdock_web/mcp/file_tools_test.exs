@@ -518,9 +518,9 @@ defmodule SlipdockWeb.MCP.FileToolsTest do
       assert card_files(ctx.secret) == []
     end
 
-    test "the description sends a caller with a shell to the multipart endpoint" do
+    test "the description sends a caller with a shell to an upload link (#1147)" do
       text = UploadFile.description()
-      assert text =~ "/api/cards/<id>/attachments"
+      assert text =~ "link: true"
       assert text =~ "vault_file"
       assert text =~ "sha256 (required"
     end

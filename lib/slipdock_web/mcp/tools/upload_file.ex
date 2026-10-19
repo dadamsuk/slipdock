@@ -17,13 +17,18 @@ defmodule SlipdockWeb.MCP.Tools.UploadFile do
   `vault_file` copies a file the vault already holds, by sync, without its
   bytes passing through the caller at all.
 
+  `link: true` (#1147) sends no file at all: it answers with a single-use
+  URL, good for ten minutes, that a shell POSTs the file to with curl
+  (`SlipdockWeb.API.TransferController`), so neither the bytes nor a
+  long-lived token pass through the agent.
+
   `replace: true` (#1017) deletes the card's or page's older files of the
   same name once the new one is stored, so a rebuild leaves one current
   copy; `delete_attachment` removes one by id.
   """
   @behaviour SlipdockWeb.MCP.Tool
 
-  alias Slipdock.{Boards, ChunkedUploads, Vaults, Wiki}
+  alias Slipdock.{Boards, ChunkedUploads, TransferLinks, Vaults, Wiki}
   alias Slipdock.Boards.Attachment
   alias Slipdock.Vaults.Sync
   alias Slipdock.Wiki.Files
@@ -49,10 +54,10 @@ defmodule SlipdockWeb.MCP.Tools.UploadFile do
     do:
       "Attaches a file (up to 10 MB) to a card, or to a wiki page. Bytes you write out " <>
         "yourself as base64 go wrong above about 1 KB, so pick the path where they don't " <>
-        "pass through you. With a shell where the file is, skip this tool: POST it as " <>
-        "multipart to /api/cards/<id>/attachments (or /api/pages/<code>/attachments) on this " <>
-        "server, e.g. curl -H \"Authorization: Bearer $TOKEN\" -F file=@a.docx -F " <>
-        "sha256=<hex> .../api/cards/129/attachments. A file in a synced vault: vault and " <>
+        "pass through you. With a shell where the file is: card or page with link: true " <>
+        "returns a single-use upload_url, good for 10 minutes, and no token is needed to use " <>
+        "it: curl -F file=@a.docx -F sha256=<hex> <upload_url> (also takes filename, replace, " <>
+        "hide_on_card) answers with the attachment. A file in a synced vault: vault and " <>
         "vault_file (its path in the vault, or its id), and the server copies it. Otherwise " <>
         "text for a text file's contents, or content_base64 with sha256 (required: the hex " <>
         "SHA-256 of the bytes before base64; a file that changed on the way is refused with " <>
@@ -123,6 +128,12 @@ defmodule SlipdockWeb.MCP.Tools.UploadFile do
         },
         content_type: %{type: "string", description: "Its MIME type. Left out, the name decides."},
         hide_on_card: %{type: "boolean", description: "Keep an image off the card's front."},
+        link: %{
+          type: "boolean",
+          description:
+            "Send no file: get a single-use upload_url for card or page, good for 10 minutes, " <>
+              "to POST the file to from a shell (curl -F file=@a.docx -F sha256=<hex> <url>)."
+        },
         replace: %{
           type: "boolean",
           description:
@@ -138,6 +149,8 @@ defmodule SlipdockWeb.MCP.Tools.UploadFile do
   def read_only?, do: false
 
   @impl true
+  def call(%{"link" => true} = args, context), do: link(args, context)
+
   def call(args, context) do
     case {args["finish"], args["append"]} do
       {true, true} ->
@@ -162,6 +175,48 @@ defmodule SlipdockWeb.MCP.Tools.UploadFile do
         whole(args, context)
     end
   end
+
+  # Only where it goes: what the file is called and how it is stored are the
+  # POST's to say, as they are for the attachment endpoint.
+  defp link(args, context) do
+    extra = Map.keys(args) -- ["link", "card", "page", "board"]
+
+    with :ok <- link_only(extra),
+         {:ok, owner} <- owner(args, Args.auth(context)) do
+      {:ok, secret, expires_at} = TransferLinks.mint(context.user, context.token, owner)
+      url = context.base_url <> "/api/upload/" <> secret
+
+      {:ok,
+       Map.merge(target(owner), %{
+         upload_url: url,
+         method: "POST",
+         expires_at: expires_at,
+         fields: %{
+           file: "required: the file, as multipart (-F file=@path)",
+           sha256: "the hex SHA-256 of the file; a file that doesn't match is refused",
+           filename: "the name to store it under; left out, the file's own",
+           replace: "true deletes older files of the same name once this one is stored",
+           hide_on_card: "true keeps an image off the card's front"
+         },
+         curl: "curl -sS -F file=@<path> -F sha256=<hex> #{url}",
+         note:
+           "Works once, for #{div(TransferLinks.ttl_seconds(), 60)} minutes, with no token; a " <>
+             "refused upload (say a sha256 mismatch) leaves it good to try again. The answer " <>
+             "is the attachment, as the attachments endpoint gives it."
+       })}
+    end
+  end
+
+  defp link_only([]), do: :ok
+
+  defp link_only(extra),
+    do:
+      {:error,
+       "with link: true send only card or page (and board): the file and its " <>
+         "#{Enum.join(Enum.sort(extra), ", ")} go in the POST to upload_url"}
+
+  defp target({:card, card}), do: %{card: card.id}
+  defp target({:page, page}), do: %{page: page.code}
 
   defp whole(args, context) do
     auth = Args.auth(context)

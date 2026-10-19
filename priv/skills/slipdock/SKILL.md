@@ -38,9 +38,11 @@ compare two versions, or `diff: true` for the latest save), and `revert_page` is
 `content_hash` as `base_hash`. `update_page` is `page edit --title/--summary`, `page mv`, `page file`,
 `page rm`/`page restore` (`archived`) and `page pin --card` (`pin_card`/`unpin_card`).
 `upload_file` is `attach` for a file of up to 10 MB (`content_base64`, or `text`). Base64 a model
-writes out goes wrong above about 1 KB (#1040), so with a shell where the file is, don't use it:
-`slipdock attach`, or `curl -F file=@FILE -F sha256=<hex>` to `/api/cards/<id>/attachments`, keeps
-the bytes out of the model. A file already in a synced vault is copied by the server with `vault`
+writes out goes wrong above about 1 KB (#1040), so with a shell where the file is, don't send it:
+`slipdock attach`, or `upload_file` with `card`/`page` and `link: true` (#1147), which answers with a
+single-use `upload_url`, good for 10 minutes and needing no token, for `curl -F file=@FILE -F
+sha256=<hex> <upload_url>` (also `filename`, `replace`, `hide_on_card`), keeps the bytes out of the
+model. `download_file` with `link: true` is the same the other way: `curl -fsSo FILE <download_url>`. A file already in a synced vault is copied by the server with `vault`
 and `vault_file` (its vault path or id; no content). `content_base64` must carry `sha256` (hex, of
 the bytes before base64), and a `sha256_mismatch` refusal means re-encode and resend. The answer's
 `sha256` is of the bytes as stored, and `get_card`/`read_page` list it for every file: compare that

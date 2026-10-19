@@ -9,10 +9,14 @@ defmodule SlipdockWeb.MCP.Tools.DownloadFile do
   body; an image is an MCP image block the model can look at; anything else
   is an embedded resource, base64. Either way the attachment's details come
   first, as JSON.
+
+  `link: true` (#1147) sends no bytes: it answers with a single-use URL,
+  good for ten minutes, for a shell to fetch the file from with curl, of any
+  size and without a token.
   """
   @behaviour SlipdockWeb.MCP.Tool
 
-  alias Slipdock.{Boards, Repo}
+  alias Slipdock.{Boards, Repo, TransferLinks}
   alias Slipdock.Boards.Attachment
   alias SlipdockWeb.API.{Authorize, Uploads}
   alias SlipdockWeb.MCP.Args
@@ -41,7 +45,8 @@ defmodule SlipdockWeb.MCP.Tools.DownloadFile do
     do:
       "A file attached to a card or wiki page, by its attachment id (get_card and " <>
         "read_page list them). Text comes back as text, an image as an image, anything " <>
-        "else (up to 5 MB) as base64."
+        "else (up to 5 MB) as base64. With a shell, link: true instead returns a single-use " <>
+        "download_url, good for 10 minutes and needing no token: curl -fsSo <name> <url>."
 
   @impl true
   def input_schema do
@@ -51,6 +56,12 @@ defmodule SlipdockWeb.MCP.Tools.DownloadFile do
         attachment: %{
           type: "integer",
           description: "The attachment's id, from get_card or read_page."
+        },
+        link: %{
+          type: "boolean",
+          description:
+            "Send no bytes: get a single-use download_url, good for 10 minutes, to fetch the " <>
+              "file from a shell (curl -fsSo <name> <url>)."
         }
       },
       required: ["attachment"],
@@ -62,6 +73,8 @@ defmodule SlipdockWeb.MCP.Tools.DownloadFile do
   def read_only?, do: true
 
   @impl true
+  def call(%{"link" => true} = args, context), do: link(args, context)
+
   def call(args, context) do
     auth = Args.auth(context)
 
@@ -77,6 +90,35 @@ defmodule SlipdockWeb.MCP.Tools.DownloadFile do
 
       answer(attachment, bytes, info)
     end
+  end
+
+  defp link(args, context) do
+    with {:ok, id} <- attachment_id(args),
+         {:ok, attachment} <- fetch(id),
+         :ok <- readable(attachment, Args.auth(context)) do
+      {:ok, secret, expires_at} =
+        TransferLinks.mint(context.user, context.token, {:attachment, attachment})
+
+      url = context.base_url <> "/api/download/" <> secret
+
+      {:ok,
+       attachment
+       |> Uploads.json()
+       |> Map.merge(owner(attachment))
+       |> Map.merge(%{
+         download_url: url,
+         expires_at: expires_at,
+         curl: "curl -fsSo #{shell_name(attachment.filename)} #{url}",
+         note: "Works once, for #{div(TransferLinks.ttl_seconds(), 60)} minutes, with no token."
+       })}
+    end
+  end
+
+  # Quoted for a shell when it needs to be: a name with spaces is common.
+  defp shell_name(name) do
+    if Regex.match?(~r/\A[\w.-]+\z/, name),
+      do: name,
+      else: "'" <> String.replace(name, "'", "'\\''") <> "'"
   end
 
   defp attachment_id(args) do
