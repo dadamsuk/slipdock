@@ -248,6 +248,7 @@ defmodule Slipdock.Portable.Export do
       default_view: board.default_view,
       simple: board.simple,
       show_pulse: board.show_pulse,
+      delivery_metrics: board.delivery_metrics,
       automation_wip: board.automation_wip,
       kind: board.kind,
       archived: board.archived_at != nil,

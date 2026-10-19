@@ -57,6 +57,11 @@ defmodule Slipdock.Boards.Board do
     # on; the numbers reach the API, MCP and the CLI either way.
     field :show_pulse, :boolean, default: false
 
+    # Whether the board records deploys and shows delivery metrics (#1134,
+    # `Slipdock.Deployments`, `Slipdock.Dora`). Off unless the owner turns it
+    # on, and invisible while off: the deploy endpoint refuses posts for it.
+    field :delivery_metrics, :boolean, default: false
+
     # Whether WIP limits hold automated work (#1116, KTD11): with it on, a
     # runner job or a list_top send whose card isn't already in progress
     # waits while the board's first doing list is at its limit. People's
@@ -353,6 +358,7 @@ defmodule Slipdock.Boards.Board do
       :page_card_features,
       :simple,
       :show_pulse,
+      :delivery_metrics,
       :automation_wip,
       :kind,
       :default_view
