@@ -365,8 +365,9 @@ that reads exactly like one that doesn't exist.
 | What | How |
 |---|---|
 | A Tool in full: its blueprint, skills, files, versions and your install | `GET /api/tools/<name>`; MCP `list_tools` with `tool`; `slipdock tools show <name>` |
-| **One file of the package, by path** | `GET /api/tools/<name>/files/<path>`, where `<path>` is its path in the package (`skills/<skill>/SKILL.md`, `skills/<skill>/references/x.md`, `files/build.py`, `README.md`, `tool.json`); MCP `list_tools` with `tool` and `file`; `slipdock tools file <name> <path> [--version V] [--out F]` |
+| **One file of the package, by path** | `GET /api/tools/<name>/files/<path>`, where `<path>` is its path in the package (`skills/<skill>/SKILL.md`, `skills/<skill>/references/x.md`, `files/build.py`, `README.md`, `tool.json`); MCP `list_tools` with `tool` and `file`, or `skill` (its `SKILL.md`) and `skill` with `file` (a path in that skill's folder); `slipdock tools file <name> <path> [--version V] [--out F]` |
 | Every skill as one tarball for a skills directory | `GET /api/tools/<name>/skills.tar.gz`; `slipdock tools install <name> [--dir D]` |
+| **Any of these without a token**, for a shell that only has the MCP connector | MCP `list_tools` with `tool` and `link: true`: a single-use `download_url`, good for 10 minutes, for the skills tarball, or with `skill` that skill's claude.ai zip, or with `file` that file |
 | One skill as claude.ai's or ChatGPT's upload | `GET /api/tools/<name>/skills/<skill>/claude.zip`, `…/chatgpt.zip` |
 | Whether installed skills are behind the server | `slipdock tools check` (compares shas) |
 | The board's wiki files, by path | `GET /api/boards/<board>/files[?folder=Tool]`; `slipdock wiki files <board> [--folder F]` |

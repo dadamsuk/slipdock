@@ -114,8 +114,8 @@ defmodule SlipdockWeb.MCP.Tools.DownloadFile do
     end
   end
 
-  # Quoted for a shell when it needs to be: a name with spaces is common.
-  defp shell_name(name) do
+  @doc "`name` quoted for a shell when it needs to be: a name with spaces is common."
+  def shell_name(name) do
     if Regex.match?(~r/\A[\w.-]+\z/, name),
       do: name,
       else: "'" <> String.replace(name, "'", "'\\''") <> "'"

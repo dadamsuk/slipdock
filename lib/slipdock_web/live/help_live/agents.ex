@@ -874,7 +874,10 @@ defmodule SlipdockWeb.HelpLive.Agents do
         says which Tools you can install and which board each install made, which is how a
         Tool's skills find their board; with <code>file</code>
         it reads one file of the Tool, from its newest version, so a skill can fetch its
-        own steps as it runs.
+        own steps as it runs (<code>skill</code>
+        alone reads that skill's SKILL.md), and with <code>link: true</code>
+        it gives a single-use download link to the file, the skill's zip or every skill
+        at once, for a shell with no API token.
       </p>
       <p>
         A Tool is a folder with <code>tool.json</code>, <code>README.md</code>, an optional <code>board.json</code>,

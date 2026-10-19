@@ -837,7 +837,9 @@ use that board, files, and a README. The first is
 
 - **Files at run time.** Any file of a Tool is one request away, by its path
   in the package (`GET /api/tools/<name>/files/skills/<skill>/SKILL.md`, or
-  `list_tools` with `file`), and from the latest version unless asked. So a
+  `list_tools` with `file` or `skill`), and from the latest version unless asked;
+  `link: true` gives a single-use download URL for a file, a skill's zip or the
+  skills tarball, for an agent that has the MCP connector but no API token. So a
   small stub skill can fetch its procedure as it runs, and a new version
   reaches everyone without a reinstall. A Tool's board files are read from
   the board's `Tool` folder with `GET /api/boards/<board>/files/<path>`.

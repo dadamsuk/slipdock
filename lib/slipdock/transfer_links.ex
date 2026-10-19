@@ -5,7 +5,8 @@ defmodule Slipdock.TransferLinks do
 
   An agent with a shell asks for one over MCP (`upload_file` or
   `download_file` with `link: true`) and hands it to curl. The link reaches
-  one card or page (an upload) or one attachment (a download), works once,
+  one card or page (an upload), or one attachment or one piece of a Tool
+  version (a download, from `list_tools` with `link: true`, #1158), works once,
   and is gone after `ttl_seconds/0`, whichever comes first. It acts as the
   token that minted it: that token's scope and its user's access are checked
   again when it is used, and deleting the token deletes its links.
@@ -29,7 +30,8 @@ defmodule Slipdock.TransferLinks do
 
   @doc """
   A new link for `target` — `{:card, card}` or `{:page, page}` to upload to,
-  `{:attachment, attachment}` to download — acting as `user` with
+  `{:attachment, attachment}` or `{:tool, version, target}` (target
+  `"archive"`, `"claude:<skill>"` or `"file:<path>"`) to download — acting as `user` with
   `user_token`. Returns `{:ok, secret, expires_at}`; the secret goes in the
   URL and is not kept.
   """
@@ -56,6 +58,9 @@ defmodule Slipdock.TransferLinks do
   defp target_attrs({:attachment, %Attachment{id: id}}),
     do: %{kind: "download", attachment_id: id}
 
+  defp target_attrs({:tool, %Slipdock.Tools.Version{id: id}, target}) when is_binary(target),
+    do: %{kind: "download", tool_version_id: id, tool_target: target}
+
   @doc """
   Spends the `kind` ("upload" or "download") link `secret` names, if it is
   unused, unexpired, and its token and user are still good. Returns the link
@@ -74,7 +79,15 @@ defmodule Slipdock.TransferLinks do
 
     case Repo.update_all(query, set: [used_at: now]) do
       {1, [link]} ->
-        link = Repo.preload(link, [:user, :user_token, :card, :page, attachment: [:card, :page]])
+        link =
+          Repo.preload(link, [
+            :user,
+            :user_token,
+            :card,
+            :page,
+            attachment: [:card, :page],
+            tool_version: :tool
+          ])
 
         if usable?(link, now), do: {:ok, link}, else: {:error, :gone}
 

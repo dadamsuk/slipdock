@@ -61,7 +61,8 @@ such as a file you uploaded wrong. And `download_file` reads an attached file by
 and `automation-presets` give), and `manage_automation` is `new-automation` (`action: create`),
 `set-automation` (`update`) and `delete-automation` (`delete`, with `confirm: true`).
 `list_tools` is `tools`/`tools show` (each Tool's kind and `installed.board`, the board your
-install made; with `file`, `tools file`), and `install_tool` is `tools install-board`. Anything
+install made; with `file`, `tools file`; `skill` reads its `SKILL.md`; `link: true` gives a
+single-use `download_url` for the file, the skill's zip or the skills tarball, #1158), and `install_tool` is `tools install-board`. Anything
 the tools don't cover (running a rule now, callbacks and alerts, sprints, files over 10 MB,
 fields) is still the CLI or the API.
 

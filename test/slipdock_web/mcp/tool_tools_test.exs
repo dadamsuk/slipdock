@@ -8,7 +8,7 @@ defmodule SlipdockWeb.MCP.ToolToolsTest do
   import Slipdock.Fixtures
   import Slipdock.ToolPackages
 
-  alias Slipdock.{Accounts, Tools}
+  alias Slipdock.{Accounts, Repo, Tools}
 
   setup %{user: user} do
     Slipdock.TestConfig.own_uploads_dir()
@@ -230,7 +230,7 @@ defmodule SlipdockWeb.MCP.ToolToolsTest do
     test "file needs tool, and a hidden Tool's file reads as no Tool at all",
          %{name: name} = ctx do
       assert ctx.user |> token_conn() |> call("list_tools", %{"file" => "tool.json"}) |> error!() =~
-               "file needs tool"
+               "file, skill and link need tool"
 
       stranger = user_fixture("mcp-file-stranger@example.com")
 
@@ -238,6 +238,174 @@ defmodule SlipdockWeb.MCP.ToolToolsTest do
              |> token_conn()
              |> call("list_tools", %{"tool" => name, "file" => "tool.json"})
              |> error!() =~ "no Tool you can see"
+    end
+  end
+
+  describe "list_tools with skill and link (#1158)" do
+    defp curl_get(url), do: get(build_conn(), URI.parse(url).path)
+
+    defp list(user, args, opts \\ []),
+      do: user |> token_conn(opts) |> call("list_tools", args)
+
+    test "skill gives its SKILL.md; with file, a path in its folder, local files included", %{
+      user: user,
+      name: name
+    } do
+      skill_md = list(user, %{"tool" => name, "skill" => name}) |> ok!()
+      assert skill_md["path"] == "skills/#{name}/SKILL.md"
+      assert skill_md["version"] == "1.0.0"
+      assert skill_md["text"] =~ "Run it."
+
+      ref =
+        list(user, %{"tool" => name, "skill" => name, "file" => "references/notes.md"}) |> ok!()
+
+      assert ref["path"] == "skills/#{name}/references/notes.md"
+      assert ref["text"] == "Notes."
+
+      # helper.sh is declared `local` beside the skill, so it lives under files/.
+      local = list(user, %{"tool" => name, "skill" => name, "file" => "helper.sh"}) |> ok!()
+      assert local["path"] == "files/helper.sh"
+      assert local["text"] =~ "echo hi"
+
+      other = list(user, %{"tool" => name, "skill" => "#{name}-setup"}) |> ok!()
+      assert other["text"] =~ "Call install_tool."
+    end
+
+    test "an unknown skill, a missing file in it, and skill or link without tool are errors", %{
+      user: user,
+      name: name
+    } do
+      assert list(user, %{"tool" => name, "skill" => "nope"}) |> error!() =~
+               "has no skill nope"
+
+      assert list(user, %{"tool" => name, "skill" => name, "file" => "references/x.md"})
+             |> error!() =~ "has no file skills/#{name}/references/x.md"
+
+      assert list(user, %{"skill" => name}) |> error!() =~ "need tool"
+      assert list(user, %{"link" => true}) |> error!() =~ "need tool"
+      assert list(user, %{"tool" => name, "link" => "maybe"}) |> error!() =~ "true or false"
+    end
+
+    test "link with neither gives the skills archive, once, without a token", %{
+      user: user,
+      name: name
+    } do
+      answer = list(user, %{"tool" => name, "link" => true}) |> ok!()
+      assert answer["filename"] == "#{name}-skills.tar.gz"
+      assert answer["download_url"] =~ ~r"/api/download/[\w-]{40,}\z"
+      assert answer["curl"] == "curl -fsSo #{name}-skills.tar.gz #{answer["download_url"]}"
+      refute Map.has_key?(answer, "text")
+
+      conn = curl_get(answer["download_url"])
+      bytes = response(conn, 200)
+      assert get_resp_header(conn, "content-type") == ["application/gzip"]
+      assert get_resp_header(conn, "x-tool-version") == ["1.0.0"]
+      assert get_resp_header(conn, "cache-control") == ["private, no-store"]
+
+      {:ok, entries} = :erl_tar.extract({:binary, bytes}, [:compressed, :memory])
+      names = Enum.map(entries, fn {n, _} -> to_string(n) end)
+      assert "#{name}/SKILL.md" in names
+      assert "#{name}/helper.sh" in names
+      assert "#{name}-setup/SKILL.md" in names
+
+      assert json_response(curl_get(answer["download_url"]), 410)["error"] =~ "link_gone"
+    end
+
+    test "link with skill gives its claude.ai zip; with file, the file's bytes", %{
+      user: user
+    } do
+      name = unique_name()
+      png = <<137, 80, 78, 71, 255, 254>>
+      {:ok, _} = Tools.publish(user, package(name, "1.0.0", %{"skills/#{name}/logo.png" => png}))
+
+      zip = list(user, %{"tool" => name, "skill" => name, "link" => true}) |> ok!()
+      assert zip["filename"] == "#{name}.zip"
+      assert zip["skill"] == name
+      conn = curl_get(zip["download_url"])
+      {:ok, files} = :zip.unzip(response(conn, 200), [:memory])
+      assert {_, skill_md} = List.keyfind(files, ~c"#{name}/SKILL.md", 0)
+      assert skill_md =~ "Run it."
+
+      # Binary isn't read as text, and the refusal offers the link.
+      assert list(user, %{"tool" => name, "file" => "skills/#{name}/logo.png"}) |> error!() =~
+               "fetch it with link: true"
+
+      file =
+        list(user, %{"tool" => name, "skill" => name, "file" => "logo.png", "link" => true})
+        |> ok!()
+
+      assert file["path"] == "skills/#{name}/logo.png"
+      assert file["filename"] == "logo.png"
+      assert file["sha256"] == :crypto.hash(:sha256, png) |> Base.encode16(case: :lower)
+      assert response(curl_get(file["download_url"]), 200) == png
+
+      assert list(user, %{"tool" => name, "file" => "nope.md", "link" => true}) |> error!() =~
+               "has no file nope.md"
+
+      assert list(user, %{"tool" => name, "skill" => "nope", "link" => true}) |> error!() =~
+               "has no skill nope"
+    end
+
+    test "a read-only token may have one, and it keeps the version it was made for", %{
+      user: user,
+      name: name
+    } do
+      answer =
+        list(user, %{"tool" => name, "file" => "files/guide.md", "link" => true}, scope: "read")
+        |> ok!()
+
+      {:ok, _} = Tools.publish(user, package(name, "1.1.0", %{"files/guide.md" => "Newer."}))
+
+      conn = curl_get(answer["download_url"])
+      assert response(conn, 200) == "A guide for the board."
+      assert get_resp_header(conn, "x-tool-version") == ["1.0.0"]
+    end
+
+    test "access is the Tool page's, checked again when the link is used", %{
+      user: user,
+      name: name,
+      tool: tool
+    } do
+      stranger = user_fixture("mcp-link-stranger@example.com")
+
+      assert list(stranger, %{"tool" => name, "link" => true}) |> error!() =~
+               "no Tool you can see"
+
+      friend = user_fixture("mcp-link-friend@example.com")
+      {:ok, grant} = Tools.share(user, tool, friend)
+      answer = list(friend, %{"tool" => name, "link" => true}) |> ok!()
+
+      {:ok, _} = Tools.unshare(user, tool, grant.id)
+      assert json_response(curl_get(answer["download_url"]), 404)
+
+      # Refused, not spent: shared again before it expires, the same link works.
+      {:ok, _} = Tools.share(user, tool, friend)
+      assert response(curl_get(answer["download_url"]), 200)
+    end
+
+    test "somebody who sees it by its listing gets links to the listed version only", %{
+      user: user,
+      name: name,
+      tool: tool
+    } do
+      admin =
+        "mcp-link-admin@example.com"
+        |> user_fixture()
+        |> Ecto.Changeset.change(admin: true)
+        |> Repo.update!()
+
+      v1 = Tools.visible_version(user, tool)
+      {:ok, _} = Tools.request_listing(user, v1)
+      {:ok, _} = Tools.approve_listing(admin, Repo.reload(v1))
+      {:ok, _} = Tools.publish(user, package(name, "2.0.0"))
+
+      reader = user_fixture("mcp-link-reader@example.com")
+      answer = list(reader, %{"tool" => name, "skill" => name, "link" => true}) |> ok!()
+      assert answer["version"] == "1.0.0"
+      assert get_resp_header(curl_get(answer["download_url"]), "x-tool-version") == ["1.0.0"]
+
+      assert list(reader, %{"tool" => name, "version" => "2.0.0", "link" => true}) |> error!() =~
+               "no Tool you can see"
     end
   end
 end

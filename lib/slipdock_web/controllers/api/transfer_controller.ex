@@ -3,7 +3,8 @@ defmodule SlipdockWeb.API.TransferController do
   The far end of a short-lived, single-use link (#1147): `POST
   /api/upload/:secret` attaches a file to the one card or page the link was
   made for, and `GET /api/download/:secret` sends the one attachment it was
-  made for. No bearer token: the secret in the URL is the authority, and it
+  made for, or the one piece of a Tool version: its skills archive, a
+  skill's claude.ai zip or a file (#1158). No bearer token: the secret in the URL is the authority, and it
   acts as the token that minted it (see `Slipdock.TransferLinks`).
 
   An upload takes what `POST /api/cards/:id/attachments` takes — the
@@ -14,7 +15,7 @@ defmodule SlipdockWeb.API.TransferController do
   """
   use SlipdockWeb, :controller
 
-  alias Slipdock.{Access, Boards, TransferLinks, Wiki}
+  alias Slipdock.{Access, Boards, Tools, TransferLinks, Wiki}
   alias Slipdock.Boards.{Attachment, Card}
   alias Slipdock.TransferLinks.Link
   alias Slipdock.Wiki.Page
@@ -41,22 +42,67 @@ defmodule SlipdockWeb.API.TransferController do
   def download(conn, %{"secret" => secret}) do
     with {:ok, link} <- claim(conn, secret, "download") do
       conn = as(conn, link)
-      attachment = link.attachment
-      path = Boards.attachment_path(attachment)
-
-      with :ok <- readable(conn, attachment),
-           true <- File.regular?(path) || {:error, :not_found, "the file's bytes"} do
-        conn
-        |> put_resp_header("cache-control", "private, no-store")
-        |> put_resp_header("x-content-type-options", "nosniff")
-        |> ByteRange.send(path, attachment.filename, attachment.content_type, :attachment)
-      else
-        refused ->
-          TransferLinks.release(link)
-          refused
-      end
+      send_link(conn, link)
     end
   end
+
+  # A Tool's piece is checked as the Tool page is: the version must still be
+  # one this user sees (their own, shared with them, or the listed one).
+  defp send_link(conn, %Link{tool_version: %Tools.Version{} = version} = link) do
+    user = conn.assigns.current_user
+
+    with %Tools.Version{id: id} <- Tools.visible_version(user, version.tool, version.version),
+         true <- id == version.id,
+         {:ok, type, filename, bytes} <- tool_piece(version, link.tool_target) do
+      conn
+      |> put_resp_header("cache-control", "private, no-store")
+      |> put_resp_header("x-content-type-options", "nosniff")
+      |> put_resp_header("x-tool-version", version.version)
+      |> put_resp_content_type(type, nil)
+      |> put_resp_header("content-disposition", ~s(attachment; filename="#{filename}"))
+      |> send_resp(200, bytes)
+    else
+      _ ->
+        TransferLinks.release(link)
+        {:error, :not_found, "Tool #{inspect(version.tool.slug)} #{version.version}"}
+    end
+  end
+
+  defp send_link(conn, link) do
+    attachment = link.attachment
+    path = Boards.attachment_path(attachment)
+
+    with :ok <- readable(conn, attachment),
+         true <- File.regular?(path) || {:error, :not_found, "the file's bytes"} do
+      conn
+      |> put_resp_header("cache-control", "private, no-store")
+      |> put_resp_header("x-content-type-options", "nosniff")
+      |> ByteRange.send(path, attachment.filename, attachment.content_type, :attachment)
+    else
+      refused ->
+        TransferLinks.release(link)
+        refused
+    end
+  end
+
+  defp tool_piece(version, "archive") do
+    with {:ok, bytes} <- Tools.skills_tarball(version),
+         do: {:ok, "application/gzip", "#{version.tool.slug}-skills.tar.gz", bytes}
+  end
+
+  defp tool_piece(version, "claude:" <> skill) do
+    with {:ok, bytes} <- Tools.claude_zip(version, skill),
+         do: {:ok, "application/zip", "#{skill}.zip", bytes}
+  end
+
+  defp tool_piece(version, "file:" <> path) do
+    case Tools.file(version, path) do
+      nil -> :error
+      file -> {:ok, "application/octet-stream", Path.basename(path), file.content}
+    end
+  end
+
+  defp tool_piece(_version, _target), do: :error
 
   # One answer for a link that is used, expired, revoked or never was: a
   # halted conn, which the with hands straight back.
