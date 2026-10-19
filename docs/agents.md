@@ -226,6 +226,17 @@ long it sat in each list and who moved it, its waits and its jobs — is
 `slipdock timeline <id>`. See
 [the manual](manual.md#flow-the-pulse-a-cards-state-and-its-age).
 
+A board with **delivery metrics** on records its project's deploys from CI
+(`slipdock deploy run --env production -- ./deploy.sh`, with the board's deploy
+token in `SLIPDOCK_DEPLOY_TOKEN`) and reports the DORA numbers and idea to
+production: `get_board` with `dora: true`, `GET /api/boards/:id/dora` or
+`slipdock dora <board>`. A card a deploy named carries `shipped` (*Shipped to
+production · 1a2b3c4*). An outage is an incident card tagged `incident`;
+`slipdock incident-of <card> <deploy>` (or `POST /api/cards/:id/incident-of`)
+names the deploy that caused it. To wire a repository up, `get_guide` with
+`section: "deployments"` is the whole brief. See
+[the manual](manual.md#delivery-metrics-deploys-and-dora).
+
 A card that repeats carries `recurrence` (its rule in words and when the next
 is made). An agent sets one only when the person asked for repeating work:
 `update_card` with `recurrence: {rule: "every mon"}`, `slipdock repeat <id>

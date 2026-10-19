@@ -89,6 +89,13 @@ whole card before touching it.
   `slipdock handoff <id> --next "<the one next step>" --body "State: … Gotchas:
   … Open: … Pointers: …"` (over MCP, `leave_handoff`). It replaces the last one;
   the history is kept. Comments stay the running log; the handoff is the now.
+- **Incidents and deploys.** When the board records deploys (`slipdock dora
+  <board>` answers rather than saying delivery metrics are off), an outage or
+  a broken release is an ordinary card tagged `incident`; if you know the
+  deploy that caused it, `slipdock incident-of <card> <deploy-id>`. Name the
+  card in the fix's commit (`#57`), as with any card: that is how its deploy
+  is counted as a fix and the card gets its *Shipped* line. Never record or
+  finish deploys by hand — that is CI's, with its own token.
 - **Tidy-up suggestions are the person's to decide.** `slipdock garden <board>`
   (over MCP, `garden`) lists what the board's gardener found: epics done but
   open, cards stuck in progress, duplicates, orphaned pages. Show them when

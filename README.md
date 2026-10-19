@@ -83,6 +83,20 @@ Briefly, with the detail in [the manual](docs/manual.md):
   person, what got done this week, typical time to done and each list's usual
   stay. `slipdock pulse <board>`, `GET /api/boards/:id/pulse` or `get_board`
   with `pulse: true`; a plain-words strip over the lists if the owner turns it on.
+- **Delivery metrics (DORA)** — [deploys recorded from CI](docs/manual.md#delivery-metrics-deploys-and-dora):
+  wrap your deploy step in `slipdock deploy run --env production -- ./deploy.sh`
+  and the board records each deploy with the commits since the last one, then
+  reports deployment frequency, lead time for changes, change failure rate,
+  time to restore, rework rate and **idea to production** (a card first in
+  progress → the first deploy that names it), each with its DORA band. Cards a
+  deploy names show *Shipped to production · 1a2b3c4 · 19 Oct*; incidents are
+  ordinary cards tagged `incident`. Off until the owner turns **Delivery
+  metrics** on; **Track deployments** in board settings (or `slipdock deploy
+  setup <board>`) issues a deploy token that can record deploys and nothing
+  else, writes the CI step — GitHub Actions, GitLab or plain shell — and gives
+  a prompt for Claude Code to wire it up. `slipdock dora <board>`, `GET
+  /api/boards/:id/dora` or `get_board` with `dora: true`; `slipdock deploy
+  backfill --from-tags` for day one.
 - **Recurring cards** — [repeating work kept on the card](docs/manual.md#recurring-cards)
   ("every Monday: review invoices", "the last Friday of the month", "three days
   after I last did it"): the next one is a copy of the current one, checklist
