@@ -2173,7 +2173,9 @@ needed and stop (the answer starts a fresh job); if the board is paused, finish
 the card and take no other. The
 **Send cards to a runner** preset is the usual rule (it is offered once the
 board has a runner): when a card
-arrives in a list, send it to a pool.
+arrives in a list, send it to a pool. It and *Work a list with a runner*
+both take an optional **Prompt** (#1156), the action's `prompt`; left blank,
+the job gets the card's title, link and description.
 
 **Working a list in order.** *Send cards to a runner* fires as cards arrive,
 so cards already in the list are never sent and the queue runs oldest job
@@ -3759,6 +3761,15 @@ the tree but keeps its bytes, which still count towards the board owner's
 storage. Deleting it is for good and gives that storage back; only the
 board's owner can delete a file, and a synced vault takes its copy away too.
 
+**Over the API.** `GET /api/boards/<board>/files` lists the board's live
+files by path (`folder=` keeps to one folder and what is under it), each
+with its size, sha256 and the URL it is read from; `GET
+/api/boards/<board>/files/<path>` (`Tool/template.docx`) is its bytes,
+always as a download (#1156). Both need read on the board, with a token like
+the rest of the API. In the CLI they are `slipdock wiki files <board>
+[--folder F]` and `slipdock wiki get <board> <path> [--out F|-]`. This is how
+an agent reaches a [Tool](#tools)'s board files.
+
 **What the folder remembers.** `.slipdock/state.json` holds, for each file,
 which page it is and the hash both sides last agreed on — never front
 matter, so your files stay your own. That is what makes a rename the same
@@ -5084,6 +5095,9 @@ slipdock tools install job-scan               # its skills into ~/.claude/skills
 slipdock tools check                          # are the installed Tool skills behind?
 slipdock tools install-board job-scan         # have the server build its board (--name, --version)
 slipdock tools request-listing my-tool        # ask an admin to list a version for everyone
+slipdock tools file job-scan skills/job-scan/SKILL.md   # one file of the package, latest version
+slipdock wiki files job-scan --folder Tool    # a board's wiki files that are not pages
+slipdock wiki get job-scan Tool/cv.docx       # one of them, saved here (--out F, or - for stdout)
 slipdock favourites                            # what you keep going back to, with the URL of each
 slipdock fav list qvm-v1-rem "In Progress"     # also: fav card 42 | fav view <board> <view> | fav board <board>
 slipdock hotkey slipdock 1                     # Ctrl+Shift+1 opens it in the web app; `slipdock hotkeys` lists yours
@@ -5094,6 +5108,10 @@ slipdock unfav list qvm-v1-rem "In Progress"   # or `fav ... --off`
 A Tool packages a way of working so other people on the same server can
 install it: a board blueprint, agent skills, files and docs (#958). Tools
 live at `/tools`; each has a page at `/tools/<name>`.
+
+[Tool packages: the reference](tool-packages.md) has everything a program
+building a Tool needs, in one place, with a worked example that a test holds
+to the server. This section is the overview.
 
 ### Installing
 
@@ -5129,6 +5147,20 @@ local copies by sha. Each skill is also `…/skills/<skill>/claude.zip` (for
 claude.ai's skill upload) and `…/skills/<skill>/chatgpt.zip` (with a note on
 the connector), and the page offers both through the browser session.
 
+**One file at a time** (#1156). `GET /api/tools/<name>/files/<path>` is one
+file of the package by its path (`skills/<skill>/SKILL.md`,
+`skills/<skill>/references/procedure.md`, `files/build.py`): text as
+`text/plain`, anything else as a download. The headers carry
+`x-tool-version` and the file's sha as its `etag`. It comes from the latest
+version the caller can see unless `version` says otherwise, so a stub skill
+can fetch its procedure at run time and pick up a new version without being
+reinstalled. MCP `list_tools` with `tool` and `file` gives the same file's
+text, and the CLI is `slipdock tools file <name> <path>`. `GET
+/api/tools/<name>` gives each skill's `skill_md` URL and each file's `url`.
+Once the caller has installed the Tool, each board file also has a
+`board_url`, the copy in the board's `Tool` folder, read with `GET
+/api/boards/<board>/files/Tool/<path>`.
+
 ### Publishing
 
 `slipdock tools publish <folder>` packs the folder and sends it to
@@ -5160,7 +5192,8 @@ my-tool/
   "folder"}`; bodies may use `{{board.name}}` and `{{today}}`) and
   `automations` (`{"preset", "params", "name"}`, from the ready-made rules:
   `slipdock automation-presets` lists them). A rule may only name lists the
-  blueprint makes.
+  blueprint makes. The runner presets take a `prompt`, so a blueprint's
+  runner rule can say what its jobs are told.
 - **Skills**: each `SKILL.md` starts with front matter whose `name` is its
   folder's and which has a `description`.
 
@@ -5294,7 +5327,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `activity` | A board's activity log, newest first; `card` narrows it to one card's entries. |
 | `download_file` | A file attached to a card or a page, by its `attachment` id (`get_card` and `read_page` list them, `read_page` under `attachments`). The attachment's details come first; then a text file's contents as `text` (cut at 100,000 characters, with `truncated`), an image as an MCP image block, or anything else up to 5 MB as an embedded resource in base64. A bigger file is refused with its link in the web app. Checked as reading the card or page is: a file the token can't reach is not found. **`link: true`** (#1147) sends no bytes: it answers with the attachment's details and a `download_url` that works once, for 10 minutes, with no token (`curl -fsSo cv.docx <download_url>`), so a file of any size reaches a shell without passing through the model. A read-only token may have one. The link is checked again as that token when it is used; a used, expired or unknown one is `410 link_gone`. |
 | `list_automations` | A board's [automation rules](#automations-and-alerts), as `GET /api/boards/:board/automations` gives them: each one's name, trigger, `spec`, `scope`, whether it is `enabled`, and how often it has run; `rule` (an id or name) gives one. `vocabulary: true` adds every trigger, condition and action a spec may use and the ready-made presets, so a client can write one without guessing. Only the board's owner, on a write token, may read them, as over HTTP. |
-| `list_tools` | The [Tools](#tools) the caller can install — their own, the ones shared with them, the ones listed for everyone — each with its `kind` and the board their install made (`installed.board`), which is how a Tool's skill finds its board. With `tool` (and optionally `version`), that Tool in full: its README, board blueprint, skills with shas and download links, files, and, for its owner, where listing stands. Read-only. |
+| `list_tools` | The [Tools](#tools) the caller can install — their own, the ones shared with them, the ones listed for everyone — each with its `kind` and the board their install made (`installed.board`), which is how a Tool's skill finds its board. With `tool` (and optionally `version`), that Tool in full: its README, board blueprint, skills with shas and download links, files, and, for its owner, where listing stands. With `tool` and `file` (a path in the package, like `skills/<skill>/SKILL.md`), that file's text from the latest version, or from `version` (text up to 200 KB; anything else names the API URL to fetch). Read-only. |
 | `garden` | A board's open [tidy-up suggestions](#tidying-up), as `GET /api/boards/:board/garden` gives them: each with its check, explanation, the cards and pages it is about, the steps applying it takes and any alternatives; plus the last run and every check's settings. `run: true` looks the board over first (write access); `check` narrows to one. Changes nothing on the board. |
 | `create_card` | A card on a board, or with `parent` a subcard (making the sub-board if needed). |
 | `update_card` | Title, description, priority (or clearing it), start and due dates, percent, flags, tags, assignees, what blocks it, its checklist — add, tick and untick items — and whether it repeats (`recurrence`, or `null` to stop it). Only what is passed changes. |

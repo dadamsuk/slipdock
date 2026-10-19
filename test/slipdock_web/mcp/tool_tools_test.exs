@@ -144,4 +144,100 @@ defmodule SlipdockWeb.MCP.ToolToolsTest do
       refute Enum.any?(listed["tools"], &(&1["name"] == name))
     end
   end
+
+  describe "list_tools with file (#1156)" do
+    test "gives one file's text from the latest version, or the version asked for", %{
+      user: user,
+      name: name
+    } do
+      path = "skills/#{name}/SKILL.md"
+
+      first =
+        user |> token_conn() |> call("list_tools", %{"tool" => name, "file" => path}) |> ok!()
+
+      assert first["tool"] == name
+      assert first["version"] == "1.0.0"
+      assert first["path"] == path
+      assert first["text"] =~ "Run it."
+
+      assert first["sha256"] ==
+               :crypto.hash(:sha256, first["text"]) |> Base.encode16(case: :lower)
+
+      assert first["size"] == byte_size(first["text"])
+
+      body = "---\nname: #{name}\ndescription: Better.\n---\n\nRun it better."
+      {:ok, _} = Tools.publish(user, package(name, "1.1.0", %{path => body}))
+
+      latest =
+        user |> token_conn() |> call("list_tools", %{"tool" => name, "file" => path}) |> ok!()
+
+      assert latest["version"] == "1.1.0"
+      assert latest["text"] =~ "Run it better."
+
+      old =
+        user
+        |> token_conn()
+        |> call("list_tools", %{"tool" => name, "file" => "/" <> path, "version" => "1.0.0"})
+        |> ok!()
+
+      assert old["version"] == "1.0.0"
+      assert old["path"] == path
+      refute old["text"] =~ "better"
+    end
+
+    test "a path that isn't in the package is an error naming it", %{user: user, name: name} do
+      text =
+        user
+        |> token_conn()
+        |> call("list_tools", %{"tool" => name, "file" => "files/nope.md"})
+        |> error!()
+
+      assert text =~ "has no file files/nope.md"
+    end
+
+    test "a file that isn't text, or is too big to read here, points at the API", %{user: user} do
+      name = unique_name()
+      big = String.duplicate("a", 200_001)
+
+      {:ok, _} =
+        Tools.publish(
+          user,
+          package(name, "1.0.0", %{
+            "skills/#{name}/logo.png" => <<137, 80, 78, 71, 255, 254>>,
+            "skills/#{name}/big.md" => big
+          })
+        )
+
+      binary =
+        user
+        |> token_conn()
+        |> call("list_tools", %{"tool" => name, "file" => "skills/#{name}/logo.png"})
+        |> error!()
+
+      assert binary =~ "not text"
+      assert binary =~ "/api/tools/#{name}/files/skills/#{name}/logo.png?version=1.0.0"
+
+      too_big =
+        user
+        |> token_conn()
+        |> call("list_tools", %{"tool" => name, "file" => "skills/#{name}/big.md"})
+        |> error!()
+
+      assert too_big =~ "too big"
+      assert too_big =~ "/api/tools/#{name}/files/skills/#{name}/big.md"
+    end
+
+    test "file needs tool, and a hidden Tool's file reads as no Tool at all",
+         %{name: name} = ctx do
+      assert ctx.user |> token_conn() |> call("list_tools", %{"file" => "tool.json"}) |> error!() =~
+               "file needs tool"
+
+      stranger = user_fixture("mcp-file-stranger@example.com")
+
+      assert stranger
+             |> token_conn()
+             |> call("list_tools", %{"tool" => name, "file" => "tool.json"})
+             |> error!() =~ "no Tool you can see"
+    end
+  end
 end

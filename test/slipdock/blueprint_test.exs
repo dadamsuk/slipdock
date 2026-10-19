@@ -6,6 +6,7 @@ defmodule Slipdock.BlueprintTest do
   """
   use Slipdock.DataCase, async: true
 
+  import Ecto.Query
   import Slipdock.Fixtures
 
   alias Slipdock.{Automations, Blueprint, Boards, Repo, Wiki}
@@ -134,6 +135,53 @@ defmodule Slipdock.BlueprintTest do
       assert [rule] = Automations.list_rules(board.id)
       assert rule.spec["trigger"]["column"] == "Interested"
       assert rule.created_by_id == user.id
+    end
+
+    test "a runner rule's prompt in the blueprint is the prompt its jobs are sent (#1156)" do
+      user = user_fixture()
+      board = bare_board(user)
+
+      blueprint =
+        Map.put(@blueprint, "automations", [
+          %{
+            "preset" => "send_to_runner",
+            "name" => "Draft it",
+            "params" => %{
+              "column" => "Working",
+              "pool" => "generate",
+              "prompt" => "Draft a reply to {{card.title}}, using the Setup page."
+            }
+          }
+        ])
+
+      assert {:ok, _} = Blueprint.apply(board, blueprint, user: user)
+
+      assert [rule] = Automations.list_rules(board.id)
+      assert rule.name == "Draft it"
+      assert rule.spec["trigger"] == %{"type" => "card_entered", "column" => "Working"}
+
+      assert [%{"type" => "runner", "pool" => "generate", "prompt" => prompt}] =
+               rule.spec["actions"]
+
+      assert prompt == "Draft a reply to {{card.title}}, using the Setup page."
+
+      working =
+        board.id
+        |> Boards.get_board!()
+        |> Map.fetch!(:columns)
+        |> Enum.find(&(&1.name == "Working"))
+
+      card = card_fixture(working, %{"title" => "Acme enquiry"})
+
+      Slipdock.Automations.Runner.run(rule, %{
+        type: "card_entered",
+        card: card,
+        board_id: board.id
+      })
+
+      [job] = Repo.all(from(j in Slipdock.Runners.Job, where: j.rule_id == ^rule.id))
+      assert job.pool == "generate"
+      assert job.prompt =~ "Draft a reply to Acme enquiry, using the Setup page."
     end
 
     test "is idempotent: a second apply adds nothing and reports it all skipped" do

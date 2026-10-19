@@ -363,7 +363,8 @@ and gives you exactly what to paste:
 | ChatGPT | the Slipdock connector in ChatGPT, and a prompt for a chat or a scheduled task that takes one job with `claim_job`, works it in the conversation and ends with `finish_job` | a ChatGPT turn per check |
 
 It can also add the rule that sends a list's cards to the runner's **pool**
-(the *Send cards to a runner* preset, offered once the board has a runner) —
+(the *Send cards to a runner* preset, offered once the board has a runner,
+with an optional prompt for what each job is told) —
 or one that works a list **top card first, one at a time** (*Work a list with
 a runner*, trigger `list_top`): whenever nothing it sent is still open it
 sends the top open card nobody has taken, skipping blocked, waiting and

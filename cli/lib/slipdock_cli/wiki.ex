@@ -130,7 +130,51 @@ defmodule SlipdockCLI.Wiki do
   def run("wiki", [], o),
     do: HTTP.get("/wiki") |> out(o, &Render.wiki(&1["boards"]))
 
-  def run("wiki", _args, _o), do: fail("usage: slipdock wiki")
+  # The wiki's files that are not pages (#1156): a Tool's board files are
+  # among them, in its `Tool` folder.
+  def run("wiki", ["files", board], o) do
+    query = if o[:folder], do: [folder: o[:folder]], else: []
+
+    HTTP.get("/boards/#{enc(board)}/files", query)
+    |> out(o, fn %{"files" => files} ->
+      if files == [],
+        do: IO.puts("no files"),
+        else:
+          Render.table(
+            ["PATH", "SIZE", "SHA256"],
+            Enum.map(
+              files,
+              &[&1["path"], to_string(&1["size"]), String.slice(&1["sha256"] || "", 0, 12)]
+            )
+          )
+    end)
+  end
+
+  # One of them by its path: saved under its own name here, as --out F, or
+  # to stdout with --out -.
+  def run("wiki", ["get", board, path], o) do
+    url = "/boards/#{enc(board)}/files/" <> path_enc(path)
+
+    case o[:out] do
+      "-" ->
+        download_to_stdout(url, o)
+
+      nil ->
+        case wiki_file_dest(path, o) do
+          {:ok, dest} -> download_to(url, dest, o)
+          {:error, why} -> fail(why)
+        end
+
+      dest ->
+        download_to(url, dest, o)
+    end
+  end
+
+  def run("wiki", _args, _o),
+    do:
+      fail(
+        "usage: slipdock wiki | wiki files <board> [--folder F] | wiki get <board> <path> [--out F|-] [--force]"
+      )
 
   def run("page", ["ls", ref], o) do
     HTTP.get("/boards/#{enc(ref)}/pages",
@@ -1031,6 +1075,22 @@ defmodule SlipdockCLI.Wiki do
 
       HTTP.post(path, Map.put(subject, "level", level))
       |> out(o, fn %{"grant" => g} -> IO.puts("shared with #{who}: " <> Render.grant_level(g)) end)
+    end
+  end
+
+  # Where `wiki get` with no --out saves: the file's own name, here, and
+  # never over a file already here unless --force says so.
+  @doc false
+  def wiki_file_dest(path, o) do
+    case path |> to_string() |> String.split("/", trim: true) |> List.last() do
+      name when name in [nil, ".", ".."] ->
+        {:error, "#{inspect(path)} doesn't name a file: --out says where to save it"}
+
+      dest ->
+        if File.exists?(dest) and !o[:force],
+          do:
+            {:error, "#{dest} is already here: --force overwrites it, --out saves it elsewhere"},
+          else: {:ok, dest}
     end
   end
 end

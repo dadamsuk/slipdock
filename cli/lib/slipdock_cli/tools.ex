@@ -17,7 +17,8 @@ defmodule SlipdockCLI.Tools do
   @usage "usage: slipdock tools | tools show <name> [--version V] | tools publish <dir> | " <>
            "tools install <name> [--dir D] | tools check [<name>...] | " <>
            "tools request-listing <name> [--version V] | " <>
-           "tools install-board <name> [--version V] [--name N]"
+           "tools install-board <name> [--version V] [--name N] | " <>
+           "tools file <name> <path> [--version V] [--out F]"
 
   def run("tools", [], o) do
     HTTP.get("/tools")
@@ -158,6 +159,20 @@ defmodule SlipdockCLI.Tools do
           "before it shows (#{t["listing"]["this_version"]})"
       )
     end)
+  end
+
+  # One file of the package by its path (#1156) — skills/<skill>/SKILL.md,
+  # files/build.py — to stdout, or into --out F. The latest version unless
+  # --version says.
+  def run("tools", ["file", name, path], o) do
+    url =
+      "/tools/#{enc(name)}/files/" <>
+        path_enc(path) <>
+        if(o[:version], do: "?version=" <> enc(o[:version]), else: "")
+
+    if o[:out] in [nil, "-"],
+      do: download_to_stdout(url, o),
+      else: download_to(url, o[:out], o)
   end
 
   def run("tools", _args, _o), do: fail(@usage)

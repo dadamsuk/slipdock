@@ -323,6 +323,11 @@ defmodule SlipdockCLI do
             id, its slug, its name, or a path of names — "Design/Decisions".
             Deleting one never deletes writing.)
     wiki                                every board's wiki at once: boards, then folders
+    wiki files <board> [--folder F]     the wiki's files that are not pages, by path (a
+                                        Tool's board files are in its Tool folder)
+    wiki get <board> <path> [--out F|-] [--force]
+                                        save one by its path ("Tool/cv.docx") under its
+                                        own name here, as F, or to stdout (--out -)
     folder ls <board>                   the board's filing, pages and all
     folder open <board> [<folder>] [--page P] [--all]
                                         one level of the tree, as the web's tree loads it:
@@ -488,6 +493,10 @@ defmodule SlipdockCLI do
     tools install-board <name> [--version V] [--name N]
                                         have the server build the Tool's board for you
                                         (again: answers with the board you already have)
+    tools file <name> <path> [--version V] [--out F]
+                                        one file of the package by its path
+                                        (skills/<skill>/SKILL.md, files/build.py) to
+                                        stdout or F; the latest version unless --version
 
   MEETINGS  (meeting capture: off unless this server's admin turns it on, and
              every command here says "meeting mode is off on this server" until then)

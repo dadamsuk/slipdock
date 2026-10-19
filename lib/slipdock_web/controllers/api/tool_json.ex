@@ -24,6 +24,7 @@ defmodule SlipdockWeb.API.ToolJSON do
   @doc "One Tool at one version, with what it would install."
   def show(%Tools.Tool{} = tool, %Tools.Version{} = version, user) do
     manifest = version.manifest || %{}
+    install = Tools.current_install(user, tool)
 
     tool
     |> listing(user)
@@ -41,16 +42,49 @@ defmodule SlipdockWeb.API.ToolJSON do
           base = "/api/tools/#{tool.slug}/skills/#{skill.name}"
 
           Map.merge(skill, %{
+            skill_md: file_url(tool, "skills/#{skill.name}/SKILL.md", version),
             claude_zip: base <> "/claude.zip?version=#{version.version}",
             chatgpt_zip: base <> "/chatgpt.zip?version=#{version.version}"
           })
         end),
       skills_archive: "/api/tools/#{tool.slug}/skills.tar.gz?version=#{version.version}",
-      files: Enum.map(manifest["files"] || [], &Map.take(&1, ["path", "install", "skill"])),
+      files:
+        Enum.map(manifest["files"] || [], fn f ->
+          f
+          |> Map.take(["path", "install", "skill"])
+          |> Map.put("url", file_url(tool, "files/" <> f["path"], version))
+          |> put_board_url(f, install)
+        end),
       size: version.size,
       listing: listing(tool, version, user)
     })
   end
+
+  # A board file the caller's install put in the wiki, where it is now: the
+  # copy on the board, which is the one a skill reads at run time.
+  defp put_board_url(entry, %{"install" => "board", "path" => path}, %Tools.Install{
+         board: %{} = board
+       }),
+       do:
+         Map.put(
+           entry,
+           "board_url",
+           "/api/boards/#{board.code || board.id}/files/" <>
+             encode(Tools.tool_folder() <> "/" <> path)
+         )
+
+  defp put_board_url(entry, _file, _install), do: entry
+
+  defp encode(path),
+    do:
+      path
+      |> String.split("/")
+      |> Enum.map_join("/", fn s -> URI.encode(s, &URI.char_unreserved?/1) end)
+
+  # Where one file of the package is read from (#1156). Without `?version=`
+  # the same address gives whatever version is newest for the caller.
+  defp file_url(tool, path, version),
+    do: "/api/tools/#{tool.slug}/files/#{encode(path)}?version=#{version.version}"
 
   @doc "What an install answers: the board and what was made on it."
   def install(

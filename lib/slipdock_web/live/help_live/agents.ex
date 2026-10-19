@@ -872,7 +872,9 @@ defmodule SlipdockWeb.HelpLive.Agents do
         and rules — and answers with its code; the skill then fills the pages in with you.
         <code>list_tools</code>
         says which Tools you can install and which board each install made, which is how a
-        Tool's skills find their board.
+        Tool's skills find their board; with <code>file</code>
+        it reads one file of the Tool, from its newest version, so a skill can fetch its
+        own steps as it runs.
       </p>
       <p>
         A Tool is a folder with <code>tool.json</code>, <code>README.md</code>, an optional <code>board.json</code>,
@@ -955,7 +957,7 @@ defmodule SlipdockWeb.HelpLive.Agents do
       <ul class="list-disc space-y-1 pl-5">
         <li>
           <strong>Send cards to a runner</strong>: when a card arrives in a list, queue it
-          for a pool.
+          for a pool, with the card itself as the prompt or one you write.
         </li>
         <li>
           <strong>Work a list with a runner</strong>: take the top card, one at a time, and

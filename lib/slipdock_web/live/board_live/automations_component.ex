@@ -343,7 +343,10 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
           <span class="text-base-content/60">{@picked.description}</span>
         </p>
         <div class="grid gap-2 sm:grid-cols-2">
-          <label :for={field <- @picked.fields} class="space-y-0.5 text-xs">
+          <label
+            :for={field <- @picked.fields}
+            class={["space-y-0.5 text-xs", field.type == "longtext" && "sm:col-span-2"]}
+          >
             <span class="text-base-content/70">
               {field.label}<span :if={field.required} class="text-error">*</span>
               <span :if={field[:hint]} class="text-base-content/40">— {field.hint}</span>
@@ -411,6 +414,15 @@ defmodule SlipdockWeb.BoardLive.AutomationsComponent do
       <option :if={@blank} value="">{@blank}</option>
       {Phoenix.HTML.Form.options_for_select(@options, to_string(@value || ""))}
     </select>
+    """
+  end
+
+  # A runner job's prompt runs to paragraphs.
+  defp preset_input(%{field: %{type: "longtext"}} = assigns) do
+    assigns = assign(assigns, class: @preset_input_class)
+
+    ~H"""
+    <textarea name={"preset[#{@field.name}]"} rows="3" class={@class}>{@value}</textarea>
     """
   end
 
