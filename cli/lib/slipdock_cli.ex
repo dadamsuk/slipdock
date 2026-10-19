@@ -189,6 +189,7 @@ defmodule SlipdockCLI do
     fav list <board> <column>           favourite a list (opens the board at that list)
     fav view <board> <view>             favourite a saved view
     fav board <board>                   favourite a whole board
+    fav page <page>                     favourite a wiki page (W-31, its slug or board/slug)
     unfav <same args>                   stop favouriting it (or `fav ... --off`)
     hotkeys                             your board hotkeys: Ctrl+Shift+a digit in the web app
     hotkey <board> <0-9|none>           give a board a digit (it leaves any other board), or none

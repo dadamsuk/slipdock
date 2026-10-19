@@ -700,13 +700,13 @@ defmodule SlipdockWeb.APIGuide do
       subcards, and an archived card must be restored first. Leave `board` out
       and this is the ordinary within-board move, where `index` still applies.
     - **Favourites** — the handful of things the person keeps going back to: a
-      board, a list, a card or a saved view. They are *personal*, so
+      board, a list, a card, a saved view or a wiki page. They are *personal*, so
       `GET /api/favourites` is the token holder's own set and nobody else's,
       and it is worth reading at the start of a session: it says where this
       person actually works, which a list of boards does not. Each entry gives
       a `kind`, a `name`, its `board` and the `url` that opens it. Add one with
       `POST /api/favourites {"kind": "card", "id": 42}` (`kind` is `board`,
-      `column`, `card` or `view`) and remove it with
+      `column`, `card`, `view` or `page`) and remove it with
       `DELETE /api/favourites/:kind/:id`. Favouriting changes nothing about the
       thing itself, so read access is enough — and never favourite on someone's
       behalf unless they asked.
