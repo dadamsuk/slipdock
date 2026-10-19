@@ -61,6 +61,13 @@ defmodule Slipdock.Boards.Board do
     # `Slipdock.Deployments`, `Slipdock.Dora`). Off unless the owner turns it
     # on, and invisible while off: the deploy endpoint refuses posts for it.
     field :delivery_metrics, :boolean, default: false
+    # The hash of the board's deploy token (`Slipdock.Deployments.issue_token/1`):
+    # it records deploys for this board and does nothing else. Never set
+    # through `changeset/2`.
+    field :deploy_token_hash, :binary, redact: true
+    # A regex finding card ids in commit messages, its first group the id;
+    # nil is `#NNN` (`Slipdock.Deployments.card_refs/2`).
+    field :card_ref_pattern, :string
 
     # Whether WIP limits hold automated work (#1116, KTD11): with it on, a
     # runner job or a list_top send whose card isn't already in progress
@@ -359,6 +366,7 @@ defmodule Slipdock.Boards.Board do
       :simple,
       :show_pulse,
       :delivery_metrics,
+      :card_ref_pattern,
       :automation_wip,
       :kind,
       :default_view
@@ -384,5 +392,27 @@ defmodule Slipdock.Boards.Board do
     |> validate_number(:vote_max, greater_than_or_equal_to: 1, less_than_or_equal_to: 1000)
     |> validate_length(:name, min: 1, max: @name_length)
     |> validate_inclusion(:color, Slipdock.Palette.names())
+    |> update_change(:card_ref_pattern, &blank_to_nil/1)
+    |> validate_change(:card_ref_pattern, &validate_card_ref_pattern/2)
   end
+
+  # A pattern must compile and capture the card id in its first group.
+  defp validate_card_ref_pattern(field, pattern) do
+    cond do
+      String.length(pattern) > 200 ->
+        [{field, "must be at most 200 characters"}]
+
+      match?({:error, _}, Regex.compile(pattern)) ->
+        [{field, "is not a valid regular expression"}]
+
+      not capturing_group?(pattern) ->
+        [{field, "must capture the card id in a group, like #(\\d+)"}]
+
+      true ->
+        []
+    end
+  end
+
+  # An unescaped `(` that doesn't start a non-capturing or other `(?…)` group.
+  defp capturing_group?(pattern), do: Regex.match?(~r/(?<!\\)\((?!\?)/, pattern)
 end

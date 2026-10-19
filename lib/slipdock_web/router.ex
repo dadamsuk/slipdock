@@ -169,6 +169,16 @@ defmodule SlipdockWeb.Router do
     post "/jobs/:id/finish", RunnerController, :finish
   end
 
+  # Recording deploys from CI (see `SlipdockWeb.API.DeploymentController`):
+  # JSON, but with the board's deploy token rather than an API token.
+  scope "/api/deployments", SlipdockWeb.API do
+    pipe_through :api_public
+
+    get "/last", DeploymentController, :last
+    post "/", DeploymentController, :create
+    patch "/:id", DeploymentController, :finish
+  end
+
   # The board as an MCP server (see `SlipdockWeb.MCP.Plug`). Outside every
   # pipeline: it does its own bearer auth, because the `:api` pipeline refuses
   # every POST from a read token and every MCP call is a POST, and it reads its
@@ -542,6 +552,8 @@ defmodule SlipdockWeb.Router do
     post "/boards/:board/restore", BoardController, :restore
     get "/boards/:board/activity", BoardController, :activity
     get "/boards/:board/pulse", BoardController, :pulse
+    post "/boards/:board/deploy-token", BoardController, :deploy_token
+    delete "/boards/:board/deploy-token", BoardController, :revoke_deploy_token
     get "/boards/:board/recurring", RecurrenceController, :index
     get "/boards/:board/swimlanes", BoardController, :swimlanes
     get "/boards/:board/views", BoardController, :views
