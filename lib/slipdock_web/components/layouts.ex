@@ -322,14 +322,20 @@ defmodule SlipdockWeb.Layouts do
 
   The button and the row carry the home indicator's safe area in their
   distance from the bottom edge.
+
+  When the corner covers something, the button can be dragged out of the way
+  (#1130): it settles against the nearer side at the height it was dropped,
+  and the row and the Menu open away from the edges. Where it was put is the
+  browser's to remember (`DockDrag` in `assets/js/dock_drag.js`).
   """
   def mobile_bar(assigns) do
     ~H"""
     <nav
       id="mobile-bar"
       aria-label="Main"
+      phx-hook="DockDrag"
       phx-click-away={close_mobile_dock()}
-      class="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-3 z-40 flex items-end gap-2 sm:hidden"
+      class="group/bar fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-3 z-40 flex items-end gap-2 data-[side=right]:flex-row-reverse sm:hidden"
     >
       <button
         type="button"
@@ -338,7 +344,7 @@ defmodule SlipdockWeb.Layouts do
         aria-expanded="false"
         aria-controls="mobile-dock"
         aria-label="Navigation"
-        class="group relative flex size-14 shrink-0 items-center justify-center rounded-full bg-primary text-primary-content shadow-lg ring-1 ring-base-content/10"
+        class="group relative flex size-14 shrink-0 touch-none select-none items-center justify-center rounded-full bg-primary text-primary-content shadow-lg ring-1 ring-base-content/10 group-data-dragging/bar:scale-110 group-data-dragging/bar:shadow-xl"
       >
         <.icon name="hero-squares-2x2" class="size-6 group-aria-expanded:hidden" />
         <.icon name="hero-x-mark" class="hidden size-6 group-aria-expanded:block" />
@@ -375,7 +381,7 @@ defmodule SlipdockWeb.Layouts do
           </button>
           <ul
             id="mobile-menu-list"
-            class="menu absolute bottom-full left-0 z-40 mb-2 hidden max-h-[calc(100dvh-7rem)] w-64 flex-nowrap overflow-y-auto overscroll-contain rounded-box bg-base-100 p-1 text-sm shadow-lg ring-1 ring-base-content/10"
+            class="menu absolute bottom-full left-0 z-40 mb-2 hidden max-h-[var(--dock-room,calc(100dvh-7rem))] group-data-[edge=top]/bar:bottom-auto group-data-[edge=top]/bar:top-full group-data-[edge=top]/bar:mb-0 group-data-[edge=top]/bar:mt-2 w-64 flex-nowrap overflow-y-auto overscroll-contain rounded-box bg-base-100 p-1 text-sm shadow-lg ring-1 ring-base-content/10"
           >
             {render_slot(@menu)}
             <li class={[

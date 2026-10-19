@@ -184,6 +184,59 @@ defmodule SlipdockWeb.MobileMenuLiveTest do
     end
   end
 
+  describe "dragging the floating button (#1130)" do
+    test "the bar carries the drag hook, and the fold it runs when a drag starts", %{
+      conn: conn,
+      board: board
+    } do
+      {:ok, view, _} = live(phone(conn), ~p"/boards/#{board}")
+
+      assert has_element?(view, "nav#mobile-bar[phx-hook=DockDrag]")
+      # The hook folds the row by running the bar's own click-away.
+      [fold] = js_ops(view, "#mobile-bar", "phx-click-away")
+      assert ["hide", %{"to" => "#mobile-dock"}] = hd(fold)
+
+      # A finger on the button drags it rather than scrolling the page.
+      assert has_element?(view, "#mobile-fab.touch-none.select-none")
+    end
+
+    test "the row and the Menu open away from whichever edge it was put against", %{
+      conn: conn,
+      board: board
+    } do
+      {:ok, view, _} = live(phone(conn), ~p"/boards/#{board}")
+
+      bar = classes(view, "#mobile-bar")
+      assert "group/bar" in bar
+      # Against the right edge the row runs leftwards from the button.
+      assert "data-[side=right]:flex-row-reverse" in bar
+      # Until it is moved it sits in the bottom-left corner, as before.
+      assert "left-3" in bar
+
+      list = classes(view, "#mobile-menu-list")
+      # The Menu is the row's far end from a button on the right, so its list
+      # opens rightwards from there whichever side the button is on.
+      assert "left-0" in list
+      # In the top half of the screen the Menu drops down instead of up.
+      assert "group-data-[edge=top]/bar:top-full" in list
+      assert "group-data-[edge=top]/bar:bottom-auto" in list
+      # ...no taller than the room the hook measures that way, and in the
+      # corner it starts in, the screen less the row.
+      assert "max-h-[var(--dock-room,calc(100dvh-7rem))]" in list
+      assert "bottom-full" in list
+    end
+  end
+
+  defp classes(view, selector) do
+    view
+    |> element(selector)
+    |> render()
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.attribute("class")
+    |> hd()
+    |> String.split()
+  end
+
   defp js_ops(view, selector, attr) do
     view
     |> element(selector)
