@@ -39,6 +39,7 @@ import {ExcalidrawEditor} from "./excalidraw_editor"
 import {MarkdownEditor} from "./markdown_editor"
 import {TranscriptPlayer} from "./transcript_player"
 import {PasskeyLogin, PasskeyRegister} from "./passkey"
+import {DockDrag} from "./dock_drag"
 
 const Hooks = {}
 Hooks.ModalDialog = ModalDialog
@@ -47,6 +48,7 @@ Hooks.ExcalidrawEditor = ExcalidrawEditor
 Hooks.MarkdownEditor = MarkdownEditor
 Hooks.PasskeyLogin = PasskeyLogin
 Hooks.PasskeyRegister = PasskeyRegister
+Hooks.DockDrag = DockDrag
 
 // Keeps the server's idea of the window width up to date, so views that
 // render something different on a phone (the calendar's agenda, the board's
