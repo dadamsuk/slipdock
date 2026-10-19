@@ -840,6 +840,8 @@ defmodule SlipdockCLI.Boards do
         "show_pulse" => o[:show_pulse],
         # WIP limits holding runner jobs and list_top sends (#1116).
         "automation_wip" => o[:automation_wip],
+        # Deploys and DORA metrics (#1134).
+        "delivery_metrics" => o[:delivery_metrics],
         # What opening the board shows in the web app: wiki, table, board…
         "default_view" => o[:default_view],
         "kind" =>
@@ -854,7 +856,7 @@ defmodule SlipdockCLI.Boards do
       do:
         fail(
           "nothing to change — pass --name, --code, --shortcut, --desc, --color, " <>
-            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse or --default-view"
+            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]automation-wip, --[no-]delivery-metrics or --default-view"
         )
 
     HTTP.patch("/boards/#{enc(ref)}", body)

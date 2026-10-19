@@ -546,6 +546,31 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
               </span>
             </label>
           </div>
+          <%!-- Deploys and DORA metrics (#1134). Off by default, and while
+                off the deploy endpoint refuses posts for the board. --%>
+          <div class="space-y-1">
+            <input type="hidden" name={@form[:delivery_metrics].name} value="false" />
+            <label class="flex cursor-pointer items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                id="board-delivery-metrics"
+                name={@form[:delivery_metrics].name}
+                value="true"
+                checked={
+                  Phoenix.HTML.Form.normalize_value("checkbox", @form[:delivery_metrics].value)
+                }
+                class="checkbox checkbox-sm mt-0.5"
+              />
+              <span>
+                <span class="font-medium">Delivery metrics</span>
+                <span class="block text-xs text-base-content/50">
+                  Record this project's deploys from CI and show how it delivers: how often it
+                  ships, how long a change takes to reach production, how often a deploy fails
+                  and how fast it is put right. Nothing is recorded while this is off.
+                </span>
+              </span>
+            </label>
+          </div>
           <%!-- WIP limits holding automated work (#1116, KTD11). Off by
                 default: people's drags only ever see the badge. --%>
           <div class="space-y-1">

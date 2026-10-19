@@ -87,4 +87,22 @@ defmodule SlipdockCLI.SetBoardTest do
     out = capture_io(fn -> SlipdockCLI.Render.board(Map.put(board, "default_view", "board")) end)
     refute out =~ "opens on"
   end
+
+  test "--[no-]delivery-metrics parses as a switch and sends it (#1134)" do
+    {opts, ["set-board", "docs"], []} =
+      OptionParser.parse(["set-board", "docs", "--no-delivery-metrics"],
+        strict: SlipdockCLI.switches()
+      )
+
+    assert opts[:delivery_metrics] == false
+
+    serve([{200, @updated}, {200, @updated}])
+    capture_io(fn -> Boards.run("set-board", ["docs"], delivery_metrics: true) end)
+    assert_received {:request, "PATCH", "/api/boards/docs", body}
+    assert JSON.decode!(body) == %{"delivery_metrics" => true}
+
+    capture_io(fn -> Boards.run("set-board", ["docs"], delivery_metrics: false) end)
+    assert_received {:request, "PATCH", "/api/boards/docs", body}
+    assert JSON.decode!(body) == %{"delivery_metrics" => false}
+  end
 end

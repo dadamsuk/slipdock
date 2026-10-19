@@ -37,6 +37,7 @@ defmodule SlipdockWeb.API.JSON do
       simple: b.simple,
       page_card_features: b.page_card_features,
       show_pulse: b.show_pulse,
+      delivery_metrics: b.delivery_metrics,
       automation_wip: b.automation_wip,
       default_view: Board.home_view(b),
       owner: owner_ref(b),
@@ -105,6 +106,7 @@ defmodule SlipdockWeb.API.JSON do
       # Whether the board page shows its pulse strip; `GET .../pulse` has
       # the numbers on any board.
       show_pulse: b.show_pulse,
+      delivery_metrics: b.delivery_metrics,
       automation_wip: b.automation_wip,
       columns:
         Enum.map(b.columns, fn col ->

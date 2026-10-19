@@ -619,7 +619,7 @@ defmodule SlipdockCLI do
         [--no-add-card] [--no-add-page] [--no-add-document] [--sprints | --no-sprints]
         [--simple | --no-simple] [--page-card-features | --no-page-card-features]
         [--show-pulse | --no-show-pulse] [--automation-wip | --no-automation-wip]
-        [--default-view V]
+        [--delivery-metrics | --no-delivery-metrics] [--default-view V]
                                         rename a board, change its code, shortcut key or colour,
                                         say what the foot of each list offers, make it a
                                         sprint board (every card a sprint), or a simple one (a
@@ -631,6 +631,8 @@ defmodule SlipdockCLI do
                                         --show-pulse puts the board's pulse over its lists;
                                         --automation-wip makes the first in-progress list's
                                         WIP limit hold runner jobs and list sends;
+                                        --delivery-metrics lets the board record deploys
+                                        and shows its DORA numbers (see `deploy`, `dora`);
                                         --default-view picks what opening the board shows
                                         in the web app: board, swimlanes, table, timeline,
                                         calendar, outline, narrative, prioritise or wiki
@@ -821,6 +823,7 @@ defmodule SlipdockCLI do
     add_document: :boolean,
     page_card_features: :boolean,
     show_pulse: :boolean,
+    delivery_metrics: :boolean,
     automation_wip: :boolean,
     default_view: :string,
     sprints: :boolean,
