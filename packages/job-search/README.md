@@ -58,6 +58,15 @@ Setup gives you three prompts to schedule, with your board filled in:
 - **A fallback scan**, in the evening, in Claude's cloud: on a day your computer was
   off it reads the sources that need no sign-in.
 
+## Adding a job yourself
+
+Seen a job the search hasn't? Add a card to **Found** with the posting's link on it
+(the title can be just the link). The next scan reads the posting, fills the card in
+with the score and gap analysis, and stores the advert, keeping your link and anything
+you wrote. It keeps the card whatever it scores, but your hard exclusions still apply:
+if one fires, the card says which. LinkedIn links need your signed-in browser, so they
+are picked up by the daily scan on your computer, not the evening fallback.
+
 ## Your data
 
 Everything about you lives on your board's pages, which only you, and anyone you share

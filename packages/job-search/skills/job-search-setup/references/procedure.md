@@ -241,13 +241,16 @@ cheerfully.
 Then tell them plainly: the board and its link; which pages are filled in and which
 still read `not set`, and what that stops (the scan works without `Candidate Facts`
 but the gap analyses do not; generate needs `CV Baseline` and the template); the three
-tasks and whether they exist yet; and that they come back to this skill to change any
-of it.
+tasks and whether they exist yet; how to put a job in front of the search themselves
+(add a card to `Found` with the posting's link on it: the next scan fills it in, and
+keeps it whatever it scores); and that they come back to this skill to change any of
+it.
 
 ## What not to do
 
 - **Do not supply rules**: no floor, exclusion or weight they did not give you.
-- **Do not create cards** to make the board look busy. Every card comes from the scan.
+- **Do not create cards** to make the board look busy. Every card comes from the scan,
+  or from the person adding one with a link.
 - **Do not touch other boards**, even ones that look related.
 - **Do not copy the method onto their pages.** Pages hold their data; the method is
   the Tool's and updates itself.

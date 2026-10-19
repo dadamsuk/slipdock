@@ -14,6 +14,9 @@ with the posting stored and its gaps analysed. Then stop.
   only asked (as one wait) when the person moves the card to `Generate`. A scan that
   opens waits fills the person's inbox with questions about roles they will never
   pursue.
+- **Not making a second card for a job the person added.** A card they put in `Found`
+  with a link on it is theirs: the scan fills it in (see **Cards the person added**)
+  and never creates another beside it.
 - **Not moving cards out of `Found`.** Every list after it is the person's statement
   of what they have done. Only their hand moves a card there.
 - **Not inventing, widening or softening a rule.** The rules are on the person's
@@ -71,7 +74,12 @@ disagreed so it gets fixed at source.
   as `fallback`.
 - **One posting URL** handed over: see **Handed a single URL** at the end.
 
-Read the current month's ledger before searching. **If a daily or fallback run is
+**Every run, of either kind, starts with the cards the person added** (see **Cards the
+person added** at the end), before anything else and before the check below. They
+cannot be duplicated, so a second run in a day still picks up a card added since the
+first.
+
+Then read the current month's ledger before searching. **If a daily or fallback run is
 already logged for today**, stop unless the person explicitly asked for a rerun: two
 runs in a day means duplicate cards.
 
@@ -298,6 +306,7 @@ searching for it.
 
 Add one row to the end of the ledger's `Runs` table (as in step 3, never `append_section`): the date, `daily` or `fallback`, the
 sources read, postings seen, how many were new, how many became cards, and notes:
+the cards the person added that this run filled in, and any it had to leave,
 anything that went wrong, a source signed out, a search that came back empty or
 promoted-only, a rule that looked wrong on a real posting, pages that disagreed.
 
@@ -333,7 +342,44 @@ fail a run over a notification.
 ## Handed a single URL
 
 Same steps with four differences: no searching and no `Runs` row (the posting gets a
-`Postings` row); the card is created even when it scores under the threshold, because
+`Postings` row); the card is kept even when it scores under the threshold, because
 handing over a link is a statement of interest; exclusions still apply in full, and a
 link the person supplied does not override them (log which rule fired, tell them, and
 stop); and say plainly why a low score scored where it did.
+
+**If the person already made the card, adopt it.** Handed a card (or a URL that is on
+a card in `Found`), fill in that card rather than creating one: see **Cards the person
+added**. Only a URL with no card creates a card.
+
+## Cards the person added
+
+Adding a card to `Found` with the posting's link on it is how the person puts a job in
+front of the search. Every run starts by finding them: `list_cards` on the board's
+`Found` list, and take each open card that has **a link** (in its `urls`, or a URL in
+its title or description) and **no analysis yet** (no `Posting id:` line in its
+description), other than the scan's own `Sources review` cards (step 10). Each one
+goes through **Handed a single URL**, on that card:
+
+- **Read the posting from the link.** A link this run cannot read is left exactly as it
+  is, for a run that can: the cloud cannot read LinkedIn (its robots rules forbid it),
+  so on a fallback run a LinkedIn card waits for the desktop scan. Name each card left
+  in the run's notes. A desktop run that cannot read a link either (signed out, or the
+  site refuses) comments that once on the card and leaves it.
+- **Adopt the card.** `update_card` it with the description of step 8 and the tags
+  `Criteria` calls for. Keep everything the person wrote: their link goes under
+  `**Link**` as `- Added by hand: <their link>`, and any words of theirs go under
+  `**Their note**` at the end, as written. Retitle the card only if its title is
+  nothing but a link. Then write the role page and pin it to this card, as for any
+  other.
+- **Keep it whatever it scores**, and say plainly why a low score scored where it did.
+- **Exclusions apply in full.** One that fires: write the description with a
+  `**Excluded**` section first (the rule, and the posting's words that fired it), the
+  `**Link**` section, and no analysis. The card stays in `Found` for the person to
+  move; the reason is on it.
+- **Already seen.** A posting already on another card: leave the analysis where it
+  is, write only the `**Link**` section on this card with a line naming the other
+  card, and tell the person. A dead posting gets `**Dead**` (what the link showed) and
+  the `**Link**` section.
+- **Every outcome writes a `Posting id:` line** (`Posting id: none` where the source
+  gives none), so the next run does not take the card again, and a `Postings` row in
+  the ledger with this card's id.
