@@ -1176,7 +1176,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         </form>
       </.search_box>
 
-      <.filter_menu board={@board} filters={@filters} filtering={@filtering} />
+      <.filter_menu board={@board} filters={@filters} filtering={@filtering} states />
 
       <form id="swim-config" phx-change="swim_config" phx-submit="swim_config" class="contents">
         <.display_menu mode={:board} config={@config} />

@@ -1,7 +1,8 @@
 defmodule Slipdock.Filters do
   @moduledoc """
-  The board toolbar's filters — text, kind, tags, priority, flag, due, hide
-  completed — and what they match.
+  The board toolbar's filters — text, kind, tags, priority, flag, due, stuck,
+  driver, hide completed — and what they match. `stuck` and `driver` read
+  the card's `state` (`Slipdock.CardState`), which a page never has.
 
   `matches?/2` reads the thing by shape rather than by struct, so it takes a
   card or a wiki page: a page carries the same facets under the same names
@@ -16,6 +17,8 @@ defmodule Slipdock.Filters do
     priority: nil,
     flag: nil,
     due: nil,
+    stuck: false,
+    driver: nil,
     hide_completed: false
   }
 
@@ -35,6 +38,8 @@ defmodule Slipdock.Filters do
         not is_nil(filters.priority),
         not is_nil(filters.flag),
         not is_nil(filters.due),
+        filters.stuck,
+        not is_nil(filters.driver),
         filters.hide_completed
       ],
       & &1
@@ -61,6 +66,7 @@ defmodule Slipdock.Filters do
       (is_nil(filters.priority) or item.priority == filters.priority) and
       (is_nil(filters.flag) or filters.flag in item.flags) and
       due_matches?(filters.due, item, today) and
+      Slipdock.CardState.matches?(item, filters.stuck, filters.driver) and
       not (filters.hide_completed and item.completed)
   end
 

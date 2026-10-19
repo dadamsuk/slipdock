@@ -63,7 +63,7 @@ defmodule SlipdockWeb.BoardLive.Show do
   # Events that change nothing stored: filters, panels opening and closing,
   # forms being typed into, the keyboard's place on the board.
   @read_events ~w(search filter_tag filter_kind filter_priority filter_flag filter_due
-    toggle_hide_completed clear_filters start_add_column cancel_add_column
+    filter_stuck filter_driver toggle_hide_completed clear_filters start_add_column cancel_add_column
     start_rename_column cancel_rename_column start_add_card aim_document cancel_add_card
     quick_add_change open_card open_page focus_column focus_card focus_open focus_end
     validate_document swim_config swim_set swim_clear_filters table_sort cal_toggle_day
@@ -541,14 +541,32 @@ defmodule SlipdockWeb.BoardLive.Show do
     end
   end
 
-  # A runner moved one of this board's jobs along: the open card shows it.
-  @impl true
-  def handle_info({:jobs_changed, card_id}, socket) do
+  defp job_changed(socket, card_id) do
     if match?(%{panel: :card, card: %Card{id: ^card_id}}, socket.assigns),
       do:
         send_update(SlipdockWeb.BoardLive.CardComponent, id: "card-panel", jobs_changed: card_id)
+  end
 
-    {:noreply, socket}
+  defp drain_jobs_changed(socket) do
+    receive do
+      {:jobs_changed, card_id} ->
+        job_changed(socket, card_id)
+        drain_jobs_changed(socket)
+    after
+      0 -> :ok
+    end
+  end
+
+  # A runner moved one of this board's jobs along: the open card shows it,
+  # and every tile's state line is worked out again (#1117) — once for all
+  # the changes already waiting, not once each, since heartbeats come often.
+  @impl true
+  def handle_info({:jobs_changed, card_id}, socket) do
+    job_changed(socket, card_id)
+    drain_jobs_changed(socket)
+
+    {:noreply,
+     socket |> assign(board: Boards.put_states(socket.assigns.board)) |> assign_columns()}
   end
 
   def handle_info({:board_changed, _id}, socket) do
@@ -731,6 +749,17 @@ defmodule SlipdockWeb.BoardLive.Show do
   def handle_event("filter_due", %{"due" => d}, socket) do
     {:noreply, put_filter(socket, :due, toggle(socket.assigns.filters.due, d))}
   end
+
+  def handle_event("filter_stuck", _, socket) do
+    {:noreply, put_filter(socket, :stuck, !socket.assigns.filters.stuck)}
+  end
+
+  def handle_event("filter_driver", %{"driver" => d}, socket) when d in ~w(agent human) do
+    {:noreply, put_filter(socket, :driver, toggle(socket.assigns.filters.driver, d))}
+  end
+
+  def handle_event("filter_driver", _, socket),
+    do: {:noreply, put_filter(socket, :driver, nil)}
 
   def handle_event("toggle_hide_completed", _, socket) do
     {:noreply, put_filter(socket, :hide_completed, !socket.assigns.filters.hide_completed)}

@@ -61,6 +61,9 @@ defmodule Slipdock.Boards.Card do
     # when the reader can't see the card at the other end: its title is
     # replaced and only its state, which the computed `blocked` needs, is kept.
     field :hidden, :boolean, virtual: true, default: false
+    # What is happening to it (#1117): a `Slipdock.CardState`, set when it is
+    # loaded through `Slipdock.Boards` for a board, a listing or on its own.
+    field :state, :any, virtual: true
 
     belongs_to :board, Slipdock.Boards.Board
     belongs_to :column, Slipdock.Boards.Column

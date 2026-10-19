@@ -44,7 +44,7 @@ defmodule SlipdockWeb.MCP.Tools.GetCard do
 
       {:ok,
        auth
-       |> Authorize.visible(card)
+       |> Authorize.visible(Boards.with_state(card))
        |> V.card()
        |> Map.put(:docs, docs)
        |> Map.put(:wait, V.wait(Boards.current_wait(card)))

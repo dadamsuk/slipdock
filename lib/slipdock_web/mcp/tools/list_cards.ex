@@ -66,6 +66,12 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
         due: %{type: "string", enum: keys(Config.dues())},
         tag: %{type: "string"},
         q: %{type: "string", description: "Words in the title or description."},
+        stuck: %{type: "boolean", description: "Only cards past their list's usual stay."},
+        driver: %{
+          type: "string",
+          enum: keys(Config.drivers()),
+          description: "agent: an agent holds or last moved it; human: a person last moved it."
+        },
         full: %{
           type: "boolean",
           description:
@@ -141,7 +147,9 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
          {:ok, tag} <- Args.optional(args, "tag"),
          {:ok, q} <- Args.optional(args, "q"),
          {:ok, archived} <- archived(args),
-         {:ok, snoozed} <- snoozed(args) do
+         {:ok, snoozed} <- snoozed(args),
+         {:ok, stuck} <- Args.boolean(args, "stuck", false),
+         {:ok, driver} <- bucket(args, "driver", Config.drivers()) do
       assignee =
         cond do
           nobody -> "none"
@@ -159,7 +167,9 @@ defmodule SlipdockWeb.MCP.Tools.ListCards do
           "tag" => tag,
           "q" => q,
           "archived" => archived,
-          "snoozed" => snoozed
+          "snoozed" => snoozed,
+          "stuck" => if(stuck, do: "true"),
+          "driver" => driver
         }
         |> Enum.reject(fn {_, v} -> is_nil(v) end)
         |> Map.new()

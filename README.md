@@ -726,6 +726,14 @@ with the tail of the log — and a Cancel button.
   automated work* on in the board's settings (`automation_wip`), a full
   first in-progress list holds jobs and list sends for cards not already in
   progress; people can still drag cards in.
+- **Each card says what is happening to it.** A tile shows one state line
+  when a job or a wait is on it ("Running · runner-2 · 7m", "Waiting on
+  Dana · 41m", "Held · paused by David: bad deploy", "Failed · … · Next: …"),
+  an agent or person mark on trees with runner rules, and an age chip for
+  its time in the list that turns amber past the list's usual stay. The
+  same `state`, `driver`, `age` and `stuck` come back from REST, MCP and
+  `slipdock cards`, which filter on `stuck` and `driver` (`--stuck --driver
+  agent`), as does the board's Filter menu.
 
 Set one up on the board under **Automations → Connect a runner**: pick a
 Linux or macOS machine (a POSIX `sh` + `curl` runner, as a systemd or launchd

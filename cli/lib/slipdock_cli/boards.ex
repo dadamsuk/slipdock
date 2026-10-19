@@ -125,7 +125,9 @@ defmodule SlipdockCLI.Boards do
           o[:archived] -> "true"
           true -> nil
         end,
-      snoozed: o[:snoozed]
+      snoozed: o[:snoozed],
+      stuck: if(o[:stuck], do: "true"),
+      driver: o[:driver]
     )
     |> out(o, fn r ->
       Render.paused(r["paused"])

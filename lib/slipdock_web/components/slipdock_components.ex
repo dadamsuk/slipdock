@@ -959,6 +959,7 @@ defmodule SlipdockWeb.SlipdockComponents do
     wait = Slipdock.Boards.Card.open_wait(card)
     recurrence = Slipdock.Boards.Card.recurrence(card)
     snoozed = Slipdock.Boards.Card.snoozed?(card)
+    state = Map.get(card, :state)
 
     facets = %{
       cover: on.("cover") and not is_nil(cover),
@@ -988,7 +989,12 @@ defmodule SlipdockWeb.SlipdockComponents do
       recurrence: not is_nil(recurrence),
       # Snoozed (W-1803): only seen where snoozed cards are shown, and then
       # always marked, with the day it wakes.
-      snoozed: snoozed
+      snoozed: snoozed,
+      # What is happening to it, who drives it and how long it has sat in its
+      # list (#1117): always shown when there is something to say.
+      state_line: match?(%Slipdock.CardState{line: line} when is_binary(line), state),
+      driver: match?(%Slipdock.CardState{driver: d} when is_binary(d), state),
+      age: match?(%Slipdock.CardState{age: age} when is_integer(age), state)
     }
 
     meta? = facets |> Map.drop([:cover, :image, :status, :tags]) |> Map.values() |> Enum.any?()
@@ -1007,6 +1013,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         wait: wait,
         recurrence: recurrence,
         snoozed: snoozed,
+        state: state,
         # A wiki page is `page-7` where a card is `12`, so the drag-and-drop
         # and the click handlers can tell the two apart.
         item_id: item_id(card),
@@ -1123,6 +1130,9 @@ defmodule SlipdockWeb.SlipdockComponents do
         <.wait_mark :if={@f.wait} wait={@wait} class="size-3" compact />
         <.recurrence_mark :if={@f.recurrence} recurrence={@recurrence} class="size-3" />
         <.snooze_mark :if={@f.snoozed} card={@card} zone={@zone} />
+        <.driver_mark :if={@f.driver} state={@state} class="size-3" />
+        <.state_line :if={@f.state_line} state={@state} compact />
+        <.age_chip :if={@f.age} state={@state} compact />
         <span :if={@actions != []} class="-mr-1 shrink-0">{render_slot(@actions)}</span>
       </div>
       <div :if={!@compact} class="space-y-2 p-3">
@@ -1200,6 +1210,8 @@ defmodule SlipdockWeb.SlipdockComponents do
           <.wait_mark :if={@f.wait} wait={@wait} />
           <.recurrence_mark :if={@f.recurrence} recurrence={@recurrence} />
           <.snooze_mark :if={@f.snoozed} card={@card} zone={@zone} />
+          <.driver_mark :if={@f.driver} state={@state} />
+          <.age_chip :if={@f.age} state={@state} />
           <span :if={@f.comments} class="chip chip-line text-base-content/70" title="Comments">
             <.icon name="hero-chat-bubble-left" class="size-3.5" /> {length(@card.comments)}
           </span>
@@ -1211,10 +1223,93 @@ defmodule SlipdockWeb.SlipdockComponents do
             <.icon name="hero-paper-clip" class="size-3.5" /> {length(loaded_attachments(@card))}
           </span>
         </div>
+        <.state_line :if={@f.state_line} state={@state} />
       </div>
     </div>
     """
   end
+
+  attr :state, :any, required: true
+  attr :compact, :boolean, default: false
+
+  # What is happening to the card (#1117): the same words `card_line` and
+  # the API give as `state`.
+  defp state_line(assigns) do
+    ~H"""
+    <p
+      class={[
+        "truncate text-base-content/70",
+        if(@compact, do: "max-w-40 shrink text-2xs", else: "text-2xs leading-snug")
+      ]}
+      data-role="state-line"
+      title={@state.line}
+    >
+      {@state.line}
+    </p>
+    """
+  end
+
+  attr :state, :any, required: true
+  attr :class, :string, default: "size-3.5"
+
+  # Who is driving the card, on a tree where agents work (#1117).
+  defp driver_mark(assigns) do
+    ~H"""
+    <span
+      class={[
+        "chip chip-icon chip-line",
+        if(@state.driver == "agent", do: "text-secondary", else: "text-base-content/60")
+      ]}
+      data-role="driver-mark"
+      data-driver={@state.driver}
+      title={
+        if @state.driver == "agent", do: "An agent is driving this", else: "A person is driving this"
+      }
+    >
+      <.icon
+        name={if @state.driver == "agent", do: "hero-cpu-chip", else: "hero-user"}
+        class={@class}
+      />
+    </span>
+    """
+  end
+
+  attr :state, :any, required: true
+  attr :compact, :boolean, default: false
+
+  # How long the card has been in its list, amber past the list's usual stay.
+  defp age_chip(assigns) do
+    assigns = assign(assigns, :text, Slipdock.CardState.age_text(assigns.state))
+
+    ~H"""
+    <span
+      class={[
+        "chip shrink-0",
+        if(@state.stuck,
+          do: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
+          else: "chip-line text-base-content/60"
+        )
+      ]}
+      data-role="age-chip"
+      data-stuck={to_string(@state.stuck)}
+      title={age_title(@state)}
+    >
+      {if @compact, do: Slipdock.Pulse.duration(@state.age), else: @text}
+    </span>
+    """
+  end
+
+  defp age_title(%{known: false} = state),
+    do:
+      "In this list for at most #{Slipdock.Pulse.duration(state.age)} (its move here wasn't recorded)"
+
+  defp age_title(%{usual: nil} = state),
+    do: "In this list for #{Slipdock.Pulse.duration(state.age)}"
+
+  defp age_title(state),
+    do:
+      "In this list for #{Slipdock.CardState.age_text(state)}; usually " <>
+        Slipdock.Pulse.duration(state.usual)
 
   attr :handoff, :any, required: true
   attr :class, :string, default: "size-3.5"
@@ -1879,6 +1974,13 @@ defmodule SlipdockWeb.SlipdockComponents do
     default: true,
     doc: "Offer the Kind section. False where everything in view is the one kind."
 
+  attr :states, :boolean,
+    default: false,
+    doc: """
+    Offer the filters that read a card's state (#1117): Stuck, and Agent /
+    Human on a tree with a runner rule. Cards only; a page has no state.
+    """
+
   @doc """
   The filter dropdown the card views carry, and the wiki carries too: a wiki
   page answers every one of these, because it holds the card's facets under
@@ -1995,6 +2097,38 @@ defmodule SlipdockWeb.SlipdockComponents do
               class={["btn btn-xs", if(@filters.due == value, do: "btn-primary", else: "btn-ghost")]}
               phx-click="filter_due"
               phx-value-due={value}
+            >
+              {label}
+            </button>
+          </div>
+        </div>
+        <div :if={@states}>
+          <p class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+            Time in list
+          </p>
+          <button
+            type="button"
+            class={["btn btn-xs", if(@filters.stuck, do: "btn-primary", else: "btn-ghost")]}
+            phx-click="filter_stuck"
+            title="Cards in their list longer than it usually takes"
+          >
+            <.icon name="hero-clock" class="size-3.5" /> Stuck
+          </button>
+        </div>
+        <div :if={@states and @board.runner_tree}>
+          <p class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+            Driver
+          </p>
+          <div class="flex flex-wrap gap-1">
+            <button
+              :for={{value, label} <- Slipdock.Swimlanes.Config.drivers()}
+              type="button"
+              class={[
+                "btn btn-xs",
+                if((@filters.driver || "all") == value, do: "btn-primary", else: "btn-ghost")
+              ]}
+              phx-click="filter_driver"
+              phx-value-driver={value}
             >
               {label}
             </button>

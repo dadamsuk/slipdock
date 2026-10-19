@@ -109,6 +109,10 @@ defmodule Slipdock.Boards.Board do
     # Each list's usual stay in seconds, keyed by list id (see
     # `Slipdock.Pulse.usual_stays/1`), set when loaded through Slipdock.Boards.
     field :usual_stays, :map, virtual: true, default: %{}
+    # Whether a rule anywhere in its tree sends cards to a runner (see
+    # `Slipdock.CardState.runner_tree?/1`): the board's Agent/Human filter is
+    # offered only then. Set when loaded through Slipdock.Boards.
+    field :runner_tree, :boolean, virtual: true, default: false
 
     has_many :columns, Slipdock.Boards.Column, preload_order: [asc: :position]
     has_many :cards, Slipdock.Boards.Card

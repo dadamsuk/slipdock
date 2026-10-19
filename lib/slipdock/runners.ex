@@ -481,6 +481,84 @@ defmodule Slipdock.Runners do
 
   def held_reason(_job, _opts), do: nil
 
+  @doc """
+  `held_reason/1` for many jobs at once, as job id => line for each one
+  something holds (#1117): the board page asks it for every queued job on
+  the board, so each question is asked once per tree, pool or board rather
+  than once per job. Same order, same words.
+  """
+  def held_reasons(jobs) do
+    queued = Enum.filter(jobs, &(&1.status == "queued"))
+    trees = queued |> Enum.map(& &1.root_board_id) |> Enum.uniq()
+    boards = queued |> Enum.map(& &1.board_id) |> Enum.uniq()
+    pauses = Map.new(trees, &{&1, open_pauses(&1)})
+    online = Map.new(trees, &{&1, seen_pools(&1)})
+    wip = Map.new(boards, &{&1, wip_full(&1)})
+    doing = doing_cards(boards)
+    in_doing = MapSet.new(for {_, cards} <- doing, c <- cards, do: c.id)
+
+    for job <- queued, line = batch_held(job, pauses, online, wip, doing, in_doing), into: %{} do
+      {job.id, line}
+    end
+  end
+
+  defp batch_held(job, pauses, online, wip, doing, in_doing) do
+    tree_pauses = pauses[job.root_board_id]
+
+    pause =
+      Enum.find(tree_pauses, &(job.pool && &1.pool == job.pool)) ||
+        Enum.find(tree_pauses, &is_nil(&1.pool))
+
+    in_way =
+      job.wait_while_doing &&
+        Enum.find(Map.get(doing, job.board_id, []), &(&1.id != job.card_id))
+
+    cond do
+      pause ->
+        Pause.line(pause)
+
+      (full = wip[job.board_id]) && not MapSet.member?(in_doing, job.card_id) ->
+        {column, count} = full
+        wip_line(column, count)
+
+      in_way ->
+        "##{in_way.id} is in progress"
+
+      job.pool not in online[job.root_board_id] ->
+        "No runner online for pool #{job.pool}"
+
+      true ->
+        nil
+    end
+  end
+
+  # The pools of a tree with a runner seen within three leases.
+  defp seen_pools(root_id) do
+    now = DateTime.utc_now()
+
+    from(r in Runner, where: r.board_id == ^root_id and not is_nil(r.last_seen_at))
+    |> Repo.all()
+    |> Enum.filter(&(DateTime.diff(now, &1.last_seen_at) <= 3 * lease_for(&1)))
+    |> Enum.map(& &1.pool)
+  end
+
+  # Each board's cards in doing lists, in list order: open ones only, as
+  # `waiting_on/1` counts them.
+  defp doing_cards([]), do: %{}
+
+  defp doing_cards(board_ids) do
+    from(c in Card,
+      join: col in assoc(c, :column),
+      where:
+        c.board_id in ^board_ids and col.category == "doing" and is_nil(c.archived_at) and
+          c.completed == false,
+      order_by: [asc: col.position, asc: c.position, asc: c.id],
+      select: %{id: c.id, board_id: c.board_id}
+    )
+    |> Repo.all()
+    |> Enum.group_by(& &1.board_id)
+  end
+
   # The WIP line for a job whose board holds automated work at its limit,
   # unless its card is in progress already (it is the work, not more of it).
   defp wip_held(%Job{} = job) do

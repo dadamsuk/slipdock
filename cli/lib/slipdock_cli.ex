@@ -145,6 +145,8 @@ defmodule SlipdockCLI do
         --assignee NAME|EMAIL|me | --no-assignee
         --open | --done   --archived (archived alone) | --all (archived too)
         --snoozed include|only                    (snoozed cards are left out otherwise)
+        --stuck                                   (in their list longer than it usually takes)
+        --driver all|agent|human                  (who holds or last moved it; runner boards)
     card <id>                           show one card in full (checklist, comments)
     activity <board> [--limit N] [--card ID]  recent activity on a board (or one card)
     pulse <board>                       the board's flow numbers: in progress, waiting, done in
@@ -876,6 +878,9 @@ defmodule SlipdockCLI do
     note: :string,
     notify: :boolean,
     snoozed: :string,
+    # `slipdock cards B --stuck --driver agent` (#1117).
+    stuck: :boolean,
+    driver: :string,
     # `slipdock repeat <id> "every mon" --at 07:00 --lead 2 --ends DATE|--count N`.
     at: :string,
     lead: :integer,
