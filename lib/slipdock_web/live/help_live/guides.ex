@@ -374,8 +374,9 @@ defmodule SlipdockWeb.HelpLive.Guides do
       <p>
         A page can be published at a public, read-only link that needs no account. Its live
         queries are answered at the moment you publish, and its links become plain text,
-        since an anonymous reader has no permissions to follow them. Publishing again
-        refreshes it, and you can withdraw it at any time.
+        since an anonymous reader has no permissions to follow them. The images it embeds
+        (<code>![[photo.png]]</code>) are shown, through the page's link; other embedded files
+        stay as their names. Publishing again refreshes it, and you can withdraw it at any time.
       </p>
     </.part>
     """

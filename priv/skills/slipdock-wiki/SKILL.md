@@ -438,7 +438,8 @@ slipdock page import <board> --dir D      # and back in; --overwrite replaces ra
 
 **Publishing freezes the answers.** A published page's live queries show what
 they said when you published, and its links become plain text — there is
-nobody behind an anonymous request to have permissions. Publish again to
+nobody behind an anonymous request to have permissions. The images it embeds
+(`![[photo.png]]`) still show, through the page's link. Publish again to
 refresh. A draft cannot be published.
 
 Export is the escape hatch: one file per page, in the directory its folder

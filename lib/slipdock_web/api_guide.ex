@@ -2835,7 +2835,9 @@ defmodule SlipdockWeb.APIGuide do
     what they said when it was published, and its references are plain text:
     there is nobody behind an anonymous request to have permissions, so a
     live query there would be a way to read private cards from the open web.
-    Publishing again refreshes them. A draft cannot be published.
+    The images it embeds (`![[photo.png]]`) are the exception: they are
+    shown, served through the page's link while it is published. Publishing
+    again refreshes them. A draft cannot be published.
 
     An automation can write a page too — the `create_page` action starts one
     for the triggering card, pinned to it — and `has_doc` is a condition, so
