@@ -130,7 +130,10 @@ defmodule Slipdock.Runners.Recovery do
       )
 
       if unassign, do: Boards.update_card(Repo.get!(Card, card.id), %{"assignee_ids" => []})
-      Boards.move_card_to_index(Repo.get!(Card, card.id), column, :top)
+
+      Boards.move_card_to_index(Repo.get!(Card, card.id), column, :top,
+        actor: Slipdock.Actor.automation()
+      )
 
       Boards.log_activity(
         card.board_id,

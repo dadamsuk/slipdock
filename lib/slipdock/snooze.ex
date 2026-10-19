@@ -244,7 +244,7 @@ defmodule Slipdock.Snooze do
 
     if not awake.completed and is_nil(awake.archived_at) do
       column = Repo.get!(Slipdock.Boards.Column, awake.column_id)
-      Boards.move_card_to_index(awake, column, :top)
+      Boards.move_card_to_index(awake, column, :top, actor: Slipdock.Actor.automation())
     end
 
     line = "woke up “#{card.title}” (#{snoozed_line(card, snoozer)})#{woken_by(reason, by)}"

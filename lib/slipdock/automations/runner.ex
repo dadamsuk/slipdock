@@ -414,7 +414,7 @@ defmodule Slipdock.Automations.Runner do
       if card.column_id == column.id do
         {:ok, "already in #{column.name}"}
       else
-        Boards.move_card(card.id, column.id)
+        Boards.move_card(card.id, column.id, nil, actor: Slipdock.Actor.automation())
         {:ok, "moved to #{column.name}"}
       end
     end

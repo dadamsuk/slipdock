@@ -10,7 +10,10 @@ defmodule SlipdockWeb.MCP.Args do
   — for a call that has no conn. Visibility through MCP is then exactly what
   the HTTP API allows the same token, because it is the same check.
   """
-  def auth(%{user: user, token: token}), do: %{assigns: %{current_user: user, api_token: token}}
+  def auth(%{user: user, token: token} = context),
+    do: %{
+      assigns: %{current_user: user, api_token: token, actor: Slipdock.Actor.mcp(context)}
+    }
 
   @doc "A required string argument, trimmed."
   def required(args, key) do

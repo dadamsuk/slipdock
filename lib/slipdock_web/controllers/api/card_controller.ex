@@ -212,7 +212,7 @@ defmodule SlipdockWeb.API.CardController do
          :ok <- Authorize.card(conn, card, :write),
          {:ok, board} <- Authorize.fetch_board(conn, ref, :write),
          {:ok, column} <- resolve_column(board, params["column"]),
-         {:ok, summary} <- move_to_board(card, column) do
+         {:ok, summary} <- move_to_board(card, column, Slipdock.Actor.from_conn(conn)) do
       json(conn, %{
         card: V.card(Authorize.visible(conn, Boards.get_card!(card.id))),
         moved: Map.delete(summary, :card)
@@ -225,13 +225,16 @@ defmodule SlipdockWeb.API.CardController do
          :ok <- Authorize.card(conn, card, :write),
          board <- Boards.get_board!(card.board_id),
          {:ok, column} <- resolve_column(board, params["column"] || card.column_id),
-         :ok <- Boards.move_card_to_index(card, column, parse_index(params["index"])) do
+         :ok <-
+           Boards.move_card_to_index(card, column, parse_index(params["index"]),
+             actor: Slipdock.Actor.from_conn(conn)
+           ) do
       json(conn, %{card: V.card(Authorize.visible(conn, Boards.get_card!(card.id)))})
     end
   end
 
-  defp move_to_board(card, column) do
-    case Boards.move_card_to_board(card, column) do
+  defp move_to_board(card, column, actor) do
+    case Boards.move_card_to_board(card, column, actor: actor) do
       {:ok, summary} -> {:ok, summary}
       # A limit on the destination: the fallback answers it with its 402.
       {:error, %Ecto.Changeset{}} = refused -> refused

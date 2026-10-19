@@ -64,7 +64,8 @@ defmodule SlipdockWeb.BoardLive.ViewEvents do
       {:ok, item} when item.board_id == socket.assigns.board.id ->
         case field do
           "column_id" ->
-            if column_id = Params.id(value), do: move_in_list(item, column_id, nil)
+            if column_id = Params.id(value),
+              do: move_in_list(item, column_id, nil, socket.assigns.current_user)
 
           _ ->
             update_item(item, %{field => if(value == "", do: nil, else: value)})
@@ -374,10 +375,10 @@ defmodule SlipdockWeb.BoardLive.ViewEvents do
         cond do
           # Dropping between two things is only meaningful in board order.
           config.sort == "position" ->
-            move_in_list(item, column_id || item.column_id, before)
+            move_in_list(item, column_id || item.column_id, before, socket.assigns.current_user)
 
           column_id ->
-            move_in_list(item, column_id, nil)
+            move_in_list(item, column_id, nil, socket.assigns.current_user)
 
           true ->
             :ok

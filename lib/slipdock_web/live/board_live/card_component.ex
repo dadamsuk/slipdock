@@ -406,7 +406,9 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     with {:ok, params} <- scope_assignees(params, card, socket.assigns.current_user) do
       with %{"column_id" => col} when col != "" <- params,
            new_col when is_integer(new_col) and new_col != card.column_id <- Params.id(col) do
-        Boards.move_card(card.id, new_col, nil)
+        Boards.move_card(card.id, new_col, nil,
+          actor: Slipdock.Actor.web(socket.assigns.current_user)
+        )
       end
 
       card = Boards.get_card!(card.id)

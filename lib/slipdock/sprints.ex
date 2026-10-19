@@ -171,7 +171,7 @@ defmodule Slipdock.Sprints do
   Returns `{:ok, %{added: [card], skipped: [{card, reason}]}}`, or
   `{:error, message}` when the sprint itself will not do.
   """
-  def add_cards(%Card{} = sprint, cards) when is_list(cards) do
+  def add_cards(%Card{} = sprint, cards, opts \\ []) when is_list(cards) do
     with true <- sprint?(sprint) || {:error, "That card is not a sprint."},
          {:ok, board} <- sprint_board(sprint),
          {:ok, column} <- landing_column(board) do
@@ -201,7 +201,7 @@ defmodule Slipdock.Sprints do
             stand_in? = leaves_stand_in?(card)
             before = stand_in? && Boards.item_after(card)
 
-            case Boards.move_card_to_board(card, column) do
+            case Boards.move_card_to_board(card, column, opts) do
               {:ok, %{card: moved}} ->
                 if stand_in?, do: Boards.leave_stand_in(card, before)
                 {[moved | added], skipped}

@@ -904,7 +904,9 @@ defmodule SlipdockWeb.BoardLive.Show do
 
         with {:ok, card} <- load_card(board, card_id),
              %Column{} = column <- board_column(socket, to) do
-          Boards.move_card(card.id, column.id, params["before"])
+          Boards.move_card(card.id, column.id, params["before"],
+            actor: Slipdock.Actor.web(socket.assigns.current_user)
+          )
         end
 
         {:noreply, socket}

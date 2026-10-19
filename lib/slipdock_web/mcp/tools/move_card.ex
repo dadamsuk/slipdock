@@ -2,7 +2,7 @@ defmodule SlipdockWeb.MCP.Tools.MoveCard do
   @moduledoc "Moves a card to another list on its board, within its list, or to another board."
   @behaviour SlipdockWeb.MCP.Tool
 
-  alias Slipdock.Boards
+  alias Slipdock.{Actor, Boards}
   alias SlipdockWeb.API.{Authorize, CardWrites}
   alias SlipdockWeb.MCP.{Args, Tools}
 
@@ -53,7 +53,8 @@ defmodule SlipdockWeb.MCP.Tools.MoveCard do
          :ok <- Args.refusal(Authorize.card(auth, card, :write)),
          {:ok, board} <- Args.refusal(Authorize.fetch_board(auth, ref, :write)),
          {:ok, column} <- Args.refusal(CardWrites.resolve_column(board, column_ref)),
-         {:ok, _summary} <- Args.refusal(Boards.move_card_to_board(card, column)) do
+         {:ok, _summary} <-
+           Args.refusal(Boards.move_card_to_board(card, column, actor: Actor.mcp(context))) do
       {:ok, Tools.card_written(Boards.get_card!(card.id), context.base_url)}
     end
   end
@@ -68,7 +69,7 @@ defmodule SlipdockWeb.MCP.Tools.MoveCard do
          :ok <- Args.refusal(Authorize.card(auth, card, :write)),
          board = Boards.get_board!(card.board_id),
          {:ok, column} <- Args.refusal(CardWrites.resolve_column(board, ref || card.column_id)),
-         :ok <- Boards.move_card_to_index(card, column, index) do
+         :ok <- Boards.move_card_to_index(card, column, index, actor: Actor.mcp(context)) do
       {:ok, Tools.card_written(Boards.get_card!(card.id), context.base_url)}
     end
   end

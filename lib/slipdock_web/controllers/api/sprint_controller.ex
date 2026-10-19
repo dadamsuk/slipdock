@@ -181,7 +181,7 @@ defmodule SlipdockWeb.API.SprintController do
          :ok <- Authorize.card(conn, sprint, :write),
          {:ok, cards} <- fetch_cards(conn, params["cards"]),
          {:ok, %{added: added, skipped: skipped}} <-
-           sprint_result(Sprints.add_cards(sprint, cards)) do
+           sprint_result(Sprints.add_cards(sprint, cards, actor: Slipdock.Actor.from_conn(conn))) do
       json(conn, %{
         card: V.card(Authorize.visible(conn, Boards.get_card!(sprint.id))),
         added: Enum.map(added, &%{id: &1.id, title: &1.title}),

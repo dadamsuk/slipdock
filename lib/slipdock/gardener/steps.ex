@@ -178,7 +178,9 @@ defmodule Slipdock.Gardener.Steps do
       from = card.column_id
       index = index_in(card)
 
-      case Boards.move_card_to_index(card, column, step["index"] || :top) do
+      case Boards.move_card_to_index(card, column, step["index"] || :top,
+             actor: Slipdock.Actor.automation()
+           ) do
         :ok ->
           {:ok,
            [

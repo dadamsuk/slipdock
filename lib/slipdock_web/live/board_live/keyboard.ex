@@ -100,7 +100,11 @@ defmodule SlipdockWeb.BoardLive.Keyboard do
   def handle_event("focus_move", %{"dir" => dir}, socket)
       when dir in ~w(left right up down) do
     %{columns: columns, focus: focus} = socket.assigns
-    {:noreply, assign(socket, focus: move_focus(columns, focus, dir))}
+
+    {:noreply,
+     assign(socket,
+       focus: move_focus(columns, focus, dir, Slipdock.Actor.web(socket.assigns.current_user))
+     )}
   end
 
   defp put_focus(socket, column_id, card_id, holding?) do
@@ -113,13 +117,14 @@ defmodule SlipdockWeb.BoardLive.Keyboard do
     )
   end
 
-  defp move_focus(_columns, nil, _dir), do: nil
+  defp move_focus(_columns, nil, _dir, _actor), do: nil
 
   # Carrying: the card moves and the focus goes with it.
-  defp move_focus(columns, %{holding?: true, card_id: id} = focus, dir) when not is_nil(id) do
+  defp move_focus(columns, %{holding?: true, card_id: id} = focus, dir, actor)
+       when not is_nil(id) do
     case locate_card(columns, id) do
       {ci, index} ->
-        nudge_card(columns, id, ci, index, dir)
+        nudge_card(columns, id, ci, index, dir, actor)
         %{column: column} = Enum.at(columns, sidestep(ci, dir, length(columns)))
         %{focus | column_id: column.id}
 
@@ -130,7 +135,7 @@ defmodule SlipdockWeb.BoardLive.Keyboard do
 
   # Pointing: up and down walk the cards of the list, left and right step to
   # the list either side, keeping as close to the same place in it as it has.
-  defp move_focus(columns, focus, dir) do
+  defp move_focus(columns, focus, dir, _actor) do
     case Enum.find_index(columns, &(&1.column.id == focus.column_id)) do
       nil ->
         nil
@@ -178,23 +183,23 @@ defmodule SlipdockWeb.BoardLive.Keyboard do
   # Left and right carry the card into the neighbouring list, keeping its place
   # in the order as closely as the shorter list allows; up and down shuffle it
   # one place within its own list. Both stop at the ends rather than wrapping.
-  defp nudge_card(columns, id, ci, index, "left") when ci > 0,
-    do: drop_into(columns, id, ci - 1, index)
+  defp nudge_card(columns, id, ci, index, "left", actor) when ci > 0,
+    do: drop_into(columns, id, ci - 1, index, actor)
 
-  defp nudge_card(columns, id, ci, index, "right") when ci < length(columns) - 1,
-    do: drop_into(columns, id, ci + 1, index)
+  defp nudge_card(columns, id, ci, index, "right", actor) when ci < length(columns) - 1,
+    do: drop_into(columns, id, ci + 1, index, actor)
 
-  defp nudge_card(columns, id, ci, index, "up") when index > 0,
+  defp nudge_card(columns, id, ci, index, "up", _actor) when index > 0,
     do: reorder_within(columns, id, ci, index - 1)
 
-  defp nudge_card(columns, id, ci, index, "down"),
+  defp nudge_card(columns, id, ci, index, "down", _actor),
     do: reorder_within(columns, id, ci, index + 1)
 
-  defp nudge_card(_columns, _id, _ci, _index, _dir), do: :ok
+  defp nudge_card(_columns, _id, _ci, _index, _dir, _actor), do: :ok
 
-  defp drop_into(columns, id, ci, index) do
+  defp drop_into(columns, id, ci, index, actor) do
     %{column: column, cards: cards} = Enum.at(columns, ci)
-    Boards.move_card(id, column.id, before_id(cards, index))
+    Boards.move_card(id, column.id, before_id(cards, index), actor: actor)
   end
 
   # The card is already in this list, so it has to come out of the order before
