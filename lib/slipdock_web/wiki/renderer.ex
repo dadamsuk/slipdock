@@ -446,7 +446,10 @@ defmodule SlipdockWeb.Wiki.Renderer do
   defp ref_node(%{embed: true} = ref, context) do
     cond do
       context.static ->
-        published_inline(ref, context) || ref_node(Map.delete(ref, :embed), context)
+        case published_inline(ref, context) do
+          nil -> ref_node(Map.delete(ref, :embed), context)
+          img -> %MDEx.HtmlInline{literal: img}
+        end
 
       drawing = drawing_html(ref, context) ->
         %MDEx.HtmlInline{literal: drawing}
