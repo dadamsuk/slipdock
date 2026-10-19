@@ -175,6 +175,15 @@ defmodule SlipdockWeb.HelpLive.Agents do
        {:yes, "through the CLI or MCP"},
        {:no, "one way only"}
      ]},
+    {"Record deploys, and read the delivery (DORA) numbers",
+     [
+       {:yes, "POST /api/deployments, GET /api/boards/:id/dora"},
+       {:yes, "get_board's dora"},
+       {:yes, "slipdock deploy run, slipdock dora"},
+       {:yes, "through the CLI or MCP"},
+       {:yes, "through the CLI or MCP"},
+       {:no, "one way only"}
+     ]},
     {"Pause runner work, and see that it is paused",
      [
        {:yes, "POST /api/boards/:id/pause"},
