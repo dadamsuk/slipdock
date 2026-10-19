@@ -200,6 +200,7 @@ slipdock cards <board> [--column C] [--tag T] [--priority P] [--flag F] [--searc
                      [--assignee NAME|EMAIL|me | --no-assignee] [--stuck] [--driver all|agent|human]
                      # each line ends with its state (▸ Running · runner-2 · 7m) and ⏳age in its list
 slipdock card <id>                      # full detail incl. checklist item ids and comments
+slipdock timeline <id>                  # each list it sat in (how long, who moved it), its waits and jobs
 slipdock columns <board> | slipdock tags <board> | slipdock activity <board> [--limit N]
 slipdock pulse <board>                  # flow numbers: in progress, waiting, done this week, time to done, list in/out
 slipdock work [--board B] [--done]      # what is waiting on you (waits, review/waiting flags, runner trouble), then your cards

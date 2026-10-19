@@ -565,6 +565,18 @@ usual stay) and, on runner boards, *Driver*: All, Agent or Human. The API, MCP a
 `GET /api/boards/:id/cards?stuck=true&driver=agent`, MCP `list_cards` with
 `stuck` and `driver`.
 
+**Its timeline.** Near the bottom of the card, the **Timeline** draws what
+the card has been through on one time axis, from its first record to now:
+a lane of the lists it has sat in, coloured by the list's category (to do,
+in progress, done, dropped, and grey while archived); a lane of its waits on
+a person; and a lane of its runner jobs. Hover a span for when, how long,
+and who moved it. A stay recovered from the old activity log whose end the
+history can't vouch for is faded and dashed. Under the lanes, *stays in
+lists* lists the same stays as text. Over the API it is
+`GET /api/cards/:id/timeline` (`stays`, `waits` and `jobs`, each with
+`from`, `to`, `seconds` and `open`), over MCP `get_card` with
+`timeline: true`, and on the command line `slipdock timeline <id>`.
+
 ## Recurring cards
 
 Repeating work — "every Monday: review invoices", "first of the month: renew
@@ -4718,6 +4730,7 @@ POST   /api/cards/:id/timer {action: start|stop}   stopping adds the minutes it 
 POST   /api/cards/:id/checklist {text}     POST   /api/checklist/:item_id/toggle   DELETE /api/checklist/:item_id
 POST   /api/cards/:id/comments {body}      DELETE /api/comments/:comment_id
 GET    /api/cards/:id/handoff              POST   /api/cards/:id/handoff {next_step, body} | {clear: true}
+GET    /api/cards/:id/timeline             the lists it sat in, its waits and jobs, as spans
 POST   /api/cards/:id/dependencies {blocked_by: id} | {blocks: id}
 POST   /api/cards/:id/subboard {template}  DELETE /api/cards/:id/subboard
 GET    /api/boards/:board/sprints/next     (what New sprint would fill in: name, start, days)
@@ -5205,7 +5218,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `list_boards` | Boards you can see, with code, lists and which list is ready, in progress and done. `archived: true` includes archived ones. |
 | `get_board` | A board's lists in order, with a summary of each card and its description. |
 | `list_cards` | Cards in list order, filtered by `column`, `open`, `deps: "ready"`, `no_assignee` and `archived` (`exclude`, `include` or `only`). `full: true` gives each card as `get_card` does (comments, checklist, docs), 20 at a time unless `limit` says otherwise. |
-| `get_card` | A card in full: description, checklist with item ids, comments, dependencies, subcards and the wiki pages about it. |
+| `get_card` | A card in full: description, checklist with item ids, comments, dependencies, subcards and the wiki pages about it. With `timeline: true`, also its timeline: each list it sat in, its waits and its jobs. |
 | `search` | Cards, comments and wiki pages by meaning, across every board you can read or one. `archived: true` includes archived cards; a card's id or link as `q` finds that card, archived or not. |
 | `ask` | A `question` in prose, answered from the boards as `POST /api/ask` answers it, with the cards and pages it read (`id`, `title`, `kind`). `board` keeps it to one board. A model call on your own AI key and provider, so it can take a while; a token confined to some boards is refused, as it is by `/api/ask`. |
 | `read_page` | A wiki page's Markdown and its `content_hash`, by code (`W-31`) or by board and slug or title. `board` says whose page it is (`id`, `code`, `name`) and whether that board is `archived` — a code reaches pages on your archived boards, which `list_boards` leaves out unless asked. A page on a board you cannot see is not found. |

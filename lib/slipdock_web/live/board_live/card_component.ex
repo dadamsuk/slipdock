@@ -77,6 +77,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
        card_grants: [],
        card_jobs: [],
        card_provenance: [],
+       card_timeline: nil,
        doc_query: "",
        doc_results: [],
        dep_direction: "blocked_by",
@@ -228,7 +229,9 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         card_jobs: Runners.list_card_jobs(card.id, 5),
         # Where it came from, when that was a meeting. Shown whether or not
         # meeting mode is on now: it is the card's own history (G11).
-        card_provenance: Slipdock.Meetings.Provenance.for_card(card.id)
+        card_provenance: Slipdock.Meetings.Provenance.for_card(card.id),
+        # The lists, waits and jobs it has been through, on one axis (#1131).
+        card_timeline: Slipdock.CardTimeline.for_card(card)
       )
 
   defp assign_jobs(socket), do: socket
@@ -976,6 +979,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         pages={@card_pages}
         jobs={@card_jobs}
         provenance={@card_provenance}
+        timeline={@card_timeline}
         doc_query={@doc_query}
         doc_results={@doc_results}
         groups={@groups}
@@ -1111,6 +1115,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   attr :pages, :list, default: [], doc: "the wiki pages that talk about this card"
   attr :jobs, :list, default: [], doc: "the card's latest runner jobs"
   attr :provenance, :list, default: [], doc: "where it came from, when a meeting"
+  attr :timeline, :any, default: nil, doc: "the card's timeline (#1131)"
   attr :doc_query, :string, default: "", doc: "what is typed into the Docs picker"
   attr :doc_results, :list, default: [], doc: "pages the Docs picker is offering"
   attr :groups, :list, required: true
@@ -1382,6 +1387,15 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
           form_key={@form_key}
           target={@target}
           users={@users}
+        />
+      </div>
+      <div
+        :if={@timeline && not Slipdock.CardTimeline.empty?(@timeline)}
+        class="border-t border-base-content/10 px-6 py-4"
+      >
+        <.timeline_section
+          timeline={@timeline}
+          zone={Slipdock.Timezones.of(@current_user)}
         />
       </div>
       <div :if={@can_share} class="border-t border-base-content/10 px-6 py-4">

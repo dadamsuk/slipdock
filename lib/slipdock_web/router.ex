@@ -737,6 +737,7 @@ defmodule SlipdockWeb.Router do
     post "/cards/:id/checklist", CardController, :add_checklist_item
     post "/cards/:id/comments", CardController, :add_comment
     get "/cards/:id/handoff", CardController, :handoff
+    get "/cards/:id/timeline", CardController, :timeline
     post "/cards/:id/handoff", CardController, :leave_handoff
     post "/cards/:id/wait", CardController, :open_wait
     delete "/cards/:id/wait", CardController, :withdraw_wait

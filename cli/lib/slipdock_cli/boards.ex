@@ -10,7 +10,7 @@ defmodule SlipdockCLI.Boards do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(guide work search ask search-status saved save unsave boards board columns tags activity pulse cards card swimlanes views favourites fav unfav hotkeys hotkey table fields milestones templates add copy repeat recurring snooze wake edit set vote status handoff wait answer new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
+  @commands ~w(guide work search ask search-status saved save unsave boards board columns tags activity pulse cards card swimlanes views favourites fav unfav hotkeys hotkey table fields milestones templates add copy repeat recurring snooze wake edit set vote status handoff timeline wait answer new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -293,6 +293,10 @@ defmodule SlipdockCLI.Boards do
     HTTP.post(item_path(id, "/status"), %{"health" => health, "body" => Enum.join(words, " ")})
     |> out(o, &card_ok("reported #{health} on", &1))
   end
+
+  # A card's timeline (#1131): the lists it sat in, its waits and its jobs.
+  def run("timeline", [id], o),
+    do: HTTP.get("/cards/#{enc(id)}/timeline") |> out(o, &Render.timeline/1)
 
   # Where a card was left (W-1804): with --next (or --clear) it writes the
   # handoff, without it shows the current one and its history.

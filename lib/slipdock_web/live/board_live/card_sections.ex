@@ -751,6 +751,157 @@ defmodule SlipdockWeb.BoardLive.CardSections do
     """
   end
 
+  attr :timeline, Slipdock.CardTimeline, required: true
+  attr :zone, :string, required: true, doc: "the reader's time zone"
+
+  @doc """
+  The card's timeline (#1131): the lists it has sat in, its waits on a
+  person and its runner jobs, as lanes on one time axis from its first
+  record to now. A span's title says what, when, how long and who; a span
+  the ledger can't vouch for is faded and dashed. Under the lanes, the
+  same stays as a list, for reading rather than eyeballing.
+  """
+  def timeline_section(assigns) do
+    tl = assigns.timeline
+    total = max(DateTime.diff(tl.to, tl.from), 1)
+
+    assigns =
+      assign(assigns,
+        total: total,
+        lanes:
+          Enum.reject(
+            [
+              {"Lists", "stays", Enum.map(tl.stays, &stay_bar(&1, tl.from, total, assigns.zone))},
+              {"Waits", "waits", Enum.map(tl.waits, &wait_bar(&1, tl.from, total, assigns.zone))},
+              {"Jobs", "jobs", Enum.map(tl.jobs, &job_bar(&1, tl.from, total, assigns.zone))}
+            ],
+            fn {_, _, bars} -> bars == [] end
+          )
+      )
+
+    ~H"""
+    <section class="space-y-2" id="card-timeline">
+      <h3 class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+        <.icon name="hero-clock" class="size-3.5" /> Timeline
+        <span class="font-normal normal-case tracking-normal text-base-content/50">
+          {Slipdock.Pulse.duration(@total)} since {timeline_stamp(@timeline.from, @zone)}
+        </span>
+      </h3>
+      <div class="space-y-1">
+        <div
+          :for={{label, key, bars} <- @lanes}
+          class="flex items-center gap-2"
+          id={"card-timeline-#{key}"}
+        >
+          <span class="w-10 shrink-0 text-2xs text-base-content/50">{label}</span>
+          <div class="relative h-5 min-w-0 flex-1 overflow-hidden rounded bg-base-200">
+            <div
+              :for={bar <- bars}
+              class={[
+                "absolute inset-y-0 overflow-hidden whitespace-nowrap border-r border-base-100 px-1 text-2xs leading-5",
+                bar.class,
+                bar.unsure && "border border-dashed border-base-content/40 opacity-50"
+              ]}
+              style={"left: #{bar.left}%; width: #{bar.width}%"}
+              title={bar.title}
+              data-timeline-span={bar.label}
+            >
+              {bar.label}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="flex justify-between pl-12 text-2xs text-base-content/50">
+        <span>{timeline_stamp(@timeline.from, @zone)}</span>
+        <span>now</span>
+      </div>
+      <details class="text-xs" id="card-timeline-list">
+        <summary class="cursor-pointer text-base-content/60">
+          {length(@timeline.stays)} {if length(@timeline.stays) == 1, do: "stay", else: "stays"} in lists
+        </summary>
+        <ol class="mt-1 space-y-0.5">
+          <li :for={stay <- @timeline.stays} class="flex gap-2">
+            <span class="w-28 shrink-0 font-mono text-base-content/50">
+              {timeline_stamp(stay.from, @zone)}
+            </span>
+            <span class="min-w-0 flex-1 truncate">
+              {stay.list}{if stay.unsure, do: " (time uncertain)"}
+              <span :if={by = stay.how && stay.how.by} class="text-base-content/50">· by {by}</span>
+            </span>
+            <span class="shrink-0 font-mono text-base-content/60">
+              {Slipdock.Pulse.duration(Slipdock.CardTimeline.seconds(stay))}{if stay.open,
+                do: " so far"}
+            </span>
+          </li>
+        </ol>
+      </details>
+    </section>
+    """
+  end
+
+  defp stay_bar(stay, from, total, zone) do
+    how =
+      case stay.how do
+        %{by: by} when is_binary(by) -> ", by #{by}"
+        %{backfilled: true} -> ", recovered from the log"
+        _ -> ""
+      end
+
+    bar(stay, from, total, zone, stay.list, category_class(stay.category))
+    |> Map.merge(%{unsure: stay.unsure})
+    |> then(
+      &%{&1 | title: "#{stay.list}: #{&1.title}#{how}#{if stay.unsure, do: " (time uncertain)"}"}
+    )
+  end
+
+  defp wait_bar(wait, from, total, zone) do
+    b = bar(wait, from, total, zone, "on #{wait.on}", "bg-warning/60")
+    %{b | title: "Waiting on #{wait.on}: #{wait.needs} — #{b.title}#{wait_end(wait)}"}
+  end
+
+  defp wait_end(%{open: true}), do: ""
+  defp wait_end(%{reason: reason}), do: ", #{String.replace(reason || "closed", "_", " ")}"
+
+  defp job_bar(job, from, total, zone) do
+    b = bar(job, from, total, zone, "##{job.id} #{job.status}", job_class(job.status))
+    %{b | title: "Job ##{job.id} (#{job.pool} · #{job.kind}) #{job.status}: #{b.title}"}
+  end
+
+  # Where a span sits on the axis, as percentages, kept wide enough to see.
+  defp bar(span, from, total, zone, label, class) do
+    left = DateTime.diff(span.from, from) / total * 100
+    width = max(Slipdock.CardTimeline.seconds(span) / total * 100, 0.75)
+    left = min(left, 100 - width)
+
+    %{
+      left: Float.round(left, 2),
+      width: Float.round(width, 2),
+      label: label,
+      class: class,
+      unsure: false,
+      title:
+        "#{timeline_stamp(span.from, zone)} for " <>
+          Slipdock.Pulse.duration(Slipdock.CardTimeline.seconds(span)) <>
+          if(span.open, do: " so far", else: "")
+    }
+  end
+
+  defp category_class("todo"), do: "bg-info/40"
+  defp category_class("doing"), do: "bg-primary/50"
+  defp category_class("done"), do: "bg-success/50"
+  defp category_class("dropped"), do: "bg-error/30"
+  defp category_class("archived"), do: "bg-base-300 text-base-content/50"
+  defp category_class(_), do: "bg-base-content/15"
+
+  defp job_class("done"), do: "bg-success/50"
+  defp job_class(status) when status in ~w(failed timeout), do: "bg-error/40"
+  defp job_class(status) when status in ~w(claimed running), do: "bg-info/50"
+  defp job_class("parked"), do: "bg-warning/50"
+  defp job_class(_), do: "bg-base-content/15"
+
+  defp timeline_stamp(at, zone),
+    do: at |> Slipdock.Timezones.to_local(zone) |> Calendar.strftime("%-d %b %H:%M")
+
   attr :card, :map, required: true
 
   @doc "How many of the cards that contribute to this one are done."

@@ -194,6 +194,25 @@ defmodule SlipdockWeb.API.JSON do
     }
   end
 
+  @doc """
+  A card's timeline (#1131, `Slipdock.CardTimeline`): its stays in lists,
+  waits and jobs, each with `from`, `to`, `seconds` and `open`.
+  """
+  def timeline(%Slipdock.CardTimeline{} = t) do
+    %{
+      from: t.from,
+      to: t.to,
+      stays:
+        Enum.map(t.stays, fn s ->
+          s
+          |> Map.take(~w(list category board_id from to open unsure how)a)
+          |> Map.put(:seconds, Slipdock.CardTimeline.seconds(s))
+        end),
+      waits: Enum.map(t.waits, &Map.put(&1, :seconds, Slipdock.CardTimeline.seconds(&1))),
+      jobs: Enum.map(t.jobs, &Map.put(&1, :seconds, Slipdock.CardTimeline.seconds(&1)))
+    }
+  end
+
   @doc "A card's snooze, while it is snoozed: until when, why, who and how it wakes."
   def snooze(%Card{} = c) do
     if Card.snoozed?(c) do

@@ -998,6 +998,13 @@ defmodule SlipdockWeb.HelpLive.Agents do
           or <code>--stuck</code>, and on <code>driver</code>.
         </li>
         <li>
+          <strong>Timeline.</strong>
+          How long a card sat in each list, who moved it, and its waits
+          and jobs: <code>get_card</code>
+          with <code>timeline: true</code>, <code>GET /api/cards/:id/timeline</code>
+          or <code>slipdock timeline &lt;id&gt;</code>.
+        </li>
+        <li>
           With <strong>Work a list with a runner</strong>, a card its job leaves in progress
           goes back to the top of the list for another try, then gets flagged as blocked.
         </li>

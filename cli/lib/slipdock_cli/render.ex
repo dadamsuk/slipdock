@@ -526,6 +526,50 @@ defmodule SlipdockCLI.Render do
     )
   end
 
+  @doc """
+  `slipdock timeline <id>` (#1131): each list the card sat in, its waits and
+  its jobs, oldest first, with when, for how long and who. Times are UTC.
+  """
+  def timeline(%{"card" => id, "timeline" => t}) do
+    IO.puts(bold("##{id} timeline") <> dim(" · since #{stamp(t["from"])} UTC"))
+
+    timeline_lane("Lists", t["stays"], fn s ->
+      {s["list"], timeline_how(s["how"]) <> if(s["unsure"], do: " (time uncertain)", else: "")}
+    end)
+
+    timeline_lane("Waits", t["waits"], fn w ->
+      {"on #{w["on"]}", w["needs"] <> if(w["reason"], do: " (#{w["reason"]})", else: "")}
+    end)
+
+    timeline_lane("Jobs", t["jobs"], fn j ->
+      {"##{j["id"]} #{j["status"]}", "#{j["pool"]} · #{j["kind"]}" <> on_runner(j["runner"])}
+    end)
+  end
+
+  defp timeline_lane(_title, [], _row), do: :ok
+
+  defp timeline_lane(title, spans, row) do
+    IO.puts("\n" <> title)
+
+    Enum.each(spans, fn span ->
+      {what, note} = row.(span)
+      long = span(span["seconds"]) <> if(span["open"], do: " so far", else: "")
+
+      IO.puts(
+        "  #{stamp(span["from"])}  #{String.pad_trailing(what, 16)} " <>
+          String.pad_trailing(long, 10) <> " " <> dim(String.trim(note))
+      )
+    end)
+  end
+
+  defp timeline_how(%{"by" => by, "kind" => kind}) when is_binary(by), do: "#{kind} by #{by}"
+  defp timeline_how(%{"backfilled" => true}), do: "recovered from the log"
+  defp timeline_how(%{"kind" => kind}), do: kind
+  defp timeline_how(_), do: ""
+
+  defp on_runner(nil), do: ""
+  defp on_runner(name), do: " · #{name}"
+
   @doc "`slipdock handoff <id>`: the current handoff, then every write before it."
   def handoff_history(%{"card" => id, "handoff" => current, "history" => history}) do
     case current do
