@@ -63,3 +63,6 @@ ai_keys.json.tmp
 # Built escript (CLI)
 cli/slipdock
 .claude/worktrees/
+
+# Python bytecode, e.g. from testing a Tool package script
+__pycache__/

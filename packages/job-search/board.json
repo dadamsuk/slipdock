@@ -1,0 +1,80 @@
+{
+  "lists": [
+    {
+      "name": "Found",
+      "role": "ready",
+      "color": "sky"
+    },
+    {
+      "name": "Generate",
+      "role": "doing",
+      "color": "amber"
+    },
+    {
+      "name": "Ready",
+      "category": "doing",
+      "color": "emerald"
+    },
+    {
+      "name": "Applied"
+    },
+    {
+      "name": "In conversation",
+      "color": "violet"
+    },
+    {
+      "name": "Closed",
+      "role": "done"
+    }
+  ],
+  "folders": [
+    "Config",
+    "Seen",
+    "Roles"
+  ],
+  "pages": [
+    {
+      "title": "Criteria",
+      "folder": "Config",
+      "summary": "What counts as a match: gates, hard exclusions, scoring, target criteria, the card threshold and flags.",
+      "body": "# Criteria\n\nWhat counts as a match on {{board.name}}. The scan applies this page exactly as written, in this order: gates, then hard exclusions, then the score. Set up {{today}}; filled in by the job-search-setup skill, and yours to edit at any time.\n\n## Changing a rule\n\nOnly you set a rule. The scan never invents, widens or softens one: if a posting makes it wish for a rule that is not here, it says so in the ledger's run notes. Every rule below records the date it was set and one line of why. A rule that is replaced moves to **Retired** with its date and what replaced it, so nothing stale gets restored.\n\n## What I'm looking for\n\n- Titles and level: not set\n- Permanent, interim or contract: not set\n\n## Where\n\n- Base: not set\n- Places I would travel to: not set\n- Remote: not set\n- Relocation: not set\n\n## Gates\n\nPass or fail, before anything is scored.\n\n| Gate | Threshold | Applies to | On failure |\n|---|---|---|---|\n| not set | | | |\n\n- When no salary or rate is posted: not set\n\n## Hard exclusions\n\nDropped before scoring, however the posting arrives.\n\n| Exclusion | Scope | Since | Why |\n|---|---|---|---|\n| not set | | | |\n\n## Scoring\n\n- Scale: not set (for example 1 to 10, starting at 5)\n- Base: not set\n- Floor and cap: not set\n\n| Adjustment | Signal or red flag | Since | Why |\n|---|---|---|---|\n| not set | | | |\n\n## Target criteria\n\nOptional: three to six checkable things the role you want has. Each card shows how many it meets.\n\n- not set\n\n## Threshold\n\n- A posting becomes a card in Found at a score of: 6\n\n## Flags\n\nRaised on a card as a tag. A flag never changes a score.\n\n| Flag | Tag | When |\n|---|---|---|\n| not set | | |\n\n## Notifications\n\n- Email a short note for each new card: not set\n\n## Retired\n\n| Rule | Retired | Replaced by |\n|---|---|---|\n"
+    },
+    {
+      "title": "Sources",
+      "folder": "Config",
+      "summary": "Where the scan looks, each search marked cloud or signed-in browser, with hits per source.",
+      "body": "# Sources\n\nWhere the scan looks. Each search is marked **cloud** (readable without signing in, so the cloud fallback scan can read it) or **signed-in browser** (needs your own logged-in browser, so only the desktop scan reads it). Filled in by the job-search-setup skill; the scan fills in the hits once a month.\n\n## Searches\n\n| Source | Access | Search (query or URL) | Location identifier | Hits |\n|---|---|---|---|---|\n| not set | | | | |\n\n## Notes\n\nWhat has been learned about each source's behaviour.\n\n- not set\n"
+    },
+    {
+      "title": "Candidate Facts",
+      "folder": "Config",
+      "summary": "Everything known about you beyond the CV, each fact with its source, date, framing and whether it is confirmed.",
+      "body": "# Candidate Facts\n\nEverything known about you beyond the CV: what the gap analysis on every card is judged against. Each fact records its source, its date, any framing rule, and whether you have confirmed it. Facts the Tool inferred stay **unconfirmed** until you confirm them; documents never rely on an unconfirmed fact without asking.\n\nFormat: `- The fact. (source: where it came from, YYYY-MM-DD · framing: how to say it · confirmed)`\n\n## Record\n\n- not set\n\n## Known gaps\n\nThings you have not done. No writing fixes these; documents never imply them.\n\n- not set\n\n## Approved phrasings\n\n- not set\n\n## Open questions\n\n- not set\n"
+    },
+    {
+      "title": "CV Baseline",
+      "folder": "Config",
+      "summary": "Your CV as content: its fixed structure and default text. The style template is attached here.",
+      "body": "# CV Baseline\n\nYour CV as content, word for word: the source every tailored CV is built from. What may be tailored, and how, is on Writing Rules. The style template every document is built with is attached to this page as `cv-template.docx`.\n\n## Structure (fixed)\n\nThe entries in order, with their exact titles, companies and dates, and the section order. A tailored CV that changes anything here is a defect.\n\n- not set\n\n## Content\n\nnot set\n\n## Available bullets\n\nLines approved for tailoring that are not on the base CV, under the entry they belong to.\n\n- not set\n\n## Never on the CV\n\n- not set\n"
+    },
+    {
+      "title": "Writing Rules",
+      "folder": "Config",
+      "summary": "Voice, banned phrases, positioning, what tailoring may change, file naming, and the build settings and checks.",
+      "body": "# Writing Rules\n\nHow documents are written: the constraints on how the content on CV Baseline and Candidate Facts is used. \"Stop using that phrase\" goes here; \"it was 30 people, not 25\" goes on CV Baseline or Candidate Facts.\n\n## Voice\n\n- CV: not set\n- Covering letter: not set\n- Recruiter messages: not set\n\n## Banned phrases\n\n- not set\n\n## Positioning\n\n- not set\n\n## Tailoring\n\n- May change: not set\n- May not change: not set\n\n## File naming\n\n- CV: not set\n- Covering letter: not set\n\n## Style guide\n\n- not set\n\n## Build\n\nRead by the build script. `bullet` is the list character; `cv pages` is the page count every CV must have.\n\n```build\nbullet: -\ncv pages: 2\n```\n\n## Checks\n\nRun on every document by the build script. A line is `<rule> <documents> | <label> | <regex>`: the rule is `forbid`, `require` or `max N`; documents are `all`, or any of `cv`, `letter`, `other`. Patterns ignore case; `(?-i:...)` makes part of one case-sensitive. Setup proposes these with you; every hit is read before anything is fixed.\n\n```checks\n```\n"
+    }
+  ],
+  "automations": [
+    {
+      "preset": "send_to_runner",
+      "name": "Build documents for cards in Generate",
+      "params": {
+        "column": "Generate",
+        "pool": "generate",
+        "kind": "claude",
+        "wait": "no",
+        "prompt": "Use the job-search-generate skill to build the documents for card #{{card.id}} ({{card.title}}) on board {{board.name}}: {{card.url}}\n\nYou are running as a runner job from pool generate: report with job_progress between steps, and end with finish_job (outcome waiting with the wait if questions are still open)."
+      }
+    }
+  ]
+}

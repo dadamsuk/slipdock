@@ -1,0 +1,13 @@
+{
+  "name": "job-search",
+  "title": "Job Search",
+  "version": "1.0.1",
+  "summary": "A job search on a Slipdock board: a daily scan scores postings against your own criteria and analyses the gaps, and documents are built when you ask.",
+  "author": "Slipdock",
+  "requires": {
+    "connector": "the Slipdock connector (MCP), or the slipdock CLI with a token",
+    "for_scanning": "for signed-in sources, a browser the agent can drive, signed in to them",
+    "for_documents": "pandoc and LibreOffice where generate runs (Claude's cloud has both), and python3"
+  },
+  "files": []
+}

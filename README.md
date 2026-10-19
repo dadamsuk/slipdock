@@ -815,8 +815,12 @@ same, `slipdock runner ls|show|setup|token|rm` manage them, and `slipdock jobs
 A **Tool** is a ready-made way of working that somebody publishes on a server
 for the other people on it: a board blueprint (lists with their roles, wiki
 folders, tags, page skeletons and automation rules), the agent skills that
-use that board, files, and a README. The first is
-[`packages/job-scan`](packages/job-scan), an automated job search.
+use that board, files, and a README. The example kept here is
+[`packages/job-search`](packages/job-search), an automated job search whose
+skills are stubs that fetch their procedure from the server when they run, so
+publishing a new version reaches everyone without a reinstall
+([`docs/tool-packages.md`](docs/tool-packages.md) is the package reference).
+[`packages/job-scan`](packages/job-scan) is the version it replaced.
 
 - **The server builds the board.** Installing a Tool — `install_tool` over
   MCP, `slipdock tools install-board`, or **Make the board** on its page — has
