@@ -244,6 +244,11 @@ defmodule SlipdockWeb.DeploymentAPITest do
            |> json_response(200)
            |> get_in(["board", "card_ref_pattern"]) == "PROJ-(\\d+)"
 
+    assert ci(token)
+           |> get(~p"/api/deployments/last")
+           |> json_response(200)
+           |> Map.get("card_ref_pattern") == "PROJ-(\\d+)"
+
     commits = [%{"sha" => @sha, "subject" => "PROJ-#{card.id}: done, not ##{card.id + 1}"}]
     d = token |> start(%{"sha" => @sha, "commits" => commits}) |> json_response(201)
     assert d["deployment"]["cards"] == [card.id]

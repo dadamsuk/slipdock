@@ -8,6 +8,7 @@ defmodule SlipdockCLI do
     Auth,
     Automations,
     Boards,
+    Deploy,
     Garden,
     Meetings,
     Runners,
@@ -706,6 +707,25 @@ defmodule SlipdockCLI do
     run-automation <board> <rule>                  run a timed rule now (forgets what it has done)
     delete-automation <board> <rule>
     dismiss <alert-id>... | dismiss --all           dismiss alerts (yours only; others keep theirs)
+    deploy run [--env E] [--tag T] [--dir D] [--dry-run] -- <command…>
+                                                   record a deploy around your deploy command (in
+                                                   CI): asks the board for the environment's last
+                                                   deployed sha, sends the commits since it (git log
+                                                   in --dir, default .), runs the command, records
+                                                   succeeded/failed from its exit code and exits
+                                                   with it. A rollback (HEAD behind the last deploy)
+                                                   says so; a shallow clone is deepened or the fix is
+                                                   named. Needs $SLIPDOCK_DEPLOY_TOKEN (and
+                                                   $SLIPDOCK_URL); env defaults to production
+    deploy start [--env E] [--tag T] [--sha S] [--dry-run]
+                                                   the same in two steps: prints the deploy's id…
+    deploy finish --status succeeded|failed [--id N]
+                                                   …and records how it ended (id from --id or
+                                                   $SLIPDOCK_DEPLOY_ID)
+    deploy last [--env E]                          the environment's last succeeded deploy
+    deploy token <board> [--revoke]                issue (or replace) the board's deploy token,
+                                                   shown once — it records deploys and nothing
+                                                   else; --revoke ends it. Owner only, API token
     runner new <board> [name] --pool P [--scenario server|windows|loop|cloud|chatgpt]
                [--agent claude|codex|custom] [--command CMD] [--kind K] [--cwd DIR]
                [--permission-mode M] [--timeout SECONDS] [--service auto|systemd|launchd|none]
@@ -823,6 +843,12 @@ defmodule SlipdockCLI do
     add_document: :boolean,
     page_card_features: :boolean,
     show_pulse: :boolean,
+    # `slipdock deploy` (#1134).
+    env: :string,
+    sha: :string,
+    revoke: :boolean,
+    from_tags: :boolean,
+    pattern: :string,
     delivery_metrics: :boolean,
     automation_wip: :boolean,
     default_view: :string,
@@ -1081,7 +1107,8 @@ defmodule SlipdockCLI do
     Sync,
     Skills,
     Tools,
-    Meetings
+    Meetings,
+    Deploy
   ]
 
   defp run(cmd, args, o) do

@@ -103,11 +103,28 @@ defmodule SlipdockCLI.HTTP do
   the server being talked to. `$KANBAN_TOKEN` is still read.
   """
   def token do
-    read_env("SLIPDOCK_TOKEN", "KANBAN_TOKEN") ||
+    Process.get(:slipdock_token_override) ||
+      read_env("SLIPDOCK_TOKEN", "KANBAN_TOKEN") ||
       (
         migrate_shared_token()
         read_file(token_file(base_url()))
       )
+  end
+
+  @doc """
+  Runs `fun` with `token` in place of the API token: a deploy token
+  (`slipdock deploy`) is sent to its own endpoints and never saved.
+  """
+  def with_token(token, fun) do
+    previous = Process.put(:slipdock_token_override, token)
+
+    try do
+      fun.()
+    after
+      if previous,
+        do: Process.put(:slipdock_token_override, previous),
+        else: Process.delete(:slipdock_token_override)
+    end
   end
 
   # Before tokens were kept per server there was one file, and it belonged to
