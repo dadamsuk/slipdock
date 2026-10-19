@@ -1,4 +1,4 @@
-"""Tests for the job-search Tool's build script (#1151).
+"""Tests for the job-search Tool's build script (#1151, the html engine #1164).
 
 Run: python3 test/packages/job_search/build_docs_test.py
 (test/slipdock/job_search_build_docs_test.exs runs it with the suite.)
@@ -378,6 +378,275 @@ class WithPandoc(unittest.TestCase):
         )
         self.assertEqual(code, 0, out)
         self.assertEqual(bd.pdf_pages(json.loads(out)["pdf"]), 1)
+
+
+HTML_RULES = """# Writing Rules
+
+```build
+engine: html
+cv pages: 2
+letter pages: 1
+sidebar: key numbers, status
+colour primary: #112233
+```
+
+```checks
+forbid all | em dashes | —
+```
+"""
+
+CV_MD = """# Jane Doe
+
+::: {custom-style="Contact"}
+London | jane@example.com
+:::
+
+::: {custom-style="Headline"}
+Chief Technology Officer
+:::
+
+## Summary
+
+Builds teams that ship & <keeps> them.
+
+## Key Numbers
+
+**40:** engineers led
+**12m:** **raised** in funding
+
+## Experience
+
+### CTO | Acme | 2019 to 2026
+
+::: {custom-style="Strapline"}
+Series B fintech
+:::
+
+- Built the team.
+- Grew revenue.
+
+### Head of Things | Beta | 2015 to 2019
+
+- Ran the platform.
+
+## Status
+
+Available from January.
+"""
+
+LETTER_MD = """# Jane Doe
+
+::: {custom-style="Contact"}
+London | jane@example.com
+:::
+
+Dear Sam,
+
+I would like to apply.
+
+Yours sincerely,
+"""
+
+
+class HtmlEngine(unittest.TestCase):
+    """The designed PDF (`engine: html`, #1164). Chromium is stubbed out except in the
+    one test that prints for real, which is skipped where Playwright is not installed."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp)
+        self.rules = self.write("rules.md", HTML_RULES)
+        self.settings, _ = bd.read_rules(self.rules)
+        self.d = bd.design_settings(self.settings)
+
+    def write(self, name, text):
+        path = os.path.join(self.tmp, name)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+        return path
+
+    def stub(self, name, value):
+        original = getattr(bd, name)
+        setattr(bd, name, value)
+        self.addCleanup(setattr, bd, name, original)
+
+    def home_here(self):
+        """The font cache lives under ~, so point ~ at the test's own folder."""
+        old = os.environ.get("HOME")
+        os.environ["HOME"] = self.tmp
+        self.addCleanup(lambda: os.environ.__setitem__("HOME", old) if old is not None else os.environ.pop("HOME"))
+
+    def stub_printing(self, pages=2, text=None, type3=()):
+        printed = {}
+
+        def render(html_doc, pdf):
+            printed["html"] = html_doc
+            with open(pdf, "wb") as f:
+                f.write(b"%PDF-1.7")
+
+        self.stub("font_faces", lambda font, version: "")
+        self.stub("render_html_pdf", render)
+        self.stub("pdf_pages", lambda path: pages)
+        self.stub("pdf_raw_text", lambda path: text if text is not None else "CTO | Acme | 2019 to 2026 x Head of Things | Beta | 2015 to 2019")
+        self.stub("pdf_font_types", lambda path: None if type3 is None else list(type3))
+        return printed
+
+    def build(self, kind, content, *extra):
+        code, out, _ = run_main(
+            "--json", "build", self.write(f"{kind}.md", content), "--kind", kind, "--rules", self.rules,
+            "--out", os.path.join(self.tmp, "out"), "--name", kind, *extra,
+        )
+        return code, json.loads(out)
+
+    def test_the_cv_markdown_is_read_as_structure(self):
+        doc = bd.parse_cv_markdown(CV_MD)
+        self.assertEqual(doc["name"], "Jane Doe")
+        self.assertEqual(doc["divs"], {"Contact": "London | jane@example.com", "Headline": "Chief Technology Officer"})
+        self.assertEqual([s["title"] for s in doc["sections"]], ["Summary", "Key Numbers", "Experience", "Status"])
+        numbers = doc["sections"][1]["blocks"]
+        self.assertEqual([(b["type"], b["label"]) for b in numbers], [("label", "40"), ("label", "12m")])
+        cto, head = doc["sections"][2]["blocks"]
+        self.assertEqual(cto["parts"], ["CTO", "Acme", "2019 to 2026"])
+        self.assertEqual(cto["strap"], "Series B fintech", "a Strapline under an entry belongs to the entry")
+        self.assertEqual(cto["bullets"], ["Built the team.", "Grew revenue."])
+        self.assertEqual(head["bullets"], ["Ran the platform."])
+
+    def test_the_letter_is_its_name_divs_and_paragraphs(self):
+        doc = bd.parse_letter_markdown(LETTER_MD)
+        self.assertEqual(doc["name"], "Jane Doe")
+        self.assertEqual(doc["divs"], {"Contact": "London | jane@example.com"})
+        self.assertEqual(doc["paras"], ["Dear Sam,", "I would like to apply.", "Yours sincerely,"])
+
+    def test_design_settings_have_defaults_and_take_overrides(self):
+        self.assertEqual(self.d["primary"], "#112233", "a leading # is not doubled")
+        self.assertEqual(self.d["accent"], "#1A7F8E")
+        self.assertEqual(self.d["sidebar"], ["KEY NUMBERS", "STATUS"])
+        self.assertEqual(self.d["font"], "Inter")
+        defaults = bd.design_settings({})
+        self.assertIn("SELECTED CLIENTS", defaults["sidebar"])
+        self.assertEqual(defaults["numbers"], ["KEY NUMBERS"])
+
+    def test_the_cv_puts_sidebar_sections_in_the_bar_and_escapes_text(self):
+        html_doc = bd.html_cv(bd.parse_cv_markdown(CV_MD), self.d)
+        side, main = html_doc.split('<main class="main">')
+        self.assertIn('<div class="num"><div class="big">40</div><div class="small">engineers led</div></div>', side)
+        self.assertIn('<div class="status"><p>Available from January.</p></div>', side)
+        self.assertNotIn("Experience", side)
+        self.assertNotIn("Key Numbers", main)
+        self.assertIn('<p class="summary">Builds teams that ship &amp; &lt;keeps&gt; them.</p>', main)
+        self.assertIn("<strong>raised</strong>", side)
+        self.assertIn('<span class="c">Acme</span>', main)
+        self.assertIn('<p class="strap">Series B fintech</p>', main)
+        self.assertLess(main.index("Acme"), main.index("Beta"), "entries keep their order")
+        self.assertIn("Jane<br>Doe", side)
+
+    def test_the_letter_has_no_headline_unless_given_one(self):
+        doc = bd.parse_letter_markdown(LETTER_MD)
+        html_doc = bd.html_letter(doc, self.d)
+        self.assertNotIn('class="head"', html_doc)
+        self.assertIn('London<span class="sep"> | </span>jane@example.com', html_doc)
+        doc["divs"]["Headline"] = "CTO"
+        self.assertIn('<div class="head">CTO</div>', bd.html_letter(doc, self.d))
+
+    def test_reading_order_names_the_first_entry_out_of_place(self):
+        text = "CTO  | Acme\n| 2019 to 2026 then Head of Things"
+        self.assertIsNone(bd.reading_order(text, ["CTO | Acme | 2019 to 2026", "Head of Things"]))
+        self.assertEqual(bd.reading_order(text, ["Head of Things", "CTO | Acme | 2019 to 2026"]), "CTO | Acme | 2019 to 2026")
+        self.assertEqual(bd.reading_order(text, ["Missing"]), "Missing")
+
+    def test_without_engine_html_a_template_is_still_required(self):
+        rules = self.write("docx-rules.md", "```build\ncv pages: 2\n```\n")
+        code, out, _ = run_main("--json", "build", self.write("cv.md", CV_MD), "--kind", "cv", "--rules", rules, "--out", self.tmp, "--name", "cv")
+        self.assertEqual(code, 2)
+        self.assertIn("--template is required", json.loads(out)["error"])
+
+    def test_a_cv_build_makes_only_a_pdf_and_passes_its_checks(self):
+        printed = self.stub_printing()
+        code, result = self.build("cv", CV_MD)
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result["engine"], "html")
+        self.assertNotIn("docx", result)
+        self.assertEqual(os.listdir(os.path.join(self.tmp, "out")), ["cv.pdf"])
+        self.assertEqual(result["pages_wanted"], 2, "cv pages comes from the build block")
+        labels = {c["label"]: c["ok"] for c in result["checks"]}
+        self.assertEqual(labels, {"em dashes": True, "fonts extractable (no Type 3)": True, "reading order": True})
+        self.assertIn('<html lang="en-GB">', printed["html"])
+        self.assertIn("--primary:#112233", printed["html"])
+
+    def test_the_wrong_page_count_fails_the_build(self):
+        self.stub_printing(pages=3)
+        code, result = self.build("cv", CV_MD)
+        self.assertEqual(code, 1)
+        self.assertEqual(result["pages"], 3)
+        self.assertFalse(result["ok"])
+        code, result = self.build("cv", CV_MD, "--pages", "3")
+        self.assertEqual(code, 0, "--pages overrides the build block")
+
+    def test_a_type_3_font_fails_the_build(self):
+        self.stub_printing(type3=["Inter  Type 3  Custom  yes yes no 5 0"])
+        code, result = self.build("cv", CV_MD)
+        self.assertEqual(code, 1)
+        fonts = next(c for c in result["checks"] if c["label"].startswith("fonts"))
+        self.assertFalse(fonts["ok"])
+        self.assertIn("Type 3", fonts["hits"]["pdf"][0]["text"])
+
+    def test_entries_out_of_order_in_the_pdf_text_fail_the_build(self):
+        self.stub_printing(text="Head of Things | Beta | 2015 to 2019 then CTO | Acme | 2019 to 2026")
+        code, result = self.build("cv", CV_MD)
+        self.assertEqual(code, 1)
+        order = next(c for c in result["checks"] if c["label"] == "reading order")
+        self.assertIn("not found in order: Head of Things", order["hits"]["pdf"][0]["text"])
+
+    def test_a_forbidden_word_in_the_pdf_text_fails_the_build(self):
+        self.stub_printing(text="CTO | Acme | 2019 to 2026 — Head of Things | Beta | 2015 to 2019")
+        code, result = self.build("cv", CV_MD)
+        self.assertEqual(code, 1)
+        self.assertFalse(next(c for c in result["checks"] if c["label"] == "em dashes")["ok"])
+
+    def test_without_pdffonts_the_font_check_is_a_note_not_a_failure(self):
+        self.stub_printing(type3=None)
+        code, result = self.build("cv", CV_MD)
+        self.assertEqual(code, 0, result)
+        self.assertTrue(any("pdffonts is not installed" in n for n in result["notes"]))
+
+    def test_a_letter_checks_its_first_and_last_paragraph_and_one_page(self):
+        self.stub_printing(pages=1, text="Dear Sam, I would like to apply. Yours sincerely,")
+        code, result = self.build("letter", LETTER_MD)
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result["pages_wanted"], 1)
+        self.stub_printing(pages=1, text="Yours sincerely, Dear Sam,")
+        code, result = self.build("letter", LETTER_MD)
+        self.assertEqual(code, 1)
+
+    def test_no_npm_and_no_cached_font_is_an_error_naming_the_font(self):
+        self.home_here()
+        real_which = shutil.which
+        bd.shutil.which = lambda cmd, *a, **k: None if cmd == "npm" else real_which(cmd, *a, **k)
+        self.addCleanup(setattr, bd.shutil, "which", real_which)
+        with self.assertRaises(bd.BuildError) as e:
+            bd.fontsource("Inter", "5.0.18")
+        self.assertIn("@fontsource/inter", str(e.exception))
+
+    def test_a_cached_font_without_a_regular_weight_is_refused(self):
+        self.home_here()
+        files = os.path.join(self.tmp, ".cache", "job-search", "fonts", "inter-5.0.18", "package", "files")
+        os.makedirs(files)
+        self.write(os.path.join(files, "inter-latin-700-normal.woff2"), "x")
+        with self.assertRaises(bd.BuildError) as e:
+            bd.fontsource("Inter", "5.0.18")
+        self.assertIn("no latin 400", str(e.exception))
+        self.write(os.path.join(files, "inter-latin-400-normal.woff2"), "x")
+        self.assertEqual(sorted(bd.fontsource("Inter", "5.0.18")), [400, 700])
+
+    @unittest.skipUnless(
+        importlib.util.find_spec("playwright") and shutil.which("pdfinfo") and shutil.which("pdftotext"),
+        "Playwright or poppler is not installed",
+    )
+    def test_chromium_prints_the_cv_for_real(self):
+        self.stub("font_faces", lambda font, version: "")
+        code, result = self.build("cv", CV_MD, "--pages", "1")
+        self.assertEqual(code, 0, result)
+        self.assertEqual(bd.pdf_pages(result["pdf"]), 1)
 
 
 if __name__ == "__main__":
