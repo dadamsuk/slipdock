@@ -24,7 +24,13 @@ defmodule SlipdockWeb.MCP.Tools.GetCard do
   def input_schema do
     %{
       type: "object",
-      properties: %{card: %{type: "integer", description: "The card's number, e.g. 129."}},
+      properties: %{
+        card: %{type: "integer", description: "The card's number, e.g. 129."},
+        timeline: %{
+          type: "boolean",
+          description: "Also return its timeline: how long it sat in each list, waits, jobs."
+        }
+      },
       required: ["card"],
       additionalProperties: false
     }
@@ -49,9 +55,16 @@ defmodule SlipdockWeb.MCP.Tools.GetCard do
        |> Map.put(:docs, docs)
        |> Map.put(:wait, V.wait(Boards.current_wait(card)))
        |> Map.put(:last_wait, V.wait(Boards.last_wait(card)))
-       |> Map.put(:url, url(card, context.base_url))}
+       |> Map.put(:url, url(card, context.base_url))
+       |> put_timeline(card, args["timeline"] == true)}
     end
   end
+
+  # Only when asked: most reads want the brief, not the history (#1131).
+  defp put_timeline(map, card, true),
+    do: Map.put(map, :timeline, V.timeline(Slipdock.CardTimeline.for_card(card)))
+
+  defp put_timeline(map, _card, _), do: map
 
   @doc "A wiki page about a card, as a card's `docs` lists it."
   def doc(link), do: %{code: link.page.code, title: link.page.title, pinned: link.pinned}

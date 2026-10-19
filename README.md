@@ -757,6 +757,12 @@ with the tail of the log — and a Cancel button.
   same `state`, `driver`, `age` and `stuck` come back from REST, MCP and
   `slipdock cards`, which filter on `stuck` and `driver` (`--stuck --driver
   agent`), as does the board's Filter menu.
+- **Each card has a timeline.** Near the bottom of the card, lanes on one
+  time axis show each list it has sat in (coloured by the list's category,
+  with who moved it), each wait on a person and each runner job, from its
+  first record to now. The same spans come from `GET
+  /api/cards/:id/timeline`, MCP `get_card` with `timeline: true` and
+  `slipdock timeline <id>`.
 
 Set one up on the board under **Automations → Connect a runner**: pick a
 Linux or macOS machine (a POSIX `sh` + `curl` runner, as a systemd or launchd

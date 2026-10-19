@@ -1315,6 +1315,12 @@ defmodule SlipdockWeb.APIGuide do
     stay), `over_usual` and `stuck` (past it). The `stuck` and `driver`
     filters read the same values.
 
+    **A card's timeline**: `GET /api/cards/:id/timeline` (MCP `get_card`
+    with `timeline: true`, CLI `slipdock timeline <id>`) gives `stays` (each
+    list it sat in, with `how` it got there and who), `waits` and `jobs`,
+    each with `from`, `to`, `seconds` and `open`; `unsure` marks a stay the
+    ledger can't vouch for.
+
     ### What comes back
 
     The samples below are real responses, trimmed: every field shown is

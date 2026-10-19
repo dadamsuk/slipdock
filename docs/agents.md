@@ -220,7 +220,10 @@ A board whose runner work a person has **paused** says so: `get_board`,
 Every card also carries its `state` line, `driver`, `age` in its list and
 `stuck` (past the list's usual stay), and `list_cards` / `slipdock cards`
 filter on `stuck` and `driver`; `slipdock pulse <board>` (`get_board` with
-`pulse: true`) gives the board's flow numbers. See
+`pulse: true`) gives the board's flow numbers. A card's history — how
+long it sat in each list and who moved it, its waits and its jobs — is
+`get_card` with `timeline: true`, `GET /api/cards/:id/timeline` or
+`slipdock timeline <id>`. See
 [the manual](manual.md#flow-the-pulse-a-cards-state-and-its-age).
 
 A card that repeats carries `recurrence` (its rule in words and when the next

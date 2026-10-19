@@ -421,6 +421,17 @@ defmodule SlipdockWeb.API.CardController do
   end
 
   @doc """
+  The card's timeline (#1131): the lists it has sat in, its waits and its
+  runner jobs, as spans of time (`Slipdock.CardTimeline`).
+  """
+  def timeline(conn, %{"id" => id}) do
+    with {:ok, card} <- fetch_card(id),
+         :ok <- Authorize.card(conn, card, :read) do
+      json(conn, %{card: card.id, timeline: V.timeline(Slipdock.CardTimeline.for_card(card))})
+    end
+  end
+
+  @doc """
   The card's handoff and its history, newest first (W-1804). `handoff` is
   nil when there is none or it was cleared.
   """

@@ -676,6 +676,8 @@ defmodule SlipdockCLI do
                                         leave a handoff for whoever picks the card up next
                                         (write one whenever you stop with it unfinished)
     handoff <id> --clear                clear it (the history keeps that it was cleared)
+    timeline <id>                       the lists a card sat in, its waits and its jobs:
+                                        when, for how long and who moved it
     wait <id> "what you need" [--on EMAIL] [--choice X]... [--job ID]
                                         wait on a person: flags the card waiting and asks on
                                         it (on anyone without --on); the job is
