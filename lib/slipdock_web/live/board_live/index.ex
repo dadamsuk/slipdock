@@ -466,9 +466,10 @@ defmodule SlipdockWeb.BoardLive.Index do
       shortcuts={@shortcuts}
       viewport={@viewport}
       nav_active={:boards}
+      wordmark
     >
       <div class="kanban-scroll h-full overflow-y-auto">
-        <div class="mx-auto max-w-6xl px-4 py-6 sm:py-10 sm:px-6">
+        <div id="boards-home" class="w-full px-4 py-6 sm:py-10 sm:px-6">
           <%!-- Above your own boards because it is for now, not for keeps:
                 the support sessions you hold, and what each lets you read. --%>
           <section
@@ -777,7 +778,7 @@ defmodule SlipdockWeb.BoardLive.Index do
           <section :if={@shared_cards != []} class="mt-10">
             <h2 class="text-lg font-semibold">Cards shared with you</h2>
             <p class="text-sm text-base-content/60">Single cards other people gave you access to.</p>
-            <ul class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            <ul class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
               <li :for={card <- @shared_cards} id={"shared-card-#{card.id}"}>
                 <.link
                   navigate={~p"/boards/#{card.board_id}/cards/#{card.id}"}
@@ -831,7 +832,7 @@ defmodule SlipdockWeb.BoardLive.Index do
       data-handle=".board-handle"
       data-draggable="[data-id]"
       data-disabled={to_string(@archived or @sort != "manual")}
-      class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+      class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
     >
       <%= for tile <- @boards do %>
         <.vault_card

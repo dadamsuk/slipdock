@@ -35,6 +35,22 @@ defmodule SlipdockWeb.BoardIndexLiveTest do
     refute html =~ "Your boards"
   end
 
+  test "the page spans the window rather than a fixed-width column", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    assert has_element?(view, "#boards-home.w-full")
+    refute has_element?(view, ~s(#boards-home[class*="max-w-"]))
+    assert has_element?(view, ~s(#boards-home [class*="xl:grid-cols-4"]))
+  end
+
+  test "the header carries the Slipdock name here, but not on a board", %{conn: conn, a: a} do
+    {:ok, view, _html} = live(conn, ~p"/")
+    assert has_element?(view, ~s(#topbar a[href="/"] img[src^="/images/brand/wordmark.svg"]))
+
+    {:ok, board_view, _html} = live(conn, ~p"/boards/#{a.id}")
+    refute has_element?(board_view, ~s(#topbar a[href="/"] img[src^="/images/brand/wordmark"]))
+  end
+
   describe "the compact layout" do
     test "swaps the cards for a table, and is remembered", %{conn: conn, user: user} do
       {:ok, view, html} = live(conn, ~p"/")
