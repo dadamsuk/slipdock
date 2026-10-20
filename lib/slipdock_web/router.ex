@@ -208,6 +208,7 @@ defmodule SlipdockWeb.Router do
     # A Tool's skill as claude.ai's or ChatGPT's upload takes it (#963).
     get "/tools/:slug/download/:skill/claude.zip", ToolDownloadController, :claude
     get "/tools/:slug/download/:skill/chatgpt.zip", ToolDownloadController, :chatgpt
+    get "/tools/:slug/download/package.tar.gz", ToolDownloadController, :package
     # A file in a wiki that is not a page: a synced vault's images and PDFs.
     get "/wiki-files/:id/:name", WikiFileController, :show
     # A meeting page's recording, streamed from its vault owner's Google
@@ -511,6 +512,9 @@ defmodule SlipdockWeb.Router do
     # One file of a Tool by its path in the package (#1156): what a stub skill
     # fetches its procedure from at run time, the latest version unless asked.
     get "/tools/:slug/files/*path", ToolController, :file
+    # The whole package, every file at its path: rebuilt from the stored
+    # files, since the uploaded archive isn't kept.
+    get "/tools/:slug/package.tar.gz", ToolController, :package
     get "/me/drive", MeController, :drive
 
     # The caller's own OpenRouter key: what every AI feature spends for them.

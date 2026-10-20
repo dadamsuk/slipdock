@@ -82,7 +82,7 @@ defmodule Slipdock.ToolPackagesDocTest do
 
     # What doesn't vary from server to server is exactly as documented.
     for key <- ~w(name title summary version mine kind installed author requires versions
-                  skills_archive files listing) do
+                  skills_archive package files listing) do
       assert documented["tool"][key] == actual["tool"][key], "tool.#{key}"
     end
 

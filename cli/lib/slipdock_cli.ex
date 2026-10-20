@@ -498,6 +498,10 @@ defmodule SlipdockCLI do
                                         one file of the package by its path
                                         (skills/<skill>/SKILL.md, files/build.py) to
                                         stdout or F; the latest version unless --version
+    tools download <name> [--version V] [--out F|-] [--force]
+                                        the whole package, every file at its path, as
+                                        <name>-<version>.tar.gz (or F, or - for stdout):
+                                        unpack it, change it, publish it again
 
   MEETINGS  (meeting capture: off unless this server's admin turns it on, and
              every command here says "meeting mode is off on this server" until then)

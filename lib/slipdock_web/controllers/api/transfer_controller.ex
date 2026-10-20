@@ -90,6 +90,11 @@ defmodule SlipdockWeb.API.TransferController do
          do: {:ok, "application/gzip", "#{version.tool.slug}-skills.tar.gz", bytes}
   end
 
+  defp tool_piece(version, "package") do
+    with {:ok, bytes} <- Tools.package_tarball(version),
+         do: {:ok, "application/gzip", Tools.package_filename(version), bytes}
+  end
+
   defp tool_piece(version, "claude:" <> skill) do
     with {:ok, bytes} <- Tools.claude_zip(version, skill),
          do: {:ok, "application/zip", "#{skill}.zip", bytes}

@@ -18,7 +18,8 @@ defmodule SlipdockCLI.Tools do
            "tools install <name> [--dir D] | tools check [<name>...] | " <>
            "tools request-listing <name> [--version V] | " <>
            "tools install-board <name> [--version V] [--name N] | " <>
-           "tools file <name> <path> [--version V] [--out F]"
+           "tools file <name> <path> [--version V] [--out F] | " <>
+           "tools download <name> [--version V] [--out F|-] [--force]"
 
   def run("tools", [], o) do
     HTTP.get("/tools")
@@ -175,6 +176,23 @@ defmodule SlipdockCLI.Tools do
       else: download_to(url, o[:out], o)
   end
 
+  # The whole package — every file at its path, as publish takes it — saved
+  # as <name>-<version>.tar.gz here, or --out F, or - for stdout. Never over
+  # a file already here unless --force.
+  def run("tools", ["download", name], o) do
+    version =
+      o[:version] ||
+        checked(HTTP.get("/tools/#{enc(name)}")) |> elem(1) |> get_in(["tool", "version"])
+
+    url = "/tools/#{enc(name)}/package.tar.gz?version=" <> enc(version)
+
+    case package_dest(name, version, o) do
+      {:ok, "-"} -> download_to_stdout(url, o)
+      {:ok, dest} -> download_to(url, dest, o)
+      {:error, message} -> fail(message)
+    end
+  end
+
   def run("tools", _args, _o), do: fail(@usage)
 
   def run(cmd, _args, _o), do: bad_usage(cmd)
@@ -202,6 +220,17 @@ defmodule SlipdockCLI.Tools do
     after
       File.rm(path)
     end
+  end
+
+  @doc false
+  # Where `tools download` saves: --out, or <name>-<version>.tar.gz here,
+  # but not over a file already there unless --force.
+  def package_dest(name, version, o) do
+    dest = o[:out] || "#{name}-#{version}.tar.gz"
+
+    if dest != "-" and File.exists?(dest) and !o[:force],
+      do: {:error, "#{dest} is already here: --force overwrites it, --out saves it elsewhere"},
+      else: {:ok, dest}
   end
 
   defp skills_dir(o), do: o[:dir] || Path.join([HTTP.home(), ".claude", "skills"])

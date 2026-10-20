@@ -636,6 +636,16 @@ defmodule SlipdockWeb.HelpLive.Guides do
         <code>version</code>
         for each change; the same version twice is refused.
       </p>
+      <p id="tools-download">
+        To start from a Tool that is already published, yours or one you can see, take
+        the whole package — every file at its path — with <b>Download the package</b> on its page, or:
+      </p>
+      <.snippet id="help-tools-download" text="slipdock tools download my-tool" />
+      <p>
+        Unpack it, change what you need, raise the <code>version</code>
+        in <code>tool.json</code>, and publish the folder. Somebody else's Tool keeps its
+        name, so publish a copy under a new <code>name</code>.
+      </p>
     </.part>
 
     <.part title="The package" id="tools-format">

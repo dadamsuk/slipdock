@@ -434,13 +434,35 @@ defmodule Slipdock.Tools do
   `slipdock tools install` unpacks into `~/.claude/skills`.
   """
   def skills_tarball(%ToolVersion{} = version) do
-    entries =
-      for {name, files} <- skill_trees(version), {path, bytes} <- files do
-        {String.to_charlist(Path.join(name, path)), bytes}
-      end
+    for {name, files} <- skill_trees(version), {path, bytes} <- files do
+      {String.to_charlist(Path.join(name, path)), bytes}
+    end
+    |> tarball()
+  end
 
+  @doc """
+  The whole package of `version` as a gzipped tar, every file at its path in
+  the package (`tool.json`, `README.md`, `skills/…`, `files/…`). It is not
+  the archive that was uploaded, which isn't kept, but it holds the same
+  files and publishes as it stands: `Package.read/1` takes it back with the
+  same sha.
+  """
+  def package_tarball(%ToolVersion{} = version) do
+    version
+    |> files()
+    |> Enum.map(&{String.to_charlist(&1.path), &1.content})
+    |> tarball()
+  end
+
+  @doc "What `package_tarball/1` is saved as: `<name>-<version>.tar.gz`."
+  def package_filename(%ToolVersion{} = version) do
+    %{tool: tool} = Repo.preload(version, :tool)
+    "#{tool.slug}-#{version.version}.tar.gz"
+  end
+
+  defp tarball(entries) do
     path =
-      Path.join(System.tmp_dir!(), "tool-skills-#{System.unique_integer([:positive])}.tar.gz")
+      Path.join(System.tmp_dir!(), "tool-#{System.unique_integer([:positive])}.tar.gz")
 
     try do
       with :ok <- :erl_tar.create(String.to_charlist(path), entries, [:compressed, :write]),

@@ -48,6 +48,7 @@ defmodule SlipdockWeb.API.ToolJSON do
           })
         end),
       skills_archive: "/api/tools/#{tool.slug}/skills.tar.gz?version=#{version.version}",
+      package: "/api/tools/#{tool.slug}/package.tar.gz?version=#{version.version}",
       files:
         Enum.map(manifest["files"] || [], fn f ->
           f

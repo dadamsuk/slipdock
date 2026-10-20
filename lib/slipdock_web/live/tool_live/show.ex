@@ -261,9 +261,19 @@ defmodule SlipdockWeb.ToolLive.Show do
               <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">{@tool.name}</h1>
               <p class="mt-1 max-w-xl text-base-content/70">{@tool.summary}</p>
               <p class="mt-2 text-xs text-base-content/50">
-                <code>{@tool.slug}</code> · version {@version.version}
+                <code>{@tool.slug}</code>
+                · version {@version.version}
                 <span :if={@version.manifest["author"]}>· by {@version.manifest["author"]}</span>
                 <span :if={@owner?} class="badge badge-sm badge-ghost ml-1">yours</span>
+                ·
+                <a
+                  id="tool-package-download"
+                  href={"/tools/#{@tool.slug}/download/package.tar.gz?version=#{@version.version}"}
+                  class="link"
+                  download
+                >
+                  Download the package
+                </a>
               </p>
               <p :if={@latest && @latest.id != @version.id} class="mt-2 text-sm text-warning">
                 This is an older version. The latest is <.link

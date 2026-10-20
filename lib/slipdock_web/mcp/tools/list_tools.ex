@@ -8,7 +8,8 @@ defmodule SlipdockWeb.MCP.Tools.ListTools do
   procedure from the latest version at run time; `skill` is the short way
   to a skill's own files (#1158). With `link: true`, no text: a single-use
   URL for a shell to fetch the skills archive, one skill's zip or one file
-  from, without a token (as `download_file` gives one, #1147).
+  from, without a token (as `download_file` gives one, #1147); with
+  `package: true`, that link is to the whole package instead.
   """
   @behaviour SlipdockWeb.MCP.Tool
 
@@ -36,7 +37,8 @@ defmodule SlipdockWeb.MCP.Tools.ListTools do
         "With tool and skill: that skill's SKILL.md, or with file too, the file at that path " <>
         "in the skill's folder (references/x.md). With a shell, link: true instead returns a " <>
         "single-use download_url, good for 10 minutes and needing no token: for the file, " <>
-        "the skill's claude.ai zip, or with neither the skills .tar.gz."
+        "the skill's claude.ai zip, or with neither the skills .tar.gz. package: true " <>
+        "links the whole package (.tar.gz, every file at its path) instead."
 
   @impl true
   def input_schema do
@@ -61,6 +63,12 @@ defmodule SlipdockWeb.MCP.Tools.ListTools do
           description:
             "With tool: send no text, get a single-use download_url (10 minutes, no token) " <>
               "for the file, the skill's zip, or else the skills .tar.gz."
+        },
+        package: %{
+          type: "boolean",
+          description:
+            "With tool: a single-use download_url for the whole package as a .tar.gz, " <>
+              "every file at its path, ready to change and publish again."
         }
       },
       additionalProperties: false
@@ -76,10 +84,14 @@ defmodule SlipdockWeb.MCP.Tools.ListTools do
          {:ok, number} <- Args.optional(args, "version"),
          {:ok, skill} <- Args.optional(args, "skill"),
          {:ok, path} <- Args.optional(args, "file"),
-         {:ok, link?} <- Args.boolean(args, "link", false) do
+         {:ok, link?} <- Args.boolean(args, "link", false),
+         {:ok, package?} <- Args.boolean(args, "package", false) do
       case ref do
-        nil when is_binary(path) or is_binary(skill) or link? ->
-          {:error, "file, skill and link need tool: the Tool they belong to"}
+        nil when is_binary(path) or is_binary(skill) or link? or package? ->
+          {:error, "file, skill, link and package need tool: the Tool they belong to"}
+
+        _ when package? and (is_binary(path) or is_binary(skill)) ->
+          {:error, "package is the whole Tool: leave out file and skill"}
 
         nil ->
           {:ok, %{tools: Enum.map(Tools.list_for(user), &ToolJSON.listing(&1, user))}}
@@ -87,7 +99,9 @@ defmodule SlipdockWeb.MCP.Tools.ListTools do
         ref ->
           with {:ok, tool} <- Tools.fetch(user, ref),
                %{} = version <- Tools.visible_version(user, tool, number) do
-            piece(tool, version, skill, path && clean(path), link?, context)
+            if package?,
+              do: link(tool, version, "package", Tools.package_filename(version), %{}, context),
+              else: piece(tool, version, skill, path && clean(path), link?, context)
           else
             _ -> {:error, "no Tool you can see is called #{inspect(ref)} at that version"}
           end

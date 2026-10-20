@@ -367,6 +367,7 @@ that reads exactly like one that doesn't exist.
 |---|---|
 | A Tool in full: its blueprint, skills, files, versions and your install | `GET /api/tools/<name>`; MCP `list_tools` with `tool`; `slipdock tools show <name>` |
 | **One file of the package, by path** | `GET /api/tools/<name>/files/<path>`, where `<path>` is its path in the package (`skills/<skill>/SKILL.md`, `skills/<skill>/references/x.md`, `files/build.py`, `README.md`, `tool.json`); MCP `list_tools` with `tool` and `file`, or `skill` (its `SKILL.md`) and `skill` with `file` (a path in that skill's folder); `slipdock tools file <name> <path> [--version V] [--out F]` |
+| **The whole package**, every file at its path, to read, change and publish again | `GET /api/tools/<name>/package.tar.gz`, saved as `<name>-<version>.tar.gz`; MCP `list_tools` with `tool` and `package: true` (a single-use `download_url`); `slipdock tools download <name> [--version V] [--out F\|-] [--force]`; **Download the package** on the Tool's page |
 | Every skill as one tarball for a skills directory | `GET /api/tools/<name>/skills.tar.gz`; `slipdock tools install <name> [--dir D]` |
 | **Any of these without a token**, for a shell that only has the MCP connector | MCP `list_tools` with `tool` and `link: true`: a single-use `download_url`, good for 10 minutes, for the skills tarball, or with `skill` that skill's claude.ai zip, or with `file` that file |
 | One skill as claude.ai's or ChatGPT's upload | `GET /api/tools/<name>/skills/<skill>/claude.zip`, `…/chatgpt.zip` |
@@ -380,6 +381,13 @@ that reads exactly like one that doesn't exist.
   `application/octet-stream` download;
 - headers `x-tool-version: <version>` and `etag: "<sha256 of the file>"`;
 - `404` for a path that isn't in the package.
+
+The package download is rebuilt from the files stored for that version: the
+archive that was uploaded isn't kept, so the bytes of the `.tar.gz` differ,
+but every file is there at its path (anything a package leaves out when it is
+read, such as `.DS_Store` or one folder around everything, is already gone).
+It publishes as it stands once `tool.json`'s version is bumped, and reads
+back with the same `sha` as the version it came from.
 
 MCP `list_tools` with `file` answers
 `{tool, version, path, size, sha256, text}` for text files up to 200 KB.
@@ -627,6 +635,7 @@ what is checked:
       }
     ],
     "skills_archive": "/api/tools/reply-drafts/skills.tar.gz?version=1.0.0",
+    "package": "/api/tools/reply-drafts/package.tar.gz?version=1.0.0",
     "files": [
       {"path": "build.py", "install": "local", "skill": "reply-drafts", "url": "/api/tools/reply-drafts/files/files/build.py?version=1.0.0"}
     ],

@@ -33,5 +33,32 @@ defmodule SlipdockWeb.ToolLinksDocsTest do
   test "/help/agents mentions it", %{conn: conn} do
     {:ok, _view, html} = live(conn, ~p"/help/agents/skills")
     assert html =~ "for a shell with no API token"
+    assert html =~ "links the whole package instead"
+  end
+
+  describe "the whole package" do
+    test "list_tools offers package: true" do
+      assert SlipdockWeb.MCP.Tools.ListTools.description() =~
+               "package: true links the whole package"
+
+      assert SlipdockWeb.MCP.Tools.ListTools.input_schema().properties.package.type == "boolean"
+    end
+
+    test "the package reference, the manual and README give the endpoint and the CLI" do
+      for path <- ~w(docs/tool-packages.md docs/manual.md README.md) do
+        text = read(path)
+        assert text =~ "/api/tools/<name>/package.tar.gz", path
+        assert text =~ "slipdock tools download", path
+      end
+
+      assert read("docs/tool-packages.md") =~
+               ~s("package": "/api/tools/reply-drafts/package.tar.gz?version=1.0.0")
+    end
+
+    test "the slipdock skill names the command and the option" do
+      skill = read("priv/skills/slipdock/SKILL.md")
+      assert skill =~ "slipdock tools download <name> [--version V] [--out F|-] [--force]"
+      assert skill =~ "`package: true`"
+    end
   end
 end

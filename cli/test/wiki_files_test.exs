@@ -132,4 +132,53 @@ defmodule SlipdockCLI.WikiFilesTest do
       assert out =~ "saved #{dest} (8 bytes)"
     end
   end
+
+  describe "tools download" do
+    test "asks which version is latest and saves the package as <name>-<version>.tar.gz" do
+      serve([{200, ~s({"tool":{"name":"demo","version":"1.3.0"}})}, {200, "PKG"}])
+
+      out = capture_io(fn -> Tools.run("tools", ["download", "demo"], []) end)
+
+      assert_received {:request, "GET", "/api/tools/demo", _}
+      assert_received {:request, "GET", "/api/tools/demo/package.tar.gz?version=1.3.0", _}
+      assert File.read!("demo-1.3.0.tar.gz") == "PKG"
+      assert out =~ "saved demo-1.3.0.tar.gz (3 bytes)"
+    end
+
+    test "--version goes straight to that version, and --out saves it there", %{home: home} do
+      serve([{200, "OLD"}])
+      dest = Path.join(home, "mine.tgz")
+
+      capture_io(fn ->
+        Tools.run("tools", ["download", "demo"], version: "1.0.0", out: dest)
+      end)
+
+      assert_received {:request, "GET", "/api/tools/demo/package.tar.gz?version=1.0.0", _}
+      refute_received {:request, "GET", "/api/tools/demo", _}
+      assert File.read!(dest) == "OLD"
+    end
+
+    test "--out - writes the bytes to stdout" do
+      serve([{200, "RAW"}])
+
+      out =
+        capture_io(fn -> Tools.run("tools", ["download", "demo"], version: "1.0.0", out: "-") end)
+
+      assert out == "RAW"
+      refute File.exists?("demo-1.0.0.tar.gz")
+    end
+
+    test "a file already there is refused unless --force; stdout never is" do
+      assert Tools.package_dest("demo", "1.0.0", []) == {:ok, "demo-1.0.0.tar.gz"}
+
+      File.write!("demo-1.0.0.tar.gz", "mine")
+
+      assert {:error, "demo-1.0.0.tar.gz is already here: --force" <> _} =
+               Tools.package_dest("demo", "1.0.0", [])
+
+      assert Tools.package_dest("demo", "1.0.0", force: true) == {:ok, "demo-1.0.0.tar.gz"}
+      assert Tools.package_dest("demo", "1.0.0", out: "-") == {:ok, "-"}
+      assert Tools.package_dest("demo", "1.0.0", out: "elsewhere.tgz") == {:ok, "elsewhere.tgz"}
+    end
+  end
 end
