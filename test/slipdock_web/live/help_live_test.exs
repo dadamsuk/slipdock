@@ -386,6 +386,7 @@ defmodule SlipdockWeb.HelpLiveTest do
       assert has_element?(view, "#tools-format", "board.json")
       assert has_element?(view, "#tools-listing", "admin")
       assert has_element?(view, "#tools-download", "Download the package")
+      assert has_element?(view, "#tools-publish-upload", "Publish a Tool")
       assert has_element?(view, "#help-tools-download", "slipdock tools download my-tool")
     end
 

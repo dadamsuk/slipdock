@@ -6,13 +6,15 @@ defmodule SlipdockWeb.ToolLive.Show do
   written so somebody who has never opened a terminal can follow it.
 
   A Tool the viewer can't see is a 404, exactly as one that doesn't exist.
-  Its owner can share it with people and groups here.
+  Its owner can share it with people and groups here, and upload its next
+  version (`SlipdockWeb.ToolLive.Publish`).
   """
   use SlipdockWeb, :live_view
 
   alias Slipdock.Automations.Presets
   alias Slipdock.Tools
   alias SlipdockWeb.RichText
+  alias SlipdockWeb.ToolLive.Publish
 
   @clients ~w(claude_ai claude_code chatgpt)
 
@@ -30,8 +32,10 @@ defmodule SlipdockWeb.ToolLive.Show do
            base_url: SlipdockWeb.BaseURL.from_socket(socket),
            client: "claude_ai",
            share_email: "",
-           just_installed: nil
+           just_installed: nil,
+           publish_error: nil
          )
+         |> Publish.allow()
          |> load(nil)}
 
       _ ->
@@ -156,6 +160,30 @@ defmodule SlipdockWeb.ToolLive.Show do
         {:noreply, put_flash(socket, :error, "That couldn't be shared.")}
     end
   end
+
+  def handle_event("validate_package", _params, socket),
+    do: {:noreply, assign(socket, publish_error: nil)}
+
+  def handle_event("cancel_package", %{"ref" => ref}, socket),
+    do: {:noreply, cancel_upload(socket, :package, ref)}
+
+  # Only this Tool's next version: `as:` refuses a package of another one.
+  def handle_event("publish_package", _params, %{assigns: %{owner?: true}} = socket) do
+    case Publish.consume(socket, socket.assigns.current_user, as: socket.assigns.tool.slug) do
+      {:ok, version} ->
+        {:noreply,
+         socket
+         |> assign(publish_error: nil)
+         |> put_flash(:info, "Published #{version.version}.")
+         |> push_patch(to: Publish.path(version))}
+
+      {:error, message} ->
+        {:noreply, assign(socket, publish_error: message)}
+    end
+  end
+
+  # Nobody but the owner has the form.
+  def handle_event("publish_package", _params, socket), do: {:noreply, socket}
 
   def handle_event("unshare", %{"id" => id}, socket) do
     %{current_user: user, tool: tool} = socket.assigns
@@ -588,10 +616,28 @@ defmodule SlipdockWeb.ToolLive.Show do
               />
               <button class="btn btn-sm">Share</button>
             </form>
-            <p class="mt-4 text-xs text-base-content/50">
-              Publish a new version with <code>slipdock tools publish &lt;folder&gt;</code>; versions
-              never change once published.
+          </section>
+
+          <section
+            :if={@owner?}
+            id="tool-publish"
+            class="rounded-2xl bg-base-100 p-5 shadow-sm ring-1 ring-base-content/10"
+          >
+            <h2 class="text-lg font-semibold">Publish a new version</h2>
+            <p class="mt-1 text-sm text-base-content/60">
+              Upload the package with a higher <code>version</code>
+              in its <code>tool.json</code>
+              than {@latest.version}. To start from this one, download the package above,
+              change it, and upload it here. Versions never change once published; the CLI's
+              <code>slipdock tools publish &lt;folder&gt;</code>
+              does the same.
             </p>
+            <Publish.form
+              id="tool-publish-form"
+              upload={@uploads.package}
+              error={@publish_error}
+              label="Publish the new version"
+            />
           </section>
         </div>
       </div>

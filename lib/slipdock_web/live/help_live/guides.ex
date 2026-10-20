@@ -631,6 +631,13 @@ defmodule SlipdockWeb.HelpLive.Guides do
         >CLI</.link>:
       </p>
       <.snippet id="help-tools-publish" text="slipdock tools publish ./my-tool" />
+      <p id="tools-publish-upload">
+        Or, without the CLI, pack the folder as a <code>.tar.gz</code>
+        (<code>tar czf my-tool.tgz my-tool</code>) and upload it under <b>Publish a Tool</b>
+        on the Tools page. The name in its <code>tool.json</code>
+        decides whether it is a new Tool or the next version of one of yours; your Tool's own
+        page takes its next version too.
+      </p>
       <p>
         Its page then appears under Tools for you alone. Publish again with a higher
         <code>version</code>
@@ -643,7 +650,7 @@ defmodule SlipdockWeb.HelpLive.Guides do
       <.snippet id="help-tools-download" text="slipdock tools download my-tool" />
       <p>
         Unpack it, change what you need, raise the <code>version</code>
-        in <code>tool.json</code>, and publish the folder. Somebody else's Tool keeps its
+        in <code>tool.json</code>, and publish it again, with the CLI or by uploading it. Somebody else's Tool keeps its
         name, so publish a copy under a new <code>name</code>.
       </p>
     </.part>

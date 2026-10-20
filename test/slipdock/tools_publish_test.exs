@@ -104,6 +104,20 @@ defmodule Slipdock.ToolsPublishTest do
       assert {:error, message} = Tools.publish(other, package(name, "1.1.0"))
       assert message =~ "belongs to someone else's Tool"
     end
+
+    test "as: publishes only a package of that Tool" do
+      user = user_fixture()
+      name = unique_name()
+      other = unique_name()
+      {:ok, _} = Tools.publish(user, package(name, "1.0.0"))
+
+      assert {:ok, %{version: "1.1.0"}} = Tools.publish(user, package(name, "1.1.0"), as: name)
+
+      assert {:error, message} = Tools.publish(user, package(other, "1.0.0"), as: name)
+      assert message =~ "this package is the Tool “#{other}”, not “#{name}”"
+      assert {:error, :not_found} = Tools.fetch(user, other)
+      assert Tools.latest_version(Repo.get_by!(Tools.Tool, slug: name)).version == "1.1.0"
+    end
   end
 
   describe "manifest errors" do

@@ -35,15 +35,28 @@ defmodule Slipdock.Tools do
   Refused: an unreadable or invalid package (`Package.read/1` says why), a
   name somebody else's Tool already has, a version that is not newer than
   the latest, and a package that would take its owner past their storage.
+
+  `as: name` publishes only a package of that Tool: the Tool's page uses it,
+  so a new version uploaded there can't land on another Tool.
   """
-  def publish(%User{} = user, bytes) when is_binary(bytes) do
+  def publish(%User{} = user, bytes, opts \\ []) when is_binary(bytes) do
     with {:ok, package} <- Package.read(bytes),
+         :ok <- named(package.manifest, opts[:as]),
          {:ok, tool} <- tool_for(user, package.manifest),
          :ok <- newer(tool, package.manifest["version"]),
          :ok <- storage(user, package.size) do
       insert_version(user, tool, package)
     end
   end
+
+  defp named(_manifest, nil), do: :ok
+  defp named(%{"name" => name}, name), do: :ok
+
+  defp named(%{"name" => other}, name),
+    do:
+      {:error,
+       "this package is the Tool “#{other}”, not “#{name}” — its tool.json names it, so " <>
+         "publish it from the Tools page"}
 
   defp tool_for(user, %{"name" => slug}) do
     case Repo.get_by(Tool, slug: slug) do
