@@ -571,7 +571,11 @@ body.tl-tray-dragging { cursor: grabbing; }
    proper vertical rhythm, real headings and tables that read. Everything is
    scoped to .wiki-prose, and the elements inside carry no utility classes of
    their own, so nothing here can reach out and win an argument with Tailwind. */
-.wiki-prose { line-height: 1.7; color: var(--color-base-content); overflow-wrap: break-word; }
+/* Every line wraps within the viewport (#1169): `anywhere` rather than
+   `break-word` so a long URL or identifier also lets a table cell shrink, and
+   code blocks wrap their lines (as Obsidian's reading view does) instead of
+   hiding the rest of each one behind a sideways scroll. */
+.wiki-prose { line-height: 1.7; color: var(--color-base-content); overflow-wrap: anywhere; }
 .wiki-prose > :first-child { margin-top: 0; }
 
 /* A transcript's player (assets/js/transcript_player.js, W-1690): a bar that
@@ -638,6 +642,7 @@ body.tl-tray-dragging { cursor: grabbing; }
   background: color-mix(in oklab, var(--color-base-content) 6%, transparent);
   border: 1px solid var(--color-base-300); border-radius: 0.75rem;
   font-size: 0.8125rem; line-height: 1.6;
+  white-space: pre-wrap;
 }
 .wiki-prose pre code { background: none; padding: 0; font-size: inherit; }
 .wiki-prose hr { margin: 2rem 0; border-color: var(--color-base-300); }
