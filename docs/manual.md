@@ -5110,6 +5110,7 @@ slipdock tools check                          # are the installed Tool skills be
 slipdock tools install-board job-scan         # have the server build its board (--name, --version)
 slipdock tools request-listing my-tool        # ask an admin to list a version for everyone
 slipdock tools file job-scan skills/job-scan/SKILL.md   # one file of the package, latest version
+slipdock tools download job-scan              # the whole package as job-scan-<version>.tar.gz (--out F|-, --version)
 slipdock wiki files job-scan --folder Tool    # a board's wiki files that are not pages
 slipdock wiki get job-scan Tool/cv.docx       # one of them, saved here (--out F, or - for stdout)
 slipdock favourites                            # what you keep going back to, with the URL of each
@@ -5178,6 +5179,16 @@ a chat that has the connector but no API token still reaches all of it. And the 
 Once the caller has installed the Tool, each board file also has a
 `board_url`, the copy in the board's `Tool` folder, read with `GET
 /api/boards/<board>/files/Tool/<path>`.
+
+**The whole package.** `GET /api/tools/<name>/package.tar.gz` is every file
+of a version at its path in the package, saved as `<name>-<version>.tar.gz`:
+the way to see exactly what was published, or to take a Tool, change it and
+publish it again (bump the version in `tool.json` first). The uploaded
+archive isn't kept, so this is rebuilt from the stored files, which are the
+same files with the same sha. The CLI is `slipdock tools download <name>
+[--version V] [--out F|-] [--force]`, MCP `list_tools` with `tool` and
+`package: true` gives a single-use `download_url` for it, and the Tool's page
+has **Download the package** beside the version.
 
 ### Publishing
 

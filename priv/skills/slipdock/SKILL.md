@@ -62,7 +62,8 @@ and `automation-presets` give), and `manage_automation` is `new-automation` (`ac
 `set-automation` (`update`) and `delete-automation` (`delete`, with `confirm: true`).
 `list_tools` is `tools`/`tools show` (each Tool's kind and `installed.board`, the board your
 install made; with `file`, `tools file`; `skill` reads its `SKILL.md`; `link: true` gives a
-single-use `download_url` for the file, the skill's zip or the skills tarball, #1158), and `install_tool` is `tools install-board`. Anything
+single-use `download_url` for the file, the skill's zip or the skills tarball, #1158; `package: true`,
+`tools download`), and `install_tool` is `tools install-board`. Anything
 the tools don't cover (running a rule now, callbacks and alerts, sprints, files over 10 MB,
 fields) is still the CLI or the API.
 
@@ -426,6 +427,7 @@ slipdock tools check [<name>...]              # installed Tool skills current or
 slipdock tools publish <dir>                  # tool.json, README.md, board.json, skills/, files/
 slipdock tools request-listing <name> [--version V]   # an admin approves before everyone sees it
 slipdock tools file <name> <path> [--version V] [--out F]   # one file by its package path (skills/<s>/SKILL.md), latest version
+slipdock tools download <name> [--version V] [--out F|-] [--force]   # the whole package, <name>-<version>.tar.gz
 slipdock wiki files <board> [--folder F]      # the wiki's files that are not pages (a Tool's board files are in Tool/)
 slipdock wiki get <board> <path> [--out F|-]  # one of them by path (Tool/cv.docx): saved here, as F, or to stdout
 

@@ -848,6 +848,10 @@ publishing a new version reaches everyone without a reinstall
   small stub skill can fetch its procedure as it runs, and a new version
   reaches everyone without a reinstall. A Tool's board files are read from
   the board's `Tool` folder with `GET /api/boards/<board>/files/<path>`.
+- **The whole package back.** `GET /api/tools/<name>/package.tar.gz`
+  (`slipdock tools download <name>`, `list_tools` with `package: true`, or
+  **Download the package** on its page) is every file of a version at its
+  path, ready to change and publish again.
 
 `slipdock tools publish <folder>` publishes one. The package format, every
 endpoint and a worked example are in

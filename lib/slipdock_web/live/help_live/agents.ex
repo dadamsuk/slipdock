@@ -877,7 +877,10 @@ defmodule SlipdockWeb.HelpLive.Agents do
         own steps as it runs (<code>skill</code>
         alone reads that skill's SKILL.md), and with <code>link: true</code>
         it gives a single-use download link to the file, the skill's zip or every skill
-        at once, for a shell with no API token.
+        at once, for a shell with no API token; <code>package: true</code>
+        links the whole package instead, every file at its path, which
+        <code>slipdock tools download</code>
+        also saves.
       </p>
       <p>
         A Tool is a folder with <code>tool.json</code>, <code>README.md</code>, an optional <code>board.json</code>,

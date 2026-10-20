@@ -56,6 +56,17 @@ defmodule SlipdockWeb.API.ToolController do
     end
   end
 
+  @doc """
+  The whole package as a `.tar.gz`, every file at its path in it: what was
+  published, ready to read, change and publish again.
+  """
+  def package(conn, %{"slug" => slug} = params) do
+    with {:ok, version} <- version(conn, slug, params),
+         {:ok, bytes} <- Tools.package_tarball(version) do
+      send_file_bytes(conn, "application/gzip", Tools.package_filename(version), bytes)
+    end
+  end
+
   @doc "One skill as the zip claude.ai's skill upload takes."
   def claude_zip(conn, %{"slug" => slug, "skill" => skill} = params) do
     with {:ok, version} <- version(conn, slug, params),
@@ -124,7 +135,7 @@ defmodule SlipdockWeb.API.ToolController do
 
   defp send_file_bytes(conn, type, filename, bytes) do
     conn
-    |> put_resp_content_type(type)
+    |> put_resp_content_type(type, nil)
     |> put_resp_header("content-disposition", ~s(attachment; filename="#{filename}"))
     |> send_resp(200, bytes)
   end

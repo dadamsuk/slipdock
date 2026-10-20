@@ -230,7 +230,7 @@ defmodule SlipdockWeb.MCP.ToolToolsTest do
     test "file needs tool, and a hidden Tool's file reads as no Tool at all",
          %{name: name} = ctx do
       assert ctx.user |> token_conn() |> call("list_tools", %{"file" => "tool.json"}) |> error!() =~
-               "file, skill and link need tool"
+               "file, skill, link and package need tool"
 
       stranger = user_fixture("mcp-file-stranger@example.com")
 
@@ -309,6 +309,40 @@ defmodule SlipdockWeb.MCP.ToolToolsTest do
       assert "#{name}-setup/SKILL.md" in names
 
       assert json_response(curl_get(answer["download_url"]), 410)["error"] =~ "link_gone"
+    end
+
+    test "package gives a link to the whole package, every file at its path", %{
+      user: user,
+      name: name
+    } do
+      answer = list(user, %{"tool" => name, "package" => true}) |> ok!()
+      assert answer["filename"] == "#{name}-1.0.0.tar.gz"
+      assert answer["version"] == "1.0.0"
+
+      conn = curl_get(answer["download_url"])
+      assert get_resp_header(conn, "content-type") == ["application/gzip"]
+      {:ok, entries} = :erl_tar.extract({:binary, response(conn, 200)}, [:compressed, :memory])
+
+      assert entries |> Enum.map(&to_string(elem(&1, 0))) |> Enum.sort() ==
+               files(name) |> Map.keys() |> Enum.sort()
+
+      assert json_response(curl_get(answer["download_url"]), 410)["error"] =~ "link_gone"
+    end
+
+    test "package with file or skill, or without tool, is an error", %{user: user, name: name} do
+      assert list(user, %{"package" => true}) |> error!() =~ "package need tool"
+
+      for extra <- [%{"file" => "tool.json"}, %{"skill" => name}] do
+        assert list(user, Map.merge(%{"tool" => name, "package" => true}, extra)) |> error!() =~
+                 "leave out file and skill"
+      end
+
+      assert list(user, %{"tool" => name, "package" => "yes"}) |> error!() =~ "true or false"
+
+      stranger = user_fixture("mcp-package-stranger@example.com")
+
+      assert list(stranger, %{"tool" => name, "package" => true}) |> error!() =~
+               "no Tool you can see"
     end
 
     test "link with skill gives its claude.ai zip; with file, the file's bytes", %{

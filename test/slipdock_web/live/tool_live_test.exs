@@ -158,6 +158,41 @@ defmodule SlipdockWeb.ToolLiveTest do
       assert stranger |> get("/tools/#{name}/download/#{name}/claude.zip") |> response(404)
       assert conn |> get("/tools/#{name}/download/nope/claude.zip") |> response(404)
     end
+
+    test "the whole package: linked from the page, by version, and a 404 for a stranger", %{
+      conn: conn,
+      user: user,
+      tool: tool,
+      name: name
+    } do
+      {:ok, _} = Tools.publish(user, package(name, "1.1.0"))
+
+      {:ok, view, _html} = live(conn, ~p"/tools/#{name}?version=1.0.0")
+
+      assert has_element?(
+               view,
+               "#tool-package-download[href='/tools/#{name}/download/package.tar.gz?version=1.0.0']"
+             )
+
+      conn = get(conn, "/tools/#{name}/download/package.tar.gz?version=1.0.0")
+
+      assert get_resp_header(conn, "content-disposition") ==
+               [~s(attachment; filename="#{name}-1.0.0.tar.gz")]
+
+      {:ok, entries} = :erl_tar.extract({:binary, response(conn, 200)}, [:compressed, :memory])
+      assert Map.new(entries, fn {p, c} -> {to_string(p), c} end) == files(name)
+
+      friend_conn = log_in_user(build_conn(), grantee(tool, user))
+      assert friend_conn |> get("/tools/#{name}/download/package.tar.gz") |> response(200)
+
+      stranger = log_in_user(build_conn(), user_fixture("pkg-stranger@example.com"))
+      assert stranger |> get("/tools/#{name}/download/package.tar.gz") |> response(404)
+      assert build_conn() |> get("/tools/#{name}/download/package.tar.gz") |> redirected_to()
+
+      assert log_in_user(build_conn(), user)
+             |> get("/tools/#{name}/download/package.tar.gz?version=9.9.9")
+             |> response(404)
+    end
   end
 
   describe "the gallery" do
