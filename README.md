@@ -853,7 +853,9 @@ publishing a new version reaches everyone without a reinstall
   **Download the package** on its page) is every file of a version at its
   path, ready to change and publish again.
 
-`slipdock tools publish <folder>` publishes one. The package format, every
+`slipdock tools publish <folder>` publishes one, or upload its `.tar.gz` under
+**Publish a Tool** on the Tools page (a Tool's own page takes its next
+version). The package format, every
 endpoint and a worked example are in
 [Tool packages: the reference](docs/tool-packages.md); the overview is in
 [the manual](docs/manual.md#tools).

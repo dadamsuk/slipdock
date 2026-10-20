@@ -36,6 +36,12 @@ defmodule SlipdockWeb.ToolLinksDocsTest do
     assert html =~ "links the whole package instead"
   end
 
+  test "the manual, the package reference and README say a package can be uploaded" do
+    for path <- ~w(docs/tool-packages.md docs/manual.md README.md) do
+      assert read(path) =~ "**Publish a Tool**", path
+    end
+  end
+
   describe "the whole package" do
     test "list_tools offers package: true" do
       assert SlipdockWeb.MCP.Tools.ListTools.description() =~

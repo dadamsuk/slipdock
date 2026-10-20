@@ -110,6 +110,12 @@ folder (`references/procedure.md`, scripts, images) ships with the skill.
 
 JSON is not accepted.
 
+In the browser, the same `.tar.gz` (or `.tgz`) is uploaded under
+**Publish a Tool** on the Tools page, where `tool.json`'s `name` decides whether it is a
+new Tool or the next version of one of yours, or under **Publish a new
+version** on your Tool's page, which takes only a package of that Tool. The
+checks and the messages are the same as the API's.
+
 | Status | Meaning |
 |---|---|
 | `201` | Published: `{"tool": …}`, the shape `GET /api/tools/<name>` gives |
@@ -581,6 +587,7 @@ curl -fsS -X POST "$SLIPDOCK_URL/api/tools" \
   -H "Authorization: Bearer $SLIPDOCK_TOKEN" \
   -F "package=@reply-drafts.tgz;type=application/gzip"
 # or: slipdock tools publish ./reply-drafts
+# or: upload reply-drafts.tgz under Publish a Tool on the Tools page
 ```
 
 #### Response

@@ -5194,7 +5194,12 @@ has **Download the package** beside the version.
 
 `slipdock tools publish <folder>` packs the folder and sends it to
 `POST /api/tools` (multipart field `package`, or an `application/gzip`
-body). A package is:
+body). Or publish from the browser: pack the folder yourself
+(`tar czf my-tool.tgz my-tool`) and upload it under **Publish a Tool** on
+the Tools page. The name in `tool.json` decides whether that is a new Tool
+or the next version of one of yours. Your Tool's own page has **Publish a
+new version** too, which takes only a package of that Tool, so download the
+package there, change it, raise the version and upload it. A package is:
 
 ```
 my-tool/
