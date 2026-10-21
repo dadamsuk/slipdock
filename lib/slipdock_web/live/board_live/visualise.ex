@@ -125,6 +125,7 @@ defmodule SlipdockWeb.BoardLive.Visualise do
       last_answer: last_answer(board),
       lists: lists(board, columns, pulse, counts),
       history: Flow.history(board, days: socket.assigns.days),
+      mix: work_mix(board, columns, socket.assigns.days),
       aging: aging(board, columns, usual),
       outside:
         for(
@@ -170,6 +171,37 @@ defmodule SlipdockWeb.BoardLive.Visualise do
         archived_7d: Map.get(archived, l.id, 0)
       })
     end)
+  end
+
+  # Tag counts over the cards in the board's done lists: those still there,
+  # and those archived from them that were completed in the window. Every
+  # tag on the board has a row, most used first, unused at the bottom.
+  @doc false
+  def work_mix(board, columns, days) do
+    done = for c <- columns, c.category == "done", do: c.id
+    since = DateTime.add(DateTime.utc_now(:second), -days * 86_400, :second)
+
+    cards =
+      Repo.all(
+        from c in Card,
+          where:
+            c.column_id in ^done and is_nil(c.stand_in_for_id) and
+              (is_nil(c.archived_at) or c.completed_at >= ^since),
+          preload: :tags
+      )
+
+    counts = cards |> Enum.flat_map(& &1.tags) |> Enum.frequencies_by(& &1.id)
+
+    %{
+      total: length(cards),
+      untagged: Enum.count(cards, &(&1.tags == [])),
+      tags:
+        board
+        |> Board.root_id()
+        |> Boards.list_tags()
+        |> Enum.map(&%{tag: &1, count: Map.get(counts, &1.id, 0)})
+        |> Enum.sort_by(&{-&1.count, String.downcase(&1.tag.name)})
+    }
   end
 
   # The open cards in the doing lists and the ready list, oldest in their
@@ -278,6 +310,7 @@ defmodule SlipdockWeb.BoardLive.Visualise do
 
             <div id="visualise-pair" class="grid gap-4 lg:grid-cols-2">
               <.aging_section board={@board} aging={@aging} outside={@outside} />
+              <.mix_section mix={@mix} days={@days} />
             </div>
           </div>
         </div>

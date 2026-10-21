@@ -416,6 +416,51 @@ defmodule SlipdockWeb.BoardLive.VisualiseComponents do
       end
   end
 
+  ## Work mix -------------------------------------------------------------------
+
+  attr :mix, :map, required: true, doc: "`%{total, untagged, tags: [%{tag, count}]}`"
+  attr :days, :integer, required: true
+
+  @doc "Tag counts on the done cards, one bar scale for all of them."
+  def mix_section(assigns) do
+    top = assigns.mix.tags |> Enum.map(& &1.count) |> Enum.max(fn -> 0 end)
+    assigns = assign(assigns, top: max(top, 1))
+
+    ~H"""
+    <.section
+      id="mix"
+      title="Work mix"
+      note={"Tags on done cards, archived ones from the last #{@days} days"}
+    >
+      <p :if={@mix.tags == []} id="mix-empty" class="text-sm text-base-content/60">
+        This board has no tags yet.
+      </p>
+      <ul :if={@mix.tags != []} class="space-y-2">
+        <li
+          :for={t <- @mix.tags}
+          id={"mix-tag-#{t.tag.id}"}
+          class="grid grid-cols-[minmax(0,10rem)_1fr_2.5rem] items-center gap-2 text-sm"
+        >
+          <span class="flex min-w-0 items-center gap-1.5">
+            <span class={["size-2 shrink-0 rounded-full", Slipdock.Palette.dot(t.tag.color)]}></span>
+            <span class="truncate">{t.tag.name}</span>
+          </span>
+          <span class="h-1.5 overflow-hidden rounded-full bg-base-content/10" aria-hidden="true">
+            <span
+              class="block h-full rounded-full bg-primary/60"
+              style={"width: #{round(t.count / @top * 100)}%"}
+            ></span>
+          </span>
+          <span class="text-right text-xs tabular-nums" data-count>{t.count}</span>
+        </li>
+      </ul>
+      <p :if={@mix.untagged > 0} id="mix-untagged" class="mt-3 text-xs text-base-content/60">
+        {@mix.untagged} of {@mix.total} done cards carry no tag, so the mix is a floor, not a full picture.
+      </p>
+    </.section>
+    """
+  end
+
   @doc false
   def plural(1, word), do: word
   def plural(_, word), do: word <> "s"
