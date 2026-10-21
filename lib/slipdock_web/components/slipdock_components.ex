@@ -1705,7 +1705,8 @@ defmodule SlipdockWeb.SlipdockComponents do
 
   attr :size, :string,
     default: "md",
-    doc: ~s("sm", "md", "lg", "xl", or "wide": 90% of the screen, for a card opened full screen)
+    doc:
+      ~s("sm", "md", "lg", "xl", "page": 80% of the screen, for a long form like board settings, or "wide": 90%, for a card opened full screen)
 
   attr :keys, :boolean,
     default: false,
@@ -1734,6 +1735,7 @@ defmodule SlipdockWeb.SlipdockComponents do
           @size == "md" && "max-w-xl",
           @size == "lg" && "max-w-4xl",
           @size == "xl" && "max-w-6xl",
+          @size == "page" && "sm:max-w-[80%]",
           @size == "wide" && "sm:max-w-[90%]"
         ]}
         phx-click-away={@on_close}
