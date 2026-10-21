@@ -380,7 +380,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         class="flex items-center gap-2 border-b border-base-300 bg-base-100/60 px-4 py-1.5 text-xs text-base-content/70"
       >
         <.icon name="hero-rocket-launch" class="size-3.5 shrink-0" />
-        <span :if={@dora.last_deploy}>{Slipdock.Dora.sentence(@dora)}</span>
+        <.dora_parts :if={@dora.last_deploy} dora={@dora} />
         <span :if={!@dora.last_deploy}>
           Delivery metrics are on: no deploys recorded yet. Wrap your deploy step in CI with
           <code>slipdock deploy run</code>
@@ -1244,4 +1244,44 @@ defmodule SlipdockWeb.BoardLive.BoardView do
     </div>
     """
   end
+
+  attr :dora, :map, required: true
+
+  @doc """
+  The delivery strip's metrics (#1184), each with its DORA band as a coloured
+  pill: green for elite, blue for high, amber for medium, red for low. The band
+  stays in the pill's words, so the colour is never the only signal.
+  """
+  def dora_parts(assigns) do
+    {lead, parts} = Slipdock.Dora.parts(assigns.dora)
+    assigns = assign(assigns, lead: lead, parts: parts)
+
+    ~H"""
+    <span class="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+      <span class="font-medium text-base-content/80">{String.trim_trailing(@lead)}</span>
+      <%= for {part, i} <- Enum.with_index(@parts) do %>
+        <span :if={i > 0} class="text-base-content/30" aria-hidden="true">·</span>
+        <span class="inline-flex items-center gap-1" data-band={part.band}>
+          <span>{part.text}</span>
+          <span
+            :if={part.band}
+            class={["badge badge-xs badge-soft font-medium", dora_band_class(part.band)]}
+            title={"DORA band: #{part.band}"}
+          >
+            {part.band}
+          </span>
+        </span>
+      <% end %>
+    </span>
+    """
+  end
+
+  defp dora_band_class("elite"), do: "badge-success"
+  defp dora_band_class("high"), do: "badge-info"
+  # The theme's amber is pale: on the light theme its soft pill all but
+  # vanishes, so medium takes the darker amber for its words there.
+  defp dora_band_class("medium"),
+    do: "badge-warning bg-warning/30 text-warning-content dark:bg-warning/10 dark:text-warning"
+
+  defp dora_band_class(_low), do: "badge-error"
 end
