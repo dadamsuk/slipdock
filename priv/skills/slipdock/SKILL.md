@@ -207,6 +207,8 @@ slipdock card <id>                      # full detail incl. checklist item ids a
 slipdock timeline <id>                  # each list it sat in (how long, who moved it), its waits and jobs
 slipdock columns <board> | slipdock tags <board> | slipdock activity <board> [--limit N]
 slipdock pulse <board>                  # flow numbers: in progress, waiting, done this week, time to done, list in/out
+slipdock flow <board> [--days 7|30|90]  # flow day by day: backlog/ready/doing/done, completed, added, open; P50/P85 cycle
+slipdock runner-stats <board> [--days N]  # runners: status, current job, outcomes, queue wait, success, waits, recent jobs
 slipdock dora <board> [--env E] [--days N]   # delivery (DORA) numbers from recorded deploys, when the board's delivery metrics are on
 slipdock deploy run --env E -- <cmd…>   # in CI, with SLIPDOCK_DEPLOY_TOKEN: record a deploy around the deploy command
 slipdock deploy setup <board> [--prompt]   # owner: turn delivery metrics on, issue the deploy token, print the CI step

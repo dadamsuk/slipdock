@@ -175,6 +175,15 @@ defmodule SlipdockWeb.HelpLive.Agents do
        {:yes, "through the CLI or MCP"},
        {:no, "one way only"}
      ]},
+    {"Read a board's flow day by day, and how its runners are doing",
+     [
+       {:yes, "GET /api/boards/:id/flow, /api/boards/:id/runner_stats"},
+       {:yes, "get_board's history, runners"},
+       {:yes, "slipdock flow, slipdock runner-stats"},
+       {:yes, "through the CLI or MCP"},
+       {:yes, "through the CLI or MCP"},
+       {:no, "one way only"}
+     ]},
     {"Record deploys, and read the delivery (DORA) numbers",
      [
        {:yes, "POST /api/deployments, GET /api/boards/:id/dora"},

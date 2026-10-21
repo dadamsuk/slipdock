@@ -129,7 +129,7 @@ defmodule SlipdockWeb.BoardLive.VisualiseComponents do
         <span class="text-2xl font-semibold tabular-nums" data-value>{@value}</span>
         {render_slot(@chip)}
       </div>
-      <div :if={@detail} class="mt-0.5 truncate text-xs text-base-content/60 tabular-nums">
+      <div :if={@detail} class="mt-0.5 text-xs text-base-content/60 tabular-nums">
         {@detail}
       </div>
     </div>
@@ -160,7 +160,7 @@ defmodule SlipdockWeb.BoardLive.VisualiseComponents do
 
     ~H"""
     <.section id="pulse" title="Pulse" note="Last 7 days">
-      <div class="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
         <.tile
           id="tile-throughput"
           label="Throughput"
@@ -574,7 +574,7 @@ defmodule SlipdockWeb.BoardLive.VisualiseComponents do
         >
           Idle
         </span>
-        <.chip :if={@r.status == "offline"} id={"runner-#{@r.id}-status"} class="text-base-content/50">
+        <.chip :if={@r.status == "offline"} id={"runner-#{@r.id}-status"} class="text-base-content/60">
           Offline
         </.chip>
       </div>
@@ -882,7 +882,7 @@ defmodule SlipdockWeb.BoardLive.VisualiseComponents do
       </div>
       <div class="text-2xl font-semibold tabular-nums" data-value>{@value}</div>
       <div class="text-xs tabular-nums text-base-content/60">
-        {@detail}<span :if={@trend} class="text-base-content/50"> · {@trend}</span>
+        {@detail}<span :if={@trend}> · {@trend}</span>
       </div>
       <div>
         <div class="grid grid-cols-4 gap-0.5" role="img" aria-label={scale_label(@band)}>
@@ -896,7 +896,7 @@ defmodule SlipdockWeb.BoardLive.VisualiseComponents do
             data-scale={band}
           ></span>
         </div>
-        <div class="mt-0.5 grid grid-cols-4 text-2xs text-base-content/50">
+        <div class="mt-0.5 grid grid-cols-4 text-2xs text-base-content/60">
           <span>Low</span><span>Medium</span><span>High</span><span>Elite</span>
         </div>
       </div>

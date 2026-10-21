@@ -1262,6 +1262,11 @@ defmodule SlipdockWeb.APIGuide do
     # moves forward and back, each list's in/out (MCP: get_board pulse: true)
     curl -s -H "$H" B/api/boards/1/pulse
 
+    # its flow day by day over 7, 30 or 90 days, and how its runners are doing
+    # (MCP: get_board history: true / runners: true)
+    curl -s -H "$H" "B/api/boards/1/flow?days=30"
+    curl -s -H "$H" B/api/boards/1/runner_stats
+
     # cards past their list's usual stay, and who holds them (driver=all|agent|human)
     curl -s -H "$H" "B/api/boards/1/cards?stuck=true&driver=agent"
 
