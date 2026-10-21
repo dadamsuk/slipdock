@@ -458,7 +458,12 @@ and status updates, with the rest of the card and the handoff before this one
 behind them. The draft goes into the form's fields, replacing what was there;
 nothing is written until you change what needs changing and press **Save
 handoff**. While the card is open its front carries a ↩ mark with the next step as
-its tooltip; a completed card keeps its note but loses the mark.
+its tooltip; a completed card keeps its note but loses the mark. To read the notes
+without opening the cards, set **Handoff note** in the board or swimlane view's
+Display menu: *2 lines* puts the next step and the start of the note on each open
+card's front (the whole of it in the tooltip), *Full* puts all of it there. It is
+for comfortable cards only, and like the rest of the Display menu it is kept in
+the URL and in a saved view.
 
 Anyone who can comment on a card can leave its handoff, since it is a kind of
 comment; a reader sees it but can't write one. Each one is a line in the

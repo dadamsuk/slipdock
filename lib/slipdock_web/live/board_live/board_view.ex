@@ -634,6 +634,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
                   card={item}
                   compact={@swim.density == "compact"}
                   show={Config.shown(@swim)}
+                  handoff_note={@swim.handoff}
                   focus={@focus && card_focus(@focus, item)}
                   dismiss={@can_write}
                   selected={@select_mode && card_selected?(@selected, item)}
@@ -665,6 +666,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
                   id={"snoozed-card-#{item.id}"}
                   compact={@swim.density == "compact"}
                   show={Config.shown(@swim)}
+                  handoff_note={@swim.handoff}
                   selected={@select_mode && card_selected?(@selected, item)}
                   marks={@favourites}
                   zone={@zone}
