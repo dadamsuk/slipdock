@@ -739,7 +739,8 @@ defmodule SlipdockWeb.Layouts do
         <ul :if={@shortcuts.panel == :views} class="max-h-[60vh] overflow-y-auto p-1.5">
           <li :for={jump <- @jumps}>
             <.link
-              patch={jump.patch}
+              patch={!jump[:navigate] && jump.patch}
+              navigate={jump[:navigate] && jump.patch}
               data-shortcut={jump.key}
               class={[
                 "flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm hover:bg-base-200",

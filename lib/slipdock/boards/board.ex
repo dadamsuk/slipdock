@@ -321,7 +321,7 @@ defmodule Slipdock.Boards.Board do
   def hidden_facets(board), do: if(simple?(board), do: @technical_facets, else: [])
 
   # The views that are project tooling rather than a way of looking at a list.
-  @technical_views [:timeline, :prioritise]
+  @technical_views [:timeline, :prioritise, :visualise]
 
   @doc "The view modes a simple board leaves out of its view menu."
   def hidden_views(board), do: if(simple?(board), do: @technical_views, else: [])

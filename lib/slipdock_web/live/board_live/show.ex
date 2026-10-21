@@ -1084,12 +1084,16 @@ defmodule SlipdockWeb.BoardLive.Show do
       if card_only or view_only do
         []
       else
-        for {m, suffix, label, icon, _title, key} <- view_tabs_list() do
+        hidden = Slipdock.Boards.Board.hidden_views(board)
+
+        for {m, suffix, label, icon, _title, key} <- view_tabs_list(), m not in hidden do
           %{
             key: key,
             label: label,
             icon: icon,
             patch: "/boards/#{board.id}#{suffix}",
+            # Visualise is a page of its own, not a mode of this one.
+            navigate: m == :visualise,
             current: m == mode
           }
         end

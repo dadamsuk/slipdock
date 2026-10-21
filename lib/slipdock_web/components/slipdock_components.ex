@@ -1871,8 +1871,14 @@ defmodule SlipdockWeb.SlipdockComponents do
     {:narrative, "/narrative", "Narrative", "hero-book-open",
      "Narrative view: what happened to these cards over a date range", "n"},
     {:prioritise, "/prioritise", "Prioritise", "hero-scale",
-     "Prioritise view: vote, score and rank the cards", "p"}
+     "Prioritise view: vote, score and rank the cards", "p"},
+    {:visualise, "/visualise", "Visualise", "hero-presentation-chart-line",
+     "Visualise: flow, velocity, runners and delivery on one page", "g"}
   ]
+
+  # The views that are pages of their own rather than modes of the board
+  # page, so they are navigated to, not patched.
+  @page_views [:visualise]
 
   @doc false
   # The attribute, reachable from the helpers defined above it.
@@ -1920,7 +1926,14 @@ defmodule SlipdockWeb.SlipdockComponents do
     favourites =
       Enum.filter(assigns.board.saved_views, &Slipdock.Favourites.favourite?(marks, :view, &1.id))
 
-    assigns = assign(assigns, tabs: tabs, label: label, icon: icon, favourites: favourites)
+    assigns =
+      assign(assigns,
+        tabs: tabs,
+        label: label,
+        icon: icon,
+        favourites: favourites,
+        page_views: @page_views
+      )
 
     ~H"""
     <div id="view-menu" class="dropdown shrink-0" phx-hook="DropdownAlign">
@@ -1943,7 +1956,8 @@ defmodule SlipdockWeb.SlipdockComponents do
       >
         <li :for={{mode, suffix, label, icon, title, key} <- @tabs}>
           <.link
-            patch={"/boards/#{@board.id}#{suffix}"}
+            patch={mode not in @page_views && "/boards/#{@board.id}#{suffix}"}
+            navigate={mode in @page_views && "/boards/#{@board.id}#{suffix}"}
             class={["flex items-center gap-2", @mode == mode && "menu-active"]}
             title={title}
             aria-current={@mode == mode && "page"}
