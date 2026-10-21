@@ -20,6 +20,7 @@ defmodule SlipdockWeb.BoardLive.Visualise do
 
   import Ecto.Query
   import SlipdockWeb.BoardLive.VisualiseComponents
+  import SlipdockWeb.BoardLive.VisualiseCharts, only: [trends: 1]
   import SlipdockWeb.SlipdockComponents, only: [view_tabs: 1]
 
   alias Slipdock.{Access, Boards, CardState, Dora, Flow, Palette, Pulse, Repo}
@@ -123,6 +124,7 @@ defmodule SlipdockWeb.BoardLive.Visualise do
       doing: Enum.find(columns, &(&1.category == "doing")),
       last_answer: last_answer(board),
       lists: lists(board, columns, pulse, counts),
+      history: Flow.history(board, days: socket.assigns.days),
       aging: aging(board, columns, usual),
       outside:
         for(
@@ -271,6 +273,8 @@ defmodule SlipdockWeb.BoardLive.Visualise do
             />
 
             <.flow_section lists={@lists} />
+
+            <.trends history={@history} />
 
             <div id="visualise-pair" class="grid gap-4 lg:grid-cols-2">
               <.aging_section board={@board} aging={@aging} outside={@outside} />
