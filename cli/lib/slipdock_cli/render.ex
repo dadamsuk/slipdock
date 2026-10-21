@@ -280,6 +280,39 @@ defmodule SlipdockCLI.Render do
     end)
   end
 
+  # One line per day, then the weeks (90 days) and the cycle time.
+  def flow(f) do
+    IO.puts("last #{f["days"]} days (#{f["since"]} to #{f["until"]}, #{f["timezone"]})")
+    IO.puts(dim("  date        backlog ready doing done  completed added open"))
+
+    Enum.each(f["series"], fn d ->
+      IO.puts(
+        "  #{d["date"]}  " <>
+          Enum.map_join(
+            [
+              {d["backlog"], 7},
+              {d["ready"], 5},
+              {d["doing"], 5},
+              {d["done"], 5},
+              {d["completed"], 9},
+              {d["added"], 5},
+              {d["open"], 4}
+            ],
+            " ",
+            fn {n, w} -> String.pad_leading(to_string(n), w) end
+          )
+      )
+    end)
+
+    if f["days"] == 90 do
+      IO.puts("completed by week:")
+      Enum.each(f["weeks"], &IO.puts("  #{&1["week"]}  #{&1["completed"]}"))
+    end
+
+    c = f["cycle"]
+    IO.puts("cycle time: P50 #{span(c["p50"])} · P85 #{span(c["p85"])} over #{c["cards"]} cards")
+  end
+
   defp oldest_wait(nil), do: ""
 
   defp oldest_wait(at),

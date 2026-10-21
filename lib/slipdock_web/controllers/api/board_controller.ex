@@ -289,6 +289,17 @@ defmodule SlipdockWeb.API.BoardController do
     end
   end
 
+  # The board's flow day by day over 7, 30 or 90 days (#1186,
+  # `Slipdock.Flow`): what the Visualise page's trend charts draw.
+  def flow(conn, %{"board" => ref} = params) do
+    with {:ok, board} <- fetch_board(conn, ref, :read) do
+      json(conn, %{
+        board: %{id: board.id, code: board.code},
+        flow: Slipdock.Flow.history(board, days: params["days"])
+      })
+    end
+  end
+
   def delete(conn, %{"board" => ref}) do
     with {:ok, board} <- fetch_board(conn, ref, :owner),
          {:ok, _} <- Boards.delete_board(board) do

@@ -162,6 +162,9 @@ defmodule SlipdockCLI do
     pulse <board>                       the board's flow numbers: in progress, waiting, done in
                                         7 days and today, P50/P85 time to done, moves in 24h
                                         forward and back, and each list's in/out and usual stay
+    flow <board> [--days 7|30|90]       the board's flow day by day: cards in backlog, ready,
+                                        doing and done, completed, added and open each day,
+                                        completed per week, and P50/P85 cycle time
     swimlanes <board> [view opts]       cards as a grid, grouped on two axes
     table <board> [view opts] [--fields F]  cards as a table (F: comma list of
         id title column priority assignee flags tags start due completed percent time checklist comments deps subcards

@@ -17,7 +17,7 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
     do:
       "A board's lists in order with a summary of each card, description included. " <>
         "Board is an id, code or name. Use get_card for a card's comments and checklist. " <>
-        "pulse: true gives its flow numbers instead; dora: true its delivery (DORA) numbers."
+        "Or instead: pulse (flow numbers), history (flow by day), dora (delivery)."
 
   @impl true
   def input_schema do
@@ -36,6 +36,14 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
               "and today, P50/P85 seconds to done, moves in 24h forward and back, each " <>
               "list's in/out over 7 days and usual stay."
         },
+        history: %{
+          type: "boolean",
+          description:
+            "The flow day by day instead of the lists, over days (7, 30 or 90; 30 unless " <>
+              "given): cards in backlog, ready, doing and done (since the window began), " <>
+              "completed, open and added each day, completed per ISO week, and each card " <>
+              "finished with its cycle seconds and their P50/P85."
+        },
         dora: %{
           type: "boolean",
           description:
@@ -48,7 +56,10 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
           type: "string",
           description: "With dora: the environment (production unless given)."
         },
-        days: %{type: "integer", description: "With dora: the window in days (30 unless given)."}
+        days: %{
+          type: "integer",
+          description: "With dora or history: the window in days (30 unless given)."
+        }
       },
       required: ["board"],
       additionalProperties: false
@@ -70,6 +81,15 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
            board
            |> SlipdockWeb.API.JSON.dora(args["environment"], args["days"])
            |> Map.merge(%{name: board.name})}
+
+        args["history"] in [true, "true"] ->
+          {:ok,
+           %{
+             id: board.id,
+             code: board.code,
+             name: board.name,
+             flow: Slipdock.Flow.history(board, days: args["days"])
+           }}
 
         args["pulse"] in [true, "true"] ->
           {:ok,
