@@ -10,7 +10,7 @@ defmodule SlipdockCLI.Boards do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(guide work search ask search-status saved save unsave boards board columns tags activity pulse cards card swimlanes views favourites fav unfav hotkeys hotkey table fields milestones templates add copy repeat recurring snooze wake edit set vote status handoff timeline wait answer new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
+  @commands ~w(guide work search ask search-status saved save unsave boards board columns tags activity pulse flow cards card swimlanes views favourites fav unfav hotkeys hotkey table fields milestones templates add copy repeat recurring snooze wake edit set vote status handoff timeline wait answer new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -106,6 +106,13 @@ defmodule SlipdockCLI.Boards do
   # this week, how long work takes to get done, and each list's traffic.
   def run("pulse", [ref], o),
     do: HTTP.get("/boards/#{enc(ref)}/pulse") |> out(o, &Render.pulse(&1["pulse"]))
+
+  # The board's flow day by day (#1186): the series the Visualise page's
+  # trend charts draw, over 7, 30 or 90 days.
+  def run("flow", [ref], o),
+    do:
+      HTTP.get("/boards/#{enc(ref)}/flow", days: o[:days])
+      |> out(o, &Render.flow(&1["flow"]))
 
   def run("cards", [ref], o) do
     completed =

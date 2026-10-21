@@ -576,6 +576,7 @@ defmodule SlipdockWeb.Router do
     get "/boards/:board/activity", BoardController, :activity
     get "/boards/:board/pulse", BoardController, :pulse
     get "/boards/:board/dora", BoardController, :dora
+    get "/boards/:board/flow", BoardController, :flow
     post "/boards/:board/deploy-token", BoardController, :deploy_token
     get "/boards/:board/deployments/setup", BoardController, :deploy_setup
     post "/boards/:board/deployments/setup", BoardController, :deploy_setup
