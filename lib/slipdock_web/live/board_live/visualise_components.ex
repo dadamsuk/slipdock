@@ -213,6 +213,209 @@ defmodule SlipdockWeb.BoardLive.VisualiseComponents do
     """
   end
 
+  ## Flow through the board ----------------------------------------------------
+
+  attr :lists, :list,
+    required: true,
+    doc: "each list in board order: Pulse's figures plus `count`, `archived_7d` and `wip_limit`"
+
+  @doc """
+  One block per list in board order, with arrows between the lists in the
+  flow; lists with no category sit apart at the end, dashed.
+  """
+  def flow_section(assigns) do
+    {flow, outside} = Enum.split_with(assigns.lists, & &1.category)
+    top = flow |> Enum.map(& &1.count) |> Enum.max(fn -> 0 end)
+    assigns = assign(assigns, flow: flow, outside: outside, top: top)
+
+    ~H"""
+    <.section id="flow" title="Flow through the board" note="Now, with in and out over 7 days">
+      <div class="flex flex-wrap items-stretch gap-2">
+        <%= for {list, i} <- Enum.with_index(@flow) do %>
+          <div
+            :if={i > 0}
+            class="hidden items-center text-base-content/40 sm:flex"
+            aria-hidden="true"
+          >
+            <.icon name="hero-arrow-right" class="size-4" />
+          </div>
+          <.flow_block list={list} top={@top} />
+        <% end %>
+        <.flow_block :for={list <- @outside} list={list} top={@top} outside />
+      </div>
+    </.section>
+    """
+  end
+
+  attr :list, :map, required: true
+  attr :top, :integer, required: true
+  attr :outside, :boolean, default: false
+
+  defp flow_block(assigns) do
+    l = assigns.list
+    limit = l.category == "doing" && l.wip_limit
+    at_limit = is_integer(limit) and l.count >= limit
+
+    fill =
+      cond do
+        is_integer(limit) and limit > 0 -> min(l.count / limit, 1)
+        assigns.top > 0 -> l.count / assigns.top
+        true -> 0
+      end
+
+    assigns =
+      assign(assigns, limit: limit, at_limit: at_limit, fill: round(fill * 100), l: l)
+
+    ~H"""
+    <div
+      id={"flow-list-#{@l.id}"}
+      data-category={@l.category || "none"}
+      class={[
+        "flex min-w-36 flex-1 basis-36 flex-col gap-1.5 rounded-box p-3",
+        @outside && "border border-dashed border-base-content/25 text-base-content/70",
+        !@outside && @l.category == "doing" && "bg-primary/10 ring-1 ring-primary/20",
+        !@outside && @l.category == "done" && "bg-success/10 ring-1 ring-success/20",
+        !@outside && @l.category not in ["doing", "done"] && "bg-base-300/60"
+      ]}
+    >
+      <div class="flex items-center justify-between gap-2">
+        <span class="truncate text-sm font-semibold">{@l.name}</span>
+        <.chip
+          id={"flow-count-#{@l.id}"}
+          tone={
+            cond do
+              @at_limit -> :warning
+              @l.category == "doing" -> :primary
+              @l.category == "done" -> :success
+              true -> :neutral
+            end
+          }
+          title={if @at_limit, do: "At the WIP limit"}
+        >
+          {if @limit, do: "#{@l.count} / #{@limit}", else: @l.count}
+        </.chip>
+      </div>
+      <div :if={@outside} class="text-2xs text-base-content/60">Outside the flow</div>
+      <div :if={!@outside} class="text-xs tabular-nums text-base-content/70">
+        In {@l.in_7d} · <span :if={@l.category == "done"}>Archived {@l.archived_7d}</span>
+        <span :if={@l.category != "done"}>Out {@l.out_7d}</span>
+      </div>
+      <div class="h-1 overflow-hidden rounded-full bg-base-content/10" aria-hidden="true">
+        <div
+          class={[
+            "h-full rounded-full",
+            cond do
+              @at_limit -> "bg-warning"
+              @l.category == "doing" -> "bg-primary"
+              @l.category == "done" -> "bg-success"
+              true -> "bg-base-content/40"
+            end
+          ]}
+          style={"width: #{@fill}%"}
+        >
+        </div>
+      </div>
+      <div :if={!@outside} class="text-2xs text-base-content/60">
+        Usual stay {if @l.usual_stay, do: duration(@l.usual_stay), else: "not known yet"}
+      </div>
+    </div>
+    """
+  end
+
+  ## Aging work in progress ---------------------------------------------------
+
+  attr :board, :any, required: true
+  attr :aging, :list, required: true, doc: "open cards in doing and ready lists, oldest first"
+  attr :outside, :list, default: [], doc: "`{list name, open cards}` for uncategorised lists"
+
+  @doc """
+  Each open card in the doing and ready lists, oldest first, its age
+  against its list's usual stay. Past it, the bar turns warning and says so
+  (`Slipdock.CardState`'s `stuck`: the same rule as the stuck filter).
+  """
+  def aging_section(assigns) do
+    ~H"""
+    <.section id="aging" title="Aging work in progress" note="In doing and ready lists">
+      <p :if={@aging == []} id="aging-empty" class="text-sm text-base-content/60">
+        Nothing in progress.
+      </p>
+      <ul :if={@aging != []} class="divide-y divide-base-content/5">
+        <li
+          :for={a <- @aging}
+          id={"aging-#{a.card.id}"}
+          data-stuck={to_string(a.stuck)}
+          class="flex flex-col gap-1.5 py-2.5 first:pt-0 last:pb-0"
+        >
+          <div class="flex min-w-0 flex-wrap items-center gap-1.5">
+            <.link
+              navigate={~p"/boards/#{@board}/cards/#{a.card.id}"}
+              class="min-w-0 flex-1 basis-40 truncate text-sm font-medium hover:underline"
+            >
+              {a.card.title}
+            </.link>
+            <.chip class="font-mono">#{a.card.id}</.chip>
+            <.chip>{a.list}</.chip>
+            <span
+              :for={tag <- a.card.tags}
+              class={[
+                "inline-flex items-center rounded-full px-2 py-0.5 text-2xs font-medium",
+                Slipdock.Palette.chip(tag.color)
+              ]}
+            >
+              {tag.name}
+            </span>
+            <.chip :if={a.driver == "agent"} tone={:primary}>Agent</.chip>
+            <.chip :if={a.driver == "human"}>Human</.chip>
+            <.chip :if={a.stuck} tone={:warning}>Past usual stay</.chip>
+          </div>
+          <div class="flex items-center gap-2">
+            <div
+              class="h-1.5 flex-1 overflow-hidden rounded-full bg-base-content/10"
+              role="img"
+              aria-label={aging_label(a)}
+            >
+              <div
+                class={["h-full rounded-full", if(a.stuck, do: "bg-warning", else: "bg-primary")]}
+                style={"width: #{aging_fill(a)}%"}
+              >
+              </div>
+            </div>
+            <span class="shrink-0 text-2xs tabular-nums text-base-content/60">
+              {duration(a.age)} · {if a.usual,
+                do: "usual #{duration(a.usual)}",
+                else: "no usual stay yet"}
+            </span>
+          </div>
+        </li>
+      </ul>
+      <p
+        :if={@outside != []}
+        id="aging-outside"
+        class="mt-3 rounded-box border border-dashed border-base-content/20 px-3 py-2 text-xs text-base-content/60"
+      >
+        Not aged, as outside the flow: {Enum.map_join(@outside, ", ", fn {name, n} ->
+          "#{n} in #{name}"
+        end)}.
+      </p>
+    </.section>
+    """
+  end
+
+  defp aging_fill(%{usual: usual, age: age})
+       when is_integer(usual) and usual > 0 and is_integer(age),
+       do: round(min(age / usual, 1) * 100)
+
+  defp aging_fill(_), do: 0
+
+  defp aging_label(a) do
+    "#{duration(a.age)} in #{a.list}" <>
+      cond do
+        a.stuck -> ", past its usual stay of #{duration(a.usual)}"
+        a.usual -> ", usual stay #{duration(a.usual)}"
+        true -> ""
+      end
+  end
+
   @doc false
   def plural(1, word), do: word
   def plural(_, word), do: word <> "s"
