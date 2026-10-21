@@ -76,7 +76,8 @@ defmodule SlipdockWeb.RunnerStatsAPITest do
     assert result["isError"] == false, inspect(result["content"])
     content = result["structuredContent"]
     refute Map.has_key?(content, "lists")
-    assert Map.delete(content["runner_stats"], "at") == Map.delete(stats, "at")
+    # Both read the clock: "at" and "since" may be a second apart.
+    assert Map.drop(content["runner_stats"], ~w(at since)) == Map.drop(stats, ~w(at since))
   end
 
   test "a board with no runners is an empty answer", %{conn: conn, user: user} do
