@@ -1276,12 +1276,13 @@ defmodule SlipdockWeb.BoardLive.BoardView do
     """
   end
 
-  defp dora_band_class("elite"), do: "badge-success"
-  defp dora_band_class("high"), do: "badge-info"
+  @doc "The pill classes of a DORA band (#1184), shared with the Visualise page."
+  def dora_band_class("elite"), do: "badge-success"
+  def dora_band_class("high"), do: "badge-info"
   # The theme's amber is pale: on the light theme its soft pill all but
   # vanishes, so medium takes the darker amber for its words there.
-  defp dora_band_class("medium"),
+  def dora_band_class("medium"),
     do: "badge-warning bg-warning/30 text-warning-content dark:bg-warning/10 dark:text-warning"
 
-  defp dora_band_class(_low), do: "badge-error"
+  def dora_band_class(_low), do: "badge-error"
 end

@@ -315,6 +315,8 @@ defmodule SlipdockWeb.BoardLive.Visualise do
             </div>
 
             <.runners_section board={@board} stats={@runners} />
+
+            <.dora_section board={@board} dora={@dora} cycle_p50={@pulse.time_to_done.p50} />
           </div>
         </div>
       </div>
