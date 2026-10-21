@@ -111,6 +111,7 @@ defmodule Slipdock.RunnerStats do
           %{
             job_id: current.id,
             card_id: current.card_id,
+            board_id: current.board_id,
             title: current.card && current.card.title,
             elapsed: elapsed(current, now)
           },
@@ -167,6 +168,7 @@ defmodule Slipdock.RunnerStats do
     %{
       job_id: job.id,
       card_id: job.card_id,
+      board_id: job.board_id,
       title: job.card && job.card.title,
       runner: Enum.find_value(runners, &(&1.id == job.runner_id && &1.name)),
       outcome: outcome,

@@ -126,6 +126,7 @@ defmodule SlipdockWeb.BoardLive.Visualise do
       lists: lists(board, columns, pulse, counts),
       history: Flow.history(board, days: socket.assigns.days),
       mix: work_mix(board, columns, socket.assigns.days),
+      runners: Slipdock.RunnerStats.for_board(board, days: socket.assigns.days),
       aging: aging(board, columns, usual),
       outside:
         for(
@@ -312,6 +313,8 @@ defmodule SlipdockWeb.BoardLive.Visualise do
               <.aging_section board={@board} aging={@aging} outside={@outside} />
               <.mix_section mix={@mix} days={@days} />
             </div>
+
+            <.runners_section board={@board} stats={@runners} />
           </div>
         </div>
       </div>

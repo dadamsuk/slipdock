@@ -107,7 +107,15 @@ defmodule Slipdock.RunnerStatsTest do
     s = stats(ctx.board)
     r = the_runner(s)
     assert r.status == "running"
-    assert r.current == %{job_id: running.id, card_id: card.id, title: "Busy", elapsed: 600}
+
+    assert r.current == %{
+             job_id: running.id,
+             card_id: card.id,
+             board_id: ctx.board.id,
+             title: "Busy",
+             elapsed: 600
+           }
+
     assert r.outcomes.running == 1
 
     assert [%{job_id: id, outcome: "running", duration: 600, title: "Busy"}] = s.recent_jobs
