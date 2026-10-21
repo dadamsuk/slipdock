@@ -24,6 +24,10 @@ defmodule Slipdock.Dora do
       for the cards first shipped in the window. What a board knows that a
       pipeline tool doesn't.
 
+  Then `per_day`, the window's finished deploys day by day in the board's
+  timezone (`succeeded` and `failed`, failed as the change failure rate
+  counts it), and `commits_per_deploy`, commits over succeeded deploys.
+
   Each has its DORA band (`elite`, `high`, `medium`, `low`) where DORA
   defines one, and `previous` holds the window before for a trend.
   """
@@ -44,7 +48,8 @@ defmodule Slipdock.Dora do
   @doc """
   The report for `board`: `{:ok, report}`, or `{:error, :off}` while its
   delivery metrics are off. Options: `:environment` (production, else the
-  environment deployed to most), `:days` (1–#{@max_days}) and `:now`.
+  environment deployed to most), `:days` (1–#{@max_days}), `:now`, and
+  `:timezone` for the days of `per_day` (the board owner's unless given).
   """
   def for_board(%Board{} = board, opts \\ []) do
     if Deployments.enabled?(board), do: {:ok, report(board, opts)}, else: {:error, :off}
@@ -79,6 +84,7 @@ defmodule Slipdock.Dora do
     previous = window(ctx, prev_since, since, days)
 
     Map.merge(current, %{
+      per_day: per_day(ctx, days, now, opts[:timezone] || Slipdock.Flow.timezone(board)),
       enabled: true,
       environment: environment,
       environments: Deployments.environments(board),
@@ -134,8 +140,36 @@ defmodule Slipdock.Dora do
         deploys: length(finished),
         rate: rate(rework, length(finished))
       },
-      idea_to_production: idea
+      idea_to_production: idea,
+      commits_per_deploy: commits_per_deploy(succeeded)
     }
+  end
+
+  defp commits_per_deploy([]), do: nil
+
+  defp commits_per_deploy(succeeded) do
+    commits = Enum.sum_by(succeeded, &length(&1.commits || []))
+    Float.round(commits / length(succeeded), 1)
+  end
+
+  # One entry per day of the window, ending today in the board's timezone:
+  # the finished deploys started that day, failed as the change failure
+  # rate counts them (failed, rolled back, or the cause of an incident or a
+  # hotfix), succeeded otherwise.
+  defp per_day(ctx, days, now, tz) do
+    today = now |> DateTime.shift_zone!(tz) |> DateTime.to_date()
+    first = Date.add(today, -(days - 1))
+
+    by_date =
+      ctx.deploys
+      |> Enum.filter(&(&1.status in ["succeeded", "failed"]))
+      |> Enum.group_by(&(&1.started_at |> DateTime.shift_zone!(tz) |> DateTime.to_date()))
+
+    for date <- Date.range(first, today) do
+      ds = Map.get(by_date, date, [])
+      failed = Enum.count(ds, &Map.has_key?(ctx.failures, &1.id))
+      %{date: date, succeeded: length(ds) - failed, failed: failed}
+    end
   end
 
   # The cards whose first succeeded deploy to this environment was in the

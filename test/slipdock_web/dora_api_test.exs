@@ -69,6 +69,9 @@ defmodule SlipdockWeb.DoraAPITest do
     assert body["dora"]["environment"] == "production"
     assert body["dora"]["deployment_frequency"]["deploys"] == 1
     assert body["dora"]["previous"]["deployment_frequency"]["deploys"] == 0
+    assert length(body["dora"]["per_day"]) == 30
+    assert %{"date" => _, "succeeded" => 1, "failed" => 0} = List.last(body["dora"]["per_day"])
+    assert body["dora"]["commits_per_deploy"] == 0.0
 
     body =
       conn
@@ -101,6 +104,8 @@ defmodule SlipdockWeb.DoraAPITest do
     assert on["name"] == "Metrics"
     assert on["dora"]["days"] == 7
     assert on["dora"]["deployment_frequency"]["deploys"] == 1
+    assert length(on["dora"]["per_day"]) == 7
+    assert Map.has_key?(on["dora"], "commits_per_deploy")
   end
 
   test "the strip: absent while off, a nudge before the first deploy, then the numbers", %{
