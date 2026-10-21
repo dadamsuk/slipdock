@@ -476,7 +476,7 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
 
   defp settings_modal(assigns) do
     ~H"""
-    <.modal id="settings-modal" on_close={JS.patch(@close_path)} size="sm">
+    <.modal id="settings-modal" on_close={JS.patch(@close_path)} size="page">
       <div class="space-y-5 p-6">
         <h2 class="text-lg font-semibold">Board settings</h2>
         <.form
