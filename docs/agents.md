@@ -229,7 +229,11 @@ A board whose runner work a person has **paused** says so: `get_board`,
 Every card also carries its `state` line, `driver`, `age` in its list and
 `stuck` (past the list's usual stay), and `list_cards` / `slipdock cards`
 filter on `stuck` and `driver`; `slipdock pulse <board>` (`get_board` with
-`pulse: true`) gives the board's flow numbers. A card's history — how
+`pulse: true`) gives the board's flow numbers, `slipdock flow <board>`
+(`history: true`, `GET /api/boards/:id/flow?days=`) its flow day by day,
+and `slipdock runner-stats <board>` (`runners: true`,
+`GET /api/boards/:id/runner_stats`) how its runners are doing; a person sees
+all of it on the board's **Visualise** page. A card's history — how
 long it sat in each list and who moved it, its waits and its jobs — is
 `get_card` with `timeline: true`, `GET /api/cards/:id/timeline` or
 `slipdock timeline <id>`. See

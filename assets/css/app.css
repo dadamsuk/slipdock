@@ -114,6 +114,13 @@
   }
 }
 
+/* Visualise (#1195): the page's muted words are small (12px and under), so
+   in the dark they take a little more of the text colour than /60 gives:
+   /65, the floor the design system sets for small muted text there. */
+[data-theme="dark"] #visualise .text-base-content\/60 {
+  color: color-mix(in oklab, var(--color-base-content) 65%, transparent);
+}
+
 /* Add variants based on LiveView classes */
 @custom-variant phx-click-loading (.phx-click-loading&, .phx-click-loading &);
 @custom-variant phx-submit-loading (.phx-submit-loading&, .phx-submit-loading &);

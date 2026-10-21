@@ -49,6 +49,7 @@ try {
       await page.waitForSelector('.phx-connected')
       await page.evaluate((t) => document.documentElement.setAttribute('data-theme', t), theme)
       await page.waitForTimeout(300)
+      await page.screenshot({ path: `${shots}/visualise-${label}-${theme}-top.png` })
       // The page scrolls inside its shell: grow the window to the whole of it for the picture.
       const tall = await page.evaluate(() => document.querySelector('#visualise').scrollHeight)
       await page.setViewportSize({ width: viewport.width, height: tall + 200 })

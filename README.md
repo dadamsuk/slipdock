@@ -83,6 +83,15 @@ Briefly, with the detail in [the manual](docs/manual.md):
   person, what got done this week, typical time to done and each list's usual
   stay. `slipdock pulse <board>`, `GET /api/boards/:id/pulse` or `get_board`
   with `pulse: true`; a plain-words strip over the lists if the owner turns it on.
+- **Visualise** — [one page for a board's flow](docs/manual.md#visualise-flow-velocity-runners-and-delivery):
+  pick *Visualise* from the board's view menu for its pulse tiles, a block per
+  list with traffic and usual stay, cumulative flow, velocity, backlog burndown
+  and cycle time over 7, 30 or 90 days, aging work in progress, the work mix
+  by tag, how its agentic runners are doing (status, queue wait, success, waits
+  on people, recent jobs) and its DORA numbers. Worked out when you open it.
+  The same history and runner numbers: `slipdock flow <board> [--days N]`,
+  `slipdock runner-stats <board>`, `GET /api/boards/:id/flow?days=` and
+  `/runner_stats`, or `get_board` with `history: true` or `runners: true`.
 - **Delivery metrics (DORA)** — [deploys recorded from CI](docs/manual.md#delivery-metrics-deploys-and-dora):
   wrap your deploy step in `slipdock deploy run --env production -- ./deploy.sh`
   and the board records each deploy with the commits since the last one, then
