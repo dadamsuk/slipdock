@@ -929,6 +929,13 @@ defmodule SlipdockWeb.SlipdockComponents do
 
   attr :zone, :string, default: "Etc/UTC", doc: "the reader's timezone, for a snoozed card's day"
 
+  attr :handoff_note, :string,
+    default: "hide",
+    doc: """
+    whether an open card's front shows its handoff note (#1171): "hide" (the
+    ↩ mark alone), "short" (two lines) or "full"; comfortable cards only
+    """
+
   attr :marks, :any,
     default: nil,
     doc: """
@@ -1223,8 +1230,37 @@ defmodule SlipdockWeb.SlipdockComponents do
             <.icon name="hero-paper-clip" class="size-3.5" /> {length(loaded_attachments(@card))}
           </span>
         </div>
+        <.handoff_note
+          :if={@f.handoff and @handoff_note in ~w(short full)}
+          handoff={@handoff}
+          mode={@handoff_note}
+        />
         <.state_line :if={@f.state_line} state={@state} />
       </div>
+    </div>
+    """
+  end
+
+  attr :handoff, :any, required: true
+  attr :mode, :string, required: true
+
+  # The handoff itself on the card's front (#1171), when the Display menu asks
+  # for it: the next step then the note, cut to two lines or in full.
+  defp handoff_note(assigns) do
+    assigns =
+      assign(assigns,
+        text: Enum.join([assigns.handoff.next_step | List.wrap(assigns.handoff.body)], "\n")
+      )
+
+    ~H"""
+    <div
+      class="rounded-lg bg-info/10 px-2 py-1.5 text-2xs leading-snug text-base-content/80"
+      data-role="handoff-note"
+      data-mode={@mode}
+      title={if @mode == "short", do: @text}
+    >
+      <%!-- Unformatted: a line break here would show in the pre-line text. --%>
+      <p phx-no-format class={["whitespace-pre-line break-words", @mode == "short" && "line-clamp-2"]}><span class="font-semibold text-info">Left off:</span> {@text}</p>
     </div>
     """
   end

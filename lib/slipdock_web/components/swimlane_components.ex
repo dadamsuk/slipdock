@@ -686,6 +686,24 @@ defmodule SlipdockWeb.SwimlaneComponents do
             </label>
           </div>
         </div>
+        <div :if={@mode in [:board, :swimlanes]} id="display-handoff">
+          <p class={["mb-1.5", @section_title]}>Handoff note</p>
+          <div class="flex flex-wrap gap-1">
+            <label :for={{value, label} <- Config.handoffs()} class="cursor-pointer">
+              <input
+                type="radio"
+                name="handoff"
+                value={value}
+                checked={@config.handoff == value}
+                class="peer sr-only"
+              />
+              <span class="btn btn-xs btn-ghost peer-checked:btn-primary">{label}</span>
+            </label>
+          </div>
+          <p class="mt-1 text-xs text-base-content/60">
+            Where an open card was left, on its front. Comfortable cards only.
+          </p>
+        </div>
         <div :if={@mode == :calendar}>
           <p class={["mb-1.5", @section_title]}>Place cards on</p>
           <div class="flex gap-1">
@@ -1224,6 +1242,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
                 id={"swim-#{ri}-#{ci}-card-#{card.id}"}
                 compact={@config.density == "compact"}
                 show={@show}
+                handoff_note={@config.handoff}
                 cover={Slipdock.Coloring.color(card, @config.color_by, @board)}
                 marks={@favourites}
                 zone={@zone}
@@ -1380,6 +1399,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
                     id={"swim-#{ri}-#{ci}-card-#{card.id}"}
                     compact={@config.density == "compact"}
                     show={@show}
+                    handoff_note={@config.handoff}
                     cover={Slipdock.Coloring.color(card, @config.color_by, @board)}
                     marks={@favourites}
                     zone={@zone}
