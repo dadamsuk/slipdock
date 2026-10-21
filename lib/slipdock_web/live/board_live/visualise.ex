@@ -22,8 +22,8 @@ defmodule SlipdockWeb.BoardLive.Visualise do
   import SlipdockWeb.BoardLive.VisualiseComponents
   import SlipdockWeb.SlipdockComponents, only: [view_tabs: 1]
 
-  alias Slipdock.{Access, Boards, Dora, Flow, Palette, Pulse, Repo}
-  alias Slipdock.Boards.{Board, Card, Column, Wait}
+  alias Slipdock.{Access, Boards, CardState, Dora, Flow, Palette, Pulse, Repo}
+  alias Slipdock.Boards.{Board, Card, CardMove, Column, Wait}
 
   @refresh_ms 2_000
 
@@ -111,14 +111,91 @@ defmodule SlipdockWeb.BoardLive.Visualise do
         {:error, :off} -> nil
       end
 
+    pulse = Pulse.for_board(board)
+    usual = Map.new(pulse.lists, &{&1.id, &1.usual_stay})
+    counts = counts(board)
+
     assign(socket,
       board: board,
       columns: columns,
-      pulse: Pulse.for_board(board),
+      pulse: pulse,
       dora: dora,
       doing: Enum.find(columns, &(&1.category == "doing")),
-      last_answer: last_answer(board)
+      last_answer: last_answer(board),
+      lists: lists(board, columns, pulse, counts),
+      aging: aging(board, columns, usual),
+      outside:
+        for(
+          c <- columns,
+          is_nil(c.category),
+          (n = Map.get(counts, c.id, 0)) > 0,
+          do: {c.name, n}
+        )
     )
+  end
+
+  # Cards in each list now: not archived, never a stand-in.
+  defp counts(board) do
+    Repo.all(
+      from c in Card,
+        where: c.board_id == ^board.id and is_nil(c.archived_at) and is_nil(c.stand_in_for_id),
+        group_by: c.column_id,
+        select: {c.column_id, count(c.id)}
+    )
+    |> Map.new()
+  end
+
+  # Pulse's lists, with how many cards each holds now, its WIP limit, and
+  # for a done list how many were archived from it in 7 days.
+  defp lists(board, columns, pulse, counts) do
+    since = DateTime.add(DateTime.utc_now(), -7 * 86_400, :second)
+
+    archived =
+      Repo.all(
+        from m in CardMove,
+          where: m.board_id == ^board.id and m.kind == "archived" and m.inserted_at >= ^since,
+          group_by: m.from_column_id,
+          select: {m.from_column_id, count(m.id)}
+      )
+      |> Map.new()
+
+    limits = Map.new(columns, &{&1.id, &1.wip_limit})
+
+    Enum.map(pulse.lists, fn l ->
+      Map.merge(l, %{
+        count: Map.get(counts, l.id, 0),
+        wip_limit: limits[l.id],
+        archived_7d: Map.get(archived, l.id, 0)
+      })
+    end)
+  end
+
+  # The open cards in the doing lists and the ready list, oldest in their
+  # list first, with `Slipdock.CardState`'s age, usual stay and driver.
+  defp aging(board, columns, usual) do
+    ready = Flow.ready_list(columns)
+    ids = for c <- columns, c.category == "doing" or (ready && c.id == ready.id), do: c.id
+    names = Map.new(columns, &{&1.id, &1.name})
+
+    Repo.all(
+      from c in Card,
+        where:
+          c.column_id in ^ids and is_nil(c.archived_at) and is_nil(c.stand_in_for_id) and
+            not c.completed,
+        preload: [:tags, wait: ^from(w in Wait, where: is_nil(w.closed_at))]
+    )
+    |> CardState.put(board, columns: columns, usual: usual)
+    |> Enum.map(fn card ->
+      %{
+        card: card,
+        list: names[card.column_id],
+        age: card.state.age,
+        usual: card.state.usual,
+        stuck: card.state.stuck,
+        driver: card.state.driver
+      }
+    end)
+    |> Enum.sort_by(&(&1.age || 0), :desc)
   end
 
   # How long the board's most recently answered wait took to answer.
@@ -192,6 +269,12 @@ defmodule SlipdockWeb.BoardLive.Visualise do
               doing={@doing}
               last_answer={@last_answer}
             />
+
+            <.flow_section lists={@lists} />
+
+            <div id="visualise-pair" class="grid gap-4 lg:grid-cols-2">
+              <.aging_section board={@board} aging={@aging} outside={@outside} />
+            </div>
           </div>
         </div>
       </div>
