@@ -636,7 +636,8 @@ completion, or a failed deploy to the next good one), rework rate (deploys
 naming an incident card), and **idea to production** — a card first entering an
 in-progress list to the first deploy whose commits name it. Each has its DORA
 band (elite, high, medium, low) where DORA defines one. A strip over the lists
-says it in a line; `slipdock dora <board> [--env E] [--days N]`, `GET
+says it in a line, each band a coloured pill (green elite, blue high, amber
+medium, red low); `slipdock dora <board> [--env E] [--days N]`, `GET
 /api/boards/:id/dora` and MCP `get_board` with `dora: true` give it all.
 
 **Shipped lines.** A card a succeeded deploy names shows *Shipped to production

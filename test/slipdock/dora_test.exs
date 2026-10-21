@@ -188,6 +188,31 @@ defmodule Slipdock.DoraTest do
     assert report!(board).idea_to_production.cards == 0
   end
 
+  test "parts: the sentence in pieces, each with its own band (#1184)", %{board: board} do
+    assert {"production, 30d: ", [%{text: "0 deploys", band: nil}]} = Dora.parts(report!(board))
+
+    deploy!(board, 50)
+    deploy!(board, 40, %{status: "failed"})
+    deploy!(board, 39)
+    deploy!(board, 30)
+    r = report!(board)
+    {lead, parts} = Dora.parts(r)
+
+    assert lead == "production, 30d: "
+    assert %{text: "3 deploys ↑", band: "medium"} = hd(parts)
+    assert %{band: "low"} = Enum.find(parts, &(&1.text =~ "25% failed"))
+    assert %{band: "high"} = Enum.find(parts, &(&1.text =~ "restored in 1h"))
+    # The joined pieces are exactly the sentence the CLI and API speak.
+    assert Dora.sentence(r) ==
+             lead <>
+               Enum.map_join(parts, " · ", fn
+                 %{band: nil, text: t} -> t
+                 %{band: b, text: t} -> "#{t} (#{b})"
+               end)
+
+    assert Dora.sentence(r) =~ "3 deploys ↑ (medium)"
+  end
+
   test "the window before, and the trend in the sentence", %{board: board} do
     deploy!(board, 40 * 24)
     deploy!(board, 10)

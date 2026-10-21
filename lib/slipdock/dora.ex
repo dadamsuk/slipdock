@@ -284,28 +284,54 @@ defmodule Slipdock.Dora do
   arrow where the window before was different.
   """
   def sentence(r) do
+    {lead, parts} = parts(r)
+    lead <> Enum.map_join(parts, " · ", &(&1.text <> band_text(&1.band)))
+  end
+
+  @doc """
+  The strip's sentence in pieces, so the board can colour each metric by its
+  band (#1184): `{"production, 30d: ", [%{text: "43 deploys ↑", band: "elite"}, …]}`.
+  `band` is nil for the metrics DORA doesn't band.
+  """
+  def parts(r) do
     f = r.deployment_frequency
     p = r.previous
 
-    "#{r.environment}, #{r.days}d: " <>
-      ([
-         "#{f.deploys} deploy#{if f.deploys == 1, do: "", else: "s"}#{trend(f.deploys, p.deployment_frequency.deploys)}" <>
-           band_text(f.band),
-         r.lead_time.p50 &&
-           "lead time #{duration(r.lead_time.p50)}#{trend(r.lead_time.p50, p.lead_time.p50)}" <>
-             band_text(r.lead_time.band),
-         r.change_failure_rate.rate &&
-           "#{pct(r.change_failure_rate.rate)} failed#{trend(r.change_failure_rate.rate, p.change_failure_rate.rate)}" <>
-             band_text(r.change_failure_rate.band),
-         r.time_to_restore.p50 &&
-           "restored in #{duration(r.time_to_restore.p50)}#{trend(r.time_to_restore.p50, p.time_to_restore.p50)}" <>
-             band_text(r.time_to_restore.band),
-         r.rework_rate.rate && r.rework_rate.rework > 0 && "#{pct(r.rework_rate.rate)} rework",
-         r.idea_to_production.p50 &&
-           "idea to production #{duration(r.idea_to_production.p50)}#{trend(r.idea_to_production.p50, p.idea_to_production.p50)}"
-       ]
-       |> Enum.filter(& &1)
-       |> Enum.join(" · "))
+    {"#{r.environment}, #{r.days}d: ",
+     [
+       %{
+         text:
+           "#{f.deploys} deploy#{if f.deploys == 1, do: "", else: "s"}#{trend(f.deploys, p.deployment_frequency.deploys)}",
+         band: f.band
+       },
+       r.lead_time.p50 &&
+         %{
+           text:
+             "lead time #{duration(r.lead_time.p50)}#{trend(r.lead_time.p50, p.lead_time.p50)}",
+           band: r.lead_time.band
+         },
+       r.change_failure_rate.rate &&
+         %{
+           text:
+             "#{pct(r.change_failure_rate.rate)} failed#{trend(r.change_failure_rate.rate, p.change_failure_rate.rate)}",
+           band: r.change_failure_rate.band
+         },
+       r.time_to_restore.p50 &&
+         %{
+           text:
+             "restored in #{duration(r.time_to_restore.p50)}#{trend(r.time_to_restore.p50, p.time_to_restore.p50)}",
+           band: r.time_to_restore.band
+         },
+       r.rework_rate.rate && r.rework_rate.rework > 0 &&
+         %{text: "#{pct(r.rework_rate.rate)} rework", band: nil},
+       r.idea_to_production.p50 &&
+         %{
+           text:
+             "idea to production #{duration(r.idea_to_production.p50)}#{trend(r.idea_to_production.p50, p.idea_to_production.p50)}",
+           band: nil
+         }
+     ]
+     |> Enum.filter(& &1)}
   end
 
   # ↑ or ↓ when it moved, and the arrow says which way, not whether it's good.

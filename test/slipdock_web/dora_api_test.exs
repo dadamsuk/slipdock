@@ -116,10 +116,25 @@ defmodule SlipdockWeb.DoraAPITest do
 
     # A deploy arriving moves the strip without a reload.
     deploy!(board)
-    assert render(view) =~ "production, 30d: 1 deploy"
+    assert render(view) =~ "production, 30d:"
+    assert has_element?(view, "#board-dora", "1 deploy")
 
     {:ok, _} = Boards.update_board(board, %{"delivery_metrics" => false})
     {:ok, view, _} = live(conn, ~p"/boards/#{board}")
     refute has_element?(view, "#board-dora")
+  end
+
+  test "the strip colours each metric by its DORA band (#1184)", %{conn: conn, board: board} do
+    board = turn_on(board)
+    deploy!(board)
+    deploy!(board, %{sha: "def5678abc", status: "failed"})
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}")
+
+    # Two deploys in 30 days is DORA's "medium"; one failed of two is "low".
+    assert has_element?(view, "#board-dora [data-band=medium] .badge-warning", "medium")
+    assert has_element?(view, "#board-dora [data-band=low] .badge-error", "low")
+    assert has_element?(view, "#board-dora .badge[title='DORA band: low']")
+    # The band is still in words, and the bracketed form is gone from the strip.
+    refute render(view) =~ "(medium)"
   end
 end
