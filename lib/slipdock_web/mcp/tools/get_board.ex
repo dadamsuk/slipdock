@@ -17,7 +17,7 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
     do:
       "A board's lists in order with a summary of each card, description included. " <>
         "Board is an id, code or name. Use get_card for a card's comments and checklist. " <>
-        "Or instead: pulse (flow numbers), history (flow by day), dora (delivery)."
+        "Or instead: pulse (flow numbers), history (flow by day), runners, dora (delivery)."
 
   @impl true
   def input_schema do
@@ -44,6 +44,14 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
               "completed, open and added each day, completed per ISO week, and each card " <>
               "finished with its cycle seconds and their P50/P85."
         },
+        runners: %{
+          type: "boolean",
+          description:
+            "How the board's runners are doing instead of the lists, over days (7, 30 or " <>
+              "90; 30 unless given): each runner's status and current job, outcomes, job " <>
+              "and queue-wait P50/P85, success rate, waits on people, reopened cards, and " <>
+              "the last 12 jobs."
+        },
         dora: %{
           type: "boolean",
           description:
@@ -58,7 +66,7 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
         },
         days: %{
           type: "integer",
-          description: "With dora or history: the window in days (30 unless given)."
+          description: "With dora, history or runners: the window in days (30 unless given)."
         }
       },
       required: ["board"],
@@ -89,6 +97,15 @@ defmodule SlipdockWeb.MCP.Tools.GetBoard do
              code: board.code,
              name: board.name,
              flow: Slipdock.Flow.history(board, days: args["days"])
+           }}
+
+        args["runners"] in [true, "true"] ->
+          {:ok,
+           %{
+             id: board.id,
+             code: board.code,
+             name: board.name,
+             runner_stats: Slipdock.RunnerStats.for_board(board, days: args["days"])
            }}
 
         args["pulse"] in [true, "true"] ->

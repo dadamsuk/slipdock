@@ -300,6 +300,17 @@ defmodule SlipdockWeb.API.BoardController do
     end
   end
 
+  # How the board's runners are doing over 7, 30 or 90 days (#1187,
+  # `Slipdock.RunnerStats`): what the Visualise page's runners section shows.
+  def runner_stats(conn, %{"board" => ref} = params) do
+    with {:ok, board} <- fetch_board(conn, ref, :read) do
+      json(conn, %{
+        board: %{id: board.id, code: board.code},
+        runner_stats: Slipdock.RunnerStats.for_board(board, days: params["days"])
+      })
+    end
+  end
+
   def delete(conn, %{"board" => ref}) do
     with {:ok, board} <- fetch_board(conn, ref, :owner),
          {:ok, _} <- Boards.delete_board(board) do

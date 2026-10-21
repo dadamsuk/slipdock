@@ -10,12 +10,18 @@ defmodule SlipdockCLI.Runners do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(runner runners jobs job cancel-job claim-job job-progress finish-job pause resume)
+  @commands ~w(runner runners runner-stats jobs job cancel-job claim-job job-progress finish-job pause resume)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
 
   def run("runners", [ref], o), do: run("runner", ["ls", ref], o)
+
+  # How the board's runners are doing (#1187), for anyone who can read it.
+  def run("runner-stats", [ref], o) do
+    HTTP.get("/boards/#{enc(ref)}/runner_stats", days: o[:days])
+    |> out(o, &Render.runner_stats(&1["runner_stats"]))
+  end
 
   def run("runner", ["ls", ref], o) do
     HTTP.get("/boards/#{enc(ref)}/runners") |> out(o, &Render.runners(&1["runners"]))

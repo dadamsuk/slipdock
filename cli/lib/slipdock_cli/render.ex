@@ -313,6 +313,50 @@ defmodule SlipdockCLI.Render do
     IO.puts("cycle time: P50 #{span(c["p50"])} · P85 #{span(c["p85"])} over #{c["cards"]} cards")
   end
 
+  def runner_stats(%{"runners" => []}), do: IO.puts(dim("no runners take work from this board"))
+
+  def runner_stats(s) do
+    IO.puts("last #{s["days"]} days")
+
+    Enum.each(s["runners"], fn r ->
+      o = r["outcomes"]
+      w = r["waits"]
+
+      IO.puts(
+        "#{r["name"]} (#{r["pool"]}) · #{r["status"]}" <>
+          case r["current"] do
+            nil -> ""
+            c -> " · job ##{c["job_id"]} card ##{c["card_id"]} for #{span(c["elapsed"])}"
+          end
+      )
+
+      IO.puts(
+        "  #{o["done"]} done · #{o["parked"]} parked · #{o["failed"]} failed · #{o["running"]} running" <>
+          if(r["success_rate"], do: " · #{round(r["success_rate"] * 100)}% succeeded", else: "")
+      )
+
+      IO.puts(
+        "  job P50 #{span(r["duration"]["p50"])} · queue wait P50 #{span(r["queue_wait"]["p50"])}"
+      )
+
+      IO.puts(
+        "  waits on people #{w["opened"]} (#{w["open"]} open, answered in #{span(w["answer"]["p50"])})" <>
+          " · reopened #{r["reopened"]["count"]}"
+      )
+    end)
+
+    if s["recent_jobs"] != [] do
+      IO.puts("recent jobs:")
+
+      Enum.each(s["recent_jobs"], fn j ->
+        IO.puts(
+          "  ##{j["job_id"]}  #{j["outcome"]}#{if j["reason"], do: ": #{j["reason"]}", else: ""}" <>
+            "  #{span(j["duration"])}  card ##{j["card_id"]} #{j["title"]}"
+        )
+      end)
+    end
+  end
+
   defp oldest_wait(nil), do: ""
 
   defp oldest_wait(at),
