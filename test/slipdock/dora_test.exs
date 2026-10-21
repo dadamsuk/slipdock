@@ -240,6 +240,57 @@ defmodule Slipdock.DoraTest do
     assert r.environments == ["production", "staging"]
   end
 
+  describe "per_day and commits_per_deploy (#1188)" do
+    test "an empty window is a zero entry for every day, oldest first", %{board: board} do
+      r = report!(board, days: 7, timezone: "Etc/UTC")
+      assert length(r.per_day) == 7
+      assert hd(r.per_day).date == ~D[2026-10-13]
+      assert List.last(r.per_day).date == ~D[2026-10-19]
+      assert Enum.all?(r.per_day, &(&1.succeeded == 0 and &1.failed == 0))
+      assert r.commits_per_deploy == nil
+    end
+
+    test "failed and rolled-back deploys count as failed; started ones not at all",
+         %{board: board} do
+      deploy!(board, 30)
+      deploy!(board, 29, %{status: "failed"})
+      deploy!(board, 5)
+      deploy!(board, 4, %{rollback: true})
+      deploy!(board, 2, %{status: "started", finished_at: nil})
+
+      r = report!(board, days: 7, timezone: "Etc/UTC")
+      by_date = Map.new(r.per_day, &{&1.date, &1})
+      assert by_date[~D[2026-10-18]] == %{date: ~D[2026-10-18], succeeded: 1, failed: 1}
+      # The deploy 5 hours ago was rolled back by the one after it.
+      assert by_date[~D[2026-10-19]] == %{date: ~D[2026-10-19], succeeded: 1, failed: 1}
+      assert Enum.sum_by(r.per_day, &(&1.succeeded + &1.failed)) == 4
+    end
+
+    test "days are the board's, in its timezone", %{board: board} do
+      # 03:00 UTC on the 19th is 23:00 on the 18th in New York.
+      deploy!(board, 9)
+
+      ny = report!(board, days: 7, timezone: "America/New_York")
+      assert Enum.find(ny.per_day, &(&1.date == ~D[2026-10-18])).succeeded == 1
+      assert Enum.find(ny.per_day, &(&1.date == ~D[2026-10-19])).succeeded == 0
+
+      utc = report!(board, days: 7, timezone: "Etc/UTC")
+      assert Enum.find(utc.per_day, &(&1.date == ~D[2026-10-19])).succeeded == 1
+    end
+
+    test "per_day follows the days clamp", %{board: board} do
+      assert length(report!(board, days: 0).per_day) == 1
+      assert length(report!(board, days: 10_000).per_day) == 365
+    end
+
+    test "commits per deploy is over succeeded deploys", %{board: board} do
+      deploy!(board, 5, %{commits: [commit(6), commit(7), commit(8)]})
+      deploy!(board, 3, %{commits: [commit(4)]})
+      deploy!(board, 2, %{status: "failed", commits: [commit(3), commit(3)]})
+      assert report!(board).commits_per_deploy == 2.0
+    end
+  end
+
   test "with no production, the environment deployed to most", %{board: board} do
     deploy!(board, 4, %{environment: "live"})
     deploy!(board, 3, %{environment: "live"})
