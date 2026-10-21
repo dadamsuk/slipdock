@@ -461,6 +461,240 @@ defmodule SlipdockWeb.BoardLive.VisualiseComponents do
     """
   end
 
+  ## Agentic runners ----------------------------------------------------------
+
+  attr :board, :any, required: true
+  attr :stats, :map, required: true, doc: "from Slipdock.RunnerStats.for_board/2"
+
+  @doc "A card per runner taking work from the board, then its recent jobs."
+  def runners_section(assigns) do
+    jobs = assigns.stats.recent_jobs
+    longest = jobs |> Enum.map(&(&1.duration || 0)) |> Enum.max(fn -> 0 end)
+    assigns = assign(assigns, jobs: jobs, longest: max(longest, 1))
+
+    ~H"""
+    <.section id="runners" title="Agentic runners" note={"Last #{@stats.days} days"}>
+      <p :if={@stats.runners == []} id="runners-empty" class="text-sm text-base-content/60">
+        No runners take work from this board. <.link
+          navigate={~p"/boards/#{@board}/automations"}
+          class="link"
+        >Set one up in Automations</.link>.
+      </p>
+      <div :if={@stats.runners != []} class="flex flex-wrap items-start gap-4">
+        <.runner_card :for={r <- @stats.runners} runner={r} />
+        <div class="min-w-0 flex-[2_1_28rem]">
+          <h3 class="mb-2 text-sm font-semibold">Recent jobs</h3>
+          <p :if={@jobs == []} id="jobs-empty" class="text-sm text-base-content/60">No jobs yet.</p>
+          <div :if={@jobs != []} class="overflow-x-auto">
+            <table id="recent-jobs" class="w-full min-w-[32rem] text-sm">
+              <thead class="text-left text-2xs uppercase tracking-wide text-base-content/60">
+                <tr>
+                  <th class="py-1 pr-2 font-medium">Job</th>
+                  <th class="py-1 pr-2 font-medium">Card</th>
+                  <th class="py-1 pr-2 font-medium">Outcome</th>
+                  <th class="py-1 font-medium">Duration</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-base-content/5">
+                <tr :for={j <- @jobs} id={"job-#{j.job_id}"}>
+                  <td class="py-1.5 pr-2 font-mono text-xs">#{j.job_id}</td>
+                  <td class="max-w-56 py-1.5 pr-2">
+                    <.link
+                      navigate={~p"/boards/#{j.board_id}/cards/#{j.card_id}"}
+                      class="block truncate hover:underline"
+                      title={j.title}
+                    >
+                      {j.title || "card ##{j.card_id}"}
+                    </.link>
+                  </td>
+                  <td class="py-1.5 pr-2"><.outcome_chip job={j} /></td>
+                  <td class="py-1.5">
+                    <div class="flex items-center gap-2">
+                      <span
+                        class="h-1.5 w-24 overflow-hidden rounded-full bg-base-content/10"
+                        aria-hidden="true"
+                      >
+                        <span
+                          class={["block h-full rounded-full", outcome_bar(j.outcome)]}
+                          style={"width: #{round((j.duration || 0) / @longest * 100)}%"}
+                        ></span>
+                      </span>
+                      <span class="text-xs tabular-nums text-base-content/70">{duration(j.duration)}</span>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </.section>
+    """
+  end
+
+  attr :runner, :map, required: true
+
+  defp runner_card(assigns) do
+    r = assigns.runner
+    o = r.outcomes
+    total = o.done + o.parked + o.failed + o.running
+
+    assigns =
+      assign(assigns,
+        r: r,
+        o: o,
+        total: total,
+        segments: segments(o, total)
+      )
+
+    ~H"""
+    <div
+      id={"runner-#{@r.id}"}
+      data-status={@r.status}
+      class="flex min-w-0 flex-[1_1_18rem] flex-col gap-3 rounded-box bg-base-200/60 p-3"
+    >
+      <div class="flex items-center gap-2">
+        <.icon
+          name={if @r.kind == "session", do: "hero-chat-bubble-left-right", else: "hero-cpu-chip"}
+          class="size-5 shrink-0 text-base-content/60"
+        />
+        <div class="min-w-0 flex-1">
+          <div class="truncate text-sm font-semibold">{@r.name}</div>
+          <div class="text-2xs text-base-content/60">
+            {if @r.kind == "session", do: "Claude session", else: "Runner"} · pool {@r.pool}
+          </div>
+        </div>
+        <.chip :if={@r.status == "running"} tone={:primary} id={"runner-#{@r.id}-status"}>
+          <span class="size-1.5 rounded-full bg-primary"></span> Running
+        </.chip>
+        <span
+          :if={@r.status == "idle"}
+          id={"runner-#{@r.id}-status"}
+          class="rounded-full px-2 py-0.5 text-2xs font-medium ring-1 ring-base-content/20"
+        >
+          Idle
+        </span>
+        <.chip :if={@r.status == "offline"} id={"runner-#{@r.id}-status"} class="text-base-content/50">
+          Offline
+        </.chip>
+      </div>
+
+      <div
+        :if={@r.current}
+        id={"runner-#{@r.id}-current"}
+        class="space-y-1.5 rounded-box bg-base-300/60 p-2.5"
+      >
+        <div class="text-2xs font-mono text-base-content/60">
+          Job #{@r.current.job_id} · card #{@r.current.card_id}
+        </div>
+        <.link
+          navigate={~p"/boards/#{@r.current.board_id}/cards/#{@r.current.card_id}"}
+          class="block truncate text-sm font-medium hover:underline"
+        >
+          {@r.current.title}
+        </.link>
+        <div class="h-1.5 overflow-hidden rounded-full bg-base-content/10" aria-hidden="true">
+          <div
+            class="h-full rounded-full bg-primary"
+            style={"width: #{elapsed_fill(@r.current.elapsed, @r.duration.p50)}%"}
+          >
+          </div>
+        </div>
+        <div class="text-2xs tabular-nums text-base-content/60">
+          {duration(@r.current.elapsed)} elapsed · median job {duration(@r.duration.p50)}
+        </div>
+      </div>
+
+      <dl class="grid grid-cols-2 gap-2 text-xs">
+        <div>
+          <dt class="text-2xs text-base-content/60">Queue wait P50</dt>
+          <dd class="font-semibold tabular-nums">{duration(@r.queue_wait.p50)}</dd>
+        </div>
+        <div>
+          <dt class="text-2xs text-base-content/60">Job success</dt>
+          <dd class="font-semibold tabular-nums" id={"runner-#{@r.id}-success"}>
+            {if @r.success_rate, do: "#{round(@r.success_rate * 100)}%", else: "–"}
+          </dd>
+        </div>
+        <div>
+          <dt class="text-2xs text-base-content/60">Human waits</dt>
+          <dd class="tabular-nums">
+            <span class="font-semibold">{@r.waits.opened}</span>
+            <span :if={@r.waits.answer.p50} class="text-base-content/60">
+              · answered in {duration(@r.waits.answer.p50)}
+            </span>
+          </dd>
+        </div>
+        <div>
+          <dt class="text-2xs text-base-content/60">Cards reopened</dt>
+          <dd class="tabular-nums">
+            <span class="font-semibold">{@r.reopened.count}</span>
+            <span :if={@r.reopened.card_ids != []} class="font-mono text-2xs text-base-content/60">
+              {@r.reopened.card_ids |> Enum.uniq() |> Enum.map_join(" ", &"##{&1}")}
+            </span>
+          </dd>
+        </div>
+      </dl>
+
+      <div>
+        <div
+          id={"runner-#{@r.id}-outcomes"}
+          class="flex h-2 overflow-hidden rounded-full bg-base-content/10"
+          role="img"
+          aria-label={"Outcomes: #{@o.done} done, #{@o.parked} parked, #{@o.failed} failed, #{@o.running} running"}
+        >
+          <div
+            :for={{key, tone, width} <- @segments}
+            class={["h-full", tone]}
+            style={"width: #{Float.round(width / 1, 2)}%"}
+            data-outcome={key}
+          >
+          </div>
+        </div>
+        <div class="mt-1 flex flex-wrap gap-x-3 text-2xs tabular-nums text-base-content/70">
+          <span>{@o.done} done</span>
+          <span>{@o.parked} parked</span>
+          <span>{@o.failed} failed</span>
+          <span>{@o.running} running</span>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  # The outcome bar's pieces, left to right; a zero takes no room.
+  defp segments(o, total) do
+    tones = [done: "bg-success", parked: "bg-warning", failed: "bg-error", running: "bg-primary"]
+
+    for {key, tone} <- tones, Map.fetch!(o, key) > 0 do
+      {key, tone, Map.fetch!(o, key) / max(total, 1) * 100}
+    end
+  end
+
+  defp elapsed_fill(_elapsed, nil), do: 0
+  defp elapsed_fill(_elapsed, 0), do: 100
+  defp elapsed_fill(elapsed, median), do: round(min(elapsed / median, 1) * 100)
+
+  attr :job, :map, required: true
+
+  defp outcome_chip(assigns) do
+    ~H"""
+    <.chip :if={@job.outcome == "done"} tone={:success}>Done</.chip>
+    <.chip :if={@job.outcome == "parked"} tone={:warning} title={@job.reason}>
+      <span class="max-w-40 truncate">Parked{if @job.reason, do: ": #{@job.reason}"}</span>
+    </.chip>
+    <.chip :if={@job.outcome == "failed"} tone={:error} title={@job.reason}>Failed</.chip>
+    <.chip :if={@job.outcome == "running"} tone={:primary}>Running</.chip>
+    <.chip :if={@job.outcome == "cancelled"}>Cancelled</.chip>
+    """
+  end
+
+  defp outcome_bar("done"), do: "bg-success"
+  defp outcome_bar("parked"), do: "bg-warning"
+  defp outcome_bar("failed"), do: "bg-error"
+  defp outcome_bar("running"), do: "bg-primary"
+  defp outcome_bar(_), do: "bg-base-content/40"
+
   @doc false
   def plural(1, word), do: word
   def plural(_, word), do: word <> "s"
