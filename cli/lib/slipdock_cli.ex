@@ -177,6 +177,9 @@ defmodule SlipdockCLI do
     callbacks <board> [--limit N]       the calls the board's rules have made, and what came back
     alerts                              alerts automation rules have raised for you
     runners <board>                     the runners taking jobs from the board's tree (owner only)
+    runner-stats <board> [--days 7|30|90]  how the board's runners are doing: status, outcomes,
+                                        job time, queue wait, waits on people, reopened cards
+                                        and the last 12 jobs
     jobs <board> [--status S] [--limit N]   jobs the board's rules sent to runners, newest first
                                         (S: open, queued, claimed, running, done, failed, cancelled, timeout)
     jobs --card ID                      one card's jobs
