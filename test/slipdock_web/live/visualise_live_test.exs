@@ -338,6 +338,79 @@ defmodule SlipdockWeb.VisualiseLiveTest do
     end
   end
 
+  describe "work mix (#1192)" do
+    setup ctx do
+      {:ok, bug} = Boards.create_tag(ctx.board, %{"name" => "bug", "color" => "rose"})
+      {:ok, feat} = Boards.create_tag(ctx.board, %{"name" => "feature", "color" => "sky"})
+      {:ok, docs} = Boards.create_tag(ctx.board, %{"name" => "docs"})
+      %{bug: bug, feat: feat, docs: docs}
+    end
+
+    defp done_card(ctx, tags, attrs \\ %{}) do
+      c = card_fixture(ctx.done, attrs)
+      Boards.set_card_tags(c, tags)
+      c
+    end
+
+    test "each tag counted on every done card carrying it, most first, unused last",
+         %{conn: conn} = ctx do
+      done_card(ctx, [ctx.bug, ctx.feat])
+      done_card(ctx, [ctx.bug])
+      done_card(ctx, [ctx.bug])
+      done_card(ctx, [ctx.feat])
+      # Open work is not in the mix.
+      c = card_fixture(ctx.doing)
+      Boards.set_card_tags(c, [ctx.docs])
+
+      {:ok, view, html} = live(conn, ~p"/boards/#{ctx.board}/visualise")
+      order = Regex.scan(~r/id="mix-tag-(\d+)"/, html) |> Enum.map(fn [_, id] -> id end)
+      assert order == Enum.map([ctx.bug, ctx.feat, ctx.docs], &to_string(&1.id))
+      assert has_element?(view, "#mix-tag-#{ctx.bug.id} [data-count]", "3")
+      assert has_element?(view, "#mix-tag-#{ctx.feat.id} [data-count]", "2")
+      assert has_element?(view, "#mix-tag-#{ctx.docs.id} [data-count]", "0")
+      refute has_element?(view, "#mix-untagged")
+    end
+
+    test "untagged done cards are named as a floor on the mix", %{conn: conn} = ctx do
+      done_card(ctx, [ctx.bug])
+      done_card(ctx, [])
+      done_card(ctx, [])
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{ctx.board}/visualise")
+      assert has_element?(view, "#mix-untagged", "2 of 3 done cards carry no tag")
+    end
+
+    test "archived done cards count only when completed in the window", %{conn: conn} = ctx do
+      recent = done_card(ctx, [ctx.bug])
+      old = done_card(ctx, [ctx.bug])
+      long_ago = DateTime.add(DateTime.utc_now(:second), -20 * 86_400)
+
+      Repo.update_all(from(c in Slipdock.Boards.Card, where: c.id in ^[recent.id, old.id]),
+        set: [
+          archived_at: DateTime.utc_now(:second),
+          completed: true,
+          completed_at: DateTime.utc_now(:second)
+        ]
+      )
+
+      Repo.update_all(from(c in Slipdock.Boards.Card, where: c.id == ^old.id),
+        set: [completed_at: long_ago]
+      )
+
+      {:ok, view, _} = live(conn, ~p"/boards/#{ctx.board}/visualise")
+      assert has_element?(view, "#mix-tag-#{ctx.bug.id} [data-count]", "2")
+
+      view |> element("#window-7") |> render_click()
+      assert has_element?(view, "#mix-tag-#{ctx.bug.id} [data-count]", "1")
+      assert has_element?(view, "#mix", "archived ones from the last 7 days")
+    end
+  end
+
+  test "a board with no tags says so", %{conn: conn, board: board} do
+    {:ok, view, _} = live(conn, ~p"/boards/#{board}/visualise")
+    assert has_element?(view, "#mix-empty", "no tags yet")
+  end
+
   defp backdate(card, seconds) do
     at = DateTime.add(DateTime.utc_now(), -seconds, :second)
 
