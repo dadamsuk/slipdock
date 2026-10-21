@@ -328,6 +328,8 @@ defmodule SlipdockWeb.Router do
       # A board's meetings (see `Slipdock.Meetings`): only while an admin has
       # meeting mode on, which each page checks for itself as it mounts.
       live "/boards/:id/tidy", GardenLive.Index, :index
+      # A board's flow, velocity, runners and delivery on one page (#1185).
+      live "/boards/:id/visualise", BoardLive.Visualise, :index
       live "/boards/:id/meetings", MeetingLive.Index, :index
       live "/boards/:id/meetings/new", MeetingLive.New, :new
       live "/boards/:id/meetings/:capture_id", MeetingLive.Show, :show
