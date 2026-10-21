@@ -695,6 +695,296 @@ defmodule SlipdockWeb.BoardLive.VisualiseComponents do
   defp outcome_bar("running"), do: "bg-primary"
   defp outcome_bar(_), do: "bg-base-content/40"
 
+  ## Delivery (DORA) -----------------------------------------------------------
+
+  @bands ~w(low medium high elite)
+
+  attr :board, :any, required: true
+  attr :dora, :map, default: nil, doc: "the report; nil while delivery metrics are off"
+
+  attr :cycle_p50, :integer,
+    default: nil,
+    doc: "Pulse's start-to-done P50, for idea to production"
+
+  @doc """
+  The board's delivery numbers over DORA's own 30 days: four metric cards
+  with their band, deploys per day, and idea to production in its parts.
+  While delivery metrics are off, the nudge to turn them on instead.
+  """
+  def dora_section(%{dora: nil} = assigns) do
+    ~H"""
+    <.section id="dora" title="Delivery (DORA)">
+      <p id="dora-off" class="text-sm text-base-content/70">
+        Delivery metrics are off for this board. Turn them on in the
+        <.link navigate={~p"/boards/#{@board}/settings"} class="link">board's settings</.link>
+        (Delivery metrics), or with <code class="font-mono text-xs">slipdock set-board {@board.code} --delivery-metrics</code>,
+        and record deploys from CI to see deployment frequency, lead time, change failure rate
+        and time to restore here.
+      </p>
+    </.section>
+    """
+  end
+
+  def dora_section(assigns) do
+    d = assigns.dora
+    prev = d.previous.deployment_frequency.deploys
+
+    assigns =
+      assign(assigns,
+        d: d,
+        compare: prev > 0,
+        note:
+          "#{d.environment} · #{Calendar.strftime(d.since, "%-d %b")} to " <>
+            "#{Calendar.strftime(d.until, "%-d %b")} (#{d.days} days)" <>
+            if(prev > 0,
+              do: "",
+              else: " · no deploys recorded in the #{d.days} days before, so no comparison yet"
+            ),
+        shipped:
+          d.commits_per_deploy && round(d.commits_per_deploy * d.deployment_frequency.deploys)
+      )
+
+    ~H"""
+    <.section id="dora" title="Delivery (DORA)" note={@note}>
+      <:aside>
+        <span
+          :if={@d.last_deploy}
+          id="dora-last-deploy"
+          class="rounded-full bg-base-200 px-2 py-0.5 font-mono text-2xs text-base-content/70"
+        >
+          Last deploy {@d.last_deploy.tag || String.slice(@d.last_deploy.sha || "", 0, 7)} · {Calendar.strftime(
+            @d.last_deploy.at,
+            "%-d %b %H:%M"
+          )}
+        </span>
+      </:aside>
+      <p :if={!@d.last_deploy} id="dora-no-deploys" class="text-sm text-base-content/70">
+        Delivery metrics are on: no deploys recorded yet. Wrap your deploy step in CI with
+        <code class="font-mono text-xs">slipdock deploy run</code>
+        (board settings → Delivery metrics shows how).
+      </p>
+      <div :if={@d.last_deploy} class="space-y-4">
+        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <.metric
+            id="dora-frequency"
+            label="Deployment frequency"
+            value={"#{@d.deployment_frequency.per_day} a day"}
+            detail={"#{@d.deployment_frequency.deploys} #{plural(@d.deployment_frequency.deploys, "deploy")} · #{@d.deployment_frequency.per_week} a week"}
+            trend={
+              @compare &&
+                trend(@d.deployment_frequency.deploys, @d.previous.deployment_frequency.deploys)
+            }
+            band={@d.deployment_frequency.band}
+            target="Elite: at least once a day"
+          />
+          <.metric
+            id="dora-lead-time"
+            label="Lead time for changes"
+            value={duration(@d.lead_time.p50)}
+            detail={"P85 #{duration(@d.lead_time.p85)} · #{@d.lead_time.commits} #{plural(@d.lead_time.commits, "commit")}"}
+            trend={@compare && trend(@d.lead_time.p50, @d.previous.lead_time.p50, &duration/1)}
+            band={@d.lead_time.band}
+            target="Elite: under a day"
+          />
+          <.metric
+            id="dora-cfr"
+            label="Change failure rate"
+            value={
+              if @d.change_failure_rate.rate,
+                do: "#{round(@d.change_failure_rate.rate * 100)}%",
+                else: "–"
+            }
+            detail={"#{@d.change_failure_rate.failed} failed of #{@d.change_failure_rate.deploys} #{plural(@d.change_failure_rate.deploys, "deploy")}"}
+            trend={
+              @compare &&
+                trend(
+                  @d.change_failure_rate.rate,
+                  @d.previous.change_failure_rate.rate,
+                  &"#{round(&1 * 100)}%"
+                )
+            }
+            band={@d.change_failure_rate.band}
+            target="Elite: 5% or less"
+          />
+          <.metric
+            :if={@d.time_to_restore.restores > 0}
+            id="dora-restore"
+            label="Time to restore"
+            value={duration(@d.time_to_restore.p50)}
+            detail={"P85 #{duration(@d.time_to_restore.p85)} · #{@d.time_to_restore.restores} #{plural(@d.time_to_restore.restores, "restore")}"}
+            trend={
+              @compare && trend(@d.time_to_restore.p50, @d.previous.time_to_restore.p50, &duration/1)
+            }
+            band={@d.time_to_restore.band}
+            target="Elite: under an hour"
+          />
+          <.metric
+            :if={@d.time_to_restore.restores == 0}
+            id="dora-restore"
+            label="Time to restore"
+            value="n/a"
+            detail="No restores in this window"
+            unscored="No incidents"
+            target="Scored after the first incident."
+          />
+        </div>
+
+        <div class="grid gap-4 lg:grid-cols-2">
+          <SlipdockWeb.BoardLive.VisualiseCharts.deploys_chart dora={@d} />
+          <.idea_to_production d={@d} cycle_p50={@cycle_p50} shipped={@shipped} />
+        </div>
+      </div>
+    </.section>
+    """
+  end
+
+  # ↑ or ↓ against the window before, with what it was; the arrow says which
+  # way it moved, not whether that is good.
+  defp trend(now, before, show \\ &to_string/1)
+  defp trend(nil, _before, _show), do: nil
+  defp trend(_now, nil, _show), do: nil
+  defp trend(same, same, _show), do: "same as before"
+  defp trend(now, before, show) when now > before, do: "↑ from #{show.(before)}"
+  defp trend(_now, before, show), do: "↓ from #{show.(before)}"
+
+  attr :id, :string, required: true
+  attr :label, :string, required: true
+  attr :value, :string, required: true
+  attr :detail, :string, required: true
+  attr :trend, :any, default: nil
+  attr :band, :string, default: nil
+  attr :unscored, :string, default: "Not scored yet"
+  attr :target, :string, required: true
+
+  defp metric(assigns) do
+    level = if assigns.band, do: Enum.find_index(@bands, &(&1 == assigns.band)) + 1, else: 0
+    assigns = assign(assigns, level: level, bands: @bands)
+
+    ~H"""
+    <div
+      id={@id}
+      data-band={@band || "none"}
+      class="flex min-w-0 flex-col gap-2 rounded-box bg-base-200/60 p-3"
+    >
+      <div class="flex items-start justify-between gap-2">
+        <div class="text-2xs font-medium uppercase tracking-wide text-base-content/60">{@label}</div>
+        <span
+          :if={@band}
+          class={[
+            "badge badge-xs badge-soft font-medium",
+            SlipdockWeb.BoardLive.BoardView.dora_band_class(@band)
+          ]}
+          title={"DORA band: #{@band}"}
+        >
+          {String.capitalize(@band)}
+        </span>
+        <.chip :if={!@band}>{@unscored}</.chip>
+      </div>
+      <div class="text-2xl font-semibold tabular-nums" data-value>{@value}</div>
+      <div class="text-xs tabular-nums text-base-content/60">
+        {@detail}<span :if={@trend} class="text-base-content/50"> · {@trend}</span>
+      </div>
+      <div>
+        <div class="grid grid-cols-4 gap-0.5" role="img" aria-label={scale_label(@band)}>
+          <span
+            :for={{band, i} <- Enum.with_index(@bands, 1)}
+            class={[
+              "h-1.5 first:rounded-l-full last:rounded-r-full",
+              if(i <= @level, do: scale_fill(@band), else: "bg-base-content/10")
+            ]}
+            data-filled={to_string(i <= @level)}
+            data-scale={band}
+          ></span>
+        </div>
+        <div class="mt-0.5 grid grid-cols-4 text-2xs text-base-content/50">
+          <span>Low</span><span>Medium</span><span>High</span><span>Elite</span>
+        </div>
+      </div>
+      <div class="text-2xs text-base-content/60">{@target}</div>
+    </div>
+    """
+  end
+
+  defp scale_label(nil), do: "Not scored on the Low to Elite scale"
+  defp scale_label(band), do: "#{String.capitalize(band)} on the Low, Medium, High, Elite scale"
+
+  defp scale_fill("elite"), do: "bg-success"
+  defp scale_fill("high"), do: "bg-info"
+  defp scale_fill("medium"), do: "bg-warning"
+  defp scale_fill(_), do: "bg-error"
+
+  attr :d, :map, required: true
+  attr :cycle_p50, :integer, default: nil
+  attr :shipped, :integer, default: nil
+
+  defp idea_to_production(assigns) do
+    d = assigns.d
+
+    rows = [
+      {"commit-deploy", "Commit to deploy", d.lead_time.p50},
+      {"start-done", "Start to done", assigns.cycle_p50},
+      {"card-production", "Card to production", d.idea_to_production.p50}
+    ]
+
+    top = rows |> Enum.map(&(elem(&1, 2) || 0)) |> Enum.max() |> max(1)
+    assigns = assign(assigns, rows: rows, top: top)
+
+    ~H"""
+    <div
+      id="idea-to-production"
+      class="flex min-w-0 flex-col gap-3 rounded-box bg-base-100 p-4 shadow-sm sm:p-5"
+    >
+      <div>
+        <h3 class="text-base font-semibold">From idea to production</h3>
+        <p class="text-xs text-base-content/60">Medians on one scale.</p>
+      </div>
+      <ul class="space-y-2">
+        <li
+          :for={{key, label, secs} <- @rows}
+          id={"itp-#{key}"}
+          class="grid grid-cols-[8rem_1fr_4.5rem] items-center gap-2 text-sm"
+        >
+          <span class="truncate text-xs">{label}</span>
+          <span class="h-2 overflow-hidden rounded-full bg-base-content/10" aria-hidden="true">
+            <span
+              class="block h-full rounded-full bg-primary/70"
+              style={"width: #{round((secs || 0) / @top * 100)}%"}
+            ></span>
+          </span>
+          <span class="text-right text-xs tabular-nums">{duration(secs)}</span>
+        </li>
+      </ul>
+      <p class="text-2xs text-base-content/60">
+        Card to production covers {@d.idea_to_production.cards} {plural(
+          @d.idea_to_production.cards,
+          "card"
+        )} first shipped in the window{if @d.idea_to_production.from_created > 0,
+          do: ", #{@d.idea_to_production.from_created} counted from when made"}; start to done is the board's cycle time over 90 days.
+      </p>
+      <dl class="grid grid-cols-2 gap-3 border-t border-base-content/10 pt-3 text-xs">
+        <div id="dora-rework">
+          <dt class="text-2xs text-base-content/60">Rework rate</dt>
+          <dd>
+            <span class="font-semibold tabular-nums">
+              {if @d.rework_rate.rate, do: "#{round(@d.rework_rate.rate * 100)}%", else: "–"}
+            </span>
+            <span class="text-base-content/60">{@d.rework_rate.rework} of {@d.rework_rate.deploys} deploys</span>
+          </dd>
+        </div>
+        <div id="dora-commits">
+          <dt class="text-2xs text-base-content/60">Commits shipped</dt>
+          <dd>
+            <span class="font-semibold tabular-nums">{@shipped || 0}</span>
+            <span :if={@d.commits_per_deploy} class="text-base-content/60">
+              {@d.commits_per_deploy} a deploy
+            </span>
+          </dd>
+        </div>
+      </dl>
+    </div>
+    """
+  end
+
   @doc false
   def plural(1, word), do: word
   def plural(_, word), do: word <> "s"

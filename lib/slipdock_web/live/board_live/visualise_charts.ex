@@ -328,6 +328,85 @@ defmodule SlipdockWeb.BoardLive.VisualiseCharts do
     """
   end
 
+  attr :dora, :map, required: true, doc: "a Slipdock.Dora report, with `per_day`"
+
+  @doc "Deploys per day over DORA's window: succeeded bars, failures stacked on top."
+  def deploys_chart(assigns) do
+    days = assigns.dora.per_day
+    n = length(days)
+    succeeded = Enum.sum_by(days, & &1.succeeded)
+    failed = Enum.sum_by(days, & &1.failed)
+    {top, ticks} = ticks(Enum.max(Enum.map(days, &(&1.succeeded + &1.failed)), fn -> 0 end))
+    bar = min(@w / max(n, 1) * 0.6, 24)
+
+    assigns =
+      assign(assigns,
+        empty: succeeded + failed == 0,
+        succeeded: succeeded,
+        failed: failed,
+        bar: Float.round(bar / 1, 1),
+        bars:
+          for {d, i} <- Enum.with_index(days), d.succeeded + d.failed > 0 do
+            ok_y = y(d.succeeded, top)
+            all_y = y(d.succeeded + d.failed, top)
+
+            %{
+              x: Float.round(x(i, n) - bar / 2, 1),
+              ok_y: ok_y,
+              ok_h: Float.round(@h - ok_y, 1),
+              fail_y: all_y,
+              fail_h: Float.round(ok_y - all_y, 1),
+              date: d.date,
+              d: d
+            }
+          end,
+        yticks: yticks(ticks, top),
+        dates: date_labels(Enum.map(days, & &1.date)),
+        label:
+          "Deploys per day: #{succeeded + failed} deploys, #{succeeded} succeeded, #{failed} failed"
+      )
+
+    ~H"""
+    <.chart
+      id="chart-deploys"
+      title="Deploys per day"
+      explain="Finished deploys each day; failed ones (failed, rolled back or causing an incident) stacked on top."
+      empty={if @empty, do: "No deploys in this window."}
+      label={@label}
+      yticks={@yticks}
+      dates={@dates}
+    >
+      <:legend>
+        <.key class="bg-success/70">{@succeeded + @failed} deploys, {@succeeded} succeeded</.key>
+        <.key class="bg-error/70">{@failed} failed</.key>
+      </:legend>
+      <g :for={b <- @bars}>
+        <rect
+          x={b.x}
+          y={b.ok_y}
+          width={@bar}
+          height={b.ok_h}
+          class="fill-success/70"
+          data-day={b.date}
+        >
+          <title>
+            {Calendar.strftime(b.date, "%-d %b")}: {b.d.succeeded} succeeded, {b.d.failed} failed
+          </title>
+        </rect>
+        <rect
+          :if={b.fail_h > 0}
+          x={b.x}
+          y={b.fail_y}
+          width={@bar}
+          height={b.fail_h}
+          class="fill-error/70"
+          data-failed={b.date}
+        />
+      </g>
+    </.chart>
+    """
+  end
+
   attr :history, :map, required: true
 
   def velocity(assigns) do
