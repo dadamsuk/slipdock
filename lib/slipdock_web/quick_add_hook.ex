@@ -9,11 +9,17 @@ defmodule SlipdockWeb.QuickAddHook do
 
   The line itself is read and written by `Slipdock.QuickAdd.Capture`, in a
   task, so the model's half-second never holds the page up.
+
+  The links a person pinned to the header (#1205, `Slipdock.HeaderLinks`)
+  sit just left of the box and travel in the same assign, as `:links`, since
+  every page already hands `:quick_add` to the layout. Anything that changes
+  them sends `:header_links_changed` to the page, and this redraws them.
   """
 
   import Phoenix.Component
   import Phoenix.LiveView
 
+  alias Slipdock.HeaderLinks
   alias Slipdock.QuickAdd.Capture
 
   @empty %{
@@ -24,15 +30,17 @@ defmodule SlipdockWeb.QuickAddHook do
     result: nil,
     error: nil,
     destination: nil,
-    ai?: false
+    ai?: false,
+    links: []
   }
 
   def on_mount(:default, _params, _session, socket) do
     socket =
       socket
-      |> assign(quick_add: @empty)
+      |> assign(quick_add: %{@empty | links: HeaderLinks.list(socket.assigns[:current_user])})
       |> attach_hook(:quick_add_events, :handle_event, &handle_event/3)
       |> attach_hook(:quick_add_async, :handle_async, &handle_async/3)
+      |> attach_hook(:header_links, :handle_info, &handle_info/2)
 
     {:cont, socket}
   end
@@ -41,7 +49,7 @@ defmodule SlipdockWeb.QuickAddHook do
     quick_add = socket.assigns.quick_add
 
     if quick_add.open? do
-      {:halt, put(socket, %{@empty | form_key: quick_add.form_key})}
+      {:halt, put(socket, %{@empty | form_key: quick_add.form_key, links: quick_add.links})}
     else
       {:halt, put(socket, %{quick_add | open?: true, error: nil} |> Map.merge(where_to(socket)))}
     end
@@ -96,6 +104,13 @@ defmodule SlipdockWeb.QuickAddHook do
   end
 
   defp handle_async(_name, _result, socket), do: {:cont, socket}
+
+  defp handle_info(:header_links_changed, socket) do
+    links = HeaderLinks.list(socket.assigns[:current_user])
+    {:halt, put(socket, %{socket.assigns.quick_add | links: links})}
+  end
+
+  defp handle_info(_message, socket), do: {:cont, socket}
 
   # Where the next card would land, for the box's own placeholder.
   defp where_to(socket) do

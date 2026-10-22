@@ -552,6 +552,11 @@ defmodule SlipdockWeb.Router do
     # The caller's own board hotkeys, Ctrl+Shift+a digit (see `Slipdock.Hotkeys`).
     get "/hotkeys", HotkeyController, :index
     put "/boards/:board/hotkey", HotkeyController, :update
+    # The caller's own header links, left of quick add (see `Slipdock.HeaderLinks`).
+    get "/header-links", HeaderLinkController, :index
+    post "/header-links", HeaderLinkController, :create
+    patch "/header-links/:id", HeaderLinkController, :update
+    delete "/header-links/:id", HeaderLinkController, :delete
     get "/templates", TemplateController, :index
     post "/templates", TemplateController, :create
     get "/templates/:id", TemplateController, :show

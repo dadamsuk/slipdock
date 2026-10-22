@@ -199,6 +199,12 @@ defmodule SlipdockCLI do
     unfav <same args>                   stop favouriting it (or `fav ... --off`)
     hotkeys                             your board hotkeys: Ctrl+Shift+a digit in the web app
     hotkey <board> <0-9|none>           give a board a digit (it leaves any other board), or none
+    header                              your header links: boards and vaults pinned left of
+                                        quick add in the web app, and the icons they can wear
+    header add board|vault <ref> --icon NAME
+                                        pin one (again: change its icon); up to 8
+    header rm <id>                      unpin one
+    header move <id> left|right         move one a place along
 
   WIKI  (Markdown pages on a board: how it works, what was decided and why.
          A page answers to its code — W-31 — its slug, or board/slug.)

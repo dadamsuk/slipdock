@@ -10,7 +10,7 @@ defmodule SlipdockCLI.Boards do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(guide work search ask search-status saved save unsave boards board columns tags activity pulse flow cards card swimlanes views favourites fav unfav hotkeys hotkey table fields milestones templates add copy repeat recurring snooze wake edit set vote status handoff timeline wait answer new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
+  @commands ~w(guide work search ask search-status saved save unsave boards board columns tags activity pulse flow cards card swimlanes views favourites fav unfav hotkeys hotkey header table fields milestones templates add copy repeat recurring snooze wake edit set vote status handoff timeline wait answer new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -190,6 +190,41 @@ defmodule SlipdockCLI.Boards do
 
   def run("hotkey", _args, _o),
     do: fail("usage: slipdock hotkey <board> <0-9|none>")
+
+  ## Header links -----------------------------------------------------------
+  #
+  # Boards and vaults pinned to the web app's header, left of quick add, each
+  # as an icon (#1205). The token holder's own, like hotkeys.
+
+  @header_usage "usage: slipdock header [add board|vault <ref> --icon NAME | rm <id> | move <id> left|right]"
+
+  def run("header", [], o),
+    do: HTTP.get("/header-links") |> out(o, &Render.header_links/1)
+
+  def run("header", ["add", kind, ref], o) when kind in ["board", "vault"] do
+    unless o[:icon], do: fail("--icon is required (slipdock header lists the icons)")
+
+    HTTP.post("/header-links", %{kind => ref, "icon" => o[:icon]})
+    |> out(o, fn r ->
+      link = r["header_link"]
+
+      IO.puts(
+        "pinned #{(link["board"] || link["vault"])["name"]} to the header as #{link["icon"]}"
+      )
+    end)
+  end
+
+  def run("header", ["rm", id], o) do
+    HTTP.delete("/header-links/#{enc(id)}")
+    |> out(o, fn _ -> IO.puts("header link #{id} removed") end)
+  end
+
+  def run("header", ["move", id, direction], o) when direction in ["left", "right"] do
+    HTTP.patch("/header-links/#{enc(id)}", %{"move" => direction})
+    |> out(o, &Render.header_links/1)
+  end
+
+  def run("header", _args, _o), do: fail(@header_usage)
 
   def run("table", [ref], o) do
     query = view_query(o) |> Keyword.put(:cols, "none")
