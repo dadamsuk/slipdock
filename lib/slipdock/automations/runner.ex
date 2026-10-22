@@ -428,6 +428,36 @@ defmodule Slipdock.Automations.Runner do
   defp do_perform("set_priority", action, ctx),
     do: set_fields(ctx, %{"priority" => to_string(action["priority"])}, "set priority")
 
+  # Cover and edges in one write (#1210): "none" takes one off, and a named
+  # edge wins over `border`, which sets all four.
+  defp do_perform("set_colours", action, ctx) do
+    colour = fn
+      "none" -> nil
+      c -> c
+    end
+
+    edges = Slipdock.Boards.Card.borders() |> Enum.map(&to_string/1)
+
+    attrs =
+      %{}
+      |> then(
+        &if(Map.has_key?(action, "cover"),
+          do: Map.put(&1, "color", colour.(action["cover"])),
+          else: &1
+        )
+      )
+      |> then(fn attrs ->
+        if Map.has_key?(action, "border"),
+          do: Enum.reduce(edges, attrs, &Map.put(&2, &1, colour.(action["border"]))),
+          else: attrs
+      end)
+      |> Map.merge(
+        for(e <- edges, Map.has_key?(action, e), into: %{}, do: {e, colour.(action[e])})
+      )
+
+    set_fields(ctx, attrs, "coloured it")
+  end
+
   defp do_perform("complete_card", _action, ctx),
     do: set_fields(ctx, %{"completed" => true}, "completed")
 

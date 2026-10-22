@@ -85,6 +85,11 @@ defmodule Slipdock.Automations.Spec do
      "raise a dismissable alert in the header bar (severity: info, warning, urgent)"},
     {"move_card", ["column"], [], "move the card to another list"},
     {"set_priority", ["priority"], [], "set the priority (none, low, medium, high, critical)"},
+    {"set_colours", [],
+     ["cover", "border", "border_top", "border_right", "border_bottom", "border_left"],
+     "colour the card (#1210): cover and each edge take a palette colour (slate, red, orange, " <>
+       "amber, lime, emerald, teal, sky, indigo, violet, fuchsia, rose) or none to take it off; " <>
+       "border sets all four edges, border_top/right/bottom/left one each (and win over border)"},
     {"add_tags", ["tags"], [], "put existing tags on the card"},
     {"remove_tags", ["tags"], [], "take tags off the card"},
     {"add_flags", ["flags"], [], "raise flags (flagged, blocked, review, waiting, starred)"},
@@ -125,8 +130,13 @@ defmodule Slipdock.Automations.Spec do
        "with a comment, up to N times, then flags it blocked and leaves it"}
   ]
 
+  @colour_keys ~w(cover border border_top border_right border_bottom border_left)
+
   # Names people (and models) reach for that mean an action we already have.
   @action_aliases %{
+    "set_colors" => "set_colours",
+    "set_color" => "set_colours",
+    "set_colour" => "set_colours",
     "callback" => "webhook",
     "http" => "webhook",
     "post" => "webhook",
@@ -394,6 +404,32 @@ defmodule Slipdock.Automations.Spec do
     end
   end
 
+  defp check_action(%{"type" => "set_colours"} = action) do
+    given = Map.take(action, @colour_keys)
+    names = Slipdock.Palette.names()
+
+    bad =
+      Enum.find(given, fn {_, v} ->
+        String.downcase(to_string(v)) not in ["none" | names]
+      end)
+
+    cond do
+      given == %{} ->
+        {:error,
+         "action “set_colours” needs cover, border or one of border_top/right/bottom/left"}
+
+      bad ->
+        {key, value} = bad
+
+        {:error,
+         "action “set_colours” #{key} “#{value}” isn't a colour (#{Enum.join(names, ", ")} or none)"}
+
+      true ->
+        {:ok,
+         Map.merge(action, Map.new(given, fn {k, v} -> {k, String.downcase(to_string(v))} end))}
+    end
+  end
+
   defp check_action(action), do: {:ok, action}
 
   defp requeue_stuck(nil), do: nil
@@ -608,6 +644,9 @@ defmodule Slipdock.Automations.Spec do
       "set_priority" ->
         "set its priority to #{a["priority"]}"
 
+      "set_colours" ->
+        "colour it " <> colours_summary(a)
+
       "add_tags" ->
         "tag it #{list(a["tags"])}"
 
@@ -670,6 +709,21 @@ defmodule Slipdock.Automations.Spec do
       other ->
         other
     end
+  end
+
+  defp colours_summary(a) do
+    edges =
+      for key <- ~w(border_top border_right border_bottom border_left), a[key] do
+        "#{String.replace_prefix(key, "border_", "")} edge #{a[key]}"
+      end
+
+    [
+      a["cover"] && "cover #{a["cover"]}",
+      a["border"] && "every edge #{a["border"]}"
+      | edges
+    ]
+    |> Enum.filter(& &1)
+    |> Enum.join(", ")
   end
 
   defp requeue_summary(1), do: ", putting back a card its job leaves in progress once"

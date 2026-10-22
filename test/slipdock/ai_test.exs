@@ -1079,8 +1079,8 @@ defmodule Slipdock.AITest do
     end
 
     test "an unknown field is refused by name", ctx do
-      assert [%{label: "Change colour of “Alpha”", error: "unknown field"}] =
-               propose_change(ctx, %{"colour" => "red"})
+      assert [%{label: "Change mood of “Alpha”", error: "unknown field"}] =
+               propose_change(ctx, %{"mood" => "calm"})
     end
 
     test "creating: every detail in the label, and every one applied", ctx do

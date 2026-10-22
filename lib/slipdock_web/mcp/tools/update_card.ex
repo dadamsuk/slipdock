@@ -10,8 +10,8 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
   alias SlipdockWeb.API.JSON, as: V
   alias SlipdockWeb.MCP.{Args, Tools}
 
-  @fields ~w(title description priority due_date start_date percent_complete border_top border_right
-             border_bottom border_left)
+  @fields ~w(title description priority due_date start_date percent_complete color border_top
+             border_right border_bottom border_left)
   @lists ~w(add_flags remove_flags add_tags remove_tags assignees add_assignees remove_assignees)
   @id_lists ~w(add_blocked_by remove_blocked_by check_items uncheck_items)
 
@@ -24,8 +24,8 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
   @impl true
   def description,
     do:
-      "Changes a card: title, description, priority, dates, percent_complete, the colour " <>
-        "of each edge (border_top/right/bottom/left), flags " <>
+      "Changes a card: title, description, priority, dates, percent_complete, its cover " <>
+        "colour (color) and the colour of each edge (border_top/right/bottom/left), flags " <>
         "(blocked, waiting, review), tags, assignees, the cards blocking it and its " <>
         "checklist (item ids from get_card), and whether it repeats: recurrence " <>
         "{rule: \"every mon\"} makes it a recurring card (null stops it), and whether it " <>
@@ -53,6 +53,10 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
         due_date: %{type: "string", description: "YYYY-MM-DD; \"\" clears it."},
         start_date: %{type: "string", description: "YYYY-MM-DD; \"\" clears it."},
         percent_complete: %{type: "integer", minimum: 0, maximum: 100},
+        color: %{
+          border
+          | description: "The card's cover colour, from the palette; \"\" takes it off."
+        },
         border_top: border,
         border_right: border,
         border_bottom: border,
