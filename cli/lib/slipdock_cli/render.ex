@@ -927,16 +927,20 @@ defmodule SlipdockCLI.Render do
 
   def hotkeys(hotkeys) do
     rows =
-      Enum.map(hotkeys, fn h ->
-        [
-          "Ctrl+Shift+#{h["digit"]}",
-          h["board"]["name"],
-          h["board"]["code"] || "",
-          to_string(h["board"]["id"])
-        ]
+      Enum.map(hotkeys, fn
+        %{"vault" => v} = h ->
+          ["Ctrl+Shift+#{h["digit"]}", v["name"], "vault", to_string(v["id"])]
+
+        h ->
+          [
+            "Ctrl+Shift+#{h["digit"]}",
+            h["board"]["name"],
+            h["board"]["code"] || "",
+            to_string(h["board"]["id"])
+          ]
       end)
 
-    table(["KEY", "BOARD", "CODE", "ID"], rows)
+    table(["KEY", "OPENS", "CODE", "ID"], rows)
   end
 
   def automations([]), do: IO.puts(dim("no automations"))

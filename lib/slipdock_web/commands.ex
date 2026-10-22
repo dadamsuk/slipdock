@@ -22,8 +22,9 @@ defmodule SlipdockWeb.Commands do
   Everything reachable from this page: the places, the boards you can open,
   the views this page offers, and the things a key would otherwise do.
   """
-  def build(boards, jumps, board) do
-    places() ++ actions() ++ views(jumps) ++ board_pages(board) ++ boards(boards)
+  def build(boards, jumps, board, vaults \\ []) do
+    places() ++
+      actions() ++ views(jumps) ++ board_pages(board) ++ boards(boards) ++ vaults(vaults)
   end
 
   defp places do
@@ -196,6 +197,20 @@ defmodule SlipdockWeb.Commands do
         key: board.shortcut,
         keywords: [board.code],
         to: {:navigate, "/boards/#{board.id}"}
+      }
+    end
+  end
+
+  # Your vaults, which the board switcher lists too (#1204).
+  defp vaults(vaults) do
+    for vault <- vaults do
+      %{
+        label: vault.name,
+        group: "Vaults",
+        icon: "hero-archive-box",
+        key: vault.shortcut,
+        keywords: ["vault"],
+        to: {:navigate, SlipdockWeb.VaultUrls.url(vault)}
       }
     end
   end

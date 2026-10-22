@@ -865,6 +865,10 @@ defmodule SlipdockWeb.API.JSON do
     %{
       id: v.id,
       name: v.name,
+      # How it is reached in the web app (#1204): b then `shortcut`, and its
+      # owner's Ctrl+Shift digit, if they gave it one.
+      shortcut: v.shortcut,
+      hotkey: Slipdock.Hotkeys.get(%Slipdock.Accounts.User{id: v.user_id}, v),
       # The vault's own view in the web app (#752).
       url: SlipdockWeb.VaultUrls.url(v),
       mappings: Enum.map(v.mappings, &vault_mapping(&1, Map.get(counts, &1.id, 0))),

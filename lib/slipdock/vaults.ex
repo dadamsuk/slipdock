@@ -296,13 +296,63 @@ defmodule Slipdock.Vaults do
 
   ## Writing ------------------------------------------------------------------
 
-  @doc "Makes a vault for `user`."
+  @doc """
+  Makes a vault for `user`, with a switcher key from its name (#1204), the
+  way a board gets one.
+  """
   def create_vault(%User{id: user_id}, attrs) do
-    %Vault{user_id: user_id}
-    |> Vault.changeset(attrs)
+    changeset = Vault.changeset(%Vault{user_id: user_id}, attrs)
+
+    changeset
+    |> Ecto.Changeset.put_change(
+      :shortcut,
+      Slipdock.Boards.suggest_shortcut(Ecto.Changeset.get_field(changeset, :name))
+    )
     |> Repo.insert()
     |> preloaded()
   end
+
+  @doc """
+  Gives a vault the switcher key `value` (#1204). Blank takes a fresh one from
+  its name. A key a board or another vault has is refused.
+  """
+  def set_shortcut(%Vault{} = vault, value) do
+    key = Slipdock.Boards.Board.sanitize_shortcut(value || "")
+
+    key =
+      if key == "",
+        do: Slipdock.Boards.suggest_shortcut(vault.name, {:vault, vault.id}),
+        else: key
+
+    changeset = Vault.shortcut_changeset(vault, key)
+
+    if changeset.valid? and Slipdock.Boards.shortcut_taken?(key, {:vault, vault.id}) do
+      {:error, Ecto.Changeset.add_error(changeset, :shortcut, "is already used by a board")}
+    else
+      changeset |> Repo.update() |> preloaded()
+    end
+  end
+
+  @doc """
+  `user`'s vaults for the board switcher, by name, each with a key: one made
+  before vaults had keys gets its key here, the first time it is listed.
+  """
+  def switchable(%User{id: user_id}) do
+    from(v in Vault, where: v.user_id == ^user_id, order_by: [asc: fragment("lower(?)", v.name)])
+    |> Repo.all()
+    |> Enum.map(fn
+      %Vault{shortcut: nil} = vault ->
+        case set_shortcut(vault, nil) do
+          {:ok, vault} -> vault
+          _ -> vault
+        end
+
+      vault ->
+        vault
+    end)
+  end
+
+  def switchable(_), do: []
 
   @doc "Renames a vault."
   def update_vault(%Vault{} = vault, attrs) do

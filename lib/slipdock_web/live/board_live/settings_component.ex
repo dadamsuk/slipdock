@@ -420,21 +420,6 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
 
   # The digits, 1–9 then 0 as on the keyboard, each saying which of the
   # owner's other boards already has it — choosing it moves it here.
-  defp hotkey_options(board, hotkeys) do
-    taken = Map.new(hotkeys, fn {digit, b} -> {digit, b} end)
-
-    [{"None", ""}] ++
-      for digit <- Enum.to_list(1..9) ++ [0] do
-        case taken[digit] do
-          %{id: id, name: name} when id != board.id ->
-            {"Ctrl+Shift+#{digit} (now #{name})", to_string(digit)}
-
-          _ ->
-            {"Ctrl+Shift+#{digit}", to_string(digit)}
-        end
-      end
-  end
-
   # Emptying the code field asks for a fresh one off the name.
   defp suggest_board_code(params, board) do
     if String.trim(to_string(params["code"] || "")) == "" do
@@ -520,13 +505,13 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
               type="select"
               label="Hotkey"
               value={if @hotkey, do: to_string(@hotkey), else: ""}
-              options={hotkey_options(@board, @hotkeys)}
+              options={Hotkeys.choices(@hotkeys, @board)}
             />
             <p class="-mt-1 text-xs text-base-content/50">
               Opens this board from any page: <kbd class="kbd kbd-xs">Ctrl</kbd>
               + <kbd class="kbd kbd-xs">Shift</kbd>
               + the digit. The digit is yours alone,
-              and picking one another board has moves it here.
+              and picking one another board or vault has moves it here.
             </p>
           </div>
           <.input field={@form[:description]} type="textarea" label="Description" />

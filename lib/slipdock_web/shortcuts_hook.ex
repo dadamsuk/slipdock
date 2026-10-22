@@ -4,7 +4,7 @@ defmodule SlipdockWeb.ShortcutsHook do
 
   Mounted into the `:authenticated` live session, this assigns `:shortcuts`
   and handles the palettes the `Keys` hook opens — the help sheet (`?`), the
-  board switcher (`b`), the view switcher (`v`), the command palette
+  board switcher (`b`, which lists your vaults too), the view switcher (`v`), the command palette
   (`Ctrl-P`) and the card finder (`Ctrl-O`), and follows a board's hotkey
   (`Ctrl-Shift-` a digit) — before the LiveView sees them,
   except that on a wiki `Ctrl-O` is the note switcher (`:notes`, see
@@ -31,7 +31,7 @@ defmodule SlipdockWeb.ShortcutsHook do
   alias Slipdock.Wiki
   alias SlipdockWeb.Commands
 
-  @closed %{panel: nil, boards: [], pool: [], query: "", results: [], cursor: 0}
+  @closed %{panel: nil, boards: [], vaults: [], pool: [], query: "", results: [], cursor: 0}
 
   # How many cards the finder offers at once.
   @found 12
@@ -58,7 +58,10 @@ defmodule SlipdockWeb.ShortcutsHook do
         {:halt, assign(socket, shortcuts: @closed)}
 
       panel == :boards ->
-        {:halt, assign(socket, shortcuts: %{@closed | panel: panel, boards: boards(socket)})}
+        {:halt,
+         assign(socket,
+           shortcuts: %{@closed | panel: panel, boards: boards(socket), vaults: vaults(socket)}
+         )}
 
       panel in [:command, :find, :notes] ->
         {:halt,
@@ -104,8 +107,8 @@ defmodule SlipdockWeb.ShortcutsHook do
   defp handle_event("go_home", _params, socket),
     do: {:halt, socket |> assign(shortcuts: @closed) |> push_navigate(to: "/")}
 
-  # Ctrl+Shift+a digit: the board the user gave that digit in its settings
-  # (see `Slipdock.Hotkeys`).
+  # Ctrl+Shift+a digit: the board, or vault (#1204), the user gave that digit
+  # in its settings (see `Slipdock.Hotkeys`).
   defp handle_event("board_hotkey", %{"digit" => digit}, socket) do
     socket = assign(socket, shortcuts: @closed)
 
@@ -117,6 +120,9 @@ defmodule SlipdockWeb.ShortcutsHook do
            :info,
            "No board on Ctrl+Shift+#{digit} — give one that digit in its board settings."
          )}
+
+      %Slipdock.Vaults.Vault{} = vault ->
+        {:halt, push_navigate(socket, to: SlipdockWeb.VaultUrls.url(vault))}
 
       board ->
         {:halt, push_navigate(socket, to: SlipdockWeb.SwimlaneComponents.board_home_path(board))}
@@ -134,7 +140,12 @@ defmodule SlipdockWeb.ShortcutsHook do
   # What an open palette works from, gathered once when it opens rather than
   # on every keystroke: the commands themselves, or the boards to search.
   defp pool(socket, :command) do
-    Commands.build(boards(socket), socket.assigns[:page_jumps] || [], socket.assigns[:board])
+    Commands.build(
+      boards(socket),
+      socket.assigns[:page_jumps] || [],
+      socket.assigns[:board],
+      vaults(socket)
+    )
   end
 
   defp pool(socket, :find), do: Enum.map(boards(socket), & &1.id)
@@ -189,6 +200,14 @@ defmodule SlipdockWeb.ShortcutsHook do
     case socket.assigns[:current_user] do
       nil -> []
       user -> Access.list_boards(user)
+    end
+  end
+
+  # And the user's own vaults, after the boards (#1204), each with its key.
+  defp vaults(socket) do
+    case socket.assigns[:current_user] do
+      nil -> []
+      user -> Slipdock.Vaults.switchable(user)
     end
   end
 end

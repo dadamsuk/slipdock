@@ -731,7 +731,24 @@ defmodule SlipdockWeb.Layouts do
               <span class="chip chip-line shrink-0 font-mono text-2xs">{board.code}</span>
             </.link>
           </li>
-          <li :if={@shortcuts.boards == []} class="px-3 py-6 text-center text-sm text-base-content/50">
+          <%!-- Your vaults, reached the same way (#1204). --%>
+          <li :for={vault <- @shortcuts.vaults}>
+            <.link
+              id={"switch-vault-#{vault.id}"}
+              navigate={SlipdockWeb.VaultUrls.url(vault)}
+              data-shortcut={vault.shortcut}
+              class="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm hover:bg-base-200"
+            >
+              <.palette_key key={vault.shortcut} />
+              <.icon name="hero-archive-box" class="size-3 shrink-0 text-base-content/50" />
+              <span class="min-w-0 flex-1 truncate">{vault.name}</span>
+              <span class="chip chip-line shrink-0 text-2xs">vault</span>
+            </.link>
+          </li>
+          <li
+            :if={@shortcuts.boards == [] and @shortcuts.vaults == []}
+            class="px-3 py-6 text-center text-sm text-base-content/50"
+          >
             No boards yet.
           </li>
         </ul>

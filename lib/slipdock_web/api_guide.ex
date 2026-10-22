@@ -715,7 +715,8 @@ defmodule SlipdockWeb.APIGuide do
       `GET /api/hotkeys` lists them, and
       `PUT /api/boards/:board/hotkey {"digit": 1}` gives a board one (taking
       it off any other board) or `{"digit": null}` takes it away. Read access
-      is enough. Set one only when the person asks.
+      is enough. Set one only when the person asks. A vault takes a digit too,
+      and a switcher key: `PATCH /api/vaults/:id {"hotkey": 2, "shortcut": "nt"}`.
     - **Passkeys** — `GET /api/me/passkeys` lists the token holder's own
       passkeys (`id`, `name`, `created_at`, `last_used_at`; never the key), and
       `DELETE /api/me/passkeys/:id` removes one so it can no longer sign in.

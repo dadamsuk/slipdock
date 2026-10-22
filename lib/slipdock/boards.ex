@@ -609,6 +609,7 @@ defmodule Slipdock.Boards do
         :board,
         %Board{template_id: template && template.id, kind: template_kind(template, opts)}
         |> Board.changeset(attrs)
+        |> vault_key_check()
         |> Ecto.Changeset.change(Keyword.take(opts, [:parent_card_id, :root_id, :owner_id]))
         |> validate_custom_columns(custom)
         |> enforce_board_limit()
@@ -979,6 +980,7 @@ defmodule Slipdock.Boards do
   def update_board(%Board{} = board, attrs) do
     board
     |> Board.changeset(attrs |> put_code(board) |> put_shortcut(board))
+    |> vault_key_check()
     |> Repo.update()
     |> tap_ok(&broadcast(&1.id))
   end
@@ -1269,10 +1271,36 @@ defmodule Slipdock.Boards do
     Board.shortcut_from_name(name, &shortcut_taken?(&1, except))
   end
 
-  defp shortcut_taken?(shortcut, except) do
-    query = from(b in Board, where: b.shortcut == ^shortcut)
-    query = if except, do: from(b in query, where: b.id != ^except), else: query
-    Repo.exists?(query) or claimed_elsewhere?(:shortcut, shortcut)
+  @doc """
+  Whether a switcher key is in use. Boards and vaults share one set of keys
+  (#1204), so `b` then a key never means two things. `except` is a board's id,
+  or `{:vault, id}`, whose own key does not count.
+  """
+  def shortcut_taken?(shortcut, except \\ nil) do
+    {board_id, vault_id} =
+      case except do
+        {:vault, id} -> {nil, id}
+        id -> {id, nil}
+      end
+
+    boards = from(b in Board, where: b.shortcut == ^shortcut)
+    boards = if board_id, do: from(b in boards, where: b.id != ^board_id), else: boards
+    vaults = from(v in Slipdock.Vaults.Vault, where: v.shortcut == ^shortcut)
+    vaults = if vault_id, do: from(v in vaults, where: v.id != ^vault_id), else: vaults
+
+    Repo.exists?(boards) or Repo.exists?(vaults) or claimed_elsewhere?(:shortcut, shortcut)
+  end
+
+  # A key typed into a board's settings can be one a vault already has; the
+  # boards' unique index cannot see that, so this does.
+  defp vault_key_check(changeset) do
+    with key when is_binary(key) <- Ecto.Changeset.get_change(changeset, :shortcut),
+         true <-
+           Repo.exists?(from(v in Slipdock.Vaults.Vault, where: v.shortcut == ^key)) do
+      Ecto.Changeset.add_error(changeset, :shortcut, "is already used by a vault")
+    else
+      _ -> changeset
+    end
   end
 
   # Async tests each make their boards in a transaction the others can't see,
