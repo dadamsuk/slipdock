@@ -3022,7 +3022,9 @@ defmodule SlipdockWeb.APIGuide do
     above; the fields a card accepts on create and update are `title`,
     `description`, `priority`, `flags`, `tags`, `add_flags`, `remove_flags`,
     `add_tags`, `remove_tags`, `start_date`, `due_date`, `date_precision`,
-    `completed`, `percent_complete`, `color`, `column`, `assignee` and `fields`.
+    `completed`, `percent_complete`, `color`, `border_top`, `border_right`,
+    `border_bottom`, `border_left` (each edge's own palette colour; `""` takes
+    it off), `column`, `assignee` and `fields`.
     Create also takes `archived` (`true` or `"true"`) to file the new card away at
     once, a record of something already finished with; update does not, so an
     existing card is put away with `POST /api/cards/:id/archive` and brought back

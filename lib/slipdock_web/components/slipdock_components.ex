@@ -160,6 +160,7 @@ defmodule SlipdockWeb.SlipdockComponents do
 
   attr :color, :string, required: true
   attr :selected, :boolean, default: false
+  attr :class, :string, default: "size-6"
   attr :rest, :global
 
   def color_swatch(assigns) do
@@ -167,7 +168,8 @@ defmodule SlipdockWeb.SlipdockComponents do
     <button
       type="button"
       class={[
-        "size-6 rounded-full ring-offset-2 ring-offset-base-100 transition hover:scale-110",
+        @class,
+        "rounded-full ring-offset-2 ring-offset-base-100 transition hover:scale-110",
         Palette.dot(@color),
         @selected && "ring-2 ring-base-content"
       ]}
@@ -898,6 +900,44 @@ defmodule SlipdockWeb.SlipdockComponents do
   def show_set(list) when is_list(list), do: MapSet.new(list)
 
   attr :card, :map, required: true
+
+  @doc """
+  The edges of a card's front in their own colours (#1209): a strip on each
+  side that has one, clipped to the card's rounded corners and drawn over
+  it, so the card keeps its size whichever edges are coloured.
+  """
+  def card_borders(assigns) do
+    ~H"""
+    <div
+      class="pointer-events-none absolute inset-0 z-[1] overflow-hidden rounded-xl"
+      data-role="card-borders"
+      aria-hidden="true"
+    >
+      <span
+        :if={@card.border_top}
+        data-edge="top"
+        class={["absolute inset-x-0 top-0 h-1", Palette.dot(@card.border_top)]}
+      ></span>
+      <span
+        :if={@card.border_right}
+        data-edge="right"
+        class={["absolute inset-y-0 right-0 w-1", Palette.dot(@card.border_right)]}
+      ></span>
+      <span
+        :if={@card.border_bottom}
+        data-edge="bottom"
+        class={["absolute inset-x-0 bottom-0 h-1", Palette.dot(@card.border_bottom)]}
+      ></span>
+      <span
+        :if={@card.border_left}
+        data-edge="left"
+        class={["absolute inset-y-0 left-0 w-1", Palette.dot(@card.border_left)]}
+      ></span>
+    </div>
+    """
+  end
+
+  attr :card, :map, required: true
   attr :id, :string, default: nil, doc: "DOM id; defaults to card-<id>"
   attr :compact, :boolean, default: false, doc: "single-line variant for dense grids"
 
@@ -970,6 +1010,8 @@ defmodule SlipdockWeb.SlipdockComponents do
 
     facets = %{
       cover: on.("cover") and not is_nil(cover),
+      # Its own colour on each edge (#1209), shown with the cover colour.
+      borders: on.("cover") and Enum.any?(Slipdock.Boards.Card.borders(), &Map.get(card, &1)),
       image: not is_nil(image),
       stated: on.("status") and not is_nil(Slipdock.Boards.Card.stated_health(card)),
       status: on.("status"),
@@ -1004,7 +1046,11 @@ defmodule SlipdockWeb.SlipdockComponents do
       age: match?(%Slipdock.CardState{age: age} when is_integer(age), state)
     }
 
-    meta? = facets |> Map.drop([:cover, :image, :status, :tags]) |> Map.values() |> Enum.any?()
+    meta? =
+      facets
+      |> Map.drop([:cover, :borders, :image, :status, :tags])
+      |> Map.values()
+      |> Enum.any?()
 
     assigns =
       assign(assigns,
@@ -1058,6 +1104,7 @@ defmodule SlipdockWeb.SlipdockComponents do
       >
         <.icon name="hero-check" class="size-3.5" />
       </span>
+      <.card_borders :if={@f.borders} card={@card} />
       <div
         :if={@f.cover && !@compact}
         class={["h-1.5 rounded-t-xl bg-gradient-to-r", Palette.gradient(@cover_color)]}

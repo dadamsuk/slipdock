@@ -530,6 +530,76 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
     end
   end
 
+  @border_edges [
+    {"all", "All", nil},
+    {"top", "Top", :border_top},
+    {"right", "Right", :border_right},
+    {"bottom", "Bottom", :border_bottom},
+    {"left", "Left", :border_left}
+  ]
+
+  attr :card, :map, required: true
+  attr :target, :any, required: true
+
+  @doc """
+  A colour for each edge of the card's front (#1209), apart from its cover:
+  a row of swatches per edge, and an "All" row that sets the four at once.
+  Folded away until opened, unless the card already has one.
+  """
+  def borders_section(assigns) do
+    card = assigns.card
+    colours = Enum.map(Slipdock.Boards.Card.borders(), &Map.get(card, &1))
+    same = if Enum.uniq(colours) |> length() == 1, do: hd(colours), else: :mixed
+
+    assigns =
+      assign(assigns,
+        edges: @border_edges,
+        any?: Enum.any?(colours),
+        same: same
+      )
+
+    ~H"""
+    <details id="card-borders" class="group space-y-1.5" open={@any?}>
+      <summary class="cursor-pointer list-none text-xs font-semibold uppercase tracking-wide text-base-content/60">
+        Borders <.icon name="hero-chevron-down" class="size-3 transition group-open:rotate-180" />
+      </summary>
+      <div :for={{edge, label, field} <- @edges} class="flex items-center gap-2 pt-1.5">
+        <span class="w-11 shrink-0 text-xs text-base-content/60">{label}</span>
+        <div class="flex flex-wrap gap-1">
+          <button
+            phx-target={@target}
+            type="button"
+            class={[
+              "flex size-5 items-center justify-center rounded-full ring-1 ring-base-content/20 ring-offset-1 ring-offset-base-100",
+              edge_colour(@card, field, @same) == nil && "ring-2 ring-base-content"
+            ]}
+            phx-click="set_border"
+            phx-value-edge={edge}
+            phx-value-color=""
+            title={"No #{String.downcase(label)} border"}
+          >
+            <.icon name="hero-no-symbol" class="size-3 opacity-50" />
+          </button>
+          <.color_swatch
+            :for={{name, _} <- Palette.all()}
+            phx-target={@target}
+            color={name}
+            selected={edge_colour(@card, field, @same) == name}
+            phx-click="set_border"
+            phx-value-edge={edge}
+            phx-value-color={name}
+            class="size-5"
+          />
+        </div>
+      </div>
+    </details>
+    """
+  end
+
+  # The "All" row shows a colour only when the four edges agree on it.
+  defp edge_colour(_card, nil, same), do: if(same == :mixed, do: :mixed, else: same)
+  defp edge_colour(card, field, _same), do: Map.get(card, field)
+
   attr :board, :any, required: true
   attr :can_write, :boolean, required: true
   attr :can_comment, :boolean, default: false, doc: "may report a status and vote (#863)"
@@ -832,6 +902,8 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
             />
           </div>
         </div>
+
+        <.borders_section card={@card} target={@target} />
 
         <.repeat_section card={@card} repeat={@repeat} target={@target} />
 

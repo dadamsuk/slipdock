@@ -696,6 +696,7 @@ defmodule SlipdockCLI.Render do
     field("Time", time_text(c, true) || "-")
     field("Assignee", assignees(c, &"#{&1["name"]} <#{&1["email"]}>") || "-")
     field("Cover", c["color"] || "-")
+    if borders = borders_line(c), do: field("Borders", borders)
     field("Blocked by", dependency_list(c["blocked_by"], c["board_id"]))
     field("Blocks", dependency_list(c["blocks"], c["board_id"]))
 
@@ -2129,6 +2130,27 @@ defmodule SlipdockCLI.Render do
       len == width -> s
       len < width -> s <> String.duplicate(" ", width - len)
       true -> String.slice(plain, 0, width - 1) <> "…"
+    end
+  end
+
+  @doc """
+  A card's edge colours (#1209) on one line: `red` when the four agree,
+  `top red · left sky` otherwise; nil when it has none.
+  """
+  def borders_line(c) do
+    edges = for e <- ~w(top right bottom left), do: {e, c["border_" <> e]}
+
+    case Enum.uniq_by(edges, &elem(&1, 1)) do
+      [{_, nil}] ->
+        nil
+
+      [{_, colour}] ->
+        "#{colour} (all edges)"
+
+      _ ->
+        edges
+        |> Enum.reject(&is_nil(elem(&1, 1)))
+        |> Enum.map_join(" · ", fn {e, k} -> "#{e} #{k}" end)
     end
   end
 

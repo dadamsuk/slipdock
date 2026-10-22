@@ -157,6 +157,15 @@ defmodule SlipdockWeb.HelpLive.Agents do
        {:yes, "through the CLI or MCP"},
        {:no, "one way only"}
      ]},
+    {"Colour each edge of a card",
+     [
+       {:yes, "border_top, border_right, … on PATCH /api/cards/:id"},
+       {:yes, "update_card's border_top, border_right, …"},
+       {:yes, "slipdock edit --border, --border-top, …"},
+       {:yes, "through the CLI or MCP"},
+       {:yes, "through the CLI or MCP"},
+       {:no, "one way only"}
+     ]},
     {"Wait on a person, and answer a wait",
      [
        {:yes, "POST /api/cards/:id/wait"},

@@ -4,6 +4,7 @@ defmodule Slipdock.Boards.Card do
 
   @priorities ~w(none low medium high critical)
   @flags ~w(flagged blocked review waiting starred)
+  @borders ~w(border_top border_right border_bottom border_left)a
 
   # The readers below match on *shape* rather than on `%Card{}`, because a
   # wiki page placed on the board carries the same facets under the same names
@@ -35,6 +36,12 @@ defmodule Slipdock.Boards.Card do
     field :time_unit, :string, default: "hours"
     field :timer_started_at, :utc_datetime
     field :color, :string
+    # A palette colour on each edge of the card's front (#1209), apart from
+    # its cover; nil is no border there.
+    field :border_top, :string
+    field :border_right, :string
+    field :border_bottom, :string
+    field :border_left, :string
     field :archived_at, :utc_datetime
     # Snoozed (W-1803): left out of the lists, My work and the runner's pick
     # until `snoozed_until`, then woken to the top of its list by the
@@ -176,6 +183,9 @@ defmodule Slipdock.Boards.Card do
   end
 
   def flags, do: @flags
+
+  @doc "The four edge-colour fields, top first and clockwise (#1209)."
+  def borders, do: @borders
 
   @doc "Whether the card is snoozed at `now`: `snoozed_until` is still ahead."
   def snoozed?(item, now \\ DateTime.utc_now())
@@ -354,6 +364,10 @@ defmodule Slipdock.Boards.Card do
       :time_estimate,
       :time_unit,
       :color,
+      :border_top,
+      :border_right,
+      :border_bottom,
+      :border_left,
       :board_id,
       # Not `:column_id`: a card changes list only through `Boards.move_card/4`
       # and `move_card_to_board/3`, which record who moved it.
@@ -375,6 +389,7 @@ defmodule Slipdock.Boards.Card do
       c -> c
     end)
     |> validate_inclusion(:color, [nil | Slipdock.Palette.names()])
+    |> validate_borders()
     |> validate_number(:percent_complete,
       greater_than_or_equal_to: 0,
       less_than_or_equal_to: 100
@@ -393,6 +408,17 @@ defmodule Slipdock.Boards.Card do
       less_than_or_equal_to: Slipdock.TimeTracking.max_minutes()
     )
     |> stamp_completed()
+  end
+
+  defp validate_borders(changeset) do
+    Enum.reduce(@borders, changeset, fn field, cs ->
+      cs
+      |> update_change(field, fn
+        "" -> nil
+        c -> c
+      end)
+      |> validate_inclusion(field, [nil | Slipdock.Palette.names()])
+    end)
   end
 
   defp stamp_completed(changeset) do
