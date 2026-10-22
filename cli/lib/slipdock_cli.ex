@@ -557,12 +557,16 @@ defmodule SlipdockCLI do
         --column C (default: first column)  --desc TEXT  --priority P
         --assignee EMAIL|me (repeatable: everybody on it, the first is the lead)
         --flag F (repeatable)  --tag T (repeatable)  --start YYYY-MM-DD  --due YYYY-MM-DD  --color C
-        --percent N (0-100)
+        --percent N (0-100)  --border C, --border-top/-right/-bottom/-left C   (see edit)
         --spent T  --estimate T  --unit minutes|hours|days|weeks|months   (time tracking; see edit)
         --archived                  archive it as soon as it is made (a record of finished work)
     edit <id> [opts]                    change fields on a card
         --title T  --desc TEXT  --priority P  --start DATE | --no-start  --due DATE | --no-due
         --color C | --no-color  --column C
+        --border C | --no-border     every edge of the card's front in palette colour C;
+        --border-top C  --border-right C  --border-bottom C  --border-left C
+                                     one edge (after --border, so the edge wins); C none
+                                     takes that edge's colour off
         --assignee EMAIL|me (repeatable; replaces who is on it) | --no-assignee
         --add-assignee EMAIL|me  --remove-assignee EMAIL|me   (repeatable; others stay)
         --percent N | --no-percent   (% complete, 0-100)
@@ -961,6 +965,13 @@ defmodule SlipdockCLI do
     log: :string,
     color: :string,
     no_color: :boolean,
+    # Each edge of a card's front in its own colour (#1209).
+    border: :string,
+    border_top: :string,
+    border_right: :string,
+    border_bottom: :string,
+    border_left: :string,
+    no_border: :boolean,
     icon: :string,
     no_icon: :boolean,
     top: :boolean,

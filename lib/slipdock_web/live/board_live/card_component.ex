@@ -31,7 +31,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   alias SlipdockWeb.Params
   alias SlipdockWeb.BoardLive.{ItemEvents, Paths, Sharing}
 
-  @own_events ~w(card_change toggle_flag toggle_tag set_cover duplicate_card archive_card delete_card
+  @own_events ~w(card_change toggle_flag toggle_tag set_cover set_border duplicate_card archive_card delete_card
     add_dependency remove_dependency create_sub_board remove_assignee delete_sub_board
     quick_add_subcard toggle_subcard edit_description stop_editing_description
     validate_attachments cancel_upload delete_attachment hide_on_card transcribe add_link remove_link write_up
@@ -549,6 +549,20 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
 
   defp event("set_cover", %{"color" => color}, socket) do
     {:ok, _} = Boards.update_card(socket.assigns.card, %{"color" => color})
+    {:noreply, socket}
+  end
+
+  # An edge of the card's front, or all four, in a colour (#1209).
+  defp event("set_border", %{"edge" => edge, "color" => color}, socket) do
+    case border_fields(edge) do
+      [] ->
+        :ok
+
+      fields ->
+        {:ok, _} =
+          Boards.update_card(socket.assigns.card, Map.new(fields, &{Atom.to_string(&1), color}))
+    end
+
     {:noreply, socket}
   end
 
@@ -1746,4 +1760,11 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     job = if h.job_id, do: " · job ##{h.job_id}", else: ""
     "#{who} · #{relative_time(h.inserted_at)} · #{h.via}#{job}"
   end
+
+  defp border_fields("all"), do: Slipdock.Boards.Card.borders()
+
+  defp border_fields(edge) when edge in ~w(top right bottom left),
+    do: [String.to_existing_atom("border_" <> edge)]
+
+  defp border_fields(_), do: []
 end

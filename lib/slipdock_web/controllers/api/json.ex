@@ -404,6 +404,11 @@ defmodule SlipdockWeb.API.JSON do
           else: []
         ),
       color: c.color,
+      # Each edge's own colour (#1209); nil is none.
+      border_top: c.border_top,
+      border_right: c.border_right,
+      border_bottom: c.border_bottom,
+      border_left: c.border_left,
       archived_at: c.archived_at,
       assignee: assignee(c),
       assignees: Enum.map(Card.assignees(c), &person_ref/1),

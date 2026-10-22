@@ -1310,6 +1310,26 @@ an upload can send it as a field. From the CLI, `slipdock card-front <id>
 <attachment-id> --off` keeps an image off the front (without `--off`, lets it
 back), and `slipdock attach <id> <file> --hide-on-card` uploads it kept off.
 
+### Coloured edges
+
+Apart from its cover colour, each of a card's four edges can wear its own
+colour: a red top and a blue left, say, or all four the same to frame it.
+Open the card and use **Borders**, under **Cover**: a row of swatches for
+**Top**, **Right**, **Bottom** and **Left**, and an **All** row that sets the
+four at once. The crossed-out circle takes an edge's colour off. The front
+draws each coloured edge as a thin strip, inside the card so it keeps its
+size, and the **Display** menu's **Cover colour** hides them with the cover strip.
+They come with a card when it is duplicated, copied, exported and imported.
+
+On the API they are `border_top`, `border_right`, `border_bottom` and
+`border_left` on the card, each a palette colour name or null; send `""` to
+take one off (`PATCH /api/cards/:id {"border_top": "red"}`). MCP's
+`update_card` takes the same names. From the CLI, `slipdock edit <id>
+--border amber` colours all four, `--border-top red` (and `--border-right`,
+`--border-bottom`, `--border-left`) one, which wins over `--border`, `none`
+takes one off and `--no-border` takes them all off; `slipdock add` takes the
+same, and `slipdock card` shows them as `Borders:`.
+
 ### Recordings
 
 An audio file attached to a card (MP3, M4A, WAV, OGG, FLAC, WebM — anything

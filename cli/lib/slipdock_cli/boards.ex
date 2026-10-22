@@ -270,6 +270,7 @@ defmodule SlipdockCLI.Boards do
         "archived" => if(o[:archived], do: true)
       }
       |> Map.merge(assignees(o))
+      |> Map.merge(borders(o))
       |> compact()
 
     HTTP.post("/boards/#{enc(ref)}/cards", body) |> out(o, &card_ok("created", &1))
@@ -294,6 +295,7 @@ defmodule SlipdockCLI.Boards do
         "remove_assignees" => nonempty(Keyword.get_values(o, :remove_assignee))
       }
       |> Map.merge(if(o[:no_assignee], do: %{}, else: assignees(o)))
+      |> Map.merge(borders(o))
       |> compact()
       |> then(fn b -> if o[:no_start], do: Map.put(b, "start_date", nil), else: b end)
       |> then(fn b -> if o[:no_due], do: Map.put(b, "due_date", nil), else: b end)
@@ -1556,4 +1558,28 @@ defmodule SlipdockCLI.Boards do
       _ -> fail("could not read the note from stdin")
     end
   end
+
+  @edges [top: :border_top, right: :border_right, bottom: :border_bottom, left: :border_left]
+
+  @doc """
+  The edge colours (#1209) asked for: `--border C` (or `--no-border`) for
+  all four, then `--border-top C` and the rest for one, which wins. `none`
+  takes a colour off, which the server reads as "".
+  """
+  def borders(o) do
+    all =
+      cond do
+        o[:no_border] -> ""
+        o[:border] -> edge_colour(o[:border])
+        true -> nil
+      end
+
+    Map.new(@edges, fn {_edge, key} ->
+      one = o[key]
+      {Atom.to_string(key), if(one, do: edge_colour(one), else: all)}
+    end)
+  end
+
+  defp edge_colour(c) when c in ["none", ""], do: ""
+  defp edge_colour(c), do: c
 end

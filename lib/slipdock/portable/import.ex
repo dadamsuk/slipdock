@@ -604,6 +604,10 @@ defmodule Slipdock.Portable.Import do
               else: Slipdock.TimeTracking.default_unit()
             ),
           color: doc[:color],
+          border_top: dress(doc[:border_top], Slipdock.Palette.names()),
+          border_right: dress(doc[:border_right], Slipdock.Palette.names()),
+          border_bottom: dress(doc[:border_bottom], Slipdock.Palette.names()),
+          border_left: dress(doc[:border_left], Slipdock.Palette.names()),
           assignee_id: List.first(assignee_ids)
         },
         named("card", doc[:title])
