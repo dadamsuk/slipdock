@@ -77,8 +77,21 @@ defmodule SlipdockWeb.AdminAPITest do
 
       assert shown["settings"]["transcription_server"] == %{
                "url" => "https://transcribe.example:8765",
-               "token_set" => true
+               "token_set" => true,
+               "voiceprints" => false
              }
+    end
+
+    test "teaching it voices is off until turned on (#1201)", %{admin: admin} do
+      conn = token_conn(admin, "admin")
+
+      assert conn
+             |> patch(~p"/api/admin/settings", %{transcription_voiceprints: true})
+             |> json_response(200)
+
+      assert Settings.get().transcription_voiceprints == true
+      shown = conn |> get(~p"/api/admin/settings") |> json_response(200)
+      assert shown["settings"]["transcription_server"]["voiceprints"] == true
     end
 
     test "an address that isn't http(s) is refused", %{admin: admin} do

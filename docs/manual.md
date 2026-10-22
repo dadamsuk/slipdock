@@ -1336,6 +1336,19 @@ never transcribes it twice, waits up to a minute for an answer before
 following it as a job, and retries only what the server says is worth
 retrying (a full queue, a model still loading, a timeout).
 
+**Teaching it voices.** With **Teach it voices** ticked under the
+transcription server (`slipdock admin set transcription_voiceprints=true`),
+and a server that takes voiceprints (see below), putting a person's name on a
+voice — in a [meeting page's transcript](#meeting-recordings-from-google-drive)
+or on a meeting capture's **Who said what** — sends the longest stretch of
+that person speaking to the server as a voiceprint under that name: their
+lines one after another with nobody else between, the longest run of them,
+cut from the recording to at most a minute. Under three seconds is too
+little and isn't sent, and nor is a placeholder like `Speaker 2`. It happens
+in the background once the name is saved (a capture's history says when it
+went); naming them again sends a fresh one. It is off by default: it is that
+person's voice going to your server, so tell the people you name.
+
 #### What a transcription server must speak
 
 Any server you run can do the transcribing, if it answers these over HTTPS,
@@ -1364,6 +1377,12 @@ with the token as `Authorization: Bearer <token>`:
   `504` (with the job's `id` in the error, if there is one) means "still
   working: collect it later". `401`, `403`, `413`, `415` and `422` (`code`
   `audio_too_long` or `audio_undecodable`) are final and shown to the user.
+- **Optional: `POST /v1/voiceprints`**, if you list `"voiceprints"` in
+  `capabilities` (#1201): multipart with `file` (a mono 16 kHz WAV of one
+  person speaking, 3 to 60 seconds) and `name` (who it is). Answer `200` or
+  `201` with JSON (`{"id": "…"}` is enough). Keep it, replacing any earlier
+  voiceprint under the same name, and from then on give that voice's turns
+  that `speaker` name in `diarized_json`. Errors as above.
 
 On the API, `POST /api/cards/:id/attachments/:attachment_id/transcribe` starts
 it (202), and each attachment carries `transcript_status` (`running`, `done`,
@@ -2741,6 +2760,10 @@ from the review, shows a card per voice — clips to replay where there is a
 recording, the person and why, confirm or change — and the unsure lines a
 finding depends on. Changing a voice changes the owner or decision-maker of
 exactly the findings that took it from that voice, without reading again.
+With **Teach it voices** on for the transcription server, confirming or
+changing a voice to a person's name also sends their longest stretch of the
+recording to that server as a voiceprint (see *Teaching it voices* under
+[Recordings](#recordings)).
 
 Voiceprints, by consent: off unless an admin turns them on
 (`meetings_voiceprints=true`, with `meetings_voiceprint_url`, an embedding
@@ -3946,7 +3969,10 @@ revision, so History shows it and can undo it. Giving a voice the name of
 someone already there makes them one speaker, for when the transcriber split
 one person in two. A name is up to 60 characters, without `<`, `>` or a
 colon. Agents and the CLI do the same by editing the `<v Name>` tags in the
-page's body.
+page's body. Where an admin has **Teach it voices** on, naming a voice in the
+player also sends that person's longest stretch from the recording to the
+transcription server as a voiceprint (*Teaching it voices* under [Recordings](#recordings)
+has the detail); editing the tags by hand doesn't.
 
 To make it play:
 

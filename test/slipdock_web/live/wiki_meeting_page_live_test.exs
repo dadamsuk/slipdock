@@ -206,6 +206,7 @@ defmodule SlipdockWeb.WikiMeetingPageLiveTest do
       html = render_hook(view, "rename_speaker", %{"from" => "Alice", "to" => " Priya Shah "})
 
       assert html =~ "“Alice” is now “Priya Shah” in the transcript."
+      refute html =~ "voiceprint"
       assert has_element?(view, "#wiki-body li[data-speaker='Priya Shah']")
       refute has_element?(view, "#wiki-body li[data-speaker='Alice']")
       assert has_element?(view, "#wiki-body li[data-speaker='Bob']")
@@ -214,6 +215,29 @@ defmodule SlipdockWeb.WikiMeetingPageLiveTest do
       assert saved.body =~ "<v Priya Shah>Shall we start?"
       assert [latest | _] = Slipdock.Wiki.list_revisions(saved)
       assert latest.summary == "named the voice “Alice” “Priya Shah”"
+    end
+
+    test "with voiceprints on, the flash says their voice goes to the server (#1201)", %{
+      conn: conn,
+      board: board
+    } do
+      {:ok, _} = Slipdock.Settings.complete_setup(%{"admin_email" => "admin@example.com"})
+
+      {:ok, _} =
+        Slipdock.Settings.update(%{
+          "transcription_server_url" => "https://transcribe.example:8765",
+          "transcription_voiceprints" => true
+        })
+
+      page = meeting(board, "type: meeting", @transcript)
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}")
+
+      # Alice's 1.75 s is too short to send, so nothing is asked of a server.
+      assert render_hook(view, "rename_speaker", %{"from" => "Alice", "to" => "Priya Shah"}) =~
+               "Their longest stretch goes to the transcription server as a voiceprint."
+
+      refute render_hook(view, "rename_speaker", %{"from" => "Bob", "to" => "Speaker 2"}) =~
+               "voiceprint"
     end
 
     test "a name that won't do is refused and nothing is saved", %{conn: conn, board: board} do
