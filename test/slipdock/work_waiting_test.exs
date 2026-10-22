@@ -123,13 +123,16 @@ defmodule Slipdock.WorkWaitingTest do
         |> order_by(:id)
         |> Repo.all()
 
+      # One clock reading, so a second ticking over can't split it.
+      went_on = ago(7200)
+
       from(a in Activity, where: a.id == ^first.id)
-      |> Repo.update_all(set: [inserted_at: ago(7200)])
+      |> Repo.update_all(set: [inserted_at: went_on])
 
       assert [item] = Work.waiting_on_me(ctx.dana)
       assert item.reason == "review"
       assert item.text == "Flagged review"
-      assert item.since == ago(7200)
+      assert item.since == went_on
       # Not assigned to the owner, who sees nothing.
       assert reasons(ctx.owner) == []
     end
@@ -146,13 +149,15 @@ defmodule Slipdock.WorkWaitingTest do
         |> order_by(:id)
         |> Repo.all()
 
-      for {a, s} <- [{on, 9000}, {off, 8000}, {back, 300}],
+      went_back = ago(300)
+
+      for {a, at} <- [{on, ago(9000)}, {off, ago(8000)}, {back, went_back}],
           do:
             from(x in Activity, where: x.id == ^a.id)
-            |> Repo.update_all(set: [inserted_at: ago(s)])
+            |> Repo.update_all(set: [inserted_at: at])
 
       assert [%{reason: "waiting", since: since}] = Work.waiting_on_me(ctx.dana)
-      assert since == ago(300)
+      assert since == went_back
     end
 
     test "a waiting flag that an open wait set is the wait, not the flag", ctx do
