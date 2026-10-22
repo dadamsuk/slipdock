@@ -1324,7 +1324,9 @@ They come with a card when it is duplicated, copied, exported and imported.
 On the API they are `border_top`, `border_right`, `border_bottom` and
 `border_left` on the card, each a palette colour name or null; send `""` to
 take one off (`PATCH /api/cards/:id {"border_top": "red"}`). MCP's
-`update_card` takes the same names. From the CLI, `slipdock edit <id>
+`update_card` takes the same names, and `color` for the cover. The AI chat's
+Edit mode sets them too (*give it a red frame and a teal cover*), and an
+automation can with its `set_colours` action. From the CLI, `slipdock edit <id>
 --border amber` colours all four, `--border-top red` (and `--border-right`,
 `--border-bottom`, `--border-left`) one, which wins over `--border`, `none`
 takes one off and `--no-border` takes them all off; `slipdock add` takes the
@@ -2125,7 +2127,8 @@ is ever sent to a model unless you ask.
   on any board you can open, without asking the model at all.
 - **Edit mode** — the *Edit* toggle in the drawer (for people who can
   write) turns a request into a list of concrete changes: set or clear
-  dates, priority, assignee, flags and tags, rename, rewrite a
+  dates, priority, assignee, flags and tags, the cover colour and the
+  colour of each edge (*frame it in red*, *make the top edge blue*), rename, rewrite a
   description, move between lists, complete or reopen, create cards,
   comment, add or tick checklist items, archive cards (one or many:
   *archive the done cards* is a step per card). Ask for a tag the board
@@ -2216,7 +2219,9 @@ tested with `is`, `is_not`, `contains`, `any_of`, `none_of`, `is_set`,
 alert; move the card; set priority; add or remove tags and flags; assign or
 unassign; comment; set or clear the due date; complete, reopen or archive;
 add checklist items; create a card; start a wiki page; call a URL back;
-write a line in the activity log. Text in an action can use
+write a line in the activity log; colour the card (`set_colours`: its
+`cover`, every edge with `border`, or one with `border_top`, `border_right`,
+`border_bottom`, `border_left`, each a palette colour or `none`). Text in an action can use
 `{{card.title}}`, `{{card.url}}`, `{{card.due_date}}`, `{{card.assignee}}`,
 `{{board.name}}`, `{{today}}` and the rest.
 

@@ -204,6 +204,8 @@ defmodule Slipdock.AI.Context do
         (is_list(card.tags) and card.tags != []) &&
           "tags: #{Enum.map_join(card.tags, ", ", & &1.name)}",
         card.flags != [] && "flags: #{Enum.join(card.flags, ", ")}",
+        card.color && "cover: #{card.color}",
+        edges_text(card) && "edges: #{edges_text(card)}",
         progress && "subcards: #{elem(progress, 0)}/#{elem(progress, 1)} done",
         checklist != [] && "checklist: #{Enum.count(checklist, & &1.done)}/#{length(checklist)}",
         not Enum.member?([nil, :ok, :done], Card.health(card)) && "health: #{Card.health(card)}",
@@ -215,6 +217,18 @@ defmodule Slipdock.AI.Context do
 
     "##{card.id} “#{card.title}”" <>
       if(facets == [], do: "", else: " (" <> Enum.join(facets, "; ") <> ")")
+  end
+
+  # The coloured edges of a card (#1209), top first and clockwise; nil for none.
+  defp edges_text(card) do
+    case for(
+           f <- Card.borders(),
+           c = Map.get(card, f),
+           do: "#{f |> to_string() |> String.replace_prefix("border_", "")} #{c}"
+         ) do
+      [] -> nil
+      edges -> Enum.join(edges, ", ")
+    end
   end
 
   @doc "A card in full: every field, the description, checklist, comments, updates and relations."
@@ -244,6 +258,8 @@ defmodule Slipdock.AI.Context do
       Card.fuzzy?(card) && "Date precision: #{card.date_precision}",
       "Tags: #{if is_list(card.tags) and card.tags != [], do: Enum.map_join(card.tags, ", ", & &1.name), else: "none"}",
       "Flags: #{if card.flags == [], do: "none", else: Enum.join(card.flags, ", ")}",
+      "Cover colour: #{card.color || "none"}",
+      "Edge colours: #{edges_text(card) || "none"}",
       Card.health(card) not in [nil, :ok] && "Rolled-up health: #{Card.health(card)}",
       Card.stated_health(card) && "Reported health: #{Card.stated_health(card)}",
       Card.vote_total(card) > 0 && "Votes: #{Card.vote_total(card)}",

@@ -207,6 +207,9 @@ defmodule Slipdock.Automations.SpecTest do
       for %{type: type, required: required} <- Spec.vocabulary().actions do
         action = Map.new(required, &{&1, Map.fetch!(samples, &1)}) |> Map.put("type", type)
 
+        # set_colours needs one of its colours, none of which alone is required.
+        action = if type == "set_colours", do: Map.put(action, "cover", "red"), else: action
+
         assert {:ok, %{"actions" => [kept]}} =
                  Spec.validate(spec(%{"type" => "card_created"}, [action])),
                type

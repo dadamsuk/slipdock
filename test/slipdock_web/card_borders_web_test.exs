@@ -86,6 +86,17 @@ defmodule SlipdockWeb.CardBordersWebTest do
       assert edges(ctx.card) == [nil, nil, "teal", nil]
     end
 
+    test "sets and clears the cover colour beside the edges (#1210)", ctx do
+      result = mcp(ctx.user, %{card: ctx.card.id, color: "violet", border_right: "lime"})
+      assert result["isError"] == false, inspect(result["content"])
+      assert Repo.reload!(ctx.card).color == "violet"
+      assert edges(ctx.card) == [nil, "lime", nil, nil]
+
+      assert mcp(ctx.user, %{card: ctx.card.id, color: ""})["isError"] == false
+      assert Repo.reload!(ctx.card).color == nil
+      assert mcp(ctx.user, %{card: ctx.card.id, color: "chartreuse"})["isError"] == true
+    end
+
     test "refuses a colour that isn't in the palette", ctx do
       assert mcp(ctx.user, %{card: ctx.card.id, border_left: "chartreuse"})["isError"] == true
       assert edges(ctx.card) == [nil, nil, nil, nil]

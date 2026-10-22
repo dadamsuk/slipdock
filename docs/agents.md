@@ -297,9 +297,9 @@ boards and lists — and ends by naming the other sections, each one call
 away with `section` (`automations`, `wiki`, `endpoints`…, or `all`). The
 whole guide is more than a client shows in one tool result.
 
-`update_card` also colours each edge of a card's front (`border_top`,
-`border_right`, `border_bottom`, `border_left`: a palette name, `""` for
-none), sets what blocks a card and works its checklist (add
+`update_card` also colours a card's cover (`color`) and each edge of its
+front (`border_top`, `border_right`, `border_bottom`, `border_left`: a
+palette name, `""` for none), sets what blocks a card and works its checklist (add
 items, tick and untick them by the ids `get_card` shows); `move_card` takes
 `board` to send a card, subcards and all, to another board; `list_cards`
 takes `archived` (`exclude`, the default, `include` or `only`) and `full:

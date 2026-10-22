@@ -13,7 +13,8 @@ defmodule Slipdock.AI.Actions do
 
     * `update` – `card_id` and `changes` (title, description, priority,
       start_date, due_date, completed, percent_complete, assignee, column, add_tags,
-      remove_tags, add_flags, remove_flags)
+      remove_tags, add_flags, remove_flags, cover, border, border_top, border_right,
+      border_bottom, border_left — a colour is a palette name or null)
     * `create` – `title` plus any of column, description, priority,
       start_date, due_date, assignee, tags, flags
     * `tag` – `card_ids` with `add` and/or `remove` lists of tag names:
@@ -37,6 +38,9 @@ defmodule Slipdock.AI.Actions do
   alias Slipdock.{Access, Boards}
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.{Board, Card, Column, Tag}
+
+  @edges ~w(border_top border_right border_bottom border_left)
+  @colour_keys ~w(cover color colour border borders) ++ @edges
 
   @type step :: %{
           label: String.t(),
@@ -87,8 +91,9 @@ defmodule Slipdock.AI.Actions do
          :ok <- authorize(card, scope) do
       changes = action["changes"] || Map.drop(action, ["type", "card_id"])
       changes = if is_map(changes), do: changes, else: %{}
+      {colours, changes} = Map.split(changes, @colour_keys)
 
-      Enum.flat_map(changes, &update_step(&1, card, scope))
+      Enum.flat_map(changes, &update_step(&1, card, scope)) ++ colour_steps(colours, card, scope)
     else
       {:error, msg} -> [failed("Update card #{action["card_id"]}", msg)]
     end
@@ -371,6 +376,110 @@ defmodule Slipdock.AI.Actions do
       {:error, msg} -> failed("Archive card #{id}", msg)
     end
   end
+
+  ## Colours: the cover and the four edges (#1210) ---------------------------
+
+  # "border" sets every edge and a named edge wins over it, so they are read
+  # together rather than as separate steps that would race each other.
+  defp colour_steps(colours, _card, _scope) when map_size(colours) == 0, do: []
+
+  defp colour_steps(colours, card, scope) do
+    cover = Enum.find_value(~w(cover color colour), fn k -> Map.fetch(colours, k) |> ok() end)
+    all = Enum.find_value(~w(border borders), fn k -> Map.fetch(colours, k) |> ok() end)
+
+    edges =
+      for edge <- @edges, reduce: %{} do
+        acc ->
+          case Map.fetch(colours, edge) do
+            {:ok, v} -> Map.put(acc, edge, v)
+            :error -> if all, do: Map.put(acc, edge, elem(all, 0)), else: acc
+          end
+      end
+
+    cover_step(cover, card, scope) ++ edge_steps(edges, card, scope)
+  end
+
+  defp ok({:ok, v}), do: {v}
+  defp ok(:error), do: nil
+
+  defp cover_step(nil, _card, _scope), do: []
+
+  defp cover_step({value}, card, scope) do
+    case parse_colour(value) do
+      {:ok, colour} when colour == card.color ->
+        []
+
+      {:ok, nil} ->
+        [field_step(card, scope, "Take the cover colour off “#{card.title}”", %{"color" => nil})]
+
+      {:ok, colour} ->
+        [
+          field_step(card, scope, "Set the cover colour of “#{card.title}” to #{colour}", %{
+            "color" => colour
+          })
+        ]
+
+      :error ->
+        [failed("Set the cover colour of “#{card.title}”", not_a_colour(value))]
+    end
+  end
+
+  defp edge_steps(edges, _card, _scope) when map_size(edges) == 0, do: []
+
+  defp edge_steps(edges, card, scope) do
+    parsed = Map.new(edges, fn {edge, v} -> {edge, {v, parse_colour(v)}} end)
+
+    case Enum.find(parsed, fn {_, {_, r}} -> r == :error end) do
+      {_, {value, _}} ->
+        [failed("Colour the edges of “#{card.title}”", not_a_colour(value))]
+
+      nil ->
+        changed =
+          for {edge, {_, {:ok, colour}}} <- parsed,
+              colour != Map.get(card, String.to_existing_atom(edge)),
+              into: %{},
+              do: {edge, colour}
+
+        if changed == %{},
+          do: [],
+          else: [field_step(card, scope, edges_label(changed, card), changed)]
+    end
+  end
+
+  defp edges_label(changed, card) do
+    colours = changed |> Map.values() |> Enum.uniq()
+
+    case {map_size(changed), colours} do
+      {4, [nil]} ->
+        "Take the edge colours off “#{card.title}”"
+
+      {4, [colour]} ->
+        "Set every edge of “#{card.title}” to #{colour}"
+
+      _ ->
+        "Set the edges of “#{card.title}”: " <>
+          Enum.map_join(
+            Enum.filter(@edges, &Map.has_key?(changed, &1)),
+            ", ",
+            &"#{String.replace_prefix(&1, "border_", "")} #{changed[&1] || "none"}"
+          )
+    end
+  end
+
+  defp parse_colour(value) when value in [nil, "", "none", "no", "off"], do: {:ok, nil}
+
+  defp parse_colour(value) do
+    colour = value |> to_s() |> String.trim() |> String.downcase()
+
+    cond do
+      colour in ["", "none"] -> {:ok, nil}
+      colour in Slipdock.Palette.names() -> {:ok, colour}
+      true -> :error
+    end
+  end
+
+  defp not_a_colour(value),
+    do: "“#{value}” isn't a colour (#{Enum.join(Slipdock.Palette.names(), ", ")} or none)"
 
   ## Update steps, one per changed thing --------------------------------------
 
