@@ -54,6 +54,36 @@ defmodule Slipdock.Transcription.VoiceprintsTest do
     end)
   end
 
+  # Refuses the first `n` clips the way Manuel2 does, then takes the next.
+  defp refuse_then_take(n) do
+    test = self()
+    seen = :counters.new(1, [])
+
+    Req.Test.stub(Transcription, fn conn ->
+      if conn.request_path == "/v1/status" do
+        Req.Test.json(conn, @status)
+      else
+        conn = Plug.Parsers.call(conn, Plug.Parsers.init(parsers: [:multipart], pass: ["*/*"]))
+
+        send(
+          test,
+          {:voiceprint, conn.request_path, conn.params["name"],
+           File.read!(conn.params["file"].path), conn.req_headers}
+        )
+
+        :counters.add(seen, 1, 1)
+        count = :counters.get(seen, 1)
+
+        if count <= n,
+          do:
+            conn
+            |> Plug.Conn.put_status(422)
+            |> Req.Test.json(%{"error" => %{"message" => "Multiple speakers"}}),
+          else: Req.Test.json(conn, %{"id" => "vp_#{count}"})
+      end
+    end)
+  end
+
   defp on(extra \\ %{}) do
     {:ok, _} =
       Settings.update(
@@ -86,17 +116,45 @@ defmodule Slipdock.Transcription.VoiceprintsTest do
         line("Ollie", 14_000, 30_000)
       ]
 
-      assert Voiceprints.longest(lines, "Sam") == {:ok, {6_000, 14_000}}
-      assert Voiceprints.longest(lines, "Ollie") == {:ok, {14_000, 30_000}}
+      # Half a second in from each end.
+      assert Voiceprints.longest(lines, "Sam") == {:ok, {6_500, 13_500}}
+      assert Voiceprints.longest(lines, "Ollie") == {:ok, {14_500, 29_500}}
     end
 
     test "is cut to a minute" do
       assert Voiceprints.longest([line("Sam", 10_000, 200_000)], "Sam") ==
-               {:ok, {10_000, 70_000}}
+               {:ok, {10_500, 70_500}}
+    end
+
+    test "keeps clear of somebody else's line that overlaps it" do
+      lines = [
+        line("Ollie", 0, 10_500),
+        line("Sam", 10_000, 20_000),
+        line("Ollie", 19_000, 25_000)
+      ]
+
+      # From the end of Ollie's first line to the start of his second.
+      assert Voiceprints.longest(lines, "Sam") == {:ok, {11_000, 18_500}}
+    end
+
+    test "all of them, longest first, only those long enough" do
+      lines = [
+        line("Sam", 0, 5_000),
+        line("Ollie", 5_000, 6_000),
+        line("Sam", 6_000, 20_000),
+        line("Ollie", 20_000, 21_000),
+        line("Sam", 21_000, 24_000),
+        line("Ollie", 24_000, 25_000),
+        line("Sam", 25_000, 33_000)
+      ]
+
+      assert Voiceprints.stretches(lines, "Sam") ==
+               [{6_500, 19_500}, {25_500, 32_500}, {500, 4_500}]
     end
 
     test "under three seconds is too short, and nobody there is not found" do
-      lines = [line("Sam", 0, 2_999), line("Ollie", 3_000, 9_000)]
+      # 3.9 s is under three once half a second comes off each end.
+      lines = [line("Sam", 0, 3_900), line("Ollie", 3_900, 9_000)]
 
       assert Voiceprints.longest(lines, "Sam") == {:error, :too_short}
       assert Voiceprints.longest(lines, "Priya") == {:error, :not_found}
@@ -112,7 +170,7 @@ defmodule Slipdock.Transcription.VoiceprintsTest do
         %{speaker: "Sam", start_ms: 6_000, end_ms: nil}
       ]
 
-      assert Voiceprints.longest(lines, "Sam") == {:ok, {1_000, 6_000}}
+      assert Voiceprints.longest(lines, "Sam") == {:ok, {1_500, 5_500}}
 
       assert Voiceprints.longest([%{speaker: "Sam", start_ms: nil, end_ms: nil}], "Sam") ==
                {:error, :not_found}
@@ -141,7 +199,7 @@ defmodule Slipdock.Transcription.VoiceprintsTest do
     test "a refusal is put in words" do
       serve(@status, {422, %{"error" => %{"code" => "too_short", "message" => "need 5 s"}}})
 
-      assert {:error, "the transcription server said 422 too_short: need 5 s"} =
+      assert {:error, {:refused, "the transcription server said 422 too_short: need 5 s"}} =
                Transcription.add_voiceprint("CLIP", "Sam", url: @url)
     end
 
@@ -157,7 +215,7 @@ defmodule Slipdock.Transcription.VoiceprintsTest do
       owner = user_fixture("owner@example.com")
       board = board_fixture(%{"name" => "Pricing"}, owner: owner)
       path = Path.join(System.tmp_dir!(), "m-#{System.unique_integer([:positive])}.wav")
-      File.write!(path, wav(16))
+      File.write!(path, wav(24))
       on_exit(fn -> File.rm(path) end)
 
       {:ok, capture} =
@@ -171,7 +229,9 @@ defmodule Slipdock.Transcription.VoiceprintsTest do
             %{speaker: "Voice B", text: "Hi.", start_ms: 2_000, end_ms: 4_000},
             %{speaker: "Voice A", text: "So, the plan.", start_ms: 4_000, end_ms: 9_000},
             %{speaker: "Voice A", text: "And then.", start_ms: 9_000, end_ms: 12_000},
-            %{speaker: "Voice B", text: "Right.", start_ms: 12_000, end_ms: 16_000}
+            %{speaker: "Voice B", text: "Right.", start_ms: 12_000, end_ms: 16_000},
+            %{speaker: "Voice A", text: "Next.", start_ms: 16_000, end_ms: 20_000},
+            %{speaker: "Voice B", text: "Fine.", start_ms: 20_000, end_ms: 24_000}
           ]
         )
 
@@ -188,8 +248,8 @@ defmodule Slipdock.Transcription.VoiceprintsTest do
 
       assert_received {:voiceprint, "/v1/voiceprints", "Sam Smith", clip, _}
       data = clip_data(clip)
-      # 4 s to 12 s: eight seconds, starting at second 4.
-      assert byte_size(data) == 8 * @rate * 2
+      # 4.5 s to 11.5 s: seven seconds, from inside second 4 to inside 11.
+      assert byte_size(data) == 7 * @rate * 2
       assert :binary.first(data) == 4 and :binary.last(data) == 11
 
       assert Enum.any?(
@@ -197,6 +257,36 @@ defmodule Slipdock.Transcription.VoiceprintsTest do
                &(&1.message ==
                    "Sam Smith's voice sent to the transcription server as a voiceprint.")
              )
+    end
+
+    test "a clip the server refuses is followed by the next-longest", ctx do
+      on()
+      refuse_then_take(1)
+
+      assert {:ok, %{"id" => "vp_2"}} = Voiceprints.from_voice(ctx.voice, "Sam Smith")
+
+      assert_received {:voiceprint, _, "Sam Smith", first, _}
+      assert_received {:voiceprint, _, "Sam Smith", second, _}
+      # 4.5–11.5 s refused, then 16.5–19.5 s; 0.5–1.5 s is too short to offer.
+      assert byte_size(clip_data(first)) == 7 * @rate * 2
+      assert byte_size(clip_data(second)) == 3 * @rate * 2
+      assert :binary.first(clip_data(second)) == 16 and :binary.last(clip_data(second)) == 19
+      refute_received {:voiceprint, _, _, _, _}
+    end
+
+    test "when every stretch is refused, the last refusal is the answer", ctx do
+      on()
+      refuse_then_take(99)
+
+      assert {:error, {:refused, "the transcription server said 422: Multiple speakers"}} =
+               Voiceprints.from_voice(ctx.voice, "Sam Smith")
+
+      # Both stretches offered, no more.
+      assert_received {:voiceprint, _, _, _, _}
+      assert_received {:voiceprint, _, _, _, _}
+      refute_received {:voiceprint, _, _, _, _}
+
+      assert Voiceprints.describe({:refused, "Multiple speakers"}) == "Multiple speakers"
     end
 
     test "nothing is sent while the switch is off", ctx do
@@ -302,8 +392,8 @@ defmodule Slipdock.Transcription.VoiceprintsTest do
 
       assert_received {:voiceprint, "/v1/voiceprints", "Priya Nair", clip, _}
       data = clip_data(clip)
-      # 2 s to 8 s, two cues of theirs with nobody between.
-      assert byte_size(data) == 6 * @rate * 2
+      # 2.5 s to 7.5 s, two cues of theirs with nobody between.
+      assert byte_size(data) == 5 * @rate * 2
       assert :binary.first(data) == 2 and :binary.last(data) == 7
     end
 

@@ -82,7 +82,9 @@ defmodule Slipdock.Transcription do
   speaking) sent to `POST /v1/voiceprints` with the `name` it should give
   that voice in later transcripts. `{:ok, body}` with the server's answer,
   `{:error, :unsupported}` when the server doesn't list `"voiceprints"` in
-  its capabilities, or `{:error, reason}`. Options as `transcribe_file/2`.
+  its capabilities, `{:error, {:refused, reason}}` when it won't take this
+  clip (a 422: "Multiple speakers", too short), or `{:error, reason}`.
+  Options as `transcribe_file/2`.
   """
   def add_voiceprint(clip, name, opts \\ []) when is_binary(clip) and is_binary(name) do
     with {:ok, server} <- server(opts),
@@ -97,6 +99,9 @@ defmodule Slipdock.Transcription do
         case Req.post(req, url: "/v1/voiceprints", form_multipart: form) do
           {:ok, %{status: status, body: body}} when status in [200, 201] ->
             {:ok, if(is_map(body), do: body, else: %{})}
+
+          {:ok, %{status: 422} = response} ->
+            {:error, {:refused, failure(response)}}
 
           {:ok, response} ->
             {:error, failure(response)}

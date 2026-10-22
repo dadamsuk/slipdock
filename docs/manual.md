@@ -1343,7 +1343,10 @@ voice — in a [meeting page's transcript](#meeting-recordings-from-google-drive
 or on a meeting capture's **Who said what** — sends the longest stretch of
 that person speaking to the server as a voiceprint under that name: their
 lines one after another with nobody else between, the longest run of them,
-cut from the recording to at most a minute. Under three seconds is too
+kept clear of anybody else's line that overlaps it and half a second in from
+each end, cut from the recording to at most a minute. If the server refuses
+that clip (a `422`, such as "Multiple speakers"), the next-longest is sent,
+up to three in all. Under three seconds is too
 little and isn't sent, and nor is a placeholder like `Speaker 2`. It happens
 in the background once the name is saved; a meeting page then says whether it
 went and, if not, why, and a capture's history says when it went. Naming
@@ -1384,7 +1387,9 @@ with the token as `Authorization: Bearer <token>`:
   person speaking, 3 to 60 seconds) and `name` (who it is). Answer `200` or
   `201` with JSON (`{"id": "…"}` is enough). Keep it, replacing any earlier
   voiceprint under the same name, and from then on give that voice's turns
-  that `speaker` name in `diarized_json`. Errors as above.
+  that `speaker` name in `diarized_json`. Answer `422` for a clip that won't
+  do (more than one voice in it, too little speech): Slipdock then offers the
+  next-longest stretch, up to three. Other errors as above.
 
 On the API, `POST /api/cards/:id/attachments/:attachment_id/transcribe` starts
 it (202), and each attachment carries `transcript_status` (`running`, `done`,
