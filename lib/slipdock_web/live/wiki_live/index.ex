@@ -1785,7 +1785,12 @@ defmodule SlipdockWeb.WikiLive.Index do
     with true <- socket.assigns.can_write,
          %Page{} = page <- socket.assigns.page,
          {:ok, saved} <-
-           Wiki.rename_speaker(page, from, to, user: socket.assigns.current_user, via: "web") do
+           Wiki.rename_speaker(page, from, to,
+             user: socket.assigns.current_user,
+             via: "web",
+             # Whether the voiceprint went comes back as a flash (#1201).
+             notify: self()
+           ) do
       {:noreply,
        socket
        |> reload(saved)

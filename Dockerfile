@@ -84,11 +84,13 @@ FROM ${RUNNER_IMAGE}
 # libstdc++ and libncurses for the Erlang runtime, locales so the app's UTF-8
 # is honoured, curl for the health check, util-linux for setpriv (the
 # entrypoint drops privileges with it after fixing the volume), netcat so the
-# entrypoint can wait for Postgres to start accepting connections.
+# entrypoint can wait for Postgres to start accepting connections, ffmpeg to
+# cut and convert recordings that aren't WAV (a voiceprint's clip, a passage
+# re-listened to, a long recording split for transcribing).
 RUN apt-get update -y \
   && apt-get install -y --no-install-recommends \
        libstdc++6 openssl libncurses6 locales ca-certificates curl util-linux \
-       netcat-openbsd \
+       netcat-openbsd ffmpeg \
   && apt-get clean && rm -rf /var/lib/apt/lists/* \
   && sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
 

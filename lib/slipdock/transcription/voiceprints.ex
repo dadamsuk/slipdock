@@ -73,13 +73,32 @@ defmodule Slipdock.Transcription.Voiceprints do
   @doc """
   `name` was put on a voice in `page`'s transcript: their longest stretch
   goes to the server, in the background. `:ok` when it was started, `:off`
-  when there is nothing to do.
+  when there is nothing to do. With `notify: pid`, that process is sent
+  `{:put_flash, kind, message}` saying whether it went, and if not why.
   """
   def page_named(%Page{} = page, name, opts \\ []) do
-    if enabled?() and Speakers.person_label?(name),
-      do: later(fn -> log(from_page(page, String.trim(name), opts), "page #{page.id}") end),
-      else: :off
+    {notify, opts} = Keyword.pop(opts, :notify)
+    name = String.trim(name)
+
+    if enabled?() and Speakers.person_label?(name) do
+      later(fn ->
+        result = from_page(page, name, opts)
+        log(result, "page #{page.id}")
+        if is_pid(notify), do: send(notify, {:put_flash, flash_kind(result), said(result, name)})
+      end)
+    else
+      :off
+    end
   end
+
+  defp flash_kind({:ok, _}), do: :info
+  defp flash_kind(_), do: :error
+
+  @doc "Whether `name`'s voiceprint went, as a person reads it."
+  def said({:ok, _}, name), do: "#{name}'s voiceprint went to the transcription server."
+
+  def said({:error, reason}, name),
+    do: "#{name}'s voiceprint wasn't sent: #{describe(reason)}."
 
   @doc """
   A meeting capture's voice was confirmed as somebody: their longest
@@ -188,7 +207,8 @@ defmodule Slipdock.Transcription.Voiceprints do
           {:error, "couldn't fetch the recording from Google Drive"}
       end
     else
-      {:error, _} = error -> error
+      # Kept apart from our own reasons: Drive's `:not_found` is the file.
+      {:error, reason} -> {:error, {:recording, reason}}
       _ -> {:error, :no_recording}
     end
   end
@@ -204,6 +224,12 @@ defmodule Slipdock.Transcription.Voiceprints do
   def describe(:not_found), do: "nobody by that name speaks in a timed line"
   def describe(:too_short), do: "their longest stretch is under #{div(@min_ms, 1000)} seconds"
   def describe(:no_recording), do: "there is no recording to cut it from"
+  def describe({:recording, :not_found}), do: "the recording isn't in Google Drive"
+  def describe({:recording, :not_audio}), do: "the recording isn't audio"
+
+  def describe({:recording, reason}),
+    do: "the recording couldn't be fetched from Google Drive (#{reason})"
+
   def describe(reason) when is_binary(reason), do: reason
   def describe(reason), do: inspect(reason)
 

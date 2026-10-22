@@ -307,6 +307,91 @@ defmodule Slipdock.Transcription.VoiceprintsTest do
       assert :binary.first(data) == 2 and :binary.last(data) == 7
     end
 
+    test "whoever asked is told it went", ctx do
+      on()
+      serve()
+
+      assert {:ok, _} =
+               Wiki.rename_speaker(ctx.page, "Speaker 1", " Priya Nair ",
+                 user: ctx.user,
+                 notify: self()
+               )
+
+      assert_received {:voiceprint, "/v1/voiceprints", "Priya Nair", _, _}
+
+      assert_received {:put_flash, :info,
+                       "Priya Nair's voiceprint went to the transcription server."}
+    end
+
+    test "whoever asked is told why it didn't go", ctx do
+      on()
+      serve(%{@status | "capabilities" => []})
+
+      assert {:ok, _} =
+               Wiki.rename_speaker(ctx.page, "Speaker 1", "Priya Nair",
+                 user: ctx.user,
+                 notify: self()
+               )
+
+      assert_received {:put_flash, :error,
+                       "Priya Nair's voiceprint wasn't sent: the transcription server doesn't take voiceprints."}
+
+      refute_received {:voiceprint, _, _, _, _}
+    end
+
+    test "a recording that isn't WAV needs ffmpeg to be cut, and says so", ctx do
+      on()
+      serve()
+      Slipdock.TestConfig.merge(:meetings, ffmpeg: false)
+
+      drive!([
+        %{
+          "id" => "fold",
+          "name" => "Rec",
+          "mimeType" => "application/vnd.google-apps.folder",
+          "parents" => ["root"]
+        },
+        %{
+          "id" => "m4a",
+          "name" => "m.m4a",
+          "mimeType" => "audio/mp4",
+          "parents" => ["fold"],
+          content: "not really an m4a"
+        }
+      ])
+
+      {:ok, page} =
+        Wiki.update_page(
+          ctx.page,
+          %{"front_matter" => "---\nrecording: gdrive:Rec/m.m4a\n---\n\n"},
+          user: ctx.user
+        )
+
+      assert {:ok, _} =
+               Wiki.rename_speaker(page, "Speaker 1", "Priya Nair",
+                 user: ctx.user,
+                 notify: self()
+               )
+
+      assert_received {:put_flash, :error,
+                       "Priya Nair's voiceprint wasn't sent: only WAV recordings can be cut without ffmpeg."}
+
+      refute_received {:voiceprint, _, _, _, _}
+    end
+
+    test "a recording gone from Drive says so, not that nobody speaks", ctx do
+      on()
+      serve()
+      drive!([])
+
+      assert Voiceprints.from_page(ctx.page, "Speaker 1") == {:error, {:recording, :not_found}}
+
+      assert Voiceprints.describe({:recording, :not_found}) ==
+               "the recording isn't in Google Drive"
+
+      refute_received {:voiceprint, _, _, _, _}
+    end
+
     test "nothing is fetched or sent while the switch is off", ctx do
       serve()
 

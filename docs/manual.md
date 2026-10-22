@@ -1345,8 +1345,10 @@ that person speaking to the server as a voiceprint under that name: their
 lines one after another with nobody else between, the longest run of them,
 cut from the recording to at most a minute. Under three seconds is too
 little and isn't sent, and nor is a placeholder like `Speaker 2`. It happens
-in the background once the name is saved (a capture's history says when it
-went); naming them again sends a fresh one. It is off by default: it is that
+in the background once the name is saved; a meeting page then says whether it
+went and, if not, why, and a capture's history says when it went. Naming
+them again sends a fresh one. A recording that isn't WAV is cut with
+`ffmpeg`, which the Docker image includes; on a server of your own, install it. It is off by default: it is that
 person's voice going to your server, so tell the people you name.
 
 #### What a transcription server must speak
