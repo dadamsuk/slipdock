@@ -3665,6 +3665,12 @@ defmodule SlipdockWeb.WikiLive.Index do
 
   defp blank_to_nil(value), do: value
 
+  # An icon or colour name as the form holds it, blank as none. Not
+  # `blank_to_nil/1`, which reads strings as ids: every name came out nil, so
+  # picking a colour unpicked the icon (#1203).
+  defp dress_value(value) when value in [nil, ""], do: nil
+  defp dress_value(value), do: value
+
   defp save(socket, nil, params, message, _purge) do
     board = socket.assigns.board
     parent = socket.assigns[:new_parent]
@@ -6821,8 +6827,8 @@ defmodule SlipdockWeb.WikiLive.Index do
           kind={:page}
           icon_name={@form[:icon].name}
           color_name={@form[:color].name}
-          icon={blank_to_nil(@form[:icon].value)}
-          color={blank_to_nil(@form[:color].value)}
+          icon={dress_value(@form[:icon].value)}
+          color={dress_value(@form[:color].value)}
         />
       </div>
     </.form>
