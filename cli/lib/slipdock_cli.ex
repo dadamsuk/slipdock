@@ -402,7 +402,7 @@ defmodule SlipdockCLI do
                                         inside the vault
     vault rename <vault> <name...>
     vault rm <vault>                    its mappings go; every page stays on its board
-    vault set <vault> --recordings-folder PATH
+    vault set <vault> [--shortcut K] [--hotkey 0-9|none] [--recordings-folder PATH]
                                         the folder on your Google Drive its meeting
                                         recordings are in ("" clears it); a page whose
                                         front matter says recording: gdrive:<path> plays
@@ -1036,6 +1036,7 @@ defmodule SlipdockCLI do
     inside: :boolean,
     with_board: :boolean,
     recordings_folder: :string,
+    hotkey: :string,
     append: :string,
     card: :string,
     page: :string,

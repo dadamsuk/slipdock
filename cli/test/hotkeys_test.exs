@@ -36,6 +36,47 @@ defmodule SlipdockCLI.HotkeysTest do
     assert out =~ ~r/Ctrl\+Shift\+0\s+Ops\s+ops\s+4/
   end
 
+  test "hotkeys lists a vault's digit as a vault (#1204)" do
+    serve([{200, ~s({"hotkeys":[{"digit":2,"vault":{"id":7,"name":"Notes"}}]})}])
+    out = capture_io(fn -> Boards.run("hotkeys", [], []) end)
+
+    assert out =~ ~r/Ctrl\+Shift\+2\s+Notes\s+vault\s+7/
+  end
+
+  test "vault set sends the shortcut and hotkey and says what opens it (#1204)" do
+    serve([{200, ~s({"vault":{"id":7,"name":"Notes","shortcut":"nt","hotkey":2,"mappings":[]}})}])
+
+    out =
+      capture_io(fn ->
+        SlipdockCLI.Vaults.run("vault", ["set", "Notes"], shortcut: "nt", hotkey: "2")
+      end)
+
+    assert_received {:request, "PATCH", "/api/vaults/Notes", body}
+    assert JSON.decode!(body) == %{"shortcut" => "nt", "hotkey" => "2"}
+    assert out =~ "b then nt now opens Notes"
+    assert out =~ "Ctrl+Shift+2 now opens Notes"
+    refute out =~ "recordings"
+  end
+
+  test "vault set --hotkey none says the vault has none now" do
+    serve([
+      {200, ~s({"vault":{"id":7,"name":"Notes","shortcut":"nt","hotkey":null,"mappings":[]}})}
+    ])
+
+    out = capture_io(fn -> SlipdockCLI.Vaults.run("vault", ["set", "7"], hotkey: "none") end)
+
+    assert_received {:request, "PATCH", "/api/vaults/7", body}
+    assert JSON.decode!(body) == %{"hotkey" => "none"}
+    assert out =~ "Notes has no hotkey now"
+  end
+
+  test "vault show says which keys open it" do
+    serve([{200, ~s({"vault":{"id":7,"name":"Notes","shortcut":"nt","hotkey":2,"mappings":[]}})}])
+    out = capture_io(fn -> SlipdockCLI.Vaults.run("vault", ["show", "7"], []) end)
+
+    assert out =~ "opens with b then nt or Ctrl+Shift+2"
+  end
+
   test "none yet says how to set one" do
     serve([{200, ~s({"hotkeys":[]})}])
     assert capture_io(fn -> Boards.run("hotkeys", [], []) end) =~ "slipdock hotkey <board> 1"

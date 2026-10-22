@@ -65,7 +65,7 @@ defmodule SlipdockWeb.VaultLive.Index do
         }
       end)
 
-    assign(socket, vaults: vaults)
+    assign(socket, vaults: vaults, hotkeys: Slipdock.Hotkeys.list(user))
   end
 
   @impl true
@@ -128,6 +128,32 @@ defmodule SlipdockWeb.VaultLive.Index do
     else
       {:error, %Ecto.Changeset{} = cs} ->
         {:noreply, flash(socket, :error, "Vault name #{name_error(cs)}.")}
+
+      _ ->
+        {:noreply, flash(socket, :error, "That vault isn't there any more.")}
+    end
+  end
+
+  # Its key in the board switcher and its Ctrl+Shift digit (#1204), saved
+  # together. A blank key takes a fresh one from the name.
+  def handle_event("keys", %{"vault_id" => id} = params, socket) do
+    user = socket.assigns.current_user
+
+    with {:ok, vault} <- own_vault(socket, id),
+         {:ok, _} <- Slipdock.Hotkeys.parse(params["hotkey"]),
+         {:ok, vault} <- Vaults.set_shortcut(vault, params["shortcut"]),
+         {:ok, digit} <- Slipdock.Hotkeys.put(user, vault, params["hotkey"]) do
+      message =
+        "Press b then #{vault.shortcut} to open #{vault.name}" <>
+          if(digit, do: ", or Ctrl+Shift+#{digit} from any page.", else: ".")
+
+      {:noreply, socket |> flash(:info, message) |> load()}
+    else
+      {:error, %Ecto.Changeset{} = cs} ->
+        {:noreply, flash(socket, :error, "Shortcut key #{shortcut_error(cs)}.")}
+
+      {:error, message} when is_binary(message) ->
+        {:noreply, flash(socket, :error, "Hotkey #{message}.")}
 
       _ ->
         {:noreply, flash(socket, :error, "That vault isn't there any more.")}
@@ -306,6 +332,9 @@ defmodule SlipdockWeb.VaultLive.Index do
   defp folder_error(_, _), do: "Google Drive couldn't be asked just now. Try again."
 
   defp name_error(cs), do: cs.errors[:name] |> Kernel.||({"is invalid", []}) |> elem(0)
+
+  defp shortcut_error(cs),
+    do: cs.errors[:shortcut] |> Kernel.||({"is invalid", []}) |> elem(0)
 
   @doc """
   What deleting a vault does, in words, for its confirmation: the pages stay,
@@ -490,6 +519,8 @@ defmodule SlipdockWeb.VaultLive.Index do
                 <.icon name="hero-trash" class="size-4" />
               </button>
             </div>
+
+            <.vault_keys vault={vault} hotkeys={@hotkeys} />
 
             <.recordings_folder :if={@google != :not_configured} vault={vault} google={@google} />
 
@@ -703,6 +734,62 @@ defmodule SlipdockWeb.VaultLive.Index do
           The synced folders ({Enum.join(p.mirrors, ", ")}) will get these files.
         </p>
       </div>
+    </form>
+    """
+  end
+
+  # The keys that open it (#1204): b then its shortcut, as a board's, and the
+  # owner's own Ctrl+Shift digit.
+  attr :vault, :map, required: true
+  attr :hotkeys, :list, required: true
+
+  defp vault_keys(assigns) do
+    assigns =
+      assign(assigns,
+        hotkey:
+          Enum.find_value(assigns.hotkeys, fn
+            {digit, %Slipdock.Vaults.Vault{id: id}} when id == assigns.vault.id -> digit
+            _ -> nil
+          end)
+      )
+
+    ~H"""
+    <form
+      id={"vault-keys-#{@vault.id}"}
+      phx-submit="keys"
+      class="mt-4 flex flex-wrap items-center gap-2 text-sm"
+    >
+      <input type="hidden" name="vault_id" value={@vault.id} />
+      <label for={"vault-shortcut-#{@vault.id}"} class="text-base-content/60">
+        <.icon name="hero-command-line" class="size-4" /> Shortcut key
+      </label>
+      <input
+        type="text"
+        id={"vault-shortcut-#{@vault.id}"}
+        name="shortcut"
+        value={@vault.shortcut}
+        maxlength={Slipdock.Boards.Board.shortcut_length()}
+        class="input input-sm w-16 font-mono"
+      />
+      <label for={"vault-hotkey-#{@vault.id}"} class="text-base-content/60">Hotkey</label>
+      <select id={"vault-hotkey-#{@vault.id}"} name="hotkey" class="select select-sm w-auto">
+        <option
+          :for={{label, value} <- Slipdock.Hotkeys.choices(@hotkeys, @vault)}
+          value={value}
+          selected={value == to_string(@hotkey || "")}
+        >
+          {label}
+        </option>
+      </select>
+      <button type="submit" class="btn btn-sm">Save</button>
+      <p class="w-full text-xs text-base-content/50">
+        Press <kbd class="kbd kbd-xs">b</kbd>
+        anywhere, then the key, to open this vault, as you would a board; clear it to take a
+        fresh one from the name. The hotkey opens it from any page with
+        <kbd class="kbd kbd-xs">Ctrl</kbd>
+        + <kbd class="kbd kbd-xs">Shift</kbd>
+        + the digit.
+      </p>
     </form>
     """
   end

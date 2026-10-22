@@ -18,6 +18,9 @@ defmodule Slipdock.Vaults.Vault do
     # Where on its owner's Google Drive the vault's meeting recordings are
     # (W-1690): a path from My Drive's root. Only files under it are served.
     field :recordings_folder, :string
+    # The key that reaches it from the board switcher, b then this (#1204):
+    # from the same set as boards' keys, so none means two things.
+    field :shortcut, :string
     # Where its owner has put it among their boards on the home page, in the
     # same numbering as their board orders (see `Slipdock.Boards.reorder_boards/2`);
     # nil until it has been placed.
@@ -48,5 +51,14 @@ defmodule Slipdock.Vaults.Vault do
       name: :vaults_user_id_name_index,
       message: "you already have a vault with that name"
     )
+  end
+
+  @doc "Sets the vault's switcher key; `Slipdock.Vaults.set_shortcut/2` checks the boards'."
+  def shortcut_changeset(vault, shortcut) do
+    vault
+    |> change(shortcut: Slipdock.Boards.Board.sanitize_shortcut(shortcut))
+    |> validate_required([:shortcut])
+    |> validate_length(:shortcut, max: Slipdock.Boards.Board.shortcut_length())
+    |> unique_constraint(:shortcut, message: "is already used by another vault")
   end
 end

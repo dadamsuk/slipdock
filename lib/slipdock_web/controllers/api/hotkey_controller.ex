@@ -1,7 +1,8 @@
 defmodule SlipdockWeb.API.HotkeyController do
   @moduledoc """
-  The signed-in user's board hotkeys (#1101): which board Ctrl+Shift+a digit
-  opens (see `Slipdock.Hotkeys`).
+  The signed-in user's board hotkeys (#1101): which board — or vault (#1204),
+  set with `PATCH /api/vaults/:id {"hotkey": n}` — Ctrl+Shift+a digit opens
+  (see `Slipdock.Hotkeys`).
 
   Hotkeys are personal, like favourites, so everything here is about the
   token's owner: setting one on a board shared with you takes nothing from
@@ -41,9 +42,16 @@ defmodule SlipdockWeb.API.HotkeyController do
 
   defp put(_user, _board, _params), do: {:error, :bad_request, "digit is required (0–9 or none)"}
 
+  # A vault's (#1204) carries `vault` where a board's carries `board`.
   defp entries(user) do
-    for {digit, board} <- Hotkeys.list(user) do
-      %{digit: digit, board: %{id: board.id, name: board.name, code: board.code}}
+    for {digit, target} <- Hotkeys.list(user) do
+      case target do
+        %Slipdock.Vaults.Vault{} = vault ->
+          %{digit: digit, vault: %{id: vault.id, name: vault.name}}
+
+        board ->
+          %{digit: digit, board: %{id: board.id, name: board.name, code: board.code}}
+      end
     end
   end
 end

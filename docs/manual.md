@@ -1679,11 +1679,11 @@ dialogs leave the page's keys alone.
   vault the board is in, or the board alone. Nothing typed lists the notes
   changed most lately, and a page's code still goes straight to it. On a
   shell, `slipdock page switch <board> <letters…>`
-- `Ctrl-Shift-1` … `9`, `0` — **open a board** you gave that digit (see
-  [A board's hotkey](#a-boards-hotkey))
+- `Ctrl-Shift-1` … `9`, `0` — **open a board** (or vault) you gave that digit (see
+  [A board's hotkey](#a-boards-hotkey), [Switching to a vault](#switching-to-a-vault))
 - `h` — all boards (the board takes this one while the keyboard is on it)
-- `b` — **switch board**: every board you can open, each with its own key;
-  press that key to go there
+- `b` — **switch board**: every board you can open, then your vaults, each with
+  its own key; press that key to go there
 - `q` — quick add a card (see below)
 - `l` — alerts (the board takes this one too, while it holds the keyboard)
 - `?` — the shortcut sheet
@@ -1785,6 +1785,20 @@ share a board with keeps their own, and a board shared with you can take one of
 yours from the shell (`PUT /api/boards/<board>/hotkey`). Giving a digit to one
 board takes it off whichever had it. A digit with no board, or on a board you
 can no longer open or have archived, says so rather than going anywhere.
+
+### Switching to a vault
+
+Your vaults are reached the same two ways. Each has a shortcut key from the
+same set as the boards' — so `b` then a key never means two things — taken
+from its name when it is made, and listed in the switcher after your boards
+(and in the command palette, `Ctrl-P`). A vault can also have one of your
+`Ctrl-Shift` digits; giving it one takes the digit off whichever board or
+vault had it. Set both under *Shortcut key* and *Hotkey* in the vault's
+settings, or with `slipdock vault set <vault> --shortcut K --hotkey <0-9|none>`
+(`PATCH /api/vaults/<vault> {"shortcut": "nt", "hotkey": 2}`). `slipdock vault
+show` says which keys open a vault, and `slipdock hotkeys` lists vaults'
+digits with the boards'. Its tile on the home page shows both, as a board's
+does.
 
 ## At the foot of every list
 

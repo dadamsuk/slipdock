@@ -169,8 +169,13 @@ defmodule SlipdockWeb.BoardLive.Index do
       # An admin's support sessions, each with the boards it opens: nothing
       # else lists somebody else's boards, so this is the way in.
       supported: Access.supported_boards(user),
-      # The reader's own Ctrl+Shift digits, by board id.
-      hotkeys: Map.new(Slipdock.Hotkeys.list(user), fn {digit, board} -> {board.id, digit} end)
+      # The reader's own Ctrl+Shift digits, by board id, and by
+      # `{:vault, id}` for a vault (#1204).
+      hotkeys:
+        Map.new(Slipdock.Hotkeys.list(user), fn
+          {digit, %Vault{id: id}} -> {{:vault, id}, digit}
+          {digit, board} -> {board.id, digit}
+        end)
     )
   end
 
@@ -839,6 +844,7 @@ defmodule SlipdockWeb.BoardLive.Index do
         <.vault_card
           :if={match?(%Vault{}, tile)}
           entry={@vaults[tile.id]}
+          hotkey={@hotkeys[{:vault, tile.id}]}
           sort={@sort}
           tiles={@boards}
         />
@@ -1002,6 +1008,7 @@ defmodule SlipdockWeb.BoardLive.Index do
             <.vault_row
               :if={match?(%Vault{}, board)}
               entry={@vaults[board.id]}
+              hotkey={@hotkeys[{:vault, board.id}]}
               sort={@sort}
               tiles={@boards}
             />
@@ -1109,6 +1116,30 @@ defmodule SlipdockWeb.BoardLive.Index do
     """
   end
 
+  attr :vault, :map, required: true
+  attr :hotkey, :integer, default: nil
+
+  # A vault's keys, as `board_keys/1` shows a board's (#1204).
+  defp vault_keys(assigns) do
+    ~H"""
+    <kbd
+      :if={@vault.shortcut}
+      class="kbd kbd-xs shrink-0 font-normal"
+      title="Press b then this key to jump here"
+    >
+      {@vault.shortcut}
+    </kbd>
+    <kbd
+      :if={@hotkey}
+      id={"vault-hotkey-#{@vault.id}"}
+      class="kbd kbd-xs shrink-0 font-normal"
+      title={"Ctrl+Shift+#{@hotkey} opens this vault from any page"}
+    >
+      Ctrl+Shift+{@hotkey}
+    </kbd>
+    """
+  end
+
   attr :board, :map, required: true
   attr :boards, :list, required: true
   attr :current_user, :map, required: true
@@ -1184,6 +1215,7 @@ defmodule SlipdockWeb.BoardLive.Index do
   end
 
   attr :entry, :map, required: true
+  attr :hotkey, :integer, default: nil
   attr :sort, :string, required: true
   attr :tiles, :list, required: true
 
@@ -1202,6 +1234,7 @@ defmodule SlipdockWeb.BoardLive.Index do
             <.icon name="hero-archive-box" class="size-4 shrink-0 text-base-content/50" />
             <span class="truncate">{@vault.name}</span>
             <span class="chip chip-line shrink-0 text-2xs font-normal">vault</span>
+            <.vault_keys vault={@vault} hotkey={@hotkey} />
           </h2>
           <p class="mt-0.5 line-clamp-2 text-sm text-base-content/60 sm:min-h-[1.25rem]">
             <%= if @entry.boards == [] do %>
@@ -1268,6 +1301,7 @@ defmodule SlipdockWeb.BoardLive.Index do
   end
 
   attr :entry, :map, required: true
+  attr :hotkey, :integer, default: nil
   attr :sort, :string, required: true
   attr :tiles, :list, required: true
 
@@ -1292,6 +1326,7 @@ defmodule SlipdockWeb.BoardLive.Index do
           <span class={["size-2.5 shrink-0 rounded-full", Palette.dot(vault_color(@entry))]}></span>
           <span class="max-w-56 truncate font-medium">{@vault.name}</span>
           <span class="chip chip-line shrink-0 text-2xs font-normal">vault</span>
+          <.vault_keys vault={@vault} hotkey={@hotkey} />
         </.link>
       </td>
       <td class="hidden max-w-xs truncate text-base-content/60 md:table-cell">

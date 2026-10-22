@@ -363,6 +363,7 @@ slipdock fav card <id> | fav list <board> <column> | fav view <board> <view> | f
 slipdock fav page <page>                                  # a wiki page, by code (W-31), slug or board/slug
 slipdock unfav <same args>                                # or `fav ... --off`
 slipdock hotkeys | slipdock hotkey <board> <0-9|none>     # Ctrl+Shift+digit opens that board in the web app
+slipdock vault set <vault> --shortcut K --hotkey <0-9|none> # a vault's key in the b switcher, and its digit
 ```
 
 Favourites are **personal** — the token holder's own, never anyone else's, and favouriting

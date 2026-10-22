@@ -51,7 +51,10 @@ defmodule SlipdockWeb.API.VaultController do
 
   def update(conn, %{"id" => ref} = params) do
     with {:ok, vault} <- Vaults.get_vault(user(conn), ref),
+         {:ok, _} <- hotkey_digit(params),
          {:ok, vault} <- rename(vault, params),
+         {:ok, vault} <- shortcut(vault, params),
+         {:ok, _} <- hotkey(conn, vault, params),
          {:ok, vault} <- recordings_folder(vault, params) do
       json(conn, %{vault: V.vault(vault)})
     end
@@ -61,6 +64,39 @@ defmodule SlipdockWeb.API.VaultController do
     do: Vaults.update_vault(vault, Map.take(params, ["name"]))
 
   defp rename(vault, _params), do: {:ok, vault}
+
+  # Its key in the board switcher (#1204); "" takes a fresh one from its name.
+  defp shortcut(vault, %{"shortcut" => key}) do
+    case Vaults.set_shortcut(vault, key) do
+      {:ok, vault} ->
+        {:ok, vault}
+
+      {:error, cs} ->
+        {message, _} = cs.errors[:shortcut] || {"is invalid", []}
+        {:error, :unprocessable_entity, "shortcut #{message}"}
+    end
+  end
+
+  defp shortcut(vault, _params), do: {:ok, vault}
+
+  # Its Ctrl+Shift digit (#1204), checked before anything is saved.
+  defp hotkey_digit(%{"hotkey" => digit}) do
+    case Slipdock.Hotkeys.parse(digit) do
+      {:ok, digit} -> {:ok, digit}
+      {:error, message} -> {:error, :unprocessable_entity, "hotkey #{message}"}
+    end
+  end
+
+  defp hotkey_digit(_params), do: {:ok, nil}
+
+  defp hotkey(conn, vault, %{"hotkey" => digit}) do
+    case Slipdock.Hotkeys.put(user(conn), vault, digit) do
+      {:ok, digit} -> {:ok, digit}
+      {:error, message} -> {:error, :unprocessable_entity, "hotkey #{message}"}
+    end
+  end
+
+  defp hotkey(_conn, _vault, _params), do: {:ok, nil}
 
   # The folder on the owner's Google Drive its meeting recordings are in
   # (W-1690); "" or null clears it. Saving checks it is a folder there.

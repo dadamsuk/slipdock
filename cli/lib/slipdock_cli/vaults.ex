@@ -37,19 +37,43 @@ defmodule SlipdockCLI.Vaults do
   end
 
   # Where on the owner's Google Drive the vault's meeting recordings are
-  # (W-1690); "" clears it. The server checks the folder is there.
+  # (W-1690); "" clears it. The server checks the folder is there. And how it
+  # is reached in the web app (#1204): b then --shortcut, and Ctrl+Shift and
+  # its --hotkey digit.
   def run("vault", ["set", ref], o) do
-    if is_nil(o[:recordings_folder]), do: fail("say what to set: --recordings-folder PATH")
+    body =
+      compact(%{
+        "recordings_folder" => o[:recordings_folder],
+        "shortcut" => o[:shortcut],
+        "hotkey" => o[:hotkey]
+      })
 
-    HTTP.patch("/vaults/#{enc(ref)}", %{"recordings_folder" => o[:recordings_folder]})
+    if body == %{},
+      do: fail("say what to set: --shortcut K, --hotkey 0-9|none or --recordings-folder PATH")
+
+    HTTP.patch("/vaults/#{enc(ref)}", body)
     |> out(o, fn r ->
       v = r["vault"]
 
-      IO.puts(
-        if v["recordings_folder"],
-          do: "#{v["name"]} plays its recordings from #{v["recordings_folder"]} on Google Drive",
-          else: "#{v["name"]} has no recordings folder now"
-      )
+      if Map.has_key?(body, "recordings_folder") do
+        IO.puts(
+          if v["recordings_folder"],
+            do:
+              "#{v["name"]} plays its recordings from #{v["recordings_folder"]} on Google Drive",
+            else: "#{v["name"]} has no recordings folder now"
+        )
+      end
+
+      if Map.has_key?(body, "shortcut"),
+        do: IO.puts("b then #{v["shortcut"]} now opens #{v["name"]}")
+
+      if Map.has_key?(body, "hotkey") do
+        IO.puts(
+          if v["hotkey"],
+            do: "Ctrl+Shift+#{v["hotkey"]} now opens #{v["name"]}",
+            else: "#{v["name"]} has no hotkey now"
+        )
+      end
     end)
   end
 
@@ -238,6 +262,7 @@ defmodule SlipdockCLI.Vaults do
     do:
       fail(
         "usage: slipdock vault ls | show V | new NAME | rename V NAME | rm V | " <>
+          "set V [--shortcut K] [--hotkey 0-9|none] [--recordings-folder PATH] | " <>
           "map V PATH --board B [--folder F] [--dry-run] | unmap V PATH [--dry-run] | " <>
           "split V PATH --board B|--new-board NAME [--dry-run] | locate V PATH | resolve V LINK | " <>
           "wanted V | changes V [--since N] | import DIR --vault V [--dry-run]"
@@ -502,6 +527,12 @@ defmodule SlipdockCLI.Vaults do
 
     if v["recordings_folder"],
       do: IO.puts("  " <> Render.dim("recordings: #{v["recordings_folder"]} on Google Drive"))
+
+    keys =
+      [v["shortcut"] && "b then #{v["shortcut"]}", v["hotkey"] && "Ctrl+Shift+#{v["hotkey"]}"]
+      |> Enum.reject(&is_nil/1)
+
+    if keys != [], do: IO.puts("  " <> Render.dim("opens with " <> Enum.join(keys, " or ")))
 
     # The folders it is synced to, from servers that record them.
     for m <- v["mirrors"] || [] do

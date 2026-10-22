@@ -102,7 +102,7 @@ defmodule SlipdockWeb.ShortcutsLiveTest do
     test "? shows the catalogue, and Escape closes it", %{view: view} do
       html = render_hook(view, "shortcut_panel", %{"panel" => "help"})
       assert html =~ "Keyboard shortcuts"
-      assert html =~ "Switch board — then the board&#39;s own key"
+      assert html =~ "Switch board or vault — then its own key"
       assert html =~ "type a label to pick it up and move it"
       assert html =~ "Attachments · Checklist · Subcards"
 
