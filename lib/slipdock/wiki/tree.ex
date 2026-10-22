@@ -192,6 +192,66 @@ defmodule Slipdock.Wiki.Tree do
   end
 
   @doc """
+  `recent/3` over a vault (#1202): the `n` pages changed most lately on every
+  board mounted in it, each read as its own tree reads it (`boards`, as
+  `vault_children/4` takes them), so a board mounted below another one is
+  in its Recent view too. A board's whole wiki brings all its pages; a
+  folder of it brings that folder's, at any depth.
+
+  With `root:` (a vault path), only what is mounted at or below it: a
+  board's wiki mounted there and what is mounted inside that. `:only`
+  narrows it as the filter bar does.
+  """
+  def vault_recent(%Vault{} = vault, boards, n, extra \\ []) do
+    {root, extra} = Keyword.pop(extra, :root, "")
+
+    vault
+    |> vault_layout(boards)
+    |> Map.fetch!(:mappings)
+    |> Enum.filter(&under?(&1.path, root))
+    |> Enum.group_by(& &1.board_id)
+    |> Enum.flat_map(fn {board_id, mappings} ->
+      {board, opts} = boards[board_id]
+
+      from(p in Page,
+        as: :page,
+        where: p.board_id == ^board_id,
+        order_by: [desc: p.updated_at, desc: p.id],
+        limit: ^n,
+        select: struct(p, ^@page_fields)
+      )
+      |> mapped_part(board, mappings)
+      |> where(^visible(Keyword.merge(opts, extra), :page))
+      |> Repo.all()
+    end)
+    |> Enum.uniq_by(& &1.id)
+    |> Slipdock.Wiki.newest_first()
+    |> Enum.take(n)
+    |> Enum.map(&page_row(&1, 0))
+  end
+
+  # The pages a board's mappings bring: all of them when its whole wiki is
+  # mapped, else those filed in a mapped folder or any folder inside one.
+  defp mapped_part(query, board, mappings) do
+    if Enum.any?(mappings, &is_nil(&1.folder_id)) do
+      query
+    else
+      folders = Folders.list(board)
+      ids = mappings |> Enum.map(& &1.folder_id) |> folder_subtree(folders)
+      where(query, [p], p.folder_id in ^ids)
+    end
+  end
+
+  defp folder_subtree(ids, folders) do
+    children = Enum.group_by(folders, & &1.parent_id, & &1.id)
+
+    Stream.iterate(ids, &Enum.flat_map(&1, fn id -> Map.get(children, id, []) end))
+    |> Enum.take_while(&(&1 != []))
+    |> List.flatten()
+    |> Enum.uniq()
+  end
+
+  @doc """
   What a listing shows under each of these pages' titles, and no more: the
   summary, and the first 400 characters of the body for when there is none.
   `%{page_id => %{summary: text, body: text}}`.

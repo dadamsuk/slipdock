@@ -332,13 +332,37 @@ defmodule SlipdockWeb.WikiLive.Index do
 
   # The Recent view's rows: what the tree would show, newest edit first, and
   # narrowed by the filter bar as the tree is. Only read while it is shown.
-  defp assign_tree_recent(%{assigns: %{tree_view: "recent"} = assigns} = socket) do
-    only = assigns.tree_filter && assigns.tree_filter.only
-    recent = Tree.recent(assigns.board, [only: only] ++ tree_opts(assigns), @tree_recent)
-    assign(socket, tree_recent: recent)
-  end
+  defp assign_tree_recent(%{assigns: %{tree_view: "recent"}} = socket),
+    do: assign(socket, tree_recent: recent_rows(socket, @tree_recent))
 
   defp assign_tree_recent(socket), do: assign(socket, tree_recent: [])
+
+  # The `n` pages edited last of what the tree shows, each with where it
+  # opens: in a vault, what is mounted below this tree's top as well as its
+  # own board's (#1202), so a board mounted inside another is in its Recent.
+  defp recent_rows(socket, n) do
+    filter = scope_filter(socket, socket.assigns.tree_scope)
+    only = filter && filter.only
+
+    case recent_root(socket) do
+      nil ->
+        Tree.recent(socket.assigns.board, [only: only] ++ tree_opts(socket.assigns), n)
+
+      root ->
+        Tree.vault_recent(socket.assigns.vault, vault_boards(socket), n, root: root, only: only)
+    end
+    |> Enum.map(&Map.merge(&1, %{href: row_href(&1, nil), nav: "patch"}))
+    |> in_vault_view(socket.assigns)
+    |> in_context(socket.assigns)
+  end
+
+  # Where in the vault this tree starts: the vault's top in the vault view,
+  # the board it was opened from, or where this board's wiki is mounted.
+  # Nil off a vault, or when only a folder of this board is mapped.
+  defp recent_root(%{assigns: %{vault: nil}}), do: nil
+  defp recent_root(%{assigns: %{tree_context: %{}, tree_context_root: root}}), do: root
+  defp recent_root(%{assigns: %{tree_scope: "vault"}}), do: ""
+  defp recent_root(socket), do: board_vault_root(socket)
 
   # `as`: whose tree it is, which decides the pages also filed in a folder
   # that it shows (W-103 R12.2).
@@ -405,8 +429,7 @@ defmodule SlipdockWeb.WikiLive.Index do
         }
       end
 
-    only = socket.assigns.tree_filter && socket.assigns.tree_filter.only
-    recent = Tree.recent(socket.assigns.board, [only: only] ++ tree_opts(socket.assigns), 8)
+    recent = recent_rows(socket, 8)
 
     assign(socket,
       index_folders: index_folders,
@@ -4364,7 +4387,7 @@ defmodule SlipdockWeb.WikiLive.Index do
             >
               <li :for={page <- @tree_recent} id={"wiki-recent-#{page.id}"}>
                 <.link
-                  patch={~p"/boards/#{@board}/wiki/#{page.slug}"}
+                  patch={page.href}
                   class={[
                     "flex items-baseline gap-2 rounded-lg px-2 py-1 text-sm hover:bg-base-200",
                     @page && @page.id == page.id && "bg-base-200 font-medium"
@@ -5901,7 +5924,7 @@ defmodule SlipdockWeb.WikiLive.Index do
       <ul class="mt-3 divide-y divide-base-300 rounded-xl border border-base-300 bg-base-100">
         <li :for={page <- @recent}>
           <.link
-            patch={~p"/boards/#{@board}/wiki/#{page.slug}"}
+            patch={page.href}
             class="flex items-baseline gap-3 px-4 py-3 hover:bg-base-200"
           >
             <.wiki_icon
