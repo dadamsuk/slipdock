@@ -717,6 +717,11 @@ defmodule SlipdockWeb.APIGuide do
       it off any other board) or `{"digit": null}` takes it away. Read access
       is enough. Set one only when the person asks. A vault takes a digit too,
       and a switcher key: `PATCH /api/vaults/:id {"hotkey": 2, "shortcut": "nt"}`.
+    - **Header links** — boards and vaults pinned as icons left of quick add,
+      the token holder's own: `GET /api/header-links` (with the `icons`),
+      `POST /api/header-links {"board": "ops", "icon": "star"}` (or `"vault"`),
+      `PATCH /api/header-links/:id {"move": "left"}`, `DELETE` to unpin.
+      Pin only when asked.
     - **Passkeys** — `GET /api/me/passkeys` lists the token holder's own
       passkeys (`id`, `name`, `created_at`, `last_used_at`; never the key), and
       `DELETE /api/me/passkeys/:id` removes one so it can no longer sign in.

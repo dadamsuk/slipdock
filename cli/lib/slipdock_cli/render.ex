@@ -943,6 +943,32 @@ defmodule SlipdockCLI.Render do
     table(["KEY", "OPENS", "CODE", "ID"], rows)
   end
 
+  def header_links(%{"header_links" => []} = r),
+    do:
+      IO.puts(
+        dim("nothing pinned — try: slipdock header add board <board> --icon star") <>
+          icons_line(r)
+      )
+
+  def header_links(%{"header_links" => links} = r) do
+    rows =
+      Enum.map(links, fn
+        %{"vault" => v} = l ->
+          [to_string(l["id"]), l["icon"], v["name"], "vault", to_string(v["id"])]
+
+        %{"board" => b} = l ->
+          [to_string(l["id"]), l["icon"], b["name"], b["code"] || "", to_string(b["id"])]
+      end)
+
+    table(["ID", "ICON", "OPENS", "CODE", "TARGET"], rows)
+    IO.puts(icons_line(r))
+  end
+
+  defp icons_line(%{"icons" => [_ | _] = icons}),
+    do: "\n" <> dim("icons: " <> Enum.join(icons, " "))
+
+  defp icons_line(_), do: ""
+
   def automations([]), do: IO.puts(dim("no automations"))
 
   def automations(rules) do

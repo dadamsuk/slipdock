@@ -112,6 +112,7 @@ defmodule SlipdockWeb.Layouts do
             >
               {render_slot(@actions)}
             </div>
+            <.header_links :if={@quick_add} links={@quick_add.links} />
             <.quick_add_bar :if={@quick_add} quick_add={@quick_add} />
             <%!-- Ctrl-O and Ctrl-P on a desktop; on a phone there is no Ctrl, and
                 the card finder is the fastest way to a card on a screen that
@@ -1033,6 +1034,43 @@ defmodule SlipdockWeb.Layouts do
   defp palette_placeholder(:find), do: "Type a card's title, or a page's code (W-31)…"
   defp palette_placeholder(:notes), do: "Type part of a note's title, alias or path…"
   defp palette_placeholder(_), do: "Type a command, a board, a page…"
+
+  attr :links, :list, default: []
+
+  @doc """
+  The boards and vaults the person pinned to the header (#1205), as the icons
+  they chose, just left of quick add. Set up in Account settings (see
+  `Slipdock.HeaderLinks`). A phone's header has no room for them; its
+  Favourites tab is the same idea.
+  """
+  def header_links(assigns) do
+    ~H"""
+    <nav
+      :if={@links != []}
+      id="header-links"
+      aria-label="Pinned"
+      class="hidden items-center gap-1 sm:flex"
+    >
+      <.link
+        :for={link <- @links}
+        id={"header-link-#{link.id}"}
+        navigate={header_link_path(link)}
+        title={link.name}
+        aria-label={link.name}
+        class="btn btn-ghost btn-sm btn-square"
+      >
+        <.icon name={Slipdock.Wiki.Icons.class(link.icon) || "hero-link"} class="size-5" />
+      </.link>
+    </nav>
+    """
+  end
+
+  @doc "Where a header link goes: the board's home view, or the vault's top."
+  def header_link_path(%{target: %Slipdock.Vaults.Vault{} = vault}),
+    do: SlipdockWeb.VaultUrls.url(vault)
+
+  def header_link_path(%{target: board}),
+    do: SlipdockWeb.SwimlaneComponents.board_home_path(board)
 
   attr :quick_add, :map, required: true
 

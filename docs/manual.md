@@ -1800,6 +1800,26 @@ show` says which keys open a vault, and `slipdock hotkeys` lists vaults'
 digits with the boards'. Its tile on the home page shows both, as a board's
 does.
 
+### Header links
+
+Boards and wiki vaults you go to all day can be pinned to the header, at the
+top right of every page just left of the quick add button, each as an icon
+you choose (the same set wiki folders and pages wear); hover one for its name.
+Pin them under *Header links* in [Account › Settings](/account/settings):
+choose the board or vault and its icon, then *Pin to header*. The arrows move
+one along and *Remove* unpins it. Up to eight; pinning one already pinned
+changes its icon.
+
+They are yours alone, like hotkeys: any board you can open, and your own
+vaults. A board you can no longer open, or have archived, drops off the header
+(an archived one comes back with it). A phone's header has no room for them —
+the Favourites tab is the same idea there.
+
+From the shell: `slipdock header` lists yours and the icons,
+`slipdock header add board|vault <ref> --icon NAME` pins one,
+`slipdock header move <id> left|right` and `slipdock header rm <id>`
+(`GET`/`POST /api/header-links`, `PATCH`/`DELETE /api/header-links/<id>`).
+
 ## At the foot of every list
 
 One row of three small buttons — the list is narrow, and what is in it

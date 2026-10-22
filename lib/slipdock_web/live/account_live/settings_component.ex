@@ -1,12 +1,14 @@
 defmodule SlipdockWeb.AccountLive.SettingsComponent do
   @moduledoc """
   The Settings tab — the dials: how a quick-added line is read, the model
-  the AI features run on, and what is on show.
+  the AI features run on, what is on show, and the links pinned to the
+  header.
   """
   use SlipdockWeb, :live_component
 
   alias Slipdock.Accounts
   alias Slipdock.AI
+  alias Slipdock.HeaderLinks
   alias Slipdock.QuickAdd.Capture
 
   @impl true
@@ -22,6 +24,7 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
          socket
          |> assign_quick_add(Accounts.change_quick_add(socket.assigns.current_user))
          |> assign_ai_key()
+         |> assign_header_links()
          |> assign(google_drive: Slipdock.Google.status(socket.assigns.current_user))}
   end
 
@@ -60,6 +63,39 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
     if current && current not in Enum.map(models, & &1.id),
       do: listed ++ [{current, current}],
       else: listed
+  end
+
+  # The links pinned to the header, and what could be pinned: boards the
+  # person can open and their own vaults, less what is pinned already.
+  defp assign_header_links(socket) do
+    user = socket.assigns.current_user
+    links = HeaderLinks.list(user)
+    pinned = MapSet.new(links, &{&1.kind, &1.target.id})
+
+    boards =
+      for board <- Slipdock.Access.list_boards(user),
+          not MapSet.member?(pinned, {:board, board.id}),
+          do: {board.name, "board:#{board.id}"}
+
+    vaults =
+      for vault <- Slipdock.Vaults.list_vaults(user),
+          not MapSet.member?(pinned, {:vault, vault.id}),
+          do: {vault.name, "vault:#{vault.id}"}
+
+    targets =
+      [{"Boards", boards}, {"Wiki vaults", vaults}] |> Enum.reject(&(elem(&1, 1) == []))
+
+    socket
+    |> assign(header_links: links, header_link_targets: targets)
+    |> assign_new(:header_link_icon, fn -> hd(HeaderLinks.icons()) end)
+    |> assign_new(:header_link_target, fn -> nil end)
+    |> assign_new(:header_link_form_key, fn -> 0 end)
+  end
+
+  # The header is the page's, drawn from the hook's assign: tell it.
+  defp header_links_changed(socket) do
+    send(self(), :header_links_changed)
+    assign_header_links(socket)
   end
 
   # The quick add settings, with the lists narrowed to the chosen board's.
@@ -155,6 +191,43 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
       {:error, cs} ->
         {:noreply, assign_quick_add(socket, cs)}
     end
+  end
+
+  def handle_event("pick_header_link_icon", %{"header_link" => params}, socket),
+    do:
+      {:noreply,
+       assign(socket, header_link_icon: params["icon"], header_link_target: params["target"])}
+
+  def handle_event("add_header_link", %{"header_link" => params}, socket) do
+    user = socket.assigns.current_user
+
+    with {:ok, target} <- HeaderLinks.resolve(user, params["target"] || ""),
+         {:ok, _} <- HeaderLinks.add(user, target, params["icon"]) do
+      {:noreply,
+       socket
+       |> update(:header_link_form_key, &(&1 + 1))
+       |> assign(header_link_target: nil)
+       |> header_links_changed()
+       |> flash(:info, "#{target.name} pinned to the header.")}
+    else
+      {:error, message} -> {:noreply, flash(socket, :error, "Couldn't pin that: #{message}.")}
+    end
+  end
+
+  def handle_event("remove_header_link", %{"id" => id}, socket) do
+    HeaderLinks.remove(socket.assigns.current_user, String.to_integer(id))
+    {:noreply, header_links_changed(socket)}
+  end
+
+  def handle_event("move_header_link", %{"id" => id, "direction" => direction}, socket)
+      when direction in ["left", "right"] do
+    HeaderLinks.move(
+      socket.assigns.current_user,
+      String.to_integer(id),
+      String.to_existing_atom(direction)
+    )
+
+    {:noreply, header_links_changed(socket)}
   end
 
   # Saves the endpoint and, when one was typed, the key. A blank key field
@@ -273,6 +346,111 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
             </span>
           </label>
           <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        </form>
+      </section>
+
+      <section
+        id="header-links-settings"
+        class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
+      >
+        <h2 class="text-lg font-semibold">Header links</h2>
+        <p class="text-sm text-base-content/60">
+          Boards and wiki vaults you go to often, pinned to the top right of every page,
+          left of quick add, as the icon you choose. Up to {HeaderLinks.max()}.
+        </p>
+        <ul :if={@header_links != []} class="mt-4 divide-y divide-base-300/60">
+          <li
+            :for={{link, index} <- Enum.with_index(@header_links)}
+            id={"header-link-row-#{link.id}"}
+            class="flex items-center gap-3 py-2 text-sm"
+          >
+            <.icon
+              name={Slipdock.Wiki.Icons.class(link.icon) || "hero-link"}
+              class="size-5 shrink-0 text-base-content/70"
+            />
+            <span class="min-w-0 flex-1 truncate">
+              {link.name}
+              <span class="text-xs text-base-content/50">
+                {if link.kind == :vault, do: "vault", else: "board"}
+              </span>
+            </span>
+            <button
+              type="button"
+              class="btn btn-ghost btn-xs btn-square"
+              phx-click="move_header_link"
+              phx-value-id={link.id}
+              phx-value-direction="left"
+              phx-target={@myself}
+              disabled={index == 0}
+              aria-label={"Move #{link.name} left"}
+              title="Move left"
+            >
+              <.icon name="hero-arrow-left" class="size-4" />
+            </button>
+            <button
+              type="button"
+              class="btn btn-ghost btn-xs btn-square"
+              phx-click="move_header_link"
+              phx-value-id={link.id}
+              phx-value-direction="right"
+              phx-target={@myself}
+              disabled={index == length(@header_links) - 1}
+              aria-label={"Move #{link.name} right"}
+              title="Move right"
+            >
+              <.icon name="hero-arrow-right" class="size-4" />
+            </button>
+            <button
+              type="button"
+              class="btn btn-ghost btn-xs text-error"
+              phx-click="remove_header_link"
+              phx-value-id={link.id}
+              phx-target={@myself}
+            >
+              Remove
+            </button>
+          </li>
+        </ul>
+        <p
+          :if={@header_link_targets == [] and length(@header_links) < HeaderLinks.max()}
+          class="mt-4 text-sm text-base-content/50"
+        >
+          Every board and vault you have is pinned already.
+        </p>
+        <form
+          :if={@header_link_targets != [] and length(@header_links) < HeaderLinks.max()}
+          id={"header-link-form-#{@header_link_form_key}"}
+          phx-change="pick_header_link_icon"
+          phx-submit="add_header_link"
+          phx-target={@myself}
+          class="mt-4 space-y-3"
+        >
+          <label class="block text-sm">
+            <span class="mb-1 block font-medium">Board or vault</span>
+            <select name="header_link[target]" class="select select-sm w-full sm:w-80">
+              {Phoenix.HTML.Form.options_for_select(@header_link_targets, @header_link_target)}
+            </select>
+          </label>
+          <fieldset>
+            <legend class="mb-1 text-sm font-medium">Icon</legend>
+            <div class="flex flex-wrap gap-1" role="radiogroup" aria-label="Icon">
+              <label
+                :for={name <- HeaderLinks.icons()}
+                class="btn btn-ghost btn-xs btn-square has-[:checked]:bg-primary/15 has-[:checked]:ring-1 has-[:checked]:ring-primary"
+                title={String.replace(name, "-", " ")}
+              >
+                <input
+                  type="radio"
+                  name="header_link[icon]"
+                  value={name}
+                  checked={@header_link_icon == name}
+                  class="sr-only"
+                />
+                <.icon name={Slipdock.Wiki.Icons.class(name)} class="size-4" />
+              </label>
+            </div>
+          </fieldset>
+          <button type="submit" class="btn btn-primary btn-sm">Pin to header</button>
         </form>
       </section>
 
