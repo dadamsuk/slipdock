@@ -1323,7 +1323,9 @@ server**: a server of your own that speaks the small HTTP API below. Give its ad
 connection** asks the server for its status before anything is saved. The
 token is kept on the server and never shown again — leave the box empty to
 keep it, or tick **Forget the stored token**. With no address there is no
-Transcribe button.
+Transcribe button, and nobody but the people an admin has allowed meetings
+(see [who may use it](#meeting-capture)), and admins, gets one: the API
+answers anybody else 403.
 
 The work runs in the background, so the card can be closed meanwhile. The
 transcript appears under the recording, folded away as **Transcript**; when the
@@ -2620,6 +2622,18 @@ the proposals, settles anything uncertain, and commits them in one write. It is
 of it: no menu entries, no pages, no API routes, no CLI commands that do
 anything, no MCP tools, no section in the agent guide. Turning it off deletes
 nothing; turning it back on shows every capture again.
+
+**Who may use it.** With meeting mode on, meetings are still only for the
+people an admin turns them on for: Users → *Allow meetings* on their row, or
+`slipdock admin meetings <email> on`. Admins always have them. For anybody
+else it is as though meeting mode were off — no Meetings tab, no meeting
+pages, no `capture_meeting` tool, no voiceprint — and the API answers 404
+`meetings_not_allowed` ("meetings and transcription aren't turned on for
+you…") where it would have said `meetings_off`; `GET /api/meetings` says
+`allowed: false`. The same switch covers sending a card's recording to the
+[transcription server](#recordings) and teaching it voices. Chat capture is
+not a meeting and doesn't use the transcription server, so it stays on for
+everybody. Upgrading keeps meetings for anybody who already owns one.
 
 ### What it promises
 
@@ -4433,6 +4447,11 @@ it **unlimited** (Users → *Make unlimited*, or `slipdock admin unlimited <emai
 which does the same for a named person with no date to invent: no free allowance,
 no trial. The ceilings above still apply to them, as they do to admins.
 
+**Who may use meetings.** Meetings, transcribing a card's recording and
+voiceprints are per person: Users → *Allow meetings* (or `slipdock admin
+meetings <email> on|off`, or `PATCH /api/admin/users/:id {"meetings": true}`).
+Admins always may. See [meeting capture](#meeting-capture).
+
 **Looking at somebody's boards to help them.** Being an admin does not let you
 read other people's boards. **Support**, on a person's row under Users, does —
 read only, for four hours, and only with a reason, which they are emailed and
@@ -4983,7 +5002,8 @@ GET    /api/pages/query-vocabulary        the grammar a ```slipdock block is wri
 POST   /api/pages/query    {board, body}  try a block without writing it anywhere
 GET    /api/skills                         GET  /api/skills/:name    GET /api/skills/:name/*file
 
-# Meeting capture: only while meeting mode is on (404 "meeting mode is off on this server" otherwise)
+# Meeting capture: only while meeting mode is on (404 "meeting mode is off on this server" otherwise),
+# and on for the caller (404 meetings_not_allowed otherwise)
 GET    /api/meetings                      is it on, where it shows, what may be sent
 GET    /api/meetings/findings-schema      the format an agent's own findings use
 POST   /api/boards/:board/captures        multipart: audio, transcript, findings, ics; or JSON with

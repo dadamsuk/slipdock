@@ -10,7 +10,7 @@ defmodule SlipdockWeb.AccountLive.Index do
 
   @impl true
   def mount(_params, _session, socket) do
-    voiceprints? = Slipdock.Meetings.Voiceprints.enabled?()
+    voiceprints? = Slipdock.Meetings.Voiceprints.enabled_for?(socket.assigns.current_user)
 
     # Not there at all while voiceprints are off, like every meeting page.
     if socket.assigns.live_action == :voiceprint and not voiceprints?,

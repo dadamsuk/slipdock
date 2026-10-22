@@ -90,6 +90,15 @@ defmodule SlipdockWeb.UsersLive.Index do
     end)
   end
 
+  # Meetings, recording transcription and voiceprints, for this one person
+  # (#1206). Admins always have them, so there is nothing to switch for one.
+  def handle_event("toggle-meetings", %{"id" => id}, socket) do
+    with_user(socket, id, fn user ->
+      {:ok, _} = Accounts.update_standing(user, %{"meetings_access" => !user.meetings_access})
+      {:noreply, socket |> put_flash(:info, "Saved.") |> load()}
+    end)
+  end
+
   ## Adding somebody, and their address
 
   def handle_event("add-user", %{"email" => email}, socket) do
@@ -486,6 +495,13 @@ defmodule SlipdockWeb.UsersLive.Index do
                   <span :if={user.admin} class="badge badge-xs badge-primary">admin</span>
                   <span :if={user.disabled_at} class="badge badge-xs">disabled</span>
                   <span :if={user.unlimited} class="badge badge-xs badge-success">unlimited</span>
+                  <span
+                    :if={user.meetings_access and !user.admin}
+                    class="badge badge-xs badge-info"
+                    title="May use meetings, transcription and voiceprints"
+                  >
+                    meetings
+                  </span>
                 </div>
               </td>
               <td class="text-xs text-base-content/60">
@@ -561,6 +577,21 @@ defmodule SlipdockWeb.UsersLive.Index do
                   }
                 >
                   {if user.unlimited, do: "Remove unlimited", else: "Make unlimited"}
+                </button>
+                <button
+                  :if={!user.admin}
+                  id={"meetings-#{user.id}"}
+                  phx-click="toggle-meetings"
+                  phx-value-id={user.id}
+                  class="btn btn-ghost btn-xs"
+                  title={
+                    if user.meetings_access,
+                      do: "Take away meetings, recording transcription and voiceprints.",
+                      else:
+                        "Let them use meetings, recording transcription and voiceprints, where the server has them on."
+                  }
+                >
+                  {if user.meetings_access, do: "Remove meetings", else: "Allow meetings"}
                 </button>
                 <button
                   :if={!user.disabled_at}

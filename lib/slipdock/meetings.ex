@@ -20,6 +20,13 @@ defmodule Slipdock.Meetings do
       menu to start one.
     * `:every_board` — the tab is on every board.
 
+  Even while it is on, it is only there for the people an admin has turned
+  it on for (`meetings_access` on the user, #1206), and for admins. For
+  everybody else it is as though it were off, and their refusals say so
+  (`off_message/1`). The same goes for sending a card's recording to the
+  transcription server and for voiceprints. Chat capture is not a meeting
+  and does not use the transcription server, so it is not gated this way.
+
   And `meetings_hideable` lets each person put it out of sight for themselves
   (Account › Settings › Display). That is a display preference: the API and
   the CLI answer the same either way.
@@ -39,8 +46,25 @@ defmodule Slipdock.Meetings do
 
   @off_message "meeting mode is off on this server"
 
+  @not_allowed_message "meetings and transcription aren't turned on for you on this server; an admin can turn them on"
+
   @doc "What every refusal says while meeting mode is off."
   def off_message, do: @off_message
+
+  @doc """
+  What a refusal says to this person: that meeting mode is off, or, while it
+  is on, that it is not on for them.
+  """
+  @spec off_message(User.t() | nil) :: String.t()
+  def off_message(user), do: if(enabled?(), do: not_allowed_message(user), else: @off_message)
+
+  defp not_allowed_message(user),
+    do: if(allowed?(user), do: @off_message, else: @not_allowed_message)
+
+  @doc "The refusal's code, beside `off_message/1`."
+  @spec off_code(User.t() | nil) :: String.t()
+  def off_code(user),
+    do: if(enabled?() and not allowed?(user), do: "meetings_not_allowed", else: "meetings_off")
 
   @doc "What a refusal says while chat capture is off."
   def chat_off_message, do: "chat capture is off on this server"
@@ -48,6 +72,19 @@ defmodule Slipdock.Meetings do
   @doc "Whether an admin has turned meeting mode on."
   @spec enabled?() :: boolean()
   def enabled?, do: Settings.get().meetings_enabled == true
+
+  @doc """
+  Whether an admin has let this person use meetings and transcription
+  (#1206): admins always may; anybody else needs `meetings_access`.
+  """
+  @spec allowed?(User.t() | nil) :: boolean()
+  def allowed?(%User{admin: true}), do: true
+  def allowed?(%User{meetings_access: true}), do: true
+  def allowed?(_), do: false
+
+  @doc "Whether meeting mode is on, and on for this person."
+  @spec enabled_for?(User.t() | nil) :: boolean()
+  def enabled_for?(user), do: enabled?() and allowed?(user)
 
   @doc """
   Whether chat capture is on (#1075): its own switch, on unless an admin
@@ -60,6 +97,10 @@ defmodule Slipdock.Meetings do
   @spec capture_enabled?() :: boolean()
   def capture_enabled?, do: enabled?() or chat_enabled?()
 
+  @doc "`capture_enabled?/0` for one person: meetings count only if they may use them."
+  @spec capture_enabled_for?(User.t() | nil) :: boolean()
+  def capture_enabled_for?(user), do: enabled_for?(user) or chat_enabled?()
+
   @doc """
   Whether a capture of this kind is on: a meeting needs meeting mode, a chat
   needs chat capture. One that is off is not there, as though it never was.
@@ -68,6 +109,12 @@ defmodule Slipdock.Meetings do
   def kind_enabled?(%Capture{kind: kind}), do: kind_enabled?(kind)
   def kind_enabled?("chat"), do: chat_enabled?()
   def kind_enabled?(_meeting), do: enabled?()
+
+  @doc "`kind_enabled?/1` for one person: a meeting needs them allowed too."
+  @spec kind_enabled_for?(Capture.t() | String.t(), User.t() | nil) :: boolean()
+  def kind_enabled_for?(%Capture{kind: kind}, user), do: kind_enabled_for?(kind, user)
+  def kind_enabled_for?("chat", _user), do: chat_enabled?()
+  def kind_enabled_for?(_meeting, user), do: enabled_for?(user)
 
   @doc "`:used_only` or `:every_board`: where the Meetings tab shows."
   @spec visibility() :: :used_only | :every_board
@@ -78,11 +125,11 @@ defmodule Slipdock.Meetings do
   def hideable?, do: Settings.get().meetings_hideable != false
 
   @doc """
-  Whether this person sees meeting capture at all: it is on, and they have
-  not hidden it (or are not allowed to).
+  Whether this person sees meeting capture at all: it is on, an admin has
+  let them use it, and they have not hidden it (or are not allowed to).
   """
   @spec available?(User.t() | nil) :: boolean()
-  def available?(%User{} = user), do: enabled?() and not hidden_by?(user)
+  def available?(%User{} = user), do: enabled_for?(user) and not hidden_by?(user)
   def available?(_), do: false
 
   @doc "Whether this person has hidden meeting capture, and is allowed to."
@@ -116,7 +163,9 @@ defmodule Slipdock.Meetings do
     settings = Settings.get()
 
     %{
-      enabled: settings.meetings_enabled == true,
+      enabled: settings.meetings_enabled == true and allowed?(user),
+      # Whether an admin has let this person use meetings and transcription.
+      allowed: allowed?(user),
       chat_enabled: settings.chat_capture_enabled != false,
       visibility: settings.meetings_visibility,
       hideable: settings.meetings_hideable != false,
@@ -128,7 +177,7 @@ defmodule Slipdock.Meetings do
       },
       # Whether a person may enrol a voiceprint of their own
       # (see `Slipdock.Meetings.Voiceprints`).
-      voiceprints: Slipdock.Meetings.Voiceprints.enabled?()
+      voiceprints: Slipdock.Meetings.Voiceprints.enabled_for?(user)
     }
   end
 

@@ -47,6 +47,12 @@ defmodule Slipdock.Transcription.Voiceprints do
   end
 
   @doc """
+  `enabled?/0` for whoever named the voice: only somebody an admin has let
+  use meetings and transcription teaches the server a voice (#1206).
+  """
+  def enabled_for?(user), do: enabled?() and Meetings.allowed?(user)
+
+  @doc """
   The stretches `speaker` speaks in `lines` (each with `:speaker`,
   `:start_ms` and `:end_ms`, in the order spoken), longest first, as
   `{from_ms, to_ms}`: each a run of their lines with nobody else between,
@@ -110,12 +116,14 @@ defmodule Slipdock.Transcription.Voiceprints do
   goes to the server, in the background. `:ok` when it was started, `:off`
   when there is nothing to do. With `notify: pid`, that process is sent
   `{:put_flash, kind, message}` saying whether it went, and if not why.
+  `by:` is who named it, and must be allowed (`enabled_for?/1`).
   """
   def page_named(%Page{} = page, name, opts \\ []) do
     {notify, opts} = Keyword.pop(opts, :notify)
+    {by, opts} = Keyword.pop(opts, :by)
     name = String.trim(name)
 
-    if enabled?() and Speakers.person_label?(name) do
+    if enabled_for?(by) and Speakers.person_label?(name) do
       later(fn ->
         result = from_page(page, name, opts)
         log(result, "page #{page.id}")
@@ -138,11 +146,13 @@ defmodule Slipdock.Transcription.Voiceprints do
   @doc """
   A meeting capture's voice was confirmed as somebody: their longest
   stretch goes to the server, in the background. `:ok` or `:off`.
+  `by:` is who confirmed it, and must be allowed (`enabled_for?/1`).
   """
   def voice_named(%Voice{} = voice, opts \\ []) do
+    {by, opts} = Keyword.pop(opts, :by)
     name = Speakers.name(voice)
 
-    if enabled?() and Speakers.person_label?(name) do
+    if enabled_for?(by) and Speakers.person_label?(name) do
       later(fn ->
         result = from_voice(voice, name, opts)
         log(result, "capture #{voice.capture_id}")

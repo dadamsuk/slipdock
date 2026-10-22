@@ -37,6 +37,11 @@ defmodule Slipdock.Accounts.User do
     # Off the free tier with no date attached: for somebody named by an admin
     # rather than somebody who paid. The guardrails still apply.
     field :unlimited, :boolean, default: false
+    # Meetings, recording transcription and voiceprints, for this person
+    # (#1206): an admin turns them on per person, and admins always have them
+    # (see `Slipdock.Meetings.allowed?/1`). The server's own switches still
+    # decide whether they are on at all.
+    field :meetings_access, :boolean, default: false
     # Set when this account exists because somebody shared something with the
     # address, rather than because its owner asked for one.
     field :invited_at, :utc_datetime
@@ -121,13 +126,20 @@ defmodule Slipdock.Accounts.User do
   @doc """
   The admin's view of somebody: whether they may administer this server, what
   their own card limit is, how long they have paid up to, and whether they are
-  off the free tier altogether. Separate from
+  off the free tier altogether, and whether they may use meetings and
+  transcription. Separate from
   `profile_changeset/2` because nobody may promote themselves by posting their
   own profile form.
   """
   def standing_changeset(user, attrs) do
     user
-    |> cast(normalise_paid_until(attrs), [:admin, :card_limit_override, :paid_until, :unlimited])
+    |> cast(normalise_paid_until(attrs), [
+      :admin,
+      :card_limit_override,
+      :paid_until,
+      :unlimited,
+      :meetings_access
+    ])
     |> validate_number(:card_limit_override, greater_than: 0)
   end
 

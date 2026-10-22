@@ -11,6 +11,7 @@ defmodule SlipdockWeb.MeetingLive.Components do
 
   attr :board, :any, required: true
   attr :capture, :any, default: nil
+  attr :meetings, :atom, default: :tab, doc: "`:none` while meeting mode isn't on for the reader"
 
   @doc "The header's breadcrumb: the board, Meetings, and the capture if any."
   def meeting_nav(assigns) do
@@ -27,13 +28,13 @@ defmodule SlipdockWeb.MeetingLive.Components do
       <%!-- A conversation (#1077) is reached by its link; the Meetings
            list is meeting mode's. --%>
       <span
-        :if={chat_only?(@capture)}
+        :if={chat_only?(@capture, @meetings)}
         class="px-2 py-1 font-semibold"
       >
         Conversation
       </span>
       <.link
-        :if={not chat_only?(@capture)}
+        :if={not chat_only?(@capture, @meetings)}
         navigate={~p"/boards/#{@board}/meetings"}
         class="rounded-lg px-2 py-1 font-semibold hover:bg-base-200"
       >
@@ -47,9 +48,10 @@ defmodule SlipdockWeb.MeetingLive.Components do
     """
   end
 
-  # A conversation's page while meeting mode is off: no Meetings list to go to.
-  defp chat_only?(%{kind: "chat"}), do: not Slipdock.Meetings.enabled?()
-  defp chat_only?(_capture), do: false
+  # A conversation's page while meeting mode is off, or not on for the reader
+  # (#1206): no Meetings list to go to.
+  defp chat_only?(%{kind: "chat"}, meetings), do: meetings == :none
+  defp chat_only?(_capture, _meetings), do: false
 
   attr :board, :any, required: true
   attr :marks, :any, default: nil

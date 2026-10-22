@@ -1737,6 +1737,11 @@ defmodule SlipdockWeb.APIGuide do
       decisions, grouped by topic when there are several; one that replaces an earlier decision strikes it on whichever
       page holds it.
 
+      It is on only for the people an admin has turned it on for (and for
+      admins): for anybody else the routes answer 404 `meetings_not_allowed`,
+      and `GET /api/meetings` says `allowed: false`. The same goes for sending
+      a card's recording to the transcription server.
+
           GET  /api/meetings                         is meeting mode on, and what may be sent
           GET  /api/meetings/findings-schema         the format for your own findings
           POST /api/boards/:board/captures           send one: multipart (audio, transcript,

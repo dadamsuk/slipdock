@@ -22,7 +22,7 @@ defmodule SlipdockWeb.MeetingLive.Access do
          board: board,
          perm: perm,
          can_write: Access.can_write?(perm),
-         meetings: tab(Meetings.presence(user, board)),
+         meetings: tab(Meetings.presence(user, board), user),
          marks: Slipdock.Favourites.marks(user),
          page_jumps: []
        )}
@@ -36,9 +36,10 @@ defmodule SlipdockWeb.MeetingLive.Access do
   end
 
   # Somebody on a meeting page sees the tab, whatever the visibility, unless
-  # they hid it — in which case the page still works for the link they followed.
-  defp tab(:none), do: :none
-  defp tab(_), do: :tab
+  # they hid it — in which case the page still works for the link they followed
+  # (`:hidden`). Somebody meeting mode isn't on for (#1206) has none of it.
+  defp tab(:none, user), do: if(Meetings.enabled_for?(user), do: :hidden, else: :none)
+  defp tab(_, _user), do: :tab
 
   defp allowed?(perm, :read), do: Access.can_read?(perm)
   defp allowed?(perm, :write), do: Access.can_write?(perm)

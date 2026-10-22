@@ -9,6 +9,21 @@ defmodule Slipdock.Fixtures do
   """
   def user_fixture(email \\ nil) do
     {:ok, user} = Accounts.get_or_create_user_by_email(fixture_email(email))
+    # Allowed meetings and transcription (#1206), so the tests of those
+    # features need not each say so; the gate's own tests take it away with
+    # `no_meetings/1`.
+    allow_meetings(user)
+  end
+
+  @doc "`user` let use meetings, recording transcription and voiceprints (#1206)."
+  def allow_meetings(user) do
+    {:ok, user} = Accounts.update_standing(user, %{"meetings_access" => true})
+    user
+  end
+
+  @doc "`user` without meetings, recording transcription and voiceprints (#1206)."
+  def no_meetings(user) do
+    {:ok, user} = Accounts.update_standing(user, %{"meetings_access" => false})
     user
   end
 

@@ -229,11 +229,11 @@ defmodule SlipdockWeb.MCP.Plug do
 
   defp dispatch(_conn, "ping", _params), do: {:ok, %{}}
 
-  defp dispatch(_conn, "tools/list", _params),
-    do: {:ok, %{tools: Enum.map(Tools.all(), &Tools.describe/1)}}
+  defp dispatch(conn, "tools/list", _params),
+    do: {:ok, %{tools: Enum.map(Tools.all(conn.assigns[:current_user]), &Tools.describe/1)}}
 
   defp dispatch(conn, "tools/call", %{"name" => name} = params) when is_binary(name) do
-    case Tools.find(name) do
+    case Tools.find(name, conn.assigns[:current_user]) do
       nil ->
         {:error, @invalid_params, "unknown tool: #{name}"}
 

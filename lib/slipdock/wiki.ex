@@ -1114,7 +1114,10 @@ defmodule Slipdock.Wiki do
       |> tap(fn
         # Their longest stretch teaches the transcription server the voice (#1201).
         {:ok, saved} ->
-          Slipdock.Transcription.Voiceprints.page_named(saved, to, notify: opts[:notify])
+          Slipdock.Transcription.Voiceprints.page_named(saved, to,
+            notify: opts[:notify],
+            by: opts[:user]
+          )
 
         _ ->
           :ok

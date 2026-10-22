@@ -102,6 +102,14 @@ defmodule SlipdockCLI.Admin do
     end
   end
 
+  def run("admin", ["meetings", email, switch], o) do
+    case switch do
+      s when s in ["on", "yes", "true"] -> admin_user(email, %{meetings: true}, o)
+      s when s in ["off", "no", "false"] -> admin_user(email, %{meetings: false}, o)
+      _ -> fail("admin meetings <email> on|off")
+    end
+  end
+
   def run("admin", ["signups"], o),
     do: HTTP.get("/admin/signups") |> out(o, &render_admin_signups/1)
 
@@ -133,6 +141,7 @@ defmodule SlipdockCLI.Admin do
     admin limit <email> <n|none>        their own card limit
     admin paid <email> <date|none>      paid up to a date
     admin unlimited <email> on|off      off the free tier for good (ceilings still apply)
+    admin meetings <email> on|off       meetings, transcription and voiceprints for them
     admin signups                       who is waiting
     admin approve|reject <email>
 
@@ -350,6 +359,7 @@ defmodule SlipdockCLI.Admin do
         [
           u["admin"] && "admin",
           u["unlimited"] && "unlimited",
+          u["meetings"] && !u["admin"] && "meetings",
           u["disabled"] && "disabled",
           u["invited"] && "invited"
         ]

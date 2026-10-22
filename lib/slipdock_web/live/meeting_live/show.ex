@@ -377,7 +377,7 @@ defmodule SlipdockWeb.MeetingLive.Show do
       nav_active={:boards}
       page_jumps={@page_jumps}
     >
-      <:subnav><.meeting_nav board={@board} capture={@capture} /></:subnav>
+      <:subnav><.meeting_nav board={@board} capture={@capture} meetings={@meetings} /></:subnav>
 
       <div class="flex h-full flex-col">
         <.meeting_toolbar board={@board} marks={@marks} meetings={@meetings}>

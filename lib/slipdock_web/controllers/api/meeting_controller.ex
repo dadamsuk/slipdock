@@ -32,7 +32,7 @@ defmodule SlipdockWeb.API.MeetingController do
   def create(conn, %{"board" => ref} = params) do
     kind = if params["kind"] == "chat", do: "chat", else: "meeting"
 
-    with :ok <- kind_on(kind),
+    with :ok <- kind_on(kind, conn.assigns.current_user),
          {:ok, board} <- Authorize.fetch_board(conn, ref, :write) do
       result =
         Ingest.ingest(board, conn.assigns.current_user, %{
@@ -296,7 +296,7 @@ defmodule SlipdockWeb.API.MeetingController do
         captures:
           board
           |> Meetings.list_captures()
-          |> Enum.filter(&Meetings.kind_enabled?/1)
+          |> Enum.filter(&Meetings.kind_enabled_for?(&1, conn.assigns.current_user))
           |> Enum.map(&MeetingJSON.summary(&1, base))
       })
     end
@@ -307,7 +307,7 @@ defmodule SlipdockWeb.API.MeetingController do
   # board; one they cannot read is a 404, the same as one that is not there.
   def fetch(conn, id, need) do
     with %Meetings.Capture{} = capture <- id |> SlipdockWeb.Params.id() |> get(),
-         true <- Meetings.kind_enabled?(capture) || nil,
+         true <- Meetings.kind_enabled_for?(capture, conn.assigns.current_user) || nil,
          board = Slipdock.Boards.get_board!(capture.board_id),
          :ok <- readable(conn, board),
          :ok <- Authorize.board(conn, board, need) do
@@ -319,12 +319,12 @@ defmodule SlipdockWeb.API.MeetingController do
     end
   end
 
-  # Sending a meeting needs meeting mode; sending a chat, chat capture.
-  defp kind_on(kind) do
+  # Sending a meeting needs meeting mode, on for them; sending a chat, chat capture.
+  defp kind_on(kind, user) do
     cond do
-      Meetings.kind_enabled?(kind) -> :ok
+      Meetings.kind_enabled_for?(kind, user) -> :ok
       kind == "chat" -> {:off, "chat_capture_off", Meetings.chat_off_message()}
-      true -> {:off, "meetings_off", Meetings.off_message()}
+      true -> {:off, Meetings.off_code(user), Meetings.off_message(user)}
     end
   end
 

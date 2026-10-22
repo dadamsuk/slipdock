@@ -72,6 +72,9 @@ defmodule Slipdock.Meetings.Voiceprints do
       s.meetings_voiceprint_url not in [nil, ""]
   end
 
+  @doc "`enabled?/0` for one person: only somebody an admin let use meetings (#1206)."
+  def enabled_for?(user), do: enabled?() and Meetings.allowed?(user)
+
   @doc "The person's own voiceprint, or nil."
   def get(%User{id: id}), do: Repo.get_by(Voiceprint, user_id: id)
 
@@ -89,7 +92,7 @@ defmodule Slipdock.Meetings.Voiceprints do
 
   def enrol(%User{} = user, source, opts) do
     cond do
-      not enabled?() ->
+      not enabled_for?(user) ->
         {:error, :off}
 
       opts[:consent] != @wording_version ->
@@ -187,7 +190,7 @@ defmodule Slipdock.Meetings.Voiceprints do
   while they have a voiceprint, or voiceprints are off.
   """
   def offers(%User{} = user) do
-    if enabled?() and is_nil(get(user)) do
+    if enabled_for?(user) and is_nil(get(user)) do
       user |> offer_query() |> Repo.all() |> Enum.filter(&readable?(user, &1.capture))
     else
       []

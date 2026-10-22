@@ -65,15 +65,20 @@ defmodule SlipdockWeb.MCP.Tools do
   # by name is an unknown tool, the same as any other name this server has
   # never heard of. Sending a meeting needs meeting mode; reviewing and
   # committing a capture needs meeting mode or chat capture (#1075), each
-  # capture still checked for its own kind.
+  # capture still checked for its own kind. Meeting mode is also per person
+  # (#1206): to somebody an admin hasn't let use meetings it is not there.
   @meeting_only [Tools.CaptureMeeting]
   @chat_only [Tools.CaptureChat]
   @review_tools [Tools.GetCapture, Tools.ResolveCaptureQuestion, Tools.CommitCapture]
   @meeting_tools @meeting_only ++ @chat_only ++ @review_tools
 
   @doc "Every tool module offered right now, in the order `tools/list` gives them."
-  def all do
-    meetings? = Slipdock.Meetings.enabled?()
+  def all, do: offered(Slipdock.Meetings.enabled?())
+
+  @doc "Every tool module offered to this person right now."
+  def all(user), do: offered(Slipdock.Meetings.enabled_for?(user))
+
+  defp offered(meetings?) do
     chat? = Slipdock.Meetings.chat_enabled?()
 
     @tools ++
@@ -90,6 +95,9 @@ defmodule SlipdockWeb.MCP.Tools do
 
   @doc "The tool called `name`, or nil — nil too for a tool not offered right now."
   def find(name), do: Enum.find(all(), &(&1.name() == name))
+
+  @doc "`find/1` for one person: nil too for a tool not offered to them."
+  def find(name, user), do: Enum.find(all(user), &(&1.name() == name))
 
   @doc "A tool as `tools/list` describes it."
   def describe(tool) do

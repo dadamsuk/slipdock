@@ -309,7 +309,8 @@ defmodule SlipdockWeb.AccountLive.SettingsComponent do
   def render(assigns) do
     assigns =
       assign(assigns,
-        meetings_choice?: Slipdock.Meetings.enabled?() and Slipdock.Meetings.hideable?()
+        meetings_choice?:
+          Slipdock.Meetings.enabled_for?(assigns.current_user) and Slipdock.Meetings.hideable?()
       )
 
     ~H"""

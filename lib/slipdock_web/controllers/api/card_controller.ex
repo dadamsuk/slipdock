@@ -617,7 +617,7 @@ defmodule SlipdockWeb.API.CardController do
     with {:ok, card} <- fetch_card(id),
          :ok <- Authorize.card(conn, card, :write),
          %{} = attachment <- attachment_of(card, attachment_id) do
-      case Slipdock.Transcription.transcribe_attachment(attachment) do
+      case Slipdock.Transcription.transcribe_attachment(attachment, conn.assigns.current_user) do
         {:ok, _} ->
           # Inline in the tests, so read it back rather than trust the copy
           # that set off.
@@ -626,6 +626,9 @@ defmodule SlipdockWeb.API.CardController do
 
         {:error, :running} ->
           {:error, :conflict, Slipdock.Transcription.describe(:running)}
+
+        {:error, :not_allowed} ->
+          {:error, :forbidden, Slipdock.Transcription.describe(:not_allowed)}
 
         {:error, reason} ->
           {:error, :unprocessable_entity, Slipdock.Transcription.describe(reason)}
