@@ -236,8 +236,12 @@ defmodule SlipdockWeb.WikiMeetingPageLiveTest do
       assert render_hook(view, "rename_speaker", %{"from" => "Alice", "to" => "Priya Shah"}) =~
                "Their longest stretch goes to the transcription server as a voiceprint."
 
+      # ...and then the page hears why it didn't go.
+      assert render(view) =~
+               "Priya Shah&#39;s voiceprint wasn&#39;t sent: their longest stretch is under 3 seconds."
+
       refute render_hook(view, "rename_speaker", %{"from" => "Bob", "to" => "Speaker 2"}) =~
-               "voiceprint"
+               "Their longest stretch goes"
     end
 
     test "a name that won't do is refused and nothing is saved", %{conn: conn, board: board} do
