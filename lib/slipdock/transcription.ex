@@ -78,6 +78,39 @@ defmodule Slipdock.Transcription do
   end
 
   @doc """
+  Teaches the server a voice (#1201): `clip` (WAV bytes of one person
+  speaking) sent to `POST /v1/voiceprints` with the `name` it should give
+  that voice in later transcripts. `{:ok, body}` with the server's answer,
+  `{:error, :unsupported}` when the server doesn't list `"voiceprints"` in
+  its capabilities, or `{:error, reason}`. Options as `transcribe_file/2`.
+  """
+  def add_voiceprint(clip, name, opts \\ []) when is_binary(clip) and is_binary(name) do
+    with {:ok, server} <- server(opts),
+         req = req(server),
+         {:ok, status} <- get_status(req) do
+      if "voiceprints" in List.wrap(status["capabilities"]) do
+        form = [
+          file: {clip, filename: "voiceprint.wav", content_type: "audio/wav"},
+          name: name
+        ]
+
+        case Req.post(req, url: "/v1/voiceprints", form_multipart: form) do
+          {:ok, %{status: status, body: body}} when status in [200, 201] ->
+            {:ok, if(is_map(body), do: body, else: %{})}
+
+          {:ok, response} ->
+            {:error, failure(response)}
+
+          {:error, exception} ->
+            {:error, "can't reach the transcription server: #{Exception.message(exception)}"}
+        end
+      else
+        {:error, :unsupported}
+      end
+    end
+  end
+
+  @doc """
   Starts transcribing a recording attached to a card, in the background, and
   returns the attachment marked `running`. When it finishes the attachment
   holds the text (or why there is none) and the board is told.

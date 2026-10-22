@@ -57,7 +57,7 @@ Briefly, with the detail in [the manual](docs/manual.md):
   named, attachments (uploaded in the browser, or over the API and CLI —
   `slipdock attach 12 shot.png`, and back with `slipdock download 5`), image thumbnails on card fronts, recordings that
   play in place and transcribe on a transcription server of your own
-  (Configuration → Server → Transcription server; [what it must speak](docs/manual.md#what-a-transcription-server-must-speak)), cover colours, archive and restore (the archive searchable by title, `#id` or a card's link), and a [select mode](docs/manual.md#changing-several-cards-at-once) that tags, flags, moves, archives or deletes many cards at once. Each board has a short code (`qvm-v1-rem`) that addresses it
+  (Configuration → Server → Transcription server; [what it must speak](docs/manual.md#what-a-transcription-server-must-speak)), which can be taught the voices you name in transcripts, cover colours, archive and restore (the archive searchable by title, `#id` or a card's link), and a [select mode](docs/manual.md#changing-several-cards-at-once) that tags, flags, moves, archives or deletes many cards at once. Each board has a short code (`qvm-v1-rem`) that addresses it
   everywhere.
 - **Where it was left** — [a handoff on every card](docs/manual.md#where-it-was-left-handoffs):
   the one next step and a short note (state, gotchas, open questions,

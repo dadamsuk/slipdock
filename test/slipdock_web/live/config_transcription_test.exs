@@ -133,4 +133,18 @@ defmodule SlipdockWeb.ConfigTranscriptionTest do
       assert html =~ "Give the server&#39;s address first."
     end
   end
+
+  test "teaching the server voices is off until ticked, and unticking turns it off", %{
+    conn: conn
+  } do
+    {:ok, view, _} = live(conn, ~p"/config")
+    refute has_element?(view, "#transcription-voiceprints[checked]")
+
+    submit(view, %{url: "https://transcribe.example:8765", token: "", voiceprints: "true"})
+    assert Settings.get().transcription_voiceprints == true
+    assert has_element?(view, "#transcription-voiceprints[checked]")
+
+    submit(view, %{url: "https://transcribe.example:8765", token: "", voiceprints: "false"})
+    assert Settings.get().transcription_voiceprints == false
+  end
 end

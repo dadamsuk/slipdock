@@ -645,6 +645,11 @@ defmodule Slipdock.Meetings.Speakers do
           voice
         end)
         |> tap(fn _ -> Meetings.broadcast(capture) end)
+        |> tap(fn
+          # The voice, named, teaches the transcription server who it is (#1201).
+          {:ok, voice} -> Slipdock.Transcription.Voiceprints.voice_named(voice)
+          _ -> :ok
+        end)
     end
   end
 

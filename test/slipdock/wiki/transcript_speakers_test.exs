@@ -91,4 +91,28 @@ defmodule Slipdock.Wiki.TranscriptSpeakersTest do
     assert TranscriptSpeakers.rename("No transcript here.", "Speaker 1", "Ann") ==
              {:error, :not_found}
   end
+
+  test "blocks are the text of each vtt block, and nothing outside them" do
+    body = """
+    Intro
+
+    ```vtt
+    WEBVTT
+    one
+    ```
+
+    ```elixir
+    not this
+    ```
+
+    ~~~vtt
+    two
+    ~~~
+    """
+
+    assert TranscriptSpeakers.blocks(body) == ["WEBVTT\none", "two"]
+    assert TranscriptSpeakers.blocks("No transcript here.") == []
+    assert TranscriptSpeakers.blocks("```vtt\nunclosed") == ["unclosed"]
+    assert TranscriptSpeakers.blocks(nil) == []
+  end
 end

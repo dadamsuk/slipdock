@@ -1096,7 +1096,9 @@ defmodule Slipdock.Wiki do
   called `to` in every ` ```vtt ` block of the page as it now stands
   (`Slipdock.Wiki.TranscriptSpeakers.rename/3`), saved as an edit with a
   revision of its own. `{:ok, page}`, or the refusal `rename/3` gives.
-  Options are `update_page/3`'s.
+  Options are `update_page/3`'s. Where an admin has it on, the person's
+  longest stretch then goes to the transcription server as a voiceprint
+  (`Slipdock.Transcription.Voiceprints`, #1201).
   """
   def rename_speaker(%Page{} = page, from, to, opts \\ []) do
     current = Repo.get!(Page, page.id)
@@ -1104,11 +1106,16 @@ defmodule Slipdock.Wiki do
     with {:ok, body, _cues} <- TranscriptSpeakers.rename(current.body || "", from, to) do
       message = opts[:message] || "named the voice “#{String.trim(from)}” “#{String.trim(to)}”"
 
-      update_page(
-        current,
+      current
+      |> update_page(
         %{"body" => body},
         opts |> Keyword.put(:message, message) |> Keyword.put(:new_revision, true)
       )
+      |> tap(fn
+        # Their longest stretch teaches the transcription server the voice (#1201).
+        {:ok, saved} -> Slipdock.Transcription.Voiceprints.page_named(saved, to)
+        _ -> :ok
+      end)
     end
   end
 

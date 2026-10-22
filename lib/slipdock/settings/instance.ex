@@ -127,6 +127,10 @@ defmodule Slipdock.Settings.Instance do
     # The token never leaves the server: not to the page, not to the API.
     field :transcription_server_url, :string
     field :transcription_server_token, :string
+    # Naming a voice in a transcript sends that person's longest stretch of
+    # speech to the transcription server as a voiceprint (see
+    # `Slipdock.Transcription.Voiceprints`): off unless turned on.
+    field :transcription_voiceprints, :boolean, default: false
     field :meetings_voiceprint_url, :string
     # The audio-capable model unclear passages are re-listened to with
     # (see `Slipdock.Meetings.Relisten`); nil leaves re-listening off.
@@ -200,7 +204,8 @@ defmodule Slipdock.Settings.Instance do
                     meetings_transcription_url meetings_transcription_max_mb
                     meetings_diarisation meetings_diarisation_url meetings_dialogue_inference
                     meetings_relisten_model meetings_voiceprints meetings_voiceprint_url
-                    transcription_server_url transcription_server_token)a
+                    transcription_server_url transcription_server_token
+                    transcription_voiceprints)a
 
   # The admin address and the SMTP details each have a flow that proves
   # something first (a code to the new address, a test message that arrived),

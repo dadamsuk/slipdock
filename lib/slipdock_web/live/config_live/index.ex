@@ -48,7 +48,10 @@ defmodule SlipdockWeb.ConfigLive.Index do
   end
 
   defp save_transcription(params, socket) do
-    attrs = %{"transcription_server_url" => params["url"]}
+    attrs = %{
+      "transcription_server_url" => params["url"],
+      "transcription_voiceprints" => params["voiceprints"] == "true"
+    }
 
     attrs =
       cond do
@@ -1268,6 +1271,26 @@ defmodule SlipdockWeb.ConfigLive.Index do
             value="true"
             class="checkbox checkbox-sm"
           /> Forget the stored token
+        </label>
+        <input type="hidden" name="transcription[voiceprints]" value="false" />
+        <label class="flex cursor-pointer items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            id="transcription-voiceprints"
+            name="transcription[voiceprints]"
+            value="true"
+            checked={@settings.transcription_voiceprints}
+            class="checkbox checkbox-sm mt-0.5"
+          />
+          <span>
+            Teach it voices
+            <span class="block text-xs text-base-content/60">
+              When somebody names a voice in a transcript, the longest stretch of that person
+              speaking (up to a minute) is sent to the server as a voiceprint, so it can name them
+              in later recordings. Only for a server that lists <code>voiceprints</code>
+              among its capabilities. It is that person's voice going to your server: tell them.
+            </span>
+          </span>
         </label>
         <p
           :if={@transcription_check}

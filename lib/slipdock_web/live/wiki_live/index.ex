@@ -1768,7 +1768,13 @@ defmodule SlipdockWeb.WikiLive.Index do
        |> reload(saved)
        |> put_flash(
          :info,
-         "“#{String.trim(from)}” is now “#{String.trim(to)}” in the transcript."
+         "“#{String.trim(from)}” is now “#{String.trim(to)}” in the transcript." <>
+           if(
+             Slipdock.Transcription.Voiceprints.enabled?() and
+               Slipdock.Meetings.Speakers.person_label?(to),
+             do: " Their longest stretch goes to the transcription server as a voiceprint.",
+             else: ""
+           )
        )}
     else
       {:error, reason} when is_atom(reason) ->

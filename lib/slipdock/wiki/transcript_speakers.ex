@@ -48,6 +48,32 @@ defmodule Slipdock.Wiki.TranscriptSpeakers do
     end
   end
 
+  @doc """
+  The text of every ` ```vtt ` block in `body`, in order: the transcripts a
+  page plays.
+  """
+  def blocks(body) when is_binary(body) do
+    {blocks, _} =
+      body
+      |> String.split("\n")
+      |> Enum.reduce({[], nil}, fn
+        text, {blocks, nil} ->
+          case Regex.run(@fence, text) do
+            [_, fence] -> {[[] | blocks], fence}
+            nil -> {blocks, nil}
+          end
+
+        text, {[block | blocks], fence} ->
+          if closes?(text, fence),
+            do: {[block | blocks], nil},
+            else: {[[text | block] | blocks], fence}
+      end)
+
+    blocks |> Enum.reverse() |> Enum.map(&(&1 |> Enum.reverse() |> Enum.join("\n")))
+  end
+
+  def blocks(_), do: []
+
   defp do_rename(body, from, to) do
     {lines, %{count: count}} =
       body

@@ -100,7 +100,8 @@ defmodule SlipdockWeb.API.AdminController do
         # ever said to be there, never what it is.
         transcription_server: %{
           url: settings.transcription_server_url,
-          token_set: Settings.transcription_token_set?()
+          token_set: Settings.transcription_token_set?(),
+          voiceprints: settings.transcription_voiceprints
         },
         pending_signups: Accounts.count_pending_signups()
       }
