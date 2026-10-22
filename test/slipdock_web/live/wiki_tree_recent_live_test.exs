@@ -181,4 +181,139 @@ defmodule SlipdockWeb.WikiTreeRecentLiveTest do
     render_hook(view, "tree_view", %{})
     assert has_element?(view, "#wiki-tree-view-recent[aria-pressed='true']")
   end
+
+  # A board mounted inside another in a vault (#1202): its pages are in the
+  # Recent view of the vault and of the board it is mounted in, opening at
+  # their vault address or with `?in=`, but not the other way about.
+  describe "in a vault" do
+    setup %{user: user, board: board, old: old, mid: mid, new: new} do
+      jobs = board_fixture(%{"name" => "Jobs", "code" => "recentjobs"}, owner: user)
+      {:ok, applied} = Slipdock.Wiki.create_folder(jobs, %{"name" => "Applied"})
+
+      {:ok, acme} =
+        Slipdock.Wiki.create_page(jobs, %{"title" => "Acme role", "folder_id" => applied.id})
+
+      acme = edited(acme, ~U[2026-07-01 09:00:00Z])
+      lead = page_fixture(jobs, %{"title" => "Lead list"}) |> edited(~U[2026-02-01 09:00:00Z])
+
+      {:ok, vault} = Slipdock.Vaults.create_vault(user, %{"name" => "Minds"})
+      {:ok, _} = Slipdock.Vaults.add_mapping(vault, user, %{path: "/", board: board})
+      {:ok, _} = Slipdock.Vaults.add_mapping(vault, user, %{path: "/Jobs", board: jobs})
+
+      %{
+        vault: vault,
+        jobs: jobs,
+        applied: applied,
+        acme: acme,
+        lead: lead,
+        order: [acme.id, new.id, mid.id, lead.id, old.id]
+      }
+    end
+
+    test "the vault view lists the mounted board's pages, at their vault addresses", ctx do
+      {:ok, view, _} = live(ctx.conn, "/vaults/Minds")
+      render_hook(view, "tree_view", %{"view" => "recent"})
+
+      assert recent_ids(view) == ctx.order
+
+      assert has_element?(
+               view,
+               "#wiki-recent-#{ctx.acme.id} a[href='/vaults/Minds/Jobs/Applied/Acme%20role']",
+               "Acme role"
+             )
+
+      assert has_element?(view, "#wiki-recent-#{ctx.new.id} a[href='/vaults/Minds/New%20plan']")
+    end
+
+    test "the vault's index lists them under Recently changed too", ctx do
+      {:ok, _view, html} = live(ctx.conn, "/vaults/Minds")
+      assert html =~ ~s(href="/vaults/Minds/Jobs/Applied/Acme%20role")
+    end
+
+    test "the board mounted at the top lists them, opening with ?in=", ctx do
+      %{board: board, jobs: jobs, acme: acme} = ctx
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{board}/wiki")
+      render_hook(view, "tree_view", %{"view" => "recent"})
+
+      assert recent_ids(view) == ctx.order
+
+      assert has_element?(
+               view,
+               "#wiki-recent-#{acme.id} a[href='/boards/#{jobs.id}/wiki/#{acme.slug}?in=#{board.id}']"
+             )
+
+      # Its own pages open as ever.
+      assert has_element?(
+               view,
+               "#wiki-recent-#{ctx.new.id} a[href='/boards/#{board.id}/wiki/#{ctx.new.slug}']"
+             )
+    end
+
+    test "the mounted board lists its own pages, not those of the board above it", ctx do
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.jobs}/wiki")
+      render_hook(view, "tree_view", %{"view" => "recent"})
+
+      assert recent_ids(view) == [ctx.acme.id, ctx.lead.id]
+    end
+
+    test "a folder mounted from another board brings only that folder's pages, at any depth",
+         ctx do
+      %{user: user, vault: vault} = ctx
+      side = board_fixture(%{"name" => "Side", "code" => "recentside"}, owner: user)
+      {:ok, kept} = Slipdock.Wiki.create_folder(side, %{"name" => "Kept"})
+
+      {:ok, inner} =
+        Slipdock.Wiki.create_folder(side, %{"name" => "Inner", "parent_id" => kept.id})
+
+      {:ok, deep} =
+        Slipdock.Wiki.create_page(side, %{"title" => "Deep note", "folder_id" => inner.id})
+
+      deep = edited(deep, ~U[2026-08-01 09:00:00Z])
+      loose = page_fixture(side, %{"title" => "Loose"}) |> edited(~U[2026-09-01 09:00:00Z])
+
+      {:ok, _} =
+        Slipdock.Vaults.add_mapping(vault, user, %{path: "/Jobs/Side", board: side, folder: kept})
+
+      {:ok, view, _} = live(ctx.conn, "/vaults/Minds")
+      render_hook(view, "tree_view", %{"view" => "recent"})
+
+      ids = recent_ids(view)
+      assert hd(ids) == deep.id
+      refute loose.id in ids
+
+      # Mounted inside Jobs, so Jobs' own wiki has it as well.
+      {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.jobs}/wiki")
+      render_hook(view, "tree_view", %{"view" => "recent"})
+      assert recent_ids(view) == [deep.id, ctx.acme.id, ctx.lead.id]
+    end
+
+    test "the filter bar narrows the mounted boards' pages too", ctx do
+      {:ok, view, _} = live(ctx.conn, "/vaults/Minds")
+      render_hook(view, "tree_view", %{"view" => "recent"})
+      render_hook(view, "search", %{"q" => "role"})
+
+      assert recent_ids(view) == [ctx.acme.id]
+    end
+
+    test "archived and unreadable pages stay out", ctx do
+      %{user: user, vault: vault, acme: acme} = ctx
+      {:ok, _} = Slipdock.Wiki.archive_page(acme)
+
+      lender = user_fixture("recent-lender@example.com")
+      lent = board_fixture(%{"name" => "Lent", "code" => "recentlent"}, owner: lender)
+      share_fixture(lent, user, "write")
+      secret = page_fixture(lent, %{"title" => "Secret"})
+      {:ok, _} = Slipdock.Vaults.add_mapping(vault, user, %{path: "/Lent", board: lent})
+      # Mapped while they could, then no longer shared with them.
+      Repo.delete_all(from(g in Slipdock.Access.Grant, where: g.board_id == ^lent.id))
+
+      {:ok, view, _} = live(ctx.conn, "/vaults/Minds")
+      render_hook(view, "tree_view", %{"view" => "recent"})
+
+      ids = recent_ids(view)
+      refute acme.id in ids
+      refute secret.id in ids
+      assert ctx.lead.id in ids
+    end
+  end
 end
