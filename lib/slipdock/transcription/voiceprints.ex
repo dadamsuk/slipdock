@@ -16,8 +16,10 @@ defmodule Slipdock.Transcription.Voiceprints do
     * **Only a person's name.** "Speaker 2" teaches nothing
       (`Slipdock.Meetings.Speakers.person_label?/1`).
     * **One stretch**: consecutive lines of theirs with nobody else between,
-      the longest of them, cut to at most 60 s; under 3 s is too little to
-      send.
+      the longest of them, kept clear of anybody else's line that overlaps
+      it and half a second in from each end, cut to at most 60 s; under 3 s
+      is too little to send. A server that refuses the clip (a 422, such as
+      "Multiple speakers") is offered the next-longest, up to three.
     * **In the background**, after the name is saved: the recording may have
       to come from Google Drive first. What happens is logged, and on a
       capture recorded in its history.
@@ -33,6 +35,11 @@ defmodule Slipdock.Transcription.Voiceprints do
 
   @max_ms 60_000
   @min_ms 3_000
+  # Off each end of a stretch, so a cue's edge doesn't take in the voice
+  # either side of it.
+  @pad_ms 500
+  # Stretches offered to a server that refuses the clip before giving up.
+  @attempts 3
 
   @doc "Whether naming a voice sends a voiceprint: the switch on and a server set."
   def enabled? do
@@ -40,31 +47,59 @@ defmodule Slipdock.Transcription.Voiceprints do
   end
 
   @doc """
-  The longest stretch `speaker` speaks in `lines` (each with `:speaker`,
-  `:start_ms` and `:end_ms`, in the order spoken): `{:ok, {from_ms,
-  to_ms}}`, at most 60 s long. `{:error, :not_found}` when they have no
-  timed line, `{:error, :too_short}` when their longest is under 3 s.
+  The stretches `speaker` speaks in `lines` (each with `:speaker`,
+  `:start_ms` and `:end_ms`, in the order spoken), longest first, as
+  `{from_ms, to_ms}`: each a run of their lines with nobody else between,
+  pulled clear of any other speaker's line that overlaps it, `#{@pad_ms}` ms
+  in from each end, and at most 60 s long. Only those of 3 s or more.
   """
-  def longest(lines, speaker) do
-    lines
+  def stretches(lines, speaker) do
+    timed = Enum.filter(lines, &is_integer(&1.start_ms))
+    others = Enum.reject(timed, &(&1.speaker == speaker))
+
+    timed
     |> Enum.chunk_by(& &1.speaker)
     |> Enum.filter(&(hd(&1).speaker == speaker))
-    |> Enum.flat_map(fn run ->
-      case Enum.filter(run, &is_integer(&1.start_ms)) do
-        [] ->
-          []
-
-        timed ->
-          from = hd(timed).start_ms
-          last = List.last(timed)
-          [{from, max(last.end_ms || last.start_ms, from)}]
-      end
+    |> Enum.map(fn run ->
+      last = List.last(run)
+      from = clear_start(hd(run).start_ms, others)
+      to = clear_end(from, max(last.end_ms || last.start_ms, hd(run).start_ms), others)
+      {from + @pad_ms, to - @pad_ms}
     end)
-    |> Enum.max_by(fn {from, to} -> to - from end, fn -> nil end)
-    |> case do
-      nil -> {:error, :not_found}
-      {from, to} when to - from < @min_ms -> {:error, :too_short}
-      {from, to} -> {:ok, {from, min(to, from + @max_ms)}}
+    |> Enum.filter(fn {from, to} -> to - from >= @min_ms end)
+    |> Enum.sort_by(fn {from, to} -> from - to end)
+    |> Enum.map(fn {from, to} -> {from, min(to, from + @max_ms)} end)
+  end
+
+  # Past the end of anybody else's line still going when the run starts.
+  defp clear_start(from, others) do
+    Enum.reduce(others, from, fn o, at ->
+      if o.start_ms <= at and is_integer(o.end_ms) and o.end_ms > at, do: o.end_ms, else: at
+    end)
+  end
+
+  # Up to the start of anybody else's line that begins inside the run.
+  defp clear_end(from, to, others) do
+    others
+    |> Enum.filter(&(&1.start_ms > from and &1.start_ms < to))
+    |> Enum.map(& &1.start_ms)
+    |> Enum.min(fn -> to end)
+  end
+
+  @doc """
+  The longest of `stretches/2`: `{:ok, {from_ms, to_ms}}`, `{:error,
+  :not_found}` when they have no timed line, `{:error, :too_short}` when
+  none is 3 s or more.
+  """
+  def longest(lines, speaker) do
+    case stretches(lines, speaker) do
+      [span | _] ->
+        {:ok, span}
+
+      [] ->
+        if Enum.any?(lines, &(&1.speaker == speaker and is_integer(&1.start_ms))),
+          do: {:error, :too_short},
+          else: {:error, :not_found}
     end
   end
 
@@ -141,10 +176,10 @@ defmodule Slipdock.Transcription.Voiceprints do
         end
       end)
 
-    with {:ok, span} <- longest(lines, name),
+    with {:ok, spans} <- spans(lines, name),
          {:ok, path, filename} <- page_recording(page) do
       try do
-        send_clip(name, path, filename, span, opts)
+        send_clips(name, path, filename, spans, opts)
       after
         File.rm(path)
       end
@@ -169,9 +204,23 @@ defmodule Slipdock.Transcription.Voiceprints do
     if is_nil(path) or not File.regular?(path) do
       {:error, :no_recording}
     else
-      with {:ok, span} <- longest(lines, voice.id) do
-        send_clip(name, path, capture.audio_filename || path, span, opts)
+      with {:ok, spans} <- spans(lines, voice.id) do
+        send_clips(name, path, capture.audio_filename || path, spans, opts)
       end
+    end
+  end
+
+  defp spans(lines, speaker) do
+    with {:ok, _} <- longest(lines, speaker),
+         do: {:ok, lines |> stretches(speaker) |> Enum.take(@attempts)}
+  end
+
+  # The longest first; a clip the server refuses ("Multiple speakers") is
+  # followed by the next, and the last refusal is the answer.
+  defp send_clips(name, path, filename, [span | rest], opts) do
+    case send_clip(name, path, filename, span, opts) do
+      {:error, {:refused, _}} when rest != [] -> send_clips(name, path, filename, rest, opts)
+      result -> result
     end
   end
 
@@ -230,6 +279,7 @@ defmodule Slipdock.Transcription.Voiceprints do
   def describe({:recording, reason}),
     do: "the recording couldn't be fetched from Google Drive (#{reason})"
 
+  def describe({:refused, reason}), do: reason
   def describe(reason) when is_binary(reason), do: reason
   def describe(reason), do: inspect(reason)
 
