@@ -349,8 +349,7 @@ defmodule SlipdockWeb.UsersLive.Index do
   defp people_tab(assigns) do
     ~H"""
     <section class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10">
-      <h2 class="text-lg font-semibold">People</h2>
-      <p class="mt-1 text-sm text-base-content/60">
+      <p class="text-sm text-base-content/60">
         {length(@users)} {if length(@users) == 1, do: "account", else: "accounts"}.
         Disabling is reversible and ends their sessions and tokens at once — reach for it
         first. Closing an account removes them and their work for good, and is there because
@@ -452,6 +451,7 @@ defmodule SlipdockWeb.UsersLive.Index do
               <th>Last seen</th>
               <th>Using</th>
               <th>Paid up to</th>
+              <th>Permissions</th>
               <th></th>
             </tr>
           </thead>
@@ -546,79 +546,123 @@ defmodule SlipdockWeb.UsersLive.Index do
                     else: "trial: #{Quota.trial(user).days_left}d left"}
                 </div>
               </td>
+              <td class="text-xs">
+                <div class="flex flex-col gap-1">
+                  <label class="flex cursor-pointer items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id={"admin-#{user.id}"}
+                      class="checkbox checkbox-xs"
+                      checked={user.admin}
+                      phx-click={if user.admin, do: "demote", else: "promote"}
+                      phx-value-id={user.id}
+                    /> Admin
+                  </label>
+                  <label
+                    class={[
+                      "flex items-center gap-2",
+                      if(user.admin, do: "text-base-content/50", else: "cursor-pointer")
+                    ]}
+                    title={
+                      cond do
+                        user.admin ->
+                          "Admins are exempt from the free tier's allowance and trial already."
+
+                        user.unlimited ->
+                          "Put them back on the free tier's allowance and trial."
+
+                        true ->
+                          "Take them off the free tier's allowance and trial. The server-wide limits still apply."
+                      end
+                    }
+                  >
+                    <input
+                      :if={user.admin}
+                      type="checkbox"
+                      class="checkbox checkbox-xs"
+                      checked
+                      disabled
+                    />
+                    <input
+                      :if={!user.admin}
+                      type="checkbox"
+                      id={"unlimited-#{user.id}"}
+                      class="checkbox checkbox-xs"
+                      checked={user.unlimited}
+                      phx-click="toggle-unlimited"
+                      phx-value-id={user.id}
+                    /> Unlimited
+                  </label>
+                  <label
+                    class={[
+                      "flex items-center gap-2",
+                      if(user.admin, do: "text-base-content/50", else: "cursor-pointer")
+                    ]}
+                    title={
+                      cond do
+                        user.admin ->
+                          "Admins always have meetings, recording transcription and voiceprints."
+
+                        user.meetings_access ->
+                          "Take away meetings, recording transcription and voiceprints."
+
+                        true ->
+                          "Let them use meetings, recording transcription and voiceprints, where the server has them on."
+                      end
+                    }
+                  >
+                    <input
+                      :if={user.admin}
+                      type="checkbox"
+                      class="checkbox checkbox-xs"
+                      checked
+                      disabled
+                    />
+                    <input
+                      :if={!user.admin}
+                      type="checkbox"
+                      id={"meetings-#{user.id}"}
+                      class="checkbox checkbox-xs"
+                      checked={user.meetings_access}
+                      phx-click="toggle-meetings"
+                      phx-value-id={user.id}
+                    /> Meetings
+                  </label>
+                </div>
+              </td>
               <td class="text-right">
-                <button
-                  :if={!user.admin}
-                  phx-click="promote"
-                  phx-value-id={user.id}
-                  class="btn btn-ghost btn-xs"
-                >
-                  Make admin
-                </button>
-                <button
-                  :if={user.admin}
-                  phx-click="demote"
-                  phx-value-id={user.id}
-                  class="btn btn-ghost btn-xs"
-                >
-                  Remove admin
-                </button>
-                <button
-                  :if={!user.admin}
-                  id={"unlimited-#{user.id}"}
-                  phx-click="toggle-unlimited"
-                  phx-value-id={user.id}
-                  class="btn btn-ghost btn-xs"
-                  title={
-                    if user.unlimited,
-                      do: "Put them back on the free tier's allowance and trial.",
-                      else:
-                        "Take them off the free tier's allowance and trial. The server-wide limits still apply."
-                  }
-                >
-                  {if user.unlimited, do: "Remove unlimited", else: "Make unlimited"}
-                </button>
-                <button
-                  :if={!user.admin}
-                  id={"meetings-#{user.id}"}
-                  phx-click="toggle-meetings"
-                  phx-value-id={user.id}
-                  class="btn btn-ghost btn-xs"
-                  title={
-                    if user.meetings_access,
-                      do: "Take away meetings, recording transcription and voiceprints.",
-                      else:
-                        "Let them use meetings, recording transcription and voiceprints, where the server has them on."
-                  }
-                >
-                  {if user.meetings_access, do: "Remove meetings", else: "Allow meetings"}
-                </button>
-                <button
-                  :if={!user.disabled_at}
-                  phx-click="disable"
-                  phx-value-id={user.id}
-                  class="btn btn-ghost btn-xs text-error"
-                >
-                  Disable
-                </button>
-                <button
-                  :if={user.disabled_at}
-                  phx-click="enable"
-                  phx-value-id={user.id}
-                  class="btn btn-ghost btn-xs"
-                >
-                  Enable
-                </button>
-                <button
+                <div class="flex justify-end gap-1">
+                  <button
+                    :if={!user.disabled_at}
+                    phx-click="disable"
+                    phx-value-id={user.id}
+                    class="btn btn-outline btn-error btn-xs"
+                  >
+                    Disable
+                  </button>
+                  <button
+                    :if={user.disabled_at}
+                    phx-click="enable"
+                    phx-value-id={user.id}
+                    class="btn btn-outline btn-xs"
+                  >
+                    Enable
+                  </button>
+                  <button
+                    :if={user.id != @current_user.id}
+                    phx-click="confirm-delete"
+                    phx-value-user_id={user.id}
+                    class="btn btn-outline btn-error btn-xs"
+                    title="Remove them and their data. Prefer Disable."
+                  >
+                    Close
+                  </button>
+                </div>
+                <form
                   :if={user.id != @current_user.id}
-                  phx-click="confirm-delete"
-                  phx-value-user_id={user.id}
-                  class="btn btn-ghost btn-xs text-error"
-                  title="Remove them and their data. Prefer Disable."
+                  phx-submit="support"
+                  class="mt-2 flex justify-end gap-1"
                 >
-                  Close
-                </button>
-                <form :if={user.id != @current_user.id} phx-submit="support" class="mt-1 flex gap-1">
                   <input type="hidden" name="user_id" value={user.id} />
                   <input
                     type="text"
@@ -627,7 +671,7 @@ defmodule SlipdockWeb.UsersLive.Index do
                     class="input input-xs w-36"
                     title="Read their boards for a few hours. They are told, with this reason."
                   />
-                  <button type="submit" class="btn btn-ghost btn-xs">Support</button>
+                  <button type="submit" class="btn btn-outline btn-xs">Support</button>
                 </form>
               </td>
             </tr>

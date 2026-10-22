@@ -2624,7 +2624,7 @@ anything, no MCP tools, no section in the agent guide. Turning it off deletes
 nothing; turning it back on shows every capture again.
 
 **Who may use it.** With meeting mode on, meetings are still only for the
-people an admin turns them on for: Users → *Allow meetings* on their row, or
+people an admin turns them on for: Users → tick *Meetings* on their row, or
 `slipdock admin meetings <email> on`. Admins always have them. For anybody
 else it is as though meeting mode were off — no Meetings tab, no meeting
 pages, no `capture_meeting` tool, no voiceprint — and the API answers 404
@@ -4443,12 +4443,12 @@ allowance is lower than a ceiling, the lower one wins.
 free allowance and off the trial clock is a **paid-up date**, set per person
 under Users (or `slipdock admin paid <email> <date>`) by whoever took the money.
 An account with no date in the future is a free one — unless an admin has marked
-it **unlimited** (Users → *Make unlimited*, or `slipdock admin unlimited <email> on`),
+it **unlimited** (Users → tick *Unlimited*, or `slipdock admin unlimited <email> on`),
 which does the same for a named person with no date to invent: no free allowance,
 no trial. The ceilings above still apply to them, as they do to admins.
 
 **Who may use meetings.** Meetings, transcribing a card's recording and
-voiceprints are per person: Users → *Allow meetings* (or `slipdock admin
+voiceprints are per person: Users → tick *Meetings* (or `slipdock admin
 meetings <email> on|off`, or `PATCH /api/admin/users/:id {"meetings": true}`).
 Admins always may. See [meeting capture](#meeting-capture).
 
