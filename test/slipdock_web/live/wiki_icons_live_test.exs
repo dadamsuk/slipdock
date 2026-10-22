@@ -80,6 +80,44 @@ defmodule SlipdockWeb.WikiIconsLiveTest do
     assert %{icon: "rocket-launch", color: "rose"} = Wiki.get_page!(page.id)
   end
 
+  # #1203: each pick goes to the server as the form's change, and the render
+  # that came back had dropped both names, so a colour unpicked the icon.
+  test "the editor keeps an icon picked while a colour is picked, and the other way round", %{
+    conn: conn,
+    board: board
+  } do
+    page = page_fixture(board, %{"title" => "Launch"})
+    {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}/edit")
+
+    view |> form("#page-form", page: %{icon: "briefcase"}) |> render_change()
+    assert has_element?(view, "#page-dress input[name='page[icon]'][value='briefcase'][checked]")
+    refute has_element?(view, "#page-dress input[name='page[icon]'][value=''][checked]")
+
+    view |> form("#page-form", page: %{icon: "briefcase", color: "amber"}) |> render_change()
+    assert has_element?(view, "#page-dress input[name='page[icon]'][value='briefcase'][checked]")
+    assert has_element?(view, "#page-dress input[name='page[color]'][value='amber'][checked]")
+    # The icons wear the colour picked, before anything is saved.
+    assert has_element?(view, "#page-dress span.hero-briefcase.text-amber-500")
+
+    view |> form("#page-form", page: %{icon: "star", color: "amber"}) |> render_change()
+    assert has_element?(view, "#page-dress input[name='page[icon]'][value='star'][checked]")
+    assert has_element?(view, "#page-dress input[name='page[color]'][value='amber'][checked]")
+
+    # None for each goes back to the plain radios.
+    view |> form("#page-form", page: %{icon: "", color: ""}) |> render_change()
+    assert has_element?(view, "#page-dress input[name='page[icon]'][value=''][checked]")
+    assert has_element?(view, "#page-dress input[name='page[color]'][value=''][checked]")
+    refute has_element?(view, "#page-dress input[name='page[icon]'][value='star'][checked]")
+  end
+
+  test "the editor opens on what a page already wears", %{conn: conn, board: board} do
+    page = page_fixture(board, %{"title" => "Worn", "icon" => "key", "color" => "red"})
+    {:ok, view, _html} = live(conn, ~p"/boards/#{board}/wiki/#{page.slug}/edit")
+
+    assert has_element?(view, "#page-dress input[name='page[icon]'][value='key'][checked]")
+    assert has_element?(view, "#page-dress input[name='page[color]'][value='red'][checked]")
+  end
+
   test "the main page shows them: folder cards, a folder's listing and a page's heading", %{
     conn: conn,
     board: board
