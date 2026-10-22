@@ -271,7 +271,7 @@ defmodule SlipdockWeb.AccountLive.AgentComponent do
       </section>
 
       <section
-        :if={Slipdock.Meetings.enabled?()}
+        :if={Slipdock.Meetings.enabled_for?(@current_user)}
         id="agent-meetings"
         class="rounded-2xl bg-base-100 p-6 shadow-sm ring-1 ring-base-content/10"
       >

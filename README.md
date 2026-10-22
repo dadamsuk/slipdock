@@ -240,7 +240,8 @@ Briefly, with the detail in [the manual](docs/manual.md):
   as a connector by its address and sign in through the browser (OAuth), or
   connect with an API token ([the tools](docs/manual.md#mcp-server),
   [connecting](docs/agents.md#over-mcp)).
-- **Meeting and chat capture**, when an admin turns on meeting mode — send a meeting's
+- **Meeting and chat capture**, when an admin turns on meeting mode, for the people
+  they turn it on for (admins always have it) — send a meeting's
   recording or transcript (WebVTT, SRT, Fireflies, Otter) and it proposes the
   decisions, actions and card changes in it, read alongside the board's cards
   and wiki: every proposal quoted word for word from the transcript, anything

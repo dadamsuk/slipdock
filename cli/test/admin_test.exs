@@ -58,6 +58,34 @@ defmodule SlipdockCLI.AdminTest do
     refute output =~ "unlimited"
   end
 
+  describe "meetings" do
+    defp meetings_user(on),
+      do:
+        ~s({"user":{"id":7,"email":"sam@example.com","meetings":#{on},"cards":{"used":3,"limited?":false}}})
+
+    test "on sends meetings: true for that person, and the answer says so" do
+      serve([{200, @users}, {200, meetings_user(true)}])
+
+      output =
+        capture_io(fn -> Admin.run("admin", ["meetings", "Sam@example.com", "on"], []) end)
+
+      assert_received {:request, "PATCH", "/api/admin/users/7", body}
+      assert body == ~s({"meetings":true})
+      assert output =~ "[meetings]"
+    end
+
+    test "off sends meetings: false, and the flag is gone from the answer" do
+      serve([{200, @users}, {200, meetings_user(false)}])
+
+      output =
+        capture_io(fn -> Admin.run("admin", ["meetings", "sam@example.com", "off"], []) end)
+
+      assert_received {:request, "PATCH", "/api/admin/users/7", body}
+      assert body == ~s({"meetings":false})
+      refute output =~ "meetings"
+    end
+  end
+
   describe "adding, readdressing and closing accounts" do
     test "add posts the address and says how they were told" do
       serve([{201, ~s({"user":{"id":8,"email":"kim@example.com"},"delivery":"emailed"})}])

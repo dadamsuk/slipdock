@@ -259,7 +259,7 @@ defmodule SlipdockWeb.MeetingLive.Resolve do
       nav_active={:boards}
       page_jumps={@page_jumps}
     >
-      <:subnav><.meeting_nav board={@board} capture={@capture} /></:subnav>
+      <:subnav><.meeting_nav board={@board} capture={@capture} meetings={@meetings} /></:subnav>
 
       <div class="kanban-scroll h-full overflow-y-auto" phx-window-keydown={@can_write && "key"}>
         <div class="mx-auto max-w-3xl space-y-5 p-4 sm:p-6">

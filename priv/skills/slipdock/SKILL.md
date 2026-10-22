@@ -761,6 +761,8 @@ slipdock admin paid <email> <date|none>     paid up to a date: takes them off th
                                             allowance and off the trial clock
 slipdock admin unlimited <email> on|off     off the free tier for good, with no date:
                                             for a named person, not a payment
+slipdock admin meetings <email> on|off      meetings, transcription and voiceprints
+                                            for them (admins always have them)
 slipdock admin signups                      who is waiting to be let in
 slipdock admin approve|reject <email>
 ```

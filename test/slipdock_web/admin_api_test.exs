@@ -220,6 +220,43 @@ defmodule SlipdockWeb.AdminAPITest do
       assert user["cards"]["limit"] == 5
     end
 
+    # #1206: meetings, transcription and voiceprints, per person.
+    test "allowing somebody meetings, and taking it away", %{conn: conn, ordinary: ordinary} do
+      no_meetings(ordinary)
+
+      user =
+        conn
+        |> patch(~p"/api/admin/users/#{ordinary.id}", %{"meetings" => true})
+        |> json_response(200)
+        |> Map.get("user")
+
+      assert user["meetings"]
+      assert Slipdock.Repo.reload(ordinary).meetings_access
+
+      listed = get(conn, ~p"/api/admin/users") |> json_response(200) |> Map.get("users")
+      assert Enum.find(listed, &(&1["email"] == ordinary.email))["meetings"]
+
+      user =
+        conn
+        |> patch(~p"/api/admin/users/#{ordinary.id}", %{"meetings" => false})
+        |> json_response(200)
+        |> Map.get("user")
+
+      refute user["meetings"]
+      refute Slipdock.Repo.reload(ordinary).meetings_access
+
+      body = patch(conn, ~p"/api/admin/users/#{ordinary.id}", %{"meetings" => "yes"})
+      assert json_response(body, 400)["error"] =~ "meetings"
+      refute Slipdock.Repo.reload(ordinary).meetings_access
+    end
+
+    test "an admin is reported as allowed meetings whatever the switch says",
+         %{conn: conn, admin: admin} do
+      no_meetings(admin)
+      listed = get(conn, ~p"/api/admin/users") |> json_response(200) |> Map.get("users")
+      assert Enum.find(listed, &(&1["email"] == admin.email))["meetings"]
+    end
+
     test "unlimited has to be a boolean", %{conn: conn, ordinary: ordinary} do
       body = patch(conn, ~p"/api/admin/users/#{ordinary.id}", %{"unlimited" => "yes"})
       assert json_response(body, 400)["error"] =~ "unlimited"

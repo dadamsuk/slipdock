@@ -200,7 +200,8 @@ gives a `download_url` the same way. So a scheduled task or a shared skill
 needs no long-lived API token to move files
 ([details](manual.md#mcp-server)).
 
-While an admin has meeting mode on, `capture_meeting` sends a meeting; while
+While an admin has meeting mode on, and on for the person you work for,
+`capture_meeting` sends a meeting; while
 chat capture is on (the default), `capture_chat` sends the conversation you are
 in. With either on: `get_capture` to read, `resolve_capture_question` and
 `commit_capture` to write.

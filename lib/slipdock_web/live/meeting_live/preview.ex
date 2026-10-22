@@ -148,7 +148,7 @@ defmodule SlipdockWeb.MeetingLive.Preview do
       nav_active={:boards}
       page_jumps={@page_jumps}
     >
-      <:subnav><.meeting_nav board={@board} capture={@capture} /></:subnav>
+      <:subnav><.meeting_nav board={@board} capture={@capture} meetings={@meetings} /></:subnav>
 
       <div class="kanban-scroll h-full overflow-y-auto">
         <div class="mx-auto max-w-3xl space-y-5 p-4 sm:p-6">

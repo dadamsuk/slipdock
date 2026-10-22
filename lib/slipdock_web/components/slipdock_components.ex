@@ -1894,7 +1894,8 @@ defmodule SlipdockWeb.SlipdockComponents do
 
   attr :meetings, :atom,
     default: :none,
-    doc: "`:tab` puts Meetings beside the wiki (see `Slipdock.Meetings.presence/2`)"
+    doc:
+      "`:tab` puts Meetings beside the wiki (see `Slipdock.Meetings.presence/2`); on a meeting page, `:hidden` when the reader hid it"
 
   # The view switcher that leads every board toolbar: the current view, with
   # the others in a menu, followed by the reader's own favourite saved views.
@@ -1911,9 +1912,9 @@ defmodule SlipdockWeb.SlipdockComponents do
           {:wiki, "/wiki", "Wiki", "hero-book-open", "Wiki", nil}
 
         :meetings ->
-          # A conversation's page with meeting mode off (#1077) is no
-          # Meetings tab.
-          if Slipdock.Meetings.enabled?(),
+          # A conversation's page with meeting mode off (#1077), or not on
+          # for the reader (#1206), is no Meetings tab.
+          if assigns.meetings != :none,
             do: {:meetings, "/meetings", "Meetings", "hero-microphone", "Meetings", nil},
             else:
               {:meetings, "/meetings", "Conversation", "hero-chat-bubble-left-right",
@@ -1988,7 +1989,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         </li>
         <%!-- Meeting capture, the other thing a board keeps beside its cards,
               while meeting mode shows here (see `Slipdock.Meetings`). --%>
-        <li :if={@meetings == :tab or (@mode == :meetings and Slipdock.Meetings.enabled?())}>
+        <li :if={@meetings == :tab or (@mode == :meetings and @meetings != :none)}>
           <.link
             id="view-menu-meetings"
             navigate={~p"/boards/#{@board.id}/meetings"}

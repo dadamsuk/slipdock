@@ -791,7 +791,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     attachment = Boards.get_attachment!(id)
 
     if attachment.card_id == socket.assigns.card.id do
-      case Slipdock.Transcription.transcribe_attachment(attachment) do
+      case Slipdock.Transcription.transcribe_attachment(attachment, socket.assigns.current_user) do
         {:ok, _} ->
           {:noreply, socket}
 
@@ -1312,7 +1312,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
               <.attachments_section
                 at={@at}
                 can_write={@can_write}
-                transcribe={Slipdock.Transcription.configured?()}
+                transcribe={Slipdock.Transcription.available_to?(@current_user)}
                 card={@card}
                 target={@target}
                 uploads={@uploads}

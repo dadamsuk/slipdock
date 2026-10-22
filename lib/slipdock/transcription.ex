@@ -18,7 +18,7 @@ defmodule Slipdock.Transcription do
       `Retry-After`, `502` and other `5xx` with backoff, `504 sync_timeout`
       by asking again with the same key. Everything else is the answer.
 
-  Nothing here knows about cards; `transcribe_attachment/1` is the part that
+  Nothing here knows about cards; `transcribe_attachment/2` is the part that
   does, and it runs the job in the background so the page never waits on it.
   """
 
@@ -39,6 +39,12 @@ defmodule Slipdock.Transcription do
 
   @doc "Whether an admin has named a transcription server."
   def configured?, do: present?(Settings.get().transcription_server_url)
+
+  @doc """
+  Whether this person may send a recording to it: a server is named, and an
+  admin has let them use meetings and transcription (#1206).
+  """
+  def available_to?(user), do: configured?() and Slipdock.Meetings.allowed?(user)
 
   @doc """
   Asks the server who it is (`GET /v1/status`): `{:ok, status}` with its
@@ -120,13 +126,17 @@ defmodule Slipdock.Transcription do
   returns the attachment marked `running`. When it finishes the attachment
   holds the text (or why there is none) and the board is told.
 
-  `{:error, reason}` when it can't start: `:not_configured`, `:not_audio`, or
+  `{:error, reason}` when it can't start: `:not_configured`, `:not_allowed`
+  when an admin hasn't let `user` use transcription, `:not_audio`, or
   `:running` while an earlier one is still going.
   """
-  def transcribe_attachment(%Attachment{} = attachment) do
+  def transcribe_attachment(%Attachment{} = attachment, user) do
     cond do
       not configured?() ->
         {:error, :not_configured}
+
+      not Slipdock.Meetings.allowed?(user) ->
+        {:error, :not_allowed}
 
       not Attachment.audio?(attachment) ->
         {:error, :not_audio}
@@ -158,8 +168,12 @@ defmodule Slipdock.Transcription do
 
   def running?(_), do: false
 
-  @doc "A reason from `transcribe_attachment/1`, as a person reads it."
+  @doc "A reason from `transcribe_attachment/2`, as a person reads it."
   def describe(:not_configured), do: "No transcription server is set up on this Slipdock."
+
+  def describe(:not_allowed),
+    do: "Transcription isn't turned on for you on this Slipdock; an admin can turn it on."
+
   def describe(:not_audio), do: "Only audio files can be transcribed."
   def describe(:running), do: "It is being transcribed already."
 

@@ -91,6 +91,28 @@ defmodule SlipdockWeb.UsersLiveTest do
     end
   end
 
+  # #1206: meetings, transcription and voiceprints, per person.
+  describe "meetings" do
+    test "can be allowed and taken away from the people list", %{conn: conn, ordinary: ordinary} do
+      no_meetings(ordinary)
+      {:ok, view, _} = live(conn, ~p"/users")
+
+      html = view |> element("#meetings-#{ordinary.id}") |> render_click()
+      assert html =~ "Remove meetings"
+      assert Slipdock.Meetings.allowed?(Accounts.get_user!(ordinary.id))
+
+      html = view |> element("#meetings-#{ordinary.id}") |> render_click()
+      assert html =~ "Allow meetings"
+      refute Slipdock.Meetings.allowed?(Accounts.get_user!(ordinary.id))
+    end
+
+    test "is not offered for an admin, who always has them", %{conn: conn, admin: admin} do
+      {:ok, view, _} = live(conn, ~p"/users")
+      refute has_element?(view, "#meetings-#{admin.id}")
+      assert Slipdock.Meetings.allowed?(no_meetings(admin))
+    end
+  end
+
   describe "an admin demoted while the page is open" do
     test "cannot use it any more", %{conn: conn, admin: admin, ordinary: ordinary} do
       {:ok, view, _} = live(conn, ~p"/users")

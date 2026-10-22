@@ -133,6 +133,8 @@ defmodule SlipdockCLI do
                                       the trial clock (e.g. 2026-12-31)
   admin unlimited <email> on|off      off the free tier for good, no date needed;
                                       the server-wide ceilings still apply
+  admin meetings <email> on|off       let them use meetings, recording transcription
+                                      and voiceprints (admins always may)
   admin signups                       who is waiting to be let in
   admin approve|reject <email>
 

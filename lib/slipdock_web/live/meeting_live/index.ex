@@ -30,7 +30,9 @@ defmodule SlipdockWeb.MeetingLive.Index do
 
   defp load(socket) do
     captures =
-      socket.assigns.board |> Meetings.list_captures() |> Enum.filter(&Meetings.kind_enabled?/1)
+      socket.assigns.board
+      |> Meetings.list_captures()
+      |> Enum.filter(&Meetings.kind_enabled_for?(&1, socket.assigns.current_user))
 
     assign(socket, captures: captures, counts: Meetings.counts(captures))
   end
@@ -83,7 +85,7 @@ defmodule SlipdockWeb.MeetingLive.Index do
       nav_active={:boards}
       page_jumps={@page_jumps}
     >
-      <:subnav><.meeting_nav board={@board} /></:subnav>
+      <:subnav><.meeting_nav board={@board} meetings={@meetings} /></:subnav>
       <:subactions>
         <.link
           :if={@can_write}

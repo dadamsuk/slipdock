@@ -91,7 +91,9 @@ defmodule SlipdockWeb.API.VoiceprintController do
   defp consent, do: %{version: Voiceprints.wording_version(), wording: Voiceprints.wording()}
 
   defp require_enabled(conn, _) do
-    if Voiceprints.enabled?(), do: conn, else: conn |> off() |> halt()
+    if Voiceprints.enabled_for?(conn.assigns.current_user),
+      do: conn,
+      else: conn |> off() |> halt()
   end
 
   defp refuse_other_people(conn, _) do

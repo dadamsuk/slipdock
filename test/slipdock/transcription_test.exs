@@ -290,21 +290,41 @@ defmodule Slipdock.TranscriptionTest do
       {:ok, pdf} =
         Boards.add_attachment(card, %{filename: "a.pdf", content_type: "application/pdf"}, path)
 
-      %{audio: audio, pdf: pdf}
+      %{audio: audio, pdf: pdf, user: user_fixture()}
     end
 
-    test "needs a server to be set up", %{audio: audio} do
-      assert {:error, :not_configured} = Transcription.transcribe_attachment(audio)
+    test "needs a server to be set up", %{audio: audio, user: user} do
+      assert {:error, :not_configured} = Transcription.transcribe_attachment(audio, user)
       refute Transcription.configured?()
+      refute Transcription.available_to?(user)
     end
 
-    test "is transcribed, and the text kept on it", %{audio: audio} do
+    # #1206: only the people an admin has let use it, and admins.
+    test "needs the person to be allowed it", %{audio: audio, user: user} do
+      {:ok, _} = Settings.update(%{transcription_server_url: @url})
+      denied = no_meetings(user)
+
+      assert {:error, :not_allowed} = Transcription.transcribe_attachment(audio, denied)
+      assert {:error, :not_allowed} = Transcription.transcribe_attachment(audio, nil)
+      refute Transcription.available_to?(denied)
+      assert Transcription.describe(:not_allowed) =~ "an admin can turn it on"
+      assert Boards.get_attachment!(audio.id).transcript_status == nil
+
+      {:ok, admin} = Slipdock.Accounts.promote(denied)
+      assert Transcription.available_to?(admin)
+      serve([{200, %{"text" => "Admin's call."}}])
+      assert {:ok, _} = Transcription.transcribe_attachment(audio, admin)
+      assert Boards.get_attachment!(audio.id).transcript == "Admin's call."
+    end
+
+    test "is transcribed, and the text kept on it", %{audio: audio, user: user} do
       {:ok, _} =
         Settings.update(%{transcription_server_url: @url, transcription_server_token: "k3y"})
 
       serve([{200, %{"text" => "Minutes of the call."}}])
 
-      assert {:ok, %{transcript_status: "running"}} = Transcription.transcribe_attachment(audio)
+      assert {:ok, %{transcript_status: "running"}} =
+               Transcription.transcribe_attachment(audio, user)
 
       audio = Boards.get_attachment!(audio.id)
       assert audio.transcript_status == "done"
@@ -316,26 +336,26 @@ defmodule Slipdock.TranscriptionTest do
       assert body =~ "content-type: audio/mpeg"
     end
 
-    test "a failure is kept on it, and it can be tried again", %{audio: audio} do
+    test "a failure is kept on it, and it can be tried again", %{audio: audio, user: user} do
       {:ok, _} = Settings.update(%{transcription_server_url: @url})
       serve([{401, %{"error" => %{"code" => "invalid_api_key", "message" => "bad"}}}])
 
-      {:ok, _} = Transcription.transcribe_attachment(audio)
+      {:ok, _} = Transcription.transcribe_attachment(audio, user)
       audio = Boards.get_attachment!(audio.id)
       assert audio.transcript_status == "failed"
       assert audio.transcript_error =~ "refused the token"
 
       serve([{200, %{"text" => "Second go."}}])
-      {:ok, _} = Transcription.transcribe_attachment(audio)
+      {:ok, _} = Transcription.transcribe_attachment(audio, user)
 
       assert %{transcript_status: "done", transcript_error: nil, transcript: "Second go."} =
                Boards.get_attachment!(audio.id)
     end
 
-    test "only audio, and not while one is running", %{audio: audio, pdf: pdf} do
+    test "only audio, and not while one is running", %{audio: audio, pdf: pdf, user: user} do
       {:ok, _} = Settings.update(%{transcription_server_url: @url})
 
-      assert {:error, :not_audio} = Transcription.transcribe_attachment(pdf)
+      assert {:error, :not_audio} = Transcription.transcribe_attachment(pdf, user)
 
       {:ok, running} =
         Boards.update_attachment_transcript(audio, %{
@@ -344,7 +364,7 @@ defmodule Slipdock.TranscriptionTest do
         })
 
       assert Transcription.running?(running)
-      assert {:error, :running} = Transcription.transcribe_attachment(running)
+      assert {:error, :running} = Transcription.transcribe_attachment(running, user)
 
       # One left running by a restart, hours ago, may be started again.
       {:ok, stale} =
@@ -354,7 +374,7 @@ defmodule Slipdock.TranscriptionTest do
 
       refute Transcription.running?(stale)
       serve([{200, %{"text" => "Fresh."}}])
-      assert {:ok, _} = Transcription.transcribe_attachment(stale)
+      assert {:ok, _} = Transcription.transcribe_attachment(stale, user)
       assert Boards.get_attachment!(audio.id).transcript == "Fresh."
     end
   end

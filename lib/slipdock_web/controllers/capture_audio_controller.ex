@@ -1,7 +1,7 @@
 defmodule SlipdockWeb.CaptureAudioController do
   @moduledoc """
   A capture's recording, for replaying a passage: to anybody who can read
-  the capture's board, while meeting mode is on and the recording is still
+  the capture's board, while meeting mode is on for them (#1206) and the recording is still
   kept. Answers byte ranges, so a player can jump to the second it is asked
   for (`/captures/12/audio#t=458,464`).
   """
@@ -10,7 +10,7 @@ defmodule SlipdockWeb.CaptureAudioController do
   alias Slipdock.{Access, Boards, Meetings}
 
   def show(conn, %{"id" => id}) do
-    with true <- Meetings.enabled?(),
+    with true <- Meetings.enabled_for?(conn.assigns.current_user),
          %Meetings.Capture{} = capture <- Meetings.get_capture(SlipdockWeb.Params.id(id) || 0),
          board = Boards.get_board!(capture.board_id),
          true <- Access.can_read?(Access.board_permission(conn.assigns.current_user, board)),
