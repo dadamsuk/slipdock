@@ -1048,11 +1048,13 @@ defmodule SlipdockWeb.APIGuide do
 
     ### Finish it
 
-    If the work lives in a git repository, commit it before you close the
-    card — one commit (or a PR) per card, its message naming the card
-    (`#57`). Put a link to the commit, or to the PR if you opened one, in the
-    closing comment, so whoever reads the card can go straight from it to the
-    change. No remote to link to? Give the short hash and branch instead.
+    Re-read the card before committing, and its comments once the build
+    starts: anything new is still this card. A done card's handoff is only
+    what the person must do or check; else `{"clear": true}`.
+
+    In a git repository, commit before closing: one commit (or PR) per card,
+    naming it (`#57`). Link the commit or PR in the closing comment (no
+    remote: the short hash and branch).
 
         POST  /api/cards/57/comments   {"body": "Done: <what changed, where, tests>\\n\\nCommit: <commit or PR URL>"}
         PATCH /api/cards/57            {"completed": true,

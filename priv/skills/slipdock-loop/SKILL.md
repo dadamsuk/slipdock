@@ -401,6 +401,15 @@ anybody reads later:
    line in the comment, not a silent pass. A failure that does not come back
    on a rerun is a flaky test, not yours: do not rerun the suite until it is
    green, add a card for it (the test, the seed, the error) and carry on.
+
+   **Then re-read the card, before committing.** The brief can move while you
+   work: `slipdock card <id>` again (over MCP, `get_card`), and compare the
+   description with what you read in step 3, and read every comment newer than
+   your *Picked up* that isn't yours. A changed description or a new comment
+   asking for something is part of this card: do it (or, if it changes the
+   scope beyond what one card should hold, open a wait as in **Handing a card
+   back**), check it as above, and say on the card what you changed for it.
+   Nothing new: carry on — no comment needed.
 2. **Commit**, with the card id in the message (`#129`), and push if that is the
    project's convention. One card, one commit, so the card and the diff point at
    each other.
@@ -419,6 +428,14 @@ anybody reads later:
    ```
    If no run appears (no `.github/workflows`, no remote, nothing pushed), write
    `Work complete: abc1234. No CI build for this repo.` instead and go to step 5.
+
+   **Then read the comments once more.** A person, an automation or another
+   session may have written while you committed. `slipdock card <id>`, and
+   look at everything after your *Picked up* that isn't yours: a new request
+   or correction is still this card. Do it, commit with the card id, push and
+   come back to this step, so it gets its own `Build started`. Nothing new:
+   carry on to step 4. Do the same once more just before step 5 on a card that
+   waited for its build — the wait is minutes long.
 4. **Wait for the build — for the pass's top-level card only.** A build takes
    minutes, and an epic's subcards would each sit idle through one. So:
    - **A subcard** does not wait. Its `Build started` comment is enough: go to
@@ -490,6 +507,27 @@ anybody reads later:
    the card and again here, and give the difference — one reading per card,
    measured from its own claim. If no counter is visible, write `Token cost: not
    measured` rather than estimating.
+
+   Last, **the handoff**, which is what the person sees first on the card,
+   above the comments. On a finished card it says only what is left *for
+   them*: something to do (deploy, reinstall, rotate a key, answer a
+   question), something to check (a page to look at, a migration to watch),
+   or anything they would want to know before trusting it. `--next` is that
+   one thing; the body is where things stand, in a few Markdown bullets:
+
+   ```sh
+   slipdock handoff <id> --next "Reinstall the CLI once the deploy is out" --body - <<'EOF'
+   - Done and pushed in `abc1234`; CI green.
+   - The installed `slipdock` predates `comment --body -`: reinstall from the server.
+   - Not done: the Windows installer (card #141).
+   EOF
+   ```
+
+   Nothing for them to do, check or know: the handoff stays blank. If the card
+   has one from earlier (`Left off:` under the title), clear it — `slipdock
+   handoff <id> --clear` (over MCP, `leave_handoff` with `clear: true`) — so an
+   old next step doesn't read as work still to do.
+
 7. **The job**, if the card came from one (step 2b): `slipdock finish-job
    <job> --status done --summary "<commit, CI result>"`.
 
@@ -536,7 +574,8 @@ Pointers: <branch, commit, files, W-…>"
 
 The same goes for any pass that ends with its card unfinished — the token dying
 (over MCP, `leave_handoff`), a build still red after two fixes, a job cancelled.
-A finished card needs none.
+A finished card gets one only for what is left for the person, and a blank
+one otherwise (step 7.6).
 
 Flagging and handing back is a result, not a failure — a pass that reports "card
 #128 needs a decision, asked on the card" has done its job. Guessing is the
@@ -547,7 +586,10 @@ failure mode.
 - **One card claimed at a time.** Claim at the start, release or close at the
   end. Resume before you pick.
 - **Never leave a card in the doing list without a comment newer than the move.**
-- **Never stop short on a card without leaving its handoff.**
+- **Never stop short on a card without leaving its handoff**, and never close
+  one with a stale handoff on it: what is left for the person, or blank.
+- **Re-read the card before the push, and its comments after it.** Work is
+  checked against the brief as it is now, not as it was at the claim.
 - **The board is the only state.** No scratch lists, no "I'll remember".
 - **Never pull from the backlog** when the ready list is empty — that is the
   user's queue to fill. Say it is empty and stop.
