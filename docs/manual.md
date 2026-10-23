@@ -3089,7 +3089,11 @@ Folder **Move…**, dragging across boards and **Give it its own board…** work
 its tree. A search or a filter runs across every board of the vault, keeping
 only the paths that hold a match. **Settings** (`/vaults/<vault>/.settings`)
 is where boards are mounted at a path and the vault is renamed or deleted.
-Board wiki addresses keep working.
+Board wiki addresses keep working. Beside the tree, the vault view lists the
+notes edited most lately rather than folder cards: at the vault's top, across
+every folder and board; with a folder (or a mounted board) open, only what is
+in it and the folders inside it, newest first, each saying which folder it
+sits in.
 
 **A board's wiki in a vault** is the vault from where the board is mounted
 down, like a chroot. Handbook, mounted at `/`, shows the whole of
