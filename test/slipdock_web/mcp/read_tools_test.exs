@@ -642,11 +642,47 @@ defmodule SlipdockWeb.MCP.ReadToolsTest do
   end
 
   describe "get_guide" do
+    test "someone with many boards still gets a short guide that fits", ctx do
+      for i <- 1..40,
+          do: board_fixture(%{"name" => "Many #{i}", "code" => "manyb#{i}"}, owner: ctx.user)
+
+      for i <- 1..8 do
+        b = board_fixture(%{"name" => "Shelved #{i}", "code" => "shelvb#{i}"}, owner: ctx.user)
+        {:ok, _} = Boards.archive_board(b)
+      end
+
+      %{"guide" => guide} = ctx.conn |> call("get_guide", %{}) |> ok!()
+      assert byte_size(guide) < 28_000
+
+      [_, boards] = String.split(guide, "## Your boards right now", parts: 2)
+      [boards, _] = String.split(boards, "## The rest of the guide", parts: 2)
+
+      # 41 boards: ten in full, twenty by name, the rest counted.
+      assert length(Regex.scan(~r/^- \*\*#\d+ /m, boards)) == 10
+      [also] = Regex.run(~r/^- Also: .*$/m, boards)
+      assert length(Regex.scan(~r/\(`[a-z0-9]+`\)/, also)) == 20
+      assert also =~ "and 11 more. `list_boards`"
+
+      # Eight archived: five named, three counted.
+      [archived] = Regex.run(~r/8 boards are archived.*?\./s, boards)
+      assert length(Regex.scan(~r/`shelvb\d+`/, archived)) == 5
+      assert archived =~ "and 3 more."
+
+      # The whole guide still lists every one.
+      %{"guide" => all} = ctx.conn |> call("get_guide", %{section: "all"}) |> ok!()
+      assert length(Regex.scan(~r/^- \*\*#\d+ /m, all)) == 41
+      refute all =~ "- Also: "
+      assert length(Regex.scan(~r/`shelvb\d+`/, all)) == 8
+    end
+
     test "by default gives the short guide, small enough for one tool result", ctx do
       %{"guide" => guide} = ctx.conn |> call("get_guide", %{}) |> ok!()
       served = ctx.conn |> get(~p"/api/guide") |> response(200)
 
-      assert byte_size(guide) < 22_000
+      # The fixed text, without the reader's boards (bounded on their own, below).
+      [fixed, boards_and_rest] = String.split(guide, "## Your boards right now", parts: 2)
+      [_, rest] = String.split(boards_and_rest, "## The rest of the guide", parts: 2)
+      assert byte_size(fixed <> rest) < 24_000
       assert byte_size(served) > 2 * byte_size(guide)
 
       for heading <- [

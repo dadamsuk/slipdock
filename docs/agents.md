@@ -295,7 +295,10 @@ can't read is "resource not found", the same as one that isn't there. See
 `get_guide` gives the short guide — how to work a board, the reader's own
 boards and lists — and ends by naming the other sections, each one call
 away with `section` (`automations`, `wiki`, `endpoints`…, or `all`). The
-whole guide is more than a client shows in one tool result.
+whole guide is more than a client shows in one tool result. The short guide
+describes the first ten of the reader's boards in full, names the next
+twenty and counts the rest, and names five archived boards at most, so it
+stays the same size however many boards someone has; `all` lists every one.
 
 `update_card` also colours a card's cover (`color`) and each edge of its
 front (`border_top`, `border_right`, `border_bottom`, `border_left`: a
