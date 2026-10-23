@@ -43,7 +43,7 @@ defmodule SlipdockWeb.APIGuide do
       vocabulary_section(),
       endpoints_section(),
       this_server(user),
-      boards_section(user, Keyword.get(opts, :token))
+      boards_section(user, Keyword.get(opts, :token), Keyword.get(opts, :board_limit))
     ]
     |> Enum.join("\n")
   end
@@ -206,6 +206,13 @@ defmodule SlipdockWeb.APIGuide do
   # longer fits in a tool result, so it is one of the sections to ask for.
   @core ~w(mcp epics choosing working boards)
 
+  # How many boards the short guide describes in full, then names, then only
+  # counts: someone with fifty boards still gets a guide that fits in one tool
+  # result. The whole guide lists every one.
+  @short_boards 10
+  @short_board_names 20
+  @short_archived 5
+
   @doc """
   The guide cut at its `##` headings: `{key, title, markdown}` in document
   order, the text before the first heading under the key `"intro"`. The
@@ -250,7 +257,7 @@ defmodule SlipdockWeb.APIGuide do
   for the asking with `section/2`.
   """
   def short(opts \\ []) do
-    all = sections(opts)
+    all = opts |> Keyword.put_new(:board_limit, @short_boards) |> sections()
     by_key = Map.new(all, fn {key, _, text} -> {key, text} end)
     {_, _, intro} = hd(all)
 
@@ -3042,7 +3049,7 @@ defmodule SlipdockWeb.APIGuide do
     """
   end
 
-  defp boards_section(nil, _token) do
+  defp boards_section(nil, _token, _limit) do
     """
 
     ## Your boards
@@ -3054,7 +3061,7 @@ defmodule SlipdockWeb.APIGuide do
     """
   end
 
-  defp boards_section(user, token) do
+  defp boards_section(user, token, limit) do
     boards =
       user
       |> Access.list_boards(activity: true, token: token)
@@ -3066,7 +3073,8 @@ defmodule SlipdockWeb.APIGuide do
       if boards == [] do
         "You cannot see any boards yet. `POST /api/boards {\"name\": \"…\", \"code\": \"…\", \"template\": \"Slipdock\"}` makes one (leave `code` out and one is made from the name)."
       else
-        Enum.map_join(boards, "\n", &board_line(&1, user))
+        {shown, rest} = if limit, do: Enum.split(boards, limit), else: {boards, []}
+        Enum.map_join(shown, "\n", &board_line(&1, user)) <> more_boards(rest)
       end
 
     """
@@ -3079,17 +3087,34 @@ defmodule SlipdockWeb.APIGuide do
     it, and the one to use when you address a board by anything but its id.
 
     Sub-boards are not listed here — they hang off their epic's `sub_board`.
-    #{archived_note(archived)}
+    #{archived_note(archived, limit && @short_archived)}
     """
   end
 
-  defp archived_note([]), do: ""
+  # The boards past the short guide's limit: the next few by name, then a count.
+  defp more_boards([]), do: ""
 
-  defp archived_note(archived) do
+  defp more_boards(rest) do
+    {named, uncounted} = Enum.split(rest, @short_board_names)
+
+    "\n- Also: #{board_names(named, uncounted)}. `list_boards` (or `get_board`, " <>
+      "`section: \"all\"`) for their lists."
+  end
+
+  defp board_names(boards, more) do
+    names = Enum.map_join(boards, ", ", &"##{&1.id} #{&1.name} (`#{&1.code}`)")
+    if more == [], do: names, else: "#{names} and #{length(more)} more"
+  end
+
+  defp archived_note([], _limit), do: ""
+
+  defp archived_note(archived, limit) do
+    {named, more} = if limit, do: Enum.split(archived, limit), else: {archived, []}
+
     """
 
     #{length(archived)} board#{if length(archived) == 1, do: " is", else: "s are"} archived and left
-    out of the list above: #{Enum.map_join(archived, ", ", &"##{&1.id} #{&1.name} (`#{&1.code}`)")}.
+    out of the list above: #{board_names(named, more)}.
     An archived board is put away, not deleted — every card on it still reads
     and writes as usual, and `GET /api/boards?archived=all` lists them
     alongside the rest. Take it as a strong signal, though: work on an archived
