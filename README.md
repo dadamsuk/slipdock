@@ -78,7 +78,11 @@ Briefly, with the detail in [the manual](docs/manual.md):
   MCP `update_card`'s `answer_wait` posts the answer as a comment and gets the
   work going again. Opened with `slipdock wait 12 "Which region?" --choice eu
   --choice us`, `POST /api/cards/:id/wait` or `update_card`'s `wait` — the way
-  agents are told to ask. **Waiting on you** opens My work with everything that
+  agents are told to ask. Several questions are asked as a numbered series
+  (`--question`, `questions`), each with its own answer box, a ✨ button that
+  suggests an answer from the card, and **Skip** to move on without answers;
+  **Ask questions** asks them from the card, and the card keeps every
+  question asked before with its answers (`slipdock waits 12`). **Waiting on you** opens My work with everything that
   needs you, oldest first (waits, `review` and `waiting` flags on your cards,
   runner trouble, cards in progress with nobody on them), and the header counts
   it on every page; `slipdock work` and `GET /api/work` list the same.

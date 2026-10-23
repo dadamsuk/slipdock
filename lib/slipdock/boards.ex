@@ -3662,13 +3662,27 @@ defmodule Slipdock.Boards do
       |> Enum.with_index(1)
       |> Enum.map_join("", fn {text, n} -> "\n#{n}. #{text}" end)
 
-    "Waiting on #{Wait.on_name(wait)}: #{wait.needs}" <> choices
+    questions =
+      if Wait.series?(wait) do
+        "\n" <>
+          (wait.questions
+           |> Enum.with_index(1)
+           |> Enum.map_join("", fn {q, n} -> "\n#{n}. #{q}" end))
+      else
+        ""
+      end
+
+    "Waiting on #{Wait.on_name(wait)}: #{wait.needs}" <> questions <> choices
   end
 
   @doc """
   Answers `card`'s open wait (or `wait` itself) for `actor`: `attrs` takes
+  `answers` (one per question, in order: a list, or a map from the
+  question's number counted from 1; blank for one left unanswered),
   `answer` (free text) and `choice` (the number of one of its choices,
-  counted from 1), at least one of them. The answer is posted on the card
+  counted from 1), at least one of them. A wait of one question takes its
+  answer as `answers` too. `skip: true` instead closes it unanswered
+  (#1220) and moves the card on just the same. The answer is posted on the card
   as a comment from whoever answered, and the `waiting` flag comes off if
   the wait put it there. A wait asked from a runner job then sends the card
   to that job's rule again, with the answer (`Slipdock.Runners.Requeue`).
@@ -3688,17 +3702,32 @@ defmodule Slipdock.Boards do
 
   def answer_wait(%Wait{} = wait, actor, attrs) do
     wait = Repo.preload(wait, wait_preloads())
+
+    if truthy?(wait_attr(attrs, :skip)),
+      do: skip_wait(wait, actor),
+      else: answer_open_wait(wait, actor, attrs)
+  end
+
+  defp answer_open_wait(wait, actor, attrs) do
     answer = attrs |> wait_attr(:answer) |> blank_to_nil()
 
     with :ok <- not_self_answer(wait, actor),
+         {:ok, answers} <- wait_answers(wait, wait_attr(attrs, :answers)),
+         # One question: its answer is the answer.
+         {answer, answers} = single_answer(wait, answer, answers),
          {:ok, choice} <- wait_choice(wait, wait_attr(attrs, :choice)),
-         :ok <- some_answer(answer, choice),
-         :ok <- answer_length(answer) do
+         :ok <- some_answer(answer, choice, answers),
+         :ok <- answer_length(answer),
+         :ok <- Enum.reduce_while(answers, :ok, &answers_length/2) do
       # The flag coming off must not feed the asking job's rule the card with
       # its plain prompt before the answer is sent (KTD7).
       Slipdock.Runners.Requeue.quietly(wait, fn ->
         with {:ok, closed} <-
-               close_wait(wait, actor, "answered", answer: answer, choice: choice) do
+               close_wait(wait, actor, "answered",
+                 answer: answer,
+                 choice: choice,
+                 answers: answers
+               ) do
           card = Repo.get!(Card, wait.card_id)
           {:ok, _} = add_comment(card, answered_text(closed), by: actor_user(actor))
           Slipdock.Runners.Requeue.after_answer(closed)
@@ -3708,11 +3737,90 @@ defmodule Slipdock.Boards do
     end
   end
 
+  # Skipping (#1220): nothing is answered, but the card moves on as it
+  # would on an answer — the flag off, and a runner's card sent again.
+  defp skip_wait(wait, actor) do
+    with :ok <- not_self_answer(wait, actor) do
+      Slipdock.Runners.Requeue.quietly(wait, fn ->
+        with {:ok, closed} <- close_wait(wait, actor, "skipped", []) do
+          card = Repo.get!(Card, wait.card_id)
+
+          {:ok, _} =
+            add_comment(
+              card,
+              "#{actor_name(actor)} skipped the questions “#{closed.needs}”: " <>
+                "carry on without the answers.",
+              by: actor_user(actor)
+            )
+
+          Slipdock.Runners.Requeue.after_answer(closed)
+          {:ok, Wait |> Repo.get!(closed.id) |> Repo.preload(wait_preloads())}
+        end
+      end)
+    end
+  end
+
+  defp truthy?(value), do: value in [true, "true", "1", 1, "on", "yes"]
+
+  # The answers, one per question in order, "" for one left blank.
+  defp wait_answers(_wait, nil), do: {:ok, []}
+
+  defp wait_answers(wait, %{} = by_number) do
+    count = length(Wait.questions(wait))
+
+    Enum.reduce_while(by_number, {:ok, List.duplicate("", count)}, fn {n, text}, {:ok, acc} ->
+      case Integer.parse(to_string(n)) do
+        {n, ""} when n in 1..count//1 ->
+          {:cont, {:ok, List.replace_at(acc, n - 1, answer_text_of(text))}}
+
+        _ ->
+          {:halt, {:error, "answers are numbered 1 to #{count}, one per question"}}
+      end
+    end)
+  end
+
+  defp wait_answers(wait, answers) when is_list(answers) do
+    count = length(Wait.questions(wait))
+
+    if length(answers) > count,
+      do:
+        {:error,
+         "#{length(answers)} answers for #{count} #{if count == 1, do: "question", else: "questions"}"},
+      else:
+        {:ok, Enum.map(answers, &answer_text_of/1) ++ List.duplicate("", count - length(answers))}
+  end
+
+  defp wait_answers(_wait, _),
+    do: {:error, "answers is a list of strings, one per question"}
+
+  defp answer_text_of(text) when is_binary(text), do: String.trim(text)
+  defp answer_text_of(nil), do: ""
+  defp answer_text_of(other), do: other |> to_string() |> String.trim()
+
+  defp single_answer(wait, answer, answers) do
+    if Wait.series?(wait) do
+      {answer, answers}
+    else
+      case answers do
+        [one] when one != "" ->
+          {Enum.join(Enum.reject([one, answer], &is_nil/1), "\n\n"), []}
+
+        _ ->
+          {answer, []}
+      end
+    end
+  end
+
+  defp answers_length(a, :ok) when byte_size(a) > 8000,
+    do: {:halt, {:error, "an answer is too long: at most 8000 characters each"}}
+
+  defp answers_length(_a, :ok), do: {:cont, :ok}
+
   defp wait_attr(attrs, key), do: attrs[key] || attrs[Atom.to_string(key)]
 
   defp no_open_wait_text(card) do
     case last_wait(card) do
-      %Wait{close_reason: "answered"} = w -> already_closed(w)
+      %Wait{close_reason: r} = w when r in ~w(answered skipped) -> already_closed(w)
       _ -> "card ##{card.id} has no open wait"
     end
   end
@@ -3745,8 +3853,13 @@ defmodule Slipdock.Boards do
     end
   end
 
-  defp some_answer(nil, nil), do: {:error, "an answer needs text or a choice"}
-  defp some_answer(_, _), do: :ok
+  defp some_answer(nil, nil, answers) do
+    if Enum.any?(answers, &(&1 != "")),
+      do: :ok,
+      else: {:error, "an answer needs text or a choice"}
+  end
+
+  defp some_answer(_, _, _), do: :ok
 
   defp answer_length(answer) when is_binary(answer) and byte_size(answer) > 8000,
     do: {:error, "the answer is too long: at most 8000 characters"}
@@ -3754,14 +3867,9 @@ defmodule Slipdock.Boards do
   defp answer_length(_), do: :ok
 
   defp answered_text(wait) do
-    picked = Wait.choice_text(wait, wait.choice)
-
-    said =
-      [picked, wait.answer]
-      |> Enum.reject(&is_nil/1)
-      |> Enum.join(" — ")
-
-    "Answered “#{wait.needs}”: #{said}"
+    if Wait.series?(wait),
+      do: "Answered “#{wait.needs}”:\n\n#{Wait.answered_text(wait)}",
+      else: "Answered “#{wait.needs}”: #{Wait.answered_text(wait)}"
   end
 
   @doc """
@@ -3803,7 +3911,8 @@ defmodule Slipdock.Boards do
           closed_by_id: user && user.id,
           close_reason: reason,
           answer: opts[:answer],
-          choice: opts[:choice]
+          choice: opts[:choice],
+          answers: opts[:answers] || []
         ]
       )
 
@@ -3833,6 +3942,7 @@ defmodule Slipdock.Boards do
     what =
       case w.close_reason do
         "answered" -> "already answered"
+        "skipped" -> "already skipped"
         "withdrawn" -> "already withdrawn"
         "card_completed" -> "already closed when the card was completed"
         "archived" -> "already closed when the card was archived"
@@ -3914,6 +4024,16 @@ defmodule Slipdock.Boards do
     |> Repo.all()
     |> Repo.preload(wait_preloads())
     |> Map.new(&{&1.card_id, &1})
+  end
+
+  @doc """
+  Every wait the card has had, newest first, with who it was on, who
+  opened and who closed it: the questions asked and answered (#1220).
+  """
+  def list_waits(%Card{id: id}) do
+    from(w in Wait, where: w.card_id == ^id, order_by: [desc: w.inserted_at, desc: w.id])
+    |> Repo.all()
+    |> Repo.preload(wait_preloads())
   end
 
   @doc "How many waits have been opened on the card: the questions it has asked."

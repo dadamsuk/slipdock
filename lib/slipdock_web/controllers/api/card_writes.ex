@@ -182,7 +182,8 @@ defmodule SlipdockWeb.API.CardWrites do
 
   @doc """
   Opens a wait on `card` from a request's params, as the API and MCP both
-  take them (#1114): `needs`, `on` (a person — id, email or "me" — or
+  take them (#1114): `needs`, `questions` (a numbered series, #1220:
+  `needs` may then be left out), `on` (a person — id, email or "me" — or
   nothing for anyone), `choices` and `job_id`. Needs write on the card.
 
   With no `job_id`, a wait opened on the token of a session runner that is
@@ -193,7 +194,8 @@ defmodule SlipdockWeb.API.CardWrites do
 
     with :ok <- SlipdockWeb.API.Authorize.card(auth, card, :write),
          {:ok, on} <- wait_on(card, user, params["on"]),
-         {:ok, choices} <- wait_choices(params["choices"]) do
+         {:ok, choices} <- wait_choices(params["choices"]),
+         {:ok, questions} <- wait_questions(params["questions"]) do
       job_id =
         case params["job_id"] do
           blank when blank in [nil, ""] ->
@@ -206,6 +208,7 @@ defmodule SlipdockWeb.API.CardWrites do
       Boards.open_wait(card, Slipdock.Actor.from_conn(auth), %{
         "needs" => params["needs"],
         "choices" => choices,
+        "questions" => questions,
         "on_user_id" => on,
         "job_id" => job_id
       })
@@ -237,16 +240,32 @@ defmodule SlipdockWeb.API.CardWrites do
 
   defp wait_choices(_), do: {:error, :unprocessable_entity, "choices must be a list of strings"}
 
+  defp wait_questions(nil), do: {:ok, []}
+  defp wait_questions(question) when is_binary(question), do: {:ok, [question]}
+
+  defp wait_questions(questions) when is_list(questions) do
+    if Enum.all?(questions, &is_binary/1),
+      do: {:ok, questions},
+      else: {:error, :unprocessable_entity, "questions must be a list of strings"}
+  end
+
+  defp wait_questions(_),
+    do: {:error, :unprocessable_entity, "questions must be a list of strings"}
+
   @doc """
-  Answers `card`'s open wait from a request's params: `answer` (text),
-  `choice` (its number, from 1), or both. Needs write on the card.
+  Answers `card`'s open wait from a request's params: `answers` (one per
+  question, #1220), `answer` (text), `choice` (its number, from 1), or
+  `skip: true` to skip the questions and move the card on. Needs write on
+  the card.
   """
   def answer_wait(auth, card, params) do
     with :ok <- SlipdockWeb.API.Authorize.card(auth, card, :write) do
       card
       |> Boards.answer_wait(Slipdock.Actor.from_conn(auth), %{
         "answer" => params["answer"],
-        "choice" => params["choice"]
+        "answers" => params["answers"],
+        "choice" => params["choice"],
+        "skip" => params["skip"]
       })
       |> wait_result()
     end
@@ -274,7 +293,7 @@ defmodule SlipdockWeb.API.CardWrites do
 
   defp wait_result({:error, message}) when is_binary(message) do
     status =
-      if message =~ ~r/already (has an open wait|answered|withdrawn|closed)/,
+      if message =~ ~r/already (has an open wait|answered|skipped|withdrawn|closed)/,
         do: :conflict,
         else: :unprocessable_entity
 

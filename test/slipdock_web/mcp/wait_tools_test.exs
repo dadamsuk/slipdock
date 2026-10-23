@@ -195,4 +195,39 @@ defmodule SlipdockWeb.MCP.WaitToolsTest do
     assert Map.drop(mcp, drop) == Map.drop(rest, drop)
     assert {mcp["via"], rest["via"]} == {"mcp", "api"}
   end
+
+  describe "a series of questions (#1220)" do
+    test "wait.questions asks them; answer_wait.answers answers each; get_card waits lists them",
+         ctx do
+      assert %{"wait" => %{"questions" => ["Which region?", "How many seats?"]}} =
+               as(ctx.owner)
+               |> open(ctx.card, %{questions: ["Which region?", "How many seats?"]})
+               |> ok!()
+
+      assert %{"wait" => %{"answers" => ["eu", ""], "close_reason" => "answered"}} =
+               as(ctx.dana)
+               |> call("update_card", %{card: ctx.card.id, answer_wait: %{answers: ["eu", ""]}})
+               |> ok!()
+
+      got = as(ctx.owner) |> call("get_card", %{card: ctx.card.id}) |> ok!()
+      refute Map.has_key?(got, "waits")
+
+      got = as(ctx.owner) |> call("get_card", %{card: ctx.card.id, waits: true}) |> ok!()
+      assert [%{"questions" => ["Which region?", "How many seats?"]}] = got["waits"]
+    end
+
+    test "answer_wait skip: true skips them", ctx do
+      as(ctx.owner) |> open(ctx.card, %{needs: "1. A?\n2. B?"}) |> ok!()
+
+      assert %{"wait" => %{"close_reason" => "skipped"}} =
+               as(ctx.dana)
+               |> call("update_card", %{card: ctx.card.id, answer_wait: %{skip: true}})
+               |> ok!()
+    end
+
+    test "a wait with neither needs nor questions is refused", ctx do
+      text = as(ctx.owner) |> open(ctx.card, %{on: ctx.dana.email}) |> error!()
+      assert text =~ "say what you need"
+    end
+  end
 end

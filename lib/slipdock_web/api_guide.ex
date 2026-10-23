@@ -1041,6 +1041,8 @@ defmodule SlipdockWeb.APIGuide do
     - **Stuck on a person** — a decision, a credential, an approval: open a
       wait, `POST /api/cards/57/wait {"needs": "…"}` (MCP `update_card`
       `wait`), naming exactly what you need, and stop. The answer comes back.
+      Several questions go as `{"questions": ["…", "…"]}`, one each, never
+      one block: each gets its own numbered answer box.
     - **Needs a human eye before it counts as done:** `{"add_flags": ["review"]}`
       and leave it in `doing`.
     - **The task turns out to be several:** give it a sub-board and split it
@@ -1293,6 +1295,16 @@ defmodule SlipdockWeb.APIGuide do
          -d '{"choice": 1, "answer": "eu, for the data rules"}'
     curl -s -X DELETE -H "$H" B/api/cards/57/wait
 
+    # several questions at once, numbered (CLI: slipdock wait 57 --question … --question …);
+    # answered one per question ("" leaves one), or skipped; then every one the card asked
+    curl -s -H "$H" -H 'content-type: application/json' B/api/cards/57/wait \
+         -d '{"questions": ["Which region?", "How many seats?"]}'
+    curl -s -H "$H" -H 'content-type: application/json' B/api/cards/57/wait/answer \
+         -d '{"answers": ["eu", "12"]}'
+    curl -s -H "$H" -H 'content-type: application/json' B/api/cards/57/wait/answer \
+         -d '{"skip": true}'
+    curl -s -H "$H" B/api/cards/57/waits
+
     # what is waiting on you, oldest first, then your cards by due (?board=1, ?done=true)
     curl -s -H "$H" B/api/work
 
@@ -1316,6 +1328,18 @@ defmodule SlipdockWeb.APIGuide do
     closes it. A wait opened from a runner job parks the job, and the answer
     sends the card to its rule again (see Runners). Prefer a wait to a bare
     `waiting` flag: the flag has no clock, no owner and no way back.
+
+    **Several questions** go in one wait as `questions` (at most 20), never
+    as one block in `needs`: each is shown numbered with its own answer box,
+    and `needs` becomes the line in front of them (a `needs` written as a
+    numbered list `1. … 2. …` is split the same way). Answer with `answers`,
+    one per question in order (or `{"2": "…"}` by number; `""` leaves one
+    unanswered), kept on the wait as `answers`. `{"skip": true}` skips them
+    all: the wait closes as `skipped` and the card moves on as it would on
+    an answer, a runner job's card going to its rule again told to use its
+    own judgement. `GET /api/cards/:id/waits` (MCP `get_card` `waits: true`,
+    CLI `slipdock waits <id>`) lists every wait the card has had, newest
+    first, with the answers.
 
     **Waiting on you.** `GET /api/work` (MCP: the `plan-my-day` prompt;
     CLI: `slipdock work`) answers `waiting`, oldest

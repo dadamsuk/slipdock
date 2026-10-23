@@ -810,6 +810,7 @@ defmodule Slipdock.Portable.Import do
         closed_by_id: Refs.user_id_for(w[:closed_by], user),
         close_reason: if(closed_at, do: reason || "withdrawn"),
         answer: w[:answer],
+        answers: strings(w[:answers]),
         choice: if(is_integer(w[:choice]), do: w[:choice])
       }
 
@@ -817,6 +818,8 @@ defmodule Slipdock.Portable.Import do
         Wait.changeset(row, %{
           needs: w[:needs],
           choices: if(is_list(w[:choices]), do: Enum.map(w[:choices], &to_string/1), else: []),
+          # A series (#1220); an older export has none.
+          questions: strings(w[:questions]),
           on_user_id: Refs.user_id_for(w[:on], user)
         })
 
@@ -826,6 +829,9 @@ defmodule Slipdock.Portable.Import do
       end
     end
   end
+
+  defp strings(list) when is_list(list), do: Enum.map(list, &to_string/1)
+  defp strings(_), do: []
 
   # A recurring card's series, carrying on from where the export left it: the
   # next occurrence is made at its time on this server's clock. One that

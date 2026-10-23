@@ -205,7 +205,7 @@ defmodule Slipdock.Runners.Requeue do
 
   defp skip(wait, card, why) do
     record(wait, "skipped", why, nil)
-    Boards.add_comment(card, "Answered, but #{why}; nothing was sent to the runners.")
+    Boards.add_comment(card, "#{done(wait)}, but #{why}; nothing was sent to the runners.")
     :skipped
   end
 
@@ -214,12 +214,15 @@ defmodule Slipdock.Runners.Requeue do
 
     Boards.add_comment(
       card,
-      "Answered, but the card couldn't be sent to the runners again: #{reason}. " <>
+      "#{done(wait)}, but the card couldn't be sent to the runners again: #{reason}. " <>
         "Send it again by hand once that clears."
     )
 
     :failed
   end
+
+  defp done(%Wait{close_reason: "skipped"}), do: "Skipped"
+  defp done(_wait), do: "Answered"
 
   defp record(wait, state, note, job_id) do
     Repo.update_all(from(w in Wait, where: w.id == ^wait.id),
@@ -241,9 +244,9 @@ defmodule Slipdock.Runners.Requeue do
       if match?(%User{}, wait.closed_by), do: User.display_name(wait.closed_by), else: "someone"
 
     answer =
-      [Wait.choice_text(wait, wait.choice), wait.answer]
-      |> Enum.reject(&(&1 in [nil, ""]))
-      |> Enum.join(" — ")
+      if wait.close_reason == "skipped",
+        do: "(skipped: #{by} chose not to answer; use your own judgement)",
+        else: Wait.answered_text(wait)
 
     handoff =
       case Boards.current_handoff(card.id) do
@@ -253,8 +256,7 @@ defmodule Slipdock.Runners.Requeue do
 
     build = fn answer, handoff ->
       [
-        "Question on card ##{card.id}: #{wait.needs}",
-        "Answer: #{answer}",
+        question_lines(wait, card, answer),
         "Answered by: #{by}",
         if(handoff, do: "Handoff: #{handoff}"),
         "",
@@ -281,6 +283,13 @@ defmodule Slipdock.Runners.Requeue do
         build.(head(answer, max(spare, 0)) <> cut, nil) |> head(max)
       end
     end
+  end
+
+  # A series' answer already numbers its questions (#1220).
+  defp question_lines(wait, card, answer) do
+    if Wait.series?(wait) and wait.close_reason != "skipped",
+      do: "Questions on card ##{card.id}: #{wait.needs}\nAnswers:\n#{answer}",
+      else: "Question on card ##{card.id}: #{wait.needs}\nAnswer: #{answer}"
   end
 
   # The first `max` bytes of `text`, ending on a whole character.

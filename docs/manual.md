@@ -534,7 +534,23 @@ owner and a way back.
 
 While one is open it sits beneath the card's title — *Waiting on Dana:* and
 the question, who asked it and how long ago — with a button for each choice,
-a box for an answer in words, **Answer** and **Withdraw**. The answer is
+a box for an answer in words, **Answer**, **Skip** and **Withdraw**.
+
+A wait can ask **several questions** at once. They are shown numbered, each
+with its own answer box, and **Send answers** sends them together; a box left
+empty is kept as unanswered. With an AI model set (Account → AI model), the
+✨ button beside a box suggests an answer from the card: its description,
+checklist and comments, and the other answers typed so far. It only fills
+the box, and nothing is sent until you answer. **Skip** skips every question:
+the wait closes as *skipped* and the card moves on as it would on an answer.
+A question an agent wrote as one numbered block (`1. … 2. …`) is split into
+the series too.
+
+To ask questions yourself, press **Ask questions** on the line under the
+card's title. Write one question per box (**Add a question** for another, up
+to 20), choose who they are on (or anyone), and press **Ask**. Questions
+asked before stay on the card under **Questions asked before**, each with its
+answers, who answered and when, or how it ended without an answer. The answer is
 posted on the card as a comment from whoever answered and clears the
 `waiting` flag if the wait set it. Taking the `waiting` flag off by hand
 withdraws the wait, with a comment naming who did. Completing or archiving
@@ -547,14 +563,21 @@ person can always answer or withdraw their own.
 slipdock wait 12 "Which region?" --on dana@example.com --choice eu --choice us
 slipdock wait 12 --withdraw
 slipdock answer 12 --choice 1                  # or: slipdock answer 12 "eu, for the data rules"
+slipdock wait 12 --question "Which region?" --question "How many seats?"
+slipdock answer 12 --answer eu --answer 12     # one per question, in order ("" leaves one)
+slipdock answer 12 --skip                      # skip the questions: the card moves on
+slipdock waits 12                              # every question the card has asked, and the answers
 slipdock work                                  # what is waiting on you, oldest first
 ```
 
-Over the API, `POST /api/cards/:id/wait` (`needs`, `on`, `choices`) opens
-one, `POST /api/cards/:id/wait/answer` (`answer`, `choice` counted from 1)
-answers it and `DELETE /api/cards/:id/wait` withdraws it; a card's JSON
+Over the API, `POST /api/cards/:id/wait` (`needs`, `questions`, `on`,
+`choices`) opens one, `POST /api/cards/:id/wait/answer` (`answer`, `answers`
+one per question, `choice` counted from 1, or `skip: true`) answers or skips
+it, `DELETE /api/cards/:id/wait` withdraws it and `GET
+/api/cards/:id/waits` lists every one the card has had; a card's JSON
 carries the open one as `wait`. Over MCP it is `update_card` with `wait`
-(`null` withdraws) or `answer_wait`.
+(`questions` for several; `null` withdraws) or `answer_wait` (`answers`,
+`skip`), and `get_card` with `waits: true` for the history.
 
 Agents are told to open a wait, say what they need and stop, rather than
 flag the card and hope. A wait opened from a [runner](#runners) job

@@ -736,8 +736,15 @@ defmodule SlipdockCLI do
                                         wait on a person: flags the card waiting and asks on
                                         it (on anyone without --on); the job is
                                         $SLIPDOCK_JOB_ID unless --job names one
+    wait <id> ["intro"] --question Q --question Q ...
+                                        ask several questions at once: numbered, each
+                                        answered on its own (use this, not one block)
     wait <id> --withdraw                withdraw the card's open wait
     answer <id> ["text"] [--choice N]   answer the card's open wait, in words or by choice
+    answer <id> --answer A --answer A   answer its questions one by one, in order
+                                        ("" leaves one unanswered)
+    answer <id> --skip                  skip the questions: the card moves on unanswered
+    waits <id>                          the questions the card has asked, and the answers
     new-field <board> <name> --kind K   add a custom field (K: number rating select date text formula)
         [--options "Small=1, Large=3"] [--formula "{value} / {effort}"] [--sum]
     delete-field <board> <field>
@@ -1006,6 +1013,10 @@ defmodule SlipdockCLI do
     ends: :string,
     count: :integer,
     skip: :boolean,
+    # `slipdock wait <id> --question Q --question Q` and
+    # `slipdock answer <id> --answer A --answer A` (#1220): one per question.
+    question: :keep,
+    answer: :keep,
     pause: :boolean,
     resume: :boolean,
     read: :boolean,

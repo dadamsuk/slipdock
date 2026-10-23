@@ -174,4 +174,42 @@ defmodule SlipdockWeb.WaitDocsTest do
       assert html =~ "slipdock pause"
     end
   end
+
+  describe "a series of questions (#1220)" do
+    test "the guides, manual, README and agents doc say to ask them one each, and how to skip" do
+      short = SlipdockWeb.APIGuide.short()
+      assert short =~ ~s(Several questions go as `{"questions": ["…", "…"]}`, one each)
+
+      guide = SlipdockWeb.APIGuide.markdown()
+      assert guide =~ "**Several questions** go in one wait as `questions`"
+      assert guide =~ ~s(-d '{"answers": ["eu", "12"]}')
+      assert guide =~ ~s(-d '{"skip": true}')
+      assert guide =~ "curl -s -H \"$H\" B/api/cards/57/waits"
+
+      manual = read("docs/manual.md")
+      assert manual =~ "A wait can ask **several questions** at once."
+      assert manual =~ "press **Ask questions**"
+      assert manual =~ "**Questions asked before**"
+      assert manual =~ "slipdock answer 12 --skip"
+
+      assert read("README.md") =~ "Several questions are asked as a numbered series"
+      assert read("docs/agents.md") =~ "Several questions go\nas `questions`"
+    end
+
+    test "every skill that asks says to ask several one each" do
+      assert read("priv/skills/slipdock/SKILL.md") =~ "--question Q --question Q"
+      assert read("priv/skills/slipdock/SKILL.md") =~ "slipdock answer <id> --skip"
+      assert read("priv/skills/slipdock-work/SKILL.md") =~ "never one block"
+      assert read("priv/skills/slipdock-loop/SKILL.md") =~ "never one block"
+    end
+
+    test "the MCP and CLI pages name questions, answers and skip", %{conn: conn} do
+      {:ok, _view, html} = live(conn, ~p"/help/agents/mcp")
+      assert html =~ "several questions go as <code>questions</code>"
+
+      {:ok, _view, html} = live(conn, ~p"/help/agents/cli")
+      assert html =~ "<code>--question</code>"
+      assert html =~ "<code>slipdock waits</code>"
+    end
+  end
 end

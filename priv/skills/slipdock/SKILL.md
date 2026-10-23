@@ -319,6 +319,11 @@ slipdock wait <id> "what you need" [--on EMAIL] [--choice X]...   # wait on a pe
                                        # asks on the card; in a runner job it parks the job
 slipdock wait <id> --withdraw            # withdraw the open wait (or take the waiting flag off)
 slipdock answer <id> ["text"] [--choice N]   # answer it: a comment from you; a parked job's card is sent again
+slipdock wait <id> ["intro"] --question Q --question Q   # several questions: numbered, an answer box each
+                                       # (never one block of questions in the text)
+slipdock answer <id> --answer A --answer A   # answer them one by one, in order ("" leaves one)
+slipdock answer <id> --skip              # skip the questions: the card moves on unanswered
+slipdock waits <id>                      # every question the card has asked, and the answers
 slipdock tag <id> <tag>... [--off]       # tag must already exist on the board (see new-tag)
 slipdock check <id> <text...>            # add checklist item
 slipdock tick <item-id>                  # toggle checklist item (ids from `slipdock card`)

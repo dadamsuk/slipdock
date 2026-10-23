@@ -578,7 +578,10 @@ defmodule SlipdockWeb.HelpLive.Agents do
         shows first, or <code>delete: true</code>
         to delete one left by mistake); opening and answering a wait on a person (<code>update_card</code>'s
         <code>wait</code>
-        and <code>answer_wait</code>); uploading and downloading the
+        and <code>answer_wait</code>: several questions go as <code>questions</code>, one each,
+        answered one by one with <code>answers</code>, or skipped with <code>skip</code>; <code>get_card</code>'s
+        <code>waits: true</code>
+        lists the ones asked before); uploading and downloading the
         files on cards and pages (with a shell, <code>link: true</code>
         on <code>upload_file</code>
         or <code>download_file</code>
@@ -790,7 +793,11 @@ defmodule SlipdockWeb.HelpLive.Agents do
           <code>slipdock work</code>
           lists what is waiting on you; <code>slipdock wait</code>
           and <code>slipdock answer</code>
-          open and answer a wait on a person; <code>slipdock pulse</code>
+          open and answer a wait on a person (<code>--question</code>
+          once per question, <code>--answer</code>
+          once per answer, <code>--skip</code>
+          to move on without them; <code>slipdock waits</code>
+          lists the ones asked before); <code>slipdock pulse</code>
           gives a board's flow numbers; <code>slipdock pause</code>
           and <code>slipdock resume</code>
           hold and release its runner work.

@@ -25,6 +25,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   import SlipdockWeb.BoardLive.Items
   import SlipdockWeb.BoardLive.CardPanel
   import SlipdockWeb.BoardLive.CardSections
+  import SlipdockWeb.BoardLive.WaitComponents
 
   alias Slipdock.{Access, Boards, Palette, Runners, Wiki}
   alias Slipdock.Boards.{Attachment, Board, Card, CardLink}
@@ -39,7 +40,8 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     dep_search link_search pick_template comment_change share revoke_grant cancel_job
     edit_handoff cancel_handoff leave_handoff clear_handoff delete_handoff restore_handoff draft_handoff
     edit_repeat repeat_change save_repeat cancel_repeat skip_repeat pause_repeat stop_repeat
-    answer_wait withdraw_wait)
+    answer_wait withdraw_wait skip_wait wait_change suggest_answer
+    ask_questions ask_change ask_add ask_remove ask_save ask_cancel)
   @events @own_events ++ ItemEvents.events()
   # What a reader who can't change the card may still do: nothing stored
   # changes, only what the panel is showing.
@@ -93,6 +95,10 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
        handoff_form: nil,
        handoff_draft: nil,
        wait_count: 0,
+       wait_history: [],
+       wait_answers: %{},
+       wait_suggest: %{},
+       asking: nil,
        repeat: nil
      )
      |> allow_upload(
@@ -181,6 +187,9 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
             editing_handoff: false,
             handoff_form: nil,
             handoff_draft: nil,
+            wait_answers: %{},
+            wait_suggest: %{},
+            asking: nil,
             repeat: nil
           )
 
@@ -217,7 +226,9 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
       # Where it has shipped (#1134); empty unless delivery metrics are on.
       card_shipped: Slipdock.Deployments.shipped(card),
       # How many questions the card has asked, shown on its open wait (#1114).
-      wait_count: if(Card.open_wait(card), do: Boards.wait_count(card), else: 0)
+      wait_count: if(Card.open_wait(card), do: Boards.wait_count(card), else: 0),
+      # The questions asked before, with their answers (#1220).
+      wait_history: card |> Boards.list_waits() |> Enum.reject(&Slipdock.Boards.Wait.open?/1)
     )
     |> assign_jobs()
   end
@@ -319,6 +330,32 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   # Cancel while it ran: the form is gone, and so is the question.
   def handle_async(:handoff_draft, {:exit, {:shutdown, :cancel}}, socket),
     do: {:noreply, assign(socket, handoff_draft: nil)}
+
+  # A suggested answer (#1220), into its box while the wait is still open.
+  def handle_async({:wait_suggest, n}, {:ok, {:ok, text}}, socket) do
+    socket = assign(socket, wait_suggest: Map.delete(socket.assigns.wait_suggest, n))
+
+    if Card.open_wait(socket.assigns.card),
+      do: {:noreply, assign(socket, wait_answers: Map.put(socket.assigns.wait_answers, n, text))},
+      else: {:noreply, socket}
+  end
+
+  def handle_async({:wait_suggest, n}, {:ok, {:error, message}}, socket),
+    do:
+      {:noreply,
+       assign(socket, wait_suggest: Map.put(socket.assigns.wait_suggest, n, {:error, message}))}
+
+  def handle_async({:wait_suggest, n}, {:exit, _reason}, socket),
+    do:
+      {:noreply,
+       assign(socket,
+         wait_suggest:
+           Map.put(
+             socket.assigns.wait_suggest,
+             n,
+             {:error, "The answer couldn't be suggested. Try again."}
+           )
+       )}
 
   def handle_async(:handoff_draft, {:exit, _reason}, socket),
     do:
@@ -594,23 +631,117 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   end
 
   # Waiting on a person (#1114): answered by a choice's button or in words,
-  # or withdrawn. Both need write, as over the API.
+  # one box per question (#1220), skipped, or withdrawn. All need write, as
+  # over the API.
   defp event("answer_wait", params, socket) do
+    answers =
+      case get_in(params, ["wait", "answers"]) do
+        %{} = by_number -> by_number
+        _ -> nil
+      end
+
     attrs = %{
       "choice" => params["choice"],
+      "answers" => if(params["choice"], do: nil, else: answers),
       "answer" => get_in(params, ["wait", "answer"]) || params["answer"]
     }
 
-    case Boards.answer_wait(socket.assigns.card, me(socket), attrs) do
-      {:ok, _} -> {:noreply, socket |> reload() |> assign_pages()}
-      {:error, message} -> {:noreply, flash(socket, :error, message)}
+    socket.assigns.card |> Boards.answer_wait(me(socket), attrs) |> waited(socket)
+  end
+
+  defp event("skip_wait", _, socket),
+    do: socket.assigns.card |> Boards.answer_wait(me(socket), %{"skip" => true}) |> waited(socket)
+
+  defp event("withdraw_wait", _, socket),
+    do: socket.assigns.card |> Boards.withdraw_wait(me(socket)) |> waited(socket)
+
+  # What is typed into the answer boxes, kept so a suggestion can fill one
+  # without losing the rest.
+  defp event("wait_change", params, socket) do
+    answers =
+      for {n, text} <- get_in(params, ["wait", "answers"]) || %{},
+          {n, ""} <- [Integer.parse(n)],
+          into: %{},
+          do: {n, text}
+
+    {:noreply, assign(socket, wait_answers: answers)}
+  end
+
+  # A suggested answer (#1220): the reader's model answers question `n`
+  # from the card, into its box. Nothing is sent until they answer.
+  defp event("suggest_answer", %{"n" => n}, socket) do
+    %{card: card, board: board, current_user: user, wait_answers: typed} = socket.assigns
+    wait = Card.open_wait(card)
+
+    with %Slipdock.Boards.Wait{} <- wait,
+         {n, ""} <- Integer.parse(to_string(n)) do
+      if Slipdock.AI.configured?(user) do
+        {:noreply,
+         socket
+         |> assign(wait_suggest: Map.put(socket.assigns.wait_suggest, n, :running))
+         |> start_async({:wait_suggest, n}, fn ->
+           Slipdock.AI.WaitAnswerer.suggest(card, board, wait, n, typed, user: user)
+         end)}
+      else
+        {:noreply,
+         assign(socket,
+           wait_suggest:
+             Map.put(
+               socket.assigns.wait_suggest,
+               n,
+               {:error, "Suggesting needs an AI model: set one under Account → AI model."}
+             )
+         )}
+      end
+    else
+      _ -> {:noreply, socket}
     end
   end
 
-  defp event("withdraw_wait", _, socket) do
-    case Boards.withdraw_wait(socket.assigns.card, me(socket)) do
-      {:ok, _} -> {:noreply, socket |> reload() |> assign_pages()}
-      {:error, message} -> {:noreply, flash(socket, :error, message)}
+  # Asking questions (#1220): a box per question, and who they are on.
+  defp event("ask_questions", _, socket),
+    do: {:noreply, assign(socket, asking: %{questions: [""], on: ""})}
+
+  defp event("ask_cancel", _, socket), do: {:noreply, assign(socket, asking: nil)}
+
+  defp event("ask_change", %{"ask" => params}, socket),
+    do: {:noreply, assign(socket, asking: asked(params))}
+
+  defp event("ask_add", _, socket) do
+    asking = socket.assigns.asking || %{questions: [], on: ""}
+
+    if length(asking.questions) < Slipdock.Boards.Wait.max_questions(),
+      do: {:noreply, assign(socket, asking: %{asking | questions: asking.questions ++ [""]})},
+      else: {:noreply, socket}
+  end
+
+  defp event("ask_remove", %{"n" => n}, socket) do
+    with %{questions: questions} = asking <- socket.assigns.asking,
+         {n, ""} <- Integer.parse(to_string(n)) do
+      {:noreply, assign(socket, asking: %{asking | questions: List.delete_at(questions, n - 1)})}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  defp event("ask_save", %{"ask" => params}, socket) do
+    asking = asked(params)
+
+    attrs = %{
+      "questions" => asking.questions,
+      "on_user_id" => ask_on(socket, asking.on)
+    }
+
+    case Boards.open_wait(socket.assigns.card, me(socket), attrs) do
+      {:ok, _} ->
+        {:noreply, socket |> assign(asking: nil) |> reload() |> assign_pages()}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        {:noreply,
+         socket |> assign(asking: asking) |> flash(:error, changeset_message(changeset))}
+
+      {:error, message} ->
+        {:noreply, socket |> assign(asking: asking) |> flash(:error, message)}
     end
   end
 
@@ -1050,6 +1181,10 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         handoff_history={@handoff_history}
         shipped={assigns[:card_shipped] || []}
         wait_count={@wait_count}
+        wait_history={@wait_history}
+        wait_answers={@wait_answers}
+        wait_suggest={@wait_suggest}
+        asking={@asking}
         editing_handoff={@editing_handoff}
         handoff_form={@handoff_form}
         handoff_draft={@handoff_draft}
@@ -1187,6 +1322,10 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   attr :handoff_history, :list, default: [], doc: "every handoff written, newest first"
   attr :shipped, :list, default: [], doc: "`Slipdock.Deployments.shipped/1`: where it has shipped"
   attr :wait_count, :integer, default: 0, doc: "how many waits the card has had (#1114)"
+  attr :wait_history, :list, default: [], doc: "the closed waits, newest first (#1220)"
+  attr :wait_answers, :map, default: %{}, doc: "what is typed into the answer boxes"
+  attr :wait_suggest, :map, default: %{}, doc: "suggested answers running or failed"
+  attr :asking, :map, default: nil, doc: "the Ask questions form, while it is open"
   attr :editing_handoff, :boolean, default: false
   attr :handoff_form, :any, default: nil
 
@@ -1305,6 +1444,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
                 handoff_link={
                   @can_comment and is_nil(current_handoff(@card)) and not @editing_handoff
                 }
+                ask_link={@can_write and is_nil(Card.open_wait(@card)) and is_nil(@asking)}
                 target={@target}
               />
             </fieldset>
@@ -1349,15 +1489,27 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
                 <span>{Slipdock.Deployments.shipped_text(s)}</span>
               </li>
             </ul>
-            <%!-- Waiting on a person (#1114): only while it is. --%>
+            <%!-- Waiting on a person (#1114): only while it is, its
+                  questions numbered with a box each (#1220). Otherwise
+                  the Ask questions form, while it is open. --%>
             <fieldset :if={Card.open_wait(@card)} disabled={!@can_write} class="min-w-0">
               <.wait_panel
                 wait={Card.open_wait(@card)}
                 count={@wait_count}
                 can_write={@can_write}
+                answers={@wait_answers}
+                suggesting={@wait_suggest}
+                ai?={@ai?}
                 target={@target}
               />
             </fieldset>
+            <fieldset
+              :if={@asking && @can_write && !Card.open_wait(@card)}
+              class="min-w-0"
+            >
+              <.ask_form asking={@asking} users={@users} target={@target} />
+            </fieldset>
+            <.wait_history :if={@wait_history != []} waits={@wait_history} />
             <fieldset disabled={!@can_write} class="min-w-0 space-y-7">
               <.card_header_form
                 board={@board}
@@ -1561,92 +1713,47 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     |> Enum.map_join("; ", fn {field, msgs} -> "#{field} #{Enum.join(msgs, ", ")}" end)
   end
 
+  # A wait answered, skipped or withdrawn: the panel shows it closed.
+  defp waited({:ok, _}, socket),
+    do:
+      {:noreply,
+       socket
+       |> assign(wait_answers: %{}, wait_suggest: %{})
+       |> reload()
+       |> assign_pages()}
+
+  defp waited({:error, %Ecto.Changeset{} = changeset}, socket),
+    do: {:noreply, flash(socket, :error, changeset_message(changeset))}
+
+  defp waited({:error, message}, socket), do: {:noreply, flash(socket, :error, message)}
+
+  # The ask form's questions, in order, as typed.
+  defp asked(params) do
+    questions =
+      (params["questions"] || %{})
+      |> Enum.flat_map(fn {n, text} ->
+        case Integer.parse(to_string(n)) do
+          {n, ""} -> [{n, text}]
+          _ -> []
+        end
+      end)
+      |> Enum.sort()
+      |> Enum.map(&elem(&1, 1))
+
+    %{questions: if(questions == [], do: [""], else: questions), on: params["on"] || ""}
+  end
+
+  # Who the questions are on: one of the people who may see the card, or
+  # anyone.
+  defp ask_on(socket, on) do
+    Enum.find_value(socket.assigns.users, fn u -> if to_string(u.id) == on, do: u.id end)
+  end
+
   # The card's handoff: nil if none was written or the newest is a clear.
   defp current_handoff(%Card{handoff: %Slipdock.Boards.Handoff{} = h}),
     do: if(Slipdock.Boards.Handoff.cleared?(h), do: nil, else: h)
 
   defp current_handoff(_), do: nil
-
-  attr :wait, :any, required: true
-  attr :count, :integer, required: true
-  attr :can_write, :boolean, required: true
-  attr :target, :any, required: true
-
-  # The card's open wait, beneath the title: what it needs and from whom,
-  # since when, a button for each choice, a box for an answer in words, and
-  # how many questions the card has asked.
-  defp wait_panel(assigns) do
-    ~H"""
-    <section id="card-wait" class="ml-1 space-y-2 border-l-2 border-warning/60 pl-3">
-      <p class="flex items-start gap-1.5 text-sm">
-        <.icon name="hero-hand-raised" class="mt-0.5 size-3.5 shrink-0 text-warning" />
-        <span>
-          <span class="text-base-content/60">Waiting on {Slipdock.Boards.Wait.on_name(@wait)}:</span>
-          <span class="font-medium" id="wait-needs">{@wait.needs}</span>
-        </span>
-      </p>
-      <p class="text-2xs text-base-content/50" id="wait-byline">
-        {wait_byline(@wait)} · {relative_time(@wait.inserted_at)}
-        <span :if={@count > 1}>
-          · question {@count} on this card
-        </span>
-      </p>
-      <div :if={@can_write and @wait.choices != []} class="flex flex-wrap gap-1.5">
-        <button
-          :for={{text, n} <- Enum.with_index(@wait.choices, 1)}
-          id={"wait-choice-#{n}"}
-          type="button"
-          class="btn btn-outline btn-xs"
-          phx-click="answer_wait"
-          phx-value-choice={n}
-          phx-target={@target}
-        >
-          {text}
-        </button>
-      </div>
-      <form
-        :if={@can_write}
-        id="wait-answer-form"
-        phx-submit="answer_wait"
-        phx-target={@target}
-        class="flex items-center gap-2"
-      >
-        <input
-          type="text"
-          name="wait[answer]"
-          class="input input-bordered input-xs w-full"
-          placeholder={if @wait.choices == [], do: "Your answer", else: "Or answer in words"}
-          maxlength="8000"
-        />
-        <button type="submit" class="btn btn-primary btn-xs">Answer</button>
-        <button
-          id="wait-withdraw"
-          type="button"
-          class="btn btn-ghost btn-xs"
-          phx-click="withdraw_wait"
-          phx-target={@target}
-          data-confirm="Withdraw the question? Nobody will be asked any more."
-        >
-          Withdraw
-        </button>
-      </form>
-    </section>
-    """
-  end
-
-  defp wait_byline(wait) do
-    who =
-      case wait.opened_by do
-        %Slipdock.Accounts.User{} = u -> Slipdock.Accounts.User.display_name(u)
-        _ -> "someone"
-      end
-
-    agent =
-      if wait.kind == "agent", do: " (agent#{if wait.agent, do: ": " <> wait.agent})", else: ""
-
-    job = if wait.job_id, do: " · job ##{wait.job_id}", else: ""
-    "Asked by #{who}#{agent}#{job}"
-  end
 
   attr :card, :any, required: true
   attr :label, :string, default: "Left off", doc: "what the board calls it (#1212)"

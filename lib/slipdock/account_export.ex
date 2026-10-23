@@ -178,10 +178,12 @@ defmodule Slipdock.AccountExport do
           select: %{
             card_id: w.card_id,
             needs: w.needs,
+            questions: w.questions,
             choices: w.choices,
             asked_by_you: w.opened_by_id == ^user.id,
             opened: w.inserted_at,
             answer: w.answer,
+            answers: w.answers,
             choice: w.choice,
             answered_by_you: w.closed_by_id == ^user.id and w.close_reason == "answered",
             closed: w.closed_at,

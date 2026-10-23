@@ -10,7 +10,7 @@ defmodule SlipdockCLI.Boards do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(guide work search ask search-status saved save unsave boards board columns tags activity pulse flow cards card swimlanes views favourites fav unfav hotkeys hotkey header table fields milestones templates add copy repeat recurring snooze wake edit set vote status handoff timeline wait answer new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
+  @commands ~w(guide work search ask search-status saved save unsave boards board columns tags activity pulse flow cards card swimlanes views favourites fav unfav hotkeys hotkey header table fields milestones templates add copy repeat recurring snooze wake edit set vote status handoff timeline wait waits answer new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -706,29 +706,26 @@ defmodule SlipdockCLI.Boards do
   # asked from the runner job in `$SLIPDOCK_JOB_ID` unless `--job` names
   # one; `wait <id> --withdraw` withdraws it.
   def run("wait", [id], o) do
-    if o[:withdraw],
-      do:
+    cond do
+      o[:withdraw] ->
         HTTP.delete("/cards/#{enc(id)}/wait")
-        |> out(o, fn r -> IO.puts("withdrew the wait on ##{id}: #{r["wait"]["needs"]}") end),
-      else: fail(~s(say what the card needs: slipdock wait #{id} "Which region?"))
+        |> out(o, fn r -> IO.puts("withdrew the wait on ##{id}: #{r["wait"]["needs"]}") end)
+
+      Keyword.has_key?(o, :question) ->
+        open_wait(id, [], o)
+
+      true ->
+        fail(~s(say what the card needs: slipdock wait #{id} "Which region?"))
+    end
   end
 
   def run("wait", [id | words], o) when words != [] do
     if o[:withdraw], do: fail("--withdraw takes no question")
-
-    body =
-      compact(%{
-        "needs" => Enum.join(words, " "),
-        "on" => o[:wait_on],
-        "choices" => nonempty(Keyword.get_values(o, :choice)),
-        "job_id" => o[:job] || job_from_env()
-      })
-
-    HTTP.post("/cards/#{enc(id)}/wait", body)
-    |> out(o, fn r -> IO.puts("##{id} " <> Render.wait_line(r["wait"])) end)
+    open_wait(id, words, o)
   end
 
-  # `answer <id> "text"`, `answer <id> --choice N`, or both.
+  # `answer <id> "text"`, `answer <id> --choice N`, `--answer A` once per
+  # question (#1220), or `--skip`.
   def run("answer", [id | words], o) do
     choice =
       case o[:choice] && Integer.parse(o[:choice]) do
@@ -737,12 +734,36 @@ defmodule SlipdockCLI.Boards do
         _ -> fail("--choice takes the number of a choice, from 1")
       end
 
-    body = compact(%{"answer" => nonempty(Enum.join(words, " ")), "choice" => choice})
+    body =
+      if o[:skip] do
+        if (words != [] or choice) || Keyword.has_key?(o, :answer),
+          do: fail("--skip answers nothing: leave out the answer"),
+          else: %{"skip" => true}
+      else
+        compact(%{
+          "answer" => nonempty(Enum.join(words, " ")),
+          "answers" => nonempty(Keyword.get_values(o, :answer)),
+          "choice" => choice
+        })
+      end
 
-    if body == %{}, do: fail(~s(answer in words, --choice N, or both: slipdock answer #{id} "eu"))
+    if body == %{},
+      do:
+        fail(
+          ~s(answer in words, --choice N, --answer A per question, or --skip: slipdock answer #{id} "eu")
+        )
 
     HTTP.post("/cards/#{enc(id)}/wait/answer", body)
-    |> out(o, fn r -> IO.puts("answered ##{id}: " <> Render.wait_answer(r["wait"])) end)
+    |> out(o, fn r ->
+      if body["skip"],
+        do: IO.puts("skipped the questions on ##{id}"),
+        else: IO.puts("answered ##{id}: " <> Render.wait_answer(r["wait"]))
+    end)
+  end
+
+  # `waits <id>` (#1220): every question the card has asked, and how each ended.
+  def run("waits", [id], o) do
+    HTTP.get("/cards/#{enc(id)}/waits") |> out(o, &Render.waits/1)
   end
 
   # Snooze (W-1803): `snooze <id>... <when>` hides the cards until then
@@ -1623,5 +1644,21 @@ defmodule SlipdockCLI.Boards do
       %{"next_step" => next} -> IO.puts("current again: #{next}")
       _ -> IO.puts("the card has no handoff now")
     end
+  end
+
+  # Opens a wait (#1114): words as `needs`, `--question` once per question
+  # (#1220).
+  defp open_wait(id, words, o) do
+    body =
+      compact(%{
+        "needs" => nonempty(Enum.join(words, " ")),
+        "questions" => nonempty(Keyword.get_values(o, :question)),
+        "on" => o[:wait_on],
+        "choices" => nonempty(Keyword.get_values(o, :choice)),
+        "job_id" => o[:job] || job_from_env()
+      })
+
+    HTTP.post("/cards/#{enc(id)}/wait", body)
+    |> out(o, fn r -> IO.puts("##{id} " <> Render.wait_line(r["wait"])) end)
   end
 end

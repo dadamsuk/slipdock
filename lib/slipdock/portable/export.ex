@@ -679,6 +679,7 @@ defmodule Slipdock.Portable.Export do
     |> Enum.map(fn w ->
       %{
         needs: w.needs,
+        questions: w.questions,
         on: Refs.email_of(w.on_user_id, refs),
         choices: w.choices,
         opened_by: Refs.email_of(w.opened_by_id, refs),
@@ -691,6 +692,7 @@ defmodule Slipdock.Portable.Export do
         closed_by: Refs.email_of(w.closed_by_id, refs),
         close_reason: w.close_reason,
         answer: w.answer,
+        answers: w.answers,
         choice: w.choice
       }
     end)

@@ -158,4 +158,88 @@ defmodule SlipdockCLI.WaitTest do
 
     refute capture_io(fn -> Render.card(Map.delete(card, "wait")) end) =~ "Waiting:"
   end
+
+  describe "a series of questions (#1220)" do
+    @series ~s({"card":7,"wait":{"id":2,"needs":"Before deploy","questions":["Which region?","How many seats?"],"choices":[],"on":null,"open":true}})
+    @series_answered ~s({"card":7,"wait":{"id":2,"needs":"Before deploy","questions":["Which region?","How many seats?"],"answers":["eu",""],"open":false,"close_reason":"answered"}})
+
+    test "wait --question once per question sends them, with the words as the intro" do
+      serve([{201, @series}])
+
+      {["wait", id | words], o} =
+        parse([
+          "wait",
+          "7",
+          "Before",
+          "deploy",
+          "--question",
+          "Which region?",
+          "--question",
+          "How many seats?"
+        ])
+
+      out = capture_io(fn -> Boards.run("wait", [id | words], o) end)
+      assert_received {:request, "POST", "/api/cards/7/wait", body}
+
+      assert JSON.decode!(body) == %{
+               "needs" => "Before deploy",
+               "questions" => ["Which region?", "How many seats?"]
+             }
+
+      assert out =~
+               "#7 waits on anyone: Before deploy\n    1. Which region?\n    2. How many seats?"
+    end
+
+    test "wait with only --question sends no needs" do
+      serve([{201, @series}])
+      {["wait", id], o} = parse(["wait", "7", "--question", "A?", "--question", "B?"])
+
+      capture_io(fn -> Boards.run("wait", [id], o) end)
+      assert_received {:request, "POST", "/api/cards/7/wait", body}
+      assert JSON.decode!(body) == %{"questions" => ["A?", "B?"]}
+    end
+
+    test "answer --answer once per question sends them in order, blanks kept" do
+      serve([{200, @series_answered}])
+      {["answer", id], o} = parse(["answer", "7", "--answer", "eu", "--answer", ""])
+
+      out = capture_io(fn -> Boards.run("answer", [id], o) end)
+      assert_received {:request, "POST", "/api/cards/7/wait/answer", body}
+      assert JSON.decode!(body) == %{"answers" => ["eu", ""]}
+      assert out =~ "1. Which region?\n       → eu"
+      assert out =~ "2. How many seats?\n       → (not answered)"
+    end
+
+    test "answer --skip skips them" do
+      serve([
+        {200, ~s({"card":7,"wait":{"id":2,"needs":"x","close_reason":"skipped","open":false}})}
+      ])
+
+      {["answer", id], o} = parse(~w(answer 7 --skip))
+
+      out = capture_io(fn -> Boards.run("answer", [id], o) end)
+      assert_received {:request, "POST", "/api/cards/7/wait/answer", body}
+      assert JSON.decode!(body) == %{"skip" => true}
+      assert out =~ "skipped the questions on #7"
+    end
+
+    test "waits lists every question asked, how each ended, and says when there are none" do
+      waits =
+        ~s({"card":7,"waits":[) <>
+          ~s({"needs":"Before deploy","questions":["Which region?","Seats?"],"answers":["eu","12"],"close_reason":"answered","closed_by":{"name":"Dana"},"opened_by":{"name":"Bot"},"opened_at":"2026-10-23T10:00:00Z"},) <>
+          ~s({"needs":"Ready?","questions":[],"close_reason":"skipped","closed_by":{"name":"Dana"},"opened_by":{"name":"Bot"},"opened_at":"2026-10-22T10:00:00Z"},) <>
+          ~s({"needs":"Open one?","questions":[],"close_reason":null,"opened_by":{"name":"Bot"},"opened_at":"2026-10-21T10:00:00Z"}]})
+
+      serve([{200, waits}, {200, ~s({"card":8,"waits":[]})}])
+
+      out = capture_io(fn -> Boards.run("waits", ["7"], []) end)
+      assert_received {:request, "GET", "/api/cards/7/waits", _}
+      assert out =~ "#7 questions"
+      assert out =~ "answered by Dana: \n    1. Which region?\n       → eu"
+      assert out =~ "skipped by Dana"
+      assert out =~ "open"
+
+      assert capture_io(fn -> Boards.run("waits", ["8"], []) end) =~ "#8 has asked no questions"
+    end
+  end
 end
