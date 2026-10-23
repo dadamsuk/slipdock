@@ -16,7 +16,8 @@ defmodule SlipdockWeb.MCP.Tools.Comment do
   def description,
     do:
       "Adds a comment to a card. Comment as you work: when you start, at each decision " <>
-        "or surprise, and when you finish. Markdown; @name mentions notify."
+        "or surprise, and when you finish. Markdown: a bold first line, then short bullets, " <>
+        "not one dense paragraph. @name mentions notify."
 
   @impl true
   def input_schema do

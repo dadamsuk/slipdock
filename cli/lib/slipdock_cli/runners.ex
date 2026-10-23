@@ -222,8 +222,15 @@ defmodule SlipdockCLI.Runners do
     |> out(o, fn %{"pause" => p} -> IO.puts("resumed #{p["scope"]}") end)
   end
 
+  # `--message -` pipes the note in, so a Markdown comment can keep its lines.
   def run("job-progress", [id], o) do
-    HTTP.post("/jobs/#{enc(id)}/progress", compact(%{"note" => o[:message]}))
+    note =
+      case o[:message] do
+        "-" -> with(t when is_binary(t) <- IO.read(:stdio, :eof), do: t, else: (_ -> nil))
+        m -> m
+      end
+
+    HTTP.post("/jobs/#{enc(id)}/progress", compact(%{"note" => note}))
     |> out(o, fn %{"status" => status} -> IO.puts(status) end)
   end
 

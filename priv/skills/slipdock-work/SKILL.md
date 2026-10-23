@@ -109,6 +109,12 @@ whole card before touching it.
   a card in progress with nothing newer than the move on it reads as abandoned.
   An epic running across several sittings gets the same treatment, one line as
   each subcard closes.
+- **Comments are Markdown, and are skimmed.** Open with a bold line saying what
+  it is (`**Picked up.**`, `**Built.**`, `**Decision:** …`), then short bullets,
+  one fact each, with paths, commands and commit ids in backticks; never one
+  dense paragraph of clauses. Send anything over a line with `slipdock comment
+  <id> --body - <<'EOF'` … `EOF` (quoted, so backticks survive); words on the
+  command line lose their line breaks.
 - **Commit, and link it.** When the project is a git repository, commit the
   card's work once it is complete — before closing the card — with the card id
   (`#42`) in the commit message. The closing comment links to the commit, or to

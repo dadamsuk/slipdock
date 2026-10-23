@@ -617,7 +617,9 @@ defmodule SlipdockCLI do
     tag <id> <tag>... [--off]           add (or remove) tags
     check <id> <text>                   add a checklist item
     tick <item-id>                      toggle a checklist item done/undone
-    comment <id> <text>                 add a comment
+    comment <id> <text>                 add a comment (Markdown). For more than a line,
+                                        --body - with a heredoc keeps the line breaks
+                                        (or --body TEXT, --file F)
                                         (check, comment, status, vote, weblink, unweblink and attach take
                                         a wiki page too: a page code like W-31 instead of a number)
     link <id> <kind> <card-id>...       link cards across boards (kind: relates contributes duplicates)
@@ -839,7 +841,8 @@ defmodule SlipdockCLI do
     resume <board> [--pool P]                      let exactly that pause off again (a person's:
                                                    refused when run under an agent)
     job-progress <id> [--message NOTE]             renew the job's lease (a session holds it 20 min); the
-                                                   note is also a comment on the card. Prints ok or cancel
+                                                   note is also a comment on the card (--message - reads
+                                                   it from stdin). Prints ok or cancel
     finish-job <id> --status done|failed|cancelled|timeout [--summary S]
                                                    end a job this session claimed
     finish-job <id> --status waiting --needs "Q" [--choice X]... [--on EMAIL]
