@@ -728,6 +728,8 @@ defmodule SlipdockCLI do
                                         leave a handoff for whoever picks the card up next
                                         (write one whenever you stop with it unfinished)
     handoff <id> --clear                clear it (the history keeps that it was cleared)
+    handoff <id> --delete               delete the current one outright, so the one before it
+                                        is current again (its author, or anyone who can edit)
     timeline <id>                       the lists a card sat in, its waits and its jobs:
                                         when, for how long and who moved it
     wait <id> "what you need" [--on EMAIL] [--choice X]... [--job ID]
@@ -926,6 +928,7 @@ defmodule SlipdockCLI do
     default_view: :string,
     sprints: :boolean,
     clear: :boolean,
+    delete: :boolean,
     # `slipdock handoff <id> --next …`.
     next: :string,
     simple: :boolean,

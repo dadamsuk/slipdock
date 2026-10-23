@@ -1413,7 +1413,10 @@ defmodule SlipdockWeb.APIGuide do
     was cleared), and `GET` gives it with every earlier one as `history`,
     newest first. A runner job that ends with its card open writes its
     summary as one (`via: "runner"`) unless the agent wrote one during the
-    job. Over MCP it is the `leave_handoff` tool. A board can call it
+    job. `DELETE /api/cards/:id/handoff` deletes the current one outright
+    (its author, or anyone who can edit the card): it answers `deleted` and
+    the `handoff` now current, the one before it or `null`. Over MCP it is
+    the `leave_handoff` tool (`delete: true` deletes). A board can call it
     something other than "Left off" in the web app and give the web app's
     Auto generate its own instructions: `PATCH /api/boards/:board
     {"handoff_label": "Parked", "handoff_prompt": "…"}` (`""` for the

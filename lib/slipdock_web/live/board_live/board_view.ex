@@ -1208,7 +1208,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
       <.filter_menu board={@board} filters={@filters} filtering={@filtering} states />
 
       <form id="swim-config" phx-change="swim_config" phx-submit="swim_config" class="contents">
-        <.display_menu mode={:board} config={@config} />
+        <.display_menu mode={:board} config={@config} board={@board} />
       </form>
 
       <div class="ml-auto flex items-center gap-2">

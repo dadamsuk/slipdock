@@ -156,6 +156,31 @@ defmodule SlipdockWeb.API.CardWrites do
   end
 
   @doc """
+  Deletes the card's current handoff (#1214), as the API and MCP both do:
+  whoever can edit the card, or the handoff's own author while they can
+  comment on it. Answers the deleted handoff; the one before it, if any, is
+  current again.
+  """
+  def delete_handoff(auth, card) do
+    user = auth.assigns.current_user
+
+    with :ok <- SlipdockWeb.API.Authorize.card(auth, card, :comment),
+         %Boards.Handoff{} = handoff <- Boards.current_handoff(card) || {:error, :none} do
+      can_write? = SlipdockWeb.API.Authorize.card(auth, card, :write) == :ok
+
+      if Boards.may_delete_handoff?(handoff, user, can_write?),
+        do: Boards.delete_handoff(card),
+        else:
+          {:error, :forbidden,
+           "only its author or someone who can edit the card may delete a handoff"}
+    end
+    |> case do
+      {:error, :none} -> {:error, :not_found, "handoff"}
+      other -> other
+    end
+  end
+
+  @doc """
   Opens a wait on `card` from a request's params, as the API and MCP both
   take them (#1114): `needs`, `on` (a person — id, email or "me" — or
   nothing for anyone), `choices` and `job_id`. Needs write on the card.

@@ -496,6 +496,22 @@ defmodule SlipdockWeb.API.CardController do
   end
 
   @doc """
+  Deletes the card's current handoff outright (#1214), so the one before it
+  is current again. Its author, or anyone who can edit the card. Answers
+  what was deleted and the handoff the card has now.
+  """
+  def delete_handoff(conn, %{"id" => id}) do
+    with {:ok, card} <- fetch_card(id),
+         {:ok, deleted} <- CardWrites.delete_handoff(conn, card) do
+      json(conn, %{
+        card: card.id,
+        deleted: V.handoff(deleted),
+        handoff: card |> Boards.current_handoff() |> then(&(&1 && V.handoff(&1)))
+      })
+    end
+  end
+
+  @doc """
   Opens a wait on the card (#1114): `needs` (required), `on` (a person, or
   nothing for anyone), `choices` and `job_id`. Needs write on the card.
   """

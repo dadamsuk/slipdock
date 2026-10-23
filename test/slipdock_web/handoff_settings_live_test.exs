@@ -2,7 +2,7 @@ defmodule SlipdockWeb.HandoffSettingsLiveTest do
   @moduledoc """
   A board's own name for "Left off" and its own drafting instructions
   (#1212): set on the settings form and over the API, and used on the card's
-  front, in its panel and by Auto generate.
+  front, in its panel, its form and the Display menu, and by Auto generate.
   """
   use SlipdockWeb.ConnCase, async: true
 
@@ -72,6 +72,36 @@ defmodule SlipdockWeb.HandoffSettingsLiveTest do
 
     {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card.id}")
     assert has_element?(view, "#card-handoff #handoff-label", "Parked — next:")
+  end
+
+  test "every word a person reads about it in the web app is the board's name (#1214)", ctx do
+    name(ctx, "Parked")
+
+    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card.id}")
+
+    assert view |> element("#handoff-delete") |> render() =~
+             "Delete this “Parked”? It goes from the history too"
+
+    view |> element("#card-handoff #handoff-edit") |> render_click()
+    assert has_element?(view, "#handoff-form-title", "Parked")
+    assert has_element?(view, "#handoff-save", "Save “Parked”")
+
+    assert view |> element("#handoff-clear") |> render() =~
+             "Clear “Parked”? The history keeps it."
+
+    refute view |> element("#card-handoff") |> render() =~ "Left off"
+
+    # With none, the meta line's link says it too.
+    {:ok, _} = Boards.clear_handoff(ctx.card, ctx.owner, %{via: "ui"})
+    {:ok, view, _} = live(ctx.conn, ~p"/boards/#{ctx.board}/cards/#{ctx.card.id}")
+    assert has_element?(view, "#card-title-form #handoff-edit", "Add “Parked”")
+
+    # And the Display menu, on the board and in swimlanes.
+    for path <- [~p"/boards/#{ctx.board}", ~p"/boards/#{ctx.board}/swimlanes"] do
+      {:ok, view, _} = live(ctx.conn, path)
+      assert view |> element("#display-handoff p", "Parked") |> has_element?()
+      refute view |> element("#display-handoff") |> render() =~ "Handoff note"
+    end
   end
 
   test "without one, it is still Left off in the panel", ctx do

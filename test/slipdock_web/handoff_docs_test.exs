@@ -35,6 +35,21 @@ defmodule SlipdockWeb.HandoffDocsTest do
     assert read("docs/agents.md") =~ "manual.md#where-it-was-left-handoffs"
   end
 
+  test "deleting a handoff is documented everywhere it is written (#1214)" do
+    assert SlipdockWeb.APIGuide.markdown() =~
+             "`DELETE /api/cards/:id/handoff` deletes the current one"
+
+    manual = read("docs/manual.md")
+    assert manual =~ "slipdock handoff 12 --delete"
+    assert manual =~ "**Clear or delete.**"
+    assert manual =~ "**Restore** makes an earlier one current again"
+    assert manual =~ "**Label** replaces *Left off* wherever a person reads it"
+    assert manual =~ "DELETE /api/cards/:id/handoff"
+    assert read("README.md") =~ "`slipdock handoff 12 --delete`"
+    assert read("priv/skills/slipdock/SKILL.md") =~ "slipdock handoff <id> --delete"
+    assert SlipdockWeb.MCP.Tools.LeaveHandoff.description() =~ "delete: true deletes"
+  end
+
   test "both skills read the handoff on claim and write one on stopping short" do
     work = read("priv/skills/slipdock-work/SKILL.md")
     assert work =~ "Read the handoff first, leave one when you stop short"

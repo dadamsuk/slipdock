@@ -37,7 +37,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
     validate_attachments cancel_upload delete_attachment hide_on_card transcribe add_link remove_link write_up
     toggle_pin_doc doc_search attach_doc detach_doc card_timer log_time dep_direction
     dep_search link_search pick_template comment_change share revoke_grant cancel_job
-    edit_handoff cancel_handoff leave_handoff clear_handoff draft_handoff
+    edit_handoff cancel_handoff leave_handoff clear_handoff delete_handoff restore_handoff draft_handoff
     edit_repeat repeat_change save_repeat cancel_repeat skip_repeat pause_repeat stop_repeat
     answer_wait withdraw_wait)
   @events @own_events ++ ItemEvents.events()
@@ -48,7 +48,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   # that changes the card itself. Deleting a comment is only their own
   # (`ItemEvents`).
   @comment_events ~w(add_comment delete_comment add_status_update vote comment_change
-    edit_handoff cancel_handoff leave_handoff clear_handoff draft_handoff)
+    edit_handoff cancel_handoff leave_handoff clear_handoff delete_handoff restore_handoff draft_handoff)
   # Sharing has a rule of its own: the board's owner, or anybody who can edit
   # the card.
   @share_events ~w(share revoke_grant)
@@ -765,6 +765,51 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
      socket |> assign(editing_handoff: false, handoff_form: nil) |> reload() |> assign_pages()}
   end
 
+  # An earlier handoff made current again (#1214): written anew, as from the
+  # UI, so the history says who brought it back and when.
+  defp event("restore_handoff", %{"id" => id}, socket) do
+    %{card: card, current_user: user} = socket.assigns
+
+    with {id, ""} <- Integer.parse(to_string(id)),
+         %{next_step: next, body: body} when next not in [nil, ""] <-
+           Enum.find(Boards.handoff_history(card), &(&1.id == id)),
+         {:ok, _} <- Boards.leave_handoff(card, user, %{next_step: next, body: body, via: "ui"}) do
+      {:noreply,
+       socket |> assign(editing_handoff: false, handoff_form: nil) |> reload() |> assign_pages()}
+    else
+      _ -> {:noreply, flash(socket, :error, "That one can't be restored.")}
+    end
+  end
+
+  # Deleting the current handoff (#1214): its author, or anyone who can edit
+  # the card. The one before it, if any, shows again.
+  defp event("delete_handoff", _, socket) do
+    %{card: card, current_user: user, can_write: can_write?} = socket.assigns
+
+    case Boards.current_handoff(card) do
+      nil ->
+        {:noreply, reload(socket)}
+
+      handoff ->
+        if Boards.may_delete_handoff?(handoff, user, can_write?) do
+          {:ok, _} = Boards.delete_handoff(card)
+
+          {:noreply,
+           socket
+           |> assign(editing_handoff: false, handoff_form: nil)
+           |> reload()
+           |> assign_pages()}
+        else
+          {:noreply,
+           flash(
+             socket,
+             :error,
+             "Only its author or someone who can edit the card can delete it."
+           )}
+        end
+    end
+  end
+
   defp event("edit_description", _, socket),
     do: {:noreply, assign(socket, editing_description: true)}
 
@@ -1275,12 +1320,15 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
               <.handoff_panel
                 card={@card}
                 label={Slipdock.Boards.Board.handoff_label(@board)}
+                board={@board}
                 history={@handoff_history}
                 editing={@editing_handoff}
                 form={@handoff_form}
                 draft={@handoff_draft}
                 ai?={@ai?}
                 can_comment={@can_comment}
+                can_write={@can_write}
+                current_user={@current_user}
                 target={@target}
               />
             </fieldset>
@@ -1608,6 +1656,9 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   attr :draft, :any, default: nil, doc: "Auto generate: nil, :running, :done or {:error, why}"
   attr :ai?, :boolean, default: false, doc: "the reader has a model, so Auto generate is offered"
   attr :can_comment, :boolean, required: true
+  attr :can_write, :boolean, default: false
+  attr :current_user, :any, default: nil
+  attr :board, :any, default: nil
   attr :target, :any, required: true
 
   # "Where it was left", beneath the title: the next step, the note, who,
@@ -1615,7 +1666,15 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   # being written, the form, with the history under it. Shown only once there
   # is one or it is being written: the meta line's link opens the form.
   defp handoff_panel(assigns) do
-    assigns = assign(assigns, current: current_handoff(assigns.card))
+    current = current_handoff(assigns.card)
+
+    assigns =
+      assign(assigns,
+        current: current,
+        can_delete:
+          assigns.can_comment && current != nil &&
+            Boards.may_delete_handoff?(current, assigns.current_user, assigns.can_write)
+      )
 
     ~H"""
     <section id="card-handoff" class="ml-1 space-y-1.5 border-l-2 border-info/40 pl-3">
@@ -1627,13 +1686,14 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
             <span class="font-medium" id="handoff-next">{@current.next_step}</span>
           </span>
         </p>
-        <%!-- Hugging the text: pre-wrap would show the template's indent. --%>
-        <p
+        <%!-- Markdown, as a comment is (#1214): agents write it as bullets,
+              and a single newline is still a line break for the template. --%>
+        <div
           :if={@current.body}
           id="handoff-body"
-          class="whitespace-pre-wrap font-mono text-xs text-base-content/70"
+          class="card-prose break-words text-xs text-base-content/70"
           phx-no-format
-        >{@current.body}</p>
+        >{SlipdockWeb.RichText.markdown(@current.body, board: @board, as: @current_user)}</div>
         <div class="flex flex-wrap items-center gap-x-1.5 text-2xs text-base-content/50">
           <span>{handoff_byline(@current)}</span>
           <span :if={@can_comment}>·</span>
@@ -1647,8 +1707,28 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
           >
             Update
           </button>
+          <span :if={@can_delete}>·</span>
+          <button
+            :if={@can_delete}
+            id="handoff-delete"
+            type="button"
+            class="link link-hover hover:text-error"
+            phx-click="delete_handoff"
+            phx-target={@target}
+            data-confirm={"Delete this “#{@label}”? It goes from the history too, and the one before it, if any, shows again."}
+          >
+            Delete
+          </button>
         </div>
-        <.handoff_history :if={length(@history) > 1} history={@history} />
+        <.handoff_history
+          :if={length(@history) > 1}
+          history={@history}
+          current={@current}
+          can_restore={@can_comment}
+          board={@board}
+          current_user={@current_user}
+          target={@target}
+        />
       </div>
 
       <.form
@@ -1659,6 +1739,10 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         phx-target={@target}
         class="space-y-2"
       >
+        <p id="handoff-form-title" class="flex items-center gap-1.5 text-sm text-base-content/60">
+          <.icon name="hero-arrow-uturn-left" class="size-3.5 shrink-0 text-info" />
+          {@label}
+        </p>
         <%!-- Auto generate (#1099): a draft from the card's recent history,
               put in the fields below for the person to check and save. --%>
         <div :if={@ai?} class="flex flex-wrap items-center gap-2">
@@ -1704,7 +1788,9 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
           placeholder={Slipdock.Boards.Handoff.body_template()}
         />
         <div class="flex items-center gap-2">
-          <button type="submit" class="btn btn-primary btn-xs">Save handoff</button>
+          <button type="submit" id="handoff-save" class="btn btn-primary btn-xs">
+            Save “{@label}”
+          </button>
           <button
             type="button"
             class="btn btn-ghost btn-xs"
@@ -1720,20 +1806,35 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
             class="btn btn-ghost btn-xs ml-auto"
             phx-click="clear_handoff"
             phx-target={@target}
-            data-confirm="Clear the handoff? The history keeps it."
+            data-confirm={"Clear “#{@label}”? The history keeps it."}
           >
             Clear
           </button>
         </div>
       </.form>
 
-      <.handoff_history :if={@editing && @history != []} history={@history} />
+      <.handoff_history
+        :if={@editing && @history != []}
+        history={@history}
+        current={@current}
+        can_restore={@can_comment}
+        board={@board}
+        current_user={@current_user}
+        target={@target}
+      />
     </section>
     """
   end
 
   attr :history, :list, required: true
+  attr :current, :any, default: nil, doc: "the handoff shown now, which isn't offered back"
+  attr :can_restore, :boolean, default: false
+  attr :board, :any, default: nil
+  attr :current_user, :any, default: nil
+  attr :target, :any, default: nil
 
+  # Every handoff written, newest first. Each opens to its note, and an
+  # earlier one can be made current again (#1214): Restore writes it anew.
   defp handoff_history(assigns) do
     ~H"""
     <details id="handoff-history" class="text-xs">
@@ -1745,11 +1846,30 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
             cleared
           </span>
           <span class="text-base-content/50">· {handoff_byline(h)}</span>
+          <button
+            :if={@can_restore and restorable?(h, @current)}
+            type="button"
+            class="link link-hover ml-1 text-base-content/50 hover:text-primary"
+            phx-click="restore_handoff"
+            phx-value-id={h.id}
+            phx-target={@target}
+            title="Make this the current one again"
+          >
+            Restore
+          </button>
+          <details :if={h.body} class="mt-0.5">
+            <summary class="cursor-pointer text-base-content/50">Note</summary>
+            <div class="card-prose break-words text-base-content/70" phx-no-format>{SlipdockWeb.RichText.markdown(h.body, board: @board, as: @current_user)}</div>
+          </details>
         </li>
       </ul>
     </details>
     """
   end
+
+  # A clear isn't restored (Clear does that), nor the one already current.
+  defp restorable?(h, current),
+    do: not Slipdock.Boards.Handoff.cleared?(h) and (is_nil(current) or current.id != h.id)
 
   defp handoff_byline(h) do
     who =

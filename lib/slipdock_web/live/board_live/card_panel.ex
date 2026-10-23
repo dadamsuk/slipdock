@@ -19,7 +19,11 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
   attr :can_write, :boolean, required: true
   attr :card, Card, required: true
   attr :form, :any, required: true
-  attr :handoff_link, :boolean, default: false, doc: "offer \"Leave a handoff\" on the meta line"
+
+  attr :handoff_link, :boolean,
+    default: false,
+    doc: "offer \"Add “Left off”\" (the board's label) on the meta line"
+
   attr :target, :any, required: true
 
   @doc """
@@ -137,7 +141,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           class="link link-hover text-base-content/60 hover:text-primary"
           title="Say where you left this card, so whoever picks it up next reads that first"
         >
-          Leave a handoff
+          Add “{Slipdock.Boards.Board.handoff_label(@board)}”
         </a>
       </div>
     </.form>
