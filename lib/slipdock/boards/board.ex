@@ -80,6 +80,13 @@ defmodule Slipdock.Boards.Board do
     # drags only ever see the badge.
     field :automation_wip, :boolean, default: false
 
+    # What the board calls a card's handoff where people read it, and what
+    # the AI is told when it drafts one (#1212). nil is "Left off" and
+    # `Slipdock.AI.HandoffDrafter.default_instructions/0`; see
+    # `handoff_label/1` and `handoff_prompt/1`.
+    field :handoff_label, :string
+    field :handoff_prompt, :string
+
     # What sort of board this is, when it is more than a board: "sprints"
     # makes every card a sprint and its subcards the sprint's work, and gives
     # the board New sprint and Add cards… (see `Slipdock.Sprints`). nil for an
@@ -310,6 +317,32 @@ defmodule Slipdock.Boards.Board do
   def simple?(%__MODULE__{simple: true}), do: true
   def simple?(_), do: false
 
+  @default_handoff_label "Left off"
+  @handoff_label_length 40
+  @handoff_prompt_length 4000
+
+  @doc """
+  What the board calls a card's handoff where people read it (#1212):
+  its own label, or "Left off".
+  """
+  def handoff_label(%__MODULE__{handoff_label: label}) when is_binary(label) and label != "",
+    do: label
+
+  def handoff_label(_), do: @default_handoff_label
+
+  def default_handoff_label, do: @default_handoff_label
+
+  @doc """
+  The board's own instructions for drafting a handoff (#1212), or nil for the
+  built-in ones.
+  """
+  def handoff_prompt(%__MODULE__{handoff_prompt: prompt}) when is_binary(prompt) and prompt != "",
+    do: prompt
+
+  def handoff_prompt(_), do: nil
+
+  def handoff_limits, do: %{label: @handoff_label_length, prompt: @handoff_prompt_length}
+
   # The card facets a simple board hides — the ones that only mean something
   # to somebody tracking a project. Keys of `Slipdock.Swimlanes.Config.facets/1`.
   @technical_facets ~w(start_date percent_complete time dependencies)
@@ -346,6 +379,9 @@ defmodule Slipdock.Boards.Board do
   defp blank_to_nil(""), do: nil
   defp blank_to_nil(value), do: value
 
+  defp trim_to_nil(value) when is_binary(value), do: value |> String.trim() |> blank_to_nil()
+  defp trim_to_nil(value), do: value
+
   # Unset and "board" mean the same, so both are stored as nil.
   defp default_view_to_nil("board"), do: nil
   defp default_view_to_nil(value), do: blank_to_nil(value)
@@ -375,9 +411,15 @@ defmodule Slipdock.Boards.Board do
       :incident_tag,
       :hotfix_window_hours,
       :automation_wip,
+      :handoff_label,
+      :handoff_prompt,
       :kind,
       :default_view
     ])
+    |> update_change(:handoff_label, &trim_to_nil/1)
+    |> update_change(:handoff_prompt, &trim_to_nil/1)
+    |> validate_length(:handoff_label, max: @handoff_label_length)
+    |> validate_length(:handoff_prompt, max: @handoff_prompt_length)
     |> update_change(:kind, &blank_to_nil/1)
     |> update_change(:default_view, &default_view_to_nil/1)
     |> validate_inclusion(:default_view, @default_views,

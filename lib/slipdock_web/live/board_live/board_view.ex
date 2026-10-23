@@ -635,6 +635,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
                   compact={@swim.density == "compact"}
                   show={Config.shown(@swim)}
                   handoff_note={@swim.handoff}
+                  handoff_label={Slipdock.Boards.Board.handoff_label(@board)}
                   focus={@focus && card_focus(@focus, item)}
                   dismiss={@can_write}
                   selected={@select_mode && card_selected?(@selected, item)}
@@ -667,6 +668,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
                   compact={@swim.density == "compact"}
                   show={Config.shown(@swim)}
                   handoff_note={@swim.handoff}
+                  handoff_label={Slipdock.Boards.Board.handoff_label(@board)}
                   selected={@select_mode && card_selected?(@selected, item)}
                   marks={@favourites}
                   zone={@zone}

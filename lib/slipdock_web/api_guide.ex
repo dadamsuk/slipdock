@@ -1413,7 +1413,12 @@ defmodule SlipdockWeb.APIGuide do
     was cleared), and `GET` gives it with every earlier one as `history`,
     newest first. A runner job that ends with its card open writes its
     summary as one (`via: "runner"`) unless the agent wrote one during the
-    job. Over MCP it is the `leave_handoff` tool.
+    job. Over MCP it is the `leave_handoff` tool. A board can call it
+    something other than "Left off" in the web app and give the web app's
+    Auto generate its own instructions: `PATCH /api/boards/:board
+    {"handoff_label": "Parked", "handoff_prompt": "…"}` (`""` for the
+    defaults; the board's `GET` answers both). Agent-facing text keeps
+    "Left off:".
 
     ```sh
     curl -s -H "$H" -H 'content-type: application/json' B/api/cards/57/handoff \\

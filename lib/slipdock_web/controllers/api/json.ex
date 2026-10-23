@@ -115,6 +115,10 @@ defmodule SlipdockWeb.API.JSON do
       hotfix_window_hours: b.hotfix_window_hours,
       deploy_token: Slipdock.Deployments.token?(b),
       automation_wip: b.automation_wip,
+      # What the board calls a handoff, and its own drafting instructions
+      # (nil: the built-in ones) (#1212).
+      handoff_label: Board.handoff_label(b),
+      handoff_prompt: b.handoff_prompt,
       default_view: Board.home_view(b),
       owner: owner_ref(b),
       shared: shared?(b, viewer),
@@ -188,6 +192,10 @@ defmodule SlipdockWeb.API.JSON do
       hotfix_window_hours: b.hotfix_window_hours,
       deploy_token: Slipdock.Deployments.token?(b),
       automation_wip: b.automation_wip,
+      # What the board calls a handoff, and its own drafting instructions
+      # (nil: the built-in ones) (#1212).
+      handoff_label: Board.handoff_label(b),
+      handoff_prompt: b.handoff_prompt,
       columns:
         Enum.map(b.columns, fn col ->
           col

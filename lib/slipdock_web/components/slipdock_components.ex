@@ -976,6 +976,10 @@ defmodule SlipdockWeb.SlipdockComponents do
     ↩ mark alone), "short" (two lines) or "full"; comfortable cards only
     """
 
+  attr :handoff_label, :string,
+    default: "Left off",
+    doc: "what the board calls a handoff (#1212, `Board.handoff_label/1`)"
+
   attr :marks, :any,
     default: nil,
     doc: """
@@ -1180,7 +1184,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         <.schedule_badges :if={@f.due_date} card={@card} />
         <.percent_badge :if={@f.percent} percent={@card.percent_complete} />
         <.time_badge :if={@f.time} card={@card} />
-        <.handoff_mark :if={@f.handoff} handoff={@handoff} class="size-3" />
+        <.handoff_mark :if={@f.handoff} handoff={@handoff} label={@handoff_label} class="size-3" />
         <.wait_mark :if={@f.wait} wait={@wait} class="size-3" compact />
         <.recurrence_mark :if={@f.recurrence} recurrence={@recurrence} class="size-3" />
         <.snooze_mark :if={@f.snoozed} card={@card} zone={@zone} />
@@ -1260,7 +1264,7 @@ defmodule SlipdockWeb.SlipdockComponents do
           >
             <.icon name="hero-bars-3-bottom-left" class="size-3.5" />
           </span>
-          <.handoff_mark :if={@f.handoff} handoff={@handoff} />
+          <.handoff_mark :if={@f.handoff} handoff={@handoff} label={@handoff_label} />
           <.wait_mark :if={@f.wait} wait={@wait} />
           <.recurrence_mark :if={@f.recurrence} recurrence={@recurrence} />
           <.snooze_mark :if={@f.snoozed} card={@card} zone={@zone} />
@@ -1280,6 +1284,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         <.handoff_note
           :if={@f.handoff and @handoff_note in ~w(short full)}
           handoff={@handoff}
+          label={@handoff_label}
           mode={@handoff_note}
         />
         <.state_line :if={@f.state_line} state={@state} />
@@ -1289,6 +1294,7 @@ defmodule SlipdockWeb.SlipdockComponents do
   end
 
   attr :handoff, :any, required: true
+  attr :label, :string, required: true
   attr :mode, :string, required: true
 
   # The handoff itself on the card's front (#1171), when the Display menu asks
@@ -1307,7 +1313,7 @@ defmodule SlipdockWeb.SlipdockComponents do
       title={if @mode == "short", do: @text}
     >
       <%!-- Unformatted: a line break here would show in the pre-line text. --%>
-      <p phx-no-format class={["whitespace-pre-line break-words", @mode == "short" && "line-clamp-2"]}><span class="font-semibold text-info">Left off:</span> {@text}</p>
+      <p phx-no-format class={["whitespace-pre-line break-words", @mode == "short" && "line-clamp-2"]}><span class="font-semibold text-info">{@label}:</span> {@text}</p>
     </div>
     """
   end
@@ -1416,6 +1422,7 @@ defmodule SlipdockWeb.SlipdockComponents do
         Slipdock.Pulse.duration(state.usual)
 
   attr :handoff, :any, required: true
+  attr :label, :string, required: true
   attr :class, :string, default: "size-3.5"
 
   # A card someone stopped short on: the next step is the tooltip.
@@ -1424,7 +1431,7 @@ defmodule SlipdockWeb.SlipdockComponents do
     <span
       class="chip chip-icon chip-line text-info"
       data-role="handoff-mark"
-      title={"Left off — next: " <> @handoff.next_step}
+      title={@label <> " — next: " <> @handoff.next_step}
     >
       <.icon name="hero-arrow-uturn-left" class={@class} />
     </span>

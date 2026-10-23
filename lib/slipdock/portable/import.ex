@@ -387,6 +387,9 @@ defmodule Slipdock.Portable.Import do
   # dropped rather than costing the whole row (#792): it is only dress.
   defp dress(value, known), do: if(value in known, do: value)
 
+  defp text_upto(value, max) when is_binary(value), do: String.slice(String.trim(value), 0, max)
+  defp text_upto(_value, _max), do: nil
+
   defp insert(%module{} = struct, attrs, what) do
     case struct |> module.changeset(attrs) |> Repo.insert(mode: :savepoint) do
       {:ok, row} -> row
@@ -452,6 +455,9 @@ defmodule Slipdock.Portable.Import do
           hotfix_window_hours:
             if(is_integer(doc[:hotfix_window_hours]), do: doc[:hotfix_window_hours], else: 24),
           automation_wip: bool(doc[:automation_wip], false),
+          # Cut to fit rather than lose the board over them (#1212).
+          handoff_label: text_upto(doc[:handoff_label], Board.handoff_limits().label),
+          handoff_prompt: text_upto(doc[:handoff_prompt], Board.handoff_limits().prompt),
           kind: if(doc[:kind] in Board.kinds(), do: doc[:kind])
         },
         named("board", doc[:name]) <> if(root_id, do: ", and everything on it,", else: "")

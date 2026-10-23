@@ -27,6 +27,11 @@ defmodule Slipdock.AIHandoffDrafterTest do
     content
   end
 
+  defp system_prompt do
+    assert_received {:ai_request, %{"messages" => [%{"content" => system}, _user]}}
+    system
+  end
+
   test "drafts the next step and the note, from the card's recent history", ctx do
     AIStub.reply_with(%{
       "next_step" => "  Fix the webhook signature check on staging ",
@@ -105,5 +110,31 @@ defmodule Slipdock.AIHandoffDrafterTest do
     AIStub.fail_with(500, "upstream down")
     assert {:error, message} = HandoffDrafter.draft(loaded(ctx.card), ctx.board, user: ctx.owner)
     assert is_binary(message)
+  end
+
+  describe "a board's own instructions (#1212)" do
+    test "without any, the built-in ones are sent, with the answer's shape", ctx do
+      AIStub.reply_with(%{"next_step" => "Ship it", "body" => ""})
+      assert {:ok, _} = HandoffDrafter.draft(loaded(ctx.card), ctx.board, user: ctx.owner)
+
+      system = system_prompt()
+      assert String.starts_with?(system, HandoffDrafter.default_instructions())
+      assert system =~ ~s({"next_step": "...", "body": "..."})
+    end
+
+    test "they replace the built-in ones, and the answer's shape is still asked for", ctx do
+      {:ok, board} =
+        Boards.update_board(ctx.board, %{"handoff_prompt" => "  Write it as a haiku.  "})
+
+      AIStub.reply_with(%{"next_step" => "Ship it", "body" => "Autumn"})
+
+      assert {:ok, %{next_step: "Ship it", body: "Autumn"}} =
+               HandoffDrafter.draft(loaded(ctx.card), board, user: ctx.owner)
+
+      system = system_prompt()
+      assert String.starts_with?(system, "Write it as a haiku.\n\n")
+      refute system =~ "Gotchas:"
+      assert system =~ ~s({"next_step": "...", "body": "..."})
+    end
   end
 end

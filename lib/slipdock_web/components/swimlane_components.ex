@@ -1243,6 +1243,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
                 compact={@config.density == "compact"}
                 show={@show}
                 handoff_note={@config.handoff}
+                handoff_label={Slipdock.Boards.Board.handoff_label(@board)}
                 cover={Slipdock.Coloring.color(card, @config.color_by, @board)}
                 marks={@favourites}
                 zone={@zone}
@@ -1400,6 +1401,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
                     compact={@config.density == "compact"}
                     show={@show}
                     handoff_note={@config.handoff}
+                    handoff_label={Slipdock.Boards.Board.handoff_label(@board)}
                     cover={Slipdock.Coloring.color(card, @config.color_by, @board)}
                     marks={@favourites}
                     zone={@zone}

@@ -670,6 +670,35 @@ defmodule SlipdockWeb.BoardLive.SettingsComponent do
               </span>
             </label>
           </div>
+          <%!-- What a card's handoff is called on this board, and what the
+                AI is told when it drafts one (#1212). Blank is the default. --%>
+          <div class="space-y-1">
+            <span class="text-sm font-medium">Handoffs</span>
+            <p class="text-xs text-base-content/50">
+              Where a card was left, for whoever picks it up next. Leave these blank for the
+              defaults.
+            </p>
+            <.input
+              field={@form[:handoff_label]}
+              id="board-handoff-label"
+              label="Label"
+              placeholder={Board.default_handoff_label()}
+              maxlength={Board.handoff_limits().label}
+            />
+            <.input
+              field={@form[:handoff_prompt]}
+              id="board-handoff-prompt"
+              type="textarea"
+              rows="6"
+              label="Instructions for Auto generate"
+              placeholder={Slipdock.AI.HandoffDrafter.default_instructions()}
+              maxlength={Board.handoff_limits().prompt}
+            />
+            <p class="-mt-1 text-xs text-base-content/50">
+              What the AI model is told when it drafts a handoff from the card. It is always
+              asked to answer with a next step and a note, whatever this says.
+            </p>
+          </div>
           <%!-- Every board has a wiki: this is the whole wiki's switch for
                 the card contents under a page's prose. Hidden, not removed. --%>
           <div class="space-y-1">

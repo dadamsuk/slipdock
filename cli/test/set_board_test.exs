@@ -105,4 +105,45 @@ defmodule SlipdockCLI.SetBoardTest do
     assert_received {:request, "PATCH", "/api/boards/docs", body}
     assert JSON.decode!(body) == %{"delivery_metrics" => false}
   end
+
+  describe "handoff settings (#1212)" do
+    test "--handoff-label and --handoff-prompt parse as strings and are sent" do
+      {opts, ["set-board", "docs"], []} =
+        OptionParser.parse(
+          ["set-board", "docs", "--handoff-label", "Parked", "--handoff-prompt", "Be brief."],
+          strict: SlipdockCLI.switches()
+        )
+
+      serve([{200, @updated}])
+      capture_io(fn -> Boards.run("set-board", ["docs"], opts) end)
+
+      assert_received {:request, "PATCH", "/api/boards/docs", body}
+      assert JSON.decode!(body) == %{"handoff_label" => "Parked", "handoff_prompt" => "Be brief."}
+    end
+
+    test "an empty value is sent, so the board goes back to the default" do
+      serve([{200, @updated}])
+      capture_io(fn -> Boards.run("set-board", ["docs"], handoff_label: "") end)
+
+      assert_received {:request, "PATCH", "/api/boards/docs", body}
+      assert JSON.decode!(body) == %{"handoff_label" => ""}
+    end
+
+    test "--handoff-prompt-file sends the file's text, over --handoff-prompt" do
+      path = Path.join(System.get_env("HOME"), "prompt.txt")
+      File.write!(path, "Write the next step first.\nThen the rest.\n")
+
+      serve([{200, @updated}])
+
+      capture_io(fn ->
+        Boards.run("set-board", ["docs"], handoff_prompt: "ignored", handoff_prompt_file: path)
+      end)
+
+      assert_received {:request, "PATCH", "/api/boards/docs", body}
+
+      assert JSON.decode!(body) == %{
+               "handoff_prompt" => "Write the next step first.\nThen the rest.\n"
+             }
+    end
+  end
 end

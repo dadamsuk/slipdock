@@ -13,23 +13,23 @@ defmodule Slipdock.AI.HandoffDrafter do
 
   alias Slipdock.{AI, Boards}
   alias Slipdock.AI.Context
-  alias Slipdock.Boards.{Card, Handoff}
+  alias Slipdock.Boards.{Board, Card, Handoff}
 
   # How far back "lately" reaches, and how much of it the model is shown.
   @recent_days 14
   @activity_limit 40
 
-  @prompt """
+  # What the model is told to write. A board can put its own in place of
+  # this (#1212, `Board.handoff_prompt/1`); the answer's shape below is
+  # always added, so a board's own words can't break the form it fills.
+  @instructions """
   You write the handoff note for a card on a kanban board: what the next
   person to pick the card up (a colleague, or an AI agent) reads first, so
   they need not read every comment. Write it from what has happened on the
   card recently; the rest of the card is background.
 
-  Answer with a JSON object and nothing else:
-  {"next_step": "...", "body": "..."}
-
-  - next_step: the one concrete next thing to do, as an instruction, at most
-    200 characters. Not a summary.
+  - next_step: the one concrete next thing to do, as an instruction. Not a
+    summary.
   - body: plain text lines in this shape, leaving out a line you have
     nothing true to say for:
     State:     what is done and what is half-done
@@ -40,6 +40,21 @@ defmodule Slipdock.AI.HandoffDrafter do
     progress, names, commits or dates.
   """
 
+  @answer """
+  Answer with a JSON object and nothing else:
+  {"next_step": "...", "body": "..."}
+
+  next_step is at most 200 characters; body is plain text, and may be "".
+  """
+
+  @doc "The built-in instructions, which a board's own replace (#1212)."
+  def default_instructions, do: String.trim(@instructions)
+
+  @doc false
+  # The whole system prompt for `board`: its instructions, then the answer.
+  def prompt(board),
+    do: (Board.handoff_prompt(board) || default_instructions()) <> "\n\n" <> @answer
+
   @doc """
   `{:ok, %{next_step: text, body: text | nil}}`, or `{:error, message}` fit to
   show. `card` is loaded as the card panel has it (comments, checklist,
@@ -47,7 +62,7 @@ defmodule Slipdock.AI.HandoffDrafter do
   """
   def draft(%Card{} = card, board, opts \\ []) do
     messages = [
-      %{role: "system", content: @prompt},
+      %{role: "system", content: prompt(board)},
       %{role: "user", content: context(card, board, opts)}
     ]
 

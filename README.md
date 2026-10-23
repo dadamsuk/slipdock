@@ -65,7 +65,9 @@ Briefly, with the detail in [the manual](docs/manual.md):
   it up next — you, a colleague, an agent or a runner — reads that instead of
   the comments. Written from the card, `slipdock handoff 12 --next "…"`,
   `POST /api/cards/:id/handoff` or the MCP `leave_handoff` tool; a runner job
-  that stops short leaves its summary as one.
+  that stops short leaves its summary as one. A board can rename *Left off*
+  and give Auto generate its own instructions (settings → Handoffs,
+  `slipdock set-board --handoff-label / --handoff-prompt-file`).
 - **Waiting on a person** — [a wait on a card](docs/manual.md#waiting-on-a-person-waits):
   what it needs, from whom (or anyone), since when, and optional answer
   choices. It flags the card `waiting`; answering it on the card, in My work,

@@ -468,6 +468,21 @@ card's front (the whole of it in the tooltip), *Full* puts all of it there. It i
 for comfortable cards only, and like the rest of the Display menu it is kept in
 the URL and in a saved view.
 
+A board can call it something else, and tell Auto generate what to write.
+Under **Handoffs** in the board's settings, **Label** replaces *Left off* on
+the card's panel and front (up to 40 characters), and **Instructions for Auto
+generate** replace what the AI model is told about writing the note (up to
+4000 characters) — keep it shorter, ask for a different shape, write in
+another language. Whatever they say, the model is still asked for a next step
+and a note, so the form fills the same way. Leave either blank for the
+default; the placeholders show what the defaults are. A card's subcards start
+with their parent board's, and both travel with a board's export. From the
+command line: `slipdock set-board B --handoff-label Parked
+--handoff-prompt-file prompt.txt` (`""` for the default); over the API,
+`PATCH /api/boards/:board` with `handoff_label` and `handoff_prompt`. What
+agents read (`get_card`, the `resume` prompt) still says *Left off:*, since
+the skills look for it.
+
 Anyone who can comment on a card can leave its handoff, since it is a kind of
 comment; a reader sees it but can't write one. Each one is a line in the
 board's activity.

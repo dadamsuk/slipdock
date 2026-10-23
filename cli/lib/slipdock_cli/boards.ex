@@ -891,6 +891,9 @@ defmodule SlipdockCLI.Boards do
         "card_ref_pattern" => o[:card_ref_pattern],
         # What opening the board shows in the web app: wiki, table, board…
         "default_view" => o[:default_view],
+        # What a handoff is called, and the AI's drafting instructions (#1212).
+        "handoff_label" => o[:handoff_label],
+        "handoff_prompt" => handoff_prompt(o),
         "kind" =>
           case o[:sprints] do
             true -> "sprints"
@@ -903,7 +906,7 @@ defmodule SlipdockCLI.Boards do
       do:
         fail(
           "nothing to change — pass --name, --code, --shortcut, --desc, --color, " <>
-            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]automation-wip, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --card-ref-pattern or --default-view"
+            "--[no-]add-card / --[no-]add-page / --[no-]add-document, --[no-]sprints, --[no-]simple, --[no-]page-card-features, --[no-]show-pulse, --[no-]automation-wip, --[no-]delivery-metrics, --incident-tag, --hotfix-hours, --card-ref-pattern, --default-view, --handoff-label or --handoff-prompt(-file)"
         )
 
     HTTP.patch("/boards/#{enc(ref)}", body)
@@ -1582,4 +1585,18 @@ defmodule SlipdockCLI.Boards do
 
   defp edge_colour(c) when c in ["none", ""], do: ""
   defp edge_colour(c), do: c
+
+  # --handoff-prompt-file wins over --handoff-prompt (#1212).
+  defp handoff_prompt(o) do
+    case o[:handoff_prompt_file] do
+      nil ->
+        o[:handoff_prompt]
+
+      path ->
+        case File.read(path) do
+          {:ok, text} -> text
+          {:error, why} -> fail("can't read #{path}: #{:file.format_error(why)}")
+        end
+    end
+  end
 end

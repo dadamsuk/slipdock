@@ -658,7 +658,8 @@ defmodule SlipdockCLI do
         [--simple | --no-simple] [--page-card-features | --no-page-card-features]
         [--show-pulse | --no-show-pulse] [--automation-wip | --no-automation-wip]
         [--delivery-metrics | --no-delivery-metrics] [--incident-tag T] [--hotfix-hours N]
-        [--card-ref-pattern RE] [--default-view V]
+        [--card-ref-pattern RE] [--default-view V] [--handoff-label L]
+        [--handoff-prompt TEXT | --handoff-prompt-file PATH]
                                         rename a board, change its code, shortcut key or colour,
                                         say what the foot of each list offers, make it a
                                         sprint board (every card a sprint), or a simple one (a
@@ -679,7 +680,10 @@ defmodule SlipdockCLI do
                                         commit messages, id in its first group (#(\\d+))
                                         --default-view picks what opening the board shows
                                         in the web app: board, swimlanes, table, timeline,
-                                        calendar, outline, narrative, prioritise or wiki
+                                        calendar, outline, narrative, prioritise or wiki;
+                                        --handoff-label renames "Left off" where people read
+                                        a card's handoff, --handoff-prompt(-file) is what the
+                                        AI is told when it drafts one ("" for the defaults)
     sprint <board> [--name N] [--start DATE] [--days N] [--goal TEXT]
                                         start the next sprint on a sprint board: a dated card
                                         ("Sprint 4", following on from the last, 14 days unless
@@ -909,6 +913,9 @@ defmodule SlipdockCLI do
     prompt: :boolean,
     incident_tag: :string,
     hotfix_hours: :integer,
+    handoff_label: :string,
+    handoff_prompt: :string,
+    handoff_prompt_file: :string,
     card_ref_pattern: :string,
     pattern: :string,
     delivery_metrics: :boolean,
