@@ -89,6 +89,14 @@ whole card before touching it.
   `slipdock handoff <id> --next "<the one next step>" --body "State: … Gotchas:
   … Open: … Pointers: …"` (over MCP, `leave_handoff`). It replaces the last one;
   the history is kept. Comments stay the running log; the handoff is the now.
+  On a **finished** card the handoff is for the person: what they must do,
+  check or know (a deploy, a reinstall, a question, a caveat) as `--next`,
+  with where things stand in a few bullets. Nothing left for them: leave it
+  blank, and `slipdock handoff <id> --clear` one left from earlier.
+- **Re-read the card before you push, and its comments after.** Once the work
+  is checked, `slipdock card <id>` again: a changed description or a comment
+  newer than your claim is still this card — do it before committing. Once the
+  build has started, read the comments once more for anything added meanwhile.
 - **Incidents and deploys.** When the board records deploys (`slipdock dora
   <board>` answers rather than saying delivery metrics are off), an outage or
   a broken release is an ordinary card tagged `incident`; if you know the

@@ -258,4 +258,49 @@ defmodule SlipdockWeb.API.SkillsTest do
     assert skill.("slipdock-work") =~ "**Comments are Markdown, and are skimmed.**"
     assert skill.("slipdock") =~ "slipdock comment <id> --body - <<'EOF'"
   end
+
+  @tag :anonymous
+  test "slipdock-loop re-reads the card before pushing and its comments after", %{conn: conn} do
+    skill = fn name ->
+      conn |> get("/api/skills/#{name}") |> json_response(200) |> Map.fetch!("content")
+    end
+
+    loop = skill.("slipdock-loop")
+    # Between checking the work and the commit: the brief as it is now.
+    [check, rest] = String.split(loop, "2. **Commit**", parts: 2)
+    assert check =~ "**Then re-read the card, before committing.**"
+    assert check =~ "compare the\n   description with what you read in step 3"
+    # After `Build started`, and again after a build wait, before closing.
+    [started, _] = String.split(rest, "4. **Wait for the build", parts: 2)
+    assert started =~ "**Then read the comments once more.**"
+    assert started =~ "once more just before step 5"
+    assert loop =~ "- **Re-read the card before the push, and its comments after it.**"
+
+    assert skill.("slipdock-work") =~
+             "- **Re-read the card before you push, and its comments after.**"
+  end
+
+  @tag :anonymous
+  test "a finished card's handoff is what is left for the person, or blank", %{conn: conn} do
+    skill = fn name ->
+      conn |> get("/api/skills/#{name}") |> json_response(200) |> Map.fetch!("content")
+    end
+
+    loop = skill.("slipdock-loop")
+    # The last part of the wrap-up, before the job is finished.
+    [wrap, _] = String.split(loop, "7. **The job**, if the card came from one", parts: 2)
+    assert wrap =~ "Last, **the handoff**"
+
+    assert wrap =~
+             "slipdock handoff <id> --next \"Reinstall the CLI once the deploy is out\" --body - <<'EOF'"
+
+    assert wrap =~ "the handoff stays blank"
+    assert wrap =~ "handoff <id> --clear` (over MCP, `leave_handoff` with `clear: true`)"
+    refute loop =~ "A finished card needs none."
+    assert loop =~ "never close\n  one with a stale handoff on it"
+
+    work = skill.("slipdock-work")
+    assert work =~ "On a **finished** card the handoff is for the person"
+    assert work =~ "`slipdock handoff <id> --clear` one left from earlier"
+  end
 end

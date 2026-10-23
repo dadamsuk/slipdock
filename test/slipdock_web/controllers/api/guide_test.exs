@@ -30,6 +30,18 @@ defmodule SlipdockWeb.API.GuideTest do
   end
 
   @tag :anonymous
+  test "finishing a card: re-read it, and leave a handoff only for the person", %{conn: conn} do
+    body = conn |> get(~p"/api/guide") |> response(200)
+    [_, finish] = String.split(body, "### Finish it", parts: 2)
+    assert finish =~ "Re-read the card before committing, and its comments once the build\nstarts"
+
+    assert finish =~
+             "A done card's handoff is only\nwhat the person must do or check; else `{\"clear\": true}`."
+
+    assert SlipdockWeb.APIGuide.short() =~ "Re-read the card before committing"
+  end
+
+  @tag :anonymous
   test "the guide says how to install the CLI on Windows, from this server", %{conn: conn} do
     body = conn |> get(~p"/api/guide") |> response(200)
     assert body =~ "irm http://www.example.com/cli/install.ps1 | iex"
