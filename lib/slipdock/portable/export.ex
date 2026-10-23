@@ -253,6 +253,8 @@ defmodule Slipdock.Portable.Export do
       incident_tag: board.incident_tag,
       hotfix_window_hours: board.hotfix_window_hours,
       automation_wip: board.automation_wip,
+      handoff_label: board.handoff_label,
+      handoff_prompt: board.handoff_prompt,
       kind: board.kind,
       archived: board.archived_at != nil,
       # A sub-board hangs off a card; a root board hangs off nothing.

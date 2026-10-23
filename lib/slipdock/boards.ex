@@ -789,12 +789,15 @@ defmodule Slipdock.Boards do
       {:error, "This card already has subcards."}
     else
       case create_board(
-             # A simple board's subcards are as simple as it is.
+             # A simple board's subcards are as simple as it is, and they
+             # call a handoff what it does (#1212).
              %{
                "name" => Board.name_for_card(card.title),
                "code" => opts[:code],
                "color" => parent.color,
-               "simple" => parent.simple
+               "simple" => parent.simple,
+               "handoff_label" => parent.handoff_label,
+               "handoff_prompt" => parent.handoff_prompt
              },
              template: template,
              parent_card_id: card.id,

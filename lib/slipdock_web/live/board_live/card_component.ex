@@ -1274,6 +1274,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
             >
               <.handoff_panel
                 card={@card}
+                label={Slipdock.Boards.Board.handoff_label(@board)}
                 history={@handoff_history}
                 editing={@editing_handoff}
                 form={@handoff_form}
@@ -1600,6 +1601,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
   end
 
   attr :card, :any, required: true
+  attr :label, :string, default: "Left off", doc: "what the board calls it (#1212)"
   attr :history, :list, required: true
   attr :editing, :boolean, required: true
   attr :form, :any, default: nil
@@ -1621,7 +1623,7 @@ defmodule SlipdockWeb.BoardLive.CardComponent do
         <p class="flex items-start gap-1.5 text-sm">
           <.icon name="hero-arrow-uturn-left" class="mt-0.5 size-3.5 shrink-0 text-info" />
           <span>
-            <span class="text-base-content/60">Left off — next:</span>
+            <span class="text-base-content/60" id="handoff-label">{@label} — next:</span>
             <span class="font-medium" id="handoff-next">{@current.next_step}</span>
           </span>
         </p>

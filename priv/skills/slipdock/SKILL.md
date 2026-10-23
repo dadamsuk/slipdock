@@ -360,6 +360,7 @@ slipdock set-board <board> --sprints | --no-sprints       # make a board a sprin
 slipdock set-board <board> --simple | --no-simple         # plain to-do list: hides % complete, start, health, time, votes, deps
 slipdock set-board <board> --default-view wiki            # what opening the board shows in the web app (board, table, wiki…)
 slipdock set-board <board> --no-page-card-features        # the board's wiki pages hide status, checklist, links, fields, votes, comments
+slipdock set-board <board> --handoff-label Parked --handoff-prompt-file p.txt  # rename "Left off" in the web app, and Auto generate's instructions ("" = default)
 slipdock fav card <id> | fav list <board> <column> | fav view <board> <view> | fav board <board>
 slipdock fav page <page>                                  # a wiki page, by code (W-31), slug or board/slug
 slipdock unfav <same args>                                # or `fav ... --off`
