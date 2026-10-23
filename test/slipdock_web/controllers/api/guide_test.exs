@@ -20,6 +20,16 @@ defmodule SlipdockWeb.API.GuideTest do
   end
 
   @tag :anonymous
+  test "the guide, in its short form too, asks for comments in readable Markdown", %{conn: conn} do
+    body = conn |> get(~p"/api/guide") |> response(200)
+    assert body =~ "a bold first line, then short bullets"
+    assert body =~ "never one dense\n  paragraph"
+
+    assert SlipdockWeb.APIGuide.short() =~ "a bold first line, then short bullets"
+    assert SlipdockWeb.MCP.Tools.Comment.description() =~ "not one dense paragraph"
+  end
+
+  @tag :anonymous
   test "the guide says how to install the CLI on Windows, from this server", %{conn: conn} do
     body = conn |> get(~p"/api/guide") |> response(200)
     assert body =~ "irm http://www.example.com/cli/install.ps1 | iex"

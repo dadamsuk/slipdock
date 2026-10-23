@@ -1002,10 +1002,10 @@ defmodule SlipdockWeb.APIGuide do
 
     ### While you work
 
-    - **Every decision, surprise or dead end → a comment.** Short, specific,
-      and written for someone who will read it in a month: what you chose, what
-      you rejected, the commit or file it landed in. This is the part people
-      actually value, and the part agents skip.
+    - **Every decision, surprise or dead end → a comment.** In Markdown, for
+      someone reading it in a month: a bold first line, then short bullets —
+      what you chose, what you rejected, the commit or file — never one dense
+      paragraph. The part people value, and the part agents skip.
     - **A long job → say so while it is still running.** Anything that will
       take more than a short sitting — a big refactor, a migration, a build you
       are babysitting — gets interim comments at its milestones, not one

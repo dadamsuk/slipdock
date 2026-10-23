@@ -237,4 +237,25 @@ defmodule SlipdockWeb.API.SkillsTest do
     assert is_binary(sha)
     assert Skills.get("slipdock-wiki").sha == sha
   end
+
+  @tag :anonymous
+  test "the skills ask for comments in readable Markdown, sent over stdin", %{conn: conn} do
+    skill = fn name ->
+      conn |> get("/api/skills/#{name}") |> json_response(200) |> Map.fetch!("content")
+    end
+
+    loop = skill.("slipdock-loop")
+    assert loop =~ "### How a comment reads"
+    assert loop =~ "never one dense paragraph"
+    # The claim and the running log keep their line breaks: stdin, not words.
+    assert loop =~ "slipdock comment <id> --body - <<'EOF'\n**Picked up.**"
+    assert loop =~ "slipdock job-progress <job> --message - <<'EOF'"
+    refute loop =~ "slipdock comment <id> Picked up. <what you read it as"
+    # The wrap-up is a list, not a run of label lines.
+    assert loop =~ "**Done.**\n\n   - What was done:"
+    assert loop =~ "   - Commit: `abc1234` (master)"
+
+    assert skill.("slipdock-work") =~ "**Comments are Markdown, and are skimmed.**"
+    assert skill.("slipdock") =~ "slipdock comment <id> --body - <<'EOF'"
+  end
 end

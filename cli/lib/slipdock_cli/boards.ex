@@ -492,8 +492,16 @@ defmodule SlipdockCLI.Boards do
     end)
   end
 
-  def run("comment", [id | words], o) when words != [] do
-    HTTP.post(item_path(id, "/comments"), %{"body" => Enum.join(words, " ")})
+  # The text as words, or (for Markdown with line breaks) --body/--file, - for stdin.
+  def run("comment", [id | words], o) when words != [] or o != [] do
+    text =
+      cond do
+        words != [] -> Enum.join(words, " ")
+        o[:body] || o[:file] -> handoff_body(o)
+        true -> fail("usage: slipdock comment <id> <text>   (or --body TEXT, --file F, --body -)")
+      end
+
+    HTTP.post(item_path(id, "/comments"), %{"body" => text})
     |> out(o, fn r -> IO.puts("added comment ##{r["comment"]["id"]} to #{item_name(id)}") end)
   end
 

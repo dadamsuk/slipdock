@@ -202,8 +202,8 @@ slipdock claim-job <board> --pool <pool>     # or the MCP tool claim_job
 - **A job.** Its card is this pass's card, wherever it sits. Read it as in
   step 3 and claim it as in step 4, saying `Job #N` in the *Picked up*
   comment so a later pass can tell. While it is open, write the running log
-  with `slipdock job-progress <job> --message "<the comment>"` instead of
-  `slipdock comment`: it is the same comment on the card, and it renews the
+  with `slipdock job-progress <job> --message - <<'EOF'` (the comment, as in
+  **How a comment reads**, then `EOF`) instead of `slipdock comment`: it is the same comment on the card, and it renews the
   job's lease. A session holds the job for 20 minutes per report, so report
   before anything long (a full test run, a CI watch) and after it. If it
   ever answers `cancel`, somebody has stopped the job: stop work, say so on
@@ -274,7 +274,13 @@ watching human can see the card is taken:
 ```sh
 slipdock move <id> "In Progress" --top
 slipdock edit <id> --assignee me --percent 0
-slipdock comment <id> Picked up. <what you read it as, in a sentence or two — and the plan.>
+slipdock comment <id> --body - <<'EOF'
+**Picked up.** <what you read it as, in a sentence or two.>
+
+Plan:
+- <step>
+- <step>
+EOF
 ```
 
 On a **simple** board (`slipdock board` says `· simple` in its heading) leave
@@ -338,6 +344,41 @@ thing>` first, extend what exists, `slipdock page new <board> <title...>`
 otherwise) and is named in the closing comment by its code (`W-31`). Progress,
 blockers and what happened *now* stay on the card. Never both.
 
+### How a comment reads
+
+Comments are Markdown, rendered on the card, and a person skims them. Write
+for that, never one dense paragraph:
+
+- **open with a bold line** saying what it is — `**Picked up.**`, `**Built.**`,
+  `**Decision:** …`, `**Dead end:** …` — then a blank line;
+- **then short bullets**, one fact each, not a run of clauses strung together
+  with commas and semicolons; a sub-list where a point has parts;
+- file paths, functions, commands, flags and commit ids in `backticks`;
+- a blank line between the opening line, the list and anything after it.
+
+Always send it with `--body -` and a quoted heredoc (`<<'EOF'`, so backticks
+and `$` reach the card as written). Words on the command line lose their line
+breaks. Not this:
+
+```
+Built: boards.handoff_label / handoff_prompt (migration 20261023093000), Board.handoff_label/1 + handoff_prompt/1, HandoffDrafter now sends the board's instructions … Tests written and passing; docs next.
+```
+
+but this:
+
+```sh
+slipdock comment <id> --body - <<'EOF'
+**Built**, tests passing; docs next.
+
+- `boards.handoff_label` / `handoff_prompt` (migration `20261023093000`)
+- `HandoffDrafter` sends the board's instructions, then a fixed answer-shape
+  block, so a custom prompt can't break the JSON
+- CLI: `set-board --handoff-label` / `--handoff-prompt`
+
+Left alone: the MCP `Left off:` text — the skills key on it.
+EOF
+```
+
 ## 7. Close it out
 
 Skip what the invocation rules out (see **What the invocation says wins**):
@@ -373,8 +414,8 @@ anybody reads later:
    ```
    Build started.
 
-   Work complete and pushed: abc1234 (master). GitHub build now running.
-   Run: <workflow> #<run-id> — <run url>
+   - Work complete and pushed: `abc1234` (master). GitHub build now running.
+   - Run: <workflow> #<run-id> — <run url>
    ```
    If no run appears (no `.github/workflows`, no remote, nothing pushed), write
    `Work complete: abc1234. No CI build for this repo.` instead and go to step 5.
@@ -430,16 +471,19 @@ anybody reads later:
    pass is for:
 
    ```
-   Done.
+   **Done.**
 
-   What was done: <two or three lines: the change, in terms of the brief>
-   Files: lib/foo/bar.ex, test/foo/bar_test.exs
-   Tests: mix test --stale — 38 passed, 0 failed; full suite in CI
-   Commit: abc1234 (master) — https://github.com/owner/repo/commit/abc1234
-   CI: passed — <workflow> #<run-id> <run url>   (or "failed once, fixed in def5678", "started — … (checked before the epic closes)" on a subcard, or "no CI")
-   Follow-ups: <anything deliberately not done, and where it went — card #141, W-31, or "none">
-   Token cost: ~135k tokens (context budget 15.00M → 14.86M, claim to close)
+   - What was done: <two or three lines: the change, in terms of the brief>
+   - Files: `lib/foo/bar.ex`, `test/foo/bar_test.exs`
+   - Tests: mix test --stale — 38 passed, 0 failed; full suite in CI
+   - Commit: `abc1234` (master) — https://github.com/owner/repo/commit/abc1234
+   - CI: passed — <workflow> #<run-id> <run url>   (or "failed once, fixed in def5678", "started — … (checked before the epic closes)" on a subcard, or "no CI")
+   - Follow-ups: <anything deliberately not done, and where it went — card #141, W-31, or "none">
+   - Token cost: ~135k tokens (context budget 15.00M → 14.86M, claim to close)
    ```
+
+   A "what was done" with several parts gets a sub-list rather than one
+   long sentence.
 
    With no remote to link, the short hash and branch are enough. For the token
    line, read the remaining-token counter (`total_tokens left`) when you claim

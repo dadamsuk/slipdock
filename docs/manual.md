@@ -2585,7 +2585,7 @@ own work rather than from a background loop, so it holds its job on a
 | `slipdock job <id>` | One job: status, runner, prompt, log tail. |
 | `slipdock cancel-job <id>` | Stops a job. |
 | `slipdock claim-job <board> --pool P` | Takes the next job as this session. |
-| `slipdock job-progress <id> [--message NOTE]` | Renews the lease; the note is also a comment on the card. Prints `ok` or `cancel`. |
+| `slipdock job-progress <id> [--message NOTE]` | Renews the lease; the note is also a comment on the card (`--message -` reads it from stdin, line breaks and all). Prints `ok` or `cancel`. |
 | `slipdock finish-job <id> --status done\|failed\|cancelled\|timeout [--summary S]` | Ends a job this session claimed. |
 
 **The shell runner** (`slipdock-runner`) is a POSIX `sh` script that needs
@@ -5265,6 +5265,7 @@ slipdock comment W-31 "needs a worked example"  # comment, check, status, vote, 
 slipdock check W-31 "worked example"           # unweblink all take a page code as readily
 slipdock status W-31 at_risk "stalled on SRE"  # as a card number
 slipdock handoff 12 --next "Write the test" --body "State: …"   # where a card was left
+slipdock comment 12 --body - < note.md        # a Markdown comment over several lines (or --file F)
 slipdock page place W-31 "In Progress"         # put the doc in a list, beside the work
 slipdock page place W-31 Backlog --before 42   # before card #42 (or --before page-7)
 slipdock page unplace W-31                     # off the board; it stays in the wiki

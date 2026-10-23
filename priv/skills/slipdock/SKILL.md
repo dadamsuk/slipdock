@@ -323,6 +323,10 @@ slipdock tag <id> <tag>... [--off]       # tag must already exist on the board (
 slipdock check <id> <text...>            # add checklist item
 slipdock tick <item-id>                  # toggle checklist item (ids from `slipdock card`)
 slipdock comment <id> <text...>
+slipdock comment <id> --body - <<'EOF'     # Markdown over several lines (words lose them):
+**Built.**
+- a bold first line, then short bullets, `code` in backticks
+EOF
 slipdock weblink <id> <url> [--label TEXT]   # link a card to a web page, shared drive or file (datestamped)
 slipdock unweblink <id> <url-id>...          # ids from `slipdock card`
 slipdock attach <id> <file>... [--name N]    # upload files (a screenshot, a log); prints the Markdown
