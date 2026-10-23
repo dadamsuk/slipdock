@@ -445,14 +445,18 @@ Open:      questions waiting on someone
 Pointers:  branch, files, commits, pages (W-…)
 ```
 
-Most cards never need one, so until one is written it is just a **Leave a
-handoff** link on the line under the card's title (beside its `#id`, list and
+Most cards never need one, so until one is written it is just an **Add “Left
+off”** link on the line under the card's title (beside its `#id`, list and
 age). Once there is one it sits straight beneath the title: *Left off — next:*
 and the next step, the note, who left it, when and how (the web app, the API,
 MCP, the CLI or a runner), and, once there has been more than one, a
-**History** of every earlier one. **Update** writes a new one; nothing is
-edited in place, so the history is the whole story. **Clear** writes an empty
-one, and the history keeps that too; the card goes back to the link.
+**History** of every earlier one. The note is Markdown, as a comment is
+(bullets, `code`, links), and a single line break stays one. **Update** writes
+a new one; nothing is edited in place, so the history is the whole story.
+**Clear** writes an empty one, and the history keeps that too; the card goes
+back to the link. In the history each entry opens to its note, and
+**Restore** makes an earlier one current again (as a new entry, so the history
+says who brought it back).
 
 **Auto generate**, in the handoff's form when you have an [AI model](#ai-assistant)
 set up, drafts the next step and the note for you from what has happened on
@@ -460,17 +464,18 @@ the card lately: the last fortnight of its activity, its comments, checklist
 and status updates, with the rest of the card and the handoff before this one
 behind them. The draft goes into the form's fields, replacing what was there;
 nothing is written until you change what needs changing and press **Save
-handoff**. While the card is open its front carries a ↩ mark with the next step as
+“Left off”**. While the card is open its front carries a ↩ mark with the next step as
 its tooltip; a completed card keeps its note but loses the mark. To read the notes
-without opening the cards, set **Handoff note** in the board or swimlane view's
+without opening the cards, set **Left off** (or the board's own name for it) in the board or swimlane view's
 Display menu: *2 lines* puts the next step and the start of the note on each open
 card's front (the whole of it in the tooltip), *Full* puts all of it there. It is
 for comfortable cards only, and like the rest of the Display menu it is kept in
 the URL and in a saved view.
 
 A board can call it something else, and tell Auto generate what to write.
-Under **Handoffs** in the board's settings, **Label** replaces *Left off* on
-the card's panel and front (up to 40 characters), and **Instructions for Auto
+Under **Handoffs** in the board's settings, **Label** replaces *Left off* wherever a person reads it in the web app — the
+card's panel and its form, the link that adds one, Save, Clear and Delete, the
+card's front and the Display menu (up to 40 characters), and **Instructions for Auto
 generate** replace what the AI model is told about writing the note (up to
 4000 characters) — keep it shorter, ask for a different shape, write in
 another language. Whatever they say, the model is still asked for a next step
@@ -500,11 +505,21 @@ slipdock handoff 12 --next "Write the rounding test" --body "State: fix is in, u
 slipdock handoff 12 --next "Ship it" --file note.md      # or --body - to read stdin
 slipdock handoff 12                                      # the handoff and its history
 slipdock handoff 12 --clear
+slipdock handoff 12 --delete
 ```
 
+**Clear or delete.** *Clear* says the card has no handoff any more, and the
+history keeps both the old one and the clear. *Delete* is for one that should
+never have been written — the wrong card, a wrong next step: it goes outright,
+history and all, and the one before it (if any) is the card's handoff again.
+On the card it is **Delete** beside **Update**. The handoff's author may delete
+it, as with a comment, and so may anyone who can edit the card; the board's
+activity keeps a line saying it was deleted.
+
 Over the API, `POST /api/cards/:id/handoff` with `next_step` and `body` (or
-`{"clear": true}`) writes one and `GET` reads it with its history; a card's JSON
-carries it as `handoff`. Over MCP it is the `leave_handoff` tool. Exports
+`{"clear": true}`) writes one, `DELETE` deletes the current one and `GET` reads
+it with its history; a card's JSON carries it as `handoff`. Over MCP it is the
+`leave_handoff` tool (`delete: true` to delete). Exports
 between servers carry every handoff, signed by whoever imports them.
 
 ## Waiting on a person (waits)
@@ -4998,6 +5013,7 @@ POST   /api/cards/:id/timer {action: start|stop}   stopping adds the minutes it 
 POST   /api/cards/:id/checklist {text}     POST   /api/checklist/:item_id/toggle   DELETE /api/checklist/:item_id
 POST   /api/cards/:id/comments {body}      DELETE /api/comments/:comment_id
 GET    /api/cards/:id/handoff              POST   /api/cards/:id/handoff {next_step, body} | {clear: true}
+DELETE /api/cards/:id/handoff              the current one, outright: {deleted, handoff} (the one now current)
 GET    /api/cards/:id/timeline             the lists it sat in, its waits and jobs, as spans
 POST   /api/cards/:id/dependencies {blocked_by: id} | {blocks: id}
 POST   /api/cards/:id/subboard {template}  DELETE /api/cards/:id/subboard
@@ -5547,7 +5563,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `update_card` | Title, description, priority (or clearing it), start and due dates, percent, flags, tags, assignees, what blocks it, its checklist — add, tick and untick items — and whether it repeats (`recurrence`, or `null` to stop it). Only what is passed changes. |
 | `move_card` | To another list on its board, or with `board` to another board, subcards and all. |
 | `comment` | A Markdown comment on a card; `@name` mentions notify. |
-| `leave_handoff` | Leaves the card's handoff, as `POST /api/cards/:id/handoff` does: `next_step` (one line) and a `body` note, or `clear: true`. Write one whenever you stop with the card unfinished; `get_card` shows it first. |
+| `leave_handoff` | Leaves the card's handoff, as `POST /api/cards/:id/handoff` does: `next_step` (one line) and a `body` note, or `clear: true`; `delete: true` deletes the current one outright (its author, or anyone who can edit the card). Write one whenever you stop with the card unfinished; `get_card` shows it first. |
 | `garden_decide` | Applies, dismisses or undoes one gardener suggestion (`decision`: `apply`, `dismiss` or `undo`), as `POST /api/garden/suggestions/:id/…` do. Only for what the person approved, so it needs `confirm: true`. `keep` names the card that stays for a duplicate; `choice` takes one of its alternatives. |
 | `upload_file` | Attaches a file to a `card`, or to a `page` (a code, or a slug with `board`): `filename`, and the bytes as `content_base64` or a text file's contents as `text`; `content_type` (else the name decides), `hide_on_card` and `sha256` are optional. `sha256` is the hex SHA-256 of the file's bytes before base64: given, bytes that arrive different (one flipped bit leaves the size as it was) are refused with `sha256_mismatch`, saying what arrived, and nothing is stored. Up to 10 MB — the CLI's `slipdock attach` and the API take bigger files. Answers with the attachment, its `sha256` the hash of the bytes as stored (compare it with the source's to verify in one call), and the `markdown` that embeds or links it, as `POST /api/cards/:id/attachments` does, and counts towards the owner's limits the same way. **In chunks** (#1016), for anything over a few KB, since base64 written out by a model is damaged more often the longer it is: the first chunk with `append: true` (plus `card` or `page`, `filename`) and that chunk's own `sha256` answers with an `upload_id` and `received`; each next chunk sends `upload_id`, `append: true`, `offset` (the last `received`) and its own `sha256`. A chunk that doesn't match is refused with `sha256_mismatch` and the rest is kept, so only it is resent; a resend of a chunk that already landed at that `offset` isn't added twice, and a wrong `offset` is `offset_mismatch`. Then `upload_id`, `finish: true` and the whole file's `sha256` (no content) checks the assembled file and attaches it, with the same access and limit checks as a single call; until then nothing is on the card. A whole file that differs discards the upload. Unfinished uploads expire after a day, and one person may have 10 open. `replace: true` (on a single call, or on the first chunk or `finish`) deletes the card's or page's older files of the same `filename` once the new one is stored, so a rebuild leaves one current copy; their ids come back as `replaced`. The old files go only after the new one is in, so a refused upload keeps them. **`link: true`** (#1147), with only `card` or `page` (and `board`), sends no file: it answers with an `upload_url` that works once, for 10 minutes, with no token. `curl -F file=@cv.docx -F sha256=<hex> <upload_url>` then takes what `POST /api/cards/:id/attachments` takes (`file`, `sha256`, `filename`, `replace`, `hide_on_card`), up to its limit, and answers as it does. It acts as the token that asked for it: that token needs write scope, its access is checked again when the link is used, and deleting the token kills its links. A refused upload (a `sha256_mismatch`, no `file`) stores nothing and leaves the link good to try again; a used, expired or unknown link is `410 link_gone`. For a scheduled task or a shared skill that has a connector but nowhere to keep an API token. |
 | `delete_attachment` | Deletes a file from a card or a page by its `attachment` id (`upload_file`, `get_card` and `read_page` give it), as `DELETE /api/cards/:id/attachments/:attachment_id` does. Needs `confirm: true`. Checked as editing the card or page is; a file the token can't read is not found. |

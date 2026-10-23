@@ -687,7 +687,7 @@ defmodule SlipdockWeb.SwimlaneComponents do
           </div>
         </div>
         <div :if={@mode in [:board, :swimlanes]} id="display-handoff">
-          <p class={["mb-1.5", @section_title]}>Handoff note</p>
+          <p class={["mb-1.5", @section_title]}>{Slipdock.Boards.Board.handoff_label(@board)}</p>
           <div class="flex flex-wrap gap-1">
             <label :for={{value, label} <- Config.handoffs()} class="cursor-pointer">
               <input

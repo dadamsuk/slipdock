@@ -134,6 +134,78 @@ defmodule Slipdock.HandoffsTest do
     end
   end
 
+  describe "deleting (#1214)" do
+    test "removes the current one outright, so the one before it is current again", %{
+      board: board,
+      card: card,
+      user: user
+    } do
+      first = leave(card, user, "Write the migration")
+      second = leave(card, user, "A wrong turn")
+
+      assert {:ok, deleted} = Boards.delete_handoff(card)
+      assert deleted.id == second.id
+      assert Boards.current_handoff(card).id == first.id
+      assert Enum.map(Boards.handoff_history(card), & &1.id) == [first.id]
+
+      assert Enum.any?(
+               Boards.list_activities(board.id, 50, card.id),
+               &(&1.message == "deleted the handoff on “#{card.title}”: A wrong turn")
+             )
+    end
+
+    test "the only one leaves the card with none, and the history empty", %{
+      card: card,
+      user: user
+    } do
+      leave(card, user, "Only")
+      assert {:ok, _} = Boards.delete_handoff(card)
+      assert Boards.current_handoff(card) == nil
+      assert Boards.handoff_history(card) == []
+    end
+
+    test "after a clear the card still has none: the clear stays", %{card: card, user: user} do
+      leave(card, user, "Old")
+      {:ok, _} = Boards.clear_handoff(card, user, %{via: "ui"})
+      leave(card, user, "New")
+
+      assert {:ok, %{next_step: "New"}} = Boards.delete_handoff(card)
+      assert Boards.current_handoff(card) == nil
+      assert [%{next_step: nil}, %{next_step: "Old"}] = Boards.handoff_history(card)
+    end
+
+    test "with none, or only a clear, there is nothing to delete", %{card: card, user: user} do
+      assert Boards.delete_handoff(card) == {:error, :none}
+
+      leave(card, user, "Old")
+      {:ok, _} = Boards.clear_handoff(card, user, %{via: "ui"})
+      assert Boards.delete_handoff(card) == {:error, :none}
+      assert length(Boards.handoff_history(card)) == 2
+    end
+
+    test "is told to the board", %{board: board, card: card, user: user} do
+      leave(card, user, "Next")
+      Boards.subscribe(board.id)
+      {:ok, _} = Boards.delete_handoff(card)
+      assert_receive {:board_changed, _}
+    end
+
+    test "may_delete_handoff?/3: an editor, or the author", %{card: card, user: user} do
+      h = leave(card, user, "Mine")
+      other = %Slipdock.Accounts.User{id: user.id + 1_000_000}
+
+      assert Boards.may_delete_handoff?(h, user, false)
+      assert Boards.may_delete_handoff?(h, other, true)
+      refute Boards.may_delete_handoff?(h, other, false)
+      refute Boards.may_delete_handoff?(h, nil, false)
+
+      # A runner's handoff has no author: only an editor.
+      {:ok, ran} = Boards.leave_handoff(card, nil, %{next_step: "Ran", via: "runner"})
+      refute Boards.may_delete_handoff?(ran, user, false)
+      assert Boards.may_delete_handoff?(ran, user, true)
+    end
+  end
+
   describe "many cards at once" do
     test "current_handoffs/1 maps each card with a handoff to its newest", %{
       board: board,

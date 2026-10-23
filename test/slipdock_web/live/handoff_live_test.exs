@@ -65,9 +65,9 @@ defmodule SlipdockWeb.HandoffLiveTest do
 
       refute has_element?(view, "#card-handoff")
       refute has_element?(view, "#handoff-history")
-      assert has_element?(view, "#card-title-form a#handoff-edit", "Leave a handoff")
+      assert has_element?(view, "#card-title-form a#handoff-edit", "Add “Left off”")
 
-      view |> element("#handoff-edit", "Leave a handoff") |> render_click()
+      view |> element("#handoff-edit", "Add “Left off”") |> render_click()
       # The form opens beneath the title, with the note's shape as a placeholder,
       # and the link goes while it is open.
       assert has_element?(view, "#card-handoff #handoff-form textarea[placeholder*='Gotchas:']")
@@ -114,7 +114,7 @@ defmodule SlipdockWeb.HandoffLiveTest do
       view |> element("#handoff-edit") |> render_click()
       view |> element("#handoff-form button", "Cancel") |> render_click()
       refute has_element?(view, "#card-handoff")
-      assert has_element?(view, "#card-title-form #handoff-edit", "Leave a handoff")
+      assert has_element?(view, "#card-title-form #handoff-edit", "Add “Left off”")
       assert Boards.handoff_history(ctx.card) == []
     end
 
@@ -133,6 +133,150 @@ defmodule SlipdockWeb.HandoffLiveTest do
       assert has_element?(view, "#handoff-form")
       assert has_element?(view, "#handoff-history", "cleared")
       assert has_element?(view, "#handoff-history", "Going away")
+    end
+  end
+
+  describe "deleting (#1214)" do
+    test "Delete removes it outright, and the one before it shows again", ctx do
+      leave(ctx, "Earlier step")
+      leave(ctx, "A wrong turn")
+      {:ok, view, _} = open(ctx.conn, ctx)
+
+      assert has_element?(view, "#handoff-current #handoff-delete", "Delete")
+      assert view |> element("#handoff-delete") |> render() =~ "data-confirm"
+
+      view |> element("#handoff-delete") |> render_click()
+
+      assert has_element?(view, "#handoff-next", "Earlier step")
+      refute has_element?(view, "#card-handoff", "A wrong turn")
+      assert [%{next_step: "Earlier step"}] = Boards.handoff_history(ctx.card)
+
+      # The last one: no panel, only the meta line's link.
+      view |> element("#handoff-delete") |> render_click()
+      refute has_element?(view, "#card-handoff")
+      assert has_element?(view, "#card-title-form #handoff-edit")
+      assert Boards.handoff_history(ctx.card) == []
+    end
+
+    test "a commenter may delete their own, not the owner's", ctx do
+      commenter = user_fixture("live.handoff.deleter@example.com")
+      {:ok, _} = Access.grant(ctx.board, commenter, "read", ctx.owner)
+      {:ok, _} = Access.grant(ctx.card, commenter, "comment", ctx.owner)
+      leave(ctx, "Owner's step")
+
+      {:ok, view, _} = open(conn_as(commenter), ctx)
+      assert has_element?(view, "#handoff-edit")
+      refute has_element?(view, "#handoff-delete")
+
+      view |> with_target("#board-card") |> render_click("delete_handoff", %{})
+      assert %{next_step: "Owner's step"} = Boards.current_handoff(ctx.card)
+
+      {:ok, _} =
+        Boards.leave_handoff(ctx.card, commenter, %{next_step: "Commenter's", via: "ui"})
+
+      {:ok, view, _} = open(conn_as(commenter), ctx)
+      view |> element("#handoff-delete") |> render_click()
+      assert %{next_step: "Owner's step"} = Boards.current_handoff(ctx.card)
+    end
+
+    test "a reader has no Delete, and the server refuses the event", ctx do
+      reader = user_fixture("live.handoff.reader3@example.com")
+      {:ok, _} = Access.grant(ctx.board, reader, "read", ctx.owner)
+      leave(ctx, "Owner's step")
+
+      {:ok, view, _} = open(conn_as(reader), ctx)
+      refute has_element?(view, "#handoff-delete")
+      view |> with_target("#board-card") |> render_click("delete_handoff", %{})
+      assert %{next_step: "Owner's step"} = Boards.current_handoff(ctx.card)
+    end
+  end
+
+  describe "the note and the history (#1214)" do
+    test "the note is Markdown, as a comment is", ctx do
+      leave(ctx, "Go on", "- done: `the schema`\n- see [the spec](https://example.com/spec)")
+      {:ok, view, _} = open(ctx.conn, ctx)
+
+      html = view |> element("#handoff-body") |> render()
+      assert html =~ "<li>"
+      assert html =~ "<code>the schema</code>"
+      assert html =~ ~s(href="https://example.com/spec")
+    end
+
+    test "raw HTML in the note is shown, not obeyed", ctx do
+      leave(ctx, "Go on", "<script>alert(1)</script>")
+      {:ok, view, _} = open(ctx.conn, ctx)
+      refute view |> element("#handoff-body") |> render() =~ "<script>"
+    end
+
+    test "each entry opens to its note", ctx do
+      leave(ctx, "Earlier", "State: half way")
+      leave(ctx, "Now")
+      {:ok, view, _} = open(ctx.conn, ctx)
+
+      [earlier, _] = Enum.reverse(Boards.handoff_history(ctx.card))
+      assert has_element?(view, "#handoff-#{earlier.id} details", "State: half way")
+    end
+
+    test "Restore makes an earlier one current again, as a new entry", ctx do
+      leave(ctx, "Earlier", "State: half way")
+      leave(ctx, "A wrong turn")
+      {:ok, view, _} = open(ctx.conn, ctx)
+
+      [current, earlier] = Boards.handoff_history(ctx.card)
+      refute has_element?(view, "#handoff-#{current.id} button", "Restore")
+
+      view |> element("#handoff-#{earlier.id} button", "Restore") |> render_click()
+
+      assert has_element?(view, "#handoff-next", "Earlier")
+      assert [restored, ^current, ^earlier] = Boards.handoff_history(ctx.card)
+      assert %{next_step: "Earlier", body: "State: half way", via: "ui"} = restored
+      assert restored.user_id == ctx.owner.id
+    end
+
+    test "after a clear, the old one can be restored; the clear can't", ctx do
+      leave(ctx, "Before the clear")
+      {:ok, clear} = Boards.clear_handoff(ctx.card, ctx.owner, %{via: "ui"})
+      {:ok, view, _} = open(ctx.conn, ctx)
+
+      view |> element("#card-title-form #handoff-edit") |> render_click()
+      refute has_element?(view, "#handoff-#{clear.id} button", "Restore")
+      [_, old] = Boards.handoff_history(ctx.card)
+      view |> element("#handoff-#{old.id} button", "Restore") |> render_click()
+
+      assert %{next_step: "Before the clear"} = Boards.current_handoff(ctx.card)
+    end
+
+    test "an id that isn't one of this card's, or a clear, is refused", ctx do
+      leave(ctx, "Mine")
+      {:ok, clear} = Boards.clear_handoff(ctx.card, ctx.owner, %{via: "ui"})
+      other = card_fixture(hd(ctx.board.columns), %{"title" => "Other"})
+      {:ok, theirs} = Boards.leave_handoff(other, ctx.owner, %{next_step: "Other's", via: "ui"})
+      {:ok, view, _} = open(ctx.conn, ctx)
+
+      for id <- [theirs.id, clear.id, "nope"] do
+        view |> with_target("#board-card") |> render_click("restore_handoff", %{"id" => id})
+        assert render(view) =~ "That one can&#39;t be restored."
+      end
+
+      assert Boards.current_handoff(ctx.card) == nil
+    end
+
+    test "a reader sees the history but no Restore, and the event is refused", ctx do
+      reader = user_fixture("live.handoff.reader4@example.com")
+      {:ok, _} = Access.grant(ctx.board, reader, "read", ctx.owner)
+      leave(ctx, "Earlier")
+      leave(ctx, "Now")
+      [_, earlier] = Boards.handoff_history(ctx.card)
+
+      {:ok, view, _} = open(conn_as(reader), ctx)
+      assert has_element?(view, "#handoff-#{earlier.id}")
+      refute has_element?(view, "#handoff-history button", "Restore")
+
+      view
+      |> with_target("#board-card")
+      |> render_click("restore_handoff", %{"id" => earlier.id})
+
+      assert %{next_step: "Now"} = Boards.current_handoff(ctx.card)
     end
   end
 

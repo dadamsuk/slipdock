@@ -1,5 +1,5 @@
 defmodule SlipdockCLI.HandoffTest do
-  @moduledoc "`slipdock handoff`: writing, clearing and reading a card's handoff, and `card` showing it."
+  @moduledoc "`slipdock handoff`: writing, clearing, deleting and reading a card's handoff, and `card` showing it."
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureIO
@@ -68,6 +68,26 @@ defmodule SlipdockCLI.HandoffTest do
 
     assert_received {:request, "POST", "/api/cards/7/handoff", body}
     assert JSON.decode!(body)["body"] == "Piped note"
+  end
+
+  test "--delete deletes the current one and says which is current again (#1214)" do
+    serve([
+      {200,
+       ~s({"card":7,"deleted":{"id":3,"next_step":"A wrong turn"},"handoff":{"id":2,"next_step":"Run the suite"}})}
+    ])
+
+    out = capture_io(fn -> Boards.run("handoff", ["7"], delete: true) end)
+    assert_received {:request, "DELETE", "/api/cards/7/handoff", _}
+    assert out =~ "deleted the handoff on #7: A wrong turn"
+    assert out =~ "current again: Run the suite"
+  end
+
+  test "--delete of the last one says the card has none now" do
+    serve([{200, ~s({"card":7,"deleted":{"id":3,"next_step":"Only"},"handoff":null})}])
+
+    out = capture_io(fn -> Boards.run("handoff", ["7"], delete: true) end)
+    assert out =~ "deleted the handoff on #7: Only"
+    assert out =~ "the card has no handoff now"
   end
 
   test "--clear clears it" do

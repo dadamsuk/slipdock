@@ -3459,6 +3459,43 @@ defmodule Slipdock.Boards do
     |> insert_handoff(card, "cleared the handoff on “#{card.title}”")
   end
 
+  @doc """
+  Deletes `card`'s current handoff outright (#1214): the row goes, history
+  and all, so the one before it is the handoff again (or none, if there was
+  none or it was a clear). Unlike `clear_handoff/3` nothing is kept, only a
+  line in the activity log. `{:error, :none}` when the card has no handoff.
+
+  Who may delete is the caller's to check: `may_delete_handoff?/3`.
+  """
+  def delete_handoff(%Card{} = card) do
+    case current_handoff(card) do
+      nil ->
+        {:error, :none}
+
+      handoff ->
+        {:ok, _} = Repo.delete(handoff)
+
+        log(
+          Repo,
+          card.board_id,
+          card.id,
+          "handoff",
+          "deleted the handoff on “#{card.title}”: " <> handoff.next_step
+        )
+
+        broadcast(card.board_id)
+        {:ok, handoff}
+    end
+  end
+
+  @doc """
+  Whether `user` may delete `handoff`: whoever can edit the card, or its
+  author if they can still comment on it, as with a comment.
+  """
+  def may_delete_handoff?(%Handoff{} = handoff, user, can_write?) do
+    can_write? or (not is_nil(user) and handoff.user_id == user.id)
+  end
+
   defp insert_handoff(changeset, card, message) do
     changeset
     |> Repo.insert()

@@ -1,7 +1,7 @@
 defmodule SlipdockWeb.HandoffAPITest do
   @moduledoc """
   A card's handoff over HTTP and MCP (W-1804): written and read back both
-  ways, shown by `get_card`, cleared, and refused to anyone who may not
+  ways, shown by `get_card`, cleared, deleted (#1214), and refused to anyone who may not
   comment on the card or whose token doesn't reach it.
   """
   use SlipdockWeb.ConnCase, async: true
@@ -167,6 +167,66 @@ defmodule SlipdockWeb.HandoffAPITest do
     end
   end
 
+  describe "DELETE /api/cards/:id/handoff (#1214)" do
+    test "deletes the current one, answering it and the one now current", ctx do
+      {:ok, _} = Boards.leave_handoff(ctx.card, ctx.owner, %{next_step: "Earlier", via: "ui"})
+      {:ok, _} = Boards.leave_handoff(ctx.card, ctx.owner, %{next_step: "Wrong", via: "ui"})
+
+      assert %{
+               "card" => _,
+               "deleted" => %{"next_step" => "Wrong"},
+               "handoff" => %{"next_step" => "Earlier"}
+             } =
+               as(ctx.owner) |> delete("/api/cards/#{ctx.card.id}/handoff") |> json_response(200)
+
+      assert %{"deleted" => %{"next_step" => "Earlier"}, "handoff" => nil} =
+               as(ctx.owner) |> delete("/api/cards/#{ctx.card.id}/handoff") |> json_response(200)
+
+      assert %{"handoff" => nil, "history" => []} =
+               as(ctx.owner) |> get("/api/cards/#{ctx.card.id}/handoff") |> json_response(200)
+    end
+
+    test "with none to delete it is a 404", ctx do
+      assert %{"error" => "handoff not found"} =
+               as(ctx.owner) |> delete("/api/cards/#{ctx.card.id}/handoff") |> json_response(404)
+    end
+
+    test "a commenter may delete their own, not someone else's", ctx do
+      {:ok, _} = Boards.leave_handoff(ctx.card, ctx.owner, %{next_step: "Owner's", via: "ui"})
+
+      assert %{"error" => error} =
+               as(ctx.commenter)
+               |> delete("/api/cards/#{ctx.card.id}/handoff")
+               |> json_response(403)
+
+      assert error =~ "only its author or someone who can edit the card"
+      assert Boards.current_handoff(ctx.card).next_step == "Owner's"
+
+      {:ok, _} = Boards.leave_handoff(ctx.card, ctx.commenter, %{next_step: "Mine", via: "ui"})
+
+      assert %{"deleted" => %{"next_step" => "Mine"}} =
+               as(ctx.commenter)
+               |> delete("/api/cards/#{ctx.card.id}/handoff")
+               |> json_response(200)
+    end
+
+    test "a reader, a stranger and a read-only token may not", ctx do
+      {:ok, _} = Boards.leave_handoff(ctx.card, ctx.owner, %{next_step: "Stay", via: "ui"})
+
+      assert as(ctx.reader) |> delete("/api/cards/#{ctx.card.id}/handoff") |> json_response(403)
+
+      assert with_token(ctx.owner, scope: "read")
+             |> delete("/api/cards/#{ctx.card.id}/handoff")
+             |> json_response(403)
+
+      {:ok, _} = Boards.leave_handoff(ctx.secret, nil, %{next_step: "Theirs", via: "runner"})
+      assert as(ctx.owner) |> delete("/api/cards/#{ctx.secret.id}/handoff") |> json_response(403)
+
+      assert Boards.current_handoff(ctx.card).next_step == "Stay"
+      assert Boards.current_handoff(ctx.secret).next_step == "Theirs"
+    end
+  end
+
   describe "MCP" do
     defp call(conn, tool, args) do
       conn
@@ -246,6 +306,29 @@ defmodule SlipdockWeb.HandoffAPITest do
              |> error!() =~ "you don't comment on this card"
 
       assert [%{next_step: "Mine"}] = Boards.handoff_history(ctx.card)
+    end
+
+    test "delete: true deletes the current one, its author's or an editor's (#1214)", ctx do
+      {:ok, _} = Boards.leave_handoff(ctx.card, ctx.owner, %{next_step: "Earlier", via: "ui"})
+      {:ok, _} = Boards.leave_handoff(ctx.card, ctx.owner, %{next_step: "Wrong", via: "ui"})
+
+      assert as(ctx.commenter)
+             |> call("leave_handoff", %{card: ctx.card.id, delete: true})
+             |> error!() =~ "only its author"
+
+      assert %{"deleted" => %{"next_step" => "Wrong"}, "handoff" => %{"next_step" => "Earlier"}} =
+               as(ctx.owner)
+               |> call("leave_handoff", %{card: ctx.card.id, delete: true})
+               |> ok!()
+
+      assert %{"handoff" => %{"next_step" => "Earlier"}} =
+               as(ctx.owner) |> call("get_card", %{card: ctx.card.id}) |> ok!()
+
+      {:ok, _} = Boards.clear_handoff(ctx.card, ctx.owner, %{via: "ui"})
+
+      assert as(ctx.owner)
+             |> call("leave_handoff", %{card: ctx.card.id, delete: true})
+             |> error!() =~ "no handoff"
     end
 
     test "tools/list has it as a write, and get_card says to read the handoff first", ctx do

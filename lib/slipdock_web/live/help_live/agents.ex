@@ -575,7 +575,8 @@ defmodule SlipdockWeb.HelpLive.Agents do
         (<code>update_card</code>'s <code>recurrence</code>) or sleep until a day
         (its <code>snoozed_until</code>); leaving a card's handoff
         (<code>leave_handoff</code>: where it was left, which <code>get_card</code>
-        shows first); opening and answering a wait on a person (<code>update_card</code>'s
+        shows first, or <code>delete: true</code>
+        to delete one left by mistake); opening and answering a wait on a person (<code>update_card</code>'s
         <code>wait</code>
         and <code>answer_wait</code>); uploading and downloading the
         files on cards and pages (with a shell, <code>link: true</code>

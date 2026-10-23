@@ -343,9 +343,17 @@ defmodule SlipdockCLI.Boards do
     do: HTTP.get("/cards/#{enc(id)}/timeline") |> out(o, &Render.timeline/1)
 
   # Where a card was left (W-1804): with --next (or --clear) it writes the
-  # handoff, without it shows the current one and its history.
+  # handoff, --delete deletes the current one (#1214), and with none of them
+  # it shows the current one and its history.
   def run("handoff", [id], o) do
     cond do
+      o[:delete] && (o[:next] || o[:clear]) ->
+        fail("--delete deletes the current handoff: leave off --next and --clear")
+
+      o[:delete] ->
+        HTTP.delete("/cards/#{enc(id)}/handoff")
+        |> out(o, &handoff_deleted(id, &1))
+
       o[:clear] ->
         HTTP.post("/cards/#{enc(id)}/handoff", %{"clear" => true, "via" => "cli"})
         |> out(o, fn _ -> IO.puts("cleared the handoff on ##{id}") end)
@@ -1605,6 +1613,15 @@ defmodule SlipdockCLI.Boards do
           {:ok, text} -> text
           {:error, why} -> fail("can't read #{path}: #{:file.format_error(why)}")
         end
+    end
+  end
+
+  defp handoff_deleted(id, r) do
+    IO.puts("deleted the handoff on ##{id}: #{r["deleted"]["next_step"]}")
+
+    case r["handoff"] do
+      %{"next_step" => next} -> IO.puts("current again: #{next}")
+      _ -> IO.puts("the card has no handoff now")
     end
   end
 end
