@@ -363,6 +363,8 @@ defmodule Slipdock.WaitsTest do
 
       open!(ctx, %{"choices" => ["eu", "us"]})
       {:ok, _} = Boards.answer_wait(ctx.card, Actor.web(ctx.dana), %{"choice" => 1})
+      open!(ctx, %{"needs" => "Two", "questions" => ["A?", "B?"]})
+      {:ok, _} = Boards.answer_wait(ctx.card, Actor.web(ctx.dana), %{"answers" => ["a", ""]})
       open!(ctx, %{"needs" => "Size?", "job_id" => job.id, "on_user_id" => ctx.owner.id})
 
       document = ctx.owner |> Slipdock.Portable.export(boards: [ctx.board]) |> Jason.encode!()
@@ -386,6 +388,8 @@ defmodule Slipdock.WaitsTest do
                  choice: 1,
                  choices: ["eu", "us"]
                },
+               # A series keeps its questions and answers (#1220).
+               %Wait{needs: "Two", questions: ["A?", "B?"], answers: ["a", ""]},
                %Wait{needs: "Size?", closed_at: nil, kind: "agent", set_flag: true}
              ] = waits
 

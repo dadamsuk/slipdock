@@ -333,7 +333,7 @@ defmodule SlipdockWeb.API.JobController do
   @doc """
   A session saying the job has ended: `outcome` (done, failed, cancelled,
   timeout) and a `summary`. `outcome: "waiting"` with a `wait` object
-  (`needs`, `on`, `choices`) asks a person and parks the job, both or
+  (`needs` or `questions`, `on`, `choices`) asks a person and parks the job, both or
   neither: the answer starts a fresh job.
   """
   def finish(conn, %{"id" => id, "outcome" => "waiting"} = params) do

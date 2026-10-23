@@ -219,7 +219,13 @@ and stops, rather than flagging the card and hoping: `update_card` with
 /api/cards/:id/wait` or `slipdock wait <id> "…" [--on EMAIL] [--choice X]`.
 The wait flags the card `waiting` and asks on it; somebody answers on the
 card, in My work's **Waiting on you**, with `slipdock answer <id>` or
-`answer_wait`, and the answer is a comment on the card. An agent can't
+`answer_wait`, and the answer is a comment on the card. Several questions go
+as `questions` (`--question Q --question Q`), never one block in `needs`:
+each gets its own numbered answer box, and the answers come back one per
+question (`answers`). A person may also **skip** them (`skip: true`,
+`slipdock answer <id> --skip`): the card moves on unanswered and you use
+your own judgement. `slipdock waits <id>` (`get_card` `waits: true`) shows
+every question the card asked and the answers. An agent can't
 answer a wait it opened. `slipdock work` (`GET /api/work`) lists what is
 waiting on you, and `whoami` counts it (`waiting_on_you`). See
 [the manual](manual.md#waiting-on-a-person-waits).

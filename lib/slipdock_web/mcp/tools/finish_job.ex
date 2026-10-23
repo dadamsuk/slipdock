@@ -39,10 +39,14 @@ defmodule SlipdockWeb.MCP.Tools.FinishJob do
           description: "With outcome waiting: the question, as update_card's wait.",
           properties: %{
             needs: %{type: "string"},
+            questions: %{
+              type: "array",
+              items: %{type: "string"},
+              description: "Several questions, one each: asked as a numbered series."
+            },
             on: %{type: "string"},
             choices: %{type: "array", items: %{type: "string"}}
           },
-          required: ["needs"],
           additionalProperties: false
         }
       },
@@ -68,7 +72,9 @@ defmodule SlipdockWeb.MCP.Tools.FinishJob do
 
   # Asks and parks in one step: both, or neither (KTD5).
   defp park(job, card, runner, args, summary, context) do
-    with %{} = wait <- args["wait"] || {:error, "outcome waiting needs wait: {needs: \"…\"}"},
+    with %{} = wait <-
+           args["wait"] ||
+             {:error, "outcome waiting needs wait: {needs: \"…\"} or {questions: […]}"},
          {:ok, job, wait} <-
            Args.refusal(
              Runners.finish_waiting(

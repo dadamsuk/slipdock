@@ -75,7 +75,9 @@ whole card before touching it.
   when you start; comment at every decision, surprise or dead end; flag it
   (`blocked`, `review`) with a comment saying what you are waiting for; when
   only a person can give what you need, open a wait and stop (`slipdock wait
-  <id> "what you need" [--on EMAIL] [--choice X]...`, or `update_card` `wait`):
+  <id> "what you need" [--on EMAIL] [--choice X]...`, or `update_card` `wait`;
+  several questions go as `--question Q --question Q` / `questions`, one each,
+  never one block):
   it flags the card `waiting`, and answering it (`slipdock answer`) gets the work
   going again — or, when what it waits for has a date, snooze it instead (`slipdock
   snooze <id> <date> --note "…"`): it leaves the lists and comes back on the

@@ -98,7 +98,17 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
               "card waiting and comments the question; answering it clears the flag. null " <>
               "withdraws the open wait. A runner job's session links its job by itself.",
           properties: %{
-            needs: %{type: "string", description: "What you need, as a question."},
+            needs: %{
+              type: "string",
+              description: "What you need, as one question; or the line before questions."
+            },
+            questions:
+              Map.put(
+                list,
+                :description,
+                "Several questions: one each, asked as a numbered series with an answer " <>
+                  "box each. Use this, not a block of questions in needs."
+              ),
             on: %{
               type: "string",
               description: "Who it waits on: email or \"me\"; omit for anyone."
@@ -106,7 +116,6 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
             choices: Map.put(list, :description, "Answers to pick from, if it is a choice."),
             job_id: %{type: "integer", description: "Your runner job on this card, if any."}
           },
-          required: ["needs"],
           additionalProperties: false
         },
         answer_wait: %{
@@ -114,7 +123,13 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
           description:
             "Answers the card's open wait, as a comment from you. Not one you opened yourself.",
           properties: %{
+            answers:
+              Map.put(list, :description, "One answer per question, in order; \"\" skips one."),
             answer: %{type: "string"},
+            skip: %{
+              type: "boolean",
+              description: "Skip all the questions unanswered and move the card on."
+            },
             choice: %{type: "integer", minimum: 1, description: "A choice's number, from 1."}
           },
           additionalProperties: false
@@ -216,13 +231,26 @@ defmodule SlipdockWeb.MCP.Tools.UpdateCard do
   # Waiting on a person (#1114): open one, withdraw it (null), or answer it.
   defp wait_arg(args) do
     case {Map.fetch(args, "wait"), Map.fetch(args, "answer_wait")} do
-      {{:ok, _}, {:ok, _}} -> {:error, "pass wait or answer_wait, not both"}
-      {{:ok, nil}, :error} -> {:ok, :withdraw}
-      {{:ok, %{} = wait}, :error} -> {:ok, {:open, wait}}
-      {{:ok, _}, :error} -> {:error, "wait is an object ({needs: \"…\"}) or null"}
-      {:error, {:ok, %{} = answer}} -> {:ok, {:answer, answer}}
-      {:error, {:ok, _}} -> {:error, "answer_wait is an object ({answer: \"…\"} or {choice: 1})"}
-      {:error, :error} -> {:ok, :untouched}
+      {{:ok, _}, {:ok, _}} ->
+        {:error, "pass wait or answer_wait, not both"}
+
+      {{:ok, nil}, :error} ->
+        {:ok, :withdraw}
+
+      {{:ok, %{} = wait}, :error} ->
+        {:ok, {:open, wait}}
+
+      {{:ok, _}, :error} ->
+        {:error, "wait is an object ({needs: \"…\"} or {questions: […]}) or null"}
+
+      {:error, {:ok, %{} = answer}} ->
+        {:ok, {:answer, answer}}
+
+      {:error, {:ok, _}} ->
+        {:error, "answer_wait is an object ({answer: \"…\"} or {choice: 1})"}
+
+      {:error, :error} ->
+        {:ok, :untouched}
     end
   end
 

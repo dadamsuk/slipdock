@@ -796,6 +796,7 @@ defmodule SlipdockWeb.Router do
     post "/cards/:id/wait", CardController, :open_wait
     delete "/cards/:id/wait", CardController, :withdraw_wait
     post "/cards/:id/wait/answer", CardController, :answer_wait
+    get "/cards/:id/waits", CardController, :waits
     post "/cards/:id/vote", CardController, :vote
     post "/cards/:id/timer", CardController, :timer
     post "/cards/:id/links", CardController, :add_link

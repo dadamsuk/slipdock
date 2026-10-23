@@ -220,4 +220,74 @@ defmodule SlipdockWeb.WaitAPITest do
 
     refute Map.has_key?(card, "wait")
   end
+
+  describe "a series of questions (#1220)" do
+    test "opens with questions, answered one per question, then listed by GET …/waits", ctx do
+      assert %{"wait" => wait} =
+               cli(ctx.owner)
+               |> put_req_header("x-slipdock-agent", "1")
+               |> open(ctx.card, %{questions: ["Which region?", "How many seats?"]})
+               |> json_response(201)
+
+      assert wait["questions"] == ["Which region?", "How many seats?"]
+      assert wait["needs"] == "2 questions: Which region?"
+      assert wait["answers"] == []
+
+      assert %{"wait" => answered} =
+               token(ctx.dana, "phone")
+               |> post("/api/cards/#{ctx.card.id}/wait/answer", %{answers: ["eu", "12"]})
+               |> json_response(200)
+
+      assert %{"close_reason" => "answered", "answers" => ["eu", "12"]} = answered
+
+      assert %{"waits" => [listed]} =
+               token(ctx.owner, "r")
+               |> get("/api/cards/#{ctx.card.id}/waits")
+               |> json_response(200)
+
+      assert listed["id"] == answered["id"]
+      assert listed["answers"] == ["eu", "12"]
+    end
+
+    test "skip: true skips them; a second skip is a 409", ctx do
+      open(token(ctx.owner, "bot"), ctx.card, %{questions: ["A?", "B?"]})
+
+      assert %{"wait" => %{"close_reason" => "skipped", "open" => false}} =
+               token(ctx.dana, "phone")
+               |> post("/api/cards/#{ctx.card.id}/wait/answer", %{skip: true})
+               |> json_response(200)
+
+      assert %{"error" => error} =
+               token(ctx.dana, "phone")
+               |> post("/api/cards/#{ctx.card.id}/wait/answer", %{skip: true})
+               |> json_response(409)
+
+      assert error =~ "already skipped by Dana"
+    end
+
+    test "questions that aren't strings, or answers out of range, are a 422", ctx do
+      assert %{"error" => "questions must be a list of strings"} =
+               token(ctx.owner, "bot")
+               |> open(ctx.card, %{questions: [1, 2]})
+               |> json_response(422)
+
+      open(token(ctx.owner, "bot"), ctx.card, %{questions: ["A?", "B?"]})
+
+      assert %{"error" => "answers are numbered 1 to 2, one per question"} =
+               token(ctx.dana, "phone")
+               |> post("/api/cards/#{ctx.card.id}/wait/answer", %{answers: %{"5" => "x"}})
+               |> json_response(422)
+    end
+
+    test "GET …/waits needs read on the card, and a card that never asked has none", ctx do
+      stranger = user_fixture("stranger@example.com")
+
+      assert %{"waits" => []} =
+               token(ctx.owner, "r")
+               |> get("/api/cards/#{ctx.card.id}/waits")
+               |> json_response(200)
+
+      assert token(stranger, "s") |> get("/api/cards/#{ctx.card.id}/waits") |> json_response(403)
+    end
+  end
 end

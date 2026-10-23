@@ -24,6 +24,10 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
     default: false,
     doc: "offer \"Add “Left off”\" (the board's label) on the meta line"
 
+  attr :ask_link, :boolean,
+    default: false,
+    doc: "offer \"Ask questions\" on the meta line (#1220)"
+
   attr :target, :any, required: true
 
   @doc """
@@ -142,6 +146,19 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           title="Say where you left this card, so whoever picks it up next reads that first"
         >
           Add “{Slipdock.Boards.Board.handoff_label(@board)}”
+        </a>
+        <%!-- Follow-up questions (#1220): ask someone, a box per question. --%>
+        <span :if={@ask_link}>·</span>
+        <a
+          :if={@ask_link}
+          id="wait-ask"
+          href="#"
+          phx-click="ask_questions"
+          phx-target={@target}
+          class="link link-hover text-base-content/60 hover:text-primary"
+          title="Ask someone questions on this card: the card waits on their answers"
+        >
+          Ask questions
         </a>
       </div>
     </.form>

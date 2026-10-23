@@ -4,7 +4,16 @@ defmodule Slipdock.Boards.Wait do
   or anyone when `on_user_id` is nil), since when, and optionally a short
   list of answers to pick from. A card has at most one open wait.
 
-      open → answered | withdrawn | card_completed | archived
+      open → answered | skipped | withdrawn | card_completed | archived
+
+  A wait asks one thing (`needs`) or a numbered series of `questions`
+  (#1220), answered one by one in `answers` (same order, "" for one left
+  blank). `needs` is then the line in front of them: the words before the
+  list, or "N questions: the first…" when there were none. A `needs`
+  written as a numbered list (`1. …` `2. …`) is split into questions as it
+  is opened, so an agent that asks in one block still asks a series.
+  Skipping (`skipped`) closes it unanswered and moves the card on as an
+  answer would.
 
   Unlike a handoff a wait has a lifecycle: it is opened, then closed once,
   by a conditional update on `closed_at IS NULL`, so of two answers racing
@@ -18,13 +27,16 @@ defmodule Slipdock.Boards.Wait do
   use Ecto.Schema
   import Ecto.Changeset
 
-  @reasons ~w(answered withdrawn card_completed archived)
+  @reasons ~w(answered skipped withdrawn card_completed archived)
   @requeue_states ~w(none queued pending failed skipped)
   @max_choices 10
+  @max_questions 20
 
   schema "card_waits" do
     field :needs, :string
     field :choices, {:array, :string}, default: []
+    field :questions, {:array, :string}, default: []
+    field :answers, {:array, :string}, default: []
     field :kind, :string
     field :via, :string
     field :agent, :string
@@ -49,12 +61,15 @@ defmodule Slipdock.Boards.Wait do
 
   def close_reasons, do: @reasons
   def requeue_states, do: @requeue_states
+  def max_questions, do: @max_questions
 
   def changeset(wait, attrs) do
     wait
-    |> cast(attrs, [:needs, :choices, :on_user_id, :job_id])
+    |> cast(attrs, [:needs, :choices, :questions, :on_user_id, :job_id])
     |> update_change(:needs, &String.trim/1)
     |> update_change(:choices, &clean_choices/1)
+    |> update_change(:questions, &clean_choices/1)
+    |> put_questions()
     |> validate_required([:needs], message: "can't be blank: say what you need")
     |> validate_length(:needs, max: 1000)
     |> validate_length(:choices, max: @max_choices, message: "at most %{count}")
@@ -63,10 +78,120 @@ defmodule Slipdock.Boards.Wait do
         do: [choices: "must each be at most 100 characters"],
         else: []
     end)
+    |> validate_length(:questions, max: @max_questions, message: "at most %{count}")
+    |> validate_change(:questions, fn :questions, questions ->
+      if Enum.any?(questions, &(String.length(&1) > 1000)),
+        do: [questions: "must each be at most 1000 characters"],
+        else: []
+    end)
     |> unique_constraint(:card_id,
       name: :card_waits_one_open,
       message: "already has an open wait"
     )
+  end
+
+  # Questions given: `needs` is what was said in front of them, or made up
+  # from them. None given: a numbered `needs` is split into them.
+  defp put_questions(changeset) do
+    needs = get_field(changeset, :needs)
+
+    case get_field(changeset, :questions) || [] do
+      [] ->
+        case split_questions(needs) do
+          {intro, [_, _ | _] = questions} ->
+            changeset
+            |> put_change(:questions, questions)
+            |> put_change(:needs, intro || summary(questions))
+
+          _ ->
+            changeset
+        end
+
+      questions when needs in [nil, ""] ->
+        put_change(changeset, :needs, summary(questions))
+
+      _ ->
+        changeset
+    end
+  end
+
+  defp summary([one]), do: String.slice(one, 0, 1000)
+
+  defp summary([first | _] = questions),
+    do: String.slice("#{length(questions)} questions: #{first}", 0, 1000)
+
+  @doc ~S"""
+  Splits text written as a numbered list into `{intro, questions}`: the
+  lines before `1.` (nil when none), then each item with the lines that
+  follow it. Only a list of two or more counting up from 1 is split;
+  anything else answers `{nil, []}`.
+
+      iex> Slipdock.Boards.Wait.split_questions("Two things:\n1. Which region?\n2) How many seats?")
+      {"Two things:", ["Which region?", "How many seats?"]}
+  """
+  def split_questions(text) when is_binary(text) do
+    {intro, items} =
+      text
+      |> String.split(~r/\R/)
+      |> Enum.reduce({[], []}, fn line, {intro, items} ->
+        case {numbered(line), items} do
+          {{n, rest}, _} when n == length(items) + 1 -> {intro, [[rest] | items]}
+          {_, []} -> {[line | intro], items}
+          {_, [current | done]} -> {intro, [[line | current] | done]}
+        end
+      end)
+
+    questions = items |> Enum.reverse() |> Enum.map(&join_lines/1)
+    intro = join_lines(intro)
+
+    if length(questions) >= 2 and Enum.all?(questions, &(&1 != "")),
+      do: {if(intro == "", do: nil, else: intro), questions},
+      else: {nil, []}
+  end
+
+  def split_questions(_), do: {nil, []}
+
+  defp numbered(line) do
+    case Regex.run(~r/^\s*(\d{1,2})[.)]\s+(.*)$/, line) do
+      [_, n, rest] -> {String.to_integer(n), rest}
+      _ -> nil
+    end
+  end
+
+  defp join_lines(reversed), do: reversed |> Enum.reverse() |> Enum.join("\n") |> String.trim()
+
+  @doc "What the wait asks, as a list: its questions, or `needs` as the one."
+  def questions(%__MODULE__{questions: [_ | _] = qs}), do: qs
+  def questions(%__MODULE__{needs: needs}), do: [needs]
+
+  @doc "Whether the wait asks a numbered series rather than one thing."
+  def series?(%__MODULE__{questions: [_ | _]}), do: true
+  def series?(_), do: false
+
+  @doc """
+  What the answer said, as Markdown: for a series each question numbered
+  with its answer under it, then any choice or answer given for the whole;
+  for one question, the choice and the answer. "" when nothing was said.
+  """
+  def answered_text(%__MODULE__{} = w) do
+    whole =
+      [choice_text(w, w.choice), w.answer]
+      |> Enum.reject(&(&1 in [nil, ""]))
+      |> Enum.join(" — ")
+
+    if series?(w) do
+      pairs =
+        w.questions
+        |> Enum.with_index()
+        |> Enum.map_join("\n", fn {q, i} ->
+          a = Enum.at(w.answers || [], i)
+          "#{i + 1}. #{q}\n   → #{if a in [nil, ""], do: "(not answered)", else: a}"
+        end)
+
+      if whole == "", do: pairs, else: pairs <> "\n\n" <> whole
+    else
+      whole
+    end
   end
 
   @doc "Whether the wait is still open."

@@ -454,8 +454,9 @@ defmodule SlipdockWeb.API.JSON do
   end
 
   @doc """
-  A wait (#1114): what is needed, from whom, the choices, who opened it (as
-  `Slipdock.Actor` classified them), and how it ended once it has.
+  A wait (#1114): what is needed, its numbered questions and their answers
+  (#1220), from whom, the choices, who opened it (as `Slipdock.Actor`
+  classified them), and how it ended once it has.
   """
   def wait(nil), do: nil
 
@@ -464,6 +465,8 @@ defmodule SlipdockWeb.API.JSON do
       id: w.id,
       card_id: w.card_id,
       needs: w.needs,
+      # A numbered series (#1220): [] when it asks the one thing in needs.
+      questions: w.questions,
       on: wait_person(w.on_user),
       choices: w.choices,
       opened_by: wait_person(w.opened_by),
@@ -478,6 +481,7 @@ defmodule SlipdockWeb.API.JSON do
       closed_by: wait_person(w.closed_by),
       close_reason: w.close_reason,
       answer: w.answer,
+      answers: w.answers,
       choice: w.choice,
       choice_text: Slipdock.Boards.Wait.choice_text(w, w.choice),
       requeue_state: w.requeue_state,

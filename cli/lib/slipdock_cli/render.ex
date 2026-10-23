@@ -579,12 +579,71 @@ defmodule SlipdockCLI.Render do
             dim(list |> Enum.with_index(1) |> Enum.map_join("  ", fn {c, n} -> "#{n}. #{c}" end))
       end
 
-    "waits on #{person(w["on"]) || "anyone"}: #{w["needs"]}" <> choices
+    "waits on #{person(w["on"]) || "anyone"}: #{w["needs"]}" <> choices <> questions(w)
   end
 
-  @doc "What a wait was answered with: the choice's text, then the words."
+  # A series (#1220): each question on its own numbered line.
+  defp questions(w) do
+    case w["questions"] || [] do
+      [] ->
+        ""
+
+      list ->
+        list
+        |> Enum.with_index(1)
+        |> Enum.map_join("", fn {q, n} -> "\n    #{n}. #{q}" end)
+    end
+  end
+
+  @doc """
+  What a wait was answered with: the choice's text, then the words; for a
+  series, each question's answer on its own line.
+  """
   def wait_answer(w) do
-    [w["choice_text"], w["answer"]] |> Enum.reject(&is_nil/1) |> Enum.join(" — ")
+    whole = [w["choice_text"], w["answer"]] |> Enum.reject(&(&1 in [nil, ""])) |> Enum.join(" — ")
+
+    case w["questions"] || [] do
+      [] ->
+        whole
+
+      list ->
+        answers = w["answers"] || []
+
+        pairs =
+          list
+          |> Enum.with_index()
+          |> Enum.map_join("", fn {q, i} ->
+            a = Enum.at(answers, i)
+            "\n    #{i + 1}. #{q}\n       → #{if a in [nil, ""], do: "(not answered)", else: a}"
+          end)
+
+        if whole == "", do: pairs, else: pairs <> "\n    " <> whole
+    end
+  end
+
+  @doc "`slipdock waits <id>` (#1220): every question asked, newest first, and how it ended."
+  def waits(%{"card" => id, "waits" => []}), do: IO.puts("##{id} has asked no questions")
+
+  def waits(%{"card" => id, "waits" => waits}) do
+    IO.puts(bold("##{id} questions") <> dim(" · newest first"))
+
+    for w <- waits do
+      by = person(w["opened_by"]) || "someone"
+      at = String.slice(to_string(w["opened_at"]), 0, 16)
+      IO.puts("\n" <> bold(wait_line(w)) <> "  " <> dim("asked by #{by} · #{at}"))
+
+      case w["close_reason"] do
+        nil ->
+          IO.puts("  " <> dim("open"))
+
+        "answered" ->
+          IO.puts("  answered by #{person(w["closed_by"]) || "someone"}: " <> wait_answer(w))
+
+        reason ->
+          closer = if p = person(w["closed_by"]), do: " by #{p}", else: ""
+          IO.puts("  " <> dim(String.replace(reason, "_", " ") <> closer))
+      end
+    end
   end
 
   defp person(nil), do: nil

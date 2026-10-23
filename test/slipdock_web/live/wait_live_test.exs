@@ -38,7 +38,7 @@ defmodule SlipdockWeb.WaitLiveTest do
     assert has_element?(view, "#wait-byline", "(agent: claude)")
     assert has_element?(view, "#wait-choice-1", "eu")
     assert has_element?(view, "#wait-choice-2", "us")
-    assert has_element?(view, "#wait-answer-form input[placeholder='Or answer in words']")
+    assert has_element?(view, "#wait-answer-form textarea[placeholder='Or answer in words']")
     refute has_element?(view, "#wait-byline", "question")
 
     {title, _} = :binary.match(html, ~s(id="card-title-form"))
@@ -66,7 +66,10 @@ defmodule SlipdockWeb.WaitLiveTest do
 
     assert has_element?(view, "#wait-byline", "question 2 on this card")
 
-    view |> form("#wait-answer-form", %{"wait" => %{"answer" => "Large"}}) |> render_submit()
+    view
+    |> form("#wait-answer-form", %{"wait" => %{"answers" => %{"1" => "Large"}}})
+    |> render_submit()
+
     assert %{answer: "Large", close_reason: "answered"} = Boards.last_wait(ctx.card)
   end
 

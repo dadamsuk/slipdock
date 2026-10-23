@@ -512,7 +512,8 @@ defmodule SlipdockWeb.API.CardController do
   end
 
   @doc """
-  Opens a wait on the card (#1114): `needs` (required), `on` (a person, or
+  Opens a wait on the card (#1114): `needs` or `questions` (a numbered
+  series, #1220), `on` (a person, or
   nothing for anyone), `choices` and `job_id`. Needs write on the card.
   """
   def open_wait(conn, %{"id" => id} = params) do
@@ -522,11 +523,25 @@ defmodule SlipdockWeb.API.CardController do
     end
   end
 
-  @doc "Answers the card's open wait: `answer`, `choice` (from 1), or both."
+  @doc """
+  Answers the card's open wait: `answers` (one per question), `answer`,
+  `choice` (from 1), or `skip: true` to move on without answering.
+  """
   def answer_wait(conn, %{"id" => id} = params) do
     with {:ok, card} <- fetch_card(id),
          {:ok, wait} <- CardWrites.answer_wait(conn, card, params) do
       json(conn, %{card: card.id, wait: V.wait(wait)})
+    end
+  end
+
+  @doc """
+  The card's waits, newest first, open and closed: the questions it has
+  asked and how each was answered (#1220).
+  """
+  def waits(conn, %{"id" => id}) do
+    with {:ok, card} <- fetch_card(id),
+         :ok <- Authorize.card(conn, card, :read) do
+      json(conn, %{card: card.id, waits: Enum.map(Boards.list_waits(card), &V.wait/1)})
     end
   end
 
