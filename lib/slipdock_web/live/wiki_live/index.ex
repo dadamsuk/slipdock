@@ -39,6 +39,8 @@ defmodule SlipdockWeb.WikiLive.Index do
   # What the middle column lists of a folder, and of each on the index.
   @folder_listing 200
   @index_pages 8
+  # How many of a vault folder's notes it lists, newest first (#1211).
+  @vault_recent 50
 
   # The vault view (#752): a vault's own page, its tree and its pages at
   # their vault paths. What the address names decides which board's wiki
@@ -178,6 +180,9 @@ defmodule SlipdockWeb.WikiLive.Index do
       vault_view: nil,
       vault_target: nil,
       vault_addresses: nil,
+      # The vault path the index is looking at (#1211): "" for the whole
+      # vault, a folder's or mount's path, nil off the vault view.
+      vault_dir: nil,
       # The middle column's own listings: the index's folders and recent
       # pages, or what is in the folder being looked at.
       index_folders: [],
@@ -383,6 +388,22 @@ defmodule SlipdockWeb.WikiLive.Index do
   end
 
   # The middle column's listings, read only for the view that draws them.
+  # A vault's (#1211): the tree beside it has the folders already, so what
+  # is listed is the notes changed most lately anywhere under the folder
+  # being looked at, or the whole vault when none is.
+  defp assign_listing(%{assigns: %{live_action: :index, vault_dir: dir}} = socket)
+       when is_binary(dir) do
+    recent = vault_dir_recent(socket, String.trim(dir, "/"), @vault_recent)
+
+    assign(socket,
+      index_folders: [],
+      folder_rows: [],
+      folder_more: false,
+      recent: recent,
+      excerpts: Tree.excerpts(Enum.map(recent, & &1.id))
+    )
+  end
+
   defp assign_listing(%{assigns: %{live_action: :index, folder: %Folder{} = folder}} = socket) do
     rows =
       case tree_rows(socket, "folder:#{folder.id}", limit: @folder_listing) do
@@ -440,6 +461,33 @@ defmodule SlipdockWeb.WikiLive.Index do
 
   defp assign_listing(socket), do: socket
 
+  # The vault's notes under `dir` ("" for all of it), newest first, each
+  # with the folder it sits in.
+  defp vault_dir_recent(socket, dir, n) do
+    %{vault_view: vault, vault_addresses: addresses} = socket.assigns
+    filter = scope_filter(socket, "vault")
+
+    ids =
+      if dir != "" do
+        prefix = String.downcase(dir) <> "/"
+
+        for {id, path} <- addresses.pages,
+            String.starts_with?(String.downcase(path), prefix),
+            do: id
+      end
+
+    vault
+    |> Tree.vault_recent(vault_boards(socket), n, only: filter && filter.only, ids: ids)
+    |> Enum.map(fn row ->
+      # Where it sits below the folder being looked at, not the whole way.
+      path = addresses.pages[row.id] || ""
+      path = if dir == "", do: path, else: String.slice(path, (String.length(dir) + 1)..-1//1)
+      where = path |> String.split("/") |> Enum.drop(-1) |> Enum.join(" / ")
+      Map.merge(row, %{href: row_href(row, nil), nav: "patch", where: where})
+    end)
+    |> in_vault_view(socket.assigns)
+  end
+
   defp list_opts(can_write, show) do
     [
       status: if(can_write and show.drafts, do: nil, else: "published"),
@@ -488,16 +536,22 @@ defmodule SlipdockWeb.WikiLive.Index do
   defp show_vault_target(socket, params) do
     %{board: board, vault_target: target} = socket.assigns
 
-    {action, extra} =
+    {action, extra, dir} =
       case target do
-        {:page, id} -> {:show, %{"slug" => Wiki.get_page!(id).slug}}
-        {:folder, id} -> {:index, %{"folder" => to_string(id)}}
-        :index -> {:index, %{}}
+        {:page, id} ->
+          {:show, %{"slug" => Wiki.get_page!(id).slug}, nil}
+
+        {:folder, id} ->
+          {:index, %{"folder" => to_string(id)}, socket.assigns.vault_addresses.folders[id]}
+
+        {:index, path} ->
+          {:index, %{}, path}
       end
 
     socket =
       socket
       |> assign(live_action: action, folder: nil, tree_drawer: false, file_shown: nil)
+      |> assign(vault_dir: dir)
       |> apply_action(action, Map.merge(%{"id" => to_string(board.id)}, extra))
 
     # Opened by id from a board's wiki: settle on the address itself.
@@ -3096,7 +3150,7 @@ defmodule SlipdockWeb.WikiLive.Index do
 
         true ->
           case Enum.join(params["path"] || [], "/") do
-            "" -> top_of(vault)
+            "" -> with {:mapping, m} <- top_of(vault), do: {:top, m}
             path -> Slipdock.Vaults.resolve_address(vault, path)
           end
       end
@@ -3114,10 +3168,13 @@ defmodule SlipdockWeb.WikiLive.Index do
              do: {:ok, {:folder, id}, folder.board_id},
              else: (_ -> :error)
 
-      {:mapping, %{folder_id: nil, board_id: board_id}} ->
-        {:ok, :index, board_id}
+      {:top, %{folder_id: nil, board_id: board_id}} ->
+        {:ok, {:index, ""}, board_id}
 
-      {:mapping, %{folder_id: folder_id, board_id: board_id}} ->
+      {_, %{folder_id: nil, board_id: board_id, path: path}} ->
+        {:ok, {:index, path}, board_id}
+
+      {_, %{folder_id: folder_id, board_id: board_id}} ->
         {:ok, {:folder, folder_id}, board_id}
 
       {:empty, vault} ->
@@ -4519,6 +4576,7 @@ defmodule SlipdockWeb.WikiLive.Index do
                     folder={@folder}
                     rows={@folder_rows}
                     more={@folder_more}
+                    recent={@vault_dir && @recent}
                     excerpts={@excerpts}
                     can_write={@can_write}
                   />
@@ -4528,6 +4586,8 @@ defmodule SlipdockWeb.WikiLive.Index do
                     empty={@tree_empty}
                     folders={@index_folders}
                     recent={@recent}
+                    vault={@vault_dir && @vault_view}
+                    vault_dir={@vault_dir}
                     excerpts={@excerpts}
                     wanted={@wanted}
                     can_write={@can_write}
@@ -5591,10 +5651,72 @@ defmodule SlipdockWeb.WikiLive.Index do
   # all unless it does, so a listing of plain pages reads as it always has.
   defp dressed?(row), do: not is_nil(row[:icon]) or not is_nil(row[:color])
 
+  attr :recent, :list,
+    required: true,
+    doc: "`Slipdock.Wiki.Tree` page rows with `href` and `where`"
+
+  attr :excerpts, :map, default: %{}
+  attr :in_folder, :boolean, default: false
+
+  # A vault folder's notes, newest first (#1211), each saying which folder
+  # below this one it is in.
+  defp vault_recent(assigns) do
+    ~H"""
+    <section id="vault-recent" class="mt-8">
+      <h2 class="text-xs font-semibold uppercase tracking-wide text-base-content/50">
+        Recently edited
+      </h2>
+      <div
+        :if={@recent == []}
+        class="mt-3 rounded-xl border border-dashed border-base-300 p-8 text-center"
+      >
+        <.icon name="hero-document-text" class="size-7 text-base-content/30" />
+        <p class="mt-3 text-sm text-base-content/60">
+          {if @in_folder, do: "No notes in this folder yet.", else: "No notes here yet."}
+        </p>
+      </div>
+      <ul
+        :if={@recent != []}
+        class="mt-3 divide-y divide-base-300 rounded-xl border border-base-300 bg-base-100"
+      >
+        <li :for={page <- @recent} id={"vault-recent-#{page.id}"}>
+          <.link patch={page.href} class="flex items-baseline gap-3 px-4 py-3 hover:bg-base-200">
+            <.wiki_icon
+              :if={dressed?(page)}
+              kind={:page}
+              icon={page[:icon]}
+              color={page[:color]}
+              class="size-4 self-center"
+            />
+            <span class="min-w-0 flex-1">
+              <span class="font-medium">{page.title}</span>
+              <span :if={page.draft} class="chip chip-line ml-2 text-2xs">draft</span>
+              <span
+                :if={excerpt_of(@excerpts, page.id) != ""}
+                class="ml-2 text-sm text-base-content/50"
+              >
+                {excerpt_of(@excerpts, page.id)}
+              </span>
+              <span
+                :if={page.where != ""}
+                class="vault-recent-where mt-0.5 flex items-center gap-1 text-xs text-base-content/40"
+              >
+                <.icon name="hero-folder" class="size-3" /> {page.where}
+              </span>
+            </span>
+            <span class="shrink-0 text-xs text-base-content/40">{stamp(page.updated_at)}</span>
+          </.link>
+        </li>
+      </ul>
+    </section>
+    """
+  end
+
   attr :board, :any, required: true
   attr :folder, :any, required: true
   attr :rows, :list, default: [], doc: "what is in it, as `Slipdock.Wiki.Tree` rows"
   attr :more, :boolean, default: false, doc: "whether there were more than are listed"
+  attr :recent, :list, default: nil, doc: "in a vault, its notes newest first instead (#1211)"
   attr :excerpts, :map, default: %{}
   attr :can_write, :boolean, required: true
 
@@ -5706,7 +5828,9 @@ defmodule SlipdockWeb.WikiLive.Index do
       </div>
     </div>
 
-    <section :if={@children != []} class="mt-8">
+    <.vault_recent :if={@recent} recent={@recent} excerpts={@excerpts} in_folder />
+
+    <section :if={is_nil(@recent) and @children != []} class="mt-8">
       <h2 class="text-xs font-semibold uppercase tracking-wide text-base-content/50">Folders</h2>
       <ul class="mt-3 grid gap-2 sm:grid-cols-2">
         <li :for={sub <- @children}>
@@ -5729,7 +5853,7 @@ defmodule SlipdockWeb.WikiLive.Index do
       </ul>
     </section>
 
-    <section class="mt-8">
+    <section :if={is_nil(@recent)} class="mt-8">
       <h2 class="text-xs font-semibold uppercase tracking-wide text-base-content/50">Pages</h2>
       <div
         :if={@pages == []}
@@ -5794,9 +5918,30 @@ defmodule SlipdockWeb.WikiLive.Index do
   attr :empty, :boolean, default: false
   attr :folders, :list, default: [], doc: "the top folders, each with what is in it"
   attr :recent, :list, required: true
+  attr :vault, :any, default: nil, doc: "the vault, in the vault view (#1211)"
+  attr :vault_dir, :string, default: nil
   attr :excerpts, :map, default: %{}
   attr :wanted, :list, default: []
   attr :can_write, :boolean, required: true
+
+  # In the vault view the tree beside it is the filing, so the page is the
+  # notes changed most lately: the whole vault's at its top, else those
+  # under the board or folder mounted here.
+  defp index_body(%{vault: %{}} = assigns) do
+    ~H"""
+    <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">
+      {if @vault_dir in ["", nil],
+        do: @vault.name,
+        else: @vault_dir |> String.trim("/") |> Path.basename()}
+    </h1>
+    <p class="mt-2 text-sm text-base-content/60">
+      {if @vault_dir in ["", nil],
+        do: "The notes changed most lately, across every folder.",
+        else: "The notes changed most lately in this folder and the ones inside it."}
+    </p>
+    <.vault_recent recent={@recent} excerpts={@excerpts} />
+    """
+  end
 
   defp index_body(assigns) do
     ~H"""

@@ -200,10 +200,12 @@ defmodule Slipdock.Wiki.Tree do
 
   With `root:` (a vault path), only what is mounted at or below it: a
   board's wiki mounted there and what is mounted inside that. `:only`
-  narrows it as the filter bar does.
+  narrows it as the filter bar does, and `:ids` to just those pages (the
+  ones under a folder of the vault, #1211).
   """
   def vault_recent(%Vault{} = vault, boards, n, extra \\ []) do
     {root, extra} = Keyword.pop(extra, :root, "")
+    {ids, extra} = Keyword.pop(extra, :ids)
 
     vault
     |> vault_layout(boards)
@@ -221,6 +223,7 @@ defmodule Slipdock.Wiki.Tree do
         select: struct(p, ^@page_fields)
       )
       |> mapped_part(board, mappings)
+      |> only_ids(ids)
       |> where(^visible(Keyword.merge(opts, extra), :page))
       |> Repo.all()
     end)
@@ -229,6 +232,9 @@ defmodule Slipdock.Wiki.Tree do
     |> Enum.take(n)
     |> Enum.map(&page_row(&1, 0))
   end
+
+  defp only_ids(query, nil), do: query
+  defp only_ids(query, ids), do: where(query, [p], p.id in ^ids)
 
   # The pages a board's mappings bring: all of them when its whole wiki is
   # mapped, else those filed in a mapped folder or any folder inside one.
