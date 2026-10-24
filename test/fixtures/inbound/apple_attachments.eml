@@ -1,0 +1,42 @@
+Content-Type: multipart/mixed;
+	boundary="Apple-Mail=_11111111-2222"
+Mime-Version: 1.0 (Mac OS X Mail 16.0 \(3774.600.62\))
+Subject: Receipts
+From: Erin Apple <erin@example.com>
+Date: Sat, 24 Oct 2026 12:00:00 +0100
+Message-Id: <A1B2C3D4-0000-1111-2222-333344445555@example.com>
+To: add-tok42@example.com
+
+--Apple-Mail=_11111111-2222
+Content-Type: multipart/related;
+	type="text/html";
+	boundary="Apple-Mail=_33333333-4444"
+
+--Apple-Mail=_33333333-4444
+Content-Transfer-Encoding: 7bit
+Content-Type: text/html;
+	charset=us-ascii
+
+<html><body>See the chart <img src="cid:chart@local"></body></html>
+--Apple-Mail=_33333333-4444
+Content-Transfer-Encoding: base64
+Content-Disposition: inline;
+	filename=chart.png
+Content-Type: image/png;
+	name="chart.png"
+Content-Id: <chart@local>
+
+iVBORw0KGgpmYWtlaW1hZ2U=
+
+--Apple-Mail=_33333333-4444--
+
+--Apple-Mail=_11111111-2222
+Content-Disposition: attachment;
+	filename*=utf-8''r%C3%A9sum%C3%A9.pdf
+Content-Type: application/pdf;
+	name="=?utf-8?Q?r=C3=A9sum=C3=A9=2Epdf?="
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQgZmFrZSBwZGYgYnl0ZXMAAQI=
+
+--Apple-Mail=_11111111-2222--

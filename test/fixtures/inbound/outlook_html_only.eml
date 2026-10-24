@@ -1,0 +1,15 @@
+Received: from EUR01-HE1-obe.outbound.protection.outlook.com
+Authentication-Results: i=1; mx.cloudflare.net; dkim=pass header.d=example.org; dmarc=pass header.from=example.org
+From: "Dee Outlook" <dee@example.org>
+To: "page-xyz789@example.com" <page-xyz789@example.com>
+Subject: RE: Release notes
+Thread-Topic: Release notes
+Date: Sat, 24 Oct 2026 11:00:00 +0000
+Message-ID: <AM0PR01MB1234ABCD@example.org>
+In-Reply-To: <earlier@example.com>
+Content-Type: text/html; charset="Windows-1252"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html xmlns:o="urn:schemas-microsoft-com:office:office"><head><style>p.MsoNormal{margin:0}</style></head>
+<body><p class=3D"MsoNormal">The =93release notes=94 page needs updating =96 today.<o:p></o:p></p></body></html>

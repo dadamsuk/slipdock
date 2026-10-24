@@ -18,7 +18,7 @@ defmodule Slipdock.Inbound do
   import Ecto.Query
 
   alias Slipdock.{Accounts, Config, RateLimit, Repo}
-  alias Slipdock.Inbound.{Dispatcher, Email}
+  alias Slipdock.Inbound.{Dispatcher, Email, Message}
 
   # Per address and per sender, an hour at a time (W-1933, "Rate limits").
   @token_limit 30
@@ -88,21 +88,24 @@ defmodule Slipdock.Inbound do
           outcome()
   def receive_message(%{raw: raw, envelope_to: envelope_to} = request) do
     recipient = envelope_to |> to_string() |> String.trim() |> String.downcase()
-    headers = header_block(raw)
-    message_id = message_id(headers, raw)
-    sender = sender(headers, request[:envelope_from])
     {kind, token} = address(recipient)
+    parsed = Message.parse(raw)
 
-    base = %{
-      message_id: message_id,
-      recipient: recipient,
-      sender: sender,
-      subject: header(headers, "subject"),
-      kind: kind,
-      size: byte_size(raw)
-    }
+    base =
+      case parsed do
+        {:ok, message} ->
+          %{
+            message_id: present(message.message_id) || synthetic_id(raw),
+            sender: message.from || envelope_sender(request),
+            subject: message.subject
+          }
 
-    case Repo.get_by(Email, message_id: message_id, recipient: recipient) do
+        {:error, _} ->
+          %{message_id: synthetic_id(raw), sender: envelope_sender(request), subject: nil}
+      end
+      |> Map.merge(%{recipient: recipient, kind: kind, size: byte_size(raw)})
+
+    case Repo.get_by(Email, message_id: base.message_id, recipient: recipient) do
       %Email{outcome: "accepted"} = seen ->
         {:duplicate, seen}
 
@@ -110,8 +113,21 @@ defmodule Slipdock.Inbound do
         {:rejected, reason, seen}
 
       nil ->
-        with :ok <- rate_limit(token, sender) do
-          decide(base, %{kind: kind, token: token, recipient: recipient, sender: sender, raw: raw})
+        with :ok <- rate_limit(token, base.sender) do
+          case parsed do
+            {:ok, message} ->
+              decide(base, %{
+                kind: kind,
+                token: token,
+                recipient: recipient,
+                sender: base.sender,
+                message: message
+              })
+
+            {:error, _} ->
+              reason = "The message couldn't be read."
+              {:rejected, reason, record(base, %{}, "rejected", reason)}
+          end
         end
     end
   end
@@ -206,58 +222,17 @@ defmodule Slipdock.Inbound do
     |> Repo.all()
   end
 
-  ## Headers, just enough to file the message before it is parsed properly
-
-  # The header block, unfolded, as `{lowercase name, value}` pairs in order.
-  defp header_block(raw) do
-    head =
-      case :binary.match(raw, ["\r\n\r\n", "\n\n"]) do
-        {at, _} -> binary_part(raw, 0, at)
-        :nomatch -> raw
-      end
-
-    head
-    |> String.replace(~r/\r?\n[ \t]+/, " ")
-    |> String.split(~r/\r?\n/)
-    |> Enum.flat_map(fn line ->
-      case String.split(line, ":", parts: 2) do
-        [name, value] -> [{name |> String.trim() |> String.downcase(), String.trim(value)}]
-        _ -> []
-      end
-    end)
-  end
-
-  defp header(headers, name) do
-    case List.keyfind(headers, name, 0) do
-      {_, value} -> if String.valid?(value), do: value, else: nil
-      nil -> nil
-    end
-  end
-
   # A message with no Message-ID still has to be recognised when it repeats.
-  defp message_id(headers, raw) do
-    case header(headers, "message-id") do
-      id when is_binary(id) and id != "" ->
-        id
+  defp synthetic_id(raw),
+    do: "<" <> Base.encode16(:crypto.hash(:sha256, raw), case: :lower) <> "@slipdock.invalid>"
 
-      _ ->
-        "<" <> Base.encode16(:crypto.hash(:sha256, raw), case: :lower) <> "@slipdock.invalid>"
-    end
-  end
+  defp present(nil), do: nil
+  defp present(value), do: if(String.trim(value) == "", do: nil, else: value)
 
-  defp sender(headers, envelope_from) do
-    from = header(headers, "from")
-
-    address =
-      case from && Regex.run(~r/<([^<>@\s]+@[^<>\s]+)>/, from) do
-        [_, address] -> address
-        _ -> from || envelope_from
-      end
-
-    case address && String.trim(address) do
-      nil -> nil
-      "" -> nil
-      address -> String.downcase(address)
+  defp envelope_sender(request) do
+    case request[:envelope_from] do
+      from when is_binary(from) and from != "" -> from |> String.trim() |> String.downcase()
+      _ -> nil
     end
   end
 end
