@@ -219,7 +219,7 @@ slipdock table <board> [view options] [--group A] [--fields id,title,column,prio
 slipdock views <board>                      # saved swimlane views
 slipdock favourites                         # what this person keeps going back to, with a URL each
 slipdock passkeys                           # your own passkeys; `passkeys remove <id>` revokes one (only when asked)
-slipdock inbound <board> [--rotate]         # your address for emailing cards onto a board (only takes mail from you); --rotate only when asked: the old one bounces
+slipdock inbound <board> [--rotate]         # your card- and page- addresses for a board (only take mail from you); page-: subject = page title, "[Folder] Title" files it (else Inbox), "+ Title" appends a dated section to that page; --rotate only when asked: the old ones bounce
 slipdock inbound me [--rotate] [--ack on|off]   # your personal Quick Add address (subject picks board, list, #priority, due:); --ack: a link back per card
 slipdock inbound log                        # your last 50 inbound emails and what came of each (why one bounced)
 slipdock search <words...> [--board B] [--limit N] [--archived] [--full]   # a card's #id or link finds it, archived too

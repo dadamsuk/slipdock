@@ -184,7 +184,7 @@ defmodule SlipdockWeb.HelpLive.Agents do
        {:yes, "through the CLI or MCP"},
        {:no, "one way only"}
      ]},
-    {"Get your address for emailing cards onto a board, or rotate it",
+    {"Get your addresses for emailing cards and wiki pages onto a board, or rotate them",
      [
        {:yes, "GET /api/boards/:id/inbound, /api/me/inbound"},
        {:no, "not a tool: the address is for a person's mail client"},

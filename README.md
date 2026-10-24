@@ -196,9 +196,11 @@ Briefly, with the detail in [the manual](docs/manual.md):
   form and no model at all — with alerts in the header
   and callbacks (GET or POST, with the card's title, link, dates, flags and
   status) out to anything else you run, each one logged with what came back.
-- **Email a card in** — [your own address for each board, and one for Quick
+- **Email a card in** — [your own addresses for each board, and one for Quick
   Add](docs/manual.md#emailing-your-board): forward a message and it is a card,
-  attachments and all (needs [Receiving email](#receiving-email)).
+  attachments and all, or mail the board's page address and it is a wiki page
+  (`[Folder] Title` files it, `+ Title` adds a dated section to that page)
+  (needs [Receiving email](#receiving-email)).
 - **Semantic Search** - find what you're looking for even when you can't remember exactly what it is.
 - **AI, on your own key — or your own hardware** — [chat about a board, ask
   questions in prose over every board at once, search by meaning rather than
@@ -683,7 +685,8 @@ SLIPDOCK_INBOUND_SECRET=…                  # shared with the Worker (wrangler 
 SLIPDOCK_INBOUND_SECRET_PREVIOUS=…         # still accepted while you rotate it
 ```
 
-Once it is on, everybody has a `card-…@` address for each board they can
+Once it is on, everybody has a `card-…@` and a `page-…@` address (a new card,
+a new wiki page or `+ Title` to add to one) for each board they can
 write to (the board's `…` menu › *Email to this board*, `slipdock inbound
 <board>`) and a personal `add-…@` address that goes through Quick Add
 (Account, `slipdock inbound me`): see [Emailing your

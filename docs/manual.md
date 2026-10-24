@@ -49,7 +49,8 @@ way in: what it is, the pictures, and how to get it running.
   A card's first image is a thumbnail on its front — see [Images on the card front](#images-on-the-card-front).
   A recording plays in place, and can be transcribed — see [Recordings](#recordings)
 - Email: forward or send a message to your board's own address and it is a
-  card, attachments included — see [Emailing your board](#emailing-your-board)
+  card, attachments included, or to its page address and it is a wiki page
+  (`+ Title` adds to one) — see [Emailing your board](#emailing-your-board)
 - @mentions: `@someone` in a card's description or a comment — the part of
   their email before the "@", or a one-word name — names a person who can see
   the board. Typing `@` offers the board's members; a mention shows as a chip,
@@ -2040,8 +2041,9 @@ picked, matching names back to rows, writing the card),
 
 When the server receives mail (`SLIPDOCK_INBOUND_DOMAIN`, see
 [Receiving email](../README.md#receiving-email)), every person has their own
-addresses to send cards in from their mail client: forward an invoice, a bug
-report or a note to yourself, and it is a card.
+addresses to send cards and wiki pages in from their mail client: forward an
+invoice, a bug report or a note to yourself, and it is a card; send meeting
+notes or a day's journal to the page address, and it is a page.
 
 **The addresses.** Each is yours alone, and only takes mail *from* your own
 account's address:
@@ -2049,10 +2051,12 @@ account's address:
 | Address | Where it is | What mail to it makes |
 |---|---|---|
 | `card-…@<domain>` | the board's `…` menu › *Email to this board*; `slipdock inbound <board>`; `GET /api/boards/:board/inbound` | a card on that board's ready list |
+| `page-…@<domain>` | the same places, next to the card address | a wiki page on that board, or a dated section added to one (`+ Title`) |
 | `add-…@<domain>` | Account › *Email a card in*; `slipdock inbound me`; `GET /api/me/inbound` | a card through [Quick add](#quick-add), to any board |
 
-There is one card address per board you can write to (somebody who can only
-read a board has none), and one personal address. Every one has a Copy button
+There is one card address and one page address per board you can write to
+(somebody who can only read a board has neither), and one personal address.
+The two board addresses are rotated together. Every one has a Copy button
 and **New address**: that makes a new one, and mail to the old one bounces
 from then on — do it if an address has leaked. `slipdock inbound <board>
 --rotate` and `POST …/inbound/rotate` do the same. Taking back somebody's
@@ -2068,6 +2072,23 @@ share of a board turns their address for it off.
 - **Attachments** are uploaded to the card; images embedded in the message
   (`cid:`) are shown in the description where they were.
 - The card is **yours**: its timeline says you added it, by email.
+
+**Mail to the page address** makes a wiki page the same way: the subject is
+the title, the body the page (its first line the summary), and attachments
+are the page's files, with `cid:` images shown where they were. The page's
+history says it came by email (`By email from <you>`).
+
+- It goes in the **`Inbox`** folder, made the first time. Start the subject
+  with a folder to file it there instead: `[Design/Decisions] Use Postgres`
+  makes any folder along the path that is missing.
+- A title another page already has is fine: you get a second page, as you
+  would writing it in the wiki.
+- **`+ Title` adds to a page instead** — a running log or a journal. `+
+  Journal` finds the page called *Journal* on that board (any case) and adds
+  `## 2026-10-24 — Your Name` with the message under it, in your own
+  timezone; its attachments go on the page. The whole body goes in, however
+  long. With several pages of that title, the one changed most lately gets
+  it; archived pages and templates are never added to.
 
 **The personal address reads the subject as Quick Add does**: `Renew the cert
 due: friday #high @dan`, `#todo` for a list, `every:`, `snooze:` and `; a
@@ -2086,8 +2107,11 @@ reads ("… on the website board").
   bounce lists the ones you can;
 - the account that owns the board is full (`card_limit_reached`) or its trial
   has run out. Attachments that don't fit the storage limit are left off and
-  a comment on the card names them; only a message that is nothing *but*
-  files that don't fit bounces;
+  a comment on the card (or a note at the end of the page) names them; only
+  a message that is nothing *but* files that don't fit bounces;
+- for `+ Title`: there is no page of that title on the board (the bounce
+  suggests up to five close titles), nothing follows the `+`, or the message
+  had nothing in it to add;
 - too much mail to one address or from one sender in an hour.
 
 Automatic mail — auto-replies, bulk and list mail, anything that says
@@ -2104,8 +2128,8 @@ Account tab (`slipdock inbound me --ack on`, `POST /api/me/inbound
 It is never sent for mail that bounced or was ignored, and never twice for one
 message.
 
-The code: `Slipdock.Inbound.Tokens` (addresses), `Slipdock.Inbound.Cards` and
-`Slipdock.Inbound.QuickAdd` (what mail makes), `Slipdock.Inbound.Ack`. The
+The code: `Slipdock.Inbound.Tokens` (addresses), `Slipdock.Inbound.Cards`,
+`Slipdock.Inbound.Pages` and `Slipdock.Inbound.QuickAdd` (what mail makes), `Slipdock.Inbound.Ack`. The
 design and the Cloudflare runbook are W-1933 on the Slipdock board's wiki.
 
 ## Deep search and Ask
