@@ -196,4 +196,128 @@ defmodule Slipdock.HandbookTest do
              ) =~ "none"
     end
   end
+
+  describe "for_card/3 (#1264)" do
+    setup %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      {:ok, t} = Boards.find_template(nil, "Simple")
+      [col | _] = board.columns
+      epic = card_fixture(col, %{"title" => "Epic"})
+      {:ok, sub} = sub_board(epic, t)
+      [sub_col | _] = Boards.get_board!(sub.id).columns
+      story = card_fixture(sub_col, %{"title" => "Story"})
+      {:ok, subsub} = sub_board(story, t)
+      [deep_col | _] = Boards.get_board!(subsub.id).columns
+      %{deep_col: deep_col, col: col}
+    end
+
+    test "a subcard two sub-boards down gets the root's index and the UI sections",
+         %{user: user, board: board, deep_col: deep_col} do
+      card =
+        card_fixture(deep_col, %{
+          "title" => "UI: a reusable dropdown menu component for the card form"
+        })
+
+      reading = Handbook.for_card(card, user)
+      assert reading.board == Boards.get_board!(board.id).code
+      assert reading.index_page == Handbook.find(board).index.code
+      assert "UX & UI" in Enum.map(reading.index, & &1.title)
+      refute "Index" in Enum.map(reading.index, & &1.title)
+      assert reading.more == 0
+
+      titles = Enum.map(reading.suggested, & &1.title)
+      assert length(reading.suggested) <= 5
+      assert Enum.take(Enum.uniq(titles), 2) |> Enum.sort() == ["Components", "UX & UI"]
+      assert Enum.find(reading.suggested, &(&1.title == "UX & UI")).section =~ "UX & UI/"
+    end
+
+    test "a board without a handbook gives nil", %{user: user} do
+      other = board_fixture(%{}, owner: user)
+      [col | _] = other.columns
+      assert Handbook.for_card(card_fixture(col, %{"title" => "UI menu"}), user) == nil
+    end
+
+    test "a page whose covers glob matches a path the card names comes first",
+         %{user: user, board: board, col: col} do
+      arch = Repo.get_by!(Page, board_id: board.id, title: "Architecture")
+
+      {:ok, _} =
+        Wiki.update_page(arch, %{
+          "front_matter" =>
+            "---\nhandbook: architecture\nread_when: x\ncovers: [lib/app/**, priv/repo/migrations/**]\n---\n\n"
+        })
+
+      card =
+        card_fixture(col, %{
+          "title" => "Fix the menu",
+          "description" => "The bug is in `lib/app/accounts/user.ex`."
+        })
+
+      [first | _] = Handbook.for_card(card, user).suggested
+      assert first.title == "Architecture"
+      assert first.section == nil
+      assert first.why == "covers lib/app/accounts/user.ex"
+    end
+
+    test "the index stays under its cap however many pages the folder holds",
+         %{user: user, board: board, col: col} do
+      %{folder: folder} = Handbook.find(board)
+
+      for i <- 1..40 do
+        {:ok, _} =
+          Wiki.create_page(board, %{
+            "title" => "Extra #{i}",
+            "folder_id" => folder.id,
+            "summary" => String.duplicate("long summary ", 20),
+            "front_matter" => "---\nread_when: #{String.duplicate("often ", 30)}\n---\n\n"
+          })
+      end
+
+      reading = Handbook.for_card(card_fixture(col, %{"title" => "Anything"}), user)
+      assert byte_size(Jason.encode!(reading.index)) <= Handbook.index_cap()
+      assert reading.more > 0
+      assert Enum.all?(reading.index, &(String.length(&1.summary || "") <= 90))
+    end
+
+    test "a reader who can't read the root board gets nothing", %{board: board, col: col} do
+      stranger = user_fixture("handbook-reader@example.com")
+      card = card_fixture(col, %{"title" => "UI menu"})
+      assert Handbook.for_card(card, stranger) == nil
+      assert Handbook.for_board(board, stranger) == nil
+    end
+
+    test "for_board lists the index and the decisions", %{user: user, board: board} do
+      {:ok, dec} = Folders.find(board, "/Handbook/Decisions")
+
+      {:ok, _} =
+        Wiki.create_page(board, %{"title" => "Decision: soft gate", "folder_id" => dec.id})
+
+      reading = Handbook.for_board(board, user)
+      assert length(reading.index) == 8
+      assert Enum.map(reading.decisions, & &1.title) == ["Decision: soft gate"]
+    end
+  end
+
+  describe "glob_match?/2 and mentioned_paths/1" do
+    test "** crosses folders, * doesn't, and a folder matches what is under it" do
+      assert Handbook.glob_match?("lib/app/**", "lib/app/a/b.ex")
+      assert Handbook.glob_match?("lib/*.ex", "lib/a.ex")
+      refute Handbook.glob_match?("lib/*.ex", "lib/a/b.ex")
+      assert Handbook.glob_match?("lib/app/**", "lib/app/")
+      refute Handbook.glob_match?("lib/app/**", "test/app/x.exs")
+      refute Handbook.glob_match?(nil, "lib/a.ex")
+    end
+
+    test "finds paths and files, not urls" do
+      paths =
+        Handbook.mentioned_paths(
+          "See lib/app/x.ex and mix.exs, https://example.com/a/b, and assets/css/"
+        )
+
+      assert "lib/app/x.ex" in paths
+      assert "mix.exs" in paths
+      assert "assets/css/" in paths
+      refute Enum.any?(paths, &String.contains?(&1, "example.com"))
+    end
+  end
 end
