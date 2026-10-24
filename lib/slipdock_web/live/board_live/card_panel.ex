@@ -128,10 +128,10 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           class="meta-action"
           title="Move this card to another board, with its subcards"
         >
-          another board…
+          Move to board…
         </button>
         <span>· created {relative_time(@card.inserted_at)}</span>
-        <%!-- The actions on this line (another board…, the handoff, Ask
+        <%!-- The actions on this line (Move to board…, the handoff, Ask
               questions) are drawn as buttons, `meta-action`, whether they
               are buttons or links, so they don't read as more text (#1230). --%>
         <%!-- Most cards never get a handoff, so until one is written it is

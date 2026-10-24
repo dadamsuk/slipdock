@@ -5,7 +5,7 @@ defmodule SlipdockWeb.BoardLive.MoveBoardComponent do
   Dragging cannot cross a board — the other board is not on screen — so the
   only way there was to retype the card and delete the original, which loses
   its comments, its history and its subcards. This is a picker: the boards
-  you can write to, then that board's lists.
+  you can write to — typed into to find one (#1232) — then that board's lists.
 
   Boards the user can write to means root boards: a sub-board is reached
   through its card, and moving a card *into* someone's subcards is a
@@ -24,7 +24,8 @@ defmodule SlipdockWeb.BoardLive.MoveBoardComponent do
   alias Slipdock.Boards.Board
   alias SlipdockWeb.Params
 
-  @events ~w(open_move_board close_move_board move_board_pick move_card_board)
+  @events ~w(open_move_board close_move_board move_board_filter move_board_first
+             move_board_pick move_card_board)
 
   @doc false
   # For the test that every `handle_event/3` clause is in the list.
@@ -79,12 +80,31 @@ defmodule SlipdockWeb.BoardLive.MoveBoardComponent do
             &(&1.id != card.board_id and Access.can_write?(Access.board_permission(user, &1)))
           )
 
-        {:noreply, assign(socket, move_board: %{card: card, boards: boards, target: nil})}
+        {:noreply,
+         assign(socket, move_board: %{card: card, boards: boards, query: "", target: nil})}
     end
   end
 
   defp event("close_move_board", _params, socket),
     do: {:noreply, assign(socket, move_board: nil)}
+
+  defp event("move_board_filter", %{"q" => q}, %{assigns: %{move_board: %{} = m}} = socket)
+       when is_binary(q),
+       do: {:noreply, assign(socket, move_board: %{m | query: q})}
+
+  # Enter in the search box takes the best match, so a board can be found and
+  # picked without leaving the keyboard. Nothing matching, nothing happens.
+  defp event("move_board_first", params, %{assigns: %{move_board: %{} = m}} = socket) do
+    q = if is_binary(params["q"]), do: params["q"], else: m.query
+
+    target =
+      case matching(m.boards, q) do
+        [board | _] -> Boards.get_board!(board.id)
+        [] -> nil
+      end
+
+    {:noreply, assign(socket, move_board: %{m | query: q, target: target})}
+  end
 
   defp event("move_board_pick", %{"id" => id}, %{assigns: %{move_board: %{} = m}} = socket) do
     target =
@@ -132,6 +152,28 @@ defmodule SlipdockWeb.BoardLive.MoveBoardComponent do
   end
 
   defp event("move_card_board", _params, socket), do: {:noreply, socket}
+  defp event(_event, _params, socket), do: {:noreply, socket}
+
+  @doc false
+  # The boards whose name or code holds every word typed, in any case; those
+  # whose name starts with what was typed come first, so Enter takes the one
+  # most likely meant. Blank matches every board, in the order given.
+  def matching(boards, query) do
+    case query |> String.downcase() |> String.split(~r/\s+/, trim: true) do
+      [] ->
+        boards
+
+      words ->
+        prefix = query |> String.trim() |> String.downcase()
+
+        boards
+        |> Enum.filter(fn board ->
+          hay = String.downcase("#{board.name} #{board.code}")
+          Enum.all?(words, &String.contains?(hay, &1))
+        end)
+        |> Enum.sort_by(&(not String.starts_with?(String.downcase(&1.name), prefix)))
+    end
+  end
 
   @impl true
   def render(assigns) do
@@ -186,6 +228,8 @@ defmodule SlipdockWeb.BoardLive.MoveBoardComponent do
   # comments and history always; tags by name; custom fields only where the
   # other board has the same one.
   defp move_board_modal(assigns) do
+    assigns = assign(assigns, matches: matching(assigns.move.boards, assigns.move.query))
+
     ~H"""
     <.modal id="move-board-modal" on_close={JS.push("close_move_board", target: @target)} size="sm">
       <div class="space-y-4 p-6">
@@ -200,8 +244,33 @@ defmodule SlipdockWeb.BoardLive.MoveBoardComponent do
 
         <div :if={@move.boards != [] and is_nil(@move.target)} class="space-y-1.5">
           <p class="text-2xs font-semibold uppercase tracking-wide text-base-content/60">Board</p>
-          <ul class="kanban-scroll max-h-[50vh] divide-y divide-base-300/60 overflow-y-auto rounded-xl ring-1 ring-base-content/10">
-            <li :for={board <- @move.boards}>
+          <form
+            id="move-board-find"
+            phx-change="move_board_filter"
+            phx-submit="move_board_first"
+            phx-target={@target}
+          >
+            <input
+              id="move-board-q"
+              type="search"
+              name="q"
+              value={@move.query}
+              placeholder="Type to find a board"
+              aria-label="Find a board"
+              autocomplete="off"
+              phx-debounce="100"
+              phx-mounted={JS.focus()}
+              class="input input-sm w-full"
+            />
+          </form>
+          <p :if={@matches == []} id="move-board-none" class="text-sm text-base-content/60">
+            No board matches “{@move.query}”.
+          </p>
+          <ul
+            :if={@matches != []}
+            class="kanban-scroll max-h-[50vh] divide-y divide-base-300/60 overflow-y-auto rounded-xl ring-1 ring-base-content/10"
+          >
+            <li :for={board <- @matches}>
               <button
                 phx-target={@target}
                 type="button"

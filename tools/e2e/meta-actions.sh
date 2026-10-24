@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # End to end in a real browser (#1230): the actions on a card's meta line
-# ("another board…", the handoff link, "Ask questions") are drawn as buttons,
+# ("Move to board…", the handoff link, "Ask questions") are drawn as buttons,
 # with a border and a fill, and the plain text beside them is not.
 #
 #   tools/e2e/meta-actions.sh       (SHOTS=dir to keep screenshots)
