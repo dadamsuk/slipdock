@@ -13,12 +13,12 @@ defmodule Slipdock.Inbound.Dispatcher do
   `card-…` makes a card on the board's ready list (#1247,
   `Slipdock.Inbound.Cards`); `add-…` goes through Quick Add (#1248,
   `Slipdock.Inbound.QuickAdd`), which checks the board it picks itself;
-  `page-…` makes or adds to a wiki page (#1251, `Slipdock.Inbound.Pages`).
-  The kinds not acted on yet are refused; the epics after #1233 fill them
-  in, one clause each.
+  `page-…` makes or adds to a wiki page (#1251, `Slipdock.Inbound.Pages`);
+  `reply-…` comments on the card a notification was about (#1258,
+  `Slipdock.Inbound.Replies`).
   """
 
-  alias Slipdock.Inbound.{Cards, Pages, QuickAdd, Tokens, Trust}
+  alias Slipdock.Inbound.{Cards, Pages, QuickAdd, Replies, ReplyToken, Tokens, Trust}
 
   @type request :: %{
           kind: String.t(),
@@ -29,9 +29,9 @@ defmodule Slipdock.Inbound.Dispatcher do
         }
 
   # The kinds mail is acted on, and so the addresses the app hands out.
-  @live [:card, :page, :add]
+  @live [:card, :page, :add, :reply]
 
-  @doc "Whether mail to addresses of `kind` (`:card`, `:page`, `:add`) is acted on yet."
+  @doc "Whether mail to addresses of `kind` (`:card`, `:page`, `:add`, `:reply`) is acted on yet."
   @spec live?(atom()) :: boolean()
   def live?(kind), do: kind in @live
 
@@ -68,6 +68,21 @@ defmodule Slipdock.Inbound.Dispatcher do
     end
   end
 
+  def dispatch(%{kind: "reply", token: token, message: message}) do
+    case ReplyToken.verify(token) do
+      {:ok, card, user} ->
+        with :ok <- trust(message, user, {:card, card}) do
+          case Replies.to_card(user, card, message) do
+            {:ok, attrs} -> {:ok, attrs}
+            {:reject, reason} -> {:reject, reason, %{user_id: user.id}}
+          end
+        end
+
+      {:error, why} ->
+        {:reject, reply_refused(why), %{}}
+    end
+  end
+
   def dispatch(%{kind: _kind}),
     do: {:reject, "Mail to this address isn't set up on this server yet.", %{}}
 
@@ -82,6 +97,15 @@ defmodule Slipdock.Inbound.Dispatcher do
       {:error, why} -> {:reject, unresolved(why), %{}}
     end
   end
+
+  # Every refusal of a reply address is said plainly, but a forged one is
+  # not told what a real one would look like.
+  defp reply_refused(:expired),
+    do: "This reply address has expired. Comment on the card in Slipdock instead."
+
+  defp reply_refused(:gone), do: "The card this reply was for has been deleted or archived."
+  defp reply_refused(:forbidden), do: "You can no longer comment on this card."
+  defp reply_refused(_), do: "No such address here."
 
   defp unresolved(:revoked),
     do: "This address is no longer in use: its owner has replaced it or turned it off."
