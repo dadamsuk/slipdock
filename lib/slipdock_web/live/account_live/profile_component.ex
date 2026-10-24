@@ -238,6 +238,13 @@ defmodule SlipdockWeb.AccountLive.ProfileComponent do
 
       <.live_component
         :if={Slipdock.Inbound.enabled?()}
+        module={SlipdockWeb.InboundAddressesComponent}
+        id="account-inbound"
+        current_user={@current_user}
+      />
+
+      <.live_component
+        :if={Slipdock.Inbound.enabled?()}
         module={SlipdockWeb.AccountLive.InboundLogComponent}
         id="account-inbound-log"
         current_user={@current_user}

@@ -129,6 +129,8 @@ defmodule SlipdockWeb.BoardLive.BoardView do
     default: nil,
     doc: "where the menu's Capture a meeting goes, if anywhere"
 
+  attr :inbound, :boolean, default: false, doc: "whether the menu offers Email to this board"
+
   @doc "The board's own buttons, at the end of its toolbar: sprints, the chat and the board's menu, sharing among it."
   def board_actions(assigns) do
     ~H"""
@@ -204,6 +206,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
             can_manage={@can_manage}
             rules={@rules}
             meetings_path={@meetings_path}
+            inbound={@inbound}
           />
         </ul>
       </div>
@@ -218,6 +221,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :ai?, :boolean, required: true
   attr :rules, :list, required: true
   attr :meetings_path, :string, default: nil
+  attr :inbound, :boolean, default: false, doc: "whether the menu offers Email to this board"
 
   @doc """
   The board's entries in the phone's navigation Menu: what the header's
@@ -238,6 +242,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
       can_manage={@can_manage}
       rules={@rules}
       meetings_path={@meetings_path}
+      inbound={@inbound}
     />
     """
   end
@@ -247,6 +252,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :can_manage, :boolean, required: true
   attr :rules, :list, required: true
   attr :meetings_path, :string, default: nil
+  attr :inbound, :boolean, default: false, doc: "whether the menu offers Email to this board"
 
   # The board's own menu, wherever it is drawn: the toolbar's `…` or the
   # phone's Menu, each with its own id on the share link. Three groups:
@@ -269,6 +275,18 @@ defmodule SlipdockWeb.BoardLive.BoardView do
       <.link navigate={@paths.tidy} id={@share_id <> "-tidy"}>
         <.icon name="hero-sparkles" class="size-4" /> Tidy up…
       </.link>
+    </li>
+    <%!-- Inbound mail on and the reader can add cards: their own addresses
+          for the board (#1245, `SlipdockWeb.InboundAddressesComponent`). --%>
+    <li :if={@inbound}>
+      <button
+        type="button"
+        id={@share_id <> "-inbound"}
+        phx-click="open"
+        phx-target="#board-inbound"
+      >
+        <.icon name="hero-envelope" class="size-4" /> Email to this board
+      </button>
     </li>
 
     <li class="mt-1 border-t border-base-300/60 pt-1">

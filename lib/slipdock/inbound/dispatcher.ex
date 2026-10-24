@@ -22,6 +22,13 @@ defmodule Slipdock.Inbound.Dispatcher do
           message: Slipdock.Inbound.Message.t()
         }
 
+  # The kinds mail is acted on, and so the addresses the app hands out.
+  @live [:card, :add]
+
+  @doc "Whether mail to addresses of `kind` (`:card`, `:page`, `:add`) is acted on yet."
+  @spec live?(atom()) :: boolean()
+  def live?(kind), do: kind in @live
+
   @spec dispatch(request()) :: {:ok, map()} | {:reject, String.t(), map()}
   def dispatch(%{kind: "unknown"}), do: {:reject, "No such address here.", %{}}
 
