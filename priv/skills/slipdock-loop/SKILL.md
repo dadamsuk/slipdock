@@ -266,6 +266,15 @@ A **handoff** (`Left off:`, first under the title) is where whoever had it last
 left it — the one next step and their note: read it first and start there.
 `slipdock handoff <id>` shows it with the ones before it.
 
+**The handbook.** On a board that keeps one, `slipdock card` (over MCP,
+`get_card`'s `handbook`) shows a **Handbook** block: up to five sections
+picked for this card, each with the command that reads it (`slipdock page
+section W-4 "UX & UI/Patterns"`, or `page read` for a whole page). Read
+those before building: they say how this project does the thing the card
+touches. `slipdock handbook <board>` is the whole index, when the
+suggestions miss something the card plainly needs. No block means no
+handbook: carry on as below.
+
 ## 4. Claim it, and say so
 
 The claim is the lock — do it before any work, so a concurrent pass or a
@@ -344,6 +353,10 @@ thing>` first, extend what exists, `slipdock page new <board> <title...>`
 otherwise) and is named in the closing comment by its code (`W-31`). Progress,
 blockers and what happened *now* stay on the card. Never both.
 
+On a handbook board the handbook comes first: what the project *is* goes in
+its section pages, and a choice between alternatives is a new page in
+`Handbook/Decisions` (see the docs gate in step 7).
+
 ### How a comment reads
 
 Comments are Markdown, rendered on the card, and a person skims them. Write
@@ -410,6 +423,37 @@ anybody reads later:
    scope beyond what one card should hold, open a wait as in **Handing a card
    back**), check it as above, and say on the card what you changed for it.
    Nothing new: carry on — no comment needed.
+
+   **Then the docs gate, on a handbook board** (the card showed a Handbook
+   block). Run the diff against this table and update what it names:
+
+   | The card… | Updates… |
+   |---|---|
+   | added user-visible behaviour | Specification |
+   | changed structure or boundaries | Architecture / Data model |
+   | chose between alternatives (asked for, or an implementation choice) | a new page in `Handbook/Decisions` |
+   | added something reusable | Shared modules / Components |
+   | added or changed a UI pattern | UX & UI |
+   | changed how to test, build or deploy | Testing & tooling / Operations |
+
+   Edit by section, never the whole page: `slipdock page section <page>
+   "<path>" --body - --message "#<card> <what changed>"` (or `--append`), so
+   the page's history points back at the card. A decision page is titled
+   `Decision: <what was chosen>`: the context, the choice, the alternatives
+   and why not, and a link to the card. A card that names a page ("Document
+   in: Architecture") must update that page. Write how things are *now*;
+   the history is in the decisions and the page history.
+
+   Then record it in the wrap-up's **`Handbook:` line**: what was updated,
+   by page code and section, or why nothing needed to be:
+
+   ```
+   Handbook: updated W-3 §Contexts, new W-41
+   Handbook: no change (a test-only fix; no behaviour or structure moved)
+   ```
+
+   The gardener reads that line: a card closed on a handbook board without
+   one is flagged. On a board with no handbook, leave the line out.
 2. **Commit**, with the card id in the message (`#129`), and push if that is the
    project's convention. One card, one commit, so the card and the diff point at
    each other.
@@ -495,6 +539,7 @@ anybody reads later:
    - Tests: mix test --stale — 38 passed, 0 failed; full suite in CI
    - Commit: `abc1234` (master) — https://github.com/owner/repo/commit/abc1234
    - CI: passed — <workflow> #<run-id> <run url>   (or "failed once, fixed in def5678", "started — … (checked before the epic closes)" on a subcard, or "no CI")
+   - Handbook: updated W-3 §Contexts, new W-41   (or "no change (<why>)"; only on a handbook board)
    - Follow-ups: <anything deliberately not done, and where it went — card #141, W-31, or "none">
    - Token cost: ~135k tokens (context budget 15.00M → 14.86M, claim to close)
    ```

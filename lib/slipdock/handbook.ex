@@ -563,6 +563,26 @@ defmodule Slipdock.Handbook do
     end
   end
 
+  ## The docs gate's record (#1266) ---------------------------------------------
+
+  # `Handbook: …` on a line of its own, as a list item or bold or quoted,
+  # with something after it: what was updated, or `no change (why)`.
+  @gate_line ~r/^[ \t>]*(?:[-*+][ \t]+)?(?:\*\*|__)?Handbook:(?:\*\*|__)?[ \t]*(\S[^\n]*)$/m
+
+  @doc """
+  What a closing comment's `Handbook:` line says (`"updated W-3 §Contexts"`,
+  `"no change (tests only)"`), or nil when `text` has none. The loop writes
+  the line; the gardener reads it.
+  """
+  def gate_line(text) when is_binary(text) do
+    case Regex.run(@gate_line, text) do
+      [_, said] -> String.trim(said)
+      _ -> nil
+    end
+  end
+
+  def gate_line(_), do: nil
+
   @doc "A page's `handbook:` key (`architecture`, `index`, …), or nil."
   def key(%Page{} = page), do: field(page, "handbook")
 
