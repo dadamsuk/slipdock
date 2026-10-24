@@ -1,0 +1,31 @@
+From: "Dee Outlook" <dee@example.org>
+To: reply-signedtoken@example.com
+Subject: RE: [slipdock] #1233 Inbound email
+Message-ID: <AM0PR01MB5678@example.org>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="_000_outlook_"
+
+--_000_outlook_
+Content-Type: text/plain; charset="us-ascii"
+
+Agreed, let's do it Monday.
+
+Get Outlook for iOS<https://aka.ms/o0ukef>
+________________________________
+From: Slipdock <noreply@example.com>
+Sent: Saturday, October 24, 2026 1:00 PM
+To: Dee Outlook <dee@example.org>
+Subject: [slipdock] #1233 Inbound email
+
+A card was updated.
+
+--_000_outlook_
+Content-Type: text/html; charset="us-ascii"
+
+<html><body><div>Agreed, let's do it <b>Monday</b>.</div>
+<div id="ms-outlook-mobile-signature">Get Outlook for iOS</div>
+<hr style="display:inline-block;width:98%" tabindex="-1">
+<div id="divRplyFwdMsg" dir="ltr"><b>From:</b> Slipdock &lt;noreply@example.com&gt;<br><b>Sent:</b> Saturday</div>
+<div>A card was updated.</div></body></html>
+
+--_000_outlook_--

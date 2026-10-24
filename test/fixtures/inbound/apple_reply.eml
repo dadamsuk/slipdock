@@ -1,0 +1,24 @@
+From: Erin Apple <erin@example.com>
+To: reply-signedtoken@example.com
+Subject: Re: Receipts
+Message-Id: <APPLE-REPLY-1@example.com>
+Mime-Version: 1.0 (Mac OS X Mail 16.0)
+Content-Type: multipart/alternative; boundary="Apple-Mail=_reply"
+
+--Apple-Mail=_reply
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+Yes, both are paid.
+
+Erin
+
+> On 24 Oct 2026, at 12:00, Slipdock <noreply@example.com> wrote:
+>=20
+> A card was updated.
+
+--Apple-Mail=_reply
+Content-Type: text/html; charset=utf-8
+
+<html><body><div>Yes, both are paid.</div><div><br></div><div>Erin</div><div><br><blockquote type="cite"><div>On 24 Oct 2026, at 12:00, Slipdock &lt;noreply@example.com&gt; wrote:</div><div>A card was updated.</div></blockquote></div></body></html>
+--Apple-Mail=_reply--
