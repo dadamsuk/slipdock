@@ -79,7 +79,7 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
         >{@form[:title].value}</textarea>
       </div>
       <p :if={@form[:title].errors != []} class="text-sm text-error">Title can't be blank.</p>
-      <div class="flex flex-wrap items-center gap-x-1.5 px-1 text-sm text-base-content/50">
+      <div class="flex flex-wrap items-center gap-x-1.5 gap-y-1 px-1 text-sm text-base-content/50">
         <%!-- A link, not a button: this sits in the fieldset that is
               disabled for a read-only card, and a reader can share a link
               too. The hook copies the URL instead of following it. --%>
@@ -125,37 +125,38 @@ defmodule SlipdockWeb.BoardLive.CardPanel do
           phx-click="open_move_board"
           phx-target="#board-move"
           phx-value-id={@card.id}
-          class="link link-hover text-base-content/60 hover:text-primary"
+          class="meta-action"
           title="Move this card to another board, with its subcards"
         >
           another board…
         </button>
         <span>· created {relative_time(@card.inserted_at)}</span>
+        <%!-- The actions on this line (another board…, the handoff, Ask
+              questions) are drawn as buttons, `meta-action`, whether they
+              are buttons or links, so they don't read as more text (#1230). --%>
         <%!-- Most cards never get a handoff, so until one is written it is
               this and no more (W-1804). A link, not a button, like the copy
               link: this fieldset is disabled for a commenter, who may
               write one. --%>
-        <span :if={@handoff_link}>·</span>
         <a
           :if={@handoff_link}
           id="handoff-edit"
           href="#"
           phx-click="edit_handoff"
           phx-target={@target}
-          class="link link-hover text-base-content/60 hover:text-primary"
+          class="meta-action"
           title="Say where you left this card, so whoever picks it up next reads that first"
         >
           Add “{Slipdock.Boards.Board.handoff_label(@board)}”
         </a>
         <%!-- Follow-up questions (#1220): ask someone, a box per question. --%>
-        <span :if={@ask_link}>·</span>
         <a
           :if={@ask_link}
           id="wait-ask"
           href="#"
           phx-click="ask_questions"
           phx-target={@target}
-          class="link link-hover text-base-content/60 hover:text-primary"
+          class="meta-action"
           title="Ask someone questions on this card: the card waits on their answers"
         >
           Ask questions

@@ -381,6 +381,35 @@ defmodule SlipdockWeb.HandoffLiveTest do
     assert has_element?(view, "#handoff-current", "· runner · job ##{job.id}")
   end
 
+  describe "the meta line's actions look like buttons (#1230)" do
+    test "for a writer, each action is a meta-action and the plain text is not", ctx do
+      {:ok, view, _} = open(ctx.conn, ctx)
+
+      line = "#card-title-form div.flex-wrap"
+      assert has_element?(view, "#{line} button#card-move-board.meta-action", "another board")
+      assert has_element?(view, "#{line} a#handoff-edit.meta-action", "Add “Left off”")
+      assert has_element?(view, "#{line} a#wait-ask.meta-action", "Ask questions")
+
+      # Exactly those three; the words around them stay words, without the
+      # dots that used to set the links apart.
+      html = view |> element(line) |> render()
+      assert length(Regex.scan(~r/class="meta-action"/, html)) == 3
+      assert has_element?(view, "#{line} > span", "created")
+      refute has_element?(view, "#{line} span.meta-action")
+      refute html =~ ~r/<span>·<\/span>/
+    end
+
+    test "a reader, with nothing to press, sees none", ctx do
+      reader = user_fixture("live.handoff.meta.reader@example.com")
+      {:ok, _} = Access.grant(ctx.board, reader, "read", ctx.owner)
+
+      {:ok, view, _} = open(conn_as(reader), ctx)
+
+      assert has_element?(view, "#card-title-form", "created")
+      refute has_element?(view, "#card-title-form .meta-action")
+    end
+  end
+
   describe "who may write it" do
     test "a commenter may", ctx do
       commenter = user_fixture("live.handoff.commenter@example.com")
