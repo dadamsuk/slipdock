@@ -25,6 +25,7 @@ defmodule Slipdock.Handbook do
   alias Slipdock.Boards
   alias Slipdock.Boards.Board
   alias Slipdock.Repo
+  alias Slipdock.Wiki
   alias Slipdock.Wiki.{Folders, FrontMatter, Page}
 
   @name "handbook"
@@ -281,6 +282,285 @@ defmodule Slipdock.Handbook do
       order_by: [asc: p.position, asc: p.title]
     )
     |> Repo.all()
+  end
+
+  ## What a pass should read (#1264) -----------------------------------------------
+
+  @index_cap 1536
+  @field_chars 90
+  @suggestions 5
+
+  @doc """
+  What a pass on `card` should read, for `reader`: nil when the card's root
+  board has no handbook or `reader` can't read that board, otherwise
+
+      %{board: code, index_page: code, index: [%{code:, title:, summary:, read_when:}],
+        suggested: [%{page:, title:, section:, why:}], more: n}
+
+  `index` is every handbook page but the Index itself, its fields cut short
+  so the whole stays under #{@index_cap} bytes of JSON (`more` says how many
+  pages that left out). `suggested` is up to #{@suggestions} sections, best
+  first: pages whose `covers:` globs match a path the card mentions, then
+  sections ranked against the card's title and description, by semantic
+  search when the server has it and by the words they share otherwise.
+
+  Options: `:token`, the API token asking, which narrows `reader`'s reach.
+  """
+  def for_card(%Slipdock.Boards.Card{} = card, reader, opts \\ []) do
+    board = Repo.get!(Board, card.board_id)
+
+    with %{} = handbook <- find(board),
+         true <- readable?(reader, handbook.board, opts[:token]) do
+      {index, more} = index(handbook)
+
+      %{
+        board: handbook.board.code,
+        index_page: handbook.index.code,
+        index: index,
+        more: more,
+        suggested: suggest(handbook, card, reader, opts)
+      }
+    else
+      _ -> nil
+    end
+  end
+
+  @doc "The index alone, for a board (`slipdock handbook <board>`); nil as `for_card/3`."
+  def for_board(%Board{} = board, reader, opts \\ []) do
+    with %{} = handbook <- find(board),
+         true <- readable?(reader, handbook.board, opts[:token]) do
+      {index, more} = index(handbook)
+
+      %{
+        board: handbook.board.code,
+        index_page: handbook.index.code,
+        index: index,
+        more: more,
+        decisions: Enum.map(decisions(handbook), &%{code: &1.code, title: &1.title})
+      }
+    else
+      _ -> nil
+    end
+  end
+
+  defp readable?(nil, _board, _token), do: false
+
+  defp readable?(reader, board, token) do
+    level = Slipdock.Access.board_permission(reader, board)
+    {level, _} = Slipdock.Access.narrow(level, token, board.id)
+    Slipdock.Access.can_read?(level)
+  end
+
+  @doc false
+  def index_cap, do: @index_cap
+
+  defp index(%{pages: [_index | pages]}) do
+    entries =
+      Enum.map(pages, fn page ->
+        %{
+          code: page.code,
+          title: page.title,
+          summary: cut(page.summary),
+          read_when: cut(text_field(page, "read_when"))
+        }
+      end)
+
+    fit(entries, [])
+  end
+
+  # Keeps entries while the whole still fits, so a folder somebody filled
+  # with fifty pages can't swamp every card it is shown on.
+  defp fit([], kept), do: {Enum.reverse(kept), 0}
+
+  defp fit([entry | rest] = left, kept) do
+    if byte_size(Jason.encode!(Enum.reverse([entry | kept]))) <= @index_cap,
+      do: fit(rest, [entry | kept]),
+      else: {Enum.reverse(kept), length(left)}
+  end
+
+  defp cut(nil), do: nil
+  defp cut(text) when byte_size(text) <= @field_chars, do: text
+  defp cut(text), do: String.slice(text, 0, @field_chars - 1) <> "…"
+
+  defp text_field(page, key) do
+    case field(page, key) do
+      list when is_list(list) -> Enum.join(list, ", ")
+      other -> other
+    end
+  end
+
+  ## Ranking ----------------------------------------------------------------------
+
+  defp suggest(handbook, card, reader, opts) do
+    pages = Enum.reject(handbook.pages, &(&1.id == handbook.index.id))
+    text = card_text(card)
+
+    covered = covered(pages, mentioned_paths(text))
+    words = lexical(pages, text)
+    # A short page is one chunk in the search index, so a match on it names
+    # no section: the section of it the card shares most words with, if any.
+    best = words |> Enum.reverse() |> Map.new(&{&1.page, &1})
+
+    semantic =
+      handbook
+      |> semantic(pages, text, reader, opts)
+      |> Enum.map(fn
+        %{section: nil} = s -> if b = best[s.page], do: %{s | section: b.section}, else: s
+        s -> s
+      end)
+
+    (covered ++ semantic ++ words)
+    |> Enum.uniq_by(&{&1.page, &1.section})
+    # A page whose covers matched stands for all of it: its sections add nothing.
+    |> drop_covered_sections(covered)
+    |> Enum.take(@suggestions)
+  end
+
+  defp card_text(card), do: Enum.join([card.title, card.description || ""], "\n")
+
+  defp drop_covered_sections(suggestions, covered) do
+    whole = MapSet.new(covered, & &1.page)
+    Enum.reject(suggestions, &(&1.section != nil and MapSet.member?(whole, &1.page)))
+  end
+
+  # Paths the card names: anything with a slash, or a file with an extension.
+  @path ~r{(?<![\w@])(?:[\w.\-]+/)+[\w.*\-]*|\b[\w\-]+\.(?:exs?|heex|eex|js|ts|tsx|css|md|json|ya?ml|sh|py|sql|toml)\b}
+
+  @doc false
+  def mentioned_paths(text) do
+    text = Regex.replace(~r{\w+://\S+}, text || "", " ")
+
+    @path
+    |> Regex.scan(text)
+    |> List.flatten()
+    |> Enum.uniq()
+  end
+
+  defp covered(_pages, []), do: []
+
+  defp covered(pages, paths) do
+    for page <- pages,
+        globs = List.wrap(field(page, "covers")),
+        path = Enum.find(paths, fn path -> Enum.any?(globs, &glob_match?(&1, path)) end),
+        do: %{page: page.code, title: page.title, section: nil, why: "covers #{path}"}
+  end
+
+  @doc """
+  Whether `path` falls under `glob`: `**` crosses folders, `*` doesn't. A
+  path the card names may be a folder (`lib/app/`), which matches a glob for
+  anything under it.
+  """
+  def glob_match?(glob, path) when is_binary(glob) and is_binary(path) do
+    regex =
+      glob
+      |> String.trim()
+      |> String.split("**")
+      |> Enum.map_join(".*", fn part ->
+        part |> String.split("*") |> Enum.map_join("[^/]*", &Regex.escape/1)
+      end)
+
+    path = String.trim_leading(path, "./")
+    String.match?(path, ~r/\A#{regex}\z/) or String.match?(path <> "x", ~r/\A#{regex}\z/)
+  end
+
+  def glob_match?(_, _), do: false
+
+  defp semantic(handbook, pages, text, reader, opts) do
+    if Slipdock.AI.Embeddings.configured?() do
+      by_id = Map.new(pages, &{&1.id, &1})
+
+      case Slipdock.Search.search(reader, text,
+             kind: :page,
+             board_id: handbook.board.id,
+             limit: 20,
+             token: opts[:token]
+           ) do
+        {:ok, results} ->
+          for %{page: %Page{id: id}, matches: matches} <- results,
+              page = by_id[id],
+              match <- matches,
+              do: %{
+                page: page.code,
+                title: page.title,
+                section: blank_section(match[:section]),
+                why: "matches the card"
+              }
+
+        _ ->
+          []
+      end
+    else
+      []
+    end
+  rescue
+    _ -> []
+  end
+
+  defp blank_section(s) when s in [nil, ""], do: nil
+  defp blank_section(s), do: s
+
+  # Words the card shares with each section, its page's title, summary and
+  # read_when counting double: a page says when it should be read.
+  defp lexical(pages, text) do
+    wanted = words(text)
+
+    pages
+    |> Enum.flat_map(fn page ->
+      about =
+        words(
+          Enum.join([page.title, page.summary || "", text_field(page, "read_when") || ""], " ")
+        )
+
+      page_score = 2 * MapSet.size(MapSet.intersection(wanted, about))
+
+      page
+      |> sections()
+      |> Enum.map(fn {path, body} ->
+        score = page_score + MapSet.size(MapSet.intersection(wanted, words(body)))
+        {score, %{page: page.code, title: page.title, section: path, why: "shares words"}}
+      end)
+    end)
+    |> Enum.filter(fn {score, _} -> score > 0 end)
+    |> Enum.sort_by(fn {score, _} -> -score end)
+    |> Enum.map(&elem(&1, 1))
+  end
+
+  # A page's `##` sections (deeper ones roll into theirs); a page with none
+  # is one section, addressed by nothing.
+  defp sections(page) do
+    case Enum.filter(Wiki.Section.headings(page.body), &(&1.level == 2)) do
+      [] ->
+        [{nil, page.body || ""}]
+
+      headings ->
+        for h <- headings do
+          {:ok, body} = Wiki.Section.read(page.body, h.path)
+          {h.path, body}
+        end
+    end
+  end
+
+  @stop ~w(a an and are as at be by can do for from has have in into is it its of on or
+           our so that the their them then this to was we what when which with you your
+           any all not new one way get set use make add adding added)
+
+  defp words(text) do
+    ~r/[\p{L}\p{N}]+/u
+    |> Regex.scan(String.downcase(text || ""))
+    |> List.flatten()
+    |> Enum.map(&stem/1)
+    |> Enum.reject(&(&1 in @stop or String.length(&1) < 2))
+    |> MapSet.new()
+  end
+
+  defp stem(word) do
+    cond do
+      String.length(word) > 5 and String.ends_with?(word, "ing") -> String.slice(word, 0..-4//1)
+      String.length(word) > 4 and String.ends_with?(word, "es") -> String.slice(word, 0..-3//1)
+      String.length(word) > 3 and String.ends_with?(word, "s") -> String.slice(word, 0..-2//1)
+      String.length(word) > 4 and String.ends_with?(word, "ed") -> String.slice(word, 0..-3//1)
+      true -> word
+    end
   end
 
   @doc "A page's `handbook:` key (`architecture`, `index`, …), or nil."
