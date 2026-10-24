@@ -48,6 +48,8 @@ way in: what it is, the pictures, and how to get it running.
   The API and CLI upload them too — see [Attachments over the API](#attachments-over-the-api).
   A card's first image is a thumbnail on its front — see [Images on the card front](#images-on-the-card-front).
   A recording plays in place, and can be transcribed — see [Recordings](#recordings)
+- Email: forward or send a message to your board's own address and it is a
+  card, attachments included — see [Emailing your board](#emailing-your-board)
 - @mentions: `@someone` in a card's description or a comment — the part of
   their email before the "@", or a one-word name — names a person who can see
   the board. Typing `@` offers the board's members; a mention shows as a chip,
@@ -2033,6 +2035,78 @@ The code lives in `Slipdock.QuickAdd.Capture` (the catalogue of what may be
 picked, matching names back to rows, writing the card),
 `Slipdock.QuickAdd.Model` (the one model call) and `SlipdockWeb.QuickAddHook`
 (the header box on every authenticated page).
+
+## Emailing your board
+
+When the server receives mail (`SLIPDOCK_INBOUND_DOMAIN`, see
+[Receiving email](../README.md#receiving-email)), every person has their own
+addresses to send cards in from their mail client: forward an invoice, a bug
+report or a note to yourself, and it is a card.
+
+**The addresses.** Each is yours alone, and only takes mail *from* your own
+account's address:
+
+| Address | Where it is | What mail to it makes |
+|---|---|---|
+| `card-…@<domain>` | the board's `…` menu › *Email to this board*; `slipdock inbound <board>`; `GET /api/boards/:board/inbound` | a card on that board's ready list |
+| `add-…@<domain>` | Account › *Email a card in*; `slipdock inbound me`; `GET /api/me/inbound` | a card through [Quick add](#quick-add), to any board |
+
+There is one card address per board you can write to (somebody who can only
+read a board has none), and one personal address. Every one has a Copy button
+and **New address**: that makes a new one, and mail to the old one bounces
+from then on — do it if an address has leaked. `slipdock inbound <board>
+--rotate` and `POST …/inbound/rotate` do the same. Taking back somebody's
+share of a board turns their address for it off.
+
+**What the message becomes.**
+
+- The **subject** is the title, with `Re:`, `Fwd:` and the like taken off
+  (`(no subject)` when there is none).
+- The **body** is the description, as Markdown: the text part, or the HTML
+  converted when there is only HTML. Quoted replies and signatures are
+  trimmed. A forward opens with a line saying who first sent it, and when.
+- **Attachments** are uploaded to the card; images embedded in the message
+  (`cid:`) are shown in the description where they were.
+- The card is **yours**: its timeline says you added it, by email.
+
+**The personal address reads the subject as Quick Add does**: `Renew the cert
+due: friday #high @dan`, `#todo` for a list, `every:`, `snooze:` and `; a
+comment`, and the model when it is on. With no board named the card goes to
+your Quick Add default (Account › *Settings*). Name one with `[Board] Title`
+— by name or code, the way a mail filter writes it — or in words the model
+reads ("… on the website board").
+
+**Why a message bounces.** The bounce says which of these it was:
+
+- it didn't come from your account's address, or couldn't be shown to (it
+  passed neither DMARC nor DKIM);
+- the address is unknown, or has been replaced with a new one;
+- you can no longer write to that board, or it is archived;
+- the board named in the subject (`[Board]`) isn't one you can reach — the
+  bounce lists the ones you can;
+- the account that owns the board is full (`card_limit_reached`) or its trial
+  has run out. Attachments that don't fit the storage limit are left off and
+  a comment on the card names them; only a message that is nothing *but*
+  files that don't fit bounces;
+- too much mail to one address or from one sender in an hour.
+
+Automatic mail — auto-replies, bulk and list mail, anything that says
+`Auto-Submitted` — is ignored rather than bounced, so two systems can't
+answer each other forever.
+
+**Did it arrive?** Account › *Inbound email* (also `slipdock inbound log` and
+`GET /api/inbound/log`) lists your last 50 messages: what each made, or why it
+bounced or was ignored.
+
+**A link back.** Tick *Email me back a link to each card my mail makes* on the
+Account tab (`slipdock inbound me --ack on`, `POST /api/me/inbound
+{"ack": true}`) for one short reply per message with the new card's link.
+It is never sent for mail that bounced or was ignored, and never twice for one
+message.
+
+The code: `Slipdock.Inbound.Tokens` (addresses), `Slipdock.Inbound.Cards` and
+`Slipdock.Inbound.QuickAdd` (what mail makes), `Slipdock.Inbound.Ack`. The
+design and the Cloudflare runbook are W-1933 on the Slipdock board's wiki.
 
 ## Deep search and Ask
 
@@ -4476,7 +4550,8 @@ board importer on it and nothing told you which was which:
 
 - **Account** (`/account`) — your display name, how many cards you have used
   against the limit if there is one, every time an admin has been let into
-  your boards and why, your passkeys, your inbound email log (while the
+  your boards and why, your passkeys, your personal address for [emailing
+  cards in](#emailing-your-board) and your inbound email log (while the
   server receives mail: your last 50 messages to it, and what made each one
   bounce or be ignored; also `slipdock inbound log`), signing out, and the
   licence.
