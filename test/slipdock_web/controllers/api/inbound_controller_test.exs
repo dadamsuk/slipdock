@@ -216,6 +216,18 @@ defmodule SlipdockWeb.API.InboundControllerTest do
     end
   end
 
+  describe "automatic mail" do
+    test "is 202 with the reason it was dropped, so the Worker never bounces it", %{conn: conn} do
+      body = "Auto-Submitted: auto-replied\r\n" <> raw()
+
+      assert %{"ok" => true, "dropped" => "Automatic mail" <> _} =
+               conn |> post_mail(body) |> json_response(202)
+
+      assert [%{outcome: "dropped"}] = rows()
+      assert %{"duplicate" => true} = build_conn() |> post_mail(body) |> json_response(200)
+    end
+  end
+
   describe "rate limits" do
     setup do
       TestConfig.put(:rate_limit, enabled: true)

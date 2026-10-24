@@ -13,7 +13,8 @@ defmodule SlipdockWeb.API.InboundController do
 
   The answer is the Worker's whole contract:
 
-    * **202** — handled; **200** — already handled, nothing new written
+    * **202** — handled (or automatic mail, ignored on purpose: `"dropped"`);
+      **200** — already handled, nothing new written
     * **4xx** with `{"reject": "…"}` — refused; the Worker bounces the mail
       with that reason
     * **401** — the signature is wrong or stale: a configuration problem,
@@ -70,6 +71,11 @@ defmodule SlipdockWeb.API.InboundController do
 
   defp respond(conn, {:accepted, email}),
     do: conn |> put_status(:accepted) |> json(%{ok: true, id: email.id})
+
+  # Automatic mail: handled, in that nothing will come of it, and never
+  # bounced, so an auto-responder gets no answer to answer.
+  defp respond(conn, {:dropped, reason, email}),
+    do: conn |> put_status(:accepted) |> json(%{ok: true, id: email.id, dropped: reason})
 
   defp respond(conn, {:duplicate, email}),
     do: conn |> put_status(:ok) |> json(%{ok: true, id: email.id, duplicate: true})
