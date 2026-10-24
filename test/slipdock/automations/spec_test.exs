@@ -223,10 +223,13 @@ defmodule Slipdock.Automations.SpecTest do
         trigger = Map.new(required, &{&1, 3}) |> Map.put("type", type)
 
         # A trigger that feeds a runner needs something to feed it with.
+        # A page has no card to complete.
         spec =
-          if entry[:feed],
-            do: spec(trigger, [%{"type" => "runner", "pool" => "dev"}]),
-            else: spec(trigger)
+          cond do
+            entry[:feed] -> spec(trigger, [%{"type" => "runner", "pool" => "dev"}])
+            type == "page_emailed" -> spec(trigger, [%{"type" => "log", "message" => "m"}])
+            true -> spec(trigger)
+          end
 
         assert {:ok, %{"trigger" => %{"type" => ^type}}} = Spec.validate(spec), type
       end
@@ -420,6 +423,103 @@ defmodule Slipdock.Automations.SpecTest do
 
       assert catalogue =~ "  - email: send an email — keys: to (required), subject, body"
       assert catalogue =~ "  - card_completed: a card is ticked off\n"
+    end
+  end
+
+  # #1275: rules on what mail brings in.
+  describe "card_emailed and page_emailed" do
+    test "card_emailed keeps a list and drops what it doesn't know" do
+      assert {:ok, %{"trigger" => trigger}} =
+               Spec.validate(spec(%{"type" => "card_emailed", "column" => "Inbox", "x" => 1}))
+
+      assert trigger == %{"type" => "card_emailed", "column" => "Inbox"}
+    end
+
+    test "page_emailed's how is new or added, and any means either" do
+      flag = [%{"type" => "add_flags", "flags" => ["review"]}]
+
+      assert {:ok, %{"trigger" => %{"how" => "added"}}} =
+               Spec.validate(spec(%{"type" => "page_emailed", "how" => " Added "}, flag))
+
+      assert {:ok, %{"trigger" => trigger}} =
+               Spec.validate(spec(%{"type" => "page_emailed", "how" => "any"}, flag))
+
+      refute Map.has_key?(trigger, "how")
+
+      assert error(spec(%{"type" => "page_emailed", "how" => "edited"}, flag)) ==
+               "trigger “page_emailed” how must be new or added"
+    end
+
+    test "a page rule refuses the actions that need a card, naming them" do
+      message =
+        error(
+          spec(%{"type" => "page_emailed"}, [
+            %{"type" => "add_flags", "flags" => ["review"]},
+            %{"type" => "move_card", "column" => "Done"},
+            %{"type" => "runner", "pool" => "default"}
+          ])
+        )
+
+      assert message =~ "trigger “page_emailed” acts on a page, which can't move_card, runner"
+      assert message =~ "it can email, alert"
+    end
+
+    test "a page rule takes every action a page can" do
+      actions =
+        for type <- Spec.page_actions() do
+          case type do
+            "email" -> %{"type" => type, "to" => "a@example.com"}
+            "alert" -> %{"type" => type, "title" => "t"}
+            "set_priority" -> %{"type" => type, "priority" => "high"}
+            t when t in ~w(add_tags remove_tags) -> %{"type" => type, "tags" => ["x"]}
+            t when t in ~w(add_flags remove_flags) -> %{"type" => type, "flags" => ["review"]}
+            "assign" -> %{"type" => type, "assignee" => "a@example.com"}
+            "create_card" -> %{"type" => type, "title" => "t"}
+            "webhook" -> %{"type" => type, "url" => "https://example.com/hook"}
+            "log" -> %{"type" => type, "message" => "m"}
+            _ -> %{"type" => type}
+          end
+        end
+
+      assert {:ok, _} = Spec.validate(spec(%{"type" => "page_emailed"}, actions))
+    end
+
+    test "a card rule may still do anything to its card" do
+      assert {:ok, _} =
+               Spec.validate(
+                 spec(%{"type" => "card_emailed"}, [%{"type" => "move_card", "column" => "Done"}])
+               )
+    end
+
+    test "read back as sentences" do
+      flag = [%{"type" => "add_flags", "flags" => ["review"]}]
+
+      assert Spec.summary(spec(%{"type" => "card_emailed"}, flag)) ==
+               "When a card arrives by email, flag it review."
+
+      assert Spec.summary(spec(%{"type" => "card_emailed", "column" => "Inbox"}, flag)) ==
+               "When a card arrives by email in Inbox, flag it review."
+
+      assert Spec.summary(spec(%{"type" => "page_emailed"}, flag)) ==
+               "When a page arrives by email, flag it review."
+
+      assert Spec.summary(
+               spec(%{"type" => "page_emailed", "how" => "new", "folder" => "Notes"}, flag)
+             ) ==
+               "When mail makes a page in Notes, flag it review."
+
+      assert Spec.summary(spec(%{"type" => "page_emailed", "how" => "added"}, flag)) ==
+               "When mail adds to a page, flag it review."
+    end
+
+    test "are in the vocabulary, with their placeholders" do
+      types = Enum.map(Spec.vocabulary().triggers, & &1.type)
+      assert "card_emailed" in types and "page_emailed" in types
+      # Like a job's, they belong to the event, so its description names them.
+      refute "{{email.from}}" in Spec.placeholders()
+      assert Spec.catalogue() =~ "  - page_emailed: a wiki page arrives by email"
+      assert Spec.catalogue() =~ "{{page.url}}"
+      assert Spec.catalogue() =~ ~r/card_emailed: .*\{\{email\.from\}\}/
     end
   end
 end

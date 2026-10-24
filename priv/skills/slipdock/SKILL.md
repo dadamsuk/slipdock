@@ -474,6 +474,9 @@ When what is asked for is one of the ready-made rules — "follow this list", "t
 comments on my cards", "remind me before things are due" — `--preset` is shorter still and
 equally exact: `slipdock new-automation 1 --preset follow_list column=Doing notify=email`.
 A rule with an unknown trigger or action is refused with the reason, so anything that saves runs.
+To act on what mail brings in ("flag emailed cards for review"), use the `card_emailed` or
+`page_emailed` trigger (presets `review_emailed_cards`, `review_emailed_pages`); a page rule
+can only flag, tag, prioritise, date or assign the page, or do what needs no card.
 An `email` action only reaches people who can read the board (owner and those it is shared
 with), at most 10 per action; anyone else is refused at save. Rules are capped at 20 actions
 and 50 per board, and what they send is metered (200 emails an hour per owner, 120 callbacks a

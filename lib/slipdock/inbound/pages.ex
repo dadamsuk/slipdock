@@ -116,7 +116,7 @@ defmodule Slipdock.Inbound.Pages do
       case Wiki.create_page(board, attrs, write_opts(user, message)) do
         {:ok, page} ->
           attach(page, user, message)
-          {:ok, %{page_id: page.id, user_id: user.id}}
+          {:ok, %{page_id: page.id, user_id: user.id, how: "new"}}
 
         {:error, %Ecto.Changeset{} = changeset} ->
           {:reject, refusal(changeset)}
@@ -165,7 +165,7 @@ defmodule Slipdock.Inbound.Pages do
         "## #{today(user)} — #{sender(message)}" <> if(body == "", do: "", else: "\n\n" <> body)
 
       case Wiki.append(page, text, write_opts(user, message)) do
-        {:ok, page} -> {:ok, %{page_id: page.id, user_id: user.id}}
+        {:ok, page} -> {:ok, %{page_id: page.id, user_id: user.id, how: "added"}}
         _ -> {:reject, "The text couldn't be added to “#{page.title}”."}
       end
     end

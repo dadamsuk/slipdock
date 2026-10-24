@@ -27,7 +27,7 @@ defmodule Slipdock.Automations.Runner do
   """
   def matches?(rule, event) do
     trigger_matches?(rule.spec["trigger"], event) and
-      conditions_match?(Spec.conditions(rule.spec), event[:card])
+      conditions_match?(Spec.conditions(rule.spec), event[:card] || event[:page])
   end
 
   ## Triggers -----------------------------------------------------------------
@@ -73,6 +73,12 @@ defmodule Slipdock.Automations.Runner do
       "flag_added" ->
         named?(trigger["flag"], event[:flag])
 
+      "card_emailed" ->
+        same_column?(trigger["column"], event[:column])
+
+      "page_emailed" ->
+        named?(trigger["how"], event[:how]) and same_folder?(trigger["folder"], event[:folder])
+
       "job_finished" ->
         named?(trigger["pool"], event[:job] && event[:job].pool) and
           (is_nil(trigger["outcome"]) or
@@ -93,6 +99,18 @@ defmodule Slipdock.Automations.Runner do
   defp same_column?(_, nil), do: false
   defp same_column?(name, %Column{name: column_name}), do: casefold(name) == casefold(column_name)
   defp same_column?(name, other), do: named?(name, other)
+
+  # A folder by its path, however its slashes were written: "notes/calls/".
+  defp same_folder?(nil, _), do: true
+  defp same_folder?(_, nil), do: false
+
+  defp same_folder?(wanted, actual) do
+    path = fn p ->
+      p |> casefold() |> String.split("/", trim: true) |> Enum.map(&String.trim/1)
+    end
+
+    path.(wanted) == path.(actual)
+  end
 
   defp named?(nil, _), do: true
   defp named?(_, nil), do: false
@@ -311,7 +329,7 @@ defmodule Slipdock.Automations.Runner do
 
     context =
       with_card(
-        %{rule: rule, board: board, event: event, opts: opts},
+        %{rule: rule, board: board, event: event, opts: opts, page: page_of(event)},
         event[:card] && decorate(event[:card])
       )
 
@@ -327,14 +345,29 @@ defmodule Slipdock.Automations.Runner do
   end
 
   defp with_card(ctx, card) do
-    bindings = variables(Map.merge(ctx.event, %{card: card, board: ctx.board, rule: ctx.rule}))
+    bindings =
+      variables(
+        Map.merge(ctx.event, %{card: card, page: ctx[:page], board: ctx.board, rule: ctx.rule})
+      )
+
     Map.merge(ctx, %{card: card, bindings: bindings})
   end
+
+  # A page that arrived by email (#1275) is what a page rule acts on.
+  defp page_of(%{page: %Page{} = page}), do: decorate(page)
+  defp page_of(_), do: nil
 
   defp refresh(%{card: %Card{id: id}} = ctx) do
     case Repo.get(Card, id) do
       nil -> ctx
       card -> with_card(ctx, decorate(card))
+    end
+  end
+
+  defp refresh(%{page: %Page{id: id}} = ctx) do
+    case Repo.get(Page, id) do
+      nil -> ctx
+      page -> with_card(%{ctx | page: decorate(page)}, nil)
     end
   end
 
@@ -605,6 +638,11 @@ defmodule Slipdock.Automations.Runner do
         _ -> payload
       end
 
+    payload =
+      payload
+      |> then(&if(ctx[:page], do: Map.put(&1, :page, page_payload(ctx.page, ctx)), else: &1))
+      |> then(&if(ctx.event[:email], do: Map.put(&1, :email, ctx.event[:email]), else: &1))
+
     # Logged against the rule's board, where its owner looks — for a tree
     # rule that is above the sub-board the card sits on.
     log = %{
@@ -710,16 +748,26 @@ defmodule Slipdock.Automations.Runner do
   end
 
   defp set_fields(ctx, attrs, label) do
-    with {:ok, card} <- need_card(ctx) do
-      case Boards.update_card(card, attrs) do
+    with {:ok, subject} <- need_subject(ctx) do
+      case update_subject(subject, attrs, ctx) do
         {:ok, _} -> {:ok, label}
         {:error, changeset} -> {:error, errors(changeset)}
+        {:error, :conflict, _} -> {:error, "the page changed under the rule"}
       end
     end
   end
 
+  defp update_subject(%Card{} = card, attrs, _ctx), do: Boards.update_card(card, attrs)
+
+  defp update_subject(%Page{} = page, attrs, ctx) do
+    Slipdock.Wiki.update_page(page, attrs,
+      via: "automation",
+      message: "by the “#{ctx.rule && ctx.rule.name}” automation"
+    )
+  end
+
   defp change_flags(action, ctx, direction) do
-    with {:ok, card} <- need_card(ctx) do
+    with {:ok, card} <- need_subject(ctx) do
       wanted = action["flags"] |> List.wrap() |> Enum.map(&to_string/1)
 
       flags =
@@ -737,7 +785,7 @@ defmodule Slipdock.Automations.Runner do
   end
 
   defp change_tags(action, ctx, direction) do
-    with {:ok, card} <- need_card(ctx) do
+    with {:ok, card} <- need_subject(ctx) do
       board = Repo.get!(Slipdock.Boards.Board, card.board_id)
       names = action["tags"] |> List.wrap() |> Enum.map(&to_string/1)
       found = for name <- names, tag = find_tag(board, name), do: tag
@@ -759,14 +807,23 @@ defmodule Slipdock.Automations.Runner do
           {:ok, "tags unchanged"}
 
         true ->
-          Boards.set_card_tags(card, tags)
+          set_tags(card, tags)
           {:ok, "tags now #{Enum.map_join(tags, ", ", & &1.name)}"}
       end
     end
   end
 
+  defp set_tags(%Page{} = page, tags), do: Slipdock.Wiki.set_tags(page, tags)
+  defp set_tags(card, tags), do: Boards.set_card_tags(card, tags)
+
   defp need_card(%{card: %Card{} = card}), do: {:ok, card}
   defp need_card(_), do: {:error, "there is no card to act on"}
+
+  # The card, or else the page that arrived by email: what the actions a page
+  # shares with a card (flags, tags, priority, due date, assignee) work on.
+  defp need_subject(%{card: %Card{} = card}), do: {:ok, card}
+  defp need_subject(%{page: %Page{} = page}), do: {:ok, page}
+  defp need_subject(_), do: {:error, "there is no card to act on"}
 
   # What there is, by check, and where to see it.
   defp garden_body(counts, board) do
@@ -890,6 +947,8 @@ defmodule Slipdock.Automations.Runner do
     }
     |> Map.merge(card_variables(card, board))
     |> Map.merge(job_variables(event[:job]))
+    |> Map.merge(page_variables(event[:page], board))
+    |> Map.merge(email_variables(event[:email]))
     |> Enum.reject(fn {_, v} -> is_nil(v) end)
     |> Map.new()
   end
@@ -901,6 +960,36 @@ defmodule Slipdock.Automations.Runner do
   end
 
   defp job_variables(_), do: %{}
+
+  defp page_variables(%Page{} = page, board) do
+    %{
+      "page.title" => page.title,
+      "page.code" => page.code || "",
+      "page.url" => page_url(page, board),
+      "page.folder" => folder_path(page)
+    }
+  end
+
+  defp page_variables(_, _), do: %{}
+
+  # Who sent the mail that made the card or page, and what it was called.
+  defp email_variables(%{} = email) do
+    %{"email.from" => email[:from] || "", "email.subject" => email[:subject] || ""}
+  end
+
+  defp email_variables(_), do: %{}
+
+  defp page_url(%Page{} = page, board),
+    do: "#{base_url()}/boards/#{(board && board.id) || page.board_id}/wiki/#{page.slug}"
+
+  defp folder_path(%Page{folder_id: nil}), do: ""
+
+  defp folder_path(%Page{folder_id: id}) do
+    case Repo.get(Slipdock.Wiki.Folder, id) do
+      nil -> ""
+      folder -> Slipdock.Wiki.Folders.path(folder)
+    end
+  end
 
   # What a rule is told about a runner job that ended: which, where, how it
   # ended and what its rule then did with the card ("" when nothing).
@@ -978,6 +1067,21 @@ defmodule Slipdock.Automations.Runner do
     }
   end
 
+  # What a callback is told about a page that arrived by email (#1275).
+  defp page_payload(%Page{} = page, ctx) do
+    %{
+      id: page.id,
+      code: page.code,
+      title: page.title,
+      url: Map.get(ctx.bindings, "page.url"),
+      folder: Map.get(ctx.bindings, "page.folder"),
+      summary: page.summary,
+      priority: page.priority,
+      flags: page.flags,
+      tags: Enum.map(page.tags, & &1.name)
+    }
+  end
+
   defp card_status(%Card{archived_at: at}) when not is_nil(at), do: "archived"
   defp card_status(%Card{completed: true}), do: "done"
   defp card_status(%Card{}), do: "open"
@@ -993,6 +1097,7 @@ defmodule Slipdock.Automations.Runner do
   defp board_payload(_), do: nil
 
   defp default_subject(%{card: %Card{title: title}, board: board}), do: "#{board.name}: #{title}"
+  defp default_subject(%{page: %Page{title: title}, board: board}), do: "#{board.name}: #{title}"
   defp default_subject(%{board: board}), do: "#{board.name}: automation"
 
   defp default_body(%{card: %Card{} = card, rule: rule} = ctx) do
@@ -1001,6 +1106,15 @@ defmodule Slipdock.Automations.Runner do
 
     #{card.title}
     #{Map.get(ctx.bindings, "card.url")}
+    """
+  end
+
+  defp default_body(%{page: %Page{} = page, rule: rule} = ctx) do
+    """
+    #{rule.name}
+
+    #{page.title}
+    #{Map.get(ctx.bindings, "page.url")}
     """
   end
 

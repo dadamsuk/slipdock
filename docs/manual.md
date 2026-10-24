@@ -2408,7 +2408,9 @@ because no model is involved, they work on a server with no AI key:
 - *Tidy* — complete cards that land in the done list, archive what has sat
   there for N days, have a tag set the priority, and a *Weekly tidy-up*
   that looks the board over once a week and alerts you to what it found
-  (see [Tidying up](#tidying-up)).
+  (see [Tidying up](#tidying-up)), and flag what arrives by email (cards,
+  optionally in one list, or pages, optionally in one folder) `review`, or
+  any flag you pick, so somebody reads it before it is worked.
 - *Connect* — call a URL on every change.
 
 Every *Follow* and *Remind* rule asks how to tell you: an alert in the header,
@@ -2420,7 +2422,8 @@ deleted like any other.
 **Triggers.** Events — a card created, arriving in a list (added there or
 moved there), moved, updated (optionally one named field), completed,
 reopened, archived, assigned, tagged, flagged, commented on, or anything at
-all happening to a card (once per change). Clock-driven — a card untouched for N days, due within a
+all happening to a card (once per change). Mail arriving (see [Rules for
+what mail brings in](#rules-for-what-mail-brings-in)). Clock-driven — a card untouched for N days, due within a
 window, overdue, starting soon, or simply a time of day. Time-based rules
 are checked once a minute and fire once per occasion (one due date, one
 card going stale, one day), so nothing repeats itself.
@@ -2441,6 +2444,39 @@ write a line in the activity log; colour the card (`set_colours`: its
 `border_bottom`, `border_left`, each a palette colour or `none`). Text in an action can use
 `{{card.title}}`, `{{card.url}}`, `{{card.due_date}}`, `{{card.assignee}}`,
 `{{board.name}}`, `{{today}}` and the rest.
+
+### Rules for what mail brings in
+
+Two triggers fire when mail sent to the board ([Emailing your
+board](#emailing-your-board)) has made something, so a rule can process it
+as it arrives — "when a card arrives by email, flag it for review":
+
+- `card_emailed` — a card made by mail to the board's `card-…@` address or a
+  personal `add-…@` one, once its description and files are on it. It fires
+  as well as `card_created`, but only for mail, and late enough that a
+  condition on the description sees the message. `column` limits it to cards
+  that land in one list.
+- `page_emailed` — a wiki page made by mail to a `page-…@` address (the
+  board's or a folder's), or added to with a `+ Title` subject. `how: new`
+  or `how: added` limits it to one of the two, and `folder` to pages in one
+  folder, by path (`Inbox`, `Notes/Calls`).
+
+A page rule acts on the page: it can add or remove flags and tags, set the
+priority or the due date, assign or unassign, and do anything that needs no
+card (email, alert, log, call a URL, create a card, the gardener). A rule
+that would move, comment on, complete or send a page to a runner is refused
+when it is saved. Both triggers add `{{email.from}}` and `{{email.subject}}`,
+and a page rule `{{page.title}}`, `{{page.code}}`, `{{page.url}}` and
+`{{page.folder}}`; a callback from a page rule carries `page` (id, code,
+title, url, folder, summary, priority, flags, tags) and `email` in place of
+`card`. A rule that fails never bounces the mail: the card or page is kept,
+and the error is the rule's last error.
+
+```json
+{"trigger": {"type": "page_emailed", "folder": "Inbox"},
+ "actions": [{"type": "add_flags", "flags": ["review"]},
+             {"type": "alert", "title": "New in the wiki: {{page.title}}"}]}
+```
 
 **Who gets email, and how much.** Automation email goes out under this
 server's name, so it only goes to people who can read the board: its owner
