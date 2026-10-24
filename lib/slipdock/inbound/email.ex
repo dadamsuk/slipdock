@@ -11,7 +11,7 @@ defmodule Slipdock.Inbound.Email do
 
   @type t :: %__MODULE__{}
 
-  @outcomes ~w(accepted rejected)
+  @outcomes ~w(accepted rejected dropped)
   @kinds ~w(card page add reply unknown)
 
   schema "inbound_emails" do

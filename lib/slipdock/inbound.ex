@@ -18,7 +18,7 @@ defmodule Slipdock.Inbound do
   import Ecto.Query
 
   alias Slipdock.{Accounts, Config, RateLimit, Repo}
-  alias Slipdock.Inbound.{Dispatcher, Email, Message}
+  alias Slipdock.Inbound.{Dispatcher, Email, Message, Trust}
 
   # Per address and per sender, an hour at a time (W-1933, "Rate limits").
   @token_limit 30
@@ -63,7 +63,10 @@ defmodule Slipdock.Inbound do
   What the endpoint makes of a request, for the response it gives:
 
     * `{:accepted, email}` — handled (202)
-    * `{:duplicate, email}` — seen before and accepted then: no new write (200)
+    * `{:duplicate, email}` — seen before and accepted or dropped then: no new
+      write (200)
+    * `{:dropped, reason, email}` — automatic mail, recorded and ignored, never
+      bounced (202)
     * `{:rejected, reason, email}` — refused, with a reason the sender reads (4xx);
       a repeat of a refused message is refused again without a second row
     * `{:rate_limited, reason}` — too much mail to that address or from that
@@ -72,6 +75,7 @@ defmodule Slipdock.Inbound do
   @type outcome ::
           {:accepted, Email.t()}
           | {:duplicate, Email.t()}
+          | {:dropped, String.t(), Email.t()}
           | {:rejected, String.t(), Email.t()}
           | {:rate_limited, String.t()}
 
@@ -106,7 +110,7 @@ defmodule Slipdock.Inbound do
       |> Map.merge(%{recipient: recipient, kind: kind, size: byte_size(raw)})
 
     case Repo.get_by(Email, message_id: base.message_id, recipient: recipient) do
-      %Email{outcome: "accepted"} = seen ->
+      %Email{outcome: outcome} = seen when outcome in ["accepted", "dropped"] ->
         {:duplicate, seen}
 
       %Email{reason: reason} = seen ->
@@ -116,7 +120,7 @@ defmodule Slipdock.Inbound do
         with :ok <- rate_limit(token, base.sender) do
           case parsed do
             {:ok, message} ->
-              decide(base, %{
+              decide(message, base, %{
                 kind: kind,
                 token: token,
                 recipient: recipient,
@@ -129,6 +133,15 @@ defmodule Slipdock.Inbound do
               {:rejected, reason, record(base, %{}, "rejected", reason)}
           end
         end
+    end
+  end
+
+  # Automatic mail is dropped without a bounce: answering an auto-responder
+  # is how mail loops start (W-1933, "Trust" 6).
+  defp decide(message, base, request) do
+    case Trust.automatic(message) do
+      nil -> decide(base, request)
+      reason -> {:dropped, reason, record(base, %{}, "dropped", reason)}
     end
   end
 
