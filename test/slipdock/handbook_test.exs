@@ -298,6 +298,38 @@ defmodule Slipdock.HandbookTest do
     end
   end
 
+  describe "suggestions read as real sections (#1281)" do
+    test "a chunk's part number and the page's lone top heading are not sections" do
+      page = %Page{body: "# Operations\n\nIntro.\n\n## Deploy\n\nPush.\n"}
+      assert Handbook.section_path("Operations/Deploy#2", page) == "Operations/Deploy"
+      assert Handbook.section_path("Operations/Deploy", page) == "Operations/Deploy"
+      assert Handbook.section_path("Operations#4", page) == nil
+      assert Handbook.section_path("Operations", page) == nil
+      assert Handbook.section_path("", page) == nil
+      assert Handbook.section_path(nil, page) == nil
+
+      flat = %Page{body: "## Deploy\n\nPush.\n"}
+      assert Handbook.section_path("Deploy#1", flat) == "Deploy"
+    end
+
+    test "no page takes more than two of the five", %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      ux = Repo.get_by!(Page, board_id: board.id, title: "UX & UI")
+
+      body =
+        "# UX & UI\n\n" <>
+          Enum.map_join(1..6, "\n\n", &"## Dropdown menu #{&1}\n\nDropdown menu rules.")
+
+      {:ok, _} = Wiki.update_page(ux, %{"body" => body})
+      [col | _] = board.columns
+      card = card_fixture(col, %{"title" => "Dropdown menu component on the card form"})
+
+      suggested = Handbook.for_card(card, user).suggested
+      assert Enum.count(suggested, &(&1.title == "UX & UI")) == 2
+      assert length(suggested) > 2
+    end
+  end
+
   describe "glob_match?/2 and mentioned_paths/1" do
     test "** crosses folders, * doesn't, and a folder matches what is under it" do
       assert Handbook.glob_match?("lib/app/**", "lib/app/a/b.ex")

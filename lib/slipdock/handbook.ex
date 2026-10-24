@@ -289,6 +289,8 @@ defmodule Slipdock.Handbook do
   @index_cap 1536
   @field_chars 90
   @suggestions 5
+  # So one long page can't fill every slot (#1281).
+  @per_page 2
 
   @doc """
   What a pass on `card` should read, for `reader`: nil when the card's root
@@ -413,10 +415,21 @@ defmodule Slipdock.Handbook do
     |> Enum.uniq_by(&{&1.page, &1.section})
     # A page whose covers matched stands for all of it: its sections add nothing.
     |> drop_covered_sections(covered)
+    |> per_page(@per_page)
     |> Enum.take(@suggestions)
   end
 
   defp card_text(card), do: Enum.join([card.title, card.description || ""], "\n")
+
+  defp per_page(suggestions, n) do
+    suggestions
+    |> Enum.reduce({[], %{}}, fn s, {kept, seen} ->
+      count = Map.get(seen, s.page, 0)
+      if count < n, do: {[s | kept], Map.put(seen, s.page, count + 1)}, else: {kept, seen}
+    end)
+    |> elem(0)
+    |> Enum.reverse()
+  end
 
   defp drop_covered_sections(suggestions, covered) do
     whole = MapSet.new(covered, & &1.page)
@@ -482,7 +495,7 @@ defmodule Slipdock.Handbook do
               do: %{
                 page: page.code,
                 title: page.title,
-                section: blank_section(match[:section]),
+                section: section_path(match[:section], page),
                 why: "matches the card"
               }
 
@@ -496,8 +509,24 @@ defmodule Slipdock.Handbook do
     _ -> []
   end
 
-  defp blank_section(s) when s in [nil, ""], do: nil
-  defp blank_section(s), do: s
+  @doc """
+  A search chunk's section as a path `page section` can read, or nil for
+  the whole page (#1281). A long section is chunked in parts (`Deploy#2`):
+  the part is the section. The page's lone top heading is all of it.
+  """
+  def section_path(raw, page) do
+    path = Regex.replace(~r/#\d+\z/, raw || "", "")
+
+    cond do
+      path == "" -> nil
+      not String.contains?(path, "/") and top_heading?(page, path) -> nil
+      true -> path
+    end
+  end
+
+  defp top_heading?(page, path) do
+    page.body |> Wiki.Section.headings() |> Enum.any?(&(&1.level == 1 and &1.path == path))
+  end
 
   # Words the card shares with each section, its page's title, summary and
   # read_when counting double: a page says when it should be read.
