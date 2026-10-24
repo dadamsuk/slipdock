@@ -52,6 +52,14 @@ card is closed?** If yes, it is a page.
 
 ## Where it goes
 
+**A board with a handbook** (a `Handbook/` folder whose Index lists it;
+`slipdock handbook <board>` says) puts durable answers there first: what the
+project is, in the section page that covers it (Specification, Architecture,
+UX & UI, Components, Data model, Shared modules, Testing & tooling,
+Operations), by section, and each decision as its own page in
+`Handbook/Decisions`. A page somewhere else is for what the handbook has no
+place for: a meeting, an investigation, a one-off report.
+
 Two different questions, and answering the wrong one is what makes a wiki hard
 to read later.
 
