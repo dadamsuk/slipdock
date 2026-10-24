@@ -111,6 +111,9 @@ defmodule Slipdock.HandbookTest do
       assert seed.description =~ "CLAUDE.md"
       assert seed.description =~ "covers:"
       assert seed.description =~ "Handbook/Decisions"
+      # Lessons from seeding this project's own handbook (#1268).
+      assert seed.description =~ "keep `covers:` narrow"
+      assert seed.description =~ "slipdock page props <page> --file F"
       assert rec.description =~ "git log"
       assert rec.description =~ "## Log"
 

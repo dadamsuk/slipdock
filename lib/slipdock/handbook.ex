@@ -114,10 +114,15 @@ defmodule Slipdock.Handbook do
   3. For each section page (Specification, Architecture, UX & UI, Components, Data model, Shared modules, Testing & tooling, Operations):
      - write the body as the project is **now**, by `##` section, one subject per section, short, linking to code paths in backticks. Not history: decisions go in their own pages;
      - set the front matter: `read_when:` (the kinds of card that should read it, in a line) and `covers:` (the path globs whose changes should touch it, like `[lib/app/accounts/**, priv/repo/migrations/**]`);
-     - keep the page's summary to one line.
+     - keep the page's summary to one line;
+     - keep `covers:` narrow: the files whose change would make this page wrong, not whole trees. A glob like `lib/**` matches nearly every card and pushes better suggestions out;
+     - keep each `##` section short (under about 1,500 characters): suggestions point at sections, and a longer one is split in parts for search.
+
+     Write the body with `slipdock page edit <page> --file F --summary S --message "#<this card> seed"`, and the front matter with `slipdock page props <page> --file F` (the YAML alone: `handbook:`, `read_when:`, `covers:`). Drafting pages in parallel and reviewing each before writing works well.
   4. Write one page per decision you find in the existing design records, specs and comments, filed in `Handbook/Decisions`: title `Decision: <what was chosen>`, then context, the choice, the alternatives and why not, and a link to where it was decided.
   5. Add one line to the repo's CLAUDE.md (or AGENTS.md) pointing at the Index: `Project handbook: <Index code> on the <board> board — read the sections a card needs before building, and update them before closing it (a Handbook: line in the closing comment).` The wiki is the source of truth: do not copy the handbook into the repo.
   6. Commit the CLAUDE.md change with this card's id, and close the card with a `Handbook:` line listing every page written.
+  7. Check the result: `slipdock handbook <a few past card ids>` should point a UI card at UX & UI, a schema change at Data model, and so on. Tighten `read_when`/`covers` where it doesn't.
 
   **Done when:** every section page has real content and front matter, the decisions found have pages, CLAUDE.md points at the Index, and a person has been asked (in the closing comment) to read the drafts once.
   """
