@@ -276,7 +276,23 @@ defmodule Slipdock.HandbookTest do
       reading = Handbook.for_card(card_fixture(col, %{"title" => "Anything"}), user)
       assert byte_size(Jason.encode!(reading.index)) <= Handbook.index_cap()
       assert reading.more > 0
-      assert Enum.all?(reading.index, &(String.length(&1.summary || "") <= 90))
+      assert Enum.all?(reading.index, &(String.length(&1.summary || "") <= 80))
+    end
+
+    test "the eight sections always fit, however long their fields (#1283)",
+         %{user: user, board: board, col: col} do
+      for page <- tl(Handbook.find(board).pages) do
+        {:ok, _} =
+          Wiki.update_page(page, %{
+            "summary" => String.duplicate("a long summary ", 10),
+            "front_matter" =>
+              "---\nhandbook: x\nread_when: #{String.duplicate("when changing things ", 10)}\n---\n\n"
+          })
+      end
+
+      reading = Handbook.for_card(card_fixture(col, %{"title" => "Anything"}), user)
+      assert length(reading.index) == 8
+      assert reading.more == 0
     end
 
     test "a reader who can't read the root board gets nothing", %{board: board, col: col} do

@@ -5555,7 +5555,7 @@ drafting every page from the codebase) and **Reconcile the handbook**
 
 On a handbook board a card's JSON (`get_card`, `GET /api/cards/:id`) has a
 `handbook` key: `board`, `index_page`, `index` (each page's code, title,
-summary and `read_when`, held to 1.5 KB) with `more`, and `suggested`: up
+summary and `read_when`, held to 2 KB) with `more`, and `suggested`: up
 to five `{page, title, section, why}`, ranked by `covers:` globs matching
 paths the card names, then semantic search, then shared words. `slipdock
 card` prints them as a **Handbook** block; `slipdock handbook <board>`
