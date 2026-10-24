@@ -149,12 +149,7 @@ defmodule SlipdockWeb.InboundAddressesComponent do
   end
 
   # Only the kinds mail is acted on yet: the page address waits for #1251.
-  defp ordered(addresses) do
-    for kind <- [:card, :page, :add],
-        Map.has_key?(addresses, kind),
-        Slipdock.Inbound.Dispatcher.live?(kind),
-        do: {kind, addresses[kind]}
-  end
+  defp ordered(addresses), do: Tokens.offered(addresses)
 
   defp label(:card), do: "New card"
   defp label(:page), do: "New wiki page"

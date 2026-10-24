@@ -70,6 +70,11 @@ defmodule SlipdockCLI do
     inbound log                         your last 50 emails to this server's inbound addresses,
                                         and what came of each: what it made, or why it bounced
                                         or was ignored. Only while the server receives mail
+    inbound <board> [--rotate]          your address for emailing cards onto a board (it only
+                                        takes mail from you); --rotate makes a new one, and
+                                        mail to the old one bounces from then on
+    inbound me [--rotate]               your personal Quick Add address: the subject picks the
+                                        board, list, priority and due date
     ai-key [<key>]                      show your stored API key (masked), or set one;
                                         `ai-key --remove` deletes it
     ai                                  which model your AI requests go to: endpoint, key, model
@@ -898,6 +903,7 @@ defmodule SlipdockCLI do
     from: :string,
     scope: :string,
     remove: :boolean,
+    rotate: :boolean,
     key: :string,
     embed: :string,
     url: :string,

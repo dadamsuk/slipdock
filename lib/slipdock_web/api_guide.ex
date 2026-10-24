@@ -743,6 +743,9 @@ defmodule SlipdockWeb.APIGuide do
       (`accepted`, `rejected` = bounced, `dropped` = automatic, ignored), the
       `reason`, and a `link` to what it made. 404 while inbound mail is off.
       Look here when someone says they emailed something and nothing happened.
+      `GET /api/boards/:board/inbound` is the holder's own `card` address for
+      a board they can write to, `GET /api/me/inbound` their personal `add`
+      (Quick Add) address; `POST …/rotate` replaces one, and the old bounces.
     - **Recurring cards** — a card can repeat ("every Monday: review
       invoices"). Its `recurrence` says how (`rule`, `summary`, `next_on`,
       `next_at`, the next three in `upcoming`); `null` when it doesn't.

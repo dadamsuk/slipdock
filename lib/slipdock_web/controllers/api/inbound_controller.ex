@@ -25,6 +25,10 @@ defmodule SlipdockWeb.API.InboundController do
   use SlipdockWeb, :controller
 
   alias Slipdock.Inbound
+  alias Slipdock.Inbound.Tokens
+  alias SlipdockWeb.API.Authorize
+
+  action_fallback SlipdockWeb.API.FallbackController
 
   # Cloudflare caps inbound mail at 25 MiB; a little over that, for the
   # Worker's own framing, and anything bigger is refused unread.
@@ -51,6 +55,53 @@ defmodule SlipdockWeb.API.InboundController do
       conn |> put_status(:not_found) |> json(%{error: "inbound email is off on this server"})
     end
   end
+
+  @doc """
+  `GET /api/boards/:board/inbound`: the caller's own inbound addresses for
+  the board (#1246), made on first asking. `POST …/inbound/rotate` replaces
+  them, and mail to the old ones bounces. Needs write on the board; 404
+  while inbound mail is off.
+  """
+  def board(conn, %{"board" => ref}), do: board_addresses(conn, ref, &Tokens.addresses/2)
+
+  def rotate_board(conn, %{"board" => ref}), do: board_addresses(conn, ref, &Tokens.rotate/2)
+
+  @doc """
+  `GET /api/me/inbound`: the caller's personal Quick Add address (#1246).
+  `POST /api/me/inbound/rotate` replaces it.
+  """
+  def me(conn, _params), do: addresses(conn, nil, &Tokens.addresses/2)
+
+  def rotate_me(conn, _params), do: addresses(conn, nil, &Tokens.rotate/2)
+
+  defp board_addresses(conn, ref, fun) do
+    if Inbound.enabled?() do
+      with {:ok, board} <- Authorize.fetch_board(conn, ref, :write),
+           do: addresses(conn, board, fun)
+    else
+      off(conn)
+    end
+  end
+
+  defp addresses(conn, board, fun) do
+    case Inbound.enabled?() && fun.(conn.assigns.current_user, board) do
+      {:ok, addresses} ->
+        json(conn, %{
+          domain: Inbound.domain(),
+          board: board && %{id: board.id, code: board.code, name: board.name},
+          addresses: Map.new(Tokens.offered(addresses))
+        })
+
+      {:error, :forbidden} ->
+        {:error, :forbidden, "you can't add cards to this board"}
+
+      _off ->
+        off(conn)
+    end
+  end
+
+  defp off(conn),
+    do: conn |> put_status(:not_found) |> json(%{error: "inbound email is off on this server"})
 
   defp entry(email) do
     %{

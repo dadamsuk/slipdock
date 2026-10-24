@@ -70,6 +70,19 @@ defmodule Slipdock.Inbound.Tokens do
   end
 
   @doc """
+  Of `addresses/2`'s answer, the kinds mail is acted on yet
+  (`Slipdock.Inbound.Dispatcher.live?/1`), in order, as `{kind, address}`:
+  what the UI, the API and the CLI hand out.
+  """
+  @spec offered(map()) :: [{kind(), String.t()}]
+  def offered(addresses) do
+    for kind <- [:card, :page, :add],
+        Map.has_key?(addresses, kind),
+        Slipdock.Inbound.Dispatcher.live?(kind),
+        do: {kind, addresses[kind]}
+  end
+
+  @doc """
   Replaces `user`'s token for `board` (or their personal one, for `nil`) with
   a new one; mail to the old address bounces from now on. Answers the new
   addresses, as `addresses/2` does.
