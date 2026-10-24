@@ -3,8 +3,8 @@ defmodule SlipdockWeb.InboundAddressesComponent do
   Your inbound addresses (#1245, `Slipdock.Inbound.Tokens`), each with a copy
   button and a rotate button that asks first.
 
-    * With a `board`: the board's card address (and its page address, once
-      mail to it makes pages: `Slipdock.Inbound.Dispatcher.live?/1`), in a dialog the
+    * With a `board`: the board's card and page addresses (the kinds
+      `Slipdock.Inbound.Dispatcher.live?/1` says are acted on), in a dialog the
       board menu's *Email to this board* opens (the `open` event). The
       addresses are only made when it is opened, so looking at a board never
       makes a token.
@@ -112,7 +112,11 @@ defmodule SlipdockWeb.InboundAddressesComponent do
           <h2 class="text-lg font-semibold">Email to {@board.name}</h2>
           <p class="mt-1 text-sm text-base-content/60">
             These addresses are yours alone: they only take mail from your own address.
-            The subject becomes the title, the body the description, and attachments come too.
+            The subject becomes the title, the body the description or the page, and attachments come too.
+            On the page address, <code>[Folder] Title</code>
+            files the page in a folder (it goes in <code>Inbox</code>
+            otherwise), and <code>+ Title</code>
+            adds a dated section to that page.
           </p>
           <.addresses id={@id} addresses={@addresses} rotated={@rotated} myself={@myself} />
         </div>
@@ -174,7 +178,7 @@ defmodule SlipdockWeb.InboundAddressesComponent do
     """
   end
 
-  # Only the kinds mail is acted on yet: the page address waits for #1251.
+  # Only the kinds mail is acted on yet.
   defp ordered(addresses), do: Tokens.offered(addresses)
 
   defp label(:card), do: "New card"

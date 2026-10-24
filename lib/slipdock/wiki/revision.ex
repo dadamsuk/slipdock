@@ -10,12 +10,13 @@ defmodule Slipdock.Wiki.Revision do
   `agent`), `"mcp"` for an MCP client (likewise), `"assistant"` for the
   in-app model, `"automation"` for a rule, `"meeting"` for a meeting
   capture committed (see `Slipdock.Meetings.Commit`), `"gardener"` for a
-  tidy-up suggestion applied (see `Slipdock.Gardener.Steps`).
+  tidy-up suggestion applied (see `Slipdock.Gardener.Steps`), `"email"` for
+  mail to a page address (see `Slipdock.Inbound.Pages`).
   """
   use Ecto.Schema
   import Ecto.Changeset
 
-  @vias ~w(web api cli assistant automation mcp meeting sync gardener)
+  @vias ~w(web api cli assistant automation mcp meeting sync gardener email)
 
   schema "page_revisions" do
     field :title, :string

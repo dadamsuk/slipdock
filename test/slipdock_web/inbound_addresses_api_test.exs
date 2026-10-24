@@ -41,8 +41,8 @@ defmodule SlipdockWeb.InboundAddressesAPITest do
                "name" => ctx.board.name
              }
 
-      # The page address waits for mail to pages (#1251).
-      assert body["addresses"] == %{"card" => card}
+      {:ok, page} = Tokens.address(ctx.owner, ctx.board, :page)
+      assert body["addresses"] == %{"card" => card, "page" => page}
 
       assert as(ctx.owner)
              |> get("/api/boards/#{ctx.board.code}/inbound")

@@ -3980,6 +3980,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   defp via_label("automation"), do: "by an automation"
   defp via_label("mcp"), do: "over MCP"
   defp via_label("gardener"), do: "by the gardener"
+  defp via_label("email"), do: "by email"
   defp via_label(_), do: ""
 
   defp author_label(revision) do
