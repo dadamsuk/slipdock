@@ -53,6 +53,54 @@ defmodule SlipdockCLI.InboundTest do
     assert %{"inbound" => [%{"id" => 2}, %{"id" => 1}]} = JSON.decode!(json)
   end
 
+  @board ~s({"domain":"in.example.com","board":{"id":3,"code":"slipdock","name":"Slipdock"},) <>
+           ~s("addresses":{"card":"card-aaaa@in.example.com"}})
+
+  test "inbound <board> shows your card address for it" do
+    serve([{200, @board}])
+    out = capture_io(fn -> Inbound.run("inbound", ["slipdock"], []) end)
+
+    assert_received {:request, "GET", "/api/boards/slipdock/inbound", _}
+    assert out =~ "new card on slipdock:  card-aaaa@in.example.com"
+    refute out =~ "New address made"
+  end
+
+  test "inbound <board> --rotate posts, and says the old address is gone" do
+    serve([{200, @board}])
+    out = capture_io(fn -> Inbound.run("inbound", ["slipdock"], rotate: true) end)
+
+    assert_received {:request, "POST", "/api/boards/slipdock/inbound/rotate", _}
+    assert out =~ "New address made. Mail to the old one bounces from now on."
+    assert out =~ "card-aaaa@in.example.com"
+  end
+
+  test "a board ref with odd characters is escaped in the path" do
+    serve([{200, @board}])
+    capture_io(fn -> Inbound.run("inbound", ["My Board"], []) end)
+    assert_received {:request, "GET", "/api/boards/My%20Board/inbound", _}
+  end
+
+  test "inbound me, and inbound me --rotate, for the personal address" do
+    me =
+      ~s({"domain":"in.example.com","board":null,"addresses":{"add":"add-bbbb@in.example.com"}})
+
+    serve([{200, me}, {200, me}])
+
+    assert capture_io(fn -> Inbound.run("inbound", ["me"], []) end) =~
+             "quick add, any board:  add-bbbb@in.example.com"
+
+    assert_received {:request, "GET", "/api/me/inbound", _}
+
+    capture_io(fn -> Inbound.run("inbound", ["me"], rotate: true) end)
+    assert_received {:request, "POST", "/api/me/inbound/rotate", _}
+  end
+
+  test "--json passes the addresses through" do
+    serve([{200, @board}])
+    json = capture_io(fn -> Inbound.run("inbound", ["slipdock"], json: true) end)
+    assert %{"addresses" => %{"card" => "card-aaaa@in.example.com"}} = JSON.decode!(json)
+  end
+
   # A refusal (inbound mail off: 404) and a usage error end in
   # `System.halt/1`, so, as elsewhere in this suite, they are not run here.
 
@@ -61,6 +109,9 @@ defmodule SlipdockCLI.InboundTest do
     assert capture_io(fn -> SlipdockCLI.main(["inbound", "log"]) end) =~ "No inbound mail yet"
     assert_received {:request, "GET", "/api/inbound/log", _}
 
-    assert capture_io(fn -> SlipdockCLI.main(["--help"]) end) =~ "inbound log"
+    help = capture_io(fn -> SlipdockCLI.main(["--help"]) end)
+    assert help =~ "inbound log"
+    assert help =~ "inbound <board> [--rotate]"
+    assert help =~ "inbound me [--rotate]"
   end
 end

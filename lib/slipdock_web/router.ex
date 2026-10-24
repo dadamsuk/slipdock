@@ -505,6 +505,11 @@ defmodule SlipdockWeb.Router do
     get "/me", MeController, :show
     # The caller's own inbound mail and what came of it (#1242).
     get "/inbound/log", InboundController, :log
+    # The caller's own inbound addresses (#1246): personal, and per board.
+    get "/me/inbound", InboundController, :me
+    post "/me/inbound/rotate", InboundController, :rotate_me
+    get "/boards/:board/inbound", InboundController, :board
+    post "/boards/:board/inbound/rotate", InboundController, :rotate_board
     # The caller's own work: waiting on them, then assigned by due (#1118).
     get "/work", WorkController, :index
 
