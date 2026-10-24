@@ -23,9 +23,7 @@ defmodule Slipdock.Wiki.Query do
 
   **It compiles to a `Slipdock.Swimlanes.Config`.** Every filter, sort,
   grouping and field chooser that exists in the UI is therefore available to
-  a document on day one, and the UI can offer "insert this view into a doc"
-  from any board view — which is the honest way to author one of these
-  without learning the syntax. `filter:` beyond what a config expresses is
+  a document on day one. `filter:` beyond what a config expresses is
   handed to `Slipdock.Automations.Runner.conditions_match?/2`, so the condition
   vocabulary is the automations' one rather than a second dialect.
 

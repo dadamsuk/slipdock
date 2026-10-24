@@ -1186,7 +1186,6 @@ defmodule SlipdockWeb.BoardLive.Show do
               board={@board}
               mode={@mode}
               meetings={@meetings}
-              config={@swim}
               view={@swim_view}
               marks={@favourites}
             />

@@ -1942,7 +1942,6 @@ defmodule SlipdockWeb.SlipdockComponents do
 
   attr :board, :any, required: true
   attr :mode, :atom, required: true
-  attr :config, :any, default: nil, doc: "the card view's configuration, when there is one"
   attr :view, :any, default: nil, doc: "the saved view currently loaded, if any"
   attr :marks, :any, default: nil, doc: "the reader's favourites (`Slipdock.Favourites.marks/1`)"
 
@@ -2054,20 +2053,6 @@ defmodule SlipdockWeb.SlipdockComponents do
             <.icon name="hero-microphone" class="size-4 shrink-0" />
             <span class="flex-1">Meetings</span>
             <.icon :if={@mode == :meetings} name="hero-check" class="size-3.5" />
-          </.link>
-        </li>
-        <%!-- The honest way to write a live query into a document: point at
-              the view you already made and let the app write the syntax. --%>
-        <li :if={@config}>
-          <.link
-            navigate={
-              ~p"/boards/#{@board.id}/wiki/new?#{[block: Slipdock.Wiki.Query.to_block(@config, @board, saved_view: @view && @view.name)]}"
-            }
-            class="flex items-center gap-2"
-            title="Start a page with this view in it, as a live query"
-          >
-            <.icon name="hero-document-plus" class="size-4 shrink-0" />
-            <span class="flex-1">Write this into a doc</span>
           </.link>
         </li>
         <li :if={@favourites != []} class="menu-title mt-1 border-t border-base-content/10 pt-2">
