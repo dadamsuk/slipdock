@@ -165,4 +165,132 @@ defmodule SlipdockWeb.MoveBoardLiveTest do
 
     refute has_element?(view, "button[phx-click=move_board_pick][phx-value-id='#{theirs.id}']")
   end
+
+  describe "type to find a board (#1232)" do
+    setup do
+      %{
+        chores:
+          board_fixture(%{
+            "name" => "Chores",
+            "code" => "chr#{System.unique_integer([:positive])}"
+          })
+      }
+    end
+
+    defp pick_button(id), do: "button[phx-click=move_board_pick][phx-value-id='#{id}']"
+
+    test "typing narrows the boards by name, in any case", %{
+      conn: conn,
+      from: from,
+      to: to,
+      card: card,
+      chores: chores
+    } do
+      {:ok, view, _} = live(conn, ~p"/boards/#{from}")
+      open_picker(view, card)
+      assert has_element?(view, "#move-board-q")
+      assert has_element?(view, pick_button(to.id))
+      assert has_element?(view, pick_button(chores.id))
+
+      view |> form("#move-board-find", %{"q" => "ERR"}) |> render_change()
+      assert has_element?(view, pick_button(to.id))
+      refute has_element?(view, pick_button(chores.id))
+
+      # Cleared, every board is back.
+      view |> form("#move-board-find", %{"q" => "  "}) |> render_change()
+      assert has_element?(view, pick_button(to.id))
+      assert has_element?(view, pick_button(chores.id))
+    end
+
+    test "a board's code finds it too", %{
+      conn: conn,
+      from: from,
+      to: to,
+      card: card,
+      chores: chores
+    } do
+      {:ok, view, _} = live(conn, ~p"/boards/#{from}")
+      open_picker(view, card)
+
+      view |> form("#move-board-find", %{"q" => chores.code}) |> render_change()
+      assert has_element?(view, pick_button(chores.id))
+      refute has_element?(view, pick_button(to.id))
+    end
+
+    test "nothing matching says so, and Enter does nothing", %{conn: conn, from: from, card: card} do
+      {:ok, view, _} = live(conn, ~p"/boards/#{from}")
+      open_picker(view, card)
+
+      view |> form("#move-board-find", %{"q" => "zzqx"}) |> render_change()
+      assert has_element?(view, "#move-board-none", "No board matches “zzqx”.")
+      refute has_element?(view, "button[phx-click=move_board_pick]")
+
+      view |> form("#move-board-find", %{"q" => "zzqx"}) |> render_submit()
+      refute has_element?(view, "button[phx-click=move_card_board]")
+      assert has_element?(view, "#move-board-none")
+    end
+
+    test "Enter takes the best match, and the card moves to it", %{
+      conn: conn,
+      from: from,
+      to: to,
+      card: card
+    } do
+      {:ok, view, _} = live(conn, ~p"/boards/#{from}")
+      open_picker(view, card)
+
+      view |> form("#move-board-find", %{"q" => "errands"}) |> render_submit()
+      assert render(view) =~ "Errands · list"
+
+      backlog = hd(to.columns)
+
+      view
+      |> element("button[phx-click=move_card_board][phx-value-column='#{backlog.id}']")
+      |> render_click()
+
+      assert Boards.get_card!(card.id).board_id == to.id
+    end
+
+    test "going back from the lists keeps what was typed", %{
+      conn: conn,
+      from: from,
+      to: to,
+      card: card
+    } do
+      {:ok, view, _} = live(conn, ~p"/boards/#{from}")
+      open_picker(view, card)
+
+      view |> form("#move-board-find", %{"q" => "err"}) |> render_change()
+      view |> element(pick_button(to.id)) |> render_click()
+      view |> element(pick_button("")) |> render_click()
+
+      assert has_element?(view, "#move-board-q[value=err]")
+      assert has_element?(view, pick_button(to.id))
+    end
+  end
+
+  describe "matching/2" do
+    alias SlipdockWeb.BoardLive.MoveBoardComponent
+
+    @boards [
+      %{id: 1, name: "Home errands", code: "home"},
+      %{id: 2, name: "Errands", code: "err"},
+      %{id: 3, name: "Work", code: "wk"}
+    ]
+
+    test "blank keeps every board in order" do
+      assert MoveBoardComponent.matching(@boards, "") == @boards
+      assert MoveBoardComponent.matching(@boards, "   ") == @boards
+    end
+
+    test "a name starting with what was typed comes first" do
+      assert Enum.map(MoveBoardComponent.matching(@boards, "Err"), & &1.id) == [2, 1]
+    end
+
+    test "every word must match, name or code" do
+      assert Enum.map(MoveBoardComponent.matching(@boards, "home err"), & &1.id) == [1]
+      assert Enum.map(MoveBoardComponent.matching(@boards, "wk"), & &1.id) == [3]
+      assert MoveBoardComponent.matching(@boards, "nothing") == []
+    end
+  end
 end

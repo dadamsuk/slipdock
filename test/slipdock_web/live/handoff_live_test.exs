@@ -386,7 +386,7 @@ defmodule SlipdockWeb.HandoffLiveTest do
       {:ok, view, _} = open(ctx.conn, ctx)
 
       line = "#card-title-form div.flex-wrap"
-      assert has_element?(view, "#{line} button#card-move-board.meta-action", "another board")
+      assert has_element?(view, "#{line} button#card-move-board.meta-action", "Move to board…")
       assert has_element?(view, "#{line} a#handoff-edit.meta-action", "Add “Left off”")
       assert has_element?(view, "#{line} a#wait-ask.meta-action", "Ask questions")
 
