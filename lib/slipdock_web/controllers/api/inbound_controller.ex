@@ -39,6 +39,37 @@ defmodule SlipdockWeb.API.InboundController do
     end
   end
 
+  @doc """
+  `GET /api/inbound/log`: the caller's last 50 inbound messages, newest
+  first, with what came of each. 404 while inbound mail is off.
+  """
+  def log(conn, _params) do
+    if Inbound.enabled?() do
+      entries = conn.assigns.current_user |> Inbound.recent() |> Enum.map(&entry/1)
+      json(conn, %{domain: Inbound.domain(), inbound: entries})
+    else
+      conn |> put_status(:not_found) |> json(%{error: "inbound email is off on this server"})
+    end
+  end
+
+  defp entry(email) do
+    %{
+      id: email.id,
+      at: email.inserted_at,
+      recipient: email.recipient,
+      kind: email.kind,
+      sender: email.sender,
+      subject: email.subject,
+      outcome: email.outcome,
+      reason: email.reason,
+      size: email.size,
+      card_id: email.card_id,
+      page_id: email.page_id,
+      comment_id: email.comment_id,
+      link: Inbound.created_path(email)
+    }
+  end
+
   defp receive_email(conn) do
     case read_raw(conn, []) do
       {:ok, raw, conn} ->

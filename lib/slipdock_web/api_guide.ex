@@ -737,6 +737,12 @@ defmodule SlipdockWeb.APIGuide do
       Adding one needs the person's device, so it happens only in a browser,
       on their account page. Remove one only when the person asks: it is a way
       into their account, not clutter.
+    - **Inbound email** — when the server receives mail (W-1933),
+      `GET /api/inbound/log` lists the token holder's last 50 messages to its
+      inbound addresses, newest first: `kind`, `subject`, `outcome`
+      (`accepted`, `rejected` = bounced, `dropped` = automatic, ignored), the
+      `reason`, and a `link` to what it made. 404 while inbound mail is off.
+      Look here when someone says they emailed something and nothing happened.
     - **Recurring cards** — a card can repeat ("every Monday: review
       invoices"). Its `recurrence` says how (`rule`, `summary`, `next_on`,
       `next_at`, the next three in `upcoming`); `null` when it doesn't.

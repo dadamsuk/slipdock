@@ -10,6 +10,7 @@ defmodule SlipdockCLI do
     Boards,
     Deploy,
     Garden,
+    Inbound,
     Meetings,
     Runners,
     Skills,
@@ -66,6 +67,9 @@ defmodule SlipdockCLI do
     passkeys                            your passkeys: name, when added, when last used
     passkeys remove <id>                remove one (a lost phone) — it can't sign in after.
                                         Adding one needs the device, so is in a browser only
+    inbound log                         your last 50 emails to this server's inbound addresses,
+                                        and what came of each: what it made, or why it bounced
+                                        or was ignored. Only while the server receives mail
     ai-key [<key>]                      show your stored API key (masked), or set one;
                                         `ai-key --remove` deletes it
     ai                                  which model your AI requests go to: endpoint, key, model
@@ -1194,6 +1198,7 @@ defmodule SlipdockCLI do
     Admin,
     Boards,
     Garden,
+    Inbound,
     Automations,
     Runners,
     Wiki,

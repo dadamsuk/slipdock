@@ -184,6 +184,15 @@ defmodule SlipdockWeb.HelpLive.Agents do
        {:yes, "through the CLI or MCP"},
        {:no, "one way only"}
      ]},
+    {"See the email you sent in, and why any bounced",
+     [
+       {:yes, "GET /api/inbound/log"},
+       {:no, "not a tool yet"},
+       {:yes, "slipdock inbound log"},
+       {:yes, "through the CLI"},
+       {:yes, "through the CLI"},
+       {:no, "one way only"}
+     ]},
     {"Read a board's flow day by day, and how its runners are doing",
      [
        {:yes, "GET /api/boards/:id/flow, /api/boards/:id/runner_stats"},
