@@ -667,6 +667,21 @@ Two exceptions, which are overrides rather than seeds and win every time:
 `SLIPDOCK_LOGIN_FALLBACK=false`, so a public host can forbid writing sign-in
 codes to a file whatever the settings say, and `SLIPDOCK_AGENTIC_LOGIN`.
 
+### Receiving email
+
+Slipdock doesn't run a mail server. Cloudflare Email Routing receives mail
+for a domain you own and an Email Worker (`cloudflare/inbound-email/`) posts
+each message to `/api/inbound/email`, signed. Both of these are read on every
+boot, and with either unset the feature is off and its endpoint answers 404:
+
+```sh
+SLIPDOCK_INBOUND_DOMAIN=in.example.com     # the domain mail is received on
+SLIPDOCK_INBOUND_SECRET=…                  # shared with the Worker (wrangler secret put)
+SLIPDOCK_INBOUND_SECRET_PREVIOUS=…         # still accepted while you rotate it
+```
+
+The design and the deploy runbook are on the Slipdock board's wiki (W-1933).
+
 ### Google Drive, for meeting recordings
 
 A meeting page can play its recording straight from the owner's Google
