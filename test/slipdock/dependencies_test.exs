@@ -1,6 +1,7 @@
 defmodule Slipdock.DependenciesTest do
   use Slipdock.DataCase, async: true
 
+  import Ecto.Query
   import Slipdock.Fixtures
   alias Slipdock.Boards
   alias Slipdock.Boards.Card
@@ -57,6 +58,122 @@ defmodule Slipdock.DependenciesTest do
     {:ok, _} = Boards.add_dependency(b, c)
     assert {:error, msg} = Boards.add_dependency(c, a)
     assert msg =~ "circular"
+  end
+
+  describe "unblocking itself" do
+    # A runner hands a card back flagged blocked and waiting on a card it
+    # filed; when that card is done the waiting card should be ready again
+    # without anybody clearing the flag.
+    defp comments(card),
+      do:
+        Repo.all(from(c in Slipdock.Boards.Comment, where: c.card_id == ^card.id, select: c.body))
+
+    defp flagged(card) do
+      {:ok, card} = Boards.update_card(card, %{"flags" => ["blocked", "starred"]})
+      card
+    end
+
+    test "completing the last open blocker takes the blocked flag off, with a comment",
+         %{a: a, b: b, c: c} do
+      a = flagged(a)
+      {:ok, _} = Boards.add_dependency(a, b)
+      {:ok, _} = Boards.add_dependency(a, c)
+
+      # One blocker left open: still blocked, flag stays.
+      {:ok, _} = Boards.toggle_completed(b)
+      assert Boards.get_card!(a.id).flags == ["blocked", "starred"]
+      assert comments(a) == []
+
+      {:ok, _} = Boards.toggle_completed(c)
+      assert Boards.get_card!(a.id).flags == ["starred"]
+      assert [comment] = comments(a)
+      assert comment =~ "Unblocked: ##{c.id} “C” is done"
+    end
+
+    test "archiving the last open blocker does it too", %{a: a, b: b} do
+      a = flagged(a)
+      {:ok, _} = Boards.add_dependency(a, b)
+      {:ok, _} = Boards.archive_card(b)
+
+      assert Boards.get_card!(a.id).flags == ["starred"]
+      assert [comment] = comments(a)
+      assert comment =~ "“B” is archived"
+    end
+
+    test "archiving a blocker that was already done does not unblock twice", %{a: a, b: b} do
+      a = flagged(a)
+      {:ok, _} = Boards.add_dependency(a, b)
+      {:ok, b} = Boards.toggle_completed(b)
+      {:ok, _} = Boards.archive_card(b)
+
+      assert length(comments(a)) == 1
+    end
+
+    test "a card without the flag is left alone, and finished cards are not touched",
+         %{a: a, b: b, c: c} do
+      {:ok, _} = Boards.add_dependency(a, b)
+      {:ok, c} = Boards.update_card(c, %{"flags" => ["blocked"], "completed" => true})
+      {:ok, _} = Boards.add_dependency(c, b)
+
+      {:ok, _} = Boards.toggle_completed(b)
+
+      assert Boards.get_card!(a.id).flags == []
+      assert comments(a) == []
+      assert Boards.get_card!(c.id).flags == ["blocked"]
+      assert comments(c) == []
+    end
+
+    test "reopening the blocker does not put the flag back", %{a: a, b: b} do
+      a = flagged(a)
+      {:ok, _} = Boards.add_dependency(a, b)
+      {:ok, b} = Boards.toggle_completed(b)
+      {:ok, _} = Boards.toggle_completed(b)
+
+      a = Boards.get_card!(a.id)
+      assert a.flags == ["starred"]
+      assert Card.blocked?(a)
+    end
+
+    test "a blocker on another board is named only by number", %{a: a} do
+      other = board_fixture(%{"name" => "Other"})
+      foreign = card_fixture(hd(other.columns), %{"title" => "Elsewhere"})
+      a = flagged(a)
+      {:ok, _} = Boards.add_dependency(a, foreign)
+      {:ok, _} = Boards.toggle_completed(foreign)
+
+      assert [comment] = comments(a)
+      assert comment =~ "card ##{foreign.id} on another board is done"
+      refute comment =~ "Elsewhere"
+    end
+
+    test "runs the card_unblocked rules for the card that was waiting", %{
+      board: board,
+      a: a,
+      b: b,
+      c: c
+    } do
+      rule_fixture(board, %{
+        "trigger" => %{"type" => "card_unblocked"},
+        "actions" => [%{"type" => "add_flags", "flags" => ["review"]}]
+      })
+
+      {:ok, _} = Boards.add_dependency(a, b)
+      {:ok, _} = Boards.toggle_completed(b)
+
+      assert "review" in Boards.get_card!(a.id).flags
+      refute "review" in Boards.get_card!(b.id).flags
+      refute "review" in Boards.get_card!(c.id).flags
+    end
+
+    test "card_unblocked is in the automation vocabulary" do
+      assert {:ok, _} =
+               Slipdock.Automations.Spec.validate(%{
+                 "trigger" => %{"type" => "card_unblocked"},
+                 "actions" => [%{"type" => "add_flags", "flags" => ["starred"]}]
+               })
+
+      assert Slipdock.Automations.Spec.catalogue() =~ "card_unblocked"
+    end
   end
 
   describe "across boards" do

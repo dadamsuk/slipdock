@@ -641,7 +641,9 @@ defmodule SlipdockWeb.APIGuide do
       a link to the card — so mention somebody when you need their attention,
       not as a signature, and never yourself.
     - **Flags** — `flagged`, `blocked`, `review`, `waiting`, `starred`. Hand-set
-      labels, independent of the computed `blocked`.
+      labels, independent of the computed `blocked` — except that a card
+      flagged `blocked` loses the flag when the last card it depends on is
+      completed or archived.
     - **Dependencies** — `blocked_by` / `blocks` between cards, with cycle
       detection. `blocked: true` is computed: something it waits on is still
       open. The two cards may be on different boards — a subcard waiting on
@@ -1037,7 +1039,8 @@ defmodule SlipdockWeb.APIGuide do
 
       Leave it in the `doing` list only if you are coming back to it this
       session; otherwise move it back to the ready list so it is not pretending
-      to be in flight.
+      to be in flight. When #7 is done the board takes the flag off by itself,
+      with a comment, and the card is ready again.
     - **Stuck on a person** — a decision, a credential, an approval: open a
       wait, `POST /api/cards/57/wait {"needs": "…"}` (MCP `update_card`
       `wait`), naming exactly what you need, and stop. The answer comes back.

@@ -1026,6 +1026,15 @@ links. Somebody who can see one end of a dependency but not the other sees
 title and board stay private. Each board's history records the dependency, and
 names the card on the other board only by number.
 
+When the last open card a card depends on is completed or archived, the card
+**unblocks itself**: if it is flagged *blocked* the flag comes off, with a
+comment naming the card that freed it, so it goes back into the ready list
+(runners, *take the top card* rules and agents working the board all pass over
+a flagged card). Flag it again if it is still waiting on something else. An
+automation can start from the same moment: the trigger *a card's last blocker
+is done* (`card_unblocked`) — to move the card back to the top of the list,
+say, or tell whoever owns it.
+
 ## Subcards and templates
 
 Open a card and click **Add subcards** in the Subcards section, then pick a

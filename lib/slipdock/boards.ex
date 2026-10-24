@@ -1858,6 +1858,8 @@ defmodule Slipdock.Boards do
       if Map.has_key?(changeset.changes, :completed),
         do: Slipdock.Recurrence.completion_changed(updated)
 
+      if changeset.changes[:completed] == true, do: unblock_dependents(updated, opts)
+
       # Someone new on a snoozed card wakes it (W-1803).
       if assignees && Enum.any?(assignees, &(&1 not in before)),
         do: Slipdock.Snooze.activity(updated, opts[:by], :assigned)
@@ -2155,8 +2157,10 @@ defmodule Slipdock.Boards do
 
       Slipdock.Recurrence.card_archived(c)
 
-      if is_nil(card.archived_at),
-        do: auto_close_wait(c, "archived", "the card was archived", opts)
+      if is_nil(card.archived_at) do
+        auto_close_wait(c, "archived", "the card was archived", opts)
+        unless card.completed, do: unblock_dependents(c, opts)
+      end
 
       broadcast(c.board_id)
       Indexer.enqueue(c)
@@ -2986,6 +2990,50 @@ defmodule Slipdock.Boards do
     end
 
     {:ok, get_card!(a.id)}
+  end
+
+  # The cards `blocker` was the last open blocker of, now that it is done or
+  # put away. Each runs the `card_unblocked` rules, and one flagged `blocked`
+  # loses the flag, with a comment saying why: whoever made it wait (a runner
+  # handing a card back, most often) flagged it for this dependency, and a
+  # flag left on keeps it out of the ready list — runners, `list_top` and the
+  # loop all skip it — after the reason has gone.
+  defp unblock_dependents(%Card{} = blocker, opts) do
+    from(c in Card,
+      join: d in "card_dependencies",
+      on: d.blocked_id == c.id,
+      where: d.blocker_id == ^blocker.id and not c.completed and is_nil(c.archived_at),
+      preload: [blocked_by: ^dependency_query()]
+    )
+    |> Repo.all()
+    |> Enum.reject(&Card.blocked?/1)
+    |> Enum.each(&unblock(&1, blocker, opts))
+  end
+
+  defp unblock(%Card{} = card, blocker, opts) do
+    if "blocked" in card.flags do
+      flags = List.delete(card.flags, "blocked")
+
+      with {:ok, _} <- update_card(card, %{"flags" => flags}, Keyword.take(opts, [:by, :actor])) do
+        add_comment(
+          card,
+          "Unblocked: #{unblocked_by(card, blocker)}, and nothing else it depends on is " <>
+            "open, so the blocked flag came off. Flag it again if it is still waiting on something."
+        )
+      end
+    end
+
+    automate(%{type: "card_unblocked", card: Repo.get!(Card, card.id), blocker: blocker})
+  end
+
+  # Named only by number from another board, as in the log (see log_dependency/3).
+  defp unblocked_by(card, blocker) do
+    name =
+      if blocker.board_id == card.board_id,
+        do: "##{blocker.id} “#{blocker.title}”",
+        else: "card ##{blocker.id} on another board"
+
+    "#{name} is #{if blocker.completed, do: "done", else: "archived"}"
   end
 
   # A dependency shows on both cards, so when they are on different boards
