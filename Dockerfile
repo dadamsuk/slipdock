@@ -71,7 +71,28 @@ RUN cd cli && mix escript.build && mkdir -p ../priv/cli && mv slipdock ../priv/c
 # resolve them until this has run.
 RUN mix compile
 
-# Tailwind and esbuild are downloaded by their own mix tasks — no Node needed.
+# Tailwind is fetched with curl rather than `mix tailwind.install`: GitHub's
+# redirect for a release asset now carries more than the 10,240 bytes of
+# headers Erlang's :httpc accepts, and the mix task fails with header_too_long.
+# The version must match `config :tailwind, version:` in config/config.exs
+# (test/slipdock/dockerfile_test.exs checks), so `mix assets.setup` below finds
+# it already installed and skips the download. esbuild comes from the npm
+# registry, which :httpc still copes with, so its mix task fetches it.
+ARG TAILWIND_VERSION="4.3.0"
+ARG TARGETARCH
+RUN case "${TARGETARCH:-$(dpkg --print-architecture)}" in \
+      amd64) tw=tailwindcss-linux-x64 ;; \
+      arm64) tw=tailwindcss-linux-arm64 ;; \
+      *) echo "no Tailwind binary for ${TARGETARCH}" >&2; exit 1 ;; \
+    esac \
+  && base="https://github.com/tailwindlabs/tailwindcss/releases/download/v${TAILWIND_VERSION}" \
+  && mkdir -p /opt/tailwind && cd /opt/tailwind \
+  && curl -fsSL --retry 3 -o "$tw" "$base/$tw" \
+  && curl -fsSL --retry 3 "$base/sha256sums.txt" | grep " \./$tw\$" | sed 's| \./| |' | sha256sum -c - \
+  && mv "$tw" tailwindcss && chmod +x tailwindcss
+ENV MIX_TAILWIND_PATH=/opt/tailwind/tailwindcss
+
+# esbuild is downloaded by its own mix task — no Node needed.
 RUN mix assets.setup
 RUN mix assets.deploy
 
