@@ -137,9 +137,20 @@ config :esbuild,
     env: %{"NODE_PATH" => [Path.expand("../deps", __DIR__), Mix.Project.build_path()]}
   ]
 
+# mdex's precompiled NIF comes from its Cloudflare mirror rather than GitHub:
+# GitHub's redirect for a release asset carries more headers than Erlang's
+# :httpc accepts ({:header_too_long, {:max, 10240}}), which fails
+# `mix deps.compile` wherever the NIF isn't cached already, as in a fresh
+# image build. The mirror serves the same files, checked against the same
+# checksums, with no redirect.
+config :mdex_native, artifact_source: :cloudflare
+
 # Configure tailwind (the version is required)
+# MIX_TAILWIND_PATH points at a binary fetched some other way (the Dockerfile
+# does this); unset, the tailwind mix tasks install into _build as usual.
 config :tailwind,
   version: "4.3.0",
+  path: System.get_env("MIX_TAILWIND_PATH"),
   slipdock: [
     args: ~w(
       --input=assets/css/app.css
