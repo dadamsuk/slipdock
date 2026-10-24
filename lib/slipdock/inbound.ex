@@ -18,7 +18,7 @@ defmodule Slipdock.Inbound do
   import Ecto.Query
 
   alias Slipdock.{Accounts, Config, RateLimit, Repo}
-  alias Slipdock.Inbound.{Dispatcher, Email, Message, Trust}
+  alias Slipdock.Inbound.{Ack, Dispatcher, Email, Message, Trust}
 
   # Per address and per sender, an hour at a time (W-1933, "Rate limits").
   @token_limit 30
@@ -148,7 +148,9 @@ defmodule Slipdock.Inbound do
   defp decide(base, request) do
     case dispatch(base, request) do
       {:ok, attrs} ->
-        {:accepted, record(base, attrs, "accepted", nil)}
+        email = record(base, attrs, "accepted", nil)
+        Ack.maybe_send(email)
+        {:accepted, email}
 
       {:reject, reason, attrs} ->
         {:rejected, reason, record(base, attrs, "rejected", reason)}

@@ -9,6 +9,8 @@ defmodule Slipdock.Accounts.User do
     # Where the header's quick add (see Slipdock.QuickAdd) puts a card by
     # default, and whether the line is also read by the model.
     field :quick_add_ai, :boolean, default: true
+    # A short email back with a link to each card your mail makes (#1249).
+    field :inbound_ack, :boolean, default: false
     belongs_to :quick_add_board, Slipdock.Boards.Board
     belongs_to :quick_add_column, Slipdock.Boards.Column
     # How this person likes the board index: "grid" (cards) or "compact" (a
@@ -92,6 +94,8 @@ defmodule Slipdock.Accounts.User do
   names none, and whether the model reads the line at all. A board without
   a list of its own clears the list.
   """
+  def inbound_changeset(user, attrs), do: cast(user, attrs, [:inbound_ack])
+
   def quick_add_changeset(user, attrs) do
     user
     |> cast(attrs, [:quick_add_board_id, :quick_add_column_id, :quick_add_ai])

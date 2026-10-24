@@ -26,7 +26,11 @@ defmodule SlipdockWeb.InboundAddressesComponent do
 
   @impl true
   def update(assigns, socket) do
-    socket = assign(socket, assigns) |> assign_new(:board, fn -> nil end)
+    socket =
+      socket
+      |> assign(assigns)
+      |> assign_new(:board, fn -> nil end)
+      |> assign_new(:ack, fn -> assigns.current_user.inbound_ack end)
 
     if is_nil(socket.assigns.board) and is_nil(socket.assigns.addresses),
       do: {:ok, load(socket)},
@@ -38,6 +42,15 @@ defmodule SlipdockWeb.InboundAddressesComponent do
     do: {:noreply, socket |> assign(open: true, rotated: false) |> load()}
 
   def handle_event("close", _params, socket), do: {:noreply, assign(socket, open: false)}
+
+  def handle_event("ack", params, socket) do
+    case Slipdock.Accounts.update_inbound(socket.assigns.current_user, %{
+           "inbound_ack" => params["ack"] == "true"
+         }) do
+      {:ok, user} -> {:noreply, assign(socket, current_user: user, ack: user.inbound_ack)}
+      {:error, _} -> {:noreply, socket}
+    end
+  end
 
   def handle_event("rotate", _params, socket) do
     %{current_user: user, board: board} = socket.assigns
@@ -69,6 +82,19 @@ defmodule SlipdockWeb.InboundAddressesComponent do
         with no board named the card goes to your Quick Add default.
       </p>
       <.addresses id={@id} addresses={@addresses} rotated={@rotated} myself={@myself} />
+      <form id={@id <> "-ack-form"} phx-change="ack" phx-target={@myself} class="mt-4">
+        <input type="hidden" name="ack" value="false" />
+        <label class="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            id={@id <> "-ack"}
+            name="ack"
+            value="true"
+            checked={@ack}
+            class="checkbox checkbox-sm"
+          /> Email me back a link to each card my mail makes
+        </label>
+      </form>
     </section>
     """
   end

@@ -95,6 +95,27 @@ defmodule SlipdockCLI.InboundTest do
     assert_received {:request, "POST", "/api/me/inbound/rotate", _}
   end
 
+  test "inbound me --ack on|off sets the acknowledgement, and it is shown" do
+    on =
+      ~s({"domain":"example.com","board":null,"ack":true,"addresses":{"add":"add-bbbb@example.com"}})
+
+    serve([{200, on}])
+
+    out = capture_io(fn -> Inbound.run("inbound", ["me"], ack: "on") end)
+    assert_received {:request, "POST", "/api/me/inbound", body}
+    assert body =~ ~s("ack":true)
+    assert out =~ "acknowledgements: on"
+
+    off = String.replace(on, ~s("ack":true), ~s("ack":false))
+    serve([{200, off}])
+
+    assert capture_io(fn -> Inbound.run("inbound", ["me"], ack: "off") end) =~
+             "acknowledgements: off"
+
+    assert_received {:request, "POST", "/api/me/inbound", body}
+    assert body =~ ~s("ack":false)
+  end
+
   test "--json passes the addresses through" do
     serve([{200, @board}])
     json = capture_io(fn -> Inbound.run("inbound", ["slipdock"], json: true) end)
@@ -113,5 +134,6 @@ defmodule SlipdockCLI.InboundTest do
     assert help =~ "inbound log"
     assert help =~ "inbound <board> [--rotate]"
     assert help =~ "inbound me [--rotate]"
+    assert help =~ "--ack on|off"
   end
 end

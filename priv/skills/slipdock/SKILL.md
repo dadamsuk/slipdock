@@ -220,7 +220,7 @@ slipdock views <board>                      # saved swimlane views
 slipdock favourites                         # what this person keeps going back to, with a URL each
 slipdock passkeys                           # your own passkeys; `passkeys remove <id>` revokes one (only when asked)
 slipdock inbound <board> [--rotate]         # your address for emailing cards onto a board (only takes mail from you); --rotate only when asked: the old one bounces
-slipdock inbound me [--rotate]              # your personal Quick Add address: the subject picks board, list, #priority, due:
+slipdock inbound me [--rotate] [--ack on|off]   # your personal Quick Add address (subject picks board, list, #priority, due:); --ack: a link back per card
 slipdock inbound log                        # your last 50 inbound emails and what came of each (why one bounced)
 slipdock search <words...> [--board B] [--limit N] [--archived] [--full]   # a card's #id or link finds it, archived too
 slipdock ask <question...> [--board B]      # the assistant searches for itself, then answers
