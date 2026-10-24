@@ -30,6 +30,8 @@ defmodule Slipdock.Automations.Spec do
     {"card_archived", [], [], "a card is archived"},
     {"card_woken", [], [],
      "a snoozed card wakes up — its time came, someone woke it, or someone else's comment or assignment did"},
+    {"card_unblocked", [], [],
+     "the last unfinished card a card depends on is completed or archived (a card flagged blocked loses the flag first)"},
     {"card_assigned", [], ["assignee"], "a card is assigned to someone"},
     {"comment_added", [], [], "someone comments on a card"},
     {"tag_added", [], ["tag"], "a tag is put on a card"},
@@ -516,6 +518,9 @@ defmodule Slipdock.Automations.Spec do
 
       "card_woken" ->
         "a snoozed card wakes up"
+
+      "card_unblocked" ->
+        "a card's last blocker is done"
 
       "card_assigned" ->
         "a card is assigned" <> where(t["assignee"], "to")

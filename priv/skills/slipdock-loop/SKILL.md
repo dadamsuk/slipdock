@@ -548,6 +548,9 @@ next pass:
   card): `slipdock flag <id> blocked`, a comment saying exactly what is being
   waited for, `slipdock blocked-by <id> <card-id>` if it is another card, then
   `slipdock move <id> "To Do" --bottom` and `slipdock edit <id> --no-assignee`.
+  Record the dependency whenever there is one: when that card is done the
+  board takes the `blocked` flag off by itself, and the card comes back into
+  the ready list without anyone unblocking it by hand.
 - **Needs a decision only the user can make** — ambiguous scope, a choice
   between two reasonable readings, anything that would be expensive to get
   wrong: open a wait and stop. `slipdock wait <id> "the question" [--on EMAIL]
