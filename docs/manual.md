@@ -4621,6 +4621,13 @@ until mail is configured) the code and link are written to
 they are written nowhere; once mail works, sign-in links and codes never reach
 the log at all.
 
+Mail comes *in* through Cloudflare Email Routing: an Email Worker posts each
+message, signed, to `POST /api/inbound/email`. Set `SLIPDOCK_INBOUND_DOMAIN`
+(the domain it is received on) and `SLIPDOCK_INBOUND_SECRET` (shared with the
+Worker) to turn it on; with either unset the endpoint answers 404 and nothing
+inbound is shown. `SLIPDOCK_INBOUND_SECRET_PREVIOUS` is accepted as well while
+the secret is rotated.
+
 ### Signing an agent in
 
 An agent cannot read your email, so it cannot follow a magic link. It gets a

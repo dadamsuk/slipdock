@@ -376,6 +376,26 @@ if base_url = System.get_env("SLIPDOCK_BASE_URL") do
   config :slipdock, :base_url, String.trim_trailing(base_url, "/")
 end
 
+# Inbound email (see `Slipdock.Inbound`): Cloudflare Email Routing hands mail
+# to a Worker, which signs it with SLIPDOCK_INBOUND_SECRET and posts it to
+# /api/inbound/email. Both the domain and a secret are needed, or the feature
+# is off. SLIPDOCK_INBOUND_SECRET_PREVIOUS is still accepted while a new secret
+# is rolled out to the Worker.
+inbound_env = fn name ->
+  case System.get_env(name) do
+    nil -> nil
+    value -> if String.trim(value) == "", do: nil, else: String.trim(value)
+  end
+end
+
+config :slipdock, :inbound,
+  domain: inbound_env.("SLIPDOCK_INBOUND_DOMAIN"),
+  secrets:
+    Enum.reject(
+      [inbound_env.("SLIPDOCK_INBOUND_SECRET"), inbound_env.("SLIPDOCK_INBOUND_SECRET_PREVIOUS")],
+      &is_nil/1
+    )
+
 if from = System.get_env("SLIPDOCK_MAIL_FROM") do
   config :slipdock, :mail_from, {"Slipdock", from}
 end
