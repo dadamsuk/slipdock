@@ -25,7 +25,7 @@ defmodule SlipdockWeb.WikiLive.Index do
   alias Slipdock.Boards.Attachment
   alias Slipdock.Palette
   alias Slipdock.Wiki.{AutoOrganise, Folder, Icons, Page, Tree, TreeStates, WikiFile}
-  alias SlipdockWeb.BoardLive.Helpers
+  alias SlipdockWeb.BoardLive.{BoardView, Helpers}
   alias SlipdockWeb.Params
   alias SlipdockWeb.Wiki.Renderer
 
@@ -125,6 +125,11 @@ defmodule SlipdockWeb.WikiLive.Index do
       can_comment: Access.can_comment?(perm),
       can_manage: perm == :owner,
       meetings: Slipdock.Meetings.presence(socket.assigns.current_user, board),
+      # The board's `…` menu, as its own views have it: where its panels
+      # are, and whether it offers Email to this board.
+      view_only: perm == :view,
+      inbound: Access.can_write?(perm) and Slipdock.Inbound.enabled?(),
+      board_paths: board_paths(board),
       page: nil,
       page_shares: 0,
       revision: nil,
@@ -256,6 +261,22 @@ defmodule SlipdockWeb.WikiLive.Index do
     :marks,
     :shared_tree
   ]
+
+  # The board's panels, from its own board view: the wiki's `…` menu
+  # navigates to them, as they belong to `SlipdockWeb.BoardLive.Show`.
+  defp board_paths(board) do
+    base = %{mode: :board, board: board, swim_query: []}
+
+    [:tags, :activity, :archive, :settings, :automations]
+    |> Map.new(&{&1, SlipdockWeb.BoardLive.Paths.panel_path(base, &1)})
+    |> Map.put(:tidy, ~p"/boards/#{board}/tidy")
+  end
+
+  # The menu's way into meeting capture, as the board's own has it.
+  defp board_meetings_path(%{meetings: :menu, can_write: true, board: board}),
+    do: ~p"/boards/#{board}/meetings"
+
+  defp board_meetings_path(_assigns), do: nil
 
   defp switch_board(%{assigns: %{board: %{id: id}}} = socket, id, _params), do: {:ok, socket}
   defp switch_board(socket, nil, _params), do: {:ok, socket}
@@ -4094,6 +4115,19 @@ defmodule SlipdockWeb.WikiLive.Index do
           <span class="hidden sm:inline">New page</span>
         </.link>
       </:subactions>
+      <:menu :if={!@view_only and !@vault_view}>
+        <BoardView.board_menu
+          paths={@board_paths}
+          can_manage={@can_manage}
+          card_only={false}
+          view_only={@view_only}
+          ai?={false}
+          rules={[]}
+          meetings_path={board_meetings_path(assigns)}
+          inbound={@inbound}
+          navigate
+        />
+      </:menu>
 
       <%!-- A column the height of the layout's <main>, so the page tree and
             the page each scroll inside it. Without it the two panes grow to
@@ -4260,6 +4294,17 @@ defmodule SlipdockWeb.WikiLive.Index do
           <span class="ml-auto hidden text-xs text-base-content/50 lg:inline" title="Pages shown">
             {@shown} {if @shown == 1, do: "page", else: "pages"}<span :if={@hidden > 0}> · {@hidden} hidden</span>
           </span>
+          <%!-- The board's own `…` menu, as on its other views. --%>
+          <div :if={!@view_only and !@vault_view} class="ml-auto lg:ml-0">
+            <BoardView.board_more_menu
+              paths={@board_paths}
+              can_manage={@can_manage}
+              rules={[]}
+              meetings_path={board_meetings_path(assigns)}
+              inbound={@inbound}
+              navigate
+            />
+          </div>
         </div>
 
         <div class="flex min-h-0 flex-1 overflow-hidden">
@@ -4656,6 +4701,14 @@ defmodule SlipdockWeb.WikiLive.Index do
       <.folder_delete_modal :if={@folder_delete} folder={@folder_delete} owner={@can_manage} />
       <.tree_prompt :if={@tree_prompt} prompt={@tree_prompt} />
       <.share_modal :if={@share_modal} modal={@share_modal} />
+      <%!-- The `…` menu's Email to this board, as on the board's views. --%>
+      <.live_component
+        :if={@inbound}
+        module={SlipdockWeb.InboundAddressesComponent}
+        id="board-inbound"
+        board={@board}
+        current_user={@current_user}
+      />
     </Layouts.app>
     """
   end

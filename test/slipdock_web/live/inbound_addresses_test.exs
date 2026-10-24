@@ -109,6 +109,67 @@ defmodule SlipdockWeb.InboundAddressesTest do
     end
   end
 
+  describe "the wiki's board menu" do
+    test "offers Email to this board, with the board's addresses",
+         %{conn: conn, user: user} do
+      on()
+      board = board_fixture(%{}, owner: user)
+
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}/wiki")
+      assert has_element?(view, "#board-share-inbound", "Email to this board")
+      assert has_element?(view, "#board-share-menu-inbound", "Email to this board")
+
+      view |> element("#board-share-inbound") |> render_click()
+
+      {:ok, page} = Tokens.address(user, board, :page)
+      assert text(view, "#board-inbound-page") == page
+    end
+
+    test "its panels navigate to the board, which owns them", %{conn: conn, user: user} do
+      on()
+      board = board_fixture(%{}, owner: user)
+
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}/wiki")
+      share = element(view, "#board-share")
+
+      assert render(share) =~ ~s(data-phx-link="redirect")
+      assert render(share) =~ ~s(href="/boards/#{board.id}/settings")
+
+      assert {:error, {:live_redirect, %{to: to}}} = render_click(share)
+      assert to == "/boards/#{board.id}/settings"
+    end
+
+    test "on the board itself its panels still patch", %{conn: conn, user: user} do
+      board = board_fixture(%{}, owner: user)
+
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}")
+      assert view |> element("#board-share") |> render() =~ ~s(data-phx-link="patch")
+    end
+
+    test "not there for somebody who can only read the board", %{user: owner} do
+      on()
+      board = board_fixture(%{}, owner: owner)
+      reader = user_fixture("reader@example.com")
+      share_fixture(board, reader, "read")
+
+      {:ok, view, _html} = live(conn_as(reader), ~p"/boards/#{board.id}/wiki")
+      refute has_element?(view, "#board-share")
+      refute has_element?(view, "#board-share-inbound")
+      refute has_element?(view, "#board-inbound")
+    end
+
+    test "there without Email to this board while inbound mail is off",
+         %{conn: conn, user: user} do
+      TestConfig.put(:inbound, [])
+      board = board_fixture(%{}, owner: user)
+
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}/wiki")
+      assert has_element?(view, "#board-share")
+      refute has_element?(view, "#board-share-inbound")
+      refute has_element?(view, "#board-inbound")
+    end
+  end
+
   describe "the Account tab" do
     test "shows the personal Quick Add address with copy and rotate",
          %{conn: conn, user: user} do

@@ -192,24 +192,49 @@ defmodule SlipdockWeb.BoardLive.BoardView do
       </button>
       <%!-- On a phone this and the chat are the floating navigation's Menu
             (board_menu/1), leaving the toolbar the room for the view's own. --%>
-      <div :if={!@view_only and !@card_only} class="dropdown dropdown-end hidden sm:block">
-        <div tabindex="0" role="button" class="btn btn-ghost btn-sm btn-square" title="More">
-          <.icon name="hero-ellipsis-horizontal" class="size-4" />
-        </div>
-        <ul
-          tabindex="0"
-          class="menu dropdown-content z-40 mt-2 w-52 rounded-box bg-base-100 p-1 text-sm shadow-lg ring-1 ring-base-content/10"
-        >
-          <.board_menu_items
-            share_id="board-share"
-            paths={@paths}
-            can_manage={@can_manage}
-            rules={@rules}
-            meetings_path={@meetings_path}
-            inbound={@inbound}
-          />
-        </ul>
+      <.board_more_menu
+        :if={!@view_only and !@card_only}
+        paths={@paths}
+        can_manage={@can_manage}
+        rules={@rules}
+        meetings_path={@meetings_path}
+        inbound={@inbound}
+      />
+    </div>
+    """
+  end
+
+  attr :paths, :map, required: true
+  attr :can_manage, :boolean, required: true
+  attr :rules, :list, required: true
+  attr :meetings_path, :string, default: nil
+  attr :inbound, :boolean, default: false, doc: "whether the menu offers Email to this board"
+
+  attr :navigate, :boolean,
+    default: false,
+    doc: "the menu's panels by navigating, from a LiveView that isn't the board's (the wiki)"
+
+  @doc "The board's `…` menu on a wide screen: the board's toolbar, and the wiki's."
+  def board_more_menu(assigns) do
+    ~H"""
+    <div class="dropdown dropdown-end hidden sm:block">
+      <div tabindex="0" role="button" class="btn btn-ghost btn-sm btn-square" title="More">
+        <.icon name="hero-ellipsis-horizontal" class="size-4" />
       </div>
+      <ul
+        tabindex="0"
+        class="menu dropdown-content z-40 mt-2 w-52 rounded-box bg-base-100 p-1 text-sm shadow-lg ring-1 ring-base-content/10"
+      >
+        <.board_menu_items
+          share_id="board-share"
+          paths={@paths}
+          can_manage={@can_manage}
+          rules={@rules}
+          meetings_path={@meetings_path}
+          inbound={@inbound}
+          navigate={@navigate}
+        />
+      </ul>
     </div>
     """
   end
@@ -222,6 +247,10 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :rules, :list, required: true
   attr :meetings_path, :string, default: nil
   attr :inbound, :boolean, default: false, doc: "whether the menu offers Email to this board"
+
+  attr :navigate, :boolean,
+    default: false,
+    doc: "the menu's panels by navigating, from a LiveView that isn't the board's (the wiki)"
 
   @doc """
   The board's entries in the phone's navigation Menu: what the header's
@@ -243,6 +272,7 @@ defmodule SlipdockWeb.BoardLive.BoardView do
       rules={@rules}
       meetings_path={@meetings_path}
       inbound={@inbound}
+      navigate={@navigate}
     />
     """
   end
@@ -254,15 +284,19 @@ defmodule SlipdockWeb.BoardLive.BoardView do
   attr :meetings_path, :string, default: nil
   attr :inbound, :boolean, default: false, doc: "whether the menu offers Email to this board"
 
+  attr :navigate, :boolean,
+    default: false,
+    doc: "the menu's panels by navigating, from a LiveView that isn't the board's (the wiki)"
+
   # The board's own menu, wherever it is drawn: the toolbar's `…` or the
   # phone's Menu, each with its own id on the share link. Three groups:
   # what you do with the board, how it is set up, and what it has done.
   defp board_menu_items(assigns) do
     ~H"""
     <li :if={@can_manage}>
-      <.link id={@share_id} patch={@paths.settings}>
+      <.menu_link id={@share_id} to={@paths.settings} navigate={@navigate}>
         <.icon name="hero-user-plus" class="size-4" /> Share this board
-      </.link>
+      </.menu_link>
     </li>
     <%!-- Meeting mode on, but this board has had no capture yet: one way in,
           rather than a tab with nothing behind it (see `Slipdock.Meetings`). --%>
@@ -290,30 +324,44 @@ defmodule SlipdockWeb.BoardLive.BoardView do
     </li>
 
     <li class="mt-1 border-t border-base-300/60 pt-1">
-      <.link patch={@paths.tags}><.icon name="hero-tag" class="size-4" /> Tags</.link>
+      <.menu_link to={@paths.tags} navigate={@navigate}><.icon name="hero-tag" class="size-4" /> Tags</.menu_link>
     </li>
     <li :if={@can_manage}>
-      <.link patch={@paths.automations}>
+      <.menu_link to={@paths.automations} navigate={@navigate}>
         <.icon name="hero-cpu-chip" class="size-4" /> Automations
         <span :if={@rules != []} class="badge badge-ghost badge-xs">{length(@rules)}</span>
-      </.link>
+      </.menu_link>
     </li>
     <li :if={@can_manage}>
-      <.link patch={@paths.settings}>
+      <.menu_link to={@paths.settings} navigate={@navigate}>
         <.icon name="hero-cog-6-tooth" class="size-4" /> Board settings
-      </.link>
+      </.menu_link>
     </li>
 
     <li class="mt-1 border-t border-base-300/60 pt-1">
-      <.link patch={@paths.activity}><.icon name="hero-bolt" class="size-4" /> Activity</.link>
+      <.menu_link to={@paths.activity} navigate={@navigate}><.icon name="hero-bolt" class="size-4" />
+      Activity</.menu_link>
     </li>
     <li>
-      <.link patch={@paths.archive}>
+      <.menu_link to={@paths.archive} navigate={@navigate}>
         <.icon name="hero-archive-box" class="size-4" /> Archived cards
-      </.link>
+      </.menu_link>
     </li>
     """
   end
+
+  attr :to, :string, required: true
+  attr :navigate, :boolean, required: true
+  attr :rest, :global
+  slot :inner_block, required: true
+
+  # A panel of the board's: patched to where the board's LiveView is the one
+  # showing, navigated to from anywhere else.
+  defp menu_link(%{navigate: true} = assigns),
+    do: ~H"<.link navigate={@to} {@rest}>{render_slot(@inner_block)}</.link>"
+
+  defp menu_link(assigns),
+    do: ~H"<.link patch={@to} {@rest}>{render_slot(@inner_block)}</.link>"
 
   attr :board, :any, required: true
   attr :columns, :list, required: true
