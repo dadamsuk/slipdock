@@ -67,12 +67,22 @@ defmodule Slipdock.QuickAdd.Capture do
   had to be ignored — or `{:error, message}`.
 
   Options: `:today`, `:catalogue` (one already built), `:ai` (force the
-  model on or off, otherwise the user's setting decides).
+  model on or off, otherwise the user's setting decides). For mail to a
+  personal address (#1248, `Slipdock.Inbound.QuickAdd`):
+
+    * `:board` — the card goes on this board (one the subject named), on its
+      ready list unless the line names one of its lists; the model can't
+      move it elsewhere
+    * `:strict_board` — a board the model names that the user can't reach is
+      `{:error, {:unknown_board, name}}`, not quietly the default
+    * `:attrs` — more card attributes (a description)
+    * `:create_opts` — passed to `Slipdock.Boards.create_card/3` (`:by`,
+      `:actor`); with them, a refused card is `{:error, changeset}`
   """
   @spec capture(User.t(), String.t(), keyword) :: {:ok, map} | {:error, String.t()}
   def capture(%User{} = user, text, opts \\ []) do
     text = String.trim(text || "")
-    catalogue = opts[:catalogue] || catalogue(user, opts)
+    catalogue = (opts[:catalogue] || catalogue(user, opts)) |> focus(opts[:board])
 
     cond do
       text == "" ->
@@ -94,12 +104,39 @@ defmodule Slipdock.QuickAdd.Capture do
         {line, snooze} = QuickAdd.take_snooze(line, catalogue.today)
         {plan, notes} = read(user, String.trim(line), catalogue, opts)
 
-        create(
-          Map.merge(plan, %{comment: comment, user: user, recurrence: recurrence, snooze: snooze}),
-          notes,
-          catalogue
-        )
+        case plan do
+          %{unknown_board: name} when is_binary(name) ->
+            {:error, {:unknown_board, name}}
+
+          plan ->
+            create(
+              Map.merge(plan, %{
+                comment: comment,
+                user: user,
+                recurrence: recurrence,
+                snooze: snooze
+              }),
+              notes,
+              opts
+            )
+        end
     end
+  end
+
+  # A board the line was told to use: the default for this one capture, on
+  # its ready list, in the catalogue even if it is past the first 25.
+  defp focus(catalogue, nil), do: catalogue
+
+  defp focus(catalogue, %Board{} = board) do
+    entry =
+      entry_for(catalogue, board) ||
+        %{board: board, columns: columns_of(board), tags: tags_of(board)}
+
+    boards = [entry | Enum.reject(catalogue.boards, &(&1.board.id == board.id))]
+    column = SlipdockWeb.APIGuide.list_roles(entry.columns).ready || List.first(entry.columns)
+
+    %{catalogue | boards: boards, default_board: board, default_column: column}
+    |> Map.put(:forced, true)
   end
 
   ## Reading the line ----------------------------------------------------------
@@ -110,8 +147,13 @@ defmodule Slipdock.QuickAdd.Capture do
 
     if use_model?(user, opts) do
       case Model.parse(text, catalogue, [user: user] ++ Keyword.take(opts, [:model])) do
-        {:ok, answer} -> {resolve(Map.put(answer, "line", text), catalogue), []}
-        {:error, message} -> {fallback, ["Added without the model: #{message}"]}
+        {:ok, answer} ->
+          answer = Map.put(answer, "line", text)
+          plan = resolve(answer, catalogue)
+          {unknown_board(plan, answer, catalogue, opts), []}
+
+        {:error, message} ->
+          {fallback, ["Added without the model: #{message}"]}
       end
     else
       {fallback, []}
@@ -150,10 +192,25 @@ defmodule Slipdock.QuickAdd.Capture do
     }
   end
 
+  # Mail can't be asked "which board did you mean?", so a board the model
+  # heard that matches nothing reachable is said, not guessed.
+  defp unknown_board(plan, answer, catalogue, opts) do
+    name = answer["board"]
+
+    if opts[:strict_board] == true and not Map.get(catalogue, :forced, false) and
+         name not in [nil, ""] and is_nil(find_by_name(catalogue.boards, name, & &1.board.name)),
+       do: Map.put(plan, :unknown_board, name),
+       else: plan
+  end
+
   # The model answers in names; every one of them is matched back to a row
   # here, and anything that doesn't match is simply dropped.
   defp resolve(answer, catalogue) do
-    entry = pick_board(answer["board"], catalogue)
+    entry =
+      if Map.get(catalogue, :forced, false),
+        do: entry_for(catalogue, catalogue.default_board),
+        else: pick_board(answer["board"], catalogue)
+
     column = pick_column(answer["column"], entry, catalogue)
 
     %{attrs: attrs, chips: chips} =
@@ -312,12 +369,12 @@ defmodule Slipdock.QuickAdd.Capture do
 
   ## Writing the card ----------------------------------------------------------
 
-  defp create(%{title: ""}, _notes, _catalogue), do: {:error, "That line has no title in it."}
+  defp create(%{title: ""}, _notes, _opts), do: {:error, "That line has no title in it."}
 
-  defp create(plan, notes, _catalogue) do
-    attrs = Map.put(plan.attrs, "title", plan.title)
+  defp create(plan, notes, opts) do
+    attrs = plan.attrs |> Map.merge(opts[:attrs] || %{}) |> Map.put("title", plan.title)
 
-    case Boards.create_card(plan.column, attrs) do
+    case Boards.create_card(plan.column, attrs, opts[:create_opts] || []) do
       {:ok, card} ->
         if plan.tags != [], do: Boards.set_card_tags(card, plan.tags)
         if plan.comment, do: Boards.add_comment(card, plan.comment, by: plan.user)
@@ -352,8 +409,8 @@ defmodule Slipdock.QuickAdd.Capture do
            notes: notes
          }}
 
-      {:error, _changeset} ->
-        {:error, "Couldn't add that card."}
+      {:error, changeset} ->
+        if opts[:create_opts], do: {:error, changeset}, else: {:error, "Couldn't add that card."}
     end
   end
 

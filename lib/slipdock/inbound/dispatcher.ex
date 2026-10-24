@@ -11,11 +11,12 @@ defmodule Slipdock.Inbound.Dispatcher do
   with a reason the sender reads in the bounce.
 
   `card-…` makes a card on the board's ready list (#1247,
-  `Slipdock.Inbound.Cards`). The kinds not acted on yet are refused; the
+  `Slipdock.Inbound.Cards`); `add-…` goes through Quick Add (#1248,
+  `Slipdock.Inbound.QuickAdd`), which checks the board it picks itself. The kinds not acted on yet are refused; the
   epics after #1233 fill them in, one clause each.
   """
 
-  alias Slipdock.Inbound.{Cards, Tokens, Trust}
+  alias Slipdock.Inbound.{Cards, QuickAdd, Tokens, Trust}
 
   @type request :: %{
           kind: String.t(),
@@ -39,6 +40,16 @@ defmodule Slipdock.Inbound.Dispatcher do
     with {:ok, {:card, user, board}} <- resolve(recipient),
          :ok <- trust(message, user, {:board, board}) do
       case Cards.to_board(user, board, message) do
+        {:ok, attrs} -> {:ok, attrs}
+        {:reject, reason} -> {:reject, reason, %{user_id: user.id}}
+      end
+    end
+  end
+
+  def dispatch(%{kind: "add", recipient: recipient, message: message}) do
+    with {:ok, {:add, user, nil}} <- resolve(recipient),
+         :ok <- trust(message, user, :personal) do
+      case QuickAdd.capture(user, message) do
         {:ok, attrs} -> {:ok, attrs}
         {:reject, reason} -> {:reject, reason, %{user_id: user.id}}
       end

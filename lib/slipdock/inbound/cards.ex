@@ -212,9 +212,13 @@ defmodule Slipdock.Inbound.Cards do
     end
   end
 
-  # Uploads every attachment, then points the description's cid: images at
-  # them and names any that were left off.
-  defp attach(%Card{} = card, user, %Message{} = message, extra) do
+  @doc """
+  Uploads `message`'s attachments to `card`, then points its description's
+  `cid:` images at them (after `extra`, whatever the description opened
+  with) and names in a comment any that were left off.
+  """
+  @spec attach(Card.t(), User.t(), Message.t(), String.t() | nil) :: :ok
+  def attach(%Card{} = card, user, %Message{} = message, extra) do
     {stored, left_off} =
       Enum.reduce(message.attachments, {%{}, []}, fn file, {stored, left_off} ->
         case store(card, file) do
@@ -293,7 +297,9 @@ defmodule Slipdock.Inbound.Cards do
 
   ## Plumbing ------------------------------------------------------------------
 
-  defp refusal(changeset) do
+  @doc "The bounce for a card the database refused: which limit, in plain words."
+  @spec refusal(Ecto.Changeset.t()) :: String.t()
+  def refusal(changeset) do
     case Quota.limit_kind(changeset) do
       :items ->
         "The account that owns this board is full, so no card was made. Archiving or deleting something finished with makes room."

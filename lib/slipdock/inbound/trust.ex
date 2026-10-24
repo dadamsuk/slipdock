@@ -24,7 +24,9 @@ defmodule Slipdock.Inbound.Trust do
 
   @authserv_ids ["mx.cloudflare.net"]
 
-  @type target :: {:board, Board.t()} | {:card, Card.t()}
+  # `:personal` is a personal Quick Add address: no board yet, and Quick Add
+  # only offers boards the person can write to.
+  @type target :: {:board, Board.t()} | {:card, Card.t()} | :personal
 
   @doc """
   Why `message` is automatic and must not be answered, or nil: an
@@ -178,6 +180,8 @@ defmodule Slipdock.Inbound.Trust do
     do: Slipdock.Email.normalize(from) == Slipdock.Email.normalize(email)
 
   defp own_mail?(_, _), do: false
+
+  defp allowed?(_user, :personal), do: true
 
   defp allowed?(user, {:board, %Board{} = board}),
     do: user |> Access.board_permission(board) |> Access.can_write?()
