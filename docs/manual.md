@@ -2128,8 +2128,55 @@ Account tab (`slipdock inbound me --ack on`, `POST /api/me/inbound
 It is never sent for mail that bounced or was ignored, and never twice for one
 message.
 
+### Replying to a notification
+
+Emails about a card can be answered from your mail client. Mentions, a wait
+on you, and an automation's email about a card each come with a `Reply-To:
+reply-…@<domain>` address made for you and that card alone. Reply as you
+would to anyone, from Gmail, Outlook, Apple Mail or your phone, and what you
+wrote is a comment on the card, by you:
+
+- **Quoted history is taken off**: the `On … wrote:` line and everything
+  under it, `>` lines, Outlook's `From:/Sent:` block, your signature (from
+  `-- `) and "Sent from my iPhone". What is left is the comment.
+- **Attachments** go to the card, and the comment links to each one.
+- **`@name`** in a reply tells that person, as a comment typed on the card
+  does.
+- Emails about one card **thread together** in your mail client, and each
+  says at the bottom that it can be replied to.
+
+**Answering a wait by reply.** When a card waits on you, you get an email
+saying what it needs, with any questions and choices numbered. Your reply
+answers it, as `slipdock answer` would:
+
+- With choices, start with the choice's number (`2`) or its text (`EU`) to
+  pick it. Anything on the lines after is your answer in words. A reply that
+  doesn't start with a choice is a free-text answer.
+- With several questions, answer each in a paragraph of its own, in order.
+  Questions left over stay unanswered.
+- A reply that can't be matched, such as more paragraphs than there are
+  questions, is added as a comment instead. The wait stays open, and a
+  second comment says why.
+
+While the wait is open, a reply of yours to any email about that card answers it, not only a reply to the wait email.
+
+**Why a reply bounces.** The bounce says which:
+
+- it was empty once the quoted message was taken off, and had no files;
+- it came from a different address than the one the email went to, or
+  passed neither DMARC nor DKIM;
+- the reply address is more than a year old (comment on the card instead),
+  or isn't one this server made;
+- the card has since been deleted or archived, or you can no longer comment
+  on it.
+
+An address stops working if the server's inbound secret is rotated, once
+the previous secret is dropped.
+
 The code: `Slipdock.Inbound.Tokens` (addresses), `Slipdock.Inbound.Cards`,
-`Slipdock.Inbound.Pages` and `Slipdock.Inbound.QuickAdd` (what mail makes), `Slipdock.Inbound.Ack`. The
+`Slipdock.Inbound.Pages` and `Slipdock.Inbound.QuickAdd` (what mail makes), `Slipdock.Inbound.Ack`,
+`Slipdock.Inbound.ReplyToken` and `Slipdock.Inbound.Replies` (replies),
+`Slipdock.Inbound.WaitReply` (answering a wait). The
 design and the Cloudflare runbook are W-1933 on the Slipdock board's wiki.
 
 ## Deep search and Ask
