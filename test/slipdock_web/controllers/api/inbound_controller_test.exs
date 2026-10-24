@@ -18,6 +18,20 @@ defmodule SlipdockWeb.API.InboundControllerTest do
     def dispatch(request), do: Slipdock.Inbound.Dispatcher.dispatch(request)
   end
 
+  # The epic's "done when" (#1233), end to end: what a card dispatcher will
+  # do, on the real parser and trust rules, with the address resolved to the
+  # owner of a board the test makes.
+  defmodule TrustingDispatcher do
+    def dispatch(%{message: message}) do
+      {user, board} = Slipdock.Config.get(:inbound_test_target)
+
+      case Slipdock.Inbound.Trust.check(message, user, {:board, board}) do
+        :ok -> {:ok, %{user_id: user.id}}
+        {:reject, reason} -> {:reject, reason, %{user_id: user.id}}
+      end
+    end
+  end
+
   setup do
     TestConfig.put(:inbound, domain: @domain, secrets: [@secret])
     :ok
@@ -222,6 +236,49 @@ defmodule SlipdockWeb.API.InboundControllerTest do
       # And a repeat is refused the same way, without a second row.
       assert build_conn() |> post_mail("just some bytes") |> json_response(422)
       assert [_] = rows()
+    end
+  end
+
+  describe "end to end, with the trust rules" do
+    setup do
+      owner = user_fixture("owner@example.com")
+      board = board_fixture(%{}, owner: owner)
+      TestConfig.put(:inbound_test_target, {owner, board})
+      TestConfig.put(:inbound_dispatcher, TrustingDispatcher)
+      %{owner: owner}
+    end
+
+    defp signed_by_cloudflare(from) do
+      "ARC-Authentication-Results: i=1; mx.cloudflare.net; dkim=pass header.d=example.com;\r\n" <>
+        " dmarc=pass header.from=example.com\r\n" <> raw(from: from)
+    end
+
+    test "an allowed sender's signed message is parsed, recorded and accepted",
+         %{conn: conn, owner: owner} do
+      assert %{"ok" => true} =
+               conn
+               |> post_mail(signed_by_cloudflare("Owner <#{owner.email}>"))
+               |> json_response(202)
+
+      assert [%{outcome: "accepted", sender: sender, subject: "Hello", user_id: user_id}] = rows()
+      assert sender == owner.email
+      assert user_id == owner.id
+    end
+
+    test "someone else's address bounces with a reason", %{conn: conn, owner: owner} do
+      assert %{"reject" => "Mail to this address has to come from" <> _} =
+               conn
+               |> post_mail(signed_by_cloudflare("Mallory <mallory@example.com>"))
+               |> json_response(422)
+
+      assert [%{outcome: "rejected", user_id: user_id}] = rows()
+      assert user_id == owner.id
+    end
+
+    test "the owner's address without authentication bounces with a reason",
+         %{conn: conn, owner: owner} do
+      assert %{"reject" => "We couldn't confirm" <> _} =
+               conn |> post_mail(raw(from: owner.email)) |> json_response(422)
     end
   end
 
