@@ -251,7 +251,12 @@ defmodule Slipdock.Inbound.Cards do
     :ok
   end
 
-  defp store(card, file) do
+  @doc """
+  One attachment from a message, uploaded to `card`: `{:ok, attachment}`,
+  or `{:error, why}` with the limit that stopped it (`:storage`, `:items`,
+  `:trial`) or `:invalid`.
+  """
+  def store(%Card{} = card, file) do
     path = Path.join(System.tmp_dir!(), "slipdock-inbound-#{System.unique_integer([:positive])}")
     File.write!(path, file.data)
 
@@ -274,7 +279,8 @@ defmodule Slipdock.Inbound.Cards do
     end
   end
 
-  defp left_off_comment(files) do
+  @doc "The comment naming files that came with a message but weren't kept."
+  def left_off_comment(files) do
     lines =
       Enum.map(files, fn {file, why} ->
         "- `#{file.filename}` (#{size(byte_size(file.data))}): #{why_left_off(why)}"

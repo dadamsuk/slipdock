@@ -20,20 +20,25 @@ defmodule Slipdock.Inbound.Trim do
 
   Neither function ever returns an empty body for a message that had content:
   if trimming would leave nothing (a reply that is all quote, say), the
-  original comes back untouched.
+  original comes back untouched. Unless asked to be `strict`, as a reply
+  to a notification is: there, nothing left means nothing to add.
   """
 
   alias Slipdock.Inbound.{HtmlToMarkdown, Message}
 
   @doc """
   A message's body as Markdown, trimmed: the text part when there is one,
-  else the HTML converted. `opts` go to `HtmlToMarkdown.convert/2`.
+  else the HTML converted. `opts` go to `HtmlToMarkdown.convert/2`, except
+  `strict: true`, which lets the answer be "" when the message was all
+  quote and signature (a reply to a notification that adds nothing, #1258).
   """
   @spec markdown(Message.t(), keyword()) :: String.t()
   def markdown(%Message{text: text, html: html}, opts \\ []) do
+    {strict, opts} = Keyword.pop(opts, :strict, false)
+
     cond do
-      present?(text) -> text(text)
-      present?(html) -> html |> html() |> HtmlToMarkdown.convert(opts) |> text()
+      present?(text) -> text(text, strict)
+      present?(html) -> html |> html(strict) |> HtmlToMarkdown.convert(opts) |> text(strict)
       true -> ""
     end
   end
@@ -73,10 +78,11 @@ defmodule Slipdock.Inbound.Trim do
   @footer ~r/^(Sent from my \w+|Sent from (Outlook|Mail|Yahoo Mail)\b|Get Outlook for \w+|Sent from my (Samsung|Galaxy|Android|BlackBerry)|Envoyé de mon \w+|Von meinem .* gesendet|Enviado desde mi \w+|Inviato da \w+)/i
 
   @doc "Trims plain text (or Markdown converted from HTML)."
-  @spec text(String.t() | nil) :: String.t()
-  def text(nil), do: ""
+  @spec text(String.t() | nil, boolean()) :: String.t()
+  def text(text, strict \\ false)
+  def text(nil, _strict), do: ""
 
-  def text(text) when is_binary(text) do
+  def text(text, strict) when is_binary(text) do
     lines = text |> String.replace("\r\n", "\n") |> String.split("\n")
     {own, forwarded} = Enum.split_while(lines, &(not forward?(&1)))
 
@@ -96,7 +102,7 @@ defmodule Slipdock.Inbound.Trim do
       |> String.replace(~r/\n{3,}/, "\n\n")
       |> String.trim()
 
-    if trimmed == "" and present?(text), do: String.trim(text), else: trimmed
+    if trimmed == "" and present?(text) and not strict, do: String.trim(text), else: trimmed
   end
 
   defp cut_at_history(lines) do
@@ -194,10 +200,11 @@ defmodule Slipdock.Inbound.Trim do
   @cut_ids ~w(divRplyFwdMsg appendonsend stopSpelling mail-editor-reference-message-container)
 
   @doc "Trims HTML, before it is converted to Markdown."
-  @spec html(String.t() | nil) :: String.t()
-  def html(nil), do: ""
+  @spec html(String.t() | nil, boolean()) :: String.t()
+  def html(html, strict \\ false)
+  def html(nil, _strict), do: ""
 
-  def html(html) when is_binary(html) do
+  def html(html, strict) when is_binary(html) do
     case Floki.parse_document(html) do
       {:ok, tree} ->
         trimmed =
@@ -206,9 +213,13 @@ defmodule Slipdock.Inbound.Trim do
           |> cut_tree()
           |> Floki.raw_html()
 
-        if present?(trimmed |> Floki.parse_document!() |> Floki.text()),
-          do: trimmed,
-          else: html
+        kept = Floki.parse_document!(trimmed)
+
+        cond do
+          present?(Floki.text(kept)) or Floki.find(kept, "img") != [] -> trimmed
+          strict -> ""
+          true -> html
+        end
 
       {:error, _} ->
         html
