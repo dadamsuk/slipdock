@@ -81,7 +81,10 @@ defmodule Slipdock.Automations.Notifier do
     recipients
     |> Enum.map(fn address ->
       {headers, footer} = reply_headers(card, address, opts[:footer])
-      body = if footer, do: String.trim_trailing(body) <> "\n\n-- \n" <> footer <> "\n", else: body
+
+      body =
+        if footer, do: String.trim_trailing(body) <> "\n\n-- \n" <> footer <> "\n", else: body
+
       send_mail([address], subject, body, headers)
     end)
     |> Enum.find(:ok, &(&1 != :ok))

@@ -38,7 +38,9 @@ defmodule Slipdock.Inbound.RepliesTest do
       |> String.replace(~r/^To:.*$/mi, "To: #{to}", global: false)
       |> String.replace(
         ~r/^Message-I[dD]:.*$/mi,
-        "Message-ID: <#{System.unique_integer([:positive])}@x>", global: false)
+        "Message-ID: <#{System.unique_integer([:positive])}@x>",
+        global: false
+      )
 
     auth =
       if Keyword.get(opts, :auth, true),
