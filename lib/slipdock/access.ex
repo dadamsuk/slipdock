@@ -958,6 +958,8 @@ defmodule Slipdock.Access do
     |> tap(fn _ ->
       # What the share let somebody file in their own folders goes too (#818).
       Slipdock.Wiki.SharedPlacements.cleanup(grant)
+      # Their inbound addresses for it stop working with the share (#1244).
+      if match?(%Board{}, resource), do: Slipdock.Inbound.Tokens.prune_board(resource)
       broadcast_resource(resource)
       Boards.notify_users_boards_changed(subject_user_ids(grant))
       notify_shares(resource, subject_user_ids(grant))
