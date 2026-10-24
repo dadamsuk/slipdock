@@ -85,6 +85,9 @@ defmodule SlipdockWeb.Endpoint do
   defp parse_body(%Plug.Conn{path_info: ["api", "runner" | _]} = conn, _opts),
     do: Plug.Conn.fetch_query_params(conn)
 
+  # Inbound mail is raw MIME, signed as sent: the controller reads it itself,
+  # untouched, and checks the signature over exactly those bytes.
+  defp parse_body(%Plug.Conn{path_info: ["api", "inbound", "email"]} = conn, _opts), do: conn
   defp parse_body(conn, _opts), do: Plug.Parsers.call(conn, @parsers)
 
   plug Plug.MethodOverride
