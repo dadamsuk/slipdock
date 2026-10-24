@@ -735,9 +735,7 @@ defmodule SlipdockWeb.WikiLive.Index do
         parent_id: parent && parent.id,
         folder_id: folder && folder.id,
         title: params["title"] || "",
-        # "Write this into a doc" from a board view arrives with the query
-        # block already written, which is how anyone authors one of these
-        # without learning the syntax.
+        # A link can arrive with the page's opening block already written.
         body: params["block"] || ""
       }
 

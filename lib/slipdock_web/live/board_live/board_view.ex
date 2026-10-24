@@ -1243,7 +1243,6 @@ defmodule SlipdockWeb.BoardLive.BoardView do
         board={@board}
         meetings={@meetings}
         mode={:board}
-        config={@config}
         view={@view}
         marks={@marks}
       />

@@ -243,9 +243,7 @@ empty: "Nothing blocked and due this week."
   `Slipdock.Work`, the same sections `/work` shows.
 
 Compiles to a `Slipdock.Swimlanes.Config`, so every filter, sort, grouping and
-field chooser that exists in the UI is available to a document on day one,
-and the UI can offer "insert this view into a doc" from any board view —
-the honest way to author these without learning the syntax.
+field chooser that exists in the UI is available to a document on day one.
 
 Inline, `{{...}}` mirrors the placeholder syntax automations already use:
 `{{count: flag=blocked}}`, `{{card:412.due_date}}`, `{{progress:412}}`,
