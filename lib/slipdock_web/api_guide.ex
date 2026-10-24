@@ -744,7 +744,8 @@ defmodule SlipdockWeb.APIGuide do
       `reason`, and a `link` to what it made. 404 while inbound mail is off.
       Look here when someone says they emailed something and nothing happened.
       `GET /api/boards/:board/inbound` is the holder's own `card` address for
-      a board they can write to, `GET /api/me/inbound` their personal `add`
+      a board they can write to (`?folder=` a wiki folder's own `page`
+      address), `GET /api/me/inbound` their personal `add`
       (Quick Add) address and `ack`; `POST …/rotate` replaces one, and the old
       bounces; `POST /api/me/inbound {"ack": true}` mails a link back per card.
       Emails about a card (mentions, waits, rule emails) can be replied to: the

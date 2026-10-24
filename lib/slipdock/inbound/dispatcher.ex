@@ -13,12 +13,14 @@ defmodule Slipdock.Inbound.Dispatcher do
   `card-…` makes a card on the board's ready list (#1247,
   `Slipdock.Inbound.Cards`); `add-…` goes through Quick Add (#1248,
   `Slipdock.Inbound.QuickAdd`), which checks the board it picks itself;
-  `page-…` makes or adds to a wiki page (#1251, `Slipdock.Inbound.Pages`);
+  `page-…` makes or adds to a wiki page (#1251, `Slipdock.Inbound.Pages`),
+  in the folder when the address is a folder's (#1277);
   `reply-…` comments on the card a notification was about (#1258,
   `Slipdock.Inbound.Replies`).
   """
 
   alias Slipdock.Inbound.{Cards, Pages, QuickAdd, Replies, ReplyToken, Tokens, Trust}
+  alias Slipdock.Wiki.Folder
 
   @type request :: %{
           kind: String.t(),
@@ -48,10 +50,12 @@ defmodule Slipdock.Inbound.Dispatcher do
     end
   end
 
+  # A board's page address, or a folder's (#1277), whose page goes in it.
   def dispatch(%{kind: "page", recipient: recipient, message: message}) do
-    with {:ok, {:page, user, board}} <- resolve(recipient),
+    with {:ok, {:page, user, target}} <- resolve(recipient),
+         {board, opts} = page_target(target),
          :ok <- trust(message, user, {:board, board}) do
-      case Pages.to_board(user, board, message) do
+      case Pages.to_board(user, board, message, opts) do
         {:ok, attrs} -> {:ok, attrs}
         {:reject, reason} -> {:reject, reason, %{user_id: user.id}}
       end
@@ -97,6 +101,9 @@ defmodule Slipdock.Inbound.Dispatcher do
       {:error, why} -> {:reject, unresolved(why), %{}}
     end
   end
+
+  defp page_target(%Folder{board: board} = folder), do: {board, folder: folder}
+  defp page_target(board), do: {board, []}
 
   # Every refusal of a reply address is said plainly, but a forged one is
   # not told what a real one would look like.

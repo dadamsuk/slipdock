@@ -446,6 +446,8 @@ export function menuItems(row, ctx) {
     items.push({label: `Sort: ${label}`, icon: (row.sort || "board") === sort ? "hero-check" : "hero-arrows-up-down", event: "set_tree_sort", payload: {key: row.key, sort}, group: "sort"}))
 
   add(!many && !!row.shareable, {label: "Share…", icon: "hero-user-plus", event: "share_item", payload: {kind: row.kind, id}, group: "share"})
+  // Its own address: mail to it is a page in this folder (#1277).
+  add(writable && !many && ctx.inbound && row.kind === "folder", {label: "Email this folder…", icon: "hero-envelope", event: "email_folder", payload: {id}, group: "share"})
   add(!many, {label: "Copy link", icon: "hero-link", action: "copy", href: row.href, group: "share"})
 
   if (writable) {
@@ -631,6 +633,7 @@ export const WikiTree = {
       rootSort: this.rootSort,
       organising: this.el.dataset.organising === "true",
       canWrite: this.el.dataset.canWrite === "true",
+      inbound: this.el.dataset.inbound === "true",
       vaultOwner: this.el.dataset.vaultOwner === "true",
     }
   },

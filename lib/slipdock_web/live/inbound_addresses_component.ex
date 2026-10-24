@@ -8,6 +8,9 @@ defmodule SlipdockWeb.InboundAddressesComponent do
       board menu's *Email to this board* opens (the `open` event). The
       addresses are only made when it is opened, so looking at a board never
       makes a token.
+    * The same dialog for one wiki folder (#1277): the folder's own page
+      address, opened from the wiki tree's *Email this folder…* by
+      `send_update(…, open_folder: id)`. Its mail is a page in that folder.
     * With `board` nil: the personal Quick Add address, as a section of the
       Account tab.
 
@@ -20,11 +23,31 @@ defmodule SlipdockWeb.InboundAddressesComponent do
   import SlipdockWeb.SlipdockComponents, only: [modal: 1]
 
   alias Slipdock.Inbound.Tokens
+  alias Slipdock.{Access, Repo}
+  alias Slipdock.Wiki.{Folder, Folders}
 
   @impl true
-  def mount(socket), do: {:ok, assign(socket, open: false, addresses: nil, rotated: false)}
+  def mount(socket),
+    do: {:ok, assign(socket, open: false, addresses: nil, rotated: false, folder: nil)}
 
   @impl true
+  def update(%{open_folder: id}, socket) do
+    user = socket.assigns.current_user
+
+    # Only for somebody who can write to the folder's board: the dialog names
+    # the folder and its board, so nobody else is told even that much.
+    with %Folder{} = folder <- Folders.get(id),
+         folder = Repo.preload(folder, :board),
+         true <- user |> Access.board_permission(folder.board) |> Access.can_write?() do
+      {:ok,
+       socket
+       |> assign(folder: folder, path: Folders.path(folder), open: true, rotated: false)
+       |> load()}
+    else
+      _ -> {:ok, socket}
+    end
+  end
+
   def update(assigns, socket) do
     socket =
       socket
@@ -39,7 +62,7 @@ defmodule SlipdockWeb.InboundAddressesComponent do
 
   @impl true
   def handle_event("open", _params, socket),
-    do: {:noreply, socket |> assign(open: true, rotated: false) |> load()}
+    do: {:noreply, socket |> assign(open: true, rotated: false, folder: nil) |> load()}
 
   def handle_event("close", _params, socket), do: {:noreply, assign(socket, open: false)}
 
@@ -53,20 +76,22 @@ defmodule SlipdockWeb.InboundAddressesComponent do
   end
 
   def handle_event("rotate", _params, socket) do
-    %{current_user: user, board: board} = socket.assigns
-
-    case Tokens.rotate(user, board) do
+    case Tokens.rotate(socket.assigns.current_user, target(socket.assigns)) do
       {:ok, addresses} -> {:noreply, assign(socket, addresses: addresses, rotated: true)}
       {:error, _} -> {:noreply, assign(socket, addresses: :unavailable)}
     end
   end
 
   defp load(socket) do
-    case Tokens.addresses(socket.assigns.current_user, socket.assigns.board) do
+    case Tokens.addresses(socket.assigns.current_user, target(socket.assigns)) do
       {:ok, addresses} -> assign(socket, addresses: addresses)
       {:error, _} -> assign(socket, addresses: :unavailable)
     end
   end
+
+  # The folder the dialog was opened for, or the board, or (Account) nobody's.
+  defp target(%{folder: %Folder{} = folder}), do: folder
+  defp target(%{board: board}), do: board
 
   @impl true
   def render(%{board: nil} = assigns) do
@@ -108,7 +133,19 @@ defmodule SlipdockWeb.InboundAddressesComponent do
         size="md"
         on_close={JS.push("close", target: @myself)}
       >
-        <div class="p-6">
+        <div :if={@folder} class="p-6">
+          <h2 class="text-lg font-semibold">Email to the folder {@path}</h2>
+          <p class="mt-1 text-sm text-base-content/60">
+            This address is yours alone: it only takes mail from your own address.
+            Mail to it becomes a wiki page in <strong>{@path}</strong>
+            on {@folder.board.name}: the subject is the title, the body the page,
+            and attachments come too. <code>[Sub/Folder] Title</code>
+            files it in a folder beneath this one, and <code>+ Title</code>
+            adds a dated section to that page.
+          </p>
+          <.addresses id={@id} addresses={@addresses} rotated={@rotated} myself={@myself} />
+        </div>
+        <div :if={!@folder} class="p-6">
           <h2 class="text-lg font-semibold">Email to {@board.name}</h2>
           <p class="mt-1 text-sm text-base-content/60">
             These addresses are yours alone: they only take mail from your own address.

@@ -2,9 +2,10 @@ defmodule Slipdock.Inbound.Token do
   @moduledoc """
   The token in an inbound address: a row of `inbound_tokens` (#1244). A
   board token (`board` set) is behind that person's `card-…` and `page-…`
-  addresses for the board; a personal one (`board` nil) is behind their
-  `add-…` address. At most one of each is live, `revoked_at` nil; rotating
-  revokes the old row and makes a new one.
+  addresses for the board; a folder token (`folder` set, and its `board`) is
+  behind that person's `page-…` address for the folder (#1277); a personal
+  one (`board` nil) is behind their `add-…` address. At most one of each is
+  live, `revoked_at` nil; rotating revokes the old row and makes a new one.
   """
   use Ecto.Schema
 
@@ -17,6 +18,7 @@ defmodule Slipdock.Inbound.Token do
     field :revoked_at, :utc_datetime
     belongs_to :user, Slipdock.Accounts.User
     belongs_to :board, Slipdock.Boards.Board
+    belongs_to :folder, Slipdock.Wiki.Folder
     timestamps(type: :utc_datetime, updated_at: false)
   end
 end

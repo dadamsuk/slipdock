@@ -8,6 +8,11 @@ defmodule Slipdock.Inbound.Tokens do
   board). A token names both the sender it accepts and the destination, so an
   address is no use to anybody but its owner.
 
+  A wiki folder can have an address of its own too (#1277): `page-<token>@…`
+  again, so the Email Worker needs no change, but its token names the folder,
+  and the page is made there. One per person per folder, for anybody who can
+  write to the folder's board; deleting the folder deletes its tokens.
+
   Tokens are 26 random base32 characters (128 bits), made the first time the
   address is asked for. They are looked up by SHA-256 hash, and kept
   encrypted with a key derived from the endpoint's `secret_key_base` too, so
@@ -27,23 +32,27 @@ defmodule Slipdock.Inbound.Tokens do
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.Board
   alias Slipdock.Inbound.Token
+  alias Slipdock.Wiki.Folder
 
   @encryption_salt "inbound address token"
   @token_bytes 16
 
   @type kind :: :card | :page | :add
+  @typedoc "What a token is for: a board, one of its wiki folders, or (nil) the person."
+  @type target :: Board.t() | Folder.t() | nil
   @type resolve_error ::
           :malformed | :unknown | :revoked | :wrong_kind | :inactive | :archived | :forbidden
 
   @doc """
-  `user`'s address of `kind` for `board` (`:card` or `:page`), or their
-  personal address (`nil` and `:add`), making the token if there is none yet.
+  `user`'s address of `kind` for `board` (`:card` or `:page`), for a wiki
+  folder (`:page` only), or their personal address (`nil` and `:add`), making
+  the token if there is none yet.
 
   `{:error, :disabled}` while inbound mail is off, `{:error, :forbidden}` when
   `user` can't write to `board`, and `{:error, :wrong_kind}` for a kind the
   target doesn't have (no `:add` for a board, no `:card` without one).
   """
-  @spec address(User.t(), Board.t() | nil, kind()) ::
+  @spec address(User.t(), target(), kind()) ::
           {:ok, String.t()} | {:error, :disabled | :forbidden | :wrong_kind}
   def address(%User{} = user, board, kind) do
     with :ok <- kind_fits(board, kind),
@@ -55,12 +64,16 @@ defmodule Slipdock.Inbound.Tokens do
   end
 
   @doc """
-  Every address `user` has for `board` (or, for `nil`, the personal one), as
-  a map of kind to address. Same errors as `address/3`.
+  Every address `user` has for `board`, a folder, or (for `nil`) the personal
+  one, as a map of kind to address. Same errors as `address/3`.
   """
-  @spec addresses(User.t(), Board.t() | nil) :: {:ok, map()} | {:error, atom()}
+  @spec addresses(User.t(), target()) :: {:ok, map()} | {:error, atom()}
   def addresses(%User{} = user, nil) do
     with {:ok, add} <- address(user, nil, :add), do: {:ok, %{add: add}}
+  end
+
+  def addresses(%User{} = user, %Folder{} = folder) do
+    with {:ok, page} <- address(user, folder, :page), do: {:ok, %{page: page}}
   end
 
   def addresses(%User{} = user, %Board{} = board) do
@@ -84,11 +97,11 @@ defmodule Slipdock.Inbound.Tokens do
   end
 
   @doc """
-  Replaces `user`'s token for `board` (or their personal one, for `nil`) with
+  Replaces `user`'s token for `board`, a folder, or (for `nil`) their personal one, with
   a new one; mail to the old address bounces from now on. Answers the new
   addresses, as `addresses/2` does.
   """
-  @spec rotate(User.t(), Board.t() | nil) :: {:ok, map()} | {:error, atom()}
+  @spec rotate(User.t(), target()) :: {:ok, map()} | {:error, atom()}
   def rotate(%User{} = user, board) do
     with :ok <- enabled(),
          :ok <- may_write(user, board) do
@@ -104,10 +117,10 @@ defmodule Slipdock.Inbound.Tokens do
   end
 
   @doc """
-  Turns `user`'s token for `board` (or their personal one) off, without a
+  Turns `user`'s token for `board`, a folder, or their personal one off, without a
   replacement. Asking for the address again makes a new one.
   """
-  @spec revoke(User.t(), Board.t() | nil) :: :ok
+  @spec revoke(User.t(), target()) :: :ok
   def revoke(%User{} = user, board) do
     live(user, board) |> Repo.update_all(set: [revoked_at: DateTime.utc_now(:second)])
     :ok
@@ -127,22 +140,22 @@ defmodule Slipdock.Inbound.Tokens do
 
   @doc """
   What an address's local part (`card-<token>`, or the whole address) points
-  at: `{:ok, {kind, user, board}}`, `board` nil for a personal address. Or
-  why not:
+  at: `{:ok, {kind, user, target}}`: the board, `nil` for a personal address,
+  or for a folder's address the `Folder`, its `board` loaded. Or why not:
 
     * `:malformed` — not an inbound address at all
     * `:unknown` — no such token
     * `:revoked` — it was rotated or revoked (or its board's share taken
       back), so its owner has a new address, or none
-    * `:wrong_kind` — `add-` with a board token, or `card-`/`page-` with a
-      personal one
+    * `:wrong_kind` — `add-` with a board token, `card-`/`page-` with a
+      personal one, or `card-` with a folder's
     * `:inactive` — the account is disabled
-    * `:archived` — the board is archived
+    * `:archived` — the board (a folder's own board) is archived
     * `:forbidden` — its owner can no longer write to the board; the token is
       revoked on the spot
   """
   @spec resolve(String.t()) ::
-          {:ok, {kind(), User.t(), Board.t() | nil}} | {:error, resolve_error()}
+          {:ok, {kind(), User.t(), target()}} | {:error, resolve_error()}
   def resolve(local_part) when is_binary(local_part) do
     with {kind, token} when kind in ["card", "page", "add"] <-
            Inbound.address(String.downcase(String.trim(local_part))),
@@ -156,6 +169,7 @@ defmodule Slipdock.Inbound.Tokens do
   end
 
   defp check(kind, %Token{board: nil}) when kind != :add, do: {:error, :wrong_kind}
+  defp check(kind, %Token{folder: %Folder{}}) when kind != :page, do: {:error, :wrong_kind}
   defp check(:add, %Token{board: %Board{}}), do: {:error, :wrong_kind}
 
   defp check(_kind, %Token{user: %User{disabled_at: at}}) when not is_nil(at),
@@ -163,7 +177,14 @@ defmodule Slipdock.Inbound.Tokens do
 
   defp check(kind, %Token{user: user, board: nil}), do: {:ok, {kind, user, nil}}
 
-  defp check(kind, %Token{user: user, board: board} = row) do
+  # A folder's token goes where the folder is now: it may have moved boards.
+  defp check(kind, %Token{user: user, folder: %Folder{board: board} = folder} = row),
+    do: check_board(kind, user, board, folder, row)
+
+  defp check(kind, %Token{user: user, board: board} = row),
+    do: check_board(kind, user, board, board, row)
+
+  defp check_board(kind, user, board, target, row) do
     cond do
       Board.archived?(board) ->
         {:error, :archived}
@@ -173,14 +194,14 @@ defmodule Slipdock.Inbound.Tokens do
         {:error, :forbidden}
 
       true ->
-        {:ok, {kind, user, board}}
+        {:ok, {kind, user, target}}
     end
   end
 
   defp find(token) do
     from(t in Token,
       where: t.token_hash == ^hash(token),
-      preload: [:user, :board]
+      preload: [:user, :board, folder: :board]
     )
     |> Repo.one()
   end
@@ -189,11 +210,13 @@ defmodule Slipdock.Inbound.Tokens do
 
   defp kind_fits(nil, :add), do: :ok
   defp kind_fits(%Board{}, kind) when kind in [:card, :page], do: :ok
+  defp kind_fits(%Folder{}, :page), do: :ok
   defp kind_fits(_board, _kind), do: {:error, :wrong_kind}
 
   defp enabled, do: if(Inbound.enabled?(), do: :ok, else: {:error, :disabled})
 
   defp may_write(_user, nil), do: :ok
+  defp may_write(user, %Folder{} = folder), do: may_write(user, folder_board(folder))
   defp may_write(user, board), do: if(writer?(user, board), do: :ok, else: {:error, :forbidden})
 
   defp writer?(user, board), do: user |> Access.board_permission(board) |> Access.can_write?()
@@ -207,8 +230,19 @@ defmodule Slipdock.Inbound.Tokens do
   defp live(%User{id: user_id}, %Board{id: board_id}),
     do:
       from(t in Token,
-        where: t.user_id == ^user_id and t.board_id == ^board_id and is_nil(t.revoked_at)
+        where:
+          t.user_id == ^user_id and t.board_id == ^board_id and is_nil(t.folder_id) and
+            is_nil(t.revoked_at)
       )
+
+  defp live(%User{id: user_id}, %Folder{id: folder_id}),
+    do:
+      from(t in Token,
+        where: t.user_id == ^user_id and t.folder_id == ^folder_id and is_nil(t.revoked_at)
+      )
+
+  defp folder_board(%Folder{board: %Board{} = board}), do: board
+  defp folder_board(%Folder{board_id: board_id}), do: Repo.get!(Board, board_id)
 
   defp revoke_row(%Token{id: id}) do
     from(t in Token, where: t.id == ^id)
@@ -230,12 +264,14 @@ defmodule Slipdock.Inbound.Tokens do
     end
   end
 
-  defp insert(user, board) do
+  defp insert(user, target) do
     token = new_token()
+    {board_id, folder_id} = ids(target)
 
     %Token{
       user_id: user.id,
-      board_id: board && board.id,
+      board_id: board_id,
+      folder_id: folder_id,
       token_hash: hash(token),
       token_encrypted: Plug.Crypto.encrypt(secret(), @encryption_salt, token)
     }
@@ -244,12 +280,19 @@ defmodule Slipdock.Inbound.Tokens do
       name: :inbound_tokens_live_board_index
     )
     |> Ecto.Changeset.unique_constraint([:user_id], name: :inbound_tokens_live_personal_index)
+    |> Ecto.Changeset.unique_constraint([:user_id, :folder_id],
+      name: :inbound_tokens_live_folder_index
+    )
     |> Repo.insert()
     |> case do
       {:ok, _row} -> {:ok, token}
       error -> error
     end
   end
+
+  defp ids(nil), do: {nil, nil}
+  defp ids(%Board{id: id}), do: {id, nil}
+  defp ids(%Folder{id: id, board_id: board_id}), do: {board_id, id}
 
   # A token whose key has gone (secret_key_base changed) can't be shown: it
   # is replaced, as a rotation would.
@@ -260,8 +303,8 @@ defmodule Slipdock.Inbound.Tokens do
 
       {:error, _} ->
         revoke_row(row)
-        row = Repo.preload(row, [:user, :board])
-        live_token(row.user, row.board)
+        row = Repo.preload(row, [:user, :board, :folder])
+        live_token(row.user, row.folder || row.board)
     end
   end
 

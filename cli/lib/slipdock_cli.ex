@@ -73,6 +73,8 @@ defmodule SlipdockCLI do
     inbound <board> [--rotate]          your address for emailing cards onto a board (it only
                                         takes mail from you); --rotate makes a new one, and
                                         mail to the old one bounces from then on
+      --folder F                        a wiki folder's own address instead (a path, name or
+                                        id): mail to it is a page in that folder
     inbound me [--rotate]               your personal Quick Add address: the subject picks the
                                         board, list, priority and due date
       --ack on|off                      email me back a link to each card my mail makes

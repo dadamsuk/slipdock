@@ -170,6 +170,68 @@ defmodule SlipdockWeb.InboundAddressesTest do
     end
   end
 
+  describe "the wiki tree's Email this folder" do
+    setup %{user: user} do
+      on()
+      board = board_fixture(%{}, owner: user)
+      {:ok, folder} = Slipdock.Wiki.Folders.create(board, %{"name" => "Minutes"})
+      %{board: board, folder: folder}
+    end
+
+    test "the tree is told inbound mail is on", %{conn: conn, board: board} do
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}/wiki")
+      assert has_element?(view, ~s(#wiki-tree[data-inbound="true"]))
+    end
+
+    test "shows the folder's own address, which rotates on its own",
+         %{conn: conn, user: user, board: board, folder: folder} do
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}/wiki")
+      render_hook(view, "email_folder", %{"id" => to_string(folder.id)})
+
+      assert has_element?(view, "#board-inbound-modal", "Email to the folder Minutes")
+      {:ok, address} = Tokens.address(user, folder, :page)
+      assert text(view, "#board-inbound-page") == address
+      refute has_element?(view, "#board-inbound-card")
+
+      {:ok, board_page} = Tokens.address(user, board, :page)
+      view |> element("#board-inbound-rotate") |> render_click()
+      refute text(view, "#board-inbound-page") == address
+      assert Tokens.address(user, board, :page) == {:ok, board_page}
+    end
+
+    test "the board menu's dialog afterwards is the board's again",
+         %{conn: conn, board: board, folder: folder} do
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}/wiki")
+      render_hook(view, "email_folder", %{"id" => to_string(folder.id)})
+      view |> element("#board-inbound-modal button[aria-label=Close]") |> render_click()
+
+      view |> element("#board-share-inbound") |> render_click()
+      assert has_element?(view, "#board-inbound-modal", "Email to #{board.name}")
+      assert has_element?(view, "#board-inbound-card")
+    end
+
+    test "a folder on a board you can't write to shows nothing", %{conn: conn, board: board} do
+      stranger = user_fixture("stranger@example.com")
+      theirs = board_fixture(%{"name" => "Secret plans"}, owner: stranger)
+      {:ok, hidden} = Slipdock.Wiki.Folders.create(theirs, %{"name" => "Hidden"})
+
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}/wiki")
+      render_hook(view, "email_folder", %{"id" => to_string(hidden.id)})
+
+      refute has_element?(view, "#board-inbound-modal")
+      refute render(view) =~ "Secret plans"
+      assert Repo.aggregate(Slipdock.Inbound.Token, :count) == 0
+    end
+
+    test "nothing while inbound mail is off", %{conn: conn, board: board, folder: folder} do
+      TestConfig.put(:inbound, [])
+      {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}/wiki")
+      assert has_element?(view, ~s(#wiki-tree[data-inbound="false"]))
+      render_hook(view, "email_folder", %{"id" => to_string(folder.id)})
+      refute has_element?(view, "#board-inbound-modal")
+    end
+  end
+
   describe "the Account tab" do
     test "shows the personal Quick Add address with copy and rotate",
          %{conn: conn, user: user} do

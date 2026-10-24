@@ -36,6 +36,22 @@ defmodule SlipdockWeb.InboundDocsTest do
     assert manual =~ "`Slipdock.Inbound.Pages`"
   end
 
+  test "the manual, README and guide cover a folder's own address (#1277)" do
+    manual = read("docs/manual.md")
+    assert manual =~ "| `page-…@<domain>`, a folder's |"
+    assert manual =~ "*Email this folder…*"
+    assert manual =~ "- **A folder's own address** files every page in that folder"
+
+    readme = read("README.md")
+    assert readme =~ "*Email this folder…*, `slipdock inbound <board> --folder <path>`"
+
+    assert SlipdockWeb.APIGuide.markdown() =~ "(`?folder=` a wiki folder's own `page`"
+    assert read("docs/agents.md") =~ "(a wiki folder's own: `--folder <path>`)"
+
+    page = read("lib/slipdock_web/live/help_live/agents.ex")
+    assert page =~ "inbound <board> --folder F"
+  end
+
   test "README links to it from the features and from Receiving email" do
     readme = read("README.md")
     assert readme =~ "**Email a card in**"
@@ -73,6 +89,7 @@ defmodule SlipdockWeb.InboundDocsTest do
       assert skill =~ ~s("+ Title" appends a dated section)
       assert skill =~ "slipdock inbound me [--rotate] [--ack on|off]"
       assert skill =~ "slipdock inbound log"
+      assert skill =~ "slipdock inbound <board> --folder F [--rotate]"
     end
   end
 end

@@ -2052,6 +2052,7 @@ account's address:
 |---|---|---|
 | `card-…@<domain>` | the board's `…` menu › *Email to this board*; `slipdock inbound <board>`; `GET /api/boards/:board/inbound` | a card on that board's ready list |
 | `page-…@<domain>` | the same places, next to the card address | a wiki page on that board, or a dated section added to one (`+ Title`) |
+| `page-…@<domain>`, a folder's | the wiki tree: right-click a folder › *Email this folder…*; `slipdock inbound <board> --folder <path>`; `GET /api/boards/:board/inbound?folder=<path>` | a wiki page in that folder |
 | `add-…@<domain>` | Account › *Email a card in*; `slipdock inbound me`; `GET /api/me/inbound` | a card through [Quick add](#quick-add), to any board |
 
 There is one card address and one page address per board you can write to
@@ -2081,6 +2082,14 @@ history says it came by email (`By email from <you>`).
 - It goes in the **`Inbox`** folder, made the first time. Start the subject
   with a folder to file it there instead: `[Design/Decisions] Use Postgres`
   makes any folder along the path that is missing.
+- **A folder's own address** files every page in that folder, without a
+  `[Folder]` in the subject: right-click the folder in the wiki tree ›
+  *Email this folder…* (or `slipdock inbound <board> --folder Minutes/2026`).
+  `[Sub] Title` then files it in a folder beneath that one, and `+ Title`
+  works as it does on the board's address. Each folder has its own address
+  for each person who can write to the board, rotated on its own; deleting
+  the folder turns its address off, and moving the folder to another board
+  takes the address with it.
 - A title another page already has is fine: you get a second page, as you
   would writing it in the wiki.
 - **`+ Title` adds to a page instead** — a running log or a journal. `+
@@ -3687,9 +3696,7 @@ automations' own condition vocabulary, so there is one filter language rather
 than two. `board:` takes `this`, `tree` (the board and everything beneath it)
 or another board's code; `saved_view: "Blocked work"` embeds a view you
 already made; `card: 412` with `view: progress` rolls one card's tree up;
-`assigned: me` is the reader's own work. Every board view offers **Write this
-into a doc**, which starts a page with the matching block already in it — the
-honest way to author one without learning the syntax.
+`assigned: me` is the reader's own work.
 
 Views are `table`, `list`, `board`, `count`, `progress`, and `timeline` /
 `calendar` as presets of the first two. A block that cannot be answered

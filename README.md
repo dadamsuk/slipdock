@@ -690,7 +690,8 @@ SLIPDOCK_INBOUND_SECRET_PREVIOUS=…         # still accepted while you rotate i
 Once it is on, everybody has a `card-…@` and a `page-…@` address (a new card,
 a new wiki page or `+ Title` to add to one) for each board they can
 write to (the board's `…` menu › *Email to this board*, `slipdock inbound
-<board>`) and a personal `add-…@` address that goes through Quick Add
+<board>`), a `page-…@` address of its own for any wiki folder (the tree's
+*Email this folder…*, `slipdock inbound <board> --folder <path>`) and a personal `add-…@` address that goes through Quick Add
 (Account, `slipdock inbound me`): see [Emailing your
 board](docs/manual.md#emailing-your-board) for what a message becomes and why
 one might bounce. Emails about a card (mentions, waits, automation emails)
