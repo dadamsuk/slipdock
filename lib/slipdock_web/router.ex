@@ -503,6 +503,8 @@ defmodule SlipdockWeb.Router do
     pipe_through :api
 
     get "/me", MeController, :show
+    # The caller's own inbound mail and what came of it (#1242).
+    get "/inbound/log", InboundController, :log
     # The caller's own work: waiting on them, then assigned by due (#1118).
     get "/work", WorkController, :index
 

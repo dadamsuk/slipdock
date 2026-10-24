@@ -232,8 +232,25 @@ defmodule Slipdock.Inbound do
     |> where(user_id: ^user_id)
     |> order_by(desc: :inserted_at, desc: :id)
     |> limit(^limit)
+    |> preload([:card, :page, comment: :card])
     |> Repo.all()
   end
+
+  @doc """
+  Where to see what a logged message created, as an app path: the card, the
+  page, or the card the comment went on. Nil when it created nothing (or what
+  it created has since gone).
+  """
+  @spec created_path(Email.t()) :: String.t() | nil
+  def created_path(%Email{card: %{id: id, board_id: board}}), do: "/boards/#{board}/cards/#{id}"
+
+  def created_path(%Email{page: %{slug: slug, board_id: board}}),
+    do: "/boards/#{board}/wiki/#{slug}"
+
+  def created_path(%Email{comment: %{card: %{id: id, board_id: board}}}),
+    do: "/boards/#{board}/cards/#{id}"
+
+  def created_path(_), do: nil
 
   # A message with no Message-ID still has to be recognised when it repeats.
   defp synthetic_id(raw),

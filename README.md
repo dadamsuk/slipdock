@@ -680,7 +680,10 @@ SLIPDOCK_INBOUND_SECRET=…                  # shared with the Worker (wrangler 
 SLIPDOCK_INBOUND_SECRET_PREVIOUS=…         # still accepted while you rotate it
 ```
 
-The design and the deploy runbook are on the Slipdock board's wiki (W-1933).
+Each person's last 50 inbound messages, and what came of each (what it made,
+or why it bounced or was ignored), are on their Account page, at
+`GET /api/inbound/log` and with `slipdock inbound log`. The design and the
+deploy runbook are on the Slipdock board's wiki (W-1933).
 
 ### Google Drive, for meeting recordings
 

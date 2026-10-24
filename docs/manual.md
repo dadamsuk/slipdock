@@ -4476,7 +4476,10 @@ board importer on it and nothing told you which was which:
 
 - **Account** (`/account`) — your display name, how many cards you have used
   against the limit if there is one, every time an admin has been let into
-  your boards and why, your passkeys, signing out, and the licence.
+  your boards and why, your passkeys, your inbound email log (while the
+  server receives mail: your last 50 messages to it, and what made each one
+  bounce or be ignored; also `slipdock inbound log`), signing out, and the
+  licence.
 - **Settings** (`/account/settings`) — the dials: where quick add puts a card,
   whether the line is read by a model, and your OpenRouter key.
 - **API tokens** (`/account/tokens`) — make, inspect and revoke the tokens the
