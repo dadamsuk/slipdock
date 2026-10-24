@@ -53,15 +53,15 @@ defmodule SlipdockCLI.InboundTest do
     assert %{"inbound" => [%{"id" => 2}, %{"id" => 1}]} = JSON.decode!(json)
   end
 
-  @board ~s({"domain":"in.example.com","board":{"id":3,"code":"slipdock","name":"Slipdock"},) <>
-           ~s("addresses":{"card":"card-aaaa@in.example.com"}})
+  @board ~s({"domain":"example.com","board":{"id":3,"code":"slipdock","name":"Slipdock"},) <>
+           ~s("addresses":{"card":"card-aaaa@example.com"}})
 
   test "inbound <board> shows your card address for it" do
     serve([{200, @board}])
     out = capture_io(fn -> Inbound.run("inbound", ["slipdock"], []) end)
 
     assert_received {:request, "GET", "/api/boards/slipdock/inbound", _}
-    assert out =~ "new card on slipdock:  card-aaaa@in.example.com"
+    assert out =~ "new card on slipdock:  card-aaaa@example.com"
     refute out =~ "New address made"
   end
 
@@ -71,7 +71,7 @@ defmodule SlipdockCLI.InboundTest do
 
     assert_received {:request, "POST", "/api/boards/slipdock/inbound/rotate", _}
     assert out =~ "New address made. Mail to the old one bounces from now on."
-    assert out =~ "card-aaaa@in.example.com"
+    assert out =~ "card-aaaa@example.com"
   end
 
   test "a board ref with odd characters is escaped in the path" do
@@ -82,12 +82,12 @@ defmodule SlipdockCLI.InboundTest do
 
   test "inbound me, and inbound me --rotate, for the personal address" do
     me =
-      ~s({"domain":"in.example.com","board":null,"addresses":{"add":"add-bbbb@in.example.com"}})
+      ~s({"domain":"example.com","board":null,"addresses":{"add":"add-bbbb@example.com"}})
 
     serve([{200, me}, {200, me}])
 
     assert capture_io(fn -> Inbound.run("inbound", ["me"], []) end) =~
-             "quick add, any board:  add-bbbb@in.example.com"
+             "quick add, any board:  add-bbbb@example.com"
 
     assert_received {:request, "GET", "/api/me/inbound", _}
 
@@ -98,7 +98,7 @@ defmodule SlipdockCLI.InboundTest do
   test "--json passes the addresses through" do
     serve([{200, @board}])
     json = capture_io(fn -> Inbound.run("inbound", ["slipdock"], json: true) end)
-    assert %{"addresses" => %{"card" => "card-aaaa@in.example.com"}} = JSON.decode!(json)
+    assert %{"addresses" => %{"card" => "card-aaaa@example.com"}} = JSON.decode!(json)
   end
 
   # A refusal (inbound mail off: 404) and a usage error end in
