@@ -1,0 +1,13 @@
+# Slipdock's inbound Email Worker. The runbook is on the Slipdock board's
+# wiki, W-1933, "Deploying the Worker".
+name = "slipdock-inbound-email"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+
+[vars]
+APP_URL = "https://app.slipdock.us"
+# Where mail for any address outside the Slipdock pattern goes, when the
+# catch-all sits on the main domain. Must be a verified destination address.
+# FORWARD_TO = "you@example.com"
+
+# INBOUND_SECRET is a secret: `wrangler secret put INBOUND_SECRET`. Never here.
