@@ -221,7 +221,7 @@ slipdock favourites                         # what this person keeps going back 
 slipdock passkeys                           # your own passkeys; `passkeys remove <id>` revokes one (only when asked)
 slipdock inbound <board> [--rotate]         # your card- and page- addresses for a board (only take mail from you); page-: subject = page title, "[Folder] Title" files it (else Inbox), "+ Title" appends a dated section to that page; --rotate only when asked: the old ones bounce
 slipdock inbound me [--rotate] [--ack on|off]   # your personal Quick Add address (subject picks board, list, #priority, due:); --ack: a link back per card
-slipdock inbound log                        # your last 50 inbound emails and what came of each (why one bounced)
+slipdock inbound log                        # your last 50 inbound emails and what came of each (why one bounced); kind "reply" = a reply to a notification email: a comment by them, or the answer to a wait on them
 slipdock search <words...> [--board B] [--limit N] [--archived] [--full]   # a card's #id or link finds it, archived too
 slipdock ask <question...> [--board B]      # the assistant searches for itself, then answers
 slipdock search-status                      # is the index built, is anything queued

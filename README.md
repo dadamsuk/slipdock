@@ -199,7 +199,9 @@ Briefly, with the detail in [the manual](docs/manual.md):
 - **Email a card in** — [your own addresses for each board, and one for Quick
   Add](docs/manual.md#emailing-your-board): forward a message and it is a card,
   attachments and all, or mail the board's page address and it is a wiki page
-  (`[Folder] Title` files it, `+ Title` adds a dated section to that page)
+  (`[Folder] Title` files it, `+ Title` adds a dated section to that page),
+  and [reply to a notification](docs/manual.md#replying-to-a-notification)
+  to comment on its card or answer a wait
   (needs [Receiving email](#receiving-email)).
 - **Semantic Search** - find what you're looking for even when you can't remember exactly what it is.
 - **AI, on your own key — or your own hardware** — [chat about a board, ask
@@ -691,7 +693,11 @@ write to (the board's `…` menu › *Email to this board*, `slipdock inbound
 <board>`) and a personal `add-…@` address that goes through Quick Add
 (Account, `slipdock inbound me`): see [Emailing your
 board](docs/manual.md#emailing-your-board) for what a message becomes and why
-one might bounce. Each person's last 50 inbound messages, and what came of
+one might bounce. Emails about a card (mentions, waits, automation emails)
+carry a signed `reply-…@` `Reply-To`, so a reply becomes a comment on the
+card or answers the wait ([Replying to a
+notification](docs/manual.md#replying-to-a-notification)); rotating the
+secret retires those addresses once the previous one is dropped. Each person's last 50 inbound messages, and what came of
 each (what it made, or why it bounced or was ignored), are on their Account
 page, at `GET /api/inbound/log` and with `slipdock inbound log`. The design
 and the deploy runbook are on the Slipdock board's wiki (W-1933).
