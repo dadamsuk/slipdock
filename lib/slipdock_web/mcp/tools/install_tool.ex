@@ -8,7 +8,7 @@ defmodule SlipdockWeb.MCP.Tools.InstallTool do
   @behaviour SlipdockWeb.MCP.Tool
 
   alias Slipdock.Tools
-  alias SlipdockWeb.API.ToolJSON
+  alias SlipdockWeb.API.{Authorize, ToolJSON}
   alias SlipdockWeb.MCP.Args
 
   @impl true
@@ -22,7 +22,8 @@ defmodule SlipdockWeb.MCP.Tools.InstallTool do
     do:
       "Builds the board a Tool (see list_tools) comes with — lists, folders, tags, page " <>
         "skeletons, rules — and returns its code. Already installed: returns that board, " <>
-        "adding what a newer version brings without touching edited pages."
+        "adding what a newer version brings without touching edited pages. tool: \"handbook\" " <>
+        "with board installs the built-in handbook on that board's root instead (W-1934)."
 
   @impl true
   def input_schema do
@@ -34,6 +35,11 @@ defmodule SlipdockWeb.MCP.Tools.InstallTool do
         board_name: %{
           type: "string",
           description: "The new board's name; the Tool's title otherwise."
+        },
+        board: %{
+          type: "string",
+          description:
+            "For the handbook: the board (id, code or name) to install it on; it goes on the root."
         }
       },
       required: ["tool"],
@@ -47,7 +53,27 @@ defmodule SlipdockWeb.MCP.Tools.InstallTool do
   @impl true
   def call(args, %{user: user, token: token} = context) do
     with {:ok, ref} <- Args.required(args, "tool"),
-         {:ok, version} <- Args.optional(args, "version"),
+         {:ok, board} <- Args.optional(args, "board") do
+      if Slipdock.Handbook.tool?(ref) and (board || not match?({:ok, _}, Tools.fetch(user, ref))),
+        do: install_handbook(board, context),
+        else: install_tool(args, ref, user, token, context)
+    end
+  end
+
+  defp install_handbook(nil, _context),
+    do: {:error, "the handbook installs onto a board: give board (id, code or name)"}
+
+  defp install_handbook(ref, context) do
+    auth = Args.auth(context)
+
+    with {:ok, board} <- Args.refusal(Authorize.fetch_board(auth, ref, :write)),
+         {:ok, result} <- Args.refusal(Slipdock.Handbook.install(context.user, board)) do
+      {:ok, ToolJSON.install(result, context.base_url)}
+    end
+  end
+
+  defp install_tool(args, ref, user, token, context) do
+    with {:ok, version} <- Args.optional(args, "version"),
          {:ok, board_name} <- Args.optional(args, "board_name"),
          :ok <- unscoped(token),
          {:ok, tool} <- found(Tools.fetch(user, ref), ref),

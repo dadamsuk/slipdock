@@ -96,6 +96,22 @@ defmodule SlipdockCLI.ToolsTest do
     refute out =~ "added pages"
   end
 
+  test "install-board handbook --board puts the handbook on that board" do
+    reply =
+      ~s({"install":{"board":"proj","board_name":"Project","created":true,"installed_version":"1.0.0",) <>
+        ~s("url":"http://x/boards/9","added":{"folders":["Handbook"],"pages":["Index"]}}})
+
+    System.put_env("SLIPDOCK_URL", FakeServer.start([{201, reply}]))
+
+    out =
+      capture_io(fn -> Tools.run("tools", ["install-board", "handbook"], board: "proj") end)
+
+    assert_received {:request, "POST", "/api/tools/handbook/install", body}
+    assert :json.decode(body) == %{"board" => "proj"}
+    assert out =~ "installed handbook on board proj (Project)"
+    assert out =~ "added pages: Index"
+  end
+
   test "install-board on a board already made says so" do
     reply =
       ~s({"install":{"board":"demo","board_name":"Demo","created":false,"installed_version":"1.0.0",) <>

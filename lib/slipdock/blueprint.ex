@@ -22,7 +22,8 @@ defmodule Slipdock.Blueprint do
         "folders": ["Config", "Runs", "Roles/Archive"],
         "tags": ["interim", {"name": "urgent", "color": "red"}],
         "pages": [
-          {"title": "Config", "folder": "Config", "body": "# {{board.name}}", "summary": "…"}
+          {"title": "Config", "folder": "Config", "body": "# {{board.name}}", "summary": "…",
+           "front_matter": "kind: config"}
         ],
         "automations": [
           {"preset": "feed_runner", "params": {"column": "Found", "pool": "default"}}
@@ -331,6 +332,9 @@ defmodule Slipdock.Blueprint do
           not (is_nil(page["body"]) or is_binary(page["body"])) ->
             {:error, "pages[#{i}] “#{title}”: body is text"}
 
+          not front_matter?(page["front_matter"]) ->
+            {:error, "pages[#{i}] “#{title}”: front_matter is a string of YAML"}
+
           folder && not MapSet.member?(known, String.downcase(folder)) ->
             {:error, "pages[#{i}] “#{title}”: folder “#{folder}” is not in folders"}
 
@@ -349,6 +353,10 @@ defmodule Slipdock.Blueprint do
   end
 
   defp pages(_, _), do: {:error, "pages: a list of pages"}
+
+  defp front_matter?(nil), do: true
+  defp front_matter?(yaml) when is_binary(yaml), do: Slipdock.Wiki.FrontMatter.valid_yaml?(yaml)
+  defp front_matter?(_), do: false
 
   # Automations ----------------------------------------------------------------
 
@@ -537,6 +545,7 @@ defmodule Slipdock.Blueprint do
             rendered
             |> Map.put("template", page["template"])
             |> then(&if(folder, do: Map.put(&1, "folder_id", folder.id), else: &1))
+            |> put_front_matter(page["front_matter"])
 
           case Wiki.create_page(board, attrs, user: user, via: "web", message: opts[:message]) do
             {:ok, _} -> {:ok, note(report, :added, "pages", page["title"])}
@@ -561,6 +570,11 @@ defmodule Slipdock.Blueprint do
       end
     end)
   end
+
+  defp put_front_matter(attrs, yaml) when is_binary(yaml) and yaml != "",
+    do: Map.put(attrs, "front_matter", Slipdock.Wiki.FrontMatter.with_yaml(nil, yaml))
+
+  defp put_front_matter(attrs, _yaml), do: attrs
 
   defp existing_page(board, title) do
     Repo.one(

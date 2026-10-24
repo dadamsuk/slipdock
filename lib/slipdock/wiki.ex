@@ -1989,6 +1989,28 @@ defmodule Slipdock.Wiki do
       "rows" => Enum.map(result.rows, &%{"card" => card_stub(&1.card), "cells" => &1.cells})
     }
 
+  defp jsonable(%{kind: :pages} = result),
+    do: %{
+      "kind" => "pages",
+      "empty" => result[:empty],
+      "headers" => result.headers,
+      "keys" => result.keys,
+      "rows" =>
+        Enum.map(
+          result.rows,
+          &%{
+            "page" => %{
+              "id" => &1.page.id,
+              "code" => &1.page.code,
+              "title" => &1.page.title,
+              "slug" => &1.page.slug,
+              "board_id" => &1.page.board_id
+            },
+            "cells" => &1.cells
+          }
+        )
+    }
+
   defp jsonable(_result), do: %{"kind" => "unknown"}
 
   defp card_stub(%Card{} = card),

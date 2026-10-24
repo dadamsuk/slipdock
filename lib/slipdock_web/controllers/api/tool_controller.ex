@@ -31,6 +31,34 @@ defmodule SlipdockWeb.API.ToolController do
   def install(conn, %{"slug" => slug} = params) do
     user = conn.assigns.current_user
 
+    if Slipdock.Handbook.tool?(slug) and
+         (params["board"] || not match?({:ok, _}, Tools.fetch(user, slug))),
+       do: install_handbook(conn, params),
+       else: install_tool(conn, user, slug, params)
+  end
+
+  # The built-in Handbook Tool goes onto a board that exists (#1262).
+  defp install_handbook(conn, params) do
+    with {:ok, board} <- board_param(params["board"]),
+         {:ok, board} <- SlipdockWeb.API.Authorize.fetch_board(conn, board, :write) do
+      case Slipdock.Handbook.install(conn.assigns.current_user, board) do
+        {:ok, result} ->
+          conn
+          |> put_status(if(result.created, do: :created, else: :ok))
+          |> json(%{install: ToolJSON.install(result, SlipdockWeb.BaseURL.from_conn(conn))})
+
+        {:error, message} ->
+          {:error, :unprocessable_entity, message}
+      end
+    end
+  end
+
+  defp board_param(ref) when is_binary(ref) and ref != "", do: {:ok, ref}
+
+  defp board_param(_),
+    do: {:error, :unprocessable_entity, "the handbook installs onto a board: give board"}
+
+  defp install_tool(conn, user, slug, params) do
     with :ok <- unscoped(conn.assigns[:api_token]),
          {:ok, tool} <- fetch(user, slug) do
       case Tools.install_board(user, tool, version: params["version"], name: params["name"]) do

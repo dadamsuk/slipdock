@@ -207,7 +207,39 @@ defmodule SlipdockWeb.Wiki.Renderer do
     Enum.join([header, rule, rows], "\n")
   end
 
+  defp result_markdown(%{kind: :pages, rows: []} = result), do: empty_pages_markdown(result)
+
+  defp result_markdown(%{kind: :pages} = result) do
+    header = "| " <> Enum.join(result.headers, " | ") <> " |"
+    rule = "|" <> String.duplicate("---|", length(result.headers))
+
+    rows =
+      Enum.map_join(result.rows, "\n", fn row ->
+        cells =
+          result.keys
+          |> Enum.zip(row.cells)
+          |> Enum.map(fn
+            {"title", text} -> page_ref_markdown(row.page, text)
+            {_key, text} -> text
+          end)
+
+        "| " <> Enum.map_join(cells, " | ", &escape_cell/1) <> " |"
+      end)
+
+    Enum.join([header, rule, rows], "\n")
+  end
+
   defp result_markdown(_result), do: ""
+
+  # A page's code beside its title, so an agent reading the Markdown can open
+  # it (`page read W-3`).
+  defp page_ref_markdown(%{code: code}, text) when is_binary(code), do: "#{text} (#{code})"
+  defp page_ref_markdown(_page, text), do: text
+
+  defp empty_pages_markdown(%{empty: message}) when is_binary(message) and message != "",
+    do: message
+
+  defp empty_pages_markdown(_result), do: "_No pages in this folder yet._"
 
   defp empty_markdown(%{empty: message}) when is_binary(message) and message != "", do: message
   defp empty_markdown(_result), do: "_No cards match._"
@@ -774,7 +806,41 @@ defmodule SlipdockWeb.Wiki.Renderer do
     ~s|<div class="wiki-query-table"><table><thead><tr>#{head}</tr></thead><tbody>#{body}</tbody></table></div>|
   end
 
+  defp result_html(%{kind: :pages, rows: []} = result, _context) do
+    case result[:empty] do
+      message when is_binary(message) and message != "" ->
+        ~s|<p class="wiki-empty">#{escape(message)}</p>|
+
+      _ ->
+        ~s|<p class="wiki-empty">No pages in this folder yet.</p>|
+    end
+  end
+
+  defp result_html(%{kind: :pages} = result, context) do
+    head = Enum.map_join(result.headers, "", &~s|<th>#{escape(&1)}</th>|)
+
+    body =
+      Enum.map_join(result.rows, "", fn row ->
+        cells =
+          result.keys
+          |> Enum.zip(row.cells)
+          |> Enum.map_join("", fn
+            {"title", text} -> ~s|<td>#{page_link_html(row.page, text, context)}</td>|
+            {_key, text} -> ~s|<td>#{escape(text)}</td>|
+          end)
+
+        "<tr>#{cells}</tr>"
+      end)
+
+    ~s|<div class="wiki-query-table"><table><thead><tr>#{head}</tr></thead><tbody>#{body}</tbody></table></div>|
+  end
+
   defp result_html(_result, _context), do: ""
+
+  defp page_link_html(_page, text, %{static: true}), do: escape(text)
+
+  defp page_link_html(page, text, _context),
+    do: ~s|<a href="/boards/#{page.board_id}/wiki/#{page.slug}">#{escape(text)}</a>|
 
   defp empty_html(%{empty: message}) when is_binary(message) and message != "",
     do: ~s|<p class="wiki-empty">#{escape(message)}</p>|

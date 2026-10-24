@@ -38,6 +38,39 @@ defmodule Slipdock.BlueprintTest do
   end
 
   describe "validate/2" do
+    test "a page may carry front matter, which must be YAML text (#1262)" do
+      page = %{"title" => "P", "front_matter" => "handbook: ux\ncovers: []"}
+
+      assert {:ok, %{"pages" => [clean]}} =
+               Blueprint.validate(%{"lists" => [], "pages" => [page]}, lists: :optional)
+
+      assert clean["front_matter"] == "handbook: ux\ncovers: []"
+
+      assert {:error, message} =
+               Blueprint.validate(
+                 %{"pages" => [%{page | "front_matter" => "a: 1\n---\nb: 2"}]},
+                 lists: :optional
+               )
+
+      assert message =~ "front_matter is a string of YAML"
+
+      assert {:error, _} =
+               Blueprint.validate(%{"pages" => [%{page | "front_matter" => 7}]}, lists: :optional)
+    end
+
+    test "a page's front matter lands on the page it makes", %{} do
+      user = user_fixture()
+      board = bare_board(user)
+
+      {:ok, _} =
+        Blueprint.apply(board, %{"pages" => [%{"title" => "FM", "front_matter" => "kind: x"}]},
+          user: user
+        )
+
+      page = Repo.get_by!(Wiki.Page, board_id: board.id, title: "FM")
+      assert page.front_matter == "---\nkind: x\n---\n\n"
+    end
+
     test "cleans a good blueprint up and sets categories from roles (or guesses from names)" do
       assert {:ok, bp} = Blueprint.validate(@blueprint)
 

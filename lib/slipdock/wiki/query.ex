@@ -54,7 +54,7 @@ defmodule Slipdock.Wiki.Query do
   import Ecto.Query, warn: false
 
   @views ~w(table list board count progress timeline calendar)
-  @keys ~w(view board filter group sort fields limit empty saved_view card assigned unit done)
+  @keys ~w(view board filter group sort fields limit empty saved_view card assigned unit done pages)
 
   defstruct view: "table",
             board: "this",
@@ -70,6 +70,7 @@ defmodule Slipdock.Wiki.Query do
             card: nil,
             assigned: nil,
             done: nil,
+            pages: nil,
             raw: ""
 
   @type t :: %__MODULE__{}
@@ -131,6 +132,13 @@ defmodule Slipdock.Wiki.Query do
   defp put(query, "saved_view", value), do: {:ok, %{query | saved_view: unquoted(value)}}
   defp put(query, "assigned", value), do: {:ok, %{query | assigned: value}}
   defp put(query, "empty", value), do: {:ok, %{query | empty: unquoted(value)}}
+
+  defp put(query, "pages", value) do
+    case value |> unquoted() |> String.trim("/") do
+      "" -> {:error, "pages names a folder of this board's wiki, like `pages: Handbook`"}
+      path -> {:ok, %{query | pages: path}}
+    end
+  end
 
   defp put(query, "done", value) do
     case String.trim(String.downcase(value)) do
@@ -360,12 +368,73 @@ defmodule Slipdock.Wiki.Query do
     today = context[:today] || Date.utc_today()
 
     cond do
+      query.pages -> run_pages(query, context)
       query.assigned -> run_assigned(query, context, today)
       query.card -> run_card(query, context, today)
       true -> run_cards(query, context, today)
     end
   rescue
     error -> {:error, "that query could not be answered (#{Exception.message(error)})"}
+  end
+
+  ## A folder of pages ---------------------------------------------------------
+
+  @page_fields ~w(title summary)
+
+  # `pages: Handbook` lists the pages filed in that folder of the board the
+  # block sits on (not its subfolders, which get a block of their own), so a
+  # page added to the folder joins the list by itself (#1262). A field that
+  # is not one of the page's own is read from its front matter.
+  defp run_pages(%__MODULE__{} = query, context) do
+    with %Board{} = board <- context[:board] || {:error, "`pages:` lists a folder on a board"},
+         {:ok, folder} <- pages_folder(board, query.pages) do
+      self_id = context[:page] && context[:page].id
+      keys = query.fields || @page_fields
+
+      pages =
+        board
+        |> Slipdock.Wiki.list_pages(folder: folder, template: false)
+        |> Enum.filter(&(&1.folder_id == folder.id and &1.id != self_id))
+        |> Enum.sort_by(&{&1.position, String.downcase(&1.title)})
+        |> limited(query)
+
+      {:ok,
+       %{
+         kind: :pages,
+         headers: Enum.map(keys, &page_field_label/1),
+         keys: keys,
+         rows:
+           Enum.map(pages, &%{page: &1, cells: Enum.map(keys, fn key -> page_cell(&1, key) end)}),
+         count: length(pages),
+         empty: query.empty
+       }}
+    end
+  end
+
+  defp pages_folder(board, path) do
+    case Slipdock.Wiki.Folders.find(board, "/" <> path) do
+      {:ok, folder} -> {:ok, folder}
+      _ -> {:error, "there is no folder #{inspect(path)} in this board's wiki"}
+    end
+  end
+
+  defp page_field_label(key),
+    do: key |> String.replace("_", " ") |> String.capitalize()
+
+  @doc "One cell of a `pages:` table, as plain text."
+  def page_cell(page, "title"), do: page.title
+  def page_cell(page, "code"), do: page.code || ""
+  def page_cell(page, "summary"), do: page.summary || ""
+  def page_cell(page, "updated"), do: stamp(page.updated_at)
+
+  def page_cell(page, key) do
+    case page.front_matter
+         |> Slipdock.Wiki.FrontMatter.yaml()
+         |> Slipdock.Wiki.FrontMatter.get(key) do
+      nil -> ""
+      list when is_list(list) -> Enum.join(list, ", ")
+      text -> text
+    end
   end
 
   ## A person's work ----------------------------------------------------------

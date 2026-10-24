@@ -17,7 +17,7 @@ defmodule SlipdockCLI.Tools do
   @usage "usage: slipdock tools | tools show <name> [--version V] | tools publish <dir> | " <>
            "tools install <name> [--dir D] | tools check [<name>...] | " <>
            "tools request-listing <name> [--version V] | " <>
-           "tools install-board <name> [--version V] [--name N] | " <>
+           "tools install-board <name> [--version V] [--name N] [--board B] | " <>
            "tools file <name> <path> [--version V] [--out F] | " <>
            "tools download <name> [--version V] [--out F|-] [--force]"
 
@@ -49,12 +49,18 @@ defmodule SlipdockCLI.Tools do
 
   # The server builds the board; this only asks for it.
   def run("tools", ["install-board", name], o) do
-    body = %{} |> put_opt("version", o[:version]) |> put_opt("name", o[:name])
+    body =
+      %{}
+      |> put_opt("version", o[:version])
+      |> put_opt("name", o[:name])
+      |> put_opt("board", o[:board])
 
     HTTP.post("/tools/#{enc(name)}/install", body)
     |> out(o, fn %{"install" => i} ->
       verb =
         cond do
+          o[:board] && i["created"] -> "installed #{name} on"
+          o[:board] -> "#{name} already on"
           i["created"] -> "made"
           i["upgraded"] -> "upgraded"
           true -> "already have"
