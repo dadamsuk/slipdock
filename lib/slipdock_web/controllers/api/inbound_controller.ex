@@ -74,6 +74,23 @@ defmodule SlipdockWeb.API.InboundController do
 
   def rotate_me(conn, _params), do: addresses(conn, nil, &Tokens.rotate/2)
 
+  @doc """
+  `POST /api/me/inbound` with `{"ack": true | false}`: whether a short email
+  comes back with a link to each card the caller's mail makes (#1249).
+  """
+  def update_me(conn, %{"ack" => ack}) when is_boolean(ack) do
+    if Inbound.enabled?() do
+      with {:ok, user} <-
+             Slipdock.Accounts.update_inbound(conn.assigns.current_user, %{"inbound_ack" => ack}) do
+        addresses(assign(conn, :current_user, user), nil, &Tokens.addresses/2)
+      end
+    else
+      off(conn)
+    end
+  end
+
+  def update_me(_conn, _params), do: {:error, :unprocessable_entity, "ack is true or false"}
+
   defp board_addresses(conn, ref, fun) do
     if Inbound.enabled?() do
       with {:ok, board} <- Authorize.fetch_board(conn, ref, :write),
@@ -86,11 +103,18 @@ defmodule SlipdockWeb.API.InboundController do
   defp addresses(conn, board, fun) do
     case Inbound.enabled?() && fun.(conn.assigns.current_user, board) do
       {:ok, addresses} ->
-        json(conn, %{
+        body = %{
           domain: Inbound.domain(),
           board: board && %{id: board.id, code: board.code, name: board.name},
           addresses: Map.new(Tokens.offered(addresses))
-        })
+        }
+
+        # The acknowledgement setting is the person's, so it comes with
+        # their personal address.
+        json(
+          conn,
+          if(board, do: body, else: Map.put(body, :ack, conn.assigns.current_user.inbound_ack))
+        )
 
       {:error, :forbidden} ->
         {:error, :forbidden, "you can't add cards to this board"}

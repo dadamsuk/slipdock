@@ -23,6 +23,7 @@ defmodule Slipdock.Inbound.Email do
     field :outcome, :string
     field :reason, :string
     field :size, :integer, default: 0
+    field :acked_at, :utc_datetime
     belongs_to :user, Slipdock.Accounts.User
     belongs_to :card, Slipdock.Boards.Card
     belongs_to :page, Slipdock.Wiki.Page

@@ -1,4 +1,4 @@
-// The browser half of tools/e2e/inbound-addresses.sh (#1245).
+// The browser half of tools/e2e/inbound-addresses.sh (#1245, #1249).
 //
 //   node tools/e2e/inbound-addresses.mjs <login-url> <base-url> <board-id> [shots-dir]
 import { createRequire } from 'node:module'
@@ -67,6 +67,16 @@ try {
   await open('/account')
   await page.locator('#account-inbound-add').waitFor()
   await copyAndRotate('account-inbound', 'add', 'account')
+
+  // The acknowledgement checkbox (#1249): ticked, it survives a reload;
+  // unticked again, so does that.
+  for (const want of [true, false]) {
+    await page.click('#account-inbound-ack')
+    await page.waitForTimeout(500)
+    await open('/account')
+    if ((await page.isChecked('#account-inbound-ack')) !== want) fail(`account: acknowledgements didn't stay ${want ? 'on' : 'off'}`)
+  }
+  console.log('ok: account — the acknowledgement checkbox turns on and off, and stays')
 } finally {
   await browser.close()
 }

@@ -88,6 +88,11 @@ defmodule Slipdock.Accounts do
 
   def change_quick_add(%User{} = user, attrs \\ %{}), do: User.quick_add_changeset(user, attrs)
 
+  @doc "Inbound mail settings (#1249): `inbound_ack`, a link back for each card mail makes."
+  def update_inbound(%User{} = user, attrs) do
+    user |> User.inbound_changeset(attrs) |> Repo.update()
+  end
+
   @doc """
   Saves how this person sees the board index — cards or a compact table, and
   the order boards are listed in. Their own view: it changes nothing for

@@ -75,6 +75,7 @@ defmodule SlipdockCLI do
                                         mail to the old one bounces from then on
     inbound me [--rotate]               your personal Quick Add address: the subject picks the
                                         board, list, priority and due date
+      --ack on|off                      email me back a link to each card my mail makes
     ai-key [<key>]                      show your stored API key (masked), or set one;
                                         `ai-key --remove` deletes it
     ai                                  which model your AI requests go to: endpoint, key, model
@@ -904,6 +905,7 @@ defmodule SlipdockCLI do
     scope: :string,
     remove: :boolean,
     rotate: :boolean,
+    ack: :string,
     key: :string,
     embed: :string,
     url: :string,

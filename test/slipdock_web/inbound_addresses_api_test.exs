@@ -107,6 +107,34 @@ defmodule SlipdockWeb.InboundAddressesAPITest do
       assert Tokens.resolve(old) == {:error, :revoked}
     end
 
+    test "ack comes with it, and POST /api/me/inbound sets it", ctx do
+      assert %{"ack" => false} = as(ctx.owner) |> get("/api/me/inbound") |> json_response(200)
+
+      assert %{"ack" => true, "addresses" => %{"add" => _}} =
+               as(ctx.owner) |> post("/api/me/inbound", %{ack: true}) |> json_response(200)
+
+      assert Slipdock.Repo.reload!(ctx.owner).inbound_ack
+
+      assert %{"ack" => false} =
+               as(ctx.owner) |> post("/api/me/inbound", %{ack: false}) |> json_response(200)
+    end
+
+    test "ack must be true or false, and a board's answer has no ack", ctx do
+      assert %{"error" => "ack is true or false"} =
+               as(ctx.owner) |> post("/api/me/inbound", %{ack: "yes"}) |> json_response(422)
+
+      refute Map.has_key?(
+               as(ctx.owner) |> get("/api/boards/#{ctx.board.id}/inbound") |> json_response(200),
+               "ack"
+             )
+
+      with_token(ctx.owner, scope: "read")
+      |> post("/api/me/inbound", %{ack: true})
+      |> json_response(403)
+
+      refute Slipdock.Repo.reload!(ctx.owner).inbound_ack
+    end
+
     test "a read-only token can read it but not rotate it", ctx do
       assert with_token(ctx.owner, scope: "read") |> get("/api/me/inbound") |> json_response(200)
       with_token(ctx.owner, scope: "read") |> post("/api/me/inbound/rotate") |> json_response(403)

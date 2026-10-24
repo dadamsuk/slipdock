@@ -507,6 +507,7 @@ defmodule SlipdockWeb.Router do
     get "/inbound/log", InboundController, :log
     # The caller's own inbound addresses (#1246): personal, and per board.
     get "/me/inbound", InboundController, :me
+    post "/me/inbound", InboundController, :update_me
     post "/me/inbound/rotate", InboundController, :rotate_me
     get "/boards/:board/inbound", InboundController, :board
     post "/boards/:board/inbound/rotate", InboundController, :rotate_board

@@ -18,7 +18,18 @@ defmodule SlipdockCLI.Inbound do
 
   def run("inbound", ["log"], o), do: HTTP.get("/inbound/log") |> out(o, &listing/1)
 
-  def run("inbound", ["me"], o), do: addresses("/me/inbound", o)
+  def run("inbound", ["me"], o) do
+    case o[:ack] do
+      nil ->
+        addresses("/me/inbound", o)
+
+      v when v in ["on", "off"] ->
+        HTTP.post("/me/inbound", %{ack: v == "on"}) |> out(o, &show(&1, false))
+
+      _ ->
+        fail("--ack is on or off")
+    end
+  end
 
   def run("inbound", [ref], o), do: addresses("/boards/#{enc(ref)}/inbound", o)
 
@@ -37,6 +48,12 @@ defmodule SlipdockCLI.Inbound do
 
     for kind <- ~w(card page add), address = addresses[kind] do
       IO.puts("#{label(kind, r["board"])}  #{address}")
+    end
+
+    case r["ack"] do
+      true -> IO.puts("acknowledgements: on (a link comes back for each card your mail makes)")
+      false -> IO.puts("acknowledgements: off")
+      nil -> :ok
     end
   end
 

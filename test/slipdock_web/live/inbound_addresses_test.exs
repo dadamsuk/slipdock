@@ -126,6 +126,20 @@ defmodule SlipdockWeb.InboundAddressesTest do
       assert Tokens.resolve(add) == {:error, :revoked}
     end
 
+    test "the acknowledgement setting, off until ticked, and back off", %{conn: conn, user: user} do
+      on()
+
+      {:ok, view, _html} = live(conn, ~p"/account")
+      refute view |> element("#account-inbound-ack") |> render() =~ "checked"
+
+      view |> form("#account-inbound-ack-form", %{"ack" => "true"}) |> render_change()
+      assert Repo.reload!(user).inbound_ack
+      assert view |> element("#account-inbound-ack") |> render() =~ "checked"
+
+      view |> form("#account-inbound-ack-form", %{"ack" => "false"}) |> render_change()
+      refute Repo.reload!(user).inbound_ack
+    end
+
     test "not there while inbound mail is off", %{conn: conn} do
       TestConfig.put(:inbound, [])
 
