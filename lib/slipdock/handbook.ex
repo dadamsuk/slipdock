@@ -286,8 +286,8 @@ defmodule Slipdock.Handbook do
 
   ## What a pass should read (#1264) -----------------------------------------------
 
-  @index_cap 1536
-  @field_chars 90
+  @index_cap 2048
+  @field_chars 80
   @suggestions 5
   # So one long page can't fill every slot (#1281).
   @per_page 2
