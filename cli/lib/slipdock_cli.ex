@@ -520,6 +520,9 @@ defmodule SlipdockCLI do
     tools install-board <name> [--version V] [--name N]
                                         have the server build the Tool's board for you
                                         (again: answers with the board you already have)
+    tools install-board handbook --board B
+                                        put the built-in handbook (Handbook/ pages that
+                                        loop passes read and update) on B's root board
     tools file <name> <path> [--version V] [--out F]
                                         one file of the package by its path
                                         (skills/<skill>/SKILL.md, files/build.py) to

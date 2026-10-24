@@ -96,6 +96,14 @@ defmodule Slipdock.Boards.Template do
         "template" => page["template"] == true,
         "folder" => nonblank(page["folder"])
       }
+      # Front matter (a blueprint page's YAML) only when there is some, so
+      # templates saved before it existed compare equal.
+      |> then(fn clean ->
+        case nonblank(page["front_matter"]) do
+          nil -> clean
+          yaml -> Map.put(clean, "front_matter", yaml)
+        end
+      end)
     end)
     |> Enum.reject(&(&1["title"] == ""))
   end

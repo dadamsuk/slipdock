@@ -1063,6 +1063,19 @@ defmodule SlipdockWeb.API.JSON do
       rows: Enum.map(result.rows, &%{card: card_stub(&1.card), cells: &1.cells})
     }
 
+  def query_result(%{kind: :pages} = result),
+    do: %{
+      kind: "pages",
+      count: result[:count],
+      headers: result.headers,
+      fields: result.keys,
+      rows:
+        Enum.map(
+          result.rows,
+          &%{page: %{id: &1.page.id, code: &1.page.code, title: &1.page.title}, cells: &1.cells}
+        )
+    }
+
   def query_result(_result), do: %{kind: "unknown"}
 
   defp card_stub(%Card{} = c),
