@@ -290,6 +290,20 @@ defmodule SlipdockWeb.API.BoardController do
     end
   end
 
+  # The board tree's handbook (#1265, `Slipdock.Handbook`): its index and
+  # decisions, or null when the root board keeps none.
+  def handbook(conn, %{"board" => ref}) do
+    with {:ok, board} <- fetch_board(conn, ref, :read) do
+      json(conn, %{
+        board: %{id: board.id, code: board.code},
+        handbook:
+          Slipdock.Handbook.for_board(board, conn.assigns.current_user,
+            token: conn.assigns[:api_token]
+          )
+      })
+    end
+  end
+
   # The board's flow day by day over 7, 30 or 90 days (#1186,
   # `Slipdock.Flow`): what the Visualise page's trend charts draw.
   def flow(conn, %{"board" => ref} = params) do

@@ -5539,6 +5539,29 @@ existed). Installing again returns the same board. A Tool's skills find
 their board through that record: `list_tools` gives each Tool with
 `installed.board`.
 
+**The handbook** is the one built-in Tool, and the one that goes onto a board
+that already exists rather than building one: `install_tool` with `tool:
+"handbook"` and `board`, `POST /api/tools/handbook/install` with `board`, or
+`slipdock tools install-board handbook --board B`. It goes on the board's
+root (one handbook per tree) and needs write access there. It makes the
+`Handbook` and `Handbook/Decisions` folders; an Index page whose live
+`pages: Handbook` query lists the folder; skeleton pages for Specification,
+Architecture, UX & UI, Components, Data model, Shared modules, Testing &
+tooling and Operations, each with `handbook:`, `read_when:` and `covers:`
+front matter; and two cards: **Seed the handbook** (the procedure for
+drafting every page from the codebase) and **Reconcile the handbook**
+(weekly, waiting on the seed). Installing again adds only what is missing.
+
+On a handbook board a card's JSON (`get_card`, `GET /api/cards/:id`) has a
+`handbook` key: `board`, `index_page`, `index` (each page's code, title,
+summary and `read_when`, held to 1.5 KB) with `more`, and `suggested`: up
+to five `{page, title, section, why}`, ranked by `covers:` globs matching
+paths the card names, then semantic search, then shared words. `slipdock
+card` prints them as a **Handbook** block; `slipdock handbook <board>`
+(`GET /api/boards/:board/handbook`) prints the index and decisions, and
+`slipdock handbook <card>` a card's reading. See the agent guide's
+`handbook` section for the docs gate and the `Handbook:` line.
+
 **Upgrading.** Installing a newer version over an install adds only what the
 board is missing — lists, folders, tags, pages, rules and files — and
 replaces a page only while its body is still exactly the installed version's
@@ -5741,7 +5764,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `list_boards` | Boards you can see, with code, lists and which list is ready, in progress and done. `archived: true` includes archived ones. |
 | `get_board` | A board's lists in order, with a summary of each card and its description. |
 | `list_cards` | Cards in list order, filtered by `column`, `open`, `deps: "ready"`, `no_assignee` and `archived` (`exclude`, `include` or `only`). `full: true` gives each card as `get_card` does (comments, checklist, docs), 20 at a time unless `limit` says otherwise. |
-| `get_card` | A card in full: description, checklist with item ids, comments, dependencies, subcards and the wiki pages about it. With `timeline: true`, also its timeline: each list it sat in, its waits and its jobs. |
+| `get_card` | A card in full: description, checklist with item ids, comments, dependencies, subcards and the wiki pages about it, and on a handbook board its `handbook` (the index and the sections to read before building). With `timeline: true`, also its timeline: each list it sat in, its waits and its jobs. |
 | `search` | Cards, comments and wiki pages by meaning, across every board you can read or one. `archived: true` includes archived cards; a card's id or link as `q` finds that card, archived or not. |
 | `ask` | A `question` in prose, answered from the boards as `POST /api/ask` answers it, with the cards and pages it read (`id`, `title`, `kind`). `board` keeps it to one board. A model call on your own AI key and provider, so it can take a while; a token confined to some boards is refused, as it is by `/api/ask`. |
 | `read_page` | A wiki page's Markdown and its `content_hash`, by code (`W-31`) or by board and slug or title. `board` says whose page it is (`id`, `code`, `name`) and whether that board is `archived` — a code reaches pages on your archived boards, which `list_boards` leaves out unless asked. A page on a board you cannot see is not found. |
@@ -5779,7 +5802,7 @@ so a token can do exactly as much over MCP as over HTTP — no more.
 | `revert_page` | Puts a page back to a revision from `page_history`. The revert is a new revision, so nothing leaves the history and it can itself be undone; it needs `base_hash`, the page's current `content_hash`, so a newer edit is not lost to it unseen. |
 | `manage_vault` | Changes a [vault](#vaults), by `action`: `create` (`name`), `rename` (`vault`, `name`), `delete` (`vault`, `confirm: true`; the pages stay on their boards), `map` (`vault`, `path`, `board` and optionally `folder`) and `unmap` (`vault`, `path`), either with `dry_run` to preview which pages join, move or leave; `move_folder` (`board`, `folder`, `to_board`, optionally `parent`, `contents`, `dry_run`), a folder with everything in it to another board; and `split` (`vault`, `path`, `board` or `new_board`, `dry_run`), giving a vault folder its own board and mapping its path onto it. |
 | `manage_automation` | Changes a board's [automation rules](#automations-and-alerts), by `action`, as the API does and for its owner only: `create` from a `spec` (exact, no model), a `preset` with its `params`, or `text` (a sentence the server's model turns into a spec, on the AI key), with optional `name` and `scope` (`board`, or `tree` for its sub-boards too); `update` a `rule` (id or name) with any of `name`, `scope`, `enabled` and `spec`, or `text` to have the model rewrite it; `delete` a `rule` with `confirm: true` — `enabled: false` turns it off without losing it. A spec that doesn't validate is refused with the reason. |
-| `install_tool` | Builds the board a [Tool](#tools) comes with, for the caller: the lists, folders, tags, page skeletons and rules from its `board.json`, and its board files in a `Tool` folder, by `tool` (its name), with optional `version` and `board_name`. Answers with the board's code and url and what was added. Installing again answers with the board already made, and makes nothing. |
+| `install_tool` | Builds the board a [Tool](#tools) comes with, for the caller: the lists, folders, tags, page skeletons and rules from its `board.json`, and its board files in a `Tool` folder, by `tool` (its name), with optional `version` and `board_name`. Answers with the board's code and url and what was added. Installing again answers with the board already made, and makes nothing. `tool: "handbook"` with `board` puts the built-in handbook on that board's root instead. |
 | `claim_job` | Takes the oldest [runner job](#runners) queued for a pool on a board, with a lease: the card, its link, the job's kind and prompt. Answers `nothing queued` when there is none, so an idle check costs little. The session shows in the board's runner list. |
 | `job_progress` | Renews a claimed job's lease; `note`, if given, is also a comment on the card. Answers `ok`, or `cancel` when somebody has stopped the job. |
 | `finish_job` | Ends a claimed job: `outcome` done, failed, cancelled or timeout, and a `summary` kept on the job. Only the token that claimed it may. |

@@ -886,6 +886,16 @@ publishing a new version reaches everyone without a reinstall
   interviews the person to fill the pages in. Installing again finds the same
   board; installing a newer version adds what is missing and never
   overwrites a page somebody edited.
+- **The handbook.** One Tool is built in: `handbook` puts a `Handbook/`
+  folder on an existing board's root (`slipdock tools install-board handbook
+  --board B`, or `install_tool` with `board`): pages for the specification,
+  architecture, UX, components, data model, shared modules, testing and
+  operations, one page per decision, and an Index that lists them. On that
+  board `slipdock card`, `get_card` and `GET /api/cards/:id` hand each card
+  the sections to read before building (`slipdock handbook <board|card>`),
+  and the loop closes each card through a docs gate, with a `Handbook:`
+  line. A Seed card drafts the pages from the code, and a weekly Reconcile
+  card catches drift.
 - **Every client.** A Tool's page at `/tools/<name>` walks through installing
   it from claude.ai (a skill zip to upload), Claude Code
   (`slipdock tools install <name>`) and ChatGPT (a zip that names the

@@ -443,6 +443,9 @@ slipdock tools show <name> [--version V]      # its board, skills (with shas), f
 slipdock tools install-board <name> [--name N] [--version V]
                                               # the server builds the board; again = the same board,
                                               # a newer version adds only what is missing
+slipdock tools install-board handbook --board B   # the built-in handbook, on B's root board
+slipdock handbook <board>                     # its index and decisions
+slipdock handbook <card>                      # the sections that card should read (also in `card`)
 slipdock tools install <name> [--dir D]       # its skills (and local files) into ~/.claude/skills
 slipdock tools check [<name>...]              # installed Tool skills current or behind, by sha
 slipdock tools publish <dir>                  # tool.json, README.md, board.json, skills/, files/

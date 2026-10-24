@@ -723,6 +723,76 @@ defmodule SlipdockCLI.Render do
     end
   end
 
+  # A card's suggested handbook reading (#1265): what a pass reads before it
+  # builds, and the gate it closes through.
+  defp handbook_block(h) do
+    IO.puts("")
+    IO.puts(bold("Handbook") <> dim("  read before building; close with a Handbook: line"))
+
+    case h["suggested"] || [] do
+      [] -> IO.puts("  " <> dim("nothing in particular: see the index"))
+      suggested -> Enum.each(suggested, &IO.puts("  " <> suggestion(&1)))
+    end
+
+    IO.puts("  " <> dim("index: slipdock handbook #{h["board"]} (#{h["index_page"]})"))
+  end
+
+  defp suggestion(s) do
+    where =
+      if s["section"],
+        do: "slipdock page section #{s["page"]} \"#{s["section"]}\"",
+        else: "slipdock page read #{s["page"]}"
+
+    "#{s["page"]} #{s["title"]}#{if s["section"], do: " §" <> section_leaf(s["section"]), else: ""}  " <>
+      dim("#{s["why"]} · #{where}")
+  end
+
+  defp section_leaf(path), do: path |> String.split("/") |> List.last()
+
+  @doc "`slipdock handbook <card>`: the card's suggested reading, or that there is none."
+  def handbook_for_card(%{"handbook" => %{} = h} = c) do
+    IO.puts(bold("##{c["id"]} #{c["title"]}"))
+    handbook_block(h)
+  end
+
+  def handbook_for_card(c),
+    do:
+      IO.puts(
+        "##{c["id"]}: its board keeps no handbook (`slipdock tools install-board handbook --board B`)"
+      )
+
+  @doc "`slipdock handbook <board>`: the index and the decisions."
+  def handbook(%{"handbook" => nil, "board" => b}),
+    do:
+      IO.puts(
+        "#{b["code"]} keeps no handbook (`slipdock tools install-board handbook --board #{b["code"]}`)"
+      )
+
+  def handbook(%{"handbook" => h}) do
+    IO.puts(bold("Handbook") <> dim("  #{h["board"]} · index #{h["index_page"]}"))
+
+    Enum.each(h["index"], fn p ->
+      IO.puts(
+        "  #{p["code"]} #{p["title"]}" <>
+          if(p["summary"], do: dim(" — " <> p["summary"]), else: "")
+      )
+
+      if p["read_when"], do: IO.puts("      " <> dim("read when: " <> p["read_when"]))
+    end)
+
+    if (h["more"] || 0) > 0,
+      do: IO.puts("  " <> dim("… and #{h["more"]} more pages in the folder"))
+
+    case h["decisions"] || [] do
+      [] ->
+        :ok
+
+      decisions ->
+        IO.puts(bold("Decisions"))
+        Enum.each(decisions, &IO.puts("  #{&1["code"]} #{&1["title"]}"))
+    end
+  end
+
   def card(c) do
     IO.puts(
       bold("##{c["id"]} #{c["title"]}") <> if(c["completed"], do: "  ✓ completed", else: "")
@@ -840,6 +910,8 @@ defmodule SlipdockCLI.Render do
       IO.puts(bold("Description"))
       IO.puts(indent(c["description"]))
     end
+
+    if h = c["handbook"], do: handbook_block(h)
 
     if c["checklist"]["total"] > 0 do
       IO.puts("")
