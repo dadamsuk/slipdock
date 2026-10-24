@@ -1108,6 +1108,19 @@ defmodule SlipdockWeb.WikiLive.Index do
   ## Events -------------------------------------------------------------------
 
   @impl true
+  # The tree's Email this folder… (#1277): the addresses dialog, for that
+  # folder; it checks the reader may write there before showing anything.
+  def handle_event("email_folder", %{"id" => id}, socket) do
+    if socket.assigns.inbound do
+      send_update(SlipdockWeb.InboundAddressesComponent,
+        id: "board-inbound",
+        open_folder: id
+      )
+    end
+
+    {:noreply, socket}
+  end
+
   def handle_event("validate", %{"page" => params}, socket) do
     # An image the upload refuses (too big, not an image) would otherwise sit
     # in the form with its error, and LiveView refuses to submit a form with
@@ -4322,6 +4335,7 @@ defmodule SlipdockWeb.WikiLive.Index do
             data-vault-owner={to_string(!!@vault and @vault.user_id == @current_user.id)}
             data-organising={to_string(@organising)}
             data-can-write={to_string(@can_write)}
+            data-inbound={to_string(@inbound)}
             data-version={@tree_version}
             data-current={@tree_current}
             data-reveal={Jason.encode!(@tree_reveal)}

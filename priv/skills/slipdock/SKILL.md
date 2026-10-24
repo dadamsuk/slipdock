@@ -220,6 +220,7 @@ slipdock views <board>                      # saved swimlane views
 slipdock favourites                         # what this person keeps going back to, with a URL each
 slipdock passkeys                           # your own passkeys; `passkeys remove <id>` revokes one (only when asked)
 slipdock inbound <board> [--rotate]         # your card- and page- addresses for a board (only take mail from you); page-: subject = page title, "[Folder] Title" files it (else Inbox), "+ Title" appends a dated section to that page; --rotate only when asked: the old ones bounce
+slipdock inbound <board> --folder F [--rotate]   # a wiki folder's own page- address (a path, name or id): mail to it is a page in that folder; "[Sub] Title" files it beneath, "+ Title" appends as above
 slipdock inbound me [--rotate] [--ack on|off]   # your personal Quick Add address (subject picks board, list, #priority, due:); --ack: a link back per card
 slipdock inbound log                        # your last 50 inbound emails and what came of each (why one bounced); kind "reply" = a reply to a notification email: a comment by them, or the answer to a wait on them
 slipdock search <words...> [--board B] [--limit N] [--archived] [--full]   # a card's #id or link finds it, archived too

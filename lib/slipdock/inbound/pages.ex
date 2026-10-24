@@ -18,6 +18,9 @@ defmodule Slipdock.Inbound.Pages do
     * **Who** — the address's owner, with `By email from <sender>` as the
       edit message and `email` as where the revision came from.
 
+  Mail to a folder's own address (#1277) makes the page in that folder rather
+  than `Inbox`, and `[Sub/Path] Title` names a folder beneath it.
+
   A subject of the form `+ Title` adds to the page of that title instead
   (#1253): a `## <date> — <sender>` section with the body under it, through
   `Slipdock.Wiki.append/3`, so the page's history records it. The body goes
@@ -34,19 +37,25 @@ defmodule Slipdock.Inbound.Pages do
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.Board
   alias Slipdock.Inbound.{Cards, Message}
-  alias Slipdock.Wiki.{Folders, Page}
+  alias Slipdock.Wiki.{Folder, Folders, Page}
 
   @inbox "Inbox"
   @summary_max 300
 
   @doc """
-  A page on `board` from `message`, made as `user`.
-  `{:ok, %{page_id:, user_id:}}`, or `{:reject, reason}`.
+  A page on `board` from `message`, made as `user`; with `folder:`, in that
+  folder of the board's. `{:ok, %{page_id:, user_id:}}`, or `{:reject, reason}`.
   """
-  @spec to_board(User.t(), Board.t(), Message.t()) :: {:ok, map()} | {:reject, String.t()}
-  def to_board(%User{} = user, %Board{} = board, %Message{} = message) do
-    case subject(message.subject) do
+  @spec to_board(User.t(), Board.t(), Message.t(), keyword()) ::
+          {:ok, map()} | {:reject, String.t()}
+  def to_board(%User{} = user, %Board{} = board, %Message{} = message, opts \\ []) do
+    base = if folder = opts[:folder], do: Folders.path(folder)
+
+    case subject(message.subject, base) do
       {:append, title} -> append(user, board, title, message)
+      # Straight into the address's folder, not found again by its path,
+      # which another folder of the same name could share.
+      {^base, title} when not is_nil(base) -> create(user, board, opts[:folder], title, message)
       {folder_path, title} -> create(user, board, folder_path, title, message)
     end
   end
@@ -54,10 +63,11 @@ defmodule Slipdock.Inbound.Pages do
   @doc """
   What a subject asks for: `{:append, title}` for `+ Title`, otherwise
   `{folder_path, title}` for a new page. `[a/b] Title` names the folder;
-  anything else goes to `Inbox`.
+  anything else goes to `Inbox`. With a `base` folder path (a folder's own
+  address), the page goes there, and `[a/b]` is beneath it.
   """
-  @spec subject(String.t() | nil) :: {:append | String.t(), String.t()}
-  def subject(subject) do
+  @spec subject(String.t() | nil, String.t() | nil) :: {:append | String.t(), String.t()}
+  def subject(subject, base \\ nil) do
     title = Cards.title(subject)
 
     cond do
@@ -65,21 +75,26 @@ defmodule Slipdock.Inbound.Pages do
         {:append, title |> String.trim_leading("+") |> String.trim()}
 
       match = Regex.run(~r/^\[([^\]]*)\]\s*(.*)$/u, title) ->
-        folder_and_title(match)
+        folder_and_title(match, base)
 
       true ->
-        {@inbox, title}
+        {base || @inbox, title}
     end
   end
 
-  defp folder_and_title(match) do
-    case match do
-      [_, folder, rest] ->
-        folder =
-          folder |> String.split("/") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
+  defp folder_and_title([_, folder, rest], base) do
+    folder =
+      folder |> String.split("/") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
 
-        {if(folder == [], do: @inbox, else: Enum.join(folder, "/")), Cards.title(rest)}
-    end
+    path =
+      case {folder, base} do
+        {[], nil} -> @inbox
+        {[], base} -> base
+        {folder, nil} -> Enum.join(folder, "/")
+        {folder, base} -> Enum.join([base | folder], "/")
+      end
+
+    {path, Cards.title(rest)}
   end
 
   ## Making the page -----------------------------------------------------------
@@ -114,6 +129,8 @@ defmodule Slipdock.Inbound.Pages do
 
   # The folder named, found or made; `Inbox` by default. A folder made here
   # counts against nothing, so it is made before the page is checked.
+  defp folder(_board, %Folder{} = folder, _user), do: {:ok, folder}
+
   defp folder(board, path, user) do
     case Folders.find(board, path) do
       {:ok, folder} ->

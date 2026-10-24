@@ -5,7 +5,8 @@ defmodule SlipdockCLI.Inbound do
   # to the server's inbound addresses and what came of each, which is where
   # "I emailed it and nothing happened" gets its answer. `inbound <board>`
   # and `inbound me` show your own addresses (#1246), `--rotate` replaces
-  # them.
+  # them. `inbound <board> --folder F` is a wiki folder's own page address
+  # (#1277), whose mail is filed in that folder.
 
   import SlipdockCLI.Util
 
@@ -34,12 +35,17 @@ defmodule SlipdockCLI.Inbound do
   def run("inbound", [ref], o), do: addresses("/boards/#{enc(ref)}/inbound", o)
 
   def run("inbound", _args, _o),
-    do: fail("usage: slipdock inbound log | inbound <board> [--rotate] | inbound me [--rotate]")
+    do:
+      fail(
+        "usage: slipdock inbound log | inbound <board> [--folder F] [--rotate] | inbound me [--rotate]"
+      )
 
   defp addresses(path, o) do
+    query = if f = o[:folder], do: "?" <> URI.encode_query(folder: f), else: ""
+
     if o[:rotate],
-      do: HTTP.post(path <> "/rotate") |> out(o, &show(&1, true)),
-      else: HTTP.get(path) |> out(o, &show(&1, false))
+      do: HTTP.post(path <> "/rotate" <> query) |> out(o, &show(&1, true)),
+      else: HTTP.get(path <> query) |> out(o, &show(&1, false))
   end
 
   @doc false
@@ -47,7 +53,7 @@ defmodule SlipdockCLI.Inbound do
     if rotated?, do: IO.puts("New address made. Mail to the old one bounces from now on.")
 
     for kind <- ~w(card page add), address = addresses[kind] do
-      IO.puts("#{label(kind, r["board"])}  #{address}")
+      IO.puts("#{label(kind, r["board"], r["folder"])}  #{address}")
     end
 
     case r["ack"] do
@@ -57,9 +63,12 @@ defmodule SlipdockCLI.Inbound do
     end
   end
 
-  defp label("card", board), do: "new card on #{board["code"] || board["name"]}:"
-  defp label("page", board), do: "new page on #{board["code"] || board["name"]}:"
-  defp label("add", _board), do: "quick add, any board:"
+  defp label("page", board, %{"path" => path}),
+    do: "new page in #{path} on #{board["code"] || board["name"]}:"
+
+  defp label("card", board, _folder), do: "new card on #{board["code"] || board["name"]}:"
+  defp label("page", board, _folder), do: "new page on #{board["code"] || board["name"]}:"
+  defp label("add", _board, _folder), do: "quick add, any board:"
 
   @doc false
   def listing(%{"inbound" => []} = r) do

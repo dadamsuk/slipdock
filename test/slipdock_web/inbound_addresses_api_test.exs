@@ -28,6 +28,69 @@ defmodule SlipdockWeb.InboundAddressesAPITest do
     |> put_req_header("authorization", "Bearer " <> token)
   end
 
+  describe "a folder's address, with ?folder= (#1277)" do
+    setup %{board: board} do
+      {:ok, design} = Slipdock.Wiki.Folders.create(board, %{"name" => "Design"})
+
+      {:ok, decisions} =
+        Slipdock.Wiki.Folders.create(board, %{"name" => "Decisions", "parent_id" => design.id})
+
+      %{folder: decisions}
+    end
+
+    test "by path or id: the folder's own page address, and where it files", ctx do
+      body =
+        as(ctx.owner)
+        |> get("/api/boards/#{ctx.board.id}/inbound?folder=Design/Decisions")
+        |> json_response(200)
+
+      {:ok, page} = Tokens.address(ctx.owner, ctx.folder, :page)
+      assert body["addresses"] == %{"page" => page}
+      assert body["folder"] == %{"id" => ctx.folder.id, "path" => "Design/Decisions"}
+      assert body["board"]["id"] == ctx.board.id
+
+      assert as(ctx.owner)
+             |> get("/api/boards/#{ctx.board.id}/inbound?folder=#{ctx.folder.id}")
+             |> json_response(200)
+             |> get_in(["addresses", "page"]) == page
+    end
+
+    test "rotating it replaces only the folder's", ctx do
+      {:ok, old} = Tokens.address(ctx.owner, ctx.folder, :page)
+      {:ok, board_page} = Tokens.address(ctx.owner, ctx.board, :page)
+
+      body =
+        as(ctx.owner)
+        |> post("/api/boards/#{ctx.board.id}/inbound/rotate?folder=#{ctx.folder.id}")
+        |> json_response(200)
+
+      assert body["addresses"]["page"] != old
+      assert Tokens.address(ctx.owner, ctx.board, :page) == {:ok, board_page}
+    end
+
+    test "a folder the board doesn't have is a 404", ctx do
+      other = board_fixture(%{}, owner: ctx.owner)
+      {:ok, theirs} = Slipdock.Wiki.Folders.create(other, %{"name" => "Elsewhere"})
+
+      assert as(ctx.owner)
+             |> get("/api/boards/#{ctx.board.id}/inbound?folder=Nope")
+             |> json_response(404)
+
+      assert as(ctx.owner)
+             |> get("/api/boards/#{ctx.board.id}/inbound?folder=#{theirs.id}")
+             |> json_response(404)
+    end
+
+    test "a reader is refused", ctx do
+      reader = user_fixture("reader@example.com")
+      share_fixture(ctx.board, reader, "read")
+
+      assert as(reader)
+             |> get("/api/boards/#{ctx.board.id}/inbound?folder=Design")
+             |> json_response(403)
+    end
+  end
+
   describe "GET /api/boards/:board/inbound" do
     test "your card address for the board, by id or code", ctx do
       body = as(ctx.owner) |> get("/api/boards/#{ctx.board.id}/inbound") |> json_response(200)

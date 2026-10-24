@@ -1082,3 +1082,24 @@ test("a mount's row has its menu button, and its count sits where a folder's doe
   assert.doesNotMatch(rows[2], /data-menu/)
   assert.match(rows[2], />3<\/span><\/a><span class="w-6 shrink-0"><\/span><\/div>$/)
 })
+
+test("a folder offers its own email address while inbound mail is on (#1277)", () => {
+  const row = folder(4, {href: "/boards/1/wiki?folder=4"})
+  const on = menuItems(row, {board: 1, canWrite: true, inbound: true, selected: new Set()})
+  const item = on.find(i => i.label === "Email this folder…")
+  assert.deepEqual(item && item.payload, {id: "4"})
+  assert.equal(item.event, "email_folder")
+  assert.equal(item.group, "share")
+
+  const off = menuItems(row, {board: 1, canWrite: true, inbound: false, selected: new Set()})
+  assert.ok(!labels(off).includes("Email this folder…"))
+
+  const reader = menuItems(folder(4, {writable: false, href: "/x"}), {board: 1, canWrite: false, inbound: true, selected: new Set()})
+  assert.ok(!labels(reader).includes("Email this folder…"))
+
+  const page7 = menuItems(page(7, {href: "/boards/1/wiki/p7"}), {board: 1, canWrite: true, inbound: true, selected: new Set()})
+  assert.ok(!labels(page7).includes("Email this folder…"))
+
+  const many = menuItems(row, {board: 1, canWrite: true, inbound: true, selected: new Set(["folder:4", "folder:5"])})
+  assert.ok(!labels(many).includes("Email this folder…"))
+})

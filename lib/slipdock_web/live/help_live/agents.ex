@@ -186,9 +186,9 @@ defmodule SlipdockWeb.HelpLive.Agents do
      ]},
     {"Get your addresses for emailing cards and wiki pages onto a board, or rotate them",
      [
-       {:yes, "GET /api/boards/:id/inbound, /api/me/inbound"},
+       {:yes, "GET /api/boards/:id/inbound, /api/me/inbound (?folder= for a wiki folder's)"},
        {:no, "not a tool: the address is for a person's mail client"},
-       {:yes, "slipdock inbound <board>, inbound me"},
+       {:yes, "slipdock inbound <board>, inbound me, inbound <board> --folder F"},
        {:yes, "through the CLI"},
        {:yes, "through the CLI"},
        {:no, "one way only"}

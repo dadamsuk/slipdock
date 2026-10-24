@@ -26,6 +26,7 @@ defmodule SlipdockWeb.API.InboundController do
 
   alias Slipdock.Inbound
   alias Slipdock.Inbound.Tokens
+  alias Slipdock.Wiki.{Folder, Folders}
   alias SlipdockWeb.API.Authorize
 
   action_fallback SlipdockWeb.API.FallbackController
@@ -61,10 +62,15 @@ defmodule SlipdockWeb.API.InboundController do
   the board (#1246), made on first asking. `POST …/inbound/rotate` replaces
   them, and mail to the old ones bounces. Needs write on the board; 404
   while inbound mail is off.
-  """
-  def board(conn, %{"board" => ref}), do: board_addresses(conn, ref, &Tokens.addresses/2)
 
-  def rotate_board(conn, %{"board" => ref}), do: board_addresses(conn, ref, &Tokens.rotate/2)
+  With `folder` (a path, name or id), the address is that wiki folder's own
+  (#1277): a page address whose mail is filed there.
+  """
+  def board(conn, %{"board" => ref} = params),
+    do: board_addresses(conn, ref, params["folder"], &Tokens.addresses/2)
+
+  def rotate_board(conn, %{"board" => ref} = params),
+    do: board_addresses(conn, ref, params["folder"], &Tokens.rotate/2)
 
   @doc """
   `GET /api/me/inbound`: the caller's personal Quick Add address (#1246).
@@ -91,23 +97,41 @@ defmodule SlipdockWeb.API.InboundController do
 
   def update_me(_conn, _params), do: {:error, :unprocessable_entity, "ack is true or false"}
 
-  defp board_addresses(conn, ref, fun) do
+  defp board_addresses(conn, ref, folder_ref, fun) do
     if Inbound.enabled?() do
       with {:ok, board} <- Authorize.fetch_board(conn, ref, :write),
-           do: addresses(conn, board, fun)
+           {:ok, target} <- folder_of(board, folder_ref),
+           do: addresses(conn, target, fun)
     else
       off(conn)
     end
   end
 
-  defp addresses(conn, board, fun) do
-    case Inbound.enabled?() && fun.(conn.assigns.current_user, board) do
+  defp folder_of(board, ref) when ref in [nil, ""], do: {:ok, board}
+
+  defp folder_of(board, ref) do
+    case Folders.find(board, ref) do
+      {:ok, folder} -> {:ok, %{folder | board: board}}
+      {:error, :not_found, _what} = missing -> missing
+    end
+  end
+
+  defp addresses(conn, target, fun) do
+    case Inbound.enabled?() && fun.(conn.assigns.current_user, target) do
       {:ok, addresses} ->
+        board = target_board(target)
+
         body = %{
           domain: Inbound.domain(),
           board: board && %{id: board.id, code: board.code, name: board.name},
           addresses: Map.new(Tokens.offered(addresses))
         }
+
+        body =
+          case target do
+            %Folder{} = f -> Map.put(body, :folder, %{id: f.id, path: Folders.path(f)})
+            _ -> body
+          end
 
         # The acknowledgement setting is the person's, so it comes with
         # their personal address.
@@ -123,6 +147,9 @@ defmodule SlipdockWeb.API.InboundController do
         off(conn)
     end
   end
+
+  defp target_board(%Folder{board: board}), do: board
+  defp target_board(board), do: board
 
   defp off(conn),
     do: conn |> put_status(:not_found) |> json(%{error: "inbound email is off on this server"})

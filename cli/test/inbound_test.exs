@@ -74,6 +74,37 @@ defmodule SlipdockCLI.InboundTest do
     assert out =~ "card-aaaa@example.com"
   end
 
+  @folder ~s({"domain":"example.com","board":{"id":3,"code":"slipdock","name":"Slipdock"},) <>
+            ~s("folder":{"id":9,"path":"Design/Decisions"},) <>
+            ~s("addresses":{"page":"page-cccc@example.com"}})
+
+  test "inbound <board> --folder shows that folder's own page address (#1277)" do
+    serve([{200, @folder}])
+
+    out =
+      capture_io(fn -> Inbound.run("inbound", ["slipdock"], folder: "Design/Decisions") end)
+
+    assert_received {:request, "GET", "/api/boards/slipdock/inbound?folder=Design%2FDecisions",
+                     _}
+
+    assert out =~ "new page in Design/Decisions on slipdock:  page-cccc@example.com"
+    refute out =~ "new card"
+  end
+
+  test "inbound <board> --folder --rotate rotates the folder's address only" do
+    serve([{200, @folder}])
+
+    out =
+      capture_io(fn ->
+        Inbound.run("inbound", ["slipdock"], folder: "Design/Decisions", rotate: true)
+      end)
+
+    assert_received {:request, "POST",
+                     "/api/boards/slipdock/inbound/rotate?folder=Design%2FDecisions", _}
+
+    assert out =~ "New address made."
+  end
+
   test "a board ref with odd characters is escaped in the path" do
     serve([{200, @board}])
     capture_io(fn -> Inbound.run("inbound", ["My Board"], []) end)
