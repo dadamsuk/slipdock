@@ -195,6 +195,12 @@ defmodule SlipdockWeb.Router do
     get "/download/:secret", TransferController, :download
   end
 
+  # Mail from the Cloudflare Email Worker (#1236, W-1933). No token: the
+  # request is signed with SLIPDOCK_INBOUND_SECRET, which is its authority.
+  scope "/api", SlipdockWeb.API do
+    post "/inbound/email", InboundController, :email
+  end
+
   # The board as an MCP server (see `SlipdockWeb.MCP.Plug`). Outside every
   # pipeline: it does its own bearer auth, because the `:api` pipeline refuses
   # every POST from a read token and every MCP call is a POST, and it reads its
