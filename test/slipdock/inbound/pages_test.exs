@@ -234,12 +234,134 @@ defmodule Slipdock.Inbound.PagesTest do
     end
   end
 
+  describe "a + Title subject" do
+    setup ctx do
+      {:ok, page} =
+        Wiki.create_page(ctx.board, %{"title" => "Journal", "body" => "# Journal\n\nStarted."},
+          user: ctx.user
+        )
+
+      %{page: page}
+    end
+
+    test "adds a dated section from the sender to that page, ignoring case", ctx do
+      assert {:accepted, email} = send_page(ctx, "+ journal", text("Walked the dog."))
+      assert email.page_id == ctx.page.id
+
+      page = Repo.get!(Page, ctx.page.id)
+      today = Date.utc_today() |> Date.to_iso8601()
+      assert page.body =~ "Started.\n\n## #{today} — Sender\n\nWalked the dog."
+      assert Repo.aggregate(Page, :count) == 1
+
+      assert %Revision{via: "email", summary: summary} = hd(Wiki.list_revisions(page))
+      assert summary == "By email from #{ctx.user.email}"
+    end
+
+    test "a second mail adds a second section after the first", ctx do
+      assert {:accepted, _} = send_page(ctx, "+Journal", text("One."))
+      assert {:accepted, _} = send_page(ctx, "Re: + Journal", text("Two."))
+      body = Repo.get!(Page, ctx.page.id).body
+      assert [_, after_one] = String.split(body, "One.")
+      assert after_one =~ "Two."
+    end
+
+    test "the date is the sender's own day when they've set a timezone", ctx do
+      {:ok, _} =
+        ctx.user |> Ecto.Changeset.change(timezone: "Pacific/Kiritimati") |> Repo.update()
+
+      assert {:accepted, _} = send_page(ctx, "+ Journal", text("Late."))
+      {:ok, now} = DateTime.now("Pacific/Kiritimati")
+
+      assert Repo.get!(Page, ctx.page.id).body =~
+               "## #{Date.to_iso8601(DateTime.to_date(now))} — "
+    end
+
+    test "attachments go to the page and a cid: image is shown in the section", ctx do
+      assert {:accepted, _} = send_page(ctx, "+ Journal", inline_image_body("j1@example.com"))
+      page = Repo.get!(Page, ctx.page.id)
+      assert [%Attachment{filename: "shot.png"} = a] = files(page)
+      assert page.body =~ "See this:"
+      assert page.body =~ "](#{Boards.attachment_url(a)})"
+    end
+
+    test "a long body goes in whole, in one revision", ctx do
+      long = String.duplicate("A line of the log.\n", 5_000)
+      before = length(Wiki.list_revisions(ctx.page))
+      assert {:accepted, _} = send_page(ctx, "+ Journal", text(long))
+      page = Repo.get!(Page, ctx.page.id)
+      assert length(String.split(page.body, "A line of the log.")) == 5_001
+      assert length(Wiki.list_revisions(page)) == before + 1
+    end
+
+    test "the most lately changed page wins when titles are shared", ctx do
+      {:ok, newer} = Wiki.create_page(ctx.board, %{"title" => "JOURNAL", "body" => "x"})
+
+      Repo.update_all(from(p in Page, where: p.id == ^newer.id),
+        set: [updated_at: DateTime.add(DateTime.utc_now(), 60)]
+      )
+
+      assert {:accepted, email} = send_page(ctx, "+ Journal", text("Here."))
+      assert email.page_id == newer.id
+    end
+
+    test "no page of that title bounces with near matches", ctx do
+      for t <- ~w(Journal2 Jurnal Roadmap),
+          do: {:ok, _} = Wiki.create_page(ctx.board, %{"title" => t})
+
+      assert {:rejected, reason, _} = send_page(ctx, "+ Journl", text("x"))
+      assert reason =~ "no page called “Journl”"
+      assert reason =~ "“Journal”"
+      assert reason =~ "“Jurnal”"
+      refute reason =~ "Roadmap"
+      assert Repo.get!(Page, ctx.page.id).body == "# Journal\n\nStarted."
+    end
+
+    test "no near matches says so without a list", ctx do
+      assert {:rejected, reason, _} = send_page(ctx, "+ Quarterly budget", text("x"))
+      assert reason =~ "no page called “Quarterly budget”"
+      refute reason =~ "Did you mean"
+    end
+
+    test "archived pages and templates are not added to", ctx do
+      {:ok, _} = Wiki.archive_page(ctx.page)
+      {:ok, _} = Wiki.create_page(ctx.board, %{"title" => "Weekly", "template" => true})
+      assert {:rejected, _, _} = send_page(ctx, "+ Journal", text("x"))
+      assert {:rejected, _, _} = send_page(ctx, "+ Weekly", text("x"))
+    end
+
+    test "a bare + and an empty message bounce", ctx do
+      assert {:rejected, reason, _} = send_page(ctx, "+", text("x"))
+      assert reason =~ "Name the page"
+      assert {:rejected, reason, _} = send_page(ctx, "+ Journal", text(""))
+      assert reason =~ "nothing in it to add"
+      assert Repo.get!(Page, ctx.page.id).body == "# Journal\n\nStarted."
+    end
+
+    test "another board's page is not found", ctx do
+      other = board_fixture(%{}, owner: ctx.user)
+      {:ok, _} = Wiki.create_page(other, %{"title" => "Elsewhere"})
+      assert {:rejected, reason, _} = send_page(ctx, "+ Elsewhere", text("x"))
+      assert reason =~ "no page called"
+    end
+  end
+
+  describe "near_matches/2" do
+    test "at most five, closest first" do
+      pages = for t <- ~w(Log Logs Logbook Blog Catalog Logo Login), do: %Page{title: t}
+      near = Pages.near_matches("log", pages)
+      assert length(near) == 5
+      assert hd(near) == "Log"
+    end
+  end
+
   describe "subject/1 and summary/1" do
     test "the folder and title a subject names" do
       assert Pages.subject("Notes") == {"Inbox", "Notes"}
       assert Pages.subject("Re: [A/B] Notes") == {"A/B", "Notes"}
       assert Pages.subject("[ a // b ] Notes") == {"a/b", "Notes"}
       assert Pages.subject(nil) == {"Inbox", "(no subject)"}
+      assert Pages.subject("Fwd: + Journal") == {:append, "Journal"}
+      assert Pages.subject("+") == {:append, ""}
     end
 
     test "the first line with text, marks off, at most 300 characters" do

@@ -18,10 +18,19 @@ defmodule Slipdock.Inbound.Pages do
     * **Who** — the address's owner, with `By email from <sender>` as the
       edit message and `email` as where the revision came from.
 
+  A subject of the form `+ Title` adds to the page of that title instead
+  (#1253): a `## <date> — <sender>` section with the body under it, through
+  `Slipdock.Wiki.append/3`, so the page's history records it. The body goes
+  in whole, however long: the wiki's append takes any length, and the
+  inbound endpoint's size cap is the only limit. Files are attached to the
+  page. No page of that title bounces, naming up to five near matches.
+
   Refusals come back as `{:reject, reason}` in words for the bounce.
   """
 
-  alias Slipdock.{Boards, Quota, Wiki}
+  import Ecto.Query
+
+  alias Slipdock.{Boards, Quota, Repo, Wiki}
   alias Slipdock.Accounts.User
   alias Slipdock.Boards.Board
   alias Slipdock.Inbound.{Cards, Message}
@@ -36,27 +45,40 @@ defmodule Slipdock.Inbound.Pages do
   """
   @spec to_board(User.t(), Board.t(), Message.t()) :: {:ok, map()} | {:reject, String.t()}
   def to_board(%User{} = user, %Board{} = board, %Message{} = message) do
-    {folder_path, title} = subject(message.subject)
-    create(user, board, folder_path, title, message)
+    case subject(message.subject) do
+      {:append, title} -> append(user, board, title, message)
+      {folder_path, title} -> create(user, board, folder_path, title, message)
+    end
   end
 
   @doc """
-  What a subject asks for: `{folder_path, title}`. `[a/b] Title` names the
-  folder; anything else goes to `Inbox`.
+  What a subject asks for: `{:append, title}` for `+ Title`, otherwise
+  `{folder_path, title}` for a new page. `[a/b] Title` names the folder;
+  anything else goes to `Inbox`.
   """
-  @spec subject(String.t() | nil) :: {String.t(), String.t()}
+  @spec subject(String.t() | nil) :: {:append | String.t(), String.t()}
   def subject(subject) do
     title = Cards.title(subject)
 
-    case Regex.run(~r/^\[([^\]]*)\]\s*(.*)$/u, title) do
+    cond do
+      String.starts_with?(title, "+") ->
+        {:append, title |> String.trim_leading("+") |> String.trim()}
+
+      match = Regex.run(~r/^\[([^\]]*)\]\s*(.*)$/u, title) ->
+        folder_and_title(match)
+
+      true ->
+        {@inbox, title}
+    end
+  end
+
+  defp folder_and_title(match) do
+    case match do
       [_, folder, rest] ->
         folder =
           folder |> String.split("/") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
 
         {if(folder == [], do: @inbox, else: Enum.join(folder, "/")), Cards.title(rest)}
-
-      nil ->
-        {@inbox, title}
     end
   end
 
@@ -104,6 +126,107 @@ defmodule Slipdock.Inbound.Pages do
         end
     end
   end
+
+  ## Adding to a page (#1253) -------------------------------------------------
+
+  defp append(_user, _board, "", _message),
+    do: {:reject, "Name the page to add to after the +, as in “+ Journal”. Nothing was added."}
+
+  defp append(user, board, title, message) do
+    with {:ok, page} <- find_page(board, title),
+         :ok <- something_to_add(message) do
+      {stored, left_off} = store_all(page, message)
+      cid = if inline_images?(message), do: cid_url(stored), else: fn _ -> nil end
+
+      body =
+        case left_off do
+          [] -> Cards.description(message, cid)
+          files -> String.trim(Cards.description(message, cid) <> "\n\n" <> left_off_note(files))
+        end
+
+      text =
+        "## #{today(user)} — #{sender(message)}" <> if(body == "", do: "", else: "\n\n" <> body)
+
+      case Wiki.append(page, text, write_opts(user, message)) do
+        {:ok, page} -> {:ok, %{page_id: page.id, user_id: user.id}}
+        _ -> {:reject, "The text couldn't be added to “#{page.title}”."}
+      end
+    end
+  end
+
+  @doc """
+  The live page on `board` titled `title`, ignoring case: the most lately
+  changed when several share it. Archived pages and templates don't count.
+  """
+  @spec find_page(Board.t(), String.t()) :: {:ok, Page.t()} | {:reject, String.t()}
+  def find_page(%Board{id: board_id}, title) do
+    pages =
+      Repo.all(
+        from(p in Page,
+          where: p.board_id == ^board_id and is_nil(p.archived_at) and not p.template,
+          order_by: [desc: p.updated_at, desc: p.id]
+        )
+      )
+
+    wanted = String.downcase(title)
+
+    case Enum.find(pages, &(String.downcase(&1.title) == wanted)) do
+      %Page{} = page -> {:ok, page}
+      nil -> {:reject, no_such_page(title, pages)}
+    end
+  end
+
+  defp no_such_page(title, pages) do
+    case near_matches(title, pages) do
+      [] ->
+        "There's no page called “#{title}” on this board, so nothing was added."
+
+      near ->
+        "There's no page called “#{title}” on this board, so nothing was added. Did you mean: " <>
+          Enum.map_join(near, ", ", &"“#{&1}”") <> "?"
+    end
+  end
+
+  @doc "Up to five titles in `pages` close to `title`, closest first."
+  @spec near_matches(String.t(), [Page.t()]) :: [String.t()]
+  def near_matches(title, pages) do
+    wanted = String.downcase(title)
+
+    pages
+    |> Enum.map(& &1.title)
+    |> Enum.uniq()
+    |> Enum.map(fn t ->
+      lower = String.downcase(t)
+      contains = String.contains?(lower, wanted) or String.contains?(wanted, lower)
+      {if(contains, do: 1.0, else: String.jaro_distance(lower, wanted)), t}
+    end)
+    |> Enum.filter(fn {score, _} -> score >= 0.8 end)
+    |> Enum.sort_by(fn {score, t} -> {-score, String.length(t)} end)
+    |> Enum.take(5)
+    |> Enum.map(&elem(&1, 1))
+  end
+
+  defp something_to_add(%Message{attachments: [_ | _]}), do: :ok
+
+  defp something_to_add(message) do
+    if Cards.description(message, fn _ -> nil end) == "",
+      do: {:reject, "The message had nothing in it to add, so the page wasn't changed."},
+      else: :ok
+  end
+
+  # The day in the sender's own timezone when they've set one.
+  defp today(%User{timezone: tz}) when is_binary(tz) and tz != "" do
+    case DateTime.now(tz) do
+      {:ok, now} -> DateTime.to_date(now)
+      _ -> Date.utc_today()
+    end
+  end
+
+  defp today(_user), do: Date.utc_today()
+
+  defp sender(%Message{from_name: name}) when is_binary(name) and name != "", do: name
+  defp sender(%Message{from: from}) when is_binary(from), do: from
+  defp sender(_), do: "unknown sender"
 
   @doc false
   def write_opts(user, %Message{} = message) do
