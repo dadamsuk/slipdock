@@ -36,7 +36,8 @@ defmodule Slipdock.Gardener do
     Slipdock.Gardener.Checks.AbandonedBacklog,
     Slipdock.Gardener.Checks.DuplicateCards,
     Slipdock.Gardener.Checks.OrphanPages,
-    Slipdock.Gardener.Checks.BrokenLinks
+    Slipdock.Gardener.Checks.BrokenLinks,
+    Slipdock.Gardener.Checks.HandbookGap
   ]
 
   @doc "Every check, in the order the Tidy-up page shows them."

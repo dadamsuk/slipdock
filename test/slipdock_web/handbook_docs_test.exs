@@ -44,6 +44,13 @@ defmodule SlipdockWeb.HandbookDocsTest do
     assert skill =~ "slipdock handbook <card>"
   end
 
+  test "the gardener's check is in the guide's recipe and the manual's table" do
+    assert SlipdockWeb.APIGuide.markdown() =~
+             ~r/cards\s+closed on a handbook board without a `Handbook:` line/
+
+    assert read("docs/manual.md") =~ "| Closed without a Handbook line |"
+  end
+
   test "the agents page explains it", %{conn: conn} do
     {:ok, _view, html} = live(conn, ~p"/help/agents/skills")
     assert html =~ "The handbook"

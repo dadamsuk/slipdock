@@ -1537,7 +1537,8 @@ defmodule SlipdockWeb.APIGuide do
     board beneath it over for rot — epics done but open, Done cards never
     completed, completed cards outside Done, cards stuck in progress, epics
     with no next step, long-overdue and abandoned cards, likely duplicates,
-    pages nothing links to, `[[links]]` that nearly match a page — and keeps
+    pages nothing links to, `[[links]]` that nearly match a page, cards
+    closed on a handbook board without a `Handbook:` line — and keeps
     a suggestion for each. `POST /api/boards/:board/garden` (optionally
     `check`) looks it over now; `GET` lists the open suggestions, the last
     run and every check's settings. A suggestion has `check`, `explanation`,
