@@ -34,14 +34,14 @@ function fakeFetch(status, body = {}) {
 }
 
 test("the address pattern", () => {
-  assert.ok(isSlipdockAddress("card-abc123@in.example.com"))
-  assert.ok(isSlipdockAddress("Reply-XYZ9@in.example.com"))
-  assert.ok(isSlipdockAddress("add-tok+detail@in.example.com"))
-  assert.equal(localPart("Page-A1+x@in.example.com"), "page-a1")
-  assert.ok(!isSlipdockAddress("hello@in.example.com"))
-  assert.ok(!isSlipdockAddress("card-@in.example.com"))
-  assert.ok(!isSlipdockAddress("card-ab_c@in.example.com"))
-  assert.ok(!isSlipdockAddress("xcard-abc@in.example.com"))
+  assert.ok(isSlipdockAddress("card-abc123@example.com"))
+  assert.ok(isSlipdockAddress("Reply-XYZ9@example.com"))
+  assert.ok(isSlipdockAddress("add-tok+detail@example.com"))
+  assert.equal(localPart("Page-A1+x@example.com"), "page-a1")
+  assert.ok(!isSlipdockAddress("hello@example.com"))
+  assert.ok(!isSlipdockAddress("card-@example.com"))
+  assert.ok(!isSlipdockAddress("card-ab_c@example.com"))
+  assert.ok(!isSlipdockAddress("xcard-abc@example.com"))
 })
 
 test("the signature is the one the app checks: hex HMAC-SHA256 of timestamp.body", async () => {
@@ -61,7 +61,7 @@ test("a known message signs to the known value", async () => {
 
 test("a Slipdock address is signed and posted raw, with the envelope", async () => {
   const {fetch, calls} = fakeFetch(202, {ok: true})
-  const message = fakeMessage("card-abc@in.example.com")
+  const message = fakeMessage("card-abc@example.com")
 
   assert.equal(await handle(message, env, {fetch, now: () => 1_700_000_000_000}), "delivered")
   assert.equal(calls.length, 1)
@@ -70,7 +70,7 @@ test("a Slipdock address is signed and posted raw, with the envelope", async () 
   assert.equal(url, "https://app.example.com/api/inbound/email")
   assert.equal(init.method, "POST")
   assert.equal(init.headers["content-type"], "message/rfc822")
-  assert.equal(init.headers["x-envelope-to"], "card-abc@in.example.com")
+  assert.equal(init.headers["x-envelope-to"], "card-abc@example.com")
   assert.equal(init.headers["x-envelope-from"], "bounce@example.com")
   assert.equal(init.headers["x-slipdock-timestamp"], "1700000000")
   assert.equal(new TextDecoder().decode(init.body), RAW)
@@ -83,28 +83,28 @@ test("a Slipdock address is signed and posted raw, with the envelope", async () 
 
 test("a 200 duplicate and a 202 drop are both delivered, never rejected", async () => {
   for (const status of [200, 202]) {
-    const message = fakeMessage("card-abc@in.example.com")
+    const message = fakeMessage("card-abc@example.com")
     assert.equal(await handle(message, env, fakeFetch(status, {ok: true})), "delivered")
     assert.equal(message.rejected, null)
   }
 })
 
 test("a 4xx with a reason is a bounce with that reason", async () => {
-  const message = fakeMessage("card-abc@in.example.com")
+  const message = fakeMessage("card-abc@example.com")
   const outcome = await handle(message, env, fakeFetch(422, {reject: "You can no longer add to this board."}))
   assert.equal(outcome, "rejected")
   assert.equal(message.rejected, "You can no longer add to this board.")
 })
 
 test("a 4xx without a reason still bounces, saying the status", async () => {
-  const message = fakeMessage("card-abc@in.example.com")
+  const message = fakeMessage("card-abc@example.com")
   await handle(message, env, fakeFetch(413, {}))
   assert.match(message.rejected, /413/)
 })
 
 test("401, 404 and 5xx throw, so the sender retries rather than gets a bounce", async () => {
   for (const status of [401, 404, 500, 503]) {
-    const message = fakeMessage("card-abc@in.example.com")
+    const message = fakeMessage("card-abc@example.com")
     await assert.rejects(handle(message, env, fakeFetch(status)), new RegExp(String(status)))
     assert.equal(message.rejected, null)
   }
@@ -114,7 +114,7 @@ test("a network error throws too", async () => {
   const fetch = async () => {
     throw new TypeError("fetch failed")
   }
-  await assert.rejects(handle(fakeMessage("card-abc@in.example.com"), env, {fetch}), /fetch failed/)
+  await assert.rejects(handle(fakeMessage("card-abc@example.com"), env, {fetch}), /fetch failed/)
 })
 
 test("another address is forwarded when FORWARD_TO is set, and the app is not called", async () => {
@@ -135,6 +135,6 @@ test("another address is rejected when there is nowhere to forward it", async ()
 
 test("missing settings throw instead of posting unsigned mail", async () => {
   const {fetch, calls} = fakeFetch(202)
-  await assert.rejects(handle(fakeMessage("card-abc@in.example.com"), {APP_URL: "https://x.example.com"}, {fetch}))
+  await assert.rejects(handle(fakeMessage("card-abc@example.com"), {APP_URL: "https://x.example.com"}, {fetch}))
   assert.equal(calls.length, 0)
 })
