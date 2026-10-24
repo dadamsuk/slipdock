@@ -32,7 +32,8 @@ defmodule Slipdock.Inbound.Tokens do
   @token_bytes 16
 
   @type kind :: :card | :page | :add
-  @type resolve_error :: :malformed | :unknown | :wrong_kind | :inactive | :archived | :forbidden
+  @type resolve_error ::
+          :malformed | :unknown | :revoked | :wrong_kind | :inactive | :archived | :forbidden
 
   @doc """
   `user`'s address of `kind` for `board` (`:card` or `:page`), or their
@@ -130,7 +131,9 @@ defmodule Slipdock.Inbound.Tokens do
   why not:
 
     * `:malformed` — not an inbound address at all
-    * `:unknown` — no such token, or it was rotated or revoked
+    * `:unknown` — no such token
+    * `:revoked` — it was rotated or revoked (or its board's share taken
+      back), so its owner has a new address, or none
     * `:wrong_kind` — `add-` with a board token, or `card-`/`page-` with a
       personal one
     * `:inactive` — the account is disabled
@@ -143,11 +146,12 @@ defmodule Slipdock.Inbound.Tokens do
   def resolve(local_part) when is_binary(local_part) do
     with {kind, token} when kind in ["card", "page", "add"] <-
            Inbound.address(String.downcase(String.trim(local_part))),
-         %Token{} = row <- find(token) do
+         %Token{revoked_at: nil} = row <- find(token) do
       check(String.to_existing_atom(kind), row)
     else
       {_kind, _token} -> {:error, :malformed}
       nil -> {:error, :unknown}
+      %Token{} -> {:error, :revoked}
     end
   end
 
@@ -175,7 +179,7 @@ defmodule Slipdock.Inbound.Tokens do
 
   defp find(token) do
     from(t in Token,
-      where: t.token_hash == ^hash(token) and is_nil(t.revoked_at),
+      where: t.token_hash == ^hash(token),
       preload: [:user, :board]
     )
     |> Repo.one()

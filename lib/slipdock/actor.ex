@@ -5,7 +5,7 @@ defmodule Slipdock.Actor do
   a move can be told apart as a person's, an agent's or an automation's.
 
       %{kind: "human" | "agent" | "automation" | nil,
-        via: "web" | "cli" | "mcp" | "api" | "runner" | "assistant" | "automation" | nil,
+        via: "web" | "cli" | "mcp" | "api" | "runner" | "assistant" | "automation" | "email" | nil,
         user_id: integer | nil, agent: token label | nil, job_id: integer | nil}
 
   How a request is classified:
@@ -25,7 +25,7 @@ defmodule Slipdock.Actor do
   alias Slipdock.Accounts.User
 
   @kinds ~w(human agent automation)
-  @vias ~w(web cli mcp api runner assistant automation)
+  @vias ~w(web cli mcp api runner assistant automation email)
 
   @doc "The kinds an actor can be classified as."
   def kinds, do: @kinds
@@ -40,6 +40,9 @@ defmodule Slipdock.Actor do
   def mcp(%{user: user} = context) do
     build("agent", "mcp", user, label(context[:token]), context[:job_id])
   end
+
+  @doc "A person who emailed it in (#1247): `Slipdock.Inbound`."
+  def email(user), do: build("human", "email", user)
 
   @doc "The in-app assistant, acting for `user`."
   def assistant(user), do: build("agent", "assistant", user)
@@ -104,7 +107,7 @@ defmodule Slipdock.Actor do
 
   # A door's default kind, for `opts` that name a door but not a kind.
   defp classify(_via, kind) when kind in @kinds, do: kind
-  defp classify(via, _) when via in ~w(web cli), do: "human"
+  defp classify(via, _) when via in ~w(web cli email), do: "human"
   defp classify("automation", _), do: "automation"
   defp classify(_via, _), do: "agent"
 

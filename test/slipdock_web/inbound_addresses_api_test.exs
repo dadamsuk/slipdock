@@ -75,7 +75,7 @@ defmodule SlipdockWeb.InboundAddressesAPITest do
         as(ctx.owner) |> post("/api/boards/#{ctx.board.id}/inbound/rotate") |> json_response(200)
 
       assert new != old
-      assert Tokens.resolve(old) == {:error, :unknown}
+      assert Tokens.resolve(old) == {:error, :revoked}
       assert {:ok, {:card, _, _}} = Tokens.resolve(new)
     end
 
@@ -104,7 +104,7 @@ defmodule SlipdockWeb.InboundAddressesAPITest do
         as(ctx.owner) |> post("/api/me/inbound/rotate") |> json_response(200)
 
       assert new != old
-      assert Tokens.resolve(old) == {:error, :unknown}
+      assert Tokens.resolve(old) == {:error, :revoked}
     end
 
     test "a read-only token can read it but not rotate it", ctx do
