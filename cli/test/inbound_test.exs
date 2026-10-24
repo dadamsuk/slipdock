@@ -84,8 +84,7 @@ defmodule SlipdockCLI.InboundTest do
     out =
       capture_io(fn -> Inbound.run("inbound", ["slipdock"], folder: "Design/Decisions") end)
 
-    assert_received {:request, "GET", "/api/boards/slipdock/inbound?folder=Design%2FDecisions",
-                     _}
+    assert_received {:request, "GET", "/api/boards/slipdock/inbound?folder=Design%2FDecisions", _}
 
     assert out =~ "new page in Design/Decisions on slipdock:  page-cccc@example.com"
     refute out =~ "new card"
