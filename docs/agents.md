@@ -487,7 +487,7 @@ server because that is the server that drew the page.
 | A runner's agent can't find a project command or skill (`/genarticle` "not found") | The runner has no working directory, so jobs start in your home and the project's `.claude/` isn't loaded. Set the working directory to the project's folder and run the one-liner again. |
 | Every job fails with `cd: can't cd to ~/…` | A runner installed before `~` was understood wrote it in quotes, where sh doesn't expand it. Run the one-liner again (**Setup**), or give a full path. |
 | A job fails with exit 127, "no such job kind" | The rule queued a kind this runner's config has no `job_<kind>` (shell) or `Job-<Kind>` (PowerShell) function for. Add one, or change the rule's kind. |
-| Someone says they emailed a card in and nothing happened | `slipdock inbound log` (or `GET /api/inbound/log`) says what each message made, or why it bounced or was ignored — see [Emailing your board](manual.md#emailing-your-board). Their address is `slipdock inbound <board>`; don't `--rotate` it unless asked, since the old one stops working. |
+| Someone says they emailed a card or a page in and nothing happened | `slipdock inbound log` (or `GET /api/inbound/log`) says what each message made, or why it bounced or was ignored — see [Emailing your board](manual.md#emailing-your-board). A `+ Title` mail bounces when no page has that title (the log shows the near matches it offered). Their addresses are `slipdock inbound <board>`; don't `--rotate` it unless asked, since the old one stops working. |
 | The agent inventing list or tag names | It has not read the guide, or read it without a token. The guide with a token ends with your real boards and lists. |
 
 ## Where the pieces live

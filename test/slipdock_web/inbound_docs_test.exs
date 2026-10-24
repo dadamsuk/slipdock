@@ -25,18 +25,32 @@ defmodule SlipdockWeb.InboundDocsTest do
     assert manual =~ "W-1933"
   end
 
+  test "the manual covers the page address: Inbox, [folder], + Title and its bounces" do
+    manual = read("docs/manual.md")
+    assert manual =~ "| `page-…@<domain>` |"
+    assert manual =~ "**Mail to the page address**"
+    assert manual =~ "`Inbox`"
+    assert manual =~ "`[Design/Decisions] Use Postgres`"
+    assert manual =~ "**`+ Title` adds to a page instead**"
+    assert manual =~ "for `+ Title`: there is no page of that title"
+    assert manual =~ "`Slipdock.Inbound.Pages`"
+  end
+
   test "README links to it from the features and from Receiving email" do
     readme = read("README.md")
     assert readme =~ "**Email a card in**"
     assert Regex.scan(~r/docs\/manual\.md#emailing-your-board/, readme) |> length() >= 2
     assert readme =~ "slipdock inbound\n<board>`"
     assert readme =~ "(W-1933)"
+    assert readme =~ "`page-…@` address"
+    assert readme =~ "`+ Title` adds a dated section"
   end
 
   test "docs/agents.md says where to look when mail didn't arrive" do
     agents = read("docs/agents.md")
-    assert agents =~ "emailed a card in and nothing happened"
+    assert agents =~ "emailed a card or a page in and nothing happened"
     assert agents =~ "manual.md#emailing-your-board"
+    assert agents =~ "A `+ Title` mail bounces when no page has that title"
   end
 
   test "the API guide and the agents page name the endpoints" do
@@ -56,6 +70,7 @@ defmodule SlipdockWeb.InboundDocsTest do
         File.exists?(path) do
       skill = File.read!(path)
       assert skill =~ "slipdock inbound <board> [--rotate]"
+      assert skill =~ ~s("+ Title" appends a dated section)
       assert skill =~ "slipdock inbound me [--rotate] [--ack on|off]"
       assert skill =~ "slipdock inbound log"
     end
