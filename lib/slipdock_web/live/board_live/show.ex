@@ -113,6 +113,7 @@ defmodule SlipdockWeb.BoardLive.Show do
        |> assign(
          perm: perm,
          can_write: Access.can_write?(perm),
+         inbound: Access.can_write?(perm) and Slipdock.Inbound.enabled?(),
          can_manage: perm == :owner,
          view_only: perm == :view,
          card_only: card_only,
@@ -1155,6 +1156,7 @@ defmodule SlipdockWeb.BoardLive.Show do
           ai?={@ai?}
           rules={@rules}
           meetings_path={meetings_path(assigns)}
+          inbound={@inbound}
         />
       </:menu>
 
@@ -1203,6 +1205,7 @@ defmodule SlipdockWeb.BoardLive.Show do
               ai?={@ai?}
               rules={@rules}
               meetings_path={meetings_path(assigns)}
+              inbound={@inbound}
             />
           </:trailing>
         </.swim_toolbar>
@@ -1339,6 +1342,7 @@ defmodule SlipdockWeb.BoardLive.Show do
             ai?={@ai?}
             rules={@rules}
             meetings_path={meetings_path(assigns)}
+            inbound={@inbound}
           />
         </:toolbar_actions>
       </.kanban>
@@ -1430,6 +1434,13 @@ defmodule SlipdockWeb.BoardLive.Show do
         id="move-board"
         current_user={@current_user}
         open_card_id={@panel == :card && @card && @card.id}
+      />
+      <.live_component
+        :if={@inbound}
+        module={SlipdockWeb.InboundAddressesComponent}
+        id="board-inbound"
+        board={@board}
+        current_user={@current_user}
       />
       <.live_component
         module={SlipdockWeb.BoardLive.SprintComponent}
