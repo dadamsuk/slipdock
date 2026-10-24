@@ -940,6 +940,7 @@ checks:
 | Possible duplicates | two open cards whose title and description read alike (similarity 0.92 or more, from the vectors search already keeps), not already linked | link them as duplicates and archive the one you don't keep |
 | Pages nothing links to | a wiki page more than 30 days old with no backlink, no pin and no folder (templates, drafts, pages on a list, pages with pages beneath and folder indexes are never orphans; nor is a page that links to a card — it shows in that card's Docs) | archive it, or file it into a folder |
 | Links that nearly match a page | a `[[link]]` to a page that doesn't exist whose title matches one page's title or alias ignoring case, or is within two edits of exactly one (two candidates suggests nothing) | rewrite the link to that page, on every page that has it |
+| Closed without a Handbook line | on a board whose tree keeps a [handbook](#tools), a card completed since it was installed with no `Handbook:` line in any comment (`Handbook: no change (…)` counts; off on boards without a handbook) | comment on the card asking for the docs gate and the line, or reopen it |
 
 Snoozed, archived and stand-in cards are left out: a snoozed card is somebody
 having already decided when to look again. No model is called — duplicates use
