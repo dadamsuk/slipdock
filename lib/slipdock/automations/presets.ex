@@ -238,6 +238,36 @@ defmodule Slipdock.Automations.Presets do
       ]
     },
     %{
+      key: "review_emailed_cards",
+      group: "Tidy",
+      title: "Flag cards that arrive by email",
+      description:
+        "Flag a card for review when mail makes it — sent to the board's card address or a " <>
+          "personal add- address — so somebody reads it before it is worked.",
+      fields: [
+        %{name: "flag", label: "Flag", type: "flag", required: true, default: "review"},
+        %{name: "column", label: "Only in list", type: "column", required: false}
+      ]
+    },
+    %{
+      key: "review_emailed_pages",
+      group: "Tidy",
+      title: "Flag pages that arrive by email",
+      description:
+        "Flag a wiki page for review when mail makes it or adds to it, through the board's " <>
+          "page address or a folder's.",
+      fields: [
+        %{name: "flag", label: "Flag", type: "flag", required: true, default: "review"},
+        %{
+          name: "folder",
+          label: "Only in folder",
+          type: "text",
+          required: false,
+          hint: "a folder's path, as Inbox or Notes/Calls"
+        }
+      ]
+    },
+    %{
       key: "webhook",
       group: "Connect",
       title: "Call a URL on every change",
@@ -594,6 +624,24 @@ defmodule Slipdock.Automations.Presets do
     end
   end
 
+  defp spec("review_emailed_cards", p, _opts) do
+    with {:ok, flag} <- preset_flag(p["flag"]) do
+      trigger = put_present(%{"type" => "card_emailed"}, "column", p["column"])
+
+      {:ok, "Emailed cards are flagged #{flag}", trigger, [],
+       [%{"type" => "add_flags", "flags" => [flag]}]}
+    end
+  end
+
+  defp spec("review_emailed_pages", p, _opts) do
+    with {:ok, flag} <- preset_flag(p["flag"]) do
+      trigger = put_present(%{"type" => "page_emailed"}, "folder", p["folder"])
+
+      {:ok, "Emailed pages are flagged #{flag}", trigger, [],
+       [%{"type" => "add_flags", "flags" => [flag]}]}
+    end
+  end
+
   defp spec("webhook", p, _opts) do
     url = p["url"]
 
@@ -646,6 +694,12 @@ defmodule Slipdock.Automations.Presets do
        |> Map.put("requeue_stuck", requeue(p["requeue"]))
        |> put_present("prompt", p["prompt"])
      ]}
+  end
+
+  defp preset_flag(flag) do
+    if Enum.member?(@flags, flag),
+      do: {:ok, flag},
+      else: {:error, "Flag must be one of #{Enum.join(@flags, ", ")}"}
   end
 
   # A form sends the number as text; anything that isn't one is left for the

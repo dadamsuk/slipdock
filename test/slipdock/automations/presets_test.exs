@@ -249,4 +249,41 @@ defmodule Slipdock.Automations.PresetsTest do
       assert Boards.get_card!(card.id).priority == "critical"
     end
   end
+
+  # #1275: what mail brings in, flagged for a person to read first.
+  describe "mail for review" do
+    test "cards that arrive by email are flagged review by default", ctx do
+      assert {:ok, %Rule{} = rule} = add(ctx.board, ctx.owner, "review_emailed_cards", %{})
+
+      assert rule.spec["trigger"] == %{"type" => "card_emailed"}
+      assert rule.spec["actions"] == [%{"type" => "add_flags", "flags" => ["review"]}]
+      assert rule.name == "Emailed cards are flagged review"
+    end
+
+    test "the card preset takes a list and another flag", ctx do
+      assert {:ok, rule} =
+               add(ctx.board, ctx.owner, "review_emailed_cards", %{
+                 "flag" => "starred",
+                 "column" => ctx.doing.name
+               })
+
+      assert rule.spec["trigger"] == %{"type" => "card_emailed", "column" => ctx.doing.name}
+      assert rule.spec["actions"] == [%{"type" => "add_flags", "flags" => ["starred"]}]
+    end
+
+    test "pages, optionally only in one folder", ctx do
+      assert {:ok, rule} =
+               add(ctx.board, ctx.owner, "review_emailed_pages", %{"folder" => "Notes/Calls"})
+
+      assert rule.spec["trigger"] == %{"type" => "page_emailed", "folder" => "Notes/Calls"}
+      assert rule.spec["actions"] == [%{"type" => "add_flags", "flags" => ["review"]}]
+    end
+
+    test "a flag that isn't one is refused", ctx do
+      for key <- ~w(review_emailed_cards review_emailed_pages) do
+        assert {:error, message} = add(ctx.board, ctx.owner, key, %{"flag" => "urgent"})
+        assert message =~ "Flag must be one of"
+      end
+    end
+  end
 end

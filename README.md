@@ -694,7 +694,10 @@ write to (the board's `…` menu › *Email to this board*, `slipdock inbound
 *Email this folder…*, `slipdock inbound <board> --folder <path>`) and a personal `add-…@` address that goes through Quick Add
 (Account, `slipdock inbound me`): see [Emailing your
 board](docs/manual.md#emailing-your-board) for what a message becomes and why
-one might bounce. Emails about a card (mentions, waits, automation emails)
+one might bounce. A board's automations can act on what mail brings in, as
+it arrives: the `card_emailed` and `page_emailed` triggers (flag it for
+review, tag it, alert someone; [Rules for what mail brings
+in](docs/manual.md#rules-for-what-mail-brings-in)). Emails about a card (mentions, waits, automation emails)
 carry a signed `reply-…@` `Reply-To`, so a reply becomes a comment on the
 card or answers the wait ([Replying to a
 notification](docs/manual.md#replying-to-a-notification)); rotating the

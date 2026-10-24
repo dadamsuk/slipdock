@@ -39,6 +39,18 @@ defmodule Slipdock.Automations.Spec do
      "a flag is put on a card (flagged, blocked, review, waiting, starred)"},
     {"card_activity", [], [],
      "anything happens to a card — added, moved, changed, commented on, tagged or archived; once per change"},
+    {"card_emailed", [], ["column"],
+     "a card arrives by email (#1275) — mail to a board's card address or a personal add- " <>
+       "address — once its description and files are on it (column: only cards it puts in that " <>
+       "list). Placeholders {{email.from}}, {{email.subject}}"},
+    {"page_emailed", [], ["folder", "how"],
+     "a wiki page arrives by email (#1275): mail to a page or folder address makes one (how: " <>
+       "new) or adds to one with a “+ Title” subject (how: added); default either. folder: only " <>
+       "pages in that folder, by path (Inbox, Notes/Calls). The rule acts on the page: " <>
+       "add_flags, remove_flags, set_priority, add_tags, remove_tags, set_due_date, " <>
+       "clear_due_date, assign, unassign, and the actions that need no card (email, alert, log, webhook, create_card, garden). " <>
+       "Placeholders {{page.title}}, {{page.code}}, {{page.url}}, {{page.folder}}, " <>
+       "{{email.from}}, {{email.subject}}"},
     {"job_finished", [], ["outcome", "pool"],
      "a runner job sent for a card ends, once per job (outcome: any of done, failed, " <>
        "cancelled, timeout, parked — how it ended, parked meaning on a question for a " <>
@@ -49,6 +61,14 @@ defmodule Slipdock.Automations.Spec do
   ]
 
   @job_outcomes ~w(done failed cancelled timeout parked requeued gave_up)
+
+  # How mail reaches a page: it makes one, or adds to one (`+ Title`).
+  @page_email_hows ~w(new added)
+
+  # What a rule can do when what arrived is a page, not a card (#1275): the
+  # facets a page shares with a card, and the actions that need no card.
+  @page_actions ~w(email alert set_priority add_tags remove_tags add_flags remove_flags assign
+                   unassign set_due_date clear_due_date create_card webhook log garden)
 
   @scheduled_triggers [
     {"card_stale", ["days"], ["column"], "a card has not been touched for N days"},
@@ -203,7 +223,8 @@ defmodule Slipdock.Automations.Spec do
     with {:ok, trigger} <- validate_trigger(spec["trigger"]),
          {:ok, conditions} <- validate_conditions(spec["conditions"] || []),
          {:ok, actions} <- validate_actions(spec["actions"]),
-         {:ok, trigger} <- check_feed(trigger, actions) do
+         {:ok, trigger} <- check_feed(trigger, actions),
+         :ok <- check_page_actions(trigger, actions) do
       {:ok, %{"trigger" => trigger, "conditions" => conditions, "actions" => actions}}
     end
   end
@@ -252,10 +273,40 @@ defmodule Slipdock.Automations.Spec do
     end
   end
 
+  defp check_trigger(%{"type" => "page_emailed", "how" => how} = trigger) do
+    how = how |> to_string() |> String.trim() |> String.downcase()
+
+    cond do
+      how in ["any", "either", "both"] -> {:ok, Map.delete(trigger, "how")}
+      how in @page_email_hows -> {:ok, Map.put(trigger, "how", how)}
+      true -> {:error, "trigger “page_emailed” how must be new or added"}
+    end
+  end
+
   defp check_trigger(trigger), do: {:ok, trigger}
 
   @doc "What a `job_finished` trigger's outcome may name."
   def job_outcomes, do: @job_outcomes
+
+  @doc "The actions a rule may take on a page that arrived by email."
+  def page_actions, do: @page_actions
+
+  # A page rule has no card to move, comment on or send to a runner: say so
+  # when it is saved rather than failing every time mail comes in.
+  defp check_page_actions(%{"type" => "page_emailed"}, actions) do
+    case Enum.reject(actions, &(&1["type"] in @page_actions)) do
+      [] ->
+        :ok
+
+      refused ->
+        {:error,
+         "trigger “page_emailed” acts on a page, which can't " <>
+           Enum.map_join(refused, ", ", & &1["type"]) <>
+           " (it can #{Enum.join(@page_actions, ", ")})"}
+    end
+  end
+
+  defp check_page_actions(_trigger, _actions), do: :ok
 
   defp check_feed(%{"type" => type} = trigger, actions) when type in @feed_types do
     unassigned =
@@ -533,6 +584,16 @@ defmodule Slipdock.Automations.Spec do
 
       "flag_added" ->
         "a card is flagged" <> where(t["flag"], "as")
+
+      "card_emailed" ->
+        "a card arrives by email" <> where(t["column"], "in")
+
+      "page_emailed" ->
+        case t["how"] do
+          "new" -> "mail makes a page"
+          "added" -> "mail adds to a page"
+          _ -> "a page arrives by email"
+        end <> where(t["folder"], "in")
 
       "job_finished" ->
         "a#{if t["pool"], do: " #{t["pool"]}", else: ""} runner job ends" <>

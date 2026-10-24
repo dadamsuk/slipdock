@@ -278,6 +278,8 @@ is not accepted.
 | `archive_done` | Archive finished work | `column`*, `days`* (14) |
 | `weekly_tidy` | Weekly tidy-up | `weekday`* (1), `at`* (09:00) |
 | `tag_priority` | Tag sets priority | `tag`*, `priority`* (critical) |
+| `review_emailed_cards` | Flag cards that arrive by email | `flag`* (review), `column` |
+| `review_emailed_pages` | Flag pages that arrive by email | `flag`* (review), `folder` |
 | `webhook` | Call a URL on every change | `url`* |
 | `send_to_runner` | Send cards to a runner | `column`*, `pool`* (default), `kind` (claude), `wait`* (no), `prompt` |
 | `feed_runner` | Work a list with a runner, top card first | `column`*, `pool`* (default), `kind` (claude), `wait`* (yes), `requeue` (1), `prompt` |

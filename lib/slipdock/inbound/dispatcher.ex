@@ -17,10 +17,17 @@ defmodule Slipdock.Inbound.Dispatcher do
   in the folder when the address is a folder's (#1277);
   `reply-…` comments on the card a notification was about (#1258,
   `Slipdock.Inbound.Replies`).
+
+  A card or page that mail made or added to is then announced to the
+  board's automations (#1275): `card_emailed` once the card has its
+  description and files, `page_emailed` with whether the page is `new` or
+  was `added` to and the folder it is in.
   """
 
   alias Slipdock.Inbound.{Cards, Pages, QuickAdd, Replies, ReplyToken, Tokens, Trust}
-  alias Slipdock.Wiki.Folder
+  alias Slipdock.{Automations, Repo}
+  alias Slipdock.Boards.Card
+  alias Slipdock.Wiki.{Folder, Folders, Page}
 
   @type request :: %{
           kind: String.t(),
@@ -44,7 +51,7 @@ defmodule Slipdock.Inbound.Dispatcher do
     with {:ok, {:card, user, board}} <- resolve(recipient),
          :ok <- trust(message, user, {:board, board}) do
       case Cards.to_board(user, board, message) do
-        {:ok, attrs} -> {:ok, attrs}
+        {:ok, attrs} -> {:ok, announce(attrs, message)}
         {:reject, reason} -> {:reject, reason, %{user_id: user.id}}
       end
     end
@@ -56,7 +63,7 @@ defmodule Slipdock.Inbound.Dispatcher do
          {board, opts} = page_target(target),
          :ok <- trust(message, user, {:board, board}) do
       case Pages.to_board(user, board, message, opts) do
-        {:ok, attrs} -> {:ok, attrs}
+        {:ok, attrs} -> {:ok, announce(attrs, message)}
         {:reject, reason} -> {:reject, reason, %{user_id: user.id}}
       end
     end
@@ -66,7 +73,7 @@ defmodule Slipdock.Inbound.Dispatcher do
     with {:ok, {:add, user, nil}} <- resolve(recipient),
          :ok <- trust(message, user, :personal) do
       case QuickAdd.capture(user, message) do
-        {:ok, attrs} -> {:ok, attrs}
+        {:ok, attrs} -> {:ok, announce(attrs, message)}
         {:reject, reason} -> {:reject, reason, %{user_id: user.id}}
       end
     end
@@ -99,6 +106,53 @@ defmodule Slipdock.Inbound.Dispatcher do
     case Tokens.resolve(recipient) do
       {:ok, found} -> {:ok, found}
       {:error, why} -> {:reject, unresolved(why), %{}}
+    end
+  end
+
+  @doc """
+  Tells the board's automations that mail made a card or a page (#1275):
+  the `card_emailed` or `page_emailed` event, with who sent it and what it
+  was called. A rule that fails is the rule's problem: `attrs` comes back
+  whatever the rules did, so the mail is never bounced for it.
+  """
+  @spec announce(map(), Slipdock.Inbound.Message.t()) :: map()
+  def announce(attrs, message) do
+    email = %{from: message.from, subject: message.subject}
+
+    cond do
+      card = attrs[:card_id] && Repo.get(Card, attrs.card_id) ->
+        card = Repo.preload(card, :column)
+
+        Automations.dispatch(%{
+          type: "card_emailed",
+          card: card,
+          column: card.column,
+          email: email
+        })
+
+      page = attrs[:page_id] && Repo.get(Page, attrs.page_id) ->
+        Automations.dispatch(%{
+          type: "page_emailed",
+          page: page,
+          board_id: page.board_id,
+          how: attrs[:how] || "new",
+          folder: folder_path(page),
+          email: email
+        })
+
+      true ->
+        :ok
+    end
+
+    attrs
+  end
+
+  defp folder_path(%Page{folder_id: nil}), do: nil
+
+  defp folder_path(%Page{folder_id: id}) do
+    case Repo.get(Folder, id) do
+      nil -> nil
+      folder -> Folders.path(folder)
     end
   end
 
