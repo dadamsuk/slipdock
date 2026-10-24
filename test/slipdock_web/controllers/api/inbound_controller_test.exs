@@ -66,6 +66,15 @@ defmodule SlipdockWeb.API.InboundControllerTest do
   end
 
   describe "the signature" do
+    # The same pair is pinned in cloudflare/inbound-email/worker.test.js, so
+    # the Worker and the app can't drift apart.
+    test "a known message signs to the value the Worker computes" do
+      raw = "From: a@example.com\r\nSubject: Hi\r\n\r\nBody é\r\n"
+
+      assert InboundController.sign("s3cret", "1700000000", raw) ==
+               "715b15c9a88842253a77c748601654d98800b068ee04ca81d1be4dd7499e14e0"
+    end
+
     test "a missing signature is 401, never a bounce", %{conn: conn} do
       assert %{"error" => "missing signature"} =
                conn |> post_mail(raw(), signature: nil) |> json_response(401)

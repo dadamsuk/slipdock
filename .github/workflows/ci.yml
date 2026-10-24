@@ -88,15 +88,16 @@ jobs:
           MIX_TEST_PARTITION: ${{ matrix.partition }}
 
       # The few browser scripts with logic worth testing on their own (the
-      # confirm dialog, assets/js/confirm.js) — plain node:test, no packages.
+      # confirm dialog, assets/js/confirm.js), and the Cloudflare Email Worker
+      # (cloudflare/inbound-email/) — plain node:test, no packages.
       - uses: actions/setup-node@v4
         if: matrix.partition == 1
         with:
           node-version: "24"
 
-      - name: Test browser scripts
+      - name: Test browser scripts and the Email Worker
         if: matrix.partition == 1
-        run: node --test 'assets/js/**/*.test.js'
+        run: node --test 'assets/js/**/*.test.js' 'cloudflare/**/*.test.js'
 
   # The CLI (cli/) is its own Mix project with its own suite. The Docker build
   # only compiles it, so without this job nothing checks its formatting,
