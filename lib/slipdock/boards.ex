@@ -3612,7 +3612,9 @@ defmodule Slipdock.Boards do
   this card.
 
   The card is flagged `waiting` through `update_card/3`, so rules on the
-  flag fire, and the wait remembers whether it set the flag. A card has one
+  flag fire, and the wait remembers whether it set the flag. A wait on a
+  named person other than the asker emails them (`Slipdock.Boards.WaitEmail`),
+  and with inbound mail on they can answer by replying. A card has one
   open wait at most: a second is refused, naming the first.
 
   Who may open one is the caller's to check: anyone who may change the card.
@@ -3648,6 +3650,7 @@ defmodule Slipdock.Boards do
 
       log(Repo, card.board_id, card.id, "wait", "waits on #{Wait.on_name(wait)}: #{wait.needs}")
       {:ok, _} = add_comment(card, opened_text(wait), by: user)
+      Slipdock.Boards.WaitEmail.opened(wait, card)
       broadcast(card.board_id)
       {:ok, wait}
     end

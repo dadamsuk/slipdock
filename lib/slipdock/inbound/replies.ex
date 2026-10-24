@@ -15,14 +15,21 @@ defmodule Slipdock.Inbound.Replies do
     * **Nothing to add**: a reply that is empty once trimmed, with no
       files, bounces.
 
+  When the card has an open wait on the person replying, the reply answers
+  it instead (#1259, `Slipdock.Inbound.WaitReply`), as `slipdock answer`
+  would; one that can't be read as an answer is a comment, and the wait
+  stays open with a comment saying why.
+
   The address and the sender have been checked by then
   (`Slipdock.Inbound.Dispatcher`).
   """
 
-  alias Slipdock.Boards
+  import Ecto.Query
+
+  alias Slipdock.{Actor, Boards, Repo}
   alias Slipdock.Accounts.User
-  alias Slipdock.Boards.Card
-  alias Slipdock.Inbound.{Cards, Message, Trim}
+  alias Slipdock.Boards.{Card, Comment, Wait}
+  alias Slipdock.Inbound.{Cards, Message, Trim, WaitReply}
 
   @nothing "There was nothing to add: the reply was empty once the quoted message was taken off."
 
@@ -40,14 +47,60 @@ defmodule Slipdock.Inbound.Replies do
       {stored, left_off} = store_all(card, files)
       cid = fn id -> if a = stored[{:cid, id}], do: Boards.attachment_url(a) end
 
-      text =
-        [body(message, cid), links(stored, message)]
-        |> Enum.reject(&(&1 == ""))
-        |> Enum.join("\n\n")
+      said = body(message, cid)
+      links = links(stored, message)
 
-      comment(user, card, text, left_off)
+      case waiting_on(card, user) do
+        %Wait{} = wait when said != "" -> answer(user, card, wait, said, links, left_off)
+        _ -> comment(user, card, join(said, links), left_off)
+      end
     end
   end
+
+  # The card's open wait, when it waits on this very person (#1259).
+  defp waiting_on(card, user) do
+    case Boards.current_wait(card) do
+      %Wait{on_user_id: id} = wait when id == user.id -> wait
+      _ -> nil
+    end
+  end
+
+  # The reply as the wait's answer; the answer is the comment
+  # `Boards.answer_wait/3` posts, with any files linked in one after it.
+  # A reply that can't be read as an answer is a plain comment, with a
+  # second saying why the wait is still open.
+  defp answer(user, card, wait, said, links, left_off) do
+    with {:ok, attrs} <- WaitReply.attrs(wait, said),
+         {:ok, _closed} <- Boards.answer_wait(wait, Actor.email(user), attrs) do
+      if links != "", do: Boards.add_comment(card, links, by: user)
+      if left_off != [], do: Boards.add_comment(card, Cards.left_off_comment(left_off), by: user)
+      {:ok, %{comment_id: answer_comment_id(card, user), user_id: user.id}}
+    else
+      {:error, why} ->
+        with {:ok, attrs} <- comment(user, card, join(said, links), left_off) do
+          Boards.add_comment(
+            card,
+            "**Not taken as the answer** to “#{wait.needs}”: #{why}. The wait is still open.",
+            by: user
+          )
+
+          {:ok, attrs}
+        end
+    end
+  end
+
+  defp answer_comment_id(card, user) do
+    Repo.one(
+      from(c in Comment,
+        where: c.card_id == ^card.id and c.user_id == ^user.id,
+        order_by: [desc: c.id],
+        limit: 1,
+        select: c.id
+      )
+    )
+  end
+
+  defp join(said, links), do: [said, links] |> Enum.reject(&(&1 == "")) |> Enum.join("\n\n")
 
   # Only files, and none of them kept: nothing reached the card.
   defp comment(_user, _card, "", left_off), do: {:reject, files_refused(left_off)}
