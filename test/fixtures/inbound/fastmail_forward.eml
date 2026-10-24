@@ -1,0 +1,28 @@
+Return-Path: <frank@example.net>
+MIME-Version: 1.0
+Message-Id: <0f1e2d3c-fwd@example.net>
+Date: Sat, 24 Oct 2026 13:00:00 +0100
+From: "Frank Fastmail" <frank@example.net>
+To: card-abc123@example.com
+Subject: Fwd: Invoice overdue
+Content-Type: multipart/mixed; boundary=fm_boundary_1
+
+This is a multi-part message in MIME format.
+
+--fm_boundary_1
+Content-Type: text/plain; charset=iso-8859-1
+Content-Transfer-Encoding: quoted-printable
+
+Please chase this. Na=EFve question, sorry.
+
+--fm_boundary_1
+Content-Type: message/rfc822
+Content-Disposition: attachment; filename="Invoice overdue.eml"
+
+From: billing@example.org
+To: frank@example.net
+Subject: Invoice overdue
+Message-ID: <inner@example.org>
+
+Your invoice is overdue.
+--fm_boundary_1--

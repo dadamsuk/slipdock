@@ -19,7 +19,7 @@ defmodule Slipdock.Inbound.Dispatcher do
           token: String.t() | nil,
           recipient: String.t(),
           sender: String.t() | nil,
-          raw: binary()
+          message: Slipdock.Inbound.Message.t()
         }
 
   @spec dispatch(request()) :: {:ok, map()} | {:reject, String.t(), map()}

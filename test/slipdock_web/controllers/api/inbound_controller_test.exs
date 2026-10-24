@@ -204,9 +204,15 @@ defmodule SlipdockWeb.API.InboundControllerTest do
       assert [%{message_id: "<" <> _}] = rows()
     end
 
-    test "with no headers at all is recorded under the envelope sender", %{conn: conn} do
-      assert conn |> post_mail("just some bytes") |> json_response(422)
-      assert [%{sender: "bounce@example.com", subject: nil}] = rows()
+    test "that can't be parsed is refused as unreadable, under the envelope sender",
+         %{conn: conn} do
+      assert %{"reject" => "The message couldn't be read."} =
+               conn |> post_mail("just some bytes") |> json_response(422)
+
+      assert [%{sender: "bounce@example.com", subject: nil, outcome: "rejected"}] = rows()
+      # And a repeat is refused the same way, without a second row.
+      assert build_conn() |> post_mail("just some bytes") |> json_response(422)
+      assert [_] = rows()
     end
   end
 
