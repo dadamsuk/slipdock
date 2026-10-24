@@ -94,7 +94,7 @@ defmodule Slipdock.Inbound.TokensTest do
 
       {:ok, new} = Tokens.address(user, board, :card)
       assert new != old
-      assert Tokens.resolve(local(old)) == {:error, :unknown}
+      assert Tokens.resolve(local(old)) == {:error, :revoked}
       assert {:ok, {:card, _, _}} = Tokens.resolve(local(new))
     end
   end
@@ -166,8 +166,8 @@ defmodule Slipdock.Inbound.TokensTest do
       {:ok, %{card: new_card, page: new_page}} = Tokens.rotate(user, board)
 
       assert new_card != old_card and new_page != old_page
-      assert Tokens.resolve(local(old_card)) == {:error, :unknown}
-      assert Tokens.resolve(local(old_page)) == {:error, :unknown}
+      assert Tokens.resolve(local(old_card)) == {:error, :revoked}
+      assert Tokens.resolve(local(old_page)) == {:error, :revoked}
       assert {:ok, {:card, _, _}} = Tokens.resolve(local(new_card))
       assert {:ok, ^new_card} = Tokens.address(user, board, :card)
 
@@ -182,7 +182,7 @@ defmodule Slipdock.Inbound.TokensTest do
       {:ok, %{add: new}} = Tokens.rotate(user, nil)
 
       assert new != old
-      assert Tokens.resolve(local(old)) == {:error, :unknown}
+      assert Tokens.resolve(local(old)) == {:error, :revoked}
       assert {:ok, {:card, _, _}} = Tokens.resolve(local(card))
     end
 
@@ -205,7 +205,7 @@ defmodule Slipdock.Inbound.TokensTest do
       {:ok, old} = Tokens.address(user, board, :card)
       assert Tokens.revoke(user, board) == :ok
 
-      assert Tokens.resolve(local(old)) == {:error, :unknown}
+      assert Tokens.resolve(local(old)) == {:error, :revoked}
       assert {:ok, new} = Tokens.address(user, board, :card)
       assert new != old
     end
@@ -230,7 +230,7 @@ defmodule Slipdock.Inbound.TokensTest do
       [grant] = Access.list_grants(board)
       {:ok, _} = Access.revoke(grant)
 
-      assert Tokens.resolve(local(theirs)) == {:error, :unknown}
+      assert Tokens.resolve(local(theirs)) == {:error, :revoked}
       assert {:ok, {:card, _, _}} = Tokens.resolve(local(mine))
     end
 
@@ -243,7 +243,7 @@ defmodule Slipdock.Inbound.TokensTest do
       share_fixture(board, other, "read")
 
       assert Tokens.resolve(local(theirs)) == {:error, :forbidden}
-      assert Tokens.resolve(local(theirs)) == {:error, :unknown}
+      assert Tokens.resolve(local(theirs)) == {:error, :revoked}
     end
   end
 end

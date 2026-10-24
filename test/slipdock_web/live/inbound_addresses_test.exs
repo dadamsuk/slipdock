@@ -59,7 +59,7 @@ defmodule SlipdockWeb.InboundAddressesTest do
       new = text(view, "#board-inbound-card")
       assert new != old
       assert has_element?(view, "#board-inbound-rotated")
-      assert Tokens.resolve(old) == {:error, :unknown}
+      assert Tokens.resolve(old) == {:error, :revoked}
       assert {:ok, {:card, _, _}} = Tokens.resolve(new)
     end
 
@@ -123,7 +123,7 @@ defmodule SlipdockWeb.InboundAddressesTest do
       view |> element("#account-inbound-rotate") |> render_click()
       new = text(view, "#account-inbound-add")
       assert new != add
-      assert Tokens.resolve(add) == {:error, :unknown}
+      assert Tokens.resolve(add) == {:error, :revoked}
     end
 
     test "not there while inbound mail is off", %{conn: conn} do

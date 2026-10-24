@@ -155,10 +155,11 @@ defmodule SlipdockWeb.API.InboundControllerTest do
       assert %{"reject" => _} = conn |> post_mail(raw(), to: nil) |> json_response(400)
     end
 
-    test "is refused for now, recorded with its reason", %{conn: conn} do
+    test "to a card token that doesn't exist is refused, recorded with its reason",
+         %{conn: conn} do
       user = user_fixture("sender@example.com")
 
-      assert %{"reject" => "Mail to this address isn't set up on this server yet."} =
+      assert %{"reject" => "No such address here."} =
                conn |> post_mail(raw(from: "Sender <#{user.email}>")) |> json_response(422)
 
       assert [email] = rows()
@@ -166,7 +167,7 @@ defmodule SlipdockWeb.API.InboundControllerTest do
       assert email.kind == "card"
       assert email.sender == user.email
       assert email.subject == "Hello"
-      assert email.reason =~ "isn't set up"
+      assert email.reason == "No such address here."
       assert email.size > 0
       # The sender claims to be this account, so it shows in their log.
       assert email.user_id == user.id
