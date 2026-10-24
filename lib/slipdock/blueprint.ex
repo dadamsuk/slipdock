@@ -27,6 +27,9 @@ defmodule Slipdock.Blueprint do
         ],
         "automations": [
           {"preset": "feed_runner", "params": {"column": "Found", "pool": "default"}}
+        ],
+        "cards": [
+          {"title": "Check the config", "description": "…", "repeat": "every mon"}
         ]
       }
 
@@ -34,6 +37,9 @@ defmodule Slipdock.Blueprint do
   is taken from), `backlog`, `doing`, `done` or `dropped` — and sets its
   category. `validate/1` checks the server will actually read each list that
   way, since that reading also depends on the other lists' names and order.
+
+  Cards are made once, by title, in the ready list unless `list` names
+  another; `repeat` makes one recurring (`Slipdock.Recurrence`).
 
   Automations are `Slipdock.Automations.Presets` recipes: a preset key and its
   form values, never a hand-written spec, so a blueprint can only ask for what
@@ -61,19 +67,27 @@ defmodule Slipdock.Blueprint do
     "done" => "done",
     "dropped" => "dropped"
   }
-  @keys ~w(lists folders tags pages automations)
+  @keys ~w(lists folders tags pages automations cards)
   @max_lists 20
   @max_folders 50
   @max_tags 50
   @max_pages 50
   @max_automations 20
+  @max_cards 20
 
   @doc "The roles a list can be given, and the category each one sets."
   def roles, do: @roles
 
   @doc "An empty blueprint: applying it adds nothing."
   def empty,
-    do: %{"lists" => [], "folders" => [], "tags" => [], "pages" => [], "automations" => []}
+    do: %{
+      "lists" => [],
+      "folders" => [],
+      "tags" => [],
+      "pages" => [],
+      "automations" => [],
+      "cards" => []
+    }
 
   ## Reading one ---------------------------------------------------------------
 
@@ -95,14 +109,16 @@ defmodule Slipdock.Blueprint do
          {:ok, folders} <- folders(blueprint["folders"]),
          {:ok, tags} <- tags(blueprint["tags"]),
          {:ok, pages} <- pages(blueprint["pages"], folders),
-         {:ok, automations} <- automations(blueprint["automations"], lists) do
+         {:ok, automations} <- automations(blueprint["automations"], lists),
+         {:ok, cards} <- cards(blueprint["cards"]) do
       {:ok,
        %{
          "lists" => lists,
          "folders" => folders,
          "tags" => tags,
          "pages" => pages,
-         "automations" => automations
+         "automations" => automations,
+         "cards" => cards
        }}
     end
   end
@@ -354,6 +370,54 @@ defmodule Slipdock.Blueprint do
 
   defp pages(_, _), do: {:error, "pages: a list of pages"}
 
+  # Cards ----------------------------------------------------------------------
+
+  defp cards(nil), do: {:ok, []}
+
+  defp cards(cards) when is_list(cards) and length(cards) > @max_cards,
+    do: {:error, "cards: at most #{@max_cards}"}
+
+  defp cards(cards) when is_list(cards) do
+    cards
+    |> Enum.with_index(1)
+    |> reduce_ok(fn
+      {%{} = card, i} ->
+        card = stringify(card)
+        title = card["title"] |> to_string() |> String.trim()
+
+        cond do
+          title == "" ->
+            {:error, "cards[#{i}]: a card needs a title"}
+
+          Enum.any?(~w(description list repeat), &(not (is_nil(card[&1]) or is_binary(card[&1])))) ->
+            {:error, "cards[#{i}] “#{title}”: description, list and repeat are text"}
+
+          (repeat = blank(card["repeat"])) &&
+              not match?({:ok, _}, Slipdock.Recurrence.Rule.parse_phrase(repeat)) ->
+            {:error,
+             "cards[#{i}] “#{title}”: repeat “#{repeat}” is not a rule (try \"every mon\")"}
+
+          true ->
+            {:ok,
+             %{
+               "title" => title,
+               "description" => card["description"] || "",
+               "list" => blank(card["list"]),
+               "repeat" => blank(card["repeat"])
+             }}
+        end
+
+      {_, i} ->
+        {:error, "cards[#{i}]: an object with a title"}
+    end)
+    |> then(fn
+      {:ok, cards} -> with :ok <- unique(cards, "title", "cards"), do: {:ok, cards}
+      error -> error
+    end)
+  end
+
+  defp cards(_), do: {:error, "cards: a list of cards"}
+
   defp front_matter?(nil), do: true
   defp front_matter?(yaml) when is_binary(yaml), do: Slipdock.Wiki.FrontMatter.valid_yaml?(yaml)
   defp front_matter?(_), do: false
@@ -456,7 +520,8 @@ defmodule Slipdock.Blueprint do
              {:ok, report, folders} <- apply_folders(board, blueprint["folders"], report),
              {:ok, report} <- apply_tags(board, blueprint["tags"], report),
              {:ok, report} <- apply_pages(board, blueprint["pages"], folders, report, opts),
-             {:ok, report} <- apply_automations(board, blueprint["automations"], report, opts) do
+             {:ok, report} <- apply_automations(board, blueprint["automations"], report, opts),
+             {:ok, report} <- apply_cards(board, blueprint["cards"], report, opts) do
           report
         else
           {:error, message} -> Repo.rollback(message)
@@ -575,6 +640,62 @@ defmodule Slipdock.Blueprint do
     do: Map.put(attrs, "front_matter", Slipdock.Wiki.FrontMatter.with_yaml(nil, yaml))
 
   defp put_front_matter(attrs, _yaml), do: attrs
+
+  # A card is made once: one of the same title already on the board, open,
+  # done or archived, means it was made before, so applying again (or after
+  # somebody finished the card) never makes a second.
+  defp apply_cards(board, cards, report, opts) do
+    existing =
+      from(c in Slipdock.Boards.Card, where: c.board_id == ^board.id, select: c.title)
+      |> Repo.all()
+      |> MapSet.new(&String.downcase/1)
+
+    columns = columns(board.id)
+
+    reduce_ok(cards, report, fn card, report ->
+      with false <- MapSet.member?(existing, String.downcase(card["title"])),
+           {:ok, column} <- card_column(columns, card["list"]),
+           {:ok, made} <-
+             Boards.create_card(
+               column,
+               %{"title" => card["title"], "description" => card["description"]},
+               by: opts[:user]
+             ),
+           :ok <- repeat(made, card["repeat"], opts[:user]) do
+        {:ok, note(report, :added, "cards", card["title"])}
+      else
+        true -> {:ok, note(report, :skipped, "cards", card["title"])}
+        {:error, %Ecto.Changeset{} = cs} -> {:error, "card “#{card["title"]}”: #{errors(cs)}"}
+        {:error, message} -> {:error, "card “#{card["title"]}”: #{message}"}
+      end
+    end)
+  end
+
+  defp card_column(columns, nil) do
+    case Slipdock.Flow.ready_list(columns) || List.first(columns) do
+      nil -> {:error, "the board has no lists"}
+      column -> {:ok, column}
+    end
+  end
+
+  defp card_column(columns, name) do
+    case Enum.find(columns, &(String.downcase(&1.name) == String.downcase(name))) do
+      nil -> {:error, "there is no list “#{name}”"}
+      column -> {:ok, column}
+    end
+  end
+
+  defp repeat(_card, nil, _user), do: :ok
+  defp repeat(_card, _rule, nil), do: {:error, "a repeating card needs somebody to make it"}
+
+  defp repeat(card, rule, user) do
+    case Slipdock.Recurrence.set(card, %{"rule" => rule}, user) do
+      {:ok, _series} -> :ok
+      {:error, %Ecto.Changeset{} = cs} -> {:error, errors(cs)}
+      {:error, message} when is_binary(message) -> {:error, message}
+      other -> {:error, inspect(other)}
+    end
+  end
 
   defp existing_page(board, title) do
     Repo.one(

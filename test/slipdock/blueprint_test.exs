@@ -58,6 +58,50 @@ defmodule Slipdock.BlueprintTest do
                Blueprint.validate(%{"pages" => [%{page | "front_matter" => 7}]}, lists: :optional)
     end
 
+    test "cards: checked, made once, in the ready list or a named one, repeating if asked" do
+      assert {:error, m} =
+               Blueprint.validate(%{"cards" => [%{"title" => "R", "repeat" => "now and then"}]},
+                 lists: :optional
+               )
+
+      assert m =~ "repeat"
+
+      assert {:error, m} = Blueprint.validate(%{"cards" => [%{"title" => ""}]}, lists: :optional)
+      assert m =~ "needs a title"
+
+      user = user_fixture()
+      board = board_fixture(%{}, owner: user)
+
+      bp = %{
+        "cards" => [
+          %{"title" => "First", "description" => "Do it"},
+          %{"title" => "Weekly", "list" => "Done", "repeat" => "every fri"}
+        ]
+      }
+
+      assert {:ok, report} = Blueprint.apply(board, bp, user: user)
+      assert report.added["cards"] == ["First", "Weekly"]
+
+      first = Repo.get_by!(Boards.Card, board_id: board.id, title: "First")
+      assert first.description == "Do it"
+      assert first.column_id == Slipdock.Flow.ready_list(board.columns).id
+
+      weekly = Repo.get_by!(Boards.Card, board_id: board.id, title: "Weekly")
+      assert Repo.get!(Boards.Column, weekly.column_id).name == "Done"
+      assert Slipdock.Recurrence.for_card(weekly)
+
+      assert {:ok, again} = Blueprint.apply(board, bp, user: user)
+      assert again.added["cards"] == []
+      assert again.skipped["cards"] == ["First", "Weekly"]
+
+      assert {:error, m} =
+               Blueprint.apply(board, %{"cards" => [%{"title" => "X", "list" => "Nope"}]},
+                 user: user
+               )
+
+      assert m =~ "no list “Nope”"
+    end
+
     test "a page's front matter lands on the page it makes", %{} do
       user = user_fixture()
       board = bare_board(user)

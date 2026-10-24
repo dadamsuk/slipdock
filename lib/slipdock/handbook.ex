@@ -94,7 +94,45 @@ defmodule Slipdock.Handbook do
   fields: title, summary
   empty: "No decisions written yet."
   ```
+
+  ## Log
+
+  _The reconcile card records each commit range it covered here, newest last._
   """
+
+  @seed_title "Seed the handbook"
+  @reconcile_title "Reconcile the handbook"
+
+  @seed_description """
+  Write the first real version of this board's handbook (the `Handbook/` folder, see its Index). Its pages are skeletons until this card is done. Spec: the Handbook Tool, W-1934.
+
+  **Procedure**
+
+  1. Read the codebase this board's work lands in: the README, CLAUDE.md / AGENTS.md, the top-level layout, the main modules, the schemas and migrations, the tests and CI config, the deploy scripts.
+  2. Read what the board already knows: `slipdock page ls <board>` for specs, design records and decision notes, and the last few dozen done cards for recurring patterns.
+  3. For each section page (Specification, Architecture, UX & UI, Components, Data model, Shared modules, Testing & tooling, Operations):
+     - write the body as the project is **now**, by `##` section, one subject per section, short, linking to code paths in backticks. Not history: decisions go in their own pages;
+     - set the front matter: `read_when:` (the kinds of card that should read it, in a line) and `covers:` (the path globs whose changes should touch it, like `[lib/app/accounts/**, priv/repo/migrations/**]`);
+     - keep the page's summary to one line.
+  4. Write one page per decision you find in the existing design records, specs and comments, filed in `Handbook/Decisions`: title `Decision: <what was chosen>`, then context, the choice, the alternatives and why not, and a link to where it was decided.
+  5. Add one line to the repo's CLAUDE.md (or AGENTS.md) pointing at the Index: `Project handbook: <Index code> on the <board> board — read the sections a card needs before building, and update them before closing it (a Handbook: line in the closing comment).` The wiki is the source of truth: do not copy the handbook into the repo.
+  6. Commit the CLAUDE.md change with this card's id, and close the card with a `Handbook:` line listing every page written.
+
+  **Done when:** every section page has real content and front matter, the decisions found have pages, CLAUDE.md points at the Index, and a person has been asked (in the closing comment) to read the drafts once.
+  """
+
+  @reconcile_description """
+  Bring the handbook (the `Handbook/` folder, see its Index) back in line with the code. Passes update it as they close cards; this catches what they missed, implementation choices above all. Spec: W-1934 §Drift.
+
+  1. Find where the last reconcile stopped: the last line of the Index's `## Log` (a commit range). None yet: start from the commit that seeded the handbook.
+  2. `git log --stat <last>..HEAD` on the default branch. For each change, check the pages whose `covers:` globs match its paths, and the checklist: user-visible behaviour → Specification; structure or boundaries → Architecture / Data model; a choice between alternatives → a new page in `Handbook/Decisions`; something reusable → Shared modules / Components; a UI pattern → UX & UI; how to test, build or deploy → Testing & tooling / Operations.
+  3. Update what drifted by section, with `--message "#<this card> reconcile <range>"`.
+  4. Append the range covered to the Index's `## Log`: `- <date>: <from>..<to>, updated <codes> (or nothing drifted)`.
+  5. Close the card with a `Handbook:` line. The next one comes by itself next week.
+  """
+
+  def seed_title, do: @seed_title
+  def reconcile_title, do: @reconcile_title
 
   @doc """
   The handbook as a board blueprint (see `Slipdock.Blueprint`): the folders,
@@ -125,7 +163,15 @@ defmodule Slipdock.Handbook do
       "folders" => [@folder, @decisions],
       "tags" => [],
       "pages" => [index | sections],
-      "automations" => []
+      "automations" => [],
+      "cards" => [
+        %{"title" => @seed_title, "description" => @seed_description},
+        %{
+          "title" => @reconcile_title,
+          "description" => @reconcile_description,
+          "repeat" => "every mon"
+        }
+      ]
     }
   end
 
@@ -148,6 +194,8 @@ defmodule Slipdock.Handbook do
              message: "installed by the Handbook Tool, #{@version}"
            ) do
         {:ok, report} ->
+          if @reconcile_title in report.added["cards"], do: reconcile_after_seed(root)
+
           {:ok,
            %{
              board: Boards.get_board!(root.id),
@@ -162,6 +210,22 @@ defmodule Slipdock.Handbook do
           {:error, message}
       end
     end
+  end
+
+  # The first reconcile waits for the seed: there is nothing to reconcile
+  # until the pages have been written, and a loop skips a blocked card.
+  defp reconcile_after_seed(root) do
+    cards =
+      from(c in Slipdock.Boards.Card,
+        where: c.board_id == ^root.id and c.title in [@seed_title, @reconcile_title],
+        order_by: [desc: c.id]
+      )
+      |> Repo.all()
+
+    seed = Enum.find(cards, &(&1.title == @seed_title))
+    reconcile = Enum.find(cards, &(&1.title == @reconcile_title))
+
+    if seed && reconcile && not seed.completed, do: Boards.add_dependency(reconcile, seed)
   end
 
   defp can_write(user, board) do

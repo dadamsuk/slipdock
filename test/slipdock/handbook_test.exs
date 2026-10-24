@@ -97,6 +97,51 @@ defmodule Slipdock.HandbookTest do
     end
   end
 
+  describe "the Seed and Reconcile cards (#1263)" do
+    test "install makes both, the reconcile weekly and waiting on the seed",
+         %{user: user, board: board} do
+      {:ok, result} = Handbook.install(user, board)
+      assert result.report.added["cards"] == ["Seed the handbook", "Reconcile the handbook"]
+
+      seed = Repo.get_by!(Slipdock.Boards.Card, board_id: board.id, title: "Seed the handbook")
+
+      rec =
+        Repo.get_by!(Slipdock.Boards.Card, board_id: board.id, title: "Reconcile the handbook")
+
+      assert seed.description =~ "CLAUDE.md"
+      assert seed.description =~ "covers:"
+      assert seed.description =~ "Handbook/Decisions"
+      assert rec.description =~ "git log"
+      assert rec.description =~ "## Log"
+
+      ready = Slipdock.Flow.ready_list(Boards.get_board!(board.id).columns)
+      assert seed.column_id == ready.id
+
+      series = Slipdock.Recurrence.for_card(rec)
+      assert series
+      assert Slipdock.Recurrence.Series.summary(series) =~ ~r/Mon/i
+
+      assert Enum.map(Boards.get_card!(rec.id).blocked_by, & &1.id) == [seed.id]
+    end
+
+    test "installing again (even after the seed is done) makes no second pair",
+         %{user: user, board: board} do
+      {:ok, _} = Handbook.install(user, board)
+      seed = Repo.get_by!(Slipdock.Boards.Card, board_id: board.id, title: "Seed the handbook")
+      {:ok, _} = Boards.update_card(seed, %{"completed" => true})
+
+      {:ok, again} = Handbook.install(user, board)
+      assert again.report.added["cards"] == []
+
+      assert Repo.aggregate(
+               from(c in Slipdock.Boards.Card,
+                 where: c.board_id == ^board.id and like(c.title, "%the handbook")
+               ),
+               :count
+             ) == 2
+    end
+  end
+
   describe "the Index" do
     test "lists the folder's pages, including one added later", %{user: user, board: board} do
       {:ok, _} = Handbook.install(user, board)
