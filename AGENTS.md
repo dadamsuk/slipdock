@@ -2,6 +2,7 @@ This is a web application written using the Phoenix web framework.
 
 ## Project guidelines
 
+- **Project handbook:** W-1943 (Handbook/Index) on the `slipdock` board — read the sections a card needs before building (`slipdock card` lists them), and update them before closing it, with a `Handbook:` line in the closing comment. The wiki is the source of truth; don't copy it into the repo.
 - Use `mix precommit` alias when you are done with all changes and fix any pending issues
 - Use the already included and available `:req` (`Req`) library for HTTP requests, **avoid** `:httpoison`, `:tesla`, and `:httpc`. Req is included by default and is the preferred HTTP client for Phoenix apps
 
