@@ -73,6 +73,9 @@ defmodule Slipdock.MixProject do
       # `SlipdockWeb.Markdown` still renders assistant replies; this is for
       # documents, where tables and fenced code have to work. See docs/wiki.md.
       {:mdex, "~> 0.14"},
+      # Reads the HTML of inbound mail (`Slipdock.Inbound.HtmlToMarkdown`).
+      # Pure Erlang parser by default: no NIF to fetch or build.
+      {:floki, "~> 0.38"},
       {:req, "~> 0.5"},
       {:swoosh, "~> 1.16"},
       {:gen_smtp, "~> 1.2"},
