@@ -147,8 +147,8 @@ them every version. To offer it to everyone on the server:
 
 ## The board blueprint: `board.json`
 
-The top-level keys are `lists` (required), `folders`, `tags`, `pages` and
-`automations`. Any other key is an error. Objects may also be written with
+The top-level keys are `lists` (required), `folders`, `tags`, `pages`,
+`automations` and `cards`. Any other key is an error. Objects may also be written with
 keys this page doesn't list, and those keys are ignored.
 
 ### `lists` (1 to 20)
@@ -220,6 +220,24 @@ are from the palette above.
 - `"template": true` makes the page a **page template** (what
   `slipdock page from <board> <template>` and the web's "new page from
   template" use).
+- `front_matter` is optional YAML text (without the `---` lines), stored as
+  the page's front matter: `"handbook: ux\nread_when: building a screen"`.
+
+### `cards` (at most 20)
+
+Cards the board starts with, such as a setup task or a weekly check:
+
+```json
+{"title": "Reconcile the handbook", "description": "…", "list": "To Do", "repeat": "every mon"}
+```
+
+- `title` is required and unique regardless of case.
+- `list` names a list on the board; the board's ready list when left out.
+- `repeat` makes the card recurring, in the words `slipdock repeat` takes
+  (`"every mon"`, `"month last fri"`, `"3d after"`).
+- A card is made once: if the board already has a card with that title
+  (open, done or archived), it is skipped, so installing again never makes
+  a second.
 
 ### `automations` (at most 20)
 
@@ -320,8 +338,8 @@ There is one install per person per Tool. The answer is `201`:
 ```json
 {"install": {"board": "<board code>", "board_id": 42, "board_name": "…", "url": "…/boards/42",
   "created": true, "upgraded": false, "version": "1.0.0", "installed_version": "1.0.0",
-  "added": {"lists": […], "folders": […], "tags": […], "pages": […], "automations": […], "files": […]},
-  "skipped": {"lists": [], "folders": [], "tags": [], "pages": [], "automations": []}}}
+  "added": {"lists": […], "folders": […], "tags": […], "pages": […], "automations": […], "cards": […], "files": […]},
+  "skipped": {"lists": [], "folders": [], "tags": [], "pages": [], "automations": [], "cards": []}}}
 ```
 
 On a **second install**, what happens depends on the version:
@@ -626,7 +644,8 @@ what is checked:
       ],
       "automations": [
         {"preset": "send_to_runner", "name": "Draft a reply", "params": {"column": "Generate", "pool": "generate", "kind": "claude", "wait": "no", "prompt": "Use the reply-drafts skill to draft a reply for card {{card.id}} ({{card.title}}): {{card.url}}"}}
-      ]
+      ],
+      "cards": []
     },
     "skills": [
       {
