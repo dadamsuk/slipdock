@@ -40,8 +40,8 @@ defmodule SlipdockWeb.InboundAddressesTest do
                ~s(#board-inbound-card-copy[phx-hook="CopyText"][data-target="board-inbound-card"])
              )
 
-      # Mail to a page address makes nothing yet (#1251), so it isn't offered.
-      refute has_element?(view, "#board-inbound-page")
+      {:ok, page} = Tokens.address(user, board, :page)
+      assert text(view, "#board-inbound-page") == page
     end
 
     test "rotating asks first, then shows a new address and the old one stops working",

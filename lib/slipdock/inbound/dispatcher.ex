@@ -12,11 +12,13 @@ defmodule Slipdock.Inbound.Dispatcher do
 
   `card-…` makes a card on the board's ready list (#1247,
   `Slipdock.Inbound.Cards`); `add-…` goes through Quick Add (#1248,
-  `Slipdock.Inbound.QuickAdd`), which checks the board it picks itself. The kinds not acted on yet are refused; the
-  epics after #1233 fill them in, one clause each.
+  `Slipdock.Inbound.QuickAdd`), which checks the board it picks itself;
+  `page-…` makes or adds to a wiki page (#1251, `Slipdock.Inbound.Pages`).
+  The kinds not acted on yet are refused; the epics after #1233 fill them
+  in, one clause each.
   """
 
-  alias Slipdock.Inbound.{Cards, QuickAdd, Tokens, Trust}
+  alias Slipdock.Inbound.{Cards, Pages, QuickAdd, Tokens, Trust}
 
   @type request :: %{
           kind: String.t(),
@@ -27,7 +29,7 @@ defmodule Slipdock.Inbound.Dispatcher do
         }
 
   # The kinds mail is acted on, and so the addresses the app hands out.
-  @live [:card, :add]
+  @live [:card, :page, :add]
 
   @doc "Whether mail to addresses of `kind` (`:card`, `:page`, `:add`) is acted on yet."
   @spec live?(atom()) :: boolean()
@@ -40,6 +42,16 @@ defmodule Slipdock.Inbound.Dispatcher do
     with {:ok, {:card, user, board}} <- resolve(recipient),
          :ok <- trust(message, user, {:board, board}) do
       case Cards.to_board(user, board, message) do
+        {:ok, attrs} -> {:ok, attrs}
+        {:reject, reason} -> {:reject, reason, %{user_id: user.id}}
+      end
+    end
+  end
+
+  def dispatch(%{kind: "page", recipient: recipient, message: message}) do
+    with {:ok, {:page, user, board}} <- resolve(recipient),
+         :ok <- trust(message, user, {:board, board}) do
+      case Pages.to_board(user, board, message) do
         {:ok, attrs} -> {:ok, attrs}
         {:reject, reason} -> {:reject, reason, %{user_id: user.id}}
       end
@@ -75,7 +87,7 @@ defmodule Slipdock.Inbound.Dispatcher do
     do: "This address is no longer in use: its owner has replaced it or turned it off."
 
   defp unresolved(:inactive), do: "This address is no longer active."
-  defp unresolved(:archived), do: "This board is archived, so it doesn't take new cards."
+  defp unresolved(:archived), do: "This board is archived, so it doesn't take mail."
   defp unresolved(:forbidden), do: "You can no longer add to this board."
   defp unresolved(_), do: "No such address here."
 
