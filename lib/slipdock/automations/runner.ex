@@ -363,7 +363,7 @@ defmodule Slipdock.Automations.Runner do
           subject = text(action["subject"], ctx, default_subject(ctx))
           body = text(action["body"], ctx, default_body(ctx))
 
-          case {Notifier.deliver(to, subject, body), refused} do
+          case {Notifier.deliver(to, subject, body, card: ctx.card), refused} do
             {:ok, []} ->
               {:ok, "emailed #{Enum.join(to, ", ")}"}
 
@@ -389,7 +389,7 @@ defmodule Slipdock.Automations.Runner do
         body = text(action["body"], ctx, default_body(ctx))
 
         with :ok <- email_allowance(ctx, length(emails)) do
-          case Notifier.deliver(emails, subject, body) do
+          case Notifier.deliver(emails, subject, body, card: ctx.card) do
             :ok -> {:ok, "emailed #{Enum.join(emails, ", ")}"}
             {:error, reason} -> {:error, "email failed: #{reason}"}
           end

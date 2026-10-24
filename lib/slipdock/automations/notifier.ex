@@ -15,17 +15,76 @@ defmodule Slipdock.Automations.Notifier do
   alias Slipdock.Egress
   alias Slipdock.Mailer
 
-  @doc "Sends one plain-text email to every address in `to`."
-  def deliver([], _subject, _body), do: {:error, "no recipient"}
+  @doc """
+  Sends one plain-text email to every address in `to`.
 
-  def deliver(to, subject, body) when is_list(to) do
+  `opts`:
+
+    * `card:` — the card the email is about. With inbound mail on
+      (`Slipdock.Inbound.enabled?/0`) each recipient then gets a copy of
+      their own (#1257): a `Reply-To` signed for them
+      (`Slipdock.Inbound.ReplyToken`), so a reply becomes their comment on
+      the card; a `Message-ID` with `In-Reply-To` and `References` naming
+      the card's thread, so a mail client threads every email about the
+      card together; and a footer line saying so. A recipient with no
+      account here gets the copy without the `Reply-To` and footer.
+    * `footer:` — the footer line in place of "Reply to this email to
+      comment on the card." (a wait email says how to answer it).
+  """
+  def deliver(to, subject, body, opts \\ [])
+  def deliver([], _subject, _body, _opts), do: {:error, "no recipient"}
+
+  def deliver(to, subject, body, opts) when is_list(to) do
     case Enum.filter(to, &valid_email?/1) do
       [] ->
         {:error, "no valid recipient in #{Enum.join(to, ", ")}"}
 
       recipients ->
-        run(fn -> send_mail(recipients, subject, body) end)
+        case {opts[:card], Slipdock.Inbound.enabled?()} do
+          {%Slipdock.Boards.Card{} = card, true} ->
+            run(fn -> send_each(recipients, card, subject, body, opts) end)
+
+          _ ->
+            run(fn -> send_mail(recipients, subject, body) end)
+        end
     end
+  end
+
+  @reply_footer "Reply to this email to comment on the card."
+
+  @doc """
+  The headers and footer the copy of an email about `card` for `address`
+  carries (see `deliver/4`): `{headers, footer}`, the footer nil when the
+  address has no account here, or the account can't comment on the card.
+  """
+  def reply_headers(card, address, footer \\ nil) do
+    host = Slipdock.Inbound.domain()
+    root = "<card-#{card.id}@#{host}>"
+
+    message_id =
+      "<card-#{card.id}.#{System.unique_integer([:positive])}.#{System.os_time(:millisecond)}@#{host}>"
+
+    thread = [{"Message-ID", message_id}, {"In-Reply-To", root}, {"References", root}]
+
+    with %Slipdock.Accounts.User{} = user <- Slipdock.Accounts.get_user_by_email(address),
+         true <- user |> Slipdock.Access.card_permission(card) |> Slipdock.Access.can_comment?(),
+         reply_to when is_binary(reply_to) <- Slipdock.Inbound.ReplyToken.address(card, user) do
+      {[{"Reply-To", reply_to} | thread], footer || @reply_footer}
+    else
+      _ -> {thread, nil}
+    end
+  end
+
+  # One copy each, since the Reply-To is signed for one person. The first
+  # failure is the answer; the rest are still tried.
+  defp send_each(recipients, card, subject, body, opts) do
+    recipients
+    |> Enum.map(fn address ->
+      {headers, footer} = reply_headers(card, address, opts[:footer])
+      body = if footer, do: String.trim_trailing(body) <> "\n\n-- \n" <> footer <> "\n", else: body
+      send_mail([address], subject, body, headers)
+    end)
+    |> Enum.find(:ok, &(&1 != :ok))
   end
 
   @doc """
@@ -78,13 +137,20 @@ defmodule Slipdock.Automations.Notifier do
 
   ## Delivery -----------------------------------------------------------------
 
-  defp send_mail(recipients, subject, body) do
+  defp send_mail(recipients, subject, body, headers \\ []) do
     email =
-      new()
-      |> to(recipients)
-      |> from(Mailer.from())
-      |> subject(subject)
-      |> text_body(body)
+      Enum.reduce(
+        headers,
+        new()
+        |> to(recipients)
+        |> from(Mailer.from())
+        |> subject(subject)
+        |> text_body(body),
+        fn
+          {"Reply-To", address}, email -> reply_to(email, address)
+          {name, value}, email -> header(email, name, value)
+        end
+      )
 
     case Mailer.deliver_configured(email) do
       {:ok, _} ->

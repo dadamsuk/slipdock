@@ -105,7 +105,9 @@ defmodule Slipdock.Mentions do
     |> Enum.each(fn person ->
       # Held back inside a write that may yet roll back (`Slipdock.Deferred`).
       Slipdock.Deferred.defer(fn ->
-        Notifier.deliver([person.email], subject(card, board, by), body(card, by, where, text))
+        Notifier.deliver([person.email], subject(card, board, by), body(card, by, where, text),
+          card: card
+        )
       end)
     end)
   end
