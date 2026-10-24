@@ -25,7 +25,7 @@ defmodule SlipdockWeb.API.InboundControllerTest do
 
   defp raw(opts \\ []) do
     id =
-      Keyword.get(opts, :message_id, "<#{System.unique_integer([:positive])}@mail.example.com>")
+      Keyword.get(opts, :message_id, "<#{System.unique_integer([:positive])}@example.com>")
 
     from = Keyword.get(opts, :from, "Sender <sender@example.com>")
 
@@ -159,7 +159,7 @@ defmodule SlipdockWeb.API.InboundControllerTest do
     end
 
     test "to another domain is refused, however the local part looks", %{conn: conn} do
-      to = "card-abc@elsewhere.example.com"
+      to = "card-abc@example.org"
 
       assert %{"reject" => "No such address here."} =
                conn |> post_mail(raw(), to: to) |> json_response(422)
@@ -167,7 +167,7 @@ defmodule SlipdockWeb.API.InboundControllerTest do
 
     test "accepted is 202, and a repeat is 200 with no second row", %{conn: conn} do
       TestConfig.put(:inbound_dispatcher, AcceptCards)
-      body = raw(message_id: "<once@mail.example.com>")
+      body = raw(message_id: "<once@example.com>")
 
       assert %{"ok" => true, "id" => id} = conn |> post_mail(body) |> json_response(202)
 
@@ -178,7 +178,7 @@ defmodule SlipdockWeb.API.InboundControllerTest do
     end
 
     test "a repeat of a refused message is refused again, without a second row", %{conn: conn} do
-      body = raw(message_id: "<refused@mail.example.com>")
+      body = raw(message_id: "<refused@example.com>")
 
       assert %{"reject" => reason} = conn |> post_mail(body) |> json_response(422)
       assert %{"reject" => ^reason} = build_conn() |> post_mail(body) |> json_response(422)
@@ -187,7 +187,7 @@ defmodule SlipdockWeb.API.InboundControllerTest do
 
     test "the same message to two addresses is two rows", %{conn: conn} do
       TestConfig.put(:inbound_dispatcher, AcceptCards)
-      body = raw(message_id: "<twice@mail.example.com>")
+      body = raw(message_id: "<twice@example.com>")
 
       assert conn |> post_mail(body) |> json_response(202)
       assert build_conn() |> post_mail(body, to: "card-xyz@#{@domain}") |> json_response(202)
