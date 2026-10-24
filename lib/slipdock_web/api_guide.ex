@@ -39,6 +39,7 @@ defmodule SlipdockWeb.APIGuide do
       meetings(),
       chat_capture(),
       wiki(),
+      handbook(),
       portable(),
       vocabulary_section(),
       endpoints_section(),
@@ -192,6 +193,7 @@ defmodule SlipdockWeb.APIGuide do
     "Meeting capture" => "meetings",
     "Chat capture" => "chats",
     "The wiki: writing things down" => "wiki",
+    "The handbook" => "handbook",
     "Skills" => "skills",
     "Moving boards between servers" => "moving",
     "Vocabulary" => "vocabulary",
@@ -2942,6 +2944,51 @@ defmodule SlipdockWeb.APIGuide do
     about what is on it. Board codes, list names and tag vocabularies stay out
     of them deliberately and come from this guide instead — a skill that
     hardcodes them rots, and one that sends you here does not.
+    """
+  end
+
+  # The handbook (#1261, W-1934): what a pass reads before building and
+  # updates before closing, on boards that keep one.
+  defp handbook do
+    """
+
+    ## The handbook
+
+    A board can keep a **handbook**: wiki pages in its root board's
+    `Handbook/` folder describing the project as it is now (Specification,
+    Architecture, UX & UI, Components, Data model, Shared modules, Testing &
+    tooling, Operations), one page per decision in `Handbook/Decisions`, and
+    an Index that lists them. Each page's front matter says when to read it
+    (`read_when:`) and which paths it covers (`covers:`).
+
+    ```sh
+    slipdock tools install-board handbook --board <board>   # or install_tool {tool: "handbook", board}
+    slipdock handbook <board>       # the index and the decisions (GET /api/boards/:board/handbook)
+    slipdock handbook <card>        # what that card should read
+    ```
+
+    On a handbook board, `get_card` and `GET /api/cards/:id` carry a
+    `handbook` key: `index` (code, title, summary, `read_when` of each page)
+    and `suggested`, up to five `{page, title, section, why}` to read before
+    building: `slipdock page section <page> "<section>"`, or the whole page
+    when `section` is null. A subcard gets its root board's handbook.
+
+    **Before closing, the docs gate.** Check the diff against the handbook:
+
+    | The card… | Updates… |
+    |---|---|
+    | added user-visible behaviour | Specification |
+    | changed structure or boundaries | Architecture / Data model |
+    | chose between alternatives | a new page in `Handbook/Decisions` |
+    | added something reusable | Shared modules / Components |
+    | added or changed a UI pattern | UX & UI |
+    | changed how to test, build or deploy | Testing & tooling / Operations |
+
+    Edit by section with `--message "#<card> …"`, and put one line in the
+    closing comment: `Handbook: updated W-3 §Contexts, new W-41`, or
+    `Handbook: no change (<why>)`. A card that names a page ("Document in:
+    Architecture") must update it. The gardener flags done cards without
+    the line.
     """
   end
 

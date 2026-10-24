@@ -10,7 +10,9 @@ defmodule SlipdockCLI.Boards do
   alias SlipdockCLI.HTTP
   alias SlipdockCLI.Render
 
-  @commands ~w(guide work search ask search-status saved save unsave boards board columns tags activity pulse flow cards card swimlanes views favourites fav unfav hotkeys hotkey header table fields milestones templates add copy repeat recurring snooze wake edit set vote status handoff timeline wait waits answer new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
+  @commands ~w(guide work search ask search-status saved save unsave boards board columns tags activity pulse flow handbook cards card swimlanes views favourites fav unfav hotkeys hotkey header table fields milestones templates add copy repeat recurring snooze wake edit set vote status handoff timeline wait waits answer new-field delete-field preset milestone delete-milestone move done undone flag tag check timer log tick comment link unlink weblink unweblink attach attachments download detach card-front transcribe card-front blocked-by blocks archive restore delete subboard new-template delete-template new-board welcome set-board sprint sprint-add sprint-sources sprint-plan burndown velocity archive-board restore-board order-boards new-column set-column new-tag save-view update-view delete-view)
+
+  defp card_ref?(ref), do: String.match?(ref, ~r/\A#?\d+\z/)
 
   @doc "The command names this module answers to; `SlipdockCLI` routes on it."
   def commands, do: @commands
@@ -104,6 +106,17 @@ defmodule SlipdockCLI.Boards do
 
   # The board's flow numbers (#1113): what is in progress and waiting, done
   # this week, how long work takes to get done, and each list's traffic.
+  # The handbook (#1265): a card's suggested reading (`#123` or a number), or
+  # a board's index.
+  def run("handbook", [ref], o) do
+    if card_ref?(ref) do
+      HTTP.get("/cards/#{enc(String.trim_leading(ref, "#"))}")
+      |> out(o, &Render.handbook_for_card(&1["card"]))
+    else
+      HTTP.get("/boards/#{enc(ref)}/handbook") |> out(o, &Render.handbook(&1))
+    end
+  end
+
   def run("pulse", [ref], o),
     do: HTTP.get("/boards/#{enc(ref)}/pulse") |> out(o, &Render.pulse(&1["pulse"]))
 

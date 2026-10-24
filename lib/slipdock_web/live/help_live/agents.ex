@@ -934,6 +934,28 @@ defmodule SlipdockWeb.HelpLive.Agents do
         has the details.
       </p>
     </.part>
+
+    <.part title="The handbook" id="help-handbook">
+      <p>
+        One Tool is built in. <code>slipdock tools install-board handbook --board B</code>
+        (or <code>install_tool</code>
+        with <code>board</code>) gives a board's root a <code>Handbook/</code>
+        folder: pages for the specification, architecture, UX, components, data model,
+        shared modules, testing and operations, one page per decision, and an Index that
+        lists them, plus a card that drafts them from the code and a weekly one that
+        catches drift.
+      </p>
+      <p>
+        You write no instructions for it. On that board every card a pass reads
+        (<code>slipdock card</code>, <code>get_card</code>) carries a <strong>Handbook</strong>
+        block: the sections to read before building, picked from the card's title,
+        description and the paths it names. Before closing, the loop runs a docs gate
+        against the diff and leaves a <code>Handbook:</code>
+        line in its closing comment — what it updated, or <code>no change (why)</code>.
+        <code>slipdock handbook &lt;board&gt;</code>
+        prints the index.
+      </p>
+    </.part>
     """
   end
 

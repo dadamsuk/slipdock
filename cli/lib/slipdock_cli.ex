@@ -173,6 +173,9 @@ defmodule SlipdockCLI do
                                         failure rate, time to restore, rework rate and idea
                                         to production, each with its DORA band and the trend
                                         (needs the board's delivery metrics on; see `deploy`)
+    handbook <board>|<card>             the handbook (Handbook/ wiki pages) of the board's tree:
+                                        its index and decisions, or the sections a card
+                                        should read before building (also in `card`)
     pulse <board>                       the board's flow numbers: in progress, waiting, done in
                                         7 days and today, P50/P85 time to done, moves in 24h
                                         forward and back, and each list's in/out and usual stay

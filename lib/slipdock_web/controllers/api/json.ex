@@ -1028,6 +1028,18 @@ defmodule SlipdockWeb.API.JSON do
   def backlink(%Link{source_card: %Card{} = c} = l),
     do: %{card: card_stub(c), count: l.count, pinned: l.pinned, raw: l.raw}
 
+  @doc """
+  Puts a card's handbook (#1265, see `Slipdock.Handbook.for_card/3`) on its
+  JSON: the index and the sections to read before building. Left off when
+  the card's root board keeps no handbook, or `user` can't read it.
+  """
+  def put_handbook(map, card, user, token) do
+    case Slipdock.Handbook.for_card(card, user, token: token) do
+      nil -> map
+      handbook -> Map.put(map, :handbook, handbook)
+    end
+  end
+
   @doc "The answer a live query block gives, whatever shape it takes."
   def query_result(%{kind: :count} = result), do: %{kind: "count", count: result.count}
 
