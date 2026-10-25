@@ -13,7 +13,7 @@ defmodule SlipdockWeb.HelpLiveTest do
 
   alias SlipdockWeb.HelpLive.{Agents, Guides}
 
-  @sections ~w(boards wiki sharing automations tools ai)
+  @sections ~w(boards wiki sharing email automations tools ai)
   @topics ~w(guide mcp cli skills runners webhooks)
 
   defp doc(html), do: LazyHTML.from_document(html)
@@ -370,6 +370,46 @@ defmodule SlipdockWeb.HelpLiveTest do
 
       assert has_element?(view, ~s{a[href="/help"]}, "Help")
       assert has_element?(view, ~s{a[href="/help/agents"]}, "Compare them in Help")
+    end
+  end
+
+  describe "Email" do
+    @tag :anonymous
+    test "covers each address, what mail makes, replies, bounces and the log", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/help/email")
+
+      assert has_element?(view, "#email-addresses", "Email to this board")
+      assert has_element?(view, "#email-addresses", "Email this folder…")
+      assert has_element?(view, "#email-addresses", "slipdock inbound me")
+      assert has_element?(view, "#email-cards", "ready list")
+      assert has_element?(view, "#email-cards", "[Website] Renew the cert due: friday #high")
+      assert has_element?(view, "#email-pages", "[Design/Decisions] Use Postgres")
+      assert has_element?(view, "#email-pages", "+ Journal")
+      assert has_element?(view, "#email-replies", "waiting on you")
+      assert has_element?(view, "#email-bounces", "Auto-replies")
+      assert has_element?(view, "#email-more", "slipdock inbound log")
+      assert has_element?(view, "#email-more", "card_emailed")
+      assert has_element?(view, ~s{#email-more a[href="/help/automations"]}, "Automations")
+    end
+
+    @tag :anonymous
+    test "signed out, the Account page is named but not linked", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/help/email")
+      assert has_element?(view, "#email-addresses span", "Account")
+      refute has_element?(view, ~s{#help a[href="/account"]})
+    end
+
+    test "signed in, the Account page is a link", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/help/email")
+      assert has_element?(view, ~s{#email-addresses a[href="/account"]}, "Account")
+      assert has_element?(view, ~s{#email-more a[href="/account"]}, "Account")
+    end
+
+    @tag :anonymous
+    test "the hub lists it with its parts", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/help")
+      assert has_element?(view, ~s{#help-hub-email a[href="/help/email"]}, "Email")
+      assert has_element?(view, ~s{#help-hub-email a[href="/help/email#email-replies"]})
     end
   end
 

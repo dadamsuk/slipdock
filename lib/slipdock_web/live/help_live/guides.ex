@@ -1,6 +1,6 @@
 defmodule SlipdockWeb.HelpLive.Guides do
   @moduledoc """
-  Help's guides to the app itself: boards, the wiki, sharing, automations,
+  Help's guides to the app itself: boards, the wiki, sharing, email, automations,
   Tools and the AI features. Each is one page of short parts; the hub lists the parts so
   a reader can jump straight to one. The part ids here are those anchors, so
   a part's `id` in its page and in `@sections` have to agree (the tests check).
@@ -56,6 +56,22 @@ defmodule SlipdockWeb.HelpLive.Guides do
         {"sharing-pages", "Wiki pages and folders"},
         {"sharing-groups", "Groups and new people"},
         {"sharing-public", "Public links"}
+      ]
+    },
+    %{
+      slug: "email",
+      title: "Email",
+      icon: "hero-envelope",
+      intro:
+        "Send cards and wiki pages in from your mail client, and reply to Slipdock's emails " <>
+          "to comment on a card or answer what it's waiting for.",
+      parts: [
+        {"email-addresses", "Your addresses"},
+        {"email-cards", "Emailing a card in"},
+        {"email-pages", "Emailing a wiki page"},
+        {"email-replies", "Replying to an email"},
+        {"email-bounces", "When mail bounces"},
+        {"email-more", "Checking and automating"}
       ]
     },
     %{
@@ -457,6 +473,168 @@ defmodule SlipdockWeb.HelpLive.Guides do
         page is its text plus a snapshot of its query answers. Unpublishing withdraws the link
         immediately.
       </p>
+    </.part>
+    """
+  end
+
+  # ── Email ─────────────────────────────────────────────────────────────────
+
+  def guide(%{slug: "email"} = assigns) do
+    ~H"""
+    <.part title="Your addresses" id="email-addresses">
+      <p>
+        When your server receives mail, you have addresses of your own to send things in from
+        any mail client. Each one only takes mail <em>from</em>
+        your account's own address, so it's no use to anybody else.
+      </p>
+      <ul class="list-disc space-y-1 pl-5">
+        <li>
+          <strong>A board's card and page addresses</strong>
+          (<code>card-…</code>
+          and <code>page-…</code>): the board's <strong>…</strong>
+          menu › <strong>Email to this board</strong>, on the board or in its wiki. You
+          have them for every board you can edit.
+        </li>
+        <li>
+          <strong>A wiki folder's address</strong> (<code>page-…</code>): right-click the folder
+          in the wiki tree › <strong>Email this folder…</strong>
+        </li>
+        <li>
+          <strong>Your personal address</strong>
+          (<code>add-…</code>): on your
+          <.app_link
+            current_user={@current_user}
+            to={~p"/account"}
+          >Account</.app_link>
+          page, under <strong>Email a card in</strong>. It reaches any board.
+        </li>
+      </ul>
+      <p>
+        Every address has a Copy button and <strong>New address</strong>. If one leaks,
+        make a new one: mail to the old address bounces from then on. From the CLI, <code>slipdock inbound &lt;board&gt;</code>,
+        <code>--folder &lt;path&gt;</code>
+        or <code>slipdock inbound me</code>
+        shows the same addresses.
+      </p>
+    </.part>
+
+    <.part title="Emailing a card in" id="email-cards">
+      <p>
+        Mail to a board's card address is a new card on its ready list, added by you. Forward
+        an invoice, a bug report or a note to yourself:
+      </p>
+      <ul class="list-disc space-y-1 pl-5">
+        <li>
+          the <strong>subject</strong>
+          is the title, with <code>Re:</code>
+          and <code>Fwd:</code>
+          taken off;
+        </li>
+        <li>
+          the <strong>body</strong> is the description, with quoted replies and your signature
+          trimmed;
+        </li>
+        <li>
+          <strong>attachments</strong> go on the card, and images in the message show where
+          they were.
+        </li>
+      </ul>
+      <p>
+        Your <strong>personal address</strong>
+        reads the subject the way Quick add does, so it can set the board, list, priority and
+        due date: <code>[Website] Renew the cert due: friday #high</code>. With no board
+        named, the card goes to your Quick add default board.
+      </p>
+      <p>
+        To add to a card that already exists, reply to an email about it (see below).
+      </p>
+    </.part>
+
+    <.part title="Emailing a wiki page" id="email-pages">
+      <p>
+        Mail to a board's page address is a new wiki page. The subject is its title, the body
+        the page, and attachments are the page's files. Send meeting notes, a write-up or a
+        day's journal.
+      </p>
+      <ul class="list-disc space-y-1 pl-5">
+        <li>It goes in the <code>Inbox</code> folder, made the first time it's needed.</li>
+        <li>
+          <code>[Design/Decisions] Use Postgres</code>
+          files it in that folder instead, making any folder along the path that's missing.
+        </li>
+        <li>
+          <code>+ Journal</code>
+          adds the message to the existing page called Journal, under a heading with today's
+          date and your name, instead of making a new page. It suits a running log.
+        </li>
+        <li>
+          Mail to a <strong>folder's address</strong>
+          goes in that folder without a <code>[Folder]</code>
+          in the subject. <code>[Sub] Title</code>
+          files it in a folder beneath that one.
+        </li>
+      </ul>
+    </.part>
+
+    <.part title="Replying to an email" id="email-replies">
+      <p>
+        Emails about a card, such as a mention, an automation's email or something waiting on
+        you, can be answered from your mail client. Reply as you would to anyone:
+      </p>
+      <ul class="list-disc space-y-1 pl-5">
+        <li>
+          what you wrote is a <strong>comment</strong>
+          on the card, by you, with the quoted history and your signature taken off;
+        </li>
+        <li>attachments go on the card, and <code>@name</code> tells that person;</li>
+        <li>
+          if the card is <strong>waiting on you</strong>, your reply answers it. Start with a
+          choice's number or text to pick it, and give each question its own paragraph.
+        </li>
+      </ul>
+      <p>Emails about one card thread together in your mail client.</p>
+    </.part>
+
+    <.part title="When mail bounces" id="email-bounces">
+      <p>The bounce says why. The usual reasons:</p>
+      <ul class="list-disc space-y-1 pl-5">
+        <li>it wasn't sent from your account's address, or couldn't be shown to be;</li>
+        <li>the address has been replaced with a new one;</li>
+        <li>you can no longer edit that board, or it's archived;</li>
+        <li>a <code>+ Title</code> names no page on the board (the bounce suggests close titles);</li>
+        <li>a reply had nothing in it once the quoted message was taken off.</li>
+      </ul>
+      <p>
+        Auto-replies and list mail are dropped without a bounce, so two systems can't answer
+        each other forever.
+      </p>
+    </.part>
+
+    <.part title="Checking and automating" id="email-more">
+      <ul class="list-disc space-y-1 pl-5">
+        <li>
+          <strong>Did it arrive?</strong>
+          <.app_link
+            current_user={@current_user}
+            to={~p"/account"}
+          >Account</.app_link>
+          › <strong>Inbound email</strong>
+          lists your last 50 messages: what each made, or why it bounced. From the CLI, <code>slipdock inbound log</code>.
+        </li>
+        <li>
+          <strong>A link back.</strong>
+          Tick <strong>Email me back a link to each card my mail makes</strong>
+          on the Account page for a short reply with the new card's link.
+        </li>
+        <li>
+          <strong>Rules for what mail brings in.</strong>
+          The <code>card_emailed</code>
+          and <code>page_emailed</code>
+          triggers let an
+          automation act on it as it arrives, such as flagging every emailed card for review
+          (see <.link patch={~p"/help/automations"} class="link">Automations</.link>).
+        </li>
+      </ul>
     </.part>
     """
   end
