@@ -35,6 +35,9 @@ kanban-*.tar
 npm-debug.log
 /assets/node_modules/
 
+# Wrangler's local cache for the inbound-email Worker.
+/cloudflare/inbound-email/.wrangler/
+
 # Database files
 *.db
 *.db-*
